@@ -1,45 +1,45 @@
 # TerraCi
 
-CLI-инструмент для анализа Terraform-проектов и автоматической генерации GitLab CI пайплайнов с учётом зависимостей между модулями.
+CLI tool for analyzing Terraform projects and automatically generating GitLab CI pipelines with proper module dependency ordering.
 
-## Возможности
+## Features
 
-- Автоматическое обнаружение Terraform-модулей по структуре директорий
-- Извлечение зависимостей из `terraform_remote_state` (включая `for_each`)
-- Построение графа зависимостей с топологической сортировкой
-- Генерация GitLab CI пайплайнов с правильным порядком выполнения
-- Фильтрация модулей по glob-паттернам
-- Git-интеграция: генерация пайплайнов только для изменённых модулей
+- Automatic discovery of Terraform modules based on directory structure
+- Dependency extraction from `terraform_remote_state` (including `for_each`)
+- Dependency graph construction with topological sorting
+- GitLab CI pipeline generation with correct execution order
+- Module filtering using glob patterns
+- Git integration: generate pipelines only for changed modules
 
-## Установка
+## Installation
 
 ```bash
-# Из исходников
+# From source
 go install github.com/terraci/terraci/cmd/terraci@latest
 
-# Или сборка локально
+# Or build locally
 make build
 ```
 
-## Быстрый старт
+## Quick Start
 
 ```bash
-# Инициализация конфигурации
+# Initialize configuration
 terraci init
 
-# Валидация структуры проекта
+# Validate project structure
 terraci validate
 
-# Генерация пайплайна
+# Generate pipeline
 terraci generate -o .gitlab-ci.yml
 
-# Только для изменённых модулей
+# Only for changed modules
 terraci generate --changed-only --base-ref main -o .gitlab-ci.yml
 ```
 
-## Структура проекта
+## Project Structure
 
-TerraCi ожидает следующую структуру директорий:
+TerraCi expects the following directory structure:
 
 ```
 project/
@@ -49,11 +49,11 @@ project/
 │           ├── module/           # depth 4
 │           │   └── main.tf
 │           └── module/
-│               └── submodule/    # depth 5 (опционально)
+│               └── submodule/    # depth 5 (optional)
 │                   └── main.tf
 ```
 
-Пример:
+Example:
 ```
 infrastructure/
 ├── cdp/
@@ -68,19 +68,19 @@ infrastructure/
 │           └── vpc/
 ```
 
-## Команды
+## Commands
 
-| Команда | Описание |
-|---------|----------|
-| `terraci generate` | Генерация GitLab CI пайплайна |
-| `terraci validate` | Валидация структуры и зависимостей |
-| `terraci graph` | Визуализация графа зависимостей |
-| `terraci init` | Создание конфигурационного файла |
-| `terraci version` | Информация о версии |
+| Command | Description |
+|---------|-------------|
+| `terraci generate` | Generate GitLab CI pipeline |
+| `terraci validate` | Validate structure and dependencies |
+| `terraci graph` | Visualize dependency graph |
+| `terraci init` | Create configuration file |
+| `terraci version` | Show version information |
 
-## Конфигурация
+## Configuration
 
-Файл `.terraci.yaml`:
+File `.terraci.yaml`:
 
 ```yaml
 structure:
@@ -99,27 +99,27 @@ gitlab:
   plan_enabled: true
 ```
 
-## Примеры
+## Examples
 
-### Граф зависимостей в формате DOT
+### Dependency graph in DOT format
 
 ```bash
 terraci graph --format dot -o deps.dot
 dot -Tpng deps.dot -o deps.png
 ```
 
-### Фильтрация по окружению
+### Filter by environment
 
 ```bash
 terraci generate --environment prod -o prod-pipeline.yml
 ```
 
-### Исключение модулей
+### Exclude modules
 
 ```bash
 terraci generate --exclude "*/sandbox/*" --exclude "*/test/*"
 ```
 
-## Лицензия
+## License
 
 MIT

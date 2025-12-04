@@ -3,9 +3,8 @@ version: 2
 
 project_name: terraci
 
-before:
-  hooks:
-    - go mod tidy
+gomod:
+  proxy: true
 
 builds:
   - id: terraci
@@ -16,35 +15,57 @@ builds:
     goos:
       - linux
       - darwin
-      - windows
     goarch:
       - amd64
       - arm64
+    # ensures mod timestamp to be the commit timestamp
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags:
+      - -trimpath
     ldflags:
       - -s -w
       - -X main.version={{.Version}}
       - -X main.commit={{.Commit}}
-      - -X main.date={{.Date}}
+      - -X main.date={{.CommitDate}}
 
+# create a source tarball
+# https://goreleaser.com/customization/source/
+source:
+  enabled: true
+  name_template: "{{ .ProjectName }}.src"
+
+# config the archives filenames, format, and other options.
+# https://goreleaser.com/customization/archive
 archives:
-  - id: default
-    format: tar.gz
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    format_overrides:
-      - goos: windows
-        format: zip
-    files:
-      - README.md
-      - LICENSE*
-      - CHANGELOG*
-      - .terraci.example.yaml
+  - format: tar.gz
+    wrap_in_directory: true
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    builds_info:
+      mtime: "{{ .CommitTimestamp }}"
+
+# creates SBOMs of all archives and the source tarball using syft
+# https://goreleaser.com/customization/sbom
+sboms:
+  - artifacts: archive
+  - id: source # Two different sbom configurations need two different IDs
+    artifacts: source
 
 checksum:
   name_template: "checksums.txt"
-  algorithm: sha256
 
-snapshot:
-  version_template: "{{ .Version }}-snapshot"
+# signs the checksum file
+# all files (including the sboms) are included in the checksum, so we don't need to sign each one if we don't want to
+# https://goreleaser.com/customization/sign
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args:
+      - sign-blob
+      - "--bundle=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
+    output: true
 
 changelog:
   sort: asc
@@ -69,57 +90,44 @@ changelog:
     - title: "Other"
       order: 999
 
-# Docker images
-# Set DOCKER_REGISTRY env var to your Artifactory Docker registry URL
-# Example: DOCKER_REGISTRY=artifactory.example.com/docker-local
-dockers:
-  - id: terraci-amd64
-    goos: linux
-    goarch: amd64
-    image_templates:
-      - "{{ .Env.DOCKER_REGISTRY }}/{{ .ProjectName }}:{{ .Version }}-amd64"
-      - "{{ .Env.DOCKER_REGISTRY }}/{{ .ProjectName }}:latest-amd64"
+# create multi-arch docker image using dockers_v2
+# https://goreleaser.com/customization/dockers_v2/
+dockers_v2:
+  - id: terraci
+    ids:
+      - terraci
+    images:
+      - "ghcr.io/edelwud/terraci"
+    tags:
+      - "{{ .Tag }}"
+      - "{{ if not .IsNightly }}latest{{ end }}"
     dockerfile: Dockerfile
-    use: buildx
-    build_flag_templates:
-      - "--platform=linux/amd64"
-      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
-      - "--label=org.opencontainers.image.version={{ .Version }}"
-      - "--label=org.opencontainers.image.revision={{ .Commit }}"
-      - "--label=org.opencontainers.image.created={{ .Date }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    sbom: true
+    labels:
+      org.opencontainers.image.created: "{{.Date}}"
+      org.opencontainers.image.name: "{{.ProjectName}}"
+      org.opencontainers.image.revision: "{{.FullCommit}}"
+      org.opencontainers.image.version: "{{.Version}}"
+      org.opencontainers.image.source: "{{.GitURL}}"
 
-  - id: terraci-arm64
-    goos: linux
-    goarch: arm64
-    image_templates:
-      - "{{ .Env.DOCKER_REGISTRY }}/{{ .ProjectName }}:{{ .Version }}-arm64"
-      - "{{ .Env.DOCKER_REGISTRY }}/{{ .ProjectName }}:latest-arm64"
-    dockerfile: Dockerfile
-    use: buildx
-    build_flag_templates:
-      - "--platform=linux/arm64"
-      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
-      - "--label=org.opencontainers.image.version={{ .Version }}"
-      - "--label=org.opencontainers.image.revision={{ .Commit }}"
-      - "--label=org.opencontainers.image.created={{ .Date }}"
+# signs our docker image
+# https://goreleaser.com/customization/docker_sign
+docker_signs:
+  - cmd: cosign
+    output: true
+    args:
+      - "sign"
+      - "${artifact}"
+      - "--yes"
 
-docker_manifests:
-  - name_template: "{{ .Env.DOCKER_REGISTRY }}/{{ .ProjectName }}:{{ .Version }}"
-    image_templates:
-      - "{{ .Env.DOCKER_REGISTRY }}/{{ .ProjectName }}:{{ .Version }}-amd64"
-      - "{{ .Env.DOCKER_REGISTRY }}/{{ .ProjectName }}:{{ .Version }}-arm64"
-
-  - name_template: "{{ .Env.DOCKER_REGISTRY }}/{{ .ProjectName }}:latest"
-    image_templates:
-      - "{{ .Env.DOCKER_REGISTRY }}/{{ .ProjectName }}:latest-amd64"
-      - "{{ .Env.DOCKER_REGISTRY }}/{{ .ProjectName }}:latest-arm64"
-
-# Release to GitLab
+# Release to GitHub
 release:
-  disable: '{{ if .Env.GITLAB_TOKEN }}false{{ else }}true{{ end }}'
-  gitlab:
-    owner: "{{ .Env.CI_PROJECT_NAMESPACE }}"
-    name: "{{ .Env.CI_PROJECT_NAME }}"
+  github:
+    owner: edelwud
+    name: terraci
   draft: false
   prerelease: auto
   name_template: "{{ .ProjectName }} v{{ .Version }}"

@@ -1,42 +1,42 @@
 # TerraCi - AI Assistant Guide
 
-CLI-инструмент для анализа Terraform-проектов, построения графа зависимостей и генерации GitLab CI пайплайнов.
+CLI tool for analyzing Terraform projects, building dependency graphs, and generating GitLab CI pipelines.
 
-## Структура проекта
+## Project Structure
 
 ```
 terraci/
 ├── cmd/terraci/
-│   ├── main.go                 # Точка входа
-│   └── cmd/                    # Cobra-команды
-│       ├── root.go             # Корневая команда, глобальные флаги
-│       ├── generate.go         # Генерация пайплайна
-│       ├── validate.go         # Валидация проекта
-│       ├── graph.go            # Визуализация графа
-│       ├── init.go             # Инициализация конфига
-│       └── version.go          # Версия
+│   ├── main.go                 # Entry point
+│   └── cmd/                    # Cobra commands
+│       ├── root.go             # Root command, global flags
+│       ├── generate.go         # Pipeline generation
+│       ├── validate.go         # Project validation
+│       ├── graph.go            # Graph visualization
+│       ├── init.go             # Config initialization
+│       └── version.go          # Version info
 ├── internal/
-│   ├── discovery/              # Обнаружение модулей
+│   ├── discovery/              # Module discovery
 │   │   └── module.go           # Scanner, Module, ModuleIndex
-│   ├── parser/                 # Парсинг HCL
+│   ├── parser/                 # HCL parsing
 │   │   ├── hcl.go              # Parser, ParsedModule, RemoteStateRef
 │   │   └── dependency.go       # DependencyExtractor
-│   ├── graph/                  # Граф зависимостей
+│   ├── graph/                  # Dependency graph
 │   │   └── dependency.go       # DependencyGraph, TopologicalSort
-│   ├── pipeline/gitlab/        # Генерация GitLab CI
+│   ├── pipeline/gitlab/        # GitLab CI generation
 │   │   └── generator.go        # Generator, Pipeline, Job
-│   ├── filter/                 # Фильтрация модулей
+│   ├── filter/                 # Module filtering
 │   │   └── glob.go             # GlobFilter, CompositeFilter
-│   └── git/                    # Git-интеграция
+│   └── git/                    # Git integration
 │       └── diff.go             # Client, ChangedModulesDetector
-├── pkg/config/                 # Публичный пакет конфигурации
+├── pkg/config/                 # Public configuration package
 │   └── config.go               # Config, Load(), Validate()
 ├── Makefile
 ├── go.mod
 └── .terraci.example.yaml
 ```
 
-## Ключевые типы
+## Key Types
 
 ### discovery.Module
 ```go
@@ -45,15 +45,15 @@ type Module struct {
     Environment  string    // stage, prod
     Region       string    // eu-central-1
     Module       string    // vpc, eks
-    Submodule    string    // опционально: rabbitmq (для ec2/rabbitmq)
-    Path         string    // абсолютный путь
-    RelativePath string    // относительный путь
-    Parent       *Module   // ссылка на родительский модуль
-    Children     []*Module // дочерние сабмодули
+    Submodule    string    // optional: rabbitmq (for ec2/rabbitmq)
+    Path         string    // absolute path
+    RelativePath string    // relative path
+    Parent       *Module   // parent module reference
+    Children     []*Module // child submodules
 }
 
 func (m *Module) ID() string      // service/env/region/module[/submodule]
-func (m *Module) Name() string    // module или module/submodule
+func (m *Module) Name() string    // module or module/submodule
 func (m *Module) IsSubmodule() bool
 ```
 
@@ -68,16 +68,16 @@ type Scanner struct {
 func (s *Scanner) Scan() ([]*Module, error)
 ```
 
-Паттерн директорий: `service/environment/region/module[/submodule]`
+Directory pattern: `service/environment/region/module[/submodule]`
 
 ### parser.RemoteStateRef
 ```go
 type RemoteStateRef struct {
-    Name         string            // имя data-блока
+    Name         string            // data block name
     Backend      string            // s3, gcs, etc.
-    Config       map[string]string // конфиг бэкенда
-    ForEach      bool              // есть ли for_each
-    WorkspaceDir string            // резолвленный путь
+    Config       map[string]string // backend config
+    ForEach      bool              // has for_each
+    WorkspaceDir string            // resolved path
 }
 ```
 
@@ -91,33 +91,33 @@ func (g *DependencyGraph) DetectCycles() [][]string
 func (g *DependencyGraph) ToDOT() string
 ```
 
-## CLI команды
+## CLI Commands
 
 ```bash
-# Генерация пайплайна
+# Pipeline generation
 terraci generate -o .gitlab-ci.yml
 terraci generate --changed-only --base-ref main
 terraci generate --exclude "*/test/*" --environment prod
 
-# Валидация
+# Validation
 terraci validate
 
-# Граф зависимостей
+# Dependency graph
 terraci graph --format dot -o deps.dot
 terraci graph --format levels
 terraci graph --module cdp/stage/eu-central-1/vpc --dependents
 
-# Инициализация
+# Initialization
 terraci init
 ```
 
-## Глобальные флаги
+## Global Flags
 
-- `-c, --config` — путь к конфигу (по умолчанию ищет `.terraci.yaml`)
-- `-d, --dir` — рабочая директория
-- `-v, --verbose` — подробный вывод
+- `-c, --config` — config file path (defaults to `.terraci.yaml`)
+- `-d, --dir` — working directory
+- `-v, --verbose` — verbose output
 
-## Конфигурация (.terraci.yaml)
+## Configuration (.terraci.yaml)
 
 ```yaml
 structure:
@@ -138,40 +138,40 @@ gitlab:
   tags: [terraform, docker]
 ```
 
-## Сборка и тесты
+## Build and Test
 
 ```bash
-make build      # Сборка бинарника
-make test       # Запуск тестов
-make lint       # Линтинг
-make install    # Установка в $GOPATH/bin
+make build      # Build binary
+make test       # Run tests
+make lint       # Lint code
+make install    # Install to $GOPATH/bin
 ```
 
-## Поток данных
+## Data Flow
 
-1. `Scanner.Scan()` — обнаружение модулей в директориях
-2. `ModuleIndex` — индексация для быстрого поиска
-3. `Parser.ParseModule()` — парсинг HCL, извлечение locals и remote_state
-4. `DependencyExtractor` — определение зависимостей между модулями
-5. `DependencyGraph` — построение DAG, топологическая сортировка
-6. `Generator.Generate()` — генерация GitLab CI YAML
+1. `Scanner.Scan()` — discover modules in directories
+2. `ModuleIndex` — index for fast lookups
+3. `Parser.ParseModule()` — parse HCL, extract locals and remote_state
+4. `DependencyExtractor` — determine dependencies between modules
+5. `DependencyGraph` — build DAG, topological sort
+6. `Generator.Generate()` — generate GitLab CI YAML
 
-## Алгоритмы
+## Algorithms
 
-- **Топологическая сортировка**: алгоритм Кана для упорядочивания модулей
-- **Детекция циклов**: DFS для поиска циклических зависимостей
-- **Execution Levels**: группировка модулей для параллельного выполнения
-- **Path Resolution**: интерполяция переменных в путях state-файлов
+- **Topological Sort**: Kahn's algorithm for module ordering
+- **Cycle Detection**: DFS for finding circular dependencies
+- **Execution Levels**: grouping modules for parallel execution
+- **Path Resolution**: variable interpolation in state file paths
 
-## Зависимости
+## Dependencies
 
-- `github.com/spf13/cobra` — CLI-фреймворк
-- `github.com/hashicorp/hcl/v2` — парсинг HCL
-- `github.com/zclconf/go-cty` — типы CTY для HCL
+- `github.com/spf13/cobra` — CLI framework
+- `github.com/hashicorp/hcl/v2` — HCL parsing
+- `github.com/zclconf/go-cty` — CTY types for HCL
 - `gopkg.in/yaml.v3` — YAML
 
-## Известные особенности
+## Known Behaviors
 
-- Модули могут существовать на глубине 4 (базовые) и 5 (сабмодули) одновременно
-- `for_each` в remote_state разворачивается в множественные зависимости
-- Фильтры поддерживают `**` для произвольной глубины пути
+- Modules can exist at depth 4 (base) and depth 5 (submodules) simultaneously
+- `for_each` in remote_state expands to multiple dependencies
+- Filters support `**` for arbitrary path depth

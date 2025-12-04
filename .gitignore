@@ -2,6 +2,7 @@
 /build/
 /terraci
 *.exe
+/dist/
 
 # Test coverage
 coverage.out
