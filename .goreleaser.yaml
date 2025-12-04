@@ -69,13 +69,16 @@ changelog:
     - title: "Other"
       order: 999
 
+# Docker images
+# Set DOCKER_REGISTRY env var to your Artifactory Docker registry URL
+# Example: DOCKER_REGISTRY=artifactory.example.com/docker-local
 dockers:
   - id: terraci-amd64
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ if .Env.CI_REGISTRY_IMAGE }}{{ .Env.CI_REGISTRY_IMAGE }}{{ else }}terraci{{ end }}:{{ .Version }}-amd64"
-      - "{{ if .Env.CI_REGISTRY_IMAGE }}{{ .Env.CI_REGISTRY_IMAGE }}{{ else }}terraci{{ end }}:latest-amd64"
+      - "{{ .Env.DOCKER_REGISTRY }}/{{ .ProjectName }}:{{ .Version }}-amd64"
+      - "{{ .Env.DOCKER_REGISTRY }}/{{ .ProjectName }}:latest-amd64"
     dockerfile: Dockerfile
     use: buildx
     build_flag_templates:
@@ -89,8 +92,8 @@ dockers:
     goos: linux
     goarch: arm64
     image_templates:
-      - "{{ if .Env.CI_REGISTRY_IMAGE }}{{ .Env.CI_REGISTRY_IMAGE }}{{ else }}terraci{{ end }}:{{ .Version }}-arm64"
-      - "{{ if .Env.CI_REGISTRY_IMAGE }}{{ .Env.CI_REGISTRY_IMAGE }}{{ else }}terraci{{ end }}:latest-arm64"
+      - "{{ .Env.DOCKER_REGISTRY }}/{{ .ProjectName }}:{{ .Version }}-arm64"
+      - "{{ .Env.DOCKER_REGISTRY }}/{{ .ProjectName }}:latest-arm64"
     dockerfile: Dockerfile
     use: buildx
     build_flag_templates:
@@ -101,19 +104,19 @@ dockers:
       - "--label=org.opencontainers.image.created={{ .Date }}"
 
 docker_manifests:
-  - name_template: "{{ if .Env.CI_REGISTRY_IMAGE }}{{ .Env.CI_REGISTRY_IMAGE }}{{ else }}terraci{{ end }}:{{ .Version }}"
+  - name_template: "{{ .Env.DOCKER_REGISTRY }}/{{ .ProjectName }}:{{ .Version }}"
     image_templates:
-      - "{{ if .Env.CI_REGISTRY_IMAGE }}{{ .Env.CI_REGISTRY_IMAGE }}{{ else }}terraci{{ end }}:{{ .Version }}-amd64"
-      - "{{ if .Env.CI_REGISTRY_IMAGE }}{{ .Env.CI_REGISTRY_IMAGE }}{{ else }}terraci{{ end }}:{{ .Version }}-arm64"
+      - "{{ .Env.DOCKER_REGISTRY }}/{{ .ProjectName }}:{{ .Version }}-amd64"
+      - "{{ .Env.DOCKER_REGISTRY }}/{{ .ProjectName }}:{{ .Version }}-arm64"
 
-  - name_template: "{{ if .Env.CI_REGISTRY_IMAGE }}{{ .Env.CI_REGISTRY_IMAGE }}{{ else }}terraci{{ end }}:latest"
+  - name_template: "{{ .Env.DOCKER_REGISTRY }}/{{ .ProjectName }}:latest"
     image_templates:
-      - "{{ if .Env.CI_REGISTRY_IMAGE }}{{ .Env.CI_REGISTRY_IMAGE }}{{ else }}terraci{{ end }}:latest-amd64"
-      - "{{ if .Env.CI_REGISTRY_IMAGE }}{{ .Env.CI_REGISTRY_IMAGE }}{{ else }}terraci{{ end }}:latest-arm64"
+      - "{{ .Env.DOCKER_REGISTRY }}/{{ .ProjectName }}:latest-amd64"
+      - "{{ .Env.DOCKER_REGISTRY }}/{{ .ProjectName }}:latest-arm64"
 
-# Release to GitLab (only works in CI with proper environment)
+# Release to GitLab
 release:
-  disable: '{{ if .Env.CI_REGISTRY_IMAGE }}false{{ else }}true{{ end }}'
+  disable: '{{ if .Env.GITLAB_TOKEN }}false{{ else }}true{{ end }}'
   gitlab:
     owner: "{{ .Env.CI_PROJECT_NAMESPACE }}"
     name: "{{ .Env.CI_PROJECT_NAME }}"
