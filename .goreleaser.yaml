@@ -3,6 +3,9 @@ version: 2
 
 project_name: terraci
 
+gomod:
+  proxy: true
+
 builds:
   - id: terraci
     main: ./cmd/terraci
@@ -122,9 +125,6 @@ docker_signs:
 
 # Release to GitHub
 release:
-  github:
-    owner: edelwud
-    name: terraci
   draft: false
   prerelease: auto
   name_template: "{{ .ProjectName }} v{{ .Version }}"
