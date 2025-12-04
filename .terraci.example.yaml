@@ -1,0 +1,68 @@
+# TerraCi Configuration Example
+# Copy this to .terraci.yaml and customize for your project
+
+# Directory structure pattern
+structure:
+  # Pattern describing your module directory layout
+  # Supported placeholders: {service}, {environment}, {region}, {module}
+  pattern: "{service}/{environment}/{region}/{module}"
+  # Depth is auto-calculated from pattern (4 in this case)
+  # depth: 4
+
+# Modules to exclude (glob patterns)
+exclude:
+  - "*/test/*"
+  - "*/sandbox/*"
+  # Example: exclude specific region
+  # - "cdp/*/eu-north-1/*"
+
+# Modules to include (if empty, all are included)
+# include:
+#   - "cdp/*/*/*"
+
+# GitLab CI configuration
+gitlab:
+  # Docker image for terraform jobs
+  terraform_image: "hashicorp/terraform:1.6"
+
+  # Prefix for stage names (produces: deploy-plan-0, deploy-apply-0, etc.)
+  stages_prefix: "deploy"
+
+  # Maximum parallel jobs per stage
+  parallelism: 5
+
+  # Enable terraform plan stage
+  plan_enabled: true
+
+  # Auto-approve applies (skip manual confirmation)
+  auto_approve: false
+
+  # Commands to run before each job
+  before_script:
+    - terraform init
+
+  # Commands to run after each job (optional)
+  # after_script:
+  #   - terraform output -json > outputs.json
+
+  # GitLab runner tags
+  tags:
+    - terraform
+    - docker
+
+  # Pipeline variables
+  variables:
+    TF_IN_AUTOMATION: "true"
+    TF_INPUT: "false"
+
+  # Artifact paths
+  artifact_paths:
+    - "*.tfplan"
+
+# Backend configuration (for state path resolution)
+backend:
+  type: s3
+  bucket: my-terraform-state
+  region: eu-central-1
+  # Pattern for state file keys
+  key_pattern: "{service}/{environment}/{region}/{module}/terraform.tfstate"

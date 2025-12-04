@@ -1,0 +1,122 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+
+project_name: terraci
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: terraci
+    main: ./cmd/terraci
+    binary: terraci
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - id: default
+    format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE*
+      - CHANGELOG*
+      - .terraci.example.yaml
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ .Version }}-snapshot"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "^ci:"
+      - Merge branch
+      - Merge pull request
+  groups:
+    - title: "Features"
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: "Bug Fixes"
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: "Performance"
+      regexp: '^.*?perf(\([[:word:]]+\))??!?:.+$'
+      order: 2
+    - title: "Other"
+      order: 999
+
+dockers:
+  - id: terraci-amd64
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "{{ if .Env.CI_REGISTRY_IMAGE }}{{ .Env.CI_REGISTRY_IMAGE }}{{ else }}terraci{{ end }}:{{ .Version }}-amd64"
+      - "{{ if .Env.CI_REGISTRY_IMAGE }}{{ .Env.CI_REGISTRY_IMAGE }}{{ else }}terraci{{ end }}:latest-amd64"
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.revision={{ .Commit }}"
+      - "--label=org.opencontainers.image.created={{ .Date }}"
+
+  - id: terraci-arm64
+    goos: linux
+    goarch: arm64
+    image_templates:
+      - "{{ if .Env.CI_REGISTRY_IMAGE }}{{ .Env.CI_REGISTRY_IMAGE }}{{ else }}terraci{{ end }}:{{ .Version }}-arm64"
+      - "{{ if .Env.CI_REGISTRY_IMAGE }}{{ .Env.CI_REGISTRY_IMAGE }}{{ else }}terraci{{ end }}:latest-arm64"
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.revision={{ .Commit }}"
+      - "--label=org.opencontainers.image.created={{ .Date }}"
+
+docker_manifests:
+  - name_template: "{{ if .Env.CI_REGISTRY_IMAGE }}{{ .Env.CI_REGISTRY_IMAGE }}{{ else }}terraci{{ end }}:{{ .Version }}"
+    image_templates:
+      - "{{ if .Env.CI_REGISTRY_IMAGE }}{{ .Env.CI_REGISTRY_IMAGE }}{{ else }}terraci{{ end }}:{{ .Version }}-amd64"
+      - "{{ if .Env.CI_REGISTRY_IMAGE }}{{ .Env.CI_REGISTRY_IMAGE }}{{ else }}terraci{{ end }}:{{ .Version }}-arm64"
+
+  - name_template: "{{ if .Env.CI_REGISTRY_IMAGE }}{{ .Env.CI_REGISTRY_IMAGE }}{{ else }}terraci{{ end }}:latest"
+    image_templates:
+      - "{{ if .Env.CI_REGISTRY_IMAGE }}{{ .Env.CI_REGISTRY_IMAGE }}{{ else }}terraci{{ end }}:latest-amd64"
+      - "{{ if .Env.CI_REGISTRY_IMAGE }}{{ .Env.CI_REGISTRY_IMAGE }}{{ else }}terraci{{ end }}:latest-arm64"
+
+# Release to GitLab (only works in CI with proper environment)
+release:
+  disable: '{{ if .Env.CI_REGISTRY_IMAGE }}false{{ else }}true{{ end }}'
+  gitlab:
+    owner: "{{ .Env.CI_PROJECT_NAMESPACE }}"
+    name: "{{ .Env.CI_PROJECT_NAME }}"
+  draft: false
+  prerelease: auto
+  name_template: "{{ .ProjectName }} v{{ .Version }}"
