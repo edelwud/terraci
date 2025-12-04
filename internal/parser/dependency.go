@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/terraci/terraci/internal/discovery"
+	"github.com/edelwud/terraci/internal/discovery"
 	"github.com/zclconf/go-cty/cty"
 )
 

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
-	"github.com/terraci/terraci/pkg/config"
+	"github.com/edelwud/terraci/pkg/config"
 )
 
 var (

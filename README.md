@@ -15,7 +15,7 @@ CLI tool for analyzing Terraform projects and automatically generating GitLab CI
 
 ```bash
 # From source
-go install github.com/terraci/terraci/cmd/terraci@latest
+go install github.com/edelwud/terraci/cmd/terraci@latest
 
 # Or build locally
 make build

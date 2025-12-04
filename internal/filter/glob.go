@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/terraci/terraci/internal/discovery"
+	"github.com/edelwud/terraci/internal/discovery"
 )
 
 // GlobFilter filters modules based on glob patterns

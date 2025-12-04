@@ -6,9 +6,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/terraci/terraci/internal/discovery"
-	"github.com/terraci/terraci/internal/graph"
-	"github.com/terraci/terraci/pkg/config"
+	"github.com/edelwud/terraci/internal/discovery"
+	"github.com/edelwud/terraci/internal/graph"
+	"github.com/edelwud/terraci/pkg/config"
 	"gopkg.in/yaml.v3"
 )
 

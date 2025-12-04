@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/terraci/terraci/internal/discovery"
+	"github.com/edelwud/terraci/internal/discovery"
 )
 
 // Client provides Git operations

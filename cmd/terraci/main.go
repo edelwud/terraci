@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/terraci/terraci/cmd/terraci/cmd"
+	"github.com/edelwud/terraci/cmd/terraci/cmd"
 )
 
 // Version information (set via ldflags)

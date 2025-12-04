@@ -5,10 +5,10 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/terraci/terraci/internal/discovery"
-	"github.com/terraci/terraci/internal/filter"
-	"github.com/terraci/terraci/internal/graph"
-	"github.com/terraci/terraci/internal/parser"
+	"github.com/edelwud/terraci/internal/discovery"
+	"github.com/edelwud/terraci/internal/filter"
+	"github.com/edelwud/terraci/internal/graph"
+	"github.com/edelwud/terraci/internal/parser"
 )
 
 var validateCmd = &cobra.Command{

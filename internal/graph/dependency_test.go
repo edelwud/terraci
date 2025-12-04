@@ -5,8 +5,8 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/terraci/terraci/internal/discovery"
-	"github.com/terraci/terraci/internal/parser"
+	"github.com/edelwud/terraci/internal/discovery"
+	"github.com/edelwud/terraci/internal/parser"
 )
 
 func TestDependencyGraph_TopologicalSort(t *testing.T) {

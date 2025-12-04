@@ -3,7 +3,7 @@ package filter
 import (
 	"testing"
 
-	"github.com/terraci/terraci/internal/discovery"
+	"github.com/edelwud/terraci/internal/discovery"
 )
 
 func TestGlobFilter_Match(t *testing.T) {

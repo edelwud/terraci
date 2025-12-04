@@ -6,8 +6,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/terraci/terraci/internal/discovery"
-	"github.com/terraci/terraci/internal/parser"
+	"github.com/edelwud/terraci/internal/discovery"
+	"github.com/edelwud/terraci/internal/parser"
 )
 
 // DependencyGraph represents the dependency relationships between modules

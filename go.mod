@@ -1,4 +1,4 @@
-module github.com/terraci/terraci
+module github.com/edelwud/terraci
 
 go 1.25
 
