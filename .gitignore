@@ -3,6 +3,11 @@
 /terraci
 *.exe
 /dist/
+/node_modules/
+
+# Docs
+.vitepress/dist
+.vitepress/cache
 
 # Test coverage
 coverage.out
