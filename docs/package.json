@@ -1,0 +1,14 @@
+{
+  "name": "terraci-docs",
+  "version": "1.0.0",
+  "private": true,
+  "description": "TerraCi documentation",
+  "scripts": {
+    "dev": "vitepress dev ",
+    "build": "vitepress build ",
+    "preview": "vitepress preview "
+  },
+  "devDependencies": {
+    "vitepress": "next"
+  }
+}

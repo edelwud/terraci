@@ -1,8 +1,6 @@
 import { defineConfig } from 'vitepress'
 
 export default defineConfig({
-  srcDir: "docs",
-
   title: "TerraCi",
   description: "Blazing fast Terraform/OpenTofu pipeline generator with dependency resolution",
 
@@ -190,7 +188,7 @@ export default defineConfig({
 
     footer: {
       message: 'Released under the MIT License.',
-      copyright: 'Copyright © 2024 TerraCi Contributors'
+      copyright: 'Copyright © 2025 TerraCi Contributors'
     }
   }
 })
