@@ -22,8 +22,14 @@ exclude:
 
 # GitLab CI configuration
 gitlab:
+  # Terraform/OpenTofu binary to use (terraform, tofu)
+  terraform_binary: "terraform"
+
   # Docker image for terraform jobs
   terraform_image: "hashicorp/terraform:1.6"
+  # For OpenTofu:
+  # terraform_binary: "tofu"
+  # terraform_image: "ghcr.io/opentofu/opentofu:1.6"
 
   # Prefix for stage names (produces: deploy-plan-0, deploy-apply-0, etc.)
   stages_prefix: "deploy"
@@ -39,7 +45,7 @@ gitlab:
 
   # Commands to run before each job
   before_script:
-    - terraform init
+    - ${TERRAFORM_BINARY} init
 
   # Commands to run after each job (optional)
   # after_script:

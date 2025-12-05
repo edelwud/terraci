@@ -115,9 +115,20 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (*Pipeline, erro
 		return nil, fmt.Errorf("failed to calculate execution levels: %w", err)
 	}
 
+	// Merge variables with TERRAFORM_BINARY
+	variables := make(map[string]string)
+	for k, v := range g.config.GitLab.Variables {
+		variables[k] = v
+	}
+	tfBinary := g.config.GitLab.TerraformBinary
+	if tfBinary == "" {
+		tfBinary = "terraform"
+	}
+	variables["TERRAFORM_BINARY"] = tfBinary
+
 	pipeline := &Pipeline{
 		Stages:    g.generateStages(levels),
-		Variables: g.config.GitLab.Variables,
+		Variables: variables,
 		Default: &DefaultConfig{
 			Image:        g.config.GitLab.TerraformImage,
 			BeforeScript: g.config.GitLab.BeforeScript,
@@ -179,7 +190,7 @@ func (g *Generator) generatePlanJob(module *discovery.Module, level int, depGrap
 		Stage: fmt.Sprintf("%s-plan-%d", prefix, level),
 		Script: []string{
 			fmt.Sprintf("cd %s", module.RelativePath),
-			"terraform plan -out=plan.tfplan",
+			"${TERRAFORM_BINARY} plan -out=plan.tfplan",
 		},
 		Variables: map[string]string{
 			"TF_MODULE_PATH": module.RelativePath,
@@ -212,12 +223,12 @@ func (g *Generator) generateApplyJob(module *discovery.Module, level int, depGra
 	script = append(script, fmt.Sprintf("cd %s", module.RelativePath))
 
 	if g.config.GitLab.PlanEnabled {
-		script = append(script, "terraform apply plan.tfplan")
+		script = append(script, "${TERRAFORM_BINARY} apply plan.tfplan")
 	} else {
 		if g.config.GitLab.AutoApprove {
-			script = append(script, "terraform apply -auto-approve")
+			script = append(script, "${TERRAFORM_BINARY} apply -auto-approve")
 		} else {
-			script = append(script, "terraform apply")
+			script = append(script, "${TERRAFORM_BINARY} apply")
 		}
 	}
 

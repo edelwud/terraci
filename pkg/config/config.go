@@ -41,6 +41,8 @@ type StructureConfig struct {
 
 // GitLabConfig contains GitLab CI specific settings
 type GitLabConfig struct {
+	// TerraformBinary is the terraform binary to use (e.g., "terraform", "tofu")
+	TerraformBinary string `yaml:"terraform_binary"`
 	// TerraformImage is the Docker image for terraform jobs
 	TerraformImage string `yaml:"terraform_image"`
 	// StagesPrefix is the prefix for stage names (e.g., "deploy" -> "deploy-0", "deploy-1")
@@ -86,13 +88,14 @@ func DefaultConfig() *Config {
 			AllowSubmodules: true,
 		},
 		GitLab: GitLabConfig{
-			TerraformImage: "hashicorp/terraform:1.6",
-			StagesPrefix:   "deploy",
-			Parallelism:    5,
-			PlanEnabled:    true,
-			AutoApprove:    false,
+			TerraformBinary: "terraform",
+			TerraformImage:  "hashicorp/terraform:1.6",
+			StagesPrefix:    "deploy",
+			Parallelism:     5,
+			PlanEnabled:     true,
+			AutoApprove:     false,
 			BeforeScript: []string{
-				"terraform init",
+				"${TERRAFORM_BINARY} init",
 			},
 			ArtifactPaths: []string{
 				"*.tfplan",
