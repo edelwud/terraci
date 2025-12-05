@@ -4,6 +4,8 @@ export default defineConfig({
   title: "TerraCi",
   description: "Blazing fast Terraform/OpenTofu pipeline generator with dependency resolution",
 
+  base: "/terraci",
+
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
     ['meta', { name: 'theme-color', content: '#5f67ee' }],
