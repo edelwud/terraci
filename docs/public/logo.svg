@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <!-- Background hexagon (representing infrastructure/modules) -->
+  <path d="M60 8L105 32V78L60 102L15 78V32L60 8Z" fill="url(#gradient1)" opacity="0.15"/>
+
+  <!-- Inner hexagon -->
+  <path d="M60 20L95 40V70L60 90L25 70V40L60 20Z" fill="url(#gradient1)" opacity="0.25"/>
+
+  <!-- T letter stylized as infrastructure blocks -->
+  <g fill="url(#gradient1)">
+    <!-- Top bar of T -->
+    <rect x="32" y="35" width="56" height="12" rx="2"/>
+
+    <!-- Vertical bar of T with pipeline effect -->
+    <rect x="52" y="35" width="16" height="45" rx="2"/>
+
+    <!-- Pipeline nodes -->
+    <circle cx="60" cy="55" r="4" fill="white"/>
+    <circle cx="60" cy="70" r="4" fill="white"/>
+  </g>
+
+  <!-- Connecting lines (CI/CD flow) -->
+  <g stroke="url(#gradient1)" stroke-width="2" opacity="0.6">
+    <path d="M38 52L52 55" stroke-linecap="round"/>
+    <path d="M82 52L68 55" stroke-linecap="round"/>
+    <path d="M38 65L52 70" stroke-linecap="round"/>
+    <path d="M82 65L68 70" stroke-linecap="round"/>
+  </g>
+
+  <!-- Small decorative elements (representing modules) -->
+  <circle cx="35" cy="52" r="3" fill="url(#gradient2)"/>
+  <circle cx="85" cy="52" r="3" fill="url(#gradient2)"/>
+  <circle cx="35" cy="65" r="3" fill="url(#gradient2)"/>
+  <circle cx="85" cy="65" r="3" fill="url(#gradient2)"/>
+
+  <defs>
+    <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7C3AED"/>
+      <stop offset="100%" stop-color="#2563EB"/>
+    </linearGradient>
+    <linearGradient id="gradient2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563EB"/>
+      <stop offset="100%" stop-color="#06B6D4"/>
+    </linearGradient>
+  </defs>
+</svg>

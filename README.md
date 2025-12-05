@@ -1,6 +1,21 @@
-# TerraCi
+<p align="center">
+  <img src="docs/public/logo.svg" alt="TerraCi" width="120" height="120">
+</p>
 
-CLI tool for analyzing Terraform projects and automatically generating GitLab CI pipelines with proper module dependency ordering.
+<h1 align="center">TerraCi</h1>
+
+<p align="center">
+  <strong>Terraform Pipeline Generator</strong><br>
+  Automatically generate GitLab CI pipelines with proper dependency ordering for your Terraform/OpenTofu monorepos
+</p>
+
+<p align="center">
+  <a href="https://github.com/edelwud/terraci/releases"><img src="https://img.shields.io/github/v/release/edelwud/terraci" alt="Release"></a>
+  <a href="https://github.com/edelwud/terraci/actions"><img src="https://github.com/edelwud/terraci/actions/workflows/build.yml/badge.svg" alt="Build"></a>
+  <a href="https://github.com/edelwud/terraci/blob/main/LICENSE"><img src="https://img.shields.io/github/license/edelwud/terraci" alt="License"></a>
+</p>
+
+---
 
 ## Features
 

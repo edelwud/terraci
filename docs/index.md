@@ -5,6 +5,9 @@ hero:
   name: "TerraCi"
   text: "Terraform Pipeline Generator"
   tagline: Automatically generate GitLab CI pipelines with proper dependency ordering for your Terraform/OpenTofu monorepos
+  image:
+    src: /logo.svg
+    alt: TerraCi
   actions:
     - theme: brand
       text: Get Started

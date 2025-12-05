@@ -5,6 +5,9 @@ hero:
   name: "TerraCi"
   text: "Генератор пайплайнов Terraform"
   tagline: Автоматическая генерация GitLab CI пайплайнов с учётом зависимостей для ваших Terraform/OpenTofu монорепозиториев
+  image:
+    src: /logo.svg
+    alt: TerraCi
   actions:
     - theme: brand
       text: Начать
