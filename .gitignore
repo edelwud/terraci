@@ -5,8 +5,8 @@
 /dist/
 
 # Docs
-.vitepress/dist/
-.vitepress/cache/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
 node_modules/
 
 # Test coverage
