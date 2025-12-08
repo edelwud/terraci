@@ -2,9 +2,9 @@
 layout: home
 
 hero:
-  name: "TerraCi"
-  text: "Генератор пайплайнов Terraform"
-  tagline: Автоматическая генерация GitLab CI пайплайнов с учётом зависимостей для ваших Terraform/OpenTofu монорепозиториев
+  name: TerraCi
+  text: Генератор пайплайнов Terraform
+  tagline: Генерация GitLab CI пайплайнов с учётом зависимостей для Terraform/OpenTofu монорепозиториев
   image:
     src: /logo.svg
     alt: TerraCi
@@ -19,98 +19,119 @@ hero:
 features:
   - icon:
       src: /icons/search.svg
-    title: Умное обнаружение
-    details: Автоматически находит Terraform-модули на основе структуры директорий. Поддерживает вложенные сабмодули на глубине 4 и 5.
-    link: /ru/guide/project-structure
-    linkText: Подробнее
+    title: Поиск модулей
+    details: Сканирует структуру директорий для поиска Terraform-модулей. Настраиваемая глубина (4-5 уровней).
   - icon:
       src: /icons/graph.svg
-    title: Разрешение зависимостей
-    details: Парсит блоки terraform_remote_state для построения точного графа зависимостей. Поддерживает for_each и динамические ссылки.
-    link: /ru/guide/dependencies
-    linkText: Как это работает
+    title: Граф зависимостей
+    details: Извлекает зависимости из terraform_remote_state. Строит DAG с топологической сортировкой.
   - icon:
       src: /icons/zap.svg
     title: Параллельное выполнение
-    details: Группирует независимые модули в уровни выполнения для максимальной параллелизации при соблюдении зависимостей.
-    link: /ru/guide/pipeline-generation
-    linkText: Пример
+    details: Группирует модули по уровням. Независимые модули выполняются параллельно.
   - icon:
       src: /icons/git.svg
-    title: Пайплайны для изменений
-    details: Git-интеграция определяет изменённые файлы и генерирует пайплайны только для затронутых модулей и их зависимых.
-    link: /ru/guide/git-integration
-    linkText: Git интеграция
+    title: Режим изменений
+    details: Определяет изменённые файлы через git diff. Генерирует пайплайны только для затронутых модулей.
   - icon:
       src: /icons/tofu.svg
     title: Поддержка OpenTofu
-    details: Полноценная поддержка Terraform и OpenTofu. Достаточно изменить одну опцию в конфиге.
-    link: /ru/guide/opentofu
-    linkText: Настройка
+    details: Работает с Terraform и OpenTofu. Переключение одной опцией в конфиге.
   - icon:
       src: /icons/chart.svg
-    title: Визуализация графа
-    details: Экспорт графа зависимостей в формат DOT для визуализации с помощью GraphViz.
-    link: /ru/cli/graph
-    linkText: Команды
+    title: Визуализация
+    details: Экспорт графа зависимостей в DOT. Визуализация через GraphViz.
 ---
 
-## Быстрый пример
+## Установка
 
 ```bash
-# Инициализация конфигурации
+go install github.com/edelwud/terraci/cmd/terraci@latest
+```
+
+Или через Docker:
+
+```bash
+docker run --rm -v $(pwd):/workspace ghcr.io/edelwud/terraci generate
+```
+
+## Использование
+
+```bash
+# Инициализация конфига
 terraci init
 
-# Генерация пайплайна для всех модулей
+# Генерация пайплайна
 terraci generate -o .gitlab-ci.yml
 
-# Генерация пайплайна только для изменённых модулей
-terraci generate --changed-only --base-ref main -o .gitlab-ci.yml
+# Только изменённые модули
+terraci generate --changed-only --base-ref main
 ```
 
 ## Как это работает
 
-TerraCi анализирует структуру вашего Terraform-проекта:
+**1. Поиск модулей** по структуре директорий:
 
 ```
-infrastructure/
-├── service/
-│   └── environment/
-│       └── region/
-│           ├── vpc/          # Модуль на глубине 4
-│           ├── eks/          # Зависит от vpc
-│           └── ec2/
-│               └── rabbitmq/ # Сабмодуль на глубине 5
+platform/prod/eu-central-1/
+├── vpc/        → platform/prod/eu-central-1/vpc
+├── eks/        → platform/prod/eu-central-1/eks
+└── rds/        → platform/prod/eu-central-1/rds
 ```
 
-Парсит data-источники `terraform_remote_state` для определения зависимостей:
+**2. Извлечение зависимостей** из `terraform_remote_state`:
 
 ```hcl
+# eks/main.tf
 data "terraform_remote_state" "vpc" {
   backend = "s3"
   config = {
-    bucket = "terraform-state"
-    key    = "cdp/stage/eu-central-1/vpc/terraform.tfstate"
+    key = "platform/prod/eu-central-1/vpc/terraform.tfstate"
   }
 }
 ```
 
-И генерирует GitLab CI пайплайн с правильным порядком выполнения:
+**3. Построение порядка выполнения**:
+
+```
+Уровень 0: vpc (нет зависимостей)
+Уровень 1: eks, rds (зависят от vpc)
+```
+
+**4. Генерация пайплайна**:
 
 ```yaml
 stages:
-  - deploy-plan-0
-  - deploy-apply-0
-  - deploy-plan-1
-  - deploy-apply-1
+  - plan-0
+  - apply-0
+  - plan-1
+  - apply-1
 
-plan-cdp-stage-eu-central-1-vpc:
-  stage: deploy-plan-0
-  script:
-    - ${TERRAFORM_BINARY} plan -out=plan.tfplan
+plan-vpc:
+  stage: plan-0
 
-plan-cdp-stage-eu-central-1-eks:
-  stage: deploy-plan-1
-  needs:
-    - apply-cdp-stage-eu-central-1-vpc
+apply-vpc:
+  stage: apply-0
+  needs: [plan-vpc]
+
+plan-eks:
+  stage: plan-1
+  needs: [apply-vpc]
 ```
+
+## Конфигурация
+
+```yaml
+# .terraci.yaml
+structure:
+  pattern: "{service}/{environment}/{region}/{module}"
+
+gitlab:
+  terraform_image: hashicorp/terraform:1.6
+  plan_enabled: true
+
+exclude:
+  - "*/test/*"
+```
+
+[Полный справочник конфигурации →](/ru/config/)

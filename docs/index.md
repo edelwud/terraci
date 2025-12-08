@@ -2,9 +2,9 @@
 layout: home
 
 hero:
-  name: "TerraCi"
-  text: "Terraform Pipeline Generator"
-  tagline: Automatically generate GitLab CI pipelines with proper dependency ordering for your Terraform/OpenTofu monorepos
+  name: TerraCi
+  text: Terraform Pipeline Generator
+  tagline: Generate GitLab CI pipelines with dependency ordering for Terraform/OpenTofu monorepos
   image:
     src: /logo.svg
     alt: TerraCi
@@ -13,105 +13,125 @@ hero:
       text: Get Started
       link: /guide/getting-started
     - theme: alt
-      text: View on GitHub
+      text: GitHub
       link: https://github.com/edelwud/terraci
 
 features:
   - icon:
       src: /icons/search.svg
-    title: Smart Discovery
-    details: Automatically discovers Terraform modules based on your directory structure. Supports nested submodules at depth 4 and 5.
-    link: /guide/project-structure
-    linkText: Learn more
+    title: Module Discovery
+    details: Scans directory structure to find Terraform modules. Pattern-based detection with configurable depth (4-5 levels).
   - icon:
       src: /icons/graph.svg
-    title: Dependency Resolution
-    details: Parses terraform_remote_state blocks to build an accurate dependency graph. Handles for_each and dynamic references.
-    link: /guide/dependencies
-    linkText: How it works
+    title: Dependency Graph
+    details: Extracts dependencies from terraform_remote_state blocks. Builds DAG with topological sorting.
   - icon:
       src: /icons/zap.svg
     title: Parallel Execution
-    details: Groups independent modules into execution levels for maximum parallelism while respecting dependencies.
-    link: /guide/pipeline-generation
-    linkText: See example
+    details: Groups modules into execution levels. Independent modules run in parallel, dependent modules wait.
   - icon:
       src: /icons/git.svg
-    title: Changed-Only Pipelines
-    details: Git integration detects changed files and generates pipelines only for affected modules and their dependents.
-    link: /guide/git-integration
-    linkText: Git integration
+    title: Changed-Only Mode
+    details: Detects modified files via git diff. Generates pipelines only for affected modules and dependents.
   - icon:
       src: /icons/tofu.svg
-    title: OpenTofu Support
-    details: First-class support for both Terraform and OpenTofu. Just change a single config option.
-    link: /guide/opentofu
-    linkText: Configure
+    title: OpenTofu Ready
+    details: Supports both Terraform and OpenTofu. Single config option to switch between them.
   - icon:
       src: /icons/chart.svg
-    title: Graph Visualization
-    details: Export dependency graphs to DOT format for visualization with GraphViz.
-    link: /cli/graph
-    linkText: View commands
+    title: Visualization
+    details: Export dependency graph to DOT format. Visualize with GraphViz or other tools.
 ---
 
-## Quick Example
+## Install
 
 ```bash
-# Initialize configuration
+go install github.com/edelwud/terraci/cmd/terraci@latest
+```
+
+Or use Docker:
+
+```bash
+docker run --rm -v $(pwd):/workspace ghcr.io/edelwud/terraci generate
+```
+
+## Usage
+
+```bash
+# Initialize config
 terraci init
 
-# Generate pipeline for all modules
+# Generate pipeline
 terraci generate -o .gitlab-ci.yml
 
-# Generate pipeline only for changed modules
-terraci generate --changed-only --base-ref main -o .gitlab-ci.yml
+# Only changed modules
+terraci generate --changed-only --base-ref main
 ```
 
 ## How It Works
 
-TerraCi analyzes your Terraform project structure:
+**1. Discover modules** from directory structure:
 
 ```
-infrastructure/
-├── service/
-│   └── environment/
-│       └── region/
-│           ├── vpc/          # Module at depth 4
-│           ├── eks/          # Depends on vpc
-│           └── ec2/
-│               └── rabbitmq/ # Submodule at depth 5
+platform/prod/eu-central-1/
+├── vpc/        → platform/prod/eu-central-1/vpc
+├── eks/        → platform/prod/eu-central-1/eks
+└── rds/        → platform/prod/eu-central-1/rds
 ```
 
-It parses `terraform_remote_state` data sources to understand dependencies:
+**2. Extract dependencies** from `terraform_remote_state`:
 
 ```hcl
+# eks/main.tf
 data "terraform_remote_state" "vpc" {
   backend = "s3"
   config = {
-    bucket = "terraform-state"
-    key    = "cdp/stage/eu-central-1/vpc/terraform.tfstate"
+    key = "platform/prod/eu-central-1/vpc/terraform.tfstate"
   }
 }
 ```
 
-And generates a GitLab CI pipeline with proper job ordering:
+**3. Build execution order**:
+
+```
+Level 0: vpc (no dependencies)
+Level 1: eks, rds (depend on vpc)
+```
+
+**4. Generate pipeline**:
 
 ```yaml
 stages:
-  - deploy-plan-0
-  - deploy-apply-0
-  - deploy-plan-1
-  - deploy-apply-1
+  - plan-0
+  - apply-0
+  - plan-1
+  - apply-1
 
-plan-cdp-stage-eu-central-1-vpc:
-  stage: deploy-plan-0
-  script:
-    - ${TERRAFORM_BINARY} plan -out=plan.tfplan
+plan-vpc:
+  stage: plan-0
 
-plan-cdp-stage-eu-central-1-eks:
-  stage: deploy-plan-1
-  needs:
-    - apply-cdp-stage-eu-central-1-vpc
+apply-vpc:
+  stage: apply-0
+  needs: [plan-vpc]
+
+plan-eks:
+  stage: plan-1
+  needs: [apply-vpc]
 ```
 
+## Configuration
+
+```yaml
+# .terraci.yaml
+structure:
+  pattern: "{service}/{environment}/{region}/{module}"
+
+gitlab:
+  terraform_image: hashicorp/terraform:1.6
+  plan_enabled: true
+
+exclude:
+  - "*/test/*"
+```
+
+[Full configuration reference →](/config/)
