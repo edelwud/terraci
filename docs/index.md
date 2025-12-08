@@ -17,24 +17,42 @@ hero:
       link: https://github.com/edelwud/terraci
 
 features:
-  - icon: 🔍
+  - icon:
+      src: /icons/search.svg
     title: Smart Discovery
     details: Automatically discovers Terraform modules based on your directory structure. Supports nested submodules at depth 4 and 5.
-  - icon: 🔗
+    link: /guide/project-structure
+    linkText: Learn more
+  - icon:
+      src: /icons/graph.svg
     title: Dependency Resolution
     details: Parses terraform_remote_state blocks to build an accurate dependency graph. Handles for_each and dynamic references.
-  - icon: ⚡
+    link: /guide/dependencies
+    linkText: How it works
+  - icon:
+      src: /icons/zap.svg
     title: Parallel Execution
     details: Groups independent modules into execution levels for maximum parallelism while respecting dependencies.
-  - icon: 🎯
+    link: /guide/pipeline-generation
+    linkText: See example
+  - icon:
+      src: /icons/git.svg
     title: Changed-Only Pipelines
     details: Git integration detects changed files and generates pipelines only for affected modules and their dependents.
-  - icon: 🔄
+    link: /guide/git-integration
+    linkText: Git integration
+  - icon:
+      src: /icons/tofu.svg
     title: OpenTofu Support
     details: First-class support for both Terraform and OpenTofu. Just change a single config option.
-  - icon: 📊
+    link: /guide/opentofu
+    linkText: Configure
+  - icon:
+      src: /icons/chart.svg
     title: Graph Visualization
     details: Export dependency graphs to DOT format for visualization with GraphViz.
+    link: /cli/graph
+    linkText: View commands
 ---
 
 ## Quick Example
