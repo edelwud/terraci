@@ -41,7 +41,7 @@ Examples:
   terraci generate --changed-only --base-ref main
 
   # Generate with exclusions
-  terraci generate --exclude "*/test/*" --exclude "cdp/*/eu-north-1/*"
+  terraci generate --exclude "*/test/*" --exclude "platform/*/eu-north-1/*"
 
   # Filter by environment
   terraci generate --environment stage --environment prod

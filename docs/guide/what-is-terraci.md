@@ -24,7 +24,7 @@ TerraCi scans your directory structure to find all Terraform modules:
 
 ```
 infrastructure/
-├── cdp/
+├── platform/
 │   ├── stage/
 │   │   └── eu-central-1/
 │   │       ├── vpc/        ← Module discovered
@@ -41,7 +41,7 @@ It parses `terraform_remote_state` data sources to understand which modules depe
 data "terraform_remote_state" "vpc" {
   backend = "s3"
   config = {
-    key = "cdp/stage/eu-central-1/vpc/terraform.tfstate"
+    key = "platform/stage/eu-central-1/vpc/terraform.tfstate"
   }
 }
 ```

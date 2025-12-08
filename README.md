@@ -71,7 +71,7 @@ project/
 Example:
 ```
 infrastructure/
-├── cdp/
+├── platform/
 │   ├── stage/
 │   │   └── eu-central-1/
 │   │       ├── vpc/

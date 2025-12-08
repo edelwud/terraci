@@ -15,17 +15,17 @@ func TestDependencyGraph_TopologicalSort(t *testing.T) {
 	//     -> rds -> app
 
 	modules := []*discovery.Module{
-		{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "vpc"},
-		{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "eks"},
-		{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "rds"},
-		{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "app"},
+		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "vpc"},
+		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "eks"},
+		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "rds"},
+		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "app"},
 	}
 
 	deps := map[string]*parser.ModuleDependencies{
-		"cdp/stage/eu-central-1/vpc": {DependsOn: []string{}},
-		"cdp/stage/eu-central-1/eks": {DependsOn: []string{"cdp/stage/eu-central-1/vpc"}},
-		"cdp/stage/eu-central-1/rds": {DependsOn: []string{"cdp/stage/eu-central-1/vpc"}},
-		"cdp/stage/eu-central-1/app": {DependsOn: []string{"cdp/stage/eu-central-1/eks", "cdp/stage/eu-central-1/rds"}},
+		"platform/stage/eu-central-1/vpc": {DependsOn: []string{}},
+		"platform/stage/eu-central-1/eks": {DependsOn: []string{"platform/stage/eu-central-1/vpc"}},
+		"platform/stage/eu-central-1/rds": {DependsOn: []string{"platform/stage/eu-central-1/vpc"}},
+		"platform/stage/eu-central-1/app": {DependsOn: []string{"platform/stage/eu-central-1/eks", "platform/stage/eu-central-1/rds"}},
 	}
 
 	g := BuildFromDependencies(modules, deps)
@@ -36,12 +36,12 @@ func TestDependencyGraph_TopologicalSort(t *testing.T) {
 	}
 
 	// vpc should come first
-	if sorted[0] != "cdp/stage/eu-central-1/vpc" {
+	if sorted[0] != "platform/stage/eu-central-1/vpc" {
 		t.Errorf("Expected vpc first, got %s", sorted[0])
 	}
 
 	// app should come last
-	if sorted[len(sorted)-1] != "cdp/stage/eu-central-1/app" {
+	if sorted[len(sorted)-1] != "platform/stage/eu-central-1/app" {
 		t.Errorf("Expected app last, got %s", sorted[len(sorted)-1])
 	}
 
@@ -87,17 +87,17 @@ func TestDependencyGraph_ExecutionLevels(t *testing.T) {
 	// Level 2: app
 
 	modules := []*discovery.Module{
-		{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "vpc"},
-		{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "eks"},
-		{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "rds"},
-		{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "app"},
+		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "vpc"},
+		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "eks"},
+		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "rds"},
+		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "app"},
 	}
 
 	deps := map[string]*parser.ModuleDependencies{
-		"cdp/stage/eu-central-1/vpc": {DependsOn: []string{}},
-		"cdp/stage/eu-central-1/eks": {DependsOn: []string{"cdp/stage/eu-central-1/vpc"}},
-		"cdp/stage/eu-central-1/rds": {DependsOn: []string{"cdp/stage/eu-central-1/vpc"}},
-		"cdp/stage/eu-central-1/app": {DependsOn: []string{"cdp/stage/eu-central-1/eks", "cdp/stage/eu-central-1/rds"}},
+		"platform/stage/eu-central-1/vpc": {DependsOn: []string{}},
+		"platform/stage/eu-central-1/eks": {DependsOn: []string{"platform/stage/eu-central-1/vpc"}},
+		"platform/stage/eu-central-1/rds": {DependsOn: []string{"platform/stage/eu-central-1/vpc"}},
+		"platform/stage/eu-central-1/app": {DependsOn: []string{"platform/stage/eu-central-1/eks", "platform/stage/eu-central-1/rds"}},
 	}
 
 	g := BuildFromDependencies(modules, deps)
@@ -112,7 +112,7 @@ func TestDependencyGraph_ExecutionLevels(t *testing.T) {
 	}
 
 	// Level 0: vpc
-	if len(levels[0]) != 1 || levels[0][0] != "cdp/stage/eu-central-1/vpc" {
+	if len(levels[0]) != 1 || levels[0][0] != "platform/stage/eu-central-1/vpc" {
 		t.Errorf("Level 0 should contain only vpc, got %v", levels[0])
 	}
 
@@ -122,37 +122,37 @@ func TestDependencyGraph_ExecutionLevels(t *testing.T) {
 	}
 
 	// Level 2: app
-	if len(levels[2]) != 1 || levels[2][0] != "cdp/stage/eu-central-1/app" {
+	if len(levels[2]) != 1 || levels[2][0] != "platform/stage/eu-central-1/app" {
 		t.Errorf("Level 2 should contain only app, got %v", levels[2])
 	}
 }
 
 func TestDependencyGraph_GetAffectedModules(t *testing.T) {
 	modules := []*discovery.Module{
-		{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "vpc"},
-		{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "eks"},
-		{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "rds"},
-		{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "app"},
+		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "vpc"},
+		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "eks"},
+		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "rds"},
+		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "app"},
 	}
 
 	deps := map[string]*parser.ModuleDependencies{
-		"cdp/stage/eu-central-1/vpc": {DependsOn: []string{}},
-		"cdp/stage/eu-central-1/eks": {DependsOn: []string{"cdp/stage/eu-central-1/vpc"}},
-		"cdp/stage/eu-central-1/rds": {DependsOn: []string{"cdp/stage/eu-central-1/vpc"}},
-		"cdp/stage/eu-central-1/app": {DependsOn: []string{"cdp/stage/eu-central-1/eks", "cdp/stage/eu-central-1/rds"}},
+		"platform/stage/eu-central-1/vpc": {DependsOn: []string{}},
+		"platform/stage/eu-central-1/eks": {DependsOn: []string{"platform/stage/eu-central-1/vpc"}},
+		"platform/stage/eu-central-1/rds": {DependsOn: []string{"platform/stage/eu-central-1/vpc"}},
+		"platform/stage/eu-central-1/app": {DependsOn: []string{"platform/stage/eu-central-1/eks", "platform/stage/eu-central-1/rds"}},
 	}
 
 	g := BuildFromDependencies(modules, deps)
 
 	// If vpc changes, all modules are affected
-	affected := g.GetAffectedModules([]string{"cdp/stage/eu-central-1/vpc"})
+	affected := g.GetAffectedModules([]string{"platform/stage/eu-central-1/vpc"})
 	sort.Strings(affected)
 
 	expected := []string{
-		"cdp/stage/eu-central-1/app",
-		"cdp/stage/eu-central-1/eks",
-		"cdp/stage/eu-central-1/rds",
-		"cdp/stage/eu-central-1/vpc",
+		"platform/stage/eu-central-1/app",
+		"platform/stage/eu-central-1/eks",
+		"platform/stage/eu-central-1/rds",
+		"platform/stage/eu-central-1/vpc",
 	}
 
 	if !reflect.DeepEqual(affected, expected) {
@@ -160,12 +160,12 @@ func TestDependencyGraph_GetAffectedModules(t *testing.T) {
 	}
 
 	// If eks changes, only eks and app are affected
-	affected = g.GetAffectedModules([]string{"cdp/stage/eu-central-1/eks"})
+	affected = g.GetAffectedModules([]string{"platform/stage/eu-central-1/eks"})
 	sort.Strings(affected)
 
 	expected = []string{
-		"cdp/stage/eu-central-1/app",
-		"cdp/stage/eu-central-1/eks",
+		"platform/stage/eu-central-1/app",
+		"platform/stage/eu-central-1/eks",
 	}
 
 	if !reflect.DeepEqual(affected, expected) {
@@ -175,26 +175,26 @@ func TestDependencyGraph_GetAffectedModules(t *testing.T) {
 
 func TestDependencyGraph_Subgraph(t *testing.T) {
 	modules := []*discovery.Module{
-		{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "vpc"},
-		{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "eks"},
-		{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "rds"},
-		{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "app"},
+		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "vpc"},
+		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "eks"},
+		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "rds"},
+		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "app"},
 	}
 
 	deps := map[string]*parser.ModuleDependencies{
-		"cdp/stage/eu-central-1/vpc": {DependsOn: []string{}},
-		"cdp/stage/eu-central-1/eks": {DependsOn: []string{"cdp/stage/eu-central-1/vpc"}},
-		"cdp/stage/eu-central-1/rds": {DependsOn: []string{"cdp/stage/eu-central-1/vpc"}},
-		"cdp/stage/eu-central-1/app": {DependsOn: []string{"cdp/stage/eu-central-1/eks", "cdp/stage/eu-central-1/rds"}},
+		"platform/stage/eu-central-1/vpc": {DependsOn: []string{}},
+		"platform/stage/eu-central-1/eks": {DependsOn: []string{"platform/stage/eu-central-1/vpc"}},
+		"platform/stage/eu-central-1/rds": {DependsOn: []string{"platform/stage/eu-central-1/vpc"}},
+		"platform/stage/eu-central-1/app": {DependsOn: []string{"platform/stage/eu-central-1/eks", "platform/stage/eu-central-1/rds"}},
 	}
 
 	g := BuildFromDependencies(modules, deps)
 
 	// Create subgraph with only vpc, eks, app
 	sub := g.Subgraph([]string{
-		"cdp/stage/eu-central-1/vpc",
-		"cdp/stage/eu-central-1/eks",
-		"cdp/stage/eu-central-1/app",
+		"platform/stage/eu-central-1/vpc",
+		"platform/stage/eu-central-1/eks",
+		"platform/stage/eu-central-1/app",
 	})
 
 	if len(sub.Nodes()) != 3 {
@@ -202,21 +202,21 @@ func TestDependencyGraph_Subgraph(t *testing.T) {
 	}
 
 	// app should only depend on eks in subgraph (rds is excluded)
-	appDeps := sub.GetDependencies("cdp/stage/eu-central-1/app")
-	if len(appDeps) != 1 || appDeps[0] != "cdp/stage/eu-central-1/eks" {
+	appDeps := sub.GetDependencies("platform/stage/eu-central-1/app")
+	if len(appDeps) != 1 || appDeps[0] != "platform/stage/eu-central-1/eks" {
 		t.Errorf("Expected app to depend only on eks, got %v", appDeps)
 	}
 }
 
 func TestDependencyGraph_ToDOT(t *testing.T) {
 	modules := []*discovery.Module{
-		{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "vpc"},
-		{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "eks"},
+		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "vpc"},
+		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "eks"},
 	}
 
 	deps := map[string]*parser.ModuleDependencies{
-		"cdp/stage/eu-central-1/vpc": {DependsOn: []string{}},
-		"cdp/stage/eu-central-1/eks": {DependsOn: []string{"cdp/stage/eu-central-1/vpc"}},
+		"platform/stage/eu-central-1/vpc": {DependsOn: []string{}},
+		"platform/stage/eu-central-1/eks": {DependsOn: []string{"platform/stage/eu-central-1/vpc"}},
 	}
 
 	g := BuildFromDependencies(modules, deps)
@@ -228,7 +228,7 @@ func TestDependencyGraph_ToDOT(t *testing.T) {
 		t.Error("DOT output missing digraph declaration")
 	}
 
-	if !contains(dot, "cdp/stage/eu-central-1/vpc") {
+	if !contains(dot, "platform/stage/eu-central-1/vpc") {
 		t.Error("DOT output missing vpc node")
 	}
 

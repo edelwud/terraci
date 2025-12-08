@@ -41,7 +41,7 @@ terraci/
 ### discovery.Module
 ```go
 type Module struct {
-    Service      string    // cdp
+    Service      string    // platform
     Environment  string    // stage, prod
     Region       string    // eu-central-1
     Module       string    // vpc, eks
@@ -105,7 +105,7 @@ terraci validate
 # Dependency graph
 terraci graph --format dot -o deps.dot
 terraci graph --format levels
-terraci graph --module cdp/stage/eu-central-1/vpc --dependents
+terraci graph --module platform/stage/eu-central-1/vpc --dependents
 
 # Initialization
 terraci init

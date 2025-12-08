@@ -44,10 +44,10 @@ Examples:
   terraci graph --stats
 
   # Show dependencies for a specific module
-  terraci graph --module cdp/stage/eu-central-1/vpc
+  terraci graph --module platform/stage/eu-central-1/vpc
 
   # Show what depends on a module
-  terraci graph --module cdp/stage/eu-central-1/vpc --dependents`,
+  terraci graph --module platform/stage/eu-central-1/vpc --dependents`,
 	RunE: runGraph,
 }
 

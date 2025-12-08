@@ -24,7 +24,7 @@ TerraCi сканирует структуру директорий для пои
 
 ```
 infrastructure/
-├── cdp/
+├── platform/
 │   ├── stage/
 │   │   └── eu-central-1/
 │   │       ├── vpc/        ← Модуль найден
@@ -41,7 +41,7 @@ infrastructure/
 data "terraform_remote_state" "vpc" {
   backend = "s3"
   config = {
-    key = "cdp/stage/eu-central-1/vpc/terraform.tfstate"
+    key = "platform/stage/eu-central-1/vpc/terraform.tfstate"
   }
 }
 ```

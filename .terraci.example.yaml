@@ -14,11 +14,11 @@ exclude:
   - "*/test/*"
   - "*/sandbox/*"
   # Example: exclude specific region
-  # - "cdp/*/eu-north-1/*"
+  # - "platform/*/eu-north-1/*"
 
 # Modules to include (if empty, all are included)
 # include:
-#   - "cdp/*/*/*"
+#   - "platform/*/*/*"
 
 # GitLab CI configuration
 gitlab:
