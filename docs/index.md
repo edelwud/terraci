@@ -21,26 +21,38 @@ features:
       src: /icons/search.svg
     title: Module Discovery
     details: Scans directory structure to find Terraform modules. Pattern-based detection with configurable depth (4-5 levels).
+    link: /guide/project-structure
+    linkText: Learn more
   - icon:
       src: /icons/graph.svg
     title: Dependency Graph
     details: Extracts dependencies from terraform_remote_state blocks. Builds DAG with topological sorting.
+    link: /guide/dependencies
+    linkText: How it works
   - icon:
       src: /icons/zap.svg
     title: Parallel Execution
     details: Groups modules into execution levels. Independent modules run in parallel, dependent modules wait.
+    link: /guide/pipeline-generation
+    linkText: See example
   - icon:
       src: /icons/git.svg
     title: Changed-Only Mode
     details: Detects modified files via git diff. Generates pipelines only for affected modules and dependents.
+    link: /guide/git-integration
+    linkText: Git integration
   - icon:
       src: /icons/tofu.svg
     title: OpenTofu Ready
     details: Supports both Terraform and OpenTofu. Single config option to switch between them.
+    link: /guide/opentofu
+    linkText: Configure
   - icon:
       src: /icons/chart.svg
     title: Visualization
     details: Export dependency graph to DOT format. Visualize with GraphViz or other tools.
+    link: /cli/graph
+    linkText: View commands
 ---
 
 ## Install

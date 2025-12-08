@@ -21,26 +21,38 @@ features:
       src: /icons/search.svg
     title: Поиск модулей
     details: Сканирует структуру директорий для поиска Terraform-модулей. Настраиваемая глубина (4-5 уровней).
+    link: /ru/guide/project-structure
+    linkText: Подробнее
   - icon:
       src: /icons/graph.svg
     title: Граф зависимостей
     details: Извлекает зависимости из terraform_remote_state. Строит DAG с топологической сортировкой.
+    link: /ru/guide/dependencies
+    linkText: Как это работает
   - icon:
       src: /icons/zap.svg
     title: Параллельное выполнение
     details: Группирует модули по уровням. Независимые модули выполняются параллельно.
+    link: /ru/guide/pipeline-generation
+    linkText: Пример
   - icon:
       src: /icons/git.svg
     title: Режим изменений
     details: Определяет изменённые файлы через git diff. Генерирует пайплайны только для затронутых модулей.
+    link: /ru/guide/git-integration
+    linkText: Git интеграция
   - icon:
       src: /icons/tofu.svg
     title: Поддержка OpenTofu
     details: Работает с Terraform и OpenTofu. Переключение одной опцией в конфиге.
+    link: /ru/guide/opentofu
+    linkText: Настройка
   - icon:
       src: /icons/chart.svg
     title: Визуализация
     details: Экспорт графа зависимостей в DOT. Визуализация через GraphViz.
+    link: /ru/cli/graph
+    linkText: Команды
 ---
 
 ## Установка

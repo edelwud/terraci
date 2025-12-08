@@ -1,41 +1,32 @@
-/* TerraCi Custom Theme - Clean & Minimal */
+/* TerraCi Custom Theme */
 
 :root {
-  /* Subtle brand color - muted purple */
+  /* Brand colors - indigo */
   --vp-c-brand-1: #6366f1;
   --vp-c-brand-2: #4f46e5;
   --vp-c-brand-3: #4338ca;
   --vp-c-brand-soft: rgba(99, 102, 241, 0.1);
 
-  /* Clean hero */
-  --vp-home-hero-name-color: var(--vp-c-text-1);
-  --vp-home-hero-image-background-image: none;
-  --vp-home-hero-image-filter: none;
+  /* Gradient for text */
+  --terraci-gradient: linear-gradient(135deg, #6366f1 0%, #3b82f6 100%);
 }
 
 .dark {
   --vp-c-brand-1: #818cf8;
   --vp-c-brand-2: #6366f1;
   --vp-c-brand-3: #4f46e5;
-  --vp-c-brand-soft: rgba(129, 140, 248, 0.1);
+  --vp-c-brand-soft: rgba(129, 140, 248, 0.12);
 }
 
-/* Hero - clean and simple */
-.VPHero .name {
-  font-weight: 700 !important;
-}
-
+/* Hero text with gradient */
 .VPHero .text {
-  font-weight: 600 !important;
-  color: var(--vp-c-text-1) !important;
+  background: var(--terraci-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-.VPHero .tagline {
-  color: var(--vp-c-text-2);
-  line-height: 1.6;
-}
-
-/* Feature cards - subtle hover */
+/* Feature cards */
 .VPFeature {
   border: 1px solid var(--vp-c-divider);
   border-radius: 8px;
@@ -52,27 +43,7 @@
 
 .VPFeature .details {
   color: var(--vp-c-text-2);
-  font-size: 14px;
   line-height: 1.6;
-}
-
-/* Buttons - simple */
-.VPButton.brand {
-  background: var(--vp-c-brand-1) !important;
-  border: none !important;
-}
-
-.VPButton.brand:hover {
-  background: var(--vp-c-brand-2) !important;
-}
-
-.VPButton.alt {
-  border: 1px solid var(--vp-c-divider) !important;
-  color: var(--vp-c-text-1) !important;
-}
-
-.VPButton.alt:hover {
-  border-color: var(--vp-c-brand-1) !important;
 }
 
 /* Code blocks */
@@ -81,7 +52,7 @@ div[class*='language-'] {
   border: 1px solid var(--vp-c-divider);
 }
 
-/* Tables */
+/* Tables with hover */
 table {
   border-radius: 6px;
   overflow: hidden;
@@ -90,6 +61,10 @@ table {
 th {
   background: var(--vp-c-bg-soft) !important;
   font-weight: 600;
+}
+
+tr:hover td {
+  background: var(--vp-c-bg-soft);
 }
 
 /* Custom containers */
@@ -101,7 +76,7 @@ th {
   color: var(--vp-c-brand-1);
 }
 
-/* Links - subtle underline */
+/* Links */
 .vp-doc a {
   text-decoration: underline;
   text-decoration-color: var(--vp-c-divider);
