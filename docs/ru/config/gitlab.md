@@ -7,7 +7,7 @@
 | Параметр | Тип | По умолчанию | Описание |
 |----------|-----|--------------|----------|
 | `terraform_binary` | string | `terraform` | Бинарный файл Terraform/OpenTofu |
-| `terraform_image` | string | `hashicorp/terraform:1.6` | Docker-образ |
+| `terraform_image` | string/object | `hashicorp/terraform:1.6` | Docker-образ (строка или объект с name/entrypoint) |
 | `stages_prefix` | string | `deploy` | Префикс названий стейджей |
 | `parallelism` | int | `5` | Макс. параллельных джобов |
 | `plan_enabled` | bool | `true` | Генерировать plan-джобы |
@@ -47,11 +47,20 @@ script:
 
 ## terraform_image
 
-Docker-образ для выполнения джобов:
+Docker-образ для выполнения джобов. Поддерживает как простой строковый формат, так и объектный формат с переопределением entrypoint.
 
+**Строковый формат** (простой):
 ```yaml
 gitlab:
   terraform_image: "hashicorp/terraform:1.6"
+```
+
+**Объектный формат** (с entrypoint):
+```yaml
+gitlab:
+  terraform_image:
+    name: "ghcr.io/opentofu/opentofu:1.9-minimal"
+    entrypoint: [""]
 ```
 
 Примеры образов:
@@ -59,6 +68,10 @@ gitlab:
 - `hashicorp/terraform:latest` — последняя версия
 - `ghcr.io/opentofu/opentofu:1.6` — OpenTofu
 - `registry.example.com/terraform:custom` — кастомный образ
+
+::: tip OpenTofu Minimal
+Минимальные образы OpenTofu (например, `opentofu:1.9-minimal`) имеют не-shell entrypoint. Используйте объектный формат с `entrypoint: [""]` для совместимости с GitLab CI.
+:::
 
 ## stages_prefix
 

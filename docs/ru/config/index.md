@@ -140,6 +140,19 @@ gitlab:
   terraform_image: "ghcr.io/opentofu/opentofu:1.6"
 ```
 
+### С OpenTofu Minimal (требует entrypoint)
+
+```yaml
+structure:
+  pattern: "{service}/{environment}/{region}/{module}"
+
+gitlab:
+  terraform_binary: "tofu"
+  terraform_image:
+    name: "ghcr.io/opentofu/opentofu:1.9-minimal"
+    entrypoint: [""]
+```
+
 ### Простая структура
 
 ```yaml

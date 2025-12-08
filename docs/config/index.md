@@ -154,3 +154,15 @@ gitlab:
   <<: *defaults
   terraform_image: "hashicorp/terraform:1.6"
 ```
+
+## OpenTofu with Minimal Images
+
+For OpenTofu minimal images that have a non-shell entrypoint, use the object format:
+
+```yaml
+gitlab:
+  terraform_binary: "tofu"
+  terraform_image:
+    name: "ghcr.io/opentofu/opentofu:1.9-minimal"
+    entrypoint: [""]
+```

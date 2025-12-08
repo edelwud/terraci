@@ -20,12 +20,13 @@ This sets the `TERRAFORM_BINARY` variable in the pipeline.
 
 ### terraform_image
 
-**Type:** `string`
+**Type:** `string` or `object`
 **Default:** `"hashicorp/terraform:1.6"`
 **Required:** Yes
 
-Docker image for Terraform jobs.
+Docker image for Terraform jobs. Supports both simple string format and object format with entrypoint override.
 
+**String format** (simple):
 ```yaml
 gitlab:
   # Terraform
@@ -37,6 +38,24 @@ gitlab:
   # Custom image
   terraform_image: "registry.example.com/terraform:1.6"
 ```
+
+**Object format** (with entrypoint):
+```yaml
+gitlab:
+  # OpenTofu minimal image requires entrypoint override
+  terraform_image:
+    name: "ghcr.io/opentofu/opentofu:1.9-minimal"
+    entrypoint: [""]
+
+  # Custom image with specific entrypoint
+  terraform_image:
+    name: "registry.example.com/terraform:1.6"
+    entrypoint: ["/bin/sh", "-c"]
+```
+
+::: tip OpenTofu Minimal Images
+OpenTofu minimal images (e.g., `opentofu:1.9-minimal`) have a non-shell entrypoint. Use the object format with `entrypoint: [""]` to override it for GitLab CI compatibility.
+:::
 
 ### stages_prefix
 

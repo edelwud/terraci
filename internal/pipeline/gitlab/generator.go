@@ -23,11 +23,29 @@ type Pipeline struct {
 
 // DefaultConfig represents default job configuration
 type DefaultConfig struct {
-	Image        string              `yaml:"image,omitempty"`
+	Image        *ImageConfig        `yaml:"image,omitempty"`
 	BeforeScript []string            `yaml:"before_script,omitempty"`
 	AfterScript  []string            `yaml:"after_script,omitempty"`
 	Tags         []string            `yaml:"tags,omitempty"`
 	IDTokens     map[string]*IDToken `yaml:"id_tokens,omitempty"`
+}
+
+// ImageConfig represents GitLab CI image configuration
+// Can be marshaled as either string or object with entrypoint
+type ImageConfig struct {
+	Name       string   `yaml:"name,omitempty"`
+	Entrypoint []string `yaml:"entrypoint,omitempty"`
+}
+
+// MarshalYAML implements custom marshaling to output string when no entrypoint
+func (img ImageConfig) MarshalYAML() (interface{}, error) {
+	if len(img.Entrypoint) == 0 {
+		// Simple string format
+		return img.Name, nil
+	}
+	// Object format with entrypoint
+	type imageAlias ImageConfig
+	return imageAlias(img), nil
 }
 
 // IDToken represents GitLab CI OIDC token configuration
@@ -187,7 +205,10 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (*Pipeline, erro
 		Stages:    g.generateStages(levels),
 		Variables: variables,
 		Default: &DefaultConfig{
-			Image:        g.config.GitLab.TerraformImage,
+			Image: &ImageConfig{
+				Name:       g.config.GitLab.TerraformImage.Name,
+				Entrypoint: g.config.GitLab.TerraformImage.Entrypoint,
+			},
 			BeforeScript: g.config.GitLab.BeforeScript,
 			AfterScript:  g.config.GitLab.AfterScript,
 			Tags:         g.config.GitLab.Tags,

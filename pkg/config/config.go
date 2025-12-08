@@ -44,7 +44,8 @@ type GitLabConfig struct {
 	// TerraformBinary is the terraform binary to use (e.g., "terraform", "tofu")
 	TerraformBinary string `yaml:"terraform_binary"`
 	// TerraformImage is the Docker image for terraform jobs
-	TerraformImage string `yaml:"terraform_image"`
+	// Supports both string format ("hashicorp/terraform:1.6") and object format with entrypoint
+	TerraformImage Image `yaml:"terraform_image"`
 	// StagesPrefix is the prefix for stage names (e.g., "deploy" -> "deploy-0", "deploy-1")
 	StagesPrefix string `yaml:"stages_prefix"`
 	// Parallelism limits concurrent jobs per stage
@@ -137,6 +138,44 @@ type VaultEngine struct {
 	Path string `yaml:"path"`
 }
 
+// Image defines a Docker image configuration
+// Supports both string format and object format with entrypoint
+type Image struct {
+	// Name is the image name (e.g., "hashicorp/terraform:1.6")
+	Name string `yaml:"name,omitempty"`
+	// Entrypoint overrides the default entrypoint
+	Entrypoint []string `yaml:"entrypoint,omitempty"`
+}
+
+// UnmarshalYAML implements custom unmarshaling for Image to support string shorthand
+func (img *Image) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	// Try string shorthand first (just image name)
+	var shorthand string
+	if err := unmarshal(&shorthand); err == nil {
+		img.Name = shorthand
+		return nil
+	}
+
+	// Try full object syntax
+	type imageAlias Image
+	var alias imageAlias
+	if err := unmarshal(&alias); err != nil {
+		return err
+	}
+	*img = Image(alias)
+	return nil
+}
+
+// String returns the image name
+func (img *Image) String() string {
+	return img.Name
+}
+
+// HasEntrypoint returns true if entrypoint is configured
+func (img *Image) HasEntrypoint() bool {
+	return len(img.Entrypoint) > 0
+}
+
 // BackendConfig defines the state backend configuration
 type BackendConfig struct {
 	// Type of backend (s3, gcs, azurerm, etc.)
@@ -161,7 +200,7 @@ func DefaultConfig() *Config {
 		},
 		GitLab: GitLabConfig{
 			TerraformBinary: "terraform",
-			TerraformImage:  "hashicorp/terraform:1.6",
+			TerraformImage:  Image{Name: "hashicorp/terraform:1.6"},
 			StagesPrefix:    "deploy",
 			Parallelism:     5,
 			PlanEnabled:     true,
@@ -264,7 +303,7 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("structure.max_depth must be >= min_depth")
 	}
 
-	if c.GitLab.TerraformImage == "" {
+	if c.GitLab.TerraformImage.Name == "" {
 		return fmt.Errorf("gitlab.terraform_image is required")
 	}
 
