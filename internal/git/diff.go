@@ -283,7 +283,7 @@ func (c *Client) resolveRef(refStr string) (plumbing.Hash, error) {
 		return commit.Hash, nil
 	}
 
-	// Try as branch name
+	// Try as branch name (local)
 	ref, err := repo.Reference(plumbing.NewBranchReferenceName(refStr), true)
 	if err == nil {
 		return ref.Hash(), nil
@@ -293,6 +293,13 @@ func (c *Client) resolveRef(refStr string) (plumbing.Hash, error) {
 	if strings.HasPrefix(refStr, "origin/") {
 		branchName := strings.TrimPrefix(refStr, "origin/")
 		ref, err = repo.Reference(plumbing.NewRemoteReferenceName("origin", branchName), true)
+		if err == nil {
+			return ref.Hash(), nil
+		}
+	} else {
+		// If not explicitly prefixed with origin/, try as remote branch anyway
+		// This handles CI environments where only remote refs exist (shallow clone, detached HEAD)
+		ref, err = repo.Reference(plumbing.NewRemoteReferenceName("origin", refStr), true)
 		if err == nil {
 			return ref.Hash(), nil
 		}
