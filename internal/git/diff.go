@@ -199,8 +199,8 @@ func (d *ChangedModulesDetector) filesToModules(files []string) []*discovery.Mod
 	moduleSet := make(map[string]*discovery.Module)
 
 	for _, file := range files {
-		// Skip non-terraform files
-		if !strings.HasSuffix(file, ".tf") && !strings.HasSuffix(file, ".tfvars") {
+		// Skip non-terraform related files
+		if !isTerraformRelatedFile(file) {
 			continue
 		}
 
@@ -208,11 +208,27 @@ func (d *ChangedModulesDetector) filesToModules(files []string) []*discovery.Mod
 		dir := filepath.Dir(file)
 
 		// Try to find the module this file belongs to
-		for dir != "." && dir != "/" {
+		// Walk up the directory tree until we find a module
+		for dir != "." && dir != "/" && dir != "" {
+			// Try relative path first (as returned by git)
 			if module := d.index.ByPath(dir); module != nil {
 				moduleSet[module.ID()] = module
 				break
 			}
+
+			// Try absolute path
+			absDir := filepath.Join(d.rootDir, dir)
+			if module := d.index.ByPath(absDir); module != nil {
+				moduleSet[module.ID()] = module
+				break
+			}
+
+			// Try matching by RelativePath directly
+			if module := d.findModuleByRelativePath(dir); module != nil {
+				moduleSet[module.ID()] = module
+				break
+			}
+
 			dir = filepath.Dir(dir)
 		}
 	}
@@ -224,6 +240,40 @@ func (d *ChangedModulesDetector) filesToModules(files []string) []*discovery.Mod
 	}
 
 	return modules
+}
+
+// isTerraformRelatedFile checks if a file is terraform-related
+func isTerraformRelatedFile(file string) bool {
+	// .tf files
+	if strings.HasSuffix(file, ".tf") {
+		return true
+	}
+	// .tfvars files
+	if strings.HasSuffix(file, ".tfvars") {
+		return true
+	}
+	// .terraform.lock.hcl
+	if strings.HasSuffix(file, ".terraform.lock.hcl") {
+		return true
+	}
+	// .tf.json files
+	if strings.HasSuffix(file, ".tf.json") {
+		return true
+	}
+	return false
+}
+
+// findModuleByRelativePath searches for a module by checking if the path matches any module's RelativePath
+func (d *ChangedModulesDetector) findModuleByRelativePath(path string) *discovery.Module {
+	// Normalize path separators
+	normalizedPath := filepath.Clean(path)
+
+	for _, m := range d.index.All() {
+		if m.RelativePath == normalizedPath {
+			return m
+		}
+	}
+	return nil
 }
 
 // GetChangedModuleIDs returns IDs of changed modules
