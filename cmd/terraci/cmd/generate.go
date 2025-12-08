@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
 	"github.com/edelwud/terraci/internal/discovery"
 	"github.com/edelwud/terraci/internal/filter"
 	"github.com/edelwud/terraci/internal/git"
 	"github.com/edelwud/terraci/internal/graph"
 	"github.com/edelwud/terraci/internal/parser"
 	"github.com/edelwud/terraci/internal/pipeline/gitlab"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -74,34 +74,37 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 	scanner.MinDepth = cfg.Structure.MinDepth
 	scanner.MaxDepth = cfg.Structure.MaxDepth
 
-	modules, err := scanner.Scan()
+	allModules, err := scanner.Scan()
 	if err != nil {
 		return fmt.Errorf("failed to scan modules: %w", err)
 	}
 
 	if verbose {
-		fmt.Fprintf(os.Stderr, "Found %d modules\n", len(modules))
+		fmt.Fprintf(os.Stderr, "Found %d modules\n", len(allModules))
 	}
 
-	if len(modules) == 0 {
+	if len(allModules) == 0 {
 		return fmt.Errorf("no modules found in %s", workDir)
 	}
 
-	// 2. Apply filters
-	modules = applyFilters(modules)
+	// 2. Build full module index (before filtering) for change detection
+	fullModuleIndex := discovery.NewModuleIndex(allModules)
+
+	// 3. Apply filters
+	modules := applyFilters(allModules)
 
 	if verbose {
 		fmt.Fprintf(os.Stderr, "After filtering: %d modules\n", len(modules))
 	}
 
-	if len(modules) == 0 {
+	if len(modules) == 0 && !changedOnly {
 		return fmt.Errorf("no modules remaining after filtering")
 	}
 
-	// 3. Build module index
+	// 4. Build filtered module index
 	moduleIndex := discovery.NewModuleIndex(modules)
 
-	// 4. Parse dependencies
+	// 5. Parse dependencies
 	if verbose {
 		fmt.Fprintf(os.Stderr, "Parsing dependencies...\n")
 	}
@@ -117,7 +120,7 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// 5. Build dependency graph
+	// 6. Build dependency graph
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
 	// Check for cycles
@@ -129,11 +132,12 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// 6. Determine target modules
+	// 7. Determine target modules
 	targetModules := modules
 
 	if changedOnly {
-		changedModules, err := getChangedModules(moduleIndex)
+		// Use full module index to detect changes (before filtering)
+		changedModules, err := getChangedModules(fullModuleIndex)
 		if err != nil {
 			return fmt.Errorf("failed to detect changed modules: %w", err)
 		}
@@ -153,10 +157,28 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 
 		affectedIDs := depGraph.GetAffectedModules(changedIDs)
 
-		targetModules = make([]*discovery.Module, 0, len(affectedIDs))
+		// Also include the changed modules themselves if they pass filters
+		affectedSet := make(map[string]bool)
 		for _, id := range affectedIDs {
+			affectedSet[id] = true
+		}
+		for _, id := range changedIDs {
+			affectedSet[id] = true
+		}
+
+		targetModules = make([]*discovery.Module, 0, len(affectedSet))
+		for id := range affectedSet {
+			// First try filtered index
 			if m := moduleIndex.ByID(id); m != nil {
 				targetModules = append(targetModules, m)
+			} else if m := fullModuleIndex.ByID(id); m != nil {
+				// If not in filtered index, check if it passes filters
+				filtered := applyFilters([]*discovery.Module{m})
+				if len(filtered) > 0 {
+					targetModules = append(targetModules, m)
+				} else if verbose {
+					fmt.Fprintf(os.Stderr, "  (filtered out: %s)\n", m.ID())
+				}
 			}
 		}
 
