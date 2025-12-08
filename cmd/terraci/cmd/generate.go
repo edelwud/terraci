@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/edelwud/terraci/internal/discovery"
 	"github.com/edelwud/terraci/internal/filter"
@@ -90,6 +91,10 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 	// 2. Build full module index (before filtering) for change detection
 	fullModuleIndex := discovery.NewModuleIndex(allModules)
 
+	if verbose && changedOnly {
+		fmt.Fprintf(os.Stderr, "Full module index contains %d modules\n", len(allModules))
+	}
+
 	// 3. Apply filters
 	modules := applyFilters(allModules)
 
@@ -137,12 +142,40 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 
 	if changedOnly {
 		// Use full module index to detect changes (before filtering)
-		changedModules, err := getChangedModules(fullModuleIndex)
+		changedModules, changedFiles, err := getChangedModulesVerbose(fullModuleIndex)
 		if err != nil {
 			return fmt.Errorf("failed to detect changed modules: %w", err)
 		}
 
 		if verbose {
+			fmt.Fprintf(os.Stderr, "Git changed files: %d\n", len(changedFiles))
+			checkedDirs := make(map[string]bool)
+			for _, f := range changedFiles {
+				// Check if the directory exists in the module index
+				dir := filepath.Dir(f)
+				if !checkedDirs[dir] {
+					checkedDirs[dir] = true
+					if m := fullModuleIndex.ByPath(dir); m != nil {
+						fmt.Fprintf(os.Stderr, "  %s -> module: %s\n", dir, m.ID())
+					} else {
+						// Check if directory physically exists
+						absDir := filepath.Join(workDir, dir)
+						if info, err := os.Stat(absDir); err == nil && info.IsDir() {
+							// Check for .tf files
+							entries, _ := os.ReadDir(absDir)
+							var tfCount int
+							for _, e := range entries {
+								if !e.IsDir() && filepath.Ext(e.Name()) == ".tf" {
+									tfCount++
+								}
+							}
+							fmt.Fprintf(os.Stderr, "  %s -> NOT INDEXED (dir exists with %d .tf files)\n", dir, tfCount)
+						} else {
+							fmt.Fprintf(os.Stderr, "  %s -> DELETED (dir not on disk)\n", dir)
+						}
+					}
+				}
+			}
 			fmt.Fprintf(os.Stderr, "Changed modules: %d\n", len(changedModules))
 			for _, m := range changedModules {
 				fmt.Fprintf(os.Stderr, "  - %s\n", m.ID())
@@ -294,10 +327,15 @@ func applyFilters(modules []*discovery.Module) []*discovery.Module {
 }
 
 func getChangedModules(moduleIndex *discovery.ModuleIndex) ([]*discovery.Module, error) {
+	modules, _, err := getChangedModulesVerbose(moduleIndex)
+	return modules, err
+}
+
+func getChangedModulesVerbose(moduleIndex *discovery.ModuleIndex) ([]*discovery.Module, []string, error) {
 	gitClient := git.NewClient(workDir)
 
 	if !gitClient.IsGitRepo() {
-		return nil, fmt.Errorf("not a git repository: %s", workDir)
+		return nil, nil, fmt.Errorf("not a git repository: %s", workDir)
 	}
 
 	detector := git.NewChangedModulesDetector(gitClient, moduleIndex, workDir)
@@ -308,5 +346,5 @@ func getChangedModules(moduleIndex *discovery.ModuleIndex) ([]*discovery.Module,
 		ref = gitClient.GetDefaultBranch()
 	}
 
-	return detector.DetectChangedModules(ref)
+	return detector.DetectChangedModulesVerbose(ref)
 }

@@ -2,20 +2,21 @@
 package git
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/edelwud/terraci/internal/discovery"
+	"github.com/go-git/go-git/v6"
+	"github.com/go-git/go-git/v6/plumbing"
+	"github.com/go-git/go-git/v6/plumbing/object"
 )
 
-// Client provides Git operations
+// Client provides Git operations using go-git
 type Client struct {
 	// WorkDir is the working directory for git commands
 	WorkDir string
+	repo    *git.Repository
 }
 
 // NewClient creates a new Git client
@@ -23,139 +24,338 @@ func NewClient(workDir string) *Client {
 	return &Client{WorkDir: workDir}
 }
 
+// openRepo opens the git repository lazily
+func (c *Client) openRepo() (*git.Repository, error) {
+	if c.repo != nil {
+		return c.repo, nil
+	}
+
+	repo, err := git.PlainOpenWithOptions(c.WorkDir, &git.PlainOpenOptions{
+		DetectDotGit: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	c.repo = repo
+	return repo, nil
+}
+
 // IsGitRepo checks if the directory is a git repository
 func (c *Client) IsGitRepo() bool {
-	cmd := exec.Command("git", "rev-parse", "--git-dir")
-	cmd.Dir = c.WorkDir
-	return cmd.Run() == nil
+	_, err := c.openRepo()
+	return err == nil
 }
 
 // GetChangedFiles returns files changed between base ref and HEAD
 func (c *Client) GetChangedFiles(baseRef string) ([]string, error) {
+	repo, err := c.openRepo()
+	if err != nil {
+		return nil, fmt.Errorf("failed to open repository: %w", err)
+	}
+
 	// If no base ref specified, compare against HEAD~1
 	if baseRef == "" {
 		baseRef = "HEAD~1"
 	}
 
-	// Get diff against merge-base for better branch comparison
-	mergeBase, err := c.getMergeBase(baseRef, "HEAD")
+	// Get merge-base for better branch comparison
+	mergeBaseHash, err := c.getMergeBase(baseRef, "HEAD")
 	if err != nil {
-		// Fall back to direct comparison if merge-base fails
-		mergeBase = baseRef
+		// Fall back to direct ref resolution
+		mergeBaseHash, err = c.resolveRef(baseRef)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve base ref %s: %w", baseRef, err)
+		}
 	}
 
-	cmd := exec.Command("git", "diff", "--name-only", mergeBase, "HEAD")
-	cmd.Dir = c.WorkDir
-
-	output, err := cmd.Output()
+	// Get HEAD commit
+	headRef, err := repo.Head()
 	if err != nil {
-		return nil, fmt.Errorf("git diff failed: %w", err)
+		return nil, fmt.Errorf("failed to get HEAD: %w", err)
 	}
 
-	return parseLines(output), nil
+	headCommit, err := repo.CommitObject(headRef.Hash())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get HEAD commit: %w", err)
+	}
+
+	baseCommit, err := repo.CommitObject(mergeBaseHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get base commit: %w", err)
+	}
+
+	// Get trees
+	headTree, err := headCommit.Tree()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get HEAD tree: %w", err)
+	}
+
+	baseTree, err := baseCommit.Tree()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get base tree: %w", err)
+	}
+
+	// Get diff
+	changes, err := baseTree.Diff(headTree)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute diff: %w", err)
+	}
+
+	// Collect changed file paths
+	var files []string
+	for _, change := range changes {
+		// Get the path (use To for added/modified, From for deleted)
+		path := change.To.Name
+		if path == "" {
+			path = change.From.Name
+		}
+		if path != "" {
+			files = append(files, path)
+		}
+	}
+
+	return files, nil
 }
 
 // GetChangedFilesFromCommit returns files changed in a specific commit
 func (c *Client) GetChangedFilesFromCommit(commitHash string) ([]string, error) {
-	cmd := exec.Command("git", "diff-tree", "--no-commit-id", "--name-only", "-r", commitHash)
-	cmd.Dir = c.WorkDir
-
-	output, err := cmd.Output()
+	repo, err := c.openRepo()
 	if err != nil {
-		return nil, fmt.Errorf("git diff-tree failed: %w", err)
+		return nil, fmt.Errorf("failed to open repository: %w", err)
 	}
 
-	return parseLines(output), nil
+	hash := plumbing.NewHash(commitHash)
+	commit, err := repo.CommitObject(hash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get commit %s: %w", commitHash, err)
+	}
+
+	// Get parent commit (if exists)
+	var parentTree *object.Tree
+	if commit.NumParents() > 0 {
+		parent, err := commit.Parent(0)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get parent commit: %w", err)
+		}
+		parentTree, err = parent.Tree()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get parent tree: %w", err)
+		}
+	}
+
+	commitTree, err := commit.Tree()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get commit tree: %w", err)
+	}
+
+	var changes object.Changes
+	if parentTree != nil {
+		changes, err = parentTree.Diff(commitTree)
+	} else {
+		// Initial commit - all files are new
+		changes, err = (&object.Tree{}).Diff(commitTree)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute diff: %w", err)
+	}
+
+	var files []string
+	for _, change := range changes {
+		path := change.To.Name
+		if path == "" {
+			path = change.From.Name
+		}
+		if path != "" {
+			files = append(files, path)
+		}
+	}
+
+	return files, nil
 }
 
 // GetUncommittedChanges returns uncommitted changed files
 func (c *Client) GetUncommittedChanges() ([]string, error) {
-	// Get both staged and unstaged changes
-	cmd := exec.Command("git", "status", "--porcelain")
-	cmd.Dir = c.WorkDir
-
-	output, err := cmd.Output()
+	repo, err := c.openRepo()
 	if err != nil {
-		return nil, fmt.Errorf("git status failed: %w", err)
+		return nil, fmt.Errorf("failed to open repository: %w", err)
+	}
+
+	worktree, err := repo.Worktree()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get worktree: %w", err)
+	}
+
+	status, err := worktree.Status()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get status: %w", err)
 	}
 
 	var files []string
-	scanner := bufio.NewScanner(bytes.NewReader(output))
-	for scanner.Scan() {
-		line := scanner.Text()
-		if len(line) > 3 {
-			// Format: XY filename or XY orig -> renamed
-			file := strings.TrimSpace(line[3:])
-			// Handle renames (A -> B format)
-			if idx := strings.Index(file, " -> "); idx != -1 {
-				file = file[idx+4:]
-			}
-			files = append(files, file)
+	for path, fileStatus := range status {
+		// Include any file that has changes (staged or unstaged)
+		if fileStatus.Staging != git.Unmodified || fileStatus.Worktree != git.Unmodified {
+			files = append(files, path)
 		}
 	}
 
-	return files, scanner.Err()
+	return files, nil
 }
 
 // getMergeBase finds the common ancestor of two refs
-func (c *Client) getMergeBase(ref1, ref2 string) (string, error) {
-	cmd := exec.Command("git", "merge-base", ref1, ref2)
-	cmd.Dir = c.WorkDir
-
-	output, err := cmd.Output()
+func (c *Client) getMergeBase(ref1, ref2 string) (plumbing.Hash, error) {
+	repo, err := c.openRepo()
 	if err != nil {
-		return "", fmt.Errorf("git merge-base failed: %w", err)
+		return plumbing.ZeroHash, err
 	}
 
-	return strings.TrimSpace(string(output)), nil
+	hash1, err := c.resolveRef(ref1)
+	if err != nil {
+		return plumbing.ZeroHash, fmt.Errorf("failed to resolve %s: %w", ref1, err)
+	}
+
+	hash2, err := c.resolveRef(ref2)
+	if err != nil {
+		return plumbing.ZeroHash, fmt.Errorf("failed to resolve %s: %w", ref2, err)
+	}
+
+	commit1, err := repo.CommitObject(hash1)
+	if err != nil {
+		return plumbing.ZeroHash, err
+	}
+
+	commit2, err := repo.CommitObject(hash2)
+	if err != nil {
+		return plumbing.ZeroHash, err
+	}
+
+	// Find merge base using ancestor traversal
+	bases, err := commit1.MergeBase(commit2)
+	if err != nil {
+		return plumbing.ZeroHash, fmt.Errorf("failed to find merge base: %w", err)
+	}
+
+	if len(bases) == 0 {
+		return plumbing.ZeroHash, fmt.Errorf("no common ancestor found")
+	}
+
+	return bases[0].Hash, nil
+}
+
+// resolveRef resolves a ref string to a commit hash
+func (c *Client) resolveRef(refStr string) (plumbing.Hash, error) {
+	repo, err := c.openRepo()
+	if err != nil {
+		return plumbing.ZeroHash, err
+	}
+
+	// Try as a hash first
+	if plumbing.IsHash(refStr) {
+		return plumbing.NewHash(refStr), nil
+	}
+
+	// Handle HEAD~N notation
+	if strings.HasPrefix(refStr, "HEAD~") || strings.HasPrefix(refStr, "HEAD^") {
+		headRef, err := repo.Head()
+		if err != nil {
+			return plumbing.ZeroHash, err
+		}
+
+		commit, err := repo.CommitObject(headRef.Hash())
+		if err != nil {
+			return plumbing.ZeroHash, err
+		}
+
+		// Parse the number of parents to traverse
+		n := 1
+		if len(refStr) > 5 {
+			fmt.Sscanf(refStr[5:], "%d", &n)
+		}
+
+		// Walk back n commits
+		for i := 0; i < n && commit.NumParents() > 0; i++ {
+			commit, err = commit.Parent(0)
+			if err != nil {
+				return plumbing.ZeroHash, err
+			}
+		}
+
+		return commit.Hash, nil
+	}
+
+	// Try as branch name
+	ref, err := repo.Reference(plumbing.NewBranchReferenceName(refStr), true)
+	if err == nil {
+		return ref.Hash(), nil
+	}
+
+	// Try as remote branch (origin/branch)
+	if strings.HasPrefix(refStr, "origin/") {
+		branchName := strings.TrimPrefix(refStr, "origin/")
+		ref, err = repo.Reference(plumbing.NewRemoteReferenceName("origin", branchName), true)
+		if err == nil {
+			return ref.Hash(), nil
+		}
+	}
+
+	// Try as tag
+	ref, err = repo.Reference(plumbing.NewTagReferenceName(refStr), true)
+	if err == nil {
+		return ref.Hash(), nil
+	}
+
+	// Try as full reference
+	ref, err = repo.Reference(plumbing.ReferenceName(refStr), true)
+	if err == nil {
+		return ref.Hash(), nil
+	}
+
+	return plumbing.ZeroHash, fmt.Errorf("cannot resolve reference: %s", refStr)
 }
 
 // GetCurrentBranch returns the current branch name
 func (c *Client) GetCurrentBranch() (string, error) {
-	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
-	cmd.Dir = c.WorkDir
-
-	output, err := cmd.Output()
+	repo, err := c.openRepo()
 	if err != nil {
-		return "", fmt.Errorf("git rev-parse failed: %w", err)
+		return "", fmt.Errorf("failed to open repository: %w", err)
 	}
 
-	return strings.TrimSpace(string(output)), nil
+	headRef, err := repo.Head()
+	if err != nil {
+		return "", fmt.Errorf("failed to get HEAD: %w", err)
+	}
+
+	if headRef.Name().IsBranch() {
+		return headRef.Name().Short(), nil
+	}
+
+	// Detached HEAD
+	return headRef.Hash().String()[:7], nil
 }
 
 // GetDefaultBranch attempts to determine the default branch
 func (c *Client) GetDefaultBranch() string {
+	repo, err := c.openRepo()
+	if err != nil {
+		return "origin/main"
+	}
+
 	// Try common default branch names
 	for _, branch := range []string{"main", "master"} {
-		cmd := exec.Command("git", "rev-parse", "--verify", "origin/"+branch)
-		cmd.Dir = c.WorkDir
-		if cmd.Run() == nil {
+		ref, err := repo.Reference(plumbing.NewRemoteReferenceName("origin", branch), true)
+		if err == nil && ref != nil {
 			return "origin/" + branch
 		}
 	}
 
-	// Try to get from remote
-	cmd := exec.Command("git", "symbolic-ref", "refs/remotes/origin/HEAD")
-	cmd.Dir = c.WorkDir
-	if output, err := cmd.Output(); err == nil {
-		ref := strings.TrimSpace(string(output))
-		return strings.TrimPrefix(ref, "refs/remotes/")
+	// Try to get from origin/HEAD
+	ref, err := repo.Reference("refs/remotes/origin/HEAD", false)
+	if err == nil && ref != nil {
+		target := ref.Target().Short()
+		return target
 	}
 
 	return "origin/main"
-}
-
-// parseLines splits output into lines, removing empty ones
-func parseLines(data []byte) []string {
-	var lines []string
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line != "" {
-			lines = append(lines, line)
-		}
-	}
-	return lines
 }
 
 // ChangedModulesDetector detects which modules have changed
@@ -182,6 +382,16 @@ func (d *ChangedModulesDetector) DetectChangedModules(baseRef string) ([]*discov
 	}
 
 	return d.filesToModules(changedFiles), nil
+}
+
+// DetectChangedModulesVerbose returns modules affected by changed files with debug info
+func (d *ChangedModulesDetector) DetectChangedModulesVerbose(baseRef string) ([]*discovery.Module, []string, error) {
+	changedFiles, err := d.gitClient.GetChangedFiles(baseRef)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return d.filesToModules(changedFiles), changedFiles, nil
 }
 
 // DetectUncommittedModules returns modules with uncommitted changes
