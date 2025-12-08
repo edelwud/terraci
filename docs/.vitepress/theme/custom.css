@@ -30,11 +30,12 @@
 .VPFeature {
   border: 1px solid var(--vp-c-divider);
   border-radius: 8px;
-  transition: border-color 0.2s ease;
+  transition: all 0.2s ease;
 }
 
 .VPFeature:hover {
   border-color: var(--vp-c-brand-1);
+  transform: translateY(-2px);
 }
 
 .VPFeature .title {
