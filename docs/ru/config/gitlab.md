@@ -13,7 +13,8 @@
 | `plan_enabled` | bool | `true` | Генерировать plan-джобы |
 | `auto_approve` | bool | `false` | Автоматический apply |
 | `cache_enabled` | bool | `false` | Кеширование .terraform |
-| `before_script` | []string | `["${TERRAFORM_BINARY} init"]` | Команды перед джобом |
+| `init_enabled` | bool | `true` | Авто-инициализация terraform после cd |
+| `before_script` | []string | `[]` | Команды перед джобом (до script) |
 | `after_script` | []string | `[]` | Команды после джоба |
 | `tags` | []string | `[]` | Теги раннеров |
 | `variables` | map | `{}` | Переменные пайплайна |
@@ -168,15 +169,32 @@ plan-platform-prod-eu-central-1-vpc:
 - Работает на уровне отдельных модулей — независимое кеширование
 :::
 
+## init_enabled
+
+Автоматический запуск `terraform init` после перехода в директорию модуля:
+
+```yaml
+gitlab:
+  init_enabled: true   # По умолчанию
+```
+
+Генерируемый скрипт:
+```yaml
+script:
+  - cd platform/prod/eu-central-1/vpc
+  - ${TERRAFORM_BINARY} init      # Добавляется автоматически
+  - ${TERRAFORM_BINARY} plan ...
+```
+
 ## before_script / after_script
 
-Команды до и после основного скрипта:
+Команды до и после основного скрипта. `before_script` выполняется в `default` секции GitLab CI, **до** основного `script`.
 
 ```yaml
 gitlab:
   before_script:
-    - ${TERRAFORM_BINARY} init
-    - ${TERRAFORM_BINARY} validate
+    - echo "Начало джоба"
+    - aws sts get-caller-identity
   after_script:
     - echo "Джоб завершен"
 ```
@@ -385,27 +403,24 @@ gitlab:
 ```yaml
 plan-platform-prod-eu-central-1-vpc:
   stage: deploy-plan-0
-  image: hashicorp/terraform:1.6
   variables:
     TF_MODULE_PATH: "platform/prod/eu-central-1/vpc"
     TF_SERVICE: "platform"
     TF_ENVIRONMENT: "prod"
     TF_REGION: "eu-central-1"
     TF_MODULE: "vpc"
-  before_script:
-    - ${TERRAFORM_BINARY} init
   script:
     - cd platform/prod/eu-central-1/vpc
+    - ${TERRAFORM_BINARY} init
     - ${TERRAFORM_BINARY} plan -out=plan.tfplan
   artifacts:
     paths:
       - platform/prod/eu-central-1/vpc/plan.tfplan
     expire_in: 1 day
-  tags:
-    - terraform
-    - docker
   resource_group: platform/prod/eu-central-1/vpc
 ```
+
+Команды `before_script` встраиваются в `script` после перехода в директорию модуля.
 
 ## Конфигурации для разных окружений
 

@@ -138,18 +138,39 @@ plan-platform-prod-vpc:
 
 The cache key is derived from the module path with slashes replaced by dashes.
 
+### init_enabled
+
+**Type:** `boolean`
+**Default:** `true`
+
+Automatically run `terraform init` after changing to the module directory. This ensures initialization happens in the correct context.
+
+```yaml
+gitlab:
+  init_enabled: true   # Adds ${TERRAFORM_BINARY} init after cd
+  # init_enabled: false  # Skip automatic init (use before_script instead)
+```
+
+The generated script will be:
+```yaml
+script:
+  - cd platform/prod/us-east-1/vpc     # Change to module directory
+  - ${TERRAFORM_BINARY} init            # Auto-added when init_enabled: true
+  - ${TERRAFORM_BINARY} plan -out=...   # Main command
+```
+
 ### before_script
 
 **Type:** `string[]`
-**Default:** `["${TERRAFORM_BINARY} init"]`
+**Default:** `[]`
 
-Commands to run before each job.
+Commands to run before each job (in GitLab CI `default.before_script`). These run **before** the main script, so before `cd` to the module directory.
 
 ```yaml
 gitlab:
   before_script:
-    - ${TERRAFORM_BINARY} init
-    - ${TERRAFORM_BINARY} workspace select ${TF_ENVIRONMENT} || ${TERRAFORM_BINARY} workspace new ${TF_ENVIRONMENT}
+    - echo "Starting job for ${TF_MODULE}"
+    - aws sts get-caller-identity
 ```
 
 ### after_script
@@ -392,7 +413,6 @@ default:
   image: hashicorp/terraform:1.6
   before_script:
     - export AWS_ROLE_ARN="arn:aws:iam::123456789:role/TerraformRole"
-    - ${TERRAFORM_BINARY} init -backend-config="role_arn=${AWS_ROLE_ARN}"
   after_script:
     - echo "Module ${TF_MODULE} completed"
   tags:
@@ -409,6 +429,7 @@ plan-platform-prod-vpc:
   stage: deploy-plan-0
   script:
     - cd platform/prod/us-east-1/vpc
+    - ${TERRAFORM_BINARY} init
     - ${TERRAFORM_BINARY} plan -out=plan.tfplan
   variables:
     TF_MODULE: vpc
@@ -422,6 +443,7 @@ apply-platform-prod-vpc:
   stage: deploy-apply-0
   script:
     - cd platform/prod/us-east-1/vpc
+    - ${TERRAFORM_BINARY} init
     - ${TERRAFORM_BINARY} apply plan.tfplan
   needs:
     - plan-platform-prod-vpc

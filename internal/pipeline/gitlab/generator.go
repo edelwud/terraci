@@ -266,12 +266,16 @@ func (g *Generator) generatePlanJob(module *discovery.Module, level int, depGrap
 		prefix = "deploy"
 	}
 
+	// Build script with cd, optional init, and plan
+	script := []string{fmt.Sprintf("cd %s", module.RelativePath)}
+	if g.config.GitLab.InitEnabled {
+		script = append(script, "${TERRAFORM_BINARY} init")
+	}
+	script = append(script, "${TERRAFORM_BINARY} plan -out=plan.tfplan")
+
 	job := &Job{
-		Stage: fmt.Sprintf("%s-plan-%d", prefix, level),
-		Script: []string{
-			fmt.Sprintf("cd %s", module.RelativePath),
-			"${TERRAFORM_BINARY} plan -out=plan.tfplan",
-		},
+		Stage:  fmt.Sprintf("%s-plan-%d", prefix, level),
+		Script: script,
 		Variables: map[string]string{
 			"TF_MODULE_PATH": module.RelativePath,
 			"TF_SERVICE":     module.Service,
@@ -301,8 +305,11 @@ func (g *Generator) generateApplyJob(module *discovery.Module, level int, depGra
 		prefix = "deploy"
 	}
 
-	var script []string
-	script = append(script, fmt.Sprintf("cd %s", module.RelativePath))
+	// Build script with cd, optional init, and apply
+	script := []string{fmt.Sprintf("cd %s", module.RelativePath)}
+	if g.config.GitLab.InitEnabled {
+		script = append(script, "${TERRAFORM_BINARY} init")
+	}
 
 	if g.config.GitLab.PlanEnabled {
 		script = append(script, "${TERRAFORM_BINARY} apply plan.tfplan")

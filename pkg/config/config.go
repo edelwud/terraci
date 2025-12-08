@@ -66,6 +66,8 @@ type GitLabConfig struct {
 	ArtifactPaths []string `yaml:"artifact_paths,omitempty"`
 	// CacheEnabled enables caching of .terraform directory
 	CacheEnabled bool `yaml:"cache_enabled"`
+	// InitEnabled automatically runs terraform init after cd to module directory
+	InitEnabled bool `yaml:"init_enabled"`
 	// IDTokens defines OIDC tokens for cloud provider authentication
 	IDTokens map[string]IDToken `yaml:"id_tokens,omitempty"`
 	// Rules defines pipeline-level rules for conditional execution
@@ -205,9 +207,7 @@ func DefaultConfig() *Config {
 			Parallelism:     5,
 			PlanEnabled:     true,
 			AutoApprove:     false,
-			BeforeScript: []string{
-				"${TERRAFORM_BINARY} init",
-			},
+			InitEnabled:     true,
 			ArtifactPaths: []string{
 				"*.tfplan",
 			},
