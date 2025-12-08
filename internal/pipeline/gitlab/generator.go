@@ -21,13 +21,9 @@ type Pipeline struct {
 	Workflow  *Workflow              `yaml:"workflow,omitempty"`
 }
 
-// DefaultConfig represents default job configuration
+// DefaultConfig represents default job configuration (only image in default section)
 type DefaultConfig struct {
-	Image        *ImageConfig        `yaml:"image,omitempty"`
-	BeforeScript []string            `yaml:"before_script,omitempty"`
-	AfterScript  []string            `yaml:"after_script,omitempty"`
-	Tags         []string            `yaml:"tags,omitempty"`
-	IDTokens     map[string]*IDToken `yaml:"id_tokens,omitempty"`
+	Image *ImageConfig `yaml:"image,omitempty"`
 }
 
 // ImageConfig represents GitLab CI image configuration
@@ -98,7 +94,7 @@ type VaultSecretShorthand string
 // Job represents a GitLab CI job
 type Job struct {
 	Stage         string              `yaml:"stage"`
-	Image         string              `yaml:"image,omitempty"`
+	Image         *ImageConfig        `yaml:"image,omitempty"`
 	Script        []string            `yaml:"script"`
 	BeforeScript  []string            `yaml:"before_script,omitempty"`
 	AfterScript   []string            `yaml:"after_script,omitempty"`
@@ -108,6 +104,7 @@ type Job struct {
 	Artifacts     *Artifacts          `yaml:"artifacts,omitempty"`
 	Cache         *Cache              `yaml:"cache,omitempty"`
 	Secrets       map[string]*Secret  `yaml:"secrets,omitempty"`
+	IDTokens      map[string]*IDToken `yaml:"id_tokens,omitempty"`
 	When          string              `yaml:"when,omitempty"`
 	AllowFailure  bool                `yaml:"allow_failure,omitempty"`
 	Tags          []string            `yaml:"tags,omitempty"`
@@ -136,14 +133,20 @@ type Rule struct {
 
 // Artifacts represents job artifacts
 type Artifacts struct {
-	Paths   []string `yaml:"paths,omitempty"`
-	ExpireIn string  `yaml:"expire_in,omitempty"`
-	Reports *Reports `yaml:"reports,omitempty"`
+	Paths     []string `yaml:"paths,omitempty"`
+	ExpireIn  string   `yaml:"expire_in,omitempty"`
+	Reports   *Reports `yaml:"reports,omitempty"`
+	Name      string   `yaml:"name,omitempty"`
+	Untracked bool     `yaml:"untracked,omitempty"`
+	When      string   `yaml:"when,omitempty"`
+	ExposeAs  string   `yaml:"expose_as,omitempty"`
 }
 
 // Reports represents artifact reports
 type Reports struct {
 	Terraform []string `yaml:"terraform,omitempty"`
+	JUnit     []string `yaml:"junit,omitempty"`
+	Cobertura []string `yaml:"cobertura,omitempty"`
 }
 
 // Workflow controls when pipelines are created
@@ -201,18 +204,17 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (*Pipeline, erro
 	}
 	variables["TERRAFORM_BINARY"] = tfBinary
 
+	// Get effective image (new field or deprecated terraform_image)
+	effectiveImage := g.config.GitLab.GetImage()
+
 	pipeline := &Pipeline{
 		Stages:    g.generateStages(levels),
 		Variables: variables,
 		Default: &DefaultConfig{
 			Image: &ImageConfig{
-				Name:       g.config.GitLab.TerraformImage.Name,
-				Entrypoint: g.config.GitLab.TerraformImage.Entrypoint,
+				Name:       effectiveImage.Name,
+				Entrypoint: effectiveImage.Entrypoint,
 			},
-			BeforeScript: g.config.GitLab.BeforeScript,
-			AfterScript:  g.config.GitLab.AfterScript,
-			Tags:         g.config.GitLab.Tags,
-			IDTokens:     g.convertIDTokens(),
 		},
 		Jobs:     make(map[string]*Job),
 		Workflow: g.generateWorkflow(),
@@ -283,17 +285,21 @@ func (g *Generator) generatePlanJob(module *discovery.Module, level int, depGrap
 			"TF_REGION":      module.Region,
 			"TF_MODULE":      module.Name(),
 		},
+		// Default artifacts for plan - can be overridden via job_defaults or overwrites
 		Artifacts: &Artifacts{
 			Paths:    []string{fmt.Sprintf("%s/plan.tfplan", module.RelativePath)},
 			ExpireIn: "1 day",
 		},
 		Cache:         g.generateCache(module),
-		Secrets:       g.convertSecrets(),
 		ResourceGroup: module.ID(),
 	}
 
 	// Add needs for dependencies from previous levels
 	job.Needs = g.getDependencyNeeds(module, level, depGraph, "apply")
+
+	// Apply job_defaults first, then overwrites
+	g.applyJobDefaults(job)
+	g.applyOverwrites(job, config.OverwriteTypePlan)
 
 	return job
 }
@@ -332,7 +338,6 @@ func (g *Generator) generateApplyJob(module *discovery.Module, level int, depGra
 			"TF_MODULE":      module.Name(),
 		},
 		Cache:         g.generateCache(module),
-		Secrets:       g.convertSecrets(),
 		ResourceGroup: module.ID(),
 	}
 
@@ -357,6 +362,10 @@ func (g *Generator) generateApplyJob(module *discovery.Module, level int, depGra
 
 	job.Needs = needs
 
+	// Apply job_defaults first, then overwrites
+	g.applyJobDefaults(job)
+	g.applyOverwrites(job, config.OverwriteTypeApply)
+
 	return job
 }
 
@@ -376,38 +385,165 @@ func (g *Generator) generateCache(module *discovery.Module) *Cache {
 	}
 }
 
-// convertIDTokens converts config IDTokens to pipeline IDTokens
-func (g *Generator) convertIDTokens() map[string]*IDToken {
-	if len(g.config.GitLab.IDTokens) == 0 {
-		return nil
+// applyJobDefaults applies job_defaults settings to a job
+func (g *Generator) applyJobDefaults(job *Job) {
+	jd := g.config.GitLab.JobDefaults
+	if jd == nil {
+		return
 	}
 
-	result := make(map[string]*IDToken)
-	for name, token := range g.config.GitLab.IDTokens {
-		result[name] = &IDToken{
-			Aud: token.Aud,
+	// Apply image
+	if jd.Image != nil && jd.Image.Name != "" {
+		job.Image = &ImageConfig{
+			Name:       jd.Image.Name,
+			Entrypoint: jd.Image.Entrypoint,
 		}
 	}
-	return result
-}
 
-// convertSecrets converts config Secrets to pipeline Secrets
-func (g *Generator) convertSecrets() map[string]*Secret {
-	if len(g.config.GitLab.Secrets) == 0 {
-		return nil
+	// Apply id_tokens
+	if len(jd.IDTokens) > 0 {
+		job.IDTokens = make(map[string]*IDToken)
+		for name, token := range jd.IDTokens {
+			job.IDTokens[name] = &IDToken{
+				Aud: token.Aud,
+			}
+		}
 	}
 
+	// Apply secrets
+	if len(jd.Secrets) > 0 {
+		job.Secrets = g.convertSecretsFromOverwrite(jd.Secrets)
+	}
+
+	// Apply before_script
+	if len(jd.BeforeScript) > 0 {
+		job.BeforeScript = jd.BeforeScript
+	}
+
+	// Apply after_script
+	if len(jd.AfterScript) > 0 {
+		job.AfterScript = jd.AfterScript
+	}
+
+	// Apply artifacts
+	if jd.Artifacts != nil {
+		job.Artifacts = g.convertArtifactsFromOverwrite(jd.Artifacts)
+	}
+
+	// Apply tags
+	if len(jd.Tags) > 0 {
+		job.Tags = jd.Tags
+	}
+
+	// Apply rules
+	if len(jd.Rules) > 0 {
+		job.Rules = make([]Rule, len(jd.Rules))
+		for i, r := range jd.Rules {
+			job.Rules[i] = Rule{
+				If:      r.If,
+				When:    r.When,
+				Changes: r.Changes,
+			}
+		}
+	}
+
+	// Apply variables
+	if len(jd.Variables) > 0 {
+		if job.Variables == nil {
+			job.Variables = make(map[string]string)
+		}
+		for k, v := range jd.Variables {
+			job.Variables[k] = v
+		}
+	}
+}
+
+// applyOverwrites applies job overwrites based on job type
+func (g *Generator) applyOverwrites(job *Job, jobType config.JobOverwriteType) {
+	for _, ow := range g.config.GitLab.Overwrites {
+		// Check if this overwrite applies to the job type
+		if ow.Type != jobType {
+			continue
+		}
+
+		// Apply image override
+		if ow.Image != nil && ow.Image.Name != "" {
+			job.Image = &ImageConfig{
+				Name:       ow.Image.Name,
+				Entrypoint: ow.Image.Entrypoint,
+			}
+		}
+
+		// Apply id_tokens override
+		if len(ow.IDTokens) > 0 {
+			job.IDTokens = make(map[string]*IDToken)
+			for name, token := range ow.IDTokens {
+				job.IDTokens[name] = &IDToken{
+					Aud: token.Aud,
+				}
+			}
+		}
+
+		// Apply secrets override
+		if len(ow.Secrets) > 0 {
+			job.Secrets = g.convertSecretsFromOverwrite(ow.Secrets)
+		}
+
+		// Apply before_script override
+		if len(ow.BeforeScript) > 0 {
+			job.BeforeScript = ow.BeforeScript
+		}
+
+		// Apply after_script override
+		if len(ow.AfterScript) > 0 {
+			job.AfterScript = ow.AfterScript
+		}
+
+		// Apply artifacts override
+		if ow.Artifacts != nil {
+			job.Artifacts = g.convertArtifactsFromOverwrite(ow.Artifacts)
+		}
+
+		// Apply tags override
+		if len(ow.Tags) > 0 {
+			job.Tags = ow.Tags
+		}
+
+		// Apply rules override (job-level)
+		if len(ow.Rules) > 0 {
+			job.Rules = make([]Rule, len(ow.Rules))
+			for i, r := range ow.Rules {
+				job.Rules[i] = Rule{
+					If:      r.If,
+					When:    r.When,
+					Changes: r.Changes,
+				}
+			}
+		}
+
+		// Apply variables override
+		if len(ow.Variables) > 0 {
+			if job.Variables == nil {
+				job.Variables = make(map[string]string)
+			}
+			for k, v := range ow.Variables {
+				job.Variables[k] = v
+			}
+		}
+	}
+}
+
+// convertSecretsFromOverwrite converts overwrite secrets to pipeline secrets
+func (g *Generator) convertSecretsFromOverwrite(secrets map[string]config.Secret) map[string]*Secret {
 	result := make(map[string]*Secret)
-	for name, secret := range g.config.GitLab.Secrets {
+	for name, secret := range secrets {
 		s := &Secret{
 			File: secret.File,
 		}
 		if secret.Vault != nil {
-			// Check if shorthand format is used
 			if secret.Vault.Shorthand != "" {
 				s.VaultPath = secret.Vault.Shorthand
 			} else {
-				// Full object format
 				s.Vault = &VaultSecret{
 					Path:  secret.Vault.Path,
 					Field: secret.Vault.Field,
@@ -423,6 +559,29 @@ func (g *Generator) convertSecrets() map[string]*Secret {
 		result[name] = s
 	}
 	return result
+}
+
+// convertArtifactsFromOverwrite converts overwrite artifacts to pipeline artifacts
+func (g *Generator) convertArtifactsFromOverwrite(cfg *config.ArtifactsConfig) *Artifacts {
+	if cfg == nil {
+		return nil
+	}
+	artifacts := &Artifacts{
+		Paths:     cfg.Paths,
+		ExpireIn:  cfg.ExpireIn,
+		Name:      cfg.Name,
+		Untracked: cfg.Untracked,
+		When:      cfg.When,
+		ExposeAs:  cfg.ExposeAs,
+	}
+	if cfg.Reports != nil {
+		artifacts.Reports = &Reports{
+			Terraform: cfg.Reports.Terraform,
+			JUnit:     cfg.Reports.JUnit,
+			Cobertura: cfg.Reports.Cobertura,
+		}
+	}
+	return artifacts
 }
 
 // generateWorkflow creates workflow configuration with rules

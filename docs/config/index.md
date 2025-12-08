@@ -48,27 +48,28 @@ include: []  # Empty means all (after excludes)
 # GitLab CI pipeline settings
 gitlab:
   terraform_binary: "terraform"
-  terraform_image: "hashicorp/terraform:1.6"
+  image: "hashicorp/terraform:1.6"
   stages_prefix: "deploy"
   parallelism: 5
   plan_enabled: true
   auto_approve: false
-
-  before_script:
-    - ${TERRAFORM_BINARY} init
-
-  after_script: []
-
-  tags:
-    - terraform
-    - docker
+  init_enabled: true
 
   variables:
     TF_IN_AUTOMATION: "true"
     TF_INPUT: "false"
 
-  artifact_paths:
-    - "*.tfplan"
+  # Job defaults (applied to all jobs)
+  job_defaults:
+    tags:
+      - terraform
+      - docker
+    before_script:
+      - aws sts get-caller-identity
+    artifacts:
+      paths:
+        - "*.tfplan"
+      expire_in: "1 day"
 
 # Backend configuration (for path matching)
 backend:
@@ -99,15 +100,12 @@ structure:
 
 gitlab:
   terraform_binary: "terraform"
-  terraform_image: "hashicorp/terraform:1.6"
+  image: "hashicorp/terraform:1.6"
   stages_prefix: "deploy"
   parallelism: 5
   plan_enabled: true
   auto_approve: false
-  before_script:
-    - ${TERRAFORM_BINARY} init
-  artifact_paths:
-    - "*.tfplan"
+  init_enabled: true
 
 backend:
   type: s3
@@ -148,11 +146,12 @@ defaults: &defaults
     - terraform
     - docker
   before_script:
-    - ${TERRAFORM_BINARY} init
+    - aws sts get-caller-identity
 
 gitlab:
-  <<: *defaults
-  terraform_image: "hashicorp/terraform:1.6"
+  image: "hashicorp/terraform:1.6"
+  job_defaults:
+    <<: *defaults
 ```
 
 ## OpenTofu with Minimal Images
@@ -162,7 +161,7 @@ For OpenTofu minimal images that have a non-shell entrypoint, use the object for
 ```yaml
 gitlab:
   terraform_binary: "tofu"
-  terraform_image:
+  image:
     name: "ghcr.io/opentofu/opentofu:1.9-minimal"
     entrypoint: [""]
 ```

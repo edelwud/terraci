@@ -18,43 +18,47 @@ gitlab:
 
 This sets the `TERRAFORM_BINARY` variable in the pipeline.
 
-### terraform_image
+### image
 
 **Type:** `string` or `object`
 **Default:** `"hashicorp/terraform:1.6"`
 **Required:** Yes
 
-Docker image for Terraform jobs. Supports both simple string format and object format with entrypoint override.
+Docker image for Terraform jobs (in `default` section). Supports both simple string format and object format with entrypoint override.
 
 **String format** (simple):
 ```yaml
 gitlab:
   # Terraform
-  terraform_image: "hashicorp/terraform:1.6"
+  image: "hashicorp/terraform:1.6"
 
   # OpenTofu
-  terraform_image: "ghcr.io/opentofu/opentofu:1.6"
+  image: "ghcr.io/opentofu/opentofu:1.6"
 
   # Custom image
-  terraform_image: "registry.example.com/terraform:1.6"
+  image: "registry.example.com/terraform:1.6"
 ```
 
 **Object format** (with entrypoint):
 ```yaml
 gitlab:
   # OpenTofu minimal image requires entrypoint override
-  terraform_image:
+  image:
     name: "ghcr.io/opentofu/opentofu:1.9-minimal"
     entrypoint: [""]
 
   # Custom image with specific entrypoint
-  terraform_image:
+  image:
     name: "registry.example.com/terraform:1.6"
     entrypoint: ["/bin/sh", "-c"]
 ```
 
 ::: tip OpenTofu Minimal Images
 OpenTofu minimal images (e.g., `opentofu:1.9-minimal`) have a non-shell entrypoint. Use the object format with `entrypoint: [""]` to override it for GitLab CI compatibility.
+:::
+
+::: warning Deprecation Notice
+The `terraform_image` field is deprecated. Use `image` instead.
 :::
 
 ### stages_prefix
@@ -148,7 +152,7 @@ Automatically run `terraform init` after changing to the module directory. This 
 ```yaml
 gitlab:
   init_enabled: true   # Adds ${TERRAFORM_BINARY} init after cd
-  # init_enabled: false  # Skip automatic init (use before_script instead)
+  # init_enabled: false  # Skip automatic init (use job_defaults.before_script instead)
 ```
 
 The generated script will be:
@@ -159,54 +163,12 @@ script:
   - ${TERRAFORM_BINARY} plan -out=...   # Main command
 ```
 
-### before_script
-
-**Type:** `string[]`
-**Default:** `[]`
-
-Commands to run before each job (in GitLab CI `default.before_script`). These run **before** the main script, so before `cd` to the module directory.
-
-```yaml
-gitlab:
-  before_script:
-    - echo "Starting job for ${TF_MODULE}"
-    - aws sts get-caller-identity
-```
-
-### after_script
-
-**Type:** `string[]`
-**Default:** `[]`
-
-Commands to run after each job.
-
-```yaml
-gitlab:
-  after_script:
-    - ${TERRAFORM_BINARY} output -json > outputs.json
-```
-
-### tags
-
-**Type:** `string[]`
-**Default:** `[]`
-
-GitLab runner tags.
-
-```yaml
-gitlab:
-  tags:
-    - terraform
-    - docker
-    - aws
-```
-
 ### variables
 
 **Type:** `map[string]string`
 **Default:** `{}`
 
-Additional pipeline variables.
+Global pipeline variables.
 
 ```yaml
 gitlab:
@@ -215,66 +177,6 @@ gitlab:
     TF_INPUT: "false"
     AWS_DEFAULT_REGION: "us-east-1"
 ```
-
-### artifact_paths
-
-**Type:** `string[]`
-**Default:** `["*.tfplan"]`
-
-Artifact paths for plan jobs.
-
-```yaml
-gitlab:
-  artifact_paths:
-    - "*.tfplan"
-    - "terraform.tfstate.backup"
-```
-
-### id_tokens
-
-**Type:** `map[string]object`
-**Default:** `{}`
-
-OIDC tokens for cloud provider authentication. This enables passwordless authentication with AWS, GCP, Azure, and other providers that support OIDC.
-
-```yaml
-gitlab:
-  id_tokens:
-    AWS_OIDC_TOKEN:
-      aud: "https://gitlab.example.com"
-    GCP_OIDC_TOKEN:
-      aud: "https://iam.googleapis.com/projects/123456/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab"
-```
-
-Generated output:
-
-```yaml
-default:
-  id_tokens:
-    AWS_OIDC_TOKEN:
-      aud: "https://gitlab.example.com"
-```
-
-::: tip AWS OIDC Authentication
-Use `id_tokens` with AWS IAM roles for secure, credential-free authentication:
-```yaml
-gitlab:
-  id_tokens:
-    AWS_OIDC_TOKEN:
-      aud: "https://gitlab.example.com"
-  before_script:
-    - >
-      export $(printf "AWS_ACCESS_KEY_ID=%s AWS_SECRET_ACCESS_KEY=%s AWS_SESSION_TOKEN=%s"
-      $(aws sts assume-role-with-web-identity
-      --role-arn ${AWS_ROLE_ARN}
-      --role-session-name "GitLabRunner-${CI_PROJECT_ID}-${CI_PIPELINE_ID}"
-      --web-identity-token ${AWS_OIDC_TOKEN}
-      --duration-seconds 3600
-      --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]'
-      --output text))
-    - ${TERRAFORM_BINARY} init
-```
-:::
 
 ### rules
 
@@ -312,50 +214,123 @@ Each rule can have:
 - `when` - When to run: `always`, `never`, `on_success`, `manual`, `delayed`
 - `changes` - File patterns that trigger the rule
 
-### secrets
+### job_defaults
 
-**Type:** `map[string]object`
-**Default:** `{}`
+**Type:** `object`
+**Default:** `null`
 
-Secrets from external secret managers (HashiCorp Vault). Secrets are injected as environment variables or files.
+Default settings applied to all generated jobs (both plan and apply). These are applied before `overwrites`, so overwrites can override job_defaults.
 
-**Shorthand format** (recommended):
+Available fields:
+- `image` - Docker image for all jobs
+- `id_tokens` - OIDC tokens for all jobs
+- `secrets` - Secrets for all jobs
+- `before_script` - Commands before each job
+- `after_script` - Commands after each job
+- `artifacts` - Artifacts configuration
+- `tags` - Runner tags
+- `rules` - Job-level rules
+- `variables` - Additional variables
+
+**Example: Common settings for all jobs**
 ```yaml
 gitlab:
-  secrets:
-    credentials:
-      vault: ci/terraform/gitlab-terraform/credentials@cdp
-      file: true
-    API_KEY:
-      vault: production/api/keys/main@team
+  job_defaults:
+    tags:
+      - terraform
+      - docker
+    rules:
+      - if: '$CI_COMMIT_BRANCH == "main"'
+        when: on_success
+    variables:
+      CUSTOM_VAR: "value"
 ```
 
-**Full format** (for complex configurations):
+### overwrites
+
+**Type:** `array`
+**Default:** `[]`
+
+Job-level overrides for plan or apply jobs. Allows customizing specific job types with different settings. Applied after `job_defaults`.
+
+Each overwrite has:
+- `type` - Which jobs to override: `plan` or `apply`
+- `image` - Override Docker image
+- `id_tokens` - Override OIDC tokens
+- `secrets` - Override secrets
+- `before_script` - Override before_script
+- `after_script` - Override after_script
+- `artifacts` - Override artifacts configuration
+- `tags` - Override runner tags
+- `rules` - Set job-level rules
+- `variables` - Override/add variables
+
+**Example: Different images for plan and apply**
 ```yaml
 gitlab:
-  secrets:
-    AWS_SECRET_ACCESS_KEY:
-      vault:
-        engine:
-          name: kv-v2
-          path: secret
-        path: aws/credentials
-        field: secret_access_key
-    DATABASE_PASSWORD:
-      vault:
-        engine:
-          name: kv-v2
-          path: secret
-        path: production/database
-        field: password
-      file: true  # Write to file instead of env var
+  image: "hashicorp/terraform:1.6"
+
+  overwrites:
+    - type: plan
+      image: "custom/terraform-plan:1.6"
+      tags:
+        - plan-runner
+
+    - type: apply
+      image: "custom/terraform-apply:1.6"
+      tags:
+        - apply-runner
+        - production
 ```
 
-The shorthand format `path/to/secret/field@namespace` is the standard GitLab syntax.
+**Example: Add job-level rules for apply jobs**
+```yaml
+gitlab:
+  overwrites:
+    - type: apply
+      rules:
+        - if: '$CI_COMMIT_BRANCH == "main"'
+          when: manual
+        - when: never
+```
 
-::: warning Vault Configuration
-Secrets require GitLab Vault integration to be configured. See [GitLab Vault documentation](https://docs.gitlab.com/ee/ci/secrets/index.html).
-:::
+**Example: Different secrets for different job types**
+```yaml
+gitlab:
+  job_defaults:
+    secrets:
+      COMMON_SECRET:
+        vault: common/secret@namespace
+
+  overwrites:
+    - type: apply
+      secrets:
+        DEPLOY_KEY:
+          vault: deploy/key@namespace
+          file: true
+```
+
+**Example: job_defaults with overwrites**
+```yaml
+gitlab:
+  # Common settings for all jobs
+  job_defaults:
+    tags:
+      - terraform
+    rules:
+      - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+        when: on_success
+
+  # Override for apply jobs only
+  overwrites:
+    - type: apply
+      tags:
+        - terraform
+        - production
+      rules:
+        - if: '$CI_COMMIT_BRANCH == "main"'
+          when: manual
+```
 
 ## Full Example
 
@@ -363,38 +338,56 @@ Secrets require GitLab Vault integration to be configured. See [GitLab Vault doc
 gitlab:
   # Binary configuration
   terraform_binary: "terraform"
-  terraform_image: "hashicorp/terraform:1.6"
+  image: "hashicorp/terraform:1.6"
 
   # Pipeline structure
   stages_prefix: "deploy"
   parallelism: 5
   plan_enabled: true
   auto_approve: false
+  cache_enabled: true
+  init_enabled: true
 
-  # Scripts
-  before_script:
-    - export AWS_ROLE_ARN="arn:aws:iam::123456789:role/TerraformRole"
-    - ${TERRAFORM_BINARY} init -backend-config="role_arn=${AWS_ROLE_ARN}"
-
-  after_script:
-    - echo "Module ${TF_MODULE} completed"
-
-  # Runner configuration
-  tags:
-    - terraform
-    - docker
-    - production
-
-  # Variables
+  # Pipeline variables
   variables:
     TF_IN_AUTOMATION: "true"
     TF_INPUT: "false"
-    TF_CLI_ARGS_plan: "-parallelism=30"
-    TF_CLI_ARGS_apply: "-parallelism=30"
 
-  # Artifacts
-  artifact_paths:
-    - "*.tfplan"
+  # Workflow rules
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: always
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: always
+
+  # Job defaults (applied to all jobs)
+  job_defaults:
+    tags:
+      - terraform
+      - docker
+    before_script:
+      - aws sts get-caller-identity
+    after_script:
+      - echo "Job completed"
+    id_tokens:
+      AWS_OIDC_TOKEN:
+        aud: "https://gitlab.example.com"
+    secrets:
+      CREDENTIALS:
+        vault: ci/terraform/credentials@namespace
+    rules:
+      - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+        when: on_success
+
+  # Job overwrites (override job_defaults for specific job types)
+  overwrites:
+    - type: apply
+      tags:
+        - production
+        - secure
+      rules:
+        - if: '$CI_COMMIT_BRANCH == "main"'
+          when: manual
 ```
 
 ## Generated Output
@@ -406,24 +399,20 @@ variables:
   TERRAFORM_BINARY: "terraform"
   TF_IN_AUTOMATION: "true"
   TF_INPUT: "false"
-  TF_CLI_ARGS_plan: "-parallelism=30"
-  TF_CLI_ARGS_apply: "-parallelism=30"
 
 default:
   image: hashicorp/terraform:1.6
-  before_script:
-    - export AWS_ROLE_ARN="arn:aws:iam::123456789:role/TerraformRole"
-  after_script:
-    - echo "Module ${TF_MODULE} completed"
-  tags:
-    - terraform
-    - docker
-    - production
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: always
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: always
 
 stages:
   - deploy-plan-0
   - deploy-apply-0
-  # ...
 
 plan-platform-prod-vpc:
   stage: deploy-plan-0
@@ -434,10 +423,30 @@ plan-platform-prod-vpc:
   variables:
     TF_MODULE: vpc
     # ...
+  tags:
+    - terraform
+    - docker
+  before_script:
+    - aws sts get-caller-identity
+  after_script:
+    - echo "Job completed"
+  id_tokens:
+    AWS_OIDC_TOKEN:
+      aud: "https://gitlab.example.com"
+  secrets:
+    CREDENTIALS:
+      vault: ci/terraform/credentials@namespace
   artifacts:
     paths:
-      - platform/prod/us-east-1/vpc/*.tfplan
+      - platform/prod/us-east-1/vpc/plan.tfplan
     expire_in: 1 day
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: on_success
+  cache:
+    key: platform-prod-us-east-1-vpc
+    paths:
+      - platform/prod/us-east-1/vpc/.terraform/
 
 apply-platform-prod-vpc:
   stage: deploy-apply-0
@@ -447,8 +456,22 @@ apply-platform-prod-vpc:
     - ${TERRAFORM_BINARY} apply plan.tfplan
   needs:
     - plan-platform-prod-vpc
-  when: manual
-  # ...
+  tags:
+    - production
+    - secure
+  before_script:
+    - aws sts get-caller-identity
+  after_script:
+    - echo "Job completed"
+  id_tokens:
+    AWS_OIDC_TOKEN:
+      aud: "https://gitlab.example.com"
+  secrets:
+    CREDENTIALS:
+      vault: ci/terraform/credentials@namespace
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
 ```
 
 ## Per-Job Variables

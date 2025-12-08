@@ -186,27 +186,29 @@ gitlab:
 
 ### Custom Scripts
 
-Add custom before/after scripts:
+Add custom before/after scripts via `job_defaults`:
 
 ```yaml
 gitlab:
-  before_script:
-    - ${TERRAFORM_BINARY} init
-    - ${TERRAFORM_BINARY} workspace select ${TF_ENVIRONMENT} || ${TERRAFORM_BINARY} workspace new ${TF_ENVIRONMENT}
-  after_script:
-    - ${TERRAFORM_BINARY} output -json > outputs.json
+  job_defaults:
+    before_script:
+      - ${TERRAFORM_BINARY} init
+      - ${TERRAFORM_BINARY} workspace select ${TF_ENVIRONMENT} || ${TERRAFORM_BINARY} workspace new ${TF_ENVIRONMENT}
+    after_script:
+      - ${TERRAFORM_BINARY} output -json > outputs.json
 ```
 
 ### Runner Tags
 
-Specify GitLab runner tags:
+Specify GitLab runner tags via `job_defaults`:
 
 ```yaml
 gitlab:
-  tags:
-    - terraform
-    - docker
-    - aws
+  job_defaults:
+    tags:
+      - terraform
+      - docker
+      - aws
 ```
 
 ## Dry Run

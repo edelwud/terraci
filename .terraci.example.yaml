@@ -25,11 +25,17 @@ gitlab:
   # Terraform/OpenTofu binary to use (terraform, tofu)
   terraform_binary: "terraform"
 
-  # Docker image for terraform jobs
-  terraform_image: "hashicorp/terraform:1.6"
+  # Docker image for terraform jobs (in default section)
+  # String format:
+  image: "hashicorp/terraform:1.6"
+  # Object format (for images requiring entrypoint override):
+  # image:
+  #   name: "ghcr.io/opentofu/opentofu:1.9-minimal"
+  #   entrypoint: [""]
+
   # For OpenTofu:
   # terraform_binary: "tofu"
-  # terraform_image: "ghcr.io/opentofu/opentofu:1.6"
+  # image: "ghcr.io/opentofu/opentofu:1.6"
 
   # Prefix for stage names (produces: deploy-plan-0, deploy-apply-0, etc.)
   stages_prefix: "deploy"
@@ -47,34 +53,13 @@ gitlab:
   # Speeds up pipeline execution by reusing downloaded dependencies
   cache_enabled: true
 
-  # Commands to run before each job
-  before_script:
-    - ${TERRAFORM_BINARY} init
+  # Automatically run terraform init after cd to module directory
+  init_enabled: true
 
-  # Commands to run after each job (optional)
-  # after_script:
-  #   - terraform output -json > outputs.json
-
-  # GitLab runner tags
-  tags:
-    - terraform
-    - docker
-
-  # Pipeline variables
+  # Pipeline variables (global)
   variables:
     TF_IN_AUTOMATION: "true"
     TF_INPUT: "false"
-
-  # Artifact paths
-  artifact_paths:
-    - "*.tfplan"
-
-  # OIDC tokens for cloud provider authentication (AWS, GCP, Azure)
-  # id_tokens:
-  #   AWS_OIDC_TOKEN:
-  #     aud: "https://gitlab.example.com"
-  #   GCP_OIDC_TOKEN:
-  #     aud: "https://iam.googleapis.com/projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/POOL_ID/providers/PROVIDER_ID"
 
   # Workflow rules for conditional pipeline execution
   # rules:
@@ -84,21 +69,42 @@ gitlab:
   #     when: always
   #   - when: never
 
-  # Secrets from external secret managers (HashiCorp Vault)
-  # Shorthand format (recommended):
-  # secrets:
-  #   credentials:
-  #     vault: ci/terraform/gitlab-terraform/credentials@namespace
-  #     file: true
-  # Full format:
-  # secrets:
-  #   AWS_SECRET_ACCESS_KEY:
-  #     vault:
-  #       engine:
-  #         name: kv-v2
-  #         path: secret
-  #       path: aws/credentials
-  #       field: secret_access_key
+  # Default settings applied to all jobs
+  job_defaults:
+    # GitLab runner tags
+    tags:
+      - terraform
+      - docker
+    # Commands to run before each job
+    before_script:
+      - aws sts get-caller-identity
+    # Commands to run after each job (optional)
+    # after_script:
+    #   - echo "Job completed"
+    # Artifacts configuration
+    # artifacts:
+    #   paths:
+    #     - "*.tfplan"
+    #   expire_in: "1 day"
+    # OIDC tokens for cloud provider authentication (AWS, GCP, Azure)
+    # id_tokens:
+    #   AWS_OIDC_TOKEN:
+    #     aud: "https://gitlab.example.com"
+    # Secrets from external secret managers (HashiCorp Vault)
+    # secrets:
+    #   credentials:
+    #     vault: ci/terraform/gitlab-terraform/credentials@namespace
+    #     file: true
+
+  # Job-level overrides for plan or apply jobs
+  # overwrites:
+  #   - type: apply
+  #     tags:
+  #       - production
+  #       - secure
+  #     rules:
+  #       - if: '$CI_COMMIT_BRANCH == "main"'
+  #         when: manual
 
 # Backend configuration (for state path resolution)
 backend:

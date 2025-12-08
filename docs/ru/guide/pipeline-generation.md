@@ -104,11 +104,14 @@ gitlab:
 
 ### Пользовательские скрипты
 
+Добавьте скрипты через `job_defaults`:
+
 ```yaml
 gitlab:
-  before_script:
-    - ${TERRAFORM_BINARY} init
-    - ${TERRAFORM_BINARY} workspace select ${TF_ENVIRONMENT}
+  job_defaults:
+    before_script:
+      - ${TERRAFORM_BINARY} init
+      - ${TERRAFORM_BINARY} workspace select ${TF_ENVIRONMENT}
 ```
 
 ## Dry Run

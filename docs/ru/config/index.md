@@ -31,23 +31,30 @@ include:
 # Настройки GitLab CI
 gitlab:
   terraform_binary: "terraform"
-  terraform_image: "hashicorp/terraform:1.6"
+  image: "hashicorp/terraform:1.6"
   stages_prefix: "deploy"
   parallelism: 5
   plan_enabled: true
   auto_approve: false
-  before_script:
-    - ${TERRAFORM_BINARY} init
-  after_script:
-    - echo "Завершено"
-  tags:
-    - terraform
-    - docker
+  init_enabled: true
+
   variables:
     TF_IN_AUTOMATION: "true"
     TF_INPUT: "false"
-  artifact_paths:
-    - "*.tfplan"
+
+  # Настройки по умолчанию для всех джобов
+  job_defaults:
+    tags:
+      - terraform
+      - docker
+    before_script:
+      - aws sts get-caller-identity
+    after_script:
+      - echo "Завершено"
+    artifacts:
+      paths:
+        - "*.tfplan"
+      expire_in: "1 day"
 
 # Настройки бэкенда
 backend:
@@ -74,7 +81,7 @@ structure:
 
 ```yaml
 gitlab:
-  terraform_image: "hashicorp/terraform:1.6"
+  image: "hashicorp/terraform:1.6"
   plan_enabled: true
 ```
 
@@ -137,7 +144,7 @@ structure:
 
 gitlab:
   terraform_binary: "tofu"
-  terraform_image: "ghcr.io/opentofu/opentofu:1.6"
+  image: "ghcr.io/opentofu/opentofu:1.6"
 ```
 
 ### С OpenTofu Minimal (требует entrypoint)
@@ -148,7 +155,7 @@ structure:
 
 gitlab:
   terraform_binary: "tofu"
-  terraform_image:
+  image:
     name: "ghcr.io/opentofu/opentofu:1.9-minimal"
     entrypoint: [""]
 ```

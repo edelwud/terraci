@@ -7,21 +7,17 @@
 | Параметр | Тип | По умолчанию | Описание |
 |----------|-----|--------------|----------|
 | `terraform_binary` | string | `terraform` | Бинарный файл Terraform/OpenTofu |
-| `terraform_image` | string/object | `hashicorp/terraform:1.6` | Docker-образ (строка или объект с name/entrypoint) |
+| `image` | string/object | `hashicorp/terraform:1.6` | Docker-образ (строка или объект с name/entrypoint) |
 | `stages_prefix` | string | `deploy` | Префикс названий стейджей |
 | `parallelism` | int | `5` | Макс. параллельных джобов |
 | `plan_enabled` | bool | `true` | Генерировать plan-джобы |
 | `auto_approve` | bool | `false` | Автоматический apply |
 | `cache_enabled` | bool | `false` | Кеширование .terraform |
 | `init_enabled` | bool | `true` | Авто-инициализация terraform после cd |
-| `before_script` | []string | `[]` | Команды перед джобом (до script) |
-| `after_script` | []string | `[]` | Команды после джоба |
-| `tags` | []string | `[]` | Теги раннеров |
 | `variables` | map | `{}` | Переменные пайплайна |
-| `artifact_paths` | []string | `["*.tfplan"]` | Пути артефактов |
-| `id_tokens` | map | `{}` | OIDC токены для облачных провайдеров |
-| `rules` | []object | `[]` | Правила выполнения пайплайна |
-| `secrets` | map | `{}` | Секреты из внешних хранилищ |
+| `rules` | []object | `[]` | Правила workflow пайплайна |
+| `job_defaults` | object | `null` | Настройки по умолчанию для всех джобов |
+| `overwrites` | []object | `[]` | Переопределения для plan/apply джобов |
 
 ## terraform_binary
 
@@ -46,20 +42,20 @@ script:
   - ${TERRAFORM_BINARY} plan
 ```
 
-## terraform_image
+## image
 
-Docker-образ для выполнения джобов. Поддерживает как простой строковый формат, так и объектный формат с переопределением entrypoint.
+Docker-образ для выполнения джобов (в `default` секции). Поддерживает как простой строковый формат, так и объектный формат с переопределением entrypoint.
 
 **Строковый формат** (простой):
 ```yaml
 gitlab:
-  terraform_image: "hashicorp/terraform:1.6"
+  image: "hashicorp/terraform:1.6"
 ```
 
 **Объектный формат** (с entrypoint):
 ```yaml
 gitlab:
-  terraform_image:
+  image:
     name: "ghcr.io/opentofu/opentofu:1.9-minimal"
     entrypoint: [""]
 ```
@@ -72,6 +68,10 @@ gitlab:
 
 ::: tip OpenTofu Minimal
 Минимальные образы OpenTofu (например, `opentofu:1.9-minimal`) имеют не-shell entrypoint. Используйте объектный формат с `entrypoint: [""]` для совместимости с GitLab CI.
+:::
+
+::: warning Устаревшее
+Поле `terraform_image` устарело. Используйте `image`.
 :::
 
 ## stages_prefix
@@ -186,31 +186,6 @@ script:
   - ${TERRAFORM_BINARY} plan ...
 ```
 
-## before_script / after_script
-
-Команды до и после основного скрипта. `before_script` выполняется в `default` секции GitLab CI, **до** основного `script`.
-
-```yaml
-gitlab:
-  before_script:
-    - echo "Начало джоба"
-    - aws sts get-caller-identity
-  after_script:
-    - echo "Джоб завершен"
-```
-
-## tags
-
-Теги для выбора GitLab Runner:
-
-```yaml
-gitlab:
-  tags:
-    - terraform
-    - docker
-    - aws
-```
-
 ## variables
 
 Переменные окружения для пайплайна:
@@ -225,60 +200,6 @@ gitlab:
 
 Автоматически добавляемые переменные:
 - `TERRAFORM_BINARY` — значение из `terraform_binary`
-
-## artifact_paths
-
-Пути для сохранения артефактов:
-
-```yaml
-gitlab:
-  artifact_paths:
-    - "*.tfplan"
-    - "*.json"
-```
-
-## id_tokens
-
-OIDC токены для аутентификации в облачных провайдерах. Позволяет использовать безопасную аутентификацию без хранения секретов в GitLab.
-
-```yaml
-gitlab:
-  id_tokens:
-    AWS_OIDC_TOKEN:
-      aud: "https://gitlab.example.com"
-    GCP_OIDC_TOKEN:
-      aud: "https://iam.googleapis.com/projects/123456/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab"
-```
-
-Генерируемый результат:
-
-```yaml
-default:
-  id_tokens:
-    AWS_OIDC_TOKEN:
-      aud: "https://gitlab.example.com"
-```
-
-::: tip AWS OIDC аутентификация
-Используйте `id_tokens` с IAM ролями AWS для безопасной аутентификации без хранения ключей:
-```yaml
-gitlab:
-  id_tokens:
-    AWS_OIDC_TOKEN:
-      aud: "https://gitlab.example.com"
-  before_script:
-    - >
-      export $(printf "AWS_ACCESS_KEY_ID=%s AWS_SECRET_ACCESS_KEY=%s AWS_SESSION_TOKEN=%s"
-      $(aws sts assume-role-with-web-identity
-      --role-arn ${AWS_ROLE_ARN}
-      --role-session-name "GitLabRunner-${CI_PROJECT_ID}-${CI_PIPELINE_ID}"
-      --web-identity-token ${AWS_OIDC_TOKEN}
-      --duration-seconds 3600
-      --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]'
-      --output text))
-    - ${TERRAFORM_BINARY} init
-```
-:::
 
 ## rules
 
@@ -313,47 +234,117 @@ workflow:
 - `when` — когда выполнять: `always`, `never`, `on_success`, `manual`, `delayed`
 - `changes` — паттерны файлов, при изменении которых срабатывает правило
 
-## secrets
+## job_defaults
 
-Секреты из внешних менеджеров секретов (HashiCorp Vault). Секреты инжектируются как переменные окружения или файлы.
+Настройки по умолчанию, применяемые ко всем генерируемым джобам (и plan, и apply). Применяются перед `overwrites`, поэтому overwrites могут переопределять job_defaults.
 
-**Короткий формат** (рекомендуется):
+Доступные поля:
+- `image` — Docker-образ для всех джобов
+- `id_tokens` — OIDC токены для всех джобов
+- `secrets` — секреты для всех джобов
+- `before_script` — команды перед каждым джобом
+- `after_script` — команды после каждого джоба
+- `artifacts` — конфигурация артефактов
+- `tags` — теги раннеров
+- `rules` — правила на уровне джоба
+- `variables` — дополнительные переменные
+
+**Пример: Общие настройки для всех джобов**
 ```yaml
 gitlab:
-  secrets:
-    credentials:
-      vault: ci/terraform/gitlab-terraform/credentials@cdp
-      file: true
-    API_KEY:
-      vault: production/api/keys/main@team
+  job_defaults:
+    tags:
+      - terraform
+      - docker
+    rules:
+      - if: '$CI_COMMIT_BRANCH == "main"'
+        when: on_success
+    variables:
+      CUSTOM_VAR: "value"
 ```
 
-**Полный формат** (для сложных конфигураций):
+## overwrites
+
+Переопределения на уровне джобов для plan или apply. Позволяет настраивать разные типы джобов с разными параметрами. Применяются после `job_defaults`.
+
+Каждое переопределение содержит:
+- `type` — какие джобы переопределять: `plan` или `apply`
+- `image` — переопределить Docker-образ
+- `id_tokens` — переопределить OIDC токены
+- `secrets` — переопределить секреты
+- `before_script` — переопределить before_script
+- `after_script` — переопределить after_script
+- `artifacts` — переопределить конфигурацию артефактов
+- `tags` — переопределить теги раннеров
+- `rules` — установить правила на уровне джоба
+- `variables` — переопределить/добавить переменные
+
+**Пример: Разные образы для plan и apply**
 ```yaml
 gitlab:
-  secrets:
-    AWS_SECRET_ACCESS_KEY:
-      vault:
-        engine:
-          name: kv-v2
-          path: secret
-        path: aws/credentials
-        field: secret_access_key
-    DATABASE_PASSWORD:
-      vault:
-        engine:
-          name: kv-v2
-          path: secret
-        path: production/database
-        field: password
-      file: true  # Записать в файл вместо переменной окружения
+  image: "hashicorp/terraform:1.6"
+
+  overwrites:
+    - type: plan
+      image: "custom/terraform-plan:1.6"
+      tags:
+        - plan-runner
+
+    - type: apply
+      image: "custom/terraform-apply:1.6"
+      tags:
+        - apply-runner
+        - production
 ```
 
-Короткий формат `path/to/secret/field@namespace` — стандартный синтаксис GitLab.
+**Пример: Добавление правил для apply-джобов**
+```yaml
+gitlab:
+  overwrites:
+    - type: apply
+      rules:
+        - if: '$CI_COMMIT_BRANCH == "main"'
+          when: manual
+        - when: never
+```
 
-::: warning Настройка Vault
-Для использования секретов необходима настроенная интеграция GitLab с Vault. См. [документацию GitLab по секретам](https://docs.gitlab.com/ee/ci/secrets/index.html).
-:::
+**Пример: Разные секреты для разных типов джобов**
+```yaml
+gitlab:
+  job_defaults:
+    secrets:
+      COMMON_SECRET:
+        vault: common/secret@namespace
+
+  overwrites:
+    - type: apply
+      secrets:
+        DEPLOY_KEY:
+          vault: deploy/key@namespace
+          file: true
+```
+
+**Пример: job_defaults с overwrites**
+```yaml
+gitlab:
+  # Общие настройки для всех джобов
+  job_defaults:
+    tags:
+      - terraform
+    rules:
+      - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+        when: on_success
+
+  # Переопределение только для apply-джобов
+  overwrites:
+    - type: apply
+      tags:
+        - terraform
+        - production
+      rules:
+        - if: '$CI_COMMIT_BRANCH == "main"'
+          when: manual
+```
 
 ## Полный пример
 
@@ -361,46 +352,80 @@ gitlab:
 gitlab:
   # Terraform/OpenTofu
   terraform_binary: "terraform"
-  terraform_image: "hashicorp/terraform:1.6"
+  image: "hashicorp/terraform:1.6"
 
-  # Стейджи
+  # Структура пайплайна
   stages_prefix: "deploy"
   parallelism: 5
-
-  # Поведение
   plan_enabled: true
   auto_approve: false
   cache_enabled: true
+  init_enabled: true
 
-  # Скрипты
-  before_script:
-    - ${TERRAFORM_BINARY} init -backend-config="bucket=${TF_STATE_BUCKET}"
-    - ${TERRAFORM_BINARY} validate
-  after_script:
-    - ${TERRAFORM_BINARY} output -json > outputs.json
-
-  # Раннеры
-  tags:
-    - terraform
-    - docker
-    - production
-
-  # Переменные
+  # Переменные пайплайна
   variables:
     TF_IN_AUTOMATION: "true"
     TF_INPUT: "false"
-    TF_CLI_ARGS_plan: "-parallelism=30"
-    TF_CLI_ARGS_apply: "-parallelism=30"
 
-  # Артефакты
-  artifact_paths:
-    - "*.tfplan"
-    - "outputs.json"
+  # Правила workflow
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: always
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: always
+
+  # Настройки по умолчанию для всех джобов
+  job_defaults:
+    tags:
+      - terraform
+      - docker
+    before_script:
+      - aws sts get-caller-identity
+    after_script:
+      - echo "Джоб завершен"
+    id_tokens:
+      AWS_OIDC_TOKEN:
+        aud: "https://gitlab.example.com"
+    secrets:
+      CREDENTIALS:
+        vault: ci/terraform/credentials@namespace
+    rules:
+      - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+        when: on_success
+
+  # Переопределения для джобов (применяются после job_defaults)
+  overwrites:
+    - type: apply
+      tags:
+        - production
+        - secure
+      rules:
+        - if: '$CI_COMMIT_BRANCH == "main"'
+          when: manual
 ```
 
-## Генерируемая структура джоба
+## Генерируемая структура
 
 ```yaml
+variables:
+  TERRAFORM_BINARY: "terraform"
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+
+default:
+  image: hashicorp/terraform:1.6
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: always
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: always
+
+stages:
+  - deploy-plan-0
+  - deploy-apply-0
+
 plan-platform-prod-eu-central-1-vpc:
   stage: deploy-plan-0
   variables:
@@ -413,14 +438,58 @@ plan-platform-prod-eu-central-1-vpc:
     - cd platform/prod/eu-central-1/vpc
     - ${TERRAFORM_BINARY} init
     - ${TERRAFORM_BINARY} plan -out=plan.tfplan
+  tags:
+    - terraform
+    - docker
+  before_script:
+    - aws sts get-caller-identity
+  after_script:
+    - echo "Джоб завершен"
+  id_tokens:
+    AWS_OIDC_TOKEN:
+      aud: "https://gitlab.example.com"
+  secrets:
+    CREDENTIALS:
+      vault: ci/terraform/credentials@namespace
   artifacts:
     paths:
       - platform/prod/eu-central-1/vpc/plan.tfplan
     expire_in: 1 day
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: on_success
+  cache:
+    key: platform-prod-eu-central-1-vpc
+    paths:
+      - platform/prod/eu-central-1/vpc/.terraform/
+  resource_group: platform/prod/eu-central-1/vpc
+
+apply-platform-prod-eu-central-1-vpc:
+  stage: deploy-apply-0
+  script:
+    - cd platform/prod/eu-central-1/vpc
+    - ${TERRAFORM_BINARY} init
+    - ${TERRAFORM_BINARY} apply plan.tfplan
+  needs:
+    - plan-platform-prod-eu-central-1-vpc
+  tags:
+    - production
+    - secure
+  before_script:
+    - aws sts get-caller-identity
+  after_script:
+    - echo "Джоб завершен"
+  id_tokens:
+    AWS_OIDC_TOKEN:
+      aud: "https://gitlab.example.com"
+  secrets:
+    CREDENTIALS:
+      vault: ci/terraform/credentials@namespace
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
   resource_group: platform/prod/eu-central-1/vpc
 ```
-
-Команды `before_script` встраиваются в `script` после перехода в директорию модуля.
 
 ## Конфигурации для разных окружений
 
@@ -428,22 +497,32 @@ plan-platform-prod-eu-central-1-vpc:
 
 ```yaml
 gitlab:
-  terraform_image: "hashicorp/terraform:1.6"
+  image: "hashicorp/terraform:1.6"
   plan_enabled: false
   auto_approve: true
-  tags:
-    - dev
+
+  job_defaults:
+    tags:
+      - dev
 ```
 
 ### Production
 
 ```yaml
 gitlab:
-  terraform_image: "hashicorp/terraform:1.6"
+  image: "hashicorp/terraform:1.6"
   plan_enabled: true
   auto_approve: false
   parallelism: 3
-  tags:
-    - production
-    - secure
+
+  job_defaults:
+    tags:
+      - production
+      - secure
+
+  overwrites:
+    - type: apply
+      rules:
+        - if: '$CI_COMMIT_BRANCH == "main"'
+          when: manual
 ```

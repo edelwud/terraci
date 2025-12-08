@@ -43,37 +43,115 @@ type StructureConfig struct {
 type GitLabConfig struct {
 	// TerraformBinary is the terraform binary to use (e.g., "terraform", "tofu")
 	TerraformBinary string `yaml:"terraform_binary"`
-	// TerraformImage is the Docker image for terraform jobs
+	// Image is the Docker image for terraform jobs (in default section)
 	// Supports both string format ("hashicorp/terraform:1.6") and object format with entrypoint
-	TerraformImage Image `yaml:"terraform_image"`
+	Image Image `yaml:"image"`
+	// TerraformImage is deprecated, use Image instead
+	TerraformImage Image `yaml:"terraform_image,omitempty"`
 	// StagesPrefix is the prefix for stage names (e.g., "deploy" -> "deploy-0", "deploy-1")
 	StagesPrefix string `yaml:"stages_prefix"`
 	// Parallelism limits concurrent jobs per stage
 	Parallelism int `yaml:"parallelism"`
-	// BeforeScript commands to run before each job
-	BeforeScript []string `yaml:"before_script,omitempty"`
-	// AfterScript commands to run after each job
-	AfterScript []string `yaml:"after_script,omitempty"`
-	// Variables to set in the pipeline
+	// Variables to set in the pipeline (global variables section)
 	Variables map[string]string `yaml:"variables,omitempty"`
-	// Tags for runners
-	Tags []string `yaml:"tags,omitempty"`
 	// PlanEnabled enables terraform plan stage
 	PlanEnabled bool `yaml:"plan_enabled"`
 	// AutoApprove skips manual approval for apply
 	AutoApprove bool `yaml:"auto_approve"`
-	// ArtifactPaths for terraform plans
-	ArtifactPaths []string `yaml:"artifact_paths,omitempty"`
 	// CacheEnabled enables caching of .terraform directory
 	CacheEnabled bool `yaml:"cache_enabled"`
 	// InitEnabled automatically runs terraform init after cd to module directory
 	InitEnabled bool `yaml:"init_enabled"`
-	// IDTokens defines OIDC tokens for cloud provider authentication
-	IDTokens map[string]IDToken `yaml:"id_tokens,omitempty"`
-	// Rules defines pipeline-level rules for conditional execution
+	// Rules defines workflow-level rules for conditional pipeline execution
 	Rules []Rule `yaml:"rules,omitempty"`
-	// Secrets defines CI/CD secrets from external secret managers
+	// JobDefaults defines default settings for all jobs (applied before overwrites)
+	JobDefaults *JobDefaults `yaml:"job_defaults,omitempty"`
+	// Overwrites defines job-level overrides for plan and apply jobs
+	Overwrites []JobOverwrite `yaml:"overwrites,omitempty"`
+}
+
+// JobDefaults defines default settings for all generated jobs
+type JobDefaults struct {
+	// Image overrides the Docker image for all jobs
+	Image *Image `yaml:"image,omitempty"`
+	// IDTokens sets OIDC tokens for all jobs
+	IDTokens map[string]IDToken `yaml:"id_tokens,omitempty"`
+	// Secrets sets secrets for all jobs
 	Secrets map[string]Secret `yaml:"secrets,omitempty"`
+	// BeforeScript sets before_script for all jobs
+	BeforeScript []string `yaml:"before_script,omitempty"`
+	// AfterScript sets after_script for all jobs
+	AfterScript []string `yaml:"after_script,omitempty"`
+	// Artifacts sets artifacts configuration for all jobs
+	Artifacts *ArtifactsConfig `yaml:"artifacts,omitempty"`
+	// Tags sets runner tags for all jobs
+	Tags []string `yaml:"tags,omitempty"`
+	// Rules sets job-level rules for all jobs
+	Rules []Rule `yaml:"rules,omitempty"`
+	// Variables sets additional variables for all jobs
+	Variables map[string]string `yaml:"variables,omitempty"`
+}
+
+// JobOverwriteType defines the type of jobs to override
+type JobOverwriteType string
+
+const (
+	// OverwriteTypePlan applies to plan jobs only
+	OverwriteTypePlan JobOverwriteType = "plan"
+	// OverwriteTypeApply applies to apply jobs only
+	OverwriteTypeApply JobOverwriteType = "apply"
+)
+
+// JobOverwrite defines job-level overrides for plan or apply jobs
+type JobOverwrite struct {
+	// Type specifies which jobs to override: "plan" or "apply"
+	Type JobOverwriteType `yaml:"type"`
+	// Image overrides the Docker image for matching jobs
+	Image *Image `yaml:"image,omitempty"`
+	// IDTokens overrides OIDC tokens for matching jobs
+	IDTokens map[string]IDToken `yaml:"id_tokens,omitempty"`
+	// Secrets overrides secrets for matching jobs
+	Secrets map[string]Secret `yaml:"secrets,omitempty"`
+	// BeforeScript overrides before_script for matching jobs
+	BeforeScript []string `yaml:"before_script,omitempty"`
+	// AfterScript overrides after_script for matching jobs
+	AfterScript []string `yaml:"after_script,omitempty"`
+	// Artifacts overrides artifacts configuration for matching jobs
+	Artifacts *ArtifactsConfig `yaml:"artifacts,omitempty"`
+	// Tags overrides runner tags for matching jobs
+	Tags []string `yaml:"tags,omitempty"`
+	// Rules sets job-level rules for matching jobs
+	Rules []Rule `yaml:"rules,omitempty"`
+	// Variables overrides variables for matching jobs
+	Variables map[string]string `yaml:"variables,omitempty"`
+}
+
+// ArtifactsConfig defines GitLab CI artifacts configuration
+type ArtifactsConfig struct {
+	// Paths is a list of file/directory paths to include as artifacts
+	Paths []string `yaml:"paths,omitempty"`
+	// ExpireIn specifies how long artifacts should be kept (e.g., "1 day", "1 week")
+	ExpireIn string `yaml:"expire_in,omitempty"`
+	// Reports defines artifact reports (e.g., terraform)
+	Reports *ArtifactReports `yaml:"reports,omitempty"`
+	// Name is the artifact archive name
+	Name string `yaml:"name,omitempty"`
+	// Untracked includes all untracked files
+	Untracked bool `yaml:"untracked,omitempty"`
+	// When specifies when to upload artifacts: on_success, on_failure, always
+	When string `yaml:"when,omitempty"`
+	// ExposeAs makes artifacts available in MR UI
+	ExposeAs string `yaml:"expose_as,omitempty"`
+}
+
+// ArtifactReports defines artifact reports configuration
+type ArtifactReports struct {
+	// Terraform report paths
+	Terraform []string `yaml:"terraform,omitempty"`
+	// JUnit report paths
+	JUnit []string `yaml:"junit,omitempty"`
+	// Cobertura coverage report paths
+	Cobertura []string `yaml:"cobertura,omitempty"`
 }
 
 // IDToken defines an OIDC token configuration for GitLab CI
@@ -202,15 +280,12 @@ func DefaultConfig() *Config {
 		},
 		GitLab: GitLabConfig{
 			TerraformBinary: "terraform",
-			TerraformImage:  Image{Name: "hashicorp/terraform:1.6"},
+			Image:           Image{Name: "hashicorp/terraform:1.6"},
 			StagesPrefix:    "deploy",
 			Parallelism:     5,
 			PlanEnabled:     true,
 			AutoApprove:     false,
 			InitEnabled:     true,
-			ArtifactPaths: []string{
-				"*.tfplan",
-			},
 		},
 		Backend: BackendConfig{
 			Type:       "s3",
@@ -244,6 +319,14 @@ func Load(path string) (*Config, error) {
 	}
 
 	return config, nil
+}
+
+// GetImage returns the effective image (new field or deprecated terraform_image)
+func (g *GitLabConfig) GetImage() Image {
+	if g.Image.Name != "" {
+		return g.Image
+	}
+	return g.TerraformImage
 }
 
 // LoadOrDefault loads config from file or returns default if not found
@@ -303,8 +386,16 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("structure.max_depth must be >= min_depth")
 	}
 
-	if c.GitLab.TerraformImage.Name == "" {
-		return fmt.Errorf("gitlab.terraform_image is required")
+	// Check image (prefer new field, fall back to deprecated)
+	if c.GitLab.Image.Name == "" && c.GitLab.TerraformImage.Name == "" {
+		return fmt.Errorf("gitlab.image is required")
+	}
+
+	// Validate overwrites
+	for i, ow := range c.GitLab.Overwrites {
+		if ow.Type != OverwriteTypePlan && ow.Type != OverwriteTypeApply {
+			return fmt.Errorf("gitlab.overwrites[%d].type must be 'plan' or 'apply'", i)
+		}
 	}
 
 	return nil
