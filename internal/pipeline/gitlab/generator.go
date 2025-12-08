@@ -28,7 +28,6 @@ type DefaultConfig struct {
 	AfterScript  []string            `yaml:"after_script,omitempty"`
 	Tags         []string            `yaml:"tags,omitempty"`
 	IDTokens     map[string]*IDToken `yaml:"id_tokens,omitempty"`
-	Secrets      map[string]*Secret  `yaml:"secrets,omitempty"`
 }
 
 // IDToken represents GitLab CI OIDC token configuration
@@ -80,20 +79,21 @@ type VaultSecretShorthand string
 
 // Job represents a GitLab CI job
 type Job struct {
-	Stage         string            `yaml:"stage"`
-	Image         string            `yaml:"image,omitempty"`
-	Script        []string          `yaml:"script"`
-	BeforeScript  []string          `yaml:"before_script,omitempty"`
-	AfterScript   []string          `yaml:"after_script,omitempty"`
-	Variables     map[string]string `yaml:"variables,omitempty"`
-	Needs         []JobNeed         `yaml:"needs,omitempty"`
-	Rules         []Rule            `yaml:"rules,omitempty"`
-	Artifacts     *Artifacts        `yaml:"artifacts,omitempty"`
-	Cache         *Cache            `yaml:"cache,omitempty"`
-	When          string            `yaml:"when,omitempty"`
-	AllowFailure  bool              `yaml:"allow_failure,omitempty"`
-	Tags          []string          `yaml:"tags,omitempty"`
-	ResourceGroup string            `yaml:"resource_group,omitempty"`
+	Stage         string              `yaml:"stage"`
+	Image         string              `yaml:"image,omitempty"`
+	Script        []string            `yaml:"script"`
+	BeforeScript  []string            `yaml:"before_script,omitempty"`
+	AfterScript   []string            `yaml:"after_script,omitempty"`
+	Variables     map[string]string   `yaml:"variables,omitempty"`
+	Needs         []JobNeed           `yaml:"needs,omitempty"`
+	Rules         []Rule              `yaml:"rules,omitempty"`
+	Artifacts     *Artifacts          `yaml:"artifacts,omitempty"`
+	Cache         *Cache              `yaml:"cache,omitempty"`
+	Secrets       map[string]*Secret  `yaml:"secrets,omitempty"`
+	When          string              `yaml:"when,omitempty"`
+	AllowFailure  bool                `yaml:"allow_failure,omitempty"`
+	Tags          []string            `yaml:"tags,omitempty"`
+	ResourceGroup string              `yaml:"resource_group,omitempty"`
 }
 
 // Cache represents GitLab CI cache configuration
@@ -192,7 +192,6 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (*Pipeline, erro
 			AfterScript:  g.config.GitLab.AfterScript,
 			Tags:         g.config.GitLab.Tags,
 			IDTokens:     g.convertIDTokens(),
-			Secrets:      g.convertSecrets(),
 		},
 		Jobs:     make(map[string]*Job),
 		Workflow: g.generateWorkflow(),
@@ -264,6 +263,7 @@ func (g *Generator) generatePlanJob(module *discovery.Module, level int, depGrap
 			ExpireIn: "1 day",
 		},
 		Cache:         g.generateCache(module),
+		Secrets:       g.convertSecrets(),
 		ResourceGroup: module.ID(),
 	}
 
@@ -304,6 +304,7 @@ func (g *Generator) generateApplyJob(module *discovery.Module, level int, depGra
 			"TF_MODULE":      module.Name(),
 		},
 		Cache:         g.generateCache(module),
+		Secrets:       g.convertSecrets(),
 		ResourceGroup: module.ID(),
 	}
 
