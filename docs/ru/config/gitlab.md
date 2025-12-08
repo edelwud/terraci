@@ -18,6 +18,9 @@
 | `tags` | []string | `[]` | Теги раннеров |
 | `variables` | map | `{}` | Переменные пайплайна |
 | `artifact_paths` | []string | `["*.tfplan"]` | Пути артефактов |
+| `id_tokens` | map | `{}` | OIDC токены для облачных провайдеров |
+| `rules` | []object | `[]` | Правила выполнения пайплайна |
+| `secrets` | map | `{}` | Секреты из внешних хранилищ |
 
 ## terraform_binary
 
@@ -202,6 +205,132 @@ gitlab:
     - "*.tfplan"
     - "*.json"
 ```
+
+## id_tokens
+
+OIDC токены для аутентификации в облачных провайдерах. Позволяет использовать безопасную аутентификацию без хранения секретов в GitLab.
+
+```yaml
+gitlab:
+  id_tokens:
+    AWS_OIDC_TOKEN:
+      aud: "https://gitlab.example.com"
+    GCP_OIDC_TOKEN:
+      aud: "https://iam.googleapis.com/projects/123456/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab"
+```
+
+Генерируемый результат:
+
+```yaml
+default:
+  id_tokens:
+    AWS_OIDC_TOKEN:
+      aud: "https://gitlab.example.com"
+```
+
+::: tip AWS OIDC аутентификация
+Используйте `id_tokens` с IAM ролями AWS для безопасной аутентификации без хранения ключей:
+```yaml
+gitlab:
+  id_tokens:
+    AWS_OIDC_TOKEN:
+      aud: "https://gitlab.example.com"
+  before_script:
+    - >
+      export $(printf "AWS_ACCESS_KEY_ID=%s AWS_SECRET_ACCESS_KEY=%s AWS_SESSION_TOKEN=%s"
+      $(aws sts assume-role-with-web-identity
+      --role-arn ${AWS_ROLE_ARN}
+      --role-session-name "GitLabRunner-${CI_PROJECT_ID}-${CI_PIPELINE_ID}"
+      --web-identity-token ${AWS_OIDC_TOKEN}
+      --duration-seconds 3600
+      --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]'
+      --output text))
+    - ${TERRAFORM_BINARY} init
+```
+:::
+
+## rules
+
+Правила workflow для условного запуска пайплайна. Определяют, когда создаются пайплайны.
+
+```yaml
+gitlab:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: always
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: always
+    - if: '$CI_COMMIT_TAG'
+      when: never
+    - when: never
+```
+
+Генерируемый результат:
+
+```yaml
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: always
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: always
+    - when: never
+```
+
+Каждое правило может содержать:
+- `if` — условное выражение
+- `when` — когда выполнять: `always`, `never`, `on_success`, `manual`, `delayed`
+- `changes` — паттерны файлов, при изменении которых срабатывает правило
+
+## secrets
+
+Секреты из внешних менеджеров секретов (HashiCorp Vault). Секреты инжектируются как переменные окружения или файлы.
+
+```yaml
+gitlab:
+  secrets:
+    AWS_SECRET_ACCESS_KEY:
+      vault:
+        engine:
+          name: kv-v2
+          path: secret
+        path: aws/credentials
+        field: secret_access_key
+    DATABASE_PASSWORD:
+      vault:
+        engine:
+          name: kv-v2
+          path: secret
+        path: production/database
+        field: password
+      file: true  # Записать в файл вместо переменной окружения
+```
+
+Генерируемый результат:
+
+```yaml
+default:
+  secrets:
+    AWS_SECRET_ACCESS_KEY:
+      vault:
+        engine:
+          name: kv-v2
+          path: secret
+        path: aws/credentials
+        field: secret_access_key
+    DATABASE_PASSWORD:
+      vault:
+        engine:
+          name: kv-v2
+          path: secret
+        path: production/database
+        field: password
+      file: true
+```
+
+::: warning Настройка Vault
+Для использования секретов необходима настроенная интеграция GitLab с Vault. См. [документацию GitLab по секретам](https://docs.gitlab.com/ee/ci/secrets/index.html).
+:::
 
 ## Полный пример
 

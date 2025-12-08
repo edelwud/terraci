@@ -23,10 +23,36 @@ type Pipeline struct {
 
 // DefaultConfig represents default job configuration
 type DefaultConfig struct {
-	Image        string   `yaml:"image,omitempty"`
-	BeforeScript []string `yaml:"before_script,omitempty"`
-	AfterScript  []string `yaml:"after_script,omitempty"`
-	Tags         []string `yaml:"tags,omitempty"`
+	Image        string              `yaml:"image,omitempty"`
+	BeforeScript []string            `yaml:"before_script,omitempty"`
+	AfterScript  []string            `yaml:"after_script,omitempty"`
+	Tags         []string            `yaml:"tags,omitempty"`
+	IDTokens     map[string]*IDToken `yaml:"id_tokens,omitempty"`
+	Secrets      map[string]*Secret  `yaml:"secrets,omitempty"`
+}
+
+// IDToken represents GitLab CI OIDC token configuration
+type IDToken struct {
+	Aud string `yaml:"aud"`
+}
+
+// Secret represents GitLab CI secret from external secret manager
+type Secret struct {
+	Vault *VaultSecret `yaml:"vault,omitempty"`
+	File  bool         `yaml:"file,omitempty"`
+}
+
+// VaultSecret represents a secret from HashiCorp Vault
+type VaultSecret struct {
+	Engine VaultEngine `yaml:"engine"`
+	Path   string      `yaml:"path"`
+	Field  string      `yaml:"field"`
+}
+
+// VaultEngine represents Vault secrets engine configuration
+type VaultEngine struct {
+	Name string `yaml:"name"`
+	Path string `yaml:"path"`
 }
 
 // Job represents a GitLab CI job
@@ -142,8 +168,11 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (*Pipeline, erro
 			BeforeScript: g.config.GitLab.BeforeScript,
 			AfterScript:  g.config.GitLab.AfterScript,
 			Tags:         g.config.GitLab.Tags,
+			IDTokens:     g.convertIDTokens(),
+			Secrets:      g.convertSecrets(),
 		},
-		Jobs: make(map[string]*Job),
+		Jobs:     make(map[string]*Job),
+		Workflow: g.generateWorkflow(),
 	}
 
 	// Generate jobs for each level
@@ -292,6 +321,67 @@ func (g *Generator) generateCache(module *discovery.Module) *Cache {
 	return &Cache{
 		Key:   cacheKey,
 		Paths: []string{fmt.Sprintf("%s/.terraform/", module.RelativePath)},
+	}
+}
+
+// convertIDTokens converts config IDTokens to pipeline IDTokens
+func (g *Generator) convertIDTokens() map[string]*IDToken {
+	if len(g.config.GitLab.IDTokens) == 0 {
+		return nil
+	}
+
+	result := make(map[string]*IDToken)
+	for name, token := range g.config.GitLab.IDTokens {
+		result[name] = &IDToken{
+			Aud: token.Aud,
+		}
+	}
+	return result
+}
+
+// convertSecrets converts config Secrets to pipeline Secrets
+func (g *Generator) convertSecrets() map[string]*Secret {
+	if len(g.config.GitLab.Secrets) == 0 {
+		return nil
+	}
+
+	result := make(map[string]*Secret)
+	for name, secret := range g.config.GitLab.Secrets {
+		s := &Secret{
+			File: secret.File,
+		}
+		if secret.Vault != nil {
+			s.Vault = &VaultSecret{
+				Engine: VaultEngine{
+					Name: secret.Vault.Engine.Name,
+					Path: secret.Vault.Engine.Path,
+				},
+				Path:  secret.Vault.Path,
+				Field: secret.Vault.Field,
+			}
+		}
+		result[name] = s
+	}
+	return result
+}
+
+// generateWorkflow creates workflow configuration with rules
+func (g *Generator) generateWorkflow() *Workflow {
+	if len(g.config.GitLab.Rules) == 0 {
+		return nil
+	}
+
+	rules := make([]Rule, len(g.config.GitLab.Rules))
+	for i, r := range g.config.GitLab.Rules {
+		rules[i] = Rule{
+			If:      r.If,
+			When:    r.When,
+			Changes: r.Changes,
+		}
+	}
+
+	return &Workflow{
+		Rules: rules,
 	}
 }
 

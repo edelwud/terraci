@@ -190,6 +190,141 @@ gitlab:
     - "terraform.tfstate.backup"
 ```
 
+### id_tokens
+
+**Type:** `map[string]object`
+**Default:** `{}`
+
+OIDC tokens for cloud provider authentication. This enables passwordless authentication with AWS, GCP, Azure, and other providers that support OIDC.
+
+```yaml
+gitlab:
+  id_tokens:
+    AWS_OIDC_TOKEN:
+      aud: "https://gitlab.example.com"
+    GCP_OIDC_TOKEN:
+      aud: "https://iam.googleapis.com/projects/123456/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab"
+```
+
+Generated output:
+
+```yaml
+default:
+  id_tokens:
+    AWS_OIDC_TOKEN:
+      aud: "https://gitlab.example.com"
+```
+
+::: tip AWS OIDC Authentication
+Use `id_tokens` with AWS IAM roles for secure, credential-free authentication:
+```yaml
+gitlab:
+  id_tokens:
+    AWS_OIDC_TOKEN:
+      aud: "https://gitlab.example.com"
+  before_script:
+    - >
+      export $(printf "AWS_ACCESS_KEY_ID=%s AWS_SECRET_ACCESS_KEY=%s AWS_SESSION_TOKEN=%s"
+      $(aws sts assume-role-with-web-identity
+      --role-arn ${AWS_ROLE_ARN}
+      --role-session-name "GitLabRunner-${CI_PROJECT_ID}-${CI_PIPELINE_ID}"
+      --web-identity-token ${AWS_OIDC_TOKEN}
+      --duration-seconds 3600
+      --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]'
+      --output text))
+    - ${TERRAFORM_BINARY} init
+```
+:::
+
+### rules
+
+**Type:** `array`
+**Default:** `[]`
+
+Workflow rules for conditional pipeline execution. Controls when pipelines are created.
+
+```yaml
+gitlab:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: always
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: always
+    - if: '$CI_COMMIT_TAG'
+      when: never
+    - when: never
+```
+
+Generated output:
+
+```yaml
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: always
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: always
+    - when: never
+```
+
+Each rule can have:
+- `if` - Condition expression
+- `when` - When to run: `always`, `never`, `on_success`, `manual`, `delayed`
+- `changes` - File patterns that trigger the rule
+
+### secrets
+
+**Type:** `map[string]object`
+**Default:** `{}`
+
+Secrets from external secret managers (HashiCorp Vault). Secrets are injected as environment variables or files.
+
+```yaml
+gitlab:
+  secrets:
+    AWS_SECRET_ACCESS_KEY:
+      vault:
+        engine:
+          name: kv-v2
+          path: secret
+        path: aws/credentials
+        field: secret_access_key
+    DATABASE_PASSWORD:
+      vault:
+        engine:
+          name: kv-v2
+          path: secret
+        path: production/database
+        field: password
+      file: true  # Write to file instead of env var
+```
+
+Generated output:
+
+```yaml
+default:
+  secrets:
+    AWS_SECRET_ACCESS_KEY:
+      vault:
+        engine:
+          name: kv-v2
+          path: secret
+        path: aws/credentials
+        field: secret_access_key
+    DATABASE_PASSWORD:
+      vault:
+        engine:
+          name: kv-v2
+          path: secret
+        path: production/database
+        field: password
+      file: true
+```
+
+::: warning Vault Configuration
+Secrets require GitLab Vault integration to be configured. See [GitLab Vault documentation](https://docs.gitlab.com/ee/ci/secrets/index.html).
+:::
+
 ## Full Example
 
 ```yaml

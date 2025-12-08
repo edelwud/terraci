@@ -69,6 +69,31 @@ gitlab:
   artifact_paths:
     - "*.tfplan"
 
+  # OIDC tokens for cloud provider authentication (AWS, GCP, Azure)
+  # id_tokens:
+  #   AWS_OIDC_TOKEN:
+  #     aud: "https://gitlab.example.com"
+  #   GCP_OIDC_TOKEN:
+  #     aud: "https://iam.googleapis.com/projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/POOL_ID/providers/PROVIDER_ID"
+
+  # Workflow rules for conditional pipeline execution
+  # rules:
+  #   - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  #     when: always
+  #   - if: '$CI_COMMIT_BRANCH == "main"'
+  #     when: always
+  #   - when: never
+
+  # Secrets from external secret managers (HashiCorp Vault)
+  # secrets:
+  #   AWS_SECRET_ACCESS_KEY:
+  #     vault:
+  #       engine:
+  #         name: kv-v2
+  #         path: secret
+  #       path: aws/credentials
+  #       field: secret_access_key
+
 # Backend configuration (for state path resolution)
 backend:
   type: s3

@@ -65,6 +65,54 @@ type GitLabConfig struct {
 	ArtifactPaths []string `yaml:"artifact_paths,omitempty"`
 	// CacheEnabled enables caching of .terraform directory
 	CacheEnabled bool `yaml:"cache_enabled"`
+	// IDTokens defines OIDC tokens for cloud provider authentication
+	IDTokens map[string]IDToken `yaml:"id_tokens,omitempty"`
+	// Rules defines pipeline-level rules for conditional execution
+	Rules []Rule `yaml:"rules,omitempty"`
+	// Secrets defines CI/CD secrets from external secret managers
+	Secrets map[string]Secret `yaml:"secrets,omitempty"`
+}
+
+// IDToken defines an OIDC token configuration for GitLab CI
+type IDToken struct {
+	// Aud is the audience for the token (e.g., AWS ARN, GCP project)
+	Aud string `yaml:"aud"`
+}
+
+// Rule defines a GitLab CI rule for conditional execution
+type Rule struct {
+	// If is a condition expression (e.g., "$CI_COMMIT_BRANCH == 'main'")
+	If string `yaml:"if,omitempty"`
+	// When specifies when to run (always, never, on_success, manual, delayed)
+	When string `yaml:"when,omitempty"`
+	// Changes specifies file patterns that trigger the rule
+	Changes []string `yaml:"changes,omitempty"`
+}
+
+// Secret defines a CI/CD secret from an external secret manager
+type Secret struct {
+	// Vault configures HashiCorp Vault secret
+	Vault *VaultSecret `yaml:"vault,omitempty"`
+	// File indicates if secret should be written to a file
+	File bool `yaml:"file,omitempty"`
+}
+
+// VaultSecret defines a secret from HashiCorp Vault
+type VaultSecret struct {
+	// Engine is the secrets engine (e.g., "kv-v2")
+	Engine VaultEngine `yaml:"engine"`
+	// Path is the path to the secret in Vault
+	Path string `yaml:"path"`
+	// Field is the field to extract from the secret
+	Field string `yaml:"field"`
+}
+
+// VaultEngine defines Vault secrets engine configuration
+type VaultEngine struct {
+	// Name is the engine name
+	Name string `yaml:"name"`
+	// Path is the engine mount path
+	Path string `yaml:"path"`
 }
 
 // BackendConfig defines the state backend configuration
