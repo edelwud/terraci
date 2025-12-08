@@ -102,6 +102,18 @@ gitlab:
   # auto_approve: true   # Автоматический apply
 ```
 
+Можно переопределить через CLI:
+
+```bash
+# Включить auto-approve (пропустить ручной запуск)
+terraci generate --auto-approve -o .gitlab-ci.yml
+
+# Отключить auto-approve (требовать ручной запуск)
+terraci generate --no-auto-approve -o .gitlab-ci.yml
+```
+
+Флаги CLI имеют приоритет над конфигурационным файлом.
+
 ### Пользовательские скрипты
 
 Добавьте скрипты через `job_defaults`:

@@ -175,6 +175,18 @@ gitlab:
   # auto_approve: true  # Run apply automatically
 ```
 
+You can also override this via CLI:
+
+```bash
+# Enable auto-approve (skip manual trigger)
+terraci generate --auto-approve -o .gitlab-ci.yml
+
+# Disable auto-approve (require manual trigger)
+terraci generate --no-auto-approve -o .gitlab-ci.yml
+```
+
+CLI flags override the configuration file setting.
+
 ### Stage Prefix
 
 Customize stage names:

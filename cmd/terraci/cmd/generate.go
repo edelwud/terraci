@@ -47,7 +47,10 @@ Examples:
   terraci generate --environment stage --environment prod
 
   # Dry run to see what would be generated
-  terraci generate --dry-run`,
+  terraci generate --dry-run
+
+  # Generate with auto-approve (skip manual trigger for apply jobs)
+  terraci generate --auto-approve`,
 	RunE: runGenerate,
 }
 
@@ -63,9 +66,20 @@ func init() {
 	generateCmd.Flags().StringArrayVarP(&services, "service", "s", nil, "filter by service name")
 	generateCmd.Flags().StringArrayVarP(&environments, "environment", "e", nil, "filter by environment")
 	generateCmd.Flags().StringArrayVarP(&regions, "region", "r", nil, "filter by region")
+
+	// Auto-approve flag with explicit true/false handling
+	generateCmd.Flags().Bool("auto-approve", false, "auto-approve apply jobs (skip manual trigger)")
+	generateCmd.Flags().Bool("no-auto-approve", false, "require manual trigger for apply jobs")
 }
 
 func runGenerate(cmd *cobra.Command, args []string) error {
+	// Handle auto-approve flags (CLI overrides config)
+	if cmd.Flags().Changed("auto-approve") {
+		cfg.GitLab.AutoApprove = true
+	} else if cmd.Flags().Changed("no-auto-approve") {
+		cfg.GitLab.AutoApprove = false
+	}
+
 	// 1. Discover modules
 	if verbose {
 		fmt.Fprintf(os.Stderr, "Scanning directory: %s\n", workDir)
