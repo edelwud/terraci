@@ -286,6 +286,18 @@ workflow:
 
 Секреты из внешних менеджеров секретов (HashiCorp Vault). Секреты инжектируются как переменные окружения или файлы.
 
+**Короткий формат** (рекомендуется):
+```yaml
+gitlab:
+  secrets:
+    credentials:
+      vault: ci/terraform/gitlab-terraform/credentials@cdp
+      file: true
+    API_KEY:
+      vault: production/api/keys/main@team
+```
+
+**Полный формат** (для сложных конфигураций):
 ```yaml
 gitlab:
   secrets:
@@ -306,27 +318,7 @@ gitlab:
       file: true  # Записать в файл вместо переменной окружения
 ```
 
-Генерируемый результат:
-
-```yaml
-default:
-  secrets:
-    AWS_SECRET_ACCESS_KEY:
-      vault:
-        engine:
-          name: kv-v2
-          path: secret
-        path: aws/credentials
-        field: secret_access_key
-    DATABASE_PASSWORD:
-      vault:
-        engine:
-          name: kv-v2
-          path: secret
-        path: production/database
-        field: password
-      file: true
-```
+Короткий формат `path/to/secret/field@namespace` — стандартный синтаксис GitLab.
 
 ::: warning Настройка Vault
 Для использования секретов необходима настроенная интеграция GitLab с Vault. См. [документацию GitLab по секретам](https://docs.gitlab.com/ee/ci/secrets/index.html).

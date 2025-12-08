@@ -279,6 +279,18 @@ Each rule can have:
 
 Secrets from external secret managers (HashiCorp Vault). Secrets are injected as environment variables or files.
 
+**Shorthand format** (recommended):
+```yaml
+gitlab:
+  secrets:
+    credentials:
+      vault: ci/terraform/gitlab-terraform/credentials@cdp
+      file: true
+    API_KEY:
+      vault: production/api/keys/main@team
+```
+
+**Full format** (for complex configurations):
 ```yaml
 gitlab:
   secrets:
@@ -299,27 +311,7 @@ gitlab:
       file: true  # Write to file instead of env var
 ```
 
-Generated output:
-
-```yaml
-default:
-  secrets:
-    AWS_SECRET_ACCESS_KEY:
-      vault:
-        engine:
-          name: kv-v2
-          path: secret
-        path: aws/credentials
-        field: secret_access_key
-    DATABASE_PASSWORD:
-      vault:
-        engine:
-          name: kv-v2
-          path: secret
-        path: production/database
-        field: password
-      file: true
-```
+The shorthand format `path/to/secret/field@namespace` is the standard GitLab syntax.
 
 ::: warning Vault Configuration
 Secrets require GitLab Vault integration to be configured. See [GitLab Vault documentation](https://docs.gitlab.com/ee/ci/secrets/index.html).

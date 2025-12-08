@@ -38,15 +38,35 @@ type IDToken struct {
 
 // Secret represents GitLab CI secret from external secret manager
 type Secret struct {
-	Vault *VaultSecret `yaml:"vault,omitempty"`
-	File  bool         `yaml:"file,omitempty"`
+	Vault     *VaultSecret `yaml:"vault,omitempty"`
+	VaultPath string       `yaml:"-"` // For shorthand format
+	File      bool         `yaml:"file,omitempty"`
+}
+
+// MarshalYAML implements custom marshaling to support vault shorthand format
+func (s Secret) MarshalYAML() (interface{}, error) {
+	if s.VaultPath != "" {
+		// Use shorthand format
+		type secretShorthand struct {
+			Vault string `yaml:"vault"`
+			File  bool   `yaml:"file,omitempty"`
+		}
+		return secretShorthand{
+			Vault: s.VaultPath,
+			File:  s.File,
+		}, nil
+	}
+	// Use full format
+	type secretAlias Secret
+	return secretAlias(s), nil
 }
 
 // VaultSecret represents a secret from HashiCorp Vault
+// Can be either full object syntax or string shorthand
 type VaultSecret struct {
-	Engine VaultEngine `yaml:"engine"`
-	Path   string      `yaml:"path"`
-	Field  string      `yaml:"field"`
+	Engine *VaultEngine `yaml:"engine,omitempty"`
+	Path   string       `yaml:"path,omitempty"`
+	Field  string       `yaml:"field,omitempty"`
 }
 
 // VaultEngine represents Vault secrets engine configuration
@@ -54,6 +74,9 @@ type VaultEngine struct {
 	Name string `yaml:"name"`
 	Path string `yaml:"path"`
 }
+
+// VaultSecretShorthand is used for string shorthand format in YAML output
+type VaultSecretShorthand string
 
 // Job represents a GitLab CI job
 type Job struct {
@@ -351,13 +374,21 @@ func (g *Generator) convertSecrets() map[string]*Secret {
 			File: secret.File,
 		}
 		if secret.Vault != nil {
-			s.Vault = &VaultSecret{
-				Engine: VaultEngine{
-					Name: secret.Vault.Engine.Name,
-					Path: secret.Vault.Engine.Path,
-				},
-				Path:  secret.Vault.Path,
-				Field: secret.Vault.Field,
+			// Check if shorthand format is used
+			if secret.Vault.Shorthand != "" {
+				s.VaultPath = secret.Vault.Shorthand
+			} else {
+				// Full object format
+				s.Vault = &VaultSecret{
+					Path:  secret.Vault.Path,
+					Field: secret.Vault.Field,
+				}
+				if secret.Vault.Engine != nil {
+					s.Vault.Engine = &VaultEngine{
+						Name: secret.Vault.Engine.Name,
+						Path: secret.Vault.Engine.Path,
+					}
+				}
 			}
 		}
 		result[name] = s

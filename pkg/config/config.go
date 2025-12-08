@@ -91,20 +91,42 @@ type Rule struct {
 
 // Secret defines a CI/CD secret from an external secret manager
 type Secret struct {
-	// Vault configures HashiCorp Vault secret
+	// Vault configures HashiCorp Vault secret (can be string shorthand or object)
 	Vault *VaultSecret `yaml:"vault,omitempty"`
 	// File indicates if secret should be written to a file
 	File bool `yaml:"file,omitempty"`
 }
 
 // VaultSecret defines a secret from HashiCorp Vault
+// Supports both full object syntax and string shorthand (path/to/secret/field@namespace)
 type VaultSecret struct {
-	// Engine is the secrets engine (e.g., "kv-v2")
-	Engine VaultEngine `yaml:"engine"`
-	// Path is the path to the secret in Vault
-	Path string `yaml:"path"`
-	// Field is the field to extract from the secret
-	Field string `yaml:"field"`
+	// Engine is the secrets engine (e.g., "kv-v2") - for full syntax
+	Engine *VaultEngine `yaml:"engine,omitempty"`
+	// Path is the path to the secret in Vault - for full syntax
+	Path string `yaml:"path,omitempty"`
+	// Field is the field to extract from the secret - for full syntax
+	Field string `yaml:"field,omitempty"`
+	// Shorthand is the string shorthand format (path/to/secret/field@namespace)
+	Shorthand string `yaml:"-"`
+}
+
+// UnmarshalYAML implements custom unmarshaling for VaultSecret to support string shorthand
+func (v *VaultSecret) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	// Try string shorthand first
+	var shorthand string
+	if err := unmarshal(&shorthand); err == nil {
+		v.Shorthand = shorthand
+		return nil
+	}
+
+	// Try full object syntax
+	type vaultSecretAlias VaultSecret
+	var alias vaultSecretAlias
+	if err := unmarshal(&alias); err != nil {
+		return err
+	}
+	*v = VaultSecret(alias)
+	return nil
 }
 
 // VaultEngine defines Vault secrets engine configuration

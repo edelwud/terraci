@@ -85,6 +85,12 @@ gitlab:
   #   - when: never
 
   # Secrets from external secret managers (HashiCorp Vault)
+  # Shorthand format (recommended):
+  # secrets:
+  #   credentials:
+  #     vault: ci/terraform/gitlab-terraform/credentials@namespace
+  #     file: true
+  # Full format:
   # secrets:
   #   AWS_SECRET_ACCESS_KEY:
   #     vault:
