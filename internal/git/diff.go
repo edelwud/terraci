@@ -8,6 +8,7 @@ import (
 
 	"github.com/edelwud/terraci/internal/discovery"
 	"github.com/go-git/go-git/v6"
+	"github.com/go-git/go-git/v6/config"
 	"github.com/go-git/go-git/v6/plumbing"
 	"github.com/go-git/go-git/v6/plumbing/object"
 )
@@ -17,6 +18,7 @@ type Client struct {
 	// WorkDir is the working directory for git commands
 	WorkDir string
 	repo    *git.Repository
+	fetched bool // tracks if we've already fetched in this session
 }
 
 // NewClient creates a new Git client
@@ -45,6 +47,37 @@ func (c *Client) openRepo() (*git.Repository, error) {
 func (c *Client) IsGitRepo() bool {
 	_, err := c.openRepo()
 	return err == nil
+}
+
+// Fetch fetches all refs from the origin remote
+// This is needed in CI environments where shallow clones don't have remote refs
+func (c *Client) Fetch() error {
+	if c.fetched {
+		return nil
+	}
+
+	repo, err := c.openRepo()
+	if err != nil {
+		return fmt.Errorf("failed to open repository: %w", err)
+	}
+
+	// Fetch from origin with all refs
+	err = repo.Fetch(&git.FetchOptions{
+		RemoteName: "origin",
+		RefSpecs: []config.RefSpec{
+			"+refs/heads/*:refs/remotes/origin/*",
+		},
+		Tags:  git.AllTags,
+		Force: true,
+	})
+
+	// "already up-to-date" is not an error
+	if err != nil && err != git.NoErrAlreadyUpToDate {
+		return fmt.Errorf("failed to fetch: %w", err)
+	}
+
+	c.fetched = true
+	return nil
 }
 
 // GetChangedFiles returns files changed between base ref and HEAD
@@ -244,6 +277,28 @@ func (c *Client) getMergeBase(ref1, ref2 string) (plumbing.Hash, error) {
 
 // resolveRef resolves a ref string to a commit hash
 func (c *Client) resolveRef(refStr string) (plumbing.Hash, error) {
+	// Try to resolve without fetch first
+	hash, err := c.resolveRefInternal(refStr)
+	if err == nil {
+		return hash, nil
+	}
+
+	// If resolution failed and we haven't fetched yet, try fetching
+	if !c.fetched {
+		if fetchErr := c.Fetch(); fetchErr == nil {
+			// Retry resolution after fetch
+			hash, err = c.resolveRefInternal(refStr)
+			if err == nil {
+				return hash, nil
+			}
+		}
+	}
+
+	return plumbing.ZeroHash, fmt.Errorf("cannot resolve reference: %s", refStr)
+}
+
+// resolveRefInternal resolves a ref string to a commit hash without fetching
+func (c *Client) resolveRefInternal(refStr string) (plumbing.Hash, error) {
 	repo, err := c.openRepo()
 	if err != nil {
 		return plumbing.ZeroHash, err

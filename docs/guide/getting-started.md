@@ -100,16 +100,8 @@ For incremental deployments:
 terraci generate --changed-only --base-ref main -o .gitlab-ci.yml
 ```
 
-::: warning Git Fetch Required
-When using `--changed-only` in GitLab CI, you must run `git fetch --all` before `terraci generate`. GitLab CI performs shallow clones by default, which don't include remote branch refs needed for change detection.
-
-```yaml
-# Example parent pipeline that generates child pipeline
-generate-pipeline:
-  script:
-    - git fetch --all
-    - terraci generate --changed-only --base-ref origin/main -o generated-pipeline.yml
-```
+::: tip CI Environments
+TerraCi automatically fetches remote refs when needed, so `--changed-only` works out of the box in GitLab CI even with shallow clones.
 :::
 
 ## Project Structure
