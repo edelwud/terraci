@@ -31,19 +31,27 @@ type DefaultConfig struct {
 
 // Job represents a GitLab CI job
 type Job struct {
-	Stage        string            `yaml:"stage"`
-	Image        string            `yaml:"image,omitempty"`
-	Script       []string          `yaml:"script"`
-	BeforeScript []string          `yaml:"before_script,omitempty"`
-	AfterScript  []string          `yaml:"after_script,omitempty"`
-	Variables    map[string]string `yaml:"variables,omitempty"`
-	Needs        []JobNeed         `yaml:"needs,omitempty"`
-	Rules        []Rule            `yaml:"rules,omitempty"`
-	Artifacts    *Artifacts        `yaml:"artifacts,omitempty"`
-	When         string            `yaml:"when,omitempty"`
-	AllowFailure bool              `yaml:"allow_failure,omitempty"`
-	Tags         []string          `yaml:"tags,omitempty"`
-	ResourceGroup string           `yaml:"resource_group,omitempty"`
+	Stage         string            `yaml:"stage"`
+	Image         string            `yaml:"image,omitempty"`
+	Script        []string          `yaml:"script"`
+	BeforeScript  []string          `yaml:"before_script,omitempty"`
+	AfterScript   []string          `yaml:"after_script,omitempty"`
+	Variables     map[string]string `yaml:"variables,omitempty"`
+	Needs         []JobNeed         `yaml:"needs,omitempty"`
+	Rules         []Rule            `yaml:"rules,omitempty"`
+	Artifacts     *Artifacts        `yaml:"artifacts,omitempty"`
+	Cache         *Cache            `yaml:"cache,omitempty"`
+	When          string            `yaml:"when,omitempty"`
+	AllowFailure  bool              `yaml:"allow_failure,omitempty"`
+	Tags          []string          `yaml:"tags,omitempty"`
+	ResourceGroup string            `yaml:"resource_group,omitempty"`
+}
+
+// Cache represents GitLab CI cache configuration
+type Cache struct {
+	Key    string   `yaml:"key"`
+	Paths  []string `yaml:"paths"`
+	Policy string   `yaml:"policy,omitempty"` // pull, push, pull-push
 }
 
 // JobNeed represents a job dependency
@@ -203,6 +211,7 @@ func (g *Generator) generatePlanJob(module *discovery.Module, level int, depGrap
 			Paths:    []string{fmt.Sprintf("%s/plan.tfplan", module.RelativePath)},
 			ExpireIn: "1 day",
 		},
+		Cache:         g.generateCache(module),
 		ResourceGroup: module.ID(),
 	}
 
@@ -242,6 +251,7 @@ func (g *Generator) generateApplyJob(module *discovery.Module, level int, depGra
 			"TF_REGION":      module.Region,
 			"TF_MODULE":      module.Name(),
 		},
+		Cache:         g.generateCache(module),
 		ResourceGroup: module.ID(),
 	}
 
@@ -267,6 +277,22 @@ func (g *Generator) generateApplyJob(module *discovery.Module, level int, depGra
 	job.Needs = needs
 
 	return job
+}
+
+// generateCache creates cache configuration for a module
+func (g *Generator) generateCache(module *discovery.Module) *Cache {
+	// Return nil if caching is disabled
+	if !g.config.GitLab.CacheEnabled {
+		return nil
+	}
+
+	// Convert module path to cache key (replace slashes with dashes)
+	cacheKey := strings.ReplaceAll(module.RelativePath, "/", "-")
+
+	return &Cache{
+		Key:   cacheKey,
+		Paths: []string{fmt.Sprintf("%s/.terraform/", module.RelativePath)},
+	}
 }
 
 // getDependencyNeeds returns job needs for a module's dependencies

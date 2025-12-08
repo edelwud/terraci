@@ -43,6 +43,10 @@ gitlab:
   # Auto-approve applies (skip manual confirmation)
   auto_approve: false
 
+  # Enable caching of .terraform directory (providers and modules)
+  # Speeds up pipeline execution by reusing downloaded dependencies
+  cache_enabled: true
+
   # Commands to run before each job
   before_script:
     - ${TERRAFORM_BINARY} init

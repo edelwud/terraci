@@ -95,6 +95,30 @@ gitlab:
   # auto_approve: true   # Apply runs automatically
 ```
 
+### cache_enabled
+
+**Type:** `boolean`
+**Default:** `false`
+
+Enable caching of `.terraform` directory for each module. This significantly speeds up pipeline execution by reusing downloaded providers and modules.
+
+```yaml
+gitlab:
+  cache_enabled: true
+```
+
+When enabled, each job will have a cache configuration:
+
+```yaml
+plan-platform-prod-vpc:
+  cache:
+    key: platform-prod-us-east-1-vpc
+    paths:
+      - platform/prod/us-east-1/vpc/.terraform/
+```
+
+The cache key is derived from the module path with slashes replaced by dashes.
+
 ### before_script
 
 **Type:** `string[]`

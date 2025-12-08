@@ -63,6 +63,8 @@ type GitLabConfig struct {
 	AutoApprove bool `yaml:"auto_approve"`
 	// ArtifactPaths for terraform plans
 	ArtifactPaths []string `yaml:"artifact_paths,omitempty"`
+	// CacheEnabled enables caching of .terraform directory
+	CacheEnabled bool `yaml:"cache_enabled"`
 }
 
 // BackendConfig defines the state backend configuration

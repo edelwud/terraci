@@ -12,6 +12,7 @@
 | `parallelism` | int | `5` | Макс. параллельных джобов |
 | `plan_enabled` | bool | `true` | Генерировать plan-джобы |
 | `auto_approve` | bool | `false` | Автоматический apply |
+| `cache_enabled` | bool | `false` | Кеширование .terraform |
 | `before_script` | []string | `["${TERRAFORM_BINARY} init"]` | Команды перед джобом |
 | `after_script` | []string | `[]` | Команды после джоба |
 | `tags` | []string | `[]` | Теги раннеров |
@@ -124,6 +125,33 @@ gitlab:
 `auto_approve: true` применяет изменения без подтверждения. Используйте только для dev/test окружений.
 :::
 
+## cache_enabled
+
+Включает кеширование директории `.terraform` для каждого модуля:
+
+```yaml
+gitlab:
+  cache_enabled: true
+```
+
+При включенном кешировании каждый джоб получает конфигурацию кеша:
+
+```yaml
+plan-platform-prod-eu-central-1-vpc:
+  cache:
+    key: platform-prod-eu-central-1-vpc
+    paths:
+      - platform/prod/eu-central-1/vpc/.terraform/
+```
+
+Ключ кеша формируется из пути к модулю, где слеши заменяются на дефисы.
+
+::: tip Преимущества
+- Ускорение `terraform init` — провайдеры загружаются из кеша
+- Экономия трафика — модули и провайдеры не скачиваются повторно
+- Работает на уровне отдельных модулей — независимое кеширование
+:::
+
 ## before_script / after_script
 
 Команды до и после основного скрипта:
@@ -190,6 +218,7 @@ gitlab:
   # Поведение
   plan_enabled: true
   auto_approve: false
+  cache_enabled: true
 
   # Скрипты
   before_script:
