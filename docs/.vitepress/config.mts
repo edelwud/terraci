@@ -1,5 +1,22 @@
 import { defineConfig } from 'vitepress'
 
+const GITHUB_REPO = 'edelwud/terraci'
+
+async function getLatestVersion(): Promise<string> {
+  try {
+    const response = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`)
+    if (response.ok) {
+      const data = await response.json()
+      return data.tag_name || 'latest'
+    }
+  } catch {
+    // Ignore errors
+  }
+  return 'latest'
+}
+
+const version = await getLatestVersion()
+
 export default defineConfig({
   title: "TerraCi",
   description: "Blazing fast Terraform/OpenTofu pipeline generator with dependency resolution",
@@ -22,6 +39,14 @@ export default defineConfig({
           { text: 'Guide', link: '/guide/getting-started' },
           { text: 'Configuration', link: '/config/' },
           { text: 'CLI', link: '/cli/' },
+          {
+            text: version,
+            items: [
+              { text: 'Changelog', link: `https://github.com/${GITHUB_REPO}/releases` },
+              { text: 'Contributing', link: `https://github.com/${GITHUB_REPO}` },
+              { text: 'Contributors', link: `https://github.com/${GITHUB_REPO}/graphs/contributors` },
+            ]
+          }
         ],
         sidebar: {
           '/guide/': [
@@ -84,6 +109,14 @@ export default defineConfig({
           { text: 'Руководство', link: '/ru/guide/getting-started' },
           { text: 'Конфигурация', link: '/ru/config/' },
           { text: 'CLI', link: '/ru/cli/' },
+          {
+            text: version,
+            items: [
+              { text: 'История изменений', link: `https://github.com/${GITHUB_REPO}/releases` },
+              { text: 'Участие в проекте', link: `https://github.com/${GITHUB_REPO}` },
+              { text: 'Контрибьюторы', link: `https://github.com/${GITHUB_REPO}/graphs/contributors` },
+            ]
+          }
         ],
         sidebar: {
           '/ru/guide/': [
