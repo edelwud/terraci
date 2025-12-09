@@ -120,7 +120,7 @@ Level 2: app ──────────────────────�
 
 ## Changed-Only Pipelines
 
-Generate pipelines for changed modules and their dependents:
+Generate pipelines for changed modules and their related modules:
 
 ```bash
 terraci generate --changed-only --base-ref main -o .gitlab-ci.yml
@@ -129,10 +129,11 @@ terraci generate --changed-only --base-ref main -o .gitlab-ci.yml
 This:
 1. Detects files changed since `main` branch
 2. Maps changed files to modules
-3. Finds all modules that depend on changed modules
-4. Generates a pipeline only for affected modules
+3. Finds all modules that depend on changed modules (dependents)
+4. Finds all modules that changed modules depend on (dependencies)
+5. Generates a pipeline only for affected modules
 
-### Example
+### Example: Root module changes
 
 If `vpc/main.tf` changes:
 - `vpc` is included (changed)
@@ -141,6 +142,15 @@ If `vpc/main.tf` changes:
 - `app` is included (depends on eks and rds)
 
 Unchanged modules like `monitoring` (no vpc dependency) are excluded.
+
+### Example: Leaf module changes
+
+If `eks/main.tf` changes:
+- `eks` is included (changed)
+- `vpc` is included (eks depends on vpc)
+- `app` is included (depends on eks)
+
+This ensures proper pipeline execution order - dependencies are deployed before the changed module, and dependents are deployed after.
 
 ## Resource Groups
 

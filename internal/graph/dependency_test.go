@@ -144,7 +144,7 @@ func TestDependencyGraph_GetAffectedModules(t *testing.T) {
 
 	g := BuildFromDependencies(modules, deps)
 
-	// If vpc changes, all modules are affected
+	// If vpc changes, all modules are affected (vpc + all dependents)
 	affected := g.GetAffectedModules([]string{"platform/stage/eu-central-1/vpc"})
 	sort.Strings(affected)
 
@@ -159,13 +159,29 @@ func TestDependencyGraph_GetAffectedModules(t *testing.T) {
 		t.Errorf("Expected %v, got %v", expected, affected)
 	}
 
-	// If eks changes, only eks and app are affected
+	// If eks changes: eks + dependents (app) + dependencies (vpc)
 	affected = g.GetAffectedModules([]string{"platform/stage/eu-central-1/eks"})
 	sort.Strings(affected)
 
 	expected = []string{
 		"platform/stage/eu-central-1/app",
 		"platform/stage/eu-central-1/eks",
+		"platform/stage/eu-central-1/vpc", // dependency of eks
+	}
+
+	if !reflect.DeepEqual(affected, expected) {
+		t.Errorf("Expected %v, got %v", expected, affected)
+	}
+
+	// If app changes: app + dependencies (eks, rds) + transitive dependencies (vpc)
+	affected = g.GetAffectedModules([]string{"platform/stage/eu-central-1/app"})
+	sort.Strings(affected)
+
+	expected = []string{
+		"platform/stage/eu-central-1/app",
+		"platform/stage/eu-central-1/eks", // dependency of app
+		"platform/stage/eu-central-1/rds", // dependency of app
+		"platform/stage/eu-central-1/vpc", // transitive dependency (eks->vpc, rds->vpc)
 	}
 
 	if !reflect.DeepEqual(affected, expected) {
