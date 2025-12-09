@@ -202,7 +202,37 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 			changedIDs[i] = m.ID()
 		}
 
-		affectedIDs := depGraph.GetAffectedModules(changedIDs)
+		// Detect changed library modules if configured
+		var changedLibraryPaths []string
+		if cfg.LibraryModules != nil && len(cfg.LibraryModules.Paths) > 0 {
+			gitClient := git.NewClient(workDir)
+			detector := git.NewChangedModulesDetector(gitClient, fullModuleIndex, workDir)
+
+			ref := baseRef
+			if ref == "" {
+				ref = gitClient.GetDefaultBranch()
+			}
+
+			changedLibraryPaths, err = detector.DetectChangedLibraryModules(ref, cfg.LibraryModules.Paths)
+			if err != nil {
+				if verbose {
+					fmt.Fprintf(os.Stderr, "Warning: failed to detect changed library modules: %s\n", err)
+				}
+			} else if verbose && len(changedLibraryPaths) > 0 {
+				fmt.Fprintf(os.Stderr, "Changed library modules: %d\n", len(changedLibraryPaths))
+				for _, p := range changedLibraryPaths {
+					fmt.Fprintf(os.Stderr, "  - %s\n", p)
+				}
+			}
+		}
+
+		// Get affected modules including library module dependents
+		var affectedIDs []string
+		if len(changedLibraryPaths) > 0 {
+			affectedIDs = depGraph.GetAffectedModulesWithLibraries(changedIDs, changedLibraryPaths)
+		} else {
+			affectedIDs = depGraph.GetAffectedModules(changedIDs)
+		}
 
 		// Also include the changed modules themselves if they pass filters
 		affectedSet := make(map[string]bool)

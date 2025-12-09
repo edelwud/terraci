@@ -20,6 +20,14 @@ exclude:
 # include:
 #   - "platform/*/*/*"
 
+# Library/shared modules configuration
+# These are non-executable modules (without provider blocks) that are used by other modules
+# When a library module changes, all modules using it will be included in the pipeline
+# library_modules:
+#   paths:
+#     - "_modules"
+#     - "shared/modules"
+
 # GitLab CI configuration
 gitlab:
   # Terraform/OpenTofu binary to use (terraform, tofu)

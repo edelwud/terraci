@@ -33,10 +33,26 @@ type ParsedModule struct {
 	Locals map[string]cty.Value
 	// RemoteStates extracted from all .tf files
 	RemoteStates []*RemoteStateRef
+	// ModuleCalls extracted from all .tf files (module blocks)
+	ModuleCalls []*ModuleCall
 	// Raw HCL files for further analysis
 	Files map[string]*hcl.File
 	// Diagnostics from parsing
 	Diagnostics hcl.Diagnostics
+}
+
+// ModuleCall represents a module block in Terraform
+type ModuleCall struct {
+	// Name of the module call (e.g., "vpc" in module "vpc" { ... })
+	Name string
+	// Source is the module source (e.g., "../../../_modules/kafka", "terraform-aws-modules/vpc/aws")
+	Source string
+	// Version is the module version constraint (for registry modules)
+	Version string
+	// IsLocal indicates if the source is a local path
+	IsLocal bool
+	// ResolvedPath is the absolute path for local modules
+	ResolvedPath string
 }
 
 // RemoteStateRef represents a terraform_remote_state data source reference
@@ -62,6 +78,7 @@ func (p *Parser) ParseModule(modulePath string) (*ParsedModule, error) {
 		Path:         modulePath,
 		Locals:       make(map[string]cty.Value),
 		RemoteStates: make([]*RemoteStateRef, 0),
+		ModuleCalls:  make([]*ModuleCall, 0),
 		Files:        make(map[string]*hcl.File),
 	}
 
@@ -94,6 +111,11 @@ func (p *Parser) ParseModule(modulePath string) (*ParsedModule, error) {
 	// Extract remote state references
 	if err := p.extractRemoteStates(result); err != nil {
 		return nil, fmt.Errorf("failed to extract remote states: %w", err)
+	}
+
+	// Extract module calls
+	if err := p.extractModuleCalls(result); err != nil {
+		return nil, fmt.Errorf("failed to extract module calls: %w", err)
 	}
 
 	return result, nil
@@ -175,6 +197,81 @@ func (p *Parser) extractRemoteStates(pm *ParsedModule) error {
 	}
 
 	return nil
+}
+
+// extractModuleCalls parses module blocks from the module files
+func (p *Parser) extractModuleCalls(pm *ParsedModule) error {
+	moduleSchema := &hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{
+			{Type: "module", LabelNames: []string{"name"}},
+		},
+	}
+
+	for _, file := range pm.Files {
+		content, _, diags := file.Body.PartialContent(moduleSchema)
+		pm.Diagnostics = append(pm.Diagnostics, diags...)
+
+		if content == nil {
+			continue
+		}
+
+		for _, block := range content.Blocks {
+			if block.Type != "module" || len(block.Labels) < 1 {
+				continue
+			}
+
+			call := &ModuleCall{
+				Name: block.Labels[0],
+			}
+
+			// Parse the module block
+			p.parseModuleBlock(call, block.Body, pm)
+
+			pm.ModuleCalls = append(pm.ModuleCalls, call)
+		}
+	}
+
+	return nil
+}
+
+// parseModuleBlock extracts source and version from a module block
+func (p *Parser) parseModuleBlock(call *ModuleCall, body hcl.Body, pm *ParsedModule) {
+	schema := &hcl.BodySchema{
+		Attributes: []hcl.AttributeSchema{
+			{Name: "source", Required: true},
+			{Name: "version"},
+		},
+	}
+
+	content, _, diags := body.PartialContent(schema)
+	pm.Diagnostics = append(pm.Diagnostics, diags...)
+
+	if content == nil {
+		return
+	}
+
+	// Extract source
+	if attr, ok := content.Attributes["source"]; ok {
+		val, diags := attr.Expr.Value(nil)
+		if !diags.HasErrors() && val.Type() == cty.String {
+			call.Source = val.AsString()
+
+			// Check if it's a local path
+			if strings.HasPrefix(call.Source, "./") || strings.HasPrefix(call.Source, "../") {
+				call.IsLocal = true
+				// Resolve the absolute path
+				call.ResolvedPath = filepath.Clean(filepath.Join(pm.Path, call.Source))
+			}
+		}
+	}
+
+	// Extract version
+	if attr, ok := content.Attributes["version"]; ok {
+		val, diags := attr.Expr.Value(nil)
+		if !diags.HasErrors() && val.Type() == cty.String {
+			call.Version = val.AsString()
+		}
+	}
 }
 
 // parseRemoteStateBlock extracts configuration from a terraform_remote_state block

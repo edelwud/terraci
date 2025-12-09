@@ -1,0 +1,29 @@
+# TerraCi configuration for library modules example
+
+structure:
+  pattern: "{service}/{environment}/{region}/{module}"
+  min_depth: 4
+  max_depth: 5
+
+# Library/shared modules configuration
+library_modules:
+  paths:
+    - "_modules"
+
+# GitLab CI configuration
+gitlab:
+  terraform_binary: "terraform"
+  image: "hashicorp/terraform:1.6"
+  stages_prefix: "deploy"
+  parallelism: 5
+  plan_enabled: true
+  auto_approve: false
+  cache_enabled: true
+  init_enabled: true
+
+# Backend configuration
+backend:
+  type: s3
+  bucket: my-terraform-state
+  region: eu-central-1
+  key_pattern: "{service}/{environment}/{region}/{module}/terraform.tfstate"

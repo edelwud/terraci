@@ -30,16 +30,26 @@ type Dependency struct {
 	From *discovery.Module
 	// To module (the dependency)
 	To *discovery.Module
-	// Type of dependency (e.g., "remote_state")
+	// Type of dependency (e.g., "remote_state", "module_call")
 	Type string
-	// Name of the remote state data source
+	// Name of the remote state data source or module call
 	RemoteStateName string
+}
+
+// LibraryDependency represents a dependency on a library module
+type LibraryDependency struct {
+	// ModuleCall is the parsed module call
+	ModuleCall *ModuleCall
+	// LibraryPath is the resolved absolute path to the library module
+	LibraryPath string
 }
 
 // ModuleDependencies contains all dependencies for a module
 type ModuleDependencies struct {
 	Module       *discovery.Module
 	Dependencies []*Dependency
+	// LibraryDependencies lists library modules this module uses
+	LibraryDependencies []*LibraryDependency
 	// DependsOn lists module IDs this module depends on
 	DependsOn []string
 	// Errors encountered during extraction
@@ -49,10 +59,11 @@ type ModuleDependencies struct {
 // ExtractDependencies extracts dependencies for a single module
 func (de *DependencyExtractor) ExtractDependencies(module *discovery.Module) (*ModuleDependencies, error) {
 	result := &ModuleDependencies{
-		Module:       module,
-		Dependencies: make([]*Dependency, 0),
-		DependsOn:    make([]string, 0),
-		Errors:       make([]error, 0),
+		Module:              module,
+		Dependencies:        make([]*Dependency, 0),
+		LibraryDependencies: make([]*LibraryDependency, 0),
+		DependsOn:           make([]string, 0),
+		Errors:              make([]error, 0),
 	}
 
 	// Parse the module
@@ -66,6 +77,16 @@ func (de *DependencyExtractor) ExtractDependencies(module *discovery.Module) (*M
 		deps, errs := de.resolveRemoteStateDependency(module, rs, parsed.Locals)
 		result.Dependencies = append(result.Dependencies, deps...)
 		result.Errors = append(result.Errors, errs...)
+	}
+
+	// Process module calls (for library module dependencies)
+	for _, mc := range parsed.ModuleCalls {
+		if mc.IsLocal && mc.ResolvedPath != "" {
+			result.LibraryDependencies = append(result.LibraryDependencies, &LibraryDependency{
+				ModuleCall:  mc,
+				LibraryPath: mc.ResolvedPath,
+			})
+		}
 	}
 
 	// Build unique DependsOn list

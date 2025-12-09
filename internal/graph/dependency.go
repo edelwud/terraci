@@ -18,6 +18,9 @@ type DependencyGraph struct {
 	edges map[string][]string
 	// Reverse edges (to -> from means "to is depended on by from")
 	reverseEdges map[string][]string
+	// LibraryUsage maps library module paths to the executable modules that use them
+	// key: absolute path to library module, value: list of executable module IDs
+	libraryUsage map[string][]string
 }
 
 // Node represents a module in the dependency graph
@@ -35,6 +38,7 @@ func NewDependencyGraph() *DependencyGraph {
 		nodes:        make(map[string]*Node),
 		edges:        make(map[string][]string),
 		reverseEdges: make(map[string][]string),
+		libraryUsage: make(map[string][]string),
 	}
 }
 
@@ -55,9 +59,50 @@ func BuildFromDependencies(
 		for _, depID := range moduleDeps.DependsOn {
 			g.AddEdge(moduleID, depID)
 		}
+
+		// Track library module usage
+		for _, libDep := range moduleDeps.LibraryDependencies {
+			g.AddLibraryUsage(libDep.LibraryPath, moduleID)
+		}
 	}
 
 	return g
+}
+
+// AddLibraryUsage records that an executable module uses a library module
+func (g *DependencyGraph) AddLibraryUsage(libraryPath, moduleID string) {
+	// Normalize library path
+	libraryPath = normalizeLibraryPath(libraryPath)
+
+	// Check if module is already in the list
+	for _, id := range g.libraryUsage[libraryPath] {
+		if id == moduleID {
+			return
+		}
+	}
+	g.libraryUsage[libraryPath] = append(g.libraryUsage[libraryPath], moduleID)
+}
+
+// GetModulesUsingLibrary returns all executable modules that use the given library path
+func (g *DependencyGraph) GetModulesUsingLibrary(libraryPath string) []string {
+	libraryPath = normalizeLibraryPath(libraryPath)
+	return g.libraryUsage[libraryPath]
+}
+
+// GetAllLibraryPaths returns all tracked library module paths
+func (g *DependencyGraph) GetAllLibraryPaths() []string {
+	paths := make([]string, 0, len(g.libraryUsage))
+	for path := range g.libraryUsage {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+// normalizeLibraryPath normalizes a library path for consistent matching
+func normalizeLibraryPath(path string) string {
+	// Remove trailing slashes and normalize separators
+	return strings.TrimSuffix(path, "/")
 }
 
 // AddNode adds a module to the graph
@@ -330,6 +375,72 @@ func (g *DependencyGraph) GetAffectedModules(changedModules []string) []string {
 			affected[dep] = true
 		}
 		// Add all dependencies (modules this one depends on)
+		for _, dep := range g.GetAllDependencies(m) {
+			affected[dep] = true
+		}
+	}
+
+	result := make([]string, 0, len(affected))
+	for m := range affected {
+		result = append(result, m)
+	}
+
+	sort.Strings(result)
+	return result
+}
+
+// GetAffectedByLibraryChanges returns executable modules affected by changes to library modules
+// changedLibraryPaths should be absolute paths to library module directories
+func (g *DependencyGraph) GetAffectedByLibraryChanges(changedLibraryPaths []string) []string {
+	affected := make(map[string]bool)
+
+	for _, libPath := range changedLibraryPaths {
+		// Get all modules that use this library (directly)
+		for _, moduleID := range g.GetModulesUsingLibrary(libPath) {
+			affected[moduleID] = true
+		}
+	}
+
+	// Also need to check if any library module uses another library module
+	// This handles the case where kafka_acl depends on kafka
+	// For now, we handle transitive library dependencies by checking if a changed path
+	// is a parent directory of any tracked library path
+	for _, libPath := range changedLibraryPaths {
+		libPath = normalizeLibraryPath(libPath)
+		for trackedPath, moduleIDs := range g.libraryUsage {
+			// Check if trackedPath is under libPath (transitive dependency)
+			if strings.HasPrefix(trackedPath, libPath+"/") {
+				for _, moduleID := range moduleIDs {
+					affected[moduleID] = true
+				}
+			}
+		}
+	}
+
+	result := make([]string, 0, len(affected))
+	for m := range affected {
+		result = append(result, m)
+	}
+
+	sort.Strings(result)
+	return result
+}
+
+// GetAffectedModulesWithLibraries combines both executable module changes and library module changes
+// changedModules: module IDs of changed executable modules
+// changedLibraryPaths: absolute paths to changed library module directories
+func (g *DependencyGraph) GetAffectedModulesWithLibraries(changedModules, changedLibraryPaths []string) []string {
+	affected := make(map[string]bool)
+
+	// Get modules affected by executable module changes
+	for _, m := range g.GetAffectedModules(changedModules) {
+		affected[m] = true
+	}
+
+	// Get modules affected by library module changes
+	for _, m := range g.GetAffectedByLibraryChanges(changedLibraryPaths) {
+		affected[m] = true
+		// Also add their dependencies (for proper execution order)
 		for _, dep := range g.GetAllDependencies(m) {
 			affected[dep] = true
 		}

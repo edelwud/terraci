@@ -246,3 +246,91 @@ include:
 Matches:
 - `platform/production/us-east-1/vpc`
 - `platform/production/us-east-1/ec2/rabbitmq`
+
+## Library Modules
+
+Library modules (also called shared modules) are reusable Terraform modules that don't have their own providers or remote state - they are used by executable modules via the `module` block.
+
+### Configuration
+
+```yaml
+library_modules:
+  paths:
+    - "_modules"
+    - "shared/modules"
+```
+
+### How It Works
+
+When you configure `library_modules.paths`, TerraCi:
+
+1. **Parses module blocks** in executable modules to find local module calls (`source = "../_modules/kafka"`)
+2. **Tracks library dependencies** in the dependency graph
+3. **Detects library changes** when using `--changed-only` mode
+4. **Includes affected modules** when a library module is modified
+
+### Example Structure
+
+```
+terraform/
+├── _modules/               # Library modules
+│   ├── kafka/              # Reusable Kafka configuration
+│   │   └── main.tf
+│   └── kafka_acl/          # Kafka ACL module (depends on kafka)
+│       └── main.tf
+├── platform/
+│   └── production/
+│       └── eu-north-1/
+│           └── msk/        # Executable module using _modules/kafka
+│               └── main.tf
+```
+
+In `platform/production/eu-north-1/msk/main.tf`:
+
+```hcl
+module "kafka" {
+  source = "../../../../_modules/kafka"
+  # ...
+}
+
+module "kafka_acl" {
+  source = "../../../../_modules/kafka_acl"
+  # ...
+}
+```
+
+### Change Detection
+
+When you modify `_modules/kafka/main.tf`:
+
+```bash
+terraci generate --changed-only
+```
+
+TerraCi will include `platform/production/eu-north-1/msk` in the pipeline because it uses the `kafka` library module.
+
+### Transitive Dependencies
+
+If `kafka_acl` library module uses `kafka` module internally, and you modify `kafka`, all modules using `kafka_acl` will also be detected as affected.
+
+### Verbose Output
+
+Use verbose mode to see library module detection:
+
+```bash
+terraci generate --changed-only -v
+```
+
+Output:
+```
+Changed library modules: 1
+  - /project/_modules/kafka
+Affected modules (including dependents): 3
+  - platform/production/eu-north-1/msk
+  - platform/production/eu-north-1/streaming
+  - platform/production/eu-west-1/msk
+```
+
+### Example
+
+See the [library-modules example](https://github.com/edelwud/terraci/tree/main/examples/library-modules) for a complete working example.

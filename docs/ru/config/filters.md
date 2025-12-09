@@ -239,3 +239,91 @@ include:
 exclude:
   - "*/*/*/*"    # Исключает всё
 ```
+
+## Библиотечные модули
+
+Библиотечные модули (shared modules) — это переиспользуемые Terraform-модули без собственных провайдеров и remote state. Они используются исполняемыми модулями через блок `module`.
+
+### Конфигурация
+
+```yaml
+library_modules:
+  paths:
+    - "_modules"
+    - "shared/modules"
+```
+
+### Как это работает
+
+При настройке `library_modules.paths` TerraCi:
+
+1. **Парсит блоки module** в исполняемых модулях для поиска локальных вызовов (`source = "../_modules/kafka"`)
+2. **Отслеживает зависимости** от библиотечных модулей в графе зависимостей
+3. **Детектирует изменения** в библиотечных модулях при использовании `--changed-only`
+4. **Включает зависимые модули** при изменении библиотечного модуля
+
+### Пример структуры
+
+```
+terraform/
+├── _modules/               # Библиотечные модули
+│   ├── kafka/              # Переиспользуемая конфигурация Kafka
+│   │   └── main.tf
+│   └── kafka_acl/          # Модуль ACL для Kafka
+│       └── main.tf
+├── platform/
+│   └── production/
+│       └── eu-north-1/
+│           └── msk/        # Исполняемый модуль, использующий _modules/kafka
+│               └── main.tf
+```
+
+В `platform/production/eu-north-1/msk/main.tf`:
+
+```hcl
+module "kafka" {
+  source = "../../../../_modules/kafka"
+  # ...
+}
+
+module "kafka_acl" {
+  source = "../../../../_modules/kafka_acl"
+  # ...
+}
+```
+
+### Детекция изменений
+
+При изменении `_modules/kafka/main.tf`:
+
+```bash
+terraci generate --changed-only
+```
+
+TerraCi включит `platform/production/eu-north-1/msk` в пайплайн, потому что он использует библиотечный модуль `kafka`.
+
+### Транзитивные зависимости
+
+Если библиотечный модуль `kafka_acl` внутри использует модуль `kafka`, то при изменении `kafka` все модули, использующие `kafka_acl`, также будут детектированы как затронутые.
+
+### Verbose-вывод
+
+Используйте verbose-режим для отображения детекции библиотечных модулей:
+
+```bash
+terraci generate --changed-only -v
+```
+
+Вывод:
+```
+Changed library modules: 1
+  - /project/_modules/kafka
+Affected modules (including dependents): 3
+  - platform/production/eu-north-1/msk
+  - platform/production/eu-north-1/streaming
+  - platform/production/eu-west-1/msk
+```
+
+### Пример
+
+Смотрите [пример library-modules](https://github.com/edelwud/terraci/tree/main/examples/library-modules) для полного рабочего примера.

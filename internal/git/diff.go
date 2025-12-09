@@ -562,3 +562,57 @@ func (d *ChangedModulesDetector) GetChangedModuleIDs(baseRef string) ([]string, 
 
 	return ids, nil
 }
+
+// DetectChangedLibraryModules returns library module paths that have changed files
+// libraryPaths are relative paths to library module root directories (e.g., "_modules")
+func (d *ChangedModulesDetector) DetectChangedLibraryModules(baseRef string, libraryPaths []string) ([]string, error) {
+	changedFiles, err := d.gitClient.GetChangedFiles(baseRef)
+	if err != nil {
+		return nil, err
+	}
+
+	return d.filesToLibraryPaths(changedFiles, libraryPaths), nil
+}
+
+// filesToLibraryPaths maps changed files to library module paths
+func (d *ChangedModulesDetector) filesToLibraryPaths(files []string, libraryPaths []string) []string {
+	libraryModules := make(map[string]bool)
+
+	for _, file := range files {
+		// Skip non-terraform files
+		if !isTerraformRelatedFile(file) {
+			continue
+		}
+
+		// Check if file is under any library path
+		for _, libPath := range libraryPaths {
+			if strings.HasPrefix(file, libPath+"/") || strings.HasPrefix(file, libPath+"\\") {
+				// Extract the library module path
+				// e.g., file="_modules/kafka/main.tf", libPath="_modules"
+				// -> library module is "_modules/kafka"
+				relPath := strings.TrimPrefix(file, libPath+"/")
+				if relPath == "" {
+					relPath = strings.TrimPrefix(file, libPath+"\\")
+				}
+
+				// Get the first directory component after libPath
+				parts := strings.SplitN(relPath, "/", 2)
+				if len(parts) == 0 {
+					parts = strings.SplitN(relPath, "\\", 2)
+				}
+
+				if len(parts) > 0 && parts[0] != "" {
+					libModulePath := filepath.Join(d.rootDir, libPath, parts[0])
+					libraryModules[libModulePath] = true
+				}
+			}
+		}
+	}
+
+	result := make([]string, 0, len(libraryModules))
+	for path := range libraryModules {
+		result = append(result, path)
+	}
+
+	return result
+}

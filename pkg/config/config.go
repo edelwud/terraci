@@ -20,11 +20,21 @@ type Config struct {
 	// Include patterns (if set, only matching modules are included)
 	Include []string `yaml:"include,omitempty"`
 
+	// LibraryModules configuration for shared/reusable modules
+	LibraryModules *LibraryModulesConfig `yaml:"library_modules,omitempty"`
+
 	// GitLab CI configuration
 	GitLab GitLabConfig `yaml:"gitlab"`
 
 	// Backend configuration for state file path resolution
 	Backend BackendConfig `yaml:"backend"`
+}
+
+// LibraryModulesConfig defines configuration for library/shared modules
+type LibraryModulesConfig struct {
+	// Paths is a list of directories containing library modules (relative to root)
+	// e.g., ["_modules", "shared/modules"]
+	Paths []string `yaml:"paths"`
 }
 
 // StructureConfig defines the directory structure

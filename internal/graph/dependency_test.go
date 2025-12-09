@@ -265,3 +265,144 @@ func containsHelper(s, substr string) bool {
 	}
 	return false
 }
+
+func TestDependencyGraph_LibraryModuleTracking(t *testing.T) {
+	// Create graph with library module usage
+	// msk module uses library modules: _modules/kafka, _modules/kafka_acl
+	// kafka_acl depends on kafka (both are library modules)
+	modules := []*discovery.Module{
+		{Service: "platform", Environment: "stage", Region: "eu-north-1", Module: "vpc"},
+		{Service: "platform", Environment: "stage", Region: "eu-north-1", Module: "msk"},
+	}
+
+	deps := map[string]*parser.ModuleDependencies{
+		"platform/stage/eu-north-1/vpc": {DependsOn: []string{}},
+		"platform/stage/eu-north-1/msk": {
+			DependsOn: []string{"platform/stage/eu-north-1/vpc"},
+			LibraryDependencies: []*parser.LibraryDependency{
+				{LibraryPath: "/project/_modules/kafka"},
+				{LibraryPath: "/project/_modules/kafka_acl"},
+			},
+		},
+	}
+
+	g := BuildFromDependencies(modules, deps)
+
+	// Check library usage is tracked
+	kafkaUsers := g.GetModulesUsingLibrary("/project/_modules/kafka")
+	if len(kafkaUsers) != 1 || kafkaUsers[0] != "platform/stage/eu-north-1/msk" {
+		t.Errorf("Expected msk to use kafka, got %v", kafkaUsers)
+	}
+
+	// Check all library paths
+	allPaths := g.GetAllLibraryPaths()
+	if len(allPaths) != 2 {
+		t.Errorf("Expected 2 library paths, got %d: %v", len(allPaths), allPaths)
+	}
+}
+
+func TestDependencyGraph_GetAffectedByLibraryChanges(t *testing.T) {
+	modules := []*discovery.Module{
+		{Service: "platform", Environment: "stage", Region: "eu-north-1", Module: "vpc"},
+		{Service: "platform", Environment: "stage", Region: "eu-north-1", Module: "msk"},
+		{Service: "platform", Environment: "stage", Region: "eu-north-1", Module: "app"},
+	}
+
+	deps := map[string]*parser.ModuleDependencies{
+		"platform/stage/eu-north-1/vpc": {DependsOn: []string{}},
+		"platform/stage/eu-north-1/msk": {
+			DependsOn: []string{"platform/stage/eu-north-1/vpc"},
+			LibraryDependencies: []*parser.LibraryDependency{
+				{LibraryPath: "/project/_modules/kafka"},
+			},
+		},
+		"platform/stage/eu-north-1/app": {
+			DependsOn: []string{"platform/stage/eu-north-1/msk"},
+		},
+	}
+
+	g := BuildFromDependencies(modules, deps)
+
+	// When kafka library changes, msk should be affected
+	affected := g.GetAffectedByLibraryChanges([]string{"/project/_modules/kafka"})
+	if len(affected) != 1 || affected[0] != "platform/stage/eu-north-1/msk" {
+		t.Errorf("Expected only msk to be affected, got %v", affected)
+	}
+}
+
+func TestDependencyGraph_GetAffectedModulesWithLibraries(t *testing.T) {
+	modules := []*discovery.Module{
+		{Service: "platform", Environment: "stage", Region: "eu-north-1", Module: "vpc"},
+		{Service: "platform", Environment: "stage", Region: "eu-north-1", Module: "msk"},
+		{Service: "platform", Environment: "stage", Region: "eu-north-1", Module: "app"},
+	}
+
+	deps := map[string]*parser.ModuleDependencies{
+		"platform/stage/eu-north-1/vpc": {DependsOn: []string{}},
+		"platform/stage/eu-north-1/msk": {
+			DependsOn: []string{"platform/stage/eu-north-1/vpc"},
+			LibraryDependencies: []*parser.LibraryDependency{
+				{LibraryPath: "/project/_modules/kafka"},
+			},
+		},
+		"platform/stage/eu-north-1/app": {
+			DependsOn: []string{"platform/stage/eu-north-1/msk"},
+		},
+	}
+
+	g := BuildFromDependencies(modules, deps)
+
+	// When kafka library changes, msk and its dependencies (vpc) should be affected
+	affected := g.GetAffectedModulesWithLibraries([]string{}, []string{"/project/_modules/kafka"})
+	sort.Strings(affected)
+
+	expected := []string{
+		"platform/stage/eu-north-1/msk",
+		"platform/stage/eu-north-1/vpc", // dependency of msk
+	}
+
+	if !reflect.DeepEqual(affected, expected) {
+		t.Errorf("Expected %v, got %v", expected, affected)
+	}
+
+	// When both an executable module and a library change
+	affected = g.GetAffectedModulesWithLibraries(
+		[]string{"platform/stage/eu-north-1/app"},
+		[]string{"/project/_modules/kafka"},
+	)
+	sort.Strings(affected)
+
+	expected = []string{
+		"platform/stage/eu-north-1/app",
+		"platform/stage/eu-north-1/msk",
+		"platform/stage/eu-north-1/vpc",
+	}
+
+	if !reflect.DeepEqual(affected, expected) {
+		t.Errorf("Expected %v, got %v", expected, affected)
+	}
+}
+
+func TestDependencyGraph_TransitiveLibraryDependencies(t *testing.T) {
+	// Test case: kafka_acl library is under kafka directory
+	// Changing kafka should affect modules using kafka_acl too
+	modules := []*discovery.Module{
+		{Service: "platform", Environment: "stage", Region: "eu-north-1", Module: "msk"},
+	}
+
+	deps := map[string]*parser.ModuleDependencies{
+		"platform/stage/eu-north-1/msk": {
+			LibraryDependencies: []*parser.LibraryDependency{
+				{LibraryPath: "/project/_modules/kafka/acl"},
+			},
+		},
+	}
+
+	g := BuildFromDependencies(modules, deps)
+
+	// When parent directory kafka changes, modules using kafka/acl should be affected
+	affected := g.GetAffectedByLibraryChanges([]string{"/project/_modules/kafka"})
+	if len(affected) != 1 || affected[0] != "platform/stage/eu-north-1/msk" {
+		t.Errorf("Expected msk to be affected by parent library change, got %v", affected)
+	}
+}
