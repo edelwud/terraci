@@ -33,7 +33,7 @@ terraci graph --format dot -o deps.dot
 ```
 
 Output:
-```dot
+```txt
 digraph dependencies {
   rankdir=LR;
   node [shape=box];

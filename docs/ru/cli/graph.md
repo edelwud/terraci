@@ -56,7 +56,7 @@ Level 2:
 terraci graph --format dot -o deps.dot
 ```
 
-```dot
+```txt
 digraph dependencies {
     rankdir=LR;
     node [shape=box];
