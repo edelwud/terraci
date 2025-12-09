@@ -316,13 +316,21 @@ func (g *DependencyGraph) Subgraph(moduleIDs []string) *DependencyGraph {
 }
 
 // GetAffectedModules returns modules affected by changes to the given modules
-// This includes the changed modules and all their dependents
+// This includes:
+// - the changed modules themselves
+// - all their dependents (modules that depend on changed modules)
+// - all their dependencies (modules that changed modules depend on)
 func (g *DependencyGraph) GetAffectedModules(changedModules []string) []string {
 	affected := make(map[string]bool)
 
 	for _, m := range changedModules {
 		affected[m] = true
+		// Add all dependents (modules that depend on this one)
 		for _, dep := range g.GetAllDependents(m) {
+			affected[dep] = true
+		}
+		// Add all dependencies (modules this one depends on)
+		for _, dep := range g.GetAllDependencies(m) {
 			affected[dep] = true
 		}
 	}

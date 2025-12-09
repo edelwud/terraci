@@ -230,12 +230,12 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (*Pipeline, erro
 
 			// Generate plan job if enabled
 			if g.config.GitLab.PlanEnabled {
-				planJob := g.generatePlanJob(module, levelIdx, subgraph)
+				planJob := g.generatePlanJob(module, levelIdx)
 				pipeline.Jobs[planJob.jobName(module, "plan")] = planJob
 			}
 
 			// Generate apply job
-			applyJob := g.generateApplyJob(module, levelIdx, subgraph)
+			applyJob := g.generateApplyJob(module, levelIdx)
 			pipeline.Jobs[applyJob.jobName(module, "apply")] = applyJob
 		}
 	}
@@ -262,7 +262,7 @@ func (g *Generator) generateStages(levels [][]string) []string {
 }
 
 // generatePlanJob creates a terraform plan job
-func (g *Generator) generatePlanJob(module *discovery.Module, level int, depGraph *graph.DependencyGraph) *Job {
+func (g *Generator) generatePlanJob(module *discovery.Module, level int) *Job {
 	prefix := g.config.GitLab.StagesPrefix
 	if prefix == "" {
 		prefix = "deploy"
@@ -295,7 +295,7 @@ func (g *Generator) generatePlanJob(module *discovery.Module, level int, depGrap
 	}
 
 	// Add needs for dependencies from previous levels
-	job.Needs = g.getDependencyNeeds(module, level, depGraph, "apply")
+	job.Needs = g.getDependencyNeeds(module, "apply")
 
 	// Apply job_defaults first, then overwrites
 	g.applyJobDefaults(job)
@@ -305,7 +305,7 @@ func (g *Generator) generatePlanJob(module *discovery.Module, level int, depGrap
 }
 
 // generateApplyJob creates a terraform apply job
-func (g *Generator) generateApplyJob(module *discovery.Module, level int, depGraph *graph.DependencyGraph) *Job {
+func (g *Generator) generateApplyJob(module *discovery.Module, level int) *Job {
 	prefix := g.config.GitLab.StagesPrefix
 	if prefix == "" {
 		prefix = "deploy"
@@ -357,7 +357,7 @@ func (g *Generator) generateApplyJob(module *discovery.Module, level int, depGra
 	}
 
 	// Need apply jobs from dependencies
-	depNeeds := g.getDependencyNeeds(module, level, depGraph, "apply")
+	depNeeds := g.getDependencyNeeds(module, "apply")
 	needs = append(needs, depNeeds...)
 
 	job.Needs = needs
@@ -605,10 +605,10 @@ func (g *Generator) generateWorkflow() *Workflow {
 }
 
 // getDependencyNeeds returns job needs for a module's dependencies
-func (g *Generator) getDependencyNeeds(module *discovery.Module, level int, depGraph *graph.DependencyGraph, jobType string) []JobNeed {
+func (g *Generator) getDependencyNeeds(module *discovery.Module, jobType string) []JobNeed {
 	var needs []JobNeed
 
-	deps := depGraph.GetDependencies(module.ID())
+	deps := g.depGraph.GetDependencies(module.ID())
 	for _, depID := range deps {
 		depModule := g.moduleIndex.ByID(depID)
 		if depModule == nil {
