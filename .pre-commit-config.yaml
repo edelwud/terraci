@@ -1,0 +1,82 @@
+# yaml-language-server: $schema=https://json.schemastore.org/pre-commit-config.json
+repos:
+  # General hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+        exclude: 'terraci.schema.json'
+      - id: check-yaml
+      - id: check-json
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  # Local hooks (using explicit PATH for Homebrew Go)
+  - repo: local
+    hooks:
+      # Go formatting
+      - id: go-fmt
+        name: go fmt
+        entry: bash -c 'PATH="/opt/homebrew/bin:$PATH" gofmt -l -w $(find . -name "*.go" -not -path "./vendor/*")'
+        language: system
+        pass_filenames: false
+        types: [go]
+
+      # Go imports
+      - id: go-imports
+        name: go imports
+        entry: bash -c 'PATH="/opt/homebrew/bin:$PATH" goimports -l -w $(find . -name "*.go" -not -path "./vendor/*")'
+        language: system
+        pass_filenames: false
+        types: [go]
+
+      # Go mod tidy
+      - id: go-mod-tidy
+        name: go mod tidy
+        entry: bash -c 'PATH="/opt/homebrew/bin:$PATH" go mod tidy'
+        language: system
+        pass_filenames: false
+        files: 'go\.mod$'
+
+      # golangci-lint
+      - id: golangci-lint
+        name: golangci-lint
+        entry: bash -c 'PATH="/opt/homebrew/bin:$PATH" golangci-lint run --timeout=5m'
+        language: system
+        pass_filenames: false
+        types: [go]
+
+      # Go build check
+      - id: go-build
+        name: go build
+        entry: bash -c 'PATH="/opt/homebrew/bin:$PATH" go build ./...'
+        language: system
+        pass_filenames: false
+        types: [go]
+
+      # Go tests
+      - id: go-test
+        name: go test
+        entry: bash -c 'PATH="/opt/homebrew/bin:$PATH" go test -race -short ./...'
+        language: system
+        pass_filenames: false
+        types: [go]
+
+      # Generate JSON schema
+      - id: generate-schema
+        name: generate schema
+        entry: bash -c 'PATH="/opt/homebrew/bin:$PATH" go build -o /tmp/terraci ./cmd/terraci && /tmp/terraci schema -o terraci.schema.json && git add terraci.schema.json'
+        language: system
+        pass_filenames: false
+        files: 'pkg/config/.*\.go$'
+
+      # goreleaser check
+      - id: goreleaser-check
+        name: goreleaser check
+        entry: bash -c 'PATH="/opt/homebrew/bin:$PATH" goreleaser check'
+        language: system
+        pass_filenames: false
+        files: '\.goreleaser\.yaml$'
