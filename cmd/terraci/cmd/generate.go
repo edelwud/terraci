@@ -13,6 +13,7 @@ import (
 	"github.com/edelwud/terraci/internal/graph"
 	"github.com/edelwud/terraci/internal/parser"
 	"github.com/edelwud/terraci/internal/pipeline/gitlab"
+	"github.com/edelwud/terraci/pkg/log"
 )
 
 var (
@@ -82,9 +83,7 @@ func runGenerate(cmd *cobra.Command, _ []string) error {
 	}
 
 	// 1. Discover modules
-	if verbose {
-		fmt.Fprintf(os.Stderr, "Scanning directory: %s\n", workDir)
-	}
+	log.WithField("dir", workDir).Info("scanning for terraform modules")
 
 	scanner := discovery.NewScanner(workDir)
 	scanner.MinDepth = cfg.Structure.MinDepth
@@ -95,9 +94,7 @@ func runGenerate(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("failed to scan modules: %w", err)
 	}
 
-	if verbose {
-		fmt.Fprintf(os.Stderr, "Found %d modules\n", len(allModules))
-	}
+	log.WithField("count", len(allModules)).Info("discovered modules")
 
 	if len(allModules) == 0 {
 		return fmt.Errorf("no modules found in %s", workDir)
@@ -106,15 +103,15 @@ func runGenerate(cmd *cobra.Command, _ []string) error {
 	// 2. Build full module index (before filtering) for change detection
 	fullModuleIndex := discovery.NewModuleIndex(allModules)
 
-	if verbose && changedOnly {
-		fmt.Fprintf(os.Stderr, "Full module index contains %d modules\n", len(allModules))
+	if changedOnly {
+		log.WithField("count", len(allModules)).Debug("full module index built")
 	}
 
 	// 3. Apply filters
 	modules := applyFilters(allModules)
 
-	if verbose {
-		fmt.Fprintf(os.Stderr, "After filtering: %d modules\n", len(modules))
+	if len(modules) != len(allModules) {
+		log.WithField("before", len(allModules)).WithField("after", len(modules)).Info("filtered modules")
 	}
 
 	if len(modules) == 0 && !changedOnly {
@@ -125,156 +122,53 @@ func runGenerate(cmd *cobra.Command, _ []string) error {
 	moduleIndex := discovery.NewModuleIndex(modules)
 
 	// 5. Parse dependencies
-	if verbose {
-		fmt.Fprintf(os.Stderr, "Parsing dependencies...\n")
-	}
+	log.Info("parsing module dependencies")
 
 	hclParser := parser.NewParser()
 	depExtractor := parser.NewDependencyExtractor(hclParser, moduleIndex)
 
 	deps, errs := depExtractor.ExtractAllDependencies()
-	if verbose && len(errs) > 0 {
-		fmt.Fprintf(os.Stderr, "Warnings during dependency extraction:\n")
+	if len(errs) > 0 {
+		log.WithField("count", len(errs)).Warn("warnings during dependency extraction")
+		log.IncreasePadding()
 		for _, e := range errs {
-			fmt.Fprintf(os.Stderr, "  - %s\n", e)
+			log.WithField("warning", e.Error()).Debug("extraction warning")
 		}
+		log.DecreasePadding()
 	}
 
 	// 6. Build dependency graph
+	log.Debug("building dependency graph")
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
 	// Check for cycles
 	cycles := depGraph.DetectCycles()
 	if len(cycles) > 0 {
-		fmt.Fprintf(os.Stderr, "WARNING: Circular dependencies detected:\n")
+		log.WithField("count", len(cycles)).Warn("circular dependencies detected")
+		log.IncreasePadding()
 		for _, cycle := range cycles {
-			fmt.Fprintf(os.Stderr, "  %v\n", cycle)
+			log.WithField("cycle", fmt.Sprintf("%v", cycle)).Warn("cycle found")
 		}
+		log.DecreasePadding()
 	}
 
 	// 7. Determine target modules
 	targetModules := modules
 
 	if changedOnly {
-		// Use full module index to detect changes (before filtering)
-		changedModules, changedFiles, changeErr := getChangedModulesVerbose(fullModuleIndex)
-		if changeErr != nil {
-			return fmt.Errorf("failed to detect changed modules: %w", changeErr)
-		}
-
-		if verbose {
-			fmt.Fprintf(os.Stderr, "Git changed files: %d\n", len(changedFiles))
-			checkedDirs := make(map[string]bool)
-			for _, f := range changedFiles {
-				// Check if the directory exists in the module index
-				dir := filepath.Dir(f)
-				if !checkedDirs[dir] {
-					checkedDirs[dir] = true
-					if m := fullModuleIndex.ByPath(dir); m != nil {
-						fmt.Fprintf(os.Stderr, "  %s -> module: %s\n", dir, m.ID())
-					} else {
-						// Check if directory physically exists
-						absDir := filepath.Join(workDir, dir)
-						if info, statErr := os.Stat(absDir); statErr == nil && info.IsDir() {
-							// Check for .tf files
-							entries, readErr := os.ReadDir(absDir)
-							if readErr != nil {
-								fmt.Fprintf(os.Stderr, "  %s -> ERROR reading dir: %v\n", dir, readErr)
-								continue
-							}
-							var tfCount int
-							for _, e := range entries {
-								if !e.IsDir() && filepath.Ext(e.Name()) == ".tf" {
-									tfCount++
-								}
-							}
-							fmt.Fprintf(os.Stderr, "  %s -> NOT INDEXED (dir exists with %d .tf files)\n", dir, tfCount)
-						} else {
-							fmt.Fprintf(os.Stderr, "  %s -> DELETED (dir not on disk)\n", dir)
-						}
-					}
-				}
-			}
-			fmt.Fprintf(os.Stderr, "Changed modules: %d\n", len(changedModules))
-			for _, m := range changedModules {
-				fmt.Fprintf(os.Stderr, "  - %s\n", m.ID())
-			}
-		}
-
-		// Get affected modules (changed + dependents)
-		changedIDs := make([]string, len(changedModules))
-		for i, m := range changedModules {
-			changedIDs[i] = m.ID()
-		}
-
-		// Detect changed library modules if configured
-		var changedLibraryPaths []string
-		if cfg.LibraryModules != nil && len(cfg.LibraryModules.Paths) > 0 {
-			gitClient := git.NewClient(workDir)
-			detector := git.NewChangedModulesDetector(gitClient, fullModuleIndex, workDir)
-
-			ref := baseRef
-			if ref == "" {
-				ref = gitClient.GetDefaultBranch()
-			}
-
-			changedLibraryPaths, err = detector.DetectChangedLibraryModules(ref, cfg.LibraryModules.Paths)
-			if err != nil {
-				if verbose {
-					fmt.Fprintf(os.Stderr, "Warning: failed to detect changed library modules: %s\n", err)
-				}
-			} else if verbose && len(changedLibraryPaths) > 0 {
-				fmt.Fprintf(os.Stderr, "Changed library modules: %d\n", len(changedLibraryPaths))
-				for _, p := range changedLibraryPaths {
-					fmt.Fprintf(os.Stderr, "  - %s\n", p)
-				}
-			}
-		}
-
-		// Get affected modules including library module dependents
-		var affectedIDs []string
-		if len(changedLibraryPaths) > 0 {
-			affectedIDs = depGraph.GetAffectedModulesWithLibraries(changedIDs, changedLibraryPaths)
-		} else {
-			affectedIDs = depGraph.GetAffectedModules(changedIDs)
-		}
-
-		// Also include the changed modules themselves if they pass filters
-		affectedSet := make(map[string]bool)
-		for _, id := range affectedIDs {
-			affectedSet[id] = true
-		}
-		for _, id := range changedIDs {
-			affectedSet[id] = true
-		}
-
-		targetModules = make([]*discovery.Module, 0, len(affectedSet))
-		for id := range affectedSet {
-			// First try filtered index
-			if m := moduleIndex.ByID(id); m != nil {
-				targetModules = append(targetModules, m)
-			} else if m := fullModuleIndex.ByID(id); m != nil {
-				// If not in filtered index, check if it passes filters
-				filtered := applyFilters([]*discovery.Module{m})
-				if len(filtered) > 0 {
-					targetModules = append(targetModules, m)
-				} else if verbose {
-					fmt.Fprintf(os.Stderr, "  (filtered out: %s)\n", m.ID())
-				}
-			}
-		}
-
-		if verbose {
-			fmt.Fprintf(os.Stderr, "Affected modules (including dependents): %d\n", len(targetModules))
+		targetModules, err = detectChangedTargetModules(fullModuleIndex, moduleIndex, depGraph)
+		if err != nil {
+			return err
 		}
 	}
 
 	if len(targetModules) == 0 {
-		fmt.Fprintln(os.Stderr, "No modules to process")
+		log.Info("no modules to process")
 		return nil
 	}
 
-	// 7. Generate pipeline
+	// 8. Generate pipeline
+	log.WithField("modules", len(targetModules)).Info("generating pipeline")
 	generator := gitlab.NewGenerator(cfg, depGraph, modules)
 
 	// Handle dry run
@@ -284,15 +178,20 @@ func runGenerate(cmd *cobra.Command, _ []string) error {
 			return fmt.Errorf("dry run failed: %w", dryRunErr)
 		}
 
-		fmt.Printf("Dry Run Results:\n")
-		fmt.Printf("  Total modules discovered: %d\n", result.TotalModules)
-		fmt.Printf("  Modules to process: %d\n", result.AffectedModules)
-		fmt.Printf("  Pipeline stages: %d\n", result.Stages)
-		fmt.Printf("  Pipeline jobs: %d\n", result.Jobs)
-		fmt.Printf("\nExecution order:\n")
+		log.Info("dry run results")
+		log.IncreasePadding()
+		log.WithField("total", result.TotalModules).Info("modules discovered")
+		log.WithField("affected", result.AffectedModules).Info("modules to process")
+		log.WithField("stages", result.Stages).Info("pipeline stages")
+		log.WithField("jobs", result.Jobs).Info("pipeline jobs")
+		log.DecreasePadding()
+
+		log.Info("execution order")
+		log.IncreasePadding()
 		for i, level := range result.ExecutionOrder {
-			fmt.Printf("  Level %d: %v\n", i, level)
+			log.WithField("level", i).WithField("modules", fmt.Sprintf("%v", level)).Debug("level")
 		}
+		log.DecreasePadding()
 		return nil
 	}
 
@@ -301,7 +200,7 @@ func runGenerate(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("failed to generate pipeline: %w", err)
 	}
 
-	// 8. Output
+	// 9. Output
 	yamlContent, err := pipeline.ToYAML()
 	if err != nil {
 		return fmt.Errorf("failed to serialize pipeline: %w", err)
@@ -319,12 +218,139 @@ func runGenerate(cmd *cobra.Command, _ []string) error {
 		if err := os.WriteFile(outputFile, yamlContent, 0o600); err != nil {
 			return fmt.Errorf("failed to write output file: %w", err)
 		}
-		fmt.Fprintf(os.Stderr, "Pipeline written to %s\n", outputFile)
+		log.WithField("file", outputFile).Info("pipeline written")
 	} else {
 		fmt.Print(string(yamlContent))
 	}
 
 	return nil
+}
+
+func detectChangedTargetModules(
+	fullModuleIndex, moduleIndex *discovery.ModuleIndex,
+	depGraph *graph.DependencyGraph,
+) ([]*discovery.Module, error) {
+	// Use full module index to detect changes (before filtering)
+	log.Info("detecting changed modules")
+
+	changedModules, changedFiles, changeErr := getChangedModulesVerbose(fullModuleIndex)
+	if changeErr != nil {
+		return nil, fmt.Errorf("failed to detect changed modules: %w", changeErr)
+	}
+
+	log.WithField("files", len(changedFiles)).Debug("git changes detected")
+
+	// Log changed file details at debug level
+	if log.IsDebug() {
+		log.IncreasePadding()
+		checkedDirs := make(map[string]bool)
+		for _, f := range changedFiles {
+			dir := filepath.Dir(f)
+			if !checkedDirs[dir] {
+				checkedDirs[dir] = true
+				if m := fullModuleIndex.ByPath(dir); m != nil {
+					log.WithField("dir", dir).WithField("module", m.ID()).Debug("mapped to module")
+				} else {
+					absDir := filepath.Join(workDir, dir)
+					if info, statErr := os.Stat(absDir); statErr == nil && info.IsDir() {
+						entries, readErr := os.ReadDir(absDir)
+						if readErr != nil {
+							log.WithField("dir", dir).WithError(readErr).Debug("error reading dir")
+							continue
+						}
+						var tfCount int
+						for _, e := range entries {
+							if !e.IsDir() && filepath.Ext(e.Name()) == ".tf" {
+								tfCount++
+							}
+						}
+						log.WithField("dir", dir).WithField("tf_files", tfCount).Debug("not indexed")
+					} else {
+						log.WithField("dir", dir).Debug("deleted directory")
+					}
+				}
+			}
+		}
+		log.DecreasePadding()
+	}
+
+	log.WithField("count", len(changedModules)).Info("changed modules detected")
+	if log.IsDebug() {
+		log.IncreasePadding()
+		for _, m := range changedModules {
+			log.WithField("module", m.ID()).Debug("changed")
+		}
+		log.DecreasePadding()
+	}
+
+	// Get affected modules (changed + dependents)
+	changedIDs := make([]string, len(changedModules))
+	for i, m := range changedModules {
+		changedIDs[i] = m.ID()
+	}
+
+	// Detect changed library modules if configured
+	var changedLibraryPaths []string
+	if cfg.LibraryModules != nil && len(cfg.LibraryModules.Paths) > 0 {
+		log.Debug("checking for changed library modules")
+		gitClient := git.NewClient(workDir)
+		detector := git.NewChangedModulesDetector(gitClient, fullModuleIndex, workDir)
+
+		ref := baseRef
+		if ref == "" {
+			ref = gitClient.GetDefaultBranch()
+		}
+
+		var err error
+		changedLibraryPaths, err = detector.DetectChangedLibraryModules(ref, cfg.LibraryModules.Paths)
+		if err != nil {
+			log.WithError(err).Warn("failed to detect changed library modules")
+		} else if len(changedLibraryPaths) > 0 {
+			log.WithField("count", len(changedLibraryPaths)).Info("changed library modules")
+			log.IncreasePadding()
+			for _, p := range changedLibraryPaths {
+				log.WithField("path", p).Debug("library changed")
+			}
+			log.DecreasePadding()
+		}
+	}
+
+	// Get affected modules including library module dependents
+	var affectedIDs []string
+	if len(changedLibraryPaths) > 0 {
+		affectedIDs = depGraph.GetAffectedModulesWithLibraries(changedIDs, changedLibraryPaths)
+	} else {
+		affectedIDs = depGraph.GetAffectedModules(changedIDs)
+	}
+
+	// Also include the changed modules themselves if they pass filters
+	affectedSet := make(map[string]bool)
+	for _, id := range affectedIDs {
+		affectedSet[id] = true
+	}
+	for _, id := range changedIDs {
+		affectedSet[id] = true
+	}
+
+	targetModules := make([]*discovery.Module, 0, len(affectedSet))
+	for id := range affectedSet {
+		// First try filtered index
+		if m := moduleIndex.ByID(id); m != nil {
+			targetModules = append(targetModules, m)
+		} else if m := fullModuleIndex.ByID(id); m != nil {
+			// If not in filtered index, check if it passes filters
+			filtered := applyFilters([]*discovery.Module{m})
+			if len(filtered) > 0 {
+				targetModules = append(targetModules, m)
+			} else {
+				log.WithField("module", m.ID()).Debug("filtered out")
+			}
+		}
+	}
+
+	log.WithField("count", len(targetModules)).Info("affected modules (including dependents)")
+
+	return targetModules, nil
 }
 
 func applyFilters(modules []*discovery.Module) []*discovery.Module {

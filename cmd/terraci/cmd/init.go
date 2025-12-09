@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/edelwud/terraci/pkg/config"
+	"github.com/edelwud/terraci/pkg/log"
 )
 
 var (
@@ -39,6 +40,7 @@ func runInit(_ *cobra.Command, _ []string) error {
 	}
 
 	// Create default config
+	log.Debug("creating default configuration")
 	defaultCfg := config.DefaultConfig()
 
 	// Write config
@@ -46,9 +48,11 @@ func runInit(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("failed to create config: %w", err)
 	}
 
-	fmt.Printf("Created %s\n", configPath)
-	fmt.Println("\nYou can now customize the configuration and run:")
-	fmt.Println("  terraci generate -o .gitlab-ci.yml")
+	log.WithField("file", configPath).Info("configuration created")
+	log.Info("you can now customize the configuration and run:")
+	log.IncreasePadding()
+	log.Info("terraci generate -o .gitlab-ci.yml")
+	log.DecreasePadding()
 
 	return nil
 }

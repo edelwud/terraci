@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/edelwud/terraci/internal/filter"
 	"github.com/edelwud/terraci/internal/graph"
 	"github.com/edelwud/terraci/internal/parser"
+	"github.com/edelwud/terraci/pkg/log"
 )
 
 var validateCmd = &cobra.Command{
@@ -36,11 +36,10 @@ func init() {
 func runValidate(_ *cobra.Command, _ []string) error {
 	hasErrors := false
 
-	fmt.Println("Validating Terraform project structure...")
-	fmt.Println()
+	log.Info("validating terraform project structure")
 
 	// 1. Discover modules
-	fmt.Printf("Scanning: %s\n", workDir)
+	log.WithField("dir", workDir).Info("scanning for modules")
 	scanner := discovery.NewScanner(workDir)
 	scanner.MinDepth = cfg.Structure.MinDepth
 	scanner.MaxDepth = cfg.Structure.MaxDepth
@@ -50,10 +49,10 @@ func runValidate(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("failed to scan modules: %w", err)
 	}
 
-	fmt.Printf("  Found %d modules\n", len(modules))
+	log.WithField("count", len(modules)).Info("modules found")
 
 	if len(modules) == 0 {
-		fmt.Fprintln(os.Stderr, "ERROR: No modules found")
+		log.Error("no modules found")
 		return fmt.Errorf("no modules found")
 	}
 
@@ -66,15 +65,14 @@ func runValidate(_ *cobra.Command, _ []string) error {
 	filteredModules := globFilter.FilterModules(modules)
 
 	if len(filteredModules) != len(modules) {
-		fmt.Printf("  After filtering: %d modules\n", len(filteredModules))
+		log.WithField("count", len(filteredModules)).Info("modules after filtering")
 	}
-	fmt.Println()
 
 	// 3. Build module index
 	moduleIndex := discovery.NewModuleIndex(filteredModules)
 
 	// 4. Parse dependencies
-	fmt.Println("Parsing dependencies...")
+	log.Info("parsing dependencies")
 
 	hclParser := parser.NewParser()
 	depExtractor := parser.NewDependencyExtractor(hclParser, moduleIndex)
@@ -82,12 +80,12 @@ func runValidate(_ *cobra.Command, _ []string) error {
 	deps, errs := depExtractor.ExtractAllDependencies()
 
 	if len(errs) > 0 {
-		fmt.Printf("  Warnings: %d\n", len(errs))
-		if verbose {
-			for _, e := range errs {
-				fmt.Fprintf(os.Stderr, "    WARN: %s\n", e)
-			}
+		log.WithField("count", len(errs)).Warn("warnings during parsing")
+		log.IncreasePadding()
+		for _, e := range errs {
+			log.WithField("warning", e.Error()).Debug("parser warning")
 		}
+		log.DecreasePadding()
 	}
 
 	// Count dependencies
@@ -95,11 +93,10 @@ func runValidate(_ *cobra.Command, _ []string) error {
 	for _, d := range deps {
 		totalDeps += len(d.DependsOn)
 	}
-	fmt.Printf("  Total dependency links: %d\n", totalDeps)
-	fmt.Println()
+	log.WithField("count", totalDeps).Info("dependency links found")
 
 	// 5. Build and validate dependency graph
-	fmt.Println("Validating dependency graph...")
+	log.Info("validating dependency graph")
 
 	depGraph := graph.BuildFromDependencies(filteredModules, deps)
 
@@ -107,44 +104,48 @@ func runValidate(_ *cobra.Command, _ []string) error {
 	cycles := depGraph.DetectCycles()
 	if len(cycles) > 0 {
 		hasErrors = true
-		fmt.Printf("  ERROR: Circular dependencies detected: %d\n", len(cycles))
+		log.WithField("count", len(cycles)).Error("circular dependencies detected")
+		log.IncreasePadding()
 		for i, cycle := range cycles {
-			fmt.Printf("    Cycle %d: %v\n", i+1, cycle)
+			log.WithField("cycle", i+1).WithField("path", fmt.Sprintf("%v", cycle)).Error("cycle")
 		}
+		log.DecreasePadding()
 	} else {
-		fmt.Println("  No circular dependencies")
+		log.Info("no circular dependencies")
 	}
 
 	// Get stats
 	stats := depGraph.GetStats()
-	fmt.Printf("  Root modules (no deps): %d\n", stats.RootModules)
-	fmt.Printf("  Leaf modules (no dependents): %d\n", stats.LeafModules)
-	fmt.Printf("  Max dependency depth: %d\n", stats.MaxDepth)
-	fmt.Println()
+	log.IncreasePadding()
+	log.WithField("count", stats.RootModules).Debug("root modules (no deps)")
+	log.WithField("count", stats.LeafModules).Debug("leaf modules (no dependents)")
+	log.WithField("depth", stats.MaxDepth).Debug("max dependency depth")
+	log.DecreasePadding()
 
 	// 6. Verify execution order
-	fmt.Println("Checking execution order...")
+	log.Info("checking execution order")
 
 	levels, err := depGraph.ExecutionLevels()
 	if err != nil {
 		hasErrors = true
-		fmt.Printf("  ERROR: Cannot determine execution order: %s\n", err)
+		log.WithError(err).Error("cannot determine execution order")
 	} else {
-		fmt.Printf("  Execution levels: %d\n", len(levels))
-		if verbose {
+		log.WithField("levels", len(levels)).Info("execution levels determined")
+		if log.IsDebug() {
+			log.IncreasePadding()
 			for i, level := range levels {
-				fmt.Printf("    Level %d: %d modules\n", i, len(level))
+				log.WithField("level", i).WithField("modules", len(level)).Debug("level")
 			}
+			log.DecreasePadding()
 		}
 	}
-	fmt.Println()
 
 	// 7. Summary
 	if hasErrors {
-		fmt.Println("Validation FAILED - please fix the issues above")
+		log.Error("validation FAILED - please fix the issues above")
 		return fmt.Errorf("validation failed")
 	}
 
-	fmt.Println("Validation PASSED")
+	log.Info("validation PASSED")
 	return nil
 }

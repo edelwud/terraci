@@ -7,13 +7,14 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/edelwud/terraci/pkg/config"
+	"github.com/edelwud/terraci/pkg/log"
 )
 
 var (
 	// Global flags
-	cfgFile string
-	workDir string
-	verbose bool
+	cfgFile  string
+	workDir  string
+	logLevel string
 
 	// Version info
 	versionInfo struct {
@@ -42,16 +43,34 @@ Features:
   - Git integration for changed-only pipelines
   - Parallel execution where possible`,
 	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-		// Skip config loading for version command
-		if cmd.Name() == "version" {
+		// Initialize logger
+		log.Init()
+
+		// Handle verbose flag (shorthand for --log-level=debug)
+		if verbose, err := cmd.Flags().GetBool("verbose"); err == nil && verbose {
+			logLevel = "debug"
+		}
+
+		// Set log level from flag
+		if logLevel != "" {
+			if err := log.SetLevelFromString(logLevel); err != nil {
+				return fmt.Errorf("invalid log level %q: %w", logLevel, err)
+			}
+		}
+
+		// Skip config loading for version and schema commands
+		if cmd.Name() == "version" || cmd.Name() == "schema" {
 			return nil
 		}
 
 		// Load configuration
+		log.Debug("loading configuration")
 		var err error
 		if cfgFile != "" {
+			log.WithField("file", cfgFile).Debug("loading config from file")
 			cfg, err = config.Load(cfgFile)
 		} else {
+			log.WithField("dir", workDir).Debug("loading config from directory")
 			cfg, err = config.LoadOrDefault(workDir)
 		}
 
@@ -59,6 +78,7 @@ Features:
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 
+		log.Debug("validating configuration")
 		return cfg.Validate()
 	},
 }
@@ -85,5 +105,6 @@ func init() {
 	// Global flags
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default: .terraci.yaml)")
 	rootCmd.PersistentFlags().StringVarP(&workDir, "dir", "d", cwd, "working directory")
-	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
+	rootCmd.PersistentFlags().StringVarP(&logLevel, "log-level", "l", "info", "log level (debug, info, warn, error)")
+	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "enable verbose output (shorthand for --log-level=debug)")
 }

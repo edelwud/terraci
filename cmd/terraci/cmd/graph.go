@@ -11,6 +11,7 @@ import (
 	"github.com/edelwud/terraci/internal/filter"
 	"github.com/edelwud/terraci/internal/graph"
 	"github.com/edelwud/terraci/internal/parser"
+	"github.com/edelwud/terraci/pkg/log"
 )
 
 var (
@@ -68,6 +69,7 @@ func init() {
 
 func runGraph(_ *cobra.Command, _ []string) error {
 	// 1. Discover modules
+	log.WithField("dir", workDir).Debug("scanning for modules")
 	scanner := discovery.NewScanner(workDir)
 	scanner.MinDepth = cfg.Structure.MinDepth
 	scanner.MaxDepth = cfg.Structure.MaxDepth
@@ -76,6 +78,8 @@ func runGraph(_ *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to scan modules: %w", err)
 	}
+
+	log.WithField("count", len(modules)).Debug("modules discovered")
 
 	if len(modules) == 0 {
 		return fmt.Errorf("no modules found in %s", workDir)
@@ -93,11 +97,13 @@ func runGraph(_ *cobra.Command, _ []string) error {
 	moduleIndex := discovery.NewModuleIndex(modules)
 
 	// 4. Parse dependencies
+	log.Debug("parsing dependencies")
 	hclParser := parser.NewParser()
 	depExtractor := parser.NewDependencyExtractor(hclParser, moduleIndex)
 	deps, _ := depExtractor.ExtractAllDependencies()
 
 	// 5. Build dependency graph
+	log.Debug("building dependency graph")
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
 	// Handle specific module query
@@ -111,6 +117,7 @@ func runGraph(_ *cobra.Command, _ []string) error {
 	}
 
 	// Generate output based on format
+	log.WithField("format", graphFormat).Debug("generating output")
 	var output string
 	switch graphFormat {
 	case "dot":
@@ -131,7 +138,7 @@ func runGraph(_ *cobra.Command, _ []string) error {
 		if err := os.WriteFile(graphOutput, []byte(output), 0o600); err != nil {
 			return fmt.Errorf("failed to write output: %w", err)
 		}
-		fmt.Fprintf(os.Stderr, "Graph written to %s\n", graphOutput)
+		log.WithField("file", graphOutput).Info("graph written")
 	} else {
 		fmt.Print(output)
 	}
