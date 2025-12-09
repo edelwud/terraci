@@ -111,25 +111,27 @@ func TestScanner_Scan(t *testing.T) {
 		"cdp/stage/eu-central-1/ec2/redis",
 	}
 
-	allModules := append(baseModules, subModules...)
+	allModules := make([]string, 0, len(baseModules)+len(subModules))
+	allModules = append(allModules, baseModules...)
+	allModules = append(allModules, subModules...)
 
 	for _, m := range allModules {
 		dir := filepath.Join(tmpDir, m)
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			t.Fatalf("Failed to create dir %s: %v", dir, err)
+		if mkErr := os.MkdirAll(dir, 0o755); mkErr != nil {
+			t.Fatalf("Failed to create dir %s: %v", dir, mkErr)
 		}
 		// Create a dummy .tf file
 		tfFile := filepath.Join(dir, "main.tf")
-		if err := os.WriteFile(tfFile, []byte("# test"), 0644); err != nil {
-			t.Fatalf("Failed to create .tf file: %v", err)
+		if writeErr := os.WriteFile(tfFile, []byte("# test"), 0o644); writeErr != nil {
+			t.Fatalf("Failed to create .tf file: %v", writeErr)
 		}
 	}
 
 	// Create directory at wrong depth (should be ignored)
-	wrongDepth := filepath.Join(tmpDir, "cdp/stage")
+	wrongDepth := filepath.Join(tmpDir, "cdp", "stage")
 	tfFile := filepath.Join(wrongDepth, "main.tf")
-	if err := os.WriteFile(tfFile, []byte("# wrong depth"), 0644); err != nil {
-		t.Fatalf("Failed to create .tf file: %v", err)
+	if writeErr := os.WriteFile(tfFile, []byte("# wrong depth"), 0o644); writeErr != nil {
+		t.Fatalf("Failed to create .tf file: %v", writeErr)
 	}
 
 	// Scan with submodules enabled
@@ -194,11 +196,11 @@ func TestScanner_ParentChildLinks(t *testing.T) {
 
 	for _, m := range modules {
 		dir := filepath.Join(tmpDir, m)
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			t.Fatalf("Failed to create dir: %v", err)
+		if mkErr := os.MkdirAll(dir, 0o755); mkErr != nil {
+			t.Fatalf("Failed to create dir: %v", mkErr)
 		}
-		if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte("# test"), 0644); err != nil {
-			t.Fatalf("Failed to create .tf file: %v", err)
+		if writeErr := os.WriteFile(filepath.Join(dir, "main.tf"), []byte("# test"), 0o644); writeErr != nil {
+			t.Fatalf("Failed to create .tf file: %v", writeErr)
 		}
 	}
 
@@ -301,7 +303,7 @@ func TestContainsTerraformFiles(t *testing.T) {
 
 	// Directory without .tf files
 	emptyDir := filepath.Join(tmpDir, "empty")
-	if err := os.MkdirAll(emptyDir, 0755); err != nil {
+	if err := os.MkdirAll(emptyDir, 0o755); err != nil {
 		t.Fatalf("Failed to create dir: %v", err)
 	}
 
@@ -311,10 +313,10 @@ func TestContainsTerraformFiles(t *testing.T) {
 
 	// Directory with .tf file
 	tfDir := filepath.Join(tmpDir, "terraform")
-	if err := os.MkdirAll(tfDir, 0755); err != nil {
+	if err := os.MkdirAll(tfDir, 0o755); err != nil {
 		t.Fatalf("Failed to create dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tfDir, "main.tf"), []byte("# test"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tfDir, "main.tf"), []byte("# test"), 0o644); err != nil {
 		t.Fatalf("Failed to create .tf file: %v", err)
 	}
 

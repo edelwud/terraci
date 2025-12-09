@@ -5,14 +5,15 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+
 	"github.com/edelwud/terraci/pkg/config"
 )
 
 var (
 	// Global flags
-	cfgFile   string
-	workDir   string
-	verbose   bool
+	cfgFile string
+	workDir string
+	verbose bool
 
 	// Version info
 	versionInfo struct {
@@ -40,7 +41,7 @@ Features:
   - Glob pattern filtering for modules
   - Git integration for changed-only pipelines
   - Parallel execution where possible`,
-	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 		// Skip config loading for version command
 		if cmd.Name() == "version" {
 			return nil

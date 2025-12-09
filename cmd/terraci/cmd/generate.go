@@ -5,13 +5,14 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/spf13/cobra"
+
 	"github.com/edelwud/terraci/internal/discovery"
 	"github.com/edelwud/terraci/internal/filter"
 	"github.com/edelwud/terraci/internal/git"
 	"github.com/edelwud/terraci/internal/graph"
 	"github.com/edelwud/terraci/internal/parser"
 	"github.com/edelwud/terraci/internal/pipeline/gitlab"
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -72,7 +73,7 @@ func init() {
 	generateCmd.Flags().Bool("no-auto-approve", false, "require manual trigger for apply jobs")
 }
 
-func runGenerate(cmd *cobra.Command, args []string) error {
+func runGenerate(cmd *cobra.Command, _ []string) error {
 	// Handle auto-approve flags (CLI overrides config)
 	if cmd.Flags().Changed("auto-approve") {
 		cfg.GitLab.AutoApprove = true
@@ -156,9 +157,9 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 
 	if changedOnly {
 		// Use full module index to detect changes (before filtering)
-		changedModules, changedFiles, err := getChangedModulesVerbose(fullModuleIndex)
-		if err != nil {
-			return fmt.Errorf("failed to detect changed modules: %w", err)
+		changedModules, changedFiles, changeErr := getChangedModulesVerbose(fullModuleIndex)
+		if changeErr != nil {
+			return fmt.Errorf("failed to detect changed modules: %w", changeErr)
 		}
 
 		if verbose {
@@ -174,9 +175,13 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 					} else {
 						// Check if directory physically exists
 						absDir := filepath.Join(workDir, dir)
-						if info, err := os.Stat(absDir); err == nil && info.IsDir() {
+						if info, statErr := os.Stat(absDir); statErr == nil && info.IsDir() {
 							// Check for .tf files
-							entries, _ := os.ReadDir(absDir)
+							entries, readErr := os.ReadDir(absDir)
+							if readErr != nil {
+								fmt.Fprintf(os.Stderr, "  %s -> ERROR reading dir: %v\n", dir, readErr)
+								continue
+							}
 							var tfCount int
 							for _, e := range entries {
 								if !e.IsDir() && filepath.Ext(e.Name()) == ".tf" {
@@ -274,9 +279,9 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 
 	// Handle dry run
 	if dryRun {
-		result, err := generator.DryRun(targetModules)
-		if err != nil {
-			return fmt.Errorf("dry run failed: %w", err)
+		result, dryRunErr := generator.DryRun(targetModules)
+		if dryRunErr != nil {
+			return fmt.Errorf("dry run failed: %w", dryRunErr)
 		}
 
 		fmt.Printf("Dry Run Results:\n")
@@ -311,7 +316,7 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 	yamlContent = append(header, yamlContent...)
 
 	if outputFile != "" {
-		if err := os.WriteFile(outputFile, yamlContent, 0644); err != nil {
+		if err := os.WriteFile(outputFile, yamlContent, 0o600); err != nil {
 			return fmt.Errorf("failed to write output file: %w", err)
 		}
 		fmt.Fprintf(os.Stderr, "Pipeline written to %s\n", outputFile)
@@ -324,8 +329,10 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 
 func applyFilters(modules []*discovery.Module) []*discovery.Module {
 	// Combine config excludes with command line excludes
-	allExcludes := append(cfg.Exclude, excludes...)
-	allIncludes := append(cfg.Include, includes...)
+	allExcludes := append([]string{}, cfg.Exclude...)
+	allExcludes = append(allExcludes, excludes...)
+	allIncludes := append([]string{}, cfg.Include...)
+	allIncludes = append(allIncludes, includes...)
 
 	// Apply glob filter
 	globFilter := filter.NewGlobFilter(allExcludes, allIncludes)
@@ -368,11 +375,6 @@ func applyFilters(modules []*discovery.Module) []*discovery.Module {
 	}
 
 	return modules
-}
-
-func getChangedModules(moduleIndex *discovery.ModuleIndex) ([]*discovery.Module, error) {
-	modules, _, err := getChangedModulesVerbose(moduleIndex)
-	return modules, err
 }
 
 func getChangedModulesVerbose(moduleIndex *discovery.ModuleIndex) ([]*discovery.Module, []string, error) {

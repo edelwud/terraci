@@ -33,7 +33,7 @@ func (f *GlobFilter) Match(moduleID string) bool {
 	// Check exclude patterns first
 	for _, pattern := range f.ExcludePatterns {
 		normalizedPattern := filepath.ToSlash(pattern)
-		if matched, _ := filepath.Match(normalizedPattern, normalizedID); matched {
+		if matchPattern(normalizedPattern, normalizedID) {
 			return false
 		}
 		// Also try glob-style matching with **
@@ -50,7 +50,7 @@ func (f *GlobFilter) Match(moduleID string) bool {
 	// Check include patterns
 	for _, pattern := range f.IncludePatterns {
 		normalizedPattern := filepath.ToSlash(pattern)
-		if matched, _ := filepath.Match(normalizedPattern, normalizedID); matched {
+		if matchPattern(normalizedPattern, normalizedID) {
 			return true
 		}
 		if matchGlob(normalizedPattern, normalizedID) {
@@ -59,6 +59,15 @@ func (f *GlobFilter) Match(moduleID string) bool {
 	}
 
 	return false
+}
+
+// matchPattern wraps filepath.Match and returns false on invalid patterns
+func matchPattern(pattern, name string) bool {
+	matched, err := filepath.Match(pattern, name)
+	if err != nil {
+		return false // Invalid pattern treated as no match
+	}
+	return matched
 }
 
 // FilterModules returns modules that match the filter criteria
@@ -95,8 +104,7 @@ func matchGlob(pattern, path string) bool {
 	}
 
 	// Fall back to standard filepath.Match
-	matched, _ := filepath.Match(pattern, path)
-	return matched
+	return matchPattern(pattern, path)
 }
 
 // matchDoubleStarGlob handles ** patterns that match any number of path segments
@@ -106,8 +114,7 @@ func matchDoubleStarGlob(pattern, path string) bool {
 
 	if len(parts) == 1 {
 		// No ** in pattern
-		matched, _ := filepath.Match(pattern, path)
-		return matched
+		return matchPattern(pattern, path)
 	}
 
 	// For pattern like "a/**/b", parts = ["a/", "/b"]
@@ -155,8 +162,7 @@ func matchPrefix(prefix, path string) bool {
 	}
 
 	for i, pp := range prefixParts {
-		matched, _ := filepath.Match(pp, pathParts[i])
-		if !matched {
+		if !matchPattern(pp, pathParts[i]) {
 			return false
 		}
 	}
@@ -175,8 +181,7 @@ func matchSuffix(suffix, path string) bool {
 
 	offset := len(pathParts) - len(suffixParts)
 	for i, sp := range suffixParts {
-		matched, _ := filepath.Match(sp, pathParts[offset+i])
-		if !matched {
+		if !matchPattern(sp, pathParts[offset+i]) {
 			return false
 		}
 	}

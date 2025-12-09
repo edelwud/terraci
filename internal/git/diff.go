@@ -2,15 +2,17 @@
 package git
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
 
-	"github.com/edelwud/terraci/internal/discovery"
 	"github.com/go-git/go-git/v6"
 	"github.com/go-git/go-git/v6/config"
 	"github.com/go-git/go-git/v6/plumbing"
 	"github.com/go-git/go-git/v6/plumbing/object"
+
+	"github.com/edelwud/terraci/internal/discovery"
 )
 
 // Client provides Git operations using go-git
@@ -72,7 +74,7 @@ func (c *Client) Fetch() error {
 	})
 
 	// "already up-to-date" is not an error
-	if err != nil && err != git.NoErrAlreadyUpToDate {
+	if err != nil && !errors.Is(err, git.NoErrAlreadyUpToDate) {
 		return fmt.Errorf("failed to fetch: %w", err)
 	}
 
@@ -167,13 +169,13 @@ func (c *Client) GetChangedFilesFromCommit(commitHash string) ([]string, error) 
 	// Get parent commit (if exists)
 	var parentTree *object.Tree
 	if commit.NumParents() > 0 {
-		parent, err := commit.Parent(0)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get parent commit: %w", err)
+		parent, parentErr := commit.Parent(0)
+		if parentErr != nil {
+			return nil, fmt.Errorf("failed to get parent commit: %w", parentErr)
 		}
-		parentTree, err = parent.Tree()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get parent tree: %w", err)
+		parentTree, parentErr = parent.Tree()
+		if parentErr != nil {
+			return nil, fmt.Errorf("failed to get parent tree: %w", parentErr)
 		}
 	}
 
@@ -311,19 +313,20 @@ func (c *Client) resolveRefInternal(refStr string) (plumbing.Hash, error) {
 
 	// Handle HEAD~N notation
 	if strings.HasPrefix(refStr, "HEAD~") || strings.HasPrefix(refStr, "HEAD^") {
-		headRef, err := repo.Head()
-		if err != nil {
-			return plumbing.ZeroHash, err
+		headRef, headErr := repo.Head()
+		if headErr != nil {
+			return plumbing.ZeroHash, headErr
 		}
 
-		commit, err := repo.CommitObject(headRef.Hash())
-		if err != nil {
-			return plumbing.ZeroHash, err
+		commit, commitErr := repo.CommitObject(headRef.Hash())
+		if commitErr != nil {
+			return plumbing.ZeroHash, commitErr
 		}
 
 		// Parse the number of parents to traverse
 		n := 1
 		if len(refStr) > 5 {
+			//nolint:errcheck // Sscanf error is intentionally ignored - default value n=1 is used on parse failure
 			fmt.Sscanf(refStr[5:], "%d", &n)
 		}
 
@@ -404,8 +407,8 @@ func (c *Client) GetDefaultBranch() string {
 
 	// Try common default branch names
 	for _, branch := range []string{"main", "master"} {
-		ref, err := repo.Reference(plumbing.NewRemoteReferenceName("origin", branch), true)
-		if err == nil && ref != nil {
+		ref, refErr := repo.Reference(plumbing.NewRemoteReferenceName("origin", branch), true)
+		if refErr == nil && ref != nil {
 			return "origin/" + branch
 		}
 	}
@@ -575,7 +578,7 @@ func (d *ChangedModulesDetector) DetectChangedLibraryModules(baseRef string, lib
 }
 
 // filesToLibraryPaths maps changed files to library module paths
-func (d *ChangedModulesDetector) filesToLibraryPaths(files []string, libraryPaths []string) []string {
+func (d *ChangedModulesDetector) filesToLibraryPaths(files, libraryPaths []string) []string {
 	libraryModules := make(map[string]bool)
 
 	for _, file := range files {
@@ -586,25 +589,26 @@ func (d *ChangedModulesDetector) filesToLibraryPaths(files []string, libraryPath
 
 		// Check if file is under any library path
 		for _, libPath := range libraryPaths {
-			if strings.HasPrefix(file, libPath+"/") || strings.HasPrefix(file, libPath+"\\") {
-				// Extract the library module path
-				// e.g., file="_modules/kafka/main.tf", libPath="_modules"
-				// -> library module is "_modules/kafka"
-				relPath := strings.TrimPrefix(file, libPath+"/")
-				if relPath == "" {
-					relPath = strings.TrimPrefix(file, libPath+"\\")
-				}
+			if !strings.HasPrefix(file, libPath+"/") && !strings.HasPrefix(file, libPath+"\\") {
+				continue
+			}
+			// Extract the library module path
+			// e.g., file="_modules/kafka/main.tf", libPath="_modules"
+			// -> library module is "_modules/kafka"
+			relPath := strings.TrimPrefix(file, libPath+"/")
+			if relPath == "" {
+				relPath = strings.TrimPrefix(file, libPath+"\\")
+			}
 
-				// Get the first directory component after libPath
-				parts := strings.SplitN(relPath, "/", 2)
-				if len(parts) == 0 {
-					parts = strings.SplitN(relPath, "\\", 2)
-				}
+			// Get the first directory component after libPath
+			parts := strings.SplitN(relPath, "/", 2)
+			if len(parts) == 0 {
+				parts = strings.SplitN(relPath, "\\", 2)
+			}
 
-				if len(parts) > 0 && parts[0] != "" {
-					libModulePath := filepath.Join(d.rootDir, libPath, parts[0])
-					libraryModules[libModulePath] = true
-				}
+			if len(parts) > 0 && parts[0] != "" {
+				libModulePath := filepath.Join(d.rootDir, libPath, parts[0])
+				libraryModules[libModulePath] = true
 			}
 		}
 	}

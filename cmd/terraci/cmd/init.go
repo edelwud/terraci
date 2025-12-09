@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
+
 	"github.com/edelwud/terraci/pkg/config"
 )
 
@@ -29,7 +30,7 @@ func init() {
 	initCmd.Flags().BoolVarP(&forceInit, "force", "f", false, "overwrite existing config file")
 }
 
-func runInit(cmd *cobra.Command, args []string) error {
+func runInit(_ *cobra.Command, _ []string) error {
 	configPath := filepath.Join(workDir, ".terraci.yaml")
 
 	// Check if config already exists
@@ -38,10 +39,10 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create default config
-	cfg := config.DefaultConfig()
+	defaultCfg := config.DefaultConfig()
 
 	// Write config
-	if err := cfg.Save(configPath); err != nil {
+	if err := defaultCfg.Save(configPath); err != nil {
 		return fmt.Errorf("failed to create config: %w", err)
 	}
 

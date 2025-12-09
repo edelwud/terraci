@@ -9,7 +9,7 @@ import (
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version information",
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, _ []string) {
 		fmt.Printf("terraci %s\n", versionInfo.Version)
 		fmt.Printf("  commit: %s\n", versionInfo.Commit)
 		fmt.Printf("  built:  %s\n", versionInfo.Date)

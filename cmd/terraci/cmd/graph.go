@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
 	"github.com/edelwud/terraci/internal/discovery"
 	"github.com/edelwud/terraci/internal/filter"
 	"github.com/edelwud/terraci/internal/graph"
@@ -65,7 +66,7 @@ func init() {
 	graphCmd.Flags().StringArrayVarP(&includes, "include", "i", nil, "glob patterns to include modules")
 }
 
-func runGraph(cmd *cobra.Command, args []string) error {
+func runGraph(_ *cobra.Command, _ []string) error {
 	// 1. Discover modules
 	scanner := discovery.NewScanner(workDir)
 	scanner.MinDepth = cfg.Structure.MinDepth
@@ -81,8 +82,10 @@ func runGraph(cmd *cobra.Command, args []string) error {
 	}
 
 	// 2. Apply filters
-	allExcludes := append(cfg.Exclude, excludes...)
-	allIncludes := append(cfg.Include, includes...)
+	allExcludes := append([]string{}, cfg.Exclude...)
+	allExcludes = append(allExcludes, excludes...)
+	allIncludes := append([]string{}, cfg.Include...)
+	allIncludes = append(allIncludes, includes...)
 	globFilter := filter.NewGlobFilter(allExcludes, allIncludes)
 	modules = globFilter.FilterModules(modules)
 
@@ -125,7 +128,7 @@ func runGraph(cmd *cobra.Command, args []string) error {
 
 	// Write output
 	if graphOutput != "" {
-		if err := os.WriteFile(graphOutput, []byte(output), 0644); err != nil {
+		if err := os.WriteFile(graphOutput, []byte(output), 0o600); err != nil {
 			return fmt.Errorf("failed to write output: %w", err)
 		}
 		fmt.Fprintf(os.Stderr, "Graph written to %s\n", graphOutput)

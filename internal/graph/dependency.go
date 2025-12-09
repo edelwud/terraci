@@ -467,7 +467,7 @@ func (g *DependencyGraph) ToDOT() string {
 	for id := range g.nodes {
 		// Escape the label
 		label := strings.ReplaceAll(id, "/", "\\n")
-		sb.WriteString(fmt.Sprintf("  \"%s\" [label=\"%s\"];\n", id, label))
+		sb.WriteString(fmt.Sprintf("  %q [label=%q];\n", id, label))
 	}
 
 	sb.WriteString("\n")
@@ -475,7 +475,7 @@ func (g *DependencyGraph) ToDOT() string {
 	// Add edges
 	for from, tos := range g.edges {
 		for _, to := range tos {
-			sb.WriteString(fmt.Sprintf("  \"%s\" -> \"%s\";\n", from, to))
+			sb.WriteString(fmt.Sprintf("  %q -> %q;\n", from, to))
 		}
 	}
 
@@ -485,7 +485,7 @@ func (g *DependencyGraph) ToDOT() string {
 }
 
 // Stats returns statistics about the graph
-type GraphStats struct {
+type Stats struct {
 	TotalModules int
 	TotalEdges   int
 	RootModules  int     // Modules with no dependencies
@@ -497,8 +497,8 @@ type GraphStats struct {
 }
 
 // GetStats returns statistics about the dependency graph
-func (g *DependencyGraph) GetStats() GraphStats {
-	stats := GraphStats{
+func (g *DependencyGraph) GetStats() Stats {
+	stats := Stats{
 		TotalModules: len(g.nodes),
 	}
 

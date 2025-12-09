@@ -104,25 +104,19 @@ func (p *Parser) ParseModule(modulePath string) (*ParsedModule, error) {
 	}
 
 	// Extract locals
-	if err := p.extractLocals(result); err != nil {
-		return nil, fmt.Errorf("failed to extract locals: %w", err)
-	}
+	p.extractLocals(result)
 
 	// Extract remote state references
-	if err := p.extractRemoteStates(result); err != nil {
-		return nil, fmt.Errorf("failed to extract remote states: %w", err)
-	}
+	p.extractRemoteStates(result)
 
 	// Extract module calls
-	if err := p.extractModuleCalls(result); err != nil {
-		return nil, fmt.Errorf("failed to extract module calls: %w", err)
-	}
+	p.extractModuleCalls(result)
 
 	return result, nil
 }
 
 // extractLocals parses locals blocks from the module files
-func (p *Parser) extractLocals(pm *ParsedModule) error {
+func (p *Parser) extractLocals(pm *ParsedModule) {
 	localsSchema := &hcl.BodySchema{
 		Blocks: []hcl.BlockHeaderSchema{
 			{Type: "locals"},
@@ -154,12 +148,10 @@ func (p *Parser) extractLocals(pm *ParsedModule) error {
 			}
 		}
 	}
-
-	return nil
 }
 
 // extractRemoteStates parses terraform_remote_state data sources
-func (p *Parser) extractRemoteStates(pm *ParsedModule) error {
+func (p *Parser) extractRemoteStates(pm *ParsedModule) {
 	dataSchema := &hcl.BodySchema{
 		Blocks: []hcl.BlockHeaderSchema{
 			{Type: "data", LabelNames: []string{"type", "name"}},
@@ -195,12 +187,10 @@ func (p *Parser) extractRemoteStates(pm *ParsedModule) error {
 			pm.RemoteStates = append(pm.RemoteStates, ref)
 		}
 	}
-
-	return nil
 }
 
 // extractModuleCalls parses module blocks from the module files
-func (p *Parser) extractModuleCalls(pm *ParsedModule) error {
+func (p *Parser) extractModuleCalls(pm *ParsedModule) {
 	moduleSchema := &hcl.BodySchema{
 		Blocks: []hcl.BlockHeaderSchema{
 			{Type: "module", LabelNames: []string{"name"}},
@@ -230,8 +220,6 @@ func (p *Parser) extractModuleCalls(pm *ParsedModule) error {
 			pm.ModuleCalls = append(pm.ModuleCalls, call)
 		}
 	}
-
-	return nil
 }
 
 // parseModuleBlock extracts source and version from a module block
@@ -483,8 +471,9 @@ func (p *Parser) ResolveWorkspacePath(ref *RemoteStateRef, modulePath string, lo
 
 // extractPathTemplate attempts to extract a path pattern from an expression
 func (p *Parser) extractPathTemplate(expr hcl.Expression, ctx *hcl.EvalContext) ([]string, error) {
-	// Try partial evaluation
-	val, _ := expr.Value(ctx)
+	// Try partial evaluation - ignore diagnostics as we handle unknown values below
+	val, diags := expr.Value(ctx)
+	_ = diags // Diagnostics expected for partial evaluation with unknown variables
 	if val.IsKnown() && val.Type() == cty.String {
 		return []string{val.AsString()}, nil
 	}
@@ -496,7 +485,7 @@ func (p *Parser) extractPathTemplate(expr hcl.Expression, ctx *hcl.EvalContext) 
 		if err == nil {
 			start := rng.Start.Byte
 			end := rng.End.Byte
-			if int(end) <= len(content) {
+			if end <= len(content) {
 				template := string(content[start:end])
 				return []string{template}, nil
 			}

@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+
 	"github.com/edelwud/terraci/internal/discovery"
 	"github.com/edelwud/terraci/internal/filter"
 	"github.com/edelwud/terraci/internal/graph"
@@ -32,7 +33,7 @@ func init() {
 	validateCmd.Flags().StringArrayVarP(&includes, "include", "i", nil, "glob patterns to include modules")
 }
 
-func runValidate(cmd *cobra.Command, args []string) error {
+func runValidate(_ *cobra.Command, _ []string) error {
 	hasErrors := false
 
 	fmt.Println("Validating Terraform project structure...")
@@ -57,8 +58,10 @@ func runValidate(cmd *cobra.Command, args []string) error {
 	}
 
 	// 2. Apply filters
-	allExcludes := append(cfg.Exclude, excludes...)
-	allIncludes := append(cfg.Include, includes...)
+	allExcludes := append([]string{}, cfg.Exclude...)
+	allExcludes = append(allExcludes, excludes...)
+	allIncludes := append([]string{}, cfg.Include...)
+	allIncludes = append(allIncludes, includes...)
 	globFilter := filter.NewGlobFilter(allExcludes, allIncludes)
 	filteredModules := globFilter.FilterModules(modules)
 

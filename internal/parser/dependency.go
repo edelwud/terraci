@@ -6,8 +6,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/edelwud/terraci/internal/discovery"
 	"github.com/zclconf/go-cty/cty"
+
+	"github.com/edelwud/terraci/internal/discovery"
 )
 
 // DependencyExtractor extracts module dependencies from parsed Terraform files
@@ -405,7 +406,7 @@ func NewPathPatternMatcher(pattern string) (*PathPatternMatcher, error) {
 
 	// Also handle each.key and each.value
 	eachRe := regexp.MustCompile(`\\\$\\\{each\.(key|value)\\\}`)
-	regexPattern = eachRe.ReplaceAllStringFunc(regexPattern, func(match string) string {
+	regexPattern = eachRe.ReplaceAllStringFunc(regexPattern, func(_ string) string {
 		groups = append(groups, "each")
 		return "(?P<each>[^/]+)"
 	})
