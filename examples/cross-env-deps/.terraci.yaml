@@ -1,0 +1,10 @@
+structure:
+  pattern: "{service}/{environment}/{region}/{module}"
+  min_depth: 4
+  max_depth: 5
+  allow_submodules: true
+
+gitlab:
+  terraform_image: "hashicorp/terraform:1.6"
+  plan_enabled: true
+  auto_approve: false

@@ -113,6 +113,38 @@ TerraCi группирует модули по уровням выполнени
 
 Модули одного уровня могут выполняться параллельно.
 
+## Кросс-окружающие зависимости
+
+TerraCi поддерживает зависимости, пересекающие границы окружений или регионов. Это полезно, когда модулю в одном окружении нужно ссылаться на ресурсы из другого:
+
+```hcl
+# В модуле: cdp/stage/eu-central-1/ec2/db-migrate
+
+# Зависимость в том же окружении/регионе
+data "terraform_remote_state" "vpc" {
+  backend = "s3"
+  config = {
+    key = "${local.service}/${local.environment}/${local.region}/vpc/terraform.tfstate"
+  }
+}
+
+# Кросс-окружающая зависимость (захардкоженный путь)
+data "terraform_remote_state" "vpn_vpc" {
+  backend = "s3"
+  config = {
+    key = "${local.service}/vpn/eu-north-1/vpc/terraform.tfstate"
+  }
+}
+```
+
+Обе зависимости будут обнаружены:
+- `cdp/stage/eu-central-1/vpc` (из динамического пути)
+- `cdp/vpn/eu-north-1/vpc` (из захардкоженного кросс-окружающего пути)
+
+TerraCi резолвит переменные `local.*` из структуры пути модуля, позволяя смешивать динамические и захардкоженные пути в одном модуле.
+
+Смотрите [пример cross-env-deps](https://github.com/edelwud/terraci/tree/main/examples/cross-env-deps) для полного рабочего примера.
+
 ## Детекция циклов
 
 TerraCi обнаруживает циклические зависимости:

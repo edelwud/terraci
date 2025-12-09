@@ -133,6 +133,38 @@ Matches:
 - `ec2_base` → `ec2/base` (submodule pattern)
 - `ec2-base` → `ec2/base` (dash-separated)
 
+## Cross-Environment Dependencies
+
+TerraCi supports dependencies that cross environment or region boundaries. This is useful when a module in one environment needs to reference resources from another:
+
+```hcl
+# In module: cdp/stage/eu-central-1/ec2/db-migrate
+
+# Same environment/region dependency
+data "terraform_remote_state" "vpc" {
+  backend = "s3"
+  config = {
+    key = "${local.service}/${local.environment}/${local.region}/vpc/terraform.tfstate"
+  }
+}
+
+# Cross-environment dependency (hardcoded path)
+data "terraform_remote_state" "vpn_vpc" {
+  backend = "s3"
+  config = {
+    key = "${local.service}/vpn/eu-north-1/vpc/terraform.tfstate"
+  }
+}
+```
+
+Both dependencies will be detected:
+- `cdp/stage/eu-central-1/vpc` (from dynamic path)
+- `cdp/vpn/eu-north-1/vpc` (from hardcoded cross-env path)
+
+TerraCi resolves `local.*` variables from the module path structure, allowing you to mix dynamic and hardcoded paths in the same module.
+
+See the [cross-env-deps example](https://github.com/edelwud/terraci/tree/main/examples/cross-env-deps) for a complete working example.
+
 ## Cycle Detection
 
 TerraCi detects circular dependencies:
