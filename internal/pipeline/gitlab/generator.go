@@ -6,19 +6,25 @@ import (
 	"sort"
 	"strings"
 
+	"go.yaml.in/yaml/v4"
+
 	"github.com/edelwud/terraci/internal/discovery"
 	"github.com/edelwud/terraci/internal/graph"
 	"github.com/edelwud/terraci/pkg/config"
-	"gopkg.in/yaml.v3"
+)
+
+const (
+	// DefaultStagesPrefix is the default prefix for stage names
+	DefaultStagesPrefix = "deploy"
 )
 
 // Pipeline represents a GitLab CI pipeline
 type Pipeline struct {
-	Stages    []string               `yaml:"stages"`
-	Variables map[string]string      `yaml:"variables,omitempty"`
-	Default   *DefaultConfig         `yaml:"default,omitempty"`
-	Jobs      map[string]*Job        `yaml:"-"` // Jobs are added inline
-	Workflow  *Workflow              `yaml:"workflow,omitempty"`
+	Stages    []string          `yaml:"stages"`
+	Variables map[string]string `yaml:"variables,omitempty"`
+	Default   *DefaultConfig    `yaml:"default,omitempty"`
+	Jobs      map[string]*Job   `yaml:"-"` // Jobs are added inline
+	Workflow  *Workflow         `yaml:"workflow,omitempty"`
 }
 
 // DefaultConfig represents default job configuration (only image in default section)
@@ -126,8 +132,8 @@ type JobNeed struct {
 
 // Rule represents a job rule
 type Rule struct {
-	If      string `yaml:"if,omitempty"`
-	When    string `yaml:"when,omitempty"`
+	If      string   `yaml:"if,omitempty"`
+	When    string   `yaml:"when,omitempty"`
 	Changes []string `yaml:"changes,omitempty"`
 }
 
@@ -156,9 +162,9 @@ type Workflow struct {
 
 // Generator generates GitLab CI pipelines
 type Generator struct {
-	config     *config.Config
-	depGraph   *graph.DependencyGraph
-	modules    []*discovery.Module
+	config      *config.Config
+	depGraph    *graph.DependencyGraph
+	modules     []*discovery.Module
 	moduleIndex *discovery.ModuleIndex
 }
 
@@ -245,10 +251,10 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (*Pipeline, erro
 
 // generateStages creates stage names for each execution level
 func (g *Generator) generateStages(levels [][]string) []string {
-	var stages []string
+	stages := make([]string, 0)
 	prefix := g.config.GitLab.StagesPrefix
 	if prefix == "" {
-		prefix = "deploy"
+		prefix = DefaultStagesPrefix
 	}
 
 	for i := range levels {
@@ -265,7 +271,7 @@ func (g *Generator) generateStages(levels [][]string) []string {
 func (g *Generator) generatePlanJob(module *discovery.Module, level int) *Job {
 	prefix := g.config.GitLab.StagesPrefix
 	if prefix == "" {
-		prefix = "deploy"
+		prefix = DefaultStagesPrefix
 	}
 
 	// Build script with cd, optional init, and plan
@@ -308,7 +314,7 @@ func (g *Generator) generatePlanJob(module *discovery.Module, level int) *Job {
 func (g *Generator) generateApplyJob(module *discovery.Module, level int) *Job {
 	prefix := g.config.GitLab.StagesPrefix
 	if prefix == "" {
-		prefix = "deploy"
+		prefix = DefaultStagesPrefix
 	}
 
 	// Build script with cd, optional init, and apply
@@ -328,7 +334,7 @@ func (g *Generator) generateApplyJob(module *discovery.Module, level int) *Job {
 	}
 
 	job := &Job{
-		Stage: fmt.Sprintf("%s-apply-%d", prefix, level),
+		Stage:  fmt.Sprintf("%s-apply-%d", prefix, level),
 		Script: script,
 		Variables: map[string]string{
 			"TF_MODULE_PATH": module.RelativePath,
@@ -460,7 +466,8 @@ func (g *Generator) applyJobDefaults(job *Job) {
 
 // applyOverwrites applies job overwrites based on job type
 func (g *Generator) applyOverwrites(job *Job, jobType config.JobOverwriteType) {
-	for _, ow := range g.config.GitLab.Overwrites {
+	for i := range g.config.GitLab.Overwrites {
+		ow := &g.config.GitLab.Overwrites[i]
 		// Check if this overwrite applies to the job type
 		if ow.Type != jobType {
 			continue
@@ -606,7 +613,7 @@ func (g *Generator) generateWorkflow() *Workflow {
 
 // getDependencyNeeds returns job needs for a module's dependencies
 func (g *Generator) getDependencyNeeds(module *discovery.Module, jobType string) []JobNeed {
-	var needs []JobNeed
+	needs := make([]JobNeed, 0)
 
 	deps := g.depGraph.GetDependencies(module.ID())
 	for _, depID := range deps {
