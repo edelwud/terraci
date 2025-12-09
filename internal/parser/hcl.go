@@ -9,6 +9,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -179,14 +180,16 @@ func (p *Parser) extractRemoteStates(pm *ParsedModule) error {
 // parseRemoteStateBlock extracts configuration from a terraform_remote_state block
 func (p *Parser) parseRemoteStateBlock(ref *RemoteStateRef, body hcl.Body, pm *ParsedModule) {
 	// Schema for terraform_remote_state
+	// Note: config can be either a block or an attribute (object)
 	schema := &hcl.BodySchema{
 		Attributes: []hcl.AttributeSchema{
 			{Name: "backend", Required: true},
 			{Name: "for_each"},
 			{Name: "workspace"},
+			{Name: "config"}, // config as attribute (config = { ... })
 		},
 		Blocks: []hcl.BlockHeaderSchema{
-			{Type: "config"},
+			{Type: "config"}, // config as block (config { ... })
 		},
 	}
 
@@ -210,7 +213,23 @@ func (p *Parser) parseRemoteStateBlock(ref *RemoteStateRef, body hcl.Body, pm *P
 		ref.ForEach = attr.Expr
 	}
 
-	// Extract config block
+	// Extract config - can be either attribute or block
+	// First, try as attribute (config = { ... })
+	if attr, ok := content.Attributes["config"]; ok {
+		// config is an object expression, we need to extract its attributes
+		// The expression is an object constructor, we can get its items
+		if objExpr, ok := attr.Expr.(*hclsyntax.ObjectConsExpr); ok {
+			for _, item := range objExpr.Items {
+				// Get the key as string
+				keyVal, diags := item.KeyExpr.Value(nil)
+				if !diags.HasErrors() && keyVal.Type() == cty.String {
+					ref.Config[keyVal.AsString()] = item.ValueExpr
+				}
+			}
+		}
+	}
+
+	// Then, try as block (config { ... })
 	for _, block := range content.Blocks {
 		if block.Type == "config" {
 			attrs, diags := block.Body.JustAttributes()
@@ -227,15 +246,34 @@ func (p *Parser) parseRemoteStateBlock(ref *RemoteStateRef, body hcl.Body, pm *P
 // This uses the module's locals and path information to resolve variables
 func (p *Parser) ResolveWorkspacePath(ref *RemoteStateRef, modulePath string, locals map[string]cty.Value) ([]string, error) {
 	// Build evaluation context with locals and path-derived variables
-	pathParts := strings.Split(modulePath, string(os.PathSeparator))
+	// Handle both "/" and os.PathSeparator for cross-platform compatibility
+	pathParts := strings.Split(modulePath, "/")
+	if len(pathParts) == 1 {
+		pathParts = strings.Split(modulePath, string(os.PathSeparator))
+	}
 
-	// Extract path components (assuming service/environment/region/module structure)
-	var service, environment, region, module string
-	if len(pathParts) >= 4 {
+	// Extract path components
+	// Support both depth 4 (service/env/region/module) and depth 5 (service/env/region/module/submodule)
+	var service, environment, region, module, submodule string
+	if len(pathParts) >= 5 {
+		// Submodule: service/env/region/module/submodule
+		submodule = pathParts[len(pathParts)-1]
+		module = pathParts[len(pathParts)-2]
+		region = pathParts[len(pathParts)-3]
+		environment = pathParts[len(pathParts)-4]
+		service = pathParts[len(pathParts)-5]
+	} else if len(pathParts) >= 4 {
+		// Base module: service/env/region/module
 		module = pathParts[len(pathParts)-1]
 		region = pathParts[len(pathParts)-2]
 		environment = pathParts[len(pathParts)-3]
 		service = pathParts[len(pathParts)-4]
+	}
+
+	// For submodules, the "scope" local typically refers to the parent module
+	scope := module
+	if submodule != "" {
+		module = submodule // The actual module name is the submodule
 	}
 
 	// Create evaluation context
@@ -254,6 +292,7 @@ func (p *Parser) ResolveWorkspacePath(ref *RemoteStateRef, modulePath string, lo
 		"environment": cty.StringVal(environment),
 		"region":      cty.StringVal(region),
 		"module":      cty.StringVal(module),
+		"scope":       cty.StringVal(scope),
 	}
 
 	// Merge with existing locals
@@ -349,7 +388,7 @@ func (p *Parser) ResolveWorkspacePath(ref *RemoteStateRef, modulePath string, lo
 func (p *Parser) extractPathTemplate(expr hcl.Expression, ctx *hcl.EvalContext) ([]string, error) {
 	// Try partial evaluation
 	val, _ := expr.Value(ctx)
-	if val.Type() == cty.String {
+	if val.IsKnown() && val.Type() == cty.String {
 		return []string{val.AsString()}, nil
 	}
 
