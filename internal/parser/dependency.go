@@ -75,7 +75,7 @@ func (de *DependencyExtractor) ExtractDependencies(module *discovery.Module) (*M
 
 	// Process each remote state reference
 	for _, rs := range parsed.RemoteStates {
-		deps, errs := de.resolveRemoteStateDependency(module, rs, parsed.Locals)
+		deps, errs := de.resolveRemoteStateDependency(module, rs, parsed.Locals, parsed.Variables)
 		result.Dependencies = append(result.Dependencies, deps...)
 		result.Errors = append(result.Errors, errs...)
 	}
@@ -106,22 +106,28 @@ func (de *DependencyExtractor) ExtractDependencies(module *discovery.Module) (*M
 func (de *DependencyExtractor) resolveRemoteStateDependency(
 	from *discovery.Module,
 	rs *RemoteStateRef,
-	locals map[string]cty.Value,
+	locals, variables map[string]cty.Value,
 ) ([]*Dependency, []error) {
 	var deps []*Dependency
 	var errs []error
 
-	// Try to resolve workspace paths
-	paths, err := de.parser.ResolveWorkspacePath(rs, from.RelativePath, locals)
+	// Try to resolve workspace paths using locals and variables from tfvars
+	paths, err := de.parser.ResolveWorkspacePath(rs, from.RelativePath, locals, variables)
 	if err != nil {
-		// Fall back to pattern-based matching
-		deps, errs = de.matchByRemoteStateName(from, rs)
-		return deps, append(errs, fmt.Errorf("could not resolve workspace path for %s.%s: %w",
+		errs = append(errs, fmt.Errorf("could not resolve workspace path for %s.%s: %w",
 			from.ID(), rs.Name, err))
+		return deps, errs
 	}
 
 	// Match paths to modules
 	for _, path := range paths {
+		// Skip paths that still contain unresolved dynamic patterns
+		if containsDynamicPattern(path) {
+			errs = append(errs, fmt.Errorf("unresolved dynamic path %q for %s.%s (check tfvars files)",
+				path, from.ID(), rs.Name))
+			continue
+		}
+
 		target := de.matchPathToModule(path, from)
 		if target != nil {
 			deps = append(deps, &Dependency{
@@ -131,12 +137,20 @@ func (de *DependencyExtractor) resolveRemoteStateDependency(
 				RemoteStateName: rs.Name,
 			})
 		} else {
-			errs = append(errs, fmt.Errorf("could not find module for path %s (from %s.%s)",
+			errs = append(errs, fmt.Errorf("could not find module for path %q (from %s.%s)",
 				path, from.ID(), rs.Name))
 		}
 	}
 
 	return deps, errs
+}
+
+// containsDynamicPattern checks if path contains unresolved dynamic patterns
+func containsDynamicPattern(path string) bool {
+	return strings.Contains(path, "${lookup(") ||
+		strings.Contains(path, "${each.") ||
+		strings.Contains(path, "${var.") ||
+		strings.Contains(path, "\"}")
 }
 
 // matchPathToModule matches a state file path to a module
@@ -215,142 +229,6 @@ func (de *DependencyExtractor) matchPathToModule(statePath string, from *discove
 	}
 
 	return nil
-}
-
-// matchByRemoteStateName attempts to match by remote state name conventions
-func (de *DependencyExtractor) matchByRemoteStateName(from *discovery.Module, rs *RemoteStateRef) ([]*Dependency, []error) {
-	var deps []*Dependency
-	var errs []error
-
-	// Common naming conventions:
-	// - data.terraform_remote_state.vpc -> look for vpc module
-	// - data.terraform_remote_state.eks_cluster -> look for eks-cluster or eks_cluster module
-	// - data.terraform_remote_state.ec2_rabbitmq -> look for ec2/rabbitmq submodule
-
-	// Normalize the remote state name
-	possibleNames := []string{
-		rs.Name,
-		strings.ReplaceAll(rs.Name, "_", "-"),
-		strings.ReplaceAll(rs.Name, "-", "_"),
-	}
-
-	// Search in same service/environment/region first (base modules)
-	for _, name := range possibleNames {
-		sameContextID := fmt.Sprintf("%s/%s/%s/%s",
-			from.Service, from.Environment, from.Region, name)
-		if m := de.index.ByID(sameContextID); m != nil {
-			deps = append(deps, &Dependency{
-				From:            from,
-				To:              m,
-				Type:            "remote_state",
-				RemoteStateName: rs.Name,
-			})
-			return deps, errs
-		}
-	}
-
-	// Try to match submodule pattern (e.g., ec2_rabbitmq -> ec2/rabbitmq)
-	for _, name := range possibleNames {
-		// Try splitting by underscore to find module/submodule pattern
-		parts := strings.SplitN(name, "_", 2)
-		if len(parts) == 2 {
-			submoduleID := fmt.Sprintf("%s/%s/%s/%s/%s",
-				from.Service, from.Environment, from.Region, parts[0], parts[1])
-			if m := de.index.ByID(submoduleID); m != nil {
-				deps = append(deps, &Dependency{
-					From:            from,
-					To:              m,
-					Type:            "remote_state",
-					RemoteStateName: rs.Name,
-				})
-				return deps, errs
-			}
-		}
-
-		// Also try with hyphen
-		parts = strings.SplitN(name, "-", 2)
-		if len(parts) == 2 {
-			submoduleID := fmt.Sprintf("%s/%s/%s/%s/%s",
-				from.Service, from.Environment, from.Region, parts[0], parts[1])
-			if m := de.index.ByID(submoduleID); m != nil {
-				deps = append(deps, &Dependency{
-					From:            from,
-					To:              m,
-					Type:            "remote_state",
-					RemoteStateName: rs.Name,
-				})
-				return deps, errs
-			}
-		}
-	}
-
-	// If we're in a submodule, check sibling submodules first
-	if from.IsSubmodule() {
-		for _, name := range possibleNames {
-			siblingID := fmt.Sprintf("%s/%s/%s/%s/%s",
-				from.Service, from.Environment, from.Region, from.Module, name)
-			if m := de.index.ByID(siblingID); m != nil {
-				deps = append(deps, &Dependency{
-					From:            from,
-					To:              m,
-					Type:            "remote_state",
-					RemoteStateName: rs.Name,
-				})
-				return deps, errs
-			}
-		}
-
-		// Also check parent module
-		parentID := fmt.Sprintf("%s/%s/%s/%s",
-			from.Service, from.Environment, from.Region, from.Module)
-		if m := de.index.ByID(parentID); m != nil {
-			// Check if the remote state name matches parent module name
-			for _, name := range possibleNames {
-				if name == from.Module {
-					deps = append(deps, &Dependency{
-						From:            from,
-						To:              m,
-						Type:            "remote_state",
-						RemoteStateName: rs.Name,
-					})
-					return deps, errs
-				}
-			}
-		}
-	}
-
-	// Search across all modules by name
-	for _, name := range possibleNames {
-		modules := de.index.Filter(func(m *discovery.Module) bool {
-			return m.Name() == name && m.ID() != from.ID()
-		})
-
-		if len(modules) == 1 {
-			deps = append(deps, &Dependency{
-				From:            from,
-				To:              modules[0],
-				Type:            "remote_state",
-				RemoteStateName: rs.Name,
-			})
-			return deps, errs
-		} else if len(modules) > 1 {
-			// Ambiguous - prefer same environment
-			for _, m := range modules {
-				if m.Environment == from.Environment {
-					deps = append(deps, &Dependency{
-						From:            from,
-						To:              m,
-						Type:            "remote_state",
-						RemoteStateName: rs.Name,
-					})
-					return deps, errs
-				}
-			}
-		}
-	}
-
-	errs = append(errs, fmt.Errorf("could not match remote state %s to any module", rs.Name))
-	return deps, errs
 }
 
 // ExtractAllDependencies extracts dependencies for all modules in the index

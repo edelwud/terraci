@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/edelwud/terraci/main/schema.json
+# yaml-language-server: $schema=https://raw.githubusercontent.com/edelwud/terraci/main/terraci.schema.json
 
 # TerraCi Configuration Example
 # Copy this to .terraci.yaml and customize for your project

@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/function"
 )
 
 // Parser handles parsing of Terraform HCL files
@@ -31,6 +32,8 @@ type ParsedModule struct {
 	Path string
 	// Locals extracted from locals.tf
 	Locals map[string]cty.Value
+	// Variables extracted from *.auto.tfvars files
+	Variables map[string]cty.Value
 	// RemoteStates extracted from all .tf files
 	RemoteStates []*RemoteStateRef
 	// ModuleCalls extracted from all .tf files (module blocks)
@@ -77,6 +80,7 @@ func (p *Parser) ParseModule(modulePath string) (*ParsedModule, error) {
 	result := &ParsedModule{
 		Path:         modulePath,
 		Locals:       make(map[string]cty.Value),
+		Variables:    make(map[string]cty.Value),
 		RemoteStates: make([]*RemoteStateRef, 0),
 		ModuleCalls:  make([]*ModuleCall, 0),
 		Files:        make(map[string]*hcl.File),
@@ -105,6 +109,9 @@ func (p *Parser) ParseModule(modulePath string) (*ParsedModule, error) {
 
 	// Extract locals
 	p.extractLocals(result)
+
+	// Extract variables from .auto.tfvars files
+	p.extractTfvars(result)
 
 	// Extract remote state references
 	p.extractRemoteStates(result)
@@ -146,6 +153,105 @@ func (p *Parser) extractLocals(pm *ParsedModule) {
 					pm.Locals[name] = val
 				}
 			}
+		}
+	}
+}
+
+// extractTfvars parses variable definitions and their values from multiple sources:
+// 1. Default values from variables.tf (lowest priority)
+// 2. terraform.tfvars
+// 3. *.auto.tfvars (highest priority)
+func (p *Parser) extractTfvars(pm *ParsedModule) {
+	// First, extract default values from variable blocks in .tf files
+	p.extractVariableDefaults(pm)
+
+	// Then load terraform.tfvars (overrides defaults)
+	terraformTfvars := filepath.Join(pm.Path, "terraform.tfvars")
+	if _, err := os.Stat(terraformTfvars); err == nil {
+		p.loadTfvarsFile(pm, terraformTfvars)
+	}
+
+	// Finally, load *.auto.tfvars files (highest priority)
+	tfvarsFiles, err := filepath.Glob(filepath.Join(pm.Path, "*.auto.tfvars"))
+	if err != nil {
+		return
+	}
+
+	for _, tfvarsFile := range tfvarsFiles {
+		p.loadTfvarsFile(pm, tfvarsFile)
+	}
+}
+
+// extractVariableDefaults extracts default values from variable blocks
+func (p *Parser) extractVariableDefaults(pm *ParsedModule) {
+	varSchema := &hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{
+			{Type: "variable", LabelNames: []string{"name"}},
+		},
+	}
+
+	for _, file := range pm.Files {
+		content, _, diags := file.Body.PartialContent(varSchema)
+		pm.Diagnostics = append(pm.Diagnostics, diags...)
+
+		if content == nil {
+			continue
+		}
+
+		for _, block := range content.Blocks {
+			if block.Type != "variable" || len(block.Labels) < 1 {
+				continue
+			}
+
+			varName := block.Labels[0]
+
+			// Extract the default attribute
+			defaultSchema := &hcl.BodySchema{
+				Attributes: []hcl.AttributeSchema{
+					{Name: "default"},
+				},
+			}
+
+			blockContent, _, diags := block.Body.PartialContent(defaultSchema)
+			pm.Diagnostics = append(pm.Diagnostics, diags...)
+
+			if blockContent == nil {
+				continue
+			}
+
+			if attr, ok := blockContent.Attributes["default"]; ok {
+				val, diags := attr.Expr.Value(nil)
+				if !diags.HasErrors() {
+					pm.Variables[varName] = val
+				}
+			}
+		}
+	}
+}
+
+// loadTfvarsFile loads variables from a single tfvars file
+func (p *Parser) loadTfvarsFile(pm *ParsedModule, tfvarsFile string) {
+	content, err := os.ReadFile(tfvarsFile)
+	if err != nil {
+		return
+	}
+
+	file, diags := p.hclParser.ParseHCL(content, tfvarsFile)
+	pm.Diagnostics = append(pm.Diagnostics, diags...)
+
+	if file == nil {
+		return
+	}
+
+	// tfvars files are just attribute assignments at the top level
+	attrs, diags := file.Body.JustAttributes()
+	pm.Diagnostics = append(pm.Diagnostics, diags...)
+
+	for name, attr := range attrs {
+		// Try to evaluate the expression
+		val, diags := attr.Expr.Value(nil)
+		if !diags.HasErrors() {
+			pm.Variables[name] = val
 		}
 	}
 }
@@ -327,10 +433,83 @@ func (p *Parser) parseRemoteStateBlock(ref *RemoteStateRef, body hcl.Body, pm *P
 	}
 }
 
+// createEvalContext creates an HCL evaluation context with Terraform functions
+func (p *Parser) createEvalContext(locals, variables map[string]cty.Value, modulePath string) *hcl.EvalContext {
+	return &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"local": cty.ObjectVal(locals),
+			"var":   cty.ObjectVal(variables),
+			"path": cty.ObjectVal(map[string]cty.Value{
+				"module": cty.StringVal(modulePath),
+			}),
+		},
+		Functions: p.terraformFunctions(),
+	}
+}
+
+// terraformFunctions returns a map of Terraform functions for HCL evaluation
+func (p *Parser) terraformFunctions() map[string]function.Function {
+	return map[string]function.Function{
+		"lookup": lookupFunc,
+	}
+}
+
+// lookupFunc implements Terraform's lookup function
+// lookup(map, key, default) - returns map[key] or default if key doesn't exist
+var lookupFunc = function.New(&function.Spec{
+	Params: []function.Parameter{
+		{
+			Name:             "map",
+			Type:             cty.DynamicPseudoType,
+			AllowDynamicType: true,
+		},
+		{
+			Name: "key",
+			Type: cty.String,
+		},
+	},
+	VarParam: &function.Parameter{
+		Name: "default",
+		Type: cty.DynamicPseudoType,
+	},
+	Type: func(_ []cty.Value) (cty.Type, error) {
+		return cty.DynamicPseudoType, nil
+	},
+	Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
+		mapVal := args[0]
+		keyVal := args[1]
+
+		if !keyVal.IsKnown() {
+			return cty.DynamicVal, nil
+		}
+
+		key := keyVal.AsString()
+
+		if mapVal.Type().IsMapType() || mapVal.Type().IsObjectType() {
+			if mapVal.Type().IsObjectType() {
+				if mapVal.Type().HasAttribute(key) {
+					return mapVal.GetAttr(key), nil
+				}
+			} else {
+				if mapVal.HasIndex(cty.StringVal(key)).True() {
+					return mapVal.Index(cty.StringVal(key)), nil
+				}
+			}
+		}
+
+		// Return default if provided
+		if len(args) > 2 {
+			return args[2], nil
+		}
+
+		return cty.NilVal, fmt.Errorf("key %q not found in map", key)
+	},
+})
+
 // ResolveWorkspacePath attempts to resolve the workspace path from remote state config
-// This uses the module's locals and path information to resolve variables
-func (p *Parser) ResolveWorkspacePath(ref *RemoteStateRef, modulePath string, locals map[string]cty.Value) ([]string, error) {
-	// Build evaluation context with locals and path-derived variables
+// This uses the module's locals, variables, and path information to resolve expressions
+func (p *Parser) ResolveWorkspacePath(ref *RemoteStateRef, modulePath string, locals, variables map[string]cty.Value) ([]string, error) {
+	// Build evaluation context with locals, variables, and path-derived info
 	// Handle both "/" and os.PathSeparator for cross-platform compatibility
 	pathParts := strings.Split(modulePath, "/")
 	if len(pathParts) == 1 {
@@ -361,15 +540,8 @@ func (p *Parser) ResolveWorkspacePath(ref *RemoteStateRef, modulePath string, lo
 		module = submodule // The actual module name is the submodule
 	}
 
-	// Create evaluation context
-	evalCtx := &hcl.EvalContext{
-		Variables: map[string]cty.Value{
-			"local": cty.ObjectVal(locals),
-			"path": cty.ObjectVal(map[string]cty.Value{
-				"module": cty.StringVal(modulePath),
-			}),
-		},
-	}
+	// Create evaluation context with Terraform functions
+	evalCtx := p.createEvalContext(locals, variables, modulePath)
 
 	// Add path-derived locals if not already present
 	pathLocals := map[string]cty.Value{
