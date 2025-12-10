@@ -4,6 +4,9 @@
 *.exe
 /dist/
 
+# Generated completions
+/completions/
+
 # Docs
 docs/.vitepress/dist/
 docs/.vitepress/cache/

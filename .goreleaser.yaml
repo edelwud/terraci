@@ -6,6 +6,13 @@ project_name: terraci
 gomod:
   proxy: true
 
+# Generate shell completions before build
+# https://goreleaser.com/customization/hooks/
+before:
+  hooks:
+    - go mod tidy
+    - ./scripts/generate-completions.sh
+
 builds:
   - id: terraci
     main: ./cmd/terraci
@@ -15,6 +22,7 @@ builds:
     goos:
       - linux
       - darwin
+      - windows
     goarch:
       - amd64
       - arm64
@@ -42,6 +50,8 @@ archives:
     name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
     builds_info:
       mtime: "{{ .CommitTimestamp }}"
+    files:
+      - completions/*
 
 # creates SBOMs of all archives and the source tarball using syft
 # https://goreleaser.com/customization/sbom
@@ -69,26 +79,31 @@ signs:
 
 changelog:
   sort: asc
+  use: github
   filters:
     exclude:
-      - "^docs:"
       - "^test:"
-      - "^chore:"
-      - "^ci:"
-      - Merge branch
+      - "^chore"
+      - "merge conflict"
       - Merge pull request
+      - Merge remote-tracking branch
+      - Merge branch
+      - go mod tidy
   groups:
-    - title: "Features"
-      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
-      order: 0
-    - title: "Bug Fixes"
-      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
-      order: 1
-    - title: "Performance"
-      regexp: '^.*?perf(\([[:word:]]+\))??!?:.+$'
-      order: 2
-    - title: "Other"
-      order: 999
+    - title: Dependency updates
+      regexp: "^.*feat\\(deps\\)*:+.*$"
+      order: 300
+    - title: "New Features"
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 100
+    - title: "Bug fixes"
+      regexp: "^.*fix[(\\w)]*:+.*$"
+      order: 200
+    - title: "Documentation updates"
+      regexp: "^.*docs[(\\w)]*:+.*$"
+      order: 400
+    - title: Other
+      order: 9999
 
 # create multi-arch docker image using dockers_v2
 # https://goreleaser.com/customization/dockers_v2/
@@ -109,6 +124,7 @@ dockers_v2:
     labels:
       org.opencontainers.image.created: "{{.Date}}"
       org.opencontainers.image.name: "{{.ProjectName}}"
+      org.opencontainers.image.description: "CLI tool for analyzing Terraform projects and generating GitLab CI pipelines"
       org.opencontainers.image.revision: "{{.FullCommit}}"
       org.opencontainers.image.version: "{{.Version}}"
       org.opencontainers.image.source: "{{.GitURL}}"
