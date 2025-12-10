@@ -58,6 +58,11 @@ Features:
 			}
 		}
 
+		// Show version info (skip for version command itself)
+		if cmd.Name() != "version" && versionInfo.Version != "" {
+			log.WithField("version", versionInfo.Version).Debug("terraci")
+		}
+
 		// Skip config loading for version and schema commands
 		if cmd.Name() == "version" || cmd.Name() == "schema" {
 			return nil

@@ -357,14 +357,21 @@ func LoadOrDefault(dir string) (*Config, error) {
 	return DefaultConfig(), nil
 }
 
-// Save writes configuration to a file
+// SchemaURL is the URL to the JSON Schema for terraci configuration
+const SchemaURL = "https://raw.githubusercontent.com/edelwud/terraci/main/.terraci.schema.json"
+
+// Save writes configuration to a file with yaml-language-server schema reference
 func (c *Config) Save(path string) error {
 	data, err := yaml.Marshal(c)
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	if err := os.WriteFile(path, data, 0o600); err != nil {
+	// Add yaml-language-server schema reference header
+	header := fmt.Sprintf("# yaml-language-server: $schema=%s\n", SchemaURL)
+	content := append([]byte(header), data...)
+
+	if err := os.WriteFile(path, content, 0o600); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 

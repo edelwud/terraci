@@ -118,29 +118,41 @@ func runGraph(_ *cobra.Command, _ []string) error {
 
 	// Generate output based on format
 	log.WithField("format", graphFormat).Debug("generating output")
-	var output string
-	switch graphFormat {
-	case "dot":
-		output = depGraph.ToDOT()
-	case "list":
-		output = formatList(depGraph)
-	case "levels":
-		output, err = formatLevels(depGraph)
-		if err != nil {
-			return err
-		}
-	default:
-		return fmt.Errorf("unknown format: %s", graphFormat)
-	}
 
-	// Write output
+	// For file output, use string formatting
 	if graphOutput != "" {
+		var output string
+		switch graphFormat {
+		case "dot":
+			output = depGraph.ToDOT()
+		case "list":
+			output = formatListString(depGraph)
+		case "levels":
+			output, err = formatLevelsString(depGraph)
+			if err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("unknown format: %s", graphFormat)
+		}
+
 		if err := os.WriteFile(graphOutput, []byte(output), 0o600); err != nil {
 			return fmt.Errorf("failed to write output: %w", err)
 		}
 		log.WithField("file", graphOutput).Info("graph written")
-	} else {
-		fmt.Print(output)
+		return nil
+	}
+
+	// For stdout, use logger for list/levels, raw output for dot
+	switch graphFormat {
+	case "dot":
+		fmt.Print(depGraph.ToDOT())
+	case "list":
+		return printList(depGraph)
+	case "levels":
+		return printLevels(depGraph)
+	default:
+		return fmt.Errorf("unknown format: %s", graphFormat)
 	}
 
 	return nil
@@ -156,19 +168,21 @@ func showModuleDependencies(g *graph.DependencyGraph, idx *discovery.ModuleIndex
 
 	if reverse {
 		deps = g.GetAllDependents(moduleID)
-		label = "Modules that depend on"
+		label = "modules that depend on"
 	} else {
 		deps = g.GetAllDependencies(moduleID)
-		label = "Dependencies of"
+		label = "dependencies of"
 	}
 
-	fmt.Printf("%s %s:\n", label, moduleID)
+	log.WithField("module", moduleID).Info(label)
 	if len(deps) == 0 {
-		fmt.Println("  (none)")
+		log.Info("(none)")
 	} else {
+		log.IncreasePadding()
 		for _, d := range deps {
-			fmt.Printf("  - %s\n", d)
+			log.Info(d)
 		}
+		log.DecreasePadding()
 	}
 
 	return nil
@@ -177,30 +191,75 @@ func showModuleDependencies(g *graph.DependencyGraph, idx *discovery.ModuleIndex
 func showGraphStats(g *graph.DependencyGraph) error {
 	stats := g.GetStats()
 
-	fmt.Println("Dependency Graph Statistics:")
-	fmt.Printf("  Total modules:     %d\n", stats.TotalModules)
-	fmt.Printf("  Total edges:       %d\n", stats.TotalEdges)
-	fmt.Printf("  Root modules:      %d (no dependencies)\n", stats.RootModules)
-	fmt.Printf("  Leaf modules:      %d (no dependents)\n", stats.LeafModules)
-	fmt.Printf("  Max depth:         %d\n", stats.MaxDepth)
-	fmt.Printf("  Average depth:     %.2f\n", stats.AverageDepth)
+	log.Info("dependency graph statistics")
+	log.IncreasePadding()
+	log.WithField("count", stats.TotalModules).Info("total modules")
+	log.WithField("count", stats.TotalEdges).Info("total edges")
+	log.WithField("count", stats.RootModules).Info("root modules (no dependencies)")
+	log.WithField("count", stats.LeafModules).Info("leaf modules (no dependents)")
+	log.WithField("depth", stats.MaxDepth).Info("max depth")
+	log.WithField("depth", fmt.Sprintf("%.2f", stats.AverageDepth)).Info("average depth")
 
 	if stats.HasCycles {
-		fmt.Printf("  Cycles detected:   %d (WARNING!)\n", stats.CycleCount)
-
+		log.WithField("count", stats.CycleCount).Warn("cycles detected")
 		cycles := g.DetectCycles()
-		fmt.Println("\nCycles:")
+		log.IncreasePadding()
 		for i, cycle := range cycles {
-			fmt.Printf("  %d: %s\n", i+1, strings.Join(cycle, " -> "))
+			log.WithField("cycle", i+1).WithField("path", strings.Join(cycle, " -> ")).Warn("cycle")
 		}
+		log.DecreasePadding()
 	} else {
-		fmt.Printf("  Cycles:            none\n")
+		log.Info("no cycles")
+	}
+	log.DecreasePadding()
+
+	return nil
+}
+
+// printList outputs the dependency list using the logger
+func printList(g *graph.DependencyGraph) error {
+	sorted, err := g.TopologicalSort()
+	if err != nil {
+		return err
+	}
+
+	log.Info("module dependencies (topological order)")
+	log.IncreasePadding()
+	for _, moduleID := range sorted {
+		deps := g.GetDependencies(moduleID)
+		if len(deps) == 0 {
+			log.Info(moduleID)
+		} else {
+			log.WithField("deps", strings.Join(deps, ", ")).Info(moduleID)
+		}
+	}
+	log.DecreasePadding()
+
+	return nil
+}
+
+// printLevels outputs the execution levels using the logger
+func printLevels(g *graph.DependencyGraph) error {
+	levels, err := g.ExecutionLevels()
+	if err != nil {
+		return err
+	}
+
+	log.Info("execution levels (modules at the same level can run in parallel)")
+	for i, level := range levels {
+		log.WithField("level", i).WithField("count", len(level)).Info("level")
+		log.IncreasePadding()
+		for _, moduleID := range level {
+			log.Info(moduleID)
+		}
+		log.DecreasePadding()
 	}
 
 	return nil
 }
 
-func formatList(g *graph.DependencyGraph) string {
+// formatListString returns the dependency list as a string (for file output)
+func formatListString(g *graph.DependencyGraph) string {
 	var sb strings.Builder
 
 	sorted, err := g.TopologicalSort()
@@ -221,7 +280,8 @@ func formatList(g *graph.DependencyGraph) string {
 	return sb.String()
 }
 
-func formatLevels(g *graph.DependencyGraph) (string, error) {
+// formatLevelsString returns the execution levels as a string (for file output)
+func formatLevelsString(g *graph.DependencyGraph) (string, error) {
 	levels, err := g.ExecutionLevels()
 	if err != nil {
 		return "", err
