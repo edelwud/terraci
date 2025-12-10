@@ -29,6 +29,7 @@ var graphCmd = &cobra.Command{
 
 Formats:
   - dot: GraphViz DOT format (can be rendered with: dot -Tpng -o graph.png)
+  - plantuml: PlantUML format (can be rendered at plantuml.com or with plantuml CLI)
   - list: Simple text list
   - levels: Show execution levels (parallel groups)
 
@@ -38,6 +39,9 @@ Examples:
 
   # Render graph as PNG
   terraci graph --format dot | dot -Tpng -o deps.png
+
+  # Output PlantUML format
+  terraci graph --format plantuml -o deps.puml
 
   # Show execution levels
   terraci graph --format levels
@@ -59,7 +63,7 @@ Examples:
 func init() {
 	rootCmd.AddCommand(graphCmd)
 
-	graphCmd.Flags().StringVarP(&graphFormat, "format", "f", "dot", "output format: dot, list, levels")
+	graphCmd.Flags().StringVarP(&graphFormat, "format", "f", "dot", "output format: dot, plantuml, list, levels")
 	graphCmd.Flags().StringVarP(&graphOutput, "output", "o", "", "output file (default: stdout)")
 	graphCmd.Flags().BoolVar(&showStats, "stats", false, "show graph statistics")
 	graphCmd.Flags().StringVarP(&moduleID, "module", "m", "", "filter graph to specific module and its dependencies")
@@ -144,6 +148,8 @@ func runGraph(_ *cobra.Command, _ []string) error {
 		switch graphFormat {
 		case "dot":
 			output = depGraph.ToDOT()
+		case "plantuml":
+			output = depGraph.ToPlantUML()
 		case "list":
 			output = formatListString(depGraph)
 		case "levels":
@@ -162,10 +168,12 @@ func runGraph(_ *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	// For stdout, use logger for list/levels, raw output for dot
+	// For stdout, use logger for list/levels, raw output for dot/plantuml
 	switch graphFormat {
 	case "dot":
 		fmt.Print(depGraph.ToDOT())
+	case "plantuml":
+		fmt.Print(depGraph.ToPlantUML())
 	case "list":
 		return printList(depGraph)
 	case "levels":

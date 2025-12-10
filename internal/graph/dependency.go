@@ -484,6 +484,82 @@ func (g *DependencyGraph) ToDOT() string {
 	return sb.String()
 }
 
+// ToPlantUML exports the graph in PlantUML format for visualization
+func (g *DependencyGraph) ToPlantUML() string {
+	var sb strings.Builder
+
+	sb.WriteString("@startuml\n")
+	sb.WriteString("left to right direction\n")
+	sb.WriteString("skinparam componentStyle rectangle\n\n")
+
+	// Group nodes by service/environment for better organization
+	groups := make(map[string][]string)
+	for id := range g.nodes {
+		parts := strings.Split(id, "/")
+		var groupKey string
+		if len(parts) >= 2 {
+			groupKey = parts[0] + "/" + parts[1] // service/environment
+		} else {
+			groupKey = "other"
+		}
+		groups[groupKey] = append(groups[groupKey], id)
+	}
+
+	// Sort group keys for deterministic output
+	groupKeys := make([]string, 0, len(groups))
+	for k := range groups {
+		groupKeys = append(groupKeys, k)
+	}
+	sort.Strings(groupKeys)
+
+	// Define components within packages
+	// minPartsForLabel is the minimum number of path parts needed to extract a label
+	const minPartsForLabel = 3
+
+	for _, groupKey := range groupKeys {
+		ids := groups[groupKey]
+		sort.Strings(ids)
+
+		sb.WriteString(fmt.Sprintf("package %q {\n", groupKey))
+		for _, id := range ids {
+			// Create a shorter alias for the component
+			alias := plantUMLAlias(id)
+			// Use the last part of the path as the display label
+			parts := strings.Split(id, "/")
+			var label string
+			if len(parts) >= minPartsForLabel {
+				label = strings.Join(parts[2:], "/") // region/module[/submodule]
+			} else {
+				label = id
+			}
+			sb.WriteString(fmt.Sprintf("  [%s] as %s\n", label, alias))
+		}
+		sb.WriteString("}\n\n")
+	}
+
+	// Add edges
+	for from, tos := range g.edges {
+		fromAlias := plantUMLAlias(from)
+		for _, to := range tos {
+			toAlias := plantUMLAlias(to)
+			sb.WriteString(fmt.Sprintf("%s --> %s\n", fromAlias, toAlias))
+		}
+	}
+
+	sb.WriteString("\n@enduml\n")
+
+	return sb.String()
+}
+
+// plantUMLAlias creates a valid PlantUML alias from a module ID
+func plantUMLAlias(id string) string {
+	// Replace characters that are not valid in PlantUML identifiers
+	alias := strings.ReplaceAll(id, "/", "_")
+	alias = strings.ReplaceAll(alias, "-", "_")
+	alias = strings.ReplaceAll(alias, ".", "_")
+	return alias
+}
+
 // Stats returns statistics about the graph
 type Stats struct {
 	TotalModules int
