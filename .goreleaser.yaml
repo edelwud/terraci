@@ -37,21 +37,13 @@ builds:
       - -X main.commit={{.Commit}}
       - -X main.date={{.CommitDate}}
 
-# create a source tarball
-# https://goreleaser.com/customization/source/
-source:
-  enabled: true
-  name_template: "{{ .ProjectName }}.src"
+universal_binaries:
+  - replace: true
 
 # config the archives filenames, format, and other options.
 # https://goreleaser.com/customization/archive
 archives:
-  - formats: [tar.gz]
-    wrap_in_directory: true
-    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
-    builds_info:
-      mtime: "{{ .CommitTimestamp }}"
-    files:
+  - files:
       - README.md
       - LICENSE
       - completions/*
@@ -67,15 +59,13 @@ homebrew_casks:
     homepage: "https://edelwud.github.io/{{ .ProjectName }}/"
     url:
       verified: "github.com/edelwud/{{ .ProjectName }}"
-    binaries:
-      - "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}/{{ .ProjectName }}"
     manpages:
-      - "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}/manpages/{{ .ProjectName }}.1"
-      - "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}/manpages/{{ .ProjectName }}-*.1"
+      - "manpages/{{ .ProjectName }}.1"
+      - "manpages/{{ .ProjectName }}-*.1"
     completions:
-      bash: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}/completions/{{ .ProjectName }}.bash"
-      zsh: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}/completions/_{{ .ProjectName }}"
-      fish: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}/completions/{{ .ProjectName }}.fish"
+      bash: "completions/{{ .ProjectName }}.bash"
+      zsh: "completions/_{{ .ProjectName }}"
+      fish: "completions/{{ .ProjectName }}.fish"
     hooks:
       post:
         install: |
