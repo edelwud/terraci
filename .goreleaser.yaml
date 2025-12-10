@@ -54,6 +54,30 @@ archives:
     files:
       - completions/*
       - manpages/*
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+homebrew_casks:
+  - repository:
+      owner: edelwud
+      name: homebrew-tap
+    homepage: "https://edelwud.github.io/{{ .ProjectName }}/"
+    url:
+      verified: "github.com/edelwud/{{ .ProjectName }}"
+    manpages:
+      - "manpages/{{ .ProjectName }}.1"
+      - "manpages/{{ .ProjectName }}-*.1"
+    completions:
+      bash: "completions/{{ .ProjectName }}.bash"
+      zsh: "completions/{{ .ProjectName }}.zsh"
+      fish: "completions/{{ .ProjectName }}.fish"
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/terraci"]
+          end
 
 # creates SBOMs of all archives and the source tarball using syft
 # https://goreleaser.com/customization/sbom

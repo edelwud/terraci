@@ -23,7 +23,7 @@ echo "Generating shell completions..."
 echo "  - bash: ${COMPLETIONS_DIR}/terraci.bash"
 
 "$TERRACI_BIN" completion zsh > "${COMPLETIONS_DIR}/_terraci"
-echo "  - zsh: ${COMPLETIONS_DIR}/_terraci"
+echo "  - zsh: ${COMPLETIONS_DIR}/terraci.zsh"
 
 "$TERRACI_BIN" completion fish > "${COMPLETIONS_DIR}/terraci.fish"
 echo "  - fish: ${COMPLETIONS_DIR}/terraci.fish"

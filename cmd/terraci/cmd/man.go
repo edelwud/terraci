@@ -42,11 +42,12 @@ Example:
 			return fmt.Errorf("failed to create man directory: %w", err)
 		}
 
+		now := time.Now()
 		// Generate man pages with header
 		header := &doc.GenManHeader{
 			Title:   "TERRACI",
 			Section: "1",
-			Date:    &time.Time{},
+			Date:    &now,
 			Source:  "TerraCi",
 			Manual:  "TerraCi Manual",
 		}
