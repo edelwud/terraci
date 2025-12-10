@@ -63,8 +63,8 @@ Features:
 			log.WithField("version", versionInfo.Version).Debug("terraci")
 		}
 
-		// Skip config loading for version, schema, and completion commands
-		if cmd.Name() == "version" || cmd.Name() == "schema" || cmd.Name() == "completion" {
+		// Skip config loading for version, schema, completion, and man commands
+		if cmd.Name() == "version" || cmd.Name() == "schema" || cmd.Name() == "completion" || cmd.Name() == "man" {
 			return nil
 		}
 

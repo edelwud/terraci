@@ -4,8 +4,9 @@
 *.exe
 /dist/
 
-# Generated completions
+# Generated completions and man pages
 /completions/
+/manpages/
 
 # Docs
 docs/.vitepress/dist/

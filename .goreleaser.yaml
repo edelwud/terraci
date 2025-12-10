@@ -6,12 +6,13 @@ project_name: terraci
 gomod:
   proxy: true
 
-# Generate shell completions before build
+# Generate shell completions and man pages before build
 # https://goreleaser.com/customization/hooks/
 before:
   hooks:
     - go mod tidy
     - ./scripts/generate-completions.sh
+    - ./scripts/generate-manpages.sh
 
 builds:
   - id: terraci
@@ -52,6 +53,7 @@ archives:
       mtime: "{{ .CommitTimestamp }}"
     files:
       - completions/*
+      - manpages/*
 
 # creates SBOMs of all archives and the source tarball using syft
 # https://goreleaser.com/customization/sbom
