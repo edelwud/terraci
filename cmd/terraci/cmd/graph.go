@@ -45,11 +45,14 @@ Examples:
   # Show statistics
   terraci graph --stats
 
-  # Show dependencies for a specific module
-  terraci graph --module platform/stage/eu-central-1/vpc
+  # Filter graph to a specific module and its dependencies
+  terraci graph --module platform/stage/eu-central-1/vpc --format levels
 
-  # Show what depends on a module
-  terraci graph --module platform/stage/eu-central-1/vpc --dependents`,
+  # Filter graph to show what depends on a module
+  terraci graph --module platform/stage/eu-central-1/vpc --dependents --stats
+
+  # Generate DOT for module subgraph
+  terraci graph --module platform/stage/eu-central-1/vpc -o module.dot`,
 	RunE: runGraph,
 }
 
@@ -59,8 +62,8 @@ func init() {
 	graphCmd.Flags().StringVarP(&graphFormat, "format", "f", "dot", "output format: dot, list, levels")
 	graphCmd.Flags().StringVarP(&graphOutput, "output", "o", "", "output file (default: stdout)")
 	graphCmd.Flags().BoolVar(&showStats, "stats", false, "show graph statistics")
-	graphCmd.Flags().StringVarP(&moduleID, "module", "m", "", "show dependencies for specific module")
-	graphCmd.Flags().BoolVar(&showDependents, "dependents", false, "show modules that depend on --module (reverse)")
+	graphCmd.Flags().StringVarP(&moduleID, "module", "m", "", "filter graph to specific module and its dependencies")
+	graphCmd.Flags().BoolVar(&showDependents, "dependents", false, "include dependents instead of dependencies when using --module")
 
 	// Reuse filter flags from generate
 	graphCmd.Flags().StringArrayVarP(&excludes, "exclude", "x", nil, "glob patterns to exclude modules")
@@ -106,14 +109,30 @@ func runGraph(_ *cobra.Command, _ []string) error {
 	log.Debug("building dependency graph")
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	// Handle specific module query
+	// Handle specific module filtering - creates a subgraph scoped to the module
 	if moduleID != "" {
-		return showModuleDependencies(depGraph, moduleIndex, moduleID, showDependents)
+		if moduleIndex.ByID(moduleID) == nil {
+			return fmt.Errorf("module not found: %s", moduleID)
+		}
+
+		var moduleIDs []string
+		if showDependents {
+			// Include the module and all modules that depend on it
+			moduleIDs = append([]string{moduleID}, depGraph.GetAllDependents(moduleID)...)
+			log.WithField("module", moduleID).WithField("count", len(moduleIDs)-1).Debug("filtering to module and its dependents")
+		} else {
+			// Include the module and all its dependencies
+			moduleIDs = append([]string{moduleID}, depGraph.GetAllDependencies(moduleID)...)
+			log.WithField("module", moduleID).WithField("count", len(moduleIDs)-1).Debug("filtering to module and its dependencies")
+		}
+
+		// Create subgraph with only the relevant modules
+		depGraph = depGraph.Subgraph(moduleIDs)
 	}
 
 	// Handle stats
 	if showStats {
-		return showGraphStats(depGraph)
+		return showGraphStats(depGraph, moduleID)
 	}
 
 	// Generate output based on format
@@ -158,40 +177,14 @@ func runGraph(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
-func showModuleDependencies(g *graph.DependencyGraph, idx *discovery.ModuleIndex, moduleID string, reverse bool) error {
-	if idx.ByID(moduleID) == nil {
-		return fmt.Errorf("module not found: %s", moduleID)
-	}
-
-	var deps []string
-	var label string
-
-	if reverse {
-		deps = g.GetAllDependents(moduleID)
-		label = "modules that depend on"
-	} else {
-		deps = g.GetAllDependencies(moduleID)
-		label = "dependencies of"
-	}
-
-	log.WithField("module", moduleID).Info(label)
-	if len(deps) == 0 {
-		log.Info("(none)")
-	} else {
-		log.IncreasePadding()
-		for _, d := range deps {
-			log.Info(d)
-		}
-		log.DecreasePadding()
-	}
-
-	return nil
-}
-
-func showGraphStats(g *graph.DependencyGraph) error {
+func showGraphStats(g *graph.DependencyGraph, scopeModule string) error {
 	stats := g.GetStats()
 
-	log.Info("dependency graph statistics")
+	if scopeModule != "" {
+		log.WithField("scope", scopeModule).Info("dependency graph statistics")
+	} else {
+		log.Info("dependency graph statistics")
+	}
 	log.IncreasePadding()
 	log.WithField("count", stats.TotalModules).Info("total modules")
 	log.WithField("count", stats.TotalEdges).Info("total edges")
