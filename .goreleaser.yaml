@@ -79,6 +79,37 @@ homebrew_casks:
             system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/terraci"]
           end
 
+nfpms:
+  - file_name_template: "{{ .ConventionalFileName }}"
+    maintainer: "Maksim Yersh <yersh.maks@gmail.com>"
+    contents:
+      - src: ./completions/{{ .ProjectName }}.bash
+        dst: /etc/bash_completion.d/{{ .ProjectName }}
+      - src: ./completions/{{ .ProjectName }}.fish
+        dst: /usr/share/fish/completions/{{ .ProjectName }}.fish
+      - src: ./completions/_{{ .ProjectName }}
+        dst: /usr/local/share/zsh/site-functions/_{{ .ProjectName }}
+      - src: ./manpages/{{ .ProjectName }}.1.gz
+        dst: /usr/share/man/man1/{{ .ProjectName }}.1.gz
+      - src: ./manpages/{{ .ProjectName }}-completion.1.gz
+        dst: /usr/share/man/man1/{{ .ProjectName }}-completion.1.gz
+      - src: ./manpages/{{ .ProjectName }}-generate.1.gz
+        dst: /usr/share/man/man1/{{ .ProjectName }}-generate.1.gz
+      - src: ./manpages/{{ .ProjectName }}-graph.1.gz
+        dst: /usr/share/man/man1/{{ .ProjectName }}-graph.1.gz
+      - src: ./manpages/{{ .ProjectName }}-init.1.gz
+        dst: /usr/share/man/man1/{{ .ProjectName }}-init.1.gz
+      - src: ./manpages/{{ .ProjectName }}-schema.1.gz
+        dst: /usr/share/man/man1/{{ .ProjectName }}-schema.1.gz
+      - src: ./manpages/{{ .ProjectName }}-validate.1.gz
+        dst: /usr/share/man/man1/{{ .ProjectName }}-validate.1.gz
+      - src: ./manpages/{{ .ProjectName }}-version.1.gz
+        dst: /usr/share/man/man1/{{ .ProjectName }}-version.1.gz
+    formats:
+      - deb
+      - rpm
+      - apk
+
 # creates SBOMs of all archives and the source tarball using syft
 # https://goreleaser.com/customization/sbom
 sboms:
