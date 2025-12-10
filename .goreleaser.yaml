@@ -70,7 +70,7 @@ homebrew_casks:
       - "manpages/{{ .ProjectName }}-*.1"
     completions:
       bash: "completions/{{ .ProjectName }}.bash"
-      zsh: "completions/{{ .ProjectName }}.zsh"
+      zsh: "completions/_{{ .ProjectName }}"
       fish: "completions/{{ .ProjectName }}.fish"
     hooks:
       post:
