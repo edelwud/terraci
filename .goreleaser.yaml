@@ -61,7 +61,13 @@ homebrew_casks:
       verified: "github.com/edelwud/{{ .ProjectName }}"
     manpages:
       - "manpages/{{ .ProjectName }}.1"
-      - "manpages/{{ .ProjectName }}-*.1"
+      - "manpages/{{ .ProjectName }}-completion.1"
+      - "manpages/{{ .ProjectName }}-generate.1"
+      - "manpages/{{ .ProjectName }}-graph.1"
+      - "manpages/{{ .ProjectName }}-init.1"
+      - "manpages/{{ .ProjectName }}-schema.1"
+      - "manpages/{{ .ProjectName }}-validate.1"
+      - "manpages/{{ .ProjectName }}-version.1"
     completions:
       bash: "completions/{{ .ProjectName }}.bash"
       zsh: "completions/_{{ .ProjectName }}"
