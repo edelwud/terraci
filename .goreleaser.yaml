@@ -53,7 +53,7 @@ archives:
       mtime: "{{ .CommitTimestamp }}"
     files:
       - README.md
-      - LICENSE.md
+      - LICENSE
       - completions/*
       - manpages/*
     format_overrides:
