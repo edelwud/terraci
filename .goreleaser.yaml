@@ -52,6 +52,8 @@ archives:
     builds_info:
       mtime: "{{ .CommitTimestamp }}"
     files:
+      - README.md
+      - LICENSE.md
       - completions/*
       - manpages/*
     format_overrides:
@@ -65,13 +67,15 @@ homebrew_casks:
     homepage: "https://edelwud.github.io/{{ .ProjectName }}/"
     url:
       verified: "github.com/edelwud/{{ .ProjectName }}"
+    binaries:
+      - "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}/{{ .ProjectName }}"
     manpages:
-      - "manpages/{{ .ProjectName }}.1"
-      - "manpages/{{ .ProjectName }}-*.1"
+      - "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}/manpages/{{ .ProjectName }}.1"
+      - "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}/manpages/{{ .ProjectName }}-*.1"
     completions:
-      bash: "completions/{{ .ProjectName }}.bash"
-      zsh: "completions/_{{ .ProjectName }}"
-      fish: "completions/{{ .ProjectName }}.fish"
+      bash: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}/completions/{{ .ProjectName }}.bash"
+      zsh: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}/completions/_{{ .ProjectName }}"
+      fish: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}/completions/{{ .ProjectName }}.fish"
     hooks:
       post:
         install: |
