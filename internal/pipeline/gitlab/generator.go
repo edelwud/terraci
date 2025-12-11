@@ -190,6 +190,12 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (*Pipeline, erro
 		moduleIDs[i] = m.ID()
 	}
 
+	// Build set of target module IDs for filtering needs
+	targetModuleSet := make(map[string]bool, len(moduleIDs))
+	for _, id := range moduleIDs {
+		targetModuleSet[id] = true
+	}
+
 	// Build subgraph for target modules
 	subgraph := g.depGraph.Subgraph(moduleIDs)
 
@@ -236,12 +242,12 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (*Pipeline, erro
 
 			// Generate plan job if enabled
 			if g.config.GitLab.PlanEnabled {
-				planJob := g.generatePlanJob(module, levelIdx)
+				planJob := g.generatePlanJob(module, levelIdx, targetModuleSet)
 				pipeline.Jobs[planJob.jobName(module, "plan")] = planJob
 			}
 
 			// Generate apply job
-			applyJob := g.generateApplyJob(module, levelIdx)
+			applyJob := g.generateApplyJob(module, levelIdx, targetModuleSet)
 			pipeline.Jobs[applyJob.jobName(module, "apply")] = applyJob
 		}
 	}
@@ -268,7 +274,7 @@ func (g *Generator) generateStages(levels [][]string) []string {
 }
 
 // generatePlanJob creates a terraform plan job
-func (g *Generator) generatePlanJob(module *discovery.Module, level int) *Job {
+func (g *Generator) generatePlanJob(module *discovery.Module, level int, targetModuleSet map[string]bool) *Job {
 	prefix := g.config.GitLab.StagesPrefix
 	if prefix == "" {
 		prefix = DefaultStagesPrefix
@@ -301,7 +307,7 @@ func (g *Generator) generatePlanJob(module *discovery.Module, level int) *Job {
 	}
 
 	// Add needs for dependencies from previous levels
-	job.Needs = g.getDependencyNeeds(module, "apply")
+	job.Needs = g.getDependencyNeeds(module, "apply", targetModuleSet)
 
 	// Apply job_defaults first, then overwrites
 	g.applyJobDefaults(job)
@@ -311,7 +317,7 @@ func (g *Generator) generatePlanJob(module *discovery.Module, level int) *Job {
 }
 
 // generateApplyJob creates a terraform apply job
-func (g *Generator) generateApplyJob(module *discovery.Module, level int) *Job {
+func (g *Generator) generateApplyJob(module *discovery.Module, level int, targetModuleSet map[string]bool) *Job {
 	prefix := g.config.GitLab.StagesPrefix
 	if prefix == "" {
 		prefix = DefaultStagesPrefix
@@ -363,7 +369,7 @@ func (g *Generator) generateApplyJob(module *discovery.Module, level int) *Job {
 	}
 
 	// Need apply jobs from dependencies
-	depNeeds := g.getDependencyNeeds(module, "apply")
+	depNeeds := g.getDependencyNeeds(module, "apply", targetModuleSet)
 	needs = append(needs, depNeeds...)
 
 	job.Needs = needs
@@ -612,11 +618,17 @@ func (g *Generator) generateWorkflow() *Workflow {
 }
 
 // getDependencyNeeds returns job needs for a module's dependencies
-func (g *Generator) getDependencyNeeds(module *discovery.Module, jobType string) []JobNeed {
+// Only includes dependencies that are in the targetModuleSet (i.e., have jobs generated)
+func (g *Generator) getDependencyNeeds(module *discovery.Module, jobType string, targetModuleSet map[string]bool) []JobNeed {
 	needs := make([]JobNeed, 0)
 
 	deps := g.depGraph.GetDependencies(module.ID())
 	for _, depID := range deps {
+		// Skip dependencies that are not in the target set (no job generated for them)
+		if !targetModuleSet[depID] {
+			continue
+		}
+
 		depModule := g.moduleIndex.ByID(depID)
 		if depModule == nil {
 			continue
