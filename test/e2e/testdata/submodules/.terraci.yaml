@@ -1,0 +1,16 @@
+# Test fixture configuration - submodules support
+structure:
+  pattern: "{service}/{environment}/{region}/{module}"
+  min_depth: 4
+  max_depth: 5
+  allow_submodules: true
+
+gitlab:
+  image: "hashicorp/terraform:1.6"
+  stages_prefix: "deploy"
+  plan_enabled: true
+
+backend:
+  type: s3
+  bucket: terraform-state
+  region: eu-central-1

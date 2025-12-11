@@ -1,0 +1,20 @@
+# Test fixture configuration - basic scenario
+structure:
+  pattern: "{service}/{environment}/{region}/{module}"
+  min_depth: 4
+  max_depth: 4
+  allow_submodules: false
+
+gitlab:
+  image: "hashicorp/terraform:1.6"
+  stages_prefix: "deploy"
+  plan_enabled: true
+  auto_approve: false
+  cache_enabled: true
+  init_enabled: true
+
+backend:
+  type: s3
+  bucket: terraform-state
+  region: eu-central-1
+  key_pattern: "{service}/{environment}/{region}/{module}/terraform.tfstate"
