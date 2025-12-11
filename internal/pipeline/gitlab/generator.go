@@ -311,7 +311,12 @@ func (g *Generator) generatePlanJob(module *discovery.Module, level int, targetM
 	}
 
 	// Add needs for dependencies from previous levels
-	job.Needs = g.getDependencyNeeds(module, "apply", targetModuleSet)
+	// In plan-only mode, depend on plan jobs; otherwise depend on apply jobs
+	if g.config.GitLab.PlanOnly {
+		job.Needs = g.getDependencyNeeds(module, "plan", targetModuleSet)
+	} else {
+		job.Needs = g.getDependencyNeeds(module, "apply", targetModuleSet)
+	}
 
 	// Apply job_defaults first, then overwrites
 	g.applyJobDefaults(job)
