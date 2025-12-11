@@ -125,6 +125,11 @@
           "description": "Enable terraform plan stage",
           "default": true
         },
+        "plan_only": {
+          "type": "boolean",
+          "description": "Generate only plan jobs (no apply jobs)",
+          "default": false
+        },
         "auto_approve": {
           "type": "boolean",
           "description": "Auto-approve applies (skip manual confirmation)",

@@ -66,6 +66,8 @@ type GitLabConfig struct {
 	Variables map[string]string `yaml:"variables,omitempty" json:"variables,omitempty" jsonschema:"description=Global pipeline variables"`
 	// PlanEnabled enables terraform plan stage
 	PlanEnabled bool `yaml:"plan_enabled" json:"plan_enabled" jsonschema:"description=Enable terraform plan stage,default=true"`
+	// PlanOnly generates only plan jobs without apply jobs
+	PlanOnly bool `yaml:"plan_only" json:"plan_only" jsonschema:"description=Generate only plan jobs (no apply jobs),default=false"`
 	// AutoApprove skips manual approval for apply
 	AutoApprove bool `yaml:"auto_approve" json:"auto_approve" jsonschema:"description=Auto-approve applies (skip manual confirmation),default=false"`
 	// CacheEnabled enables caching of .terraform directory

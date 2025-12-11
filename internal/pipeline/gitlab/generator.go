@@ -246,9 +246,11 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (*Pipeline, erro
 				pipeline.Jobs[planJob.jobName(module, "plan")] = planJob
 			}
 
-			// Generate apply job
-			applyJob := g.generateApplyJob(module, levelIdx, targetModuleSet)
-			pipeline.Jobs[applyJob.jobName(module, "apply")] = applyJob
+			// Generate apply job (skip if plan-only mode)
+			if !g.config.GitLab.PlanOnly {
+				applyJob := g.generateApplyJob(module, levelIdx, targetModuleSet)
+				pipeline.Jobs[applyJob.jobName(module, "apply")] = applyJob
+			}
 		}
 	}
 
@@ -267,7 +269,9 @@ func (g *Generator) generateStages(levels [][]string) []string {
 		if g.config.GitLab.PlanEnabled {
 			stages = append(stages, fmt.Sprintf("%s-plan-%d", prefix, i))
 		}
-		stages = append(stages, fmt.Sprintf("%s-apply-%d", prefix, i))
+		if !g.config.GitLab.PlanOnly {
+			stages = append(stages, fmt.Sprintf("%s-apply-%d", prefix, i))
+		}
 	}
 
 	return stages

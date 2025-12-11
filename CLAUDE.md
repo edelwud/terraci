@@ -98,6 +98,7 @@ func (g *DependencyGraph) ToDOT() string
 terraci generate -o .gitlab-ci.yml
 terraci generate --changed-only --base-ref main
 terraci generate --exclude "*/test/*" --environment prod
+terraci generate --plan-only  # Generate only plan jobs (no apply)
 
 # Validation
 terraci validate
@@ -134,6 +135,7 @@ gitlab:
   terraform_image: "hashicorp/terraform:1.6"
   parallelism: 5
   plan_enabled: true
+  plan_only: false  # Set to true for plan-only pipelines
   auto_approve: false
   tags: [terraform, docker]
 ```

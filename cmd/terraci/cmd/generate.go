@@ -24,6 +24,7 @@ var (
 	excludes     []string
 	includes     []string
 	dryRun       bool
+	planOnly     bool
 	services     []string
 	environments []string
 	regions      []string
@@ -52,7 +53,10 @@ Examples:
   terraci generate --dry-run
 
   # Generate with auto-approve (skip manual trigger for apply jobs)
-  terraci generate --auto-approve`,
+  terraci generate --auto-approve
+
+  # Generate only plan jobs (no apply jobs)
+  terraci generate --plan-only`,
 	RunE: runGenerate,
 }
 
@@ -68,6 +72,7 @@ func init() {
 	generateCmd.Flags().StringArrayVarP(&services, "service", "s", nil, "filter by service name")
 	generateCmd.Flags().StringArrayVarP(&environments, "environment", "e", nil, "filter by environment")
 	generateCmd.Flags().StringArrayVarP(&regions, "region", "r", nil, "filter by region")
+	generateCmd.Flags().BoolVar(&planOnly, "plan-only", false, "generate only plan jobs (no apply jobs)")
 
 	// Auto-approve flag with explicit true/false handling
 	generateCmd.Flags().Bool("auto-approve", false, "auto-approve apply jobs (skip manual trigger)")
@@ -80,6 +85,13 @@ func runGenerate(cmd *cobra.Command, _ []string) error {
 		cfg.GitLab.AutoApprove = true
 	} else if cmd.Flags().Changed("no-auto-approve") {
 		cfg.GitLab.AutoApprove = false
+	}
+
+	// Handle plan-only flag (CLI overrides config)
+	if planOnly {
+		cfg.GitLab.PlanOnly = true
+		// PlanOnly implies PlanEnabled
+		cfg.GitLab.PlanEnabled = true
 	}
 
 	// 1. Discover modules
