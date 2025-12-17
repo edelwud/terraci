@@ -519,3 +519,158 @@ func TestPipeline_ToYAML(t *testing.T) {
 		t.Error("YAML should contain plan-test job")
 	}
 }
+
+func TestGenerator_Generate_WithMRIntegration(t *testing.T) {
+	cfg := createTestConfig()
+	cfg.GitLab.MR = &config.MRConfig{}
+
+	modules := []*discovery.Module{
+		createTestModule("platform", "stage", "eu-central-1", "vpc"),
+		createTestModule("platform", "stage", "eu-central-1", "eks"),
+	}
+
+	deps := createTestDeps(modules, map[string][]string{
+		modules[0].ID(): {},
+		modules[1].ID(): {modules[0].ID()},
+	})
+	depGraph := graph.BuildFromDependencies(modules, deps)
+
+	gen := NewGenerator(cfg, depGraph, modules)
+	pipeline, err := gen.Generate(modules)
+
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	// Check summary job exists
+	summaryJob := pipeline.Jobs[SummaryJobName]
+	if summaryJob == nil {
+		t.Fatal("summary job not found")
+	}
+
+	// Check summary job stage
+	if summaryJob.Stage != SummaryStageName {
+		t.Errorf("summary job stage: expected %s, got %s", SummaryStageName, summaryJob.Stage)
+	}
+
+	// Check summary job has correct needs (all plan jobs)
+	if len(summaryJob.Needs) != 2 {
+		t.Errorf("summary job should have 2 needs, got %d", len(summaryJob.Needs))
+	}
+
+	// Check summary stage is in stages list
+	hasStage := false
+	for _, stage := range pipeline.Stages {
+		if stage == SummaryStageName {
+			hasStage = true
+			break
+		}
+	}
+	if !hasStage {
+		t.Errorf("stages should contain %s", SummaryStageName)
+	}
+
+	// Check plan jobs have results directory in artifacts
+	planJob := pipeline.Jobs["plan-platform-stage-eu-central-1-vpc"]
+	if planJob == nil {
+		t.Fatal("plan job not found")
+	}
+	if planJob.Artifacts == nil {
+		t.Fatal("plan job should have artifacts")
+	}
+	hasResultsDir := false
+	for _, path := range planJob.Artifacts.Paths {
+		if strings.Contains(path, ".terraci-results") {
+			hasResultsDir = true
+			break
+		}
+	}
+	if !hasResultsDir {
+		t.Error("plan job artifacts should include .terraci-results directory")
+	}
+}
+
+func TestGenerator_Generate_WithMRIntegration_Disabled(t *testing.T) {
+	cfg := createTestConfig()
+	// No MR config - MR integration disabled
+
+	modules := []*discovery.Module{
+		createTestModule("platform", "stage", "eu-central-1", "vpc"),
+	}
+
+	deps := createTestDeps(modules, map[string][]string{
+		modules[0].ID(): {},
+	})
+	depGraph := graph.BuildFromDependencies(modules, deps)
+
+	gen := NewGenerator(cfg, depGraph, modules)
+	pipeline, err := gen.Generate(modules)
+
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	// Check summary job does NOT exist
+	if _, exists := pipeline.Jobs[SummaryJobName]; exists {
+		t.Error("summary job should not exist when MR integration is disabled")
+	}
+
+	// Check summary stage is NOT in stages list
+	for _, stage := range pipeline.Stages {
+		if stage == SummaryStageName {
+			t.Error("stages should not contain summary stage when MR is disabled")
+		}
+	}
+}
+
+func TestGenerator_isMREnabled(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   *config.Config
+		expected bool
+	}{
+		{
+			name:     "nil MR config",
+			config:   &config.Config{GitLab: config.GitLabConfig{}},
+			expected: false,
+		},
+		{
+			name:     "MR config present, no comment config",
+			config:   &config.Config{GitLab: config.GitLabConfig{MR: &config.MRConfig{}}},
+			expected: true,
+		},
+		{
+			name:     "MR config present, comment enabled nil",
+			config:   &config.Config{GitLab: config.GitLabConfig{MR: &config.MRConfig{Comment: &config.MRCommentConfig{}}}},
+			expected: true,
+		},
+		{
+			name: "MR config present, comment explicitly enabled",
+			config: &config.Config{GitLab: config.GitLabConfig{MR: &config.MRConfig{Comment: &config.MRCommentConfig{
+				Enabled: boolPtr(true),
+			}}}},
+			expected: true,
+		},
+		{
+			name: "MR config present, comment explicitly disabled",
+			config: &config.Config{GitLab: config.GitLabConfig{MR: &config.MRConfig{Comment: &config.MRCommentConfig{
+				Enabled: boolPtr(false),
+			}}}},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gen := NewGenerator(tt.config, graph.NewDependencyGraph(), nil)
+			result := gen.isMREnabled()
+			if result != tt.expected {
+				t.Errorf("isMREnabled() = %v, expected %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func boolPtr(b bool) *bool {
+	return &b
+}

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/edelwud/terraci/internal/discovery"
+	gitlabapi "github.com/edelwud/terraci/internal/gitlab"
 	"github.com/edelwud/terraci/internal/graph"
 	"github.com/edelwud/terraci/pkg/config"
 )
@@ -12,6 +13,10 @@ import (
 const (
 	// DefaultStagesPrefix is the default prefix for stage names
 	DefaultStagesPrefix = "deploy"
+	// SummaryJobName is the name of the summary job
+	SummaryJobName = "terraci-summary"
+	// SummaryStageName is the name of the summary stage
+	SummaryStageName = "summary"
 )
 
 // Generator generates GitLab CI pipelines
@@ -71,9 +76,10 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (*Pipeline, erro
 	variables["TERRAFORM_BINARY"] = tfBinary
 
 	effectiveImage := g.config.GitLab.GetImage()
+	includeSummary := g.isMREnabled() && g.config.GitLab.PlanEnabled
 
 	pipeline := &Pipeline{
-		Stages:    g.generateStages(levels),
+		Stages:    g.generateStages(levels, includeSummary),
 		Variables: variables,
 		Default: &DefaultConfig{
 			Image: &ImageConfig{
@@ -84,6 +90,9 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (*Pipeline, erro
 		Jobs:     make(map[string]*Job),
 		Workflow: g.generateWorkflow(),
 	}
+
+	// Collect plan job names for summary job dependencies
+	var planJobNames []string
 
 	// Generate jobs for each level
 	for levelIdx, moduleIDs := range levels {
@@ -96,7 +105,9 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (*Pipeline, erro
 			// Generate plan job if enabled
 			if g.config.GitLab.PlanEnabled {
 				planJob := g.generatePlanJob(module, levelIdx, targetModuleSet)
-				pipeline.Jobs[g.jobName(module, "plan")] = planJob
+				planJobName := g.jobName(module, "plan")
+				pipeline.Jobs[planJobName] = planJob
+				planJobNames = append(planJobNames, planJobName)
 			}
 
 			// Generate apply job (skip if plan-only mode)
@@ -107,11 +118,17 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (*Pipeline, erro
 		}
 	}
 
+	// Generate summary job if MR integration is enabled
+	if includeSummary && len(planJobNames) > 0 {
+		summaryJob := g.generateSummaryJob(planJobNames)
+		pipeline.Jobs[SummaryJobName] = summaryJob
+	}
+
 	return pipeline, nil
 }
 
 // generateStages creates stage names for each execution level
-func (g *Generator) generateStages(levels [][]string) []string {
+func (g *Generator) generateStages(levels [][]string, includeSummary bool) []string {
 	stages := make([]string, 0)
 	prefix := g.config.GitLab.StagesPrefix
 	if prefix == "" {
@@ -125,6 +142,11 @@ func (g *Generator) generateStages(levels [][]string) []string {
 		if !g.config.GitLab.PlanOnly {
 			stages = append(stages, fmt.Sprintf("%s-apply-%d", prefix, i))
 		}
+	}
+
+	// Add summary stage if MR integration is enabled
+	if includeSummary {
+		stages = append(stages, SummaryStageName)
 	}
 
 	return stages
@@ -142,7 +164,23 @@ func (g *Generator) generatePlanJob(module *discovery.Module, level int, targetM
 	if g.config.GitLab.InitEnabled {
 		script = append(script, "${TERRAFORM_BINARY} init")
 	}
-	script = append(script, "${TERRAFORM_BINARY} plan -out=plan.tfplan")
+
+	// Determine artifacts paths
+	artifactsPaths := []string{fmt.Sprintf("%s/plan.tfplan", module.RelativePath)}
+
+	// If MR integration is enabled, capture plan output for summary
+	if g.isMREnabled() {
+		// Use -detailed-exitcode and capture output
+		script = append(script, fmt.Sprintf(
+			"${TERRAFORM_BINARY} plan -out=plan.tfplan -detailed-exitcode 2>&1 | tee plan.txt; PLAN_EXIT=${PIPESTATUS[0]}; "+
+				"terraci save-plan-result --module-id %q --module-path %q --exit-code $PLAN_EXIT --output plan.txt --results-dir %s; "+
+				"exit $PLAN_EXIT",
+			module.ID(), module.RelativePath, gitlabapi.PlanResultDir))
+		// Add results directory to artifacts
+		artifactsPaths = append(artifactsPaths, gitlabapi.PlanResultDir)
+	} else {
+		script = append(script, "${TERRAFORM_BINARY} plan -out=plan.tfplan")
+	}
 
 	job := &Job{
 		Stage:  fmt.Sprintf("%s-plan-%d", prefix, level),
@@ -156,8 +194,9 @@ func (g *Generator) generatePlanJob(module *discovery.Module, level int, targetM
 		},
 		// Default artifacts for plan - can be overridden via job_defaults or overwrites
 		Artifacts: &Artifacts{
-			Paths:    []string{fmt.Sprintf("%s/plan.tfplan", module.RelativePath)},
+			Paths:    artifactsPaths,
 			ExpireIn: "1 day",
+			When:     "always", // Save artifacts even on failure for summary
 		},
 		Cache:         g.generateCache(module),
 		ResourceGroup: module.ID(),
@@ -449,6 +488,45 @@ func (g *Generator) jobName(module *discovery.Module, jobType string) string {
 	return fmt.Sprintf("%s-%s", jobType, name)
 }
 
+// isMREnabled returns true if MR integration is enabled in config
+func (g *Generator) isMREnabled() bool {
+	if g.config.GitLab.MR == nil {
+		return false
+	}
+	if g.config.GitLab.MR.Comment == nil {
+		return true // Default enabled when MR section exists
+	}
+	if g.config.GitLab.MR.Comment.Enabled == nil {
+		return true // Default enabled
+	}
+	return *g.config.GitLab.MR.Comment.Enabled
+}
+
+// generateSummaryJob creates the terraci summary job that posts MR comments
+func (g *Generator) generateSummaryJob(planJobNames []string) *Job {
+	// Build needs from all plan jobs
+	needs := make([]JobNeed, len(planJobNames))
+	for i, jobName := range planJobNames {
+		needs[i] = JobNeed{Job: jobName}
+	}
+
+	job := &Job{
+		Stage:  SummaryStageName,
+		Script: []string{"terraci summary --results-dir " + gitlabapi.PlanResultDir},
+		Needs:  needs,
+		Rules: []Rule{
+			{
+				If:   "$CI_MERGE_REQUEST_IID",
+				When: "always",
+			},
+		},
+		// Collect artifacts from plan jobs
+		Artifacts: nil, // No artifacts from summary job
+	}
+
+	return job
+}
+
 // GenerateForChangedModules generates pipeline only for changed modules and their dependents
 func (g *Generator) GenerateForChangedModules(changedModuleIDs []string) (*Pipeline, error) {
 	// Get all affected modules (changed + their dependents)
@@ -490,10 +568,15 @@ func (g *Generator) DryRun(targetModules []*discovery.Module) (*DryRunResult, er
 		}
 	}
 
+	includeSummary := g.isMREnabled() && g.config.GitLab.PlanEnabled
+	if includeSummary {
+		jobCount++ // Add summary job
+	}
+
 	return &DryRunResult{
 		TotalModules:    len(g.modules),
 		AffectedModules: len(targetModules),
-		Stages:          len(g.generateStages(levels)),
+		Stages:          len(g.generateStages(levels, includeSummary)),
 		Jobs:            jobCount,
 		ExecutionOrder:  levels,
 	}, nil
