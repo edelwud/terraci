@@ -78,6 +78,26 @@ type GitLabConfig struct {
 	JobDefaults *JobDefaults `yaml:"job_defaults,omitempty" json:"job_defaults,omitempty" jsonschema:"description=Default settings applied to all jobs"`
 	// Overwrites defines job-level overrides for plan and apply jobs
 	Overwrites []JobOverwrite `yaml:"overwrites,omitempty" json:"overwrites,omitempty" jsonschema:"description=Job-level overrides for plan or apply jobs"`
+	// MR contains merge request integration settings
+	MR *MRConfig `yaml:"mr,omitempty" json:"mr,omitempty" jsonschema:"description=Merge request integration settings"`
+}
+
+// MRConfig contains settings for MR integration
+type MRConfig struct {
+	// Comment enables MR comment with plan summary (auto-detected in MR pipelines)
+	Comment *MRCommentConfig `yaml:"comment,omitempty" json:"comment,omitempty" jsonschema:"description=MR comment configuration"`
+	// Labels to add to MR, supports placeholders: {service}, {environment}, {region}, {module}
+	Labels []string `yaml:"labels,omitempty" json:"labels,omitempty" jsonschema:"description=Labels to add to MR (supports placeholders: {service}\\, {environment}\\, {region}\\, {module})"`
+}
+
+// MRCommentConfig contains settings for MR comments
+type MRCommentConfig struct {
+	// Enabled enables MR comments (default: true when in MR pipeline)
+	Enabled *bool `yaml:"enabled,omitempty" json:"enabled,omitempty" jsonschema:"description=Enable MR comments,default=true"`
+	// OnPlanOnly only comment when there are changes (default: false)
+	OnChangesOnly bool `yaml:"on_changes_only,omitempty" json:"on_changes_only,omitempty" jsonschema:"description=Only comment when there are changes"`
+	// IncludeDetails includes full plan output in collapsible sections
+	IncludeDetails bool `yaml:"include_details,omitempty" json:"include_details,omitempty" jsonschema:"description=Include full plan output in expandable sections,default=true"`
 }
 
 // JobConfig is an interface for job configuration (defaults and overwrites)

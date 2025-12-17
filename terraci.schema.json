@@ -580,6 +580,39 @@
           },
           "type": "array",
           "description": "Job-level overrides for plan or apply jobs"
+        },
+        "mr": {
+          "properties": {
+            "comment": {
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Enable MR comments",
+                  "default": true
+                },
+                "on_changes_only": {
+                  "type": "boolean",
+                  "description": "Only comment when there are changes"
+                },
+                "include_details": {
+                  "type": "boolean",
+                  "description": "Include full plan output in expandable sections",
+                  "default": true
+                }
+              },
+              "type": "object",
+              "description": "MR comment configuration"
+            },
+            "labels": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array",
+              "description": "Labels to add to MR (supports placeholders: {service}, {environment}, {region}, {module})"
+            }
+          },
+          "type": "object",
+          "description": "Merge request integration settings"
         }
       },
       "type": "object",
