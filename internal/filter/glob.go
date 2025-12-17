@@ -288,3 +288,53 @@ type GlobModuleFilter struct {
 func (f *GlobModuleFilter) Match(module *discovery.Module) bool {
 	return f.GlobFilter.Match(module.ID())
 }
+
+// Options contains all filter parameters
+type Options struct {
+	// Excludes are glob patterns to exclude modules
+	Excludes []string
+	// Includes are glob patterns to include modules (if empty, all included)
+	Includes []string
+	// Services filters by service name
+	Services []string
+	// Environments filters by environment name
+	Environments []string
+	// Regions filters by region name
+	Regions []string
+}
+
+// Apply applies all configured filters to modules
+func Apply(modules []*discovery.Module, opts Options) []*discovery.Module {
+	// Build list of filters
+	var filters []ModuleFilter
+
+	// Add glob filter if any patterns specified
+	if len(opts.Excludes) > 0 || len(opts.Includes) > 0 {
+		globFilter := NewGlobFilter(opts.Excludes, opts.Includes)
+		filters = append(filters, &GlobModuleFilter{globFilter})
+	}
+
+	// Add service filter
+	if len(opts.Services) > 0 {
+		filters = append(filters, &ServiceFilter{Services: opts.Services})
+	}
+
+	// Add environment filter
+	if len(opts.Environments) > 0 {
+		filters = append(filters, &EnvironmentFilter{Environments: opts.Environments})
+	}
+
+	// Add region filter
+	if len(opts.Regions) > 0 {
+		filters = append(filters, &RegionFilter{Regions: opts.Regions})
+	}
+
+	// If no filters, return all modules
+	if len(filters) == 0 {
+		return modules
+	}
+
+	// Apply composite filter
+	composite := NewCompositeFilter(filters...)
+	return composite.FilterModules(modules)
+}

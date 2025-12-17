@@ -82,6 +82,19 @@ type GitLabConfig struct {
 	Overwrites []JobOverwrite `yaml:"overwrites,omitempty" json:"overwrites,omitempty" jsonschema:"description=Job-level overrides for plan or apply jobs"`
 }
 
+// JobConfig is an interface for job configuration (defaults and overwrites)
+type JobConfig interface {
+	GetImage() *Image
+	GetIDTokens() map[string]IDToken
+	GetSecrets() map[string]Secret
+	GetBeforeScript() []string
+	GetAfterScript() []string
+	GetArtifacts() *ArtifactsConfig
+	GetTags() []string
+	GetRules() []Rule
+	GetVariables() map[string]string
+}
+
 // JobDefaults defines default settings for all generated jobs
 type JobDefaults struct {
 	// Image overrides the Docker image for all jobs
@@ -103,6 +116,17 @@ type JobDefaults struct {
 	// Variables sets additional variables for all jobs
 	Variables map[string]string `yaml:"variables,omitempty" json:"variables,omitempty" jsonschema:"description=Additional variables"`
 }
+
+// JobDefaults implements JobConfig
+func (j *JobDefaults) GetImage() *Image                { return j.Image }
+func (j *JobDefaults) GetIDTokens() map[string]IDToken { return j.IDTokens }
+func (j *JobDefaults) GetSecrets() map[string]Secret   { return j.Secrets }
+func (j *JobDefaults) GetBeforeScript() []string       { return j.BeforeScript }
+func (j *JobDefaults) GetAfterScript() []string        { return j.AfterScript }
+func (j *JobDefaults) GetArtifacts() *ArtifactsConfig  { return j.Artifacts }
+func (j *JobDefaults) GetTags() []string               { return j.Tags }
+func (j *JobDefaults) GetRules() []Rule                { return j.Rules }
+func (j *JobDefaults) GetVariables() map[string]string { return j.Variables }
 
 // JobOverwriteType defines the type of jobs to override
 type JobOverwriteType string
@@ -137,6 +161,17 @@ type JobOverwrite struct {
 	// Variables overrides variables for matching jobs
 	Variables map[string]string `yaml:"variables,omitempty" json:"variables,omitempty" jsonschema:"description=Variables for matching jobs"`
 }
+
+// JobOverwrite implements JobConfig
+func (j *JobOverwrite) GetImage() *Image                { return j.Image }
+func (j *JobOverwrite) GetIDTokens() map[string]IDToken { return j.IDTokens }
+func (j *JobOverwrite) GetSecrets() map[string]Secret   { return j.Secrets }
+func (j *JobOverwrite) GetBeforeScript() []string       { return j.BeforeScript }
+func (j *JobOverwrite) GetAfterScript() []string        { return j.AfterScript }
+func (j *JobOverwrite) GetArtifacts() *ArtifactsConfig  { return j.Artifacts }
+func (j *JobOverwrite) GetTags() []string               { return j.Tags }
+func (j *JobOverwrite) GetRules() []Rule                { return j.Rules }
+func (j *JobOverwrite) GetVariables() map[string]string { return j.Variables }
 
 // ArtifactsConfig defines GitLab CI artifacts configuration
 type ArtifactsConfig struct {

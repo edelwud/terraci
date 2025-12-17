@@ -61,8 +61,10 @@ func runValidate(_ *cobra.Command, _ []string) error {
 	allExcludes = append(allExcludes, excludes...)
 	allIncludes := append([]string{}, cfg.Include...)
 	allIncludes = append(allIncludes, includes...)
-	globFilter := filter.NewGlobFilter(allExcludes, allIncludes)
-	filteredModules := globFilter.FilterModules(modules)
+	filteredModules := filter.Apply(modules, filter.Options{
+		Excludes: allExcludes,
+		Includes: allIncludes,
+	})
 
 	if len(filteredModules) != len(modules) {
 		log.WithField("count", len(filteredModules)).Info("modules after filtering")

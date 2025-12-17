@@ -243,13 +243,13 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (*Pipeline, erro
 			// Generate plan job if enabled
 			if g.config.GitLab.PlanEnabled {
 				planJob := g.generatePlanJob(module, levelIdx, targetModuleSet)
-				pipeline.Jobs[planJob.jobName(module, "plan")] = planJob
+				pipeline.Jobs[g.jobName(module, "plan")] = planJob
 			}
 
 			// Generate apply job (skip if plan-only mode)
 			if !g.config.GitLab.PlanOnly {
 				applyJob := g.generateApplyJob(module, levelIdx, targetModuleSet)
-				pipeline.Jobs[applyJob.jobName(module, "apply")] = applyJob
+				pipeline.Jobs[g.jobName(module, "apply")] = applyJob
 			}
 		}
 	}
@@ -406,25 +406,20 @@ func (g *Generator) generateCache(module *discovery.Module) *Cache {
 	}
 }
 
-// applyJobDefaults applies job_defaults settings to a job
-func (g *Generator) applyJobDefaults(job *Job) {
-	jd := g.config.GitLab.JobDefaults
-	if jd == nil {
-		return
-	}
-
+// applyJobConfig applies job configuration settings to a job
+func (g *Generator) applyJobConfig(job *Job, cfg config.JobConfig) {
 	// Apply image
-	if jd.Image != nil && jd.Image.Name != "" {
+	if img := cfg.GetImage(); img != nil && img.Name != "" {
 		job.Image = &ImageConfig{
-			Name:       jd.Image.Name,
-			Entrypoint: jd.Image.Entrypoint,
+			Name:       img.Name,
+			Entrypoint: img.Entrypoint,
 		}
 	}
 
 	// Apply id_tokens
-	if len(jd.IDTokens) > 0 {
+	if tokens := cfg.GetIDTokens(); len(tokens) > 0 {
 		job.IDTokens = make(map[string]*IDToken)
-		for name, token := range jd.IDTokens {
+		for name, token := range tokens {
 			job.IDTokens[name] = &IDToken{
 				Aud: token.Aud,
 			}
@@ -432,34 +427,34 @@ func (g *Generator) applyJobDefaults(job *Job) {
 	}
 
 	// Apply secrets
-	if len(jd.Secrets) > 0 {
-		job.Secrets = g.convertSecretsFromOverwrite(jd.Secrets)
+	if secrets := cfg.GetSecrets(); len(secrets) > 0 {
+		job.Secrets = g.convertSecretsFromOverwrite(secrets)
 	}
 
 	// Apply before_script
-	if len(jd.BeforeScript) > 0 {
-		job.BeforeScript = jd.BeforeScript
+	if bs := cfg.GetBeforeScript(); len(bs) > 0 {
+		job.BeforeScript = bs
 	}
 
 	// Apply after_script
-	if len(jd.AfterScript) > 0 {
-		job.AfterScript = jd.AfterScript
+	if as := cfg.GetAfterScript(); len(as) > 0 {
+		job.AfterScript = as
 	}
 
 	// Apply artifacts
-	if jd.Artifacts != nil {
-		job.Artifacts = g.convertArtifactsFromOverwrite(jd.Artifacts)
+	if artifacts := cfg.GetArtifacts(); artifacts != nil {
+		job.Artifacts = g.convertArtifactsFromOverwrite(artifacts)
 	}
 
 	// Apply tags
-	if len(jd.Tags) > 0 {
-		job.Tags = jd.Tags
+	if tags := cfg.GetTags(); len(tags) > 0 {
+		job.Tags = tags
 	}
 
 	// Apply rules
-	if len(jd.Rules) > 0 {
-		job.Rules = make([]Rule, len(jd.Rules))
-		for i, r := range jd.Rules {
+	if rules := cfg.GetRules(); len(rules) > 0 {
+		job.Rules = make([]Rule, len(rules))
+		for i, r := range rules {
 			job.Rules[i] = Rule{
 				If:      r.If,
 				When:    r.When,
@@ -469,89 +464,32 @@ func (g *Generator) applyJobDefaults(job *Job) {
 	}
 
 	// Apply variables
-	if len(jd.Variables) > 0 {
+	if vars := cfg.GetVariables(); len(vars) > 0 {
 		if job.Variables == nil {
 			job.Variables = make(map[string]string)
 		}
-		for k, v := range jd.Variables {
+		for k, v := range vars {
 			job.Variables[k] = v
 		}
 	}
+}
+
+// applyJobDefaults applies job_defaults settings to a job
+func (g *Generator) applyJobDefaults(job *Job) {
+	if g.config.GitLab.JobDefaults == nil {
+		return
+	}
+	g.applyJobConfig(job, g.config.GitLab.JobDefaults)
 }
 
 // applyOverwrites applies job overwrites based on job type
 func (g *Generator) applyOverwrites(job *Job, jobType config.JobOverwriteType) {
 	for i := range g.config.GitLab.Overwrites {
 		ow := &g.config.GitLab.Overwrites[i]
-		// Check if this overwrite applies to the job type
 		if ow.Type != jobType {
 			continue
 		}
-
-		// Apply image override
-		if ow.Image != nil && ow.Image.Name != "" {
-			job.Image = &ImageConfig{
-				Name:       ow.Image.Name,
-				Entrypoint: ow.Image.Entrypoint,
-			}
-		}
-
-		// Apply id_tokens override
-		if len(ow.IDTokens) > 0 {
-			job.IDTokens = make(map[string]*IDToken)
-			for name, token := range ow.IDTokens {
-				job.IDTokens[name] = &IDToken{
-					Aud: token.Aud,
-				}
-			}
-		}
-
-		// Apply secrets override
-		if len(ow.Secrets) > 0 {
-			job.Secrets = g.convertSecretsFromOverwrite(ow.Secrets)
-		}
-
-		// Apply before_script override
-		if len(ow.BeforeScript) > 0 {
-			job.BeforeScript = ow.BeforeScript
-		}
-
-		// Apply after_script override
-		if len(ow.AfterScript) > 0 {
-			job.AfterScript = ow.AfterScript
-		}
-
-		// Apply artifacts override
-		if ow.Artifacts != nil {
-			job.Artifacts = g.convertArtifactsFromOverwrite(ow.Artifacts)
-		}
-
-		// Apply tags override
-		if len(ow.Tags) > 0 {
-			job.Tags = ow.Tags
-		}
-
-		// Apply rules override (job-level)
-		if len(ow.Rules) > 0 {
-			job.Rules = make([]Rule, len(ow.Rules))
-			for i, r := range ow.Rules {
-				job.Rules[i] = Rule{
-					If:      r.If,
-					When:    r.When,
-					Changes: r.Changes,
-				}
-			}
-		}
-
-		// Apply variables override
-		if len(ow.Variables) > 0 {
-			if job.Variables == nil {
-				job.Variables = make(map[string]string)
-			}
-			for k, v := range ow.Variables {
-				job.Variables[k] = v
-			}
-		}
+		g.applyJobConfig(job, ow)
 	}
 }
 
@@ -654,12 +592,6 @@ func (g *Generator) getDependencyNeeds(module *discovery.Module, jobType string,
 // jobName generates a job name for a module
 func (g *Generator) jobName(module *discovery.Module, jobType string) string {
 	// Create a safe job name from module path
-	name := strings.ReplaceAll(module.ID(), "/", "-")
-	return fmt.Sprintf("%s-%s", jobType, name)
-}
-
-// Helper method for Job to generate its name
-func (j *Job) jobName(module *discovery.Module, jobType string) string {
 	name := strings.ReplaceAll(module.ID(), "/", "-")
 	return fmt.Sprintf("%s-%s", jobType, name)
 }
