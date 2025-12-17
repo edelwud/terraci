@@ -3,7 +3,6 @@ package parser
 import (
 	"fmt"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/zclconf/go-cty/cty"
@@ -248,86 +247,4 @@ func (de *DependencyExtractor) ExtractAllDependencies() (map[string]*ModuleDepen
 	}
 
 	return results, allErrors
-}
-
-// PathPatternMatcher helps match state file paths with variables
-type PathPatternMatcher struct {
-	// Pattern with placeholders like ${local.service}/${local.environment}/${local.region}/${module}/terraform.tfstate
-	Pattern string
-	// Compiled regex
-	regex *regexp.Regexp
-	// Group names
-	groups []string
-}
-
-// NewPathPatternMatcher creates a matcher from a pattern
-func NewPathPatternMatcher(pattern string) (*PathPatternMatcher, error) {
-	// Convert pattern to regex
-	// ${local.service} -> (?P<service>[^/]+)
-	// ${local.environment} -> (?P<environment>[^/]+)
-	// etc.
-
-	regexPattern := regexp.QuoteMeta(pattern)
-
-	placeholderRe := regexp.MustCompile(`\\\$\\\{local\.(\w+)\\\}`)
-	var groups []string
-
-	regexPattern = placeholderRe.ReplaceAllStringFunc(regexPattern, func(match string) string {
-		submatches := placeholderRe.FindStringSubmatch(match)
-		if len(submatches) >= 2 {
-			groupName := submatches[1]
-			groups = append(groups, groupName)
-			return fmt.Sprintf("(?P<%s>[^/]+)", groupName)
-		}
-		return match
-	})
-
-	// Also handle each.key and each.value
-	eachRe := regexp.MustCompile(`\\\$\\\{each\.(key|value)\\\}`)
-	regexPattern = eachRe.ReplaceAllStringFunc(regexPattern, func(_ string) string {
-		groups = append(groups, "each")
-		return "(?P<each>[^/]+)"
-	})
-
-	compiled, err := regexp.Compile("^" + regexPattern + "$")
-	if err != nil {
-		return nil, fmt.Errorf("failed to compile pattern regex: %w", err)
-	}
-
-	return &PathPatternMatcher{
-		Pattern: pattern,
-		regex:   compiled,
-		groups:  groups,
-	}, nil
-}
-
-// Match attempts to match a path and extract components
-func (m *PathPatternMatcher) Match(path string) (map[string]string, bool) {
-	matches := m.regex.FindStringSubmatch(path)
-	if matches == nil {
-		return nil, false
-	}
-
-	result := make(map[string]string)
-	for i, name := range m.regex.SubexpNames() {
-		if i > 0 && name != "" && i < len(matches) {
-			result[name] = matches[i]
-		}
-	}
-
-	return result, true
-}
-
-// ToModuleID converts matched components to a module ID
-func (m *PathPatternMatcher) ToModuleID(components map[string]string) string {
-	service := components["service"]
-	env := components["environment"]
-	region := components["region"]
-	module := components["module"]
-
-	if service != "" && env != "" && region != "" && module != "" {
-		return fmt.Sprintf("%s/%s/%s/%s", service, env, region, module)
-	}
-
-	return ""
 }
