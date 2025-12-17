@@ -85,23 +85,6 @@
           "type": "object",
           "description": "Docker image for terraform jobs"
         },
-        "terraform_image": {
-          "properties": {
-            "name": {
-              "type": "string",
-              "description": "Docker image name"
-            },
-            "entrypoint": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array",
-              "description": "Override default entrypoint"
-            }
-          },
-          "type": "object",
-          "description": "Deprecated: use 'image' instead"
-        },
         "stages_prefix": {
           "type": "string",
           "description": "Prefix for stage names (produces: {prefix}-plan-0, {prefix}-apply-0, etc.)",

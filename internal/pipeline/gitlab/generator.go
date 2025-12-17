@@ -70,7 +70,6 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (*Pipeline, erro
 	}
 	variables["TERRAFORM_BINARY"] = tfBinary
 
-	// Get effective image (new field or deprecated terraform_image)
 	effectiveImage := g.config.GitLab.GetImage()
 
 	pipeline := &Pipeline{

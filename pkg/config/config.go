@@ -56,8 +56,6 @@ type GitLabConfig struct {
 	// Image is the Docker image for terraform jobs (in default section)
 	// Supports both string format ("hashicorp/terraform:1.6") and object format with entrypoint
 	Image Image `yaml:"image" json:"image" jsonschema:"description=Docker image for terraform jobs,default=hashicorp/terraform:1.6"`
-	// TerraformImage is deprecated, use Image instead
-	TerraformImage Image `yaml:"terraform_image,omitempty" json:"terraform_image,omitempty" jsonschema:"description=Deprecated: use 'image' instead"`
 	// StagesPrefix is the prefix for stage names (e.g., "deploy" -> "deploy-0", "deploy-1")
 	StagesPrefix string `yaml:"stages_prefix" json:"stages_prefix" jsonschema:"description=Prefix for stage names (produces: {prefix}-plan-0\\, {prefix}-apply-0\\, etc.),default=deploy"`
 	// Parallelism limits concurrent jobs per stage
@@ -368,12 +366,9 @@ func Load(path string) (*Config, error) {
 	return config, nil
 }
 
-// GetImage returns the effective image (new field or deprecated terraform_image)
+// GetImage returns the configured image
 func (g *GitLabConfig) GetImage() Image {
-	if g.Image.Name != "" {
-		return g.Image
-	}
-	return g.TerraformImage
+	return g.Image
 }
 
 // LoadOrDefault loads config from file or returns default if not found
@@ -440,8 +435,7 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("structure.max_depth must be >= min_depth")
 	}
 
-	// Check image (prefer new field, fall back to deprecated)
-	if c.GitLab.Image.Name == "" && c.GitLab.TerraformImage.Name == "" {
+	if c.GitLab.Image.Name == "" {
 		return fmt.Errorf("gitlab.image is required")
 	}
 

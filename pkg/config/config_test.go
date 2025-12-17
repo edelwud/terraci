@@ -331,20 +331,6 @@ func TestValidate(t *testing.T) {
 			errMsg:  "gitlab.image is required",
 		},
 		{
-			name: "deprecated terraform_image still valid",
-			cfg: &Config{
-				Structure: StructureConfig{
-					Pattern:  "{service}/{env}/{region}/{module}",
-					MinDepth: 4,
-					MaxDepth: 5,
-				},
-				GitLab: GitLabConfig{
-					TerraformImage: Image{Name: "deprecated:1.0"},
-				},
-			},
-			wantErr: false,
-		},
-		{
 			name: "invalid overwrite type",
 			cfg: &Config{
 				Structure: StructureConfig{
@@ -401,29 +387,14 @@ func TestValidate(t *testing.T) {
 }
 
 func TestGitLabConfig_GetImage(t *testing.T) {
-	t.Run("prefers new image field", func(t *testing.T) {
-		cfg := &GitLabConfig{
-			Image:          Image{Name: "new:1.0"},
-			TerraformImage: Image{Name: "deprecated:1.0"},
-		}
+	cfg := &GitLabConfig{
+		Image: Image{Name: "terraform:1.0"},
+	}
 
-		img := cfg.GetImage()
-		if img.Name != "new:1.0" {
-			t.Errorf("expected 'new:1.0', got %q", img.Name)
-		}
-	})
-
-	t.Run("falls back to deprecated field", func(t *testing.T) {
-		cfg := &GitLabConfig{
-			Image:          Image{Name: ""},
-			TerraformImage: Image{Name: "deprecated:1.0"},
-		}
-
-		img := cfg.GetImage()
-		if img.Name != "deprecated:1.0" {
-			t.Errorf("expected 'deprecated:1.0', got %q", img.Name)
-		}
-	})
+	img := cfg.GetImage()
+	if img.Name != "terraform:1.0" {
+		t.Errorf("expected 'terraform:1.0', got %q", img.Name)
+	}
 }
 
 func TestImage_UnmarshalYAML(t *testing.T) {

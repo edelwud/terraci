@@ -11,7 +11,8 @@ import (
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
-	"github.com/zclconf/go-cty/cty/function"
+
+	"github.com/edelwud/terraci/internal/terraform/eval"
 )
 
 // Parser handles parsing of Terraform HCL files
@@ -233,6 +234,11 @@ func (p *Parser) extractVariableDefaults(pm *ParsedModule) {
 func (p *Parser) loadTfvarsFile(pm *ParsedModule, tfvarsFile string) {
 	content, err := os.ReadFile(tfvarsFile)
 	if err != nil {
+		pm.Diagnostics = append(pm.Diagnostics, &hcl.Diagnostic{
+			Severity: hcl.DiagWarning,
+			Summary:  "Failed to read tfvars file",
+			Detail:   fmt.Sprintf("Could not read %s: %v", tfvarsFile, err),
+		})
 		return
 	}
 
@@ -433,79 +439,6 @@ func (p *Parser) parseRemoteStateBlock(ref *RemoteStateRef, body hcl.Body, pm *P
 	}
 }
 
-// createEvalContext creates an HCL evaluation context with Terraform functions
-func (p *Parser) createEvalContext(locals, variables map[string]cty.Value, modulePath string) *hcl.EvalContext {
-	return &hcl.EvalContext{
-		Variables: map[string]cty.Value{
-			"local": cty.ObjectVal(locals),
-			"var":   cty.ObjectVal(variables),
-			"path": cty.ObjectVal(map[string]cty.Value{
-				"module": cty.StringVal(modulePath),
-			}),
-		},
-		Functions: p.terraformFunctions(),
-	}
-}
-
-// terraformFunctions returns a map of Terraform functions for HCL evaluation
-func (p *Parser) terraformFunctions() map[string]function.Function {
-	return map[string]function.Function{
-		"lookup": lookupFunc,
-	}
-}
-
-// lookupFunc implements Terraform's lookup function
-// lookup(map, key, default) - returns map[key] or default if key doesn't exist
-var lookupFunc = function.New(&function.Spec{
-	Params: []function.Parameter{
-		{
-			Name:             "map",
-			Type:             cty.DynamicPseudoType,
-			AllowDynamicType: true,
-		},
-		{
-			Name: "key",
-			Type: cty.String,
-		},
-	},
-	VarParam: &function.Parameter{
-		Name: "default",
-		Type: cty.DynamicPseudoType,
-	},
-	Type: func(_ []cty.Value) (cty.Type, error) {
-		return cty.DynamicPseudoType, nil
-	},
-	Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
-		mapVal := args[0]
-		keyVal := args[1]
-
-		if !keyVal.IsKnown() {
-			return cty.DynamicVal, nil
-		}
-
-		key := keyVal.AsString()
-
-		if mapVal.Type().IsMapType() || mapVal.Type().IsObjectType() {
-			if mapVal.Type().IsObjectType() {
-				if mapVal.Type().HasAttribute(key) {
-					return mapVal.GetAttr(key), nil
-				}
-			} else {
-				if mapVal.HasIndex(cty.StringVal(key)).True() {
-					return mapVal.Index(cty.StringVal(key)), nil
-				}
-			}
-		}
-
-		// Return default if provided
-		if len(args) > 2 {
-			return args[2], nil
-		}
-
-		return cty.NilVal, fmt.Errorf("key %q not found in map", key)
-	},
-})
-
 // ResolveWorkspacePath attempts to resolve the workspace path from remote state config
 // This uses the module's locals, variables, and path information to resolve expressions
 func (p *Parser) ResolveWorkspacePath(ref *RemoteStateRef, modulePath string, locals, variables map[string]cty.Value) ([]string, error) {
@@ -541,7 +474,7 @@ func (p *Parser) ResolveWorkspacePath(ref *RemoteStateRef, modulePath string, lo
 	}
 
 	// Create evaluation context with Terraform functions
-	evalCtx := p.createEvalContext(locals, variables, modulePath)
+	evalCtx := eval.NewContext(locals, variables, modulePath)
 
 	// Add path-derived locals if not already present
 	pathLocals := map[string]cty.Value{
