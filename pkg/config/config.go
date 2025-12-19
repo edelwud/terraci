@@ -88,6 +88,16 @@ type MRConfig struct {
 	Comment *MRCommentConfig `yaml:"comment,omitempty" json:"comment,omitempty" jsonschema:"description=MR comment configuration"`
 	// Labels to add to MR, supports placeholders: {service}, {environment}, {region}, {module}
 	Labels []string `yaml:"labels,omitempty" json:"labels,omitempty" jsonschema:"description=Labels to add to MR (supports placeholders: {service}\\, {environment}\\, {region}\\, {module})"`
+	// SummaryJob configures the summary job that posts MR comments
+	SummaryJob *SummaryJobConfig `yaml:"summary_job,omitempty" json:"summary_job,omitempty" jsonschema:"description=Summary job configuration"`
+}
+
+// SummaryJobConfig contains settings for the summary job
+type SummaryJobConfig struct {
+	// Image for the summary job (must contain terraci binary)
+	Image *Image `yaml:"image,omitempty" json:"image,omitempty" jsonschema:"description=Docker image for summary job (must contain terraci)"`
+	// Tags for the summary job runner
+	Tags []string `yaml:"tags,omitempty" json:"tags,omitempty" jsonschema:"description=Runner tags for summary job"`
 }
 
 // MRCommentConfig contains settings for MR comments

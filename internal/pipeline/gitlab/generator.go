@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/edelwud/terraci/internal/discovery"
-	gitlabapi "github.com/edelwud/terraci/internal/gitlab"
 	"github.com/edelwud/terraci/internal/graph"
 	"github.com/edelwud/terraci/pkg/config"
 )
@@ -170,14 +169,12 @@ func (g *Generator) generatePlanJob(module *discovery.Module, level int, targetM
 
 	// If MR integration is enabled, capture plan output for summary
 	if g.isMREnabled() {
-		// Use -detailed-exitcode and capture output
-		script = append(script, fmt.Sprintf(
-			"${TERRAFORM_BINARY} plan -out=plan.tfplan -detailed-exitcode 2>&1 | tee plan.txt; PLAN_EXIT=${PIPESTATUS[0]}; "+
-				"terraci save-plan-result --module-id %q --module-path %q --exit-code $PLAN_EXIT --output plan.txt --results-dir %s; "+
-				"exit $PLAN_EXIT",
-			module.ID(), module.RelativePath, gitlabapi.PlanResultDir))
-		// Add results directory to artifacts
-		artifactsPaths = append(artifactsPaths, gitlabapi.PlanResultDir)
+		// Use -detailed-exitcode and capture output to plan.txt
+		// The summary job will parse these files from artifacts
+		script = append(script,
+			"${TERRAFORM_BINARY} plan -out=plan.tfplan -detailed-exitcode 2>&1 | tee plan.txt; exit ${PIPESTATUS[0]}")
+		// Add plan.txt to artifacts for summary job
+		artifactsPaths = append(artifactsPaths, fmt.Sprintf("%s/plan.txt", module.RelativePath))
 	} else {
 		script = append(script, "${TERRAFORM_BINARY} plan -out=plan.tfplan")
 	}
@@ -504,15 +501,15 @@ func (g *Generator) isMREnabled() bool {
 
 // generateSummaryJob creates the terraci summary job that posts MR comments
 func (g *Generator) generateSummaryJob(planJobNames []string) *Job {
-	// Build needs from all plan jobs
+	// Build needs from all plan jobs (with artifacts)
 	needs := make([]JobNeed, len(planJobNames))
 	for i, jobName := range planJobNames {
-		needs[i] = JobNeed{Job: jobName}
+		needs[i] = JobNeed{Job: jobName, Optional: true}
 	}
 
 	job := &Job{
 		Stage:  SummaryStageName,
-		Script: []string{"terraci summary --results-dir " + gitlabapi.PlanResultDir},
+		Script: []string{"terraci summary"},
 		Needs:  needs,
 		Rules: []Rule{
 			{
@@ -520,8 +517,20 @@ func (g *Generator) generateSummaryJob(planJobNames []string) *Job {
 				When: "always",
 			},
 		},
-		// Collect artifacts from plan jobs
-		Artifacts: nil, // No artifacts from summary job
+	}
+
+	// Apply summary job configuration if specified
+	if g.config.GitLab.MR != nil && g.config.GitLab.MR.SummaryJob != nil {
+		sjCfg := g.config.GitLab.MR.SummaryJob
+		if sjCfg.Image != nil && sjCfg.Image.Name != "" {
+			job.Image = &ImageConfig{
+				Name:       sjCfg.Image.Name,
+				Entrypoint: sjCfg.Image.Entrypoint,
+			}
+		}
+		if len(sjCfg.Tags) > 0 {
+			job.Tags = sjCfg.Tags
+		}
 	}
 
 	return job

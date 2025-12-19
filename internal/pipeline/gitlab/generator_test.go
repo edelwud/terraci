@@ -570,7 +570,7 @@ func TestGenerator_Generate_WithMRIntegration(t *testing.T) {
 		t.Errorf("stages should contain %s", SummaryStageName)
 	}
 
-	// Check plan jobs have results directory in artifacts
+	// Check plan jobs have plan.txt in artifacts
 	planJob := pipeline.Jobs["plan-platform-stage-eu-central-1-vpc"]
 	if planJob == nil {
 		t.Fatal("plan job not found")
@@ -578,15 +578,15 @@ func TestGenerator_Generate_WithMRIntegration(t *testing.T) {
 	if planJob.Artifacts == nil {
 		t.Fatal("plan job should have artifacts")
 	}
-	hasResultsDir := false
+	hasPlanTxt := false
 	for _, path := range planJob.Artifacts.Paths {
-		if strings.Contains(path, ".terraci-results") {
-			hasResultsDir = true
+		if strings.Contains(path, "plan.txt") {
+			hasPlanTxt = true
 			break
 		}
 	}
-	if !hasResultsDir {
-		t.Error("plan job artifacts should include .terraci-results directory")
+	if !hasPlanTxt {
+		t.Error("plan job artifacts should include plan.txt")
 	}
 }
 

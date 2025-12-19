@@ -609,6 +609,36 @@
               },
               "type": "array",
               "description": "Labels to add to MR (supports placeholders: {service}, {environment}, {region}, {module})"
+            },
+            "summary_job": {
+              "properties": {
+                "image": {
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Docker image name"
+                    },
+                    "entrypoint": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array",
+                      "description": "Override default entrypoint"
+                    }
+                  },
+                  "type": "object",
+                  "description": "Docker image for summary job (must contain terraci)"
+                },
+                "tags": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "description": "Runner tags for summary job"
+                }
+              },
+              "type": "object",
+              "description": "Summary job configuration"
             }
           },
           "type": "object",

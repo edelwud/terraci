@@ -2,16 +2,11 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 
 	"github.com/edelwud/terraci/internal/gitlab"
 	"github.com/edelwud/terraci/pkg/log"
-)
-
-var (
-	resultsDir string
 )
 
 var summaryCmd = &cobra.Command{
@@ -21,8 +16,8 @@ var summaryCmd = &cobra.Command{
 a summary comment on the GitLab merge request.
 
 This command is designed to run as a final job in the pipeline after all
-plan jobs have completed. It reads plan results from JSON files in the
-results directory and posts a formatted comment to the MR.
+plan jobs have completed. It scans for plan.txt files in module directories
+and posts a formatted comment to the MR.
 
 The command automatically detects if it's running in a GitLab MR pipeline
 and only creates comments when appropriate.
@@ -36,17 +31,15 @@ Example usage in .gitlab-ci.yml:
   terraci-summary:
     stage: summary
     script:
-      - terraci summary --results-dir .terraci-results
-    dependencies:
-      - plan-*`,
+      - terraci summary
+    needs:
+      - job: plan-*
+        optional: true`,
 	RunE: runSummary,
 }
 
 func init() {
 	rootCmd.AddCommand(summaryCmd)
-
-	summaryCmd.Flags().StringVar(&resultsDir, "results-dir", gitlab.PlanResultDir,
-		"directory containing plan result JSON files")
 }
 
 func runSummary(_ *cobra.Command, _ []string) error {
@@ -59,16 +52,11 @@ func runSummary(_ *cobra.Command, _ []string) error {
 
 	log.WithField("mr", mrContext.MRIID).Info("detected MR context")
 
-	// Load plan results
-	log.WithField("dir", resultsDir).Info("loading plan results")
-	collection, err := gitlab.LoadPlanResults(resultsDir)
+	// Load plan results from plan.txt files in artifacts
+	log.Info("scanning for plan results")
+	collection, err := gitlab.ScanPlanResults(".")
 	if err != nil {
-		// Check if directory doesn't exist
-		if os.IsNotExist(err) {
-			log.Warn("no plan results found, skipping summary")
-			return nil
-		}
-		return fmt.Errorf("failed to load plan results: %w", err)
+		return fmt.Errorf("failed to scan plan results: %w", err)
 	}
 
 	if len(collection.Results) == 0 {
@@ -76,7 +64,7 @@ func runSummary(_ *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	log.WithField("count", len(collection.Results)).Info("loaded plan results")
+	log.WithField("count", len(collection.Results)).Info("found plan results")
 
 	// Create MR service
 	mrService := gitlab.NewMRService(cfg.GitLab.MR)

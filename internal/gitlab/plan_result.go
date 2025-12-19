@@ -228,3 +228,107 @@ func (w *PlanResultWriter) Finish() error {
 func (w *PlanResultWriter) Result() *PlanResult {
 	return w.result
 }
+
+// ScanPlanResults scans for plan.txt files in module directories
+// and builds a collection of plan results from their contents
+func ScanPlanResults(rootDir string) (*PlanResultCollection, error) {
+	collection := &PlanResultCollection{
+		Results:     make([]PlanResult, 0),
+		GeneratedAt: time.Now().UTC(),
+		PipelineID:  os.Getenv("CI_PIPELINE_ID"),
+		CommitSHA:   os.Getenv("CI_COMMIT_SHA"),
+	}
+
+	// Find all plan.txt files recursively
+	err := filepath.Walk(rootDir, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return nil //nolint:nilerr // Skip walk errors, continue scanning
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+
+		if info.Name() != "plan.txt" {
+			return nil
+		}
+
+		// Read plan output
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return nil //nolint:nilerr // Skip unreadable files, continue scanning
+		}
+
+		// Get module path from directory containing plan.txt
+		modulePath := filepath.Dir(path)
+		if rootDir != "." {
+			if relPath, relErr := filepath.Rel(rootDir, modulePath); relErr == nil {
+				modulePath = relPath
+			}
+		}
+
+		// Determine exit code based on content
+		// If plan.txt exists, the job ran. We need to infer status from content.
+		output := string(data)
+		exitCode := inferExitCode(output)
+
+		status, summary := ParsePlanOutput(output, exitCode)
+
+		// Parse module ID from path
+		parts := strings.Split(modulePath, string(filepath.Separator))
+		var service, env, region, module string
+		if len(parts) >= 4 {
+			service = parts[0]
+			env = parts[1]
+			region = parts[2]
+			module = parts[3]
+		}
+
+		result := PlanResult{
+			ModuleID:    strings.ReplaceAll(modulePath, string(filepath.Separator), "/"),
+			ModulePath:  modulePath,
+			Service:     service,
+			Environment: env,
+			Region:      region,
+			Module:      module,
+			Status:      status,
+			Summary:     summary,
+			Details:     output,
+			ExitCode:    exitCode,
+		}
+
+		collection.Results = append(collection.Results, result)
+		return nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan for plan results: %w", err)
+	}
+
+	return collection, nil
+}
+
+// inferExitCode tries to determine the terraform plan exit code from output
+func inferExitCode(output string) int {
+	// Check for error indicators
+	if strings.Contains(output, "Error:") {
+		return 1 // Error
+	}
+
+	// Check for no changes
+	if strings.Contains(output, "No changes.") ||
+		strings.Contains(output, "Your infrastructure matches the configuration") {
+		return 0 // No changes
+	}
+
+	// Check for changes
+	if strings.Contains(output, "Plan:") &&
+		(strings.Contains(output, "to add") ||
+			strings.Contains(output, "to change") ||
+			strings.Contains(output, "to destroy")) {
+		return 2 // Has changes
+	}
+
+	// Default to success if we can't determine
+	return 0
+}
