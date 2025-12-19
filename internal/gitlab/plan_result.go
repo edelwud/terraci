@@ -1,7 +1,6 @@
 package gitlab
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,31 +8,19 @@ import (
 	"time"
 )
 
-const (
-	// PlanResultDir is the default directory for plan results
-	PlanResultDir = ".terraci-results"
-	// PlanResultFilePattern is the pattern for plan result files
-	PlanResultFilePattern = "plan-*.json"
-)
-
 // PlanResult represents the result of a terraform plan for a single module
 type PlanResult struct {
-	ModuleID    string        `json:"module_id"`
-	ModulePath  string        `json:"module_path"`
-	Service     string        `json:"service"`
-	Environment string        `json:"environment"`
-	Region      string        `json:"region"`
-	Module      string        `json:"module"`
-	Status      PlanStatus    `json:"status"`
-	Summary     string        `json:"summary"`
-	Details     string        `json:"details,omitempty"`
-	Error       string        `json:"error,omitempty"`
-	ExitCode    int           `json:"exit_code"`
-	Duration    time.Duration `json:"duration_ns"`
-	StartedAt   time.Time     `json:"started_at"`
-	FinishedAt  time.Time     `json:"finished_at"`
-	JobID       string        `json:"job_id,omitempty"`
-	JobURL      string        `json:"job_url,omitempty"`
+	ModuleID    string     `json:"module_id"`
+	ModulePath  string     `json:"module_path"`
+	Service     string     `json:"service"`
+	Environment string     `json:"environment"`
+	Region      string     `json:"region"`
+	Module      string     `json:"module"`
+	Status      PlanStatus `json:"status"`
+	Summary     string     `json:"summary"`
+	Details     string     `json:"details,omitempty"`
+	Error       string     `json:"error,omitempty"`
+	ExitCode    int        `json:"exit_code"`
 }
 
 // PlanResultCollection is a collection of plan results from multiple jobs
@@ -42,70 +29,6 @@ type PlanResultCollection struct {
 	PipelineID  string       `json:"pipeline_id,omitempty"`
 	CommitSHA   string       `json:"commit_sha,omitempty"`
 	GeneratedAt time.Time    `json:"generated_at"`
-}
-
-// SavePlanResult saves a plan result to a JSON file
-func SavePlanResult(result *PlanResult, dir string) error {
-	if dir == "" {
-		dir = PlanResultDir
-	}
-
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("failed to create results directory: %w", err)
-	}
-
-	// Create safe filename from module ID
-	safeID := strings.ReplaceAll(result.ModuleID, "/", "-")
-	filename := fmt.Sprintf("plan-%s.json", safeID)
-	resultPath := filepath.Join(dir, filename)
-
-	data, err := json.MarshalIndent(result, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal plan result: %w", err)
-	}
-
-	//nolint:gosec // G306: Plan results need to be readable by other pipeline jobs
-	if err := os.WriteFile(resultPath, data, 0o644); err != nil {
-		return fmt.Errorf("failed to write plan result: %w", err)
-	}
-
-	return nil
-}
-
-// LoadPlanResults loads all plan results from a directory
-func LoadPlanResults(dir string) (*PlanResultCollection, error) {
-	if dir == "" {
-		dir = PlanResultDir
-	}
-
-	collection := &PlanResultCollection{
-		Results:     make([]PlanResult, 0),
-		GeneratedAt: time.Now().UTC(),
-		PipelineID:  os.Getenv("CI_PIPELINE_ID"),
-		CommitSHA:   os.Getenv("CI_COMMIT_SHA"),
-	}
-
-	pattern := filepath.Join(dir, PlanResultFilePattern)
-	files, err := filepath.Glob(pattern)
-	if err != nil {
-		return nil, fmt.Errorf("failed to glob plan results: %w", err)
-	}
-
-	for _, file := range files {
-		data, err := os.ReadFile(file)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read %s: %w", file, err)
-		}
-
-		var result PlanResult
-		if err := json.Unmarshal(data, &result); err != nil {
-			return nil, fmt.Errorf("failed to parse %s: %w", file, err)
-		}
-
-		collection.Results = append(collection.Results, result)
-	}
-
-	return collection, nil
 }
 
 // ToModulePlans converts plan results to ModulePlan for comment rendering
@@ -124,10 +47,87 @@ func (c *PlanResultCollection) ToModulePlans() []ModulePlan {
 			Summary:     r.Summary,
 			Details:     r.Details,
 			Error:       r.Error,
-			Duration:    r.Duration,
 		}
 	}
 	return plans
+}
+
+// ScanPlanResults scans for plan.txt files in module directories
+// and builds a collection of plan results from their contents.
+// This is used by the summary job to collect results from plan job artifacts.
+func ScanPlanResults(rootDir string) (*PlanResultCollection, error) {
+	collection := &PlanResultCollection{
+		Results:     make([]PlanResult, 0),
+		GeneratedAt: time.Now().UTC(),
+		PipelineID:  os.Getenv("CI_PIPELINE_ID"),
+		CommitSHA:   os.Getenv("CI_COMMIT_SHA"),
+	}
+
+	// Find all plan.txt files recursively
+	err := filepath.Walk(rootDir, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return nil //nolint:nilerr // Skip walk errors, continue scanning
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+
+		if info.Name() != "plan.txt" {
+			return nil
+		}
+
+		// Read plan output
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return nil //nolint:nilerr // Skip unreadable files, continue scanning
+		}
+
+		// Get module path from directory containing plan.txt
+		modulePath := filepath.Dir(path)
+		if rootDir != "." {
+			if relPath, relErr := filepath.Rel(rootDir, modulePath); relErr == nil {
+				modulePath = relPath
+			}
+		}
+
+		// Determine exit code based on content
+		output := string(data)
+		exitCode := inferExitCode(output)
+		status, summary := ParsePlanOutput(output, exitCode)
+
+		// Parse module ID from path (service/env/region/module)
+		parts := strings.Split(modulePath, string(filepath.Separator))
+		var service, env, region, module string
+		if len(parts) >= 4 {
+			service = parts[0]
+			env = parts[1]
+			region = parts[2]
+			module = parts[3]
+		}
+
+		result := PlanResult{
+			ModuleID:    strings.ReplaceAll(modulePath, string(filepath.Separator), "/"),
+			ModulePath:  modulePath,
+			Service:     service,
+			Environment: env,
+			Region:      region,
+			Module:      module,
+			Status:      status,
+			Summary:     summary,
+			Details:     output,
+			ExitCode:    exitCode,
+		}
+
+		collection.Results = append(collection.Results, result)
+		return nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan for plan results: %w", err)
+	}
+
+	return collection, nil
 }
 
 // ParsePlanOutput parses terraform plan output and extracts summary
@@ -167,145 +167,6 @@ func extractPlanSummary(output string) string {
 		}
 	}
 	return ""
-}
-
-// PlanResultWriter helps build plan results during execution
-type PlanResultWriter struct {
-	result    *PlanResult
-	outputDir string
-}
-
-// NewPlanResultWriter creates a new plan result writer
-func NewPlanResultWriter(moduleID, modulePath, outputDir string) *PlanResultWriter {
-	// Parse module ID components
-	parts := strings.Split(moduleID, "/")
-	var service, env, region, module string
-	if len(parts) >= 4 {
-		service = parts[0]
-		env = parts[1]
-		region = parts[2]
-		module = parts[3]
-	}
-
-	return &PlanResultWriter{
-		result: &PlanResult{
-			ModuleID:    moduleID,
-			ModulePath:  modulePath,
-			Service:     service,
-			Environment: env,
-			Region:      region,
-			Module:      module,
-			Status:      PlanStatusPending,
-			StartedAt:   time.Now().UTC(),
-			JobID:       os.Getenv("CI_JOB_ID"),
-			JobURL:      os.Getenv("CI_JOB_URL"),
-		},
-		outputDir: outputDir,
-	}
-}
-
-// SetOutput sets the plan output and parses the result
-func (w *PlanResultWriter) SetOutput(output string, exitCode int) {
-	w.result.Details = output
-	w.result.ExitCode = exitCode
-	w.result.Status, w.result.Summary = ParsePlanOutput(output, exitCode)
-}
-
-// SetError sets an error on the plan result
-func (w *PlanResultWriter) SetError(err error) {
-	w.result.Status = PlanStatusFailed
-	w.result.Error = err.Error()
-}
-
-// Finish finalizes and saves the plan result
-func (w *PlanResultWriter) Finish() error {
-	w.result.FinishedAt = time.Now().UTC()
-	w.result.Duration = w.result.FinishedAt.Sub(w.result.StartedAt)
-	return SavePlanResult(w.result, w.outputDir)
-}
-
-// Result returns the current plan result
-func (w *PlanResultWriter) Result() *PlanResult {
-	return w.result
-}
-
-// ScanPlanResults scans for plan.txt files in module directories
-// and builds a collection of plan results from their contents
-func ScanPlanResults(rootDir string) (*PlanResultCollection, error) {
-	collection := &PlanResultCollection{
-		Results:     make([]PlanResult, 0),
-		GeneratedAt: time.Now().UTC(),
-		PipelineID:  os.Getenv("CI_PIPELINE_ID"),
-		CommitSHA:   os.Getenv("CI_COMMIT_SHA"),
-	}
-
-	// Find all plan.txt files recursively
-	err := filepath.Walk(rootDir, func(path string, info os.FileInfo, walkErr error) error {
-		if walkErr != nil {
-			return nil //nolint:nilerr // Skip walk errors, continue scanning
-		}
-
-		if info.IsDir() {
-			return nil
-		}
-
-		if info.Name() != "plan.txt" {
-			return nil
-		}
-
-		// Read plan output
-		data, readErr := os.ReadFile(path)
-		if readErr != nil {
-			return nil //nolint:nilerr // Skip unreadable files, continue scanning
-		}
-
-		// Get module path from directory containing plan.txt
-		modulePath := filepath.Dir(path)
-		if rootDir != "." {
-			if relPath, relErr := filepath.Rel(rootDir, modulePath); relErr == nil {
-				modulePath = relPath
-			}
-		}
-
-		// Determine exit code based on content
-		// If plan.txt exists, the job ran. We need to infer status from content.
-		output := string(data)
-		exitCode := inferExitCode(output)
-
-		status, summary := ParsePlanOutput(output, exitCode)
-
-		// Parse module ID from path
-		parts := strings.Split(modulePath, string(filepath.Separator))
-		var service, env, region, module string
-		if len(parts) >= 4 {
-			service = parts[0]
-			env = parts[1]
-			region = parts[2]
-			module = parts[3]
-		}
-
-		result := PlanResult{
-			ModuleID:    strings.ReplaceAll(modulePath, string(filepath.Separator), "/"),
-			ModulePath:  modulePath,
-			Service:     service,
-			Environment: env,
-			Region:      region,
-			Module:      module,
-			Status:      status,
-			Summary:     summary,
-			Details:     output,
-			ExitCode:    exitCode,
-		}
-
-		collection.Results = append(collection.Results, result)
-		return nil
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to scan for plan results: %w", err)
-	}
-
-	return collection, nil
 }
 
 // inferExitCode tries to determine the terraform plan exit code from output
