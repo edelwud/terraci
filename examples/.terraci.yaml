@@ -1,0 +1,43 @@
+# TerraCi configuration
+# Adjust these settings for your project
+
+structure:
+  pattern: "{service}/{environment}/{region}/{module}"
+  min_depth: 4
+  max_depth: 5
+  allow_submodules: true
+
+exclude:
+  - "*/test/*"
+  - "*/sandbox/*"
+  - "*/.terraform/*"
+  - "modules/*"  # Shared modules directory
+
+gitlab:
+  # Terraform/OpenTofu binary and image
+  terraform_binary: "terraform"
+  image: "hashicorp/terraform:1.6"
+
+  # Pipeline settings
+  plan_enabled: true
+  auto_approve: false
+  cache_enabled: true
+
+  # Global variables
+  variables:
+    TF_IN_AUTOMATION: "true"
+    TF_INPUT: "false"
+
+  # Job defaults applied to all jobs
+  job_defaults:
+    tags:
+      - terraform
+      - docker
+
+  # MR integration (optional)
+  mr:
+    comment:
+      enabled: true
+    summary_job:
+      image:
+        name: "ghcr.io/edelwud/terraci:latest"

@@ -55,6 +55,7 @@ export default defineConfig({
               items: [
                 { text: 'What is TerraCi?', link: '/guide/what-is-terraci' },
                 { text: 'Getting Started', link: '/guide/getting-started' },
+                { text: 'How It Works', link: '/guide/how-it-works' },
               ]
             },
             {
@@ -132,6 +133,7 @@ export default defineConfig({
               items: [
                 { text: 'Что такое TerraCi?', link: '/ru/guide/what-is-terraci' },
                 { text: 'Быстрый старт', link: '/ru/guide/getting-started' },
+                { text: 'Как это работает', link: '/ru/guide/how-it-works' },
               ]
             },
             {

@@ -1,0 +1,40 @@
+# Parent pipeline that uses TerraCi to generate Terraform child pipeline
+#
+# This pipeline:
+# 1. Generates a child pipeline using TerraCi
+# 2. Triggers the generated child pipeline with all Terraform plan/apply jobs
+
+stages:
+  - generate
+  - deploy
+
+variables:
+  # TerraCi version (update as needed)
+  TERRACI_VERSION: "latest"
+
+# Generate Terraform pipeline using TerraCi
+generate-pipeline:
+  stage: generate
+  image: ghcr.io/edelwud/terraci:${TERRACI_VERSION}
+  script:
+    - terraci validate
+    - terraci generate -o terraform.gitlab-ci.yml
+  artifacts:
+    paths:
+      - terraform.gitlab-ci.yml
+    expire_in: 1 day
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# Trigger the generated child pipeline
+deploy:
+  stage: deploy
+  trigger:
+    include:
+      - artifact: terraform.gitlab-ci.yml
+        job: generate-pipeline
+    strategy: depend
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

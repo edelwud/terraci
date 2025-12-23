@@ -55,6 +55,14 @@ terraci graph --format dot -o deps.dot
 terraci init
 ```
 
+### [summary](./summary.md)
+
+Публикация результатов plan в MR:
+
+```bash
+terraci summary
+```
+
 ## Примеры использования
 
 ### Базовый workflow

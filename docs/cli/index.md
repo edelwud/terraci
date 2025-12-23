@@ -21,6 +21,7 @@ These options are available for all commands:
 | [validate](./validate) | Validate project structure |
 | [graph](./graph) | Show dependency graph |
 | [init](./init) | Initialize configuration |
+| [summary](./summary) | Post plan results to MR |
 | `version` | Show version information |
 
 ## Usage

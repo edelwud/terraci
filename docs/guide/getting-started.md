@@ -56,7 +56,7 @@ structure:
 
 gitlab:
   terraform_binary: "terraform"
-  terraform_image: "hashicorp/terraform:1.6"
+  image: "hashicorp/terraform:1.6"
   plan_enabled: true
   auto_approve: false
 ```

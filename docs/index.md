@@ -140,7 +140,7 @@ structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
 gitlab:
-  terraform_image: hashicorp/terraform:1.6
+  image: hashicorp/terraform:1.6
   plan_enabled: true
 
 exclude:
