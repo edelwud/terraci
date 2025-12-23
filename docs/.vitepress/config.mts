@@ -80,9 +80,14 @@ export default defineConfig({
               items: [
                 { text: 'Overview', link: '/config/' },
                 { text: 'Structure', link: '/config/structure' },
-                { text: 'GitLab CI', link: '/config/gitlab' },
-                { text: 'GitLab MR', link: '/config/gitlab-mr' },
                 { text: 'Filters', link: '/config/filters' },
+              ]
+            },
+            {
+              text: 'GitLab',
+              items: [
+                { text: 'CI Pipeline', link: '/config/gitlab' },
+                { text: 'Merge Request', link: '/config/gitlab-mr' },
               ]
             }
           ],
@@ -152,9 +157,14 @@ export default defineConfig({
               items: [
                 { text: 'Обзор', link: '/ru/config/' },
                 { text: 'Структура', link: '/ru/config/structure' },
-                { text: 'GitLab CI', link: '/ru/config/gitlab' },
-                { text: 'GitLab MR', link: '/ru/config/gitlab-mr' },
                 { text: 'Фильтры', link: '/ru/config/filters' },
+              ]
+            },
+            {
+              text: 'GitLab',
+              items: [
+                { text: 'CI Pipeline', link: '/ru/config/gitlab' },
+                { text: 'Merge Request', link: '/ru/config/gitlab-mr' },
               ]
             }
           ],
