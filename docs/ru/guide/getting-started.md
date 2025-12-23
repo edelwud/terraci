@@ -4,18 +4,27 @@
 
 ## Установка
 
-### Через Go
+### Homebrew (рекомендуется)
+
+```bash
+brew install edelwud/tap/terraci
+```
+
+### Go
 
 ```bash
 go install github.com/edelwud/terraci/cmd/terraci@latest
 ```
 
-### Через Docker
+### Docker
 
 ```bash
-docker pull ghcr.io/edelwud/terraci:latest
-docker run --rm -v $(pwd):/workspace ghcr.io/edelwud/terraci generate
+docker run --rm -v $(pwd):/workspace ghcr.io/edelwud/terraci:latest generate
 ```
+
+### Бинарник
+
+Скачайте с [GitHub Releases](https://github.com/edelwud/terraci/releases) и добавьте в PATH.
 
 ### Из исходников
 

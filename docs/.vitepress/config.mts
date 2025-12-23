@@ -81,6 +81,7 @@ export default defineConfig({
                 { text: 'Overview', link: '/config/' },
                 { text: 'Structure', link: '/config/structure' },
                 { text: 'GitLab CI', link: '/config/gitlab' },
+                { text: 'GitLab MR', link: '/config/gitlab-mr' },
                 { text: 'Filters', link: '/config/filters' },
               ]
             }
@@ -94,6 +95,7 @@ export default defineConfig({
                 { text: 'validate', link: '/cli/validate' },
                 { text: 'graph', link: '/cli/graph' },
                 { text: 'init', link: '/cli/init' },
+                { text: 'summary', link: '/cli/summary' },
               ]
             }
           ]
@@ -151,6 +153,7 @@ export default defineConfig({
                 { text: 'Обзор', link: '/ru/config/' },
                 { text: 'Структура', link: '/ru/config/structure' },
                 { text: 'GitLab CI', link: '/ru/config/gitlab' },
+                { text: 'GitLab MR', link: '/ru/config/gitlab-mr' },
                 { text: 'Фильтры', link: '/ru/config/filters' },
               ]
             }
@@ -164,6 +167,7 @@ export default defineConfig({
                 { text: 'validate', link: '/ru/cli/validate' },
                 { text: 'graph', link: '/ru/cli/graph' },
                 { text: 'init', link: '/ru/cli/init' },
+                { text: 'summary', link: '/ru/cli/summary' },
               ]
             }
           ]

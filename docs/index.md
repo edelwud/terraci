@@ -58,13 +58,14 @@ features:
 ## Install
 
 ```bash
+# Homebrew (macOS/Linux)
+brew install edelwud/tap/terraci
+
+# Go
 go install github.com/edelwud/terraci/cmd/terraci@latest
-```
 
-Or use Docker:
-
-```bash
-docker run --rm -v $(pwd):/workspace ghcr.io/edelwud/terraci generate
+# Docker
+docker run --rm -v $(pwd):/workspace ghcr.io/edelwud/terraci:latest generate
 ```
 
 ## Usage

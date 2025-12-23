@@ -4,18 +4,27 @@ This guide will help you set up TerraCi and generate your first pipeline.
 
 ## Installation
 
-### Using Go
+### Homebrew (Recommended)
+
+```bash
+brew install edelwud/tap/terraci
+```
+
+### Go
 
 ```bash
 go install github.com/edelwud/terraci/cmd/terraci@latest
 ```
 
-### Using Docker
+### Docker
 
 ```bash
-docker pull ghcr.io/edelwud/terraci:latest
-docker run --rm -v $(pwd):/workspace ghcr.io/edelwud/terraci generate
+docker run --rm -v $(pwd):/workspace ghcr.io/edelwud/terraci:latest generate
 ```
+
+### Binary
+
+Download from [GitHub Releases](https://github.com/edelwud/terraci/releases) and add to your PATH.
 
 ### From Source
 
