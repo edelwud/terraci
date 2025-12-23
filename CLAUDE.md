@@ -33,14 +33,23 @@ terraci/
 │   │   └── plan_result.go      # ScanPlanResults, PlanResult
 │   ├── filter/                 # Module filtering
 │   │   └── glob.go             # GlobFilter, CompositeFilter
-│   └── git/                    # Git integration
-│       └── diff.go             # Client, ChangedModulesDetector
+│   ├── git/                    # Git integration
+│   │   └── diff.go             # Client, ChangedModulesDetector
+│   └── policy/                 # OPA policy checks
+│       ├── engine.go           # Engine, OPAVersion()
+│       ├── result.go           # Result, Violation, Summary
+│       ├── source.go           # Source interface, Puller
+│       ├── source_path.go      # PathSource
+│       ├── source_git.go       # GitSource
+│       ├── source_oci.go       # OCISource
+│       └── checker.go          # Checker
 ├── pkg/config/                 # Public configuration package
 │   └── config.go               # Config, Load(), Validate()
 ├── docs/                       # VitePress documentation
 ├── examples/                   # Example configurations
-│   ├── .gitlab-ci.yml          # Parent pipeline example
-│   └── .terraci.yaml           # Sample config
+│   ├── cross-env-deps/         # Cross-environment dependencies
+│   ├── library-modules/        # Shared library modules
+│   └── policy-checks/          # OPA policy checks example
 ├── Makefile
 ├── go.mod
 └── .terraci.example.yaml
@@ -112,7 +121,33 @@ type MRService struct {
 
 func NewMRService(cfg *config.MRConfig) *MRService
 func (s *MRService) IsEnabled() bool
-func (s *MRService) UpsertComment(plans []ModulePlan) error
+func (s *MRService) UpsertComment(plans []ModulePlan, policySummary *policy.Summary) error
+```
+
+### policy.Engine
+```go
+type Engine struct {
+    policyDirs []string
+    namespaces []string
+}
+
+func OPAVersion() string                                      // Returns embedded OPA version
+func NewEngine(policyDirs, namespaces []string) *Engine
+func (e *Engine) Evaluate(ctx context.Context, planJSONPath string) (*Result, error)
+```
+
+### policy.Checker
+```go
+type Checker struct {
+    config     *config.PolicyConfig
+    policyDirs []string
+    rootDir    string
+}
+
+func NewChecker(cfg *config.PolicyConfig, policyDirs []string, rootDir string) *Checker
+func (c *Checker) CheckModule(ctx context.Context, modulePath string) (*Result, error)
+func (c *Checker) CheckAll(ctx context.Context) (*Summary, error)
+func (c *Checker) ShouldBlock(summary *Summary) bool
 ```
 
 ## CLI Commands
@@ -137,6 +172,12 @@ terraci init
 
 # MR summary (CI only)
 terraci summary
+
+# Policy checks
+terraci policy pull              # Download policies from sources
+terraci policy check             # Check all modules
+terraci policy check --module platform/prod/eu-central-1/vpc
+terraci policy check --output json
 ```
 
 ## Global Flags
@@ -177,6 +218,23 @@ gitlab:
     summary_job:
       image:
         name: "ghcr.io/edelwud/terraci:latest"
+
+# OPA policy checks
+policy:
+  enabled: true
+  sources:
+    - path: policies                 # Local directory
+    - git: https://github.com/org/policies.git
+      ref: main                       # Branch/tag/commit
+    - oci: oci://ghcr.io/org/policies:v1.0
+  namespaces:
+    - terraform                       # Rego package namespaces
+  on_failure: block                   # block, warn, ignore
+  on_warning: warn
+  show_in_comment: true
+  overwrites:
+    - match: "*/sandbox/*"
+      on_failure: warn
 ```
 
 ## Build and Test
@@ -212,6 +270,9 @@ make install    # Install to $GOPATH/bin
 - `github.com/zclconf/go-cty` — CTY types for HCL
 - `gopkg.in/yaml.v3` — YAML
 - `gitlab.com/gitlab-org/api/client-go` — GitLab API client
+- `github.com/open-policy-agent/opa` — Open Policy Agent (embedded)
+- `github.com/go-git/go-git/v6` — Git operations
+- `oras.land/oras-go/v2` — OCI registry operations
 
 ## Known Behaviors
 
@@ -220,3 +281,7 @@ make install    # Install to $GOPATH/bin
 - Filters support `**` for arbitrary path depth
 - MR comments are upserted using marker `<!-- terraci-plan-comment -->`
 - Plan results are collected from `plan.txt` artifacts in module directories
+- Policy checks require `plan.json` (terraform show -json) in module directories
+- OPA v1 Rego syntax required (`deny contains msg if {...}`)
+- Policy results are saved to `.terraci/policy-results.json` for summary job
+- `terraci version` shows embedded OPA version

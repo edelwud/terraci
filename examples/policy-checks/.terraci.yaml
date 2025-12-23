@@ -1,0 +1,62 @@
+# TerraCi configuration with OPA policy checks
+#
+# This example shows how to configure policy checks
+# to enforce compliance rules on Terraform plans.
+
+structure:
+  pattern: "{service}/{environment}/{region}/{module}"
+  min_depth: 4
+  max_depth: 5
+
+exclude:
+  - "*/test/*"
+  - "modules/**"
+
+# Policy configuration
+policy:
+  enabled: true
+
+  # Policy sources (local, git, or OCI)
+  sources:
+    - path: policies
+
+  # Namespaces to evaluate in Rego policies
+  namespaces:
+    - terraform
+
+  # What to do when policy check fails
+  # Options: block, warn, ignore
+  on_failure: block
+
+  # What to do when policy check has warnings
+  on_warning: warn
+
+  # Show policy results in MR comment
+  show_in_comment: true
+
+  # Module-specific overwrites
+  overwrites:
+    # Allow sandbox deployments with warnings only
+    - match: "*/sandbox/*"
+      on_failure: warn
+
+    # Skip policy checks for legacy modules
+    - match: "legacy/*"
+      enabled: false
+
+# GitLab CI configuration
+gitlab:
+  terraform_image: hashicorp/terraform:1.6
+  plan_enabled: true
+  auto_approve: false
+
+  # MR integration
+  mr:
+    comment:
+      enabled: true
+      on_changes_only: false
+
+    # Summary job configuration
+    summary_job:
+      image:
+        name: ghcr.io/edelwud/terraci:latest

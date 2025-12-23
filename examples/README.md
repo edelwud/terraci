@@ -1,8 +1,18 @@
 # TerraCi Examples
 
-Example GitLab CI configuration that uses TerraCi to generate and run Terraform pipelines.
+Example configurations that demonstrate TerraCi features for generating and managing Terraform pipelines.
 
-## Files
+## Examples
+
+| Directory | Description |
+|-----------|-------------|
+| [cross-env-deps](cross-env-deps/) | Cross-environment dependencies |
+| [library-modules](library-modules/) | Shared library modules |
+| [policy-checks](policy-checks/) | OPA policy checks integration |
+
+## Basic Setup
+
+### Files
 
 - `.gitlab-ci.yml` - Parent pipeline that generates child pipeline with TerraCi
 - `.terraci.yaml` - TerraCi configuration

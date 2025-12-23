@@ -16,6 +16,10 @@ const (
 	SummaryJobName = "terraci-summary"
 	// SummaryStageName is the name of the summary stage
 	SummaryStageName = "summary"
+	// PolicyCheckJobName is the name of the policy check job
+	PolicyCheckJobName = "policy-check"
+	// PolicyCheckStageName is the name of the policy check stage
+	PolicyCheckStageName = "policy-check"
 )
 
 // Generator generates GitLab CI pipelines
@@ -76,9 +80,10 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (*Pipeline, erro
 
 	effectiveImage := g.config.GitLab.GetImage()
 	includeSummary := g.isMREnabled() && g.config.GitLab.PlanEnabled
+	includePolicyCheck := g.isPolicyEnabled() && g.config.GitLab.PlanEnabled
 
 	pipeline := &Pipeline{
-		Stages:    g.generateStages(levels, includeSummary),
+		Stages:    g.generateStages(levels, includePolicyCheck, includeSummary),
 		Variables: variables,
 		Default: &DefaultConfig{
 			Image: &ImageConfig{
@@ -117,9 +122,15 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (*Pipeline, erro
 		}
 	}
 
+	// Generate policy check job if policy checks are enabled
+	if includePolicyCheck && len(planJobNames) > 0 {
+		policyJob := g.generatePolicyCheckJob(planJobNames)
+		pipeline.Jobs[PolicyCheckJobName] = policyJob
+	}
+
 	// Generate summary job if MR integration is enabled
 	if includeSummary && len(planJobNames) > 0 {
-		summaryJob := g.generateSummaryJob(planJobNames)
+		summaryJob := g.generateSummaryJob(planJobNames, includePolicyCheck)
 		pipeline.Jobs[SummaryJobName] = summaryJob
 	}
 
@@ -127,7 +138,7 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (*Pipeline, erro
 }
 
 // generateStages creates stage names for each execution level
-func (g *Generator) generateStages(levels [][]string, includeSummary bool) []string {
+func (g *Generator) generateStages(levels [][]string, includePolicyCheck, includeSummary bool) []string {
 	stages := make([]string, 0)
 	prefix := g.config.GitLab.StagesPrefix
 	if prefix == "" {
@@ -143,12 +154,42 @@ func (g *Generator) generateStages(levels [][]string, includeSummary bool) []str
 		}
 	}
 
+	// Add policy-check stage after all plans but before applies
+	// When plan-only mode, add after all plans
+	if includePolicyCheck {
+		stages = insertPolicyCheckStage(stages, prefix)
+	}
+
 	// Add summary stage if MR integration is enabled
 	if includeSummary {
 		stages = append(stages, SummaryStageName)
 	}
 
 	return stages
+}
+
+// insertPolicyCheckStage inserts the policy-check stage after the last plan stage
+func insertPolicyCheckStage(stages []string, prefix string) []string {
+	// Find the position after the last plan stage
+	lastPlanIdx := -1
+	for i, stage := range stages {
+		if strings.HasPrefix(stage, prefix+"-plan-") {
+			lastPlanIdx = i
+		}
+	}
+
+	if lastPlanIdx == -1 {
+		// No plan stages, append at end
+		return append(stages, PolicyCheckStageName)
+	}
+
+	// Insert after the last plan stage
+	insertIdx := lastPlanIdx + 1
+	result := make([]string, 0, len(stages)+1)
+	result = append(result, stages[:insertIdx]...)
+	result = append(result, PolicyCheckStageName)
+	result = append(result, stages[insertIdx:]...)
+	return result
 }
 
 // generatePlanJob creates a terraform plan job
@@ -500,11 +541,16 @@ func (g *Generator) isMREnabled() bool {
 }
 
 // generateSummaryJob creates the terraci summary job that posts MR comments
-func (g *Generator) generateSummaryJob(planJobNames []string) *Job {
+func (g *Generator) generateSummaryJob(planJobNames []string, includePolicyCheck bool) *Job {
 	// Build needs from all plan jobs (with artifacts)
-	needs := make([]JobNeed, len(planJobNames))
-	for i, jobName := range planJobNames {
-		needs[i] = JobNeed{Job: jobName, Optional: true}
+	needs := make([]JobNeed, 0, len(planJobNames)+1)
+	for _, jobName := range planJobNames {
+		needs = append(needs, JobNeed{Job: jobName, Optional: true})
+	}
+
+	// If policy check is enabled, also depend on it
+	if includePolicyCheck {
+		needs = append(needs, JobNeed{Job: PolicyCheckJobName, Optional: true})
 	}
 
 	job := &Job{
@@ -520,6 +566,63 @@ func (g *Generator) generateSummaryJob(planJobNames []string) *Job {
 	}
 
 	// Apply summary job configuration if specified
+	if g.config.GitLab.MR != nil && g.config.GitLab.MR.SummaryJob != nil {
+		sjCfg := g.config.GitLab.MR.SummaryJob
+		if sjCfg.Image != nil && sjCfg.Image.Name != "" {
+			job.Image = &ImageConfig{
+				Name:       sjCfg.Image.Name,
+				Entrypoint: sjCfg.Image.Entrypoint,
+			}
+		}
+		if len(sjCfg.Tags) > 0 {
+			job.Tags = sjCfg.Tags
+		}
+	}
+
+	return job
+}
+
+// isPolicyEnabled returns true if policy checks are enabled in config
+func (g *Generator) isPolicyEnabled() bool {
+	return g.config.Policy != nil && g.config.Policy.Enabled
+}
+
+// generatePolicyCheckJob creates the policy check job
+func (g *Generator) generatePolicyCheckJob(planJobNames []string) *Job {
+	// Build needs from all plan jobs (with artifacts)
+	needs := make([]JobNeed, len(planJobNames))
+	for i, jobName := range planJobNames {
+		needs[i] = JobNeed{Job: jobName, Optional: true}
+	}
+
+	// Determine exit behavior based on on_failure setting
+	var script []string
+	if g.config.Policy.OnFailure == config.PolicyActionWarn {
+		// Don't fail the job on policy violations, just warn
+		script = []string{
+			"terraci policy pull",
+			"terraci policy check || true",
+		}
+	} else {
+		// Block on policy violations (default)
+		script = []string{
+			"terraci policy pull",
+			"terraci policy check",
+		}
+	}
+
+	job := &Job{
+		Stage:  PolicyCheckStageName,
+		Script: script,
+		Needs:  needs,
+		Artifacts: &Artifacts{
+			Paths:    []string{".terraci/policy-results.json"},
+			ExpireIn: "1 day",
+			When:     "always",
+		},
+	}
+
+	// Use the same image as summary job if specified
 	if g.config.GitLab.MR != nil && g.config.GitLab.MR.SummaryJob != nil {
 		sjCfg := g.config.GitLab.MR.SummaryJob
 		if sjCfg.Image != nil && sjCfg.Image.Name != "" {
@@ -578,6 +681,11 @@ func (g *Generator) DryRun(targetModules []*discovery.Module) (*DryRunResult, er
 	}
 
 	includeSummary := g.isMREnabled() && g.config.GitLab.PlanEnabled
+	includePolicyCheck := g.isPolicyEnabled() && g.config.GitLab.PlanEnabled
+
+	if includePolicyCheck {
+		jobCount++ // Add policy check job
+	}
 	if includeSummary {
 		jobCount++ // Add summary job
 	}
@@ -585,7 +693,7 @@ func (g *Generator) DryRun(targetModules []*discovery.Module) (*DryRunResult, er
 	return &DryRunResult{
 		TotalModules:    len(g.modules),
 		AffectedModules: len(targetModules),
-		Stages:          len(g.generateStages(levels, includeSummary)),
+		Stages:          len(g.generateStages(levels, includePolicyCheck, includeSummary)),
 		Jobs:            jobCount,
 		ExecutionOrder:  levels,
 	}, nil

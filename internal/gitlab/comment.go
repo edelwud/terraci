@@ -7,6 +7,8 @@ import (
 	"time"
 
 	gitlab "gitlab.com/gitlab-org/api/client-go"
+
+	"github.com/edelwud/terraci/internal/policy"
 )
 
 const (
@@ -47,12 +49,13 @@ const (
 
 // CommentData contains all data needed to render an MR comment
 type CommentData struct {
-	Plans        []ModulePlan
-	PipelineURL  string
-	PipelineID   string
-	CommitSHA    string
-	GeneratedAt  time.Time
-	TotalModules int
+	Plans         []ModulePlan
+	PolicySummary *policy.Summary
+	PipelineURL   string
+	PipelineID    string
+	CommitSHA     string
+	GeneratedAt   time.Time
+	TotalModules  int
 }
 
 // CommentRenderer renders MR comments
@@ -79,6 +82,12 @@ func (r *CommentRenderer) Render(data *CommentData) string {
 	sb.WriteString(r.renderStats(stats))
 	sb.WriteString("\n\n")
 
+	// Policy check section (if available)
+	if data.PolicySummary != nil {
+		sb.WriteString(r.renderPolicySection(data.PolicySummary))
+		sb.WriteString("\n")
+	}
+
 	// Group plans by environment
 	byEnv := r.groupByEnvironment(data.Plans)
 
@@ -104,6 +113,77 @@ func (r *CommentRenderer) Render(data *CommentData) string {
 	}
 
 	sb.WriteString("\n")
+
+	return sb.String()
+}
+
+// renderPolicySection renders the policy check results section
+func (r *CommentRenderer) renderPolicySection(summary *policy.Summary) string {
+	var sb strings.Builder
+
+	// Section header with status icon
+	icon := "✅"
+	if summary.HasFailures() {
+		icon = "❌"
+	} else if summary.HasWarnings() {
+		icon = "⚠️"
+	}
+
+	sb.WriteString(fmt.Sprintf("### %s Policy Check\n\n", icon))
+
+	// Stats
+	var parts []string
+	if summary.PassedModules > 0 {
+		parts = append(parts, fmt.Sprintf("✅ **%d** passed", summary.PassedModules))
+	}
+	if summary.WarnedModules > 0 {
+		parts = append(parts, fmt.Sprintf("⚠️ **%d** warned", summary.WarnedModules))
+	}
+	if summary.FailedModules > 0 {
+		parts = append(parts, fmt.Sprintf("❌ **%d** failed", summary.FailedModules))
+	}
+
+	if len(parts) > 0 {
+		sb.WriteString(fmt.Sprintf("**%d** modules checked: %s\n\n", summary.TotalModules, strings.Join(parts, " | ")))
+	}
+
+	// Show failures
+	if summary.TotalFailures > 0 {
+		sb.WriteString("<details>\n")
+		sb.WriteString(fmt.Sprintf("<summary>❌ Failures (%d)</summary>\n\n", summary.TotalFailures))
+
+		for _, result := range summary.Results {
+			if len(result.Failures) == 0 {
+				continue
+			}
+			sb.WriteString(fmt.Sprintf("**%s:**\n", result.Module))
+			for _, f := range result.Failures {
+				sb.WriteString(fmt.Sprintf("- `%s`: %s\n", f.Namespace, f.Message))
+			}
+			sb.WriteString("\n")
+		}
+
+		sb.WriteString("</details>\n\n")
+	}
+
+	// Show warnings
+	if summary.TotalWarnings > 0 {
+		sb.WriteString("<details>\n")
+		sb.WriteString(fmt.Sprintf("<summary>⚠️ Warnings (%d)</summary>\n\n", summary.TotalWarnings))
+
+		for _, result := range summary.Results {
+			if len(result.Warnings) == 0 {
+				continue
+			}
+			sb.WriteString(fmt.Sprintf("**%s:**\n", result.Module))
+			for _, w := range result.Warnings {
+				sb.WriteString(fmt.Sprintf("- `%s`: %s\n", w.Namespace, w.Message))
+			}
+			sb.WriteString("\n")
+		}
+
+		sb.WriteString("</details>\n\n")
+	}
 
 	return sb.String()
 }

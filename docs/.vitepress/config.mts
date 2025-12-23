@@ -82,6 +82,7 @@ export default defineConfig({
                 { text: 'Overview', link: '/config/' },
                 { text: 'Structure', link: '/config/structure' },
                 { text: 'Filters', link: '/config/filters' },
+                { text: 'Policy Checks', link: '/config/policy' },
               ]
             },
             {
@@ -102,6 +103,7 @@ export default defineConfig({
                 { text: 'graph', link: '/cli/graph' },
                 { text: 'init', link: '/cli/init' },
                 { text: 'summary', link: '/cli/summary' },
+                { text: 'policy', link: '/cli/policy' },
               ]
             }
           ]

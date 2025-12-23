@@ -1,11 +1,15 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
 	"github.com/edelwud/terraci/internal/gitlab"
+	"github.com/edelwud/terraci/internal/policy"
 	"github.com/edelwud/terraci/pkg/log"
 )
 
@@ -77,9 +81,18 @@ func runSummary(_ *cobra.Command, _ []string) error {
 	// Convert to module plans for rendering
 	plans := collection.ToModulePlans()
 
+	// Try to load policy results if they exist
+	policySummary := loadPolicyResults()
+	if policySummary != nil {
+		log.WithField("modules", policySummary.TotalModules).
+			WithField("failures", policySummary.TotalFailures).
+			WithField("warnings", policySummary.TotalWarnings).
+			Info("loaded policy results")
+	}
+
 	// Create/update MR comment
 	log.Info("updating MR comment")
-	if err := mrService.UpsertComment(plans); err != nil {
+	if err := mrService.UpsertComment(plans, policySummary); err != nil {
 		return fmt.Errorf("failed to update MR comment: %w", err)
 	}
 
@@ -168,4 +181,31 @@ func printSummary(collection *gitlab.PlanResultCollection) {
 		log.WithField("count", failed).Warn("failed")
 	}
 	log.DecreasePadding()
+}
+
+// loadPolicyResults tries to load policy results from the artifact
+func loadPolicyResults() *policy.Summary {
+	// Try common locations for policy results
+	paths := []string{
+		filepath.Join(".terraci", "policy-results.json"),
+		"policy-results.json",
+		filepath.Join(workDir, ".terraci", "policy-results.json"),
+	}
+
+	for _, path := range paths {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+
+		var summary policy.Summary
+		if err := json.Unmarshal(data, &summary); err != nil {
+			log.WithField("path", path).WithError(err).Debug("failed to parse policy results")
+			continue
+		}
+
+		return &summary
+	}
+
+	return nil
 }

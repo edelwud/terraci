@@ -1,0 +1,39 @@
+# GitLab CI pipeline with TerraCi policy checks
+#
+# This pipeline demonstrates:
+# 1. Generate Terraform pipeline with TerraCi
+# 2. Run policy checks after all plans complete
+# 3. Block applies if policies fail
+
+stages:
+  - generate
+  - deploy
+
+variables:
+  TERRACI_IMAGE: ghcr.io/edelwud/terraci:latest
+
+# Generate the Terraform pipeline
+generate-pipeline:
+  stage: generate
+  image: $TERRACI_IMAGE
+  script:
+    - terraci generate -o terraform.gitlab-ci.yml --changed-only
+  artifacts:
+    paths:
+      - terraform.gitlab-ci.yml
+    expire_in: 1 day
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# Trigger the generated child pipeline
+deploy:
+  stage: deploy
+  trigger:
+    include:
+      - artifact: terraform.gitlab-ci.yml
+        job: generate-pipeline
+    strategy: depend
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

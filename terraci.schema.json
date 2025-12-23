@@ -57,6 +57,112 @@
       "type": "object",
       "description": "Configuration for library/shared modules (non-executable modules used by other modules)"
     },
+    "policy": {
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable policy checks",
+          "default": false
+        },
+        "sources": {
+          "items": {
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "Local path to policies directory"
+              },
+              "git": {
+                "type": "string",
+                "description": "Git repository URL for policies"
+              },
+              "ref": {
+                "type": "string",
+                "description": "Git reference (branch"
+              },
+              "oci": {
+                "type": "string",
+                "description": "OCI bundle URL for policies"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array",
+          "description": "Policy sources (local path"
+        },
+        "namespaces": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Rego package namespaces to evaluate"
+        },
+        "on_failure": {
+          "type": "string",
+          "enum": [
+            "block",
+            "warn"
+          ],
+          "description": "Behavior on policy failure",
+          "default": "block"
+        },
+        "on_warning": {
+          "type": "string",
+          "enum": [
+            "warn",
+            "ignore"
+          ],
+          "description": "Behavior on policy warnings",
+          "default": "warn"
+        },
+        "show_in_comment": {
+          "type": "boolean",
+          "description": "Include policy results in MR comment",
+          "default": true
+        },
+        "overwrites": {
+          "items": {
+            "properties": {
+              "match": {
+                "type": "string",
+                "description": "Glob pattern to match module paths"
+              },
+              "enabled": {
+                "type": "boolean",
+                "description": "Override enabled state for matching modules"
+              },
+              "namespaces": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "description": "Override namespaces for matching modules"
+              },
+              "on_failure": {
+                "type": "string",
+                "description": "Override failure behavior for matching modules"
+              },
+              "on_warning": {
+                "type": "string",
+                "description": "Override warning behavior for matching modules"
+              }
+            },
+            "type": "object",
+            "required": [
+              "match"
+            ]
+          },
+          "type": "array",
+          "description": "Per-module policy configuration overrides"
+        },
+        "cache_dir": {
+          "type": "string",
+          "description": "Directory to cache pulled policies",
+          "default": ".terraci/policies"
+        }
+      },
+      "type": "object",
+      "description": "Policy checks configuration using OPA"
+    },
     "gitlab": {
       "properties": {
         "terraform_binary": {

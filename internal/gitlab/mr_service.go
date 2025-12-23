@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/edelwud/terraci/internal/policy"
 	"github.com/edelwud/terraci/pkg/config"
 )
 
@@ -51,7 +52,7 @@ func (s *MRService) IsEnabled() bool {
 }
 
 // UpsertComment creates or updates the terraci comment on the MR
-func (s *MRService) UpsertComment(plans []ModulePlan) error {
+func (s *MRService) UpsertComment(plans []ModulePlan, policySummary *policy.Summary) error {
 	if !s.IsEnabled() {
 		return nil
 	}
@@ -65,6 +66,10 @@ func (s *MRService) UpsertComment(plans []ModulePlan) error {
 				break
 			}
 		}
+		// Also check policy results
+		if policySummary != nil && (policySummary.HasFailures() || policySummary.HasWarnings()) {
+			hasChanges = true
+		}
 		if !hasChanges {
 			return nil
 		}
@@ -72,10 +77,11 @@ func (s *MRService) UpsertComment(plans []ModulePlan) error {
 
 	// Build comment data
 	data := &CommentData{
-		Plans:       plans,
-		CommitSHA:   s.context.CommitSHA,
-		PipelineID:  s.context.PipelineID,
-		GeneratedAt: time.Now().UTC(),
+		Plans:         plans,
+		PolicySummary: policySummary,
+		CommitSHA:     s.context.CommitSHA,
+		PipelineID:    s.context.PipelineID,
+		GeneratedAt:   time.Now().UTC(),
 	}
 
 	// Build pipeline URL

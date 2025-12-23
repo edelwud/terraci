@@ -142,6 +142,7 @@ plan-eks:
 | **Topological Sort** | Kahn's algorithm ensures correct execution order |
 | **Parallel Execution** | Independent modules run simultaneously |
 | **Changed-Only Mode** | Git diff detection for incremental deployments |
+| **Policy Checks** | OPA-based policy enforcement on Terraform plans |
 | **MR Integration** | Posts plan summaries as GitLab MR comments |
 | **OpenTofu Support** | Single config option to switch from Terraform |
 | **Visualization** | Export dependency graph to DOT/GraphViz format |
@@ -155,6 +156,8 @@ plan-eks:
 | `terraci generate` | Generate GitLab CI pipeline |
 | `terraci graph` | Visualize dependency graph |
 | `terraci summary` | Post plan results to MR (CI only) |
+| `terraci policy pull` | Download policies from configured sources |
+| `terraci policy check` | Check Terraform plans against OPA policies |
 
 ### Common Options
 
@@ -220,6 +223,37 @@ gitlab:
   terraform_binary: "tofu"
   image: "ghcr.io/opentofu/opentofu:1.6"
 ```
+
+### Policy Checks
+
+TerraCi integrates [Open Policy Agent (OPA)](https://www.openpolicyagent.org/) to enforce compliance rules:
+
+```yaml
+policy:
+  enabled: true
+  sources:
+    - path: policies           # Local policies
+    - git: https://github.com/org/policies.git
+      ref: main               # Git repository
+  namespaces:
+    - terraform
+  on_failure: block           # block, warn, or ignore
+```
+
+Example Rego policy:
+
+```rego
+package terraform
+
+deny contains msg if {
+    resource := input.resource_changes[_]
+    resource.type == "aws_s3_bucket"
+    resource.change.after.acl == "public-read"
+    msg := sprintf("S3 bucket '%s' must not be public", [resource.name])
+}
+```
+
+See [examples/policy-checks](examples/policy-checks/) for complete examples.
 
 ## Documentation
 
