@@ -2,10 +2,8 @@ package gitlab
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
-	"github.com/edelwud/terraci/internal/discovery"
 	"github.com/edelwud/terraci/pkg/config"
 )
 
@@ -25,16 +23,6 @@ func NewMRService(cfg *config.MRConfig) *MRService {
 		config:   cfg,
 		context:  DetectMRContext(),
 	}
-}
-
-// IsInMR returns true if we're running in a GitLab MR pipeline
-func (s *MRService) IsInMR() bool {
-	return s.context.InMR
-}
-
-// GetContext returns the MR context
-func (s *MRService) GetContext() *MRContext {
-	return s.context
 }
 
 // IsEnabled returns true if MR integration is enabled
@@ -123,85 +111,4 @@ func (s *MRService) UpsertComment(plans []ModulePlan) error {
 	}
 
 	return nil
-}
-
-// AddLabels adds labels to the MR based on the affected modules
-func (s *MRService) AddLabels(modules []*discovery.Module) error {
-	if !s.context.InMR || !s.client.HasToken() {
-		return nil
-	}
-
-	if s.config == nil || len(s.config.Labels) == 0 {
-		return nil
-	}
-
-	// Expand label placeholders and collect unique labels
-	labelSet := make(map[string]bool)
-
-	for _, labelTemplate := range s.config.Labels {
-		// If template has no placeholders, add as-is
-		if !strings.Contains(labelTemplate, "{") {
-			labelSet[labelTemplate] = true
-			continue
-		}
-
-		// Expand for each module
-		for _, m := range modules {
-			label := expandLabelPlaceholders(labelTemplate, m)
-			if label != "" {
-				labelSet[label] = true
-			}
-		}
-	}
-
-	if len(labelSet) == 0 {
-		return nil
-	}
-
-	// Convert to slice
-	labels := make([]string, 0, len(labelSet))
-	for label := range labelSet {
-		labels = append(labels, label)
-	}
-
-	return s.client.AddMRLabels(s.context.ProjectID, s.context.MRIID, labels)
-}
-
-// expandLabelPlaceholders expands placeholders in a label template
-func expandLabelPlaceholders(template string, m *discovery.Module) string {
-	result := template
-
-	result = strings.ReplaceAll(result, "{service}", m.Service)
-	result = strings.ReplaceAll(result, "{environment}", m.Environment)
-	result = strings.ReplaceAll(result, "{env}", m.Environment)
-	result = strings.ReplaceAll(result, "{region}", m.Region)
-	result = strings.ReplaceAll(result, "{module}", m.Module)
-
-	if m.Submodule != "" {
-		result = strings.ReplaceAll(result, "{submodule}", m.Submodule)
-	} else {
-		// Remove {submodule} if not present
-		result = strings.ReplaceAll(result, "{submodule}", "")
-		result = strings.ReplaceAll(result, "//", "/") // Clean up double slashes
-		result = strings.TrimSuffix(result, "/")
-	}
-
-	return result
-}
-
-// ModulesToPlans converts discovery modules to plan structures (for initial state)
-func ModulesToPlans(modules []*discovery.Module) []ModulePlan {
-	plans := make([]ModulePlan, len(modules))
-	for i, m := range modules {
-		plans[i] = ModulePlan{
-			ModuleID:    m.ID(),
-			ModulePath:  m.RelativePath,
-			Service:     m.Service,
-			Environment: m.Environment,
-			Region:      m.Region,
-			Module:      m.Module,
-			Status:      PlanStatusPending,
-		}
-	}
-	return plans
 }

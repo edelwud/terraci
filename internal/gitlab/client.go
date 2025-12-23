@@ -27,8 +27,6 @@ type Client struct {
 	baseURL    string
 	token      string
 	httpClient *http.Client
-	projectID  string
-	mrIID      int
 }
 
 // MRContext contains information about the current MR context
@@ -97,16 +95,6 @@ func DetectMRContext() *MRContext {
 	}
 
 	return ctx
-}
-
-// SetProject sets the project context for API calls
-func (c *Client) SetProject(projectID string) {
-	c.projectID = projectID
-}
-
-// SetMR sets the MR context for API calls
-func (c *Client) SetMR(mrIID int) {
-	c.mrIID = mrIID
 }
 
 // HasToken returns true if a token is configured
