@@ -162,6 +162,7 @@ export default defineConfig({
                 { text: 'Обзор', link: '/ru/config/' },
                 { text: 'Структура', link: '/ru/config/structure' },
                 { text: 'Фильтры', link: '/ru/config/filters' },
+                { text: 'Проверка политик', link: '/ru/config/policy' },
               ]
             },
             {
@@ -182,6 +183,7 @@ export default defineConfig({
                 { text: 'graph', link: '/ru/cli/graph' },
                 { text: 'init', link: '/ru/cli/init' },
                 { text: 'summary', link: '/ru/cli/summary' },
+                { text: 'policy', link: '/ru/cli/policy' },
               ]
             }
           ]

@@ -63,6 +63,21 @@ terraci init
 terraci summary
 ```
 
+### [policy](./policy.md)
+
+Проверка Terraform планов на соответствие OPA политикам:
+
+```bash
+# Загрузить политики из источников
+terraci policy pull
+
+# Проверить все модули
+terraci policy check
+
+# Проверить конкретный модуль
+terraci policy check --module platform/prod/eu-central-1/vpc
+```
+
 ## Примеры использования
 
 ### Базовый workflow
