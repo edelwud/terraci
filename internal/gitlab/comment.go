@@ -5,6 +5,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	gitlab "gitlab.com/gitlab-org/api/client-go"
 )
 
 const (
@@ -272,10 +274,10 @@ func truncate(s string, maxLen int) string {
 }
 
 // FindTerraCIComment finds an existing terraci comment in the notes
-func FindTerraCIComment(notes []Note) *Note {
-	for i := range notes {
-		if strings.Contains(notes[i].Body, CommentMarker) {
-			return &notes[i]
+func FindTerraCIComment(notes []*gitlab.Note) *gitlab.Note {
+	for _, note := range notes {
+		if strings.Contains(note.Body, CommentMarker) {
+			return note
 		}
 	}
 	return nil

@@ -2,38 +2,24 @@
 package gitlab
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
-	"time"
+
+	gitlab "gitlab.com/gitlab-org/api/client-go"
 )
 
-const (
-	// DefaultGitLabURL is the default GitLab instance URL
-	DefaultGitLabURL = "https://gitlab.com"
-	// DefaultHTTPTimeout is the default HTTP client timeout
-	DefaultHTTPTimeout = 30 * time.Second
-)
-
-// Client provides GitLab API operations
+// Client wraps the official GitLab client
 type Client struct {
-	baseURL    string
-	token      string
-	httpClient *http.Client
+	client *gitlab.Client
+	token  string
 }
 
 // MRContext contains information about the current MR context
 type MRContext struct {
 	ProjectID    string
 	ProjectPath  string
-	MRIID        int
+	MRIID        int64
 	SourceBranch string
 	TargetBranch string
 	PipelineID   string
@@ -44,26 +30,30 @@ type MRContext struct {
 
 // NewClient creates a new GitLab API client
 func NewClient(baseURL, token string) *Client {
-	if baseURL == "" {
-		baseURL = DefaultGitLabURL
+	var client *gitlab.Client
+	var err error
+
+	if baseURL != "" {
+		baseURL = strings.TrimSuffix(baseURL, "/")
+		client, err = gitlab.NewClient(token, gitlab.WithBaseURL(baseURL))
+	} else {
+		client, err = gitlab.NewClient(token)
 	}
-	baseURL = strings.TrimSuffix(baseURL, "/")
+
+	if err != nil {
+		// Return client without underlying gitlab client - HasToken will return false
+		return &Client{token: token}
+	}
 
 	return &Client{
-		baseURL: baseURL,
-		token:   token,
-		httpClient: &http.Client{
-			Timeout: DefaultHTTPTimeout,
-		},
+		client: client,
+		token:  token,
 	}
 }
 
 // NewClientFromEnv creates a client from GitLab CI environment variables
 func NewClientFromEnv() *Client {
 	baseURL := os.Getenv("CI_SERVER_URL")
-	if baseURL == "" {
-		baseURL = DefaultGitLabURL
-	}
 
 	token := os.Getenv("GITLAB_TOKEN")
 	if token == "" {
@@ -88,7 +78,7 @@ func DetectMRContext() *MRContext {
 	// Check for MR IID
 	mrIIDStr := os.Getenv("CI_MERGE_REQUEST_IID")
 	if mrIIDStr != "" {
-		if iid, err := strconv.Atoi(mrIIDStr); err == nil {
+		if iid, err := strconv.ParseInt(mrIIDStr, 10, 64); err == nil {
 			ctx.MRIID = iid
 			ctx.InMR = true
 		}
@@ -99,204 +89,68 @@ func DetectMRContext() *MRContext {
 
 // HasToken returns true if a token is configured
 func (c *Client) HasToken() bool {
-	return c.token != ""
+	return c.token != "" && c.client != nil
 }
 
-// Note represents a GitLab MR note (comment)
-type Note struct {
-	ID        int       `json:"id"`
-	Body      string    `json:"body"`
-	Author    Author    `json:"author"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	System    bool      `json:"system"`
-}
-
-// Author represents a GitLab user
-type Author struct {
-	ID       int    `json:"id"`
-	Username string `json:"username"`
-	Name     string `json:"name"`
-}
-
-// Label represents a GitLab label
-type Label struct {
-	ID    int    `json:"id"`
-	Name  string `json:"name"`
-	Color string `json:"color"`
+// BaseURL returns the GitLab instance base URL
+func (c *Client) BaseURL() string {
+	if c.client == nil {
+		return ""
+	}
+	return strings.TrimSuffix(c.client.BaseURL().String(), "/api/v4/")
 }
 
 // GetMRNotes retrieves all notes for an MR
-func (c *Client) GetMRNotes(projectID string, mrIID int) ([]Note, error) {
-	endpoint := fmt.Sprintf("/api/v4/projects/%s/merge_requests/%d/notes",
-		url.PathEscape(projectID), mrIID)
+func (c *Client) GetMRNotes(projectID string, mrIID int64) ([]*gitlab.Note, error) {
+	opts := &gitlab.ListMergeRequestNotesOptions{
+		ListOptions: gitlab.ListOptions{PerPage: 100},
+	}
 
-	var allNotes []Note
-	page := 1
-
+	var allNotes []*gitlab.Note
 	for {
-		req, err := c.newRequest(context.Background(), "GET", endpoint+"?page="+strconv.Itoa(page)+"&per_page=100", nil)
+		notes, resp, err := c.client.Notes.ListMergeRequestNotes(projectID, mrIID, opts)
 		if err != nil {
 			return nil, err
 		}
 
-		resp, err := c.httpClient.Do(req)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get MR notes: %w", err)
-		}
+		allNotes = append(allNotes, notes...)
 
-		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil {
-			return nil, fmt.Errorf("failed to read response: %w", err)
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("GitLab API error: %s - %s", resp.Status, string(body))
-		}
-
-		var notes []Note
-		if err := json.Unmarshal(body, &notes); err != nil {
-			return nil, fmt.Errorf("failed to parse notes: %w", err)
-		}
-
-		if len(notes) == 0 {
+		if resp.NextPage == 0 {
 			break
 		}
-
-		allNotes = append(allNotes, notes...)
-		page++
+		opts.Page = resp.NextPage
 	}
 
 	return allNotes, nil
 }
 
 // CreateMRNote creates a new note on an MR
-func (c *Client) CreateMRNote(projectID string, mrIID int, body string) (*Note, error) {
-	endpoint := fmt.Sprintf("/api/v4/projects/%s/merge_requests/%d/notes",
-		url.PathEscape(projectID), mrIID)
-
-	payload := map[string]string{"body": body}
-	jsonData, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
+func (c *Client) CreateMRNote(projectID string, mrIID int64, body string) (*gitlab.Note, error) {
+	opts := &gitlab.CreateMergeRequestNoteOptions{
+		Body: gitlab.Ptr(body),
 	}
 
-	req, err := c.newRequest(context.Background(), "POST", endpoint, bytes.NewReader(jsonData))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create note: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusCreated {
-		return nil, fmt.Errorf("GitLab API error: %s - %s", resp.Status, string(respBody))
-	}
-
-	var note Note
-	if err := json.Unmarshal(respBody, &note); err != nil {
-		return nil, fmt.Errorf("failed to parse note: %w", err)
-	}
-
-	return &note, nil
+	note, _, err := c.client.Notes.CreateMergeRequestNote(projectID, mrIID, opts)
+	return note, err
 }
 
 // UpdateMRNote updates an existing note on an MR
-func (c *Client) UpdateMRNote(projectID string, mrIID, noteID int, body string) (*Note, error) {
-	endpoint := fmt.Sprintf("/api/v4/projects/%s/merge_requests/%d/notes/%d",
-		url.PathEscape(projectID), mrIID, noteID)
-
-	payload := map[string]string{"body": body}
-	jsonData, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
+func (c *Client) UpdateMRNote(projectID string, mrIID, noteID int64, body string) (*gitlab.Note, error) {
+	opts := &gitlab.UpdateMergeRequestNoteOptions{
+		Body: gitlab.Ptr(body),
 	}
 
-	req, err := c.newRequest(context.Background(), "PUT", endpoint, bytes.NewReader(jsonData))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to update note: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitLab API error: %s - %s", resp.Status, string(respBody))
-	}
-
-	var note Note
-	if err := json.Unmarshal(respBody, &note); err != nil {
-		return nil, fmt.Errorf("failed to parse note: %w", err)
-	}
-
-	return &note, nil
+	note, _, err := c.client.Notes.UpdateMergeRequestNote(projectID, mrIID, noteID, opts)
+	return note, err
 }
 
 // AddMRLabels adds labels to an MR
-func (c *Client) AddMRLabels(projectID string, mrIID int, labels []string) error {
-	endpoint := fmt.Sprintf("/api/v4/projects/%s/merge_requests/%d",
-		url.PathEscape(projectID), mrIID)
-
-	payload := map[string]string{
-		"add_labels": strings.Join(labels, ","),
-	}
-	jsonData, err := json.Marshal(payload)
-	if err != nil {
-		return err
+func (c *Client) AddMRLabels(projectID string, mrIID int64, labels []string) error {
+	labelsArg := gitlab.LabelOptions(labels)
+	opts := &gitlab.UpdateMergeRequestOptions{
+		AddLabels: &labelsArg,
 	}
 
-	req, err := c.newRequest(context.Background(), "PUT", endpoint, bytes.NewReader(jsonData))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to add labels: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return fmt.Errorf("GitLab API error: %s", resp.Status)
-		}
-		return fmt.Errorf("GitLab API error: %s - %s", resp.Status, string(body))
-	}
-
-	return nil
-}
-
-func (c *Client) newRequest(ctx context.Context, method, endpoint string, body io.Reader) (*http.Request, error) {
-	reqURL := c.baseURL + endpoint
-	req, err := http.NewRequestWithContext(ctx, method, reqURL, body)
-	if err != nil {
-		return nil, err
-	}
-
-	if c.token != "" {
-		req.Header.Set("PRIVATE-TOKEN", c.token)
-	}
-
-	return req, nil
+	_, _, err := c.client.MergeRequests.UpdateMergeRequest(projectID, mrIID, opts)
+	return err
 }

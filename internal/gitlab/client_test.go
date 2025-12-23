@@ -66,18 +66,20 @@ func TestDetectMRContext(t *testing.T) {
 func TestNewClient(t *testing.T) {
 	t.Run("default URL", func(t *testing.T) {
 		client := NewClient("", "token123")
-		if client.baseURL != "https://gitlab.com" {
-			t.Errorf("expected default URL 'https://gitlab.com', got %q", client.baseURL)
+		expected := "https://gitlab.com"
+		if client.BaseURL() != expected {
+			t.Errorf("expected default URL %q, got %q", expected, client.BaseURL())
 		}
-		if client.token != "token123" {
-			t.Errorf("expected token 'token123', got %q", client.token)
+		if !client.HasToken() {
+			t.Error("expected HasToken to be true")
 		}
 	})
 
 	t.Run("custom URL", func(t *testing.T) {
 		client := NewClient("https://gitlab.example.com/", "token")
-		if client.baseURL != "https://gitlab.example.com" {
-			t.Errorf("expected URL without trailing slash, got %q", client.baseURL)
+		expected := "https://gitlab.example.com"
+		if client.BaseURL() != expected {
+			t.Errorf("expected URL without trailing slash %q, got %q", expected, client.BaseURL())
 		}
 	})
 }

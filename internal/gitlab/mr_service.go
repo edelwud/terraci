@@ -81,7 +81,7 @@ func (s *MRService) UpsertComment(plans []ModulePlan) error {
 	// Build pipeline URL
 	if s.context.ProjectPath != "" && s.context.PipelineID != "" {
 		data.PipelineURL = fmt.Sprintf("%s/%s/-/pipelines/%s",
-			s.client.baseURL, s.context.ProjectPath, s.context.PipelineID)
+			s.client.BaseURL(), s.context.ProjectPath, s.context.PipelineID)
 	}
 
 	// Render comment

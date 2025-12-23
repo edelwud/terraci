@@ -10,7 +10,7 @@ func TestMRService_IsEnabled(t *testing.T) {
 	t.Run("not in MR", func(t *testing.T) {
 		svc := &MRService{
 			context: &MRContext{InMR: false},
-			client:  &Client{token: "token"},
+			client:  NewClient("", "token"),
 		}
 		if svc.IsEnabled() {
 			t.Error("expected IsEnabled to be false when not in MR")
@@ -20,7 +20,7 @@ func TestMRService_IsEnabled(t *testing.T) {
 	t.Run("in MR without token", func(t *testing.T) {
 		svc := &MRService{
 			context: &MRContext{InMR: true},
-			client:  &Client{token: ""},
+			client:  NewClient("", ""),
 		}
 		if svc.IsEnabled() {
 			t.Error("expected IsEnabled to be false without token")
@@ -30,7 +30,7 @@ func TestMRService_IsEnabled(t *testing.T) {
 	t.Run("in MR with token, default config", func(t *testing.T) {
 		svc := &MRService{
 			context: &MRContext{InMR: true},
-			client:  &Client{token: "token"},
+			client:  NewClient("", "token"),
 			config:  nil,
 		}
 		if !svc.IsEnabled() {
@@ -42,7 +42,7 @@ func TestMRService_IsEnabled(t *testing.T) {
 		enabled := false
 		svc := &MRService{
 			context: &MRContext{InMR: true},
-			client:  &Client{token: "token"},
+			client:  NewClient("", "token"),
 			config: &config.MRConfig{
 				Comment: &config.MRCommentConfig{
 					Enabled: &enabled,

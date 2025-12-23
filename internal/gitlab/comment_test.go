@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	gitlab "gitlab.com/gitlab-org/api/client-go"
 )
 
 func TestCommentRenderer_Render(t *testing.T) {
@@ -132,7 +134,7 @@ func TestCommentRenderer_StatusIcon(t *testing.T) {
 }
 
 func TestFindTerraCIComment(t *testing.T) {
-	notes := []Note{
+	notes := []*gitlab.Note{
 		{ID: 1, Body: "Some other comment"},
 		{ID: 2, Body: CommentMarker + "\n\n## Terraform Plan"},
 		{ID: 3, Body: "Another comment"},
@@ -148,7 +150,7 @@ func TestFindTerraCIComment(t *testing.T) {
 }
 
 func TestFindTerraCIComment_NotFound(t *testing.T) {
-	notes := []Note{
+	notes := []*gitlab.Note{
 		{ID: 1, Body: "Some comment"},
 		{ID: 2, Body: "Another comment"},
 	}
