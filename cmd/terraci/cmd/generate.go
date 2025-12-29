@@ -178,6 +178,9 @@ func buildDependencyGraph(modules []*discovery.Module, moduleIndex *discovery.Mo
 	log.Debug("building dependency graph")
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
+	// Log library module usage if any
+	logLibraryModuleUsage(depGraph)
+
 	cycles := depGraph.DetectCycles()
 	if len(cycles) > 0 {
 		log.WithField("count", len(cycles)).Warn("circular dependencies detected")
@@ -189,6 +192,36 @@ func buildDependencyGraph(modules []*discovery.Module, moduleIndex *discovery.Mo
 	}
 
 	return depGraph
+}
+
+// logLibraryModuleUsage outputs library module usage information in verbose mode
+func logLibraryModuleUsage(depGraph *graph.DependencyGraph) {
+	libraryPaths := depGraph.GetAllLibraryPaths()
+	if len(libraryPaths) == 0 {
+		return
+	}
+
+	log.WithField("count", len(libraryPaths)).Info("library modules detected")
+	log.IncreasePadding()
+	for _, libPath := range libraryPaths {
+		users := depGraph.GetModulesUsingLibrary(libPath)
+		// Make path relative for cleaner output
+		relPath := libPath
+		if absWorkDir, err := filepath.Abs(workDir); err == nil {
+			if rel, err := filepath.Rel(absWorkDir, libPath); err == nil {
+				relPath = rel
+			}
+		}
+		log.WithField("path", relPath).WithField("used_by", len(users)).Debug("library module")
+		if log.IsDebug() {
+			log.IncreasePadding()
+			for _, user := range users {
+				log.WithField("module", user).Debug("user")
+			}
+			log.DecreasePadding()
+		}
+	}
+	log.DecreasePadding()
 }
 
 // determineTargetModules determines which modules to include in the pipeline
