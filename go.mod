@@ -10,7 +10,7 @@ require (
 	github.com/open-policy-agent/opa v1.12.1
 	github.com/spf13/cobra v1.10.2
 	github.com/zclconf/go-cty v1.17.0
-	gitlab.com/gitlab-org/api/client-go v1.10.0
+	gitlab.com/gitlab-org/api/client-go v1.11.0
 	go.yaml.in/yaml/v4 v4.0.0-rc.3
 	oras.land/oras-go/v2 v2.6.0
 )
@@ -48,7 +48,7 @@ require (
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
-	github.com/google/go-querystring v1.1.0 // indirect
+	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.8 // indirect
