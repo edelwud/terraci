@@ -6,12 +6,14 @@ require (
 	github.com/caarlos0/log v0.5.4
 	github.com/go-git/go-git/v6 v6.0.0-20251209110802-becdcd9c28c5
 	github.com/hashicorp/hcl/v2 v2.24.0
+	github.com/hashicorp/terraform-json v0.27.2
 	github.com/invopop/jsonschema v0.13.0
 	github.com/open-policy-agent/opa v1.12.1
 	github.com/spf13/cobra v1.10.2
 	github.com/zclconf/go-cty v1.17.0
 	gitlab.com/gitlab-org/api/client-go v1.11.0
 	go.yaml.in/yaml/v4 v4.0.0-rc.3
+	golang.org/x/sync v0.19.0
 	oras.land/oras-go/v2 v2.6.0
 )
 
@@ -52,6 +54,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.8 // indirect
+	github.com/hashicorp/go-version v1.7.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/kevinburke/ssh_config v1.4.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
@@ -102,7 +105,6 @@ require (
 	golang.org/x/mod v0.31.0 // indirect
 	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/oauth2 v0.33.0 // indirect
-	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
