@@ -22,17 +22,18 @@ const (
 
 // ModulePlan represents terraform plan output for a single module
 type ModulePlan struct {
-	ModuleID    string
-	ModulePath  string
-	Service     string
-	Environment string
-	Region      string
-	Module      string
-	Status      PlanStatus
-	Summary     string // e.g., "Plan: 2 to add, 1 to change, 0 to destroy"
-	Details     string // Full plan output (optional, for expandable section)
-	Error       string // Error message if plan failed
-	Duration    time.Duration
+	ModuleID          string
+	ModulePath        string
+	Service           string
+	Environment       string
+	Region            string
+	Module            string
+	Status            PlanStatus
+	Summary           string // Compact summary e.g., "+2 ~1 -1"
+	StructuredDetails string // Structured resource list by action (markdown)
+	RawPlanOutput     string // Filtered raw plan output (diff only)
+	Error             string // Error message if plan failed
+	Duration          time.Duration
 }
 
 // PlanStatus represents the status of a terraform plan
@@ -289,7 +290,8 @@ func (r *CommentRenderer) renderEnvironmentSection(env string, plans []ModulePla
 
 	// Expandable details for modules with changes or errors
 	for i := range plans {
-		if plans[i].Details != "" && (plans[i].Status == PlanStatusChanges || plans[i].Status == PlanStatusFailed) {
+		hasDetails := plans[i].StructuredDetails != "" || plans[i].RawPlanOutput != "" || plans[i].Error != ""
+		if hasDetails && (plans[i].Status == PlanStatusChanges || plans[i].Status == PlanStatusFailed) {
 			sb.WriteString(r.renderExpandableDetails(&plans[i]))
 		}
 	}
@@ -332,15 +334,32 @@ func (r *CommentRenderer) statusIcon(status PlanStatus) string {
 func (r *CommentRenderer) renderExpandableDetails(p *ModulePlan) string {
 	var sb strings.Builder
 
-	title := fmt.Sprintf("Details: %s", p.ModuleID)
+	// Title with summary
+	title := fmt.Sprintf("📋 %s", p.ModuleID)
+	if p.Summary != "" && p.Summary != "No changes" {
+		title = fmt.Sprintf("📋 %s (%s)", p.ModuleID, p.Summary)
+	}
 	if p.Status == PlanStatusFailed {
-		title = fmt.Sprintf("Error: %s", p.ModuleID)
+		title = fmt.Sprintf("❌ %s", p.ModuleID)
 	}
 
 	sb.WriteString(fmt.Sprintf("\n<details>\n<summary>%s</summary>\n\n", title))
-	sb.WriteString("```hcl\n")
-	sb.WriteString(truncate(p.Details, maxDetailsLength))
-	sb.WriteString("\n```\n")
+
+	// Structured resource list (if available)
+	if p.StructuredDetails != "" {
+		sb.WriteString(p.StructuredDetails)
+		sb.WriteString("\n\n")
+	}
+
+	// Raw plan output with diff highlighting
+	if p.RawPlanOutput != "" {
+		sb.WriteString("<details>\n<summary>Full plan output</summary>\n\n")
+		sb.WriteString("```diff\n")
+		sb.WriteString(truncate(p.RawPlanOutput, maxDetailsLength))
+		sb.WriteString("\n```\n")
+		sb.WriteString("</details>\n")
+	}
+
 	sb.WriteString("</details>\n")
 
 	return sb.String()

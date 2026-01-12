@@ -276,56 +276,99 @@ func TestFormatPlanSummary(t *testing.T) {
 	tests := []struct {
 		name     string
 		plan     *plan.ParsedPlan
+		expected string
+	}{
+		{
+			name:     "no changes",
+			plan:     &plan.ParsedPlan{},
+			expected: "No changes",
+		},
+		{
+			name:     "only adds",
+			plan:     &plan.ParsedPlan{ToAdd: 2},
+			expected: "+2",
+		},
+		{
+			name:     "only changes",
+			plan:     &plan.ParsedPlan{ToChange: 3},
+			expected: "~3",
+		},
+		{
+			name:     "only destroys",
+			plan:     &plan.ParsedPlan{ToDestroy: 1},
+			expected: "-1",
+		},
+		{
+			name:     "mixed changes",
+			plan:     &plan.ParsedPlan{ToAdd: 1, ToChange: 2, ToDestroy: 3},
+			expected: "+1 ~2 -3",
+		},
+		{
+			name:     "with imports",
+			plan:     &plan.ParsedPlan{ToAdd: 1, ToImport: 2},
+			expected: "+1 ↓2",
+		},
+		{
+			name:     "all types",
+			plan:     &plan.ParsedPlan{ToAdd: 1, ToChange: 2, ToDestroy: 3, ToImport: 4},
+			expected: "+1 ~2 -3 ↓4",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := FormatPlanSummary(tt.plan)
+			if result != tt.expected {
+				t.Errorf("expected %q, got %q", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestFormatPlanDetails(t *testing.T) {
+	tests := []struct {
+		name     string
+		plan     *plan.ParsedPlan
 		contains []string
 	}{
 		{
-			name: "no changes",
-			plan: &plan.ParsedPlan{
-				ToAdd:     0,
-				ToChange:  0,
-				ToDestroy: 0,
-			},
-			contains: []string{"No changes"},
+			name:     "no changes returns empty",
+			plan:     &plan.ParsedPlan{},
+			contains: []string{},
 		},
 		{
-			name: "only adds",
+			name: "create resources",
 			plan: &plan.ParsedPlan{
-				ToAdd: 1,
+				ToAdd: 2,
 				Resources: []plan.ResourceChange{
 					{Action: "create", Type: "aws_instance", Name: "web"},
+					{Action: "create", Type: "aws_s3_bucket", Name: "data"},
 				},
 			},
-			contains: []string{"+1", "+ aws_instance.web"},
+			contains: []string{"**Create:**", "- `aws_instance.web`", "- `aws_s3_bucket.data`"},
 		},
 		{
-			name: "only changes with attributes",
+			name: "update resources",
 			plan: &plan.ParsedPlan{
 				ToChange: 1,
 				Resources: []plan.ResourceChange{
-					{
-						Action: "update",
-						Type:   "aws_instance",
-						Name:   "web",
-						Attributes: []plan.AttrDiff{
-							{Path: "instance_type", OldValue: "t2.micro", NewValue: "t2.small"},
-						},
-					},
+					{Action: "update", Type: "aws_instance", Name: "web"},
 				},
 			},
-			contains: []string{"~1", "~ aws_instance.web", "instance_type=t2.micro → t2.small"},
+			contains: []string{"**Update:**", "- `aws_instance.web`"},
 		},
 		{
-			name: "only destroys",
+			name: "delete resources",
 			plan: &plan.ParsedPlan{
 				ToDestroy: 1,
 				Resources: []plan.ResourceChange{
 					{Action: "delete", Type: "aws_instance", Name: "old"},
 				},
 			},
-			contains: []string{"-1", "- aws_instance.old"},
+			contains: []string{"**Delete:**", "- `aws_instance.old`"},
 		},
 		{
-			name: "mixed changes",
+			name: "mixed actions grouped",
 			plan: &plan.ParsedPlan{
 				ToAdd:     1,
 				ToChange:  1,
@@ -336,107 +379,97 @@ func TestFormatPlanSummary(t *testing.T) {
 					{Action: "delete", Type: "aws_s3_bucket", Name: "old"},
 				},
 			},
-			contains: []string{"+1 ~1 -1", "+ aws_instance.new", "~ aws_security_group.web", "- aws_s3_bucket.old"},
+			contains: []string{"**Create:**", "- `aws_instance.new`", "**Update:**", "- `aws_security_group.web`", "**Delete:**", "- `aws_s3_bucket.old`"},
 		},
 		{
-			name: "with imports",
+			name: "module address preserved",
 			plan: &plan.ParsedPlan{
-				ToAdd:    1,
-				ToImport: 2,
+				ToAdd: 1,
 				Resources: []plan.ResourceChange{
-					{Action: "create", Type: "aws_instance", Name: "new"},
+					{Action: "create", Address: "module.vpc.aws_vpc.main", ModuleAddr: "module.vpc", Type: "aws_vpc", Name: "main"},
 				},
 			},
-			contains: []string{"+1 ↓2", "+ aws_instance.new"},
+			contains: []string{"- `module.vpc.aws_vpc.main`"},
 		},
 		{
-			name: "replace shows symbol",
+			name: "replace action",
 			plan: &plan.ParsedPlan{
 				ToAdd:     1,
 				ToDestroy: 1,
 				Resources: []plan.ResourceChange{
-					{
-						Action: "replace",
-						Type:   "aws_instance",
-						Name:   "web",
-						Attributes: []plan.AttrDiff{
-							{Path: "ami", OldValue: "ami-old", NewValue: "ami-new", ForceNew: true},
-						},
-					},
+					{Action: "replace", Type: "aws_instance", Name: "web"},
 				},
 			},
-			contains: []string{"+1 -1", "± aws_instance.web", "ami=ami-old → ami-new (forces replacement)"},
-		},
-		{
-			name: "update with multiple attributes",
-			plan: &plan.ParsedPlan{
-				ToChange: 1,
-				Resources: []plan.ResourceChange{
-					{
-						Action: "update",
-						Type:   "aws_instance",
-						Name:   "web",
-						Attributes: []plan.AttrDiff{
-							{Path: "instance_type", OldValue: "t2.micro", NewValue: "t2.small"},
-							{Path: "tags.Name", OldValue: "old-name", NewValue: "new-name"},
-						},
-					},
-				},
-			},
-			contains: []string{"~1", "~ aws_instance.web", "instance_type=t2.micro → t2.small", "tags.Name=old-name → new-name"},
-		},
-		{
-			name: "sensitive attribute",
-			plan: &plan.ParsedPlan{
-				ToChange: 1,
-				Resources: []plan.ResourceChange{
-					{
-						Action: "update",
-						Type:   "aws_db_instance",
-						Name:   "main",
-						Attributes: []plan.AttrDiff{
-							{Path: "password", Sensitive: true},
-						},
-					},
-				},
-			},
-			contains: []string{"~1", "~ aws_db_instance.main", "password=(sensitive)"},
-		},
-		{
-			name: "computed attribute",
-			plan: &plan.ParsedPlan{
-				ToChange: 1,
-				Resources: []plan.ResourceChange{
-					{
-						Action: "update",
-						Type:   "aws_instance",
-						Name:   "web",
-						Attributes: []plan.AttrDiff{
-							{Path: "public_ip", Computed: true},
-						},
-					},
-				},
-			},
-			contains: []string{"~1", "~ aws_instance.web", "public_ip=(known after apply)"},
-		},
-		{
-			name: "module prefix preserved",
-			plan: &plan.ParsedPlan{
-				ToAdd: 1,
-				Resources: []plan.ResourceChange{
-					{Action: "create", Type: "aws_vpc", Name: "main", Address: "module.vpc.aws_vpc.main", ModuleAddr: "module.vpc"},
-				},
-			},
-			contains: []string{"+1", "+ module.vpc.aws_vpc.main"},
+			contains: []string{"**Replace:**", "- `aws_instance.web`"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := FormatPlanSummary(tt.plan)
+			result := FormatPlanDetails(tt.plan)
 			for _, s := range tt.contains {
 				if !strings.Contains(result, s) {
 					t.Errorf("expected result to contain %q, got:\n%s", s, result)
+				}
+			}
+		})
+	}
+}
+
+func TestFilterPlanOutput(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		contains []string
+		excludes []string
+	}{
+		{
+			name: "filters refreshing state",
+			input: `Refreshing state...
+data.aws_caller_identity.current: Reading...
+data.aws_caller_identity.current: Read complete after 0s
+
+# aws_instance.web will be updated
+  ~ resource "aws_instance" "web" {
+      ~ instance_type = "t2.micro" -> "t2.small"
+    }
+
+Plan: 0 to add, 1 to change, 0 to destroy.`,
+			contains: []string{"# aws_instance.web will be updated", "instance_type", "Plan: 0 to add"},
+			excludes: []string{"Refreshing state", "Reading..."},
+		},
+		{
+			name: "keeps plan summary",
+			input: `Terraform will perform the following actions:
+
+  # aws_instance.web will be created
+  + resource "aws_instance" "web" {
+      + ami = "ami-12345"
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.`,
+			contains: []string{"Terraform will perform", "aws_instance.web", "Plan: 1 to add"},
+		},
+		{
+			name: "returns original if no diff found",
+			input: `Error: Failed to load state
+
+Some error message here`,
+			contains: []string{"Error:", "Failed to load state"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := FilterPlanOutput(tt.input)
+			for _, s := range tt.contains {
+				if !strings.Contains(result, s) {
+					t.Errorf("expected result to contain %q, got:\n%s", s, result)
+				}
+			}
+			for _, s := range tt.excludes {
+				if strings.Contains(result, s) {
+					t.Errorf("expected result to NOT contain %q, got:\n%s", s, result)
 				}
 			}
 		})

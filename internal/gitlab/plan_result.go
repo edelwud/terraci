@@ -12,26 +12,25 @@ import (
 
 // Constants for plan summary formatting
 const (
-	maxResourcesInSummary  = 10 // Maximum number of resources to show
-	maxAttributesInSummary = 5  // Maximum number of attributes to show per resource
-	maxValueLength         = 40 // Maximum length for attribute values
-	minTruncateLength      = 3  // Minimum length for truncation (length of "...")
+	maxResourcesInSummary = 10 // Maximum number of resources to show
+	maxAddressLength      = 80 // Maximum length for resource addresses
 )
 
 // PlanResult represents the result of a terraform plan for a single module
 type PlanResult struct {
-	ModuleID    string     `json:"module_id"`
-	ModulePath  string     `json:"module_path"`
-	Service     string     `json:"service"`
-	Environment string     `json:"environment"`
-	Region      string     `json:"region"`
-	Module      string     `json:"module"`
-	Submodule   string     `json:"submodule,omitempty"`
-	Status      PlanStatus `json:"status"`
-	Summary     string     `json:"summary"`
-	Details     string     `json:"details,omitempty"`
-	Error       string     `json:"error,omitempty"`
-	ExitCode    int        `json:"exit_code"`
+	ModuleID          string     `json:"module_id"`
+	ModulePath        string     `json:"module_path"`
+	Service           string     `json:"service"`
+	Environment       string     `json:"environment"`
+	Region            string     `json:"region"`
+	Module            string     `json:"module"`
+	Submodule         string     `json:"submodule,omitempty"`
+	Status            PlanStatus `json:"status"`
+	Summary           string     `json:"summary"`
+	StructuredDetails string     `json:"structured_details,omitempty"`
+	RawPlanOutput     string     `json:"raw_plan_output,omitempty"`
+	Error             string     `json:"error,omitempty"`
+	ExitCode          int        `json:"exit_code"`
 }
 
 // PlanResultCollection is a collection of plan results from multiple jobs
@@ -48,16 +47,17 @@ func (c *PlanResultCollection) ToModulePlans() []ModulePlan {
 	for i := range c.Results {
 		r := &c.Results[i]
 		plans[i] = ModulePlan{
-			ModuleID:    r.ModuleID,
-			ModulePath:  r.ModulePath,
-			Service:     r.Service,
-			Environment: r.Environment,
-			Region:      r.Region,
-			Module:      r.Module,
-			Status:      r.Status,
-			Summary:     r.Summary,
-			Details:     r.Details,
-			Error:       r.Error,
+			ModuleID:          r.ModuleID,
+			ModulePath:        r.ModulePath,
+			Service:           r.Service,
+			Environment:       r.Environment,
+			Region:            r.Region,
+			Module:            r.Module,
+			Status:            r.Status,
+			Summary:           r.Summary,
+			StructuredDetails: r.StructuredDetails,
+			RawPlanOutput:     r.RawPlanOutput,
+			Error:             r.Error,
 		}
 	}
 	return plans
@@ -157,25 +157,26 @@ func parsePlanJSON(jsonPath, modulePath string) (PlanResult, error) {
 
 	service, env, region, module, submodule := parseModulePath(modulePath)
 
-	// Read the text output for Details field if available
+	// Read the text output and filter it
 	txtPath := strings.TrimSuffix(jsonPath, ".json") + ".txt"
-	var details string
+	var rawPlanOutput string
 	if data, readErr := os.ReadFile(txtPath); readErr == nil {
-		details = string(data)
+		rawPlanOutput = FilterPlanOutput(string(data))
 	}
 
 	return PlanResult{
-		ModuleID:    strings.ReplaceAll(modulePath, string(filepath.Separator), "/"),
-		ModulePath:  modulePath,
-		Service:     service,
-		Environment: env,
-		Region:      region,
-		Module:      module,
-		Submodule:   submodule,
-		Status:      getPlanStatus(parsed),
-		Summary:     FormatPlanSummary(parsed),
-		Details:     details,
-		ExitCode:    getExitCode(parsed),
+		ModuleID:          strings.ReplaceAll(modulePath, string(filepath.Separator), "/"),
+		ModulePath:        modulePath,
+		Service:           service,
+		Environment:       env,
+		Region:            region,
+		Module:            module,
+		Submodule:         submodule,
+		Status:            getPlanStatus(parsed),
+		Summary:           FormatPlanSummary(parsed),
+		StructuredDetails: FormatPlanDetails(parsed),
+		RawPlanOutput:     rawPlanOutput,
+		ExitCode:          getExitCode(parsed),
 	}, nil
 }
 
@@ -195,22 +196,13 @@ func getExitCode(p *plan.ParsedPlan) int {
 	return 2 // Has changes
 }
 
-// FormatPlanSummary formats a parsed plan as a detailed multi-line summary
-// Format:
-//
-//	+2 ~1 -1
-//	+ aws_instance.web
-//	+ aws_s3_bucket.data
-//	~ aws_instance.api: instance_type="t2.micro" → "t2.small", tags.Name="old" → "new"
-//	- aws_instance.old
+// FormatPlanSummary formats a parsed plan as a compact summary line
+// Format: "+2 ~1 -1" or "No changes"
 func FormatPlanSummary(p *plan.ParsedPlan) string {
 	if !p.HasChanges() {
 		return "No changes"
 	}
 
-	var sb strings.Builder
-
-	// Header line with counts
 	var counts []string
 	if p.ToAdd > 0 {
 		counts = append(counts, fmt.Sprintf("+%d", p.ToAdd))
@@ -224,111 +216,137 @@ func FormatPlanSummary(p *plan.ParsedPlan) string {
 	if p.ToImport > 0 {
 		counts = append(counts, fmt.Sprintf("↓%d", p.ToImport))
 	}
-	sb.WriteString(strings.Join(counts, " "))
-
-	// Resource details
-	shown := 0
-	for _, r := range p.Resources {
-		if shown >= maxResourcesInSummary {
-			sb.WriteString(fmt.Sprintf("\n  ... +%d more", len(p.Resources)-shown))
-			break
-		}
-
-		sb.WriteString("\n")
-		sb.WriteString(formatResourceChange(r))
-		shown++
-	}
-
-	return sb.String()
+	return strings.Join(counts, " ")
 }
 
-// formatResourceChange formats a single resource change with its attributes
-func formatResourceChange(r plan.ResourceChange) string {
-	// Action symbol
-	var symbol string
-	switch r.Action {
-	case "create":
-		symbol = "+"
-	case "update":
-		symbol = "~"
-	case "delete":
-		symbol = "-"
-	case "replace":
-		symbol = "±"
-	case "read":
-		symbol = "?"
-	default:
-		symbol = " "
+// FormatPlanDetails formats a parsed plan as structured resource list grouped by action
+// Format:
+//
+//	**Create:**
+//	- `aws_instance.web`
+//	- `aws_s3_bucket.data`
+//
+//	**Update:**
+//	- `aws_instance.api`
+//
+//	**Delete:**
+//	- `aws_instance.old`
+func FormatPlanDetails(p *plan.ParsedPlan) string {
+	if !p.HasChanges() {
+		return ""
 	}
 
-	// Resource address (use short form if no module prefix)
+	// Group resources by action
+	groups := make(map[string][]string)
+	for _, r := range p.Resources {
+		addr := formatResourceAddress(r)
+		groups[r.Action] = append(groups[r.Action], addr)
+	}
+
+	var sb strings.Builder
+
+	// Order: create, update, replace, delete, read
+	actionOrder := []struct {
+		action string
+		label  string
+	}{
+		{"create", "Create"},
+		{"update", "Update"},
+		{"replace", "Replace"},
+		{"delete", "Delete"},
+		{"read", "Read"},
+	}
+
+	for _, a := range actionOrder {
+		resources := groups[a.action]
+		if len(resources) == 0 {
+			continue
+		}
+
+		sb.WriteString(fmt.Sprintf("**%s:**\n", a.label))
+		shown := 0
+		for _, addr := range resources {
+			if shown >= maxResourcesInSummary {
+				sb.WriteString(fmt.Sprintf("- ... +%d more\n", len(resources)-shown))
+				break
+			}
+			sb.WriteString(fmt.Sprintf("- `%s`\n", addr))
+			shown++
+		}
+		sb.WriteString("\n")
+	}
+
+	return strings.TrimSuffix(sb.String(), "\n")
+}
+
+// formatResourceAddress returns a shortened resource address for display
+func formatResourceAddress(r plan.ResourceChange) string {
 	addr := r.Address
+	// Use short form if no module prefix
 	if r.ModuleAddr == "" && r.Type != "" && r.Name != "" {
 		addr = r.Type + "." + r.Name
 	}
-
-	// For create/delete, just show the address
-	if r.Action == "create" || r.Action == "delete" || r.Action == "read" {
-		return fmt.Sprintf("  %s %s", symbol, addr)
+	// Truncate very long addresses (e.g., with for_each keys)
+	if len(addr) > maxAddressLength {
+		addr = addr[:maxAddressLength-3] + "..."
 	}
-
-	// For update/replace, show changed attributes with values
-	if len(r.Attributes) == 0 {
-		return fmt.Sprintf("  %s %s", symbol, addr)
-	}
-
-	attrParts := make([]string, 0, len(r.Attributes))
-	for i, attr := range r.Attributes {
-		if i >= maxAttributesInSummary {
-			attrParts = append(attrParts, "...")
-			break
-		}
-		attrParts = append(attrParts, formatAttrDiff(attr))
-	}
-
-	return fmt.Sprintf("  %s %s: %s", symbol, addr, strings.Join(attrParts, ", "))
+	return addr
 }
 
-// formatAttrDiff formats a single attribute change
-func formatAttrDiff(attr plan.AttrDiff) string {
-	if attr.Sensitive {
-		return fmt.Sprintf("%s=(sensitive)", attr.Path)
-	}
+// FilterPlanOutput extracts only the diff portion from terraform plan output,
+// removing "Refreshing state...", "Reading...", and other noise.
+// Returns the filtered output suitable for display in PR comments.
+func FilterPlanOutput(rawOutput string) string {
+	lines := strings.Split(rawOutput, "\n")
+	var result []string
+	inDiff := false
+	skipUntilEmpty := false
 
-	if attr.Computed {
-		if attr.OldValue != "" {
-			return fmt.Sprintf("%s=%s → (known after apply)", attr.Path, truncateValue(attr.OldValue, maxValueLength))
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Skip "Refreshing state..." and "Reading..." blocks
+		if strings.HasPrefix(trimmed, "Refreshing state...") ||
+			strings.HasPrefix(trimmed, "Reading...") ||
+			strings.HasPrefix(trimmed, "data.") && strings.Contains(trimmed, "Reading...") {
+			skipUntilEmpty = true
+			continue
 		}
-		return fmt.Sprintf("%s=(known after apply)", attr.Path)
+
+		// Skip lines until we hit an empty line after noise
+		if skipUntilEmpty {
+			if trimmed == "" {
+				skipUntilEmpty = false
+			}
+			continue
+		}
+
+		// Start capturing from resource changes or plan summary
+		if strings.HasPrefix(trimmed, "# ") ||
+			strings.HasPrefix(trimmed, "Plan:") ||
+			strings.HasPrefix(trimmed, "Changes to Outputs:") ||
+			strings.HasPrefix(trimmed, "Terraform will perform") ||
+			strings.HasPrefix(trimmed, "No changes.") {
+			inDiff = true
+		}
+
+		// Also start on actual diff lines
+		if strings.HasPrefix(line, "  + ") ||
+			strings.HasPrefix(line, "  - ") ||
+			strings.HasPrefix(line, "  ~ ") ||
+			strings.HasPrefix(line, "  # ") {
+			inDiff = true
+		}
+
+		if inDiff {
+			result = append(result, line)
+		}
 	}
 
-	oldVal := truncateValue(attr.OldValue, maxValueLength)
-	newVal := truncateValue(attr.NewValue, maxValueLength)
-
-	// New attribute (no old value)
-	if attr.OldValue == "" && attr.NewValue != "" {
-		return fmt.Sprintf("%s=%s", attr.Path, newVal)
+	// If nothing captured, return original (might be error output)
+	if len(result) == 0 {
+		return rawOutput
 	}
 
-	// Removed attribute (no new value)
-	if attr.OldValue != "" && attr.NewValue == "" {
-		return fmt.Sprintf("%s=%s → null", attr.Path, oldVal)
-	}
-
-	// Changed attribute
-	if attr.ForceNew {
-		return fmt.Sprintf("%s=%s → %s (forces replacement)", attr.Path, oldVal, newVal)
-	}
-	return fmt.Sprintf("%s=%s → %s", attr.Path, oldVal, newVal)
-}
-
-// truncateValue truncates a string to maxLen, adding "..." if truncated
-func truncateValue(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	if maxLen <= minTruncateLength {
-		return "..."
-	}
-	return s[:maxLen-minTruncateLength] + "..."
+	return strings.Join(result, "\n")
 }
