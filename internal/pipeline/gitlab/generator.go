@@ -6,6 +6,7 @@ import (
 
 	"github.com/edelwud/terraci/internal/discovery"
 	"github.com/edelwud/terraci/internal/graph"
+	"github.com/edelwud/terraci/internal/pipeline"
 	"github.com/edelwud/terraci/pkg/config"
 )
 
@@ -20,6 +21,8 @@ const (
 	PolicyCheckJobName = "policy-check"
 	// PolicyCheckStageName is the name of the policy check stage
 	PolicyCheckStageName = "policy-check"
+	// WhenManual is the GitLab CI "when: manual" value for jobs that require manual trigger
+	WhenManual = "manual"
 )
 
 // Generator generates GitLab CI pipelines
@@ -41,7 +44,7 @@ func NewGenerator(cfg *config.Config, depGraph *graph.DependencyGraph, modules [
 }
 
 // Generate creates a GitLab CI pipeline for the given modules
-func (g *Generator) Generate(targetModules []*discovery.Module) (*Pipeline, error) {
+func (g *Generator) Generate(targetModules []*discovery.Module) (pipeline.GeneratedPipeline, error) {
 	if len(targetModules) == 0 {
 		targetModules = g.modules
 	}
@@ -82,7 +85,7 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (*Pipeline, erro
 	includeSummary := g.isMREnabled() && g.config.GitLab.PlanEnabled
 	includePolicyCheck := g.isPolicyEnabled() && g.config.GitLab.PlanEnabled
 
-	pipeline := &Pipeline{
+	result := &Pipeline{
 		Stages:    g.generateStages(levels, includePolicyCheck, includeSummary),
 		Variables: variables,
 		Default: &DefaultConfig{
@@ -110,14 +113,14 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (*Pipeline, erro
 			if g.config.GitLab.PlanEnabled {
 				planJob := g.generatePlanJob(module, levelIdx, targetModuleSet)
 				planJobName := g.jobName(module, "plan")
-				pipeline.Jobs[planJobName] = planJob
+				result.Jobs[planJobName] = planJob
 				planJobNames = append(planJobNames, planJobName)
 			}
 
 			// Generate apply job (skip if plan-only mode)
 			if !g.config.GitLab.PlanOnly {
 				applyJob := g.generateApplyJob(module, levelIdx, targetModuleSet)
-				pipeline.Jobs[g.jobName(module, "apply")] = applyJob
+				result.Jobs[g.jobName(module, "apply")] = applyJob
 			}
 		}
 	}
@@ -125,16 +128,16 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (*Pipeline, erro
 	// Generate policy check job if policy checks are enabled
 	if includePolicyCheck && len(planJobNames) > 0 {
 		policyJob := g.generatePolicyCheckJob(planJobNames)
-		pipeline.Jobs[PolicyCheckJobName] = policyJob
+		result.Jobs[PolicyCheckJobName] = policyJob
 	}
 
 	// Generate summary job if MR integration is enabled
 	if includeSummary && len(planJobNames) > 0 {
 		summaryJob := g.generateSummaryJob(planJobNames, includePolicyCheck)
-		pipeline.Jobs[SummaryJobName] = summaryJob
+		result.Jobs[SummaryJobName] = summaryJob
 	}
 
-	return pipeline, nil
+	return result, nil
 }
 
 // generateStages creates stage names for each execution level
@@ -294,7 +297,7 @@ func (g *Generator) generateApplyJob(module *discovery.Module, level int, target
 
 	// Set manual approval if not auto-approve
 	if !g.config.GitLab.AutoApprove {
-		job.When = "manual"
+		job.When = WhenManual
 	}
 
 	// Add needs
@@ -640,7 +643,7 @@ func (g *Generator) generatePolicyCheckJob(planJobNames []string) *Job {
 }
 
 // GenerateForChangedModules generates pipeline only for changed modules and their dependents
-func (g *Generator) GenerateForChangedModules(changedModuleIDs []string) (*Pipeline, error) {
+func (g *Generator) GenerateForChangedModules(changedModuleIDs []string) (pipeline.GeneratedPipeline, error) {
 	// Get all affected modules (changed + their dependents)
 	affectedIDs := g.depGraph.GetAffectedModules(changedModuleIDs)
 
@@ -656,7 +659,7 @@ func (g *Generator) GenerateForChangedModules(changedModuleIDs []string) (*Pipel
 }
 
 // DryRun returns information about what would be generated without creating YAML
-func (g *Generator) DryRun(targetModules []*discovery.Module) (*DryRunResult, error) {
+func (g *Generator) DryRun(targetModules []*discovery.Module) (*pipeline.DryRunResult, error) {
 	if len(targetModules) == 0 {
 		targetModules = g.modules
 	}
@@ -690,7 +693,7 @@ func (g *Generator) DryRun(targetModules []*discovery.Module) (*DryRunResult, er
 		jobCount++ // Add summary job
 	}
 
-	return &DryRunResult{
+	return &pipeline.DryRunResult{
 		TotalModules:    len(g.modules),
 		AffectedModules: len(targetModules),
 		Stages:          len(g.generateStages(levels, includePolicyCheck, includeSummary)),

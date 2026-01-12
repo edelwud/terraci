@@ -149,15 +149,6 @@ type Workflow struct {
 	Rules []Rule `yaml:"rules,omitempty"`
 }
 
-// DryRunResult returns a summary of what would be generated
-type DryRunResult struct {
-	TotalModules    int
-	AffectedModules int
-	Stages          int
-	Jobs            int
-	ExecutionOrder  [][]string
-}
-
 // ToYAML converts the pipeline to YAML
 func (p *Pipeline) ToYAML() ([]byte, error) {
 	// We need custom marshaling to handle jobs properly

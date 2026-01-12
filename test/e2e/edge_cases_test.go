@@ -19,11 +19,15 @@ func TestEdgeCase_EmptyTargetModules(t *testing.T) {
 	// Pass empty slice (not nil) - simulates no changed modules
 	emptyModules := []*discovery.Module{}
 
-	pipeline, err := fixture.Generator.Generate(emptyModules)
+	result, err := fixture.Generator.Generate(emptyModules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// Empty target should fall back to all modules
 	if len(pipeline.Jobs) == 0 {
 		// Actually, looking at the code, empty slice should generate for all modules
@@ -37,11 +41,15 @@ func TestEdgeCase_NilTargetModules(t *testing.T) {
 	fixture := LoadFixture(t, "basic")
 
 	// Pass nil - should use all modules
-	pipeline, err := fixture.Generator.Generate(nil)
+	result, err := fixture.Generator.Generate(nil)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// Should have jobs for all modules
 	expectedJobs := len(fixture.Modules) * 2 // plan + apply
 	if len(pipeline.Jobs) != expectedJobs {
@@ -73,11 +81,15 @@ func TestEdgeCase_SingleModuleNoDependencies(t *testing.T) {
 		}
 	}
 
-	pipeline, err := fixture.Generator.Generate(targetModules)
+	result, err := fixture.Generator.Generate(targetModules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// Should have exactly 2 jobs (plan + apply)
 	AssertJobCount(t, pipeline, 2)
 
@@ -103,11 +115,15 @@ func TestEdgeCase_SingleModuleWithDependencies(t *testing.T) {
 
 	targetModules := []*discovery.Module{appModule}
 
-	pipeline, err := fixture.Generator.Generate(targetModules)
+	result, err := fixture.Generator.Generate(targetModules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// Should have exactly 2 jobs (plan + apply for app only)
 	AssertJobCount(t, pipeline, 2)
 
@@ -140,11 +156,15 @@ func TestEdgeCase_AllModulesIndependent(t *testing.T) {
 	cfg.GitLab.PlanEnabled = true
 
 	generator := gitlab.NewGenerator(cfg, depGraph, modules)
-	pipeline, err := generator.Generate(modules)
+	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// All modules should be in level 0 (no dependencies)
 	// Should have 1 plan stage and 1 apply stage
 	AssertStageCount(t, pipeline, 2)
@@ -184,11 +204,15 @@ func TestEdgeCase_DeepDependencyChain(t *testing.T) {
 	cfg.GitLab.PlanEnabled = true
 
 	generator := gitlab.NewGenerator(cfg, depGraph, modules)
-	pipeline, err := generator.Generate(modules)
+	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// Should have 5 levels (each module in separate level)
 	// 5 plan stages + 5 apply stages = 10 stages
 	AssertStageCount(t, pipeline, 10)
@@ -247,11 +271,15 @@ func TestEdgeCase_DiamondDependency(t *testing.T) {
 	cfg.GitLab.PlanEnabled = true
 
 	generator := gitlab.NewGenerator(cfg, depGraph, modules)
-	pipeline, err := generator.Generate(modules)
+	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// D should have needs for both B and C apply jobs
 	AssertJobHasNeed(t, pipeline, "plan-svc-stage-eu-central-1-d", "apply-svc-stage-eu-central-1-b")
 	AssertJobHasNeed(t, pipeline, "plan-svc-stage-eu-central-1-d", "apply-svc-stage-eu-central-1-c")
@@ -289,11 +317,15 @@ func TestEdgeCase_PartialChainChanged(t *testing.T) {
 	// Only B changed
 	changedModules := []*discovery.Module{modules[1]} // b
 
-	pipeline, err := generator.Generate(changedModules)
+	result, err := generator.Generate(changedModules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// Should only have B jobs
 	AssertJobCount(t, pipeline, 2) // plan + apply
 
@@ -320,11 +352,15 @@ func TestEdgeCase_PlanOnlyWithNoPlanEnabled(t *testing.T) {
 		cfg.GitLab.PlanEnabled = false // This is a conflict - plan_only should imply plan_enabled
 	})
 
-	pipeline, err := fixture.Generator.Generate(fixture.Modules)
+	result, err := fixture.Generator.Generate(fixture.Modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// With PlanOnly=true but PlanEnabled=false, should have no jobs
 	// (no apply because PlanOnly, no plan because PlanEnabled=false)
 	if len(pipeline.Jobs) != 0 {
@@ -338,11 +374,15 @@ func TestEdgeCase_AutoApproveMode(t *testing.T) {
 		cfg.GitLab.AutoApprove = true
 	})
 
-	pipeline, err := fixture.Generator.Generate(fixture.Modules)
+	result, err := fixture.Generator.Generate(fixture.Modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// Apply jobs should NOT have when: manual
 	for jobName, job := range pipeline.Jobs {
 		if strings.HasPrefix(jobName, "apply-") {
@@ -359,11 +399,15 @@ func TestEdgeCase_ManualApproveMode(t *testing.T) {
 		cfg.GitLab.AutoApprove = false
 	})
 
-	pipeline, err := fixture.Generator.Generate(fixture.Modules)
+	result, err := fixture.Generator.Generate(fixture.Modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// Apply jobs should have when: manual
 	for jobName, job := range pipeline.Jobs {
 		if strings.HasPrefix(jobName, "apply-") {
@@ -381,11 +425,15 @@ func TestEdgeCase_ChangedOnlyNoChanges(t *testing.T) {
 	// Empty slice simulates no changes detected
 	noChanges := []*discovery.Module{}
 
-	pipeline, err := fixture.Generator.Generate(noChanges)
+	result, err := fixture.Generator.Generate(noChanges)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// With empty target, Generate falls back to all modules
 	// This is the current behavior - verify it
 	if len(pipeline.Jobs) == 0 {
@@ -412,13 +460,17 @@ func TestEdgeCase_ModuleWithSelfReference(t *testing.T) {
 	cfg.GitLab.PlanEnabled = true
 
 	generator := gitlab.NewGenerator(cfg, depGraph, modules)
-	pipeline, err := generator.Generate(modules)
+	result, err := generator.Generate(modules)
 	if err != nil {
 		// Self-reference might cause cycle detection
 		t.Logf("Self-reference caused error (expected): %v", err)
 		return
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// If no error, should still generate valid pipeline
 	AssertJobCount(t, pipeline, 2)
 }
@@ -439,11 +491,15 @@ func TestEdgeCase_SpecialCharactersInModuleName(t *testing.T) {
 	cfg.GitLab.PlanEnabled = true
 
 	generator := gitlab.NewGenerator(cfg, depGraph, modules)
-	pipeline, err := generator.Generate(modules)
+	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// Job name should handle dashes properly
 	expectedJobName := "plan-my-svc-stage-01-eu-central-1-vpc-main"
 	AssertJobExists(t, pipeline, expectedJobName)
@@ -476,11 +532,15 @@ func TestEdgeCase_VeryLongModulePath(t *testing.T) {
 	cfg.GitLab.PlanEnabled = true
 
 	generator := gitlab.NewGenerator(cfg, depGraph, modules)
-	pipeline, err := generator.Generate(modules)
+	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// Should still generate valid jobs
 	AssertJobCount(t, pipeline, 2)
 }

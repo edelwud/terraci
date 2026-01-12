@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/zclconf/go-cty/cty"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/edelwud/terraci/internal/discovery"
 )
@@ -230,21 +232,39 @@ func (de *DependencyExtractor) matchPathToModule(statePath string, from *discove
 	return nil
 }
 
+// maxConcurrentExtractions is the maximum number of modules to extract dependencies from concurrently
+const maxConcurrentExtractions = 20
+
 // ExtractAllDependencies extracts dependencies for all modules in the index
 func (de *DependencyExtractor) ExtractAllDependencies() (map[string]*ModuleDependencies, []error) {
 	results := make(map[string]*ModuleDependencies)
 	var allErrors []error
+	var mu sync.Mutex
+
+	// Create an errgroup with a concurrency limit
+	var g errgroup.Group
+	g.SetLimit(maxConcurrentExtractions)
 
 	for _, module := range de.index.All() {
-		deps, err := de.ExtractDependencies(module)
-		if err != nil {
-			allErrors = append(allErrors, err)
-			continue
-		}
+		g.Go(func() error {
+			deps, err := de.ExtractDependencies(module)
 
-		results[module.ID()] = deps
-		allErrors = append(allErrors, deps.Errors...)
+			mu.Lock()
+			defer mu.Unlock()
+
+			if err != nil {
+				allErrors = append(allErrors, err)
+				return nil
+			}
+
+			results[module.ID()] = deps
+			allErrors = append(allErrors, deps.Errors...)
+			return nil
+		})
 	}
+
+	// Wait for all goroutines to finish (errors already collected in allErrors)
+	_ = g.Wait() //nolint:errcheck
 
 	return results, allErrors
 }

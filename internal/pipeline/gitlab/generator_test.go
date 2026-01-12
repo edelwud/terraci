@@ -7,6 +7,7 @@ import (
 	"github.com/edelwud/terraci/internal/discovery"
 	"github.com/edelwud/terraci/internal/graph"
 	"github.com/edelwud/terraci/internal/parser"
+	"github.com/edelwud/terraci/internal/pipeline"
 	"github.com/edelwud/terraci/pkg/config"
 )
 
@@ -78,33 +79,40 @@ func TestGenerator_Generate_SingleModule(t *testing.T) {
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
 	gen := NewGenerator(cfg, depGraph, modules)
-	pipeline, err := gen.Generate(modules)
+	var genPipeline pipeline.GeneratedPipeline
+	var err error
+	genPipeline, err = gen.Generate(modules)
 
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
-	if pipeline == nil {
+	if genPipeline == nil {
 		t.Fatal("pipeline is nil")
 	}
 
+	p, ok := genPipeline.(*Pipeline)
+	if !ok {
+		t.Fatal("expected *Pipeline type")
+	}
+
 	// Should have 2 stages (plan-0, apply-0)
-	if len(pipeline.Stages) != 2 {
-		t.Errorf("expected 2 stages, got %d: %v", len(pipeline.Stages), pipeline.Stages)
+	if len(p.Stages) != 2 {
+		t.Errorf("expected 2 stages, got %d: %v", len(p.Stages), p.Stages)
 	}
 
 	// Should have 2 jobs (plan + apply)
-	if len(pipeline.Jobs) != 2 {
-		t.Errorf("expected 2 jobs, got %d", len(pipeline.Jobs))
+	if len(p.Jobs) != 2 {
+		t.Errorf("expected 2 jobs, got %d", len(p.Jobs))
 	}
 
 	// Check job names
 	planJobName := "plan-platform-stage-eu-central-1-vpc"
 	applyJobName := "apply-platform-stage-eu-central-1-vpc"
 
-	if _, ok := pipeline.Jobs[planJobName]; !ok {
+	if _, exists := p.Jobs[planJobName]; !exists {
 		t.Errorf("missing plan job: %s", planJobName)
 	}
-	if _, ok := pipeline.Jobs[applyJobName]; !ok {
+	if _, exists := p.Jobs[applyJobName]; !exists {
 		t.Errorf("missing apply job: %s", applyJobName)
 	}
 }
@@ -123,19 +131,24 @@ func TestGenerator_Generate_WithDependencies(t *testing.T) {
 
 	depGraph := graph.BuildFromDependencies(modules, deps)
 	gen := NewGenerator(cfg, depGraph, modules)
-	pipeline, err := gen.Generate(modules)
+	genPipeline, err := gen.Generate(modules)
 
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	p, ok := genPipeline.(*Pipeline)
+	if !ok {
+		t.Fatal("expected *Pipeline type")
+	}
+
 	// Should have 4 stages (plan-0, apply-0, plan-1, apply-1)
-	if len(pipeline.Stages) != 4 {
-		t.Errorf("expected 4 stages, got %d: %v", len(pipeline.Stages), pipeline.Stages)
+	if len(p.Stages) != 4 {
+		t.Errorf("expected 4 stages, got %d: %v", len(p.Stages), p.Stages)
 	}
 
 	// Check EKS plan job depends on VPC apply
-	eksApplyJob := pipeline.Jobs["apply-platform-stage-eu-central-1-eks"]
+	eksApplyJob := p.Jobs["apply-platform-stage-eu-central-1-eks"]
 	if eksApplyJob == nil {
 		t.Fatal("EKS apply job not found")
 	}
@@ -168,24 +181,29 @@ func TestGenerator_Generate_PlanOnly(t *testing.T) {
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
 	gen := NewGenerator(cfg, depGraph, modules)
-	pipeline, err := gen.Generate(modules)
+	genPipeline, err := gen.Generate(modules)
 
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	p, ok := genPipeline.(*Pipeline)
+	if !ok {
+		t.Fatal("expected *Pipeline type")
+	}
+
 	// Should have only 1 stage (plan-0, no apply)
-	if len(pipeline.Stages) != 1 {
-		t.Errorf("expected 1 stage for plan-only, got %d: %v", len(pipeline.Stages), pipeline.Stages)
+	if len(p.Stages) != 1 {
+		t.Errorf("expected 1 stage for plan-only, got %d: %v", len(p.Stages), p.Stages)
 	}
 
 	// Should have only 1 job (plan, no apply)
-	if len(pipeline.Jobs) != 1 {
-		t.Errorf("expected 1 job for plan-only, got %d", len(pipeline.Jobs))
+	if len(p.Jobs) != 1 {
+		t.Errorf("expected 1 job for plan-only, got %d", len(p.Jobs))
 	}
 
 	// Check no apply jobs
-	for name := range pipeline.Jobs {
+	for name := range p.Jobs {
 		if strings.HasPrefix(name, "apply-") {
 			t.Errorf("unexpected apply job in plan-only mode: %s", name)
 		}
@@ -208,14 +226,19 @@ func TestGenerator_Generate_PlanOnlyWithDependencies(t *testing.T) {
 
 	depGraph := graph.BuildFromDependencies(modules, deps)
 	gen := NewGenerator(cfg, depGraph, modules)
-	pipeline, err := gen.Generate(modules)
+	genPipeline, err := gen.Generate(modules)
 
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	p, ok := genPipeline.(*Pipeline)
+	if !ok {
+		t.Fatal("expected *Pipeline type")
+	}
+
 	// In plan-only mode, EKS plan should depend on VPC plan (not apply)
-	eksPlanJob := pipeline.Jobs["plan-platform-stage-eu-central-1-eks"]
+	eksPlanJob := p.Jobs["plan-platform-stage-eu-central-1-eks"]
 	if eksPlanJob == nil {
 		t.Fatal("EKS plan job not found")
 	}
@@ -248,13 +271,18 @@ func TestGenerator_Generate_AutoApprove(t *testing.T) {
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
 	gen := NewGenerator(cfg, depGraph, modules)
-	pipeline, err := gen.Generate(modules)
+	genPipeline, err := gen.Generate(modules)
 
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	applyJob := pipeline.Jobs["apply-platform-stage-eu-central-1-vpc"]
+	p, ok := genPipeline.(*Pipeline)
+	if !ok {
+		t.Fatal("expected *Pipeline type")
+	}
+
+	applyJob := p.Jobs["apply-platform-stage-eu-central-1-vpc"]
 	if applyJob == nil {
 		t.Fatal("apply job not found")
 	}
@@ -279,13 +307,18 @@ func TestGenerator_Generate_ManualApprove(t *testing.T) {
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
 	gen := NewGenerator(cfg, depGraph, modules)
-	pipeline, err := gen.Generate(modules)
+	genPipeline, err := gen.Generate(modules)
 
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	applyJob := pipeline.Jobs["apply-platform-stage-eu-central-1-vpc"]
+	p, ok := genPipeline.(*Pipeline)
+	if !ok {
+		t.Fatal("expected *Pipeline type")
+	}
+
+	applyJob := p.Jobs["apply-platform-stage-eu-central-1-vpc"]
 	if applyJob == nil {
 		t.Fatal("apply job not found")
 	}
@@ -310,14 +343,19 @@ func TestGenerator_Generate_CustomStagesPrefix(t *testing.T) {
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
 	gen := NewGenerator(cfg, depGraph, modules)
-	pipeline, err := gen.Generate(modules)
+	genPipeline, err := gen.Generate(modules)
 
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	p, ok := genPipeline.(*Pipeline)
+	if !ok {
+		t.Fatal("expected *Pipeline type")
+	}
+
 	// Stages should use custom prefix
-	for _, stage := range pipeline.Stages {
+	for _, stage := range p.Stages {
 		if !strings.HasPrefix(stage, "terraform-") {
 			t.Errorf("stage should have custom prefix 'terraform-', got %s", stage)
 		}
@@ -338,15 +376,20 @@ func TestGenerator_Generate_TerraformBinary(t *testing.T) {
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
 	gen := NewGenerator(cfg, depGraph, modules)
-	pipeline, err := gen.Generate(modules)
+	genPipeline, err := gen.Generate(modules)
 
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	p, ok := genPipeline.(*Pipeline)
+	if !ok {
+		t.Fatal("expected *Pipeline type")
+	}
+
 	// Check TERRAFORM_BINARY variable
-	if pipeline.Variables["TERRAFORM_BINARY"] != "tofu" {
-		t.Errorf("expected TERRAFORM_BINARY=tofu, got %s", pipeline.Variables["TERRAFORM_BINARY"])
+	if p.Variables["TERRAFORM_BINARY"] != "tofu" {
+		t.Errorf("expected TERRAFORM_BINARY=tofu, got %s", p.Variables["TERRAFORM_BINARY"])
 	}
 }
 
@@ -362,13 +405,18 @@ func TestGenerator_Generate_JobVariables(t *testing.T) {
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
 	gen := NewGenerator(cfg, depGraph, modules)
-	pipeline, err := gen.Generate(modules)
+	genPipeline, err := gen.Generate(modules)
 
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	planJob := pipeline.Jobs["plan-platform-stage-eu-central-1-vpc"]
+	p, ok := genPipeline.(*Pipeline)
+	if !ok {
+		t.Fatal("expected *Pipeline type")
+	}
+
+	planJob := p.Jobs["plan-platform-stage-eu-central-1-vpc"]
 	if planJob == nil {
 		t.Fatal("plan job not found")
 	}
@@ -401,15 +449,20 @@ func TestGenerator_Generate_ResourceGroup(t *testing.T) {
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
 	gen := NewGenerator(cfg, depGraph, modules)
-	pipeline, err := gen.Generate(modules)
+	genPipeline, err := gen.Generate(modules)
 
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	p, ok := genPipeline.(*Pipeline)
+	if !ok {
+		t.Fatal("expected *Pipeline type")
+	}
+
 	// Both plan and apply should have the same resource_group
-	planJob := pipeline.Jobs["plan-platform-stage-eu-central-1-vpc"]
-	applyJob := pipeline.Jobs["apply-platform-stage-eu-central-1-vpc"]
+	planJob := p.Jobs["plan-platform-stage-eu-central-1-vpc"]
+	applyJob := p.Jobs["apply-platform-stage-eu-central-1-vpc"]
 
 	expectedResourceGroup := "platform/stage/eu-central-1/vpc"
 
@@ -484,7 +537,7 @@ func TestGenerator_jobName(t *testing.T) {
 }
 
 func TestPipeline_ToYAML(t *testing.T) {
-	pipeline := &Pipeline{
+	p := &Pipeline{
 		Stages:    []string{"plan-0", "apply-0"},
 		Variables: map[string]string{"TERRAFORM_BINARY": "terraform"},
 		Default: &DefaultConfig{
@@ -498,7 +551,7 @@ func TestPipeline_ToYAML(t *testing.T) {
 		},
 	}
 
-	yamlBytes, err := pipeline.ToYAML()
+	yamlBytes, err := p.ToYAML()
 	if err != nil {
 		t.Fatalf("ToYAML failed: %v", err)
 	}
@@ -536,14 +589,19 @@ func TestGenerator_Generate_WithMRIntegration(t *testing.T) {
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
 	gen := NewGenerator(cfg, depGraph, modules)
-	pipeline, err := gen.Generate(modules)
+	genPipeline, err := gen.Generate(modules)
 
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	p, ok := genPipeline.(*Pipeline)
+	if !ok {
+		t.Fatal("expected *Pipeline type")
+	}
+
 	// Check summary job exists
-	summaryJob := pipeline.Jobs[SummaryJobName]
+	summaryJob := p.Jobs[SummaryJobName]
 	if summaryJob == nil {
 		t.Fatal("summary job not found")
 	}
@@ -560,7 +618,7 @@ func TestGenerator_Generate_WithMRIntegration(t *testing.T) {
 
 	// Check summary stage is in stages list
 	hasStage := false
-	for _, stage := range pipeline.Stages {
+	for _, stage := range p.Stages {
 		if stage == SummaryStageName {
 			hasStage = true
 			break
@@ -571,7 +629,7 @@ func TestGenerator_Generate_WithMRIntegration(t *testing.T) {
 	}
 
 	// Check plan jobs have plan.txt in artifacts
-	planJob := pipeline.Jobs["plan-platform-stage-eu-central-1-vpc"]
+	planJob := p.Jobs["plan-platform-stage-eu-central-1-vpc"]
 	if planJob == nil {
 		t.Fatal("plan job not found")
 	}
@@ -604,19 +662,24 @@ func TestGenerator_Generate_WithMRIntegration_Disabled(t *testing.T) {
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
 	gen := NewGenerator(cfg, depGraph, modules)
-	pipeline, err := gen.Generate(modules)
+	genPipeline, err := gen.Generate(modules)
 
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	p, ok := genPipeline.(*Pipeline)
+	if !ok {
+		t.Fatal("expected *Pipeline type")
+	}
+
 	// Check summary job does NOT exist
-	if _, exists := pipeline.Jobs[SummaryJobName]; exists {
+	if _, exists := p.Jobs[SummaryJobName]; exists {
 		t.Error("summary job should not exist when MR integration is disabled")
 	}
 
 	// Check summary stage is NOT in stages list
-	for _, stage := range pipeline.Stages {
+	for _, stage := range p.Stages {
 		if stage == SummaryStageName {
 			t.Error("stages should not contain summary stage when MR is disabled")
 		}

@@ -50,11 +50,15 @@ func TestPipelineGeneration_Basic(t *testing.T) {
 	cfg.GitLab.AutoApprove = false
 
 	generator := gitlab.NewGenerator(cfg, depGraph, modules)
-	pipeline, err := generator.Generate(modules)
+	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// Should have both plan and apply stages
 	hasplanStage := false
 	hasApplyStage := false
@@ -114,11 +118,15 @@ func TestPipelineGeneration_PlanOnly(t *testing.T) {
 	cfg.GitLab.PlanOnly = true
 
 	generator := gitlab.NewGenerator(cfg, depGraph, modules)
-	pipeline, err := generator.Generate(modules)
+	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// Should have only plan stages, no apply stages
 	for _, stage := range pipeline.Stages {
 		if strings.HasPrefix(stage, "deploy-apply-") {
@@ -159,11 +167,15 @@ func TestPipelineGeneration_PlanOnlyNeeds(t *testing.T) {
 	cfg.GitLab.PlanOnly = true
 
 	generator := gitlab.NewGenerator(cfg, depGraph, modules)
-	pipeline, err := generator.Generate(modules)
+	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// In plan-only mode, plan jobs should depend on plan jobs (not apply jobs)
 	eksJob := pipeline.Jobs["plan-platform-stage-eu-central-1-eks"]
 	if eksJob == nil {
@@ -229,11 +241,15 @@ func TestPipelineGeneration_ChangedOnlyFilteredNeeds(t *testing.T) {
 	}
 
 	generator := gitlab.NewGenerator(cfg, depGraph, modules)
-	pipeline, err := generator.Generate(changedModules)
+	result, err := generator.Generate(changedModules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// Should only have jobs for changed modules
 	if len(pipeline.Jobs) != 4 { // 2 plan + 2 apply
 		t.Errorf("Expected 4 jobs (2 plan + 2 apply), got %d", len(pipeline.Jobs))
@@ -316,11 +332,15 @@ func TestPipelineGeneration_ChangedOnlyPlanOnly(t *testing.T) {
 	}
 
 	generator := gitlab.NewGenerator(cfg, depGraph, modules)
-	pipeline, err := generator.Generate(changedModules)
+	result, err := generator.Generate(changedModules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// Should only have plan jobs (no apply)
 	if len(pipeline.Jobs) != 2 {
 		t.Errorf("Expected 2 plan jobs, got %d", len(pipeline.Jobs))
@@ -363,11 +383,15 @@ func TestPipelineGeneration_ApplyDependsOnPlan(t *testing.T) {
 	cfg.GitLab.PlanEnabled = true
 
 	generator := gitlab.NewGenerator(cfg, depGraph, modules)
-	pipeline, err := generator.Generate(modules)
+	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// Each apply job should depend on its own plan job
 	for _, module := range modules {
 		moduleID := strings.ReplaceAll(module.ID(), "/", "-")
@@ -402,11 +426,15 @@ func TestPipelineGeneration_NoPlanEnabled(t *testing.T) {
 	cfg.GitLab.PlanEnabled = false
 
 	generator := gitlab.NewGenerator(cfg, depGraph, modules)
-	pipeline, err := generator.Generate(modules)
+	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// Should have no plan jobs
 	for jobName := range pipeline.Jobs {
 		if strings.HasPrefix(jobName, "plan-") {
@@ -440,11 +468,15 @@ func TestPipelineGeneration_DependencyOrder(t *testing.T) {
 	cfg.GitLab.PlanEnabled = true
 
 	generator := gitlab.NewGenerator(cfg, depGraph, modules)
-	pipeline, err := generator.Generate(modules)
+	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// Extract stage indices
 	stageIndex := make(map[string]int)
 	for i, stage := range pipeline.Stages {
@@ -484,11 +516,15 @@ func TestPipelineGeneration_EmptyModules(t *testing.T) {
 	generator := gitlab.NewGenerator(cfg, depGraph, modules)
 
 	// Generate with empty target modules should use all modules
-	pipeline, err := generator.Generate(nil)
+	result, err := generator.Generate(nil)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// Should have jobs for all modules
 	if len(pipeline.Jobs) != 10 { // 5 plan + 5 apply
 		t.Errorf("Expected 10 jobs, got %d", len(pipeline.Jobs))
@@ -507,11 +543,15 @@ func TestPipelineGeneration_SingleModule(t *testing.T) {
 
 	// Generate for single module (vpc - no dependencies)
 	singleModule := []*discovery.Module{modules[0]} // vpc
-	pipeline, err := generator.Generate(singleModule)
+	result, err := generator.Generate(singleModule)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// Should have only 2 jobs (plan + apply for vpc)
 	if len(pipeline.Jobs) != 2 {
 		t.Errorf("Expected 2 jobs, got %d", len(pipeline.Jobs))

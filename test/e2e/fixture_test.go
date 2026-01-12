@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/internal/discovery"
+	"github.com/edelwud/terraci/internal/pipeline/gitlab"
 	"github.com/edelwud/terraci/pkg/config"
 )
 
@@ -19,11 +20,15 @@ func TestFixture_Basic(t *testing.T) {
 	}
 
 	// Generate pipeline
-	pipeline, err := fixture.Generator.Generate(fixture.Modules)
+	result, err := fixture.Generator.Generate(fixture.Modules)
 	if err != nil {
 		t.Fatalf("failed to generate pipeline: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// Should have 12 jobs (6 plan + 6 apply)
 	AssertJobCount(t, pipeline, 12)
 
@@ -40,11 +45,15 @@ func TestFixture_Basic(t *testing.T) {
 func TestFixture_BasicDependencies(t *testing.T) {
 	fixture := LoadFixture(t, "basic")
 
-	pipeline, err := fixture.Generator.Generate(fixture.Modules)
+	result, err := fixture.Generator.Generate(fixture.Modules)
 	if err != nil {
 		t.Fatalf("failed to generate pipeline: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// EKS plan should depend on VPC apply
 	AssertJobHasNeed(t, pipeline, "plan-platform-stage-eu-central-1-eks", "apply-platform-stage-eu-central-1-vpc")
 
@@ -70,11 +79,15 @@ func TestFixture_PlanOnly(t *testing.T) {
 		cfg.GitLab.PlanEnabled = true
 	})
 
-	pipeline, err := fixture.Generator.Generate(fixture.Modules)
+	result, err := fixture.Generator.Generate(fixture.Modules)
 	if err != nil {
 		t.Fatalf("failed to generate pipeline: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// Should have only plan jobs (6 modules = 6 plan jobs)
 	AssertJobCount(t, pipeline, 6)
 
@@ -115,11 +128,15 @@ func TestFixture_ChangedOnly(t *testing.T) {
 		}
 	}
 
-	pipeline, err := fixture.Generator.Generate(stageChangedModules)
+	result, err := fixture.Generator.Generate(stageChangedModules)
 	if err != nil {
 		t.Fatalf("failed to generate pipeline: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// Should only have jobs for EKS and App (2 plan + 2 apply = 4)
 	AssertJobCount(t, pipeline, 4)
 
@@ -165,11 +182,15 @@ func TestFixture_ChangedOnlyPlanOnly(t *testing.T) {
 		changedModules = []*discovery.Module{eksModule}
 	}
 
-	pipeline, err := fixture.Generator.Generate(changedModules)
+	result, err := fixture.Generator.Generate(changedModules)
 	if err != nil {
 		t.Fatalf("failed to generate pipeline: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// Should have only 1 plan job
 	AssertJobCount(t, pipeline, 1)
 
@@ -200,11 +221,15 @@ func TestFixture_EnvironmentFilter(t *testing.T) {
 		t.Errorf("expected 5 stage modules, got %d", len(stageModules))
 	}
 
-	pipeline, err := fixture.Generator.Generate(stageModules)
+	result, err := fixture.Generator.Generate(stageModules)
 	if err != nil {
 		t.Fatalf("failed to generate pipeline: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// Should have 10 jobs (5 plan + 5 apply for stage)
 	AssertJobCount(t, pipeline, 10)
 
@@ -225,11 +250,15 @@ func TestFixture_Submodules(t *testing.T) {
 		}
 	}
 
-	pipeline, err := fixture.Generator.Generate(fixture.Modules)
+	result, err := fixture.Generator.Generate(fixture.Modules)
 	if err != nil {
 		t.Fatalf("failed to generate pipeline: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// Should have 6 jobs (3 plan + 3 apply)
 	AssertJobCount(t, pipeline, 6)
 
@@ -265,11 +294,15 @@ func TestFixture_CyclicDependencies(t *testing.T) {
 func TestFixture_ApplyDependsOnPlan(t *testing.T) {
 	fixture := LoadFixture(t, "basic")
 
-	pipeline, err := fixture.Generator.Generate(fixture.Modules)
+	result, err := fixture.Generator.Generate(fixture.Modules)
 	if err != nil {
 		t.Fatalf("failed to generate pipeline: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// Each apply job should depend on its own plan job
 	for _, module := range fixture.Modules {
 		moduleID := strings.ReplaceAll(module.ID(), "/", "-")
@@ -286,11 +319,15 @@ func TestFixture_NoPlanEnabled(t *testing.T) {
 		cfg.GitLab.PlanEnabled = false
 	})
 
-	pipeline, err := fixture.Generator.Generate(fixture.Modules)
+	result, err := fixture.Generator.Generate(fixture.Modules)
 	if err != nil {
 		t.Fatalf("failed to generate pipeline: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// Should have only apply jobs (6 modules = 6 apply jobs)
 	AssertJobCount(t, pipeline, 6)
 
@@ -312,11 +349,15 @@ func TestFixture_NoPlanEnabled(t *testing.T) {
 func TestFixture_StageOrder(t *testing.T) {
 	fixture := LoadFixture(t, "basic")
 
-	pipeline, err := fixture.Generator.Generate(fixture.GetModulesByEnvironment("stage"))
+	result, err := fixture.Generator.Generate(fixture.GetModulesByEnvironment("stage"))
 	if err != nil {
 		t.Fatalf("failed to generate pipeline: %v", err)
 	}
 
+	pipeline, ok := result.(*gitlab.Pipeline)
+	if !ok {
+		t.Fatal("expected *gitlab.Pipeline type")
+	}
 	// Get stage indices
 	stageIndex := make(map[string]int)
 	for i, stage := range pipeline.Stages {

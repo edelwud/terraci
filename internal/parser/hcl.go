@@ -13,18 +13,16 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/edelwud/terraci/internal/terraform/eval"
+	"github.com/edelwud/terraci/pkg/log"
 )
 
 // Parser handles parsing of Terraform HCL files
 type Parser struct {
-	hclParser *hclparse.Parser
 }
 
 // NewParser creates a new HCL parser
 func NewParser() *Parser {
-	return &Parser{
-		hclParser: hclparse.NewParser(),
-	}
+	return &Parser{}
 }
 
 // ParsedModule contains the parsed content of a Terraform module
@@ -87,6 +85,9 @@ func (p *Parser) ParseModule(modulePath string) (*ParsedModule, error) {
 		Files:        make(map[string]*hcl.File),
 	}
 
+	// Use a local parser instance for thread safety
+	hclParser := hclparse.NewParser()
+
 	// Find all .tf files in the directory
 	tfFiles, err := filepath.Glob(filepath.Join(modulePath, "*.tf"))
 	if err != nil {
@@ -100,7 +101,7 @@ func (p *Parser) ParseModule(modulePath string) (*ParsedModule, error) {
 			return nil, fmt.Errorf("failed to read %s: %w", tfFile, err)
 		}
 
-		file, diags := p.hclParser.ParseHCL(content, tfFile)
+		file, diags := hclParser.ParseHCL(content, tfFile)
 		result.Diagnostics = append(result.Diagnostics, diags...)
 
 		if file != nil {
@@ -112,7 +113,7 @@ func (p *Parser) ParseModule(modulePath string) (*ParsedModule, error) {
 	p.extractLocals(result)
 
 	// Extract variables from .auto.tfvars files
-	p.extractTfvars(result)
+	p.extractTfvars(result, hclParser)
 
 	// Extract remote state references
 	p.extractRemoteStates(result)
@@ -162,14 +163,14 @@ func (p *Parser) extractLocals(pm *ParsedModule) {
 // 1. Default values from variables.tf (lowest priority)
 // 2. terraform.tfvars
 // 3. *.auto.tfvars (highest priority)
-func (p *Parser) extractTfvars(pm *ParsedModule) {
+func (p *Parser) extractTfvars(pm *ParsedModule, hclParser *hclparse.Parser) {
 	// First, extract default values from variable blocks in .tf files
 	p.extractVariableDefaults(pm)
 
 	// Then load terraform.tfvars (overrides defaults)
 	terraformTfvars := filepath.Join(pm.Path, "terraform.tfvars")
 	if _, err := os.Stat(terraformTfvars); err == nil {
-		p.loadTfvarsFile(pm, terraformTfvars)
+		p.loadTfvarsFile(pm, terraformTfvars, hclParser)
 	}
 
 	// Finally, load *.auto.tfvars files (highest priority)
@@ -179,7 +180,7 @@ func (p *Parser) extractTfvars(pm *ParsedModule) {
 	}
 
 	for _, tfvarsFile := range tfvarsFiles {
-		p.loadTfvarsFile(pm, tfvarsFile)
+		p.loadTfvarsFile(pm, tfvarsFile, hclParser)
 	}
 }
 
@@ -231,7 +232,7 @@ func (p *Parser) extractVariableDefaults(pm *ParsedModule) {
 }
 
 // loadTfvarsFile loads variables from a single tfvars file
-func (p *Parser) loadTfvarsFile(pm *ParsedModule, tfvarsFile string) {
+func (p *Parser) loadTfvarsFile(pm *ParsedModule, tfvarsFile string, hclParser *hclparse.Parser) {
 	content, err := os.ReadFile(tfvarsFile)
 	if err != nil {
 		pm.Diagnostics = append(pm.Diagnostics, &hcl.Diagnostic{
@@ -242,7 +243,7 @@ func (p *Parser) loadTfvarsFile(pm *ParsedModule, tfvarsFile string) {
 		return
 	}
 
-	file, diags := p.hclParser.ParseHCL(content, tfvarsFile)
+	file, diags := hclParser.ParseHCL(content, tfvarsFile)
 	pm.Diagnostics = append(pm.Diagnostics, diags...)
 
 	if file == nil {
@@ -442,6 +443,8 @@ func (p *Parser) parseRemoteStateBlock(ref *RemoteStateRef, body hcl.Body, pm *P
 // ResolveWorkspacePath attempts to resolve the workspace path from remote state config
 // This uses the module's locals, variables, and path information to resolve expressions
 func (p *Parser) ResolveWorkspacePath(ref *RemoteStateRef, modulePath string, locals, variables map[string]cty.Value) ([]string, error) {
+	log.WithField("module", modulePath).WithField("remote_state", ref.Name).Debug("resolving workspace path")
+
 	// Build evaluation context with locals, variables, and path-derived info
 	// Handle both "/" and os.PathSeparator for cross-platform compatibility
 	pathParts := strings.Split(modulePath, "/")
@@ -519,11 +522,13 @@ func (p *Parser) ResolveWorkspacePath(ref *RemoteStateRef, modulePath string, lo
 		// Try to evaluate for_each
 		forEachVal, diags := ref.ForEach.Value(evalCtx)
 		if diags.HasErrors() {
+			log.WithField("reason", "for_each evaluation failed").Debug("falling back to template extraction")
 			// Can't evaluate for_each statically, return template
 			return p.extractPathTemplate(pathExpr, evalCtx)
 		}
 
 		// Iterate over for_each values
+		//nolint:dupl // Map/object and set/list iterations are intentionally similar but have different key/value semantics
 		if forEachVal.Type().IsMapType() || forEachVal.Type().IsObjectType() {
 			for it := forEachVal.ElementIterator(); it.Next(); {
 				k, v := it.Element()
@@ -539,6 +544,7 @@ func (p *Parser) ResolveWorkspacePath(ref *RemoteStateRef, modulePath string, lo
 
 				pathVal, diags := pathExpr.Value(iterCtx)
 				if !diags.HasErrors() && pathVal.Type() == cty.String {
+					log.WithField("path", pathVal.AsString()).Debug("resolved for_each path")
 					paths = append(paths, pathVal.AsString())
 				}
 			}
@@ -556,6 +562,7 @@ func (p *Parser) ResolveWorkspacePath(ref *RemoteStateRef, modulePath string, lo
 
 				pathVal, diags := pathExpr.Value(iterCtx)
 				if !diags.HasErrors() && pathVal.Type() == cty.String {
+					log.WithField("path", pathVal.AsString()).Debug("resolved for_each path")
 					paths = append(paths, pathVal.AsString())
 				}
 			}
@@ -564,8 +571,10 @@ func (p *Parser) ResolveWorkspacePath(ref *RemoteStateRef, modulePath string, lo
 		// Simple case without for_each
 		pathVal, diags := pathExpr.Value(evalCtx)
 		if !diags.HasErrors() && pathVal.Type() == cty.String {
+			log.WithField("path", pathVal.AsString()).Debug("resolved simple path")
 			paths = append(paths, pathVal.AsString())
 		} else {
+			log.WithField("reason", "evaluation failed").Debug("falling back to template extraction")
 			// Try to extract template
 			return p.extractPathTemplate(pathExpr, evalCtx)
 		}

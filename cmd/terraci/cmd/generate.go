@@ -12,6 +12,7 @@ import (
 	"github.com/edelwud/terraci/internal/git"
 	"github.com/edelwud/terraci/internal/graph"
 	"github.com/edelwud/terraci/internal/parser"
+	"github.com/edelwud/terraci/internal/pipeline"
 	"github.com/edelwud/terraci/internal/pipeline/gitlab"
 	"github.com/edelwud/terraci/pkg/log"
 )
@@ -260,12 +261,12 @@ func generateAndOutputPipeline(
 		return runDryRun(generator, targetModules)
 	}
 
-	pipeline, err := generator.Generate(targetModules)
+	generatedPipeline, err := generator.Generate(targetModules)
 	if err != nil {
 		return fmt.Errorf("failed to generate pipeline: %w", err)
 	}
 
-	return writePipelineOutput(pipeline)
+	return writePipelineOutput(generatedPipeline)
 }
 
 // runDryRun executes a dry run and outputs results
@@ -293,8 +294,8 @@ func runDryRun(generator *gitlab.Generator, targetModules []*discovery.Module) e
 }
 
 // writePipelineOutput writes the pipeline to file or stdout
-func writePipelineOutput(pipeline *gitlab.Pipeline) error {
-	yamlContent, err := pipeline.ToYAML()
+func writePipelineOutput(p pipeline.GeneratedPipeline) error {
+	yamlContent, err := p.ToYAML()
 	if err != nil {
 		return fmt.Errorf("failed to serialize pipeline: %w", err)
 	}
