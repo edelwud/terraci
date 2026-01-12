@@ -216,7 +216,7 @@ func (g *Generator) generatePlanJob(module *discovery.Module, level int, targetM
 		// Use -detailed-exitcode and capture output to plan.txt
 		// The summary job will parse these files from artifacts
 		script = append(script,
-			"${TERRAFORM_BINARY} plan -out=plan.tfplan -detailed-exitcode 2>&1 | tee plan.txt; exit ${PIPESTATUS[0]}")
+			"${TERRAFORM_BINARY} plan -out=plan.tfplan -detailed-exitcode 2>&1 | tee plan.txt; S=${PIPESTATUS[0]}; if [ $S -eq 2 ]; then exit 0; else exit $S; fi")
 		// Add plan.txt to artifacts for summary job
 		artifactsPaths = append(artifactsPaths, fmt.Sprintf("%s/plan.txt", module.RelativePath))
 	} else {
