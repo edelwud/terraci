@@ -31,6 +31,11 @@ type PlanResult struct {
 	RawPlanOutput     string     `json:"raw_plan_output,omitempty"`
 	Error             string     `json:"error,omitempty"`
 	ExitCode          int        `json:"exit_code"`
+	// Cost estimation fields
+	CostBefore float64 `json:"cost_before,omitempty"` // Monthly cost before changes (USD)
+	CostAfter  float64 `json:"cost_after,omitempty"`  // Monthly cost after changes (USD)
+	CostDiff   float64 `json:"cost_diff,omitempty"`   // Cost difference (after - before)
+	HasCost    bool    `json:"has_cost,omitempty"`    // True if cost was calculated
 }
 
 // PlanResultCollection is a collection of plan results from multiple jobs
@@ -58,6 +63,10 @@ func (c *PlanResultCollection) ToModulePlans() []ModulePlan {
 			StructuredDetails: r.StructuredDetails,
 			RawPlanOutput:     r.RawPlanOutput,
 			Error:             r.Error,
+			CostBefore:        r.CostBefore,
+			CostAfter:         r.CostAfter,
+			CostDiff:          r.CostDiff,
+			HasCost:           r.HasCost,
 		}
 	}
 	return plans

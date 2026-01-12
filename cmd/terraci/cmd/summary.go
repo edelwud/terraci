@@ -1,17 +1,22 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/edelwud/terraci/internal/cost"
 	"github.com/edelwud/terraci/internal/gitlab"
 	"github.com/edelwud/terraci/internal/policy"
 	"github.com/edelwud/terraci/pkg/log"
 )
+
+const defaultCacheTTLHours = 24
 
 var summaryCmd = &cobra.Command{
 	Use:   "summary",
@@ -76,6 +81,14 @@ func runSummary(_ *cobra.Command, _ []string) error {
 	if !mrService.IsEnabled() {
 		log.Info("MR comments disabled or no token available")
 		return nil
+	}
+
+	// Calculate cost estimates if enabled
+	if cfg.Cost != nil && cfg.Cost.Enabled {
+		log.Info("calculating cost estimates")
+		if err := calculateCosts(collection); err != nil {
+			log.WithError(err).Warn("failed to calculate costs, continuing without cost data")
+		}
 	}
 
 	// Convert to module plans for rendering
@@ -181,6 +194,81 @@ func printSummary(collection *gitlab.PlanResultCollection) {
 		log.WithField("count", failed).Warn("failed")
 	}
 	log.DecreasePadding()
+}
+
+// calculateCosts calculates cost estimates for all plan results
+func calculateCosts(collection *gitlab.PlanResultCollection) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	// Get cache settings
+	cacheDir := ""
+	cacheTTL := defaultCacheTTLHours * time.Hour
+	if cfg.Cost.CacheDir != "" {
+		cacheDir = cfg.Cost.CacheDir
+	}
+	if cfg.Cost.CacheTTL != "" {
+		if d, err := time.ParseDuration(cfg.Cost.CacheTTL); err == nil {
+			cacheTTL = d
+		}
+	}
+
+	estimator := cost.NewEstimator(cacheDir, cacheTTL)
+
+	// Build module paths and regions map
+	modulePaths := make([]string, 0, len(collection.Results))
+	regions := make(map[string]string)
+
+	for i := range collection.Results {
+		r := &collection.Results[i]
+		modulePaths = append(modulePaths, r.ModulePath)
+		if r.Region != "" {
+			regions[r.ModulePath] = r.Region
+		}
+	}
+
+	// Validate and prefetch pricing data
+	log.Info("validating pricing cache")
+	if err := estimator.ValidateAndPrefetch(ctx, modulePaths, regions); err != nil {
+		return fmt.Errorf("prefetch pricing: %w", err)
+	}
+
+	// Calculate costs for each module
+	result, err := estimator.EstimateModules(ctx, modulePaths, regions)
+	if err != nil {
+		return fmt.Errorf("estimate costs: %w", err)
+	}
+
+	// Update collection results with cost data
+	costByModule := make(map[string]*cost.ModuleCost)
+	for i := range result.Modules {
+		m := &result.Modules[i]
+		costByModule[m.ModulePath] = m
+	}
+
+	for i := range collection.Results {
+		r := &collection.Results[i]
+		if mc, ok := costByModule[r.ModulePath]; ok && mc.Error == "" {
+			r.CostBefore = mc.BeforeCost
+			r.CostAfter = mc.AfterCost
+			r.CostDiff = mc.DiffCost
+			r.HasCost = true
+
+			log.WithField("module", r.ModuleID).
+				WithField("before", fmt.Sprintf("$%.2f", mc.BeforeCost)).
+				WithField("after", fmt.Sprintf("$%.2f", mc.AfterCost)).
+				WithField("diff", fmt.Sprintf("$%.2f", mc.DiffCost)).
+				Debug("calculated cost")
+		}
+	}
+
+	// Log total cost summary
+	log.WithField("before", fmt.Sprintf("$%.2f", result.TotalBefore)).
+		WithField("after", fmt.Sprintf("$%.2f", result.TotalAfter)).
+		WithField("diff", fmt.Sprintf("$%.2f", result.TotalDiff)).
+		Info("total cost estimate")
+
+	return nil
 }
 
 // loadPolicyResults tries to load policy results from the artifact

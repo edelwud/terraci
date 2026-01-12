@@ -163,6 +163,31 @@
       "type": "object",
       "description": "Policy checks configuration using OPA"
     },
+    "cost": {
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable cost estimation",
+          "default": false
+        },
+        "cache_dir": {
+          "type": "string",
+          "description": "Directory to cache AWS pricing data"
+        },
+        "cache_ttl": {
+          "type": "string",
+          "description": "How long cached pricing is valid (e.g. 24h)",
+          "default": "24h"
+        },
+        "show_in_comment": {
+          "type": "boolean",
+          "description": "Show cost in MR comment table",
+          "default": true
+        }
+      },
+      "type": "object",
+      "description": "Cost estimation configuration using AWS Pricing API"
+    },
     "gitlab": {
       "properties": {
         "terraform_binary": {

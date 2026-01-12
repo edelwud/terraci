@@ -26,6 +26,9 @@ type Config struct {
 	// Policy configuration for OPA/Conftest policy checks
 	Policy *PolicyConfig `yaml:"policy,omitempty" json:"policy,omitempty" jsonschema:"description=Policy checks configuration using OPA"`
 
+	// Cost estimation configuration
+	Cost *CostConfig `yaml:"cost,omitempty" json:"cost,omitempty" jsonschema:"description=Cost estimation configuration using AWS Pricing API"`
+
 	// GitLab CI configuration
 	GitLab GitLabConfig `yaml:"gitlab" json:"gitlab" jsonschema:"description=GitLab CI configuration"`
 
@@ -647,4 +650,21 @@ func (p *PolicyConfig) Validate() error {
 	}
 
 	return nil
+}
+
+// CostConfig defines configuration for cost estimation
+type CostConfig struct {
+	// Enabled enables cost estimation in MR comments
+	Enabled bool `yaml:"enabled" json:"enabled" jsonschema:"description=Enable cost estimation,default=false"`
+
+	// CacheDir is the directory to cache AWS pricing data
+	// If empty, uses ~/.terraci/pricing
+	CacheDir string `yaml:"cache_dir,omitempty" json:"cache_dir,omitempty" jsonschema:"description=Directory to cache AWS pricing data"`
+
+	// CacheTTL is how long cached pricing data is valid (e.g., '24h', '7d')
+	// Default: 24h
+	CacheTTL string `yaml:"cache_ttl,omitempty" json:"cache_ttl,omitempty" jsonschema:"description=How long cached pricing is valid (e.g. 24h),default=24h"`
+
+	// ShowInComment enables cost display in MR comment table
+	ShowInComment bool `yaml:"show_in_comment,omitempty" json:"show_in_comment,omitempty" jsonschema:"description=Show cost in MR comment table,default=true"`
 }

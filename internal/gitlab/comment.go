@@ -18,6 +18,9 @@ const (
 	maxErrorLength = 50
 	// maxDetailsLength is the maximum length for expandable details
 	maxDetailsLength = 10000
+	// Cost formatting thresholds
+	minCostThreshold      = 0.01
+	thousandCostThreshold = 1000
 )
 
 // ModulePlan represents terraform plan output for a single module
@@ -34,6 +37,11 @@ type ModulePlan struct {
 	RawPlanOutput     string // Filtered raw plan output (diff only)
 	Error             string // Error message if plan failed
 	Duration          time.Duration
+	// Cost estimation fields
+	CostBefore float64 // Monthly cost before changes (USD)
+	CostAfter  float64 // Monthly cost after changes (USD)
+	CostDiff   float64 // Cost difference (after - before)
+	HasCost    bool    // True if cost was calculated
 }
 
 // PlanStatus represents the status of a terraform plan
@@ -280,12 +288,26 @@ func (r *CommentRenderer) renderEnvironmentSection(env string, plans []ModulePla
 		return plans[i].ModuleID < plans[j].ModuleID
 	})
 
-	// Table header
-	sb.WriteString("| Status | Module | Summary |\n")
-	sb.WriteString("|:------:|--------|--------|\n")
+	// Check if any plan has cost data
+	hasCostData := false
+	for i := range plans {
+		if plans[i].HasCost {
+			hasCostData = true
+			break
+		}
+	}
+
+	// Table header (with or without Cost column)
+	if hasCostData {
+		sb.WriteString("| Status | Module | Summary | Cost |\n")
+		sb.WriteString("|:------:|--------|--------|------|\n")
+	} else {
+		sb.WriteString("| Status | Module | Summary |\n")
+		sb.WriteString("|:------:|--------|--------|\n")
+	}
 
 	for i := range plans {
-		sb.WriteString(r.renderPlanRow(&plans[i]))
+		sb.WriteString(r.renderPlanRow(&plans[i], hasCostData))
 	}
 
 	// Expandable details for modules with changes or errors
@@ -299,7 +321,7 @@ func (r *CommentRenderer) renderEnvironmentSection(env string, plans []ModulePla
 	return sb.String()
 }
 
-func (r *CommentRenderer) renderPlanRow(p *ModulePlan) string {
+func (r *CommentRenderer) renderPlanRow(p *ModulePlan, includeCost bool) string {
 	status := r.statusIcon(p.Status)
 	module := fmt.Sprintf("`%s`", p.ModuleID)
 
@@ -311,7 +333,74 @@ func (r *CommentRenderer) renderPlanRow(p *ModulePlan) string {
 		summary = "-"
 	}
 
-	return fmt.Sprintf("| %s | %s | %s |\n", status, module, summary)
+	if !includeCost {
+		return fmt.Sprintf("| %s | %s | %s |\n", status, module, summary)
+	}
+
+	// Format cost column: "$X → +$Y → $Z" or just diff if no change in base
+	cost := formatCostCell(p)
+	return fmt.Sprintf("| %s | %s | %s | %s |\n", status, module, summary, cost)
+}
+
+// formatCostCell formats the cost cell for a module plan
+func formatCostCell(p *ModulePlan) string {
+	if !p.HasCost {
+		return "-"
+	}
+
+	// Format: "$before → +$diff → $after" or simpler formats
+	if p.CostDiff == 0 {
+		return formatMonthlyCost(p.CostAfter)
+	}
+
+	// Show full breakdown: before → diff → after
+	before := formatMonthlyCost(p.CostBefore)
+	after := formatMonthlyCost(p.CostAfter)
+	diff := formatCostDiff(p.CostDiff)
+
+	return fmt.Sprintf("%s %s → %s", before, diff, after)
+}
+
+// formatMonthlyCost formats a monthly cost value
+func formatMonthlyCost(cost float64) string {
+	if cost == 0 {
+		return "$0"
+	}
+	if cost < minCostThreshold {
+		return "<$0.01"
+	}
+	if cost >= thousandCostThreshold {
+		return fmt.Sprintf("$%.0f", cost)
+	}
+	if cost >= 1 {
+		return fmt.Sprintf("$%.2f", cost)
+	}
+	return fmt.Sprintf("$%.4f", cost)
+}
+
+// formatCostDiff formats a cost difference with sign
+func formatCostDiff(diff float64) string {
+	if diff == 0 {
+		return "$0"
+	}
+	if diff > 0 {
+		if diff >= thousandCostThreshold {
+			return fmt.Sprintf("+$%.0f", diff)
+		}
+		if diff >= 1 {
+			return fmt.Sprintf("+$%.2f", diff)
+		}
+		return fmt.Sprintf("+$%.4f", diff)
+	}
+	// Negative diff
+	diff = -diff
+	if diff >= thousandCostThreshold {
+		return fmt.Sprintf("-$%.0f", diff)
+	}
+	if diff >= 1 {
+		return fmt.Sprintf("-$%.2f", diff)
+	}
+	return fmt.Sprintf("-$%.4f", diff)
 }
 
 func (r *CommentRenderer) statusIcon(status PlanStatus) string {
