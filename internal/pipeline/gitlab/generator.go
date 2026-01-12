@@ -214,11 +214,14 @@ func (g *Generator) generatePlanJob(module *discovery.Module, level int, targetM
 	// If MR integration is enabled, capture plan output for summary
 	if g.isMREnabled() {
 		// Use -detailed-exitcode and capture output to plan.txt
-		// The summary job will parse these files from artifacts
+		// Save exit code to file, generate JSON plan, then exit with saved code
+		// Exit code 2 = changes present (success), 1 = error, 0 = no changes
 		script = append(script,
-			"rm -f exit.txt; (${TERRAFORM_BINARY} plan -out=plan.tfplan -detailed-exitcode 2>&1 || echo $? > exit.txt) | tee plan.txt; TF_EXIT=$(cat exit.txt 2>/dev/null || echo 0); if [ \"$TF_EXIT\" -eq 2 ]; then exit 0; else exit \"$TF_EXIT\"; fi",
+			"(${TERRAFORM_BINARY} plan -out=plan.tfplan -detailed-exitcode 2>&1 || echo $? > .tf_exit) | tee plan.txt",
 			// Generate JSON plan for detailed parsing by summary job
-			"${TERRAFORM_BINARY} show -json plan.tfplan > plan.json")
+			"${TERRAFORM_BINARY} show -json plan.tfplan > plan.json",
+			// Exit with appropriate code: 2 (changes) -> 0, others pass through
+			"TF_EXIT=$(cat .tf_exit 2>/dev/null || echo 0); rm -f .tf_exit; if [ \"$TF_EXIT\" -eq 2 ]; then exit 0; else exit \"$TF_EXIT\"; fi")
 		// Add plan.txt and plan.json to artifacts for summary job
 		artifactsPaths = append(artifactsPaths,
 			fmt.Sprintf("%s/plan.txt", module.RelativePath),
