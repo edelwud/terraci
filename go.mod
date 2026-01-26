@@ -8,11 +8,11 @@ require (
 	github.com/hashicorp/hcl/v2 v2.24.0
 	github.com/hashicorp/terraform-json v0.27.2
 	github.com/invopop/jsonschema v0.13.0
-	github.com/open-policy-agent/opa v1.12.2
+	github.com/open-policy-agent/opa v1.12.3
 	github.com/spf13/cobra v1.10.2
 	github.com/zclconf/go-cty v1.17.0
-	gitlab.com/gitlab-org/api/client-go v1.12.0
-	go.yaml.in/yaml/v4 v4.0.0-rc.3
+	gitlab.com/gitlab-org/api/client-go v1.18.0
+	go.yaml.in/yaml/v4 v4.0.0-rc.4
 	golang.org/x/sync v0.19.0
 	oras.land/oras-go/v2 v2.6.0
 )
@@ -104,7 +104,7 @@ require (
 	golang.org/x/crypto v0.46.0 // indirect
 	golang.org/x/mod v0.31.0 // indirect
 	golang.org/x/net v0.48.0 // indirect
-	golang.org/x/oauth2 v0.33.0 // indirect
+	golang.org/x/oauth2 v0.34.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
