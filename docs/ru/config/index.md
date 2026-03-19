@@ -1,3 +1,9 @@
+---
+title: "Обзор конфигурации"
+description: "Справочник конфигурации TerraCi: формат .terraci.yaml и значения по умолчанию"
+outline: deep
+---
+
 # Конфигурация
 
 TerraCi настраивается через YAML-файл `.terraci.yaml` в корне проекта.
@@ -95,6 +101,32 @@ exclude:
 include:
   - "platform/*/*/*"
 ```
+
+### [Policy](./policy.md)
+
+OPA-политики для проверки terraform планов:
+
+```yaml
+policy:
+  enabled: true
+  sources:
+    - path: policies
+  on_failure: block
+```
+
+### [Cost](./cost.md)
+
+Оценка стоимости AWS-инфраструктуры:
+
+```yaml
+cost:
+  enabled: true
+  show_in_comment: true
+```
+
+### [GitLab MR](./gitlab-mr.md)
+
+Интеграция с Merge Request — комментарии с результатами plan, политик и стоимости.
 
 ## Приоритет конфигурации
 

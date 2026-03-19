@@ -1,3 +1,9 @@
+---
+title: terraci generate
+description: Generate GitLab CI pipelines with dependency ordering and changed-only mode
+outline: deep
+---
+
 # terraci generate
 
 Generate GitLab CI pipeline from Terraform modules.
@@ -207,3 +213,8 @@ terraci generate -e staging -o staging.yml
 | No modules found | Wrong depth or missing .tf files | Check structure config |
 | Circular dependency | Modules depend on each other cyclically | Fix remote_state references |
 | Git ref not found | Invalid base-ref | Verify branch/commit exists |
+
+## See Also
+
+- [Pipeline Generation Guide](/guide/pipeline-generation) — end-to-end guide for generating CI pipelines
+- [GitLab CI Configuration](/config/gitlab) — pipeline generation settings including images, stages, and jobs

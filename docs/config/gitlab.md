@@ -1,3 +1,9 @@
+---
+title: GitLab CI Configuration
+description: "Configure pipeline generation: image, stages, jobs, overwrites, secrets, and OIDC tokens"
+outline: deep
+---
+
 # GitLab CI Configuration
 
 The `gitlab` section configures the generated GitLab CI pipeline.
@@ -485,3 +491,8 @@ Each job receives these variables:
 | `TF_ENVIRONMENT` | Environment name | `prod` |
 | `TF_REGION` | Region name | `us-east-1` |
 | `TF_MODULE` | Module name | `vpc` |
+
+## See Also
+
+- [Merge Request Integration](/config/gitlab-mr) — MR comments with plan summaries and policy results
+- [Pipeline Generation Guide](/guide/pipeline-generation) — end-to-end guide for generating CI pipelines

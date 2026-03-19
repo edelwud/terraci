@@ -1,3 +1,9 @@
+---
+title: Project Structure
+description: "Directory patterns, module discovery, and configurable depth for Terraform monorepos"
+outline: deep
+---
+
 # Project Structure
 
 TerraCi discovers Terraform modules based on your directory structure. This page explains the supported layouts and how to configure them.
@@ -195,3 +201,8 @@ backend:
 ```
 
 This pattern is used to match `terraform_remote_state` keys to modules.
+
+## Next Steps
+
+- [Dependency Resolution](/guide/dependencies) — Learn how TerraCi extracts and resolves module dependencies
+- [Filters Configuration](/config/filters) — Include or exclude modules with glob patterns

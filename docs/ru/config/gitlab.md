@@ -1,3 +1,9 @@
+---
+title: "GitLab CI"
+description: "Настройка генерации пайплайнов: образ, стадии, джобы, overwrites, секреты и OIDC"
+outline: deep
+---
+
 # Конфигурация GitLab CI
 
 Секция `gitlab` управляет генерацией GitLab CI пайплайнов.
@@ -526,3 +532,8 @@ gitlab:
         - if: '$CI_COMMIT_BRANCH == "main"'
           when: manual
 ```
+
+## Смотрите также
+
+- [Merge Request](/ru/config/gitlab-mr) — комментарии в MR с результатами plan
+- [Генерация пайплайнов](/ru/guide/pipeline-generation) — руководство по генерации CI пайплайнов

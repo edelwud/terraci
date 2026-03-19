@@ -1,3 +1,9 @@
+---
+title: terraci summary
+description: Post plan results, cost estimates, and policy checks as GitLab MR comments
+outline: deep
+---
+
 # terraci summary
 
 Posts terraform plan results as a comment on GitLab Merge Requests.

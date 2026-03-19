@@ -1,3 +1,9 @@
+---
+title: Submodules
+description: "Nested submodules at depth 5: use cases, dependencies, and best practices"
+outline: deep
+---
+
 # Submodules
 
 TerraCi supports nested submodules at depth 5, allowing you to organize related infrastructure within a parent module.
@@ -256,3 +262,8 @@ If submodule's parent isn't detected:
 1. Verify parent exists at depth 4
 2. Check parent contains `.tf` files
 3. Run `terraci validate -v` to see discovery details
+
+## Next Steps
+
+- [Project Structure](/guide/project-structure) — Directory patterns and module discovery configuration
+- [Filters Configuration](/config/filters) — Include or exclude submodules with glob patterns

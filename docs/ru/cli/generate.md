@@ -1,3 +1,9 @@
+---
+title: "terraci generate"
+description: "Генерация GitLab CI пайплайнов с учётом зависимостей и режимом changed-only"
+outline: deep
+---
+
 # terraci generate
 
 Генерация GitLab CI пайплайна для Terraform-модулей.
@@ -257,3 +263,8 @@ terraci graph --module <module-id> --dependencies
 # Показывает ошибку при наличии циклов
 terraci validate
 ```
+
+## Смотрите также
+
+- [Генерация пайплайнов](/ru/guide/pipeline-generation) — руководство по генерации CI пайплайнов
+- [Настройка GitLab CI](/ru/config/gitlab) — параметры конфигурации пайплайнов

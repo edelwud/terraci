@@ -6,187 +6,163 @@
 
 <p align="center">
   <strong>Terraform Pipeline Generator for GitLab CI</strong><br>
-  Automatically generate pipelines with proper dependency ordering for Terraform/OpenTofu monorepos
+  Analyze dependencies, estimate costs, enforce policies, and generate optimal pipelines for Terraform/OpenTofu monorepos
 </p>
 
 <p align="center">
-  <a href="https://github.com/edelwud/terraci/releases"><img src="https://img.shields.io/github/v/release/edelwud/terraci" alt="Release"></a>
+  <a href="https://github.com/edelwud/terraci/releases"><img src="https://img.shields.io/github/v/release/edelwud/terraci?style=flat-square&color=5f67ee" alt="Release"></a>
   <a href="https://github.com/edelwud/terraci/actions"><img src="https://github.com/edelwud/terraci/actions/workflows/build.yml/badge.svg" alt="Build"></a>
-  <a href="https://github.com/edelwud/terraci/blob/main/LICENSE"><img src="https://img.shields.io/github/license/edelwud/terraci" alt="License"></a>
+  <a href="https://github.com/edelwud/terraci/blob/main/LICENSE"><img src="https://img.shields.io/github/license/edelwud/terraci?style=flat-square" alt="License"></a>
+  <a href="https://goreportcard.com/report/github.com/edelwud/terraci"><img src="https://goreportcard.com/badge/github.com/edelwud/terraci?style=flat-square" alt="Go Report"></a>
 </p>
 
 <p align="center">
-  <a href="#installation">Installation</a> •
-  <a href="#quick-start">Quick Start</a> •
-  <a href="#how-it-works">How It Works</a> •
-  <a href="#documentation">Documentation</a>
+  <a href="https://edelwud.github.io/terraci">Documentation</a> &bull;
+  <a href="#installation">Installation</a> &bull;
+  <a href="#quick-start">Quick Start</a> &bull;
+  <a href="https://github.com/edelwud/terraci/tree/main/examples">Examples</a>
 </p>
 
 ---
 
 ## Why TerraCi?
 
-Managing Terraform in a monorepo is hard:
-- **Dependencies** between modules must be respected (EKS needs VPC first)
-- **Manual pipelines** are tedious to write and maintain
-- **Full deployments** waste time when only one module changed
+Managing Terraform in a monorepo is painful:
 
-TerraCi solves this by analyzing your Terraform code and generating optimal GitLab CI pipelines automatically.
+- **Dependencies** between modules must be respected — EKS can't deploy before VPC
+- **Manual pipelines** are tedious to write and a nightmare to maintain
+- **Full deployments** waste CI minutes when only one module changed
+- **No visibility** into what a plan will cost or whether it violates policies
+
+TerraCi solves all of this. Point it at your repo, and it generates correct, dependency-aware GitLab CI pipelines — with cost estimates and policy checks baked in.
+
+## Features
+
+<table>
+<tr><td width="50%">
+
+**Pipeline Generation**
+- Dependency-aware topological ordering
+- Parallel execution of independent modules
+- Plan + apply stages with manual approval gates
+- Changed-only mode via git diff
+
+</td><td>
+
+**Intelligence**
+- AWS cost estimation on every plan
+- OPA policy enforcement (local, git, OCI sources)
+- MR comments with plan summaries, costs & policy results
+- Dependency graph visualization (DOT/GraphViz)
+
+</td></tr>
+<tr><td>
+
+**Flexibility**
+- Terraform & OpenTofu support
+- Configurable directory patterns & depth
+- Per-job overrides (image, secrets, tags, rules)
+- OIDC tokens & Vault secrets integration
+
+</td><td>
+
+**Developer Experience**
+- Single binary, zero dependencies
+- JSON schema for IDE autocomplete
+- Shell completions (bash, zsh, fish)
+- Dry-run mode to preview changes
+
+</td></tr>
+</table>
 
 ## Installation
 
-### Homebrew (macOS/Linux)
-
 ```bash
+# Homebrew
 brew install edelwud/tap/terraci
-```
 
-### Go
-
-```bash
+# Go
 go install github.com/edelwud/terraci/cmd/terraci@latest
-```
 
-### Docker
-
-```bash
+# Docker
 docker run --rm -v $(pwd):/workspace ghcr.io/edelwud/terraci:latest generate
+
+# Binary — download from GitHub Releases
+# https://github.com/edelwud/terraci/releases
 ```
-
-### Binary
-
-Download from [GitHub Releases](https://github.com/edelwud/terraci/releases).
 
 ## Quick Start
 
 ```bash
-# 1. Initialize configuration
+# Initialize config
 terraci init
 
-# 2. Validate project structure and dependencies
+# Validate structure & dependencies
 terraci validate
 
-# 3. Generate GitLab CI pipeline
+# Generate pipeline
 terraci generate -o .gitlab-ci.yml
+
+# Only changed modules (CI)
+terraci generate --changed-only --base-ref main -o .gitlab-ci.yml
 ```
 
 ## How It Works
 
+```
+ Your Repo                    TerraCi                         GitLab CI
+┌─────────────┐    ┌──────────────────────────┐    ┌─────────────────────┐
+│ platform/   │    │ 1. Discover modules      │    │ deploy-plan-0:      │
+│  prod/      │───>│ 2. Parse remote_state    │───>│   plan-vpc          │
+│   eu-west/  │    │ 3. Build dependency DAG  │    │ deploy-apply-0:     │
+│    vpc/     │    │ 4. Topological sort      │    │   apply-vpc         │
+│    eks/     │    │ 5. Generate YAML         │    │ deploy-plan-1:      │
+│    rds/     │    │                          │    │   plan-eks, plan-rds │
+└─────────────┘    └──────────────────────────┘    └─────────────────────┘
+```
+
 ### 1. Module Discovery
 
-TerraCi scans your directory structure following the pattern `{service}/{environment}/{region}/{module}`:
+Scans directories matching `{service}/{environment}/{region}/{module}`:
 
 ```
-infrastructure/
-├── platform/
-│   └── prod/
-│       └── eu-central-1/
-│           ├── vpc/          ← Module: platform/prod/eu-central-1/vpc
-│           ├── eks/          ← Module: platform/prod/eu-central-1/eks
-│           └── rds/          ← Module: platform/prod/eu-central-1/rds
+platform/prod/eu-central-1/vpc/   → Module ID: platform/prod/eu-central-1/vpc
+platform/prod/eu-central-1/eks/   → Module ID: platform/prod/eu-central-1/eks
+platform/prod/eu-central-1/ec2/rabbitmq/  → Submodule (depth 5)
 ```
 
-### 2. Dependency Extraction
+### 2. Dependency Resolution
 
 Dependencies are extracted from `terraform_remote_state` data sources:
 
 ```hcl
-# eks/main.tf
 data "terraform_remote_state" "vpc" {
   backend = "s3"
   config = {
     key = "platform/prod/eu-central-1/vpc/terraform.tfstate"
   }
 }
+# TerraCi resolves: eks → depends on → vpc
 ```
-
-TerraCi understands that `eks` depends on `vpc`.
 
 ### 3. Pipeline Generation
 
-Modules are sorted topologically and grouped into parallel execution levels:
+Modules are topologically sorted and grouped into parallel execution levels:
 
 ```
-Level 0: vpc (no dependencies)
-Level 1: eks, rds (depend on vpc, run in parallel)
-Level 2: app (depends on eks)
+Level 0: vpc                    (no dependencies)
+Level 1: eks, rds               (depend on vpc — run in parallel)
+Level 2: app                    (depends on eks)
 ```
 
-Generated pipeline:
-
-```yaml
-stages:
-  - deploy-plan-0
-  - deploy-apply-0
-  - deploy-plan-1
-  - deploy-apply-1
-
-plan-vpc:
-  stage: deploy-plan-0
-
-apply-vpc:
-  stage: deploy-apply-0
-  needs: [plan-vpc]
-
-plan-eks:
-  stage: deploy-plan-1
-  needs: [apply-vpc]
-```
-
-## Features
-
-| Feature | Description |
-|---------|-------------|
-| **Module Discovery** | Pattern-based detection at configurable depth (4-5 levels) |
-| **Dependency Graph** | Builds DAG from `terraform_remote_state` references |
-| **Topological Sort** | Kahn's algorithm ensures correct execution order |
-| **Parallel Execution** | Independent modules run simultaneously |
-| **Changed-Only Mode** | Git diff detection for incremental deployments |
-| **Policy Checks** | OPA-based policy enforcement on Terraform plans |
-| **MR Integration** | Posts plan summaries as GitLab MR comments |
-| **OpenTofu Support** | Single config option to switch from Terraform |
-| **Visualization** | Export dependency graph to DOT/GraphViz format |
-
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `terraci init` | Create configuration file |
-| `terraci validate` | Validate structure and dependencies |
-| `terraci generate` | Generate GitLab CI pipeline |
-| `terraci graph` | Visualize dependency graph |
-| `terraci summary` | Post plan results to MR (CI only) |
-| `terraci policy pull` | Download policies from configured sources |
-| `terraci policy check` | Check Terraform plans against OPA policies |
-
-### Common Options
-
-```bash
-# Generate only for changed modules
-terraci generate --changed-only --base-ref main -o .gitlab-ci.yml
-
-# Filter by environment
-terraci generate --environment prod
-
-# Exclude patterns
-terraci generate --exclude "*/sandbox/*" --exclude "*/test/*"
-
-# Auto-approve applies (skip manual trigger)
-terraci generate --auto-approve
-
-# Dry run - show what would be generated
-terraci generate --dry-run
-```
+Each level gets plan + apply stages. Apply requires the previous level to complete.
 
 ## Configuration
 
-Create `.terraci.yaml` in your project root:
-
 ```yaml
+# .terraci.yaml
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
-  min_depth: 4
-  max_depth: 5
   allow_submodules: true
 
 exclude:
@@ -194,76 +170,103 @@ exclude:
   - "*/sandbox/*"
 
 gitlab:
-  image: "hashicorp/terraform:1.6"
-  plan_enabled: true
+  image: "hashicorp/terraform:1.6"    # or "ghcr.io/opentofu/opentofu:1.6"
+  terraform_binary: "terraform"        # or "tofu"
   auto_approve: false
   cache_enabled: true
 
-  variables:
-    TF_IN_AUTOMATION: "true"
-
   job_defaults:
-    tags:
-      - terraform
-      - docker
+    tags: [terraform, docker]
+    variables:
+      TF_IN_AUTOMATION: "true"
 
-  # MR integration
   mr:
     comment:
       enabled: true
     summary_job:
       image:
         name: "ghcr.io/edelwud/terraci:latest"
-```
 
-### OpenTofu
+# Cost estimation (AWS)
+cost:
+  enabled: true
+  show_in_comment: true
 
-```yaml
-gitlab:
-  terraform_binary: "tofu"
-  image: "ghcr.io/opentofu/opentofu:1.6"
-```
-
-### Policy Checks
-
-TerraCi integrates [Open Policy Agent (OPA)](https://www.openpolicyagent.org/) to enforce compliance rules:
-
-```yaml
+# OPA policy checks
 policy:
   enabled: true
   sources:
-    - path: policies           # Local policies
+    - path: policies
     - git: https://github.com/org/policies.git
-      ref: main               # Git repository
-  namespaces:
-    - terraform
-  on_failure: block           # block, warn, or ignore
+      ref: main
+  namespaces: [terraform]
+  on_failure: block                    # block, warn, ignore
 ```
 
-Example Rego policy:
+> **Tip:** Run `terraci schema` to generate a JSON schema for IDE autocomplete in your `.terraci.yaml`.
 
-```rego
-package terraform
+## Commands
 
-deny contains msg if {
-    resource := input.resource_changes[_]
-    resource.type == "aws_s3_bucket"
-    resource.change.after.acl == "public-read"
-    msg := sprintf("S3 bucket '%s' must not be public", [resource.name])
-}
+| Command | Description |
+|---------|-------------|
+| `terraci init` | Create `.terraci.yaml` config |
+| `terraci validate` | Validate project structure and dependencies |
+| `terraci generate` | Generate GitLab CI pipeline |
+| `terraci graph` | Visualize dependency graph (DOT, levels) |
+| `terraci summary` | Post plan/cost/policy summary to MR (CI) |
+| `terraci policy pull` | Download policies from configured sources |
+| `terraci policy check` | Evaluate plans against OPA policies |
+| `terraci schema` | Generate JSON schema for config validation |
+| `terraci version` | Show version and embedded OPA version |
+
+<details>
+<summary><strong>Common usage examples</strong></summary>
+
+```bash
+# Changed modules only (for MR pipelines)
+terraci generate --changed-only --base-ref main -o .gitlab-ci.yml
+
+# Filter by environment or service
+terraci generate --environment prod --service platform
+
+# Plan-only mode (no apply jobs)
+terraci generate --plan-only
+
+# Exclude patterns
+terraci generate --exclude "*/sandbox/*" --exclude "*/test/*"
+
+# Dependency graph as DOT
+terraci graph --format dot -o deps.dot
+
+# Show execution levels
+terraci graph --format levels
+
+# Show what depends on a module
+terraci graph --module platform/prod/eu-central-1/vpc --dependents
+
+# Policy check a specific module
+terraci policy check --module platform/prod/eu-central-1/vpc --output json
+
+# Dry run
+terraci generate --dry-run
 ```
 
-See [examples/policy-checks](examples/policy-checks/) for complete examples.
+</details>
 
 ## Documentation
 
-Full documentation: [terraci.dev](https://terraci.dev) (or `docs/` directory)
+Full documentation is available at **[edelwud.github.io/terraci](https://edelwud.github.io/terraci)**.
 
-- [Getting Started](docs/guide/getting-started.md)
-- [Project Structure](docs/guide/project-structure.md)
-- [Dependencies](docs/guide/dependencies.md)
-- [Configuration Reference](docs/config/index.md)
-- [GitLab MR Integration](docs/config/gitlab-mr.md)
+| Topic | Link |
+|-------|------|
+| Getting Started | [guide/getting-started](https://edelwud.github.io/terraci/guide/getting-started) |
+| Project Structure | [guide/project-structure](https://edelwud.github.io/terraci/guide/project-structure) |
+| Dependencies | [guide/dependencies](https://edelwud.github.io/terraci/guide/dependencies) |
+| Pipeline Generation | [guide/pipeline-generation](https://edelwud.github.io/terraci/guide/pipeline-generation) |
+| Configuration Reference | [config/](https://edelwud.github.io/terraci/config/) |
+| GitLab MR Integration | [config/gitlab-mr](https://edelwud.github.io/terraci/config/gitlab-mr) |
+| Policy Checks | [config/policy](https://edelwud.github.io/terraci/config/policy) |
+| CLI Reference | [cli/](https://edelwud.github.io/terraci/cli/) |
 
 ## Contributing
 
@@ -271,4 +274,4 @@ Contributions are welcome! Please open an issue or pull request.
 
 ## License
 
-MIT
+[MIT](LICENSE)

@@ -1,3 +1,9 @@
+---
+title: terraci init
+description: Initialize .terraci.yaml configuration file with sensible defaults
+outline: deep
+---
+
 # terraci init
 
 Initialize a TerraCi configuration file.
@@ -41,7 +47,7 @@ exclude:
 
 gitlab:
   terraform_binary: "terraform"
-  terraform_image: "hashicorp/terraform:1.6"
+  image: "hashicorp/terraform:1.6"
   stages_prefix: "deploy"
   parallelism: 5
   plan_enabled: true
@@ -121,7 +127,7 @@ After init, modify for OpenTofu:
 ```yaml
 gitlab:
   terraform_binary: "tofu"
-  terraform_image: "ghcr.io/opentofu/opentofu:1.6"
+  image: "ghcr.io/opentofu/opentofu:1.6"
 ```
 
 ### GCS Backend
@@ -160,3 +166,8 @@ Error: permission denied: .terraci.yaml
 ```
 
 Solution: Check file permissions and ownership.
+
+## See Also
+
+- [Configuration Overview](/config/) — full configuration reference for .terraci.yaml
+- [Getting Started](/guide/getting-started) — step-by-step guide to set up TerraCi

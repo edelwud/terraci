@@ -1,3 +1,9 @@
+---
+title: Pipeline Generation
+description: "Generated pipeline structure, parallel execution stages, and changed-only mode"
+outline: deep
+---
+
 # Pipeline Generation
 
 TerraCi generates GitLab CI pipelines that respect module dependencies and enable parallel execution.
@@ -107,15 +113,21 @@ apply-platform-prod-us-east-1-eks:
 
 Independent modules at the same level run in parallel:
 
-```
-Level 0: vpc ──────┬──────────────────────────────────→
-         iam ──────┘
-                   ↓
-Level 1: eks ──────┬──────────────────────────────────→
-         rds ──────┤
-         cache ────┘
-                   ↓
-Level 2: app ─────────────────────────────────────────→
+```mermaid
+flowchart LR
+  subgraph l0["Level 0"]
+    vpc
+    iam
+  end
+  subgraph l1["Level 1"]
+    eks
+    rds
+    cache
+  end
+  subgraph l2["Level 2"]
+    app
+  end
+  l0 --> l1 --> l2
 ```
 
 ## Changed-Only Pipelines
@@ -274,3 +286,8 @@ terraci generate  # Prints to stdout
 ```bash
 terraci generate | yq '.stages'  # Extract stages
 ```
+
+## Next Steps
+
+- [Git Integration](/guide/git-integration) — Generate pipelines only for changed modules
+- [GitLab CI Configuration](/config/gitlab) — Customize pipeline settings, images, and job defaults

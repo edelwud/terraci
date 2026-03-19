@@ -1,3 +1,9 @@
+---
+title: Filters
+description: Module filtering with include/exclude glob patterns and library modules configuration
+outline: deep
+---
+
 # Filters Configuration
 
 Filter modules using include and exclude patterns.
@@ -334,3 +340,7 @@ Affected modules (including dependents): 3
 ### Example
 
 See the [library-modules example](https://github.com/edelwud/terraci/tree/main/examples/library-modules) for a complete working example.
+
+## See Also
+
+- [Structure Configuration](/config/structure) — directory patterns and module discovery settings

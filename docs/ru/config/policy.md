@@ -1,3 +1,9 @@
+---
+title: "Проверка политик"
+description: "Конфигурация OPA-политик: источники, пространства имён, правила и интеграция с MR"
+outline: deep
+---
+
 # Проверка политик
 
 TerraCi интегрирует [Open Policy Agent (OPA)](https://www.openpolicyagent.org/) для применения правил соответствия к Terraform планам. Политики пишутся на [Rego](https://www.openpolicyagent.org/docs/latest/policy-language/), декларативном языке политик OPA.
@@ -281,3 +287,7 @@ terraci policy check --output json
 - Полной конфигурации `.terraci.yaml`
 - Примеров Rego политик для AWS ресурсов
 - Настройки GitLab CI пайплайна
+
+## Смотрите также
+
+- [Policy CLI](/ru/cli/policy) — команды для загрузки и проверки OPA-политик

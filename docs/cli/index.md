@@ -1,3 +1,9 @@
+---
+title: CLI Reference
+description: "TerraCi command-line interface: all commands, global options, and exit codes"
+outline: deep
+---
+
 # CLI Reference
 
 TerraCi command-line interface reference.

@@ -1,3 +1,9 @@
+---
+title: terraci graph
+description: Visualize module dependency graph in DOT, list, or levels format
+outline: deep
+---
+
 # terraci graph
 
 Display and export the dependency graph.
@@ -229,3 +235,7 @@ Find why a module is included:
 terraci graph -m platform/prod/app
 # Shows what app depends on
 ```
+
+## See Also
+
+- [Dependency Resolution Guide](/guide/dependencies) — how TerraCi resolves module dependencies

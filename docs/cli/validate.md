@@ -1,3 +1,9 @@
+---
+title: terraci validate
+description: Validate project structure, configuration, and dependency graph
+outline: deep
+---
+
 # terraci validate
 
 Validate project structure and dependencies.
@@ -179,3 +185,8 @@ Check:
 ```
 
 Review the cycle path and fix remote_state references to break the cycle.
+
+## See Also
+
+- [Project Structure Guide](/guide/project-structure) — best practices for organizing Terraform modules
+- [Configuration Overview](/config/) — full configuration reference for .terraci.yaml

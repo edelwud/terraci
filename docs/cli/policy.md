@@ -1,3 +1,9 @@
+---
+title: terraci policy
+description: Pull and check OPA policies against Terraform plans
+outline: deep
+---
+
 # terraci policy
 
 Commands for managing and running OPA policy checks against Terraform plans.

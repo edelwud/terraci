@@ -1,3 +1,9 @@
+---
+title: "Разрешение зависимостей"
+description: "Как TerraCi извлекает зависимости из terraform_remote_state и строит порядок выполнения"
+outline: deep
+---
+
 # Разрешение зависимостей
 
 TerraCi автоматически обнаруживает зависимости между Terraform-модулями, анализируя data-источники `terraform_remote_state`.
@@ -40,11 +46,12 @@ Module ID: platform/production/us-east-1/vpc
 
 Зависимости добавляются в направленный ациклический граф (DAG):
 
-```
-eks → vpc     (eks зависит от vpc)
-rds → vpc     (rds зависит от vpc)
-app → eks    (app зависит от eks)
-app → rds    (app зависит от rds)
+```mermaid
+flowchart TD
+  vpc --> eks
+  vpc --> rds
+  eks --> app
+  rds --> app
 ```
 
 ## Поддерживаемые бэкенды
@@ -100,6 +107,36 @@ data "terraform_remote_state" "vpc" {
   }
 }
 ```
+
+## Резервное сопоставление по имени
+
+Если путь state-файла не удаётся сопоставить с модулем, TerraCi использует резервное сопоставление по имени:
+
+```hcl
+# Модуль: platform/production/us-east-1/eks
+
+data "terraform_remote_state" "vpc" {  # ← имя "vpc"
+  # ...
+}
+```
+
+TerraCi ищет модуль с именем `vpc` в том же сервисе/окружении/регионе.
+
+## Зависимости сабмодулей
+
+Для сабмодулей TerraCi также использует сопоставление по паттерну:
+
+```hcl
+# В модуле: platform/production/us-east-1/ec2/rabbitmq
+
+data "terraform_remote_state" "ec2_base" {
+  # ...
+}
+```
+
+Соответствия:
+- `ec2_base` → `ec2/base` (паттерн сабмодуля)
+- `ec2-base` → `ec2/base` (через дефис)
 
 ## Уровни выполнения
 
@@ -159,6 +196,15 @@ terraci validate
   module-a → module-b → module-c → module-a
 ```
 
+```mermaid
+flowchart LR
+  module-a --> module-b --> module-c --> module-a
+  style module-a fill:#fef2f2,stroke:#ef4444,color:#991b1b
+  style module-b fill:#fef2f2,stroke:#ef4444,color:#991b1b
+  style module-c fill:#fef2f2,stroke:#ef4444,color:#991b1b
+  linkStyle default stroke:#ef4444,stroke-width:2px
+```
+
 Циклические зависимости блокируют генерацию пайплайна.
 
 ## Визуализация
@@ -176,3 +222,41 @@ terraci graph --format list
 # Уровни выполнения
 terraci graph --format levels
 ```
+
+## Устранение неполадок
+
+### Зависимость не обнаружена
+
+1. Убедитесь, что путь state-файла совпадает с ID модуля:
+   ```bash
+   terraci validate -v
+   ```
+
+2. Проверьте паттерн пути:
+   ```yaml
+   backend:
+     key_pattern: "{service}/{environment}/{region}/{module}/terraform.tfstate"
+   ```
+
+3. Проверьте наличие опечаток в конфигурации remote state
+
+### Слишком много зависимостей
+
+Если обнаружены непредусмотренные зависимости:
+
+1. Проверьте значения `key` в remote state
+2. Убедитесь, что пути state-файлов соответствуют ожидаемому паттерну
+3. Проверьте, нет ли ссылок на общие state-файлы
+
+### Модуль не найден
+
+Если указанный в ссылке модуль не обнаруживается:
+
+1. Убедитесь, что модуль существует на правильной глубине
+2. Проверьте, что он содержит `.tf` файлы
+3. Убедитесь, что он не исключён паттернами фильтрации
+
+## Следующие шаги
+
+- [Генерация пайплайнов](/ru/guide/pipeline-generation) — структура пайплайна и параллельное выполнение
+- [Визуализация графа](/ru/cli/graph) — экспорт и визуализация графа зависимостей

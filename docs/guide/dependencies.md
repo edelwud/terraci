@@ -1,3 +1,9 @@
+---
+title: Dependency Resolution
+description: How TerraCi extracts dependencies from terraform_remote_state and builds execution order
+outline: deep
+---
+
 # Dependency Resolution
 
 TerraCi automatically discovers dependencies between Terraform modules by analyzing `terraform_remote_state` data sources.
@@ -40,11 +46,12 @@ Module ID: platform/production/us-east-1/vpc
 
 Dependencies are added to a directed acyclic graph (DAG):
 
-```
-eks → vpc     (eks depends on vpc)
-rds → vpc     (rds depends on vpc)
-app → eks    (app depends on eks)
-app → rds    (app depends on rds)
+```mermaid
+flowchart TD
+  vpc --> eks
+  vpc --> rds
+  eks --> app
+  rds --> app
 ```
 
 ## Supported Backends
@@ -174,9 +181,13 @@ terraci validate
 ```
 
 Output:
-```
-✗ Circular dependency detected:
-  module-a → module-b → module-c → module-a
+```mermaid
+flowchart LR
+  module-a --> module-b --> module-c --> module-a
+  style module-a fill:#fef2f2,stroke:#ef4444,color:#991b1b
+  style module-b fill:#fef2f2,stroke:#ef4444,color:#991b1b
+  style module-c fill:#fef2f2,stroke:#ef4444,color:#991b1b
+  linkStyle default stroke:#ef4444,stroke-width:2px
 ```
 
 Circular dependencies prevent pipeline generation.
@@ -241,3 +252,8 @@ If a referenced module isn't discovered:
 1. Verify the module exists at the correct depth
 2. Check that it contains `.tf` files
 3. Ensure it's not excluded by filter patterns
+
+## Next Steps
+
+- [Pipeline Generation](/guide/pipeline-generation) — See how the dependency graph becomes a GitLab CI pipeline
+- [Graph Visualization](/cli/graph) — Export and visualize the dependency graph

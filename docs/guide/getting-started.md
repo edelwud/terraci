@@ -1,3 +1,9 @@
+---
+title: Getting Started
+description: Install TerraCi, initialize configuration, and generate your first GitLab CI pipeline
+outline: deep
+---
+
 # Getting Started
 
 This guide will help you set up TerraCi and generate your first pipeline.

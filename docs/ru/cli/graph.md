@@ -1,3 +1,9 @@
+---
+title: "terraci graph"
+description: "Визуализация графа зависимостей в форматах DOT, list и levels"
+outline: deep
+---
+
 # terraci graph
 
 Визуализация графа зависимостей модулей.
@@ -282,3 +288,7 @@ terraci graph --format json | jq '.modules | max_by(.dependents | length)'
 2. **`--dependents`** — показывает blast radius изменений
 3. **JSON + jq** — мощный инструмент для анализа
 4. **Регулярно обновляйте** визуализацию в документации
+
+## Смотрите также
+
+- [Разрешение зависимостей](/ru/guide/dependencies) — как TerraCi строит граф зависимостей

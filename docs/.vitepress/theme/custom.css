@@ -97,6 +97,69 @@ tr:hover td {
   font-size: 0.9em;
 }
 
+/* Mermaid diagrams */
+.mermaid {
+  display: flex;
+  justify-content: center;
+  margin: 24px 0;
+  padding: 24px 16px;
+  background: var(--vp-c-bg-soft);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+/* Mermaid node styling */
+.mermaid .node rect,
+.mermaid .node polygon,
+.mermaid .node circle {
+  rx: 6;
+  ry: 6;
+}
+
+/* Mermaid node text */
+.mermaid .nodeLabel {
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Mermaid edge labels */
+.mermaid .edgeLabel {
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  font-size: 12px;
+  background: var(--vp-c-bg-soft);
+}
+
+/* Mermaid subgraph titles */
+.mermaid .cluster-label .nodeLabel {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--vp-c-text-2);
+}
+
+/* Mermaid subgraph boxes */
+.mermaid .cluster rect {
+  rx: 8 !important;
+  ry: 8 !important;
+}
+
+/* Mermaid arrow lines */
+.mermaid .flowchart-link {
+  stroke-width: 1.5px;
+}
+
+/* Mermaid arrowheads */
+.mermaid .marker {
+  fill: #6366f1;
+  stroke: #6366f1;
+}
+
+.dark .mermaid .marker {
+  fill: #818cf8;
+  stroke: #818cf8;
+}
+
 /* Smooth scroll */
 html {
   scroll-behavior: smooth;

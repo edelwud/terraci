@@ -1,3 +1,9 @@
+---
+title: "Merge Request"
+description: "Комментарии в MR с результатами plan, оценкой стоимости и проверкой политик"
+outline: deep
+---
+
 # Интеграция с GitLab MR
 
 TerraCi может автоматически публиковать результаты terraform plan в виде комментариев к Merge Request в GitLab.
@@ -210,3 +216,8 @@ Summary job использует эти CI/CD переменные:
 Summary job появляется только когда:
 1. MR-интеграция включена (секция `gitlab.mr` существует)
 2. Планы включены (`gitlab.plan_enabled: true`)
+
+## Смотрите также
+
+- [Summary CLI](/ru/cli/summary) — команда публикации результатов plan в MR
+- [GitLab CI](/ru/config/gitlab) — настройка генерации пайплайнов

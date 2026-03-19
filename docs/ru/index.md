@@ -4,7 +4,7 @@ layout: home
 hero:
   name: TerraCi
   text: Генератор пайплайнов Terraform
-  tagline: Генерация GitLab CI пайплайнов с учётом зависимостей для Terraform/OpenTofu монорепозиториев
+  tagline: GitLab CI пайплайны с учётом зависимостей для Terraform/OpenTofu монорепозиториев — с оценкой стоимости и проверкой политик
   image:
     src: /logo.svg
     alt: TerraCi
@@ -18,63 +18,51 @@ hero:
 
 features:
   - icon:
-      src: /icons/search.svg
-    title: Поиск модулей
-    details: Сканирует структуру директорий для поиска Terraform-модулей. Настраиваемая глубина (4-5 уровней).
-    link: /ru/guide/project-structure
-    linkText: Подробнее
-  - icon:
       src: /icons/graph.svg
     title: Граф зависимостей
-    details: Извлекает зависимости из terraform_remote_state. Строит DAG с топологической сортировкой.
+    details: Парсит terraform_remote_state для построения DAG. Топологическая сортировка гарантирует правильный порядок выполнения.
     link: /ru/guide/dependencies
     linkText: Как это работает
   - icon:
       src: /icons/zap.svg
     title: Параллельное выполнение
-    details: Группирует модули по уровням. Независимые модули выполняются параллельно.
+    details: Группирует модули по уровням. Независимые модули выполняются параллельно — ждут только зависимые.
     link: /ru/guide/pipeline-generation
-    linkText: Пример
+    linkText: Структура пайплайна
   - icon:
       src: /icons/git.svg
     title: Режим изменений
-    details: Определяет изменённые файлы через git diff. Генерирует пайплайны только для затронутых модулей.
+    details: Определяет изменённые файлы через git diff. Генерирует пайплайны только для затронутых модулей и их зависимых.
     link: /ru/guide/git-integration
     linkText: Git интеграция
   - icon:
+      src: /icons/shield.svg
+    title: Проверка политик
+    details: Контроль соответствия с OPA-политиками на каждом плане. Блокировка или предупреждение — результаты в MR-комментариях.
+    link: /ru/config/policy
+    linkText: Настроить политики
+  - icon:
+      src: /icons/dollar.svg
+    title: Оценка стоимости
+    details: Оценка месячной стоимости AWS из terraform планов. Разница before/after по каждому модулю в MR.
+    link: /ru/config/cost
+    linkText: Настроить оценку
+  - icon:
       src: /icons/tofu.svg
     title: Поддержка OpenTofu
-    details: Работает с Terraform и OpenTofu. Переключение одной опцией в конфиге.
+    details: Полноценная поддержка Terraform и OpenTofu. Переключение одной опцией в конфиге.
     link: /ru/guide/opentofu
     linkText: Настройка
-  - icon:
-      src: /icons/chart.svg
-    title: Визуализация
-    details: Экспорт графа зависимостей в DOT. Визуализация через GraphViz.
-    link: /ru/cli/graph
-    linkText: Команды
 ---
 
-## Установка
+## Быстрый старт
 
 ```bash
-# Homebrew (macOS/Linux)
+# Установка
 brew install edelwud/tap/terraci
 
-# Go
-go install github.com/edelwud/terraci/cmd/terraci@latest
-
-# Docker
-docker run --rm -v $(pwd):/workspace ghcr.io/edelwud/terraci:latest generate
-```
-
-## Использование
-
-```bash
-# Инициализация конфига
+# Инициализация и генерация
 terraci init
-
-# Генерация пайплайна
 terraci generate -o .gitlab-ci.yml
 
 # Только изменённые модули
@@ -83,68 +71,22 @@ terraci generate --changed-only --base-ref main
 
 ## Как это работает
 
-**1. Поиск модулей** по структуре директорий:
-
-```
-platform/prod/eu-central-1/
-├── vpc/        → platform/prod/eu-central-1/vpc
-├── eks/        → platform/prod/eu-central-1/eks
-└── rds/        → platform/prod/eu-central-1/rds
-```
-
-**2. Извлечение зависимостей** из `terraform_remote_state`:
-
-```hcl
-# eks/main.tf
-data "terraform_remote_state" "vpc" {
-  backend = "s3"
-  config = {
-    key = "platform/prod/eu-central-1/vpc/terraform.tfstate"
-  }
-}
-```
-
-**3. Построение порядка выполнения**:
-
-```
-Уровень 0: vpc (нет зависимостей)
-Уровень 1: eks, rds (зависят от vpc)
-```
-
-**4. Генерация пайплайна**:
-
-```yaml
-stages:
-  - plan-0
-  - apply-0
-  - plan-1
-  - apply-1
-
-plan-vpc:
-  stage: plan-0
-
-apply-vpc:
-  stage: apply-0
-  needs: [plan-vpc]
-
-plan-eks:
-  stage: plan-1
-  needs: [apply-vpc]
-```
-
-## Конфигурация
-
-```yaml
-# .terraci.yaml
-structure:
-  pattern: "{service}/{environment}/{region}/{module}"
-
-gitlab:
-  image: hashicorp/terraform:1.6
-  plan_enabled: true
-
-exclude:
-  - "*/test/*"
+```mermaid
+flowchart LR
+  subgraph repo["Репозиторий"]
+    r1["vpc/"]
+    r2["eks/"]
+    r3["rds/"]
+  end
+  subgraph terraci["TerraCi"]
+    t1["Поиск"] --> t2["Парсинг"] --> t3["Сортировка"] --> t4["Генерация"]
+  end
+  subgraph gitlab["GitLab CI"]
+    g1["plan vpc"] --> g2["apply vpc"]
+    g2 --> g3["plan eks + rds"]
+    g3 --> g4["apply eks + rds"]
+  end
+  repo --> terraci --> gitlab
 ```
 
 [Полный справочник конфигурации →](/ru/config/)

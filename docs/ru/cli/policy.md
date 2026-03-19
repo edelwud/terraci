@@ -1,3 +1,9 @@
+---
+title: "terraci policy"
+description: "Загрузка и проверка OPA-политик для Terraform планов"
+outline: deep
+---
+
 # terraci policy
 
 Команды для управления и запуска OPA проверок политик на Terraform планах.

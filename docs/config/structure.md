@@ -1,3 +1,9 @@
+---
+title: Structure Configuration
+description: Configure directory patterns, depth, and submodule discovery for Terraform modules
+outline: deep
+---
+
 # Structure Configuration
 
 The `structure` section defines how TerraCi discovers Terraform modules.
@@ -178,3 +184,8 @@ If module IDs don't match expected paths:
 1. Verify the pattern matches your structure
 2. Check depth calculations
 3. Ensure consistent directory naming
+
+## See Also
+
+- [Filters](/config/filters) — include/exclude glob patterns for module filtering
+- [Project Structure Guide](/guide/project-structure) — best practices for organizing Terraform modules

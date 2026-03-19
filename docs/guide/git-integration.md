@@ -1,3 +1,9 @@
+---
+title: Git Integration
+description: "Changed-only mode: detect modified modules via git diff and generate targeted pipelines"
+outline: deep
+---
+
 # Git Integration
 
 TerraCi integrates with Git to generate pipelines only for changed modules and their dependents.
@@ -223,3 +229,8 @@ Or use the default branch comparison which includes uncommitted changes:
 ```bash
 terraci generate --changed-only  # Includes working directory changes
 ```
+
+## Next Steps
+
+- [Submodules](/guide/submodules) — Nested submodules at depth 5 and how they interact with change detection
+- [OpenTofu Support](/guide/opentofu) — Configure TerraCi for OpenTofu projects

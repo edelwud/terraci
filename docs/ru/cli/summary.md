@@ -1,3 +1,9 @@
+---
+title: "terraci summary"
+description: "Публикация результатов plan, стоимости и политик в комментарии GitLab MR"
+outline: deep
+---
+
 # terraci summary
 
 Публикует результаты terraform plan в виде комментария к GitLab Merge Request.

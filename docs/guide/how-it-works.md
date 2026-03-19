@@ -1,3 +1,9 @@
+---
+title: How It Works
+description: "Architecture overview: module discovery, dependency graphs, topological sorting, and pipeline generation"
+outline: deep
+---
+
 # How It Works
 
 This guide explains TerraCi's internal architecture and data flow.
@@ -6,12 +12,9 @@ This guide explains TerraCi's internal architecture and data flow.
 
 TerraCi processes your Terraform project in four stages:
 
-```
-┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-│   Discovery  │ -> │   Parsing    │ -> │    Graph     │ -> │  Generation  │
-│              │    │              │    │   Building   │    │              │
-│ Find modules │    │ Extract deps │    │ Sort order   │    │ Output YAML  │
-└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+```mermaid
+flowchart LR
+  A["🔍 Discovery"] --> B["📄 Parsing"] --> C["🔗 Graph"] --> D["⚙️ Generation"]
 ```
 
 ## Stage 1: Module Discovery
@@ -118,17 +121,18 @@ TerraCi builds a Directed Acyclic Graph (DAG) of module dependencies.
 
 Kahn's algorithm ensures modules are ordered so dependencies come first:
 
+```mermaid
+flowchart TD
+  vpc --> eks
+  vpc --> rds
+  eks --> app
+  rds --> app
 ```
-Input graph:
-  eks -> vpc
-  rds -> vpc
-  app -> eks, rds
 
 Output order:
-  Level 0: vpc
-  Level 1: eks, rds (parallel)
-  Level 2: app
-```
+- Level 0: vpc
+- Level 1: eks, rds (parallel)
+- Level 2: app
 
 ### Execution Levels
 
@@ -144,8 +148,13 @@ Modules are grouped into levels for parallel execution:
 
 TerraCi detects circular dependencies:
 
-```
-vpc -> eks -> app -> vpc  ← Cycle detected!
+```mermaid
+flowchart LR
+  vpc --> eks --> app --> vpc
+  style vpc fill:#fef2f2,stroke:#ef4444,color:#991b1b
+  style eks fill:#fef2f2,stroke:#ef4444,color:#991b1b
+  style app fill:#fef2f2,stroke:#ef4444,color:#991b1b
+  linkStyle default stroke:#ef4444,stroke-width:2px
 ```
 
 Error message:
@@ -204,47 +213,23 @@ apply-eks:
 
 ## Data Flow Diagram
 
+```mermaid
+flowchart TD
+  A["terraci generate"] --> B
+  B["Scanner.Scan()"] --> C
+  C["Parser.ParseModule()"] --> D
+  D["DependencyGraph.Build()"] --> E
+  E["Generator.Generate()"] --> F["pipeline.yml"]
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        terraci generate                          │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  Scanner.Scan()                                                  │
-│  ├── Walk directory tree                                         │
-│  ├── Find .tf files at depth 4-5                                │
-│  └── Create Module structs                                       │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  Parser.ParseModule()                                            │
-│  ├── Parse HCL files                                             │
-│  ├── Extract locals                                              │
-│  ├── Find terraform_remote_state blocks                         │
-│  └── Resolve variable interpolation                              │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  DependencyGraph.Build()                                         │
-│  ├── Add nodes for each module                                   │
-│  ├── Add edges for dependencies                                  │
-│  ├── Detect cycles                                               │
-│  └── TopologicalSort() → execution levels                        │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  Generator.Generate()                                            │
-│  ├── Create stages from levels                                   │
-│  ├── Generate plan jobs                                          │
-│  ├── Generate apply jobs                                         │
-│  ├── Apply job_defaults and overwrites                          │
-│  └── Output YAML                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+
+Each stage:
+
+| Step | Function | What it does |
+|------|----------|-------------|
+| 1 | `Scanner.Scan()` | Walk directory tree, find `.tf` files at depth 4-5, create Module structs |
+| 2 | `Parser.ParseModule()` | Parse HCL, extract locals, find `terraform_remote_state`, resolve variables |
+| 3 | `DependencyGraph.Build()` | Add nodes/edges, detect cycles, topological sort → execution levels |
+| 4 | `Generator.Generate()` | Create stages, generate plan/apply jobs, apply overwrites, output YAML |
 
 ## Key Types
 

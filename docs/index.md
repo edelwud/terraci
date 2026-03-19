@@ -4,7 +4,7 @@ layout: home
 hero:
   name: TerraCi
   text: Terraform Pipeline Generator
-  tagline: Generate GitLab CI pipelines with dependency ordering for Terraform/OpenTofu monorepos
+  tagline: Dependency-aware GitLab CI pipelines for Terraform/OpenTofu monorepos — with cost estimation and policy checks
   image:
     src: /logo.svg
     alt: TerraCi
@@ -13,68 +13,56 @@ hero:
       text: Get Started
       link: /guide/getting-started
     - theme: alt
-      text: GitHub
+      text: View on GitHub
       link: https://github.com/edelwud/terraci
 
 features:
   - icon:
-      src: /icons/search.svg
-    title: Module Discovery
-    details: Scans directory structure to find Terraform modules. Pattern-based detection with configurable depth (4-5 levels).
-    link: /guide/project-structure
-    linkText: Learn more
-  - icon:
       src: /icons/graph.svg
     title: Dependency Graph
-    details: Extracts dependencies from terraform_remote_state blocks. Builds DAG with topological sorting.
+    details: Parses terraform_remote_state to build a DAG. Topological sort ensures correct execution order across modules.
     link: /guide/dependencies
     linkText: How it works
   - icon:
       src: /icons/zap.svg
     title: Parallel Execution
-    details: Groups modules into execution levels. Independent modules run in parallel, dependent modules wait.
+    details: Groups modules into execution levels. Independent modules run in parallel — only dependent modules wait.
     link: /guide/pipeline-generation
-    linkText: See example
+    linkText: See pipeline structure
   - icon:
       src: /icons/git.svg
     title: Changed-Only Mode
-    details: Detects modified files via git diff. Generates pipelines only for affected modules and dependents.
+    details: Detects modified files via git diff. Generates pipelines only for affected modules and their dependents.
     link: /guide/git-integration
     linkText: Git integration
   - icon:
+      src: /icons/shield.svg
+    title: Policy Checks
+    details: Enforce compliance with OPA policies on every plan. Block or warn on violations — results appear in MR comments.
+    link: /config/policy
+    linkText: Configure policies
+  - icon:
+      src: /icons/dollar.svg
+    title: Cost Estimation
+    details: Estimate monthly AWS costs from terraform plans. See before/after diffs per module in MR comments.
+    link: /config/cost
+    linkText: Configure costs
+  - icon:
       src: /icons/tofu.svg
     title: OpenTofu Ready
-    details: Supports both Terraform and OpenTofu. Single config option to switch between them.
+    details: First-class support for both Terraform and OpenTofu. Switch with a single config option.
     link: /guide/opentofu
     linkText: Configure
-  - icon:
-      src: /icons/chart.svg
-    title: Visualization
-    details: Export dependency graph to DOT format. Visualize with GraphViz or other tools.
-    link: /cli/graph
-    linkText: View commands
 ---
 
-## Install
+## Quick Start
 
 ```bash
-# Homebrew (macOS/Linux)
+# Install
 brew install edelwud/tap/terraci
 
-# Go
-go install github.com/edelwud/terraci/cmd/terraci@latest
-
-# Docker
-docker run --rm -v $(pwd):/workspace ghcr.io/edelwud/terraci:latest generate
-```
-
-## Usage
-
-```bash
-# Initialize config
+# Initialize & generate
 terraci init
-
-# Generate pipeline
 terraci generate -o .gitlab-ci.yml
 
 # Only changed modules
@@ -83,68 +71,22 @@ terraci generate --changed-only --base-ref main
 
 ## How It Works
 
-**1. Discover modules** from directory structure:
-
-```
-platform/prod/eu-central-1/
-├── vpc/        → platform/prod/eu-central-1/vpc
-├── eks/        → platform/prod/eu-central-1/eks
-└── rds/        → platform/prod/eu-central-1/rds
-```
-
-**2. Extract dependencies** from `terraform_remote_state`:
-
-```hcl
-# eks/main.tf
-data "terraform_remote_state" "vpc" {
-  backend = "s3"
-  config = {
-    key = "platform/prod/eu-central-1/vpc/terraform.tfstate"
-  }
-}
-```
-
-**3. Build execution order**:
-
-```
-Level 0: vpc (no dependencies)
-Level 1: eks, rds (depend on vpc)
-```
-
-**4. Generate pipeline**:
-
-```yaml
-stages:
-  - plan-0
-  - apply-0
-  - plan-1
-  - apply-1
-
-plan-vpc:
-  stage: plan-0
-
-apply-vpc:
-  stage: apply-0
-  needs: [plan-vpc]
-
-plan-eks:
-  stage: plan-1
-  needs: [apply-vpc]
-```
-
-## Configuration
-
-```yaml
-# .terraci.yaml
-structure:
-  pattern: "{service}/{environment}/{region}/{module}"
-
-gitlab:
-  image: hashicorp/terraform:1.6
-  plan_enabled: true
-
-exclude:
-  - "*/test/*"
+```mermaid
+flowchart LR
+  subgraph repo["Your Repo"]
+    r1["vpc/"]
+    r2["eks/"]
+    r3["rds/"]
+  end
+  subgraph terraci["TerraCi"]
+    t1["Discover"] --> t2["Parse"] --> t3["Sort"] --> t4["Generate"]
+  end
+  subgraph gitlab["GitLab CI"]
+    g1["plan vpc"] --> g2["apply vpc"]
+    g2 --> g3["plan eks + rds"]
+    g3 --> g4["apply eks + rds"]
+  end
+  repo --> terraci --> gitlab
 ```
 
 [Full configuration reference →](/config/)

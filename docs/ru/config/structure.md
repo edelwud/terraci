@@ -1,3 +1,9 @@
+---
+title: "Структура"
+description: "Настройка паттернов директорий, глубины и обнаружения сабмодулей"
+outline: deep
+---
+
 # Конфигурация структуры
 
 Секция `structure` определяет, как TerraCi обнаруживает Terraform-модули в вашем проекте.
@@ -193,3 +199,8 @@ structure:
   pattern: "{environment}/{region}/{module}"
   min_depth: 3
 ```
+
+## Смотрите также
+
+- [Фильтры](/ru/config/filters) — фильтрация модулей с помощью glob-паттернов
+- [Структура проекта](/ru/guide/project-structure) — руководство по организации Terraform-проекта

@@ -1,3 +1,9 @@
+---
+title: OpenTofu Support
+description: "Configure TerraCi for OpenTofu: binary switching, migration, and compatibility"
+outline: deep
+---
+
 # OpenTofu Support
 
 TerraCi has first-class support for [OpenTofu](https://opentofu.org/), the open-source Terraform fork.
@@ -9,7 +15,7 @@ Switch to OpenTofu by updating `.terraci.yaml`:
 ```yaml
 gitlab:
   terraform_binary: "tofu"
-  terraform_image: "ghcr.io/opentofu/opentofu:1.6"
+  image: "ghcr.io/opentofu/opentofu:1.6"
 ```
 
 ## How It Works
@@ -91,7 +97,7 @@ TerraCi's dependency resolution works identically for both.
    ```yaml
    gitlab:
      terraform_binary: "tofu"
-     terraform_image: "ghcr.io/opentofu/opentofu:1.6"
+     image: "ghcr.io/opentofu/opentofu:1.6"
    ```
 
 2. Regenerate pipelines:
@@ -149,3 +155,8 @@ gitlab:
     TF_CLI_CONFIG_FILE: "/etc/tofu/config.tfrc"
     TOFU_LOG: "INFO"
 ```
+
+## Next Steps
+
+- [Getting Started](/guide/getting-started) — Install TerraCi and set up your first project
+- [GitLab CI Configuration](/config/gitlab) — Full reference for pipeline configuration options

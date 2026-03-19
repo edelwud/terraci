@@ -1,3 +1,9 @@
+---
+title: Merge Request Integration
+description: GitLab MR comments with plan summaries, cost estimates, and policy check results
+outline: deep
+---
+
 # GitLab MR Integration
 
 TerraCi can automatically post terraform plan summaries as comments on GitLab Merge Requests.
@@ -210,3 +216,8 @@ The summary job uses these CI/CD variables:
 The summary job only appears when:
 1. MR integration is enabled (`gitlab.mr` section exists)
 2. Plans are enabled (`gitlab.plan_enabled: true`)
+
+## See Also
+
+- [Summary CLI](/cli/summary) — the command that posts plan results to MR comments
+- [GitLab CI Configuration](/config/gitlab) — pipeline generation settings including images, stages, and jobs

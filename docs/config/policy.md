@@ -1,3 +1,9 @@
+---
+title: Policy Checks
+description: "OPA policy configuration: sources, namespaces, enforcement rules, and MR integration"
+outline: deep
+---
+
 # Policy Configuration
 
 TerraCi integrates [Open Policy Agent (OPA)](https://www.openpolicyagent.org/) to enforce compliance rules on Terraform plans. Policies are written in [Rego](https://www.openpolicyagent.org/docs/latest/policy-language/), OPA's declarative policy language.
@@ -281,3 +287,7 @@ See [examples/policy-checks](https://github.com/edelwud/terraci/tree/main/exampl
 - Complete `.terraci.yaml` configuration
 - Example Rego policies for AWS resources
 - GitLab CI pipeline setup
+
+## See Also
+
+- [Policy CLI](/cli/policy) — pull and check commands for OPA policy evaluation

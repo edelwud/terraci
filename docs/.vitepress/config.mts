@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitepress'
+import { withMermaid } from 'vitepress-plugin-mermaid'
 
 const GITHUB_REPO = 'edelwud/terraci'
 
@@ -17,7 +18,7 @@ async function getLatestVersion(): Promise<string> {
 
 const version = await getLatestVersion()
 
-export default defineConfig({
+export default withMermaid(defineConfig({
   title: "TerraCi",
   description: "Blazing fast Terraform/OpenTofu pipeline generator with dependency resolution",
 
@@ -28,7 +29,10 @@ export default defineConfig({
     ['meta', { name: 'theme-color', content: '#5f67ee' }],
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:site_name', content: 'TerraCi' }],
+    ['meta', { property: 'og:description', content: 'Terraform/OpenTofu pipeline generator with dependency resolution for GitLab CI' }],
   ],
+
+  lastUpdated: true,
 
   locales: {
     root: {
@@ -83,6 +87,7 @@ export default defineConfig({
                 { text: 'Structure', link: '/config/structure' },
                 { text: 'Filters', link: '/config/filters' },
                 { text: 'Policy Checks', link: '/config/policy' },
+                { text: 'Cost Estimation', link: '/config/cost' },
               ]
             },
             {
@@ -163,6 +168,7 @@ export default defineConfig({
                 { text: 'Структура', link: '/ru/config/structure' },
                 { text: 'Фильтры', link: '/ru/config/filters' },
                 { text: 'Проверка политик', link: '/ru/config/policy' },
+                { text: 'Оценка стоимости', link: '/ru/config/cost' },
               ]
             },
             {
@@ -245,5 +251,39 @@ export default defineConfig({
       message: 'Released under the MIT License.',
       copyright: 'Copyright © 2025 TerraCi Contributors'
     }
-  }
-})
+  },
+
+  mermaid: {
+    theme: 'base',
+    themeVariables: {
+      // Brand colors
+      primaryColor: '#ede9fe',
+      primaryTextColor: '#4338ca',
+      primaryBorderColor: '#6366f1',
+      // Lines & arrows
+      lineColor: '#6366f1',
+      // Secondary
+      secondaryColor: '#e0f2fe',
+      secondaryTextColor: '#1e40af',
+      secondaryBorderColor: '#3b82f6',
+      // Tertiary
+      tertiaryColor: '#f0fdf4',
+      tertiaryTextColor: '#166534',
+      tertiaryBorderColor: '#22c55e',
+      // Text
+      textColor: '#1e293b',
+      // Nodes
+      nodeBorder: '#6366f1',
+      mainBkg: '#ede9fe',
+      // Fonts
+      fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+      fontSize: '14px',
+      // Flowchart
+      clusterBkg: '#f8fafc',
+      clusterBorder: '#e2e8f0',
+      // Error/warning for cycle detection
+      errorBkgColor: '#fef2f2',
+      errorTextColor: '#991b1b',
+    },
+  },
+}))

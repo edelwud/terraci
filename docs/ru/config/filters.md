@@ -1,3 +1,9 @@
+---
+title: "Фильтры"
+description: "Фильтрация модулей с помощью glob-паттернов include/exclude и library-модулей"
+outline: deep
+---
+
 # Фильтры
 
 TerraCi поддерживает гибкую фильтрацию модулей через glob-паттерны.
@@ -327,3 +333,7 @@ Affected modules (including dependents): 3
 ### Пример
 
 Смотрите [пример library-modules](https://github.com/edelwud/terraci/tree/main/examples/library-modules) для полного рабочего примера.
+
+## Смотрите также
+
+- [Структура](/ru/config/structure) — настройка паттернов директорий и обнаружения модулей

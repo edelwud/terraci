@@ -1,3 +1,9 @@
+---
+title: "terraci init"
+description: "Инициализация конфигурационного файла .terraci.yaml"
+outline: deep
+---
+
 # terraci init
 
 Инициализация конфигурационного файла TerraCi.
@@ -41,7 +47,7 @@ exclude:
 
 gitlab:
   terraform_binary: "terraform"
-  terraform_image: "hashicorp/terraform:1.6"
+  image: "hashicorp/terraform:1.6"
   stages_prefix: "deploy"
   parallelism: 5
   plan_enabled: true
@@ -121,7 +127,7 @@ terraci -d /path/to/project init
 ```yaml
 gitlab:
   terraform_binary: "tofu"
-  terraform_image: "ghcr.io/opentofu/opentofu:1.6"
+  image: "ghcr.io/opentofu/opentofu:1.6"
 ```
 
 ### GCS Backend
@@ -159,7 +165,7 @@ exclude:
 
 gitlab:
   terraform_binary: "terraform"
-  terraform_image: "hashicorp/terraform:1.6"
+  image: "hashicorp/terraform:1.6"
   stages_prefix: "deploy"
   parallelism: 3
   plan_enabled: true
@@ -208,3 +214,8 @@ Error: permission denied: .terraci.yaml
 2. **Проверьте структуру** — убедитесь, что паттерн соответствует вашему проекту
 3. **Добавьте в git** — `.terraci.yaml` должен быть в репозитории
 4. **Настройте CI сначала** — проверьте `--dry-run` перед деплоем
+
+## Смотрите также
+
+- [Обзор конфигурации](/ru/config/) — справочник конфигурации .terraci.yaml
+- [Быстрый старт](/ru/guide/getting-started) — начало работы с TerraCi

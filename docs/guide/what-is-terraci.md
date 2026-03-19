@@ -1,3 +1,9 @@
+---
+title: What is TerraCi?
+description: CLI tool for analyzing Terraform projects and generating GitLab CI pipelines with dependency ordering
+outline: deep
+---
+
 # What is TerraCi?
 
 TerraCi is a CLI tool that analyzes Terraform/OpenTofu projects and automatically generates GitLab CI pipelines with proper dependency ordering.
@@ -52,10 +58,12 @@ TerraCi detects that `eks` depends on `vpc`.
 
 Using Kahn's algorithm, TerraCi sorts modules into execution levels:
 
-```
-Level 0: vpc (no dependencies)
-Level 1: eks, rds (depend on vpc)
-Level 2: app (depends on eks and rds)
+```mermaid
+flowchart TD
+  vpc --> eks
+  vpc --> rds
+  eks --> app
+  rds --> app
 ```
 
 ### 4. Pipeline Generation
@@ -73,6 +81,8 @@ Finally, it generates a GitLab CI pipeline where:
 | **Dependency Graph** | Builds accurate DAG from remote state references |
 | **Cycle Detection** | Warns about circular dependencies |
 | **Git Integration** | Detects changed modules from git diff |
+| **Policy Checks** | OPA-based compliance enforcement on terraform plans |
+| **Cost Estimation** | AWS cost estimates with monthly diffs in MR comments |
 | **OpenTofu Support** | Works with both Terraform and OpenTofu |
 | **Glob Filtering** | Include/exclude modules with patterns |
 | **DOT Export** | Visualize dependencies with GraphViz |
@@ -91,3 +101,8 @@ TerraCi is ideal for:
 - Go 1.22+ (for building from source)
 - GitLab CI (for pipeline execution)
 - Terraform or OpenTofu modules using `terraform_remote_state`
+
+## Next Steps
+
+- [Getting Started](/guide/getting-started) — Install TerraCi and generate your first pipeline
+- [How It Works](/guide/how-it-works) — Understand the architecture and data flow

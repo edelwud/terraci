@@ -1,3 +1,9 @@
+---
+title: "terraci validate"
+description: "Валидация структуры проекта, конфигурации и графа зависимостей"
+outline: deep
+---
+
 # terraci validate
 
 Валидация проекта и конфигурации TerraCi.
@@ -96,7 +102,7 @@ terraci validate -d /path/to/terraform
 - `structure.pattern` указан
 - `structure.min_depth >= 1`
 - `structure.max_depth >= min_depth`
-- `gitlab.terraform_image` указан
+- `gitlab.image` указан
 
 ### Модули
 
@@ -228,3 +234,8 @@ generate:
   script:
     - terraci generate -o pipeline.yml
 ```
+
+## Смотрите также
+
+- [Структура проекта](/ru/guide/project-structure) — руководство по организации Terraform-проекта
+- [Обзор конфигурации](/ru/config/) — справочник конфигурации .terraci.yaml

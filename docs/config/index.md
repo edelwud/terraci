@@ -1,3 +1,9 @@
+---
+title: Configuration Overview
+description: "TerraCi configuration reference: .terraci.yaml file format and default values"
+outline: deep
+---
+
 # Configuration Overview
 
 TerraCi is configured via a YAML file, typically `.terraci.yaml` in your project root.
@@ -86,6 +92,9 @@ backend:
 | [structure](./structure) | Directory structure and module discovery |
 | [gitlab](./gitlab) | GitLab CI pipeline settings |
 | [filters](./filters) | Include/exclude patterns |
+| [policy](./policy) | OPA policy checks configuration |
+| [cost](./cost) | AWS cost estimation configuration |
+| [gitlab-mr](./gitlab-mr) | Merge request integration |
 
 ## Default Values
 
