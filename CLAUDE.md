@@ -1,287 +1,260 @@
-# TerraCi - AI Assistant Guide
+# TerraCi
 
-CLI tool for analyzing Terraform projects, building dependency graphs, and generating GitLab CI pipelines.
+CLI tool for analyzing Terraform projects, building dependency graphs, generating GitLab CI pipelines, and estimating AWS costs.
+
+## Build & Test
+
+```bash
+make build      # Build binary → build/terraci
+make test       # Run tests with coverage
+make test-short # Short tests
+make lint       # golangci-lint or go vet
+make fmt        # Format code
+make install    # Install to $GOPATH/bin
+```
 
 ## Project Structure
 
 ```
-terraci/
-├── cmd/terraci/
-│   ├── main.go                 # Entry point
-│   └── cmd/                    # Cobra commands
-│       ├── root.go             # Root command, global flags
-│       ├── generate.go         # Pipeline generation
-│       ├── validate.go         # Project validation
-│       ├── graph.go            # Graph visualization
-│       ├── init.go             # Config initialization
-│       ├── summary.go          # MR comment posting
-│       └── version.go          # Version info
-├── internal/
-│   ├── discovery/              # Module discovery
-│   │   └── module.go           # Scanner, Module, ModuleIndex
-│   ├── parser/                 # HCL parsing
-│   │   ├── hcl.go              # Parser, ParsedModule, RemoteStateRef
-│   │   └── dependency.go       # DependencyExtractor
-│   ├── graph/                  # Dependency graph
-│   │   └── dependency.go       # DependencyGraph, TopologicalSort
-│   ├── pipeline/gitlab/        # GitLab CI generation
-│   │   └── generator.go        # Generator, Pipeline, Job
-│   ├── gitlab/                 # GitLab API integration
-│   │   ├── client.go           # Client (uses gitlab.com/gitlab-org/api/client-go)
-│   │   ├── mr_service.go       # MRService for MR comments
-│   │   ├── comment.go          # CommentRenderer, FindTerraCIComment
-│   │   └── plan_result.go      # ScanPlanResults, PlanResult
-│   ├── filter/                 # Module filtering
-│   │   └── glob.go             # GlobFilter, CompositeFilter
-│   ├── git/                    # Git integration
-│   │   └── diff.go             # Client, ChangedModulesDetector
-│   └── policy/                 # OPA policy checks
-│       ├── engine.go           # Engine, OPAVersion()
-│       ├── result.go           # Result, Violation, Summary
-│       ├── source.go           # Source interface, Puller
-│       ├── source_path.go      # PathSource
-│       ├── source_git.go       # GitSource
-│       ├── source_oci.go       # OCISource
-│       └── checker.go          # Checker
-├── pkg/config/                 # Public configuration package
-│   └── config.go               # Config, Load(), Validate()
-├── docs/                       # VitePress documentation
-├── examples/                   # Example configurations
-│   ├── cross-env-deps/         # Cross-environment dependencies
-│   ├── library-modules/        # Shared library modules
-│   └── policy-checks/          # OPA policy checks example
-├── Makefile
-├── go.mod
-└── .terraci.example.yaml
+cmd/terraci/
+├── main.go                     # Entry point
+└── cmd/                        # Cobra commands
+    ├── root.go                 # Root command, global flags, config loading
+    ├── generate.go             # Pipeline generation (main workflow)
+    ├── validate.go             # Config/project validation
+    ├── graph.go                # Dependency graph visualization
+    ├── init.go                 # Config initialization
+    ├── summary.go              # MR comment posting (CI only)
+    ├── policy.go               # OPA policy checks (pull, check)
+    ├── schema.go               # JSON schema generation
+    ├── completion.go           # Shell completion
+    ├── man.go                  # Man page generation
+    └── version.go              # Version info
+
+internal/
+├── discovery/module.go         # Module, Scanner, ModuleIndex
+├── parser/
+│   ├── hcl.go                  # Parser, ParsedModule, RemoteStateRef, ModuleCall
+│   └── dependency.go           # DependencyExtractor, Dependency, LibraryDependency
+├── graph/dependency.go         # DependencyGraph, Node, BuildFromDependencies
+├── filter/glob.go              # GlobFilter for pattern-based filtering
+├── git/diff.go                 # Git Client, ChangedModulesDetector
+├── terraform/
+│   ├── eval/                   # HCL evaluation context with Terraform functions
+│   │   ├── context.go          # NewContext() — locals, variables, path
+│   │   └── functions.go        # Terraform function implementations (lookup)
+│   └── plan/
+│       └── parser.go           # ParseJSON() → ParsedPlan, ResourceChange, AttrDiff
+├── pipeline/
+│   ├── pipeline.go             # Generator and GeneratedPipeline interfaces
+│   └── gitlab/
+│       ├── generator.go        # GitLab CI Generator implementation
+│       └── types.go            # Pipeline, Job, ImageConfig, Secret, Rule, etc.
+├── gitlab/
+│   ├── client.go               # GitLab API Client, MRContext
+│   ├── mr_service.go           # MRService — upserts MR comments
+│   ├── comment.go              # CommentRenderer, ModulePlan, CommentData
+│   └── plan_result.go          # ScanPlanResults from plan.txt artifacts
+├── policy/
+│   ├── engine.go               # OPA Engine, OPAVersion()
+│   ├── checker.go              # Checker — CheckModule(), CheckAll(), ShouldBlock()
+│   ├── result.go               # Result, Violation, Summary
+│   ├── source.go               # Source interface, Puller
+│   ├── source_path.go          # PathSource
+│   ├── source_git.go           # GitSource
+│   └── source_oci.go           # OCISource
+└── cost/
+    ├── types.go                # ResourceCost, ModuleCost, EstimateResult, FormatCost()
+    ├── estimator.go            # Estimator — EstimateModule(), EstimateModules()
+    ├── aws/
+    │   ├── registry.go         # Registry, ResourceHandler interface
+    │   ├── ec2.go              # EC2, EBS, EIP, NAT Gateway handlers
+    │   ├── rds.go              # RDS instance/cluster handlers
+    │   ├── elb.go              # ALB, Classic LB handlers
+    │   ├── elasticache.go      # ElastiCache cluster/replication handlers
+    │   ├── eks.go              # EKS cluster/node group handlers
+    │   ├── serverless.go       # Lambda, DynamoDB, SQS, SNS, Secrets Manager
+    │   └── storage.go          # S3, EBS optimization, VPC endpoints
+    └── pricing/
+        ├── types.go            # ServiceCode, PriceIndex, Price, PriceLookup
+        ├── fetcher.go          # AWS Bulk Pricing API fetcher
+        └── cache.go            # TTL-based local pricing cache
+
+pkg/
+├── config/
+│   ├── config.go               # Config, Load(), Validate(), all config types
+│   └── schema.go               # JSON schema generation
+└── log/log.go                  # Structured logging (wraps caarlos0/log)
 ```
 
-## Key Types
+## Core Data Model
 
-### discovery.Module
-```go
-type Module struct {
-    Service      string    // platform
-    Environment  string    // stage, prod
-    Region       string    // eu-central-1
-    Module       string    // vpc, eks
-    Submodule    string    // optional: rabbitmq (for ec2/rabbitmq)
-    Path         string    // absolute path
-    RelativePath string    // relative path
-    Parent       *Module   // parent module reference
-    Children     []*Module // child submodules
-}
+**Module** (`discovery.Module`) — central type representing a Terraform module:
+- Fields: Service, Environment, Region, Module, Submodule, Path, RelativePath, Parent, Children
+- `ID()` → `"service/env/region/module[/submodule]"`
+- Discovered by `Scanner.Scan()` from directory pattern `service/environment/region/module[/submodule]`
+- Depth 4 = base module, depth 5 = submodule
 
-func (m *Module) ID() string      // service/env/region/module[/submodule]
-func (m *Module) Name() string    // module or module/submodule
-func (m *Module) IsSubmodule() bool
-```
+## Data Flow
 
-### discovery.Scanner
-```go
-type Scanner struct {
-    RootDir  string
-    MinDepth int  // default: 4
-    MaxDepth int  // default: 5
-}
+### Generate pipeline (main workflow)
+1. `Scanner.Scan()` → discover modules by directory structure
+2. `filter.GlobFilter` → apply include/exclude patterns
+3. `DependencyExtractor.ExtractAllDependencies()` → parse HCL, resolve remote_state refs
+4. `graph.BuildFromDependencies()` → build DAG, detect cycles, compute execution levels
+5. `DependencyGraph.AddLibraryUsage()` → track non-executable shared module usage
+6. *(if `--changed-only`)* Git diff → detect changed modules → `GetAffectedModulesWithLibraries()`
+7. `gitlab.Generator.Generate()` → produce GitLab CI YAML
+8. *(in CI)* `MRService.UpsertComment()` → post plan/policy/cost summary to MR
 
-func (s *Scanner) Scan() ([]*Module, error)
-```
+### Cost estimation
+1. `terraform/plan.ParseJSON()` → parse plan.json into ResourceChange list
+2. `cost.Estimator.ValidateAndPrefetch()` → identify required AWS services, fetch pricing
+3. Per resource: `aws.Registry` → find `ResourceHandler` → `BuildLookup()` → `pricing.Cache` → `CalculateCost()`
+4. Aggregate into `ModuleCost` with before/after/diff
 
-Directory pattern: `service/environment/region/module[/submodule]`
-
-### parser.RemoteStateRef
-```go
-type RemoteStateRef struct {
-    Name         string            // data block name
-    Backend      string            // s3, gcs, etc.
-    Config       map[string]string // backend config
-    ForEach      bool              // has for_each
-    WorkspaceDir string            // resolved path
-}
-```
-
-### graph.DependencyGraph
-```go
-func (g *DependencyGraph) AddNode(module *discovery.Module)
-func (g *DependencyGraph) AddEdge(from, to *discovery.Module)
-func (g *DependencyGraph) TopologicalSort() ([]*discovery.Module, error)
-func (g *DependencyGraph) ExecutionLevels() [][]*discovery.Module
-func (g *DependencyGraph) DetectCycles() [][]string
-func (g *DependencyGraph) ToDOT() string
-```
-
-### gitlab.MRService
-```go
-type MRService struct {
-    client   *Client
-    renderer *CommentRenderer
-    config   *config.MRConfig
-    context  *MRContext
-}
-
-func NewMRService(cfg *config.MRConfig) *MRService
-func (s *MRService) IsEnabled() bool
-func (s *MRService) UpsertComment(plans []ModulePlan, policySummary *policy.Summary) error
-```
-
-### policy.Engine
-```go
-type Engine struct {
-    policyDirs []string
-    namespaces []string
-}
-
-func OPAVersion() string                                      // Returns embedded OPA version
-func NewEngine(policyDirs, namespaces []string) *Engine
-func (e *Engine) Evaluate(ctx context.Context, planJSONPath string) (*Result, error)
-```
-
-### policy.Checker
-```go
-type Checker struct {
-    config     *config.PolicyConfig
-    policyDirs []string
-    rootDir    string
-}
-
-func NewChecker(cfg *config.PolicyConfig, policyDirs []string, rootDir string) *Checker
-func (c *Checker) CheckModule(ctx context.Context, modulePath string) (*Result, error)
-func (c *Checker) CheckAll(ctx context.Context) (*Summary, error)
-func (c *Checker) ShouldBlock(summary *Summary) bool
-```
+### Policy checks
+1. `policy.Puller` downloads policies from sources (path/git/OCI)
+2. `policy.Engine.Evaluate()` runs OPA against plan.json (v1 Rego syntax)
+3. `policy.Checker.CheckAll()` aggregates results → `Summary`
+4. `Checker.ShouldBlock()` determines if pipeline should fail
 
 ## CLI Commands
 
 ```bash
-# Pipeline generation
-terraci generate -o .gitlab-ci.yml
-terraci generate --changed-only --base-ref main
+terraci generate -o .gitlab-ci.yml          # Generate pipeline
+terraci generate --changed-only --base-ref main  # Only changed modules
+terraci generate --plan-only                 # Plan jobs only, no apply
 terraci generate --exclude "*/test/*" --environment prod
-terraci generate --plan-only  # Generate only plan jobs (no apply)
 
-# Validation
-terraci validate
+terraci validate                             # Validate config and structure
+terraci graph --format dot -o deps.dot       # DOT graph output
+terraci graph --format levels                # Execution levels
+terraci graph --module <id> --dependents     # Show dependents
 
-# Dependency graph
-terraci graph --format dot -o deps.dot
-terraci graph --format levels
-terraci graph --module platform/stage/eu-central-1/vpc --dependents
+terraci init                                 # Create .terraci.yaml
+terraci summary                              # Post MR comment (CI only)
 
-# Initialization
-terraci init
+terraci policy pull                          # Download policies
+terraci policy check                         # Check all modules
+terraci policy check --module <id> --output json
 
-# MR summary (CI only)
-terraci summary
-
-# Policy checks
-terraci policy pull              # Download policies from sources
-terraci policy check             # Check all modules
-terraci policy check --module platform/prod/eu-central-1/vpc
-terraci policy check --output json
+terraci schema                               # Generate JSON schema
+terraci completion bash|zsh|fish             # Shell completions
+terraci version                              # Version + OPA version
 ```
 
-## Global Flags
-
-- `-c, --config` — config file path (defaults to `.terraci.yaml`)
-- `-d, --dir` — working directory
-- `-v, --verbose` — verbose output
+**Global flags:** `-c/--config` (config path), `-d/--dir` (working dir), `-v/--verbose`
 
 ## Configuration (.terraci.yaml)
 
 ```yaml
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
-  min_depth: 4
-  max_depth: 5
+  min_depth: 4                          # auto-calculated from pattern
+  max_depth: 5                          # min_depth+1 if allow_submodules
   allow_submodules: true
 
-exclude:
-  - "*/test/*"
-  - "*/sandbox/*"
+exclude: ["*/test/*", "*/sandbox/*"]
+include: []                             # if set, only matching modules
+
+library_modules:
+  paths: ["_modules", "shared/modules"] # non-executable shared modules
 
 gitlab:
-  image: "hashicorp/terraform:1.6"        # Docker image
-  terraform_binary: "terraform"            # or "tofu"
+  image: "hashicorp/terraform:1.6"
+  terraform_binary: "terraform"         # or "tofu"
+  stages_prefix: "deploy"              # produces deploy-plan-0, deploy-apply-0
+  parallelism: 5
   plan_enabled: true
   plan_only: false
   auto_approve: false
   cache_enabled: true
+  init_enabled: true
+  variables: {}
+  rules: []                             # workflow-level rules
 
-  job_defaults:
+  job_defaults:                         # applied to all jobs
+    image: ...
     tags: [terraform, docker]
+    id_tokens: {}                       # OIDC tokens
+    secrets: {}                         # Vault secrets
+    before_script: []
+    after_script: []
+    artifacts: { paths: [], expire_in: "1 day" }
+    rules: []
+    variables: {}
 
-  # MR integration
+  overwrites:                           # per job-type overrides
+    - type: plan|apply
+      image: ...                        # same fields as job_defaults
+
   mr:
     comment:
       enabled: true
       on_changes_only: false
+      include_details: true
+    labels: ["{service}", "{environment}"]
     summary_job:
-      image:
-        name: "ghcr.io/edelwud/terraci:latest"
+      image: { name: "ghcr.io/edelwud/terraci:latest" }
+      tags: []
 
-# OPA policy checks
+backend:
+  type: s3                              # s3, gcs, azurerm, local, remote
+  bucket: "..."
+  region: "..."
+  key_pattern: "{service}/{environment}/{region}/{module}/terraform.tfstate"
+
 policy:
-  enabled: true
+  enabled: false
   sources:
-    - path: policies                 # Local directory
-    - git: https://github.com/org/policies.git
-      ref: main                       # Branch/tag/commit
-    - oci: oci://ghcr.io/org/policies:v1.0
-  namespaces:
-    - terraform                       # Rego package namespaces
-  on_failure: block                   # block, warn, ignore
+    - path: policies
+    - git: https://... ref: main
+    - oci: oci://...
+  namespaces: [terraform]
+  on_failure: block                     # block, warn, ignore
   on_warning: warn
   show_in_comment: true
+  cache_dir: .terraci/policies
   overwrites:
     - match: "*/sandbox/*"
       on_failure: warn
+
+cost:
+  enabled: false
+  cache_dir: ~/.terraci/pricing
+  cache_ttl: "24h"
+  show_in_comment: true
 ```
 
-## Build and Test
+Config files searched: `.terraci.yaml`, `.terraci.yml`, `terraci.yaml`, `terraci.yml`
 
-```bash
-make build      # Build binary
-make test       # Run tests
-make lint       # Lint code
-make install    # Install to $GOPATH/bin
-```
+## Key Patterns
 
-## Data Flow
-
-1. `Scanner.Scan()` — discover modules in directories
-2. `ModuleIndex` — index for fast lookups
-3. `Parser.ParseModule()` — parse HCL, extract locals and remote_state
-4. `DependencyExtractor` — determine dependencies between modules
-5. `DependencyGraph` — build DAG, topological sort
-6. `Generator.Generate()` — generate GitLab CI YAML
-7. `MRService.UpsertComment()` — post plan summary to MR (in CI)
-
-## Algorithms
-
-- **Topological Sort**: Kahn's algorithm for module ordering
-- **Cycle Detection**: DFS for finding circular dependencies
-- **Execution Levels**: grouping modules for parallel execution
-- **Path Resolution**: variable interpolation in state file paths
+- **Module discovery**: directory depth determines modules (min=4 base, max=5 submodules)
+- **Dependencies**: resolved from `terraform_remote_state` data blocks; `for_each` expands to multiple deps
+- **Graph algorithms**: Kahn's topological sort, DFS cycle detection, execution level grouping
+- **Pipeline generation**: `pipeline.Generator` interface with GitLab implementation
+- **Cost estimation**: plugin registry pattern — `aws.ResourceHandler` interface per resource type
+- **MR comments**: upserted via `<!-- terraci-plan-comment -->` marker
+- **Policy checks**: OPA v1 Rego syntax (`deny contains msg if {...}`), results saved to `.terraci/policy-results.json`
+- **Config precedence**: `JobDefaults` → `JobOverwrite` (plan/apply specific) → generated job
+- **Image config**: supports both string `"image:tag"` and object `{name: ..., entrypoint: [...]}`
+- **Vault secrets**: supports string shorthand `"path/field@namespace"` and full object syntax
 
 ## Dependencies
 
-- `github.com/spf13/cobra` — CLI framework
-- `github.com/hashicorp/hcl/v2` — HCL parsing
-- `github.com/zclconf/go-cty` — CTY types for HCL
-- `gopkg.in/yaml.v3` — YAML
-- `gitlab.com/gitlab-org/api/client-go` — GitLab API client
-- `github.com/open-policy-agent/opa` — Open Policy Agent (embedded)
-- `github.com/go-git/go-git/v6` — Git operations
-- `oras.land/oras-go/v2` — OCI registry operations
-
-## Known Behaviors
-
-- Modules can exist at depth 4 (base) and depth 5 (submodules) simultaneously
-- `for_each` in remote_state expands to multiple dependencies
-- Filters support `**` for arbitrary path depth
-- MR comments are upserted using marker `<!-- terraci-plan-comment -->`
-- Plan results are collected from `plan.txt` artifacts in module directories
-- Policy checks require `plan.json` (terraform show -json) in module directories
-- OPA v1 Rego syntax required (`deny contains msg if {...}`)
-- Policy results are saved to `.terraci/policy-results.json` for summary job
-- `terraci version` shows embedded OPA version
+| Package | Purpose |
+|---------|---------|
+| `github.com/spf13/cobra` | CLI framework |
+| `github.com/hashicorp/hcl/v2` | HCL parsing |
+| `github.com/zclconf/go-cty` | CTY types for HCL |
+| `github.com/hashicorp/terraform-json` | Terraform plan JSON types |
+| `go.yaml.in/yaml/v4` | YAML serialization |
+| `gitlab.com/gitlab-org/api/client-go` | GitLab API client |
+| `github.com/open-policy-agent/opa` | Embedded OPA engine |
+| `github.com/go-git/go-git/v6` | Git operations |
+| `oras.land/oras-go/v2` | OCI registry operations |
+| `github.com/invopop/jsonschema` | JSON schema generation |
+| `github.com/caarlos0/log` | Structured logging |
+| `golang.org/x/sync` | Concurrency utilities |
