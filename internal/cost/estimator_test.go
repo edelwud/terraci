@@ -48,7 +48,6 @@ func TestEstimator_EstimateModule_WithMockPlan(t *testing.T) {
 	// Test that estimator runs without panic (won't have real pricing data)
 	ctx := context.Background()
 	result, err := estimator.EstimateModule(ctx, modulePath, "eu-central-1")
-
 	// We expect this to work but have unsupported resources (no cache)
 	if err != nil {
 		t.Logf("Expected error due to no pricing cache: %v", err)

@@ -17,8 +17,7 @@ import (
 )
 
 // Parser handles parsing of Terraform HCL files
-type Parser struct {
-}
+type Parser struct{}
 
 // NewParser creates a new HCL parser
 func NewParser() *Parser {

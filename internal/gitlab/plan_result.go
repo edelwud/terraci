@@ -124,7 +124,6 @@ func ScanPlanResults(rootDir string) (*PlanResultCollection, error) {
 		collection.Results = append(collection.Results, result)
 		return nil
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan for plan results: %w", err)
 	}

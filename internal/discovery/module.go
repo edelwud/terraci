@@ -168,7 +168,6 @@ func (s *Scanner) Scan() ([]*Module, error) {
 
 		return nil
 	})
-
 	if err != nil {
 		return nil, err
 	}

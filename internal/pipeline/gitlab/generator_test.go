@@ -82,7 +82,6 @@ func TestGenerator_Generate_SingleModule(t *testing.T) {
 	var genPipeline pipeline.GeneratedPipeline
 	var err error
 	genPipeline, err = gen.Generate(modules)
-
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
@@ -132,7 +131,6 @@ func TestGenerator_Generate_WithDependencies(t *testing.T) {
 	depGraph := graph.BuildFromDependencies(modules, deps)
 	gen := NewGenerator(cfg, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
-
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
@@ -182,7 +180,6 @@ func TestGenerator_Generate_PlanOnly(t *testing.T) {
 
 	gen := NewGenerator(cfg, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
-
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
@@ -227,7 +224,6 @@ func TestGenerator_Generate_PlanOnlyWithDependencies(t *testing.T) {
 	depGraph := graph.BuildFromDependencies(modules, deps)
 	gen := NewGenerator(cfg, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
-
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
@@ -272,7 +268,6 @@ func TestGenerator_Generate_AutoApprove(t *testing.T) {
 
 	gen := NewGenerator(cfg, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
-
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
@@ -308,7 +303,6 @@ func TestGenerator_Generate_ManualApprove(t *testing.T) {
 
 	gen := NewGenerator(cfg, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
-
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
@@ -344,7 +338,6 @@ func TestGenerator_Generate_CustomStagesPrefix(t *testing.T) {
 
 	gen := NewGenerator(cfg, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
-
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
@@ -377,7 +370,6 @@ func TestGenerator_Generate_TerraformBinary(t *testing.T) {
 
 	gen := NewGenerator(cfg, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
-
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
@@ -406,7 +398,6 @@ func TestGenerator_Generate_JobVariables(t *testing.T) {
 
 	gen := NewGenerator(cfg, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
-
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
@@ -450,7 +441,6 @@ func TestGenerator_Generate_ResourceGroup(t *testing.T) {
 
 	gen := NewGenerator(cfg, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
-
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
@@ -488,7 +478,6 @@ func TestGenerator_DryRun(t *testing.T) {
 	depGraph := graph.BuildFromDependencies(modules, deps)
 	gen := NewGenerator(cfg, depGraph, modules)
 	result, err := gen.DryRun(modules)
-
 	if err != nil {
 		t.Fatalf("DryRun failed: %v", err)
 	}
@@ -590,7 +579,6 @@ func TestGenerator_Generate_WithMRIntegration(t *testing.T) {
 
 	gen := NewGenerator(cfg, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
-
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
@@ -663,7 +651,6 @@ func TestGenerator_Generate_WithMRIntegration_Disabled(t *testing.T) {
 
 	gen := NewGenerator(cfg, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
-
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}

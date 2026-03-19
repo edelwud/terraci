@@ -560,7 +560,6 @@ locals {
 
 	parser := NewParser()
 	result, err := parser.ParseModule(tmpDir)
-
 	// Should not return error but have diagnostics
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

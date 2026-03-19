@@ -97,7 +97,6 @@ func (c *Checker) CheckAll(ctx context.Context) (*Summary, error) {
 
 		return nil
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to walk directory: %w", err)
 	}
