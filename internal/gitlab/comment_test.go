@@ -6,6 +6,8 @@ import (
 	"time"
 
 	gitlab "gitlab.com/gitlab-org/api/client-go"
+
+	"github.com/edelwud/terraci/internal/ci"
 )
 
 func TestCommentRenderer_Render(t *testing.T) {
@@ -53,22 +55,18 @@ func TestCommentRenderer_Render(t *testing.T) {
 
 	result := renderer.Render(data)
 
-	// Check marker
 	if !strings.Contains(result, CommentMarker) {
 		t.Error("missing comment marker")
 	}
 
-	// Check header
 	if !strings.Contains(result, "## 🏗️ Terraform Plan Summary") {
 		t.Error("missing header")
 	}
 
-	// Check stats
 	if !strings.Contains(result, "**3** modules") {
 		t.Error("missing total modules count")
 	}
 
-	// Check environment sections
 	if !strings.Contains(result, "### 📦 Environment: `stage`") {
 		t.Error("missing stage environment section")
 	}
@@ -76,12 +74,10 @@ func TestCommentRenderer_Render(t *testing.T) {
 		t.Error("missing prod environment section")
 	}
 
-	// Check module IDs in table
 	if !strings.Contains(result, "`platform/stage/eu-central-1/vpc`") {
 		t.Error("missing vpc module in table")
 	}
 
-	// Check status icons
 	if !strings.Contains(result, "| ✅ |") {
 		t.Error("missing success status icon")
 	}
@@ -92,12 +88,10 @@ func TestCommentRenderer_Render(t *testing.T) {
 		t.Error("missing failed status icon")
 	}
 
-	// Check expandable details
 	if !strings.Contains(result, "<details>") {
 		t.Error("missing expandable details")
 	}
 
-	// Check footer
 	if !strings.Contains(result, "terraci") {
 		t.Error("missing terraci reference in footer")
 	}
@@ -106,31 +100,6 @@ func TestCommentRenderer_Render(t *testing.T) {
 	}
 	if !strings.Contains(result, "abc123de") {
 		t.Error("missing commit SHA")
-	}
-}
-
-func TestCommentRenderer_StatusIcon(t *testing.T) {
-	renderer := NewCommentRenderer()
-
-	tests := []struct {
-		status   PlanStatus
-		expected string
-	}{
-		{PlanStatusSuccess, "✅"},
-		{PlanStatusNoChanges, "✅"},
-		{PlanStatusChanges, "🔄"},
-		{PlanStatusFailed, "❌"},
-		{PlanStatusPending, "⏳"},
-		{PlanStatusRunning, "🔄"},
-	}
-
-	for _, tt := range tests {
-		t.Run(string(tt.status), func(t *testing.T) {
-			result := renderer.statusIcon(tt.status)
-			if result != tt.expected {
-				t.Errorf("expected %q, got %q", tt.expected, result)
-			}
-		})
 	}
 }
 
@@ -175,7 +144,7 @@ func TestTruncate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			result := truncate(tt.input, tt.maxLen)
+			result := ci.Truncate(tt.input, tt.maxLen)
 			if result != tt.expected {
 				t.Errorf("expected %q, got %q", tt.expected, result)
 			}

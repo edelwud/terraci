@@ -1,10 +1,14 @@
 module github.com/edelwud/terraci
 
-go 1.25
+go 1.25.8
 
 require (
+	charm.land/bubbletea/v2 v2.0.2
+	charm.land/huh/v2 v2.0.3
+	charm.land/lipgloss/v2 v2.0.1
 	github.com/caarlos0/log v0.5.4
 	github.com/go-git/go-git/v6 v6.0.0-20251209110802-becdcd9c28c5
+	github.com/google/go-github/v68 v68.0.0
 	github.com/hashicorp/hcl/v2 v2.24.0
 	github.com/hashicorp/terraform-json v0.27.2
 	github.com/invopop/jsonschema v0.13.0
@@ -18,29 +22,33 @@ require (
 )
 
 require (
-	charm.land/lipgloss/v2 v2.0.0-beta.3.0.20251120230642-dcccabe2cd63 // indirect
+	charm.land/bubbles/v2 v2.0.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/ProtonMail/go-crypto v1.3.0 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
+	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
+	github.com/catppuccin/go v0.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/charmbracelet/colorprofile v0.4.1 // indirect
-	github.com/charmbracelet/ultraviolet v0.0.0-20251120225753-26363bddd922 // indirect
-	github.com/charmbracelet/x/ansi v0.11.3 // indirect
+	github.com/charmbracelet/colorprofile v0.4.2 // indirect
+	github.com/charmbracelet/ultraviolet v0.0.0-20260205113103-524a6607adb8 // indirect
+	github.com/charmbracelet/x/ansi v0.11.6 // indirect
+	github.com/charmbracelet/x/exp/ordered v0.1.0 // indirect
+	github.com/charmbracelet/x/exp/strings v0.0.0-20240722160745-212f7b056ed0 // indirect
 	github.com/charmbracelet/x/term v0.2.2 // indirect
 	github.com/charmbracelet/x/termios v0.1.1 // indirect
 	github.com/charmbracelet/x/windows v0.2.2 // indirect
-	github.com/clipperhouse/displaywidth v0.6.1 // indirect
-	github.com/clipperhouse/stringish v0.1.1 // indirect
-	github.com/clipperhouse/uax29/v2 v2.3.0 // indirect
+	github.com/clipperhouse/displaywidth v0.11.0 // indirect
+	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/cloudflare/circl v1.6.1 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/cyphar/filepath-securejoin v0.6.1 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
+	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/go-git/gcfg/v2 v2.0.2 // indirect
 	github.com/go-git/go-billy/v6 v6.0.0-20251209065551-8afc3eb64e4d // indirect
@@ -68,8 +76,9 @@ require (
 	github.com/lestrrat-go/option/v2 v2.0.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
-	github.com/mattn/go-runewidth v0.0.19 // indirect
+	github.com/mattn/go-runewidth v0.0.20 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
+	github.com/mitchellh/hashstructure/v2 v2.0.2 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
@@ -105,7 +114,7 @@ require (
 	golang.org/x/mod v0.31.0 // indirect
 	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/oauth2 v0.34.0 // indirect
-	golang.org/x/sys v0.39.0 // indirect
+	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	golang.org/x/tools v0.40.0 // indirect

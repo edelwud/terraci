@@ -10,9 +10,12 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/edelwud/terraci/internal/ci"
 	"github.com/edelwud/terraci/internal/cost"
+	ghprovider "github.com/edelwud/terraci/internal/github"
 	"github.com/edelwud/terraci/internal/gitlab"
 	"github.com/edelwud/terraci/internal/policy"
+	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/log"
 )
 
@@ -52,18 +55,11 @@ func init() {
 }
 
 func runSummary(_ *cobra.Command, _ []string) error {
-	// Check if we're in an MR context
-	mrContext := gitlab.DetectMRContext()
-	if !mrContext.InMR {
-		log.Info("not in MR pipeline, skipping summary")
-		return nil
-	}
+	provider := config.ResolveProvider(cfg)
 
-	log.WithField("mr", mrContext.MRIID).Info("detected MR context")
-
-	// Load plan results from plan.txt files in artifacts
+	// Scan plan results (provider-agnostic)
 	log.Info("scanning for plan results")
-	collection, err := gitlab.ScanPlanResults(".")
+	collection, err := ci.ScanPlanResults(".")
 	if err != nil {
 		return fmt.Errorf("failed to scan plan results: %w", err)
 	}
@@ -74,14 +70,6 @@ func runSummary(_ *cobra.Command, _ []string) error {
 	}
 
 	log.WithField("count", len(collection.Results)).Info("found plan results")
-
-	// Create MR service
-	mrService := gitlab.NewMRService(cfg.GitLab.MR)
-
-	if !mrService.IsEnabled() {
-		log.Info("MR comments disabled or no token available")
-		return nil
-	}
 
 	// Calculate cost estimates if enabled
 	if cfg.Cost != nil && cfg.Cost.Enabled {
@@ -103,31 +91,55 @@ func runSummary(_ *cobra.Command, _ []string) error {
 			Info("loaded policy results")
 	}
 
-	// Create/update MR comment
-	log.Info("updating MR comment")
-	if err := mrService.UpsertComment(plans, policySummary); err != nil {
-		return fmt.Errorf("failed to update MR comment: %w", err)
+	// Route to provider-specific comment service
+	var commentSvc ci.CommentService
+	switch provider {
+	case config.ProviderGitHub:
+		var prCfg *config.PRConfig
+		if cfg.GitHub != nil {
+			prCfg = cfg.GitHub.PR
+		}
+		commentSvc = ghprovider.NewPRService(prCfg)
+	default:
+		// Check MR context first for GitLab
+		mrContext := gitlab.DetectMRContext()
+		if !mrContext.InMR {
+			log.Info("not in MR pipeline, skipping summary")
+			printSummary(collection)
+			return nil
+		}
+		log.WithField("mr", mrContext.MRIID).Info("detected MR context")
+		commentSvc = gitlab.NewMRService(cfg.GitLab.MR)
 	}
 
-	log.Info("MR comment updated successfully")
+	if !commentSvc.IsEnabled() {
+		log.Info("PR/MR comments disabled or no token available")
+		printSummary(collection)
+		return nil
+	}
 
-	// Add labels if configured
-	if cfg.GitLab.MR != nil && len(cfg.GitLab.MR.Labels) > 0 {
+	// Create/update comment
+	log.Info("updating PR/MR comment")
+	if err := commentSvc.UpsertComment(plans, policySummary); err != nil {
+		return fmt.Errorf("failed to update comment: %w", err)
+	}
+
+	log.Info("comment updated successfully")
+
+	// Add labels if configured (GitLab only for now)
+	if provider == config.ProviderGitLab && cfg.GitLab.MR != nil && len(cfg.GitLab.MR.Labels) > 0 {
 		log.Info("adding MR labels")
-		// Convert results to discovery modules for label expansion
-		// For now, we'll use a simplified approach
-		if err := addLabelsFromResults(mrService, collection); err != nil {
+		if err := addLabelsFromResults(collection); err != nil {
 			log.WithField("error", err.Error()).Warn("failed to add labels")
 		}
 	}
 
-	// Print summary to stdout
 	printSummary(collection)
 
 	return nil
 }
 
-func addLabelsFromResults(_ *gitlab.MRService, collection *gitlab.PlanResultCollection) error {
+func addLabelsFromResults(collection *ci.PlanResultCollection) error {
 	// Build unique labels from results
 	labelSet := make(map[string]bool)
 
@@ -143,11 +155,11 @@ func addLabelsFromResults(_ *gitlab.MRService, collection *gitlab.PlanResultColl
 		}
 		// Add status-based labels
 		switch r.Status {
-		case gitlab.PlanStatusChanges:
+		case ci.PlanStatusChanges:
 			labelSet["terraform:changes"] = true
-		case gitlab.PlanStatusFailed:
+		case ci.PlanStatusFailed:
 			labelSet["terraform:failed"] = true
-		case gitlab.PlanStatusPending, gitlab.PlanStatusRunning, gitlab.PlanStatusSuccess, gitlab.PlanStatusNoChanges:
+		case ci.PlanStatusPending, ci.PlanStatusRunning, ci.PlanStatusSuccess, ci.PlanStatusNoChanges:
 			// No label for these statuses
 		}
 	}
@@ -166,17 +178,17 @@ func addLabelsFromResults(_ *gitlab.MRService, collection *gitlab.PlanResultColl
 	return client.AddMRLabels(ctx.ProjectID, ctx.MRIID, labels)
 }
 
-func printSummary(collection *gitlab.PlanResultCollection) {
+func printSummary(collection *ci.PlanResultCollection) {
 	var changes, noChanges, failed int
 	for i := range collection.Results {
 		switch collection.Results[i].Status {
-		case gitlab.PlanStatusChanges:
+		case ci.PlanStatusChanges:
 			changes++
-		case gitlab.PlanStatusNoChanges, gitlab.PlanStatusSuccess:
+		case ci.PlanStatusNoChanges, ci.PlanStatusSuccess:
 			noChanges++
-		case gitlab.PlanStatusFailed:
+		case ci.PlanStatusFailed:
 			failed++
-		case gitlab.PlanStatusPending, gitlab.PlanStatusRunning:
+		case ci.PlanStatusPending, ci.PlanStatusRunning:
 			// Not counted
 		}
 	}
@@ -197,7 +209,7 @@ func printSummary(collection *gitlab.PlanResultCollection) {
 }
 
 // calculateCosts calculates cost estimates for all plan results
-func calculateCosts(collection *gitlab.PlanResultCollection) error {
+func calculateCosts(collection *ci.PlanResultCollection) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 

@@ -11,6 +11,9 @@ import (
 
 // Config represents the terraci configuration
 type Config struct {
+	// Provider selects the CI provider: "gitlab" or "github" (default: auto-detect)
+	Provider string `yaml:"provider,omitempty" json:"provider,omitempty" jsonschema:"description=CI provider (gitlab or github). Auto-detected from environment if not set,enum=gitlab,enum=github"`
+
 	// Structure defines the directory structure pattern
 	Structure StructureConfig `yaml:"structure" json:"structure" jsonschema:"description=Directory structure configuration"`
 
@@ -30,7 +33,10 @@ type Config struct {
 	Cost *CostConfig `yaml:"cost,omitempty" json:"cost,omitempty" jsonschema:"description=Cost estimation configuration using AWS Pricing API"`
 
 	// GitLab CI configuration
-	GitLab GitLabConfig `yaml:"gitlab" json:"gitlab" jsonschema:"description=GitLab CI configuration"`
+	GitLab *GitLabConfig `yaml:"gitlab,omitempty" json:"gitlab,omitempty" jsonschema:"description=GitLab CI configuration"`
+
+	// GitHub Actions configuration
+	GitHub *GitHubConfig `yaml:"github,omitempty" json:"github,omitempty" jsonschema:"description=GitHub Actions configuration"`
 
 	// Backend configuration for state file path resolution
 	Backend BackendConfig `yaml:"backend" json:"backend" jsonschema:"description=Backend configuration for state file path resolution"`
@@ -337,6 +343,115 @@ func (img *Image) HasEntrypoint() bool {
 	return len(img.Entrypoint) > 0
 }
 
+// GitHubConfig contains GitHub Actions specific settings
+type GitHubConfig struct {
+	// TerraformBinary is the terraform binary to use (e.g., "terraform", "tofu")
+	TerraformBinary string `yaml:"terraform_binary" json:"terraform_binary" jsonschema:"description=Terraform/OpenTofu binary to use,enum=terraform,enum=tofu,default=terraform"`
+	// RunsOn specifies the runner label(s) for jobs
+	RunsOn string `yaml:"runs_on" json:"runs_on" jsonschema:"description=GitHub Actions runner label (e.g. ubuntu-latest),default=ubuntu-latest"`
+	// Container optionally runs jobs in a container
+	Container *Image `yaml:"container,omitempty" json:"container,omitempty" jsonschema:"description=Container image to run jobs in (optional)"`
+	// Env sets workflow-level environment variables
+	Env map[string]string `yaml:"env,omitempty" json:"env,omitempty" jsonschema:"description=Workflow-level environment variables"`
+	// PlanEnabled enables terraform plan jobs
+	PlanEnabled bool `yaml:"plan_enabled" json:"plan_enabled" jsonschema:"description=Enable terraform plan jobs,default=true"`
+	// PlanOnly generates only plan jobs without apply jobs
+	PlanOnly bool `yaml:"plan_only" json:"plan_only" jsonschema:"description=Generate only plan jobs (no apply jobs),default=false"`
+	// AutoApprove skips manual approval for apply
+	AutoApprove bool `yaml:"auto_approve" json:"auto_approve" jsonschema:"description=Auto-approve applies (skip environment protection),default=false"`
+	// InitEnabled automatically runs terraform init
+	InitEnabled bool `yaml:"init_enabled" json:"init_enabled" jsonschema:"description=Automatically run terraform init,default=true"`
+	// Permissions sets workflow-level permissions (e.g., id-token: write)
+	Permissions map[string]string `yaml:"permissions,omitempty" json:"permissions,omitempty" jsonschema:"description=Workflow-level permissions (e.g. id-token: write for OIDC)"`
+	// JobDefaults defines default settings for all jobs
+	JobDefaults *GitHubJobDefaults `yaml:"job_defaults,omitempty" json:"job_defaults,omitempty" jsonschema:"description=Default settings applied to all jobs"`
+	// Overwrites defines job-level overrides for plan and apply jobs
+	Overwrites []GitHubJobOverwrite `yaml:"overwrites,omitempty" json:"overwrites,omitempty" jsonschema:"description=Job-level overrides for plan or apply jobs"`
+	// PR contains pull request integration settings
+	PR *PRConfig `yaml:"pr,omitempty" json:"pr,omitempty" jsonschema:"description=Pull request integration settings"`
+}
+
+// GitHubJobDefaults defines default settings for all GitHub Actions jobs
+type GitHubJobDefaults struct {
+	// RunsOn overrides the runner label for all jobs
+	RunsOn string `yaml:"runs_on,omitempty" json:"runs_on,omitempty" jsonschema:"description=Override runner label"`
+	// Container runs jobs in a container
+	Container *Image `yaml:"container,omitempty" json:"container,omitempty" jsonschema:"description=Container image for all jobs"`
+	// Env sets additional environment variables for all jobs
+	Env map[string]string `yaml:"env,omitempty" json:"env,omitempty" jsonschema:"description=Additional environment variables"`
+	// StepsBefore are extra steps to run before terraform commands
+	StepsBefore []GitHubStep `yaml:"steps_before,omitempty" json:"steps_before,omitempty" jsonschema:"description=Extra steps before terraform commands"`
+	// StepsAfter are extra steps to run after terraform commands
+	StepsAfter []GitHubStep `yaml:"steps_after,omitempty" json:"steps_after,omitempty" jsonschema:"description=Extra steps after terraform commands"`
+}
+
+// GitHubJobOverwrite defines job-level overrides for plan or apply jobs
+type GitHubJobOverwrite struct {
+	// Type specifies which jobs to override: "plan" or "apply"
+	Type JobOverwriteType `yaml:"type" json:"type" jsonschema:"description=Type of jobs to override,enum=plan,enum=apply,required"`
+	// RunsOn overrides the runner label
+	RunsOn string `yaml:"runs_on,omitempty" json:"runs_on,omitempty" jsonschema:"description=Override runner label"`
+	// Container runs jobs in a container
+	Container *Image `yaml:"container,omitempty" json:"container,omitempty" jsonschema:"description=Container image override"`
+	// Env sets additional environment variables
+	Env map[string]string `yaml:"env,omitempty" json:"env,omitempty" jsonschema:"description=Additional environment variables"`
+	// StepsBefore are extra steps to run before terraform commands
+	StepsBefore []GitHubStep `yaml:"steps_before,omitempty" json:"steps_before,omitempty" jsonschema:"description=Extra steps before terraform commands"`
+	// StepsAfter are extra steps to run after terraform commands
+	StepsAfter []GitHubStep `yaml:"steps_after,omitempty" json:"steps_after,omitempty" jsonschema:"description=Extra steps after terraform commands"`
+}
+
+// GitHubStep represents a step in a GitHub Actions job (for job_defaults)
+type GitHubStep struct {
+	// Name is the step display name
+	Name string `yaml:"name,omitempty" json:"name,omitempty" jsonschema:"description=Step display name"`
+	// Uses references a GitHub Action (e.g., actions/checkout@v4)
+	Uses string `yaml:"uses,omitempty" json:"uses,omitempty" jsonschema:"description=GitHub Action reference"`
+	// With provides inputs to the action
+	With map[string]string `yaml:"with,omitempty" json:"with,omitempty" jsonschema:"description=Action inputs"`
+	// Run is a shell command
+	Run string `yaml:"run,omitempty" json:"run,omitempty" jsonschema:"description=Shell command to run"`
+	// Env sets environment variables for this step
+	Env map[string]string `yaml:"env,omitempty" json:"env,omitempty" jsonschema:"description=Step environment variables"`
+}
+
+// PRConfig contains settings for PR/MR integration (used by GitHub provider)
+type PRConfig struct {
+	// Comment enables PR comment with plan summary
+	Comment *MRCommentConfig `yaml:"comment,omitempty" json:"comment,omitempty" jsonschema:"description=PR comment configuration"`
+	// SummaryJob configures the summary job that posts PR comments
+	SummaryJob *GitHubSummaryJobConfig `yaml:"summary_job,omitempty" json:"summary_job,omitempty" jsonschema:"description=Summary job configuration"`
+}
+
+// GitHubSummaryJobConfig contains settings for the GitHub Actions summary job
+type GitHubSummaryJobConfig struct {
+	// RunsOn specifies the runner label for the summary job
+	RunsOn string `yaml:"runs_on,omitempty" json:"runs_on,omitempty" jsonschema:"description=Runner label for summary job"`
+}
+
+// ProviderGitLab is the GitLab CI provider identifier
+const ProviderGitLab = "gitlab"
+
+// ProviderGitHub is the GitHub Actions provider identifier
+const ProviderGitHub = "github"
+
+// ResolveProvider determines the CI provider from config or environment
+func ResolveProvider(cfg *Config) string {
+	if cfg.Provider != "" {
+		return cfg.Provider
+	}
+
+	// Auto-detect from environment
+	if os.Getenv("GITHUB_ACTIONS") != "" {
+		return ProviderGitHub
+	}
+	if os.Getenv("GITLAB_CI") != "" || os.Getenv("CI_SERVER_URL") != "" {
+		return ProviderGitLab
+	}
+
+	return ProviderGitLab // Default
+}
+
 // BackendConfig defines the state backend configuration
 type BackendConfig struct {
 	// Type of backend (s3, gcs, azurerm, etc.)
@@ -359,7 +474,7 @@ func DefaultConfig() *Config {
 			MaxDepth:        5,
 			AllowSubmodules: true,
 		},
-		GitLab: GitLabConfig{
+		GitLab: &GitLabConfig{
 			TerraformBinary: "terraform",
 			Image:           Image{Name: "hashicorp/terraform:1.6"},
 			StagesPrefix:    "deploy",
@@ -404,6 +519,9 @@ func Load(path string) (*Config, error) {
 
 // GetImage returns the configured image
 func (g *GitLabConfig) GetImage() Image {
+	if g == nil {
+		return Image{}
+	}
 	return g.Image
 }
 
@@ -603,14 +721,24 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("structure.max_depth must be >= min_depth")
 	}
 
-	if c.GitLab.Image.Name == "" {
-		return fmt.Errorf("gitlab.image is required")
-	}
-
-	// Validate overwrites
-	for i := range c.GitLab.Overwrites {
-		if c.GitLab.Overwrites[i].Type != OverwriteTypePlan && c.GitLab.Overwrites[i].Type != OverwriteTypeApply {
-			return fmt.Errorf("gitlab.overwrites[%d].type must be 'plan' or 'apply'", i)
+	// Provider-specific validation
+	provider := ResolveProvider(c)
+	switch provider {
+	case ProviderGitHub:
+		if c.GitHub != nil && c.GitHub.RunsOn == "" {
+			c.GitHub.RunsOn = "ubuntu-latest"
+		}
+	default:
+		if c.GitLab != nil {
+			if c.GitLab.Image.Name == "" {
+				return fmt.Errorf("gitlab.image is required")
+			}
+			// Validate overwrites
+			for i := range c.GitLab.Overwrites {
+				if c.GitLab.Overwrites[i].Type != OverwriteTypePlan && c.GitLab.Overwrites[i].Type != OverwriteTypeApply {
+					return fmt.Errorf("gitlab.overwrites[%d].type must be 'plan' or 'apply'", i)
+				}
+			}
 		}
 	}
 

@@ -13,7 +13,9 @@ import (
 	"github.com/edelwud/terraci/internal/graph"
 	"github.com/edelwud/terraci/internal/parser"
 	"github.com/edelwud/terraci/internal/pipeline"
+	pipelinegithub "github.com/edelwud/terraci/internal/pipeline/github"
 	"github.com/edelwud/terraci/internal/pipeline/gitlab"
+	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/log"
 )
 
@@ -255,7 +257,15 @@ func generateAndOutputPipeline(
 	depGraph *graph.DependencyGraph,
 ) error {
 	log.WithField("modules", len(targetModules)).Info("generating pipeline")
-	generator := gitlab.NewGenerator(cfg, depGraph, allFilteredModules)
+
+	var generator pipeline.Generator
+	provider := config.ResolveProvider(cfg)
+	switch provider {
+	case config.ProviderGitHub:
+		generator = pipelinegithub.NewGenerator(cfg, depGraph, allFilteredModules)
+	default:
+		generator = gitlab.NewGenerator(cfg, depGraph, allFilteredModules)
+	}
 
 	if dryRun {
 		return runDryRun(generator, targetModules)
@@ -270,7 +280,7 @@ func generateAndOutputPipeline(
 }
 
 // runDryRun executes a dry run and outputs results
-func runDryRun(generator *gitlab.Generator, targetModules []*discovery.Module) error {
+func runDryRun(generator pipeline.Generator, targetModules []*discovery.Module) error {
 	result, err := generator.DryRun(targetModules)
 	if err != nil {
 		return fmt.Errorf("dry run failed: %w", err)

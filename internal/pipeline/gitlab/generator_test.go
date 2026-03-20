@@ -25,7 +25,7 @@ func createTestModule(service, env, region, module string) *discovery.Module {
 // createTestConfig creates a test configuration with default values
 func createTestConfig() *config.Config {
 	return &config.Config{
-		GitLab: config.GitLabConfig{
+		GitLab: &config.GitLabConfig{
 			Image: config.Image{
 				Name: "hashicorp/terraform:1.6",
 			},
@@ -681,29 +681,29 @@ func TestGenerator_isMREnabled(t *testing.T) {
 	}{
 		{
 			name:     "nil MR config",
-			config:   &config.Config{GitLab: config.GitLabConfig{}},
+			config:   &config.Config{GitLab: &config.GitLabConfig{}},
 			expected: false,
 		},
 		{
 			name:     "MR config present, no comment config",
-			config:   &config.Config{GitLab: config.GitLabConfig{MR: &config.MRConfig{}}},
+			config:   &config.Config{GitLab: &config.GitLabConfig{MR: &config.MRConfig{}}},
 			expected: true,
 		},
 		{
 			name:     "MR config present, comment enabled nil",
-			config:   &config.Config{GitLab: config.GitLabConfig{MR: &config.MRConfig{Comment: &config.MRCommentConfig{}}}},
+			config:   &config.Config{GitLab: &config.GitLabConfig{MR: &config.MRConfig{Comment: &config.MRCommentConfig{}}}},
 			expected: true,
 		},
 		{
 			name: "MR config present, comment explicitly enabled",
-			config: &config.Config{GitLab: config.GitLabConfig{MR: &config.MRConfig{Comment: &config.MRCommentConfig{
+			config: &config.Config{GitLab: &config.GitLabConfig{MR: &config.MRConfig{Comment: &config.MRCommentConfig{
 				Enabled: boolPtr(true),
 			}}}},
 			expected: true,
 		},
 		{
 			name: "MR config present, comment explicitly disabled",
-			config: &config.Config{GitLab: config.GitLabConfig{MR: &config.MRConfig{Comment: &config.MRCommentConfig{
+			config: &config.Config{GitLab: &config.GitLabConfig{MR: &config.MRConfig{Comment: &config.MRCommentConfig{
 				Enabled: boolPtr(false),
 			}}}},
 			expected: false,

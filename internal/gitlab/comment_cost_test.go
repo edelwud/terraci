@@ -3,6 +3,8 @@ package gitlab
 import (
 	"strings"
 	"testing"
+
+	"github.com/edelwud/terraci/internal/ci"
 )
 
 func TestCommentRenderer_RenderWithCost(t *testing.T) {
@@ -126,7 +128,7 @@ func TestFormatCostCell(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := formatCostCell(&tt.plan)
+			result := ci.FormatCostCell(&tt.plan)
 			if result != tt.expected {
 				t.Errorf("formatCostCell() = %q, want %q", result, tt.expected)
 			}

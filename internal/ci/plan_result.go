@@ -1,0 +1,283 @@
+package ci
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/edelwud/terraci/internal/terraform/plan"
+)
+
+// Constants for plan summary formatting
+const (
+	maxResourcesInSummary = 10
+	maxAddressLength      = 80
+)
+
+// ScanPlanResults scans for plan.json files in module directories
+// and builds a collection of plan results from their contents.
+func ScanPlanResults(rootDir string) (*PlanResultCollection, error) {
+	collection := &PlanResultCollection{
+		Results:     make([]PlanResult, 0),
+		GeneratedAt: time.Now().UTC(),
+		PipelineID:  detectPipelineID(),
+		CommitSHA:   detectCommitSHA(),
+	}
+
+	processedDirs := make(map[string]bool)
+
+	err := filepath.Walk(rootDir, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return nil //nolint:nilerr // Skip walk errors, continue scanning
+		}
+
+		if info.IsDir() || info.Name() != "plan.json" {
+			return nil
+		}
+
+		modulePath := filepath.Dir(path)
+		if rootDir != "." {
+			if relPath, relErr := filepath.Rel(rootDir, modulePath); relErr == nil {
+				modulePath = relPath
+			}
+		}
+
+		if processedDirs[modulePath] {
+			return nil
+		}
+
+		result, parseErr := parsePlanJSON(path, modulePath)
+		if parseErr != nil {
+			result = PlanResult{
+				ModuleID:   strings.ReplaceAll(modulePath, string(filepath.Separator), "/"),
+				ModulePath: modulePath,
+				Status:     PlanStatusFailed,
+				Summary:    "Failed to parse plan",
+				Error:      parseErr.Error(),
+			}
+		}
+
+		processedDirs[modulePath] = true
+		collection.Results = append(collection.Results, result)
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan for plan results: %w", err)
+	}
+
+	return collection, nil
+}
+
+// detectPipelineID reads pipeline ID from CI environment (GitLab or GitHub)
+func detectPipelineID() string {
+	if v := os.Getenv("CI_PIPELINE_ID"); v != "" {
+		return v
+	}
+	return os.Getenv("GITHUB_RUN_ID")
+}
+
+// detectCommitSHA reads commit SHA from CI environment (GitLab or GitHub)
+func detectCommitSHA() string {
+	if v := os.Getenv("CI_COMMIT_SHA"); v != "" {
+		return v
+	}
+	return os.Getenv("GITHUB_SHA")
+}
+
+// ParseModulePath parses a module path and extracts components.
+func ParseModulePath(modulePath string) (service, env, region, module, submodule string) {
+	parts := strings.Split(modulePath, string(filepath.Separator))
+
+	switch {
+	case len(parts) >= 5:
+		service = parts[0]
+		env = parts[1]
+		region = parts[2]
+		module = parts[3]
+		submodule = strings.Join(parts[4:], "/")
+	case len(parts) >= 4:
+		service = parts[0]
+		env = parts[1]
+		region = parts[2]
+		module = parts[3]
+	}
+
+	return
+}
+
+func parsePlanJSON(jsonPath, modulePath string) (PlanResult, error) {
+	parsed, err := plan.ParseJSON(jsonPath)
+	if err != nil {
+		return PlanResult{}, err
+	}
+
+	service, env, region, module, submodule := ParseModulePath(modulePath)
+
+	txtPath := strings.TrimSuffix(jsonPath, ".json") + ".txt"
+	var rawPlanOutput string
+	if data, readErr := os.ReadFile(txtPath); readErr == nil {
+		rawPlanOutput = FilterPlanOutput(string(data))
+	}
+
+	return PlanResult{
+		ModuleID:          strings.ReplaceAll(modulePath, string(filepath.Separator), "/"),
+		ModulePath:        modulePath,
+		Service:           service,
+		Environment:       env,
+		Region:            region,
+		Module:            module,
+		Submodule:         submodule,
+		Status:            getPlanStatus(parsed),
+		Summary:           FormatPlanSummary(parsed),
+		StructuredDetails: FormatPlanDetails(parsed),
+		RawPlanOutput:     rawPlanOutput,
+		ExitCode:          getExitCode(parsed),
+	}, nil
+}
+
+func getPlanStatus(p *plan.ParsedPlan) PlanStatus {
+	if !p.HasChanges() {
+		return PlanStatusNoChanges
+	}
+	return PlanStatusChanges
+}
+
+func getExitCode(p *plan.ParsedPlan) int {
+	if !p.HasChanges() {
+		return 0
+	}
+	return 2
+}
+
+// FormatPlanSummary formats a parsed plan as a compact summary line
+func FormatPlanSummary(p *plan.ParsedPlan) string {
+	if !p.HasChanges() {
+		return "No changes"
+	}
+
+	var counts []string
+	if p.ToAdd > 0 {
+		counts = append(counts, fmt.Sprintf("+%d", p.ToAdd))
+	}
+	if p.ToChange > 0 {
+		counts = append(counts, fmt.Sprintf("~%d", p.ToChange))
+	}
+	if p.ToDestroy > 0 {
+		counts = append(counts, fmt.Sprintf("-%d", p.ToDestroy))
+	}
+	if p.ToImport > 0 {
+		counts = append(counts, fmt.Sprintf("↓%d", p.ToImport))
+	}
+	return strings.Join(counts, " ")
+}
+
+// FormatPlanDetails formats a parsed plan as structured resource list grouped by action
+func FormatPlanDetails(p *plan.ParsedPlan) string {
+	if !p.HasChanges() {
+		return ""
+	}
+
+	groups := make(map[string][]string)
+	for _, r := range p.Resources {
+		addr := formatResourceAddress(r)
+		groups[r.Action] = append(groups[r.Action], addr)
+	}
+
+	var sb strings.Builder
+
+	actionOrder := []struct {
+		action string
+		label  string
+	}{
+		{"create", "Create"},
+		{"update", "Update"},
+		{"replace", "Replace"},
+		{"delete", "Delete"},
+		{"read", "Read"},
+	}
+
+	for _, a := range actionOrder {
+		resources := groups[a.action]
+		if len(resources) == 0 {
+			continue
+		}
+
+		sb.WriteString(fmt.Sprintf("**%s:**\n", a.label))
+		shown := 0
+		for _, addr := range resources {
+			if shown >= maxResourcesInSummary {
+				sb.WriteString(fmt.Sprintf("- ... +%d more\n", len(resources)-shown))
+				break
+			}
+			sb.WriteString(fmt.Sprintf("- `%s`\n", addr))
+			shown++
+		}
+		sb.WriteString("\n")
+	}
+
+	return strings.TrimSuffix(sb.String(), "\n")
+}
+
+func formatResourceAddress(r plan.ResourceChange) string {
+	addr := r.Address
+	if r.ModuleAddr == "" && r.Type != "" && r.Name != "" {
+		addr = r.Type + "." + r.Name
+	}
+	if len(addr) > maxAddressLength {
+		addr = addr[:maxAddressLength-3] + "..."
+	}
+	return addr
+}
+
+// FilterPlanOutput extracts only the diff portion from terraform plan output
+func FilterPlanOutput(rawOutput string) string {
+	lines := strings.Split(rawOutput, "\n")
+	var result []string
+	inDiff := false
+	skipUntilEmpty := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		if strings.HasPrefix(trimmed, "Refreshing state...") ||
+			strings.HasPrefix(trimmed, "Reading...") ||
+			strings.HasPrefix(trimmed, "data.") && strings.Contains(trimmed, "Reading...") {
+			skipUntilEmpty = true
+			continue
+		}
+
+		if skipUntilEmpty {
+			if trimmed == "" {
+				skipUntilEmpty = false
+			}
+			continue
+		}
+
+		if strings.HasPrefix(trimmed, "# ") ||
+			strings.HasPrefix(trimmed, "Plan:") ||
+			strings.HasPrefix(trimmed, "Changes to Outputs:") ||
+			strings.HasPrefix(trimmed, "Terraform will perform") ||
+			strings.HasPrefix(trimmed, "No changes.") {
+			inDiff = true
+		}
+
+		if strings.HasPrefix(line, "  + ") ||
+			strings.HasPrefix(line, "  - ") ||
+			strings.HasPrefix(line, "  ~ ") ||
+			strings.HasPrefix(line, "  # ") {
+			inDiff = true
+		}
+
+		if inDiff {
+			result = append(result, line)
+		}
+	}
+
+	if len(result) == 0 {
+		return rawOutput
+	}
+
+	return strings.Join(result, "\n")
+}

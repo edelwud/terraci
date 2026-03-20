@@ -278,7 +278,7 @@ func TestValidate(t *testing.T) {
 					MinDepth: 4,
 					MaxDepth: 5,
 				},
-				GitLab: GitLabConfig{
+				GitLab: &GitLabConfig{
 					Image: Image{Name: "test:1.0"},
 				},
 			},
@@ -293,7 +293,7 @@ func TestValidate(t *testing.T) {
 					MinDepth: 0,
 					MaxDepth: 5,
 				},
-				GitLab: GitLabConfig{
+				GitLab: &GitLabConfig{
 					Image: Image{Name: "test:1.0"},
 				},
 			},
@@ -308,7 +308,7 @@ func TestValidate(t *testing.T) {
 					MinDepth: 5,
 					MaxDepth: 4,
 				},
-				GitLab: GitLabConfig{
+				GitLab: &GitLabConfig{
 					Image: Image{Name: "test:1.0"},
 				},
 			},
@@ -323,7 +323,7 @@ func TestValidate(t *testing.T) {
 					MinDepth: 4,
 					MaxDepth: 5,
 				},
-				GitLab: GitLabConfig{
+				GitLab: &GitLabConfig{
 					Image: Image{Name: ""},
 				},
 			},
@@ -338,7 +338,7 @@ func TestValidate(t *testing.T) {
 					MinDepth: 4,
 					MaxDepth: 5,
 				},
-				GitLab: GitLabConfig{
+				GitLab: &GitLabConfig{
 					Image: Image{Name: "test:1.0"},
 					Overwrites: []JobOverwrite{
 						{Type: "invalid"},
@@ -356,7 +356,7 @@ func TestValidate(t *testing.T) {
 					MinDepth: 4,
 					MaxDepth: 5,
 				},
-				GitLab: GitLabConfig{
+				GitLab: &GitLabConfig{
 					Image: Image{Name: "test:1.0"},
 					Overwrites: []JobOverwrite{
 						{Type: OverwriteTypePlan},
