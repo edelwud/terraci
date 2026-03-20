@@ -190,7 +190,7 @@ func (c *Cache) CleanExpired() error {
 		// Check if file is older than TTL
 		if time.Since(info.ModTime()) > c.ttl {
 			log.WithField("path", path).Debug("removing expired cache")
-			return os.Remove(path)
+			return os.Remove(path) //nolint:gosec // path is constructed internally from cache dir
 		}
 		return nil
 	})

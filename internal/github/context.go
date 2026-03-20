@@ -64,7 +64,7 @@ func getPRNumberFromEvent() int {
 		return 0
 	}
 
-	data, err := os.ReadFile(eventPath)
+	data, err := os.ReadFile(eventPath) //nolint:gosec // GITHUB_EVENT_PATH is set by GitHub Actions runtime
 	if err != nil {
 		return 0
 	}

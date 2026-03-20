@@ -98,7 +98,7 @@ func formatWithCommas(cost float64) string {
 		if i > 0 && (len(intPart)-i)%digitsPerGroup == 0 {
 			result = append(result, ',')
 		}
-		result = append(result, byte(c))
+		result = append(result, byte(c)) //nolint:gosec // c is always an ASCII digit (0-9)
 	}
 
 	if decPart != "" {
@@ -117,7 +117,7 @@ func splitDecimal(s string) [2]string {
 }
 
 func trimTrailingZeros(cost float64, precision int) string {
-	format := "%." + string(rune('0'+precision)) + "f"
+	format := "%." + string(rune('0'+precision)) + "f" //nolint:gosec // precision is always a small non-negative int
 	s := sprintf(format, cost)
 	// Trim trailing zeros after decimal
 	if hasDecimal(s) {
@@ -146,7 +146,7 @@ func sprintfFloat(f float64, prec int) string {
 
 	// Scale by precision
 	scale := 1.0
-	for i := 0; i < prec; i++ {
+	for range prec {
 		scale *= 10
 	}
 	rounded := int64(f*scale + roundingOffset)

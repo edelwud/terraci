@@ -318,6 +318,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "missing image",
 			cfg: &Config{
+				Provider: ProviderGitLab,
 				Structure: StructureConfig{
 					Pattern:  "{service}/{env}/{region}/{module}",
 					MinDepth: 4,
@@ -333,6 +334,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "invalid overwrite type",
 			cfg: &Config{
+				Provider: ProviderGitLab,
 				Structure: StructureConfig{
 					Pattern:  "{service}/{env}/{region}/{module}",
 					MinDepth: 4,

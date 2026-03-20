@@ -467,7 +467,7 @@ func (g *DependencyGraph) ToDOT() string {
 	for id := range g.nodes {
 		// Escape the label
 		label := strings.ReplaceAll(id, "/", "\\n")
-		sb.WriteString(fmt.Sprintf("  %q [label=%q];\n", id, label))
+		fmt.Fprintf(&sb, "  %q [label=%q];\n", id, label)
 	}
 
 	sb.WriteString("\n")
@@ -475,7 +475,7 @@ func (g *DependencyGraph) ToDOT() string {
 	// Add edges
 	for from, tos := range g.edges {
 		for _, to := range tos {
-			sb.WriteString(fmt.Sprintf("  %q -> %q;\n", from, to))
+			fmt.Fprintf(&sb, "  %q -> %q;\n", from, to)
 		}
 	}
 
@@ -520,7 +520,7 @@ func (g *DependencyGraph) ToPlantUML() string {
 		ids := groups[groupKey]
 		sort.Strings(ids)
 
-		sb.WriteString(fmt.Sprintf("package %q {\n", groupKey))
+		fmt.Fprintf(&sb, "package %q {\n", groupKey)
 		for _, id := range ids {
 			// Create a shorter alias for the component
 			alias := plantUMLAlias(id)
@@ -532,7 +532,7 @@ func (g *DependencyGraph) ToPlantUML() string {
 			} else {
 				label = id
 			}
-			sb.WriteString(fmt.Sprintf("  [%s] as %s\n", label, alias))
+			fmt.Fprintf(&sb, "  [%s] as %s\n", label, alias)
 		}
 		sb.WriteString("}\n\n")
 	}
@@ -542,7 +542,7 @@ func (g *DependencyGraph) ToPlantUML() string {
 		fromAlias := plantUMLAlias(from)
 		for _, to := range tos {
 			toAlias := plantUMLAlias(to)
-			sb.WriteString(fmt.Sprintf("%s --> %s\n", fromAlias, toAlias))
+			fmt.Fprintf(&sb, "%s --> %s\n", fromAlias, toAlias)
 		}
 	}
 

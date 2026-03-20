@@ -265,16 +265,16 @@ func formatListString(g *graph.DependencyGraph) string {
 
 	sorted, err := g.TopologicalSort()
 	if err != nil {
-		sb.WriteString(fmt.Sprintf("Error: %s\n", err))
+		fmt.Fprintf(&sb, "Error: %s\n", err)
 		return sb.String()
 	}
 
 	for _, moduleID := range sorted {
 		deps := g.GetDependencies(moduleID)
 		if len(deps) == 0 {
-			sb.WriteString(fmt.Sprintf("%s\n", moduleID))
+			fmt.Fprintf(&sb, "%s\n", moduleID)
 		} else {
-			sb.WriteString(fmt.Sprintf("%s -> %s\n", moduleID, strings.Join(deps, ", ")))
+			fmt.Fprintf(&sb, "%s -> %s\n", moduleID, strings.Join(deps, ", "))
 		}
 	}
 
@@ -293,9 +293,9 @@ func formatLevelsString(g *graph.DependencyGraph) (string, error) {
 	sb.WriteString("Execution Levels (modules at the same level can run in parallel):\n\n")
 
 	for i, level := range levels {
-		sb.WriteString(fmt.Sprintf("Level %d:\n", i))
+		fmt.Fprintf(&sb, "Level %d:\n", i)
 		for _, moduleID := range level {
-			sb.WriteString(fmt.Sprintf("  - %s\n", moduleID))
+			fmt.Fprintf(&sb, "  - %s\n", moduleID)
 		}
 		sb.WriteString("\n")
 	}

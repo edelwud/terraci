@@ -204,14 +204,14 @@ func FormatPlanDetails(p *plan.ParsedPlan) string {
 			continue
 		}
 
-		sb.WriteString(fmt.Sprintf("**%s:**\n", a.label))
+		fmt.Fprintf(&sb, "**%s:**\n", a.label)
 		shown := 0
 		for _, addr := range resources {
 			if shown >= maxResourcesInSummary {
-				sb.WriteString(fmt.Sprintf("- ... +%d more\n", len(resources)-shown))
+				fmt.Fprintf(&sb, "- ... +%d more\n", len(resources)-shown)
 				break
 			}
-			sb.WriteString(fmt.Sprintf("- `%s`\n", addr))
+			fmt.Fprintf(&sb, "- `%s`\n", addr)
 			shown++
 		}
 		sb.WriteString("\n")
