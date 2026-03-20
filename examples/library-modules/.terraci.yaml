@@ -1,3 +1,6 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/edelwud/terraci/main/terraci.schema.json
+provider: gitlab
+
 # TerraCi configuration for library modules example
 
 structure:
@@ -13,7 +16,8 @@ library_modules:
 # GitLab CI configuration
 gitlab:
   terraform_binary: "terraform"
-  image: "hashicorp/terraform:1.6"
+  image:
+    name: hashicorp/terraform:1.6
   stages_prefix: "deploy"
   parallelism: 5
   plan_enabled: true

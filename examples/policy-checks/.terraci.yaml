@@ -1,3 +1,6 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/edelwud/terraci/main/terraci.schema.json
+provider: gitlab
+
 # TerraCi configuration with OPA policy checks
 #
 # This example shows how to configure policy checks
@@ -46,7 +49,8 @@ policy:
 
 # GitLab CI configuration
 gitlab:
-  terraform_image: hashicorp/terraform:1.6
+  image:
+    name: hashicorp/terraform:1.6
   plan_enabled: true
   auto_approve: false
 

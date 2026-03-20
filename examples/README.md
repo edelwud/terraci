@@ -1,52 +1,44 @@
 # TerraCi Examples
 
-Example configurations that demonstrate TerraCi features for generating and managing Terraform pipelines.
+Example configurations demonstrating TerraCi features.
 
 ## Examples
 
-| Directory | Description |
-|-----------|-------------|
-| [cross-env-deps](cross-env-deps/) | Cross-environment dependencies |
-| [library-modules](library-modules/) | Shared library modules |
-| [policy-checks](policy-checks/) | OPA policy checks integration |
+| Example | Description |
+|---------|-------------|
+| [basic/](basic/) | Minimal setup — 3 modules with dependencies |
+| [github-actions/](github-actions/) | GitHub Actions configuration with OIDC |
+| [cross-env-deps/](cross-env-deps/) | Cross-environment dependencies and `abspath` pattern |
+| [library-modules/](library-modules/) | Shared library modules with change detection |
+| [policy-checks/](policy-checks/) | OPA policy enforcement with Rego rules |
 
-## Basic Setup
+## Quick Start
 
-### Files
+```bash
+# Copy an example
+cp -r examples/basic my-infra
+cd my-infra
 
-- `.gitlab-ci.yml` - Parent pipeline that generates child pipeline with TerraCi
-- `.terraci.yaml` - TerraCi configuration
+# Initialize
+terraci init
 
-## How It Works
+# Validate
+terraci validate
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Parent Pipeline                          │
-├─────────────────────────────────────────────────────────────┤
-│  generate-pipeline:                                         │
-│    - terraci generate -o terraform.gitlab-ci.yml            │
-│    - artifact: terraform.gitlab-ci.yml                      │
-│                         │                                   │
-│                         ▼                                   │
-│  deploy:                                                    │
-│    - trigger child pipeline (terraform.gitlab-ci.yml)       │
-└─────────────────────────────────────────────────────────────┘
-                          │
-                          ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Child Pipeline (generated)                     │
-├─────────────────────────────────────────────────────────────┤
-│  plan-vpc → apply-vpc → plan-eks → apply-eks → ...          │
-└─────────────────────────────────────────────────────────────┘
+# Generate pipeline
+terraci generate -o .gitlab-ci.yml         # GitLab CI
+terraci generate -o .github/workflows/terraform.yml  # GitHub Actions
+
+# Preview dependencies
+terraci graph --format levels
 ```
 
-## Usage
+## Configuration Reference
 
-1. Copy `.gitlab-ci.yml` and `.terraci.yaml` to your Terraform project
-2. Adjust `.terraci.yaml` for your project structure
-3. Commit and push - GitLab will run the pipeline
+Add the schema comment to your `.terraci.yaml` for IDE autocomplete:
 
-## Pipeline Stages
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/edelwud/terraci/main/terraci.schema.json
+```
 
-1. **generate** - TerraCi generates the Terraform pipeline
-2. **deploy** - Triggers the generated child pipeline with all Terraform jobs
+See [full documentation](https://edelwud.github.io/terraci) for details.
