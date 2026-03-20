@@ -153,11 +153,18 @@ Combine git detection with filters:
 
 ```bash
 # Only production changes
-terraci generate --changed-only --base-ref main --environment production
+terraci generate --changed-only --base-ref main --filter environment=production
 
 # Exclude test modules from change detection
 terraci generate --changed-only --base-ref main --exclude "*/test/*"
+
+# Multiple filters
+terraci generate --changed-only --base-ref main --filter environment=prod --filter region=us-east-1
 ```
+
+::: tip Filter syntax
+The `--filter key=value` flag replaces the older `--service`, `--environment`, and `--region` flags. The key must match a segment name from your configured pattern.
+:::
 
 ## Viewing Changed Modules
 

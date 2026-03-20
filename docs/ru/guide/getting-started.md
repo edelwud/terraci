@@ -51,6 +51,14 @@ make build
 terraci init
 ```
 
+По умолчанию запускается интерактивный TUI-мастер, который проведёт вас через настройку проекта. Для неинтерактивного режима (например, в CI-скриптах) используйте:
+
+```bash
+terraci init --ci
+terraci init --ci --provider github
+terraci init --ci --provider gitlab --binary tofu --image ghcr.io/opentofu/opentofu:1.6
+```
+
 Это создаст файл `.terraci.yaml`:
 
 ```yaml
@@ -59,6 +67,8 @@ structure:
   min_depth: 4
   max_depth: 5
   allow_submodules: true
+
+provider: gitlab  # или "github" — автоопределяется из окружения, если не указан
 
 gitlab:
   terraform_binary: "terraform"
@@ -101,10 +111,14 @@ dot -Tpng deps.dot -o deps.png
 
 ### 4. Генерация пайплайна
 
-Сгенерируйте GitLab CI пайплайн:
+Сгенерируйте CI пайплайн:
 
 ```bash
+# GitLab CI
 terraci generate -o .gitlab-ci.yml
+
+# GitHub Actions
+terraci generate -o .github/workflows/terraform.yml
 ```
 
 ### 5. Генерация только для изменённых модулей
@@ -116,7 +130,7 @@ terraci generate --changed-only --base-ref main -o .gitlab-ci.yml
 ```
 
 ::: tip CI окружения
-TerraCi автоматически получает remote-ссылки при необходимости, поэтому `--changed-only` работает из коробки в GitLab CI даже с shallow clone.
+TerraCi автоматически получает remote-ссылки при необходимости, поэтому `--changed-only` работает из коробки в GitLab CI и GitHub Actions даже с shallow clone.
 :::
 
 ## Структура проекта

@@ -1,12 +1,12 @@
 ---
 title: terraci summary
-description: Post plan results, cost estimates, and policy checks as GitLab MR comments
+description: Post plan results, cost estimates, and policy checks as MR/PR comments
 outline: deep
 ---
 
 # terraci summary
 
-Posts terraform plan results as a comment on GitLab Merge Requests.
+Posts terraform plan results as a comment on GitLab Merge Requests or GitHub Pull Requests.
 
 ## Synopsis
 
@@ -16,15 +16,17 @@ terraci summary [flags]
 
 ## Description
 
-The `summary` command collects terraform plan results from artifacts and creates or updates a summary comment on the GitLab merge request.
+The `summary` command collects terraform plan results from artifacts and creates or updates a summary comment on the merge request (GitLab) or pull request (GitHub).
 
-This command is designed to run as a final job in the GitLab CI pipeline after all plan jobs have completed. It scans for `plan.txt` files in module directories and posts a formatted comment to the MR.
+This command is designed to run as a final job in the CI pipeline after all plan jobs have completed. It scans for `plan.txt` files in module directories and posts a formatted comment.
 
-The command automatically detects if it's running in a GitLab MR pipeline and only creates comments when appropriate.
+The command automatically detects the CI provider and whether it is running in an MR/PR pipeline, and only creates comments when appropriate.
 
 ## Usage
 
-This command is typically used in the generated pipeline's summary job:
+This command is typically used in the generated pipeline's summary job.
+
+### GitLab CI
 
 ```yaml
 terraci-summary:
@@ -40,7 +42,23 @@ terraci-summary:
       when: always
 ```
 
+### GitHub Actions
+
+```yaml
+summary:
+  runs-on: ubuntu-latest
+  needs: [plan-jobs...]
+  if: github.event_name == 'pull_request'
+  steps:
+    - uses: actions/checkout@v4
+    - run: terraci summary
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
 ## Environment Variables
+
+### GitLab
 
 | Variable | Description | Required |
 |----------|-------------|----------|
@@ -52,9 +70,18 @@ terraci-summary:
 
 *Either `GITLAB_TOKEN` or `CI_JOB_TOKEN` is required.
 
+### GitHub
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `GITHUB_ACTIONS` | Indicates GitHub Actions environment (auto-set) | Yes |
+| `GITHUB_TOKEN` | Token for posting PR comments | Yes |
+| `GITHUB_REPOSITORY` | Repository in `owner/repo` format (auto-set) | Yes |
+| `GITHUB_EVENT_PATH` | Path to event payload JSON (auto-set) | Yes |
+
 ## Output
 
-The command posts a comment like this to the MR:
+The command posts a comment like this to the MR/PR:
 
 ```markdown
 ## 🔄 Terraform Plan Summary
@@ -77,6 +104,8 @@ Plan: 2 to add, 1 to change, 0 to destroy.
 
 Configure the summary job via `.terraci.yaml`:
 
+### GitLab
+
 ```yaml
 gitlab:
   mr:
@@ -93,11 +122,25 @@ gitlab:
 
 See [GitLab MR Configuration](/config/gitlab-mr) for full options.
 
+### GitHub
+
+```yaml
+github:
+  pr:
+    comment:
+      enabled: true
+      on_changes_only: false
+    summary_job:
+      runs_on: ubuntu-latest
+```
+
+See [GitHub Actions Configuration](/config/github) for full options.
+
 ## Exit Codes
 
 | Code | Description |
 |------|-------------|
-| 0 | Success (or skipped if not in MR) |
+| 0 | Success (or skipped if not in MR/PR) |
 | 1 | Error scanning plan results or posting comment |
 
 ## Examples
@@ -122,4 +165,5 @@ terraci summary -v
 ## See Also
 
 - [GitLab MR Integration](/config/gitlab-mr)
+- [GitHub Actions Configuration](/config/github)
 - [terraci generate](/cli/generate)

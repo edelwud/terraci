@@ -29,80 +29,36 @@ docker run --rm -v $(pwd):/workspace ghcr.io/edelwud/terraci generate
 
 ## Команды
 
-### [generate](./generate.md)
-
-Генерация GitLab CI пайплайна:
-
-```bash
-terraci generate -o .gitlab-ci.yml
-```
-
-### [validate](./validate.md)
-
-Валидация проекта и конфигурации:
-
-```bash
-terraci validate
-```
-
-### [graph](./graph.md)
-
-Визуализация графа зависимостей:
-
-```bash
-terraci graph --format dot -o deps.dot
-```
-
-### [init](./init.md)
-
-Инициализация конфигурации:
-
-```bash
-terraci init
-```
-
-### [summary](./summary.md)
-
-Публикация результатов plan в MR:
-
-```bash
-terraci summary
-```
-
-### [policy](./policy.md)
-
-Проверка Terraform планов на соответствие OPA политикам:
-
-```bash
-# Загрузить политики из источников
-terraci policy pull
-
-# Проверить все модули
-terraci policy check
-
-# Проверить конкретный модуль
-terraci policy check --module platform/prod/eu-central-1/vpc
-```
+| Команда | Описание |
+|---------|----------|
+| [generate](./generate.md) | Генерация CI пайплайна (GitLab CI или GitHub Actions) |
+| [validate](./validate.md) | Валидация структуры проекта |
+| [graph](./graph.md) | Граф зависимостей (DOT, PlantUML, list, levels) |
+| [init](./init.md) | Инициализация конфигурации (интерактивный TUI-мастер) |
+| [summary](./summary.md) | Публикация результатов plan в MR/PR |
+| [policy](./policy.md) | Загрузка и проверка OPA-политик |
+| `version` | Информация о версии |
 
 ## Примеры использования
 
-### Базовый workflow
-
 ```bash
-# 1. Инициализация конфигурации
-terraci init
-
-# 2. Настройка .terraci.yaml под проект
-
-# 3. Валидация
-terraci validate
-
-# 4. Просмотр зависимостей
-terraci graph --format levels
-
-# 5. Генерация пайплайна
-terraci generate --dry-run
+# Генерация пайплайна (GitLab CI)
 terraci generate -o .gitlab-ci.yml
+
+# Генерация пайплайна (GitHub Actions)
+terraci generate -o .github/workflows/terraform.yml
+
+# Валидация с подробным выводом
+terraci validate -v
+
+# Использование другого конфига
+terraci -c custom.yaml generate
+
+# Работа в другой директории
+terraci -d /path/to/project validate
+
+# Фильтрация модулей по сегменту
+terraci generate --filter environment=production --filter region=us-east-1
 ```
 
 ### Работа с изменёнными модулями
@@ -113,19 +69,6 @@ terraci generate --changed-only --base-ref main
 
 # Просмотр затронутых модулей
 terraci graph --changed-only --format levels
-```
-
-### Фильтрация модулей
-
-```bash
-# Только production
-terraci generate --environment prod
-
-# Исключить тестовые модули
-terraci generate --exclude "*/test/*"
-
-# Конкретный модуль и зависимые
-terraci generate --module platform/prod/eu-central-1/vpc
 ```
 
 ### Docker

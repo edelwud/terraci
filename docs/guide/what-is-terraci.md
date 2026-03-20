@@ -1,12 +1,12 @@
 ---
 title: What is TerraCi?
-description: CLI tool for analyzing Terraform projects and generating GitLab CI pipelines with dependency ordering
+description: CLI tool for analyzing Terraform projects and generating CI pipelines with dependency ordering
 outline: deep
 ---
 
 # What is TerraCi?
 
-TerraCi is a CLI tool that analyzes Terraform/OpenTofu projects and automatically generates GitLab CI pipelines with proper dependency ordering.
+TerraCi is a CLI tool that analyzes Terraform/OpenTofu projects and automatically generates CI pipelines (GitLab CI and GitHub Actions) with proper dependency ordering.
 
 ## The Problem
 
@@ -14,7 +14,7 @@ When managing infrastructure as code in a monorepo with multiple Terraform modul
 
 1. **Dependency Management** - Modules often depend on each other (e.g., EKS depends on VPC). Running them in the wrong order causes failures.
 
-2. **Manual Pipeline Maintenance** - Writing and maintaining GitLab CI pipelines manually is error-prone and tedious.
+2. **Manual Pipeline Maintenance** - Writing and maintaining CI pipelines manually is error-prone and tedious.
 
 3. **Change Detection** - When only one module changes, you don't want to re-apply all modules.
 
@@ -68,7 +68,7 @@ flowchart TD
 
 ### 4. Pipeline Generation
 
-Finally, it generates a GitLab CI pipeline where:
+Finally, it generates a CI pipeline (GitLab CI or GitHub Actions) where:
 - Modules at the same level run in parallel
 - Modules wait for their dependencies to complete
 - Plan and apply stages are separated (optional)
@@ -77,13 +77,16 @@ Finally, it generates a GitLab CI pipeline where:
 
 | Feature | Description |
 |---------|-------------|
-| **Smart Discovery** | Finds modules at depth 4 and 5 (with submodules) |
+| **Smart Discovery** | Finds modules at configurable depth (with submodules) |
 | **Dependency Graph** | Builds accurate DAG from remote state references |
 | **Cycle Detection** | Warns about circular dependencies |
+| **Multi-Provider** | Full support for both GitLab CI and GitHub Actions |
 | **Git Integration** | Detects changed modules from git diff |
 | **Policy Checks** | OPA-based compliance enforcement on terraform plans |
-| **Cost Estimation** | AWS cost estimates with monthly diffs in MR comments |
+| **Cost Estimation** | AWS cost estimates with monthly diffs in MR/PR comments |
 | **OpenTofu Support** | Works with both Terraform and OpenTofu |
+| **Interactive Init** | TUI wizard for guided project setup (`terraci init`) |
+| **Configurable Patterns** | Flexible directory patterns with named segments |
 | **Glob Filtering** | Include/exclude modules with patterns |
 | **DOT Export** | Visualize dependencies with GraphViz |
 
@@ -94,12 +97,12 @@ TerraCi is ideal for:
 - **Monorepos** with multiple Terraform modules
 - **Teams** that need consistent CI/CD pipelines
 - **Complex infrastructures** with many interdependencies
-- **GitLab CI** users (GitHub Actions support planned)
+- **GitLab CI** and **GitHub Actions** users
 
 ## Requirements
 
 - Go 1.22+ (for building from source)
-- GitLab CI (for pipeline execution)
+- GitLab CI or GitHub Actions (for pipeline execution)
 - Terraform or OpenTofu modules using `terraform_remote_state`
 
 ## Next Steps

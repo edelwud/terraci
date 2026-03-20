@@ -2,19 +2,28 @@
 package eval
 
 import (
+	"path/filepath"
+
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 )
 
 // NewContext creates an HCL evaluation context with Terraform functions.
+// modulePath should be the absolute path to the module directory.
 func NewContext(locals, variables map[string]cty.Value, modulePath string) *hcl.EvalContext {
+	absPath, err := filepath.Abs(modulePath)
+	if err != nil {
+		absPath = modulePath
+	}
+
 	return &hcl.EvalContext{
 		Variables: map[string]cty.Value{
-			"local": safeObjectVal(locals),
-			"var":   safeObjectVal(variables),
+			"local": SafeObjectVal(locals),
+			"var":   SafeObjectVal(variables),
 			"path": cty.ObjectVal(map[string]cty.Value{
-				"module": cty.StringVal(modulePath),
+				"module": cty.StringVal(absPath),
+				"root":   cty.StringVal(absPath),
 			}),
 		},
 		Functions: Functions(),
@@ -23,13 +32,11 @@ func NewContext(locals, variables map[string]cty.Value, modulePath string) *hcl.
 
 // Functions returns Terraform functions for HCL evaluation.
 func Functions() map[string]function.Function {
-	return map[string]function.Function{
-		"lookup": lookupFunc,
-	}
+	return builtinFunctions()
 }
 
-// safeObjectVal creates a cty.ObjectVal, returning an empty object for nil/empty maps.
-func safeObjectVal(m map[string]cty.Value) cty.Value {
+// SafeObjectVal creates a cty.ObjectVal, returning an empty object for nil/empty maps.
+func SafeObjectVal(m map[string]cty.Value) cty.Value {
 	if len(m) == 0 {
 		return cty.EmptyObjectVal
 	}

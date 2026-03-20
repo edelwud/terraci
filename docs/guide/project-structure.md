@@ -37,14 +37,16 @@ infrastructure/
 
 ## Module Identification
 
-Each module is identified by its path components:
+Each module is identified by its relative path, which also serves as its ID. The path segments are mapped to named components based on the configured pattern:
 
-| Path | Service | Environment | Region | Module |
+| Path | `Get("service")` | `Get("environment")` | `Get("region")` | `Get("module")` |
 |------|---------|-------------|--------|--------|
 | `platform/production/us-east-1/vpc` | platform | production | us-east-1 | vpc |
 | `analytics/production/eu-west-1/redshift` | analytics | production | eu-west-1 | redshift |
 
-The module ID is the full path: `platform/production/us-east-1/vpc`
+The module ID is its relative path: `platform/production/us-east-1/vpc`
+
+The segment names are fully configurable. With a pattern like `{team}/{env}/{module}`, the components would be `team`, `env`, and `module` instead.
 
 ## Submodules (Depth 5)
 

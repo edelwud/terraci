@@ -6,7 +6,7 @@ outline: deep
 
 # GitLab CI Configuration
 
-The `gitlab` section configures the generated GitLab CI pipeline.
+The `gitlab` section configures the generated GitLab CI pipeline. This section is only used when the resolved provider is `gitlab` (the default). When `provider: github` is set, this section is omitted and the `github` section is used instead. See [GitHub Actions Configuration](/config/github) for the GitHub equivalent.
 
 ## Options
 
@@ -482,7 +482,7 @@ apply-platform-prod-vpc:
 
 ## Per-Job Variables
 
-Each job receives these variables:
+Each job receives environment variables that are dynamically generated from the segment names defined in your `structure.pattern`. For the default pattern `{service}/{environment}/{region}/{module}`, the variables are:
 
 | Variable | Description | Example |
 |----------|-------------|---------|
@@ -492,7 +492,10 @@ Each job receives these variables:
 | `TF_REGION` | Region name | `us-east-1` |
 | `TF_MODULE` | Module name | `vpc` |
 
+If you use a custom pattern like `{team}/{stack}/{datacenter}/{component}`, the variables would instead be `TF_TEAM`, `TF_STACK`, `TF_DATACENTER`, and `TF_COMPONENT`. The variable names are always derived by uppercasing the segment name and prefixing with `TF_`.
+
 ## See Also
 
 - [Merge Request Integration](/config/gitlab-mr) — MR comments with plan summaries and policy results
+- [GitHub Actions Configuration](/config/github) — the equivalent configuration for GitHub Actions
 - [Pipeline Generation Guide](/guide/pipeline-generation) — end-to-end guide for generating CI pipelines

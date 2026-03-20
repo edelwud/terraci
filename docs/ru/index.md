@@ -4,7 +4,7 @@ layout: home
 hero:
   name: TerraCi
   text: Генератор пайплайнов Terraform
-  tagline: GitLab CI пайплайны с учётом зависимостей для Terraform/OpenTofu монорепозиториев — с оценкой стоимости и проверкой политик
+  tagline: CI пайплайны с учётом зависимостей для Terraform/OpenTofu монорепозиториев — GitLab CI и GitHub Actions, с оценкой стоимости и проверкой политик
   image:
     src: /logo.svg
     alt: TerraCi
@@ -61,9 +61,13 @@ features:
 # Установка
 brew install edelwud/tap/terraci
 
-# Инициализация и генерация
+# Инициализация и генерация (GitLab)
 terraci init
 terraci generate -o .gitlab-ci.yml
+
+# Инициализация и генерация (GitHub Actions)
+terraci init --provider github
+terraci generate -o .github/workflows/terraform.yml
 
 # Только изменённые модули
 terraci generate --changed-only --base-ref main
@@ -81,12 +85,12 @@ flowchart LR
   subgraph terraci["TerraCi"]
     t1["Поиск"] --> t2["Парсинг"] --> t3["Сортировка"] --> t4["Генерация"]
   end
-  subgraph gitlab["GitLab CI"]
+  subgraph ci["CI пайплайн"]
     g1["plan vpc"] --> g2["apply vpc"]
     g2 --> g3["plan eks + rds"]
     g3 --> g4["apply eks + rds"]
   end
-  repo --> terraci --> gitlab
+  repo --> terraci --> ci
 ```
 
 [Полный справочник конфигурации →](/ru/config/)

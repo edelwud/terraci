@@ -114,11 +114,19 @@ terraci generate --exclude "*/test/*" --exclude "*/sandbox/*"
 # Add includes
 terraci generate --include "platform/*/*/*"
 
-# Filter by field
-terraci generate --service platform
-terraci generate --environment production
-terraci generate --region us-east-1
+# Filter by segment (key=value syntax, works with any pattern segment name)
+terraci generate --filter service=platform
+terraci generate --filter environment=production
+terraci generate --filter region=us-east-1
+
+# Multiple values for the same segment (OR logic)
+terraci generate --filter environment=stage --filter environment=prod
+
+# Combined segment filters (AND logic across different keys)
+terraci generate --filter service=platform --filter environment=production --filter region=us-east-1
 ```
+
+The `--filter` flag works with any segment name defined in your `structure.pattern`. For example, if your pattern is `{team}/{stack}/{datacenter}/{component}`, you would use `--filter team=infra`.
 
 ## Filter Order
 
@@ -127,24 +135,27 @@ Filters are applied in this order:
 1. **Discovery** - Find all modules at correct depth
 2. **Exclude** - Remove modules matching exclude patterns
 3. **Include** - If set, keep only modules matching include patterns
-4. **CLI Filters** - Apply service/environment/region filters
+4. **Segment Filters** - Apply `--filter key=value` segment filters
 
-## Field-Based Filters
+## Segment-Based Filters
 
-Filter by module fields via CLI:
+Filter by pattern segment via CLI using `--filter key=value`:
 
 ```bash
 # By service
-terraci generate --service platform
+terraci generate --filter service=platform
 
 # By environment
-terraci generate --environment production
+terraci generate --filter environment=production
 
 # By region
-terraci generate --region us-east-1
+terraci generate --filter region=us-east-1
 
-# Combined
-terraci generate --service platform --environment production --region us-east-1
+# Combined (AND across different keys)
+terraci generate --filter service=platform --filter environment=production --filter region=us-east-1
+
+# Multiple values for one key (OR within same key)
+terraci generate -f environment=stage -f environment=prod
 ```
 
 ## Combining Filters
@@ -184,7 +195,7 @@ include:
 Generate pipeline for specific region:
 
 ```bash
-terraci generate --region us-east-1
+terraci generate --filter region=us-east-1
 ```
 
 Or in config:
@@ -197,7 +208,7 @@ include:
 ### Service-Specific Pipeline
 
 ```bash
-terraci generate --service platform
+terraci generate --filter service=platform
 ```
 
 ### Exclude Specific Modules

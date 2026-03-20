@@ -147,11 +147,18 @@ generate:
 
 ```bash
 # Только production изменения
-terraci generate --changed-only --base-ref main --environment production
+terraci generate --changed-only --base-ref main --filter environment=production
 
 # Исключить test модули
 terraci generate --changed-only --base-ref main --exclude "*/test/*"
+
+# Несколько фильтров
+terraci generate --changed-only --base-ref main --filter environment=prod --filter region=us-east-1
 ```
+
+::: tip Синтаксис фильтров
+Флаг `--filter key=value` заменяет устаревшие флаги `--service`, `--environment` и `--region`. Ключ должен совпадать с именем сегмента из настроенного паттерна.
+:::
 
 ## Просмотр изменённых модулей
 

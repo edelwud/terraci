@@ -20,15 +20,16 @@ terraci graph [flags]
 
 ## Флаги
 
-| Флаг | Тип | По умолчанию | Описание |
-|------|-----|--------------|----------|
-| `--format` | string | `levels` | Формат вывода: `dot`, `json`, `levels`, `list` |
-| `-o, --output` | string | stdout | Файл для записи |
-| `--module` | string | | Фильтр по конкретному модулю |
-| `--dependencies` | bool | false | Показать зависимости модуля |
-| `--dependents` | bool | false | Показать зависимые модули |
-| `--changed-only` | bool | false | Только изменённые модули |
-| `--base-ref` | string | `main` | Базовая ветка для сравнения |
+| Флаг | Сокр. | Тип | По умолчанию | Описание |
+|------|-------|-----|--------------|----------|
+| `--format` | `-F` | string | `dot` | Формат вывода: `dot`, `plantuml`, `list`, `levels` |
+| `--output` | `-o` | string | stdout | Файл для записи |
+| `--stats` | | bool | false | Показать статистику графа |
+| `--module` | `-m` | string | | Запрос по конкретному модулю |
+| `--dependents` | | bool | false | Показать обратные зависимости |
+| `--exclude` | `-x` | []string | | Паттерны исключения |
+| `--include` | `-i` | []string | | Паттерны включения |
+| `--filter` | `-f` | []string | | Фильтр по сегменту (`key=value`) |
 
 ## Форматы вывода
 
@@ -80,6 +81,28 @@ digraph dependencies {
 ```bash
 dot -Tpng deps.dot -o deps.png
 dot -Tsvg deps.dot -o deps.svg
+```
+
+### plantuml
+
+Формат PlantUML для генерации диаграмм:
+
+```bash
+terraci graph --format plantuml -o deps.puml
+```
+
+```
+@startuml
+...
+"platform/prod/eu-central-1/eks" --> "platform/prod/eu-central-1/vpc"
+"platform/prod/eu-central-1/rds" --> "platform/prod/eu-central-1/vpc"
+@enduml
+```
+
+Визуализация:
+```bash
+terraci graph -F plantuml -o deps.puml
+plantuml deps.puml
 ```
 
 ### json
@@ -135,6 +158,30 @@ platform/prod/eu-central-1/eks
 platform/prod/eu-central-1/rds
 platform/prod/eu-west-1/vpc
 platform/prod/eu-west-1/eks
+```
+
+## Статистика
+
+```bash
+terraci graph --stats
+```
+
+Вывод:
+```
+Graph Statistics:
+  Total modules: 12
+  Total edges: 15
+  Max depth: 4
+  Root modules: 2
+  Leaf modules: 3
+
+  Modules with most dependencies:
+    app (3 dependencies)
+    monitoring (2 dependencies)
+
+  Most depended-on modules:
+    vpc (5 dependents)
+    eks (2 dependents)
 ```
 
 ## Фильтрация

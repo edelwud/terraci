@@ -6,19 +6,25 @@ outline: deep
 
 # Pipeline Generation
 
-TerraCi generates GitLab CI pipelines that respect module dependencies and enable parallel execution.
+TerraCi generates CI pipelines that respect module dependencies and enable parallel execution. Both GitLab CI and GitHub Actions are fully supported.
 
 ## Basic Generation
 
 Generate a pipeline for all modules:
 
 ```bash
+# GitLab CI
 terraci generate -o .gitlab-ci.yml
+
+# GitHub Actions
+terraci generate -o .github/workflows/terraform.yml
 ```
 
-## Pipeline Structure
+The provider is auto-detected from the environment (`GITLAB_CI` env var selects GitLab, `GITHUB_ACTIONS` selects GitHub Actions), or set explicitly via `provider` in `.terraci.yaml`.
 
-The generated pipeline includes:
+## GitLab CI Pipeline Structure
+
+The generated GitLab CI pipeline includes:
 
 ### Stages
 
@@ -90,6 +96,10 @@ apply-platform-prod-us-east-1-vpc:
   resource_group: platform/prod/us-east-1/vpc
 ```
 
+::: tip Dynamic Environment Variables
+The `TF_SERVICE`, `TF_ENVIRONMENT`, `TF_REGION`, `TF_MODULE` variables are generated dynamically from the configured pattern segments. If your pattern is `{team}/{env}/{module}`, the variables would be `TF_TEAM`, `TF_ENV`, and `TF_MODULE` instead.
+:::
+
 ## Job Dependencies
 
 Jobs use GitLab's `needs` keyword to express dependencies:
@@ -129,6 +139,47 @@ flowchart LR
   end
   l0 --> l1 --> l2
 ```
+
+## GitHub Actions Workflow Structure
+
+When using the GitHub Actions provider, TerraCi generates a workflow file with jobs organized by execution levels:
+
+```yaml
+name: Terraform
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  plan-platform-prod-us-east-1-vpc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Plan
+        run: |
+          cd platform/prod/us-east-1/vpc
+          terraform plan -out=plan.tfplan
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plan-platform-prod-us-east-1-vpc
+          path: platform/prod/us-east-1/vpc/plan.tfplan
+
+  apply-platform-prod-us-east-1-vpc:
+    needs: [plan-platform-prod-us-east-1-vpc]
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: plan-platform-prod-us-east-1-vpc
+      - name: Apply
+        run: |
+          cd platform/prod/us-east-1/vpc
+          terraform apply plan.tfplan
+```
+
+GitHub Actions jobs use `needs` for dependency ordering, `actions/upload-artifact` and `actions/download-artifact` for passing plan files between jobs, and `environment` for approval gates.
 
 ## Changed-Only Pipelines
 
@@ -290,4 +341,4 @@ terraci generate | yq '.stages'  # Extract stages
 ## Next Steps
 
 - [Git Integration](/guide/git-integration) — Generate pipelines only for changed modules
-- [GitLab CI Configuration](/config/gitlab) — Customize pipeline settings, images, and job defaults
+- [GitLab CI Configuration](/config/gitlab) — Customize GitLab pipeline settings, images, and job defaults

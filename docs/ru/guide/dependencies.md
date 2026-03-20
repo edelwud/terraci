@@ -34,12 +34,12 @@ data "terraform_remote_state" "vpc" {
 
 ### 3. Сопоставление с модулями
 
-Путь state-файла сопоставляется с обнаруженными модулями:
+Путь state-файла сопоставляется с обнаруженными модулями. `key` должен повторять структуру директорий (в соответствии с настроенным `structure.pattern`):
 
 ```
 key: platform/production/us-east-1/vpc/terraform.tfstate
      ↓
-Module ID: platform/production/us-east-1/vpc
+Module ID: platform/production/us-east-1/vpc  (= RelativePath)
 ```
 
 ### 4. Построение графа
@@ -89,24 +89,86 @@ data "terraform_remote_state" "deps" {
 
 Это создаёт зависимости от модулей `vpc` и `iam`.
 
-## Разрешение локальных переменных
+## Статический анализ
 
-TerraCi разрешает ссылки на локальные переменные в путях:
+TerraCi — инструмент статического анализа. Он вычисляет выражения Terraform без запуска `terraform init` и без подключения к remote backends. Поддерживается широкий набор встроенных функций Terraform:
+
+- **Строковые**: `split`, `join`, `format`, `lower`, `upper`, `trimprefix`, `trimsuffix`, `replace`, `substr`, `trim`, `trimspace`, `regex`
+- **Коллекции**: `element`, `length`, `lookup`, `concat`, `contains`, `keys`, `values`, `merge`, `flatten`, `distinct`
+- **Конвертация типов**: `tostring`, `tonumber`, `tobool`, `tolist`, `toset`, `tomap`
+- **Числовые**: `max`, `min`, `ceil`, `floor`
+- **Файловая система**: `abspath`
+
+### Разрешение локальных переменных
+
+Locals вычисляются итеративно (multi-pass) — locals, ссылающиеся на другие locals, `path.module` или функции, разрешаются за несколько проходов.
+
+Типичный паттерн для монорепозиториев, который поддерживается из коробки:
 
 ```hcl
 locals {
-  env        = "production"
-  region     = "us-east-1"
-  state_key  = "platform/${local.env}/${local.region}/vpc/terraform.tfstate"
+  path_arr    = split("/", abspath(path.module))
+  service     = local.path_arr[length(local.path_arr) - 4]
+  environment = local.path_arr[length(local.path_arr) - 3]
+  region      = local.path_arr[length(local.path_arr) - 2]
+  module      = local.path_arr[length(local.path_arr) - 1]
 }
 
 data "terraform_remote_state" "vpc" {
   backend = "s3"
   config = {
-    key = local.state_key
+    key = "${local.service}/${local.environment}/${local.region}/vpc/terraform.tfstate"
   }
 }
 ```
+
+Простые строковые locals тоже работают:
+
+```hcl
+locals {
+  env       = "production"
+  region    = "us-east-1"
+  state_key = "platform/${local.env}/${local.region}/vpc/terraform.tfstate"
+}
+```
+
+### Переменные из tfvars
+
+TerraCi загружает значения переменных из нескольких источников (в порядке приоритета):
+1. Значения `default` в блоках `variable` (любого типа — string, bool, list, map, object)
+2. `terraform.tfvars`
+3. Файлы `*.auto.tfvars` (наивысший приоритет)
+
+Это позволяет разрешать сложные паттерны `for_each` с переменными из tfvars:
+
+```hcl
+# terraform.tfvars
+managed_environments = [
+  { service = "platform", environment = "stage", region = "eu-central-1" },
+  { service = "platform", environment = "prod",  region = "eu-central-1" },
+]
+
+# main.tf
+data "terraform_remote_state" "vpc" {
+  for_each = { for v in var.managed_environments : "${v.service}-${v.environment}" => v }
+  backend  = "s3"
+  config = {
+    key = "${lookup(each.value, "service")}/${lookup(each.value, "environment")}/${lookup(each.value, "region")}/vpc/terraform.tfstate"
+  }
+}
+```
+
+### Ограничения
+
+::: warning Только статический анализ
+TerraCi **не** подключается к remote backends и не выполняет `terraform init`. Он не может разрешить значения, которые существуют только в runtime:
+
+- **Outputs remote state**: `data.terraform_remote_state.X.outputs.Y`, используемые как ключ в другом remote state
+- **Внешние источники данных**: `data.external`, `data.http` и т.д.
+- **Значения провайдеров**: атрибуты ресурсов, результаты data sources
+
+**Рекомендуемый подход**: формируйте ключи state из пути в файловой системе (`abspath(path.module)`) или явных locals/переменных, а не из outputs других модулей.
+:::
 
 ## Резервное сопоставление по имени
 
@@ -120,7 +182,7 @@ data "terraform_remote_state" "vpc" {  # ← имя "vpc"
 }
 ```
 
-TerraCi ищет модуль с именем `vpc` в том же сервисе/окружении/регионе.
+TerraCi ищет модуль с именем `vpc` в том же контекстном префиксе (то есть совпадающий по всем сегментам кроме последнего из настроенного паттерна).
 
 ## Зависимости сабмодулей
 

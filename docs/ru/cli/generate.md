@@ -1,12 +1,12 @@
 ---
 title: "terraci generate"
-description: "Генерация GitLab CI пайплайнов с учётом зависимостей и режимом changed-only"
+description: "Генерация CI пайплайнов с учётом зависимостей и режимом changed-only"
 outline: deep
 ---
 
 # terraci generate
 
-Генерация GitLab CI пайплайна для Terraform-модулей.
+Генерация CI пайплайна (GitLab CI или GitHub Actions) для Terraform-модулей.
 
 ## Синтаксис
 
@@ -16,36 +16,88 @@ terraci generate [flags]
 
 ## Описание
 
-Команда `generate` анализирует структуру проекта, строит граф зависимостей и генерирует GitLab CI пайплайн с правильным порядком выполнения модулей.
+Команда `generate` анализирует структуру проекта, строит граф зависимостей и генерирует CI пайплайн в формате YAML (GitLab CI или GitHub Actions, в зависимости от настроенного провайдера).
 
 ## Флаги
 
-| Флаг | Тип | По умолчанию | Описание |
-|------|-----|--------------|----------|
-| `-o, --output` | string | stdout | Файл для записи пайплайна |
-| `--dry-run` | bool | false | Показать что будет сгенерировано |
-| `--changed-only` | bool | false | Только изменённые модули |
-| `--base-ref` | string | `main` | Базовая ветка для сравнения |
-| `--module` | string | | Конкретный модуль |
-| `--include` | []string | | Паттерны включения |
-| `--exclude` | []string | | Паттерны исключения |
-| `--environment` | string | | Фильтр по окружению |
+| Флаг | Сокр. | Тип | По умолчанию | Описание |
+|------|-------|-----|--------------|----------|
+| `--output` | `-o` | string | stdout | Файл для записи пайплайна |
+| `--changed-only` | | bool | false | Только изменённые модули |
+| `--base-ref` | | string | авто | Базовая ветка для сравнения |
+| `--exclude` | `-x` | []string | | Паттерны исключения |
+| `--include` | `-i` | []string | | Паттерны включения |
+| `--filter` | `-f` | []string | | Фильтр по сегменту (`key=value`, напр. `environment=prod`) |
+| `--plan-only` | | bool | false | Генерировать только план-джобы (без apply) |
+| `--auto-approve` | | bool | false | Автоматический apply |
+| `--no-auto-approve` | | bool | false | Требовать ручного подтверждения |
+| `--dry-run` | | bool | false | Просмотр без генерации |
 
 ## Примеры
 
 ### Базовая генерация
 
 ```bash
+# Вывод GitLab CI
+terraci generate -o .gitlab-ci.yml
+
+# Вывод GitHub Actions
+terraci generate -o .github/workflows/terraform.yml
+
 # Вывод в stdout
 terraci generate
+```
 
-# Сохранение в файл
-terraci generate -o .gitlab-ci.yml
+Провайдер автоопределяется из переменных окружения CI или задаётся через `provider:` в `.terraci.yaml`.
+
+### Только изменённые модули
+
+```bash
+# Сравнение с main
+terraci generate --changed-only --base-ref main -o .gitlab-ci.yml
+
+# Сравнение с конкретным коммитом
+terraci generate --changed-only --base-ref abc123 -o .gitlab-ci.yml
+
+# Автоопределение ветки по умолчанию
+terraci generate --changed-only -o .gitlab-ci.yml
+```
+
+### Фильтрация
+
+```bash
+# По окружению
+terraci generate --filter environment=production -o .gitlab-ci.yml
+
+# По сервису
+terraci generate --filter service=platform -o .gitlab-ci.yml
+
+# По региону
+terraci generate --filter region=us-east-1 -o .gitlab-ci.yml
+
+# Комбинирование фильтров (И между разными ключами)
+terraci generate --filter service=platform --filter environment=production --filter region=us-east-1 -o .gitlab-ci.yml
+
+# Несколько значений для одного ключа (ИЛИ внутри одного ключа)
+terraci generate --filter environment=stage --filter environment=prod -o .gitlab-ci.yml
+```
+
+Флаг `--filter` работает с любым именем сегмента, определённым в вашем `structure.pattern`.
+
+### Паттерны include/exclude
+
+```bash
+# Исключить тестовые модули
+terraci generate --exclude "*/test/*" -o .gitlab-ci.yml
+
+# Несколько исключений
+terraci generate -x "*/test/*" -x "*/sandbox/*" -o .gitlab-ci.yml
+
+# Включить конкретный паттерн
+terraci generate --include "platform/*/*/*" -o .gitlab-ci.yml
 ```
 
 ### Dry Run
-
-Просмотр информации без генерации YAML:
 
 ```bash
 terraci generate --dry-run
@@ -53,218 +105,147 @@ terraci generate --dry-run
 
 Вывод:
 ```
-Modules discovered: 15
-Modules to process: 15
-Execution levels: 4
-Total jobs: 30
+Dry Run Summary:
+  Total modules: 15
+  Affected modules: 8
+  Stages: 6
+  Jobs: 16
 
-Level 0 (parallel):
-  - platform/prod/eu-central-1/vpc
-  - platform/prod/eu-west-1/vpc
-
-Level 1:
-  - platform/prod/eu-central-1/eks
-  - platform/prod/eu-west-1/eks
-  ...
+Execution Order:
+  Level 0: [vpc, iam]
+  Level 1: [eks, rds, cache]
+  Level 2: [app-backend, app-frontend]
+  Level 3: [monitoring]
 ```
 
-### Только изменённые модули
+### Интеграция с инструментами
 
 ```bash
-# Сравнение с main
-terraci generate --changed-only
+# Извлечь стейджи
+terraci generate | yq '.stages'
 
-# Сравнение с конкретной веткой
-terraci generate --changed-only --base-ref develop
+# Проверить синтаксис
+terraci generate | gitlab-ci-lint
 
-# Сравнение с тегом
-terraci generate --changed-only --base-ref v1.0.0
+# Сравнение с текущим
+terraci generate > new.yml && diff .gitlab-ci.yml new.yml
 ```
 
-При `--changed-only` TerraCi:
-1. Определяет изменённые файлы через `git diff`
-2. Находит затронутые модули
-3. Добавляет зависимые модули (downstream)
-4. Генерирует пайплайн только для них
+## Структура вывода
 
-### Конкретный модуль
-
-```bash
-# Модуль и его зависимые
-terraci generate --module platform/prod/eu-central-1/vpc
-```
-
-### Фильтрация
-
-```bash
-# Только production
-terraci generate --environment prod
-
-# Исключить тестовые модули
-terraci generate --exclude "*/test/*"
-
-# Только конкретный сервис
-terraci generate --include "billing/*/*/*"
-
-# Комбинирование
-terraci generate \
-  --include "platform/*/*/*" \
-  --exclude "*/dev/*" \
-  -o .gitlab-ci.yml
-```
-
-### Разные конфигурации
-
-```bash
-# Production пайплайн
-terraci generate \
-  -c production.terraci.yaml \
-  -o .gitlab-ci-prod.yml
-
-# Staging пайплайн
-terraci generate \
-  -c staging.terraci.yaml \
-  -o .gitlab-ci-stage.yml
-```
-
-## Сгенерированный пайплайн
-
-### Структура
+### Вывод GitLab CI
 
 ```yaml
+# Глобальные переменные
+variables:
+  TERRAFORM_BINARY: "terraform"
+
+# Настройки джобов по умолчанию
+default:
+  image: hashicorp/terraform:1.6
+
+# Стейджи для каждого уровня выполнения
 stages:
   - deploy-plan-0
   - deploy-apply-0
   - deploy-plan-1
   - deploy-apply-1
 
-variables:
-  TF_IN_AUTOMATION: "true"
-  TERRAFORM_BINARY: "terraform"
-
-default:
-  image: hashicorp/terraform:1.6
-  before_script:
-    - ${TERRAFORM_BINARY} init
-  tags:
-    - terraform
-
-# План для VPC (уровень 0)
-plan-platform-prod-eu-central-1-vpc:
+# План-джобы
+plan-service-env-region-module:
   stage: deploy-plan-0
   script:
-    - cd platform/prod/eu-central-1/vpc
+    - cd service/env/region/module
+    - ${TERRAFORM_BINARY} init
     - ${TERRAFORM_BINARY} plan -out=plan.tfplan
-  artifacts:
-    paths:
-      - platform/prod/eu-central-1/vpc/plan.tfplan
 
-# Apply для VPC
-apply-platform-prod-eu-central-1-vpc:
+# Apply-джобы
+apply-service-env-region-module:
   stage: deploy-apply-0
   needs:
-    - job: plan-platform-prod-eu-central-1-vpc
+    - plan-service-env-region-module
   script:
-    - cd platform/prod/eu-central-1/vpc
+    - cd service/env/region/module
+    - ${TERRAFORM_BINARY} init
     - ${TERRAFORM_BINARY} apply plan.tfplan
-  when: manual
-
-# План для EKS (уровень 1, зависит от VPC)
-plan-platform-prod-eu-central-1-eks:
-  stage: deploy-plan-1
-  needs:
-    - job: apply-platform-prod-eu-central-1-vpc
-  script:
-    - cd platform/prod/eu-central-1/eks
-    - ${TERRAFORM_BINARY} plan -out=plan.tfplan
 ```
 
-### Переменные джобов
-
-Каждый джоб получает переменные:
-
-| Переменная | Описание |
-|------------|----------|
-| `TF_MODULE_PATH` | Относительный путь к модулю |
-| `TF_SERVICE` | Название сервиса |
-| `TF_ENVIRONMENT` | Окружение |
-| `TF_REGION` | Регион |
-| `TF_MODULE` | Название модуля |
-
-### Resource Groups
-
-Джобы используют `resource_group` для предотвращения параллельного apply одного модуля:
+### Вывод GitHub Actions
 
 ```yaml
-apply-platform-prod-eu-central-1-vpc:
-  resource_group: platform/prod/eu-central-1/vpc
+name: Terraform
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  plan-service-env-region-module:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - name: Terraform Plan
+        run: |
+          cd service/env/region/module
+          terraform init
+          terraform plan -out=plan.tfplan
+    env:
+      TF_MODULE_PATH: service/env/region/module
+      TF_SERVICE: service
+      TF_ENVIRONMENT: env
+      TF_REGION: region
+      TF_MODULE: module
 ```
 
-## Интеграция с CI
+## Примеры интеграции с CI
 
 ### GitLab CI
 
 ```yaml
 # .gitlab-ci.yml
-include:
-  - local: .generated-pipeline.yml
+stages:
+  - prepare
+  - deploy
 
 generate-pipeline:
   stage: prepare
   script:
-    - terraci generate -o .generated-pipeline.yml
+    - terraci generate --changed-only --base-ref $CI_MERGE_REQUEST_TARGET_BRANCH_NAME -o pipeline.yml
   artifacts:
     paths:
-      - .generated-pipeline.yml
-```
+      - pipeline.yml
 
-### Динамический пайплайн
-
-```yaml
-generate:
-  stage: prepare
-  script:
-    - terraci generate --changed-only -o generated.yml
-  artifacts:
-    paths:
-      - generated.yml
-
-trigger:
+trigger-deploy:
   stage: deploy
   trigger:
     include:
-      - artifact: generated.yml
-        job: generate
+      - artifact: pipeline.yml
+        job: generate-pipeline
 ```
 
-## Диагностика
-
-### Модули не найдены
+### Пайплайны для разных окружений
 
 ```bash
-# Проверить обнаружение
-terraci validate --verbose
-
-# Проверить структуру
-terraci graph --format levels
+# Генерация для каждого окружения отдельно
+terraci generate --filter environment=production -o production.yml
+terraci generate --filter environment=staging -o staging.yml
 ```
 
-### Неверный порядок
+## Обработка ошибок
 
-```bash
-# Проверить зависимости
-terraci graph --module <module-id> --dependents
-terraci graph --module <module-id> --dependencies
-```
-
-### Циклические зависимости
-
-```bash
-# Показывает ошибку при наличии циклов
-terraci validate
-```
+| Ошибка | Причина | Решение |
+|--------|---------|---------|
+| No modules found | Неверная глубина или нет .tf файлов | Проверьте конфигурацию structure |
+| Circular dependency | Модули зависят друг от друга циклически | Исправьте ссылки на remote_state |
+| Git ref not found | Неверный base-ref | Убедитесь, что ветка/коммит существует |
 
 ## Смотрите также
 
 - [Генерация пайплайнов](/ru/guide/pipeline-generation) — руководство по генерации CI пайплайнов
-- [Настройка GitLab CI](/ru/config/gitlab) — параметры конфигурации пайплайнов
+- [Настройка GitLab CI](/ru/config/gitlab) — параметры конфигурации GitLab пайплайнов
+- [Настройка GitHub Actions](/ru/config/github) — параметры конфигурации GitHub Actions workflow

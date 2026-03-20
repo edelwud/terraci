@@ -1,6 +1,6 @@
 ---
 title: Getting Started
-description: Install TerraCi, initialize configuration, and generate your first GitLab CI pipeline
+description: Install TerraCi, initialize configuration, and generate your first CI pipeline
 outline: deep
 ---
 
@@ -51,6 +51,14 @@ Navigate to your Terraform project root and run:
 terraci init
 ```
 
+By default, this launches an interactive TUI wizard that guides you through project setup. For non-interactive mode (e.g., in CI scripts), use:
+
+```bash
+terraci init --ci
+terraci init --ci --provider github
+terraci init --ci --provider gitlab --binary tofu --image ghcr.io/opentofu/opentofu:1.6
+```
+
 This creates a `.terraci.yaml` configuration file:
 
 ```yaml
@@ -59,6 +67,8 @@ structure:
   min_depth: 4
   max_depth: 5
   allow_submodules: true
+
+provider: gitlab  # or "github" — auto-detected from environment if omitted
 
 gitlab:
   terraform_binary: "terraform"
@@ -101,10 +111,14 @@ dot -Tpng deps.dot -o deps.png
 
 ### 4. Generate Pipeline
 
-Generate a GitLab CI pipeline:
+Generate a CI pipeline:
 
 ```bash
+# GitLab CI
 terraci generate -o .gitlab-ci.yml
+
+# GitHub Actions
+terraci generate -o .github/workflows/terraform.yml
 ```
 
 ### 5. Generate for Changed Modules Only
@@ -116,7 +130,7 @@ terraci generate --changed-only --base-ref main -o .gitlab-ci.yml
 ```
 
 ::: tip CI Environments
-TerraCi automatically fetches remote refs when needed, so `--changed-only` works out of the box in GitLab CI even with shallow clones.
+TerraCi automatically fetches remote refs when needed, so `--changed-only` works out of the box in GitLab CI and GitHub Actions even with shallow clones.
 :::
 
 ## Project Structure

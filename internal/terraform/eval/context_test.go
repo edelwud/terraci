@@ -1,6 +1,7 @@
 package eval
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/zclconf/go-cty/cty"
@@ -44,8 +45,13 @@ func TestNewContext(t *testing.T) {
 	if pathVal.IsNull() {
 		t.Error("path variable is null")
 	}
-	if pathVal.GetAttr("module").AsString() != "platform/stage/eu-central-1/vpc" {
-		t.Errorf("expected path.module to be 'platform/stage/eu-central-1/vpc', got %q", pathVal.GetAttr("module").AsString())
+	// path.module should be an absolute path
+	moduleStr := pathVal.GetAttr("module").AsString()
+	if !strings.HasSuffix(moduleStr, "platform/stage/eu-central-1/vpc") {
+		t.Errorf("expected path.module to end with 'platform/stage/eu-central-1/vpc', got %q", moduleStr)
+	}
+	if !strings.HasPrefix(moduleStr, "/") {
+		t.Errorf("expected path.module to be absolute, got %q", moduleStr)
 	}
 
 	// Check that functions are available

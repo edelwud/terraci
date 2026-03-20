@@ -219,5 +219,6 @@ Summary job появляется только когда:
 
 ## Смотрите также
 
-- [Summary CLI](/ru/cli/summary) — команда публикации результатов plan в MR
-- [GitLab CI](/ru/config/gitlab) — настройка генерации пайплайнов
+- [Summary CLI](/ru/cli/summary) — команда публикации результатов plan в комментариях MR/PR
+- [GitLab CI](/ru/config/gitlab) — настройка генерации пайплайнов, включая образы, стейджи и джобы
+- [Конфигурация GitHub Actions](/ru/config/github) — эквивалентная интеграция с GitHub PR через секцию `github.pr`

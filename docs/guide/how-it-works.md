@@ -1,6 +1,6 @@
 ---
 title: How It Works
-description: "Architecture overview: module discovery, dependency graphs, topological sorting, and pipeline generation"
+description: "Architecture overview: module discovery, dependency graphs, topological sorting, and multi-provider pipeline generation"
 outline: deep
 ---
 
@@ -24,23 +24,25 @@ TerraCi scans your directory structure to find Terraform modules.
 ### How It Works
 
 1. Walk the directory tree starting from project root
-2. Look for directories at depth 4-5 containing `.tf` files
-3. Parse the path to extract service, environment, region, module
+2. Look for directories at the configured depth containing `.tf` files
+3. Parse the path into named segments based on the configured pattern
+
+The pattern is configurable (e.g., `{service}/{environment}/{region}/{module}`), and segment names determine the keys stored in the module's `components` map.
 
 ### Example
 
 ```
 platform/stage/eu-central-1/vpc/main.tf
    │       │         │       │
-   │       │         │       └── module: vpc
-   │       │         └── region: eu-central-1
-   │       └── environment: stage
-   └── service: platform
+   │       │         │       └── segment "module": vpc
+   │       │         └── segment "region": eu-central-1
+   │       └── segment "environment": stage
+   └── segment "service": platform
 ```
 
 ### Module ID
 
-Each module gets a unique ID: `platform/stage/eu-central-1/vpc`
+Each module's ID is its relative path: `platform/stage/eu-central-1/vpc`
 
 This ID is used for:
 - Dependency matching
@@ -165,7 +167,7 @@ Error: circular dependency detected
 
 ## Stage 4: Pipeline Generation
 
-TerraCi generates GitLab CI YAML from the sorted module graph.
+TerraCi generates CI pipeline configuration from the sorted module graph. The provider is auto-detected from the environment (`GITLAB_CI` env var selects GitLab, `GITHUB_ACTIONS` selects GitHub Actions) or can be set explicitly via the `provider` field in `.terraci.yaml`.
 
 ### Job Generation
 
@@ -219,36 +221,42 @@ flowchart TD
   B["Scanner.Scan()"] --> C
   C["Parser.ParseModule()"] --> D
   D["DependencyGraph.Build()"] --> E
-  E["Generator.Generate()"] --> F["pipeline.yml"]
+  E{"Provider?"}
+  E -->|GitLab| F["gitlab.Generator"] --> G[".gitlab-ci.yml"]
+  E -->|GitHub| H["github.Generator"] --> I["workflow.yml"]
 ```
 
 Each stage:
 
 | Step | Function | What it does |
 |------|----------|-------------|
-| 1 | `Scanner.Scan()` | Walk directory tree, find `.tf` files at depth 4-5, create Module structs |
+| 1 | `Scanner.Scan()` | Walk directory tree, find `.tf` files at configured depth, create Module structs with component maps |
 | 2 | `Parser.ParseModule()` | Parse HCL, extract locals, find `terraform_remote_state`, resolve variables |
 | 3 | `DependencyGraph.Build()` | Add nodes/edges, detect cycles, topological sort → execution levels |
-| 4 | `Generator.Generate()` | Create stages, generate plan/apply jobs, apply overwrites, output YAML |
+| 4 | `Generator.Generate()` | Create stages, generate plan/apply jobs, apply overwrites, output YAML (GitLab or GitHub Actions) |
 
 ## Key Types
 
 ### Module
 
-Represents a discovered Terraform module:
+Represents a discovered Terraform module. Instead of hardcoded fields, the module uses a `components` map keyed by segment names from the configured pattern:
 
 ```go
 type Module struct {
-    Service      string  // platform
-    Environment  string  // stage
-    Region       string  // eu-central-1
-    Module       string  // vpc
+    components map[string]string // {"service": "platform", "environment": "stage", ...}
+    segments   []string          // ordered segment names from pattern
+
     Path         string  // /abs/path/to/vpc
     RelativePath string  // platform/stage/eu-central-1/vpc
+    Parent       *Module
+    Children     []*Module
 }
 
-func (m *Module) ID() string  // "platform/stage/eu-central-1/vpc"
+func (m *Module) Get(name string) string  // m.Get("service") → "platform"
+func (m *Module) ID() string              // returns RelativePath
 ```
+
+This design allows fully configurable patterns. For example, with pattern `{team}/{env}/{module}`, you would use `m.Get("team")` and `m.Get("env")` instead of fixed field names.
 
 ### RemoteStateRef
 

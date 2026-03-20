@@ -10,6 +10,8 @@ import (
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
+
+	"github.com/edelwud/terraci/internal/terraform/eval"
 )
 
 // ParseModule parses all Terraform files in a module directory.
@@ -53,14 +55,39 @@ func (p *Parser) ParseModule(modulePath string) (*ParsedModule, error) {
 // --- Locals ---
 
 func (p *Parser) extractLocals(pm *ParsedModule) {
+	// Collect all local attributes from all locals blocks
+	allAttrs := make(map[string]*hcl.Attribute)
 	for _, block := range p.findBlocks(pm, "locals", nil) {
 		attrs, diags := block.Body.JustAttributes()
 		pm.addDiags(diags)
-
 		for name, attr := range attrs {
-			if val, diags := attr.Expr.Value(nil); !diags.HasErrors() {
-				pm.Locals[name] = val
+			allAttrs[name] = attr
+		}
+	}
+
+	// Multi-pass evaluation: locals can reference other locals, path.module, functions
+	// Each pass tries to evaluate unresolved locals using already-resolved ones
+	evalCtx := eval.NewContext(pm.Locals, pm.Variables, pm.Path)
+
+	const maxPasses = 10
+	for range maxPasses {
+		resolved := 0
+		for name, attr := range allAttrs {
+			if _, exists := pm.Locals[name]; exists {
+				continue // already resolved
 			}
+
+			// Update eval context with currently known locals
+			evalCtx.Variables["local"] = eval.SafeObjectVal(pm.Locals)
+
+			val, diags := attr.Expr.Value(evalCtx)
+			if !diags.HasErrors() && val.IsKnown() {
+				pm.Locals[name] = val
+				resolved++
+			}
+		}
+		if resolved == 0 {
+			break // no progress, remaining locals have unresolvable deps
 		}
 	}
 }
@@ -85,8 +112,19 @@ func (p *Parser) extractVariableDefaults(pm *ParsedModule) {
 		if len(block.Labels) < 1 {
 			continue
 		}
-		if val, ok := evalBlockStringAttr(block.Body, "default", pm); ok {
-			pm.Variables[block.Labels[0]] = cty.StringVal(val)
+
+		schema := &hcl.BodySchema{
+			Attributes: []hcl.AttributeSchema{{Name: "default"}},
+		}
+		content, _, diags := block.Body.PartialContent(schema)
+		pm.addDiags(diags)
+		if content == nil {
+			continue
+		}
+		if attr, ok := content.Attributes["default"]; ok {
+			if val, valDiags := attr.Expr.Value(nil); !valDiags.HasErrors() {
+				pm.Variables[block.Labels[0]] = val
+			}
 		}
 	}
 }
@@ -254,19 +292,6 @@ func evalContentStringAttr(content *hcl.BodyContent, name string) (string, bool)
 		return "", false
 	}
 	return evalStringExpr(attr.Expr, nil)
-}
-
-// evalBlockStringAttr evaluates a named attribute from an HCL body as a string.
-func evalBlockStringAttr(body hcl.Body, name string, pm *ParsedModule) (string, bool) {
-	schema := &hcl.BodySchema{
-		Attributes: []hcl.AttributeSchema{{Name: name}},
-	}
-	content, _, diags := body.PartialContent(schema)
-	pm.addDiags(diags)
-	if content == nil {
-		return "", false
-	}
-	return evalContentStringAttr(content, name)
 }
 
 // evalStringExpr evaluates an expression as a string value.

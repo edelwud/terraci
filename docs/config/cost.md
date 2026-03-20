@@ -49,7 +49,7 @@ Accepts Go duration strings: `"1h"`, `"30m"`, `"72h"`, etc.
 
 ### show_in_comment
 
-Include cost estimates in the MR comment table alongside plan results and policy checks.
+Include cost estimates in the MR/PR comment table alongside plan results and policy checks.
 
 ```yaml
 cost:
@@ -64,7 +64,7 @@ cost:
 4. Per-resource hourly and monthly costs are calculated for both the before and after states.
 5. Results are aggregated into a per-module cost summary with before/after/diff values.
 
-Cost estimation requires `plan.json` (produced by `terraform show -json`) to be present in module directories. This is generated automatically when `plan_enabled: true` in the GitLab configuration.
+Cost estimation requires `plan.json` (produced by `terraform show -json`) to be present in module directories. This is generated automatically when `plan_enabled: true` in the pipeline configuration (GitLab or GitHub).
 
 ## Supported AWS Resources
 
@@ -80,9 +80,9 @@ Cost estimation requires `plan.json` (produced by `terraform show -json`) to be 
 
 Each resource type has a dedicated handler that maps Terraform resource attributes to the corresponding pricing dimensions.
 
-## MR Integration
+## MR/PR Integration
 
-When `show_in_comment` is enabled, cost estimates appear in the MR comment table. Each module shows its monthly cost difference:
+When `show_in_comment` is enabled, cost estimates appear in the MR/PR comment table. Each module shows its monthly cost difference:
 
 ```markdown
 ### 💰 Cost Estimation
@@ -103,14 +103,22 @@ cost:
   cache_ttl: "24h"
   show_in_comment: true
 
+# Works with either provider:
 gitlab:
   plan_enabled: true
   mr:
     comment:
       enabled: true
+
+# Or with GitHub:
+# github:
+#   plan_enabled: true
+#   pr:
+#     comment:
+#       enabled: true
 ```
 
-This configuration enables cost estimation with default caching, and displays the results in MR comments alongside plan output.
+This configuration enables cost estimation with default caching, and displays the results in MR/PR comments alongside plan output.
 
 ## See Also
 

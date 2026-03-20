@@ -1,6 +1,6 @@
 # TerraCi
 
-CLI tool for analyzing Terraform projects, building dependency graphs, generating GitLab CI pipelines, and estimating AWS costs.
+CLI tool for analyzing Terraform projects, building dependency graphs, generating CI pipelines (GitLab CI + GitHub Actions), and estimating AWS costs.
 
 ## Build & Test
 
@@ -18,13 +18,16 @@ make install    # Install to $GOPATH/bin
 ```
 cmd/terraci/
 ├── main.go                     # Entry point
-└── cmd/                        # Cobra commands
+└── cmd/
     ├── root.go                 # Root command, global flags, config loading
     ├── generate.go             # Pipeline generation (main workflow)
+    ├── filters.go              # Shared filter flags (--exclude, --include, --filter)
     ├── validate.go             # Config/project validation
     ├── graph.go                # Dependency graph visualization
-    ├── init.go                 # Config initialization
-    ├── summary.go              # MR comment posting (CI only)
+    ├── init.go                 # Config initialization (entry point)
+    ├── init_config.go          # initOptions — shared config builder for CLI/TUI
+    ├── init_tui.go             # Interactive TUI wizard (bubbletea/huh)
+    ├── summary.go              # MR/PR comment posting (CI only)
     ├── policy.go               # OPA policy checks (pull, check)
     ├── schema.go               # JSON schema generation
     ├── completion.go           # Shell completion
@@ -32,29 +35,59 @@ cmd/terraci/
     └── version.go              # Version info
 
 internal/
-├── discovery/module.go         # Module, Scanner, ModuleIndex
+├── discovery/
+│   ├── module.go               # Module struct (dynamic components + segments)
+│   ├── scanner.go              # Scanner — directory walk entry point
+│   ├── collector.go            # moduleCollector — walk logic, predicates
+│   ├── index.go                # ModuleIndex — fast lookups by ID/path/name
+│   └── testing.go              # TestModule() helper for tests
 ├── parser/
-│   ├── hcl.go                  # Parser, ParsedModule, RemoteStateRef, ModuleCall
-│   └── dependency.go           # DependencyExtractor, Dependency, LibraryDependency
-├── graph/dependency.go         # DependencyGraph, Node, BuildFromDependencies
-├── filter/glob.go              # GlobFilter for pattern-based filtering
-├── git/diff.go                 # Git Client, ChangedModulesDetector
+│   ├── types.go                # Parser, ParsedModule, RemoteStateRef, ModuleCall
+│   ├── hcl.go                  # ParseModule, extractors (locals, tfvars, remote state, module calls)
+│   ├── resolve.go              # ResolveWorkspacePath, for_each resolution
+│   └── dependency.go           # DependencyExtractor, matchPathToModule (strategy chain)
+├── graph/
+│   ├── dependency.go           # DependencyGraph, Node, edges, traversal, library usage
+│   ├── algorithms.go           # TopologicalSort, ExecutionLevels, DetectCycles
+│   ├── affected.go             # GetAffectedModules, library changes, combined
+│   ├── visualize.go            # ToDOT, ToPlantUML
+│   └── stats.go                # GetStats
+├── filter/
+│   └── glob.go                 # GlobFilter, SegmentFilter, CompositeFilter, Apply()
+├── git/
+│   ├── client.go               # Git client, ref resolution, fetch
+│   ├── diff.go                 # GetChangedFiles, diffCommits, extractPaths
+│   └── detector.go             # ChangedModulesDetector, isTerraformRelated
+├── ci/
+│   ├── types.go                # ModulePlan, PlanResult, CommentData (Components map)
+│   ├── comment.go              # CommentRenderer — shared PR/MR comment markdown
+│   ├── plan_result.go          # ScanPlanResults, ParseModulePathComponents
+│   └── service.go              # CommentService interface
 ├── terraform/
-│   ├── eval/                   # HCL evaluation context with Terraform functions
-│   │   ├── context.go          # NewContext() — locals, variables, path
-│   │   └── functions.go        # Terraform function implementations (lookup)
+│   ├── eval/
+│   │   ├── context.go          # NewContext() with safeObjectVal
+│   │   └── functions.go        # lookup() with lookupKey() helper
 │   └── plan/
-│       └── parser.go           # ParseJSON() → ParsedPlan, ResourceChange, AttrDiff
+│       ├── types.go            # ParsedPlan, ResourceChange, AttrDiff
+│       ├── parser.go           # ParseJSON, countAction, buildAttrDiff
+│       └── maputil.go          # Nested map utilities (toMap, getNestedValue, formatValue)
 ├── pipeline/
 │   ├── pipeline.go             # Generator and GeneratedPipeline interfaces
-│   └── gitlab/
-│       ├── generator.go        # GitLab CI Generator implementation
-│       └── types.go            # Pipeline, Job, ImageConfig, Secret, Rule, etc.
+│   ├── gitlab/
+│   │   ├── generator.go        # GitLab CI Generator (dynamic TF_* env vars)
+│   │   └── types.go            # Pipeline, Job, ImageConfig, Secret, Rule
+│   └── github/
+│       ├── generator.go        # GitHub Actions Generator (dynamic TF_* env vars)
+│       └── types.go            # Workflow, Job, Step
+├── github/
+│   ├── client.go               # GitHub API client (go-github)
+│   ├── context.go              # DetectPRContext from env vars
+│   └── pr_service.go           # PR comment upsert
 ├── gitlab/
 │   ├── client.go               # GitLab API Client, MRContext
 │   ├── mr_service.go           # MRService — upserts MR comments
-│   ├── comment.go              # CommentRenderer, ModulePlan, CommentData
-│   └── plan_result.go          # ScanPlanResults from plan.txt artifacts
+│   ├── comment.go              # GitLab-specific comment wrappers
+│   └── plan_result.go          # GitLab-specific plan result wrappers
 ├── policy/
 │   ├── engine.go               # OPA Engine, OPAVersion()
 │   ├── checker.go              # Checker — CheckModule(), CheckAll(), ShouldBlock()
@@ -73,8 +106,8 @@ internal/
     │   ├── elb.go              # ALB, Classic LB handlers
     │   ├── elasticache.go      # ElastiCache cluster/replication handlers
     │   ├── eks.go              # EKS cluster/node group handlers
-    │   ├── serverless.go       # Lambda, DynamoDB, SQS, SNS, Secrets Manager
-    │   └── storage.go          # S3, EBS optimization, VPC endpoints
+    │   ├── serverless.go       # Lambda, DynamoDB, SQS, SNS
+    │   └── storage.go          # S3, CloudWatch, Secrets Manager, KMS, Route53
     └── pricing/
         ├── types.go            # ServiceCode, PriceIndex, Price, PriceLookup
         ├── fetcher.go          # AWS Bulk Pricing API fetcher
@@ -83,6 +116,7 @@ internal/
 pkg/
 ├── config/
 │   ├── config.go               # Config, Load(), Validate(), all config types
+│   ├── pattern.go              # ParsePattern, PatternSegments
 │   └── schema.go               # JSON schema generation
 └── log/log.go                  # Structured logging (wraps caarlos0/log)
 ```
@@ -90,22 +124,34 @@ pkg/
 ## Core Data Model
 
 **Module** (`discovery.Module`) — central type representing a Terraform module:
-- Fields: Service, Environment, Region, Module, Submodule, Path, RelativePath, Parent, Children
-- `ID()` → `"service/env/region/module[/submodule]"`
-- Discovered by `Scanner.Scan()` from directory pattern `service/environment/region/module[/submodule]`
-- Depth 4 = base module, depth 5 = submodule
+- Dynamic components: `components map[string]string` + `segments []string` — driven by config pattern
+- `Get(name)` → component value by name (e.g., `m.Get("service")`, `m.Get("environment")`)
+- `LeafValue()` → value of last pattern segment (the "module" equivalent)
+- `ID()` → `RelativePath` (filesystem path is the canonical ID)
+- `ContextPrefix()` → all segments except last, joined (for context-relative lookups)
+- `Name()` → leaf value + `/submodule` if present
+- Discovered by `Scanner.Scan()` using configurable pattern segments
+- No hardcoded field names — any pattern like `{team}/{project}/{component}` works
+
+**PatternSegments** (`config.PatternSegments`) — parsed from `structure.pattern`:
+- `ParsePattern("{service}/{environment}/{region}/{module}")` → `["service", "environment", "region", "module"]`
+- Stored in `config.Structure.Segments` (parsed at config load time)
+- Passed to Scanner, Parser, and pipeline generators
 
 ## Data Flow
 
 ### Generate pipeline (main workflow)
-1. `Scanner.Scan()` → discover modules by directory structure
-2. `filter.GlobFilter` → apply include/exclude patterns
+1. `Scanner.Scan(rootDir, minDepth, maxDepth, segments)` → discover modules by directory structure
+2. `filter.Apply(modules, Options{Excludes, Includes, Segments})` → glob + segment filters
 3. `DependencyExtractor.ExtractAllDependencies()` → parse HCL, resolve remote_state refs
 4. `graph.BuildFromDependencies()` → build DAG, detect cycles, compute execution levels
-5. `DependencyGraph.AddLibraryUsage()` → track non-executable shared module usage
-6. *(if `--changed-only`)* Git diff → detect changed modules → `GetAffectedModulesWithLibraries()`
-7. `gitlab.Generator.Generate()` → produce GitLab CI YAML
-8. *(in CI)* `MRService.UpsertComment()` → post plan/policy/cost summary to MR
+5. *(if `--changed-only`)* Git diff → detect changed modules → `GetAffectedModulesWithLibraries()`
+6. `pipeline.Generator.Generate()` → produce GitLab CI or GitHub Actions YAML
+7. Pipeline generators dynamically create `TF_<SEGMENT>` env vars from module segments
+8. *(in CI)* `ci.CommentService.UpsertComment()` → post plan/policy/cost summary to MR/PR
+
+### Provider auto-detection
+`config.ResolveProvider(cfg)`: explicit `provider` field → `GITHUB_ACTIONS` env → `GITLAB_CI` env → default `"gitlab"`
 
 ### Cost estimation
 1. `terraform/plan.ParseJSON()` → parse plan.json into ResourceChange list
@@ -122,33 +168,44 @@ pkg/
 ## CLI Commands
 
 ```bash
-terraci generate -o .gitlab-ci.yml          # Generate pipeline
-terraci generate --changed-only --base-ref main  # Only changed modules
-terraci generate --plan-only                 # Plan jobs only, no apply
-terraci generate --exclude "*/test/*" --environment prod
+terraci generate -o .gitlab-ci.yml                      # Generate GitLab pipeline
+terraci generate -o .github/workflows/terraform.yml     # Generate GitHub Actions
+terraci generate --changed-only --base-ref main          # Only changed modules
+terraci generate --plan-only                             # Plan jobs only
+terraci generate --filter environment=prod               # Filter by any segment
+terraci generate --exclude "*/test/*"                    # Glob exclusion
 
 terraci validate                             # Validate config and structure
 terraci graph --format dot -o deps.dot       # DOT graph output
 terraci graph --format levels                # Execution levels
 terraci graph --module <id> --dependents     # Show dependents
 
-terraci init                                 # Create .terraci.yaml
-terraci summary                              # Post MR comment (CI only)
+terraci init                                 # Interactive TUI wizard
+terraci init --ci                            # Non-interactive with defaults
+terraci init --provider github               # GitHub Actions preset
+
+terraci summary                              # Post MR/PR comment (CI only)
 
 terraci policy pull                          # Download policies
 terraci policy check                         # Check all modules
-terraci policy check --module <id> --output json
 
 terraci schema                               # Generate JSON schema
 terraci completion bash|zsh|fish             # Shell completions
 terraci version                              # Version + OPA version
 ```
 
-**Global flags:** `-c/--config` (config path), `-d/--dir` (working dir), `-v/--verbose`
+**Global flags:** `-c/--config`, `-d/--dir`, `-v/--verbose`
+
+**Shared filter flags** (generate, graph, validate):
+- `-x/--exclude` — glob patterns
+- `-i/--include` — glob patterns
+- `-f/--filter key=value` — filter by any segment name
 
 ## Configuration (.terraci.yaml)
 
 ```yaml
+provider: gitlab                        # or "github" (auto-detected from CI env)
+
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
   min_depth: 4                          # auto-calculated from pattern
@@ -156,53 +213,36 @@ structure:
   allow_submodules: true
 
 exclude: ["*/test/*", "*/sandbox/*"]
-include: []                             # if set, only matching modules
+include: []
 
 library_modules:
-  paths: ["_modules", "shared/modules"] # non-executable shared modules
+  paths: ["_modules", "shared/modules"]
 
+# GitLab CI (omitted when provider=github)
 gitlab:
   image: "hashicorp/terraform:1.6"
   terraform_binary: "terraform"         # or "tofu"
-  stages_prefix: "deploy"              # produces deploy-plan-0, deploy-apply-0
-  parallelism: 5
   plan_enabled: true
-  plan_only: false
   auto_approve: false
-  cache_enabled: true
-  init_enabled: true
-  variables: {}
-  rules: []                             # workflow-level rules
-
-  job_defaults:                         # applied to all jobs
-    image: ...
+  job_defaults:
     tags: [terraform, docker]
-    id_tokens: {}                       # OIDC tokens
-    secrets: {}                         # Vault secrets
-    before_script: []
-    after_script: []
-    artifacts: { paths: [], expire_in: "1 day" }
-    rules: []
-    variables: {}
-
-  overwrites:                           # per job-type overrides
-    - type: plan|apply
-      image: ...                        # same fields as job_defaults
-
   mr:
-    comment:
-      enabled: true
-      on_changes_only: false
-      include_details: true
-    labels: ["{service}", "{environment}"]
+    comment: { enabled: true }
     summary_job:
       image: { name: "ghcr.io/edelwud/terraci:latest" }
-      tags: []
+
+# GitHub Actions (omitted when provider=gitlab)
+github:
+  terraform_binary: "terraform"
+  runs_on: "ubuntu-latest"
+  plan_enabled: true
+  auto_approve: false
+  permissions: { contents: read, pull-requests: write }
+  pr:
+    comment: { enabled: true }
 
 backend:
-  type: s3                              # s3, gcs, azurerm, local, remote
-  bucket: "..."
-  region: "..."
+  type: s3
   key_pattern: "{service}/{environment}/{region}/{module}/terraform.tfstate"
 
 policy:
@@ -210,37 +250,27 @@ policy:
   sources:
     - path: policies
     - git: https://... ref: main
-    - oci: oci://...
-  namespaces: [terraform]
   on_failure: block                     # block, warn, ignore
-  on_warning: warn
-  show_in_comment: true
-  cache_dir: .terraci/policies
-  overwrites:
-    - match: "*/sandbox/*"
-      on_failure: warn
 
 cost:
   enabled: false
-  cache_dir: ~/.terraci/pricing
-  cache_ttl: "24h"
   show_in_comment: true
 ```
 
-Config files searched: `.terraci.yaml`, `.terraci.yml`, `terraci.yaml`, `terraci.yml`
-
 ## Key Patterns
 
-- **Module discovery**: directory depth determines modules (min=4 base, max=5 submodules)
-- **Dependencies**: resolved from `terraform_remote_state` data blocks; `for_each` expands to multiple deps
-- **Graph algorithms**: Kahn's topological sort, DFS cycle detection, execution level grouping
-- **Pipeline generation**: `pipeline.Generator` interface with GitLab implementation
-- **Cost estimation**: plugin registry pattern — `aws.ResourceHandler` interface per resource type
-- **MR comments**: upserted via `<!-- terraci-plan-comment -->` marker
-- **Policy checks**: OPA v1 Rego syntax (`deny contains msg if {...}`), results saved to `.terraci/policy-results.json`
-- **Config precedence**: `JobDefaults` → `JobOverwrite` (plan/apply specific) → generated job
-- **Image config**: supports both string `"image:tag"` and object `{name: ..., entrypoint: [...]}`
-- **Vault secrets**: supports string shorthand `"path/field@namespace"` and full object syntax
+- **Pattern-aware modules**: `structure.pattern` defines segment names and order; Module uses `components map[string]string` — no hardcoded field names
+- **Dynamic env vars**: pipeline generators produce `TF_<SEGMENT>` from module segments (e.g., `TF_SERVICE`, `TF_ENVIRONMENT` for default pattern)
+- **Multi-provider**: `pipeline.Generator` interface with GitLab and GitHub implementations; provider auto-detected from CI env
+- **Shared CI layer**: `internal/ci/` has provider-agnostic comment rendering and plan result scanning; `internal/gitlab/` and `internal/github/` are thin provider-specific wrappers
+- **Generic filtering**: `SegmentFilter{Segment, Values}` replaces hardcoded `ServiceFilter`/`EnvironmentFilter`/`RegionFilter`; `--filter key=value` CLI flag works with any segment name
+- **Dependencies**: resolved from `terraform_remote_state` data blocks; `for_each` expands to multiple deps; `matchPathToModule` uses strategy chain pattern
+- **Graph algorithms**: Kahn's topological sort, DFS cycle detection, execution level grouping; `collectTransitive()` shared for deps/dependents
+- **MR/PR comments**: upserted via `<!-- terraci-plan-comment -->` marker; `ModulePlan.Components map[string]string` for dynamic data
+- **Policy checks**: OPA v1 Rego syntax; results saved to `.terraci/policy-results.json`
+- **Cost estimation**: plugin registry — `aws.ResourceHandler` interface per resource type
+- **Config precedence**: `JobDefaults` → `JobOverwrite` (plan/apply) → generated job
+- **Interactive init**: bubbletea TUI with live YAML preview; `initOptions` shared between CLI and TUI modes
 
 ## Dependencies
 
@@ -252,9 +282,13 @@ Config files searched: `.terraci.yaml`, `.terraci.yml`, `terraci.yaml`, `terraci
 | `github.com/hashicorp/terraform-json` | Terraform plan JSON types |
 | `go.yaml.in/yaml/v4` | YAML serialization |
 | `gitlab.com/gitlab-org/api/client-go` | GitLab API client |
+| `github.com/google/go-github/v68` | GitHub API client |
 | `github.com/open-policy-agent/opa` | Embedded OPA engine |
 | `github.com/go-git/go-git/v6` | Git operations |
 | `oras.land/oras-go/v2` | OCI registry operations |
 | `github.com/invopop/jsonschema` | JSON schema generation |
 | `github.com/caarlos0/log` | Structured logging |
+| `charm.land/bubbletea/v2` | TUI framework |
+| `charm.land/huh/v2` | TUI form components |
+| `charm.land/lipgloss/v2` | TUI styling |
 | `golang.org/x/sync` | Concurrency utilities |

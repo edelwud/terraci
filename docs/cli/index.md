@@ -23,11 +23,12 @@ These options are available for all commands:
 
 | Command | Description |
 |---------|-------------|
-| [generate](./generate) | Generate GitLab CI pipeline |
+| [generate](./generate) | Generate CI pipeline (GitLab CI or GitHub Actions) |
 | [validate](./validate) | Validate project structure |
-| [graph](./graph) | Show dependency graph |
-| [init](./init) | Initialize configuration |
-| [summary](./summary) | Post plan results to MR |
+| [graph](./graph) | Show dependency graph (DOT, PlantUML, list, levels) |
+| [init](./init) | Initialize configuration (interactive TUI wizard) |
+| [summary](./summary) | Post plan results to MR/PR |
+| [policy](./policy) | Pull and check OPA policies |
 | `version` | Show version information |
 
 ## Usage
@@ -39,8 +40,11 @@ terraci [command] [flags]
 ## Examples
 
 ```bash
-# Generate pipeline
+# Generate pipeline (GitLab CI)
 terraci generate -o .gitlab-ci.yml
+
+# Generate pipeline (GitHub Actions)
+terraci generate -o .github/workflows/terraform.yml
 
 # Validate with verbose output
 terraci validate -v
@@ -50,6 +54,9 @@ terraci -c custom.yaml generate
 
 # Work in different directory
 terraci -d /path/to/project validate
+
+# Filter modules by segment
+terraci generate --filter environment=production --filter region=us-east-1
 ```
 
 ## Exit Codes

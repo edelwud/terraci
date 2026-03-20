@@ -6,7 +6,7 @@ outline: deep
 
 # Конфигурация GitLab CI
 
-Секция `gitlab` управляет генерацией GitLab CI пайплайнов.
+Секция `gitlab` управляет генерацией GitLab CI пайплайнов. Эта секция используется только когда провайдер — `gitlab` (по умолчанию). Если установлено `provider: github`, эта секция не используется и вместо неё применяется секция `github`. См. [Конфигурация GitHub Actions](/ru/config/github) для эквивалента GitHub.
 
 ## Параметры
 
@@ -497,6 +497,20 @@ apply-platform-prod-eu-central-1-vpc:
   resource_group: platform/prod/eu-central-1/vpc
 ```
 
+## Переменные джобов
+
+Каждый джоб получает переменные окружения, которые динамически генерируются из имён сегментов, определённых в `structure.pattern`. Для паттерна по умолчанию `{service}/{environment}/{region}/{module}` переменные следующие:
+
+| Переменная | Описание | Пример |
+|------------|----------|--------|
+| `TF_MODULE_PATH` | Относительный путь к модулю | `platform/prod/us-east-1/vpc` |
+| `TF_SERVICE` | Название сервиса | `platform` |
+| `TF_ENVIRONMENT` | Окружение | `prod` |
+| `TF_REGION` | Регион | `us-east-1` |
+| `TF_MODULE` | Название модуля | `vpc` |
+
+Если вы используете пользовательский паттерн, например `{team}/{stack}/{datacenter}/{component}`, переменные будут `TF_TEAM`, `TF_STACK`, `TF_DATACENTER` и `TF_COMPONENT`. Имена переменных всегда формируются путём приведения имени сегмента к верхнему регистру и добавления префикса `TF_`.
+
 ## Конфигурации для разных окружений
 
 ### Development
@@ -536,4 +550,5 @@ gitlab:
 ## Смотрите также
 
 - [Merge Request](/ru/config/gitlab-mr) — комментарии в MR с результатами plan
+- [Конфигурация GitHub Actions](/ru/config/github) — эквивалентная конфигурация для GitHub Actions
 - [Генерация пайплайнов](/ru/guide/pipeline-generation) — руководство по генерации CI пайплайнов

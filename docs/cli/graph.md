@@ -22,11 +22,14 @@ The `graph` command visualizes module dependencies in various formats.
 
 | Flag | Short | Type | Default | Description |
 |------|-------|------|---------|-------------|
-| `--format` | `-f` | string | dot | Output format (dot, list, levels) |
+| `--format` | `-F` | string | dot | Output format: `dot`, `plantuml`, `list`, `levels` |
 | `--output` | `-o` | string | stdout | Output file path |
 | `--stats` | | bool | false | Show graph statistics |
 | `--module` | `-m` | string | | Query specific module |
 | `--dependents` | | bool | false | Show reverse dependencies |
+| `--exclude` | `-x` | string[] | | Exclude patterns |
+| `--include` | `-i` | string[] | | Include patterns |
+| `--filter` | `-f` | string[] | | Filter by segment (`key=value`) |
 
 ## Formats
 
@@ -36,6 +39,7 @@ GraphViz DOT format for visualization:
 
 ```bash
 terraci graph --format dot -o deps.dot
+terraci graph -F dot -o deps.dot
 ```
 
 Output:
@@ -59,6 +63,30 @@ Render with GraphViz:
 terraci graph -f dot -o deps.dot
 dot -Tpng deps.dot -o deps.png
 dot -Tsvg deps.dot -o deps.svg
+```
+
+### PlantUML Format
+
+PlantUML format for diagram generation:
+
+```bash
+terraci graph --format plantuml -o deps.puml
+```
+
+Output:
+```
+@startuml
+...
+"platform/prod/us-east-1/eks" --> "platform/prod/us-east-1/vpc"
+"platform/prod/us-east-1/rds" --> "platform/prod/us-east-1/vpc"
+@enduml
+```
+
+Render with PlantUML:
+
+```bash
+terraci graph -F plantuml -o deps.puml
+plantuml deps.puml
 ```
 
 ### List Format

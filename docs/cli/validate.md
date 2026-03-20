@@ -27,6 +27,9 @@ The `validate` command checks your project for:
 | Flag | Short | Type | Default | Description |
 |------|-------|------|---------|-------------|
 | `--verbose` | `-v` | bool | false | Show detailed output |
+| `--exclude` | `-x` | string[] | | Exclude patterns |
+| `--include` | `-i` | string[] | | Include patterns |
+| `--filter` | `-f` | string[] | | Filter by segment (`key=value`) |
 
 ## Examples
 

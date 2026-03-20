@@ -1,6 +1,6 @@
 ---
 title: "terraci init"
-description: "Инициализация конфигурационного файла .terraci.yaml"
+description: "Инициализация .terraci.yaml через интерактивный TUI-мастер или CLI-флаги"
 outline: deep
 ---
 
@@ -16,56 +16,81 @@ terraci init [flags]
 
 ## Описание
 
-Команда `init` создаёт файл `.terraci.yaml` с разумными значениями по умолчанию.
+Команда `init` создаёт файл `.terraci.yaml`. По умолчанию запускается интерактивный TUI-мастер, который проведёт вас через выбор конфигурации. Используйте `--ci` для неинтерактивного режима, подходящего для автоматизации, или передайте конкретные флаги для пропуска мастера.
 
 ## Флаги
 
-| Флаг | Тип | По умолчанию | Описание |
-|------|-----|--------------|----------|
-| `--force` | bool | false | Перезаписать существующий файл |
+| Флаг | Сокр. | Тип | По умолчанию | Описание |
+|------|-------|-----|--------------|----------|
+| `--force` | `-f` | bool | false | Перезаписать существующий файл |
+| `--ci` | | bool | false | Неинтерактивный режим (пропустить TUI-мастер) |
+| `--provider` | | string | | CI-провайдер: `gitlab` или `github` |
+| `--binary` | | string | | Бинарный файл: `terraform` или `tofu` |
+| `--image` | | string | | Docker-образ для CI джобов |
+| `--pattern` | | string | | Паттерн структуры директорий |
+
+При указании любого из флагов `--provider`, `--binary`, `--image` или `--pattern` мастер автоматически пропускается и используется неинтерактивный режим.
 
 ## Примеры
 
-### Базовая инициализация
+### Интерактивный режим (по умолчанию)
 
 ```bash
 terraci init
 ```
 
-Создаёт `.terraci.yaml`:
+Запускает TUI-мастер, который предлагает выбрать:
+1. CI-провайдер (GitLab CI или GitHub Actions)
+2. Бинарный файл Terraform (Terraform или OpenTofu)
+3. Паттерн структуры директорий
+4. Включить ли сабмодули
+5. Включить ли комментарии в MR/PR
+6. Включить ли оценку стоимости
 
-```yaml
-structure:
-  pattern: "{service}/{environment}/{region}/{module}"
-  min_depth: 4
-  max_depth: 5
-  allow_submodules: true
+### Неинтерактивный режим
 
-exclude:
-  - "*/test/*"
-  - "*/sandbox/*"
+```bash
+terraci init --ci
+```
 
-gitlab:
-  terraform_binary: "terraform"
-  image: "hashicorp/terraform:1.6"
-  stages_prefix: "deploy"
-  parallelism: 5
-  plan_enabled: true
-  auto_approve: false
-  before_script:
-    - ${TERRAFORM_BINARY} init
-  tags:
-    - terraform
-    - docker
-  variables:
-    TF_IN_AUTOMATION: "true"
-    TF_INPUT: "false"
-  artifact_paths:
-    - "*.tfplan"
+Создаёт `.terraci.yaml` со значениями по умолчанию без запросов.
 
-backend:
-  type: s3
-  key_pattern: "{service}/{environment}/{region}/{module}/terraform.tfstate"
+### Выбор провайдера
+
+```bash
+# Конфигурация для GitHub Actions
+terraci init --provider github
+
+# Конфигурация для GitLab CI
+terraci init --provider gitlab
+```
+
+При `--provider github` сгенерированный конфиг будет содержать секцию `github:` (с `runs_on`, `steps_before` и т.д.) и не будет содержать секцию `gitlab:`. При `--provider gitlab` — наоборот.
+
+### Настройка OpenTofu
+
+```bash
+terraci init --provider gitlab --binary tofu
+```
+
+Автоматически выбирается соответствующий образ (`ghcr.io/opentofu/opentofu:1.6`), а для GitHub Actions используется `opentofu/setup-opentofu@v1` вместо `hashicorp/setup-terraform@v3`.
+
+### Пользовательский образ
+
+```bash
+terraci init --binary terraform --image registry.example.com/terraform:1.6
+```
+
+### Пользовательский паттерн
+
+```bash
+terraci init --pattern "{team}/{stack}/{datacenter}/{component}"
+```
+
+### Полный неинтерактивный пример
+
+```bash
+terraci init --provider github --binary tofu --pattern "{service}/{environment}/{region}/{module}"
 ```
 
 ### Перезапись существующего
@@ -84,6 +109,73 @@ terraci -d /path/to/project init
 
 Создаёт конфигурацию в указанной директории.
 
+## Генерируемая конфигурация
+
+### Провайдер GitLab
+
+При `provider: gitlab` (или по умолчанию) создаётся:
+
+```yaml
+provider: gitlab
+
+structure:
+  pattern: "{service}/{environment}/{region}/{module}"
+  min_depth: 4
+  max_depth: 5
+  allow_submodules: true
+
+gitlab:
+  terraform_binary: "terraform"
+  image: "hashicorp/terraform:1.6"
+  plan_enabled: true
+  auto_approve: false
+  init_enabled: true
+  mr:
+    comment:
+      enabled: true
+    summary_job:
+      image:
+        name: "ghcr.io/edelwud/terraci:latest"
+
+backend:
+  type: s3
+  key_pattern: "{service}/{environment}/{region}/{module}/terraform.tfstate"
+```
+
+### Провайдер GitHub
+
+При `provider: github` создаётся:
+
+```yaml
+provider: github
+
+structure:
+  pattern: "{service}/{environment}/{region}/{module}"
+  min_depth: 4
+  max_depth: 5
+  allow_submodules: true
+
+github:
+  terraform_binary: "terraform"
+  runs_on: "ubuntu-latest"
+  plan_enabled: true
+  auto_approve: false
+  init_enabled: true
+  permissions:
+    contents: read
+    pull-requests: write
+  job_defaults:
+    steps_before:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+  pr:
+    comment: {}
+
+backend:
+  type: s3
+  key_pattern: "{service}/{environment}/{region}/{module}/terraform.tfstate"
+```
+
 ## Что создаётся
 
 Команда создаёт:
@@ -91,7 +183,7 @@ terraci -d /path/to/project init
 
 Команда НЕ изменяет:
 - Существующие Terraform-файлы
-- Конфигурацию GitLab CI
+- Конфигурацию CI
 - Другие файлы проекта
 
 ## После инициализации
@@ -103,7 +195,7 @@ terraci -d /path/to/project init
 
 2. **Настройте под свой проект**
    - Измените паттерн под вашу структуру
-   - Обновите Docker-образ
+   - Обновите Docker-образ или метки раннеров
    - Добавьте исключения
    - Настройте backend
 
@@ -115,87 +207,18 @@ terraci -d /path/to/project init
 4. **Сгенерируйте первый пайплайн**
    ```bash
    terraci generate --dry-run
+   # Для GitLab:
    terraci generate -o .gitlab-ci.yml
+   # Для GitHub:
+   terraci generate -o .github/workflows/terraform.yml
    ```
-
-## Шаблоны конфигураций
-
-### OpenTofu
-
-После init измените для OpenTofu:
-
-```yaml
-gitlab:
-  terraform_binary: "tofu"
-  image: "ghcr.io/opentofu/opentofu:1.6"
-```
-
-### GCS Backend
-
-```yaml
-backend:
-  type: gcs
-  bucket: my-terraform-state
-  key_pattern: "{service}/{environment}/{region}/{module}/terraform.tfstate"
-```
-
-### Простая структура
-
-```yaml
-structure:
-  pattern: "{environment}/{region}/{module}"
-  min_depth: 3
-  max_depth: 3
-  allow_submodules: false
-```
-
-### Production-ready
-
-```yaml
-structure:
-  pattern: "{service}/{environment}/{region}/{module}"
-  min_depth: 4
-  max_depth: 5
-  allow_submodules: true
-
-exclude:
-  - "*/test/*"
-  - "*/sandbox/*"
-  - "*/dev/*"
-
-gitlab:
-  terraform_binary: "terraform"
-  image: "hashicorp/terraform:1.6"
-  stages_prefix: "deploy"
-  parallelism: 3
-  plan_enabled: true
-  auto_approve: false
-  before_script:
-    - ${TERRAFORM_BINARY} init -backend-config="bucket=${TF_STATE_BUCKET}"
-  tags:
-    - terraform
-    - production
-  variables:
-    TF_IN_AUTOMATION: "true"
-    TF_INPUT: "false"
-    TF_CLI_ARGS_plan: "-parallelism=30"
-    TF_CLI_ARGS_apply: "-parallelism=30"
-  artifact_paths:
-    - "*.tfplan"
-
-backend:
-  type: s3
-  bucket: company-terraform-state
-  region: eu-central-1
-  key_pattern: "{service}/{environment}/{region}/{module}/terraform.tfstate"
-```
 
 ## Устранение проблем
 
 ### Файл уже существует
 
 ```
-Error: .terraci.yaml already exists. Use --force to overwrite.
+Error: config file already exists: .terraci.yaml (use --force to overwrite)
 ```
 
 Решение: Используйте `--force` или вручную отредактируйте существующий файл.
@@ -207,13 +230,6 @@ Error: permission denied: .terraci.yaml
 ```
 
 Решение: Проверьте права на директорию и файл.
-
-## Рекомендации
-
-1. **Начните с дефолтов** — init создаёт разумные значения
-2. **Проверьте структуру** — убедитесь, что паттерн соответствует вашему проекту
-3. **Добавьте в git** — `.terraci.yaml` должен быть в репозитории
-4. **Настройте CI сначала** — проверьте `--dry-run` перед деплоем
 
 ## Смотрите также
 

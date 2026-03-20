@@ -15,7 +15,7 @@ The `structure` section defines how TerraCi discovers Terraform modules.
 **Type:** `string`
 **Default:** `"{service}/{environment}/{region}/{module}"`
 
-Defines the directory structure pattern using placeholders:
+Defines the directory structure pattern using placeholders. Segment names are user-defined and any name works -- they are not limited to the defaults below.
 
 | Placeholder | Description | Example |
 |-------------|-------------|---------|
@@ -23,6 +23,18 @@ Defines the directory structure pattern using placeholders:
 | `{environment}` | Environment name | `production`, `staging` |
 | `{region}` | Cloud region | `us-east-1`, `eu-west-1` |
 | `{module}` | Module name | `vpc`, `eks`, `rds` |
+
+You can use any custom segment names:
+
+```yaml
+# Custom segment names
+structure:
+  pattern: "{team}/{stack}/{datacenter}/{component}"
+```
+
+Each segment name in the pattern becomes:
+- A per-job environment variable in the generated pipeline (e.g., `TF_TEAM`, `TF_STACK`, `TF_DATACENTER`, `TF_COMPONENT`)
+- A filterable key via the `--filter` CLI flag (e.g., `--filter team=infra`)
 
 ```yaml
 structure:

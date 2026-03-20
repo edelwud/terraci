@@ -1,12 +1,12 @@
 ---
 title: terraci generate
-description: Generate GitLab CI pipelines with dependency ordering and changed-only mode
+description: Generate CI pipelines with dependency ordering and changed-only mode
 outline: deep
 ---
 
 # terraci generate
 
-Generate GitLab CI pipeline from Terraform modules.
+Generate CI pipeline (GitLab CI or GitHub Actions) from Terraform modules.
 
 ## Synopsis
 
@@ -16,7 +16,7 @@ terraci generate [flags]
 
 ## Description
 
-The `generate` command scans your project, builds a dependency graph, and outputs a GitLab CI pipeline YAML file.
+The `generate` command scans your project, builds a dependency graph, and outputs a CI pipeline YAML file (GitLab CI or GitHub Actions, depending on the configured provider).
 
 ## Flags
 
@@ -27,9 +27,10 @@ The `generate` command scans your project, builds a dependency graph, and output
 | `--base-ref` | | string | auto | Base git ref for change detection |
 | `--exclude` | `-x` | string[] | | Exclude patterns |
 | `--include` | `-i` | string[] | | Include patterns |
-| `--service` | `-s` | string | | Filter by service |
-| `--environment` | `-e` | string | | Filter by environment |
-| `--region` | `-r` | string | | Filter by region |
+| `--filter` | `-f` | string[] | | Filter by segment (`key=value`, e.g. `environment=prod`) |
+| `--plan-only` | | bool | false | Generate only plan jobs (no apply) |
+| `--auto-approve` | | bool | false | Auto-approve apply jobs |
+| `--no-auto-approve` | | bool | false | Require manual trigger for apply |
 | `--dry-run` | | bool | false | Preview without output |
 
 ## Examples
@@ -37,12 +38,17 @@ The `generate` command scans your project, builds a dependency graph, and output
 ### Basic Generation
 
 ```bash
-# Output to file
+# GitLab CI output
 terraci generate -o .gitlab-ci.yml
+
+# GitHub Actions output
+terraci generate -o .github/workflows/terraform.yml
 
 # Output to stdout
 terraci generate
 ```
+
+The provider is auto-detected from CI environment variables, or set via `provider:` in `.terraci.yaml`.
 
 ### Changed-Only Mode
 
@@ -61,17 +67,22 @@ terraci generate --changed-only -o .gitlab-ci.yml
 
 ```bash
 # By environment
-terraci generate --environment production -o .gitlab-ci.yml
+terraci generate --filter environment=production -o .gitlab-ci.yml
 
 # By service
-terraci generate --service platform -o .gitlab-ci.yml
+terraci generate --filter service=platform -o .gitlab-ci.yml
 
 # By region
-terraci generate --region us-east-1 -o .gitlab-ci.yml
+terraci generate --filter region=us-east-1 -o .gitlab-ci.yml
 
-# Combined filters
-terraci generate -s platform -e production -r us-east-1 -o .gitlab-ci.yml
+# Combined filters (AND across different keys)
+terraci generate --filter service=platform --filter environment=production --filter region=us-east-1 -o .gitlab-ci.yml
+
+# Multiple values for one key (OR within same key)
+terraci generate --filter environment=stage --filter environment=prod -o .gitlab-ci.yml
 ```
+
+The `--filter` flag works with any segment name defined in your `structure.pattern`.
 
 ### Exclude/Include Patterns
 
@@ -122,7 +133,7 @@ terraci generate > new.yml && diff .gitlab-ci.yml new.yml
 
 ## Output Structure
 
-The generated pipeline includes:
+### GitLab CI Output
 
 ```yaml
 # Global variables
@@ -132,8 +143,6 @@ variables:
 # Default job settings
 default:
   image: hashicorp/terraform:1.6
-  before_script:
-    - ${TERRAFORM_BINARY} init
 
 # Stages for each execution level
 stages:
@@ -147,6 +156,7 @@ plan-service-env-region-module:
   stage: deploy-plan-0
   script:
     - cd service/env/region/module
+    - ${TERRAFORM_BINARY} init
     - ${TERRAFORM_BINARY} plan -out=plan.tfplan
 
 # Apply jobs
@@ -156,7 +166,40 @@ apply-service-env-region-module:
     - plan-service-env-region-module
   script:
     - cd service/env/region/module
+    - ${TERRAFORM_BINARY} init
     - ${TERRAFORM_BINARY} apply plan.tfplan
+```
+
+### GitHub Actions Output
+
+```yaml
+name: Terraform
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  plan-service-env-region-module:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - name: Terraform Plan
+        run: |
+          cd service/env/region/module
+          terraform init
+          terraform plan -out=plan.tfplan
+    env:
+      TF_MODULE_PATH: service/env/region/module
+      TF_SERVICE: service
+      TF_ENVIRONMENT: env
+      TF_REGION: region
+      TF_MODULE: module
 ```
 
 ## Use Cases
@@ -202,8 +245,8 @@ deploy:
 
 ```bash
 # Generate for each environment separately
-terraci generate -e production -o production.yml
-terraci generate -e staging -o staging.yml
+terraci generate --filter environment=production -o production.yml
+terraci generate --filter environment=staging -o staging.yml
 ```
 
 ## Error Handling
@@ -217,4 +260,5 @@ terraci generate -e staging -o staging.yml
 ## See Also
 
 - [Pipeline Generation Guide](/guide/pipeline-generation) — end-to-end guide for generating CI pipelines
-- [GitLab CI Configuration](/config/gitlab) — pipeline generation settings including images, stages, and jobs
+- [GitLab CI Configuration](/config/gitlab) — GitLab pipeline generation settings including images, stages, and jobs
+- [GitHub Actions Configuration](/config/github) — GitHub Actions workflow settings including runners, steps, and permissions

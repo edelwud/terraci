@@ -31,11 +31,14 @@ Initialize a configuration file:
 terraci init
 ```
 
-This creates `.terraci.yaml` with sensible defaults.
+This launches an interactive TUI wizard that guides you through provider selection, binary choice, and directory pattern setup. Use `terraci init --ci` for non-interactive mode.
 
 ## Full Example
 
 ```yaml
+# CI provider (auto-detected from environment if not set)
+provider: gitlab  # or "github"
+
 # Directory structure configuration
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
@@ -51,7 +54,7 @@ exclude:
 
 include: []  # Empty means all (after excludes)
 
-# GitLab CI pipeline settings
+# GitLab CI pipeline settings (omitted when provider: github)
 gitlab:
   terraform_binary: "terraform"
   image: "hashicorp/terraform:1.6"
@@ -77,6 +80,17 @@ gitlab:
         - "*.tfplan"
       expire_in: "1 day"
 
+# GitHub Actions pipeline settings (omitted when provider: gitlab)
+# github:
+#   terraform_binary: "terraform"
+#   runs_on: "ubuntu-latest"
+#   plan_enabled: true
+#   auto_approve: false
+#   init_enabled: true
+#   permissions:
+#     contents: read
+#     pull-requests: write
+
 # Backend configuration (for path matching)
 backend:
   type: s3
@@ -91,6 +105,7 @@ backend:
 |---------|-------------|
 | [structure](./structure) | Directory structure and module discovery |
 | [gitlab](./gitlab) | GitLab CI pipeline settings |
+| [github](./github) | GitHub Actions pipeline settings |
 | [filters](./filters) | Include/exclude patterns |
 | [policy](./policy) | OPA policy checks configuration |
 | [cost](./cost) | AWS cost estimation configuration |
@@ -101,6 +116,11 @@ backend:
 If a configuration file is not found, these defaults are used:
 
 ```yaml
+# provider is auto-detected from CI environment variables:
+#   GITHUB_ACTIONS → github
+#   GITLAB_CI / CI_SERVER_URL → gitlab
+#   fallback → gitlab
+
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
   min_depth: 4

@@ -219,5 +219,6 @@ The summary job only appears when:
 
 ## See Also
 
-- [Summary CLI](/cli/summary) — the command that posts plan results to MR comments
+- [Summary CLI](/cli/summary) — the command that posts plan results to MR/PR comments
 - [GitLab CI Configuration](/config/gitlab) — pipeline generation settings including images, stages, and jobs
+- [GitHub Actions Configuration](/config/github) — for the equivalent GitHub PR integration via the `github.pr` section

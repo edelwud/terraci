@@ -4,7 +4,7 @@ layout: home
 hero:
   name: TerraCi
   text: Terraform Pipeline Generator
-  tagline: Dependency-aware GitLab CI pipelines for Terraform/OpenTofu monorepos — with cost estimation and policy checks
+  tagline: Dependency-aware CI pipelines for Terraform/OpenTofu monorepos — GitLab CI & GitHub Actions, with cost estimation and policy checks
   image:
     src: /logo.svg
     alt: TerraCi
@@ -61,9 +61,13 @@ features:
 # Install
 brew install edelwud/tap/terraci
 
-# Initialize & generate
+# Initialize & generate (GitLab)
 terraci init
 terraci generate -o .gitlab-ci.yml
+
+# Initialize & generate (GitHub Actions)
+terraci init --provider github
+terraci generate -o .github/workflows/terraform.yml
 
 # Only changed modules
 terraci generate --changed-only --base-ref main
@@ -81,12 +85,12 @@ flowchart LR
   subgraph terraci["TerraCi"]
     t1["Discover"] --> t2["Parse"] --> t3["Sort"] --> t4["Generate"]
   end
-  subgraph gitlab["GitLab CI"]
+  subgraph ci["CI Pipeline"]
     g1["plan vpc"] --> g2["apply vpc"]
     g2 --> g3["plan eks + rds"]
     g3 --> g4["apply eks + rds"]
   end
-  repo --> terraci --> gitlab
+  repo --> terraci --> ci
 ```
 
 [Full configuration reference →](/config/)

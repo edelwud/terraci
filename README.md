@@ -5,7 +5,7 @@
 <h1 align="center">TerraCi</h1>
 
 <p align="center">
-  <strong>Terraform Pipeline Generator for GitLab CI</strong><br>
+  <strong>Terraform Pipeline Generator for GitLab CI & GitHub Actions</strong><br>
   Analyze dependencies, estimate costs, enforce policies, and generate optimal pipelines for Terraform/OpenTofu monorepos
 </p>
 
@@ -34,7 +34,7 @@ Managing Terraform in a monorepo is painful:
 - **Full deployments** waste CI minutes when only one module changed
 - **No visibility** into what a plan will cost or whether it violates policies
 
-TerraCi solves all of this. Point it at your repo, and it generates correct, dependency-aware GitLab CI pipelines — with cost estimates and policy checks baked in.
+TerraCi solves all of this. Point it at your repo, and it generates correct, dependency-aware CI pipelines — with cost estimates and policy checks baked in.
 
 ## Features
 
@@ -42,6 +42,7 @@ TerraCi solves all of this. Point it at your repo, and it generates correct, dep
 <tr><td width="50%">
 
 **Pipeline Generation**
+- GitLab CI & GitHub Actions support
 - Dependency-aware topological ordering
 - Parallel execution of independent modules
 - Plan + apply stages with manual approval gates
@@ -52,21 +53,23 @@ TerraCi solves all of this. Point it at your repo, and it generates correct, dep
 **Intelligence**
 - AWS cost estimation on every plan
 - OPA policy enforcement (local, git, OCI sources)
-- MR comments with plan summaries, costs & policy results
-- Dependency graph visualization (DOT/GraphViz)
+- MR/PR comments with plan summaries, costs & policy results
+- Dependency graph visualization (DOT/PlantUML)
 
 </td></tr>
 <tr><td>
 
 **Flexibility**
 - Terraform & OpenTofu support
-- Configurable directory patterns & depth
+- Configurable directory patterns (any segment names)
 - Per-job overrides (image, secrets, tags, rules)
 - OIDC tokens & Vault secrets integration
+- Auto-detect CI provider from environment
 
 </td><td>
 
 **Developer Experience**
+- Interactive TUI wizard for initialization
 - Single binary, zero dependencies
 - JSON schema for IDE autocomplete
 - Shell completions (bash, zsh, fish)
@@ -94,14 +97,18 @@ docker run --rm -v $(pwd):/workspace ghcr.io/edelwud/terraci:latest generate
 ## Quick Start
 
 ```bash
-# Initialize config
+# Interactive setup wizard
 terraci init
+
+# Non-interactive with GitHub Actions
+terraci init --ci --provider github
 
 # Validate structure & dependencies
 terraci validate
 
 # Generate pipeline
-terraci generate -o .gitlab-ci.yml
+terraci generate -o .gitlab-ci.yml                      # GitLab
+terraci generate -o .github/workflows/terraform.yml     # GitHub Actions
 
 # Only changed modules (CI)
 terraci generate --changed-only --base-ref main -o .gitlab-ci.yml
@@ -110,40 +117,71 @@ terraci generate --changed-only --base-ref main -o .gitlab-ci.yml
 ## How It Works
 
 ```
- Your Repo                    TerraCi                         GitLab CI
-┌─────────────┐    ┌──────────────────────────┐    ┌─────────────────────┐
-│ platform/   │    │ 1. Discover modules      │    │ deploy-plan-0:      │
-│  prod/      │───>│ 2. Parse remote_state    │───>│   plan-vpc          │
-│   eu-west/  │    │ 3. Build dependency DAG  │    │ deploy-apply-0:     │
-│    vpc/     │    │ 4. Topological sort      │    │   apply-vpc         │
-│    eks/     │    │ 5. Generate YAML         │    │ deploy-plan-1:      │
-│    rds/     │    │                          │    │   plan-eks, plan-rds │
-└─────────────┘    └──────────────────────────┘    └─────────────────────┘
+ Your Repo                    TerraCi                          CI Pipeline
+┌─────────────┐    ┌──────────────────────────┐    ┌──────────────────────────┐
+│ platform/   │    │ 1. Discover modules      │    │                          │
+│  prod/      │───>│ 2. Parse remote_state    │───>│  plan-vpc → apply-vpc    │
+│   eu-west/  │    │ 3. Build dependency DAG  │    │       ↓           ↓      │
+│    vpc/     │    │ 4. Topological sort      │    │  plan-eks   plan-rds     │
+│    eks/     │    │ 5. Detect CI provider    │    │       ↓           ↓      │
+│    rds/     │    │ 6. Generate YAML         │    │  apply-eks  apply-rds    │
+└─────────────┘    └──────────────────────────┘    │                          │
+                                                   │  Output: .gitlab-ci.yml  │
+                                                   │     or   workflow.yml    │
+                                                   └──────────────────────────┘
 ```
 
 ### 1. Module Discovery
 
-Scans directories matching `{service}/{environment}/{region}/{module}`:
+Scans directories matching a configurable pattern (default: `{service}/{environment}/{region}/{module}`):
 
 ```
-platform/prod/eu-central-1/vpc/   → Module ID: platform/prod/eu-central-1/vpc
-platform/prod/eu-central-1/eks/   → Module ID: platform/prod/eu-central-1/eks
+platform/prod/eu-central-1/vpc/           → Module: platform/prod/eu-central-1/vpc
+platform/prod/eu-central-1/eks/           → Module: platform/prod/eu-central-1/eks
 platform/prod/eu-central-1/ec2/rabbitmq/  → Submodule (depth 5)
 ```
 
+The pattern is fully configurable — `{team}/{project}/{component}` works too.
+
 ### 2. Dependency Resolution
 
-Dependencies are extracted from `terraform_remote_state` data sources:
+Dependencies are extracted from `terraform_remote_state` data sources. The `key` in the backend config must mirror your directory structure (matching `structure.pattern`) — this is how TerraCi maps state file paths back to modules:
 
 ```hcl
+# eks/main.tf — key follows the same {service}/{env}/{region}/{module} pattern
 data "terraform_remote_state" "vpc" {
   backend = "s3"
   config = {
-    key = "platform/prod/eu-central-1/vpc/terraform.tfstate"
+    bucket = "my-state"
+    key    = "platform/prod/eu-central-1/vpc/terraform.tfstate"
+    #        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    #        matches directory structure → TerraCi resolves: eks depends on vpc
+    region = "eu-central-1"
   }
 }
-# TerraCi resolves: eks → depends on → vpc
 ```
+
+The `backend.key_pattern` in config defines the expected format: `{service}/{environment}/{region}/{module}/terraform.tfstate`.
+
+TerraCi evaluates Terraform functions statically (`split`, `element`, `length`, `abspath`, `lookup`, `join`, `format`, etc.) and resolves locals that depend on `path.module`. A common pattern that works out of the box:
+
+```hcl
+locals {
+  path_arr    = split("/", abspath(path.module))
+  service     = local.path_arr[length(local.path_arr) - 4]
+  environment = local.path_arr[length(local.path_arr) - 3]
+  region      = local.path_arr[length(local.path_arr) - 2]
+}
+
+data "terraform_remote_state" "vpc" {
+  backend = "s3"
+  config = {
+    key = "${local.service}/${local.environment}/${local.region}/vpc/terraform.tfstate"
+  }
+}
+```
+
+> **Limitation:** TerraCi is a static analysis tool — it does not connect to remote backends or execute `terraform init`. Dependencies that rely on runtime values (e.g., `data.terraform_remote_state.X.outputs.Y` used as a key in another remote state) cannot be resolved. Derive your state keys from the filesystem path (`abspath(path.module)`) or explicit locals, not from other modules' outputs.
 
 ### 3. Pipeline Generation
 
@@ -161,6 +199,8 @@ Each level gets plan + apply stages. Apply requires the previous level to comple
 
 ```yaml
 # .terraci.yaml
+provider: gitlab                         # or "github" (auto-detected from CI env)
+
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
   allow_submodules: true
@@ -169,25 +209,28 @@ exclude:
   - "*/test/*"
   - "*/sandbox/*"
 
+# GitLab CI config (omitted when provider=github)
 gitlab:
-  image: "hashicorp/terraform:1.6"    # or "ghcr.io/opentofu/opentofu:1.6"
-  terraform_binary: "terraform"        # or "tofu"
+  image: "hashicorp/terraform:1.6"
+  terraform_binary: "terraform"          # or "tofu"
   auto_approve: false
-  cache_enabled: true
-
   job_defaults:
     tags: [terraform, docker]
-    variables:
-      TF_IN_AUTOMATION: "true"
-
   mr:
     comment:
       enabled: true
     summary_job:
-      image:
-        name: "ghcr.io/edelwud/terraci:latest"
+      image: { name: "ghcr.io/edelwud/terraci:latest" }
 
-# Cost estimation (AWS)
+# GitHub Actions config (omitted when provider=gitlab)
+github:
+  terraform_binary: "terraform"
+  runs_on: "ubuntu-latest"
+  permissions: { contents: read, pull-requests: write }
+  pr:
+    comment: { enabled: true }
+
+# AWS cost estimation
 cost:
   enabled: true
   show_in_comment: true
@@ -200,34 +243,67 @@ policy:
     - git: https://github.com/org/policies.git
       ref: main
   namespaces: [terraform]
-  on_failure: block                    # block, warn, ignore
+  on_failure: block                      # block, warn, ignore
 ```
 
-> **Tip:** Run `terraci schema` to generate a JSON schema for IDE autocomplete in your `.terraci.yaml`.
+> **Tip:** Add `# yaml-language-server: $schema=https://raw.githubusercontent.com/edelwud/terraci/main/terraci.schema.json` at the top of your `.terraci.yaml` for IDE autocomplete. Or run `terraci schema` to generate the schema locally.
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `terraci init` | Create `.terraci.yaml` config |
+| `terraci init` | Interactive TUI wizard to create `.terraci.yaml` |
 | `terraci validate` | Validate project structure and dependencies |
-| `terraci generate` | Generate GitLab CI pipeline |
-| `terraci graph` | Visualize dependency graph (DOT, levels) |
-| `terraci summary` | Post plan/cost/policy summary to MR (CI) |
+| `terraci generate` | Generate CI pipeline (GitLab CI or GitHub Actions) |
+| `terraci graph` | Visualize dependency graph (DOT, PlantUML, levels) |
+| `terraci summary` | Post plan/cost/policy summary to MR/PR (CI) |
 | `terraci policy pull` | Download policies from configured sources |
 | `terraci policy check` | Evaluate plans against OPA policies |
 | `terraci schema` | Generate JSON schema for config validation |
 | `terraci version` | Show version and embedded OPA version |
 
 <details>
+<summary><strong>CI integration patterns</strong></summary>
+
+**GitLab CI** supports [generative pipelines](https://docs.gitlab.com/ci/pipelines/downstream_pipelines/) — TerraCi runs as a job inside a parent pipeline and generates a child pipeline that GitLab picks up automatically:
+
+```yaml
+# .gitlab-ci.yml (parent pipeline)
+generate:
+  stage: generate
+  image: ghcr.io/edelwud/terraci:latest
+  script:
+    - terraci generate --changed-only --base-ref $CI_MERGE_REQUEST_DIFF_BASE_SHA -o generated.yml
+  artifacts:
+    paths: [generated.yml]
+
+deploy:
+  stage: deploy
+  trigger:
+    include:
+      - artifact: generated.yml
+        job: generate
+```
+
+**GitHub Actions** does not support dynamic workflow generation at runtime. Use a **pre-commit hook** to regenerate the workflow file and commit it alongside your changes:
+
+```bash
+# .husky/pre-commit or .git/hooks/pre-commit
+terraci generate --changed-only --base-ref main -o .github/workflows/terraform.yml
+git add .github/workflows/terraform.yml
+```
+
+</details>
+
+<details>
 <summary><strong>Common usage examples</strong></summary>
 
 ```bash
-# Changed modules only (for MR pipelines)
+# Changed modules only (for MR/PR pipelines)
 terraci generate --changed-only --base-ref main -o .gitlab-ci.yml
 
-# Filter by environment or service
-terraci generate --environment prod --service platform
+# Filter by any segment name
+terraci generate --filter environment=prod --filter service=platform
 
 # Plan-only mode (no apply jobs)
 terraci generate --plan-only

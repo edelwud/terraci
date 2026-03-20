@@ -148,19 +148,24 @@ plan-platform-prod-us-east-1-ec2-rabbitmq:
 
 ## Parent Module Index
 
-TerraCi maintains a parent-child relationship index:
+TerraCi maintains a parent-child relationship index within the Module struct:
 
 ```go
 type Module struct {
-    // ...
-    Parent   *Module   // Reference to parent (for submodules)
-    Children []*Module // References to children (for parents)
+    components map[string]string // named segments from pattern
+    segments   []string          // ordered segment names
+
+    Path         string
+    RelativePath string
+    Parent       *Module   // Reference to parent (for submodules)
+    Children     []*Module // References to children (for parents)
 }
 ```
 
 This enables:
 - Querying all submodules of a parent
-- Finding the parent of a submodule
+- Finding the parent of a submodule (via `m.Parent`)
+- Checking if a module is a submodule (via `m.IsSubmodule()`)
 - Building accurate dependency chains
 
 ## Best Practices

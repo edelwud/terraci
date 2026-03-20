@@ -61,22 +61,28 @@ func (p *Parser) extractPathLocals(pathParts []string) map[string]cty.Value {
 	numSegs := len(p.Segments)
 	pathLocals := make(map[string]cty.Value, numSegs+2)
 
-	if len(pathParts) >= numSegs {
-		for i, segName := range p.Segments {
-			pathLocals[segName] = cty.StringVal(pathParts[len(pathParts)-numSegs+i])
+	// Map path parts to segment names positionally (first N parts → segments)
+	for i, segName := range p.Segments {
+		if i < len(pathParts) {
+			pathLocals[segName] = cty.StringVal(pathParts[i])
 		}
 	}
 
 	// Handle submodule (path deeper than segments)
+	// For platform/vpn/eu-north-1/proxy/prod with pattern {service}/{environment}/{region}/{module}:
+	//   service=platform, environment=vpn, region=eu-north-1, module=proxy, submodule=prod
 	var scope string
 	if len(pathParts) > numSegs {
-		submodule := pathParts[len(pathParts)-1]
+		submodule := strings.Join(pathParts[numSegs:], "/")
 		pathLocals["submodule"] = cty.StringVal(submodule)
+		// scope = the last segment value (parent module name)
 		if numSegs > 0 {
 			lastSeg := p.Segments[numSegs-1]
 			if v, ok := pathLocals[lastSeg]; ok {
 				scope = v.AsString()
 			}
+			// Override last segment's local with the submodule name for Terraform compatibility
+			// (local.module in submodule code typically refers to the submodule itself)
 			pathLocals[lastSeg] = cty.StringVal(submodule)
 		}
 	} else if numSegs > 0 {

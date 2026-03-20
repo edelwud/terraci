@@ -24,18 +24,20 @@ TerraCi сканирует структуру директорий для пои
 ### Как это работает
 
 1. Обход дерева директорий от корня проекта
-2. Поиск директорий на глубине 4-5 содержащих `.tf` файлы
-3. Парсинг пути для извлечения service, environment, region, module
+2. Поиск директорий на настроенной глубине, содержащих `.tf` файлы
+3. Парсинг пути по именованным сегментам на основе настроенного паттерна
+
+Паттерн настраивается (например, `{service}/{environment}/{region}/{module}`), и имена сегментов определяют ключи в `components` карте модуля.
 
 ### Пример
 
 ```
 platform/stage/eu-central-1/vpc/main.tf
    │       │         │       │
-   │       │         │       └── module: vpc
-   │       │         └── region: eu-central-1
-   │       └── environment: stage
-   └── service: platform
+   │       │         │       └── сегмент "module": vpc
+   │       │         └── сегмент "region": eu-central-1
+   │       └── сегмент "environment": stage
+   └── сегмент "service": platform
 ```
 
 ### ID модуля
@@ -160,7 +162,7 @@ Error: circular dependency detected
 
 ## Этап 4: Генерация пайплайна
 
-TerraCi генерирует GitLab CI YAML из отсортированного графа модулей.
+TerraCi генерирует конфигурацию CI пайплайна из отсортированного графа модулей. Провайдер автоматически определяется из окружения (переменная `GITLAB_CI` выбирает GitLab, `GITHUB_ACTIONS` выбирает GitHub Actions) или может быть задан явно через поле `provider` в `.terraci.yaml`.
 
 ### Генерация джобов
 
@@ -214,36 +216,42 @@ flowchart TD
   B["Scanner.Scan()"] --> C
   C["Parser.ParseModule()"] --> D
   D["DependencyGraph.Build()"] --> E
-  E["Generator.Generate()"] --> F["pipeline.yml"]
+  E{"Провайдер?"}
+  E -->|GitLab| F["gitlab.Generator"] --> G[".gitlab-ci.yml"]
+  E -->|GitHub| H["github.Generator"] --> I["workflow.yml"]
 ```
 
 Описание каждого этапа:
 
 | Шаг | Функция | Что делает |
 |-----|---------|-----------|
-| 1 | `Scanner.Scan()` | Обход дерева директорий, поиск `.tf` файлов на глубине 4-5, создание Module |
+| 1 | `Scanner.Scan()` | Обход дерева директорий, поиск `.tf` файлов на настроенной глубине, создание Module с картой компонентов |
 | 2 | `Parser.ParseModule()` | Парсинг HCL, извлечение locals, поиск `terraform_remote_state`, разрешение переменных |
 | 3 | `DependencyGraph.Build()` | Добавление узлов/рёбер, детекция циклов, топологическая сортировка → уровни |
-| 4 | `Generator.Generate()` | Создание стадий, генерация plan/apply джобов, применение overwrites, вывод YAML |
+| 4 | `Generator.Generate()` | Создание стадий, генерация plan/apply джобов, применение overwrites, вывод YAML (GitLab или GitHub Actions) |
 
 ## Ключевые типы
 
 ### Module
 
-Представляет обнаруженный Terraform модуль:
+Представляет обнаруженный Terraform модуль. Вместо жёстко заданных полей модуль использует `components` карту с ключами из именованных сегментов настроенного паттерна:
 
 ```go
 type Module struct {
-    Service      string  // platform
-    Environment  string  // stage
-    Region       string  // eu-central-1
-    Module       string  // vpc
+    components map[string]string // {"service": "platform", "environment": "stage", ...}
+    segments   []string          // упорядоченные имена сегментов из паттерна
+
     Path         string  // /abs/path/to/vpc
     RelativePath string  // platform/stage/eu-central-1/vpc
+    Parent       *Module
+    Children     []*Module
 }
 
-func (m *Module) ID() string  // "platform/stage/eu-central-1/vpc"
+func (m *Module) Get(name string) string  // m.Get("service") → "platform"
+func (m *Module) ID() string              // возвращает RelativePath
 ```
+
+Такой дизайн позволяет использовать полностью настраиваемые паттерны. Например, с паттерном `{team}/{env}/{module}` вы используете `m.Get("team")` и `m.Get("env")` вместо фиксированных имён полей.
 
 ### RemoteStateRef
 

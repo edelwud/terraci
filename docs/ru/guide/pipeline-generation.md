@@ -6,15 +6,23 @@ outline: deep
 
 # Генерация пайплайнов
 
-TerraCi генерирует GitLab CI пайплайны с учётом зависимостей модулей и параллельным выполнением.
+TerraCi генерирует CI пайплайны с учётом зависимостей модулей и параллельным выполнением. Поддерживаются как GitLab CI, так и GitHub Actions.
 
 ## Базовая генерация
 
+Сгенерируйте пайплайн для всех модулей:
+
 ```bash
+# GitLab CI
 terraci generate -o .gitlab-ci.yml
+
+# GitHub Actions
+terraci generate -o .github/workflows/terraform.yml
 ```
 
-## Структура пайплайна
+Провайдер автоматически определяется из окружения (переменная `GITLAB_CI` выбирает GitLab, `GITHUB_ACTIONS` выбирает GitHub Actions) или задаётся явно через `provider` в `.terraci.yaml`.
+
+## Структура GitLab CI пайплайна
 
 ### Стадии
 
@@ -86,6 +94,10 @@ apply-platform-prod-us-east-1-vpc:
   resource_group: platform/prod/us-east-1/vpc
 ```
 
+::: tip Динамические переменные окружения
+Переменные `TF_SERVICE`, `TF_ENVIRONMENT`, `TF_REGION`, `TF_MODULE` генерируются динамически из сегментов настроенного паттерна. Если ваш паттерн `{team}/{env}/{module}`, то переменные будут `TF_TEAM`, `TF_ENV` и `TF_MODULE`.
+:::
+
 ## Зависимости джобов
 
 Джобы используют `needs` для выражения зависимостей:
@@ -125,6 +137,47 @@ flowchart LR
   end
   l0 --> l1 --> l2
 ```
+
+## Структура GitHub Actions workflow
+
+При использовании провайдера GitHub Actions TerraCi генерирует workflow-файл с джобами, организованными по уровням выполнения:
+
+```yaml
+name: Terraform
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  plan-platform-prod-us-east-1-vpc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Plan
+        run: |
+          cd platform/prod/us-east-1/vpc
+          terraform plan -out=plan.tfplan
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plan-platform-prod-us-east-1-vpc
+          path: platform/prod/us-east-1/vpc/plan.tfplan
+
+  apply-platform-prod-us-east-1-vpc:
+    needs: [plan-platform-prod-us-east-1-vpc]
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: plan-platform-prod-us-east-1-vpc
+      - name: Apply
+        run: |
+          cd platform/prod/us-east-1/vpc
+          terraform apply plan.tfplan
+```
+
+GitHub Actions джобы используют `needs` для порядка зависимостей, `actions/upload-artifact` и `actions/download-artifact` для передачи plan-файлов между джобами, и `environment` для шлюзов одобрения.
 
 ## Пайплайны только для изменений
 

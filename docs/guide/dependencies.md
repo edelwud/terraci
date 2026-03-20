@@ -34,12 +34,12 @@ From each remote state block, TerraCi extracts:
 
 ### 3. Match to Modules
 
-The state path is matched against discovered modules:
+The state path is matched against discovered modules. The `key` must mirror the directory structure (matching the configured `structure.pattern`):
 
 ```
 key: platform/production/us-east-1/vpc/terraform.tfstate
      ↓
-Module ID: platform/production/us-east-1/vpc
+Module ID: platform/production/us-east-1/vpc  (= RelativePath)
 ```
 
 ### 4. Build Dependency Graph
@@ -91,24 +91,86 @@ data "terraform_remote_state" "deps" {
 
 This creates dependencies on both `vpc` and `iam` modules.
 
-## Locals Resolution
+## Static Evaluation
 
-TerraCi resolves local variable references in state paths:
+TerraCi is a static analysis tool — it evaluates Terraform expressions without running `terraform init` or connecting to remote backends. It supports a wide range of Terraform built-in functions:
+
+- **String**: `split`, `join`, `format`, `lower`, `upper`, `trimprefix`, `trimsuffix`, `replace`, `substr`, `trim`, `trimspace`, `regex`
+- **Collection**: `element`, `length`, `lookup`, `concat`, `contains`, `keys`, `values`, `merge`, `flatten`, `distinct`
+- **Type conversion**: `tostring`, `tonumber`, `tobool`, `tolist`, `toset`, `tomap`
+- **Numeric**: `max`, `min`, `ceil`, `floor`
+- **Filesystem**: `abspath`
+
+### Locals Resolution
+
+Locals are evaluated iteratively (multi-pass) — locals that reference other locals, `path.module`, or functions are resolved across multiple passes until all dependencies are satisfied.
+
+A common monorepo pattern that works out of the box:
 
 ```hcl
 locals {
-  env        = "production"
-  region     = "us-east-1"
-  state_key  = "platform/${local.env}/${local.region}/vpc/terraform.tfstate"
+  path_arr    = split("/", abspath(path.module))
+  service     = local.path_arr[length(local.path_arr) - 4]
+  environment = local.path_arr[length(local.path_arr) - 3]
+  region      = local.path_arr[length(local.path_arr) - 2]
+  module      = local.path_arr[length(local.path_arr) - 1]
 }
 
 data "terraform_remote_state" "vpc" {
   backend = "s3"
   config = {
-    key = local.state_key
+    key = "${local.service}/${local.environment}/${local.region}/vpc/terraform.tfstate"
   }
 }
 ```
+
+Simple string locals also work:
+
+```hcl
+locals {
+  env       = "production"
+  region    = "us-east-1"
+  state_key = "platform/${local.env}/${local.region}/vpc/terraform.tfstate"
+}
+```
+
+### Variables from tfvars
+
+TerraCi loads variable values from multiple sources (in priority order):
+1. `default` values in `variable` blocks (any type — string, bool, list, map, object)
+2. `terraform.tfvars`
+3. `*.auto.tfvars` files (highest priority)
+
+This means complex `for_each` patterns using variables from tfvars are resolved:
+
+```hcl
+# terraform.tfvars
+managed_environments = [
+  { service = "platform", environment = "stage", region = "eu-central-1" },
+  { service = "platform", environment = "prod",  region = "eu-central-1" },
+]
+
+# main.tf
+data "terraform_remote_state" "vpc" {
+  for_each = { for v in var.managed_environments : "${v.service}-${v.environment}" => v }
+  backend  = "s3"
+  config = {
+    key = "${lookup(each.value, "service")}/${lookup(each.value, "environment")}/${lookup(each.value, "region")}/vpc/terraform.tfstate"
+  }
+}
+```
+
+### Limitations
+
+::: warning Static Analysis Only
+TerraCi does **not** connect to remote backends or execute `terraform init`. It cannot resolve values that only exist at runtime:
+
+- **Remote state outputs**: `data.terraform_remote_state.X.outputs.Y` used as a key in another remote state
+- **External data sources**: `data.external`, `data.http`, etc.
+- **Provider-dependent values**: resource attributes, data source results
+
+**Recommended approach**: Derive state keys from the filesystem path (`abspath(path.module)`) or explicit locals/variables, not from other modules' outputs.
+:::
 
 ## Name-Based Fallback
 
@@ -122,7 +184,7 @@ data "terraform_remote_state" "vpc" {  # ← name "vpc"
 }
 ```
 
-TerraCi looks for a module named `vpc` in the same service/environment/region.
+TerraCi looks for a module named `vpc` in the same context prefix (i.e., matching all segments except the last one from the configured pattern).
 
 ## Submodule Dependencies
 
@@ -255,5 +317,5 @@ If a referenced module isn't discovered:
 
 ## Next Steps
 
-- [Pipeline Generation](/guide/pipeline-generation) — See how the dependency graph becomes a GitLab CI pipeline
+- [Pipeline Generation](/guide/pipeline-generation) — See how the dependency graph becomes a CI pipeline
 - [Graph Visualization](/cli/graph) — Export and visualize the dependency graph

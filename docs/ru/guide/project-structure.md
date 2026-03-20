@@ -37,14 +37,16 @@ infrastructure/
 
 ## Идентификация модулей
 
-Каждый модуль идентифицируется компонентами пути:
+Каждый модуль идентифицируется по относительному пути, который также является его ID. Сегменты пути отображаются на именованные компоненты в соответствии с настроенным паттерном:
 
-| Путь | Service | Environment | Region | Module |
+| Путь | `Get("service")` | `Get("environment")` | `Get("region")` | `Get("module")` |
 |------|---------|-------------|--------|--------|
 | `platform/production/us-east-1/vpc` | platform | production | us-east-1 | vpc |
 | `analytics/production/eu-west-1/redshift` | analytics | production | eu-west-1 | redshift |
 
-ID модуля — это полный путь: `platform/production/us-east-1/vpc`
+ID модуля — это его относительный путь: `platform/production/us-east-1/vpc`
+
+Имена сегментов полностью настраиваемы. С паттерном `{team}/{env}/{module}` компонентами будут `team`, `env` и `module`.
 
 ## Сабмодули (глубина 5)
 
