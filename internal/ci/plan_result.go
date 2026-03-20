@@ -16,9 +16,17 @@ const (
 	maxAddressLength      = 80
 )
 
+// defaultSegments is the default pattern segments when none are provided.
+var defaultSegments = []string{"service", "environment", "region", "module"}
+
 // ScanPlanResults scans for plan.json files in module directories
 // and builds a collection of plan results from their contents.
-func ScanPlanResults(rootDir string) (*PlanResultCollection, error) {
+// If segments is nil or empty, default segments (service/environment/region/module) are used.
+func ScanPlanResults(rootDir string, segments []string) (*PlanResultCollection, error) {
+	if len(segments) == 0 {
+		segments = defaultSegments
+	}
+
 	collection := &PlanResultCollection{
 		Results:     make([]PlanResult, 0),
 		GeneratedAt: time.Now().UTC(),
@@ -48,7 +56,7 @@ func ScanPlanResults(rootDir string) (*PlanResultCollection, error) {
 			return nil
 		}
 
-		result, parseErr := parsePlanJSON(path, modulePath)
+		result, parseErr := parsePlanJSON(path, modulePath, segments)
 		if parseErr != nil {
 			result = PlanResult{
 				ModuleID:   strings.ReplaceAll(modulePath, string(filepath.Separator), "/"),
@@ -86,34 +94,40 @@ func detectCommitSHA() string {
 	return os.Getenv("GITHUB_SHA")
 }
 
-// ParseModulePath parses a module path and extracts components.
-func ParseModulePath(modulePath string) (service, env, region, module, submodule string) {
+// ParseModulePathComponents parses a module path using the given segment names
+// and returns a map of component name to value. Extra path parts beyond the
+// defined segments are joined as "submodule".
+func ParseModulePathComponents(modulePath string, segments []string) map[string]string {
 	parts := strings.Split(modulePath, string(filepath.Separator))
+	components := make(map[string]string, len(segments)+1)
 
-	switch {
-	case len(parts) >= 5:
-		service = parts[0]
-		env = parts[1]
-		region = parts[2]
-		module = parts[3]
-		submodule = strings.Join(parts[4:], "/")
-	case len(parts) >= 4:
-		service = parts[0]
-		env = parts[1]
-		region = parts[2]
-		module = parts[3]
+	if len(parts) >= len(segments) {
+		for i, seg := range segments {
+			components[seg] = parts[i]
+		}
+		// Extra parts become submodule
+		if len(parts) > len(segments) {
+			components["submodule"] = strings.Join(parts[len(segments):], "/")
+		}
 	}
 
-	return
+	return components
 }
 
-func parsePlanJSON(jsonPath, modulePath string) (PlanResult, error) {
+// ParseModulePath parses a module path and extracts components.
+// This is a backward-compatible wrapper around ParseModulePathComponents.
+func ParseModulePath(modulePath string) (service, env, region, module, submodule string) {
+	components := ParseModulePathComponents(modulePath, defaultSegments)
+	return components["service"], components["environment"], components["region"], components["module"], components["submodule"]
+}
+
+func parsePlanJSON(jsonPath, modulePath string, segments []string) (PlanResult, error) {
 	parsed, err := plan.ParseJSON(jsonPath)
 	if err != nil {
 		return PlanResult{}, err
 	}
 
-	service, env, region, module, submodule := ParseModulePath(modulePath)
+	components := ParseModulePathComponents(modulePath, segments)
 
 	txtPath := strings.TrimSuffix(jsonPath, ".json") + ".txt"
 	var rawPlanOutput string
@@ -124,11 +138,12 @@ func parsePlanJSON(jsonPath, modulePath string) (PlanResult, error) {
 	return PlanResult{
 		ModuleID:          strings.ReplaceAll(modulePath, string(filepath.Separator), "/"),
 		ModulePath:        modulePath,
-		Service:           service,
-		Environment:       env,
-		Region:            region,
-		Module:            module,
-		Submodule:         submodule,
+		Service:           components["service"],
+		Environment:       components["environment"],
+		Region:            components["region"],
+		Module:            components["module"],
+		Submodule:         components["submodule"],
+		Components:        components,
 		Status:            getPlanStatus(parsed),
 		Summary:           FormatPlanSummary(parsed),
 		StructuredDetails: FormatPlanDetails(parsed),

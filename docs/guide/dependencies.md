@@ -145,7 +145,7 @@ Matches:
 TerraCi supports dependencies that cross environment or region boundaries. This is useful when a module in one environment needs to reference resources from another:
 
 ```hcl
-# In module: cdp/stage/eu-central-1/ec2/db-migrate
+# In module: platform/stage/eu-central-1/ec2/db-migrate
 
 # Same environment/region dependency
 data "terraform_remote_state" "vpc" {
@@ -165,8 +165,8 @@ data "terraform_remote_state" "vpn_vpc" {
 ```
 
 Both dependencies will be detected:
-- `cdp/stage/eu-central-1/vpc` (from dynamic path)
-- `cdp/vpn/eu-north-1/vpc` (from hardcoded cross-env path)
+- `platform/stage/eu-central-1/vpc` (from dynamic path)
+- `platform/vpn/eu-north-1/vpc` (from hardcoded cross-env path)
 
 TerraCi resolves `local.*` variables from the module path structure, allowing you to mix dynamic and hardcoded paths in the same module.
 

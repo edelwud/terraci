@@ -18,11 +18,11 @@ import (
 // Level 2: app (depends on eks, rds, s3)
 func createTestModules() []*discovery.Module {
 	return []*discovery.Module{
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "vpc", RelativePath: "platform/stage/eu-central-1/vpc"},
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "s3", RelativePath: "platform/stage/eu-central-1/s3"},
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "eks", RelativePath: "platform/stage/eu-central-1/eks"},
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "rds", RelativePath: "platform/stage/eu-central-1/rds"},
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "app", RelativePath: "platform/stage/eu-central-1/app"},
+		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "s3"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "eks"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "rds"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "app"),
 	}
 }
 

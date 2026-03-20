@@ -58,7 +58,7 @@ func TestFilterPlanOutput_Wrapper(t *testing.T) {
 func TestScanPlanResults_EmptyDir(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	collection, err := ScanPlanResults(tmpDir)
+	collection, err := ScanPlanResults(tmpDir, nil)
 	if err != nil {
 		t.Fatalf("ScanPlanResults failed: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestScanPlanResults_InvalidJSON(t *testing.T) {
 		t.Fatalf("failed to write plan.json: %v", err)
 	}
 
-	collection, err := ScanPlanResults(tmpDir)
+	collection, err := ScanPlanResults(tmpDir, nil)
 	if err != nil {
 		t.Fatalf("ScanPlanResults failed: %v", err)
 	}
@@ -104,7 +104,7 @@ func TestScanPlanResults_Wrapper(t *testing.T) {
 		t.Fatalf("failed to write plan.json: %v", err)
 	}
 
-	collection, err := ScanPlanResults(tmpDir)
+	collection, err := ScanPlanResults(tmpDir, nil)
 	if err != nil {
 		t.Fatalf("ScanPlanResults failed: %v", err)
 	}

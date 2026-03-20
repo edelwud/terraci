@@ -69,12 +69,12 @@ func TestEdgeCase_SingleModuleNoDependencies(t *testing.T) {
 
 	// Filter to stage environment
 	var targetModules []*discovery.Module
-	if vpcModule.Environment == "stage" {
+	if vpcModule.Get("environment") == "stage" {
 		targetModules = []*discovery.Module{vpcModule}
 	} else {
 		// Get stage VPC
 		for _, m := range fixture.Modules {
-			if m.Module == "vpc" && m.Environment == "stage" {
+			if m.Get("module") == "vpc" && m.Get("environment") == "stage" {
 				targetModules = []*discovery.Module{m}
 				break
 			}
@@ -138,9 +138,9 @@ func TestEdgeCase_SingleModuleWithDependencies(t *testing.T) {
 func TestEdgeCase_AllModulesIndependent(t *testing.T) {
 	// Create modules with no dependencies
 	modules := []*discovery.Module{
-		{Service: "svc", Environment: "stage", Region: "eu-central-1", Module: "a", RelativePath: "svc/stage/eu-central-1/a"},
-		{Service: "svc", Environment: "stage", Region: "eu-central-1", Module: "b", RelativePath: "svc/stage/eu-central-1/b"},
-		{Service: "svc", Environment: "stage", Region: "eu-central-1", Module: "c", RelativePath: "svc/stage/eu-central-1/c"},
+		discovery.TestModule("svc", "stage", "eu-central-1", "a"),
+		discovery.TestModule("svc", "stage", "eu-central-1", "b"),
+		discovery.TestModule("svc", "stage", "eu-central-1", "c"),
 	}
 
 	// No dependencies
@@ -183,11 +183,11 @@ func TestEdgeCase_AllModulesIndependent(t *testing.T) {
 func TestEdgeCase_DeepDependencyChain(t *testing.T) {
 	// Create a chain: a -> b -> c -> d -> e
 	modules := []*discovery.Module{
-		{Service: "svc", Environment: "stage", Region: "eu-central-1", Module: "a", RelativePath: "svc/stage/eu-central-1/a"},
-		{Service: "svc", Environment: "stage", Region: "eu-central-1", Module: "b", RelativePath: "svc/stage/eu-central-1/b"},
-		{Service: "svc", Environment: "stage", Region: "eu-central-1", Module: "c", RelativePath: "svc/stage/eu-central-1/c"},
-		{Service: "svc", Environment: "stage", Region: "eu-central-1", Module: "d", RelativePath: "svc/stage/eu-central-1/d"},
-		{Service: "svc", Environment: "stage", Region: "eu-central-1", Module: "e", RelativePath: "svc/stage/eu-central-1/e"},
+		discovery.TestModule("svc", "stage", "eu-central-1", "a"),
+		discovery.TestModule("svc", "stage", "eu-central-1", "b"),
+		discovery.TestModule("svc", "stage", "eu-central-1", "c"),
+		discovery.TestModule("svc", "stage", "eu-central-1", "d"),
+		discovery.TestModule("svc", "stage", "eu-central-1", "e"),
 	}
 
 	deps := map[string]*parser.ModuleDependencies{
@@ -252,10 +252,10 @@ func TestEdgeCase_DiamondDependency(t *testing.T) {
 	//    \ /
 	//     d
 	modules := []*discovery.Module{
-		{Service: "svc", Environment: "stage", Region: "eu-central-1", Module: "a", RelativePath: "svc/stage/eu-central-1/a"},
-		{Service: "svc", Environment: "stage", Region: "eu-central-1", Module: "b", RelativePath: "svc/stage/eu-central-1/b"},
-		{Service: "svc", Environment: "stage", Region: "eu-central-1", Module: "c", RelativePath: "svc/stage/eu-central-1/c"},
-		{Service: "svc", Environment: "stage", Region: "eu-central-1", Module: "d", RelativePath: "svc/stage/eu-central-1/d"},
+		discovery.TestModule("svc", "stage", "eu-central-1", "a"),
+		discovery.TestModule("svc", "stage", "eu-central-1", "b"),
+		discovery.TestModule("svc", "stage", "eu-central-1", "c"),
+		discovery.TestModule("svc", "stage", "eu-central-1", "d"),
 	}
 
 	deps := map[string]*parser.ModuleDependencies{
@@ -296,9 +296,9 @@ func TestEdgeCase_DiamondDependency(t *testing.T) {
 func TestEdgeCase_PartialChainChanged(t *testing.T) {
 	// Chain: a -> b -> c, only b changed
 	modules := []*discovery.Module{
-		{Service: "svc", Environment: "stage", Region: "eu-central-1", Module: "a", RelativePath: "svc/stage/eu-central-1/a"},
-		{Service: "svc", Environment: "stage", Region: "eu-central-1", Module: "b", RelativePath: "svc/stage/eu-central-1/b"},
-		{Service: "svc", Environment: "stage", Region: "eu-central-1", Module: "c", RelativePath: "svc/stage/eu-central-1/c"},
+		discovery.TestModule("svc", "stage", "eu-central-1", "a"),
+		discovery.TestModule("svc", "stage", "eu-central-1", "b"),
+		discovery.TestModule("svc", "stage", "eu-central-1", "c"),
 	}
 
 	deps := map[string]*parser.ModuleDependencies{
@@ -446,7 +446,7 @@ func TestEdgeCase_ChangedOnlyNoChanges(t *testing.T) {
 // TestEdgeCase_ModuleWithSelfReference tests (edge case) module referencing itself
 func TestEdgeCase_ModuleWithSelfReference(t *testing.T) {
 	modules := []*discovery.Module{
-		{Service: "svc", Environment: "stage", Region: "eu-central-1", Module: "a", RelativePath: "svc/stage/eu-central-1/a"},
+		discovery.TestModule("svc", "stage", "eu-central-1", "a"),
 	}
 
 	// Self-reference (should be ignored or handled gracefully)
@@ -478,7 +478,7 @@ func TestEdgeCase_ModuleWithSelfReference(t *testing.T) {
 // TestEdgeCase_SpecialCharactersInModuleName tests module names with special chars
 func TestEdgeCase_SpecialCharactersInModuleName(t *testing.T) {
 	modules := []*discovery.Module{
-		{Service: "my-svc", Environment: "stage-01", Region: "eu-central-1", Module: "vpc-main", RelativePath: "my-svc/stage-01/eu-central-1/vpc-main"},
+		discovery.TestModule("my-svc", "stage-01", "eu-central-1", "vpc-main"),
 	}
 
 	deps := map[string]*parser.ModuleDependencies{
@@ -513,13 +513,7 @@ func TestEdgeCase_VeryLongModulePath(t *testing.T) {
 	longModule := "application-database-migration"
 
 	modules := []*discovery.Module{
-		{
-			Service:      longService,
-			Environment:  longEnv,
-			Region:       longRegion,
-			Module:       longModule,
-			RelativePath: longService + "/" + longEnv + "/" + longRegion + "/" + longModule,
-		},
+		discovery.TestModule(longService, longEnv, longRegion, longModule),
 	}
 
 	deps := map[string]*parser.ModuleDependencies{

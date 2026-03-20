@@ -123,7 +123,7 @@ func TestFixture_ChangedOnly(t *testing.T) {
 	// Filter to only stage environment modules
 	var stageChangedModules []*discovery.Module
 	for _, m := range changedModules {
-		if m != nil && m.Environment == "stage" {
+		if m != nil && m.Get("environment") == "stage" {
 			stageChangedModules = append(stageChangedModules, m)
 		}
 	}
@@ -178,7 +178,7 @@ func TestFixture_ChangedOnlyPlanOnly(t *testing.T) {
 
 	// Filter to stage environment
 	var changedModules []*discovery.Module
-	if eksModule.Environment == "stage" {
+	if eksModule.Get("environment") == "stage" {
 		changedModules = []*discovery.Module{eksModule}
 	}
 

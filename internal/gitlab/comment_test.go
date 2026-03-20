@@ -15,33 +15,24 @@ func TestCommentRenderer_Render(t *testing.T) {
 
 	plans := []ModulePlan{
 		{
-			ModuleID:    "platform/stage/eu-central-1/vpc",
-			Service:     "platform",
-			Environment: "stage",
-			Region:      "eu-central-1",
-			Module:      "vpc",
-			Status:      PlanStatusNoChanges,
-			Summary:     "No changes. Infrastructure is up-to-date.",
+			ModuleID:   "platform/stage/eu-central-1/vpc",
+			Components: map[string]string{"service": "platform", "environment": "stage", "region": "eu-central-1", "module": "vpc"},
+			Status:     PlanStatusNoChanges,
+			Summary:    "No changes. Infrastructure is up-to-date.",
 		},
 		{
 			ModuleID:          "platform/stage/eu-central-1/eks",
-			Service:           "platform",
-			Environment:       "stage",
-			Region:            "eu-central-1",
-			Module:            "eks",
+			Components:        map[string]string{"service": "platform", "environment": "stage", "region": "eu-central-1", "module": "eks"},
 			Status:            PlanStatusChanges,
 			Summary:           "+2 ~1",
 			StructuredDetails: "**Create:**\n- `aws_instance.web`\n- `aws_instance.api`\n\n**Update:**\n- `aws_security_group.main`",
 			RawPlanOutput:     "# Some terraform plan output here",
 		},
 		{
-			ModuleID:    "platform/prod/eu-central-1/vpc",
-			Service:     "platform",
-			Environment: "prod",
-			Region:      "eu-central-1",
-			Module:      "vpc",
-			Status:      PlanStatusFailed,
-			Error:       "Error acquiring state lock",
+			ModuleID:   "platform/prod/eu-central-1/vpc",
+			Components: map[string]string{"service": "platform", "environment": "prod", "region": "eu-central-1", "module": "vpc"},
+			Status:     PlanStatusFailed,
+			Error:      "Error acquiring state lock",
 		},
 	}
 

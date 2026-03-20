@@ -18,49 +18,49 @@ func TestGlobFilter_Match(t *testing.T) {
 			name:     "no filters - include all",
 			exclude:  nil,
 			include:  nil,
-			moduleID: "cdp/stage/eu-central-1/vpc",
+			moduleID: "platform/stage/eu-central-1/vpc",
 			want:     true,
 		},
 		{
 			name:     "exact exclude match",
-			exclude:  []string{"cdp/stage/eu-central-1/vpc"},
+			exclude:  []string{"platform/stage/eu-central-1/vpc"},
 			include:  nil,
-			moduleID: "cdp/stage/eu-central-1/vpc",
+			moduleID: "platform/stage/eu-central-1/vpc",
 			want:     false,
 		},
 		{
 			name:     "wildcard exclude - all regions",
-			exclude:  []string{"cdp/*/eu-north-1/*"},
+			exclude:  []string{"platform/*/eu-north-1/*"},
 			include:  nil,
-			moduleID: "cdp/stage/eu-north-1/vpc",
+			moduleID: "platform/stage/eu-north-1/vpc",
 			want:     false,
 		},
 		{
 			name:     "wildcard exclude - different region passes",
-			exclude:  []string{"cdp/*/eu-north-1/*"},
+			exclude:  []string{"platform/*/eu-north-1/*"},
 			include:  nil,
-			moduleID: "cdp/stage/eu-central-1/vpc",
+			moduleID: "platform/stage/eu-central-1/vpc",
 			want:     true,
 		},
 		{
 			name:     "include only specific service",
 			exclude:  nil,
-			include:  []string{"cdp/*/*/*/*"},
+			include:  []string{"platform/*/*/*/*"},
 			moduleID: "other/stage/eu-central-1/vpc",
 			want:     false,
 		},
 		{
 			name:     "include only specific service - matches",
 			exclude:  nil,
-			include:  []string{"cdp/*/*/*"},
-			moduleID: "cdp/stage/eu-central-1/vpc",
+			include:  []string{"platform/*/*/*"},
+			moduleID: "platform/stage/eu-central-1/vpc",
 			want:     true,
 		},
 		{
 			name:     "exclude takes precedence",
-			exclude:  []string{"cdp/stage/*/*"},
-			include:  []string{"cdp/*/*/*"},
-			moduleID: "cdp/stage/eu-central-1/vpc",
+			exclude:  []string{"platform/stage/*/*"},
+			include:  []string{"platform/*/*/*"},
+			moduleID: "platform/stage/eu-central-1/vpc",
 			want:     false,
 		},
 		{
@@ -85,13 +85,13 @@ func TestGlobFilter_Match(t *testing.T) {
 
 func TestGlobFilter_FilterModules(t *testing.T) {
 	modules := []*discovery.Module{
-		{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "vpc"},
-		{Service: "cdp", Environment: "stage", Region: "eu-north-1", Module: "vpc"},
-		{Service: "cdp", Environment: "prod", Region: "eu-central-1", Module: "vpc"},
-		{Service: "other", Environment: "stage", Region: "eu-central-1", Module: "vpc"},
+		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
+		discovery.TestModule("platform", "stage", "eu-north-1", "vpc"),
+		discovery.TestModule("platform", "prod", "eu-central-1", "vpc"),
+		discovery.TestModule("other", "stage", "eu-central-1", "vpc"),
 	}
 
-	f := NewGlobFilter([]string{"cdp/*/eu-north-1/*"}, nil)
+	f := NewGlobFilter([]string{"platform/*/eu-north-1/*"}, nil)
 	filtered := f.FilterModules(modules)
 
 	if len(filtered) != 3 {
@@ -100,23 +100,23 @@ func TestGlobFilter_FilterModules(t *testing.T) {
 
 	// Verify eu-north-1 is excluded
 	for _, m := range filtered {
-		if m.Region == "eu-north-1" {
+		if m.Get("region") == "eu-north-1" {
 			t.Error("eu-north-1 should be excluded")
 		}
 	}
 }
 
 func TestServiceFilter(t *testing.T) {
-	module := &discovery.Module{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "vpc"}
+	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 
 	tests := []struct {
 		services []string
 		want     bool
 	}{
 		{nil, true},
-		{[]string{"cdp"}, true},
+		{[]string{"platform"}, true},
 		{[]string{"other"}, false},
-		{[]string{"cdp", "other"}, true},
+		{[]string{"platform", "other"}, true},
 	}
 
 	for _, tt := range tests {
@@ -128,7 +128,7 @@ func TestServiceFilter(t *testing.T) {
 }
 
 func TestEnvironmentFilter(t *testing.T) {
-	module := &discovery.Module{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "vpc"}
+	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 
 	tests := []struct {
 		environments []string
@@ -149,7 +149,7 @@ func TestEnvironmentFilter(t *testing.T) {
 }
 
 func TestRegionFilter(t *testing.T) {
-	module := &discovery.Module{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "vpc"}
+	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 
 	tests := []struct {
 		regions []string
@@ -171,15 +171,15 @@ func TestRegionFilter(t *testing.T) {
 
 func TestCompositeFilter(t *testing.T) {
 	modules := []*discovery.Module{
-		{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "vpc"},
-		{Service: "cdp", Environment: "prod", Region: "eu-central-1", Module: "vpc"},
-		{Service: "other", Environment: "stage", Region: "eu-central-1", Module: "vpc"},
-		{Service: "cdp", Environment: "stage", Region: "us-east-1", Module: "vpc"},
+		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
+		discovery.TestModule("platform", "prod", "eu-central-1", "vpc"),
+		discovery.TestModule("other", "stage", "eu-central-1", "vpc"),
+		discovery.TestModule("platform", "stage", "us-east-1", "vpc"),
 	}
 
-	// Filter: service=cdp AND environment=stage
+	// Filter: service=platform AND environment=stage
 	f := NewCompositeFilter(
-		&ServiceFilter{Services: []string{"cdp"}},
+		&ServiceFilter{Services: []string{"platform"}},
 		&EnvironmentFilter{Environments: []string{"stage"}},
 	)
 
@@ -190,8 +190,8 @@ func TestCompositeFilter(t *testing.T) {
 	}
 
 	for _, m := range filtered {
-		if m.Service != "cdp" || m.Environment != "stage" {
-			t.Errorf("Unexpected module: %s/%s", m.Service, m.Environment)
+		if m.Get("service") != "platform" || m.Get("environment") != "stage" {
+			t.Errorf("Unexpected module: %s/%s", m.Get("service"), m.Get("environment"))
 		}
 	}
 }
@@ -206,20 +206,20 @@ func TestGlobFilter_FilterModuleIDs(t *testing.T) {
 	}{
 		{
 			name:     "no filters returns all",
-			input:    []string{"cdp/stage/eu-central-1/vpc", "cdp/prod/eu-central-1/rds"},
-			expected: []string{"cdp/stage/eu-central-1/vpc", "cdp/prod/eu-central-1/rds"},
+			input:    []string{"platform/stage/eu-central-1/vpc", "platform/prod/eu-central-1/rds"},
+			expected: []string{"platform/stage/eu-central-1/vpc", "platform/prod/eu-central-1/rds"},
 		},
 		{
 			name:     "exclude filters out matching",
-			exclude:  []string{"cdp/prod/*/*"},
-			input:    []string{"cdp/stage/eu-central-1/vpc", "cdp/prod/eu-central-1/rds"},
-			expected: []string{"cdp/stage/eu-central-1/vpc"},
+			exclude:  []string{"platform/prod/*/*"},
+			input:    []string{"platform/stage/eu-central-1/vpc", "platform/prod/eu-central-1/rds"},
+			expected: []string{"platform/stage/eu-central-1/vpc"},
 		},
 		{
 			name:     "include filters to matching only",
-			include:  []string{"cdp/stage/*/*"},
-			input:    []string{"cdp/stage/eu-central-1/vpc", "cdp/prod/eu-central-1/rds"},
-			expected: []string{"cdp/stage/eu-central-1/vpc"},
+			include:  []string{"platform/stage/*/*"},
+			input:    []string{"platform/stage/eu-central-1/vpc", "platform/prod/eu-central-1/rds"},
+			expected: []string{"platform/stage/eu-central-1/vpc"},
 		},
 		{
 			name:     "empty input returns nil",
@@ -247,7 +247,7 @@ func TestGlobFilter_FilterModuleIDs(t *testing.T) {
 }
 
 func TestGlobModuleFilter(t *testing.T) {
-	module := &discovery.Module{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "vpc"}
+	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 
 	tests := []struct {
 		name    string
@@ -256,8 +256,8 @@ func TestGlobModuleFilter(t *testing.T) {
 		want    bool
 	}{
 		{"no filters matches", nil, nil, true},
-		{"exclude match rejects", []string{"cdp/*/*/*"}, nil, false},
-		{"include match accepts", nil, []string{"cdp/*/*/*"}, true},
+		{"exclude match rejects", []string{"platform/*/*/*"}, nil, false},
+		{"include match accepts", nil, []string{"platform/*/*/*"}, true},
 		{"include no match rejects", nil, []string{"other/*/*/*"}, false},
 	}
 
@@ -274,10 +274,10 @@ func TestGlobModuleFilter(t *testing.T) {
 
 func TestApply(t *testing.T) {
 	modules := []*discovery.Module{
-		{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "vpc"},
-		{Service: "cdp", Environment: "prod", Region: "eu-central-1", Module: "vpc"},
-		{Service: "other", Environment: "stage", Region: "us-east-1", Module: "rds"},
-		{Service: "cdp", Environment: "stage", Region: "us-east-1", Module: "eks"},
+		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
+		discovery.TestModule("platform", "prod", "eu-central-1", "vpc"),
+		discovery.TestModule("other", "stage", "us-east-1", "rds"),
+		discovery.TestModule("platform", "stage", "us-east-1", "eks"),
 	}
 
 	tests := []struct {
@@ -292,7 +292,7 @@ func TestApply(t *testing.T) {
 		},
 		{
 			name:    "filter by service",
-			opts:    Options{Services: []string{"cdp"}},
+			opts:    Options{Services: []string{"platform"}},
 			wantLen: 3,
 		},
 		{
@@ -307,7 +307,7 @@ func TestApply(t *testing.T) {
 		},
 		{
 			name:    "combined service and environment",
-			opts:    Options{Services: []string{"cdp"}, Environments: []string{"stage"}},
+			opts:    Options{Services: []string{"platform"}, Environments: []string{"stage"}},
 			wantLen: 2,
 		},
 		{
@@ -317,12 +317,12 @@ func TestApply(t *testing.T) {
 		},
 		{
 			name:    "combined with includes",
-			opts:    Options{Includes: []string{"cdp/*/*/*"}},
+			opts:    Options{Includes: []string{"platform/*/*/*"}},
 			wantLen: 3,
 		},
 		{
 			name:    "all filters combined",
-			opts:    Options{Services: []string{"cdp"}, Environments: []string{"stage"}, Regions: []string{"eu-central-1"}},
+			opts:    Options{Services: []string{"platform"}, Environments: []string{"stage"}, Regions: []string{"eu-central-1"}},
 			wantLen: 1,
 		},
 	}
@@ -352,8 +352,8 @@ func TestMatchGlob_NoDoubleStar(t *testing.T) {
 		path    string
 		want    bool
 	}{
-		{"cdp/*/*/*", "cdp/stage/eu-central-1/vpc", true},
-		{"cdp/*/*/*", "other/stage/eu-central-1/vpc", false},
+		{"platform/*/*/*", "platform/stage/eu-central-1/vpc", true},
+		{"platform/*/*/*", "other/stage/eu-central-1/vpc", false},
 		{"*", "anything", true},
 	}
 
@@ -371,8 +371,8 @@ func TestMatchPrefix(t *testing.T) {
 		path   string
 		want   bool
 	}{
-		{"cdp/stage", "cdp/stage/eu-central-1/vpc", true},
-		{"cdp/prod", "cdp/stage/eu-central-1/vpc", false},
+		{"platform/stage", "platform/stage/eu-central-1/vpc", true},
+		{"platform/prod", "platform/stage/eu-central-1/vpc", false},
 		{"a/b/c/d/e", "a/b", false}, // prefix longer than path
 		{"*", "anything", true},
 	}
@@ -391,9 +391,9 @@ func TestMatchSuffix(t *testing.T) {
 		path   string
 		want   bool
 	}{
-		{"vpc", "cdp/stage/eu-central-1/vpc", true},
-		{"rds", "cdp/stage/eu-central-1/vpc", false},
-		{"eu-central-1/vpc", "cdp/stage/eu-central-1/vpc", true},
+		{"vpc", "platform/stage/eu-central-1/vpc", true},
+		{"rds", "platform/stage/eu-central-1/vpc", false},
+		{"eu-central-1/vpc", "platform/stage/eu-central-1/vpc", true},
 		{"a/b/c/d/e", "a/b", false}, // suffix longer than path
 	}
 
@@ -411,12 +411,12 @@ func TestDoubleStarGlob(t *testing.T) {
 		path    string
 		want    bool
 	}{
-		{"cdp/**", "cdp/stage/eu-central-1/vpc", true},
-		{"cdp/**", "other/stage/eu-central-1/vpc", false},
-		{"**/vpc", "cdp/stage/eu-central-1/vpc", true},
-		{"**/vpc", "cdp/stage/eu-central-1/eks", false},
-		{"cdp/**/vpc", "cdp/stage/eu-central-1/vpc", true},
-		{"cdp/**/vpc", "cdp/vpc", true},
+		{"platform/**", "platform/stage/eu-central-1/vpc", true},
+		{"platform/**", "other/stage/eu-central-1/vpc", false},
+		{"**/vpc", "platform/stage/eu-central-1/vpc", true},
+		{"**/vpc", "platform/stage/eu-central-1/eks", false},
+		{"platform/**/vpc", "platform/stage/eu-central-1/vpc", true},
+		{"platform/**/vpc", "platform/vpc", true},
 	}
 
 	for _, tt := range tests {

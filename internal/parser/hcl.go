@@ -17,11 +17,16 @@ import (
 )
 
 // Parser handles parsing of Terraform HCL files
-type Parser struct{}
+type Parser struct {
+	// Segments are the ordered pattern segment names (e.g., service, environment, region, module)
+	Segments []string
+}
 
 // NewParser creates a new HCL parser
 func NewParser() *Parser {
-	return &Parser{}
+	return &Parser{
+		Segments: []string{"service", "environment", "region", "module"},
+	}
 }
 
 // ParsedModule contains the parsed content of a Terraform module
@@ -451,41 +456,42 @@ func (p *Parser) ResolveWorkspacePath(ref *RemoteStateRef, modulePath string, lo
 		pathParts = strings.Split(modulePath, string(os.PathSeparator))
 	}
 
-	// Extract path components
-	// Support both depth 4 (service/env/region/module) and depth 5 (service/env/region/module/submodule)
-	var service, environment, region, module, submodule string
-	if len(pathParts) >= 5 {
-		// Submodule: service/env/region/module/submodule
-		submodule = pathParts[len(pathParts)-1]
-		module = pathParts[len(pathParts)-2]
-		region = pathParts[len(pathParts)-3]
-		environment = pathParts[len(pathParts)-4]
-		service = pathParts[len(pathParts)-5]
-	} else if len(pathParts) >= 4 {
-		// Base module: service/env/region/module
-		module = pathParts[len(pathParts)-1]
-		region = pathParts[len(pathParts)-2]
-		environment = pathParts[len(pathParts)-3]
-		service = pathParts[len(pathParts)-4]
+	// Extract path components dynamically based on configured segments
+	segments := p.Segments
+	numSegs := len(segments)
+	pathLocals := make(map[string]cty.Value)
+
+	if len(pathParts) >= numSegs {
+		for i, segName := range segments {
+			pathLocals[segName] = cty.StringVal(pathParts[len(pathParts)-numSegs+i])
+		}
 	}
 
-	// For submodules, the "scope" local typically refers to the parent module
-	scope := module
-	if submodule != "" {
-		module = submodule // The actual module name is the submodule
+	// Handle submodule case: path has more parts than segments
+	var scope string
+	if len(pathParts) > numSegs {
+		submodule := pathParts[len(pathParts)-1]
+		pathLocals["submodule"] = cty.StringVal(submodule)
+		// scope refers to the parent module (last segment value before submodule)
+		if numSegs > 0 {
+			lastSeg := segments[numSegs-1]
+			if v, ok := pathLocals[lastSeg]; ok {
+				scope = v.AsString()
+			}
+		}
+		// Override the last segment's local with the submodule name
+		if numSegs > 0 {
+			pathLocals[segments[numSegs-1]] = cty.StringVal(submodule)
+		}
+	} else if numSegs > 0 {
+		if v, ok := pathLocals[segments[numSegs-1]]; ok {
+			scope = v.AsString()
+		}
 	}
+	pathLocals["scope"] = cty.StringVal(scope)
 
 	// Create evaluation context with Terraform functions
 	evalCtx := eval.NewContext(locals, variables, modulePath)
-
-	// Add path-derived locals if not already present
-	pathLocals := map[string]cty.Value{
-		"service":     cty.StringVal(service),
-		"environment": cty.StringVal(environment),
-		"region":      cty.StringVal(region),
-		"module":      cty.StringVal(module),
-		"scope":       cty.StringVal(scope),
-	}
 
 	// Merge with existing locals
 	mergedLocals := make(map[string]cty.Value)

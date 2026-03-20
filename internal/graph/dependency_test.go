@@ -15,10 +15,10 @@ func TestDependencyGraph_TopologicalSort(t *testing.T) {
 	//     -> rds -> app
 
 	modules := []*discovery.Module{
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "vpc"},
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "eks"},
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "rds"},
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "app"},
+		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "eks"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "rds"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "app"),
 	}
 
 	deps := map[string]*parser.ModuleDependencies{
@@ -56,9 +56,9 @@ func TestDependencyGraph_CycleDetection(t *testing.T) {
 	// a -> b -> c -> a
 
 	modules := []*discovery.Module{
-		{Service: "svc", Environment: "env", Region: "reg", Module: "a"},
-		{Service: "svc", Environment: "env", Region: "reg", Module: "b"},
-		{Service: "svc", Environment: "env", Region: "reg", Module: "c"},
+		discovery.TestModule("svc", "env", "reg", "a"),
+		discovery.TestModule("svc", "env", "reg", "b"),
+		discovery.TestModule("svc", "env", "reg", "c"),
 	}
 
 	deps := map[string]*parser.ModuleDependencies{
@@ -87,10 +87,10 @@ func TestDependencyGraph_ExecutionLevels(t *testing.T) {
 	// Level 2: app
 
 	modules := []*discovery.Module{
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "vpc"},
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "eks"},
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "rds"},
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "app"},
+		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "eks"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "rds"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "app"),
 	}
 
 	deps := map[string]*parser.ModuleDependencies{
@@ -129,10 +129,10 @@ func TestDependencyGraph_ExecutionLevels(t *testing.T) {
 
 func TestDependencyGraph_GetAffectedModules(t *testing.T) {
 	modules := []*discovery.Module{
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "vpc"},
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "eks"},
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "rds"},
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "app"},
+		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "eks"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "rds"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "app"),
 	}
 
 	deps := map[string]*parser.ModuleDependencies{
@@ -191,10 +191,10 @@ func TestDependencyGraph_GetAffectedModules(t *testing.T) {
 
 func TestDependencyGraph_Subgraph(t *testing.T) {
 	modules := []*discovery.Module{
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "vpc"},
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "eks"},
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "rds"},
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "app"},
+		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "eks"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "rds"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "app"),
 	}
 
 	deps := map[string]*parser.ModuleDependencies{
@@ -226,8 +226,8 @@ func TestDependencyGraph_Subgraph(t *testing.T) {
 
 func TestDependencyGraph_ToDOT(t *testing.T) {
 	modules := []*discovery.Module{
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "vpc"},
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "eks"},
+		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "eks"),
 	}
 
 	deps := map[string]*parser.ModuleDependencies{
@@ -271,8 +271,8 @@ func TestDependencyGraph_LibraryModuleTracking(t *testing.T) {
 	// msk module uses library modules: _modules/kafka, _modules/kafka_acl
 	// kafka_acl depends on kafka (both are library modules)
 	modules := []*discovery.Module{
-		{Service: "platform", Environment: "stage", Region: "eu-north-1", Module: "vpc"},
-		{Service: "platform", Environment: "stage", Region: "eu-north-1", Module: "msk"},
+		discovery.TestModule("platform", "stage", "eu-north-1", "vpc"),
+		discovery.TestModule("platform", "stage", "eu-north-1", "msk"),
 	}
 
 	deps := map[string]*parser.ModuleDependencies{
@@ -303,9 +303,9 @@ func TestDependencyGraph_LibraryModuleTracking(t *testing.T) {
 
 func TestDependencyGraph_GetAffectedByLibraryChanges(t *testing.T) {
 	modules := []*discovery.Module{
-		{Service: "platform", Environment: "stage", Region: "eu-north-1", Module: "vpc"},
-		{Service: "platform", Environment: "stage", Region: "eu-north-1", Module: "msk"},
-		{Service: "platform", Environment: "stage", Region: "eu-north-1", Module: "app"},
+		discovery.TestModule("platform", "stage", "eu-north-1", "vpc"),
+		discovery.TestModule("platform", "stage", "eu-north-1", "msk"),
+		discovery.TestModule("platform", "stage", "eu-north-1", "app"),
 	}
 
 	deps := map[string]*parser.ModuleDependencies{
@@ -332,9 +332,9 @@ func TestDependencyGraph_GetAffectedByLibraryChanges(t *testing.T) {
 
 func TestDependencyGraph_GetAffectedModulesWithLibraries(t *testing.T) {
 	modules := []*discovery.Module{
-		{Service: "platform", Environment: "stage", Region: "eu-north-1", Module: "vpc"},
-		{Service: "platform", Environment: "stage", Region: "eu-north-1", Module: "msk"},
-		{Service: "platform", Environment: "stage", Region: "eu-north-1", Module: "app"},
+		discovery.TestModule("platform", "stage", "eu-north-1", "vpc"),
+		discovery.TestModule("platform", "stage", "eu-north-1", "msk"),
+		discovery.TestModule("platform", "stage", "eu-north-1", "app"),
 	}
 
 	deps := map[string]*parser.ModuleDependencies{
@@ -385,10 +385,10 @@ func TestDependencyGraph_GetAffectedModulesWithLibraries(t *testing.T) {
 
 func TestDependencyGraph_GetStats(t *testing.T) {
 	modules := []*discovery.Module{
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "vpc"},
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "eks"},
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "rds"},
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "app"},
+		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "eks"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "rds"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "app"),
 	}
 
 	deps := map[string]*parser.ModuleDependencies{
@@ -438,7 +438,7 @@ func TestDependencyGraph_GetStats_Empty(t *testing.T) {
 
 func TestDependencyGraph_GetNode(t *testing.T) {
 	modules := []*discovery.Module{
-		{Service: "svc", Environment: "env", Region: "reg", Module: "vpc"},
+		discovery.TestModule("svc", "env", "reg", "vpc"),
 	}
 	deps := map[string]*parser.ModuleDependencies{
 		"svc/env/reg/vpc": {DependsOn: []string{}},
@@ -449,8 +449,8 @@ func TestDependencyGraph_GetNode(t *testing.T) {
 	if node == nil {
 		t.Fatal("GetNode returned nil for existing node")
 	}
-	if node.Module.Module != "vpc" {
-		t.Errorf("GetNode module = %q, want %q", node.Module.Module, "vpc")
+	if node.Module.Get("module") != "vpc" {
+		t.Errorf("GetNode module = %q, want %q", node.Module.Get("module"), "vpc")
 	}
 
 	nonExistent := g.GetNode("nonexistent")
@@ -461,9 +461,9 @@ func TestDependencyGraph_GetNode(t *testing.T) {
 
 func TestDependencyGraph_GetDependencies_GetDependents(t *testing.T) {
 	modules := []*discovery.Module{
-		{Service: "svc", Environment: "env", Region: "reg", Module: "a"},
-		{Service: "svc", Environment: "env", Region: "reg", Module: "b"},
-		{Service: "svc", Environment: "env", Region: "reg", Module: "c"},
+		discovery.TestModule("svc", "env", "reg", "a"),
+		discovery.TestModule("svc", "env", "reg", "b"),
+		discovery.TestModule("svc", "env", "reg", "c"),
 	}
 	deps := map[string]*parser.ModuleDependencies{
 		"svc/env/reg/a": {DependsOn: []string{}},
@@ -499,8 +499,8 @@ func TestDependencyGraph_GetDependencies_GetDependents(t *testing.T) {
 
 func TestDependencyGraph_AddEdge_Dedup(t *testing.T) {
 	modules := []*discovery.Module{
-		{Service: "svc", Environment: "env", Region: "reg", Module: "a"},
-		{Service: "svc", Environment: "env", Region: "reg", Module: "b"},
+		discovery.TestModule("svc", "env", "reg", "a"),
+		discovery.TestModule("svc", "env", "reg", "b"),
 	}
 	deps := map[string]*parser.ModuleDependencies{
 		"svc/env/reg/a": {DependsOn: []string{}},
@@ -528,8 +528,8 @@ func TestDependencyGraph_AddEdge_NonexistentNodes(t *testing.T) {
 
 func TestDependencyGraph_ToPlantUML(t *testing.T) {
 	modules := []*discovery.Module{
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "vpc"},
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "eks"},
+		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "eks"),
 	}
 	deps := map[string]*parser.ModuleDependencies{
 		"platform/stage/eu-central-1/vpc": {DependsOn: []string{}},
@@ -603,9 +603,9 @@ func TestDependencyGraph_AddLibraryUsage_Dedup(t *testing.T) {
 
 func TestDependencyGraph_GetAllDependencies(t *testing.T) {
 	modules := []*discovery.Module{
-		{Service: "svc", Environment: "env", Region: "reg", Module: "a"},
-		{Service: "svc", Environment: "env", Region: "reg", Module: "b"},
-		{Service: "svc", Environment: "env", Region: "reg", Module: "c"},
+		discovery.TestModule("svc", "env", "reg", "a"),
+		discovery.TestModule("svc", "env", "reg", "b"),
+		discovery.TestModule("svc", "env", "reg", "c"),
 	}
 	// c depends on b depends on a
 	deps := map[string]*parser.ModuleDependencies{
@@ -625,9 +625,9 @@ func TestDependencyGraph_GetAllDependencies(t *testing.T) {
 
 func TestDependencyGraph_GetAllDependents(t *testing.T) {
 	modules := []*discovery.Module{
-		{Service: "svc", Environment: "env", Region: "reg", Module: "a"},
-		{Service: "svc", Environment: "env", Region: "reg", Module: "b"},
-		{Service: "svc", Environment: "env", Region: "reg", Module: "c"},
+		discovery.TestModule("svc", "env", "reg", "a"),
+		discovery.TestModule("svc", "env", "reg", "b"),
+		discovery.TestModule("svc", "env", "reg", "c"),
 	}
 	deps := map[string]*parser.ModuleDependencies{
 		"svc/env/reg/a": {DependsOn: []string{}},
@@ -648,7 +648,7 @@ func TestDependencyGraph_TransitiveLibraryDependencies(t *testing.T) {
 	// Test case: kafka_acl library is under kafka directory
 	// Changing kafka should affect modules using kafka_acl too
 	modules := []*discovery.Module{
-		{Service: "platform", Environment: "stage", Region: "eu-north-1", Module: "msk"},
+		discovery.TestModule("platform", "stage", "eu-north-1", "msk"),
 	}
 
 	deps := map[string]*parser.ModuleDependencies{

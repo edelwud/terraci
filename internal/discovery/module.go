@@ -1,25 +1,15 @@
 // Package discovery provides functionality for discovering Terraform modules
-// in a directory structure following the pattern: service/environment/region/module[/submodule]
+// in a directory structure following a configurable pattern like: service/environment/region/module[/submodule]
 package discovery
 
 import (
-	"os"
 	"path/filepath"
-	"strings"
 )
 
 // Module represents a discovered Terraform module with its path components
 type Module struct {
-	// Service name (e.g., "cdp")
-	Service string
-	// Environment name (e.g., "stage", "prod")
-	Environment string
-	// Region name (e.g., "eu-central-1")
-	Region string
-	// Module name (e.g., "vpc", "eks", "ec2")
-	Module string
-	// Submodule name (optional, e.g., "rabbitmq" for ec2/rabbitmq)
-	Submodule string
+	components map[string]string
+	segments   []string
 	// Full path to the module directory
 	Path string
 	// Relative path from the root directory
@@ -30,21 +20,74 @@ type Module struct {
 	Children []*Module
 }
 
-// Name returns the full module name including submodule if present
-func (m *Module) Name() string {
-	if m.Submodule != "" {
-		return m.Module + "/" + m.Submodule
+// NewModule creates a Module from ordered segment names and values.
+func NewModule(segments, values []string, path, relPath string) *Module {
+	components := make(map[string]string, len(segments))
+	for i := range segments {
+		if i < len(values) {
+			components[segments[i]] = values[i]
+		}
 	}
-	return m.Module
+	return &Module{
+		components:   components,
+		segments:     segments,
+		Path:         path,
+		RelativePath: relPath,
+	}
 }
 
-// ID returns a unique identifier for the module
-// Format: service/environment/region/module or service/environment/region/module/submodule
-func (m *Module) ID() string {
-	if m.Submodule != "" {
-		return filepath.Join(m.Service, m.Environment, m.Region, m.Module, m.Submodule)
+// TestModule creates a Module with the default pattern for testing.
+func TestModule(service, env, region, module string) *Module {
+	segments := []string{"service", "environment", "region", "module"}
+	values := []string{service, env, region, module}
+	relPath := filepath.Join(service, env, region, module)
+	return NewModule(segments, values, relPath, relPath)
+}
+
+// Get returns the value of a named component.
+func (m *Module) Get(name string) string { return m.components[name] }
+
+// LeafValue returns the value of the last pattern segment (the "module" equivalent).
+func (m *Module) LeafValue() string {
+	if len(m.segments) == 0 {
+		return ""
 	}
-	return filepath.Join(m.Service, m.Environment, m.Region, m.Module)
+	return m.components[m.segments[len(m.segments)-1]]
+}
+
+// Segments returns the ordered segment names.
+func (m *Module) Segments() []string { return m.segments }
+
+// Components returns a copy of the component map.
+func (m *Module) Components() map[string]string {
+	cp := make(map[string]string, len(m.components))
+	for k, v := range m.components {
+		cp[k] = v
+	}
+	return cp
+}
+
+// SetComponent sets a component value (used internally for submodule assignment).
+func (m *Module) SetComponent(name, value string) {
+	m.components[name] = value
+}
+
+// Name returns the full module name including submodule if present
+func (m *Module) Name() string {
+	// Last segment value is the "module" name
+	leaf := ""
+	if len(m.segments) > 0 {
+		leaf = m.components[m.segments[len(m.segments)-1]]
+	}
+	if m.Get("submodule") != "" {
+		return leaf + "/" + m.Get("submodule")
+	}
+	return leaf
+}
+
+// ID returns a unique identifier for the module (its relative path).
+func (m *Module) ID() string {
+	return m.RelativePath
 }
 
 // String returns the module ID
@@ -54,12 +97,20 @@ func (m *Module) String() string {
 
 // IsSubmodule returns true if this module is a submodule
 func (m *Module) IsSubmodule() bool {
-	return m.Submodule != ""
+	return m.Get("submodule") != ""
 }
 
-// BaseModule returns the module name without submodule
-func (m *Module) BaseModule() string {
-	return m.Module
+// ContextPrefix returns the path prefix for context-relative lookups
+// (all segments except the last, joined with /)
+func (m *Module) ContextPrefix() string {
+	if len(m.segments) <= 1 {
+		return ""
+	}
+	parts := make([]string, len(m.segments)-1)
+	for i, seg := range m.segments[:len(m.segments)-1] {
+		parts[i] = m.components[seg]
+	}
+	return filepath.Join(parts...)
 }
 
 // Scanner discovers Terraform modules in a directory tree
@@ -70,6 +121,8 @@ type Scanner struct {
 	MinDepth int
 	// MaxDepth defines maximum directory depth (default: 5 for service/env/region/module/submodule)
 	MaxDepth int
+	// Segments are the ordered pattern segment names (default: service, environment, region, module)
+	Segments []string
 }
 
 // NewScanner creates a new Scanner with the given root directory
@@ -78,117 +131,30 @@ func NewScanner(rootDir string) *Scanner {
 		RootDir:  rootDir,
 		MinDepth: 4,
 		MaxDepth: 5,
+		Segments: []string{"service", "environment", "region", "module"},
 	}
 }
 
 // Scan walks the directory tree and returns all discovered Terraform modules
 func (s *Scanner) Scan() ([]*Module, error) {
-	var modules []*Module
-	moduleMap := make(map[string]*Module) // For linking parents
-
 	absRoot, err := filepath.Abs(s.RootDir)
 	if err != nil {
 		return nil, err
 	}
 
-	err = filepath.Walk(absRoot, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
+	collector := &moduleCollector{
+		absRoot:  absRoot,
+		minDepth: s.MinDepth,
+		maxDepth: s.MaxDepth,
+		segments: s.Segments,
+		byID:     make(map[string]*Module),
+	}
 
-		// Skip hidden directories
-		if info.IsDir() && strings.HasPrefix(info.Name(), ".") {
-			return filepath.SkipDir
-		}
-
-		// We're looking for directories that contain .tf files
-		if !info.IsDir() {
-			return nil
-		}
-
-		// Check if this directory contains Terraform files
-		if !containsTerraformFiles(path) {
-			return nil
-		}
-
-		// Calculate relative path
-		relPath, err := filepath.Rel(absRoot, path)
-		if err != nil {
-			return err
-		}
-
-		// Skip root directory
-		if relPath == "." {
-			return nil
-		}
-
-		// Parse the path components
-		parts := strings.Split(relPath, string(os.PathSeparator))
-		depth := len(parts)
-
-		// Check depth constraints
-		if depth < s.MinDepth || depth > s.MaxDepth {
-			// If depth is less than minimum, continue scanning deeper
-			if depth < s.MinDepth {
-				return nil
-			}
-			// If depth exceeds maximum, skip this subtree
-			return filepath.SkipDir
-		}
-
-		module := &Module{
-			Service:      parts[0],
-			Environment:  parts[1],
-			Region:       parts[2],
-			Module:       parts[3],
-			Path:         path,
-			RelativePath: relPath,
-		}
-
-		// Handle submodule (depth 5)
-		if depth == 5 {
-			module.Submodule = parts[4]
-
-			// Link to parent module if exists
-			parentID := filepath.Join(parts[0], parts[1], parts[2], parts[3])
-			if parent, ok := moduleMap[parentID]; ok {
-				module.Parent = parent
-				parent.Children = append(parent.Children, module)
-			}
-		}
-
-		moduleMap[module.ID()] = module
-		modules = append(modules, module)
-
-		// If this is a base module (depth 4), continue scanning for submodules
-		// If this is a submodule (depth 5), don't go deeper
-		if depth >= s.MaxDepth {
-			return filepath.SkipDir
-		}
-
-		return nil
-	})
-	if err != nil {
+	if err := filepath.Walk(absRoot, collector.visit); err != nil {
 		return nil, err
 	}
 
-	return modules, nil
-}
-
-// containsTerraformFiles checks if a directory contains .tf files
-func containsTerraformFiles(dir string) bool {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return false
-	}
-
-	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".tf") {
-			return true
-		}
-	}
-
-	return false
+	return collector.modules, nil
 }
 
 // ModuleIndex provides fast lookup of modules by various keys
@@ -213,8 +179,9 @@ func NewModuleIndex(modules []*Module) *ModuleIndex {
 		idx.byPath[m.Path] = m
 		idx.byPath[m.RelativePath] = m
 
-		// Index by base module name
-		idx.byBaseName[m.Module] = append(idx.byBaseName[m.Module], m)
+		// Index by base module name (last segment value)
+		baseName := m.LeafValue()
+		idx.byBaseName[baseName] = append(idx.byBaseName[baseName], m)
 
 		// Also index by full name (module/submodule) if it's a submodule
 		if m.IsSubmodule() {
@@ -270,31 +237,28 @@ func (idx *ModuleIndex) Submodules() []*Module {
 	})
 }
 
-// FindInContext tries to find a module by name within the same context (service/env/region)
+// FindInContext tries to find a module by name within the same context
 func (idx *ModuleIndex) FindInContext(name string, context *Module) *Module {
-	// First try exact match in same context
+	// Try exact match in same context
+	contextPrefix := context.ContextPrefix()
 	candidates := []string{
-		// Same service/env/region + name
-		filepath.Join(context.Service, context.Environment, context.Region, name),
-		// Same service/env/region + module/submodule
-		filepath.Join(context.Service, context.Environment, context.Region, context.Module, name),
+		filepath.Join(contextPrefix, name),
 	}
-
+	// Also try as submodule
+	if leafVal := context.LeafValue(); leafVal != "" {
+		candidates = append(candidates, filepath.Join(contextPrefix, leafVal, name))
+	}
 	for _, id := range candidates {
 		if m := idx.byID[id]; m != nil {
 			return m
 		}
 	}
-
 	// Try by name in same context
 	modules := idx.byBaseName[name]
 	for _, m := range modules {
-		if m.Service == context.Service &&
-			m.Environment == context.Environment &&
-			m.Region == context.Region {
+		if m.ContextPrefix() == contextPrefix {
 			return m
 		}
 	}
-
 	return nil
 }

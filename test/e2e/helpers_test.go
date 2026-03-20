@@ -107,7 +107,7 @@ func LoadFixtureWithConfig(t *testing.T, name string, modifyConfig func(*config.
 // GetModuleByName finds a module by its module name (e.g., "vpc", "eks")
 func (f *Fixture) GetModuleByName(moduleName string) *discovery.Module {
 	for _, m := range f.Modules {
-		if m.Module == moduleName || m.Name() == moduleName {
+		if m.Get("module") == moduleName || m.Name() == moduleName {
 			return m
 		}
 	}
@@ -118,7 +118,7 @@ func (f *Fixture) GetModuleByName(moduleName string) *discovery.Module {
 func (f *Fixture) GetModulesByEnvironment(env string) []*discovery.Module {
 	var result []*discovery.Module
 	for _, m := range f.Modules {
-		if m.Environment == env {
+		if m.Get("environment") == env {
 			result = append(result, m)
 		}
 	}
@@ -129,7 +129,7 @@ func (f *Fixture) GetModulesByEnvironment(env string) []*discovery.Module {
 func (f *Fixture) GetModulesByService(service string) []*discovery.Module {
 	var result []*discovery.Module
 	for _, m := range f.Modules {
-		if m.Service == service {
+		if m.Get("service") == service {
 			result = append(result, m)
 		}
 	}

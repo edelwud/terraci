@@ -59,7 +59,8 @@ func runSummary(_ *cobra.Command, _ []string) error {
 
 	// Scan plan results (provider-agnostic)
 	log.Info("scanning for plan results")
-	collection, err := ci.ScanPlanResults(".")
+	segments := []string(cfg.Structure.Segments)
+	collection, err := ci.ScanPlanResults(".", segments)
 	if err != nil {
 		return fmt.Errorf("failed to scan plan results: %w", err)
 	}
@@ -146,12 +147,12 @@ func addLabelsFromResults(collection *ci.PlanResultCollection) error {
 	for i := range collection.Results {
 		r := &collection.Results[i]
 		// Add environment-based labels
-		if r.Environment != "" {
-			labelSet["env:"+r.Environment] = true
+		if env := r.Get("environment"); env != "" {
+			labelSet["env:"+env] = true
 		}
 		// Add service-based labels
-		if r.Service != "" {
-			labelSet["service:"+r.Service] = true
+		if svc := r.Get("service"); svc != "" {
+			labelSet["service:"+svc] = true
 		}
 		// Add status-based labels
 		switch r.Status {
@@ -234,8 +235,8 @@ func calculateCosts(collection *ci.PlanResultCollection) error {
 	for i := range collection.Results {
 		r := &collection.Results[i]
 		modulePaths = append(modulePaths, r.ModulePath)
-		if r.Region != "" {
-			regions[r.ModulePath] = r.Region
+		if region := r.Get("region"); region != "" {
+			regions[r.ModulePath] = region
 		}
 	}
 

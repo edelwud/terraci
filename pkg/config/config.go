@@ -59,6 +59,8 @@ type StructureConfig struct {
 	MaxDepth int `yaml:"max_depth,omitempty" json:"max_depth,omitempty" jsonschema:"description=Maximum directory depth for modules (allows submodules if > min_depth),minimum=1,default=5"`
 	// AllowSubmodules enables nested submodule support
 	AllowSubmodules bool `yaml:"allow_submodules" json:"allow_submodules,omitempty" jsonschema:"description=Enable nested submodule support,default=true"`
+	// Segments is the parsed pattern segments (derived from Pattern, not serialized)
+	Segments PatternSegments `yaml:"-" json:"-"`
 }
 
 // GitLabConfig contains GitLab CI specific settings
@@ -473,6 +475,7 @@ func DefaultConfig() *Config {
 			MinDepth:        4,
 			MaxDepth:        5,
 			AllowSubmodules: true,
+			Segments:        PatternSegments{"service", "environment", "region", "module"},
 		},
 		GitLab: &GitLabConfig{
 			TerraformBinary: "terraform",
@@ -498,13 +501,19 @@ func Load(path string) (*Config, error) {
 	}
 
 	config := DefaultConfig()
-	if err := yaml.Unmarshal(data, config); err != nil {
-		return nil, fmt.Errorf("failed to parse config file: %w", err)
+	if unmarshalErr := yaml.Unmarshal(data, config); unmarshalErr != nil {
+		return nil, fmt.Errorf("failed to parse config file: %w", unmarshalErr)
+	}
+
+	// Parse pattern segments
+	segments, parseErr := ParsePattern(config.Structure.Pattern)
+	if parseErr == nil {
+		config.Structure.Segments = segments
 	}
 
 	// Calculate depths from pattern if not set
 	if config.Structure.MinDepth == 0 {
-		config.Structure.MinDepth = countPatternSegments(config.Structure.Pattern)
+		config.Structure.MinDepth = len(config.Structure.Segments)
 	}
 	if config.Structure.MaxDepth == 0 {
 		if config.Structure.AllowSubmodules {
@@ -562,17 +571,6 @@ func (c *Config) Save(path string) error {
 	}
 
 	return nil
-}
-
-// countPatternSegments counts the number of segments in a pattern
-func countPatternSegments(pattern string) int {
-	count := 1
-	for _, c := range pattern {
-		if c == '/' {
-			count++
-		}
-	}
-	return count
 }
 
 // PolicyConfig defines configuration for OPA policy checks
@@ -711,6 +709,10 @@ func matchGlob(pattern, path string) (bool, error) {
 func (c *Config) Validate() error {
 	if c.Structure.Pattern == "" {
 		return fmt.Errorf("structure.pattern is required")
+	}
+
+	if _, err := ParsePattern(c.Structure.Pattern); err != nil {
+		return fmt.Errorf("structure.pattern: %w", err)
 	}
 
 	if c.Structure.MinDepth < 1 {

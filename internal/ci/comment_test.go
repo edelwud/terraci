@@ -13,22 +13,22 @@ func TestRender_BasicPlans(t *testing.T) {
 	data := &CommentData{
 		Plans: []ModulePlan{
 			{
-				ModuleID:    "svc/prod/us-east-1/vpc",
-				Environment: "prod",
-				Status:      PlanStatusChanges,
-				Summary:     "+2 ~1 -0",
+				ModuleID:   "svc/prod/us-east-1/vpc",
+				Components: map[string]string{"environment": "prod"},
+				Status:     PlanStatusChanges,
+				Summary:    "+2 ~1 -0",
 			},
 			{
-				ModuleID:    "svc/prod/us-east-1/rds",
-				Environment: "prod",
-				Status:      PlanStatusNoChanges,
-				Summary:     "No changes",
+				ModuleID:   "svc/prod/us-east-1/rds",
+				Components: map[string]string{"environment": "prod"},
+				Status:     PlanStatusNoChanges,
+				Summary:    "No changes",
 			},
 			{
-				ModuleID:    "svc/staging/us-east-1/vpc",
-				Environment: "staging",
-				Status:      PlanStatusFailed,
-				Error:       "init failed",
+				ModuleID:   "svc/staging/us-east-1/vpc",
+				Components: map[string]string{"environment": "staging"},
+				Status:     PlanStatusFailed,
+				Error:      "init failed",
 			},
 		},
 		GeneratedAt: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -73,10 +73,10 @@ func TestRender_WithPolicySummary(t *testing.T) {
 	data := &CommentData{
 		Plans: []ModulePlan{
 			{
-				ModuleID:    "svc/prod/us-east-1/vpc",
-				Environment: "prod",
-				Status:      PlanStatusChanges,
-				Summary:     "+1",
+				ModuleID:   "svc/prod/us-east-1/vpc",
+				Components: map[string]string{"environment": "prod"},
+				Status:     PlanStatusChanges,
+				Summary:    "+1",
 			},
 		},
 		PolicySummary: &policy.Summary{
@@ -114,14 +114,14 @@ func TestRender_WithCostData(t *testing.T) {
 	data := &CommentData{
 		Plans: []ModulePlan{
 			{
-				ModuleID:    "svc/prod/us-east-1/vpc",
-				Environment: "prod",
-				Status:      PlanStatusChanges,
-				Summary:     "+1",
-				HasCost:     true,
-				CostBefore:  10.0,
-				CostAfter:   15.0,
-				CostDiff:    5.0,
+				ModuleID:   "svc/prod/us-east-1/vpc",
+				Components: map[string]string{"environment": "prod"},
+				Status:     PlanStatusChanges,
+				Summary:    "+1",
+				HasCost:    true,
+				CostBefore: 10.0,
+				CostAfter:  15.0,
+				CostDiff:   5.0,
 			},
 		},
 		GeneratedAt: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -272,9 +272,9 @@ func TestGroupByEnvironment(t *testing.T) {
 		{
 			name: "multiple envs",
 			plans: []ModulePlan{
-				{Environment: "prod"},
-				{Environment: "prod"},
-				{Environment: "staging"},
+				{Components: map[string]string{"environment": "prod"}},
+				{Components: map[string]string{"environment": "prod"}},
+				{Components: map[string]string{"environment": "staging"}},
 			},
 			wantKeys: []string{"prod", "staging"},
 			wantLen:  map[string]int{"prod": 2, "staging": 1},
@@ -282,8 +282,8 @@ func TestGroupByEnvironment(t *testing.T) {
 		{
 			name: "empty env becomes default",
 			plans: []ModulePlan{
-				{Environment: ""},
-				{Environment: "prod"},
+				{Components: map[string]string{}},
+				{Components: map[string]string{"environment": "prod"}},
 			},
 			wantKeys: []string{"default", "prod"},
 			wantLen:  map[string]int{"default": 1, "prod": 1},

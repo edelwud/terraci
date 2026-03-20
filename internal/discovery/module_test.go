@@ -13,25 +13,19 @@ func TestModule_ID(t *testing.T) {
 		expected string
 	}{
 		{
-			name: "base module",
-			module: &Module{
-				Service:     "cdp",
-				Environment: "stage",
-				Region:      "eu-central-1",
-				Module:      "vpc",
-			},
-			expected: "cdp/stage/eu-central-1/vpc",
+			name:     "base module",
+			module:   TestModule("platform", "stage", "eu-central-1", "vpc"),
+			expected: "platform/stage/eu-central-1/vpc",
 		},
 		{
 			name: "submodule",
-			module: &Module{
-				Service:     "cdp",
-				Environment: "stage",
-				Region:      "eu-central-1",
-				Module:      "ec2",
-				Submodule:   "rabbitmq",
-			},
-			expected: "cdp/stage/eu-central-1/ec2/rabbitmq",
+			module: func() *Module {
+				m := TestModule("platform", "stage", "eu-central-1", "ec2")
+				m.SetComponent("submodule", "rabbitmq")
+				m.RelativePath = filepath.Join("platform", "stage", "eu-central-1", "ec2", "rabbitmq")
+				return m
+			}(),
+			expected: "platform/stage/eu-central-1/ec2/rabbitmq",
 		},
 	}
 
@@ -52,17 +46,24 @@ func TestModule_Name(t *testing.T) {
 	}{
 		{
 			name: "base module",
-			module: &Module{
-				Module: "vpc",
-			},
+			module: NewModule(
+				[]string{"service", "environment", "region", "module"},
+				[]string{"platform", "stage", "eu-central-1", "vpc"},
+				"", "platform/stage/eu-central-1/vpc",
+			),
 			expected: "vpc",
 		},
 		{
 			name: "submodule",
-			module: &Module{
-				Module:    "ec2",
-				Submodule: "rabbitmq",
-			},
+			module: func() *Module {
+				m := NewModule(
+					[]string{"service", "environment", "region", "module"},
+					[]string{"platform", "stage", "eu-central-1", "ec2"},
+					"", "platform/stage/eu-central-1/ec2/rabbitmq",
+				)
+				m.SetComponent("submodule", "rabbitmq")
+				return m
+			}(),
 			expected: "ec2/rabbitmq",
 		},
 	}
@@ -77,8 +78,9 @@ func TestModule_Name(t *testing.T) {
 }
 
 func TestModule_IsSubmodule(t *testing.T) {
-	baseModule := &Module{Module: "vpc"}
-	submodule := &Module{Module: "ec2", Submodule: "rabbitmq"}
+	baseModule := TestModule("platform", "stage", "eu-central-1", "vpc")
+	submodule := TestModule("platform", "stage", "eu-central-1", "ec2")
+	submodule.SetComponent("submodule", "rabbitmq")
 
 	if baseModule.IsSubmodule() {
 		t.Error("Base module should not be a submodule")
@@ -99,16 +101,16 @@ func TestScanner_Scan(t *testing.T) {
 
 	// Create module directories (base modules)
 	baseModules := []string{
-		"cdp/stage/eu-central-1/vpc",
-		"cdp/stage/eu-central-1/eks",
-		"cdp/stage/eu-central-1/ec2",
-		"cdp/prod/eu-central-1/vpc",
+		"platform/stage/eu-central-1/vpc",
+		"platform/stage/eu-central-1/eks",
+		"platform/stage/eu-central-1/ec2",
+		"platform/prod/eu-central-1/vpc",
 	}
 
 	// Create submodule directories
 	subModules := []string{
-		"cdp/stage/eu-central-1/ec2/rabbitmq",
-		"cdp/stage/eu-central-1/ec2/redis",
+		"platform/stage/eu-central-1/ec2/rabbitmq",
+		"platform/stage/eu-central-1/ec2/redis",
 	}
 
 	allModules := make([]string, 0, len(baseModules)+len(subModules))
@@ -128,7 +130,7 @@ func TestScanner_Scan(t *testing.T) {
 	}
 
 	// Create directory at wrong depth (should be ignored)
-	wrongDepth := filepath.Join(tmpDir, "cdp", "stage")
+	wrongDepth := filepath.Join(tmpDir, "platform", "stage")
 	tfFile := filepath.Join(wrongDepth, "main.tf")
 	if writeErr := os.WriteFile(tfFile, []byte("# wrong depth"), 0o644); writeErr != nil {
 		t.Fatalf("Failed to create .tf file: %v", writeErr)
@@ -189,9 +191,9 @@ func TestScanner_ParentChildLinks(t *testing.T) {
 
 	// Create parent and child modules
 	modules := []string{
-		"cdp/stage/eu-central-1/ec2",
-		"cdp/stage/eu-central-1/ec2/rabbitmq",
-		"cdp/stage/eu-central-1/ec2/redis",
+		"platform/stage/eu-central-1/ec2",
+		"platform/stage/eu-central-1/ec2/rabbitmq",
+		"platform/stage/eu-central-1/ec2/redis",
 	}
 
 	for _, m := range modules {
@@ -213,7 +215,7 @@ func TestScanner_ParentChildLinks(t *testing.T) {
 	// Find parent module
 	var parent *Module
 	for _, m := range found {
-		if m.ID() == "cdp/stage/eu-central-1/ec2" {
+		if m.ID() == "platform/stage/eu-central-1/ec2" {
 			parent = m
 			break
 		}
@@ -238,10 +240,28 @@ func TestScanner_ParentChildLinks(t *testing.T) {
 
 func TestModuleIndex(t *testing.T) {
 	modules := []*Module{
-		{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "vpc", Path: "/test/cdp/stage/eu-central-1/vpc", RelativePath: "cdp/stage/eu-central-1/vpc"},
-		{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "ec2", Path: "/test/cdp/stage/eu-central-1/ec2", RelativePath: "cdp/stage/eu-central-1/ec2"},
-		{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "ec2", Submodule: "rabbitmq", Path: "/test/cdp/stage/eu-central-1/ec2/rabbitmq", RelativePath: "cdp/stage/eu-central-1/ec2/rabbitmq"},
-		{Service: "cdp", Environment: "prod", Region: "eu-central-1", Module: "vpc", Path: "/test/cdp/prod/eu-central-1/vpc", RelativePath: "cdp/prod/eu-central-1/vpc"},
+		func() *Module {
+			m := TestModule("platform", "stage", "eu-central-1", "vpc")
+			m.Path = "/test/platform/stage/eu-central-1/vpc"
+			return m
+		}(),
+		func() *Module {
+			m := TestModule("platform", "stage", "eu-central-1", "ec2")
+			m.Path = "/test/platform/stage/eu-central-1/ec2"
+			return m
+		}(),
+		func() *Module {
+			m := TestModule("platform", "stage", "eu-central-1", "ec2")
+			m.SetComponent("submodule", "rabbitmq")
+			m.Path = "/test/platform/stage/eu-central-1/ec2/rabbitmq"
+			m.RelativePath = "platform/stage/eu-central-1/ec2/rabbitmq"
+			return m
+		}(),
+		func() *Module {
+			m := TestModule("platform", "prod", "eu-central-1", "vpc")
+			m.Path = "/test/platform/prod/eu-central-1/vpc"
+			return m
+		}(),
 	}
 
 	idx := NewModuleIndex(modules)
@@ -252,13 +272,13 @@ func TestModuleIndex(t *testing.T) {
 	}
 
 	// Test ByID for base module
-	m := idx.ByID("cdp/stage/eu-central-1/vpc")
+	m := idx.ByID("platform/stage/eu-central-1/vpc")
 	if m == nil {
 		t.Error("ByID returned nil for existing base module")
 	}
 
 	// Test ByID for submodule
-	m = idx.ByID("cdp/stage/eu-central-1/ec2/rabbitmq")
+	m = idx.ByID("platform/stage/eu-central-1/ec2/rabbitmq")
 	if m == nil {
 		t.Error("ByID returned nil for existing submodule")
 	} else if !m.IsSubmodule() {
@@ -284,11 +304,11 @@ func TestModuleIndex(t *testing.T) {
 	}
 
 	// Test FindInContext
-	context := modules[0] // cdp/stage/eu-central-1/vpc
+	context := modules[0] // platform/stage/eu-central-1/vpc
 	found := idx.FindInContext("ec2", context)
 	if found == nil {
 		t.Error("FindInContext should find ec2 in same context")
-	} else if found.ID() != "cdp/stage/eu-central-1/ec2" {
+	} else if found.ID() != "platform/stage/eu-central-1/ec2" {
 		t.Errorf("FindInContext returned wrong module: %s", found.ID())
 	}
 }

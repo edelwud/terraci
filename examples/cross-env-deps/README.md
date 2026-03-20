@@ -5,7 +5,7 @@ This example demonstrates how TerraCi handles dependencies that cross environmen
 ## Structure
 
 ```
-cdp/
+platform/
 ├── stage/eu-central-1/
 │   ├── vpc/                    # VPC in stage environment
 │   └── ec2/db-migrate/         # Submodule that depends on multiple VPCs
@@ -44,12 +44,12 @@ data "terraform_remote_state" "vpn_vpc" {
 cd examples/cross-env-deps
 
 # Show dependencies for db-migrate
-terraci graph --module cdp/stage/eu-central-1/ec2/db-migrate
+terraci graph --module platform/stage/eu-central-1/ec2/db-migrate
 
 # Output:
-# Dependencies of cdp/stage/eu-central-1/ec2/db-migrate:
-#   - cdp/stage/eu-central-1/vpc
-#   - cdp/vpn/eu-north-1/vpc
+# Dependencies of platform/stage/eu-central-1/ec2/db-migrate:
+#   - platform/stage/eu-central-1/vpc
+#   - platform/vpn/eu-north-1/vpc
 ```
 
 ## Key Points

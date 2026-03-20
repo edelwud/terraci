@@ -212,7 +212,7 @@ func (r *CommentRenderer) renderStats(stats planStats) string {
 func (r *CommentRenderer) groupByEnvironment(plans []ModulePlan) map[string][]ModulePlan {
 	result := make(map[string][]ModulePlan)
 	for i := range plans {
-		env := plans[i].Environment
+		env := plans[i].Get("environment")
 		if env == "" {
 			env = "default"
 		}

@@ -19,8 +19,14 @@ func TestPlanResultCollection_ToModulePlans(t *testing.T) {
 				Environment: "stage",
 				Region:      "eu-central-1",
 				Module:      "vpc",
-				Status:      PlanStatusChanges,
-				Summary:     "+1 (aws_vpc)",
+				Components: map[string]string{
+					"service":     "platform",
+					"environment": "stage",
+					"region":      "eu-central-1",
+					"module":      "vpc",
+				},
+				Status:  PlanStatusChanges,
+				Summary: "+1 (aws_vpc)",
 			},
 		},
 	}
@@ -118,7 +124,7 @@ func TestScanPlanResults(t *testing.T) {
 		}
 	}
 
-	collection, err := ScanPlanResults(tmpDir)
+	collection, err := ScanPlanResults(tmpDir, nil)
 	if err != nil {
 		t.Fatalf("ScanPlanResults failed: %v", err)
 	}
@@ -152,7 +158,7 @@ func TestScanPlanResults_WithSubmodule(t *testing.T) {
 		t.Fatalf("failed to write plan.json: %v", err)
 	}
 
-	collection, err := ScanPlanResults(tmpDir)
+	collection, err := ScanPlanResults(tmpDir, nil)
 	if err != nil {
 		t.Fatalf("ScanPlanResults failed: %v", err)
 	}
@@ -162,18 +168,18 @@ func TestScanPlanResults_WithSubmodule(t *testing.T) {
 	}
 
 	result := collection.Results[0]
-	if result.Module != "ec2" {
-		t.Errorf("expected module 'ec2', got %q", result.Module)
+	if result.Get("module") != "ec2" {
+		t.Errorf("expected module 'ec2', got %q", result.Get("module"))
 	}
-	if result.Submodule != "web" {
-		t.Errorf("expected submodule 'web', got %q", result.Submodule)
+	if result.Get("submodule") != "web" {
+		t.Errorf("expected submodule 'web', got %q", result.Get("submodule"))
 	}
 }
 
 func TestScanPlanResults_Empty(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	collection, err := ScanPlanResults(tmpDir)
+	collection, err := ScanPlanResults(tmpDir, nil)
 	if err != nil {
 		t.Fatalf("ScanPlanResults failed: %v", err)
 	}

@@ -51,24 +51,11 @@ data "terraform_remote_state" "vpc" {
 	writeTestFile(t, vpcPath, "main.tf", "# VPC module")
 
 	// Create modules and index
-	modules := []*discovery.Module{
-		{
-			Service:      "platform",
-			Environment:  "stage",
-			Region:       "eu-central-1",
-			Module:       "eks",
-			Path:         eksPath,
-			RelativePath: "platform/stage/eu-central-1/eks",
-		},
-		{
-			Service:      "platform",
-			Environment:  "stage",
-			Region:       "eu-central-1",
-			Module:       "vpc",
-			Path:         vpcPath,
-			RelativePath: "platform/stage/eu-central-1/vpc",
-		},
-	}
+	eksModule := discovery.TestModule("platform", "stage", "eu-central-1", "eks")
+	eksModule.Path = eksPath
+	vpcModule := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
+	vpcModule.Path = vpcPath
+	modules := []*discovery.Module{eksModule, vpcModule}
 
 	index := discovery.NewModuleIndex(modules)
 	parser := NewParser()
@@ -118,14 +105,9 @@ func TestDependencyExtractor_MultipleDependencies(t *testing.T) {
 	modules := make([]*discovery.Module, 0, len(moduleData))
 	for _, md := range moduleData {
 		fullPath := createTestModuleDir(t, tmpDir, "platform", "stage", "eu-central-1", md.name)
-		modules = append(modules, &discovery.Module{
-			Service:      "platform",
-			Environment:  "stage",
-			Region:       "eu-central-1",
-			Module:       md.name,
-			Path:         fullPath,
-			RelativePath: md.relPath,
-		})
+		m := discovery.TestModule("platform", "stage", "eu-central-1", md.name)
+		m.Path = fullPath
+		modules = append(modules, m)
 	}
 
 	// App depends on both vpc and rds
@@ -162,7 +144,7 @@ data "terraform_remote_state" "rds" {
 	// Find app module
 	var appModule *discovery.Module
 	for _, m := range modules {
-		if m.Module == "app" {
+		if m.Get("module") == "app" {
 			appModule = m
 			break
 		}
@@ -208,16 +190,9 @@ func TestDependencyExtractor_ForEachDependencies(t *testing.T) {
 	modules := make([]*discovery.Module, 0, len(moduleNames))
 	for _, name := range moduleNames {
 		fullPath := createTestModuleDir(t, tmpDir, "platform", "stage", "eu-central-1", name)
-		relPath := filepath.Join("platform", "stage", "eu-central-1", name)
-
-		modules = append(modules, &discovery.Module{
-			Service:      "platform",
-			Environment:  "stage",
-			Region:       "eu-central-1",
-			Module:       name,
-			Path:         fullPath,
-			RelativePath: relPath,
-		})
+		m := discovery.TestModule("platform", "stage", "eu-central-1", name)
+		m.Path = fullPath
+		modules = append(modules, m)
 
 		writeTestFile(t, fullPath, "main.tf", "# Module")
 	}
@@ -250,7 +225,7 @@ data "terraform_remote_state" "deps" {
 	// Find app module
 	var appModule *discovery.Module
 	for _, m := range modules {
-		if m.Module == "app" {
+		if m.Get("module") == "app" {
 			appModule = m
 			break
 		}
@@ -289,16 +264,9 @@ module "kafka" {
 	writeTestFile(t, modulePath, "main.tf", moduleContent)
 	writeTestFile(t, libraryPath, "main.tf", "# Kafka library")
 
-	modules := []*discovery.Module{
-		{
-			Service:      "platform",
-			Environment:  "stage",
-			Region:       "eu-central-1",
-			Module:       "kafka",
-			Path:         modulePath,
-			RelativePath: "platform/stage/eu-central-1/kafka",
-		},
-	}
+	kafkaModule := discovery.TestModule("platform", "stage", "eu-central-1", "kafka")
+	kafkaModule.Path = modulePath
+	modules := []*discovery.Module{kafkaModule}
 
 	index := discovery.NewModuleIndex(modules)
 	parser := NewParser()
@@ -335,14 +303,9 @@ func TestDependencyExtractor_ExtractAllDependencies(t *testing.T) {
 	modules := make([]*discovery.Module, 0, len(moduleNames))
 	for _, name := range moduleNames {
 		fullPath := createTestModuleDir(t, tmpDir, "platform", "stage", "eu-central-1", name)
-		modules = append(modules, &discovery.Module{
-			Service:      "platform",
-			Environment:  "stage",
-			Region:       "eu-central-1",
-			Module:       name,
-			Path:         fullPath,
-			RelativePath: filepath.Join("platform", "stage", "eu-central-1", name),
-		})
+		m := discovery.TestModule("platform", "stage", "eu-central-1", name)
+		m.Path = fullPath
+		modules = append(modules, m)
 	}
 
 	// VPC - no dependencies
@@ -412,11 +375,14 @@ data "terraform_remote_state" "rds" {
 }
 
 func TestMatchPathToModule(t *testing.T) {
+	ec2RabbitmqModule := discovery.TestModule("platform", "stage", "eu-central-1", "ec2")
+	ec2RabbitmqModule.SetComponent("submodule", "rabbitmq")
+	ec2RabbitmqModule.RelativePath = "platform/stage/eu-central-1/ec2/rabbitmq"
 	modules := []*discovery.Module{
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "vpc", RelativePath: "platform/stage/eu-central-1/vpc"},
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "eks", RelativePath: "platform/stage/eu-central-1/eks"},
-		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "ec2", Submodule: "rabbitmq", RelativePath: "platform/stage/eu-central-1/ec2/rabbitmq"},
-		{Service: "cdp", Environment: "prod", Region: "us-east-1", Module: "api", RelativePath: "cdp/prod/us-east-1/api"},
+		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "eks"),
+		ec2RabbitmqModule,
+		discovery.TestModule("platform", "prod", "us-east-1", "api"),
 	}
 
 	index := discovery.NewModuleIndex(modules)
@@ -461,9 +427,9 @@ func TestMatchPathToModule(t *testing.T) {
 		},
 		{
 			name:       "different service",
-			statePath:  "cdp/prod/us-east-1/api/terraform.tfstate",
+			statePath:  "platform/prod/us-east-1/api/terraform.tfstate",
 			fromModule: modules[0],
-			wantID:     "cdp/prod/us-east-1/api",
+			wantID:     "platform/prod/us-east-1/api",
 		},
 		{
 			name:       "non-existent module",

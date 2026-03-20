@@ -14,13 +14,7 @@ import (
 
 // createTestModule creates a test module with the given parameters
 func createTestModule(service, env, region, module string) *discovery.Module {
-	return &discovery.Module{
-		Service:      service,
-		Environment:  env,
-		Region:       region,
-		Module:       module,
-		RelativePath: service + "/" + env + "/" + region + "/" + module,
-	}
+	return discovery.TestModule(service, env, region, module)
 }
 
 // createTestConfig creates a test configuration with default values
@@ -598,9 +592,9 @@ func TestJobName(t *testing.T) {
 		},
 		{
 			name:     "apply job for eks",
-			module:   createTestModule("cdp", "prod", "us-west-2", "eks"),
+			module:   createTestModule("platform", "prod", "us-west-2", "eks"),
 			jobType:  "apply",
-			expected: "apply-cdp-prod-us-west-2-eks",
+			expected: "apply-platform-prod-us-west-2-eks",
 		},
 		{
 			name:     "plan job with different service",

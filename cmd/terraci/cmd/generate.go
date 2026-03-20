@@ -132,6 +132,9 @@ func discoverAndFilterModules() (allModules, filteredModules []*discovery.Module
 	scanner := discovery.NewScanner(workDir)
 	scanner.MinDepth = cfg.Structure.MinDepth
 	scanner.MaxDepth = cfg.Structure.MaxDepth
+	if len(cfg.Structure.Segments) > 0 {
+		scanner.Segments = cfg.Structure.Segments
+	}
 
 	allModules, err = scanner.Scan()
 	if err != nil {
@@ -166,6 +169,9 @@ func buildDependencyGraph(modules []*discovery.Module, moduleIndex *discovery.Mo
 	log.Info("parsing module dependencies")
 
 	hclParser := parser.NewParser()
+	if len(cfg.Structure.Segments) > 0 {
+		hclParser.Segments = cfg.Structure.Segments
+	}
 	depExtractor := parser.NewDependencyExtractor(hclParser, moduleIndex)
 
 	deps, errs := depExtractor.ExtractAllDependencies()

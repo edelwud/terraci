@@ -677,7 +677,7 @@ func TestConfig_Save(t *testing.T) {
 	}
 }
 
-func TestCountPatternSegments(t *testing.T) {
+func TestParsePatternSegmentCount(t *testing.T) {
 	tests := []struct {
 		pattern string
 		want    int
@@ -686,14 +686,16 @@ func TestCountPatternSegments(t *testing.T) {
 		{"{a}/{b}/{c}", 3},
 		{"{a}", 1},
 		{"{a}/{b}/{c}/{d}/{e}", 5},
-		{"a/b/c", 3},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.pattern, func(t *testing.T) {
-			got := countPatternSegments(tt.pattern)
-			if got != tt.want {
-				t.Errorf("countPatternSegments(%q) = %d, want %d", tt.pattern, got, tt.want)
+			segments, err := ParsePattern(tt.pattern)
+			if err != nil {
+				t.Fatalf("ParsePattern(%q) error: %v", tt.pattern, err)
+			}
+			if len(segments) != tt.want {
+				t.Errorf("len(ParsePattern(%q)) = %d, want %d", tt.pattern, len(segments), tt.want)
 			}
 		})
 	}

@@ -12,17 +12,6 @@ import (
 	"github.com/edelwud/terraci/pkg/config"
 )
 
-// createTestModule creates a test module with the given parameters
-func createTestModule(service, env, region, module string) *discovery.Module {
-	return &discovery.Module{
-		Service:      service,
-		Environment:  env,
-		Region:       region,
-		Module:       module,
-		RelativePath: service + "/" + env + "/" + region + "/" + module,
-	}
-}
-
 // createTestConfig creates a test configuration with default values
 func createTestConfig() *config.Config {
 	return &config.Config{
@@ -51,7 +40,7 @@ func createTestDeps(modules []*discovery.Module, deps map[string][]string) map[s
 func TestNewGenerator(t *testing.T) {
 	cfg := createTestConfig()
 	modules := []*discovery.Module{
-		createTestModule("platform", "stage", "eu-central-1", "vpc"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
 	}
 	depGraph := graph.NewDependencyGraph()
 
@@ -71,7 +60,7 @@ func TestNewGenerator(t *testing.T) {
 func TestGenerator_Generate_SingleModule(t *testing.T) {
 	cfg := createTestConfig()
 	modules := []*discovery.Module{
-		createTestModule("platform", "stage", "eu-central-1", "vpc"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
 	}
 
 	deps := createTestDeps(modules, map[string][]string{
@@ -119,8 +108,8 @@ func TestGenerator_Generate_SingleModule(t *testing.T) {
 
 func TestGenerator_Generate_WithDependencies(t *testing.T) {
 	cfg := createTestConfig()
-	vpc := createTestModule("platform", "stage", "eu-central-1", "vpc")
-	eks := createTestModule("platform", "stage", "eu-central-1", "eks")
+	vpc := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
+	eks := discovery.TestModule("platform", "stage", "eu-central-1", "eks")
 	modules := []*discovery.Module{vpc, eks}
 
 	// EKS depends on VPC
@@ -171,7 +160,7 @@ func TestGenerator_Generate_PlanOnly(t *testing.T) {
 	cfg.GitLab.PlanEnabled = true
 
 	modules := []*discovery.Module{
-		createTestModule("platform", "stage", "eu-central-1", "vpc"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
 	}
 
 	deps := createTestDeps(modules, map[string][]string{
@@ -213,8 +202,8 @@ func TestGenerator_Generate_PlanOnlyWithDependencies(t *testing.T) {
 	cfg.GitLab.PlanOnly = true
 	cfg.GitLab.PlanEnabled = true
 
-	vpc := createTestModule("platform", "stage", "eu-central-1", "vpc")
-	eks := createTestModule("platform", "stage", "eu-central-1", "eks")
+	vpc := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
+	eks := discovery.TestModule("platform", "stage", "eu-central-1", "eks")
 	modules := []*discovery.Module{vpc, eks}
 
 	deps := createTestDeps(modules, map[string][]string{
@@ -259,7 +248,7 @@ func TestGenerator_Generate_AutoApprove(t *testing.T) {
 	cfg.GitLab.AutoApprove = true
 
 	modules := []*discovery.Module{
-		createTestModule("platform", "stage", "eu-central-1", "vpc"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
 	}
 
 	deps := createTestDeps(modules, map[string][]string{
@@ -294,7 +283,7 @@ func TestGenerator_Generate_ManualApprove(t *testing.T) {
 	cfg.GitLab.AutoApprove = false
 
 	modules := []*discovery.Module{
-		createTestModule("platform", "stage", "eu-central-1", "vpc"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
 	}
 
 	deps := createTestDeps(modules, map[string][]string{
@@ -329,7 +318,7 @@ func TestGenerator_Generate_CustomStagesPrefix(t *testing.T) {
 	cfg.GitLab.StagesPrefix = "terraform"
 
 	modules := []*discovery.Module{
-		createTestModule("platform", "stage", "eu-central-1", "vpc"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
 	}
 
 	deps := createTestDeps(modules, map[string][]string{
@@ -361,7 +350,7 @@ func TestGenerator_Generate_TerraformBinary(t *testing.T) {
 	cfg.GitLab.TerraformBinary = "tofu"
 
 	modules := []*discovery.Module{
-		createTestModule("platform", "stage", "eu-central-1", "vpc"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
 	}
 
 	deps := createTestDeps(modules, map[string][]string{
@@ -389,7 +378,7 @@ func TestGenerator_Generate_TerraformBinary(t *testing.T) {
 func TestGenerator_Generate_JobVariables(t *testing.T) {
 	cfg := createTestConfig()
 	modules := []*discovery.Module{
-		createTestModule("platform", "stage", "eu-central-1", "vpc"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
 	}
 
 	deps := createTestDeps(modules, map[string][]string{
@@ -432,7 +421,7 @@ func TestGenerator_Generate_JobVariables(t *testing.T) {
 func TestGenerator_Generate_ResourceGroup(t *testing.T) {
 	cfg := createTestConfig()
 	modules := []*discovery.Module{
-		createTestModule("platform", "stage", "eu-central-1", "vpc"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
 	}
 
 	deps := createTestDeps(modules, map[string][]string{
@@ -467,8 +456,8 @@ func TestGenerator_Generate_ResourceGroup(t *testing.T) {
 
 func TestGenerator_DryRun(t *testing.T) {
 	cfg := createTestConfig()
-	vpc := createTestModule("platform", "stage", "eu-central-1", "vpc")
-	eks := createTestModule("platform", "stage", "eu-central-1", "eks")
+	vpc := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
+	eks := discovery.TestModule("platform", "stage", "eu-central-1", "eks")
 	modules := []*discovery.Module{vpc, eks}
 
 	deps := createTestDeps(modules, map[string][]string{
@@ -507,14 +496,14 @@ func TestGenerator_jobName(t *testing.T) {
 		expected string
 	}{
 		{
-			module:   createTestModule("platform", "stage", "eu-central-1", "vpc"),
+			module:   discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
 			jobType:  "plan",
 			expected: "plan-platform-stage-eu-central-1-vpc",
 		},
 		{
-			module:   createTestModule("cdp", "prod", "us-west-2", "eks"),
+			module:   discovery.TestModule("platform", "prod", "us-west-2", "eks"),
 			jobType:  "apply",
-			expected: "apply-cdp-prod-us-west-2-eks",
+			expected: "apply-platform-prod-us-west-2-eks",
 		},
 	}
 
@@ -568,8 +557,8 @@ func TestGenerator_Generate_WithMRIntegration(t *testing.T) {
 	cfg.GitLab.MR = &config.MRConfig{}
 
 	modules := []*discovery.Module{
-		createTestModule("platform", "stage", "eu-central-1", "vpc"),
-		createTestModule("platform", "stage", "eu-central-1", "eks"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "eks"),
 	}
 
 	deps := createTestDeps(modules, map[string][]string{
@@ -635,7 +624,7 @@ func TestGenerator_Generate_WithMRIntegration_Disabled(t *testing.T) {
 	// No MR config - MR integration disabled
 
 	modules := []*discovery.Module{
-		createTestModule("platform", "stage", "eu-central-1", "vpc"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
 	}
 
 	deps := createTestDeps(modules, map[string][]string{
@@ -733,7 +722,7 @@ func TestGenerator_Generate_WithSecrets(t *testing.T) {
 	}
 
 	modules := []*discovery.Module{
-		createTestModule("platform", "stage", "eu-central-1", "vpc"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
 	}
 	deps := createTestDeps(modules, map[string][]string{
 		modules[0].ID(): {},
@@ -793,7 +782,7 @@ func TestGenerator_Generate_WithArtifacts(t *testing.T) {
 	}
 
 	modules := []*discovery.Module{
-		createTestModule("platform", "stage", "eu-central-1", "vpc"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
 	}
 	deps := createTestDeps(modules, map[string][]string{
 		modules[0].ID(): {},
@@ -847,7 +836,7 @@ func TestGenerator_Generate_WithPolicyCheck(t *testing.T) {
 	}
 
 	modules := []*discovery.Module{
-		createTestModule("platform", "stage", "eu-central-1", "vpc"),
+		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
 	}
 	deps := createTestDeps(modules, map[string][]string{
 		modules[0].ID(): {},
@@ -900,9 +889,9 @@ func TestGenerator_Generate_WithPolicyCheck(t *testing.T) {
 func TestGenerator_GenerateForChangedModules(t *testing.T) {
 	cfg := createTestConfig()
 
-	vpc := createTestModule("platform", "stage", "eu-central-1", "vpc")
-	eks := createTestModule("platform", "stage", "eu-central-1", "eks")
-	rds := createTestModule("platform", "stage", "eu-central-1", "rds")
+	vpc := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
+	eks := discovery.TestModule("platform", "stage", "eu-central-1", "eks")
+	rds := discovery.TestModule("platform", "stage", "eu-central-1", "rds")
 	modules := []*discovery.Module{vpc, eks, rds}
 
 	// EKS depends on VPC, RDS is independent

@@ -200,11 +200,10 @@ func (de *DependencyExtractor) matchPathToModule(statePath string, from *discove
 	}
 
 	// Try pattern matching with wildcards from current module context
-	// If from module is cdp/stage/eu-central-1/eks, and path is vpc,
-	// try cdp/stage/eu-central-1/vpc
+	// If from module is platform/stage/eu-central-1/eks, and path is vpc,
+	// try platform/stage/eu-central-1/vpc
 	if len(parts) == 1 {
-		sameContextID := fmt.Sprintf("%s/%s/%s/%s",
-			from.Service, from.Environment, from.Region, parts[0])
+		sameContextID := from.ContextPrefix() + "/" + parts[0]
 		if m := de.index.ByID(sameContextID); m != nil {
 			return m
 		}
@@ -212,8 +211,7 @@ func (de *DependencyExtractor) matchPathToModule(statePath string, from *discove
 		// Also try as submodule of the same parent module
 		// e.g., from ec2/rabbitmq looking for "redis" -> try ec2/redis
 		if from.IsSubmodule() {
-			siblingID := fmt.Sprintf("%s/%s/%s/%s/%s",
-				from.Service, from.Environment, from.Region, from.Module, parts[0])
+			siblingID := from.ContextPrefix() + "/" + from.LeafValue() + "/" + parts[0]
 			if m := de.index.ByID(siblingID); m != nil {
 				return m
 			}
@@ -222,8 +220,7 @@ func (de *DependencyExtractor) matchPathToModule(statePath string, from *discove
 
 	// Try module/submodule format (e.g., "ec2/rabbitmq")
 	if len(parts) == 2 {
-		sameContextID := fmt.Sprintf("%s/%s/%s/%s/%s",
-			from.Service, from.Environment, from.Region, parts[0], parts[1])
+		sameContextID := from.ContextPrefix() + "/" + parts[0] + "/" + parts[1]
 		if m := de.index.ByID(sameContextID); m != nil {
 			return m
 		}

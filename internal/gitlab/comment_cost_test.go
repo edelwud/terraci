@@ -12,24 +12,24 @@ func TestCommentRenderer_RenderWithCost(t *testing.T) {
 
 	plans := []ModulePlan{
 		{
-			ModuleID:    "platform/prod/eu-central-1/vpc",
-			Environment: "prod",
-			Status:      PlanStatusChanges,
-			Summary:     "+2 ~1",
-			CostBefore:  100.50,
-			CostAfter:   150.75,
-			CostDiff:    50.25,
-			HasCost:     true,
+			ModuleID:   "platform/prod/eu-central-1/vpc",
+			Components: map[string]string{"environment": "prod"},
+			Status:     PlanStatusChanges,
+			Summary:    "+2 ~1",
+			CostBefore: 100.50,
+			CostAfter:  150.75,
+			CostDiff:   50.25,
+			HasCost:    true,
 		},
 		{
-			ModuleID:    "platform/prod/eu-central-1/eks",
-			Environment: "prod",
-			Status:      PlanStatusNoChanges,
-			Summary:     "No changes",
-			CostBefore:  73.00,
-			CostAfter:   73.00,
-			CostDiff:    0,
-			HasCost:     true,
+			ModuleID:   "platform/prod/eu-central-1/eks",
+			Components: map[string]string{"environment": "prod"},
+			Status:     PlanStatusNoChanges,
+			Summary:    "No changes",
+			CostBefore: 73.00,
+			CostAfter:  73.00,
+			CostDiff:   0,
+			HasCost:    true,
 		},
 	}
 
@@ -63,11 +63,11 @@ func TestCommentRenderer_RenderWithoutCost(t *testing.T) {
 
 	plans := []ModulePlan{
 		{
-			ModuleID:    "platform/prod/eu-central-1/vpc",
-			Environment: "prod",
-			Status:      PlanStatusChanges,
-			Summary:     "+2 ~1",
-			HasCost:     false, // No cost data
+			ModuleID:   "platform/prod/eu-central-1/vpc",
+			Components: map[string]string{"environment": "prod"},
+			Status:     PlanStatusChanges,
+			Summary:    "+2 ~1",
+			HasCost:    false, // No cost data
 		},
 	}
 

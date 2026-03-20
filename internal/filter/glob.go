@@ -10,7 +10,7 @@ import (
 
 // GlobFilter filters modules based on glob patterns
 type GlobFilter struct {
-	// ExcludePatterns are patterns to exclude (e.g., "cdp/*/eu-north-1/*")
+	// ExcludePatterns are patterns to exclude (e.g., "platform/*/eu-north-1/*")
 	ExcludePatterns []string
 	// IncludePatterns are patterns to include (if empty, all are included)
 	IncludePatterns []string
@@ -200,7 +200,7 @@ func (f *ServiceFilter) Match(module *discovery.Module) bool {
 		return true
 	}
 	for _, s := range f.Services {
-		if module.Service == s {
+		if module.Get("service") == s {
 			return true
 		}
 	}
@@ -218,7 +218,7 @@ func (f *EnvironmentFilter) Match(module *discovery.Module) bool {
 		return true
 	}
 	for _, e := range f.Environments {
-		if module.Environment == e {
+		if module.Get("environment") == e {
 			return true
 		}
 	}
@@ -236,7 +236,7 @@ func (f *RegionFilter) Match(module *discovery.Module) bool {
 		return true
 	}
 	for _, r := range f.Regions {
-		if module.Region == r {
+		if module.Get("region") == r {
 			return true
 		}
 	}
