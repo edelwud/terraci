@@ -1,4 +1,4 @@
-// Package eval provides HCL evaluation context and Terraform function implementations
+// Package eval provides HCL evaluation context and Terraform function implementations.
 package eval
 
 import (
@@ -7,12 +7,12 @@ import (
 	"github.com/zclconf/go-cty/cty/function"
 )
 
-// NewContext creates an HCL evaluation context with Terraform functions
+// NewContext creates an HCL evaluation context with Terraform functions.
 func NewContext(locals, variables map[string]cty.Value, modulePath string) *hcl.EvalContext {
 	return &hcl.EvalContext{
 		Variables: map[string]cty.Value{
-			"local": cty.ObjectVal(locals),
-			"var":   cty.ObjectVal(variables),
+			"local": safeObjectVal(locals),
+			"var":   safeObjectVal(variables),
 			"path": cty.ObjectVal(map[string]cty.Value{
 				"module": cty.StringVal(modulePath),
 			}),
@@ -21,9 +21,17 @@ func NewContext(locals, variables map[string]cty.Value, modulePath string) *hcl.
 	}
 }
 
-// Functions returns a map of Terraform functions for HCL evaluation
+// Functions returns Terraform functions for HCL evaluation.
 func Functions() map[string]function.Function {
 	return map[string]function.Function{
 		"lookup": lookupFunc,
 	}
+}
+
+// safeObjectVal creates a cty.ObjectVal, returning an empty object for nil/empty maps.
+func safeObjectVal(m map[string]cty.Value) cty.Value {
+	if len(m) == 0 {
+		return cty.EmptyObjectVal
+	}
+	return cty.ObjectVal(m)
 }

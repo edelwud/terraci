@@ -1,22 +1,29 @@
 // Package filter provides filtering functionality for modules based on glob patterns
+// and segment values.
 package filter
 
 import (
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/edelwud/terraci/internal/discovery"
 )
 
-// GlobFilter filters modules based on glob patterns
+// ModuleFilter is an interface for module filters.
+type ModuleFilter interface {
+	Match(module *discovery.Module) bool
+}
+
+// --- Glob filter ---
+
+// GlobFilter filters modules based on include/exclude glob patterns.
 type GlobFilter struct {
-	// ExcludePatterns are patterns to exclude (e.g., "platform/*/eu-north-1/*")
 	ExcludePatterns []string
-	// IncludePatterns are patterns to include (if empty, all are included)
 	IncludePatterns []string
 }
 
-// NewGlobFilter creates a new filter with the given patterns
+// NewGlobFilter creates a new filter with the given patterns.
 func NewGlobFilter(exclude, include []string) *GlobFilter {
 	return &GlobFilter{
 		ExcludePatterns: exclude,
@@ -24,36 +31,22 @@ func NewGlobFilter(exclude, include []string) *GlobFilter {
 	}
 }
 
-// Match checks if a module ID matches the filter criteria
-// Returns true if the module should be included
+// Match checks if a module ID matches the filter criteria.
 func (f *GlobFilter) Match(moduleID string) bool {
-	// Normalize path separators for matching
-	normalizedID := filepath.ToSlash(moduleID)
+	id := filepath.ToSlash(moduleID)
 
-	// Check exclude patterns first
 	for _, pattern := range f.ExcludePatterns {
-		normalizedPattern := filepath.ToSlash(pattern)
-		if matchPattern(normalizedPattern, normalizedID) {
-			return false
-		}
-		// Also try glob-style matching with **
-		if matchGlob(normalizedPattern, normalizedID) {
+		if matchGlob(filepath.ToSlash(pattern), id) {
 			return false
 		}
 	}
 
-	// If no include patterns, include by default
 	if len(f.IncludePatterns) == 0 {
 		return true
 	}
 
-	// Check include patterns
 	for _, pattern := range f.IncludePatterns {
-		normalizedPattern := filepath.ToSlash(pattern)
-		if matchPattern(normalizedPattern, normalizedID) {
-			return true
-		}
-		if matchGlob(normalizedPattern, normalizedID) {
+		if matchGlob(filepath.ToSlash(pattern), id) {
 			return true
 		}
 	}
@@ -61,204 +54,62 @@ func (f *GlobFilter) Match(moduleID string) bool {
 	return false
 }
 
-// matchPattern wraps filepath.Match and returns false on invalid patterns
-func matchPattern(pattern, name string) bool {
-	matched, err := filepath.Match(pattern, name)
-	if err != nil {
-		return false // Invalid pattern treated as no match
-	}
-	return matched
+// MatchModule implements ModuleFilter.
+func (f *GlobFilter) MatchModule(module *discovery.Module) bool {
+	return f.Match(module.ID())
 }
 
-// FilterModules returns modules that match the filter criteria
+// FilterModules returns modules that match the filter criteria.
 func (f *GlobFilter) FilterModules(modules []*discovery.Module) []*discovery.Module {
 	var result []*discovery.Module
-
 	for _, m := range modules {
 		if f.Match(m.ID()) {
 			result = append(result, m)
 		}
 	}
-
 	return result
 }
 
-// FilterModuleIDs returns module IDs that match the filter criteria
+// FilterModuleIDs returns module IDs that match the filter criteria.
 func (f *GlobFilter) FilterModuleIDs(moduleIDs []string) []string {
 	var result []string
-
 	for _, id := range moduleIDs {
 		if f.Match(id) {
 			result = append(result, id)
 		}
 	}
-
 	return result
 }
 
-// matchGlob provides extended glob matching with ** support
-func matchGlob(pattern, path string) bool {
-	// Handle ** pattern
-	if strings.Contains(pattern, "**") {
-		return matchDoubleStarGlob(pattern, path)
-	}
+// --- Segment filter (replaces ServiceFilter, EnvironmentFilter, RegionFilter) ---
 
-	// Fall back to standard filepath.Match
-	return matchPattern(pattern, path)
+// SegmentFilter filters modules by a named segment value.
+type SegmentFilter struct {
+	Segment string   // segment name (e.g. "service", "environment", "region")
+	Values  []string // allowed values
 }
 
-// matchDoubleStarGlob handles ** patterns that match any number of path segments
-func matchDoubleStarGlob(pattern, path string) bool {
-	// Split pattern by **
-	parts := strings.Split(pattern, "**")
-
-	if len(parts) == 1 {
-		// No ** in pattern
-		return matchPattern(pattern, path)
-	}
-
-	// For pattern like "a/**/b", parts = ["a/", "/b"]
-	// Match prefix
-	prefix := parts[0]
-	if prefix != "" {
-		prefix = strings.TrimSuffix(prefix, "/")
-		if !strings.HasPrefix(path, prefix) && !matchPrefix(prefix, path) {
-			return false
-		}
-		// Remove matched prefix
-		path = strings.TrimPrefix(path, prefix)
-		path = strings.TrimPrefix(path, "/")
-	}
-
-	// Match suffix
-	suffix := parts[len(parts)-1]
-	if suffix != "" {
-		suffix = strings.TrimPrefix(suffix, "/")
-		if !strings.HasSuffix(path, suffix) && !matchSuffix(suffix, path) {
-			return false
-		}
-	}
-
-	// Handle middle parts if any
-	if len(parts) > 2 {
-		for i := 1; i < len(parts)-1; i++ {
-			middle := strings.Trim(parts[i], "/")
-			if middle != "" && !strings.Contains(path, middle) {
-				return false
-			}
-		}
-	}
-
-	return true
-}
-
-// matchPrefix matches a glob prefix against a path
-func matchPrefix(prefix, path string) bool {
-	prefixParts := strings.Split(prefix, "/")
-	pathParts := strings.Split(path, "/")
-
-	if len(prefixParts) > len(pathParts) {
-		return false
-	}
-
-	for i, pp := range prefixParts {
-		if !matchPattern(pp, pathParts[i]) {
-			return false
-		}
-	}
-
-	return true
-}
-
-// matchSuffix matches a glob suffix against a path
-func matchSuffix(suffix, path string) bool {
-	suffixParts := strings.Split(suffix, "/")
-	pathParts := strings.Split(path, "/")
-
-	if len(suffixParts) > len(pathParts) {
-		return false
-	}
-
-	offset := len(pathParts) - len(suffixParts)
-	for i, sp := range suffixParts {
-		if !matchPattern(sp, pathParts[offset+i]) {
-			return false
-		}
-	}
-
-	return true
-}
-
-// ServiceFilter filters modules by service
-type ServiceFilter struct {
-	Services []string
-}
-
-// Match returns true if the module belongs to one of the specified services
-func (f *ServiceFilter) Match(module *discovery.Module) bool {
-	if len(f.Services) == 0 {
+// Match implements ModuleFilter.
+func (f *SegmentFilter) Match(module *discovery.Module) bool {
+	if len(f.Values) == 0 {
 		return true
 	}
-	for _, s := range f.Services {
-		if module.Get("service") == s {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(f.Values, module.Get(f.Segment))
 }
 
-// EnvironmentFilter filters modules by environment
-type EnvironmentFilter struct {
-	Environments []string
-}
+// --- Composite filter ---
 
-// Match returns true if the module belongs to one of the specified environments
-func (f *EnvironmentFilter) Match(module *discovery.Module) bool {
-	if len(f.Environments) == 0 {
-		return true
-	}
-	for _, e := range f.Environments {
-		if module.Get("environment") == e {
-			return true
-		}
-	}
-	return false
-}
-
-// RegionFilter filters modules by region
-type RegionFilter struct {
-	Regions []string
-}
-
-// Match returns true if the module is in one of the specified regions
-func (f *RegionFilter) Match(module *discovery.Module) bool {
-	if len(f.Regions) == 0 {
-		return true
-	}
-	for _, r := range f.Regions {
-		if module.Get("region") == r {
-			return true
-		}
-	}
-	return false
-}
-
-// CompositeFilter combines multiple filters with AND logic
+// CompositeFilter combines multiple filters with AND logic.
 type CompositeFilter struct {
 	filters []ModuleFilter
 }
 
-// ModuleFilter is an interface for module filters
-type ModuleFilter interface {
-	Match(module *discovery.Module) bool
-}
-
-// NewCompositeFilter creates a composite filter
+// NewCompositeFilter creates a composite filter.
 func NewCompositeFilter(filters ...ModuleFilter) *CompositeFilter {
 	return &CompositeFilter{filters: filters}
 }
 
-// Match returns true if all filters match
+// Match returns true if all filters match.
 func (f *CompositeFilter) Match(module *discovery.Module) bool {
 	for _, filter := range f.filters {
 		if !filter.Match(module) {
@@ -268,7 +119,7 @@ func (f *CompositeFilter) Match(module *discovery.Module) bool {
 	return true
 }
 
-// FilterModules applies the composite filter to a list of modules
+// FilterModules applies the composite filter to a list of modules.
 func (f *CompositeFilter) FilterModules(modules []*discovery.Module) []*discovery.Module {
 	var result []*discovery.Module
 	for _, m := range modules {
@@ -279,62 +130,105 @@ func (f *CompositeFilter) FilterModules(modules []*discovery.Module) []*discover
 	return result
 }
 
-// GlobModuleFilter wraps GlobFilter to implement ModuleFilter interface
-type GlobModuleFilter struct {
-	*GlobFilter
-}
+// --- Options and Apply ---
 
-// Match implements ModuleFilter
-func (f *GlobModuleFilter) Match(module *discovery.Module) bool {
-	return f.GlobFilter.Match(module.ID())
-}
-
-// Options contains all filter parameters
+// Options contains all filter parameters.
 type Options struct {
-	// Excludes are glob patterns to exclude modules
-	Excludes []string
-	// Includes are glob patterns to include modules (if empty, all included)
-	Includes []string
-	// Services filters by service name
-	Services []string
-	// Environments filters by environment name
-	Environments []string
-	// Regions filters by region name
-	Regions []string
+	Excludes []string            // glob patterns to exclude
+	Includes []string            // glob patterns to include (empty = all)
+	Segments map[string][]string // segment name → allowed values (e.g. "service" → ["platform"])
 }
 
-// Apply applies all configured filters to modules
+// Apply applies all configured filters to modules.
 func Apply(modules []*discovery.Module, opts Options) []*discovery.Module {
-	// Build list of filters
 	var filters []ModuleFilter
 
-	// Add glob filter if any patterns specified
 	if len(opts.Excludes) > 0 || len(opts.Includes) > 0 {
-		globFilter := NewGlobFilter(opts.Excludes, opts.Includes)
-		filters = append(filters, &GlobModuleFilter{globFilter})
+		filters = append(filters, &globModuleFilter{NewGlobFilter(opts.Excludes, opts.Includes)})
 	}
 
-	// Add service filter
-	if len(opts.Services) > 0 {
-		filters = append(filters, &ServiceFilter{Services: opts.Services})
+	for segment, values := range opts.Segments {
+		if len(values) > 0 {
+			filters = append(filters, &SegmentFilter{Segment: segment, Values: values})
+		}
 	}
 
-	// Add environment filter
-	if len(opts.Environments) > 0 {
-		filters = append(filters, &EnvironmentFilter{Environments: opts.Environments})
-	}
-
-	// Add region filter
-	if len(opts.Regions) > 0 {
-		filters = append(filters, &RegionFilter{Regions: opts.Regions})
-	}
-
-	// If no filters, return all modules
 	if len(filters) == 0 {
 		return modules
 	}
 
-	// Apply composite filter
-	composite := NewCompositeFilter(filters...)
-	return composite.FilterModules(modules)
+	return NewCompositeFilter(filters...).FilterModules(modules)
+}
+
+// globModuleFilter adapts GlobFilter to ModuleFilter interface.
+type globModuleFilter struct{ *GlobFilter }
+
+func (f *globModuleFilter) Match(module *discovery.Module) bool {
+	return f.GlobFilter.Match(module.ID())
+}
+
+// --- Glob matching internals ---
+
+// matchGlob provides extended glob matching with ** support.
+func matchGlob(pattern, path string) bool {
+	if strings.Contains(pattern, "**") {
+		return matchDoubleStarGlob(pattern, path)
+	}
+	matched, _ := filepath.Match(pattern, path) //nolint:errcheck
+	return matched
+}
+
+func matchDoubleStarGlob(pattern, path string) bool {
+	parts := strings.Split(pattern, "**")
+	if len(parts) == 1 {
+		matched, _ := filepath.Match(pattern, path) //nolint:errcheck
+		return matched
+	}
+
+	// Match prefix
+	if prefix := strings.TrimSuffix(parts[0], "/"); prefix != "" {
+		if !strings.HasPrefix(path, prefix) && !matchSegments(prefix, path, true) {
+			return false
+		}
+		path = strings.TrimPrefix(strings.TrimPrefix(path, prefix), "/")
+	}
+
+	// Match suffix
+	if suffix := strings.TrimPrefix(parts[len(parts)-1], "/"); suffix != "" {
+		if !strings.HasSuffix(path, suffix) && !matchSegments(suffix, path, false) {
+			return false
+		}
+	}
+
+	// Match middle parts
+	for i := 1; i < len(parts)-1; i++ {
+		if middle := strings.Trim(parts[i], "/"); middle != "" && !strings.Contains(path, middle) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// matchSegments matches glob segments against path segments (prefix or suffix).
+func matchSegments(pattern, path string, prefix bool) bool {
+	patternParts := strings.Split(pattern, "/")
+	pathParts := strings.Split(path, "/")
+
+	if len(patternParts) > len(pathParts) {
+		return false
+	}
+
+	offset := 0
+	if !prefix {
+		offset = len(pathParts) - len(patternParts)
+	}
+
+	for i, pp := range patternParts {
+		matched, _ := filepath.Match(pp, pathParts[offset+i]) //nolint:errcheck
+		if !matched {
+			return false
+		}
+	}
+	return true
 }

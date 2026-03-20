@@ -1,4 +1,3 @@
-// Package plan provides terraform plan JSON parsing functionality
 package plan
 
 import (
@@ -7,60 +6,25 @@ import (
 	"os"
 	"reflect"
 	"sort"
-	"strings"
 
 	tfjson "github.com/hashicorp/terraform-json"
 )
 
-// ParsedPlan represents a parsed terraform plan with extracted changes
-type ParsedPlan struct {
-	TerraformVersion string
-	FormatVersion    string
-	ToAdd            int
-	ToChange         int
-	ToDestroy        int
-	ToImport         int
-	Resources        []ResourceChange
-}
-
-// ResourceChange represents a single resource change extracted from the plan
-type ResourceChange struct {
-	Address    string     // Full resource address (e.g., "module.vpc.aws_vpc.main")
-	Type       string     // Resource type (e.g., "aws_vpc")
-	Name       string     // Resource name (e.g., "main")
-	ModuleAddr string     // Module address (e.g., "module.vpc")
-	Action     string     // "create", "update", "delete", "replace", "read", "no-op"
-	Attributes []AttrDiff // Changed attributes
-}
-
-// AttrDiff represents a single attribute change
-type AttrDiff struct {
-	Path      string // Attribute path (e.g., "instance_type", "tags.Name")
-	OldValue  string // Old value (empty for new attributes)
-	NewValue  string // New value (empty for removed attributes)
-	Sensitive bool   // Whether the attribute is sensitive
-	ForceNew  bool   // Whether this change forces resource replacement
-	Computed  bool   // Whether the new value is computed (unknown)
-}
-
-// ParseJSON parses a terraform plan JSON file and extracts change information
+// ParseJSON parses a terraform plan JSON file.
 func ParseJSON(path string) (*ParsedPlan, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read plan file: %w", err)
+		return nil, fmt.Errorf("read plan file: %w", err)
 	}
-
 	return ParseJSONData(data)
 }
 
-// ParseJSONData parses terraform plan JSON data and extracts change information
+// ParseJSONData parses terraform plan JSON data.
 func ParseJSONData(data []byte) (*ParsedPlan, error) {
 	var plan tfjson.Plan
 	if err := json.Unmarshal(data, &plan); err != nil {
-		return nil, fmt.Errorf("failed to parse plan JSON: %w", err)
+		return nil, fmt.Errorf("parse plan JSON: %w", err)
 	}
-
-	// Validate plan format version
 	if err := plan.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid plan format: %w", err)
 	}
@@ -76,32 +40,12 @@ func ParseJSONData(data []byte) (*ParsedPlan, error) {
 			continue
 		}
 
-		// Determine action
 		action := determineAction(rc.Change.Actions)
 		if action == "no-op" {
-			continue // Skip no-op changes
+			continue
 		}
 
-		// Count changes
-		switch action {
-		case "create":
-			parsed.ToAdd++
-		case "update":
-			parsed.ToChange++
-		case "delete":
-			parsed.ToDestroy++
-		case "replace":
-			parsed.ToAdd++
-			parsed.ToDestroy++
-		}
-
-		// Check for import
-		if rc.Change.Importing != nil {
-			parsed.ToImport++
-		}
-
-		// Extract attribute diffs
-		attrs := extractAttributeDiffs(rc.Change)
+		countAction(parsed, action, rc.Change)
 
 		parsed.Resources = append(parsed.Resources, ResourceChange{
 			Address:    rc.Address,
@@ -109,19 +53,35 @@ func ParseJSONData(data []byte) (*ParsedPlan, error) {
 			Name:       rc.Name,
 			ModuleAddr: rc.ModuleAddress,
 			Action:     action,
-			Attributes: attrs,
+			Attributes: extractAttributeDiffs(rc.Change),
 		})
 	}
 
 	return parsed, nil
 }
 
-// HasChanges returns true if the plan has any changes
-func (p *ParsedPlan) HasChanges() bool {
-	return p.ToAdd > 0 || p.ToChange > 0 || p.ToDestroy > 0
+const (
+	actionReplace  = "replace"
+	sensitiveValue = "(sensitive)"
+)
+
+func countAction(p *ParsedPlan, action string, change *tfjson.Change) {
+	switch action {
+	case "create":
+		p.ToAdd++
+	case "update":
+		p.ToChange++
+	case "delete":
+		p.ToDestroy++
+	case actionReplace:
+		p.ToAdd++
+		p.ToDestroy++
+	}
+	if change.Importing != nil {
+		p.ToImport++
+	}
 }
 
-// determineAction converts tfjson.Actions to a string action
 func determineAction(actions tfjson.Actions) string {
 	switch {
 	case actions.Create():
@@ -131,7 +91,7 @@ func determineAction(actions tfjson.Actions) string {
 	case actions.Delete():
 		return "delete"
 	case actions.Replace():
-		return "replace"
+		return actionReplace
 	case actions.Read():
 		return "read"
 	default:
@@ -139,181 +99,89 @@ func determineAction(actions tfjson.Actions) string {
 	}
 }
 
-// extractAttributeDiffs extracts attribute differences from a Change
+// --- Attribute diff extraction ---
+
 func extractAttributeDiffs(change *tfjson.Change) []AttrDiff {
 	if change == nil {
 		return nil
 	}
 
-	// Convert before/after to maps
-	beforeMap := toStringMap(change.Before)
-	afterMap := toStringMap(change.After)
-	afterUnknownMap := toStringMap(change.AfterUnknown)
-	beforeSensitiveMap := toStringMap(change.BeforeSensitive)
-	afterSensitiveMap := toStringMap(change.AfterSensitive)
+	before := toMap(change.Before)
+	after := toMap(change.After)
+	afterUnknown := toMap(change.AfterUnknown)
+	beforeSensitive := toMap(change.BeforeSensitive)
+	afterSensitive := toMap(change.AfterSensitive)
+	replacePaths := collectReplacePaths(change.ReplacePaths)
 
-	// Get replace paths for force_new detection
-	replacePaths := make(map[string]bool)
-	for _, rp := range change.ReplacePaths {
-		if paths, ok := rp.([]interface{}); ok {
-			pathStr := pathToString(paths)
-			replacePaths[pathStr] = true
-		}
-	}
+	allKeys := collectAllKeys(before, after)
 
-	// Collect all keys
-	allKeys := make(map[string]bool)
-	collectKeys(beforeMap, "", allKeys)
-	collectKeys(afterMap, "", allKeys)
+	diffs := make([]AttrDiff, 0, len(allKeys))
+	for _, key := range allKeys {
+		oldVal := getNestedValue(before, key)
+		newVal := getNestedValue(after, key)
+		isUnknown := getBool(afterUnknown, key)
 
-	// Sort keys for consistent output
-	sortedKeys := make([]string, 0, len(allKeys))
-	for k := range allKeys {
-		sortedKeys = append(sortedKeys, k)
-	}
-
-	// Pre-allocate diffs slice
-	diffs := make([]AttrDiff, 0, len(sortedKeys))
-	sort.Strings(sortedKeys)
-
-	// Compare values
-	for _, key := range sortedKeys {
-		oldVal := getNestedValue(beforeMap, key)
-		newVal := getNestedValue(afterMap, key)
-		isUnknown := getBoolValue(afterUnknownMap, key)
-		isBeforeSensitive := getBoolValue(beforeSensitiveMap, key)
-		isAfterSensitive := getBoolValue(afterSensitiveMap, key)
-
-		// Skip if no change
 		if reflect.DeepEqual(oldVal, newVal) && !isUnknown {
 			continue
 		}
 
-		diff := AttrDiff{
-			Path:      key,
-			OldValue:  formatValue(oldVal),
-			NewValue:  formatValue(newVal),
-			Sensitive: isBeforeSensitive || isAfterSensitive,
-			ForceNew:  replacePaths[key],
-			Computed:  isUnknown,
-		}
-
-		// Handle sensitive values
-		if isBeforeSensitive {
-			diff.OldValue = "(sensitive)"
-		}
-		if isAfterSensitive || (isUnknown && isAfterSensitive) {
-			diff.NewValue = "(sensitive)"
-		}
-		if isUnknown && !isAfterSensitive {
-			diff.NewValue = "(known after apply)"
-		}
-
-		diffs = append(diffs, diff)
+		diffs = append(diffs, buildAttrDiff(key, oldVal, newVal, attrFlags{
+			unknown:         isUnknown,
+			beforeSensitive: getBool(beforeSensitive, key),
+			afterSensitive:  getBool(afterSensitive, key),
+			forceNew:        replacePaths[key],
+		}))
 	}
 
 	return diffs
 }
 
-// toStringMap converts an interface{} to a map[string]interface{}
-func toStringMap(v interface{}) map[string]interface{} {
-	if v == nil {
-		return nil
-	}
-	if m, ok := v.(map[string]interface{}); ok {
-		return m
-	}
-	return nil
+type attrFlags struct {
+	unknown, beforeSensitive, afterSensitive, forceNew bool
 }
 
-// collectKeys recursively collects all keys from a nested map
-func collectKeys(m map[string]interface{}, prefix string, keys map[string]bool) {
-	for k, v := range m {
-		fullKey := k
-		if prefix != "" {
-			fullKey = prefix + "." + k
-		}
-
-		keys[fullKey] = true
-
-		// Recurse into nested maps
-		if nested, ok := v.(map[string]interface{}); ok {
-			collectKeys(nested, fullKey, keys)
-		}
+func buildAttrDiff(key string, oldVal, newVal any, f attrFlags) AttrDiff {
+	diff := AttrDiff{
+		Path:      key,
+		OldValue:  formatValue(oldVal),
+		NewValue:  formatValue(newVal),
+		Sensitive: f.beforeSensitive || f.afterSensitive,
+		ForceNew:  f.forceNew,
+		Computed:  f.unknown,
 	}
+
+	if f.beforeSensitive {
+		diff.OldValue = sensitiveValue
+	}
+	switch {
+	case f.afterSensitive:
+		diff.NewValue = sensitiveValue
+	case f.unknown:
+		diff.NewValue = "(known after apply)"
+	}
+
+	return diff
 }
 
-// getNestedValue gets a value from a nested map using dot notation
-func getNestedValue(m map[string]interface{}, key string) interface{} {
-	if m == nil {
-		return nil
-	}
-
-	parts := strings.Split(key, ".")
-	current := interface{}(m)
-
-	for _, part := range parts {
-		if currentMap, ok := current.(map[string]interface{}); ok {
-			current = currentMap[part]
-		} else {
-			return nil
+func collectReplacePaths(raw []any) map[string]bool {
+	result := make(map[string]bool, len(raw))
+	for _, rp := range raw {
+		if paths, ok := rp.([]any); ok {
+			result[pathToString(paths)] = true
 		}
 	}
-
-	return current
+	return result
 }
 
-// getBoolValue gets a boolean value from a nested map
-func getBoolValue(m map[string]interface{}, key string) bool {
-	v := getNestedValue(m, key)
-	if b, ok := v.(bool); ok {
-		return b
+func collectAllKeys(maps ...map[string]any) []string {
+	keys := make(map[string]bool)
+	for _, m := range maps {
+		collectKeys(m, "", keys)
 	}
-	return false
-}
-
-// formatValue formats a value for display
-func formatValue(v interface{}) string {
-	if v == nil {
-		return ""
+	sorted := make([]string, 0, len(keys))
+	for k := range keys {
+		sorted = append(sorted, k)
 	}
-
-	switch val := v.(type) {
-	case string:
-		return val
-	case bool:
-		if val {
-			return "true"
-		}
-		return "false"
-	case float64:
-		// Check if it's an integer
-		if val == float64(int64(val)) {
-			return fmt.Sprintf("%d", int64(val))
-		}
-		return fmt.Sprintf("%g", val)
-	case []interface{}:
-		if len(val) == 0 {
-			return "[]"
-		}
-		return fmt.Sprintf("[%d items]", len(val))
-	case map[string]interface{}:
-		if len(val) == 0 {
-			return "{}"
-		}
-		return fmt.Sprintf("{%d keys}", len(val))
-	default:
-		return fmt.Sprintf("%v", v)
-	}
-}
-
-// pathToString converts a path array to a dot-separated string
-func pathToString(paths []interface{}) string {
-	parts := make([]string, 0, len(paths))
-	for _, p := range paths {
-		if s, ok := p.(string); ok {
-			parts = append(parts, s)
-		}
-	}
-	return strings.Join(parts, ".")
+	sort.Strings(sorted)
+	return sorted
 }

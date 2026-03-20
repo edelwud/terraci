@@ -1,200 +1,125 @@
-// Package git provides Git integration for detecting changed files
 package git
 
 import (
-	"errors"
 	"fmt"
-	"path/filepath"
-	"strings"
 
-	"github.com/go-git/go-git/v6"
-	"github.com/go-git/go-git/v6/config"
+	gogit "github.com/go-git/go-git/v6"
 	"github.com/go-git/go-git/v6/plumbing"
 	"github.com/go-git/go-git/v6/plumbing/object"
-
-	"github.com/edelwud/terraci/internal/discovery"
 )
 
-// Client provides Git operations using go-git
-type Client struct {
-	// WorkDir is the working directory for git commands
-	WorkDir string
-	repo    *git.Repository
-	fetched bool // tracks if we've already fetched in this session
-}
-
-// NewClient creates a new Git client
-func NewClient(workDir string) *Client {
-	return &Client{WorkDir: workDir}
-}
-
-// openRepo opens the git repository lazily
-func (c *Client) openRepo() (*git.Repository, error) {
-	if c.repo != nil {
-		return c.repo, nil
-	}
-
-	repo, err := git.PlainOpenWithOptions(c.WorkDir, &git.PlainOpenOptions{
-		DetectDotGit: true,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	c.repo = repo
-	return repo, nil
-}
-
-// IsGitRepo checks if the directory is a git repository
-func (c *Client) IsGitRepo() bool {
-	_, err := c.openRepo()
-	return err == nil
-}
-
-// Fetch fetches all refs from the origin remote
-// This is needed in CI environments where shallow clones don't have remote refs
-func (c *Client) Fetch() error {
-	if c.fetched {
-		return nil
-	}
-
-	repo, err := c.openRepo()
-	if err != nil {
-		return fmt.Errorf("failed to open repository: %w", err)
-	}
-
-	// Fetch from origin with all refs
-	err = repo.Fetch(&git.FetchOptions{
-		RemoteName: "origin",
-		RefSpecs: []config.RefSpec{
-			"+refs/heads/*:refs/remotes/origin/*",
-		},
-		Tags:  git.AllTags,
-		Force: true,
-	})
-
-	// "already up-to-date" is not an error
-	if err != nil && !errors.Is(err, git.NoErrAlreadyUpToDate) {
-		return fmt.Errorf("failed to fetch: %w", err)
-	}
-
-	c.fetched = true
-	return nil
-}
-
-// GetChangedFiles returns files changed between base ref and HEAD
+// GetChangedFiles returns files changed between base ref and HEAD.
 func (c *Client) GetChangedFiles(baseRef string) ([]string, error) {
 	repo, err := c.openRepo()
 	if err != nil {
-		return nil, fmt.Errorf("failed to open repository: %w", err)
+		return nil, fmt.Errorf("open repository: %w", err)
 	}
 
-	// If no base ref specified, compare against HEAD~1
 	if baseRef == "" {
 		baseRef = "HEAD~1"
 	}
 
-	// Get merge-base for better branch comparison
-	mergeBaseHash, err := c.getMergeBase(baseRef, "HEAD")
+	baseHash, err := c.getMergeBase(baseRef, "HEAD")
 	if err != nil {
-		// Fall back to direct ref resolution
-		mergeBaseHash, err = c.resolveRef(baseRef)
+		baseHash, err = c.resolveRef(baseRef)
 		if err != nil {
-			return nil, fmt.Errorf("failed to resolve base ref %s: %w", baseRef, err)
+			return nil, fmt.Errorf("resolve base ref %s: %w", baseRef, err)
 		}
 	}
 
-	// Get HEAD commit
 	headRef, err := repo.Head()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get HEAD: %w", err)
+		return nil, fmt.Errorf("get HEAD: %w", err)
 	}
 
-	headCommit, err := repo.CommitObject(headRef.Hash())
-	if err != nil {
-		return nil, fmt.Errorf("failed to get HEAD commit: %w", err)
-	}
-
-	baseCommit, err := repo.CommitObject(mergeBaseHash)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get base commit: %w", err)
-	}
-
-	// Get trees
-	headTree, err := headCommit.Tree()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get HEAD tree: %w", err)
-	}
-
-	baseTree, err := baseCommit.Tree()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get base tree: %w", err)
-	}
-
-	// Get diff
-	changes, err := baseTree.Diff(headTree)
-	if err != nil {
-		return nil, fmt.Errorf("failed to compute diff: %w", err)
-	}
-
-	// Collect changed file paths
-	var files []string
-	for _, change := range changes {
-		// Get the path (use To for added/modified, From for deleted)
-		path := change.To.Name
-		if path == "" {
-			path = change.From.Name
-		}
-		if path != "" {
-			files = append(files, path)
-		}
-	}
-
-	return files, nil
+	return c.diffCommits(repo, baseHash, headRef.Hash())
 }
 
-// GetChangedFilesFromCommit returns files changed in a specific commit
+// GetChangedFilesFromCommit returns files changed in a specific commit.
 func (c *Client) GetChangedFilesFromCommit(commitHash string) ([]string, error) {
 	repo, err := c.openRepo()
 	if err != nil {
-		return nil, fmt.Errorf("failed to open repository: %w", err)
+		return nil, fmt.Errorf("open repository: %w", err)
 	}
 
 	hash := plumbing.NewHash(commitHash)
 	commit, err := repo.CommitObject(hash)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get commit %s: %w", commitHash, err)
+		return nil, fmt.Errorf("get commit %s: %w", commitHash, err)
 	}
 
-	// Get parent commit (if exists)
-	var parentTree *object.Tree
+	var parentHash plumbing.Hash
 	if commit.NumParents() > 0 {
 		parent, parentErr := commit.Parent(0)
 		if parentErr != nil {
-			return nil, fmt.Errorf("failed to get parent commit: %w", parentErr)
+			return nil, fmt.Errorf("get parent commit: %w", parentErr)
 		}
-		parentTree, parentErr = parent.Tree()
-		if parentErr != nil {
-			return nil, fmt.Errorf("failed to get parent tree: %w", parentErr)
+		parentHash = parent.Hash
+	}
+
+	return c.diffCommits(repo, parentHash, hash)
+}
+
+// GetUncommittedChanges returns uncommitted changed files.
+func (c *Client) GetUncommittedChanges() ([]string, error) {
+	repo, err := c.openRepo()
+	if err != nil {
+		return nil, fmt.Errorf("open repository: %w", err)
+	}
+
+	worktree, err := repo.Worktree()
+	if err != nil {
+		return nil, fmt.Errorf("get worktree: %w", err)
+	}
+
+	status, err := worktree.Status()
+	if err != nil {
+		return nil, fmt.Errorf("get status: %w", err)
+	}
+
+	var files []string
+	for path, fs := range status {
+		if fs.Staging != gogit.Unmodified || fs.Worktree != gogit.Unmodified {
+			files = append(files, path)
 		}
 	}
+	return files, nil
+}
 
-	commitTree, err := commit.Tree()
+// diffCommits computes changed file paths between two commits.
+func (c *Client) diffCommits(repo *gogit.Repository, baseHash, headHash plumbing.Hash) ([]string, error) {
+	baseTree, err := commitTree(repo, baseHash)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get commit tree: %w", err)
+		return nil, fmt.Errorf("get base tree: %w", err)
 	}
 
-	var changes object.Changes
-	if parentTree != nil {
-		changes, err = parentTree.Diff(commitTree)
-	} else {
-		// Initial commit - all files are new
-		changes, err = (&object.Tree{}).Diff(commitTree)
-	}
+	headTree, err := commitTree(repo, headHash)
 	if err != nil {
-		return nil, fmt.Errorf("failed to compute diff: %w", err)
+		return nil, fmt.Errorf("get head tree: %w", err)
 	}
 
+	changes, err := baseTree.Diff(headTree)
+	if err != nil {
+		return nil, fmt.Errorf("compute diff: %w", err)
+	}
+
+	return extractPaths(changes), nil
+}
+
+// commitTree returns the tree for a commit hash (empty tree for zero hash).
+func commitTree(repo *gogit.Repository, hash plumbing.Hash) (*object.Tree, error) {
+	if hash.IsZero() {
+		return &object.Tree{}, nil
+	}
+	commit, err := repo.CommitObject(hash)
+	if err != nil {
+		return nil, err
+	}
+	return commit.Tree()
+}
+
+// extractPaths collects file paths from a set of changes.
+func extractPaths(changes object.Changes) []string {
 	var files []string
 	for _, change := range changes {
 		path := change.To.Name
@@ -205,418 +130,5 @@ func (c *Client) GetChangedFilesFromCommit(commitHash string) ([]string, error) 
 			files = append(files, path)
 		}
 	}
-
-	return files, nil
-}
-
-// GetUncommittedChanges returns uncommitted changed files
-func (c *Client) GetUncommittedChanges() ([]string, error) {
-	repo, err := c.openRepo()
-	if err != nil {
-		return nil, fmt.Errorf("failed to open repository: %w", err)
-	}
-
-	worktree, err := repo.Worktree()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get worktree: %w", err)
-	}
-
-	status, err := worktree.Status()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get status: %w", err)
-	}
-
-	var files []string
-	for path, fileStatus := range status {
-		// Include any file that has changes (staged or unstaged)
-		if fileStatus.Staging != git.Unmodified || fileStatus.Worktree != git.Unmodified {
-			files = append(files, path)
-		}
-	}
-
-	return files, nil
-}
-
-// getMergeBase finds the common ancestor of two refs
-func (c *Client) getMergeBase(ref1, ref2 string) (plumbing.Hash, error) {
-	repo, err := c.openRepo()
-	if err != nil {
-		return plumbing.ZeroHash, err
-	}
-
-	hash1, err := c.resolveRef(ref1)
-	if err != nil {
-		return plumbing.ZeroHash, fmt.Errorf("failed to resolve %s: %w", ref1, err)
-	}
-
-	hash2, err := c.resolveRef(ref2)
-	if err != nil {
-		return plumbing.ZeroHash, fmt.Errorf("failed to resolve %s: %w", ref2, err)
-	}
-
-	commit1, err := repo.CommitObject(hash1)
-	if err != nil {
-		return plumbing.ZeroHash, err
-	}
-
-	commit2, err := repo.CommitObject(hash2)
-	if err != nil {
-		return plumbing.ZeroHash, err
-	}
-
-	// Find merge base using ancestor traversal
-	bases, err := commit1.MergeBase(commit2)
-	if err != nil {
-		return plumbing.ZeroHash, fmt.Errorf("failed to find merge base: %w", err)
-	}
-
-	if len(bases) == 0 {
-		return plumbing.ZeroHash, fmt.Errorf("no common ancestor found")
-	}
-
-	return bases[0].Hash, nil
-}
-
-// resolveRef resolves a ref string to a commit hash
-func (c *Client) resolveRef(refStr string) (plumbing.Hash, error) {
-	// Try to resolve without fetch first
-	hash, err := c.resolveRefInternal(refStr)
-	if err == nil {
-		return hash, nil
-	}
-
-	// If resolution failed and we haven't fetched yet, try fetching
-	if !c.fetched {
-		if fetchErr := c.Fetch(); fetchErr == nil {
-			// Retry resolution after fetch
-			hash, err = c.resolveRefInternal(refStr)
-			if err == nil {
-				return hash, nil
-			}
-		}
-	}
-
-	return plumbing.ZeroHash, fmt.Errorf("cannot resolve reference: %s", refStr)
-}
-
-// resolveRefInternal resolves a ref string to a commit hash without fetching
-func (c *Client) resolveRefInternal(refStr string) (plumbing.Hash, error) {
-	repo, err := c.openRepo()
-	if err != nil {
-		return plumbing.ZeroHash, err
-	}
-
-	// Try as a hash first
-	if plumbing.IsHash(refStr) {
-		return plumbing.NewHash(refStr), nil
-	}
-
-	// Handle HEAD~N notation
-	if strings.HasPrefix(refStr, "HEAD~") || strings.HasPrefix(refStr, "HEAD^") {
-		headRef, headErr := repo.Head()
-		if headErr != nil {
-			return plumbing.ZeroHash, headErr
-		}
-
-		commit, commitErr := repo.CommitObject(headRef.Hash())
-		if commitErr != nil {
-			return plumbing.ZeroHash, commitErr
-		}
-
-		// Parse the number of parents to traverse
-		n := 1
-		if len(refStr) > 5 {
-			//nolint:errcheck // Sscanf error is intentionally ignored - default value n=1 is used on parse failure
-			fmt.Sscanf(refStr[5:], "%d", &n)
-		}
-
-		// Walk back n commits
-		for i := 0; i < n && commit.NumParents() > 0; i++ {
-			commit, err = commit.Parent(0)
-			if err != nil {
-				return plumbing.ZeroHash, err
-			}
-		}
-
-		return commit.Hash, nil
-	}
-
-	// Try as branch name (local)
-	ref, err := repo.Reference(plumbing.NewBranchReferenceName(refStr), true)
-	if err == nil {
-		return ref.Hash(), nil
-	}
-
-	// Try as remote branch (origin/branch)
-	if strings.HasPrefix(refStr, "origin/") {
-		branchName := strings.TrimPrefix(refStr, "origin/")
-		ref, err = repo.Reference(plumbing.NewRemoteReferenceName("origin", branchName), true)
-		if err == nil {
-			return ref.Hash(), nil
-		}
-	} else {
-		// If not explicitly prefixed with origin/, try as remote branch anyway
-		// This handles CI environments where only remote refs exist (shallow clone, detached HEAD)
-		ref, err = repo.Reference(plumbing.NewRemoteReferenceName("origin", refStr), true)
-		if err == nil {
-			return ref.Hash(), nil
-		}
-	}
-
-	// Try as tag
-	ref, err = repo.Reference(plumbing.NewTagReferenceName(refStr), true)
-	if err == nil {
-		return ref.Hash(), nil
-	}
-
-	// Try as full reference
-	ref, err = repo.Reference(plumbing.ReferenceName(refStr), true)
-	if err == nil {
-		return ref.Hash(), nil
-	}
-
-	return plumbing.ZeroHash, fmt.Errorf("cannot resolve reference: %s", refStr)
-}
-
-// GetCurrentBranch returns the current branch name
-func (c *Client) GetCurrentBranch() (string, error) {
-	repo, err := c.openRepo()
-	if err != nil {
-		return "", fmt.Errorf("failed to open repository: %w", err)
-	}
-
-	headRef, err := repo.Head()
-	if err != nil {
-		return "", fmt.Errorf("failed to get HEAD: %w", err)
-	}
-
-	if headRef.Name().IsBranch() {
-		return headRef.Name().Short(), nil
-	}
-
-	// Detached HEAD
-	return headRef.Hash().String()[:7], nil
-}
-
-// GetDefaultBranch attempts to determine the default branch
-func (c *Client) GetDefaultBranch() string {
-	repo, err := c.openRepo()
-	if err != nil {
-		return "origin/main"
-	}
-
-	// Try common default branch names
-	for _, branch := range []string{"main", "master"} {
-		ref, refErr := repo.Reference(plumbing.NewRemoteReferenceName("origin", branch), true)
-		if refErr == nil && ref != nil {
-			return "origin/" + branch
-		}
-	}
-
-	// Try to get from origin/HEAD
-	ref, err := repo.Reference("refs/remotes/origin/HEAD", false)
-	if err == nil && ref != nil {
-		target := ref.Target().Short()
-		return target
-	}
-
-	return "origin/main"
-}
-
-// ChangedModulesDetector detects which modules have changed
-type ChangedModulesDetector struct {
-	gitClient *Client
-	index     *discovery.ModuleIndex
-	rootDir   string
-}
-
-// NewChangedModulesDetector creates a new detector
-func NewChangedModulesDetector(gitClient *Client, index *discovery.ModuleIndex, rootDir string) *ChangedModulesDetector {
-	return &ChangedModulesDetector{
-		gitClient: gitClient,
-		index:     index,
-		rootDir:   rootDir,
-	}
-}
-
-// DetectChangedModules returns modules affected by changed files
-func (d *ChangedModulesDetector) DetectChangedModules(baseRef string) ([]*discovery.Module, error) {
-	changedFiles, err := d.gitClient.GetChangedFiles(baseRef)
-	if err != nil {
-		return nil, err
-	}
-
-	return d.filesToModules(changedFiles), nil
-}
-
-// DetectChangedModulesVerbose returns modules affected by changed files with debug info
-func (d *ChangedModulesDetector) DetectChangedModulesVerbose(baseRef string) ([]*discovery.Module, []string, error) {
-	changedFiles, err := d.gitClient.GetChangedFiles(baseRef)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return d.filesToModules(changedFiles), changedFiles, nil
-}
-
-// DetectUncommittedModules returns modules with uncommitted changes
-func (d *ChangedModulesDetector) DetectUncommittedModules() ([]*discovery.Module, error) {
-	changedFiles, err := d.gitClient.GetUncommittedChanges()
-	if err != nil {
-		return nil, err
-	}
-
-	return d.filesToModules(changedFiles), nil
-}
-
-// filesToModules maps changed files to their modules
-func (d *ChangedModulesDetector) filesToModules(files []string) []*discovery.Module {
-	moduleSet := make(map[string]*discovery.Module)
-
-	for _, file := range files {
-		// Skip non-terraform related files
-		if !isTerraformRelatedFile(file) {
-			continue
-		}
-
-		// Get the directory containing the file
-		dir := filepath.Dir(file)
-
-		// Try to find the module this file belongs to
-		// Walk up the directory tree until we find a module
-		for dir != "." && dir != "/" && dir != "" {
-			// Try relative path first (as returned by git)
-			if module := d.index.ByPath(dir); module != nil {
-				moduleSet[module.ID()] = module
-				break
-			}
-
-			// Try absolute path
-			absDir := filepath.Join(d.rootDir, dir)
-			if module := d.index.ByPath(absDir); module != nil {
-				moduleSet[module.ID()] = module
-				break
-			}
-
-			// Try matching by RelativePath directly
-			if module := d.findModuleByRelativePath(dir); module != nil {
-				moduleSet[module.ID()] = module
-				break
-			}
-
-			dir = filepath.Dir(dir)
-		}
-	}
-
-	// Convert to slice
-	modules := make([]*discovery.Module, 0, len(moduleSet))
-	for _, m := range moduleSet {
-		modules = append(modules, m)
-	}
-
-	return modules
-}
-
-// isTerraformRelatedFile checks if a file is terraform-related
-func isTerraformRelatedFile(file string) bool {
-	// .tf files
-	if strings.HasSuffix(file, ".tf") {
-		return true
-	}
-	// .tfvars files
-	if strings.HasSuffix(file, ".tfvars") {
-		return true
-	}
-	// .terraform.lock.hcl
-	if strings.HasSuffix(file, ".terraform.lock.hcl") {
-		return true
-	}
-	// .tf.json files
-	if strings.HasSuffix(file, ".tf.json") {
-		return true
-	}
-	return false
-}
-
-// findModuleByRelativePath searches for a module by checking if the path matches any module's RelativePath
-func (d *ChangedModulesDetector) findModuleByRelativePath(path string) *discovery.Module {
-	// Normalize path separators
-	normalizedPath := filepath.Clean(path)
-
-	for _, m := range d.index.All() {
-		if m.RelativePath == normalizedPath {
-			return m
-		}
-	}
-	return nil
-}
-
-// GetChangedModuleIDs returns IDs of changed modules
-func (d *ChangedModulesDetector) GetChangedModuleIDs(baseRef string) ([]string, error) {
-	modules, err := d.DetectChangedModules(baseRef)
-	if err != nil {
-		return nil, err
-	}
-
-	ids := make([]string, len(modules))
-	for i, m := range modules {
-		ids[i] = m.ID()
-	}
-
-	return ids, nil
-}
-
-// DetectChangedLibraryModules returns library module paths that have changed files
-// libraryPaths are relative paths to library module root directories (e.g., "_modules")
-func (d *ChangedModulesDetector) DetectChangedLibraryModules(baseRef string, libraryPaths []string) ([]string, error) {
-	changedFiles, err := d.gitClient.GetChangedFiles(baseRef)
-	if err != nil {
-		return nil, err
-	}
-
-	return d.filesToLibraryPaths(changedFiles, libraryPaths), nil
-}
-
-// filesToLibraryPaths maps changed files to library module paths
-func (d *ChangedModulesDetector) filesToLibraryPaths(files, libraryPaths []string) []string {
-	libraryModules := make(map[string]bool)
-
-	for _, file := range files {
-		// Skip non-terraform files
-		if !isTerraformRelatedFile(file) {
-			continue
-		}
-
-		// Check if file is under any library path
-		for _, libPath := range libraryPaths {
-			if !strings.HasPrefix(file, libPath+"/") && !strings.HasPrefix(file, libPath+"\\") {
-				continue
-			}
-			// Extract the library module path
-			// e.g., file="_modules/kafka/main.tf", libPath="_modules"
-			// -> library module is "_modules/kafka"
-			relPath := strings.TrimPrefix(file, libPath+"/")
-			if relPath == "" {
-				relPath = strings.TrimPrefix(file, libPath+"\\")
-			}
-
-			// Get the first directory component after libPath
-			parts := strings.SplitN(relPath, "/", 2)
-			if len(parts) == 0 {
-				parts = strings.SplitN(relPath, "\\", 2)
-			}
-
-			if len(parts) > 0 && parts[0] != "" {
-				libModulePath := filepath.Join(d.rootDir, libPath, parts[0])
-				libraryModules[libModulePath] = true
-			}
-		}
-	}
-
-	result := make([]string, 0, len(libraryModules))
-	for path := range libraryModules {
-		result = append(result, path)
-	}
-
-	return result
+	return files
 }

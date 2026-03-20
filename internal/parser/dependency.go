@@ -12,53 +12,41 @@ import (
 	"github.com/edelwud/terraci/internal/discovery"
 )
 
-// DependencyExtractor extracts module dependencies from parsed Terraform files
+// DependencyExtractor extracts module dependencies from parsed Terraform files.
 type DependencyExtractor struct {
 	parser *Parser
 	index  *discovery.ModuleIndex
 }
 
-// NewDependencyExtractor creates a new dependency extractor
+// NewDependencyExtractor creates a new dependency extractor.
 func NewDependencyExtractor(parser *Parser, index *discovery.ModuleIndex) *DependencyExtractor {
-	return &DependencyExtractor{
-		parser: parser,
-		index:  index,
-	}
+	return &DependencyExtractor{parser: parser, index: index}
 }
 
-// Dependency represents a dependency between two modules
+// Dependency represents a dependency between two modules.
 type Dependency struct {
-	// From module (the one that depends)
-	From *discovery.Module
-	// To module (the dependency)
-	To *discovery.Module
-	// Type of dependency (e.g., "remote_state", "module_call")
-	Type string
-	// Name of the remote state data source or module call
+	From            *discovery.Module
+	To              *discovery.Module
+	Type            string
 	RemoteStateName string
 }
 
-// LibraryDependency represents a dependency on a library module
+// LibraryDependency represents a dependency on a library module.
 type LibraryDependency struct {
-	// ModuleCall is the parsed module call
-	ModuleCall *ModuleCall
-	// LibraryPath is the resolved absolute path to the library module
+	ModuleCall  *ModuleCall
 	LibraryPath string
 }
 
-// ModuleDependencies contains all dependencies for a module
+// ModuleDependencies contains all dependencies for a module.
 type ModuleDependencies struct {
-	Module       *discovery.Module
-	Dependencies []*Dependency
-	// LibraryDependencies lists library modules this module uses
+	Module              *discovery.Module
+	Dependencies        []*Dependency
 	LibraryDependencies []*LibraryDependency
-	// DependsOn lists module IDs this module depends on
-	DependsOn []string
-	// Errors encountered during extraction
-	Errors []error
+	DependsOn           []string
+	Errors              []error
 }
 
-// ExtractDependencies extracts dependencies for a single module
+// ExtractDependencies extracts dependencies for a single module.
 func (de *DependencyExtractor) ExtractDependencies(module *discovery.Module) (*ModuleDependencies, error) {
 	result := &ModuleDependencies{
 		Module:              module,
@@ -68,20 +56,17 @@ func (de *DependencyExtractor) ExtractDependencies(module *discovery.Module) (*M
 		Errors:              make([]error, 0),
 	}
 
-	// Parse the module
 	parsed, err := de.parser.ParseModule(module.Path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse module %s: %w", module.ID(), err)
+		return nil, fmt.Errorf("parse module %s: %w", module.ID(), err)
 	}
 
-	// Process each remote state reference
 	for _, rs := range parsed.RemoteStates {
 		deps, errs := de.resolveRemoteStateDependency(module, rs, parsed.Locals, parsed.Variables)
 		result.Dependencies = append(result.Dependencies, deps...)
 		result.Errors = append(result.Errors, errs...)
 	}
 
-	// Process module calls (for library module dependencies)
 	for _, mc := range parsed.ModuleCalls {
 		if mc.IsLocal && mc.ResolvedPath != "" {
 			result.LibraryDependencies = append(result.LibraryDependencies, &LibraryDependency{
@@ -103,34 +88,27 @@ func (de *DependencyExtractor) ExtractDependencies(module *discovery.Module) (*M
 	return result, nil
 }
 
-// resolveRemoteStateDependency attempts to resolve a remote state to actual module dependencies
+// resolveRemoteStateDependency resolves a remote state to module dependencies.
 func (de *DependencyExtractor) resolveRemoteStateDependency(
-	from *discovery.Module,
-	rs *RemoteStateRef,
+	from *discovery.Module, rs *RemoteStateRef,
 	locals, variables map[string]cty.Value,
 ) ([]*Dependency, []error) {
 	var deps []*Dependency
 	var errs []error
 
-	// Try to resolve workspace paths using locals and variables from tfvars
 	paths, err := de.parser.ResolveWorkspacePath(rs, from.RelativePath, locals, variables)
 	if err != nil {
-		errs = append(errs, fmt.Errorf("could not resolve workspace path for %s.%s: %w",
-			from.ID(), rs.Name, err))
+		errs = append(errs, fmt.Errorf("resolve workspace path for %s.%s: %w", from.ID(), rs.Name, err))
 		return deps, errs
 	}
 
-	// Match paths to modules
 	for _, path := range paths {
-		// Skip paths that still contain unresolved dynamic patterns
 		if containsDynamicPattern(path) {
-			errs = append(errs, fmt.Errorf("unresolved dynamic path %q for %s.%s (check tfvars files)",
-				path, from.ID(), rs.Name))
+			errs = append(errs, fmt.Errorf("unresolved dynamic path %q for %s.%s", path, from.ID(), rs.Name))
 			continue
 		}
 
-		target := de.matchPathToModule(path, from)
-		if target != nil {
+		if target := de.matchPathToModule(path, from); target != nil {
 			deps = append(deps, &Dependency{
 				From:            from,
 				To:              target,
@@ -138,15 +116,76 @@ func (de *DependencyExtractor) resolveRemoteStateDependency(
 				RemoteStateName: rs.Name,
 			})
 		} else {
-			errs = append(errs, fmt.Errorf("could not find module for path %q (from %s.%s)",
-				path, from.ID(), rs.Name))
+			errs = append(errs, fmt.Errorf("no module for path %q (from %s.%s)", path, from.ID(), rs.Name))
 		}
 	}
 
 	return deps, errs
 }
 
-// containsDynamicPattern checks if path contains unresolved dynamic patterns
+// matchPathToModule matches a state file path to a module using multiple strategies.
+func (de *DependencyExtractor) matchPathToModule(statePath string, from *discovery.Module) *discovery.Module {
+	normalized := normalizeStatePath(statePath)
+	parts := strings.Split(normalized, "/")
+
+	// Strategy chain: try each approach, return first match
+	strategies := []func() *discovery.Module{
+		func() *discovery.Module { return de.index.ByID(normalized) },
+		func() *discovery.Module {
+			return de.index.ByID(strings.ReplaceAll(normalized, "/", string(filepath.Separator)))
+		},
+		func() *discovery.Module { return de.tryTrailingMatch(parts, 5) },
+		func() *discovery.Module { return de.tryTrailingMatch(parts, 4) },
+		func() *discovery.Module { return de.tryContextMatch(parts, from) },
+	}
+
+	for _, s := range strategies {
+		if m := s(); m != nil {
+			return m
+		}
+	}
+	return nil
+}
+
+// normalizeStatePath strips state file suffixes and env prefixes.
+func normalizeStatePath(path string) string {
+	path = strings.TrimSuffix(path, "/terraform.tfstate")
+	path = strings.TrimSuffix(path, ".tfstate")
+	path = strings.TrimPrefix(path, "env:/")
+	return path
+}
+
+// tryTrailingMatch tries to match the last N parts of the path as a module ID.
+func (de *DependencyExtractor) tryTrailingMatch(parts []string, n int) *discovery.Module {
+	if len(parts) < n {
+		return nil
+	}
+	return de.index.ByID(strings.Join(parts[len(parts)-n:], "/"))
+}
+
+// tryContextMatch tries context-relative matching using the source module's context.
+func (de *DependencyExtractor) tryContextMatch(parts []string, from *discovery.Module) *discovery.Module {
+	prefix := from.ContextPrefix()
+
+	if len(parts) == 1 {
+		if m := de.index.ByID(prefix + "/" + parts[0]); m != nil {
+			return m
+		}
+		// Try as sibling submodule
+		if from.IsSubmodule() {
+			if m := de.index.ByID(prefix + "/" + from.LeafValue() + "/" + parts[0]); m != nil {
+				return m
+			}
+		}
+	}
+
+	if len(parts) == 2 {
+		return de.index.ByID(prefix + "/" + parts[0] + "/" + parts[1])
+	}
+
+	return nil
+}
+
 func containsDynamicPattern(path string) bool {
 	return strings.Contains(path, "${lookup(") ||
 		strings.Contains(path, "${each.") ||
@@ -154,91 +193,15 @@ func containsDynamicPattern(path string) bool {
 		strings.Contains(path, "\"}")
 }
 
-// matchPathToModule matches a state file path to a module
-func (de *DependencyExtractor) matchPathToModule(statePath string, from *discovery.Module) *discovery.Module {
-	// Common patterns for state file paths:
-	// - service/environment/region/module/terraform.tfstate
-	// - service/environment/region/module/submodule/terraform.tfstate
-	// - service/environment/region/module.tfstate
-	// - env:/environment/service/region/module/terraform.tfstate
-
-	// Normalize the path
-	statePath = strings.TrimSuffix(statePath, "/terraform.tfstate")
-	statePath = strings.TrimSuffix(statePath, ".tfstate")
-	statePath = strings.TrimPrefix(statePath, "env:/")
-
-	// Try direct match first (works for both modules and submodules)
-	if m := de.index.ByID(statePath); m != nil {
-		return m
-	}
-
-	// Try with different path separators
-	normalizedPath := strings.ReplaceAll(statePath, "/", string(filepath.Separator))
-	if m := de.index.ByID(normalizedPath); m != nil {
-		return m
-	}
-
-	// Extract components and try to match
-	parts := strings.Split(statePath, "/")
-
-	// Try matching service/env/region/module/submodule pattern (5 parts)
-	if len(parts) >= 5 {
-		startIdx := len(parts) - 5
-		moduleID := strings.Join(parts[startIdx:], "/")
-		if m := de.index.ByID(moduleID); m != nil {
-			return m
-		}
-	}
-
-	// Try matching service/env/region/module pattern (4 parts)
-	if len(parts) >= 4 {
-		startIdx := len(parts) - 4
-		moduleID := strings.Join(parts[startIdx:], "/")
-		if m := de.index.ByID(moduleID); m != nil {
-			return m
-		}
-	}
-
-	// Try pattern matching with wildcards from current module context
-	// If from module is platform/stage/eu-central-1/eks, and path is vpc,
-	// try platform/stage/eu-central-1/vpc
-	if len(parts) == 1 {
-		sameContextID := from.ContextPrefix() + "/" + parts[0]
-		if m := de.index.ByID(sameContextID); m != nil {
-			return m
-		}
-
-		// Also try as submodule of the same parent module
-		// e.g., from ec2/rabbitmq looking for "redis" -> try ec2/redis
-		if from.IsSubmodule() {
-			siblingID := from.ContextPrefix() + "/" + from.LeafValue() + "/" + parts[0]
-			if m := de.index.ByID(siblingID); m != nil {
-				return m
-			}
-		}
-	}
-
-	// Try module/submodule format (e.g., "ec2/rabbitmq")
-	if len(parts) == 2 {
-		sameContextID := from.ContextPrefix() + "/" + parts[0] + "/" + parts[1]
-		if m := de.index.ByID(sameContextID); m != nil {
-			return m
-		}
-	}
-
-	return nil
-}
-
-// maxConcurrentExtractions is the maximum number of modules to extract dependencies from concurrently
+// maxConcurrentExtractions is the maximum number of concurrent module extractions.
 const maxConcurrentExtractions = 20
 
-// ExtractAllDependencies extracts dependencies for all modules in the index
+// ExtractAllDependencies extracts dependencies for all modules in the index.
 func (de *DependencyExtractor) ExtractAllDependencies() (map[string]*ModuleDependencies, []error) {
 	results := make(map[string]*ModuleDependencies)
 	var allErrors []error
 	var mu sync.Mutex
 
-	// Create an errgroup with a concurrency limit
 	var g errgroup.Group
 	g.SetLimit(maxConcurrentExtractions)
 
@@ -253,15 +216,12 @@ func (de *DependencyExtractor) ExtractAllDependencies() (map[string]*ModuleDepen
 				allErrors = append(allErrors, err)
 				return nil
 			}
-
 			results[module.ID()] = deps
 			allErrors = append(allErrors, deps.Errors...)
 			return nil
 		})
 	}
 
-	// Wait for all goroutines to finish (errors already collected in allErrors)
 	_ = g.Wait() //nolint:errcheck
-
 	return results, allErrors
 }

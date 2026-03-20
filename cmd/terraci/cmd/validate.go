@@ -6,7 +6,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/edelwud/terraci/internal/discovery"
-	"github.com/edelwud/terraci/internal/filter"
 	"github.com/edelwud/terraci/internal/graph"
 	"github.com/edelwud/terraci/internal/parser"
 	"github.com/edelwud/terraci/pkg/log"
@@ -29,8 +28,7 @@ This command will:
 func init() {
 	rootCmd.AddCommand(validateCmd)
 
-	validateCmd.Flags().StringArrayVarP(&excludes, "exclude", "x", nil, "glob patterns to exclude modules")
-	validateCmd.Flags().StringArrayVarP(&includes, "include", "i", nil, "glob patterns to include modules")
+	registerFilterFlags(validateCmd)
 }
 
 func runValidate(_ *cobra.Command, _ []string) error {
@@ -40,9 +38,7 @@ func runValidate(_ *cobra.Command, _ []string) error {
 
 	// 1. Discover modules
 	log.WithField("dir", workDir).Info("scanning for modules")
-	scanner := discovery.NewScanner(workDir)
-	scanner.MinDepth = cfg.Structure.MinDepth
-	scanner.MaxDepth = cfg.Structure.MaxDepth
+	scanner := discovery.NewScanner(workDir, cfg.Structure.MinDepth, cfg.Structure.MaxDepth, cfg.Structure.Segments)
 
 	modules, err := scanner.Scan()
 	if err != nil {
@@ -57,14 +53,7 @@ func runValidate(_ *cobra.Command, _ []string) error {
 	}
 
 	// 2. Apply filters
-	allExcludes := append([]string{}, cfg.Exclude...)
-	allExcludes = append(allExcludes, excludes...)
-	allIncludes := append([]string{}, cfg.Include...)
-	allIncludes = append(allIncludes, includes...)
-	filteredModules := filter.Apply(modules, filter.Options{
-		Excludes: allExcludes,
-		Includes: allIncludes,
-	})
+	filteredModules := applyFilters(modules)
 
 	if len(filteredModules) != len(modules) {
 		log.WithField("count", len(filteredModules)).Info("modules after filtering")

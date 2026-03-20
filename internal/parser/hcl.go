@@ -1,4 +1,3 @@
-// Package parser provides HCL parsing functionality for Terraform files
 package parser
 
 import (
@@ -11,76 +10,11 @@ import (
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
-
-	"github.com/edelwud/terraci/internal/terraform/eval"
-	"github.com/edelwud/terraci/pkg/log"
 )
 
-// Parser handles parsing of Terraform HCL files
-type Parser struct {
-	// Segments are the ordered pattern segment names (e.g., service, environment, region, module)
-	Segments []string
-}
-
-// NewParser creates a new HCL parser
-func NewParser() *Parser {
-	return &Parser{
-		Segments: []string{"service", "environment", "region", "module"},
-	}
-}
-
-// ParsedModule contains the parsed content of a Terraform module
-type ParsedModule struct {
-	// Path to the module directory
-	Path string
-	// Locals extracted from locals.tf
-	Locals map[string]cty.Value
-	// Variables extracted from *.auto.tfvars files
-	Variables map[string]cty.Value
-	// RemoteStates extracted from all .tf files
-	RemoteStates []*RemoteStateRef
-	// ModuleCalls extracted from all .tf files (module blocks)
-	ModuleCalls []*ModuleCall
-	// Raw HCL files for further analysis
-	Files map[string]*hcl.File
-	// Diagnostics from parsing
-	Diagnostics hcl.Diagnostics
-}
-
-// ModuleCall represents a module block in Terraform
-type ModuleCall struct {
-	// Name of the module call (e.g., "vpc" in module "vpc" { ... })
-	Name string
-	// Source is the module source (e.g., "../../../_modules/kafka", "terraform-aws-modules/vpc/aws")
-	Source string
-	// Version is the module version constraint (for registry modules)
-	Version string
-	// IsLocal indicates if the source is a local path
-	IsLocal bool
-	// ResolvedPath is the absolute path for local modules
-	ResolvedPath string
-}
-
-// RemoteStateRef represents a terraform_remote_state data source reference
-type RemoteStateRef struct {
-	// Name of the data source (e.g., "vpc" in data.terraform_remote_state.vpc)
-	Name string
-	// Backend type (e.g., "s3", "gcs")
-	Backend string
-	// Config contains the backend configuration
-	Config map[string]hcl.Expression
-	// ForEach expression if for_each is used
-	ForEach hcl.Expression
-	// WorkspaceDir is the resolved workspace directory path pattern
-	// This is extracted from config.key or config.prefix for S3 backend
-	WorkspaceDir string
-	// Raw attributes for further processing
-	RawBody hcl.Body
-}
-
-// ParseModule parses all Terraform files in a module directory
+// ParseModule parses all Terraform files in a module directory.
 func (p *Parser) ParseModule(modulePath string) (*ParsedModule, error) {
-	result := &ParsedModule{
+	pm := &ParsedModule{
 		Path:         modulePath,
 		Locals:       make(map[string]cty.Value),
 		Variables:    make(map[string]cty.Value),
@@ -89,257 +23,179 @@ func (p *Parser) ParseModule(modulePath string) (*ParsedModule, error) {
 		Files:        make(map[string]*hcl.File),
 	}
 
-	// Use a local parser instance for thread safety
 	hclParser := hclparse.NewParser()
 
-	// Find all .tf files in the directory
 	tfFiles, err := filepath.Glob(filepath.Join(modulePath, "*.tf"))
 	if err != nil {
-		return nil, fmt.Errorf("failed to glob .tf files: %w", err)
+		return nil, fmt.Errorf("glob .tf files: %w", err)
 	}
 
-	// Parse each file
 	for _, tfFile := range tfFiles {
-		content, err := os.ReadFile(tfFile)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read %s: %w", tfFile, err)
+		content, readErr := os.ReadFile(tfFile)
+		if readErr != nil {
+			return nil, fmt.Errorf("read %s: %w", tfFile, readErr)
 		}
-
 		file, diags := hclParser.ParseHCL(content, tfFile)
-		result.Diagnostics = append(result.Diagnostics, diags...)
-
+		pm.addDiags(diags)
 		if file != nil {
-			result.Files[tfFile] = file
+			pm.Files[tfFile] = file
 		}
 	}
 
-	// Extract locals
-	p.extractLocals(result)
+	p.extractLocals(pm)
+	p.extractTfvars(pm, hclParser)
+	p.extractRemoteStates(pm)
+	p.extractModuleCalls(pm)
 
-	// Extract variables from .auto.tfvars files
-	p.extractTfvars(result, hclParser)
-
-	// Extract remote state references
-	p.extractRemoteStates(result)
-
-	// Extract module calls
-	p.extractModuleCalls(result)
-
-	return result, nil
+	return pm, nil
 }
 
-// extractLocals parses locals blocks from the module files
+// --- Locals ---
+
 func (p *Parser) extractLocals(pm *ParsedModule) {
-	localsSchema := &hcl.BodySchema{
-		Blocks: []hcl.BlockHeaderSchema{
-			{Type: "locals"},
-		},
-	}
+	for _, block := range p.findBlocks(pm, "locals", nil) {
+		attrs, diags := block.Body.JustAttributes()
+		pm.addDiags(diags)
 
-	for _, file := range pm.Files {
-		content, _, diags := file.Body.PartialContent(localsSchema)
-		pm.Diagnostics = append(pm.Diagnostics, diags...)
-
-		if content == nil {
-			continue
-		}
-
-		for _, block := range content.Blocks {
-			if block.Type != "locals" {
-				continue
-			}
-
-			attrs, diags := block.Body.JustAttributes()
-			pm.Diagnostics = append(pm.Diagnostics, diags...)
-
-			for name, attr := range attrs {
-				// Try to evaluate simple expressions
-				val, diags := attr.Expr.Value(nil)
-				if !diags.HasErrors() {
-					pm.Locals[name] = val
-				}
+		for name, attr := range attrs {
+			if val, diags := attr.Expr.Value(nil); !diags.HasErrors() {
+				pm.Locals[name] = val
 			}
 		}
 	}
 }
 
-// extractTfvars parses variable definitions and their values from multiple sources:
-// 1. Default values from variables.tf (lowest priority)
-// 2. terraform.tfvars
-// 3. *.auto.tfvars (highest priority)
+// --- Variables ---
+
 func (p *Parser) extractTfvars(pm *ParsedModule, hclParser *hclparse.Parser) {
-	// First, extract default values from variable blocks in .tf files
 	p.extractVariableDefaults(pm)
 
-	// Then load terraform.tfvars (overrides defaults)
-	terraformTfvars := filepath.Join(pm.Path, "terraform.tfvars")
-	if _, err := os.Stat(terraformTfvars); err == nil {
-		p.loadTfvarsFile(pm, terraformTfvars, hclParser)
+	if tfvars := filepath.Join(pm.Path, "terraform.tfvars"); fileExists(tfvars) {
+		p.loadTfvarsFile(pm, tfvars, hclParser)
 	}
 
-	// Finally, load *.auto.tfvars files (highest priority)
-	tfvarsFiles, err := filepath.Glob(filepath.Join(pm.Path, "*.auto.tfvars"))
-	if err != nil {
-		return
-	}
-
-	for _, tfvarsFile := range tfvarsFiles {
-		p.loadTfvarsFile(pm, tfvarsFile, hclParser)
+	autoFiles, _ := filepath.Glob(filepath.Join(pm.Path, "*.auto.tfvars")) //nolint:errcheck
+	for _, f := range autoFiles {
+		p.loadTfvarsFile(pm, f, hclParser)
 	}
 }
 
-// extractVariableDefaults extracts default values from variable blocks
 func (p *Parser) extractVariableDefaults(pm *ParsedModule) {
-	varSchema := &hcl.BodySchema{
-		Blocks: []hcl.BlockHeaderSchema{
-			{Type: "variable", LabelNames: []string{"name"}},
-		},
-	}
-
-	for _, file := range pm.Files {
-		content, _, diags := file.Body.PartialContent(varSchema)
-		pm.Diagnostics = append(pm.Diagnostics, diags...)
-
-		if content == nil {
+	for _, block := range p.findBlocks(pm, "variable", []string{"name"}) {
+		if len(block.Labels) < 1 {
 			continue
 		}
-
-		for _, block := range content.Blocks {
-			if block.Type != "variable" || len(block.Labels) < 1 {
-				continue
-			}
-
-			varName := block.Labels[0]
-
-			// Extract the default attribute
-			defaultSchema := &hcl.BodySchema{
-				Attributes: []hcl.AttributeSchema{
-					{Name: "default"},
-				},
-			}
-
-			blockContent, _, diags := block.Body.PartialContent(defaultSchema)
-			pm.Diagnostics = append(pm.Diagnostics, diags...)
-
-			if blockContent == nil {
-				continue
-			}
-
-			if attr, ok := blockContent.Attributes["default"]; ok {
-				val, diags := attr.Expr.Value(nil)
-				if !diags.HasErrors() {
-					pm.Variables[varName] = val
-				}
-			}
+		if val, ok := evalBlockStringAttr(block.Body, "default", pm); ok {
+			pm.Variables[block.Labels[0]] = cty.StringVal(val)
 		}
 	}
 }
 
-// loadTfvarsFile loads variables from a single tfvars file
-func (p *Parser) loadTfvarsFile(pm *ParsedModule, tfvarsFile string, hclParser *hclparse.Parser) {
-	content, err := os.ReadFile(tfvarsFile)
+func (p *Parser) loadTfvarsFile(pm *ParsedModule, path string, hclParser *hclparse.Parser) {
+	content, err := os.ReadFile(path)
 	if err != nil {
-		pm.Diagnostics = append(pm.Diagnostics, &hcl.Diagnostic{
+		pm.addDiags(hcl.Diagnostics{&hcl.Diagnostic{
 			Severity: hcl.DiagWarning,
 			Summary:  "Failed to read tfvars file",
-			Detail:   fmt.Sprintf("Could not read %s: %v", tfvarsFile, err),
-		})
+			Detail:   fmt.Sprintf("Could not read %s: %v", path, err),
+		}})
 		return
 	}
 
-	file, diags := hclParser.ParseHCL(content, tfvarsFile)
-	pm.Diagnostics = append(pm.Diagnostics, diags...)
-
+	file, diags := hclParser.ParseHCL(content, path)
+	pm.addDiags(diags)
 	if file == nil {
 		return
 	}
 
-	// tfvars files are just attribute assignments at the top level
 	attrs, diags := file.Body.JustAttributes()
-	pm.Diagnostics = append(pm.Diagnostics, diags...)
+	pm.addDiags(diags)
 
 	for name, attr := range attrs {
-		// Try to evaluate the expression
-		val, diags := attr.Expr.Value(nil)
-		if !diags.HasErrors() {
+		if val, diags := attr.Expr.Value(nil); !diags.HasErrors() {
 			pm.Variables[name] = val
 		}
 	}
 }
 
-// extractRemoteStates parses terraform_remote_state data sources
+// --- Remote states ---
+
 func (p *Parser) extractRemoteStates(pm *ParsedModule) {
-	dataSchema := &hcl.BodySchema{
-		Blocks: []hcl.BlockHeaderSchema{
-			{Type: "data", LabelNames: []string{"type", "name"}},
-		},
-	}
-
-	for _, file := range pm.Files {
-		content, _, diags := file.Body.PartialContent(dataSchema)
-		pm.Diagnostics = append(pm.Diagnostics, diags...)
-
-		if content == nil {
+	for _, block := range p.findBlocks(pm, "data", []string{"type", "name"}) {
+		if len(block.Labels) < 2 || block.Labels[0] != "terraform_remote_state" {
 			continue
 		}
 
-		for _, block := range content.Blocks {
-			if block.Type != "data" || len(block.Labels) < 2 {
-				continue
+		ref := &RemoteStateRef{
+			Name:    block.Labels[1],
+			Config:  make(map[string]hcl.Expression),
+			RawBody: block.Body,
+		}
+		p.parseRemoteStateBlock(ref, block.Body, pm)
+		pm.RemoteStates = append(pm.RemoteStates, ref)
+	}
+}
+
+func (p *Parser) parseRemoteStateBlock(ref *RemoteStateRef, body hcl.Body, pm *ParsedModule) {
+	schema := &hcl.BodySchema{
+		Attributes: []hcl.AttributeSchema{
+			{Name: "backend", Required: true},
+			{Name: "for_each"},
+			{Name: "workspace"},
+			{Name: "config"},
+		},
+		Blocks: []hcl.BlockHeaderSchema{{Type: "config"}},
+	}
+
+	content, _, diags := body.PartialContent(schema)
+	pm.addDiags(diags)
+	if content == nil {
+		return
+	}
+
+	if val, ok := evalContentStringAttr(content, "backend"); ok {
+		ref.Backend = val
+	}
+	if attr, ok := content.Attributes["for_each"]; ok {
+		ref.ForEach = attr.Expr
+	}
+
+	// config as attribute: config = { key = "...", ... }
+	if attr, ok := content.Attributes["config"]; ok {
+		if objExpr, isObj := attr.Expr.(*hclsyntax.ObjectConsExpr); isObj {
+			for _, item := range objExpr.Items {
+				if keyVal, keyDiags := item.KeyExpr.Value(nil); !keyDiags.HasErrors() && keyVal.Type() == cty.String {
+					ref.Config[keyVal.AsString()] = item.ValueExpr
+				}
 			}
+		}
+	}
 
-			if block.Labels[0] != "terraform_remote_state" {
-				continue
+	// config as block: config { key = "..." }
+	for _, block := range content.Blocks {
+		if block.Type == "config" {
+			attrs, blockDiags := block.Body.JustAttributes()
+			pm.addDiags(blockDiags)
+			for name, attr := range attrs {
+				ref.Config[name] = attr.Expr
 			}
-
-			ref := &RemoteStateRef{
-				Name:    block.Labels[1],
-				Config:  make(map[string]hcl.Expression),
-				RawBody: block.Body,
-			}
-
-			// Parse the block content
-			p.parseRemoteStateBlock(ref, block.Body, pm)
-
-			pm.RemoteStates = append(pm.RemoteStates, ref)
 		}
 	}
 }
 
-// extractModuleCalls parses module blocks from the module files
+// --- Module calls ---
+
 func (p *Parser) extractModuleCalls(pm *ParsedModule) {
-	moduleSchema := &hcl.BodySchema{
-		Blocks: []hcl.BlockHeaderSchema{
-			{Type: "module", LabelNames: []string{"name"}},
-		},
-	}
-
-	for _, file := range pm.Files {
-		content, _, diags := file.Body.PartialContent(moduleSchema)
-		pm.Diagnostics = append(pm.Diagnostics, diags...)
-
-		if content == nil {
+	for _, block := range p.findBlocks(pm, "module", []string{"name"}) {
+		if len(block.Labels) < 1 {
 			continue
 		}
-
-		for _, block := range content.Blocks {
-			if block.Type != "module" || len(block.Labels) < 1 {
-				continue
-			}
-
-			call := &ModuleCall{
-				Name: block.Labels[0],
-			}
-
-			// Parse the module block
-			p.parseModuleBlock(call, block.Body, pm)
-
-			pm.ModuleCalls = append(pm.ModuleCalls, call)
-		}
+		call := &ModuleCall{Name: block.Labels[0]}
+		p.parseModuleBlock(call, block.Body, pm)
+		pm.ModuleCalls = append(pm.ModuleCalls, call)
 	}
 }
 
-// parseModuleBlock extracts source and version from a module block
 func (p *Parser) parseModuleBlock(call *ModuleCall, body hcl.Body, pm *ParsedModule) {
 	schema := &hcl.BodySchema{
 		Attributes: []hcl.AttributeSchema{
@@ -349,267 +205,80 @@ func (p *Parser) parseModuleBlock(call *ModuleCall, body hcl.Body, pm *ParsedMod
 	}
 
 	content, _, diags := body.PartialContent(schema)
-	pm.Diagnostics = append(pm.Diagnostics, diags...)
-
+	pm.addDiags(diags)
 	if content == nil {
 		return
 	}
 
-	// Extract source
-	if attr, ok := content.Attributes["source"]; ok {
-		val, diags := attr.Expr.Value(nil)
-		if !diags.HasErrors() && val.Type() == cty.String {
-			call.Source = val.AsString()
-
-			// Check if it's a local path
-			if strings.HasPrefix(call.Source, "./") || strings.HasPrefix(call.Source, "../") {
-				call.IsLocal = true
-				// Resolve the absolute path
-				call.ResolvedPath = filepath.Clean(filepath.Join(pm.Path, call.Source))
-			}
+	if src, ok := evalContentStringAttr(content, "source"); ok {
+		call.Source = src
+		if strings.HasPrefix(src, "./") || strings.HasPrefix(src, "../") {
+			call.IsLocal = true
+			call.ResolvedPath = filepath.Clean(filepath.Join(pm.Path, src))
 		}
 	}
 
-	// Extract version
-	if attr, ok := content.Attributes["version"]; ok {
-		val, diags := attr.Expr.Value(nil)
-		if !diags.HasErrors() && val.Type() == cty.String {
-			call.Version = val.AsString()
-		}
+	if ver, ok := evalContentStringAttr(content, "version"); ok {
+		call.Version = ver
 	}
 }
 
-// parseRemoteStateBlock extracts configuration from a terraform_remote_state block
-func (p *Parser) parseRemoteStateBlock(ref *RemoteStateRef, body hcl.Body, pm *ParsedModule) {
-	// Schema for terraform_remote_state
-	// Note: config can be either a block or an attribute (object)
+// --- Helpers ---
+
+// addDiags appends diagnostics to the parsed module.
+func (pm *ParsedModule) addDiags(diags hcl.Diagnostics) {
+	pm.Diagnostics = append(pm.Diagnostics, diags...)
+}
+
+// findBlocks extracts blocks of the given type from all parsed files.
+func (p *Parser) findBlocks(pm *ParsedModule, blockType string, labels []string) []*hcl.Block {
 	schema := &hcl.BodySchema{
-		Attributes: []hcl.AttributeSchema{
-			{Name: "backend", Required: true},
-			{Name: "for_each"},
-			{Name: "workspace"},
-			{Name: "config"}, // config as attribute (config = { ... })
-		},
-		Blocks: []hcl.BlockHeaderSchema{
-			{Type: "config"}, // config as block (config { ... })
-		},
+		Blocks: []hcl.BlockHeaderSchema{{Type: blockType, LabelNames: labels}},
 	}
 
+	var blocks []*hcl.Block
+	for _, file := range pm.Files {
+		content, _, diags := file.Body.PartialContent(schema)
+		pm.addDiags(diags)
+		if content != nil {
+			blocks = append(blocks, content.Blocks...)
+		}
+	}
+	return blocks
+}
+
+// evalContentStringAttr evaluates a named attribute from HCL content as a string.
+func evalContentStringAttr(content *hcl.BodyContent, name string) (string, bool) {
+	attr, ok := content.Attributes[name]
+	if !ok {
+		return "", false
+	}
+	return evalStringExpr(attr.Expr, nil)
+}
+
+// evalBlockStringAttr evaluates a named attribute from an HCL body as a string.
+func evalBlockStringAttr(body hcl.Body, name string, pm *ParsedModule) (string, bool) {
+	schema := &hcl.BodySchema{
+		Attributes: []hcl.AttributeSchema{{Name: name}},
+	}
 	content, _, diags := body.PartialContent(schema)
-	pm.Diagnostics = append(pm.Diagnostics, diags...)
-
+	pm.addDiags(diags)
 	if content == nil {
-		return
+		return "", false
 	}
-
-	// Extract backend
-	if attr, ok := content.Attributes["backend"]; ok {
-		val, diags := attr.Expr.Value(nil)
-		if !diags.HasErrors() && val.Type() == cty.String {
-			ref.Backend = val.AsString()
-		}
-	}
-
-	// Extract for_each if present
-	if attr, ok := content.Attributes["for_each"]; ok {
-		ref.ForEach = attr.Expr
-	}
-
-	// Extract config - can be either attribute or block
-	// First, try as attribute (config = { ... })
-	if attr, ok := content.Attributes["config"]; ok {
-		// config is an object expression, we need to extract its attributes
-		// The expression is an object constructor, we can get its items
-		if objExpr, ok := attr.Expr.(*hclsyntax.ObjectConsExpr); ok {
-			for _, item := range objExpr.Items {
-				// Get the key as string
-				keyVal, diags := item.KeyExpr.Value(nil)
-				if !diags.HasErrors() && keyVal.Type() == cty.String {
-					ref.Config[keyVal.AsString()] = item.ValueExpr
-				}
-			}
-		}
-	}
-
-	// Then, try as block (config { ... })
-	for _, block := range content.Blocks {
-		if block.Type == "config" {
-			attrs, diags := block.Body.JustAttributes()
-			pm.Diagnostics = append(pm.Diagnostics, diags...)
-
-			for name, attr := range attrs {
-				ref.Config[name] = attr.Expr
-			}
-		}
-	}
+	return evalContentStringAttr(content, name)
 }
 
-// ResolveWorkspacePath attempts to resolve the workspace path from remote state config
-// This uses the module's locals, variables, and path information to resolve expressions
-func (p *Parser) ResolveWorkspacePath(ref *RemoteStateRef, modulePath string, locals, variables map[string]cty.Value) ([]string, error) {
-	log.WithField("module", modulePath).WithField("remote_state", ref.Name).Debug("resolving workspace path")
-
-	// Build evaluation context with locals, variables, and path-derived info
-	// Handle both "/" and os.PathSeparator for cross-platform compatibility
-	pathParts := strings.Split(modulePath, "/")
-	if len(pathParts) == 1 {
-		pathParts = strings.Split(modulePath, string(os.PathSeparator))
-	}
-
-	// Extract path components dynamically based on configured segments
-	segments := p.Segments
-	numSegs := len(segments)
-	pathLocals := make(map[string]cty.Value)
-
-	if len(pathParts) >= numSegs {
-		for i, segName := range segments {
-			pathLocals[segName] = cty.StringVal(pathParts[len(pathParts)-numSegs+i])
-		}
-	}
-
-	// Handle submodule case: path has more parts than segments
-	var scope string
-	if len(pathParts) > numSegs {
-		submodule := pathParts[len(pathParts)-1]
-		pathLocals["submodule"] = cty.StringVal(submodule)
-		// scope refers to the parent module (last segment value before submodule)
-		if numSegs > 0 {
-			lastSeg := segments[numSegs-1]
-			if v, ok := pathLocals[lastSeg]; ok {
-				scope = v.AsString()
-			}
-		}
-		// Override the last segment's local with the submodule name
-		if numSegs > 0 {
-			pathLocals[segments[numSegs-1]] = cty.StringVal(submodule)
-		}
-	} else if numSegs > 0 {
-		if v, ok := pathLocals[segments[numSegs-1]]; ok {
-			scope = v.AsString()
-		}
-	}
-	pathLocals["scope"] = cty.StringVal(scope)
-
-	// Create evaluation context with Terraform functions
-	evalCtx := eval.NewContext(locals, variables, modulePath)
-
-	// Merge with existing locals
-	mergedLocals := make(map[string]cty.Value)
-	for k, v := range locals {
-		mergedLocals[k] = v
-	}
-	for k, v := range pathLocals {
-		if _, exists := mergedLocals[k]; !exists {
-			mergedLocals[k] = v
-		}
-	}
-	evalCtx.Variables["local"] = cty.ObjectVal(mergedLocals)
-
-	var paths []string
-
-	// Try to extract the key/prefix from config
-	keyExpr, hasKey := ref.Config["key"]
-	prefixExpr, hasPrefix := ref.Config["prefix"]
-
-	var pathExpr hcl.Expression
-	if hasKey {
-		pathExpr = keyExpr
-	} else if hasPrefix {
-		pathExpr = prefixExpr
-	}
-
-	if pathExpr == nil {
-		return nil, fmt.Errorf("no key or prefix found in remote state config")
-	}
-
-	// Handle for_each case
-	if ref.ForEach != nil {
-		// Try to evaluate for_each
-		forEachVal, diags := ref.ForEach.Value(evalCtx)
-		if diags.HasErrors() {
-			log.WithField("reason", "for_each evaluation failed").Debug("falling back to template extraction")
-			// Can't evaluate for_each statically, return template
-			return p.extractPathTemplate(pathExpr, evalCtx)
-		}
-
-		// Iterate over for_each values
-		//nolint:dupl // Map/object and set/list iterations are intentionally similar but have different key/value semantics
-		if forEachVal.Type().IsMapType() || forEachVal.Type().IsObjectType() {
-			for it := forEachVal.ElementIterator(); it.Next(); {
-				k, v := it.Element()
-
-				// Create context with each.key and each.value
-				iterCtx := evalCtx.NewChild()
-				iterCtx.Variables = map[string]cty.Value{
-					"each": cty.ObjectVal(map[string]cty.Value{
-						"key":   k,
-						"value": v,
-					}),
-				}
-
-				pathVal, diags := pathExpr.Value(iterCtx)
-				if !diags.HasErrors() && pathVal.Type() == cty.String {
-					log.WithField("path", pathVal.AsString()).Debug("resolved for_each path")
-					paths = append(paths, pathVal.AsString())
-				}
-			}
-		} else if forEachVal.Type().IsSetType() || forEachVal.Type().IsTupleType() || forEachVal.Type().IsListType() {
-			for it := forEachVal.ElementIterator(); it.Next(); {
-				_, v := it.Element()
-
-				iterCtx := evalCtx.NewChild()
-				iterCtx.Variables = map[string]cty.Value{
-					"each": cty.ObjectVal(map[string]cty.Value{
-						"key":   v,
-						"value": v,
-					}),
-				}
-
-				pathVal, diags := pathExpr.Value(iterCtx)
-				if !diags.HasErrors() && pathVal.Type() == cty.String {
-					log.WithField("path", pathVal.AsString()).Debug("resolved for_each path")
-					paths = append(paths, pathVal.AsString())
-				}
-			}
-		}
-	} else {
-		// Simple case without for_each
-		pathVal, diags := pathExpr.Value(evalCtx)
-		if !diags.HasErrors() && pathVal.Type() == cty.String {
-			log.WithField("path", pathVal.AsString()).Debug("resolved simple path")
-			paths = append(paths, pathVal.AsString())
-		} else {
-			log.WithField("reason", "evaluation failed").Debug("falling back to template extraction")
-			// Try to extract template
-			return p.extractPathTemplate(pathExpr, evalCtx)
-		}
-	}
-
-	return paths, nil
-}
-
-// extractPathTemplate attempts to extract a path pattern from an expression
-func (p *Parser) extractPathTemplate(expr hcl.Expression, ctx *hcl.EvalContext) ([]string, error) {
-	// Try partial evaluation - ignore diagnostics as we handle unknown values below
+// evalStringExpr evaluates an expression as a string value.
+func evalStringExpr(expr hcl.Expression, ctx *hcl.EvalContext) (string, bool) {
 	val, diags := expr.Value(ctx)
-	_ = diags // Diagnostics expected for partial evaluation with unknown variables
-	if val.IsKnown() && val.Type() == cty.String {
-		return []string{val.AsString()}, nil
+	if diags.HasErrors() || val.Type() != cty.String {
+		return "", false
 	}
+	return val.AsString(), true
+}
 
-	// Return the expression source as a template
-	rng := expr.Range()
-	if rng.Filename != "" {
-		content, err := os.ReadFile(rng.Filename)
-		if err == nil {
-			start := rng.Start.Byte
-			end := rng.End.Byte
-			if end <= len(content) {
-				template := string(content[start:end])
-				return []string{template}, nil
-			}
-		}
-	}
-
-	return nil, fmt.Errorf("could not extract path template")
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }

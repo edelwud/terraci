@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// moduleCollector accumulates discovered modules during directory walk
+// moduleCollector accumulates discovered modules during directory walk.
 type moduleCollector struct {
 	absRoot  string
 	minDepth int
@@ -16,40 +16,33 @@ type moduleCollector struct {
 	byID     map[string]*Module
 }
 
-func (c *moduleCollector) visit(path string, info os.FileInfo, err error) error {
-	if err != nil {
-		return err
+func (c *moduleCollector) visit(path string, info os.FileInfo, walkErr error) error {
+	if walkErr != nil {
+		return walkErr
 	}
 
-	if info.IsDir() && strings.HasPrefix(info.Name(), ".") {
+	if shouldSkipDir(info) {
 		return filepath.SkipDir
 	}
 
-	if !info.IsDir() || !containsTerraformFiles(path) {
+	if !isTerraformDir(info, path) {
 		return nil
 	}
 
-	relPath, err := filepath.Rel(c.absRoot, path)
-	if err != nil {
-		return err
-	}
-	if relPath == "." {
+	parts, ok := c.parseRelPath(path)
+	if !ok {
 		return nil
 	}
 
-	parts := strings.Split(relPath, string(os.PathSeparator))
 	depth := len(parts)
-
-	switch {
-	case depth < c.minDepth:
+	if depth < c.minDepth {
 		return nil
-	case depth > c.maxDepth:
+	}
+	if depth > c.maxDepth {
 		return filepath.SkipDir
 	}
 
-	module := c.buildModule(parts, path, relPath)
-	c.byID[module.ID()] = module
-	c.modules = append(c.modules, module)
+	c.registerModule(parts, path)
 
 	if depth >= c.maxDepth {
 		return filepath.SkipDir
@@ -57,24 +50,51 @@ func (c *moduleCollector) visit(path string, info os.FileInfo, err error) error 
 	return nil
 }
 
-func (c *moduleCollector) buildModule(parts []string, path, relPath string) *Module {
-	if len(parts) <= len(c.segments) {
-		// Base module
-		return NewModule(c.segments, parts, path, relPath)
+func (c *moduleCollector) parseRelPath(path string) ([]string, bool) {
+	relPath, err := filepath.Rel(c.absRoot, path)
+	if err != nil || relPath == "." {
+		return nil, false
 	}
-	// Submodule: base segments + extra level
-	mod := NewModule(c.segments, parts[:len(c.segments)], path, relPath)
+	return strings.Split(relPath, string(os.PathSeparator)), true
+}
+
+func (c *moduleCollector) registerModule(parts []string, absPath string) {
+	relPath := filepath.Join(parts...)
+	mod := c.buildModule(parts, absPath, relPath)
+	c.byID[mod.ID()] = mod
+	c.modules = append(c.modules, mod)
+}
+
+func (c *moduleCollector) buildModule(parts []string, absPath, relPath string) *Module {
+	isSubmodule := len(parts) > len(c.segments)
+
+	if !isSubmodule {
+		return NewModule(c.segments, parts, absPath, relPath)
+	}
+
+	mod := NewModule(c.segments, parts[:len(c.segments)], absPath, relPath)
 	mod.SetComponent("submodule", parts[len(c.segments)])
-	// Link parent
+	c.linkParent(mod, parts)
+	return mod
+}
+
+func (c *moduleCollector) linkParent(mod *Module, parts []string) {
 	parentRelPath := filepath.Join(parts[:len(c.segments)]...)
 	if parent, ok := c.byID[parentRelPath]; ok {
 		mod.Parent = parent
 		parent.Children = append(parent.Children, mod)
 	}
-	return mod
 }
 
-// containsTerraformFiles checks if a directory contains .tf files
+func shouldSkipDir(info os.FileInfo) bool {
+	return info.IsDir() && strings.HasPrefix(info.Name(), ".")
+}
+
+func isTerraformDir(info os.FileInfo, path string) bool {
+	return info.IsDir() && containsTerraformFiles(path)
+}
+
+// containsTerraformFiles checks if a directory contains .tf files.
 func containsTerraformFiles(dir string) bool {
 	matches, err := filepath.Glob(filepath.Join(dir, "*.tf"))
 	if err != nil {
