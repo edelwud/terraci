@@ -32,10 +32,6 @@ github:
     comment:
       enabled: true
 
-backend:
-  type: s3
-  key_pattern: "{service}/{environment}/{region}/{module}/terraform.tfstate"
-
 cost:
   enabled: true
   show_in_comment: true

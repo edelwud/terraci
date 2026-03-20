@@ -90,13 +90,6 @@ gitlab:
 #   permissions:
 #     contents: read
 #     pull-requests: write
-
-# Backend configuration (for path matching)
-backend:
-  type: s3
-  bucket: my-terraform-state
-  region: us-east-1
-  key_pattern: "{service}/{environment}/{region}/{module}/terraform.tfstate"
 ```
 
 ## Sections
@@ -135,10 +128,6 @@ gitlab:
   plan_enabled: true
   auto_approve: false
   init_enabled: true
-
-backend:
-  type: s3
-  key_pattern: "{service}/{environment}/{region}/{module}/terraform.tfstate"
 ```
 
 ## Validation

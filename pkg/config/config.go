@@ -37,9 +37,6 @@ type Config struct {
 
 	// GitHub Actions configuration
 	GitHub *GitHubConfig `yaml:"github,omitempty" json:"github,omitempty" jsonschema:"description=GitHub Actions configuration"`
-
-	// Backend configuration for state file path resolution
-	Backend BackendConfig `yaml:"backend" json:"backend" jsonschema:"description=Backend configuration for state file path resolution"`
 }
 
 // LibraryModulesConfig defines configuration for library/shared modules
@@ -454,19 +451,6 @@ func ResolveProvider(cfg *Config) string {
 	return ProviderGitLab // Default
 }
 
-// BackendConfig defines the state backend configuration
-type BackendConfig struct {
-	// Type of backend (s3, gcs, azurerm, etc.)
-	Type string `yaml:"type" jsonschema:"description=Type of backend,enum=s3,enum=gcs,enum=azurerm,enum=local,enum=remote"`
-	// Bucket name for S3/GCS
-	Bucket string `yaml:"bucket,omitempty" jsonschema:"description=Bucket name for S3/GCS"`
-	// Region for S3
-	Region string `yaml:"region,omitempty" jsonschema:"description=Region for S3"`
-	// KeyPattern is the pattern for state file keys
-	// Supports variables: {service}, {environment}, {region}, {module}
-	KeyPattern string `yaml:"key_pattern,omitempty" jsonschema:"description=Pattern for state file keys. Supports variables: {service}\\, {environment}\\, {region}\\, {module},default={service}/{environment}/{region}/{module}/terraform.tfstate"`
-}
-
 // DefaultConfig returns a config with sensible defaults
 func DefaultConfig() *Config {
 	return &Config{
@@ -485,10 +469,6 @@ func DefaultConfig() *Config {
 			PlanEnabled:     true,
 			AutoApprove:     false,
 			InitEnabled:     true,
-		},
-		Backend: BackendConfig{
-			Type:       "s3",
-			KeyPattern: "{service}/{environment}/{region}/{module}/terraform.tfstate",
 		},
 	}
 }

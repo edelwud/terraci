@@ -241,10 +241,6 @@ github:
   pr:
     comment: { enabled: true }
 
-backend:
-  type: s3
-  key_pattern: "{service}/{environment}/{region}/{module}/terraform.tfstate"
-
 policy:
   enabled: false
   sources:

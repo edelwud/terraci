@@ -145,7 +145,7 @@ The pattern is fully configurable — `{team}/{project}/{component}` works too.
 
 ### 2. Dependency Resolution
 
-Dependencies are extracted from `terraform_remote_state` data sources. The `key` in the backend config must mirror your directory structure (matching `structure.pattern`) — this is how TerraCi maps state file paths back to modules:
+Dependencies are extracted from `terraform_remote_state` data sources. The `key` in the remote state config must mirror your directory structure (matching `structure.pattern`) — this is how TerraCi maps state file paths back to modules:
 
 ```hcl
 # eks/main.tf — key follows the same {service}/{env}/{region}/{module} pattern
@@ -160,8 +160,6 @@ data "terraform_remote_state" "vpc" {
   }
 }
 ```
-
-The `backend.key_pattern` in config defines the expected format: `{service}/{environment}/{region}/{module}/terraform.tfstate`.
 
 TerraCi evaluates Terraform functions statically (`split`, `element`, `length`, `abspath`, `lookup`, `join`, `format`, etc.) and resolves locals that depend on `path.module`. A common pattern that works out of the box:
 
@@ -181,7 +179,9 @@ data "terraform_remote_state" "vpc" {
 }
 ```
 
-> **Limitation:** TerraCi is a static analysis tool — it does not connect to remote backends or execute `terraform init`. Dependencies that rely on runtime values (e.g., `data.terraform_remote_state.X.outputs.Y` used as a key in another remote state) cannot be resolved. Derive your state keys from the filesystem path (`abspath(path.module)`) or explicit locals, not from other modules' outputs.
+> **Limitations:**
+> - **Static analysis only** — TerraCi does not connect to remote backends or execute `terraform init`. Dependencies that rely on runtime values (e.g., `data.terraform_remote_state.X.outputs.Y` used as a key in another remote state) cannot be resolved. Derive your state keys from the filesystem path (`abspath(path.module)`) or explicit locals, not from other modules' outputs.
+> - **Single state namespace** — TerraCi matches modules by the `key` path only, ignoring `bucket`, `backend` type, and other config fields. If two modules use the same `key` path but different buckets (e.g., `team-a-bucket` and `team-b-bucket`), TerraCi cannot distinguish between them and may link dependencies incorrectly. Use unique key paths across all backends to avoid ambiguity.
 
 ### 3. Pipeline Generation
 

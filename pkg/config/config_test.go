@@ -64,11 +64,6 @@ func TestDefaultConfig(t *testing.T) {
 	if !cfg.GitLab.InitEnabled {
 		t.Error("expected InitEnabled to be true")
 	}
-
-	// Check backend defaults
-	if cfg.Backend.Type != "s3" {
-		t.Errorf("expected Backend.Type 's3', got %q", cfg.Backend.Type)
-	}
 }
 
 func TestLoad(t *testing.T) {
@@ -89,9 +84,6 @@ gitlab:
   plan_enabled: false
   auto_approve: true
 
-backend:
-  type: gcs
-  bucket: my-state-bucket
 `
 	configPath := filepath.Join(tmpDir, ".terraci.yaml")
 	writeTestConfig(t, configPath, configContent)
@@ -132,13 +124,6 @@ backend:
 	}
 	if !cfg.GitLab.AutoApprove {
 		t.Error("expected AutoApprove to be true")
-	}
-
-	if cfg.Backend.Type != "gcs" {
-		t.Errorf("expected Backend.Type 'gcs', got %q", cfg.Backend.Type)
-	}
-	if cfg.Backend.Bucket != "my-state-bucket" {
-		t.Errorf("expected Backend.Bucket, got %q", cfg.Backend.Bucket)
 	}
 }
 
