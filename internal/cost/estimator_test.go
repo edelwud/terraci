@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/edelwud/terraci/internal/terraform/plan"
 )
 
 func TestEstimator_EstimateModule_WithMockPlan(t *testing.T) {
@@ -139,12 +141,197 @@ func TestExtractResourceType(t *testing.T) {
 	}
 }
 
+func TestGetResourceAttrs(t *testing.T) {
+	tests := []struct {
+		name     string
+		rc       plan.ResourceChange
+		wantKeys []string
+	}{
+		{
+			name: "extracts new values from attributes",
+			rc: plan.ResourceChange{
+				Attributes: []plan.AttrDiff{
+					{Path: "instance_type", NewValue: "t3.micro", OldValue: ""},
+					{Path: "ami", NewValue: "ami-12345", OldValue: ""},
+				},
+			},
+			wantKeys: []string{"instance_type", "ami"},
+		},
+		{
+			name: "falls back to old value when new is empty",
+			rc: plan.ResourceChange{
+				Attributes: []plan.AttrDiff{
+					{Path: "instance_type", OldValue: "t2.micro", NewValue: ""},
+				},
+			},
+			wantKeys: []string{"instance_type"},
+		},
+		{
+			name: "skips known after apply",
+			rc: plan.ResourceChange{
+				Attributes: []plan.AttrDiff{
+					{Path: "id", NewValue: "(known after apply)", OldValue: ""},
+					{Path: "ami", NewValue: "ami-12345", OldValue: ""},
+				},
+			},
+			wantKeys: []string{"ami"},
+		},
+		{
+			name:     "empty attributes returns empty map",
+			rc:       plan.ResourceChange{},
+			wantKeys: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := getResourceAttrs(tt.rc)
+			for _, key := range tt.wantKeys {
+				if _, ok := got[key]; !ok {
+					t.Errorf("getResourceAttrs() missing key %q", key)
+				}
+			}
+			// Verify no extra keys for empty case
+			if tt.wantKeys == nil && len(got) != 0 {
+				t.Errorf("expected empty map, got %v", got)
+			}
+		})
+	}
+}
+
+func TestParseStateResources(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantLen int
+		wantKey string
+	}{
+		{
+			name: "basic state with one instance",
+			input: `{
+				"resources": [
+					{
+						"type": "aws_instance",
+						"name": "web",
+						"instances": [
+							{
+								"attributes": {
+									"instance_type": "t3.micro",
+									"ami": "ami-12345"
+								}
+							}
+						]
+					}
+				]
+			}`,
+			wantLen: 1,
+			wantKey: "aws_instance.web",
+		},
+		{
+			name: "state with module prefix",
+			input: `{
+				"resources": [
+					{
+						"type": "aws_vpc",
+						"name": "main",
+						"module": "module.networking",
+						"instances": [
+							{
+								"attributes": {"cidr_block": "10.0.0.0/16"}
+							}
+						]
+					}
+				]
+			}`,
+			wantLen: 1,
+			wantKey: "module.networking.aws_vpc.main",
+		},
+		{
+			name: "state with string index key",
+			input: `{
+				"resources": [
+					{
+						"type": "aws_subnet",
+						"name": "private",
+						"instances": [
+							{
+								"index_key": "us-east-1a",
+								"attributes": {"cidr_block": "10.0.1.0/24"}
+							}
+						]
+					}
+				]
+			}`,
+			wantLen: 1,
+			wantKey: `aws_subnet.private["us-east-1a"]`,
+		},
+		{
+			name: "state with numeric index key",
+			input: `{
+				"resources": [
+					{
+						"type": "aws_subnet",
+						"name": "private",
+						"instances": [
+							{
+								"index_key": 0,
+								"attributes": {"cidr_block": "10.0.1.0/24"}
+							}
+						]
+					}
+				]
+			}`,
+			wantLen: 1,
+			wantKey: "aws_subnet.private[0]",
+		},
+		{
+			name:    "invalid JSON returns nil",
+			input:   "not json",
+			wantLen: 0,
+		},
+		{
+			name:    "empty resources",
+			input:   `{"resources": []}`,
+			wantLen: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseStateResources([]byte(tt.input))
+			if tt.wantLen == 0 {
+				if len(got) != 0 {
+					t.Errorf("expected nil or empty map, got %v", got)
+				}
+				return
+			}
+			if len(got) != tt.wantLen {
+				t.Errorf("parseStateResources() returned %d resources, want %d", len(got), tt.wantLen)
+				return
+			}
+			if tt.wantKey != "" {
+				if _, ok := got[tt.wantKey]; !ok {
+					t.Errorf("parseStateResources() missing key %q, got keys: %v", tt.wantKey, keysOf(got))
+				}
+			}
+		})
+	}
+}
+
+func keysOf(m map[string]map[string]any) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
 func TestBuildResourceAddress(t *testing.T) {
 	tests := []struct {
 		module       string
 		resourceType string
 		name         string
-		indexKey     interface{}
+		indexKey     any
 		expected     string
 	}{
 		{"", "aws_instance", "web", nil, "aws_instance.web"},

@@ -1,6 +1,7 @@
 package gitlab
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -605,14 +606,7 @@ func TestGenerator_Generate_WithMRIntegration(t *testing.T) {
 	}
 
 	// Check summary stage is in stages list
-	hasStage := false
-	for _, stage := range p.Stages {
-		if stage == SummaryStageName {
-			hasStage = true
-			break
-		}
-	}
-	if !hasStage {
+	if !slices.Contains(p.Stages, SummaryStageName) {
 		t.Errorf("stages should contain %s", SummaryStageName)
 	}
 
@@ -723,4 +717,234 @@ func TestGenerator_isMREnabled(t *testing.T) {
 
 func boolPtr(b bool) *bool {
 	return &b
+}
+
+func TestGenerator_Generate_WithSecrets(t *testing.T) {
+	cfg := createTestConfig()
+	cfg.GitLab.JobDefaults = &config.JobDefaults{
+		Secrets: map[string]config.Secret{
+			"AWS_SECRET_KEY": {
+				Vault: &config.VaultSecret{
+					Shorthand: "secret/data/aws/key@production",
+				},
+				File: true,
+			},
+		},
+	}
+
+	modules := []*discovery.Module{
+		createTestModule("platform", "stage", "eu-central-1", "vpc"),
+	}
+	deps := createTestDeps(modules, map[string][]string{
+		modules[0].ID(): {},
+	})
+	depGraph := graph.BuildFromDependencies(modules, deps)
+
+	gen := NewGenerator(cfg, depGraph, modules)
+	genPipeline, err := gen.Generate(modules)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	p, ok := genPipeline.(*Pipeline)
+	if !ok {
+		t.Fatal("expected *Pipeline type")
+	}
+
+	planJob := p.Jobs["plan-platform-stage-eu-central-1-vpc"]
+	if planJob == nil {
+		t.Fatal("plan job not found")
+	}
+
+	if planJob.Secrets == nil {
+		t.Fatal("expected secrets on plan job")
+	}
+	secret, exists := planJob.Secrets["AWS_SECRET_KEY"]
+	if !exists {
+		t.Fatal("expected AWS_SECRET_KEY in secrets")
+	}
+	if !secret.File {
+		t.Error("expected secret.File to be true")
+	}
+	if secret.VaultPath != "secret/data/aws/key@production" {
+		t.Errorf("expected VaultPath shorthand, got %q", secret.VaultPath)
+	}
+
+	applyJob := p.Jobs["apply-platform-stage-eu-central-1-vpc"]
+	if applyJob == nil {
+		t.Fatal("apply job not found")
+	}
+	if applyJob.Secrets == nil {
+		t.Fatal("expected secrets on apply job")
+	}
+	if _, exists := applyJob.Secrets["AWS_SECRET_KEY"]; !exists {
+		t.Error("expected AWS_SECRET_KEY in apply job secrets")
+	}
+}
+
+func TestGenerator_Generate_WithArtifacts(t *testing.T) {
+	cfg := createTestConfig()
+	cfg.GitLab.JobDefaults = &config.JobDefaults{
+		Artifacts: &config.ArtifactsConfig{
+			Paths:    []string{"*.json", "reports/"},
+			ExpireIn: "1 week",
+			When:     "always",
+		},
+	}
+
+	modules := []*discovery.Module{
+		createTestModule("platform", "stage", "eu-central-1", "vpc"),
+	}
+	deps := createTestDeps(modules, map[string][]string{
+		modules[0].ID(): {},
+	})
+	depGraph := graph.BuildFromDependencies(modules, deps)
+
+	gen := NewGenerator(cfg, depGraph, modules)
+	genPipeline, err := gen.Generate(modules)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	p, ok := genPipeline.(*Pipeline)
+	if !ok {
+		t.Fatal("expected *Pipeline type")
+	}
+
+	planJob := p.Jobs["plan-platform-stage-eu-central-1-vpc"]
+	if planJob == nil {
+		t.Fatal("plan job not found")
+	}
+
+	if planJob.Artifacts == nil {
+		t.Fatal("expected artifacts on plan job")
+	}
+	if planJob.Artifacts.ExpireIn != "1 week" {
+		t.Errorf("expected ExpireIn '1 week', got %q", planJob.Artifacts.ExpireIn)
+	}
+	if planJob.Artifacts.When != "always" {
+		t.Errorf("expected When 'always', got %q", planJob.Artifacts.When)
+	}
+	foundJSON := false
+	for _, p := range planJob.Artifacts.Paths {
+		if p == "*.json" {
+			foundJSON = true
+		}
+	}
+	if !foundJSON {
+		t.Error("expected *.json in artifact paths")
+	}
+}
+
+func TestGenerator_Generate_WithPolicyCheck(t *testing.T) {
+	cfg := createTestConfig()
+	cfg.Policy = &config.PolicyConfig{
+		Enabled:   true,
+		OnFailure: config.PolicyActionBlock,
+		Sources: []config.PolicySource{
+			{Path: "policies"},
+		},
+	}
+
+	modules := []*discovery.Module{
+		createTestModule("platform", "stage", "eu-central-1", "vpc"),
+	}
+	deps := createTestDeps(modules, map[string][]string{
+		modules[0].ID(): {},
+	})
+	depGraph := graph.BuildFromDependencies(modules, deps)
+
+	gen := NewGenerator(cfg, depGraph, modules)
+	genPipeline, err := gen.Generate(modules)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	p, ok := genPipeline.(*Pipeline)
+	if !ok {
+		t.Fatal("expected *Pipeline type")
+	}
+
+	// Check policy-check stage exists
+	if !slices.Contains(p.Stages, PolicyCheckStageName) {
+		t.Errorf("expected policy-check stage in stages: %v", p.Stages)
+	}
+
+	// Check policy-check job exists
+	policyJob := p.Jobs[PolicyCheckJobName]
+	if policyJob == nil {
+		t.Fatal("policy-check job not found")
+	}
+
+	if policyJob.Stage != PolicyCheckStageName {
+		t.Errorf("expected policy-check job stage=%s, got %s", PolicyCheckStageName, policyJob.Stage)
+	}
+
+	// Verify script contains policy commands
+	hasCheck := false
+	for _, line := range policyJob.Script {
+		if strings.Contains(line, "terraci policy check") {
+			hasCheck = true
+		}
+	}
+	if !hasCheck {
+		t.Error("expected 'terraci policy check' in policy job script")
+	}
+
+	// Verify policy job depends on plan jobs
+	if len(policyJob.Needs) == 0 {
+		t.Error("expected policy-check job to have needs")
+	}
+}
+
+func TestGenerator_GenerateForChangedModules(t *testing.T) {
+	cfg := createTestConfig()
+
+	vpc := createTestModule("platform", "stage", "eu-central-1", "vpc")
+	eks := createTestModule("platform", "stage", "eu-central-1", "eks")
+	rds := createTestModule("platform", "stage", "eu-central-1", "rds")
+	modules := []*discovery.Module{vpc, eks, rds}
+
+	// EKS depends on VPC, RDS is independent
+	deps := createTestDeps(modules, map[string][]string{
+		vpc.ID(): {},
+		eks.ID(): {vpc.ID()},
+		rds.ID(): {},
+	})
+	depGraph := graph.BuildFromDependencies(modules, deps)
+
+	gen := NewGenerator(cfg, depGraph, modules)
+
+	// Only VPC changed — should include VPC and its dependent EKS, but not RDS
+	genPipeline, err := gen.GenerateForChangedModules([]string{vpc.ID()})
+	if err != nil {
+		t.Fatalf("GenerateForChangedModules failed: %v", err)
+	}
+
+	p, ok := genPipeline.(*Pipeline)
+	if !ok {
+		t.Fatal("expected *Pipeline type")
+	}
+
+	// Should have VPC and EKS jobs (plan + apply each = 4 jobs)
+	if _, exists := p.Jobs["plan-platform-stage-eu-central-1-vpc"]; !exists {
+		t.Error("expected VPC plan job")
+	}
+	if _, exists := p.Jobs["apply-platform-stage-eu-central-1-vpc"]; !exists {
+		t.Error("expected VPC apply job")
+	}
+	if _, exists := p.Jobs["plan-platform-stage-eu-central-1-eks"]; !exists {
+		t.Error("expected EKS plan job (dependent of VPC)")
+	}
+	if _, exists := p.Jobs["apply-platform-stage-eu-central-1-eks"]; !exists {
+		t.Error("expected EKS apply job (dependent of VPC)")
+	}
+
+	// RDS should NOT be in the pipeline
+	if _, exists := p.Jobs["plan-platform-stage-eu-central-1-rds"]; exists {
+		t.Error("RDS plan job should not be in pipeline (not affected by VPC change)")
+	}
+	if _, exists := p.Jobs["apply-platform-stage-eu-central-1-rds"]; exists {
+		t.Error("RDS apply job should not be in pipeline (not affected by VPC change)")
+	}
 }

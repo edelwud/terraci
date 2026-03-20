@@ -196,6 +196,215 @@ func TestCompositeFilter(t *testing.T) {
 	}
 }
 
+func TestGlobFilter_FilterModuleIDs(t *testing.T) {
+	tests := []struct {
+		name     string
+		exclude  []string
+		include  []string
+		input    []string
+		expected []string
+	}{
+		{
+			name:     "no filters returns all",
+			input:    []string{"cdp/stage/eu-central-1/vpc", "cdp/prod/eu-central-1/rds"},
+			expected: []string{"cdp/stage/eu-central-1/vpc", "cdp/prod/eu-central-1/rds"},
+		},
+		{
+			name:     "exclude filters out matching",
+			exclude:  []string{"cdp/prod/*/*"},
+			input:    []string{"cdp/stage/eu-central-1/vpc", "cdp/prod/eu-central-1/rds"},
+			expected: []string{"cdp/stage/eu-central-1/vpc"},
+		},
+		{
+			name:     "include filters to matching only",
+			include:  []string{"cdp/stage/*/*"},
+			input:    []string{"cdp/stage/eu-central-1/vpc", "cdp/prod/eu-central-1/rds"},
+			expected: []string{"cdp/stage/eu-central-1/vpc"},
+		},
+		{
+			name:     "empty input returns nil",
+			exclude:  []string{"*"},
+			input:    []string{},
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := NewGlobFilter(tt.exclude, tt.include)
+			got := f.FilterModuleIDs(tt.input)
+			if len(got) != len(tt.expected) {
+				t.Errorf("FilterModuleIDs() returned %d items, want %d: %v", len(got), len(tt.expected), got)
+				return
+			}
+			for i := range got {
+				if got[i] != tt.expected[i] {
+					t.Errorf("FilterModuleIDs()[%d] = %q, want %q", i, got[i], tt.expected[i])
+				}
+			}
+		})
+	}
+}
+
+func TestGlobModuleFilter(t *testing.T) {
+	module := &discovery.Module{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "vpc"}
+
+	tests := []struct {
+		name    string
+		exclude []string
+		include []string
+		want    bool
+	}{
+		{"no filters matches", nil, nil, true},
+		{"exclude match rejects", []string{"cdp/*/*/*"}, nil, false},
+		{"include match accepts", nil, []string{"cdp/*/*/*"}, true},
+		{"include no match rejects", nil, []string{"other/*/*/*"}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gf := NewGlobFilter(tt.exclude, tt.include)
+			f := &GlobModuleFilter{gf}
+			if got := f.Match(module); got != tt.want {
+				t.Errorf("GlobModuleFilter.Match() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestApply(t *testing.T) {
+	modules := []*discovery.Module{
+		{Service: "cdp", Environment: "stage", Region: "eu-central-1", Module: "vpc"},
+		{Service: "cdp", Environment: "prod", Region: "eu-central-1", Module: "vpc"},
+		{Service: "other", Environment: "stage", Region: "us-east-1", Module: "rds"},
+		{Service: "cdp", Environment: "stage", Region: "us-east-1", Module: "eks"},
+	}
+
+	tests := []struct {
+		name    string
+		opts    Options
+		wantLen int
+	}{
+		{
+			name:    "no filters returns all",
+			opts:    Options{},
+			wantLen: 4,
+		},
+		{
+			name:    "filter by service",
+			opts:    Options{Services: []string{"cdp"}},
+			wantLen: 3,
+		},
+		{
+			name:    "filter by environment",
+			opts:    Options{Environments: []string{"stage"}},
+			wantLen: 3,
+		},
+		{
+			name:    "filter by region",
+			opts:    Options{Regions: []string{"eu-central-1"}},
+			wantLen: 2,
+		},
+		{
+			name:    "combined service and environment",
+			opts:    Options{Services: []string{"cdp"}, Environments: []string{"stage"}},
+			wantLen: 2,
+		},
+		{
+			name:    "combined with excludes",
+			opts:    Options{Excludes: []string{"*/prod/*/*"}},
+			wantLen: 3,
+		},
+		{
+			name:    "combined with includes",
+			opts:    Options{Includes: []string{"cdp/*/*/*"}},
+			wantLen: 3,
+		},
+		{
+			name:    "all filters combined",
+			opts:    Options{Services: []string{"cdp"}, Environments: []string{"stage"}, Regions: []string{"eu-central-1"}},
+			wantLen: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Apply(modules, tt.opts)
+			if len(got) != tt.wantLen {
+				t.Errorf("Apply() returned %d modules, want %d", len(got), tt.wantLen)
+			}
+		})
+	}
+}
+
+func TestMatchPattern_InvalidPattern(t *testing.T) {
+	// filepath.Match returns error for invalid patterns like unmatched '['
+	got := matchPattern("[invalid", "test")
+	if got {
+		t.Error("matchPattern should return false for invalid pattern")
+	}
+}
+
+func TestMatchGlob_NoDoubleStar(t *testing.T) {
+	// Without ** it should fall back to matchPattern
+	tests := []struct {
+		pattern string
+		path    string
+		want    bool
+	}{
+		{"cdp/*/*/*", "cdp/stage/eu-central-1/vpc", true},
+		{"cdp/*/*/*", "other/stage/eu-central-1/vpc", false},
+		{"*", "anything", true},
+	}
+
+	for _, tt := range tests {
+		got := matchGlob(tt.pattern, tt.path)
+		if got != tt.want {
+			t.Errorf("matchGlob(%q, %q) = %v, want %v", tt.pattern, tt.path, got, tt.want)
+		}
+	}
+}
+
+func TestMatchPrefix(t *testing.T) {
+	tests := []struct {
+		prefix string
+		path   string
+		want   bool
+	}{
+		{"cdp/stage", "cdp/stage/eu-central-1/vpc", true},
+		{"cdp/prod", "cdp/stage/eu-central-1/vpc", false},
+		{"a/b/c/d/e", "a/b", false}, // prefix longer than path
+		{"*", "anything", true},
+	}
+
+	for _, tt := range tests {
+		got := matchPrefix(tt.prefix, tt.path)
+		if got != tt.want {
+			t.Errorf("matchPrefix(%q, %q) = %v, want %v", tt.prefix, tt.path, got, tt.want)
+		}
+	}
+}
+
+func TestMatchSuffix(t *testing.T) {
+	tests := []struct {
+		suffix string
+		path   string
+		want   bool
+	}{
+		{"vpc", "cdp/stage/eu-central-1/vpc", true},
+		{"rds", "cdp/stage/eu-central-1/vpc", false},
+		{"eu-central-1/vpc", "cdp/stage/eu-central-1/vpc", true},
+		{"a/b/c/d/e", "a/b", false}, // suffix longer than path
+	}
+
+	for _, tt := range tests {
+		got := matchSuffix(tt.suffix, tt.path)
+		if got != tt.want {
+			t.Errorf("matchSuffix(%q, %q) = %v, want %v", tt.suffix, tt.path, got, tt.want)
+		}
+	}
+}
+
 func TestDoubleStarGlob(t *testing.T) {
 	tests := []struct {
 		pattern string

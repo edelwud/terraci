@@ -383,6 +383,267 @@ func TestDependencyGraph_GetAffectedModulesWithLibraries(t *testing.T) {
 	}
 }
 
+func TestDependencyGraph_GetStats(t *testing.T) {
+	modules := []*discovery.Module{
+		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "vpc"},
+		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "eks"},
+		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "rds"},
+		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "app"},
+	}
+
+	deps := map[string]*parser.ModuleDependencies{
+		"platform/stage/eu-central-1/vpc": {DependsOn: []string{}},
+		"platform/stage/eu-central-1/eks": {DependsOn: []string{"platform/stage/eu-central-1/vpc"}},
+		"platform/stage/eu-central-1/rds": {DependsOn: []string{"platform/stage/eu-central-1/vpc"}},
+		"platform/stage/eu-central-1/app": {DependsOn: []string{"platform/stage/eu-central-1/eks", "platform/stage/eu-central-1/rds"}},
+	}
+
+	g := BuildFromDependencies(modules, deps)
+	stats := g.GetStats()
+
+	if stats.TotalModules != 4 {
+		t.Errorf("TotalModules = %d, want 4", stats.TotalModules)
+	}
+	if stats.TotalEdges != 4 {
+		t.Errorf("TotalEdges = %d, want 4", stats.TotalEdges)
+	}
+	if stats.RootModules != 1 {
+		t.Errorf("RootModules = %d, want 1 (vpc)", stats.RootModules)
+	}
+	if stats.LeafModules != 1 {
+		t.Errorf("LeafModules = %d, want 1 (app)", stats.LeafModules)
+	}
+	if stats.MaxDepth != 2 {
+		t.Errorf("MaxDepth = %d, want 2", stats.MaxDepth)
+	}
+	if stats.HasCycles {
+		t.Error("HasCycles should be false")
+	}
+	if stats.CycleCount != 0 {
+		t.Errorf("CycleCount = %d, want 0", stats.CycleCount)
+	}
+}
+
+func TestDependencyGraph_GetStats_Empty(t *testing.T) {
+	g := NewDependencyGraph()
+	stats := g.GetStats()
+
+	if stats.TotalModules != 0 {
+		t.Errorf("TotalModules = %d, want 0", stats.TotalModules)
+	}
+	if stats.TotalEdges != 0 {
+		t.Errorf("TotalEdges = %d, want 0", stats.TotalEdges)
+	}
+}
+
+func TestDependencyGraph_GetNode(t *testing.T) {
+	modules := []*discovery.Module{
+		{Service: "svc", Environment: "env", Region: "reg", Module: "vpc"},
+	}
+	deps := map[string]*parser.ModuleDependencies{
+		"svc/env/reg/vpc": {DependsOn: []string{}},
+	}
+	g := BuildFromDependencies(modules, deps)
+
+	node := g.GetNode("svc/env/reg/vpc")
+	if node == nil {
+		t.Fatal("GetNode returned nil for existing node")
+	}
+	if node.Module.Module != "vpc" {
+		t.Errorf("GetNode module = %q, want %q", node.Module.Module, "vpc")
+	}
+
+	nonExistent := g.GetNode("nonexistent")
+	if nonExistent != nil {
+		t.Error("GetNode should return nil for nonexistent node")
+	}
+}
+
+func TestDependencyGraph_GetDependencies_GetDependents(t *testing.T) {
+	modules := []*discovery.Module{
+		{Service: "svc", Environment: "env", Region: "reg", Module: "a"},
+		{Service: "svc", Environment: "env", Region: "reg", Module: "b"},
+		{Service: "svc", Environment: "env", Region: "reg", Module: "c"},
+	}
+	deps := map[string]*parser.ModuleDependencies{
+		"svc/env/reg/a": {DependsOn: []string{}},
+		"svc/env/reg/b": {DependsOn: []string{"svc/env/reg/a"}},
+		"svc/env/reg/c": {DependsOn: []string{"svc/env/reg/a"}},
+	}
+	g := BuildFromDependencies(modules, deps)
+
+	// b depends on a
+	bDeps := g.GetDependencies("svc/env/reg/b")
+	if len(bDeps) != 1 || bDeps[0] != "svc/env/reg/a" {
+		t.Errorf("GetDependencies(b) = %v, want [svc/env/reg/a]", bDeps)
+	}
+
+	// a has no dependencies
+	aDeps := g.GetDependencies("svc/env/reg/a")
+	if len(aDeps) != 0 {
+		t.Errorf("GetDependencies(a) = %v, want empty", aDeps)
+	}
+
+	// a is depended on by b and c
+	aDependents := g.GetDependents("svc/env/reg/a")
+	if len(aDependents) != 2 {
+		t.Errorf("GetDependents(a) length = %d, want 2", len(aDependents))
+	}
+
+	// nonexistent module returns nil
+	nDeps := g.GetDependencies("nonexistent")
+	if nDeps != nil {
+		t.Errorf("GetDependencies(nonexistent) = %v, want nil", nDeps)
+	}
+}
+
+func TestDependencyGraph_AddEdge_Dedup(t *testing.T) {
+	modules := []*discovery.Module{
+		{Service: "svc", Environment: "env", Region: "reg", Module: "a"},
+		{Service: "svc", Environment: "env", Region: "reg", Module: "b"},
+	}
+	deps := map[string]*parser.ModuleDependencies{
+		"svc/env/reg/a": {DependsOn: []string{}},
+		"svc/env/reg/b": {DependsOn: []string{"svc/env/reg/a"}},
+	}
+	g := BuildFromDependencies(modules, deps)
+
+	// Add duplicate edge
+	g.AddEdge("svc/env/reg/b", "svc/env/reg/a")
+
+	bDeps := g.GetDependencies("svc/env/reg/b")
+	if len(bDeps) != 1 {
+		t.Errorf("duplicate AddEdge should not create duplicate, got %d edges", len(bDeps))
+	}
+}
+
+func TestDependencyGraph_AddEdge_NonexistentNodes(t *testing.T) {
+	g := NewDependencyGraph()
+	// Adding edge between nonexistent nodes should be a no-op
+	g.AddEdge("from", "to")
+	if len(g.Nodes()) != 0 {
+		t.Error("AddEdge with nonexistent nodes should not create nodes")
+	}
+}
+
+func TestDependencyGraph_ToPlantUML(t *testing.T) {
+	modules := []*discovery.Module{
+		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "vpc"},
+		{Service: "platform", Environment: "stage", Region: "eu-central-1", Module: "eks"},
+	}
+	deps := map[string]*parser.ModuleDependencies{
+		"platform/stage/eu-central-1/vpc": {DependsOn: []string{}},
+		"platform/stage/eu-central-1/eks": {DependsOn: []string{"platform/stage/eu-central-1/vpc"}},
+	}
+	g := BuildFromDependencies(modules, deps)
+
+	plantuml := g.ToPlantUML()
+
+	if !contains(plantuml, "@startuml") {
+		t.Error("PlantUML output missing @startuml")
+	}
+	if !contains(plantuml, "@enduml") {
+		t.Error("PlantUML output missing @enduml")
+	}
+	if !contains(plantuml, "platform/stage") {
+		t.Error("PlantUML output missing package grouping")
+	}
+	if !contains(plantuml, "-->") {
+		t.Error("PlantUML output missing edge")
+	}
+}
+
+func TestPlantUMLAlias(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"platform/stage/eu-central-1/vpc", "platform_stage_eu_central_1_vpc"},
+		{"simple", "simple"},
+		{"with.dots/and-dashes", "with_dots_and_dashes"},
+	}
+
+	for _, tt := range tests {
+		got := plantUMLAlias(tt.input)
+		if got != tt.want {
+			t.Errorf("plantUMLAlias(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestNormalizeLibraryPath(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"/project/_modules/kafka/", "/project/_modules/kafka"},
+		{"/project/_modules/kafka", "/project/_modules/kafka"},
+		{"relative/path/", "relative/path"},
+		{"", ""},
+	}
+
+	for _, tt := range tests {
+		got := normalizeLibraryPath(tt.input)
+		if got != tt.want {
+			t.Errorf("normalizeLibraryPath(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestDependencyGraph_AddLibraryUsage_Dedup(t *testing.T) {
+	g := NewDependencyGraph()
+	g.AddLibraryUsage("/lib/kafka", "module-a")
+	g.AddLibraryUsage("/lib/kafka", "module-a") // duplicate
+
+	users := g.GetModulesUsingLibrary("/lib/kafka")
+	if len(users) != 1 {
+		t.Errorf("expected 1 user after dedup, got %d", len(users))
+	}
+}
+
+func TestDependencyGraph_GetAllDependencies(t *testing.T) {
+	modules := []*discovery.Module{
+		{Service: "svc", Environment: "env", Region: "reg", Module: "a"},
+		{Service: "svc", Environment: "env", Region: "reg", Module: "b"},
+		{Service: "svc", Environment: "env", Region: "reg", Module: "c"},
+	}
+	// c depends on b depends on a
+	deps := map[string]*parser.ModuleDependencies{
+		"svc/env/reg/a": {DependsOn: []string{}},
+		"svc/env/reg/b": {DependsOn: []string{"svc/env/reg/a"}},
+		"svc/env/reg/c": {DependsOn: []string{"svc/env/reg/b"}},
+	}
+	g := BuildFromDependencies(modules, deps)
+
+	allDeps := g.GetAllDependencies("svc/env/reg/c")
+	sort.Strings(allDeps)
+	expected := []string{"svc/env/reg/a", "svc/env/reg/b"}
+	if !reflect.DeepEqual(allDeps, expected) {
+		t.Errorf("GetAllDependencies(c) = %v, want %v", allDeps, expected)
+	}
+}
+
+func TestDependencyGraph_GetAllDependents(t *testing.T) {
+	modules := []*discovery.Module{
+		{Service: "svc", Environment: "env", Region: "reg", Module: "a"},
+		{Service: "svc", Environment: "env", Region: "reg", Module: "b"},
+		{Service: "svc", Environment: "env", Region: "reg", Module: "c"},
+	}
+	deps := map[string]*parser.ModuleDependencies{
+		"svc/env/reg/a": {DependsOn: []string{}},
+		"svc/env/reg/b": {DependsOn: []string{"svc/env/reg/a"}},
+		"svc/env/reg/c": {DependsOn: []string{"svc/env/reg/b"}},
+	}
+	g := BuildFromDependencies(modules, deps)
+
+	allDependents := g.GetAllDependents("svc/env/reg/a")
+	sort.Strings(allDependents)
+	expected := []string{"svc/env/reg/b", "svc/env/reg/c"}
+	if !reflect.DeepEqual(allDependents, expected) {
+		t.Errorf("GetAllDependents(a) = %v, want %v", allDependents, expected)
+	}
+}
+
 func TestDependencyGraph_TransitiveLibraryDependencies(t *testing.T) {
 	// Test case: kafka_acl library is under kafka directory
 	// Changing kafka should affect modules using kafka_acl too

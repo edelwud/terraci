@@ -696,3 +696,174 @@ func TestCountPatternSegments(t *testing.T) {
 		})
 	}
 }
+
+func TestResolveProvider(t *testing.T) {
+	tests := []struct {
+		name     string
+		provider string
+		envKey   string
+		envVal   string
+		want     string
+	}{
+		{
+			name:     "explicit provider set",
+			provider: "github",
+			want:     "github",
+		},
+		{
+			name:   "GITHUB_ACTIONS env var set",
+			envKey: "GITHUB_ACTIONS",
+			envVal: "true",
+			want:   "github",
+		},
+		{
+			name:   "GITLAB_CI env var set",
+			envKey: "GITLAB_CI",
+			envVal: "true",
+			want:   "gitlab",
+		},
+		{
+			name: "no env no explicit defaults to gitlab",
+			want: "gitlab",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Clear relevant env vars to avoid interference
+			t.Setenv("GITHUB_ACTIONS", "")
+			t.Setenv("GITLAB_CI", "")
+			t.Setenv("CI_SERVER_URL", "")
+
+			if tt.envKey != "" {
+				t.Setenv(tt.envKey, tt.envVal)
+			}
+
+			cfg := &Config{Provider: tt.provider}
+			got := ResolveProvider(cfg)
+			if got != tt.want {
+				t.Errorf("ResolveProvider() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetEffectiveConfig(t *testing.T) {
+	t.Run("nil policy config", func(t *testing.T) {
+		var p *PolicyConfig
+		got := p.GetEffectiveConfig("some/module/path")
+		if got != nil {
+			t.Errorf("expected nil, got %+v", got)
+		}
+	})
+
+	t.Run("no overwrites returns base config", func(t *testing.T) {
+		p := &PolicyConfig{
+			Enabled:   true,
+			OnFailure: PolicyActionBlock,
+			OnWarning: PolicyActionWarn,
+		}
+		got := p.GetEffectiveConfig("platform/stage/eu-central-1/vpc")
+		if got == nil {
+			t.Fatal("expected non-nil result")
+		}
+		if got.OnFailure != PolicyActionBlock {
+			t.Errorf("expected OnFailure=block, got %q", got.OnFailure)
+		}
+		if got.OnWarning != PolicyActionWarn {
+			t.Errorf("expected OnWarning=warn, got %q", got.OnWarning)
+		}
+	})
+
+	t.Run("matching overwrite modifies config", func(t *testing.T) {
+		enabled := false
+		p := &PolicyConfig{
+			Enabled:   true,
+			OnFailure: PolicyActionBlock,
+			OnWarning: PolicyActionWarn,
+			Overwrites: []PolicyOverwrite{
+				{
+					Match:     "*/sandbox/*",
+					OnFailure: PolicyActionWarn,
+					Enabled:   &enabled,
+				},
+			},
+		}
+		got := p.GetEffectiveConfig("platform/sandbox/eu-central-1")
+		if got == nil {
+			t.Fatal("expected non-nil result")
+		}
+		if got.OnFailure != PolicyActionWarn {
+			t.Errorf("expected OnFailure=warn after overwrite, got %q", got.OnFailure)
+		}
+		if got.Enabled {
+			t.Error("expected Enabled=false after overwrite")
+		}
+	})
+}
+
+func TestValidate_NilGitLab(t *testing.T) {
+	cfg := &Config{
+		Structure: StructureConfig{
+			Pattern:  "{service}/{env}/{region}/{module}",
+			MinDepth: 4,
+			MaxDepth: 5,
+		},
+		GitLab: nil,
+		GitHub: &GitHubConfig{
+			RunsOn: "ubuntu-latest",
+		},
+		Provider: "github",
+	}
+
+	err := cfg.Validate()
+	if err != nil {
+		t.Errorf("expected no error with nil GitLab and GitHub set, got: %v", err)
+	}
+}
+
+func TestValidate_GitHubConfig(t *testing.T) {
+	t.Run("empty RunsOn gets default", func(t *testing.T) {
+		cfg := &Config{
+			Structure: StructureConfig{
+				Pattern:  "{service}/{env}/{region}/{module}",
+				MinDepth: 4,
+				MaxDepth: 5,
+			},
+			Provider: "github",
+			GitHub: &GitHubConfig{
+				RunsOn: "",
+			},
+		}
+
+		err := cfg.Validate()
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if cfg.GitHub.RunsOn != "ubuntu-latest" {
+			t.Errorf("expected RunsOn to be set to ubuntu-latest, got %q", cfg.GitHub.RunsOn)
+		}
+	})
+
+	t.Run("explicit RunsOn preserved", func(t *testing.T) {
+		cfg := &Config{
+			Structure: StructureConfig{
+				Pattern:  "{service}/{env}/{region}/{module}",
+				MinDepth: 4,
+				MaxDepth: 5,
+			},
+			Provider: "github",
+			GitHub: &GitHubConfig{
+				RunsOn: "self-hosted",
+			},
+		}
+
+		err := cfg.Validate()
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if cfg.GitHub.RunsOn != "self-hosted" {
+			t.Errorf("expected RunsOn to remain self-hosted, got %q", cfg.GitHub.RunsOn)
+		}
+	})
+}

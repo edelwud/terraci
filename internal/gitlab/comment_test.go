@@ -131,6 +131,69 @@ func TestFindTerraCIComment_NotFound(t *testing.T) {
 	}
 }
 
+func TestFindTerraCIComment_NilNotes(t *testing.T) {
+	found := FindTerraCIComment(nil)
+	if found != nil {
+		t.Error("expected nil for nil notes input")
+	}
+}
+
+func TestFindTerraCIComment_EmptyNotes(t *testing.T) {
+	found := FindTerraCIComment([]*gitlab.Note{})
+	if found != nil {
+		t.Error("expected nil for empty notes input")
+	}
+}
+
+func TestFindTerraCIComment_FirstMatch(t *testing.T) {
+	notes := []*gitlab.Note{
+		{ID: 1, Body: CommentMarker + " first"},
+		{ID: 2, Body: CommentMarker + " second"},
+	}
+
+	found := FindTerraCIComment(notes)
+	if found == nil {
+		t.Fatal("expected to find comment")
+	}
+	if found.ID != 1 {
+		t.Errorf("expected first match (ID=1), got ID=%d", found.ID)
+	}
+}
+
+func TestNewCommentRenderer(t *testing.T) {
+	r := NewCommentRenderer()
+	if r == nil {
+		t.Fatal("NewCommentRenderer returned nil")
+	}
+}
+
+func TestCommentMarkerConstant(t *testing.T) {
+	if CommentMarker != ci.CommentMarker {
+		t.Errorf("CommentMarker = %q, want %q", CommentMarker, ci.CommentMarker)
+	}
+}
+
+func TestPlanStatusConstants(t *testing.T) {
+	if PlanStatusPending != ci.PlanStatusPending {
+		t.Error("PlanStatusPending mismatch")
+	}
+	if PlanStatusRunning != ci.PlanStatusRunning {
+		t.Error("PlanStatusRunning mismatch")
+	}
+	if PlanStatusSuccess != ci.PlanStatusSuccess {
+		t.Error("PlanStatusSuccess mismatch")
+	}
+	if PlanStatusNoChanges != ci.PlanStatusNoChanges {
+		t.Error("PlanStatusNoChanges mismatch")
+	}
+	if PlanStatusChanges != ci.PlanStatusChanges {
+		t.Error("PlanStatusChanges mismatch")
+	}
+	if PlanStatusFailed != ci.PlanStatusFailed {
+		t.Error("PlanStatusFailed mismatch")
+	}
+}
+
 func TestTruncate(t *testing.T) {
 	tests := []struct {
 		input    string

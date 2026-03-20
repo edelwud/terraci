@@ -377,6 +377,89 @@ func TestGetPlanStatus(t *testing.T) {
 	}
 }
 
+func TestDetectPipelineID(t *testing.T) {
+	t.Setenv("CI_PIPELINE_ID", "")
+	t.Setenv("GITHUB_RUN_ID", "12345")
+
+	got := detectPipelineID()
+	if got != "12345" {
+		t.Errorf("detectPipelineID() = %q, want %q", got, "12345")
+	}
+}
+
+func TestDetectPipelineID_GitLab(t *testing.T) {
+	t.Setenv("CI_PIPELINE_ID", "67890")
+	t.Setenv("GITHUB_RUN_ID", "12345")
+
+	got := detectPipelineID()
+	if got != "67890" {
+		t.Errorf("detectPipelineID() = %q, want %q (GitLab takes precedence)", got, "67890")
+	}
+}
+
+func TestDetectCommitSHA(t *testing.T) {
+	t.Setenv("CI_COMMIT_SHA", "")
+	t.Setenv("GITHUB_SHA", "abc123")
+
+	got := detectCommitSHA()
+	if got != "abc123" {
+		t.Errorf("detectCommitSHA() = %q, want %q", got, "abc123")
+	}
+}
+
+func TestDetectCommitSHA_GitLab(t *testing.T) {
+	t.Setenv("CI_COMMIT_SHA", "def456")
+	t.Setenv("GITHUB_SHA", "abc123")
+
+	got := detectCommitSHA()
+	if got != "def456" {
+		t.Errorf("detectCommitSHA() = %q, want %q (GitLab takes precedence)", got, "def456")
+	}
+}
+
+func TestFormatResourceAddress(t *testing.T) {
+	tests := []struct {
+		name string
+		rc   plan.ResourceChange
+		want string
+	}{
+		{
+			name: "simple address",
+			rc:   plan.ResourceChange{Address: "aws_instance.web", Type: "aws_instance", Name: "web"},
+			want: "aws_instance.web",
+		},
+		{
+			name: "with module address",
+			rc:   plan.ResourceChange{Address: "module.vpc.aws_vpc.main", ModuleAddr: "module.vpc", Type: "aws_vpc", Name: "main"},
+			want: "module.vpc.aws_vpc.main",
+		},
+		{
+			name: "empty address falls back to type.name",
+			rc:   plan.ResourceChange{Address: "", Type: "aws_s3_bucket", Name: "data"},
+			want: "aws_s3_bucket.data",
+		},
+		{
+			name: "very long address gets truncated",
+			rc: plan.ResourceChange{
+				Address:    "module.very_long_module_name.module.another_nested_module.aws_very_long_resource_type_name.very_long_resource_name_that_exceeds",
+				ModuleAddr: "module.very_long_module_name.module.another_nested_module",
+				Type:       "aws_very_long_resource_type_name",
+				Name:       "very_long_resource_name_that_exceeds",
+			},
+			want: "module.very_long_module_name.module.another_nested_module.aws_very_long_resou...",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatResourceAddress(tt.rc)
+			if got != tt.want {
+				t.Errorf("formatResourceAddress() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestGetExitCode(t *testing.T) {
 	tests := []struct {
 		name     string
