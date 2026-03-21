@@ -437,19 +437,12 @@ const ProviderGitLab = "gitlab"
 // ProviderGitHub is the GitHub Actions provider identifier
 const ProviderGitHub = "github"
 
-// ResolveProvider determines the CI provider from config or environment
 // ResolvedProvider returns the CI provider, auto-detecting from environment if not set.
-func (c *Config) ResolvedProvider() string { return ResolveProvider(c) }
-
-// ResolveProvider determines the CI provider from config or environment.
-//
-// Deprecated: Use Config.ResolvedProvider() instead.
-func ResolveProvider(cfg *Config) string {
-	if cfg.Provider != "" {
-		return cfg.Provider
+func (c *Config) ResolvedProvider() string {
+	if c.Provider != "" {
+		return c.Provider
 	}
 
-	// Auto-detect from environment
 	if os.Getenv("GITHUB_ACTIONS") != "" {
 		return ProviderGitHub
 	}
@@ -457,7 +450,7 @@ func ResolveProvider(cfg *Config) string {
 		return ProviderGitLab
 	}
 
-	return ProviderGitLab // Default
+	return ProviderGitLab
 }
 
 // DefaultConfig returns a config with sensible defaults
@@ -770,7 +763,7 @@ func (c *Config) Validate() error {
 	}
 
 	// Provider-specific validation
-	provider := ResolveProvider(c)
+	provider := c.ResolvedProvider()
 	switch provider {
 	case ProviderGitHub:
 		if c.GitHub != nil && c.GitHub.RunsOn == "" {

@@ -686,7 +686,7 @@ func TestParsePatternSegmentCount(t *testing.T) {
 	}
 }
 
-func TestResolveProvider(t *testing.T) {
+func TestResolvedProvider(t *testing.T) {
 	tests := []struct {
 		name     string
 		provider string
@@ -729,9 +729,9 @@ func TestResolveProvider(t *testing.T) {
 			}
 
 			cfg := &Config{Provider: tt.provider}
-			got := ResolveProvider(cfg)
+			got := cfg.ResolvedProvider()
 			if got != tt.want {
-				t.Errorf("ResolveProvider() = %q, want %q", got, tt.want)
+				t.Errorf("ResolvedProvider() = %q, want %q", got, tt.want)
 			}
 		})
 	}
