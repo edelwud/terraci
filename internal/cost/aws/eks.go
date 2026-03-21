@@ -19,28 +19,15 @@ func (h *EKSClusterHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceEKS
 }
 
-func (h *EKSClusterHandler) BuildLookup(region string, _ map[string]interface{}) (*pricing.PriceLookup, error) {
-	regionName := pricing.RegionMapping[region]
-	if regionName == "" {
-		regionName = region
-	}
-
-	return &pricing.PriceLookup{
-		ServiceCode:   pricing.ServiceEKS,
-		Region:        region,
-		ProductFamily: "Compute",
-		Attributes: map[string]string{
-			"location":  regionName,
-			"usagetype": region + "-AmazonEKS-Hours:perCluster",
-		},
-	}, nil
+func (h *EKSClusterHandler) BuildLookup(_ string, _ map[string]any) (*pricing.PriceLookup, error) {
+	// EKS cluster has a fixed $0.10/hr cost across all regions.
+	// AWS pricing API uses region-specific usagetype prefixes (EUC1-, USE1-, etc.)
+	// that are difficult to map. Use fixed cost instead.
+	return nil, nil
 }
 
-func (h *EKSClusterHandler) CalculateCost(price *pricing.Price, _ map[string]interface{}) (hourly, monthly float64) {
-	hourly = price.OnDemandUSD
-	if hourly == 0 {
-		hourly = DefaultEKSClusterHourlyCost
-	}
+func (h *EKSClusterHandler) CalculateCost(_ *pricing.Price, _ map[string]any) (hourly, monthly float64) {
+	hourly = DefaultEKSClusterHourlyCost // $0.10/hr — fixed across all regions
 	monthly = hourly * HoursPerMonth
 	return hourly, monthly
 }
@@ -52,12 +39,12 @@ func (h *EKSNodeGroupHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceEC2
 }
 
-func (h *EKSNodeGroupHandler) BuildLookup(region string, attrs map[string]interface{}) (*pricing.PriceLookup, error) {
+func (h *EKSNodeGroupHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 	// Get instance types from node group
 	var instanceType string
 
 	// Instance types can be in different locations depending on terraform version
-	if instanceTypes, ok := attrs["instance_types"].([]interface{}); ok && len(instanceTypes) > 0 {
+	if instanceTypes, ok := attrs["instance_types"].([]any); ok && len(instanceTypes) > 0 {
 		if t, ok := instanceTypes[0].(string); ok {
 			instanceType = t
 		}
@@ -87,12 +74,12 @@ func (h *EKSNodeGroupHandler) BuildLookup(region string, attrs map[string]interf
 	}, nil
 }
 
-func (h *EKSNodeGroupHandler) CalculateCost(price *pricing.Price, attrs map[string]interface{}) (hourly, monthly float64) {
+func (h *EKSNodeGroupHandler) CalculateCost(price *pricing.Price, attrs map[string]any) (hourly, monthly float64) {
 	// Determine node count from scaling_config
 	desiredSize := 1
 
-	if scalingConfig, ok := attrs["scaling_config"].([]interface{}); ok && len(scalingConfig) > 0 {
-		if cfg, ok := scalingConfig[0].(map[string]interface{}); ok {
+	if scalingConfig, ok := attrs["scaling_config"].([]any); ok && len(scalingConfig) > 0 {
+		if cfg, ok := scalingConfig[0].(map[string]any); ok {
 			if d := getIntAttr(cfg, "desired_size"); d > 0 {
 				desiredSize = d
 			}
@@ -112,12 +99,12 @@ func (h *ECSClusterHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceECS
 }
 
-func (h *ECSClusterHandler) BuildLookup(_ string, _ map[string]interface{}) (*pricing.PriceLookup, error) {
+func (h *ECSClusterHandler) BuildLookup(_ string, _ map[string]any) (*pricing.PriceLookup, error) {
 	// ECS cluster has no direct cost, return nil
 	return nil, fmt.Errorf("ECS cluster has no direct cost")
 }
 
-func (h *ECSClusterHandler) CalculateCost(_ *pricing.Price, _ map[string]interface{}) (hourly, monthly float64) {
+func (h *ECSClusterHandler) CalculateCost(_ *pricing.Price, _ map[string]any) (hourly, monthly float64) {
 	// ECS cluster is free
 	return 0, 0
 }

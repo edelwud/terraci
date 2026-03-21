@@ -18,14 +18,14 @@ func TestElastiCacheClusterHandler_BuildLookup(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		attrs      map[string]interface{}
+		attrs      map[string]any
 		wantErr    bool
 		wantType   string
 		wantEngine string
 	}{
 		{
 			name: "redis cluster",
-			attrs: map[string]interface{}{
+			attrs: map[string]any{
 				"node_type": "cache.t3.micro",
 				"engine":    "redis",
 			},
@@ -34,7 +34,7 @@ func TestElastiCacheClusterHandler_BuildLookup(t *testing.T) {
 		},
 		{
 			name: "memcached cluster",
-			attrs: map[string]interface{}{
+			attrs: map[string]any{
 				"node_type": "cache.m5.large",
 				"engine":    "memcached",
 			},
@@ -43,7 +43,7 @@ func TestElastiCacheClusterHandler_BuildLookup(t *testing.T) {
 		},
 		{
 			name: "default engine",
-			attrs: map[string]interface{}{
+			attrs: map[string]any{
 				"node_type": "cache.t3.micro",
 			},
 			wantType:   "cache.t3.micro",
@@ -51,7 +51,7 @@ func TestElastiCacheClusterHandler_BuildLookup(t *testing.T) {
 		},
 		{
 			name:    "missing node_type",
-			attrs:   map[string]interface{}{},
+			attrs:   map[string]any{},
 			wantErr: true,
 		},
 	}
@@ -88,17 +88,17 @@ func TestElastiCacheClusterHandler_CalculateCost(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		attrs          map[string]interface{}
+		attrs          map[string]any
 		expectedHourly float64
 	}{
 		{
 			name:           "single node",
-			attrs:          map[string]interface{}{},
+			attrs:          map[string]any{},
 			expectedHourly: 0.05,
 		},
 		{
 			name: "3 nodes",
-			attrs: map[string]interface{}{
+			attrs: map[string]any{
 				"num_cache_nodes": 3,
 			},
 			expectedHourly: 0.15,
@@ -128,20 +128,20 @@ func TestElastiCacheReplicationGroupHandler_BuildLookup(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		attrs    map[string]interface{}
+		attrs    map[string]any
 		wantErr  bool
 		wantType string
 	}{
 		{
 			name: "replication group",
-			attrs: map[string]interface{}{
+			attrs: map[string]any{
 				"node_type": "cache.r5.large",
 			},
 			wantType: "cache.r5.large",
 		},
 		{
 			name:    "missing node_type",
-			attrs:   map[string]interface{}{},
+			attrs:   map[string]any{},
 			wantErr: true,
 		},
 	}
@@ -175,19 +175,19 @@ func TestElastiCacheReplicationGroupHandler_CalculateCost(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		attrs          map[string]interface{}
+		attrs          map[string]any
 		expectedNodes  int
 		expectedHourly float64
 	}{
 		{
 			name:           "default single node",
-			attrs:          map[string]interface{}{},
+			attrs:          map[string]any{},
 			expectedNodes:  1,
 			expectedHourly: 0.10,
 		},
 		{
 			name: "2 shards with 2 replicas each",
-			attrs: map[string]interface{}{
+			attrs: map[string]any{
 				"num_node_groups":         2,
 				"replicas_per_node_group": 2,
 			},
@@ -196,7 +196,7 @@ func TestElastiCacheReplicationGroupHandler_CalculateCost(t *testing.T) {
 		},
 		{
 			name: "legacy number_cache_clusters",
-			attrs: map[string]interface{}{
+			attrs: map[string]any{
 				"number_cache_clusters": 3,
 			},
 			expectedNodes:  3,

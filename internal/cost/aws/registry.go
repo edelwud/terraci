@@ -12,9 +12,9 @@ type ResourceHandler interface {
 	// ServiceCode returns the AWS service code for pricing API
 	ServiceCode() pricing.ServiceCode
 	// BuildLookup creates a PriceLookup from terraform resource attributes
-	BuildLookup(region string, attrs map[string]interface{}) (*pricing.PriceLookup, error)
+	BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error)
 	// CalculateCost calculates monthly cost from price and resource attributes
-	CalculateCost(price *pricing.Price, attrs map[string]interface{}) (hourly, monthly float64)
+	CalculateCost(price *pricing.Price, attrs map[string]any) (hourly, monthly float64)
 }
 
 // Registry maps terraform resource types to handlers

@@ -1,0 +1,45 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.6.0",
+  "resource_changes": [
+    {
+      "address": "aws_db_instance.postgres",
+      "mode": "managed",
+      "type": "aws_db_instance",
+      "name": "postgres",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "identifier": "prod-postgres",
+          "engine": "postgres",
+          "engine_version": "15.4",
+          "instance_class": "db.r6g.xlarge",
+          "allocated_storage": 100,
+          "storage_type": "gp3",
+          "storage_encrypted": true,
+          "multi_az": true
+        },
+        "after_unknown": { "id": true }
+      }
+    },
+    {
+      "address": "aws_elasticache_cluster.redis",
+      "mode": "managed",
+      "type": "aws_elasticache_cluster",
+      "name": "redis",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "cluster_id": "prod-redis",
+          "engine": "redis",
+          "node_type": "cache.r6g.large",
+          "num_cache_nodes": 2
+        },
+        "after_unknown": { "id": true }
+      }
+    }
+  ],
+  "configuration": { "root_module": {} }
+}

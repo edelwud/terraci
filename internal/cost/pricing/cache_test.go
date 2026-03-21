@@ -384,7 +384,7 @@ func TestGetIndex_CacheMiss(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	c := NewCache(tmpDir, time.Hour)
-	c.fetcher = &Fetcher{client: ts.Client(), baseURL: ts.URL}
+	c.fetcher = &Fetcher{Client: ts.Client(), BaseURL: ts.URL}
 
 	got, err := c.GetIndex(context.Background(), ServiceEC2, "us-east-1")
 	if err != nil {
@@ -412,7 +412,7 @@ func TestGetIndex_FetchError(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	c := NewCache(tmpDir, time.Hour)
-	c.fetcher = &Fetcher{client: ts.Client(), baseURL: ts.URL}
+	c.fetcher = &Fetcher{Client: ts.Client(), BaseURL: ts.URL}
 
 	_, err := c.GetIndex(context.Background(), ServiceEC2, "us-east-1")
 	if err == nil {
@@ -426,7 +426,7 @@ func TestPrewarmCache(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	c := NewCache(tmpDir, time.Hour)
-	c.fetcher = &Fetcher{client: ts.Client(), baseURL: ts.URL}
+	c.fetcher = &Fetcher{Client: ts.Client(), BaseURL: ts.URL}
 
 	services := map[ServiceCode][]string{
 		ServiceEC2: {"us-east-1"},
@@ -450,7 +450,7 @@ func TestPrewarmCache_Error(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	c := NewCache(tmpDir, time.Hour)
-	c.fetcher = &Fetcher{client: ts.Client(), baseURL: ts.URL}
+	c.fetcher = &Fetcher{Client: ts.Client(), BaseURL: ts.URL}
 
 	err := c.PrewarmCache(context.Background(), map[ServiceCode][]string{
 		ServiceEC2: {"us-east-1"},

@@ -23,12 +23,12 @@ func (h *S3BucketHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceS3
 }
 
-func (h *S3BucketHandler) BuildLookup(_ string, _ map[string]interface{}) (*pricing.PriceLookup, error) {
+func (h *S3BucketHandler) BuildLookup(_ string, _ map[string]any) (*pricing.PriceLookup, error) {
 	// S3 bucket itself is free, cost is for storage and requests
 	return nil, nil
 }
 
-func (h *S3BucketHandler) CalculateCost(_ *pricing.Price, _ map[string]interface{}) (hourly, monthly float64) {
+func (h *S3BucketHandler) CalculateCost(_ *pricing.Price, _ map[string]any) (hourly, monthly float64) {
 	// S3: ~$0.023 per GB-month for Standard
 	// Without usage data, we can't estimate
 	return 0, 0
@@ -41,12 +41,12 @@ func (h *CloudWatchLogGroupHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceCloudWatch
 }
 
-func (h *CloudWatchLogGroupHandler) BuildLookup(_ string, _ map[string]interface{}) (*pricing.PriceLookup, error) {
+func (h *CloudWatchLogGroupHandler) BuildLookup(_ string, _ map[string]any) (*pricing.PriceLookup, error) {
 	// CloudWatch Logs: ingestion + storage
 	return nil, nil
 }
 
-func (h *CloudWatchLogGroupHandler) CalculateCost(_ *pricing.Price, _ map[string]interface{}) (hourly, monthly float64) {
+func (h *CloudWatchLogGroupHandler) CalculateCost(_ *pricing.Price, _ map[string]any) (hourly, monthly float64) {
 	// CloudWatch Logs: $0.50 per GB ingested, $0.03 per GB stored
 	// Usage-based, no fixed cost
 	return 0, 0
@@ -59,7 +59,7 @@ func (h *CloudWatchAlarmHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceCloudWatch
 }
 
-func (h *CloudWatchAlarmHandler) BuildLookup(region string, _ map[string]interface{}) (*pricing.PriceLookup, error) {
+func (h *CloudWatchAlarmHandler) BuildLookup(region string, _ map[string]any) (*pricing.PriceLookup, error) {
 	regionName := pricing.RegionMapping[region]
 	if regionName == "" {
 		regionName = region
@@ -75,7 +75,7 @@ func (h *CloudWatchAlarmHandler) BuildLookup(region string, _ map[string]interfa
 	}, nil
 }
 
-func (h *CloudWatchAlarmHandler) CalculateCost(_ *pricing.Price, attrs map[string]interface{}) (hourly, monthly float64) {
+func (h *CloudWatchAlarmHandler) CalculateCost(_ *pricing.Price, attrs map[string]any) (hourly, monthly float64) {
 	// Standard resolution alarm: $0.10/alarm/month
 	// High resolution alarm: $0.30/alarm/month
 	period := getIntAttr(attrs, "period")
@@ -95,7 +95,7 @@ func (h *SecretsManagerHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceSecretsMan
 }
 
-func (h *SecretsManagerHandler) BuildLookup(region string, _ map[string]interface{}) (*pricing.PriceLookup, error) {
+func (h *SecretsManagerHandler) BuildLookup(region string, _ map[string]any) (*pricing.PriceLookup, error) {
 	regionName := pricing.RegionMapping[region]
 	if regionName == "" {
 		regionName = region
@@ -111,7 +111,7 @@ func (h *SecretsManagerHandler) BuildLookup(region string, _ map[string]interfac
 	}, nil
 }
 
-func (h *SecretsManagerHandler) CalculateCost(_ *pricing.Price, _ map[string]interface{}) (hourly, monthly float64) {
+func (h *SecretsManagerHandler) CalculateCost(_ *pricing.Price, _ map[string]any) (hourly, monthly float64) {
 	// Secrets Manager: $0.40 per secret per month + $0.05 per 10,000 API calls
 	monthly = SecretsManagerSecretCost
 	hourly = monthly / HoursPerMonth
@@ -125,7 +125,7 @@ func (h *KMSKeyHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceKMS
 }
 
-func (h *KMSKeyHandler) BuildLookup(region string, _ map[string]interface{}) (*pricing.PriceLookup, error) {
+func (h *KMSKeyHandler) BuildLookup(region string, _ map[string]any) (*pricing.PriceLookup, error) {
 	regionName := pricing.RegionMapping[region]
 	if regionName == "" {
 		regionName = region
@@ -141,7 +141,7 @@ func (h *KMSKeyHandler) BuildLookup(region string, _ map[string]interface{}) (*p
 	}, nil
 }
 
-func (h *KMSKeyHandler) CalculateCost(_ *pricing.Price, _ map[string]interface{}) (hourly, monthly float64) {
+func (h *KMSKeyHandler) CalculateCost(_ *pricing.Price, _ map[string]any) (hourly, monthly float64) {
 	// KMS: $1.00 per key per month (customer managed keys)
 	// AWS managed keys are free
 	// All key types have the same base cost
@@ -157,7 +157,7 @@ func (h *Route53ZoneHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceRoute53
 }
 
-func (h *Route53ZoneHandler) BuildLookup(_ string, _ map[string]interface{}) (*pricing.PriceLookup, error) {
+func (h *Route53ZoneHandler) BuildLookup(_ string, _ map[string]any) (*pricing.PriceLookup, error) {
 	return &pricing.PriceLookup{
 		ServiceCode:   pricing.ServiceRoute53,
 		Region:        "global",
@@ -166,7 +166,7 @@ func (h *Route53ZoneHandler) BuildLookup(_ string, _ map[string]interface{}) (*p
 	}, nil
 }
 
-func (h *Route53ZoneHandler) CalculateCost(_ *pricing.Price, _ map[string]interface{}) (hourly, monthly float64) {
+func (h *Route53ZoneHandler) CalculateCost(_ *pricing.Price, _ map[string]any) (hourly, monthly float64) {
 	// Route53: $0.50 per hosted zone per month (first 25 zones)
 	// Then $0.10 per zone after 25
 	monthly = Route53HostedZoneCost

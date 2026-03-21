@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -60,9 +61,7 @@ func (p *Parser) extractLocals(pm *ParsedModule) {
 	for _, block := range p.findBlocks(pm, "locals", nil) {
 		attrs, diags := block.Body.JustAttributes()
 		pm.addDiags(diags)
-		for name, attr := range attrs {
-			allAttrs[name] = attr
-		}
+		maps.Copy(allAttrs, attrs)
 	}
 
 	// Multi-pass evaluation: locals can reference other locals, path.module, functions

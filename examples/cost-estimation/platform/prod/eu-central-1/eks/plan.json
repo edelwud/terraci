@@ -1,0 +1,39 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.6.0",
+  "resource_changes": [
+    {
+      "address": "aws_eks_cluster.main",
+      "mode": "managed",
+      "type": "aws_eks_cluster",
+      "name": "main",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "name": "prod-eks",
+          "role_arn": "arn:aws:iam::role/eks",
+          "vpc_config": [{ "subnet_ids": ["subnet-1", "subnet-2"] }]
+        },
+        "after_unknown": { "id": true }
+      }
+    },
+    {
+      "address": "aws_eks_node_group.workers",
+      "mode": "managed",
+      "type": "aws_eks_node_group",
+      "name": "workers",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "cluster_name": "prod-eks",
+          "instance_types": ["m5.xlarge"],
+          "scaling_config": [{ "desired_size": 3, "max_size": 5, "min_size": 1 }]
+        },
+        "after_unknown": { "id": true }
+      }
+    }
+  ],
+  "configuration": { "root_module": {} }
+}

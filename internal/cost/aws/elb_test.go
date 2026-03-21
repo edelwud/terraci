@@ -18,31 +18,31 @@ func TestLBHandler_BuildLookup(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		attrs      map[string]interface{}
+		attrs      map[string]any
 		wantFamily string
 	}{
 		{
 			name:       "default ALB",
-			attrs:      map[string]interface{}{},
+			attrs:      map[string]any{},
 			wantFamily: "Load Balancer-Application",
 		},
 		{
 			name: "explicit ALB",
-			attrs: map[string]interface{}{
+			attrs: map[string]any{
 				"load_balancer_type": "application",
 			},
 			wantFamily: "Load Balancer-Application",
 		},
 		{
 			name: "NLB",
-			attrs: map[string]interface{}{
+			attrs: map[string]any{
 				"load_balancer_type": "network",
 			},
 			wantFamily: "Load Balancer-Network",
 		},
 		{
 			name: "Gateway LB",
-			attrs: map[string]interface{}{
+			attrs: map[string]any{
 				"load_balancer_type": "gateway",
 			},
 			wantFamily: "Load Balancer-Gateway",
@@ -69,25 +69,25 @@ func TestLBHandler_CalculateCost(t *testing.T) {
 	tests := []struct {
 		name           string
 		price          *pricing.Price
-		attrs          map[string]interface{}
+		attrs          map[string]any
 		expectedHourly float64
 	}{
 		{
 			name:           "with price",
 			price:          &pricing.Price{OnDemandUSD: 0.025},
-			attrs:          map[string]interface{}{},
+			attrs:          map[string]any{},
 			expectedHourly: 0.025,
 		},
 		{
 			name:           "fallback ALB",
 			price:          &pricing.Price{OnDemandUSD: 0},
-			attrs:          map[string]interface{}{},
+			attrs:          map[string]any{},
 			expectedHourly: 0.0225,
 		},
 		{
 			name:  "fallback NLB",
 			price: &pricing.Price{OnDemandUSD: 0},
-			attrs: map[string]interface{}{
+			attrs: map[string]any{
 				"load_balancer_type": "network",
 			},
 			expectedHourly: 0.0225,
@@ -95,7 +95,7 @@ func TestLBHandler_CalculateCost(t *testing.T) {
 		{
 			name:  "fallback GWLB",
 			price: &pricing.Price{OnDemandUSD: 0},
-			attrs: map[string]interface{}{
+			attrs: map[string]any{
 				"load_balancer_type": "gateway",
 			},
 			expectedHourly: 0.0125,

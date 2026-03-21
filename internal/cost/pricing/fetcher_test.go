@@ -196,11 +196,11 @@ func TestNewFetcher(t *testing.T) {
 	if f == nil {
 		t.Fatal("NewFetcher returned nil")
 	}
-	if f.client == nil {
+	if f.Client == nil {
 		t.Error("client is nil")
 	}
-	if f.baseURL != AWSPricingBaseURL {
-		t.Errorf("baseURL = %q, want %q", f.baseURL, AWSPricingBaseURL)
+	if f.BaseURL != AWSPricingBaseURL {
+		t.Errorf("baseURL = %q, want %q", f.BaseURL, AWSPricingBaseURL)
 	}
 }
 
@@ -298,7 +298,7 @@ func TestFetchRegionIndex(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	f := &Fetcher{client: ts.Client(), baseURL: ts.URL}
+	f := &Fetcher{Client: ts.Client(), BaseURL: ts.URL}
 	idx, err := f.FetchRegionIndex(context.Background(), ServiceEC2, "us-east-1")
 	if err != nil {
 		t.Fatalf("FetchRegionIndex: %v", err)
@@ -317,7 +317,7 @@ func TestFetchRegionIndex_ServerError(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	f := &Fetcher{client: ts.Client(), baseURL: ts.URL}
+	f := &Fetcher{Client: ts.Client(), BaseURL: ts.URL}
 	_, err := f.FetchRegionIndex(context.Background(), ServiceEC2, "us-east-1")
 	if err == nil {
 		t.Error("expected error for non-200 status")
@@ -330,7 +330,7 @@ func TestFetchRegionIndex_InvalidBody(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	f := &Fetcher{client: ts.Client(), baseURL: ts.URL}
+	f := &Fetcher{Client: ts.Client(), BaseURL: ts.URL}
 	_, err := f.FetchRegionIndex(context.Background(), ServiceEC2, "us-east-1")
 	if err == nil {
 		t.Error("expected error for invalid JSON body")

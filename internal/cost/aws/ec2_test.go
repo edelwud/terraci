@@ -19,7 +19,7 @@ func TestEC2InstanceHandler_BuildLookup(t *testing.T) {
 	tests := []struct {
 		name        string
 		region      string
-		attrs       map[string]interface{}
+		attrs       map[string]any
 		wantErr     bool
 		wantType    string
 		wantTenancy string
@@ -27,7 +27,7 @@ func TestEC2InstanceHandler_BuildLookup(t *testing.T) {
 		{
 			name:   "basic instance",
 			region: "us-east-1",
-			attrs: map[string]interface{}{
+			attrs: map[string]any{
 				"instance_type": "t3.micro",
 			},
 			wantErr:     false,
@@ -37,7 +37,7 @@ func TestEC2InstanceHandler_BuildLookup(t *testing.T) {
 		{
 			name:   "dedicated tenancy",
 			region: "eu-central-1",
-			attrs: map[string]interface{}{
+			attrs: map[string]any{
 				"instance_type": "m5.large",
 				"tenancy":       "dedicated",
 			},
@@ -48,7 +48,7 @@ func TestEC2InstanceHandler_BuildLookup(t *testing.T) {
 		{
 			name:    "missing instance_type",
 			region:  "us-east-1",
-			attrs:   map[string]interface{}{},
+			attrs:   map[string]any{},
 			wantErr: true,
 		},
 	}
@@ -103,24 +103,24 @@ func TestEBSVolumeHandler_BuildLookup(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		attrs          map[string]interface{}
+		attrs          map[string]any
 		wantVolumeType string
 	}{
 		{
 			name:           "default gp2",
-			attrs:          map[string]interface{}{},
+			attrs:          map[string]any{},
 			wantVolumeType: "General Purpose",
 		},
 		{
 			name: "explicit gp3",
-			attrs: map[string]interface{}{
+			attrs: map[string]any{
 				"type": "gp3",
 			},
 			wantVolumeType: "General Purpose",
 		},
 		{
 			name: "io1",
-			attrs: map[string]interface{}{
+			attrs: map[string]any{
 				"type": "io1",
 			},
 			wantVolumeType: "Provisioned IOPS",
@@ -150,19 +150,19 @@ func TestEBSVolumeHandler_CalculateCost(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		attrs           map[string]interface{}
+		attrs           map[string]any
 		expectedMonthly float64
 	}{
 		{
 			name: "default 8GB",
-			attrs: map[string]interface{}{
+			attrs: map[string]any{
 				"type": "gp2",
 			},
 			expectedMonthly: 0.10 * 8,
 		},
 		{
 			name: "100GB volume",
-			attrs: map[string]interface{}{
+			attrs: map[string]any{
 				"type": "gp2",
 				"size": float64(100),
 			},

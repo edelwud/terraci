@@ -2,6 +2,7 @@ package gitlab
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 
 	"github.com/edelwud/terraci/internal/discovery"
@@ -84,9 +85,7 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (pipeline.Genera
 
 	// Merge variables with TERRAFORM_BINARY
 	variables := make(map[string]string)
-	for k, v := range g.config.GitLab.Variables {
-		variables[k] = v
-	}
+	maps.Copy(variables, g.config.GitLab.Variables)
 	tfBinary := g.config.GitLab.TerraformBinary
 	if tfBinary == "" {
 		tfBinary = "terraform"
@@ -408,9 +407,7 @@ func (g *Generator) applyJobConfig(job *Job, cfg config.JobConfig) {
 		if job.Variables == nil {
 			job.Variables = make(map[string]string)
 		}
-		for k, v := range vars {
-			job.Variables[k] = v
-		}
+		maps.Copy(job.Variables, vars)
 	}
 }
 

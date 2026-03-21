@@ -25,7 +25,7 @@ func (h *LBHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceEC2
 }
 
-func (h *LBHandler) BuildLookup(region string, attrs map[string]interface{}) (*pricing.PriceLookup, error) {
+func (h *LBHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 	lbType := getStringAttr(attrs, "load_balancer_type")
 	if lbType == "" {
 		lbType = LBTypeApplication // Default to ALB
@@ -58,7 +58,7 @@ func (h *LBHandler) BuildLookup(region string, attrs map[string]interface{}) (*p
 	}, nil
 }
 
-func (h *LBHandler) CalculateCost(price *pricing.Price, attrs map[string]interface{}) (hourly, monthly float64) {
+func (h *LBHandler) CalculateCost(price *pricing.Price, attrs map[string]any) (hourly, monthly float64) {
 	hourly = price.OnDemandUSD
 	if hourly == 0 {
 		// Default pricing if lookup fails
@@ -83,7 +83,7 @@ func (h *ClassicLBHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceELB
 }
 
-func (h *ClassicLBHandler) BuildLookup(region string, _ map[string]interface{}) (*pricing.PriceLookup, error) {
+func (h *ClassicLBHandler) BuildLookup(region string, _ map[string]any) (*pricing.PriceLookup, error) {
 	regionName := pricing.RegionMapping[region]
 	if regionName == "" {
 		regionName = region
@@ -100,7 +100,7 @@ func (h *ClassicLBHandler) BuildLookup(region string, _ map[string]interface{}) 
 	}, nil
 }
 
-func (h *ClassicLBHandler) CalculateCost(price *pricing.Price, _ map[string]interface{}) (hourly, monthly float64) {
+func (h *ClassicLBHandler) CalculateCost(price *pricing.Price, _ map[string]any) (hourly, monthly float64) {
 	hourly = price.OnDemandUSD
 	if hourly == 0 {
 		hourly = DefaultClassicLBHourlyCost

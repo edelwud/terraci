@@ -23,17 +23,17 @@ const (
 
 // Fetcher downloads and parses AWS pricing data
 type Fetcher struct {
-	client  *http.Client
-	baseURL string
+	Client  *http.Client
+	BaseURL string
 }
 
 // NewFetcher creates a new pricing fetcher
 func NewFetcher() *Fetcher {
 	return &Fetcher{
-		client: &http.Client{
+		Client: &http.Client{
 			Timeout: DefaultTimeout,
 		},
-		baseURL: AWSPricingBaseURL,
+		BaseURL: AWSPricingBaseURL,
 	}
 }
 
@@ -50,7 +50,7 @@ func (f *Fetcher) FetchRegionIndex(ctx context.Context, service ServiceCode, reg
 		return nil, fmt.Errorf("create request: %w", err)
 	}
 
-	resp, err := f.client.Do(req)
+	resp, err := f.Client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch pricing: %w", err)
 	}
@@ -68,7 +68,7 @@ func (f *Fetcher) FetchRegionIndex(ctx context.Context, service ServiceCode, reg
 func (f *Fetcher) buildRegionURL(service ServiceCode, region string) string {
 	// Format: /offers/v1.0/aws/{serviceCode}/current/{region}/index.json
 	return fmt.Sprintf("%s/offers/v1.0/aws/%s/current/%s/index.json",
-		f.baseURL, service, region)
+		f.BaseURL, service, region)
 }
 
 // parseToIndex stream parses AWS pricing JSON and builds a compact index

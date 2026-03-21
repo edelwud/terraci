@@ -29,7 +29,7 @@ func (h *RDSInstanceHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceRDS
 }
 
-func (h *RDSInstanceHandler) BuildLookup(region string, attrs map[string]interface{}) (*pricing.PriceLookup, error) {
+func (h *RDSInstanceHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 	instanceClass := getStringAttr(attrs, "instance_class")
 	if instanceClass == "" {
 		return nil, fmt.Errorf("instance_class not found")
@@ -67,7 +67,7 @@ func (h *RDSInstanceHandler) BuildLookup(region string, attrs map[string]interfa
 	}, nil
 }
 
-func (h *RDSInstanceHandler) CalculateCost(price *pricing.Price, attrs map[string]interface{}) (hourly, monthly float64) {
+func (h *RDSInstanceHandler) CalculateCost(price *pricing.Price, attrs map[string]any) (hourly, monthly float64) {
 	hourly = price.OnDemandUSD
 	monthly = hourly * HoursPerMonth
 
@@ -98,7 +98,7 @@ func (h *RDSClusterHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceRDS
 }
 
-func (h *RDSClusterHandler) BuildLookup(region string, attrs map[string]interface{}) (*pricing.PriceLookup, error) {
+func (h *RDSClusterHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 	// Aurora cluster itself doesn't have hourly compute cost
 	// Cost comes from cluster instances and storage
 	// Return a lookup for storage pricing
@@ -125,7 +125,7 @@ func (h *RDSClusterHandler) BuildLookup(region string, attrs map[string]interfac
 	}, nil
 }
 
-func (h *RDSClusterHandler) CalculateCost(_ *pricing.Price, attrs map[string]interface{}) (hourly, monthly float64) {
+func (h *RDSClusterHandler) CalculateCost(_ *pricing.Price, attrs map[string]any) (hourly, monthly float64) {
 	// Aurora storage is billed per GB-month
 	// Estimate based on allocated storage or minimum
 	allocatedStorage := getFloatAttr(attrs, "allocated_storage")
@@ -146,7 +146,7 @@ func (h *RDSClusterInstanceHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceRDS
 }
 
-func (h *RDSClusterInstanceHandler) BuildLookup(region string, attrs map[string]interface{}) (*pricing.PriceLookup, error) {
+func (h *RDSClusterInstanceHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 	instanceClass := getStringAttr(attrs, "instance_class")
 	if instanceClass == "" {
 		return nil, fmt.Errorf("instance_class not found")
@@ -176,7 +176,7 @@ func (h *RDSClusterInstanceHandler) BuildLookup(region string, attrs map[string]
 	}, nil
 }
 
-func (h *RDSClusterInstanceHandler) CalculateCost(price *pricing.Price, _ map[string]interface{}) (hourly, monthly float64) {
+func (h *RDSClusterInstanceHandler) CalculateCost(price *pricing.Price, _ map[string]any) (hourly, monthly float64) {
 	hourly = price.OnDemandUSD
 	monthly = hourly * HoursPerMonth
 	return hourly, monthly

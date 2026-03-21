@@ -4,6 +4,7 @@ package e2e
 import (
 	"path/filepath"
 	"runtime"
+	"slices"
 	"testing"
 
 	"github.com/edelwud/terraci/internal/discovery"
@@ -153,10 +154,8 @@ func AssertJobNotExists(t *testing.T, pipeline *gitlab.Pipeline, jobName string)
 // AssertStageExists checks that a stage with the given name exists in the pipeline
 func AssertStageExists(t *testing.T, pipeline *gitlab.Pipeline, stageName string) {
 	t.Helper()
-	for _, stage := range pipeline.Stages {
-		if stage == stageName {
-			return
-		}
+	if slices.Contains(pipeline.Stages, stageName) {
+		return
 	}
 	t.Errorf("expected stage %s to exist", stageName)
 }
@@ -164,11 +163,9 @@ func AssertStageExists(t *testing.T, pipeline *gitlab.Pipeline, stageName string
 // AssertStageNotExists checks that a stage does not exist
 func AssertStageNotExists(t *testing.T, pipeline *gitlab.Pipeline, stageName string) {
 	t.Helper()
-	for _, stage := range pipeline.Stages {
-		if stage == stageName {
-			t.Errorf("expected stage %s to not exist", stageName)
-			return
-		}
+	if slices.Contains(pipeline.Stages, stageName) {
+		t.Errorf("expected stage %s to not exist", stageName)
+		return
 	}
 }
 

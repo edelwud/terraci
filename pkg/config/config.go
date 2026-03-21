@@ -279,7 +279,7 @@ type VaultSecret struct {
 }
 
 // UnmarshalYAML implements custom unmarshaling for VaultSecret to support string shorthand
-func (v *VaultSecret) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (v *VaultSecret) UnmarshalYAML(unmarshal func(any) error) error {
 	// Try string shorthand first
 	var shorthand string
 	if err := unmarshal(&shorthand); err == nil {
@@ -315,7 +315,7 @@ type Image struct {
 }
 
 // UnmarshalYAML implements custom unmarshaling for Image to support string shorthand
-func (img *Image) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (img *Image) UnmarshalYAML(unmarshal func(any) error) error {
 	// Try string shorthand first (just image name)
 	var shorthand string
 	if err := unmarshal(&shorthand); err == nil {

@@ -1,0 +1,43 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.6.0",
+  "resource_changes": [
+    {
+      "address": "aws_vpc.main",
+      "mode": "managed",
+      "type": "aws_vpc",
+      "name": "main",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": { "cidr_block": "10.0.0.0/16", "tags": { "Name": "prod-vpc" } },
+        "after_unknown": { "id": true }
+      }
+    },
+    {
+      "address": "aws_nat_gateway.main",
+      "mode": "managed",
+      "type": "aws_nat_gateway",
+      "name": "main",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": { "allocation_id": "eipalloc-12345", "subnet_id": "subnet-12345" },
+        "after_unknown": { "id": true }
+      }
+    },
+    {
+      "address": "aws_eip.nat",
+      "mode": "managed",
+      "type": "aws_eip",
+      "name": "nat",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": { "domain": "vpc" },
+        "after_unknown": { "id": true }
+      }
+    }
+  ],
+  "configuration": { "root_module": {} }
+}

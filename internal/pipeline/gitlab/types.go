@@ -29,7 +29,7 @@ type ImageConfig struct {
 }
 
 // MarshalYAML implements custom marshaling to output string when no entrypoint
-func (img ImageConfig) MarshalYAML() (interface{}, error) {
+func (img ImageConfig) MarshalYAML() (any, error) {
 	if len(img.Entrypoint) == 0 {
 		// Simple string format
 		return img.Name, nil
@@ -52,7 +52,7 @@ type Secret struct {
 }
 
 // MarshalYAML implements custom marshaling to support vault shorthand format
-func (s Secret) MarshalYAML() (interface{}, error) {
+func (s Secret) MarshalYAML() (any, error) {
 	if s.VaultPath != "" {
 		// Use shorthand format
 		type secretShorthand struct {
@@ -154,7 +154,7 @@ func (p *Pipeline) ToYAML() ([]byte, error) {
 	// We need custom marshaling to handle jobs properly
 	// Create a map that includes all fields
 
-	result := make(map[string]interface{})
+	result := make(map[string]any)
 	result["stages"] = p.Stages
 
 	if len(p.Variables) > 0 {

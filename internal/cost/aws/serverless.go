@@ -24,7 +24,7 @@ func (h *LambdaHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceLambda
 }
 
-func (h *LambdaHandler) BuildLookup(region string, _ map[string]interface{}) (*pricing.PriceLookup, error) {
+func (h *LambdaHandler) BuildLookup(region string, _ map[string]any) (*pricing.PriceLookup, error) {
 	regionName := pricing.RegionMapping[region]
 	if regionName == "" {
 		regionName = region
@@ -41,7 +41,7 @@ func (h *LambdaHandler) BuildLookup(region string, _ map[string]interface{}) (*p
 	}, nil
 }
 
-func (h *LambdaHandler) CalculateCost(_ *pricing.Price, attrs map[string]interface{}) (hourly, monthly float64) {
+func (h *LambdaHandler) CalculateCost(_ *pricing.Price, attrs map[string]any) (hourly, monthly float64) {
 	// Lambda has complex pricing: requests + GB-seconds
 	// For fixed cost, return 0 as it's usage-based
 	// Could estimate based on provisioned concurrency if set
@@ -67,7 +67,7 @@ func (h *DynamoDBTableHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceDynamoDB
 }
 
-func (h *DynamoDBTableHandler) BuildLookup(region string, attrs map[string]interface{}) (*pricing.PriceLookup, error) {
+func (h *DynamoDBTableHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 	regionName := pricing.RegionMapping[region]
 	if regionName == "" {
 		regionName = region
@@ -99,7 +99,7 @@ func (h *DynamoDBTableHandler) BuildLookup(region string, attrs map[string]inter
 	}, nil
 }
 
-func (h *DynamoDBTableHandler) CalculateCost(_ *pricing.Price, attrs map[string]interface{}) (hourly, monthly float64) {
+func (h *DynamoDBTableHandler) CalculateCost(_ *pricing.Price, attrs map[string]any) (hourly, monthly float64) {
 	billingMode := getStringAttr(attrs, "billing_mode")
 	if billingMode == "PAY_PER_REQUEST" {
 		// On-demand: usage-based, no fixed cost
@@ -133,12 +133,12 @@ func (h *SQSQueueHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceSQS
 }
 
-func (h *SQSQueueHandler) BuildLookup(_ string, _ map[string]interface{}) (*pricing.PriceLookup, error) {
+func (h *SQSQueueHandler) BuildLookup(_ string, _ map[string]any) (*pricing.PriceLookup, error) {
 	// SQS is usage-based (requests)
 	return nil, nil
 }
 
-func (h *SQSQueueHandler) CalculateCost(_ *pricing.Price, _ map[string]interface{}) (hourly, monthly float64) {
+func (h *SQSQueueHandler) CalculateCost(_ *pricing.Price, _ map[string]any) (hourly, monthly float64) {
 	// SQS: $0.40 per million requests (first million free)
 	// Usage-based, no fixed cost
 	return 0, 0
@@ -151,12 +151,12 @@ func (h *SNSTopicHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceSNS
 }
 
-func (h *SNSTopicHandler) BuildLookup(_ string, _ map[string]interface{}) (*pricing.PriceLookup, error) {
+func (h *SNSTopicHandler) BuildLookup(_ string, _ map[string]any) (*pricing.PriceLookup, error) {
 	// SNS is usage-based (publishes + deliveries)
 	return nil, nil
 }
 
-func (h *SNSTopicHandler) CalculateCost(_ *pricing.Price, _ map[string]interface{}) (hourly, monthly float64) {
+func (h *SNSTopicHandler) CalculateCost(_ *pricing.Price, _ map[string]any) (hourly, monthly float64) {
 	// SNS: $0.50 per million requests
 	// Usage-based, no fixed cost
 	return 0, 0

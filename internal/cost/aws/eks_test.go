@@ -13,41 +13,24 @@ func TestEKSClusterHandler_ServiceCode(t *testing.T) {
 	}
 }
 
-func TestEKSClusterHandler_BuildLookup(t *testing.T) {
+func TestEKSClusterHandler_BuildLookup_ReturnsNil(t *testing.T) {
 	h := &EKSClusterHandler{}
-
 	lookup, err := h.BuildLookup("us-east-1", nil)
-	if err != nil {
-		t.Fatalf("BuildLookup returned error: %v", err)
-	}
-
-	if lookup.ProductFamily != "Compute" {
-		t.Errorf("ProductFamily = %q, want %q", lookup.ProductFamily, "Compute")
-	}
-
-	expectedUsageType := "us-east-1-AmazonEKS-Hours:perCluster"
-	if lookup.Attributes["usagetype"] != expectedUsageType {
-		t.Errorf("usagetype = %q, want %q", lookup.Attributes["usagetype"], expectedUsageType)
+	// EKS cluster uses fixed cost, no pricing API lookup needed
+	if lookup != nil || err != nil {
+		t.Errorf("BuildLookup should return nil, nil; got %v, %v", lookup, err)
 	}
 }
 
-func TestEKSClusterHandler_CalculateCost(t *testing.T) {
+func TestEKSClusterHandler_CalculateCost_FixedPrice(t *testing.T) {
 	h := &EKSClusterHandler{}
 
-	// With price
-	price := &pricing.Price{OnDemandUSD: 0.10}
-	hourly, monthly := h.CalculateCost(price, nil)
-	if hourly != 0.10 {
-		t.Errorf("hourly = %v, want %v", hourly, 0.10)
+	hourly, monthly := h.CalculateCost(nil, nil)
+	if hourly != DefaultEKSClusterHourlyCost {
+		t.Errorf("hourly = %v, want %v", hourly, DefaultEKSClusterHourlyCost)
 	}
-	if monthly != 0.10*730 {
-		t.Errorf("monthly = %v, want %v", monthly, 0.10*730)
-	}
-
-	// Fallback
-	hourly, _ = h.CalculateCost(&pricing.Price{OnDemandUSD: 0}, nil)
-	if hourly != 0.10 {
-		t.Errorf("fallback hourly = %v, want %v", hourly, 0.10)
+	if monthly != DefaultEKSClusterHourlyCost*HoursPerMonth {
+		t.Errorf("monthly = %v, want %v", monthly, DefaultEKSClusterHourlyCost*HoursPerMonth)
 	}
 }
 
@@ -63,30 +46,19 @@ func TestEKSNodeGroupHandler_BuildLookup(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		attrs        map[string]interface{}
+		attrs        map[string]any
 		wantInstance string
 	}{
-		{
-			name: "with instance_types",
-			attrs: map[string]interface{}{
-				"instance_types": []interface{}{"m5.large"},
-			},
-			wantInstance: "m5.large",
-		},
-		{
-			name:         "default",
-			attrs:        map[string]interface{}{},
-			wantInstance: "t3.medium",
-		},
+		{"with instance_types", map[string]any{"instance_types": []any{"m5.large"}}, "m5.large"},
+		{"default", map[string]any{}, "t3.medium"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			lookup, err := h.BuildLookup("us-east-1", tt.attrs)
 			if err != nil {
-				t.Fatalf("BuildLookup returned error: %v", err)
+				t.Fatalf("BuildLookup: %v", err)
 			}
-
 			if lookup.Attributes["instanceType"] != tt.wantInstance {
 				t.Errorf("instanceType = %q, want %q", lookup.Attributes["instanceType"], tt.wantInstance)
 			}
@@ -96,38 +68,24 @@ func TestEKSNodeGroupHandler_BuildLookup(t *testing.T) {
 
 func TestEKSNodeGroupHandler_CalculateCost(t *testing.T) {
 	h := &EKSNodeGroupHandler{}
-
 	price := &pricing.Price{OnDemandUSD: 0.10}
 
 	tests := []struct {
-		name           string
-		attrs          map[string]interface{}
-		expectedHourly float64
+		name       string
+		attrs      map[string]any
+		wantHourly float64
 	}{
-		{
-			name:           "default 1 node",
-			attrs:          map[string]interface{}{},
-			expectedHourly: 0.10,
-		},
-		{
-			name: "3 nodes",
-			attrs: map[string]interface{}{
-				"scaling_config": []interface{}{
-					map[string]interface{}{
-						"desired_size": 3,
-					},
-				},
-			},
-			expectedHourly: 0.30,
-		},
+		{"default 1 node", map[string]any{}, 0.10},
+		{"3 nodes", map[string]any{
+			"scaling_config": []any{map[string]any{"desired_size": 3}},
+		}, 0.30},
 	}
 
-	const epsilon = 0.0001
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			hourly, _ := h.CalculateCost(price, tt.attrs)
-			if diff := hourly - tt.expectedHourly; diff < -epsilon || diff > epsilon {
-				t.Errorf("hourly = %v, want %v", hourly, tt.expectedHourly)
+			if diff := hourly - tt.wantHourly; diff < -0.001 || diff > 0.001 {
+				t.Errorf("hourly = %v, want %v", hourly, tt.wantHourly)
 			}
 		})
 	}

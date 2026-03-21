@@ -30,6 +30,18 @@ func NewEstimator(cacheDir string, cacheTTL time.Duration) *Estimator {
 	}
 }
 
+// CacheDir returns the resolved pricing cache directory path.
+func (e *Estimator) CacheDir() string { return e.cache.Dir() }
+
+// SetPricingFetcher replaces the pricing fetcher (for testing with httptest).
+func (e *Estimator) SetPricingFetcher(f *pricing.Fetcher) { e.cache.SetFetcher(f) }
+
+// CacheOldestAge returns the age of the oldest cache entry, or 0 if empty.
+func (e *Estimator) CacheOldestAge() time.Duration { return e.cache.OldestAge() }
+
+// CacheTTL returns the cache TTL.
+func (e *Estimator) CacheTTL() time.Duration { return e.cache.TTL() }
+
 // EstimateModule calculates cost for a single module from plan.json and state.json
 func (e *Estimator) EstimateModule(ctx context.Context, modulePath, region string) (*ModuleCost, error) {
 	planJSONPath := filepath.Join(modulePath, "plan.json")
@@ -42,7 +54,7 @@ func (e *Estimator) EstimateModule(ctx context.Context, modulePath, region strin
 	}
 
 	// Try to parse state.json for before costs
-	var stateResources map[string]map[string]interface{}
+	var stateResources map[string]map[string]any
 	if data, readErr := os.ReadFile(stateJSONPath); readErr == nil {
 		stateResources = parseStateResources(data)
 	}
@@ -194,7 +206,7 @@ func (e *Estimator) ValidateAndPrefetch(ctx context.Context, modulePaths []strin
 }
 
 // estimateResource calculates cost for a single resource
-func (e *Estimator) estimateResource(ctx context.Context, rc plan.ResourceChange, region string, _ map[string]map[string]interface{}) ResourceCost {
+func (e *Estimator) estimateResource(ctx context.Context, rc plan.ResourceChange, region string, _ map[string]map[string]any) ResourceCost {
 	result := ResourceCost{
 		Address: rc.Address,
 		Type:    rc.Type,
@@ -291,7 +303,7 @@ func (e *Estimator) prefetchPricing(ctx context.Context, services map[pricing.Se
 }
 
 // estimateUnchangedResources calculates costs for resources in state that aren't changing
-func (e *Estimator) estimateUnchangedResources(ctx context.Context, parsedPlan *plan.ParsedPlan, stateResources map[string]map[string]interface{}, region string) float64 {
+func (e *Estimator) estimateUnchangedResources(ctx context.Context, parsedPlan *plan.ParsedPlan, stateResources map[string]map[string]any, region string) float64 {
 	// Build set of changed resource addresses
 	changedAddrs := make(map[string]bool)
 	for _, rc := range parsedPlan.Resources {
@@ -338,11 +350,11 @@ func (e *Estimator) estimateUnchangedResources(ctx context.Context, parsedPlan *
 }
 
 // getResourceAttrs extracts attributes from a resource change
-func getResourceAttrs(rc plan.ResourceChange) map[string]interface{} {
+func getResourceAttrs(rc plan.ResourceChange) map[string]any {
 	// Use attributes from the parsed plan
 	// In a full implementation, this would parse the plan JSON directly
 	// For now, return empty map - handlers use defaults
-	attrs := make(map[string]interface{})
+	attrs := make(map[string]any)
 
 	// Extract from AttrDiff if available
 	for _, diff := range rc.Attributes {
@@ -357,15 +369,15 @@ func getResourceAttrs(rc plan.ResourceChange) map[string]interface{} {
 }
 
 // parseStateResources parses terraform state JSON to extract resource attributes
-func parseStateResources(data []byte) map[string]map[string]interface{} {
+func parseStateResources(data []byte) map[string]map[string]any {
 	var state struct {
 		Resources []struct {
 			Type      string `json:"type"`
 			Name      string `json:"name"`
 			Module    string `json:"module,omitempty"`
 			Instances []struct {
-				Attributes map[string]interface{} `json:"attributes"`
-				IndexKey   interface{}            `json:"index_key,omitempty"`
+				Attributes map[string]any `json:"attributes"`
+				IndexKey   any            `json:"index_key,omitempty"`
 			} `json:"instances"`
 		} `json:"resources"`
 	}
@@ -374,7 +386,7 @@ func parseStateResources(data []byte) map[string]map[string]interface{} {
 		return nil
 	}
 
-	result := make(map[string]map[string]interface{})
+	result := make(map[string]map[string]any)
 	for _, r := range state.Resources {
 		for _, inst := range r.Instances {
 			addr := buildResourceAddress(r.Module, r.Type, r.Name, inst.IndexKey)
@@ -386,7 +398,7 @@ func parseStateResources(data []byte) map[string]map[string]interface{} {
 }
 
 // buildResourceAddress constructs a resource address from components
-func buildResourceAddress(module, resourceType, name string, indexKey interface{}) string {
+func buildResourceAddress(module, resourceType, name string, indexKey any) string {
 	var addr string
 	if module != "" {
 		addr = module + "."

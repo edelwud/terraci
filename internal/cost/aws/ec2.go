@@ -27,6 +27,7 @@ const (
 	DefaultIO1IOPSCostPerMonth    = 0.065
 	DefaultGP3ThroughputCostPerMB = 0.040
 	DefaultGP3FreeThroughputMBps  = 125
+	DefaultEIPHourlyCost          = 0.005 // $0.005/hr for public IPv4 (since Feb 2024)
 	DefaultNATGatewayHourlyCost   = 0.045
 )
 
@@ -37,7 +38,7 @@ func (h *EC2InstanceHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceEC2
 }
 
-func (h *EC2InstanceHandler) BuildLookup(region string, attrs map[string]interface{}) (*pricing.PriceLookup, error) {
+func (h *EC2InstanceHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 	instanceType := getStringAttr(attrs, "instance_type")
 	if instanceType == "" {
 		return nil, fmt.Errorf("instance_type not found")
@@ -80,7 +81,7 @@ func (h *EC2InstanceHandler) BuildLookup(region string, attrs map[string]interfa
 	}, nil
 }
 
-func (h *EC2InstanceHandler) CalculateCost(price *pricing.Price, _ map[string]interface{}) (hourly, monthly float64) {
+func (h *EC2InstanceHandler) CalculateCost(price *pricing.Price, _ map[string]any) (hourly, monthly float64) {
 	hourly = price.OnDemandUSD
 	monthly = hourly * HoursPerMonth
 	return hourly, monthly
@@ -93,7 +94,7 @@ func (h *EBSVolumeHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceEC2
 }
 
-func (h *EBSVolumeHandler) BuildLookup(region string, attrs map[string]interface{}) (*pricing.PriceLookup, error) {
+func (h *EBSVolumeHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 	volumeType := getStringAttr(attrs, "type")
 	if volumeType == "" {
 		volumeType = VolumeTypeGP2 // Default
@@ -130,7 +131,7 @@ func (h *EBSVolumeHandler) BuildLookup(region string, attrs map[string]interface
 	}, nil
 }
 
-func (h *EBSVolumeHandler) CalculateCost(price *pricing.Price, attrs map[string]interface{}) (hourly, monthly float64) {
+func (h *EBSVolumeHandler) CalculateCost(price *pricing.Price, attrs map[string]any) (hourly, monthly float64) {
 	size := getFloatAttr(attrs, "size")
 	if size == 0 {
 		size = 8 // Default 8 GB
@@ -170,32 +171,20 @@ func (h *EIPHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceEC2
 }
 
-func (h *EIPHandler) BuildLookup(region string, _ map[string]interface{}) (*pricing.PriceLookup, error) {
-	regionName := pricing.RegionMapping[region]
-	if regionName == "" {
-		regionName = region
-	}
-
-	return &pricing.PriceLookup{
-		ServiceCode:   pricing.ServiceEC2,
-		Region:        region,
-		ProductFamily: "IP Address",
-		Attributes: map[string]string{
-			"location": regionName,
-			"group":    "ElasticIP:Address",
-		},
-	}, nil
+func (h *EIPHandler) BuildLookup(_ string, _ map[string]any) (*pricing.PriceLookup, error) {
+	// Since Feb 2024, AWS charges $0.005/hr for all public IPv4 addresses.
+	// This is a fixed cost not available via the standard pricing API lookup.
+	return nil, nil
 }
 
-func (h *EIPHandler) CalculateCost(price *pricing.Price, attrs map[string]interface{}) (hourly, monthly float64) {
-	// EIP is free when attached to running instance
-	// Cost is $0.005/hour when not attached (idle)
-	// For estimation, assume it's attached (no cost) or idle
-	instance := getStringAttr(attrs, "instance")
-	if instance == "" {
-		hourly = price.OnDemandUSD
-		monthly = hourly * HoursPerMonth
+func (h *EIPHandler) CalculateCost(_ *pricing.Price, attrs map[string]any) (hourly, monthly float64) {
+	// Since Feb 2024: $0.005/hour for all public IPv4 ($3.65/month)
+	// Free when attached to a running instance
+	if instance := getStringAttr(attrs, "instance"); instance != "" {
+		return 0, 0
 	}
+	hourly = DefaultEIPHourlyCost
+	monthly = hourly * HoursPerMonth
 	return hourly, monthly
 }
 
@@ -206,14 +195,15 @@ func (h *NATGatewayHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceEC2
 }
 
-func (h *NATGatewayHandler) BuildLookup(region string, _ map[string]interface{}) (*pricing.PriceLookup, error) {
+func (h *NATGatewayHandler) BuildLookup(region string, _ map[string]any) (*pricing.PriceLookup, error) {
 	regionName := pricing.RegionMapping[region]
 	if regionName == "" {
 		regionName = region
 	}
 
+	// NAT Gateway pricing is in the EC2 service, not VPC
 	return &pricing.PriceLookup{
-		ServiceCode:   pricing.ServiceVPC,
+		ServiceCode:   pricing.ServiceEC2,
 		Region:        region,
 		ProductFamily: "NAT Gateway",
 		Attributes: map[string]string{
@@ -223,7 +213,7 @@ func (h *NATGatewayHandler) BuildLookup(region string, _ map[string]interface{})
 	}, nil
 }
 
-func (h *NATGatewayHandler) CalculateCost(price *pricing.Price, _ map[string]interface{}) (hourly, monthly float64) {
+func (h *NATGatewayHandler) CalculateCost(price *pricing.Price, _ map[string]any) (hourly, monthly float64) {
 	// NAT Gateway: hourly charge + data processing
 	// For fixed cost estimation, only include hourly
 	hourly = price.OnDemandUSD
@@ -236,7 +226,7 @@ func (h *NATGatewayHandler) CalculateCost(price *pricing.Price, _ map[string]int
 
 // Helper functions
 
-func getStringAttr(attrs map[string]interface{}, key string) string {
+func getStringAttr(attrs map[string]any, key string) string {
 	if v, ok := attrs[key]; ok {
 		if s, ok := v.(string); ok {
 			return s
@@ -245,7 +235,7 @@ func getStringAttr(attrs map[string]interface{}, key string) string {
 	return ""
 }
 
-func getFloatAttr(attrs map[string]interface{}, key string) float64 {
+func getFloatAttr(attrs map[string]any, key string) float64 {
 	if v, ok := attrs[key]; ok {
 		switch val := v.(type) {
 		case float64:
@@ -259,7 +249,7 @@ func getFloatAttr(attrs map[string]interface{}, key string) float64 {
 	return 0
 }
 
-func getIntAttr(attrs map[string]interface{}, key string) int {
+func getIntAttr(attrs map[string]any, key string) int {
 	if v, ok := attrs[key]; ok {
 		switch val := v.(type) {
 		case float64:
@@ -273,7 +263,7 @@ func getIntAttr(attrs map[string]interface{}, key string) int {
 	return 0
 }
 
-func getBoolAttr(attrs map[string]interface{}, key string) bool {
+func getBoolAttr(attrs map[string]any, key string) bool {
 	if v, ok := attrs[key]; ok {
 		if b, ok := v.(bool); ok {
 			return b

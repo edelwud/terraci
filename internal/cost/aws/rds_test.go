@@ -19,7 +19,7 @@ func TestRDSInstanceHandler_BuildLookup(t *testing.T) {
 	tests := []struct {
 		name           string
 		region         string
-		attrs          map[string]interface{}
+		attrs          map[string]any
 		wantErr        bool
 		wantClass      string
 		wantEngine     string
@@ -28,7 +28,7 @@ func TestRDSInstanceHandler_BuildLookup(t *testing.T) {
 		{
 			name:   "mysql single-az",
 			region: "us-east-1",
-			attrs: map[string]interface{}{
+			attrs: map[string]any{
 				"instance_class": "db.t3.micro",
 				"engine":         "mysql",
 			},
@@ -39,7 +39,7 @@ func TestRDSInstanceHandler_BuildLookup(t *testing.T) {
 		{
 			name:   "postgres multi-az",
 			region: "eu-central-1",
-			attrs: map[string]interface{}{
+			attrs: map[string]any{
 				"instance_class": "db.m5.large",
 				"engine":         "postgres",
 				"multi_az":       true,
@@ -51,7 +51,7 @@ func TestRDSInstanceHandler_BuildLookup(t *testing.T) {
 		{
 			name:   "aurora-mysql",
 			region: "us-west-2",
-			attrs: map[string]interface{}{
+			attrs: map[string]any{
 				"instance_class": "db.r5.large",
 				"engine":         "aurora-mysql",
 			},
@@ -62,7 +62,7 @@ func TestRDSInstanceHandler_BuildLookup(t *testing.T) {
 		{
 			name:    "missing instance_class",
 			region:  "us-east-1",
-			attrs:   map[string]interface{}{},
+			attrs:   map[string]any{},
 			wantErr: true,
 		},
 	}
@@ -104,17 +104,17 @@ func TestRDSInstanceHandler_CalculateCost(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		attrs           map[string]interface{}
+		attrs           map[string]any
 		expectedMonthly float64
 	}{
 		{
 			name:            "compute only",
-			attrs:           map[string]interface{}{},
+			attrs:           map[string]any{},
 			expectedMonthly: 0.10 * 730,
 		},
 		{
 			name: "with gp2 storage",
-			attrs: map[string]interface{}{
+			attrs: map[string]any{
 				"storage_type":      "gp2",
 				"allocated_storage": float64(100),
 			},
@@ -122,7 +122,7 @@ func TestRDSInstanceHandler_CalculateCost(t *testing.T) {
 		},
 		{
 			name: "with io1 storage and iops",
-			attrs: map[string]interface{}{
+			attrs: map[string]any{
 				"storage_type":      "io1",
 				"allocated_storage": float64(100),
 				"iops":              float64(1000),
@@ -154,14 +154,14 @@ func TestRDSClusterInstanceHandler_BuildLookup(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		attrs      map[string]interface{}
+		attrs      map[string]any
 		wantErr    bool
 		wantClass  string
 		wantEngine string
 	}{
 		{
 			name: "aurora-mysql instance",
-			attrs: map[string]interface{}{
+			attrs: map[string]any{
 				"instance_class": "db.r5.large",
 				"engine":         "aurora-mysql",
 			},
@@ -170,7 +170,7 @@ func TestRDSClusterInstanceHandler_BuildLookup(t *testing.T) {
 		},
 		{
 			name: "aurora-postgresql instance",
-			attrs: map[string]interface{}{
+			attrs: map[string]any{
 				"instance_class": "db.r5.xlarge",
 				"engine":         "aurora-postgresql",
 			},
@@ -179,7 +179,7 @@ func TestRDSClusterInstanceHandler_BuildLookup(t *testing.T) {
 		},
 		{
 			name:    "missing instance_class",
-			attrs:   map[string]interface{}{},
+			attrs:   map[string]any{},
 			wantErr: true,
 		},
 	}

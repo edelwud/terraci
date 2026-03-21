@@ -13,7 +13,7 @@ func (h *ElastiCacheClusterHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceElastiCache
 }
 
-func (h *ElastiCacheClusterHandler) BuildLookup(region string, attrs map[string]interface{}) (*pricing.PriceLookup, error) {
+func (h *ElastiCacheClusterHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 	nodeType := getStringAttr(attrs, "node_type")
 	if nodeType == "" {
 		return nil, fmt.Errorf("node_type not found")
@@ -47,7 +47,7 @@ func (h *ElastiCacheClusterHandler) BuildLookup(region string, attrs map[string]
 	}, nil
 }
 
-func (h *ElastiCacheClusterHandler) CalculateCost(price *pricing.Price, attrs map[string]interface{}) (hourly, monthly float64) {
+func (h *ElastiCacheClusterHandler) CalculateCost(price *pricing.Price, attrs map[string]any) (hourly, monthly float64) {
 	numCacheNodes := getIntAttr(attrs, "num_cache_nodes")
 	if numCacheNodes == 0 {
 		numCacheNodes = 1
@@ -65,7 +65,7 @@ func (h *ElastiCacheReplicationGroupHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceElastiCache
 }
 
-func (h *ElastiCacheReplicationGroupHandler) BuildLookup(region string, attrs map[string]interface{}) (*pricing.PriceLookup, error) {
+func (h *ElastiCacheReplicationGroupHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 	nodeType := getStringAttr(attrs, "node_type")
 	if nodeType == "" {
 		return nil, fmt.Errorf("node_type not found")
@@ -88,7 +88,7 @@ func (h *ElastiCacheReplicationGroupHandler) BuildLookup(region string, attrs ma
 	}, nil
 }
 
-func (h *ElastiCacheReplicationGroupHandler) CalculateCost(price *pricing.Price, attrs map[string]interface{}) (hourly, monthly float64) {
+func (h *ElastiCacheReplicationGroupHandler) CalculateCost(price *pricing.Price, attrs map[string]any) (hourly, monthly float64) {
 	// Calculate total nodes: num_node_groups * replicas_per_node_group
 	numNodeGroups := getIntAttr(attrs, "num_node_groups")
 	if numNodeGroups == 0 {

@@ -44,6 +44,38 @@ func NewCache(cacheDir string, ttl time.Duration) *Cache {
 	}
 }
 
+// SetFetcher replaces the fetcher (used for testing with httptest).
+func (c *Cache) SetFetcher(f *Fetcher) { c.fetcher = f }
+
+// Dir returns the resolved cache directory path (absolute).
+func (c *Cache) Dir() string {
+	if abs, err := filepath.Abs(c.dir); err == nil {
+		return abs
+	}
+	return c.dir
+}
+
+// TTL returns the cache time-to-live duration.
+func (c *Cache) TTL() time.Duration { return c.ttl }
+
+// OldestAge returns the age of the oldest cached entry, or 0 if cache is empty.
+func (c *Cache) OldestAge() time.Duration {
+	var oldest time.Time
+	_ = filepath.Walk(c.dir, func(path string, info os.FileInfo, walkErr error) error { //nolint:errcheck
+		if walkErr != nil || info.IsDir() || filepath.Ext(path) != ".json" {
+			return nil //nolint:nilerr // skip errors, continue walking
+		}
+		if oldest.IsZero() || info.ModTime().Before(oldest) {
+			oldest = info.ModTime()
+		}
+		return nil
+	})
+	if oldest.IsZero() {
+		return 0
+	}
+	return time.Since(oldest)
+}
+
 // GetIndex returns a pricing index for a service/region, using cache if valid
 func (c *Cache) GetIndex(ctx context.Context, service ServiceCode, region string) (*PriceIndex, error) {
 	// Try cache first
