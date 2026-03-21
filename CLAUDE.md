@@ -27,6 +27,7 @@ cmd/terraci/
     ├── init.go                 # Config initialization (entry point)
     ├── init_config.go          # initOptions — shared config builder for CLI/TUI
     ├── init_tui.go             # Interactive TUI wizard (bubbletea/huh)
+    ├── cost.go                 # AWS cost estimation command
     ├── summary.go              # MR/PR comment posting (CI only)
     ├── policy.go               # OPA policy checks (pull, check)
     ├── schema.go               # JSON schema generation
@@ -43,15 +44,15 @@ internal/
 │   └── testing.go              # TestModule() helper for tests
 ├── parser/
 │   ├── types.go                # Parser, ParsedModule, RemoteStateRef, ModuleCall
-│   ├── hcl.go                  # ParseModule, extractors (locals, tfvars, remote state, module calls)
+│   ├── hcl.go                  # ParseModule, multi-pass locals evaluation, extractors
 │   ├── resolve.go              # ResolveWorkspacePath, for_each resolution
 │   └── dependency.go           # DependencyExtractor, matchPathToModule (strategy chain)
 ├── graph/
 │   ├── dependency.go           # DependencyGraph, Node, edges, traversal, library usage
 │   ├── algorithms.go           # TopologicalSort, ExecutionLevels, DetectCycles
 │   ├── affected.go             # GetAffectedModules, library changes, combined
-│   ├── visualize.go            # ToDOT, ToPlantUML
-│   └── stats.go                # GetStats
+│   ├── visualize.go            # ToDOT (clustered), ToPlantUML (nested groups)
+│   └── stats.go                # GetStats (fan-in/fan-out, modules per level)
 ├── filter/
 │   └── glob.go                 # GlobFilter, SegmentFilter, CompositeFilter, Apply()
 ├── git/
@@ -65,8 +66,8 @@ internal/
 │   └── service.go              # CommentService interface
 ├── terraform/
 │   ├── eval/
-│   │   ├── context.go          # NewContext() with safeObjectVal
-│   │   └── functions.go        # lookup() with lookupKey() helper
+│   │   ├── context.go          # NewContext() — path.module as abspath, SafeObjectVal
+│   │   └── functions.go        # 30+ Terraform functions (split, element, length, abspath, lookup, join, format, etc.)
 │   └── plan/
 │       ├── types.go            # ParsedPlan, ResourceChange, AttrDiff
 │       ├── parser.go           # ParseJSON, countAction, buildAttrDiff
@@ -89,8 +90,8 @@ internal/
 │   ├── comment.go              # GitLab-specific comment wrappers
 │   └── plan_result.go          # GitLab-specific plan result wrappers
 ├── policy/
-│   ├── engine.go               # OPA Engine, OPAVersion()
-│   ├── checker.go              # Checker — CheckModule(), CheckAll(), ShouldBlock()
+│   ├── engine.go               # OPA Engine — loads all .rego in single bundle
+│   ├── checker.go              # Checker — CheckModule(), CheckAll(), overwrite reclassification
 │   ├── result.go               # Result, Violation, Summary
 │   ├── source.go               # Source interface, Puller
 │   ├── source_path.go          # PathSource
@@ -98,24 +99,24 @@ internal/
 │   └── source_oci.go           # OCISource
 └── cost/
     ├── types.go                # ResourceCost, ModuleCost, EstimateResult, FormatCost()
-    ├── estimator.go            # Estimator — EstimateModule(), EstimateModules()
+    ├── estimator.go            # Estimator — EstimateModule(), SetPricingFetcher() for testing
     ├── aws/
     │   ├── registry.go         # Registry, ResourceHandler interface
-    │   ├── ec2.go              # EC2, EBS, EIP, NAT Gateway handlers
+    │   ├── ec2.go              # EC2, EBS, EIP (fixed $0.005/hr), NAT Gateway handlers
     │   ├── rds.go              # RDS instance/cluster handlers
     │   ├── elb.go              # ALB, Classic LB handlers
     │   ├── elasticache.go      # ElastiCache cluster/replication handlers
-    │   ├── eks.go              # EKS cluster/node group handlers
+    │   ├── eks.go              # EKS cluster (fixed $0.10/hr), node group handlers
     │   ├── serverless.go       # Lambda, DynamoDB, SQS, SNS
     │   └── storage.go          # S3, CloudWatch, Secrets Manager, KMS, Route53
     └── pricing/
         ├── types.go            # ServiceCode, PriceIndex, Price, PriceLookup
-        ├── fetcher.go          # AWS Bulk Pricing API fetcher
-        └── cache.go            # TTL-based local pricing cache
+        ├── fetcher.go          # AWS Bulk Pricing API fetcher (exported Client/BaseURL for httptest)
+        └── cache.go            # TTL-based local pricing cache, SetFetcher() for testing
 
 pkg/
 ├── config/
-│   ├── config.go               # Config, Load(), Validate(), all config types
+│   ├── config.go               # Config, Load(), Validate(), matchGlob with ** support
 │   ├── pattern.go              # ParsePattern, PatternSegments
 │   └── schema.go               # JSON schema generation
 └── log/log.go                  # Structured logging (wraps caarlos0/log)
@@ -150,6 +151,13 @@ pkg/
 7. Pipeline generators dynamically create `TF_<SEGMENT>` env vars from module segments
 8. *(in CI)* `ci.CommentService.UpsertComment()` → post plan/policy/cost summary to MR/PR
 
+### Static evaluation engine
+- 30+ Terraform built-in functions: `split`, `element`, `length`, `abspath`, `lookup`, `join`, `format`, `lower`, `upper`, `trimprefix`, `trimsuffix`, `replace`, `concat`, `contains`, `keys`, `values`, `merge`, `flatten`, `distinct`, `tostring`, `tonumber`, `tobool`, `max`, `min`, `ceil`, `floor`
+- `path.module` returns absolute path — enables `abspath(path.module)` pattern
+- Multi-pass locals evaluation: locals referencing other locals, path.module, and functions are resolved iteratively (up to 10 passes)
+- Variables loaded from: `default` values (any type), `terraform.tfvars`, `*.auto.tfvars`
+- Custom `lookupFunc` handles both map and object types (stdlib version doesn't)
+
 ### Provider auto-detection
 `config.ResolveProvider(cfg)`: explicit `provider` field → `GITHUB_ACTIONS` env → `GITLAB_CI` env → default `"gitlab"`
 
@@ -157,13 +165,17 @@ pkg/
 1. `terraform/plan.ParseJSON()` → parse plan.json into ResourceChange list
 2. `cost.Estimator.ValidateAndPrefetch()` → identify required AWS services, fetch pricing
 3. Per resource: `aws.Registry` → find `ResourceHandler` → `BuildLookup()` → `pricing.Cache` → `CalculateCost()`
-4. Aggregate into `ModuleCost` with before/after/diff
+4. Some resources use fixed costs (EKS cluster $0.10/hr, EIP $0.005/hr) when AWS pricing API lookup is unreliable
+5. Aggregate into `ModuleCost` with before/after/diff
+6. `terraci cost` command runs estimation locally; `terraci summary` includes costs in MR/PR comments
 
 ### Policy checks
 1. `policy.Puller` downloads policies from sources (path/git/OCI)
-2. `policy.Engine.Evaluate()` runs OPA against plan.json (v1 Rego syntax)
-3. `policy.Checker.CheckAll()` aggregates results → `Summary`
-4. `Checker.ShouldBlock()` determines if pipeline should fail
+2. `policy.Engine.Evaluate()` runs OPA against plan.json — all .rego files loaded in single bundle
+3. Multiple namespaces supported (e.g., `terraform` + `compliance`)
+4. `policy.Checker.CheckAll()` aggregates results → `Summary`
+5. Per-module overwrites via `**` glob patterns: `on_failure: warn` reclassifies failures as warnings, `enabled: false` skips evaluation
+6. `Checker.ShouldBlock()` determines if pipeline should fail
 
 ## CLI Commands
 
@@ -176,13 +188,19 @@ terraci generate --filter environment=prod               # Filter by any segment
 terraci generate --exclude "*/test/*"                    # Glob exclusion
 
 terraci validate                             # Validate config and structure
-terraci graph --format dot -o deps.dot       # DOT graph output
-terraci graph --format levels                # Execution levels
+terraci graph --format dot -o deps.dot       # DOT graph (clustered subgraphs)
+terraci graph --format plantuml              # PlantUML (nested groups)
+terraci graph --format levels                # Execution levels with dep hints
+terraci graph --stats                        # Fan-in/fan-out, modules per level
 terraci graph --module <id> --dependents     # Show dependents
 
 terraci init                                 # Interactive TUI wizard
 terraci init --ci                            # Non-interactive with defaults
 terraci init --provider github               # GitHub Actions preset
+
+terraci cost                                 # Estimate AWS costs from plan.json
+terraci cost --module <path>                 # Single module cost
+terraci cost --output json                   # JSON output
 
 terraci summary                              # Post MR/PR comment (CI only)
 
@@ -220,7 +238,8 @@ library_modules:
 
 # GitLab CI (omitted when provider=github)
 gitlab:
-  image: "hashicorp/terraform:1.6"
+  image:
+    name: hashicorp/terraform:1.6
   terraform_binary: "terraform"         # or "tofu"
   plan_enabled: true
   auto_approve: false
@@ -244,29 +263,39 @@ github:
 policy:
   enabled: false
   sources:
-    - path: policies
-    - git: https://... ref: main
+    - path: terraform                   # directory name = Rego package name
+    - path: compliance
+  namespaces: [terraform, compliance]
   on_failure: block                     # block, warn, ignore
+  overwrites:
+    - match: "**/sandbox/**"
+      on_failure: warn                  # reclassify failures as warnings
+    - match: "legacy/**"
+      enabled: false                    # skip policy checks
 
 cost:
   enabled: false
   show_in_comment: true
+  cache_dir: ~/.terraci/pricing
+  cache_ttl: "24h"
 ```
 
 ## Key Patterns
 
 - **Pattern-aware modules**: `structure.pattern` defines segment names and order; Module uses `components map[string]string` — no hardcoded field names
+- **Static evaluation**: 30+ Terraform functions evaluated at parse time; multi-pass locals resolution with `abspath(path.module)` support; variables from defaults + tfvars
 - **Dynamic env vars**: pipeline generators produce `TF_<SEGMENT>` from module segments (e.g., `TF_SERVICE`, `TF_ENVIRONMENT` for default pattern)
 - **Multi-provider**: `pipeline.Generator` interface with GitLab and GitHub implementations; provider auto-detected from CI env
 - **Shared CI layer**: `internal/ci/` has provider-agnostic comment rendering and plan result scanning; `internal/gitlab/` and `internal/github/` are thin provider-specific wrappers
-- **Generic filtering**: `SegmentFilter{Segment, Values}` replaces hardcoded `ServiceFilter`/`EnvironmentFilter`/`RegionFilter`; `--filter key=value` CLI flag works with any segment name
-- **Dependencies**: resolved from `terraform_remote_state` data blocks; `for_each` expands to multiple deps; `matchPathToModule` uses strategy chain pattern
-- **Graph algorithms**: Kahn's topological sort, DFS cycle detection, execution level grouping; `collectTransitive()` shared for deps/dependents
+- **Generic filtering**: `SegmentFilter{Segment, Values}` replaces hardcoded filters; `--filter key=value` CLI flag works with any segment name
+- **Dependencies**: resolved from `terraform_remote_state` data blocks; `for_each` with ternary + for-expressions + lookup on objects; `matchPathToModule` uses strategy chain
+- **Graph visualization**: DOT with clustered subgraphs and short labels; PlantUML with nested region grouping; stats with fan-in/fan-out top-5 and modules per level
+- **Policy checks**: OPA v1 Rego; multiple namespaces; per-module `**` glob overwrites (warn/disable); single-bundle loading; `deny` → failures, `warn` → warnings
+- **Cost estimation**: `terraci cost` CLI command; plugin registry `aws.ResourceHandler` per resource type; fixed costs for EKS/EIP; httptest-mockable via `SetPricingFetcher()`
 - **MR/PR comments**: upserted via `<!-- terraci-plan-comment -->` marker; `ModulePlan.Components map[string]string` for dynamic data
-- **Policy checks**: OPA v1 Rego syntax; results saved to `.terraci/policy-results.json`
-- **Cost estimation**: plugin registry — `aws.ResourceHandler` interface per resource type
-- **Config precedence**: `JobDefaults` → `JobOverwrite` (plan/apply) → generated job
+- **Config**: `matchGlob` with `**` multi-segment pattern support; `image:` as object with `name:` field; no `backend:` section (removed — dead code)
 - **Interactive init**: bubbletea TUI with live YAML preview; `initOptions` shared between CLI and TUI modes
+- **Testing**: all AWS pricing calls mocked via httptest; `Fetcher.Client`/`BaseURL` exported for injection
 
 ## Dependencies
 
