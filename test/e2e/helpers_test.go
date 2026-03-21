@@ -70,7 +70,7 @@ func LoadFixture(t *testing.T, name string) *Fixture {
 	moduleIndex := discovery.NewModuleIndex(modules)
 
 	// Parse dependencies
-	hclParser := parser.NewParser()
+	hclParser := parser.NewParser(cfg.Structure.Segments)
 	depExtractor := parser.NewDependencyExtractor(hclParser, moduleIndex)
 	deps, _ := depExtractor.ExtractAllDependencies(context.Background())
 
@@ -78,7 +78,7 @@ func LoadFixture(t *testing.T, name string) *Fixture {
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
 	// Create generator
-	generator := gitlab.NewGenerator(cfg, depGraph, modules)
+	generator := gitlab.NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 
 	return &Fixture{
 		Name:        name,
@@ -99,7 +99,7 @@ func LoadFixtureWithConfig(t *testing.T, name string, modifyConfig func(*config.
 	modifyConfig(fixture.Config)
 
 	// Recreate generator with modified config
-	fixture.Generator = gitlab.NewGenerator(fixture.Config, fixture.DepGraph, fixture.Modules)
+	fixture.Generator = gitlab.NewGenerator(fixture.Config.GitLab, fixture.Config.Policy, fixture.DepGraph, fixture.Modules)
 
 	return fixture
 }

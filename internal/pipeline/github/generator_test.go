@@ -52,7 +52,7 @@ func TestGenerate_SingleModule(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg, depGraph, modules)
+	gen := NewGenerator(cfg.GitHub, cfg.Policy, depGraph, modules)
 	var genPipeline pipeline.GeneratedPipeline
 	var err error
 	genPipeline, err = gen.Generate(modules)
@@ -134,7 +134,7 @@ func TestGenerate_WithDependencies(t *testing.T) {
 	})
 
 	depGraph := graph.BuildFromDependencies(modules, deps)
-	gen := NewGenerator(cfg, depGraph, modules)
+	gen := NewGenerator(cfg.GitHub, cfg.Policy, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -170,7 +170,7 @@ func TestGenerate_PlanOnly(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg, depGraph, modules)
+	gen := NewGenerator(cfg.GitHub, cfg.Policy, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -209,7 +209,7 @@ func TestGenerate_PlanOnlyWithDeps(t *testing.T) {
 	})
 
 	depGraph := graph.BuildFromDependencies(modules, deps)
-	gen := NewGenerator(cfg, depGraph, modules)
+	gen := NewGenerator(cfg.GitHub, cfg.Policy, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -253,7 +253,7 @@ func TestGenerate_AutoApprove(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg, depGraph, modules)
+	gen := NewGenerator(cfg.GitHub, cfg.Policy, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -288,7 +288,7 @@ func TestGenerate_ManualApprove(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg, depGraph, modules)
+	gen := NewGenerator(cfg.GitHub, cfg.Policy, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -323,7 +323,7 @@ func TestGenerate_CustomBinary(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg, depGraph, modules)
+	gen := NewGenerator(cfg.GitHub, cfg.Policy, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -355,7 +355,7 @@ func TestGenerate_WithPR(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg, depGraph, modules)
+	gen := NewGenerator(cfg.GitHub, cfg.Policy, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -412,7 +412,7 @@ func TestGenerate_WithPolicy(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg, depGraph, modules)
+	gen := NewGenerator(cfg.GitHub, cfg.Policy, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -456,7 +456,7 @@ func TestGenerate_WithContainer(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg, depGraph, modules)
+	gen := NewGenerator(cfg.GitHub, cfg.Policy, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -497,7 +497,7 @@ func TestGenerate_StepsBefore(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg, depGraph, modules)
+	gen := NewGenerator(cfg.GitHub, cfg.Policy, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -549,7 +549,7 @@ func TestDryRun(t *testing.T) {
 	})
 
 	depGraph := graph.BuildFromDependencies(modules, deps)
-	gen := NewGenerator(cfg, depGraph, modules)
+	gen := NewGenerator(cfg.GitHub, cfg.Policy, depGraph, modules)
 	result, err := gen.DryRun(modules)
 	if err != nil {
 		t.Fatalf("DryRun failed: %v", err)
@@ -575,9 +575,6 @@ func TestDryRun(t *testing.T) {
 }
 
 func TestJobName(t *testing.T) {
-	cfg := createTestConfig()
-	gen := NewGenerator(cfg, graph.NewDependencyGraph(), nil)
-
 	tests := []struct {
 		name     string
 		module   *discovery.Module
@@ -606,7 +603,7 @@ func TestJobName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := gen.jobName(tt.module, tt.jobType)
+			result := pipeline.JobName(tt.jobType, tt.module)
 			if result != tt.expected {
 				t.Errorf("jobName(%s, %s) = %s, expected %s", tt.module.ID(), tt.jobType, result, tt.expected)
 			}

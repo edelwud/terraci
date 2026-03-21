@@ -438,6 +438,12 @@ const ProviderGitLab = "gitlab"
 const ProviderGitHub = "github"
 
 // ResolveProvider determines the CI provider from config or environment
+// ResolvedProvider returns the CI provider, auto-detecting from environment if not set.
+func (c *Config) ResolvedProvider() string { return ResolveProvider(c) }
+
+// ResolveProvider determines the CI provider from config or environment.
+//
+// Deprecated: Use Config.ResolvedProvider() instead.
 func ResolveProvider(cfg *Config) string {
 	if cfg.Provider != "" {
 		return cfg.Provider
@@ -504,6 +510,10 @@ func Load(path string) (*Config, error) {
 		} else {
 			config.Structure.MaxDepth = config.Structure.MinDepth
 		}
+	}
+
+	if err := config.Validate(); err != nil {
+		return nil, &terrierrors.ConfigError{Path: path, Err: err}
 	}
 
 	return config, nil

@@ -16,9 +16,8 @@ type GeneratedPipeline interface {
 	ToYAML() ([]byte, error)
 }
 
-// Generator defines the interface for CI pipeline generators
+// Generator defines the interface for CI pipeline generators.
 type Generator interface {
 	Generate(targetModules []*discovery.Module) (GeneratedPipeline, error)
-	GenerateForChangedModules(changedModuleIDs []string) (GeneratedPipeline, error)
 	DryRun(targetModules []*discovery.Module) (*DryRunResult, error)
 }

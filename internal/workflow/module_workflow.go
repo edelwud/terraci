@@ -64,10 +64,7 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 	fullIndex := discovery.NewModuleIndex(allModules)
 	filteredIndex := discovery.NewModuleIndex(filtered)
 
-	hclParser := parser.NewParser()
-	if len(opts.Segments) > 0 {
-		hclParser.Segments = opts.Segments
-	}
+	hclParser := parser.NewParser(opts.Segments)
 
 	deps, warnings := parser.NewDependencyExtractor(hclParser, filteredIndex).ExtractAllDependencies(ctx)
 	depGraph := graph.BuildFromDependencies(filtered, deps)

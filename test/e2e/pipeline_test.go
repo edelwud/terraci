@@ -49,7 +49,7 @@ func TestPipelineGeneration_Basic(t *testing.T) {
 	cfg.GitLab.PlanEnabled = true
 	cfg.GitLab.AutoApprove = false
 
-	generator := gitlab.NewGenerator(cfg, depGraph, modules)
+	generator := gitlab.NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -117,7 +117,7 @@ func TestPipelineGeneration_PlanOnly(t *testing.T) {
 	cfg.GitLab.PlanEnabled = true
 	cfg.GitLab.PlanOnly = true
 
-	generator := gitlab.NewGenerator(cfg, depGraph, modules)
+	generator := gitlab.NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -166,7 +166,7 @@ func TestPipelineGeneration_PlanOnlyNeeds(t *testing.T) {
 	cfg.GitLab.PlanEnabled = true
 	cfg.GitLab.PlanOnly = true
 
-	generator := gitlab.NewGenerator(cfg, depGraph, modules)
+	generator := gitlab.NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -240,7 +240,7 @@ func TestPipelineGeneration_ChangedOnlyFilteredNeeds(t *testing.T) {
 		modules[4], // app
 	}
 
-	generator := gitlab.NewGenerator(cfg, depGraph, modules)
+	generator := gitlab.NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	result, err := generator.Generate(changedModules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -331,7 +331,7 @@ func TestPipelineGeneration_ChangedOnlyPlanOnly(t *testing.T) {
 		modules[4], // app
 	}
 
-	generator := gitlab.NewGenerator(cfg, depGraph, modules)
+	generator := gitlab.NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	result, err := generator.Generate(changedModules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -382,7 +382,7 @@ func TestPipelineGeneration_ApplyDependsOnPlan(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.GitLab.PlanEnabled = true
 
-	generator := gitlab.NewGenerator(cfg, depGraph, modules)
+	generator := gitlab.NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -425,7 +425,7 @@ func TestPipelineGeneration_NoPlanEnabled(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.GitLab.PlanEnabled = false
 
-	generator := gitlab.NewGenerator(cfg, depGraph, modules)
+	generator := gitlab.NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -467,7 +467,7 @@ func TestPipelineGeneration_DependencyOrder(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.GitLab.PlanEnabled = true
 
-	generator := gitlab.NewGenerator(cfg, depGraph, modules)
+	generator := gitlab.NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -513,7 +513,7 @@ func TestPipelineGeneration_EmptyModules(t *testing.T) {
 
 	cfg := config.DefaultConfig()
 
-	generator := gitlab.NewGenerator(cfg, depGraph, modules)
+	generator := gitlab.NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 
 	// Generate with empty target modules should use all modules
 	result, err := generator.Generate(nil)
@@ -539,7 +539,7 @@ func TestPipelineGeneration_SingleModule(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.GitLab.PlanEnabled = true
 
-	generator := gitlab.NewGenerator(cfg, depGraph, modules)
+	generator := gitlab.NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 
 	// Generate for single module (vpc - no dependencies)
 	singleModule := []*discovery.Module{modules[0]} // vpc

@@ -27,7 +27,7 @@ data "terraform_remote_state" "vpc" {
 	vpc := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	vpc.Path = vpcPath
 
-	extractor := NewDependencyExtractor(NewParser(), discovery.NewModuleIndex([]*discovery.Module{eks, vpc}))
+	extractor := NewDependencyExtractor(NewParser(nil), discovery.NewModuleIndex([]*discovery.Module{eks, vpc}))
 
 	deps, err := extractor.ExtractDependencies(context.Background(), eks)
 	if err != nil {
@@ -69,7 +69,7 @@ data "terraform_remote_state" "rds" {
 }
 `)
 
-	extractor := NewDependencyExtractor(NewParser(), discovery.NewModuleIndex(modules))
+	extractor := NewDependencyExtractor(NewParser(nil), discovery.NewModuleIndex(modules))
 
 	deps, err := extractor.ExtractDependencies(context.Background(), modules[0]) // app
 	if err != nil {
@@ -103,7 +103,7 @@ data "terraform_remote_state" "deps" {
 }
 `)
 
-	extractor := NewDependencyExtractor(NewParser(), discovery.NewModuleIndex(modules))
+	extractor := NewDependencyExtractor(NewParser(nil), discovery.NewModuleIndex(modules))
 
 	deps, err := extractor.ExtractDependencies(context.Background(), modules[0]) // app
 	if err != nil {
@@ -127,7 +127,7 @@ func TestExtractDependencies_Library(t *testing.T) {
 	m := discovery.TestModule("platform", "stage", "eu-central-1", "kafka")
 	m.Path = modPath
 
-	extractor := NewDependencyExtractor(NewParser(), discovery.NewModuleIndex([]*discovery.Module{m}))
+	extractor := NewDependencyExtractor(NewParser(nil), discovery.NewModuleIndex([]*discovery.Module{m}))
 
 	deps, err := extractor.ExtractDependencies(context.Background(), m)
 	if err != nil {
@@ -168,7 +168,7 @@ data "terraform_remote_state" "rds" {
 }
 `)
 
-	extractor := NewDependencyExtractor(NewParser(), discovery.NewModuleIndex(modules))
+	extractor := NewDependencyExtractor(NewParser(nil), discovery.NewModuleIndex(modules))
 	allDeps, _ := extractor.ExtractAllDependencies(context.Background())
 
 	if len(allDeps) != 3 {
@@ -198,7 +198,7 @@ func TestMatchPathToModule(t *testing.T) {
 		discovery.TestModule("platform", "prod", "us-east-1", "api"),
 	}
 
-	extractor := NewDependencyExtractor(NewParser(), discovery.NewModuleIndex(modules))
+	extractor := NewDependencyExtractor(NewParser(nil), discovery.NewModuleIndex(modules))
 
 	tests := []struct {
 		name      string

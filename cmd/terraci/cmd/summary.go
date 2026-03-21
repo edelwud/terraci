@@ -55,7 +55,7 @@ Example usage in .gitlab-ci.yml:
 }
 
 func runSummary(app *App) error {
-	provider := config.ResolveProvider(app.Config)
+	provider := app.Config.ResolvedProvider()
 
 	// Scan plan results (provider-agnostic)
 	log.Info("scanning for plan results")

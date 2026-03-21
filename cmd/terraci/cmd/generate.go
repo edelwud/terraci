@@ -44,7 +44,7 @@ Examples:
   terraci generate --plan-only`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			// Apply CLI flags to config
-			provider := config.ResolveProvider(app.Config)
+			provider := app.Config.ResolvedProvider()
 			if planOnly {
 				applyPlanOnly(app, provider)
 			}
@@ -183,11 +183,11 @@ func logCycles(depGraph *graph.DependencyGraph) {
 // --- Pipeline generation ---
 
 func newPipelineGenerator(app *App, depGraph *graph.DependencyGraph, modules []*discovery.Module) pipeline.Generator {
-	switch config.ResolveProvider(app.Config) {
+	switch app.Config.ResolvedProvider() {
 	case config.ProviderGitHub:
-		return pipelinegithub.NewGenerator(app.Config, depGraph, modules)
+		return pipelinegithub.NewGenerator(app.Config.GitHub, app.Config.Policy, depGraph, modules)
 	default:
-		return gitlab.NewGenerator(app.Config, depGraph, modules)
+		return gitlab.NewGenerator(app.Config.GitLab, app.Config.Policy, depGraph, modules)
 	}
 }
 

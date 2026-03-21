@@ -16,12 +16,12 @@ import (
 
 // DependencyExtractor extracts module dependencies from parsed Terraform files.
 type DependencyExtractor struct {
-	parser *Parser
+	parser ModuleParser
 	index  *discovery.ModuleIndex
 }
 
 // NewDependencyExtractor creates a new dependency extractor.
-func NewDependencyExtractor(parser *Parser, index *discovery.ModuleIndex) *DependencyExtractor {
+func NewDependencyExtractor(parser ModuleParser, index *discovery.ModuleIndex) *DependencyExtractor {
 	return &DependencyExtractor{parser: parser, index: index}
 }
 

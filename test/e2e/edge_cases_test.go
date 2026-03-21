@@ -155,7 +155,7 @@ func TestEdgeCase_AllModulesIndependent(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.GitLab.PlanEnabled = true
 
-	generator := gitlab.NewGenerator(cfg, depGraph, modules)
+	generator := gitlab.NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -203,7 +203,7 @@ func TestEdgeCase_DeepDependencyChain(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.GitLab.PlanEnabled = true
 
-	generator := gitlab.NewGenerator(cfg, depGraph, modules)
+	generator := gitlab.NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -270,7 +270,7 @@ func TestEdgeCase_DiamondDependency(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.GitLab.PlanEnabled = true
 
-	generator := gitlab.NewGenerator(cfg, depGraph, modules)
+	generator := gitlab.NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -312,7 +312,7 @@ func TestEdgeCase_PartialChainChanged(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.GitLab.PlanEnabled = true
 
-	generator := gitlab.NewGenerator(cfg, depGraph, modules)
+	generator := gitlab.NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 
 	// Only B changed
 	changedModules := []*discovery.Module{modules[1]} // b
@@ -459,7 +459,7 @@ func TestEdgeCase_ModuleWithSelfReference(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.GitLab.PlanEnabled = true
 
-	generator := gitlab.NewGenerator(cfg, depGraph, modules)
+	generator := gitlab.NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		// Self-reference might cause cycle detection
@@ -490,7 +490,7 @@ func TestEdgeCase_SpecialCharactersInModuleName(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.GitLab.PlanEnabled = true
 
-	generator := gitlab.NewGenerator(cfg, depGraph, modules)
+	generator := gitlab.NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -525,7 +525,7 @@ func TestEdgeCase_VeryLongModulePath(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.GitLab.PlanEnabled = true
 
-	generator := gitlab.NewGenerator(cfg, depGraph, modules)
+	generator := gitlab.NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)

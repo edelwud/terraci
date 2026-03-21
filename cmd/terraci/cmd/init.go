@@ -85,7 +85,7 @@ Examples:
 func logGenerateHint(cfg *config.Config) {
 	log.Info("generate your pipeline with:")
 	log.IncreasePadding()
-	if config.ResolveProvider(cfg) == config.ProviderGitHub {
+	if cfg.ResolvedProvider() == config.ProviderGitHub {
 		log.Info("terraci generate -o .github/workflows/terraform.yml")
 	} else {
 		log.Info("terraci generate -o .gitlab-ci.yml")

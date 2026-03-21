@@ -9,7 +9,7 @@ import (
 
 func TestParseModule_EmptyDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
-	p := NewParser()
+	p := NewParser(nil)
 
 	result, err := p.ParseModule(context.Background(), tmpDir)
 	if err != nil {
@@ -41,7 +41,7 @@ locals {
 `,
 	})
 
-	result, err := NewParser().ParseModule(context.Background(), dir)
+	result, err := NewParser(nil).ParseModule(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -59,7 +59,7 @@ locals { environment = "stage" }
 `,
 	})
 
-	result, err := NewParser().ParseModule(context.Background(), dir)
+	result, err := NewParser(nil).ParseModule(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -80,7 +80,7 @@ variable "no_default" { description = "no default" }
 `,
 	})
 
-	result, err := NewParser().ParseModule(context.Background(), dir)
+	result, err := NewParser(nil).ParseModule(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestParseModule_WithTfvars(t *testing.T) {
 		"terraform.tfvars": `region = "eu-west-1"`,
 	})
 
-	result, err := NewParser().ParseModule(context.Background(), dir)
+	result, err := NewParser(nil).ParseModule(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestParseModule_WithAutoTfvars(t *testing.T) {
 		"override.auto.tfvars": `region = "ap-northeast-1"`,
 	})
 
-	result, err := NewParser().ParseModule(context.Background(), dir)
+	result, err := NewParser(nil).ParseModule(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -135,7 +135,7 @@ data "terraform_remote_state" "eks" {
 `,
 	})
 
-	result, err := NewParser().ParseModule(context.Background(), dir)
+	result, err := NewParser(nil).ParseModule(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -170,7 +170,7 @@ data "terraform_remote_state" "deps" {
 `,
 	})
 
-	result, err := NewParser().ParseModule(context.Background(), dir)
+	result, err := NewParser(nil).ParseModule(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -197,7 +197,7 @@ data "terraform_remote_state" "vpc" {
 `,
 	})
 
-	result, err := NewParser().ParseModule(context.Background(), dir)
+	result, err := NewParser(nil).ParseModule(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -226,7 +226,7 @@ module "rel_mod" {
 `,
 	})
 
-	result, err := NewParser().ParseModule(context.Background(), dir)
+	result, err := NewParser(nil).ParseModule(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -272,7 +272,7 @@ func TestParseModule_InvalidHCL(t *testing.T) {
 		"invalid.tf": `locals { broken = "unclosed string\n}`,
 	})
 
-	result, err := NewParser().ParseModule(context.Background(), dir)
+	result, err := NewParser(nil).ParseModule(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -58,11 +58,11 @@ func (p *Parser) buildEvalContext(modulePath string, locals, variables map[strin
 
 // extractPathLocals derives locals from the module path based on configured segments.
 func (p *Parser) extractPathLocals(pathParts []string) map[string]cty.Value {
-	numSegs := len(p.Segments)
+	numSegs := len(p.segments)
 	pathLocals := make(map[string]cty.Value, numSegs+2)
 
 	// Map path parts to segment names positionally (first N parts → segments)
-	for i, segName := range p.Segments {
+	for i, segName := range p.segments {
 		if i < len(pathParts) {
 			pathLocals[segName] = cty.StringVal(pathParts[i])
 		}
@@ -77,7 +77,7 @@ func (p *Parser) extractPathLocals(pathParts []string) map[string]cty.Value {
 		pathLocals["submodule"] = cty.StringVal(submodule)
 		// scope = the last segment value (parent module name)
 		if numSegs > 0 {
-			lastSeg := p.Segments[numSegs-1]
+			lastSeg := p.segments[numSegs-1]
 			if v, ok := pathLocals[lastSeg]; ok {
 				scope = v.AsString()
 			}
@@ -86,7 +86,7 @@ func (p *Parser) extractPathLocals(pathParts []string) map[string]cty.Value {
 			pathLocals[lastSeg] = cty.StringVal(submodule)
 		}
 	} else if numSegs > 0 {
-		if v, ok := pathLocals[p.Segments[numSegs-1]]; ok {
+		if v, ok := pathLocals[p.segments[numSegs-1]]; ok {
 			scope = v.AsString()
 		}
 	}

@@ -44,12 +44,12 @@ func TestNewGenerator(t *testing.T) {
 	}
 	depGraph := graph.NewDependencyGraph()
 
-	gen := NewGenerator(cfg, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 
 	if gen == nil {
 		t.Fatal("NewGenerator returned nil")
 	}
-	if gen.config != cfg {
+	if gen.config != cfg.GitLab {
 		t.Error("config not set correctly")
 	}
 	if len(gen.modules) != 1 {
@@ -68,7 +68,7 @@ func TestGenerator_Generate_SingleModule(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	var genPipeline pipeline.GeneratedPipeline
 	var err error
 	genPipeline, err = gen.Generate(modules)
@@ -119,7 +119,7 @@ func TestGenerator_Generate_WithDependencies(t *testing.T) {
 	})
 
 	depGraph := graph.BuildFromDependencies(modules, deps)
-	gen := NewGenerator(cfg, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -168,7 +168,7 @@ func TestGenerator_Generate_PlanOnly(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -212,7 +212,7 @@ func TestGenerator_Generate_PlanOnlyWithDependencies(t *testing.T) {
 	})
 
 	depGraph := graph.BuildFromDependencies(modules, deps)
-	gen := NewGenerator(cfg, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -256,7 +256,7 @@ func TestGenerator_Generate_AutoApprove(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -291,7 +291,7 @@ func TestGenerator_Generate_ManualApprove(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -326,7 +326,7 @@ func TestGenerator_Generate_CustomStagesPrefix(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -358,7 +358,7 @@ func TestGenerator_Generate_TerraformBinary(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -386,7 +386,7 @@ func TestGenerator_Generate_JobVariables(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -429,7 +429,7 @@ func TestGenerator_Generate_ResourceGroup(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -466,7 +466,7 @@ func TestGenerator_DryRun(t *testing.T) {
 	})
 
 	depGraph := graph.BuildFromDependencies(modules, deps)
-	gen := NewGenerator(cfg, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	result, err := gen.DryRun(modules)
 	if err != nil {
 		t.Fatalf("DryRun failed: %v", err)
@@ -488,7 +488,7 @@ func TestGenerator_DryRun(t *testing.T) {
 
 func TestGenerator_jobName(t *testing.T) {
 	cfg := createTestConfig()
-	gen := NewGenerator(cfg, graph.NewDependencyGraph(), nil)
+	gen := NewGenerator(cfg.GitLab, cfg.Policy, graph.NewDependencyGraph(), nil)
 
 	tests := []struct {
 		module   *discovery.Module
@@ -567,7 +567,7 @@ func TestGenerator_Generate_WithMRIntegration(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -632,7 +632,7 @@ func TestGenerator_Generate_WithMRIntegration_Disabled(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -695,7 +695,7 @@ func TestGenerator_isMREnabled(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gen := NewGenerator(tt.config, graph.NewDependencyGraph(), nil)
+			gen := NewGenerator(tt.config.GitLab, tt.config.Policy, graph.NewDependencyGraph(), nil)
 			result := gen.isMREnabled()
 			if result != tt.expected {
 				t.Errorf("isMREnabled() = %v, expected %v", result, tt.expected)
@@ -729,7 +729,7 @@ func TestGenerator_Generate_WithSecrets(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -789,7 +789,7 @@ func TestGenerator_Generate_WithArtifacts(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -843,7 +843,7 @@ func TestGenerator_Generate_WithPolicyCheck(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -883,57 +883,5 @@ func TestGenerator_Generate_WithPolicyCheck(t *testing.T) {
 	// Verify policy job depends on plan jobs
 	if len(policyJob.Needs) == 0 {
 		t.Error("expected policy-check job to have needs")
-	}
-}
-
-func TestGenerator_GenerateForChangedModules(t *testing.T) {
-	cfg := createTestConfig()
-
-	vpc := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
-	eks := discovery.TestModule("platform", "stage", "eu-central-1", "eks")
-	rds := discovery.TestModule("platform", "stage", "eu-central-1", "rds")
-	modules := []*discovery.Module{vpc, eks, rds}
-
-	// EKS depends on VPC, RDS is independent
-	deps := createTestDeps(modules, map[string][]string{
-		vpc.ID(): {},
-		eks.ID(): {vpc.ID()},
-		rds.ID(): {},
-	})
-	depGraph := graph.BuildFromDependencies(modules, deps)
-
-	gen := NewGenerator(cfg, depGraph, modules)
-
-	// Only VPC changed — should include VPC and its dependent EKS, but not RDS
-	genPipeline, err := gen.GenerateForChangedModules([]string{vpc.ID()})
-	if err != nil {
-		t.Fatalf("GenerateForChangedModules failed: %v", err)
-	}
-
-	p, ok := genPipeline.(*Pipeline)
-	if !ok {
-		t.Fatal("expected *Pipeline type")
-	}
-
-	// Should have VPC and EKS jobs (plan + apply each = 4 jobs)
-	if _, exists := p.Jobs["plan-platform-stage-eu-central-1-vpc"]; !exists {
-		t.Error("expected VPC plan job")
-	}
-	if _, exists := p.Jobs["apply-platform-stage-eu-central-1-vpc"]; !exists {
-		t.Error("expected VPC apply job")
-	}
-	if _, exists := p.Jobs["plan-platform-stage-eu-central-1-eks"]; !exists {
-		t.Error("expected EKS plan job (dependent of VPC)")
-	}
-	if _, exists := p.Jobs["apply-platform-stage-eu-central-1-eks"]; !exists {
-		t.Error("expected EKS apply job (dependent of VPC)")
-	}
-
-	// RDS should NOT be in the pipeline
-	if _, exists := p.Jobs["plan-platform-stage-eu-central-1-rds"]; exists {
-		t.Error("RDS plan job should not be in pipeline (not affected by VPC change)")
-	}
-	if _, exists := p.Jobs["apply-platform-stage-eu-central-1-rds"]; exists {
-		t.Error("RDS apply job should not be in pipeline (not affected by VPC change)")
 	}
 }

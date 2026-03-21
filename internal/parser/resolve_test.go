@@ -15,7 +15,7 @@ data "terraform_remote_state" "vpc" {
 `,
 	})
 
-	p := NewParser()
+	p := NewParser(nil)
 	result, err := p.ParseModule(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
@@ -40,7 +40,7 @@ data "terraform_remote_state" "vpc" {
 `,
 	})
 
-	p := NewParser()
+	p := NewParser(nil)
 	result, err := p.ParseModule(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
@@ -66,7 +66,7 @@ data "terraform_remote_state" "deps" {
 `,
 	})
 
-	p := NewParser()
+	p := NewParser(nil)
 	result, err := p.ParseModule(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
@@ -105,7 +105,7 @@ data "terraform_remote_state" "vpc" {
 `,
 	})
 
-	p := NewParser()
+	p := NewParser(nil)
 	result, err := p.ParseModule(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
@@ -145,7 +145,7 @@ data "terraform_remote_state" "vpc" {
 }
 `)
 
-	p := NewParser()
+	p := NewParser(nil)
 	result, err := p.ParseModule(context.Background(), moduleDir)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
@@ -190,7 +190,7 @@ data "terraform_remote_state" "sg" {
 }
 `)
 
-	p := NewParser()
+	p := NewParser(nil)
 	result, err := p.ParseModule(context.Background(), moduleDir)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
@@ -241,7 +241,7 @@ data "terraform_remote_state" "deps" {
 }
 `)
 
-	p := NewParser()
+	p := NewParser(nil)
 	result, err := p.ParseModule(context.Background(), moduleDir)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
@@ -308,7 +308,7 @@ data "terraform_remote_state" "vpc_settings" {
 }
 `)
 
-	p := NewParser()
+	p := NewParser(nil)
 	result, err := p.ParseModule(context.Background(), moduleDir)
 	if err != nil {
 		t.Fatalf("parse: %v", err)

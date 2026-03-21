@@ -22,16 +22,18 @@ const (
 
 // Generator generates GitHub Actions workflows
 type Generator struct {
-	config      *config.Config
+	config      *config.GitHubConfig
+	policyCfg   *config.PolicyConfig
 	depGraph    *graph.DependencyGraph
 	modules     []*discovery.Module
 	moduleIndex *discovery.ModuleIndex
 }
 
 // NewGenerator creates a new GitHub Actions pipeline generator
-func NewGenerator(cfg *config.Config, depGraph *graph.DependencyGraph, modules []*discovery.Module) *Generator {
+func NewGenerator(cfg *config.GitHubConfig, policyCfg *config.PolicyConfig, depGraph *graph.DependencyGraph, modules []*discovery.Module) *Generator {
 	return &Generator{
 		config:      cfg,
+		policyCfg:   policyCfg,
 		depGraph:    depGraph,
 		modules:     modules,
 		moduleIndex: discovery.NewModuleIndex(modules),
@@ -40,32 +42,15 @@ func NewGenerator(cfg *config.Config, depGraph *graph.DependencyGraph, modules [
 
 // Generate creates a GitHub Actions workflow for the given modules
 func (g *Generator) Generate(targetModules []*discovery.Module) (pipeline.GeneratedPipeline, error) {
-	if len(targetModules) == 0 {
-		targetModules = g.modules
-	}
-
-	// Get module IDs for subgraph
-	moduleIDs := make([]string, len(targetModules))
-	for i, m := range targetModules {
-		moduleIDs[i] = m.ID()
-	}
-
-	// Build set of target module IDs for filtering needs
-	targetModuleSet := make(map[string]bool, len(moduleIDs))
-	for _, id := range moduleIDs {
-		targetModuleSet[id] = true
-	}
-
-	// Build subgraph for target modules
-	subgraph := g.depGraph.Subgraph(moduleIDs)
-
-	// Get execution levels
-	levels, err := subgraph.ExecutionLevels()
-	if err != nil {
-		return nil, fmt.Errorf("failed to calculate execution levels: %w", err)
-	}
-
 	ghCfg := g.ghConfig()
+
+	plan, err := pipeline.BuildJobPlan(
+		g.depGraph, targetModules, g.modules, g.moduleIndex,
+		g.isPREnabled(), g.isPolicyEnabled(), ghCfg.PlanEnabled,
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	// Build workflow-level env
 	env := make(map[string]string)
@@ -85,9 +70,6 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (pipeline.Genera
 		}
 	}
 
-	includeSummary := g.isPREnabled() && ghCfg.PlanEnabled
-	includePolicyCheck := g.isPolicyEnabled() && ghCfg.PlanEnabled
-
 	workflow := &Workflow{
 		Name: "Terraform",
 		On: WorkflowTrigger{
@@ -103,37 +85,37 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (pipeline.Genera
 	var planJobNames []string
 
 	// Generate jobs for each level
-	for _, moduleIDs := range levels {
+	for _, moduleIDs := range plan.ExecutionLevels {
 		for _, moduleID := range moduleIDs {
-			module := g.moduleIndex.ByID(moduleID)
+			module := plan.ModuleIndex.ByID(moduleID)
 			if module == nil {
 				continue
 			}
 
 			// Generate plan job if enabled
 			if ghCfg.PlanEnabled {
-				planJob := g.generatePlanJob(module, targetModuleSet)
-				planJobName := g.jobName(module, "plan")
+				planJob := g.generatePlanJob(module, plan.TargetSet)
+				planJobName := pipeline.JobName("plan", module)
 				workflow.Jobs[planJobName] = planJob
 				planJobNames = append(planJobNames, planJobName)
 			}
 
 			// Generate apply job (skip if plan-only mode)
 			if !ghCfg.PlanOnly {
-				applyJob := g.generateApplyJob(module, targetModuleSet)
-				workflow.Jobs[g.jobName(module, "apply")] = applyJob
+				applyJob := g.generateApplyJob(module, plan.TargetSet)
+				workflow.Jobs[pipeline.JobName("apply", module)] = applyJob
 			}
 		}
 	}
 
 	// Generate policy check job if policy checks are enabled
-	if includePolicyCheck && len(planJobNames) > 0 {
+	if plan.IncludePolicy && len(planJobNames) > 0 {
 		workflow.Jobs[PolicyCheckJobName] = g.generatePolicyCheckJob(planJobNames)
 	}
 
 	// Generate summary job if PR integration is enabled
-	if includeSummary && len(planJobNames) > 0 {
-		workflow.Jobs[SummaryJobName] = g.generateSummaryJob(planJobNames, includePolicyCheck)
+	if plan.IncludeSummary && len(planJobNames) > 0 {
+		workflow.Jobs[SummaryJobName] = g.generateSummaryJob(planJobNames, plan.IncludePolicy)
 	}
 
 	return workflow, nil
@@ -144,21 +126,14 @@ func (g *Generator) generatePlanJob(module *discovery.Module, targetModuleSet ma
 	ghCfg := g.ghConfig()
 
 	// Build run script
-	var scriptParts []string
-	scriptParts = append(scriptParts, fmt.Sprintf("cd %s", module.RelativePath))
-	if ghCfg.InitEnabled {
-		scriptParts = append(scriptParts, "${TERRAFORM_BINARY} init")
+	sc := pipeline.ScriptConfig{
+		TerraformBinary: ghCfg.TerraformBinary,
+		InitEnabled:     ghCfg.InitEnabled,
+		PlanEnabled:     ghCfg.PlanEnabled,
+		AutoApprove:     ghCfg.AutoApprove,
+		DetailedPlan:    g.isPREnabled(),
 	}
-
-	if g.isPREnabled() {
-		scriptParts = append(scriptParts,
-			"(${TERRAFORM_BINARY} plan -out=plan.tfplan -detailed-exitcode 2>&1 || echo $? > .tf_exit) | tee plan.txt",
-			"${TERRAFORM_BINARY} show -json plan.tfplan > plan.json",
-			"TF_EXIT=$(cat .tf_exit 2>/dev/null || echo 0); rm -f .tf_exit; if [ \"$TF_EXIT\" -eq 2 ]; then exit 0; else exit \"$TF_EXIT\"; fi",
-		)
-	} else {
-		scriptParts = append(scriptParts, "${TERRAFORM_BINARY} plan -out=plan.tfplan")
-	}
+	scriptParts, artifactPaths := sc.PlanScript(module.RelativePath)
 	runScript := strings.Join(scriptParts, "\n")
 
 	// Build steps (preallocate with capacity for checkout + before/after steps + plan + upload)
@@ -177,17 +152,12 @@ func (g *Generator) generatePlanJob(module *discovery.Module, targetModuleSet ma
 	steps = append(steps, g.getStepsAfter(config.OverwriteTypePlan)...)
 
 	// Upload artifact step
-	artifactPaths := fmt.Sprintf("%s/plan.tfplan", module.RelativePath)
-	if g.isPREnabled() {
-		artifactPaths = fmt.Sprintf("%s/plan.tfplan\n%s/plan.txt\n%s/plan.json",
-			module.RelativePath, module.RelativePath, module.RelativePath)
-	}
 	steps = append(steps, Step{
 		Name: "Upload plan artifacts",
 		Uses: "actions/upload-artifact@v4",
 		With: map[string]string{
-			"name":           g.jobName(module, "plan"),
-			"path":           artifactPaths,
+			"name":           pipeline.JobName("plan", module),
+			"path":           strings.Join(artifactPaths, "\n"),
 			"retention-days": "1",
 		},
 		If: "always()",
@@ -210,9 +180,9 @@ func (g *Generator) generatePlanJob(module *discovery.Module, targetModuleSet ma
 
 	// Add needs for dependencies from previous levels
 	if ghCfg.PlanOnly {
-		job.Needs = g.getDependencyNeeds(module, "plan", targetModuleSet)
+		job.Needs = pipeline.ResolveDependencyNames(module, "plan", targetModuleSet, g.depGraph, g.moduleIndex)
 	} else {
-		job.Needs = g.getDependencyNeeds(module, "apply", targetModuleSet)
+		job.Needs = pipeline.ResolveDependencyNames(module, "apply", targetModuleSet, g.depGraph, g.moduleIndex)
 	}
 
 	return job
@@ -223,21 +193,14 @@ func (g *Generator) generateApplyJob(module *discovery.Module, targetModuleSet m
 	ghCfg := g.ghConfig()
 
 	// Build run script
-	var scriptParts []string
-	scriptParts = append(scriptParts, fmt.Sprintf("cd %s", module.RelativePath))
-	if ghCfg.InitEnabled {
-		scriptParts = append(scriptParts, "${TERRAFORM_BINARY} init")
+	sc := pipeline.ScriptConfig{
+		TerraformBinary: ghCfg.TerraformBinary,
+		InitEnabled:     ghCfg.InitEnabled,
+		PlanEnabled:     ghCfg.PlanEnabled,
+		AutoApprove:     ghCfg.AutoApprove,
+		DetailedPlan:    g.isPREnabled(),
 	}
-
-	if ghCfg.PlanEnabled {
-		scriptParts = append(scriptParts, "${TERRAFORM_BINARY} apply plan.tfplan")
-	} else {
-		if ghCfg.AutoApprove {
-			scriptParts = append(scriptParts, "${TERRAFORM_BINARY} apply -auto-approve")
-		} else {
-			scriptParts = append(scriptParts, "${TERRAFORM_BINARY} apply")
-		}
-	}
+	scriptParts := sc.ApplyScript(module.RelativePath)
 	runScript := strings.Join(scriptParts, "\n")
 
 	// Build steps
@@ -251,7 +214,7 @@ func (g *Generator) generateApplyJob(module *discovery.Module, targetModuleSet m
 			Name: "Download plan artifacts",
 			Uses: "actions/download-artifact@v4",
 			With: map[string]string{
-				"name": g.jobName(module, "plan"),
+				"name": pipeline.JobName("plan", module),
 			},
 		})
 	}
@@ -290,9 +253,9 @@ func (g *Generator) generateApplyJob(module *discovery.Module, targetModuleSet m
 	// Add needs
 	var needs []string
 	if ghCfg.PlanEnabled {
-		needs = append(needs, g.jobName(module, "plan"))
+		needs = append(needs, pipeline.JobName("plan", module))
 	}
-	depNeeds := g.getDependencyNeeds(module, "apply", targetModuleSet)
+	depNeeds := pipeline.ResolveDependencyNames(module, "apply", targetModuleSet, g.depGraph, g.moduleIndex)
 	needs = append(needs, depNeeds...)
 	job.Needs = needs
 
@@ -343,7 +306,7 @@ func (g *Generator) generatePolicyCheckJob(planJobNames []string) *Job {
 
 	// Determine script based on on_failure setting
 	var policyScript string
-	if g.config.Policy.OnFailure == config.PolicyActionWarn {
+	if g.policyCfg.OnFailure == config.PolicyActionWarn {
 		policyScript = "terraci policy pull\nterraci policy check || true"
 	} else {
 		policyScript = "terraci policy pull\nterraci policy check"
@@ -387,107 +350,24 @@ func (g *Generator) generatePolicyCheckJob(planJobNames []string) *Job {
 	return job
 }
 
-// GenerateForChangedModules generates workflow only for changed modules and their dependents
-func (g *Generator) GenerateForChangedModules(changedModuleIDs []string) (pipeline.GeneratedPipeline, error) {
-	// Get all affected modules (changed + their dependents)
-	affectedIDs := g.depGraph.GetAffectedModules(changedModuleIDs)
-
-	// Convert to modules
-	var affectedModules []*discovery.Module
-	for _, id := range affectedIDs {
-		if m := g.moduleIndex.ByID(id); m != nil {
-			affectedModules = append(affectedModules, m)
-		}
-	}
-
-	return g.Generate(affectedModules)
-}
-
 // DryRun returns information about what would be generated without creating YAML
 func (g *Generator) DryRun(targetModules []*discovery.Module) (*pipeline.DryRunResult, error) {
-	if len(targetModules) == 0 {
-		targetModules = g.modules
-	}
+	ghCfg := g.ghConfig()
 
-	moduleIDs := make([]string, len(targetModules))
-	for i, m := range targetModules {
-		moduleIDs[i] = m.ID()
-	}
-
-	subgraph := g.depGraph.Subgraph(moduleIDs)
-	levels, err := subgraph.ExecutionLevels()
+	plan, err := pipeline.BuildJobPlan(
+		g.depGraph, targetModules, g.modules, g.moduleIndex,
+		g.isPREnabled(), g.isPolicyEnabled(), ghCfg.PlanEnabled,
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	ghCfg := g.ghConfig()
-
-	jobCount := 0
-	for _, level := range levels {
-		jobCount += len(level)
-		if ghCfg.PlanEnabled {
-			jobCount += len(level) // plan + apply
-		}
-	}
-
-	includeSummary := g.isPREnabled() && ghCfg.PlanEnabled
-	includePolicyCheck := g.isPolicyEnabled() && ghCfg.PlanEnabled
-
-	if includePolicyCheck {
-		jobCount++
-	}
-	if includeSummary {
-		jobCount++
-	}
-
-	// Stages in GitHub Actions are conceptual (levels), count them
-	stageCount := len(levels)
-	if includePolicyCheck {
-		stageCount++
-	}
-	if includeSummary {
-		stageCount++
-	}
-
-	return &pipeline.DryRunResult{
-		TotalModules:    len(g.modules),
-		AffectedModules: len(targetModules),
-		Stages:          stageCount,
-		Jobs:            jobCount,
-		ExecutionOrder:  levels,
-	}, nil
-}
-
-// jobName generates a job name for a module
-func (g *Generator) jobName(module *discovery.Module, jobType string) string {
-	name := strings.ReplaceAll(module.ID(), "/", "-")
-	return fmt.Sprintf("%s-%s", jobType, name)
-}
-
-// getDependencyNeeds returns job needs for a module's dependencies
-func (g *Generator) getDependencyNeeds(module *discovery.Module, jobType string, targetModuleSet map[string]bool) []string {
-	var needs []string
-
-	deps := g.depGraph.GetDependencies(module.ID())
-	for _, depID := range deps {
-		if !targetModuleSet[depID] {
-			continue
-		}
-
-		depModule := g.moduleIndex.ByID(depID)
-		if depModule == nil {
-			continue
-		}
-
-		needs = append(needs, g.jobName(depModule, jobType))
-	}
-
-	return needs
+	return pipeline.BuildDryRunResult(plan, len(g.modules), ghCfg.PlanEnabled), nil
 }
 
 // ghConfig returns the GitHub config with defaults
 func (g *Generator) ghConfig() *config.GitHubConfig {
-	if g.config.GitHub == nil {
+	if g.config == nil {
 		return &config.GitHubConfig{
 			TerraformBinary: "terraform",
 			RunsOn:          "ubuntu-latest",
@@ -495,7 +375,7 @@ func (g *Generator) ghConfig() *config.GitHubConfig {
 			InitEnabled:     true,
 		}
 	}
-	return g.config.GitHub
+	return g.config
 }
 
 // getRunsOn returns the runner label from config
@@ -545,7 +425,7 @@ func (g *Generator) isPREnabled() bool {
 
 // isPolicyEnabled returns true if policy checks are enabled
 func (g *Generator) isPolicyEnabled() bool {
-	return g.config.Policy != nil && g.config.Policy.Enabled
+	return g.policyCfg != nil && g.policyCfg.Enabled
 }
 
 // getStepsBefore returns extra steps to insert before terraform commands
