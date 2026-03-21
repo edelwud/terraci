@@ -160,14 +160,48 @@ func formatList(g *graph.DependencyGraph) (string, error) {
 	}
 
 	var sb strings.Builder
+
+	// Group by context (first 2 segments) for readability
+	currentGroup := ""
 	for _, id := range sorted {
+		parts := strings.Split(id, "/")
+		group := ""
+		if len(parts) >= 2 {
+			group = parts[0] + "/" + parts[1]
+		}
+
+		if group != currentGroup {
+			if currentGroup != "" {
+				sb.WriteString("\n")
+			}
+			fmt.Fprintf(&sb, "[%s]\n", group)
+			currentGroup = group
+		}
+
+		// Short name: segments after context
+		shortName := id
+		if len(parts) > 2 {
+			shortName = strings.Join(parts[2:], "/")
+		}
+
 		deps := g.GetDependencies(id)
 		if len(deps) == 0 {
-			fmt.Fprintf(&sb, "%s\n", id)
+			fmt.Fprintf(&sb, "  %s\n", shortName)
 		} else {
-			fmt.Fprintf(&sb, "%s -> %s\n", id, strings.Join(deps, ", "))
+			// Show short dep names
+			shortDeps := make([]string, len(deps))
+			for i, dep := range deps {
+				depParts := strings.Split(dep, "/")
+				if len(depParts) > 2 {
+					shortDeps[i] = strings.Join(depParts[2:], "/")
+				} else {
+					shortDeps[i] = dep
+				}
+			}
+			fmt.Fprintf(&sb, "  %s → %s\n", shortName, strings.Join(shortDeps, ", "))
 		}
 	}
+
 	return sb.String(), nil
 }
 
@@ -179,9 +213,20 @@ func formatLevels(g *graph.DependencyGraph) (string, error) {
 
 	var sb strings.Builder
 	for i, level := range levels {
-		fmt.Fprintf(&sb, "Level %d:\n", i)
+		fmt.Fprintf(&sb, "Level %d (%d modules):\n", i, len(level))
 		for _, id := range level {
-			fmt.Fprintf(&sb, "  - %s\n", id)
+			deps := g.GetDependencies(id)
+			if len(deps) == 0 {
+				fmt.Fprintf(&sb, "  %s\n", id)
+			} else {
+				// Show just leaf names of dependencies
+				depNames := make([]string, len(deps))
+				for j, dep := range deps {
+					parts := strings.Split(dep, "/")
+					depNames[j] = parts[len(parts)-1]
+				}
+				fmt.Fprintf(&sb, "  %s  (← %s)\n", id, strings.Join(depNames, ", "))
+			}
 		}
 		sb.WriteString("\n")
 	}
@@ -200,22 +245,56 @@ func printStats(g *graph.DependencyGraph) error {
 	}
 
 	log.IncreasePadding()
+
+	// Overview
 	log.WithField("count", stats.TotalModules).Info("total modules")
 	log.WithField("count", stats.TotalEdges).Info("total edges")
 	log.WithField("count", stats.RootModules).Info("root modules (no dependencies)")
 	log.WithField("count", stats.LeafModules).Info("leaf modules (no dependents)")
-	log.WithField("depth", stats.MaxDepth).Info("max depth")
-	log.WithField("depth", fmt.Sprintf("%.2f", stats.AverageDepth)).Info("average depth")
 
+	// Depth
+	log.WithField("depth", stats.MaxDepth).Info("max depth (execution levels)")
+	log.WithField("depth", fmt.Sprintf("%.1f", stats.AverageDepth)).Info("average depth")
+
+	// Parallelism per level
+	if len(stats.LevelCounts) > 0 {
+		levelStrs := make([]string, len(stats.LevelCounts))
+		for i, c := range stats.LevelCounts {
+			levelStrs[i] = fmt.Sprintf("L%d:%d", i, c)
+		}
+		log.WithField("distribution", strings.Join(levelStrs, " ")).Info("modules per level")
+	}
+
+	// Top depended-on modules (bottlenecks)
+	if len(stats.TopDependedOn) > 0 {
+		log.Info("most depended-on modules (bottlenecks)")
+		log.IncreasePadding()
+		for _, m := range stats.TopDependedOn {
+			log.WithField("dependents", m.Count).Info(m.ID)
+		}
+		log.DecreasePadding()
+	}
+
+	// Top dependency-heavy modules
+	if len(stats.TopDependencies) > 0 {
+		log.Info("modules with most dependencies")
+		log.IncreasePadding()
+		for _, m := range stats.TopDependencies {
+			log.WithField("dependencies", m.Count).Info(m.ID)
+		}
+		log.DecreasePadding()
+	}
+
+	// Cycles
 	if stats.HasCycles {
 		log.WithField("count", stats.CycleCount).Warn("cycles detected")
 		log.IncreasePadding()
 		for i, cycle := range g.DetectCycles() {
-			log.WithField("cycle", i+1).WithField("path", strings.Join(cycle, " -> ")).Warn("cycle")
+			log.WithField("cycle", i+1).WithField("path", strings.Join(cycle, " → ")).Warn("cycle")
 		}
 		log.DecreasePadding()
 	} else {
-		log.Info("no cycles")
+		log.Info("no cycles ✓")
 	}
 
 	log.DecreasePadding()
