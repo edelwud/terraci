@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/internal/cost/pricing"
-	"github.com/edelwud/terraci/internal/terraform/plan"
 )
 
 // fakePricingServer returns an httptest server serving minimal AWS pricing JSON.
@@ -184,78 +183,5 @@ func TestNewEstimator(t *testing.T) {
 	estimator := NewEstimator("", 0)
 	if estimator == nil {
 		t.Fatal("nil")
-	}
-}
-
-func TestGetAfterAttrs(t *testing.T) {
-	tests := []struct {
-		name     string
-		rc       plan.ResourceChange
-		wantKeys []string
-	}{
-		{"extracts new", plan.ResourceChange{Attributes: []plan.AttrDiff{{Path: "a", NewValue: "1"}, {Path: "b", NewValue: "2"}}}, []string{"a", "b"}},
-		{"fallback old", plan.ResourceChange{Attributes: []plan.AttrDiff{{Path: "a", OldValue: "1"}}}, []string{"a"}},
-		{"skip computed", plan.ResourceChange{Attributes: []plan.AttrDiff{{Path: "id", NewValue: "(known after apply)"}, {Path: "a", NewValue: "1"}}}, []string{"a"}},
-		{"empty", plan.ResourceChange{}, nil},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := getAfterAttrs(tt.rc)
-			for _, k := range tt.wantKeys {
-				if _, ok := got[k]; !ok {
-					t.Errorf("missing %q", k)
-				}
-			}
-			if tt.wantKeys == nil && len(got) != 0 {
-				t.Errorf("expected empty, got %v", got)
-			}
-		})
-	}
-}
-
-func TestParseStateResources(t *testing.T) {
-	tests := []struct {
-		name    string
-		input   string
-		wantLen int
-		wantKey string
-	}{
-		{"basic", `{"resources":[{"type":"aws_instance","name":"web","instances":[{"attributes":{}}]}]}`, 1, "aws_instance.web"},
-		{"module", `{"resources":[{"type":"aws_vpc","name":"m","module":"module.n","instances":[{"attributes":{}}]}]}`, 1, "module.n.aws_vpc.m"},
-		{"invalid", "x", 0, ""},
-		{"empty", `{"resources":[]}`, 0, ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := parseStateResources([]byte(tt.input))
-			if len(got) != tt.wantLen {
-				t.Errorf("len=%d want %d", len(got), tt.wantLen)
-			}
-			if tt.wantKey != "" {
-				if _, ok := got[tt.wantKey]; !ok {
-					t.Errorf("missing %q", tt.wantKey)
-				}
-			}
-		})
-	}
-}
-
-func TestBuildResourceAddress(t *testing.T) {
-	tests := []struct {
-		module, typ, name string
-		idx               any
-		want              string
-	}{
-		{"", "aws_instance", "web", nil, "aws_instance.web"},
-		{"module.vpc", "aws_vpc", "main", nil, "module.vpc.aws_vpc.main"},
-		{"", "aws_instance", "web", "foo", `aws_instance.web["foo"]`},
-		{"", "aws_instance", "web", float64(0), "aws_instance.web[0]"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.want, func(t *testing.T) {
-			if got := buildResourceAddress(tt.module, tt.typ, tt.name, tt.idx); got != tt.want {
-				t.Errorf("got %q", got)
-			}
-		})
 	}
 }

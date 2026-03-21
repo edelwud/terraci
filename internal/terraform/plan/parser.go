@@ -41,19 +41,20 @@ func ParseJSONData(data []byte) (*ParsedPlan, error) {
 		}
 
 		action := determineAction(rc.Change.Actions)
-		if action == "no-op" {
-			continue
+
+		if action != ActionNoOp {
+			countAction(parsed, action, rc.Change)
 		}
 
-		countAction(parsed, action, rc.Change)
-
 		parsed.Resources = append(parsed.Resources, ResourceChange{
-			Address:    rc.Address,
-			Type:       rc.Type,
-			Name:       rc.Name,
-			ModuleAddr: rc.ModuleAddress,
-			Action:     action,
-			Attributes: extractAttributeDiffs(rc.Change),
+			Address:      rc.Address,
+			Type:         rc.Type,
+			Name:         rc.Name,
+			ModuleAddr:   rc.ModuleAddress,
+			Action:       action,
+			Attributes:   extractAttributeDiffs(rc.Change),
+			BeforeValues: toMap(rc.Change.Before),
+			AfterValues:  toMap(rc.Change.After),
 		})
 	}
 
@@ -95,7 +96,7 @@ func determineAction(actions tfjson.Actions) string {
 	case actions.Read():
 		return "read"
 	default:
-		return "no-op"
+		return ActionNoOp
 	}
 }
 

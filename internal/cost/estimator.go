@@ -2,9 +2,7 @@ package cost
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -43,21 +41,14 @@ func (e *Estimator) CacheOldestAge() time.Duration { return e.cache.OldestAge() 
 // CacheTTL returns the cache TTL.
 func (e *Estimator) CacheTTL() time.Duration { return e.cache.TTL() }
 
-// EstimateModule calculates cost for a single module from plan.json and state.json
+// EstimateModule calculates cost for a single module from plan.json.
+// plan.json contains all resources (including unchanged no-op) with full before/after state.
 func (e *Estimator) EstimateModule(ctx context.Context, modulePath, region string) (*ModuleCost, error) {
 	planJSONPath := filepath.Join(modulePath, "plan.json")
-	stateJSONPath := filepath.Join(modulePath, "state.json")
 
-	// Parse plan.json
 	parsedPlan, err := plan.ParseJSON(planJSONPath)
 	if err != nil {
 		return nil, fmt.Errorf("parse plan.json: %w", err)
-	}
-
-	// Try to parse state.json for before costs
-	var stateResources map[string]map[string]any
-	if data, readErr := os.ReadFile(stateJSONPath); readErr == nil {
-		stateResources = parseStateResources(data)
 	}
 
 	result := &ModuleCost{
@@ -67,29 +58,38 @@ func (e *Estimator) EstimateModule(ctx context.Context, modulePath, region strin
 		Resources:  make([]ResourceCost, 0),
 	}
 
-	// Collect required services for this module
+	// Collect required services and pre-fetch pricing
 	requiredServices := e.collectRequiredServices(parsedPlan.Resources, region)
-
-	// Pre-fetch pricing data
 	if err := e.prefetchPricing(ctx, requiredServices); err != nil {
 		log.WithError(err).Warn("failed to prefetch some pricing data")
 	}
 
-	// Calculate costs for each resource change
+	// Calculate costs for each resource (including no-op unchanged resources)
 	for _, rc := range parsedPlan.Resources {
-		resourceCost := e.estimateResource(ctx, rc, region)
+		// Use full attribute maps from plan JSON (not diff-based)
+		attrs := rc.AfterValues
+		if attrs == nil {
+			attrs = rc.BeforeValues // delete has no after
+		}
+
+		resourceCost := e.estimateResourceFromAttrs(ctx, rc.Type, rc.Address, rc.Name, region, attrs)
 
 		// For update/replace, calculate before-state cost separately
-		if rc.Action == "update" || rc.Action == "replace" {
-			beforeAttrs := getBeforeAttrs(rc)
-			if handler, ok := e.registry.GetHandler(rc.Type); ok && handler.Category() == aws.CostCategoryStandard {
-				beforeResult := e.estimateStandardResource(ctx, handler, beforeAttrs, region, ResourceCost{})
-				resourceCost.BeforeHourlyCost = beforeResult.HourlyCost
-				resourceCost.BeforeMonthlyCost = beforeResult.MonthlyCost
-			} else if ok && handler.Category() == aws.CostCategoryFixed {
-				h, m := handler.CalculateCost(nil, beforeAttrs)
-				resourceCost.BeforeHourlyCost = h
-				resourceCost.BeforeMonthlyCost = m
+		if rc.Action == plan.ActionUpdate || rc.Action == plan.ActionReplace {
+			beforeAttrs := rc.BeforeValues
+			if handler, ok := e.registry.GetHandler(rc.Type); ok && beforeAttrs != nil {
+				switch handler.Category() {
+				case aws.CostCategoryStandard:
+					beforeResult := e.estimateStandardResource(ctx, handler, beforeAttrs, region, ResourceCost{})
+					resourceCost.BeforeHourlyCost = beforeResult.HourlyCost
+					resourceCost.BeforeMonthlyCost = beforeResult.MonthlyCost
+				case aws.CostCategoryFixed:
+					h, m := handler.CalculateCost(nil, beforeAttrs)
+					resourceCost.BeforeHourlyCost = h
+					resourceCost.BeforeMonthlyCost = m
+				case aws.CostCategoryUsageBased:
+					// no cost
+				}
 			}
 		}
 
@@ -102,25 +102,21 @@ func (e *Estimator) EstimateModule(ctx context.Context, modulePath, region strin
 
 		// Aggregate before/after based on action
 		switch rc.Action {
-		case "create":
+		case plan.ActionCreate:
 			result.AfterCost += resourceCost.MonthlyCost
-		case "delete":
+		case plan.ActionDelete:
 			result.BeforeCost += resourceCost.MonthlyCost
-		case "update", "replace":
+		case plan.ActionUpdate, plan.ActionReplace:
 			result.BeforeCost += resourceCost.BeforeMonthlyCost
+			result.AfterCost += resourceCost.MonthlyCost
+		case plan.ActionNoOp:
+			result.BeforeCost += resourceCost.MonthlyCost
 			result.AfterCost += resourceCost.MonthlyCost
 		}
 	}
 
-	// Add costs from unchanged resources in state
-	if stateResources != nil {
-		unchangedCost := e.estimateUnchangedResources(ctx, parsedPlan, stateResources, region)
-		result.BeforeCost += unchangedCost
-		result.AfterCost += unchangedCost
-	}
-
 	result.DiffCost = result.AfterCost - result.BeforeCost
-	result.HasChanges = result.DiffCost != 0 || len(parsedPlan.Resources) > 0
+	result.HasChanges = parsedPlan.HasChanges()
 
 	return result, nil
 }
@@ -230,24 +226,26 @@ func (e *Estimator) ValidateAndPrefetch(ctx context.Context, modulePaths []strin
 	return nil
 }
 
-// estimateResource calculates cost for a single resource
-func (e *Estimator) estimateResource(ctx context.Context, rc plan.ResourceChange, region string) ResourceCost {
+// estimateResourceFromAttrs calculates cost for a resource given its full attributes.
+func (e *Estimator) estimateResourceFromAttrs(ctx context.Context, resourceType, address, name, region string, attrs map[string]any) ResourceCost {
 	result := ResourceCost{
-		Address: rc.Address,
-		Type:    rc.Type,
-		Name:    rc.Name,
+		Address: address,
+		Type:    resourceType,
+		Name:    name,
 		Region:  region,
 	}
 
-	handler, ok := e.registry.GetHandler(rc.Type)
+	handler, ok := e.registry.GetHandler(resourceType)
 	if !ok {
 		result.ErrorKind = CostErrorNoHandler
 		result.ErrorDetail = "no handler"
-		aws.LogUnsupported(rc.Type, rc.Address)
+		aws.LogUnsupported(resourceType, address)
 		return result
 	}
 
-	attrs := getAfterAttrs(rc)
+	if attrs == nil {
+		attrs = make(map[string]any)
+	}
 
 	// Dispatch by handler category
 	switch handler.Category() {
@@ -344,141 +342,4 @@ func (e *Estimator) collectRequiredServices(resources []plan.ResourceChange, reg
 // prefetchPricing downloads pricing data for required services
 func (e *Estimator) prefetchPricing(ctx context.Context, services map[pricing.ServiceCode][]string) error {
 	return e.cache.PrewarmCache(ctx, services)
-}
-
-// estimateUnchangedResources calculates costs for resources in state that aren't changing
-func (e *Estimator) estimateUnchangedResources(ctx context.Context, parsedPlan *plan.ParsedPlan, stateResources map[string]map[string]any, region string) float64 {
-	// Build set of changed resource addresses
-	changedAddrs := make(map[string]bool)
-	for _, rc := range parsedPlan.Resources {
-		changedAddrs[rc.Address] = true
-	}
-
-	var totalCost float64
-	for addr, attrs := range stateResources {
-		if changedAddrs[addr] {
-			continue // Skip changed resources
-		}
-
-		// Extract resource type from address
-		resourceType := extractResourceType(addr)
-		if resourceType == "" {
-			continue
-		}
-
-		handler, ok := e.registry.GetHandler(resourceType)
-		if !ok {
-			continue
-		}
-
-		lookup, err := handler.BuildLookup(region, attrs)
-		if err != nil || lookup == nil {
-			continue
-		}
-
-		index, err := e.cache.GetIndex(ctx, lookup.ServiceCode, region)
-		if err != nil {
-			continue
-		}
-
-		price, err := index.LookupPrice(*lookup)
-		if err != nil {
-			continue
-		}
-
-		_, monthly := handler.CalculateCost(price, attrs)
-		totalCost += monthly
-	}
-
-	return totalCost
-}
-
-// getAfterAttrs extracts after-state attributes from a resource change.
-func getAfterAttrs(rc plan.ResourceChange) map[string]any {
-	attrs := make(map[string]any)
-	for _, diff := range rc.Attributes {
-		if diff.NewValue != "" && diff.NewValue != "(known after apply)" {
-			attrs[diff.Path] = diff.NewValue
-		} else if diff.OldValue != "" {
-			attrs[diff.Path] = diff.OldValue
-		}
-	}
-	return attrs
-}
-
-// getBeforeAttrs extracts before-state attributes from a resource change.
-func getBeforeAttrs(rc plan.ResourceChange) map[string]any {
-	attrs := make(map[string]any)
-	for _, diff := range rc.Attributes {
-		if diff.OldValue != "" {
-			attrs[diff.Path] = diff.OldValue
-		}
-	}
-	return attrs
-}
-
-// parseStateResources parses terraform state JSON to extract resource attributes
-func parseStateResources(data []byte) map[string]map[string]any {
-	var state struct {
-		Resources []struct {
-			Type      string `json:"type"`
-			Name      string `json:"name"`
-			Module    string `json:"module,omitempty"`
-			Instances []struct {
-				Attributes map[string]any `json:"attributes"`
-				IndexKey   any            `json:"index_key,omitempty"`
-			} `json:"instances"`
-		} `json:"resources"`
-	}
-
-	if err := json.Unmarshal(data, &state); err != nil {
-		return nil
-	}
-
-	result := make(map[string]map[string]any)
-	for _, r := range state.Resources {
-		for _, inst := range r.Instances {
-			addr := buildResourceAddress(r.Module, r.Type, r.Name, inst.IndexKey)
-			result[addr] = inst.Attributes
-		}
-	}
-
-	return result
-}
-
-// buildResourceAddress constructs a resource address from components
-func buildResourceAddress(module, resourceType, name string, indexKey any) string {
-	var addr string
-	if module != "" {
-		addr = module + "."
-	}
-	addr += resourceType + "." + name
-
-	if indexKey != nil {
-		switch k := indexKey.(type) {
-		case string:
-			addr += fmt.Sprintf("[%q]", k)
-		case float64:
-			addr += fmt.Sprintf("[%d]", int(k))
-		}
-	}
-
-	return addr
-}
-
-// extractResourceType extracts the resource type from an address
-func extractResourceType(address string) string {
-	// Remove module prefix if present
-	parts := strings.Split(address, ".")
-	for i, p := range parts {
-		if p == "module" {
-			continue
-		}
-		if strings.HasPrefix(p, "aws_") || strings.HasPrefix(p, "google_") || strings.HasPrefix(p, "azurerm_") {
-			if i+1 < len(parts) {
-				return p
-			}
-		}
-	}
-	return ""
 }

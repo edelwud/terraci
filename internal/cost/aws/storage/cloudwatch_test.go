@@ -43,24 +43,15 @@ func TestAlarmHandler_ServiceCode(t *testing.T) {
 	}
 }
 
-func TestAlarmHandler_BuildLookup(t *testing.T) {
+func TestAlarmHandler_BuildLookup_ReturnsNil(t *testing.T) {
 	h := &AlarmHandler{}
 
 	lookup, err := h.BuildLookup("us-east-1", nil)
 	if err != nil {
 		t.Fatalf("BuildLookup returned error: %v", err)
 	}
-
-	if lookup.Region != "us-east-1" {
-		t.Errorf("Region = %q, want %q", lookup.Region, "us-east-1")
-	}
-
-	if lookup.ProductFamily != "Alarm" {
-		t.Errorf("ProductFamily = %q, want %q", lookup.ProductFamily, "Alarm")
-	}
-
-	if lookup.Attributes["location"] != "US East (N. Virginia)" {
-		t.Errorf("location = %q, want %q", lookup.Attributes["location"], "US East (N. Virginia)")
+	if lookup != nil {
+		t.Error("expected nil lookup for fixed-cost handler")
 	}
 }
 

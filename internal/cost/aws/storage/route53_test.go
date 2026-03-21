@@ -14,20 +14,15 @@ func TestRoute53Handler_ServiceCode(t *testing.T) {
 	}
 }
 
-func TestRoute53Handler_BuildLookup(t *testing.T) {
+func TestRoute53Handler_BuildLookup_ReturnsNil(t *testing.T) {
 	h := &Route53Handler{}
 
 	lookup, err := h.BuildLookup("us-east-1", nil)
 	if err != nil {
 		t.Fatalf("BuildLookup returned error: %v", err)
 	}
-
-	if lookup.Region != "global" {
-		t.Errorf("Region = %q, want %q", lookup.Region, "global")
-	}
-
-	if lookup.ProductFamily != "DNS Zone" {
-		t.Errorf("ProductFamily = %q, want %q", lookup.ProductFamily, "DNS Zone")
+	if lookup != nil {
+		t.Error("expected nil lookup for fixed-cost handler")
 	}
 }
 

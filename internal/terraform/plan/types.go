@@ -1,6 +1,16 @@
 // Package plan provides terraform plan JSON parsing functionality.
 package plan
 
+// Resource change action constants.
+const (
+	ActionCreate  = "create"
+	ActionUpdate  = "update"
+	ActionDelete  = "delete"
+	ActionReplace = "replace"
+	ActionRead    = "read"
+	ActionNoOp    = "no-op"
+)
+
 // ParsedPlan represents a parsed terraform plan with extracted changes.
 type ParsedPlan struct {
 	TerraformVersion string
@@ -19,12 +29,14 @@ func (p *ParsedPlan) HasChanges() bool {
 
 // ResourceChange represents a single resource change extracted from the plan.
 type ResourceChange struct {
-	Address    string // e.g. "module.vpc.aws_vpc.main"
-	Type       string // e.g. "aws_vpc"
-	Name       string // e.g. "main"
-	ModuleAddr string // e.g. "module.vpc"
-	Action     string // "create", "update", "delete", "replace", "read", "no-op"
-	Attributes []AttrDiff
+	Address      string         // e.g. "module.vpc.aws_vpc.main"
+	Type         string         // e.g. "aws_vpc"
+	Name         string         // e.g. "main"
+	ModuleAddr   string         // e.g. "module.vpc"
+	Action       string         // "create", "update", "delete", "replace", "read", "no-op"
+	Attributes   []AttrDiff     // attribute-level diffs (empty for no-op)
+	BeforeValues map[string]any // full before-state attributes from plan JSON
+	AfterValues  map[string]any // full after-state attributes from plan JSON
 }
 
 // AttrDiff represents a single attribute change.

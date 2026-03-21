@@ -38,8 +38,11 @@ func TestParseJSONData_NoChanges(t *testing.T) {
 	if parsed.HasChanges() {
 		t.Error("HasChanges() should be false")
 	}
-	if len(parsed.Resources) != 0 {
-		t.Errorf("Resources = %d, want 0 (no-op filtered out)", len(parsed.Resources))
+	// no-op resources are included (for cost estimation of unchanged infra)
+	for _, rc := range parsed.Resources {
+		if rc.Action != "no-op" {
+			t.Errorf("unexpected action %q for no-change plan", rc.Action)
+		}
 	}
 }
 

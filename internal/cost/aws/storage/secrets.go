@@ -6,21 +6,21 @@ import (
 )
 
 const (
+	// SecretsManagerSecretCost is the monthly cost per secret.
 	SecretsManagerSecretCost = 0.40
 )
 
 // SecretsManagerHandler handles aws_secretsmanager_secret cost estimation
 type SecretsManagerHandler struct{}
 
-func (h *SecretsManagerHandler) Category() aws.CostCategory { return aws.CostCategoryStandard }
+func (h *SecretsManagerHandler) Category() aws.CostCategory { return aws.CostCategoryFixed }
 
 func (h *SecretsManagerHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceSecretsMan
 }
 
-func (h *SecretsManagerHandler) BuildLookup(region string, _ map[string]any) (*pricing.PriceLookup, error) {
-	lb := &aws.LookupBuilder{Service: pricing.ServiceSecretsMan, ProductFamily: "Secret"}
-	return lb.Build(region, nil), nil
+func (h *SecretsManagerHandler) BuildLookup(_ string, _ map[string]any) (*pricing.PriceLookup, error) {
+	return nil, nil
 }
 
 func (h *SecretsManagerHandler) CalculateCost(_ *pricing.Price, _ map[string]any) (hourly, monthly float64) {

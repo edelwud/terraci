@@ -35,15 +35,14 @@ func (h *LogGroupHandler) CalculateCost(_ *pricing.Price, _ map[string]any) (hou
 // AlarmHandler handles aws_cloudwatch_metric_alarm cost estimation
 type AlarmHandler struct{}
 
-func (h *AlarmHandler) Category() aws.CostCategory { return aws.CostCategoryStandard }
+func (h *AlarmHandler) Category() aws.CostCategory { return aws.CostCategoryFixed }
 
 func (h *AlarmHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceCloudWatch
 }
 
-func (h *AlarmHandler) BuildLookup(region string, _ map[string]any) (*pricing.PriceLookup, error) {
-	lb := &aws.LookupBuilder{Service: pricing.ServiceCloudWatch, ProductFamily: "Alarm"}
-	return lb.Build(region, nil), nil
+func (h *AlarmHandler) BuildLookup(_ string, _ map[string]any) (*pricing.PriceLookup, error) {
+	return nil, nil
 }
 
 func (h *AlarmHandler) CalculateCost(_ *pricing.Price, attrs map[string]any) (hourly, monthly float64) {

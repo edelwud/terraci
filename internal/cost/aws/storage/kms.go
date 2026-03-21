@@ -6,26 +6,25 @@ import (
 )
 
 const (
+	// KMSKeyCost is the monthly cost for a customer-managed KMS key.
 	KMSKeyCost = 1.00
 )
 
 // KMSHandler handles aws_kms_key cost estimation
 type KMSHandler struct{}
 
-func (h *KMSHandler) Category() aws.CostCategory { return aws.CostCategoryStandard }
+func (h *KMSHandler) Category() aws.CostCategory { return aws.CostCategoryFixed }
 
 func (h *KMSHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceKMS
 }
 
-func (h *KMSHandler) BuildLookup(region string, _ map[string]any) (*pricing.PriceLookup, error) {
-	lb := &aws.LookupBuilder{Service: pricing.ServiceKMS, ProductFamily: "Key Management Service"}
-	return lb.Build(region, nil), nil
+func (h *KMSHandler) BuildLookup(_ string, _ map[string]any) (*pricing.PriceLookup, error) {
+	return nil, nil
 }
 
 func (h *KMSHandler) CalculateCost(_ *pricing.Price, _ map[string]any) (hourly, monthly float64) {
-	// KMS: $1.00 per key per month (customer managed keys)
+	// KMS: $1.00 per customer-managed key per month
 	// AWS managed keys are free
-	// All key types have the same base cost
 	return aws.FixedMonthlyCost(KMSKeyCost)
 }
