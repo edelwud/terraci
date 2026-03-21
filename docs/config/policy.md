@@ -1,12 +1,12 @@
 ---
 title: Policy Checks
-description: "OPA policy configuration: sources, namespaces, enforcement rules, and MR integration"
+description: "OPA policy configuration: sources, namespaces, enforcement rules, overwrites, and MR/PR integration"
 outline: deep
 ---
 
 # Policy Configuration
 
-TerraCi integrates [Open Policy Agent (OPA)](https://www.openpolicyagent.org/) to enforce compliance rules on Terraform plans. Policies are written in [Rego](https://www.openpolicyagent.org/docs/latest/policy-language/), OPA's declarative policy language.
+TerraCi integrates [Open Policy Agent (OPA)](https://www.openpolicyagent.org/) to enforce compliance rules on Terraform plans. Policies are written in [Rego v1](https://www.openpolicyagent.org/docs/latest/policy-language/) syntax.
 
 ## Basic Configuration
 
@@ -14,7 +14,7 @@ TerraCi integrates [Open Policy Agent (OPA)](https://www.openpolicyagent.org/) t
 policy:
   enabled: true
   sources:
-    - path: policies
+    - path: terraform           # directory name = Rego package name
   namespaces:
     - terraform
   on_failure: block
@@ -33,15 +33,15 @@ policy:
 
 ### sources
 
-List of policy sources. TerraCi supports three source types:
+List of policy sources. Each source is a directory of `.rego` files. The directory name should match the Rego `package` declaration inside the files.
 
 #### Local Path
 
 ```yaml
 policy:
   sources:
-    - path: policies           # Relative to project root
-    - path: /absolute/path     # Absolute path
+    - path: terraform           # package terraform → data.terraform.deny/warn
+    - path: compliance          # package compliance → data.compliance.deny/warn
 ```
 
 #### Git Repository
@@ -63,36 +63,32 @@ policy:
 
 ### namespaces
 
-Rego package namespaces to evaluate. TerraCi looks for `deny` and `warn` rules in these namespaces.
+Rego package namespaces to evaluate. TerraCi queries `data.<namespace>.deny` and `data.<namespace>.warn` for each namespace.
 
 ```yaml
 policy:
   namespaces:
-    - terraform              # Evaluates data.terraform.deny, data.terraform.warn
-    - terraform.aws          # Evaluates data.terraform.aws.deny, etc.
-    - terraform.security
+    - terraform              # data.terraform.deny, data.terraform.warn
+    - compliance             # data.compliance.deny, data.compliance.warn
 ```
 
 Default: `["terraform"]`
 
+Multiple namespaces allow separating concerns — security rules in `terraform`, cost rules in `compliance`, etc.
+
 ### on_failure
 
-Action when policy check fails (deny rules triggered):
+Action when `deny` rules fire:
 
 | Value | Description |
 |-------|-------------|
-| `block` | Fail the pipeline (exit code 1) |
-| `warn` | Log warnings but continue (exit code 0) |
+| `block` | Fail the pipeline (exit code 1) — **default** |
+| `warn` | Reclassify failures as warnings, continue (exit code 0) |
 | `ignore` | Silently ignore failures |
-
-```yaml
-policy:
-  on_failure: block  # default
-```
 
 ### on_warning
 
-Action when policy check has warnings (warn rules triggered):
+Action when `warn` rules fire:
 
 ```yaml
 policy:
@@ -101,7 +97,7 @@ policy:
 
 ### show_in_comment
 
-Include policy results in MR comment.
+Include policy results in MR/PR comment.
 
 ```yaml
 policy:
@@ -110,7 +106,7 @@ policy:
 
 ### cache_dir
 
-Directory for caching downloaded policies.
+Directory for caching downloaded policies (git/OCI sources).
 
 ```yaml
 policy:
@@ -119,7 +115,7 @@ policy:
 
 ### overwrites
 
-Override policy settings for specific modules using glob patterns:
+Override policy settings for specific modules using `**` glob patterns:
 
 ```yaml
 policy:
@@ -127,66 +123,125 @@ policy:
   on_failure: block
 
   overwrites:
-    # Allow sandbox deployments with warnings only
-    - match: "*/sandbox/*"
+    # Sandbox: reclassify failures as warnings (don't block)
+    - match: "**/sandbox/**"
       on_failure: warn
 
-    # Skip policy checks for legacy modules
-    - match: "legacy/*"
+    # Legacy: skip policy checks entirely
+    - match: "legacy/**"
       enabled: false
 
-    # Different namespaces for specific modules
-    - match: "platform/prod/*"
+    # Production: add compliance namespace
+    - match: "**/prod/**"
       namespaces:
         - terraform
-        - terraform.production
+        - compliance
 ```
+
+#### Glob patterns
+
+| Pattern | Matches | Does NOT match |
+|---------|---------|---------------|
+| `**/sandbox/**` | `platform/sandbox/eu-central-1/test` | `platform/stage/eu-central-1/app` |
+| `legacy/**` | `legacy/old/eu-central-1/db` | `platform/legacy/module` |
+| `**/prod/**` | `platform/prod/eu-central-1/vpc` | `platform/stage/eu-central-1/vpc` |
+| `*/stage/*/*` | `platform/stage/eu-central-1/vpc` | `platform/stage/eu-central-1/ec2/sub` |
+
+- `**` matches any number of path segments (including zero)
+- `*` matches a single path segment
+
+#### Overwrite behavior
+
+- **`on_failure: warn`** — deny rule violations are reclassified as warnings (appear in output but don't block)
+- **`enabled: false`** — module is skipped entirely, no evaluation
+- **`namespaces: [...]`** — replaces the namespace list for matching modules
+- Multiple overwrites can match the same module — applied in order
 
 ## Writing Policies
 
-Policies must use OPA v1 Rego syntax with `contains` and `if` keywords.
+Policies use OPA v1 Rego syntax with `import rego.v1`.
 
-### Deny Rules
-
-Deny rules block deployment when matched:
+### Deny Rules (block deployment)
 
 ```rego
 package terraform
 
 import rego.v1
 
+# METADATA
+# description: Deny public S3 buckets
+# entrypoint: true
 deny contains msg if {
-    resource := input.resource_changes[_]
+    some resource in input.resource_changes
     resource.type == "aws_s3_bucket"
+    not "delete" in resource.change.actions
     resource.change.after.acl == "public-read"
     msg := sprintf("S3 bucket '%s' must not be public", [resource.name])
 }
 ```
 
-### Warn Rules
-
-Warn rules generate warnings without blocking:
+### Warn Rules (allow with warning)
 
 ```rego
-package terraform
-
-import rego.v1
-
 warn contains msg if {
-    resource := input.resource_changes[_]
-    resource.type == "aws_instance"
-    not resource.change.after.tags.Environment
-    msg := sprintf("Instance '%s' should have Environment tag", [resource.name])
+    some resource in input.resource_changes
+    resource.type == "aws_s3_bucket"
+    not "delete" in resource.change.actions
+    not has_versioning(resource)
+    msg := sprintf("S3 bucket '%s' should have versioning", [resource.name])
 }
+
+has_versioning(resource) if {
+    some v in resource.change.after.versioning
+    v.enabled == true
+}
+```
+
+### Key Rego patterns
+
+| Pattern | Use |
+|---------|-----|
+| `some resource in input.resource_changes` | Iterate resources (not `[_]`) |
+| `"create" in resource.change.actions` | Check action membership |
+| `not "delete" in resource.change.actions` | Negated membership |
+| `resource.type in taggable_types` | Check if value in list |
+| `deny contains msg if { ... }` | Deny rule (blocks pipeline) |
+| `warn contains msg if { ... }` | Warn rule (doesn't block) |
+
+::: tip Linting
+Use [Regal](https://docs.styra.com/regal) to lint your policies: `regal lint terraform/ compliance/`
+:::
+
+### Multiple namespaces
+
+Separate policies by concern — each source directory is a Rego package:
+
+```
+terraform/          → package terraform    (security baseline)
+  tags.rego
+  s3.rego
+  ec2.rego
+compliance/         → package compliance   (cost controls)
+  cost.rego
+```
+
+```yaml
+policy:
+  sources:
+    - path: terraform
+    - path: compliance
+  namespaces:
+    - terraform
+    - compliance
 ```
 
 ### Input Structure
 
-Policies receive Terraform plan JSON as input. Key fields:
+Policies receive Terraform plan JSON (`terraform show -json plan.tfplan`) as input:
 
 ```json
 {
-  "format_version": "1.1",
+  "format_version": "1.2",
   "resource_changes": [
     {
       "type": "aws_s3_bucket",
@@ -196,13 +251,12 @@ Policies receive Terraform plan JSON as input. Key fields:
         "before": null,
         "after": {
           "bucket": "my-bucket",
-          "acl": "private"
+          "acl": "private",
+          "tags": { "Environment": "stage" }
         }
       }
     }
-  ],
-  "planned_values": { ... },
-  "configuration": { ... }
+  ]
 }
 ```
 
@@ -210,84 +264,85 @@ See [Terraform JSON output format](https://developer.hashicorp.com/terraform/int
 
 ## Generated Pipeline
 
-When policy checks are enabled, TerraCi adds a `policy-check` stage:
+When policy checks are enabled, TerraCi adds a `policy-check` stage between plan and apply:
 
+**GitLab CI:**
 ```yaml
 stages:
   - deploy-plan-0
-  - deploy-plan-1
-  - policy-check    # After all plans
+  - policy-check
   - deploy-apply-0
-  - deploy-apply-1
-  - summary
 
 policy-check:
   stage: policy-check
   script:
     - terraci policy pull
     - terraci policy check
-  needs:
-    - job: plan-vpc
-      optional: true
-    - job: plan-eks
-      optional: true
+  needs: [plan-vpc, plan-eks]
   artifacts:
-    paths:
-      - .terraci/policy-results.json
-    when: always
+    paths: [.terraci/policy-results.json]
+```
+
+**GitHub Actions:**
+```yaml
+jobs:
+  policy-check:
+    needs: [plan-vpc, plan-eks]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+      - run: |
+          terraci policy pull
+          terraci policy check
 ```
 
 ## Commands
 
-### Pull Policies
-
-Download policies from configured sources:
-
 ```bash
+# Pull policies from configured sources
 terraci policy pull
-```
 
-### Check Policies
-
-Run policy checks against Terraform plans:
-
-```bash
 # Check all modules with plan.json
 terraci policy check
 
 # Check specific module
 terraci policy check --module platform/prod/eu-central-1/vpc
 
-# Output as JSON
+# JSON output
 terraci policy check --output json
+
+# Verbose output
+terraci policy check -v
 ```
 
-## MR Integration
+## MR/PR Integration
 
-Policy results are included in the MR comment:
+Policy results are included in the MR/PR comment:
 
 ```markdown
 ### ❌ Policy Check
 
-**3** modules checked: ✅ **1** passed | ⚠️ **1** warned | ❌ **1** failed
+**5** modules checked: ✅ **2** passed | ⚠️ **1** warned | ❌ **2** failed
 
 <details>
-<summary>❌ Failures (1)</summary>
+<summary>❌ Failures (2)</summary>
 
-**platform/prod/eu-central-1/vpc:**
-- `terraform`: S3 bucket 'logs' must not be public
+**platform/stage/eu-central-1/bad:**
+- `terraform`: S3 bucket 'public' must not have public-read ACL
+- `compliance`: Instance 'web' uses expensive type 'p4d.24xlarge'
 
 </details>
 ```
 
 ## Examples
 
-See [examples/policy-checks](https://github.com/edelwud/terraci/tree/main/examples/policy-checks) for:
+See [examples/policy-checks](https://github.com/edelwud/terraci/tree/main/examples/policy-checks) for a complete working example with:
 
-- Complete `.terraci.yaml` configuration
-- Example Rego policies for AWS resources
-- GitLab CI pipeline setup
+- Two namespaces (`terraform` + `compliance`)
+- Five modules demonstrating pass, warn, fail, and skip statuses
+- Overwrites for sandbox (warn) and legacy (disabled)
+- Regal-compliant Rego policies
 
 ## See Also
 
-- [Policy CLI](/cli/policy) — pull and check commands for OPA policy evaluation
+- [Policy CLI](/cli/policy) — pull and check commands

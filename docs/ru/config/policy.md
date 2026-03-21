@@ -1,12 +1,12 @@
 ---
 title: "Проверка политик"
-description: "Конфигурация OPA-политик: источники, пространства имён, правила и интеграция с MR"
+description: "Конфигурация OPA-политик: источники, пространства имён, правила, overwrites и интеграция с MR/PR"
 outline: deep
 ---
 
 # Проверка политик
 
-TerraCi интегрирует [Open Policy Agent (OPA)](https://www.openpolicyagent.org/) для применения правил соответствия к Terraform планам. Политики пишутся на [Rego](https://www.openpolicyagent.org/docs/latest/policy-language/), декларативном языке политик OPA.
+TerraCi интегрирует [Open Policy Agent (OPA)](https://www.openpolicyagent.org/) для применения правил соответствия к Terraform планам. Политики пишутся на [Rego v1](https://www.openpolicyagent.org/docs/latest/policy-language/).
 
 ## Базовая конфигурация
 
@@ -14,7 +14,7 @@ TerraCi интегрирует [Open Policy Agent (OPA)](https://www.openpolicya
 policy:
   enabled: true
   sources:
-    - path: policies
+    - path: terraform           # имя директории = имя Rego package
   namespaces:
     - terraform
   on_failure: block
@@ -24,7 +24,7 @@ policy:
 
 ### enabled
 
-Включение или отключение проверки политик глобально.
+Включение/отключение проверки политик глобально.
 
 ```yaml
 policy:
@@ -33,15 +33,15 @@ policy:
 
 ### sources
 
-Список источников политик. TerraCi поддерживает три типа источников:
+Список источников политик. Каждый источник — директория с `.rego` файлами. Имя директории должно совпадать с `package` декларацией внутри файлов.
 
 #### Локальный путь
 
 ```yaml
 policy:
   sources:
-    - path: policies           # Относительно корня проекта
-    - path: /absolute/path     # Абсолютный путь
+    - path: terraform           # package terraform → data.terraform.deny/warn
+    - path: compliance          # package compliance → data.compliance.deny/warn
 ```
 
 #### Git репозиторий
@@ -50,7 +50,7 @@ policy:
 policy:
   sources:
     - git: https://github.com/org/terraform-policies.git
-      ref: main                # Ветка, тег или SHA коммита
+      ref: main
 ```
 
 #### OCI реестр
@@ -63,36 +63,32 @@ policy:
 
 ### namespaces
 
-Пространства имён Rego пакетов для проверки. TerraCi ищет правила `deny` и `warn` в этих пространствах имён.
+Rego пакеты для проверки. TerraCi запрашивает `data.<namespace>.deny` и `data.<namespace>.warn` для каждого namespace.
 
 ```yaml
 policy:
   namespaces:
-    - terraform              # Проверяет data.terraform.deny, data.terraform.warn
-    - terraform.aws          # Проверяет data.terraform.aws.deny и т.д.
-    - terraform.security
+    - terraform              # data.terraform.deny, data.terraform.warn
+    - compliance             # data.compliance.deny, data.compliance.warn
 ```
 
 По умолчанию: `["terraform"]`
 
+Несколько namespace позволяют разделять ответственность — правила безопасности в `terraform`, контроль расходов в `compliance` и т.д.
+
 ### on_failure
 
-Действие при провале проверки политик (сработали правила deny):
+Действие при срабатывании `deny` правил:
 
 | Значение | Описание |
 |----------|----------|
-| `block` | Завершить пайплайн с ошибкой (код возврата 1) |
-| `warn` | Вывести предупреждения, но продолжить (код возврата 0) |
-| `ignore` | Молча игнорировать нарушения |
-
-```yaml
-policy:
-  on_failure: block  # по умолчанию
-```
+| `block` | Завершить пайплайн с ошибкой (код возврата 1) — **по умолчанию** |
+| `warn` | Переклассифицировать нарушения в предупреждения (код возврата 0) |
+| `ignore` | Молча игнорировать |
 
 ### on_warning
 
-Действие при наличии предупреждений (сработали правила warn):
+Действие при срабатывании `warn` правил:
 
 ```yaml
 policy:
@@ -101,7 +97,7 @@ policy:
 
 ### show_in_comment
 
-Включить результаты проверки политик в комментарий MR.
+Включить результаты в комментарий MR/PR.
 
 ```yaml
 policy:
@@ -110,7 +106,7 @@ policy:
 
 ### cache_dir
 
-Директория для кэширования загруженных политик.
+Директория для кэширования загруженных политик (git/OCI источники).
 
 ```yaml
 policy:
@@ -119,7 +115,7 @@ policy:
 
 ### overwrites
 
-Переопределение настроек политик для конкретных модулей с использованием glob-паттернов:
+Переопределение настроек для конкретных модулей через `**` glob-паттерны:
 
 ```yaml
 policy:
@@ -127,66 +123,123 @@ policy:
   on_failure: block
 
   overwrites:
-    # Разрешить sandbox-деплои только с предупреждениями
-    - match: "*/sandbox/*"
+    # Sandbox: переклассифицировать ошибки в предупреждения
+    - match: "**/sandbox/**"
       on_failure: warn
 
-    # Пропустить проверку политик для legacy модулей
-    - match: "legacy/*"
+    # Legacy: полностью отключить проверки
+    - match: "legacy/**"
       enabled: false
 
-    # Другие namespaces для определённых модулей
-    - match: "platform/prod/*"
+    # Production: добавить compliance namespace
+    - match: "**/prod/**"
       namespaces:
         - terraform
-        - terraform.production
+        - compliance
 ```
+
+#### Glob-паттерны
+
+| Паттерн | Совпадает | НЕ совпадает |
+|---------|-----------|-------------|
+| `**/sandbox/**` | `platform/sandbox/eu-central-1/test` | `platform/stage/eu-central-1/app` |
+| `legacy/**` | `legacy/old/eu-central-1/db` | `platform/legacy/module` |
+| `**/prod/**` | `platform/prod/eu-central-1/vpc` | `platform/stage/eu-central-1/vpc` |
+
+- `**` — любое количество сегментов пути (включая ноль)
+- `*` — один сегмент пути
+
+#### Поведение overwrites
+
+- **`on_failure: warn`** — deny нарушения переклассифицируются в предупреждения (отображаются, но не блокируют)
+- **`enabled: false`** — модуль полностью пропускается, без evaluation
+- **`namespaces: [...]`** — заменяет список namespace для совпадающих модулей
+- Несколько overwrites могут совпасть — применяются по порядку
 
 ## Написание политик
 
-Политики должны использовать синтаксис OPA v1 Rego с ключевыми словами `contains` и `if`.
+Политики используют OPA v1 Rego синтаксис с `import rego.v1`.
 
-### Правила Deny
-
-Правила deny блокируют деплой при срабатывании:
+### Правила Deny (блокировка деплоя)
 
 ```rego
 package terraform
 
 import rego.v1
 
+# METADATA
+# description: Запрет публичных S3 бакетов
+# entrypoint: true
 deny contains msg if {
-    resource := input.resource_changes[_]
+    some resource in input.resource_changes
     resource.type == "aws_s3_bucket"
+    not "delete" in resource.change.actions
     resource.change.after.acl == "public-read"
-    msg := sprintf("S3 бакет '%s' не должен быть публичным", [resource.name])
+    msg := sprintf("S3 bucket '%s' не должен быть публичным", [resource.name])
 }
 ```
 
-### Правила Warn
-
-Правила warn генерируют предупреждения без блокировки:
+### Правила Warn (предупреждение)
 
 ```rego
-package terraform
-
-import rego.v1
-
 warn contains msg if {
-    resource := input.resource_changes[_]
-    resource.type == "aws_instance"
-    not resource.change.after.tags.Environment
-    msg := sprintf("Инстанс '%s' должен иметь тег Environment", [resource.name])
+    some resource in input.resource_changes
+    resource.type == "aws_s3_bucket"
+    not "delete" in resource.change.actions
+    not has_versioning(resource)
+    msg := sprintf("S3 bucket '%s' должен иметь versioning", [resource.name])
 }
+
+has_versioning(resource) if {
+    some v in resource.change.after.versioning
+    v.enabled == true
+}
+```
+
+### Ключевые паттерны Rego
+
+| Паттерн | Назначение |
+|---------|-----------|
+| `some resource in input.resource_changes` | Итерация ресурсов (не `[_]`) |
+| `"create" in resource.change.actions` | Проверка членства |
+| `not "delete" in resource.change.actions` | Отрицание членства |
+| `resource.type in taggable_types` | Проверка значения в списке |
+| `deny contains msg if { ... }` | Блокирующее правило |
+| `warn contains msg if { ... }` | Предупреждающее правило |
+
+::: tip Линтинг
+Проверяйте политики с помощью [Regal](https://docs.styra.com/regal): `regal lint terraform/ compliance/`
+:::
+
+### Несколько namespace
+
+Разделяйте политики по ответственности — каждая директория = Rego package:
+
+```
+terraform/          → package terraform    (безопасность)
+  tags.rego
+  s3.rego
+compliance/         → package compliance   (контроль расходов)
+  cost.rego
+```
+
+```yaml
+policy:
+  sources:
+    - path: terraform
+    - path: compliance
+  namespaces:
+    - terraform
+    - compliance
 ```
 
 ### Структура Input
 
-Политики получают JSON плана Terraform в качестве input. Основные поля:
+Политики получают JSON плана Terraform (`terraform show -json plan.tfplan`):
 
 ```json
 {
-  "format_version": "1.1",
+  "format_version": "1.2",
   "resource_changes": [
     {
       "type": "aws_s3_bucket",
@@ -196,98 +249,83 @@ warn contains msg if {
         "before": null,
         "after": {
           "bucket": "my-bucket",
-          "acl": "private"
+          "acl": "private",
+          "tags": { "Environment": "stage" }
         }
       }
     }
-  ],
-  "planned_values": { ... },
-  "configuration": { ... }
+  ]
 }
 ```
 
-См. [формат JSON вывода Terraform](https://developer.hashicorp.com/terraform/internals/json-format) для полной схемы.
-
 ## Генерируемый пайплайн
 
-При включении проверки политик TerraCi добавляет стадию `policy-check`:
+При включении политик TerraCi добавляет стадию `policy-check` между plan и apply:
 
+**GitLab CI:**
 ```yaml
 stages:
   - deploy-plan-0
-  - deploy-plan-1
-  - policy-check    # После всех планов
+  - policy-check
   - deploy-apply-0
-  - deploy-apply-1
-  - summary
 
 policy-check:
   stage: policy-check
   script:
     - terraci policy pull
     - terraci policy check
-  needs:
-    - job: plan-vpc
-      optional: true
-    - job: plan-eks
-      optional: true
-  artifacts:
-    paths:
-      - .terraci/policy-results.json
-    when: always
+  needs: [plan-vpc, plan-eks]
+```
+
+**GitHub Actions:**
+```yaml
+jobs:
+  policy-check:
+    needs: [plan-vpc, plan-eks]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+      - run: terraci policy pull && terraci policy check
 ```
 
 ## Команды
 
-### Загрузка политик
-
-Загрузка политик из настроенных источников:
-
 ```bash
-terraci policy pull
+terraci policy pull                                    # Загрузить политики
+terraci policy check                                   # Проверить все модули
+terraci policy check --module platform/prod/.../vpc    # Один модуль
+terraci policy check --output json                     # JSON вывод
+terraci policy check -v                                # Подробный вывод
 ```
 
-### Проверка политик
+## Интеграция с MR/PR
 
-Запуск проверки политик на Terraform планах:
-
-```bash
-# Проверить все модули с plan.json
-terraci policy check
-
-# Проверить конкретный модуль
-terraci policy check --module platform/prod/eu-central-1/vpc
-
-# Вывод в формате JSON
-terraci policy check --output json
-```
-
-## Интеграция с MR
-
-Результаты проверки политик включаются в комментарий MR:
+Результаты включаются в комментарий MR/PR:
 
 ```markdown
 ### ❌ Проверка политик
 
-**3** модуля проверено: ✅ **1** пройдено | ⚠️ **1** с предупреждениями | ❌ **1** с ошибками
+**5** модулей: ✅ **2** ок | ⚠️ **1** предупреждения | ❌ **2** ошибки
 
 <details>
-<summary>❌ Ошибки (1)</summary>
+<summary>❌ Ошибки (2)</summary>
 
-**platform/prod/eu-central-1/vpc:**
-- `terraform`: S3 бакет 'logs' не должен быть публичным
+**platform/stage/eu-central-1/bad:**
+- `terraform`: S3 bucket 'public' не должен быть публичным
+- `compliance`: Instance 'web' использует дорогой тип 'p4d.24xlarge'
 
 </details>
 ```
 
 ## Примеры
 
-См. [examples/policy-checks](https://github.com/edelwud/terraci/tree/main/examples/policy-checks) для:
+См. [examples/policy-checks](https://github.com/edelwud/terraci/tree/main/examples/policy-checks) — рабочий пример с:
 
-- Полной конфигурации `.terraci.yaml`
-- Примеров Rego политик для AWS ресурсов
-- Настройки GitLab CI пайплайна
+- Двумя namespace (`terraform` + `compliance`)
+- Пятью модулями (pass, warn, fail, skip)
+- Overwrites для sandbox и legacy
+- Rego-политиками, проходящими Regal lint
 
 ## Смотрите также
 
-- [Policy CLI](/ru/cli/policy) — команды для загрузки и проверки OPA-политик
+- [Policy CLI](/ru/cli/policy) — команды pull и check
