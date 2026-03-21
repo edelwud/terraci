@@ -10,6 +10,7 @@ Example configurations demonstrating TerraCi features.
 | [github-actions/](github-actions/) | GitHub Actions configuration with OIDC |
 | [cross-env-deps/](cross-env-deps/) | Cross-environment dependencies and `abspath` pattern |
 | [library-modules/](library-modules/) | Shared library modules with change detection |
+| [cost-estimation/](cost-estimation/) | AWS cost estimation in MR/PR comments |
 | [policy-checks/](policy-checks/) | OPA policy enforcement with Rego rules |
 
 ## Quick Start
