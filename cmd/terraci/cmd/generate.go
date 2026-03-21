@@ -10,26 +10,28 @@ import (
 	"github.com/edelwud/terraci/internal/discovery"
 	"github.com/edelwud/terraci/internal/git"
 	"github.com/edelwud/terraci/internal/graph"
-	"github.com/edelwud/terraci/internal/parser"
 	"github.com/edelwud/terraci/internal/pipeline"
 	pipelinegithub "github.com/edelwud/terraci/internal/pipeline/github"
 	"github.com/edelwud/terraci/internal/pipeline/gitlab"
+	"github.com/edelwud/terraci/internal/workflow"
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/log"
 )
 
-var (
-	outputFile  string
-	changedOnly bool
-	baseRef     string
-	dryRun      bool
-	planOnly    bool
-)
+func newGenerateCmd(app *App) *cobra.Command {
+	var (
+		outputFile  string
+		changedOnly bool
+		baseRef     string
+		dryRun      bool
+		planOnly    bool
+	)
+	ff := &filterFlags{}
 
-var generateCmd = &cobra.Command{
-	Use:   "generate",
-	Short: "Generate CI pipeline",
-	Long: `Generate a CI pipeline YAML file based on the Terraform
+	cmd := &cobra.Command{
+		Use:   "generate",
+		Short: "Generate CI pipeline",
+		Long: `Generate a CI pipeline YAML file based on the Terraform
 module structure and dependencies.
 
 Examples:
@@ -40,142 +42,102 @@ Examples:
   terraci generate --dry-run
   terraci generate --auto-approve
   terraci generate --plan-only`,
-	RunE: runGenerate,
-}
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			// Apply CLI flags to config
+			provider := config.ResolveProvider(app.Config)
+			if planOnly {
+				applyPlanOnly(app, provider)
+			}
+			if cmd.Flags().Changed("auto-approve") {
+				setAutoApprove(app, provider, true)
+			} else if cmd.Flags().Changed("no-auto-approve") {
+				setAutoApprove(app, provider, false)
+			}
 
-func init() {
-	rootCmd.AddCommand(generateCmd)
+			result, err := workflow.Run(cmd.Context(), ff.workflowOptions(app))
+			if err != nil {
+				return err
+			}
 
-	generateCmd.Flags().StringVarP(&outputFile, "output", "o", "", "output file (default: stdout)")
-	generateCmd.Flags().BoolVar(&changedOnly, "changed-only", false, "only include changed modules and their dependents")
-	generateCmd.Flags().StringVar(&baseRef, "base-ref", "", "base git ref for change detection (default: auto-detect)")
-	generateCmd.Flags().BoolVar(&dryRun, "dry-run", false, "show what would be generated without creating output")
-	generateCmd.Flags().BoolVar(&planOnly, "plan-only", false, "generate only plan jobs (no apply jobs)")
-	generateCmd.Flags().Bool("auto-approve", false, "auto-approve apply jobs (skip manual trigger)")
-	generateCmd.Flags().Bool("no-auto-approve", false, "require manual trigger for apply jobs")
-	registerFilterFlags(generateCmd)
-}
+			if len(result.FilteredModules) == 0 && !changedOnly {
+				return fmt.Errorf("no modules remaining after filtering")
+			}
 
-// --- Main flow ---
+			logExtractionWarnings(result.Warnings)
+			logLibraryModuleUsage(result.Graph, app.WorkDir)
+			logCycles(result.Graph)
 
-func runGenerate(cmd *cobra.Command, _ []string) error {
-	applyGenerateCLIFlags(cmd)
+			targets := result.FilteredModules
+			if changedOnly {
+				targets, err = detectChangedTargetModules(app, ff, baseRef, result.FullIndex, result.FilteredIndex, result.Graph)
+				if err != nil {
+					return err
+				}
+			}
 
-	allModules, modules, err := discoverAndFilterModules()
-	if err != nil {
-		return err
+			if len(targets) == 0 {
+				log.Info("no modules to process")
+				return nil
+			}
+
+			log.WithField("modules", len(targets)).Info("generating pipeline")
+			generator := newPipelineGenerator(app, result.Graph, result.FilteredModules)
+
+			if dryRun {
+				return runDryRun(generator, targets)
+			}
+
+			p, err := generator.Generate(targets)
+			if err != nil {
+				return fmt.Errorf("generate pipeline: %w", err)
+			}
+			return writePipelineOutput(p, outputFile)
+		},
 	}
 
-	fullIndex := discovery.NewModuleIndex(allModules)
-	filteredIndex := discovery.NewModuleIndex(modules)
+	cmd.Flags().StringVarP(&outputFile, "output", "o", "", "output file (default: stdout)")
+	cmd.Flags().BoolVar(&changedOnly, "changed-only", false, "only include changed modules and their dependents")
+	cmd.Flags().StringVar(&baseRef, "base-ref", "", "base git ref for change detection (default: auto-detect)")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "show what would be generated without creating output")
+	cmd.Flags().BoolVar(&planOnly, "plan-only", false, "generate only plan jobs (no apply jobs)")
+	cmd.Flags().Bool("auto-approve", false, "auto-approve apply jobs (skip manual trigger)")
+	cmd.Flags().Bool("no-auto-approve", false, "require manual trigger for apply jobs")
+	ff.register(cmd)
 
-	depGraph := buildDependencyGraph(modules, filteredIndex)
-
-	targets, err := determineTargetModules(modules, fullIndex, filteredIndex, depGraph)
-	if err != nil {
-		return err
-	}
-	if targets == nil {
-		return nil
-	}
-
-	return generateAndOutputPipeline(targets, modules, depGraph)
+	return cmd
 }
 
 // --- CLI flag application ---
 
-func applyGenerateCLIFlags(cmd *cobra.Command) {
-	provider := config.ResolveProvider(cfg)
-
-	if planOnly {
-		applyPlanOnly(provider)
-	}
-
-	if cmd.Flags().Changed("auto-approve") {
-		setAutoApprove(provider, true)
-	} else if cmd.Flags().Changed("no-auto-approve") {
-		setAutoApprove(provider, false)
-	}
-}
-
-func applyPlanOnly(provider string) {
+func applyPlanOnly(app *App, provider string) {
 	switch provider {
 	case config.ProviderGitHub:
-		if cfg.GitHub != nil {
-			cfg.GitHub.PlanOnly = true
-			cfg.GitHub.PlanEnabled = true
+		if app.Config.GitHub != nil {
+			app.Config.GitHub.PlanOnly = true
+			app.Config.GitHub.PlanEnabled = true
 		}
 	default:
-		if cfg.GitLab != nil {
-			cfg.GitLab.PlanOnly = true
-			cfg.GitLab.PlanEnabled = true
+		if app.Config.GitLab != nil {
+			app.Config.GitLab.PlanOnly = true
+			app.Config.GitLab.PlanEnabled = true
 		}
 	}
 }
 
-func setAutoApprove(provider string, approve bool) {
+func setAutoApprove(app *App, provider string, approve bool) {
 	switch provider {
 	case config.ProviderGitHub:
-		if cfg.GitHub != nil {
-			cfg.GitHub.AutoApprove = approve
+		if app.Config.GitHub != nil {
+			app.Config.GitHub.AutoApprove = approve
 		}
 	default:
-		if cfg.GitLab != nil {
-			cfg.GitLab.AutoApprove = approve
+		if app.Config.GitLab != nil {
+			app.Config.GitLab.AutoApprove = approve
 		}
 	}
 }
 
-// --- Module discovery and filtering ---
-
-func discoverAndFilterModules() (allModules, filteredModules []*discovery.Module, err error) {
-	log.WithField("dir", workDir).Info("scanning for terraform modules")
-
-	scanner := discovery.NewScanner(workDir, cfg.Structure.MinDepth, cfg.Structure.MaxDepth, cfg.Structure.Segments)
-
-	allModules, err = scanner.Scan()
-	if err != nil {
-		return nil, nil, fmt.Errorf("scan modules: %w", err)
-	}
-
-	log.WithField("count", len(allModules)).Info("discovered modules")
-
-	if len(allModules) == 0 {
-		return nil, nil, fmt.Errorf("no modules found in %s", workDir)
-	}
-
-	modules := applyFilters(allModules)
-
-	if len(modules) != len(allModules) {
-		log.WithField("before", len(allModules)).WithField("after", len(modules)).Info("filtered modules")
-	}
-
-	if len(modules) == 0 && !changedOnly {
-		return nil, nil, fmt.Errorf("no modules remaining after filtering")
-	}
-
-	return allModules, modules, nil
-}
-
-// --- Dependency graph ---
-
-func buildDependencyGraph(modules []*discovery.Module, moduleIndex *discovery.ModuleIndex) *graph.DependencyGraph {
-	log.Info("parsing module dependencies")
-
-	hclParser := parser.NewParser()
-	if len(cfg.Structure.Segments) > 0 {
-		hclParser.Segments = cfg.Structure.Segments
-	}
-
-	deps, errs := parser.NewDependencyExtractor(hclParser, moduleIndex).ExtractAllDependencies()
-	logExtractionWarnings(errs)
-
-	depGraph := graph.BuildFromDependencies(modules, deps)
-	logLibraryModuleUsage(depGraph)
-	logCycles(depGraph)
-
-	return depGraph
-}
+// --- Logging helpers ---
 
 func logExtractionWarnings(errs []error) {
 	if len(errs) == 0 {
@@ -189,7 +151,7 @@ func logExtractionWarnings(errs []error) {
 	log.DecreasePadding()
 }
 
-func logLibraryModuleUsage(depGraph *graph.DependencyGraph) {
+func logLibraryModuleUsage(depGraph *graph.DependencyGraph, workDir string) {
 	paths := depGraph.GetAllLibraryPaths()
 	if len(paths) == 0 {
 		return
@@ -218,58 +180,14 @@ func logCycles(depGraph *graph.DependencyGraph) {
 	log.DecreasePadding()
 }
 
-// --- Target module determination ---
-
-func determineTargetModules(
-	modules []*discovery.Module,
-	fullIndex, filteredIndex *discovery.ModuleIndex,
-	depGraph *graph.DependencyGraph,
-) ([]*discovery.Module, error) {
-	targets := modules
-
-	if changedOnly {
-		var err error
-		targets, err = detectChangedTargetModules(fullIndex, filteredIndex, depGraph)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if len(targets) == 0 {
-		log.Info("no modules to process")
-		return nil, nil
-	}
-
-	return targets, nil
-}
-
 // --- Pipeline generation ---
 
-func generateAndOutputPipeline(
-	targets, allFiltered []*discovery.Module,
-	depGraph *graph.DependencyGraph,
-) error {
-	log.WithField("modules", len(targets)).Info("generating pipeline")
-
-	generator := newPipelineGenerator(depGraph, allFiltered)
-
-	if dryRun {
-		return runDryRun(generator, targets)
-	}
-
-	p, err := generator.Generate(targets)
-	if err != nil {
-		return fmt.Errorf("generate pipeline: %w", err)
-	}
-	return writePipelineOutput(p)
-}
-
-func newPipelineGenerator(depGraph *graph.DependencyGraph, modules []*discovery.Module) pipeline.Generator {
-	switch config.ResolveProvider(cfg) {
+func newPipelineGenerator(app *App, depGraph *graph.DependencyGraph, modules []*discovery.Module) pipeline.Generator {
+	switch config.ResolveProvider(app.Config) {
 	case config.ProviderGitHub:
-		return pipelinegithub.NewGenerator(cfg, depGraph, modules)
+		return pipelinegithub.NewGenerator(app.Config, depGraph, modules)
 	default:
-		return gitlab.NewGenerator(cfg, depGraph, modules)
+		return gitlab.NewGenerator(app.Config, depGraph, modules)
 	}
 }
 
@@ -296,7 +214,7 @@ func runDryRun(gen pipeline.Generator, targets []*discovery.Module) error {
 	return nil
 }
 
-func writePipelineOutput(p pipeline.GeneratedPipeline) error {
+func writePipelineOutput(p pipeline.GeneratedPipeline, outputFile string) error {
 	yaml, err := p.ToYAML()
 	if err != nil {
 		return fmt.Errorf("serialize pipeline: %w", err)
@@ -319,12 +237,15 @@ func writePipelineOutput(p pipeline.GeneratedPipeline) error {
 // --- Changed module detection ---
 
 func detectChangedTargetModules(
+	app *App,
+	ff *filterFlags,
+	baseRef string,
 	fullIndex, filteredIndex *discovery.ModuleIndex,
 	depGraph *graph.DependencyGraph,
 ) ([]*discovery.Module, error) {
 	log.Info("detecting changed modules")
 
-	changedModules, changedFiles, err := getChangedModulesVerbose(fullIndex)
+	changedModules, changedFiles, err := getChangedModulesVerbose(app.WorkDir, baseRef, fullIndex)
 	if err != nil {
 		return nil, fmt.Errorf("detect changed modules: %w", err)
 	}
@@ -333,31 +254,36 @@ func detectChangedTargetModules(
 	log.WithField("count", len(changedModules)).Info("changed modules detected")
 
 	changedIDs := moduleIDs(changedModules)
-	libraryPaths := detectChangedLibraries()
+	libraryPaths := detectChangedLibraries(app, baseRef)
 
-	affectedIDs := computeAffectedIDs(depGraph, changedIDs, libraryPaths)
+	var affectedIDs []string
+	if len(libraryPaths) > 0 {
+		affectedIDs = depGraph.GetAffectedModulesWithLibraries(changedIDs, libraryPaths)
+	} else {
+		affectedIDs = depGraph.GetAffectedModules(changedIDs)
+	}
 
-	targets := resolveAffectedModules(affectedIDs, changedIDs, fullIndex, filteredIndex)
+	targets := resolveAffectedModules(app, ff, affectedIDs, changedIDs, fullIndex, filteredIndex)
 	log.WithField("count", len(targets)).Info("affected modules (including dependents)")
 
 	return targets, nil
 }
 
-func detectChangedLibraries() []string {
-	if cfg.LibraryModules == nil || len(cfg.LibraryModules.Paths) == 0 {
+func detectChangedLibraries(app *App, baseRef string) []string {
+	if app.Config.LibraryModules == nil || len(app.Config.LibraryModules.Paths) == 0 {
 		return nil
 	}
 
 	log.Debug("checking for changed library modules")
-	gitClient := git.NewClient(workDir)
-	detector := git.NewChangedModulesDetector(gitClient, discovery.NewModuleIndex(nil), workDir)
+	gitClient := git.NewClient(app.WorkDir)
+	detector := git.NewChangedModulesDetector(gitClient, discovery.NewModuleIndex(nil), app.WorkDir)
 
 	ref := baseRef
 	if ref == "" {
 		ref = gitClient.GetDefaultBranch()
 	}
 
-	paths, err := detector.DetectChangedLibraryModules(ref, cfg.LibraryModules.Paths)
+	paths, err := detector.DetectChangedLibraryModules(ref, app.Config.LibraryModules.Paths)
 	if err != nil {
 		log.WithError(err).Warn("failed to detect changed library modules")
 		return nil
@@ -369,14 +295,9 @@ func detectChangedLibraries() []string {
 	return paths
 }
 
-func computeAffectedIDs(depGraph *graph.DependencyGraph, changedIDs, libraryPaths []string) []string {
-	if len(libraryPaths) > 0 {
-		return depGraph.GetAffectedModulesWithLibraries(changedIDs, libraryPaths)
-	}
-	return depGraph.GetAffectedModules(changedIDs)
-}
-
 func resolveAffectedModules(
+	app *App,
+	ff *filterFlags,
 	affectedIDs, changedIDs []string,
 	fullIndex, filteredIndex *discovery.ModuleIndex,
 ) []*discovery.Module {
@@ -393,7 +314,7 @@ func resolveAffectedModules(
 		if m := filteredIndex.ByID(id); m != nil {
 			targets = append(targets, m)
 		} else if m := fullIndex.ByID(id); m != nil {
-			if filtered := applyFilters([]*discovery.Module{m}); len(filtered) > 0 {
+			if filtered := ff.applyFilters(app, []*discovery.Module{m}); len(filtered) > 0 {
 				targets = append(targets, m)
 			} else {
 				log.WithField("module", m.ID()).Debug("filtered out")
@@ -423,7 +344,7 @@ func makeRelative(path, base string) string {
 	return path
 }
 
-func getChangedModulesVerbose(moduleIndex *discovery.ModuleIndex) ([]*discovery.Module, []string, error) {
+func getChangedModulesVerbose(workDir, baseRef string, moduleIndex *discovery.ModuleIndex) ([]*discovery.Module, []string, error) {
 	gitClient := git.NewClient(workDir)
 	if !gitClient.IsGitRepo() {
 		return nil, nil, fmt.Errorf("not a git repository: %s", workDir)

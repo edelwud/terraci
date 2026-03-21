@@ -11,18 +11,6 @@ import (
 	"github.com/edelwud/terraci/pkg/config"
 )
 
-// buildModuleEnvVars creates environment variables for a module dynamically from its segments
-func buildModuleEnvVars(module *discovery.Module) map[string]string {
-	env := map[string]string{
-		"TF_MODULE_PATH": module.RelativePath,
-		"TF_MODULE":      module.Name(),
-	}
-	for _, seg := range module.Segments() {
-		env["TF_"+strings.ToUpper(seg)] = module.Get(seg)
-	}
-	return env
-}
-
 const (
 	// DefaultStagesPrefix is the default prefix for stage names
 	DefaultStagesPrefix = "deploy"
@@ -244,7 +232,7 @@ func (g *Generator) generatePlanJob(module *discovery.Module, level int, targetM
 	job := &Job{
 		Stage:     fmt.Sprintf("%s-plan-%d", prefix, level),
 		Script:    script,
-		Variables: buildModuleEnvVars(module),
+		Variables: pipeline.BuildModuleEnvVars(module),
 		// Default artifacts for plan - can be overridden via job_defaults or overwrites
 		Artifacts: &Artifacts{
 			Paths:    artifactsPaths,
@@ -296,7 +284,7 @@ func (g *Generator) generateApplyJob(module *discovery.Module, level int, target
 	job := &Job{
 		Stage:         fmt.Sprintf("%s-apply-%d", prefix, level),
 		Script:        script,
-		Variables:     buildModuleEnvVars(module),
+		Variables:     pipeline.BuildModuleEnvVars(module),
 		Cache:         g.generateCache(module),
 		ResourceGroup: module.ID(),
 	}

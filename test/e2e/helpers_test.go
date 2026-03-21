@@ -2,6 +2,7 @@
 package e2e
 
 import (
+	"context"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -56,7 +57,7 @@ func LoadFixture(t *testing.T, name string) *Fixture {
 	// Scan modules
 	scanner := discovery.NewScanner(dir, cfg.Structure.MinDepth, cfg.Structure.MaxDepth, cfg.Structure.Segments)
 
-	modules, err := scanner.Scan()
+	modules, err := scanner.Scan(context.Background())
 	if err != nil {
 		t.Fatalf("failed to scan modules for fixture %s: %v", name, err)
 	}
@@ -71,7 +72,7 @@ func LoadFixture(t *testing.T, name string) *Fixture {
 	// Parse dependencies
 	hclParser := parser.NewParser()
 	depExtractor := parser.NewDependencyExtractor(hclParser, moduleIndex)
-	deps, _ := depExtractor.ExtractAllDependencies()
+	deps, _ := depExtractor.ExtractAllDependencies(context.Background())
 
 	// Build dependency graph
 	depGraph := graph.BuildFromDependencies(modules, deps)

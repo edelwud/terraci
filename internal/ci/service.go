@@ -2,12 +2,8 @@
 // plan result handling and PR/MR comment rendering.
 package ci
 
-import (
-	"github.com/edelwud/terraci/internal/policy"
-)
-
 // CommentService defines the interface for posting plan summaries to PRs/MRs
 type CommentService interface {
 	IsEnabled() bool
-	UpsertComment(plans []ModulePlan, policySummary *policy.Summary) error
+	UpsertComment(plans []ModulePlan, policySummary *PolicySummary) error
 }

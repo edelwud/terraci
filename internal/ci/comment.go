@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-
-	"github.com/edelwud/terraci/internal/policy"
 )
 
 const (
@@ -84,7 +82,7 @@ func (r *CommentRenderer) Render(data *CommentData) string {
 }
 
 // renderPolicySection renders the policy check results section
-func (r *CommentRenderer) renderPolicySection(summary *policy.Summary) string {
+func (r *CommentRenderer) renderPolicySection(summary *PolicySummary) string {
 	var sb strings.Builder
 
 	icon := "✅"

@@ -14,17 +14,16 @@ import (
 	"github.com/edelwud/terraci/pkg/log"
 )
 
-const defaultCostCacheTTL = 24 * time.Hour
+func newCostCmd(app *App) *cobra.Command {
+	var (
+		costModulePath string
+		costOutputFmt  string
+	)
 
-var (
-	costModulePath string
-	costOutputFmt  string
-)
-
-var costCmd = &cobra.Command{
-	Use:   "cost",
-	Short: "Estimate AWS costs from Terraform plans",
-	Long: `Estimate monthly AWS costs by analyzing plan.json files in module directories.
+	cmd := &cobra.Command{
+		Use:   "cost",
+		Short: "Estimate AWS costs from Terraform plans",
+		Long: `Estimate monthly AWS costs by analyzing plan.json files in module directories.
 
 Scans for plan.json files (output of terraform show -json plan.tfplan),
 fetches pricing from the AWS Bulk Pricing API, and calculates cost estimates.
@@ -33,49 +32,36 @@ Examples:
   terraci cost                              # Estimate all modules
   terraci cost --module platform/prod/eu-central-1/rds  # Single module
   terraci cost --output json                # JSON output`,
-	RunE: runCost,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			if app.Config.Cost == nil || !app.Config.Cost.Enabled {
+				log.Error("cost estimation is not enabled (set cost.enabled: true in config)")
+				return fmt.Errorf("cost estimation is not enabled")
+			}
+
+			log.Info("running cost estimation")
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
+
+			estimator := newCostEstimator(app)
+
+			if costModulePath != "" {
+				return runCostSingle(ctx, estimator, app, costModulePath, costOutputFmt)
+			}
+			return runCostAll(ctx, estimator, app, costOutputFmt)
+		},
+	}
+
+	cmd.Flags().StringVarP(&costModulePath, "module", "m", "", "estimate cost for a specific module")
+	cmd.Flags().StringVarP(&costOutputFmt, "output", "o", "text", "output format: text, json")
+
+	return cmd
 }
 
-func init() {
-	rootCmd.AddCommand(costCmd)
+func newCostEstimator(app *App) *cost.Estimator {
+	estimator := cost.NewEstimatorFromConfig(app.Config.Cost)
 
-	costCmd.Flags().StringVarP(&costModulePath, "module", "m", "", "estimate cost for a specific module")
-	costCmd.Flags().StringVarP(&costOutputFmt, "output", "o", "text", "output format: text, json")
-}
-
-func runCost(_ *cobra.Command, _ []string) error {
-	if cfg.Cost == nil || !cfg.Cost.Enabled {
-		log.Error("cost estimation is not enabled (set cost.enabled: true in config)")
-		return fmt.Errorf("cost estimation is not enabled")
-	}
-
-	log.Info("running cost estimation")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-
-	estimator := newCostEstimator()
-
-	if costModulePath != "" {
-		return runCostSingle(ctx, estimator)
-	}
-	return runCostAll(ctx, estimator)
-}
-
-func newCostEstimator() *cost.Estimator {
-	cacheDir := ""
-	cacheTTL := defaultCostCacheTTL
-	if cfg.Cost.CacheDir != "" {
-		cacheDir = cfg.Cost.CacheDir
-	}
-	if cfg.Cost.CacheTTL != "" {
-		if d, err := time.ParseDuration(cfg.Cost.CacheTTL); err == nil {
-			cacheTTL = d
-		}
-	}
-	estimator := cost.NewEstimator(cacheDir, cacheTTL)
-
-	logFields := log.WithField("dir", estimator.CacheDir()).WithField("ttl", cacheTTL)
+	logFields := log.WithField("dir", estimator.CacheDir()).WithField("ttl", estimator.CacheTTL())
 	if age := estimator.CacheOldestAge(); age > 0 {
 		remaining := estimator.CacheTTL() - age
 		if remaining > 0 {
@@ -91,9 +77,9 @@ func newCostEstimator() *cost.Estimator {
 	return estimator
 }
 
-func runCostSingle(ctx context.Context, estimator *cost.Estimator) error {
-	modulePath := filepath.Join(workDir, costModulePath)
-	region := detectRegion(costModulePath)
+func runCostSingle(ctx context.Context, estimator *cost.Estimator, app *App, costModulePath, costOutputFmt string) error {
+	modulePath := filepath.Join(app.WorkDir, costModulePath)
+	region := detectRegion(app, costModulePath)
 
 	log.WithField("module", costModulePath).WithField("region", region).Info("estimating module cost")
 
@@ -103,7 +89,7 @@ func runCostSingle(ctx context.Context, estimator *cost.Estimator) error {
 		return fmt.Errorf("estimate module %s: %w", costModulePath, err)
 	}
 
-	return outputCostResult(&cost.EstimateResult{
+	return outputCostResult(app, costOutputFmt, &cost.EstimateResult{
 		Modules:     []cost.ModuleCost{*mc},
 		TotalBefore: mc.BeforeCost,
 		TotalAfter:  mc.AfterCost,
@@ -113,22 +99,22 @@ func runCostSingle(ctx context.Context, estimator *cost.Estimator) error {
 	})
 }
 
-func runCostAll(ctx context.Context, estimator *cost.Estimator) error {
-	log.WithField("dir", workDir).Info("scanning for plan.json files")
+func runCostAll(ctx context.Context, estimator *cost.Estimator, app *App, costOutputFmt string) error {
+	log.WithField("dir", app.WorkDir).Info("scanning for plan.json files")
 
 	var modulePaths []string
 	regions := make(map[string]string)
 
-	err := filepath.Walk(workDir, func(path string, info os.FileInfo, walkErr error) error {
+	err := filepath.Walk(app.WorkDir, func(path string, info os.FileInfo, walkErr error) error {
 		if walkErr != nil {
 			return nil //nolint:nilerr // skip walk errors, continue scanning
 		}
 		if info.Name() == "plan.json" && !info.IsDir() {
-			relDir, relErr := filepath.Rel(workDir, filepath.Dir(path))
+			relDir, relErr := filepath.Rel(app.WorkDir, filepath.Dir(path))
 			if relErr == nil {
 				fullPath := filepath.Dir(path)
 				modulePaths = append(modulePaths, fullPath)
-				region := detectRegion(relDir)
+				region := detectRegion(app, relDir)
 				regions[fullPath] = region
 				log.WithField("module", relDir).WithField("region", region).Debug("found plan.json")
 			}
@@ -160,10 +146,10 @@ func runCostAll(ctx context.Context, estimator *cost.Estimator) error {
 		return fmt.Errorf("estimate costs: %w", err)
 	}
 
-	return outputCostResult(result)
+	return outputCostResult(app, costOutputFmt, result)
 }
 
-func outputCostResult(result *cost.EstimateResult) error {
+func outputCostResult(app *App, costOutputFmt string, result *cost.EstimateResult) error {
 	if costOutputFmt == "json" {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
@@ -184,7 +170,7 @@ func outputCostResult(result *cost.EstimateResult) error {
 		}
 
 		moduleID := mc.ModuleID
-		if rel, err := filepath.Rel(workDir, mc.ModulePath); err == nil {
+		if rel, err := filepath.Rel(app.WorkDir, mc.ModulePath); err == nil {
 			moduleID = filepath.ToSlash(rel)
 		}
 
@@ -247,10 +233,10 @@ func outputCostResult(result *cost.EstimateResult) error {
 }
 
 // detectRegion extracts region from module path using configured pattern segments.
-func detectRegion(modulePath string) string {
+func detectRegion(app *App, modulePath string) string {
 	parts := splitPath(modulePath)
-	if cfg.Structure.Segments != nil {
-		for i, seg := range cfg.Structure.Segments {
+	if app.Config.Structure.Segments != nil {
+		for i, seg := range app.Config.Structure.Segments {
 			if seg == "region" && i < len(parts) {
 				return parts[i]
 			}

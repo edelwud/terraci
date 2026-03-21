@@ -19,12 +19,11 @@ import (
 	"github.com/edelwud/terraci/pkg/log"
 )
 
-const defaultCacheTTLHours = 24
-
-var summaryCmd = &cobra.Command{
-	Use:   "summary",
-	Short: "Create MR comment from plan results",
-	Long: `Collects terraform plan results from artifacts and creates/updates
+func newSummaryCmd(app *App) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "summary",
+		Short: "Create MR comment from plan results",
+		Long: `Collects terraform plan results from artifacts and creates/updates
 a summary comment on the GitLab merge request.
 
 This command is designed to run as a final job in the pipeline after all
@@ -47,19 +46,20 @@ Example usage in .gitlab-ci.yml:
     needs:
       - job: plan-*
         optional: true`,
-	RunE: runSummary,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return runSummary(app)
+		},
+	}
+
+	return cmd
 }
 
-func init() {
-	rootCmd.AddCommand(summaryCmd)
-}
-
-func runSummary(_ *cobra.Command, _ []string) error {
-	provider := config.ResolveProvider(cfg)
+func runSummary(app *App) error {
+	provider := config.ResolveProvider(app.Config)
 
 	// Scan plan results (provider-agnostic)
 	log.Info("scanning for plan results")
-	segments := []string(cfg.Structure.Segments)
+	segments := []string(app.Config.Structure.Segments)
 	collection, err := ci.ScanPlanResults(".", segments)
 	if err != nil {
 		return fmt.Errorf("failed to scan plan results: %w", err)
@@ -73,9 +73,9 @@ func runSummary(_ *cobra.Command, _ []string) error {
 	log.WithField("count", len(collection.Results)).Info("found plan results")
 
 	// Calculate cost estimates if enabled
-	if cfg.Cost != nil && cfg.Cost.Enabled {
+	if app.Config.Cost != nil && app.Config.Cost.Enabled {
 		log.Info("calculating cost estimates")
-		if err := calculateCosts(collection); err != nil {
+		if err := calculateCosts(app, collection); err != nil {
 			log.WithError(err).Warn("failed to calculate costs, continuing without cost data")
 		}
 	}
@@ -84,7 +84,7 @@ func runSummary(_ *cobra.Command, _ []string) error {
 	plans := collection.ToModulePlans()
 
 	// Try to load policy results if they exist
-	policySummary := loadPolicyResults()
+	policySummary := loadPolicyResults(app)
 	if policySummary != nil {
 		log.WithField("modules", policySummary.TotalModules).
 			WithField("failures", policySummary.TotalFailures).
@@ -97,10 +97,10 @@ func runSummary(_ *cobra.Command, _ []string) error {
 	switch provider {
 	case config.ProviderGitHub:
 		var prCfg *config.PRConfig
-		if cfg.GitHub != nil {
-			prCfg = cfg.GitHub.PR
+		if app.Config.GitHub != nil {
+			prCfg = app.Config.GitHub.PR
 		}
-		commentSvc = ghprovider.NewPRService(prCfg)
+		commentSvc = ghprovider.NewPRServiceFromEnv(prCfg)
 	default:
 		// Check MR context first for GitLab
 		mrContext := gitlab.DetectMRContext()
@@ -110,7 +110,7 @@ func runSummary(_ *cobra.Command, _ []string) error {
 			return nil
 		}
 		log.WithField("mr", mrContext.MRIID).Info("detected MR context")
-		commentSvc = gitlab.NewMRService(cfg.GitLab.MR)
+		commentSvc = gitlab.NewMRServiceFromEnv(app.Config.GitLab.MR)
 	}
 
 	if !commentSvc.IsEnabled() {
@@ -128,7 +128,7 @@ func runSummary(_ *cobra.Command, _ []string) error {
 	log.Info("comment updated successfully")
 
 	// Add labels if configured (GitLab only for now)
-	if provider == config.ProviderGitLab && cfg.GitLab.MR != nil && len(cfg.GitLab.MR.Labels) > 0 {
+	if provider == config.ProviderGitLab && app.Config.GitLab.MR != nil && len(app.Config.GitLab.MR.Labels) > 0 {
 		log.Info("adding MR labels")
 		if err := addLabelsFromResults(collection); err != nil {
 			log.WithField("error", err.Error()).Warn("failed to add labels")
@@ -210,23 +210,11 @@ func printSummary(collection *ci.PlanResultCollection) {
 }
 
 // calculateCosts calculates cost estimates for all plan results
-func calculateCosts(collection *ci.PlanResultCollection) error {
+func calculateCosts(app *App, collection *ci.PlanResultCollection) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
-	// Get cache settings
-	cacheDir := ""
-	cacheTTL := defaultCacheTTLHours * time.Hour
-	if cfg.Cost.CacheDir != "" {
-		cacheDir = cfg.Cost.CacheDir
-	}
-	if cfg.Cost.CacheTTL != "" {
-		if d, err := time.ParseDuration(cfg.Cost.CacheTTL); err == nil {
-			cacheTTL = d
-		}
-	}
-
-	estimator := cost.NewEstimator(cacheDir, cacheTTL)
+	estimator := cost.NewEstimatorFromConfig(app.Config.Cost)
 
 	// Build module paths and regions map
 	modulePaths := make([]string, 0, len(collection.Results))
@@ -285,12 +273,12 @@ func calculateCosts(collection *ci.PlanResultCollection) error {
 }
 
 // loadPolicyResults tries to load policy results from the artifact
-func loadPolicyResults() *policy.Summary {
+func loadPolicyResults(app *App) *ci.PolicySummary {
 	// Try common locations for policy results
 	paths := []string{
 		filepath.Join(".terraci", "policy-results.json"),
 		"policy-results.json",
-		filepath.Join(workDir, ".terraci", "policy-results.json"),
+		filepath.Join(app.WorkDir, ".terraci", "policy-results.json"),
 	}
 
 	for _, path := range paths {
@@ -299,14 +287,43 @@ func loadPolicyResults() *policy.Summary {
 			continue
 		}
 
-		var summary policy.Summary
-		if err := json.Unmarshal(data, &summary); err != nil {
+		var raw policy.Summary
+		if err := json.Unmarshal(data, &raw); err != nil {
 			log.WithField("path", path).WithError(err).Debug("failed to parse policy results")
 			continue
 		}
 
-		return &summary
+		return toCIPolicySummary(&raw)
 	}
 
 	return nil
+}
+
+// toCIPolicySummary converts a policy.Summary to ci.PolicySummary.
+func toCIPolicySummary(s *policy.Summary) *ci.PolicySummary {
+	results := make([]ci.PolicyResult, len(s.Results))
+	for i, r := range s.Results {
+		failures := make([]ci.PolicyViolation, len(r.Failures))
+		for j, f := range r.Failures {
+			failures[j] = ci.PolicyViolation{Namespace: f.Namespace, Message: f.Message}
+		}
+		warnings := make([]ci.PolicyViolation, len(r.Warnings))
+		for j, w := range r.Warnings {
+			warnings[j] = ci.PolicyViolation{Namespace: w.Namespace, Message: w.Message}
+		}
+		results[i] = ci.PolicyResult{
+			Module:   r.Module,
+			Failures: failures,
+			Warnings: warnings,
+		}
+	}
+	return &ci.PolicySummary{
+		TotalModules:  s.TotalModules,
+		PassedModules: s.PassedModules,
+		WarnedModules: s.WarnedModules,
+		FailedModules: s.FailedModules,
+		TotalFailures: s.TotalFailures,
+		TotalWarnings: s.TotalWarnings,
+		Results:       results,
+	}
 }

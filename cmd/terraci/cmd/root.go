@@ -10,30 +10,25 @@ import (
 	"github.com/edelwud/terraci/pkg/log"
 )
 
-var (
-	// Global flags
-	cfgFile  string
-	workDir  string
-	logLevel string
-
-	// Version info
-	versionInfo struct {
-		Version string
-		Commit  string
-		Date    string
+// NewRootCmd creates and returns the root cobra command with all subcommands.
+func NewRootCmd(version, commit, date string) *cobra.Command {
+	app := &App{
+		Version: version,
+		Commit:  commit,
+		Date:    date,
 	}
 
-	// Global config
-	cfg *config.Config
-)
+	cwd, err := os.Getwd()
+	if err != nil {
+		cwd = "."
+	}
 
-// rootCmd represents the base command
-var rootCmd = &cobra.Command{
-	Use:           "terraci",
-	Short:         "Generate CI pipelines for Terraform projects",
-	SilenceUsage:  true,
-	SilenceErrors: true,
-	Long: `TerraCi is a CLI tool that analyzes Terraform project structure,
+	rootCmd := &cobra.Command{
+		Use:           "terraci",
+		Short:         "Generate CI pipelines for Terraform projects",
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		Long: `TerraCi is a CLI tool that analyzes Terraform project structure,
 builds a dependency graph based on terraform_remote_state references,
 and generates CI pipelines (GitLab CI or GitHub Actions) that respect those dependencies.
 
@@ -44,74 +39,66 @@ Features:
   - Glob pattern filtering for modules
   - Git integration for changed-only pipelines
   - Parallel execution where possible`,
-	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-		// Initialize logger
-		log.Init()
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			log.Init()
 
-		// Handle verbose flag (shorthand for --log-level=debug)
-		if verbose, err := cmd.Flags().GetBool("verbose"); err == nil && verbose {
-			logLevel = "debug"
-		}
-
-		// Set log level from flag
-		if logLevel != "" {
-			if err := log.SetLevelFromString(logLevel); err != nil {
-				return fmt.Errorf("invalid log level %q: %w", logLevel, err)
+			verbose, verboseErr := cmd.Flags().GetBool("verbose")
+			if verboseErr == nil && verbose {
+				app.logLevel = "debug"
 			}
-		}
 
-		// Show version info (skip for version command itself)
-		if cmd.Name() != "version" && versionInfo.Version != "" {
-			log.WithField("version", versionInfo.Version).Debug("terraci")
-		}
+			if app.logLevel != "" {
+				if levelErr := log.SetLevelFromString(app.logLevel); levelErr != nil {
+					return fmt.Errorf("invalid log level %q: %w", app.logLevel, levelErr)
+				}
+			}
 
-		// Skip config loading for version, schema, completion, and man commands
-		if cmd.Name() == "version" || cmd.Name() == "schema" || cmd.Name() == "completion" || cmd.Name() == "man" {
-			return nil
-		}
+			if cmd.Name() != "version" && app.Version != "" {
+				log.WithField("version", app.Version).Debug("terraci")
+			}
 
-		// Load configuration
-		log.Debug("loading configuration")
-		var err error
-		if cfgFile != "" {
-			log.WithField("file", cfgFile).Debug("loading config from file")
-			cfg, err = config.Load(cfgFile)
-		} else {
-			log.WithField("dir", workDir).Debug("loading config from directory")
-			cfg, err = config.LoadOrDefault(workDir)
-		}
+			// Skip config loading for non-config commands
+			if cmd.Name() == "version" || cmd.Name() == "schema" || cmd.Name() == "completion" || cmd.Name() == "man" {
+				return nil
+			}
 
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
+			log.Debug("loading configuration")
+			var loadErr error
+			if app.cfgFile != "" {
+				log.WithField("file", app.cfgFile).Debug("loading config from file")
+				app.Config, loadErr = config.Load(app.cfgFile)
+			} else {
+				log.WithField("dir", app.WorkDir).Debug("loading config from directory")
+				app.Config, loadErr = config.LoadOrDefault(app.WorkDir)
+			}
 
-		log.Debug("validating configuration")
-		return cfg.Validate()
-	},
-}
+			if loadErr != nil {
+				return loadErr
+			}
 
-// Execute runs the root command
-func Execute() error {
-	return rootCmd.Execute()
-}
-
-// SetVersion sets version information
-func SetVersion(version, commit, date string) {
-	versionInfo.Version = version
-	versionInfo.Commit = commit
-	versionInfo.Date = date
-}
-
-func init() {
-	// Get current working directory
-	cwd, err := os.Getwd()
-	if err != nil {
-		cwd = "."
+			log.Debug("validating configuration")
+			return app.Config.Validate()
+		},
 	}
 
 	// Global flags
-	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default: .terraci.yaml)")
-	rootCmd.PersistentFlags().StringVarP(&workDir, "dir", "d", cwd, "working directory")
-	rootCmd.PersistentFlags().StringVarP(&logLevel, "log-level", "l", "info", "log level (debug, info, warn, error)")
+	rootCmd.PersistentFlags().StringVarP(&app.cfgFile, "config", "c", "", "config file (default: .terraci.yaml)")
+	rootCmd.PersistentFlags().StringVarP(&app.WorkDir, "dir", "d", cwd, "working directory")
+	rootCmd.PersistentFlags().StringVarP(&app.logLevel, "log-level", "l", "info", "log level (debug, info, warn, error)")
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "enable verbose output (shorthand for --log-level=debug)")
+
+	// Register subcommands
+	rootCmd.AddCommand(newGenerateCmd(app))
+	rootCmd.AddCommand(newGraphCmd(app))
+	rootCmd.AddCommand(newValidateCmd(app))
+	rootCmd.AddCommand(newCostCmd(app))
+	rootCmd.AddCommand(newSummaryCmd(app))
+	rootCmd.AddCommand(newPolicyCmd(app))
+	rootCmd.AddCommand(newInitCmd(app))
+	rootCmd.AddCommand(newVersionCmd(app))
+	rootCmd.AddCommand(newSchemaCmd())
+	rootCmd.AddCommand(newCompletionCmd(rootCmd))
+	rootCmd.AddCommand(newManCmd(rootCmd))
+
+	return rootCmd
 }

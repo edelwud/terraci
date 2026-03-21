@@ -11,18 +11,6 @@ import (
 	"github.com/edelwud/terraci/pkg/config"
 )
 
-// buildModuleEnvVars creates environment variables for a module dynamically from its segments
-func buildModuleEnvVars(module *discovery.Module) map[string]string {
-	env := map[string]string{
-		"TF_MODULE_PATH": module.RelativePath,
-		"TF_MODULE":      module.Name(),
-	}
-	for _, seg := range module.Segments() {
-		env["TF_"+strings.ToUpper(seg)] = module.Get(seg)
-	}
-	return env
-}
-
 const (
 	// SummaryJobName is the name of the summary job
 	SummaryJobName = "terraci-summary"
@@ -207,7 +195,7 @@ func (g *Generator) generatePlanJob(module *discovery.Module, targetModuleSet ma
 
 	job := &Job{
 		RunsOn: g.getRunsOn(),
-		Env:    buildModuleEnvVars(module),
+		Env:    pipeline.BuildModuleEnvVars(module),
 		Concurrency: &Concurrency{
 			Group:            module.ID(),
 			CancelInProgress: false,
@@ -281,7 +269,7 @@ func (g *Generator) generateApplyJob(module *discovery.Module, targetModuleSet m
 
 	job := &Job{
 		RunsOn: g.getRunsOn(),
-		Env:    buildModuleEnvVars(module),
+		Env:    pipeline.BuildModuleEnvVars(module),
 		Concurrency: &Concurrency{
 			Group:            module.ID(),
 			CancelInProgress: false,

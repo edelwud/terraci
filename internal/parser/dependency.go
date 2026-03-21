@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/edelwud/terraci/internal/discovery"
+	terrierrors "github.com/edelwud/terraci/pkg/errors"
 )
 
 // DependencyExtractor extracts module dependencies from parsed Terraform files.
@@ -47,7 +49,7 @@ type ModuleDependencies struct {
 }
 
 // ExtractDependencies extracts dependencies for a single module.
-func (de *DependencyExtractor) ExtractDependencies(module *discovery.Module) (*ModuleDependencies, error) {
+func (de *DependencyExtractor) ExtractDependencies(ctx context.Context, module *discovery.Module) (*ModuleDependencies, error) {
 	result := &ModuleDependencies{
 		Module:              module,
 		Dependencies:        make([]*Dependency, 0),
@@ -56,9 +58,9 @@ func (de *DependencyExtractor) ExtractDependencies(module *discovery.Module) (*M
 		Errors:              make([]error, 0),
 	}
 
-	parsed, err := de.parser.ParseModule(module.Path)
+	parsed, err := de.parser.ParseModule(ctx, module.Path)
 	if err != nil {
-		return nil, fmt.Errorf("parse module %s: %w", module.ID(), err)
+		return nil, &terrierrors.ParseError{Module: module.ID(), Err: err}
 	}
 
 	for _, rs := range parsed.RemoteStates {
@@ -197,7 +199,7 @@ func containsDynamicPattern(path string) bool {
 const maxConcurrentExtractions = 20
 
 // ExtractAllDependencies extracts dependencies for all modules in the index.
-func (de *DependencyExtractor) ExtractAllDependencies() (map[string]*ModuleDependencies, []error) {
+func (de *DependencyExtractor) ExtractAllDependencies(ctx context.Context) (map[string]*ModuleDependencies, []error) {
 	results := make(map[string]*ModuleDependencies)
 	var allErrors []error
 	var mu sync.Mutex
@@ -207,7 +209,7 @@ func (de *DependencyExtractor) ExtractAllDependencies() (map[string]*ModuleDepen
 
 	for _, module := range de.index.All() {
 		g.Go(func() error {
-			deps, err := de.ExtractDependencies(module)
+			deps, err := de.ExtractDependencies(ctx, module)
 
 			mu.Lock()
 			defer mu.Unlock()

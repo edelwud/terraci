@@ -8,13 +8,13 @@ import (
 )
 
 func TestCommentRenderer_RenderWithCost(t *testing.T) {
-	renderer := NewCommentRenderer()
+	renderer := ci.NewCommentRenderer()
 
-	plans := []ModulePlan{
+	plans := []ci.ModulePlan{
 		{
 			ModuleID:   "platform/prod/eu-central-1/vpc",
 			Components: map[string]string{"environment": "prod"},
-			Status:     PlanStatusChanges,
+			Status:     ci.PlanStatusChanges,
 			Summary:    "+2 ~1",
 			CostBefore: 100.50,
 			CostAfter:  150.75,
@@ -24,7 +24,7 @@ func TestCommentRenderer_RenderWithCost(t *testing.T) {
 		{
 			ModuleID:   "platform/prod/eu-central-1/eks",
 			Components: map[string]string{"environment": "prod"},
-			Status:     PlanStatusNoChanges,
+			Status:     ci.PlanStatusNoChanges,
 			Summary:    "No changes",
 			CostBefore: 73.00,
 			CostAfter:  73.00,
@@ -33,7 +33,7 @@ func TestCommentRenderer_RenderWithCost(t *testing.T) {
 		},
 	}
 
-	data := &CommentData{
+	data := &ci.CommentData{
 		Plans: plans,
 	}
 
@@ -59,19 +59,19 @@ func TestCommentRenderer_RenderWithCost(t *testing.T) {
 }
 
 func TestCommentRenderer_RenderWithoutCost(t *testing.T) {
-	renderer := NewCommentRenderer()
+	renderer := ci.NewCommentRenderer()
 
-	plans := []ModulePlan{
+	plans := []ci.ModulePlan{
 		{
 			ModuleID:   "platform/prod/eu-central-1/vpc",
 			Components: map[string]string{"environment": "prod"},
-			Status:     PlanStatusChanges,
+			Status:     ci.PlanStatusChanges,
 			Summary:    "+2 ~1",
 			HasCost:    false, // No cost data
 		},
 	}
 
-	data := &CommentData{
+	data := &ci.CommentData{
 		Plans: plans,
 	}
 
@@ -86,17 +86,17 @@ func TestCommentRenderer_RenderWithoutCost(t *testing.T) {
 func TestFormatCostCell(t *testing.T) {
 	tests := []struct {
 		name     string
-		plan     ModulePlan
+		plan     ci.ModulePlan
 		expected string
 	}{
 		{
 			name:     "no cost",
-			plan:     ModulePlan{HasCost: false},
+			plan:     ci.ModulePlan{HasCost: false},
 			expected: "-",
 		},
 		{
 			name: "no change",
-			plan: ModulePlan{
+			plan: ci.ModulePlan{
 				HasCost:    true,
 				CostBefore: 100,
 				CostAfter:  100,
@@ -106,7 +106,7 @@ func TestFormatCostCell(t *testing.T) {
 		},
 		{
 			name: "increase",
-			plan: ModulePlan{
+			plan: ci.ModulePlan{
 				HasCost:    true,
 				CostBefore: 100,
 				CostAfter:  150,
@@ -116,7 +116,7 @@ func TestFormatCostCell(t *testing.T) {
 		},
 		{
 			name: "decrease",
-			plan: ModulePlan{
+			plan: ci.ModulePlan{
 				HasCost:    true,
 				CostBefore: 150,
 				CostAfter:  100,

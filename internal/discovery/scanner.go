@@ -1,6 +1,9 @@
 package discovery
 
-import "path/filepath"
+import (
+	"context"
+	"path/filepath"
+)
 
 // Scanner discovers Terraform modules in a directory tree.
 type Scanner struct {
@@ -21,13 +24,14 @@ func NewScanner(rootDir string, minDepth, maxDepth int, segments []string) *Scan
 }
 
 // Scan walks the directory tree and returns all discovered Terraform modules.
-func (s *Scanner) Scan() ([]*Module, error) {
+func (s *Scanner) Scan(ctx context.Context) ([]*Module, error) {
 	absRoot, err := filepath.Abs(s.RootDir)
 	if err != nil {
 		return nil, err
 	}
 
 	collector := &moduleCollector{
+		ctx:      ctx,
 		absRoot:  absRoot,
 		minDepth: s.MinDepth,
 		maxDepth: s.MaxDepth,

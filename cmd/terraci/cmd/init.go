@@ -12,19 +12,20 @@ import (
 	"github.com/edelwud/terraci/pkg/log"
 )
 
-var (
-	forceInit       bool
-	initProvider    string
-	initBinary      string
-	initImage       string
-	initPattern     string
-	initInteractive bool
-)
+func newInitCmd(app *App) *cobra.Command {
+	var (
+		forceInit       bool
+		initProvider    string
+		initBinary      string
+		initImage       string
+		initPattern     string
+		initInteractive bool
+	)
 
-var initCmd = &cobra.Command{
-	Use:   "init",
-	Short: "Initialize terraci configuration",
-	Long: `Create a .terraci.yaml configuration file in the current directory.
+	cmd := &cobra.Command{
+		Use:   "init",
+		Short: "Initialize terraci configuration",
+		Long: `Create a .terraci.yaml configuration file in the current directory.
 
 By default, runs an interactive wizard. Use --ci flag for non-interactive mode.
 
@@ -33,51 +34,52 @@ Examples:
   terraci init --ci
   terraci init --provider github
   terraci init --binary tofu --image ghcr.io/opentofu/opentofu:1.6`,
-	RunE: runInit,
-}
+		RunE: func(_ *cobra.Command, _ []string) error {
+			configPath := filepath.Join(app.WorkDir, ".terraci.yaml")
 
-func init() {
-	rootCmd.AddCommand(initCmd)
+			if _, err := os.Stat(configPath); err == nil && !forceInit {
+				return fmt.Errorf("config file already exists: %s (use --force to overwrite)", configPath)
+			}
 
-	initCmd.Flags().BoolVarP(&forceInit, "force", "f", false, "overwrite existing config file")
-	initCmd.Flags().BoolVar(&initInteractive, "ci", false, "non-interactive mode (skip wizard)")
-	initCmd.Flags().StringVar(&initProvider, "provider", "", "CI provider: gitlab or github")
-	initCmd.Flags().StringVar(&initBinary, "binary", "", "terraform binary: terraform or tofu")
-	initCmd.Flags().StringVar(&initImage, "image", "", "docker image for CI jobs")
-	initCmd.Flags().StringVar(&initPattern, "pattern", "", "directory pattern")
-}
+			hasFlags := initProvider != "" || initBinary != "" || initImage != "" || initPattern != ""
 
-func runInit(_ *cobra.Command, _ []string) error {
-	configPath := filepath.Join(workDir, ".terraci.yaml")
+			var newCfg *config.Config
+			var err error
 
-	if _, err := os.Stat(configPath); err == nil && !forceInit {
-		return fmt.Errorf("config file already exists: %s (use --force to overwrite)", configPath)
+			if initInteractive || hasFlags {
+				opts := initOptions{
+					provider: initProvider,
+					binary:   initBinary,
+					pattern:  initPattern,
+					image:    initImage,
+				}
+				newCfg = opts.buildConfig()
+			} else {
+				newCfg, err = runInteractiveInit()
+				if err != nil {
+					return err
+				}
+			}
+
+			if err := newCfg.Save(configPath); err != nil {
+				return fmt.Errorf("create config: %w", err)
+			}
+
+			log.WithField("file", configPath).Info("configuration created")
+			logGenerateHint(newCfg)
+
+			return nil
+		},
 	}
 
-	newCfg, err := resolveInitConfig()
-	if err != nil {
-		return err
-	}
+	cmd.Flags().BoolVarP(&forceInit, "force", "f", false, "overwrite existing config file")
+	cmd.Flags().BoolVar(&initInteractive, "ci", false, "non-interactive mode (skip wizard)")
+	cmd.Flags().StringVar(&initProvider, "provider", "", "CI provider: gitlab or github")
+	cmd.Flags().StringVar(&initBinary, "binary", "", "terraform binary: terraform or tofu")
+	cmd.Flags().StringVar(&initImage, "image", "", "docker image for CI jobs")
+	cmd.Flags().StringVar(&initPattern, "pattern", "", "directory pattern")
 
-	if err := newCfg.Save(configPath); err != nil {
-		return fmt.Errorf("create config: %w", err)
-	}
-
-	log.WithField("file", configPath).Info("configuration created")
-	logGenerateHint(newCfg)
-
-	return nil
-}
-
-func resolveInitConfig() (*config.Config, error) {
-	if initInteractive || hasInitFlags() {
-		return buildConfigFromFlags(), nil
-	}
-	return runInteractiveInit()
-}
-
-func hasInitFlags() bool {
-	return initProvider != "" || initBinary != "" || initImage != "" || initPattern != ""
+	return cmd
 }
 
 func logGenerateHint(cfg *config.Config) {

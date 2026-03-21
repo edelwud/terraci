@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/edelwud/terraci/internal/ci"
-	"github.com/edelwud/terraci/internal/policy"
 	"github.com/edelwud/terraci/pkg/config"
 )
 
@@ -19,14 +18,19 @@ type PRService struct {
 	context  *PRContext
 }
 
-// NewPRService creates a new PR service
-func NewPRService(cfg *config.PRConfig) *PRService {
+// NewPRService creates a new PR service with injected dependencies.
+func NewPRService(cfg *config.PRConfig, client *Client, ctx *PRContext) *PRService {
 	return &PRService{
-		client:   NewClientFromEnv(),
+		client:   client,
 		renderer: ci.NewCommentRenderer(),
 		config:   cfg,
-		context:  DetectPRContext(),
+		context:  ctx,
 	}
+}
+
+// NewPRServiceFromEnv creates a new PR service with dependencies from environment.
+func NewPRServiceFromEnv(cfg *config.PRConfig) *PRService {
+	return NewPRService(cfg, NewClientFromEnv(), DetectPRContext())
 }
 
 // IsEnabled returns true if PR integration is enabled
@@ -55,24 +59,14 @@ func (s *PRService) IsEnabled() bool {
 }
 
 // UpsertComment creates or updates the terraci comment on the PR
-func (s *PRService) UpsertComment(plans []ci.ModulePlan, policySummary *policy.Summary) error {
+func (s *PRService) UpsertComment(plans []ci.ModulePlan, policySummary *ci.PolicySummary) error {
 	if !s.IsEnabled() {
 		return nil
 	}
 
 	// Check on_changes_only
 	if s.config != nil && s.config.Comment != nil && s.config.Comment.OnChangesOnly {
-		hasChanges := false
-		for i := range plans {
-			if plans[i].Status == ci.PlanStatusChanges || plans[i].Status == ci.PlanStatusFailed {
-				hasChanges = true
-				break
-			}
-		}
-		if policySummary != nil && (policySummary.HasFailures() || policySummary.HasWarnings()) {
-			hasChanges = true
-		}
-		if !hasChanges {
+		if !ci.HasReportableChanges(plans, policySummary) {
 			return nil
 		}
 	}

@@ -7,24 +7,25 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/edelwud/terraci/internal/discovery"
 	"github.com/edelwud/terraci/internal/graph"
-	"github.com/edelwud/terraci/internal/parser"
+	"github.com/edelwud/terraci/internal/workflow"
 	"github.com/edelwud/terraci/pkg/log"
 )
 
-var (
-	graphFormat    string
-	graphOutput    string
-	showStats      bool
-	moduleID       string
-	showDependents bool
-)
+func newGraphCmd(app *App) *cobra.Command {
+	var (
+		graphFormat    string
+		graphOutput    string
+		showStats      bool
+		moduleID       string
+		showDependents bool
+	)
+	ff := &filterFlags{}
 
-var graphCmd = &cobra.Command{
-	Use:   "graph",
-	Short: "Display dependency graph",
-	Long: `Display the module dependency graph in various formats.
+	cmd := &cobra.Command{
+		Use:   "graph",
+		Short: "Display dependency graph",
+		Long: `Display the module dependency graph in various formats.
 
 Formats:
   - dot:      GraphViz DOT format
@@ -39,71 +40,41 @@ Examples:
   terraci graph --format levels
   terraci graph --stats
   terraci graph --module platform/stage/eu-central-1/vpc --dependents`,
-	RunE: runGraph,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			result, err := workflow.Run(cmd.Context(), ff.workflowOptions(app))
+			if err != nil {
+				return err
+			}
+
+			log.WithField("count", len(result.FilteredModules)).Debug("modules after filtering")
+			depGraph := result.Graph
+
+			if moduleID != "" {
+				depGraph, err = scopeToModule(depGraph, moduleID, showDependents)
+				if err != nil {
+					return err
+				}
+			}
+
+			if showStats {
+				return printStats(depGraph, moduleID)
+			}
+
+			return renderGraph(depGraph, graphFormat, graphOutput)
+		},
+	}
+
+	cmd.Flags().StringVarP(&graphFormat, "format", "F", "dot", "output format: dot, plantuml, list, levels")
+	cmd.Flags().StringVarP(&graphOutput, "output", "o", "", "output file (default: stdout)")
+	cmd.Flags().BoolVar(&showStats, "stats", false, "show graph statistics")
+	cmd.Flags().StringVarP(&moduleID, "module", "m", "", "filter to specific module")
+	cmd.Flags().BoolVar(&showDependents, "dependents", false, "show dependents instead of dependencies (with --module)")
+	ff.register(cmd)
+
+	return cmd
 }
 
-func init() {
-	rootCmd.AddCommand(graphCmd)
-
-	graphCmd.Flags().StringVarP(&graphFormat, "format", "F", "dot", "output format: dot, plantuml, list, levels")
-	graphCmd.Flags().StringVarP(&graphOutput, "output", "o", "", "output file (default: stdout)")
-	graphCmd.Flags().BoolVar(&showStats, "stats", false, "show graph statistics")
-	graphCmd.Flags().StringVarP(&moduleID, "module", "m", "", "filter to specific module")
-	graphCmd.Flags().BoolVar(&showDependents, "dependents", false, "show dependents instead of dependencies (with --module)")
-
-	registerFilterFlags(graphCmd)
-}
-
-func runGraph(_ *cobra.Command, _ []string) error {
-	depGraph, err := buildGraphFromModules()
-	if err != nil {
-		return err
-	}
-
-	if moduleID != "" {
-		depGraph, err = scopeToModule(depGraph)
-		if err != nil {
-			return err
-		}
-	}
-
-	if showStats {
-		return printStats(depGraph)
-	}
-
-	return renderGraph(depGraph)
-}
-
-// --- Graph construction ---
-
-func buildGraphFromModules() (*graph.DependencyGraph, error) {
-	log.WithField("dir", workDir).Debug("scanning for modules")
-
-	scanner := discovery.NewScanner(workDir, cfg.Structure.MinDepth, cfg.Structure.MaxDepth, cfg.Structure.Segments)
-
-	allModules, err := scanner.Scan()
-	if err != nil {
-		return nil, fmt.Errorf("scan modules: %w", err)
-	}
-	if len(allModules) == 0 {
-		return nil, fmt.Errorf("no modules found in %s", workDir)
-	}
-
-	modules := applyFilters(allModules)
-	log.WithField("count", len(modules)).Debug("modules after filtering")
-
-	moduleIndex := discovery.NewModuleIndex(modules)
-
-	hclParser := parser.NewParser()
-	if len(cfg.Structure.Segments) > 0 {
-		hclParser.Segments = cfg.Structure.Segments
-	}
-
-	deps, _ := parser.NewDependencyExtractor(hclParser, moduleIndex).ExtractAllDependencies()
-	return graph.BuildFromDependencies(modules, deps), nil
-}
-
-func scopeToModule(g *graph.DependencyGraph) (*graph.DependencyGraph, error) {
+func scopeToModule(g *graph.DependencyGraph, moduleID string, showDependents bool) (*graph.DependencyGraph, error) {
 	if g.GetNode(moduleID) == nil {
 		return nil, fmt.Errorf("module not found: %s", moduleID)
 	}
@@ -118,19 +89,17 @@ func scopeToModule(g *graph.DependencyGraph) (*graph.DependencyGraph, error) {
 	return g.Subgraph(ids), nil
 }
 
-// --- Output rendering ---
-
-func renderGraph(g *graph.DependencyGraph) error {
-	output, err := formatGraph(g, graphFormat)
+func renderGraph(g *graph.DependencyGraph, format, outputFile string) error {
+	output, err := formatGraph(g, format)
 	if err != nil {
 		return err
 	}
 
-	if graphOutput != "" {
-		if err := os.WriteFile(graphOutput, []byte(output), 0o600); err != nil {
+	if outputFile != "" {
+		if err := os.WriteFile(outputFile, []byte(output), 0o600); err != nil {
 			return fmt.Errorf("write output: %w", err)
 		}
-		log.WithField("file", graphOutput).Info("graph written")
+		log.WithField("file", outputFile).Info("graph written")
 		return nil
 	}
 
@@ -160,8 +129,6 @@ func formatList(g *graph.DependencyGraph) (string, error) {
 	}
 
 	var sb strings.Builder
-
-	// Group by context (first 2 segments) for readability
 	currentGroup := ""
 	for _, id := range sorted {
 		parts := strings.Split(id, "/")
@@ -178,7 +145,6 @@ func formatList(g *graph.DependencyGraph) (string, error) {
 			currentGroup = group
 		}
 
-		// Short name: segments after context
 		shortName := id
 		if len(parts) > 2 {
 			shortName = strings.Join(parts[2:], "/")
@@ -188,7 +154,6 @@ func formatList(g *graph.DependencyGraph) (string, error) {
 		if len(deps) == 0 {
 			fmt.Fprintf(&sb, "  %s\n", shortName)
 		} else {
-			// Show short dep names
 			shortDeps := make([]string, len(deps))
 			for i, dep := range deps {
 				depParts := strings.Split(dep, "/")
@@ -219,7 +184,6 @@ func formatLevels(g *graph.DependencyGraph) (string, error) {
 			if len(deps) == 0 {
 				fmt.Fprintf(&sb, "  %s\n", id)
 			} else {
-				// Show just leaf names of dependencies
 				depNames := make([]string, len(deps))
 				for j, dep := range deps {
 					parts := strings.Split(dep, "/")
@@ -233,9 +197,7 @@ func formatLevels(g *graph.DependencyGraph) (string, error) {
 	return sb.String(), nil
 }
 
-// --- Stats ---
-
-func printStats(g *graph.DependencyGraph) error {
+func printStats(g *graph.DependencyGraph, moduleID string) error {
 	stats := g.GetStats()
 
 	if moduleID != "" {
@@ -246,17 +208,13 @@ func printStats(g *graph.DependencyGraph) error {
 
 	log.IncreasePadding()
 
-	// Overview
 	log.WithField("count", stats.TotalModules).Info("total modules")
 	log.WithField("count", stats.TotalEdges).Info("total edges")
 	log.WithField("count", stats.RootModules).Info("root modules (no dependencies)")
 	log.WithField("count", stats.LeafModules).Info("leaf modules (no dependents)")
-
-	// Depth
 	log.WithField("depth", stats.MaxDepth).Info("max depth (execution levels)")
 	log.WithField("depth", fmt.Sprintf("%.1f", stats.AverageDepth)).Info("average depth")
 
-	// Parallelism per level
 	if len(stats.LevelCounts) > 0 {
 		levelStrs := make([]string, len(stats.LevelCounts))
 		for i, c := range stats.LevelCounts {
@@ -265,7 +223,6 @@ func printStats(g *graph.DependencyGraph) error {
 		log.WithField("distribution", strings.Join(levelStrs, " ")).Info("modules per level")
 	}
 
-	// Top depended-on modules (bottlenecks)
 	if len(stats.TopDependedOn) > 0 {
 		log.Info("most depended-on modules (bottlenecks)")
 		log.IncreasePadding()
@@ -275,7 +232,6 @@ func printStats(g *graph.DependencyGraph) error {
 		log.DecreasePadding()
 	}
 
-	// Top dependency-heavy modules
 	if len(stats.TopDependencies) > 0 {
 		log.Info("modules with most dependencies")
 		log.IncreasePadding()
@@ -285,7 +241,6 @@ func printStats(g *graph.DependencyGraph) error {
 		log.DecreasePadding()
 	}
 
-	// Cycles
 	if stats.HasCycles {
 		log.WithField("count", stats.CycleCount).Warn("cycles detected")
 		log.IncreasePadding()

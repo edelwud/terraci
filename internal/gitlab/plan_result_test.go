@@ -4,9 +4,10 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/edelwud/terraci/internal/ci"
 )
 
-// samplePlanJSONWithChanges for wrapper tests
 const samplePlanJSONWithChanges = `{
   "format_version": "1.2",
   "terraform_version": "1.6.0",
@@ -30,35 +31,10 @@ const samplePlanJSONWithChanges = `{
   ]
 }`
 
-func TestFormatPlanSummary_Wrapper(t *testing.T) {
-	// FormatPlanSummary is a var wrapping ci.FormatPlanSummary
-	if FormatPlanSummary == nil {
-		t.Fatal("FormatPlanSummary should not be nil")
-	}
-}
-
-func TestFormatPlanDetails_Wrapper(t *testing.T) {
-	if FormatPlanDetails == nil {
-		t.Fatal("FormatPlanDetails should not be nil")
-	}
-}
-
-func TestFilterPlanOutput_Wrapper(t *testing.T) {
-	if FilterPlanOutput == nil {
-		t.Fatal("FilterPlanOutput should not be nil")
-	}
-
-	// Verify it works as a passthrough
-	result := FilterPlanOutput("# resource will be updated\n  ~ field")
-	if result == "" {
-		t.Error("FilterPlanOutput should return non-empty for diff content")
-	}
-}
-
 func TestScanPlanResults_EmptyDir(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	collection, err := ScanPlanResults(tmpDir, nil)
+	collection, err := ci.ScanPlanResults(tmpDir, nil)
 	if err != nil {
 		t.Fatalf("ScanPlanResults failed: %v", err)
 	}
@@ -78,7 +54,7 @@ func TestScanPlanResults_InvalidJSON(t *testing.T) {
 		t.Fatalf("failed to write plan.json: %v", err)
 	}
 
-	collection, err := ScanPlanResults(tmpDir, nil)
+	collection, err := ci.ScanPlanResults(tmpDir, nil)
 	if err != nil {
 		t.Fatalf("ScanPlanResults failed: %v", err)
 	}
@@ -87,13 +63,12 @@ func TestScanPlanResults_InvalidJSON(t *testing.T) {
 		t.Fatalf("expected 1 result, got %d", len(collection.Results))
 	}
 
-	if collection.Results[0].Status != PlanStatusFailed {
+	if collection.Results[0].Status != ci.PlanStatusFailed {
 		t.Errorf("expected failed status for invalid JSON, got %s", collection.Results[0].Status)
 	}
 }
 
-// TestScanPlanResults_Wrapper verifies the gitlab package wrapper delegates correctly
-func TestScanPlanResults_Wrapper(t *testing.T) {
+func TestScanPlanResults_WithChanges(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	dir := filepath.Join(tmpDir, "platform", "stage", "eu-central-1", "vpc")
@@ -104,7 +79,7 @@ func TestScanPlanResults_Wrapper(t *testing.T) {
 		t.Fatalf("failed to write plan.json: %v", err)
 	}
 
-	collection, err := ScanPlanResults(tmpDir, nil)
+	collection, err := ci.ScanPlanResults(tmpDir, nil)
 	if err != nil {
 		t.Fatalf("ScanPlanResults failed: %v", err)
 	}
@@ -113,11 +88,10 @@ func TestScanPlanResults_Wrapper(t *testing.T) {
 		t.Fatalf("expected 1 result, got %d", len(collection.Results))
 	}
 
-	if collection.Results[0].Status != PlanStatusChanges {
+	if collection.Results[0].Status != ci.PlanStatusChanges {
 		t.Errorf("expected changes status, got %s", collection.Results[0].Status)
 	}
 
-	// Verify ToModulePlans still works through wrapper
 	plans := collection.ToModulePlans()
 	if len(plans) != 1 {
 		t.Fatalf("expected 1 plan, got %d", len(plans))

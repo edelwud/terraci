@@ -10,17 +10,6 @@ const (
 	terraCIImage          = "ghcr.io/edelwud/terraci:latest"
 )
 
-// buildConfigFromFlags builds config from CLI flags (non-interactive mode).
-func buildConfigFromFlags() *config.Config {
-	opts := initOptions{
-		provider: initProvider,
-		binary:   initBinary,
-		pattern:  initPattern,
-		image:    initImage,
-	}
-	return opts.buildConfig()
-}
-
 // initOptions holds all init parameters — shared between CLI and TUI.
 type initOptions struct {
 	provider    string

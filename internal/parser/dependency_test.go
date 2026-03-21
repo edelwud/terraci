@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
@@ -28,7 +29,7 @@ data "terraform_remote_state" "vpc" {
 
 	extractor := NewDependencyExtractor(NewParser(), discovery.NewModuleIndex([]*discovery.Module{eks, vpc}))
 
-	deps, err := extractor.ExtractDependencies(eks)
+	deps, err := extractor.ExtractDependencies(context.Background(), eks)
 	if err != nil {
 		t.Fatalf("extract: %v", err)
 	}
@@ -70,7 +71,7 @@ data "terraform_remote_state" "rds" {
 
 	extractor := NewDependencyExtractor(NewParser(), discovery.NewModuleIndex(modules))
 
-	deps, err := extractor.ExtractDependencies(modules[0]) // app
+	deps, err := extractor.ExtractDependencies(context.Background(), modules[0]) // app
 	if err != nil {
 		t.Fatalf("extract: %v", err)
 	}
@@ -104,7 +105,7 @@ data "terraform_remote_state" "deps" {
 
 	extractor := NewDependencyExtractor(NewParser(), discovery.NewModuleIndex(modules))
 
-	deps, err := extractor.ExtractDependencies(modules[0]) // app
+	deps, err := extractor.ExtractDependencies(context.Background(), modules[0]) // app
 	if err != nil {
 		t.Fatalf("extract: %v", err)
 	}
@@ -128,7 +129,7 @@ func TestExtractDependencies_Library(t *testing.T) {
 
 	extractor := NewDependencyExtractor(NewParser(), discovery.NewModuleIndex([]*discovery.Module{m}))
 
-	deps, err := extractor.ExtractDependencies(m)
+	deps, err := extractor.ExtractDependencies(context.Background(), m)
 	if err != nil {
 		t.Fatalf("extract: %v", err)
 	}
@@ -168,7 +169,7 @@ data "terraform_remote_state" "rds" {
 `)
 
 	extractor := NewDependencyExtractor(NewParser(), discovery.NewModuleIndex(modules))
-	allDeps, _ := extractor.ExtractAllDependencies()
+	allDeps, _ := extractor.ExtractAllDependencies(context.Background())
 
 	if len(allDeps) != 3 {
 		t.Fatalf("modules: got %d, want 3", len(allDeps))

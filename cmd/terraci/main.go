@@ -14,9 +14,7 @@ var (
 )
 
 func main() {
-	cmd.SetVersion(version, commit, date)
-
-	if err := cmd.Execute(); err != nil {
+	if err := cmd.NewRootCmd(version, commit, date).Execute(); err != nil {
 		os.Exit(1)
 	}
 }

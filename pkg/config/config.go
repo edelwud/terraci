@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"go.yaml.in/yaml/v4"
+
+	terrierrors "github.com/edelwud/terraci/pkg/errors"
 )
 
 // Config represents the terraci configuration
@@ -478,12 +480,12 @@ func DefaultConfig() *Config {
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read config file: %w", err)
+		return nil, &terrierrors.ConfigError{Path: path, Err: fmt.Errorf("read: %w", err)}
 	}
 
 	config := DefaultConfig()
 	if unmarshalErr := yaml.Unmarshal(data, config); unmarshalErr != nil {
-		return nil, fmt.Errorf("failed to parse config file: %w", unmarshalErr)
+		return nil, &terrierrors.ConfigError{Path: path, Err: fmt.Errorf("parse: %w", unmarshalErr)}
 	}
 
 	// Parse pattern segments

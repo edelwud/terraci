@@ -11,19 +11,19 @@ import (
 )
 
 func TestCommentRenderer_Render(t *testing.T) {
-	renderer := NewCommentRenderer()
+	renderer := ci.NewCommentRenderer()
 
-	plans := []ModulePlan{
+	plans := []ci.ModulePlan{
 		{
 			ModuleID:   "platform/stage/eu-central-1/vpc",
 			Components: map[string]string{"service": "platform", "environment": "stage", "region": "eu-central-1", "module": "vpc"},
-			Status:     PlanStatusNoChanges,
+			Status:     ci.PlanStatusNoChanges,
 			Summary:    "No changes. Infrastructure is up-to-date.",
 		},
 		{
 			ModuleID:          "platform/stage/eu-central-1/eks",
 			Components:        map[string]string{"service": "platform", "environment": "stage", "region": "eu-central-1", "module": "eks"},
-			Status:            PlanStatusChanges,
+			Status:            ci.PlanStatusChanges,
 			Summary:           "+2 ~1",
 			StructuredDetails: "**Create:**\n- `aws_instance.web`\n- `aws_instance.api`\n\n**Update:**\n- `aws_security_group.main`",
 			RawPlanOutput:     "# Some terraform plan output here",
@@ -31,12 +31,12 @@ func TestCommentRenderer_Render(t *testing.T) {
 		{
 			ModuleID:   "platform/prod/eu-central-1/vpc",
 			Components: map[string]string{"service": "platform", "environment": "prod", "region": "eu-central-1", "module": "vpc"},
-			Status:     PlanStatusFailed,
+			Status:     ci.PlanStatusFailed,
 			Error:      "Error acquiring state lock",
 		},
 	}
 
-	data := &CommentData{
+	data := &ci.CommentData{
 		Plans:       plans,
 		CommitSHA:   "abc123def456",
 		PipelineID:  "12345",
@@ -46,7 +46,7 @@ func TestCommentRenderer_Render(t *testing.T) {
 
 	result := renderer.Render(data)
 
-	if !strings.Contains(result, CommentMarker) {
+	if !strings.Contains(result, ci.CommentMarker) {
 		t.Error("missing comment marker")
 	}
 
@@ -97,7 +97,7 @@ func TestCommentRenderer_Render(t *testing.T) {
 func TestFindTerraCIComment(t *testing.T) {
 	notes := []*gitlab.Note{
 		{ID: 1, Body: "Some other comment"},
-		{ID: 2, Body: CommentMarker + "\n\n## Terraform Plan"},
+		{ID: 2, Body: ci.CommentMarker + "\n\n## Terraform Plan"},
 		{ID: 3, Body: "Another comment"},
 	}
 
@@ -138,8 +138,8 @@ func TestFindTerraCIComment_EmptyNotes(t *testing.T) {
 
 func TestFindTerraCIComment_FirstMatch(t *testing.T) {
 	notes := []*gitlab.Note{
-		{ID: 1, Body: CommentMarker + " first"},
-		{ID: 2, Body: CommentMarker + " second"},
+		{ID: 1, Body: ci.CommentMarker + " first"},
+		{ID: 2, Body: ci.CommentMarker + " second"},
 	}
 
 	found := FindTerraCIComment(notes)
@@ -148,40 +148,6 @@ func TestFindTerraCIComment_FirstMatch(t *testing.T) {
 	}
 	if found.ID != 1 {
 		t.Errorf("expected first match (ID=1), got ID=%d", found.ID)
-	}
-}
-
-func TestNewCommentRenderer(t *testing.T) {
-	r := NewCommentRenderer()
-	if r == nil {
-		t.Fatal("NewCommentRenderer returned nil")
-	}
-}
-
-func TestCommentMarkerConstant(t *testing.T) {
-	if CommentMarker != ci.CommentMarker {
-		t.Errorf("CommentMarker = %q, want %q", CommentMarker, ci.CommentMarker)
-	}
-}
-
-func TestPlanStatusConstants(t *testing.T) {
-	if PlanStatusPending != ci.PlanStatusPending {
-		t.Error("PlanStatusPending mismatch")
-	}
-	if PlanStatusRunning != ci.PlanStatusRunning {
-		t.Error("PlanStatusRunning mismatch")
-	}
-	if PlanStatusSuccess != ci.PlanStatusSuccess {
-		t.Error("PlanStatusSuccess mismatch")
-	}
-	if PlanStatusNoChanges != ci.PlanStatusNoChanges {
-		t.Error("PlanStatusNoChanges mismatch")
-	}
-	if PlanStatusChanges != ci.PlanStatusChanges {
-		t.Error("PlanStatusChanges mismatch")
-	}
-	if PlanStatusFailed != ci.PlanStatusFailed {
-		t.Error("PlanStatusFailed mismatch")
 	}
 }
 

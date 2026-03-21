@@ -14,7 +14,7 @@ func TestPRService_IsEnabled_NoPR(t *testing.T) {
 	t.Setenv("GITHUB_REF", "refs/heads/main")
 	t.Setenv("GITHUB_EVENT_PATH", "")
 
-	svc := NewPRService(nil)
+	svc := NewPRServiceFromEnv(nil)
 
 	if svc.IsEnabled() {
 		t.Error("expected IsEnabled() to be false when not in a PR")
@@ -27,7 +27,7 @@ func TestPRService_IsEnabled_NoToken(t *testing.T) {
 	t.Setenv("GITHUB_REF", "refs/pull/1/merge")
 	t.Setenv("GITHUB_EVENT_PATH", "")
 
-	svc := NewPRService(nil)
+	svc := NewPRServiceFromEnv(nil)
 
 	if svc.IsEnabled() {
 		t.Error("expected IsEnabled() to be false when no token is set")
@@ -40,7 +40,7 @@ func TestPRService_IsEnabled_Defaults(t *testing.T) {
 	t.Setenv("GITHUB_REF", "refs/pull/1/merge")
 	t.Setenv("GITHUB_EVENT_PATH", "")
 
-	svc := NewPRService(nil)
+	svc := NewPRServiceFromEnv(nil)
 
 	if !svc.IsEnabled() {
 		t.Error("expected IsEnabled() to be true with token, PR ref, and nil config")
@@ -59,7 +59,7 @@ func TestPRService_IsEnabled_Disabled(t *testing.T) {
 		},
 	}
 
-	svc := NewPRService(cfg)
+	svc := NewPRServiceFromEnv(cfg)
 
 	if svc.IsEnabled() {
 		t.Error("expected IsEnabled() to be false when config has Enabled=false")

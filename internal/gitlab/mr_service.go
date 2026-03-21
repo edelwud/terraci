@@ -4,26 +4,31 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/edelwud/terraci/internal/policy"
+	"github.com/edelwud/terraci/internal/ci"
 	"github.com/edelwud/terraci/pkg/config"
 )
 
 // MRService handles MR-related operations
 type MRService struct {
 	client   *Client
-	renderer *CommentRenderer
+	renderer *ci.CommentRenderer
 	config   *config.MRConfig
 	context  *MRContext
 }
 
-// NewMRService creates a new MR service
-func NewMRService(cfg *config.MRConfig) *MRService {
+// NewMRService creates a new MR service with injected dependencies.
+func NewMRService(cfg *config.MRConfig, client *Client, ctx *MRContext) *MRService {
 	return &MRService{
-		client:   NewClientFromEnv(),
-		renderer: NewCommentRenderer(),
+		client:   client,
+		renderer: ci.NewCommentRenderer(),
 		config:   cfg,
-		context:  DetectMRContext(),
+		context:  ctx,
 	}
+}
+
+// NewMRServiceFromEnv creates a new MR service with dependencies from environment.
+func NewMRServiceFromEnv(cfg *config.MRConfig) *MRService {
+	return NewMRService(cfg, NewClientFromEnv(), DetectMRContext())
 }
 
 // IsEnabled returns true if MR integration is enabled
@@ -52,31 +57,20 @@ func (s *MRService) IsEnabled() bool {
 }
 
 // UpsertComment creates or updates the terraci comment on the MR
-func (s *MRService) UpsertComment(plans []ModulePlan, policySummary *policy.Summary) error {
+func (s *MRService) UpsertComment(plans []ci.ModulePlan, policySummary *ci.PolicySummary) error {
 	if !s.IsEnabled() {
 		return nil
 	}
 
 	// Check if we should skip comment (on_changes_only)
 	if s.config != nil && s.config.Comment != nil && s.config.Comment.OnChangesOnly {
-		hasChanges := false
-		for i := range plans {
-			if plans[i].Status == PlanStatusChanges || plans[i].Status == PlanStatusFailed {
-				hasChanges = true
-				break
-			}
-		}
-		// Also check policy results
-		if policySummary != nil && (policySummary.HasFailures() || policySummary.HasWarnings()) {
-			hasChanges = true
-		}
-		if !hasChanges {
+		if !ci.HasReportableChanges(plans, policySummary) {
 			return nil
 		}
 	}
 
 	// Build comment data
-	data := &CommentData{
+	data := &ci.CommentData{
 		Plans:         plans,
 		PolicySummary: policySummary,
 		CommitSHA:     s.context.CommitSHA,

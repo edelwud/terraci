@@ -8,17 +8,15 @@ import (
 	"github.com/edelwud/terraci/internal/policy"
 )
 
-var versionCmd = &cobra.Command{
-	Use:   "version",
-	Short: "Print version information",
-	Run: func(_ *cobra.Command, _ []string) {
-		fmt.Printf("terraci %s\n", versionInfo.Version)
-		fmt.Printf("  commit: %s\n", versionInfo.Commit)
-		fmt.Printf("  built:  %s\n", versionInfo.Date)
-		fmt.Printf("  opa:    %s\n", policy.OPAVersion())
-	},
-}
-
-func init() {
-	rootCmd.AddCommand(versionCmd)
+func newVersionCmd(app *App) *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Print version information",
+		Run: func(_ *cobra.Command, _ []string) {
+			fmt.Printf("terraci %s\n", app.Version)
+			fmt.Printf("  commit: %s\n", app.Commit)
+			fmt.Printf("  built:  %s\n", app.Date)
+			fmt.Printf("  opa:    %s\n", policy.OPAVersion())
+		},
+	}
 }

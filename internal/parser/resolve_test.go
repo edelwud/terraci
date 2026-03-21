@@ -1,6 +1,9 @@
 package parser
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
 func TestResolveWorkspacePath_Simple(t *testing.T) {
 	dir := setupTempModule(t, map[string]string{
@@ -13,7 +16,7 @@ data "terraform_remote_state" "vpc" {
 	})
 
 	p := NewParser()
-	result, err := p.ParseModule(dir)
+	result, err := p.ParseModule(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
@@ -38,7 +41,7 @@ data "terraform_remote_state" "vpc" {
 	})
 
 	p := NewParser()
-	result, err := p.ParseModule(dir)
+	result, err := p.ParseModule(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
@@ -64,7 +67,7 @@ data "terraform_remote_state" "deps" {
 	})
 
 	p := NewParser()
-	result, err := p.ParseModule(dir)
+	result, err := p.ParseModule(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
@@ -103,7 +106,7 @@ data "terraform_remote_state" "vpc" {
 	})
 
 	p := NewParser()
-	result, err := p.ParseModule(dir)
+	result, err := p.ParseModule(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
@@ -143,7 +146,7 @@ data "terraform_remote_state" "vpc" {
 `)
 
 	p := NewParser()
-	result, err := p.ParseModule(moduleDir)
+	result, err := p.ParseModule(context.Background(), moduleDir)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
@@ -188,7 +191,7 @@ data "terraform_remote_state" "sg" {
 `)
 
 	p := NewParser()
-	result, err := p.ParseModule(moduleDir)
+	result, err := p.ParseModule(context.Background(), moduleDir)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
@@ -239,7 +242,7 @@ data "terraform_remote_state" "deps" {
 `)
 
 	p := NewParser()
-	result, err := p.ParseModule(moduleDir)
+	result, err := p.ParseModule(context.Background(), moduleDir)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
@@ -306,7 +309,7 @@ data "terraform_remote_state" "vpc_settings" {
 `)
 
 	p := NewParser()
-	result, err := p.ParseModule(moduleDir)
+	result, err := p.ParseModule(context.Background(), moduleDir)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}

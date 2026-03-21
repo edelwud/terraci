@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"os"
@@ -16,7 +17,11 @@ import (
 )
 
 // ParseModule parses all Terraform files in a module directory.
-func (p *Parser) ParseModule(modulePath string) (*ParsedModule, error) {
+func (p *Parser) ParseModule(ctx context.Context, modulePath string) (*ParsedModule, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	pm := &ParsedModule{
 		Path:         modulePath,
 		Locals:       make(map[string]cty.Value),

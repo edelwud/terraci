@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -26,7 +27,7 @@ func TestScanner_Scan(t *testing.T) {
 	}
 
 	scanner := NewScanner(tmpDir, 4, 5, defaultSegments)
-	found, err := scanner.Scan()
+	found, err := scanner.Scan(context.Background())
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
 	}
@@ -65,7 +66,7 @@ func TestScanner_Scan_NoSubmodules(t *testing.T) {
 
 	scanner := NewScanner(tmpDir, 4, 4, defaultSegments) // MaxDepth=4 disables submodules
 
-	found, err := scanner.Scan()
+	found, err := scanner.Scan(context.Background())
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
 	}
@@ -84,7 +85,7 @@ func TestScanner_ParentChildLinks(t *testing.T) {
 		"platform/stage/eu-central-1/ec2/redis",
 	})
 
-	found, err := NewScanner(tmpDir, 4, 5, defaultSegments).Scan()
+	found, err := NewScanner(tmpDir, 4, 5, defaultSegments).Scan(context.Background())
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
 	}

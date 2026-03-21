@@ -37,7 +37,8 @@ gitlab:
 
   # Docker image for terraform jobs (in default section)
   # String format:
-  image: "hashicorp/terraform:1.6"
+  image:
+    name: "hashicorp/terraform:1.6"
   # Object format (for images requiring entrypoint override):
   # image:
   #   name: "ghcr.io/opentofu/opentofu:1.9-minimal"
@@ -115,11 +116,3 @@ gitlab:
   #     rules:
   #       - if: '$CI_COMMIT_BRANCH == "main"'
   #         when: manual
-
-# Backend configuration (for state path resolution)
-backend:
-  type: s3
-  bucket: my-terraform-state
-  region: eu-central-1
-  # Pattern for state file keys
-  key_pattern: "{service}/{environment}/{region}/{module}/terraform.tfstate"

@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,6 +9,7 @@ import (
 
 // moduleCollector accumulates discovered modules during directory walk.
 type moduleCollector struct {
+	ctx      context.Context
 	absRoot  string
 	minDepth int
 	maxDepth int
@@ -19,6 +21,10 @@ type moduleCollector struct {
 func (c *moduleCollector) visit(path string, info os.FileInfo, walkErr error) error {
 	if walkErr != nil {
 		return walkErr
+	}
+
+	if err := c.ctx.Err(); err != nil {
+		return err
 	}
 
 	if shouldSkipDir(info) {

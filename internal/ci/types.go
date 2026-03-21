@@ -2,8 +2,6 @@ package ci
 
 import (
 	"time"
-
-	"github.com/edelwud/terraci/internal/policy"
 )
 
 // CommentMarker is used to identify terraci comments for updates
@@ -47,10 +45,41 @@ const (
 	PlanStatusFailed    PlanStatus = "failed"
 )
 
+// PolicySummary contains policy check data needed for rendering PR/MR comments.
+// This is a CI-local type to avoid coupling with the policy package.
+type PolicySummary struct {
+	TotalModules  int
+	PassedModules int
+	WarnedModules int
+	FailedModules int
+	TotalFailures int
+	TotalWarnings int
+	Results       []PolicyResult
+}
+
+// HasFailures returns true if any module has failures.
+func (s *PolicySummary) HasFailures() bool { return s.FailedModules > 0 }
+
+// HasWarnings returns true if any module has warnings.
+func (s *PolicySummary) HasWarnings() bool { return s.WarnedModules > 0 || s.TotalWarnings > 0 }
+
+// PolicyResult contains policy check results for a single module.
+type PolicyResult struct {
+	Module   string
+	Failures []PolicyViolation
+	Warnings []PolicyViolation
+}
+
+// PolicyViolation represents a single policy violation.
+type PolicyViolation struct {
+	Namespace string
+	Message   string
+}
+
 // CommentData contains all data needed to render a PR/MR comment
 type CommentData struct {
 	Plans         []ModulePlan
-	PolicySummary *policy.Summary
+	PolicySummary *PolicySummary
 	PipelineURL   string
 	PipelineID    string
 	CommitSHA     string

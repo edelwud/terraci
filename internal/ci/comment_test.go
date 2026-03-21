@@ -4,8 +4,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/edelwud/terraci/internal/policy"
 )
 
 func TestRender_BasicPlans(t *testing.T) {
@@ -79,15 +77,15 @@ func TestRender_WithPolicySummary(t *testing.T) {
 				Summary:    "+1",
 			},
 		},
-		PolicySummary: &policy.Summary{
+		PolicySummary: &PolicySummary{
 			TotalModules:  2,
 			PassedModules: 1,
 			FailedModules: 1,
 			TotalFailures: 1,
-			Results: []policy.Result{
+			Results: []PolicyResult{
 				{
 					Module: "svc/prod/us-east-1/vpc",
-					Failures: []policy.Violation{
+					Failures: []PolicyViolation{
 						{Namespace: "terraform.cost", Message: "too expensive"},
 					},
 				},
@@ -545,22 +543,22 @@ func TestRenderPolicySection(t *testing.T) {
 	r := NewCommentRenderer()
 
 	t.Run("with failures", func(t *testing.T) {
-		summary := &policy.Summary{
+		summary := &PolicySummary{
 			TotalModules:  3,
 			PassedModules: 1,
 			FailedModules: 2,
 			TotalFailures: 3,
-			Results: []policy.Result{
+			Results: []PolicyResult{
 				{
 					Module: "svc/prod/us-east-1/vpc",
-					Failures: []policy.Violation{
+					Failures: []PolicyViolation{
 						{Namespace: "terraform.security", Message: "no public access"},
 						{Namespace: "terraform.cost", Message: "budget exceeded"},
 					},
 				},
 				{
 					Module: "svc/prod/us-east-1/rds",
-					Failures: []policy.Violation{
+					Failures: []PolicyViolation{
 						{Namespace: "terraform.security", Message: "encryption required"},
 					},
 				},
@@ -584,14 +582,14 @@ func TestRenderPolicySection(t *testing.T) {
 	})
 
 	t.Run("with warnings only", func(t *testing.T) {
-		summary := &policy.Summary{
+		summary := &PolicySummary{
 			TotalModules:  1,
 			WarnedModules: 1,
 			TotalWarnings: 1,
-			Results: []policy.Result{
+			Results: []PolicyResult{
 				{
 					Module: "svc/staging/us-east-1/vpc",
-					Warnings: []policy.Violation{
+					Warnings: []PolicyViolation{
 						{Namespace: "terraform.naming", Message: "non-standard naming"},
 					},
 				},
@@ -612,7 +610,7 @@ func TestRenderPolicySection(t *testing.T) {
 	})
 
 	t.Run("all passed", func(t *testing.T) {
-		summary := &policy.Summary{
+		summary := &PolicySummary{
 			TotalModules:  2,
 			PassedModules: 2,
 		}
