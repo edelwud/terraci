@@ -114,13 +114,6 @@ func ParseModulePathComponents(modulePath string, segments []string) map[string]
 	return components
 }
 
-// ParseModulePath parses a module path and extracts components.
-// This is a backward-compatible wrapper around ParseModulePathComponents.
-func ParseModulePath(modulePath string) (service, env, region, module, submodule string) {
-	components := ParseModulePathComponents(modulePath, defaultSegments)
-	return components["service"], components["environment"], components["region"], components["module"], components["submodule"]
-}
-
 func parsePlanJSON(jsonPath, modulePath string, segments []string) (PlanResult, error) {
 	parsed, err := plan.ParseJSON(jsonPath)
 	if err != nil {
@@ -138,11 +131,6 @@ func parsePlanJSON(jsonPath, modulePath string, segments []string) (PlanResult, 
 	return PlanResult{
 		ModuleID:          strings.ReplaceAll(modulePath, string(filepath.Separator), "/"),
 		ModulePath:        modulePath,
-		Service:           components["service"],
-		Environment:       components["environment"],
-		Region:            components["region"],
-		Module:            components["module"],
-		Submodule:         components["submodule"],
 		Components:        components,
 		Status:            getPlanStatus(parsed),
 		Summary:           FormatPlanSummary(parsed),

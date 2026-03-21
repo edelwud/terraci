@@ -56,24 +56,6 @@ func (c *Client) Fetch() error {
 	return nil
 }
 
-// GetCurrentBranch returns the current branch name.
-func (c *Client) GetCurrentBranch() (string, error) {
-	repo, err := c.openRepo()
-	if err != nil {
-		return "", fmt.Errorf("open repository: %w", err)
-	}
-
-	headRef, err := repo.Head()
-	if err != nil {
-		return "", fmt.Errorf("get HEAD: %w", err)
-	}
-
-	if headRef.Name().IsBranch() {
-		return headRef.Name().Short(), nil
-	}
-	return headRef.Hash().String()[:7], nil
-}
-
 // GetDefaultBranch attempts to determine the default branch.
 func (c *Client) GetDefaultBranch() string {
 	repo, err := c.openRepo()

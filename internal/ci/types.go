@@ -91,11 +91,6 @@ type CommentData struct {
 type PlanResult struct {
 	ModuleID          string            `json:"module_id"`
 	ModulePath        string            `json:"module_path"`
-	Service           string            `json:"service"`
-	Environment       string            `json:"environment"`
-	Region            string            `json:"region"`
-	Module            string            `json:"module"`
-	Submodule         string            `json:"submodule,omitempty"`
 	Components        map[string]string `json:"components,omitempty"`
 	Status            PlanStatus        `json:"status"`
 	Summary           string            `json:"summary"`
@@ -110,26 +105,10 @@ type PlanResult struct {
 	HasCost    bool    `json:"has_cost,omitempty"`
 }
 
-// Get returns the value of a named component, checking Components first,
-// then falling back to fixed fields for backward compatibility with old JSON.
+// Get returns the value of a named component from the Components map.
 func (r *PlanResult) Get(name string) string {
 	if r.Components != nil {
-		if v, ok := r.Components[name]; ok {
-			return v
-		}
-	}
-	// Backward compat fallback for old JSON without Components
-	switch name {
-	case "service":
-		return r.Service
-	case "environment":
-		return r.Environment
-	case "region":
-		return r.Region
-	case "module":
-		return r.Module
-	case "submodule":
-		return r.Submodule
+		return r.Components[name]
 	}
 	return ""
 }
@@ -147,30 +126,10 @@ func (c *PlanResultCollection) ToModulePlans() []ModulePlan {
 	plans := make([]ModulePlan, len(c.Results))
 	for i := range c.Results {
 		r := &c.Results[i]
-		components := r.Components
-		if components == nil {
-			// Backward compat: build from fixed fields
-			components = map[string]string{}
-			if r.Service != "" {
-				components["service"] = r.Service
-			}
-			if r.Environment != "" {
-				components["environment"] = r.Environment
-			}
-			if r.Region != "" {
-				components["region"] = r.Region
-			}
-			if r.Module != "" {
-				components["module"] = r.Module
-			}
-			if r.Submodule != "" {
-				components["submodule"] = r.Submodule
-			}
-		}
 		plans[i] = ModulePlan{
 			ModuleID:          r.ModuleID,
 			ModulePath:        r.ModulePath,
-			Components:        components,
+			Components:        r.Components,
 			Status:            r.Status,
 			Summary:           r.Summary,
 			StructuredDetails: r.StructuredDetails,

@@ -77,28 +77,6 @@ func TestIsGitRepo(t *testing.T) {
 	})
 }
 
-func TestGetCurrentBranch(t *testing.T) {
-	dir, _ := initTestRepo(t)
-	client := NewClient(dir)
-
-	branch, err := client.GetCurrentBranch()
-	if err != nil {
-		t.Fatalf("GetCurrentBranch() error: %v", err)
-	}
-	// go-git defaults to "master" for PlainInit
-	if branch != "master" {
-		t.Errorf("GetCurrentBranch() = %q, want %q", branch, "master")
-	}
-}
-
-func TestGetCurrentBranch_NotGitRepo(t *testing.T) {
-	client := NewClient(t.TempDir())
-	_, err := client.GetCurrentBranch()
-	if err == nil {
-		t.Error("expected error for non-git directory")
-	}
-}
-
 func TestGetDefaultBranch(t *testing.T) {
 	t.Run("no remotes returns origin/main", func(t *testing.T) {
 		dir, _ := initTestRepo(t)

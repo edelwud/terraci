@@ -13,12 +13,8 @@ func TestPlanResultCollection_ToModulePlans(t *testing.T) {
 	collection := &PlanResultCollection{
 		Results: []PlanResult{
 			{
-				ModuleID:    "platform/stage/eu-central-1/vpc",
-				ModulePath:  "platform/stage/eu-central-1/vpc",
-				Service:     "platform",
-				Environment: "stage",
-				Region:      "eu-central-1",
-				Module:      "vpc",
+				ModuleID:   "platform/stage/eu-central-1/vpc",
+				ModulePath: "platform/stage/eu-central-1/vpc",
 				Components: map[string]string{
 					"service":     "platform",
 					"environment": "stage",
@@ -186,71 +182,6 @@ func TestScanPlanResults_Empty(t *testing.T) {
 
 	if len(collection.Results) != 0 {
 		t.Errorf("expected 0 results, got %d", len(collection.Results))
-	}
-}
-
-func TestParseModulePath(t *testing.T) {
-	tests := []struct {
-		name              string
-		path              string
-		expectedService   string
-		expectedEnv       string
-		expectedRegion    string
-		expectedModule    string
-		expectedSubmodule string
-	}{
-		{
-			name:            "regular module",
-			path:            "platform/stage/eu-central-1/vpc",
-			expectedService: "platform",
-			expectedEnv:     "stage",
-			expectedRegion:  "eu-central-1",
-			expectedModule:  "vpc",
-		},
-		{
-			name:              "submodule",
-			path:              "platform/stage/eu-central-1/ec2/web",
-			expectedService:   "platform",
-			expectedEnv:       "stage",
-			expectedRegion:    "eu-central-1",
-			expectedModule:    "ec2",
-			expectedSubmodule: "web",
-		},
-		{
-			name:              "nested submodule",
-			path:              "platform/stage/eu-central-1/ec2/web/api",
-			expectedService:   "platform",
-			expectedEnv:       "stage",
-			expectedRegion:    "eu-central-1",
-			expectedModule:    "ec2",
-			expectedSubmodule: "web/api",
-		},
-		{
-			name: "short path",
-			path: "foo/bar",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			service, env, region, module, submodule := ParseModulePath(tt.path)
-
-			if service != tt.expectedService {
-				t.Errorf("service: expected %q, got %q", tt.expectedService, service)
-			}
-			if env != tt.expectedEnv {
-				t.Errorf("env: expected %q, got %q", tt.expectedEnv, env)
-			}
-			if region != tt.expectedRegion {
-				t.Errorf("region: expected %q, got %q", tt.expectedRegion, region)
-			}
-			if module != tt.expectedModule {
-				t.Errorf("module: expected %q, got %q", tt.expectedModule, module)
-			}
-			if submodule != tt.expectedSubmodule {
-				t.Errorf("submodule: expected %q, got %q", tt.expectedSubmodule, submodule)
-			}
-		})
 	}
 }
 
