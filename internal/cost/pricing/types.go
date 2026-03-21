@@ -57,48 +57,9 @@ type PriceLookup struct {
 	Attributes    map[string]string
 }
 
-// AWSPriceListOffer represents the structure of AWS price list JSON
-type AWSPriceListOffer struct {
-	FormatVersion   string                `json:"formatVersion"`
-	Disclaimer      string                `json:"disclaimer"`
-	OfferCode       string                `json:"offerCode"`
-	Version         string                `json:"version"`
-	PublicationDate string                `json:"publicationDate"`
-	Products        map[string]AWSProduct `json:"products"`
-	Terms           AWSTerms              `json:"terms"`
-}
-
-// AWSProduct represents a product in the price list
-type AWSProduct struct {
-	SKU           string            `json:"sku"`
-	ProductFamily string            `json:"productFamily"`
-	Attributes    map[string]string `json:"attributes"`
-}
-
-// AWSTerms contains pricing terms
-type AWSTerms struct {
-	OnDemand map[string]map[string]AWSPricingTerm `json:"OnDemand"`
-	Reserved map[string]map[string]AWSPricingTerm `json:"Reserved,omitempty"`
-}
-
-// AWSPricingTerm represents a pricing term
-type AWSPricingTerm struct {
-	OfferTermCode   string                       `json:"offerTermCode"`
-	SKU             string                       `json:"sku"`
-	EffectiveDate   string                       `json:"effectiveDate"`
-	PriceDimensions map[string]AWSPriceDimension `json:"priceDimensions"`
-	TermAttributes  map[string]string            `json:"termAttributes,omitempty"`
-}
-
-// AWSPriceDimension represents a price dimension
-type AWSPriceDimension struct {
-	RateCode     string            `json:"rateCode"`
-	Description  string            `json:"description"`
-	BeginRange   string            `json:"beginRange"`
-	EndRange     string            `json:"endRange"`
-	Unit         string            `json:"unit"`
-	PricePerUnit map[string]string `json:"pricePerUnit"`
-	AppliesTo    []string          `json:"appliesTo,omitempty"`
+// isValid checks if the index contains usable data.
+func (idx *PriceIndex) isValid() bool {
+	return idx != nil && idx.ServiceCode != "" && idx.Region != "" && len(idx.Products) > 0
 }
 
 // RegionMapping maps AWS region codes to pricing region names

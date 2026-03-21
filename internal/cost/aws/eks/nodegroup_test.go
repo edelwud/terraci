@@ -1,4 +1,4 @@
-package aws
+package eks
 
 import (
 	"testing"
@@ -6,43 +6,15 @@ import (
 	"github.com/edelwud/terraci/internal/cost/pricing"
 )
 
-func TestEKSClusterHandler_ServiceCode(t *testing.T) {
-	h := &EKSClusterHandler{}
-	if h.ServiceCode() != pricing.ServiceEKS {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceEKS)
-	}
-}
-
-func TestEKSClusterHandler_BuildLookup_ReturnsNil(t *testing.T) {
-	h := &EKSClusterHandler{}
-	lookup, err := h.BuildLookup("us-east-1", nil)
-	// EKS cluster uses fixed cost, no pricing API lookup needed
-	if lookup != nil || err != nil {
-		t.Errorf("BuildLookup should return nil, nil; got %v, %v", lookup, err)
-	}
-}
-
-func TestEKSClusterHandler_CalculateCost_FixedPrice(t *testing.T) {
-	h := &EKSClusterHandler{}
-
-	hourly, monthly := h.CalculateCost(nil, nil)
-	if hourly != DefaultEKSClusterHourlyCost {
-		t.Errorf("hourly = %v, want %v", hourly, DefaultEKSClusterHourlyCost)
-	}
-	if monthly != DefaultEKSClusterHourlyCost*HoursPerMonth {
-		t.Errorf("monthly = %v, want %v", monthly, DefaultEKSClusterHourlyCost*HoursPerMonth)
-	}
-}
-
-func TestEKSNodeGroupHandler_ServiceCode(t *testing.T) {
-	h := &EKSNodeGroupHandler{}
+func TestNodeGroupHandler_ServiceCode(t *testing.T) {
+	h := &NodeGroupHandler{}
 	if h.ServiceCode() != pricing.ServiceEC2 {
 		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceEC2)
 	}
 }
 
-func TestEKSNodeGroupHandler_BuildLookup(t *testing.T) {
-	h := &EKSNodeGroupHandler{}
+func TestNodeGroupHandler_BuildLookup(t *testing.T) {
+	h := &NodeGroupHandler{}
 
 	tests := []struct {
 		name         string
@@ -66,8 +38,8 @@ func TestEKSNodeGroupHandler_BuildLookup(t *testing.T) {
 	}
 }
 
-func TestEKSNodeGroupHandler_CalculateCost(t *testing.T) {
-	h := &EKSNodeGroupHandler{}
+func TestNodeGroupHandler_CalculateCost(t *testing.T) {
+	h := &NodeGroupHandler{}
 	price := &pricing.Price{OnDemandUSD: 0.10}
 
 	tests := []struct {

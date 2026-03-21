@@ -12,16 +12,36 @@ const (
 
 // ResourceCost represents the estimated cost of a single resource
 type ResourceCost struct {
-	Address       string  `json:"address"`        // Terraform resource address
-	Type          string  `json:"type"`           // Terraform resource type (aws_instance)
-	Name          string  `json:"name"`           // Resource name
-	Region        string  `json:"region"`         // AWS region
-	MonthlyCost   float64 `json:"monthly_cost"`   // Monthly cost in USD
-	HourlyCost    float64 `json:"hourly_cost"`    // Hourly cost in USD
-	PriceSource   string  `json:"price_source"`   // Source of pricing (aws-bulk-api, cached)
-	Unsupported   bool    `json:"unsupported"`    // True if resource type not supported
-	UnsupportedBy string  `json:"unsupported_by"` // Reason for unsupported
+	Address           string        `json:"address"`                       // Terraform resource address
+	Type              string        `json:"type"`                          // Terraform resource type (aws_instance)
+	Name              string        `json:"name"`                          // Resource name
+	Region            string        `json:"region"`                        // AWS region
+	MonthlyCost       float64       `json:"monthly_cost"`                  // After-state monthly cost in USD
+	HourlyCost        float64       `json:"hourly_cost"`                   // After-state hourly cost in USD
+	BeforeMonthlyCost float64       `json:"before_monthly_cost,omitempty"` // Before-state monthly cost (update/replace)
+	BeforeHourlyCost  float64       `json:"before_hourly_cost,omitempty"`  // Before-state hourly cost (update/replace)
+	PriceSource       string        `json:"price_source"`                  // Source of pricing (aws-bulk-api, fixed, usage-based)
+	ErrorKind         CostErrorKind `json:"error_kind,omitempty"`          // Classification of estimation error
+	ErrorDetail       string        `json:"error_detail,omitempty"`        // Human-readable error detail
 }
+
+// IsUnsupported returns true if the resource cost could not be estimated
+// (excluding usage-based resources which are expected to have no static price).
+func (r ResourceCost) IsUnsupported() bool {
+	return r.ErrorKind != CostErrorNone && r.ErrorKind != CostErrorUsageBased
+}
+
+// CostErrorKind classifies the type of cost estimation error.
+type CostErrorKind string //nolint:revive // name is intentional for clarity outside the package
+
+const (
+	CostErrorNone         CostErrorKind = ""
+	CostErrorNoHandler    CostErrorKind = "no_handler"
+	CostErrorUsageBased   CostErrorKind = "usage_based"
+	CostErrorLookupFailed CostErrorKind = "lookup_failed"
+	CostErrorAPIFailure   CostErrorKind = "api_failure"
+	CostErrorNoPrice      CostErrorKind = "no_price"
+)
 
 // ModuleCost represents the total cost estimate for a terraform module
 type ModuleCost struct {

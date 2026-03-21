@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/caarlos0/log"
@@ -18,11 +19,13 @@ const (
 	DefaultCacheTTL = 24 * time.Hour
 )
 
-// Cache manages local pricing data cache
+// Cache manages local pricing data cache.
+// Safe for concurrent use.
 type Cache struct {
 	dir     string
 	ttl     time.Duration
 	fetcher *Fetcher
+	mu      sync.Mutex // protects file writes
 }
 
 // NewCache creates a new pricing cache
@@ -183,11 +186,18 @@ func (c *Cache) loadFromCache(service ServiceCode, region string) (*PriceIndex, 
 		return nil, err
 	}
 
+	if !idx.isValid() {
+		return nil, fmt.Errorf("invalid cache entry")
+	}
+
 	return &idx, nil
 }
 
-// saveToCache saves an index to cache
+// saveToCache saves an index to cache (mutex-protected for concurrent access).
 func (c *Cache) saveToCache(idx *PriceIndex) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	path := c.cachePath(idx.ServiceCode, idx.Region)
 
 	// Ensure directory exists

@@ -117,7 +117,6 @@ func TestResourceCost(t *testing.T) {
 		MonthlyCost: 73.00,
 		HourlyCost:  0.10,
 		PriceSource: "aws-bulk-api",
-		Unsupported: false,
 	}
 
 	if rc.Address != "aws_instance.web" {
@@ -148,7 +147,11 @@ func TestResourceCost(t *testing.T) {
 		t.Errorf("PriceSource = %q, want %q", rc.PriceSource, "aws-bulk-api")
 	}
 
-	if rc.Unsupported {
-		t.Error("Unsupported should be false")
+	if rc.ErrorKind != CostErrorNone {
+		t.Errorf("ErrorKind = %q, want empty", rc.ErrorKind)
+	}
+
+	if rc.IsUnsupported() {
+		t.Error("IsUnsupported() should be false")
 	}
 }

@@ -170,7 +170,7 @@ func TestInvalidate(t *testing.T) {
 		ServiceCode: ServiceEC2,
 		Region:      "us-west-2",
 		UpdatedAt:   time.Now(),
-		Products:    map[string]Price{},
+		Products:    map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
 	}
 
 	if err := c.saveToCache(idx); err != nil {
@@ -204,7 +204,7 @@ func TestInvalidateAll(t *testing.T) {
 			ServiceCode: s.code,
 			Region:      s.region,
 			UpdatedAt:   time.Now(),
-			Products:    map[string]Price{},
+			Products:    map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
 		}
 		if err := c.saveToCache(idx); err != nil {
 			t.Fatalf("saveToCache(%s, %s) error: %v", s.code, s.region, err)
@@ -228,7 +228,7 @@ func TestValidate_AllCached(t *testing.T) {
 		ServiceCode: ServiceEC2,
 		Region:      "us-east-1",
 		UpdatedAt:   time.Now(),
-		Products:    map[string]Price{},
+		Products:    map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
 	}
 	if err := c.saveToCache(idx); err != nil {
 		t.Fatalf("saveToCache() error: %v", err)
@@ -251,7 +251,7 @@ func TestValidate_SomeMissing(t *testing.T) {
 		ServiceCode: ServiceEC2,
 		Region:      "us-east-1",
 		UpdatedAt:   time.Now(),
-		Products:    map[string]Price{},
+		Products:    map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
 	}
 	if err := c.saveToCache(idx); err != nil {
 		t.Fatalf("saveToCache() error: %v", err)
@@ -279,7 +279,7 @@ func TestCleanExpired(t *testing.T) {
 		ServiceCode: ServiceEC2,
 		Region:      "us-east-1",
 		UpdatedAt:   time.Now(),
-		Products:    map[string]Price{},
+		Products:    map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
 	}
 	if err := c.saveToCache(fresh); err != nil {
 		t.Fatalf("saveToCache(fresh) error: %v", err)
@@ -290,7 +290,7 @@ func TestCleanExpired(t *testing.T) {
 		ServiceCode: ServiceRDS,
 		Region:      "eu-west-1",
 		UpdatedAt:   time.Now(),
-		Products:    map[string]Price{},
+		Products:    map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
 	}
 	if err := c.saveToCache(old); err != nil {
 		t.Fatalf("saveToCache(old) error: %v", err)

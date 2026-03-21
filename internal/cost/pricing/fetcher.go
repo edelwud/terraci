@@ -21,6 +21,50 @@ const (
 	DefaultTimeout = 5 * time.Minute
 )
 
+// awsPriceListOffer represents the structure of AWS price list JSON
+type awsPriceListOffer struct {
+	FormatVersion   string                `json:"formatVersion"`
+	Disclaimer      string                `json:"disclaimer"`
+	OfferCode       string                `json:"offerCode"`
+	Version         string                `json:"version"`
+	PublicationDate string                `json:"publicationDate"`
+	Products        map[string]awsProduct `json:"products"`
+	Terms           awsTerms              `json:"terms"`
+}
+
+// awsProduct represents a product in the price list
+type awsProduct struct {
+	SKU           string            `json:"sku"`
+	ProductFamily string            `json:"productFamily"`
+	Attributes    map[string]string `json:"attributes"`
+}
+
+// awsTerms contains pricing terms
+type awsTerms struct {
+	OnDemand map[string]map[string]awsPricingTerm `json:"OnDemand"`
+	Reserved map[string]map[string]awsPricingTerm `json:"Reserved,omitempty"`
+}
+
+// awsPricingTerm represents a pricing term
+type awsPricingTerm struct {
+	OfferTermCode   string                       `json:"offerTermCode"`
+	SKU             string                       `json:"sku"`
+	EffectiveDate   string                       `json:"effectiveDate"`
+	PriceDimensions map[string]awsPriceDimension `json:"priceDimensions"`
+	TermAttributes  map[string]string            `json:"termAttributes,omitempty"`
+}
+
+// awsPriceDimension represents a price dimension
+type awsPriceDimension struct {
+	RateCode     string            `json:"rateCode"`
+	Description  string            `json:"description"`
+	BeginRange   string            `json:"beginRange"`
+	EndRange     string            `json:"endRange"`
+	Unit         string            `json:"unit"`
+	PricePerUnit map[string]string `json:"pricePerUnit"`
+	AppliesTo    []string          `json:"appliesTo,omitempty"`
+}
+
 // Fetcher downloads and parses AWS pricing data
 type Fetcher struct {
 	Client  *http.Client
@@ -73,7 +117,7 @@ func (f *Fetcher) buildRegionURL(service ServiceCode, region string) string {
 
 // parseToIndex stream parses AWS pricing JSON and builds a compact index
 func (f *Fetcher) parseToIndex(r io.Reader, service ServiceCode, region string) (*PriceIndex, error) {
-	var offer AWSPriceListOffer
+	var offer awsPriceListOffer
 	decoder := json.NewDecoder(r)
 	if err := decoder.Decode(&offer); err != nil {
 		return nil, fmt.Errorf("decode pricing JSON: %w", err)

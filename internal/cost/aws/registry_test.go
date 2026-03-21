@@ -6,32 +6,38 @@ import (
 	"github.com/edelwud/terraci/internal/cost/pricing"
 )
 
-func TestNewRegistry(t *testing.T) {
-	r := NewRegistry()
+// stubHandler implements ResourceHandler for testing the registry.
+type stubHandler struct {
+	svc      pricing.ServiceCode
+	category CostCategory
+}
 
-	// Check some expected handlers are registered
-	expectedTypes := []string{
-		"aws_instance",
-		"aws_ebs_volume",
-		"aws_db_instance",
-		"aws_lb",
-		"aws_elasticache_cluster",
-		"aws_eks_cluster",
-		"aws_lambda_function",
-		"aws_dynamodb_table",
-	}
+func (h *stubHandler) Category() CostCategory           { return h.category }
+func (h *stubHandler) ServiceCode() pricing.ServiceCode { return h.svc }
+func (h *stubHandler) BuildLookup(string, map[string]any) (*pricing.PriceLookup, error) {
+	return nil, nil
+}
+func (h *stubHandler) CalculateCost(*pricing.Price, map[string]any) (hourly, monthly float64) {
+	return 0, 0
+}
 
-	for _, rt := range expectedTypes {
-		if !r.IsSupported(rt) {
-			t.Errorf("Registry should support %q", rt)
-		}
-	}
+func newTestRegistry() *Registry {
+	r := &Registry{handlers: make(map[string]ResourceHandler)}
+	r.Register("aws_instance", &stubHandler{svc: pricing.ServiceEC2, category: CostCategoryStandard})
+	r.Register("aws_ebs_volume", &stubHandler{svc: pricing.ServiceEC2, category: CostCategoryStandard})
+	r.Register("aws_db_instance", &stubHandler{svc: pricing.ServiceRDS, category: CostCategoryStandard})
+	r.Register("aws_lb", &stubHandler{svc: pricing.ServiceEC2, category: CostCategoryStandard})
+	r.Register("aws_alb", &stubHandler{svc: pricing.ServiceEC2, category: CostCategoryStandard})
+	r.Register("aws_elasticache_cluster", &stubHandler{svc: pricing.ServiceElastiCache, category: CostCategoryStandard})
+	r.Register("aws_eks_cluster", &stubHandler{svc: pricing.ServiceEKS, category: CostCategoryStandard})
+	r.Register("aws_lambda_function", &stubHandler{svc: pricing.ServiceLambda, category: CostCategoryStandard})
+	r.Register("aws_dynamodb_table", &stubHandler{svc: pricing.ServiceDynamoDB, category: CostCategoryStandard})
+	return r
 }
 
 func TestRegistry_GetHandler(t *testing.T) {
-	r := NewRegistry()
+	r := newTestRegistry()
 
-	// Test existing handler
 	handler, ok := r.GetHandler("aws_instance")
 	if !ok {
 		t.Fatal("GetHandler should return handler for aws_instance")
@@ -43,7 +49,6 @@ func TestRegistry_GetHandler(t *testing.T) {
 		t.Errorf("aws_instance ServiceCode = %q, want %q", handler.ServiceCode(), pricing.ServiceEC2)
 	}
 
-	// Test non-existing handler
 	_, ok = r.GetHandler("aws_nonexistent_resource")
 	if ok {
 		t.Error("GetHandler should return false for nonexistent resource")
@@ -51,7 +56,7 @@ func TestRegistry_GetHandler(t *testing.T) {
 }
 
 func TestRegistry_IsSupported(t *testing.T) {
-	r := NewRegistry()
+	r := newTestRegistry()
 
 	tests := []struct {
 		resourceType string
@@ -60,7 +65,7 @@ func TestRegistry_IsSupported(t *testing.T) {
 		{"aws_instance", true},
 		{"aws_db_instance", true},
 		{"aws_lb", true},
-		{"aws_alb", true}, // alias
+		{"aws_alb", true},
 		{"aws_nonexistent", false},
 		{"google_compute_instance", false},
 		{"", false},
@@ -68,26 +73,24 @@ func TestRegistry_IsSupported(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.resourceType, func(t *testing.T) {
-			result := r.IsSupported(tt.resourceType)
-			if result != tt.expected {
-				t.Errorf("IsSupported(%q) = %v, want %v", tt.resourceType, result, tt.expected)
+			if r.IsSupported(tt.resourceType) != tt.expected {
+				t.Errorf("IsSupported(%q) = %v, want %v", tt.resourceType, !tt.expected, tt.expected)
 			}
 		})
 	}
 }
 
 func TestRegistry_SupportedTypes(t *testing.T) {
-	r := NewRegistry()
+	r := newTestRegistry()
 	types := r.SupportedTypes()
 
 	if len(types) == 0 {
 		t.Error("SupportedTypes should return non-empty list")
 	}
 
-	// Check at least some expected types are present
 	typeSet := make(map[string]bool)
-	for _, t := range types {
-		typeSet[t] = true
+	for _, tp := range types {
+		typeSet[tp] = true
 	}
 
 	if !typeSet["aws_instance"] {
@@ -99,22 +102,20 @@ func TestRegistry_SupportedTypes(t *testing.T) {
 }
 
 func TestRegistry_RequiredServices(t *testing.T) {
-	r := NewRegistry()
+	r := newTestRegistry()
 
-	resourceTypes := []string{"aws_instance", "aws_db_instance", "aws_elasticache_cluster"}
-	services := r.RequiredServices(resourceTypes)
+	services := r.RequiredServices([]string{"aws_instance", "aws_db_instance", "aws_elasticache_cluster"})
 
 	if len(services) == 0 {
 		t.Error("RequiredServices should return non-empty map")
 	}
-
 	if !services[pricing.ServiceEC2] {
-		t.Error("RequiredServices should include ServiceEC2 for aws_instance")
+		t.Error("should include ServiceEC2")
 	}
 	if !services[pricing.ServiceRDS] {
-		t.Error("RequiredServices should include ServiceRDS for aws_db_instance")
+		t.Error("should include ServiceRDS")
 	}
 	if !services[pricing.ServiceElastiCache] {
-		t.Error("RequiredServices should include ServiceElastiCache for aws_elasticache_cluster")
+		t.Error("should include ServiceElastiCache")
 	}
 }

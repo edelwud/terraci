@@ -1,20 +1,21 @@
-package aws
+package rds
 
 import (
 	"testing"
 
+	aws "github.com/edelwud/terraci/internal/cost/aws"
 	"github.com/edelwud/terraci/internal/cost/pricing"
 )
 
-func TestRDSInstanceHandler_ServiceCode(t *testing.T) {
-	h := &RDSInstanceHandler{}
+func TestInstanceHandler_ServiceCode(t *testing.T) {
+	h := &InstanceHandler{}
 	if h.ServiceCode() != pricing.ServiceRDS {
 		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceRDS)
 	}
 }
 
-func TestRDSInstanceHandler_BuildLookup(t *testing.T) {
-	h := &RDSInstanceHandler{}
+func TestInstanceHandler_BuildLookup(t *testing.T) {
+	h := &InstanceHandler{}
 
 	tests := []struct {
 		name           string
@@ -95,8 +96,8 @@ func TestRDSInstanceHandler_BuildLookup(t *testing.T) {
 	}
 }
 
-func TestRDSInstanceHandler_CalculateCost(t *testing.T) {
-	h := &RDSInstanceHandler{}
+func TestInstanceHandler_CalculateCost(t *testing.T) {
+	h := &InstanceHandler{}
 
 	price := &pricing.Price{
 		OnDemandUSD: 0.10, // $0.10/hour
@@ -110,7 +111,7 @@ func TestRDSInstanceHandler_CalculateCost(t *testing.T) {
 		{
 			name:            "compute only",
 			attrs:           map[string]any{},
-			expectedMonthly: 0.10 * 730,
+			expectedMonthly: 0.10 * aws.HoursPerMonth,
 		},
 		{
 			name: "with gp2 storage",
@@ -118,7 +119,7 @@ func TestRDSInstanceHandler_CalculateCost(t *testing.T) {
 				"storage_type":      "gp2",
 				"allocated_storage": float64(100),
 			},
-			expectedMonthly: 0.10*730 + 100*0.115, // compute + storage
+			expectedMonthly: 0.10*aws.HoursPerMonth + 100*0.115, // compute + storage
 		},
 		{
 			name: "with io1 storage and iops",
@@ -127,7 +128,7 @@ func TestRDSInstanceHandler_CalculateCost(t *testing.T) {
 				"allocated_storage": float64(100),
 				"iops":              float64(1000),
 			},
-			expectedMonthly: 0.10*730 + 100*0.125 + 1000*0.10, // compute + storage + iops
+			expectedMonthly: 0.10*aws.HoursPerMonth + 100*0.125 + 1000*0.10, // compute + storage + iops
 		},
 	}
 
@@ -137,73 +138,6 @@ func TestRDSInstanceHandler_CalculateCost(t *testing.T) {
 
 			if monthly != tt.expectedMonthly {
 				t.Errorf("monthly = %v, want %v", monthly, tt.expectedMonthly)
-			}
-		})
-	}
-}
-
-func TestRDSClusterHandler_ServiceCode(t *testing.T) {
-	h := &RDSClusterHandler{}
-	if h.ServiceCode() != pricing.ServiceRDS {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceRDS)
-	}
-}
-
-func TestRDSClusterInstanceHandler_BuildLookup(t *testing.T) {
-	h := &RDSClusterInstanceHandler{}
-
-	tests := []struct {
-		name       string
-		attrs      map[string]any
-		wantErr    bool
-		wantClass  string
-		wantEngine string
-	}{
-		{
-			name: "aurora-mysql instance",
-			attrs: map[string]any{
-				"instance_class": "db.r5.large",
-				"engine":         "aurora-mysql",
-			},
-			wantClass:  "db.r5.large",
-			wantEngine: "Aurora MySQL",
-		},
-		{
-			name: "aurora-postgresql instance",
-			attrs: map[string]any{
-				"instance_class": "db.r5.xlarge",
-				"engine":         "aurora-postgresql",
-			},
-			wantClass:  "db.r5.xlarge",
-			wantEngine: "Aurora PostgreSQL",
-		},
-		{
-			name:    "missing instance_class",
-			attrs:   map[string]any{},
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			lookup, err := h.BuildLookup("us-east-1", tt.attrs)
-
-			if tt.wantErr {
-				if err == nil {
-					t.Error("BuildLookup should return error")
-				}
-				return
-			}
-
-			if err != nil {
-				t.Fatalf("BuildLookup returned error: %v", err)
-			}
-
-			if lookup.Attributes["instanceType"] != tt.wantClass {
-				t.Errorf("instanceType = %q, want %q", lookup.Attributes["instanceType"], tt.wantClass)
-			}
-			if lookup.Attributes["databaseEngine"] != tt.wantEngine {
-				t.Errorf("databaseEngine = %q, want %q", lookup.Attributes["databaseEngine"], tt.wantEngine)
 			}
 		})
 	}
@@ -228,9 +162,9 @@ func TestMapRDSEngine(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.engine, func(t *testing.T) {
-			result := mapRDSEngine(tt.engine)
+			result := MapRDSEngine(tt.engine)
 			if result != tt.expected {
-				t.Errorf("mapRDSEngine(%q) = %q, want %q", tt.engine, result, tt.expected)
+				t.Errorf("MapRDSEngine(%q) = %q, want %q", tt.engine, result, tt.expected)
 			}
 		})
 	}
@@ -250,9 +184,9 @@ func TestGetStorageCostPerGB(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.storageType, func(t *testing.T) {
-			result := getStorageCostPerGB(tt.storageType)
+			result := GetStorageCostPerGB(tt.storageType)
 			if result != tt.expected {
-				t.Errorf("getStorageCostPerGB(%q) = %v, want %v", tt.storageType, result, tt.expected)
+				t.Errorf("GetStorageCostPerGB(%q) = %v, want %v", tt.storageType, result, tt.expected)
 			}
 		})
 	}

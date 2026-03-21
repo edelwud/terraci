@@ -194,21 +194,31 @@ func outputCostResult(app *App, costOutputFmt string, result *cost.EstimateResul
 			log.DecreasePadding()
 		}
 
-		// Show per-resource costs in verbose mode
+		// Show per-resource breakdown
 		if len(mc.Resources) > 0 {
 			log.IncreasePadding()
-			for _, rc := range mc.Resources {
-				if rc.Unsupported {
-					continue
-				}
-				if rc.MonthlyCost > 0 {
+			for i := range mc.Resources {
+				rc := &mc.Resources[i]
+				switch rc.ErrorKind {
+				case cost.CostErrorNone:
+					if rc.MonthlyCost > 0 {
+						log.WithField("resource", rc.Address).
+							WithField("monthly", cost.FormatCost(rc.MonthlyCost)).
+							Info("resource")
+					}
+				case cost.CostErrorUsageBased:
 					log.WithField("resource", rc.Address).
-						WithField("monthly", cost.FormatCost(rc.MonthlyCost)).
-						Debug("resource")
+						WithField("type", rc.Type).
+						Info("usage-based (no fixed cost)")
+				case cost.CostErrorNoHandler:
+					log.WithField("resource", rc.Address).
+						WithField("type", rc.Type).
+						Debug("no cost handler")
+				case cost.CostErrorLookupFailed, cost.CostErrorAPIFailure, cost.CostErrorNoPrice:
+					log.WithField("resource", rc.Address).
+						WithField("error", rc.ErrorDetail).
+						Warn("cost estimation failed")
 				}
-			}
-			if mc.Unsupported > 0 {
-				log.WithField("count", mc.Unsupported).Debug("unsupported resources (usage-based)")
 			}
 			log.DecreasePadding()
 		}

@@ -187,7 +187,7 @@ func TestNewEstimator(t *testing.T) {
 	}
 }
 
-func TestGetResourceAttrs(t *testing.T) {
+func TestGetAfterAttrs(t *testing.T) {
 	tests := []struct {
 		name     string
 		rc       plan.ResourceChange
@@ -200,7 +200,7 @@ func TestGetResourceAttrs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := getResourceAttrs(tt.rc)
+			got := getAfterAttrs(tt.rc)
 			for _, k := range tt.wantKeys {
 				if _, ok := got[k]; !ok {
 					t.Errorf("missing %q", k)

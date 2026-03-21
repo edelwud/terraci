@@ -1,4 +1,4 @@
-package aws
+package elb
 
 import (
 	"testing"
@@ -6,15 +6,15 @@ import (
 	"github.com/edelwud/terraci/internal/cost/pricing"
 )
 
-func TestLBHandler_ServiceCode(t *testing.T) {
-	h := &LBHandler{}
+func TestALBHandler_ServiceCode(t *testing.T) {
+	h := &ALBHandler{}
 	if h.ServiceCode() != pricing.ServiceEC2 {
 		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceEC2)
 	}
 }
 
-func TestLBHandler_BuildLookup(t *testing.T) {
-	h := &LBHandler{}
+func TestALBHandler_BuildLookup(t *testing.T) {
+	h := &ALBHandler{}
 
 	tests := []struct {
 		name       string
@@ -63,8 +63,8 @@ func TestLBHandler_BuildLookup(t *testing.T) {
 	}
 }
 
-func TestLBHandler_CalculateCost(t *testing.T) {
-	h := &LBHandler{}
+func TestALBHandler_CalculateCost(t *testing.T) {
+	h := &ALBHandler{}
 
 	tests := []struct {
 		name           string
@@ -110,45 +110,5 @@ func TestLBHandler_CalculateCost(t *testing.T) {
 				t.Errorf("hourly = %v, want %v", hourly, tt.expectedHourly)
 			}
 		})
-	}
-}
-
-func TestClassicLBHandler_ServiceCode(t *testing.T) {
-	h := &ClassicLBHandler{}
-	if h.ServiceCode() != pricing.ServiceELB {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceELB)
-	}
-}
-
-func TestClassicLBHandler_BuildLookup(t *testing.T) {
-	h := &ClassicLBHandler{}
-
-	lookup, err := h.BuildLookup("us-east-1", nil)
-	if err != nil {
-		t.Fatalf("BuildLookup returned error: %v", err)
-	}
-
-	if lookup.ProductFamily != "Load Balancer" {
-		t.Errorf("ProductFamily = %q, want %q", lookup.ProductFamily, "Load Balancer")
-	}
-}
-
-func TestClassicLBHandler_CalculateCost(t *testing.T) {
-	h := &ClassicLBHandler{}
-
-	// With price
-	price := &pricing.Price{OnDemandUSD: 0.03}
-	hourly, monthly := h.CalculateCost(price, nil)
-	if hourly != 0.03 {
-		t.Errorf("hourly = %v, want %v", hourly, 0.03)
-	}
-	if monthly != 0.03*730 {
-		t.Errorf("monthly = %v, want %v", monthly, 0.03*730)
-	}
-
-	// Fallback
-	hourly, _ = h.CalculateCost(&pricing.Price{OnDemandUSD: 0}, nil)
-	if hourly != 0.025 {
-		t.Errorf("fallback hourly = %v, want %v", hourly, 0.025)
 	}
 }

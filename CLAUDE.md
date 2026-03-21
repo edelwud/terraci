@@ -17,11 +17,12 @@ make install    # Install to $GOPATH/bin
 
 ```
 cmd/terraci/
-├── main.go                     # Entry point
+├── main.go                     # Entry point — calls cmd.NewRootCmd()
 └── cmd/
-    ├── root.go                 # Root command, global flags, config loading
+    ├── app.go                  # App struct — shared state for all commands
+    ├── root.go                 # NewRootCmd() factory, PersistentPreRunE, subcommand registration
     ├── generate.go             # Pipeline generation (main workflow)
-    ├── filters.go              # Shared filter flags (--exclude, --include, --filter)
+    ├── filters.go              # filterFlags struct — shared filter flags and helpers
     ├── validate.go             # Config/project validation
     ├── graph.go                # Dependency graph visualization
     ├── init.go                 # Config initialization (entry point)
@@ -36,17 +37,19 @@ cmd/terraci/
     └── version.go              # Version info
 
 internal/
+├── workflow/
+│   └── module_workflow.go      # Shared orchestration: scan → filter → parse → build graph
 ├── discovery/
 │   ├── module.go               # Module struct (dynamic components + segments)
-│   ├── scanner.go              # Scanner — directory walk entry point
-│   ├── collector.go            # moduleCollector — walk logic, predicates
+│   ├── scanner.go              # Scanner.Scan(ctx) — directory walk entry point
+│   ├── collector.go            # moduleCollector — walk logic, context cancellation
 │   ├── index.go                # ModuleIndex — fast lookups by ID/path/name
 │   └── testing.go              # TestModule() helper for tests
 ├── parser/
 │   ├── types.go                # Parser, ParsedModule, RemoteStateRef, ModuleCall
-│   ├── hcl.go                  # ParseModule, multi-pass locals evaluation, extractors
+│   ├── hcl.go                  # ParseModule(ctx), multi-pass locals evaluation, extractors
 │   ├── resolve.go              # ResolveWorkspacePath, for_each resolution
-│   └── dependency.go           # DependencyExtractor, matchPathToModule (strategy chain)
+│   └── dependency.go           # DependencyExtractor, ExtractAllDependencies(ctx)
 ├── graph/
 │   ├── dependency.go           # DependencyGraph, Node, edges, traversal, library usage
 │   ├── algorithms.go           # TopologicalSort, ExecutionLevels, DetectCycles
@@ -60,8 +63,9 @@ internal/
 │   ├── diff.go                 # GetChangedFiles, diffCommits, extractPaths
 │   └── detector.go             # ChangedModulesDetector, isTerraformRelated
 ├── ci/
-│   ├── types.go                # ModulePlan, PlanResult, CommentData (Components map)
+│   ├── types.go                # ModulePlan, PlanResult, CommentData, PolicySummary
 │   ├── comment.go              # CommentRenderer — shared PR/MR comment markdown
+│   ├── helpers.go              # HasReportableChanges — shared on_changes_only logic
 │   ├── plan_result.go          # ScanPlanResults, ParseModulePathComponents
 │   └── service.go              # CommentService interface
 ├── terraform/
@@ -74,21 +78,21 @@ internal/
 │       └── maputil.go          # Nested map utilities (toMap, getNestedValue, formatValue)
 ├── pipeline/
 │   ├── pipeline.go             # Generator and GeneratedPipeline interfaces
+│   ├── env.go                  # BuildModuleEnvVars — shared TF_* env var builder
 │   ├── gitlab/
-│   │   ├── generator.go        # GitLab CI Generator (dynamic TF_* env vars)
+│   │   ├── generator.go        # GitLab CI Generator
 │   │   └── types.go            # Pipeline, Job, ImageConfig, Secret, Rule
 │   └── github/
-│       ├── generator.go        # GitHub Actions Generator (dynamic TF_* env vars)
+│       ├── generator.go        # GitHub Actions Generator
 │       └── types.go            # Workflow, Job, Step
 ├── github/
 │   ├── client.go               # GitHub API client (go-github)
 │   ├── context.go              # DetectPRContext from env vars
-│   └── pr_service.go           # PR comment upsert
+│   └── pr_service.go           # PRService — NewPRService(cfg, client, ctx) with DI
 ├── gitlab/
 │   ├── client.go               # GitLab API Client, MRContext
-│   ├── mr_service.go           # MRService — upserts MR comments
-│   ├── comment.go              # GitLab-specific comment wrappers
-│   └── plan_result.go          # GitLab-specific plan result wrappers
+│   ├── mr_service.go           # MRService — NewMRService(cfg, client, ctx) with DI
+│   └── comment.go              # FindTerraCIComment
 ├── policy/
 │   ├── engine.go               # OPA Engine — loads all .rego in single bundle
 │   ├── checker.go              # Checker — CheckModule(), CheckAll(), overwrite reclassification
@@ -98,29 +102,80 @@ internal/
 │   ├── source_git.go           # GitSource
 │   └── source_oci.go           # OCISource
 └── cost/
-    ├── types.go                # ResourceCost, ModuleCost, EstimateResult, FormatCost()
-    ├── estimator.go            # Estimator — EstimateModule(), SetPricingFetcher() for testing
+    ├── types.go                # ResourceCost (with CostErrorKind), ModuleCost, EstimateResult
+    ├── estimator.go            # Estimator — EstimateModule(), EstimateModules() (concurrent)
+    ├── factory.go              # NewEstimatorFromConfig(cfg) — shared estimator creation
+    ├── registry.go             # init() — registers all handlers from subpackages (breaks import cycle)
     ├── aws/
-    │   ├── registry.go         # Registry, ResourceHandler interface
-    │   ├── ec2.go              # EC2, EBS, EIP (fixed $0.005/hr), NAT Gateway handlers
-    │   ├── rds.go              # RDS instance/cluster handlers
-    │   ├── elb.go              # ALB, Classic LB handlers
-    │   ├── elasticache.go      # ElastiCache cluster/replication handlers
-    │   ├── eks.go              # EKS cluster (fixed $0.10/hr), node group handlers
-    │   ├── serverless.go       # Lambda, DynamoDB, SQS, SNS
-    │   └── storage.go          # S3, CloudWatch, Secrets Manager, KMS, Route53
+    │   ├── registry.go         # Registry, ResourceHandler interface, CostCategory
+    │   ├── attrs.go            # GetStringAttr, GetFloatAttr, GetIntAttr, GetBoolAttr
+    │   ├── calc.go             # HourlyCost, ScaledHourlyCost, FixedMonthlyCost
+    │   ├── region.go           # HoursPerMonth, ResolveRegionName, ResolveUsagePrefix
+    │   ├── lookup.go           # LookupBuilder — constructs PriceLookup with auto-location
+    │   ├── constants.go        # Shared VolumeType* constants
+    │   ├── ec2/                # InstanceHandler, EBSHandler, EIPHandler, NATHandler
+    │   ├── rds/                # InstanceHandler, ClusterHandler, ClusterInstanceHandler
+    │   ├── elb/                # ALBHandler, ClassicHandler
+    │   ├── elasticache/        # ClusterHandler, ReplicationGroupHandler
+    │   ├── eks/                # ClusterHandler, NodeGroupHandler
+    │   ├── serverless/         # LambdaHandler, DynamoDBHandler, SQSHandler, SNSHandler
+    │   └── storage/            # S3Handler, LogGroupHandler, AlarmHandler, SecretsManagerHandler, KMSHandler, Route53Handler
     └── pricing/
-        ├── types.go            # ServiceCode, PriceIndex, Price, PriceLookup
-        ├── fetcher.go          # AWS Bulk Pricing API fetcher (exported Client/BaseURL for httptest)
-        └── cache.go            # TTL-based local pricing cache, SetFetcher() for testing
+        ├── types.go            # ServiceCode, PriceIndex, Price, PriceLookup, RegionMapping
+        ├── fetcher.go          # AWS Bulk Pricing API fetcher + unexported AWS API response types
+        └── cache.go            # TTL-based local pricing cache with mutex + integrity check
 
 pkg/
 ├── config/
 │   ├── config.go               # Config, Load(), Validate(), matchGlob with ** support
 │   ├── pattern.go              # ParsePattern, PatternSegments
 │   └── schema.go               # JSON schema generation
+├── errors/
+│   └── errors.go               # Typed errors: ConfigError, ScanError, ParseError, NoModulesError, etc.
 └── log/log.go                  # Structured logging (wraps caarlos0/log)
 ```
+
+## Architecture
+
+### Command layer (`cmd/terraci/cmd/`)
+
+Commands use dependency injection via the `App` struct — no global mutable state:
+
+- `NewRootCmd(version, commit, date)` creates `App` and returns the root `*cobra.Command`
+- Each command is a factory: `func newXxxCmd(app *App) *cobra.Command`
+- Command-specific flags are local variables within the factory function scope
+- Shared filter flags use `filterFlags` struct with methods: `register()`, `applyFilters()`, `workflowOptions()`
+- `PersistentPreRunE` loads config into `app.Config` and sets `app.WorkDir`
+
+### Module workflow (`internal/workflow/`)
+
+`workflow.Run(ctx, opts)` encapsulates the common pipeline used by generate, graph, and validate:
+
+1. `Scanner.Scan(ctx)` → discover modules
+2. `filter.Apply()` → exclude/include/segment filters
+3. `DependencyExtractor.ExtractAllDependencies(ctx)` → parse HCL, resolve remote_state
+4. `graph.BuildFromDependencies()` → build DAG
+
+Returns `Result` with AllModules, FilteredModules, FullIndex, FilteredIndex, Graph, Dependencies, Warnings.
+
+### Context propagation
+
+`context.Context` flows through all I/O-bound operations:
+- `Scanner.Scan(ctx)` — checks `ctx.Err()` during directory walk
+- `Parser.ParseModule(ctx, path)` — checks context before parsing
+- `DependencyExtractor.ExtractDependencies(ctx, module)` / `ExtractAllDependencies(ctx)` — propagates to concurrent goroutines via errgroup
+
+### Typed errors (`pkg/errors/`)
+
+- `ConfigError{Path, Err}` — config loading/validation
+- `ScanError{Dir, Err}` — module discovery failures
+- `ParseError{Module, Err}` — HCL parsing errors
+- `NoModulesError{Dir}` — no modules found
+- `PolicyError{Module, Violations}` — policy check failures
+- `CostError{Module, Err}` — cost estimation errors
+- `GraphError{Cycles}` — dependency graph issues
+
+All support `errors.Is()`/`errors.As()` via `Unwrap()`.
 
 ## Core Data Model
 
@@ -131,7 +186,7 @@ pkg/
 - `ID()` → `RelativePath` (filesystem path is the canonical ID)
 - `ContextPrefix()` → all segments except last, joined (for context-relative lookups)
 - `Name()` → leaf value + `/submodule` if present
-- Discovered by `Scanner.Scan()` using configurable pattern segments
+- Discovered by `Scanner.Scan(ctx)` using configurable pattern segments
 - No hardcoded field names — any pattern like `{team}/{project}/{component}` works
 
 **PatternSegments** (`config.PatternSegments`) — parsed from `structure.pattern`:
@@ -142,14 +197,11 @@ pkg/
 ## Data Flow
 
 ### Generate pipeline (main workflow)
-1. `Scanner.Scan(rootDir, minDepth, maxDepth, segments)` → discover modules by directory structure
-2. `filter.Apply(modules, Options{Excludes, Includes, Segments})` → glob + segment filters
-3. `DependencyExtractor.ExtractAllDependencies()` → parse HCL, resolve remote_state refs
-4. `graph.BuildFromDependencies()` → build DAG, detect cycles, compute execution levels
-5. *(if `--changed-only`)* Git diff → detect changed modules → `GetAffectedModulesWithLibraries()`
-6. `pipeline.Generator.Generate()` → produce GitLab CI or GitHub Actions YAML
-7. Pipeline generators dynamically create `TF_<SEGMENT>` env vars from module segments
-8. *(in CI)* `ci.CommentService.UpsertComment()` → post plan/policy/cost summary to MR/PR
+1. `workflow.Run(ctx, opts)` → scan, filter, parse, build graph (shared by generate/graph/validate)
+2. *(if `--changed-only`)* Git diff → detect changed modules → `GetAffectedModulesWithLibraries()`
+3. `pipeline.Generator.Generate()` → produce GitLab CI or GitHub Actions YAML
+4. `pipeline.BuildModuleEnvVars()` creates `TF_<SEGMENT>` env vars from module segments
+5. *(in CI)* `ci.CommentService.UpsertComment()` → post plan/policy/cost summary to MR/PR
 
 ### Static evaluation engine
 - 30+ Terraform built-in functions: `split`, `element`, `length`, `abspath`, `lookup`, `join`, `format`, `lower`, `upper`, `trimprefix`, `trimsuffix`, `replace`, `concat`, `contains`, `keys`, `values`, `merge`, `flatten`, `distinct`, `tostring`, `tonumber`, `tobool`, `max`, `min`, `ceil`, `floor`
@@ -163,11 +215,16 @@ pkg/
 
 ### Cost estimation
 1. `terraform/plan.ParseJSON()` → parse plan.json into ResourceChange list
-2. `cost.Estimator.ValidateAndPrefetch()` → identify required AWS services, fetch pricing
-3. Per resource: `aws.Registry` → find `ResourceHandler` → `BuildLookup()` → `pricing.Cache` → `CalculateCost()`
-4. Some resources use fixed costs (EKS cluster $0.10/hr, EIP $0.005/hr) when AWS pricing API lookup is unreliable
-5. Aggregate into `ModuleCost` with before/after/diff
-6. `terraci cost` command runs estimation locally; `terraci summary` includes costs in MR/PR comments
+2. `cost.NewEstimatorFromConfig(cfg)` → create estimator with cache settings
+3. `cost.Estimator.ValidateAndPrefetch()` → identify required services (skips Fixed/UsageBased), fetch pricing
+4. Per resource: dispatch by `handler.Category()`:
+   - `CostCategoryStandard` → `BuildLookup()` → `pricing.Cache` → `CalculateCost()` (full API path)
+   - `CostCategoryFixed` → `CalculateCost(nil, attrs)` directly (no API call)
+   - `CostCategoryUsageBased` → return $0 with `CostErrorUsageBased` (SQS, SNS, S3, CloudWatch Logs)
+5. For update/replace actions: `getBeforeAttrs()` and `getAfterAttrs()` compute separate before/after costs
+6. `EstimateModules()` runs concurrently via errgroup (limit 4)
+7. `terraci cost` command runs estimation locally; `terraci summary` includes costs in MR/PR comments
+8. Error classification: `CostErrorKind` (NoHandler, UsageBased, LookupFailed, APIFailure, NoPrice)
 
 ### Policy checks
 1. `policy.Puller` downloads policies from sources (path/git/OCI)
@@ -282,17 +339,22 @@ cost:
 
 ## Key Patterns
 
+- **No global state**: `App` struct holds config/workDir; commands are factory functions `newXxxCmd(app *App)` returning `*cobra.Command`; filter flags encapsulated in `filterFlags` struct
+- **Shared workflow**: `workflow.Run(ctx, opts)` eliminates repeated scan→filter→parse→graph code across generate/graph/validate commands
+- **Context propagation**: `context.Context` flows through Scanner, Parser, DependencyExtractor for cancellation/timeout support
+- **Dependency injection**: `NewMRService(cfg, client, ctx)` / `NewPRService(cfg, client, ctx)` accept dependencies; `FromEnv` convenience constructors for production
+- **Typed errors**: `pkg/errors` provides `ConfigError`, `ScanError`, `ParseError`, `NoModulesError` etc. with `Unwrap()` support
 - **Pattern-aware modules**: `structure.pattern` defines segment names and order; Module uses `components map[string]string` — no hardcoded field names
 - **Static evaluation**: 30+ Terraform functions evaluated at parse time; multi-pass locals resolution with `abspath(path.module)` support; variables from defaults + tfvars
-- **Dynamic env vars**: pipeline generators produce `TF_<SEGMENT>` from module segments (e.g., `TF_SERVICE`, `TF_ENVIRONMENT` for default pattern)
+- **Shared env vars**: `pipeline.BuildModuleEnvVars()` creates `TF_<SEGMENT>` from module segments — shared by GitLab and GitHub generators
 - **Multi-provider**: `pipeline.Generator` interface with GitLab and GitHub implementations; provider auto-detected from CI env
-- **Shared CI layer**: `internal/ci/` has provider-agnostic comment rendering and plan result scanning; `internal/gitlab/` and `internal/github/` are thin provider-specific wrappers
+- **Decoupled CI layer**: `internal/ci/` has provider-agnostic types (`PolicySummary`, `CommentData`); no dependency on `internal/policy/`; `internal/gitlab/` and `internal/github/` are thin provider wrappers
 - **Generic filtering**: `SegmentFilter{Segment, Values}` replaces hardcoded filters; `--filter key=value` CLI flag works with any segment name
 - **Dependencies**: resolved from `terraform_remote_state` data blocks; `for_each` with ternary + for-expressions + lookup on objects; `matchPathToModule` uses strategy chain
 - **Graph visualization**: DOT with clustered subgraphs and short labels; PlantUML with nested region grouping; stats with fan-in/fan-out top-5 and modules per level
 - **Policy checks**: OPA v1 Rego; multiple namespaces; per-module `**` glob overwrites (warn/disable); single-bundle loading; `deny` → failures, `warn` → warnings
-- **Cost estimation**: `terraci cost` CLI command; plugin registry `aws.ResourceHandler` per resource type; fixed costs for EKS/EIP; httptest-mockable via `SetPricingFetcher()`
-- **MR/PR comments**: upserted via `<!-- terraci-plan-comment -->` marker; `ModulePlan.Components map[string]string` for dynamic data
+- **Cost estimation**: Handlers grouped by service in subpackages (`aws/ec2/`, `aws/rds/`, etc.); `CostCategory` classifies handlers (Standard/Fixed/UsageBased); `LookupBuilder` + `HourlyCost()`/`ScaledHourlyCost()` eliminate handler boilerplate; `usagetype` filtering prevents ambiguous pricing matches (e.g., ElastiCache ExtendedSupport variants); concurrent `EstimateModules()` via errgroup; `CostErrorKind` classifies estimation failures; `cost/registry.go` init() breaks import cycle between `aws/` and subpackages
+- **MR/PR comments**: upserted via `<!-- terraci-plan-comment -->` marker; `ci.HasReportableChanges()` shared on_changes_only logic
 - **Config**: `matchGlob` with `**` multi-segment pattern support; `image:` as object with `name:` field; no `backend:` section (removed — dead code)
 - **Interactive init**: bubbletea TUI with live YAML preview; `initOptions` shared between CLI and TUI modes
 - **Testing**: all AWS pricing calls mocked via httptest; `Fetcher.Client`/`BaseURL` exported for injection
