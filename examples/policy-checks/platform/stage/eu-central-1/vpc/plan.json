@@ -1,0 +1,51 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.6.0",
+  "resource_changes": [
+    {
+      "address": "aws_vpc.main",
+      "mode": "managed",
+      "type": "aws_vpc",
+      "name": "main",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "cidr_block": "10.0.0.0/16",
+          "tags": {
+            "Name": "stage-vpc",
+            "Environment": "stage",
+            "Project": "example",
+            "Owner": "devops"
+          }
+        },
+        "after_unknown": { "id": true }
+      }
+    },
+    {
+      "address": "aws_s3_bucket.logs",
+      "mode": "managed",
+      "type": "aws_s3_bucket",
+      "name": "logs",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "bucket": "example-vpc-logs",
+          "acl": "private",
+          "tags": {
+            "Environment": "stage",
+            "Project": "example",
+            "Owner": "devops"
+          }
+        },
+        "after_unknown": { "id": true }
+      }
+    }
+  ],
+  "configuration": {
+    "root_module": {}
+  }
+}

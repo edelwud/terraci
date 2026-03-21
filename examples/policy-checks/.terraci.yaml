@@ -21,11 +21,13 @@ policy:
 
   # Policy sources (local, git, or OCI)
   sources:
-    - path: policies
+    - path: terraform
+    - path: compliance
 
   # Namespaces to evaluate in Rego policies
   namespaces:
     - terraform
+    - compliance
 
   # What to do when policy check fails
   # Options: block, warn, ignore
@@ -40,11 +42,11 @@ policy:
   # Module-specific overwrites
   overwrites:
     # Allow sandbox deployments with warnings only
-    - match: "*/sandbox/*"
+    - match: "**/sandbox/**"
       on_failure: warn
 
     # Skip policy checks for legacy modules
-    - match: "legacy/*"
+    - match: "legacy/**"
       enabled: false
 
 # GitLab CI configuration

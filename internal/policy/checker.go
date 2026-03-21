@@ -59,6 +59,13 @@ func (c *Checker) CheckModule(ctx context.Context, modulePath string) (*Result, 
 	}
 
 	result.Module = modulePath
+
+	// If on_failure is "warn" for this module, reclassify failures as warnings
+	if effectiveCfg.OnFailure == config.PolicyActionWarn && len(result.Failures) > 0 {
+		result.Warnings = append(result.Warnings, result.Failures...)
+		result.Failures = nil
+	}
+
 	return result, nil
 }
 

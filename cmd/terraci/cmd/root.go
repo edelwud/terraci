@@ -29,11 +29,13 @@ var (
 
 // rootCmd represents the base command
 var rootCmd = &cobra.Command{
-	Use:   "terraci",
-	Short: "Generate CI pipelines for Terraform projects",
+	Use:           "terraci",
+	Short:         "Generate CI pipelines for Terraform projects",
+	SilenceUsage:  true,
+	SilenceErrors: true,
 	Long: `TerraCi is a CLI tool that analyzes Terraform project structure,
 builds a dependency graph based on terraform_remote_state references,
-and generates CI pipelines (GitLab CI) that respect those dependencies.
+and generates CI pipelines (GitLab CI or GitHub Actions) that respect those dependencies.
 
 Features:
   - Automatic discovery of Terraform modules

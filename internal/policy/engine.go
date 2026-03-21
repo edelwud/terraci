@@ -127,12 +127,11 @@ func (e *Engine) evaluateNamespace(ctx context.Context, input map[string]any, re
 
 // runQuery executes a Rego query and returns violations
 func (e *Engine) runQuery(ctx context.Context, input map[string]any, regoFiles []string, query, namespace string) ([]Violation, error) {
-	// Load all rego files
-	opts := make([]func(*rego.Rego), 0, 2+len(regoFiles))
-	opts = append(opts, rego.Query(query), rego.Input(input))
-
-	for _, f := range regoFiles {
-		opts = append(opts, rego.Load([]string{f}, nil))
+	// Load all rego files in a single Load call
+	opts := []func(*rego.Rego){
+		rego.Query(query),
+		rego.Input(input),
+		rego.Load(regoFiles, nil),
 	}
 
 	r := rego.New(opts...)

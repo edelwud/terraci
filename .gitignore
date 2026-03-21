@@ -37,3 +37,4 @@ vendor/
 *.tfstate.backup
 *.tfplan
 .terraform.lock.hcl
+.terraci/

@@ -29,30 +29,32 @@ taggable_types := [
 	"aws_subnet",
 ]
 
-# Deny resources missing required tags
+# METADATA
+# entrypoint: true
 deny contains msg if {
-	resource := input.resource_changes[_]
-	resource.change.actions[_] == "create"
-	is_taggable(resource.type)
-	tag := required_tags[_]
+	some resource in input.resource_changes
+	"create" in resource.change.actions
+	resource.type in taggable_types
+	some tag in required_tags
 	not has_tag(resource, tag)
-	msg := sprintf("%s '%s' is missing required tag '%s'", [resource.type, resource.name, tag])
+	msg := sprintf(
+		"%s '%s' is missing required tag '%s'",
+		[resource.type, resource.name, tag],
+	)
 }
 
 # Warn about resources with empty tag values
 warn contains msg if {
-	resource := input.resource_changes[_]
-	resource.change.actions[_] != "delete"
-	is_taggable(resource.type)
-	tag := required_tags[_]
+	some resource in input.resource_changes
+	not "delete" in resource.change.actions
+	resource.type in taggable_types
+	some tag in required_tags
 	has_tag(resource, tag)
-	get_tag_value(resource, tag) == ""
-	msg := sprintf("%s '%s' has empty value for tag '%s'", [resource.type, resource.name, tag])
-}
-
-# Helper: check if resource type is taggable
-is_taggable(resource_type) if {
-	resource_type == taggable_types[_]
+	tag_value(resource, tag) == ""
+	msg := sprintf(
+		"%s '%s' has empty value for tag '%s'",
+		[resource.type, resource.name, tag],
+	)
 }
 
 # Helper: check if resource has a specific tag
@@ -64,12 +66,9 @@ has_tag(resource, tag) if {
 	resource.change.after.tags_all[tag]
 }
 
-# Helper: get tag value
-get_tag_value(resource, tag) := value if {
-	value := resource.change.after.tags[tag]
-}
+# Helper: get tag value (from tags or tags_all)
+tag_value(resource, tag) := resource.change.after.tags[tag]
 
-get_tag_value(resource, tag) := value if {
+tag_value(resource, tag) := resource.change.after.tags_all[tag] if {
 	not resource.change.after.tags[tag]
-	value := resource.change.after.tags_all[tag]
 }

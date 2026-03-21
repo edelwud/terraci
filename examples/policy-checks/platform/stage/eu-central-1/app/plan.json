@@ -1,0 +1,68 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.6.0",
+  "resource_changes": [
+    {
+      "address": "aws_instance.web",
+      "mode": "managed",
+      "type": "aws_instance",
+      "name": "web",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "ami": "ami-0c55b159cbfafe1f0",
+          "instance_type": "t3.micro",
+          "associate_public_ip_address": false,
+          "subnet_id": "subnet-12345",
+          "metadata_options": [
+            {
+              "http_tokens": "required",
+              "http_endpoint": "enabled"
+            }
+          ],
+          "tags": {
+            "Name": "web-server",
+            "Environment": "stage",
+            "Project": "example",
+            "Owner": "devops"
+          }
+        },
+        "after_unknown": {
+          "id": true,
+          "arn": true
+        }
+      }
+    },
+    {
+      "address": "aws_s3_bucket.data",
+      "mode": "managed",
+      "type": "aws_s3_bucket",
+      "name": "data",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "bucket": "example-data-bucket",
+          "acl": "private",
+          "server_side_encryption_configuration": [{"rule": {"apply_server_side_encryption_by_default": {"sse_algorithm": "AES256"}}}],
+          "versioning": [{"enabled": true}],
+          "tags": {
+            "Environment": "stage",
+            "Project": "example",
+            "Owner": "devops"
+          }
+        },
+        "after_unknown": {
+          "id": true,
+          "arn": true
+        }
+      }
+    }
+  ],
+  "configuration": {
+    "root_module": {}
+  }
+}

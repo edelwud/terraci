@@ -1,44 +1,194 @@
 # Policy Checks Example
 
-This example demonstrates how to use TerraCi's OPA-based policy checks to enforce compliance rules on your Terraform plans.
+OPA-based policy enforcement for Terraform plans — block violations, warn about issues, skip legacy modules.
 
-## Overview
+## Structure
 
-TerraCi integrates [Open Policy Agent (OPA)](https://www.openpolicyagent.org/) to evaluate Rego policies against Terraform plan JSON output. This allows you to:
+```
+policy-checks/
+├── .terraci.yaml                           # Config with two policy sources + overwrites
+├── terraform/                              # "terraform" namespace policies
+│   ├── tags.rego                           #   Required tags on all taggable resources
+│   ├── s3.rego                             #   S3 encryption, ACL, versioning
+│   └── ec2.rego                            #   IMDSv2, public IP, instance sizes
+├── compliance/                             # "compliance" namespace policies
+│   └── cost.rego                           #   Expensive instance types, cost approval
+├── platform/
+│   ├── stage/eu-central-1/
+│   │   ├── vpc/                            # ❌ fail — S3 bucket without encryption
+│   │   ├── app/                            # ✅ pass — all policies satisfied
+│   │   └── bad/                            # ❌ fail — missing tags, public ACL, GPU instance
+│   └── sandbox/eu-central-1/
+│       └── test/                           # ⚠️ warn — failures reclassified (overwrite)
+└── legacy/old/eu-central-1/
+    └── db/                                 # ✅ skip — policy checks disabled (overwrite)
+```
 
-- Block deployments that violate security policies
-- Warn about potential issues without blocking
-- Enforce organizational standards across all modules
+## Try It
 
-## Files
+```bash
+cd examples/policy-checks
 
-- `.terraci.yaml` - TerraCi configuration with policy settings
-- `.gitlab-ci.yml` - GitLab CI pipeline with policy-check stage
-- `policies/` - Directory containing Rego policy files
+# Run policy checks
+terraci policy check -v
 
-## Policy Configuration
+# Check a single module
+terraci policy check --module platform/stage/eu-central-1/bad -v
+
+# JSON output
+terraci policy check --output json
+
+# See dependency graph
+terraci graph --format levels
+```
+
+Expected output:
+
+```
+policy check summary   total=5 passed=2 warned=1 failed=2
+
+module: platform/sandbox/eu-central-1/test   status=warn     ← on_failure: warn overwrite
+module: platform/stage/eu-central-1/bad      status=fail     ← 10 failures from terraform + compliance
+module: platform/stage/eu-central-1/vpc      status=fail     ← S3 encryption missing
+                                                              ← app passed, legacy skipped
+```
+
+## Configuration
 
 ```yaml
 policy:
   enabled: true
+
+  # Multiple policy sources — each directory is a Rego package
   sources:
-    - path: policies  # Local policies
+    - path: terraform       # package terraform → deny/warn rules
+    - path: compliance      # package compliance → cost rules
+
+  # Evaluate both namespaces
   namespaces:
-    - terraform       # Namespace to evaluate
-  on_failure: block   # Block pipeline on violations
-  on_warning: warn    # Continue with warnings
-  show_in_comment: true
+    - terraform
+    - compliance
+
+  on_failure: block         # Default: block pipeline on deny violations
+  on_warning: warn          # Default: continue with warnings
+
+  # Per-module overwrites using ** glob patterns
+  overwrites:
+    - match: "**/sandbox/**"
+      on_failure: warn      # Sandbox: reclassify failures → warnings
+
+    - match: "legacy/**"
+      enabled: false        # Legacy: skip policy checks entirely
 ```
 
-### Policy Sources
+### Overwrites
 
-TerraCi supports multiple policy sources:
+`**` matches any number of path segments:
+
+| Pattern | Matches | Does NOT match |
+|---------|---------|---------------|
+| `**/sandbox/**` | `platform/sandbox/eu-central-1/test` | `platform/stage/eu-central-1/app` |
+| `legacy/**` | `legacy/old/eu-central-1/db` | `platform/legacy/something` |
+| `**/prod/**` | `platform/prod/eu-central-1/vpc` | `platform/stage/eu-central-1/vpc` |
+
+When `on_failure: warn` is set via overwrite, deny rule violations are **reclassified as warnings** — they appear in the output but don't block the pipeline.
+
+When `enabled: false` is set, the module is **skipped entirely** — no evaluation happens.
+
+## Policy Namespaces
+
+Each source directory maps to a Rego `package` name. The directory name must match the package declaration:
+
+```
+terraform/tags.rego    → package terraform    ← evaluated when "terraform" in namespaces
+compliance/cost.rego   → package compliance   ← evaluated when "compliance" in namespaces
+```
+
+### terraform namespace
+
+Security and compliance baseline:
+
+| Policy | Type | Rule |
+|--------|------|------|
+| `tags.rego` | deny | Resources missing required tags (Environment, Project, Owner) |
+| `tags.rego` | warn | Resources with empty tag values |
+| `s3.rego` | deny | Public ACL (public-read, public-read-write) |
+| `s3.rego` | deny | Missing server-side encryption |
+| `s3.rego` | warn | Missing versioning |
+| `ec2.rego` | deny | Public IP in production |
+| `ec2.rego` | deny | Missing IMDSv2 |
+| `ec2.rego` | warn | Missing subnet_id (default VPC) |
+| `ec2.rego` | warn | Large instance types (GPU, memory-optimized) |
+
+### compliance namespace
+
+Cost controls:
+
+| Policy | Type | Rule |
+|--------|------|------|
+| `cost.rego` | deny | Expensive instance types without `CostApproved=true` tag |
+| `cost.rego` | warn | RDS multi-AZ deployment (cost doubles) |
+| `cost.rego` | warn | EBS volumes > 500GB |
+
+## Writing Policies
+
+Policies use OPA v1 Rego syntax with `import rego.v1`:
+
+```rego
+package terraform
+
+import rego.v1
+
+# METADATA
+# description: Deny public S3 buckets
+# entrypoint: true
+deny contains msg if {
+    some resource in input.resource_changes
+    resource.type == "aws_s3_bucket"
+    not "delete" in resource.change.actions
+    resource.change.after.acl == "public-read"
+    msg := sprintf("S3 bucket '%s' must not be public", [resource.name])
+}
+```
+
+Key patterns:
+- `some resource in input.resource_changes` — iterate resources (not `[_]`)
+- `"create" in resource.change.actions` — check membership (not `== "create"`)
+- `not "delete" in resource.change.actions` — negated membership
+- `deny contains msg if` — deny rules block; `warn contains msg if` — warn rules don't
+- `# METADATA` + `# entrypoint: true` — must be directly attached to the first rule
+
+Lint your policies with [Regal](https://docs.styra.com/regal): `regal lint terraform/ compliance/`
+
+## Pipeline Integration
+
+```yaml
+# .gitlab-ci.yml
+generate:
+  stage: generate
+  image: ghcr.io/edelwud/terraci:latest
+  script:
+    - terraci generate --changed-only -o terraform.yml
+  artifacts:
+    paths: [terraform.yml]
+
+deploy:
+  stage: deploy
+  trigger:
+    include:
+      - artifact: terraform.yml
+        job: generate
+```
+
+The generated pipeline includes a `policy-check` stage between plan and apply. If `on_failure: block` and any deny rules fire, the pipeline stops.
+
+## Policy Sources
 
 ```yaml
 policy:
   sources:
-    # Local path
-    - path: policies
+    # Local directory
+    - path: terraform
 
     # Git repository
     - git: https://github.com/org/terraform-policies.git
@@ -47,124 +197,3 @@ policy:
     # OCI registry
     - oci: oci://ghcr.io/org/policies:v1.0
 ```
-
-### Module-Level Overwrites
-
-You can override policy settings for specific modules using glob patterns:
-
-```yaml
-policy:
-  enabled: true
-  on_failure: block
-
-  overwrites:
-    - match: "*/sandbox/*"
-      on_failure: warn  # Allow sandbox deployments with warnings
-
-    - match: "legacy/*"
-      enabled: false    # Skip policy checks for legacy modules
-```
-
-## Writing Policies
-
-Policies are written in [Rego](https://www.openpolicyagent.org/docs/latest/policy-language/), OPA's policy language.
-
-### Deny Rules (Block Deployment)
-
-```rego
-package terraform
-
-# Block public S3 buckets
-deny contains msg if {
-    resource := input.resource_changes[_]
-    resource.type == "aws_s3_bucket"
-    resource.change.after.acl == "public-read"
-    msg := sprintf("S3 bucket '%s' must not be public", [resource.name])
-}
-```
-
-### Warn Rules (Allow with Warning)
-
-```rego
-package terraform
-
-# Warn about missing tags
-warn contains msg if {
-    resource := input.resource_changes[_]
-    resource.type == "aws_instance"
-    not resource.change.after.tags.Environment
-    msg := sprintf("Instance '%s' is missing Environment tag", [resource.name])
-}
-```
-
-## Pipeline Flow
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Terraform Pipeline                        │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  plan-0: [plan-vpc, plan-rds, ...]                          │
-│                         │                                    │
-│                         ▼                                    │
-│  policy-check:                                               │
-│    - terraci policy pull    (download policies)             │
-│    - terraci policy check   (evaluate all plans)            │
-│                         │                                    │
-│                         ▼                                    │
-│  apply-0: [apply-vpc, apply-rds, ...]  (if policy passes)   │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
-```
-
-## Commands
-
-```bash
-# Pull policies from configured sources
-terraci policy pull
-
-# Check all modules with plan.json
-terraci policy check
-
-# Check specific module
-terraci policy check --module platform/prod/eu-central-1/vpc
-
-# Output as JSON
-terraci policy check --output json
-```
-
-## MR Integration
-
-When running in a GitLab MR, policy results are included in the MR comment:
-
-```
-## Terraform Plan Summary
-
-### ❌ Policy Check
-
-**3** modules checked: ✅ **1** passed | ⚠️ **1** warned | ❌ **1** failed
-
-<details>
-<summary>❌ Failures (1)</summary>
-
-**platform/prod/eu-central-1/vpc:**
-- `terraform`: S3 bucket 'logs' must not be public
-
-</details>
-
-<details>
-<summary>⚠️ Warnings (1)</summary>
-
-**platform/prod/eu-central-1/ec2:**
-- `terraform`: Instance 'web' is missing Environment tag
-
-</details>
-```
-
-## Example Policies
-
-See the `policies/` directory for example Rego policies:
-
-- `s3.rego` - S3 bucket security rules
-- `ec2.rego` - EC2 instance compliance rules
-- `tags.rego` - Required tagging policies

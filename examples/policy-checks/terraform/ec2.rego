@@ -9,49 +9,58 @@ import rego.v1
 
 # Deny instances with public IP in production
 deny contains msg if {
-	resource := input.resource_changes[_]
+	some resource in input.resource_changes
 	resource.type == "aws_instance"
-	resource.change.actions[_] != "delete"
+	not "delete" in resource.change.actions
 	resource.change.after.associate_public_ip_address == true
-	is_production_module
-	msg := sprintf("EC2 instance '%s' must not have public IP in production", [resource.name])
+	some call in input.configuration.root_module.module_calls
+	contains(call.source, "prod")
+	msg := sprintf(
+		"EC2 instance '%s' must not have public IP in production",
+		[resource.name],
+	)
 }
 
 # Deny instances without IMDSv2
 deny contains msg if {
-	resource := input.resource_changes[_]
+	some resource in input.resource_changes
 	resource.type == "aws_instance"
-	resource.change.actions[_] == "create"
+	"create" in resource.change.actions
 	not uses_imdsv2(resource)
-	msg := sprintf("EC2 instance '%s' must use IMDSv2 (metadata_options.http_tokens = required)", [resource.name])
+	msg := sprintf(
+		"EC2 instance '%s' must use IMDSv2 (metadata_options.http_tokens = required)",
+		[resource.name],
+	)
 }
 
 # Warn about instances using default VPC
 warn contains msg if {
-	resource := input.resource_changes[_]
+	some resource in input.resource_changes
 	resource.type == "aws_instance"
-	resource.change.actions[_] != "delete"
+	not "delete" in resource.change.actions
 	not resource.change.after.subnet_id
-	msg := sprintf("EC2 instance '%s' should specify a subnet_id (avoid default VPC)", [resource.name])
+	msg := sprintf(
+		"EC2 instance '%s' should specify a subnet_id (avoid default VPC)",
+		[resource.name],
+	)
 }
 
 # Warn about large instance types
 warn contains msg if {
-	resource := input.resource_changes[_]
+	some resource in input.resource_changes
 	resource.type == "aws_instance"
-	resource.change.actions[_] != "delete"
+	not "delete" in resource.change.actions
 	is_large_instance(resource.change.after.instance_type)
-	msg := sprintf("EC2 instance '%s' uses large instance type '%s' - verify this is needed", [resource.name, resource.change.after.instance_type])
-}
-
-# Helper: check if module path contains "prod"
-is_production_module if {
-	contains(input.configuration.root_module.module_calls[_].source, "prod")
+	msg := sprintf(
+		"EC2 instance '%s' uses large instance type '%s' - verify this is needed",
+		[resource.name, resource.change.after.instance_type],
+	)
 }
 
 # Helper: check if IMDSv2 is enabled
 uses_imdsv2(resource) if {
-	resource.change.after.metadata_options[_].http_tokens == "required"
+	some opts in resource.change.after.metadata_options
+	opts.http_tokens == "required"
 }
 
 # Helper: check if instance type is large

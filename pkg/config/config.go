@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"go.yaml.in/yaml/v4"
 )
@@ -679,10 +680,63 @@ func (p *PolicyConfig) GetEffectiveConfig(modulePath string) *PolicyConfig {
 	return effective
 }
 
-// matchGlob matches a glob pattern against a path
+// matchGlob matches a glob pattern against a path, supporting ** for multi-segment matching.
 func matchGlob(pattern, path string) (bool, error) {
-	// Simple glob matching supporting * and **
-	return filepath.Match(pattern, path)
+	// Handle ** pattern (matches any number of path segments)
+	if strings.Contains(pattern, "**") {
+		parts := strings.Split(pattern, "**")
+		remaining := path
+
+		for i, part := range parts {
+			part = strings.Trim(part, "/")
+			if part == "" {
+				continue
+			}
+			switch {
+			case i == 0:
+				// First part must be a prefix
+				if !strings.HasPrefix(remaining, part) {
+					return false, nil
+				}
+				remaining = strings.TrimPrefix(remaining, part)
+				remaining = strings.TrimPrefix(remaining, "/")
+			case i == len(parts)-1:
+				// Last part must be a suffix
+				if !strings.HasSuffix(remaining, part) {
+					return false, nil
+				}
+			default:
+				// Middle parts must exist somewhere
+				if !strings.Contains(remaining, part) {
+					return false, nil
+				}
+				idx := strings.Index(remaining, part)
+				remaining = remaining[idx+len(part):]
+				remaining = strings.TrimPrefix(remaining, "/")
+			}
+		}
+
+		return true, nil
+	}
+
+	// Handle * in each segment (filepath.Match only matches single segments)
+	patternParts := strings.Split(pattern, "/")
+	pathParts := strings.Split(path, "/")
+
+	if len(patternParts) != len(pathParts) {
+		return false, nil
+	}
+
+	for i, pp := range patternParts {
+		matched, err := filepath.Match(pp, pathParts[i])
+		if err != nil {
+			return false, err
+		}
+		if !matched {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 // Validate checks if the configuration is valid

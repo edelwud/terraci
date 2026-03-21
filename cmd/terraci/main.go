@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/edelwud/terraci/cmd/terraci/cmd"
@@ -18,7 +17,6 @@ func main() {
 	cmd.SetVersion(version, commit, date)
 
 	if err := cmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }

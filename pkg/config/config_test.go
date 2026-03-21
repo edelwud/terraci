@@ -856,3 +856,132 @@ func TestValidate_GitHubConfig(t *testing.T) {
 		}
 	})
 }
+
+func TestMatchGlob_DoubleStarPatterns(t *testing.T) {
+	tests := []struct {
+		pattern string
+		path    string
+		want    bool
+	}{
+		// Single * matches one segment
+		{"*/stage/*/*", "platform/stage/eu-central-1/vpc", true},
+		{"*/stage/*/*", "platform/prod/eu-central-1/vpc", false},
+		{"*/stage/*/*", "platform/stage/eu-central-1/ec2/rabbitmq", false}, // too many segments
+
+		// ** matches any number of segments
+		{"**/sandbox/**", "platform/sandbox/eu-central-1/test", true},
+		{"**/sandbox/**", "platform/stage/eu-central-1/test", false}, // no "sandbox"
+		{"**/sandbox/**", "sandbox/test", true},                      // sandbox at start
+		{"**/sandbox/**", "a/b/sandbox/c/d/e", true},                 // sandbox in middle
+
+		// ** prefix
+		{"legacy/**", "legacy/old/eu-central-1/db", true},
+		{"legacy/**", "platform/legacy/module", false}, // legacy not at start
+
+		// ** suffix
+		{"**/vpc", "platform/stage/eu-central-1/vpc", true},
+		{"**/vpc", "platform/stage/eu-central-1/eks", false},
+
+		// ** middle
+		{"platform/**/vpc", "platform/stage/eu-central-1/vpc", true},
+		{"platform/**/vpc", "platform/vpc", true},                  // zero segments between
+		{"platform/**/vpc", "other/stage/eu-central-1/vpc", false}, // wrong prefix
+
+		// Exact match (no wildcards)
+		{"platform/stage/eu-central-1/vpc", "platform/stage/eu-central-1/vpc", true},
+		{"platform/stage/eu-central-1/vpc", "platform/stage/eu-central-1/eks", false},
+
+		// The bug case: **/sandbox/** must NOT match paths without "sandbox"
+		{"**/sandbox/**", "platform/stage/eu-central-1/bad", false},
+		{"**/sandbox/**", "platform/stage/eu-central-1/app", false},
+		{"**/sandbox/**", "legacy/old/eu-central-1/db", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.pattern+"_vs_"+tt.path, func(t *testing.T) {
+			got, err := matchGlob(tt.pattern, tt.path)
+			if err != nil {
+				t.Fatalf("matchGlob(%q, %q) error: %v", tt.pattern, tt.path, err)
+			}
+			if got != tt.want {
+				t.Errorf("matchGlob(%q, %q) = %v, want %v", tt.pattern, tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetEffectiveConfig_Overwrites(t *testing.T) {
+	enabled := true
+	disabled := false
+
+	base := &PolicyConfig{
+		Enabled:    true,
+		Namespaces: []string{"terraform"},
+		OnFailure:  PolicyActionBlock,
+		OnWarning:  PolicyActionWarn,
+		Overwrites: []PolicyOverwrite{
+			{Match: "**/sandbox/**", OnFailure: PolicyActionWarn},
+			{Match: "legacy/**", Enabled: &disabled},
+			{Match: "**/prod/**", Namespaces: []string{"terraform", "compliance"}, OnWarning: PolicyActionBlock},
+		},
+	}
+
+	t.Run("nil policy", func(t *testing.T) {
+		var p *PolicyConfig
+		if got := p.GetEffectiveConfig("anything"); got != nil {
+			t.Errorf("expected nil, got %v", got)
+		}
+	})
+
+	t.Run("no matching overwrite returns base", func(t *testing.T) {
+		eff := base.GetEffectiveConfig("platform/stage/eu-central-1/vpc")
+		if eff.OnFailure != PolicyActionBlock {
+			t.Errorf("OnFailure = %q, want block", eff.OnFailure)
+		}
+		if !eff.Enabled {
+			t.Error("Enabled should be true")
+		}
+	})
+
+	t.Run("sandbox overwrite changes on_failure to warn", func(t *testing.T) {
+		eff := base.GetEffectiveConfig("platform/sandbox/eu-central-1/test")
+		if eff.OnFailure != PolicyActionWarn {
+			t.Errorf("OnFailure = %q, want warn", eff.OnFailure)
+		}
+		if !eff.Enabled {
+			t.Error("sandbox should still be enabled")
+		}
+	})
+
+	t.Run("legacy overwrite disables checks", func(t *testing.T) {
+		eff := base.GetEffectiveConfig("legacy/old/eu-central-1/db")
+		if eff.Enabled {
+			t.Error("legacy should be disabled")
+		}
+	})
+
+	t.Run("prod overwrite adds namespace and changes on_warning", func(t *testing.T) {
+		eff := base.GetEffectiveConfig("platform/prod/eu-central-1/vpc")
+		if len(eff.Namespaces) != 2 {
+			t.Errorf("Namespaces = %v, want 2 entries", eff.Namespaces)
+		}
+		if eff.OnWarning != PolicyActionBlock {
+			t.Errorf("OnWarning = %q, want block", eff.OnWarning)
+		}
+	})
+
+	t.Run("re-enable overridden module", func(t *testing.T) {
+		cfg := &PolicyConfig{
+			Enabled:   true,
+			OnFailure: PolicyActionBlock,
+			Overwrites: []PolicyOverwrite{
+				{Match: "legacy/**", Enabled: &disabled},
+				{Match: "legacy/critical/**", Enabled: &enabled}, // re-enable critical legacy
+			},
+		}
+		eff := cfg.GetEffectiveConfig("legacy/critical/eu-central-1/auth")
+		if !eff.Enabled {
+			t.Error("critical legacy should be re-enabled by second overwrite")
+		}
+	})
+}
