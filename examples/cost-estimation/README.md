@@ -41,6 +41,15 @@ No AWS credentials required — pricing data is public.
 ```bash
 cd examples/cost-estimation
 
+# Estimate costs from plan.json files
+terraci cost
+
+# Estimate a single module
+terraci cost --module platform/prod/eu-central-1/rds
+
+# JSON output
+terraci cost --output json
+
 # See dependency graph
 terraci graph --format levels
 
@@ -49,6 +58,26 @@ terraci generate --dry-run
 
 # Validate structure
 terraci validate
+```
+
+Example output:
+
+```
+• running cost estimation
+• pricing cache     dir=~/.terraci/pricing ttl=24h expires_in=23h49m
+• scanning for plan.json files
+• modules with plan.json found     count=3
+• fetching AWS pricing data
+• calculating costs
+• cost estimation results
+  • module     module=platform/prod/eu-central-1/eks status=🔄 monthly=$35.04
+    • cost change     before=$0 after=$35.04 diff=$35.04
+  • module     module=platform/prod/eu-central-1/rds status=🔄 monthly=$689.12
+    • cost change     before=$0 after=$689.12 diff=$689.12
+  • module     module=platform/prod/eu-central-1/vpc status=🔄 monthly=$37.96
+    • cost change     before=$0 after=$37.96 diff=$37.96
+• total estimated monthly cost
+  • monthly     before=$0 after=$762.12 diff=$762.12
 ```
 
 In CI, cost estimation happens automatically after `terraform plan`:

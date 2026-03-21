@@ -35,6 +35,7 @@ docker run --rm -v $(pwd):/workspace ghcr.io/edelwud/terraci generate
 | [validate](./validate.md) | Валидация структуры проекта |
 | [graph](./graph.md) | Граф зависимостей (DOT, PlantUML, list, levels) |
 | [init](./init.md) | Инициализация конфигурации (интерактивный TUI-мастер) |
+| [cost](./cost.md) | Оценка стоимости AWS из файлов плана |
 | [summary](./summary.md) | Публикация результатов plan в MR/PR |
 | [policy](./policy.md) | Загрузка и проверка OPA-политик |
 | `version` | Информация о версии |

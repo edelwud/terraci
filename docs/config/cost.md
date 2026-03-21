@@ -120,6 +120,34 @@ gitlab:
 
 This configuration enables cost estimation with default caching, and displays the results in MR/PR comments alongside plan output.
 
+## CLI Command
+
+Run cost estimation directly from the command line:
+
+```bash
+# Estimate all modules with plan.json
+terraci cost
+
+# Estimate a single module
+terraci cost --module platform/prod/eu-central-1/rds
+
+# JSON output
+terraci cost --output json
+
+# Verbose — shows per-resource breakdown and pricing cache info
+terraci cost -v
+```
+
+The `terraci cost` command scans for `plan.json` files, fetches pricing data, and outputs per-module cost estimates. Pricing cache location and TTL expiration are shown in the output.
+
+> **Note:** `terraci cost` requires `cost.enabled: true` in your `.terraci.yaml`.
+
+In CI pipelines, cost estimation runs automatically as part of the `terraci summary` command (which posts MR/PR comments). Use `terraci cost` for local development and ad-hoc cost checks.
+
+## Examples
+
+See [examples/cost-estimation](https://github.com/edelwud/terraci/tree/main/examples/cost-estimation) for a working example with VPC, EKS, and RDS modules.
+
 ## See Also
 
 - [Merge Request Integration](/config/gitlab-mr) — MR comments with plan summaries and cost estimates

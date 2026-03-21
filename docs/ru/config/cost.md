@@ -186,6 +186,34 @@ gitlab:
 
 Эта конфигурация включает оценку стоимости с кешированием по умолчанию и отображает результаты в комментариях MR/PR рядом с выводом plan.
 
+## CLI команда
+
+Запуск оценки стоимости из командной строки:
+
+```bash
+# Оценить все модули с plan.json
+terraci cost
+
+# Оценить один модуль
+terraci cost --module platform/prod/eu-central-1/rds
+
+# JSON вывод
+terraci cost --output json
+
+# Подробно — стоимость по ресурсам и информация о кеше
+terraci cost -v
+```
+
+Команда `terraci cost` сканирует `plan.json` файлы, загружает данные о ценах и выводит оценку стоимости по модулям. В выводе показывается расположение кеша и время до его обновления.
+
+> **Примечание:** требуется `cost.enabled: true` в `.terraci.yaml`.
+
+В CI пайплайнах оценка стоимости выполняется автоматически в рамках `terraci summary`. Используйте `terraci cost` для локальной разработки и проверки.
+
+## Примеры
+
+См. [examples/cost-estimation](https://github.com/edelwud/terraci/tree/main/examples/cost-estimation) — рабочий пример с VPC, EKS и RDS модулями.
+
 ## Смотрите также
 
 - [Merge Request](/ru/config/gitlab-mr) — комментарии в MR с результатами plan и стоимостью

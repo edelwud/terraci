@@ -27,6 +27,7 @@ These options are available for all commands:
 | [validate](./validate) | Validate project structure |
 | [graph](./graph) | Show dependency graph (DOT, PlantUML, list, levels) |
 | [init](./init) | Initialize configuration (interactive TUI wizard) |
+| [cost](./cost) | Estimate AWS costs from plan files |
 | [summary](./summary) | Post plan results to MR/PR |
 | [policy](./policy) | Pull and check OPA policies |
 | `version` | Show version information |

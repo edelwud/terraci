@@ -256,6 +256,7 @@ policy:
 | `terraci validate` | Validate project structure and dependencies |
 | `terraci generate` | Generate CI pipeline (GitLab CI or GitHub Actions) |
 | `terraci graph` | Visualize dependency graph (DOT, PlantUML, levels) |
+| `terraci cost` | Estimate AWS costs from Terraform plan files |
 | `terraci summary` | Post plan/cost/policy summary to MR/PR (CI) |
 | `terraci policy pull` | Download policies from configured sources |
 | `terraci policy check` | Evaluate plans against OPA policies |
@@ -325,6 +326,15 @@ terraci policy check --module platform/prod/eu-central-1/vpc --output json
 
 # Dry run
 terraci generate --dry-run
+
+# Estimate AWS costs from plan.json files
+terraci cost
+
+# Cost for a single module
+terraci cost --module platform/prod/eu-central-1/rds
+
+# Cost as JSON
+terraci cost --output json
 ```
 
 </details>
@@ -341,6 +351,7 @@ Full documentation is available at **[edelwud.github.io/terraci](https://edelwud
 | Pipeline Generation | [guide/pipeline-generation](https://edelwud.github.io/terraci/guide/pipeline-generation) |
 | Configuration Reference | [config/](https://edelwud.github.io/terraci/config/) |
 | GitLab MR Integration | [config/gitlab-mr](https://edelwud.github.io/terraci/config/gitlab-mr) |
+| Cost Estimation | [config/cost](https://edelwud.github.io/terraci/config/cost) |
 | Policy Checks | [config/policy](https://edelwud.github.io/terraci/config/policy) |
 | CLI Reference | [cli/](https://edelwud.github.io/terraci/cli/) |
 
