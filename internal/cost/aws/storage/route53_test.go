@@ -28,7 +28,7 @@ func TestRoute53Handler_BuildLookup_ReturnsNil(t *testing.T) {
 
 func TestRoute53Handler_CalculateCost(t *testing.T) {
 	h := &Route53Handler{}
-	hourly, monthly := h.CalculateCost(nil, nil)
+	hourly, monthly := h.CalculateCost(nil, nil, "", nil)
 
 	if monthly != Route53HostedZoneCost {
 		t.Errorf("monthly = %v, want %v", monthly, Route53HostedZoneCost)

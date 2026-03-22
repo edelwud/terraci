@@ -25,7 +25,11 @@ func (h *ClassicHandler) BuildLookup(region string, _ map[string]any) (*pricing.
 	}), nil
 }
 
-func (h *ClassicHandler) CalculateCost(price *pricing.Price, _ map[string]any) (hourly, monthly float64) {
+func (h *ClassicHandler) Describe(_ *pricing.Price, _ map[string]any) map[string]string {
+	return map[string]string{"type": "classic"}
+}
+
+func (h *ClassicHandler) CalculateCost(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
 	rate := price.OnDemandUSD
 	if rate == 0 {
 		rate = DefaultClassicLBHourlyCost

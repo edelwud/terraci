@@ -31,7 +31,7 @@ func TestClassicHandler_CalculateCost(t *testing.T) {
 
 	// With price
 	price := &pricing.Price{OnDemandUSD: 0.03}
-	hourly, monthly := h.CalculateCost(price, nil)
+	hourly, monthly := h.CalculateCost(price, nil, "", nil)
 	if hourly != 0.03 {
 		t.Errorf("hourly = %v, want %v", hourly, 0.03)
 	}
@@ -40,7 +40,7 @@ func TestClassicHandler_CalculateCost(t *testing.T) {
 	}
 
 	// Fallback
-	hourly, _ = h.CalculateCost(&pricing.Price{OnDemandUSD: 0}, nil)
+	hourly, _ = h.CalculateCost(&pricing.Price{OnDemandUSD: 0}, nil, "", nil)
 	if hourly != 0.025 {
 		t.Errorf("fallback hourly = %v, want %v", hourly, 0.025)
 	}

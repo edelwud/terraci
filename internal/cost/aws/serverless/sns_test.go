@@ -26,7 +26,7 @@ func TestSNSHandler_BuildLookup(t *testing.T) {
 
 func TestSNSHandler_CalculateCost(t *testing.T) {
 	h := &SNSHandler{}
-	hourly, monthly := h.CalculateCost(nil, nil)
+	hourly, monthly := h.CalculateCost(nil, nil, "", nil)
 	if hourly != 0 {
 		t.Errorf("hourly = %v, want 0", hourly)
 	}

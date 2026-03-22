@@ -61,7 +61,7 @@ func TestClusterHandler_CalculateCost_FromAPI(t *testing.T) {
 	h := &ClusterHandler{}
 
 	price := &pricing.Price{OnDemandUSD: 0.10}
-	hourly, monthly := h.CalculateCost(price, nil)
+	hourly, monthly := h.CalculateCost(price, nil, "", nil)
 	if hourly != 0.10 {
 		t.Errorf("hourly = %v, want 0.10", hourly)
 	}
@@ -74,7 +74,7 @@ func TestClusterHandler_CalculateCost_Fallback(t *testing.T) {
 	h := &ClusterHandler{}
 
 	// nil price -> fallback to default
-	hourly, monthly := h.CalculateCost(nil, nil)
+	hourly, monthly := h.CalculateCost(nil, nil, "", nil)
 	if hourly != DefaultClusterHourlyCost {
 		t.Errorf("hourly = %v, want %v", hourly, DefaultClusterHourlyCost)
 	}
@@ -83,7 +83,7 @@ func TestClusterHandler_CalculateCost_Fallback(t *testing.T) {
 	}
 
 	// zero price -> fallback
-	hourly2, _ := h.CalculateCost(&pricing.Price{OnDemandUSD: 0}, nil)
+	hourly2, _ := h.CalculateCost(&pricing.Price{OnDemandUSD: 0}, nil, "", nil)
 	if hourly2 != DefaultClusterHourlyCost {
 		t.Errorf("hourly with zero price = %v, want fallback %v", hourly2, DefaultClusterHourlyCost)
 	}

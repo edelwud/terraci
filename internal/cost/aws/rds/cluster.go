@@ -1,6 +1,8 @@
 package rds
 
 import (
+	"fmt"
+
 	aws "github.com/edelwud/terraci/internal/cost/aws"
 	"github.com/edelwud/terraci/internal/cost/pricing"
 )
@@ -31,7 +33,18 @@ func (h *ClusterHandler) BuildLookup(region string, attrs map[string]any) (*pric
 	}), nil
 }
 
-func (h *ClusterHandler) CalculateCost(_ *pricing.Price, attrs map[string]any) (hourly, monthly float64) {
+func (h *ClusterHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
+	d := map[string]string{}
+	if v := aws.GetStringAttr(attrs, "engine"); v != "" {
+		d["engine"] = v
+	}
+	if v := aws.GetFloatAttr(attrs, "allocated_storage"); v > 0 {
+		d["storage_gb"] = fmt.Sprintf("%.0f", v)
+	}
+	return d
+}
+
+func (h *ClusterHandler) CalculateCost(_ *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
 	// Aurora storage is billed per GB-month
 	// Estimate based on allocated storage or minimum
 	allocatedStorage := aws.GetFloatAttr(attrs, "allocated_storage")

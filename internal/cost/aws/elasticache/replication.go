@@ -2,6 +2,7 @@ package elasticache
 
 import (
 	"fmt"
+	"strconv"
 
 	aws "github.com/edelwud/terraci/internal/cost/aws"
 	"github.com/edelwud/terraci/internal/cost/pricing"
@@ -33,24 +34,67 @@ func (h *ReplicationGroupHandler) BuildLookup(region string, attrs map[string]an
 	}), nil
 }
 
-func (h *ReplicationGroupHandler) CalculateCost(price *pricing.Price, attrs map[string]any) (hourly, monthly float64) {
-	// Calculate total nodes: num_node_groups * replicas_per_node_group
+func (h *ReplicationGroupHandler) Describe(price *pricing.Price, attrs map[string]any) map[string]string {
+	desc := make(map[string]string)
+	if v := aws.GetStringAttr(attrs, "node_type"); v != "" {
+		desc["node_type"] = v
+	}
+	if v := aws.GetIntAttr(attrs, "num_node_groups"); v != 0 {
+		desc["node_groups"] = strconv.Itoa(v)
+	}
+	if v := aws.GetIntAttr(attrs, "replicas_per_node_group"); v != 0 {
+		desc["replicas_per_group"] = strconv.Itoa(v)
+	}
+	if v := aws.GetIntAttr(attrs, "snapshot_retention_limit"); v > 0 {
+		desc["snapshot_retention_days"] = strconv.Itoa(v)
+	}
+	totalNodes := replicationGroupNodeCount(attrs)
+	if totalNodes > 0 {
+		desc["total_nodes"] = strconv.Itoa(totalNodes)
+	}
+	if mem := nodeMemoryFromPrice(price); mem > 0 {
+		desc["memory_gib"] = fmt.Sprintf("%.2f", mem)
+	}
+	if ssd := nodeSSDFromPrice(price); ssd > 0 {
+		desc["ssd_gib"] = fmt.Sprintf("%.0f", ssd)
+	}
+	return desc
+}
+
+func (h *ReplicationGroupHandler) CalculateCost(price *pricing.Price, index *pricing.PriceIndex, region string, attrs map[string]any) (hourly, monthly float64) {
+	totalNodes := replicationGroupNodeCount(attrs)
+
+	_, monthly = aws.ScaledHourlyCost(price.OnDemandUSD, totalNodes)
+
+	// Data tiering cost for nodes with local SSD (r6gd/r7gd)
+	monthly += dataTieringCost(price, index, region, totalNodes)
+
+	// Backup storage cost
+	snapshotRetention := aws.GetIntAttr(attrs, "snapshot_retention_limit")
+	if snapshotRetention > 0 {
+		monthly += backupStorageCost(price, index, region, totalNodes, snapshotRetention)
+	}
+
+	hourly = monthly / aws.HoursPerMonth
+	return hourly, monthly
+}
+
+// replicationGroupNodeCount calculates total node count from replication group attributes.
+func replicationGroupNodeCount(attrs map[string]any) int {
 	numNodeGroups := aws.GetIntAttr(attrs, "num_node_groups")
 	if numNodeGroups == 0 {
 		numNodeGroups = 1
 	}
 
 	replicasPerGroup := aws.GetIntAttr(attrs, "replicas_per_node_group")
-	// Total nodes = primary (1 per group) + replicas
 	totalNodes := numNodeGroups * (1 + replicasPerGroup)
 
 	// Legacy attribute support
 	if totalNodes == 1 {
-		numberCacheClusters := aws.GetIntAttr(attrs, "number_cache_clusters")
-		if numberCacheClusters > 0 {
-			totalNodes = numberCacheClusters
+		if n := aws.GetIntAttr(attrs, "number_cache_clusters"); n > 0 {
+			totalNodes = n
 		}
 	}
 
-	return aws.ScaledHourlyCost(price.OnDemandUSD, totalNodes)
+	return totalNodes
 }

@@ -25,7 +25,11 @@ func (h *NATHandler) BuildLookup(region string, _ map[string]any) (*pricing.Pric
 	}), nil
 }
 
-func (h *NATHandler) CalculateCost(price *pricing.Price, _ map[string]any) (hourly, monthly float64) {
+func (h *NATHandler) Describe(_ *pricing.Price, _ map[string]any) map[string]string {
+	return map[string]string{}
+}
+
+func (h *NATHandler) CalculateCost(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
 	// NAT Gateway: hourly charge + data processing
 	// For fixed cost estimation, only include hourly
 	rate := price.OnDemandUSD

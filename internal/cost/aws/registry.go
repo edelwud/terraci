@@ -28,9 +28,27 @@ type ResourceHandler interface {
 	// BuildLookup creates a PriceLookup from terraform resource attributes.
 	// Not called for Fixed or UsageBased handlers.
 	BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error)
-	// CalculateCost calculates monthly cost from price and resource attributes.
-	// For Fixed handlers, price may be nil.
-	CalculateCost(price *pricing.Price, attrs map[string]any) (hourly, monthly float64)
+	// CalculateCost calculates monthly cost from price, index, and resource attributes.
+	// For Fixed/UsageBased handlers, price and index may be nil.
+	// Handlers that need secondary lookups (e.g., EBS IOPS) use the index directly.
+	CalculateCost(price *pricing.Price, index *pricing.PriceIndex, region string, attrs map[string]any) (hourly, monthly float64)
+	// Describe returns human-readable resource details.
+	// price may be nil for Fixed/UsageBased handlers or before API lookup.
+	Describe(price *pricing.Price, attrs map[string]any) map[string]string
+}
+
+// SubResource represents a virtual sub-resource synthesized from a parent resource's
+// inline attributes (e.g., root_block_device inside aws_instance → aws_ebs_volume).
+type SubResource struct {
+	Suffix string         // Address suffix, e.g., "/root_volume"
+	Type   string         // Resource type for handler lookup, e.g., "aws_ebs_volume"
+	Attrs  map[string]any // Translated attributes for the sub-resource handler
+}
+
+// CompoundHandler is implemented by handlers that produce additional sub-resource costs.
+// The estimator dispatches each SubResource to the appropriate handler.
+type CompoundHandler interface {
+	SubResources(attrs map[string]any) []SubResource
 }
 
 // Registry maps terraform resource types to handlers

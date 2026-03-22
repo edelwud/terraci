@@ -36,6 +36,17 @@ func (h *ClusterInstanceHandler) BuildLookup(region string, attrs map[string]any
 	}), nil
 }
 
-func (h *ClusterInstanceHandler) CalculateCost(price *pricing.Price, _ map[string]any) (hourly, monthly float64) {
+func (h *ClusterInstanceHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
+	d := map[string]string{}
+	if v := aws.GetStringAttr(attrs, "instance_class"); v != "" {
+		d["instance_class"] = v
+	}
+	if v := aws.GetStringAttr(attrs, "engine"); v != "" {
+		d["engine"] = v
+	}
+	return d
+}
+
+func (h *ClusterInstanceHandler) CalculateCost(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
 	return aws.HourlyCost(price.OnDemandUSD)
 }

@@ -16,7 +16,7 @@ func TestKMSHandler_ServiceCode(t *testing.T) {
 
 func TestKMSHandler_CalculateCost(t *testing.T) {
 	h := &KMSHandler{}
-	hourly, monthly := h.CalculateCost(nil, nil)
+	hourly, monthly := h.CalculateCost(nil, nil, "", nil)
 
 	if monthly != KMSKeyCost {
 		t.Errorf("monthly = %v, want %v", monthly, KMSKeyCost)

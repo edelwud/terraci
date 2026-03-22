@@ -1,6 +1,8 @@
 package serverless
 
 import (
+	"strconv"
+
 	aws "github.com/edelwud/terraci/internal/cost/aws"
 	"github.com/edelwud/terraci/internal/cost/pricing"
 )
@@ -37,7 +39,21 @@ func (h *DynamoDBHandler) BuildLookup(region string, attrs map[string]any) (*pri
 	}), nil
 }
 
-func (h *DynamoDBHandler) CalculateCost(_ *pricing.Price, attrs map[string]any) (hourly, monthly float64) {
+func (h *DynamoDBHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
+	desc := make(map[string]string)
+	if v := aws.GetStringAttr(attrs, "billing_mode"); v != "" {
+		desc["billing_mode"] = v
+	}
+	if v := aws.GetIntAttr(attrs, "read_capacity"); v != 0 {
+		desc["read_capacity"] = strconv.Itoa(v)
+	}
+	if v := aws.GetIntAttr(attrs, "write_capacity"); v != 0 {
+		desc["write_capacity"] = strconv.Itoa(v)
+	}
+	return desc
+}
+
+func (h *DynamoDBHandler) CalculateCost(_ *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
 	billingMode := aws.GetStringAttr(attrs, "billing_mode")
 	if billingMode == "PAY_PER_REQUEST" {
 		// On-demand: usage-based, no fixed cost

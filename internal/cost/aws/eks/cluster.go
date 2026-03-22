@@ -19,6 +19,14 @@ func (h *ClusterHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceEKS
 }
 
+func (h *ClusterHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
+	desc := make(map[string]string)
+	if v := aws.GetStringAttr(attrs, "version"); v != "" {
+		desc["version"] = v
+	}
+	return desc
+}
+
 func (h *ClusterHandler) BuildLookup(region string, _ map[string]any) (*pricing.PriceLookup, error) {
 	prefix := aws.ResolveUsagePrefix(region)
 
@@ -28,7 +36,7 @@ func (h *ClusterHandler) BuildLookup(region string, _ map[string]any) (*pricing.
 	}), nil
 }
 
-func (h *ClusterHandler) CalculateCost(price *pricing.Price, _ map[string]any) (hourly, monthly float64) {
+func (h *ClusterHandler) CalculateCost(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
 	if price != nil && price.OnDemandUSD > 0 {
 		return aws.HourlyCost(price.OnDemandUSD)
 	}

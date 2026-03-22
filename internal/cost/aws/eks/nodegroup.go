@@ -1,6 +1,8 @@
 package eks
 
 import (
+	"strconv"
+
 	aws "github.com/edelwud/terraci/internal/cost/aws"
 	"github.com/edelwud/terraci/internal/cost/pricing"
 )
@@ -16,6 +18,29 @@ func (h *NodeGroupHandler) Category() aws.CostCategory { return aws.CostCategory
 
 func (h *NodeGroupHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceEC2
+}
+
+func (h *NodeGroupHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
+	desc := make(map[string]string)
+
+	var instanceType string
+	if instanceTypes, ok := attrs["instance_types"].([]any); ok && len(instanceTypes) > 0 {
+		if t, ok := instanceTypes[0].(string); ok {
+			instanceType = t
+		}
+	}
+	if instanceType != "" {
+		desc["instance_type"] = instanceType
+	}
+
+	if scalingConfig, ok := attrs["scaling_config"].([]any); ok && len(scalingConfig) > 0 {
+		if cfg, ok := scalingConfig[0].(map[string]any); ok {
+			if d := aws.GetIntAttr(cfg, "desired_size"); d > 0 {
+				desc["desired_size"] = strconv.Itoa(d)
+			}
+		}
+	}
+	return desc
 }
 
 func (h *NodeGroupHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
@@ -43,7 +68,7 @@ func (h *NodeGroupHandler) BuildLookup(region string, attrs map[string]any) (*pr
 	}), nil
 }
 
-func (h *NodeGroupHandler) CalculateCost(price *pricing.Price, attrs map[string]any) (hourly, monthly float64) {
+func (h *NodeGroupHandler) CalculateCost(price *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
 	// Determine node count from scaling_config
 	desiredSize := 1
 

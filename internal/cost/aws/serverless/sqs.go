@@ -19,7 +19,9 @@ func (h *SQSHandler) BuildLookup(_ string, _ map[string]any) (*pricing.PriceLook
 	return nil, nil
 }
 
-func (h *SQSHandler) CalculateCost(_ *pricing.Price, _ map[string]any) (hourly, monthly float64) {
+func (h *SQSHandler) Describe(_ *pricing.Price, _ map[string]any) map[string]string { return nil }
+
+func (h *SQSHandler) CalculateCost(_ *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
 	// SQS: $0.40 per million requests (first million free)
 	// Usage-based, no fixed cost
 	return 0, 0

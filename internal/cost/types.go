@@ -12,17 +12,19 @@ const (
 
 // ResourceCost represents the estimated cost of a single resource
 type ResourceCost struct {
-	Address           string        `json:"address"`                       // Terraform resource address
-	Type              string        `json:"type"`                          // Terraform resource type (aws_instance)
-	Name              string        `json:"name"`                          // Resource name
-	Region            string        `json:"region"`                        // AWS region
-	MonthlyCost       float64       `json:"monthly_cost"`                  // After-state monthly cost in USD
-	HourlyCost        float64       `json:"hourly_cost"`                   // After-state hourly cost in USD
-	BeforeMonthlyCost float64       `json:"before_monthly_cost,omitempty"` // Before-state monthly cost (update/replace)
-	BeforeHourlyCost  float64       `json:"before_hourly_cost,omitempty"`  // Before-state hourly cost (update/replace)
-	PriceSource       string        `json:"price_source"`                  // Source of pricing (aws-bulk-api, fixed, usage-based)
-	ErrorKind         CostErrorKind `json:"error_kind,omitempty"`          // Classification of estimation error
-	ErrorDetail       string        `json:"error_detail,omitempty"`        // Human-readable error detail
+	Address           string            `json:"address"`                       // Terraform resource address
+	ModuleAddr        string            `json:"module_addr,omitempty"`         // Terraform module address (e.g., "module.vpc")
+	Type              string            `json:"type"`                          // Terraform resource type (aws_instance)
+	Name              string            `json:"name"`                          // Resource name
+	Region            string            `json:"region"`                        // AWS region
+	MonthlyCost       float64           `json:"monthly_cost"`                  // After-state monthly cost in USD
+	HourlyCost        float64           `json:"hourly_cost"`                   // After-state hourly cost in USD
+	BeforeMonthlyCost float64           `json:"before_monthly_cost,omitempty"` // Before-state monthly cost (update/replace)
+	BeforeHourlyCost  float64           `json:"before_hourly_cost,omitempty"`  // Before-state hourly cost (update/replace)
+	PriceSource       string            `json:"price_source"`                  // Source of pricing (aws-bulk-api, fixed, usage-based)
+	ErrorKind         CostErrorKind     `json:"error_kind,omitempty"`          // Classification of estimation error
+	ErrorDetail       string            `json:"error_detail,omitempty"`        // Human-readable error detail
+	Details           map[string]string `json:"details,omitempty"`             // Resource-specific info (instance_type, nodes, disk, etc.)
 }
 
 // IsUnsupported returns true if the resource cost could not be estimated
@@ -43,18 +45,26 @@ const (
 	CostErrorNoPrice      CostErrorKind = "no_price"
 )
 
+// SubmoduleCost groups resource costs by Terraform module address.
+type SubmoduleCost struct {
+	ModuleAddr  string         `json:"module_addr"` // e.g., "module.runner" or "" for root
+	MonthlyCost float64        `json:"monthly_cost"`
+	Resources   []ResourceCost `json:"resources"`
+}
+
 // ModuleCost represents the total cost estimate for a terraform module
 type ModuleCost struct {
-	ModuleID    string         `json:"module_id"`   // Module identifier
-	ModulePath  string         `json:"module_path"` // Path to module
-	Region      string         `json:"region"`      // Primary region
-	BeforeCost  float64        `json:"before_cost"` // Monthly cost before changes
-	AfterCost   float64        `json:"after_cost"`  // Monthly cost after changes
-	DiffCost    float64        `json:"diff_cost"`   // Cost difference (after - before)
-	Resources   []ResourceCost `json:"resources"`   // Individual resource costs
-	Unsupported int            `json:"unsupported"` // Count of unsupported resources
-	HasChanges  bool           `json:"has_changes"` // True if costs changed
-	Error       string         `json:"error,omitempty"`
+	ModuleID    string          `json:"module_id"`            // Module identifier
+	ModulePath  string          `json:"module_path"`          // Path to module
+	Region      string          `json:"region"`               // Primary region
+	BeforeCost  float64         `json:"before_cost"`          // Monthly cost before changes
+	AfterCost   float64         `json:"after_cost"`           // Monthly cost after changes
+	DiffCost    float64         `json:"diff_cost"`            // Cost difference (after - before)
+	Resources   []ResourceCost  `json:"resources"`            // Flat list of all resource costs
+	Submodules  []SubmoduleCost `json:"submodules,omitempty"` // Grouped by Terraform module address
+	Unsupported int             `json:"unsupported"`          // Count of unsupported resources
+	HasChanges  bool            `json:"has_changes"`          // True if costs changed
+	Error       string          `json:"error,omitempty"`
 }
 
 // EstimateResult contains the full cost estimation result

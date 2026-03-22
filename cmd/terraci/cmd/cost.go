@@ -157,16 +157,10 @@ func outputCostResult(app *App, costOutputFmt string, result *cost.EstimateResul
 	}
 
 	// Text output
-	log.Info("cost estimation results")
-	log.IncreasePadding()
-
 	for i := range result.Modules {
 		mc := &result.Modules[i]
-		status := "✅"
-		if mc.Error != "" {
-			status = "❌"
-		} else if mc.HasChanges {
-			status = "🔄"
+		if mc.AfterCost == 0 && mc.BeforeCost == 0 && mc.Error == "" {
+			continue
 		}
 
 		moduleID := mc.ModuleID
@@ -174,70 +168,72 @@ func outputCostResult(app *App, costOutputFmt string, result *cost.EstimateResul
 			moduleID = filepath.ToSlash(rel)
 		}
 
-		log.WithField("module", moduleID).
-			WithField("status", status).
-			WithField("monthly", cost.FormatCost(mc.AfterCost)).
-			Info("module")
-
+		moduleEntry := log.WithField("monthly", cost.FormatCost(mc.AfterCost))
 		if mc.HasChanges {
-			log.IncreasePadding()
-			log.WithField("before", cost.FormatCost(mc.BeforeCost)).
-				WithField("after", cost.FormatCost(mc.AfterCost)).
-				WithField("diff", cost.FormatCost(mc.DiffCost)).
-				Info("cost change")
-			log.DecreasePadding()
+			moduleEntry = moduleEntry.WithField("diff", cost.FormatCostDiff(mc.DiffCost))
 		}
-
 		if mc.Error != "" {
-			log.IncreasePadding()
-			log.WithField("error", mc.Error).Warn("estimation error")
-			log.DecreasePadding()
+			moduleEntry = moduleEntry.WithField("error", mc.Error)
 		}
+		moduleEntry.Info(moduleID)
 
-		// Show per-resource breakdown
-		if len(mc.Resources) > 0 {
-			log.IncreasePadding()
-			for i := range mc.Resources {
-				rc := &mc.Resources[i]
+		log.IncreasePadding()
+		for j := range mc.Submodules {
+			sm := &mc.Submodules[j]
+			if sm.MonthlyCost == 0 {
+				continue
+			}
+
+			// Show submodule header if there's more than one group
+			showGroup := len(mc.Submodules) > 1
+			if showGroup {
+				label := sm.ModuleAddr
+				if label == "" {
+					label = "(root)"
+				}
+				log.WithField("monthly", cost.FormatCost(sm.MonthlyCost)).Info(label)
+				log.IncreasePadding()
+			}
+
+			for k := range sm.Resources {
+				rc := &sm.Resources[k]
+				// Strip module prefix from address for cleaner output
+				displayAddr := stripModulePrefix(rc.Address, sm.ModuleAddr)
+
 				switch rc.ErrorKind {
 				case cost.CostErrorNone:
 					if rc.MonthlyCost > 0 {
-						log.WithField("resource", rc.Address).
-							WithField("monthly", cost.FormatCost(rc.MonthlyCost)).
-							Info("resource")
+						entry := log.WithField("monthly", cost.FormatCost(rc.MonthlyCost))
+						for dk, dv := range rc.Details {
+							entry = entry.WithField(dk, dv)
+						}
+						entry.Info(displayAddr)
 					}
 				case cost.CostErrorUsageBased:
-					log.WithField("resource", rc.Address).
-						WithField("type", rc.Type).
-						Info("usage-based (no fixed cost)")
+					log.WithField("note", "usage-based").Debug(displayAddr)
 				case cost.CostErrorNoHandler:
-					log.WithField("resource", rc.Address).
-						WithField("type", rc.Type).
-						Debug("no cost handler")
+					log.WithField("note", "unsupported").Debug(displayAddr)
 				case cost.CostErrorLookupFailed, cost.CostErrorAPIFailure, cost.CostErrorNoPrice:
-					log.WithField("resource", rc.Address).
-						WithField("error", rc.ErrorDetail).
-						Warn("cost estimation failed")
+					log.WithField("error", rc.ErrorDetail).Warn(displayAddr)
 				}
 			}
-			log.DecreasePadding()
+
+			if showGroup {
+				log.DecreasePadding()
+			}
 		}
+		log.DecreasePadding()
 	}
 
-	log.DecreasePadding()
-
 	// Total
-	log.Info("total estimated monthly cost")
-	log.IncreasePadding()
 	if result.TotalDiff != 0 {
 		log.WithField("before", cost.FormatCost(result.TotalBefore)).
 			WithField("after", cost.FormatCost(result.TotalAfter)).
-			WithField("diff", cost.FormatCost(result.TotalDiff)).
-			Info("monthly")
+			WithField("diff", cost.FormatCostDiff(result.TotalDiff)).
+			Info("total")
 	} else {
-		log.WithField("monthly", cost.FormatCost(result.TotalAfter)).Info("monthly")
+		log.WithField("monthly", cost.FormatCost(result.TotalAfter)).Info("total")
 	}
-	log.DecreasePadding()
 
 	return nil
 }
@@ -253,6 +249,20 @@ func detectRegion(app *App, modulePath string) string {
 		}
 	}
 	return "us-east-1"
+}
+
+// stripModulePrefix removes the "module.x.module.y." prefix from a resource address
+// when displayed inside its module group, since it's redundant.
+// e.g., "module.runner.aws_instance.web" with prefix "module.runner" → "aws_instance.web"
+func stripModulePrefix(address, moduleAddr string) string {
+	if moduleAddr == "" {
+		return address
+	}
+	prefix := moduleAddr + "."
+	if len(address) > len(prefix) && address[:len(prefix)] == prefix {
+		return address[len(prefix):]
+	}
+	return address
 }
 
 func splitPath(p string) []string {

@@ -17,9 +17,10 @@ func (h *stubHandler) ServiceCode() pricing.ServiceCode { return h.svc }
 func (h *stubHandler) BuildLookup(string, map[string]any) (*pricing.PriceLookup, error) {
 	return nil, nil
 }
-func (h *stubHandler) CalculateCost(*pricing.Price, map[string]any) (hourly, monthly float64) {
+func (h *stubHandler) CalculateCost(*pricing.Price, *pricing.PriceIndex, string, map[string]any) (hourly, monthly float64) {
 	return 0, 0
 }
+func (h *stubHandler) Describe(*pricing.Price, map[string]any) map[string]string { return nil }
 
 func newTestRegistry() *Registry {
 	r := &Registry{handlers: make(map[string]ResourceHandler)}

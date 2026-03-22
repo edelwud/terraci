@@ -15,7 +15,7 @@ func TestSecretsManagerHandler_ServiceCode(t *testing.T) {
 
 func TestSecretsManagerHandler_CalculateCost(t *testing.T) {
 	h := &SecretsManagerHandler{}
-	_, monthly := h.CalculateCost(nil, nil)
+	_, monthly := h.CalculateCost(nil, nil, "", nil)
 
 	if monthly != SecretsManagerSecretCost {
 		t.Errorf("monthly = %v, want %v", monthly, SecretsManagerSecretCost)

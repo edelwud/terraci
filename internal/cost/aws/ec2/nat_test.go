@@ -34,7 +34,7 @@ func TestNATHandler_CalculateCost(t *testing.T) {
 		OnDemandUSD: 0.045,
 	}
 
-	hourly, monthly := h.CalculateCost(price, nil)
+	hourly, monthly := h.CalculateCost(price, nil, "", nil)
 
 	if hourly != 0.045 {
 		t.Errorf("hourly = %v, want %v", hourly, 0.045)
@@ -46,7 +46,7 @@ func TestNATHandler_CalculateCost(t *testing.T) {
 	}
 
 	// Without price (fallback)
-	hourly, _ = h.CalculateCost(&pricing.Price{OnDemandUSD: 0}, nil)
+	hourly, _ = h.CalculateCost(&pricing.Price{OnDemandUSD: 0}, nil, "", nil)
 	if hourly != 0.045 {
 		t.Errorf("fallback hourly = %v, want %v", hourly, 0.045)
 	}

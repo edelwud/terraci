@@ -23,7 +23,9 @@ func (h *KMSHandler) BuildLookup(_ string, _ map[string]any) (*pricing.PriceLook
 	return nil, nil
 }
 
-func (h *KMSHandler) CalculateCost(_ *pricing.Price, _ map[string]any) (hourly, monthly float64) {
+func (h *KMSHandler) Describe(_ *pricing.Price, _ map[string]any) map[string]string { return nil }
+
+func (h *KMSHandler) CalculateCost(_ *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
 	// KMS: $1.00 per customer-managed key per month
 	// AWS managed keys are free
 	return aws.FixedMonthlyCost(KMSKeyCost)

@@ -26,7 +26,7 @@ func TestS3Handler_BuildLookup(t *testing.T) {
 
 func TestS3Handler_CalculateCost(t *testing.T) {
 	h := &S3Handler{}
-	hourly, monthly := h.CalculateCost(nil, nil)
+	hourly, monthly := h.CalculateCost(nil, nil, "", nil)
 	if hourly != 0 {
 		t.Errorf("hourly = %v, want 0", hourly)
 	}

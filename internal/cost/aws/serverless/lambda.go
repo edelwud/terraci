@@ -1,6 +1,8 @@
 package serverless
 
 import (
+	"strconv"
+
 	aws "github.com/edelwud/terraci/internal/cost/aws"
 	"github.com/edelwud/terraci/internal/cost/pricing"
 )
@@ -24,6 +26,20 @@ func (h *LambdaHandler) ServiceCode() pricing.ServiceCode {
 	return pricing.ServiceLambda
 }
 
+func (h *LambdaHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
+	desc := make(map[string]string)
+	if v := aws.GetIntAttr(attrs, "memory_size"); v != 0 {
+		desc["memory_mb"] = strconv.Itoa(v)
+	}
+	if v := aws.GetStringAttr(attrs, "runtime"); v != "" {
+		desc["runtime"] = v
+	}
+	if v := aws.GetIntAttr(attrs, "provisioned_concurrent_executions"); v != 0 {
+		desc["provisioned_concurrency"] = strconv.Itoa(v)
+	}
+	return desc
+}
+
 func (h *LambdaHandler) BuildLookup(region string, _ map[string]any) (*pricing.PriceLookup, error) {
 	lb := &aws.LookupBuilder{Service: pricing.ServiceLambda, ProductFamily: "Serverless"}
 	return lb.Build(region, map[string]string{
@@ -31,7 +47,7 @@ func (h *LambdaHandler) BuildLookup(region string, _ map[string]any) (*pricing.P
 	}), nil
 }
 
-func (h *LambdaHandler) CalculateCost(_ *pricing.Price, attrs map[string]any) (hourly, monthly float64) {
+func (h *LambdaHandler) CalculateCost(_ *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
 	// Lambda has complex pricing: requests + GB-seconds
 	// For fixed cost, return 0 as it's usage-based
 	// Could estimate based on provisioned concurrency if set

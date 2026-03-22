@@ -2,10 +2,17 @@ package elasticache
 
 import (
 	"fmt"
+	"strconv"
 
 	aws "github.com/edelwud/terraci/internal/cost/aws"
 	"github.com/edelwud/terraci/internal/cost/pricing"
 )
+
+// Backup storage fallback (used when API lookup unavailable).
+const FallbackBackupStorageCostPerGBMonth = 0.085
+
+// Data tiering fallback for r6gd/r7gd nodes.
+const FallbackDataTieringCostPerGBMonth = 0.0125
 
 // ClusterHandler handles aws_elasticache_cluster cost estimation
 type ClusterHandler struct{}
@@ -45,11 +52,46 @@ func (h *ClusterHandler) BuildLookup(region string, attrs map[string]any) (*pric
 	}), nil
 }
 
-func (h *ClusterHandler) CalculateCost(price *pricing.Price, attrs map[string]any) (hourly, monthly float64) {
+func (h *ClusterHandler) Describe(price *pricing.Price, attrs map[string]any) map[string]string {
+	desc := make(map[string]string)
+	if v := aws.GetStringAttr(attrs, "node_type"); v != "" {
+		desc["node_type"] = v
+	}
+	if v := aws.GetStringAttr(attrs, "engine"); v != "" {
+		desc["engine"] = v
+	}
+	if v := aws.GetIntAttr(attrs, "num_cache_nodes"); v != 0 {
+		desc["nodes"] = strconv.Itoa(v)
+	}
+	if v := aws.GetIntAttr(attrs, "snapshot_retention_limit"); v > 0 {
+		desc["snapshot_retention_days"] = strconv.Itoa(v)
+	}
+	if mem := nodeMemoryFromPrice(price); mem > 0 {
+		desc["memory_gib"] = fmt.Sprintf("%.2f", mem)
+	}
+	if ssd := nodeSSDFromPrice(price); ssd > 0 {
+		desc["ssd_gib"] = fmt.Sprintf("%.0f", ssd)
+	}
+	return desc
+}
+
+func (h *ClusterHandler) CalculateCost(price *pricing.Price, index *pricing.PriceIndex, region string, attrs map[string]any) (hourly, monthly float64) {
 	numCacheNodes := aws.GetIntAttr(attrs, "num_cache_nodes")
 	if numCacheNodes == 0 {
 		numCacheNodes = 1
 	}
 
-	return aws.ScaledHourlyCost(price.OnDemandUSD, numCacheNodes)
+	_, monthly = aws.ScaledHourlyCost(price.OnDemandUSD, numCacheNodes)
+
+	// Data tiering cost for nodes with local SSD (r6gd/r7gd)
+	monthly += dataTieringCost(price, index, region, numCacheNodes)
+
+	// Backup storage cost
+	snapshotRetention := aws.GetIntAttr(attrs, "snapshot_retention_limit")
+	if snapshotRetention > 0 {
+		monthly += backupStorageCost(price, index, region, numCacheNodes, snapshotRetention)
+	}
+
+	hourly = monthly / aws.HoursPerMonth
+	return hourly, monthly
 }

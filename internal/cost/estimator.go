@@ -72,7 +72,7 @@ func (e *Estimator) EstimateModule(ctx context.Context, modulePath, region strin
 			attrs = rc.BeforeValues // delete has no after
 		}
 
-		resourceCost := e.estimateResourceFromAttrs(ctx, rc.Type, rc.Address, rc.Name, region, attrs)
+		resourceCost := e.estimateResourceFromAttrs(ctx, rc.Type, rc.Address, rc.Name, rc.ModuleAddr, region, attrs)
 
 		// For update/replace, calculate before-state cost separately
 		if rc.Action == plan.ActionUpdate || rc.Action == plan.ActionReplace {
@@ -84,7 +84,7 @@ func (e *Estimator) EstimateModule(ctx context.Context, modulePath, region strin
 					resourceCost.BeforeHourlyCost = beforeResult.HourlyCost
 					resourceCost.BeforeMonthlyCost = beforeResult.MonthlyCost
 				case aws.CostCategoryFixed:
-					h, m := handler.CalculateCost(nil, beforeAttrs)
+					h, m := handler.CalculateCost(nil, nil, region, beforeAttrs)
 					resourceCost.BeforeHourlyCost = h
 					resourceCost.BeforeMonthlyCost = m
 				case aws.CostCategoryUsageBased:
@@ -94,31 +94,70 @@ func (e *Estimator) EstimateModule(ctx context.Context, modulePath, region strin
 		}
 
 		result.Resources = append(result.Resources, resourceCost)
+		e.aggregateCost(result, resourceCost, rc.Action)
 
-		if resourceCost.IsUnsupported() {
-			result.Unsupported++
-			continue
-		}
-
-		// Aggregate before/after based on action
-		switch rc.Action {
-		case plan.ActionCreate:
-			result.AfterCost += resourceCost.MonthlyCost
-		case plan.ActionDelete:
-			result.BeforeCost += resourceCost.MonthlyCost
-		case plan.ActionUpdate, plan.ActionReplace:
-			result.BeforeCost += resourceCost.BeforeMonthlyCost
-			result.AfterCost += resourceCost.MonthlyCost
-		case plan.ActionNoOp:
-			result.BeforeCost += resourceCost.MonthlyCost
-			result.AfterCost += resourceCost.MonthlyCost
+		// Synthesize sub-resources from CompoundHandler (e.g., root_block_device → EBS)
+		if handler, ok := e.registry.GetHandler(rc.Type); ok {
+			if ch, ok := handler.(aws.CompoundHandler); ok {
+				for _, sub := range ch.SubResources(attrs) {
+					subAddr := rc.Address + sub.Suffix
+					subCost := e.estimateResourceFromAttrs(ctx, sub.Type, subAddr, sub.Suffix, rc.ModuleAddr, region, sub.Attrs)
+					result.Resources = append(result.Resources, subCost)
+					e.aggregateCost(result, subCost, rc.Action)
+				}
+			}
 		}
 	}
 
 	result.DiffCost = result.AfterCost - result.BeforeCost
 	result.HasChanges = parsedPlan.HasChanges()
+	result.Submodules = groupByModule(result.Resources)
 
 	return result, nil
+}
+
+// aggregateCost adds a resource's cost to the module totals based on action.
+func (e *Estimator) aggregateCost(result *ModuleCost, rc ResourceCost, action string) {
+	if rc.IsUnsupported() {
+		result.Unsupported++
+		return
+	}
+
+	switch action {
+	case plan.ActionCreate:
+		result.AfterCost += rc.MonthlyCost
+	case plan.ActionDelete:
+		result.BeforeCost += rc.MonthlyCost
+	case plan.ActionUpdate, plan.ActionReplace:
+		result.BeforeCost += rc.BeforeMonthlyCost
+		result.AfterCost += rc.MonthlyCost
+	case plan.ActionNoOp:
+		result.BeforeCost += rc.MonthlyCost
+		result.AfterCost += rc.MonthlyCost
+	}
+}
+
+// groupByModule groups resources by their Terraform module address, preserving order.
+func groupByModule(resources []ResourceCost) []SubmoduleCost {
+	groups := make(map[string]*SubmoduleCost)
+	var order []string
+
+	for i := range resources {
+		rc := &resources[i]
+		addr := rc.ModuleAddr
+		if groups[addr] == nil {
+			groups[addr] = &SubmoduleCost{ModuleAddr: addr}
+			order = append(order, addr)
+		}
+		groups[addr].Resources = append(groups[addr].Resources, *rc)
+		groups[addr].MonthlyCost += rc.MonthlyCost
+	}
+
+	result := make([]SubmoduleCost, 0, len(order))
+	for _, addr := range order {
+		result = append(result, *groups[addr])
+	}
+	return result
 }
 
 // EstimateModules calculates costs for multiple modules concurrently.
@@ -227,12 +266,13 @@ func (e *Estimator) ValidateAndPrefetch(ctx context.Context, modulePaths []strin
 }
 
 // estimateResourceFromAttrs calculates cost for a resource given its full attributes.
-func (e *Estimator) estimateResourceFromAttrs(ctx context.Context, resourceType, address, name, region string, attrs map[string]any) ResourceCost {
+func (e *Estimator) estimateResourceFromAttrs(ctx context.Context, resourceType, address, name, moduleAddr, region string, attrs map[string]any) ResourceCost {
 	result := ResourceCost{
-		Address: address,
-		Type:    resourceType,
-		Name:    name,
-		Region:  region,
+		Address:    address,
+		ModuleAddr: moduleAddr,
+		Type:       resourceType,
+		Name:       name,
+		Region:     region,
 	}
 
 	handler, ok := e.registry.GetHandler(resourceType)
@@ -247,6 +287,8 @@ func (e *Estimator) estimateResourceFromAttrs(ctx context.Context, resourceType,
 		attrs = make(map[string]any)
 	}
 
+	result.Details = handler.Describe(nil, attrs)
+
 	// Dispatch by handler category
 	switch handler.Category() {
 	case aws.CostCategoryUsageBased:
@@ -256,7 +298,7 @@ func (e *Estimator) estimateResourceFromAttrs(ctx context.Context, resourceType,
 		return result
 
 	case aws.CostCategoryFixed:
-		hourly, monthly := handler.CalculateCost(nil, attrs)
+		hourly, monthly := handler.CalculateCost(nil, nil, region, attrs)
 		result.HourlyCost = hourly
 		result.MonthlyCost = monthly
 		result.PriceSource = "fixed"
@@ -303,10 +345,11 @@ func (e *Estimator) estimateStandardResource(ctx context.Context, handler aws.Re
 		return result
 	}
 
-	hourly, monthly := handler.CalculateCost(price, attrs)
+	hourly, monthly := handler.CalculateCost(price, index, region, attrs)
 	result.HourlyCost = hourly
 	result.MonthlyCost = monthly
 	result.PriceSource = "aws-bulk-api"
+	result.Details = handler.Describe(price, attrs)
 
 	return result
 }

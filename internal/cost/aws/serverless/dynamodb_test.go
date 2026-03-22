@@ -85,7 +85,7 @@ func TestDynamoDBHandler_CalculateCost(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			hourly, monthly := h.CalculateCost(nil, tt.attrs)
+			hourly, monthly := h.CalculateCost(nil, nil, "", tt.attrs)
 
 			if tt.expectNonZero {
 				if hourly == 0 {

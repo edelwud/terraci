@@ -23,7 +23,11 @@ func (h *SecretsManagerHandler) BuildLookup(_ string, _ map[string]any) (*pricin
 	return nil, nil
 }
 
-func (h *SecretsManagerHandler) CalculateCost(_ *pricing.Price, _ map[string]any) (hourly, monthly float64) {
+func (h *SecretsManagerHandler) Describe(_ *pricing.Price, _ map[string]any) map[string]string {
+	return nil
+}
+
+func (h *SecretsManagerHandler) CalculateCost(_ *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
 	// Secrets Manager: $0.40 per secret per month + $0.05 per 10,000 API calls
 	return aws.FixedMonthlyCost(SecretsManagerSecretCost)
 }

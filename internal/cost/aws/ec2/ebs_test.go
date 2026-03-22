@@ -1,11 +1,18 @@
 package ec2
 
 import (
+	"math"
 	"testing"
 
 	aws "github.com/edelwud/terraci/internal/cost/aws"
 	"github.com/edelwud/terraci/internal/cost/pricing"
 )
+
+const floatTolerance = 1e-9
+
+func approxEqual(a, b float64) bool {
+	return math.Abs(a-b) < floatTolerance
+}
 
 func TestEBSHandler_BuildLookup(t *testing.T) {
 	h := &EBSHandler{}
@@ -18,21 +25,21 @@ func TestEBSHandler_BuildLookup(t *testing.T) {
 		{
 			name:           "default gp2",
 			attrs:          map[string]any{},
-			wantVolumeType: "General Purpose",
+			wantVolumeType: "gp2",
 		},
 		{
 			name: "explicit gp3",
 			attrs: map[string]any{
 				"type": "gp3",
 			},
-			wantVolumeType: "General Purpose",
+			wantVolumeType: "gp3",
 		},
 		{
 			name: "io1",
 			attrs: map[string]any{
 				"type": "io1",
 			},
-			wantVolumeType: "Provisioned IOPS",
+			wantVolumeType: "io1",
 		},
 	}
 
@@ -81,7 +88,7 @@ func TestEBSHandler_CalculateCost(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, monthly := h.CalculateCost(price, tt.attrs)
+			_, monthly := h.CalculateCost(price, nil, "", tt.attrs)
 
 			if monthly != tt.expectedMonthly {
 				t.Errorf("monthly = %v, want %v", monthly, tt.expectedMonthly)
@@ -103,9 +110,9 @@ func TestEBSHandler_CalculateCost_IO1(t *testing.T) {
 		"iops": float64(3000),
 	}
 
-	_, monthly := h.CalculateCost(price, attrs)
+	_, monthly := h.CalculateCost(price, nil, "", attrs)
 
-	expectedMonthly := 0.125*100 + 3000*DefaultIO1IOPSCostPerMonth
+	expectedMonthly := 0.125*100 + 3000*FallbackIO1IOPSCostPerMonth
 	if monthly != expectedMonthly {
 		t.Errorf("monthly = %v, want %v", monthly, expectedMonthly)
 	}
@@ -124,9 +131,164 @@ func TestEBSHandler_CalculateCost_GP3Throughput(t *testing.T) {
 		"throughput": float64(250),
 	}
 
-	_, monthly := h.CalculateCost(price, attrs)
+	_, monthly := h.CalculateCost(price, nil, "", attrs)
 
-	expectedMonthly := 0.08*100 + (250-DefaultGP3FreeThroughputMBps)*DefaultGP3ThroughputCostPerMB
+	expectedMonthly := 0.08*100 + (250-DefaultGP3FreeThroughputMBps)*FallbackGP3ThroughputCostPerMB
+	if monthly != expectedMonthly {
+		t.Errorf("monthly = %v, want %v", monthly, expectedMonthly)
+	}
+}
+
+func TestEBSHandler_CalculateCost_IO1_WithIndex(t *testing.T) {
+	h := &EBSHandler{}
+
+	storagePrice := &pricing.Price{OnDemandUSD: 0.125}
+
+	index := &pricing.PriceIndex{
+		Products: map[string]pricing.Price{
+			"iops-sku": {
+				ProductFamily: "System Operation",
+				Attributes: map[string]string{
+					"usagetype": "USE1-EBS:VolumeP-IOPS.piops",
+					"location":  "US East (N. Virginia)",
+				},
+				OnDemandUSD: 0.070, // different from fallback 0.065
+			},
+		},
+	}
+
+	attrs := map[string]any{
+		"type": aws.VolumeTypeIO1,
+		"size": float64(100),
+		"iops": float64(3000),
+	}
+
+	_, monthly := h.CalculateCost(storagePrice, index, "us-east-1", attrs)
+
+	expectedMonthly := 0.125*100 + 3000*0.070
+	if !approxEqual(monthly, expectedMonthly) {
+		t.Errorf("monthly = %v, want %v", monthly, expectedMonthly)
+	}
+}
+
+func TestEBSHandler_CalculateCost_IO2(t *testing.T) {
+	h := &EBSHandler{}
+
+	storagePrice := &pricing.Price{OnDemandUSD: 0.125}
+
+	index := &pricing.PriceIndex{
+		Products: map[string]pricing.Price{
+			"io2-iops-sku": {
+				ProductFamily: "System Operation",
+				Attributes: map[string]string{
+					"usagetype": "USE1-EBS:VolumeP-IOPS.io2",
+					"location":  "US East (N. Virginia)",
+				},
+				OnDemandUSD: 0.072,
+			},
+		},
+	}
+
+	attrs := map[string]any{
+		"type": aws.VolumeTypeIO2,
+		"size": float64(50),
+		"iops": float64(5000),
+	}
+
+	_, monthly := h.CalculateCost(storagePrice, index, "us-east-1", attrs)
+
+	expectedMonthly := 0.125*50 + 5000*0.072
+	if !approxEqual(monthly, expectedMonthly) {
+		t.Errorf("monthly = %v, want %v", monthly, expectedMonthly)
+	}
+}
+
+func TestEBSHandler_CalculateCost_GP3(t *testing.T) {
+	h := &EBSHandler{}
+
+	storagePrice := &pricing.Price{OnDemandUSD: 0.08}
+
+	index := &pricing.PriceIndex{
+		Products: map[string]pricing.Price{
+			"gp3-iops-sku": {
+				ProductFamily: "System Operation",
+				Attributes: map[string]string{
+					"usagetype": "USE1-EBS:VolumeP-IOPS.gp3",
+					"location":  "US East (N. Virginia)",
+				},
+				OnDemandUSD: 0.007, // different from fallback 0.006
+			},
+			"gp3-throughput-sku": {
+				ProductFamily: "Provisioned Throughput",
+				Attributes: map[string]string{
+					"usagetype": "USE1-EBS:VolumeP-Throughput.gp3",
+					"location":  "US East (N. Virginia)",
+				},
+				OnDemandUSD: 0.045, // different from fallback 0.040
+			},
+		},
+	}
+
+	attrs := map[string]any{
+		"type":       aws.VolumeTypeGP3,
+		"size":       float64(100),
+		"iops":       float64(4000),
+		"throughput": float64(250),
+	}
+
+	_, monthly := h.CalculateCost(storagePrice, index, "us-east-1", attrs)
+
+	expectedMonthly := 0.08*100 +
+		(4000-DefaultGP3FreeIOPS)*0.007 +
+		(250-DefaultGP3FreeThroughputMBps)*0.045
+	if monthly != expectedMonthly {
+		t.Errorf("monthly = %v, want %v", monthly, expectedMonthly)
+	}
+}
+
+func TestEBSHandler_CalculateCost_FallbackOnMissingProduct(t *testing.T) {
+	h := &EBSHandler{}
+
+	storagePrice := &pricing.Price{OnDemandUSD: 0.125}
+
+	// Empty index — no IOPS products
+	index := &pricing.PriceIndex{
+		Products: map[string]pricing.Price{},
+	}
+
+	attrs := map[string]any{
+		"type": aws.VolumeTypeIO1,
+		"size": float64(100),
+		"iops": float64(3000),
+	}
+
+	_, monthly := h.CalculateCost(storagePrice, index, "us-east-1", attrs)
+
+	// Should fall back to FallbackIO1IOPSCostPerMonth
+	expectedMonthly := 0.125*100 + 3000*FallbackIO1IOPSCostPerMonth
+	if monthly != expectedMonthly {
+		t.Errorf("monthly = %v, want %v (expected fallback pricing)", monthly, expectedMonthly)
+	}
+}
+
+func TestEBSHandler_CalculateCost_NilIndex(t *testing.T) {
+	h := &EBSHandler{}
+
+	storagePrice := &pricing.Price{OnDemandUSD: 0.08}
+
+	attrs := map[string]any{
+		"type":       aws.VolumeTypeGP3,
+		"size":       float64(100),
+		"iops":       float64(4000),
+		"throughput": float64(250),
+	}
+
+	// nil index — same as CalculateCost path
+	_, monthly := h.CalculateCost(storagePrice, nil, "", attrs)
+
+	expectedMonthly := 0.08*100 +
+		(4000-DefaultGP3FreeIOPS)*FallbackGP3IOPSCostPerMonth +
+		(250-DefaultGP3FreeThroughputMBps)*FallbackGP3ThroughputCostPerMB
 	if monthly != expectedMonthly {
 		t.Errorf("monthly = %v, want %v", monthly, expectedMonthly)
 	}

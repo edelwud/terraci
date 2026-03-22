@@ -60,7 +60,24 @@ func (h *InstanceHandler) BuildLookup(region string, attrs map[string]any) (*pri
 	}), nil
 }
 
-func (h *InstanceHandler) CalculateCost(price *pricing.Price, attrs map[string]any) (hourly, monthly float64) {
+func (h *InstanceHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
+	d := map[string]string{}
+	if v := aws.GetStringAttr(attrs, "instance_class"); v != "" {
+		d["instance_class"] = v
+	}
+	if v := aws.GetStringAttr(attrs, "engine"); v != "" {
+		d["engine"] = v
+	}
+	if aws.GetBoolAttr(attrs, "multi_az") {
+		d["multi_az"] = "true"
+	}
+	if v := aws.GetFloatAttr(attrs, "allocated_storage"); v > 0 {
+		d["storage_gb"] = fmt.Sprintf("%.0f", v)
+	}
+	return d
+}
+
+func (h *InstanceHandler) CalculateCost(price *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
 	hourly = price.OnDemandUSD
 	monthly = hourly * aws.HoursPerMonth
 

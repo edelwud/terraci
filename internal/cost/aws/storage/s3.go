@@ -21,7 +21,9 @@ func (h *S3Handler) BuildLookup(_ string, _ map[string]any) (*pricing.PriceLooku
 	return nil, nil
 }
 
-func (h *S3Handler) CalculateCost(_ *pricing.Price, _ map[string]any) (hourly, monthly float64) {
+func (h *S3Handler) Describe(_ *pricing.Price, _ map[string]any) map[string]string { return nil }
+
+func (h *S3Handler) CalculateCost(_ *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
 	// S3: ~$0.023 per GB-month for Standard
 	// Without usage data, we can't estimate
 	return 0, 0

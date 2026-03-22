@@ -39,7 +39,17 @@ func (h *EIPHandler) BuildLookup(region string, attrs map[string]any) (*pricing.
 	}, nil
 }
 
-func (h *EIPHandler) CalculateCost(price *pricing.Price, _ map[string]any) (hourly, monthly float64) {
+func (h *EIPHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
+	d := map[string]string{}
+	if aws.GetStringAttr(attrs, "instance") != "" {
+		d["attached"] = "true"
+	} else {
+		d["attached"] = "false"
+	}
+	return d
+}
+
+func (h *EIPHandler) CalculateCost(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
 	if price != nil && price.OnDemandUSD > 0 {
 		return aws.HourlyCost(price.OnDemandUSD)
 	}

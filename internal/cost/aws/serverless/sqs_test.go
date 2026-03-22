@@ -26,7 +26,7 @@ func TestSQSHandler_BuildLookup(t *testing.T) {
 
 func TestSQSHandler_CalculateCost(t *testing.T) {
 	h := &SQSHandler{}
-	hourly, monthly := h.CalculateCost(nil, nil)
+	hourly, monthly := h.CalculateCost(nil, nil, "", nil)
 	if hourly != 0 {
 		t.Errorf("hourly = %v, want 0", hourly)
 	}

@@ -55,7 +55,7 @@ func TestNodeGroupHandler_CalculateCost(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			hourly, _ := h.CalculateCost(price, tt.attrs)
+			hourly, _ := h.CalculateCost(price, nil, "", tt.attrs)
 			if diff := hourly - tt.wantHourly; diff < -0.001 || diff > 0.001 {
 				t.Errorf("hourly = %v, want %v", hourly, tt.wantHourly)
 			}

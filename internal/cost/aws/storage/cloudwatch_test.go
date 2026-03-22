@@ -27,7 +27,7 @@ func TestLogGroupHandler_BuildLookup(t *testing.T) {
 
 func TestLogGroupHandler_CalculateCost(t *testing.T) {
 	h := &LogGroupHandler{}
-	hourly, monthly := h.CalculateCost(nil, nil)
+	hourly, monthly := h.CalculateCost(nil, nil, "", nil)
 	if hourly != 0 {
 		t.Errorf("hourly = %v, want 0", hourly)
 	}
@@ -93,7 +93,7 @@ func TestAlarmHandler_CalculateCost(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			hourly, monthly := h.CalculateCost(nil, tt.attrs)
+			hourly, monthly := h.CalculateCost(nil, nil, "", tt.attrs)
 
 			if monthly != tt.wantMonthly {
 				t.Errorf("monthly = %v, want %v", monthly, tt.wantMonthly)

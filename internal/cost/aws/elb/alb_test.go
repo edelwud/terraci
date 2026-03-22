@@ -104,7 +104,7 @@ func TestALBHandler_CalculateCost(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			hourly, _ := h.CalculateCost(tt.price, tt.attrs)
+			hourly, _ := h.CalculateCost(tt.price, nil, "", tt.attrs)
 
 			if hourly != tt.expectedHourly {
 				t.Errorf("hourly = %v, want %v", hourly, tt.expectedHourly)

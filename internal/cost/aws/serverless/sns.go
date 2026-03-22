@@ -19,7 +19,9 @@ func (h *SNSHandler) BuildLookup(_ string, _ map[string]any) (*pricing.PriceLook
 	return nil, nil
 }
 
-func (h *SNSHandler) CalculateCost(_ *pricing.Price, _ map[string]any) (hourly, monthly float64) {
+func (h *SNSHandler) Describe(_ *pricing.Price, _ map[string]any) map[string]string { return nil }
+
+func (h *SNSHandler) CalculateCost(_ *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
 	// SNS: $0.50 per million requests
 	// Usage-based, no fixed cost
 	return 0, 0

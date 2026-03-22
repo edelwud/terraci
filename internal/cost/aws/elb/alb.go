@@ -50,7 +50,17 @@ func (h *ALBHandler) BuildLookup(region string, attrs map[string]any) (*pricing.
 	}), nil
 }
 
-func (h *ALBHandler) CalculateCost(price *pricing.Price, attrs map[string]any) (hourly, monthly float64) {
+func (h *ALBHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
+	d := map[string]string{}
+	lbType := aws.GetStringAttr(attrs, "load_balancer_type")
+	if lbType == "" {
+		lbType = TypeApplication
+	}
+	d["type"] = lbType
+	return d
+}
+
+func (h *ALBHandler) CalculateCost(price *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
 	rate := price.OnDemandUSD
 	if rate == 0 {
 		// Default pricing if lookup fails

@@ -3,6 +3,7 @@ package elasticache
 import (
 	"testing"
 
+	aws "github.com/edelwud/terraci/internal/cost/aws"
 	"github.com/edelwud/terraci/internal/cost/pricing"
 )
 
@@ -97,10 +98,69 @@ func TestReplicationGroupHandler_CalculateCost(t *testing.T) {
 	const epsilon = 0.0001
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			hourly, _ := h.CalculateCost(price, tt.attrs)
+			hourly, _ := h.CalculateCost(price, nil, "", tt.attrs)
 			if diff := hourly - tt.expectedHourly; diff < -epsilon || diff > epsilon {
 				t.Errorf("hourly = %v, want %v (expected %d nodes)", hourly, tt.expectedHourly, tt.expectedNodes)
 			}
 		})
+	}
+}
+
+func TestReplicationGroupHandler_CalculateCost_BackupAndDataTiering(t *testing.T) {
+	h := &ReplicationGroupHandler{}
+
+	// Price with memory and SSD from AWS API
+	price := &pricing.Price{
+		OnDemandUSD: 0.50,
+		Attributes: map[string]string{
+			"memory":  "52.82 GiB",
+			"storage": "150 GiB NVMe SSD",
+		},
+	}
+
+	// 2 shards * (1 primary + 1 replica) = 4 nodes
+	// snapshot_retention_limit = 3
+	attrs := map[string]any{
+		"node_type":                "cache.r6gd.2xlarge",
+		"num_node_groups":          2,
+		"replicas_per_node_group":  1,
+		"snapshot_retention_limit": 3,
+	}
+
+	backupPrice := 0.090
+	dtPrice := 0.015
+	index := &pricing.PriceIndex{
+		Products: map[string]pricing.Price{
+			"backup-sku": {
+				ProductFamily: "Storage Snapshot",
+				Attributes: map[string]string{
+					"usagetype": "USE1-BackupUsage",
+					"location":  "US East (N. Virginia)",
+				},
+				OnDemandUSD: backupPrice,
+			},
+			"dt-sku": {
+				ProductFamily: "Cache Storage",
+				Attributes: map[string]string{
+					"usagetype": "USE1-DataTiering:StorageUsage",
+					"location":  "US East (N. Virginia)",
+				},
+				OnDemandUSD: dtPrice,
+			},
+		},
+	}
+
+	_, monthly := h.CalculateCost(price, index, "us-east-1", attrs)
+
+	totalNodes := 4
+	_, nodeMonthly := aws.ScaledHourlyCost(0.50, totalNodes)
+	ssdCost := 150.0 * float64(totalNodes) * dtPrice
+	chargeableGB := 52.82*float64(totalNodes)*3 - 52.82*float64(totalNodes)
+	backupCost := chargeableGB * backupPrice
+	expectedMonthly := nodeMonthly + ssdCost + backupCost
+
+	const epsilon = 0.01
+	if diff := monthly - expectedMonthly; diff < -epsilon || diff > epsilon {
+		t.Errorf("monthly = %v, want %v", monthly, expectedMonthly)
 	}
 }

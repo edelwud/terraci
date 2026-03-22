@@ -134,7 +134,7 @@ func TestInstanceHandler_CalculateCost(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, monthly := h.CalculateCost(price, tt.attrs)
+			_, monthly := h.CalculateCost(price, nil, "", tt.attrs)
 
 			if monthly != tt.expectedMonthly {
 				t.Errorf("monthly = %v, want %v", monthly, tt.expectedMonthly)

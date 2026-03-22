@@ -32,6 +32,7 @@ func init() { //nolint:gochecknoinits // required to break import cycle between 
 		// ElastiCache
 		r.Register("aws_elasticache_cluster", &elasticache.ClusterHandler{})
 		r.Register("aws_elasticache_replication_group", &elasticache.ReplicationGroupHandler{})
+		r.Register("aws_elasticache_serverless_cache", &elasticache.ServerlessHandler{})
 
 		// EKS
 		r.Register("aws_eks_cluster", &eks.ClusterHandler{})
