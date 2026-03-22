@@ -283,9 +283,6 @@ provider: gitlab                        # or "github" (auto-detected from CI env
 
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
-  min_depth: 4                          # auto-calculated from pattern
-  max_depth: 5                          # min_depth+1 if allow_submodules
-  allow_submodules: true
 
 exclude: ["*/test/*", "*/sandbox/*"]
 include: []

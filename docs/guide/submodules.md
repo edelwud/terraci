@@ -1,16 +1,16 @@
 ---
 title: Submodules
-description: "Nested submodules at depth 5: use cases, dependencies, and best practices"
+description: "Nested submodules: use cases, dependencies, and best practices"
 outline: deep
 ---
 
 # Submodules
 
-TerraCi supports nested submodules at depth 5, allowing you to organize related infrastructure within a parent module.
+TerraCi supports nested submodules, allowing you to organize related infrastructure within a parent module.
 
 ## What Are Submodules?
 
-Submodules are Terraform modules nested one level deeper than the standard pattern:
+Submodules are Terraform modules nested deeper than the standard pattern depth:
 
 ```
 infrastructure/
@@ -35,14 +35,11 @@ infrastructure/
 
 ## Configuration
 
-Enable submodules in `.terraci.yaml`:
+Submodules are automatically discovered. Any directory with `.tf` files nested deeper than the pattern depth is treated as a submodule:
 
 ```yaml
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
-  min_depth: 4
-  max_depth: 5              # Allow depth 5 for submodules
-  allow_submodules: true    # Enable submodule discovery
 ```
 
 ## Use Cases
@@ -225,16 +222,16 @@ Use consistent naming for submodules:
 ✗ ec2/es
 ```
 
-### 4. Limit Nesting Depth
+### 4. Keep Nesting Reasonable
 
-TerraCi supports only one level of submodules (depth 5). For deeper hierarchies, consider restructuring:
+While TerraCi supports unlimited submodule nesting, deep hierarchies can be hard to manage. Consider restructuring if nesting gets too deep:
 
 ```
-# Instead of:
-platform/prod/us-east-1/services/backend/api/main.tf  # Too deep!
+# Instead of deeply nested:
+platform/prod/us-east-1/services/backend/api/v2/main.tf
 
-# Use:
-platform/prod/us-east-1/backend-api/main.tf           # Flat
+# Use flatter structure:
+platform/prod/us-east-1/backend-api/main.tf
 ```
 
 ## Filtering Submodules
@@ -256,15 +253,14 @@ terraci generate --exclude "*/*/*/*/*"
 
 ### Submodules Not Discovered
 
-1. Check `max_depth` is set to 5
-2. Verify `allow_submodules: true`
-3. Ensure submodule directory contains `.tf` files
+1. Ensure submodule directory contains `.tf` files
+2. Verify the submodule is nested deeper than the pattern depth
 
 ### Parent Not Linked
 
 If submodule's parent isn't detected:
 
-1. Verify parent exists at depth 4
+1. Verify parent exists at the pattern depth
 2. Check parent contains `.tf` files
 3. Run `terraci validate -v` to see discovery details
 

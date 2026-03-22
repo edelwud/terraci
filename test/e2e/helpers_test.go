@@ -55,7 +55,7 @@ func LoadFixture(t *testing.T, name string) *Fixture {
 	}
 
 	// Scan modules
-	scanner := discovery.NewScanner(dir, cfg.Structure.MinDepth, cfg.Structure.MaxDepth, cfg.Structure.Segments)
+	scanner := discovery.NewScanner(dir, cfg.Structure.Segments)
 
 	modules, err := scanner.Scan(context.Background())
 	if err != nil {

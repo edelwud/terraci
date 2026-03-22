@@ -64,9 +64,6 @@ This creates a `.terraci.yaml` configuration file:
 ```yaml
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
-  min_depth: 4
-  max_depth: 5
-  allow_submodules: true
 
 provider: gitlab  # or "github" — auto-detected from environment if omitted
 

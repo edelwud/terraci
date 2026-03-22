@@ -32,16 +32,6 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Structure.Pattern != "{service}/{environment}/{region}/{module}" {
 		t.Errorf("expected default pattern, got %q", cfg.Structure.Pattern)
 	}
-	if cfg.Structure.MinDepth != 4 {
-		t.Errorf("expected MinDepth 4, got %d", cfg.Structure.MinDepth)
-	}
-	if cfg.Structure.MaxDepth != 5 {
-		t.Errorf("expected MaxDepth 5, got %d", cfg.Structure.MaxDepth)
-	}
-	if !cfg.Structure.AllowSubmodules {
-		t.Error("expected AllowSubmodules to be true")
-	}
-
 	// Check GitLab defaults
 	if cfg.GitLab.TerraformBinary != "terraform" {
 		t.Errorf("expected TerraformBinary 'terraform', got %q", cfg.GitLab.TerraformBinary)
@@ -72,9 +62,6 @@ func TestLoad(t *testing.T) {
 	configContent := `
 structure:
   pattern: "{service}/{env}/{region}/{module}"
-  min_depth: 3
-  max_depth: 4
-  allow_submodules: false
 
 gitlab:
   image: hashicorp/terraform:1.7
@@ -97,16 +84,6 @@ gitlab:
 	if cfg.Structure.Pattern != "{service}/{env}/{region}/{module}" {
 		t.Errorf("expected pattern, got %q", cfg.Structure.Pattern)
 	}
-	if cfg.Structure.MinDepth != 3 {
-		t.Errorf("expected MinDepth 3, got %d", cfg.Structure.MinDepth)
-	}
-	if cfg.Structure.MaxDepth != 4 {
-		t.Errorf("expected MaxDepth 4, got %d", cfg.Structure.MaxDepth)
-	}
-	if cfg.Structure.AllowSubmodules {
-		t.Error("expected AllowSubmodules to be false")
-	}
-
 	if cfg.GitLab.Image.Name != "hashicorp/terraform:1.7" {
 		t.Errorf("expected Image name, got %q", cfg.GitLab.Image.Name)
 	}
@@ -147,36 +124,6 @@ structure:
 	_, err := Load(configPath)
 	if err == nil {
 		t.Error("expected error for invalid YAML")
-	}
-}
-
-func TestLoad_CalculatesDepthFromPattern(t *testing.T) {
-	tmpDir := createTempDir(t)
-
-	// Config without explicit depth values
-	configContent := `
-structure:
-  pattern: "{service}/{env}/{region}/{module}"
-  allow_submodules: true
-
-gitlab:
-  image: hashicorp/terraform:1.6
-`
-	configPath := filepath.Join(tmpDir, ".terraci.yaml")
-	writeTestConfig(t, configPath, configContent)
-
-	cfg, err := Load(configPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	// Should be calculated from pattern (4 segments)
-	if cfg.Structure.MinDepth != 4 {
-		t.Errorf("expected MinDepth 4 (from pattern), got %d", cfg.Structure.MinDepth)
-	}
-	// MaxDepth = MinDepth + 1 when submodules allowed
-	if cfg.Structure.MaxDepth != 5 {
-		t.Errorf("expected MaxDepth 5, got %d", cfg.Structure.MaxDepth)
 	}
 }
 
@@ -259,9 +206,7 @@ func TestValidate(t *testing.T) {
 			name: "missing pattern",
 			cfg: &Config{
 				Structure: StructureConfig{
-					Pattern:  "",
-					MinDepth: 4,
-					MaxDepth: 5,
+					Pattern: "",
 				},
 				GitLab: &GitLabConfig{
 					Image: Image{Name: "test:1.0"},
@@ -271,43 +216,11 @@ func TestValidate(t *testing.T) {
 			errMsg:  "structure.pattern is required",
 		},
 		{
-			name: "invalid min_depth",
-			cfg: &Config{
-				Structure: StructureConfig{
-					Pattern:  "{service}/{env}/{region}/{module}",
-					MinDepth: 0,
-					MaxDepth: 5,
-				},
-				GitLab: &GitLabConfig{
-					Image: Image{Name: "test:1.0"},
-				},
-			},
-			wantErr: true,
-			errMsg:  "structure.min_depth must be at least 1",
-		},
-		{
-			name: "max_depth less than min_depth",
-			cfg: &Config{
-				Structure: StructureConfig{
-					Pattern:  "{service}/{env}/{region}/{module}",
-					MinDepth: 5,
-					MaxDepth: 4,
-				},
-				GitLab: &GitLabConfig{
-					Image: Image{Name: "test:1.0"},
-				},
-			},
-			wantErr: true,
-			errMsg:  "structure.max_depth must be >= min_depth",
-		},
-		{
 			name: "missing image",
 			cfg: &Config{
 				Provider: ProviderGitLab,
 				Structure: StructureConfig{
-					Pattern:  "{service}/{env}/{region}/{module}",
-					MinDepth: 4,
-					MaxDepth: 5,
+					Pattern: "{service}/{env}/{region}/{module}",
 				},
 				GitLab: &GitLabConfig{
 					Image: Image{Name: ""},
@@ -321,9 +234,7 @@ func TestValidate(t *testing.T) {
 			cfg: &Config{
 				Provider: ProviderGitLab,
 				Structure: StructureConfig{
-					Pattern:  "{service}/{env}/{region}/{module}",
-					MinDepth: 4,
-					MaxDepth: 5,
+					Pattern: "{service}/{env}/{region}/{module}",
 				},
 				GitLab: &GitLabConfig{
 					Image: Image{Name: "test:1.0"},
@@ -339,9 +250,7 @@ func TestValidate(t *testing.T) {
 			name: "valid overwrite types",
 			cfg: &Config{
 				Structure: StructureConfig{
-					Pattern:  "{service}/{env}/{region}/{module}",
-					MinDepth: 4,
-					MaxDepth: 5,
+					Pattern: "{service}/{env}/{region}/{module}",
 				},
 				GitLab: &GitLabConfig{
 					Image: Image{Name: "test:1.0"},
@@ -794,9 +703,7 @@ func TestGetEffectiveConfig(t *testing.T) {
 func TestValidate_NilGitLab(t *testing.T) {
 	cfg := &Config{
 		Structure: StructureConfig{
-			Pattern:  "{service}/{env}/{region}/{module}",
-			MinDepth: 4,
-			MaxDepth: 5,
+			Pattern: "{service}/{env}/{region}/{module}",
 		},
 		GitLab: nil,
 		GitHub: &GitHubConfig{
@@ -815,9 +722,7 @@ func TestValidate_GitHubConfig(t *testing.T) {
 	t.Run("empty RunsOn gets default", func(t *testing.T) {
 		cfg := &Config{
 			Structure: StructureConfig{
-				Pattern:  "{service}/{env}/{region}/{module}",
-				MinDepth: 4,
-				MaxDepth: 5,
+				Pattern: "{service}/{env}/{region}/{module}",
 			},
 			Provider: "github",
 			GitHub: &GitHubConfig{
@@ -837,9 +742,7 @@ func TestValidate_GitHubConfig(t *testing.T) {
 	t.Run("explicit RunsOn preserved", func(t *testing.T) {
 		cfg := &Config{
 			Structure: StructureConfig{
-				Pattern:  "{service}/{env}/{region}/{module}",
-				MinDepth: 4,
-				MaxDepth: 5,
+				Pattern: "{service}/{env}/{region}/{module}",
 			},
 			Provider: "github",
 			GitHub: &GitHubConfig{

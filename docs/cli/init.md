@@ -43,8 +43,7 @@ This launches a TUI wizard that prompts you to select:
 1. CI provider (GitLab CI or GitHub Actions)
 2. Terraform binary (Terraform or OpenTofu)
 3. Directory structure pattern
-4. Whether to enable submodules
-5. Whether to enable MR/PR comments
+4. Whether to enable MR/PR comments
 6. Whether to enable cost estimation
 
 ### Non-Interactive Mode
@@ -120,9 +119,6 @@ provider: gitlab
 
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
-  min_depth: 4
-  max_depth: 5
-  allow_submodules: true
 
 gitlab:
   terraform_binary: "terraform"
@@ -151,9 +147,6 @@ provider: github
 
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
-  min_depth: 4
-  max_depth: 5
-  allow_submodules: true
 
 github:
   terraform_binary: "terraform"

@@ -42,9 +42,6 @@ provider: gitlab  # or "github"
 # Directory structure configuration
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
-  min_depth: 4
-  max_depth: 5
-  allow_submodules: true
 
 # Module filtering
 exclude:
@@ -116,9 +113,6 @@ If a configuration file is not found, these defaults are used:
 
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
-  min_depth: 4
-  max_depth: 5
-  allow_submodules: true
 
 gitlab:
   terraform_binary: "terraform"
@@ -140,7 +134,6 @@ terraci validate
 
 This checks:
 - Required fields are present
-- Depth values are valid
 - Pattern is parseable
 - Image is specified
 

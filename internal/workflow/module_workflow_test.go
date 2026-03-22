@@ -41,8 +41,6 @@ func createModuleWithContent(t *testing.T, root, path, content string) {
 func defaultOptions(dir string) Options {
 	return Options{
 		WorkDir:  dir,
-		MinDepth: 4,
-		MaxDepth: 4,
 		Segments: defaultSegments,
 	}
 }
@@ -101,8 +99,6 @@ func TestRun_NoModules(t *testing.T) {
 func TestRun_InvalidDir(t *testing.T) {
 	_, err := Run(context.Background(), Options{
 		WorkDir:  "/nonexistent/path/that/does/not/exist",
-		MinDepth: 4,
-		MaxDepth: 4,
 		Segments: defaultSegments,
 	})
 	if err == nil {
@@ -310,8 +306,6 @@ func TestRun_CustomSegments(t *testing.T) {
 
 	opts := Options{
 		WorkDir:  tmpDir,
-		MinDepth: 3,
-		MaxDepth: 3,
 		Segments: []string{"team", "project", "component"},
 	}
 
@@ -348,8 +342,6 @@ func TestRun_Submodules(t *testing.T) {
 
 	opts := Options{
 		WorkDir:  tmpDir,
-		MinDepth: 4,
-		MaxDepth: 5, // allow submodules
 		Segments: defaultSegments,
 	}
 

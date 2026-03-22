@@ -64,9 +64,6 @@ terraci init --ci --provider gitlab --binary tofu --image ghcr.io/opentofu/opent
 ```yaml
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
-  min_depth: 4
-  max_depth: 5
-  allow_submodules: true
 
 provider: gitlab  # или "github" — автоопределяется из окружения, если не указан
 

@@ -42,9 +42,6 @@ provider: gitlab  # или "github"
 # Структура директорий
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
-  min_depth: 4
-  max_depth: 5
-  allow_submodules: true
 
 # Фильтры модулей
 exclude:
@@ -116,9 +113,6 @@ gitlab:
 
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
-  min_depth: 4
-  max_depth: 5
-  allow_submodules: true
 
 gitlab:
   terraform_binary: "terraform"
@@ -140,7 +134,6 @@ terraci validate
 
 Проверяется:
 - Наличие обязательных полей
-- Корректность значений глубины
 - Парсинг паттерна
 - Указание образа
 

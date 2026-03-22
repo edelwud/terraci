@@ -3,7 +3,6 @@ provider: github
 
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
-  allow_submodules: true
 
 github:
   terraform_binary: terraform

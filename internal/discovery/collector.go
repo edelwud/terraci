@@ -11,8 +11,6 @@ import (
 type moduleCollector struct {
 	ctx      context.Context
 	absRoot  string
-	minDepth int
-	maxDepth int
 	segments []string
 	modules  []*Module
 	byID     map[string]*Module
@@ -40,19 +38,11 @@ func (c *moduleCollector) visit(path string, info os.FileInfo, walkErr error) er
 		return nil
 	}
 
-	depth := len(parts)
-	if depth < c.minDepth {
+	if len(parts) < len(c.segments) {
 		return nil
-	}
-	if depth > c.maxDepth {
-		return filepath.SkipDir
 	}
 
 	c.registerModule(parts, path)
-
-	if depth >= c.maxDepth {
-		return filepath.SkipDir
-	}
 	return nil
 }
 
@@ -72,20 +62,19 @@ func (c *moduleCollector) registerModule(parts []string, absPath string) {
 }
 
 func (c *moduleCollector) buildModule(parts []string, absPath, relPath string) *Module {
-	isSubmodule := len(parts) > len(c.segments)
-
-	if !isSubmodule {
+	segCount := len(c.segments)
+	if len(parts) <= segCount {
 		return NewModule(c.segments, parts, absPath, relPath)
 	}
 
-	mod := NewModule(c.segments, parts[:len(c.segments)], absPath, relPath)
-	mod.SetComponent("submodule", parts[len(c.segments)])
+	mod := NewModule(c.segments, parts[:segCount], absPath, relPath)
+	mod.SetComponent("submodule", filepath.Join(parts[segCount:]...))
 	c.linkParent(mod, parts)
 	return mod
 }
 
 func (c *moduleCollector) linkParent(mod *Module, parts []string) {
-	parentRelPath := filepath.Join(parts[:len(c.segments)]...)
+	parentRelPath := filepath.Join(parts[:len(parts)-1]...)
 	if parent, ok := c.byID[parentRelPath]; ok {
 		mod.Parent = parent
 		parent.Children = append(parent.Children, mod)

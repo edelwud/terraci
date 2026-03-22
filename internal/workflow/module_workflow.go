@@ -16,8 +16,6 @@ import (
 // Options configures module discovery, filtering, and graph building.
 type Options struct {
 	WorkDir  string
-	MinDepth int
-	MaxDepth int
 	Segments []string
 
 	Excludes       []string
@@ -38,7 +36,7 @@ type Result struct {
 
 // Run executes the full module workflow: scan → filter → parse → build graph.
 func Run(ctx context.Context, opts Options) (*Result, error) {
-	scanner := discovery.NewScanner(opts.WorkDir, opts.MinDepth, opts.MaxDepth, opts.Segments)
+	scanner := discovery.NewScanner(opts.WorkDir, opts.Segments)
 
 	allModules, err := scanner.Scan(ctx)
 	if err != nil {

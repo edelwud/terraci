@@ -1,6 +1,6 @@
 ---
 title: "Структура"
-description: "Настройка паттернов директорий, глубины и обнаружения сабмодулей"
+description: "Настройка паттернов директорий для обнаружения Terraform-модулей"
 outline: deep
 ---
 
@@ -13,9 +13,6 @@ outline: deep
 | Параметр | Тип | По умолчанию | Описание |
 |----------|-----|--------------|----------|
 | `pattern` | string | `{service}/{environment}/{region}/{module}` | Паттерн структуры директорий |
-| `min_depth` | int | Авто | Минимальная глубина директории модуля |
-| `max_depth` | int | Авто | Максимальная глубина директории модуля |
-| `allow_submodules` | bool | `true` | Разрешить вложенные сабмодули |
 
 ## Pattern
 
@@ -63,8 +60,6 @@ infrastructure/
 ```yaml
 structure:
   pattern: "{environment}/{region}/{module}"
-  min_depth: 3
-  max_depth: 3
 ```
 
 Структура:
@@ -81,48 +76,15 @@ infrastructure/
 ```yaml
 structure:
   pattern: "{service}/{environment}/{region}/{layer}/{module}"
-  min_depth: 5
-  max_depth: 5
 ```
-
-## Глубина директорий
-
-### min_depth
-
-Минимальная глубина, на которой ищутся модули:
-
-```yaml
-structure:
-  pattern: "{service}/{environment}/{region}/{module}"
-  min_depth: 4  # Модули на глубине 4
-```
-
-Если не указано, вычисляется автоматически из паттерна.
-
-### max_depth
-
-Максимальная глубина поиска модулей:
-
-```yaml
-structure:
-  pattern: "{service}/{environment}/{region}/{module}"
-  max_depth: 5  # Разрешает сабмодули на глубине 5
-```
-
-Если не указано:
-- При `allow_submodules: true` — `min_depth + 1`
-- При `allow_submodules: false` — равно `min_depth`
 
 ## Сабмодули
 
-Сабмодули — вложенные модули внутри родительского модуля:
+Сабмодули — вложенные модули внутри родительского модуля. Они обнаруживаются автоматически в директориях глубже уровня паттерна:
 
 ```yaml
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
-  min_depth: 4
-  max_depth: 5
-  allow_submodules: true
 ```
 
 Структура с сабмодулями:
@@ -161,9 +123,6 @@ platform/production/eu-central-1/
 ```yaml
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
-  min_depth: 4
-  max_depth: 5
-  allow_submodules: true
 ```
 
 ### Один продукт, несколько окружений
@@ -171,9 +130,6 @@ structure:
 ```yaml
 structure:
   pattern: "{environment}/{region}/{module}"
-  min_depth: 3
-  max_depth: 3
-  allow_submodules: false
 ```
 
 ### По регионам без окружений
@@ -181,22 +137,15 @@ structure:
 ```yaml
 structure:
   pattern: "{region}/{module}"
-  min_depth: 2
-  max_depth: 2
 ```
 
 ## Диагностика
 
 ### Модули не обнаруживаются
 
-1. Проверьте глубину директорий:
-   ```bash
-   find . -name "*.tf" -type f | head -5
-   ```
+1. Убедитесь, что глубина директорий соответствует паттерну
 
-2. Убедитесь, что глубина соответствует паттерну
-
-3. Запустите валидацию:
+2. Запустите валидацию:
    ```bash
    terraci validate --verbose
    ```
@@ -209,7 +158,6 @@ structure:
 # Если структура: env/region/module
 structure:
   pattern: "{environment}/{region}/{module}"
-  min_depth: 3
 ```
 
 ## Смотрите также

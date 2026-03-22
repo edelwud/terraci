@@ -1,6 +1,6 @@
 ---
 title: Project Structure
-description: "Directory patterns, module discovery, and configurable depth for Terraform monorepos"
+description: "Directory patterns and module discovery for Terraform monorepos"
 outline: deep
 ---
 
@@ -82,15 +82,6 @@ Configure the structure in `.terraci.yaml`:
 structure:
   # Directory pattern
   pattern: "{service}/{environment}/{region}/{module}"
-
-  # Minimum depth (auto-calculated from pattern if not set)
-  min_depth: 4
-
-  # Maximum depth (for submodule support)
-  max_depth: 5
-
-  # Enable submodule discovery
-  allow_submodules: true
 ```
 
 ### Custom Patterns
@@ -101,29 +92,24 @@ You can customize the pattern for different layouts:
 ```yaml
 structure:
   pattern: "{environment}/{region}/{module}"
-  min_depth: 3
-  max_depth: 3
 ```
 
 **5-level structure:**
 ```yaml
 structure:
   pattern: "{org}/{service}/{environment}/{region}/{module}"
-  min_depth: 5
-  max_depth: 6
 ```
 
 ## What Makes a Module?
 
 A directory is considered a Terraform module if:
 
-1. It's at the correct depth (between `min_depth` and `max_depth`)
+1. It's at the depth defined by the pattern (number of segments), or deeper (submodules)
 2. It contains at least one `.tf` file
 
 TerraCi ignores:
 - Hidden directories (starting with `.`)
 - Directories without `.tf` files
-- Directories outside the depth range
 
 ## Examples
 
@@ -165,8 +151,6 @@ infrastructure/
 ```yaml
 structure:
   pattern: "{environment}/{module}"
-  min_depth: 2
-  max_depth: 2
 ```
 
 ```
@@ -189,7 +173,7 @@ terraci validate -v
 ```
 
 Check:
-1. Directory depth matches `min_depth`/`max_depth`
+1. Directory depth matches the pattern
 2. Directories contain `.tf` files
 3. Directories aren't hidden (no `.` prefix)
 

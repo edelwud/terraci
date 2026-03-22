@@ -60,9 +60,6 @@ terraci validate --verbose
 ```
 Configuration:
   Pattern: {service}/{environment}/{region}/{module}
-  Min depth: 4
-  Max depth: 5
-  Submodules: enabled
 
 Discovered modules:
   platform/prod/eu-central-1/vpc
@@ -103,14 +100,11 @@ terraci validate -d /path/to/terraform
 ### Конфигурация
 
 - `structure.pattern` указан
-- `structure.min_depth >= 1`
-- `structure.max_depth >= min_depth`
 - `gitlab.image` указан
 
 ### Модули
 
 - Директории содержат `.tf` файлы
-- Глубина соответствует `min_depth`/`max_depth`
 - Модули соответствуют паттерну структуры
 
 ### HCL
@@ -146,7 +140,7 @@ Warning: No modules discovered
 ```
 
 Возможные причины:
-- Неверная глубина директорий
+- Глубина директорий не соответствует паттерну
 - Нет `.tf` файлов
 - Все модули исключены фильтрами
 

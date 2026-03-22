@@ -26,7 +26,7 @@ func TestScanner_Scan(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	scanner := NewScanner(tmpDir, 4, 5, defaultSegments)
+	scanner := NewScanner(tmpDir, defaultSegments)
 	found, err := scanner.Scan(context.Background())
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
@@ -55,25 +55,36 @@ func TestScanner_Scan(t *testing.T) {
 	}
 }
 
-func TestScanner_Scan_NoSubmodules(t *testing.T) {
+func TestScanner_Scan_DeepSubmodules(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	createModuleTree(t, tmpDir, []string{
-		"platform/stage/eu-central-1/vpc",
 		"platform/stage/eu-central-1/ec2",
-		"platform/stage/eu-central-1/ec2/rabbitmq",
+		"platform/stage/eu-central-1/ec2/db",
+		"platform/stage/eu-central-1/ec2/db/postgres",
 	})
 
-	scanner := NewScanner(tmpDir, 4, 4, defaultSegments) // MaxDepth=4 disables submodules
+	scanner := NewScanner(tmpDir, defaultSegments)
 
 	found, err := scanner.Scan(context.Background())
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
 	}
 
-	if len(found) != 2 {
-		t.Errorf("modules = %d, want 2 (submodules disabled)", len(found))
+	if len(found) != 3 {
+		t.Errorf("modules = %d, want 3 (base + 2 levels of submodules)", len(found))
 	}
+
+	// Verify deep submodule has correct submodule component
+	for _, m := range found {
+		if m.ID() == "platform/stage/eu-central-1/ec2/db/postgres" {
+			if sub := m.Get("submodule"); sub != filepath.Join("db", "postgres") {
+				t.Errorf("deep submodule component = %q, want %q", sub, filepath.Join("db", "postgres"))
+			}
+			return
+		}
+	}
+	t.Error("deep submodule not found")
 }
 
 func TestScanner_ParentChildLinks(t *testing.T) {
@@ -85,7 +96,7 @@ func TestScanner_ParentChildLinks(t *testing.T) {
 		"platform/stage/eu-central-1/ec2/redis",
 	})
 
-	found, err := NewScanner(tmpDir, 4, 5, defaultSegments).Scan(context.Background())
+	found, err := NewScanner(tmpDir, defaultSegments).Scan(context.Background())
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
 	}

@@ -1,9 +1,6 @@
 # Test fixture configuration - basic scenario
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
-  min_depth: 4
-  max_depth: 4
-  allow_submodules: false
 
 gitlab:
   image: "hashicorp/terraform:1.6"

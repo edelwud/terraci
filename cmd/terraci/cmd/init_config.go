@@ -19,7 +19,6 @@ type initOptions struct {
 	runsOn      string
 	planEnabled bool
 	autoApprove bool
-	submodules  bool
 	enableMR    bool
 	enableCost  bool
 }
@@ -33,11 +32,6 @@ func (o *initOptions) buildConfig() *config.Config {
 	if o.pattern != "" {
 		newCfg.Structure.Pattern = o.pattern
 	}
-	newCfg.Structure.AllowSubmodules = o.submodules
-	if o.submodules {
-		newCfg.Structure.MaxDepth = newCfg.Structure.MinDepth + 1
-	}
-
 	switch o.resolveProvider() {
 	case config.ProviderGitHub:
 		newCfg.GitHub = o.buildGitHubConfig()

@@ -58,8 +58,6 @@ func (f *filterFlags) applyFilters(app *App, modules []*discovery.Module) []*dis
 func (f *filterFlags) workflowOptions(app *App) workflow.Options {
 	return workflow.Options{
 		WorkDir:        app.WorkDir,
-		MinDepth:       app.Config.Structure.MinDepth,
-		MaxDepth:       app.Config.Structure.MaxDepth,
 		Segments:       app.Config.Structure.Segments,
 		Excludes:       f.mergedExcludes(app),
 		Includes:       f.mergedIncludes(app),

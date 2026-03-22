@@ -63,7 +63,6 @@ func newInitModel() *initModel {
 			image:       defaultTerraformImage,
 			runsOn:      defaultGitHubRunner,
 			planEnabled: true,
-			submodules:  true,
 		},
 	}
 
@@ -105,11 +104,6 @@ func (m *initModel) structureGroup() *huh.Group {
 			Description("How are your modules organized?").
 			Placeholder("{service}/{environment}/{region}/{module}").
 			Value(&m.opts.pattern),
-
-		huh.NewConfirm().
-			Title("Enable submodules?").
-			Description("Allow nested modules at depth 5").
-			Value(&m.opts.submodules),
 	).Title("Project Structure")
 }
 

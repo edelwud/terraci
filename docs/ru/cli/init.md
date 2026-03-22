@@ -120,9 +120,6 @@ provider: gitlab
 
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
-  min_depth: 4
-  max_depth: 5
-  allow_submodules: true
 
 gitlab:
   terraform_binary: "terraform"
@@ -151,9 +148,6 @@ provider: github
 
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
-  min_depth: 4
-  max_depth: 5
-  allow_submodules: true
 
 github:
   terraform_binary: "terraform"

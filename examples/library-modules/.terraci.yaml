@@ -5,8 +5,6 @@ provider: gitlab
 
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
-  min_depth: 4
-  max_depth: 5
 
 # Library/shared modules configuration
 library_modules:

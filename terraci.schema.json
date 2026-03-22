@@ -16,23 +16,6 @@
           "type": "string",
           "description": "Pattern describing module directory layout. Supported placeholders: {service}, {environment}, {region}, {module}",
           "default": "{service}/{environment}/{region}/{module}"
-        },
-        "min_depth": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Minimum directory depth for modules (auto-calculated from pattern if not set)",
-          "default": 4
-        },
-        "max_depth": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Maximum directory depth for modules (allows submodules if \u003e min_depth)",
-          "default": 5
-        },
-        "allow_submodules": {
-          "type": "boolean",
-          "description": "Enable nested submodule support",
-          "default": true
         }
       },
       "type": "object",

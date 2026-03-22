@@ -1,6 +1,6 @@
 ---
 title: Structure Configuration
-description: Configure directory patterns, depth, and submodule discovery for Terraform modules
+description: Configure directory patterns for Terraform module discovery
 outline: deep
 ---
 
@@ -41,42 +41,6 @@ structure:
   pattern: "{service}/{environment}/{region}/{module}"
 ```
 
-### min_depth
-
-**Type:** `integer`
-**Default:** Calculated from pattern (4 for default pattern)
-
-Minimum directory depth for module discovery.
-
-```yaml
-structure:
-  min_depth: 4  # service/env/region/module
-```
-
-### max_depth
-
-**Type:** `integer`
-**Default:** `min_depth + 1` if `allow_submodules`, else `min_depth`
-
-Maximum directory depth for module discovery. Set to `min_depth + 1` to enable submodules.
-
-```yaml
-structure:
-  max_depth: 5  # Allows service/env/region/module/submodule
-```
-
-### allow_submodules
-
-**Type:** `boolean`
-**Default:** `true`
-
-Enable discovery of nested submodules at depth 5.
-
-```yaml
-structure:
-  allow_submodules: true
-```
-
 ## Examples
 
 ### Standard 4-Level Structure
@@ -84,9 +48,6 @@ structure:
 ```yaml
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
-  min_depth: 4
-  max_depth: 4
-  allow_submodules: false
 ```
 
 ```
@@ -99,9 +60,6 @@ platform/production/us-east-1/eks/
 ```yaml
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
-  min_depth: 4
-  max_depth: 5
-  allow_submodules: true
 ```
 
 ```
@@ -115,8 +73,6 @@ platform/production/us-east-1/ec2/redis/
 ```yaml
 structure:
   pattern: "{environment}/{region}/{module}"
-  min_depth: 3
-  max_depth: 3
 ```
 
 ```
@@ -130,8 +86,6 @@ staging/us-east-1/vpc/
 ```yaml
 structure:
   pattern: "{org}/{service}/{environment}/{region}/{module}"
-  min_depth: 5
-  max_depth: 6
 ```
 
 ```
@@ -144,8 +98,6 @@ acme/platform/production/us-east-1/eks/
 ```yaml
 structure:
   pattern: "{environment}/{module}"
-  min_depth: 2
-  max_depth: 2
 ```
 
 ```
@@ -154,25 +106,11 @@ production/eks/
 staging/vpc/
 ```
 
-## Auto-Calculation
-
-If `min_depth` is not specified, it's calculated from the pattern:
-
-| Pattern | Calculated min_depth |
-|---------|---------------------|
-| `{env}/{module}` | 2 |
-| `{env}/{region}/{module}` | 3 |
-| `{service}/{env}/{region}/{module}` | 4 |
-
-If `max_depth` is not specified:
-- With `allow_submodules: true`: `max_depth = min_depth + 1`
-- With `allow_submodules: false`: `max_depth = min_depth`
-
 ## Directory Requirements
 
 For a directory to be recognized as a module:
 
-1. **Depth** - Must be between `min_depth` and `max_depth`
+1. **Depth** - Must match the number of segments in the pattern (directories with `.tf` files at that depth are modules; deeper directories are submodules)
 2. **Files** - Must contain at least one `.tf` file
 3. **Visibility** - Must not be hidden (no `.` prefix)
 
@@ -185,7 +123,7 @@ terraci validate -v
 ```
 
 Check:
-1. Directory depth matches configuration
+1. Directory depth matches the pattern segment count
 2. Directories contain `.tf` files
 3. Directories aren't in exclude patterns
 
@@ -194,7 +132,7 @@ Check:
 If module IDs don't match expected paths:
 
 1. Verify the pattern matches your structure
-2. Check depth calculations
+2. Ensure the pattern matches your directory structure
 3. Ensure consistent directory naming
 
 ## See Also

@@ -8,17 +8,13 @@ import (
 // Scanner discovers Terraform modules in a directory tree.
 type Scanner struct {
 	RootDir  string
-	MinDepth int
-	MaxDepth int
 	Segments []string
 }
 
 // NewScanner creates a Scanner from structure config values.
-func NewScanner(rootDir string, minDepth, maxDepth int, segments []string) *Scanner {
+func NewScanner(rootDir string, segments []string) *Scanner {
 	return &Scanner{
 		RootDir:  rootDir,
-		MinDepth: minDepth,
-		MaxDepth: maxDepth,
 		Segments: segments,
 	}
 }
@@ -33,8 +29,6 @@ func (s *Scanner) Scan(ctx context.Context) ([]*Module, error) {
 	collector := &moduleCollector{
 		ctx:      ctx,
 		absRoot:  absRoot,
-		minDepth: s.MinDepth,
-		maxDepth: s.MaxDepth,
 		segments: s.Segments,
 		byID:     make(map[string]*Module),
 	}

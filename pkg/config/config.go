@@ -53,12 +53,6 @@ type LibraryModulesConfig struct {
 type StructureConfig struct {
 	// Pattern like "{service}/{environment}/{region}/{module}"
 	Pattern string `yaml:"pattern" json:"pattern" jsonschema:"description=Pattern describing module directory layout. Supported placeholders: {service}\\, {environment}\\, {region}\\, {module},default={service}/{environment}/{region}/{module}"`
-	// MinDepth minimum directory depth (default: 4 for service/env/region/module)
-	MinDepth int `yaml:"min_depth,omitempty" json:"min_depth,omitempty" jsonschema:"description=Minimum directory depth for modules (auto-calculated from pattern if not set),minimum=1,default=4"`
-	// MaxDepth maximum directory depth (default: 5 for service/env/region/module/submodule)
-	MaxDepth int `yaml:"max_depth,omitempty" json:"max_depth,omitempty" jsonschema:"description=Maximum directory depth for modules (allows submodules if > min_depth),minimum=1,default=5"`
-	// AllowSubmodules enables nested submodule support
-	AllowSubmodules bool `yaml:"allow_submodules" json:"allow_submodules,omitempty" jsonschema:"description=Enable nested submodule support,default=true"`
 	// Segments is the parsed pattern segments (derived from Pattern, not serialized)
 	Segments PatternSegments `yaml:"-" json:"-"`
 }
@@ -457,11 +451,8 @@ func (c *Config) ResolvedProvider() string {
 func DefaultConfig() *Config {
 	return &Config{
 		Structure: StructureConfig{
-			Pattern:         "{service}/{environment}/{region}/{module}",
-			MinDepth:        4,
-			MaxDepth:        5,
-			AllowSubmodules: true,
-			Segments:        PatternSegments{"service", "environment", "region", "module"},
+			Pattern:  "{service}/{environment}/{region}/{module}",
+			Segments: PatternSegments{"service", "environment", "region", "module"},
 		},
 		GitLab: &GitLabConfig{
 			TerraformBinary: "terraform",
@@ -491,18 +482,6 @@ func Load(path string) (*Config, error) {
 	segments, parseErr := ParsePattern(config.Structure.Pattern)
 	if parseErr == nil {
 		config.Structure.Segments = segments
-	}
-
-	// Calculate depths from pattern if not set
-	if config.Structure.MinDepth == 0 {
-		config.Structure.MinDepth = len(config.Structure.Segments)
-	}
-	if config.Structure.MaxDepth == 0 {
-		if config.Structure.AllowSubmodules {
-			config.Structure.MaxDepth = config.Structure.MinDepth + 1
-		} else {
-			config.Structure.MaxDepth = config.Structure.MinDepth
-		}
 	}
 
 	if err := config.Validate(); err != nil {
@@ -752,14 +731,6 @@ func (c *Config) Validate() error {
 
 	if _, err := ParsePattern(c.Structure.Pattern); err != nil {
 		return fmt.Errorf("structure.pattern: %w", err)
-	}
-
-	if c.Structure.MinDepth < 1 {
-		return fmt.Errorf("structure.min_depth must be at least 1")
-	}
-
-	if c.Structure.MaxDepth < c.Structure.MinDepth {
-		return fmt.Errorf("structure.max_depth must be >= min_depth")
 	}
 
 	// Provider-specific validation
