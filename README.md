@@ -181,7 +181,7 @@ data "terraform_remote_state" "vpc" {
 
 > **Limitations:**
 > - **Static analysis only** — TerraCi does not connect to remote backends or execute `terraform init`. Dependencies that rely on runtime values (e.g., `data.terraform_remote_state.X.outputs.Y` used as a key in another remote state) cannot be resolved. Derive your state keys from the filesystem path (`abspath(path.module)`) or explicit locals, not from other modules' outputs.
-> - **Single state namespace** — TerraCi matches modules by the `key` path only, ignoring `bucket`, `backend` type, and other config fields. If two modules use the same `key` path but different buckets (e.g., `team-a-bucket` and `team-b-bucket`), TerraCi cannot distinguish between them and may link dependencies incorrectly. Use unique key paths across all backends to avoid ambiguity.
+> - **Backend-aware matching** — When the `key` path alone is ambiguous (e.g., two modules with the same key in different buckets), TerraCi parses each module's `terraform { backend "s3" { ... } }` block and uses the `bucket` to disambiguate. This requires backend configuration to be defined in the module's `.tf` files (not solely via `-backend-config` CLI flags).
 
 ### 3. Pipeline Generation
 
@@ -203,7 +203,6 @@ provider: gitlab                         # or "github" (auto-detected from CI en
 
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
-  allow_submodules: true
 
 exclude:
   - "*/test/*"

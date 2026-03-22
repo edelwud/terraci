@@ -35,6 +35,7 @@ type ParsedModule struct {
 	Path         string
 	Locals       map[string]cty.Value
 	Variables    map[string]cty.Value
+	Backend      *BackendConfig
 	RemoteStates []*RemoteStateRef
 	ModuleCalls  []*ModuleCall
 	Files        map[string]*hcl.File
@@ -48,6 +49,12 @@ type ModuleCall struct {
 	Version      string
 	IsLocal      bool
 	ResolvedPath string
+}
+
+// BackendConfig represents a module's terraform backend configuration.
+type BackendConfig struct {
+	Type   string            // "s3", "gcs", "azurerm"
+	Config map[string]string // evaluated string attributes: bucket, key, region, etc.
 }
 
 // RemoteStateRef represents a terraform_remote_state data source reference.

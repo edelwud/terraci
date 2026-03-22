@@ -52,6 +52,7 @@ func (p *Parser) ParseModule(ctx context.Context, modulePath string) (*ParsedMod
 
 	p.extractLocals(pm)
 	p.extractTfvars(pm, hclParser)
+	p.extractBackendConfig(pm)
 	p.extractRemoteStates(pm)
 	p.extractModuleCalls(pm)
 
@@ -156,6 +157,45 @@ func (p *Parser) loadTfvarsFile(pm *ParsedModule, path string, hclParser *hclpar
 	for name, attr := range attrs {
 		if val, diags := attr.Expr.Value(nil); !diags.HasErrors() {
 			pm.Variables[name] = val
+		}
+	}
+}
+
+// --- Backend config ---
+
+func (p *Parser) extractBackendConfig(pm *ParsedModule) {
+	backendSchema := &hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{{Type: "backend", LabelNames: []string{"type"}}},
+	}
+
+	for _, block := range p.findBlocks(pm, "terraform", nil) {
+		content, _, diags := block.Body.PartialContent(backendSchema)
+		pm.addDiags(diags)
+		if content == nil {
+			continue
+		}
+
+		for _, backendBlock := range content.Blocks {
+			if len(backendBlock.Labels) < 1 {
+				continue
+			}
+
+			evalCtx := eval.NewContext(pm.Locals, pm.Variables, pm.Path)
+			cfg := make(map[string]string)
+
+			attrs, attrDiags := backendBlock.Body.JustAttributes()
+			pm.addDiags(attrDiags)
+			for name, attr := range attrs {
+				if val, ok := evalStringExpr(attr.Expr, evalCtx); ok {
+					cfg[name] = val
+				}
+			}
+
+			pm.Backend = &BackendConfig{
+				Type:   backendBlock.Labels[0],
+				Config: cfg,
+			}
+			return // only first backend block matters
 		}
 	}
 }

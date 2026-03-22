@@ -172,21 +172,8 @@ TerraCi does **not** connect to remote backends or execute `terraform init`. It 
 **Recommended approach**: Derive state keys from the filesystem path (`abspath(path.module)`) or explicit locals/variables, not from other modules' outputs.
 :::
 
-::: warning Single State Namespace
-TerraCi matches dependencies by the `key` path in remote state config only — it **ignores** `bucket`, `backend` type, `region`, and other backend-specific fields. This means:
-
-- If two modules store state in **different buckets** but use the **same key path** (e.g., `platform/prod/eu-central-1/vpc/terraform.tfstate`), TerraCi cannot tell them apart and may create incorrect dependency links
-- If you use **different backend types** (e.g., S3 for production, local for dev) with overlapping key paths, the same ambiguity applies
-
-**Recommended approach**: Ensure state key paths are **globally unique** across all buckets and backends. A good convention is to include a distinguishing prefix in the key (e.g., the team or project name):
-
-```hcl
-# Team A — bucket: team-a-state
-key = "team-a/platform/prod/eu-central-1/vpc/terraform.tfstate"
-
-# Team B — bucket: team-b-state
-key = "team-b/platform/prod/eu-central-1/vpc/terraform.tfstate"
-```
+::: tip Backend-Aware Matching
+When the `key` path alone is ambiguous (e.g., two modules with the same key in different buckets), TerraCi parses each module's `terraform { backend "s3" { ... } }` block and uses the `bucket` attribute to disambiguate. This requires backend configuration to be defined in `.tf` files — values provided solely via `-backend-config` CLI flags are not available for static analysis.
 :::
 
 ## Name-Based Fallback

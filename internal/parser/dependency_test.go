@@ -256,3 +256,101 @@ func TestContainsDynamicPattern(t *testing.T) {
 		})
 	}
 }
+
+func TestExtractDependencies_BackendDisambiguation(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Two VPC modules with same key path but different buckets
+	vpcAPath := createTestModuleDir(t, tmpDir, "team-a", "prod", "eu-central-1", "vpc")
+	vpcBPath := createTestModuleDir(t, tmpDir, "team-b", "prod", "eu-central-1", "vpc")
+	appPath := createTestModuleDir(t, tmpDir, "team-a", "prod", "eu-central-1", "app")
+
+	writeTestFile(t, vpcAPath, "backend.tf", `
+terraform {
+  backend "s3" {
+    bucket = "team-a-state"
+    key    = "prod/eu-central-1/vpc/terraform.tfstate"
+  }
+}
+`)
+	writeTestFile(t, vpcAPath, "main.tf", "# VPC A")
+
+	writeTestFile(t, vpcBPath, "backend.tf", `
+terraform {
+  backend "s3" {
+    bucket = "team-b-state"
+    key    = "prod/eu-central-1/vpc/terraform.tfstate"
+  }
+}
+`)
+	writeTestFile(t, vpcBPath, "main.tf", "# VPC B")
+
+	// App references team-b's VPC by bucket
+	writeTestFile(t, appPath, "data.tf", `
+data "terraform_remote_state" "vpc" {
+  backend = "s3"
+  config = {
+    bucket = "team-b-state"
+    key    = "prod/eu-central-1/vpc/terraform.tfstate"
+  }
+}
+`)
+	writeTestFile(t, appPath, "main.tf", "# App")
+
+	vpcA := discovery.TestModule("team-a", "prod", "eu-central-1", "vpc")
+	vpcA.Path = vpcAPath
+	vpcB := discovery.TestModule("team-b", "prod", "eu-central-1", "vpc")
+	vpcB.Path = vpcBPath
+	app := discovery.TestModule("team-a", "prod", "eu-central-1", "app")
+	app.Path = appPath
+
+	extractor := NewDependencyExtractor(NewParser(nil), discovery.NewModuleIndex([]*discovery.Module{vpcA, vpcB, app}))
+	allDeps, _ := extractor.ExtractAllDependencies(context.Background())
+
+	appDeps := allDeps[app.ID()]
+	if appDeps == nil {
+		t.Fatal("no deps for app")
+	}
+
+	if len(appDeps.Dependencies) != 1 {
+		t.Fatalf("deps = %d, want 1 (errors: %v)", len(appDeps.Dependencies), appDeps.Errors)
+	}
+
+	target := appDeps.Dependencies[0].To
+	if target.ID() != "team-b/prod/eu-central-1/vpc" {
+		t.Errorf("target = %q, want team-b/prod/eu-central-1/vpc", target.ID())
+	}
+}
+
+func TestExtractDependencies_BackendFallback(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Module without backend config — should still resolve via key-based matching
+	vpcPath := createTestModuleDir(t, tmpDir, "platform", "stage", "eu-central-1", "vpc")
+	appPath := createTestModuleDir(t, tmpDir, "platform", "stage", "eu-central-1", "app")
+
+	writeTestFile(t, vpcPath, "main.tf", "# VPC")
+	writeTestFile(t, appPath, "data.tf", `
+data "terraform_remote_state" "vpc" {
+  backend = "s3"
+  config = { bucket = "b", key = "platform/stage/eu-central-1/vpc/terraform.tfstate" }
+}
+`)
+	writeTestFile(t, appPath, "main.tf", "# App")
+
+	vpc := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
+	vpc.Path = vpcPath
+	app := discovery.TestModule("platform", "stage", "eu-central-1", "app")
+	app.Path = appPath
+
+	extractor := NewDependencyExtractor(NewParser(nil), discovery.NewModuleIndex([]*discovery.Module{vpc, app}))
+	allDeps, _ := extractor.ExtractAllDependencies(context.Background())
+
+	appDeps := allDeps[app.ID()]
+	if len(appDeps.Dependencies) != 1 {
+		t.Fatalf("deps = %d, want 1 (errors: %v)", len(appDeps.Dependencies), appDeps.Errors)
+	}
+	if appDeps.Dependencies[0].To.ID() != "platform/stage/eu-central-1/vpc" {
+		t.Errorf("target = %q, want vpc", appDeps.Dependencies[0].To.ID())
+	}
+}

@@ -210,6 +210,79 @@ data "terraform_remote_state" "vpc" {
 	}
 }
 
+func TestParseModule_BackendConfig(t *testing.T) {
+	dir := setupTempModule(t, map[string]string{
+		"backend.tf": `
+terraform {
+  backend "s3" {
+    bucket = "my-state-bucket"
+    key    = "platform/stage/eu-central-1/vpc/terraform.tfstate"
+    region = "eu-central-1"
+  }
+}
+`,
+	})
+
+	result, err := NewParser(nil).ParseModule(context.Background(), dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.Backend == nil {
+		t.Fatal("expected backend config to be parsed")
+	}
+	if result.Backend.Type != "s3" {
+		t.Errorf("backend type = %q, want s3", result.Backend.Type)
+	}
+	if result.Backend.Config["bucket"] != "my-state-bucket" {
+		t.Errorf("bucket = %q, want my-state-bucket", result.Backend.Config["bucket"])
+	}
+	if result.Backend.Config["region"] != "eu-central-1" {
+		t.Errorf("region = %q, want eu-central-1", result.Backend.Config["region"])
+	}
+}
+
+func TestParseModule_BackendConfig_WithLocals(t *testing.T) {
+	dir := setupTempModule(t, map[string]string{
+		"locals.tf": `locals { state_bucket = "team-a-state" }`,
+		"backend.tf": `
+terraform {
+  backend "s3" {
+    bucket = local.state_bucket
+    key    = "vpc/terraform.tfstate"
+  }
+}
+`,
+	})
+
+	result, err := NewParser(nil).ParseModule(context.Background(), dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.Backend == nil {
+		t.Fatal("expected backend config to be parsed")
+	}
+	if result.Backend.Config["bucket"] != "team-a-state" {
+		t.Errorf("bucket = %q, want team-a-state", result.Backend.Config["bucket"])
+	}
+}
+
+func TestParseModule_NoBackend(t *testing.T) {
+	dir := setupTempModule(t, map[string]string{
+		"main.tf": `resource "aws_instance" "web" {}`,
+	})
+
+	result, err := NewParser(nil).ParseModule(context.Background(), dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.Backend != nil {
+		t.Errorf("expected no backend, got %+v", result.Backend)
+	}
+}
+
 func TestParseModule_WithModuleCalls(t *testing.T) {
 	dir := setupTempModule(t, map[string]string{
 		"main.tf": `

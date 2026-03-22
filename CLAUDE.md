@@ -46,10 +46,10 @@ internal/
 │   ├── index.go                # ModuleIndex — fast lookups by ID/path/name
 │   └── testing.go              # TestModule() helper for tests
 ├── parser/
-│   ├── types.go                # Parser, ParsedModule, RemoteStateRef, ModuleCall
-│   ├── hcl.go                  # ParseModule(ctx), multi-pass locals evaluation, extractors
+│   ├── types.go                # Parser, ParsedModule, RemoteStateRef, BackendConfig, ModuleCall
+│   ├── hcl.go                  # ParseModule(ctx), multi-pass locals evaluation, extractors, backend parsing
 │   ├── resolve.go              # ResolveWorkspacePath, for_each resolution
-│   └── dependency.go           # DependencyExtractor, ExtractAllDependencies(ctx)
+│   └── dependency.go           # DependencyExtractor, backend index, ExtractAllDependencies(ctx)
 ├── graph/
 │   ├── dependency.go           # DependencyGraph, Node, edges, traversal, library usage
 │   ├── algorithms.go           # TopologicalSort, ExecutionLevels, DetectCycles
@@ -347,12 +347,12 @@ cost:
 - **Multi-provider**: `pipeline.Generator` interface with GitLab and GitHub implementations; provider auto-detected from CI env
 - **Decoupled CI layer**: `internal/ci/` has provider-agnostic types (`PolicySummary`, `CommentData`); no dependency on `internal/policy/`; `internal/gitlab/` and `internal/github/` are thin provider wrappers
 - **Generic filtering**: `SegmentFilter{Segment, Values}` replaces hardcoded filters; `--filter key=value` CLI flag works with any segment name
-- **Dependencies**: resolved from `terraform_remote_state` data blocks; `for_each` with ternary + for-expressions + lookup on objects; `matchPathToModule` uses strategy chain
+- **Dependencies**: resolved from `terraform_remote_state` data blocks; `for_each` with ternary + for-expressions + lookup on objects; `matchPathToModule` uses strategy chain; backend-aware disambiguation via parsed `terraform { backend {} }` blocks
 - **Graph visualization**: DOT with clustered subgraphs and short labels; PlantUML with nested region grouping; stats with fan-in/fan-out top-5 and modules per level
 - **Policy checks**: OPA v1 Rego; multiple namespaces; per-module `**` glob overwrites (warn/disable); single-bundle loading; `deny` → failures, `warn` → warnings
 - **Cost estimation**: Handlers grouped by service in subpackages (`aws/ec2/`, `aws/rds/`, etc.); `CostCategory` classifies handlers (Standard/Fixed/UsageBased); `LookupBuilder` + `HourlyCost()`/`ScaledHourlyCost()` eliminate handler boilerplate; `usagetype` filtering prevents ambiguous pricing matches (e.g., ElastiCache ExtendedSupport variants); concurrent `EstimateModules()` via errgroup; `CostErrorKind` classifies estimation failures; `cost/registry.go` init() breaks import cycle between `aws/` and subpackages
 - **MR/PR comments**: upserted via `<!-- terraci-plan-comment -->` marker; `ci.HasReportableChanges()` shared on_changes_only logic
-- **Config**: `matchGlob` with `**` multi-segment pattern support; `image:` as object with `name:` field; no `backend:` section (removed — dead code)
+- **Config**: `matchGlob` with `**` multi-segment pattern support; `image:` as object with `name:` field
 - **Interactive init**: bubbletea TUI with live YAML preview; `initOptions` shared between CLI and TUI modes
 - **Testing**: all AWS pricing calls mocked via httptest; `Fetcher.Client`/`BaseURL` exported for injection
 

@@ -11,18 +11,25 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/edelwud/terraci/internal/discovery"
+	"github.com/edelwud/terraci/internal/terraform/eval"
 	terrierrors "github.com/edelwud/terraci/pkg/errors"
 )
 
 // DependencyExtractor extracts module dependencies from parsed Terraform files.
 type DependencyExtractor struct {
-	parser ModuleParser
-	index  *discovery.ModuleIndex
+	parser       ModuleParser
+	index        *discovery.ModuleIndex
+	parsedCache  map[string]*ParsedModule
+	backendIndex map[string]*discovery.Module
 }
 
 // NewDependencyExtractor creates a new dependency extractor.
 func NewDependencyExtractor(parser ModuleParser, index *discovery.ModuleIndex) *DependencyExtractor {
-	return &DependencyExtractor{parser: parser, index: index}
+	return &DependencyExtractor{
+		parser:      parser,
+		index:       index,
+		parsedCache: make(map[string]*ParsedModule),
+	}
 }
 
 // Dependency represents a dependency between two modules.
@@ -58,7 +65,7 @@ func (de *DependencyExtractor) ExtractDependencies(ctx context.Context, module *
 		Errors:              make([]error, 0),
 	}
 
-	parsed, err := de.parser.ParseModule(ctx, module.Path)
+	parsed, err := de.parseModule(ctx, module)
 	if err != nil {
 		return nil, &terrierrors.ParseError{Module: module.ID(), Err: err}
 	}
@@ -110,7 +117,12 @@ func (de *DependencyExtractor) resolveRemoteStateDependency(
 			continue
 		}
 
-		if target := de.matchPathToModule(path, from); target != nil {
+		target := de.matchPathToModule(path, from)
+		if target == nil {
+			target = de.matchByBackend(rs, path, locals, variables, from)
+		}
+
+		if target != nil {
 			deps = append(deps, &Dependency{
 				From:            from,
 				To:              target,
@@ -195,11 +207,100 @@ func containsDynamicPattern(path string) bool {
 		strings.Contains(path, "\"}")
 }
 
+// parseModule returns a cached ParsedModule or parses it fresh.
+func (de *DependencyExtractor) parseModule(ctx context.Context, module *discovery.Module) (*ParsedModule, error) {
+	if pm, ok := de.parsedCache[module.ID()]; ok {
+		return pm, nil
+	}
+	pm, err := de.parser.ParseModule(ctx, module.Path)
+	if err != nil {
+		return nil, err
+	}
+	de.parsedCache[module.ID()] = pm
+	return pm, nil
+}
+
+// buildBackendIndex pre-parses all modules and builds a backend config index.
+func (de *DependencyExtractor) buildBackendIndex(ctx context.Context) {
+	var mu sync.Mutex
+	var g errgroup.Group
+	g.SetLimit(maxConcurrentExtractions)
+
+	for _, module := range de.index.All() {
+		g.Go(func() error {
+			pm, err := de.parser.ParseModule(ctx, module.Path)
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			if err != nil {
+				return nil
+			}
+			de.parsedCache[module.ID()] = pm
+
+			if pm.Backend != nil {
+				key := backendIndexKey(pm.Backend, module.RelativePath)
+				if key != "" {
+					if de.backendIndex == nil {
+						de.backendIndex = make(map[string]*discovery.Module)
+					}
+					de.backendIndex[key] = module
+				}
+			}
+			return nil
+		})
+	}
+	_ = g.Wait() //nolint:errcheck
+}
+
+// backendIndexKey builds a lookup key from a module's backend config.
+func backendIndexKey(bc *BackendConfig, modulePath string) string {
+	bucket := bc.Config["bucket"]
+	if bucket == "" {
+		return ""
+	}
+	// Use the module's own backend key if available, otherwise derive from module path
+	stateKey := bc.Config["key"]
+	if stateKey != "" {
+		stateKey = normalizeStatePath(stateKey)
+	} else {
+		stateKey = modulePath
+	}
+	return bc.Type + ":" + bucket + ":" + stateKey
+}
+
+// matchByBackend tries to find a target module using backend config attributes.
+func (de *DependencyExtractor) matchByBackend(
+	rs *RemoteStateRef, statePath string,
+	locals, variables map[string]cty.Value, from *discovery.Module,
+) *discovery.Module {
+	if de.backendIndex == nil || rs.Backend == "" {
+		return nil
+	}
+
+	bucketExpr, ok := rs.Config["bucket"]
+	if !ok {
+		return nil
+	}
+
+	evalCtx := eval.NewContext(locals, variables, from.Path)
+	bucket, ok := evalStringExpr(bucketExpr, evalCtx)
+	if !ok {
+		return nil
+	}
+
+	normalized := normalizeStatePath(statePath)
+	key := rs.Backend + ":" + bucket + ":" + normalized
+	return de.backendIndex[key]
+}
+
 // maxConcurrentExtractions is the maximum number of concurrent module extractions.
 const maxConcurrentExtractions = 20
 
 // ExtractAllDependencies extracts dependencies for all modules in the index.
 func (de *DependencyExtractor) ExtractAllDependencies(ctx context.Context) (map[string]*ModuleDependencies, []error) {
+	de.buildBackendIndex(ctx)
+
 	results := make(map[string]*ModuleDependencies)
 	var allErrors []error
 	var mu sync.Mutex
