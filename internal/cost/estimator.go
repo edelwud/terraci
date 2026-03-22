@@ -15,6 +15,9 @@ import (
 	"github.com/edelwud/terraci/internal/terraform/plan"
 )
 
+// DefaultRegion is used when no region is specified.
+const DefaultRegion = "us-east-1"
+
 // Estimator calculates cost estimates for terraform plans
 type Estimator struct {
 	registry *aws.Registry
@@ -40,6 +43,16 @@ func (e *Estimator) CacheOldestAge() time.Duration { return e.cache.OldestAge() 
 
 // CacheTTL returns the cache TTL.
 func (e *Estimator) CacheTTL() time.Duration { return e.cache.TTL() }
+
+// CleanExpiredCache removes expired cache entries.
+func (e *Estimator) CleanExpiredCache() {
+	if err := e.cache.CleanExpired(); err != nil {
+		log.WithError(err).Debug("failed to clean expired cache")
+	}
+}
+
+// CacheEntries returns info about all cached pricing files.
+func (e *Estimator) CacheEntries() []pricing.CacheEntry { return e.cache.Entries() }
 
 // EstimateModule calculates cost for a single module from plan.json.
 // plan.json contains all resources (including unchanged no-op) with full before/after state.
@@ -137,27 +150,82 @@ func (e *Estimator) aggregateCost(result *ModuleCost, rc ResourceCost, action st
 	}
 }
 
-// groupByModule groups resources by their Terraform module address, preserving order.
+// groupByModule groups resources by their Terraform module address into a tree.
+// Child modules (e.g., module.eks.module.node_group) are nested under parents (module.eks).
 func groupByModule(resources []ResourceCost) []SubmoduleCost {
-	groups := make(map[string]*SubmoduleCost)
+	// Step 1: group resources by exact ModuleAddr
+	type flatGroup struct {
+		addr      string
+		resources []ResourceCost
+		cost      float64
+	}
+	groups := make(map[string]*flatGroup)
 	var order []string
 
 	for i := range resources {
 		rc := &resources[i]
 		addr := rc.ModuleAddr
 		if groups[addr] == nil {
-			groups[addr] = &SubmoduleCost{ModuleAddr: addr}
+			groups[addr] = &flatGroup{addr: addr}
 			order = append(order, addr)
 		}
-		groups[addr].Resources = append(groups[addr].Resources, *rc)
-		groups[addr].MonthlyCost += rc.MonthlyCost
+		groups[addr].resources = append(groups[addr].resources, *rc)
+		groups[addr].cost += rc.MonthlyCost
 	}
 
-	result := make([]SubmoduleCost, 0, len(order))
+	// Step 2: build tree — find parent for each address
+	// "module.eks.module.node_group" is a child of "module.eks"
+	nodes := make(map[string]*SubmoduleCost, len(order))
 	for _, addr := range order {
-		result = append(result, *groups[addr])
+		g := groups[addr]
+		nodes[addr] = &SubmoduleCost{
+			ModuleAddr:  addr,
+			MonthlyCost: g.cost,
+			Resources:   g.resources,
+		}
 	}
-	return result
+
+	// Step 3: attach children to parents, collect roots
+	var roots []SubmoduleCost
+	attached := make(map[string]bool)
+
+	for _, addr := range order {
+		parent := findParentAddr(addr, nodes)
+		if parent != "" {
+			nodes[parent].Children = append(nodes[parent].Children, *nodes[addr])
+			nodes[parent].MonthlyCost += nodes[addr].MonthlyCost
+			attached[addr] = true
+		}
+	}
+
+	for _, addr := range order {
+		if !attached[addr] {
+			roots = append(roots, *nodes[addr])
+		}
+	}
+
+	return roots
+}
+
+// findParentAddr finds the nearest existing parent module address.
+// For "module.eks.module.node_group", checks "module.eks" in the nodes map.
+func findParentAddr(addr string, nodes map[string]*SubmoduleCost) string {
+	// Walk backwards through "module.X.module.Y" to find "module.X"
+	for i := len(addr) - 1; i >= 0; i-- {
+		if addr[i] == '.' {
+			// Check if the prefix up to this dot is a "module.X" boundary
+			candidate := addr[:i]
+			// Must end at a module boundary: "module.eks" not "module.ek"
+			// The part after candidate + "." should start with "module."
+			rest := addr[len(candidate)+1:]
+			if len(rest) >= 7 && rest[:7] == "module." {
+				if _, ok := nodes[candidate]; ok {
+					return candidate
+				}
+			}
+		}
+	}
+	return ""
 }
 
 // EstimateModules calculates costs for multiple modules concurrently.
@@ -170,7 +238,7 @@ func (e *Estimator) EstimateModules(ctx context.Context, modulePaths []string, r
 	for i, modulePath := range modulePaths {
 		region := regions[modulePath]
 		if region == "" {
-			region = "us-east-1"
+			region = DefaultRegion
 		}
 
 		g.Go(func() error {
@@ -221,7 +289,7 @@ func (e *Estimator) ValidateAndPrefetch(ctx context.Context, modulePaths []strin
 
 		region := regions[modulePath]
 		if region == "" {
-			region = "us-east-1"
+			region = DefaultRegion
 		}
 
 		for _, rc := range parsedPlan.Resources {
@@ -246,17 +314,29 @@ func (e *Estimator) ValidateAndPrefetch(ctx context.Context, modulePaths []strin
 		}
 	}
 
-	// Check what's missing
-	missing := e.cache.Validate(services)
-	if len(missing) == 0 {
-		log.Debug("all required pricing data is cached")
+	if len(services) == 0 {
+		log.Warn("no supported resources found in plans — nothing to price")
 		return nil
 	}
 
-	log.WithField("count", len(missing)).Info("downloading missing pricing data")
+	log.WithField("services", len(services)).Debug("required pricing services")
+	for svc, regions := range services {
+		log.WithField("service", string(svc)).WithField("regions", regions).Debug("need pricing for")
+	}
 
-	// Download missing data
-	for _, m := range missing {
+	// Check what's missing
+	missing := e.cache.Validate(services)
+	if len(missing) == 0 {
+		log.Info("all pricing data is cached and valid")
+		return nil
+	}
+
+	// Download missing/expired data
+	for i, m := range missing {
+		log.WithField("service", string(m.Service)).
+			WithField("region", m.Region).
+			WithField("progress", fmt.Sprintf("%d/%d", i+1, len(missing))).
+			Info("downloading pricing data")
 		if _, err := e.cache.GetIndex(ctx, m.Service, m.Region); err != nil {
 			return fmt.Errorf("fetch %s/%s pricing: %w", m.Service, m.Region, err)
 		}

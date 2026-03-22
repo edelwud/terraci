@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,6 +18,8 @@ const (
 	DefaultCacheDir = ".terraci/pricing"
 	// DefaultCacheTTL is how long cached data is considered valid
 	DefaultCacheTTL = 24 * time.Hour
+	// cacheFileExt is the file extension for cached pricing files
+	cacheFileExt = ".json"
 )
 
 // Cache manages local pricing data cache.
@@ -65,7 +68,7 @@ func (c *Cache) TTL() time.Duration { return c.ttl }
 func (c *Cache) OldestAge() time.Duration {
 	var oldest time.Time
 	_ = filepath.Walk(c.dir, func(path string, info os.FileInfo, walkErr error) error { //nolint:errcheck
-		if walkErr != nil || info.IsDir() || filepath.Ext(path) != ".json" {
+		if walkErr != nil || info.IsDir() || filepath.Ext(path) != cacheFileExt {
 			return nil //nolint:nilerr // skip errors, continue walking
 		}
 		if oldest.IsZero() || info.ModTime().Before(oldest) {
@@ -79,6 +82,45 @@ func (c *Cache) OldestAge() time.Duration {
 	return time.Since(oldest)
 }
 
+// CacheEntry describes a single cached pricing file.
+type CacheEntry struct {
+	Service   ServiceCode
+	Region    string
+	Age       time.Duration
+	ExpiresIn time.Duration // negative if expired
+}
+
+// Entries returns info about all cached pricing files.
+func (c *Cache) Entries() []CacheEntry {
+	var entries []CacheEntry
+	_ = filepath.Walk(c.dir, func(path string, info os.FileInfo, walkErr error) error { //nolint:errcheck
+		if walkErr != nil || info.IsDir() || filepath.Ext(path) != cacheFileExt {
+			return nil //nolint:nilerr
+		}
+		// Extract service/region from path: {dir}/{service}/{region}.json
+		rel, err := filepath.Rel(c.dir, path)
+		if err != nil {
+			return nil //nolint:nilerr
+		}
+		parts := strings.Split(filepath.ToSlash(rel), "/")
+		if len(parts) != 2 {
+			return nil
+		}
+		service := ServiceCode(parts[0])
+		region := strings.TrimSuffix(parts[1], cacheFileExt)
+		age := time.Since(info.ModTime())
+
+		entries = append(entries, CacheEntry{
+			Service:   service,
+			Region:    region,
+			Age:       age,
+			ExpiresIn: c.ttl - age,
+		})
+		return nil
+	})
+	return entries
+}
+
 // GetIndex returns a pricing index for a service/region, using cache if valid
 func (c *Cache) GetIndex(ctx context.Context, service ServiceCode, region string) (*PriceIndex, error) {
 	// Try cache first
@@ -90,6 +132,19 @@ func (c *Cache) GetIndex(ctx context.Context, service ServiceCode, region string
 		return idx, nil
 	}
 
+	// Log why cache was not used
+	if err != nil {
+		log.WithField("service", string(service)).
+			WithField("region", region).
+			WithError(err).
+			Debug("cache miss")
+	} else if idx != nil {
+		log.WithField("service", string(service)).
+			WithField("region", region).
+			WithField("age", time.Since(idx.UpdatedAt).Truncate(time.Minute)).
+			Debug("cache expired")
+	}
+
 	// Fetch fresh data
 	log.WithField("service", string(service)).
 		WithField("region", region).
@@ -97,6 +152,14 @@ func (c *Cache) GetIndex(ctx context.Context, service ServiceCode, region string
 
 	idx, err = c.fetcher.FetchRegionIndex(ctx, service, region)
 	if err != nil {
+		// If fetch fails and we have stale cache, use it as fallback
+		if stale, loadErr := c.loadFromCache(service, region); loadErr == nil && stale != nil {
+			log.WithError(err).
+				WithField("service", string(service)).
+				WithField("region", region).
+				Warn("fetch failed, using stale cache")
+			return stale, nil
+		}
 		return nil, err
 	}
 
@@ -225,7 +288,7 @@ func (c *Cache) CleanExpired() error {
 		if info.IsDir() {
 			return nil
 		}
-		if filepath.Ext(path) != ".json" {
+		if filepath.Ext(path) != cacheFileExt {
 			return nil
 		}
 

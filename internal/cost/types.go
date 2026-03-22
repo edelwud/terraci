@@ -46,10 +46,12 @@ const (
 )
 
 // SubmoduleCost groups resource costs by Terraform module address.
+// Children contains nested submodules (e.g., module.eks contains module.eks.module.node_group).
 type SubmoduleCost struct {
-	ModuleAddr  string         `json:"module_addr"` // e.g., "module.runner" or "" for root
-	MonthlyCost float64        `json:"monthly_cost"`
-	Resources   []ResourceCost `json:"resources"`
+	ModuleAddr  string          `json:"module_addr"`         // e.g., "module.runner" or "" for root
+	MonthlyCost float64         `json:"monthly_cost"`        // Total including children
+	Resources   []ResourceCost  `json:"resources,omitempty"` // Direct resources only
+	Children    []SubmoduleCost `json:"children,omitempty"`  // Nested submodules
 }
 
 // ModuleCost represents the total cost estimate for a terraform module
