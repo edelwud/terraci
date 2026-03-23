@@ -3,6 +3,8 @@ package discovery
 import "testing"
 
 func TestModuleIndex_All(t *testing.T) {
+	t.Parallel()
+
 	modules := testModules()
 	idx := NewModuleIndex(modules)
 
@@ -12,6 +14,8 @@ func TestModuleIndex_All(t *testing.T) {
 }
 
 func TestModuleIndex_ByID(t *testing.T) {
+	t.Parallel()
+
 	idx := NewModuleIndex(testModules())
 
 	if m := idx.ByID("platform/stage/eu-central-1/vpc"); m == nil {
@@ -28,6 +32,8 @@ func TestModuleIndex_ByID(t *testing.T) {
 }
 
 func TestModuleIndex_ByPath(t *testing.T) {
+	t.Parallel()
+
 	idx := NewModuleIndex(testModules())
 
 	if m := idx.ByPath("/test/platform/stage/eu-central-1/vpc"); m == nil {
@@ -36,6 +42,8 @@ func TestModuleIndex_ByPath(t *testing.T) {
 }
 
 func TestModuleIndex_ByName(t *testing.T) {
+	t.Parallel()
+
 	idx := NewModuleIndex(testModules())
 
 	ec2 := idx.ByName("ec2")
@@ -50,6 +58,8 @@ func TestModuleIndex_ByName(t *testing.T) {
 }
 
 func TestModuleIndex_BaseModules(t *testing.T) {
+	t.Parallel()
+
 	idx := NewModuleIndex(testModules())
 
 	if got := len(idx.BaseModules()); got != 3 {
@@ -58,6 +68,8 @@ func TestModuleIndex_BaseModules(t *testing.T) {
 }
 
 func TestModuleIndex_Submodules(t *testing.T) {
+	t.Parallel()
+
 	idx := NewModuleIndex(testModules())
 
 	if got := len(idx.Submodules()); got != 1 {
@@ -66,6 +78,8 @@ func TestModuleIndex_Submodules(t *testing.T) {
 }
 
 func TestModuleIndex_Filter(t *testing.T) {
+	t.Parallel()
+
 	idx := NewModuleIndex(testModules())
 
 	stage := idx.Filter(func(m *Module) bool { return m.Get("environment") == "stage" })
@@ -75,6 +89,8 @@ func TestModuleIndex_Filter(t *testing.T) {
 }
 
 func TestModuleIndex_FindInContext(t *testing.T) {
+	t.Parallel()
+
 	modules := testModules()
 	idx := NewModuleIndex(modules)
 

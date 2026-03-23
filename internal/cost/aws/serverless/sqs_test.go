@@ -8,6 +8,8 @@ import (
 )
 
 func TestSQSHandler_Category(t *testing.T) {
+	t.Parallel()
+
 	h := &SQSHandler{}
 	if h.Category() != aws.CostCategoryUsageBased {
 		t.Errorf("Category() = %v, want CostCategoryUsageBased", h.Category())
@@ -15,6 +17,8 @@ func TestSQSHandler_Category(t *testing.T) {
 }
 
 func TestSQSHandler_Describe(t *testing.T) {
+	t.Parallel()
+
 	h := &SQSHandler{}
 	result := h.Describe(nil, nil)
 	if result != nil {
@@ -23,6 +27,8 @@ func TestSQSHandler_Describe(t *testing.T) {
 }
 
 func TestSQSHandler_ServiceCode(t *testing.T) {
+	t.Parallel()
+
 	h := &SQSHandler{}
 	if h.ServiceCode() != pricing.ServiceSQS {
 		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceSQS)
@@ -30,6 +36,8 @@ func TestSQSHandler_ServiceCode(t *testing.T) {
 }
 
 func TestSQSHandler_BuildLookup(t *testing.T) {
+	t.Parallel()
+
 	h := &SQSHandler{}
 	lookup, err := h.BuildLookup("us-east-1", nil)
 	if err != nil {
@@ -41,6 +49,8 @@ func TestSQSHandler_BuildLookup(t *testing.T) {
 }
 
 func TestSQSHandler_CalculateCost(t *testing.T) {
+	t.Parallel()
+
 	h := &SQSHandler{}
 	hourly, monthly := h.CalculateCost(nil, nil, "", nil)
 	if hourly != 0 {

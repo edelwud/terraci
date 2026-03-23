@@ -8,6 +8,8 @@ import (
 )
 
 func TestRoute53Handler_Category(t *testing.T) {
+	t.Parallel()
+
 	h := &Route53Handler{}
 	if h.Category() != aws.CostCategoryFixed {
 		t.Errorf("Category() = %v, want CostCategoryFixed", h.Category())
@@ -15,6 +17,8 @@ func TestRoute53Handler_Category(t *testing.T) {
 }
 
 func TestRoute53Handler_Describe(t *testing.T) {
+	t.Parallel()
+
 	h := &Route53Handler{}
 	result := h.Describe(nil, nil)
 	if result != nil {
@@ -23,6 +27,8 @@ func TestRoute53Handler_Describe(t *testing.T) {
 }
 
 func TestRoute53Handler_ServiceCode(t *testing.T) {
+	t.Parallel()
+
 	h := &Route53Handler{}
 	if h.ServiceCode() != pricing.ServiceRoute53 {
 		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceRoute53)
@@ -30,6 +36,8 @@ func TestRoute53Handler_ServiceCode(t *testing.T) {
 }
 
 func TestRoute53Handler_BuildLookup_ReturnsNil(t *testing.T) {
+	t.Parallel()
+
 	h := &Route53Handler{}
 
 	lookup, err := h.BuildLookup("us-east-1", nil)
@@ -42,6 +50,8 @@ func TestRoute53Handler_BuildLookup_ReturnsNil(t *testing.T) {
 }
 
 func TestRoute53Handler_CalculateCost(t *testing.T) {
+	t.Parallel()
+
 	h := &Route53Handler{}
 	hourly, monthly := h.CalculateCost(nil, nil, "", nil)
 

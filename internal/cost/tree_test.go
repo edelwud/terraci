@@ -6,9 +6,13 @@ import (
 )
 
 func TestBuildSegmentTree(t *testing.T) {
+	t.Parallel()
+
 	workDir := "/projects/infra"
 
 	t.Run("builds tree from modules", func(t *testing.T) {
+		t.Parallel()
+
 		result := &EstimateResult{
 			Modules: []ModuleCost{
 				{ModuleID: "svc/prod/us-east-1/vpc", ModulePath: filepath.Join(workDir, "svc", "prod", "us-east-1", "vpc"), AfterCost: 10.0},
@@ -35,6 +39,8 @@ func TestBuildSegmentTree(t *testing.T) {
 	})
 
 	t.Run("skips zero-cost modules without errors", func(t *testing.T) {
+		t.Parallel()
+
 		result := &EstimateResult{
 			Modules: []ModuleCost{
 				{ModuleID: "svc/prod/vpc", AfterCost: 0, BeforeCost: 0, Error: ""},
@@ -51,6 +57,8 @@ func TestBuildSegmentTree(t *testing.T) {
 	})
 
 	t.Run("includes zero-cost modules with errors", func(t *testing.T) {
+		t.Parallel()
+
 		result := &EstimateResult{
 			Modules: []ModuleCost{
 				{ModuleID: "svc/prod/vpc", AfterCost: 0, Error: "api timeout"},
@@ -65,6 +73,8 @@ func TestBuildSegmentTree(t *testing.T) {
 	})
 
 	t.Run("accumulates diff cost", func(t *testing.T) {
+		t.Parallel()
+
 		result := &EstimateResult{
 			Modules: []ModuleCost{
 				{ModuleID: "svc/prod/vpc", AfterCost: 10, DiffCost: 5},
@@ -80,6 +90,8 @@ func TestBuildSegmentTree(t *testing.T) {
 	})
 
 	t.Run("leaf nodes have module reference", func(t *testing.T) {
+		t.Parallel()
+
 		result := &EstimateResult{
 			Modules: []ModuleCost{
 				{ModuleID: "svc/prod/vpc", AfterCost: 10},
@@ -97,6 +109,8 @@ func TestBuildSegmentTree(t *testing.T) {
 	})
 
 	t.Run("empty result", func(t *testing.T) {
+		t.Parallel()
+
 		tree := BuildSegmentTree(&EstimateResult{}, workDir)
 		if len(tree.Children) != 0 {
 			t.Errorf("root children = %d, want 0", len(tree.Children))
@@ -105,6 +119,8 @@ func TestBuildSegmentTree(t *testing.T) {
 }
 
 func TestFindChild(t *testing.T) {
+	t.Parallel()
+
 	root := &SegmentNode{
 		Children: []*SegmentNode{
 			{Name: "alpha"},
@@ -113,6 +129,8 @@ func TestFindChild(t *testing.T) {
 	}
 
 	t.Run("found", func(t *testing.T) {
+		t.Parallel()
+
 		c := FindChild(root, "beta")
 		if c == nil || c.Name != "beta" {
 			t.Errorf("FindChild(beta) = %v, want beta", c)
@@ -120,6 +138,8 @@ func TestFindChild(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
+		t.Parallel()
+
 		c := FindChild(root, "gamma")
 		if c != nil {
 			t.Errorf("FindChild(gamma) = %v, want nil", c)
@@ -127,6 +147,8 @@ func TestFindChild(t *testing.T) {
 	})
 
 	t.Run("empty children", func(t *testing.T) {
+		t.Parallel()
+
 		c := FindChild(&SegmentNode{}, "x")
 		if c != nil {
 			t.Errorf("FindChild on empty = %v, want nil", c)
@@ -135,7 +157,11 @@ func TestFindChild(t *testing.T) {
 }
 
 func TestCompactSegmentTree(t *testing.T) {
+	t.Parallel()
+
 	t.Run("merges single-child chain", func(t *testing.T) {
+		t.Parallel()
+
 		root := &SegmentNode{
 			Children: []*SegmentNode{
 				{Name: "a", Children: []*SegmentNode{
@@ -157,6 +183,8 @@ func TestCompactSegmentTree(t *testing.T) {
 	})
 
 	t.Run("stops at branch point", func(t *testing.T) {
+		t.Parallel()
+
 		root := &SegmentNode{
 			Children: []*SegmentNode{
 				{Name: "a", Children: []*SegmentNode{
@@ -177,6 +205,8 @@ func TestCompactSegmentTree(t *testing.T) {
 	})
 
 	t.Run("stops at module node", func(t *testing.T) {
+		t.Parallel()
+
 		root := &SegmentNode{
 			Children: []*SegmentNode{
 				{Name: "a", Module: &ModuleCost{}, Children: []*SegmentNode{
@@ -200,6 +230,8 @@ func TestCompactSegmentTree(t *testing.T) {
 }
 
 func TestStripModulePrefix(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		address    string
@@ -215,6 +247,8 @@ func TestStripModulePrefix(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := StripModulePrefix(tt.address, tt.moduleAddr)
 			if got != tt.want {
 				t.Errorf("StripModulePrefix(%q, %q) = %q, want %q", tt.address, tt.moduleAddr, got, tt.want)
@@ -224,6 +258,8 @@ func TestStripModulePrefix(t *testing.T) {
 }
 
 func TestSplitPath(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		input string
@@ -238,6 +274,8 @@ func TestSplitPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := SplitPath(tt.input)
 			if len(got) != len(tt.want) {
 				t.Fatalf("SplitPath(%q) = %v (len %d), want %v (len %d)", tt.input, got, len(got), tt.want, len(tt.want))
@@ -252,6 +290,8 @@ func TestSplitPath(t *testing.T) {
 }
 
 func TestDetectRegion(t *testing.T) {
+	t.Parallel()
+
 	segments := []string{"service", "environment", "region", "module"}
 
 	tests := []struct {
@@ -269,6 +309,8 @@ func TestDetectRegion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := DetectRegion(tt.segments, tt.modulePath)
 			if got != tt.want {
 				t.Errorf("DetectRegion(%v, %q) = %q, want %q", tt.segments, tt.modulePath, got, tt.want)

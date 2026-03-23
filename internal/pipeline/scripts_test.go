@@ -5,6 +5,8 @@ import (
 )
 
 func TestScriptConfig_PlanScript(t *testing.T) {
+	t.Parallel()
+
 	modulePath := "svc/prod/us-east-1/vpc"
 
 	tests := []struct {
@@ -63,6 +65,8 @@ func TestScriptConfig_PlanScript(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			script, artifacts := tt.config.PlanScript(modulePath)
 
 			// First command is always cd
@@ -124,6 +128,8 @@ func TestScriptConfig_PlanScript(t *testing.T) {
 }
 
 func TestScriptConfig_ApplyScript(t *testing.T) {
+	t.Parallel()
+
 	modulePath := "svc/prod/us-east-1/vpc"
 
 	tests := []struct {
@@ -190,6 +196,8 @@ func TestScriptConfig_ApplyScript(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			script := tt.config.ApplyScript(modulePath)
 
 			// First command is always cd

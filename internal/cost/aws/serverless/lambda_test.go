@@ -8,6 +8,8 @@ import (
 )
 
 func TestLambdaHandler_Category(t *testing.T) {
+	t.Parallel()
+
 	h := &LambdaHandler{}
 	if h.Category() != aws.CostCategoryStandard {
 		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
@@ -15,6 +17,8 @@ func TestLambdaHandler_Category(t *testing.T) {
 }
 
 func TestLambdaHandler_ServiceCode(t *testing.T) {
+	t.Parallel()
+
 	h := &LambdaHandler{}
 	if h.ServiceCode() != pricing.ServiceLambda {
 		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceLambda)
@@ -22,6 +26,8 @@ func TestLambdaHandler_ServiceCode(t *testing.T) {
 }
 
 func TestLambdaHandler_BuildLookup(t *testing.T) {
+	t.Parallel()
+
 	h := &LambdaHandler{}
 
 	lookup, err := h.BuildLookup("us-east-1", nil)
@@ -47,6 +53,8 @@ func TestLambdaHandler_BuildLookup(t *testing.T) {
 }
 
 func TestLambdaHandler_CalculateCost(t *testing.T) {
+	t.Parallel()
+
 	h := &LambdaHandler{}
 
 	tests := []struct {
@@ -90,6 +98,8 @@ func TestLambdaHandler_CalculateCost(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			hourly, monthly := h.CalculateCost(nil, nil, "", tt.attrs)
 
 			if tt.wantNonZero {
@@ -115,6 +125,8 @@ func TestLambdaHandler_CalculateCost(t *testing.T) {
 }
 
 func TestLambdaHandler_Describe(t *testing.T) {
+	t.Parallel()
+
 	h := &LambdaHandler{}
 
 	tests := []struct {
@@ -162,6 +174,8 @@ func TestLambdaHandler_Describe(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := h.Describe(nil, tt.attrs)
 
 			for k, v := range tt.wantKeys {

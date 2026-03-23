@@ -8,6 +8,8 @@ import (
 )
 
 func TestNATHandler_Category(t *testing.T) {
+	t.Parallel()
+
 	h := &NATHandler{}
 	if h.Category() != aws.CostCategoryStandard {
 		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
@@ -15,6 +17,8 @@ func TestNATHandler_Category(t *testing.T) {
 }
 
 func TestNATHandler_Describe(t *testing.T) {
+	t.Parallel()
+
 	h := &NATHandler{}
 	result := h.Describe(nil, nil)
 	if len(result) != 0 {
@@ -23,6 +27,8 @@ func TestNATHandler_Describe(t *testing.T) {
 }
 
 func TestNATHandler_ServiceCode(t *testing.T) {
+	t.Parallel()
+
 	h := &NATHandler{}
 	if h.ServiceCode() != pricing.ServiceEC2 {
 		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceEC2)
@@ -30,6 +36,8 @@ func TestNATHandler_ServiceCode(t *testing.T) {
 }
 
 func TestNATHandler_BuildLookup(t *testing.T) {
+	t.Parallel()
+
 	h := &NATHandler{}
 
 	lookup, err := h.BuildLookup("us-east-1", nil)
@@ -43,6 +51,8 @@ func TestNATHandler_BuildLookup(t *testing.T) {
 }
 
 func TestNATHandler_CalculateCost(t *testing.T) {
+	t.Parallel()
+
 	h := &NATHandler{}
 
 	// With price from lookup

@@ -6,6 +6,8 @@ import (
 )
 
 func TestModule_ID(t *testing.T) {
+	t.Parallel()
+
 	m := TestModule("platform", "stage", "eu-central-1", "vpc")
 	if got := m.ID(); got != "platform/stage/eu-central-1/vpc" {
 		t.Errorf("ID() = %q, want platform/stage/eu-central-1/vpc", got)
@@ -20,6 +22,8 @@ func TestModule_ID(t *testing.T) {
 }
 
 func TestModule_Name(t *testing.T) {
+	t.Parallel()
+
 	base := NewModule(
 		[]string{"service", "environment", "region", "module"},
 		[]string{"platform", "stage", "eu-central-1", "vpc"},
@@ -41,6 +45,8 @@ func TestModule_Name(t *testing.T) {
 }
 
 func TestModule_IsSubmodule(t *testing.T) {
+	t.Parallel()
+
 	base := TestModule("platform", "stage", "eu-central-1", "vpc")
 	if base.IsSubmodule() {
 		t.Error("base module should not be submodule")
@@ -54,6 +60,8 @@ func TestModule_IsSubmodule(t *testing.T) {
 }
 
 func TestModule_Get(t *testing.T) {
+	t.Parallel()
+
 	m := TestModule("platform", "stage", "eu-central-1", "vpc")
 
 	tests := []struct{ key, want string }{
@@ -72,6 +80,8 @@ func TestModule_Get(t *testing.T) {
 }
 
 func TestModule_LeafValue(t *testing.T) {
+	t.Parallel()
+
 	m := TestModule("platform", "stage", "eu-central-1", "vpc")
 	if got := m.LeafValue(); got != "vpc" {
 		t.Errorf("LeafValue() = %q, want vpc", got)
@@ -84,6 +94,8 @@ func TestModule_LeafValue(t *testing.T) {
 }
 
 func TestModule_ContextPrefix(t *testing.T) {
+	t.Parallel()
+
 	m := TestModule("platform", "stage", "eu-central-1", "vpc")
 	if got := m.ContextPrefix(); got != "platform/stage/eu-central-1" {
 		t.Errorf("ContextPrefix() = %q, want platform/stage/eu-central-1", got)
@@ -96,6 +108,8 @@ func TestModule_ContextPrefix(t *testing.T) {
 }
 
 func TestModule_Components(t *testing.T) {
+	t.Parallel()
+
 	m := TestModule("platform", "stage", "eu-central-1", "vpc")
 	cp := m.Components()
 
@@ -111,6 +125,8 @@ func TestModule_Components(t *testing.T) {
 }
 
 func TestModule_String(t *testing.T) {
+	t.Parallel()
+
 	m := TestModule("platform", "stage", "eu-central-1", "vpc")
 	if m.String() != m.ID() {
 		t.Errorf("String() = %q, want %q", m.String(), m.ID())

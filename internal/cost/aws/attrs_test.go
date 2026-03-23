@@ -3,6 +3,8 @@ package aws
 import "testing"
 
 func TestGetStringAttr(t *testing.T) {
+	t.Parallel()
+
 	attrs := map[string]any{
 		"name":      "web",
 		"count":     42,
@@ -29,12 +31,16 @@ func TestGetStringAttr(t *testing.T) {
 }
 
 func TestGetStringAttr_NilMap(t *testing.T) {
+	t.Parallel()
+
 	if got := GetStringAttr(nil, "key"); got != "" {
 		t.Errorf("GetStringAttr(nil, key) = %q, want empty", got)
 	}
 }
 
 func TestGetFloatAttr(t *testing.T) {
+	t.Parallel()
+
 	attrs := map[string]any{
 		"f64":    3.14,
 		"int":    42,
@@ -63,6 +69,8 @@ func TestGetFloatAttr(t *testing.T) {
 }
 
 func TestGetIntAttr(t *testing.T) {
+	t.Parallel()
+
 	attrs := map[string]any{
 		"f64":   3.7,
 		"int":   42,
@@ -89,6 +97,8 @@ func TestGetIntAttr(t *testing.T) {
 }
 
 func TestGetBoolAttr(t *testing.T) {
+	t.Parallel()
+
 	attrs := map[string]any{
 		"enabled":  true,
 		"disabled": false,

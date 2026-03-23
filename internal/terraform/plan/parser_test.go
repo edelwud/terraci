@@ -7,6 +7,8 @@ import (
 )
 
 func TestParseJSONData(t *testing.T) {
+	t.Parallel()
+
 	parsed, err := ParseJSONData([]byte(samplePlanJSON))
 	if err != nil {
 		t.Fatalf("ParseJSONData: %v", err)
@@ -30,6 +32,8 @@ func TestParseJSONData(t *testing.T) {
 }
 
 func TestParseJSONData_NoChanges(t *testing.T) {
+	t.Parallel()
+
 	parsed, err := ParseJSONData([]byte(samplePlanJSONNoChanges))
 	if err != nil {
 		t.Fatalf("ParseJSONData: %v", err)
@@ -47,6 +51,8 @@ func TestParseJSONData_NoChanges(t *testing.T) {
 }
 
 func TestParseJSONData_Replace(t *testing.T) {
+	t.Parallel()
+
 	parsed, err := ParseJSONData([]byte(samplePlanJSONReplace))
 	if err != nil {
 		t.Fatalf("ParseJSONData: %v", err)
@@ -61,6 +67,8 @@ func TestParseJSONData_Replace(t *testing.T) {
 }
 
 func TestParseJSONData_WithModules(t *testing.T) {
+	t.Parallel()
+
 	parsed, err := ParseJSONData([]byte(samplePlanJSONWithModule))
 	if err != nil {
 		t.Fatalf("ParseJSONData: %v", err)
@@ -78,6 +86,8 @@ func TestParseJSONData_WithModules(t *testing.T) {
 }
 
 func TestParseJSONData_Sensitive(t *testing.T) {
+	t.Parallel()
+
 	parsed, err := ParseJSONData([]byte(samplePlanJSONSensitive))
 	if err != nil {
 		t.Fatalf("ParseJSONData: %v", err)
@@ -96,6 +106,8 @@ func TestParseJSONData_Sensitive(t *testing.T) {
 }
 
 func TestParseJSONData_AttributeDiffs(t *testing.T) {
+	t.Parallel()
+
 	parsed, err := ParseJSONData([]byte(samplePlanJSON))
 	if err != nil {
 		t.Fatalf("ParseJSONData: %v", err)
@@ -113,6 +125,8 @@ func TestParseJSONData_AttributeDiffs(t *testing.T) {
 }
 
 func TestParseJSONData_CreateResource(t *testing.T) {
+	t.Parallel()
+
 	parsed, err := ParseJSONData([]byte(samplePlanJSON))
 	if err != nil {
 		t.Fatalf("ParseJSONData: %v", err)
@@ -130,6 +144,8 @@ func TestParseJSONData_CreateResource(t *testing.T) {
 }
 
 func TestParseJSON_File(t *testing.T) {
+	t.Parallel()
+
 	path := filepath.Join(t.TempDir(), "plan.json")
 	if err := os.WriteFile(path, []byte(samplePlanJSON), 0o644); err != nil {
 		t.Fatal(err)
@@ -145,12 +161,16 @@ func TestParseJSON_File(t *testing.T) {
 }
 
 func TestParseJSON_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
 	if _, err := ParseJSONData([]byte("not json")); err == nil {
 		t.Error("expected error")
 	}
 }
 
 func TestParseJSON_FileNotFound(t *testing.T) {
+	t.Parallel()
+
 	if _, err := ParseJSON("/nonexistent/plan.json"); err == nil {
 		t.Error("expected error")
 	}

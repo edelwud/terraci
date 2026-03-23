@@ -19,6 +19,8 @@ func buildGraph(modules []*discovery.Module, edges [][2]int) *graph.DependencyGr
 }
 
 func TestBuildJobPlan(t *testing.T) {
+	t.Parallel()
+
 	modA := discovery.TestModule("svc", "prod", "us-east-1", "vpc")
 	modB := discovery.TestModule("svc", "prod", "us-east-1", "rds")
 	allModules := []*discovery.Module{modA, modB}
@@ -102,6 +104,8 @@ func TestBuildJobPlan(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			plan, err := BuildJobPlan(depGraph, tt.targets, allModules, idx, tt.isPR, tt.isPolicy, tt.isPlan)
 			if err != nil {
 				t.Fatalf("BuildJobPlan() error = %v", err)
@@ -135,6 +139,8 @@ func TestBuildJobPlan(t *testing.T) {
 }
 
 func TestJobName(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		jobType  string
@@ -163,6 +169,8 @@ func TestJobName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := JobName(tt.jobType, tt.module)
 			if got != tt.expected {
 				t.Errorf("JobName() = %q, want %q", got, tt.expected)
@@ -172,6 +180,8 @@ func TestJobName(t *testing.T) {
 }
 
 func TestResolveDependencyNames(t *testing.T) {
+	t.Parallel()
+
 	modA := discovery.TestModule("svc", "prod", "us-east-1", "vpc")
 	modB := discovery.TestModule("svc", "prod", "us-east-1", "rds")
 	modC := discovery.TestModule("svc", "prod", "us-east-1", "ecs")
@@ -222,6 +232,8 @@ func TestResolveDependencyNames(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := ResolveDependencyNames(tt.module, tt.jobType, tt.targetSet, depGraph, idx)
 			if tt.wantNoNames {
 				if len(got) != 0 {
@@ -242,6 +254,8 @@ func TestResolveDependencyNames(t *testing.T) {
 }
 
 func TestResolveDependencyNames_DepNotInIndex(t *testing.T) {
+	t.Parallel()
+
 	modA := discovery.TestModule("svc", "prod", "us-east-1", "vpc")
 	modB := discovery.TestModule("svc", "prod", "us-east-1", "rds")
 
@@ -264,6 +278,8 @@ func TestResolveDependencyNames_DepNotInIndex(t *testing.T) {
 }
 
 func TestBuildDryRunResult(t *testing.T) {
+	t.Parallel()
+
 	modA := discovery.TestModule("svc", "prod", "us-east-1", "vpc")
 	modB := discovery.TestModule("svc", "prod", "us-east-1", "rds")
 
@@ -371,6 +387,8 @@ func TestBuildDryRunResult(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := BuildDryRunResult(tt.plan, tt.totalModules, tt.planEnabled)
 			if result.Jobs != tt.wantJobs {
 				t.Errorf("Jobs = %d, want %d", result.Jobs, tt.wantJobs)

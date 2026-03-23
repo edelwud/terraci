@@ -8,6 +8,8 @@ import (
 )
 
 func TestClassicHandler_Category(t *testing.T) {
+	t.Parallel()
+
 	h := &ClassicHandler{}
 	if h.Category() != aws.CostCategoryStandard {
 		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
@@ -15,6 +17,8 @@ func TestClassicHandler_Category(t *testing.T) {
 }
 
 func TestClassicHandler_Describe(t *testing.T) {
+	t.Parallel()
+
 	h := &ClassicHandler{}
 	result := h.Describe(nil, nil)
 	if result["type"] != "classic" {
@@ -23,6 +27,8 @@ func TestClassicHandler_Describe(t *testing.T) {
 }
 
 func TestClassicHandler_ServiceCode(t *testing.T) {
+	t.Parallel()
+
 	h := &ClassicHandler{}
 	if h.ServiceCode() != pricing.ServiceELB {
 		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceELB)
@@ -30,6 +36,8 @@ func TestClassicHandler_ServiceCode(t *testing.T) {
 }
 
 func TestClassicHandler_BuildLookup(t *testing.T) {
+	t.Parallel()
+
 	h := &ClassicHandler{}
 
 	lookup, err := h.BuildLookup("us-east-1", nil)
@@ -43,6 +51,8 @@ func TestClassicHandler_BuildLookup(t *testing.T) {
 }
 
 func TestClassicHandler_CalculateCost(t *testing.T) {
+	t.Parallel()
+
 	h := &ClassicHandler{}
 
 	// With price

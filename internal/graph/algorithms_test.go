@@ -8,6 +8,8 @@ import (
 )
 
 func TestTopologicalSort(t *testing.T) {
+	t.Parallel()
+
 	g := buildTestGraph()
 
 	sorted, err := g.TopologicalSort()
@@ -26,6 +28,8 @@ func TestTopologicalSort(t *testing.T) {
 }
 
 func TestTopologicalSort_Cycle(t *testing.T) {
+	t.Parallel()
+
 	modules := []*discovery.Module{
 		discovery.TestModule("svc", "env", "reg", "a"),
 		discovery.TestModule("svc", "env", "reg", "b"),
@@ -44,6 +48,8 @@ func TestTopologicalSort_Cycle(t *testing.T) {
 }
 
 func TestExecutionLevels(t *testing.T) {
+	t.Parallel()
+
 	g := buildTestGraph()
 
 	levels, err := g.ExecutionLevels()
@@ -65,6 +71,8 @@ func TestExecutionLevels(t *testing.T) {
 }
 
 func TestDetectCycles(t *testing.T) {
+	t.Parallel()
+
 	modules := []*discovery.Module{
 		discovery.TestModule("svc", "env", "reg", "a"),
 		discovery.TestModule("svc", "env", "reg", "b"),
@@ -84,6 +92,8 @@ func TestDetectCycles(t *testing.T) {
 }
 
 func TestDetectCycles_NoCycles(t *testing.T) {
+	t.Parallel()
+
 	g := buildTestGraph()
 	if cycles := g.DetectCycles(); len(cycles) != 0 {
 		t.Errorf("expected no cycles, got %v", cycles)

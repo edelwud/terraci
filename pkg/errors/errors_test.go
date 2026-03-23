@@ -6,9 +6,13 @@ import (
 )
 
 func TestConfigError(t *testing.T) {
+	t.Parallel()
+
 	inner := errors.New("bad value")
 
 	t.Run("with path", func(t *testing.T) {
+		t.Parallel()
+
 		e := &ConfigError{Path: "/etc/terraci.yaml", Err: inner}
 		want := "config error (/etc/terraci.yaml): bad value"
 		if e.Error() != want {
@@ -17,6 +21,8 @@ func TestConfigError(t *testing.T) {
 	})
 
 	t.Run("without path", func(t *testing.T) {
+		t.Parallel()
+
 		e := &ConfigError{Err: inner}
 		want := "config error: bad value"
 		if e.Error() != want {
@@ -25,6 +31,8 @@ func TestConfigError(t *testing.T) {
 	})
 
 	t.Run("unwrap", func(t *testing.T) {
+		t.Parallel()
+
 		e := &ConfigError{Err: inner}
 		if !errors.Is(e, inner) {
 			t.Error("Unwrap should return inner error")
@@ -33,6 +41,8 @@ func TestConfigError(t *testing.T) {
 }
 
 func TestScanError(t *testing.T) {
+	t.Parallel()
+
 	inner := errors.New("permission denied")
 	e := &ScanError{Dir: "/tmp/modules", Err: inner}
 
@@ -45,6 +55,8 @@ func TestScanError(t *testing.T) {
 }
 
 func TestParseError(t *testing.T) {
+	t.Parallel()
+
 	inner := errors.New("invalid HCL")
 	e := &ParseError{Module: "vpc", Err: inner}
 
@@ -57,6 +69,8 @@ func TestParseError(t *testing.T) {
 }
 
 func TestPolicyError(t *testing.T) {
+	t.Parallel()
+
 	e := &PolicyError{Module: "rds", Violations: []string{"no tags", "no encryption"}}
 	want := "policy check failed for rds: 2 violation(s)"
 	if e.Error() != want {
@@ -65,6 +79,8 @@ func TestPolicyError(t *testing.T) {
 }
 
 func TestCostError(t *testing.T) {
+	t.Parallel()
+
 	inner := errors.New("API timeout")
 	e := &CostError{Module: "ec2", Err: inner}
 
@@ -77,6 +93,8 @@ func TestCostError(t *testing.T) {
 }
 
 func TestGraphError(t *testing.T) {
+	t.Parallel()
+
 	e := &GraphError{Cycles: [][]string{{"a", "b", "a"}}}
 	want := "dependency graph has 1 cycle(s)"
 	if e.Error() != want {
@@ -85,6 +103,8 @@ func TestGraphError(t *testing.T) {
 }
 
 func TestNoModulesError(t *testing.T) {
+	t.Parallel()
+
 	e := &NoModulesError{Dir: "/projects/infra"}
 	want := "no modules found in /projects/infra"
 	if e.Error() != want {
@@ -93,6 +113,8 @@ func TestNoModulesError(t *testing.T) {
 }
 
 func TestErrorsAs(t *testing.T) {
+	t.Parallel()
+
 	inner := errors.New("oops")
 
 	tests := []struct {
@@ -106,7 +128,9 @@ func TestErrorsAs(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(_ *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			wrapped := errors.Join(tt.err, errors.New("context"))
 			_ = wrapped // just verify type assertions work
 		})

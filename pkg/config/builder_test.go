@@ -3,6 +3,8 @@ package config
 import "testing"
 
 func TestInitOptions_ResolveProvider(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		provider string
@@ -14,6 +16,8 @@ func TestInitOptions_ResolveProvider(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			o := &InitOptions{Provider: tt.provider}
 			if got := o.ResolveProvider(); got != tt.want {
 				t.Errorf("ResolveProvider() = %q, want %q", got, tt.want)
@@ -23,6 +27,8 @@ func TestInitOptions_ResolveProvider(t *testing.T) {
 }
 
 func TestInitOptions_ResolveBinary(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		binary string
@@ -34,6 +40,8 @@ func TestInitOptions_ResolveBinary(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			o := &InitOptions{Binary: tt.binary}
 			if got := o.ResolveBinary(); got != tt.want {
 				t.Errorf("ResolveBinary() = %q, want %q", got, tt.want)
@@ -43,6 +51,8 @@ func TestInitOptions_ResolveBinary(t *testing.T) {
 }
 
 func TestInitOptions_ResolveImage(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		binary string
@@ -56,6 +66,8 @@ func TestInitOptions_ResolveImage(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			o := &InitOptions{Binary: tt.binary, Image: tt.image}
 			if got := o.ResolveImage(); got != tt.want {
 				t.Errorf("ResolveImage() = %q, want %q", got, tt.want)
@@ -65,6 +77,8 @@ func TestInitOptions_ResolveImage(t *testing.T) {
 }
 
 func TestInitOptions_ResolveRunsOn(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		runsOn string
@@ -75,6 +89,8 @@ func TestInitOptions_ResolveRunsOn(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			o := &InitOptions{RunsOn: tt.runsOn}
 			if got := o.ResolveRunsOn(); got != tt.want {
 				t.Errorf("ResolveRunsOn() = %q, want %q", got, tt.want)
@@ -84,7 +100,11 @@ func TestInitOptions_ResolveRunsOn(t *testing.T) {
 }
 
 func TestInitOptions_SetupStepsGitHub(t *testing.T) {
+	t.Parallel()
+
 	t.Run("terraform", func(t *testing.T) {
+		t.Parallel()
+
 		o := &InitOptions{}
 		steps := o.SetupStepsGitHub()
 		if len(steps) != 2 {
@@ -99,6 +119,8 @@ func TestInitOptions_SetupStepsGitHub(t *testing.T) {
 	})
 
 	t.Run("tofu", func(t *testing.T) {
+		t.Parallel()
+
 		o := &InitOptions{Binary: "tofu"}
 		steps := o.SetupStepsGitHub()
 		if steps[1].Uses != "opentofu/setup-opentofu@v1" {
@@ -108,6 +130,8 @@ func TestInitOptions_SetupStepsGitHub(t *testing.T) {
 }
 
 func TestInitOptions_BuildConfig_GitLab(t *testing.T) {
+	t.Parallel()
+
 	o := &InitOptions{
 		Pattern:     "{service}/{environment}/{module}",
 		PlanEnabled: true,
@@ -138,6 +162,8 @@ func TestInitOptions_BuildConfig_GitLab(t *testing.T) {
 }
 
 func TestInitOptions_BuildConfig_GitHub(t *testing.T) {
+	t.Parallel()
+
 	o := &InitOptions{
 		Provider:    "github",
 		Binary:      "tofu",
@@ -169,7 +195,11 @@ func TestInitOptions_BuildConfig_GitHub(t *testing.T) {
 }
 
 func TestInitOptions_BuildGitLabConfig(t *testing.T) {
+	t.Parallel()
+
 	t.Run("with MR enabled", func(t *testing.T) {
+		t.Parallel()
+
 		o := &InitOptions{EnableMR: true}
 		cfg := o.BuildGitLabConfig()
 		if cfg.MR == nil {
@@ -181,6 +211,8 @@ func TestInitOptions_BuildGitLabConfig(t *testing.T) {
 	})
 
 	t.Run("without MR", func(t *testing.T) {
+		t.Parallel()
+
 		o := &InitOptions{}
 		cfg := o.BuildGitLabConfig()
 		if cfg.MR != nil {
@@ -190,7 +222,11 @@ func TestInitOptions_BuildGitLabConfig(t *testing.T) {
 }
 
 func TestApplyPlanOnly(t *testing.T) {
+	t.Parallel()
+
 	t.Run("gitlab", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := &Config{GitLab: &GitLabConfig{}}
 		ApplyPlanOnly(cfg, ProviderGitLab)
 		if !cfg.GitLab.PlanOnly || !cfg.GitLab.PlanEnabled {
@@ -199,6 +235,8 @@ func TestApplyPlanOnly(t *testing.T) {
 	})
 
 	t.Run("github", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := &Config{GitHub: &GitHubConfig{}}
 		ApplyPlanOnly(cfg, ProviderGitHub)
 		if !cfg.GitHub.PlanOnly || !cfg.GitHub.PlanEnabled {
@@ -206,19 +244,27 @@ func TestApplyPlanOnly(t *testing.T) {
 		}
 	})
 
-	t.Run("nil gitlab config", func(_ *testing.T) {
+	t.Run("nil gitlab config", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := &Config{}
 		ApplyPlanOnly(cfg, ProviderGitLab) // should not panic
 	})
 
-	t.Run("nil github config", func(_ *testing.T) {
+	t.Run("nil github config", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := &Config{}
 		ApplyPlanOnly(cfg, ProviderGitHub) // should not panic
 	})
 }
 
 func TestSetAutoApprove(t *testing.T) {
+	t.Parallel()
+
 	t.Run("gitlab enable", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := &Config{GitLab: &GitLabConfig{}}
 		SetAutoApprove(cfg, ProviderGitLab, true)
 		if !cfg.GitLab.AutoApprove {
@@ -227,6 +273,8 @@ func TestSetAutoApprove(t *testing.T) {
 	})
 
 	t.Run("github disable", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := &Config{GitHub: &GitHubConfig{AutoApprove: true}}
 		SetAutoApprove(cfg, ProviderGitHub, false)
 		if cfg.GitHub.AutoApprove {
@@ -234,7 +282,9 @@ func TestSetAutoApprove(t *testing.T) {
 		}
 	})
 
-	t.Run("nil configs", func(_ *testing.T) {
+	t.Run("nil configs", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := &Config{}
 		SetAutoApprove(cfg, ProviderGitLab, true) // should not panic
 		SetAutoApprove(cfg, ProviderGitHub, true) // should not panic

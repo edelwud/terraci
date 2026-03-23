@@ -8,6 +8,8 @@ import (
 )
 
 func TestALBHandler_Category(t *testing.T) {
+	t.Parallel()
+
 	h := &ALBHandler{}
 	if h.Category() != aws.CostCategoryStandard {
 		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
@@ -15,6 +17,8 @@ func TestALBHandler_Category(t *testing.T) {
 }
 
 func TestALBHandler_Describe(t *testing.T) {
+	t.Parallel()
+
 	h := &ALBHandler{}
 
 	// Default → application
@@ -31,6 +35,8 @@ func TestALBHandler_Describe(t *testing.T) {
 }
 
 func TestALBHandler_ServiceCode(t *testing.T) {
+	t.Parallel()
+
 	h := &ALBHandler{}
 	if h.ServiceCode() != pricing.ServiceEC2 {
 		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceEC2)
@@ -38,6 +44,8 @@ func TestALBHandler_ServiceCode(t *testing.T) {
 }
 
 func TestALBHandler_BuildLookup(t *testing.T) {
+	t.Parallel()
+
 	h := &ALBHandler{}
 
 	tests := []struct {
@@ -75,6 +83,8 @@ func TestALBHandler_BuildLookup(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			lookup, err := h.BuildLookup("us-east-1", tt.attrs)
 			if err != nil {
 				t.Fatalf("BuildLookup returned error: %v", err)
@@ -88,6 +98,8 @@ func TestALBHandler_BuildLookup(t *testing.T) {
 }
 
 func TestALBHandler_CalculateCost(t *testing.T) {
+	t.Parallel()
+
 	h := &ALBHandler{}
 
 	tests := []struct {
@@ -128,6 +140,8 @@ func TestALBHandler_CalculateCost(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			hourly, _ := h.CalculateCost(tt.price, nil, "", tt.attrs)
 
 			if hourly != tt.expectedHourly {

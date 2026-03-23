@@ -8,6 +8,8 @@ import (
 )
 
 func TestNewContext(t *testing.T) {
+	t.Parallel()
+
 	locals := map[string]cty.Value{
 		"service": cty.StringVal("platform"),
 		"env":     cty.StringVal("stage"),
@@ -64,6 +66,8 @@ func TestNewContext(t *testing.T) {
 }
 
 func TestFunctions(t *testing.T) {
+	t.Parallel()
+
 	funcs := Functions()
 
 	if funcs == nil {
@@ -76,7 +80,11 @@ func TestFunctions(t *testing.T) {
 }
 
 func TestSafeObjectVal(t *testing.T) {
+	t.Parallel()
+
 	t.Run("nil map returns EmptyObjectVal", func(t *testing.T) {
+		t.Parallel()
+
 		result := SafeObjectVal(nil)
 		if !result.Equals(cty.EmptyObjectVal).True() {
 			t.Errorf("expected EmptyObjectVal for nil map, got %v", result.GoString())
@@ -84,6 +92,8 @@ func TestSafeObjectVal(t *testing.T) {
 	})
 
 	t.Run("empty map returns EmptyObjectVal", func(t *testing.T) {
+		t.Parallel()
+
 		result := SafeObjectVal(map[string]cty.Value{})
 		if !result.Equals(cty.EmptyObjectVal).True() {
 			t.Errorf("expected EmptyObjectVal for empty map, got %v", result.GoString())
@@ -91,6 +101,8 @@ func TestSafeObjectVal(t *testing.T) {
 	})
 
 	t.Run("populated map returns ObjectVal", func(t *testing.T) {
+		t.Parallel()
+
 		m := map[string]cty.Value{
 			"key1": cty.StringVal("value1"),
 			"key2": cty.NumberIntVal(42),

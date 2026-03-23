@@ -9,6 +9,8 @@ import (
 )
 
 func TestToDOT(t *testing.T) {
+	t.Parallel()
+
 	modules := []*discovery.Module{
 		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
 		discovery.TestModule("platform", "stage", "eu-central-1", "eks"),
@@ -28,6 +30,8 @@ func TestToDOT(t *testing.T) {
 }
 
 func TestToPlantUML(t *testing.T) {
+	t.Parallel()
+
 	modules := []*discovery.Module{
 		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
 		discovery.TestModule("platform", "stage", "eu-central-1", "eks"),
@@ -47,6 +51,8 @@ func TestToPlantUML(t *testing.T) {
 }
 
 func TestPlantUMLAlias(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct{ input, want string }{
 		{"platform/stage/eu-central-1/vpc", "platform_stage_eu_central_1_vpc"},
 		{"simple", "simple"},

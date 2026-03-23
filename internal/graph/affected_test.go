@@ -10,9 +10,13 @@ import (
 )
 
 func TestGetAffectedModules(t *testing.T) {
+	t.Parallel()
+
 	g := buildTestGraph()
 
 	t.Run("vpc changes affects all", func(t *testing.T) {
+		t.Parallel()
+
 		affected := g.GetAffectedModules([]string{"platform/stage/eu-central-1/vpc"})
 		if len(affected) != 4 {
 			t.Errorf("expected 4, got %d: %v", len(affected), affected)
@@ -20,6 +24,8 @@ func TestGetAffectedModules(t *testing.T) {
 	})
 
 	t.Run("eks changes affects eks+app+vpc", func(t *testing.T) {
+		t.Parallel()
+
 		affected := g.GetAffectedModules([]string{"platform/stage/eu-central-1/eks"})
 		sort.Strings(affected)
 		expected := []string{
@@ -33,6 +39,8 @@ func TestGetAffectedModules(t *testing.T) {
 	})
 
 	t.Run("app changes affects app+eks+rds+vpc", func(t *testing.T) {
+		t.Parallel()
+
 		affected := g.GetAffectedModules([]string{"platform/stage/eu-central-1/app"})
 		if len(affected) != 4 {
 			t.Errorf("expected 4, got %d: %v", len(affected), affected)
@@ -41,6 +49,8 @@ func TestGetAffectedModules(t *testing.T) {
 }
 
 func TestGetAffectedByLibraryChanges(t *testing.T) {
+	t.Parallel()
+
 	modules := []*discovery.Module{
 		discovery.TestModule("platform", "stage", "eu-north-1", "vpc"),
 		discovery.TestModule("platform", "stage", "eu-north-1", "msk"),
@@ -63,6 +73,8 @@ func TestGetAffectedByLibraryChanges(t *testing.T) {
 }
 
 func TestGetAffectedByLibraryChanges_Transitive(t *testing.T) {
+	t.Parallel()
+
 	modules := []*discovery.Module{
 		discovery.TestModule("platform", "stage", "eu-north-1", "msk"),
 	}
@@ -80,6 +92,8 @@ func TestGetAffectedByLibraryChanges_Transitive(t *testing.T) {
 }
 
 func TestGetAffectedModulesWithLibraries(t *testing.T) {
+	t.Parallel()
+
 	modules := []*discovery.Module{
 		discovery.TestModule("platform", "stage", "eu-north-1", "vpc"),
 		discovery.TestModule("platform", "stage", "eu-north-1", "msk"),
@@ -96,6 +110,8 @@ func TestGetAffectedModulesWithLibraries(t *testing.T) {
 	g := BuildFromDependencies(modules, deps)
 
 	t.Run("library only", func(t *testing.T) {
+		t.Parallel()
+
 		affected := g.GetAffectedModulesWithLibraries(nil, []string{"/project/_modules/kafka"})
 		sort.Strings(affected)
 		expected := []string{"platform/stage/eu-north-1/msk", "platform/stage/eu-north-1/vpc"}
@@ -105,6 +121,8 @@ func TestGetAffectedModulesWithLibraries(t *testing.T) {
 	})
 
 	t.Run("combined", func(t *testing.T) {
+		t.Parallel()
+
 		affected := g.GetAffectedModulesWithLibraries(
 			[]string{"platform/stage/eu-north-1/app"},
 			[]string{"/project/_modules/kafka"},

@@ -3,6 +3,8 @@ package ci
 import "testing"
 
 func TestHasReportableChanges(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		plans  []ModulePlan
@@ -98,6 +100,8 @@ func TestHasReportableChanges(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := HasReportableChanges(tt.plans, tt.policy)
 			if got != tt.want {
 				t.Errorf("HasReportableChanges() = %v, want %v", got, tt.want)

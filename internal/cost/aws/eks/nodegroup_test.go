@@ -8,6 +8,8 @@ import (
 )
 
 func TestNodeGroupHandler_Category(t *testing.T) {
+	t.Parallel()
+
 	h := &NodeGroupHandler{}
 	if h.Category() != aws.CostCategoryStandard {
 		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
@@ -15,6 +17,8 @@ func TestNodeGroupHandler_Category(t *testing.T) {
 }
 
 func TestNodeGroupHandler_ServiceCode(t *testing.T) {
+	t.Parallel()
+
 	h := &NodeGroupHandler{}
 	if h.ServiceCode() != pricing.ServiceEC2 {
 		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceEC2)
@@ -22,6 +26,8 @@ func TestNodeGroupHandler_ServiceCode(t *testing.T) {
 }
 
 func TestNodeGroupHandler_BuildLookup(t *testing.T) {
+	t.Parallel()
+
 	h := &NodeGroupHandler{}
 
 	tests := []struct {
@@ -35,6 +41,8 @@ func TestNodeGroupHandler_BuildLookup(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			lookup, err := h.BuildLookup("us-east-1", tt.attrs)
 			if err != nil {
 				t.Fatalf("BuildLookup: %v", err)
@@ -47,6 +55,8 @@ func TestNodeGroupHandler_BuildLookup(t *testing.T) {
 }
 
 func TestNodeGroupHandler_CalculateCost(t *testing.T) {
+	t.Parallel()
+
 	h := &NodeGroupHandler{}
 	price := &pricing.Price{OnDemandUSD: 0.10}
 
@@ -63,6 +73,8 @@ func TestNodeGroupHandler_CalculateCost(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			hourly, _ := h.CalculateCost(price, nil, "", tt.attrs)
 			if diff := hourly - tt.wantHourly; diff < -0.001 || diff > 0.001 {
 				t.Errorf("hourly = %v, want %v", hourly, tt.wantHourly)
@@ -72,6 +84,8 @@ func TestNodeGroupHandler_CalculateCost(t *testing.T) {
 }
 
 func TestNodeGroupHandler_Describe(t *testing.T) {
+	t.Parallel()
+
 	h := &NodeGroupHandler{}
 
 	tests := []struct {
@@ -121,6 +135,8 @@ func TestNodeGroupHandler_Describe(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := h.Describe(nil, tt.attrs)
 
 			for k, v := range tt.wantKeys {

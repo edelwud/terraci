@@ -7,6 +7,8 @@ import (
 )
 
 func TestLookupFunc(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		mapVal   cty.Value
@@ -63,6 +65,8 @@ func TestLookupFunc(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			args := []cty.Value{tt.mapVal, cty.StringVal(tt.key)}
 			if tt.defVal != nil {
 				args = append(args, *tt.defVal)
@@ -89,6 +93,8 @@ func TestLookupFunc(t *testing.T) {
 }
 
 func TestLookupFunc_UnknownKey(t *testing.T) {
+	t.Parallel()
+
 	mapVal := cty.MapVal(map[string]cty.Value{
 		"foo": cty.StringVal("bar"),
 	})
@@ -105,10 +111,14 @@ func TestLookupFunc_UnknownKey(t *testing.T) {
 }
 
 func TestAbspathFunc(t *testing.T) {
+	t.Parallel()
+
 	funcs := builtinFunctions()
 	fn := funcs["abspath"]
 
 	t.Run("relative path returns absolute", func(t *testing.T) {
+		t.Parallel()
+
 		result, err := fn.Call([]cty.Value{cty.StringVal("some/relative/path")})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -123,6 +133,8 @@ func TestAbspathFunc(t *testing.T) {
 	})
 
 	t.Run("absolute path stays absolute", func(t *testing.T) {
+		t.Parallel()
+
 		result, err := fn.Call([]cty.Value{cty.StringVal("/already/absolute")})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -134,6 +146,8 @@ func TestAbspathFunc(t *testing.T) {
 }
 
 func TestBuiltinFunctions_AllRegistered(t *testing.T) {
+	t.Parallel()
+
 	funcs := builtinFunctions()
 
 	expected := []string{
@@ -151,9 +165,13 @@ func TestBuiltinFunctions_AllRegistered(t *testing.T) {
 }
 
 func TestStringFunctions(t *testing.T) {
+	t.Parallel()
+
 	funcs := builtinFunctions()
 
 	t.Run("split", func(t *testing.T) {
+		t.Parallel()
+
 		result, err := funcs["split"].Call([]cty.Value{cty.StringVal(","), cty.StringVal("a,b,c")})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -164,6 +182,8 @@ func TestStringFunctions(t *testing.T) {
 	})
 
 	t.Run("join", func(t *testing.T) {
+		t.Parallel()
+
 		result, err := funcs["join"].Call([]cty.Value{
 			cty.StringVal("-"),
 			cty.ListVal([]cty.Value{cty.StringVal("a"), cty.StringVal("b"), cty.StringVal("c")}),
@@ -177,6 +197,8 @@ func TestStringFunctions(t *testing.T) {
 	})
 
 	t.Run("lower", func(t *testing.T) {
+		t.Parallel()
+
 		result, err := funcs["lower"].Call([]cty.Value{cty.StringVal("HELLO")})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -187,6 +209,8 @@ func TestStringFunctions(t *testing.T) {
 	})
 
 	t.Run("upper", func(t *testing.T) {
+		t.Parallel()
+
 		result, err := funcs["upper"].Call([]cty.Value{cty.StringVal("hello")})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -197,6 +221,8 @@ func TestStringFunctions(t *testing.T) {
 	})
 
 	t.Run("trimprefix", func(t *testing.T) {
+		t.Parallel()
+
 		result, err := funcs["trimprefix"].Call([]cty.Value{cty.StringVal("helloworld"), cty.StringVal("hello")})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -207,6 +233,8 @@ func TestStringFunctions(t *testing.T) {
 	})
 
 	t.Run("trimsuffix", func(t *testing.T) {
+		t.Parallel()
+
 		result, err := funcs["trimsuffix"].Call([]cty.Value{cty.StringVal("helloworld"), cty.StringVal("world")})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -217,6 +245,8 @@ func TestStringFunctions(t *testing.T) {
 	})
 
 	t.Run("replace", func(t *testing.T) {
+		t.Parallel()
+
 		result, err := funcs["replace"].Call([]cty.Value{cty.StringVal("hello world"), cty.StringVal("world"), cty.StringVal("there")})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -228,9 +258,13 @@ func TestStringFunctions(t *testing.T) {
 }
 
 func TestNumericFunctions(t *testing.T) {
+	t.Parallel()
+
 	funcs := builtinFunctions()
 
 	t.Run("max", func(t *testing.T) {
+		t.Parallel()
+
 		result, err := funcs["max"].Call([]cty.Value{cty.NumberIntVal(1), cty.NumberIntVal(5), cty.NumberIntVal(3)})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -241,6 +275,8 @@ func TestNumericFunctions(t *testing.T) {
 	})
 
 	t.Run("min", func(t *testing.T) {
+		t.Parallel()
+
 		result, err := funcs["min"].Call([]cty.Value{cty.NumberIntVal(1), cty.NumberIntVal(5), cty.NumberIntVal(3)})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -251,6 +287,8 @@ func TestNumericFunctions(t *testing.T) {
 	})
 
 	t.Run("ceil", func(t *testing.T) {
+		t.Parallel()
+
 		result, err := funcs["ceil"].Call([]cty.Value{cty.NumberFloatVal(1.2)})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -261,6 +299,8 @@ func TestNumericFunctions(t *testing.T) {
 	})
 
 	t.Run("floor", func(t *testing.T) {
+		t.Parallel()
+
 		result, err := funcs["floor"].Call([]cty.Value{cty.NumberFloatVal(1.8)})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -272,9 +312,13 @@ func TestNumericFunctions(t *testing.T) {
 }
 
 func TestTypeFunctions(t *testing.T) {
+	t.Parallel()
+
 	funcs := builtinFunctions()
 
 	t.Run("tostring from number", func(t *testing.T) {
+		t.Parallel()
+
 		result, err := funcs["tostring"].Call([]cty.Value{cty.NumberIntVal(42)})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -285,6 +329,8 @@ func TestTypeFunctions(t *testing.T) {
 	})
 
 	t.Run("tonumber from string", func(t *testing.T) {
+		t.Parallel()
+
 		result, err := funcs["tonumber"].Call([]cty.Value{cty.StringVal("42")})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -295,6 +341,8 @@ func TestTypeFunctions(t *testing.T) {
 	})
 
 	t.Run("tobool from string true", func(t *testing.T) {
+		t.Parallel()
+
 		result, err := funcs["tobool"].Call([]cty.Value{cty.StringVal("true")})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -305,6 +353,8 @@ func TestTypeFunctions(t *testing.T) {
 	})
 
 	t.Run("tobool from string false", func(t *testing.T) {
+		t.Parallel()
+
 		result, err := funcs["tobool"].Call([]cty.Value{cty.StringVal("false")})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)

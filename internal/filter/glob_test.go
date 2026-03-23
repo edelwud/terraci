@@ -7,6 +7,8 @@ import (
 )
 
 func TestGlobFilter_Match(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		exclude  []string
@@ -74,6 +76,8 @@ func TestGlobFilter_Match(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			f := NewGlobFilter(tt.exclude, tt.include)
 			if got := f.Match(tt.moduleID); got != tt.want {
 				t.Errorf("Match(%q) = %v, want %v", tt.moduleID, got, tt.want)
@@ -83,6 +87,8 @@ func TestGlobFilter_Match(t *testing.T) {
 }
 
 func TestGlobFilter_FilterModuleIDs(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		exclude []string
@@ -97,6 +103,8 @@ func TestGlobFilter_FilterModuleIDs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			f := NewGlobFilter(tt.exclude, tt.include)
 			got := f.FilterModuleIDs(tt.input)
 			if len(got) != tt.wantLen {
@@ -107,6 +115,8 @@ func TestGlobFilter_FilterModuleIDs(t *testing.T) {
 }
 
 func TestSegmentFilter(t *testing.T) {
+	t.Parallel()
+
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 
 	tests := []struct {
@@ -129,6 +139,8 @@ func TestSegmentFilter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			f := &SegmentFilter{Segment: tt.segment, Values: tt.values}
 			if got := f.Match(module); got != tt.want {
 				t.Errorf("SegmentFilter(%s=%v).Match() = %v, want %v", tt.segment, tt.values, got, tt.want)
@@ -138,6 +150,8 @@ func TestSegmentFilter(t *testing.T) {
 }
 
 func TestCompositeFilter(t *testing.T) {
+	t.Parallel()
+
 	modules := []*discovery.Module{
 		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
 		discovery.TestModule("platform", "prod", "eu-central-1", "vpc"),
@@ -162,6 +176,8 @@ func TestCompositeFilter(t *testing.T) {
 }
 
 func TestGlobFilter_MatchModule(t *testing.T) {
+	t.Parallel()
+
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 
 	tests := []struct {
@@ -178,6 +194,8 @@ func TestGlobFilter_MatchModule(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			f := NewGlobFilter(tt.exclude, tt.include)
 			if got := f.MatchModule(module); got != tt.want {
 				t.Errorf("MatchModule() = %v, want %v", got, tt.want)
@@ -187,6 +205,8 @@ func TestGlobFilter_MatchModule(t *testing.T) {
 }
 
 func TestApply(t *testing.T) {
+	t.Parallel()
+
 	modules := []*discovery.Module{
 		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
 		discovery.TestModule("platform", "prod", "eu-central-1", "vpc"),
@@ -213,6 +233,8 @@ func TestApply(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := Apply(modules, tt.opts)
 			if len(got) != tt.wantLen {
 				t.Errorf("Apply() returned %d modules, want %d", len(got), tt.wantLen)
@@ -222,6 +244,8 @@ func TestApply(t *testing.T) {
 }
 
 func TestMatchGlob_NoDoubleStar(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		pattern string
 		path    string
@@ -240,6 +264,8 @@ func TestMatchGlob_NoDoubleStar(t *testing.T) {
 }
 
 func TestMatchSegments(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		pattern string
@@ -258,6 +284,8 @@ func TestMatchSegments(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			if got := matchSegments(tt.pattern, tt.path, tt.prefix); got != tt.want {
 				t.Errorf("matchSegments(%q, %q, %v) = %v, want %v", tt.pattern, tt.path, tt.prefix, got, tt.want)
 			}
@@ -266,6 +294,8 @@ func TestMatchSegments(t *testing.T) {
 }
 
 func TestParseSegmentFilters(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		args []string
@@ -282,6 +312,8 @@ func TestParseSegmentFilters(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := ParseSegmentFilters(tt.args)
 			if len(got) != len(tt.want) {
 				t.Fatalf("ParseSegmentFilters(%v) = %v, want %v", tt.args, got, tt.want)
@@ -303,6 +335,8 @@ func TestParseSegmentFilters(t *testing.T) {
 }
 
 func TestDoubleStarGlob(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		pattern string
 		path    string

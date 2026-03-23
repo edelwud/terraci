@@ -8,6 +8,8 @@ import (
 )
 
 func TestEIPHandler_Category(t *testing.T) {
+	t.Parallel()
+
 	h := &EIPHandler{}
 	if h.Category() != aws.CostCategoryStandard {
 		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
@@ -15,6 +17,8 @@ func TestEIPHandler_Category(t *testing.T) {
 }
 
 func TestEIPHandler_Describe(t *testing.T) {
+	t.Parallel()
+
 	h := &EIPHandler{}
 
 	// Without instance → attached=false
@@ -31,6 +35,8 @@ func TestEIPHandler_Describe(t *testing.T) {
 }
 
 func TestEIPHandler_ServiceCode(t *testing.T) {
+	t.Parallel()
+
 	h := &EIPHandler{}
 	if h.ServiceCode() != pricing.ServiceVPC {
 		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceVPC)
@@ -38,6 +44,8 @@ func TestEIPHandler_ServiceCode(t *testing.T) {
 }
 
 func TestEIPHandler_BuildLookup(t *testing.T) {
+	t.Parallel()
+
 	h := &EIPHandler{}
 
 	// Without instance (idle)
@@ -60,6 +68,8 @@ func TestEIPHandler_BuildLookup(t *testing.T) {
 }
 
 func TestEIPHandler_CalculateCost(t *testing.T) {
+	t.Parallel()
+
 	h := &EIPHandler{}
 
 	// With price from lookup

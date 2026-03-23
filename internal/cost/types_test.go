@@ -3,6 +3,8 @@ package cost
 import "testing"
 
 func TestFormatCost(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		cost     float64
 		expected string
@@ -25,6 +27,8 @@ func TestFormatCost(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.expected, func(t *testing.T) {
+			t.Parallel()
+
 			result := FormatCost(tt.cost)
 			if result != tt.expected {
 				t.Errorf("FormatCost(%v) = %q, want %q", tt.cost, result, tt.expected)
@@ -34,6 +38,8 @@ func TestFormatCost(t *testing.T) {
 }
 
 func TestFormatCostDiff(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		diff     float64
 		expected string
@@ -49,6 +55,8 @@ func TestFormatCostDiff(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.expected, func(t *testing.T) {
+			t.Parallel()
+
 			result := FormatCostDiff(tt.diff)
 			if result != tt.expected {
 				t.Errorf("FormatCostDiff(%v) = %q, want %q", tt.diff, result, tt.expected)
@@ -58,6 +66,8 @@ func TestFormatCostDiff(t *testing.T) {
 }
 
 func TestModuleCost(t *testing.T) {
+	t.Parallel()
+
 	mc := ModuleCost{
 		ModuleID:   "platform/prod/eu-central-1/vpc",
 		ModulePath: "platform/prod/eu-central-1/vpc",
@@ -109,6 +119,8 @@ func TestModuleCost(t *testing.T) {
 }
 
 func TestResourceCost(t *testing.T) {
+	t.Parallel()
+
 	rc := ResourceCost{
 		Address:     "aws_instance.web",
 		Type:        "aws_instance",

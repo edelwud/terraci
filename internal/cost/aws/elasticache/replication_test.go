@@ -8,6 +8,8 @@ import (
 )
 
 func TestReplicationGroupHandler_Category(t *testing.T) {
+	t.Parallel()
+
 	h := &ReplicationGroupHandler{}
 	if h.Category() != aws.CostCategoryStandard {
 		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
@@ -15,6 +17,8 @@ func TestReplicationGroupHandler_Category(t *testing.T) {
 }
 
 func TestReplicationGroupHandler_Describe(t *testing.T) {
+	t.Parallel()
+
 	h := &ReplicationGroupHandler{}
 
 	attrs := map[string]any{
@@ -33,6 +37,8 @@ func TestReplicationGroupHandler_Describe(t *testing.T) {
 }
 
 func TestReplicationGroupHandler_ServiceCode(t *testing.T) {
+	t.Parallel()
+
 	h := &ReplicationGroupHandler{}
 	if h.ServiceCode() != pricing.ServiceElastiCache {
 		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceElastiCache)
@@ -40,6 +46,8 @@ func TestReplicationGroupHandler_ServiceCode(t *testing.T) {
 }
 
 func TestReplicationGroupHandler_BuildLookup(t *testing.T) {
+	t.Parallel()
+
 	h := &ReplicationGroupHandler{}
 
 	tests := []struct {
@@ -64,6 +72,8 @@ func TestReplicationGroupHandler_BuildLookup(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			lookup, err := h.BuildLookup("us-east-1", tt.attrs)
 
 			if tt.wantErr {
@@ -85,6 +95,8 @@ func TestReplicationGroupHandler_BuildLookup(t *testing.T) {
 }
 
 func TestReplicationGroupHandler_CalculateCost(t *testing.T) {
+	t.Parallel()
+
 	h := &ReplicationGroupHandler{}
 
 	price := &pricing.Price{OnDemandUSD: 0.10}
@@ -123,6 +135,8 @@ func TestReplicationGroupHandler_CalculateCost(t *testing.T) {
 	const epsilon = 0.0001
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			hourly, _ := h.CalculateCost(price, nil, "", tt.attrs)
 			if diff := hourly - tt.expectedHourly; diff < -epsilon || diff > epsilon {
 				t.Errorf("hourly = %v, want %v (expected %d nodes)", hourly, tt.expectedHourly, tt.expectedNodes)
@@ -132,6 +146,8 @@ func TestReplicationGroupHandler_CalculateCost(t *testing.T) {
 }
 
 func TestReplicationGroupHandler_CalculateCost_BackupAndDataTiering(t *testing.T) {
+	t.Parallel()
+
 	h := &ReplicationGroupHandler{}
 
 	// Price with memory and SSD from AWS API

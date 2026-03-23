@@ -28,6 +28,8 @@ func buildTestGraph() *DependencyGraph {
 // --- Graph construction ---
 
 func TestBuildFromDependencies(t *testing.T) {
+	t.Parallel()
+
 	g := buildTestGraph()
 	if len(g.Nodes()) != 4 {
 		t.Errorf("expected 4 nodes, got %d", len(g.Nodes()))
@@ -35,6 +37,8 @@ func TestBuildFromDependencies(t *testing.T) {
 }
 
 func TestAddNode(t *testing.T) {
+	t.Parallel()
+
 	g := NewDependencyGraph()
 	m := discovery.TestModule("svc", "env", "reg", "vpc")
 	g.AddNode(m)
@@ -46,6 +50,8 @@ func TestAddNode(t *testing.T) {
 }
 
 func TestAddEdge(t *testing.T) {
+	t.Parallel()
+
 	g := NewDependencyGraph()
 	a := discovery.TestModule("svc", "env", "reg", "a")
 	b := discovery.TestModule("svc", "env", "reg", "b")
@@ -61,6 +67,8 @@ func TestAddEdge(t *testing.T) {
 }
 
 func TestAddEdge_NonexistentNodes(t *testing.T) {
+	t.Parallel()
+
 	g := NewDependencyGraph()
 	g.AddEdge("from", "to")
 	if len(g.Nodes()) != 0 {
@@ -69,6 +77,8 @@ func TestAddEdge_NonexistentNodes(t *testing.T) {
 }
 
 func TestGetNode(t *testing.T) {
+	t.Parallel()
+
 	g := buildTestGraph()
 
 	node := g.GetNode("platform/stage/eu-central-1/vpc")
@@ -85,6 +95,8 @@ func TestGetNode(t *testing.T) {
 }
 
 func TestGetDependencies_GetDependents(t *testing.T) {
+	t.Parallel()
+
 	modules := []*discovery.Module{
 		discovery.TestModule("svc", "env", "reg", "a"),
 		discovery.TestModule("svc", "env", "reg", "b"),
@@ -112,6 +124,8 @@ func TestGetDependencies_GetDependents(t *testing.T) {
 }
 
 func TestGetAllDependencies(t *testing.T) {
+	t.Parallel()
+
 	modules := []*discovery.Module{
 		discovery.TestModule("svc", "env", "reg", "a"),
 		discovery.TestModule("svc", "env", "reg", "b"),
@@ -131,6 +145,8 @@ func TestGetAllDependencies(t *testing.T) {
 }
 
 func TestGetAllDependents(t *testing.T) {
+	t.Parallel()
+
 	modules := []*discovery.Module{
 		discovery.TestModule("svc", "env", "reg", "a"),
 		discovery.TestModule("svc", "env", "reg", "b"),
@@ -150,6 +166,8 @@ func TestGetAllDependents(t *testing.T) {
 }
 
 func TestSubgraph(t *testing.T) {
+	t.Parallel()
+
 	g := buildTestGraph()
 
 	sub := g.Subgraph([]string{
@@ -169,9 +187,13 @@ func TestSubgraph(t *testing.T) {
 }
 
 func TestScopeToModule(t *testing.T) {
+	t.Parallel()
+
 	g := buildTestGraph()
 
 	t.Run("dependencies", func(t *testing.T) {
+		t.Parallel()
+
 		sub, err := g.ScopeToModule("platform/stage/eu-central-1/app", false)
 		if err != nil {
 			t.Fatalf("ScopeToModule() error = %v", err)
@@ -187,6 +209,8 @@ func TestScopeToModule(t *testing.T) {
 	})
 
 	t.Run("dependents", func(t *testing.T) {
+		t.Parallel()
+
 		sub, err := g.ScopeToModule("platform/stage/eu-central-1/vpc", true)
 		if err != nil {
 			t.Fatalf("ScopeToModule() error = %v", err)
@@ -201,6 +225,8 @@ func TestScopeToModule(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
+		t.Parallel()
+
 		_, err := g.ScopeToModule("nonexistent/module", false)
 		if err == nil {
 			t.Error("expected error for nonexistent module")
@@ -211,6 +237,8 @@ func TestScopeToModule(t *testing.T) {
 // --- Library usage ---
 
 func TestLibraryUsage(t *testing.T) {
+	t.Parallel()
+
 	modules := []*discovery.Module{
 		discovery.TestModule("platform", "stage", "eu-north-1", "vpc"),
 		discovery.TestModule("platform", "stage", "eu-north-1", "msk"),
@@ -234,6 +262,8 @@ func TestLibraryUsage(t *testing.T) {
 }
 
 func TestAddLibraryUsage_Dedup(t *testing.T) {
+	t.Parallel()
+
 	g := NewDependencyGraph()
 	g.AddLibraryUsage("/lib/kafka", "module-a")
 	g.AddLibraryUsage("/lib/kafka", "module-a")
@@ -244,6 +274,8 @@ func TestAddLibraryUsage_Dedup(t *testing.T) {
 }
 
 func TestNormalizeLibraryPath(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct{ input, want string }{
 		{"/project/_modules/kafka/", "/project/_modules/kafka"},
 		{"/project/_modules/kafka", "/project/_modules/kafka"},

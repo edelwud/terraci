@@ -9,6 +9,8 @@ import (
 )
 
 func TestEBSHandler_Category(t *testing.T) {
+	t.Parallel()
+
 	h := &EBSHandler{}
 	if h.Category() != aws.CostCategoryStandard {
 		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
@@ -16,6 +18,8 @@ func TestEBSHandler_Category(t *testing.T) {
 }
 
 func TestEBSHandler_ServiceCode(t *testing.T) {
+	t.Parallel()
+
 	h := &EBSHandler{}
 	if h.ServiceCode() != pricing.ServiceEC2 {
 		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceEC2)
@@ -23,6 +27,8 @@ func TestEBSHandler_ServiceCode(t *testing.T) {
 }
 
 func TestEBSHandler_Describe(t *testing.T) {
+	t.Parallel()
+
 	h := &EBSHandler{}
 
 	tests := []struct {
@@ -66,6 +72,8 @@ func TestEBSHandler_Describe(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := h.Describe(nil, tt.attrs)
 
 			for k, v := range tt.wantKeys {
@@ -89,6 +97,8 @@ func approxEqual(a, b float64) bool {
 }
 
 func TestEBSHandler_BuildLookup(t *testing.T) {
+	t.Parallel()
+
 	h := &EBSHandler{}
 
 	tests := []struct {
@@ -119,6 +129,8 @@ func TestEBSHandler_BuildLookup(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			lookup, err := h.BuildLookup("us-east-1", tt.attrs)
 			if err != nil {
 				t.Fatalf("BuildLookup returned error: %v", err)
@@ -132,6 +144,8 @@ func TestEBSHandler_BuildLookup(t *testing.T) {
 }
 
 func TestEBSHandler_CalculateCost(t *testing.T) {
+	t.Parallel()
+
 	h := &EBSHandler{}
 
 	price := &pricing.Price{
@@ -162,6 +176,8 @@ func TestEBSHandler_CalculateCost(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			_, monthly := h.CalculateCost(price, nil, "", tt.attrs)
 
 			if monthly != tt.expectedMonthly {
@@ -172,6 +188,8 @@ func TestEBSHandler_CalculateCost(t *testing.T) {
 }
 
 func TestEBSHandler_CalculateCost_IO1(t *testing.T) {
+	t.Parallel()
+
 	h := &EBSHandler{}
 
 	price := &pricing.Price{
@@ -193,6 +211,8 @@ func TestEBSHandler_CalculateCost_IO1(t *testing.T) {
 }
 
 func TestEBSHandler_CalculateCost_GP3Throughput(t *testing.T) {
+	t.Parallel()
+
 	h := &EBSHandler{}
 
 	price := &pricing.Price{
@@ -214,6 +234,8 @@ func TestEBSHandler_CalculateCost_GP3Throughput(t *testing.T) {
 }
 
 func TestEBSHandler_CalculateCost_IO1_WithIndex(t *testing.T) {
+	t.Parallel()
+
 	h := &EBSHandler{}
 
 	storagePrice := &pricing.Price{OnDemandUSD: 0.125}
@@ -246,6 +268,8 @@ func TestEBSHandler_CalculateCost_IO1_WithIndex(t *testing.T) {
 }
 
 func TestEBSHandler_CalculateCost_IO2(t *testing.T) {
+	t.Parallel()
+
 	h := &EBSHandler{}
 
 	storagePrice := &pricing.Price{OnDemandUSD: 0.125}
@@ -278,6 +302,8 @@ func TestEBSHandler_CalculateCost_IO2(t *testing.T) {
 }
 
 func TestEBSHandler_CalculateCost_GP3(t *testing.T) {
+	t.Parallel()
+
 	h := &EBSHandler{}
 
 	storagePrice := &pricing.Price{OnDemandUSD: 0.08}
@@ -321,6 +347,8 @@ func TestEBSHandler_CalculateCost_GP3(t *testing.T) {
 }
 
 func TestEBSHandler_CalculateCost_FallbackOnMissingProduct(t *testing.T) {
+	t.Parallel()
+
 	h := &EBSHandler{}
 
 	storagePrice := &pricing.Price{OnDemandUSD: 0.125}
@@ -346,6 +374,8 @@ func TestEBSHandler_CalculateCost_FallbackOnMissingProduct(t *testing.T) {
 }
 
 func TestEBSHandler_CalculateCost_NilIndex(t *testing.T) {
+	t.Parallel()
+
 	h := &EBSHandler{}
 
 	storagePrice := &pricing.Price{OnDemandUSD: 0.08}

@@ -8,6 +8,8 @@ import (
 )
 
 func TestInstanceHandler_ServiceCode(t *testing.T) {
+	t.Parallel()
+
 	h := &InstanceHandler{}
 	if h.ServiceCode() != pricing.ServiceEC2 {
 		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceEC2)
@@ -15,6 +17,8 @@ func TestInstanceHandler_ServiceCode(t *testing.T) {
 }
 
 func TestInstanceHandler_BuildLookup(t *testing.T) {
+	t.Parallel()
+
 	h := &InstanceHandler{}
 
 	tests := []struct {
@@ -54,6 +58,8 @@ func TestInstanceHandler_BuildLookup(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			lookup, err := h.BuildLookup(tt.region, tt.attrs)
 
 			if tt.wantErr {
@@ -79,6 +85,8 @@ func TestInstanceHandler_BuildLookup(t *testing.T) {
 }
 
 func TestInstanceHandler_CalculateCost_ComputeOnly(t *testing.T) {
+	t.Parallel()
+
 	h := &InstanceHandler{}
 
 	price := &pricing.Price{OnDemandUSD: 0.10}
@@ -96,6 +104,8 @@ func TestInstanceHandler_CalculateCost_ComputeOnly(t *testing.T) {
 }
 
 func TestInstanceHandler_SubResources_Default(t *testing.T) {
+	t.Parallel()
+
 	h := &InstanceHandler{}
 
 	// No root_block_device → default 8 GB gp2
@@ -120,6 +130,8 @@ func TestInstanceHandler_SubResources_Default(t *testing.T) {
 }
 
 func TestInstanceHandler_SubResources_Custom(t *testing.T) {
+	t.Parallel()
+
 	h := &InstanceHandler{}
 
 	attrs := map[string]any{
@@ -155,6 +167,8 @@ func TestInstanceHandler_SubResources_Custom(t *testing.T) {
 }
 
 func TestInstanceHandler_Category(t *testing.T) {
+	t.Parallel()
+
 	h := &InstanceHandler{}
 	if h.Category() != aws.CostCategoryStandard {
 		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
@@ -162,6 +176,8 @@ func TestInstanceHandler_Category(t *testing.T) {
 }
 
 func TestInstanceHandler_Describe(t *testing.T) {
+	t.Parallel()
+
 	h := &InstanceHandler{}
 
 	tests := []struct {
@@ -207,6 +223,8 @@ func TestInstanceHandler_Describe(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := h.Describe(nil, tt.attrs)
 
 			for k, v := range tt.wantKeys {
@@ -224,6 +242,8 @@ func TestInstanceHandler_Describe(t *testing.T) {
 }
 
 func TestGetRootBlockDevice(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		attrs map[string]any
@@ -237,6 +257,8 @@ func TestGetRootBlockDevice(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := getRootBlockDevice(tt.attrs)
 			if (got != nil) != tt.want {
 				t.Errorf("getRootBlockDevice() returned %v, want non-nil=%v", got, tt.want)

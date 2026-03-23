@@ -8,6 +8,8 @@ import (
 )
 
 func TestClusterInstanceHandler_Category(t *testing.T) {
+	t.Parallel()
+
 	h := &ClusterInstanceHandler{}
 	if h.Category() != aws.CostCategoryStandard {
 		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
@@ -15,6 +17,8 @@ func TestClusterInstanceHandler_Category(t *testing.T) {
 }
 
 func TestClusterInstanceHandler_ServiceCode(t *testing.T) {
+	t.Parallel()
+
 	h := &ClusterInstanceHandler{}
 	if h.ServiceCode() != pricing.ServiceRDS {
 		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceRDS)
@@ -22,6 +26,8 @@ func TestClusterInstanceHandler_ServiceCode(t *testing.T) {
 }
 
 func TestClusterInstanceHandler_BuildLookup(t *testing.T) {
+	t.Parallel()
+
 	h := &ClusterInstanceHandler{}
 
 	tests := []struct {
@@ -58,6 +64,8 @@ func TestClusterInstanceHandler_BuildLookup(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			lookup, err := h.BuildLookup("us-east-1", tt.attrs)
 
 			if tt.wantErr {
@@ -82,6 +90,8 @@ func TestClusterInstanceHandler_BuildLookup(t *testing.T) {
 }
 
 func TestClusterInstanceHandler_CalculateCost(t *testing.T) {
+	t.Parallel()
+
 	h := &ClusterInstanceHandler{}
 
 	price := &pricing.Price{OnDemandUSD: 0.29}
@@ -96,6 +106,8 @@ func TestClusterInstanceHandler_CalculateCost(t *testing.T) {
 }
 
 func TestClusterInstanceHandler_Describe(t *testing.T) {
+	t.Parallel()
+
 	h := &ClusterInstanceHandler{}
 
 	tests := []struct {
@@ -132,6 +144,8 @@ func TestClusterInstanceHandler_Describe(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := h.Describe(nil, tt.attrs)
 
 			for k, v := range tt.wantKeys {

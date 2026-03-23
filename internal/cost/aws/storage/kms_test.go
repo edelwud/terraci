@@ -8,6 +8,8 @@ import (
 )
 
 func TestKMSHandler_Category(t *testing.T) {
+	t.Parallel()
+
 	h := &KMSHandler{}
 	if h.Category() != aws.CostCategoryFixed {
 		t.Errorf("Category() = %v, want CostCategoryFixed", h.Category())
@@ -15,6 +17,8 @@ func TestKMSHandler_Category(t *testing.T) {
 }
 
 func TestKMSHandler_ServiceCode(t *testing.T) {
+	t.Parallel()
+
 	h := &KMSHandler{}
 	if h.ServiceCode() != pricing.ServiceKMS {
 		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceKMS)
@@ -22,6 +26,8 @@ func TestKMSHandler_ServiceCode(t *testing.T) {
 }
 
 func TestKMSHandler_CalculateCost(t *testing.T) {
+	t.Parallel()
+
 	h := &KMSHandler{}
 	hourly, monthly := h.CalculateCost(nil, nil, "", nil)
 
@@ -36,6 +42,8 @@ func TestKMSHandler_CalculateCost(t *testing.T) {
 }
 
 func TestKMSHandler_BuildLookup(t *testing.T) {
+	t.Parallel()
+
 	h := &KMSHandler{}
 	lookup, err := h.BuildLookup("us-east-1", nil)
 	if err != nil {
@@ -47,6 +55,8 @@ func TestKMSHandler_BuildLookup(t *testing.T) {
 }
 
 func TestKMSHandler_Describe(t *testing.T) {
+	t.Parallel()
+
 	h := &KMSHandler{}
 	result := h.Describe(nil, nil)
 	if result != nil {

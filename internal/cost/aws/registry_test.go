@@ -37,6 +37,8 @@ func newTestRegistry() *Registry {
 }
 
 func TestRegistry_GetHandler(t *testing.T) {
+	t.Parallel()
+
 	r := newTestRegistry()
 
 	handler, ok := r.GetHandler("aws_instance")
@@ -57,6 +59,8 @@ func TestRegistry_GetHandler(t *testing.T) {
 }
 
 func TestRegistry_IsSupported(t *testing.T) {
+	t.Parallel()
+
 	r := newTestRegistry()
 
 	tests := []struct {
@@ -74,6 +78,8 @@ func TestRegistry_IsSupported(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.resourceType, func(t *testing.T) {
+			t.Parallel()
+
 			if r.IsSupported(tt.resourceType) != tt.expected {
 				t.Errorf("IsSupported(%q) = %v, want %v", tt.resourceType, !tt.expected, tt.expected)
 			}
@@ -82,6 +88,8 @@ func TestRegistry_IsSupported(t *testing.T) {
 }
 
 func TestRegistry_SupportedTypes(t *testing.T) {
+	t.Parallel()
+
 	r := newTestRegistry()
 	types := r.SupportedTypes()
 
@@ -103,6 +111,8 @@ func TestRegistry_SupportedTypes(t *testing.T) {
 }
 
 func TestRegistry_RequiredServices(t *testing.T) {
+	t.Parallel()
+
 	r := newTestRegistry()
 
 	services := r.RequiredServices([]string{"aws_instance", "aws_db_instance", "aws_elasticache_cluster"})
@@ -122,6 +132,7 @@ func TestRegistry_RequiredServices(t *testing.T) {
 }
 
 func TestNewRegistry(t *testing.T) {
+	// Not parallel: mutates global RegisterAll
 	// Save and restore RegisterAll
 	origRegisterAll := RegisterAll
 	defer func() { RegisterAll = origRegisterAll }()
@@ -145,6 +156,7 @@ func TestNewRegistry(t *testing.T) {
 }
 
 func TestNewRegistry_NilRegisterAll(t *testing.T) {
+	// Not parallel: mutates global RegisterAll
 	origRegisterAll := RegisterAll
 	defer func() { RegisterAll = origRegisterAll }()
 
@@ -160,6 +172,8 @@ func TestNewRegistry_NilRegisterAll(t *testing.T) {
 }
 
 func TestRegistry_RequiredServices_UnknownTypes(t *testing.T) {
+	t.Parallel()
+
 	r := newTestRegistry()
 
 	services := r.RequiredServices([]string{"aws_nonexistent", "not_a_resource"})
@@ -169,6 +183,8 @@ func TestRegistry_RequiredServices_UnknownTypes(t *testing.T) {
 }
 
 func TestRegistry_RequiredServices_Empty(t *testing.T) {
+	t.Parallel()
+
 	r := newTestRegistry()
 
 	services := r.RequiredServices([]string{})

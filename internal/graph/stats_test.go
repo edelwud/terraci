@@ -3,6 +3,8 @@ package graph
 import "testing"
 
 func TestGetStats(t *testing.T) {
+	t.Parallel()
+
 	g := buildTestGraph()
 	stats := g.GetStats()
 
@@ -27,6 +29,8 @@ func TestGetStats(t *testing.T) {
 }
 
 func TestGetStats_Empty(t *testing.T) {
+	t.Parallel()
+
 	g := NewDependencyGraph()
 	stats := g.GetStats()
 

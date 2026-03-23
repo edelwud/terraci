@@ -8,6 +8,8 @@ import (
 )
 
 func TestSNSHandler_Category(t *testing.T) {
+	t.Parallel()
+
 	h := &SNSHandler{}
 	if h.Category() != aws.CostCategoryUsageBased {
 		t.Errorf("Category() = %v, want CostCategoryUsageBased", h.Category())
@@ -15,6 +17,8 @@ func TestSNSHandler_Category(t *testing.T) {
 }
 
 func TestSNSHandler_Describe(t *testing.T) {
+	t.Parallel()
+
 	h := &SNSHandler{}
 	result := h.Describe(nil, nil)
 	if result != nil {
@@ -23,6 +27,8 @@ func TestSNSHandler_Describe(t *testing.T) {
 }
 
 func TestSNSHandler_ServiceCode(t *testing.T) {
+	t.Parallel()
+
 	h := &SNSHandler{}
 	if h.ServiceCode() != pricing.ServiceSNS {
 		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceSNS)
@@ -30,6 +36,8 @@ func TestSNSHandler_ServiceCode(t *testing.T) {
 }
 
 func TestSNSHandler_BuildLookup(t *testing.T) {
+	t.Parallel()
+
 	h := &SNSHandler{}
 	lookup, err := h.BuildLookup("us-east-1", nil)
 	if err != nil {
@@ -41,6 +49,8 @@ func TestSNSHandler_BuildLookup(t *testing.T) {
 }
 
 func TestSNSHandler_CalculateCost(t *testing.T) {
+	t.Parallel()
+
 	h := &SNSHandler{}
 	hourly, monthly := h.CalculateCost(nil, nil, "", nil)
 	if hourly != 0 {

@@ -8,6 +8,8 @@ import (
 )
 
 func TestClusterHandler_Category(t *testing.T) {
+	t.Parallel()
+
 	h := &ClusterHandler{}
 	if h.Category() != aws.CostCategoryStandard {
 		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
@@ -15,6 +17,8 @@ func TestClusterHandler_Category(t *testing.T) {
 }
 
 func TestClusterHandler_ServiceCode(t *testing.T) {
+	t.Parallel()
+
 	h := &ClusterHandler{}
 	if h.ServiceCode() != pricing.ServiceRDS {
 		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceRDS)
@@ -22,6 +26,8 @@ func TestClusterHandler_ServiceCode(t *testing.T) {
 }
 
 func TestClusterHandler_BuildLookup(t *testing.T) {
+	t.Parallel()
+
 	h := &ClusterHandler{}
 
 	lookup, err := h.BuildLookup("us-east-1", nil)
@@ -43,6 +49,8 @@ func TestClusterHandler_BuildLookup(t *testing.T) {
 }
 
 func TestClusterHandler_CalculateCost(t *testing.T) {
+	t.Parallel()
+
 	h := &ClusterHandler{}
 
 	tests := []struct {
@@ -71,6 +79,8 @@ func TestClusterHandler_CalculateCost(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			hourly, monthly := h.CalculateCost(nil, nil, "", tt.attrs)
 
 			if monthly != tt.wantMonthly {
@@ -86,6 +96,8 @@ func TestClusterHandler_CalculateCost(t *testing.T) {
 }
 
 func TestClusterHandler_Describe(t *testing.T) {
+	t.Parallel()
+
 	h := &ClusterHandler{}
 
 	tests := []struct {
@@ -121,6 +133,8 @@ func TestClusterHandler_Describe(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := h.Describe(nil, tt.attrs)
 
 			for k, v := range tt.wantKeys {

@@ -164,6 +164,56 @@ func TestMRService_UpsertComment_UpdateExisting(t *testing.T) {
 	}
 }
 
+func TestMRService_UpsertComment_GetNotesError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "test-token")
+	svc := &MRService{
+		context:  &MRContext{InMR: true, ProjectID: "123", MRIID: 1},
+		client:   client,
+		renderer: ci.NewCommentRenderer(),
+		config:   nil,
+	}
+
+	plans := []ci.ModulePlan{{ModuleID: "test", Status: ci.PlanStatusChanges}}
+	err := svc.UpsertComment(plans, nil)
+	if err == nil {
+		t.Error("expected error when GetMRNotes fails")
+	}
+}
+
+func TestMRService_UpsertComment_CreateError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/notes") && r.Method == "GET":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `[]`)
+		case strings.Contains(r.URL.Path, "/notes") && r.Method == "POST":
+			w.WriteHeader(http.StatusInternalServerError)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "test-token")
+	svc := &MRService{
+		context:  &MRContext{InMR: true, ProjectID: "123", MRIID: 1},
+		client:   client,
+		renderer: ci.NewCommentRenderer(),
+		config:   nil,
+	}
+
+	plans := []ci.ModulePlan{{ModuleID: "test", Status: ci.PlanStatusChanges}}
+	err := svc.UpsertComment(plans, nil)
+	if err == nil {
+		t.Error("expected error when CreateMRNote fails")
+	}
+}
+
 func TestMRService_UpsertComment_OnChangesOnly_NoChanges(t *testing.T) {
 	var createCalled, updateCalled bool
 	server := setupMockGitLabServer(t, `[]`, &createCalled, &updateCalled)

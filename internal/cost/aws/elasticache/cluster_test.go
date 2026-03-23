@@ -8,6 +8,8 @@ import (
 )
 
 func TestClusterHandler_Category(t *testing.T) {
+	t.Parallel()
+
 	h := &ClusterHandler{}
 	if h.Category() != aws.CostCategoryStandard {
 		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
@@ -15,6 +17,8 @@ func TestClusterHandler_Category(t *testing.T) {
 }
 
 func TestClusterHandler_Describe(t *testing.T) {
+	t.Parallel()
+
 	h := &ClusterHandler{}
 
 	attrs := map[string]any{
@@ -36,6 +40,8 @@ func TestClusterHandler_Describe(t *testing.T) {
 }
 
 func TestClusterHandler_ServiceCode(t *testing.T) {
+	t.Parallel()
+
 	h := &ClusterHandler{}
 	if h.ServiceCode() != pricing.ServiceElastiCache {
 		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceElastiCache)
@@ -43,6 +49,8 @@ func TestClusterHandler_ServiceCode(t *testing.T) {
 }
 
 func TestClusterHandler_BuildLookup(t *testing.T) {
+	t.Parallel()
+
 	h := &ClusterHandler{}
 
 	tests := []struct {
@@ -87,6 +95,8 @@ func TestClusterHandler_BuildLookup(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			lookup, err := h.BuildLookup("us-east-1", tt.attrs)
 
 			if tt.wantErr {
@@ -111,6 +121,8 @@ func TestClusterHandler_BuildLookup(t *testing.T) {
 }
 
 func TestClusterHandler_CalculateCost(t *testing.T) {
+	t.Parallel()
+
 	h := &ClusterHandler{}
 
 	price := &pricing.Price{OnDemandUSD: 0.05}
@@ -137,6 +149,8 @@ func TestClusterHandler_CalculateCost(t *testing.T) {
 	const epsilon = 0.0001
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			hourly, _ := h.CalculateCost(price, nil, "", tt.attrs)
 			if diff := hourly - tt.expectedHourly; diff < -epsilon || diff > epsilon {
 				t.Errorf("hourly = %v, want %v", hourly, tt.expectedHourly)
@@ -146,6 +160,8 @@ func TestClusterHandler_CalculateCost(t *testing.T) {
 }
 
 func TestClusterHandler_CalculateCost_BackupStorage(t *testing.T) {
+	t.Parallel()
+
 	h := &ClusterHandler{}
 
 	// Price with memory attribute from AWS API
@@ -193,6 +209,8 @@ func TestClusterHandler_CalculateCost_BackupStorage(t *testing.T) {
 }
 
 func TestClusterHandler_CalculateCost_DataTiering(t *testing.T) {
+	t.Parallel()
+
 	h := &ClusterHandler{}
 
 	// Price with SSD storage attribute from AWS API
@@ -236,6 +254,8 @@ func TestClusterHandler_CalculateCost_DataTiering(t *testing.T) {
 }
 
 func TestClusterHandler_CalculateCost_Fallback(t *testing.T) {
+	t.Parallel()
+
 	h := &ClusterHandler{}
 
 	// Price with storage/memory from AWS API, empty index → fallback pricing
@@ -272,6 +292,8 @@ func TestClusterHandler_CalculateCost_Fallback(t *testing.T) {
 }
 
 func TestClusterHandler_NoBackupCostWithRetention1(t *testing.T) {
+	t.Parallel()
+
 	h := &ClusterHandler{}
 
 	price := &pricing.Price{
@@ -298,6 +320,8 @@ func TestClusterHandler_NoBackupCostWithRetention1(t *testing.T) {
 }
 
 func TestClusterHandler_NoStorageCostWithoutSSD(t *testing.T) {
+	t.Parallel()
+
 	h := &ClusterHandler{}
 
 	// Non-SSD node — storage attribute is "None"

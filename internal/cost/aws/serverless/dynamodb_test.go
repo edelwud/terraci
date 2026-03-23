@@ -8,6 +8,8 @@ import (
 )
 
 func TestDynamoDBHandler_Category(t *testing.T) {
+	t.Parallel()
+
 	h := &DynamoDBHandler{}
 	if h.Category() != aws.CostCategoryStandard {
 		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
@@ -15,6 +17,8 @@ func TestDynamoDBHandler_Category(t *testing.T) {
 }
 
 func TestDynamoDBHandler_ServiceCode(t *testing.T) {
+	t.Parallel()
+
 	h := &DynamoDBHandler{}
 	if h.ServiceCode() != pricing.ServiceDynamoDB {
 		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceDynamoDB)
@@ -22,6 +26,8 @@ func TestDynamoDBHandler_ServiceCode(t *testing.T) {
 }
 
 func TestDynamoDBHandler_BuildLookup(t *testing.T) {
+	t.Parallel()
+
 	h := &DynamoDBHandler{}
 
 	tests := []struct {
@@ -45,6 +51,8 @@ func TestDynamoDBHandler_BuildLookup(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			lookup, err := h.BuildLookup("us-east-1", tt.attrs)
 			if err != nil {
 				t.Fatalf("BuildLookup returned error: %v", err)
@@ -58,6 +66,8 @@ func TestDynamoDBHandler_BuildLookup(t *testing.T) {
 }
 
 func TestDynamoDBHandler_CalculateCost(t *testing.T) {
+	t.Parallel()
+
 	h := &DynamoDBHandler{}
 
 	tests := []struct {
@@ -92,6 +102,8 @@ func TestDynamoDBHandler_CalculateCost(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			hourly, monthly := h.CalculateCost(nil, nil, "", tt.attrs)
 
 			if tt.expectNonZero {
@@ -119,6 +131,8 @@ func TestDynamoDBHandler_CalculateCost(t *testing.T) {
 }
 
 func TestDynamoDBHandler_Describe(t *testing.T) {
+	t.Parallel()
+
 	h := &DynamoDBHandler{}
 
 	tests := []struct {
@@ -162,6 +176,8 @@ func TestDynamoDBHandler_Describe(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := h.Describe(nil, tt.attrs)
 
 			for k, v := range tt.wantKeys {

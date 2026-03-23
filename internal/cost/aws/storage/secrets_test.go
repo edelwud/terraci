@@ -8,6 +8,8 @@ import (
 )
 
 func TestSecretsManagerHandler_Category(t *testing.T) {
+	t.Parallel()
+
 	h := &SecretsManagerHandler{}
 	if h.Category() != aws.CostCategoryFixed {
 		t.Errorf("Category() = %v, want CostCategoryFixed", h.Category())
@@ -15,6 +17,8 @@ func TestSecretsManagerHandler_Category(t *testing.T) {
 }
 
 func TestSecretsManagerHandler_ServiceCode(t *testing.T) {
+	t.Parallel()
+
 	h := &SecretsManagerHandler{}
 	if h.ServiceCode() != pricing.ServiceSecretsMan {
 		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceSecretsMan)
@@ -22,6 +26,8 @@ func TestSecretsManagerHandler_ServiceCode(t *testing.T) {
 }
 
 func TestSecretsManagerHandler_CalculateCost(t *testing.T) {
+	t.Parallel()
+
 	h := &SecretsManagerHandler{}
 	_, monthly := h.CalculateCost(nil, nil, "", nil)
 
@@ -31,6 +37,8 @@ func TestSecretsManagerHandler_CalculateCost(t *testing.T) {
 }
 
 func TestSecretsManagerHandler_BuildLookup(t *testing.T) {
+	t.Parallel()
+
 	h := &SecretsManagerHandler{}
 	lookup, err := h.BuildLookup("us-east-1", nil)
 	if err != nil {
@@ -42,6 +50,8 @@ func TestSecretsManagerHandler_BuildLookup(t *testing.T) {
 }
 
 func TestSecretsManagerHandler_Describe(t *testing.T) {
+	t.Parallel()
+
 	h := &SecretsManagerHandler{}
 	result := h.Describe(nil, nil)
 	if result != nil {

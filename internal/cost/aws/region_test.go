@@ -3,6 +3,8 @@ package aws
 import "testing"
 
 func TestResolveRegionName_KnownRegions(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		region string
 		want   string
@@ -23,6 +25,8 @@ func TestResolveRegionName_KnownRegions(t *testing.T) {
 }
 
 func TestResolveRegionName_UnknownRegion(t *testing.T) {
+	t.Parallel()
+
 	got := ResolveRegionName("xx-unknown-1")
 	if got != "xx-unknown-1" {
 		t.Errorf("ResolveRegionName(unknown) = %q, want %q", got, "xx-unknown-1")
@@ -30,6 +34,8 @@ func TestResolveRegionName_UnknownRegion(t *testing.T) {
 }
 
 func TestResolveRegionName_EmptyString(t *testing.T) {
+	t.Parallel()
+
 	got := ResolveRegionName("")
 	if got != "" {
 		t.Errorf("ResolveRegionName(\"\") = %q, want empty", got)
@@ -37,12 +43,16 @@ func TestResolveRegionName_EmptyString(t *testing.T) {
 }
 
 func TestHoursPerMonth(t *testing.T) {
+	t.Parallel()
+
 	if HoursPerMonth != 730 {
 		t.Errorf("HoursPerMonth = %d, want 730", HoursPerMonth)
 	}
 }
 
 func TestResolveUsagePrefix_KnownRegions(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		region string
 		want   string
@@ -61,6 +71,8 @@ func TestResolveUsagePrefix_KnownRegions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.region, func(t *testing.T) {
+			t.Parallel()
+
 			got := ResolveUsagePrefix(tt.region)
 			if got != tt.want {
 				t.Errorf("ResolveUsagePrefix(%q) = %q, want %q", tt.region, got, tt.want)
@@ -70,6 +82,8 @@ func TestResolveUsagePrefix_KnownRegions(t *testing.T) {
 }
 
 func TestResolveUsagePrefix_UnknownRegion(t *testing.T) {
+	t.Parallel()
+
 	got := ResolveUsagePrefix("xx-unknown-1")
 	if got != "USE1" {
 		t.Errorf("ResolveUsagePrefix(unknown) = %q, want %q", got, "USE1")
@@ -77,6 +91,8 @@ func TestResolveUsagePrefix_UnknownRegion(t *testing.T) {
 }
 
 func TestResolveUsagePrefix_EmptyString(t *testing.T) {
+	t.Parallel()
+
 	got := ResolveUsagePrefix("")
 	if got != "USE1" {
 		t.Errorf("ResolveUsagePrefix(\"\") = %q, want %q", got, "USE1")

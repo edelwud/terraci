@@ -8,6 +8,8 @@ import (
 )
 
 func TestLogGroupHandler_Category(t *testing.T) {
+	t.Parallel()
+
 	h := &LogGroupHandler{}
 	if h.Category() != aws.CostCategoryUsageBased {
 		t.Errorf("Category() = %v, want CostCategoryUsageBased", h.Category())
@@ -15,6 +17,8 @@ func TestLogGroupHandler_Category(t *testing.T) {
 }
 
 func TestLogGroupHandler_Describe(t *testing.T) {
+	t.Parallel()
+
 	h := &LogGroupHandler{}
 	result := h.Describe(nil, nil)
 	if result != nil {
@@ -23,6 +27,8 @@ func TestLogGroupHandler_Describe(t *testing.T) {
 }
 
 func TestAlarmHandler_Category(t *testing.T) {
+	t.Parallel()
+
 	h := &AlarmHandler{}
 	if h.Category() != aws.CostCategoryFixed {
 		t.Errorf("Category() = %v, want CostCategoryFixed", h.Category())
@@ -30,6 +36,8 @@ func TestAlarmHandler_Category(t *testing.T) {
 }
 
 func TestLogGroupHandler_ServiceCode(t *testing.T) {
+	t.Parallel()
+
 	h := &LogGroupHandler{}
 	if h.ServiceCode() != pricing.ServiceCloudWatch {
 		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceCloudWatch)
@@ -37,6 +45,8 @@ func TestLogGroupHandler_ServiceCode(t *testing.T) {
 }
 
 func TestLogGroupHandler_BuildLookup(t *testing.T) {
+	t.Parallel()
+
 	h := &LogGroupHandler{}
 	lookup, err := h.BuildLookup("us-east-1", nil)
 	if err != nil {
@@ -48,6 +58,8 @@ func TestLogGroupHandler_BuildLookup(t *testing.T) {
 }
 
 func TestLogGroupHandler_CalculateCost(t *testing.T) {
+	t.Parallel()
+
 	h := &LogGroupHandler{}
 	hourly, monthly := h.CalculateCost(nil, nil, "", nil)
 	if hourly != 0 {
@@ -59,6 +71,8 @@ func TestLogGroupHandler_CalculateCost(t *testing.T) {
 }
 
 func TestAlarmHandler_ServiceCode(t *testing.T) {
+	t.Parallel()
+
 	h := &AlarmHandler{}
 	if h.ServiceCode() != pricing.ServiceCloudWatch {
 		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceCloudWatch)
@@ -66,6 +80,8 @@ func TestAlarmHandler_ServiceCode(t *testing.T) {
 }
 
 func TestAlarmHandler_BuildLookup_ReturnsNil(t *testing.T) {
+	t.Parallel()
+
 	h := &AlarmHandler{}
 
 	lookup, err := h.BuildLookup("us-east-1", nil)
@@ -78,6 +94,8 @@ func TestAlarmHandler_BuildLookup_ReturnsNil(t *testing.T) {
 }
 
 func TestAlarmHandler_CalculateCost(t *testing.T) {
+	t.Parallel()
+
 	h := &AlarmHandler{}
 
 	tests := []struct {
@@ -115,6 +133,8 @@ func TestAlarmHandler_CalculateCost(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			hourly, monthly := h.CalculateCost(nil, nil, "", tt.attrs)
 
 			if monthly != tt.wantMonthly {
@@ -130,6 +150,8 @@ func TestAlarmHandler_CalculateCost(t *testing.T) {
 }
 
 func TestAlarmHandler_Describe(t *testing.T) {
+	t.Parallel()
+
 	h := &AlarmHandler{}
 
 	tests := []struct {
@@ -172,6 +194,8 @@ func TestAlarmHandler_Describe(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := h.Describe(nil, tt.attrs)
 
 			if result["resolution"] != tt.wantResolution {

@@ -8,6 +8,8 @@ import (
 )
 
 func TestClusterHandler_Category(t *testing.T) {
+	t.Parallel()
+
 	h := &ClusterHandler{}
 	if h.Category() != aws.CostCategoryStandard {
 		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
@@ -15,6 +17,8 @@ func TestClusterHandler_Category(t *testing.T) {
 }
 
 func TestClusterHandler_ServiceCode(t *testing.T) {
+	t.Parallel()
+
 	h := &ClusterHandler{}
 	if h.ServiceCode() != pricing.ServiceEKS {
 		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceEKS)
@@ -22,6 +26,8 @@ func TestClusterHandler_ServiceCode(t *testing.T) {
 }
 
 func TestClusterHandler_BuildLookup(t *testing.T) {
+	t.Parallel()
+
 	h := &ClusterHandler{}
 
 	lookup, err := h.BuildLookup("us-east-1", nil)
@@ -40,6 +46,8 @@ func TestClusterHandler_BuildLookup(t *testing.T) {
 }
 
 func TestClusterHandler_BuildLookup_EURegion(t *testing.T) {
+	t.Parallel()
+
 	h := &ClusterHandler{}
 
 	lookup, err := h.BuildLookup("eu-central-1", nil)
@@ -52,6 +60,8 @@ func TestClusterHandler_BuildLookup_EURegion(t *testing.T) {
 }
 
 func TestClusterHandler_BuildLookup_UnknownRegion(t *testing.T) {
+	t.Parallel()
+
 	h := &ClusterHandler{}
 
 	lookup, err := h.BuildLookup("xx-unknown-1", nil)
@@ -65,6 +75,8 @@ func TestClusterHandler_BuildLookup_UnknownRegion(t *testing.T) {
 }
 
 func TestClusterHandler_CalculateCost_FromAPI(t *testing.T) {
+	t.Parallel()
+
 	h := &ClusterHandler{}
 
 	price := &pricing.Price{OnDemandUSD: 0.10}
@@ -78,6 +90,8 @@ func TestClusterHandler_CalculateCost_FromAPI(t *testing.T) {
 }
 
 func TestClusterHandler_CalculateCost_Fallback(t *testing.T) {
+	t.Parallel()
+
 	h := &ClusterHandler{}
 
 	// nil price -> fallback to default
@@ -97,6 +111,8 @@ func TestClusterHandler_CalculateCost_Fallback(t *testing.T) {
 }
 
 func TestClusterHandler_Describe(t *testing.T) {
+	t.Parallel()
+
 	h := &ClusterHandler{}
 
 	tests := []struct {
@@ -126,6 +142,8 @@ func TestClusterHandler_Describe(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := h.Describe(nil, tt.attrs)
 
 			for k, v := range tt.wantKeys {

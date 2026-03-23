@@ -8,6 +8,8 @@ import (
 )
 
 func TestInstanceHandler_Category(t *testing.T) {
+	t.Parallel()
+
 	h := &InstanceHandler{}
 	if h.Category() != aws.CostCategoryStandard {
 		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
@@ -15,6 +17,8 @@ func TestInstanceHandler_Category(t *testing.T) {
 }
 
 func TestInstanceHandler_Describe(t *testing.T) {
+	t.Parallel()
+
 	h := &InstanceHandler{}
 
 	attrs := map[string]any{
@@ -40,6 +44,8 @@ func TestInstanceHandler_Describe(t *testing.T) {
 }
 
 func TestInstanceHandler_ServiceCode(t *testing.T) {
+	t.Parallel()
+
 	h := &InstanceHandler{}
 	if h.ServiceCode() != pricing.ServiceRDS {
 		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceRDS)
@@ -47,6 +53,8 @@ func TestInstanceHandler_ServiceCode(t *testing.T) {
 }
 
 func TestInstanceHandler_BuildLookup(t *testing.T) {
+	t.Parallel()
+
 	h := &InstanceHandler{}
 
 	tests := []struct {
@@ -102,6 +110,8 @@ func TestInstanceHandler_BuildLookup(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			lookup, err := h.BuildLookup(tt.region, tt.attrs)
 
 			if tt.wantErr {
@@ -129,6 +139,8 @@ func TestInstanceHandler_BuildLookup(t *testing.T) {
 }
 
 func TestInstanceHandler_CalculateCost(t *testing.T) {
+	t.Parallel()
+
 	h := &InstanceHandler{}
 
 	price := &pricing.Price{
@@ -166,6 +178,8 @@ func TestInstanceHandler_CalculateCost(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			_, monthly := h.CalculateCost(price, nil, "", tt.attrs)
 
 			if monthly != tt.expectedMonthly {
@@ -176,6 +190,8 @@ func TestInstanceHandler_CalculateCost(t *testing.T) {
 }
 
 func TestMapRDSEngine(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		engine   string
 		expected string
@@ -194,6 +210,8 @@ func TestMapRDSEngine(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.engine, func(t *testing.T) {
+			t.Parallel()
+
 			result := MapRDSEngine(tt.engine)
 			if result != tt.expected {
 				t.Errorf("MapRDSEngine(%q) = %q, want %q", tt.engine, result, tt.expected)
@@ -203,6 +221,8 @@ func TestMapRDSEngine(t *testing.T) {
 }
 
 func TestGetStorageCostPerGB(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		storageType string
 		expected    float64
@@ -216,6 +236,8 @@ func TestGetStorageCostPerGB(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.storageType, func(t *testing.T) {
+			t.Parallel()
+
 			result := GetStorageCostPerGB(tt.storageType)
 			if result != tt.expected {
 				t.Errorf("GetStorageCostPerGB(%q) = %v, want %v", tt.storageType, result, tt.expected)

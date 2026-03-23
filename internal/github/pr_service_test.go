@@ -195,6 +195,68 @@ func TestPRService_UpsertComment_UpdateExisting(t *testing.T) {
 	}
 }
 
+func TestPRService_UpsertComment_ListError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := newMockGitHubClient(t, server.URL)
+
+	svc := &PRService{
+		context: &PRContext{
+			InPR:     true,
+			Owner:    "owner",
+			Repo:     "repo",
+			PRNumber: 1,
+		},
+		client:   client,
+		renderer: ci.NewCommentRenderer(),
+		config:   nil,
+	}
+
+	plans := []ci.ModulePlan{{ModuleID: "test", Status: ci.PlanStatusChanges}}
+	err := svc.UpsertComment(plans, nil)
+	if err == nil {
+		t.Error("expected error when ListIssueComments fails")
+	}
+}
+
+func TestPRService_UpsertComment_CreateError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/comments") && r.Method == "GET":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `[]`)
+		case strings.HasSuffix(r.URL.Path, "/comments") && r.Method == "POST":
+			w.WriteHeader(http.StatusInternalServerError)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	client := newMockGitHubClient(t, server.URL)
+
+	svc := &PRService{
+		context: &PRContext{
+			InPR:     true,
+			Owner:    "owner",
+			Repo:     "repo",
+			PRNumber: 1,
+		},
+		client:   client,
+		renderer: ci.NewCommentRenderer(),
+		config:   nil,
+	}
+
+	plans := []ci.ModulePlan{{ModuleID: "test", Status: ci.PlanStatusChanges}}
+	err := svc.UpsertComment(plans, nil)
+	if err == nil {
+		t.Error("expected error when CreateIssueComment fails")
+	}
+}
+
 func TestPRService_UpsertComment_OnChangesOnly_NoChanges(t *testing.T) {
 	var createCalled, updateCalled bool
 	server := setupMockGitHubServer(t, `[]`, &createCalled, &updateCalled)

@@ -7,6 +7,8 @@ import (
 )
 
 func TestRender_BasicPlans(t *testing.T) {
+	t.Parallel()
+
 	r := NewCommentRenderer()
 	data := &CommentData{
 		Plans: []ModulePlan{
@@ -53,6 +55,8 @@ func TestRender_BasicPlans(t *testing.T) {
 }
 
 func TestRender_EmptyPlans(t *testing.T) {
+	t.Parallel()
+
 	r := NewCommentRenderer()
 	data := &CommentData{
 		Plans:       []ModulePlan{},
@@ -67,6 +71,8 @@ func TestRender_EmptyPlans(t *testing.T) {
 }
 
 func TestRender_WithPolicySummary(t *testing.T) {
+	t.Parallel()
+
 	r := NewCommentRenderer()
 	data := &CommentData{
 		Plans: []ModulePlan{
@@ -108,6 +114,8 @@ func TestRender_WithPolicySummary(t *testing.T) {
 }
 
 func TestRender_WithCostData(t *testing.T) {
+	t.Parallel()
+
 	r := NewCommentRenderer()
 	data := &CommentData{
 		Plans: []ModulePlan{
@@ -136,6 +144,8 @@ func TestRender_WithCostData(t *testing.T) {
 }
 
 func TestRender_CommitSHA(t *testing.T) {
+	t.Parallel()
+
 	r := NewCommentRenderer()
 	data := &CommentData{
 		Plans:       []ModulePlan{},
@@ -154,6 +164,8 @@ func TestRender_CommitSHA(t *testing.T) {
 }
 
 func TestCalculateStats(t *testing.T) {
+	t.Parallel()
+
 	r := NewCommentRenderer()
 
 	tests := []struct {
@@ -202,6 +214,8 @@ func TestCalculateStats(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := r.calculateStats(tt.plans)
 			if got != tt.want {
 				t.Errorf("calculateStats() = %+v, want %+v", got, tt.want)
@@ -211,6 +225,8 @@ func TestCalculateStats(t *testing.T) {
 }
 
 func TestRenderStats(t *testing.T) {
+	t.Parallel()
+
 	r := NewCommentRenderer()
 
 	tests := []struct {
@@ -242,6 +258,8 @@ func TestRenderStats(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := r.renderStats(tt.stats)
 			for _, want := range tt.contains {
 				if !strings.Contains(got, want) {
@@ -253,6 +271,8 @@ func TestRenderStats(t *testing.T) {
 }
 
 func TestGroupByEnvironment(t *testing.T) {
+	t.Parallel()
+
 	r := NewCommentRenderer()
 
 	tests := []struct {
@@ -290,6 +310,8 @@ func TestGroupByEnvironment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := r.groupByEnvironment(tt.plans)
 			for _, key := range tt.wantKeys {
 				if _, ok := got[key]; !ok {
@@ -306,6 +328,8 @@ func TestGroupByEnvironment(t *testing.T) {
 }
 
 func TestFormatCostCell(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		plan ModulePlan
@@ -335,6 +359,8 @@ func TestFormatCostCell(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := FormatCostCell(&tt.plan)
 			if got != tt.want {
 				t.Errorf("FormatCostCell() = %q, want %q", got, tt.want)
@@ -344,6 +370,8 @@ func TestFormatCostCell(t *testing.T) {
 }
 
 func TestFormatMonthlyCost(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		cost float64
@@ -360,6 +388,8 @@ func TestFormatMonthlyCost(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := FormatMonthlyCost(tt.cost)
 			if got != tt.want {
 				t.Errorf("FormatMonthlyCost(%v) = %q, want %q", tt.cost, got, tt.want)
@@ -369,6 +399,8 @@ func TestFormatMonthlyCost(t *testing.T) {
 }
 
 func TestFormatCostDiff(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		diff float64
@@ -385,6 +417,8 @@ func TestFormatCostDiff(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := FormatCostDiff(tt.diff)
 			if got != tt.want {
 				t.Errorf("FormatCostDiff(%v) = %q, want %q", tt.diff, got, tt.want)
@@ -394,6 +428,8 @@ func TestFormatCostDiff(t *testing.T) {
 }
 
 func TestTruncate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		s      string
@@ -428,6 +464,8 @@ func TestTruncate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := Truncate(tt.s, tt.maxLen)
 			if got != tt.want {
 				t.Errorf("Truncate(%q, %d) = %q, want %q", tt.s, tt.maxLen, got, tt.want)
@@ -437,6 +475,8 @@ func TestTruncate(t *testing.T) {
 }
 
 func TestStatusIcon(t *testing.T) {
+	t.Parallel()
+
 	r := NewCommentRenderer()
 
 	tests := []struct {
@@ -454,6 +494,8 @@ func TestStatusIcon(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(string(tt.status), func(t *testing.T) {
+			t.Parallel()
+
 			got := r.statusIcon(tt.status)
 			if got != tt.want {
 				t.Errorf("statusIcon(%q) = %q, want %q", tt.status, got, tt.want)
@@ -463,9 +505,13 @@ func TestStatusIcon(t *testing.T) {
 }
 
 func TestRenderExpandableDetails(t *testing.T) {
+	t.Parallel()
+
 	r := NewCommentRenderer()
 
 	t.Run("with structured details", func(t *testing.T) {
+		t.Parallel()
+
 		p := &ModulePlan{
 			ModuleID:          "svc/prod/us-east-1/vpc",
 			Status:            PlanStatusChanges,
@@ -487,6 +533,8 @@ func TestRenderExpandableDetails(t *testing.T) {
 	})
 
 	t.Run("with raw plan output", func(t *testing.T) {
+		t.Parallel()
+
 		p := &ModulePlan{
 			ModuleID:      "svc/prod/us-east-1/rds",
 			Status:        PlanStatusChanges,
@@ -509,6 +557,8 @@ func TestRenderExpandableDetails(t *testing.T) {
 	})
 
 	t.Run("failed status", func(t *testing.T) {
+		t.Parallel()
+
 		p := &ModulePlan{
 			ModuleID: "svc/prod/us-east-1/eks",
 			Status:   PlanStatusFailed,
@@ -523,6 +573,8 @@ func TestRenderExpandableDetails(t *testing.T) {
 	})
 
 	t.Run("no summary uses plain title", func(t *testing.T) {
+		t.Parallel()
+
 		p := &ModulePlan{
 			ModuleID:          "svc/prod/us-east-1/vpc",
 			Status:            PlanStatusChanges,
@@ -540,9 +592,13 @@ func TestRenderExpandableDetails(t *testing.T) {
 }
 
 func TestRenderPolicySection(t *testing.T) {
+	t.Parallel()
+
 	r := NewCommentRenderer()
 
 	t.Run("with failures", func(t *testing.T) {
+		t.Parallel()
+
 		summary := &PolicySummary{
 			TotalModules:  3,
 			PassedModules: 1,
@@ -582,6 +638,8 @@ func TestRenderPolicySection(t *testing.T) {
 	})
 
 	t.Run("with warnings only", func(t *testing.T) {
+		t.Parallel()
+
 		summary := &PolicySummary{
 			TotalModules:  1,
 			WarnedModules: 1,
@@ -610,6 +668,8 @@ func TestRenderPolicySection(t *testing.T) {
 	})
 
 	t.Run("all passed", func(t *testing.T) {
+		t.Parallel()
+
 		summary := &PolicySummary{
 			TotalModules:  2,
 			PassedModules: 2,
@@ -624,9 +684,13 @@ func TestRenderPolicySection(t *testing.T) {
 }
 
 func TestRenderPlanRow(t *testing.T) {
+	t.Parallel()
+
 	r := NewCommentRenderer()
 
 	t.Run("without cost", func(t *testing.T) {
+		t.Parallel()
+
 		p := &ModulePlan{
 			ModuleID: "svc/prod/us-east-1/vpc",
 			Status:   PlanStatusChanges,
@@ -651,6 +715,8 @@ func TestRenderPlanRow(t *testing.T) {
 	})
 
 	t.Run("with cost", func(t *testing.T) {
+		t.Parallel()
+
 		p := &ModulePlan{
 			ModuleID:  "svc/prod/us-east-1/vpc",
 			Status:    PlanStatusNoChanges,
@@ -672,6 +738,8 @@ func TestRenderPlanRow(t *testing.T) {
 	})
 
 	t.Run("with error", func(t *testing.T) {
+		t.Parallel()
+
 		p := &ModulePlan{
 			ModuleID: "svc/prod/us-east-1/vpc",
 			Status:   PlanStatusFailed,
@@ -686,6 +754,8 @@ func TestRenderPlanRow(t *testing.T) {
 	})
 
 	t.Run("empty summary becomes dash", func(t *testing.T) {
+		t.Parallel()
+
 		p := &ModulePlan{
 			ModuleID: "svc/prod/us-east-1/vpc",
 			Status:   PlanStatusPending,
