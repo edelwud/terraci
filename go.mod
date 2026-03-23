@@ -5,7 +5,7 @@ go 1.25.8
 require (
 	charm.land/bubbletea/v2 v2.0.2
 	charm.land/huh/v2 v2.0.3
-	charm.land/lipgloss/v2 v2.0.1
+	charm.land/lipgloss/v2 v2.0.2
 	github.com/caarlos0/log v0.6.0
 	github.com/go-git/go-git/v6 v6.0.0-20251209110802-becdcd9c28c5
 	github.com/google/go-github/v68 v68.0.0
