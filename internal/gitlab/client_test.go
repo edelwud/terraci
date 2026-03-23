@@ -1,35 +1,12 @@
 package gitlab
 
 import (
-	"os"
 	"testing"
 )
 
 func TestDetectMRContext(t *testing.T) {
-	// Save original env vars
-	origVars := map[string]string{
-		"CI_PROJECT_ID":                       os.Getenv("CI_PROJECT_ID"),
-		"CI_PROJECT_PATH":                     os.Getenv("CI_PROJECT_PATH"),
-		"CI_MERGE_REQUEST_IID":                os.Getenv("CI_MERGE_REQUEST_IID"),
-		"CI_MERGE_REQUEST_SOURCE_BRANCH_NAME": os.Getenv("CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"),
-		"CI_MERGE_REQUEST_TARGET_BRANCH_NAME": os.Getenv("CI_MERGE_REQUEST_TARGET_BRANCH_NAME"),
-		"CI_PIPELINE_ID":                      os.Getenv("CI_PIPELINE_ID"),
-		"CI_COMMIT_SHA":                       os.Getenv("CI_COMMIT_SHA"),
-	}
-
-	// Restore env vars after test
-	defer func() {
-		for k, v := range origVars {
-			if v == "" {
-				os.Unsetenv(k)
-			} else {
-				os.Setenv(k, v)
-			}
-		}
-	}()
-
 	t.Run("not in MR", func(t *testing.T) {
-		os.Unsetenv("CI_MERGE_REQUEST_IID")
+		t.Setenv("CI_MERGE_REQUEST_IID", "")
 
 		ctx := DetectMRContext()
 		if ctx.InMR {
@@ -38,13 +15,13 @@ func TestDetectMRContext(t *testing.T) {
 	})
 
 	t.Run("in MR", func(t *testing.T) {
-		os.Setenv("CI_PROJECT_ID", "12345")
-		os.Setenv("CI_PROJECT_PATH", "group/project")
-		os.Setenv("CI_MERGE_REQUEST_IID", "42")
-		os.Setenv("CI_MERGE_REQUEST_SOURCE_BRANCH_NAME", "feature-branch")
-		os.Setenv("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "main")
-		os.Setenv("CI_PIPELINE_ID", "999")
-		os.Setenv("CI_COMMIT_SHA", "abc123def456")
+		t.Setenv("CI_PROJECT_ID", "12345")
+		t.Setenv("CI_PROJECT_PATH", "group/project")
+		t.Setenv("CI_MERGE_REQUEST_IID", "42")
+		t.Setenv("CI_MERGE_REQUEST_SOURCE_BRANCH_NAME", "feature-branch")
+		t.Setenv("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "main")
+		t.Setenv("CI_PIPELINE_ID", "999")
+		t.Setenv("CI_COMMIT_SHA", "abc123def456")
 
 		ctx := DetectMRContext()
 
@@ -96,6 +73,38 @@ func TestClient_HasToken(t *testing.T) {
 		client := NewClient("", "")
 		if client.HasToken() {
 			t.Error("expected HasToken to be false")
+		}
+	})
+}
+
+func TestNewClientFromEnv(t *testing.T) {
+	t.Run("with GITLAB_TOKEN", func(t *testing.T) {
+		t.Setenv("CI_SERVER_URL", "https://gitlab.example.com")
+		t.Setenv("GITLAB_TOKEN", "glpat-xxx")
+		t.Setenv("CI_JOB_TOKEN", "")
+		client := NewClientFromEnv()
+		if !client.HasToken() {
+			t.Error("expected HasToken true")
+		}
+	})
+
+	t.Run("falls back to CI_JOB_TOKEN", func(t *testing.T) {
+		t.Setenv("CI_SERVER_URL", "")
+		t.Setenv("GITLAB_TOKEN", "")
+		t.Setenv("CI_JOB_TOKEN", "job-token")
+		client := NewClientFromEnv()
+		if !client.HasToken() {
+			t.Error("expected HasToken true")
+		}
+	})
+
+	t.Run("no tokens", func(t *testing.T) {
+		t.Setenv("CI_SERVER_URL", "")
+		t.Setenv("GITLAB_TOKEN", "")
+		t.Setenv("CI_JOB_TOKEN", "")
+		client := NewClientFromEnv()
+		if client.HasToken() {
+			t.Error("expected HasToken false")
 		}
 	})
 }

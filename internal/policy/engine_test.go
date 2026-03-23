@@ -185,6 +185,83 @@ func TestEngine_Evaluate_FileNotFound(t *testing.T) {
 	}
 }
 
+func TestEngine_Evaluate_MultipleNamespaces(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create plan.json with a resource
+	planPath := filepath.Join(tmpDir, "plan.json")
+	planJSON := `{
+		"format_version": "1.0",
+		"resource_changes": [
+			{
+				"type": "aws_s3_bucket",
+				"name": "data",
+				"change": {
+					"actions": ["create"]
+				}
+			}
+		]
+	}`
+	if err := os.WriteFile(planPath, []byte(planJSON), 0o644); err != nil {
+		t.Fatalf("failed to write plan.json: %v", err)
+	}
+
+	// Create policy directory with two namespaces
+	policyDir := filepath.Join(tmpDir, "policies")
+	if err := os.MkdirAll(policyDir, 0o755); err != nil {
+		t.Fatalf("failed to create policy dir: %v", err)
+	}
+
+	// terraform namespace: deny rule
+	terraformPolicy := `package terraform
+
+deny contains msg if {
+	input.resource_changes[_].type == "aws_s3_bucket"
+	msg := "resource not tagged"
+}`
+	if err := os.WriteFile(filepath.Join(policyDir, "tagging.rego"), []byte(terraformPolicy), 0o644); err != nil {
+		t.Fatalf("failed to write terraform policy: %v", err)
+	}
+
+	// compliance namespace: warn rule
+	compliancePolicy := `package compliance
+
+warn contains msg if {
+	input.resource_changes[_].type == "aws_s3_bucket"
+	msg := "missing documentation"
+}`
+	if err := os.WriteFile(filepath.Join(policyDir, "docs.rego"), []byte(compliancePolicy), 0o644); err != nil {
+		t.Fatalf("failed to write compliance policy: %v", err)
+	}
+
+	engine := NewEngine([]string{policyDir}, []string{"terraform", "compliance"})
+
+	result, err := engine.Evaluate(context.Background(), planPath)
+	if err != nil {
+		t.Fatalf("Evaluate() error = %v", err)
+	}
+
+	if len(result.Failures) != 1 {
+		t.Errorf("expected 1 failure (from terraform namespace), got %d", len(result.Failures))
+		for _, f := range result.Failures {
+			t.Logf("  failure: %s (ns: %s)", f.Message, f.Namespace)
+		}
+	}
+	if len(result.Failures) > 0 && result.Failures[0].Message != "resource not tagged" {
+		t.Errorf("unexpected failure message: %s", result.Failures[0].Message)
+	}
+
+	if len(result.Warnings) != 1 {
+		t.Errorf("expected 1 warning (from compliance namespace), got %d", len(result.Warnings))
+		for _, w := range result.Warnings {
+			t.Logf("  warning: %s (ns: %s)", w.Message, w.Namespace)
+		}
+	}
+	if len(result.Warnings) > 0 && result.Warnings[0].Message != "missing documentation" {
+		t.Errorf("unexpected warning message: %s", result.Warnings[0].Message)
+	}
+}
+
 func TestEngine_collectRegoFiles(t *testing.T) {
 	tmpDir := t.TempDir()
 

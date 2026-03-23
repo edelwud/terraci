@@ -3,8 +3,32 @@ package ec2
 import (
 	"testing"
 
+	aws "github.com/edelwud/terraci/internal/cost/aws"
 	"github.com/edelwud/terraci/internal/cost/pricing"
 )
+
+func TestEIPHandler_Category(t *testing.T) {
+	h := &EIPHandler{}
+	if h.Category() != aws.CostCategoryStandard {
+		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
+	}
+}
+
+func TestEIPHandler_Describe(t *testing.T) {
+	h := &EIPHandler{}
+
+	// Without instance → attached=false
+	result := h.Describe(nil, map[string]any{})
+	if result["attached"] != "false" {
+		t.Errorf("Describe()[attached] = %q, want %q", result["attached"], "false")
+	}
+
+	// With instance → attached=true
+	result = h.Describe(nil, map[string]any{"instance": "i-12345"})
+	if result["attached"] != "true" {
+		t.Errorf("Describe()[attached] = %q, want %q", result["attached"], "true")
+	}
+}
 
 func TestEIPHandler_ServiceCode(t *testing.T) {
 	h := &EIPHandler{}

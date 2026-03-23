@@ -8,6 +8,80 @@ import (
 	"github.com/edelwud/terraci/internal/cost/pricing"
 )
 
+func TestEBSHandler_Category(t *testing.T) {
+	h := &EBSHandler{}
+	if h.Category() != aws.CostCategoryStandard {
+		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
+	}
+}
+
+func TestEBSHandler_ServiceCode(t *testing.T) {
+	h := &EBSHandler{}
+	if h.ServiceCode() != pricing.ServiceEC2 {
+		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceEC2)
+	}
+}
+
+func TestEBSHandler_Describe(t *testing.T) {
+	h := &EBSHandler{}
+
+	tests := []struct {
+		name       string
+		attrs      map[string]any
+		wantKeys   map[string]string
+		wantAbsent []string
+	}{
+		{
+			name:       "nil attrs",
+			attrs:      nil,
+			wantAbsent: []string{"volume_type", "size_gb", "iops", "throughput_mbps"},
+		},
+		{
+			name: "volume_type and size",
+			attrs: map[string]any{
+				"type": "gp3",
+				"size": float64(100),
+			},
+			wantKeys: map[string]string{
+				"volume_type": "gp3",
+				"size_gb":     "100",
+			},
+		},
+		{
+			name: "all fields",
+			attrs: map[string]any{
+				"type":       "gp3",
+				"size":       float64(200),
+				"iops":       float64(5000),
+				"throughput": float64(300),
+			},
+			wantKeys: map[string]string{
+				"volume_type":     "gp3",
+				"size_gb":         "200",
+				"iops":            "5000",
+				"throughput_mbps": "300",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := h.Describe(nil, tt.attrs)
+
+			for k, v := range tt.wantKeys {
+				if result[k] != v {
+					t.Errorf("Describe()[%q] = %q, want %q", k, result[k], v)
+				}
+			}
+			for _, k := range tt.wantAbsent {
+				if _, ok := result[k]; ok {
+					t.Errorf("Describe() should not contain key %q", k)
+				}
+			}
+		})
+	}
+}
+
 const floatTolerance = 1e-9
 
 func approxEqual(a, b float64) bool {

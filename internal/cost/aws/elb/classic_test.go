@@ -3,8 +3,24 @@ package elb
 import (
 	"testing"
 
+	aws "github.com/edelwud/terraci/internal/cost/aws"
 	"github.com/edelwud/terraci/internal/cost/pricing"
 )
+
+func TestClassicHandler_Category(t *testing.T) {
+	h := &ClassicHandler{}
+	if h.Category() != aws.CostCategoryStandard {
+		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
+	}
+}
+
+func TestClassicHandler_Describe(t *testing.T) {
+	h := &ClassicHandler{}
+	result := h.Describe(nil, nil)
+	if result["type"] != "classic" {
+		t.Errorf("Describe()[type] = %q, want %q", result["type"], "classic")
+	}
+}
 
 func TestClassicHandler_ServiceCode(t *testing.T) {
 	h := &ClassicHandler{}

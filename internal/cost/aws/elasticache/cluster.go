@@ -8,6 +8,8 @@ import (
 	"github.com/edelwud/terraci/internal/cost/pricing"
 )
 
+const defaultEngine = "redis"
+
 // Backup storage fallback (used when API lookup unavailable).
 const FallbackBackupStorageCostPerGBMonth = 0.085
 
@@ -31,7 +33,7 @@ func (h *ClusterHandler) BuildLookup(region string, attrs map[string]any) (*pric
 
 	engine := aws.GetStringAttr(attrs, "engine")
 	if engine == "" {
-		engine = "redis"
+		engine = defaultEngine
 	}
 
 	cacheEngine := "Redis"

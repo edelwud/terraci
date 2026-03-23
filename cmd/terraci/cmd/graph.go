@@ -50,7 +50,7 @@ Examples:
 			depGraph := result.Graph
 
 			if moduleID != "" {
-				depGraph, err = scopeToModule(depGraph, moduleID, showDependents)
+				depGraph, err = depGraph.ScopeToModule(moduleID, showDependents)
 				if err != nil {
 					return err
 				}
@@ -72,21 +72,6 @@ Examples:
 	ff.register(cmd)
 
 	return cmd
-}
-
-func scopeToModule(g *graph.DependencyGraph, moduleID string, showDependents bool) (*graph.DependencyGraph, error) {
-	if g.GetNode(moduleID) == nil {
-		return nil, fmt.Errorf("module not found: %s", moduleID)
-	}
-
-	var ids []string
-	if showDependents {
-		ids = append([]string{moduleID}, g.GetAllDependents(moduleID)...)
-	} else {
-		ids = append([]string{moduleID}, g.GetAllDependencies(moduleID)...)
-	}
-
-	return g.Subgraph(ids), nil
 }
 
 func renderGraph(g *graph.DependencyGraph, format, outputFile string) error {

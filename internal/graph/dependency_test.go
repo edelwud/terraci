@@ -168,6 +168,46 @@ func TestSubgraph(t *testing.T) {
 	}
 }
 
+func TestScopeToModule(t *testing.T) {
+	g := buildTestGraph()
+
+	t.Run("dependencies", func(t *testing.T) {
+		sub, err := g.ScopeToModule("platform/stage/eu-central-1/app", false)
+		if err != nil {
+			t.Fatalf("ScopeToModule() error = %v", err)
+		}
+		nodes := sub.Nodes()
+		// app depends on eks, eks depends on vpc → 3 nodes
+		if len(nodes) < 2 {
+			t.Errorf("expected >= 2 nodes, got %d", len(nodes))
+		}
+		if sub.GetNode("platform/stage/eu-central-1/app") == nil {
+			t.Error("missing app node")
+		}
+	})
+
+	t.Run("dependents", func(t *testing.T) {
+		sub, err := g.ScopeToModule("platform/stage/eu-central-1/vpc", true)
+		if err != nil {
+			t.Fatalf("ScopeToModule() error = %v", err)
+		}
+		if sub.GetNode("platform/stage/eu-central-1/vpc") == nil {
+			t.Error("missing vpc node")
+		}
+		// vpc has dependents (eks, rds, etc.)
+		if len(sub.Nodes()) < 2 {
+			t.Errorf("expected >= 2 nodes for dependents, got %d", len(sub.Nodes()))
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		_, err := g.ScopeToModule("nonexistent/module", false)
+		if err == nil {
+			t.Error("expected error for nonexistent module")
+		}
+	})
+}
+
 // --- Library usage ---
 
 func TestLibraryUsage(t *testing.T) {

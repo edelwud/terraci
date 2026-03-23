@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -82,7 +81,7 @@ func newCostEstimator(app *App) *cost.Estimator {
 
 func runCostSingle(ctx context.Context, estimator *cost.Estimator, app *App, costModulePath, costOutputFmt string) error {
 	modulePath := filepath.Join(app.WorkDir, costModulePath)
-	region := detectRegion(app, costModulePath)
+	region := cost.DetectRegion(app.Config.Structure.Segments, costModulePath)
 
 	log.WithField("module", costModulePath).WithField("region", region).Info("estimating module cost")
 
@@ -117,7 +116,7 @@ func runCostAll(ctx context.Context, estimator *cost.Estimator, app *App, costOu
 			if relErr == nil {
 				fullPath := filepath.Dir(path)
 				modulePaths = append(modulePaths, fullPath)
-				region := detectRegion(app, relDir)
+				region := cost.DetectRegion(app.Config.Structure.Segments, relDir)
 				regions[fullPath] = region
 				log.WithField("module", relDir).WithField("region", region).Debug("found plan.json")
 			}
@@ -160,8 +159,8 @@ func outputCostResult(app *App, costOutputFmt string, result *cost.EstimateResul
 	}
 
 	// Text output — build segment tree and render
-	tree := buildSegmentTree(result, app.WorkDir)
-	compactSegmentTree(tree)
+	tree := cost.BuildSegmentTree(result, app.WorkDir)
+	cost.CompactSegmentTree(tree)
 	renderSegmentTree(tree, 0)
 
 	// Total
@@ -177,116 +176,36 @@ func outputCostResult(app *App, costOutputFmt string, result *cost.EstimateResul
 	return nil
 }
 
-// segmentNode is a tree node representing one path segment (service, environment, region, or module).
-type segmentNode struct {
-	name      string           // segment value, e.g., "prod", "eu-central-1", "rds"
-	afterCost float64          // total cost including all children
-	diffCost  float64          // total diff including all children
-	children  []*segmentNode   // child segments
-	module    *cost.ModuleCost // non-nil only for leaf nodes (actual modules)
-}
-
-// buildSegmentTree creates a tree from module paths split by "/".
-func buildSegmentTree(result *cost.EstimateResult, workDir string) *segmentNode {
-	root := &segmentNode{name: ""}
-
-	for i := range result.Modules {
-		mc := &result.Modules[i]
-		if mc.AfterCost == 0 && mc.BeforeCost == 0 && mc.Error == "" {
-			continue
-		}
-
-		moduleID := mc.ModuleID
-		if rel, err := filepath.Rel(workDir, mc.ModulePath); err == nil {
-			moduleID = filepath.ToSlash(rel)
-		}
-
-		parts := strings.Split(moduleID, "/")
-		node := root
-		for _, part := range parts {
-			child := findChild(node, part)
-			if child == nil {
-				child = &segmentNode{name: part}
-				node.children = append(node.children, child)
-			}
-			child.afterCost += mc.AfterCost
-			child.diffCost += mc.DiffCost
-			node = child
-		}
-		node.module = mc
-	}
-
-	return root
-}
-
-func findChild(node *segmentNode, name string) *segmentNode {
-	for _, c := range node.children {
-		if c.name == name {
-			return c
-		}
-	}
-	return nil
-}
-
-// compactSegmentTree merges nodes that have exactly one child and no module into "parent/child".
-func compactSegmentTree(node *segmentNode) {
-	for _, c := range node.children {
-		compactSegmentTree(c)
-	}
-
-	for i, c := range node.children {
-		for len(c.children) == 1 && c.module == nil {
-			merged := c.children[0]
-			merged.name = c.name + "/" + merged.name
-			node.children[i] = merged
-			c = merged
-		}
-	}
-}
-
 // renderSegmentTree recursively renders the segment tree.
-func renderSegmentTree(node *segmentNode, depth int) {
-	for _, c := range node.children {
-		if c.afterCost == 0 && c.diffCost == 0 {
+func renderSegmentTree(node *cost.SegmentNode, depth int) {
+	for _, c := range node.Children {
+		if c.AfterCost == 0 && c.DiffCost == 0 {
 			continue
 		}
 
-		entry := log.WithField("monthly", cost.FormatCost(c.afterCost))
-		if c.diffCost != 0 {
-			entry = entry.WithField("diff", cost.FormatCostDiff(c.diffCost))
+		entry := log.WithField("monthly", cost.FormatCost(c.AfterCost))
+		if c.DiffCost != 0 {
+			entry = entry.WithField("diff", cost.FormatCostDiff(c.DiffCost))
 		}
-		if c.module != nil && c.module.Error != "" {
-			entry = entry.WithField("error", c.module.Error)
+		if c.Module != nil && c.Module.Error != "" {
+			entry = entry.WithField("error", c.Module.Error)
 		}
-		entry.Info(c.name)
+		entry.Info(c.Name)
 
 		// If this is a leaf module, show its terraform submodules
-		if c.module != nil && len(c.module.Submodules) > 0 {
+		if c.Module != nil && len(c.Module.Submodules) > 0 {
 			log.IncreasePadding()
-			renderSubmodules(c.module.Submodules, "")
+			renderSubmodules(c.Module.Submodules, "")
 			log.DecreasePadding()
 		}
 
 		// If this is a branch, recurse into children
-		if len(c.children) > 0 && c.module == nil {
+		if len(c.Children) > 0 && c.Module == nil {
 			log.IncreasePadding()
 			renderSegmentTree(c, depth+1)
 			log.DecreasePadding()
 		}
 	}
-}
-
-// detectRegion extracts region from module path using configured pattern segments.
-func detectRegion(app *App, modulePath string) string {
-	parts := splitPath(modulePath)
-	if app.Config.Structure.Segments != nil {
-		for i, seg := range app.Config.Structure.Segments {
-			if seg == "region" && i < len(parts) {
-				return parts[i]
-			}
-		}
-	}
-	return "us-east-1"
 }
 
 // renderSubmodules recursively renders submodule cost hierarchy.
@@ -301,7 +220,7 @@ func renderSubmodules(submodules []cost.SubmoduleCost, parentAddr string) {
 		// Show submodule header if there are multiple groups or children
 		showHeader := len(submodules) > 1 || len(sm.Children) > 0
 		if showHeader && sm.ModuleAddr != "" {
-			label := stripModulePrefix(sm.ModuleAddr, parentAddr)
+			label := cost.StripModulePrefix(sm.ModuleAddr, parentAddr)
 			log.WithField("monthly", cost.FormatCost(sm.MonthlyCost)).Info(label)
 			log.IncreasePadding()
 		}
@@ -309,7 +228,7 @@ func renderSubmodules(submodules []cost.SubmoduleCost, parentAddr string) {
 		// Render direct resources
 		for k := range sm.Resources {
 			rc := &sm.Resources[k]
-			displayAddr := stripModulePrefix(rc.Address, sm.ModuleAddr)
+			displayAddr := cost.StripModulePrefix(rc.Address, sm.ModuleAddr)
 			renderResource(rc, displayAddr)
 		}
 
@@ -342,30 +261,4 @@ func renderResource(rc *cost.ResourceCost, displayAddr string) {
 	case cost.CostErrorLookupFailed, cost.CostErrorAPIFailure, cost.CostErrorNoPrice:
 		log.WithField("error", rc.ErrorDetail).Warn(displayAddr)
 	}
-}
-
-// stripModulePrefix removes the "module.x.module.y." prefix from a resource address
-// when displayed inside its module group, since it's redundant.
-// e.g., "module.runner.aws_instance.web" with prefix "module.runner" → "aws_instance.web"
-func stripModulePrefix(address, moduleAddr string) string {
-	if moduleAddr == "" {
-		return address
-	}
-	prefix := moduleAddr + "."
-	if len(address) > len(prefix) && address[:len(prefix)] == prefix {
-		return address[len(prefix):]
-	}
-	return address
-}
-
-func splitPath(p string) []string {
-	var parts []string
-	for p != "" && p != "." && p != "/" {
-		dir, file := filepath.Split(p)
-		if file != "" {
-			parts = append([]string{file}, parts...)
-		}
-		p = filepath.Clean(dir)
-	}
-	return parts
 }

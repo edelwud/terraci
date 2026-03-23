@@ -3,8 +3,24 @@ package serverless
 import (
 	"testing"
 
+	aws "github.com/edelwud/terraci/internal/cost/aws"
 	"github.com/edelwud/terraci/internal/cost/pricing"
 )
+
+func TestSNSHandler_Category(t *testing.T) {
+	h := &SNSHandler{}
+	if h.Category() != aws.CostCategoryUsageBased {
+		t.Errorf("Category() = %v, want CostCategoryUsageBased", h.Category())
+	}
+}
+
+func TestSNSHandler_Describe(t *testing.T) {
+	h := &SNSHandler{}
+	result := h.Describe(nil, nil)
+	if result != nil {
+		t.Errorf("Describe() = %v, want nil", result)
+	}
+}
 
 func TestSNSHandler_ServiceCode(t *testing.T) {
 	h := &SNSHandler{}

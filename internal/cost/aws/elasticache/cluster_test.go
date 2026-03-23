@@ -7,6 +7,34 @@ import (
 	"github.com/edelwud/terraci/internal/cost/pricing"
 )
 
+func TestClusterHandler_Category(t *testing.T) {
+	h := &ClusterHandler{}
+	if h.Category() != aws.CostCategoryStandard {
+		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
+	}
+}
+
+func TestClusterHandler_Describe(t *testing.T) {
+	h := &ClusterHandler{}
+
+	attrs := map[string]any{
+		"node_type":       "cache.t3.micro",
+		"engine":          "redis",
+		"num_cache_nodes": 3,
+	}
+	result := h.Describe(nil, attrs)
+
+	if result["node_type"] != "cache.t3.micro" {
+		t.Errorf("Describe()[node_type] = %q, want %q", result["node_type"], "cache.t3.micro")
+	}
+	if result["engine"] != "redis" {
+		t.Errorf("Describe()[engine] = %q, want %q", result["engine"], "redis")
+	}
+	if result["nodes"] != "3" {
+		t.Errorf("Describe()[nodes] = %q, want %q", result["nodes"], "3")
+	}
+}
+
 func TestClusterHandler_ServiceCode(t *testing.T) {
 	h := &ClusterHandler{}
 	if h.ServiceCode() != pricing.ServiceElastiCache {

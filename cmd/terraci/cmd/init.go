@@ -48,12 +48,12 @@ Examples:
 
 			if initInteractive || hasFlags {
 				opts := initOptions{
-					provider: initProvider,
-					binary:   initBinary,
-					pattern:  initPattern,
-					image:    initImage,
+					Provider: initProvider,
+					Binary:   initBinary,
+					Pattern:  initPattern,
+					Image:    initImage,
 				}
-				newCfg = opts.buildConfig()
+				newCfg = opts.BuildConfig()
 			} else {
 				newCfg, err = runInteractiveInit()
 				if err != nil {

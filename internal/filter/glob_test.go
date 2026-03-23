@@ -265,6 +265,43 @@ func TestMatchSegments(t *testing.T) {
 	}
 }
 
+func TestParseSegmentFilters(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want map[string][]string
+	}{
+		{"empty", nil, map[string][]string{}},
+		{"single filter", []string{"env=prod"}, map[string][]string{"env": {"prod"}}},
+		{"multiple values", []string{"env=prod", "env=stage"}, map[string][]string{"env": {"prod", "stage"}}},
+		{"multiple keys", []string{"env=prod", "region=eu"}, map[string][]string{"env": {"prod"}, "region": {"eu"}}},
+		{"no equals sign ignored", []string{"invalid"}, map[string][]string{}},
+		{"empty key ignored", []string{"=value"}, map[string][]string{}},
+		{"empty value allowed", []string{"key="}, map[string][]string{"key": {""}}},
+		{"value with equals", []string{"key=a=b"}, map[string][]string{"key": {"a=b"}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ParseSegmentFilters(tt.args)
+			if len(got) != len(tt.want) {
+				t.Fatalf("ParseSegmentFilters(%v) = %v, want %v", tt.args, got, tt.want)
+			}
+			for k, wantVals := range tt.want {
+				gotVals := got[k]
+				if len(gotVals) != len(wantVals) {
+					t.Errorf("key %q: got %v, want %v", k, gotVals, wantVals)
+					continue
+				}
+				for i := range wantVals {
+					if gotVals[i] != wantVals[i] {
+						t.Errorf("key %q[%d]: got %q, want %q", k, i, gotVals[i], wantVals[i])
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestDoubleStarGlob(t *testing.T) {
 	tests := []struct {
 		pattern string

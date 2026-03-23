@@ -74,3 +74,36 @@ func TestFunctions(t *testing.T) {
 		t.Error("lookup function not found")
 	}
 }
+
+func TestSafeObjectVal(t *testing.T) {
+	t.Run("nil map returns EmptyObjectVal", func(t *testing.T) {
+		result := SafeObjectVal(nil)
+		if !result.Equals(cty.EmptyObjectVal).True() {
+			t.Errorf("expected EmptyObjectVal for nil map, got %v", result.GoString())
+		}
+	})
+
+	t.Run("empty map returns EmptyObjectVal", func(t *testing.T) {
+		result := SafeObjectVal(map[string]cty.Value{})
+		if !result.Equals(cty.EmptyObjectVal).True() {
+			t.Errorf("expected EmptyObjectVal for empty map, got %v", result.GoString())
+		}
+	})
+
+	t.Run("populated map returns ObjectVal", func(t *testing.T) {
+		m := map[string]cty.Value{
+			"key1": cty.StringVal("value1"),
+			"key2": cty.NumberIntVal(42),
+		}
+		result := SafeObjectVal(m)
+		if result.Equals(cty.EmptyObjectVal).True() {
+			t.Error("expected non-empty ObjectVal, got EmptyObjectVal")
+		}
+		if result.GetAttr("key1").AsString() != "value1" {
+			t.Errorf("expected key1='value1', got %q", result.GetAttr("key1").AsString())
+		}
+		if !result.GetAttr("key2").Equals(cty.NumberIntVal(42)).True() {
+			t.Errorf("expected key2=42, got %v", result.GetAttr("key2").GoString())
+		}
+	})
+}

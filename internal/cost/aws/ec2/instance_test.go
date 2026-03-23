@@ -154,6 +154,75 @@ func TestInstanceHandler_SubResources_Custom(t *testing.T) {
 	}
 }
 
+func TestInstanceHandler_Category(t *testing.T) {
+	h := &InstanceHandler{}
+	if h.Category() != aws.CostCategoryStandard {
+		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
+	}
+}
+
+func TestInstanceHandler_Describe(t *testing.T) {
+	h := &InstanceHandler{}
+
+	tests := []struct {
+		name       string
+		attrs      map[string]any
+		wantKeys   map[string]string
+		wantAbsent []string
+	}{
+		{
+			name:       "nil attrs",
+			attrs:      nil,
+			wantAbsent: []string{"instance_type", "tenancy"},
+		},
+		{
+			name: "instance_type only",
+			attrs: map[string]any{
+				"instance_type": "t3.micro",
+			},
+			wantKeys:   map[string]string{"instance_type": "t3.micro"},
+			wantAbsent: []string{"tenancy"},
+		},
+		{
+			name: "instance_type and tenancy",
+			attrs: map[string]any{
+				"instance_type": "m5.large",
+				"tenancy":       "dedicated",
+			},
+			wantKeys: map[string]string{
+				"instance_type": "m5.large",
+				"tenancy":       "dedicated",
+			},
+		},
+		{
+			name: "default tenancy excluded",
+			attrs: map[string]any{
+				"instance_type": "t3.micro",
+				"tenancy":       "default",
+			},
+			wantKeys:   map[string]string{"instance_type": "t3.micro"},
+			wantAbsent: []string{"tenancy"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := h.Describe(nil, tt.attrs)
+
+			for k, v := range tt.wantKeys {
+				if result[k] != v {
+					t.Errorf("Describe()[%q] = %q, want %q", k, result[k], v)
+				}
+			}
+			for _, k := range tt.wantAbsent {
+				if _, ok := result[k]; ok {
+					t.Errorf("Describe() should not contain key %q", k)
+				}
+			}
+		})
+	}
+}
+
 func TestGetRootBlockDevice(t *testing.T) {
 	tests := []struct {
 		name  string

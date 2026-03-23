@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"strings"
-
 	"github.com/spf13/cobra"
 
 	"github.com/edelwud/terraci/internal/discovery"
@@ -36,13 +34,7 @@ func (f *filterFlags) mergedIncludes(app *App) []string {
 
 // parsedSegmentFilters parses --filter key=value flags into a map.
 func (f *filterFlags) parsedSegmentFilters() map[string][]string {
-	segments := make(map[string][]string)
-	for _, arg := range f.segmentArgs {
-		if k, v, ok := strings.Cut(arg, "="); ok && k != "" {
-			segments[k] = append(segments[k], v)
-		}
-	}
-	return segments
+	return filter.ParseSegmentFilters(f.segmentArgs)
 }
 
 // applyFilters applies config + CLI filters to modules.

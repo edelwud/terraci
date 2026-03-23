@@ -3,8 +3,32 @@ package elb
 import (
 	"testing"
 
+	aws "github.com/edelwud/terraci/internal/cost/aws"
 	"github.com/edelwud/terraci/internal/cost/pricing"
 )
+
+func TestALBHandler_Category(t *testing.T) {
+	h := &ALBHandler{}
+	if h.Category() != aws.CostCategoryStandard {
+		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
+	}
+}
+
+func TestALBHandler_Describe(t *testing.T) {
+	h := &ALBHandler{}
+
+	// Default → application
+	result := h.Describe(nil, map[string]any{})
+	if result["type"] != "application" {
+		t.Errorf("Describe()[type] = %q, want %q", result["type"], "application")
+	}
+
+	// Explicit NLB
+	result = h.Describe(nil, map[string]any{"load_balancer_type": "network"})
+	if result["type"] != "network" {
+		t.Errorf("Describe()[type] = %q, want %q", result["type"], "network")
+	}
+}
 
 func TestALBHandler_ServiceCode(t *testing.T) {
 	h := &ALBHandler{}

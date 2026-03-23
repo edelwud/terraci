@@ -442,6 +442,72 @@ func TestPrewarmCache(t *testing.T) {
 	}
 }
 
+func TestCache_Accessors(t *testing.T) {
+	tmpDir := t.TempDir()
+	ttl := 2 * time.Hour
+	c := NewCache(tmpDir, ttl)
+
+	t.Run("Dir", func(t *testing.T) {
+		if c.Dir() != tmpDir {
+			t.Errorf("Dir() = %q, want %q", c.Dir(), tmpDir)
+		}
+	})
+
+	t.Run("TTL", func(t *testing.T) {
+		if c.TTL() != ttl {
+			t.Errorf("TTL() = %v, want %v", c.TTL(), ttl)
+		}
+	})
+
+	t.Run("SetFetcher", func(t *testing.T) {
+		f := &Fetcher{}
+		c.SetFetcher(f)
+		if c.fetcher != f {
+			t.Error("SetFetcher did not set fetcher")
+		}
+	})
+
+	t.Run("OldestAge empty", func(t *testing.T) {
+		if c.OldestAge() != 0 {
+			t.Errorf("OldestAge() = %v, want 0 for empty cache", c.OldestAge())
+		}
+	})
+
+	t.Run("Entries empty", func(t *testing.T) {
+		entries := c.Entries()
+		if len(entries) != 0 {
+			t.Errorf("Entries() len = %d, want 0", len(entries))
+		}
+	})
+
+	t.Run("Entries with data", func(t *testing.T) {
+		idx := &PriceIndex{
+			ServiceCode: ServiceEC2,
+			Region:      "us-east-1",
+			UpdatedAt:   time.Now(),
+			Products:    map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
+		}
+		if err := c.saveToCache(idx); err != nil {
+			t.Fatalf("saveToCache: %v", err)
+		}
+
+		entries := c.Entries()
+		if len(entries) != 1 {
+			t.Fatalf("Entries() len = %d, want 1", len(entries))
+		}
+		if entries[0].Service != ServiceEC2 {
+			t.Errorf("entry service = %q, want %q", entries[0].Service, ServiceEC2)
+		}
+	})
+
+	t.Run("OldestAge with data", func(t *testing.T) {
+		age := c.OldestAge()
+		if age <= 0 {
+			t.Errorf("OldestAge() = %v, want > 0 with cached data", age)
+		}
+	})
+}
+
 func TestPrewarmCache_Error(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)

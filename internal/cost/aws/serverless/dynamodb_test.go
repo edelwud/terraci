@@ -7,6 +7,13 @@ import (
 	"github.com/edelwud/terraci/internal/cost/pricing"
 )
 
+func TestDynamoDBHandler_Category(t *testing.T) {
+	h := &DynamoDBHandler{}
+	if h.Category() != aws.CostCategoryStandard {
+		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
+	}
+}
+
 func TestDynamoDBHandler_ServiceCode(t *testing.T) {
 	h := &DynamoDBHandler{}
 	if h.ServiceCode() != pricing.ServiceDynamoDB {
@@ -105,6 +112,66 @@ func TestDynamoDBHandler_CalculateCost(t *testing.T) {
 				}
 				if monthly != tt.wantMonthly {
 					t.Errorf("monthly = %v, want %v", monthly, tt.wantMonthly)
+				}
+			}
+		})
+	}
+}
+
+func TestDynamoDBHandler_Describe(t *testing.T) {
+	h := &DynamoDBHandler{}
+
+	tests := []struct {
+		name       string
+		attrs      map[string]any
+		wantKeys   map[string]string
+		wantAbsent []string
+	}{
+		{
+			name:       "nil attrs",
+			attrs:      nil,
+			wantAbsent: []string{"billing_mode", "read_capacity", "write_capacity"},
+		},
+		{
+			name:       "empty attrs",
+			attrs:      map[string]any{},
+			wantAbsent: []string{"billing_mode", "read_capacity", "write_capacity"},
+		},
+		{
+			name: "pay per request",
+			attrs: map[string]any{
+				"billing_mode": "PAY_PER_REQUEST",
+			},
+			wantKeys:   map[string]string{"billing_mode": "PAY_PER_REQUEST"},
+			wantAbsent: []string{"read_capacity", "write_capacity"},
+		},
+		{
+			name: "provisioned with capacity",
+			attrs: map[string]any{
+				"billing_mode":   "PROVISIONED",
+				"read_capacity":  float64(10),
+				"write_capacity": float64(20),
+			},
+			wantKeys: map[string]string{
+				"billing_mode":   "PROVISIONED",
+				"read_capacity":  "10",
+				"write_capacity": "20",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := h.Describe(nil, tt.attrs)
+
+			for k, v := range tt.wantKeys {
+				if result[k] != v {
+					t.Errorf("Describe()[%q] = %q, want %q", k, result[k], v)
+				}
+			}
+			for _, k := range tt.wantAbsent {
+				if _, ok := result[k]; ok {
+					t.Errorf("Describe() should not contain key %q", k)
 				}
 			}
 		})

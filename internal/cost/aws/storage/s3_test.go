@@ -3,8 +3,16 @@ package storage
 import (
 	"testing"
 
+	aws "github.com/edelwud/terraci/internal/cost/aws"
 	"github.com/edelwud/terraci/internal/cost/pricing"
 )
+
+func TestS3Handler_Category(t *testing.T) {
+	h := &S3Handler{}
+	if h.Category() != aws.CostCategoryUsageBased {
+		t.Errorf("Category() = %v, want CostCategoryUsageBased", h.Category())
+	}
+}
 
 func TestS3Handler_ServiceCode(t *testing.T) {
 	h := &S3Handler{}
@@ -32,5 +40,18 @@ func TestS3Handler_CalculateCost(t *testing.T) {
 	}
 	if monthly != 0 {
 		t.Errorf("monthly = %v, want 0", monthly)
+	}
+}
+
+func TestS3Handler_Describe(t *testing.T) {
+	h := &S3Handler{}
+	result := h.Describe(nil, nil)
+	if result != nil {
+		t.Errorf("Describe() = %v, want nil", result)
+	}
+
+	result = h.Describe(nil, map[string]any{"bucket": "my-bucket"})
+	if result != nil {
+		t.Errorf("Describe() with attrs = %v, want nil", result)
 	}
 }

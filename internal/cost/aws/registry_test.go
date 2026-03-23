@@ -120,3 +120,65 @@ func TestRegistry_RequiredServices(t *testing.T) {
 		t.Error("should include ServiceElastiCache")
 	}
 }
+
+func TestNewRegistry(t *testing.T) {
+	// Save and restore RegisterAll
+	origRegisterAll := RegisterAll
+	defer func() { RegisterAll = origRegisterAll }()
+
+	// Test with RegisterAll set to a function that registers a handler
+	RegisterAll = func(r *Registry) {
+		r.Register("aws_test_resource", &stubHandler{svc: pricing.ServiceEC2, category: CostCategoryStandard})
+	}
+
+	r := NewRegistry()
+	if r == nil {
+		t.Fatal("NewRegistry should return non-nil registry")
+	}
+	if !r.IsSupported("aws_test_resource") {
+		t.Error("NewRegistry should have called RegisterAll to register handlers")
+	}
+	types := r.SupportedTypes()
+	if len(types) == 0 {
+		t.Error("SupportedTypes should return non-empty list after RegisterAll")
+	}
+}
+
+func TestNewRegistry_NilRegisterAll(t *testing.T) {
+	origRegisterAll := RegisterAll
+	defer func() { RegisterAll = origRegisterAll }()
+
+	RegisterAll = nil
+
+	r := NewRegistry()
+	if r == nil {
+		t.Fatal("NewRegistry should return non-nil registry even with nil RegisterAll")
+	}
+	if len(r.SupportedTypes()) != 0 {
+		t.Error("SupportedTypes should be empty when RegisterAll is nil")
+	}
+}
+
+func TestRegistry_RequiredServices_UnknownTypes(t *testing.T) {
+	r := newTestRegistry()
+
+	services := r.RequiredServices([]string{"aws_nonexistent", "not_a_resource"})
+	if len(services) != 0 {
+		t.Errorf("RequiredServices with unknown types should return empty map, got %d entries", len(services))
+	}
+}
+
+func TestRegistry_RequiredServices_Empty(t *testing.T) {
+	r := newTestRegistry()
+
+	services := r.RequiredServices([]string{})
+	if len(services) != 0 {
+		t.Errorf("RequiredServices with empty input should return empty map, got %d entries", len(services))
+	}
+}
+
+func TestLogUnsupported(_ *testing.T) {
+	// Just verify it doesn't panic
+	LogUnsupported("aws_unknown_resource", "module.foo.aws_unknown_resource.bar")
+	LogUnsupported("", "")
+}

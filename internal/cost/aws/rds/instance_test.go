@@ -7,6 +7,38 @@ import (
 	"github.com/edelwud/terraci/internal/cost/pricing"
 )
 
+func TestInstanceHandler_Category(t *testing.T) {
+	h := &InstanceHandler{}
+	if h.Category() != aws.CostCategoryStandard {
+		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
+	}
+}
+
+func TestInstanceHandler_Describe(t *testing.T) {
+	h := &InstanceHandler{}
+
+	attrs := map[string]any{
+		"instance_class":    "db.t3.micro",
+		"engine":            "postgres",
+		"multi_az":          true,
+		"allocated_storage": float64(100),
+	}
+	result := h.Describe(nil, attrs)
+
+	if result["instance_class"] != "db.t3.micro" {
+		t.Errorf("Describe()[instance_class] = %q, want %q", result["instance_class"], "db.t3.micro")
+	}
+	if result["engine"] != "postgres" {
+		t.Errorf("Describe()[engine] = %q, want %q", result["engine"], "postgres")
+	}
+	if result["multi_az"] != "true" {
+		t.Errorf("Describe()[multi_az] = %q, want %q", result["multi_az"], "true")
+	}
+	if result["storage_gb"] != "100" {
+		t.Errorf("Describe()[storage_gb] = %q, want %q", result["storage_gb"], "100")
+	}
+}
+
 func TestInstanceHandler_ServiceCode(t *testing.T) {
 	h := &InstanceHandler{}
 	if h.ServiceCode() != pricing.ServiceRDS {

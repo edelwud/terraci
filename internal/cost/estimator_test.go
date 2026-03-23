@@ -8,8 +8,10 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/edelwud/terraci/internal/cost/pricing"
+	"github.com/edelwud/terraci/pkg/config"
 )
 
 // fakePricingServer returns an httptest server serving minimal AWS pricing JSON.
@@ -185,4 +187,72 @@ func TestNewEstimator(t *testing.T) {
 	if estimator == nil {
 		t.Fatal("nil")
 	}
+}
+
+func TestNewEstimatorFromConfig(t *testing.T) {
+	t.Run("nil config", func(t *testing.T) {
+		e := NewEstimatorFromConfig(nil)
+		if e == nil {
+			t.Fatal("expected non-nil estimator")
+		}
+	})
+
+	t.Run("with custom cache dir and TTL", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		cfg := &config.CostConfig{
+			CacheDir: tmpDir,
+			CacheTTL: "2h",
+		}
+		e := NewEstimatorFromConfig(cfg)
+		if e.CacheDir() != tmpDir {
+			t.Errorf("CacheDir() = %q, want %q", e.CacheDir(), tmpDir)
+		}
+		if e.CacheTTL() != 2*time.Hour {
+			t.Errorf("CacheTTL() = %v, want 2h", e.CacheTTL())
+		}
+	})
+
+	t.Run("invalid TTL uses default", func(t *testing.T) {
+		cfg := &config.CostConfig{CacheTTL: "invalid"}
+		e := NewEstimatorFromConfig(cfg)
+		if e.CacheTTL() != 24*time.Hour {
+			t.Errorf("CacheTTL() = %v, want 24h", e.CacheTTL())
+		}
+	})
+}
+
+func TestEstimator_Accessors(t *testing.T) {
+	cacheDir := t.TempDir()
+	estimator := NewEstimator(cacheDir, 0)
+
+	t.Run("CacheDir", func(t *testing.T) {
+		got := estimator.CacheDir()
+		if got != cacheDir {
+			t.Errorf("CacheDir() = %q, want %q", got, cacheDir)
+		}
+	})
+
+	t.Run("CacheTTL", func(t *testing.T) {
+		ttl := estimator.CacheTTL()
+		if ttl <= 0 {
+			t.Errorf("CacheTTL() = %v, want > 0", ttl)
+		}
+	})
+
+	t.Run("CacheOldestAge empty", func(t *testing.T) {
+		if estimator.CacheOldestAge() != 0 {
+			t.Errorf("CacheOldestAge() = %v, want 0", estimator.CacheOldestAge())
+		}
+	})
+
+	t.Run("CacheEntries empty", func(t *testing.T) {
+		entries := estimator.CacheEntries()
+		if len(entries) != 0 {
+			t.Errorf("CacheEntries() len = %d, want 0", len(entries))
+		}
+	})
+
+	t.Run("CleanExpiredCache no-op", func(_ *testing.T) {
+		estimator.CleanExpiredCache() // should not panic
+	})
 }

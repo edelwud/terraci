@@ -7,6 +7,13 @@ import (
 	"github.com/edelwud/terraci/internal/cost/pricing"
 )
 
+func TestLambdaHandler_Category(t *testing.T) {
+	h := &LambdaHandler{}
+	if h.Category() != aws.CostCategoryStandard {
+		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
+	}
+}
+
 func TestLambdaHandler_ServiceCode(t *testing.T) {
 	h := &LambdaHandler{}
 	if h.ServiceCode() != pricing.ServiceLambda {
@@ -101,6 +108,70 @@ func TestLambdaHandler_CalculateCost(t *testing.T) {
 				}
 				if monthly != tt.wantMonthly {
 					t.Errorf("monthly = %v, want %v", monthly, tt.wantMonthly)
+				}
+			}
+		})
+	}
+}
+
+func TestLambdaHandler_Describe(t *testing.T) {
+	h := &LambdaHandler{}
+
+	tests := []struct {
+		name       string
+		attrs      map[string]any
+		wantKeys   map[string]string
+		wantAbsent []string
+	}{
+		{
+			name:       "nil attrs",
+			attrs:      nil,
+			wantAbsent: []string{"memory_mb", "runtime", "provisioned_concurrency"},
+		},
+		{
+			name:       "empty attrs",
+			attrs:      map[string]any{},
+			wantAbsent: []string{"memory_mb", "runtime", "provisioned_concurrency"},
+		},
+		{
+			name: "all fields present",
+			attrs: map[string]any{
+				"memory_size":                       float64(512),
+				"runtime":                           "python3.12",
+				"provisioned_concurrent_executions": float64(5),
+			},
+			wantKeys: map[string]string{
+				"memory_mb":               "512",
+				"runtime":                 "python3.12",
+				"provisioned_concurrency": "5",
+			},
+		},
+		{
+			name: "memory and runtime only",
+			attrs: map[string]any{
+				"memory_size": float64(256),
+				"runtime":     "nodejs20.x",
+			},
+			wantKeys: map[string]string{
+				"memory_mb": "256",
+				"runtime":   "nodejs20.x",
+			},
+			wantAbsent: []string{"provisioned_concurrency"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := h.Describe(nil, tt.attrs)
+
+			for k, v := range tt.wantKeys {
+				if result[k] != v {
+					t.Errorf("Describe()[%q] = %q, want %q", k, result[k], v)
+				}
+			}
+			for _, k := range tt.wantAbsent {
+				if _, ok := result[k]; ok {
+					t.Errorf("Describe() should not contain key %q", k)
 				}
 			}
 		})

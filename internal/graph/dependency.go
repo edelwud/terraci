@@ -2,6 +2,7 @@
 package graph
 
 import (
+	"fmt"
 	"slices"
 	"sort"
 	"strings"
@@ -175,4 +176,22 @@ func (g *DependencyGraph) Subgraph(moduleIDs []string) *DependencyGraph {
 	}
 
 	return sub
+}
+
+// ScopeToModule returns a subgraph scoped to the given module's dependencies or dependents.
+// If showDependents is true, includes the module and all its dependents;
+// otherwise includes the module and all its dependencies.
+func (g *DependencyGraph) ScopeToModule(moduleID string, showDependents bool) (*DependencyGraph, error) {
+	if g.GetNode(moduleID) == nil {
+		return nil, fmt.Errorf("module not found: %s", moduleID)
+	}
+
+	var ids []string
+	if showDependents {
+		ids = append([]string{moduleID}, g.GetAllDependents(moduleID)...)
+	} else {
+		ids = append([]string{moduleID}, g.GetAllDependencies(moduleID)...)
+	}
+
+	return g.Subgraph(ids), nil
 }

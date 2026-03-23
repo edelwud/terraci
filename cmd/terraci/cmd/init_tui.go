@@ -57,12 +57,12 @@ type initModel struct {
 func newInitModel() *initModel {
 	m := &initModel{
 		opts: initOptions{
-			provider:    "gitlab",
-			binary:      "terraform",
-			pattern:     "{service}/{environment}/{region}/{module}",
-			image:       defaultTerraformImage,
-			runsOn:      defaultGitHubRunner,
-			planEnabled: true,
+			Provider:    "gitlab",
+			Binary:      "terraform",
+			Pattern:     "{service}/{environment}/{region}/{module}",
+			Image:       defaultTerraformImage,
+			RunsOn:      defaultGitHubRunner,
+			PlanEnabled: true,
 		},
 	}
 
@@ -85,7 +85,7 @@ func (m *initModel) basicsGroup() *huh.Group {
 			Options(
 				huh.NewOption("GitLab CI", "gitlab"),
 				huh.NewOption("GitHub Actions", "github"),
-			).Value(&m.opts.provider),
+			).Value(&m.opts.Provider),
 
 		huh.NewSelect[string]().
 			Title("Terraform Binary").
@@ -93,7 +93,7 @@ func (m *initModel) basicsGroup() *huh.Group {
 			Options(
 				huh.NewOption("Terraform", "terraform"),
 				huh.NewOption("OpenTofu", "tofu"),
-			).Value(&m.opts.binary),
+			).Value(&m.opts.Binary),
 	).Title("Basics")
 }
 
@@ -103,7 +103,7 @@ func (m *initModel) structureGroup() *huh.Group {
 			Title("Directory Pattern").
 			Description("How are your modules organized?").
 			Placeholder("{service}/{environment}/{region}/{module}").
-			Value(&m.opts.pattern),
+			Value(&m.opts.Pattern),
 	).Title("Project Structure")
 }
 
@@ -113,9 +113,9 @@ func (m *initModel) gitlabGroup() *huh.Group {
 			Title("Docker Image").
 			Description("Base image for terraform jobs").
 			Placeholder(defaultTerraformImage).
-			Value(&m.opts.image),
+			Value(&m.opts.Image),
 	).Title("GitLab CI").WithHideFunc(func() bool {
-		return m.opts.provider != "gitlab"
+		return m.opts.Provider != "gitlab"
 	})
 }
 
@@ -125,9 +125,9 @@ func (m *initModel) githubGroup() *huh.Group {
 			Title("Runner Label").
 			Description("GitHub Actions runs-on value").
 			Placeholder(defaultGitHubRunner).
-			Value(&m.opts.runsOn),
+			Value(&m.opts.RunsOn),
 	).Title("GitHub Actions").WithHideFunc(func() bool {
-		return m.opts.provider != "github"
+		return m.opts.Provider != "github"
 	})
 }
 
@@ -136,22 +136,22 @@ func (m *initModel) pipelineGroup() *huh.Group {
 		huh.NewConfirm().
 			Title("Enable plan stage?").
 			Description("Generate separate plan + apply jobs").
-			Value(&m.opts.planEnabled),
+			Value(&m.opts.PlanEnabled),
 
 		huh.NewConfirm().
 			Title("Auto-approve applies?").
 			Description("Skip manual approval for terraform apply").
-			Value(&m.opts.autoApprove),
+			Value(&m.opts.AutoApprove),
 
 		huh.NewConfirm().
 			Title("Enable PR/MR comments?").
 			Description("Post plan summaries as comments").
-			Value(&m.opts.enableMR),
+			Value(&m.opts.EnableMR),
 
 		huh.NewConfirm().
 			Title("Enable cost estimation?").
 			Description("Estimate AWS costs from plans").
-			Value(&m.opts.enableCost),
+			Value(&m.opts.EnableCost),
 	).Title("Pipeline Options")
 }
 
@@ -173,7 +173,7 @@ func (m *initModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	_, cmd := m.form.Update(msg)
 
 	if m.form.State == huh.StateCompleted {
-		m.result = m.opts.buildConfig()
+		m.result = m.opts.BuildConfig()
 		return m, tea.Quit
 	}
 
@@ -200,7 +200,7 @@ func (m *initModel) View() tea.View {
 // --- YAML preview ---
 
 func (m *initModel) renderYAMLPreview() string {
-	data, err := yaml.Marshal(m.opts.buildConfig())
+	data, err := yaml.Marshal(m.opts.BuildConfig())
 	if err != nil {
 		data = []byte("# error generating preview")
 	}

@@ -7,6 +7,31 @@ import (
 	"github.com/edelwud/terraci/internal/cost/pricing"
 )
 
+func TestReplicationGroupHandler_Category(t *testing.T) {
+	h := &ReplicationGroupHandler{}
+	if h.Category() != aws.CostCategoryStandard {
+		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
+	}
+}
+
+func TestReplicationGroupHandler_Describe(t *testing.T) {
+	h := &ReplicationGroupHandler{}
+
+	attrs := map[string]any{
+		"node_type":             "cache.r5.large",
+		"num_node_groups":       2,
+		"number_cache_clusters": 4,
+	}
+	result := h.Describe(nil, attrs)
+
+	if result["node_type"] != "cache.r5.large" {
+		t.Errorf("Describe()[node_type] = %q, want %q", result["node_type"], "cache.r5.large")
+	}
+	if result["node_groups"] != "2" {
+		t.Errorf("Describe()[node_groups] = %q, want %q", result["node_groups"], "2")
+	}
+}
+
 func TestReplicationGroupHandler_ServiceCode(t *testing.T) {
 	h := &ReplicationGroupHandler{}
 	if h.ServiceCode() != pricing.ServiceElastiCache {

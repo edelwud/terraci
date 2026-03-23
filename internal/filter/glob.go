@@ -167,6 +167,17 @@ func (f *globModuleFilter) Match(module *discovery.Module) bool {
 	return f.GlobFilter.Match(module.ID())
 }
 
+// ParseSegmentFilters parses "key=value" strings into a segment filter map.
+func ParseSegmentFilters(args []string) map[string][]string {
+	segments := make(map[string][]string)
+	for _, arg := range args {
+		if k, v, ok := strings.Cut(arg, "="); ok && k != "" {
+			segments[k] = append(segments[k], v)
+		}
+	}
+	return segments
+}
+
 // --- Glob matching internals ---
 
 // matchGlob provides extended glob matching with ** support.

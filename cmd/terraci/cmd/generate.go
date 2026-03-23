@@ -46,12 +46,12 @@ Examples:
 			// Apply CLI flags to config
 			provider := app.Config.ResolvedProvider()
 			if planOnly {
-				applyPlanOnly(app, provider)
+				config.ApplyPlanOnly(app.Config, provider)
 			}
 			if cmd.Flags().Changed("auto-approve") {
-				setAutoApprove(app, provider, true)
+				config.SetAutoApprove(app.Config, provider, true)
 			} else if cmd.Flags().Changed("no-auto-approve") {
-				setAutoApprove(app, provider, false)
+				config.SetAutoApprove(app.Config, provider, false)
 			}
 
 			result, err := workflow.Run(cmd.Context(), ff.workflowOptions(app))
@@ -105,36 +105,6 @@ Examples:
 	ff.register(cmd)
 
 	return cmd
-}
-
-// --- CLI flag application ---
-
-func applyPlanOnly(app *App, provider string) {
-	switch provider {
-	case config.ProviderGitHub:
-		if app.Config.GitHub != nil {
-			app.Config.GitHub.PlanOnly = true
-			app.Config.GitHub.PlanEnabled = true
-		}
-	default:
-		if app.Config.GitLab != nil {
-			app.Config.GitLab.PlanOnly = true
-			app.Config.GitLab.PlanEnabled = true
-		}
-	}
-}
-
-func setAutoApprove(app *App, provider string, approve bool) {
-	switch provider {
-	case config.ProviderGitHub:
-		if app.Config.GitHub != nil {
-			app.Config.GitHub.AutoApprove = approve
-		}
-	default:
-		if app.Config.GitLab != nil {
-			app.Config.GitLab.AutoApprove = approve
-		}
-	}
 }
 
 // --- Logging helpers ---

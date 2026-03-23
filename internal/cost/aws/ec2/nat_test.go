@@ -3,8 +3,24 @@ package ec2
 import (
 	"testing"
 
+	aws "github.com/edelwud/terraci/internal/cost/aws"
 	"github.com/edelwud/terraci/internal/cost/pricing"
 )
+
+func TestNATHandler_Category(t *testing.T) {
+	h := &NATHandler{}
+	if h.Category() != aws.CostCategoryStandard {
+		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
+	}
+}
+
+func TestNATHandler_Describe(t *testing.T) {
+	h := &NATHandler{}
+	result := h.Describe(nil, nil)
+	if len(result) != 0 {
+		t.Errorf("Describe() = %v, want empty map", result)
+	}
+}
 
 func TestNATHandler_ServiceCode(t *testing.T) {
 	h := &NATHandler{}

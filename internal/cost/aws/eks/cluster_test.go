@@ -7,6 +7,13 @@ import (
 	"github.com/edelwud/terraci/internal/cost/pricing"
 )
 
+func TestClusterHandler_Category(t *testing.T) {
+	h := &ClusterHandler{}
+	if h.Category() != aws.CostCategoryStandard {
+		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
+	}
+}
+
 func TestClusterHandler_ServiceCode(t *testing.T) {
 	h := &ClusterHandler{}
 	if h.ServiceCode() != pricing.ServiceEKS {
@@ -86,5 +93,51 @@ func TestClusterHandler_CalculateCost_Fallback(t *testing.T) {
 	hourly2, _ := h.CalculateCost(&pricing.Price{OnDemandUSD: 0}, nil, "", nil)
 	if hourly2 != DefaultClusterHourlyCost {
 		t.Errorf("hourly with zero price = %v, want fallback %v", hourly2, DefaultClusterHourlyCost)
+	}
+}
+
+func TestClusterHandler_Describe(t *testing.T) {
+	h := &ClusterHandler{}
+
+	tests := []struct {
+		name       string
+		attrs      map[string]any
+		wantKeys   map[string]string
+		wantAbsent []string
+	}{
+		{
+			name:       "nil attrs",
+			attrs:      nil,
+			wantAbsent: []string{"version"},
+		},
+		{
+			name:       "empty attrs",
+			attrs:      map[string]any{},
+			wantAbsent: []string{"version"},
+		},
+		{
+			name: "with version",
+			attrs: map[string]any{
+				"version": "1.28",
+			},
+			wantKeys: map[string]string{"version": "1.28"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := h.Describe(nil, tt.attrs)
+
+			for k, v := range tt.wantKeys {
+				if result[k] != v {
+					t.Errorf("Describe()[%q] = %q, want %q", k, result[k], v)
+				}
+			}
+			for _, k := range tt.wantAbsent {
+				if _, ok := result[k]; ok {
+					t.Errorf("Describe() should not contain key %q", k)
+				}
+			}
+		})
 	}
 }
