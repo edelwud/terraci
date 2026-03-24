@@ -1,0 +1,99 @@
+package elasticache
+
+import (
+	"fmt"
+	"strconv"
+
+	aws "github.com/edelwud/terraci/plugins/cost/engine/aws"
+	"github.com/edelwud/terraci/plugins/cost/engine/pricing"
+)
+
+const defaultEngine = "redis"
+
+// Backup storage fallback (used when API lookup unavailable).
+const FallbackBackupStorageCostPerGBMonth = 0.085
+
+// Data tiering fallback for r6gd/r7gd nodes.
+const FallbackDataTieringCostPerGBMonth = 0.0125
+
+// ClusterHandler handles aws_elasticache_cluster cost estimation
+type ClusterHandler struct{}
+
+func (h *ClusterHandler) Category() aws.CostCategory { return aws.CostCategoryStandard }
+
+func (h *ClusterHandler) ServiceCode() pricing.ServiceCode {
+	return pricing.ServiceElastiCache
+}
+
+func (h *ClusterHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
+	nodeType := aws.GetStringAttr(attrs, "node_type")
+	if nodeType == "" {
+		return nil, fmt.Errorf("node_type not found")
+	}
+
+	engine := aws.GetStringAttr(attrs, "engine")
+	if engine == "" {
+		engine = defaultEngine
+	}
+
+	cacheEngine := "Redis"
+	if engine == "memcached" {
+		cacheEngine = "Memcached"
+	}
+
+	// Use usagetype to select standard on-demand pricing and exclude
+	// ExtendedSupport variants which have different rates.
+	prefix := aws.ResolveUsagePrefix(region)
+	usagetype := prefix + "-NodeUsage:" + nodeType
+
+	lb := &aws.LookupBuilder{Service: pricing.ServiceElastiCache, ProductFamily: "Cache Instance"}
+	return lb.Build(region, map[string]string{
+		"instanceType": nodeType,
+		"cacheEngine":  cacheEngine,
+		"usagetype":    usagetype,
+	}), nil
+}
+
+func (h *ClusterHandler) Describe(price *pricing.Price, attrs map[string]any) map[string]string {
+	desc := make(map[string]string)
+	if v := aws.GetStringAttr(attrs, "node_type"); v != "" {
+		desc["node_type"] = v
+	}
+	if v := aws.GetStringAttr(attrs, "engine"); v != "" {
+		desc["engine"] = v
+	}
+	if v := aws.GetIntAttr(attrs, "num_cache_nodes"); v != 0 {
+		desc["nodes"] = strconv.Itoa(v)
+	}
+	if v := aws.GetIntAttr(attrs, "snapshot_retention_limit"); v > 0 {
+		desc["snapshot_retention_days"] = strconv.Itoa(v)
+	}
+	if mem := nodeMemoryFromPrice(price); mem > 0 {
+		desc["memory_gib"] = fmt.Sprintf("%.2f", mem)
+	}
+	if ssd := nodeSSDFromPrice(price); ssd > 0 {
+		desc["ssd_gib"] = fmt.Sprintf("%.0f", ssd)
+	}
+	return desc
+}
+
+func (h *ClusterHandler) CalculateCost(price *pricing.Price, index *pricing.PriceIndex, region string, attrs map[string]any) (hourly, monthly float64) {
+	numCacheNodes := aws.GetIntAttr(attrs, "num_cache_nodes")
+	if numCacheNodes == 0 {
+		numCacheNodes = 1
+	}
+
+	_, monthly = aws.ScaledHourlyCost(price.OnDemandUSD, numCacheNodes)
+
+	// Data tiering cost for nodes with local SSD (r6gd/r7gd)
+	monthly += dataTieringCost(price, index, region, numCacheNodes)
+
+	// Backup storage cost
+	snapshotRetention := aws.GetIntAttr(attrs, "snapshot_retention_limit")
+	if snapshotRetention > 0 {
+		monthly += backupStorageCost(price, index, region, numCacheNodes, snapshotRetention)
+	}
+
+	hourly = monthly / aws.HoursPerMonth
+	return hourly, monthly
+}

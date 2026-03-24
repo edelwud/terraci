@@ -29,6 +29,12 @@ type Config struct {
 	// LibraryModules configuration for shared/reusable modules
 	LibraryModules *LibraryModulesConfig `yaml:"library_modules,omitempty" json:"library_modules,omitempty" jsonschema:"description=Configuration for library/shared modules (non-executable modules used by other modules)"`
 
+	// Plugins holds plugin-specific configuration.
+	// Each key is a plugin's ConfigKey(), value is decoded by the plugin.
+	Plugins map[string]yaml.Node `yaml:"plugins,omitempty" json:"plugins,omitempty" jsonschema:"description=Plugin-specific configuration"`
+
+	// --- Legacy fields (will be removed after plugin extraction) ---
+
 	// Policy configuration for OPA/Conftest policy checks
 	Policy *PolicyConfig `yaml:"policy,omitempty" json:"policy,omitempty" jsonschema:"description=Policy checks configuration using OPA"`
 
@@ -40,6 +46,19 @@ type Config struct {
 
 	// GitHub Actions configuration
 	GitHub *GitHubConfig `yaml:"github,omitempty" json:"github,omitempty" jsonschema:"description=GitHub Actions configuration"`
+}
+
+// PluginConfig decodes plugin-specific configuration into the target struct.
+// Returns nil if the plugin has no configuration (defaults should be used).
+func (c *Config) PluginConfig(key string, target any) error {
+	if c.Plugins == nil {
+		return nil
+	}
+	node, ok := c.Plugins[key]
+	if !ok {
+		return nil
+	}
+	return node.Decode(target)
 }
 
 // LibraryModulesConfig defines configuration for library/shared modules

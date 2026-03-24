@@ -3,9 +3,9 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/edelwud/terraci/internal/discovery"
-	"github.com/edelwud/terraci/internal/filter"
-	"github.com/edelwud/terraci/internal/workflow"
+	"github.com/edelwud/terraci/pkg/discovery"
+	"github.com/edelwud/terraci/pkg/filter"
+	"github.com/edelwud/terraci/pkg/workflow"
 )
 
 // filterFlags holds shared filter flag values.

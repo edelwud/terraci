@@ -8,10 +8,10 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/edelwud/terraci/internal/discovery"
-	"github.com/edelwud/terraci/internal/graph"
-	"github.com/edelwud/terraci/internal/parser"
-	"github.com/edelwud/terraci/internal/pipeline/gitlab"
+	"github.com/edelwud/terraci/pkg/discovery"
+	"github.com/edelwud/terraci/pkg/graph"
+	"github.com/edelwud/terraci/pkg/parser"
+	"github.com/edelwud/terraci/plugins/gitlab"
 	"github.com/edelwud/terraci/pkg/config"
 )
 

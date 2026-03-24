@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/edelwud/terraci/internal/discovery"
-	"github.com/edelwud/terraci/internal/pipeline/gitlab"
+	"github.com/edelwud/terraci/pkg/discovery"
+	"github.com/edelwud/terraci/plugins/gitlab"
 	"github.com/edelwud/terraci/pkg/config"
 )
 

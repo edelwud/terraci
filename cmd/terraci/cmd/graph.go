@@ -7,8 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/edelwud/terraci/internal/graph"
-	"github.com/edelwud/terraci/internal/workflow"
+	"github.com/edelwud/terraci/pkg/graph"
+	"github.com/edelwud/terraci/pkg/workflow"
 	"github.com/edelwud/terraci/pkg/log"
 )
 

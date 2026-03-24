@@ -1,21 +1,20 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 
-	"github.com/edelwud/terraci/internal/discovery"
-	"github.com/edelwud/terraci/internal/git"
-	"github.com/edelwud/terraci/internal/graph"
-	"github.com/edelwud/terraci/internal/pipeline"
-	pipelinegithub "github.com/edelwud/terraci/internal/pipeline/github"
-	"github.com/edelwud/terraci/internal/pipeline/gitlab"
-	"github.com/edelwud/terraci/internal/workflow"
 	"github.com/edelwud/terraci/pkg/config"
+	"github.com/edelwud/terraci/pkg/discovery"
+	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/log"
+	"github.com/edelwud/terraci/pkg/pipeline"
+	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/workflow"
 )
 
 func newGenerateCmd(app *App) *cobra.Command {
@@ -81,7 +80,10 @@ Examples:
 			}
 
 			log.WithField("modules", len(targets)).Info("generating pipeline")
-			generator := newPipelineGenerator(app, result.Graph, result.FilteredModules)
+			generator, genErr := newPipelineGenerator(app, result.Graph, result.FilteredModules)
+			if genErr != nil {
+				return genErr
+			}
 
 			if dryRun {
 				return runDryRun(generator, targets)
@@ -152,13 +154,12 @@ func logCycles(depGraph *graph.DependencyGraph) {
 
 // --- Pipeline generation ---
 
-func newPipelineGenerator(app *App, depGraph *graph.DependencyGraph, modules []*discovery.Module) pipeline.Generator {
-	switch app.Config.ResolvedProvider() {
-	case config.ProviderGitHub:
-		return pipelinegithub.NewGenerator(app.Config.GitHub, app.Config.Policy, depGraph, modules)
-	default:
-		return gitlab.NewGenerator(app.Config.GitLab, app.Config.Policy, depGraph, modules)
+func newPipelineGenerator(app *App, depGraph *graph.DependencyGraph, modules []*discovery.Module) (pipeline.Generator, error) {
+	provider, err := plugin.ResolveProvider()
+	if err != nil {
+		return nil, fmt.Errorf("resolve CI provider: %w", err)
 	}
+	return provider.NewGenerator(app.PluginContext(), depGraph, modules), nil
 }
 
 func runDryRun(gen pipeline.Generator, targets []*discovery.Module) error {
@@ -213,9 +214,16 @@ func detectChangedTargetModules(
 	fullIndex, filteredIndex *discovery.ModuleIndex,
 	depGraph *graph.DependencyGraph,
 ) ([]*discovery.Module, error) {
+	detectors := plugin.ByCapability[plugin.ChangeDetectionProvider]()
+	if len(detectors) == 0 {
+		return nil, fmt.Errorf("no change detection plugin available (is the git plugin loaded?)")
+	}
+	detector := detectors[0]
+	appCtx := app.PluginContext()
+
 	log.Info("detecting changed modules")
 
-	changedModules, changedFiles, err := getChangedModulesVerbose(app.WorkDir, baseRef, fullIndex)
+	changedModules, changedFiles, err := detector.DetectChangedModules(context.Background(), appCtx, baseRef, fullIndex)
 	if err != nil {
 		return nil, fmt.Errorf("detect changed modules: %w", err)
 	}
@@ -224,7 +232,15 @@ func detectChangedTargetModules(
 	log.WithField("count", len(changedModules)).Info("changed modules detected")
 
 	changedIDs := moduleIDs(changedModules)
-	libraryPaths := detectChangedLibraries(app, baseRef)
+
+	var libraryPaths []string
+	if app.Config.LibraryModules != nil && len(app.Config.LibraryModules.Paths) > 0 {
+		log.Debug("checking for changed library modules")
+		libraryPaths, _ = detector.DetectChangedLibraries(context.Background(), appCtx, baseRef, app.Config.LibraryModules.Paths)
+		if len(libraryPaths) > 0 {
+			log.WithField("count", len(libraryPaths)).Info("changed library modules")
+		}
+	}
 
 	var affectedIDs []string
 	if len(libraryPaths) > 0 {
@@ -237,32 +253,6 @@ func detectChangedTargetModules(
 	log.WithField("count", len(targets)).Info("affected modules (including dependents)")
 
 	return targets, nil
-}
-
-func detectChangedLibraries(app *App, baseRef string) []string {
-	if app.Config.LibraryModules == nil || len(app.Config.LibraryModules.Paths) == 0 {
-		return nil
-	}
-
-	log.Debug("checking for changed library modules")
-	gitClient := git.NewClient(app.WorkDir)
-	detector := git.NewChangedModulesDetector(gitClient, discovery.NewModuleIndex(nil), app.WorkDir)
-
-	ref := baseRef
-	if ref == "" {
-		ref = gitClient.GetDefaultBranch()
-	}
-
-	paths, err := detector.DetectChangedLibraryModules(ref, app.Config.LibraryModules.Paths)
-	if err != nil {
-		log.WithError(err).Warn("failed to detect changed library modules")
-		return nil
-	}
-
-	if len(paths) > 0 {
-		log.WithField("count", len(paths)).Info("changed library modules")
-	}
-	return paths
 }
 
 func resolveAffectedModules(
@@ -312,18 +302,4 @@ func makeRelative(path, base string) string {
 		}
 	}
 	return path
-}
-
-func getChangedModulesVerbose(workDir, baseRef string, moduleIndex *discovery.ModuleIndex) ([]*discovery.Module, []string, error) {
-	gitClient := git.NewClient(workDir)
-	if !gitClient.IsGitRepo() {
-		return nil, nil, fmt.Errorf("not a git repository: %s", workDir)
-	}
-
-	ref := baseRef
-	if ref == "" {
-		ref = gitClient.GetDefaultBranch()
-	}
-
-	return git.NewChangedModulesDetector(gitClient, moduleIndex, workDir).DetectChangedModulesVerbose(ref)
 }

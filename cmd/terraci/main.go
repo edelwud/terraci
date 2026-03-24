@@ -4,6 +4,13 @@ import (
 	"os"
 
 	"github.com/edelwud/terraci/cmd/terraci/cmd"
+
+	// Built-in plugins (blank imports trigger init() registration)
+	_ "github.com/edelwud/terraci/plugins/cost"
+	_ "github.com/edelwud/terraci/plugins/git"
+	_ "github.com/edelwud/terraci/plugins/github"
+	_ "github.com/edelwud/terraci/plugins/gitlab"
+	_ "github.com/edelwud/terraci/plugins/policy"
 )
 
 // Version information (set via ldflags)

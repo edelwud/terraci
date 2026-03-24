@@ -1,0 +1,283 @@
+// Package policy provides the OPA policy check plugin for TerraCi.
+package policy
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"time"
+
+	"github.com/spf13/cobra"
+
+	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/config"
+	"github.com/edelwud/terraci/pkg/log"
+	"github.com/edelwud/terraci/pkg/plugin"
+)
+
+func init() {
+	plugin.Register(&Plugin{})
+}
+
+// Plugin is the OPA policy check plugin.
+type Plugin struct {
+	cfg *config.PolicyConfig
+}
+
+func (p *Plugin) Name() string        { return "policy" }
+func (p *Plugin) Description() string { return "OPA policy checks for Terraform plans" }
+
+// ConfigProvider
+
+func (p *Plugin) ConfigKey() string { return "policy" }
+func (p *Plugin) NewConfig() any    { return &config.PolicyConfig{} }
+func (p *Plugin) SetConfig(cfg any) error {
+	p.cfg = cfg.(*config.PolicyConfig)
+	return nil
+}
+
+func (p *Plugin) effectiveConfig(ctx *plugin.AppContext) *config.PolicyConfig {
+	if p.cfg != nil && p.cfg.Enabled {
+		return p.cfg
+	}
+	if ctx.Config.Policy != nil {
+		return ctx.Config.Policy
+	}
+	return &config.PolicyConfig{}
+}
+
+// CommandProvider
+
+func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
+	var (
+		policyOutput     string
+		policyModulePath string
+	)
+
+	pullCmd := &cobra.Command{
+		Use:   "pull",
+		Short: "Pull policies from configured sources",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			cfg := p.effectiveConfig(ctx)
+			if !cfg.Enabled {
+				return fmt.Errorf("policy checks are not enabled in configuration")
+			}
+
+			log.Info("pulling policies from configured sources")
+
+			if policyOutput != "" {
+				cfg.CacheDir = policyOutput
+			}
+
+			puller, err := NewPuller(cfg, ctx.WorkDir)
+			if err != nil {
+				return fmt.Errorf("failed to create puller: %w", err)
+			}
+
+			c, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
+
+			dirs, err := puller.Pull(c)
+			if err != nil {
+				return fmt.Errorf("failed to pull policies: %w", err)
+			}
+
+			log.WithField("count", len(dirs)).Info("policy sources pulled")
+			log.WithField("cache", puller.CacheDir()).Info("policies cached")
+			return nil
+		},
+	}
+
+	checkCmd := &cobra.Command{
+		Use:   "check",
+		Short: "Check Terraform plans against policies",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			cfg := p.effectiveConfig(ctx)
+			if !cfg.Enabled {
+				return fmt.Errorf("policy checks are not enabled in configuration")
+			}
+
+			log.Info("running policy checks")
+
+			puller, err := NewPuller(cfg, ctx.WorkDir)
+			if err != nil {
+				return fmt.Errorf("failed to create puller: %w", err)
+			}
+
+			c, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
+
+			policyDirs, err := puller.Pull(c)
+			if err != nil {
+				return fmt.Errorf("failed to pull policies: %w", err)
+			}
+
+			checker := NewChecker(cfg, policyDirs, ctx.WorkDir)
+
+			var summary *Summary
+
+			if policyModulePath != "" {
+				result, checkErr := checker.CheckModule(c, policyModulePath)
+				if checkErr != nil {
+					return fmt.Errorf("policy check failed: %w", checkErr)
+				}
+				summary = NewSummary([]Result{*result})
+			} else {
+				var checkErr error
+				summary, checkErr = checker.CheckAll(c)
+				if checkErr != nil {
+					return fmt.Errorf("policy check failed: %w", checkErr)
+				}
+			}
+
+			if err := savePolicyResults(summary); err != nil {
+				log.WithError(err).Warn("failed to save policy results")
+			}
+
+			if policyOutput == "json" {
+				enc := json.NewEncoder(os.Stdout)
+				enc.SetIndent("", "  ")
+				return enc.Encode(summary)
+			}
+
+			return outputText(summary, checker.ShouldBlock(summary))
+		},
+	}
+
+	pullCmd.Flags().StringVarP(&policyOutput, "output", "o", "", "output directory for policies")
+	checkCmd.Flags().StringVarP(&policyModulePath, "module", "m", "", "check specific module only")
+	checkCmd.Flags().StringVarP(&policyOutput, "output", "o", "", "output format: text, json")
+
+	cmd := &cobra.Command{
+		Use:   "policy",
+		Short: "Policy management commands",
+		Long:  "Commands for managing and running OPA policy checks against Terraform plans.",
+	}
+	cmd.AddCommand(pullCmd, checkCmd)
+
+	return []*cobra.Command{cmd}
+}
+
+func savePolicyResults(summary *Summary) error {
+	dir := ".terraci"
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("create directory: %w", err)
+	}
+	file, err := os.Create(dir + "/policy-results.json")
+	if err != nil {
+		return fmt.Errorf("create file: %w", err)
+	}
+	defer file.Close()
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(summary)
+}
+
+// VersionProvider — contributes OPA version to `terraci version`
+
+func (p *Plugin) VersionInfo() map[string]string {
+	return map[string]string{"opa": OPAVersion()}
+}
+
+// SummaryContributor — loads policy results and contributes to summary comment
+
+func (p *Plugin) ContributeToSummary(_ context.Context, appCtx *plugin.AppContext, execCtx *plugin.ExecutionContext) error {
+	// Try common locations for policy results
+	paths := []string{
+		filepath.Join(".terraci", "policy-results.json"),
+		"policy-results.json",
+		filepath.Join(appCtx.WorkDir, ".terraci", "policy-results.json"),
+	}
+
+	for _, path := range paths {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+
+		var raw Summary
+		if err := json.Unmarshal(data, &raw); err != nil {
+			log.WithField("path", path).WithError(err).Debug("failed to parse policy results")
+			continue
+		}
+
+		// Convert to CI types and store in execution context
+		policySummary := toCIPolicySummary(&raw)
+		execCtx.SetData("policy:summary", policySummary)
+
+		log.WithField("modules", policySummary.TotalModules).
+			WithField("failures", policySummary.TotalFailures).
+			WithField("warnings", policySummary.TotalWarnings).
+			Info("loaded policy results")
+
+		return nil
+	}
+
+	return nil
+}
+
+func toCIPolicySummary(s *Summary) *ci.PolicySummary {
+	results := make([]ci.PolicyResult, len(s.Results))
+	for i, r := range s.Results {
+		failures := make([]ci.PolicyViolation, len(r.Failures))
+		for j, f := range r.Failures {
+			failures[j] = ci.PolicyViolation{Namespace: f.Namespace, Message: f.Message}
+		}
+		warnings := make([]ci.PolicyViolation, len(r.Warnings))
+		for j, w := range r.Warnings {
+			warnings[j] = ci.PolicyViolation{Namespace: w.Namespace, Message: w.Message}
+		}
+		results[i] = ci.PolicyResult{
+			Module:   r.Module,
+			Failures: failures,
+			Warnings: warnings,
+		}
+	}
+	return &ci.PolicySummary{
+		TotalModules:  s.TotalModules,
+		PassedModules: s.PassedModules,
+		WarnedModules: s.WarnedModules,
+		FailedModules: s.FailedModules,
+		TotalFailures: s.TotalFailures,
+		TotalWarnings: s.TotalWarnings,
+		Results:       results,
+	}
+}
+
+func outputText(summary *Summary, shouldBlock bool) error {
+	log.WithField("total", summary.TotalModules).
+		WithField("passed", summary.PassedModules).
+		WithField("warned", summary.WarnedModules).
+		WithField("failed", summary.FailedModules).
+		Info("policy check summary")
+
+	for _, result := range summary.Results {
+		if result.Status() == "pass" {
+			continue
+		}
+		log.WithField("module", result.Module).WithField("status", result.Status()).Info("module result")
+		log.IncreasePadding()
+		for _, f := range result.Failures {
+			log.WithField("namespace", f.Namespace).WithField("message", f.Message).Error("failure")
+		}
+		for _, w := range result.Warnings {
+			log.WithField("namespace", w.Namespace).WithField("message", w.Message).Warn("warning")
+		}
+		log.DecreasePadding()
+	}
+
+	if shouldBlock {
+		log.Error("policy check FAILED")
+		return fmt.Errorf("policy check failed with %d failures", summary.TotalFailures)
+	}
+
+	if summary.HasWarnings() {
+		log.Warn("policy check passed with warnings")
+	} else {
+		log.Info("policy check PASSED")
+	}
+
+	return nil
+}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/log"
+	"github.com/edelwud/terraci/pkg/plugin"
 )
 
 // NewRootCmd creates and returns the root cobra command with all subcommands.
@@ -77,7 +78,34 @@ Features:
 			}
 
 			log.Debug("validating configuration")
-			return app.Config.Validate()
+			if err := app.Config.Validate(); err != nil {
+				return err
+			}
+
+			// Initialize plugin configs
+			log.Debug("initializing plugin configurations")
+			if err := app.InitPluginConfigs(); err != nil {
+				return err
+			}
+
+			// Initialize plugins (lifecycle stage 3)
+			log.Debug("initializing plugins")
+			for _, p := range plugin.ByCapability[plugin.Initializable]() {
+				if err := p.Initialize(cmd.Context(), app.PluginContext()); err != nil {
+					return fmt.Errorf("initialize plugin %s: %w", p.Name(), err)
+				}
+			}
+
+			return nil
+		},
+		PersistentPostRunE: func(cmd *cobra.Command, _ []string) error {
+			// Finalize plugins (lifecycle stage 5)
+			for _, p := range plugin.ByCapability[plugin.Finalizable]() {
+				if err := p.Finalize(cmd.Context()); err != nil {
+					log.WithField("plugin", p.Name()).WithError(err).Warn("plugin finalize error")
+				}
+			}
+			return nil
 		},
 	}
 
@@ -87,18 +115,25 @@ Features:
 	rootCmd.PersistentFlags().StringVarP(&app.logLevel, "log-level", "l", "info", "log level (debug, info, warn, error)")
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "enable verbose output (shorthand for --log-level=debug)")
 
-	// Register subcommands
+	// Register core subcommands
 	rootCmd.AddCommand(newGenerateCmd(app))
 	rootCmd.AddCommand(newGraphCmd(app))
 	rootCmd.AddCommand(newValidateCmd(app))
-	rootCmd.AddCommand(newCostCmd(app))
 	rootCmd.AddCommand(newSummaryCmd(app))
-	rootCmd.AddCommand(newPolicyCmd(app))
+	// Note: policy command is now provided by the policy plugin
 	rootCmd.AddCommand(newInitCmd(app))
 	rootCmd.AddCommand(newVersionCmd(app))
 	rootCmd.AddCommand(newSchemaCmd())
 	rootCmd.AddCommand(newCompletionCmd(rootCmd))
 	rootCmd.AddCommand(newManCmd(rootCmd))
+
+	// Register plugin-provided commands
+	pluginCtx := app.PluginContext()
+	for _, cp := range plugin.ByCapability[plugin.CommandProvider]() {
+		for _, cmd := range cp.Commands(pluginCtx) {
+			rootCmd.AddCommand(cmd)
+		}
+	}
 
 	return rootCmd
 }
