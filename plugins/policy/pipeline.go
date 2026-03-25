@@ -1,6 +1,8 @@
 package policy
 
 import (
+	"path/filepath"
+
 	"github.com/edelwud/terraci/pkg/pipeline"
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
@@ -10,13 +12,17 @@ func (p *Plugin) PipelineContribution() *pipeline.Contribution {
 	if !p.IsConfigured() || p.cfg == nil || !p.cfg.Enabled {
 		return nil
 	}
+	serviceDir := p.serviceDirRel
+	if serviceDir == "" {
+		serviceDir = ".terraci"
+	}
 	allowFailure := p.cfg.OnFailure == policyengine.ActionWarn
 	return &pipeline.Contribution{
 		Jobs: []pipeline.ContributedJob{{
 			Name:          "policy-check",
 			Phase:         pipeline.PhasePostPlan,
 			Commands:      []string{"terraci policy pull", "terraci policy check"},
-			ArtifactPaths: []string{".terraci/policy-results.json"},
+			ArtifactPaths: []string{filepath.Join(serviceDir, "policy-results.json")},
 			DependsOnPlan: true,
 			AllowFailure:  allowFailure,
 		}},

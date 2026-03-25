@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -37,7 +38,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 				cfg.CacheDir = policyOutput
 			}
 
-			puller, err := policyengine.NewPuller(cfg, ctx.WorkDir)
+			puller, err := policyengine.NewPuller(cfg, ctx.WorkDir, ctx.ServiceDir)
 			if err != nil {
 				return fmt.Errorf("failed to create puller: %w", err)
 			}
@@ -68,7 +69,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 
 			log.Info("running policy checks")
 
-			puller, err := policyengine.NewPuller(cfg, ctx.WorkDir)
+			puller, err := policyengine.NewPuller(cfg, ctx.WorkDir, ctx.ServiceDir)
 			if err != nil {
 				return fmt.Errorf("failed to create puller: %w", err)
 			}
@@ -99,7 +100,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 				}
 			}
 
-			if err := savePolicyResults(summary); err != nil {
+			if err := savePolicyResults(summary, ctx.ServiceDir); err != nil {
 				log.WithError(err).Warn("failed to save policy results")
 			}
 
@@ -127,12 +128,11 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 	return []*cobra.Command{cmd}
 }
 
-func savePolicyResults(summary *policyengine.Summary) error {
-	dir := ".terraci"
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+func savePolicyResults(summary *policyengine.Summary, serviceDir string) error {
+	if err := os.MkdirAll(serviceDir, 0o755); err != nil {
 		return fmt.Errorf("create directory: %w", err)
 	}
-	file, err := os.Create(dir + "/policy-results.json")
+	file, err := os.Create(filepath.Join(serviceDir, "policy-results.json"))
 	if err != nil {
 		return fmt.Errorf("create file: %w", err)
 	}

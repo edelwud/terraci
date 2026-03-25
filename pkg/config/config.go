@@ -13,6 +13,9 @@ import (
 
 // Config represents the terraci configuration
 type Config struct {
+	// ServiceDir is the project-level service directory for cache and artifacts.
+	ServiceDir string `yaml:"service_dir,omitempty" json:"service_dir,omitempty" jsonschema:"description=Service directory for cache and artifacts,default=.terraci"`
+
 	// Structure defines the directory structure pattern
 	Structure StructureConfig `yaml:"structure" json:"structure" jsonschema:"description=Directory structure configuration"`
 
@@ -61,6 +64,7 @@ type StructureConfig struct {
 // DefaultConfig returns a config with sensible defaults
 func DefaultConfig() *Config {
 	return &Config{
+		ServiceDir: ".terraci",
 		Structure: StructureConfig{
 			Pattern:  "{service}/{environment}/{region}/{module}",
 			Segments: PatternSegments{"service", "environment", "region", "module"},

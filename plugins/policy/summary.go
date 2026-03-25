@@ -16,9 +16,8 @@ import (
 func (p *Plugin) ContributeToSummary(_ context.Context, appCtx *plugin.AppContext, execCtx *plugin.ExecutionContext) error {
 	// Try common locations for policy results
 	paths := []string{
-		filepath.Join(".terraci", "policy-results.json"),
+		filepath.Join(appCtx.ServiceDir, "policy-results.json"),
 		"policy-results.json",
-		filepath.Join(appCtx.WorkDir, ".terraci", "policy-results.json"),
 	}
 
 	for _, path := range paths {

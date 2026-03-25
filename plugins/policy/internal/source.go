@@ -36,15 +36,20 @@ type Puller struct {
 	cacheDir string
 }
 
-// NewPuller creates a new policy puller
-func NewPuller(cfg *Config, rootDir string) (*Puller, error) {
+// NewPuller creates a new policy puller.
+// serviceDir is the project-level service directory (e.g. ".terraci") used as
+// a default base for the policy cache when CacheDir is not explicitly set.
+func NewPuller(cfg *Config, rootDir, serviceDir string) (*Puller, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("policy config is nil")
 	}
 
 	cacheDir := cfg.CacheDir
 	if cacheDir == "" {
-		cacheDir = ".terraci/policies"
+		if serviceDir == "" {
+			serviceDir = ".terraci"
+		}
+		cacheDir = filepath.Join(serviceDir, "policies")
 	}
 
 	// Make cache dir absolute if relative

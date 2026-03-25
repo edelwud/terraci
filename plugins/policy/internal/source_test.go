@@ -77,7 +77,7 @@ func TestNewPuller(t *testing.T) {
 		CacheDir: ".cache/policies",
 	}
 
-	puller, err := NewPuller(cfg, "/root")
+	puller, err := NewPuller(cfg, "/root", "/root/.terraci")
 	if err != nil {
 		t.Fatalf("NewPuller() error = %v", err)
 	}
@@ -94,7 +94,7 @@ func TestNewPuller(t *testing.T) {
 }
 
 func TestNewPuller_NilConfig(t *testing.T) {
-	_, err := NewPuller(nil, "/root")
+	_, err := NewPuller(nil, "/root", "/root/.terraci")
 	if err == nil {
 		t.Error("expected error for nil config")
 	}
@@ -107,7 +107,7 @@ func TestNewPuller_DefaultCacheDir(t *testing.T) {
 		},
 	}
 
-	puller, err := NewPuller(cfg, "/root")
+	puller, err := NewPuller(cfg, "/root", "/root/.terraci")
 	if err != nil {
 		t.Fatalf("NewPuller() error = %v", err)
 	}
@@ -124,7 +124,7 @@ func TestNewPuller_ResolvesRelativePaths(t *testing.T) {
 		},
 	}
 
-	puller, err := NewPuller(cfg, "/root")
+	puller, err := NewPuller(cfg, "/root", "/root/.terraci")
 	if err != nil {
 		t.Fatalf("NewPuller() error = %v", err)
 	}
@@ -154,7 +154,7 @@ func TestPuller_Pull_PathSource(t *testing.T) {
 		CacheDir: filepath.Join(tmpDir, "cache"),
 	}
 
-	puller, err := NewPuller(cfg, tmpDir)
+	puller, err := NewPuller(cfg, tmpDir, filepath.Join(tmpDir, ".terraci"))
 	if err != nil {
 		t.Fatalf("NewPuller() error = %v", err)
 	}
@@ -179,7 +179,7 @@ func TestPuller_CacheDir(t *testing.T) {
 		CacheDir: "/custom/cache",
 	}
 
-	puller, err := NewPuller(cfg, "/root")
+	puller, err := NewPuller(cfg, "/root", "/root/.terraci")
 	if err != nil {
 		t.Fatalf("NewPuller() error = %v", err)
 	}

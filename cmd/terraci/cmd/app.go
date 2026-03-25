@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"path/filepath"
+
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/plugin"
 )
@@ -29,6 +31,16 @@ func (a *App) PluginContext() *plugin.AppContext {
 	ctx.Refresh = func() {
 		ctx.Config = a.Config
 		ctx.WorkDir = a.WorkDir
+
+		serviceDir := ".terraci"
+		if a.Config != nil && a.Config.ServiceDir != "" {
+			serviceDir = a.Config.ServiceDir
+		}
+		if !filepath.IsAbs(serviceDir) {
+			ctx.ServiceDir = filepath.Join(a.WorkDir, serviceDir)
+		} else {
+			ctx.ServiceDir = serviceDir
+		}
 	}
 	ctx.Refresh() // populate now if available
 	return ctx

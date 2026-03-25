@@ -11,9 +11,10 @@ import (
 // Config and WorkDir are resolved lazily via the accessor function
 // so they reflect the state after PersistentPreRunE completes.
 type AppContext struct {
-	Config  *config.Config
-	WorkDir string
-	Version string
+	Config     *config.Config
+	WorkDir    string
+	ServiceDir string // resolved absolute path to project service directory
+	Version    string
 
 	// Refresh is called before accessing Config/WorkDir to ensure
 	// they reflect the current state. Set by the App struct.

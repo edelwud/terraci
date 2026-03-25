@@ -12,8 +12,10 @@ func init() { //nolint:gochecknoinits // intentional plugin registration
 
 // Plugin is the OPA policy check plugin.
 type Plugin struct {
-	cfg        *policyengine.Config
-	configured bool
+	cfg           *policyengine.Config
+	configured    bool
+	serviceDir    string // absolute path, for file I/O
+	serviceDirRel string // relative path, for pipeline artifact paths
 }
 
 func (p *Plugin) Name() string        { return "policy" }

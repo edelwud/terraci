@@ -10,6 +10,13 @@ import (
 
 // Initialize validates OPA availability at startup.
 func (p *Plugin) Initialize(_ context.Context, appCtx *plugin.AppContext) error {
+	p.serviceDir = appCtx.ServiceDir
+	if appCtx.Config != nil && appCtx.Config.ServiceDir != "" {
+		p.serviceDirRel = appCtx.Config.ServiceDir
+	} else {
+		p.serviceDirRel = ".terraci"
+	}
+
 	cfg := p.effectiveConfig(appCtx)
 	if !cfg.Enabled {
 		return nil
