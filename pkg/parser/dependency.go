@@ -10,8 +10,8 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/internal/terraform/eval"
+	"github.com/edelwud/terraci/pkg/discovery"
 	terrierrors "github.com/edelwud/terraci/pkg/errors"
 )
 

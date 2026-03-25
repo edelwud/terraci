@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"sort"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -9,6 +10,7 @@ import (
 	"go.yaml.in/yaml/v4"
 
 	"github.com/edelwud/terraci/pkg/config"
+	"github.com/edelwud/terraci/pkg/plugin"
 )
 
 // --- TUI styles ---
@@ -51,28 +53,46 @@ type initModel struct {
 	width  int
 	height int
 	result *config.Config
-	opts   initOptions
+	state  *plugin.StateMap
 }
 
 func newInitModel() *initModel {
-	m := &initModel{
-		opts: initOptions{
-			Provider:    "gitlab",
-			Binary:      "terraform",
-			Pattern:     "{service}/{environment}/{region}/{module}",
-			Image:       defaultTerraformImage,
-			RunsOn:      defaultGitHubRunner,
-			PlanEnabled: true,
-		},
+	state := plugin.NewStateMap()
+	state.Set("provider", "gitlab")
+	state.Set("binary", "terraform")
+	state.Set("pattern", "{service}/{environment}/{region}/{module}")
+	state.Set("plan_enabled", true)
+
+	m := &initModel{state: state}
+
+	// Collect plugin groups sorted by Order
+	contributors := plugin.ByCapability[plugin.InitContributor]()
+	type orderedGroup struct {
+		order int
+		group *huh.Group
+	}
+	var pluginGroups []orderedGroup
+	for _, c := range contributors {
+		spec := c.InitGroup()
+		if spec == nil {
+			continue
+		}
+		g := buildPluginGroup(spec, state)
+		pluginGroups = append(pluginGroups, orderedGroup{order: spec.Order, group: g})
+	}
+	sort.Slice(pluginGroups, func(i, j int) bool {
+		return pluginGroups[i].order < pluginGroups[j].order
+	})
+
+	groups := make([]*huh.Group, 0, 2+len(pluginGroups)+1)
+	groups = append(groups, m.basicsGroup(), m.structureGroup())
+	for _, pg := range pluginGroups {
+		groups = append(groups, pg.group)
 	}
 
-	m.form = huh.NewForm(
-		m.basicsGroup(),
-		m.structureGroup(),
-		m.gitlabGroup(),
-		m.githubGroup(),
-		m.pipelineGroup(),
-	).WithWidth(formWidth).WithShowHelp(true)
+	groups = append(groups, m.pipelineGroup())
+
+	m.form = huh.NewForm(groups...).WithWidth(formWidth).WithShowHelp(true)
 
 	return m
 }
@@ -85,7 +105,7 @@ func (m *initModel) basicsGroup() *huh.Group {
 			Options(
 				huh.NewOption("GitLab CI", "gitlab"),
 				huh.NewOption("GitHub Actions", "github"),
-			).Value(&m.opts.Provider),
+			).Value(m.state.StringPtr("provider")),
 
 		huh.NewSelect[string]().
 			Title("Terraform Binary").
@@ -93,7 +113,7 @@ func (m *initModel) basicsGroup() *huh.Group {
 			Options(
 				huh.NewOption("Terraform", "terraform"),
 				huh.NewOption("OpenTofu", "tofu"),
-			).Value(&m.opts.Binary),
+			).Value(m.state.StringPtr("binary")),
 	).Title("Basics")
 }
 
@@ -103,32 +123,8 @@ func (m *initModel) structureGroup() *huh.Group {
 			Title("Directory Pattern").
 			Description("How are your modules organized?").
 			Placeholder("{service}/{environment}/{region}/{module}").
-			Value(&m.opts.Pattern),
+			Value(m.state.StringPtr("pattern")),
 	).Title("Project Structure")
-}
-
-func (m *initModel) gitlabGroup() *huh.Group {
-	return huh.NewGroup(
-		huh.NewInput().
-			Title("Docker Image").
-			Description("Base image for terraform jobs").
-			Placeholder(defaultTerraformImage).
-			Value(&m.opts.Image),
-	).Title("GitLab CI").WithHideFunc(func() bool {
-		return m.opts.Provider != "gitlab"
-	})
-}
-
-func (m *initModel) githubGroup() *huh.Group {
-	return huh.NewGroup(
-		huh.NewInput().
-			Title("Runner Label").
-			Description("GitHub Actions runs-on value").
-			Placeholder(defaultGitHubRunner).
-			Value(&m.opts.RunsOn),
-	).Title("GitHub Actions").WithHideFunc(func() bool {
-		return m.opts.Provider != "github"
-	})
 }
 
 func (m *initModel) pipelineGroup() *huh.Group {
@@ -136,23 +132,87 @@ func (m *initModel) pipelineGroup() *huh.Group {
 		huh.NewConfirm().
 			Title("Enable plan stage?").
 			Description("Generate separate plan + apply jobs").
-			Value(&m.opts.PlanEnabled),
+			Value(m.state.BoolPtr("plan_enabled")),
 
 		huh.NewConfirm().
 			Title("Auto-approve applies?").
 			Description("Skip manual approval for terraform apply").
-			Value(&m.opts.AutoApprove),
+			Value(m.state.BoolPtr("auto_approve")),
 
 		huh.NewConfirm().
 			Title("Enable PR/MR comments?").
 			Description("Post plan summaries as comments").
-			Value(&m.opts.EnableMR),
-
-		huh.NewConfirm().
-			Title("Enable cost estimation?").
-			Description("Estimate AWS costs from plans").
-			Value(&m.opts.EnableCost),
+			Value(m.state.BoolPtr("enable_mr")),
 	).Title("Pipeline Options")
+}
+
+// buildPluginGroup converts an InitGroupSpec into a huh.Group.
+func buildPluginGroup(spec *plugin.InitGroupSpec, state *plugin.StateMap) *huh.Group {
+	fields := make([]huh.Field, 0, len(spec.Fields))
+	for _, f := range spec.Fields {
+		fields = append(fields, buildPluginField(f, state))
+	}
+
+	g := huh.NewGroup(fields...).Title(spec.Title)
+	if spec.ShowWhen != nil {
+		showWhen := spec.ShowWhen
+		g = g.WithHideFunc(func() bool {
+			return !showWhen(state)
+		})
+	}
+	return g
+}
+
+// buildPluginField converts an InitField into a huh.Field.
+func buildPluginField(f plugin.InitField, state *plugin.StateMap) huh.Field {
+	// Initialize default value
+	if f.Default != nil {
+		if state.Get(f.Key) == nil {
+			state.Set(f.Key, f.Default)
+		}
+	}
+
+	switch f.Type {
+	case "bool":
+		return huh.NewConfirm().
+			Title(f.Title).
+			Description(f.Description).
+			Value(state.BoolPtr(f.Key))
+	case "select":
+		opts := make([]huh.Option[string], len(f.Options))
+		for i, o := range f.Options {
+			opts[i] = huh.NewOption(o.Label, o.Value)
+		}
+		return huh.NewSelect[string]().
+			Title(f.Title).
+			Description(f.Description).
+			Options(opts...).
+			Value(state.StringPtr(f.Key))
+	default: // "string"
+		input := huh.NewInput().
+			Title(f.Title).
+			Description(f.Description).
+			Value(state.StringPtr(f.Key))
+		if f.Placeholder != "" {
+			input = input.Placeholder(f.Placeholder)
+		}
+		return input
+	}
+}
+
+// buildConfigFromState collects InitContributor results and builds a Config.
+func buildConfigFromState(state *plugin.StateMap) *config.Config {
+	pattern, _ := state.Get("pattern").(string) //nolint:errcheck // safe type assertion
+	pluginConfigs := make(map[string]map[string]any)
+
+	for _, c := range plugin.ByCapability[plugin.InitContributor]() {
+		contrib := c.BuildInitConfig(state)
+		if contrib != nil {
+			pluginConfigs[contrib.PluginKey] = contrib.Config
+		}
+	}
+
+	return config.BuildConfigFromPlugins(pattern, pluginConfigs)
 }
 
 // --- Tea interface ---
@@ -173,7 +233,7 @@ func (m *initModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	_, cmd := m.form.Update(msg)
 
 	if m.form.State == huh.StateCompleted {
-		m.result = m.opts.BuildConfig()
+		m.result = buildConfigFromState(m.state)
 		return m, tea.Quit
 	}
 
@@ -200,7 +260,7 @@ func (m *initModel) View() tea.View {
 // --- YAML preview ---
 
 func (m *initModel) renderYAMLPreview() string {
-	data, err := yaml.Marshal(m.opts.BuildConfig())
+	data, err := yaml.Marshal(buildConfigFromState(m.state))
 	if err != nil {
 		data = []byte("# error generating preview")
 	}

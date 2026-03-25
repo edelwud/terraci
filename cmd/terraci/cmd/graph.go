@@ -8,8 +8,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/edelwud/terraci/pkg/graph"
-	"github.com/edelwud/terraci/pkg/workflow"
 	"github.com/edelwud/terraci/pkg/log"
+	"github.com/edelwud/terraci/pkg/workflow"
 )
 
 func newGraphCmd(app *App) *cobra.Command {

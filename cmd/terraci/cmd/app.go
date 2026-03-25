@@ -21,18 +21,26 @@ type App struct {
 }
 
 // PluginContext returns the AppContext for plugins.
+// The returned context auto-refreshes from App state on Ensure().
 func (a *App) PluginContext() *plugin.AppContext {
-	return &plugin.AppContext{
-		Config:  a.Config,
-		WorkDir: a.WorkDir,
+	ctx := &plugin.AppContext{
 		Version: a.Version,
 	}
+	ctx.Refresh = func() {
+		ctx.Config = a.Config
+		ctx.WorkDir = a.WorkDir
+	}
+	ctx.Refresh() // populate now if available
+	return ctx
 }
 
 // InitPluginConfigs decodes plugin-specific configurations from the Plugins map
 // and passes them to each ConfigProvider plugin.
 func (a *App) InitPluginConfigs() error {
 	for _, p := range plugin.ByCapability[plugin.ConfigProvider]() {
+		if _, exists := a.Config.Plugins[p.ConfigKey()]; !exists {
+			continue
+		}
 		cfg := p.NewConfig()
 		if err := a.Config.PluginConfig(p.ConfigKey(), cfg); err != nil {
 			return err

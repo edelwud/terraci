@@ -57,14 +57,14 @@ func ByCapability[T Plugin]() []T {
 }
 
 // ResolveProvider detects the active CI provider from registered GeneratorProviders.
-// Priority: env detection → single registered provider → error.
+// Priority: env detection → TERRACI_PROVIDER env → single registered → default gitlab fallback.
 func ResolveProvider() (GeneratorProvider, error) {
 	generators := ByCapability[GeneratorProvider]()
 	if len(generators) == 0 {
 		return nil, fmt.Errorf("no CI provider plugins registered")
 	}
 
-	// Check env detection
+	// Check env detection (CI environment variables)
 	for _, g := range generators {
 		if g.DetectEnv() {
 			return g, nil
@@ -73,12 +73,7 @@ func ResolveProvider() (GeneratorProvider, error) {
 
 	// Check TERRACI_PROVIDER env var
 	if name := os.Getenv("TERRACI_PROVIDER"); name != "" {
-		for _, g := range generators {
-			if g.ProviderName() == name {
-				return g, nil
-			}
-		}
-		return nil, fmt.Errorf("provider %q not found (available: %s)", name, providerNames(generators))
+		return findProvider(generators, name)
 	}
 
 	// Single provider registered
@@ -86,7 +81,27 @@ func ResolveProvider() (GeneratorProvider, error) {
 		return generators[0], nil
 	}
 
-	return nil, fmt.Errorf("multiple CI providers registered, set TERRACI_PROVIDER (available: %s)", providerNames(generators))
+	// Filter by explicitly configured providers
+	var configured []GeneratorProvider
+	for _, g := range generators {
+		if cp, ok := g.(ConfigProvider); ok && cp.IsConfigured() {
+			configured = append(configured, g)
+		}
+	}
+	if len(configured) == 1 {
+		return configured[0], nil
+	}
+
+	return nil, fmt.Errorf("cannot determine CI provider: multiple plugins registered (%s), set TERRACI_PROVIDER", providerNames(generators))
+}
+
+func findProvider(generators []GeneratorProvider, name string) (GeneratorProvider, error) {
+	for _, g := range generators {
+		if g.ProviderName() == name {
+			return g, nil
+		}
+	}
+	return nil, fmt.Errorf("provider %q not found (available: %s)", name, providerNames(generators))
 }
 
 func providerNames(generators []GeneratorProvider) string {

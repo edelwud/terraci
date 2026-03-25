@@ -12,18 +12,51 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/edelwud/terraci/pkg/ci"
-	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/plugin"
+	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
 
-func init() {
+func init() { //nolint:gochecknoinits // intentional plugin registration
 	plugin.Register(&Plugin{})
 }
 
+// Re-export types from internal package for external consumers.
+type (
+	Config       = policyengine.Config
+	Action       = policyengine.Action
+	SourceConfig = policyengine.SourceConfig
+	Overwrite    = policyengine.Overwrite
+	Result       = policyengine.Result
+	Violation    = policyengine.Violation
+	Summary      = policyengine.Summary
+	Checker      = policyengine.Checker
+	Engine       = policyengine.Engine
+	Source       = policyengine.Source
+	Puller       = policyengine.Puller
+)
+
+// Re-export constants from internal package.
+var (
+	ActionBlock  = policyengine.ActionBlock
+	ActionWarn   = policyengine.ActionWarn
+	ActionIgnore = policyengine.ActionIgnore
+)
+
+// Re-export functions from internal package.
+var (
+	OPAVersion = policyengine.OPAVersion
+	NewChecker = policyengine.NewChecker
+	NewEngine  = policyengine.NewEngine
+	NewSource  = policyengine.NewSource
+	NewPuller  = policyengine.NewPuller
+	NewSummary = policyengine.NewSummary
+)
+
 // Plugin is the OPA policy check plugin.
 type Plugin struct {
-	cfg *config.PolicyConfig
+	cfg        *Config
+	configured bool
 }
 
 func (p *Plugin) Name() string        { return "policy" }
@@ -32,20 +65,78 @@ func (p *Plugin) Description() string { return "OPA policy checks for Terraform 
 // ConfigProvider
 
 func (p *Plugin) ConfigKey() string { return "policy" }
-func (p *Plugin) NewConfig() any    { return &config.PolicyConfig{} }
+func (p *Plugin) NewConfig() any    { return &Config{} }
 func (p *Plugin) SetConfig(cfg any) error {
-	p.cfg = cfg.(*config.PolicyConfig)
+	pc, ok := cfg.(*Config)
+	if !ok {
+		return fmt.Errorf("expected *Config, got %T", cfg)
+	}
+	p.cfg = pc
+	p.configured = true
 	return nil
 }
 
-func (p *Plugin) effectiveConfig(ctx *plugin.AppContext) *config.PolicyConfig {
-	if p.cfg != nil && p.cfg.Enabled {
+func (p *Plugin) IsConfigured() bool { return p.configured }
+
+// Initializable — validate OPA availability at startup
+
+func (p *Plugin) Initialize(_ context.Context, appCtx *plugin.AppContext) error {
+	cfg := p.effectiveConfig(appCtx)
+	if !cfg.Enabled {
+		return nil
+	}
+
+	log.WithField("opa", policyengine.OPAVersion()).Debug("policy: OPA engine available")
+
+	// Validate policy sources are configured
+	if len(cfg.Sources) == 0 {
+		log.Warn("policy: enabled but no sources configured")
+	}
+
+	return nil
+}
+
+func (p *Plugin) effectiveConfig(_ *plugin.AppContext) *Config {
+	if p.cfg != nil {
 		return p.cfg
 	}
-	if ctx.Config.Policy != nil {
-		return ctx.Config.Policy
+	return &Config{}
+}
+
+// InitContributor — contributes policy check field to the init wizard.
+
+const initGroupOrder = 201
+
+func (p *Plugin) InitGroup() *plugin.InitGroupSpec {
+	return &plugin.InitGroupSpec{
+		Title: "Policy Checks",
+		Order: initGroupOrder,
+		Fields: []plugin.InitField{
+			{
+				Key:         "policy.enabled",
+				Title:       "Enable policy checks?",
+				Description: "Run OPA policy checks against Terraform plans",
+				Type:        "bool",
+				Default:     false,
+			},
+		},
 	}
-	return &config.PolicyConfig{}
+}
+
+func (p *Plugin) BuildInitConfig(state plugin.InitState) *plugin.InitContribution {
+	enabled, ok := state.Get("policy.enabled").(bool)
+	if !ok {
+		return nil
+	}
+	if !enabled {
+		return nil
+	}
+	return &plugin.InitContribution{
+		PluginKey: "policy",
+		Config: map[string]any{
+			"enabled": true,
+		},
+	}
 }
 
 // CommandProvider
@@ -60,6 +151,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 		Use:   "pull",
 		Short: "Pull policies from configured sources",
 		RunE: func(_ *cobra.Command, _ []string) error {
+			ctx.Ensure()
 			cfg := p.effectiveConfig(ctx)
 			if !cfg.Enabled {
 				return fmt.Errorf("policy checks are not enabled in configuration")
@@ -71,7 +163,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 				cfg.CacheDir = policyOutput
 			}
 
-			puller, err := NewPuller(cfg, ctx.WorkDir)
+			puller, err := policyengine.NewPuller(cfg, ctx.WorkDir)
 			if err != nil {
 				return fmt.Errorf("failed to create puller: %w", err)
 			}
@@ -94,6 +186,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 		Use:   "check",
 		Short: "Check Terraform plans against policies",
 		RunE: func(_ *cobra.Command, _ []string) error {
+			ctx.Ensure()
 			cfg := p.effectiveConfig(ctx)
 			if !cfg.Enabled {
 				return fmt.Errorf("policy checks are not enabled in configuration")
@@ -101,7 +194,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 
 			log.Info("running policy checks")
 
-			puller, err := NewPuller(cfg, ctx.WorkDir)
+			puller, err := policyengine.NewPuller(cfg, ctx.WorkDir)
 			if err != nil {
 				return fmt.Errorf("failed to create puller: %w", err)
 			}
@@ -114,16 +207,16 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 				return fmt.Errorf("failed to pull policies: %w", err)
 			}
 
-			checker := NewChecker(cfg, policyDirs, ctx.WorkDir)
+			checker := policyengine.NewChecker(cfg, policyDirs, ctx.WorkDir)
 
-			var summary *Summary
+			var summary *policyengine.Summary
 
 			if policyModulePath != "" {
 				result, checkErr := checker.CheckModule(c, policyModulePath)
 				if checkErr != nil {
 					return fmt.Errorf("policy check failed: %w", checkErr)
 				}
-				summary = NewSummary([]Result{*result})
+				summary = policyengine.NewSummary([]policyengine.Result{*result})
 			} else {
 				var checkErr error
 				summary, checkErr = checker.CheckAll(c)
@@ -160,7 +253,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 	return []*cobra.Command{cmd}
 }
 
-func savePolicyResults(summary *Summary) error {
+func savePolicyResults(summary *policyengine.Summary) error {
 	dir := ".terraci"
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create directory: %w", err)
@@ -178,7 +271,7 @@ func savePolicyResults(summary *Summary) error {
 // VersionProvider — contributes OPA version to `terraci version`
 
 func (p *Plugin) VersionInfo() map[string]string {
-	return map[string]string{"opa": OPAVersion()}
+	return map[string]string{"opa": policyengine.OPAVersion()}
 }
 
 // SummaryContributor — loads policy results and contributes to summary comment
@@ -197,7 +290,7 @@ func (p *Plugin) ContributeToSummary(_ context.Context, appCtx *plugin.AppContex
 			continue
 		}
 
-		var raw Summary
+		var raw policyengine.Summary
 		if err := json.Unmarshal(data, &raw); err != nil {
 			log.WithField("path", path).WithError(err).Debug("failed to parse policy results")
 			continue
@@ -218,7 +311,7 @@ func (p *Plugin) ContributeToSummary(_ context.Context, appCtx *plugin.AppContex
 	return nil
 }
 
-func toCIPolicySummary(s *Summary) *ci.PolicySummary {
+func toCIPolicySummary(s *policyengine.Summary) *ci.PolicySummary {
 	results := make([]ci.PolicyResult, len(s.Results))
 	for i, r := range s.Results {
 		failures := make([]ci.PolicyViolation, len(r.Failures))
@@ -246,7 +339,7 @@ func toCIPolicySummary(s *Summary) *ci.PolicySummary {
 	}
 }
 
-func outputText(summary *Summary, shouldBlock bool) error {
+func outputText(summary *policyengine.Summary, shouldBlock bool) error {
 	log.WithField("total", summary.TotalModules).
 		WithField("passed", summary.PassedModules).
 		WithField("warned", summary.WarnedModules).

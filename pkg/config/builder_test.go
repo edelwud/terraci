@@ -2,291 +2,166 @@ package config
 
 import "testing"
 
-func TestInitOptions_ResolveProvider(t *testing.T) {
+func TestBuildConfigFromPlugins_WithPattern(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name     string
-		provider string
-		want     string
-	}{
-		{"default", "", ProviderGitLab},
-		{"explicit gitlab", "gitlab", "gitlab"},
-		{"explicit github", "github", "github"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	cfg := BuildConfigFromPlugins("{service}/{environment}/{module}", nil)
 
-			o := &InitOptions{Provider: tt.provider}
-			if got := o.ResolveProvider(); got != tt.want {
-				t.Errorf("ResolveProvider() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestInitOptions_ResolveBinary(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name   string
-		binary string
-		want   string
-	}{
-		{"default", "", "terraform"},
-		{"tofu", "tofu", "tofu"},
-		{"custom", "terragrunt", "terragrunt"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			o := &InitOptions{Binary: tt.binary}
-			if got := o.ResolveBinary(); got != tt.want {
-				t.Errorf("ResolveBinary() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestInitOptions_ResolveImage(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name   string
-		binary string
-		image  string
-		want   string
-	}{
-		{"default terraform", "", "", DefaultTerraformImage},
-		{"tofu default", "tofu", "", DefaultTofuImage},
-		{"custom image", "", "my-image:v1", "my-image:v1"},
-		{"custom overrides tofu", "tofu", "my-image:v1", "my-image:v1"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			o := &InitOptions{Binary: tt.binary, Image: tt.image}
-			if got := o.ResolveImage(); got != tt.want {
-				t.Errorf("ResolveImage() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestInitOptions_ResolveRunsOn(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name   string
-		runsOn string
-		want   string
-	}{
-		{"default", "", DefaultGitHubRunner},
-		{"custom", "self-hosted", "self-hosted"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			o := &InitOptions{RunsOn: tt.runsOn}
-			if got := o.ResolveRunsOn(); got != tt.want {
-				t.Errorf("ResolveRunsOn() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestInitOptions_SetupStepsGitHub(t *testing.T) {
-	t.Parallel()
-
-	t.Run("terraform", func(t *testing.T) {
-		t.Parallel()
-
-		o := &InitOptions{}
-		steps := o.SetupStepsGitHub()
-		if len(steps) != 2 {
-			t.Fatalf("steps = %d, want 2", len(steps))
-		}
-		if steps[0].Uses != "actions/checkout@v4" {
-			t.Errorf("step[0] = %q, want checkout", steps[0].Uses)
-		}
-		if steps[1].Uses != "hashicorp/setup-terraform@v3" {
-			t.Errorf("step[1] = %q, want setup-terraform", steps[1].Uses)
-		}
-	})
-
-	t.Run("tofu", func(t *testing.T) {
-		t.Parallel()
-
-		o := &InitOptions{Binary: "tofu"}
-		steps := o.SetupStepsGitHub()
-		if steps[1].Uses != "opentofu/setup-opentofu@v1" {
-			t.Errorf("step[1] = %q, want setup-opentofu", steps[1].Uses)
-		}
-	})
-}
-
-func TestInitOptions_BuildConfig_GitLab(t *testing.T) {
-	t.Parallel()
-
-	o := &InitOptions{
-		Pattern:     "{service}/{environment}/{module}",
-		PlanEnabled: true,
-		EnableMR:    true,
-		EnableCost:  true,
-	}
-
-	cfg := o.BuildConfig()
-
-	if cfg.GitLab == nil {
-		t.Fatal("expected GitLab config")
-	}
-	if cfg.GitHub != nil {
-		t.Error("expected GitHub to be nil for gitlab provider")
-	}
 	if cfg.Structure.Pattern != "{service}/{environment}/{module}" {
-		t.Errorf("pattern = %q", cfg.Structure.Pattern)
+		t.Errorf("pattern = %q, want {service}/{environment}/{module}", cfg.Structure.Pattern)
 	}
-	if !cfg.GitLab.PlanEnabled {
-		t.Error("PlanEnabled should be true")
-	}
-	if cfg.GitLab.MR == nil {
-		t.Error("MR config should be set when EnableMR=true")
-	}
-	if cfg.Cost == nil || !cfg.Cost.Enabled {
-		t.Error("Cost should be enabled")
+	if len(cfg.Structure.Segments) != 3 {
+		t.Errorf("segments count = %d, want 3", len(cfg.Structure.Segments))
 	}
 }
 
-func TestInitOptions_BuildConfig_GitHub(t *testing.T) {
+func TestBuildConfigFromPlugins_EmptyPattern(t *testing.T) {
 	t.Parallel()
 
-	o := &InitOptions{
-		Provider:    "github",
-		Binary:      "tofu",
-		PlanEnabled: true,
-		AutoApprove: true,
-		EnableMR:    true,
-	}
+	cfg := BuildConfigFromPlugins("", nil)
 
-	cfg := o.BuildConfig()
-
-	if cfg.GitHub == nil {
-		t.Fatal("expected GitHub config")
-	}
-	if cfg.GitLab != nil {
-		t.Error("expected GitLab to be nil for github provider")
-	}
-	if cfg.GitHub.TerraformBinary != "tofu" {
-		t.Errorf("binary = %q, want tofu", cfg.GitHub.TerraformBinary)
-	}
-	if !cfg.GitHub.AutoApprove {
-		t.Error("AutoApprove should be true")
-	}
-	if cfg.GitHub.PR == nil {
-		t.Error("PR config should be set when EnableMR=true")
-	}
-	if cfg.GitHub.Permissions["pull-requests"] != "write" {
-		t.Error("permissions should include pull-requests: write")
+	// Should use default pattern
+	if cfg.Structure.Pattern == "" {
+		t.Error("expected default pattern, got empty")
 	}
 }
 
-func TestInitOptions_BuildGitLabConfig(t *testing.T) {
+func TestBuildConfigFromPlugins_GitLab(t *testing.T) {
 	t.Parallel()
 
-	t.Run("with MR enabled", func(t *testing.T) {
-		t.Parallel()
+	pluginConfigs := map[string]map[string]any{
+		"gitlab": {
+			"terraform_binary": "terraform",
+			"image":            map[string]any{"name": "hashicorp/terraform:1.6"},
+			"plan_enabled":     true,
+			"auto_approve":     false,
+			"init_enabled":     true,
+			"mr": map[string]any{
+				"comment": map[string]any{"enabled": true},
+			},
+		},
+	}
 
-		o := &InitOptions{EnableMR: true}
-		cfg := o.BuildGitLabConfig()
-		if cfg.MR == nil {
-			t.Fatal("MR should be set")
-		}
-		if cfg.MR.SummaryJob == nil || cfg.MR.SummaryJob.Image.Name != TerraCIImage {
-			t.Error("summary job should use terraci image")
-		}
-	})
+	cfg := BuildConfigFromPlugins("{service}/{environment}/{module}", pluginConfigs)
 
-	t.Run("without MR", func(t *testing.T) {
-		t.Parallel()
+	if _, ok := cfg.Plugins["gitlab"]; !ok {
+		t.Fatal("expected gitlab in plugins")
+	}
+	if _, ok := cfg.Plugins["github"]; ok {
+		t.Error("expected github to be absent")
+	}
 
-		o := &InitOptions{}
-		cfg := o.BuildGitLabConfig()
-		if cfg.MR != nil {
-			t.Error("MR should be nil when not enabled")
-		}
-	})
+	var glCfg map[string]any
+	if err := cfg.PluginConfig("gitlab", &glCfg); err != nil {
+		t.Fatal(err)
+	}
+	if glCfg["plan_enabled"] != true {
+		t.Error("plan_enabled should be true")
+	}
+	if glCfg["mr"] == nil {
+		t.Error("mr config should be present")
+	}
 }
 
-func TestApplyPlanOnly(t *testing.T) {
+func TestBuildConfigFromPlugins_GitHub(t *testing.T) {
 	t.Parallel()
 
-	t.Run("gitlab", func(t *testing.T) {
-		t.Parallel()
+	pluginConfigs := map[string]map[string]any{
+		"github": {
+			"terraform_binary": "tofu",
+			"runs_on":          "ubuntu-latest",
+			"plan_enabled":     true,
+			"auto_approve":     true,
+			"init_enabled":     true,
+			"pr": map[string]any{
+				"comment": map[string]any{},
+			},
+		},
+	}
 
-		cfg := &Config{GitLab: &GitLabConfig{}}
-		ApplyPlanOnly(cfg, ProviderGitLab)
-		if !cfg.GitLab.PlanOnly || !cfg.GitLab.PlanEnabled {
-			t.Error("expected PlanOnly and PlanEnabled true")
-		}
-	})
+	cfg := BuildConfigFromPlugins("", pluginConfigs)
 
-	t.Run("github", func(t *testing.T) {
-		t.Parallel()
+	if _, ok := cfg.Plugins["github"]; !ok {
+		t.Fatal("expected github in plugins")
+	}
+	if _, ok := cfg.Plugins["gitlab"]; ok {
+		t.Error("expected gitlab to be absent")
+	}
 
-		cfg := &Config{GitHub: &GitHubConfig{}}
-		ApplyPlanOnly(cfg, ProviderGitHub)
-		if !cfg.GitHub.PlanOnly || !cfg.GitHub.PlanEnabled {
-			t.Error("expected PlanOnly and PlanEnabled true")
-		}
-	})
-
-	t.Run("nil gitlab config", func(t *testing.T) {
-		t.Parallel()
-
-		cfg := &Config{}
-		ApplyPlanOnly(cfg, ProviderGitLab) // should not panic
-	})
-
-	t.Run("nil github config", func(t *testing.T) {
-		t.Parallel()
-
-		cfg := &Config{}
-		ApplyPlanOnly(cfg, ProviderGitHub) // should not panic
-	})
+	var ghCfg map[string]any
+	if err := cfg.PluginConfig("github", &ghCfg); err != nil {
+		t.Fatal(err)
+	}
+	if ghCfg["terraform_binary"] != "tofu" {
+		t.Errorf("binary = %v, want tofu", ghCfg["terraform_binary"])
+	}
+	if ghCfg["auto_approve"] != true {
+		t.Error("auto_approve should be true")
+	}
+	if ghCfg["pr"] == nil {
+		t.Error("pr config should be present")
+	}
 }
 
-func TestSetAutoApprove(t *testing.T) {
+func TestBuildConfigFromPlugins_WithCost(t *testing.T) {
 	t.Parallel()
 
-	t.Run("gitlab enable", func(t *testing.T) {
+	pluginConfigs := map[string]map[string]any{
+		"gitlab": {
+			"terraform_binary": "terraform",
+		},
+		"cost": {
+			"enabled":         true,
+			"show_in_comment": true,
+		},
+	}
+
+	cfg := BuildConfigFromPlugins("", pluginConfigs)
+
+	if _, ok := cfg.Plugins["cost"]; !ok {
+		t.Error("expected cost in plugins")
+	}
+
+	var costCfg map[string]any
+	if err := cfg.PluginConfig("cost", &costCfg); err != nil {
+		t.Fatal(err)
+	}
+	if costCfg["enabled"] != true {
+		t.Error("cost should be enabled")
+	}
+}
+
+func TestSetPluginValue(t *testing.T) {
+	t.Parallel()
+
+	t.Run("sets value on existing plugin", func(t *testing.T) {
 		t.Parallel()
 
-		cfg := &Config{GitLab: &GitLabConfig{}}
-		SetAutoApprove(cfg, ProviderGitLab, true)
-		if !cfg.GitLab.AutoApprove {
-			t.Error("expected AutoApprove true")
+		cfg := DefaultConfig()
+		setPluginNode(cfg, "gitlab", map[string]any{})
+		SetPluginValue(cfg, "gitlab", "plan_only", true)
+
+		var m map[string]any
+		if err := cfg.PluginConfig("gitlab", &m); err != nil {
+			t.Fatal(err)
+		}
+		if m["plan_only"] != true {
+			t.Error("expected plan_only true")
 		}
 	})
 
-	t.Run("github disable", func(t *testing.T) {
+	t.Run("sets value on empty config", func(t *testing.T) {
 		t.Parallel()
 
-		cfg := &Config{GitHub: &GitHubConfig{AutoApprove: true}}
-		SetAutoApprove(cfg, ProviderGitHub, false)
-		if cfg.GitHub.AutoApprove {
-			t.Error("expected AutoApprove false")
+		cfg := DefaultConfig()
+		SetPluginValue(cfg, "github", "auto_approve", false)
+
+		var m map[string]any
+		if err := cfg.PluginConfig("github", &m); err != nil {
+			t.Fatal(err)
 		}
-	})
-
-	t.Run("nil configs", func(t *testing.T) {
-		t.Parallel()
-
-		cfg := &Config{}
-		SetAutoApprove(cfg, ProviderGitLab, true) // should not panic
-		SetAutoApprove(cfg, ProviderGitHub, true) // should not panic
+		if m["auto_approve"] != false {
+			t.Error("expected auto_approve false")
+		}
 	})
 }

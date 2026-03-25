@@ -8,11 +8,12 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/parser"
-	"github.com/edelwud/terraci/plugins/gitlab"
-	"github.com/edelwud/terraci/pkg/config"
+	glplugin "github.com/edelwud/terraci/plugins/gitlab"
+	"github.com/edelwud/terraci/plugins/policy"
 )
 
 // testdataDir returns the absolute path to the testdata directory
@@ -36,10 +37,35 @@ type Fixture struct {
 	Name        string
 	Dir         string
 	Config      *config.Config
+	GLConfig    *glplugin.Config
+	PolicyCfg   *policy.Config
 	Modules     []*discovery.Module
 	ModuleIndex *discovery.ModuleIndex
 	DepGraph    *graph.DependencyGraph
-	Generator   *gitlab.Generator
+	Generator   *glplugin.Generator
+}
+
+// decodeGLConfig extracts the gitlab plugin config from the plugins map.
+func decodeGLConfig(cfg *config.Config) *glplugin.Config {
+	glCfg := &glplugin.Config{
+		TerraformBinary: "terraform",
+		Image:           glplugin.Image{Name: "hashicorp/terraform:1.6"},
+		PlanEnabled:     true,
+		InitEnabled:     true,
+	}
+	if err := cfg.PluginConfig("gitlab", glCfg); err != nil {
+		return glCfg
+	}
+	return glCfg
+}
+
+// decodePolicyConfig extracts the policy plugin config from the plugins map.
+func decodePolicyConfig(cfg *config.Config) *policy.Config {
+	var pc policy.Config
+	if err := cfg.PluginConfig("policy", &pc); err != nil {
+		return &pc
+	}
+	return &pc
 }
 
 // LoadFixture loads a complete test fixture by name
@@ -53,6 +79,9 @@ func LoadFixture(t *testing.T, name string) *Fixture {
 	if err != nil {
 		t.Fatalf("failed to load config for fixture %s: %v", name, err)
 	}
+
+	glCfg := decodeGLConfig(cfg)
+	policyCfg := decodePolicyConfig(cfg)
 
 	// Scan modules
 	scanner := discovery.NewScanner(dir, cfg.Structure.Segments)
@@ -78,12 +107,14 @@ func LoadFixture(t *testing.T, name string) *Fixture {
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
 	// Create generator
-	generator := gitlab.NewGenerator(cfg.GitLab, cfg.Policy, depGraph, modules)
+	generator := glplugin.NewGenerator(glCfg, policyCfg, depGraph, modules)
 
 	return &Fixture{
 		Name:        name,
 		Dir:         dir,
 		Config:      cfg,
+		GLConfig:    glCfg,
+		PolicyCfg:   policyCfg,
 		Modules:     modules,
 		ModuleIndex: moduleIndex,
 		DepGraph:    depGraph,
@@ -91,15 +122,16 @@ func LoadFixture(t *testing.T, name string) *Fixture {
 	}
 }
 
-// LoadFixtureWithConfig loads a fixture and applies custom config modifications
-func LoadFixtureWithConfig(t *testing.T, name string, modifyConfig func(*config.Config)) *Fixture {
+// LoadFixtureWithConfig loads a fixture and applies custom config modifications.
+// The modifyConfig callback receives the Config directly.
+func LoadFixtureWithConfig(t *testing.T, name string, modifyConfig func(*glplugin.Config)) *Fixture {
 	t.Helper()
 
 	fixture := LoadFixture(t, name)
-	modifyConfig(fixture.Config)
+	modifyConfig(fixture.GLConfig)
 
 	// Recreate generator with modified config
-	fixture.Generator = gitlab.NewGenerator(fixture.Config.GitLab, fixture.Config.Policy, fixture.DepGraph, fixture.Modules)
+	fixture.Generator = glplugin.NewGenerator(fixture.GLConfig, fixture.PolicyCfg, fixture.DepGraph, fixture.Modules)
 
 	return fixture
 }
@@ -125,6 +157,33 @@ func (f *Fixture) GetModulesByEnvironment(env string) []*discovery.Module {
 	return result
 }
 
+// GenerateAndValidate generates a pipeline and runs basic validation
+func (f *Fixture) GenerateAndValidate(t *testing.T) *glplugin.Pipeline {
+	t.Helper()
+
+	result, err := f.Generator.Generate(f.Modules)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	pipeline, ok := result.(*glplugin.Pipeline)
+	if !ok {
+		t.Fatal("expected *glplugin.Pipeline type")
+	}
+
+	return pipeline
+}
+
+// ModuleIDs returns the IDs of all modules sorted
+func (f *Fixture) ModuleIDs() []string {
+	ids := make([]string, len(f.Modules))
+	for i, m := range f.Modules {
+		ids[i] = m.ID()
+	}
+	slices.Sort(ids)
+	return ids
+}
+
 // GetModulesByService returns all modules for a specific service
 func (f *Fixture) GetModulesByService(service string) []*discovery.Module {
 	var result []*discovery.Module
@@ -136,111 +195,106 @@ func (f *Fixture) GetModulesByService(service string) []*discovery.Module {
 	return result
 }
 
-// AssertJobExists checks that a job with the given name exists in the pipeline
-func AssertJobExists(t *testing.T, pipeline *gitlab.Pipeline, jobName string) {
+// --- Assertion helpers ---
+
+// AssertJobExists checks that a job exists in the pipeline
+func AssertJobExists(t *testing.T, pipeline *glplugin.Pipeline, jobName string) {
 	t.Helper()
-	if _, exists := pipeline.Jobs[jobName]; !exists {
-		t.Errorf("expected job %s to exist", jobName)
+	if _, ok := pipeline.Jobs[jobName]; !ok {
+		t.Errorf("expected job %q to exist", jobName)
 	}
 }
 
-// AssertJobNotExists checks that a job with the given name does not exist
-func AssertJobNotExists(t *testing.T, pipeline *gitlab.Pipeline, jobName string) {
+// AssertJobNotExists checks that a job does NOT exist in the pipeline
+func AssertJobNotExists(t *testing.T, pipeline *glplugin.Pipeline, jobName string) {
 	t.Helper()
-	if _, exists := pipeline.Jobs[jobName]; exists {
-		t.Errorf("expected job %s to not exist", jobName)
+	if _, ok := pipeline.Jobs[jobName]; ok {
+		t.Errorf("expected job %q to NOT exist", jobName)
 	}
 }
 
-// AssertStageExists checks that a stage with the given name exists in the pipeline
-func AssertStageExists(t *testing.T, pipeline *gitlab.Pipeline, stageName string) {
+// AssertStageExists checks that a stage exists in the pipeline
+func AssertStageExists(t *testing.T, pipeline *glplugin.Pipeline, stageName string) {
+	t.Helper()
+	if !slices.Contains(pipeline.Stages, stageName) {
+		t.Errorf("expected stage %q to exist in %v", stageName, pipeline.Stages)
+	}
+}
+
+// AssertStageNotExists checks that a stage does NOT exist in the pipeline
+func AssertStageNotExists(t *testing.T, pipeline *glplugin.Pipeline, stageName string) {
 	t.Helper()
 	if slices.Contains(pipeline.Stages, stageName) {
-		return
-	}
-	t.Errorf("expected stage %s to exist", stageName)
-}
-
-// AssertStageNotExists checks that a stage does not exist
-func AssertStageNotExists(t *testing.T, pipeline *gitlab.Pipeline, stageName string) {
-	t.Helper()
-	if slices.Contains(pipeline.Stages, stageName) {
-		t.Errorf("expected stage %s to not exist", stageName)
-		return
+		t.Errorf("expected stage %q to NOT exist in %v", stageName, pipeline.Stages)
 	}
 }
 
-// AssertJobHasNeed checks that a job depends on another job
-func AssertJobHasNeed(t *testing.T, pipeline *gitlab.Pipeline, jobName, needJob string) {
+// AssertJobHasNeed checks that a job has a specific dependency
+func AssertJobHasNeed(t *testing.T, pipeline *glplugin.Pipeline, jobName, needJob string) {
 	t.Helper()
-	job, exists := pipeline.Jobs[jobName]
-	if !exists {
-		t.Errorf("job %s does not exist", jobName)
-		return
+	job, ok := pipeline.Jobs[jobName]
+	if !ok {
+		t.Fatalf("job %q not found", jobName)
 	}
-
 	for _, need := range job.Needs {
 		if need.Job == needJob {
 			return
 		}
 	}
-	t.Errorf("job %s should depend on %s", jobName, needJob)
+	t.Errorf("job %q should need %q", jobName, needJob)
 }
 
-// AssertJobNotHasNeed checks that a job does not depend on another job
-func AssertJobNotHasNeed(t *testing.T, pipeline *gitlab.Pipeline, jobName, needJob string) {
+// AssertJobNotHasNeed checks that a job does NOT have a specific dependency
+func AssertJobNotHasNeed(t *testing.T, pipeline *glplugin.Pipeline, jobName, needJob string) {
 	t.Helper()
-	job, exists := pipeline.Jobs[jobName]
-	if !exists {
-		t.Errorf("job %s does not exist", jobName)
-		return
+	job, ok := pipeline.Jobs[jobName]
+	if !ok {
+		return // job doesn't exist, so it can't have the need
 	}
-
 	for _, need := range job.Needs {
 		if need.Job == needJob {
-			t.Errorf("job %s should not depend on %s", jobName, needJob)
+			t.Errorf("job %q should NOT need %q", jobName, needJob)
 			return
 		}
 	}
 }
 
-// AssertJobCount checks the total number of jobs in the pipeline
-func AssertJobCount(t *testing.T, pipeline *gitlab.Pipeline, expected int) {
+// AssertJobCount checks the number of jobs in the pipeline
+func AssertJobCount(t *testing.T, pipeline *glplugin.Pipeline, expected int) {
 	t.Helper()
 	if len(pipeline.Jobs) != expected {
 		t.Errorf("expected %d jobs, got %d", expected, len(pipeline.Jobs))
 	}
 }
 
-// AssertStageCount checks the total number of stages in the pipeline
-func AssertStageCount(t *testing.T, pipeline *gitlab.Pipeline, expected int) {
+// AssertStageCount checks the number of stages in the pipeline
+func AssertStageCount(t *testing.T, pipeline *glplugin.Pipeline, expected int) {
 	t.Helper()
 	if len(pipeline.Stages) != expected {
-		t.Errorf("expected %d stages, got %d", expected, len(pipeline.Stages))
+		t.Errorf("expected %d stages, got %d: %v", expected, len(pipeline.Stages), pipeline.Stages)
 	}
 }
 
-// CountJobsByPrefix counts jobs that start with a given prefix
-func CountJobsByPrefix(pipeline *gitlab.Pipeline, prefix string) int {
+// CountJobsByPrefix counts jobs whose name starts with the given prefix
+func CountJobsByPrefix(pipeline *glplugin.Pipeline, prefix string) int {
 	count := 0
-	for jobName := range pipeline.Jobs {
-		if len(jobName) >= len(prefix) && jobName[:len(prefix)] == prefix {
+	for name := range pipeline.Jobs {
+		if len(name) >= len(prefix) && name[:len(prefix)] == prefix {
 			count++
 		}
 	}
 	return count
 }
 
-// GetJobNeeds returns all job names that a job depends on
-func GetJobNeeds(pipeline *gitlab.Pipeline, jobName string) []string {
-	job, exists := pipeline.Jobs[jobName]
-	if !exists {
+// GetJobNeeds returns the names of jobs that the given job depends on
+func GetJobNeeds(pipeline *glplugin.Pipeline, jobName string) []string {
+	job, ok := pipeline.Jobs[jobName]
+	if !ok {
 		return nil
 	}
-
-	needs := make([]string, 0, len(job.Needs))
-	for _, need := range job.Needs {
-		needs = append(needs, need.Job)
+	needs := make([]string, len(job.Needs))
+	for i, need := range job.Needs {
+		needs[i] = need.Job
 	}
 	return needs
 }

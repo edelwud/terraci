@@ -8,10 +8,24 @@ import (
 )
 
 // AppContext is the public API available to plugins.
+// Config and WorkDir are resolved lazily via the accessor function
+// so they reflect the state after PersistentPreRunE completes.
 type AppContext struct {
 	Config  *config.Config
 	WorkDir string
 	Version string
+
+	// Refresh is called before accessing Config/WorkDir to ensure
+	// they reflect the current state. Set by the App struct.
+	Refresh func()
+}
+
+// Ensure refreshes the context from the App state.
+// Safe to call multiple times; no-op if Refresh is nil.
+func (a *AppContext) Ensure() {
+	if a.Refresh != nil {
+		a.Refresh()
+	}
 }
 
 // ExecutionContext holds shared mutable state during command execution.

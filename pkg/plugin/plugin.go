@@ -45,6 +45,7 @@ type ConfigProvider interface {
 	ConfigKey() string
 	NewConfig() any
 	SetConfig(cfg any) error
+	IsConfigured() bool // true if SetConfig was called with explicit config
 }
 
 // --- Commands ---
@@ -106,4 +107,52 @@ type FilterProvider interface {
 type WorkflowHookProvider interface {
 	Plugin
 	WorkflowHooks() []WorkflowHook
+}
+
+// --- Init Wizard ---
+
+// InitContributor plugins contribute fields and config to the init wizard.
+type InitContributor interface {
+	Plugin
+	InitGroup() *InitGroupSpec
+	BuildInitConfig(state InitState) *InitContribution
+}
+
+// InitGroupSpec describes a group of form fields contributed by a plugin.
+type InitGroupSpec struct {
+	Title    string
+	Order    int
+	Fields   []InitField
+	ShowWhen func(InitState) bool
+}
+
+// InitField describes a single form field in the init wizard.
+type InitField struct {
+	Key         string
+	Title       string
+	Description string
+	Type        string // "string", "bool", "select"
+	Default     any
+	Options     []InitOption
+	Placeholder string
+}
+
+// InitOption represents a selectable option for a field.
+type InitOption struct {
+	Label string
+	Value string
+}
+
+// InitContribution holds the config produced by a plugin's init logic.
+type InitContribution struct {
+	PluginKey string
+	Config    map[string]any
+}
+
+// InitState provides read/write access to the shared init wizard state.
+type InitState interface {
+	Get(key string) any
+	Set(key string, val any)
+	Provider() string
+	Binary() string
 }

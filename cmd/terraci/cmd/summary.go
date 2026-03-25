@@ -52,8 +52,8 @@ func runSummary(cmd *cobra.Command, app *App) error {
 
 	// Let all SummaryContributor plugins enrich the data
 	for _, c := range plugin.ByCapability[plugin.SummaryContributor]() {
-		if err := c.ContributeToSummary(cmd.Context(), app.PluginContext(), execCtx); err != nil {
-			log.WithError(err).WithField("plugin", c.Name()).Warn("summary contribution failed")
+		if contributeErr := c.ContributeToSummary(cmd.Context(), app.PluginContext(), execCtx); contributeErr != nil {
+			log.WithError(contributeErr).WithField("plugin", c.Name()).Warn("summary contribution failed")
 		}
 	}
 
@@ -63,15 +63,17 @@ func runSummary(cmd *cobra.Command, app *App) error {
 	// Resolve policy summary from execution context (if contributed by policy plugin)
 	var policySummary *ci.PolicySummary
 	if raw, ok := execCtx.GetData("policy:summary"); ok {
-		policySummary, _ = raw.(*ci.PolicySummary)
+		if ps, ok := raw.(*ci.PolicySummary); ok {
+			policySummary = ps
+		}
 	}
 
-	// Resolve CI provider via plugin system
-	provider, err := plugin.ResolveProvider()
-	if err != nil {
+	// Resolve CI provider via plugin system (not finding a provider is not a failure)
+	provider, resolveErr := plugin.ResolveProvider()
+	if resolveErr != nil || provider == nil {
 		log.Info("no CI provider detected, printing summary only")
 		printSummary(collection)
-		return nil
+		return nil //nolint:nilerr // intentional: no provider is gracefully handled
 	}
 
 	commentSvc := provider.NewCommentService(app.PluginContext())
@@ -83,8 +85,8 @@ func runSummary(cmd *cobra.Command, app *App) error {
 
 	// Create/update comment
 	log.Info("updating PR/MR comment")
-	if err := commentSvc.UpsertComment(plans, policySummary); err != nil {
-		return fmt.Errorf("failed to update comment: %w", err)
+	if upsertErr := commentSvc.UpsertComment(plans, policySummary); upsertErr != nil {
+		return fmt.Errorf("failed to update comment: %w", upsertErr)
 	}
 
 	log.Info("comment updated successfully")

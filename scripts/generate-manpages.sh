@@ -1,23 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Generate man pages for terraci
+# Generate man pages for terraci and xterraci
 # This script is called by goreleaser before building
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 MANPAGES_DIR="${PROJECT_ROOT}/manpages"
 
-# Build terraci for the current platform
-echo "Building terraci for man page generation..."
-TERRACI_BIN="${PROJECT_ROOT}/terraci"
-go build -o "$TERRACI_BIN" "${PROJECT_ROOT}/cmd/terraci"
+generate_manpages() {
+  local name="$1"
+  local cmd_dir="$2"
 
-# Generate man pages
-echo "Generating man pages..."
-"$TERRACI_BIN" man -d "$MANPAGES_DIR"
+  echo "Building ${name}..."
+  local bin="${PROJECT_ROOT}/${name}"
+  go build -o "$bin" "${PROJECT_ROOT}/${cmd_dir}"
 
-# Clean up temporary binary
-rm -f "$TERRACI_BIN"
+  echo "Generating ${name} man pages..."
+  "$bin" man -d "$MANPAGES_DIR"
+
+  rm -f "$bin"
+}
+
+generate_manpages "terraci" "cmd/terraci"
+generate_manpages "xterraci" "cmd/xterraci"
 
 echo "Man pages generated successfully!"

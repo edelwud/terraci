@@ -10,6 +10,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/log"
+	"github.com/edelwud/terraci/pkg/plugin"
 )
 
 func newInitCmd(app *App) *cobra.Command {
@@ -47,13 +48,30 @@ Examples:
 			var err error
 
 			if initInteractive || hasFlags {
-				opts := initOptions{
-					Provider: initProvider,
-					Binary:   initBinary,
-					Pattern:  initPattern,
-					Image:    initImage,
+				state := plugin.NewStateMap()
+
+				// Set defaults
+				if initProvider != "" {
+					state.Set("provider", initProvider)
+				} else {
+					state.Set("provider", "gitlab")
 				}
-				newCfg = opts.BuildConfig()
+				if initBinary != "" {
+					state.Set("binary", initBinary)
+				} else {
+					state.Set("binary", "terraform")
+				}
+				if initPattern != "" {
+					state.Set("pattern", initPattern)
+				}
+				if initImage != "" {
+					state.Set("gitlab.image", initImage)
+				}
+
+				// Set pipeline defaults for CI mode
+				state.Set("plan_enabled", true)
+
+				newCfg = buildConfigFromState(state)
 			} else {
 				newCfg, err = runInteractiveInit()
 				if err != nil {
@@ -66,7 +84,7 @@ Examples:
 			}
 
 			log.WithField("file", configPath).Info("configuration created")
-			logGenerateHint(newCfg)
+			logGenerateHint()
 
 			return nil
 		},
@@ -82,10 +100,11 @@ Examples:
 	return cmd
 }
 
-func logGenerateHint(cfg *config.Config) {
+func logGenerateHint() {
 	log.Info("generate your pipeline with:")
 	log.IncreasePadding()
-	if cfg.ResolvedProvider() == config.ProviderGitHub {
+	resolved, _ := plugin.ResolveProvider() //nolint:errcheck // best-effort hint, non-critical
+	if resolved != nil && resolved.ProviderName() == "github" {
 		log.Info("terraci generate -o .github/workflows/terraform.yml")
 	} else {
 		log.Info("terraci generate -o .gitlab-ci.yml")

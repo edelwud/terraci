@@ -43,14 +43,23 @@ Examples:
   terraci generate --plan-only`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			// Apply CLI flags to config
-			provider := app.Config.ResolvedProvider()
-			if planOnly {
-				config.ApplyPlanOnly(app.Config, provider)
-			}
-			if cmd.Flags().Changed("auto-approve") {
-				config.SetAutoApprove(app.Config, provider, true)
-			} else if cmd.Flags().Changed("no-auto-approve") {
-				config.SetAutoApprove(app.Config, provider, false)
+			if planOnly || cmd.Flags().Changed("auto-approve") || cmd.Flags().Changed("no-auto-approve") {
+				resolved, resolveErr := plugin.ResolveProvider()
+				if resolveErr != nil {
+					log.WithError(resolveErr).Debug("cannot apply CLI flags: provider not resolved")
+				}
+				if resolved != nil {
+					name := resolved.ProviderName()
+					if planOnly {
+						config.SetPluginValue(app.Config, name, "plan_only", true)
+						config.SetPluginValue(app.Config, name, "plan_enabled", true)
+					}
+					if cmd.Flags().Changed("auto-approve") {
+						config.SetPluginValue(app.Config, name, "auto_approve", true)
+					} else if cmd.Flags().Changed("no-auto-approve") {
+						config.SetPluginValue(app.Config, name, "auto_approve", false)
+					}
+				}
 			}
 
 			result, err := workflow.Run(cmd.Context(), ff.workflowOptions(app))
@@ -236,7 +245,10 @@ func detectChangedTargetModules(
 	var libraryPaths []string
 	if app.Config.LibraryModules != nil && len(app.Config.LibraryModules.Paths) > 0 {
 		log.Debug("checking for changed library modules")
-		libraryPaths, _ = detector.DetectChangedLibraries(context.Background(), appCtx, baseRef, app.Config.LibraryModules.Paths)
+		libraryPaths, err = detector.DetectChangedLibraries(context.Background(), appCtx, baseRef, app.Config.LibraryModules.Paths)
+		if err != nil {
+			log.WithError(err).Warn("failed to detect changed libraries")
+		}
 		if len(libraryPaths) > 0 {
 			log.WithField("count", len(libraryPaths)).Info("changed library modules")
 		}

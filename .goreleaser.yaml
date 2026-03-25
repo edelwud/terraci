@@ -27,7 +27,27 @@ builds:
     goarch:
       - amd64
       - arm64
-    # ensures mod timestamp to be the commit timestamp
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.CommitDate}}
+
+  - id: xterraci
+    main: ./cmd/xterraci
+    binary: xterraci
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
     mod_timestamp: "{{ .CommitTimestamp }}"
     flags:
       - -trimpath
@@ -68,6 +88,10 @@ homebrew_casks:
       - "manpages/{{ .ProjectName }}-schema.1"
       - "manpages/{{ .ProjectName }}-validate.1"
       - "manpages/{{ .ProjectName }}-version.1"
+      - "manpages/xterraci.1"
+      - "manpages/xterraci-build.1"
+      - "manpages/xterraci-list-plugins.1"
+      - "manpages/xterraci-version.1"
     completions:
       bash: "completions/{{ .ProjectName }}.bash"
       zsh: "completions/_{{ .ProjectName }}"
@@ -77,18 +101,28 @@ homebrew_casks:
         install: |
           if OS.mac?
             system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/terraci"]
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/xterraci"]
           end
 
 nfpms:
   - file_name_template: "{{ .ConventionalFileName }}"
     maintainer: "Maksim Yersh <yersh.maks@gmail.com>"
     contents:
+      # terraci completions
       - src: ./completions/{{ .ProjectName }}.bash
         dst: /etc/bash_completion.d/{{ .ProjectName }}
       - src: ./completions/{{ .ProjectName }}.fish
         dst: /usr/share/fish/completions/{{ .ProjectName }}.fish
       - src: ./completions/_{{ .ProjectName }}
         dst: /usr/local/share/zsh/site-functions/_{{ .ProjectName }}
+      # xterraci completions
+      - src: ./completions/xterraci.bash
+        dst: /etc/bash_completion.d/xterraci
+      - src: ./completions/xterraci.fish
+        dst: /usr/share/fish/completions/xterraci.fish
+      - src: ./completions/_xterraci
+        dst: /usr/local/share/zsh/site-functions/_xterraci
+      # terraci man pages
       - src: ./manpages/{{ .ProjectName }}.1
         dst: /usr/share/man/man1/{{ .ProjectName }}.1
       - src: ./manpages/{{ .ProjectName }}-completion.1
@@ -105,6 +139,15 @@ nfpms:
         dst: /usr/share/man/man1/{{ .ProjectName }}-validate.1
       - src: ./manpages/{{ .ProjectName }}-version.1
         dst: /usr/share/man/man1/{{ .ProjectName }}-version.1
+      # xterraci man pages
+      - src: ./manpages/xterraci.1
+        dst: /usr/share/man/man1/xterraci.1
+      - src: ./manpages/xterraci-build.1
+        dst: /usr/share/man/man1/xterraci-build.1
+      - src: ./manpages/xterraci-list-plugins.1
+        dst: /usr/share/man/man1/xterraci-list-plugins.1
+      - src: ./manpages/xterraci-version.1
+        dst: /usr/share/man/man1/xterraci-version.1
     formats:
       - deb
       - rpm
@@ -168,6 +211,7 @@ dockers_v2:
   - id: terraci
     ids:
       - terraci
+      - xterraci
     images:
       - "ghcr.io/edelwud/terraci"
     tags:
@@ -181,7 +225,7 @@ dockers_v2:
     labels:
       org.opencontainers.image.created: "{{.Date}}"
       org.opencontainers.image.name: "{{.ProjectName}}"
-      org.opencontainers.image.description: "CLI tool for analyzing Terraform projects and generating GitLab CI pipelines"
+      org.opencontainers.image.description: "CLI tool for analyzing Terraform projects and generating CI pipelines"
       org.opencontainers.image.revision: "{{.FullCommit}}"
       org.opencontainers.image.version: "{{.Version}}"
       org.opencontainers.image.source: "{{.GitURL}}"

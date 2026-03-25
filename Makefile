@@ -1,7 +1,6 @@
-.PHONY: build test clean install lint fmt help
+.PHONY: build build-xterraci test clean install lint fmt help
 
 # Build variables
-BINARY_NAME=terraci
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 DATE ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -18,7 +17,6 @@ GOMOD=$(GOCMD) mod
 
 # Directories
 BUILD_DIR=build
-CMD_DIR=cmd/terraci
 
 ## help: Show this help message
 help:
@@ -27,31 +25,45 @@ help:
 	@echo "Targets:"
 	@sed -n 's/^##//p' $(MAKEFILE_LIST) | column -t -s ':' | sed 's/^/ /'
 
-## build: Build the binary
-build:
+## build: Build terraci and xterraci
+build: build-terraci build-xterraci
+
+## build-terraci: Build the terraci binary
+build-terraci:
 	@mkdir -p $(BUILD_DIR)
-	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./$(CMD_DIR)
+	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/terraci ./cmd/terraci
+
+## build-xterraci: Build the xterraci binary
+build-xterraci:
+	@mkdir -p $(BUILD_DIR)
+	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/xterraci ./cmd/xterraci
 
 ## build-all: Build for multiple platforms
 build-all: build-linux build-darwin build-windows
 
 build-linux:
 	@mkdir -p $(BUILD_DIR)
-	GOOS=linux GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 ./$(CMD_DIR)
-	GOOS=linux GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64 ./$(CMD_DIR)
+	GOOS=linux GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/terraci-linux-amd64 ./cmd/terraci
+	GOOS=linux GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/terraci-linux-arm64 ./cmd/terraci
+	GOOS=linux GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/xterraci-linux-amd64 ./cmd/xterraci
+	GOOS=linux GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/xterraci-linux-arm64 ./cmd/xterraci
 
 build-darwin:
 	@mkdir -p $(BUILD_DIR)
-	GOOS=darwin GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 ./$(CMD_DIR)
-	GOOS=darwin GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64 ./$(CMD_DIR)
+	GOOS=darwin GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/terraci-darwin-amd64 ./cmd/terraci
+	GOOS=darwin GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/terraci-darwin-arm64 ./cmd/terraci
+	GOOS=darwin GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/xterraci-darwin-amd64 ./cmd/xterraci
+	GOOS=darwin GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/xterraci-darwin-arm64 ./cmd/xterraci
 
 build-windows:
 	@mkdir -p $(BUILD_DIR)
-	GOOS=windows GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe ./$(CMD_DIR)
+	GOOS=windows GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/terraci-windows-amd64.exe ./cmd/terraci
+	GOOS=windows GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/xterraci-windows-amd64.exe ./cmd/xterraci
 
-## install: Install the binary to $GOPATH/bin
+## install: Install both binaries to $GOPATH/bin
 install:
-	$(GOBUILD) $(LDFLAGS) -o $(GOPATH)/bin/$(BINARY_NAME) ./$(CMD_DIR)
+	$(GOBUILD) $(LDFLAGS) -o $(GOPATH)/bin/terraci ./cmd/terraci
+	$(GOBUILD) $(LDFLAGS) -o $(GOPATH)/bin/xterraci ./cmd/xterraci
 
 ## test: Run tests
 test:
@@ -92,13 +104,13 @@ clean:
 deps:
 	$(GOMOD) download
 
-## run: Run the application
-run: build
-	./$(BUILD_DIR)/$(BINARY_NAME)
+## run: Run terraci
+run: build-terraci
+	./$(BUILD_DIR)/terraci
 
 ## example: Generate example pipeline
-example: build
-	./$(BUILD_DIR)/$(BINARY_NAME) generate --dry-run
+example: build-terraci
+	./$(BUILD_DIR)/terraci generate --dry-run
 
 ## version: Show version
 version:

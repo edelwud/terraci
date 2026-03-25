@@ -12,8 +12,9 @@ RUN apk add --no-cache \
     openssh-client
 
 COPY ${TARGETOS}/${TARGETARCH}/terraci /usr/local/bin/terraci
+COPY ${TARGETOS}/${TARGETARCH}/xterraci /usr/local/bin/xterraci
 
-RUN chmod +x /usr/local/bin/terraci
+RUN chmod +x /usr/local/bin/terraci /usr/local/bin/xterraci
 
 WORKDIR /workspace
 

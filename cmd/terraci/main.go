@@ -1,9 +1,8 @@
 package main
 
 import (
-	"os"
-
 	"github.com/edelwud/terraci/cmd/terraci/cmd"
+	"github.com/edelwud/terraci/pkg/log"
 
 	// Built-in plugins (blank imports trigger init() registration)
 	_ "github.com/edelwud/terraci/plugins/cost"
@@ -22,6 +21,6 @@ var (
 
 func main() {
 	if err := cmd.NewRootCmd(version, commit, date).Execute(); err != nil {
-		os.Exit(1)
+		log.WithError(err).Fatal("command failed")
 	}
 }

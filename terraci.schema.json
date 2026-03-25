@@ -2,14 +2,6 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/edelwud/terraci/raw/main/terraci.schema.json",
   "properties": {
-    "provider": {
-      "type": "string",
-      "enum": [
-        "gitlab",
-        "github"
-      ],
-      "description": "CI provider (gitlab or github). Auto-detected from environment if not set"
-    },
     "structure": {
       "properties": {
         "pattern": {
@@ -48,800 +40,23 @@
       "type": "object",
       "description": "Configuration for library/shared modules (non-executable modules used by other modules)"
     },
-    "policy": {
+    "plugins": {
       "properties": {
-        "enabled": {
-          "type": "boolean",
-          "description": "Enable policy checks",
-          "default": false
-        },
-        "sources": {
-          "items": {
-            "properties": {
-              "path": {
-                "type": "string",
-                "description": "Local path to policies directory"
-              },
-              "git": {
-                "type": "string",
-                "description": "Git repository URL for policies"
-              },
-              "ref": {
-                "type": "string",
-                "description": "Git reference (branch"
-              },
-              "oci": {
-                "type": "string",
-                "description": "OCI bundle URL for policies"
-              }
-            },
-            "type": "object"
-          },
-          "type": "array",
-          "description": "Policy sources (local path"
-        },
-        "namespaces": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array",
-          "description": "Rego package namespaces to evaluate"
-        },
-        "on_failure": {
-          "type": "string",
-          "enum": [
-            "block",
-            "warn"
-          ],
-          "description": "Behavior on policy failure",
-          "default": "block"
-        },
-        "on_warning": {
-          "type": "string",
-          "enum": [
-            "warn",
-            "ignore"
-          ],
-          "description": "Behavior on policy warnings",
-          "default": "warn"
-        },
-        "show_in_comment": {
-          "type": "boolean",
-          "description": "Include policy results in MR comment",
-          "default": true
-        },
-        "overwrites": {
-          "items": {
-            "properties": {
-              "match": {
-                "type": "string",
-                "description": "Glob pattern to match module paths"
-              },
-              "enabled": {
-                "type": "boolean",
-                "description": "Override enabled state for matching modules"
-              },
-              "namespaces": {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array",
-                "description": "Override namespaces for matching modules"
-              },
-              "on_failure": {
-                "type": "string",
-                "description": "Override failure behavior for matching modules"
-              },
-              "on_warning": {
-                "type": "string",
-                "description": "Override warning behavior for matching modules"
-              }
-            },
-            "type": "object",
-            "required": [
-              "match"
-            ]
-          },
-          "type": "array",
-          "description": "Per-module policy configuration overrides"
-        },
-        "cache_dir": {
-          "type": "string",
-          "description": "Directory to cache pulled policies",
-          "default": ".terraci/policies"
-        }
-      },
-      "type": "object",
-      "description": "Policy checks configuration using OPA"
-    },
-    "cost": {
-      "properties": {
-        "enabled": {
-          "type": "boolean",
-          "description": "Enable cost estimation",
-          "default": false
-        },
-        "cache_dir": {
-          "type": "string",
-          "description": "Directory to cache AWS pricing data"
-        },
-        "cache_ttl": {
-          "type": "string",
-          "description": "How long cached pricing is valid (e.g. 24h)",
-          "default": "24h"
-        },
-        "show_in_comment": {
-          "type": "boolean",
-          "description": "Show cost in MR comment table",
-          "default": true
-        }
-      },
-      "type": "object",
-      "description": "Cost estimation configuration using AWS Pricing API"
-    },
-    "gitlab": {
-      "properties": {
-        "terraform_binary": {
-          "type": "string",
-          "enum": [
-            "terraform",
-            "tofu"
-          ],
-          "description": "Terraform/OpenTofu binary to use",
-          "default": "terraform"
-        },
-        "image": {
+        "github": {
           "properties": {
-            "name": {
+            "terraform_binary": {
               "type": "string",
-              "description": "Docker image name"
+              "enum": [
+                "terraform",
+                "tofu"
+              ],
+              "description": "Terraform/OpenTofu binary to use",
+              "default": "terraform"
             },
-            "entrypoint": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array",
-              "description": "Override default entrypoint"
-            }
-          },
-          "type": "object",
-          "description": "Docker image for terraform jobs"
-        },
-        "stages_prefix": {
-          "type": "string",
-          "description": "Prefix for stage names (produces: {prefix}-plan-0, {prefix}-apply-0, etc.)",
-          "default": "deploy"
-        },
-        "parallelism": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Maximum parallel jobs per stage",
-          "default": 5
-        },
-        "variables": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "type": "object",
-          "description": "Global pipeline variables"
-        },
-        "plan_enabled": {
-          "type": "boolean",
-          "description": "Enable terraform plan stage",
-          "default": true
-        },
-        "plan_only": {
-          "type": "boolean",
-          "description": "Generate only plan jobs (no apply jobs)",
-          "default": false
-        },
-        "auto_approve": {
-          "type": "boolean",
-          "description": "Auto-approve applies (skip manual confirmation)",
-          "default": false
-        },
-        "cache_enabled": {
-          "type": "boolean",
-          "description": "Enable caching of .terraform directory",
-          "default": true
-        },
-        "init_enabled": {
-          "type": "boolean",
-          "description": "Automatically run terraform init after cd to module directory",
-          "default": true
-        },
-        "rules": {
-          "items": {
-            "properties": {
-              "if": {
-                "type": "string",
-                "description": "Condition expression"
-              },
-              "when": {
-                "type": "string",
-                "enum": [
-                  "always",
-                  "never",
-                  "on_success",
-                  "manual",
-                  "delayed"
-                ],
-                "description": "When to run"
-              },
-              "changes": {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array",
-                "description": "File patterns that trigger the rule"
-              }
-            },
-            "type": "object"
-          },
-          "type": "array",
-          "description": "Workflow rules for conditional pipeline execution"
-        },
-        "job_defaults": {
-          "properties": {
-            "image": {
-              "properties": {
-                "name": {
-                  "type": "string",
-                  "description": "Docker image name"
-                },
-                "entrypoint": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array",
-                  "description": "Override default entrypoint"
-                }
-              },
-              "type": "object",
-              "description": "Docker image override for all jobs"
-            },
-            "id_tokens": {
-              "additionalProperties": {
-                "properties": {
-                  "aud": {
-                    "type": "string",
-                    "description": "Audience for the token"
-                  }
-                },
-                "type": "object",
-                "required": [
-                  "aud"
-                ]
-              },
-              "type": "object",
-              "description": "OIDC tokens for cloud provider authentication"
-            },
-            "secrets": {
-              "additionalProperties": {
-                "properties": {
-                  "vault": {
-                    "properties": {
-                      "engine": {
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "description": "Engine name"
-                          },
-                          "path": {
-                            "type": "string",
-                            "description": "Engine mount path"
-                          }
-                        },
-                        "type": "object",
-                        "description": "Vault secrets engine configuration"
-                      },
-                      "path": {
-                        "type": "string",
-                        "description": "Path to the secret in Vault"
-                      },
-                      "field": {
-                        "type": "string",
-                        "description": "Field to extract from the secret"
-                      }
-                    },
-                    "type": "object",
-                    "description": "HashiCorp Vault secret configuration"
-                  },
-                  "file": {
-                    "type": "boolean",
-                    "description": "Write secret to a file"
-                  }
-                },
-                "type": "object"
-              },
-              "type": "object",
-              "description": "Secrets from external secret managers"
-            },
-            "before_script": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array",
-              "description": "Commands to run before each job"
-            },
-            "after_script": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array",
-              "description": "Commands to run after each job"
-            },
-            "artifacts": {
-              "properties": {
-                "paths": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array",
-                  "description": "File/directory paths to include as artifacts"
-                },
-                "expire_in": {
-                  "type": "string",
-                  "description": "How long to keep artifacts (e.g. '1 day', '1 week')"
-                },
-                "reports": {
-                  "properties": {
-                    "terraform": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "type": "array",
-                      "description": "Terraform report paths"
-                    },
-                    "junit": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "type": "array",
-                      "description": "JUnit report paths"
-                    },
-                    "cobertura": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "type": "array",
-                      "description": "Cobertura coverage report paths"
-                    }
-                  },
-                  "type": "object",
-                  "description": "Artifact reports configuration"
-                },
-                "name": {
-                  "type": "string",
-                  "description": "Artifact archive name"
-                },
-                "untracked": {
-                  "type": "boolean",
-                  "description": "Include all untracked files"
-                },
-                "when": {
-                  "type": "string",
-                  "enum": [
-                    "on_success",
-                    "on_failure",
-                    "always"
-                  ],
-                  "description": "When to upload artifacts"
-                },
-                "expose_as": {
-                  "type": "string",
-                  "description": "Makes artifacts available in MR UI"
-                }
-              },
-              "type": "object",
-              "description": "GitLab CI artifacts configuration"
-            },
-            "tags": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array",
-              "description": "GitLab runner tags"
-            },
-            "rules": {
-              "items": {
-                "properties": {
-                  "if": {
-                    "type": "string",
-                    "description": "Condition expression"
-                  },
-                  "when": {
-                    "type": "string",
-                    "enum": [
-                      "always",
-                      "never",
-                      "on_success",
-                      "manual",
-                      "delayed"
-                    ],
-                    "description": "When to run"
-                  },
-                  "changes": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array",
-                    "description": "File patterns that trigger the rule"
-                  }
-                },
-                "type": "object"
-              },
-              "type": "array",
-              "description": "Job-level rules"
-            },
-            "variables": {
-              "additionalProperties": {
-                "type": "string"
-              },
-              "type": "object",
-              "description": "Additional variables"
-            }
-          },
-          "type": "object",
-          "description": "Default settings applied to all jobs"
-        },
-        "overwrites": {
-          "items": {
-            "properties": {
-              "type": {
-                "type": "string",
-                "enum": [
-                  "plan",
-                  "apply"
-                ],
-                "description": "Type of jobs to override"
-              },
-              "image": {
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "description": "Docker image name"
-                  },
-                  "entrypoint": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array",
-                    "description": "Override default entrypoint"
-                  }
-                },
-                "type": "object",
-                "description": "Docker image override for matching jobs"
-              },
-              "id_tokens": {
-                "additionalProperties": {
-                  "properties": {
-                    "aud": {
-                      "type": "string",
-                      "description": "Audience for the token"
-                    }
-                  },
-                  "type": "object",
-                  "required": [
-                    "aud"
-                  ]
-                },
-                "type": "object",
-                "description": "OIDC tokens for matching jobs"
-              },
-              "secrets": {
-                "additionalProperties": {
-                  "properties": {
-                    "vault": {
-                      "properties": {
-                        "engine": {
-                          "properties": {
-                            "name": {
-                              "type": "string",
-                              "description": "Engine name"
-                            },
-                            "path": {
-                              "type": "string",
-                              "description": "Engine mount path"
-                            }
-                          },
-                          "type": "object",
-                          "description": "Vault secrets engine configuration"
-                        },
-                        "path": {
-                          "type": "string",
-                          "description": "Path to the secret in Vault"
-                        },
-                        "field": {
-                          "type": "string",
-                          "description": "Field to extract from the secret"
-                        }
-                      },
-                      "type": "object",
-                      "description": "HashiCorp Vault secret configuration"
-                    },
-                    "file": {
-                      "type": "boolean",
-                      "description": "Write secret to a file"
-                    }
-                  },
-                  "type": "object"
-                },
-                "type": "object",
-                "description": "Secrets for matching jobs"
-              },
-              "before_script": {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array",
-                "description": "Commands to run before matching jobs"
-              },
-              "after_script": {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array",
-                "description": "Commands to run after matching jobs"
-              },
-              "artifacts": {
-                "properties": {
-                  "paths": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array",
-                    "description": "File/directory paths to include as artifacts"
-                  },
-                  "expire_in": {
-                    "type": "string",
-                    "description": "How long to keep artifacts (e.g. '1 day', '1 week')"
-                  },
-                  "reports": {
-                    "properties": {
-                      "terraform": {
-                        "items": {
-                          "type": "string"
-                        },
-                        "type": "array",
-                        "description": "Terraform report paths"
-                      },
-                      "junit": {
-                        "items": {
-                          "type": "string"
-                        },
-                        "type": "array",
-                        "description": "JUnit report paths"
-                      },
-                      "cobertura": {
-                        "items": {
-                          "type": "string"
-                        },
-                        "type": "array",
-                        "description": "Cobertura coverage report paths"
-                      }
-                    },
-                    "type": "object",
-                    "description": "Artifact reports configuration"
-                  },
-                  "name": {
-                    "type": "string",
-                    "description": "Artifact archive name"
-                  },
-                  "untracked": {
-                    "type": "boolean",
-                    "description": "Include all untracked files"
-                  },
-                  "when": {
-                    "type": "string",
-                    "enum": [
-                      "on_success",
-                      "on_failure",
-                      "always"
-                    ],
-                    "description": "When to upload artifacts"
-                  },
-                  "expose_as": {
-                    "type": "string",
-                    "description": "Makes artifacts available in MR UI"
-                  }
-                },
-                "type": "object",
-                "description": "Artifacts configuration for matching jobs"
-              },
-              "tags": {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array",
-                "description": "Runner tags for matching jobs"
-              },
-              "rules": {
-                "items": {
-                  "properties": {
-                    "if": {
-                      "type": "string",
-                      "description": "Condition expression"
-                    },
-                    "when": {
-                      "type": "string",
-                      "enum": [
-                        "always",
-                        "never",
-                        "on_success",
-                        "manual",
-                        "delayed"
-                      ],
-                      "description": "When to run"
-                    },
-                    "changes": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "type": "array",
-                      "description": "File patterns that trigger the rule"
-                    }
-                  },
-                  "type": "object"
-                },
-                "type": "array",
-                "description": "Job-level rules for matching jobs"
-              },
-              "variables": {
-                "additionalProperties": {
-                  "type": "string"
-                },
-                "type": "object",
-                "description": "Variables for matching jobs"
-              }
-            },
-            "type": "object",
-            "required": [
-              "type"
-            ]
-          },
-          "type": "array",
-          "description": "Job-level overrides for plan or apply jobs"
-        },
-        "mr": {
-          "properties": {
-            "comment": {
-              "properties": {
-                "enabled": {
-                  "type": "boolean",
-                  "description": "Enable MR comments",
-                  "default": true
-                },
-                "on_changes_only": {
-                  "type": "boolean",
-                  "description": "Only comment when there are changes"
-                },
-                "include_details": {
-                  "type": "boolean",
-                  "description": "Include full plan output in expandable sections",
-                  "default": true
-                }
-              },
-              "type": "object",
-              "description": "MR comment configuration"
-            },
-            "labels": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array",
-              "description": "Labels to add to MR (supports placeholders: {service}, {environment}, {region}, {module})"
-            },
-            "summary_job": {
-              "properties": {
-                "image": {
-                  "properties": {
-                    "name": {
-                      "type": "string",
-                      "description": "Docker image name"
-                    },
-                    "entrypoint": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "type": "array",
-                      "description": "Override default entrypoint"
-                    }
-                  },
-                  "type": "object",
-                  "description": "Docker image for summary job (must contain terraci)"
-                },
-                "tags": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array",
-                  "description": "Runner tags for summary job"
-                }
-              },
-              "type": "object",
-              "description": "Summary job configuration"
-            }
-          },
-          "type": "object",
-          "description": "Merge request integration settings"
-        }
-      },
-      "type": "object",
-      "description": "GitLab CI configuration"
-    },
-    "github": {
-      "properties": {
-        "terraform_binary": {
-          "type": "string",
-          "enum": [
-            "terraform",
-            "tofu"
-          ],
-          "description": "Terraform/OpenTofu binary to use",
-          "default": "terraform"
-        },
-        "runs_on": {
-          "type": "string",
-          "description": "GitHub Actions runner label (e.g. ubuntu-latest)",
-          "default": "ubuntu-latest"
-        },
-        "container": {
-          "properties": {
-            "name": {
-              "type": "string",
-              "description": "Docker image name"
-            },
-            "entrypoint": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array",
-              "description": "Override default entrypoint"
-            }
-          },
-          "type": "object",
-          "description": "Container image to run jobs in (optional)"
-        },
-        "env": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "type": "object",
-          "description": "Workflow-level environment variables"
-        },
-        "plan_enabled": {
-          "type": "boolean",
-          "description": "Enable terraform plan jobs",
-          "default": true
-        },
-        "plan_only": {
-          "type": "boolean",
-          "description": "Generate only plan jobs (no apply jobs)",
-          "default": false
-        },
-        "auto_approve": {
-          "type": "boolean",
-          "description": "Auto-approve applies (skip environment protection)",
-          "default": false
-        },
-        "init_enabled": {
-          "type": "boolean",
-          "description": "Automatically run terraform init",
-          "default": true
-        },
-        "permissions": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "type": "object",
-          "description": "Workflow-level permissions (e.g. id-token: write for OIDC)"
-        },
-        "job_defaults": {
-          "properties": {
             "runs_on": {
               "type": "string",
-              "description": "Override runner label"
+              "description": "GitHub Actions runner label (e.g. ubuntu-latest)",
+              "default": "ubuntu-latest"
             },
             "container": {
               "properties": {
@@ -858,249 +73,987 @@
                 }
               },
               "type": "object",
-              "description": "Container image for all jobs"
+              "description": "Container image to run jobs in (optional)"
             },
             "env": {
               "additionalProperties": {
                 "type": "string"
               },
               "type": "object",
-              "description": "Additional environment variables"
+              "description": "Workflow-level environment variables"
             },
-            "steps_before": {
+            "plan_enabled": {
+              "type": "boolean",
+              "description": "Enable terraform plan jobs",
+              "default": true
+            },
+            "plan_only": {
+              "type": "boolean",
+              "description": "Generate only plan jobs (no apply jobs)",
+              "default": false
+            },
+            "auto_approve": {
+              "type": "boolean",
+              "description": "Auto-approve applies (skip environment protection)",
+              "default": false
+            },
+            "init_enabled": {
+              "type": "boolean",
+              "description": "Automatically run terraform init",
+              "default": true
+            },
+            "permissions": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object",
+              "description": "Workflow-level permissions (e.g. id-token: write for OIDC)"
+            },
+            "job_defaults": {
+              "properties": {
+                "runs_on": {
+                  "type": "string",
+                  "description": "Override runner label"
+                },
+                "container": {
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Docker image name"
+                    },
+                    "entrypoint": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array",
+                      "description": "Override default entrypoint"
+                    }
+                  },
+                  "type": "object",
+                  "description": "Container image for all jobs"
+                },
+                "env": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "description": "Additional environment variables"
+                },
+                "steps_before": {
+                  "items": {
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "Step display name"
+                      },
+                      "uses": {
+                        "type": "string",
+                        "description": "GitHub Action reference"
+                      },
+                      "with": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "type": "object",
+                        "description": "Action inputs"
+                      },
+                      "run": {
+                        "type": "string",
+                        "description": "Shell command to run"
+                      },
+                      "env": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "type": "object",
+                        "description": "Step environment variables"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "description": "Extra steps before terraform commands"
+                },
+                "steps_after": {
+                  "items": {
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "Step display name"
+                      },
+                      "uses": {
+                        "type": "string",
+                        "description": "GitHub Action reference"
+                      },
+                      "with": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "type": "object",
+                        "description": "Action inputs"
+                      },
+                      "run": {
+                        "type": "string",
+                        "description": "Shell command to run"
+                      },
+                      "env": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "type": "object",
+                        "description": "Step environment variables"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "description": "Extra steps after terraform commands"
+                }
+              },
+              "type": "object",
+              "description": "Default settings applied to all jobs"
+            },
+            "overwrites": {
               "items": {
                 "properties": {
-                  "name": {
+                  "type": {
                     "type": "string",
-                    "description": "Step display name"
+                    "enum": [
+                      "plan",
+                      "apply"
+                    ],
+                    "description": "Type of jobs to override"
                   },
-                  "uses": {
+                  "runs_on": {
                     "type": "string",
-                    "description": "GitHub Action reference"
+                    "description": "Override runner label"
                   },
-                  "with": {
-                    "additionalProperties": {
-                      "type": "string"
+                  "container": {
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "Docker image name"
+                      },
+                      "entrypoint": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array",
+                        "description": "Override default entrypoint"
+                      }
                     },
                     "type": "object",
-                    "description": "Action inputs"
-                  },
-                  "run": {
-                    "type": "string",
-                    "description": "Shell command to run"
+                    "description": "Container image override"
                   },
                   "env": {
                     "additionalProperties": {
                       "type": "string"
                     },
                     "type": "object",
-                    "description": "Step environment variables"
+                    "description": "Additional environment variables"
+                  },
+                  "steps_before": {
+                    "items": {
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "description": "Step display name"
+                        },
+                        "uses": {
+                          "type": "string",
+                          "description": "GitHub Action reference"
+                        },
+                        "with": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "type": "object",
+                          "description": "Action inputs"
+                        },
+                        "run": {
+                          "type": "string",
+                          "description": "Shell command to run"
+                        },
+                        "env": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "type": "object",
+                          "description": "Step environment variables"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "type": "array",
+                    "description": "Extra steps before terraform commands"
+                  },
+                  "steps_after": {
+                    "items": {
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "description": "Step display name"
+                        },
+                        "uses": {
+                          "type": "string",
+                          "description": "GitHub Action reference"
+                        },
+                        "with": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "type": "object",
+                          "description": "Action inputs"
+                        },
+                        "run": {
+                          "type": "string",
+                          "description": "Shell command to run"
+                        },
+                        "env": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "type": "object",
+                          "description": "Step environment variables"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "type": "array",
+                    "description": "Extra steps after terraform commands"
                   }
                 },
-                "type": "object"
+                "type": "object",
+                "required": [
+                  "type"
+                ]
               },
               "type": "array",
-              "description": "Extra steps before terraform commands"
+              "description": "Job-level overrides for plan or apply jobs"
             },
-            "steps_after": {
-              "items": {
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "description": "Step display name"
-                  },
-                  "uses": {
-                    "type": "string",
-                    "description": "GitHub Action reference"
-                  },
-                  "with": {
-                    "additionalProperties": {
-                      "type": "string"
+            "pr": {
+              "properties": {
+                "comment": {
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean",
+                      "description": "Enable MR comments",
+                      "default": true
                     },
-                    "type": "object",
-                    "description": "Action inputs"
-                  },
-                  "run": {
-                    "type": "string",
-                    "description": "Shell command to run"
-                  },
-                  "env": {
-                    "additionalProperties": {
-                      "type": "string"
+                    "on_changes_only": {
+                      "type": "boolean",
+                      "description": "Only comment when there are changes"
                     },
-                    "type": "object",
-                    "description": "Step environment variables"
-                  }
+                    "include_details": {
+                      "type": "boolean",
+                      "description": "Include full plan output in expandable sections",
+                      "default": true
+                    }
+                  },
+                  "type": "object",
+                  "description": "PR comment configuration"
                 },
-                "type": "object"
+                "summary_job": {
+                  "properties": {
+                    "runs_on": {
+                      "type": "string",
+                      "description": "Runner label for summary job"
+                    }
+                  },
+                  "type": "object",
+                  "description": "Summary job configuration"
+                }
               },
-              "type": "array",
-              "description": "Extra steps after terraform commands"
+              "type": "object",
+              "description": "Pull request integration settings"
             }
           },
-          "type": "object",
-          "description": "Default settings applied to all jobs"
+          "type": "object"
         },
-        "overwrites": {
-          "items": {
-            "properties": {
-              "type": {
-                "type": "string",
-                "enum": [
-                  "plan",
-                  "apply"
-                ],
-                "description": "Type of jobs to override"
-              },
-              "runs_on": {
-                "type": "string",
-                "description": "Override runner label"
-              },
-              "container": {
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "description": "Docker image name"
+        "gitlab": {
+          "properties": {
+            "terraform_binary": {
+              "type": "string",
+              "enum": [
+                "terraform",
+                "tofu"
+              ],
+              "description": "Terraform/OpenTofu binary to use",
+              "default": "terraform"
+            },
+            "image": {
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Docker image name"
+                },
+                "entrypoint": {
+                  "items": {
+                    "type": "string"
                   },
-                  "entrypoint": {
+                  "type": "array",
+                  "description": "Override default entrypoint"
+                }
+              },
+              "type": "object",
+              "description": "Docker image for terraform jobs"
+            },
+            "stages_prefix": {
+              "type": "string",
+              "description": "Prefix for stage names (produces: {prefix}-plan-0, {prefix}-apply-0, etc.)",
+              "default": "deploy"
+            },
+            "parallelism": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Maximum parallel jobs per stage",
+              "default": 5
+            },
+            "variables": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object",
+              "description": "Global pipeline variables"
+            },
+            "plan_enabled": {
+              "type": "boolean",
+              "description": "Enable terraform plan stage",
+              "default": true
+            },
+            "plan_only": {
+              "type": "boolean",
+              "description": "Generate only plan jobs (no apply jobs)",
+              "default": false
+            },
+            "auto_approve": {
+              "type": "boolean",
+              "description": "Auto-approve applies (skip manual confirmation)",
+              "default": false
+            },
+            "cache_enabled": {
+              "type": "boolean",
+              "description": "Enable caching of .terraform directory",
+              "default": true
+            },
+            "init_enabled": {
+              "type": "boolean",
+              "description": "Automatically run terraform init after cd to module directory",
+              "default": true
+            },
+            "rules": {
+              "items": {
+                "properties": {
+                  "If": {
+                    "type": "string"
+                  },
+                  "When": {
+                    "type": "string"
+                  },
+                  "Changes": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array",
+              "description": "Workflow rules for conditional pipeline execution"
+            },
+            "job_defaults": {
+              "properties": {
+                "image": {
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Docker image name"
+                    },
+                    "entrypoint": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array",
+                      "description": "Override default entrypoint"
+                    }
+                  },
+                  "type": "object",
+                  "description": "Docker image override for all jobs"
+                },
+                "id_tokens": {
+                  "additionalProperties": {
+                    "properties": {
+                      "Aud": {
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "type": "object",
+                  "description": "OIDC tokens for cloud provider authentication"
+                },
+                "secrets": {
+                  "additionalProperties": {
+                    "properties": {
+                      "vault": {
+                        "properties": {
+                          "engine": {
+                            "properties": {
+                              "Name": {
+                                "type": "string"
+                              },
+                              "Path": {
+                                "type": "string"
+                              }
+                            },
+                            "type": "object",
+                            "description": "Vault secrets engine configuration"
+                          },
+                          "path": {
+                            "type": "string",
+                            "description": "Path to the secret in Vault"
+                          },
+                          "field": {
+                            "type": "string",
+                            "description": "Field to extract from the secret"
+                          }
+                        },
+                        "type": "object",
+                        "description": "HashiCorp Vault secret configuration"
+                      },
+                      "file": {
+                        "type": "boolean",
+                        "description": "Write secret to a file"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "type": "object",
+                  "description": "Secrets from external secret managers"
+                },
+                "before_script": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "description": "Commands to run before each job"
+                },
+                "after_script": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "description": "Commands to run after each job"
+                },
+                "artifacts": {
+                  "properties": {
+                    "paths": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array",
+                      "description": "File/directory paths to include as artifacts"
+                    },
+                    "expire_in": {
+                      "type": "string",
+                      "description": "How long to keep artifacts (e.g. '1 day', '1 week')"
+                    },
+                    "reports": {
+                      "properties": {
+                        "terraform": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array",
+                          "description": "Terraform report paths"
+                        },
+                        "junit": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array",
+                          "description": "JUnit report paths"
+                        },
+                        "cobertura": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array",
+                          "description": "Cobertura coverage report paths"
+                        }
+                      },
+                      "type": "object",
+                      "description": "Artifact reports configuration"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "Artifact archive name"
+                    },
+                    "untracked": {
+                      "type": "boolean",
+                      "description": "Include all untracked files"
+                    },
+                    "when": {
+                      "type": "string",
+                      "enum": [
+                        "on_success",
+                        "on_failure",
+                        "always"
+                      ],
+                      "description": "When to upload artifacts"
+                    },
+                    "expose_as": {
+                      "type": "string",
+                      "description": "Makes artifacts available in MR UI"
+                    }
+                  },
+                  "type": "object",
+                  "description": "GitLab CI artifacts configuration"
+                },
+                "tags": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "description": "GitLab runner tags"
+                },
+                "rules": {
+                  "items": {
+                    "properties": {
+                      "If": {
+                        "type": "string"
+                      },
+                      "When": {
+                        "type": "string"
+                      },
+                      "Changes": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "description": "Job-level rules"
+                },
+                "variables": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "description": "Additional variables"
+                }
+              },
+              "type": "object",
+              "description": "Default settings applied to all jobs"
+            },
+            "overwrites": {
+              "items": {
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "plan",
+                      "apply"
+                    ],
+                    "description": "Type of jobs to override"
+                  },
+                  "image": {
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "Docker image name"
+                      },
+                      "entrypoint": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array",
+                        "description": "Override default entrypoint"
+                      }
+                    },
+                    "type": "object",
+                    "description": "Docker image override for matching jobs"
+                  },
+                  "id_tokens": {
+                    "additionalProperties": {
+                      "properties": {
+                        "Aud": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "type": "object",
+                    "description": "OIDC tokens for matching jobs"
+                  },
+                  "secrets": {
+                    "additionalProperties": {
+                      "properties": {
+                        "vault": {
+                          "properties": {
+                            "engine": {
+                              "properties": {
+                                "Name": {
+                                  "type": "string"
+                                },
+                                "Path": {
+                                  "type": "string"
+                                }
+                              },
+                              "type": "object",
+                              "description": "Vault secrets engine configuration"
+                            },
+                            "path": {
+                              "type": "string",
+                              "description": "Path to the secret in Vault"
+                            },
+                            "field": {
+                              "type": "string",
+                              "description": "Field to extract from the secret"
+                            }
+                          },
+                          "type": "object",
+                          "description": "HashiCorp Vault secret configuration"
+                        },
+                        "file": {
+                          "type": "boolean",
+                          "description": "Write secret to a file"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "type": "object",
+                    "description": "Secrets for matching jobs"
+                  },
+                  "before_script": {
                     "items": {
                       "type": "string"
                     },
                     "type": "array",
-                    "description": "Override default entrypoint"
+                    "description": "Commands to run before matching jobs"
+                  },
+                  "after_script": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Commands to run after matching jobs"
+                  },
+                  "artifacts": {
+                    "properties": {
+                      "paths": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array",
+                        "description": "File/directory paths to include as artifacts"
+                      },
+                      "expire_in": {
+                        "type": "string",
+                        "description": "How long to keep artifacts (e.g. '1 day', '1 week')"
+                      },
+                      "reports": {
+                        "properties": {
+                          "terraform": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array",
+                            "description": "Terraform report paths"
+                          },
+                          "junit": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array",
+                            "description": "JUnit report paths"
+                          },
+                          "cobertura": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array",
+                            "description": "Cobertura coverage report paths"
+                          }
+                        },
+                        "type": "object",
+                        "description": "Artifact reports configuration"
+                      },
+                      "name": {
+                        "type": "string",
+                        "description": "Artifact archive name"
+                      },
+                      "untracked": {
+                        "type": "boolean",
+                        "description": "Include all untracked files"
+                      },
+                      "when": {
+                        "type": "string",
+                        "enum": [
+                          "on_success",
+                          "on_failure",
+                          "always"
+                        ],
+                        "description": "When to upload artifacts"
+                      },
+                      "expose_as": {
+                        "type": "string",
+                        "description": "Makes artifacts available in MR UI"
+                      }
+                    },
+                    "type": "object",
+                    "description": "Artifacts configuration for matching jobs"
+                  },
+                  "tags": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Runner tags for matching jobs"
+                  },
+                  "rules": {
+                    "items": {
+                      "properties": {
+                        "If": {
+                          "type": "string"
+                        },
+                        "When": {
+                          "type": "string"
+                        },
+                        "Changes": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "type": "array",
+                    "description": "Job-level rules for matching jobs"
+                  },
+                  "variables": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object",
+                    "description": "Variables for matching jobs"
                   }
                 },
                 "type": "object",
-                "description": "Container image override"
+                "required": [
+                  "type"
+                ]
               },
-              "env": {
-                "additionalProperties": {
-                  "type": "string"
-                },
-                "type": "object",
-                "description": "Additional environment variables"
-              },
-              "steps_before": {
-                "items": {
-                  "properties": {
-                    "name": {
-                      "type": "string",
-                      "description": "Step display name"
-                    },
-                    "uses": {
-                      "type": "string",
-                      "description": "GitHub Action reference"
-                    },
-                    "with": {
-                      "additionalProperties": {
-                        "type": "string"
-                      },
-                      "type": "object",
-                      "description": "Action inputs"
-                    },
-                    "run": {
-                      "type": "string",
-                      "description": "Shell command to run"
-                    },
-                    "env": {
-                      "additionalProperties": {
-                        "type": "string"
-                      },
-                      "type": "object",
-                      "description": "Step environment variables"
-                    }
-                  },
-                  "type": "object"
-                },
-                "type": "array",
-                "description": "Extra steps before terraform commands"
-              },
-              "steps_after": {
-                "items": {
-                  "properties": {
-                    "name": {
-                      "type": "string",
-                      "description": "Step display name"
-                    },
-                    "uses": {
-                      "type": "string",
-                      "description": "GitHub Action reference"
-                    },
-                    "with": {
-                      "additionalProperties": {
-                        "type": "string"
-                      },
-                      "type": "object",
-                      "description": "Action inputs"
-                    },
-                    "run": {
-                      "type": "string",
-                      "description": "Shell command to run"
-                    },
-                    "env": {
-                      "additionalProperties": {
-                        "type": "string"
-                      },
-                      "type": "object",
-                      "description": "Step environment variables"
-                    }
-                  },
-                  "type": "object"
-                },
-                "type": "array",
-                "description": "Extra steps after terraform commands"
-              }
+              "type": "array",
+              "description": "Job-level overrides for plan or apply jobs"
             },
-            "type": "object",
-            "required": [
-              "type"
-            ]
-          },
-          "type": "array",
-          "description": "Job-level overrides for plan or apply jobs"
-        },
-        "pr": {
-          "properties": {
-            "comment": {
+            "mr": {
               "properties": {
-                "enabled": {
-                  "type": "boolean",
-                  "description": "Enable MR comments",
-                  "default": true
+                "comment": {
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean",
+                      "description": "Enable MR comments",
+                      "default": true
+                    },
+                    "on_changes_only": {
+                      "type": "boolean",
+                      "description": "Only comment when there are changes"
+                    },
+                    "include_details": {
+                      "type": "boolean",
+                      "description": "Include full plan output in expandable sections",
+                      "default": true
+                    }
+                  },
+                  "type": "object",
+                  "description": "MR comment configuration"
                 },
-                "on_changes_only": {
-                  "type": "boolean",
-                  "description": "Only comment when there are changes"
+                "labels": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "description": "Labels to add to MR (supports placeholders: {service}, {environment}, {region}, {module})"
                 },
-                "include_details": {
-                  "type": "boolean",
-                  "description": "Include full plan output in expandable sections",
-                  "default": true
+                "summary_job": {
+                  "properties": {
+                    "image": {
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "description": "Docker image name"
+                        },
+                        "entrypoint": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array",
+                          "description": "Override default entrypoint"
+                        }
+                      },
+                      "type": "object",
+                      "description": "Docker image for summary job (must contain terraci)"
+                    },
+                    "tags": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array",
+                      "description": "Runner tags for summary job"
+                    }
+                  },
+                  "type": "object",
+                  "description": "Summary job configuration"
                 }
               },
               "type": "object",
-              "description": "PR comment configuration"
-            },
-            "summary_job": {
-              "properties": {
-                "runs_on": {
-                  "type": "string",
-                  "description": "Runner label for summary job"
-                }
-              },
-              "type": "object",
-              "description": "Summary job configuration"
+              "description": "Merge request integration settings"
             }
           },
-          "type": "object",
-          "description": "Pull request integration settings"
+          "type": "object"
+        },
+        "cost": {
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable cost estimation",
+              "default": false
+            },
+            "cache_dir": {
+              "type": "string",
+              "description": "Directory to cache AWS pricing data"
+            },
+            "cache_ttl": {
+              "type": "string",
+              "description": "How long cached pricing is valid (e.g. 24h)",
+              "default": "24h"
+            },
+            "show_in_comment": {
+              "type": "boolean",
+              "description": "Show cost in MR comment table",
+              "default": true
+            }
+          },
+          "type": "object"
+        },
+        "policy": {
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable policy checks",
+              "default": false
+            },
+            "sources": {
+              "items": {
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Local path to policies directory"
+                  },
+                  "git": {
+                    "type": "string",
+                    "description": "Git repository URL for policies"
+                  },
+                  "ref": {
+                    "type": "string",
+                    "description": "Git reference (branch"
+                  },
+                  "oci": {
+                    "type": "string",
+                    "description": "OCI bundle URL for policies"
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array",
+              "description": "Policy sources (local path"
+            },
+            "namespaces": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array",
+              "description": "Rego package namespaces to evaluate"
+            },
+            "on_failure": {
+              "type": "string",
+              "enum": [
+                "block",
+                "warn"
+              ],
+              "description": "Behavior on policy failure",
+              "default": "block"
+            },
+            "on_warning": {
+              "type": "string",
+              "enum": [
+                "warn",
+                "ignore"
+              ],
+              "description": "Behavior on policy warnings",
+              "default": "warn"
+            },
+            "show_in_comment": {
+              "type": "boolean",
+              "description": "Include policy results in MR comment",
+              "default": true
+            },
+            "overwrites": {
+              "items": {
+                "properties": {
+                  "match": {
+                    "type": "string",
+                    "description": "Glob pattern to match module paths"
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "description": "Override enabled state for matching modules"
+                  },
+                  "namespaces": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Override namespaces for matching modules"
+                  },
+                  "on_failure": {
+                    "type": "string",
+                    "description": "Override failure behavior for matching modules"
+                  },
+                  "on_warning": {
+                    "type": "string",
+                    "description": "Override warning behavior for matching modules"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "match"
+                ]
+              },
+              "type": "array",
+              "description": "Per-module policy configuration overrides"
+            },
+            "cache_dir": {
+              "type": "string",
+              "description": "Directory to cache pulled policies",
+              "default": ".terraci/policies"
+            }
+          },
+          "type": "object"
         }
       },
+      "additionalProperties": true,
       "type": "object",
-      "description": "GitHub Actions configuration"
+      "description": "Plugin-specific configuration"
     }
   },
   "type": "object",
   "title": "TerraCi Configuration",
-  "description": "Configuration schema for TerraCi - GitLab CI pipeline generator for Terraform monorepos"
+  "description": "Configuration schema for TerraCi - CI pipeline generator for Terraform monorepos"
 }
