@@ -268,6 +268,25 @@ func savePolicyResults(summary *policyengine.Summary) error {
 	return encoder.Encode(summary)
 }
 
+// PipelineContributor — adds policy-check job to CI pipeline
+
+func (p *Plugin) PipelineSteps() []plugin.PipelineStep { return nil }
+
+func (p *Plugin) PipelineJobs() []plugin.PipelineJob {
+	if !p.IsConfigured() || p.cfg == nil || !p.cfg.Enabled {
+		return nil
+	}
+	allowFailure := p.cfg.OnFailure == policyengine.ActionWarn
+	return []plugin.PipelineJob{{
+		Name:          "policy-check",
+		Stage:         "post-plan",
+		Commands:      []string{"terraci policy pull", "terraci policy check"},
+		ArtifactPaths: []string{".terraci/policy-results.json"},
+		DependsOnPlan: true,
+		AllowFailure:  allowFailure,
+	}}
+}
+
 // VersionProvider — contributes OPA version to `terraci version`
 
 func (p *Plugin) VersionInfo() map[string]string {

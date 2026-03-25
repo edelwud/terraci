@@ -8,14 +8,12 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
-	"github.com/edelwud/terraci/plugins/policy"
+	"github.com/edelwud/terraci/pkg/plugin"
 )
 
 const (
 	// SummaryJobName is the name of the summary job
 	SummaryJobName = "terraci-summary"
-	// PolicyCheckJobName is the name of the policy check job
-	PolicyCheckJobName = "policy-check"
 	// stepsInitialCap is the initial capacity for job steps slice
 	stepsInitialCap = 8
 )
@@ -23,17 +21,19 @@ const (
 // Generator generates GitHub Actions workflows
 type Generator struct {
 	config      *Config
-	policyCfg   *policy.Config
+	steps       []plugin.PipelineStep
+	jobs        []plugin.PipelineJob
 	depGraph    *graph.DependencyGraph
 	modules     []*discovery.Module
 	moduleIndex *discovery.ModuleIndex
 }
 
 // NewGenerator creates a new GitHub Actions pipeline generator
-func NewGenerator(cfg *Config, policyCfg *policy.Config, depGraph *graph.DependencyGraph, modules []*discovery.Module) *Generator {
+func NewGenerator(cfg *Config, steps []plugin.PipelineStep, jobs []plugin.PipelineJob, depGraph *graph.DependencyGraph, modules []*discovery.Module) *Generator {
 	return &Generator{
 		config:      cfg,
-		policyCfg:   policyCfg,
+		steps:       steps,
+		jobs:        jobs,
 		depGraph:    depGraph,
 		modules:     modules,
 		moduleIndex: discovery.NewModuleIndex(modules),
@@ -46,7 +46,7 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (pipeline.Genera
 
 	plan, err := pipeline.BuildJobPlan(
 		g.depGraph, targetModules, g.modules, g.moduleIndex,
-		g.isPREnabled(), g.isPolicyEnabled(), ghCfg.PlanEnabled,
+		g.isPREnabled(), g.hasContributedJobs(), ghCfg.PlanEnabled,
 	)
 	if err != nil {
 		return nil, err
@@ -108,9 +108,12 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (pipeline.Genera
 		}
 	}
 
-	// Generate policy check job if policy checks are enabled
+	// Generate contributed jobs (e.g., policy-check) from PipelineContributor plugins
 	if plan.IncludePolicy && len(planJobNames) > 0 {
-		workflow.Jobs[PolicyCheckJobName] = g.generatePolicyCheckJob(planJobNames)
+		contributedJobs := g.generateContributedJobs(planJobNames)
+		for name, job := range contributedJobs {
+			workflow.Jobs[name] = job
+		}
 	}
 
 	// Generate summary job if PR integration is enabled
@@ -143,10 +146,24 @@ func (g *Generator) generatePlanJob(module *discovery.Module, targetModuleSet ma
 	// Add steps_before from job_defaults
 	steps = append(steps, g.getStepsBefore(OverwriteTypePlan)...)
 
+	// Add contributed pre-plan steps
+	for _, s := range g.steps {
+		if s.Phase == plugin.PhasePrePlan {
+			steps = append(steps, Step{Name: s.Name, Run: s.Command})
+		}
+	}
+
 	steps = append(steps, Step{
 		Name: fmt.Sprintf("Plan %s", module.ID()),
 		Run:  runScript,
 	})
+
+	// Add contributed post-plan steps
+	for _, s := range g.steps {
+		if s.Phase == plugin.PhasePostPlan {
+			steps = append(steps, Step{Name: s.Name, Run: s.Command})
+		}
+	}
 
 	// Add steps_after from job_defaults
 	steps = append(steps, g.getStepsAfter(OverwriteTypePlan)...)
@@ -222,10 +239,24 @@ func (g *Generator) generateApplyJob(module *discovery.Module, targetModuleSet m
 	// Add steps_before from job_defaults
 	steps = append(steps, g.getStepsBefore(OverwriteTypeApply)...)
 
+	// Add contributed pre-apply steps
+	for _, s := range g.steps {
+		if s.Phase == plugin.PhasePreApply {
+			steps = append(steps, Step{Name: s.Name, Run: s.Command})
+		}
+	}
+
 	steps = append(steps, Step{
 		Name: fmt.Sprintf("Apply %s", module.ID()),
 		Run:  runScript,
 	})
+
+	// Add contributed post-apply steps
+	for _, s := range g.steps {
+		if s.Phase == plugin.PhasePostApply {
+			steps = append(steps, Step{Name: s.Name, Run: s.Command})
+		}
+	}
 
 	// Add steps_after from job_defaults
 	steps = append(steps, g.getStepsAfter(OverwriteTypeApply)...)
@@ -263,11 +294,13 @@ func (g *Generator) generateApplyJob(module *discovery.Module, targetModuleSet m
 }
 
 // generateSummaryJob creates the terraci summary job that posts PR comments
-func (g *Generator) generateSummaryJob(planJobNames []string, includePolicyCheck bool) *Job {
-	needs := make([]string, 0, len(planJobNames)+1)
+func (g *Generator) generateSummaryJob(planJobNames []string, includeContributed bool) *Job {
+	needs := make([]string, 0, len(planJobNames)+len(g.jobs)+1)
 	needs = append(needs, planJobNames...)
-	if includePolicyCheck {
-		needs = append(needs, PolicyCheckJobName)
+	if includeContributed {
+		for _, j := range g.jobs {
+			needs = append(needs, j.Name)
+		}
 	}
 
 	steps := []Step{
@@ -299,55 +332,66 @@ func (g *Generator) generateSummaryJob(planJobNames []string, includePolicyCheck
 	return job
 }
 
-// generatePolicyCheckJob creates the policy check job
-func (g *Generator) generatePolicyCheckJob(planJobNames []string) *Job {
-	needs := make([]string, len(planJobNames))
-	copy(needs, planJobNames)
-
-	// Determine script based on on_failure setting
-	var policyScript string
-	if g.policyCfg.OnFailure == policy.ActionWarn {
-		policyScript = "terraci policy pull\nterraci policy check || true"
-	} else {
-		policyScript = "terraci policy pull\nterraci policy check"
-	}
-
-	steps := []Step{
-		{Name: "Checkout", Uses: "actions/checkout@v4"},
-		{
-			Name: "Download all plan artifacts",
-			Uses: "actions/download-artifact@v4",
-		},
-		{
-			Name: "Run policy checks",
-			Run:  policyScript,
-		},
-		{
-			Name: "Upload policy results",
-			Uses: "actions/upload-artifact@v4",
-			With: map[string]string{
-				"name":           "policy-results",
-				"path":           ".terraci/policy-results.json",
-				"retention-days": "1",
-			},
-			If: "always()",
-		},
-	}
-
-	job := &Job{
-		RunsOn: g.getRunsOn(),
-		Needs:  needs,
-		Steps:  steps,
-	}
-
-	// Use summary job runner if specified
-	if g.ghConfig().PR != nil && g.ghConfig().PR.SummaryJob != nil {
-		if runsOn := g.ghConfig().PR.SummaryJob.RunsOn; runsOn != "" {
-			job.RunsOn = runsOn
+// generateContributedJobs creates jobs from PipelineContributor plugins.
+func (g *Generator) generateContributedJobs(planJobNames []string) map[string]*Job {
+	result := make(map[string]*Job)
+	for _, j := range g.jobs {
+		needs := make([]string, 0)
+		if j.DependsOnPlan {
+			needs = append(needs, planJobNames...)
 		}
-	}
 
-	return job
+		var scriptLines []string
+		if j.AllowFailure {
+			for _, cmd := range j.Commands {
+				scriptLines = append(scriptLines, cmd+" || true")
+			}
+		} else {
+			scriptLines = j.Commands
+		}
+
+		jobSteps := []Step{
+			{Name: "Checkout", Uses: "actions/checkout@v4"},
+			{
+				Name: "Download all plan artifacts",
+				Uses: "actions/download-artifact@v4",
+			},
+			{
+				Name: fmt.Sprintf("Run %s", j.Name),
+				Run:  strings.Join(scriptLines, "\n"),
+			},
+		}
+
+		// Add artifact upload step if artifact paths specified
+		if len(j.ArtifactPaths) > 0 {
+			jobSteps = append(jobSteps, Step{
+				Name: fmt.Sprintf("Upload %s results", j.Name),
+				Uses: "actions/upload-artifact@v4",
+				With: map[string]string{
+					"name":           j.Name + "-results",
+					"path":           strings.Join(j.ArtifactPaths, "\n"),
+					"retention-days": "1",
+				},
+				If: "always()",
+			})
+		}
+
+		job := &Job{
+			RunsOn: g.getRunsOn(),
+			Needs:  needs,
+			Steps:  jobSteps,
+		}
+
+		// Use summary job runner if specified
+		if g.ghConfig().PR != nil && g.ghConfig().PR.SummaryJob != nil {
+			if runsOn := g.ghConfig().PR.SummaryJob.RunsOn; runsOn != "" {
+				job.RunsOn = runsOn
+			}
+		}
+
+		result[j.Name] = job
+	}
+	return result
 }
 
 // DryRun returns information about what would be generated without creating YAML
@@ -356,7 +400,7 @@ func (g *Generator) DryRun(targetModules []*discovery.Module) (*pipeline.DryRunR
 
 	plan, err := pipeline.BuildJobPlan(
 		g.depGraph, targetModules, g.modules, g.moduleIndex,
-		g.isPREnabled(), g.isPolicyEnabled(), ghCfg.PlanEnabled,
+		g.isPREnabled(), g.hasContributedJobs(), ghCfg.PlanEnabled,
 	)
 	if err != nil {
 		return nil, err
@@ -423,10 +467,8 @@ func (g *Generator) isPREnabled() bool {
 	return *ghCfg.PR.Comment.Enabled
 }
 
-// isPolicyEnabled returns true if policy checks are enabled
-func (g *Generator) isPolicyEnabled() bool {
-	return g.policyCfg != nil && g.policyCfg.Enabled
-}
+// hasContributedJobs returns true if any PipelineContributor plugins contributed jobs.
+func (g *Generator) hasContributedJobs() bool { return len(g.jobs) > 0 }
 
 // getStepsBefore returns extra steps to insert before terraform commands
 func (g *Generator) getStepsBefore(jobType JobOverwriteType) []Step {

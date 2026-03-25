@@ -12,8 +12,8 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/parser"
+	"github.com/edelwud/terraci/pkg/plugin"
 	glplugin "github.com/edelwud/terraci/plugins/gitlab"
-	"github.com/edelwud/terraci/plugins/policy"
 )
 
 // testdataDir returns the absolute path to the testdata directory
@@ -38,7 +38,8 @@ type Fixture struct {
 	Dir         string
 	Config      *config.Config
 	GLConfig    *glplugin.Config
-	PolicyCfg   *policy.Config
+	Steps       []plugin.PipelineStep
+	Jobs        []plugin.PipelineJob
 	Modules     []*discovery.Module
 	ModuleIndex *discovery.ModuleIndex
 	DepGraph    *graph.DependencyGraph
@@ -59,15 +60,6 @@ func decodeGLConfig(cfg *config.Config) *glplugin.Config {
 	return glCfg
 }
 
-// decodePolicyConfig extracts the policy plugin config from the plugins map.
-func decodePolicyConfig(cfg *config.Config) *policy.Config {
-	var pc policy.Config
-	if err := cfg.PluginConfig("policy", &pc); err != nil {
-		return &pc
-	}
-	return &pc
-}
-
 // LoadFixture loads a complete test fixture by name
 func LoadFixture(t *testing.T, name string) *Fixture {
 	t.Helper()
@@ -81,7 +73,6 @@ func LoadFixture(t *testing.T, name string) *Fixture {
 	}
 
 	glCfg := decodeGLConfig(cfg)
-	policyCfg := decodePolicyConfig(cfg)
 
 	// Scan modules
 	scanner := discovery.NewScanner(dir, cfg.Structure.Segments)
@@ -106,15 +97,14 @@ func LoadFixture(t *testing.T, name string) *Fixture {
 	// Build dependency graph
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	// Create generator
-	generator := glplugin.NewGenerator(glCfg, policyCfg, depGraph, modules)
+	// Create generator (no contributed steps/jobs in test fixtures)
+	generator := glplugin.NewGenerator(glCfg, nil, nil, depGraph, modules)
 
 	return &Fixture{
 		Name:        name,
 		Dir:         dir,
 		Config:      cfg,
 		GLConfig:    glCfg,
-		PolicyCfg:   policyCfg,
 		Modules:     modules,
 		ModuleIndex: moduleIndex,
 		DepGraph:    depGraph,
@@ -131,7 +121,7 @@ func LoadFixtureWithConfig(t *testing.T, name string, modifyConfig func(*glplugi
 	modifyConfig(fixture.GLConfig)
 
 	// Recreate generator with modified config
-	fixture.Generator = glplugin.NewGenerator(fixture.GLConfig, fixture.PolicyCfg, fixture.DepGraph, fixture.Modules)
+	fixture.Generator = glplugin.NewGenerator(fixture.GLConfig, fixture.Steps, fixture.Jobs, fixture.DepGraph, fixture.Modules)
 
 	return fixture
 }

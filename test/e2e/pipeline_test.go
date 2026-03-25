@@ -46,7 +46,7 @@ func TestPipelineGeneration_Basic(t *testing.T) {
 
 	glCfg := &glplugin.Config{PlanEnabled: true, AutoApprove: false}
 
-	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
+	generator := glplugin.NewGenerator(glCfg, nil, nil, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -112,7 +112,7 @@ func TestPipelineGeneration_PlanOnly(t *testing.T) {
 
 	glCfg := &glplugin.Config{PlanEnabled: true, PlanOnly: true}
 
-	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
+	generator := glplugin.NewGenerator(glCfg, nil, nil, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -159,7 +159,7 @@ func TestPipelineGeneration_PlanOnlyNeeds(t *testing.T) {
 
 	glCfg := &glplugin.Config{PlanEnabled: true, PlanOnly: true}
 
-	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
+	generator := glplugin.NewGenerator(glCfg, nil, nil, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -232,7 +232,7 @@ func TestPipelineGeneration_ChangedOnlyFilteredNeeds(t *testing.T) {
 		modules[4], // app
 	}
 
-	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
+	generator := glplugin.NewGenerator(glCfg, nil, nil, depGraph, modules)
 	result, err := generator.Generate(changedModules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -321,7 +321,7 @@ func TestPipelineGeneration_ChangedOnlyPlanOnly(t *testing.T) {
 		modules[4], // app
 	}
 
-	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
+	generator := glplugin.NewGenerator(glCfg, nil, nil, depGraph, modules)
 	result, err := generator.Generate(changedModules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -371,7 +371,7 @@ func TestPipelineGeneration_ApplyDependsOnPlan(t *testing.T) {
 
 	glCfg := &glplugin.Config{PlanEnabled: true}
 
-	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
+	generator := glplugin.NewGenerator(glCfg, nil, nil, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -413,7 +413,7 @@ func TestPipelineGeneration_NoPlanEnabled(t *testing.T) {
 
 	glCfg := &glplugin.Config{PlanEnabled: false}
 
-	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
+	generator := glplugin.NewGenerator(glCfg, nil, nil, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -454,7 +454,7 @@ func TestPipelineGeneration_DependencyOrder(t *testing.T) {
 
 	glCfg := &glplugin.Config{PlanEnabled: true}
 
-	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
+	generator := glplugin.NewGenerator(glCfg, nil, nil, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -500,7 +500,7 @@ func TestPipelineGeneration_EmptyModules(t *testing.T) {
 
 	glCfg := &glplugin.Config{PlanEnabled: true}
 
-	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
+	generator := glplugin.NewGenerator(glCfg, nil, nil, depGraph, modules)
 
 	// Generate with empty target modules should use all modules
 	result, err := generator.Generate(nil)
@@ -525,7 +525,7 @@ func TestPipelineGeneration_SingleModule(t *testing.T) {
 
 	glCfg := &glplugin.Config{PlanEnabled: true}
 
-	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
+	generator := glplugin.NewGenerator(glCfg, nil, nil, depGraph, modules)
 
 	// Generate for single module (vpc - no dependencies)
 	singleModule := []*discovery.Module{modules[0]} // vpc

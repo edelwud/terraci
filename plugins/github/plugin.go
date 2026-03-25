@@ -14,7 +14,6 @@ import (
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
 	githubci "github.com/edelwud/terraci/plugins/github/internal"
-	"github.com/edelwud/terraci/plugins/policy"
 )
 
 func init() { //nolint:gochecknoinits // intentional plugin registration
@@ -51,7 +50,6 @@ type (
 // Re-export constants from internal package.
 var (
 	SummaryJobName     = githubci.SummaryJobName
-	PolicyCheckJobName = githubci.PolicyCheckJobName
 	OverwriteTypePlan  = githubci.OverwriteTypePlan
 	OverwriteTypeApply = githubci.OverwriteTypeApply
 )
@@ -125,10 +123,9 @@ func (p *Plugin) DetectEnv() bool {
 	return os.Getenv("GITHUB_ACTIONS") != ""
 }
 
-func (p *Plugin) NewGenerator(ctx *plugin.AppContext, depGraph *graph.DependencyGraph, modules []*discovery.Module) pipeline.Generator {
-	cfg := p.cfg
-	policyCfg := decodePolicyConfig(ctx)
-	return githubci.NewGenerator(cfg, policyCfg, depGraph, modules)
+func (p *Plugin) NewGenerator(_ *plugin.AppContext, depGraph *graph.DependencyGraph, modules []*discovery.Module) pipeline.Generator {
+	steps, jobs := collectPipelineContributions()
+	return githubci.NewGenerator(p.cfg, steps, jobs, depGraph, modules)
 }
 
 func (p *Plugin) NewCommentService(_ *plugin.AppContext) ci.CommentService {
@@ -214,11 +211,13 @@ func (p *Plugin) BuildInitConfig(state plugin.InitState) *plugin.InitContributio
 	return &plugin.InitContribution{PluginKey: "github", Config: m}
 }
 
-// decodePolicyConfig decodes the policy plugin config from the plugins map.
-func decodePolicyConfig(ctx *plugin.AppContext) *policy.Config {
-	var pc policy.Config
-	if err := ctx.Config.PluginConfig("policy", &pc); err != nil {
-		return nil
+// collectPipelineContributions gathers steps and jobs from all PipelineContributor plugins.
+func collectPipelineContributions() ([]plugin.PipelineStep, []plugin.PipelineJob) {
+	var steps []plugin.PipelineStep
+	var jobs []plugin.PipelineJob
+	for _, c := range plugin.ByCapability[plugin.PipelineContributor]() {
+		steps = append(steps, c.PipelineSteps()...)
+		jobs = append(jobs, c.PipelineJobs()...)
 	}
-	return &pc
+	return steps, jobs
 }

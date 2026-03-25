@@ -1,5 +1,4 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/edelwud/terraci/main/terraci.schema.json
-provider: gitlab
 
 # TerraCi configuration with OPA policy checks
 #
@@ -14,53 +13,54 @@ exclude:
   - "modules/**"
 
 # Policy configuration
-policy:
-  enabled: true
+plugins:
+  policy:
+    enabled: true
 
-  # Policy sources (local, git, or OCI)
-  sources:
-    - path: terraform
-    - path: compliance
+    # Policy sources (local, git, or OCI)
+    sources:
+      - path: terraform
+      - path: compliance
 
-  # Namespaces to evaluate in Rego policies
-  namespaces:
-    - terraform
-    - compliance
+    # Namespaces to evaluate in Rego policies
+    namespaces:
+      - terraform
+      - compliance
 
-  # What to do when policy check fails
-  # Options: block, warn, ignore
-  on_failure: block
+    # What to do when policy check fails
+    # Options: block, warn, ignore
+    on_failure: block
 
-  # What to do when policy check has warnings
-  on_warning: warn
+    # What to do when policy check has warnings
+    on_warning: warn
 
-  # Show policy results in MR comment
-  show_in_comment: true
+    # Show policy results in MR comment
+    show_in_comment: true
 
-  # Module-specific overwrites
-  overwrites:
-    # Allow sandbox deployments with warnings only
-    - match: "**/sandbox/**"
-      on_failure: warn
+    # Module-specific overwrites
+    overwrites:
+      # Allow sandbox deployments with warnings only
+      - match: "**/sandbox/**"
+        on_failure: warn
 
-    # Skip policy checks for legacy modules
-    - match: "legacy/**"
-      enabled: false
+      # Skip policy checks for legacy modules
+      - match: "legacy/**"
+        enabled: false
 
-# GitLab CI configuration
-gitlab:
-  image:
-    name: hashicorp/terraform:1.6
-  plan_enabled: true
-  auto_approve: false
+  # GitLab CI configuration
+  gitlab:
+    image:
+      name: hashicorp/terraform:1.6
+    plan_enabled: true
+    auto_approve: false
 
-  # MR integration
-  mr:
-    comment:
-      enabled: true
-      on_changes_only: false
+    # MR integration
+    mr:
+      comment:
+        enabled: true
+        on_changes_only: false
 
-    # Summary job configuration
-    summary_job:
-      image:
-        name: ghcr.io/edelwud/terraci:latest
+      # Summary job configuration
+      summary_job:
+        image:
+          name: ghcr.io/edelwud/terraci:latest

@@ -9,7 +9,7 @@ import (
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/parser"
 	"github.com/edelwud/terraci/pkg/pipeline"
-	"github.com/edelwud/terraci/plugins/policy"
+	"github.com/edelwud/terraci/pkg/plugin"
 )
 
 // createTestModule creates a test module with the given parameters
@@ -17,10 +17,11 @@ func createTestModule(service, env, region, module string) *discovery.Module {
 	return discovery.TestModule(service, env, region, module)
 }
 
-// testCfg is a local wrapper used by tests to hold both github and policy configs.
+// testCfg is a local wrapper used by tests to hold both github and contributed pipeline data.
 type testCfg struct {
 	GitHub *Config
-	Policy *policy.Config
+	Steps  []plugin.PipelineStep
+	Jobs   []plugin.PipelineJob
 }
 
 // createTestConfig creates a test configuration with default values
@@ -58,7 +59,7 @@ func TestGenerate_SingleModule(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg.GitHub, cfg.Policy, depGraph, modules)
+	gen := NewGenerator(cfg.GitHub, cfg.Steps, cfg.Jobs, depGraph, modules)
 	var genPipeline pipeline.GeneratedPipeline
 	var err error
 	genPipeline, err = gen.Generate(modules)
@@ -140,7 +141,7 @@ func TestGenerate_WithDependencies(t *testing.T) {
 	})
 
 	depGraph := graph.BuildFromDependencies(modules, deps)
-	gen := NewGenerator(cfg.GitHub, cfg.Policy, depGraph, modules)
+	gen := NewGenerator(cfg.GitHub, cfg.Steps, cfg.Jobs, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -176,7 +177,7 @@ func TestGenerate_PlanOnly(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg.GitHub, cfg.Policy, depGraph, modules)
+	gen := NewGenerator(cfg.GitHub, cfg.Steps, cfg.Jobs, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -215,7 +216,7 @@ func TestGenerate_PlanOnlyWithDeps(t *testing.T) {
 	})
 
 	depGraph := graph.BuildFromDependencies(modules, deps)
-	gen := NewGenerator(cfg.GitHub, cfg.Policy, depGraph, modules)
+	gen := NewGenerator(cfg.GitHub, cfg.Steps, cfg.Jobs, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -259,7 +260,7 @@ func TestGenerate_AutoApprove(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg.GitHub, cfg.Policy, depGraph, modules)
+	gen := NewGenerator(cfg.GitHub, cfg.Steps, cfg.Jobs, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -294,7 +295,7 @@ func TestGenerate_ManualApprove(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg.GitHub, cfg.Policy, depGraph, modules)
+	gen := NewGenerator(cfg.GitHub, cfg.Steps, cfg.Jobs, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -329,7 +330,7 @@ func TestGenerate_CustomBinary(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg.GitHub, cfg.Policy, depGraph, modules)
+	gen := NewGenerator(cfg.GitHub, cfg.Steps, cfg.Jobs, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -361,7 +362,7 @@ func TestGenerate_WithPR(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg.GitHub, cfg.Policy, depGraph, modules)
+	gen := NewGenerator(cfg.GitHub, cfg.Steps, cfg.Jobs, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -404,10 +405,14 @@ func TestGenerate_WithPR(t *testing.T) {
 func TestGenerate_WithPolicy(t *testing.T) {
 	cfg := createTestConfig()
 	cfg.GitHub.PlanEnabled = true
-	cfg.Policy = &policy.Config{
-		Enabled:   true,
-		OnFailure: policy.ActionBlock,
-	}
+	cfg.Jobs = []plugin.PipelineJob{{
+		Name:          "policy-check",
+		Stage:         "post-plan",
+		Commands:      []string{"terraci policy pull", "terraci policy check"},
+		ArtifactPaths: []string{".terraci/policy-results.json"},
+		DependsOnPlan: true,
+		AllowFailure:  false,
+	}}
 
 	modules := []*discovery.Module{
 		createTestModule("platform", "stage", "eu-central-1", "vpc"),
@@ -418,7 +423,7 @@ func TestGenerate_WithPolicy(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg.GitHub, cfg.Policy, depGraph, modules)
+	gen := NewGenerator(cfg.GitHub, cfg.Steps, cfg.Jobs, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -430,7 +435,7 @@ func TestGenerate_WithPolicy(t *testing.T) {
 	}
 
 	// Policy check job should exist
-	policyJob := w.Jobs[PolicyCheckJobName]
+	policyJob := w.Jobs["policy-check"]
 	if policyJob == nil {
 		t.Fatal("policy-check job not found")
 	}
@@ -462,7 +467,7 @@ func TestGenerate_WithContainer(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg.GitHub, cfg.Policy, depGraph, modules)
+	gen := NewGenerator(cfg.GitHub, cfg.Steps, cfg.Jobs, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -503,7 +508,7 @@ func TestGenerate_StepsBefore(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg.GitHub, cfg.Policy, depGraph, modules)
+	gen := NewGenerator(cfg.GitHub, cfg.Steps, cfg.Jobs, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -555,7 +560,7 @@ func TestDryRun(t *testing.T) {
 	})
 
 	depGraph := graph.BuildFromDependencies(modules, deps)
-	gen := NewGenerator(cfg.GitHub, cfg.Policy, depGraph, modules)
+	gen := NewGenerator(cfg.GitHub, cfg.Steps, cfg.Jobs, depGraph, modules)
 	result, err := gen.DryRun(modules)
 	if err != nil {
 		t.Fatalf("DryRun failed: %v", err)
