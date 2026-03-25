@@ -124,8 +124,8 @@ func (p *Plugin) DetectEnv() bool {
 }
 
 func (p *Plugin) NewGenerator(_ *plugin.AppContext, depGraph *graph.DependencyGraph, modules []*discovery.Module) pipeline.Generator {
-	steps, jobs := collectPipelineContributions()
-	return githubci.NewGenerator(p.cfg, steps, jobs, depGraph, modules)
+	contributions := collectContributions()
+	return githubci.NewGenerator(p.cfg, contributions, depGraph, modules)
 }
 
 func (p *Plugin) NewCommentService(_ *plugin.AppContext) ci.CommentService {
@@ -211,13 +211,12 @@ func (p *Plugin) BuildInitConfig(state plugin.InitState) *plugin.InitContributio
 	return &plugin.InitContribution{PluginKey: "github", Config: m}
 }
 
-// collectPipelineContributions gathers steps and jobs from all PipelineContributor plugins.
-func collectPipelineContributions() ([]plugin.PipelineStep, []plugin.PipelineJob) {
-	var steps []plugin.PipelineStep
-	var jobs []plugin.PipelineJob
-	for _, c := range plugin.ByCapability[plugin.PipelineContributor]() {
-		steps = append(steps, c.PipelineSteps()...)
-		jobs = append(jobs, c.PipelineJobs()...)
+// collectContributions gathers pipeline contributions from all PipelineContributor plugins.
+func collectContributions() []*pipeline.Contribution {
+	contributors := plugin.ByCapability[plugin.PipelineContributor]()
+	contributions := make([]*pipeline.Contribution, 0, len(contributors))
+	for _, c := range contributors {
+		contributions = append(contributions, c.PipelineContribution())
 	}
-	return steps, jobs
+	return contributions
 }

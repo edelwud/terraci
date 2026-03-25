@@ -9,14 +9,12 @@ import (
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/parser"
 	"github.com/edelwud/terraci/pkg/pipeline"
-	"github.com/edelwud/terraci/pkg/plugin"
 )
 
 // testCfg is a local wrapper used by tests to hold both gitlab and contributed pipeline data.
 type testCfg struct {
-	GitLab *Config
-	Steps  []plugin.PipelineStep
-	Jobs   []plugin.PipelineJob
+	GitLab        *Config
+	Contributions []*pipeline.Contribution
 }
 
 // createTestConfig creates a test configuration with default values
@@ -51,7 +49,7 @@ func TestNewGenerator(t *testing.T) {
 	}
 	depGraph := graph.NewDependencyGraph()
 
-	gen := NewGenerator(cfg.GitLab, cfg.Steps, cfg.Jobs, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Contributions, depGraph, modules)
 
 	if gen == nil {
 		t.Fatal("NewGenerator returned nil")
@@ -75,7 +73,7 @@ func TestGenerator_Generate_SingleModule(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg.GitLab, cfg.Steps, cfg.Jobs, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Contributions, depGraph, modules)
 	var genPipeline pipeline.GeneratedPipeline
 	var err error
 	genPipeline, err = gen.Generate(modules)
@@ -126,7 +124,7 @@ func TestGenerator_Generate_WithDependencies(t *testing.T) {
 	})
 
 	depGraph := graph.BuildFromDependencies(modules, deps)
-	gen := NewGenerator(cfg.GitLab, cfg.Steps, cfg.Jobs, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Contributions, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -175,7 +173,7 @@ func TestGenerator_Generate_PlanOnly(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg.GitLab, cfg.Steps, cfg.Jobs, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Contributions, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -219,7 +217,7 @@ func TestGenerator_Generate_PlanOnlyWithDependencies(t *testing.T) {
 	})
 
 	depGraph := graph.BuildFromDependencies(modules, deps)
-	gen := NewGenerator(cfg.GitLab, cfg.Steps, cfg.Jobs, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Contributions, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -263,7 +261,7 @@ func TestGenerator_Generate_AutoApprove(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg.GitLab, cfg.Steps, cfg.Jobs, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Contributions, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -298,7 +296,7 @@ func TestGenerator_Generate_ManualApprove(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg.GitLab, cfg.Steps, cfg.Jobs, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Contributions, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -333,7 +331,7 @@ func TestGenerator_Generate_CustomStagesPrefix(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg.GitLab, cfg.Steps, cfg.Jobs, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Contributions, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -365,7 +363,7 @@ func TestGenerator_Generate_TerraformBinary(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg.GitLab, cfg.Steps, cfg.Jobs, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Contributions, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -393,7 +391,7 @@ func TestGenerator_Generate_JobVariables(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg.GitLab, cfg.Steps, cfg.Jobs, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Contributions, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -436,7 +434,7 @@ func TestGenerator_Generate_ResourceGroup(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg.GitLab, cfg.Steps, cfg.Jobs, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Contributions, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -473,7 +471,7 @@ func TestGenerator_DryRun(t *testing.T) {
 	})
 
 	depGraph := graph.BuildFromDependencies(modules, deps)
-	gen := NewGenerator(cfg.GitLab, cfg.Steps, cfg.Jobs, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Contributions, depGraph, modules)
 	result, err := gen.DryRun(modules)
 	if err != nil {
 		t.Fatalf("DryRun failed: %v", err)
@@ -494,9 +492,6 @@ func TestGenerator_DryRun(t *testing.T) {
 }
 
 func TestGenerator_jobName(t *testing.T) {
-	cfg := createTestConfig()
-	gen := NewGenerator(cfg.GitLab, cfg.Steps, cfg.Jobs, graph.NewDependencyGraph(), nil)
-
 	tests := []struct {
 		module   *discovery.Module
 		jobType  string
@@ -515,7 +510,7 @@ func TestGenerator_jobName(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		result := gen.jobName(tt.module, tt.jobType)
+		result := pipeline.JobName(tt.jobType, tt.module)
 		if result != tt.expected {
 			t.Errorf("jobName(%s, %s) = %s, expected %s", tt.module.ID(), tt.jobType, result, tt.expected)
 		}
@@ -574,7 +569,7 @@ func TestGenerator_Generate_WithMRIntegration(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg.GitLab, cfg.Steps, cfg.Jobs, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Contributions, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -639,7 +634,7 @@ func TestGenerator_Generate_WithMRIntegration_Disabled(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg.GitLab, cfg.Steps, cfg.Jobs, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Contributions, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -702,7 +697,7 @@ func TestGenerator_isMREnabled(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gen := NewGenerator(tt.glCfg, nil, nil, graph.NewDependencyGraph(), nil)
+			gen := NewGenerator(tt.glCfg, nil, graph.NewDependencyGraph(), nil)
 			result := gen.isMREnabled()
 			if result != tt.expected {
 				t.Errorf("isMREnabled() = %v, expected %v", result, tt.expected)
@@ -736,7 +731,7 @@ func TestGenerator_Generate_WithSecrets(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg.GitLab, cfg.Steps, cfg.Jobs, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Contributions, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -796,7 +791,7 @@ func TestGenerator_Generate_WithArtifacts(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg.GitLab, cfg.Steps, cfg.Jobs, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Contributions, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -834,13 +829,15 @@ func TestGenerator_Generate_WithArtifacts(t *testing.T) {
 
 func TestGenerator_Generate_WithPolicyCheck(t *testing.T) {
 	cfg := createTestConfig()
-	cfg.Jobs = []plugin.PipelineJob{{
-		Name:          "policy-check",
-		Stage:         "post-plan",
-		Commands:      []string{"terraci policy pull", "terraci policy check"},
-		ArtifactPaths: []string{".terraci/policy-results.json"},
-		DependsOnPlan: true,
-		AllowFailure:  false,
+	cfg.Contributions = []*pipeline.Contribution{{
+		Jobs: []pipeline.ContributedJob{{
+			Name:          "policy-check",
+			Phase:         pipeline.PhasePostPlan,
+			Commands:      []string{"terraci policy pull", "terraci policy check"},
+			ArtifactPaths: []string{".terraci/policy-results.json"},
+			DependsOnPlan: true,
+			AllowFailure:  false,
+		}},
 	}}
 
 	modules := []*discovery.Module{
@@ -851,7 +848,7 @@ func TestGenerator_Generate_WithPolicyCheck(t *testing.T) {
 	})
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	gen := NewGenerator(cfg.GitLab, cfg.Steps, cfg.Jobs, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Contributions, depGraph, modules)
 	genPipeline, err := gen.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)

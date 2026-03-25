@@ -8,7 +8,6 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
-	"github.com/edelwud/terraci/pkg/plugin"
 )
 
 const (
@@ -24,35 +23,58 @@ const (
 
 // Generator generates GitLab CI pipelines
 type Generator struct {
-	config      *Config
-	steps       []plugin.PipelineStep
-	jobs        []plugin.PipelineJob
-	depGraph    *graph.DependencyGraph
-	modules     []*discovery.Module
-	moduleIndex *discovery.ModuleIndex
+	config        *Config
+	contributions []*pipeline.Contribution
+	depGraph      *graph.DependencyGraph
+	modules       []*discovery.Module
+	moduleIndex   *discovery.ModuleIndex
 }
 
 // NewGenerator creates a new pipeline generator
-func NewGenerator(cfg *Config, steps []plugin.PipelineStep, jobs []plugin.PipelineJob, depGraph *graph.DependencyGraph, modules []*discovery.Module) *Generator {
+func NewGenerator(cfg *Config, contributions []*pipeline.Contribution, depGraph *graph.DependencyGraph, modules []*discovery.Module) *Generator {
 	return &Generator{
-		config:      cfg,
-		steps:       steps,
-		jobs:        jobs,
-		depGraph:    depGraph,
-		modules:     modules,
-		moduleIndex: discovery.NewModuleIndex(modules),
+		config:        cfg,
+		contributions: contributions,
+		depGraph:      depGraph,
+		modules:       modules,
+		moduleIndex:   discovery.NewModuleIndex(modules),
 	}
 }
 
 // Generate creates a GitLab CI pipeline for the given modules
 func (g *Generator) Generate(targetModules []*discovery.Module) (pipeline.GeneratedPipeline, error) {
-	plan, err := pipeline.BuildJobPlan(
-		g.depGraph, targetModules, g.modules, g.moduleIndex,
-		g.isMREnabled(), g.hasContributedJobs(), g.config.PlanEnabled,
-	)
+	ir, err := g.buildIR(targetModules)
 	if err != nil {
 		return nil, err
 	}
+
+	return g.transform(ir), nil
+}
+
+// buildIR constructs the provider-agnostic IR.
+func (g *Generator) buildIR(targetModules []*discovery.Module) (*pipeline.IR, error) {
+	return pipeline.Build(pipeline.BuildOptions{
+		DepGraph:      g.depGraph,
+		TargetModules: targetModules,
+		AllModules:    g.modules,
+		ModuleIndex:   g.moduleIndex,
+		Script: pipeline.ScriptConfig{
+			TerraformBinary: "${TERRAFORM_BINARY}",
+			InitEnabled:     g.config.InitEnabled,
+			DetailedPlan:    g.isMREnabled(),
+			PlanEnabled:     g.config.PlanEnabled,
+			AutoApprove:     g.config.AutoApprove,
+		},
+		Contributions:  g.contributions,
+		IncludeSummary: g.isMREnabled() && g.config.PlanEnabled,
+		PlanEnabled:    g.config.PlanEnabled,
+		PlanOnly:       g.config.PlanOnly,
+	})
+}
+
+// transform converts the IR into a GitLab CI Pipeline.
+func (g *Generator) transform(ir *pipeline.IR) *Pipeline {
+	hasContributed := len(ir.Jobs) > 0
 
 	// Merge variables with TERRAFORM_BINARY
 	variables := make(map[string]string)
@@ -66,7 +88,7 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (pipeline.Genera
 	effectiveImage := g.config.GetImage()
 
 	result := &Pipeline{
-		Stages:    g.generateStages(plan.ExecutionLevels, plan.IncludePolicy, plan.IncludeSummary),
+		Stages:    g.generateStages(ir, hasContributed),
 		Variables: variables,
 		Default: &DefaultConfig{
 			Image: &ImageConfig{
@@ -78,89 +100,230 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (pipeline.Genera
 		Workflow: g.generateWorkflow(),
 	}
 
-	// Collect plan job names for summary job dependencies
-	var planJobNames []string
+	prefix := g.stagesPrefix()
 
-	// Generate jobs for each level
-	for levelIdx, moduleIDs := range plan.ExecutionLevels {
-		for _, moduleID := range moduleIDs {
-			module := plan.ModuleIndex.ByID(moduleID)
-			if module == nil {
-				continue
+	// Transform module jobs from each level
+	for _, level := range ir.Levels {
+		for _, mj := range level.Modules {
+			if mj.Plan != nil {
+				planJob := g.transformPlanJob(mj.Plan, mj.Module, level.Index, prefix)
+				result.Jobs[mj.Plan.Name] = planJob
 			}
-
-			// Generate plan job if enabled
-			if g.config.PlanEnabled {
-				planJob := g.generatePlanJob(module, levelIdx, plan.TargetSet)
-				planJobName := g.jobName(module, "plan")
-				result.Jobs[planJobName] = planJob
-				planJobNames = append(planJobNames, planJobName)
-			}
-
-			// Generate apply job (skip if plan-only mode)
-			if !g.config.PlanOnly {
-				applyJob := g.generateApplyJob(module, levelIdx, plan.TargetSet)
-				result.Jobs[g.jobName(module, "apply")] = applyJob
+			if mj.Apply != nil {
+				applyJob := g.transformApplyJob(mj.Apply, mj.Module, level.Index, prefix)
+				result.Jobs[mj.Apply.Name] = applyJob
 			}
 		}
 	}
 
-	// Generate contributed jobs (e.g., policy-check) from PipelineContributor plugins
-	if plan.IncludePolicy && len(planJobNames) > 0 {
-		contributedJobs := g.generateContributedJobs(planJobNames)
-		for name, job := range contributedJobs {
-			result.Jobs[name] = job
+	// Transform contributed jobs
+	if hasContributed {
+		for i := range ir.Jobs {
+			cj := &ir.Jobs[i]
+			result.Jobs[cj.Name] = g.transformContributedJob(cj)
 		}
 	}
 
-	// Generate summary job if MR integration is enabled
-	if plan.IncludeSummary && len(planJobNames) > 0 {
-		summaryJob := g.generateSummaryJob(planJobNames, plan.IncludePolicy)
-		result.Jobs[SummaryJobName] = summaryJob
+	// Transform summary job
+	if ir.Summary != nil {
+		result.Jobs[SummaryJobName] = g.transformSummaryJob(ir.Summary, hasContributed, ir)
 	}
 
-	return result, nil
+	return result
 }
 
-// generateStages creates stage names for each execution level
-func (g *Generator) generateStages(levels [][]string, includeContributed, includeSummary bool) []string {
-	stages := make([]string, 0)
-	prefix := g.config.StagesPrefix
-	if prefix == "" {
-		prefix = DefaultStagesPrefix
+// transformPlanJob converts an IR plan job to a GitLab CI job.
+func (g *Generator) transformPlanJob(irJob *pipeline.Job, module *discovery.Module, levelIdx int, prefix string) *Job {
+	// Build script with contributed steps injected
+	script := g.buildScriptWithSteps(irJob.Script, irJob.Steps, pipeline.PhasePrePlan, pipeline.PhasePostPlan)
+
+	job := &Job{
+		Stage:     fmt.Sprintf("%s-plan-%d", prefix, levelIdx),
+		Script:    script,
+		Variables: irJob.Env,
+		Artifacts: &Artifacts{
+			Paths:    irJob.ArtifactPaths,
+			ExpireIn: "1 day",
+			When:     "always",
+		},
+		Cache:         g.generateCache(module),
+		ResourceGroup: module.ID(),
 	}
 
-	for i := range levels {
+	// Convert dependencies to needs
+	job.Needs = toJobNeeds(irJob.Dependencies)
+
+	// Apply job_defaults first, then overwrites
+	g.applyJobDefaults(job)
+	g.applyOverwrites(job, OverwriteTypePlan)
+
+	return job
+}
+
+// transformApplyJob converts an IR apply job to a GitLab CI job.
+func (g *Generator) transformApplyJob(irJob *pipeline.Job, module *discovery.Module, levelIdx int, prefix string) *Job {
+	// Build script with contributed steps injected
+	script := g.buildScriptWithSteps(irJob.Script, irJob.Steps, pipeline.PhasePreApply, pipeline.PhasePostApply)
+
+	job := &Job{
+		Stage:         fmt.Sprintf("%s-apply-%d", prefix, levelIdx),
+		Script:        script,
+		Variables:     irJob.Env,
+		Cache:         g.generateCache(module),
+		ResourceGroup: module.ID(),
+	}
+
+	// Set manual approval if not auto-approve
+	if !g.config.AutoApprove {
+		job.When = WhenManual
+	}
+
+	// Convert dependencies to needs
+	job.Needs = toJobNeeds(irJob.Dependencies)
+
+	// Apply job_defaults first, then overwrites
+	g.applyJobDefaults(job)
+	g.applyOverwrites(job, OverwriteTypeApply)
+
+	return job
+}
+
+// transformContributedJob converts an IR contributed job to a GitLab CI job.
+func (g *Generator) transformContributedJob(irJob *pipeline.Job) *Job {
+	needs := make([]JobNeed, 0, len(irJob.Dependencies))
+	for _, dep := range irJob.Dependencies {
+		needs = append(needs, JobNeed{Job: dep, Optional: true})
+	}
+
+	var script []string
+	if irJob.AllowFailure {
+		for _, cmd := range irJob.Script {
+			script = append(script, cmd+" || true")
+		}
+	} else {
+		script = irJob.Script
+	}
+
+	// Look up the stage from the original contributed job data
+	stage := g.findContributedJobStage(irJob.Name)
+
+	job := &Job{
+		Stage:  stage,
+		Script: script,
+		Needs:  needs,
+	}
+
+	if len(irJob.ArtifactPaths) > 0 {
+		job.Artifacts = &Artifacts{
+			Paths:    irJob.ArtifactPaths,
+			ExpireIn: "1 day",
+			When:     "always",
+		}
+	}
+
+	return job
+}
+
+// transformSummaryJob converts an IR summary job to a GitLab CI job.
+func (g *Generator) transformSummaryJob(summary *pipeline.SummaryJob, hasContributed bool, ir *pipeline.IR) *Job {
+	needs := make([]JobNeed, 0, len(summary.Dependencies))
+	for _, dep := range ir.AllPlanNames() {
+		needs = append(needs, JobNeed{Job: dep, Optional: true})
+	}
+	if hasContributed {
+		for _, dep := range ir.ContributedJobNames() {
+			needs = append(needs, JobNeed{Job: dep, Optional: true})
+		}
+	}
+
+	job := &Job{
+		Stage:  SummaryStageName,
+		Script: []string{"terraci summary"},
+		Needs:  needs,
+		Rules: []Rule{
+			{
+				If:   "$CI_MERGE_REQUEST_IID",
+				When: "always",
+			},
+		},
+	}
+
+	// Apply summary job configuration if specified
+	if g.config.MR != nil && g.config.MR.SummaryJob != nil {
+		sjCfg := g.config.MR.SummaryJob
+		if sjCfg.Image != nil && sjCfg.Image.Name != "" {
+			job.Image = &ImageConfig{
+				Name:       sjCfg.Image.Name,
+				Entrypoint: sjCfg.Image.Entrypoint,
+			}
+		}
+		if len(sjCfg.Tags) > 0 {
+			job.Tags = sjCfg.Tags
+		}
+	}
+
+	return job
+}
+
+// buildScriptWithSteps injects contributed steps around the core script.
+func (g *Generator) buildScriptWithSteps(coreScript []string, steps []pipeline.Step, prePh, postPh pipeline.Phase) []string {
+	var script []string
+	for _, s := range steps {
+		if s.Phase == prePh {
+			script = append(script, s.Command)
+		}
+	}
+	script = append(script, coreScript...)
+	for _, s := range steps {
+		if s.Phase == postPh {
+			script = append(script, s.Command)
+		}
+	}
+	return script
+}
+
+// generateStages creates stage names for each execution level.
+func (g *Generator) generateStages(ir *pipeline.IR, includeContributed bool) []string {
+	stages := make([]string, 0)
+	prefix := g.stagesPrefix()
+
+	for _, level := range ir.Levels {
 		if g.config.PlanEnabled {
-			stages = append(stages, fmt.Sprintf("%s-plan-%d", prefix, i))
+			stages = append(stages, fmt.Sprintf("%s-plan-%d", prefix, level.Index))
 		}
 		if !g.config.PlanOnly {
-			stages = append(stages, fmt.Sprintf("%s-apply-%d", prefix, i))
+			stages = append(stages, fmt.Sprintf("%s-apply-%d", prefix, level.Index))
 		}
 	}
 
-	// Add contributed job stages (e.g., post-plan) after the last plan stage
+	// Add contributed job stages after the last plan stage
 	if includeContributed {
-		stages = g.insertContributedStages(stages, prefix)
+		stages = g.insertContributedStages(stages, prefix, ir)
 	}
 
-	// Add summary stage if MR integration is enabled
-	if includeSummary {
+	// Add summary stage if needed
+	if ir.Summary != nil {
 		stages = append(stages, SummaryStageName)
 	}
 
 	return stages
 }
 
-// insertContributedStages inserts stages from contributed jobs after the last plan stage
-func (g *Generator) insertContributedStages(stages []string, prefix string) []string {
+// insertContributedStages inserts stages from contributed jobs after the last plan stage.
+func (g *Generator) insertContributedStages(stages []string, prefix string, _ *pipeline.IR) []string {
 	// Collect unique stages from contributed jobs
 	seen := make(map[string]bool)
 	var contributedStages []string
-	for _, j := range g.jobs {
-		if !seen[j.Stage] {
-			seen[j.Stage] = true
-			contributedStages = append(contributedStages, j.Stage)
+	for _, c := range g.contributions {
+		if c == nil {
+			continue
+		}
+		for _, j := range c.Jobs {
+			stage := j.Phase.String()
+			if !seen[stage] {
+				seen[stage] = true
+				contributedStages = append(contributedStages, stage)
+			}
 		}
 	}
 
@@ -177,7 +340,6 @@ func (g *Generator) insertContributedStages(stages []string, prefix string) []st
 	}
 
 	if lastPlanIdx == -1 {
-		// No plan stages, append at end
 		return append(stages, contributedStages...)
 	}
 
@@ -190,140 +352,27 @@ func (g *Generator) insertContributedStages(stages []string, prefix string) []st
 	return result
 }
 
-// generatePlanJob creates a terraform plan job
-func (g *Generator) generatePlanJob(module *discovery.Module, level int, targetModuleSet map[string]bool) *Job {
-	prefix := g.config.StagesPrefix
-	if prefix == "" {
-		prefix = DefaultStagesPrefix
-	}
-
-	// Build script and artifact paths using shared ScriptConfig
-	sc := pipeline.ScriptConfig{
-		TerraformBinary: "${TERRAFORM_BINARY}",
-		InitEnabled:     g.config.InitEnabled,
-		DetailedPlan:    g.isMREnabled(),
-	}
-	planScript, artifactsPaths := sc.PlanScript(module.RelativePath)
-
-	// Inject contributed steps around the plan script
-	var script []string
-	for _, s := range g.steps {
-		if s.Phase == plugin.PhasePrePlan {
-			script = append(script, s.Command)
+// findContributedJobStage looks up the stage for a contributed job by name.
+func (g *Generator) findContributedJobStage(name string) string {
+	for _, c := range g.contributions {
+		if c == nil {
+			continue
+		}
+		for _, j := range c.Jobs {
+			if j.Name == name {
+				return j.Phase.String()
+			}
 		}
 	}
-	script = append(script, planScript...)
-	for _, s := range g.steps {
-		if s.Phase == plugin.PhasePostPlan {
-			script = append(script, s.Command)
-		}
-	}
-
-	job := &Job{
-		Stage:     fmt.Sprintf("%s-plan-%d", prefix, level),
-		Script:    script,
-		Variables: pipeline.BuildModuleEnvVars(module),
-		// Default artifacts for plan - can be overridden via job_defaults or overwrites
-		Artifacts: &Artifacts{
-			Paths:    artifactsPaths,
-			ExpireIn: "1 day",
-			When:     "always", // Save artifacts even on failure for summary
-		},
-		Cache:         g.generateCache(module),
-		ResourceGroup: module.ID(),
-	}
-
-	// Add needs for dependencies from previous levels
-	// In plan-only mode, depend on plan jobs; otherwise depend on apply jobs
-	if g.config.PlanOnly {
-		job.Needs = g.getDependencyNeeds(module, "plan", targetModuleSet)
-	} else {
-		job.Needs = g.getDependencyNeeds(module, "apply", targetModuleSet)
-	}
-
-	// Apply job_defaults first, then overwrites
-	g.applyJobDefaults(job)
-	g.applyOverwrites(job, OverwriteTypePlan)
-
-	return job
-}
-
-// generateApplyJob creates a terraform apply job
-func (g *Generator) generateApplyJob(module *discovery.Module, level int, targetModuleSet map[string]bool) *Job {
-	prefix := g.config.StagesPrefix
-	if prefix == "" {
-		prefix = DefaultStagesPrefix
-	}
-
-	// Build script using shared ScriptConfig
-	sc := pipeline.ScriptConfig{
-		TerraformBinary: "${TERRAFORM_BINARY}",
-		InitEnabled:     g.config.InitEnabled,
-		PlanEnabled:     g.config.PlanEnabled,
-		AutoApprove:     g.config.AutoApprove,
-	}
-	applyScript := sc.ApplyScript(module.RelativePath)
-
-	// Inject contributed steps around the apply script
-	var script []string
-	for _, s := range g.steps {
-		if s.Phase == plugin.PhasePreApply {
-			script = append(script, s.Command)
-		}
-	}
-	script = append(script, applyScript...)
-	for _, s := range g.steps {
-		if s.Phase == plugin.PhasePostApply {
-			script = append(script, s.Command)
-		}
-	}
-
-	job := &Job{
-		Stage:         fmt.Sprintf("%s-apply-%d", prefix, level),
-		Script:        script,
-		Variables:     pipeline.BuildModuleEnvVars(module),
-		Cache:         g.generateCache(module),
-		ResourceGroup: module.ID(),
-	}
-
-	// Set manual approval if not auto-approve
-	if !g.config.AutoApprove {
-		job.When = WhenManual
-	}
-
-	// Add needs
-	var needs []JobNeed
-
-	// Need the plan job for this module
-	if g.config.PlanEnabled {
-		needs = append(needs, JobNeed{
-			Job: g.jobName(module, "plan"),
-		})
-	}
-
-	// Need apply jobs from dependencies
-	depNeeds := g.getDependencyNeeds(module, "apply", targetModuleSet)
-	needs = append(needs, depNeeds...)
-
-	job.Needs = needs
-
-	// Apply job_defaults first, then overwrites
-	g.applyJobDefaults(job)
-	g.applyOverwrites(job, OverwriteTypeApply)
-
-	return job
+	return ""
 }
 
 // generateCache creates cache configuration for a module
 func (g *Generator) generateCache(module *discovery.Module) *Cache {
-	// Return nil if caching is disabled
 	if !g.config.CacheEnabled {
 		return nil
 	}
-
-	// Convert module path to cache key (replace slashes with dashes)
 	cacheKey := strings.ReplaceAll(module.RelativePath, "/", "-")
-
 	return &Cache{
 		Key:   cacheKey,
 		Paths: []string{fmt.Sprintf("%s/.terraform/", module.RelativePath)},
@@ -332,7 +381,6 @@ func (g *Generator) generateCache(module *discovery.Module) *Cache {
 
 // applyJobConfig applies job configuration settings to a job
 func (g *Generator) applyJobConfig(job *Job, cfg JobConfig) {
-	// Apply image
 	if img := cfg.GetImage(); img != nil && img.Name != "" {
 		job.Image = &ImageConfig{
 			Name:       img.Name,
@@ -340,7 +388,6 @@ func (g *Generator) applyJobConfig(job *Job, cfg JobConfig) {
 		}
 	}
 
-	// Apply id_tokens
 	if tokens := cfg.GetIDTokens(); len(tokens) > 0 {
 		job.IDTokens = make(map[string]*IDToken)
 		for name, token := range tokens {
@@ -350,32 +397,26 @@ func (g *Generator) applyJobConfig(job *Job, cfg JobConfig) {
 		}
 	}
 
-	// Apply secrets
 	if secrets := cfg.GetSecrets(); len(secrets) > 0 {
 		job.Secrets = g.convertSecretsFromOverwrite(secrets)
 	}
 
-	// Apply before_script
 	if bs := cfg.GetBeforeScript(); len(bs) > 0 {
 		job.BeforeScript = bs
 	}
 
-	// Apply after_script
 	if as := cfg.GetAfterScript(); len(as) > 0 {
 		job.AfterScript = as
 	}
 
-	// Apply artifacts
 	if artifacts := cfg.GetArtifacts(); artifacts != nil {
 		job.Artifacts = g.convertArtifactsFromOverwrite(artifacts)
 	}
 
-	// Apply tags
 	if tags := cfg.GetTags(); len(tags) > 0 {
 		job.Tags = tags
 	}
 
-	// Apply rules
 	if rules := cfg.GetRules(); len(rules) > 0 {
 		job.Rules = make([]Rule, len(rules))
 		for i, r := range rules {
@@ -387,7 +428,6 @@ func (g *Generator) applyJobConfig(job *Job, cfg JobConfig) {
 		}
 	}
 
-	// Apply variables
 	if vars := cfg.GetVariables(); len(vars) > 0 {
 		if job.Variables == nil {
 			job.Variables = make(map[string]string)
@@ -486,20 +526,24 @@ func (g *Generator) generateWorkflow() *Workflow {
 	}
 }
 
-// getDependencyNeeds returns job needs for a module's dependencies
-// Only includes dependencies that are in the targetModuleSet (i.e., have jobs generated)
-func (g *Generator) getDependencyNeeds(module *discovery.Module, jobType string, targetModuleSet map[string]bool) []JobNeed {
-	names := pipeline.ResolveDependencyNames(module, jobType, targetModuleSet, g.depGraph, g.moduleIndex)
-	needs := make([]JobNeed, len(names))
-	for i, name := range names {
+// toJobNeeds converts a slice of job name strings to JobNeed structs.
+func toJobNeeds(deps []string) []JobNeed {
+	if len(deps) == 0 {
+		return nil
+	}
+	needs := make([]JobNeed, len(deps))
+	for i, name := range deps {
 		needs[i] = JobNeed{Job: name}
 	}
 	return needs
 }
 
-// jobName generates a job name for a module
-func (g *Generator) jobName(module *discovery.Module, jobType string) string {
-	return pipeline.JobName(jobType, module)
+// stagesPrefix returns the configured or default stages prefix.
+func (g *Generator) stagesPrefix() string {
+	if g.config.StagesPrefix != "" {
+		return g.config.StagesPrefix
+	}
+	return DefaultStagesPrefix
 }
 
 // isMREnabled returns true if MR integration is enabled in config
@@ -516,104 +560,33 @@ func (g *Generator) isMREnabled() bool {
 	return *g.config.MR.Comment.Enabled
 }
 
-// generateSummaryJob creates the terraci summary job that posts MR comments
-func (g *Generator) generateSummaryJob(planJobNames []string, includeContributed bool) *Job {
-	// Build needs from all plan jobs (with artifacts)
-	needs := make([]JobNeed, 0, len(planJobNames)+len(g.jobs)+1)
-	for _, jobName := range planJobNames {
-		needs = append(needs, JobNeed{Job: jobName, Optional: true})
-	}
-
-	// If contributed jobs exist, also depend on them
-	if includeContributed {
-		for _, j := range g.jobs {
-			needs = append(needs, JobNeed{Job: j.Name, Optional: true})
+// hasContributedJobs returns true if any contributions have jobs.
+func (g *Generator) hasContributedJobs() bool {
+	for _, c := range g.contributions {
+		if c != nil && len(c.Jobs) > 0 {
+			return true
 		}
 	}
-
-	job := &Job{
-		Stage:  SummaryStageName,
-		Script: []string{"terraci summary"},
-		Needs:  needs,
-		Rules: []Rule{
-			{
-				If:   "$CI_MERGE_REQUEST_IID",
-				When: "always",
-			},
-		},
-	}
-
-	// Apply summary job configuration if specified
-	if g.config.MR != nil && g.config.MR.SummaryJob != nil {
-		sjCfg := g.config.MR.SummaryJob
-		if sjCfg.Image != nil && sjCfg.Image.Name != "" {
-			job.Image = &ImageConfig{
-				Name:       sjCfg.Image.Name,
-				Entrypoint: sjCfg.Image.Entrypoint,
-			}
-		}
-		if len(sjCfg.Tags) > 0 {
-			job.Tags = sjCfg.Tags
-		}
-	}
-
-	return job
-}
-
-// hasContributedJobs returns true if any PipelineContributor plugins contributed jobs.
-func (g *Generator) hasContributedJobs() bool { return len(g.jobs) > 0 }
-
-// generateContributedJobs creates jobs from PipelineContributor plugins.
-func (g *Generator) generateContributedJobs(planJobNames []string) map[string]*Job {
-	result := make(map[string]*Job)
-	for _, j := range g.jobs {
-		needs := make([]JobNeed, 0)
-		if j.DependsOnPlan {
-			for _, name := range planJobNames {
-				needs = append(needs, JobNeed{Job: name, Optional: true})
-			}
-		}
-
-		var script []string
-		if j.AllowFailure {
-			for _, cmd := range j.Commands {
-				script = append(script, cmd+" || true")
-			}
-		} else {
-			script = j.Commands
-		}
-
-		job := &Job{
-			Stage:  j.Stage,
-			Script: script,
-			Needs:  needs,
-		}
-
-		if len(j.ArtifactPaths) > 0 {
-			job.Artifacts = &Artifacts{
-				Paths:    j.ArtifactPaths,
-				ExpireIn: "1 day",
-				When:     "always",
-			}
-		}
-
-		result[j.Name] = job
-	}
-	return result
+	return false
 }
 
 // DryRun returns information about what would be generated without creating YAML
 func (g *Generator) DryRun(targetModules []*discovery.Module) (*pipeline.DryRunResult, error) {
-	plan, err := pipeline.BuildJobPlan(
-		g.depGraph, targetModules, g.modules, g.moduleIndex,
-		g.isMREnabled(), g.hasContributedJobs(), g.config.PlanEnabled,
-	)
+	ir, err := g.buildIR(targetModules)
 	if err != nil {
 		return nil, err
 	}
 
+	plan, planErr := pipeline.BuildJobPlan(
+		g.depGraph, targetModules, g.modules, g.moduleIndex,
+		g.isMREnabled(), g.hasContributedJobs(), g.config.PlanEnabled,
+	)
+	if planErr != nil {
+		return nil, planErr
+	}
+
 	result := pipeline.BuildDryRunResult(plan, len(g.modules), g.config.PlanEnabled)
 	// Override stage count with GitLab-specific calculation (plan+apply stages per level)
-	result.Stages = len(g.generateStages(plan.ExecutionLevels, plan.IncludePolicy, plan.IncludeSummary))
+	result.Stages = len(g.generateStages(ir, len(ir.Jobs) > 0))
 	return result, nil
 }

@@ -153,7 +153,7 @@ func TestEdgeCase_AllModulesIndependent(t *testing.T) {
 
 	glCfg := &glplugin.Config{PlanEnabled: true}
 
-	generator := glplugin.NewGenerator(glCfg, nil, nil, depGraph, modules)
+	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -200,7 +200,7 @@ func TestEdgeCase_DeepDependencyChain(t *testing.T) {
 
 	glCfg := &glplugin.Config{PlanEnabled: true}
 
-	generator := glplugin.NewGenerator(glCfg, nil, nil, depGraph, modules)
+	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -266,7 +266,7 @@ func TestEdgeCase_DiamondDependency(t *testing.T) {
 
 	glCfg := &glplugin.Config{PlanEnabled: true}
 
-	generator := glplugin.NewGenerator(glCfg, nil, nil, depGraph, modules)
+	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -307,7 +307,7 @@ func TestEdgeCase_PartialChainChanged(t *testing.T) {
 
 	glCfg := &glplugin.Config{PlanEnabled: true}
 
-	generator := glplugin.NewGenerator(glCfg, nil, nil, depGraph, modules)
+	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
 
 	// Only B changed
 	changedModules := []*discovery.Module{modules[1]} // b
@@ -453,7 +453,7 @@ func TestEdgeCase_ModuleWithSelfReference(t *testing.T) {
 
 	glCfg := &glplugin.Config{PlanEnabled: true}
 
-	generator := glplugin.NewGenerator(glCfg, nil, nil, depGraph, modules)
+	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		// Self-reference might cause cycle detection
@@ -483,7 +483,7 @@ func TestEdgeCase_SpecialCharactersInModuleName(t *testing.T) {
 
 	glCfg := &glplugin.Config{PlanEnabled: true}
 
-	generator := glplugin.NewGenerator(glCfg, nil, nil, depGraph, modules)
+	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -517,7 +517,7 @@ func TestEdgeCase_VeryLongModulePath(t *testing.T) {
 
 	glCfg := &glplugin.Config{PlanEnabled: true}
 
-	generator := glplugin.NewGenerator(glCfg, nil, nil, depGraph, modules)
+	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)

@@ -12,7 +12,7 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/parser"
-	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/pipeline"
 	glplugin "github.com/edelwud/terraci/plugins/gitlab"
 )
 
@@ -34,16 +34,15 @@ func fixtureDir(t *testing.T, name string) string {
 
 // Fixture represents a loaded test fixture with all components
 type Fixture struct {
-	Name        string
-	Dir         string
-	Config      *config.Config
-	GLConfig    *glplugin.Config
-	Steps       []plugin.PipelineStep
-	Jobs        []plugin.PipelineJob
-	Modules     []*discovery.Module
-	ModuleIndex *discovery.ModuleIndex
-	DepGraph    *graph.DependencyGraph
-	Generator   *glplugin.Generator
+	Name          string
+	Dir           string
+	Config        *config.Config
+	GLConfig      *glplugin.Config
+	Contributions []*pipeline.Contribution
+	Modules       []*discovery.Module
+	ModuleIndex   *discovery.ModuleIndex
+	DepGraph      *graph.DependencyGraph
+	Generator     *glplugin.Generator
 }
 
 // decodeGLConfig extracts the gitlab plugin config from the plugins map.
@@ -97,8 +96,8 @@ func LoadFixture(t *testing.T, name string) *Fixture {
 	// Build dependency graph
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	// Create generator (no contributed steps/jobs in test fixtures)
-	generator := glplugin.NewGenerator(glCfg, nil, nil, depGraph, modules)
+	// Create generator (no contributions in test fixtures)
+	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
 
 	return &Fixture{
 		Name:        name,
@@ -121,7 +120,7 @@ func LoadFixtureWithConfig(t *testing.T, name string, modifyConfig func(*glplugi
 	modifyConfig(fixture.GLConfig)
 
 	// Recreate generator with modified config
-	fixture.Generator = glplugin.NewGenerator(fixture.GLConfig, fixture.Steps, fixture.Jobs, fixture.DepGraph, fixture.Modules)
+	fixture.Generator = glplugin.NewGenerator(fixture.GLConfig, fixture.Contributions, fixture.DepGraph, fixture.Modules)
 
 	return fixture
 }
@@ -156,12 +155,12 @@ func (f *Fixture) GenerateAndValidate(t *testing.T) *glplugin.Pipeline {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	pipeline, ok := result.(*glplugin.Pipeline)
+	pl, ok := result.(*glplugin.Pipeline)
 	if !ok {
 		t.Fatal("expected *glplugin.Pipeline type")
 	}
 
-	return pipeline
+	return pl
 }
 
 // ModuleIDs returns the IDs of all modules sorted
@@ -188,41 +187,41 @@ func (f *Fixture) GetModulesByService(service string) []*discovery.Module {
 // --- Assertion helpers ---
 
 // AssertJobExists checks that a job exists in the pipeline
-func AssertJobExists(t *testing.T, pipeline *glplugin.Pipeline, jobName string) {
+func AssertJobExists(t *testing.T, pl *glplugin.Pipeline, jobName string) {
 	t.Helper()
-	if _, ok := pipeline.Jobs[jobName]; !ok {
+	if _, ok := pl.Jobs[jobName]; !ok {
 		t.Errorf("expected job %q to exist", jobName)
 	}
 }
 
 // AssertJobNotExists checks that a job does NOT exist in the pipeline
-func AssertJobNotExists(t *testing.T, pipeline *glplugin.Pipeline, jobName string) {
+func AssertJobNotExists(t *testing.T, pl *glplugin.Pipeline, jobName string) {
 	t.Helper()
-	if _, ok := pipeline.Jobs[jobName]; ok {
+	if _, ok := pl.Jobs[jobName]; ok {
 		t.Errorf("expected job %q to NOT exist", jobName)
 	}
 }
 
 // AssertStageExists checks that a stage exists in the pipeline
-func AssertStageExists(t *testing.T, pipeline *glplugin.Pipeline, stageName string) {
+func AssertStageExists(t *testing.T, pl *glplugin.Pipeline, stageName string) {
 	t.Helper()
-	if !slices.Contains(pipeline.Stages, stageName) {
-		t.Errorf("expected stage %q to exist in %v", stageName, pipeline.Stages)
+	if !slices.Contains(pl.Stages, stageName) {
+		t.Errorf("expected stage %q to exist in %v", stageName, pl.Stages)
 	}
 }
 
 // AssertStageNotExists checks that a stage does NOT exist in the pipeline
-func AssertStageNotExists(t *testing.T, pipeline *glplugin.Pipeline, stageName string) {
+func AssertStageNotExists(t *testing.T, pl *glplugin.Pipeline, stageName string) {
 	t.Helper()
-	if slices.Contains(pipeline.Stages, stageName) {
-		t.Errorf("expected stage %q to NOT exist in %v", stageName, pipeline.Stages)
+	if slices.Contains(pl.Stages, stageName) {
+		t.Errorf("expected stage %q to NOT exist in %v", stageName, pl.Stages)
 	}
 }
 
 // AssertJobHasNeed checks that a job has a specific dependency
-func AssertJobHasNeed(t *testing.T, pipeline *glplugin.Pipeline, jobName, needJob string) {
+func AssertJobHasNeed(t *testing.T, pl *glplugin.Pipeline, jobName, needJob string) {
 	t.Helper()
-	job, ok := pipeline.Jobs[jobName]
+	job, ok := pl.Jobs[jobName]
 	if !ok {
 		t.Fatalf("job %q not found", jobName)
 	}
@@ -235,9 +234,9 @@ func AssertJobHasNeed(t *testing.T, pipeline *glplugin.Pipeline, jobName, needJo
 }
 
 // AssertJobNotHasNeed checks that a job does NOT have a specific dependency
-func AssertJobNotHasNeed(t *testing.T, pipeline *glplugin.Pipeline, jobName, needJob string) {
+func AssertJobNotHasNeed(t *testing.T, pl *glplugin.Pipeline, jobName, needJob string) {
 	t.Helper()
-	job, ok := pipeline.Jobs[jobName]
+	job, ok := pl.Jobs[jobName]
 	if !ok {
 		return // job doesn't exist, so it can't have the need
 	}
@@ -250,25 +249,25 @@ func AssertJobNotHasNeed(t *testing.T, pipeline *glplugin.Pipeline, jobName, nee
 }
 
 // AssertJobCount checks the number of jobs in the pipeline
-func AssertJobCount(t *testing.T, pipeline *glplugin.Pipeline, expected int) {
+func AssertJobCount(t *testing.T, pl *glplugin.Pipeline, expected int) {
 	t.Helper()
-	if len(pipeline.Jobs) != expected {
-		t.Errorf("expected %d jobs, got %d", expected, len(pipeline.Jobs))
+	if len(pl.Jobs) != expected {
+		t.Errorf("expected %d jobs, got %d", expected, len(pl.Jobs))
 	}
 }
 
 // AssertStageCount checks the number of stages in the pipeline
-func AssertStageCount(t *testing.T, pipeline *glplugin.Pipeline, expected int) {
+func AssertStageCount(t *testing.T, pl *glplugin.Pipeline, expected int) {
 	t.Helper()
-	if len(pipeline.Stages) != expected {
-		t.Errorf("expected %d stages, got %d: %v", expected, len(pipeline.Stages), pipeline.Stages)
+	if len(pl.Stages) != expected {
+		t.Errorf("expected %d stages, got %d: %v", expected, len(pl.Stages), pl.Stages)
 	}
 }
 
 // CountJobsByPrefix counts jobs whose name starts with the given prefix
-func CountJobsByPrefix(pipeline *glplugin.Pipeline, prefix string) int {
+func CountJobsByPrefix(pl *glplugin.Pipeline, prefix string) int {
 	count := 0
-	for name := range pipeline.Jobs {
+	for name := range pl.Jobs {
 		if len(name) >= len(prefix) && name[:len(prefix)] == prefix {
 			count++
 		}
@@ -277,8 +276,8 @@ func CountJobsByPrefix(pipeline *glplugin.Pipeline, prefix string) int {
 }
 
 // GetJobNeeds returns the names of jobs that the given job depends on
-func GetJobNeeds(pipeline *glplugin.Pipeline, jobName string) []string {
-	job, ok := pipeline.Jobs[jobName]
+func GetJobNeeds(pl *glplugin.Pipeline, jobName string) []string {
+	job, ok := pl.Jobs[jobName]
 	if !ok {
 		return nil
 	}

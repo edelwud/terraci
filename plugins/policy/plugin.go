@@ -13,6 +13,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/log"
+	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
@@ -270,21 +271,21 @@ func savePolicyResults(summary *policyengine.Summary) error {
 
 // PipelineContributor — adds policy-check job to CI pipeline
 
-func (p *Plugin) PipelineSteps() []plugin.PipelineStep { return nil }
-
-func (p *Plugin) PipelineJobs() []plugin.PipelineJob {
+func (p *Plugin) PipelineContribution() *pipeline.Contribution {
 	if !p.IsConfigured() || p.cfg == nil || !p.cfg.Enabled {
 		return nil
 	}
 	allowFailure := p.cfg.OnFailure == policyengine.ActionWarn
-	return []plugin.PipelineJob{{
-		Name:          "policy-check",
-		Stage:         "post-plan",
-		Commands:      []string{"terraci policy pull", "terraci policy check"},
-		ArtifactPaths: []string{".terraci/policy-results.json"},
-		DependsOnPlan: true,
-		AllowFailure:  allowFailure,
-	}}
+	return &pipeline.Contribution{
+		Jobs: []pipeline.ContributedJob{{
+			Name:          "policy-check",
+			Phase:         pipeline.PhasePostPlan,
+			Commands:      []string{"terraci policy pull", "terraci policy check"},
+			ArtifactPaths: []string{".terraci/policy-results.json"},
+			DependsOnPlan: true,
+			AllowFailure:  allowFailure,
+		}},
+	}
 }
 
 // VersionProvider — contributes OPA version to `terraci version`

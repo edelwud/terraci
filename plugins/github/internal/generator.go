@@ -8,7 +8,6 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
-	"github.com/edelwud/terraci/pkg/plugin"
 )
 
 const (
@@ -20,37 +19,60 @@ const (
 
 // Generator generates GitHub Actions workflows
 type Generator struct {
-	config      *Config
-	steps       []plugin.PipelineStep
-	jobs        []plugin.PipelineJob
-	depGraph    *graph.DependencyGraph
-	modules     []*discovery.Module
-	moduleIndex *discovery.ModuleIndex
+	config        *Config
+	contributions []*pipeline.Contribution
+	depGraph      *graph.DependencyGraph
+	modules       []*discovery.Module
+	moduleIndex   *discovery.ModuleIndex
 }
 
 // NewGenerator creates a new GitHub Actions pipeline generator
-func NewGenerator(cfg *Config, steps []plugin.PipelineStep, jobs []plugin.PipelineJob, depGraph *graph.DependencyGraph, modules []*discovery.Module) *Generator {
+func NewGenerator(cfg *Config, contributions []*pipeline.Contribution, depGraph *graph.DependencyGraph, modules []*discovery.Module) *Generator {
 	return &Generator{
-		config:      cfg,
-		steps:       steps,
-		jobs:        jobs,
-		depGraph:    depGraph,
-		modules:     modules,
-		moduleIndex: discovery.NewModuleIndex(modules),
+		config:        cfg,
+		contributions: contributions,
+		depGraph:      depGraph,
+		modules:       modules,
+		moduleIndex:   discovery.NewModuleIndex(modules),
 	}
 }
 
 // Generate creates a GitHub Actions workflow for the given modules
 func (g *Generator) Generate(targetModules []*discovery.Module) (pipeline.GeneratedPipeline, error) {
-	ghCfg := g.ghConfig()
-
-	plan, err := pipeline.BuildJobPlan(
-		g.depGraph, targetModules, g.modules, g.moduleIndex,
-		g.isPREnabled(), g.hasContributedJobs(), ghCfg.PlanEnabled,
-	)
+	ir, err := g.buildIR(targetModules)
 	if err != nil {
 		return nil, err
 	}
+
+	return g.transform(ir), nil
+}
+
+// buildIR constructs the provider-agnostic IR.
+func (g *Generator) buildIR(targetModules []*discovery.Module) (*pipeline.IR, error) {
+	ghCfg := g.ghConfig()
+	return pipeline.Build(pipeline.BuildOptions{
+		DepGraph:      g.depGraph,
+		TargetModules: targetModules,
+		AllModules:    g.modules,
+		ModuleIndex:   g.moduleIndex,
+		Script: pipeline.ScriptConfig{
+			TerraformBinary: ghCfg.TerraformBinary,
+			InitEnabled:     ghCfg.InitEnabled,
+			PlanEnabled:     ghCfg.PlanEnabled,
+			AutoApprove:     ghCfg.AutoApprove,
+			DetailedPlan:    g.isPREnabled(),
+		},
+		Contributions:  g.contributions,
+		IncludeSummary: g.isPREnabled() && ghCfg.PlanEnabled,
+		PlanEnabled:    ghCfg.PlanEnabled,
+		PlanOnly:       ghCfg.PlanOnly,
+	})
+}
+
+// transform converts the IR into a GitHub Actions Workflow.
+func (g *Generator) transform(ir *pipeline.IR) *Workflow {
+	ghCfg := g.ghConfig()
+	hasContributed := len(ir.Jobs) > 0
 
 	// Build workflow-level env
 	env := make(map[string]string)
@@ -81,65 +103,42 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (pipeline.Genera
 		Jobs:        make(map[string]*Job),
 	}
 
-	// Collect plan job names for summary/policy dependencies
-	var planJobNames []string
-
-	// Generate jobs for each level
-	for _, moduleIDs := range plan.ExecutionLevels {
-		for _, moduleID := range moduleIDs {
-			module := plan.ModuleIndex.ByID(moduleID)
-			if module == nil {
-				continue
+	// Transform module jobs
+	for _, level := range ir.Levels {
+		for _, mj := range level.Modules {
+			if mj.Plan != nil {
+				workflow.Jobs[mj.Plan.Name] = g.transformPlanJob(mj.Plan, mj.Module)
 			}
-
-			// Generate plan job if enabled
-			if ghCfg.PlanEnabled {
-				planJob := g.generatePlanJob(module, plan.TargetSet)
-				planJobName := pipeline.JobName("plan", module)
-				workflow.Jobs[planJobName] = planJob
-				planJobNames = append(planJobNames, planJobName)
-			}
-
-			// Generate apply job (skip if plan-only mode)
-			if !ghCfg.PlanOnly {
-				applyJob := g.generateApplyJob(module, plan.TargetSet)
-				workflow.Jobs[pipeline.JobName("apply", module)] = applyJob
+			if mj.Apply != nil {
+				workflow.Jobs[mj.Apply.Name] = g.transformApplyJob(mj.Apply, mj.Module)
 			}
 		}
 	}
 
-	// Generate contributed jobs (e.g., policy-check) from PipelineContributor plugins
-	if plan.IncludePolicy && len(planJobNames) > 0 {
-		contributedJobs := g.generateContributedJobs(planJobNames)
-		for name, job := range contributedJobs {
-			workflow.Jobs[name] = job
+	// Transform contributed jobs
+	if hasContributed {
+		for i := range ir.Jobs {
+			cj := &ir.Jobs[i]
+			workflow.Jobs[cj.Name] = g.transformContributedJob(cj)
 		}
 	}
 
-	// Generate summary job if PR integration is enabled
-	if plan.IncludeSummary && len(planJobNames) > 0 {
-		workflow.Jobs[SummaryJobName] = g.generateSummaryJob(planJobNames, plan.IncludePolicy)
+	// Transform summary job
+	if ir.Summary != nil {
+		workflow.Jobs[SummaryJobName] = g.transformSummaryJob(ir, hasContributed)
 	}
 
-	return workflow, nil
+	return workflow
 }
 
-// generatePlanJob creates a terraform plan job
-func (g *Generator) generatePlanJob(module *discovery.Module, targetModuleSet map[string]bool) *Job {
+// transformPlanJob converts an IR plan job to a GitHub Actions job.
+func (g *Generator) transformPlanJob(irJob *pipeline.Job, module *discovery.Module) *Job {
 	ghCfg := g.ghConfig()
 
-	// Build run script
-	sc := pipeline.ScriptConfig{
-		TerraformBinary: ghCfg.TerraformBinary,
-		InitEnabled:     ghCfg.InitEnabled,
-		PlanEnabled:     ghCfg.PlanEnabled,
-		AutoApprove:     ghCfg.AutoApprove,
-		DetailedPlan:    g.isPREnabled(),
-	}
-	scriptParts, artifactPaths := sc.PlanScript(module.RelativePath)
-	runScript := strings.Join(scriptParts, "\n")
+	runScript := strings.Join(irJob.Script, "\n")
+	artifactPaths := irJob.ArtifactPaths
 
-	// Build steps (preallocate with capacity for checkout + before/after steps + plan + upload)
+	// Build steps
 	steps := make([]Step, 0, stepsInitialCap)
 	steps = append(steps, Step{Name: "Checkout", Uses: "actions/checkout@v4"})
 
@@ -147,8 +146,8 @@ func (g *Generator) generatePlanJob(module *discovery.Module, targetModuleSet ma
 	steps = append(steps, g.getStepsBefore(OverwriteTypePlan)...)
 
 	// Add contributed pre-plan steps
-	for _, s := range g.steps {
-		if s.Phase == plugin.PhasePrePlan {
+	for _, s := range irJob.Steps {
+		if s.Phase == pipeline.PhasePrePlan {
 			steps = append(steps, Step{Name: s.Name, Run: s.Command})
 		}
 	}
@@ -159,8 +158,8 @@ func (g *Generator) generatePlanJob(module *discovery.Module, targetModuleSet ma
 	})
 
 	// Add contributed post-plan steps
-	for _, s := range g.steps {
-		if s.Phase == plugin.PhasePostPlan {
+	for _, s := range irJob.Steps {
+		if s.Phase == pipeline.PhasePostPlan {
 			steps = append(steps, Step{Name: s.Name, Run: s.Command})
 		}
 	}
@@ -173,7 +172,7 @@ func (g *Generator) generatePlanJob(module *discovery.Module, targetModuleSet ma
 		Name: "Upload plan artifacts",
 		Uses: "actions/upload-artifact@v4",
 		With: map[string]string{
-			"name":           pipeline.JobName("plan", module),
+			"name":           irJob.Name,
 			"path":           strings.Join(artifactPaths, "\n"),
 			"retention-days": "1",
 		},
@@ -182,7 +181,7 @@ func (g *Generator) generatePlanJob(module *discovery.Module, targetModuleSet ma
 
 	job := &Job{
 		RunsOn: g.getRunsOn(),
-		Env:    pipeline.BuildModuleEnvVars(module),
+		Env:    irJob.Env,
 		Concurrency: &Concurrency{
 			Group:            module.ID(),
 			CancelInProgress: false,
@@ -195,30 +194,21 @@ func (g *Generator) generatePlanJob(module *discovery.Module, targetModuleSet ma
 		job.Container = container
 	}
 
-	// Add needs for dependencies from previous levels
+	// Dependencies
 	if ghCfg.PlanOnly {
-		job.Needs = pipeline.ResolveDependencyNames(module, "plan", targetModuleSet, g.depGraph, g.moduleIndex)
+		job.Needs = pipeline.ResolveDependencyNames(module, "plan", g.targetSet(irJob), g.depGraph, g.moduleIndex)
 	} else {
-		job.Needs = pipeline.ResolveDependencyNames(module, "apply", targetModuleSet, g.depGraph, g.moduleIndex)
+		job.Needs = pipeline.ResolveDependencyNames(module, "apply", g.targetSet(irJob), g.depGraph, g.moduleIndex)
 	}
 
 	return job
 }
 
-// generateApplyJob creates a terraform apply job
-func (g *Generator) generateApplyJob(module *discovery.Module, targetModuleSet map[string]bool) *Job {
+// transformApplyJob converts an IR apply job to a GitHub Actions job.
+func (g *Generator) transformApplyJob(irJob *pipeline.Job, module *discovery.Module) *Job {
 	ghCfg := g.ghConfig()
 
-	// Build run script
-	sc := pipeline.ScriptConfig{
-		TerraformBinary: ghCfg.TerraformBinary,
-		InitEnabled:     ghCfg.InitEnabled,
-		PlanEnabled:     ghCfg.PlanEnabled,
-		AutoApprove:     ghCfg.AutoApprove,
-		DetailedPlan:    g.isPREnabled(),
-	}
-	scriptParts := sc.ApplyScript(module.RelativePath)
-	runScript := strings.Join(scriptParts, "\n")
+	runScript := strings.Join(irJob.Script, "\n")
 
 	// Build steps
 	steps := []Step{
@@ -240,8 +230,8 @@ func (g *Generator) generateApplyJob(module *discovery.Module, targetModuleSet m
 	steps = append(steps, g.getStepsBefore(OverwriteTypeApply)...)
 
 	// Add contributed pre-apply steps
-	for _, s := range g.steps {
-		if s.Phase == plugin.PhasePreApply {
+	for _, s := range irJob.Steps {
+		if s.Phase == pipeline.PhasePreApply {
 			steps = append(steps, Step{Name: s.Name, Run: s.Command})
 		}
 	}
@@ -252,8 +242,8 @@ func (g *Generator) generateApplyJob(module *discovery.Module, targetModuleSet m
 	})
 
 	// Add contributed post-apply steps
-	for _, s := range g.steps {
-		if s.Phase == plugin.PhasePostApply {
+	for _, s := range irJob.Steps {
+		if s.Phase == pipeline.PhasePostApply {
 			steps = append(steps, Step{Name: s.Name, Run: s.Command})
 		}
 	}
@@ -263,7 +253,7 @@ func (g *Generator) generateApplyJob(module *discovery.Module, targetModuleSet m
 
 	job := &Job{
 		RunsOn: g.getRunsOn(),
-		Env:    pipeline.BuildModuleEnvVars(module),
+		Env:    irJob.Env,
 		Concurrency: &Concurrency{
 			Group:            module.ID(),
 			CancelInProgress: false,
@@ -281,26 +271,71 @@ func (g *Generator) generateApplyJob(module *discovery.Module, targetModuleSet m
 		job.Environment = "production"
 	}
 
-	// Add needs
-	var needs []string
-	if ghCfg.PlanEnabled {
-		needs = append(needs, pipeline.JobName("plan", module))
-	}
-	depNeeds := pipeline.ResolveDependencyNames(module, "apply", targetModuleSet, g.depGraph, g.moduleIndex)
-	needs = append(needs, depNeeds...)
-	job.Needs = needs
+	// Dependencies come from IR
+	job.Needs = irJob.Dependencies
 
 	return job
 }
 
-// generateSummaryJob creates the terraci summary job that posts PR comments
-func (g *Generator) generateSummaryJob(planJobNames []string, includeContributed bool) *Job {
-	needs := make([]string, 0, len(planJobNames)+len(g.jobs)+1)
-	needs = append(needs, planJobNames...)
-	if includeContributed {
-		for _, j := range g.jobs {
-			needs = append(needs, j.Name)
+// transformContributedJob converts an IR contributed job to a GitHub Actions job.
+func (g *Generator) transformContributedJob(irJob *pipeline.Job) *Job {
+	var scriptLines []string
+	if irJob.AllowFailure {
+		for _, cmd := range irJob.Script {
+			scriptLines = append(scriptLines, cmd+" || true")
 		}
+	} else {
+		scriptLines = irJob.Script
+	}
+
+	jobSteps := []Step{
+		{Name: "Checkout", Uses: "actions/checkout@v4"},
+		{
+			Name: "Download all plan artifacts",
+			Uses: "actions/download-artifact@v4",
+		},
+		{
+			Name: fmt.Sprintf("Run %s", irJob.Name),
+			Run:  strings.Join(scriptLines, "\n"),
+		},
+	}
+
+	// Add artifact upload step if artifact paths specified
+	if len(irJob.ArtifactPaths) > 0 {
+		jobSteps = append(jobSteps, Step{
+			Name: fmt.Sprintf("Upload %s results", irJob.Name),
+			Uses: "actions/upload-artifact@v4",
+			With: map[string]string{
+				"name":           irJob.Name + "-results",
+				"path":           strings.Join(irJob.ArtifactPaths, "\n"),
+				"retention-days": "1",
+			},
+			If: "always()",
+		})
+	}
+
+	job := &Job{
+		RunsOn: g.getRunsOn(),
+		Needs:  irJob.Dependencies,
+		Steps:  jobSteps,
+	}
+
+	// Use summary job runner if specified
+	if g.ghConfig().PR != nil && g.ghConfig().PR.SummaryJob != nil {
+		if runsOn := g.ghConfig().PR.SummaryJob.RunsOn; runsOn != "" {
+			job.RunsOn = runsOn
+		}
+	}
+
+	return job
+}
+
+// transformSummaryJob creates the summary job.
+func (g *Generator) transformSummaryJob(ir *pipeline.IR, hasContributed bool) *Job {
+	needs := make([]string, 0, len(ir.AllPlanNames())+len(ir.Jobs)+1)
+	needs = append(needs, ir.AllPlanNames()...)
+	if hasContributed {
+		needs = append(needs, ir.ContributedJobNames()...)
 	}
 
 	steps := []Step{
@@ -332,66 +367,15 @@ func (g *Generator) generateSummaryJob(planJobNames []string, includeContributed
 	return job
 }
 
-// generateContributedJobs creates jobs from PipelineContributor plugins.
-func (g *Generator) generateContributedJobs(planJobNames []string) map[string]*Job {
-	result := make(map[string]*Job)
-	for _, j := range g.jobs {
-		needs := make([]string, 0)
-		if j.DependsOnPlan {
-			needs = append(needs, planJobNames...)
-		}
-
-		var scriptLines []string
-		if j.AllowFailure {
-			for _, cmd := range j.Commands {
-				scriptLines = append(scriptLines, cmd+" || true")
-			}
-		} else {
-			scriptLines = j.Commands
-		}
-
-		jobSteps := []Step{
-			{Name: "Checkout", Uses: "actions/checkout@v4"},
-			{
-				Name: "Download all plan artifacts",
-				Uses: "actions/download-artifact@v4",
-			},
-			{
-				Name: fmt.Sprintf("Run %s", j.Name),
-				Run:  strings.Join(scriptLines, "\n"),
-			},
-		}
-
-		// Add artifact upload step if artifact paths specified
-		if len(j.ArtifactPaths) > 0 {
-			jobSteps = append(jobSteps, Step{
-				Name: fmt.Sprintf("Upload %s results", j.Name),
-				Uses: "actions/upload-artifact@v4",
-				With: map[string]string{
-					"name":           j.Name + "-results",
-					"path":           strings.Join(j.ArtifactPaths, "\n"),
-					"retention-days": "1",
-				},
-				If: "always()",
-			})
-		}
-
-		job := &Job{
-			RunsOn: g.getRunsOn(),
-			Needs:  needs,
-			Steps:  jobSteps,
-		}
-
-		// Use summary job runner if specified
-		if g.ghConfig().PR != nil && g.ghConfig().PR.SummaryJob != nil {
-			if runsOn := g.ghConfig().PR.SummaryJob.RunsOn; runsOn != "" {
-				job.RunsOn = runsOn
-			}
-		}
-
-		result[j.Name] = job
+// targetSet builds a target set by scanning the IR's module index.
+// This is a convenience method that reconstructs the target set from the dep graph.
+func (g *Generator) targetSet(_ *pipeline.Job) map[string]bool {
+	// Build target set from all modules known to the generator
+	targetSet := make(map[string]bool, len(g.modules))
+	for _, m := range g.modules {
+		targetSet[m.ID()] = true
 	}
-	return result
+	return targetSet
 }
 
 // DryRun returns information about what would be generated without creating YAML
@@ -435,14 +419,12 @@ func (g *Generator) getRunsOn() string {
 func (g *Generator) getContainer() *Container {
 	ghCfg := g.ghConfig()
 
-	// Check job_defaults container first
 	if ghCfg.JobDefaults != nil && ghCfg.JobDefaults.Container != nil {
 		return &Container{
 			Image: ghCfg.JobDefaults.Container.Name,
 		}
 	}
 
-	// Fall back to top-level container
 	if ghCfg.Container != nil {
 		return &Container{
 			Image: ghCfg.Container.Name,
@@ -459,7 +441,7 @@ func (g *Generator) isPREnabled() bool {
 		return false
 	}
 	if ghCfg.PR.Comment == nil {
-		return true // Default enabled when PR section exists
+		return true
 	}
 	if ghCfg.PR.Comment.Enabled == nil {
 		return true
@@ -467,14 +449,20 @@ func (g *Generator) isPREnabled() bool {
 	return *ghCfg.PR.Comment.Enabled
 }
 
-// hasContributedJobs returns true if any PipelineContributor plugins contributed jobs.
-func (g *Generator) hasContributedJobs() bool { return len(g.jobs) > 0 }
+// hasContributedJobs returns true if any contributions have jobs.
+func (g *Generator) hasContributedJobs() bool {
+	for _, c := range g.contributions {
+		if c != nil && len(c.Jobs) > 0 {
+			return true
+		}
+	}
+	return false
+}
 
 // getStepsBefore returns extra steps to insert before terraform commands
 func (g *Generator) getStepsBefore(jobType JobOverwriteType) []Step {
 	var steps []Step
 
-	// From job_defaults
 	ghCfg := g.ghConfig()
 	if ghCfg.JobDefaults != nil {
 		for _, s := range ghCfg.JobDefaults.StepsBefore {
@@ -482,7 +470,6 @@ func (g *Generator) getStepsBefore(jobType JobOverwriteType) []Step {
 		}
 	}
 
-	// From overwrites matching job type
 	for _, ow := range ghCfg.Overwrites {
 		if ow.Type != jobType {
 			continue

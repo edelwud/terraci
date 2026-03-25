@@ -1,0 +1,160 @@
+package pipeline
+
+import (
+	"github.com/edelwud/terraci/pkg/discovery"
+	"github.com/edelwud/terraci/pkg/graph"
+)
+
+// BuildOptions configures the IR builder.
+type BuildOptions struct {
+	DepGraph       *graph.DependencyGraph
+	TargetModules  []*discovery.Module
+	AllModules     []*discovery.Module
+	ModuleIndex    *discovery.ModuleIndex
+	Script         ScriptConfig
+	Contributions  []*Contribution
+	IncludeSummary bool
+	PlanEnabled    bool
+	PlanOnly       bool
+}
+
+// Build constructs a provider-agnostic IR from the given options.
+func Build(opts BuildOptions) (*IR, error) {
+	plan, err := BuildJobPlan(
+		opts.DepGraph, opts.TargetModules, opts.AllModules, opts.ModuleIndex,
+		opts.IncludeSummary, hasContributedJobs(opts.Contributions), opts.PlanEnabled,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Collect all steps and jobs from contributions
+	var allSteps []Step
+	var allContributedJobs []ContributedJob
+	for _, c := range opts.Contributions {
+		if c != nil {
+			allSteps = append(allSteps, c.Steps...)
+			allContributedJobs = append(allContributedJobs, c.Jobs...)
+		}
+	}
+
+	ir := &IR{}
+
+	// Build levels with module jobs
+	for levelIdx, moduleIDs := range plan.ExecutionLevels {
+		level := Level{Index: levelIdx}
+		for _, moduleID := range moduleIDs {
+			mod := plan.ModuleIndex.ByID(moduleID)
+			if mod == nil {
+				continue
+			}
+
+			env := BuildModuleEnvVars(mod)
+			mj := ModuleJobs{Module: mod}
+
+			// Plan job
+			if opts.PlanEnabled {
+				planScript, artifactPaths := opts.Script.PlanScript(mod.RelativePath)
+				planName := JobName("plan", mod)
+
+				// Resolve plan dependencies
+				var planDeps []string
+				if opts.PlanOnly {
+					planDeps = ResolveDependencyNames(mod, "plan", plan.TargetSet, plan.Subgraph, plan.ModuleIndex)
+				} else {
+					planDeps = ResolveDependencyNames(mod, "apply", plan.TargetSet, plan.Subgraph, plan.ModuleIndex)
+				}
+
+				mj.Plan = &Job{
+					Name:          planName,
+					Type:          JobTypePlan,
+					Module:        mod,
+					Env:           env,
+					Dependencies:  planDeps,
+					Script:        planScript,
+					ArtifactPaths: artifactPaths,
+					Steps:         filterSteps(allSteps, PhasePrePlan, PhasePostPlan),
+				}
+			}
+
+			// Apply job
+			if !opts.PlanOnly {
+				applyScript := opts.Script.ApplyScript(mod.RelativePath)
+				applyName := JobName("apply", mod)
+
+				applyDeps := ResolveDependencyNames(mod, "apply", plan.TargetSet, plan.Subgraph, plan.ModuleIndex)
+
+				// Apply depends on its own plan job
+				if mj.Plan != nil {
+					applyDeps = append([]string{mj.Plan.Name}, applyDeps...)
+				}
+
+				mj.Apply = &Job{
+					Name:         applyName,
+					Type:         JobTypeApply,
+					Module:       mod,
+					Env:          env,
+					Dependencies: applyDeps,
+					Script:       applyScript,
+					Steps:        filterSteps(allSteps, PhasePreApply, PhasePostApply),
+				}
+			}
+
+			level.Modules = append(level.Modules, mj)
+		}
+		ir.Levels = append(ir.Levels, level)
+	}
+
+	// Contributed jobs (e.g., policy-check)
+	planNames := ir.AllPlanNames()
+	for _, cj := range allContributedJobs {
+		job := Job{
+			Name:          cj.Name,
+			Phase:         cj.Phase,
+			Script:        cj.Commands,
+			ArtifactPaths: cj.ArtifactPaths,
+			AllowFailure:  cj.AllowFailure,
+		}
+		if cj.DependsOnPlan {
+			job.Dependencies = planNames
+		}
+		ir.Jobs = append(ir.Jobs, job)
+	}
+
+	// Summary job
+	if plan.IncludeSummary && len(planNames) > 0 {
+		allDeps := make([]string, 0, len(planNames)+len(ir.Jobs))
+		allDeps = append(allDeps, planNames...)
+		if plan.IncludePolicy {
+			allDeps = append(allDeps, ir.ContributedJobNames()...)
+		}
+		ir.Summary = &SummaryJob{Dependencies: allDeps}
+	}
+
+	return ir, nil
+}
+
+// filterSteps returns steps matching any of the given phases.
+func filterSteps(steps []Step, phases ...Phase) []Step {
+	phaseSet := make(map[Phase]bool, len(phases))
+	for _, p := range phases {
+		phaseSet[p] = true
+	}
+	var result []Step
+	for _, s := range steps {
+		if phaseSet[s.Phase] {
+			result = append(result, s)
+		}
+	}
+	return result
+}
+
+// hasContributedJobs checks if any contributions contain jobs.
+func hasContributedJobs(contributions []*Contribution) bool {
+	for _, c := range contributions {
+		if c != nil && len(c.Jobs) > 0 {
+			return true
+		}
+	}
+	return false
+}

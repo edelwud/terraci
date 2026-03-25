@@ -159,36 +159,8 @@ type InitState interface {
 
 // --- Pipeline Contribution ---
 
-// PipelinePhase defines when a step runs relative to plan/apply.
-type PipelinePhase int
-
-const (
-	PhasePrePlan   PipelinePhase = iota // before terraform plan
-	PhasePostPlan                       // after terraform plan
-	PhasePreApply                       // before terraform apply
-	PhasePostApply                      // after terraform apply
-)
-
 // PipelineContributor plugins add steps or jobs to the generated CI pipeline.
 type PipelineContributor interface {
 	Plugin
-	PipelineSteps() []PipelineStep
-	PipelineJobs() []PipelineJob
-}
-
-// PipelineStep is a command injected into existing plan/apply jobs.
-type PipelineStep struct {
-	Phase   PipelinePhase
-	Command string
-	Name    string // step name (for GitHub Actions)
-}
-
-// PipelineJob is a standalone job added to the pipeline.
-type PipelineJob struct {
-	Name          string
-	Stage         string
-	Commands      []string
-	ArtifactPaths []string
-	DependsOnPlan bool
-	AllowFailure  bool
+	PipelineContribution() *pipeline.Contribution
 }
