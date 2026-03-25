@@ -6,8 +6,6 @@ project_name: terraci
 gomod:
   proxy: true
 
-# Generate shell completions and man pages before build
-# https://goreleaser.com/customization/hooks/
 before:
   hooks:
     - go mod tidy
@@ -18,19 +16,12 @@ builds:
   - id: terraci
     main: ./cmd/terraci
     binary: terraci
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - linux
-      - darwin
-      - windows
-    goarch:
-      - amd64
-      - arm64
+    env: [CGO_ENABLED=0]
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
     mod_timestamp: "{{ .CommitTimestamp }}"
-    flags:
-      - -trimpath
-    ldflags:
+    flags: [-trimpath]
+    ldflags: &ldflags
       - -s -w
       - -X main.version={{.Version}}
       - -X main.commit={{.Commit}}
@@ -39,64 +30,67 @@ builds:
   - id: xterraci
     main: ./cmd/xterraci
     binary: xterraci
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - linux
-      - darwin
-      - windows
-    goarch:
-      - amd64
-      - arm64
+    env: [CGO_ENABLED=0]
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
     mod_timestamp: "{{ .CommitTimestamp }}"
-    flags:
-      - -trimpath
-    ldflags:
-      - -s -w
-      - -X main.version={{.Version}}
-      - -X main.commit={{.Commit}}
-      - -X main.date={{.CommitDate}}
+    flags: [-trimpath]
+    ldflags: *ldflags
 
 universal_binaries:
-  - replace: true
+  - id: terraci
+    ids: [terraci]
+    replace: true
+    name_template: terraci
+  - id: xterraci
+    ids: [xterraci]
+    replace: true
+    name_template: xterraci
 
-# config the archives filenames, format, and other options.
-# https://goreleaser.com/customization/archive
 archives:
-  - files:
-      - README.md
-      - LICENSE
-      - completions/*
-      - manpages/*
+  - files: [README.md, LICENSE, completions/*, manpages/*]
     format_overrides:
       - goos: windows
         formats: [zip]
-    allow_different_binary_count: true
 
 homebrew_casks:
   - repository:
       owner: edelwud
       name: homebrew-tap
     homepage: "https://edelwud.github.io/{{ .ProjectName }}/"
+    description: "CLI tool for analyzing Terraform projects and generating CI pipelines"
     url:
       verified: "github.com/edelwud/{{ .ProjectName }}"
+    binaries:
+      - terraci
+      - xterraci
     manpages:
       - "manpages/{{ .ProjectName }}.1"
       - "manpages/{{ .ProjectName }}-completion.1"
+      - "manpages/{{ .ProjectName }}-cost.1"
       - "manpages/{{ .ProjectName }}-generate.1"
       - "manpages/{{ .ProjectName }}-graph.1"
       - "manpages/{{ .ProjectName }}-init.1"
+      - "manpages/{{ .ProjectName }}-policy.1"
+      - "manpages/{{ .ProjectName }}-policy-check.1"
+      - "manpages/{{ .ProjectName }}-policy-pull.1"
       - "manpages/{{ .ProjectName }}-schema.1"
+      - "manpages/{{ .ProjectName }}-summary.1"
       - "manpages/{{ .ProjectName }}-validate.1"
       - "manpages/{{ .ProjectName }}-version.1"
       - "manpages/xterraci.1"
       - "manpages/xterraci-build.1"
+      - "manpages/xterraci-completion.1"
       - "manpages/xterraci-list-plugins.1"
       - "manpages/xterraci-version.1"
     completions:
       bash: "completions/{{ .ProjectName }}.bash"
       zsh: "completions/_{{ .ProjectName }}"
       fish: "completions/{{ .ProjectName }}.fish"
+    custom_block: |
+      bash_completion "completions/xterraci.bash"
+      zsh_completion "completions/_xterraci"
+      fish_completion "completions/xterraci.fish"
     hooks:
       post:
         install: |
@@ -108,73 +102,40 @@ homebrew_casks:
 nfpms:
   - file_name_template: "{{ .ConventionalFileName }}"
     maintainer: "Maksim Yersh <yersh.maks@gmail.com>"
+    description: "CLI tool for analyzing Terraform projects and generating CI pipelines"
+    homepage: "https://github.com/edelwud/terraci"
+    license: MIT
     contents:
-      # terraci completions
+      # completions (all)
       - src: ./completions/{{ .ProjectName }}.bash
         dst: /etc/bash_completion.d/{{ .ProjectName }}
       - src: ./completions/{{ .ProjectName }}.fish
         dst: /usr/share/fish/completions/{{ .ProjectName }}.fish
       - src: ./completions/_{{ .ProjectName }}
         dst: /usr/local/share/zsh/site-functions/_{{ .ProjectName }}
-      # xterraci completions
       - src: ./completions/xterraci.bash
         dst: /etc/bash_completion.d/xterraci
       - src: ./completions/xterraci.fish
         dst: /usr/share/fish/completions/xterraci.fish
       - src: ./completions/_xterraci
         dst: /usr/local/share/zsh/site-functions/_xterraci
-      # terraci man pages
-      - src: ./manpages/{{ .ProjectName }}.1
-        dst: /usr/share/man/man1/{{ .ProjectName }}.1
-      - src: ./manpages/{{ .ProjectName }}-completion.1
-        dst: /usr/share/man/man1/{{ .ProjectName }}-completion.1
-      - src: ./manpages/{{ .ProjectName }}-generate.1
-        dst: /usr/share/man/man1/{{ .ProjectName }}-generate.1
-      - src: ./manpages/{{ .ProjectName }}-graph.1
-        dst: /usr/share/man/man1/{{ .ProjectName }}-graph.1
-      - src: ./manpages/{{ .ProjectName }}-init.1
-        dst: /usr/share/man/man1/{{ .ProjectName }}-init.1
-      - src: ./manpages/{{ .ProjectName }}-schema.1
-        dst: /usr/share/man/man1/{{ .ProjectName }}-schema.1
-      - src: ./manpages/{{ .ProjectName }}-validate.1
-        dst: /usr/share/man/man1/{{ .ProjectName }}-validate.1
-      - src: ./manpages/{{ .ProjectName }}-version.1
-        dst: /usr/share/man/man1/{{ .ProjectName }}-version.1
-      # xterraci man pages
-      - src: ./manpages/xterraci.1
-        dst: /usr/share/man/man1/xterraci.1
-      - src: ./manpages/xterraci-build.1
-        dst: /usr/share/man/man1/xterraci-build.1
-      - src: ./manpages/xterraci-list-plugins.1
-        dst: /usr/share/man/man1/xterraci-list-plugins.1
-      - src: ./manpages/xterraci-version.1
-        dst: /usr/share/man/man1/xterraci-version.1
-    formats:
-      - deb
-      - rpm
-      - apk
+      # man pages (all)
+      - src: ./manpages/*.1
+        dst: /usr/share/man/man1/
+    formats: [deb, rpm, apk]
 
-# creates SBOMs of all archives and the source tarball using syft
-# https://goreleaser.com/customization/sbom
 sboms:
   - artifacts: archive
-  - id: source # Two different sbom configurations need two different IDs
+  - id: source
     artifacts: source
 
 checksum:
-  name_template: "checksums.txt"
+  name_template: checksums.txt
 
-# signs the checksum file
-# all files (including the sboms) are included in the checksum, so we don't need to sign each one if we don't want to
-# https://goreleaser.com/customization/sign
 signs:
   - cmd: cosign
     signature: "${artifact}.sigstore.json"
-    args:
-      - sign-blob
-      - "--bundle=${signature}"
-      - "${artifact}"
-      - "--yes"
+    args: ["sign-blob", "--bundle=${signature}", "${artifact}", "--yes"]
     artifacts: checksum
     output: true
 
@@ -206,22 +167,15 @@ changelog:
     - title: Other
       order: 9999
 
-# create multi-arch docker image using dockers_v2
-# https://goreleaser.com/customization/dockers_v2/
 dockers_v2:
   - id: terraci
-    ids:
-      - terraci
-      - xterraci
-    images:
-      - "ghcr.io/edelwud/terraci"
+    ids: [terraci, xterraci]
+    images: ["ghcr.io/edelwud/terraci"]
     tags:
       - "{{ .Tag }}"
       - "{{ if not .IsNightly }}latest{{ end }}"
     dockerfile: Dockerfile
-    platforms:
-      - linux/amd64
-      - linux/arm64
+    platforms: [linux/amd64, linux/arm64]
     sbom: true
     labels:
       org.opencontainers.image.created: "{{.Date}}"
@@ -231,17 +185,11 @@ dockers_v2:
       org.opencontainers.image.version: "{{.Version}}"
       org.opencontainers.image.source: "{{.GitURL}}"
 
-# signs our docker image
-# https://goreleaser.com/customization/docker_sign
 docker_signs:
   - cmd: cosign
     output: true
-    args:
-      - "sign"
-      - "${artifact}"
-      - "--yes"
+    args: ["sign", "${artifact}", "--yes"]
 
-# Release to GitHub
 release:
   draft: false
   prerelease: auto
