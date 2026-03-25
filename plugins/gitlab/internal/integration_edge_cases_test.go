@@ -1,5 +1,4 @@
-// Package e2e provides end-to-end tests for terraci pipeline generation
-package e2e
+package gitlabci
 
 import (
 	"strings"
@@ -8,7 +7,6 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/parser"
-	glplugin "github.com/edelwud/terraci/plugins/gitlab"
 )
 
 // TestEdgeCase_EmptyTargetModules tests generation with empty slice of target modules
@@ -23,9 +21,9 @@ func TestEdgeCase_EmptyTargetModules(t *testing.T) {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	pipeline, ok := result.(*glplugin.Pipeline)
+	pipeline, ok := result.(*Pipeline)
 	if !ok {
-		t.Fatal("expected *glplugin.Pipeline type")
+		t.Fatal("expected *Pipeline type")
 	}
 	// Empty target should fall back to all modules
 	if len(pipeline.Jobs) == 0 {
@@ -45,9 +43,9 @@ func TestEdgeCase_NilTargetModules(t *testing.T) {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	pipeline, ok := result.(*glplugin.Pipeline)
+	pipeline, ok := result.(*Pipeline)
 	if !ok {
-		t.Fatal("expected *glplugin.Pipeline type")
+		t.Fatal("expected *Pipeline type")
 	}
 	// Should have jobs for all modules
 	expectedJobs := len(fixture.Modules) * 2 // plan + apply
@@ -85,9 +83,9 @@ func TestEdgeCase_SingleModuleNoDependencies(t *testing.T) {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	pipeline, ok := result.(*glplugin.Pipeline)
+	pipeline, ok := result.(*Pipeline)
 	if !ok {
-		t.Fatal("expected *glplugin.Pipeline type")
+		t.Fatal("expected *Pipeline type")
 	}
 	// Should have exactly 2 jobs (plan + apply)
 	AssertJobCount(t, pipeline, 2)
@@ -119,9 +117,9 @@ func TestEdgeCase_SingleModuleWithDependencies(t *testing.T) {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	pipeline, ok := result.(*glplugin.Pipeline)
+	pipeline, ok := result.(*Pipeline)
 	if !ok {
-		t.Fatal("expected *glplugin.Pipeline type")
+		t.Fatal("expected *Pipeline type")
 	}
 	// Should have exactly 2 jobs (plan + apply for app only)
 	AssertJobCount(t, pipeline, 2)
@@ -151,17 +149,17 @@ func TestEdgeCase_AllModulesIndependent(t *testing.T) {
 
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	glCfg := &glplugin.Config{PlanEnabled: true}
+	glCfg := &Config{PlanEnabled: true}
 
-	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
+	generator := NewGenerator(glCfg, nil, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	pipeline, ok := result.(*glplugin.Pipeline)
+	pipeline, ok := result.(*Pipeline)
 	if !ok {
-		t.Fatal("expected *glplugin.Pipeline type")
+		t.Fatal("expected *Pipeline type")
 	}
 	// All modules should be in level 0 (no dependencies)
 	// Should have 1 plan stage and 1 apply stage
@@ -198,17 +196,17 @@ func TestEdgeCase_DeepDependencyChain(t *testing.T) {
 
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	glCfg := &glplugin.Config{PlanEnabled: true}
+	glCfg := &Config{PlanEnabled: true}
 
-	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
+	generator := NewGenerator(glCfg, nil, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	pipeline, ok := result.(*glplugin.Pipeline)
+	pipeline, ok := result.(*Pipeline)
 	if !ok {
-		t.Fatal("expected *glplugin.Pipeline type")
+		t.Fatal("expected *Pipeline type")
 	}
 	// Should have 5 levels (each module in separate level)
 	// 5 plan stages + 5 apply stages = 10 stages
@@ -264,17 +262,17 @@ func TestEdgeCase_DiamondDependency(t *testing.T) {
 
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	glCfg := &glplugin.Config{PlanEnabled: true}
+	glCfg := &Config{PlanEnabled: true}
 
-	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
+	generator := NewGenerator(glCfg, nil, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	pipeline, ok := result.(*glplugin.Pipeline)
+	pipeline, ok := result.(*Pipeline)
 	if !ok {
-		t.Fatal("expected *glplugin.Pipeline type")
+		t.Fatal("expected *Pipeline type")
 	}
 	// D should have needs for both B and C apply jobs
 	AssertJobHasNeed(t, pipeline, "plan-svc-stage-eu-central-1-d", "apply-svc-stage-eu-central-1-b")
@@ -305,9 +303,9 @@ func TestEdgeCase_PartialChainChanged(t *testing.T) {
 
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	glCfg := &glplugin.Config{PlanEnabled: true}
+	glCfg := &Config{PlanEnabled: true}
 
-	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
+	generator := NewGenerator(glCfg, nil, depGraph, modules)
 
 	// Only B changed
 	changedModules := []*discovery.Module{modules[1]} // b
@@ -317,9 +315,9 @@ func TestEdgeCase_PartialChainChanged(t *testing.T) {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	pipeline, ok := result.(*glplugin.Pipeline)
+	pipeline, ok := result.(*Pipeline)
 	if !ok {
-		t.Fatal("expected *glplugin.Pipeline type")
+		t.Fatal("expected *Pipeline type")
 	}
 	// Should only have B jobs
 	AssertJobCount(t, pipeline, 2) // plan + apply
@@ -342,7 +340,7 @@ func TestEdgeCase_PartialChainChanged(t *testing.T) {
 
 // TestEdgeCase_PlanOnlyWithNoPlanEnabled tests conflict: plan_only=true but plan_enabled=false
 func TestEdgeCase_PlanOnlyWithNoPlanEnabled(t *testing.T) {
-	fixture := LoadFixtureWithConfig(t, "basic", func(cfg *glplugin.Config) {
+	fixture := LoadFixtureWithConfig(t, "basic", func(cfg *Config) {
 		cfg.PlanOnly = true
 		cfg.PlanEnabled = false // This is a conflict - plan_only should imply plan_enabled
 	})
@@ -352,9 +350,9 @@ func TestEdgeCase_PlanOnlyWithNoPlanEnabled(t *testing.T) {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	pipeline, ok := result.(*glplugin.Pipeline)
+	pipeline, ok := result.(*Pipeline)
 	if !ok {
-		t.Fatal("expected *glplugin.Pipeline type")
+		t.Fatal("expected *Pipeline type")
 	}
 	// With PlanOnly=true but PlanEnabled=false, should have no jobs
 	// (no apply because PlanOnly, no plan because PlanEnabled=false)
@@ -365,7 +363,7 @@ func TestEdgeCase_PlanOnlyWithNoPlanEnabled(t *testing.T) {
 
 // TestEdgeCase_AutoApproveMode tests auto_approve flag
 func TestEdgeCase_AutoApproveMode(t *testing.T) {
-	fixture := LoadFixtureWithConfig(t, "basic", func(cfg *glplugin.Config) {
+	fixture := LoadFixtureWithConfig(t, "basic", func(cfg *Config) {
 		cfg.AutoApprove = true
 	})
 
@@ -374,9 +372,9 @@ func TestEdgeCase_AutoApproveMode(t *testing.T) {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	pipeline, ok := result.(*glplugin.Pipeline)
+	pipeline, ok := result.(*Pipeline)
 	if !ok {
-		t.Fatal("expected *glplugin.Pipeline type")
+		t.Fatal("expected *Pipeline type")
 	}
 	// Apply jobs should NOT have when: manual
 	for jobName, job := range pipeline.Jobs {
@@ -390,7 +388,7 @@ func TestEdgeCase_AutoApproveMode(t *testing.T) {
 
 // TestEdgeCase_ManualApproveMode tests manual approval (default)
 func TestEdgeCase_ManualApproveMode(t *testing.T) {
-	fixture := LoadFixtureWithConfig(t, "basic", func(cfg *glplugin.Config) {
+	fixture := LoadFixtureWithConfig(t, "basic", func(cfg *Config) {
 		cfg.AutoApprove = false
 	})
 
@@ -399,9 +397,9 @@ func TestEdgeCase_ManualApproveMode(t *testing.T) {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	pipeline, ok := result.(*glplugin.Pipeline)
+	pipeline, ok := result.(*Pipeline)
 	if !ok {
-		t.Fatal("expected *glplugin.Pipeline type")
+		t.Fatal("expected *Pipeline type")
 	}
 	// Apply jobs should have when: manual
 	for jobName, job := range pipeline.Jobs {
@@ -425,9 +423,9 @@ func TestEdgeCase_ChangedOnlyNoChanges(t *testing.T) {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	pipeline, ok := result.(*glplugin.Pipeline)
+	pipeline, ok := result.(*Pipeline)
 	if !ok {
-		t.Fatal("expected *glplugin.Pipeline type")
+		t.Fatal("expected *Pipeline type")
 	}
 	// With empty target, Generate falls back to all modules
 	// This is the current behavior - verify it
@@ -451,9 +449,9 @@ func TestEdgeCase_ModuleWithSelfReference(t *testing.T) {
 
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	glCfg := &glplugin.Config{PlanEnabled: true}
+	glCfg := &Config{PlanEnabled: true}
 
-	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
+	generator := NewGenerator(glCfg, nil, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		// Self-reference might cause cycle detection
@@ -461,9 +459,9 @@ func TestEdgeCase_ModuleWithSelfReference(t *testing.T) {
 		return
 	}
 
-	pipeline, ok := result.(*glplugin.Pipeline)
+	pipeline, ok := result.(*Pipeline)
 	if !ok {
-		t.Fatal("expected *glplugin.Pipeline type")
+		t.Fatal("expected *Pipeline type")
 	}
 	// If no error, should still generate valid pipeline
 	AssertJobCount(t, pipeline, 2)
@@ -481,17 +479,17 @@ func TestEdgeCase_SpecialCharactersInModuleName(t *testing.T) {
 
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	glCfg := &glplugin.Config{PlanEnabled: true}
+	glCfg := &Config{PlanEnabled: true}
 
-	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
+	generator := NewGenerator(glCfg, nil, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	pipeline, ok := result.(*glplugin.Pipeline)
+	pipeline, ok := result.(*Pipeline)
 	if !ok {
-		t.Fatal("expected *glplugin.Pipeline type")
+		t.Fatal("expected *Pipeline type")
 	}
 	// Job name should handle dashes properly
 	expectedJobName := "plan-my-svc-stage-01-eu-central-1-vpc-main"
@@ -515,17 +513,17 @@ func TestEdgeCase_VeryLongModulePath(t *testing.T) {
 
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	glCfg := &glplugin.Config{PlanEnabled: true}
+	glCfg := &Config{PlanEnabled: true}
 
-	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
+	generator := NewGenerator(glCfg, nil, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	pipeline, ok := result.(*glplugin.Pipeline)
+	pipeline, ok := result.(*Pipeline)
 	if !ok {
-		t.Fatal("expected *glplugin.Pipeline type")
+		t.Fatal("expected *Pipeline type")
 	}
 	// Should still generate valid jobs
 	AssertJobCount(t, pipeline, 2)

@@ -22,52 +22,10 @@ func init() { //nolint:gochecknoinits // intentional plugin registration
 
 const pluginName = "github"
 
-// Re-export types from internal package for external consumers.
-type (
-	Config           = githubci.Config
-	Image            = githubci.Image
-	PRConfig         = githubci.PRConfig
-	MRCommentConfig  = githubci.MRCommentConfig
-	SummaryJobConfig = githubci.SummaryJobConfig
-	PRContext        = githubci.PRContext
-	Workflow         = githubci.Workflow
-	WorkflowTrigger  = githubci.WorkflowTrigger
-	PushTrigger      = githubci.PushTrigger
-	PRTrigger        = githubci.PRTrigger
-	Concurrency      = githubci.Concurrency
-	Job              = githubci.Job
-	Container        = githubci.Container
-	Step             = githubci.Step
-	Generator        = githubci.Generator
-	Client           = githubci.Client
-	PRService        = githubci.PRService
-	JobDefaults      = githubci.JobDefaults
-	JobOverwrite     = githubci.JobOverwrite
-	JobOverwriteType = githubci.JobOverwriteType
-	ConfigStep       = githubci.ConfigStep
-)
-
-// Re-export constants from internal package.
-var (
-	SummaryJobName     = githubci.SummaryJobName
-	OverwriteTypePlan  = githubci.OverwriteTypePlan
-	OverwriteTypeApply = githubci.OverwriteTypeApply
-)
-
-// Re-export functions from internal package.
-var (
-	NewGenerator        = githubci.NewGenerator
-	NewClient           = githubci.NewClient
-	NewClientFromEnv    = githubci.NewClientFromEnv
-	DetectPRContext     = githubci.DetectPRContext
-	NewPRService        = githubci.NewPRService
-	NewPRServiceFromEnv = githubci.NewPRServiceFromEnv
-)
-
 // Plugin is the GitHub Actions plugin.
 type Plugin struct {
-	cfg        *Config
-	prCtx      *PRContext
+	cfg        *githubci.Config
+	prCtx      *githubci.PRContext
 	inCI       bool
 	configured bool
 }
@@ -79,7 +37,7 @@ func (p *Plugin) Description() string { return "GitHub Actions pipeline generati
 
 func (p *Plugin) ConfigKey() string { return pluginName }
 func (p *Plugin) NewConfig() any {
-	return &Config{
+	return &githubci.Config{
 		TerraformBinary: "terraform",
 		RunsOn:          "ubuntu-latest",
 		PlanEnabled:     true,
@@ -87,7 +45,7 @@ func (p *Plugin) NewConfig() any {
 	}
 }
 func (p *Plugin) SetConfig(cfg any) error {
-	gc, ok := cfg.(*Config)
+	gc, ok := cfg.(*githubci.Config)
 	if !ok {
 		return fmt.Errorf("expected *Config, got %T", cfg)
 	}
@@ -106,7 +64,7 @@ func (p *Plugin) Initialize(_ context.Context, _ *plugin.AppContext) error {
 		return nil
 	}
 
-	p.prCtx = DetectPRContext()
+	p.prCtx = githubci.DetectPRContext()
 	if p.prCtx.InPR {
 		log.WithField("pr", p.prCtx.PRNumber).Debug("github: PR context detected")
 	} else {
@@ -130,7 +88,7 @@ func (p *Plugin) NewGenerator(_ *plugin.AppContext, depGraph *graph.DependencyGr
 
 func (p *Plugin) NewCommentService(_ *plugin.AppContext) ci.CommentService {
 	cfg := p.cfg
-	var prCfg *PRConfig
+	var prCfg *githubci.PRConfig
 	if cfg != nil {
 		prCfg = cfg.PR
 	}

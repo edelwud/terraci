@@ -4,22 +4,23 @@ provider: gitlab
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
-gitlab:
-  image:
-    name: hashicorp/terraform:1.6
-  plan_enabled: true
-  auto_approve: false
+plugins:
+  gitlab:
+    image:
+      name: hashicorp/terraform:1.6
+    plan_enabled: true
+    auto_approve: false
 
-  mr:
-    comment:
-      enabled: true
-    summary_job:
-      image:
-        name: ghcr.io/edelwud/terraci:latest
+    mr:
+      comment:
+        enabled: true
+      summary_job:
+        image:
+          name: ghcr.io/edelwud/terraci:latest
 
-# AWS cost estimation
-cost:
-  enabled: true
-  show_in_comment: true     # Include cost diff in MR/PR comments
-  cache_dir: .terraci/pricing
-  cache_ttl: "24h"          # Re-fetch pricing data after 24 hours
+  # AWS cost estimation
+  cost:
+    enabled: true
+    show_in_comment: true # Include cost diff in MR/PR comments
+    cache_dir: .terraci/pricing
+    cache_ttl: "24h" # Re-fetch pricing data after 24 hours

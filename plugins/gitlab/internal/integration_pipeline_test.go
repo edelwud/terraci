@@ -1,5 +1,4 @@
-// Package e2e provides end-to-end tests for terraci pipeline generation
-package e2e
+package gitlabci
 
 import (
 	"strings"
@@ -8,7 +7,6 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/parser"
-	glplugin "github.com/edelwud/terraci/plugins/gitlab"
 )
 
 // createTestModules creates a standard test module set with dependencies:
@@ -44,17 +42,17 @@ func TestPipelineGeneration_Basic(t *testing.T) {
 	deps := createTestDependencies()
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	glCfg := &glplugin.Config{PlanEnabled: true, AutoApprove: false}
+	glCfg := &Config{PlanEnabled: true, AutoApprove: false}
 
-	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
+	generator := NewGenerator(glCfg, nil, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	pipeline, ok := result.(*glplugin.Pipeline)
+	pipeline, ok := result.(*Pipeline)
 	if !ok {
-		t.Fatal("expected *glplugin.Pipeline type")
+		t.Fatal("expected *Pipeline type")
 	}
 	// Should have both plan and apply stages
 	hasplanStage := false
@@ -110,17 +108,17 @@ func TestPipelineGeneration_PlanOnly(t *testing.T) {
 	deps := createTestDependencies()
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	glCfg := &glplugin.Config{PlanEnabled: true, PlanOnly: true}
+	glCfg := &Config{PlanEnabled: true, PlanOnly: true}
 
-	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
+	generator := NewGenerator(glCfg, nil, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	pipeline, ok := result.(*glplugin.Pipeline)
+	pipeline, ok := result.(*Pipeline)
 	if !ok {
-		t.Fatal("expected *glplugin.Pipeline type")
+		t.Fatal("expected *Pipeline type")
 	}
 	// Should have only plan stages, no apply stages
 	for _, stage := range pipeline.Stages {
@@ -157,17 +155,17 @@ func TestPipelineGeneration_PlanOnlyNeeds(t *testing.T) {
 	deps := createTestDependencies()
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	glCfg := &glplugin.Config{PlanEnabled: true, PlanOnly: true}
+	glCfg := &Config{PlanEnabled: true, PlanOnly: true}
 
-	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
+	generator := NewGenerator(glCfg, nil, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	pipeline, ok := result.(*glplugin.Pipeline)
+	pipeline, ok := result.(*Pipeline)
 	if !ok {
-		t.Fatal("expected *glplugin.Pipeline type")
+		t.Fatal("expected *Pipeline type")
 	}
 	// In plan-only mode, plan jobs should depend on plan jobs (not apply jobs)
 	eksJob := pipeline.Jobs["plan-platform-stage-eu-central-1-eks"]
@@ -223,7 +221,7 @@ func TestPipelineGeneration_ChangedOnlyFilteredNeeds(t *testing.T) {
 	deps := createTestDependencies()
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	glCfg := &glplugin.Config{PlanEnabled: true}
+	glCfg := &Config{PlanEnabled: true}
 
 	// Simulate --changed-only scenario: only eks and app changed
 	// eks depends on vpc (not changed), app depends on eks, rds, s3 (not changed)
@@ -232,15 +230,15 @@ func TestPipelineGeneration_ChangedOnlyFilteredNeeds(t *testing.T) {
 		modules[4], // app
 	}
 
-	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
+	generator := NewGenerator(glCfg, nil, depGraph, modules)
 	result, err := generator.Generate(changedModules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	pipeline, ok := result.(*glplugin.Pipeline)
+	pipeline, ok := result.(*Pipeline)
 	if !ok {
-		t.Fatal("expected *glplugin.Pipeline type")
+		t.Fatal("expected *Pipeline type")
 	}
 	// Should only have jobs for changed modules
 	if len(pipeline.Jobs) != 4 { // 2 plan + 2 apply
@@ -313,7 +311,7 @@ func TestPipelineGeneration_ChangedOnlyPlanOnly(t *testing.T) {
 	deps := createTestDependencies()
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	glCfg := &glplugin.Config{PlanEnabled: true, PlanOnly: true}
+	glCfg := &Config{PlanEnabled: true, PlanOnly: true}
 
 	// Only eks and app changed
 	changedModules := []*discovery.Module{
@@ -321,15 +319,15 @@ func TestPipelineGeneration_ChangedOnlyPlanOnly(t *testing.T) {
 		modules[4], // app
 	}
 
-	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
+	generator := NewGenerator(glCfg, nil, depGraph, modules)
 	result, err := generator.Generate(changedModules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	pipeline, ok := result.(*glplugin.Pipeline)
+	pipeline, ok := result.(*Pipeline)
 	if !ok {
-		t.Fatal("expected *glplugin.Pipeline type")
+		t.Fatal("expected *Pipeline type")
 	}
 	// Should only have plan jobs (no apply)
 	if len(pipeline.Jobs) != 2 {
@@ -369,17 +367,17 @@ func TestPipelineGeneration_ApplyDependsOnPlan(t *testing.T) {
 	deps := createTestDependencies()
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	glCfg := &glplugin.Config{PlanEnabled: true}
+	glCfg := &Config{PlanEnabled: true}
 
-	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
+	generator := NewGenerator(glCfg, nil, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	pipeline, ok := result.(*glplugin.Pipeline)
+	pipeline, ok := result.(*Pipeline)
 	if !ok {
-		t.Fatal("expected *glplugin.Pipeline type")
+		t.Fatal("expected *Pipeline type")
 	}
 	// Each apply job should depend on its own plan job
 	for _, module := range modules {
@@ -411,17 +409,17 @@ func TestPipelineGeneration_NoPlanEnabled(t *testing.T) {
 	deps := createTestDependencies()
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	glCfg := &glplugin.Config{PlanEnabled: false}
+	glCfg := &Config{PlanEnabled: false}
 
-	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
+	generator := NewGenerator(glCfg, nil, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	pipeline, ok := result.(*glplugin.Pipeline)
+	pipeline, ok := result.(*Pipeline)
 	if !ok {
-		t.Fatal("expected *glplugin.Pipeline type")
+		t.Fatal("expected *Pipeline type")
 	}
 	// Should have no plan jobs
 	for jobName := range pipeline.Jobs {
@@ -452,17 +450,17 @@ func TestPipelineGeneration_DependencyOrder(t *testing.T) {
 	deps := createTestDependencies()
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	glCfg := &glplugin.Config{PlanEnabled: true}
+	glCfg := &Config{PlanEnabled: true}
 
-	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
+	generator := NewGenerator(glCfg, nil, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	pipeline, ok := result.(*glplugin.Pipeline)
+	pipeline, ok := result.(*Pipeline)
 	if !ok {
-		t.Fatal("expected *glplugin.Pipeline type")
+		t.Fatal("expected *Pipeline type")
 	}
 	// Extract stage indices
 	stageIndex := make(map[string]int)
@@ -498,9 +496,9 @@ func TestPipelineGeneration_EmptyModules(t *testing.T) {
 	deps := createTestDependencies()
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	glCfg := &glplugin.Config{PlanEnabled: true}
+	glCfg := &Config{PlanEnabled: true}
 
-	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
+	generator := NewGenerator(glCfg, nil, depGraph, modules)
 
 	// Generate with empty target modules should use all modules
 	result, err := generator.Generate(nil)
@@ -508,9 +506,9 @@ func TestPipelineGeneration_EmptyModules(t *testing.T) {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	pipeline, ok := result.(*glplugin.Pipeline)
+	pipeline, ok := result.(*Pipeline)
 	if !ok {
-		t.Fatal("expected *glplugin.Pipeline type")
+		t.Fatal("expected *Pipeline type")
 	}
 	// Should have jobs for all modules
 	if len(pipeline.Jobs) != 10 { // 5 plan + 5 apply
@@ -523,9 +521,9 @@ func TestPipelineGeneration_SingleModule(t *testing.T) {
 	deps := createTestDependencies()
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	glCfg := &glplugin.Config{PlanEnabled: true}
+	glCfg := &Config{PlanEnabled: true}
 
-	generator := glplugin.NewGenerator(glCfg, nil, depGraph, modules)
+	generator := NewGenerator(glCfg, nil, depGraph, modules)
 
 	// Generate for single module (vpc - no dependencies)
 	singleModule := []*discovery.Module{modules[0]} // vpc
@@ -534,9 +532,9 @@ func TestPipelineGeneration_SingleModule(t *testing.T) {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	pipeline, ok := result.(*glplugin.Pipeline)
+	pipeline, ok := result.(*Pipeline)
 	if !ok {
-		t.Fatal("expected *glplugin.Pipeline type")
+		t.Fatal("expected *Pipeline type")
 	}
 	// Should have only 2 jobs (plan + apply for vpc)
 	if len(pipeline.Jobs) != 2 {

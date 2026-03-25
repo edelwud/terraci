@@ -20,43 +20,10 @@ func init() { //nolint:gochecknoinits // intentional plugin registration
 	plugin.Register(&Plugin{})
 }
 
-// Re-export types from internal package for external consumers.
-type (
-	Config         = costengine.CostConfig
-	EstimateResult = costengine.EstimateResult
-	ModuleCost     = costengine.ModuleCost
-	SubmoduleCost  = costengine.SubmoduleCost
-	ResourceCost   = costengine.ResourceCost
-	ErrorKind      = costengine.CostErrorKind
-	Estimator      = costengine.Estimator
-	SegmentNode    = costengine.SegmentNode
-)
-
-// Re-export constants from internal package.
-var (
-	CostErrorNone         = costengine.CostErrorNone
-	CostErrorNoHandler    = costengine.CostErrorNoHandler
-	CostErrorUsageBased   = costengine.CostErrorUsageBased
-	CostErrorLookupFailed = costengine.CostErrorLookupFailed
-	CostErrorAPIFailure   = costengine.CostErrorAPIFailure
-	CostErrorNoPrice      = costengine.CostErrorNoPrice
-)
-
-// Re-export functions from internal package.
-var (
-	NewEstimatorFromConfig = costengine.NewEstimatorFromConfig
-	DetectRegion           = costengine.DetectRegion
-	BuildSegmentTree       = costengine.BuildSegmentTree
-	CompactSegmentTree     = costengine.CompactSegmentTree
-	StripModulePrefix      = costengine.StripModulePrefix
-	FormatCost             = costengine.FormatCost
-	FormatCostDiff         = costengine.FormatCostDiff
-)
-
 // Plugin is the AWS cost estimation plugin.
 type Plugin struct {
-	cfg        *Config
-	estimator  *Estimator
+	cfg        *costengine.CostConfig
+	estimator  *costengine.Estimator
 	configured bool
 }
 
@@ -66,11 +33,11 @@ func (p *Plugin) Description() string { return "AWS cost estimation from Terrafo
 // ConfigProvider
 
 func (p *Plugin) ConfigKey() string { return "cost" }
-func (p *Plugin) NewConfig() any    { return &Config{} }
+func (p *Plugin) NewConfig() any    { return &costengine.CostConfig{} }
 func (p *Plugin) SetConfig(cfg any) error {
-	cc, ok := cfg.(*Config)
+	cc, ok := cfg.(*costengine.CostConfig)
 	if !ok {
-		return fmt.Errorf("expected *Config, got %T", cfg)
+		return fmt.Errorf("expected *CostConfig, got %T", cfg)
 	}
 	p.cfg = cc
 	p.configured = true
@@ -106,14 +73,14 @@ func (p *Plugin) Initialize(_ context.Context, appCtx *plugin.AppContext) error 
 	return nil
 }
 
-func (p *Plugin) effectiveConfig(_ *plugin.AppContext) *Config {
+func (p *Plugin) effectiveConfig(_ *plugin.AppContext) *costengine.CostConfig {
 	if p.cfg != nil {
 		return p.cfg
 	}
-	return &Config{}
+	return &costengine.CostConfig{}
 }
 
-func (p *Plugin) getEstimator(cfg *Config) *Estimator {
+func (p *Plugin) getEstimator(cfg *costengine.CostConfig) *costengine.Estimator {
 	if p.estimator != nil {
 		return p.estimator
 	}
@@ -260,7 +227,7 @@ Examples:
 	return []*cobra.Command{cmd}
 }
 
-func (p *Plugin) runSingle(ctx context.Context, estimator *Estimator, appCtx *plugin.AppContext, modulePath, outputFmt string) error {
+func (p *Plugin) runSingle(ctx context.Context, estimator *costengine.Estimator, appCtx *plugin.AppContext, modulePath, outputFmt string) error {
 	fullPath := filepath.Join(appCtx.WorkDir, modulePath)
 	region := costengine.DetectRegion(appCtx.Config.Structure.Segments, modulePath)
 
@@ -271,8 +238,8 @@ func (p *Plugin) runSingle(ctx context.Context, estimator *Estimator, appCtx *pl
 		return fmt.Errorf("estimate module %s: %w", modulePath, err)
 	}
 
-	return p.outputResult(appCtx, outputFmt, &EstimateResult{
-		Modules:     []ModuleCost{*mc},
+	return p.outputResult(appCtx, outputFmt, &costengine.EstimateResult{
+		Modules:     []costengine.ModuleCost{*mc},
 		TotalBefore: mc.BeforeCost,
 		TotalAfter:  mc.AfterCost,
 		TotalDiff:   mc.DiffCost,
@@ -281,7 +248,7 @@ func (p *Plugin) runSingle(ctx context.Context, estimator *Estimator, appCtx *pl
 	})
 }
 
-func (p *Plugin) runAll(ctx context.Context, estimator *Estimator, appCtx *plugin.AppContext, outputFmt string) error {
+func (p *Plugin) runAll(ctx context.Context, estimator *costengine.Estimator, appCtx *plugin.AppContext, outputFmt string) error {
 	log.WithField("dir", appCtx.WorkDir).Info("scanning for plan.json files")
 
 	var modulePaths []string
@@ -324,7 +291,7 @@ func (p *Plugin) runAll(ctx context.Context, estimator *Estimator, appCtx *plugi
 	return p.outputResult(appCtx, outputFmt, result)
 }
 
-func (p *Plugin) outputResult(appCtx *plugin.AppContext, outputFmt string, result *EstimateResult) error {
+func (p *Plugin) outputResult(appCtx *plugin.AppContext, outputFmt string, result *costengine.EstimateResult) error {
 	if outputFmt == "json" {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
@@ -347,7 +314,7 @@ func (p *Plugin) outputResult(appCtx *plugin.AppContext, outputFmt string, resul
 	return nil
 }
 
-func renderSegmentTree(node *SegmentNode, depth int) {
+func renderSegmentTree(node *costengine.SegmentNode, depth int) {
 	for _, c := range node.Children {
 		if c.AfterCost == 0 && c.DiffCost == 0 {
 			continue
@@ -376,7 +343,7 @@ func renderSegmentTree(node *SegmentNode, depth int) {
 	}
 }
 
-func renderSubmodules(submodules []SubmoduleCost, parentAddr string) {
+func renderSubmodules(submodules []costengine.SubmoduleCost, parentAddr string) {
 	for i := range submodules {
 		sm := &submodules[i]
 		if sm.MonthlyCost == 0 && len(sm.Children) == 0 {
@@ -406,7 +373,7 @@ func renderSubmodules(submodules []SubmoduleCost, parentAddr string) {
 	}
 }
 
-func renderResource(rc *ResourceCost, displayAddr string) {
+func renderResource(rc *costengine.ResourceCost, displayAddr string) {
 	switch rc.ErrorKind {
 	case costengine.CostErrorNone:
 		if rc.MonthlyCost > 0 {

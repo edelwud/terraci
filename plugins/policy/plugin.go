@@ -22,41 +22,9 @@ func init() { //nolint:gochecknoinits // intentional plugin registration
 	plugin.Register(&Plugin{})
 }
 
-// Re-export types from internal package for external consumers.
-type (
-	Config       = policyengine.Config
-	Action       = policyengine.Action
-	SourceConfig = policyengine.SourceConfig
-	Overwrite    = policyengine.Overwrite
-	Result       = policyengine.Result
-	Violation    = policyengine.Violation
-	Summary      = policyengine.Summary
-	Checker      = policyengine.Checker
-	Engine       = policyengine.Engine
-	Source       = policyengine.Source
-	Puller       = policyengine.Puller
-)
-
-// Re-export constants from internal package.
-var (
-	ActionBlock  = policyengine.ActionBlock
-	ActionWarn   = policyengine.ActionWarn
-	ActionIgnore = policyengine.ActionIgnore
-)
-
-// Re-export functions from internal package.
-var (
-	OPAVersion = policyengine.OPAVersion
-	NewChecker = policyengine.NewChecker
-	NewEngine  = policyengine.NewEngine
-	NewSource  = policyengine.NewSource
-	NewPuller  = policyengine.NewPuller
-	NewSummary = policyengine.NewSummary
-)
-
 // Plugin is the OPA policy check plugin.
 type Plugin struct {
-	cfg        *Config
+	cfg        *policyengine.Config
 	configured bool
 }
 
@@ -66,9 +34,9 @@ func (p *Plugin) Description() string { return "OPA policy checks for Terraform 
 // ConfigProvider
 
 func (p *Plugin) ConfigKey() string { return "policy" }
-func (p *Plugin) NewConfig() any    { return &Config{} }
+func (p *Plugin) NewConfig() any    { return &policyengine.Config{} }
 func (p *Plugin) SetConfig(cfg any) error {
-	pc, ok := cfg.(*Config)
+	pc, ok := cfg.(*policyengine.Config)
 	if !ok {
 		return fmt.Errorf("expected *Config, got %T", cfg)
 	}
@@ -97,11 +65,11 @@ func (p *Plugin) Initialize(_ context.Context, appCtx *plugin.AppContext) error 
 	return nil
 }
 
-func (p *Plugin) effectiveConfig(_ *plugin.AppContext) *Config {
+func (p *Plugin) effectiveConfig(_ *plugin.AppContext) *policyengine.Config {
 	if p.cfg != nil {
 		return p.cfg
 	}
-	return &Config{}
+	return &policyengine.Config{}
 }
 
 // InitContributor — contributes policy check field to the init wizard.

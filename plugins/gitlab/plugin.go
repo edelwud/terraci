@@ -22,66 +22,10 @@ func init() { //nolint:gochecknoinits // intentional plugin registration
 
 const pluginName = "gitlab"
 
-// Re-export types from internal package for external consumers.
-type (
-	Config           = gitlabci.Config
-	Image            = gitlabci.Image
-	MRConfig         = gitlabci.MRConfig
-	MRCommentConfig  = gitlabci.MRCommentConfig
-	SummaryJobConfig = gitlabci.SummaryJobConfig
-	MRContext        = gitlabci.MRContext
-	Pipeline         = gitlabci.Pipeline
-	Job              = gitlabci.Job
-	JobNeed          = gitlabci.JobNeed
-	Rule             = gitlabci.Rule
-	ImageConfig      = gitlabci.ImageConfig
-	DefaultConfig    = gitlabci.DefaultConfig
-	Workflow         = gitlabci.Workflow
-	Artifacts        = gitlabci.Artifacts
-	Reports          = gitlabci.Reports
-	Cache            = gitlabci.Cache
-	Secret           = gitlabci.Secret
-	VaultSecret      = gitlabci.VaultSecret
-	VaultEngine      = gitlabci.VaultEngine
-	IDToken          = gitlabci.IDToken
-	Generator        = gitlabci.Generator
-	Client           = gitlabci.Client
-	MRService        = gitlabci.MRService
-	JobConfig        = gitlabci.JobConfig
-	JobDefaults      = gitlabci.JobDefaults
-	JobOverwrite     = gitlabci.JobOverwrite
-	JobOverwriteType = gitlabci.JobOverwriteType
-	ArtifactsConfig  = gitlabci.ArtifactsConfig
-	ArtifactReports  = gitlabci.ArtifactReports
-	CfgSecret        = gitlabci.CfgSecret
-	CfgVaultSecret   = gitlabci.CfgVaultSecret
-)
-
-// Re-export constants from internal package.
-var (
-	DefaultStagesPrefix = gitlabci.DefaultStagesPrefix
-	SummaryJobName      = gitlabci.SummaryJobName
-	SummaryStageName    = gitlabci.SummaryStageName
-	WhenManual          = gitlabci.WhenManual
-	OverwriteTypePlan   = gitlabci.OverwriteTypePlan
-	OverwriteTypeApply  = gitlabci.OverwriteTypeApply
-)
-
-// Re-export functions from internal package.
-var (
-	NewGenerator        = gitlabci.NewGenerator
-	NewClient           = gitlabci.NewClient
-	NewClientFromEnv    = gitlabci.NewClientFromEnv
-	DetectMRContext     = gitlabci.DetectMRContext
-	NewMRService        = gitlabci.NewMRService
-	NewMRServiceFromEnv = gitlabci.NewMRServiceFromEnv
-	FindTerraCIComment  = gitlabci.FindTerraCIComment
-)
-
 // Plugin is the GitLab CI plugin.
 type Plugin struct {
-	cfg        *Config
-	mrCtx      *MRContext
+	cfg        *gitlabci.Config
+	mrCtx      *gitlabci.MRContext
 	inCI       bool
 	configured bool
 }
@@ -93,9 +37,9 @@ func (p *Plugin) Description() string { return "GitLab CI pipeline generation an
 
 func (p *Plugin) ConfigKey() string { return pluginName }
 func (p *Plugin) NewConfig() any {
-	return &Config{
+	return &gitlabci.Config{
 		TerraformBinary: "terraform",
-		Image:           Image{Name: "hashicorp/terraform:1.6"},
+		Image:           gitlabci.Image{Name: "hashicorp/terraform:1.6"},
 		StagesPrefix:    "deploy",
 		Parallelism:     5,
 		PlanEnabled:     true,
@@ -103,7 +47,7 @@ func (p *Plugin) NewConfig() any {
 	}
 }
 func (p *Plugin) SetConfig(cfg any) error {
-	gc, ok := cfg.(*Config)
+	gc, ok := cfg.(*gitlabci.Config)
 	if !ok {
 		return fmt.Errorf("expected *Config, got %T", cfg)
 	}
@@ -122,7 +66,7 @@ func (p *Plugin) Initialize(_ context.Context, _ *plugin.AppContext) error {
 		return nil
 	}
 
-	p.mrCtx = DetectMRContext()
+	p.mrCtx = gitlabci.DetectMRContext()
 	if p.mrCtx.InMR {
 		log.WithField("mr", p.mrCtx.MRIID).Debug("gitlab: MR context detected")
 	} else {
@@ -146,7 +90,7 @@ func (p *Plugin) NewGenerator(_ *plugin.AppContext, depGraph *graph.DependencyGr
 
 func (p *Plugin) NewCommentService(_ *plugin.AppContext) ci.CommentService {
 	cfg := p.cfg
-	var mrCfg *MRConfig
+	var mrCfg *gitlabci.MRConfig
 	if cfg != nil {
 		mrCfg = cfg.MR
 	}
