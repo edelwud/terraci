@@ -1,9 +1,11 @@
-package ci
+package summaryengine
 
 import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/edelwud/terraci/pkg/ci"
 )
 
 func TestRender_BasicPlans(t *testing.T) {
@@ -11,23 +13,23 @@ func TestRender_BasicPlans(t *testing.T) {
 
 	r := NewCommentRenderer()
 	data := &CommentData{
-		Plans: []ModulePlan{
+		Plans: []ci.ModulePlan{
 			{
 				ModuleID:   "svc/prod/us-east-1/vpc",
 				Components: map[string]string{"environment": "prod"},
-				Status:     PlanStatusChanges,
+				Status:     ci.PlanStatusChanges,
 				Summary:    "+2 ~1 -0",
 			},
 			{
 				ModuleID:   "svc/prod/us-east-1/rds",
 				Components: map[string]string{"environment": "prod"},
-				Status:     PlanStatusNoChanges,
+				Status:     ci.PlanStatusNoChanges,
 				Summary:    "No changes",
 			},
 			{
 				ModuleID:   "svc/staging/us-east-1/vpc",
 				Components: map[string]string{"environment": "staging"},
-				Status:     PlanStatusFailed,
+				Status:     ci.PlanStatusFailed,
 				Error:      "init failed",
 			},
 		},
@@ -36,7 +38,7 @@ func TestRender_BasicPlans(t *testing.T) {
 
 	result := r.Render(data)
 
-	if !strings.Contains(result, CommentMarker) {
+	if !strings.Contains(result, ci.CommentMarker) {
 		t.Error("expected CommentMarker in output")
 	}
 	if !strings.Contains(result, "Terraform Plan Summary") {
@@ -59,7 +61,7 @@ func TestRender_EmptyPlans(t *testing.T) {
 
 	r := NewCommentRenderer()
 	data := &CommentData{
-		Plans:       []ModulePlan{},
+		Plans:       []ci.ModulePlan{},
 		GeneratedAt: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC),
 	}
 
@@ -75,23 +77,23 @@ func TestRender_WithPolicySummary(t *testing.T) {
 
 	r := NewCommentRenderer()
 	data := &CommentData{
-		Plans: []ModulePlan{
+		Plans: []ci.ModulePlan{
 			{
 				ModuleID:   "svc/prod/us-east-1/vpc",
 				Components: map[string]string{"environment": "prod"},
-				Status:     PlanStatusChanges,
+				Status:     ci.PlanStatusChanges,
 				Summary:    "+1",
 			},
 		},
-		PolicySummary: &PolicySummary{
+		PolicySummary: &ci.PolicySummary{
 			TotalModules:  2,
 			PassedModules: 1,
 			FailedModules: 1,
 			TotalFailures: 1,
-			Results: []PolicyResult{
+			Results: []ci.PolicyResult{
 				{
 					Module: "svc/prod/us-east-1/vpc",
-					Failures: []PolicyViolation{
+					Failures: []ci.PolicyViolation{
 						{Namespace: "terraform.cost", Message: "too expensive"},
 					},
 				},
@@ -118,11 +120,11 @@ func TestRender_WithCostData(t *testing.T) {
 
 	r := NewCommentRenderer()
 	data := &CommentData{
-		Plans: []ModulePlan{
+		Plans: []ci.ModulePlan{
 			{
 				ModuleID:   "svc/prod/us-east-1/vpc",
 				Components: map[string]string{"environment": "prod"},
-				Status:     PlanStatusChanges,
+				Status:     ci.PlanStatusChanges,
 				Summary:    "+1",
 				HasCost:    true,
 				CostBefore: 10.0,
@@ -148,7 +150,7 @@ func TestRender_CommitSHA(t *testing.T) {
 
 	r := NewCommentRenderer()
 	data := &CommentData{
-		Plans:       []ModulePlan{},
+		Plans:       []ci.ModulePlan{},
 		CommitSHA:   "abcdef1234567890abcdef1234567890abcdef12",
 		GeneratedAt: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC),
 	}
@@ -170,7 +172,7 @@ func TestCalculateStats(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		plans []ModulePlan
+		plans []ci.ModulePlan
 		want  planStats
 	}{
 		{
@@ -180,13 +182,13 @@ func TestCalculateStats(t *testing.T) {
 		},
 		{
 			name: "all statuses",
-			plans: []ModulePlan{
-				{Status: PlanStatusSuccess},
-				{Status: PlanStatusNoChanges},
-				{Status: PlanStatusChanges},
-				{Status: PlanStatusFailed},
-				{Status: PlanStatusPending},
-				{Status: PlanStatusRunning},
+			plans: []ci.ModulePlan{
+				{Status: ci.PlanStatusSuccess},
+				{Status: ci.PlanStatusNoChanges},
+				{Status: ci.PlanStatusChanges},
+				{Status: ci.PlanStatusFailed},
+				{Status: ci.PlanStatusPending},
+				{Status: ci.PlanStatusRunning},
 			},
 			want: planStats{
 				Total:     6,
@@ -200,9 +202,9 @@ func TestCalculateStats(t *testing.T) {
 		},
 		{
 			name: "all no changes",
-			plans: []ModulePlan{
-				{Status: PlanStatusNoChanges},
-				{Status: PlanStatusNoChanges},
+			plans: []ci.ModulePlan{
+				{Status: ci.PlanStatusNoChanges},
+				{Status: ci.PlanStatusNoChanges},
 			},
 			want: planStats{
 				Total:     2,
@@ -277,7 +279,7 @@ func TestGroupByEnvironment(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		plans    []ModulePlan
+		plans    []ci.ModulePlan
 		wantKeys []string
 		wantLen  map[string]int
 	}{
@@ -289,7 +291,7 @@ func TestGroupByEnvironment(t *testing.T) {
 		},
 		{
 			name: "multiple envs",
-			plans: []ModulePlan{
+			plans: []ci.ModulePlan{
 				{Components: map[string]string{"environment": "prod"}},
 				{Components: map[string]string{"environment": "prod"}},
 				{Components: map[string]string{"environment": "staging"}},
@@ -299,7 +301,7 @@ func TestGroupByEnvironment(t *testing.T) {
 		},
 		{
 			name: "empty env becomes default",
-			plans: []ModulePlan{
+			plans: []ci.ModulePlan{
 				{Components: map[string]string{}},
 				{Components: map[string]string{"environment": "prod"}},
 			},
@@ -332,27 +334,27 @@ func TestFormatCostCell(t *testing.T) {
 
 	tests := []struct {
 		name string
-		plan ModulePlan
+		plan ci.ModulePlan
 		want string
 	}{
 		{
 			name: "no cost",
-			plan: ModulePlan{HasCost: false},
+			plan: ci.ModulePlan{HasCost: false},
 			want: "-",
 		},
 		{
 			name: "zero diff",
-			plan: ModulePlan{HasCost: true, CostAfter: 25.0, CostDiff: 0},
+			plan: ci.ModulePlan{HasCost: true, CostAfter: 25.0, CostDiff: 0},
 			want: "$25.00",
 		},
 		{
 			name: "positive diff",
-			plan: ModulePlan{HasCost: true, CostBefore: 10.0, CostAfter: 15.0, CostDiff: 5.0},
+			plan: ci.ModulePlan{HasCost: true, CostBefore: 10.0, CostAfter: 15.0, CostDiff: 5.0},
 			want: "$10.00 +$5.00 → $15.00",
 		},
 		{
 			name: "negative diff",
-			plan: ModulePlan{HasCost: true, CostBefore: 20.0, CostAfter: 10.0, CostDiff: -10.0},
+			plan: ci.ModulePlan{HasCost: true, CostBefore: 20.0, CostAfter: 10.0, CostDiff: -10.0},
 			want: "$20.00 -$10.00 → $10.00",
 		},
 	}
@@ -480,16 +482,16 @@ func TestStatusIcon(t *testing.T) {
 	r := NewCommentRenderer()
 
 	tests := []struct {
-		status PlanStatus
+		status ci.PlanStatus
 		want   string
 	}{
-		{PlanStatusSuccess, "✅"},
-		{PlanStatusNoChanges, "✅"},
-		{PlanStatusChanges, "🔄"},
-		{PlanStatusFailed, "❌"},
-		{PlanStatusPending, "⏳"},
-		{PlanStatusRunning, "🔄"},
-		{PlanStatus("unknown"), "❓"},
+		{ci.PlanStatusSuccess, "✅"},
+		{ci.PlanStatusNoChanges, "✅"},
+		{ci.PlanStatusChanges, "🔄"},
+		{ci.PlanStatusFailed, "❌"},
+		{ci.PlanStatusPending, "⏳"},
+		{ci.PlanStatusRunning, "🔄"},
+		{ci.PlanStatus("unknown"), "❓"},
 	}
 
 	for _, tt := range tests {
@@ -512,9 +514,9 @@ func TestRenderExpandableDetails(t *testing.T) {
 	t.Run("with structured details", func(t *testing.T) {
 		t.Parallel()
 
-		p := &ModulePlan{
+		p := &ci.ModulePlan{
 			ModuleID:          "svc/prod/us-east-1/vpc",
-			Status:            PlanStatusChanges,
+			Status:            ci.PlanStatusChanges,
 			Summary:           "+2 ~1 -0",
 			StructuredDetails: "### Resources\n- aws_vpc.main (create)",
 		}
@@ -535,9 +537,9 @@ func TestRenderExpandableDetails(t *testing.T) {
 	t.Run("with raw plan output", func(t *testing.T) {
 		t.Parallel()
 
-		p := &ModulePlan{
+		p := &ci.ModulePlan{
 			ModuleID:      "svc/prod/us-east-1/rds",
-			Status:        PlanStatusChanges,
+			Status:        ci.PlanStatusChanges,
 			Summary:       "No changes",
 			RawPlanOutput: "+ resource \"aws_db_instance\" \"main\"",
 		}
@@ -559,9 +561,9 @@ func TestRenderExpandableDetails(t *testing.T) {
 	t.Run("failed status", func(t *testing.T) {
 		t.Parallel()
 
-		p := &ModulePlan{
+		p := &ci.ModulePlan{
 			ModuleID: "svc/prod/us-east-1/eks",
-			Status:   PlanStatusFailed,
+			Status:   ci.PlanStatusFailed,
 			Error:    "terraform init failed",
 		}
 
@@ -575,9 +577,9 @@ func TestRenderExpandableDetails(t *testing.T) {
 	t.Run("no summary uses plain title", func(t *testing.T) {
 		t.Parallel()
 
-		p := &ModulePlan{
+		p := &ci.ModulePlan{
 			ModuleID:          "svc/prod/us-east-1/vpc",
-			Status:            PlanStatusChanges,
+			Status:            ci.PlanStatusChanges,
 			Summary:           "",
 			StructuredDetails: "some details",
 		}
@@ -599,22 +601,22 @@ func TestRenderPolicySection(t *testing.T) {
 	t.Run("with failures", func(t *testing.T) {
 		t.Parallel()
 
-		summary := &PolicySummary{
+		summary := &ci.PolicySummary{
 			TotalModules:  3,
 			PassedModules: 1,
 			FailedModules: 2,
 			TotalFailures: 3,
-			Results: []PolicyResult{
+			Results: []ci.PolicyResult{
 				{
 					Module: "svc/prod/us-east-1/vpc",
-					Failures: []PolicyViolation{
+					Failures: []ci.PolicyViolation{
 						{Namespace: "terraform.security", Message: "no public access"},
 						{Namespace: "terraform.cost", Message: "budget exceeded"},
 					},
 				},
 				{
 					Module: "svc/prod/us-east-1/rds",
-					Failures: []PolicyViolation{
+					Failures: []ci.PolicyViolation{
 						{Namespace: "terraform.security", Message: "encryption required"},
 					},
 				},
@@ -640,14 +642,14 @@ func TestRenderPolicySection(t *testing.T) {
 	t.Run("with warnings only", func(t *testing.T) {
 		t.Parallel()
 
-		summary := &PolicySummary{
+		summary := &ci.PolicySummary{
 			TotalModules:  1,
 			WarnedModules: 1,
 			TotalWarnings: 1,
-			Results: []PolicyResult{
+			Results: []ci.PolicyResult{
 				{
 					Module: "svc/staging/us-east-1/vpc",
-					Warnings: []PolicyViolation{
+					Warnings: []ci.PolicyViolation{
 						{Namespace: "terraform.naming", Message: "non-standard naming"},
 					},
 				},
@@ -670,7 +672,7 @@ func TestRenderPolicySection(t *testing.T) {
 	t.Run("all passed", func(t *testing.T) {
 		t.Parallel()
 
-		summary := &PolicySummary{
+		summary := &ci.PolicySummary{
 			TotalModules:  2,
 			PassedModules: 2,
 		}
@@ -691,9 +693,9 @@ func TestRenderPlanRow(t *testing.T) {
 	t.Run("without cost", func(t *testing.T) {
 		t.Parallel()
 
-		p := &ModulePlan{
+		p := &ci.ModulePlan{
 			ModuleID: "svc/prod/us-east-1/vpc",
-			Status:   PlanStatusChanges,
+			Status:   ci.PlanStatusChanges,
 			Summary:  "+2 ~1 -0",
 		}
 
@@ -717,9 +719,9 @@ func TestRenderPlanRow(t *testing.T) {
 	t.Run("with cost", func(t *testing.T) {
 		t.Parallel()
 
-		p := &ModulePlan{
+		p := &ci.ModulePlan{
 			ModuleID:  "svc/prod/us-east-1/vpc",
-			Status:    PlanStatusNoChanges,
+			Status:    ci.PlanStatusNoChanges,
 			Summary:   "No changes",
 			HasCost:   true,
 			CostAfter: 50.0,
@@ -740,9 +742,9 @@ func TestRenderPlanRow(t *testing.T) {
 	t.Run("with error", func(t *testing.T) {
 		t.Parallel()
 
-		p := &ModulePlan{
+		p := &ci.ModulePlan{
 			ModuleID: "svc/prod/us-east-1/vpc",
-			Status:   PlanStatusFailed,
+			Status:   ci.PlanStatusFailed,
 			Error:    "init failed: something went wrong",
 		}
 
@@ -756,9 +758,9 @@ func TestRenderPlanRow(t *testing.T) {
 	t.Run("empty summary becomes dash", func(t *testing.T) {
 		t.Parallel()
 
-		p := &ModulePlan{
+		p := &ci.ModulePlan{
 			ModuleID: "svc/prod/us-east-1/vpc",
-			Status:   PlanStatusPending,
+			Status:   ci.PlanStatusPending,
 		}
 
 		got := r.renderPlanRow(p, false)

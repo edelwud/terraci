@@ -4,26 +4,23 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/edelwud/terraci/pkg/ci"
 )
 
 // PRService handles GitHub PR comment operations
 type PRService struct {
-	client   *Client
-	renderer *ci.CommentRenderer
-	config   *PRConfig
-	context  *PRContext
+	client  *Client
+	config  *PRConfig
+	context *PRContext
 }
 
 // NewPRService creates a new PR service with injected dependencies.
 func NewPRService(cfg *PRConfig, client *Client, ctx *PRContext) *PRService {
 	return &PRService{
-		client:   client,
-		renderer: ci.NewCommentRenderer(),
-		config:   cfg,
-		context:  ctx,
+		client:  client,
+		config:  cfg,
+		context: ctx,
 	}
 }
 
@@ -58,34 +55,10 @@ func (s *PRService) IsEnabled() bool {
 }
 
 // UpsertComment creates or updates the terraci comment on the PR
-func (s *PRService) UpsertComment(plans []ci.ModulePlan, policySummary *ci.PolicySummary) error {
+func (s *PRService) UpsertComment(body string) error {
 	if !s.IsEnabled() {
 		return nil
 	}
-
-	// Check on_changes_only
-	if s.config != nil && s.config.Comment != nil && s.config.Comment.OnChangesOnly {
-		if !ci.HasReportableChanges(plans, policySummary) {
-			return nil
-		}
-	}
-
-	// Build comment data
-	data := &ci.CommentData{
-		Plans:         plans,
-		PolicySummary: policySummary,
-		CommitSHA:     s.context.CommitSHA,
-		PipelineID:    s.context.RunID,
-		GeneratedAt:   time.Now().UTC(),
-	}
-
-	// Build pipeline URL
-	if s.context.Owner != "" && s.context.Repo != "" && s.context.RunID != "" {
-		data.PipelineURL = fmt.Sprintf("https://github.com/%s/%s/actions/runs/%s",
-			s.context.Owner, s.context.Repo, s.context.RunID)
-	}
-
-	body := s.renderer.Render(data)
 
 	ctx := context.Background()
 
@@ -117,3 +90,6 @@ func (s *PRService) UpsertComment(plans []ci.ModulePlan, policySummary *ci.Polic
 
 	return nil
 }
+
+// Ensure PRService satisfies CommentService at compile time.
+var _ ci.CommentService = (*PRService)(nil)

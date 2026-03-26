@@ -68,6 +68,23 @@ func (p *Plugin) runSummary(cmd *cobra.Command, appCtx *plugin.AppContext) error
 		}
 	}
 
+	// Check if we should skip (on_changes_only)
+	if p.cfg != nil && p.cfg.OnChangesOnly && !summaryengine.HasReportableChanges(plans, policySummary) {
+		log.Info("no reportable changes, skipping comment")
+		printSummary(collection)
+		return nil
+	}
+
+	// Render markdown
+	data := &summaryengine.CommentData{
+		Plans:         plans,
+		PolicySummary: policySummary,
+		CommitSHA:     collection.CommitSHA,
+		PipelineID:    collection.PipelineID,
+		GeneratedAt:   collection.GeneratedAt,
+	}
+	body := summaryengine.NewCommentRenderer().Render(data)
+
 	// Resolve CI provider via plugin system (not finding a provider is not a failure)
 	provider, resolveErr := plugin.ResolveProvider()
 	if resolveErr != nil || provider == nil {
@@ -85,7 +102,7 @@ func (p *Plugin) runSummary(cmd *cobra.Command, appCtx *plugin.AppContext) error
 
 	// Create/update comment
 	log.Info("updating PR/MR comment")
-	if upsertErr := commentSvc.UpsertComment(plans, policySummary); upsertErr != nil {
+	if upsertErr := commentSvc.UpsertComment(body); upsertErr != nil {
 		return fmt.Errorf("failed to update comment: %w", upsertErr)
 	}
 

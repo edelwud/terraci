@@ -1,9 +1,12 @@
-package ci
+package summaryengine
 
 import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
+
+	"github.com/edelwud/terraci/pkg/ci"
 )
 
 const (
@@ -18,6 +21,20 @@ const (
 	shortSHALength = 8
 )
 
+// CommentMarker is used to identify terraci comments for updates
+const CommentMarker = ci.CommentMarker
+
+// CommentData contains all data needed to render a PR/MR comment
+type CommentData struct {
+	Plans         []ci.ModulePlan
+	PolicySummary *ci.PolicySummary
+	PipelineURL   string
+	PipelineID    string
+	CommitSHA     string
+	GeneratedAt   time.Time
+	TotalModules  int
+}
+
 // CommentRenderer renders PR/MR comments
 type CommentRenderer struct{}
 
@@ -31,7 +48,7 @@ func (r *CommentRenderer) Render(data *CommentData) string {
 	var sb strings.Builder
 
 	// Marker for identifying our comments
-	sb.WriteString(CommentMarker)
+	sb.WriteString(ci.CommentMarker)
 	sb.WriteString("\n\n")
 
 	// Header
@@ -82,7 +99,7 @@ func (r *CommentRenderer) Render(data *CommentData) string {
 }
 
 // renderPolicySection renders the policy check results section
-func (r *CommentRenderer) renderPolicySection(summary *PolicySummary) string {
+func (r *CommentRenderer) renderPolicySection(summary *ci.PolicySummary) string {
 	var sb strings.Builder
 
 	icon := "✅"
@@ -158,21 +175,21 @@ type planStats struct {
 	Running   int
 }
 
-func (r *CommentRenderer) calculateStats(plans []ModulePlan) planStats {
+func (r *CommentRenderer) calculateStats(plans []ci.ModulePlan) planStats {
 	var stats planStats
 	stats.Total = len(plans)
 
 	for i := range plans {
 		switch plans[i].Status {
-		case PlanStatusSuccess, PlanStatusNoChanges:
+		case ci.PlanStatusSuccess, ci.PlanStatusNoChanges:
 			stats.NoChanges++
-		case PlanStatusChanges:
+		case ci.PlanStatusChanges:
 			stats.Changes++
-		case PlanStatusFailed:
+		case ci.PlanStatusFailed:
 			stats.Failed++
-		case PlanStatusPending:
+		case ci.PlanStatusPending:
 			stats.Pending++
-		case PlanStatusRunning:
+		case ci.PlanStatusRunning:
 			stats.Running++
 		}
 	}
@@ -207,8 +224,8 @@ func (r *CommentRenderer) renderStats(stats planStats) string {
 	return fmt.Sprintf("**%d** modules: %s", stats.Total, strings.Join(parts, " | "))
 }
 
-func (r *CommentRenderer) groupByEnvironment(plans []ModulePlan) map[string][]ModulePlan {
-	result := make(map[string][]ModulePlan)
+func (r *CommentRenderer) groupByEnvironment(plans []ci.ModulePlan) map[string][]ci.ModulePlan {
+	result := make(map[string][]ci.ModulePlan)
 	for i := range plans {
 		env := plans[i].Get("environment")
 		if env == "" {
@@ -219,7 +236,7 @@ func (r *CommentRenderer) groupByEnvironment(plans []ModulePlan) map[string][]Mo
 	return result
 }
 
-func (r *CommentRenderer) sortedKeys(m map[string][]ModulePlan) []string {
+func (r *CommentRenderer) sortedKeys(m map[string][]ci.ModulePlan) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
@@ -228,7 +245,7 @@ func (r *CommentRenderer) sortedKeys(m map[string][]ModulePlan) []string {
 	return keys
 }
 
-func (r *CommentRenderer) renderEnvironmentSection(env string, plans []ModulePlan) string {
+func (r *CommentRenderer) renderEnvironmentSection(env string, plans []ci.ModulePlan) string {
 	var sb strings.Builder
 
 	fmt.Fprintf(&sb, "### 📦 Environment: `%s`\n\n", env)
@@ -259,7 +276,7 @@ func (r *CommentRenderer) renderEnvironmentSection(env string, plans []ModulePla
 
 	for i := range plans {
 		hasDetails := plans[i].StructuredDetails != "" || plans[i].RawPlanOutput != "" || plans[i].Error != ""
-		if hasDetails && (plans[i].Status == PlanStatusChanges || plans[i].Status == PlanStatusFailed) {
+		if hasDetails && (plans[i].Status == ci.PlanStatusChanges || plans[i].Status == ci.PlanStatusFailed) {
 			sb.WriteString(r.renderExpandableDetails(&plans[i]))
 		}
 	}
@@ -267,7 +284,7 @@ func (r *CommentRenderer) renderEnvironmentSection(env string, plans []ModulePla
 	return sb.String()
 }
 
-func (r *CommentRenderer) renderPlanRow(p *ModulePlan, includeCost bool) string {
+func (r *CommentRenderer) renderPlanRow(p *ci.ModulePlan, includeCost bool) string {
 	status := r.statusIcon(p.Status)
 	module := fmt.Sprintf("`%s`", p.ModuleID)
 
@@ -288,7 +305,7 @@ func (r *CommentRenderer) renderPlanRow(p *ModulePlan, includeCost bool) string 
 }
 
 // FormatCostCell formats the cost cell for a module plan
-func FormatCostCell(p *ModulePlan) string {
+func FormatCostCell(p *ci.ModulePlan) string {
 	if !p.HasCost {
 		return "-"
 	}
@@ -345,31 +362,31 @@ func FormatCostDiff(diff float64) string {
 	return fmt.Sprintf("-$%.4f", diff)
 }
 
-func (r *CommentRenderer) statusIcon(status PlanStatus) string {
+func (r *CommentRenderer) statusIcon(status ci.PlanStatus) string {
 	switch status {
-	case PlanStatusSuccess, PlanStatusNoChanges:
+	case ci.PlanStatusSuccess, ci.PlanStatusNoChanges:
 		return "✅"
-	case PlanStatusChanges:
+	case ci.PlanStatusChanges:
 		return "🔄"
-	case PlanStatusFailed:
+	case ci.PlanStatusFailed:
 		return "❌"
-	case PlanStatusPending:
+	case ci.PlanStatusPending:
 		return "⏳"
-	case PlanStatusRunning:
+	case ci.PlanStatusRunning:
 		return "🔄"
 	default:
 		return "❓"
 	}
 }
 
-func (r *CommentRenderer) renderExpandableDetails(p *ModulePlan) string {
+func (r *CommentRenderer) renderExpandableDetails(p *ci.ModulePlan) string {
 	var sb strings.Builder
 
 	title := fmt.Sprintf("📋 %s", p.ModuleID)
 	if p.Summary != "" && p.Summary != "No changes" {
 		title = fmt.Sprintf("📋 %s (%s)", p.ModuleID, p.Summary)
 	}
-	if p.Status == PlanStatusFailed {
+	if p.Status == ci.PlanStatusFailed {
 		title = fmt.Sprintf("❌ %s", p.ModuleID)
 	}
 

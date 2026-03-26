@@ -1,8 +1,6 @@
 package ci
 
-import (
-	"time"
-)
+import "time"
 
 // CommentMarker is used to identify terraci comments for updates
 const CommentMarker = "<!-- terraci-plan-comment -->"
@@ -74,17 +72,6 @@ type PolicyResult struct {
 type PolicyViolation struct {
 	Namespace string
 	Message   string
-}
-
-// CommentData contains all data needed to render a PR/MR comment
-type CommentData struct {
-	Plans         []ModulePlan
-	PolicySummary *PolicySummary
-	PipelineURL   string
-	PipelineID    string
-	CommitSHA     string
-	GeneratedAt   time.Time
-	TotalModules  int
 }
 
 // PlanResult represents the result of a terraform plan for a single module

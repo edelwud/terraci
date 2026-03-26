@@ -5,5 +5,5 @@ package ci
 // CommentService defines the interface for posting plan summaries to PRs/MRs
 type CommentService interface {
 	IsEnabled() bool
-	UpsertComment(plans []ModulePlan, policySummary *PolicySummary) error
+	UpsertComment(body string) error
 }

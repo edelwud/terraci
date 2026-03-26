@@ -1,37 +1,41 @@
-package ci
+package summaryengine
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/edelwud/terraci/pkg/ci"
+)
 
 func TestHasReportableChanges(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name   string
-		plans  []ModulePlan
-		policy *PolicySummary
+		plans  []ci.ModulePlan
+		policy *ci.PolicySummary
 		want   bool
 	}{
 		{
 			name:   "plans with changes status",
-			plans:  []ModulePlan{{Status: PlanStatusChanges}},
+			plans:  []ci.ModulePlan{{Status: ci.PlanStatusChanges}},
 			policy: nil,
 			want:   true,
 		},
 		{
 			name:   "plans with failed status",
-			plans:  []ModulePlan{{Status: PlanStatusFailed}},
+			plans:  []ci.ModulePlan{{Status: ci.PlanStatusFailed}},
 			policy: nil,
 			want:   true,
 		},
 		{
 			name:   "plans with no_changes only",
-			plans:  []ModulePlan{{Status: PlanStatusNoChanges}},
+			plans:  []ci.ModulePlan{{Status: ci.PlanStatusNoChanges}},
 			policy: nil,
 			want:   false,
 		},
 		{
 			name:   "empty plans nil policy",
-			plans:  []ModulePlan{},
+			plans:  []ci.ModulePlan{},
 			policy: nil,
 			want:   false,
 		},
@@ -44,7 +48,7 @@ func TestHasReportableChanges(t *testing.T) {
 		{
 			name:  "nil plans but policy with failures",
 			plans: nil,
-			policy: &PolicySummary{
+			policy: &ci.PolicySummary{
 				FailedModules: 1,
 				TotalFailures: 2,
 			},
@@ -53,7 +57,7 @@ func TestHasReportableChanges(t *testing.T) {
 		{
 			name:  "nil plans but policy with warnings",
 			plans: nil,
-			policy: &PolicySummary{
+			policy: &ci.PolicySummary{
 				WarnedModules: 1,
 				TotalWarnings: 3,
 			},
@@ -62,7 +66,7 @@ func TestHasReportableChanges(t *testing.T) {
 		{
 			name:  "nil plans policy with no failures or warnings",
 			plans: nil,
-			policy: &PolicySummary{
+			policy: &ci.PolicySummary{
 				TotalModules:  2,
 				PassedModules: 2,
 			},
@@ -70,28 +74,28 @@ func TestHasReportableChanges(t *testing.T) {
 		},
 		{
 			name: "mixed statuses with one change",
-			plans: []ModulePlan{
-				{Status: PlanStatusNoChanges},
-				{Status: PlanStatusSuccess},
-				{Status: PlanStatusChanges},
+			plans: []ci.ModulePlan{
+				{Status: ci.PlanStatusNoChanges},
+				{Status: ci.PlanStatusSuccess},
+				{Status: ci.PlanStatusChanges},
 			},
 			policy: nil,
 			want:   true,
 		},
 		{
 			name: "all non-reportable statuses",
-			plans: []ModulePlan{
-				{Status: PlanStatusNoChanges},
-				{Status: PlanStatusSuccess},
-				{Status: PlanStatusPending},
+			plans: []ci.ModulePlan{
+				{Status: ci.PlanStatusNoChanges},
+				{Status: ci.PlanStatusSuccess},
+				{Status: ci.PlanStatusPending},
 			},
 			policy: nil,
 			want:   false,
 		},
 		{
 			name:  "no plan changes but policy has TotalWarnings only",
-			plans: []ModulePlan{{Status: PlanStatusNoChanges}},
-			policy: &PolicySummary{
+			plans: []ci.ModulePlan{{Status: ci.PlanStatusNoChanges}},
+			policy: &ci.PolicySummary{
 				TotalWarnings: 1,
 			},
 			want: true,

@@ -2,26 +2,23 @@ package gitlabci
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/edelwud/terraci/pkg/ci"
 )
 
 // MRService handles MR-related operations
 type MRService struct {
-	client   *Client
-	renderer *ci.CommentRenderer
-	config   *MRConfig
-	context  *MRContext
+	client  *Client
+	config  *MRConfig
+	context *MRContext
 }
 
 // NewMRService creates a new MR service with injected dependencies.
 func NewMRService(cfg *MRConfig, client *Client, ctx *MRContext) *MRService {
 	return &MRService{
-		client:   client,
-		renderer: ci.NewCommentRenderer(),
-		config:   cfg,
-		context:  ctx,
+		client:  client,
+		config:  cfg,
+		context: ctx,
 	}
 }
 
@@ -56,35 +53,10 @@ func (s *MRService) IsEnabled() bool {
 }
 
 // UpsertComment creates or updates the terraci comment on the MR
-func (s *MRService) UpsertComment(plans []ci.ModulePlan, policySummary *ci.PolicySummary) error {
+func (s *MRService) UpsertComment(body string) error {
 	if !s.IsEnabled() {
 		return nil
 	}
-
-	// Check if we should skip comment (on_changes_only)
-	if s.config != nil && s.config.Comment != nil && s.config.Comment.OnChangesOnly {
-		if !ci.HasReportableChanges(plans, policySummary) {
-			return nil
-		}
-	}
-
-	// Build comment data
-	data := &ci.CommentData{
-		Plans:         plans,
-		PolicySummary: policySummary,
-		CommitSHA:     s.context.CommitSHA,
-		PipelineID:    s.context.PipelineID,
-		GeneratedAt:   time.Now().UTC(),
-	}
-
-	// Build pipeline URL
-	if s.context.ProjectPath != "" && s.context.PipelineID != "" {
-		data.PipelineURL = fmt.Sprintf("%s/%s/-/pipelines/%s",
-			s.client.BaseURL(), s.context.ProjectPath, s.context.PipelineID)
-	}
-
-	// Render comment
-	body := s.renderer.Render(data)
 
 	// Get existing notes to find our comment
 	notes, err := s.client.GetMRNotes(s.context.ProjectID, s.context.MRIID)
@@ -111,3 +83,6 @@ func (s *MRService) UpsertComment(plans []ci.ModulePlan, policySummary *ci.Polic
 
 	return nil
 }
+
+// Ensure MRService satisfies CommentService at compile time.
+var _ ci.CommentService = (*MRService)(nil)

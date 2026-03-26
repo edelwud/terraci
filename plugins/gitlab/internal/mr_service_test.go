@@ -87,8 +87,7 @@ func TestMRService_UpsertComment_Disabled(t *testing.T) {
 		config:  nil,
 	}
 
-	plans := []ci.ModulePlan{{ModuleID: "test/prod/vpc", Status: ci.PlanStatusChanges}}
-	err := svc.UpsertComment(plans, nil)
+	err := svc.UpsertComment("test body")
 	if err != nil {
 		t.Errorf("expected nil error for disabled service, got: %v", err)
 	}
@@ -110,13 +109,11 @@ func TestMRService_UpsertComment_CreateNew(t *testing.T) {
 			CommitSHA:   "abc123",
 			PipelineID:  "456",
 		},
-		client:   client,
-		renderer: ci.NewCommentRenderer(),
-		config:   nil,
+		client: client,
+		config: nil,
 	}
 
-	plans := []ci.ModulePlan{{ModuleID: "test/prod/vpc", Status: ci.PlanStatusChanges}}
-	err := svc.UpsertComment(plans, nil)
+	err := svc.UpsertComment(ci.CommentMarker + "\n\n## Test")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -145,13 +142,11 @@ func TestMRService_UpsertComment_UpdateExisting(t *testing.T) {
 			CommitSHA:   "abc123",
 			PipelineID:  "456",
 		},
-		client:   client,
-		renderer: ci.NewCommentRenderer(),
-		config:   nil,
+		client: client,
+		config: nil,
 	}
 
-	plans := []ci.ModulePlan{{ModuleID: "test/prod/vpc", Status: ci.PlanStatusChanges}}
-	err := svc.UpsertComment(plans, nil)
+	err := svc.UpsertComment(ci.CommentMarker + "\n\n## Test")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -171,14 +166,12 @@ func TestMRService_UpsertComment_GetNotesError(t *testing.T) {
 
 	client := NewClient(server.URL, "test-token")
 	svc := &MRService{
-		context:  &MRContext{InMR: true, ProjectID: "123", MRIID: 1},
-		client:   client,
-		renderer: ci.NewCommentRenderer(),
-		config:   nil,
+		context: &MRContext{InMR: true, ProjectID: "123", MRIID: 1},
+		client:  client,
+		config:  nil,
 	}
 
-	plans := []ci.ModulePlan{{ModuleID: "test", Status: ci.PlanStatusChanges}}
-	err := svc.UpsertComment(plans, nil)
+	err := svc.UpsertComment("test body")
 	if err == nil {
 		t.Error("expected error when GetMRNotes fails")
 	}
@@ -200,20 +193,21 @@ func TestMRService_UpsertComment_CreateError(t *testing.T) {
 
 	client := NewClient(server.URL, "test-token")
 	svc := &MRService{
-		context:  &MRContext{InMR: true, ProjectID: "123", MRIID: 1},
-		client:   client,
-		renderer: ci.NewCommentRenderer(),
-		config:   nil,
+		context: &MRContext{InMR: true, ProjectID: "123", MRIID: 1},
+		client:  client,
+		config:  nil,
 	}
 
-	plans := []ci.ModulePlan{{ModuleID: "test", Status: ci.PlanStatusChanges}}
-	err := svc.UpsertComment(plans, nil)
+	err := svc.UpsertComment("test body")
 	if err == nil {
 		t.Error("expected error when CreateMRNote fails")
 	}
 }
 
 func TestMRService_UpsertComment_OnChangesOnly_NoChanges(t *testing.T) {
+	// With the simplified interface, on_changes_only is handled by the summary plugin.
+	// The MR service just posts whatever body it receives.
+	// This test verifies the service still works with the config present.
 	var createCalled, updateCalled bool
 	server := setupMockGitLabServer(t, `[]`, &createCalled, &updateCalled)
 	defer server.Close()
@@ -226,8 +220,7 @@ func TestMRService_UpsertComment_OnChangesOnly_NoChanges(t *testing.T) {
 			ProjectID: "123",
 			MRIID:     1,
 		},
-		client:   client,
-		renderer: ci.NewCommentRenderer(),
+		client: client,
 		config: &MRConfig{
 			Comment: &MRCommentConfig{
 				OnChangesOnly: true,
@@ -235,16 +228,11 @@ func TestMRService_UpsertComment_OnChangesOnly_NoChanges(t *testing.T) {
 		},
 	}
 
-	// Plans with no changes — should skip comment
-	plans := []ci.ModulePlan{{ModuleID: "test/prod/vpc", Status: ci.PlanStatusNoChanges}}
-	err := svc.UpsertComment(plans, nil)
+	err := svc.UpsertComment("test body")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if createCalled {
-		t.Error("did not expect CreateMRNote to be called when on_changes_only and no changes")
-	}
-	if updateCalled {
-		t.Error("did not expect UpdateMRNote to be called when on_changes_only and no changes")
+	if !createCalled {
+		t.Error("expected CreateMRNote to be called")
 	}
 }
