@@ -348,6 +348,16 @@ func TestGenerate_CustomBinary(t *testing.T) {
 func TestGenerate_WithPR(t *testing.T) {
 	cfg := createTestConfig()
 	cfg.GitHub.PR = &PRConfig{}
+	// Summary job now comes from the summary plugin as a contributed job
+	cfg.Contributions = []*pipeline.Contribution{{
+		Jobs: []pipeline.ContributedJob{{
+			Name:          "terraci-summary",
+			Phase:         pipeline.PhaseFinalize,
+			Commands:      []string{"terraci summary"},
+			DependsOnPlan: true,
+			AllowFailure:  false,
+		}},
+	}}
 
 	modules := []*discovery.Module{
 		createTestModule("platform", "stage", "eu-central-1", "vpc"),
@@ -372,7 +382,7 @@ func TestGenerate_WithPR(t *testing.T) {
 	}
 
 	// Summary job should exist
-	summaryJob := w.Jobs[SummaryJobName]
+	summaryJob := w.Jobs[summaryJobName]
 	if summaryJob == nil {
 		t.Fatal("summary job not found")
 	}

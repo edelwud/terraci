@@ -10,6 +10,7 @@ const (
 	PhasePostPlan               // after terraform plan
 	PhasePreApply               // before terraform apply
 	PhasePostApply              // after terraform apply
+	PhaseFinalize               // after everything — summary, notifications
 )
 
 // String returns the stage name for this phase (e.g., "pre-plan", "post-apply").
@@ -23,6 +24,8 @@ func (p Phase) String() string {
 		return "pre-apply"
 	case PhasePostApply:
 		return "post-apply"
+	case PhaseFinalize:
+		return "summary"
 	default:
 		return "unknown"
 	}
@@ -38,9 +41,8 @@ const (
 
 // IR is the provider-agnostic intermediate representation of a CI pipeline.
 type IR struct {
-	Levels  []Level
-	Jobs    []Job       // contributed jobs from plugins
-	Summary *SummaryJob // nil if not needed
+	Levels []Level
+	Jobs   []Job // contributed jobs from plugins
 }
 
 // AllPlanNames returns names of all plan jobs across all levels.
@@ -97,11 +99,6 @@ type Step struct {
 	Phase   Phase
 	Name    string
 	Command string
-}
-
-// SummaryJob describes the terraci-summary job.
-type SummaryJob struct {
-	Dependencies []string // all plan + contributed job names
 }
 
 // Contribution is what a PipelineContributor plugin provides.

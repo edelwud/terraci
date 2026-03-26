@@ -13,10 +13,8 @@ import (
 const (
 	// DefaultStagesPrefix is the default prefix for stage names
 	DefaultStagesPrefix = "deploy"
-	// SummaryJobName is the name of the summary job
-	SummaryJobName = "terraci-summary"
-	// SummaryStageName is the name of the summary stage
-	SummaryStageName = "summary"
+	// summaryJobName is the name recognized for summary job config overrides
+	summaryJobName = "terraci-summary"
 	// WhenManual is the GitLab CI "when: manual" value for jobs that require manual trigger
 	WhenManual = "manual"
 )
@@ -65,10 +63,9 @@ func (g *Generator) buildIR(targetModules []*discovery.Module) (*pipeline.IR, er
 			PlanEnabled:     g.config.PlanEnabled,
 			AutoApprove:     g.config.AutoApprove,
 		},
-		Contributions:  g.contributions,
-		IncludeSummary: g.isMREnabled() && g.config.PlanEnabled,
-		PlanEnabled:    g.config.PlanEnabled,
-		PlanOnly:       g.config.PlanOnly,
+		Contributions: g.contributions,
+		PlanEnabled:   g.config.PlanEnabled,
+		PlanOnly:      g.config.PlanOnly,
 	})
 }
 
@@ -116,17 +113,17 @@ func (g *Generator) transform(ir *pipeline.IR) *Pipeline {
 		}
 	}
 
-	// Transform contributed jobs
+	// Transform contributed jobs (including summary if provided by plugin)
 	if hasContributed {
 		for i := range ir.Jobs {
 			cj := &ir.Jobs[i]
-			result.Jobs[cj.Name] = g.transformContributedJob(cj)
+			job := g.transformContributedJob(cj)
+			// Apply summary job overrides for the terraci-summary job
+			if cj.Name == summaryJobName {
+				g.applySummaryJobOverrides(job)
+			}
+			result.Jobs[cj.Name] = job
 		}
-	}
-
-	// Transform summary job
-	if ir.Summary != nil {
-		result.Jobs[SummaryJobName] = g.transformSummaryJob(ir.Summary, hasContributed, ir)
 	}
 
 	return result
@@ -224,27 +221,13 @@ func (g *Generator) transformContributedJob(irJob *pipeline.Job) *Job {
 	return job
 }
 
-// transformSummaryJob converts an IR summary job to a GitLab CI job.
-func (g *Generator) transformSummaryJob(summary *pipeline.SummaryJob, hasContributed bool, ir *pipeline.IR) *Job {
-	needs := make([]JobNeed, 0, len(summary.Dependencies))
-	for _, dep := range ir.AllPlanNames() {
-		needs = append(needs, JobNeed{Job: dep, Optional: true})
-	}
-	if hasContributed {
-		for _, dep := range ir.ContributedJobNames() {
-			needs = append(needs, JobNeed{Job: dep, Optional: true})
-		}
-	}
-
-	job := &Job{
-		Stage:  SummaryStageName,
-		Script: []string{"terraci summary"},
-		Needs:  needs,
-		Rules: []Rule{
-			{
-				If:   "$CI_MERGE_REQUEST_IID",
-				When: "always",
-			},
+// applySummaryJobOverrides applies MR summary job config overrides (image, tags, rules).
+func (g *Generator) applySummaryJobOverrides(job *Job) {
+	// Add MR-specific rules
+	job.Rules = []Rule{
+		{
+			If:   "$CI_MERGE_REQUEST_IID",
+			When: "always",
 		},
 	}
 
@@ -261,8 +244,6 @@ func (g *Generator) transformSummaryJob(summary *pipeline.SummaryJob, hasContrib
 			job.Tags = sjCfg.Tags
 		}
 	}
-
-	return job
 }
 
 // buildScriptWithSteps injects contributed steps around the core script.
@@ -301,19 +282,16 @@ func (g *Generator) generateStages(ir *pipeline.IR, includeContributed bool) []s
 		stages = g.insertContributedStages(stages, prefix, ir)
 	}
 
-	// Add summary stage if needed
-	if ir.Summary != nil {
-		stages = append(stages, SummaryStageName)
-	}
-
 	return stages
 }
 
-// insertContributedStages inserts stages from contributed jobs after the last plan stage.
+// insertContributedStages inserts stages from contributed jobs at appropriate positions.
+// Non-finalize stages go after the last plan stage; finalize stages go at the very end.
 func (g *Generator) insertContributedStages(stages []string, prefix string, _ *pipeline.IR) []string {
-	// Collect unique stages from contributed jobs
+	// Collect unique stages from contributed jobs, separating finalize from others
 	seen := make(map[string]bool)
 	var contributedStages []string
+	var finalizeStages []string
 	for _, c := range g.contributions {
 		if c == nil {
 			continue
@@ -322,12 +300,16 @@ func (g *Generator) insertContributedStages(stages []string, prefix string, _ *p
 			stage := j.Phase.String()
 			if !seen[stage] {
 				seen[stage] = true
-				contributedStages = append(contributedStages, stage)
+				if j.Phase == pipeline.PhaseFinalize {
+					finalizeStages = append(finalizeStages, stage)
+				} else {
+					contributedStages = append(contributedStages, stage)
+				}
 			}
 		}
 	}
 
-	if len(contributedStages) == 0 {
+	if len(contributedStages) == 0 && len(finalizeStages) == 0 {
 		return stages
 	}
 
@@ -340,15 +322,21 @@ func (g *Generator) insertContributedStages(stages []string, prefix string, _ *p
 	}
 
 	if lastPlanIdx == -1 {
-		return append(stages, contributedStages...)
+		out := make([]string, 0, len(stages)+len(contributedStages)+len(finalizeStages))
+		out = append(out, stages...)
+		out = append(out, contributedStages...)
+		out = append(out, finalizeStages...)
+		return out
 	}
 
-	// Insert after the last plan stage
+	// Insert non-finalize contributed stages after the last plan stage
 	insertIdx := lastPlanIdx + 1
-	result := make([]string, 0, len(stages)+len(contributedStages))
+	result := make([]string, 0, len(stages)+len(contributedStages)+len(finalizeStages))
 	result = append(result, stages[:insertIdx]...)
 	result = append(result, contributedStages...)
 	result = append(result, stages[insertIdx:]...)
+	// Finalize stages always go at the very end
+	result = append(result, finalizeStages...)
 	return result
 }
 
@@ -579,7 +567,7 @@ func (g *Generator) DryRun(targetModules []*discovery.Module) (*pipeline.DryRunR
 
 	plan, planErr := pipeline.BuildJobPlan(
 		g.depGraph, targetModules, g.modules, g.moduleIndex,
-		g.isMREnabled(), g.hasContributedJobs(), g.config.PlanEnabled,
+		g.hasContributedJobs(), g.config.PlanEnabled,
 	)
 	if planErr != nil {
 		return nil, planErr

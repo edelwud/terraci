@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	// SummaryJobName is the name of the summary job
-	SummaryJobName = "terraci-summary"
+	// summaryJobName is the name recognized for summary job config overrides
+	summaryJobName = "terraci-summary"
 	// stepsInitialCap is the initial capacity for job steps slice
 	stepsInitialCap = 8
 )
@@ -62,10 +62,9 @@ func (g *Generator) buildIR(targetModules []*discovery.Module) (*pipeline.IR, er
 			AutoApprove:     ghCfg.AutoApprove,
 			DetailedPlan:    g.isPREnabled(),
 		},
-		Contributions:  g.contributions,
-		IncludeSummary: g.isPREnabled() && ghCfg.PlanEnabled,
-		PlanEnabled:    ghCfg.PlanEnabled,
-		PlanOnly:       ghCfg.PlanOnly,
+		Contributions: g.contributions,
+		PlanEnabled:   ghCfg.PlanEnabled,
+		PlanOnly:      ghCfg.PlanOnly,
 	})
 }
 
@@ -115,17 +114,17 @@ func (g *Generator) transform(ir *pipeline.IR) *Workflow {
 		}
 	}
 
-	// Transform contributed jobs
+	// Transform contributed jobs (including summary if provided by plugin)
 	if hasContributed {
 		for i := range ir.Jobs {
 			cj := &ir.Jobs[i]
-			workflow.Jobs[cj.Name] = g.transformContributedJob(cj)
+			job := g.transformContributedJob(cj)
+			// Apply summary job overrides for the terraci-summary job
+			if cj.Name == summaryJobName {
+				g.applySummaryJobOverrides(job)
+			}
+			workflow.Jobs[cj.Name] = job
 		}
-	}
-
-	// Transform summary job
-	if ir.Summary != nil {
-		workflow.Jobs[SummaryJobName] = g.transformSummaryJob(ir, hasContributed)
 	}
 
 	return workflow
@@ -320,42 +319,13 @@ func (g *Generator) transformContributedJob(irJob *pipeline.Job) *Job {
 		Steps:  jobSteps,
 	}
 
-	// Use summary job runner if specified
-	if g.ghConfig().PR != nil && g.ghConfig().PR.SummaryJob != nil {
-		if runsOn := g.ghConfig().PR.SummaryJob.RunsOn; runsOn != "" {
-			job.RunsOn = runsOn
-		}
-	}
-
 	return job
 }
 
-// transformSummaryJob creates the summary job.
-func (g *Generator) transformSummaryJob(ir *pipeline.IR, hasContributed bool) *Job {
-	needs := make([]string, 0, len(ir.AllPlanNames())+len(ir.Jobs)+1)
-	needs = append(needs, ir.AllPlanNames()...)
-	if hasContributed {
-		needs = append(needs, ir.ContributedJobNames()...)
-	}
-
-	steps := []Step{
-		{Name: "Checkout", Uses: "actions/checkout@v4"},
-		{
-			Name: "Download all plan artifacts",
-			Uses: "actions/download-artifact@v4",
-		},
-		{
-			Name: "Post summary",
-			Run:  "terraci summary",
-		},
-	}
-
-	job := &Job{
-		RunsOn: g.getRunsOn(),
-		Needs:  needs,
-		If:     "github.event_name == 'pull_request'",
-		Steps:  steps,
-	}
+// applySummaryJobOverrides applies PR summary job config overrides.
+func (g *Generator) applySummaryJobOverrides(job *Job) {
+	// Add PR-specific condition
+	job.If = "github.event_name == 'pull_request'"
 
 	// Apply summary job runner override
 	if g.ghConfig().PR != nil && g.ghConfig().PR.SummaryJob != nil {
@@ -363,8 +333,6 @@ func (g *Generator) transformSummaryJob(ir *pipeline.IR, hasContributed bool) *J
 			job.RunsOn = runsOn
 		}
 	}
-
-	return job
 }
 
 // targetSet builds a target set by scanning the IR's module index.
@@ -384,7 +352,7 @@ func (g *Generator) DryRun(targetModules []*discovery.Module) (*pipeline.DryRunR
 
 	plan, err := pipeline.BuildJobPlan(
 		g.depGraph, targetModules, g.modules, g.moduleIndex,
-		g.isPREnabled(), g.hasContributedJobs(), ghCfg.PlanEnabled,
+		g.hasContributedJobs(), ghCfg.PlanEnabled,
 	)
 	if err != nil {
 		return nil, err

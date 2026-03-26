@@ -5,12 +5,12 @@ CLI tool for analyzing Terraform projects, building dependency graphs, generatin
 ## Build & Test
 
 ```bash
-make build      # Build binary → build/terraci
+make build      # Build terraci + xterraci → build/
 make test       # Run tests with coverage
 make test-short # Short tests
 make lint       # golangci-lint or go vet
 make fmt        # Format code
-make install    # Install to $GOPATH/bin
+make install    # Install both to $GOPATH/bin
 ```
 
 ## Project Structure
@@ -19,294 +19,272 @@ make install    # Install to $GOPATH/bin
 cmd/terraci/
 ├── main.go                     # Entry point — blank-imports all built-in plugins
 └── cmd/
-    ├── app.go                  # App struct, PluginContext(), InitPluginConfigs()
-    ├── root.go                 # NewRootCmd(), PersistentPreRunE (config + plugin lifecycle), dynamic command registration
+    ├── app.go                  # App struct, PluginContext() with ServiceDir, InitPluginConfigs()
+    ├── root.go                 # NewRootCmd(), plugin lifecycle (Init/Finalize), dynamic commands
     ├── generate.go             # Pipeline generation (uses plugin.ResolveProvider())
-    ├── filters.go              # filterFlags struct — shared filter flags and helpers
-    ├── validate.go             # Config/project validation
+    ├── summary.go              # MR/PR comment via SummaryContributor plugins
     ├── graph.go                # Dependency graph visualization
-    ├── init.go                 # Config initialization (entry point, --ci mode)
-    ├── init_config.go          # buildConfigFromState() — shared between CLI/TUI
-    ├── init_tui.go             # Interactive TUI wizard (bubbletea/huh), dynamic plugin groups
-    ├── summary.go              # MR/PR comment posting via SummaryContributor plugins
-    ├── schema.go               # JSON schema generation
+    ├── validate.go             # Config/project validation
+    ├── filters.go              # filterFlags struct — shared filter flags
+    ├── init.go                 # Config initialization (--ci mode)
+    ├── init_tui.go             # Interactive TUI wizard, dynamic plugin groups
+    ├── schema.go               # JSON schema (includes plugin schemas)
+    ├── version.go              # Version info via VersionProvider plugins
     ├── completion.go           # Shell completion
-    ├── man.go                  # Man page generation
-    └── version.go              # Version info (uses VersionProvider plugins)
+    └── man.go                  # Man page generation
 
 cmd/xterraci/
-├── main.go                     # xterraci build CLI (like xcaddy)
-├── builder.go                  # Build orchestration: temp dir, go mod, go build
-├── codegen.go                  # Generates main.go with plugin imports
-└── plugins.go                  # Built-in plugin import paths
+├── main.go                     # Entry point
+└── cmd/
+    ├── root.go                 # NewRootCmd(version, commit, date)
+    ├── build.go                # xterraci build — custom binary builder
+    ├── list.go                 # xterraci list-plugins
+    ├── version.go              # xterraci version
+    ├── completion.go           # Shell completion
+    ├── man.go                  # Man pages
+    ├── builder.go              # Build orchestration: temp dir, codegen, go build
+    ├── codegen.go              # Generates main.go with plugin imports
+    ├── plugins.go              # Built-in plugin import paths + validation
+    └── *_test.go
 
 pkg/                            # Public API — importable by external plugins
 ├── plugin/
-│   ├── plugin.go               # Plugin interface + capability interfaces (see Plugin System below)
+│   ├── plugin.go               # Plugin interface + 13 capability interfaces
 │   ├── registry.go             # Register(), All(), ByCapability[T](), ResolveProvider()
-│   ├── hooks.go                # WorkflowHook, HookPhase, WorkflowState, CollectHooks(), RunHooks()
-│   ├── context.go              # AppContext (lazy refresh), ExecutionContext (shared state), CommentSection
-│   └── init_state.go           # StateMap — form state with pointer getters for huh binding
-├── config/
-│   ├── config.go               # Config (structure, exclude, include, library_modules, plugins map)
-│   ├── builder.go              # BuildConfigFromPlugins(), SetPluginValue(), setPluginNode()
-│   ├── pattern.go              # ParsePattern, PatternSegments
-│   └── schema.go               # JSON schema generation
-├── discovery/
-│   ├── module.go               # Module struct (dynamic components + segments)
-│   ├── scanner.go              # Scanner.Scan(ctx) — directory walk entry point
-│   ├── collector.go            # moduleCollector — walk logic, context cancellation
-│   ├── index.go                # ModuleIndex — fast lookups by ID/path/name
-│   └── testing.go              # TestModule() helper for tests
-├── parser/
-│   ├── types.go                # Parser, ParsedModule, RemoteStateRef, BackendConfig, ModuleCall
-│   ├── hcl.go                  # ParseModule(ctx), multi-pass locals evaluation, backend parsing
-│   ├── resolve.go              # ResolveWorkspacePath, for_each resolution
-│   └── dependency.go           # DependencyExtractor, backend index, ExtractAllDependencies(ctx)
-├── graph/
-│   ├── dependency.go           # DependencyGraph, Node, edges, traversal, library usage
-│   ├── algorithms.go           # TopologicalSort, ExecutionLevels, DetectCycles
-│   ├── affected.go             # GetAffectedModules, library changes, combined
-│   ├── visualize.go            # ToDOT (clustered), ToPlantUML (nested groups)
-│   └── stats.go                # GetStats (fan-in/fan-out, modules per level)
-├── filter/
-│   └── glob.go                 # GlobFilter, SegmentFilter, CompositeFilter, Apply()
-├── ci/
-│   ├── types.go                # ModulePlan, PlanResult, CommentData, PolicySummary
-│   ├── comment.go              # CommentRenderer — shared PR/MR comment markdown
-│   ├── helpers.go              # HasReportableChanges — shared on_changes_only logic
-│   ├── plan_result.go          # ScanPlanResults, ParseModulePathComponents
-│   └── service.go              # CommentService interface
+│   ├── hooks.go                # WorkflowHook, HookPhase, WorkflowState
+│   ├── context.go              # AppContext (with ServiceDir), ExecutionContext, CommentSection
+│   ├── init_state.go           # StateMap — form state with pointer getters for huh
+│   └── helpers.go              # CollectContributions() — shared pipeline helper
 ├── pipeline/
-│   ├── pipeline.go             # Generator and GeneratedPipeline interfaces
-│   ├── env.go                  # BuildModuleEnvVars — shared TF_* env var builder
-│   ├── common.go               # Shared plan/apply script builders
-│   └── scripts.go              # Script template helpers
-├── workflow/
-│   └── module_workflow.go      # Run() with plugin hook execution at 5 phases
-├── errors/
-│   └── errors.go               # Typed errors: ConfigError, ScanError, ParseError, NoModulesError, etc.
-└── log/
-    └── log.go                  # Structured logging (wraps caarlos0/log)
+│   ├── types.go                # IR, Level, ModuleJobs, Job, Step, Phase, Contribution, ContributedJob
+│   ├── builder.go              # Build(opts) — constructs provider-agnostic pipeline IR
+│   ├── pipeline.go             # Generator, GeneratedPipeline interfaces
+│   ├── common.go               # JobPlan, BuildJobPlan, JobName, ResolveDependencyNames
+│   ├── env.go                  # BuildModuleEnvVars
+│   └── scripts.go              # ScriptConfig, PlanScript, ApplyScript
+├── config/
+│   ├── config.go               # Config (service_dir, structure, exclude, include, plugins map)
+│   ├── builder.go              # BuildConfigFromPlugins(), SetPluginValue()
+│   ├── pattern.go              # ParsePattern, PatternSegments
+│   └── schema.go               # GenerateJSONSchema (with plugin schemas)
+├── ci/                         # Provider-agnostic CI types
+├── discovery/                  # Module, Scanner, ModuleIndex
+├── parser/                     # HCL parser, DependencyExtractor
+├── graph/                      # DependencyGraph, algorithms, visualization
+├── filter/                     # GlobFilter, SegmentFilter, Apply()
+├── workflow/                   # Run() with plugin hook execution
+├── errors/                     # Typed errors
+└── log/                        # Structured logging
 
-plugins/                        # Built-in plugins — each has plugin.go + internal/
+plugins/                        # Built-in plugins — one file per capability
 ├── gitlab/
-│   ├── plugin.go               # GeneratorProvider, ConfigProvider, Initializable, InitContributor
-│   └── internal/               # (package gitlabci) config, client, generator, mr_service, types
+│   ├── plugin.go               # init, Plugin struct, Name, Description
+│   ├── config.go               # ConfigProvider
+│   ├── lifecycle.go            # Initializable (MR context detection)
+│   ├── generator.go            # GeneratorProvider + CommentService
+│   ├── init_wizard.go          # InitContributor
+│   └── internal/               # (package gitlabci) config, client, generator, MR service, types
 ├── github/
-│   ├── plugin.go               # GeneratorProvider, ConfigProvider, Initializable, InitContributor
-│   └── internal/               # (package githubci) config, client, generator, pr_service, types
+│   ├── plugin.go               # init, Plugin struct, Name, Description
+│   ├── config.go               # ConfigProvider
+│   ├── lifecycle.go            # Initializable (PR context detection)
+│   ├── generator.go            # GeneratorProvider + CommentService
+│   ├── init_wizard.go          # InitContributor
+│   └── internal/               # (package githubci) config, client, generator, PR service, types
 ├── cost/
-│   ├── plugin.go               # SummaryContributor, CommandProvider, ConfigProvider, Initializable, InitContributor
-│   └── internal/               # (package costengine) types, estimator, factory, tree, registry, aws/, pricing/
+│   ├── plugin.go               # init, Plugin struct, Name, Description
+│   ├── config.go               # ConfigProvider + effectiveConfig, getEstimator
+│   ├── lifecycle.go            # Initializable (create estimator, clean cache)
+│   ├── commands.go             # CommandProvider (terraci cost)
+│   ├── summary.go              # SummaryContributor
+│   ├── init_wizard.go          # InitContributor
+│   ├── output.go               # Rendering helpers (segment tree, submodules)
+│   └── internal/               # (package costengine) estimator, aws handlers, pricing cache
 ├── policy/
-│   ├── plugin.go               # SummaryContributor, VersionProvider, CommandProvider, ConfigProvider, Initializable, InitContributor
-│   └── internal/               # (package policyengine) config, checker, engine, result, source*
+│   ├── plugin.go               # init, Plugin struct, Name, Description
+│   ├── config.go               # ConfigProvider
+│   ├── lifecycle.go            # Initializable (OPA validation, serviceDir)
+│   ├── commands.go             # CommandProvider (terraci policy pull/check)
+│   ├── summary.go              # SummaryContributor (loads policy results)
+│   ├── pipeline.go             # PipelineContributor (policy-check job)
+│   ├── version.go              # VersionProvider (OPA version)
+│   ├── init_wizard.go          # InitContributor
+│   └── internal/               # (package policyengine) OPA engine, checker, sources
 └── git/
-    ├── plugin.go               # ChangeDetectionProvider, Initializable
+    ├── plugin.go               # init, Plugin struct, Name, Description
+    ├── lifecycle.go            # Initializable (verify repo, cache client)
+    ├── detect.go               # ChangeDetectionProvider
     └── internal/               # (package gitclient) client, detector, diff
 
-internal/                       # Private — only terraform eval stays here
+internal/                       # Private — only terraform eval
 └── terraform/
-    ├── eval/
-    │   ├── context.go          # NewContext() — path.module as abspath, SafeObjectVal
-    │   └── functions.go        # 30+ Terraform functions
-    └── plan/
-        ├── types.go            # ParsedPlan, ResourceChange, AttrDiff
-        ├── parser.go           # ParseJSON, countAction, buildAttrDiff
-        └── maputil.go          # Nested map utilities
+    ├── eval/                   # NewContext(), 30+ Terraform functions
+    └── plan/                   # ParseJSON, ResourceChange, AttrDiff
 ```
 
 ## Plugin System
 
 ### Architecture
 
-Compile-time plugins using Go's `init()` + blank import pattern (like `database/sql` drivers, Caddy modules). Plugins register via `plugin.Register()` in `init()`, core discovers them via `plugin.ByCapability[T]()`.
+Compile-time plugins via `init()` + blank import (Caddy/database-sql pattern). Plugins register via `plugin.Register()`, core discovers via `plugin.ByCapability[T]()`.
+
+### Plugin File Convention
+
+Each plugin follows one-file-per-capability:
+- `plugin.go` — only init(), Plugin struct, Name(), Description() (< 30 lines)
+- `config.go` — ConfigProvider methods
+- `lifecycle.go` — Initializable (+ Finalizable if needed)
+- `commands.go` — CommandProvider with cobra definitions
+- `generator.go` — GeneratorProvider + CommentService factory
+- `summary.go` — SummaryContributor
+- `pipeline.go` — PipelineContributor
+- `init_wizard.go` — InitContributor
+- `version.go` — VersionProvider
+- `output.go` — Rendering/formatting helpers
+- `detect.go` — ChangeDetectionProvider
 
 ### Plugin Lifecycle
 
 ```
-1. Register    — init() calls plugin.Register() (triggered by blank import in main.go)
-2. Configure   — ConfigProvider.SetConfig() receives decoded YAML from plugins: map
-3. Initialize  — Initializable.Initialize() sets up resources (clients, caches, repo detection)
-4. Execute     — Commands run, workflow hooks fire, SummaryContributor enriches data
-5. Finalize    — Finalizable.Finalize() cleans up resources
+1. Register    — init() calls plugin.Register()
+2. Configure   — ConfigProvider.SetConfig() for plugins with config in .terraci.yaml
+3. Initialize  — Initializable.Initialize() sets up resources
+4. Execute     — Commands, workflow hooks, SummaryContributor, PipelineContributor
+5. Finalize    — Finalizable.Finalize() cleans up
 ```
 
-### Capability Interfaces (`pkg/plugin/plugin.go`)
+### Capability Interfaces
 
 | Interface | Purpose | Implemented by |
 |-----------|---------|----------------|
 | `Plugin` | Base: Name(), Description() | all |
-| `ConfigProvider` | Declares config section under `plugins:` | gitlab, github, cost, policy |
-| `CommandProvider` | Adds CLI subcommands | cost (`terraci cost`), policy (`terraci policy`) |
+| `ConfigProvider` | Config section under `plugins:` + IsConfigured() | gitlab, github, cost, policy |
+| `CommandProvider` | CLI subcommands | cost, policy |
 | `GeneratorProvider` | CI pipeline generation + comment service | gitlab, github |
-| `SummaryContributor` | Enriches plan results during `terraci summary` | cost, policy |
-| `VersionProvider` | Contributes to `terraci version` output | policy (OPA version) |
-| `ChangeDetectionProvider` | Detects changed modules from VCS | git |
-| `InitContributor` | Contributes form fields + config to `terraci init` | gitlab, github, cost, policy |
-| `FilterProvider` | Registers custom module filters | (available, unused) |
-| `WorkflowHookProvider` | Injects behavior at workflow phases | (available, unused) |
-| `Initializable` | Setup after config load | all 5 plugins |
-| `Finalizable` | Cleanup after command | (available, unused) |
+| `SummaryContributor` | Enriches plan results via ExecutionContext | cost, policy |
+| `VersionProvider` | Version info contributions | policy |
+| `ChangeDetectionProvider` | VCS change detection | git |
+| `InitContributor` | Init wizard form fields + config building | gitlab, github, cost, policy |
+| `PipelineContributor` | Pipeline steps/jobs via Contribution | policy |
+| `FilterProvider` | Custom module filters | (available) |
+| `WorkflowHookProvider` | Workflow phase hooks | (available) |
+| `Initializable` | Setup after config load | all 5 |
+| `Finalizable` | Cleanup after command | (available) |
+
+### Pipeline IR
+
+`pkg/pipeline.Build(opts)` creates a provider-agnostic IR. Generators transform it to YAML:
+
+```
+pipeline.Build(opts) → IR{Levels, Jobs, Summary}
+  ↓
+GitLab: IR → Pipeline{Stages, Jobs} → YAML
+GitHub: IR → Workflow{Jobs, Steps} → YAML
+```
+
+Plugins contribute via `PipelineContributor.PipelineContribution()`:
+- `Contribution.Steps` — injected into plan/apply jobs (PrePlan/PostPlan/PreApply/PostApply)
+- `Contribution.Jobs` — standalone jobs (e.g., policy-check after plans)
 
 ### Provider Resolution
 
-`plugin.ResolveProvider()` — priority: CI env detection → `TERRACI_PROVIDER` env → single registered → error.
+`plugin.ResolveProvider()`: CI env → `TERRACI_PROVIDER` env → single registered → IsConfigured() filter → error. Core has zero knowledge of specific providers.
 
-Core has zero knowledge of specific provider names. Plugins self-identify via `DetectEnv()` and `ProviderName()`.
+### Service Directory
 
-### `xterraci build` — Custom Binary Builder
-
-```bash
-xterraci build                                          # all built-in plugins
-xterraci build --with github.com/myco/terraci-plugin-X  # add external
-xterraci build --without cost                           # exclude built-in
-xterraci build --output ./bin/terraci                   # custom output
-```
-
-Generates `main.go` with selected plugin imports, runs `go mod init/get/tidy/build`.
+`AppContext.ServiceDir` — project-level directory for cache/artifacts. Configurable via `service_dir` in config (default `.terraci`). Passed to plugins through AppContext, eliminates hardcoded paths.
 
 ## Configuration (.terraci.yaml)
 
 ```yaml
+service_dir: .terraci  # optional, default
+
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
-exclude: ["*/test/*", "*/sandbox/*"]
+exclude: ["*/test/*"]
 include: []
 
 library_modules:
-  paths: ["_modules", "shared/modules"]
+  paths: ["_modules"]
 
 plugins:
   gitlab:
-    image:
-      name: hashicorp/terraform:1.6
+    image: { name: hashicorp/terraform:1.6 }
     terraform_binary: terraform
     plan_enabled: true
     auto_approve: false
-    job_defaults:
-      tags: [terraform, docker]
     mr:
       comment: { enabled: true }
       summary_job:
         image: { name: "ghcr.io/edelwud/terraci:latest" }
 
-  # github:
-  #   terraform_binary: terraform
-  #   runs_on: ubuntu-latest
-  #   plan_enabled: true
-  #   permissions: { contents: read, pull-requests: write }
-  #   pr:
-  #     comment: { enabled: true }
-
   # cost:
   #   enabled: true
   #   cache_dir: ~/.terraci/pricing
   #   cache_ttl: "24h"
-  #   show_in_comment: true
 
   # policy:
   #   enabled: true
-  #   sources:
-  #     - path: terraform
-  #   namespaces: [terraform]
+  #   sources: [{ path: terraform }]
   #   on_failure: block
 ```
 
-Core config knows only: `structure`, `exclude`, `include`, `library_modules`, `plugins` (opaque YAML map). All provider/feature config lives inside `plugins:` — each plugin owns its config types.
-
-## Core Data Model
-
-**Module** (`discovery.Module`) — central type representing a Terraform module:
-- Dynamic components: `components map[string]string` + `segments []string` — driven by config pattern
-- `Get(name)` → component value by name (e.g., `m.Get("service")`, `m.Get("environment")`)
-- `ID()` → `RelativePath` (filesystem path is the canonical ID)
-- No hardcoded field names — any pattern like `{team}/{project}/{component}` works
-
-**PatternSegments** (`config.PatternSegments`) — parsed from `structure.pattern`:
-- `ParsePattern("{service}/{environment}/{region}/{module}")` → `["service", "environment", "region", "module"]`
+Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`, `plugins` (opaque map). All provider/feature config under `plugins:`.
 
 ## Data Flow
 
-### Generate pipeline (main workflow)
-1. `workflow.Run(ctx, opts)` → scan → filter → parse → build graph (with plugin hooks at each phase)
-2. *(if `--changed-only`)* `ChangeDetectionProvider.DetectChangedModules()` → `GetAffectedModulesWithLibraries()`
-3. `plugin.ResolveProvider()` → `GeneratorProvider.NewGenerator()` → produce CI YAML
-4. `pipeline.BuildModuleEnvVars()` creates `TF_<SEGMENT>` env vars from module segments
+### Generate pipeline
+1. `workflow.Run(ctx, opts)` — scan → filter → parse → graph (with hooks)
+2. `ChangeDetectionProvider.DetectChangedModules()` (if --changed-only)
+3. `plugin.CollectContributions()` — gather PipelineContributor steps/jobs
+4. `pipeline.Build(opts)` — construct provider-agnostic IR
+5. `GeneratorProvider.NewGenerator()` — transform IR to provider YAML
 
-### Summary (`terraci summary`)
-1. `ci.ScanPlanResults()` → collect plan artifacts
-2. `ExecutionContext` created with plan results
-3. `SummaryContributor` plugins called in order (cost enriches costs, policy loads results)
-4. `GeneratorProvider.NewCommentService()` → `UpsertComment(plans, policySummary)`
+### Summary
+1. `ci.ScanPlanResults()` → ExecutionContext
+2. `SummaryContributor` plugins enrich (cost estimates, policy results)
+3. `GeneratorProvider.NewCommentService()` → UpsertComment
 
-### Init wizard (`terraci init`)
-1. Core form groups: Basics (provider, binary), Structure (pattern), Pipeline Options
-2. `InitContributor` plugins contribute dynamic form groups (GitLab image, GitHub runner, cost toggle, etc.)
-3. `BuildConfigFromPlugins(pattern, pluginConfigs)` assembles final config
-4. Live YAML preview in TUI
-
-### Static evaluation engine
-- 30+ Terraform built-in functions evaluated at parse time
-- Multi-pass locals resolution with `abspath(path.module)` support
-- Variables from defaults + tfvars
-
-### Cost estimation (cost plugin)
-1. `terraform/plan.ParseJSON()` → parse plan.json
-2. Estimator with handler registry dispatches by `CostCategory` (Standard/Fixed/UsageBased)
-3. AWS Bulk Pricing API with TTL cache
-4. Concurrent `EstimateModules()` via errgroup
-
-### Policy checks (policy plugin)
-1. OPA engine loads .rego files in single bundle
-2. Multiple namespaces, per-module `**` glob overwrites
-3. `Checker.ShouldBlock()` determines pipeline failure
+### Init wizard
+1. Core groups: Basics, Structure, Pipeline Options
+2. `InitContributor` plugins add dynamic form groups
+3. `BuildConfigFromPlugins(pattern, pluginConfigs)` assembles config
 
 ## Key Patterns
 
-- **No global state**: `App` struct holds config/workDir; commands are factory functions
-- **Plugin-first**: core is provider-agnostic; all provider/feature logic in `plugins/`
-- **Compile-time extensibility**: blank imports register plugins; `xterraci build` for custom binaries
-- **Shared workflow**: `workflow.Run(ctx, opts)` with hook injection at 5 phases
-- **Lazy AppContext**: `AppContext.Ensure()` refreshes from App state — safe for early command registration
-- **ExecutionContext**: shared mutable state for inter-plugin communication during summary
-- **InitContributor**: plugins contribute form fields + config building logic to init wizard
-- **Plugin directory convention**: `plugin.go` (contract + re-exports) + `internal/` (implementation)
-- **Context propagation**: `context.Context` flows through Scanner, Parser, DependencyExtractor
-- **Typed errors**: `pkg/errors` with `Unwrap()` support
-- **Generic filtering**: `--filter key=value` works with any segment name
-- **Pattern-aware modules**: `structure.pattern` defines segment names; no hardcoded field names
+- **Plugin-first**: core is provider-agnostic; all logic in `plugins/`
+- **One file per capability**: plugin.go < 30 lines; each interface in its own file
+- **Compile-time extensibility**: `xterraci build --with/--without` for custom binaries
+- **Pipeline IR**: `pkg/pipeline.Build()` → provider transforms to YAML
+- **PipelineContributor**: plugins inject steps/jobs without cross-plugin imports
+- **ServiceDir**: configurable project directory, passed via AppContext
+- **Lazy AppContext**: `Ensure()` refreshes from App state
+- **ExecutionContext**: mutex-protected shared state for summary plugins
+- **Zero cross-plugin imports**: plugins communicate only via registry + shared types
+- **Shared workflow**: `workflow.Run()` with hook injection at 5 phases
 
 ## CLI Commands
 
 ```bash
-terraci generate -o .gitlab-ci.yml                      # Generate pipeline
-terraci generate --changed-only --base-ref main          # Only changed modules
-terraci generate --plan-only                             # Plan jobs only
-terraci generate --filter environment=prod               # Filter by segment
+terraci generate -o .gitlab-ci.yml          # Generate pipeline
+terraci generate --changed-only             # Only changed modules
+terraci generate --plan-only                # Plan jobs only
+terraci validate                            # Validate config
+terraci graph --format dot --stats          # Dependency graph
+terraci init                                # Interactive wizard
+terraci init --ci --provider gitlab         # Non-interactive
+terraci cost                                # AWS cost estimation
+terraci summary                             # Post MR/PR comment
+terraci policy pull && terraci policy check # Policy checks
+terraci schema                              # JSON schema
+terraci version                             # Version + plugin info
 
-terraci validate                             # Validate config and structure
-terraci graph --format dot -o deps.dot       # DOT graph
-terraci graph --stats                        # Fan-in/fan-out stats
-
-terraci init                                 # Interactive TUI wizard
-terraci init --ci --provider github          # Non-interactive
-
-terraci cost                                 # Estimate AWS costs (cost plugin)
-terraci cost --module <path> --output json
-
-terraci summary                              # Post MR/PR comment (CI only)
-
-terraci policy pull                          # Download policies (policy plugin)
-terraci policy check                         # Check plans against policies
-
-terraci schema                               # Generate JSON schema
-terraci version                              # Version + plugin info
+xterraci build                              # Build with all plugins
+xterraci build --without cost               # Exclude plugin
+xterraci build --with github.com/x/plugin   # Add external plugin
+xterraci list-plugins                       # Show available plugins
 ```
-
-**Global flags:** `-c/--config`, `-d/--dir`, `-v/--verbose`
 
 ## Dependencies
 

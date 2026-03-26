@@ -1,4 +1,4 @@
-package cmd
+package summary
 
 import (
 	"fmt"
@@ -10,8 +10,9 @@ import (
 	"github.com/edelwud/terraci/pkg/plugin"
 )
 
-func newSummaryCmd(app *App) *cobra.Command {
-	cmd := &cobra.Command{
+// Commands returns the `terraci summary` command.
+func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
+	return []*cobra.Command{{
 		Use:   "summary",
 		Short: "Create MR/PR comment from plan results",
 		Long: `Collects terraform plan results from artifacts and creates/updates
@@ -24,17 +25,16 @@ and posts a formatted comment to the MR/PR.
 Example:
   terraci summary`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runSummary(cmd, app)
+			ctx.Ensure()
+			return p.runSummary(cmd, ctx)
 		},
-	}
-
-	return cmd
+	}}
 }
 
-func runSummary(cmd *cobra.Command, app *App) error {
+func (p *Plugin) runSummary(cmd *cobra.Command, appCtx *plugin.AppContext) error {
 	// Scan plan results (provider-agnostic)
 	log.Info("scanning for plan results")
-	segments := []string(app.Config.Structure.Segments)
+	segments := []string(appCtx.Config.Structure.Segments)
 	collection, err := ci.ScanPlanResults(".", segments)
 	if err != nil {
 		return fmt.Errorf("failed to scan plan results: %w", err)
@@ -52,7 +52,7 @@ func runSummary(cmd *cobra.Command, app *App) error {
 
 	// Let all SummaryContributor plugins enrich the data
 	for _, c := range plugin.ByCapability[plugin.SummaryContributor]() {
-		if contributeErr := c.ContributeToSummary(cmd.Context(), app.PluginContext(), execCtx); contributeErr != nil {
+		if contributeErr := c.ContributeToSummary(cmd.Context(), appCtx, execCtx); contributeErr != nil {
 			log.WithError(contributeErr).WithField("plugin", c.Name()).Warn("summary contribution failed")
 		}
 	}
@@ -76,7 +76,7 @@ func runSummary(cmd *cobra.Command, app *App) error {
 		return nil //nolint:nilerr // intentional: no provider is gracefully handled
 	}
 
-	commentSvc := provider.NewCommentService(app.PluginContext())
+	commentSvc := provider.NewCommentService(appCtx)
 	if !commentSvc.IsEnabled() {
 		log.Info("PR/MR comments disabled or no token available")
 		printSummary(collection)
@@ -93,34 +93,4 @@ func runSummary(cmd *cobra.Command, app *App) error {
 	printSummary(collection)
 
 	return nil
-}
-
-func printSummary(collection *ci.PlanResultCollection) {
-	var changes, noChanges, failed int
-	for i := range collection.Results {
-		switch collection.Results[i].Status {
-		case ci.PlanStatusChanges:
-			changes++
-		case ci.PlanStatusNoChanges, ci.PlanStatusSuccess:
-			noChanges++
-		case ci.PlanStatusFailed:
-			failed++
-		case ci.PlanStatusPending, ci.PlanStatusRunning:
-			// Not counted
-		}
-	}
-
-	log.Info("summary")
-	log.IncreasePadding()
-	log.WithField("total", len(collection.Results)).Info("modules")
-	if changes > 0 {
-		log.WithField("count", changes).Info("with changes")
-	}
-	if noChanges > 0 {
-		log.WithField("count", noChanges).Info("no changes")
-	}
-	if failed > 0 {
-		log.WithField("count", failed).Warn("failed")
-	}
-	log.DecreasePadding()
 }

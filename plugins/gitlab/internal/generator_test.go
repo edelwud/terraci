@@ -557,6 +557,16 @@ func TestPipeline_ToYAML(t *testing.T) {
 func TestGenerator_Generate_WithMRIntegration(t *testing.T) {
 	cfg := createTestConfig()
 	cfg.GitLab.MR = &MRConfig{}
+	// Summary job now comes from the summary plugin as a contributed job
+	cfg.Contributions = []*pipeline.Contribution{{
+		Jobs: []pipeline.ContributedJob{{
+			Name:          "terraci-summary",
+			Phase:         pipeline.PhaseFinalize,
+			Commands:      []string{"terraci summary"},
+			DependsOnPlan: true,
+			AllowFailure:  false,
+		}},
+	}}
 
 	modules := []*discovery.Module{
 		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
@@ -581,14 +591,14 @@ func TestGenerator_Generate_WithMRIntegration(t *testing.T) {
 	}
 
 	// Check summary job exists
-	summaryJob := p.Jobs[SummaryJobName]
+	summaryJob := p.Jobs[summaryJobName]
 	if summaryJob == nil {
 		t.Fatal("summary job not found")
 	}
 
 	// Check summary job stage
-	if summaryJob.Stage != SummaryStageName {
-		t.Errorf("summary job stage: expected %s, got %s", SummaryStageName, summaryJob.Stage)
+	if summaryJob.Stage != "summary" {
+		t.Errorf("summary job stage: expected summary, got %s", summaryJob.Stage)
 	}
 
 	// Check summary job has correct needs (all plan jobs)
@@ -597,8 +607,8 @@ func TestGenerator_Generate_WithMRIntegration(t *testing.T) {
 	}
 
 	// Check summary stage is in stages list
-	if !slices.Contains(p.Stages, SummaryStageName) {
-		t.Errorf("stages should contain %s", SummaryStageName)
+	if !slices.Contains(p.Stages, "summary") {
+		t.Errorf("stages should contain summary")
 	}
 
 	// Check plan jobs have plan.txt in artifacts
@@ -645,15 +655,15 @@ func TestGenerator_Generate_WithMRIntegration_Disabled(t *testing.T) {
 		t.Fatal("expected *Pipeline type")
 	}
 
-	// Check summary job does NOT exist
-	if _, exists := p.Jobs[SummaryJobName]; exists {
-		t.Error("summary job should not exist when MR integration is disabled")
+	// Check summary job does NOT exist (no summary contribution provided)
+	if _, exists := p.Jobs[summaryJobName]; exists {
+		t.Error("summary job should not exist when no summary contribution is provided")
 	}
 
 	// Check summary stage is NOT in stages list
 	for _, stage := range p.Stages {
-		if stage == SummaryStageName {
-			t.Error("stages should not contain summary stage when MR is disabled")
+		if stage == "summary" {
+			t.Error("stages should not contain summary stage when no summary contribution is provided")
 		}
 	}
 }

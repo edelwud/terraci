@@ -119,8 +119,7 @@ Features:
 	rootCmd.AddCommand(newGenerateCmd(app))
 	rootCmd.AddCommand(newGraphCmd(app))
 	rootCmd.AddCommand(newValidateCmd(app))
-	rootCmd.AddCommand(newSummaryCmd(app))
-	// Note: policy command is now provided by the policy plugin
+	// Note: summary and policy commands are now provided by plugins
 	rootCmd.AddCommand(newInitCmd(app))
 	rootCmd.AddCommand(newVersionCmd(app))
 	rootCmd.AddCommand(newSchemaCmd())

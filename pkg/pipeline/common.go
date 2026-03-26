@@ -15,7 +15,6 @@ type JobPlan struct {
 	ExecutionLevels [][]string
 	Subgraph        *graph.DependencyGraph
 	ModuleIndex     *discovery.ModuleIndex
-	IncludeSummary  bool
 	IncludePolicy   bool
 }
 
@@ -24,7 +23,7 @@ func BuildJobPlan(
 	depGraph *graph.DependencyGraph,
 	targetModules, allModules []*discovery.Module,
 	moduleIndex *discovery.ModuleIndex,
-	isPREnabled, isPolicyEnabled, isPlanEnabled bool,
+	isPolicyEnabled, isPlanEnabled bool,
 ) (*JobPlan, error) {
 	if len(targetModules) == 0 {
 		targetModules = allModules
@@ -50,7 +49,6 @@ func BuildJobPlan(
 		ExecutionLevels: levels,
 		Subgraph:        subgraph,
 		ModuleIndex:     moduleIndex,
-		IncludeSummary:  isPREnabled && isPlanEnabled,
 		IncludePolicy:   isPolicyEnabled && isPlanEnabled,
 	}, nil
 }
@@ -96,10 +94,6 @@ func BuildDryRunResult(plan *JobPlan, totalModules int, planEnabled bool) *DryRu
 
 	stageCount := len(plan.ExecutionLevels)
 	if plan.IncludePolicy {
-		jobCount++
-		stageCount++
-	}
-	if plan.IncludeSummary {
 		jobCount++
 		stageCount++
 	}

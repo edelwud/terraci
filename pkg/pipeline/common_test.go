@@ -30,75 +30,45 @@ func TestBuildJobPlan(t *testing.T) {
 	tests := []struct {
 		name           string
 		targets        []*discovery.Module
-		isPR           bool
 		isPolicy       bool
 		isPlan         bool
 		wantCount      int
-		wantSummary    bool
 		wantPolicy     bool
 		wantLevelCount int
 	}{
 		{
 			name:           "empty targets falls back to allModules",
 			targets:        nil,
-			isPR:           false,
 			isPolicy:       false,
 			isPlan:         false,
 			wantCount:      2,
-			wantSummary:    false,
 			wantPolicy:     false,
 			wantLevelCount: 2,
 		},
 		{
 			name:           "non-empty targets used directly",
 			targets:        []*discovery.Module{modA},
-			isPR:           false,
 			isPolicy:       false,
 			isPlan:         false,
 			wantCount:      1,
-			wantSummary:    false,
 			wantPolicy:     false,
 			wantLevelCount: 1,
 		},
 		{
-			name:        "PR and plan enabled sets IncludeSummary",
-			targets:     allModules,
-			isPR:        true,
-			isPolicy:    false,
-			isPlan:      true,
-			wantCount:   2,
-			wantSummary: true,
-			wantPolicy:  false,
+			name:       "policy and plan enabled sets IncludePolicy",
+			targets:    allModules,
+			isPolicy:   true,
+			isPlan:     true,
+			wantCount:  2,
+			wantPolicy: true,
 		},
 		{
-			name:        "policy and plan enabled sets IncludePolicy",
-			targets:     allModules,
-			isPR:        false,
-			isPolicy:    true,
-			isPlan:      true,
-			wantCount:   2,
-			wantSummary: false,
-			wantPolicy:  true,
-		},
-		{
-			name:        "PR enabled but plan disabled does not set IncludeSummary",
-			targets:     allModules,
-			isPR:        true,
-			isPolicy:    false,
-			isPlan:      false,
-			wantCount:   2,
-			wantSummary: false,
-			wantPolicy:  false,
-		},
-		{
-			name:        "policy enabled but plan disabled does not set IncludePolicy",
-			targets:     allModules,
-			isPR:        false,
-			isPolicy:    true,
-			isPlan:      false,
-			wantCount:   2,
-			wantSummary: false,
-			wantPolicy:  false,
+			name:       "policy enabled but plan disabled does not set IncludePolicy",
+			targets:    allModules,
+			isPolicy:   true,
+			isPlan:     false,
+			wantCount:  2,
+			wantPolicy: false,
 		},
 	}
 
@@ -106,16 +76,13 @@ func TestBuildJobPlan(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			plan, err := BuildJobPlan(depGraph, tt.targets, allModules, idx, tt.isPR, tt.isPolicy, tt.isPlan)
+			plan, err := BuildJobPlan(depGraph, tt.targets, allModules, idx, tt.isPolicy, tt.isPlan)
 			if err != nil {
 				t.Fatalf("BuildJobPlan() error = %v", err)
 			}
 
 			if got := len(plan.TargetModules); got != tt.wantCount {
 				t.Errorf("TargetModules count = %d, want %d", got, tt.wantCount)
-			}
-			if plan.IncludeSummary != tt.wantSummary {
-				t.Errorf("IncludeSummary = %v, want %v", plan.IncludeSummary, tt.wantSummary)
 			}
 			if plan.IncludePolicy != tt.wantPolicy {
 				t.Errorf("IncludePolicy = %v, want %v", plan.IncludePolicy, tt.wantPolicy)
@@ -294,11 +261,10 @@ func TestBuildDryRunResult(t *testing.T) {
 		wantTotal    int
 	}{
 		{
-			name: "basic no policy no summary",
+			name: "basic no policy",
 			plan: &JobPlan{
 				TargetModules:   []*discovery.Module{modA, modB},
 				ExecutionLevels: [][]string{{modA.ID()}, {modB.ID()}},
-				IncludeSummary:  false,
 				IncludePolicy:   false,
 			},
 			totalModules: 5,
@@ -313,7 +279,6 @@ func TestBuildDryRunResult(t *testing.T) {
 			plan: &JobPlan{
 				TargetModules:   []*discovery.Module{modA, modB},
 				ExecutionLevels: [][]string{{modA.ID()}, {modB.ID()}},
-				IncludeSummary:  false,
 				IncludePolicy:   false,
 			},
 			totalModules: 5,
@@ -328,7 +293,6 @@ func TestBuildDryRunResult(t *testing.T) {
 			plan: &JobPlan{
 				TargetModules:   []*discovery.Module{modA},
 				ExecutionLevels: [][]string{{modA.ID()}},
-				IncludeSummary:  false,
 				IncludePolicy:   true,
 			},
 			totalModules: 3,
@@ -339,47 +303,16 @@ func TestBuildDryRunResult(t *testing.T) {
 			wantTotal:    3,
 		},
 		{
-			name: "with summary adds 1 job and 1 stage",
-			plan: &JobPlan{
-				TargetModules:   []*discovery.Module{modA},
-				ExecutionLevels: [][]string{{modA.ID()}},
-				IncludeSummary:  true,
-				IncludePolicy:   false,
-			},
-			totalModules: 3,
-			planEnabled:  false,
-			wantJobs:     2, // 1 module + 1 summary
-			wantStages:   2, // 1 level + 1 summary
-			wantAffected: 1,
-			wantTotal:    3,
-		},
-		{
-			name: "with both policy and summary",
+			name: "planEnabled with policy",
 			plan: &JobPlan{
 				TargetModules:   []*discovery.Module{modA, modB},
 				ExecutionLevels: [][]string{{modA.ID(), modB.ID()}},
-				IncludeSummary:  true,
-				IncludePolicy:   true,
-			},
-			totalModules: 10,
-			planEnabled:  false,
-			wantJobs:     4, // 2 modules + 1 policy + 1 summary
-			wantStages:   3, // 1 level + 1 policy + 1 summary
-			wantAffected: 2,
-			wantTotal:    10,
-		},
-		{
-			name: "planEnabled with policy and summary",
-			plan: &JobPlan{
-				TargetModules:   []*discovery.Module{modA, modB},
-				ExecutionLevels: [][]string{{modA.ID(), modB.ID()}},
-				IncludeSummary:  true,
 				IncludePolicy:   true,
 			},
 			totalModules: 10,
 			planEnabled:  true,
-			wantJobs:     6, // 2*2 modules (plan+apply) + 1 policy + 1 summary
-			wantStages:   3,
+			wantJobs:     5, // 2*2 modules (plan+apply) + 1 policy
+			wantStages:   2, // 1 level + 1 policy
 			wantAffected: 2,
 			wantTotal:    10,
 		},

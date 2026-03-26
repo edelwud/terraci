@@ -7,22 +7,21 @@ import (
 
 // BuildOptions configures the IR builder.
 type BuildOptions struct {
-	DepGraph       *graph.DependencyGraph
-	TargetModules  []*discovery.Module
-	AllModules     []*discovery.Module
-	ModuleIndex    *discovery.ModuleIndex
-	Script         ScriptConfig
-	Contributions  []*Contribution
-	IncludeSummary bool
-	PlanEnabled    bool
-	PlanOnly       bool
+	DepGraph      *graph.DependencyGraph
+	TargetModules []*discovery.Module
+	AllModules    []*discovery.Module
+	ModuleIndex   *discovery.ModuleIndex
+	Script        ScriptConfig
+	Contributions []*Contribution
+	PlanEnabled   bool
+	PlanOnly      bool
 }
 
 // Build constructs a provider-agnostic IR from the given options.
 func Build(opts BuildOptions) (*IR, error) {
 	plan, err := BuildJobPlan(
 		opts.DepGraph, opts.TargetModules, opts.AllModules, opts.ModuleIndex,
-		opts.IncludeSummary, hasContributedJobs(opts.Contributions), opts.PlanEnabled,
+		hasContributedJobs(opts.Contributions), opts.PlanEnabled,
 	)
 	if err != nil {
 		return nil, err
@@ -105,8 +104,11 @@ func Build(opts BuildOptions) (*IR, error) {
 		ir.Levels = append(ir.Levels, level)
 	}
 
-	// Contributed jobs (e.g., policy-check)
+	// Contributed jobs (e.g., policy-check, terraci-summary)
 	planNames := ir.AllPlanNames()
+
+	// First pass: create all jobs so we know their names
+	irJobs := make([]Job, 0, len(allContributedJobs))
 	for _, cj := range allContributedJobs {
 		job := Job{
 			Name:          cj.Name,
@@ -115,21 +117,23 @@ func Build(opts BuildOptions) (*IR, error) {
 			ArtifactPaths: cj.ArtifactPaths,
 			AllowFailure:  cj.AllowFailure,
 		}
-		if cj.DependsOnPlan {
-			job.Dependencies = planNames
-		}
-		ir.Jobs = append(ir.Jobs, job)
-	}
 
-	// Summary job
-	if plan.IncludeSummary && len(planNames) > 0 {
-		allDeps := make([]string, 0, len(planNames)+len(ir.Jobs))
-		allDeps = append(allDeps, planNames...)
-		if plan.IncludePolicy {
-			allDeps = append(allDeps, ir.ContributedJobNames()...)
+		deps := make([]string, 0)
+		if cj.DependsOnPlan {
+			deps = append(deps, planNames...)
 		}
-		ir.Summary = &SummaryJob{Dependencies: allDeps}
+		if cj.Phase == PhaseFinalize {
+			// Finalize jobs depend on ALL other contributed jobs too
+			for _, other := range allContributedJobs {
+				if other.Name != cj.Name {
+					deps = append(deps, other.Name)
+				}
+			}
+		}
+		job.Dependencies = deps
+		irJobs = append(irJobs, job)
 	}
+	ir.Jobs = irJobs
 
 	return ir, nil
 }
