@@ -224,11 +224,10 @@ func detectChangedTargetModules(
 	fullIndex, filteredIndex *discovery.ModuleIndex,
 	depGraph *graph.DependencyGraph,
 ) ([]*discovery.Module, error) {
-	detectors := plugin.ByCapability[plugin.ChangeDetectionProvider]()
-	if len(detectors) == 0 {
-		return nil, fmt.Errorf("no change detection plugin available (is the git plugin loaded?)")
+	detector, detErr := plugin.ResolveChangeDetector()
+	if detErr != nil {
+		return nil, fmt.Errorf("change detection: %w", detErr)
 	}
-	detector := detectors[0]
 	appCtx := app.PluginContext()
 
 	log.Info("detecting changed modules")

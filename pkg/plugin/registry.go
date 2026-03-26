@@ -95,6 +95,24 @@ func ResolveProvider() (GeneratorProvider, error) {
 	return nil, fmt.Errorf("cannot determine CI provider: multiple plugins registered (%s), set TERRACI_PROVIDER", providerNames(generators))
 }
 
+// ResolveChangeDetector returns the active ChangeDetectionProvider.
+// Priority: single registered → configured → first available.
+func ResolveChangeDetector() (ChangeDetectionProvider, error) {
+	detectors := ByCapability[ChangeDetectionProvider]()
+	if len(detectors) == 0 {
+		return nil, fmt.Errorf("no change detection plugin registered")
+	}
+	if len(detectors) == 1 {
+		return detectors[0], nil
+	}
+	for _, d := range detectors {
+		if cp, ok := d.(ConfigProvider); ok && cp.IsConfigured() {
+			return d, nil
+		}
+	}
+	return detectors[0], nil
+}
+
 func findProvider(generators []GeneratorProvider, name string) (GeneratorProvider, error) {
 	for _, g := range generators {
 		if g.ProviderName() == name {
