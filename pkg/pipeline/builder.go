@@ -31,10 +31,8 @@ func Build(opts BuildOptions) (*IR, error) {
 	var allSteps []Step
 	var allContributedJobs []ContributedJob
 	for _, c := range opts.Contributions {
-		if c != nil {
-			allSteps = append(allSteps, c.Steps...)
-			allContributedJobs = append(allContributedJobs, c.Jobs...)
-		}
+		allSteps = append(allSteps, c.Steps...)
+		allContributedJobs = append(allContributedJobs, c.Jobs...)
 	}
 
 	ir := &IR{}
@@ -156,7 +154,7 @@ func filterSteps(steps []Step, phases ...Phase) []Step {
 // hasContributedJobs checks if any contributions contain jobs.
 func hasContributedJobs(contributions []*Contribution) bool {
 	for _, c := range contributions {
-		if c != nil && len(c.Jobs) > 0 {
+		if len(c.Jobs) > 0 {
 			return true
 		}
 	}

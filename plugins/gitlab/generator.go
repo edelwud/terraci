@@ -27,10 +27,9 @@ func (p *Plugin) NewGenerator(_ *plugin.AppContext, depGraph *graph.DependencyGr
 
 // NewCommentService creates a new MR comment service.
 func (p *Plugin) NewCommentService(_ *plugin.AppContext) ci.CommentService {
-	cfg := p.cfg
 	var mrCfg *gitlabci.MRConfig
-	if cfg != nil {
-		mrCfg = cfg.MR
+	if p.cfg != nil {
+		mrCfg = p.cfg.MR
 	}
 	return gitlabci.NewMRServiceFromEnv(mrCfg)
 }

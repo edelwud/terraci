@@ -293,9 +293,6 @@ func (g *Generator) insertContributedStages(stages []string, prefix string, _ *p
 	var contributedStages []string
 	var finalizeStages []string
 	for _, c := range g.contributions {
-		if c == nil {
-			continue
-		}
 		for _, j := range c.Jobs {
 			stage := j.Phase.String()
 			if !seen[stage] {
@@ -343,9 +340,6 @@ func (g *Generator) insertContributedStages(stages []string, prefix string, _ *p
 // findContributedJobStage looks up the stage for a contributed job by name.
 func (g *Generator) findContributedJobStage(name string) string {
 	for _, c := range g.contributions {
-		if c == nil {
-			continue
-		}
 		for _, j := range c.Jobs {
 			if j.Name == name {
 				return j.Phase.String()
@@ -450,19 +444,21 @@ func (g *Generator) convertSecretsFromOverwrite(secrets map[string]CfgSecret) ma
 		s := &Secret{
 			File: secret.File,
 		}
-		if secret.Vault != nil {
-			if secret.Vault.Shorthand != "" {
-				s.VaultPath = secret.Vault.Shorthand
-			} else {
-				s.Vault = &VaultSecret{
-					Path:  secret.Vault.Path,
-					Field: secret.Vault.Field,
-				}
-				if secret.Vault.Engine != nil {
-					s.Vault.Engine = &VaultEngine{
-						Name: secret.Vault.Engine.Name,
-						Path: secret.Vault.Engine.Path,
-					}
+		if secret.Vault == nil {
+			result[name] = s
+			continue
+		}
+		if secret.Vault.Shorthand != "" {
+			s.VaultPath = secret.Vault.Shorthand
+		} else {
+			s.Vault = &VaultSecret{
+				Path:  secret.Vault.Path,
+				Field: secret.Vault.Field,
+			}
+			if secret.Vault.Engine != nil {
+				s.Vault.Engine = &VaultEngine{
+					Name: secret.Vault.Engine.Name,
+					Path: secret.Vault.Engine.Path,
 				}
 			}
 		}
@@ -536,14 +532,11 @@ func (g *Generator) stagesPrefix() string {
 
 // isMREnabled returns true if MR integration is enabled in config
 func (g *Generator) isMREnabled() bool {
-	if g.config.MR == nil {
+	if g.config == nil || g.config.MR == nil {
 		return false
 	}
-	if g.config.MR.Comment == nil {
-		return true // Default enabled when MR section exists
-	}
-	if g.config.MR.Comment.Enabled == nil {
-		return true // Default enabled
+	if g.config.MR.Comment == nil || g.config.MR.Comment.Enabled == nil {
+		return true
 	}
 	return *g.config.MR.Comment.Enabled
 }
@@ -551,7 +544,7 @@ func (g *Generator) isMREnabled() bool {
 // hasContributedJobs returns true if any contributions have jobs.
 func (g *Generator) hasContributedJobs() bool {
 	for _, c := range g.contributions {
-		if c != nil && len(c.Jobs) > 0 {
+		if len(c.Jobs) > 0 {
 			return true
 		}
 	}

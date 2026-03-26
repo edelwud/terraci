@@ -43,25 +43,7 @@ Examples:
   terraci generate --auto-approve
   terraci generate --plan-only`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			// Apply CLI flags to config
-			if planOnly || cmd.Flags().Changed("auto-approve") || cmd.Flags().Changed("no-auto-approve") {
-				resolved, resolveErr := plugin.ResolveProvider()
-				if resolveErr != nil {
-					log.WithError(resolveErr).Debug("cannot apply CLI flags: provider not resolved")
-				}
-				if resolved != nil {
-					name := resolved.ProviderName()
-					if planOnly {
-						config.SetPluginValue(app.Config, name, "plan_only", true)
-						config.SetPluginValue(app.Config, name, "plan_enabled", true)
-					}
-					if cmd.Flags().Changed("auto-approve") {
-						config.SetPluginValue(app.Config, name, "auto_approve", true)
-					} else if cmd.Flags().Changed("no-auto-approve") {
-						config.SetPluginValue(app.Config, name, "auto_approve", false)
-					}
-				}
-			}
+			applyProviderFlags(app, planOnly, cmd)
 
 			result, err := workflow.Run(cmd.Context(), workflowOptions(app, ff))
 			if err != nil {
@@ -117,6 +99,28 @@ Examples:
 	registerFilterFlags(cmd, ff)
 
 	return cmd
+}
+
+// applyProviderFlags applies CLI override flags (--plan-only, --auto-approve) to the provider config.
+func applyProviderFlags(app *App, planOnly bool, cmd *cobra.Command) {
+	if !planOnly && !cmd.Flags().Changed("auto-approve") && !cmd.Flags().Changed("no-auto-approve") {
+		return
+	}
+	resolved, err := plugin.ResolveProvider()
+	if err != nil {
+		log.WithError(err).Debug("cannot apply CLI flags: provider not resolved")
+		return
+	}
+	name := resolved.ProviderName()
+	if planOnly {
+		config.SetPluginValue(app.Config, name, "plan_only", true)
+		config.SetPluginValue(app.Config, name, "plan_enabled", true)
+	}
+	if cmd.Flags().Changed("auto-approve") {
+		config.SetPluginValue(app.Config, name, "auto_approve", true)
+	} else if cmd.Flags().Changed("no-auto-approve") {
+		config.SetPluginValue(app.Config, name, "auto_approve", false)
+	}
 }
 
 // --- Logging helpers ---

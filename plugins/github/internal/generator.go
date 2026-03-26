@@ -404,23 +404,19 @@ func (g *Generator) getContainer() *Container {
 
 // isPREnabled returns true if PR integration is enabled
 func (g *Generator) isPREnabled() bool {
-	ghCfg := g.ghConfig()
-	if ghCfg.PR == nil {
+	if g.config == nil || g.config.PR == nil {
 		return false
 	}
-	if ghCfg.PR.Comment == nil {
+	if g.config.PR.Comment == nil || g.config.PR.Comment.Enabled == nil {
 		return true
 	}
-	if ghCfg.PR.Comment.Enabled == nil {
-		return true
-	}
-	return *ghCfg.PR.Comment.Enabled
+	return *g.config.PR.Comment.Enabled
 }
 
 // hasContributedJobs returns true if any contributions have jobs.
 func (g *Generator) hasContributedJobs() bool {
 	for _, c := range g.contributions {
-		if c != nil && len(c.Jobs) > 0 {
+		if len(c.Jobs) > 0 {
 			return true
 		}
 	}

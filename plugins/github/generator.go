@@ -27,10 +27,9 @@ func (p *Plugin) NewGenerator(_ *plugin.AppContext, depGraph *graph.DependencyGr
 
 // NewCommentService creates a new PR comment service.
 func (p *Plugin) NewCommentService(_ *plugin.AppContext) ci.CommentService {
-	cfg := p.cfg
 	var prCfg *githubci.PRConfig
-	if cfg != nil {
-		prCfg = cfg.PR
+	if p.cfg != nil {
+		prCfg = p.cfg.PR
 	}
 	return githubci.NewPRServiceFromEnv(prCfg)
 }
