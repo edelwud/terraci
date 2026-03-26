@@ -1,4 +1,4 @@
-package ci
+package summaryengine
 
 import (
 	"os"
@@ -7,11 +7,12 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/internal/terraform/plan"
+	"github.com/edelwud/terraci/pkg/ci"
 )
 
 func TestPlanResultCollection_ToModulePlans(t *testing.T) {
-	collection := &PlanResultCollection{
-		Results: []PlanResult{
+	collection := &ci.PlanResultCollection{
+		Results: []ci.PlanResult{
 			{
 				ModuleID:   "platform/stage/eu-central-1/vpc",
 				ModulePath: "platform/stage/eu-central-1/vpc",
@@ -21,7 +22,7 @@ func TestPlanResultCollection_ToModulePlans(t *testing.T) {
 					"region":      "eu-central-1",
 					"module":      "vpc",
 				},
-				Status:  PlanStatusChanges,
+				Status:  ci.PlanStatusChanges,
 				Summary: "+1 (aws_vpc)",
 			},
 		},
@@ -37,8 +38,8 @@ func TestPlanResultCollection_ToModulePlans(t *testing.T) {
 		t.Errorf("unexpected module ID: %s", plans[0].ModuleID)
 	}
 
-	if plans[0].Status != PlanStatusChanges {
-		t.Errorf("expected status %s, got %s", PlanStatusChanges, plans[0].Status)
+	if plans[0].Status != ci.PlanStatusChanges {
+		t.Errorf("expected status %s, got %s", ci.PlanStatusChanges, plans[0].Status)
 	}
 }
 
@@ -129,16 +130,16 @@ func TestScanPlanResults(t *testing.T) {
 		t.Errorf("expected 2 results, got %d", len(collection.Results))
 	}
 
-	statusMap := make(map[string]PlanStatus)
+	statusMap := make(map[string]ci.PlanStatus)
 	for i := range collection.Results {
 		statusMap[collection.Results[i].ModuleID] = collection.Results[i].Status
 	}
 
-	if statusMap["platform/stage/eu-central-1/vpc"] != PlanStatusChanges {
+	if statusMap["platform/stage/eu-central-1/vpc"] != ci.PlanStatusChanges {
 		t.Errorf("vpc should have changes status, got %s", statusMap["platform/stage/eu-central-1/vpc"])
 	}
 
-	if statusMap["platform/prod/eu-central-1/eks"] != PlanStatusNoChanges {
+	if statusMap["platform/prod/eu-central-1/eks"] != ci.PlanStatusNoChanges {
 		t.Errorf("eks should have no_changes status, got %s", statusMap["platform/prod/eu-central-1/eks"])
 	}
 }
@@ -296,12 +297,12 @@ func TestGetPlanStatus(t *testing.T) {
 	tests := []struct {
 		name     string
 		plan     *plan.ParsedPlan
-		expected PlanStatus
+		expected ci.PlanStatus
 	}{
-		{"no changes", &plan.ParsedPlan{}, PlanStatusNoChanges},
-		{"has adds", &plan.ParsedPlan{ToAdd: 1}, PlanStatusChanges},
-		{"has changes", &plan.ParsedPlan{ToChange: 1}, PlanStatusChanges},
-		{"has destroys", &plan.ParsedPlan{ToDestroy: 1}, PlanStatusChanges},
+		{"no changes", &plan.ParsedPlan{}, ci.PlanStatusNoChanges},
+		{"has adds", &plan.ParsedPlan{ToAdd: 1}, ci.PlanStatusChanges},
+		{"has changes", &plan.ParsedPlan{ToChange: 1}, ci.PlanStatusChanges},
+		{"has destroys", &plan.ParsedPlan{ToDestroy: 1}, ci.PlanStatusChanges},
 	}
 
 	for _, tt := range tests {

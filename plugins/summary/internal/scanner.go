@@ -1,4 +1,4 @@
-package ci
+package summaryengine
 
 import (
 	"fmt"
@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/edelwud/terraci/internal/terraform/plan"
+	"github.com/edelwud/terraci/pkg/ci"
 )
 
 // Constants for plan summary formatting
@@ -22,13 +23,13 @@ var defaultSegments = []string{"service", "environment", "region", "module"}
 // ScanPlanResults scans for plan.json files in module directories
 // and builds a collection of plan results from their contents.
 // If segments is nil or empty, default segments (service/environment/region/module) are used.
-func ScanPlanResults(rootDir string, segments []string) (*PlanResultCollection, error) {
+func ScanPlanResults(rootDir string, segments []string) (*ci.PlanResultCollection, error) {
 	if len(segments) == 0 {
 		segments = defaultSegments
 	}
 
-	collection := &PlanResultCollection{
-		Results:     make([]PlanResult, 0),
+	collection := &ci.PlanResultCollection{
+		Results:     make([]ci.PlanResult, 0),
 		GeneratedAt: time.Now().UTC(),
 		PipelineID:  detectPipelineID(),
 		CommitSHA:   detectCommitSHA(),
@@ -58,10 +59,10 @@ func ScanPlanResults(rootDir string, segments []string) (*PlanResultCollection, 
 
 		result, parseErr := parsePlanJSON(path, modulePath, segments)
 		if parseErr != nil {
-			result = PlanResult{
+			result = ci.PlanResult{
 				ModuleID:   strings.ReplaceAll(modulePath, string(filepath.Separator), "/"),
 				ModulePath: modulePath,
-				Status:     PlanStatusFailed,
+				Status:     ci.PlanStatusFailed,
 				Summary:    "Failed to parse plan",
 				Error:      parseErr.Error(),
 			}
@@ -114,10 +115,10 @@ func ParseModulePathComponents(modulePath string, segments []string) map[string]
 	return components
 }
 
-func parsePlanJSON(jsonPath, modulePath string, segments []string) (PlanResult, error) {
+func parsePlanJSON(jsonPath, modulePath string, segments []string) (ci.PlanResult, error) {
 	parsed, err := plan.ParseJSON(jsonPath)
 	if err != nil {
-		return PlanResult{}, err
+		return ci.PlanResult{}, err
 	}
 
 	components := ParseModulePathComponents(modulePath, segments)
@@ -128,7 +129,7 @@ func parsePlanJSON(jsonPath, modulePath string, segments []string) (PlanResult, 
 		rawPlanOutput = FilterPlanOutput(string(data))
 	}
 
-	return PlanResult{
+	return ci.PlanResult{
 		ModuleID:          strings.ReplaceAll(modulePath, string(filepath.Separator), "/"),
 		ModulePath:        modulePath,
 		Components:        components,
@@ -140,11 +141,11 @@ func parsePlanJSON(jsonPath, modulePath string, segments []string) (PlanResult, 
 	}, nil
 }
 
-func getPlanStatus(p *plan.ParsedPlan) PlanStatus {
+func getPlanStatus(p *plan.ParsedPlan) ci.PlanStatus {
 	if !p.HasChanges() {
-		return PlanStatusNoChanges
+		return ci.PlanStatusNoChanges
 	}
-	return PlanStatusChanges
+	return ci.PlanStatusChanges
 }
 
 func getExitCode(p *plan.ParsedPlan) int {

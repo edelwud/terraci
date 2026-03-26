@@ -8,6 +8,7 @@ import (
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/plugin"
+	summaryengine "github.com/edelwud/terraci/plugins/summary/internal"
 )
 
 // Commands returns the `terraci summary` command.
@@ -34,7 +35,7 @@ func (p *Plugin) runSummary(cmd *cobra.Command, appCtx *plugin.AppContext) error
 	// Scan plan results (provider-agnostic)
 	log.Info("scanning for plan results")
 	segments := []string(appCtx.Config.Structure.Segments)
-	collection, err := ci.ScanPlanResults(".", segments)
+	collection, err := summaryengine.ScanPlanResults(".", segments)
 	if err != nil {
 		return fmt.Errorf("failed to scan plan results: %w", err)
 	}
