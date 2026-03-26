@@ -23,27 +23,20 @@ type App struct {
 }
 
 // PluginContext returns the AppContext for plugins.
-// The returned context auto-refreshes from App state on Ensure().
 func (a *App) PluginContext() *plugin.AppContext {
-	ctx := &plugin.AppContext{
-		Version: a.Version,
+	serviceDir := ".terraci"
+	if a.Config != nil && a.Config.ServiceDir != "" {
+		serviceDir = a.Config.ServiceDir
 	}
-	ctx.Refresh = func() {
-		ctx.Config = a.Config
-		ctx.WorkDir = a.WorkDir
-
-		serviceDir := ".terraci"
-		if a.Config != nil && a.Config.ServiceDir != "" {
-			serviceDir = a.Config.ServiceDir
-		}
-		if !filepath.IsAbs(serviceDir) {
-			ctx.ServiceDir = filepath.Join(a.WorkDir, serviceDir)
-		} else {
-			ctx.ServiceDir = serviceDir
-		}
+	if !filepath.IsAbs(serviceDir) {
+		serviceDir = filepath.Join(a.WorkDir, serviceDir)
 	}
-	ctx.Refresh() // populate now if available
-	return ctx
+	return &plugin.AppContext{
+		Config:     a.Config,
+		WorkDir:    a.WorkDir,
+		ServiceDir: serviceDir,
+		Version:    a.Version,
+	}
 }
 
 // InitPluginConfigs decodes plugin-specific configurations from the Plugins map

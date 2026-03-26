@@ -4,7 +4,7 @@ import "github.com/edelwud/terraci/pkg/pipeline"
 
 // PipelineContribution returns the summary job contribution.
 func (p *Plugin) PipelineContribution() *pipeline.Contribution {
-	if !p.isEnabled() {
+	if !p.IsConfigured() {
 		return nil
 	}
 	return &pipeline.Contribution{

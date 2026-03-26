@@ -31,9 +31,10 @@ Examples:
   terraci cost --module platform/prod/eu-central-1/rds
   terraci cost --output json`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			ctx.Ensure()
-			cfg := p.effectiveConfig(ctx)
-			if !cfg.Enabled {
+			if !p.IsConfigured() {
+				return fmt.Errorf("cost estimation is not enabled (set plugins.cost.enabled: true)")
+			}
+			if !p.cfg.Enabled {
 				return fmt.Errorf("cost estimation is not enabled (set plugins.cost.enabled: true)")
 			}
 
@@ -41,7 +42,7 @@ Examples:
 			c, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 			defer cancel()
 
-			estimator := p.getEstimator(cfg)
+			estimator := p.getEstimator()
 
 			if costModulePath != "" {
 				return p.runSingle(c, estimator, ctx, costModulePath, costOutputFmt)

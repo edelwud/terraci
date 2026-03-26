@@ -11,7 +11,7 @@ import (
 
 // DetectChangedModules returns modules changed since the given base ref.
 func (p *Plugin) DetectChangedModules(_ context.Context, appCtx *plugin.AppContext, baseRef string, moduleIndex *discovery.ModuleIndex) ([]*discovery.Module, []string, error) {
-	client := p.getClient(appCtx)
+	client := p.getClient()
 	if client == nil {
 		return nil, nil, fmt.Errorf("not a git repository: %s", appCtx.WorkDir)
 	}
@@ -23,7 +23,7 @@ func (p *Plugin) DetectChangedModules(_ context.Context, appCtx *plugin.AppConte
 
 // DetectChangedLibraries returns library paths changed since the given base ref.
 func (p *Plugin) DetectChangedLibraries(_ context.Context, appCtx *plugin.AppContext, baseRef string, libraryPaths []string) ([]string, error) {
-	client := p.getClient(appCtx)
+	client := p.getClient()
 	if client == nil {
 		return nil, nil
 	}

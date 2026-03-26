@@ -3,7 +3,6 @@ package policy
 import (
 	"fmt"
 
-	"github.com/edelwud/terraci/pkg/plugin"
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
 
@@ -26,10 +25,3 @@ func (p *Plugin) SetConfig(cfg any) error {
 
 // IsConfigured returns whether the plugin has been configured.
 func (p *Plugin) IsConfigured() bool { return p.configured }
-
-func (p *Plugin) effectiveConfig(_ *plugin.AppContext) *policyengine.Config {
-	if p.cfg != nil {
-		return p.cfg
-	}
-	return &policyengine.Config{}
-}

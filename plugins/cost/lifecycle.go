@@ -10,14 +10,13 @@ import (
 )
 
 // Initialize creates the estimator and cleans expired cache at startup.
-func (p *Plugin) Initialize(_ context.Context, appCtx *plugin.AppContext) error {
-	cfg := p.effectiveConfig(appCtx)
-	if !cfg.Enabled {
+func (p *Plugin) Initialize(_ context.Context, _ *plugin.AppContext) error {
+	if p.cfg == nil || !p.cfg.Enabled {
 		return nil
 	}
 
 	log.Debug("cost: initializing estimator and pricing cache")
-	p.estimator = costengine.NewEstimatorFromConfig(cfg)
+	p.estimator = costengine.NewEstimatorFromConfig(p.cfg)
 	p.estimator.CleanExpiredCache()
 
 	entries := p.estimator.CacheEntries()

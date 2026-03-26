@@ -13,9 +13,6 @@ func (p *Plugin) PipelineContribution() *pipeline.Contribution {
 		return nil
 	}
 	serviceDir := p.serviceDirRel
-	if serviceDir == "" {
-		serviceDir = ".terraci"
-	}
 	allowFailure := p.cfg.OnFailure == policyengine.ActionWarn
 	return &pipeline.Contribution{
 		Jobs: []pipeline.ContributedJob{{

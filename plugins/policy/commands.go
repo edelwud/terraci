@@ -26,14 +26,13 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 		Use:   "pull",
 		Short: "Pull policies from configured sources",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			ctx.Ensure()
-			cfg := p.effectiveConfig(ctx)
-			if !cfg.Enabled {
+			if !p.IsConfigured() || !p.cfg.Enabled {
 				return fmt.Errorf("policy checks are not enabled in configuration")
 			}
 
 			log.Info("pulling policies from configured sources")
 
+			cfg := p.cfg
 			if policyOutput != "" {
 				cfg.CacheDir = policyOutput
 			}
@@ -61,15 +60,13 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 		Use:   "check",
 		Short: "Check Terraform plans against policies",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			ctx.Ensure()
-			cfg := p.effectiveConfig(ctx)
-			if !cfg.Enabled {
+			if !p.IsConfigured() || !p.cfg.Enabled {
 				return fmt.Errorf("policy checks are not enabled in configuration")
 			}
 
 			log.Info("running policy checks")
 
-			puller, err := policyengine.NewPuller(cfg, ctx.WorkDir, ctx.ServiceDir)
+			puller, err := policyengine.NewPuller(p.cfg, ctx.WorkDir, ctx.ServiceDir)
 			if err != nil {
 				return fmt.Errorf("failed to create puller: %w", err)
 			}
@@ -82,7 +79,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 				return fmt.Errorf("failed to pull policies: %w", err)
 			}
 
-			checker := policyengine.NewChecker(cfg, policyDirs, ctx.WorkDir)
+			checker := policyengine.NewChecker(p.cfg, policyDirs, ctx.WorkDir)
 
 			var summary *policyengine.Summary
 

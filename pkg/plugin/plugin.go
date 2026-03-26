@@ -10,7 +10,6 @@ import (
 
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/discovery"
-	"github.com/edelwud/terraci/pkg/filter"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
 )
@@ -29,12 +28,6 @@ type Plugin interface {
 type Initializable interface {
 	Plugin
 	Initialize(ctx context.Context, appCtx *AppContext) error
-}
-
-// Finalizable plugins clean up resources after the command completes.
-type Finalizable interface {
-	Plugin
-	Finalize(ctx context.Context) error
 }
 
 // --- Configuration ---
@@ -91,22 +84,6 @@ type ChangeDetectionProvider interface {
 	Plugin
 	DetectChangedModules(ctx context.Context, appCtx *AppContext, baseRef string, moduleIndex *discovery.ModuleIndex) (changed []*discovery.Module, changedFiles []string, err error)
 	DetectChangedLibraries(ctx context.Context, appCtx *AppContext, baseRef string, libraryPaths []string) ([]string, error)
-}
-
-// --- Filtering ---
-
-// FilterProvider registers custom module filters.
-type FilterProvider interface {
-	Plugin
-	Filters(ctx *AppContext) []filter.ModuleFilter
-}
-
-// --- Workflow Hooks ---
-
-// WorkflowHookProvider injects behavior at workflow stages.
-type WorkflowHookProvider interface {
-	Plugin
-	WorkflowHooks() []WorkflowHook
 }
 
 // --- Init Wizard ---

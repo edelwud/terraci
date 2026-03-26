@@ -3,7 +3,6 @@ package cost
 import (
 	"fmt"
 
-	"github.com/edelwud/terraci/pkg/plugin"
 	costengine "github.com/edelwud/terraci/plugins/cost/internal"
 )
 
@@ -27,17 +26,6 @@ func (p *Plugin) SetConfig(cfg any) error {
 // IsConfigured returns whether the plugin has been configured.
 func (p *Plugin) IsConfigured() bool { return p.configured }
 
-func (p *Plugin) effectiveConfig(_ *plugin.AppContext) *costengine.CostConfig {
-	if p.cfg != nil {
-		return p.cfg
-	}
-	return &costengine.CostConfig{}
-}
-
-func (p *Plugin) getEstimator(cfg *costengine.CostConfig) *costengine.Estimator {
-	if p.estimator != nil {
-		return p.estimator
-	}
-	// Fallback: create on-demand if Initialize was not called (e.g., version/schema commands)
-	return costengine.NewEstimatorFromConfig(cfg)
+func (p *Plugin) getEstimator() *costengine.Estimator {
+	return p.estimator
 }

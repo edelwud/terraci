@@ -24,10 +24,3 @@ func (p *Plugin) SetConfig(cfg any) error {
 }
 
 func (p *Plugin) IsConfigured() bool { return p.configured }
-
-func (p *Plugin) isEnabled() bool {
-	if p.cfg == nil || p.cfg.Enabled == nil {
-		return true // default enabled
-	}
-	return *p.cfg.Enabled
-}

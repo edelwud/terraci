@@ -98,15 +98,6 @@ Features:
 
 			return nil
 		},
-		PersistentPostRunE: func(cmd *cobra.Command, _ []string) error {
-			// Finalize plugins (lifecycle stage 5)
-			for _, p := range plugin.ByCapability[plugin.Finalizable]() {
-				if err := p.Finalize(cmd.Context()); err != nil {
-					log.WithField("plugin", p.Name()).WithError(err).Warn("plugin finalize error")
-				}
-			}
-			return nil
-		},
 	}
 
 	// Global flags

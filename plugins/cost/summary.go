@@ -8,9 +8,8 @@ import (
 )
 
 // ContributeToSummary enriches plan results with cost data during summary.
-func (p *Plugin) ContributeToSummary(ctx context.Context, appCtx *plugin.AppContext, execCtx *plugin.ExecutionContext) error {
-	cfg := p.effectiveConfig(appCtx)
-	if !cfg.Enabled {
+func (p *Plugin) ContributeToSummary(ctx context.Context, _ *plugin.AppContext, execCtx *plugin.ExecutionContext) error {
+	if !p.IsConfigured() || !p.cfg.Enabled {
 		return nil
 	}
 
@@ -30,7 +29,7 @@ func (p *Plugin) ContributeToSummary(ctx context.Context, appCtx *plugin.AppCont
 		}
 	}
 
-	est := p.getEstimator(cfg)
+	est := p.getEstimator()
 
 	// Prefetch pricing
 	if err := est.ValidateAndPrefetch(ctx, modulePaths, regions); err != nil {

@@ -25,7 +25,6 @@ and posts a formatted comment to the MR/PR.
 Example:
   terraci summary`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			ctx.Ensure()
 			return p.runSummary(cmd, ctx)
 		},
 	}}

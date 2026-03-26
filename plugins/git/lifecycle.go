@@ -24,16 +24,11 @@ func (p *Plugin) Initialize(_ context.Context, appCtx *plugin.AppContext) error 
 	return nil
 }
 
-func (p *Plugin) getClient(appCtx *plugin.AppContext) *gitclient.Client {
-	if p.client != nil && p.isRepo {
-		return p.client
-	}
-	// Fallback if Initialize was not called
-	c := gitclient.NewClient(appCtx.WorkDir)
-	if !c.IsGitRepo() {
+func (p *Plugin) getClient() *gitclient.Client {
+	if !p.isRepo {
 		return nil
 	}
-	return c
+	return p.client
 }
 
 func (p *Plugin) resolveRef(baseRef string) string {
