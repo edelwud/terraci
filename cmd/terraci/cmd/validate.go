@@ -5,12 +5,13 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/edelwud/terraci/pkg/filter"
 	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/workflow"
 )
 
 func newValidateCmd(app *App) *cobra.Command {
-	ff := &filterFlags{}
+	ff := &filter.Flags{}
 
 	cmd := &cobra.Command{
 		Use:   "validate",
@@ -28,7 +29,7 @@ This command will:
 
 			log.Info("validating terraform project structure")
 
-			result, err := workflow.Run(cmd.Context(), ff.workflowOptions(app))
+			result, err := workflow.Run(cmd.Context(), workflowOptions(app, ff))
 			if err != nil {
 				return err
 			}
@@ -104,7 +105,7 @@ This command will:
 		},
 	}
 
-	ff.register(cmd)
+	registerFilterFlags(cmd, ff)
 
 	return cmd
 }

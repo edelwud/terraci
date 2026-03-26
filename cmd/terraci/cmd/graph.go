@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/edelwud/terraci/pkg/filter"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/workflow"
@@ -20,7 +21,7 @@ func newGraphCmd(app *App) *cobra.Command {
 		moduleID       string
 		showDependents bool
 	)
-	ff := &filterFlags{}
+	ff := &filter.Flags{}
 
 	cmd := &cobra.Command{
 		Use:   "graph",
@@ -41,7 +42,7 @@ Examples:
   terraci graph --stats
   terraci graph --module platform/stage/eu-central-1/vpc --dependents`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			result, err := workflow.Run(cmd.Context(), ff.workflowOptions(app))
+			result, err := workflow.Run(cmd.Context(), workflowOptions(app, ff))
 			if err != nil {
 				return err
 			}
@@ -69,7 +70,7 @@ Examples:
 	cmd.Flags().BoolVar(&showStats, "stats", false, "show graph statistics")
 	cmd.Flags().StringVarP(&moduleID, "module", "m", "", "filter to specific module")
 	cmd.Flags().BoolVar(&showDependents, "dependents", false, "show dependents instead of dependencies (with --module)")
-	ff.register(cmd)
+	registerFilterFlags(cmd, ff)
 
 	return cmd
 }

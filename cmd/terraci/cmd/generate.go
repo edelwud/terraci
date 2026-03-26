@@ -10,6 +10,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/discovery"
+	"github.com/edelwud/terraci/pkg/filter"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/pipeline"
@@ -25,7 +26,7 @@ func newGenerateCmd(app *App) *cobra.Command {
 		dryRun      bool
 		planOnly    bool
 	)
-	ff := &filterFlags{}
+	ff := &filter.Flags{}
 
 	cmd := &cobra.Command{
 		Use:   "generate",
@@ -62,7 +63,7 @@ Examples:
 				}
 			}
 
-			result, err := workflow.Run(cmd.Context(), ff.workflowOptions(app))
+			result, err := workflow.Run(cmd.Context(), workflowOptions(app, ff))
 			if err != nil {
 				return err
 			}
@@ -113,7 +114,7 @@ Examples:
 	cmd.Flags().BoolVar(&planOnly, "plan-only", false, "generate only plan jobs (no apply jobs)")
 	cmd.Flags().Bool("auto-approve", false, "auto-approve apply jobs (skip manual trigger)")
 	cmd.Flags().Bool("no-auto-approve", false, "require manual trigger for apply jobs")
-	ff.register(cmd)
+	registerFilterFlags(cmd, ff)
 
 	return cmd
 }
@@ -218,7 +219,7 @@ func writePipelineOutput(p pipeline.GeneratedPipeline, outputFile string) error 
 
 func detectChangedTargetModules(
 	app *App,
-	ff *filterFlags,
+	ff *filter.Flags,
 	baseRef string,
 	fullIndex, filteredIndex *discovery.ModuleIndex,
 	depGraph *graph.DependencyGraph,
@@ -269,7 +270,7 @@ func detectChangedTargetModules(
 
 func resolveAffectedModules(
 	app *App,
-	ff *filterFlags,
+	ff *filter.Flags,
 	affectedIDs, changedIDs []string,
 	fullIndex, filteredIndex *discovery.ModuleIndex,
 ) []*discovery.Module {
@@ -286,7 +287,7 @@ func resolveAffectedModules(
 		if m := filteredIndex.ByID(id); m != nil {
 			targets = append(targets, m)
 		} else if m := fullIndex.ByID(id); m != nil {
-			if filtered := ff.applyFilters(app, []*discovery.Module{m}); len(filtered) > 0 {
+			if filtered := applyFilters(app, ff, []*discovery.Module{m}); len(filtered) > 0 {
 				targets = append(targets, m)
 			} else {
 				log.WithField("module", m.ID()).Debug("filtered out")
