@@ -35,8 +35,7 @@ func (p *Plugin) BuildInitConfig(state plugin.InitState) *plugin.InitContributio
 	return &plugin.InitContribution{
 		PluginKey: "cost",
 		Config: map[string]any{
-			"enabled":         true,
-			"show_in_comment": true,
+			"enabled": true,
 		},
 	}
 }

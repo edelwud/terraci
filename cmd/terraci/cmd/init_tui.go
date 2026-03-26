@@ -138,11 +138,6 @@ func (m *initModel) pipelineGroup() *huh.Group {
 			Title("Auto-approve applies?").
 			Description("Skip manual approval for terraform apply").
 			Value(m.state.BoolPtr("auto_approve")),
-
-		huh.NewConfirm().
-			Title("Enable PR/MR comments?").
-			Description("Post plan summaries as comments").
-			Value(m.state.BoolPtr("enable_mr")),
 	).Title("Pipeline Options")
 }
 

@@ -262,7 +262,4 @@ type CostConfig struct {
 	// CacheTTL is how long cached pricing data is valid (e.g., '24h', '7d')
 	// Default: 24h
 	CacheTTL string `yaml:"cache_ttl,omitempty" json:"cache_ttl,omitempty" jsonschema:"description=How long cached pricing is valid (e.g. 24h),default=24h"`
-
-	// ShowInComment enables cost display in MR comment table
-	ShowInComment bool `yaml:"show_in_comment,omitempty" json:"show_in_comment,omitempty" jsonschema:"description=Show cost in MR comment table,default=true"`
 }

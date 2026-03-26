@@ -7,7 +7,6 @@ import "github.com/edelwud/terraci/pkg/plugin"
 const (
 	defaultTerraformImage = "hashicorp/terraform:1.6"
 	defaultTofuImage      = "ghcr.io/opentofu/opentofu:1.6"
-	terraCIImage          = "ghcr.io/edelwud/terraci:latest"
 )
 
 // InitGroup returns the init wizard group spec for GitLab CI.
@@ -52,22 +51,15 @@ func (p *Plugin) BuildInitConfig(state plugin.InitState) *plugin.InitContributio
 
 	planEnabled, _ := state.Get("plan_enabled").(bool) //nolint:errcheck // safe type assertion
 	autoApprove, _ := state.Get("auto_approve").(bool) //nolint:errcheck // safe type assertion
-	enableMR, _ := state.Get("enable_mr").(bool)       //nolint:errcheck // safe type assertion
 
-	m := map[string]any{
-		"terraform_binary": binary,
-		"image":            map[string]any{"name": image},
-		"plan_enabled":     planEnabled,
-		"auto_approve":     autoApprove,
-		"init_enabled":     true,
+	return &plugin.InitContribution{
+		PluginKey: "gitlab",
+		Config: map[string]any{
+			"terraform_binary": binary,
+			"image":            map[string]any{"name": image},
+			"plan_enabled":     planEnabled,
+			"auto_approve":     autoApprove,
+			"init_enabled":     true,
+		},
 	}
-	if enableMR {
-		m["mr"] = map[string]any{
-			"comment": map[string]any{"enabled": true},
-			"summary_job": map[string]any{
-				"image": map[string]any{"name": terraCIImage},
-			},
-		}
-	}
-	return &plugin.InitContribution{PluginKey: "gitlab", Config: m}
 }

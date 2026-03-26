@@ -23,9 +23,6 @@ type Config struct {
 	// OnWarning defines behavior for warnings: warn or ignore
 	OnWarning Action `yaml:"on_warning,omitempty" json:"on_warning,omitempty" jsonschema:"description=Behavior on policy warnings,enum=warn,enum=ignore,default=warn"`
 
-	// ShowInComment enables policy results in MR comment
-	ShowInComment bool `yaml:"show_in_comment,omitempty" json:"show_in_comment,omitempty" jsonschema:"description=Include policy results in MR comment,default=true"`
-
 	// Overwrites defines per-module policy overrides
 	Overwrites []Overwrite `yaml:"overwrites,omitempty" json:"overwrites,omitempty" jsonschema:"description=Per-module policy configuration overrides"`
 
@@ -101,11 +98,10 @@ func (p *Config) GetEffectiveConfig(modulePath string) *Config {
 
 	// Start with base config
 	effective := &Config{
-		Enabled:       p.Enabled,
-		Namespaces:    p.Namespaces,
-		OnFailure:     p.OnFailure,
-		OnWarning:     p.OnWarning,
-		ShowInComment: p.ShowInComment,
+		Enabled:    p.Enabled,
+		Namespaces: p.Namespaces,
+		OnFailure:  p.OnFailure,
+		OnWarning:  p.OnWarning,
 	}
 
 	// Apply matching overwrites in order

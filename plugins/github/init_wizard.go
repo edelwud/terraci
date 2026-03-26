@@ -44,36 +44,28 @@ func (p *Plugin) BuildInitConfig(state plugin.InitState) *plugin.InitContributio
 
 	planEnabled, _ := state.Get("plan_enabled").(bool) //nolint:errcheck // safe type assertion
 	autoApprove, _ := state.Get("auto_approve").(bool) //nolint:errcheck // safe type assertion
-	enableMR, _ := state.Get("enable_mr").(bool)       //nolint:errcheck // safe type assertion
 
 	setupAction := "hashicorp/setup-terraform@v3"
 	if binary == "tofu" {
 		setupAction = "opentofu/setup-opentofu@v1"
 	}
 
-	m := map[string]any{
-		"terraform_binary": binary,
-		"runs_on":          runsOn,
-		"plan_enabled":     planEnabled,
-		"auto_approve":     autoApprove,
-		"init_enabled":     true,
-		"job_defaults": map[string]any{
-			"steps_before": []map[string]any{
-				{"uses": "actions/checkout@v4"},
-				{"uses": setupAction},
+	setupSteps := []map[string]any{
+		{"uses": "actions/checkout@v4"},
+		{"uses": setupAction},
+	}
+
+	return &plugin.InitContribution{
+		PluginKey: "github",
+		Config: map[string]any{
+			"terraform_binary": binary,
+			"runs_on":          runsOn,
+			"plan_enabled":     planEnabled,
+			"auto_approve":     autoApprove,
+			"init_enabled":     true,
+			"job_defaults": map[string]any{
+				"steps_before": setupSteps,
 			},
 		},
 	}
-
-	if enableMR {
-		m["permissions"] = map[string]string{
-			"contents":      "read",
-			"pull-requests": "write",
-		}
-		m["pr"] = map[string]any{
-			"comment": map[string]any{},
-		}
-	}
-
-	return &plugin.InitContribution{PluginKey: "github", Config: m}
 }

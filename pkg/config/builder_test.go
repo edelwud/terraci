@@ -111,8 +111,7 @@ func TestBuildConfigFromPlugins_WithCost(t *testing.T) {
 			"terraform_binary": "terraform",
 		},
 		"cost": {
-			"enabled":         true,
-			"show_in_comment": true,
+			"enabled": true,
 		},
 	}
 
