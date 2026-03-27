@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/plugin"
 	costengine "github.com/edelwud/terraci/plugins/cost/internal"
@@ -82,6 +84,10 @@ func (p *Plugin) runSingle(ctx context.Context, estimator *costengine.Estimator,
 		if saveErr := saveCostResults(p.serviceDir, result); saveErr != nil {
 			log.WithError(saveErr).Warn("failed to save cost results")
 		}
+		report := buildCostReport(result)
+		if saveErr := saveReport(p.serviceDir, report); saveErr != nil {
+			log.WithError(saveErr).Warn("failed to save cost report")
+		}
 	}
 
 	return p.outputResult(appCtx, outputFmt, result)
@@ -131,6 +137,10 @@ func (p *Plugin) runAll(ctx context.Context, estimator *costengine.Estimator, ap
 		if saveErr := saveCostResults(p.serviceDir, result); saveErr != nil {
 			log.WithError(saveErr).Warn("failed to save cost results")
 		}
+		report := buildCostReport(result)
+		if saveErr := saveReport(p.serviceDir, report); saveErr != nil {
+			log.WithError(saveErr).Warn("failed to save cost report")
+		}
 	}
 
 	return p.outputResult(appCtx, outputFmt, result)
@@ -150,4 +160,58 @@ func saveCostResults(serviceDir string, result *costengine.EstimateResult) error
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(result)
+}
+
+func buildCostReport(result *costengine.EstimateResult) *ci.Report {
+	modules := make([]ci.ModuleReport, 0, len(result.Modules))
+	for i := range result.Modules {
+		if result.Modules[i].Error == "" {
+			modules = append(modules, ci.ModuleReport{
+				ModulePath: result.Modules[i].ModulePath,
+				CostBefore: result.Modules[i].BeforeCost,
+				CostAfter:  result.Modules[i].AfterCost,
+				CostDiff:   result.Modules[i].DiffCost,
+				HasCost:    true,
+			})
+		}
+	}
+
+	return &ci.Report{
+		Plugin:  "cost",
+		Title:   "Cost Estimation",
+		Status:  ci.ReportStatusPass,
+		Summary: fmt.Sprintf("%d modules, total: $%.2f/mo (diff: %+.2f)", len(result.Modules), result.TotalAfter, result.TotalDiff),
+		Body:    renderCostReportBody(result),
+		Modules: modules,
+	}
+}
+
+func renderCostReportBody(result *costengine.EstimateResult) string {
+	var b strings.Builder
+	b.WriteString("| Module | Before | After | Diff |\n")
+	b.WriteString("|--------|--------|-------|------|\n")
+	for i := range result.Modules {
+		if result.Modules[i].Error != "" {
+			continue
+		}
+		fmt.Fprintf(&b, "| %s | $%.2f | $%.2f | %+.2f |\n",
+			result.Modules[i].ModulePath, result.Modules[i].BeforeCost, result.Modules[i].AfterCost, result.Modules[i].DiffCost)
+	}
+	fmt.Fprintf(&b, "\n**Total:** $%.2f/mo (diff: %+.2f)\n", result.TotalAfter, result.TotalDiff)
+	return b.String()
+}
+
+func saveReport(serviceDir string, report *ci.Report) error {
+	if err := os.MkdirAll(serviceDir, 0o755); err != nil {
+		return err
+	}
+	path := filepath.Join(serviceDir, report.Plugin+"-report.json")
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	enc := json.NewEncoder(file)
+	enc.SetIndent("", "  ")
+	return enc.Encode(report)
 }

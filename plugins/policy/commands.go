@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/plugin"
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
@@ -101,6 +103,13 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 				log.WithError(err).Warn("failed to save policy results")
 			}
 
+			if ctx.ServiceDir != "" {
+				report := buildPolicyReport(summary)
+				if saveErr := saveReport(ctx.ServiceDir, report); saveErr != nil {
+					log.WithError(saveErr).Warn("failed to save policy report")
+				}
+			}
+
 			if policyOutput == "json" {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
@@ -173,4 +182,62 @@ func outputText(summary *policyengine.Summary, shouldBlock bool) error {
 	}
 
 	return nil
+}
+
+func buildPolicyReport(summary *policyengine.Summary) *ci.Report {
+	status := ci.ReportStatusPass
+	if summary.FailedModules > 0 {
+		status = ci.ReportStatusFail
+	} else if summary.WarnedModules > 0 {
+		status = ci.ReportStatusWarn
+	}
+
+	return &ci.Report{
+		Plugin:  "policy",
+		Title:   "Policy Check",
+		Status:  status,
+		Summary: fmt.Sprintf("%d modules: %d passed, %d warned, %d failed", summary.TotalModules, summary.PassedModules, summary.WarnedModules, summary.FailedModules),
+		Body:    renderPolicyReportBody(summary),
+	}
+}
+
+func renderPolicyReportBody(summary *policyengine.Summary) string {
+	var b strings.Builder
+	for _, r := range summary.Results {
+		if r.Status() == "pass" {
+			continue
+		}
+		fmt.Fprintf(&b, "**%s** (%s)\n", r.Module, r.Status())
+		for _, f := range r.Failures {
+			fmt.Fprintf(&b, "- :x: %s", f.Message)
+			if f.Namespace != "" {
+				fmt.Fprintf(&b, " (%s)", f.Namespace)
+			}
+			b.WriteString("\n")
+		}
+		for _, w := range r.Warnings {
+			fmt.Fprintf(&b, "- :warning: %s", w.Message)
+			if w.Namespace != "" {
+				fmt.Fprintf(&b, " (%s)", w.Namespace)
+			}
+			b.WriteString("\n")
+		}
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+func saveReport(serviceDir string, report *ci.Report) error {
+	if err := os.MkdirAll(serviceDir, 0o755); err != nil {
+		return err
+	}
+	path := filepath.Join(serviceDir, report.Plugin+"-report.json")
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	enc := json.NewEncoder(file)
+	enc.SetIndent("", "  ")
+	return enc.Encode(report)
 }

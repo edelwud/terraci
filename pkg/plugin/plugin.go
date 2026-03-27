@@ -60,15 +60,6 @@ type GeneratorProvider interface {
 	NewCommentService(ctx *AppContext) ci.CommentService
 }
 
-// --- Summary ---
-
-// SummaryContributor plugins enrich plan results during `terraci summary`.
-// Called in registration order before comment rendering.
-type SummaryContributor interface {
-	Plugin
-	ContributeToSummary(ctx context.Context, appCtx *AppContext, execCtx *ExecutionContext) error
-}
-
 // --- Version ---
 
 // VersionProvider plugins contribute version info to `terraci version`.

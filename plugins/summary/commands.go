@@ -25,13 +25,13 @@ and posts a formatted comment to the MR/PR.
 
 Example:
   terraci summary`,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return p.runSummary(cmd, ctx)
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return p.runSummary(ctx)
 		},
 	}}
 }
 
-func (p *Plugin) runSummary(cmd *cobra.Command, appCtx *plugin.AppContext) error {
+func (p *Plugin) runSummary(appCtx *plugin.AppContext) error {
 	// Scan plan results (provider-agnostic)
 	log.Info("scanning for plan results")
 	segments := []string(appCtx.Config.Structure.Segments)
@@ -47,43 +47,24 @@ func (p *Plugin) runSummary(cmd *cobra.Command, appCtx *plugin.AppContext) error
 
 	log.WithField("count", len(collection.Results)).Info("found plan results")
 
-	// Create execution context for plugin contributions
-	execCtx := plugin.NewExecutionContext(collection)
-
-	// Let all SummaryContributor plugins enrich the data
-	for _, c := range plugin.ByCapability[plugin.SummaryContributor]() {
-		if contributeErr := c.ContributeToSummary(cmd.Context(), appCtx, execCtx); contributeErr != nil {
-			log.WithError(contributeErr).WithField("plugin", c.Name()).Warn("summary contribution failed")
-		}
-	}
-
 	// Convert to module plans for rendering
 	plans := collection.ToModulePlans()
 
-	// Resolve policy summary from execution context (if contributed by policy plugin)
-	var policySummary *ci.PolicySummary
-	if raw, ok := execCtx.GetData("policy:summary"); ok {
-		if ps, ok := raw.(*ci.PolicySummary); ok {
-			policySummary = ps
-		}
+	// Load plugin reports from service directory
+	reports := summaryengine.LoadReports(appCtx.ServiceDir)
+	for _, r := range reports {
+		summaryengine.EnrichPlans(plans, r.Modules)
 	}
 
 	// Check if we should skip (on_changes_only)
-	if p.cfg != nil && p.cfg.OnChangesOnly && !summaryengine.HasReportableChanges(plans, policySummary) {
+	if p.cfg != nil && p.cfg.OnChangesOnly && !hasReportableChanges(plans, reports) {
 		log.Info("no reportable changes, skipping comment")
 		printSummary(collection)
 		return nil
 	}
 
-	// Render markdown
-	data := &summaryengine.CommentData{
-		Plans:         plans,
-		PolicySummary: policySummary,
-		CommitSHA:     collection.CommitSHA,
-		PipelineID:    collection.PipelineID,
-		GeneratedAt:   collection.GeneratedAt,
-	}
-	body := summaryengine.NewCommentRenderer().Render(data)
+	// Compose comment
+	body := summaryengine.ComposeComment(plans, reports, collection.CommitSHA, collection.PipelineID, collection.GeneratedAt)
 
 	// Resolve CI provider via plugin system (not finding a provider is not a failure)
 	provider, resolveErr := plugin.ResolveProvider()
@@ -110,4 +91,18 @@ func (p *Plugin) runSummary(cmd *cobra.Command, appCtx *plugin.AppContext) error
 	printSummary(collection)
 
 	return nil
+}
+
+func hasReportableChanges(plans []ci.ModulePlan, reports []*ci.Report) bool {
+	for i := range plans {
+		if plans[i].Status == ci.PlanStatusChanges || plans[i].Status == ci.PlanStatusFailed {
+			return true
+		}
+	}
+	for _, r := range reports {
+		if r.Status == ci.ReportStatusWarn || r.Status == ci.ReportStatusFail {
+			return true
+		}
+	}
+	return false
 }

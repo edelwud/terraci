@@ -8,35 +8,31 @@ import (
 	"github.com/edelwud/terraci/pkg/ci"
 )
 
-func TestRender_BasicPlans(t *testing.T) {
+func TestComposeComment_BasicPlans(t *testing.T) {
 	t.Parallel()
 
-	r := NewCommentRenderer()
-	data := &CommentData{
-		Plans: []ci.ModulePlan{
-			{
-				ModuleID:   "svc/prod/us-east-1/vpc",
-				Components: map[string]string{"environment": "prod"},
-				Status:     ci.PlanStatusChanges,
-				Summary:    "+2 ~1 -0",
-			},
-			{
-				ModuleID:   "svc/prod/us-east-1/rds",
-				Components: map[string]string{"environment": "prod"},
-				Status:     ci.PlanStatusNoChanges,
-				Summary:    "No changes",
-			},
-			{
-				ModuleID:   "svc/staging/us-east-1/vpc",
-				Components: map[string]string{"environment": "staging"},
-				Status:     ci.PlanStatusFailed,
-				Error:      "init failed",
-			},
+	plans := []ci.ModulePlan{
+		{
+			ModuleID:   "svc/prod/us-east-1/vpc",
+			Components: map[string]string{"environment": "prod"},
+			Status:     ci.PlanStatusChanges,
+			Summary:    "+2 ~1 -0",
 		},
-		GeneratedAt: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC),
+		{
+			ModuleID:   "svc/prod/us-east-1/rds",
+			Components: map[string]string{"environment": "prod"},
+			Status:     ci.PlanStatusNoChanges,
+			Summary:    "No changes",
+		},
+		{
+			ModuleID:   "svc/staging/us-east-1/vpc",
+			Components: map[string]string{"environment": "staging"},
+			Status:     ci.PlanStatusFailed,
+			Error:      "init failed",
+		},
 	}
 
-	result := r.Render(data)
+	result := ComposeComment(plans, nil, "", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
 
 	if !strings.Contains(result, ci.CommentMarker) {
 		t.Error("expected CommentMarker in output")
@@ -56,53 +52,39 @@ func TestRender_BasicPlans(t *testing.T) {
 	}
 }
 
-func TestRender_EmptyPlans(t *testing.T) {
+func TestComposeComment_EmptyPlans(t *testing.T) {
 	t.Parallel()
 
-	r := NewCommentRenderer()
-	data := &CommentData{
-		Plans:       []ci.ModulePlan{},
-		GeneratedAt: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC),
-	}
-
-	result := r.Render(data)
+	result := ComposeComment([]ci.ModulePlan{}, nil, "", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
 
 	if !strings.Contains(result, "**0** modules analyzed") {
 		t.Errorf("expected '**0** modules analyzed', got: %s", result)
 	}
 }
 
-func TestRender_WithPolicySummary(t *testing.T) {
+func TestComposeComment_WithReport(t *testing.T) {
 	t.Parallel()
 
-	r := NewCommentRenderer()
-	data := &CommentData{
-		Plans: []ci.ModulePlan{
-			{
-				ModuleID:   "svc/prod/us-east-1/vpc",
-				Components: map[string]string{"environment": "prod"},
-				Status:     ci.PlanStatusChanges,
-				Summary:    "+1",
-			},
+	plans := []ci.ModulePlan{
+		{
+			ModuleID:   "svc/prod/us-east-1/vpc",
+			Components: map[string]string{"environment": "prod"},
+			Status:     ci.PlanStatusChanges,
+			Summary:    "+1",
 		},
-		PolicySummary: &ci.PolicySummary{
-			TotalModules:  2,
-			PassedModules: 1,
-			FailedModules: 1,
-			TotalFailures: 1,
-			Results: []ci.PolicyResult{
-				{
-					Module: "svc/prod/us-east-1/vpc",
-					Failures: []ci.PolicyViolation{
-						{Namespace: "terraform.cost", Message: "too expensive"},
-					},
-				},
-			},
-		},
-		GeneratedAt: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC),
 	}
 
-	result := r.Render(data)
+	reports := []*ci.Report{
+		{
+			Plugin:  "policy",
+			Title:   "Policy Check",
+			Status:  ci.ReportStatusFail,
+			Summary: "2 modules: 1 passed, 0 warned, 1 failed",
+			Body:    "**svc/prod/us-east-1/vpc** (fail)\n- :x: too expensive (terraform.cost)\n",
+		},
+	}
+
+	result := ComposeComment(plans, reports, "", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
 
 	if !strings.Contains(result, "Policy Check") {
 		t.Error("expected 'Policy Check' section")
@@ -110,32 +92,28 @@ func TestRender_WithPolicySummary(t *testing.T) {
 	if !strings.Contains(result, "too expensive") {
 		t.Error("expected failure message in output")
 	}
-	if !strings.Contains(result, "Failures (1)") {
-		t.Error("expected failure count")
+	if !strings.Contains(result, "1 failed") {
+		t.Error("expected failure count in summary")
 	}
 }
 
-func TestRender_WithCostData(t *testing.T) {
+func TestComposeComment_WithCostData(t *testing.T) {
 	t.Parallel()
 
-	r := NewCommentRenderer()
-	data := &CommentData{
-		Plans: []ci.ModulePlan{
-			{
-				ModuleID:   "svc/prod/us-east-1/vpc",
-				Components: map[string]string{"environment": "prod"},
-				Status:     ci.PlanStatusChanges,
-				Summary:    "+1",
-				HasCost:    true,
-				CostBefore: 10.0,
-				CostAfter:  15.0,
-				CostDiff:   5.0,
-			},
+	plans := []ci.ModulePlan{
+		{
+			ModuleID:   "svc/prod/us-east-1/vpc",
+			Components: map[string]string{"environment": "prod"},
+			Status:     ci.PlanStatusChanges,
+			Summary:    "+1",
+			HasCost:    true,
+			CostBefore: 10.0,
+			CostAfter:  15.0,
+			CostDiff:   5.0,
 		},
-		GeneratedAt: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC),
 	}
 
-	result := r.Render(data)
+	result := ComposeComment(plans, nil, "", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
 
 	if !strings.Contains(result, "| Cost |") {
 		t.Error("expected 'Cost' column header in table")
@@ -145,17 +123,10 @@ func TestRender_WithCostData(t *testing.T) {
 	}
 }
 
-func TestRender_CommitSHA(t *testing.T) {
+func TestComposeComment_CommitSHA(t *testing.T) {
 	t.Parallel()
 
-	r := NewCommentRenderer()
-	data := &CommentData{
-		Plans:       []ci.ModulePlan{},
-		CommitSHA:   "abcdef1234567890abcdef1234567890abcdef12",
-		GeneratedAt: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC),
-	}
-
-	result := r.Render(data)
+	result := ComposeComment([]ci.ModulePlan{}, nil, "abcdef1234567890abcdef1234567890abcdef12", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
 
 	if !strings.Contains(result, "`abcdef12`") {
 		t.Errorf("expected truncated SHA 'abcdef12', got: %s", result)
@@ -167,8 +138,6 @@ func TestRender_CommitSHA(t *testing.T) {
 
 func TestCalculateStats(t *testing.T) {
 	t.Parallel()
-
-	r := NewCommentRenderer()
 
 	tests := []struct {
 		name  string
@@ -218,7 +187,7 @@ func TestCalculateStats(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := r.calculateStats(tt.plans)
+			got := calculateStats(tt.plans)
 			if got != tt.want {
 				t.Errorf("calculateStats() = %+v, want %+v", got, tt.want)
 			}
@@ -228,8 +197,6 @@ func TestCalculateStats(t *testing.T) {
 
 func TestRenderStats(t *testing.T) {
 	t.Parallel()
-
-	r := NewCommentRenderer()
 
 	tests := []struct {
 		name     string
@@ -262,7 +229,7 @@ func TestRenderStats(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := r.renderStats(tt.stats)
+			got := renderStats(tt.stats)
 			for _, want := range tt.contains {
 				if !strings.Contains(got, want) {
 					t.Errorf("renderStats() = %q, want to contain %q", got, want)
@@ -274,8 +241,6 @@ func TestRenderStats(t *testing.T) {
 
 func TestGroupByEnvironment(t *testing.T) {
 	t.Parallel()
-
-	r := NewCommentRenderer()
 
 	tests := []struct {
 		name     string
@@ -314,7 +279,7 @@ func TestGroupByEnvironment(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := r.groupByEnvironment(tt.plans)
+			got := groupByEnvironment(tt.plans)
 			for _, key := range tt.wantKeys {
 				if _, ok := got[key]; !ok {
 					t.Errorf("groupByEnvironment() missing key %q", key)
@@ -350,12 +315,12 @@ func TestFormatCostCell(t *testing.T) {
 		{
 			name: "positive diff",
 			plan: ci.ModulePlan{HasCost: true, CostBefore: 10.0, CostAfter: 15.0, CostDiff: 5.0},
-			want: "$10.00 +$5.00 → $15.00",
+			want: "$10.00 +$5.00 -> $15.00",
 		},
 		{
 			name: "negative diff",
 			plan: ci.ModulePlan{HasCost: true, CostBefore: 20.0, CostAfter: 10.0, CostDiff: -10.0},
-			want: "$20.00 -$10.00 → $10.00",
+			want: "$20.00 -$10.00 -> $10.00",
 		},
 	}
 
@@ -479,26 +444,24 @@ func TestTruncate(t *testing.T) {
 func TestStatusIcon(t *testing.T) {
 	t.Parallel()
 
-	r := NewCommentRenderer()
-
 	tests := []struct {
 		status ci.PlanStatus
 		want   string
 	}{
-		{ci.PlanStatusSuccess, "✅"},
-		{ci.PlanStatusNoChanges, "✅"},
-		{ci.PlanStatusChanges, "🔄"},
-		{ci.PlanStatusFailed, "❌"},
-		{ci.PlanStatusPending, "⏳"},
-		{ci.PlanStatusRunning, "🔄"},
-		{ci.PlanStatus("unknown"), "❓"},
+		{ci.PlanStatusSuccess, "ok"},
+		{ci.PlanStatusNoChanges, "ok"},
+		{ci.PlanStatusChanges, "changes"},
+		{ci.PlanStatusFailed, "failed"},
+		{ci.PlanStatusPending, "pending"},
+		{ci.PlanStatusRunning, "running"},
+		{ci.PlanStatus("unknown"), "?"},
 	}
 
 	for _, tt := range tests {
 		t.Run(string(tt.status), func(t *testing.T) {
 			t.Parallel()
 
-			got := r.statusIcon(tt.status)
+			got := statusIcon(tt.status)
 			if got != tt.want {
 				t.Errorf("statusIcon(%q) = %q, want %q", tt.status, got, tt.want)
 			}
@@ -508,8 +471,6 @@ func TestStatusIcon(t *testing.T) {
 
 func TestRenderExpandableDetails(t *testing.T) {
 	t.Parallel()
-
-	r := NewCommentRenderer()
 
 	t.Run("with structured details", func(t *testing.T) {
 		t.Parallel()
@@ -521,7 +482,7 @@ func TestRenderExpandableDetails(t *testing.T) {
 			StructuredDetails: "### Resources\n- aws_vpc.main (create)",
 		}
 
-		got := r.renderExpandableDetails(p)
+		got := renderExpandableDetails(p)
 
 		if !strings.Contains(got, "<details>") {
 			t.Error("expected <details> tag")
@@ -544,7 +505,7 @@ func TestRenderExpandableDetails(t *testing.T) {
 			RawPlanOutput: "+ resource \"aws_db_instance\" \"main\"",
 		}
 
-		got := r.renderExpandableDetails(p)
+		got := renderExpandableDetails(p)
 
 		if !strings.Contains(got, "Full plan output") {
 			t.Error("expected 'Full plan output' section")
@@ -567,10 +528,10 @@ func TestRenderExpandableDetails(t *testing.T) {
 			Error:    "terraform init failed",
 		}
 
-		got := r.renderExpandableDetails(p)
+		got := renderExpandableDetails(p)
 
-		if !strings.Contains(got, "❌ svc/prod/us-east-1/eks") {
-			t.Errorf("expected failed icon with module ID, got: %s", got)
+		if !strings.Contains(got, "FAILED svc/prod/us-east-1/eks") {
+			t.Errorf("expected failed prefix with module ID, got: %s", got)
 		}
 	})
 
@@ -584,111 +545,83 @@ func TestRenderExpandableDetails(t *testing.T) {
 			StructuredDetails: "some details",
 		}
 
-		got := r.renderExpandableDetails(p)
+		got := renderExpandableDetails(p)
 
-		// With empty summary, title should just be the module ID prefixed with icon
-		if !strings.Contains(got, "📋 svc/prod/us-east-1/vpc</summary>") {
+		// With empty summary, title should just be the module ID
+		if !strings.Contains(got, "svc/prod/us-east-1/vpc</summary>") {
 			t.Errorf("expected plain title without summary parens, got: %s", got)
 		}
 	})
 }
 
-func TestRenderPolicySection(t *testing.T) {
+func TestRenderReportSection(t *testing.T) {
 	t.Parallel()
 
-	r := NewCommentRenderer()
-
-	t.Run("with failures", func(t *testing.T) {
+	t.Run("with fail status", func(t *testing.T) {
 		t.Parallel()
 
-		summary := &ci.PolicySummary{
-			TotalModules:  3,
-			PassedModules: 1,
-			FailedModules: 2,
-			TotalFailures: 3,
-			Results: []ci.PolicyResult{
-				{
-					Module: "svc/prod/us-east-1/vpc",
-					Failures: []ci.PolicyViolation{
-						{Namespace: "terraform.security", Message: "no public access"},
-						{Namespace: "terraform.cost", Message: "budget exceeded"},
-					},
-				},
-				{
-					Module: "svc/prod/us-east-1/rds",
-					Failures: []ci.PolicyViolation{
-						{Namespace: "terraform.security", Message: "encryption required"},
-					},
-				},
-			},
+		report := &ci.Report{
+			Plugin:  "policy",
+			Title:   "Policy Check",
+			Status:  ci.ReportStatusFail,
+			Summary: "3 modules: 1 passed, 0 warned, 2 failed",
+			Body:    "**svc/prod/us-east-1/vpc** (fail)\n- :x: no public access (terraform.security)\n",
 		}
 
-		got := r.renderPolicySection(summary)
+		got := renderReportSection(report)
 
-		if !strings.Contains(got, "❌ Policy Check") {
-			t.Error("expected failure icon in policy check header")
-		}
-		if !strings.Contains(got, "**3** modules checked") {
-			t.Error("expected total modules count")
+		if !strings.Contains(got, "Policy Check") {
+			t.Error("expected policy check header")
 		}
 		if !strings.Contains(got, "no public access") {
 			t.Error("expected failure message")
 		}
-		if !strings.Contains(got, "Failures (3)") {
-			t.Error("expected failures count")
+		if !strings.Contains(got, "2 failed") {
+			t.Error("expected failure count")
 		}
 	})
 
-	t.Run("with warnings only", func(t *testing.T) {
+	t.Run("with warn status", func(t *testing.T) {
 		t.Parallel()
 
-		summary := &ci.PolicySummary{
-			TotalModules:  1,
-			WarnedModules: 1,
-			TotalWarnings: 1,
-			Results: []ci.PolicyResult{
-				{
-					Module: "svc/staging/us-east-1/vpc",
-					Warnings: []ci.PolicyViolation{
-						{Namespace: "terraform.naming", Message: "non-standard naming"},
-					},
-				},
-			},
+		report := &ci.Report{
+			Plugin:  "policy",
+			Title:   "Policy Check",
+			Status:  ci.ReportStatusWarn,
+			Summary: "1 modules: 0 passed, 1 warned, 0 failed",
+			Body:    "**svc/staging/us-east-1/vpc** (warn)\n- :warning: non-standard naming (terraform.naming)\n",
 		}
 
-		got := r.renderPolicySection(summary)
+		got := renderReportSection(report)
 
-		if !strings.Contains(got, "⚠️ Policy Check") {
-			t.Error("expected warning icon in policy check header")
-		}
-		if !strings.Contains(got, "Warnings (1)") {
-			t.Error("expected warnings count")
+		if !strings.Contains(got, "warn") {
+			t.Error("expected warning status")
 		}
 		if !strings.Contains(got, "non-standard naming") {
 			t.Error("expected warning message")
 		}
 	})
 
-	t.Run("all passed", func(t *testing.T) {
+	t.Run("pass status", func(t *testing.T) {
 		t.Parallel()
 
-		summary := &ci.PolicySummary{
-			TotalModules:  2,
-			PassedModules: 2,
+		report := &ci.Report{
+			Plugin:  "policy",
+			Title:   "Policy Check",
+			Status:  ci.ReportStatusPass,
+			Summary: "2 modules: 2 passed, 0 warned, 0 failed",
 		}
 
-		got := r.renderPolicySection(summary)
+		got := renderReportSection(report)
 
-		if !strings.Contains(got, "✅ Policy Check") {
-			t.Error("expected pass icon in policy check header")
+		if !strings.Contains(got, "pass") {
+			t.Error("expected pass status")
 		}
 	})
 }
 
 func TestRenderPlanRow(t *testing.T) {
 	t.Parallel()
-
-	r := NewCommentRenderer()
 
 	t.Run("without cost", func(t *testing.T) {
 		t.Parallel()
@@ -699,9 +632,9 @@ func TestRenderPlanRow(t *testing.T) {
 			Summary:  "+2 ~1 -0",
 		}
 
-		got := r.renderPlanRow(p, false)
+		got := renderPlanRow(p, false)
 
-		if !strings.Contains(got, "🔄") {
+		if !strings.Contains(got, "changes") {
 			t.Error("expected changes icon")
 		}
 		if !strings.Contains(got, "`svc/prod/us-east-1/vpc`") {
@@ -728,7 +661,7 @@ func TestRenderPlanRow(t *testing.T) {
 			CostDiff:  0,
 		}
 
-		got := r.renderPlanRow(p, true)
+		got := renderPlanRow(p, true)
 
 		// Should have 4 columns
 		if strings.Count(got, "|") != 5 {
@@ -748,7 +681,7 @@ func TestRenderPlanRow(t *testing.T) {
 			Error:    "init failed: something went wrong",
 		}
 
-		got := r.renderPlanRow(p, false)
+		got := renderPlanRow(p, false)
 
 		if !strings.Contains(got, "init failed: something went wrong") {
 			t.Error("expected error message in summary")
@@ -763,7 +696,7 @@ func TestRenderPlanRow(t *testing.T) {
 			Status:   ci.PlanStatusPending,
 		}
 
-		got := r.renderPlanRow(p, false)
+		got := renderPlanRow(p, false)
 
 		if !strings.Contains(got, "| - |") {
 			t.Errorf("expected dash for empty summary, got: %s", got)

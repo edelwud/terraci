@@ -43,37 +43,6 @@ const (
 	PlanStatusFailed    PlanStatus = "failed"
 )
 
-// PolicySummary contains policy check data needed for rendering PR/MR comments.
-// This is a CI-local type to avoid coupling with the policy package.
-type PolicySummary struct {
-	TotalModules  int
-	PassedModules int
-	WarnedModules int
-	FailedModules int
-	TotalFailures int
-	TotalWarnings int
-	Results       []PolicyResult
-}
-
-// HasFailures returns true if any module has failures.
-func (s *PolicySummary) HasFailures() bool { return s.FailedModules > 0 }
-
-// HasWarnings returns true if any module has warnings.
-func (s *PolicySummary) HasWarnings() bool { return s.WarnedModules > 0 || s.TotalWarnings > 0 }
-
-// PolicyResult contains policy check results for a single module.
-type PolicyResult struct {
-	Module   string
-	Failures []PolicyViolation
-	Warnings []PolicyViolation
-}
-
-// PolicyViolation represents a single policy violation.
-type PolicyViolation struct {
-	Namespace string
-	Message   string
-}
-
 // PlanResult represents the result of a terraform plan for a single module
 type PlanResult struct {
 	ModuleID          string            `json:"module_id"`
@@ -106,6 +75,35 @@ type PlanResultCollection struct {
 	PipelineID  string       `json:"pipeline_id,omitempty"`
 	CommitSHA   string       `json:"commit_sha,omitempty"`
 	GeneratedAt time.Time    `json:"generated_at"`
+}
+
+// Report is a plugin's contribution to the summary comment.
+// Plugins write reports as {serviceDir}/{plugin}-report.json.
+type Report struct {
+	Plugin  string         `json:"plugin"`
+	Title   string         `json:"title"`
+	Status  ReportStatus   `json:"status"`
+	Summary string         `json:"summary"`
+	Body    string         `json:"body"`
+	Modules []ModuleReport `json:"modules,omitempty"`
+}
+
+// ReportStatus indicates the outcome of a plugin's check.
+type ReportStatus string
+
+const (
+	ReportStatusPass ReportStatus = "pass"
+	ReportStatusWarn ReportStatus = "warn"
+	ReportStatusFail ReportStatus = "fail"
+)
+
+// ModuleReport carries per-module enrichment data from a plugin report.
+type ModuleReport struct {
+	ModulePath string  `json:"module_path"`
+	CostBefore float64 `json:"cost_before,omitempty"`
+	CostAfter  float64 `json:"cost_after,omitempty"`
+	CostDiff   float64 `json:"cost_diff,omitempty"`
+	HasCost    bool    `json:"has_cost,omitempty"`
 }
 
 // ToModulePlans converts plan results to ModulePlan for comment rendering
