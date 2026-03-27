@@ -1,4 +1,4 @@
-package summaryengine
+package discovery
 
 import (
 	"fmt"
@@ -9,7 +9,6 @@ import (
 
 	"github.com/edelwud/terraci/internal/terraform/plan"
 	"github.com/edelwud/terraci/pkg/ci"
-	"github.com/edelwud/terraci/pkg/discovery"
 )
 
 // Constants for plan summary formatting
@@ -18,15 +17,15 @@ const (
 	maxAddressLength      = 80
 )
 
-// defaultSegments is the default pattern segments when none are provided.
-var defaultSegments = []string{"service", "environment", "region", "module"}
+// defaultPlanSegments is the default pattern segments when none are provided.
+var defaultPlanSegments = []string{"service", "environment", "region", "module"}
 
 // ScanPlanResults scans for plan.json files in module directories
 // and builds a collection of plan results from their contents.
 // If segments is nil or empty, default segments (service/environment/region/module) are used.
 func ScanPlanResults(rootDir string, segments []string) (*ci.PlanResultCollection, error) {
 	if len(segments) == 0 {
-		segments = defaultSegments
+		segments = defaultPlanSegments
 	}
 
 	collection := &ci.PlanResultCollection{
@@ -36,7 +35,7 @@ func ScanPlanResults(rootDir string, segments []string) (*ci.PlanResultCollectio
 		CommitSHA:   detectCommitSHA(),
 	}
 
-	moduleDirs, err := discovery.FindModulesWithPlan(rootDir)
+	moduleDirs, err := FindModulesWithPlan(rootDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan for plan results: %w", err)
 	}

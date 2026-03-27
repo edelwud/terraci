@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/plugin"
 	summaryengine "github.com/edelwud/terraci/plugins/summary/internal"
@@ -35,7 +36,7 @@ func (p *Plugin) runSummary(appCtx *plugin.AppContext) error {
 	// Scan plan results (provider-agnostic)
 	log.Info("scanning for plan results")
 	segments := []string(appCtx.Config.Structure.Segments)
-	collection, err := summaryengine.ScanPlanResults(".", segments)
+	collection, err := discovery.ScanPlanResults(".", segments)
 	if err != nil {
 		return fmt.Errorf("failed to scan plan results: %w", err)
 	}
