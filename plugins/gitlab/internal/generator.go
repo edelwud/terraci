@@ -13,8 +13,6 @@ import (
 const (
 	// DefaultStagesPrefix is the default prefix for stage names
 	DefaultStagesPrefix = "deploy"
-	// summaryJobName is the name recognized for summary job config overrides
-	summaryJobName = "terraci-summary"
 	// WhenManual is the GitLab CI "when: manual" value for jobs that require manual trigger
 	WhenManual = "manual"
 )
@@ -118,8 +116,8 @@ func (g *Generator) transform(ir *pipeline.IR) *Pipeline {
 		for i := range ir.Jobs {
 			cj := &ir.Jobs[i]
 			job := g.transformContributedJob(cj)
-			// Apply summary job overrides for the terraci-summary job
-			if cj.Name == summaryJobName {
+			// Apply summary job overrides for finalize-phase jobs
+			if cj.Phase == pipeline.PhaseFinalize {
 				g.applySummaryJobOverrides(job)
 			}
 			result.Jobs[cj.Name] = job

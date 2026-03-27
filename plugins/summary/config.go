@@ -10,7 +10,7 @@ type Config struct {
 	Labels         []string `yaml:"labels,omitempty" json:"labels,omitempty"`
 }
 
-func (p *Plugin) ConfigKey() string { return "summary" }
+func (p *Plugin) ConfigKey() string { return pluginName }
 func (p *Plugin) NewConfig() any    { return &Config{} }
 
 func (p *Plugin) SetConfig(cfg any) error {

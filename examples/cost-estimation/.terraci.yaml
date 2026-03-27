@@ -14,7 +14,7 @@ plugins:
         terraform_binary: tofu
     policy:
         enabled: true
-        on_failure: block
+        on_failure: warn
         sources:
             - path: policies
     summary: {}

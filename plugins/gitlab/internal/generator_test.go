@@ -591,7 +591,7 @@ func TestGenerator_Generate_WithMRIntegration(t *testing.T) {
 	}
 
 	// Check summary job exists
-	summaryJob := p.Jobs[summaryJobName]
+	summaryJob := p.Jobs["terraci-summary"]
 	if summaryJob == nil {
 		t.Fatal("summary job not found")
 	}
@@ -656,7 +656,7 @@ func TestGenerator_Generate_WithMRIntegration_Disabled(t *testing.T) {
 	}
 
 	// Check summary job does NOT exist (no summary contribution provided)
-	if _, exists := p.Jobs[summaryJobName]; exists {
+	if _, exists := p.Jobs["terraci-summary"]; exists {
 		t.Error("summary job should not exist when no summary contribution is provided")
 	}
 

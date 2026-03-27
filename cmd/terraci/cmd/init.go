@@ -54,7 +54,11 @@ Examples:
 				if initProvider != "" {
 					state.Set("provider", initProvider)
 				} else {
-					state.Set("provider", "gitlab")
+					// Default to first registered provider
+					providerPlugins := plugin.ByCapability[plugin.GeneratorProvider]()
+					if len(providerPlugins) > 0 {
+						state.Set("provider", providerPlugins[0].ProviderName())
+					}
 				}
 				if initBinary != "" {
 					state.Set("binary", initBinary)

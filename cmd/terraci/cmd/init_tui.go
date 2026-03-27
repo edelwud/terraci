@@ -58,9 +58,13 @@ type initModel struct {
 
 func newInitModel() *initModel {
 	state := plugin.NewStateMap()
-	state.Set("provider", "gitlab")
+	// Set provider default dynamically from registered plugins
+	providerPlugins := plugin.ByCapability[plugin.GeneratorProvider]()
+	if len(providerPlugins) > 0 {
+		state.Set("provider", providerPlugins[0].ProviderName())
+	}
 	state.Set("binary", "terraform")
-	state.Set("pattern", "{service}/{environment}/{region}/{module}")
+	state.Set("pattern", config.DefaultConfig().Structure.Pattern)
 	state.Set("plan_enabled", true)
 
 	m := &initModel{state: state}
@@ -98,14 +102,19 @@ func newInitModel() *initModel {
 }
 
 func (m *initModel) basicsGroup() *huh.Group {
+	// Build provider options dynamically from registered plugins
+	providerPlugins := plugin.ByCapability[plugin.GeneratorProvider]()
+	providerOpts := make([]huh.Option[string], 0, len(providerPlugins))
+	for _, pp := range providerPlugins {
+		providerOpts = append(providerOpts, huh.NewOption(pp.Description(), pp.ProviderName()))
+	}
+
 	return huh.NewGroup(
 		huh.NewSelect[string]().
 			Title("CI Provider").
 			Description("Which CI/CD platform do you use?").
-			Options(
-				huh.NewOption("GitLab CI", "gitlab"),
-				huh.NewOption("GitHub Actions", "github"),
-			).Value(m.state.StringPtr("provider")),
+			Options(providerOpts...).
+			Value(m.state.StringPtr("provider")),
 
 		huh.NewSelect[string]().
 			Title("Terraform Binary").

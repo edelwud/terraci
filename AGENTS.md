@@ -20,9 +20,8 @@ cmd/terraci/
 ├── main.go                     # Entry point — blank-imports all built-in plugins
 └── cmd/
     ├── app.go                  # App struct, PluginContext() with ServiceDir, InitPluginConfigs()
-    ├── root.go                 # NewRootCmd(), plugin lifecycle (Init/Finalize), dynamic commands
+    ├── root.go                 # NewRootCmd(), plugin lifecycle (Init), dynamic commands
     ├── generate.go             # Pipeline generation (uses plugin.ResolveProvider())
-    ├── summary.go              # MR/PR comment via SummaryContributor plugins
     ├── graph.go                # Dependency graph visualization
     ├── validate.go             # Config/project validation
     ├── filters.go              # filterFlags struct — shared filter flags
@@ -49,10 +48,9 @@ cmd/xterraci/
 
 pkg/                            # Public API — importable by external plugins
 ├── plugin/
-│   ├── plugin.go               # Plugin interface + 13 capability interfaces
+│   ├── plugin.go               # Plugin interface + capability interfaces
 │   ├── registry.go             # Register(), All(), ByCapability[T](), ResolveProvider()
-│   ├── hooks.go                # WorkflowHook, HookPhase, WorkflowState
-│   ├── context.go              # AppContext (with ServiceDir), ExecutionContext, CommentSection
+│   ├── context.go              # AppContext (with ServiceDir)
 │   ├── init_state.go           # StateMap — form state with pointer getters for huh
 │   └── helpers.go              # CollectContributions() — shared pipeline helper
 ├── pipeline/
@@ -67,12 +65,12 @@ pkg/                            # Public API — importable by external plugins
 │   ├── builder.go              # BuildConfigFromPlugins(), SetPluginValue()
 │   ├── pattern.go              # ParsePattern, PatternSegments
 │   └── schema.go               # GenerateJSONSchema (with plugin schemas)
-├── ci/                         # Provider-agnostic CI types
-├── discovery/                  # Module, Scanner, ModuleIndex
+├── ci/                         # Provider-agnostic CI types, Report, CommentService
+├── discovery/                  # Module, Scanner, ModuleIndex, PlanScanner
 ├── parser/                     # HCL parser, DependencyExtractor
 ├── graph/                      # DependencyGraph, algorithms, visualization
-├── filter/                     # GlobFilter, SegmentFilter, Apply()
-├── workflow/                   # Run() with plugin hook execution
+├── filter/                     # GlobFilter, flags
+├── workflow/                   # Module discovery, filtering, graph building
 ├── errors/                     # Typed errors
 └── log/                        # Structured logging
 
@@ -96,7 +94,7 @@ plugins/                        # Built-in plugins — one file per capability
 │   ├── config.go               # ConfigProvider + effectiveConfig, getEstimator
 │   ├── lifecycle.go            # Initializable (create estimator, clean cache)
 │   ├── commands.go             # CommandProvider (terraci cost)
-│   ├── summary.go              # SummaryContributor
+│   ├── pipeline.go             # PipelineContributor
 │   ├── init_wizard.go          # InitContributor
 │   ├── output.go               # Rendering helpers (segment tree, submodules)
 │   └── internal/               # (package costengine) estimator, aws handlers, pricing cache
@@ -105,11 +103,18 @@ plugins/                        # Built-in plugins — one file per capability
 │   ├── config.go               # ConfigProvider
 │   ├── lifecycle.go            # Initializable (OPA validation, serviceDir)
 │   ├── commands.go             # CommandProvider (terraci policy pull/check)
-│   ├── summary.go              # SummaryContributor (loads policy results)
 │   ├── pipeline.go             # PipelineContributor (policy-check job)
 │   ├── version.go              # VersionProvider (OPA version)
 │   ├── init_wizard.go          # InitContributor
 │   └── internal/               # (package policyengine) OPA engine, checker, sources
+├── summary/
+│   ├── plugin.go               # init, Plugin struct, Name, Description
+│   ├── config.go               # ConfigProvider
+│   ├── commands.go             # CommandProvider (terraci summary)
+│   ├── pipeline.go             # PipelineContributor (PhaseFinalize summary job)
+│   ├── init_wizard.go          # InitContributor
+│   ├── output.go               # CLI output helpers
+│   └── internal/               # (package summaryengine) renderer, report_loader
 └── git/
     ├── plugin.go               # init, Plugin struct, Name, Description
     ├── lifecycle.go            # Initializable (verify repo, cache client)
@@ -133,10 +138,9 @@ Compile-time plugins via `init()` + blank import (Caddy/database-sql pattern). P
 Each plugin follows one-file-per-capability:
 - `plugin.go` — only init(), Plugin struct, Name(), Description() (< 30 lines)
 - `config.go` — ConfigProvider methods
-- `lifecycle.go` — Initializable (+ Finalizable if needed)
+- `lifecycle.go` — Initializable
 - `commands.go` — CommandProvider with cobra definitions
 - `generator.go` — GeneratorProvider + CommentService factory
-- `summary.go` — SummaryContributor
 - `pipeline.go` — PipelineContributor
 - `init_wizard.go` — InitContributor
 - `version.go` — VersionProvider
@@ -149,8 +153,7 @@ Each plugin follows one-file-per-capability:
 1. Register    — init() calls plugin.Register()
 2. Configure   — ConfigProvider.SetConfig() for plugins with config in .terraci.yaml
 3. Initialize  — Initializable.Initialize() sets up resources
-4. Execute     — Commands, workflow hooks, SummaryContributor, PipelineContributor
-5. Finalize    — Finalizable.Finalize() cleans up
+4. Execute     — Commands, PipelineContributor
 ```
 
 ### Capability Interfaces
@@ -158,25 +161,21 @@ Each plugin follows one-file-per-capability:
 | Interface | Purpose | Implemented by |
 |-----------|---------|----------------|
 | `Plugin` | Base: Name(), Description() | all |
-| `ConfigProvider` | Config section under `plugins:` + IsConfigured() | gitlab, github, cost, policy |
-| `CommandProvider` | CLI subcommands | cost, policy |
+| `ConfigProvider` | Config section under `plugins:` + IsConfigured() | gitlab, github, cost, policy, summary |
+| `CommandProvider` | CLI subcommands | cost, policy, summary |
 | `GeneratorProvider` | CI pipeline generation + comment service | gitlab, github |
-| `SummaryContributor` | Enriches plan results via ExecutionContext | cost, policy |
 | `VersionProvider` | Version info contributions | policy |
 | `ChangeDetectionProvider` | VCS change detection | git |
-| `InitContributor` | Init wizard form fields + config building | gitlab, github, cost, policy |
-| `PipelineContributor` | Pipeline steps/jobs via Contribution | policy |
-| `FilterProvider` | Custom module filters | (available) |
-| `WorkflowHookProvider` | Workflow phase hooks | (available) |
-| `Initializable` | Setup after config load | all 5 |
-| `Finalizable` | Cleanup after command | (available) |
+| `InitContributor` | Init wizard form fields + config building | gitlab, github, cost, policy, summary |
+| `PipelineContributor` | Pipeline steps/jobs via Contribution | cost, policy, summary |
+| `Initializable` | Setup after config load | gitlab, github, cost, policy, git |
 
 ### Pipeline IR
 
 `pkg/pipeline.Build(opts)` creates a provider-agnostic IR. Generators transform it to YAML:
 
 ```
-pipeline.Build(opts) → IR{Levels, Jobs, Summary}
+pipeline.Build(opts) → IR{Levels, Jobs}
   ↓
 GitLab: IR → Pipeline{Stages, Jobs} → YAML
 GitHub: IR → Workflow{Jobs, Steps} → YAML
@@ -235,16 +234,18 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 ## Data Flow
 
 ### Generate pipeline
-1. `workflow.Run(ctx, opts)` — scan → filter → parse → graph (with hooks)
+1. `workflow.Run(ctx, opts)` — scan → filter → parse → graph
 2. `ChangeDetectionProvider.DetectChangedModules()` (if --changed-only)
 3. `plugin.CollectContributions()` — gather PipelineContributor steps/jobs
 4. `pipeline.Build(opts)` — construct provider-agnostic IR
 5. `GeneratorProvider.NewGenerator()` — transform IR to provider YAML
 
 ### Summary
-1. `ci.ScanPlanResults()` → ExecutionContext
-2. `SummaryContributor` plugins enrich (cost estimates, policy results)
-3. `GeneratorProvider.NewCommentService()` → UpsertComment
+1. `discovery.ScanPlanResults()` → PlanResultCollection
+2. Load plugin reports from `{serviceDir}/*-report.json` (file-based enrichment)
+3. `summaryengine.EnrichPlans()` merges report data into plan results
+4. `summaryengine.ComposeComment()` renders markdown
+5. `plugin.ResolveProvider()` → `NewCommentService()` → `UpsertComment()`
 
 ### Init wizard
 1. Core groups: Basics, Structure, Pipeline Options
@@ -259,10 +260,9 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **Pipeline IR**: `pkg/pipeline.Build()` → provider transforms to YAML
 - **PipelineContributor**: plugins inject steps/jobs without cross-plugin imports
 - **ServiceDir**: configurable project directory, passed via AppContext
-- **Lazy AppContext**: `Ensure()` refreshes from App state
-- **ExecutionContext**: mutex-protected shared state for summary plugins
-- **Zero cross-plugin imports**: plugins communicate only via registry + shared types
-- **Shared workflow**: `workflow.Run()` with hook injection at 5 phases
+- **File-based reports**: plugins write `{serviceDir}/{plugin}-report.json`; summary plugin loads and merges them
+- **Zero cross-plugin imports**: plugins communicate only via registry + shared types + file-based reports
+- **Shared workflow**: `workflow.Run()` — scan, filter, parse, graph building
 
 ## CLI Commands
 

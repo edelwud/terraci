@@ -11,8 +11,6 @@ import (
 )
 
 const (
-	// summaryJobName is the name recognized for summary job config overrides
-	summaryJobName = "terraci-summary"
 	// stepsInitialCap is the initial capacity for job steps slice
 	stepsInitialCap = 8
 )
@@ -119,8 +117,8 @@ func (g *Generator) transform(ir *pipeline.IR) *Workflow {
 		for i := range ir.Jobs {
 			cj := &ir.Jobs[i]
 			job := g.transformContributedJob(cj)
-			// Apply summary job overrides for the terraci-summary job
-			if cj.Name == summaryJobName {
+			// Apply summary job overrides for finalize-phase jobs
+			if cj.Phase == pipeline.PhaseFinalize {
 				g.applySummaryJobOverrides(job)
 			}
 			workflow.Jobs[cj.Name] = job

@@ -6,6 +6,8 @@ import (
 	gitclient "github.com/edelwud/terraci/plugins/git/internal"
 )
 
+const pluginName = "git"
+
 func init() { //nolint:gochecknoinits // intentional plugin registration
 	plugin.Register(&Plugin{})
 }
@@ -17,5 +19,5 @@ type Plugin struct {
 	isRepo     bool
 }
 
-func (p *Plugin) Name() string        { return "git" }
+func (p *Plugin) Name() string        { return pluginName }
 func (p *Plugin) Description() string { return "Git change detection for incremental pipelines" }

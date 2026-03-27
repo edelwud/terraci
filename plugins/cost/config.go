@@ -7,7 +7,7 @@ import (
 )
 
 // ConfigKey returns the config key for the cost plugin.
-func (p *Plugin) ConfigKey() string { return "cost" }
+func (p *Plugin) ConfigKey() string { return pluginName }
 
 // NewConfig returns a new default cost config.
 func (p *Plugin) NewConfig() any { return &costengine.CostConfig{} }

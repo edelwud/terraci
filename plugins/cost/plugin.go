@@ -6,6 +6,8 @@ import (
 	costengine "github.com/edelwud/terraci/plugins/cost/internal"
 )
 
+const pluginName = "cost"
+
 func init() { //nolint:gochecknoinits // intentional plugin registration
 	plugin.Register(&Plugin{})
 }
@@ -18,5 +20,5 @@ type Plugin struct {
 	serviceDirRel string // relative path, for pipeline artifact paths
 }
 
-func (p *Plugin) Name() string        { return "cost" }
+func (p *Plugin) Name() string        { return pluginName }
 func (p *Plugin) Description() string { return "AWS cost estimation from Terraform plans" }

@@ -43,6 +43,14 @@ const (
 	PlanStatusFailed    PlanStatus = "failed"
 )
 
+// PlanStatusFromPlan determines the CI plan status from a parsed plan.
+func PlanStatusFromPlan(hasChanges bool) PlanStatus {
+	if !hasChanges {
+		return PlanStatusNoChanges
+	}
+	return PlanStatusChanges
+}
+
 // PlanResult represents the result of a terraform plan for a single module
 type PlanResult struct {
 	ModuleID          string            `json:"module_id"`

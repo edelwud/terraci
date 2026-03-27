@@ -4,7 +4,7 @@ import "github.com/edelwud/terraci/pkg/plugin"
 
 // InitContributor — contributes summary field to the init wizard.
 
-const initGroupOrder = 200
+const initGroupOrder = 300
 
 // InitGroup returns the summary plugin's form group for the init wizard.
 func (p *Plugin) InitGroup() *plugin.InitGroupSpec {

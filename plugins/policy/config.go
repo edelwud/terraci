@@ -7,7 +7,7 @@ import (
 )
 
 // ConfigKey returns the config key for the policy plugin.
-func (p *Plugin) ConfigKey() string { return "policy" }
+func (p *Plugin) ConfigKey() string { return pluginName }
 
 // NewConfig returns a new default policy config.
 func (p *Plugin) NewConfig() any { return &policyengine.Config{} }

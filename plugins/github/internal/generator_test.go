@@ -382,7 +382,7 @@ func TestGenerate_WithPR(t *testing.T) {
 	}
 
 	// Summary job should exist
-	summaryJob := w.Jobs[summaryJobName]
+	summaryJob := w.Jobs["terraci-summary"]
 	if summaryJob == nil {
 		t.Fatal("summary job not found")
 	}

@@ -47,25 +47,6 @@
     },
     "plugins": {
       "properties": {
-        "cost": {
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "description": "Enable cost estimation",
-              "default": false
-            },
-            "cache_dir": {
-              "type": "string",
-              "description": "Directory to cache AWS pricing data"
-            },
-            "cache_ttl": {
-              "type": "string",
-              "description": "How long cached pricing is valid (e.g. 24h)",
-              "default": "24h"
-            }
-          },
-          "type": "object"
-        },
         "github": {
           "properties": {
             "terraform_binary": {
@@ -1058,6 +1039,25 @@
                 "type": "string"
               },
               "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "cost": {
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable cost estimation",
+              "default": false
+            },
+            "cache_dir": {
+              "type": "string",
+              "description": "Directory to cache AWS pricing data"
+            },
+            "cache_ttl": {
+              "type": "string",
+              "description": "How long cached pricing is valid (e.g. 24h)",
+              "default": "24h"
             }
           },
           "type": "object"

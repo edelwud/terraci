@@ -4,6 +4,8 @@ package summary
 
 import "github.com/edelwud/terraci/pkg/plugin"
 
+const pluginName = "summary"
+
 func init() { //nolint:gochecknoinits // intentional plugin registration
 	plugin.Register(&Plugin{})
 }
@@ -14,5 +16,5 @@ type Plugin struct {
 	configured bool
 }
 
-func (p *Plugin) Name() string        { return "summary" }
+func (p *Plugin) Name() string        { return pluginName }
 func (p *Plugin) Description() string { return "MR/PR comment posting from plan results" }

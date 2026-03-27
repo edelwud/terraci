@@ -97,17 +97,10 @@ func parsePlanJSON(jsonPath, modulePath string, segments []string) (ci.PlanResul
 		ModuleID:          strings.ReplaceAll(modulePath, string(filepath.Separator), "/"),
 		ModulePath:        modulePath,
 		Components:        components,
-		Status:            getPlanStatus(parsed),
+		Status:            ci.PlanStatusFromPlan(parsed.HasChanges()),
 		Summary:           parsed.Summary(),
 		StructuredDetails: parsed.Details(),
 		RawPlanOutput:     rawPlanOutput,
 		ExitCode:          parsed.ExitCode(),
 	}, nil
-}
-
-func getPlanStatus(p *plan.ParsedPlan) ci.PlanStatus {
-	if !p.HasChanges() {
-		return ci.PlanStatusNoChanges
-	}
-	return ci.PlanStatusChanges
 }
