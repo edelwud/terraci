@@ -2,6 +2,7 @@ package cost
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -68,14 +69,22 @@ func (p *Plugin) runSingle(ctx context.Context, estimator *costengine.Estimator,
 		return fmt.Errorf("estimate module %s: %w", modulePath, err)
 	}
 
-	return p.outputResult(appCtx, outputFmt, &costengine.EstimateResult{
+	result := &costengine.EstimateResult{
 		Modules:     []costengine.ModuleCost{*mc},
 		TotalBefore: mc.BeforeCost,
 		TotalAfter:  mc.AfterCost,
 		TotalDiff:   mc.DiffCost,
 		Currency:    "USD",
 		GeneratedAt: time.Now().UTC(),
-	})
+	}
+
+	if p.serviceDir != "" {
+		if saveErr := saveCostResults(p.serviceDir, result); saveErr != nil {
+			log.WithError(saveErr).Warn("failed to save cost results")
+		}
+	}
+
+	return p.outputResult(appCtx, outputFmt, result)
 }
 
 func (p *Plugin) runAll(ctx context.Context, estimator *costengine.Estimator, appCtx *plugin.AppContext, outputFmt string) error {
@@ -118,5 +127,27 @@ func (p *Plugin) runAll(ctx context.Context, estimator *costengine.Estimator, ap
 		return fmt.Errorf("estimate costs: %w", err)
 	}
 
+	if p.serviceDir != "" {
+		if saveErr := saveCostResults(p.serviceDir, result); saveErr != nil {
+			log.WithError(saveErr).Warn("failed to save cost results")
+		}
+	}
+
 	return p.outputResult(appCtx, outputFmt, result)
+}
+
+// saveCostResults writes the cost estimation result to the service directory as JSON.
+func saveCostResults(serviceDir string, result *costengine.EstimateResult) error {
+	if err := os.MkdirAll(serviceDir, 0o755); err != nil {
+		return fmt.Errorf("create service dir: %w", err)
+	}
+	path := filepath.Join(serviceDir, "cost-results.json")
+	file, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("create cost results file: %w", err)
+	}
+	defer file.Close()
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(result)
 }

@@ -12,9 +12,11 @@ func init() { //nolint:gochecknoinits // intentional plugin registration
 
 // Plugin is the AWS cost estimation plugin.
 type Plugin struct {
-	cfg        *costengine.CostConfig
-	estimator  *costengine.Estimator
-	configured bool
+	cfg           *costengine.CostConfig
+	estimator     *costengine.Estimator
+	configured    bool
+	serviceDir    string // absolute path, for file I/O
+	serviceDirRel string // relative path, for pipeline artifact paths
 }
 
 func (p *Plugin) Name() string        { return "cost" }

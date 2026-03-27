@@ -10,7 +10,10 @@ import (
 )
 
 // Initialize creates the estimator and cleans expired cache at startup.
-func (p *Plugin) Initialize(_ context.Context, _ *plugin.AppContext) error {
+func (p *Plugin) Initialize(_ context.Context, appCtx *plugin.AppContext) error {
+	p.serviceDir = appCtx.ServiceDir
+	p.serviceDirRel = appCtx.Config.ServiceDir
+
 	if p.cfg == nil || !p.cfg.Enabled {
 		return nil
 	}
