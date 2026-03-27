@@ -23,5 +23,5 @@ func (p *Plugin) SetConfig(cfg any) error {
 	return nil
 }
 
-// IsConfigured returns whether the plugin has been configured.
-func (p *Plugin) IsConfigured() bool { return p.configured }
+// IsConfigured returns whether the plugin has been configured and enabled.
+func (p *Plugin) IsConfigured() bool { return p.configured && p.cfg != nil && p.cfg.Enabled }

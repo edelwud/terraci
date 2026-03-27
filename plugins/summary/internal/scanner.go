@@ -9,6 +9,7 @@ import (
 
 	"github.com/edelwud/terraci/internal/terraform/plan"
 	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/discovery"
 )
 
 // Constants for plan summary formatting
@@ -35,29 +36,22 @@ func ScanPlanResults(rootDir string, segments []string) (*ci.PlanResultCollectio
 		CommitSHA:   detectCommitSHA(),
 	}
 
-	processedDirs := make(map[string]bool)
+	moduleDirs, err := discovery.FindModulesWithPlan(rootDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan for plan results: %w", err)
+	}
 
-	err := filepath.Walk(rootDir, func(path string, info os.FileInfo, walkErr error) error {
-		if walkErr != nil {
-			return nil //nolint:nilerr // Skip walk errors, continue scanning
-		}
+	for _, dir := range moduleDirs {
+		jsonPath := filepath.Join(dir, "plan.json")
 
-		if info.IsDir() || info.Name() != "plan.json" {
-			return nil
-		}
-
-		modulePath := filepath.Dir(path)
+		modulePath := dir
 		if rootDir != "." {
-			if relPath, relErr := filepath.Rel(rootDir, modulePath); relErr == nil {
+			if relPath, relErr := filepath.Rel(rootDir, dir); relErr == nil {
 				modulePath = relPath
 			}
 		}
 
-		if processedDirs[modulePath] {
-			return nil
-		}
-
-		result, parseErr := parsePlanJSON(path, modulePath, segments)
+		result, parseErr := parsePlanJSON(jsonPath, modulePath, segments)
 		if parseErr != nil {
 			result = ci.PlanResult{
 				ModuleID:   strings.ReplaceAll(modulePath, string(filepath.Separator), "/"),
@@ -68,12 +62,7 @@ func ScanPlanResults(rootDir string, segments []string) (*ci.PlanResultCollectio
 			}
 		}
 
-		processedDirs[modulePath] = true
 		collection.Results = append(collection.Results, result)
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to scan for plan results: %w", err)
 	}
 
 	return collection, nil

@@ -2,9 +2,7 @@ package cost
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -12,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/plugin"
 	costengine "github.com/edelwud/terraci/plugins/cost/internal"
@@ -37,20 +36,12 @@ Examples:
 			if !p.IsConfigured() {
 				return fmt.Errorf("cost estimation is not enabled (set plugins.cost.enabled: true)")
 			}
-			if !p.cfg.Enabled {
-				return fmt.Errorf("cost estimation is not enabled (set plugins.cost.enabled: true)")
-			}
 
 			log.Info("running cost estimation")
 			c, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 			defer cancel()
 
-			estimator := p.getEstimator()
-
-			if costModulePath != "" {
-				return p.runSingle(c, estimator, ctx, costModulePath, costOutputFmt)
-			}
-			return p.runAll(c, estimator, ctx, costOutputFmt)
+			return p.runEstimation(c, ctx, costModulePath, costOutputFmt)
 		},
 	}
 
@@ -60,62 +51,23 @@ Examples:
 	return []*cobra.Command{cmd}
 }
 
-func (p *Plugin) runSingle(ctx context.Context, estimator *costengine.Estimator, appCtx *plugin.AppContext, modulePath, outputFmt string) error {
-	fullPath := filepath.Join(appCtx.WorkDir, modulePath)
-	region := costengine.DetectRegion(appCtx.Config.Structure.Segments, modulePath)
-
-	log.WithField("module", modulePath).WithField("region", region).Info("estimating module cost")
-
-	mc, err := estimator.EstimateModule(ctx, fullPath, region)
-	if err != nil {
-		return fmt.Errorf("estimate module %s: %w", modulePath, err)
-	}
-
-	result := &costengine.EstimateResult{
-		Modules:     []costengine.ModuleCost{*mc},
-		TotalBefore: mc.BeforeCost,
-		TotalAfter:  mc.AfterCost,
-		TotalDiff:   mc.DiffCost,
-		Currency:    "USD",
-		GeneratedAt: time.Now().UTC(),
-	}
-
-	if p.serviceDir != "" {
-		if saveErr := saveCostResults(p.serviceDir, result); saveErr != nil {
-			log.WithError(saveErr).Warn("failed to save cost results")
-		}
-		report := buildCostReport(result)
-		if saveErr := saveReport(p.serviceDir, report); saveErr != nil {
-			log.WithError(saveErr).Warn("failed to save cost report")
-		}
-	}
-
-	return p.outputResult(appCtx, outputFmt, result)
-}
-
-func (p *Plugin) runAll(ctx context.Context, estimator *costengine.Estimator, appCtx *plugin.AppContext, outputFmt string) error {
+func (p *Plugin) runEstimation(ctx context.Context, appCtx *plugin.AppContext, modulePath, outputFmt string) error {
 	log.WithField("dir", appCtx.WorkDir).Info("scanning for plan.json files")
 
-	var modulePaths []string
-	regions := make(map[string]string)
-
-	err := filepath.Walk(appCtx.WorkDir, func(path string, info os.FileInfo, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if info.Name() == "plan.json" && !info.IsDir() {
-			relDir, relErr := filepath.Rel(appCtx.WorkDir, filepath.Dir(path))
-			if relErr == nil {
-				fullPath := filepath.Dir(path)
-				modulePaths = append(modulePaths, fullPath)
-				region := costengine.DetectRegion(appCtx.Config.Structure.Segments, relDir)
-				regions[fullPath] = region
-			}
-		}
-		return nil
-	})
+	modulePaths, err := discovery.FindModulesWithPlan(appCtx.WorkDir)
 	if err != nil {
 		return fmt.Errorf("scan for plan.json: %w", err)
+	}
+
+	if modulePath != "" {
+		target := filepath.Join(appCtx.WorkDir, modulePath)
+		filtered := make([]string, 0, 1)
+		for _, p := range modulePaths {
+			if p == target || strings.HasSuffix(p, modulePath) {
+				filtered = append(filtered, p)
+			}
+		}
+		modulePaths = filtered
 	}
 
 	if len(modulePaths) == 0 {
@@ -123,6 +75,16 @@ func (p *Plugin) runAll(ctx context.Context, estimator *costengine.Estimator, ap
 	}
 
 	log.WithField("count", len(modulePaths)).Info("modules with plan.json found")
+
+	regions := make(map[string]string)
+	for _, fullPath := range modulePaths {
+		relDir, relErr := filepath.Rel(appCtx.WorkDir, fullPath)
+		if relErr == nil {
+			regions[fullPath] = costengine.DetectRegion(appCtx.Config.Structure.Segments, relDir)
+		}
+	}
+
+	estimator := p.getEstimator()
 
 	if prefetchErr := estimator.ValidateAndPrefetch(ctx, modulePaths, regions); prefetchErr != nil {
 		log.WithError(prefetchErr).Warn("failed to prefetch some pricing data")
@@ -133,33 +95,17 @@ func (p *Plugin) runAll(ctx context.Context, estimator *costengine.Estimator, ap
 		return fmt.Errorf("estimate costs: %w", err)
 	}
 
-	if p.serviceDir != "" {
-		if saveErr := saveCostResults(p.serviceDir, result); saveErr != nil {
+	if appCtx.ServiceDir != "" {
+		if saveErr := ci.SaveJSON(appCtx.ServiceDir, "cost-results.json", result); saveErr != nil {
 			log.WithError(saveErr).Warn("failed to save cost results")
 		}
 		report := buildCostReport(result)
-		if saveErr := saveReport(p.serviceDir, report); saveErr != nil {
+		if saveErr := ci.SaveReport(appCtx.ServiceDir, report); saveErr != nil {
 			log.WithError(saveErr).Warn("failed to save cost report")
 		}
 	}
 
 	return p.outputResult(appCtx, outputFmt, result)
-}
-
-// saveCostResults writes the cost estimation result to the service directory as JSON.
-func saveCostResults(serviceDir string, result *costengine.EstimateResult) error {
-	if err := os.MkdirAll(serviceDir, 0o755); err != nil {
-		return fmt.Errorf("create service dir: %w", err)
-	}
-	path := filepath.Join(serviceDir, "cost-results.json")
-	file, err := os.Create(path)
-	if err != nil {
-		return fmt.Errorf("create cost results file: %w", err)
-	}
-	defer file.Close()
-	encoder := json.NewEncoder(file)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(result)
 }
 
 func buildCostReport(result *costengine.EstimateResult) *ci.Report {
@@ -199,19 +145,4 @@ func renderCostReportBody(result *costengine.EstimateResult) string {
 	}
 	fmt.Fprintf(&b, "\n**Total:** $%.2f/mo (diff: %+.2f)\n", result.TotalAfter, result.TotalDiff)
 	return b.String()
-}
-
-func saveReport(serviceDir string, report *ci.Report) error {
-	if err := os.MkdirAll(serviceDir, 0o755); err != nil {
-		return err
-	}
-	path := filepath.Join(serviceDir, report.Plugin+"-report.json")
-	file, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	enc := json.NewEncoder(file)
-	enc.SetIndent("", "  ")
-	return enc.Encode(report)
 }

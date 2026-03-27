@@ -8,7 +8,7 @@ import (
 
 // PipelineContribution adds a cost estimation job to the CI pipeline.
 func (p *Plugin) PipelineContribution() *pipeline.Contribution {
-	if !p.IsConfigured() || p.cfg == nil || !p.cfg.Enabled {
+	if !p.IsConfigured() {
 		return nil
 	}
 

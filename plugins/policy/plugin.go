@@ -14,7 +14,6 @@ func init() { //nolint:gochecknoinits // intentional plugin registration
 type Plugin struct {
 	cfg           *policyengine.Config
 	configured    bool
-	serviceDir    string // absolute path, for file I/O
 	serviceDirRel string // relative path, for pipeline artifact paths
 }
 

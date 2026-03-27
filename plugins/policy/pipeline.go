@@ -9,7 +9,7 @@ import (
 
 // PipelineContribution adds a policy-check job to the CI pipeline.
 func (p *Plugin) PipelineContribution() *pipeline.Contribution {
-	if !p.IsConfigured() || p.cfg == nil || !p.cfg.Enabled {
+	if !p.IsConfigured() {
 		return nil
 	}
 	serviceDir := p.serviceDirRel

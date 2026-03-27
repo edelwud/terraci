@@ -15,7 +15,6 @@ type Plugin struct {
 	cfg           *costengine.CostConfig
 	estimator     *costengine.Estimator
 	configured    bool
-	serviceDir    string // absolute path, for file I/O
 	serviceDirRel string // relative path, for pipeline artifact paths
 }
 

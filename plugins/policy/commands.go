@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -28,7 +27,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 		Use:   "pull",
 		Short: "Pull policies from configured sources",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			if !p.IsConfigured() || !p.cfg.Enabled {
+			if !p.IsConfigured() {
 				return fmt.Errorf("policy checks are not enabled in configuration")
 			}
 
@@ -62,7 +61,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 		Use:   "check",
 		Short: "Check Terraform plans against policies",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			if !p.IsConfigured() || !p.cfg.Enabled {
+			if !p.IsConfigured() {
 				return fmt.Errorf("policy checks are not enabled in configuration")
 			}
 
@@ -99,13 +98,12 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 				}
 			}
 
-			if err := savePolicyResults(summary, ctx.ServiceDir); err != nil {
-				log.WithError(err).Warn("failed to save policy results")
-			}
-
 			if ctx.ServiceDir != "" {
+				if saveErr := ci.SaveJSON(ctx.ServiceDir, "policy-results.json", summary); saveErr != nil {
+					log.WithError(saveErr).Warn("failed to save policy results")
+				}
 				report := buildPolicyReport(summary)
-				if saveErr := saveReport(ctx.ServiceDir, report); saveErr != nil {
+				if saveErr := ci.SaveReport(ctx.ServiceDir, report); saveErr != nil {
 					log.WithError(saveErr).Warn("failed to save policy report")
 				}
 			}
@@ -132,20 +130,6 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 	cmd.AddCommand(pullCmd, checkCmd)
 
 	return []*cobra.Command{cmd}
-}
-
-func savePolicyResults(summary *policyengine.Summary, serviceDir string) error {
-	if err := os.MkdirAll(serviceDir, 0o755); err != nil {
-		return fmt.Errorf("create directory: %w", err)
-	}
-	file, err := os.Create(filepath.Join(serviceDir, "policy-results.json"))
-	if err != nil {
-		return fmt.Errorf("create file: %w", err)
-	}
-	defer file.Close()
-	encoder := json.NewEncoder(file)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(summary)
 }
 
 func outputText(summary *policyengine.Summary, shouldBlock bool) error {
@@ -225,19 +209,4 @@ func renderPolicyReportBody(summary *policyengine.Summary) string {
 		b.WriteString("\n")
 	}
 	return b.String()
-}
-
-func saveReport(serviceDir string, report *ci.Report) error {
-	if err := os.MkdirAll(serviceDir, 0o755); err != nil {
-		return err
-	}
-	path := filepath.Join(serviceDir, report.Plugin+"-report.json")
-	file, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	enc := json.NewEncoder(file)
-	enc.SetIndent("", "  ")
-	return enc.Encode(report)
 }
