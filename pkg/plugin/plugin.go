@@ -56,6 +56,8 @@ type GeneratorProvider interface {
 	Plugin
 	ProviderName() string
 	DetectEnv() bool
+	PipelineID() string
+	CommitSHA() string
 	NewGenerator(ctx *AppContext, depGraph *graph.DependencyGraph, modules []*discovery.Module) pipeline.Generator
 	NewCommentService(ctx *AppContext) ci.CommentService
 }

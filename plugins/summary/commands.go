@@ -64,9 +64,6 @@ func (p *Plugin) runSummary(appCtx *plugin.AppContext) error {
 		return nil
 	}
 
-	// Compose comment
-	body := summaryengine.ComposeComment(plans, reports, collection.CommitSHA, collection.PipelineID, collection.GeneratedAt)
-
 	// Resolve CI provider via plugin system (not finding a provider is not a failure)
 	provider, resolveErr := plugin.ResolveProvider()
 	if resolveErr != nil || provider == nil {
@@ -74,6 +71,9 @@ func (p *Plugin) runSummary(appCtx *plugin.AppContext) error {
 		printSummary(collection)
 		return nil //nolint:nilerr // intentional: no provider is gracefully handled
 	}
+
+	// Compose comment with provider metadata
+	body := summaryengine.ComposeComment(plans, reports, provider.CommitSHA(), provider.PipelineID(), collection.GeneratedAt)
 
 	commentSvc := provider.NewCommentService(appCtx)
 	if !commentSvc.IsEnabled() {

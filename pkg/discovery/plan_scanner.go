@@ -25,8 +25,6 @@ func ScanPlanResults(rootDir string, segments []string) (*ci.PlanResultCollectio
 	collection := &ci.PlanResultCollection{
 		Results:     make([]ci.PlanResult, 0),
 		GeneratedAt: time.Now().UTC(),
-		PipelineID:  ci.DetectPipelineID(),
-		CommitSHA:   ci.DetectCommitSHA(),
 	}
 
 	moduleDirs, err := FindModulesWithPlan(rootDir)

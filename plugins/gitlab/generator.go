@@ -19,6 +19,12 @@ func (p *Plugin) DetectEnv() bool {
 	return os.Getenv("GITLAB_CI") != "" || os.Getenv("CI_SERVER_URL") != ""
 }
 
+// PipelineID returns the GitLab CI pipeline ID.
+func (p *Plugin) PipelineID() string { return os.Getenv("CI_PIPELINE_ID") }
+
+// CommitSHA returns the GitLab CI commit SHA.
+func (p *Plugin) CommitSHA() string { return os.Getenv("CI_COMMIT_SHA") }
+
 // NewGenerator creates a new GitLab CI pipeline generator.
 func (p *Plugin) NewGenerator(_ *plugin.AppContext, depGraph *graph.DependencyGraph, modules []*discovery.Module) pipeline.Generator {
 	contributions := plugin.CollectContributions()
