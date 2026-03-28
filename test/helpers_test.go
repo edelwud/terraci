@@ -26,7 +26,7 @@ func testdataDir(t *testing.T) string {
 	return filepath.Join(filepath.Dir(filename), "testdata")
 }
 
-func fixtureDir(t *testing.T, name string) string { //nolint:unparam // will have more fixtures
+func fixtureDir(t *testing.T, name string) string {
 	t.Helper()
 	return filepath.Join(testdataDir(t), name)
 }
@@ -92,4 +92,21 @@ func captureTerraCi(t *testing.T, dir string, args ...string) (string, error) {
 	}
 
 	return string(data), execErr
+}
+
+// writeConfig writes a minimal .terraci.yaml config to the given directory.
+func writeConfig(t *testing.T, dir string) {
+	t.Helper()
+	cfg := `structure:
+  pattern: "{service}/{environment}/{region}/{module}"
+plugins:
+  gitlab:
+    terraform_binary: terraform
+    image:
+      name: hashicorp/terraform:1.6
+  summary: {}
+`
+	if err := os.WriteFile(filepath.Join(dir, ".terraci.yaml"), []byte(cfg), 0o600); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
 }
