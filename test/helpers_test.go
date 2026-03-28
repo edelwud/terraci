@@ -94,6 +94,37 @@ func captureTerraCi(t *testing.T, dir string, args ...string) (string, error) {
 	return string(data), execErr
 }
 
+// copyFixtureToTemp copies a fixture directory to a temp dir so tests can modify it freely.
+func copyFixtureToTemp(t *testing.T, name string) string {
+	t.Helper()
+	src := fixtureDir(t, name)
+	dst := t.TempDir()
+
+	err := filepath.Walk(src, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		rel, relErr := filepath.Rel(src, path)
+		if relErr != nil {
+			return relErr
+		}
+		target := filepath.Join(dst, rel)
+		if info.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		return os.WriteFile(target, data, 0o644)
+	})
+	if err != nil {
+		t.Fatalf("failed to copy fixture %s: %v", name, err)
+	}
+
+	return dst
+}
+
 // writeConfig writes a minimal .terraci.yaml config to the given directory.
 func writeConfig(t *testing.T, dir string) {
 	t.Helper()

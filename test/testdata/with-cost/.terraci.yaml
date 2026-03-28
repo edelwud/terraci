@@ -1,0 +1,10 @@
+structure:
+  pattern: "{service}/{environment}/{region}/{module}"
+plugins:
+  gitlab:
+    terraform_binary: terraform
+    image:
+      name: hashicorp/terraform:1.6
+  cost:
+    enabled: true
+    cache_ttl: "24h"

@@ -1,0 +1,14 @@
+structure:
+  pattern: "{service}/{environment}/{region}/{module}"
+plugins:
+  gitlab:
+    terraform_binary: terraform
+    image:
+      name: hashicorp/terraform:1.6
+  policy:
+    enabled: true
+    sources:
+      - path: policies
+    namespaces:
+      - terraform
+    on_failure: warn
