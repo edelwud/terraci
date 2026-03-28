@@ -53,6 +53,13 @@ func TestPluginCapabilities(t *testing.T) {
 		configKeys[key] = true
 	}
 
+	// Verify specific expected config keys
+	for _, expectedKey := range []string{"gitlab", "github", "cost", "policy"} {
+		if !configKeys[expectedKey] {
+			t.Errorf("missing expected ConfigKey: %s", expectedKey)
+		}
+	}
+
 	// GeneratorProvider plugins (gitlab + github)
 	generators := plugin.ByCapability[plugin.GeneratorProvider]()
 	if len(generators) < 2 {
@@ -104,10 +111,28 @@ func TestPluginConfigLoading(t *testing.T) {
 }
 
 func TestProviderResolution(t *testing.T) {
-	// After TestPluginConfigLoading configured gitlab, ResolveProvider should return it
-	provider, err := plugin.ResolveProvider()
+	// Load config fresh so this test doesn't depend on TestPluginConfigLoading
+	cfg, err := config.Load(filepath.Join(fixtureDir(t, "basic"), ".terraci.yaml"))
 	if err != nil {
-		t.Fatalf("resolve provider: %v", err)
+		t.Fatalf("load config: %v", err)
+	}
+
+	for _, p := range plugin.ByCapability[plugin.ConfigProvider]() {
+		if _, exists := cfg.Plugins[p.ConfigKey()]; !exists {
+			continue
+		}
+		cfgVal := p.NewConfig()
+		if decErr := cfg.PluginConfig(p.ConfigKey(), cfgVal); decErr != nil {
+			t.Fatalf("failed to decode %s config: %v", p.ConfigKey(), decErr)
+		}
+		if setErr := p.SetConfig(cfgVal); setErr != nil {
+			t.Fatalf("failed to set %s config: %v", p.ConfigKey(), setErr)
+		}
+	}
+
+	provider, resolveErr := plugin.ResolveProvider()
+	if resolveErr != nil {
+		t.Fatalf("resolve provider: %v", resolveErr)
 	}
 	if provider.ProviderName() != "gitlab" {
 		t.Errorf("expected gitlab provider, got %s", provider.ProviderName())

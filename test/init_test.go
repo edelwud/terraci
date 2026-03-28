@@ -25,19 +25,17 @@ func TestInit_CI_GitLab(t *testing.T) {
 	content := string(data)
 
 	// Should have structure pattern
-	if !strings.Contains(content, "pattern:") {
-		t.Error("missing pattern in config")
-	}
+	assertContains(t, content, "pattern:")
 
 	// Should have gitlab plugin config
-	if !strings.Contains(content, "gitlab:") {
-		t.Error("missing gitlab config")
-	}
+	assertContains(t, content, "gitlab:")
 
 	// Should have terraform binary
-	if !strings.Contains(content, "terraform_binary:") {
-		t.Error("missing terraform_binary")
-	}
+	assertContains(t, content, "terraform_binary:")
+
+	// Should have specific default values
+	assertContains(t, content, "hashicorp/terraform:1.6")
+	assertContains(t, content, "plan_enabled")
 }
 
 func TestInit_CI_GitHub(t *testing.T) {
@@ -54,9 +52,9 @@ func TestInit_CI_GitHub(t *testing.T) {
 	}
 	content := string(data)
 
-	if !strings.Contains(content, "github:") {
-		t.Error("missing github config")
-	}
+	assertContains(t, content, "github:")
+	assertContains(t, content, "runs_on:")
+	assertContains(t, content, "ubuntu-latest")
 }
 
 func TestInit_ExistingConfig_NoForce(t *testing.T) {
@@ -89,9 +87,12 @@ func TestInit_Force(t *testing.T) {
 	if readErr != nil {
 		t.Fatalf("config not read: %v", readErr)
 	}
-	if strings.Contains(string(data), "{old}") {
+	content := string(data)
+	if strings.Contains(content, "{old}") {
 		t.Error("config was not overwritten")
 	}
+	// New config should have real values
+	assertContains(t, content, "gitlab:")
 }
 
 func TestInit_CustomPattern(t *testing.T) {
@@ -106,9 +107,7 @@ func TestInit_CustomPattern(t *testing.T) {
 	if readErr != nil {
 		t.Fatalf("config not read: %v", readErr)
 	}
-	if !strings.Contains(string(data), "{env}/{region}/{module}") {
-		t.Error("custom pattern not in config")
-	}
+	assertContains(t, string(data), "{env}/{region}/{module}")
 }
 
 func TestInit_CustomBinary(t *testing.T) {
@@ -123,7 +122,8 @@ func TestInit_CustomBinary(t *testing.T) {
 	if readErr != nil {
 		t.Fatalf("config not read: %v", readErr)
 	}
-	if !strings.Contains(string(data), "tofu") {
-		t.Error("custom binary not in config")
-	}
+	content := string(data)
+	assertContains(t, content, "tofu")
+	// Should NOT contain default terraform binary when custom is set
+	assertNotContains(t, content, "hashicorp/terraform")
 }

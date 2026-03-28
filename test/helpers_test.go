@@ -4,7 +4,10 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
+
+	"go.yaml.in/yaml/v4"
 
 	"github.com/edelwud/terraci/cmd/terraci/cmd"
 
@@ -123,6 +126,48 @@ func copyFixtureToTemp(t *testing.T, name string) string {
 	}
 
 	return dst
+}
+
+// parseYAML parses YAML output into a generic map for structural validation.
+// Strips terraci header comments before parsing.
+func parseYAML(t *testing.T, data string) map[string]any {
+	t.Helper()
+	lines := strings.Split(data, "\n")
+	var yamlLines []string
+	for _, line := range lines {
+		if !strings.HasPrefix(line, "#") {
+			yamlLines = append(yamlLines, line)
+		}
+	}
+
+	var result map[string]any
+	if err := yaml.Unmarshal([]byte(strings.Join(yamlLines, "\n")), &result); err != nil {
+		t.Fatalf("failed to parse YAML: %v", err)
+	}
+	return result
+}
+
+// assertContains checks that output contains a substring.
+func assertContains(t *testing.T, output, substr string) {
+	t.Helper()
+	if !strings.Contains(output, substr) {
+		t.Errorf("output should contain %q, got:\n%s", substr, truncate(output, 500))
+	}
+}
+
+// assertNotContains checks that output does NOT contain a substring.
+func assertNotContains(t *testing.T, output, substr string) {
+	t.Helper()
+	if strings.Contains(output, substr) {
+		t.Errorf("output should NOT contain %q", substr)
+	}
+}
+
+func truncate(s string, maxLen int) string {
+	if len(s) > maxLen {
+		return s[:maxLen] + "..."
+	}
+	return s
 }
 
 // writeConfig writes a minimal .terraci.yaml config to the given directory.

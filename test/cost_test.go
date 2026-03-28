@@ -3,6 +3,7 @@ package test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -12,6 +13,8 @@ func TestCost_NotEnabled(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when cost not enabled")
 	}
+	// Verify specific error message, not just any error
+	assertContains(t, err.Error(), "not enabled")
 }
 
 func TestCost_NoPlanFiles(t *testing.T) {
@@ -23,6 +26,7 @@ func TestCost_NoPlanFiles(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when no plan.json files")
 	}
+	assertContains(t, err.Error(), "no plan.json")
 }
 
 func TestCost_WithPlanFiles(t *testing.T) {
@@ -38,7 +42,7 @@ func TestCost_WithPlanFiles(t *testing.T) {
 	}
 
 	// Should NOT be "no plan.json files found" — we have one
-	if err.Error() == "no plan.json files found" {
+	if strings.Contains(err.Error(), "no plan.json") {
 		t.Fatal("plan.json should have been found in fixture")
 	}
 
@@ -54,6 +58,7 @@ func TestCost_ModuleFilter(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for non-existent module")
 	}
+	assertContains(t, err.Error(), "no plan.json")
 }
 
 func writeCostConfig(t *testing.T, dir string) {
