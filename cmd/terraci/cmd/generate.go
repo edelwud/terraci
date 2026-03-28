@@ -60,7 +60,7 @@ Examples:
 
 			targets := result.FilteredModules
 			if changedOnly {
-				targets, err = detectChangedTargetModules(app, ff, baseRef, result.FullIndex, result.FilteredIndex, result.Graph)
+				targets, err = detectChangedTargetModules(cmd.Context(), app, ff, baseRef, result.FullIndex, result.FilteredIndex, result.Graph)
 				if err != nil {
 					return err
 				}
@@ -246,6 +246,7 @@ func writePipelineOutput(p pipeline.GeneratedPipeline, outputFile string) error 
 // --- Changed module detection ---
 
 func detectChangedTargetModules(
+	ctx context.Context,
 	app *App,
 	ff *filter.Flags,
 	baseRef string,
@@ -260,7 +261,7 @@ func detectChangedTargetModules(
 
 	log.Info("detecting changed modules")
 
-	changedModules, changedFiles, err := detector.DetectChangedModules(context.Background(), appCtx, baseRef, fullIndex)
+	changedModules, changedFiles, err := detector.DetectChangedModules(ctx, appCtx, baseRef, fullIndex)
 	if err != nil {
 		return nil, fmt.Errorf("detect changed modules: %w", err)
 	}
@@ -273,7 +274,7 @@ func detectChangedTargetModules(
 	var libraryPaths []string
 	if app.Config.LibraryModules != nil && len(app.Config.LibraryModules.Paths) > 0 {
 		log.Debug("checking for changed library modules")
-		libraryPaths, err = detector.DetectChangedLibraries(context.Background(), appCtx, baseRef, app.Config.LibraryModules.Paths)
+		libraryPaths, err = detector.DetectChangedLibraries(ctx, appCtx, baseRef, app.Config.LibraryModules.Paths)
 		if err != nil {
 			log.WithError(err).Warn("failed to detect changed libraries")
 		}

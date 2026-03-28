@@ -24,8 +24,8 @@ cmd/terraci/
     ├── generate.go             # Pipeline generation (uses plugin.ResolveProvider())
     ├── graph.go                # Dependency graph visualization
     ├── validate.go             # Config/project validation
-    ├── filters.go              # filterFlags struct — shared filter flags
-    ├── init.go                 # Config initialization (--ci mode)
+    ├── filters.go              # filterFlags struct — shared filter flags, mergedFilterOpts()
+    ├── init.go                 # Config initialization (--ci mode), initStateDefaults()
     ├── init_tui.go             # Interactive TUI wizard, dynamic plugin groups
     ├── schema.go               # JSON schema (includes plugin schemas)
     ├── version.go              # Version info via VersionProvider plugins
@@ -91,7 +91,7 @@ plugins/                        # Built-in plugins — one file per capability
 │   └── internal/               # (package githubci) config, client, generator, PR service, types
 ├── cost/
 │   ├── plugin.go               # init, Plugin struct, Name, Description
-│   ├── config.go               # ConfigProvider + effectiveConfig, getEstimator
+│   ├── config.go               # ConfigProvider, getEstimator
 │   ├── lifecycle.go            # Initializable (create estimator, clean cache)
 │   ├── commands.go             # CommandProvider (terraci cost)
 │   ├── pipeline.go             # PipelineContributor
@@ -114,7 +114,7 @@ plugins/                        # Built-in plugins — one file per capability
 │   ├── pipeline.go             # PipelineContributor (PhaseFinalize summary job)
 │   ├── init_wizard.go          # InitContributor
 │   ├── output.go               # CLI output helpers
-│   └── internal/               # (package summaryengine) renderer, report_loader
+│   └── internal/               # (package summaryengine) config, renderer, report_loader
 └── git/
     ├── plugin.go               # init, Plugin struct, Name, Description
     ├── lifecycle.go            # Initializable (verify repo, cache client)
@@ -161,7 +161,7 @@ Each plugin follows one-file-per-capability:
 | Interface | Purpose | Implemented by |
 |-----------|---------|----------------|
 | `Plugin` | Base: Name(), Description() | all |
-| `ConfigProvider` | Config section under `plugins:` + IsConfigured() | gitlab, github, cost, policy, summary |
+| `ConfigProvider` | Config section under `plugins:` + IsConfigured() (config loaded AND enabled) | gitlab, github, cost, policy, summary |
 | `CommandProvider` | CLI subcommands | cost, policy, summary |
 | `GeneratorProvider` | CI pipeline generation + comment service | gitlab, github |
 | `VersionProvider` | Version info contributions | policy |
@@ -187,11 +187,11 @@ Plugins contribute via `PipelineContributor.PipelineContribution()`:
 
 ### Provider Resolution
 
-`plugin.ResolveProvider()`: CI env → `TERRACI_PROVIDER` env → single registered → IsConfigured() filter → error. Core has zero knowledge of specific providers.
+`plugin.ResolveProvider()`: CI env → `TERRACI_PROVIDER` env → single registered → IsConfigured() filter → error. Core has zero knowledge of specific providers. Commands that don't need config use `Annotations["skipConfig"]` to skip config loading in `PersistentPreRunE`.
 
 ### Service Directory
 
-`AppContext.ServiceDir` — project-level directory for cache/artifacts. Configurable via `service_dir` in config (default `.terraci`). Passed to plugins through AppContext, eliminates hardcoded paths.
+`AppContext.ServiceDir` — resolved absolute path to project service directory for runtime file I/O. Configurable via `service_dir` in config (default `.terraci`). For pipeline artifact paths (CI templates), use `Config.ServiceDir` which preserves the original relative value.
 
 ## Configuration (.terraci.yaml)
 
@@ -245,12 +245,13 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 2. Load plugin reports from `{serviceDir}/*-report.json` (file-based enrichment)
 3. `summaryengine.EnrichPlans()` merges report data into plan results
 4. `summaryengine.ComposeComment()` renders markdown
-5. `plugin.ResolveProvider()` → `NewCommentService()` → `UpsertComment()`
+5. `plugin.ResolveProvider()` → `NewCommentService()` → `UpsertComment(ctx, body)`
 
 ### Init wizard
-1. Core groups: Basics, Structure, Pipeline Options
-2. `InitContributor` plugins add dynamic form groups
-3. `BuildConfigFromPlugins(pattern, pluginConfigs)` assembles config
+1. `initStateDefaults()` populates shared defaults (provider, binary, pattern, plan_enabled)
+2. Core groups: Basics, Structure, Pipeline Options
+3. `InitContributor` plugins add dynamic form groups
+4. `BuildConfigFromPlugins(pattern, pluginConfigs)` assembles config (returns `(*Config, error)`)
 
 ## Key Patterns
 
@@ -259,7 +260,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **Compile-time extensibility**: `xterraci build --with/--without` for custom binaries
 - **Pipeline IR**: `pkg/pipeline.Build()` → provider transforms to YAML
 - **PipelineContributor**: plugins inject steps/jobs without cross-plugin imports
-- **ServiceDir**: configurable project directory, passed via AppContext
+- **ServiceDir**: configurable project directory; `AppContext.ServiceDir` (absolute) for runtime, `Config.ServiceDir` (relative) for pipeline templates
 - **File-based reports**: plugins write `{serviceDir}/{plugin}-report.json`; summary plugin loads and merges them
 - **Zero cross-plugin imports**: plugins communicate only via registry + shared types + file-based reports
 - **Shared workflow**: `workflow.Run()` — scan, filter, parse, graph building
