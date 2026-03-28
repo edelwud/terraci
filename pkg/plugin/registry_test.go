@@ -107,3 +107,61 @@ func TestResolveProvider_NoPlugins(t *testing.T) {
 		t.Fatal("expected error with no providers")
 	}
 }
+
+func TestResolveChangeDetector_None(t *testing.T) {
+	t.Cleanup(func() { Reset() })
+	Reset()
+
+	_, err := ResolveChangeDetector()
+	if err == nil {
+		t.Fatal("expected error with no detectors")
+	}
+}
+
+func TestCollectContributions_Empty(t *testing.T) {
+	t.Cleanup(func() { Reset() })
+	Reset()
+
+	contribs := CollectContributions()
+	if len(contribs) != 0 {
+		t.Errorf("expected 0 contributions, got %d", len(contribs))
+	}
+}
+
+func TestAll_Empty(t *testing.T) {
+	t.Cleanup(func() { Reset() })
+	Reset()
+
+	all := All()
+	if len(all) != 0 {
+		t.Errorf("expected 0 plugins, got %d", len(all))
+	}
+}
+
+func TestByCapability_NoMatch(t *testing.T) {
+	t.Cleanup(func() { Reset() })
+	Reset()
+
+	Register(&testPlugin{name: "basic"})
+
+	// VersionProvider is not implemented by testPlugin
+	vp := ByCapability[VersionProvider]()
+	if len(vp) != 0 {
+		t.Errorf("expected 0 VersionProviders, got %d", len(vp))
+	}
+}
+
+func TestReset(t *testing.T) {
+	t.Cleanup(func() { Reset() })
+	Reset()
+
+	Register(&testPlugin{name: "x"})
+	if len(All()) != 1 {
+		t.Fatal("expected 1 plugin after register")
+	}
+
+	Reset()
+	if len(All()) != 0 {
+		t.Error("expected 0 plugins after reset")
+	}
+}
