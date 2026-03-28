@@ -1,26 +1,25 @@
 package summary
 
-import "fmt"
+import (
+	"fmt"
 
-// Config holds summary plugin settings.
-type Config struct {
-	Enabled        *bool    `yaml:"enabled,omitempty" json:"enabled,omitempty"`
-	OnChangesOnly  bool     `yaml:"on_changes_only,omitempty" json:"on_changes_only,omitempty"`
-	IncludeDetails bool     `yaml:"include_details,omitempty" json:"include_details,omitempty"`
-	Labels         []string `yaml:"labels,omitempty" json:"labels,omitempty"`
-}
+	summaryengine "github.com/edelwud/terraci/plugins/summary/internal"
+)
 
 func (p *Plugin) ConfigKey() string { return pluginName }
-func (p *Plugin) NewConfig() any    { return &Config{} }
+func (p *Plugin) NewConfig() any    { return &summaryengine.Config{} }
 
 func (p *Plugin) SetConfig(cfg any) error {
-	c, ok := cfg.(*Config)
+	c, ok := cfg.(*summaryengine.Config)
 	if !ok {
-		return fmt.Errorf("summary: expected *Config, got %T", cfg)
+		return fmt.Errorf("expected *Config, got %T", cfg)
 	}
 	p.cfg = c
 	p.configured = true
 	return nil
 }
 
-func (p *Plugin) IsConfigured() bool { return p.configured }
+// IsConfigured returns whether the plugin has been configured and enabled.
+func (p *Plugin) IsConfigured() bool {
+	return p.configured && p.cfg != nil && (p.cfg.Enabled == nil || *p.cfg.Enabled)
+}

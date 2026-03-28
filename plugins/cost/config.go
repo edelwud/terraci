@@ -16,7 +16,7 @@ func (p *Plugin) NewConfig() any { return &costengine.CostConfig{} }
 func (p *Plugin) SetConfig(cfg any) error {
 	cc, ok := cfg.(*costengine.CostConfig)
 	if !ok {
-		return fmt.Errorf("expected *CostConfig, got %T", cfg)
+		return fmt.Errorf("expected *Config, got %T", cfg)
 	}
 	p.cfg = cc
 	p.configured = true

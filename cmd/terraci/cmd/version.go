@@ -10,8 +10,9 @@ import (
 
 func newVersionCmd(app *App) *cobra.Command {
 	return &cobra.Command{
-		Use:   "version",
-		Short: "Print version information",
+		Use:         "version",
+		Short:       "Print version information",
+		Annotations: map[string]string{"skipConfig": "true"},
 		Run: func(_ *cobra.Command, _ []string) {
 			fmt.Printf("terraci %s\n", app.Version)
 			fmt.Printf("  commit: %s\n", app.Commit)

@@ -1,6 +1,7 @@
 package gitlabci
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -87,7 +88,7 @@ func TestMRService_UpsertComment_Disabled(t *testing.T) {
 		config:  nil,
 	}
 
-	err := svc.UpsertComment("test body")
+	err := svc.UpsertComment(context.Background(), "test body")
 	if err != nil {
 		t.Errorf("expected nil error for disabled service, got: %v", err)
 	}
@@ -113,7 +114,7 @@ func TestMRService_UpsertComment_CreateNew(t *testing.T) {
 		config: nil,
 	}
 
-	err := svc.UpsertComment(ci.CommentMarker + "\n\n## Test")
+	err := svc.UpsertComment(context.Background(), ci.CommentMarker+"\n\n## Test")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -146,7 +147,7 @@ func TestMRService_UpsertComment_UpdateExisting(t *testing.T) {
 		config: nil,
 	}
 
-	err := svc.UpsertComment(ci.CommentMarker + "\n\n## Test")
+	err := svc.UpsertComment(context.Background(), ci.CommentMarker+"\n\n## Test")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -171,7 +172,7 @@ func TestMRService_UpsertComment_GetNotesError(t *testing.T) {
 		config:  nil,
 	}
 
-	err := svc.UpsertComment("test body")
+	err := svc.UpsertComment(context.Background(), "test body")
 	if err == nil {
 		t.Error("expected error when GetMRNotes fails")
 	}
@@ -198,7 +199,7 @@ func TestMRService_UpsertComment_CreateError(t *testing.T) {
 		config:  nil,
 	}
 
-	err := svc.UpsertComment("test body")
+	err := svc.UpsertComment(context.Background(), "test body")
 	if err == nil {
 		t.Error("expected error when CreateMRNote fails")
 	}
@@ -228,7 +229,7 @@ func TestMRService_UpsertComment_OnChangesOnly_NoChanges(t *testing.T) {
 		},
 	}
 
-	err := svc.UpsertComment("test body")
+	err := svc.UpsertComment(context.Background(), "test body")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

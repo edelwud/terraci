@@ -10,6 +10,7 @@ import (
 	"go.yaml.in/yaml/v4"
 
 	"github.com/edelwud/terraci/pkg/config"
+	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/plugin"
 )
 
@@ -58,14 +59,7 @@ type initModel struct {
 
 func newInitModel() *initModel {
 	state := plugin.NewStateMap()
-	// Set provider default dynamically from registered plugins
-	providerPlugins := plugin.ByCapability[plugin.GeneratorProvider]()
-	if len(providerPlugins) > 0 {
-		state.Set("provider", providerPlugins[0].ProviderName())
-	}
-	state.Set("binary", "terraform")
-	state.Set("pattern", config.DefaultConfig().Structure.Pattern)
-	state.Set("plan_enabled", true)
+	initStateDefaults(state)
 
 	m := &initModel{state: state}
 
@@ -216,7 +210,12 @@ func buildConfigFromState(state *plugin.StateMap) *config.Config {
 		}
 	}
 
-	return config.BuildConfigFromPlugins(pattern, pluginConfigs)
+	cfg, err := config.BuildConfigFromPlugins(pattern, pluginConfigs)
+	if err != nil {
+		log.WithError(err).Warn("failed to build config from init state")
+		return config.DefaultConfig()
+	}
+	return cfg
 }
 
 // --- Tea interface ---

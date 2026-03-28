@@ -45,7 +45,7 @@ type ConfigProvider interface {
 	ConfigKey() string
 	NewConfig() any
 	SetConfig(cfg any) error
-	IsConfigured() bool // true if SetConfig was called with explicit config
+	IsConfigured() bool // true if SetConfig was called AND the plugin is enabled
 }
 
 // --- Commands ---

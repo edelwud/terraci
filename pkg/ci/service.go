@@ -2,8 +2,10 @@
 // plan result handling and PR/MR comment rendering.
 package ci
 
+import "context"
+
 // CommentService defines the interface for posting plan summaries to PRs/MRs
 type CommentService interface {
 	IsEnabled() bool
-	UpsertComment(body string) error
+	UpsertComment(ctx context.Context, body string) error
 }

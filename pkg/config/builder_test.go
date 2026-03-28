@@ -5,7 +5,10 @@ import "testing"
 func TestBuildConfigFromPlugins_WithPattern(t *testing.T) {
 	t.Parallel()
 
-	cfg := BuildConfigFromPlugins("{service}/{environment}/{module}", nil)
+	cfg, err := BuildConfigFromPlugins("{service}/{environment}/{module}", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if cfg.Structure.Pattern != "{service}/{environment}/{module}" {
 		t.Errorf("pattern = %q, want {service}/{environment}/{module}", cfg.Structure.Pattern)
@@ -18,7 +21,10 @@ func TestBuildConfigFromPlugins_WithPattern(t *testing.T) {
 func TestBuildConfigFromPlugins_EmptyPattern(t *testing.T) {
 	t.Parallel()
 
-	cfg := BuildConfigFromPlugins("", nil)
+	cfg, err := BuildConfigFromPlugins("", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Should use default pattern
 	if cfg.Structure.Pattern == "" {
@@ -42,7 +48,10 @@ func TestBuildConfigFromPlugins_GitLab(t *testing.T) {
 		},
 	}
 
-	cfg := BuildConfigFromPlugins("{service}/{environment}/{module}", pluginConfigs)
+	cfg, err := BuildConfigFromPlugins("{service}/{environment}/{module}", pluginConfigs)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if _, ok := cfg.Plugins["gitlab"]; !ok {
 		t.Fatal("expected gitlab in plugins")
@@ -79,7 +88,10 @@ func TestBuildConfigFromPlugins_GitHub(t *testing.T) {
 		},
 	}
 
-	cfg := BuildConfigFromPlugins("", pluginConfigs)
+	cfg, err := BuildConfigFromPlugins("", pluginConfigs)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if _, ok := cfg.Plugins["github"]; !ok {
 		t.Fatal("expected github in plugins")
@@ -115,7 +127,10 @@ func TestBuildConfigFromPlugins_WithCost(t *testing.T) {
 		},
 	}
 
-	cfg := BuildConfigFromPlugins("", pluginConfigs)
+	cfg, err := BuildConfigFromPlugins("", pluginConfigs)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if _, ok := cfg.Plugins["cost"]; !ok {
 		t.Error("expected cost in plugins")
@@ -137,8 +152,12 @@ func TestSetPluginValue(t *testing.T) {
 		t.Parallel()
 
 		cfg := DefaultConfig()
-		setPluginNode(cfg, "gitlab", map[string]any{})
-		SetPluginValue(cfg, "gitlab", "plan_only", true)
+		if err := setPluginNode(cfg, "gitlab", map[string]any{}); err != nil {
+			t.Fatal(err)
+		}
+		if err := SetPluginValue(cfg, "gitlab", "plan_only", true); err != nil {
+			t.Fatal(err)
+		}
 
 		var m map[string]any
 		if err := cfg.PluginConfig("gitlab", &m); err != nil {
@@ -153,7 +172,9 @@ func TestSetPluginValue(t *testing.T) {
 		t.Parallel()
 
 		cfg := DefaultConfig()
-		SetPluginValue(cfg, "github", "auto_approve", false)
+		if err := SetPluginValue(cfg, "github", "auto_approve", false); err != nil {
+			t.Fatal(err)
+		}
 
 		var m map[string]any
 		if err := cfg.PluginConfig("github", &m); err != nil {

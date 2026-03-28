@@ -1,6 +1,7 @@
 package summary
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -26,13 +27,13 @@ and posts a formatted comment to the MR/PR.
 
 Example:
   terraci summary`,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return p.runSummary(ctx)
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return p.runSummary(cmd.Context(), ctx)
 		},
 	}}
 }
 
-func (p *Plugin) runSummary(appCtx *plugin.AppContext) error {
+func (p *Plugin) runSummary(ctx context.Context, appCtx *plugin.AppContext) error {
 	// Scan plan results (provider-agnostic)
 	log.Info("scanning for plan results")
 	segments := []string(appCtx.Config.Structure.Segments)
@@ -84,7 +85,7 @@ func (p *Plugin) runSummary(appCtx *plugin.AppContext) error {
 
 	// Create/update comment
 	log.Info("updating PR/MR comment")
-	if upsertErr := commentSvc.UpsertComment(body); upsertErr != nil {
+	if upsertErr := commentSvc.UpsertComment(ctx, body); upsertErr != nil {
 		return fmt.Errorf("failed to update comment: %w", upsertErr)
 	}
 

@@ -113,24 +113,36 @@ func applyProviderFlags(app *App, planOnly bool, cmd *cobra.Command) {
 	}
 	name := resolved.ProviderName()
 	if planOnly {
-		config.SetPluginValue(app.Config, name, "plan_only", true)
-		config.SetPluginValue(app.Config, name, "plan_enabled", true)
+		if err := config.SetPluginValue(app.Config, name, "plan_only", true); err != nil {
+			log.WithError(err).Warn("failed to set plan_only flag")
+			return
+		}
+		if err := config.SetPluginValue(app.Config, name, "plan_enabled", true); err != nil {
+			log.WithError(err).Warn("failed to set plan_enabled flag")
+			return
+		}
 	}
 	if cmd.Flags().Changed("auto-approve") {
-		config.SetPluginValue(app.Config, name, "auto_approve", true)
+		if err := config.SetPluginValue(app.Config, name, "auto_approve", true); err != nil {
+			log.WithError(err).Warn("failed to set auto_approve flag")
+			return
+		}
 	} else if cmd.Flags().Changed("no-auto-approve") {
-		config.SetPluginValue(app.Config, name, "auto_approve", false)
+		if err := config.SetPluginValue(app.Config, name, "auto_approve", false); err != nil {
+			log.WithError(err).Warn("failed to set auto_approve flag")
+			return
+		}
 	}
 
 	// Re-apply config to the plugin so the parsed struct reflects CLI overrides.
 	if cp, ok := resolved.(plugin.ConfigProvider); ok {
 		cfg := cp.NewConfig()
 		if decodeErr := app.Config.PluginConfig(cp.ConfigKey(), cfg); decodeErr != nil {
-			log.WithError(decodeErr).Debug("failed to re-decode plugin config after CLI override")
+			log.WithError(decodeErr).Warn("failed to re-decode plugin config after CLI override")
 			return
 		}
 		if setErr := cp.SetConfig(cfg); setErr != nil {
-			log.WithError(setErr).Debug("failed to re-set plugin config after CLI override")
+			log.WithError(setErr).Warn("failed to re-set plugin config after CLI override")
 		}
 	}
 }

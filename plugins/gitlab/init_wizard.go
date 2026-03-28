@@ -5,6 +5,7 @@ import "github.com/edelwud/terraci/pkg/plugin"
 // InitContributor — contributes GitLab CI fields to the init wizard.
 
 const (
+	initGroupOrder        = 100
 	defaultTerraformImage = "hashicorp/terraform:1.6"
 	defaultTofuImage      = "ghcr.io/opentofu/opentofu:1.6"
 )
@@ -13,7 +14,7 @@ const (
 func (p *Plugin) InitGroup() *plugin.InitGroupSpec {
 	return &plugin.InitGroupSpec{
 		Title: "GitLab CI",
-		Order: 100,
+		Order: initGroupOrder,
 		Fields: []plugin.InitField{
 			{
 				Key:         "gitlab.image",

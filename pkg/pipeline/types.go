@@ -11,6 +11,8 @@ const (
 	PhasePreApply               // before terraform apply
 	PhasePostApply              // after terraform apply
 	PhaseFinalize               // after everything — summary, notifications
+
+	phaseFinalizeName = "summary"
 )
 
 // String returns the stage name for this phase (e.g., "pre-plan", "post-apply").
@@ -25,7 +27,7 @@ func (p Phase) String() string {
 	case PhasePostApply:
 		return "post-apply"
 	case PhaseFinalize:
-		return "summary"
+		return phaseFinalizeName
 	default:
 		return "unknown"
 	}

@@ -1,6 +1,7 @@
 package githubci
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -118,7 +119,7 @@ func TestPRService_UpsertComment_Disabled(t *testing.T) {
 		config:  nil,
 	}
 
-	err := svc.UpsertComment("test body")
+	err := svc.UpsertComment(context.Background(), "test body")
 	if err != nil {
 		t.Errorf("expected nil error for disabled service, got: %v", err)
 	}
@@ -144,7 +145,7 @@ func TestPRService_UpsertComment_CreateNew(t *testing.T) {
 		config: nil,
 	}
 
-	err := svc.UpsertComment(ci.CommentMarker + "\n\n## Test")
+	err := svc.UpsertComment(context.Background(), ci.CommentMarker+"\n\n## Test")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -177,7 +178,7 @@ func TestPRService_UpsertComment_UpdateExisting(t *testing.T) {
 		config: nil,
 	}
 
-	err := svc.UpsertComment(ci.CommentMarker + "\n\n## Test")
+	err := svc.UpsertComment(context.Background(), ci.CommentMarker+"\n\n## Test")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -208,7 +209,7 @@ func TestPRService_UpsertComment_ListError(t *testing.T) {
 		config: nil,
 	}
 
-	err := svc.UpsertComment("test body")
+	err := svc.UpsertComment(context.Background(), "test body")
 	if err == nil {
 		t.Error("expected error when ListIssueComments fails")
 	}
@@ -241,7 +242,7 @@ func TestPRService_UpsertComment_CreateError(t *testing.T) {
 		config: nil,
 	}
 
-	err := svc.UpsertComment("test body")
+	err := svc.UpsertComment(context.Background(), "test body")
 	if err == nil {
 		t.Error("expected error when CreateIssueComment fails")
 	}
@@ -271,7 +272,7 @@ func TestPRService_UpsertComment_OnChangesOnly_NoChanges(t *testing.T) {
 		},
 	}
 
-	err := svc.UpsertComment("test body")
+	err := svc.UpsertComment(context.Background(), "test body")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

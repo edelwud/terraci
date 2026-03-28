@@ -1,9 +1,13 @@
 package config
 
-import "go.yaml.in/yaml/v4"
+import (
+	"fmt"
+
+	"go.yaml.in/yaml/v4"
+)
 
 // BuildConfigFromPlugins assembles a Config from a pattern and plugin contributions.
-func BuildConfigFromPlugins(pattern string, pluginConfigs map[string]map[string]any) *Config {
+func BuildConfigFromPlugins(pattern string, pluginConfigs map[string]map[string]any) (*Config, error) {
 	cfg := DefaultConfig()
 	if pattern != "" {
 		cfg.Structure.Pattern = pattern
@@ -12,20 +16,22 @@ func BuildConfigFromPlugins(pattern string, pluginConfigs map[string]map[string]
 		}
 	}
 	for key, m := range pluginConfigs {
-		setPluginNode(cfg, key, m)
+		if err := setPluginNode(cfg, key, m); err != nil {
+			return nil, fmt.Errorf("set plugin %q config: %w", key, err)
+		}
 	}
-	return cfg
+	return cfg, nil
 }
 
 // setPluginNode marshals a value and stores it in the Plugins map.
-func setPluginNode(cfg *Config, key string, value any) {
+func setPluginNode(cfg *Config, key string, value any) error {
 	data, err := yaml.Marshal(value)
 	if err != nil {
-		return
+		return fmt.Errorf("marshal plugin %q: %w", key, err)
 	}
 	var doc yaml.Node
 	if err := yaml.Unmarshal(data, &doc); err != nil {
-		return
+		return fmt.Errorf("unmarshal plugin %q node: %w", key, err)
 	}
 	if cfg.Plugins == nil {
 		cfg.Plugins = make(map[string]yaml.Node)
@@ -36,20 +42,21 @@ func setPluginNode(cfg *Config, key string, value any) {
 	} else {
 		cfg.Plugins[key] = doc
 	}
+	return nil
 }
 
 // SetPluginValue is a public helper for setting a plugin config value.
 // Used by CLI commands that need to modify plugin configs (e.g., --plan-only).
-func SetPluginValue(cfg *Config, pluginKey, field string, value any) {
+func SetPluginValue(cfg *Config, pluginKey, field string, value any) error {
 	// Decode existing config into a map
 	m := make(map[string]any)
 	if cfg.Plugins != nil {
 		if node, ok := cfg.Plugins[pluginKey]; ok {
 			if err := node.Decode(&m); err != nil {
-				return
+				return fmt.Errorf("decode plugin %q config: %w", pluginKey, err)
 			}
 		}
 	}
 	m[field] = value
-	setPluginNode(cfg, pluginKey, m)
+	return setPluginNode(cfg, pluginKey, m)
 }

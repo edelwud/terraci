@@ -2,7 +2,10 @@
 // It registers a pipeline contributor (PhaseFinalize) and the `terraci summary` command.
 package summary
 
-import "github.com/edelwud/terraci/pkg/plugin"
+import (
+	"github.com/edelwud/terraci/pkg/plugin"
+	summaryengine "github.com/edelwud/terraci/plugins/summary/internal"
+)
 
 const pluginName = "summary"
 
@@ -12,7 +15,7 @@ func init() { //nolint:gochecknoinits // intentional plugin registration
 
 // Plugin is the summary plugin.
 type Plugin struct {
-	cfg        *Config
+	cfg        *summaryengine.Config
 	configured bool
 }
 

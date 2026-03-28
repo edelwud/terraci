@@ -58,8 +58,8 @@ Features:
 				log.WithField("version", app.Version).Debug("terraci")
 			}
 
-			// Skip config loading for non-config commands
-			if cmd.Name() == "version" || cmd.Name() == "schema" || cmd.Name() == "completion" || cmd.Name() == "man" {
+			// Skip config loading for commands that don't need it (marked with annotation)
+			if cmd.Annotations["skipConfig"] == "true" {
 				return nil
 			}
 

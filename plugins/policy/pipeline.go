@@ -7,6 +7,8 @@ import (
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
 
+const resultsFile = "policy-results.json"
+
 // PipelineContribution adds a policy-check job to the CI pipeline.
 func (p *Plugin) PipelineContribution() *pipeline.Contribution {
 	if !p.IsConfigured() {
@@ -19,7 +21,7 @@ func (p *Plugin) PipelineContribution() *pipeline.Contribution {
 			Name:          "policy-check",
 			Phase:         pipeline.PhasePostPlan,
 			Commands:      []string{"terraci policy pull", "terraci policy check"},
-			ArtifactPaths: []string{filepath.Join(serviceDir, "policy-results.json")},
+			ArtifactPaths: []string{filepath.Join(serviceDir, resultsFile)},
 			DependsOnPlan: true,
 			AllowFailure:  allowFailure,
 		}},

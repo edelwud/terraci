@@ -26,7 +26,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 	pullCmd := &cobra.Command{
 		Use:   "pull",
 		Short: "Pull policies from configured sources",
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			if !p.IsConfigured() {
 				return fmt.Errorf("policy checks are not enabled in configuration")
 			}
@@ -43,7 +43,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 				return fmt.Errorf("failed to create puller: %w", err)
 			}
 
-			c, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			c, cancel := context.WithTimeout(cmd.Context(), 5*time.Minute)
 			defer cancel()
 
 			dirs, err := puller.Pull(c)
@@ -60,7 +60,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 	checkCmd := &cobra.Command{
 		Use:   "check",
 		Short: "Check Terraform plans against policies",
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			if !p.IsConfigured() {
 				return fmt.Errorf("policy checks are not enabled in configuration")
 			}
@@ -72,7 +72,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 				return fmt.Errorf("failed to create puller: %w", err)
 			}
 
-			c, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			c, cancel := context.WithTimeout(cmd.Context(), 5*time.Minute)
 			defer cancel()
 
 			policyDirs, err := puller.Pull(c)
@@ -99,7 +99,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 			}
 
 			if ctx.ServiceDir != "" {
-				if saveErr := ci.SaveJSON(ctx.ServiceDir, "policy-results.json", summary); saveErr != nil {
+				if saveErr := ci.SaveJSON(ctx.ServiceDir, resultsFile, summary); saveErr != nil {
 					log.WithError(saveErr).Warn("failed to save policy results")
 				}
 				report := buildPolicyReport(summary)

@@ -4,13 +4,16 @@ import "github.com/edelwud/terraci/pkg/plugin"
 
 // InitContributor — contributes GitHub Actions fields to the init wizard.
 
-const defaultGitHubRunner = "ubuntu-latest"
+const (
+	initGroupOrder      = 100
+	defaultGitHubRunner = "ubuntu-latest"
+)
 
 // InitGroup returns the init wizard group spec for GitHub Actions.
 func (p *Plugin) InitGroup() *plugin.InitGroupSpec {
 	return &plugin.InitGroupSpec{
 		Title: "GitHub Actions",
-		Order: 100,
+		Order: initGroupOrder,
 		Fields: []plugin.InitField{
 			{
 				Key:         "github.runs_on",

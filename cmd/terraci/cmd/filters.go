@@ -15,9 +15,14 @@ func registerFilterFlags(cmd *cobra.Command, f *filter.Flags) {
 	cmd.Flags().StringArrayVarP(&f.SegmentArgs, "filter", "f", nil, "filter by segment (e.g. -f environment=stage)")
 }
 
+// mergedFilterOpts merges CLI filter flags with config-level exclude/include.
+func mergedFilterOpts(app *App, ff *filter.Flags) filter.Options {
+	return ff.Merge(app.Config.Exclude, app.Config.Include)
+}
+
 // workflowOptions builds workflow.Options from app config and filter flags.
 func workflowOptions(app *App, ff *filter.Flags) workflow.Options {
-	opts := ff.Merge(app.Config.Exclude, app.Config.Include)
+	opts := mergedFilterOpts(app, ff)
 	return workflow.Options{
 		WorkDir:        app.WorkDir,
 		Segments:       app.Config.Structure.Segments,
@@ -29,6 +34,5 @@ func workflowOptions(app *App, ff *filter.Flags) workflow.Options {
 
 // applyFilters applies config + CLI filters to a module list.
 func applyFilters(app *App, ff *filter.Flags, modules []*discovery.Module) []*discovery.Module {
-	opts := ff.Merge(app.Config.Exclude, app.Config.Include)
-	return filter.Apply(modules, opts)
+	return filter.Apply(modules, mergedFilterOpts(app, ff))
 }

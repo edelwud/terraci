@@ -32,13 +32,13 @@ Examples:
   terraci cost
   terraci cost --module platform/prod/eu-central-1/rds
   terraci cost --output json`,
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			if !p.IsConfigured() {
 				return fmt.Errorf("cost estimation is not enabled (set plugins.cost.enabled: true)")
 			}
 
 			log.Info("running cost estimation")
-			c, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			c, cancel := context.WithTimeout(cmd.Context(), 5*time.Minute)
 			defer cancel()
 
 			return p.runEstimation(c, ctx, costModulePath, costOutputFmt)
@@ -96,7 +96,7 @@ func (p *Plugin) runEstimation(ctx context.Context, appCtx *plugin.AppContext, m
 	}
 
 	if appCtx.ServiceDir != "" {
-		if saveErr := ci.SaveJSON(appCtx.ServiceDir, "cost-results.json", result); saveErr != nil {
+		if saveErr := ci.SaveJSON(appCtx.ServiceDir, resultsFile, result); saveErr != nil {
 			log.WithError(saveErr).Warn("failed to save cost results")
 		}
 		report := buildCostReport(result)

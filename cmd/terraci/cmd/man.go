@@ -14,9 +14,10 @@ func newManCmd(rootCmd *cobra.Command) *cobra.Command {
 	var manDir string
 
 	cmd := &cobra.Command{
-		Use:    "man",
-		Short:  "Generate man pages",
-		Hidden: true,
+		Use:         "man",
+		Short:       "Generate man pages",
+		Hidden:      true,
+		Annotations: map[string]string{"skipConfig": "true"},
 		Long: `Generate man pages for terraci.
 
 This command generates man pages in roff format that can be installed

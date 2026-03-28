@@ -1,6 +1,7 @@
 package gitlabci
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/edelwud/terraci/pkg/ci"
@@ -53,7 +54,7 @@ func (s *MRService) IsEnabled() bool {
 }
 
 // UpsertComment creates or updates the terraci comment on the MR
-func (s *MRService) UpsertComment(body string) error {
+func (s *MRService) UpsertComment(_ context.Context, body string) error {
 	if !s.IsEnabled() {
 		return nil
 	}

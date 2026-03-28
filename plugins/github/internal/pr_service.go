@@ -55,12 +55,10 @@ func (s *PRService) IsEnabled() bool {
 }
 
 // UpsertComment creates or updates the terraci comment on the PR
-func (s *PRService) UpsertComment(body string) error {
+func (s *PRService) UpsertComment(ctx context.Context, body string) error {
 	if !s.IsEnabled() {
 		return nil
 	}
-
-	ctx := context.Background()
 
 	// Find existing terraci comment
 	comments, err := s.client.ListIssueComments(ctx, s.context.PRNumber)

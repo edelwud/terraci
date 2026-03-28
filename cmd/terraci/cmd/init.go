@@ -15,12 +15,12 @@ import (
 
 func newInitCmd(app *App) *cobra.Command {
 	var (
-		forceInit       bool
-		initProvider    string
-		initBinary      string
-		initImage       string
-		initPattern     string
-		initInteractive bool
+		forceInit    bool
+		initProvider string
+		initBinary   string
+		initImage    string
+		initPattern  string
+		ciMode       bool
 	)
 
 	cmd := &cobra.Command{
@@ -47,23 +47,16 @@ Examples:
 			var newCfg *config.Config
 			var err error
 
-			if initInteractive || hasFlags {
+			if ciMode || hasFlags {
 				state := plugin.NewStateMap()
+				initStateDefaults(state)
 
-				// Set defaults
+				// Override defaults with CLI flags
 				if initProvider != "" {
 					state.Set("provider", initProvider)
-				} else {
-					// Default to first registered provider
-					providerPlugins := plugin.ByCapability[plugin.GeneratorProvider]()
-					if len(providerPlugins) > 0 {
-						state.Set("provider", providerPlugins[0].ProviderName())
-					}
 				}
 				if initBinary != "" {
 					state.Set("binary", initBinary)
-				} else {
-					state.Set("binary", "terraform")
 				}
 				if initPattern != "" {
 					state.Set("pattern", initPattern)
@@ -71,9 +64,6 @@ Examples:
 				if initImage != "" {
 					state.Set("gitlab.image", initImage)
 				}
-
-				// Set pipeline defaults for CI mode
-				state.Set("plan_enabled", true)
 
 				newCfg = buildConfigFromState(state)
 			} else {
@@ -95,13 +85,25 @@ Examples:
 	}
 
 	cmd.Flags().BoolVarP(&forceInit, "force", "f", false, "overwrite existing config file")
-	cmd.Flags().BoolVar(&initInteractive, "ci", false, "non-interactive mode (skip wizard)")
+	cmd.Flags().BoolVar(&ciMode, "ci", false, "non-interactive mode (skip wizard)")
 	cmd.Flags().StringVar(&initProvider, "provider", "", "CI provider: gitlab or github")
 	cmd.Flags().StringVar(&initBinary, "binary", "", "terraform binary: terraform or tofu")
 	cmd.Flags().StringVar(&initImage, "image", "", "docker image for CI jobs")
 	cmd.Flags().StringVar(&initPattern, "pattern", "", "directory pattern")
 
 	return cmd
+}
+
+// initStateDefaults populates a StateMap with default values for the init wizard.
+// Shared between interactive (TUI) and non-interactive (--ci) paths.
+func initStateDefaults(state *plugin.StateMap) {
+	providerPlugins := plugin.ByCapability[plugin.GeneratorProvider]()
+	if len(providerPlugins) > 0 {
+		state.Set("provider", providerPlugins[0].ProviderName())
+	}
+	state.Set("binary", "terraform")
+	state.Set("pattern", config.DefaultConfig().Structure.Pattern)
+	state.Set("plan_enabled", true)
 }
 
 func logGenerateHint() {
