@@ -1,0 +1,9 @@
+structure:
+  pattern: "{service}/{environment}/{region}/{module}"
+
+plugins:
+  gitlab:
+    terraform_binary: terraform
+    image:
+      name: hashicorp/terraform:1.6
+    plan_enabled: true

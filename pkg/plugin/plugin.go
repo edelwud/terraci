@@ -30,6 +30,13 @@ type Initializable interface {
 	Initialize(ctx context.Context, appCtx *AppContext) error
 }
 
+// Resettable plugins can reset their mutable state to zero values.
+// Used by test infrastructure to isolate tests from shared plugin singletons.
+type Resettable interface {
+	Plugin
+	Reset()
+}
+
 // --- Configuration ---
 
 // ConfigProvider declares a config section under "plugins:" in .terraci.yaml.

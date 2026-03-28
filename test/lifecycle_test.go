@@ -80,6 +80,7 @@ func TestPluginCapabilities(t *testing.T) {
 }
 
 func TestPluginConfigLoading(t *testing.T) {
+	plugin.ResetPlugins()
 	cfg, err := config.Load(filepath.Join(fixtureDir(t, "basic"), ".terraci.yaml"))
 	if err != nil {
 		t.Fatalf("failed to load config: %v", err)
@@ -111,7 +112,7 @@ func TestPluginConfigLoading(t *testing.T) {
 }
 
 func TestProviderResolution(t *testing.T) {
-	// Load config fresh so this test doesn't depend on TestPluginConfigLoading
+	plugin.ResetPlugins()
 	cfg, err := config.Load(filepath.Join(fixtureDir(t, "basic"), ".terraci.yaml"))
 	if err != nil {
 		t.Fatalf("load config: %v", err)
@@ -140,6 +141,7 @@ func TestProviderResolution(t *testing.T) {
 }
 
 func TestPluginInitialization(t *testing.T) {
+	plugin.ResetPlugins()
 	dir := fixtureDir(t, "basic")
 	cfg, err := config.Load(filepath.Join(dir, ".terraci.yaml"))
 	if err != nil {

@@ -21,3 +21,4 @@ type Plugin struct {
 
 func (p *Plugin) Name() string        { return pluginName }
 func (p *Plugin) Description() string { return "Git change detection for incremental pipelines" }
+func (p *Plugin) Reset()              { *p = Plugin{} }

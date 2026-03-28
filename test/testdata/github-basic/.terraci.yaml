@@ -1,0 +1,8 @@
+structure:
+  pattern: "{service}/{environment}/{region}/{module}"
+
+plugins:
+  github:
+    terraform_binary: terraform
+    runs_on: ubuntu-latest
+    plan_enabled: true

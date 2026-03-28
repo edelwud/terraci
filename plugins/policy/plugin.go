@@ -21,3 +21,4 @@ type Plugin struct {
 
 func (p *Plugin) Name() string        { return pluginName }
 func (p *Plugin) Description() string { return "OPA policy checks for Terraform plans" }
+func (p *Plugin) Reset()              { *p = Plugin{} }

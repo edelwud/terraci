@@ -18,3 +18,4 @@ type Plugin struct {
 
 func (p *Plugin) Name() string        { return pluginName }
 func (p *Plugin) Description() string { return "MR/PR comment posting from plan results" }
+func (p *Plugin) Reset()              { *p = Plugin{} }

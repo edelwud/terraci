@@ -23,3 +23,4 @@ type Plugin struct {
 
 func (p *Plugin) Name() string        { return pluginName }
 func (p *Plugin) Description() string { return "GitHub Actions pipeline generation and PR comments" }
+func (p *Plugin) Reset()              { *p = Plugin{} }

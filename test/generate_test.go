@@ -1,6 +1,7 @@
 package test
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -133,5 +134,232 @@ func TestGenerate_OutputToStdout(t *testing.T) {
 	pipeline := parseYAML(t, output)
 	if _, ok := pipeline["stages"]; !ok {
 		t.Error("stdout output missing stages in parsed YAML")
+	}
+}
+
+func TestGenerate_ExcludeFilter(t *testing.T) {
+	dir := fixtureDir(t, "basic")
+
+	output, err := captureTerraCi(t, dir, "generate", "--exclude", "**/eks")
+	if err != nil {
+		t.Fatalf("generate --exclude failed: %v", err)
+	}
+
+	// eks should be excluded
+	assertNotContains(t, output, "plan-platform-prod-eu-central-1-eks")
+	assertNotContains(t, output, "apply-platform-prod-eu-central-1-eks")
+
+	// vpc and app should remain
+	assertContains(t, output, "plan-platform-prod-eu-central-1-vpc")
+	assertContains(t, output, "plan-platform-stage-eu-central-1-app")
+}
+
+func TestGenerate_IncludeFilter(t *testing.T) {
+	dir := fixtureDir(t, "basic")
+
+	output, err := captureTerraCi(t, dir, "generate", "--include", "**/vpc")
+	if err != nil {
+		t.Fatalf("generate --include failed: %v", err)
+	}
+
+	// Only vpc modules should be present
+	assertContains(t, output, "plan-platform-prod-eu-central-1-vpc")
+	assertContains(t, output, "plan-platform-stage-eu-central-1-vpc")
+
+	// eks and app modules should not appear as job names
+	assertNotContains(t, output, "eks")
+	assertNotContains(t, output, "-app:")
+}
+
+func TestGenerate_SegmentFilter(t *testing.T) {
+	dir := fixtureDir(t, "basic")
+
+	output, err := captureTerraCi(t, dir, "generate", "--filter", "environment=prod")
+	if err != nil {
+		t.Fatalf("generate --filter failed: %v", err)
+	}
+
+	// Only prod modules
+	assertContains(t, output, "plan-platform-prod-eu-central-1-vpc")
+	assertContains(t, output, "plan-platform-prod-eu-central-1-eks")
+
+	// No stage modules (check job names, not YAML keywords)
+	assertNotContains(t, output, "platform-stage-")
+}
+
+func TestGenerate_FilterExcludesAll(t *testing.T) {
+	dir := fixtureDir(t, "basic")
+
+	err := runTerraCi(t, dir, "generate", "--include", "nonexistent/**")
+	if err == nil {
+		t.Fatal("expected error when all modules are filtered out")
+	}
+	if !strings.Contains(err.Error(), "no modules") {
+		t.Errorf("expected 'no modules' error, got: %v", err)
+	}
+}
+
+func TestGenerate_AutoApprove(t *testing.T) {
+	dir := fixtureDir(t, "basic")
+
+	output, err := captureTerraCi(t, dir, "generate", "--auto-approve")
+	if err != nil {
+		t.Fatalf("generate --auto-approve failed: %v", err)
+	}
+
+	// Apply jobs should NOT have "when: manual"
+	lines := strings.Split(output, "\n")
+	for i, line := range lines {
+		if strings.Contains(line, "apply-") && strings.Contains(line, ":") && !strings.HasPrefix(strings.TrimSpace(line), "#") {
+			// Look ahead for "when: manual" within the job block
+			for j := i + 1; j < len(lines) && j < i+20; j++ {
+				trimmed := strings.TrimSpace(lines[j])
+				// New job starts — stop looking
+				if !strings.HasPrefix(trimmed, "-") && !strings.HasPrefix(trimmed, " ") && strings.HasSuffix(trimmed, ":") && !strings.HasPrefix(trimmed, "#") {
+					break
+				}
+				if trimmed == "when: manual" {
+					t.Errorf("apply job should not have 'when: manual' with --auto-approve, found at line %d", j+1)
+				}
+			}
+		}
+	}
+}
+
+func TestGenerate_NoAutoApprove(t *testing.T) {
+	dir := fixtureDir(t, "basic")
+
+	output, err := captureTerraCi(t, dir, "generate", "--no-auto-approve")
+	if err != nil {
+		t.Fatalf("generate --no-auto-approve failed: %v", err)
+	}
+
+	// Apply jobs should have "when: manual"
+	assertContains(t, output, "when: manual")
+}
+
+func TestGenerate_PlanOnly_NoApplyJobs(t *testing.T) {
+	dir := fixtureDir(t, "basic")
+
+	output, err := captureTerraCi(t, dir, "generate", "--plan-only")
+	if err != nil {
+		t.Fatalf("generate --plan-only failed: %v", err)
+	}
+
+	// Should have plan jobs
+	assertContains(t, output, "plan-platform-prod-eu-central-1-vpc")
+
+	// Should NOT have any apply jobs
+	assertNotContains(t, output, "apply-")
+}
+
+func TestGenerate_StructuralNeedsCorrectness(t *testing.T) {
+	dir := fixtureDir(t, "basic")
+
+	output, err := captureTerraCi(t, dir, "generate")
+	if err != nil {
+		t.Fatalf("generate failed: %v", err)
+	}
+
+	pipeline := parseYAML(t, output)
+
+	// Validate that eks plan job depends on vpc plan job
+	eksJob, ok := pipeline["plan-platform-prod-eu-central-1-eks"]
+	if !ok {
+		t.Fatal("missing plan-platform-prod-eu-central-1-eks job")
+	}
+
+	eksMap, ok := eksJob.(map[string]any)
+	if !ok {
+		t.Fatal("eks job is not a map")
+	}
+
+	needs, ok := eksMap["needs"].([]any)
+	if !ok {
+		t.Fatal("eks job missing needs")
+	}
+
+	// Check that one of the needs references the vpc job (apply-vpc, since plan eks waits for apply vpc)
+	foundVpcDep := false
+	for _, need := range needs {
+		if needMap, ok := need.(map[string]any); ok {
+			if job, ok := needMap["job"].(string); ok && strings.Contains(job, "vpc") {
+				foundVpcDep = true
+			}
+		}
+	}
+	if !foundVpcDep {
+		t.Error("eks plan job should depend on vpc job via needs")
+	}
+}
+
+func TestGenerate_GitHubActions(t *testing.T) {
+	dir := fixtureDir(t, "github-basic")
+
+	// Both github and gitlab plugins are registered; tell terraci to use github
+	t.Setenv("TERRACI_PROVIDER", "github")
+
+	output, err := captureTerraCi(t, dir, "generate")
+	if err != nil {
+		t.Fatalf("generate (github) failed: %v", err)
+	}
+
+	// GitHub Actions YAML structure
+	assertContains(t, output, "name:")
+	assertContains(t, output, "jobs:")
+	assertContains(t, output, "runs-on:")
+	assertContains(t, output, "ubuntu-latest")
+	assertContains(t, output, "steps:")
+
+	// Validate YAML structure
+	pipeline := parseYAML(t, output)
+	if _, ok := pipeline["jobs"]; !ok {
+		t.Error("GitHub Actions output missing 'jobs' key")
+	}
+}
+
+func TestGenerate_SingleModule(t *testing.T) {
+	dir := fixtureDir(t, "single-module")
+
+	output, err := captureTerraCi(t, dir, "generate")
+	if err != nil {
+		t.Fatalf("generate (single-module) failed: %v", err)
+	}
+
+	assertContains(t, output, "plan-platform-prod-eu-central-1-vpc")
+	assertContains(t, output, "apply-platform-prod-eu-central-1-vpc")
+
+	// Single module should have no cross-module dependencies
+	pipeline := parseYAML(t, output)
+	planJob, ok := pipeline["plan-platform-prod-eu-central-1-vpc"]
+	if !ok {
+		t.Fatal("missing plan job for single module")
+	}
+	planMap, ok := planJob.(map[string]any)
+	if !ok {
+		t.Fatal("plan job is not a map")
+	}
+	// Plan job for a root module with no deps should have no needs (or empty needs)
+	if needs, ok := planMap["needs"]; ok {
+		if needsList, ok := needs.([]any); ok && len(needsList) > 0 {
+			t.Errorf("single root module plan job should have no cross-module needs, got %v", needsList)
+		}
+	}
+}
+
+func TestGenerate_SchemaValidJSON(t *testing.T) {
+	output, err := captureTerraCi(t, t.TempDir(), "schema")
+	if err != nil {
+		t.Fatalf("schema failed: %v", err)
+	}
+
+	var schema map[string]any
+	if jsonErr := json.Unmarshal([]byte(output), &schema); jsonErr != nil {
+		t.Fatalf("schema output is not valid JSON: %v", jsonErr)
+	}
+
+	// Should have top-level structure
+	if _, ok := schema["properties"]; !ok {
+		t.Error("schema missing 'properties' key")
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"go.yaml.in/yaml/v4"
 
 	"github.com/edelwud/terraci/cmd/terraci/cmd"
+	"github.com/edelwud/terraci/pkg/plugin"
 
 	// Register all built-in plugins via init()
 	_ "github.com/edelwud/terraci/plugins/cost"
@@ -39,6 +40,7 @@ func fixtureDir(t *testing.T, name string) string {
 // the -o flag or captureTerraCi instead.
 func runTerraCi(t *testing.T, dir string, args ...string) error {
 	t.Helper()
+	plugin.ResetPlugins()
 
 	origDir, err := os.Getwd()
 	if err != nil {
@@ -59,6 +61,7 @@ func runTerraCi(t *testing.T, dir string, args ...string) error {
 // This is needed for commands that write via fmt.Print (version, schema, generate without -o).
 func captureTerraCi(t *testing.T, dir string, args ...string) (string, error) {
 	t.Helper()
+	plugin.ResetPlugins()
 
 	origDir, err := os.Getwd()
 	if err != nil {

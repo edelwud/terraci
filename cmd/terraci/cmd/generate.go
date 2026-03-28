@@ -121,6 +121,18 @@ func applyProviderFlags(app *App, planOnly bool, cmd *cobra.Command) {
 	} else if cmd.Flags().Changed("no-auto-approve") {
 		config.SetPluginValue(app.Config, name, "auto_approve", false)
 	}
+
+	// Re-apply config to the plugin so the parsed struct reflects CLI overrides.
+	if cp, ok := resolved.(plugin.ConfigProvider); ok {
+		cfg := cp.NewConfig()
+		if decodeErr := app.Config.PluginConfig(cp.ConfigKey(), cfg); decodeErr != nil {
+			log.WithError(decodeErr).Debug("failed to re-decode plugin config after CLI override")
+			return
+		}
+		if setErr := cp.SetConfig(cfg); setErr != nil {
+			log.WithError(setErr).Debug("failed to re-set plugin config after CLI override")
+		}
+	}
 }
 
 // --- Logging helpers ---

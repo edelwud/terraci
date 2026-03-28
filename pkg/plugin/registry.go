@@ -140,3 +140,16 @@ func Reset() {
 	plugins = make(map[string]Plugin)
 	order = nil
 }
+
+// ResetPlugins resets mutable state on all registered plugins that implement Resettable.
+// The registry itself is NOT cleared — plugins stay registered, only their internal state
+// (config, flags, cached clients) is zeroed. Intended for test isolation.
+func ResetPlugins() {
+	mu.Lock()
+	defer mu.Unlock()
+	for _, name := range order {
+		if r, ok := plugins[name].(Resettable); ok {
+			r.Reset()
+		}
+	}
+}
