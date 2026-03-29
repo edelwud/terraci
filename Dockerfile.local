@@ -1,0 +1,16 @@
+FROM alpine:3.20
+
+RUN apk add --no-cache \
+    ca-certificates \
+    git \
+    openssh-client
+
+COPY build/docker-terraci /usr/local/bin/terraci
+COPY build/docker-xterraci /usr/local/bin/xterraci
+
+RUN chmod +x /usr/local/bin/terraci /usr/local/bin/xterraci
+
+WORKDIR /workspace
+
+ENTRYPOINT ["terraci"]
+CMD ["--help"]

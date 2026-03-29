@@ -6,7 +6,7 @@ vars:
   DOCKER_TAG: '{{.VERSION}}'
 
 tasks:
-  # --- parametric docker build ---
+  # --- parametric docker buildx ---
   buildx:
     internal: true
     label: 'docker:buildx-{{.PLATFORM | default "local"}}'
@@ -26,7 +26,10 @@ tasks:
         .
 
   build:
-    desc: Build multi-platform Docker image
+    desc: Build multi-platform Docker image (requires goreleaser dist/)
+    preconditions:
+      - sh: test -d dist
+        msg: "dist/ not found. Run 'task release:snapshot' first to produce platform binaries."
     cmds:
       - task: buildx
         vars:
@@ -34,13 +37,34 @@ tasks:
           EXTRA_TAGS: latest
 
   build-local:
-    desc: Build Docker image for local platform
+    desc: Build Docker image for local platform from source
+    vars:
+      HOST_ARCH:
+        sh: uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/'
+    preconditions:
+      - sh: docker info > /dev/null 2>&1
+        msg: "Docker daemon is not running."
     cmds:
-      - task: buildx
-        vars: { TAG: local }
+      - >-
+        CGO_ENABLED=0 GOOS=linux GOARCH={{.HOST_ARCH}}
+        go build -ldflags '{{.LDFLAGS}}'
+        -o {{.BUILD_DIR}}/docker-terraci ./cmd/terraci
+      - >-
+        CGO_ENABLED=0 GOOS=linux GOARCH={{.HOST_ARCH}}
+        go build -ldflags '{{.LDFLAGS}}'
+        -o {{.BUILD_DIR}}/docker-xterraci ./cmd/xterraci
+      - >-
+        docker build
+        --tag {{.DOCKER_IMAGE}}:local
+        --label "org.opencontainers.image.version={{.VERSION}}"
+        --label "org.opencontainers.image.revision={{.COMMIT}}"
+        -f Dockerfile.local .
 
   push:
     desc: Build and push multi-platform Docker image
+    preconditions:
+      - sh: test -d dist
+        msg: "dist/ not found. Run 'task release:snapshot' first."
     cmds:
       - task: buildx
         vars:
