@@ -1,7 +1,7 @@
 package ec2
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
@@ -23,7 +23,7 @@ func (h *InstanceHandler) ServiceCode() pricing.ServiceCode {
 func (h *InstanceHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 	instanceType := handler.GetStringAttr(attrs, "instance_type")
 	if instanceType == "" {
-		return nil, fmt.Errorf("instance_type not found")
+		return nil, errors.New("instance_type not found")
 	}
 
 	tenancy := handler.GetStringAttr(attrs, "tenancy")

@@ -54,14 +54,7 @@ func runTerraCi(t *testing.T, dir string, args ...string) error {
 	clearCIEnv(t)
 	plugin.ResetPlugins()
 
-	origDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	if chErr := os.Chdir(dir); chErr != nil {
-		t.Fatalf("failed to chdir to %s: %v", dir, chErr)
-	}
-	defer os.Chdir(origDir) //nolint:errcheck // best-effort restore
+	t.Chdir(dir)
 
 	rootCmd := cmd.NewRootCmd("test", "test-commit", "2024-01-01")
 	rootCmd.SetArgs(args)
@@ -76,14 +69,7 @@ func captureTerraCi(t *testing.T, dir string, args ...string) (string, error) {
 	clearCIEnv(t)
 	plugin.ResetPlugins()
 
-	origDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	if chErr := os.Chdir(dir); chErr != nil {
-		t.Fatalf("failed to chdir to %s: %v", dir, chErr)
-	}
-	defer os.Chdir(origDir) //nolint:errcheck // best-effort restore
+	t.Chdir(dir)
 
 	// Create a temp file to capture stdout
 	tmpFile, tmpErr := os.CreateTemp(t.TempDir(), "stdout-*.txt")

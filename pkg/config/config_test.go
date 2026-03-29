@@ -17,12 +17,7 @@ func writeTestConfig(t *testing.T, path, content string) {
 // createTempDir creates a temporary directory and returns cleanup function
 func createTempDir(t *testing.T) string {
 	t.Helper()
-	tmpDir, err := os.MkdirTemp("", "config-test-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	t.Cleanup(func() { os.RemoveAll(tmpDir) })
-	return tmpDir
+	return t.TempDir()
 }
 
 func TestDefaultConfig(t *testing.T) {

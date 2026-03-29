@@ -24,7 +24,7 @@ func BenchmarkTopologicalSort(b *testing.B) {
 		g := buildBenchGraph(size)
 		b.Run(fmt.Sprintf("n=%d", size), func(b *testing.B) {
 			for b.Loop() {
-				g.TopologicalSort() //nolint:errcheck
+				g.TopologicalSort()
 			}
 		})
 	}
@@ -35,7 +35,7 @@ func BenchmarkExecutionLevels(b *testing.B) {
 		g := buildBenchGraph(size)
 		b.Run(fmt.Sprintf("n=%d", size), func(b *testing.B) {
 			for b.Loop() {
-				g.ExecutionLevels() //nolint:errcheck
+				g.ExecutionLevels()
 			}
 		})
 	}

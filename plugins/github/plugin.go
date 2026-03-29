@@ -7,7 +7,7 @@ import (
 	githubci "github.com/edelwud/terraci/plugins/github/internal"
 )
 
-func init() { //nolint:gochecknoinits // intentional plugin registration
+func init() {
 	plugin.Register(&Plugin{
 		BasePlugin: plugin.BasePlugin[*githubci.Config]{
 			PluginName: "github",

@@ -72,5 +72,5 @@ func (s *OCISource) parseURL() (string, error) {
 
 // String returns a human-readable description
 func (s *OCISource) String() string {
-	return fmt.Sprintf("oci:%s", s.URL)
+	return "oci:" + s.URL
 }

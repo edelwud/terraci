@@ -213,7 +213,7 @@ func (c *Client) getMergeBase(ref1, ref2 string) (plumbing.Hash, error) {
 		return plumbing.ZeroHash, fmt.Errorf("find merge base: %w", err)
 	}
 	if len(bases) == 0 {
-		return plumbing.ZeroHash, fmt.Errorf("no common ancestor found")
+		return plumbing.ZeroHash, errors.New("no common ancestor found")
 	}
 
 	return bases[0].Hash, nil

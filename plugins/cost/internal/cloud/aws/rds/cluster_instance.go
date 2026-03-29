@@ -1,7 +1,7 @@
 package rds
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
@@ -20,7 +20,7 @@ func (h *ClusterInstanceHandler) ServiceCode() pricing.ServiceCode {
 func (h *ClusterInstanceHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 	instanceClass := handler.GetStringAttr(attrs, "instance_class")
 	if instanceClass == "" {
-		return nil, fmt.Errorf("instance_class not found")
+		return nil, errors.New("instance_class not found")
 	}
 
 	engine := handler.GetStringAttr(attrs, "engine")

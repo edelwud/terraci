@@ -20,19 +20,19 @@ func setupMockGitHubServer(t *testing.T, comments string, createCalled, updateCa
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case strings.HasSuffix(r.URL.Path, "/comments") && r.Method == "GET":
+		case strings.HasSuffix(r.URL.Path, "/comments") && r.Method == http.MethodGet:
 			w.Header().Set("Content-Type", "application/json")
 			fmt.Fprint(w, comments)
-		case strings.HasSuffix(r.URL.Path, "/comments") && r.Method == "POST":
+		case strings.HasSuffix(r.URL.Path, "/comments") && r.Method == http.MethodPost:
 			*createCalled = true
 			w.Header().Set("Content-Type", "application/json")
 			fmt.Fprint(w, `{"id": 1, "body": "test"}`)
-		case strings.Contains(r.URL.Path, "/comments/") && r.Method == "PATCH":
+		case strings.Contains(r.URL.Path, "/comments/") && r.Method == http.MethodPatch:
 			*updateCalled = true
 			w.Header().Set("Content-Type", "application/json")
 			fmt.Fprint(w, `{"id": 1, "body": "updated"}`)
 		default:
-			w.WriteHeader(404)
+			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
 }
@@ -218,10 +218,10 @@ func TestPRService_UpsertComment_ListError(t *testing.T) {
 func TestPRService_UpsertComment_CreateError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case strings.HasSuffix(r.URL.Path, "/comments") && r.Method == "GET":
+		case strings.HasSuffix(r.URL.Path, "/comments") && r.Method == http.MethodGet:
 			w.Header().Set("Content-Type", "application/json")
 			fmt.Fprint(w, `[]`)
-		case strings.HasSuffix(r.URL.Path, "/comments") && r.Method == "POST":
+		case strings.HasSuffix(r.URL.Path, "/comments") && r.Method == http.MethodPost:
 			w.WriteHeader(http.StatusInternalServerError)
 		default:
 			w.WriteHeader(http.StatusNotFound)

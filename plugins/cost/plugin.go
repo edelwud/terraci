@@ -6,7 +6,7 @@ import (
 	costengine "github.com/edelwud/terraci/plugins/cost/internal"
 )
 
-func init() { //nolint:gochecknoinits // intentional plugin registration
+func init() {
 	plugin.Register(&Plugin{
 		BasePlugin: plugin.BasePlugin[*costengine.CostConfig]{
 			PluginName: "cost",

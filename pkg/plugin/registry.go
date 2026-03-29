@@ -1,8 +1,10 @@
 package plugin
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 )
 
@@ -71,7 +73,7 @@ type ciProviderPlugin interface {
 func ResolveProvider() (*CIProvider, error) {
 	candidates := ByCapability[ciProviderPlugin]()
 	if len(candidates) == 0 {
-		return nil, fmt.Errorf("no CI provider plugins registered")
+		return nil, errors.New("no CI provider plugins registered")
 	}
 
 	// Check env detection (CI environment variables)
@@ -114,7 +116,7 @@ func buildCIProvider(p ciProviderPlugin) *CIProvider {
 func ResolveChangeDetector() (ChangeDetectionProvider, error) {
 	detectors := ByCapability[ChangeDetectionProvider]()
 	if len(detectors) == 0 {
-		return nil, fmt.Errorf("no change detection plugin registered")
+		return nil, errors.New("no change detection plugin registered")
 	}
 	if len(detectors) == 1 {
 		return detectors[0], nil
@@ -138,12 +140,14 @@ func findProvider(candidates []ciProviderPlugin, name string) (*CIProvider, erro
 
 func providerNames(candidates []ciProviderPlugin) string {
 	names := ""
+	var namesSb141 strings.Builder
 	for i, c := range candidates {
 		if i > 0 {
-			names += ", "
+			namesSb141.WriteString(", ")
 		}
-		names += c.ProviderName()
+		namesSb141.WriteString(c.ProviderName())
 	}
+	names += namesSb141.String()
 	return names
 }
 

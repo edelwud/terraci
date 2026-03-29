@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -50,7 +51,7 @@ Examples:
 			}
 
 			if len(result.FilteredModules) == 0 && !changedOnly {
-				return fmt.Errorf("no modules remaining after filtering")
+				return errors.New("no modules remaining after filtering")
 			}
 
 			logExtractionWarnings(result.Warnings)

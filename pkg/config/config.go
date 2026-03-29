@@ -2,6 +2,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -139,7 +140,7 @@ func (c *Config) Save(path string) error {
 // Validate checks if the configuration is valid
 func (c *Config) Validate() error {
 	if c.Structure.Pattern == "" {
-		return fmt.Errorf("structure.pattern is required")
+		return errors.New("structure.pattern is required")
 	}
 
 	if _, err := ParsePattern(c.Structure.Pattern); err != nil {

@@ -1,7 +1,7 @@
 package graph
 
 import (
-	"fmt"
+	"errors"
 	"sort"
 )
 
@@ -37,7 +37,7 @@ func (g *DependencyGraph) TopologicalSort() ([]string, error) {
 	}
 
 	if len(result) != len(g.nodes) {
-		return nil, fmt.Errorf("cycle detected in dependency graph")
+		return nil, errors.New("cycle detected in dependency graph")
 	}
 
 	return result, nil

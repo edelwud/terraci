@@ -2,6 +2,7 @@ package policyengine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -26,7 +27,7 @@ func NewSource(cfg SourceConfig) (Source, error) {
 	case "oci":
 		return &OCISource{URL: cfg.OCI}, nil
 	default:
-		return nil, fmt.Errorf("unknown policy source type")
+		return nil, errors.New("unknown policy source type")
 	}
 }
 
@@ -41,7 +42,7 @@ type Puller struct {
 // a default base for the policy cache when CacheDir is not explicitly set.
 func NewPuller(cfg *Config, rootDir, serviceDir string) (*Puller, error) {
 	if cfg == nil {
-		return nil, fmt.Errorf("policy config is nil")
+		return nil, errors.New("policy config is nil")
 	}
 
 	cacheDir := cfg.CacheDir

@@ -231,7 +231,7 @@ func renderPlanRow(p *ci.ModulePlan, includeCost bool) string {
 
 	summary := p.Summary
 	if p.Error != "" {
-		summary = fmt.Sprintf("err: %s", Truncate(p.Error, maxErrorLength))
+		summary = "err: " + Truncate(p.Error, maxErrorLength)
 	}
 	if summary == "" {
 		summary = "-"
@@ -328,7 +328,7 @@ func renderExpandableDetails(p *ci.ModulePlan) string {
 		title = fmt.Sprintf("%s (%s)", p.ModuleID, p.Summary)
 	}
 	if p.Status == ci.PlanStatusFailed {
-		title = fmt.Sprintf("FAILED %s", p.ModuleID)
+		title = "FAILED " + p.ModuleID
 	}
 
 	fmt.Fprintf(&sb, "\n<details>\n<summary>%s</summary>\n\n", title)

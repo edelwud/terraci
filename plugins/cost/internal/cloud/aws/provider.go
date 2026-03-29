@@ -16,7 +16,7 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
-func init() { //nolint:gochecknoinits // self-registration pattern (like plugin.Register)
+func init() {
 	cloud.Register(&provider{})
 }
 

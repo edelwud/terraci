@@ -1,39 +1,72 @@
 # yaml-language-server: $schema=https://json.schemastore.org/golangci-lint.json
 version: "2"
+
 run:
   modules-download-mode: readonly
+
 linters:
+  default: none
   enable:
-    - bodyclose
-    - copyloopvar
-    - dogsled
-    - dupl
-    - durationcheck
-    - errorlint
-    - exhaustive
-    - gochecknoinits
-    - goconst
-    - gocritic
-    - gocyclo
-    - goprintffuncname
-    - gosec
-    - misspell
-    - mnd
-    - nakedret
-    - nilerr
-    - noctx
-    - nolintlint
-    - prealloc
-    - predeclared
-    - revive
-    - staticcheck
-    - tparallel
-    - unconvert
-    - unparam
-    - whitespace
+    # --- bug prevention ---
+    - bodyclose          # unclosed HTTP response bodies
+    - copyloopvar        # loop variable copy bugs
+    - durationcheck      # incorrect time.Duration arithmetic
+    - errorlint          # error wrapping with %w
+    - nilerr             # returning nil when err != nil
+    - noctx              # HTTP requests without context
+    - nilnesserr         # err != nil check but returns different nil error
+    - fatcontext         # nested contexts in loops
+    - forcetypeassert    # unchecked type assertions
+    - rowserrcheck       # unchecked sql.Rows.Err
+    - sqlclosecheck      # unclosed sql.Rows/sql.Stmt
+
+    # --- security ---
+    - bidichk            # dangerous unicode bidi characters
+    - gosec              # security vulnerabilities
+
+    # --- code quality ---
+    - errcheck           # unchecked error returns
+    - govet              # go vet checks
+    - staticcheck        # comprehensive static analysis
+    - unused             # unused code
+    - ineffassign        # useless assignments
+    - unconvert          # unnecessary type conversions
+    - unparam            # unused function parameters
+    - goconst            # repeated strings → constants
+    - gocritic           # bugs, performance, style
+    - revive             # golint successor
+    - predeclared        # shadowing predeclared identifiers
+    - whitespace         # leading/trailing whitespace in blocks
+    - nakedret           # naked returns in long functions
+    - exhaustive         # non-exhaustive enum switches
+    - prealloc           # slice preallocation hints
+
+    # --- modernization ---
+    - intrange           # integer range loops (Go 1.22+)
+    - exptostd           # x/exp → stdlib replacements
+    - usestdlibvars      # use stdlib constants/variables
+    - modernize          # modern Go idioms
+    - perfsprint         # faster fmt.Sprintf alternatives
+
+    # --- naming & style ---
+    - errname            # Err prefix for sentinel errors
+    - gochecknoinits     # discourage init() (excluded for plugins)
+    - goprintffuncname   # printf-like functions named with f suffix
+    - misspell           # English spelling in comments/strings
+    - dupword            # duplicate words in comments
+    - nolintlint         # well-formed nolint directives
+    - recvcheck          # consistent receiver types
+
+    # --- complexity ---
+    - gocyclo            # cyclomatic complexity
+    - nestif             # deeply nested ifs
+
+    # --- testing ---
+    - tparallel          # t.Parallel() misuse
+    - thelper            # t.Helper() in test helpers
+    - usetesting         # testing package best practices
+
   settings:
-    dupl:
-      threshold: 100
     errcheck:
       check-type-assertions: true
       check-blank: true
@@ -51,11 +84,13 @@ linters:
         - performance
         - style
     gocyclo:
-      min-complexity: 15
+      min-complexity: 20
+    nestif:
+      min-complexity: 7
     gosec:
       excludes:
-        - G101
-        - G304
+        - G101   # false positive on hardcoded credentials
+        - G304   # file inclusion via variable (CLI tool needs this)
     govet:
       disable:
         - fieldalignment
@@ -75,6 +110,8 @@ linters:
         - strings.SplitN
         - os.WriteFile
         - os.MkdirAll
+    nakedret:
+      max-func-lines: 30
     revive:
       rules:
         - name: blank-imports
@@ -101,6 +138,11 @@ linters:
         - name: unused-parameter
         - name: unreachable-code
         - name: redefines-builtin-id
+    perfsprint:
+      err-error: true
+      errorf: true
+      sprintf1: true
+
   exclusions:
     generated: lax
     presets:
@@ -110,24 +152,30 @@ linters:
       - std-error-handling
     rules:
       - linters:
-          - dupl
           - gosec
-          - mnd
           - goconst
+          - errcheck
+          - forcetypeassert
+          - thelper
+          - perfsprint
         path: _test\.go
       - linters:
           - gochecknoinits
-        path: cmd/
+        path: (cmd/|plugins/)
       - linters:
           - gocyclo
-        path: \.go
+          - nestif
+          - gocognit
+        path: _test\.go
     paths:
       - third_party$
       - builtin$
       - examples$
+
 issues:
   max-issues-per-linter: 50
   max-same-issues: 5
+
 formatters:
   enable:
     - gofmt

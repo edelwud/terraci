@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -14,7 +15,7 @@ type PatternSegments []string
 // Each segment must be a {name} placeholder. Returns an error if the pattern is invalid.
 func ParsePattern(pattern string) (PatternSegments, error) {
 	if pattern == "" {
-		return nil, fmt.Errorf("pattern is empty")
+		return nil, errors.New("pattern is empty")
 	}
 
 	parts := strings.Split(pattern, "/")
@@ -40,7 +41,7 @@ func ParsePattern(pattern string) (PatternSegments, error) {
 	}
 
 	if len(segments) == 0 {
-		return nil, fmt.Errorf("pattern must have at least one segment")
+		return nil, errors.New("pattern must have at least one segment")
 	}
 
 	return segments, nil

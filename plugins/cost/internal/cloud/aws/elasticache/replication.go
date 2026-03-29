@@ -1,6 +1,7 @@
 package elasticache
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -23,7 +24,7 @@ func (h *ReplicationGroupHandler) ServiceCode() pricing.ServiceCode {
 func (h *ReplicationGroupHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 	nodeType := handler.GetStringAttr(attrs, "node_type")
 	if nodeType == "" {
-		return nil, fmt.Errorf("node_type not found")
+		return nil, errors.New("node_type not found")
 	}
 
 	prefix := awskit.ResolveUsagePrefix(region)

@@ -150,7 +150,7 @@ func (g *Generator) transformPlanJob(irJob *pipeline.Job, module *discovery.Modu
 	}
 
 	steps = append(steps, Step{
-		Name: fmt.Sprintf("Plan %s", module.ID()),
+		Name: "Plan " + module.ID(),
 		Run:  runScript,
 	})
 
@@ -234,7 +234,7 @@ func (g *Generator) transformApplyJob(irJob *pipeline.Job, module *discovery.Mod
 	}
 
 	steps = append(steps, Step{
-		Name: fmt.Sprintf("Apply %s", module.ID()),
+		Name: "Apply " + module.ID(),
 		Run:  runScript,
 	})
 
@@ -292,7 +292,7 @@ func (g *Generator) transformContributedJob(irJob *pipeline.Job) *Job {
 			Uses: "actions/download-artifact@v4",
 		},
 		{
-			Name: fmt.Sprintf("Run %s", irJob.Name),
+			Name: "Run " + irJob.Name,
 			Run:  strings.Join(scriptLines, "\n"),
 		},
 	}

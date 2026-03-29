@@ -355,7 +355,7 @@ func (g *Generator) generateCache(module *discovery.Module) *Cache {
 	cacheKey := strings.ReplaceAll(module.RelativePath, "/", "-")
 	return &Cache{
 		Key:   cacheKey,
-		Paths: []string{fmt.Sprintf("%s/.terraform/", module.RelativePath)},
+		Paths: []string{module.RelativePath + "/.terraform/"},
 	}
 }
 

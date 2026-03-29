@@ -64,19 +64,19 @@ func setupMockGitLabServer(t *testing.T, notes string, createCalled, updateCalle
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case strings.Contains(r.URL.Path, "/notes") && r.Method == "GET":
+		case strings.Contains(r.URL.Path, "/notes") && r.Method == http.MethodGet:
 			w.Header().Set("Content-Type", "application/json")
 			fmt.Fprint(w, notes)
-		case strings.Contains(r.URL.Path, "/notes") && r.Method == "POST":
+		case strings.Contains(r.URL.Path, "/notes") && r.Method == http.MethodPost:
 			*createCalled = true
 			w.Header().Set("Content-Type", "application/json")
 			fmt.Fprint(w, `{"id": 1, "body": "test"}`)
-		case strings.Contains(r.URL.Path, "/notes/") && r.Method == "PUT":
+		case strings.Contains(r.URL.Path, "/notes/") && r.Method == http.MethodPut:
 			*updateCalled = true
 			w.Header().Set("Content-Type", "application/json")
 			fmt.Fprint(w, `{"id": 1, "body": "updated"}`)
 		default:
-			w.WriteHeader(404)
+			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
 }
@@ -181,10 +181,10 @@ func TestMRService_UpsertComment_GetNotesError(t *testing.T) {
 func TestMRService_UpsertComment_CreateError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case strings.Contains(r.URL.Path, "/notes") && r.Method == "GET":
+		case strings.Contains(r.URL.Path, "/notes") && r.Method == http.MethodGet:
 			w.Header().Set("Content-Type", "application/json")
 			fmt.Fprint(w, `[]`)
-		case strings.Contains(r.URL.Path, "/notes") && r.Method == "POST":
+		case strings.Contains(r.URL.Path, "/notes") && r.Method == http.MethodPost:
 			w.WriteHeader(http.StatusInternalServerError)
 		default:
 			w.WriteHeader(http.StatusNotFound)

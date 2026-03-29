@@ -3,6 +3,7 @@ package pricing
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -257,7 +258,7 @@ func (c *Cache) loadFromCache(service ServiceCode, region string) (*PriceIndex, 
 	}
 
 	if !idx.isValid() {
-		return nil, fmt.Errorf("invalid cache entry")
+		return nil, errors.New("invalid cache entry")
 	}
 
 	return &idx, nil

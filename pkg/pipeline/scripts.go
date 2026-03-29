@@ -1,7 +1,5 @@
 package pipeline
 
-import "fmt"
-
 // ScriptConfig controls terraform script generation for plan/apply jobs.
 type ScriptConfig struct {
 	TerraformBinary string
@@ -13,12 +11,12 @@ type ScriptConfig struct {
 
 // PlanScript generates the terraform plan commands and artifact paths for a module.
 func (sc ScriptConfig) PlanScript(modulePath string) (script, artifactPaths []string) {
-	script = append(script, fmt.Sprintf("cd %s", modulePath))
+	script = append(script, "cd "+modulePath)
 	if sc.InitEnabled {
 		script = append(script, "${TERRAFORM_BINARY} init")
 	}
 
-	artifactPaths = []string{fmt.Sprintf("%s/plan.tfplan", modulePath)}
+	artifactPaths = []string{modulePath + "/plan.tfplan"}
 
 	if sc.DetailedPlan {
 		script = append(script,
@@ -27,8 +25,8 @@ func (sc ScriptConfig) PlanScript(modulePath string) (script, artifactPaths []st
 			`TF_EXIT=$(cat .tf_exit 2>/dev/null || echo 0); rm -f .tf_exit; if [ "$TF_EXIT" -eq 2 ]; then exit 0; else exit "$TF_EXIT"; fi`,
 		)
 		artifactPaths = append(artifactPaths,
-			fmt.Sprintf("%s/plan.txt", modulePath),
-			fmt.Sprintf("%s/plan.json", modulePath))
+			modulePath+"/plan.txt",
+			modulePath+"/plan.json")
 	} else {
 		script = append(script, "${TERRAFORM_BINARY} plan -out=plan.tfplan")
 	}
@@ -38,7 +36,7 @@ func (sc ScriptConfig) PlanScript(modulePath string) (script, artifactPaths []st
 
 // ApplyScript generates the terraform apply commands for a module.
 func (sc ScriptConfig) ApplyScript(modulePath string) []string {
-	script := []string{fmt.Sprintf("cd %s", modulePath)}
+	script := []string{"cd " + modulePath}
 	if sc.InitEnabled {
 		script = append(script, "${TERRAFORM_BINARY} init")
 	}

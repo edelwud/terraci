@@ -1,6 +1,7 @@
 package policyengine
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -131,7 +132,7 @@ func (p *Config) GetEffectiveConfig(modulePath string) *Config {
 // Validate checks if the policy configuration is valid
 func (p *Config) Validate() error {
 	if len(p.Sources) == 0 {
-		return fmt.Errorf("at least one source is required when policy is enabled")
+		return errors.New("at least one source is required when policy is enabled")
 	}
 
 	for i, src := range p.Sources {

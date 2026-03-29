@@ -69,5 +69,5 @@ func (s *GitSource) String() string {
 	if s.Ref != "" {
 		return fmt.Sprintf("git:%s@%s", s.URL, s.Ref)
 	}
-	return fmt.Sprintf("git:%s", s.URL)
+	return "git:" + s.URL
 }

@@ -1,7 +1,7 @@
 package parser
 
 import (
-	"fmt"
+	"errors"
 	"maps"
 	"os"
 	"strings"
@@ -22,7 +22,7 @@ func (p *Parser) ResolveWorkspacePath(ref *RemoteStateRef, modulePath string, lo
 
 	pathExpr := p.findPathExpression(ref)
 	if pathExpr == nil {
-		return nil, fmt.Errorf("no key or prefix found in remote state config")
+		return nil, errors.New("no key or prefix found in remote state config")
 	}
 
 	if ref.ForEach != nil {
@@ -171,5 +171,5 @@ func extractPathTemplate(expr hcl.Expression, ctx *hcl.EvalContext) ([]string, e
 		}
 	}
 
-	return nil, fmt.Errorf("could not extract path template")
+	return nil, errors.New("could not extract path template")
 }

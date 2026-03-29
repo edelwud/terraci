@@ -1,6 +1,7 @@
 package elasticache
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -29,7 +30,7 @@ func (h *ClusterHandler) ServiceCode() pricing.ServiceCode {
 func (h *ClusterHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 	nodeType := handler.GetStringAttr(attrs, "node_type")
 	if nodeType == "" {
-		return nil, fmt.Errorf("node_type not found")
+		return nil, errors.New("node_type not found")
 	}
 
 	engine := handler.GetStringAttr(attrs, "engine")

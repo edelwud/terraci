@@ -8,7 +8,7 @@ import (
 
 const pluginName = "git"
 
-func init() { //nolint:gochecknoinits // intentional plugin registration
+func init() {
 	plugin.Register(&Plugin{})
 }
 

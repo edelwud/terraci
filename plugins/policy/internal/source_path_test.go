@@ -7,14 +7,10 @@ import (
 )
 
 func TestPathSource_Pull_ValidDir(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "pathsource-test-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	t.Cleanup(func() { os.RemoveAll(tmpDir) })
+	tmpDir := t.TempDir()
 
 	src := &PathSource{Path: tmpDir}
-	err = src.Pull(context.Background(), "")
+	err := src.Pull(context.Background(), "")
 	if err != nil {
 		t.Errorf("expected no error for valid dir, got: %v", err)
 	}
@@ -29,7 +25,7 @@ func TestPathSource_Pull_NonExistent(t *testing.T) {
 }
 
 func TestPathSource_Pull_File(t *testing.T) {
-	tmpFile, err := os.CreateTemp("", "pathsource-file-*")
+	tmpFile, err := os.CreateTemp(t.TempDir(), "pathsource-file-*")
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}

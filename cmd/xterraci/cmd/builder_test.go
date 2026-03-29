@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -75,13 +76,7 @@ func TestResolvePlugins(t *testing.T) {
 		// All built-in plugins should be present
 		sort.Strings(builtins)
 		for name, importPath := range BuiltinPlugins {
-			found := false
-			for _, imp := range builtins {
-				if imp == importPath {
-					found = true
-					break
-				}
-			}
+			found := slices.Contains(builtins, importPath)
 			if !found {
 				t.Errorf("missing built-in plugin %q (%s)", name, importPath)
 			}

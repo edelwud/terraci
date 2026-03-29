@@ -79,5 +79,5 @@ type NoModulesError struct {
 }
 
 func (e *NoModulesError) Error() string {
-	return fmt.Sprintf("no modules found in %s", e.Dir)
+	return "no modules found in " + e.Dir
 }

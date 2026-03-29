@@ -3,6 +3,7 @@ package policy
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -28,7 +29,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 		Short: "Pull policies from configured sources",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if !p.IsConfigured() {
-				return fmt.Errorf("policy checks are not enabled in configuration")
+				return errors.New("policy checks are not enabled in configuration")
 			}
 
 			log.Info("pulling policies from configured sources")
@@ -62,7 +63,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 		Short: "Check Terraform plans against policies",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if !p.IsConfigured() {
-				return fmt.Errorf("policy checks are not enabled in configuration")
+				return errors.New("policy checks are not enabled in configuration")
 			}
 
 			log.Info("running policy checks")

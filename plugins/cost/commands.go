@@ -2,6 +2,7 @@ package cost
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -35,7 +36,7 @@ Examples:
   terraci cost --output json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if !p.IsConfigured() {
-				return fmt.Errorf("cost estimation is not enabled (set plugins.cost.enabled: true)")
+				return errors.New("cost estimation is not enabled (set plugins.cost.enabled: true)")
 			}
 
 			log.Info("running cost estimation")
@@ -72,7 +73,7 @@ func (p *Plugin) runEstimation(ctx context.Context, appCtx *plugin.AppContext, m
 	}
 
 	if len(modulePaths) == 0 {
-		return fmt.Errorf("no plan.json files found")
+		return errors.New("no plan.json files found")
 	}
 
 	log.WithField("count", len(modulePaths)).Info("modules with plan.json found")
@@ -87,7 +88,7 @@ func (p *Plugin) runEstimation(ctx context.Context, appCtx *plugin.AppContext, m
 
 	estimator := p.getEstimator()
 	if estimator == nil {
-		return fmt.Errorf("cost estimator not initialized (check plugins.cost configuration)")
+		return errors.New("cost estimator not initialized (check plugins.cost configuration)")
 	}
 
 	if prefetchErr := estimator.ValidateAndPrefetch(ctx, modulePaths, regions); prefetchErr != nil {

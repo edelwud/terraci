@@ -6,7 +6,7 @@ import (
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
 
-func init() { //nolint:gochecknoinits // intentional plugin registration
+func init() {
 	plugin.Register(&Plugin{
 		BasePlugin: plugin.BasePlugin[*policyengine.Config]{
 			PluginName: "policy",

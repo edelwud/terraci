@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -97,7 +98,7 @@ This command will:
 			// 7. Summary
 			if hasErrors {
 				log.Error("validation FAILED - please fix the issues above")
-				return fmt.Errorf("validation failed")
+				return errors.New("validation failed")
 			}
 
 			log.Info("validation PASSED")

@@ -193,8 +193,8 @@ func TestGraph_DOTEdgeCorrectness(t *testing.T) {
 
 	// Check that the DOT output contains an edge representing eks -> vpc dependency
 	hasEksVpcEdge := false
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(output, "\n")
+	for line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if strings.Contains(trimmed, "eks") && strings.Contains(trimmed, "->") && strings.Contains(trimmed, "vpc") {
 			hasEksVpcEdge = true

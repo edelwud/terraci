@@ -7,7 +7,7 @@ import (
 	summaryengine "github.com/edelwud/terraci/plugins/summary/internal"
 )
 
-func init() { //nolint:gochecknoinits // intentional plugin registration
+func init() {
 	plugin.Register(&Plugin{
 		BasePlugin: plugin.BasePlugin[*summaryengine.Config]{
 			PluginName: "summary",

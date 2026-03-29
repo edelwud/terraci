@@ -7,7 +7,7 @@ import (
 	gitlabci "github.com/edelwud/terraci/plugins/gitlab/internal"
 )
 
-func init() { //nolint:gochecknoinits // intentional plugin registration
+func init() {
 	plugin.Register(&Plugin{
 		BasePlugin: plugin.BasePlugin[*gitlabci.Config]{
 			PluginName: "gitlab",

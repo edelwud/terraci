@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -122,10 +123,10 @@ func runInteractiveInit() (*config.Config, error) {
 	}
 	im, ok := finalModel.(*initModel)
 	if !ok {
-		return nil, fmt.Errorf("unexpected model type")
+		return nil, errors.New("unexpected model type")
 	}
 	if im.result == nil {
-		return nil, fmt.Errorf("init canceled")
+		return nil, errors.New("init canceled")
 	}
 	return im.result, nil
 }

@@ -31,5 +31,5 @@ func (s *PathSource) Pull(_ context.Context, _ string) error {
 
 // String returns a human-readable description
 func (s *PathSource) String() string {
-	return fmt.Sprintf("path:%s", s.Path)
+	return "path:" + s.Path
 }

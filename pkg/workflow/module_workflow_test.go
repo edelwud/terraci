@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	terrierrors "github.com/edelwud/terraci/pkg/errors"
@@ -235,13 +236,7 @@ resource "aws_eks_cluster" "main" {
 	}
 
 	vpcID := "platform/stage/eu-central-1/vpc"
-	found := false
-	for _, d := range deps {
-		if d == vpcID {
-			found = true
-			break
-		}
-	}
+	found := slices.Contains(deps, vpcID)
 	if !found {
 		t.Errorf("expected eks to depend on vpc, got deps: %v", deps)
 	}

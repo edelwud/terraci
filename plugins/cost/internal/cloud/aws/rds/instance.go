@@ -1,6 +1,7 @@
 package rds
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -42,7 +43,7 @@ func (h *InstanceHandler) ServiceCode() pricing.ServiceCode {
 func (h *InstanceHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 	instanceClass := handler.GetStringAttr(attrs, "instance_class")
 	if instanceClass == "" {
-		return nil, fmt.Errorf("instance_class not found")
+		return nil, errors.New("instance_class not found")
 	}
 
 	engine := handler.GetStringAttr(attrs, "engine")
