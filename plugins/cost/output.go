@@ -103,7 +103,7 @@ func renderResource(rc *costengine.ResourceCost, displayAddr string) {
 		}
 	case costengine.CostErrorUsageBased:
 		log.WithField("note", "usage-based").Debug(displayAddr)
-	case costengine.CostErrorNoHandler:
+	case costengine.CostErrorNoProvider, costengine.CostErrorNoHandler:
 		log.WithField("note", "unsupported").Debug(displayAddr)
 	case costengine.CostErrorLookupFailed, costengine.CostErrorAPIFailure, costengine.CostErrorNoPrice:
 		log.WithField("error", rc.ErrorDetail).Warn(displayAddr)

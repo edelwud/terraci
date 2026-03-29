@@ -15,9 +15,9 @@ func (p *Plugin) InitGroups() []*plugin.InitGroupSpec {
 			Order:    initGroupOrder,
 			Fields: []plugin.InitField{
 				{
-					Key:         "cost.enabled",
-					Title:       "Enable cost estimation?",
-					Description: "Estimate AWS costs from Terraform plans",
+					Key:         "cost.providers.aws.enabled",
+					Title:       "Enable cloud cost estimation?",
+					Description: "Estimate cloud costs from Terraform plans",
 					Type:        "bool",
 					Default:     false,
 				},
@@ -28,14 +28,18 @@ func (p *Plugin) InitGroups() []*plugin.InitGroupSpec {
 
 // BuildInitConfig builds the cost estimation init contribution.
 func (p *Plugin) BuildInitConfig(state *plugin.StateMap) *plugin.InitContribution {
-	enabled := state.Bool("cost.enabled")
+	enabled := state.Bool("cost.providers.aws.enabled")
 	if !enabled {
 		return nil
 	}
 	return &plugin.InitContribution{
 		PluginKey: "cost",
 		Config: map[string]any{
-			"enabled": true,
+			"providers": map[string]any{
+				"aws": map[string]any{
+					"enabled": true,
+				},
+			},
 		},
 	}
 }

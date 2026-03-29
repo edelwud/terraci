@@ -23,8 +23,8 @@ type LambdaHandler struct{}
 
 func (h *LambdaHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
-func (h *LambdaHandler) ServiceCode() pricing.ServiceCode {
-	return pricing.ServiceLambda
+func (h *LambdaHandler) ServiceCode() pricing.ServiceID {
+	return awskit.MustService(awskit.ServiceKeyLambda)
 }
 
 func (h *LambdaHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
@@ -42,7 +42,7 @@ func (h *LambdaHandler) Describe(_ *pricing.Price, attrs map[string]any) map[str
 }
 
 func (h *LambdaHandler) BuildLookup(region string, _ map[string]any) (*pricing.PriceLookup, error) {
-	lb := &awskit.LookupBuilder{Service: pricing.ServiceLambda, ProductFamily: "Serverless"}
+	lb := &awskit.LookupBuilder{Service: awskit.MustService(awskit.ServiceKeyLambda), ProductFamily: "Serverless"}
 	return lb.Build(region, map[string]string{
 		"group": "AWS-Lambda-Duration",
 	}), nil

@@ -1,6 +1,7 @@
 package serverless //nolint:dupl // SQS and SNS are structurally similar usage-based handlers
 
 import (
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
@@ -10,8 +11,8 @@ type SQSHandler struct{}
 
 func (h *SQSHandler) Category() handler.CostCategory { return handler.CostCategoryUsageBased }
 
-func (h *SQSHandler) ServiceCode() pricing.ServiceCode {
-	return pricing.ServiceSQS
+func (h *SQSHandler) ServiceCode() pricing.ServiceID {
+	return awskit.MustService(awskit.ServiceKeySQS)
 }
 
 func (h *SQSHandler) BuildLookup(_ string, _ map[string]any) (*pricing.PriceLookup, error) {

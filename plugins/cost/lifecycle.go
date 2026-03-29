@@ -26,7 +26,11 @@ func (p *Plugin) Initialize(_ context.Context, appCtx *plugin.AppContext) error 
 	}
 
 	log.Debug("cost: initializing estimator and pricing cache")
-	p.estimator = costengine.NewEstimatorFromConfig(p.Config())
+	estimator, err := costengine.NewEstimatorFromConfig(p.Config())
+	if err != nil {
+		return err
+	}
+	p.estimator = estimator
 	p.estimator.CleanExpiredCache()
 
 	entries := p.estimator.CacheEntries()
@@ -34,7 +38,7 @@ func (p *Plugin) Initialize(_ context.Context, appCtx *plugin.AppContext) error 
 		log.WithField("dir", p.estimator.CacheDir()).Debug("pricing cache empty")
 	} else {
 		for _, e := range entries {
-			log.WithField("service", string(e.Service)).
+			log.WithField("service", e.Service.String()).
 				WithField("region", e.Region).
 				WithField("expires_in", e.ExpiresIn.Truncate(time.Minute)).
 				Debug("pricing cache")

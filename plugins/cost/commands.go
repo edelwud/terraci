@@ -27,8 +27,8 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "cost",
-		Short: "Estimate AWS costs from Terraform plans",
-		Long: `Estimate monthly AWS costs by analyzing plan.json files in module directories.
+		Short: "Estimate cloud costs from Terraform plans",
+		Long: `Estimate monthly cloud costs by analyzing plan.json files in module directories.
 
 Examples:
   terraci cost
@@ -36,7 +36,7 @@ Examples:
   terraci cost --output json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if !p.IsEnabled() {
-				return errors.New("cost estimation is not enabled (set plugins.cost.enabled: true)")
+				return errors.New("cost estimation is not enabled (set plugins.cost.providers.aws.enabled: true)")
 			}
 
 			log.Info("running cost estimation")
@@ -93,10 +93,6 @@ func (p *Plugin) runEstimation(ctx context.Context, appCtx *plugin.AppContext, m
 	estimator := p.getEstimator()
 	if estimator == nil {
 		return errors.New("cost estimator not initialized (check plugins.cost configuration)")
-	}
-
-	if prefetchErr := estimator.ValidateAndPrefetch(ctx, modulePaths, regions); prefetchErr != nil {
-		log.WithError(prefetchErr).Warn("failed to prefetch some pricing data")
 	}
 
 	result, err := estimator.EstimateModules(ctx, modulePaths, regions)

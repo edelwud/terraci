@@ -1,11 +1,8 @@
 package costengine
 
 import (
+	"fmt"
 	"time"
-
-	// Blank import triggers AWS provider self-registration via init().
-	// Add similar imports for GCP/Azure when available.
-	_ "github.com/edelwud/terraci/plugins/cost/internal/cloud/aws"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
@@ -14,57 +11,77 @@ import (
 
 const defaultCacheTTL = 24 * time.Hour
 
-// newDefaultRegistry creates a handler registry with all registered cloud providers' handlers.
-func newDefaultRegistry() *handler.Registry {
+// ProviderRuntime groups the provider registry entry with its pricing cache.
+type ProviderRuntime struct {
+	Definition cloud.Definition
+	Cache      *pricing.Cache
+}
+
+// newDefaultRegistry creates a handler registry with all enabled cloud providers' handlers.
+func newDefaultRegistry(providers []cloud.Provider) *handler.Registry {
 	r := handler.NewRegistry()
-	for _, cp := range cloud.Providers() {
-		cp.InitRegionMapping()
-		cp.RegisterHandlers(r)
+	for _, cp := range providers {
+		cloud.RegisterDefinitionHandlers(r, cp.Definition())
 	}
 	return r
 }
 
-// newDefaultFetcher returns a composite fetcher from registered cloud providers.
-func newDefaultFetcher() pricing.PriceFetcher {
+func configuredProviders(cfg *CostConfig) ([]cloud.Provider, error) {
+	enabled := map[string]bool{}
+	for _, id := range cfg.EnabledProviderIDs() {
+		enabled[id] = true
+	}
+
 	providers := cloud.Providers()
-	if len(providers) == 0 {
-		return nil
-	}
-	if len(providers) == 1 {
-		return providers[0].NewFetcher()
-	}
-	fetchers := make(map[string]pricing.PriceFetcher, len(providers))
+	selected := make([]cloud.Provider, 0, len(enabled))
 	for _, cp := range providers {
-		fetchers[cp.Name()] = cp.NewFetcher()
+		if enabled[cp.Definition().Manifest.ID] {
+			selected = append(selected, cp)
+		}
 	}
-	return &cloud.RoutingFetcher{Fetchers: fetchers}
+
+	for id := range enabled {
+		if _, ok := cloud.Get(id); !ok {
+			return nil, fmt.Errorf("cost provider %q is enabled but not registered", id)
+		}
+	}
+
+	return selected, nil
+}
+
+func newProviderRuntimes(cfg *CostConfig, providers []cloud.Provider) map[string]*ProviderRuntime {
+	cacheDir, cacheTTL := parseCacheConfig(cfg)
+	runtimes := make(map[string]*ProviderRuntime, len(providers))
+	for _, cp := range providers {
+		def := cp.Definition()
+		runtimes[def.Manifest.ID] = &ProviderRuntime{
+			Definition: def,
+			Cache:      pricing.NewCache(cacheDir, cacheTTL, def.FetcherFactory()),
+		}
+	}
+	return runtimes
 }
 
 // NewEstimatorFromConfig creates an Estimator using CostConfig settings.
-// Uses all registered cloud providers (registered via init() + cloud.Register).
-func NewEstimatorFromConfig(cfg *CostConfig) *Estimator {
-	cacheDir, cacheTTL := parseCacheConfig(cfg)
+// Uses the configured cloud providers registered via init() + cloud.Register.
+func NewEstimatorFromConfig(cfg *CostConfig) (*Estimator, error) {
+	providers, err := configuredProviders(cfg)
+	if err != nil {
+		return nil, err
+	}
 
-	registry := newDefaultRegistry()
-	fetcher := newDefaultFetcher()
-	cache := pricing.NewCache(cacheDir, cacheTTL, fetcher)
-	resolver := NewCostResolver(registry, cache)
-	return NewEstimatorWithResolver(cache, resolver)
+	registry := newDefaultRegistry(providers)
+	runtimes := newProviderRuntimes(cfg, providers)
+	return NewEstimatorWithRuntimes(registry, runtimes), nil
 }
 
 // NewEstimatorFromConfigWithProvider creates an Estimator for a specific cloud provider.
 // Use this to override auto-discovery for testing or single-provider usage.
 func NewEstimatorFromConfigWithProvider(cfg *CostConfig, cp cloud.Provider) *Estimator {
-	cacheDir, cacheTTL := parseCacheConfig(cfg)
-
-	cp.InitRegionMapping()
 	registry := handler.NewRegistry()
-	cp.RegisterHandlers(registry)
-
-	fetcher := cp.NewFetcher()
-	cache := pricing.NewCache(cacheDir, cacheTTL, fetcher)
-	resolver := NewCostResolver(registry, cache)
-	return NewEstimatorWithResolver(cache, resolver)
+	cloud.RegisterDefinitionHandlers(registry, cp.Definition())
+	runtimes := newProviderRuntimes(cfg, []cloud.Provider{cp})
+	return NewEstimatorWithRuntimes(registry, runtimes)
 }
 
 // parseCacheConfig extracts cache directory and TTL from config.

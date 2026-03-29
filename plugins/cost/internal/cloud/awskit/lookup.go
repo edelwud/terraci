@@ -4,7 +4,7 @@ import "github.com/edelwud/terraci/plugins/cost/internal/pricing"
 
 // LookupBuilder constructs PriceLookup objects with common defaults.
 type LookupBuilder struct {
-	Service       pricing.ServiceCode
+	Service       pricing.ServiceID
 	ProductFamily string
 }
 
@@ -16,7 +16,7 @@ func (b *LookupBuilder) Build(region string, attrs map[string]string) *pricing.P
 	attrs["location"] = ResolveRegionName(region)
 
 	return &pricing.PriceLookup{
-		ServiceCode:   b.Service,
+		ServiceID:     b.Service,
 		Region:        region,
 		ProductFamily: b.ProductFamily,
 		Attributes:    attrs,

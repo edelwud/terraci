@@ -1,6 +1,7 @@
 package storage //nolint:dupl // KMS and SecretsManager are structurally similar fixed-cost handlers
 
 import (
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
@@ -15,8 +16,8 @@ type KMSHandler struct{}
 
 func (h *KMSHandler) Category() handler.CostCategory { return handler.CostCategoryFixed }
 
-func (h *KMSHandler) ServiceCode() pricing.ServiceCode {
-	return pricing.ServiceKMS
+func (h *KMSHandler) ServiceCode() pricing.ServiceID {
+	return awskit.MustService(awskit.ServiceKeyKMS)
 }
 
 func (h *KMSHandler) BuildLookup(_ string, _ map[string]any) (*pricing.PriceLookup, error) {

@@ -3,8 +3,8 @@ package serverless
 import (
 	"testing"
 
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
-	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
 func TestSQSHandler_Category(t *testing.T) {
@@ -30,8 +30,8 @@ func TestSQSHandler_ServiceCode(t *testing.T) {
 	t.Parallel()
 
 	h := &SQSHandler{}
-	if h.ServiceCode() != pricing.ServiceSQS {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceSQS)
+	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeySQS) {
+		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeySQS))
 	}
 }
 

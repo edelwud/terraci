@@ -11,12 +11,14 @@ import (
 // Satisfied by *handler.Registry.
 type RegistryLookup interface {
 	GetHandler(resourceType string) (handler.ResourceHandler, bool)
+	Resolve(resourceType string) (handler.RegisteredHandler, bool)
 }
 
 // PricingSource abstracts pricing index retrieval for cost resolution.
-// Satisfied by *pricing.Cache.
+// Satisfied by estimator provider runtimes.
 type PricingSource interface {
-	GetIndex(ctx context.Context, service pricing.ServiceCode, region string) (*pricing.PriceIndex, error)
+	GetIndex(ctx context.Context, service pricing.ServiceID, region string) (*pricing.PriceIndex, error)
+	SourceName(providerID string) string
 }
 
 // ResolveRequest bundles all inputs for a single resource cost resolution.

@@ -11,6 +11,8 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/edelwud/terraci/internal/terraform/plan"
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
@@ -21,50 +23,126 @@ const DefaultRegion = "us-east-1"
 // Estimator calculates cost estimates for terraform plans.
 type Estimator struct {
 	resolver *CostResolver
-	cache    *pricing.Cache
+	runtimes map[string]*ProviderRuntime
 }
 
 // NewEstimator creates a new cost estimator with the given pricing fetcher.
 func NewEstimator(cacheDir string, cacheTTL time.Duration, fetcher pricing.PriceFetcher) *Estimator {
-	registry := newDefaultRegistry()
-	cache := pricing.NewCache(cacheDir, cacheTTL, fetcher)
-	resolver := NewCostResolver(registry, cache)
-	return NewEstimatorWithResolver(cache, resolver)
+	registry := handler.NewRegistry()
+	awsProvider, ok := cloud.Get(awskit.ProviderID)
+	def := cloud.Definition{
+		Manifest: awskit.Manifest,
+	}
+	if ok {
+		def = awsProvider.Definition()
+		cloud.RegisterDefinitionHandlers(registry, def)
+	}
+	runtimes := map[string]*ProviderRuntime{
+		def.Manifest.ID: {
+			Definition: def,
+			Cache:      pricing.NewCache(cacheDir, cacheTTL, fetcher),
+		},
+	}
+	return NewEstimatorWithRuntimes(registry, runtimes)
 }
 
-// NewEstimatorWithResolver creates an Estimator with an explicit resolver and cache.
+// NewEstimatorWithRuntimes creates an Estimator with explicit runtimes.
+func NewEstimatorWithRuntimes(registry *handler.Registry, runtimes map[string]*ProviderRuntime) *Estimator {
+	e := &Estimator{
+		runtimes: runtimes,
+	}
+	e.resolver = NewCostResolver(registry, e)
+	return e
+}
+
+// NewEstimatorWithResolver creates an Estimator with an explicit resolver and runtime map.
 // Use this for custom registries, middleware, or testing.
-func NewEstimatorWithResolver(cache *pricing.Cache, resolver *CostResolver) *Estimator {
+func NewEstimatorWithResolver(runtimes map[string]*ProviderRuntime, resolver *CostResolver) *Estimator {
 	return &Estimator{
 		resolver: resolver,
-		cache:    cache,
+		runtimes: runtimes,
 	}
 }
 
 // CacheDir returns the resolved pricing cache directory path.
-func (e *Estimator) CacheDir() string { return e.cache.Dir() }
+func (e *Estimator) CacheDir() string {
+	for _, runtime := range e.runtimes {
+		return runtime.Cache.Dir()
+	}
+	return ""
+}
 
 // SetPricingFetcher replaces the pricing fetcher (for testing or alternative providers).
-func (e *Estimator) SetPricingFetcher(f pricing.PriceFetcher) { e.cache.SetFetcher(f) }
+func (e *Estimator) SetPricingFetcher(f pricing.PriceFetcher) {
+	if len(e.runtimes) == 1 {
+		for _, runtime := range e.runtimes {
+			runtime.Cache.SetFetcher(f)
+			return
+		}
+	}
+	if runtime, ok := e.runtimes[awskit.ProviderID]; ok {
+		runtime.Cache.SetFetcher(f)
+	}
+}
 
 // CacheOldestAge returns the age of the oldest cache entry, or 0 if empty.
-func (e *Estimator) CacheOldestAge() time.Duration { return e.cache.OldestAge() }
+func (e *Estimator) CacheOldestAge() time.Duration {
+	oldest := time.Duration(0)
+	for _, runtime := range e.runtimes {
+		age := runtime.Cache.OldestAge()
+		if oldest == 0 || (age != 0 && age > oldest) {
+			oldest = age
+		}
+	}
+	return oldest
+}
 
 // CacheTTL returns the cache TTL.
-func (e *Estimator) CacheTTL() time.Duration { return e.cache.TTL() }
+func (e *Estimator) CacheTTL() time.Duration {
+	for _, runtime := range e.runtimes {
+		return runtime.Cache.TTL()
+	}
+	return 0
+}
 
 // CleanExpiredCache removes expired cache entries.
 func (e *Estimator) CleanExpiredCache() {
-	if err := e.cache.CleanExpired(); err != nil {
-		log.WithError(err).Debug("failed to clean expired cache")
+	for providerID, runtime := range e.runtimes {
+		if err := runtime.Cache.CleanExpired(); err != nil {
+			log.WithError(err).WithField("provider", providerID).Debug("failed to clean expired cache")
+		}
 	}
 }
 
 // CacheEntries returns info about all cached pricing files.
-func (e *Estimator) CacheEntries() []pricing.CacheEntry { return e.cache.Entries() }
+func (e *Estimator) CacheEntries() []pricing.CacheEntry {
+	var entries []pricing.CacheEntry
+	for _, runtime := range e.runtimes {
+		entries = append(entries, runtime.Cache.Entries()...)
+	}
+	return entries
+}
 
 // Resolver returns the underlying CostResolver for middleware registration.
 func (e *Estimator) Resolver() *CostResolver { return e.resolver }
+
+// GetIndex resolves pricing through the provider runtime selected by service id.
+func (e *Estimator) GetIndex(ctx context.Context, service pricing.ServiceID, region string) (*pricing.PriceIndex, error) {
+	runtime, ok := e.runtimes[service.Provider]
+	if !ok {
+		return nil, fmt.Errorf("no pricing runtime for provider %q", service.Provider)
+	}
+	return runtime.Cache.GetIndex(ctx, service, region)
+}
+
+// SourceName returns the configured price source for a provider.
+func (e *Estimator) SourceName(providerID string) string {
+	runtime, ok := e.runtimes[providerID]
+	if !ok {
+		return ""
+	}
+	return runtime.Definition.Manifest.PriceSource
+}
 
 // EstimateModule calculates cost for a single module from plan.json.
 func (e *Estimator) EstimateModule(ctx context.Context, modulePath, region string) (*ModuleCost, error) {
@@ -80,12 +158,6 @@ func (e *Estimator) EstimateModule(ctx context.Context, modulePath, region strin
 		ModulePath: modulePath,
 		Region:     region,
 		Resources:  make([]ResourceCost, 0),
-	}
-
-	// Pre-fetch pricing data for all required services
-	requiredServices := e.resolver.collectRequiredServices(parsedPlan.Resources, region)
-	if prefetchErr := e.cache.PrewarmCache(ctx, requiredServices); prefetchErr != nil {
-		log.WithError(prefetchErr).Warn("failed to prefetch some pricing data")
 	}
 
 	// Calculate costs for each resource
@@ -121,6 +193,7 @@ func (e *Estimator) EstimateModule(ctx context.Context, modulePath, region strin
 	result.DiffCost = result.AfterCost - result.BeforeCost
 	result.HasChanges = parsedPlan.HasChanges()
 	result.Submodules = groupByModule(result.Resources)
+	result.Provider, result.Providers = summarizeProviders(result.Resources)
 
 	return result, nil
 }
@@ -150,6 +223,10 @@ func aggregateCost(result *ModuleCost, rc ResourceCost, action string) {
 func (e *Estimator) EstimateModules(ctx context.Context, modulePaths []string, regions map[string]string) (*EstimateResult, error) {
 	const maxConcurrency = 4
 	results := make([]ModuleCost, len(modulePaths))
+
+	if prefetchErr := e.ValidateAndPrefetch(ctx, modulePaths, regions); prefetchErr != nil {
+		log.WithError(prefetchErr).Warn("failed to prefetch some pricing data")
+	}
 
 	var g errgroup.Group
 	g.SetLimit(maxConcurrency)
@@ -181,13 +258,18 @@ func (e *Estimator) EstimateModules(ctx context.Context, modulePaths []string, r
 	_ = g.Wait() //nolint:errcheck // individual errors collected in results
 
 	result := &EstimateResult{
-		Modules:     results,
-		Currency:    "USD",
-		GeneratedAt: time.Now().UTC(),
+		Modules:          results,
+		Currency:         "USD",
+		GeneratedAt:      time.Now().UTC(),
+		ProviderMetadata: e.providerMetadata(),
 	}
+	providerSet := make(map[string]bool)
 	for i := range results {
 		result.TotalBefore += results[i].BeforeCost
 		result.TotalAfter += results[i].AfterCost
+		for _, providerID := range results[i].Providers {
+			providerSet[providerID] = true
+		}
 		if results[i].Error != "" {
 			result.Errors = append(result.Errors, ModuleError{
 				ModuleID: results[i].ModuleID,
@@ -196,13 +278,16 @@ func (e *Estimator) EstimateModules(ctx context.Context, modulePaths []string, r
 		}
 	}
 	result.TotalDiff = result.TotalAfter - result.TotalBefore
+	for providerID := range providerSet {
+		result.Providers = append(result.Providers, providerID)
+	}
 
 	return result, nil
 }
 
 // ValidateAndPrefetch checks which pricing data is needed and downloads missing data.
 func (e *Estimator) ValidateAndPrefetch(ctx context.Context, modulePaths []string, regions map[string]string) error {
-	requiredServices := make(map[pricing.ServiceCode]map[string]bool)
+	requiredServices := make(map[pricing.ServiceID]map[string]bool)
 
 	for _, modulePath := range modulePaths {
 		planJSONPath := filepath.Join(modulePath, "plan.json")
@@ -217,12 +302,12 @@ func (e *Estimator) ValidateAndPrefetch(ctx context.Context, modulePaths []strin
 		}
 
 		for _, rc := range parsedPlan.Resources {
-			h, ok := e.resolver.registry.GetHandler(rc.Type)
-			if !ok || h.Category() != handler.CostCategoryStandard {
+			resolved, ok := e.resolver.registry.Resolve(rc.Type)
+			if !ok || resolved.Handler.Category() != handler.CostCategoryStandard {
 				continue
 			}
 
-			svc := h.ServiceCode()
+			svc := resolved.Handler.ServiceCode()
 			if requiredServices[svc] == nil {
 				requiredServices[svc] = make(map[string]bool)
 			}
@@ -230,7 +315,7 @@ func (e *Estimator) ValidateAndPrefetch(ctx context.Context, modulePaths []strin
 		}
 	}
 
-	services := make(map[pricing.ServiceCode][]string)
+	services := make(map[pricing.ServiceID][]string)
 	for svc, regionMap := range requiredServices {
 		for region := range regionMap {
 			services[svc] = append(services[svc], region)
@@ -244,21 +329,83 @@ func (e *Estimator) ValidateAndPrefetch(ctx context.Context, modulePaths []strin
 
 	log.WithField("services", len(services)).Debug("required pricing services")
 
-	missing := e.cache.Validate(services)
-	if len(missing) == 0 {
-		log.Info("all pricing data is cached and valid")
-		return nil
-	}
-
-	for i, m := range missing {
-		log.WithField("service", string(m.Service)).
-			WithField("region", m.Region).
-			WithField("progress", fmt.Sprintf("%d/%d", i+1, len(missing))).
-			Info("downloading pricing data")
-		if _, err := e.cache.GetIndex(ctx, m.Service, m.Region); err != nil {
-			return fmt.Errorf("fetch %s/%s pricing: %w", m.Service, m.Region, err)
+	var totalMissing int
+	for providerID, runtime := range e.runtimes {
+		providerServices := filterServicesForProvider(services, providerID)
+		if len(providerServices) == 0 {
+			continue
+		}
+		missing := runtime.Cache.Validate(providerServices)
+		if len(missing) == 0 {
+			continue
+		}
+		for i, m := range missing {
+			totalMissing++
+			log.WithField("provider", providerID).
+				WithField("service", m.Service.String()).
+				WithField("region", m.Region).
+				WithField("progress", fmt.Sprintf("%d/%d", i+1, len(missing))).
+				Info("downloading pricing data")
+			if _, err := runtime.Cache.GetIndex(ctx, m.Service, m.Region); err != nil {
+				return fmt.Errorf("fetch %s/%s pricing: %w", m.Service.String(), m.Region, err)
+			}
 		}
 	}
 
+	if totalMissing == 0 {
+		log.Info("all pricing data is cached and valid")
+	}
+
 	return nil
+}
+
+func (e *Estimator) providerMetadata() map[string]ProviderMetadata {
+	if len(e.runtimes) == 0 {
+		return nil
+	}
+
+	meta := make(map[string]ProviderMetadata, len(e.runtimes))
+	for providerID, runtime := range e.runtimes {
+		if runtime.Definition.Manifest.ID == "" {
+			continue
+		}
+		meta[providerID] = ProviderMetadata{
+			DisplayName: runtime.Definition.Manifest.DisplayName,
+			PriceSource: runtime.Definition.Manifest.PriceSource,
+		}
+	}
+	return meta
+}
+
+func filterServicesForProvider(services map[pricing.ServiceID][]string, providerID string) map[pricing.ServiceID][]string {
+	filtered := make(map[pricing.ServiceID][]string)
+	for serviceID, regions := range services {
+		if serviceID.Provider == providerID {
+			filtered[serviceID] = regions
+		}
+	}
+	return filtered
+}
+
+func summarizeProviders(resources []ResourceCost) (primary string, providers []string) {
+	providerSet := make(map[string]bool)
+	for i := range resources {
+		resource := &resources[i]
+		if resource.Provider != "" {
+			providerSet[resource.Provider] = true
+		}
+	}
+
+	if len(providerSet) == 0 {
+		return "", nil
+	}
+
+	providers = make([]string, 0, len(providerSet))
+	for providerID := range providerSet {
+		providers = append(providers, providerID)
+	}
+	if len(providers) == 1 {
+		return providers[0], providers
+	}
+	return "", providers
 }

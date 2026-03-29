@@ -3,8 +3,8 @@ package serverless
 import (
 	"testing"
 
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
-	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
 func TestDynamoDBHandler_Category(t *testing.T) {
@@ -20,8 +20,8 @@ func TestDynamoDBHandler_ServiceCode(t *testing.T) {
 	t.Parallel()
 
 	h := &DynamoDBHandler{}
-	if h.ServiceCode() != pricing.ServiceDynamoDB {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceDynamoDB)
+	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeyDynamoDB) {
+		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeyDynamoDB))
 	}
 }
 

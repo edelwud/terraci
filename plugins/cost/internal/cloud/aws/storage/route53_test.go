@@ -3,8 +3,8 @@ package storage
 import (
 	"testing"
 
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
-	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
 func TestRoute53Handler_Category(t *testing.T) {
@@ -30,8 +30,8 @@ func TestRoute53Handler_ServiceCode(t *testing.T) {
 	t.Parallel()
 
 	h := &Route53Handler{}
-	if h.ServiceCode() != pricing.ServiceRoute53 {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceRoute53)
+	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeyRoute53) {
+		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeyRoute53))
 	}
 }
 

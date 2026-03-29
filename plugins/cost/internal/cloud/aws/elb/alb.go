@@ -24,8 +24,8 @@ type ALBHandler struct{}
 
 func (h *ALBHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
-func (h *ALBHandler) ServiceCode() pricing.ServiceCode {
-	return pricing.ServiceEC2
+func (h *ALBHandler) ServiceCode() pricing.ServiceID {
+	return awskit.MustService(awskit.ServiceKeyEC2)
 }
 
 func (h *ALBHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
@@ -45,7 +45,7 @@ func (h *ALBHandler) BuildLookup(region string, attrs map[string]any) (*pricing.
 		productFamily = "Load Balancer-Application"
 	}
 
-	lb := &awskit.LookupBuilder{Service: pricing.ServiceEC2, ProductFamily: productFamily}
+	lb := &awskit.LookupBuilder{Service: awskit.MustService(awskit.ServiceKeyEC2), ProductFamily: productFamily}
 	return lb.Build(region, map[string]string{
 		"usagetype": region + "-" + UsageType,
 	}), nil

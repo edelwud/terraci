@@ -3,8 +3,8 @@ package storage
 import (
 	"testing"
 
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
-	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
 func TestS3Handler_Category(t *testing.T) {
@@ -20,8 +20,8 @@ func TestS3Handler_ServiceCode(t *testing.T) {
 	t.Parallel()
 
 	h := &S3Handler{}
-	if h.ServiceCode() != pricing.ServiceS3 {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceS3)
+	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeyS3) {
+		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeyS3))
 	}
 }
 

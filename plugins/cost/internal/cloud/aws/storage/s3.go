@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
@@ -12,8 +13,8 @@ type S3Handler struct{}
 
 func (h *S3Handler) Category() handler.CostCategory { return handler.CostCategoryUsageBased }
 
-func (h *S3Handler) ServiceCode() pricing.ServiceCode {
-	return pricing.ServiceS3
+func (h *S3Handler) ServiceCode() pricing.ServiceID {
+	return awskit.MustService(awskit.ServiceKeyS3)
 }
 
 func (h *S3Handler) BuildLookup(_ string, _ map[string]any) (*pricing.PriceLookup, error) {

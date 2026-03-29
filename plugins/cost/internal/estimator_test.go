@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	_ "github.com/edelwud/terraci/plugins/cost/internal/cloud/aws"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 )
 
@@ -477,8 +478,8 @@ func TestEstimateModule_UnsupportedResource(t *testing.T) {
 	if rc == nil {
 		t.Fatal("missing resource in results")
 	}
-	if rc.ErrorKind != CostErrorNoHandler {
-		t.Errorf("ErrorKind = %q, want %q", rc.ErrorKind, CostErrorNoHandler)
+	if rc.ErrorKind != CostErrorNoProvider {
+		t.Errorf("ErrorKind = %q, want %q", rc.ErrorKind, CostErrorNoProvider)
 	}
 	if rc.MonthlyCost != 0 {
 		t.Errorf("MonthlyCost = %.4f, want 0 for unsupported", rc.MonthlyCost)
@@ -827,7 +828,10 @@ func TestNewEstimator(t *testing.T) {
 
 func TestNewEstimatorFromConfig(t *testing.T) {
 	t.Run("nil config", func(t *testing.T) {
-		e := NewEstimatorFromConfig(nil)
+		e, err := NewEstimatorFromConfig(nil)
+		if err != nil {
+			t.Fatalf("NewEstimatorFromConfig() error = %v", err)
+		}
 		if e == nil {
 			t.Fatal("expected non-nil estimator")
 		}
@@ -835,8 +839,17 @@ func TestNewEstimatorFromConfig(t *testing.T) {
 
 	t.Run("custom cache dir and TTL", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		cfg := &CostConfig{CacheDir: tmpDir, CacheTTL: "2h"}
-		e := NewEstimatorFromConfig(cfg)
+		cfg := &CostConfig{
+			CacheDir: tmpDir,
+			CacheTTL: "2h",
+			Providers: CostProvidersConfig{
+				AWS: &ProviderConfig{Enabled: true},
+			},
+		}
+		e, err := NewEstimatorFromConfig(cfg)
+		if err != nil {
+			t.Fatalf("NewEstimatorFromConfig() error = %v", err)
+		}
 		if e.CacheDir() != tmpDir {
 			t.Errorf("CacheDir() = %q, want %q", e.CacheDir(), tmpDir)
 		}
@@ -846,8 +859,16 @@ func TestNewEstimatorFromConfig(t *testing.T) {
 	})
 
 	t.Run("invalid TTL uses default", func(t *testing.T) {
-		cfg := &CostConfig{CacheTTL: "invalid"}
-		e := NewEstimatorFromConfig(cfg)
+		cfg := &CostConfig{
+			CacheTTL: "invalid",
+			Providers: CostProvidersConfig{
+				AWS: &ProviderConfig{Enabled: true},
+			},
+		}
+		e, err := NewEstimatorFromConfig(cfg)
+		if err != nil {
+			t.Fatalf("NewEstimatorFromConfig() error = %v", err)
+		}
 		if e.CacheTTL() != 24*time.Hour {
 			t.Errorf("CacheTTL() = %v, want 24h", e.CacheTTL())
 		}

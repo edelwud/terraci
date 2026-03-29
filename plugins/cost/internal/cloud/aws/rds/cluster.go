@@ -13,8 +13,8 @@ type ClusterHandler struct{}
 
 func (h *ClusterHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
-func (h *ClusterHandler) ServiceCode() pricing.ServiceCode {
-	return pricing.ServiceRDS
+func (h *ClusterHandler) ServiceCode() pricing.ServiceID {
+	return awskit.MustService(awskit.ServiceKeyRDS)
 }
 
 func (h *ClusterHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
@@ -27,7 +27,7 @@ func (h *ClusterHandler) BuildLookup(region string, attrs map[string]any) (*pric
 	}
 	_ = engine // Engine used for validation only
 
-	lb := &awskit.LookupBuilder{Service: pricing.ServiceRDS, ProductFamily: "Database Storage"}
+	lb := &awskit.LookupBuilder{Service: awskit.MustService(awskit.ServiceKeyRDS), ProductFamily: "Database Storage"}
 	prefix := awskit.ResolveUsagePrefix(region)
 	return lb.Build(region, map[string]string{
 		"volumeType": "Aurora:StorageUsage",

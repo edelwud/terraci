@@ -22,7 +22,7 @@ type ResourceHandler interface {
 	// Category returns how this handler calculates costs.
 	Category() CostCategory
 	// ServiceCode returns the cloud service code for pricing API.
-	ServiceCode() pricing.ServiceCode
+	ServiceCode() pricing.ServiceID
 	// BuildLookup creates a PriceLookup from terraform resource attributes.
 	// Not called for Fixed or UsageBased handlers.
 	BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error)

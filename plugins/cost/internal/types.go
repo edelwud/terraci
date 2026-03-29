@@ -2,8 +2,11 @@
 package costengine
 
 import (
+	"errors"
 	"fmt"
 	"time"
+
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 )
 
 // Formatting constants
@@ -15,16 +18,17 @@ const (
 
 // ResourceCost represents the estimated cost of a single resource
 type ResourceCost struct {
+	Provider          string            `json:"provider,omitempty"`            // Cloud provider id (aws, gcp, azure)
 	Address           string            `json:"address"`                       // Terraform resource address
 	ModuleAddr        string            `json:"module_addr,omitempty"`         // Terraform module address (e.g., "module.vpc")
 	Type              string            `json:"type"`                          // Terraform resource type (aws_instance)
 	Name              string            `json:"name"`                          // Resource name
-	Region            string            `json:"region"`                        // AWS region
+	Region            string            `json:"region"`                        // Cloud region
 	MonthlyCost       float64           `json:"monthly_cost"`                  // After-state monthly cost in USD
 	HourlyCost        float64           `json:"hourly_cost"`                   // After-state hourly cost in USD
 	BeforeMonthlyCost float64           `json:"before_monthly_cost,omitempty"` // Before-state monthly cost (update/replace)
 	BeforeHourlyCost  float64           `json:"before_hourly_cost,omitempty"`  // Before-state hourly cost (update/replace)
-	PriceSource       string            `json:"price_source"`                  // Source of pricing (aws-bulk-api, fixed, usage-based)
+	PriceSource       string            `json:"price_source"`                  // Source of pricing (provider API, fixed, usage-based)
 	ErrorKind         CostErrorKind     `json:"error_kind,omitempty"`          // Classification of estimation error
 	ErrorDetail       string            `json:"error_detail,omitempty"`        // Human-readable error detail
 	Details           map[string]string `json:"details,omitempty"`             // Resource-specific info (instance_type, nodes, disk, etc.)
@@ -41,6 +45,7 @@ type CostErrorKind string
 
 const (
 	CostErrorNone         CostErrorKind = ""
+	CostErrorNoProvider   CostErrorKind = "no_provider"
 	CostErrorNoHandler    CostErrorKind = "no_handler"
 	CostErrorUsageBased   CostErrorKind = "usage_based"
 	CostErrorLookupFailed CostErrorKind = "lookup_failed"
@@ -72,6 +77,8 @@ type ModuleCost struct {
 	ModuleID    string          `json:"module_id"`            // Module identifier
 	ModulePath  string          `json:"module_path"`          // Path to module
 	Region      string          `json:"region"`               // Primary region
+	Provider    string          `json:"provider,omitempty"`   // Single provider id when the module is homogeneous
+	Providers   []string        `json:"providers,omitempty"`  // All providers encountered in the module
 	BeforeCost  float64         `json:"before_cost"`          // Monthly cost before changes
 	AfterCost   float64         `json:"after_cost"`           // Monthly cost after changes
 	DiffCost    float64         `json:"diff_cost"`            // Cost difference (after - before)
@@ -90,14 +97,21 @@ type ModuleError struct {
 
 // EstimateResult contains the full cost estimation result
 type EstimateResult struct {
-	Modules        []ModuleCost  `json:"modules"`
-	TotalBefore    float64       `json:"total_before"`
-	TotalAfter     float64       `json:"total_after"`
-	TotalDiff      float64       `json:"total_diff"`
-	Currency       string        `json:"currency"` // USD
-	GeneratedAt    time.Time     `json:"generated_at"`
-	PricingVersion string        `json:"pricing_version"`  // AWS pricing version/date
-	Errors         []ModuleError `json:"errors,omitempty"` // Modules that failed estimation
+	Modules          []ModuleCost                `json:"modules"`
+	Providers        []string                    `json:"providers,omitempty"`
+	TotalBefore      float64                     `json:"total_before"`
+	TotalAfter       float64                     `json:"total_after"`
+	TotalDiff        float64                     `json:"total_diff"`
+	Currency         string                      `json:"currency"` // USD for the built-in AWS provider
+	GeneratedAt      time.Time                   `json:"generated_at"`
+	ProviderMetadata map[string]ProviderMetadata `json:"provider_metadata,omitempty"`
+	Errors           []ModuleError               `json:"errors,omitempty"` // Modules that failed estimation
+}
+
+// ProviderMetadata contains provider-specific estimation metadata.
+type ProviderMetadata struct {
+	DisplayName string `json:"display_name,omitempty"`
+	PriceSource string `json:"price_source,omitempty"`
 }
 
 // FormatCost formats a cost value as a string with currency
@@ -270,10 +284,10 @@ func trimZeros(s string) string {
 	return s[:end]
 }
 
-// CostConfig defines configuration for cost estimation
+// CostConfig defines configuration for cost estimation.
 type CostConfig struct {
-	// Enabled enables cost estimation in MR comments
-	Enabled bool `yaml:"enabled" json:"enabled" jsonschema:"description=Enable cost estimation,default=false"`
+	// Enabled is an internal shorthand used by tests; user-facing config should use providers.<name>.enabled.
+	Enabled bool `yaml:"-" json:"-"`
 
 	// CacheDir is the directory to cache AWS pricing data
 	// If empty, uses ~/.terraci/pricing
@@ -282,14 +296,58 @@ type CostConfig struct {
 	// CacheTTL is how long cached pricing data is valid (e.g., '24h', '7d')
 	// Default: 24h
 	CacheTTL string `yaml:"cache_ttl,omitempty" json:"cache_ttl,omitempty" jsonschema:"description=How long cached pricing is valid (e.g. 24h),default=24h"`
+
+	// Providers contains provider-specific settings.
+	Providers CostProvidersConfig `yaml:"providers" json:"providers"`
+
+	// LegacyEnabled exists only to surface a clear migration error.
+	LegacyEnabled *bool `yaml:"enabled,omitempty" json:"-"`
+}
+
+// CostProvidersConfig contains built-in provider configs.
+type CostProvidersConfig struct {
+	AWS *ProviderConfig `yaml:"aws,omitempty" json:"aws,omitempty"`
+}
+
+// ProviderConfig contains provider activation state.
+type ProviderConfig struct {
+	Enabled bool `yaml:"enabled,omitempty" json:"enabled,omitempty" jsonschema:"description=Enable this cloud provider,default=false"`
+}
+
+// EnabledProviderIDs returns all enabled cloud providers.
+func (c *CostConfig) EnabledProviderIDs() []string {
+	if c == nil {
+		return nil
+	}
+
+	var providers []string
+	if c.Providers.AWS != nil && c.Providers.AWS.Enabled {
+		providers = append(providers, awskit.ProviderID)
+	}
+	if c.Enabled {
+		providers = append(providers, awskit.ProviderID)
+	}
+
+	return providers
+}
+
+// HasEnabledProviders returns true when at least one provider is enabled.
+func (c *CostConfig) HasEnabledProviders() bool {
+	return len(c.EnabledProviderIDs()) > 0
 }
 
 // Validate checks if the CostConfig values are valid.
 func (c *CostConfig) Validate() error {
+	if c.LegacyEnabled != nil {
+		return errors.New("plugins.cost.enabled is no longer supported; use plugins.cost.providers.aws.enabled")
+	}
 	if c.CacheTTL != "" {
 		if _, err := time.ParseDuration(c.CacheTTL); err != nil {
 			return fmt.Errorf("invalid cache_ttl %q: %w", c.CacheTTL, err)
 		}
+	}
+	if !c.HasEnabledProviders() {
+		return nil
 	}
 	return nil
 }

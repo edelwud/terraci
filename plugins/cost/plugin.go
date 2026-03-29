@@ -2,6 +2,9 @@
 package cost
 
 import (
+	// Register the built-in AWS provider with the cost engine.
+	_ "github.com/edelwud/terraci/plugins/cost/internal/cloud/aws"
+
 	"github.com/edelwud/terraci/pkg/plugin"
 	costengine "github.com/edelwud/terraci/plugins/cost/internal"
 )
@@ -16,13 +19,13 @@ func init() {
 				return &costengine.CostConfig{}
 			},
 			IsEnabledFn: func(cfg *costengine.CostConfig) bool {
-				return cfg != nil && cfg.Enabled
+				return cfg != nil && cfg.HasEnabledProviders()
 			},
 		},
 	})
 }
 
-// Plugin is the AWS cost estimation plugin.
+// Plugin is the cloud cost estimation plugin.
 type Plugin struct {
 	plugin.BasePlugin[*costengine.CostConfig]
 	estimator     *costengine.Estimator

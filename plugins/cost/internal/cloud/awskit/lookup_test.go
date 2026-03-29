@@ -1,14 +1,10 @@
 package awskit
 
-import (
-	"testing"
-
-	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
-)
+import "testing"
 
 func TestLookupBuilder_Build(t *testing.T) {
 	builder := LookupBuilder{
-		Service:       pricing.ServiceEC2,
+		Service:       MustService(ServiceKeyEC2),
 		ProductFamily: "Compute Instance",
 	}
 
@@ -17,8 +13,8 @@ func TestLookupBuilder_Build(t *testing.T) {
 		"tenancy":      "Shared",
 	})
 
-	if lookup.ServiceCode != pricing.ServiceEC2 {
-		t.Errorf("ServiceCode = %v, want %v", lookup.ServiceCode, pricing.ServiceEC2)
+	if lookup.ServiceID != MustService(ServiceKeyEC2) {
+		t.Errorf("ServiceCode = %v, want %v", lookup.ServiceID, MustService(ServiceKeyEC2))
 	}
 	if lookup.Region != "us-east-1" {
 		t.Errorf("Region = %q, want %q", lookup.Region, "us-east-1")
@@ -36,7 +32,7 @@ func TestLookupBuilder_Build(t *testing.T) {
 
 func TestLookupBuilder_Build_AddsLocation(t *testing.T) {
 	builder := LookupBuilder{
-		Service:       pricing.ServiceRDS,
+		Service:       MustService(ServiceKeyRDS),
 		ProductFamily: "Database Instance",
 	}
 
@@ -60,7 +56,7 @@ func TestLookupBuilder_Build_AddsLocation(t *testing.T) {
 
 func TestLookupBuilder_Build_NilAttrs(t *testing.T) {
 	builder := LookupBuilder{
-		Service:       pricing.ServiceEC2,
+		Service:       MustService(ServiceKeyEC2),
 		ProductFamily: "NAT Gateway",
 	}
 
@@ -76,7 +72,7 @@ func TestLookupBuilder_Build_NilAttrs(t *testing.T) {
 
 func TestLookupBuilder_Build_UnknownRegion(t *testing.T) {
 	builder := LookupBuilder{
-		Service:       pricing.ServiceEC2,
+		Service:       MustService(ServiceKeyEC2),
 		ProductFamily: "Storage",
 	}
 
@@ -93,7 +89,7 @@ func TestLookupBuilder_Build_UnknownRegion(t *testing.T) {
 
 func TestLookupBuilder_Build_DoesNotOverwriteExistingAttrs(t *testing.T) {
 	builder := LookupBuilder{
-		Service:       pricing.ServiceEC2,
+		Service:       MustService(ServiceKeyEC2),
 		ProductFamily: "Compute Instance",
 	}
 

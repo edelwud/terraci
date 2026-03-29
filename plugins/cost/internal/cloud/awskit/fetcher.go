@@ -80,9 +80,9 @@ func NewFetcher() *Fetcher {
 
 // FetchRegionIndex downloads pricing for a specific service and region.
 // Returns a compact PriceIndex suitable for caching.
-func (f *Fetcher) FetchRegionIndex(ctx context.Context, service pricing.ServiceCode, region string) (*pricing.PriceIndex, error) {
+func (f *Fetcher) FetchRegionIndex(ctx context.Context, service pricing.ServiceID, region string) (*pricing.PriceIndex, error) {
 	url := f.buildRegionURL(service, region)
-	log.WithField("service", string(service)).
+	log.WithField("service", service.String()).
 		WithField("region", region).
 		Debug("fetching pricing data")
 
@@ -104,12 +104,12 @@ func (f *Fetcher) FetchRegionIndex(ctx context.Context, service pricing.ServiceC
 	return f.parseToIndex(resp.Body, service, region)
 }
 
-func (f *Fetcher) buildRegionURL(service pricing.ServiceCode, region string) string {
+func (f *Fetcher) buildRegionURL(service pricing.ServiceID, region string) string {
 	return fmt.Sprintf("%s/offers/v1.0/aws/%s/current/%s/index.json",
-		f.BaseURL, service, region)
+		f.BaseURL, service.Name, region)
 }
 
-func (f *Fetcher) parseToIndex(r io.Reader, service pricing.ServiceCode, region string) (*pricing.PriceIndex, error) {
+func (f *Fetcher) parseToIndex(r io.Reader, service pricing.ServiceID, region string) (*pricing.PriceIndex, error) {
 	var offer awsPriceListOffer
 	decoder := json.NewDecoder(r)
 	if err := decoder.Decode(&offer); err != nil {
@@ -117,11 +117,11 @@ func (f *Fetcher) parseToIndex(r io.Reader, service pricing.ServiceCode, region 
 	}
 
 	index := &pricing.PriceIndex{
-		ServiceCode: service,
-		Region:      region,
-		Version:     offer.Version,
-		UpdatedAt:   time.Now().UTC(),
-		Products:    make(map[string]pricing.Price),
+		ServiceID: service,
+		Region:    region,
+		Version:   offer.Version,
+		UpdatedAt: time.Now().UTC(),
+		Products:  make(map[string]pricing.Price),
 	}
 
 	for sku, product := range offer.Products {
@@ -158,7 +158,7 @@ func (f *Fetcher) parseToIndex(r io.Reader, service pricing.ServiceCode, region 
 		}
 	}
 
-	log.WithField("service", string(service)).
+	log.WithField("service", service.String()).
 		WithField("region", region).
 		WithField("products", len(index.Products)).
 		Debug("parsed pricing index")

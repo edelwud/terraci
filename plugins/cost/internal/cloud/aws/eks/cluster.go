@@ -16,8 +16,8 @@ type ClusterHandler struct{}
 
 func (h *ClusterHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
-func (h *ClusterHandler) ServiceCode() pricing.ServiceCode {
-	return pricing.ServiceEKS
+func (h *ClusterHandler) ServiceCode() pricing.ServiceID {
+	return awskit.MustService(awskit.ServiceKeyEKS)
 }
 
 func (h *ClusterHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
@@ -31,7 +31,7 @@ func (h *ClusterHandler) Describe(_ *pricing.Price, attrs map[string]any) map[st
 func (h *ClusterHandler) BuildLookup(region string, _ map[string]any) (*pricing.PriceLookup, error) {
 	prefix := awskit.ResolveUsagePrefix(region)
 
-	lb := &awskit.LookupBuilder{Service: pricing.ServiceEKS, ProductFamily: "Compute"}
+	lb := &awskit.LookupBuilder{Service: awskit.MustService(awskit.ServiceKeyEKS), ProductFamily: "Compute"}
 	return lb.Build(region, map[string]string{
 		"usagetype": prefix + "-AmazonEKS-Hours:perCluster",
 	}), nil

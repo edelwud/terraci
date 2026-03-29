@@ -6,5 +6,7 @@ plugins:
     image:
       name: hashicorp/terraform:1.6
   cost:
-    enabled: true
+    providers:
+      aws:
+        enabled: true
     cache_ttl: "24h"

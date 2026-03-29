@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
@@ -17,8 +18,8 @@ type LogGroupHandler struct{}
 
 func (h *LogGroupHandler) Category() handler.CostCategory { return handler.CostCategoryUsageBased }
 
-func (h *LogGroupHandler) ServiceCode() pricing.ServiceCode {
-	return pricing.ServiceCloudWatch
+func (h *LogGroupHandler) ServiceCode() pricing.ServiceID {
+	return awskit.MustService(awskit.ServiceKeyCloudWatch)
 }
 
 func (h *LogGroupHandler) BuildLookup(_ string, _ map[string]any) (*pricing.PriceLookup, error) {
@@ -39,8 +40,8 @@ type AlarmHandler struct{}
 
 func (h *AlarmHandler) Category() handler.CostCategory { return handler.CostCategoryFixed }
 
-func (h *AlarmHandler) ServiceCode() pricing.ServiceCode {
-	return pricing.ServiceCloudWatch
+func (h *AlarmHandler) ServiceCode() pricing.ServiceID {
+	return awskit.MustService(awskit.ServiceKeyCloudWatch)
 }
 
 func (h *AlarmHandler) BuildLookup(_ string, _ map[string]any) (*pricing.PriceLookup, error) {

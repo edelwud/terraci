@@ -3,6 +3,7 @@ package eks
 import (
 	"testing"
 
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
@@ -20,8 +21,8 @@ func TestClusterHandler_ServiceCode(t *testing.T) {
 	t.Parallel()
 
 	h := &ClusterHandler{}
-	if h.ServiceCode() != pricing.ServiceEKS {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceEKS)
+	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeyEKS) {
+		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeyEKS))
 	}
 }
 
@@ -37,8 +38,8 @@ func TestClusterHandler_BuildLookup(t *testing.T) {
 	if lookup == nil {
 		t.Fatal("expected non-nil lookup")
 	}
-	if lookup.ServiceCode != pricing.ServiceEKS {
-		t.Errorf("ServiceCode = %q, want %q", lookup.ServiceCode, pricing.ServiceEKS)
+	if lookup.ServiceID != awskit.MustService(awskit.ServiceKeyEKS) {
+		t.Errorf("ServiceCode = %q, want %q", lookup.ServiceID, awskit.MustService(awskit.ServiceKeyEKS))
 	}
 	if lookup.Attributes["usagetype"] != "USE1-AmazonEKS-Hours:perCluster" {
 		t.Errorf("usagetype = %q, want USE1-AmazonEKS-Hours:perCluster", lookup.Attributes["usagetype"])

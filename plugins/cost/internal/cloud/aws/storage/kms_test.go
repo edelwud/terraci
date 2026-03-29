@@ -3,8 +3,8 @@ package storage
 import (
 	"testing"
 
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
-	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
 func TestKMSHandler_Category(t *testing.T) {
@@ -20,8 +20,8 @@ func TestKMSHandler_ServiceCode(t *testing.T) {
 	t.Parallel()
 
 	h := &KMSHandler{}
-	if h.ServiceCode() != pricing.ServiceKMS {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceKMS)
+	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeyKMS) {
+		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeyKMS))
 	}
 }
 

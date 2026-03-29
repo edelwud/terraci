@@ -3,8 +3,8 @@ package rds
 import (
 	"testing"
 
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
-	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
 func TestClusterHandler_Category(t *testing.T) {
@@ -20,8 +20,8 @@ func TestClusterHandler_ServiceCode(t *testing.T) {
 	t.Parallel()
 
 	h := &ClusterHandler{}
-	if h.ServiceCode() != pricing.ServiceRDS {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceRDS)
+	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeyRDS) {
+		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeyRDS))
 	}
 }
 
@@ -37,8 +37,8 @@ func TestClusterHandler_BuildLookup(t *testing.T) {
 	if lookup == nil {
 		t.Fatal("expected non-nil lookup for aurora storage")
 	}
-	if lookup.ServiceCode != pricing.ServiceRDS {
-		t.Errorf("ServiceCode = %q, want %q", lookup.ServiceCode, pricing.ServiceRDS)
+	if lookup.ServiceID != awskit.MustService(awskit.ServiceKeyRDS) {
+		t.Errorf("ServiceCode = %q, want %q", lookup.ServiceID, awskit.MustService(awskit.ServiceKeyRDS))
 	}
 	if lookup.ProductFamily != "Database Storage" {
 		t.Errorf("ProductFamily = %q, want %q", lookup.ProductFamily, "Database Storage")

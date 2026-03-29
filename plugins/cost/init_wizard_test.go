@@ -29,8 +29,8 @@ func TestPlugin_InitGroups(t *testing.T) {
 	}
 
 	f := g.Fields[0]
-	if f.Key != "cost.enabled" {
-		t.Errorf("field.Key = %q, want %q", f.Key, "cost.enabled")
+	if f.Key != "cost.providers.aws.enabled" {
+		t.Errorf("field.Key = %q, want %q", f.Key, "cost.providers.aws.enabled")
 	}
 	if f.Type != "bool" {
 		t.Errorf("field.Type = %q, want %q", f.Type, "bool")
@@ -43,7 +43,7 @@ func TestPlugin_InitGroups(t *testing.T) {
 func TestPlugin_BuildInitConfig_Enabled(t *testing.T) {
 	p := newTestPlugin(t)
 	state := plugin.NewStateMap()
-	state.Set("cost.enabled", true)
+	state.Set("cost.providers.aws.enabled", true)
 
 	contrib := p.BuildInitConfig(state)
 
@@ -53,19 +53,23 @@ func TestPlugin_BuildInitConfig_Enabled(t *testing.T) {
 	if contrib.PluginKey != "cost" {
 		t.Errorf("PluginKey = %q, want %q", contrib.PluginKey, "cost")
 	}
-	enabled, ok := contrib.Config["enabled"]
+	providers, ok := contrib.Config["providers"].(map[string]any)
 	if !ok {
-		t.Fatal("Config missing 'enabled' key")
+		t.Fatal("Config missing 'providers' key")
 	}
-	if enabled != true {
-		t.Errorf("Config[enabled] = %v, want true", enabled)
+	awsCfg, ok := providers["aws"].(map[string]any)
+	if !ok {
+		t.Fatal("Config missing providers.aws")
+	}
+	if awsCfg["enabled"] != true {
+		t.Errorf("Config[providers][aws][enabled] = %v, want true", awsCfg["enabled"])
 	}
 }
 
 func TestPlugin_BuildInitConfig_Disabled(t *testing.T) {
 	p := newTestPlugin(t)
 	state := plugin.NewStateMap()
-	state.Set("cost.enabled", false)
+	state.Set("cost.providers.aws.enabled", false)
 
 	contrib := p.BuildInitConfig(state)
 
@@ -77,7 +81,7 @@ func TestPlugin_BuildInitConfig_Disabled(t *testing.T) {
 func TestPlugin_BuildInitConfig_NotSet(t *testing.T) {
 	p := newTestPlugin(t)
 	state := plugin.NewStateMap()
-	// No key set — Bool("cost.enabled") returns false
+	// No key set — Bool("cost.providers.aws.enabled") returns false
 
 	contrib := p.BuildInitConfig(state)
 

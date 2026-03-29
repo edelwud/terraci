@@ -3,6 +3,7 @@ package rds
 import (
 	"testing"
 
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
@@ -47,8 +48,8 @@ func TestInstanceHandler_ServiceCode(t *testing.T) {
 	t.Parallel()
 
 	h := &InstanceHandler{}
-	if h.ServiceCode() != pricing.ServiceRDS {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceRDS)
+	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeyRDS) {
+		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeyRDS))
 	}
 }
 

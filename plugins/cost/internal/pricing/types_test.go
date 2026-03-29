@@ -2,61 +2,37 @@ package pricing
 
 import "testing"
 
-func initTestRegionMapping() {
-	SetRegionMapping(map[string]string{
-		"us-east-1":      "US East (N. Virginia)",
-		"eu-central-1":   "EU (Frankfurt)",
-		"ap-northeast-1": "Asia Pacific (Tokyo)",
-	})
-}
+var (
+	typesAWSProviderID         = "aws"
+	typesAWSServiceEC2         = ServiceID{Provider: typesAWSProviderID, Name: "AmazonEC2"}
+	typesAWSServiceRDS         = ServiceID{Provider: typesAWSProviderID, Name: "AmazonRDS"}
+	typesAWSServiceS3          = ServiceID{Provider: typesAWSProviderID, Name: "AmazonS3"}
+	typesAWSServiceElastiCache = ServiceID{Provider: typesAWSProviderID, Name: "AmazonElastiCache"}
+	typesAWSServiceEKS         = ServiceID{Provider: typesAWSProviderID, Name: "AmazonEKS"}
+	typesAWSServiceLambda      = ServiceID{Provider: typesAWSProviderID, Name: "AWSLambda"}
+)
 
-func TestRegionMapping(t *testing.T) {
-	initTestRegionMapping()
-
+func TestServiceIDs(t *testing.T) {
 	tests := []struct {
-		regionCode string
-		regionName string
+		service  ServiceID
+		provider string
+		name     string
 	}{
-		{"us-east-1", "US East (N. Virginia)"},
-		{"eu-central-1", "EU (Frankfurt)"},
-		{"ap-northeast-1", "Asia Pacific (Tokyo)"},
+		{typesAWSServiceEC2, typesAWSProviderID, "AmazonEC2"},
+		{typesAWSServiceRDS, typesAWSProviderID, "AmazonRDS"},
+		{typesAWSServiceS3, typesAWSProviderID, "AmazonS3"},
+		{typesAWSServiceElastiCache, typesAWSProviderID, "AmazonElastiCache"},
+		{typesAWSServiceEKS, typesAWSProviderID, "AmazonEKS"},
+		{typesAWSServiceLambda, typesAWSProviderID, "AWSLambda"},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.regionCode, func(t *testing.T) {
-			name := RegionMapping[tt.regionCode]
-			if name != tt.regionName {
-				t.Errorf("RegionMapping[%q] = %q, want %q", tt.regionCode, name, tt.regionName)
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.service.Provider != tt.provider {
+				t.Errorf("Provider = %q, want %q", tt.service.Provider, tt.provider)
 			}
-		})
-	}
-}
-
-func TestRegionCodeMapping(t *testing.T) {
-	initTestRegionMapping()
-
-	if RegionCodeMapping["US East (N. Virginia)"] != "us-east-1" {
-		t.Error("RegionCodeMapping should map 'US East (N. Virginia)' to 'us-east-1'")
-	}
-}
-
-func TestServiceCodes(t *testing.T) {
-	tests := []struct {
-		service ServiceCode
-		value   string
-	}{
-		{ServiceEC2, "AmazonEC2"},
-		{ServiceRDS, "AmazonRDS"},
-		{ServiceS3, "AmazonS3"},
-		{ServiceElastiCache, "AmazonElastiCache"},
-		{ServiceEKS, "AmazonEKS"},
-		{ServiceLambda, "AWSLambda"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.value, func(t *testing.T) {
-			if string(tt.service) != tt.value {
-				t.Errorf("ServiceCode = %q, want %q", tt.service, tt.value)
+			if tt.service.Name != tt.name {
+				t.Errorf("Name = %q, want %q", tt.service.Name, tt.name)
 			}
 		})
 	}
@@ -64,8 +40,8 @@ func TestServiceCodes(t *testing.T) {
 
 func TestPriceIndex_LookupPrice(t *testing.T) {
 	idx := &PriceIndex{
-		ServiceCode: ServiceEC2,
-		Region:      "us-east-1",
+		ServiceID: typesAWSServiceEC2,
+		Region:    "us-east-1",
 		Products: map[string]Price{
 			"SKU1": {
 				SKU:           "SKU1",

@@ -27,15 +27,15 @@ type ServerlessHandler struct{}
 
 func (h *ServerlessHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
-func (h *ServerlessHandler) ServiceCode() pricing.ServiceCode {
-	return pricing.ServiceElastiCache
+func (h *ServerlessHandler) ServiceCode() pricing.ServiceID {
+	return awskit.MustService(awskit.ServiceKeyElastiCache)
 }
 
 func (h *ServerlessHandler) BuildLookup(region string, _ map[string]any) (*pricing.PriceLookup, error) {
 	prefix := awskit.ResolveUsagePrefix(region)
 	usagetype := prefix + "-ElastiCache:ServerlessStorage"
 
-	lb := &awskit.LookupBuilder{Service: pricing.ServiceElastiCache, ProductFamily: "ElastiCache Serverless"}
+	lb := &awskit.LookupBuilder{Service: awskit.MustService(awskit.ServiceKeyElastiCache), ProductFamily: "ElastiCache Serverless"}
 	return lb.Build(region, map[string]string{
 		"usagetype": usagetype,
 	}), nil

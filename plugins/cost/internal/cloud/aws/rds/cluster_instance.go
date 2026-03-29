@@ -13,8 +13,8 @@ type ClusterInstanceHandler struct{}
 
 func (h *ClusterInstanceHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
-func (h *ClusterInstanceHandler) ServiceCode() pricing.ServiceCode {
-	return pricing.ServiceRDS
+func (h *ClusterInstanceHandler) ServiceCode() pricing.ServiceID {
+	return awskit.MustService(awskit.ServiceKeyRDS)
 }
 
 func (h *ClusterInstanceHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
@@ -30,7 +30,7 @@ func (h *ClusterInstanceHandler) BuildLookup(region string, attrs map[string]any
 
 	databaseEngine := MapRDSEngine(engine)
 
-	lb := &awskit.LookupBuilder{Service: pricing.ServiceRDS, ProductFamily: "Database Instance"}
+	lb := &awskit.LookupBuilder{Service: awskit.MustService(awskit.ServiceKeyRDS), ProductFamily: "Database Instance"}
 	return lb.Build(region, map[string]string{
 		"instanceType":   instanceClass,
 		"databaseEngine": databaseEngine,

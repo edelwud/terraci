@@ -3,6 +3,7 @@ package ec2
 import (
 	"testing"
 
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
@@ -30,8 +31,8 @@ func TestNATHandler_ServiceCode(t *testing.T) {
 	t.Parallel()
 
 	h := &NATHandler{}
-	if h.ServiceCode() != pricing.ServiceEC2 {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceEC2)
+	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeyEC2) {
+		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeyEC2))
 	}
 }
 

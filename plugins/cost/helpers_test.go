@@ -39,13 +39,13 @@ func newTestPlugin(t *testing.T) *Plugin {
 	p := &Plugin{
 		BasePlugin: plugin.BasePlugin[*costengine.CostConfig]{
 			PluginName: "cost",
-			PluginDesc: "AWS cost estimation from Terraform plans",
+			PluginDesc: "Cloud cost estimation from Terraform plans",
 			EnableMode: plugin.EnabledExplicitly,
 			DefaultCfg: func() *costengine.CostConfig {
 				return &costengine.CostConfig{}
 			},
 			IsEnabledFn: func(cfg *costengine.CostConfig) bool {
-				return cfg != nil && cfg.Enabled
+				return cfg != nil && cfg.HasEnabledProviders()
 			},
 		},
 	}

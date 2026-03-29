@@ -3,8 +3,8 @@ package storage
 import (
 	"testing"
 
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
-	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
 func TestLogGroupHandler_Category(t *testing.T) {
@@ -39,8 +39,8 @@ func TestLogGroupHandler_ServiceCode(t *testing.T) {
 	t.Parallel()
 
 	h := &LogGroupHandler{}
-	if h.ServiceCode() != pricing.ServiceCloudWatch {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceCloudWatch)
+	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeyCloudWatch) {
+		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeyCloudWatch))
 	}
 }
 
@@ -74,8 +74,8 @@ func TestAlarmHandler_ServiceCode(t *testing.T) {
 	t.Parallel()
 
 	h := &AlarmHandler{}
-	if h.ServiceCode() != pricing.ServiceCloudWatch {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceCloudWatch)
+	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeyCloudWatch) {
+		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeyCloudWatch))
 	}
 }
 

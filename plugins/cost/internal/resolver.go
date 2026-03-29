@@ -5,15 +5,10 @@ import (
 
 	"github.com/caarlos0/log"
 
-	"github.com/edelwud/terraci/internal/terraform/plan"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
-	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
 const priceSourceUsageBased = "usage-based"
-
-// resourceChange is a type alias to avoid leaking internal/terraform/plan into the resolver interface.
-type resourceChange = plan.ResourceChange
 
 // CostResolver handles the cost resolution logic: looking up handlers,
 // fetching pricing, and calculating costs. Decoupled from the Estimator
@@ -64,6 +59,7 @@ func (r *CostResolver) resolveWithMiddleware(ctx context.Context, req ResolveReq
 // coreResolve is the actual resolution logic without middleware.
 func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest) ResourceCost {
 	result := ResourceCost{
+		Provider:   "",
 		Address:    req.Address,
 		ModuleAddr: req.ModuleAddr,
 		Type:       req.ResourceType,
@@ -71,13 +67,15 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest) Reso
 		Region:     req.Region,
 	}
 
-	h, ok := r.registry.GetHandler(req.ResourceType)
+	resolved, ok := r.registry.Resolve(req.ResourceType)
 	if !ok {
-		result.ErrorKind = CostErrorNoHandler
-		result.ErrorDetail = "no handler"
+		result.ErrorKind = CostErrorNoProvider
+		result.ErrorDetail = "no provider"
 		handler.LogUnsupported(req.ResourceType, req.Address)
 		return result
 	}
+	result.Provider = resolved.Provider
+	h := resolved.Handler
 
 	attrs := req.Attrs
 	if attrs == nil {
@@ -101,7 +99,7 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest) Reso
 		return result
 
 	case handler.CostCategoryStandard:
-		return r.resolveStandardCost(ctx, h, attrs, req.Region, result)
+		return r.resolveStandardCost(ctx, resolved.Provider, h, attrs, req.Region, result)
 	}
 
 	return result
@@ -109,14 +107,15 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest) Reso
 
 // ResolveBeforeCost calculates the before-state cost for update/replace resources.
 func (r *CostResolver) ResolveBeforeCost(ctx context.Context, rc *ResourceCost, resourceType string, beforeAttrs map[string]any, region string) {
-	h, ok := r.registry.GetHandler(resourceType)
+	resolved, ok := r.registry.Resolve(resourceType)
 	if !ok {
 		return
 	}
+	h := resolved.Handler
 
 	switch h.Category() {
 	case handler.CostCategoryStandard:
-		before := r.resolveStandardCost(ctx, h, beforeAttrs, region, ResourceCost{})
+		before := r.resolveStandardCost(ctx, resolved.Provider, h, beforeAttrs, region, ResourceCost{Provider: resolved.Provider})
 		rc.BeforeHourlyCost = before.HourlyCost
 		rc.BeforeMonthlyCost = before.MonthlyCost
 	case handler.CostCategoryFixed:
@@ -160,7 +159,7 @@ func (r *CostResolver) ResolveWithSubResources(ctx context.Context, req ResolveR
 }
 
 // resolveStandardCost handles the full pricing API lookup path.
-func (r *CostResolver) resolveStandardCost(ctx context.Context, h handler.ResourceHandler, attrs map[string]any, region string, result ResourceCost) ResourceCost {
+func (r *CostResolver) resolveStandardCost(ctx context.Context, providerID string, h handler.ResourceHandler, attrs map[string]any, region string, result ResourceCost) ResourceCost {
 	lookup, err := h.BuildLookup(region, attrs)
 	if err != nil {
 		result.ErrorKind = CostErrorLookupFailed
@@ -172,10 +171,10 @@ func (r *CostResolver) resolveStandardCost(ctx context.Context, h handler.Resour
 		return result
 	}
 
-	index, err := r.pricing.GetIndex(ctx, lookup.ServiceCode, region)
+	index, err := r.pricing.GetIndex(ctx, lookup.ServiceID, region)
 	if err != nil {
 		log.WithError(err).
-			WithField("service", lookup.ServiceCode).
+			WithField("service", lookup.ServiceID.String()).
 			WithField("region", region).
 			Debug("failed to get pricing index")
 		result.ErrorKind = CostErrorAPIFailure
@@ -202,35 +201,8 @@ func (r *CostResolver) resolveStandardCost(ctx context.Context, h handler.Resour
 	hourly, monthly := h.CalculateCost(price, index, region, attrs)
 	result.HourlyCost = hourly
 	result.MonthlyCost = monthly
-	result.PriceSource = "aws-bulk-api"
+	result.PriceSource = r.pricing.SourceName(providerID)
 	result.Details = h.Describe(price, attrs)
-
-	return result
-}
-
-// collectRequiredServices determines which services need pricing data.
-func (r *CostResolver) collectRequiredServices(resources []resourceChange, region string) map[pricing.ServiceCode][]string {
-	services := make(map[pricing.ServiceCode]map[string]bool)
-
-	for _, rc := range resources {
-		h, ok := r.registry.GetHandler(rc.Type)
-		if !ok || h.Category() != handler.CostCategoryStandard {
-			continue
-		}
-
-		svc := h.ServiceCode()
-		if services[svc] == nil {
-			services[svc] = make(map[string]bool)
-		}
-		services[svc][region] = true
-	}
-
-	result := make(map[pricing.ServiceCode][]string)
-	for svc, regionMap := range services {
-		for r := range regionMap {
-			result[svc] = append(result[svc], r)
-		}
-	}
 
 	return result
 }

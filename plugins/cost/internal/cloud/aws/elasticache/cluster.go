@@ -23,8 +23,8 @@ type ClusterHandler struct{}
 
 func (h *ClusterHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
-func (h *ClusterHandler) ServiceCode() pricing.ServiceCode {
-	return pricing.ServiceElastiCache
+func (h *ClusterHandler) ServiceCode() pricing.ServiceID {
+	return awskit.MustService(awskit.ServiceKeyElastiCache)
 }
 
 func (h *ClusterHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
@@ -48,7 +48,7 @@ func (h *ClusterHandler) BuildLookup(region string, attrs map[string]any) (*pric
 	prefix := awskit.ResolveUsagePrefix(region)
 	usagetype := prefix + "-NodeUsage:" + nodeType
 
-	lb := &awskit.LookupBuilder{Service: pricing.ServiceElastiCache, ProductFamily: "Cache Instance"}
+	lb := &awskit.LookupBuilder{Service: awskit.MustService(awskit.ServiceKeyElastiCache), ProductFamily: "Cache Instance"}
 	return lb.Build(region, map[string]string{
 		"instanceType": nodeType,
 		"cacheEngine":  cacheEngine,

@@ -14,8 +14,8 @@ type EIPHandler struct{}
 
 func (h *EIPHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
-func (h *EIPHandler) ServiceCode() pricing.ServiceCode {
-	return pricing.ServiceVPC
+func (h *EIPHandler) ServiceCode() pricing.ServiceID {
+	return awskit.MustService(awskit.ServiceKeyVPC)
 }
 
 func (h *EIPHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
@@ -30,8 +30,8 @@ func (h *EIPHandler) BuildLookup(region string, attrs map[string]any) (*pricing.
 
 	// AWS VPC pricing uses group "VPCPublicIPv4Address" and no product family.
 	return &pricing.PriceLookup{
-		ServiceCode: pricing.ServiceVPC,
-		Region:      region,
+		ServiceID: awskit.MustService(awskit.ServiceKeyVPC),
+		Region:    region,
 		Attributes: map[string]string{
 			"location":  awskit.ResolveRegionName(region),
 			"usagetype": usagetype,

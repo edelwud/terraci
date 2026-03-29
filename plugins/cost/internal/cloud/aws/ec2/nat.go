@@ -14,13 +14,13 @@ type NATHandler struct{}
 
 func (h *NATHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
-func (h *NATHandler) ServiceCode() pricing.ServiceCode {
-	return pricing.ServiceEC2
+func (h *NATHandler) ServiceCode() pricing.ServiceID {
+	return awskit.MustService(awskit.ServiceKeyEC2)
 }
 
 func (h *NATHandler) BuildLookup(region string, _ map[string]any) (*pricing.PriceLookup, error) {
 	// NAT Gateway pricing is in the EC2 service, not VPC
-	lb := &awskit.LookupBuilder{Service: pricing.ServiceEC2, ProductFamily: "NAT Gateway"}
+	lb := &awskit.LookupBuilder{Service: awskit.MustService(awskit.ServiceKeyEC2), ProductFamily: "NAT Gateway"}
 	return lb.Build(region, map[string]string{
 		"group": "NGW:NatGateway",
 	}), nil

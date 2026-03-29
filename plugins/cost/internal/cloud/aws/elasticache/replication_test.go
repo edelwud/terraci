@@ -3,6 +3,7 @@ package elasticache
 import (
 	"testing"
 
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
@@ -40,8 +41,8 @@ func TestReplicationGroupHandler_ServiceCode(t *testing.T) {
 	t.Parallel()
 
 	h := &ReplicationGroupHandler{}
-	if h.ServiceCode() != pricing.ServiceElastiCache {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceElastiCache)
+	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeyElastiCache) {
+		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeyElastiCache))
 	}
 }
 

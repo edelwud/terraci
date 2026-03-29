@@ -36,8 +36,8 @@ type InstanceHandler struct{}
 
 func (h *InstanceHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
-func (h *InstanceHandler) ServiceCode() pricing.ServiceCode {
-	return pricing.ServiceRDS
+func (h *InstanceHandler) ServiceCode() pricing.ServiceID {
+	return awskit.MustService(awskit.ServiceKeyRDS)
 }
 
 func (h *InstanceHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
@@ -60,7 +60,7 @@ func (h *InstanceHandler) BuildLookup(region string, attrs map[string]any) (*pri
 		deploymentOption = "Multi-AZ"
 	}
 
-	lb := &awskit.LookupBuilder{Service: pricing.ServiceRDS, ProductFamily: "Database Instance"}
+	lb := &awskit.LookupBuilder{Service: awskit.MustService(awskit.ServiceKeyRDS), ProductFamily: "Database Instance"}
 	return lb.Build(region, map[string]string{
 		"instanceType":     instanceClass,
 		"databaseEngine":   databaseEngine,

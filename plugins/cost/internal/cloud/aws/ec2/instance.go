@@ -16,8 +16,8 @@ type InstanceHandler struct{}
 
 func (h *InstanceHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
-func (h *InstanceHandler) ServiceCode() pricing.ServiceCode {
-	return pricing.ServiceEC2
+func (h *InstanceHandler) ServiceCode() pricing.ServiceID {
+	return awskit.MustService(awskit.ServiceKeyEC2)
 }
 
 func (h *InstanceHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
@@ -41,7 +41,7 @@ func (h *InstanceHandler) BuildLookup(region string, attrs map[string]any) (*pri
 		operatingSystem = "Linux"
 	}
 
-	lb := &awskit.LookupBuilder{Service: pricing.ServiceEC2, ProductFamily: "Compute Instance"}
+	lb := &awskit.LookupBuilder{Service: awskit.MustService(awskit.ServiceKeyEC2), ProductFamily: "Compute Instance"}
 	return lb.Build(region, map[string]string{
 		"instanceType":    instanceType,
 		"tenancy":         tenancy,

@@ -9,23 +9,38 @@ import (
 // Registry maps terraform resource types to cost estimation handlers.
 // Provider-agnostic: AWS, GCP, Azure handlers all register here.
 type Registry struct {
-	handlers map[string]ResourceHandler
+	handlers map[string]RegisteredHandler
+}
+
+// RegisteredHandler keeps the owning provider id alongside the handler.
+type RegisteredHandler struct {
+	Provider string
+	Handler  ResourceHandler
 }
 
 // NewRegistry creates a new empty resource registry.
 func NewRegistry() *Registry {
 	return &Registry{
-		handlers: make(map[string]ResourceHandler),
+		handlers: make(map[string]RegisteredHandler),
 	}
 }
 
 // Register adds a handler for a resource type.
-func (r *Registry) Register(resourceType string, handler ResourceHandler) {
-	r.handlers[resourceType] = handler
+func (r *Registry) Register(providerID, resourceType string, handler ResourceHandler) {
+	r.handlers[resourceType] = RegisteredHandler{
+		Provider: providerID,
+		Handler:  handler,
+	}
 }
 
 // GetHandler returns a handler for a resource type.
 func (r *Registry) GetHandler(resourceType string) (ResourceHandler, bool) {
+	h, ok := r.handlers[resourceType]
+	return h.Handler, ok
+}
+
+// Resolve returns the registered provider id and handler for a resource type.
+func (r *Registry) Resolve(resourceType string) (RegisteredHandler, bool) {
 	h, ok := r.handlers[resourceType]
 	return h, ok
 }
@@ -46,11 +61,11 @@ func (r *Registry) SupportedTypes() []string {
 }
 
 // RequiredServices returns services needed for given resource types.
-func (r *Registry) RequiredServices(resourceTypes []string) map[pricing.ServiceCode]bool {
-	services := make(map[pricing.ServiceCode]bool)
+func (r *Registry) RequiredServices(resourceTypes []string) map[pricing.ServiceID]bool {
+	services := make(map[pricing.ServiceID]bool)
 	for _, rt := range resourceTypes {
 		if h, ok := r.handlers[rt]; ok {
-			services[h.ServiceCode()] = true
+			services[h.Handler.ServiceCode()] = true
 		}
 	}
 	return services

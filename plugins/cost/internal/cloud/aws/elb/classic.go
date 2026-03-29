@@ -15,12 +15,12 @@ type ClassicHandler struct{}
 
 func (h *ClassicHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
-func (h *ClassicHandler) ServiceCode() pricing.ServiceCode {
-	return pricing.ServiceELB
+func (h *ClassicHandler) ServiceCode() pricing.ServiceID {
+	return awskit.MustService(awskit.ServiceKeyELB)
 }
 
 func (h *ClassicHandler) BuildLookup(region string, _ map[string]any) (*pricing.PriceLookup, error) {
-	lb := &awskit.LookupBuilder{Service: pricing.ServiceELB, ProductFamily: "Load Balancer"}
+	lb := &awskit.LookupBuilder{Service: awskit.MustService(awskit.ServiceKeyELB), ProductFamily: "Load Balancer"}
 	return lb.Build(region, map[string]string{
 		"usagetype": region + "-" + UsageType,
 	}), nil

@@ -39,8 +39,8 @@ type EBSHandler struct{}
 
 func (h *EBSHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
-func (h *EBSHandler) ServiceCode() pricing.ServiceCode {
-	return pricing.ServiceEC2
+func (h *EBSHandler) ServiceCode() pricing.ServiceID {
+	return awskit.MustService(awskit.ServiceKeyEC2)
 }
 
 func (h *EBSHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
@@ -54,7 +54,7 @@ func (h *EBSHandler) BuildLookup(region string, attrs map[string]any) (*pricing.
 		apiName = "gp2"
 	}
 
-	lb := &awskit.LookupBuilder{Service: pricing.ServiceEC2, ProductFamily: "Storage"}
+	lb := &awskit.LookupBuilder{Service: awskit.MustService(awskit.ServiceKeyEC2), ProductFamily: "Storage"}
 	return lb.Build(region, map[string]string{
 		"volumeApiName": apiName,
 	}), nil

@@ -1,43 +1,86 @@
-// Package pricing provides AWS Price List API integration
+// Package pricing provides provider-neutral pricing types.
 package pricing
 
 import "time"
 
-// ServiceCode represents an AWS service code for pricing API
-type ServiceCode string
+// ServiceID uniquely identifies a pricing service inside a specific cloud provider.
+type ServiceID struct {
+	Provider string `json:"provider"`
+	Name     string `json:"name"`
+}
 
-// AWS service codes for pricing
-const (
-	ServiceEC2         ServiceCode = "AmazonEC2"
-	ServiceRDS         ServiceCode = "AmazonRDS"
-	ServiceS3          ServiceCode = "AmazonS3"
-	ServiceEBS         ServiceCode = "AmazonEC2" // EBS is part of EC2 pricing
-	ServiceELB         ServiceCode = "AWSELB"
-	ServiceELBv2       ServiceCode = "AmazonEC2" // ALB/NLB pricing in EC2
-	ServiceLambda      ServiceCode = "AWSLambda"
-	ServiceDynamoDB    ServiceCode = "AmazonDynamoDB"
-	ServiceCloudWatch  ServiceCode = "AmazonCloudWatch"
-	ServiceSNS         ServiceCode = "AmazonSNS"
-	ServiceSQS         ServiceCode = "AWSQueueService"
-	ServiceElastiCache ServiceCode = "AmazonElastiCache"
-	ServiceEKS         ServiceCode = "AmazonEKS"
-	ServiceECS         ServiceCode = "AmazonECS"
-	ServiceSecretsMan  ServiceCode = "AWSSecretsManager"
-	ServiceKMS         ServiceCode = "awskms"
-	ServiceRoute53     ServiceCode = "AmazonRoute53"
-	ServiceCloudFront  ServiceCode = "AmazonCloudFront"
-	ServiceNAT         ServiceCode = "AmazonEC2" // NAT Gateway in EC2
-	ServiceVPC         ServiceCode = "AmazonVPC"
-)
+// ServiceCode is kept as a backward-compatible alias while the cost engine
+// migrates to provider-aware service identifiers.
+type ServiceCode = ServiceID
+
+// ServiceCatalog keeps provider-owned pricing services under stable keys.
+type ServiceCatalog map[string]ServiceID
+
+// ProviderManifest describes the provider runtime contract exposed to the cost engine.
+type ProviderManifest struct {
+	ID          string         `json:"id"`
+	DisplayName string         `json:"display_name"`
+	PriceSource string         `json:"price_source"`
+	Services    ServiceCatalog `json:"services,omitempty"`
+	Regions     RegionResolver `json:"-"`
+}
+
+// String returns a stable textual representation of the service identifier.
+func (s ServiceID) String() string {
+	if s.Provider == "" {
+		return s.Name
+	}
+	return s.Provider + ":" + s.Name
+}
+
+// Service returns a registered service by its stable catalog key.
+func (m ProviderManifest) Service(key string) (ServiceID, bool) {
+	service, ok := m.Services[key]
+	return service, ok
+}
+
+// MustService returns a registered service or panics if the catalog entry is missing.
+func (m ProviderManifest) MustService(key string) ServiceID {
+	service, ok := m.Service(key)
+	if !ok {
+		panic("pricing: provider service not registered: " + m.ID + "/" + key)
+	}
+	return service
+}
+
+// RegionResolver keeps provider-specific region naming and usage prefix rules.
+type RegionResolver struct {
+	LocationNames      map[string]string `json:"-"`
+	UsagePrefixes      map[string]string `json:"-"`
+	DefaultUsagePrefix string            `json:"-"`
+}
+
+// ResolveLocationName returns the pricing location name for a cloud region code.
+// Falls back to the original region code when no mapping exists.
+func (r RegionResolver) ResolveLocationName(region string) string {
+	if name := r.LocationNames[region]; name != "" {
+		return name
+	}
+	return region
+}
+
+// ResolveUsagePrefix returns the usage prefix for a cloud region code.
+// Falls back to the configured default when no provider-specific mapping exists.
+func (r RegionResolver) ResolveUsagePrefix(region string) string {
+	if prefix := r.UsagePrefixes[region]; prefix != "" {
+		return prefix
+	}
+	return r.DefaultUsagePrefix
+}
 
 // PriceIndex represents a compact pricing index for a service/region
 type PriceIndex struct {
-	ServiceCode ServiceCode       `json:"service_code"`
-	Region      string            `json:"region"`
-	Version     string            `json:"version"`
-	UpdatedAt   time.Time         `json:"updated_at"`
-	Products    map[string]Price  `json:"products"` // SKU -> Price
-	Attributes  map[string]string `json:"attributes,omitempty"`
+	ServiceID  ServiceID         `json:"service_id"`
+	Region     string            `json:"region"`
+	Version    string            `json:"version"`
+	UpdatedAt  time.Time         `json:"updated_at"`
+	Products   map[string]Price  `json:"products"` // SKU -> Price
+	Attributes map[string]string `json:"attributes,omitempty"`
 }
 
 // Price represents a single product price
@@ -51,7 +94,7 @@ type Price struct {
 
 // PriceLookup represents criteria for finding a price
 type PriceLookup struct {
-	ServiceCode   ServiceCode
+	ServiceID     ServiceID
 	Region        string
 	ProductFamily string
 	Attributes    map[string]string
@@ -59,24 +102,5 @@ type PriceLookup struct {
 
 // isValid checks if the index contains usable data.
 func (idx *PriceIndex) isValid() bool {
-	return idx != nil && idx.ServiceCode != "" && idx.Region != "" && len(idx.Products) > 0
-}
-
-// RegionMapping is set by provider packages (e.g., aws/) to map region codes to pricing names.
-// Provider-agnostic: each provider populates this with its own region mapping.
-var RegionMapping map[string]string
-
-// RegionCodeMapping is the reverse mapping from pricing region name to code.
-// Rebuilt when SetRegionMapping is called.
-var RegionCodeMapping map[string]string
-
-// SetRegionMapping sets the region mapping and rebuilds the reverse mapping.
-// Called by provider packages during init.
-func SetRegionMapping(m map[string]string) {
-	RegionMapping = m
-	reverse := make(map[string]string, len(m))
-	for code, name := range m {
-		reverse[name] = code
-	}
-	RegionCodeMapping = reverse
+	return idx != nil && idx.ServiceID.Name != "" && idx.Region != "" && len(idx.Products) > 0
 }

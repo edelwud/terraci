@@ -67,7 +67,9 @@ func writeCostConfig(t *testing.T, dir string) {
   pattern: "{service}/{environment}/{region}/{module}"
 plugins:
   cost:
-    enabled: true
+    providers:
+      aws:
+        enabled: true
 `
 	if err := os.WriteFile(filepath.Join(dir, ".terraci.yaml"), []byte(cfg), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)

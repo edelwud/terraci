@@ -15,17 +15,17 @@ func TestBuildRegionURL(t *testing.T) {
 	f := NewFetcher()
 
 	tests := []struct {
-		service pricing.ServiceCode
+		service pricing.ServiceID
 		region  string
 		want    string
 	}{
-		{pricing.ServiceEC2, "us-east-1", "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/us-east-1/index.json"},
-		{pricing.ServiceRDS, "eu-west-1", "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonRDS/current/eu-west-1/index.json"},
-		{pricing.ServiceS3, "ap-northeast-1", "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonS3/current/ap-northeast-1/index.json"},
+		{MustService(ServiceKeyEC2), "us-east-1", "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/us-east-1/index.json"},
+		{MustService(ServiceKeyRDS), "eu-west-1", "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonRDS/current/eu-west-1/index.json"},
+		{MustService(ServiceKeyS3), "ap-northeast-1", "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonS3/current/ap-northeast-1/index.json"},
 	}
 
 	for _, tt := range tests {
-		t.Run(string(tt.service)+"_"+tt.region, func(t *testing.T) {
+		t.Run(tt.service.String()+"_"+tt.region, func(t *testing.T) {
 			got := f.buildRegionURL(tt.service, tt.region)
 			if got != tt.want {
 				t.Errorf("buildRegionURL(%s, %s) = %q, want %q", tt.service, tt.region, got, tt.want)
@@ -120,13 +120,13 @@ func TestParseToIndex(t *testing.T) {
 	}`
 
 	f := NewFetcher()
-	idx, err := f.parseToIndex(strings.NewReader(offerJSON), pricing.ServiceEC2, "us-east-1")
+	idx, err := f.parseToIndex(strings.NewReader(offerJSON), MustService(ServiceKeyEC2), "us-east-1")
 	if err != nil {
 		t.Fatalf("parseToIndex() error: %v", err)
 	}
 
-	if idx.ServiceCode != pricing.ServiceEC2 {
-		t.Errorf("ServiceCode = %s, want %s", idx.ServiceCode, pricing.ServiceEC2)
+	if idx.ServiceID != MustService(ServiceKeyEC2) {
+		t.Errorf("ServiceID = %s, want %s", idx.ServiceID, MustService(ServiceKeyEC2))
 	}
 	if idx.Region != "us-east-1" {
 		t.Errorf("Region = %s, want us-east-1", idx.Region)
@@ -178,7 +178,7 @@ func TestFetchRegionIndex(t *testing.T) {
 	defer ts.Close()
 
 	f := &Fetcher{Client: ts.Client(), BaseURL: ts.URL}
-	idx, err := f.FetchRegionIndex(context.Background(), pricing.ServiceEC2, "us-east-1")
+	idx, err := f.FetchRegionIndex(context.Background(), MustService(ServiceKeyEC2), "us-east-1")
 	if err != nil {
 		t.Fatalf("FetchRegionIndex: %v", err)
 	}
@@ -197,7 +197,7 @@ func TestFetchRegionIndex_ServerError(t *testing.T) {
 	defer ts.Close()
 
 	f := &Fetcher{Client: ts.Client(), BaseURL: ts.URL}
-	_, err := f.FetchRegionIndex(context.Background(), pricing.ServiceEC2, "us-east-1")
+	_, err := f.FetchRegionIndex(context.Background(), MustService(ServiceKeyEC2), "us-east-1")
 	if err == nil {
 		t.Error("expected error for non-200 status")
 	}

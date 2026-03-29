@@ -17,8 +17,8 @@ func (h *ReplicationGroupHandler) Category() handler.CostCategory {
 	return handler.CostCategoryStandard
 }
 
-func (h *ReplicationGroupHandler) ServiceCode() pricing.ServiceCode {
-	return pricing.ServiceElastiCache
+func (h *ReplicationGroupHandler) ServiceCode() pricing.ServiceID {
+	return awskit.MustService(awskit.ServiceKeyElastiCache)
 }
 
 func (h *ReplicationGroupHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
@@ -30,7 +30,7 @@ func (h *ReplicationGroupHandler) BuildLookup(region string, attrs map[string]an
 	prefix := awskit.ResolveUsagePrefix(region)
 	usagetype := prefix + "-NodeUsage:" + nodeType
 
-	lb := &awskit.LookupBuilder{Service: pricing.ServiceElastiCache, ProductFamily: "Cache Instance"}
+	lb := &awskit.LookupBuilder{Service: awskit.MustService(awskit.ServiceKeyElastiCache), ProductFamily: "Cache Instance"}
 	return lb.Build(region, map[string]string{
 		"instanceType": nodeType,
 		"cacheEngine":  "Redis",

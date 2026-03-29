@@ -26,7 +26,7 @@ const (
 // PriceFetcher abstracts pricing data retrieval.
 // Implemented by Fetcher (AWS) and potentially GCP/Azure fetchers.
 type PriceFetcher interface {
-	FetchRegionIndex(ctx context.Context, service ServiceCode, region string) (*PriceIndex, error)
+	FetchRegionIndex(ctx context.Context, service ServiceID, region string) (*PriceIndex, error)
 }
 
 // Cache manages local pricing data cache.
@@ -92,7 +92,7 @@ func (c *Cache) OldestAge() time.Duration {
 
 // CacheEntry describes a single cached pricing file.
 type CacheEntry struct {
-	Service   ServiceCode
+	Service   ServiceID
 	Region    string
 	Age       time.Duration
 	ExpiresIn time.Duration // negative if expired
@@ -105,17 +105,20 @@ func (c *Cache) Entries() []CacheEntry {
 		if walkErr != nil || info.IsDir() || filepath.Ext(path) != cacheFileExt {
 			return nil //nolint:nilerr
 		}
-		// Extract service/region from path: {dir}/{service}/{region}.json
+		// Extract service/region from path: {dir}/{provider}/{service}/{region}.json
 		rel, err := filepath.Rel(c.dir, path)
 		if err != nil {
 			return nil //nolint:nilerr
 		}
 		parts := strings.Split(filepath.ToSlash(rel), "/")
-		if len(parts) != 2 {
+		if len(parts) != 3 {
 			return nil
 		}
-		service := ServiceCode(parts[0])
-		region := strings.TrimSuffix(parts[1], cacheFileExt)
+		service := ServiceID{
+			Provider: parts[0],
+			Name:     parts[1],
+		}
+		region := strings.TrimSuffix(parts[2], cacheFileExt)
 		age := time.Since(info.ModTime())
 
 		entries = append(entries, CacheEntry{
@@ -130,11 +133,11 @@ func (c *Cache) Entries() []CacheEntry {
 }
 
 // GetIndex returns a pricing index for a service/region, using cache if valid
-func (c *Cache) GetIndex(ctx context.Context, service ServiceCode, region string) (*PriceIndex, error) {
+func (c *Cache) GetIndex(ctx context.Context, service ServiceID, region string) (*PriceIndex, error) {
 	// Try cache first
 	idx, err := c.loadFromCache(service, region)
 	if err == nil && c.isValid(idx) {
-		log.WithField("service", string(service)).
+		log.WithField("service", service.String()).
 			WithField("region", region).
 			Debug("using cached pricing data")
 		return idx, nil
@@ -142,28 +145,28 @@ func (c *Cache) GetIndex(ctx context.Context, service ServiceCode, region string
 
 	// Log why cache was not used
 	if err != nil {
-		log.WithField("service", string(service)).
+		log.WithField("service", service.String()).
 			WithField("region", region).
 			WithError(err).
 			Debug("cache miss")
 	} else if idx != nil {
-		log.WithField("service", string(service)).
+		log.WithField("service", service.String()).
 			WithField("region", region).
 			WithField("age", time.Since(idx.UpdatedAt).Truncate(time.Minute)).
 			Debug("cache expired")
 	}
 
 	// Fetch fresh data
-	log.WithField("service", string(service)).
+	log.WithField("service", service.String()).
 		WithField("region", region).
-		Info("downloading pricing data from AWS")
+		Info("downloading pricing data")
 
 	idx, err = c.fetcher.FetchRegionIndex(ctx, service, region)
 	if err != nil {
 		// If fetch fails and we have stale cache, use it as fallback
 		if stale, loadErr := c.loadFromCache(service, region); loadErr == nil && stale != nil {
 			log.WithError(err).
-				WithField("service", string(service)).
+				WithField("service", service.String()).
 				WithField("region", region).
 				Warn("fetch failed, using stale cache")
 			return stale, nil
@@ -180,7 +183,7 @@ func (c *Cache) GetIndex(ctx context.Context, service ServiceCode, region string
 }
 
 // Invalidate removes cached data for a service/region
-func (c *Cache) Invalidate(service ServiceCode, region string) error {
+func (c *Cache) Invalidate(service ServiceID, region string) error {
 	path := c.cachePath(service, region)
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return err
@@ -195,12 +198,12 @@ func (c *Cache) InvalidateAll() error {
 
 // Validate checks if required pricing data is cached and valid
 // Returns list of missing service/region combinations
-func (c *Cache) Validate(services map[ServiceCode][]string) []struct {
-	Service ServiceCode
+func (c *Cache) Validate(services map[ServiceID][]string) []struct {
+	Service ServiceID
 	Region  string
 } {
 	var missing []struct {
-		Service ServiceCode
+		Service ServiceID
 		Region  string
 	}
 
@@ -209,7 +212,7 @@ func (c *Cache) Validate(services map[ServiceCode][]string) []struct {
 			idx, err := c.loadFromCache(service, region)
 			if err != nil || !c.isValid(idx) {
 				missing = append(missing, struct {
-					Service ServiceCode
+					Service ServiceID
 					Region  string
 				}{service, region})
 			}
@@ -220,7 +223,7 @@ func (c *Cache) Validate(services map[ServiceCode][]string) []struct {
 }
 
 // PrewarmCache downloads and caches pricing data for specified services/regions
-func (c *Cache) PrewarmCache(ctx context.Context, services map[ServiceCode][]string) error {
+func (c *Cache) PrewarmCache(ctx context.Context, services map[ServiceID][]string) error {
 	for service, regions := range services {
 		for _, region := range regions {
 			if _, err := c.GetIndex(ctx, service, region); err != nil {
@@ -232,8 +235,8 @@ func (c *Cache) PrewarmCache(ctx context.Context, services map[ServiceCode][]str
 }
 
 // cachePath returns the cache file path for a service/region
-func (c *Cache) cachePath(service ServiceCode, region string) string {
-	return filepath.Join(c.dir, string(service), region+".json")
+func (c *Cache) cachePath(service ServiceID, region string) string {
+	return filepath.Join(c.dir, service.Provider, service.Name, region+".json")
 }
 
 // isValid checks if cached data is still valid
@@ -245,7 +248,7 @@ func (c *Cache) isValid(idx *PriceIndex) bool {
 }
 
 // loadFromCache loads a cached index
-func (c *Cache) loadFromCache(service ServiceCode, region string) (*PriceIndex, error) {
+func (c *Cache) loadFromCache(service ServiceID, region string) (*PriceIndex, error) {
 	path := c.cachePath(service, region)
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -269,7 +272,7 @@ func (c *Cache) saveToCache(idx *PriceIndex) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	path := c.cachePath(idx.ServiceCode, idx.Region)
+	path := c.cachePath(idx.ServiceID, idx.Region)
 
 	// Ensure directory exists
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

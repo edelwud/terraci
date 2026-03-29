@@ -10,10 +10,16 @@ import (
 	"time"
 )
 
+var (
+	awsProviderID = "aws"
+	awsServiceEC2 = ServiceID{Provider: awsProviderID, Name: "AmazonEC2"}
+	awsServiceRDS = ServiceID{Provider: awsProviderID, Name: "AmazonRDS"}
+)
+
 // stubFetcher is a no-op fetcher for cache tests that don't need real pricing data.
 type stubFetcher struct{}
 
-func (s *stubFetcher) FetchRegionIndex(_ context.Context, _ ServiceCode, _ string) (*PriceIndex, error) {
+func (s *stubFetcher) FetchRegionIndex(_ context.Context, _ ServiceID, _ string) (*PriceIndex, error) {
 	return nil, fmt.Errorf("stub fetcher: not implemented")
 }
 
@@ -49,8 +55,8 @@ func TestCachePath(t *testing.T) {
 	cacheDir := filepath.Join(os.TempDir(), "cache")
 	c := &Cache{dir: cacheDir}
 
-	got := c.cachePath("AmazonEC2", "us-east-1")
-	want := filepath.Join(cacheDir, "AmazonEC2", "us-east-1.json")
+	got := c.cachePath(awsServiceEC2, "us-east-1")
+	want := filepath.Join(cacheDir, awsProviderID, "AmazonEC2", "us-east-1.json")
 
 	if got != want {
 		t.Errorf("expected %s, got %s", want, got)
@@ -105,10 +111,10 @@ func TestSaveAndLoad(t *testing.T) {
 
 	now := time.Now().Truncate(time.Second)
 	idx := &PriceIndex{
-		ServiceCode: ServiceEC2,
-		Region:      "us-east-1",
-		Version:     "v1.0",
-		UpdatedAt:   now,
+		ServiceID: awsServiceEC2,
+		Region:    "us-east-1",
+		Version:   "v1.0",
+		UpdatedAt: now,
 		Products: map[string]Price{
 			"SKU123": {
 				SKU:           "SKU123",
@@ -125,13 +131,13 @@ func TestSaveAndLoad(t *testing.T) {
 		t.Fatalf("saveToCache() error: %v", err)
 	}
 
-	loaded, err := c.loadFromCache(ServiceEC2, "us-east-1")
+	loaded, err := c.loadFromCache(awsServiceEC2, "us-east-1")
 	if err != nil {
 		t.Fatalf("loadFromCache() error: %v", err)
 	}
 
-	if loaded.ServiceCode != idx.ServiceCode {
-		t.Errorf("ServiceCode = %v, want %v", loaded.ServiceCode, idx.ServiceCode)
+	if loaded.ServiceID != idx.ServiceID {
+		t.Errorf("ServiceID = %v, want %v", loaded.ServiceID, idx.ServiceID)
 	}
 	if loaded.Region != idx.Region {
 		t.Errorf("Region = %v, want %v", loaded.Region, idx.Region)
@@ -161,7 +167,7 @@ func TestLoadFromCache_NotFound(t *testing.T) {
 	tmpDir := t.TempDir()
 	c := &Cache{dir: tmpDir, ttl: DefaultCacheTTL}
 
-	_, err := c.loadFromCache("NoSuchService", "no-region")
+	_, err := c.loadFromCache(ServiceID{Provider: awsProviderID, Name: "NoSuchService"}, "no-region")
 	if err == nil {
 		t.Error("expected error for non-existent cache file, got nil")
 	}
@@ -172,21 +178,21 @@ func TestInvalidate(t *testing.T) {
 	c := &Cache{dir: tmpDir, ttl: DefaultCacheTTL}
 
 	idx := &PriceIndex{
-		ServiceCode: ServiceEC2,
-		Region:      "us-west-2",
-		UpdatedAt:   time.Now(),
-		Products:    map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
+		ServiceID: awsServiceEC2,
+		Region:    "us-west-2",
+		UpdatedAt: time.Now(),
+		Products:  map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
 	}
 
 	if err := c.saveToCache(idx); err != nil {
 		t.Fatalf("saveToCache() error: %v", err)
 	}
 
-	if err := c.Invalidate(ServiceEC2, "us-west-2"); err != nil {
+	if err := c.Invalidate(awsServiceEC2, "us-west-2"); err != nil {
 		t.Fatalf("Invalidate() error: %v", err)
 	}
 
-	_, err := c.loadFromCache(ServiceEC2, "us-west-2")
+	_, err := c.loadFromCache(awsServiceEC2, "us-west-2")
 	if err == nil {
 		t.Error("expected error after Invalidate, got nil")
 	}
@@ -197,19 +203,19 @@ func TestInvalidateAll(t *testing.T) {
 	c := &Cache{dir: tmpDir, ttl: DefaultCacheTTL}
 
 	services := []struct {
-		code   ServiceCode
+		code   ServiceID
 		region string
 	}{
-		{ServiceEC2, "us-east-1"},
-		{ServiceRDS, "eu-west-1"},
+		{awsServiceEC2, "us-east-1"},
+		{awsServiceRDS, "eu-west-1"},
 	}
 
 	for _, s := range services {
 		idx := &PriceIndex{
-			ServiceCode: s.code,
-			Region:      s.region,
-			UpdatedAt:   time.Now(),
-			Products:    map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
+			ServiceID: s.code,
+			Region:    s.region,
+			UpdatedAt: time.Now(),
+			Products:  map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
 		}
 		if err := c.saveToCache(idx); err != nil {
 			t.Fatalf("saveToCache(%s, %s) error: %v", s.code, s.region, err)
@@ -230,17 +236,17 @@ func TestValidate_AllCached(t *testing.T) {
 	c := &Cache{dir: tmpDir, ttl: DefaultCacheTTL}
 
 	idx := &PriceIndex{
-		ServiceCode: ServiceEC2,
-		Region:      "us-east-1",
-		UpdatedAt:   time.Now(),
-		Products:    map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
+		ServiceID: awsServiceEC2,
+		Region:    "us-east-1",
+		UpdatedAt: time.Now(),
+		Products:  map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
 	}
 	if err := c.saveToCache(idx); err != nil {
 		t.Fatalf("saveToCache() error: %v", err)
 	}
 
-	missing := c.Validate(map[ServiceCode][]string{
-		ServiceEC2: {"us-east-1"},
+	missing := c.Validate(map[ServiceID][]string{
+		awsServiceEC2: {"us-east-1"},
 	})
 
 	if len(missing) != 0 {
@@ -253,23 +259,23 @@ func TestValidate_SomeMissing(t *testing.T) {
 	c := &Cache{dir: tmpDir, ttl: DefaultCacheTTL}
 
 	idx := &PriceIndex{
-		ServiceCode: ServiceEC2,
-		Region:      "us-east-1",
-		UpdatedAt:   time.Now(),
-		Products:    map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
+		ServiceID: awsServiceEC2,
+		Region:    "us-east-1",
+		UpdatedAt: time.Now(),
+		Products:  map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
 	}
 	if err := c.saveToCache(idx); err != nil {
 		t.Fatalf("saveToCache() error: %v", err)
 	}
 
-	missing := c.Validate(map[ServiceCode][]string{
-		ServiceEC2: {"us-east-1", "eu-west-1"},
+	missing := c.Validate(map[ServiceID][]string{
+		awsServiceEC2: {"us-east-1", "eu-west-1"},
 	})
 
 	if len(missing) != 1 {
 		t.Fatalf("expected 1 missing entry, got %d", len(missing))
 	}
-	if missing[0].Service != ServiceEC2 || missing[0].Region != "eu-west-1" {
+	if missing[0].Service != awsServiceEC2 || missing[0].Region != "eu-west-1" {
 		t.Errorf("unexpected missing entry: %+v", missing[0])
 	}
 }
@@ -281,10 +287,10 @@ func TestCleanExpired(t *testing.T) {
 
 	// Save a fresh index
 	fresh := &PriceIndex{
-		ServiceCode: ServiceEC2,
-		Region:      "us-east-1",
-		UpdatedAt:   time.Now(),
-		Products:    map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
+		ServiceID: awsServiceEC2,
+		Region:    "us-east-1",
+		UpdatedAt: time.Now(),
+		Products:  map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
 	}
 	if err := c.saveToCache(fresh); err != nil {
 		t.Fatalf("saveToCache(fresh) error: %v", err)
@@ -292,17 +298,17 @@ func TestCleanExpired(t *testing.T) {
 
 	// Save an old index
 	old := &PriceIndex{
-		ServiceCode: ServiceRDS,
-		Region:      "eu-west-1",
-		UpdatedAt:   time.Now(),
-		Products:    map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
+		ServiceID: awsServiceRDS,
+		Region:    "eu-west-1",
+		UpdatedAt: time.Now(),
+		Products:  map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
 	}
 	if err := c.saveToCache(old); err != nil {
 		t.Fatalf("saveToCache(old) error: %v", err)
 	}
 
 	// Set old file modification time to 2 hours ago (beyond TTL)
-	oldPath := c.cachePath(ServiceRDS, "eu-west-1")
+	oldPath := c.cachePath(awsServiceRDS, "eu-west-1")
 	oldTime := time.Now().Add(-2 * time.Hour)
 	if err := os.Chtimes(oldPath, oldTime, oldTime); err != nil {
 		t.Fatalf("Chtimes() error: %v", err)
@@ -313,7 +319,7 @@ func TestCleanExpired(t *testing.T) {
 	}
 
 	// Fresh file should still exist
-	freshPath := c.cachePath(ServiceEC2, "us-east-1")
+	freshPath := c.cachePath(awsServiceEC2, "us-east-1")
 	if _, err := os.Stat(freshPath); err != nil {
 		t.Errorf("expected fresh cache file to exist, got error: %v", err)
 	}
@@ -330,17 +336,17 @@ type fakeFetcher struct {
 	err   error
 }
 
-func (f *fakeFetcher) FetchRegionIndex(_ context.Context, _ ServiceCode, _ string) (*PriceIndex, error) {
+func (f *fakeFetcher) FetchRegionIndex(_ context.Context, _ ServiceID, _ string) (*PriceIndex, error) {
 	return f.index, f.err
 }
 
 func newTestFetcher() *fakeFetcher {
 	return &fakeFetcher{
 		index: &PriceIndex{
-			ServiceCode: ServiceEC2,
-			Region:      "us-east-1",
-			Version:     "test",
-			UpdatedAt:   time.Now(),
+			ServiceID: awsServiceEC2,
+			Region:    "us-east-1",
+			Version:   "test",
+			UpdatedAt: time.Now(),
 			Products: map[string]Price{
 				"SKU1": {
 					SKU:           "SKU1",
@@ -360,17 +366,17 @@ func TestGetIndex_CacheHit(t *testing.T) {
 
 	// Pre-populate cache
 	idx := &PriceIndex{
-		ServiceCode: ServiceEC2,
-		Region:      "us-east-1",
-		Version:     "cached",
-		UpdatedAt:   time.Now(),
-		Products:    map[string]Price{"SKU1": {SKU: "SKU1", OnDemandUSD: 0.01}},
+		ServiceID: awsServiceEC2,
+		Region:    "us-east-1",
+		Version:   "cached",
+		UpdatedAt: time.Now(),
+		Products:  map[string]Price{"SKU1": {SKU: "SKU1", OnDemandUSD: 0.01}},
 	}
 	if err := c.saveToCache(idx); err != nil {
 		t.Fatalf("saveToCache: %v", err)
 	}
 
-	got, err := c.GetIndex(context.Background(), ServiceEC2, "us-east-1")
+	got, err := c.GetIndex(context.Background(), awsServiceEC2, "us-east-1")
 	if err != nil {
 		t.Fatalf("GetIndex: %v", err)
 	}
@@ -383,7 +389,7 @@ func TestGetIndex_CacheMiss(t *testing.T) {
 	tmpDir := t.TempDir()
 	c := NewCache(tmpDir, time.Hour, newTestFetcher())
 
-	got, err := c.GetIndex(context.Background(), ServiceEC2, "us-east-1")
+	got, err := c.GetIndex(context.Background(), awsServiceEC2, "us-east-1")
 	if err != nil {
 		t.Fatalf("GetIndex: %v", err)
 	}
@@ -392,7 +398,7 @@ func TestGetIndex_CacheMiss(t *testing.T) {
 	}
 
 	// Verify it was saved to cache
-	loaded, err := c.loadFromCache(ServiceEC2, "us-east-1")
+	loaded, err := c.loadFromCache(awsServiceEC2, "us-east-1")
 	if err != nil {
 		t.Fatalf("expected cache to be populated: %v", err)
 	}
@@ -406,7 +412,7 @@ func TestGetIndex_FetchError(t *testing.T) {
 	errFetcher := &fakeFetcher{err: fmt.Errorf("network error")}
 	c := NewCache(tmpDir, time.Hour, errFetcher)
 
-	_, err := c.GetIndex(context.Background(), ServiceEC2, "us-east-1")
+	_, err := c.GetIndex(context.Background(), awsServiceEC2, "us-east-1")
 	if err == nil {
 		t.Error("expected error on fetch failure")
 	}
@@ -416,15 +422,15 @@ func TestPrewarmCache(t *testing.T) {
 	tmpDir := t.TempDir()
 	c := NewCache(tmpDir, time.Hour, newTestFetcher())
 
-	services := map[ServiceCode][]string{
-		ServiceEC2: {"us-east-1"},
+	services := map[ServiceID][]string{
+		awsServiceEC2: {"us-east-1"},
 	}
 	if err := c.PrewarmCache(context.Background(), services); err != nil {
 		t.Fatalf("PrewarmCache: %v", err)
 	}
 
 	// Verify cached
-	_, err := c.loadFromCache(ServiceEC2, "us-east-1")
+	_, err := c.loadFromCache(awsServiceEC2, "us-east-1")
 	if err != nil {
 		t.Errorf("expected cache to be populated after prewarm: %v", err)
 	}
@@ -450,7 +456,7 @@ func TestCache_Accessors(t *testing.T) {
 	t.Run("SetFetcher", func(t *testing.T) {
 		f := &stubFetcher{}
 		c.SetFetcher(f)
-		if c.fetcher != f {
+		if c.fetcher != PriceFetcher(f) {
 			t.Error("SetFetcher did not set fetcher")
 		}
 	})
@@ -470,10 +476,10 @@ func TestCache_Accessors(t *testing.T) {
 
 	t.Run("Entries with data", func(t *testing.T) {
 		idx := &PriceIndex{
-			ServiceCode: ServiceEC2,
-			Region:      "us-east-1",
-			UpdatedAt:   time.Now(),
-			Products:    map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
+			ServiceID: awsServiceEC2,
+			Region:    "us-east-1",
+			UpdatedAt: time.Now(),
+			Products:  map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
 		}
 		if err := c.saveToCache(idx); err != nil {
 			t.Fatalf("saveToCache: %v", err)
@@ -483,8 +489,8 @@ func TestCache_Accessors(t *testing.T) {
 		if len(entries) != 1 {
 			t.Fatalf("Entries() len = %d, want 1", len(entries))
 		}
-		if entries[0].Service != ServiceEC2 {
-			t.Errorf("entry service = %q, want %q", entries[0].Service, ServiceEC2)
+		if entries[0].Service != awsServiceEC2 {
+			t.Errorf("entry service = %q, want %q", entries[0].Service, awsServiceEC2)
 		}
 	})
 
@@ -501,8 +507,8 @@ func TestPrewarmCache_Error(t *testing.T) {
 	errFetcher := &fakeFetcher{err: fmt.Errorf("network error")}
 	c := NewCache(tmpDir, time.Hour, errFetcher)
 
-	err := c.PrewarmCache(context.Background(), map[ServiceCode][]string{
-		ServiceEC2: {"us-east-1"},
+	err := c.PrewarmCache(context.Background(), map[ServiceID][]string{
+		awsServiceEC2: {"us-east-1"},
 	})
 	if err == nil {
 		t.Error("expected error on prewarm failure")
@@ -516,18 +522,18 @@ func TestGetIndex_StaleFallback(t *testing.T) {
 
 	// Save a valid index to cache
 	idx := &PriceIndex{
-		ServiceCode: ServiceEC2,
-		Region:      "us-east-1",
-		Version:     "stale-version",
-		UpdatedAt:   time.Now(),
-		Products:    map[string]Price{"SKU1": {SKU: "SKU1", OnDemandUSD: 0.01}},
+		ServiceID: awsServiceEC2,
+		Region:    "us-east-1",
+		Version:   "stale-version",
+		UpdatedAt: time.Now(),
+		Products:  map[string]Price{"SKU1": {SKU: "SKU1", OnDemandUSD: 0.01}},
 	}
 	if err := c.saveToCache(idx); err != nil {
 		t.Fatalf("saveToCache: %v", err)
 	}
 
 	// Age the cache file beyond TTL
-	cachePath := c.cachePath(ServiceEC2, "us-east-1")
+	cachePath := c.cachePath(awsServiceEC2, "us-east-1")
 	oldTime := time.Now().Add(-2 * time.Hour)
 	if err := os.Chtimes(cachePath, oldTime, oldTime); err != nil {
 		t.Fatalf("Chtimes: %v", err)
@@ -536,7 +542,7 @@ func TestGetIndex_StaleFallback(t *testing.T) {
 	// Replace fetcher with one that fails — should fall back to stale cache
 	c.SetFetcher(&fakeFetcher{err: fmt.Errorf("network unreachable")})
 
-	got, err := c.GetIndex(context.Background(), ServiceEC2, "us-east-1")
+	got, err := c.GetIndex(context.Background(), awsServiceEC2, "us-east-1")
 	if err != nil {
 		t.Fatalf("GetIndex should succeed with stale fallback, got error: %v", err)
 	}
@@ -555,7 +561,7 @@ func TestGetIndex_ConcurrentAccess(t *testing.T) {
 
 	for range goroutines {
 		go func() {
-			_, err := c.GetIndex(context.Background(), ServiceEC2, "us-east-1")
+			_, err := c.GetIndex(context.Background(), awsServiceEC2, "us-east-1")
 			errs <- err
 		}()
 	}
@@ -579,7 +585,7 @@ func TestGetIndex_FetchError_NoStaleCache(t *testing.T) {
 	c := NewCache(tmpDir, time.Hour, errFetcher)
 
 	// No pre-populated cache, fetch fails — should return error
-	_, err := c.GetIndex(context.Background(), ServiceEC2, "us-east-1")
+	_, err := c.GetIndex(context.Background(), awsServiceEC2, "us-east-1")
 	if err == nil {
 		t.Error("expected error when fetch fails and no stale cache exists")
 	}

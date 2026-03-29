@@ -3,6 +3,7 @@ package elb
 import (
 	"testing"
 
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
@@ -30,8 +31,8 @@ func TestClassicHandler_ServiceCode(t *testing.T) {
 	t.Parallel()
 
 	h := &ClassicHandler{}
-	if h.ServiceCode() != pricing.ServiceELB {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), pricing.ServiceELB)
+	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeyELB) {
+		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeyELB))
 	}
 }
 

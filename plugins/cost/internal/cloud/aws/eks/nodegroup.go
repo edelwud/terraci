@@ -17,8 +17,8 @@ type NodeGroupHandler struct{}
 
 func (h *NodeGroupHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
-func (h *NodeGroupHandler) ServiceCode() pricing.ServiceCode {
-	return pricing.ServiceEC2
+func (h *NodeGroupHandler) ServiceCode() pricing.ServiceID {
+	return awskit.MustService(awskit.ServiceKeyEC2)
 }
 
 func (h *NodeGroupHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
@@ -59,7 +59,7 @@ func (h *NodeGroupHandler) BuildLookup(region string, attrs map[string]any) (*pr
 		instanceType = DefaultInstanceType
 	}
 
-	lb := &awskit.LookupBuilder{Service: pricing.ServiceEC2, ProductFamily: "Compute Instance"}
+	lb := &awskit.LookupBuilder{Service: awskit.MustService(awskit.ServiceKeyEC2), ProductFamily: "Compute Instance"}
 	return lb.Build(region, map[string]string{
 		"instanceType":    instanceType,
 		"tenancy":         "Shared",

@@ -9,6 +9,19 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
+// ResourceRegistration binds a supported Terraform resource type to its handler.
+type ResourceRegistration struct {
+	Type    string
+	Handler handler.ResourceHandler
+}
+
+// Definition is the provider-neutral runtime contract for a cloud provider.
+type Definition struct {
+	Manifest       pricing.ProviderManifest
+	FetcherFactory func() pricing.PriceFetcher
+	Resources      []ResourceRegistration
+}
+
 // Provider encapsulates everything a cloud vendor contributes to the estimator.
 // Implement this interface to add support for a new cloud provider (e.g., GCP, Azure).
 //
@@ -18,14 +31,15 @@ import (
 //	    cloud.Register(&myProvider{})
 //	}
 type Provider interface {
-	// Name returns the provider identifier (e.g., "aws", "gcp", "azure").
-	Name() string
-	// NewFetcher creates a PriceFetcher for this provider's pricing API.
-	NewFetcher() pricing.PriceFetcher
-	// RegisterHandlers populates the given registry with this provider's resource handlers.
-	RegisterHandlers(r *handler.Registry)
-	// InitRegionMapping sets up region code to pricing name mappings.
-	InitRegionMapping()
+	// Definition returns the provider-neutral runtime contract owned by this provider.
+	Definition() Definition
+}
+
+// RegisterDefinitionHandlers populates the handler registry from a provider definition.
+func RegisterDefinitionHandlers(r *handler.Registry, def Definition) {
+	for _, resource := range def.Resources {
+		r.Register(def.Manifest.ID, resource.Type, resource.Handler)
+	}
 }
 
 var (
@@ -39,11 +53,12 @@ var (
 func Register(cp Provider) {
 	cpMu.Lock()
 	defer cpMu.Unlock()
-	if _, exists := providers[cp.Name()]; exists {
-		panic("cloud: duplicate cloud provider: " + cp.Name())
+	def := cp.Definition()
+	if _, exists := providers[def.Manifest.ID]; exists {
+		panic("cloud: duplicate cloud provider: " + def.Manifest.ID)
 	}
-	providers[cp.Name()] = cp
-	cpOrder = append(cpOrder, cp.Name())
+	providers[def.Manifest.ID] = cp
+	cpOrder = append(cpOrder, def.Manifest.ID)
 }
 
 // Providers returns all registered cloud providers in registration order.

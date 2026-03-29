@@ -20,8 +20,8 @@ type DynamoDBHandler struct{}
 
 func (h *DynamoDBHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
-func (h *DynamoDBHandler) ServiceCode() pricing.ServiceCode {
-	return pricing.ServiceDynamoDB
+func (h *DynamoDBHandler) ServiceCode() pricing.ServiceID {
+	return awskit.MustService(awskit.ServiceKeyDynamoDB)
 }
 
 func (h *DynamoDBHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
@@ -29,12 +29,12 @@ func (h *DynamoDBHandler) BuildLookup(region string, attrs map[string]any) (*pri
 	billingMode := handler.GetStringAttr(attrs, "billing_mode")
 	if billingMode == "PAY_PER_REQUEST" {
 		// On-demand: no lookup needed, usage-based
-		lb := &awskit.LookupBuilder{Service: pricing.ServiceDynamoDB, ProductFamily: "Amazon DynamoDB PayPerRequest Throughput"}
+		lb := &awskit.LookupBuilder{Service: awskit.MustService(awskit.ServiceKeyDynamoDB), ProductFamily: "Amazon DynamoDB PayPerRequest Throughput"}
 		return lb.Build(region, nil), nil
 	}
 
 	// Provisioned: price per RCU/WCU
-	lb := &awskit.LookupBuilder{Service: pricing.ServiceDynamoDB, ProductFamily: "Provisioned IOPS"}
+	lb := &awskit.LookupBuilder{Service: awskit.MustService(awskit.ServiceKeyDynamoDB), ProductFamily: "Provisioned IOPS"}
 	return lb.Build(region, map[string]string{
 		"group": "DDB-WriteUnits",
 	}), nil
