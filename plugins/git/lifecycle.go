@@ -10,7 +10,7 @@ import (
 
 // Initialize verifies the git repository and caches the client at startup.
 func (p *Plugin) Initialize(_ context.Context, appCtx *plugin.AppContext) error {
-	p.client = gitclient.NewClient(appCtx.WorkDir)
+	p.client = gitclient.NewClient(appCtx.WorkDir())
 	p.isRepo = p.client.IsGitRepo()
 
 	if !p.isRepo {

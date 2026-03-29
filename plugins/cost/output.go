@@ -16,7 +16,7 @@ func (p *Plugin) outputResult(w io.Writer, appCtx *plugin.AppContext, outputFmt 
 		return enc.Encode(result)
 	}
 
-	tree := costengine.BuildSegmentTree(result, appCtx.WorkDir)
+	tree := costengine.BuildSegmentTree(result, appCtx.WorkDir())
 	costengine.CompactSegmentTree(tree)
 	renderSegmentTree(tree, 0)
 

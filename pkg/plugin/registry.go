@@ -68,12 +68,30 @@ type ciProviderPlugin interface {
 	CommentFactory
 }
 
+func isPluginEnabled(p Plugin) bool {
+	if cl, ok := p.(ConfigLoader); ok {
+		return cl.IsEnabled()
+	}
+	return true
+}
+
+func activeCIProviders() []ciProviderPlugin {
+	candidates := ByCapability[ciProviderPlugin]()
+	active := make([]ciProviderPlugin, 0, len(candidates))
+	for _, c := range candidates {
+		if isPluginEnabled(c) {
+			active = append(active, c)
+		}
+	}
+	return active
+}
+
 // ResolveProvider detects the active CI provider.
 // Priority: env detection → TERRACI_PROVIDER env → single registered → configured.
 func ResolveProvider() (*CIProvider, error) {
-	candidates := ByCapability[ciProviderPlugin]()
+	candidates := activeCIProviders()
 	if len(candidates) == 0 {
-		return nil, errors.New("no CI provider plugins registered")
+		return nil, errors.New("no active CI provider plugins registered")
 	}
 
 	// Check env detection (CI environment variables)
@@ -91,17 +109,6 @@ func ResolveProvider() (*CIProvider, error) {
 	// Single provider registered
 	if len(candidates) == 1 {
 		return buildCIProvider(candidates[0]), nil
-	}
-
-	// Filter by explicitly configured providers
-	var configured []ciProviderPlugin
-	for _, c := range candidates {
-		if cl, ok := c.(ConfigLoader); ok && cl.IsConfigured() {
-			configured = append(configured, c)
-		}
-	}
-	if len(configured) == 1 {
-		return buildCIProvider(configured[0]), nil
 	}
 
 	return nil, fmt.Errorf("cannot determine CI provider: multiple plugins registered (%s), set TERRACI_PROVIDER", providerNames(candidates))
@@ -122,7 +129,7 @@ func ResolveChangeDetector() (ChangeDetectionProvider, error) {
 		return detectors[0], nil
 	}
 	for _, d := range detectors {
-		if cl, ok := d.(ConfigLoader); ok && cl.IsConfigured() {
+		if cl, ok := d.(ConfigLoader); ok && cl.IsEnabled() {
 			return d, nil
 		}
 	}
@@ -149,6 +156,19 @@ func providerNames(candidates []ciProviderPlugin) string {
 	}
 	names += namesSb141.String()
 	return names
+}
+
+// InitializablesForStartup returns plugins that should participate in lifecycle
+// initialization for the current config state.
+func InitializablesForStartup() []Initializable {
+	initializables := ByCapability[Initializable]()
+	result := make([]Initializable, 0, len(initializables))
+	for _, p := range initializables {
+		if isPluginEnabled(p) {
+			result = append(result, p)
+		}
+	}
+	return result
 }
 
 // Reset clears the registry. Only for testing.

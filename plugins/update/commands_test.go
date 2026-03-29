@@ -290,11 +290,11 @@ terraform {
 	}
 
 	// Verify artifacts saved
-	resultsPath := appCtx.ServiceDir + "/" + resultsFile
+	resultsPath := appCtx.ServiceDir() + "/" + resultsFile
 	if _, statErr := os.Stat(resultsPath); os.IsNotExist(statErr) {
 		t.Error("update-results.json was not saved")
 	}
-	reportPath := appCtx.ServiceDir + "/" + reportFile
+	reportPath := appCtx.ServiceDir() + "/" + reportFile
 	if _, statErr := os.Stat(reportPath); os.IsNotExist(statErr) {
 		t.Error("update-report.json was not saved")
 	}
@@ -329,7 +329,7 @@ terraform {
 
 	// Create AppContext with empty ServiceDir to skip artifact saving
 	appCtx := newTestAppContext(t, workDir)
-	appCtx.ServiceDir = ""
+	appCtx.Update(appCtx.Config(), appCtx.WorkDir(), "", appCtx.Version())
 
 	cmds := p.Commands(appCtx)
 	cmd := cmds[0]
@@ -396,7 +396,7 @@ func TestPlugin_RunCheck_DiscoverError(t *testing.T) {
 	}
 
 	appCtx := newTestAppContext(t, workDir)
-	appCtx.WorkDir = filePath // file, not directory
+	appCtx.Update(appCtx.Config(), filePath, appCtx.ServiceDir(), appCtx.Version())
 
 	cmds := p.Commands(appCtx)
 	cmd := cmds[0]

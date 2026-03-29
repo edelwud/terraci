@@ -68,11 +68,5 @@ func newTestAppContext(t *testing.T, workDir string) *plugin.AppContext {
 	serviceDir := filepath.Join(t.TempDir(), ".terraci")
 	cfg := config.DefaultConfig()
 	cfg.ServiceDir = ".terraci"
-	return &plugin.AppContext{
-		Config:     cfg,
-		WorkDir:    workDir,
-		ServiceDir: serviceDir,
-		Version:    "test",
-		Reports:    plugin.NewReportRegistry(),
-	}
+	return plugin.NewAppContext(cfg, workDir, serviceDir, "test", plugin.NewReportRegistry())
 }

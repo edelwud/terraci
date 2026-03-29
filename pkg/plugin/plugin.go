@@ -23,6 +23,15 @@ type Plugin interface {
 }
 
 // --- Lifecycle interfaces ---
+//
+// Plugin state progresses through these framework stages:
+//   - registered: discovered via init() + Register()
+//   - configured: plugin config section was decoded successfully
+//   - enabled: plugin should actively participate for this run
+//   - initialized: plugin completed runtime setup for this command
+//
+// IsConfigured() answers whether config exists; IsEnabled() answers whether the
+// plugin should be used. Framework lifecycle should key off IsEnabled().
 
 // Initializable plugins set up resources after config is loaded, before any command runs.
 type Initializable interface {

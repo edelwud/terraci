@@ -75,6 +75,19 @@ func TestPlugin_Initialize_Disabled(t *testing.T) {
 	}
 }
 
+func TestPlugin_Initialize_ConfiguredButDisabled(t *testing.T) {
+	p := newTestPlugin(t)
+	enablePlugin(t, p, &costengine.CostConfig{Enabled: false, CacheDir: t.TempDir()})
+	appCtx := newTestAppContext(t, t.TempDir())
+
+	if err := p.Initialize(context.Background(), appCtx); err != nil {
+		t.Fatalf("Initialize() error = %v", err)
+	}
+	if p.getEstimator() != nil {
+		t.Error("estimator should be nil when plugin is configured but disabled")
+	}
+}
+
 func TestPlugin_Initialize_Enabled(t *testing.T) {
 	p := newTestPlugin(t)
 	cacheDir := t.TempDir()
@@ -90,8 +103,8 @@ func TestPlugin_Initialize_Enabled(t *testing.T) {
 	if p.getEstimator() == nil {
 		t.Fatal("estimator should not be nil after Initialize with enabled config")
 	}
-	if p.serviceDirRel != appCtx.Config.ServiceDir {
-		t.Errorf("serviceDirRel = %q, want %q", p.serviceDirRel, appCtx.Config.ServiceDir)
+	if p.serviceDirRel != appCtx.Config().ServiceDir {
+		t.Errorf("serviceDirRel = %q, want %q", p.serviceDirRel, appCtx.Config().ServiceDir)
 	}
 }
 

@@ -11,9 +11,12 @@ import (
 
 // Initialize creates the estimator and cleans expired cache at startup.
 func (p *Plugin) Initialize(_ context.Context, appCtx *plugin.AppContext) error {
-	p.serviceDirRel = appCtx.Config.ServiceDir
+	cfg := appCtx.Config()
+	if cfg != nil {
+		p.serviceDirRel = cfg.ServiceDir
+	}
 
-	if !p.IsConfigured() {
+	if !p.IsEnabled() {
 		return nil
 	}
 

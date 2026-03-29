@@ -30,7 +30,7 @@ type App struct {
 // after Config or WorkDir change.
 func (a *App) PluginContext() *plugin.AppContext {
 	if a.pluginCtx == nil {
-		a.pluginCtx = &plugin.AppContext{}
+		a.pluginCtx = plugin.NewAppContext(nil, "", "", "", nil)
 	}
 	a.ensurePluginContext()
 	return a.pluginCtx
@@ -48,13 +48,7 @@ func (a *App) ensurePluginContext() {
 	if !filepath.IsAbs(serviceDir) {
 		serviceDir = filepath.Join(a.WorkDir, serviceDir)
 	}
-	a.pluginCtx.Config = a.Config
-	a.pluginCtx.WorkDir = a.WorkDir
-	a.pluginCtx.ServiceDir = serviceDir
-	a.pluginCtx.Version = a.Version
-	if a.pluginCtx.Reports == nil {
-		a.pluginCtx.Reports = plugin.NewReportRegistry()
-	}
+	a.pluginCtx.Update(a.Config, a.WorkDir, serviceDir, a.Version)
 }
 
 // InitPluginConfigs decodes plugin-specific configurations from the Plugins map

@@ -75,6 +75,19 @@ func TestPlugin_Initialize_Disabled(t *testing.T) {
 	}
 }
 
+func TestPlugin_Initialize_ConfiguredButDisabled(t *testing.T) {
+	p := newTestPlugin(t)
+	enablePlugin(t, p, &updateengine.UpdateConfig{Enabled: false})
+	appCtx := newTestAppContext(t, t.TempDir())
+
+	if err := p.Initialize(context.Background(), appCtx); err != nil {
+		t.Fatalf("Initialize() error = %v", err)
+	}
+	if p.registry != nil {
+		t.Error("registry should be nil when plugin is configured but disabled")
+	}
+}
+
 func TestPlugin_Initialize_Enabled(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &updateengine.UpdateConfig{Enabled: true})
@@ -86,8 +99,8 @@ func TestPlugin_Initialize_Enabled(t *testing.T) {
 	if p.registry == nil {
 		t.Fatal("registry should not be nil after Initialize with enabled config")
 	}
-	if p.serviceDirRel != appCtx.Config.ServiceDir {
-		t.Errorf("serviceDirRel = %q, want %q", p.serviceDirRel, appCtx.Config.ServiceDir)
+	if p.serviceDirRel != appCtx.Config().ServiceDir {
+		t.Errorf("serviceDirRel = %q, want %q", p.serviceDirRel, appCtx.Config().ServiceDir)
 	}
 }
 

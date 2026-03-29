@@ -1,8 +1,13 @@
 package plugin
 
 import (
+	"context"
+	"os"
 	"testing"
 
+	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/discovery"
+	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
 )
 
@@ -16,6 +21,14 @@ func (p *testPlugin) Description() string { return p.desc }
 
 type testCommandPlugin struct {
 	testPlugin
+}
+
+type testInitializablePlugin struct {
+	BasePlugin[*testConfig]
+}
+
+func (p *testInitializablePlugin) Initialize(_ context.Context, _ *AppContext) error {
+	return nil
 }
 
 // testContributorPlugin implements PipelineContributor + ConfigLoader for testing.
@@ -292,5 +305,130 @@ func TestCIProvider_Methods(t *testing.T) {
 	}
 	if provider.Plugin() != p {
 		t.Error("Plugin() should return underlying plugin")
+	}
+}
+
+type testProviderPlugin struct {
+	BasePlugin[*testConfig]
+	detectEnv bool
+	provider  string
+}
+
+func (p *testProviderPlugin) DetectEnv() bool { return p.detectEnv }
+func (p *testProviderPlugin) ProviderName() string {
+	return p.provider
+}
+func (p *testProviderPlugin) PipelineID() string { return "1" }
+func (p *testProviderPlugin) CommitSHA() string  { return "abc" }
+func (p *testProviderPlugin) NewGenerator(_ *AppContext, _ *graph.DependencyGraph, _ []*discovery.Module) pipeline.Generator {
+	return nil
+}
+func (p *testProviderPlugin) NewCommentService(_ *AppContext) ci.CommentService {
+	return nil
+}
+
+func TestResolveProvider_SkipsDisabledEnvDetectedProvider(t *testing.T) {
+	t.Cleanup(func() {
+		Reset()
+		t.Setenv("TERRACI_PROVIDER", "")
+	})
+	Reset()
+
+	disabledEnv := &testProviderPlugin{
+		BasePlugin: BasePlugin[*testConfig]{
+			PluginName:  "github",
+			PluginDesc:  "GitHub",
+			EnableMode:  EnabledExplicitly,
+			DefaultCfg:  func() *testConfig { return &testConfig{} },
+			IsEnabledFn: func(cfg *testConfig) bool { return cfg != nil && cfg.Enabled },
+		},
+		detectEnv: true,
+		provider:  "github",
+	}
+	disabledEnv.SetTypedConfig(&testConfig{Enabled: false})
+	Register(disabledEnv)
+
+	enabled := &testProviderPlugin{
+		BasePlugin: BasePlugin[*testConfig]{
+			PluginName:  "gitlab",
+			PluginDesc:  "GitLab",
+			EnableMode:  EnabledExplicitly,
+			DefaultCfg:  func() *testConfig { return &testConfig{} },
+			IsEnabledFn: func(cfg *testConfig) bool { return cfg != nil && cfg.Enabled },
+		},
+		provider: "gitlab",
+	}
+	enabled.SetTypedConfig(&testConfig{Enabled: true})
+	Register(enabled)
+
+	provider, err := ResolveProvider()
+	if err != nil {
+		t.Fatalf("ResolveProvider() error = %v", err)
+	}
+	if provider.ProviderName() != "gitlab" {
+		t.Fatalf("ResolveProvider() = %q, want gitlab", provider.ProviderName())
+	}
+}
+
+func TestResolveProvider_TERRACI_PROVIDERMustBeActive(t *testing.T) {
+	t.Cleanup(func() {
+		Reset()
+		os.Unsetenv("TERRACI_PROVIDER")
+	})
+	Reset()
+	t.Setenv("TERRACI_PROVIDER", "github")
+
+	disabled := &testProviderPlugin{
+		BasePlugin: BasePlugin[*testConfig]{
+			PluginName:  "github",
+			PluginDesc:  "GitHub",
+			EnableMode:  EnabledExplicitly,
+			DefaultCfg:  func() *testConfig { return &testConfig{} },
+			IsEnabledFn: func(cfg *testConfig) bool { return cfg != nil && cfg.Enabled },
+		},
+		provider: "github",
+	}
+	disabled.SetTypedConfig(&testConfig{Enabled: false})
+	Register(disabled)
+
+	if _, err := ResolveProvider(); err == nil {
+		t.Fatal("ResolveProvider() should fail when TERRACI_PROVIDER points to disabled plugin")
+	}
+}
+
+func TestInitializablesForStartup_FiltersDisabledPlugins(t *testing.T) {
+	t.Cleanup(func() { Reset() })
+	Reset()
+
+	disabled := &testInitializablePlugin{
+		BasePlugin: BasePlugin[*testConfig]{
+			PluginName:  "disabled",
+			PluginDesc:  "disabled",
+			EnableMode:  EnabledExplicitly,
+			DefaultCfg:  func() *testConfig { return &testConfig{} },
+			IsEnabledFn: func(cfg *testConfig) bool { return cfg != nil && cfg.Enabled },
+		},
+	}
+	disabled.SetTypedConfig(&testConfig{Enabled: false})
+	Register(disabled)
+
+	enabled := &testInitializablePlugin{
+		BasePlugin: BasePlugin[*testConfig]{
+			PluginName:  "enabled",
+			PluginDesc:  "enabled",
+			EnableMode:  EnabledExplicitly,
+			DefaultCfg:  func() *testConfig { return &testConfig{} },
+			IsEnabledFn: func(cfg *testConfig) bool { return cfg != nil && cfg.Enabled },
+		},
+	}
+	enabled.SetTypedConfig(&testConfig{Enabled: true})
+	Register(enabled)
+
+	initializables := InitializablesForStartup()
+	if len(initializables) != 1 {
+		t.Fatalf("InitializablesForStartup() returned %d plugins, want 1", len(initializables))
+	}
+	if initializables[0].Name() != "enabled" {
+		t.Fatalf("InitializablesForStartup()[0] = %q, want enabled", initializables[0].Name())
 	}
 }

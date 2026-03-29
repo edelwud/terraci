@@ -12,6 +12,21 @@ import (
 	terrierrors "github.com/edelwud/terraci/pkg/errors"
 )
 
+func cloneYAMLNode(node yaml.Node) yaml.Node {
+	cloned := node
+	if len(node.Content) > 0 {
+		cloned.Content = make([]*yaml.Node, len(node.Content))
+		for i, child := range node.Content {
+			if child == nil {
+				continue
+			}
+			childClone := cloneYAMLNode(*child)
+			cloned.Content[i] = &childClone
+		}
+	}
+	return cloned
+}
+
 // Config represents the terraci configuration
 type Config struct {
 	// ServiceDir is the project-level service directory for cache and artifacts.
@@ -45,6 +60,39 @@ func (c *Config) PluginConfig(key string, target any) error {
 		return nil
 	}
 	return node.Decode(target)
+}
+
+// Clone returns a deep copy of the configuration.
+func (c *Config) Clone() *Config {
+	if c == nil {
+		return nil
+	}
+
+	cloned := *c
+	if c.Structure.Segments != nil {
+		cloned.Structure.Segments = append(PatternSegments(nil), c.Structure.Segments...)
+	}
+	if c.Exclude != nil {
+		cloned.Exclude = append([]string(nil), c.Exclude...)
+	}
+	if c.Include != nil {
+		cloned.Include = append([]string(nil), c.Include...)
+	}
+	if c.LibraryModules != nil {
+		libraryModules := *c.LibraryModules
+		if c.LibraryModules.Paths != nil {
+			libraryModules.Paths = append([]string(nil), c.LibraryModules.Paths...)
+		}
+		cloned.LibraryModules = &libraryModules
+	}
+	if c.Plugins != nil {
+		cloned.Plugins = make(map[string]yaml.Node, len(c.Plugins))
+		for key := range c.Plugins {
+			cloned.Plugins[key] = cloneYAMLNode(c.Plugins[key])
+		}
+	}
+
+	return &cloned
 }
 
 // LibraryModulesConfig defines configuration for library/shared modules

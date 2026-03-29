@@ -48,7 +48,7 @@ Examples:
   terraci update --module platform/prod/eu-central-1/vpc
   terraci update --output json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if !p.IsConfigured() {
+			if !p.IsEnabled() {
 				return errors.New("update plugin is not enabled (set plugins.update.enabled: true)")
 			}
 
@@ -70,6 +70,10 @@ Examples:
 }
 
 func (p *Plugin) runCheck(ctx context.Context, appCtx *plugin.AppContext, cmd *cobra.Command, write bool, modulePath, outputFmt string) error {
+	baseCfg := appCtx.Config()
+	workDir := appCtx.WorkDir()
+	serviceDir := appCtx.ServiceDir()
+
 	// Start from loaded config, then apply explicit CLI overrides.
 	cfg := *p.Config()
 	if f := cmd.Flags().Lookup("target"); f != nil && f.Changed {
@@ -92,10 +96,10 @@ func (p *Plugin) runCheck(ctx context.Context, appCtx *plugin.AppContext, cmd *c
 
 	// Discover modules via workflow.
 	wfResult, err := workflow.Run(ctx, workflow.Options{
-		WorkDir:  appCtx.WorkDir,
-		Segments: appCtx.Config.Structure.Segments,
-		Excludes: appCtx.Config.Exclude,
-		Includes: appCtx.Config.Include,
+		WorkDir:  workDir,
+		Segments: baseCfg.Structure.Segments,
+		Excludes: baseCfg.Exclude,
+		Includes: baseCfg.Include,
 	})
 	if err != nil {
 		return fmt.Errorf("discover modules: %w", err)
@@ -118,7 +122,7 @@ func (p *Plugin) runCheck(ctx context.Context, appCtx *plugin.AppContext, cmd *c
 
 	log.WithField("count", len(modules)).Info("modules to check")
 
-	tfParser := parser.NewParser(appCtx.Config.Structure.Segments)
+	tfParser := parser.NewParser(baseCfg.Structure.Segments)
 	checker := updateengine.NewChecker(&cfg, tfParser, p.registry, write)
 
 	result, err := checker.Check(ctx, modules)
@@ -127,12 +131,12 @@ func (p *Plugin) runCheck(ctx context.Context, appCtx *plugin.AppContext, cmd *c
 	}
 
 	// Save artifacts.
-	if appCtx.ServiceDir != "" {
-		if saveErr := ci.SaveJSON(appCtx.ServiceDir, resultsFile, result); saveErr != nil {
+	if serviceDir != "" {
+		if saveErr := ci.SaveJSON(serviceDir, resultsFile, result); saveErr != nil {
 			log.WithError(saveErr).Warn("failed to save update results")
 		}
 		report := buildUpdateReport(result)
-		if saveErr := ci.SaveReport(appCtx.ServiceDir, report); saveErr != nil {
+		if saveErr := ci.SaveReport(serviceDir, report); saveErr != nil {
 			log.WithError(saveErr).Warn("failed to save update report")
 		}
 	}

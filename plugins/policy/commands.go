@@ -28,18 +28,20 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 		Use:   "pull",
 		Short: "Pull policies from configured sources",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if !p.IsConfigured() {
+			if !p.IsEnabled() {
 				return errors.New("policy checks are not enabled in configuration")
 			}
 
 			log.Info("pulling policies from configured sources")
 
 			cfg := p.Config()
+			workDir := ctx.WorkDir()
+			serviceDir := ctx.ServiceDir()
 			if policyOutput != "" {
 				cfg.CacheDir = policyOutput
 			}
 
-			puller, err := policyengine.NewPuller(cfg, ctx.WorkDir, ctx.ServiceDir)
+			puller, err := policyengine.NewPuller(cfg, workDir, serviceDir)
 			if err != nil {
 				return fmt.Errorf("failed to create puller: %w", err)
 			}
@@ -62,13 +64,16 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 		Use:   "check",
 		Short: "Check Terraform plans against policies",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if !p.IsConfigured() {
+			if !p.IsEnabled() {
 				return errors.New("policy checks are not enabled in configuration")
 			}
 
 			log.Info("running policy checks")
 
-			puller, err := policyengine.NewPuller(p.Config(), ctx.WorkDir, ctx.ServiceDir)
+			workDir := ctx.WorkDir()
+			serviceDir := ctx.ServiceDir()
+
+			puller, err := policyengine.NewPuller(p.Config(), workDir, serviceDir)
 			if err != nil {
 				return fmt.Errorf("failed to create puller: %w", err)
 			}
@@ -81,7 +86,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 				return fmt.Errorf("failed to pull policies: %w", err)
 			}
 
-			checker := policyengine.NewChecker(p.Config(), policyDirs, ctx.WorkDir)
+			checker := policyengine.NewChecker(p.Config(), policyDirs, workDir)
 
 			var summary *policyengine.Summary
 
@@ -99,12 +104,12 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 				}
 			}
 
-			if ctx.ServiceDir != "" {
-				if saveErr := ci.SaveJSON(ctx.ServiceDir, resultsFile, summary); saveErr != nil {
+			if serviceDir != "" {
+				if saveErr := ci.SaveJSON(serviceDir, resultsFile, summary); saveErr != nil {
 					log.WithError(saveErr).Warn("failed to save policy results")
 				}
 				report := buildPolicyReport(summary)
-				if saveErr := ci.SaveReport(ctx.ServiceDir, report); saveErr != nil {
+				if saveErr := ci.SaveReport(serviceDir, report); saveErr != nil {
 					log.WithError(saveErr).Warn("failed to save policy report")
 				}
 			}

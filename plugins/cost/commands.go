@@ -35,7 +35,7 @@ Examples:
   terraci cost --module platform/prod/eu-central-1/rds
   terraci cost --output json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if !p.IsConfigured() {
+			if !p.IsEnabled() {
 				return errors.New("cost estimation is not enabled (set plugins.cost.enabled: true)")
 			}
 
@@ -54,15 +54,19 @@ Examples:
 }
 
 func (p *Plugin) runEstimation(ctx context.Context, appCtx *plugin.AppContext, modulePath, outputFmt string) error {
-	log.WithField("dir", appCtx.WorkDir).Info("scanning for plan.json files")
+	cfg := appCtx.Config()
+	workDir := appCtx.WorkDir()
+	serviceDir := appCtx.ServiceDir()
 
-	modulePaths, err := discovery.FindModulesWithPlan(appCtx.WorkDir)
+	log.WithField("dir", workDir).Info("scanning for plan.json files")
+
+	modulePaths, err := discovery.FindModulesWithPlan(workDir)
 	if err != nil {
 		return fmt.Errorf("scan for plan.json: %w", err)
 	}
 
 	if modulePath != "" {
-		target := filepath.Join(appCtx.WorkDir, modulePath)
+		target := filepath.Join(workDir, modulePath)
 		filtered := make([]string, 0, 1)
 		for _, p := range modulePaths {
 			if p == target || strings.HasSuffix(p, modulePath) {
@@ -80,9 +84,9 @@ func (p *Plugin) runEstimation(ctx context.Context, appCtx *plugin.AppContext, m
 
 	regions := make(map[string]string)
 	for _, fullPath := range modulePaths {
-		relDir, relErr := filepath.Rel(appCtx.WorkDir, fullPath)
+		relDir, relErr := filepath.Rel(workDir, fullPath)
 		if relErr == nil {
-			regions[fullPath] = costengine.DetectRegion(appCtx.Config.Structure.Segments, relDir)
+			regions[fullPath] = costengine.DetectRegion(cfg.Structure.Segments, relDir)
 		}
 	}
 
@@ -100,12 +104,12 @@ func (p *Plugin) runEstimation(ctx context.Context, appCtx *plugin.AppContext, m
 		return fmt.Errorf("estimate costs: %w", err)
 	}
 
-	if appCtx.ServiceDir != "" {
-		if saveErr := ci.SaveJSON(appCtx.ServiceDir, resultsFile, result); saveErr != nil {
+	if serviceDir != "" {
+		if saveErr := ci.SaveJSON(serviceDir, resultsFile, result); saveErr != nil {
 			log.WithError(saveErr).Warn("failed to save cost results")
 		}
 		report := buildCostReport(result)
-		if saveErr := ci.SaveReport(appCtx.ServiceDir, report); saveErr != nil {
+		if saveErr := ci.SaveReport(serviceDir, report); saveErr != nil {
 			log.WithError(saveErr).Warn("failed to save cost report")
 		}
 	}

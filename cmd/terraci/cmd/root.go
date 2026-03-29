@@ -91,7 +91,7 @@ Features:
 			// Initialize plugins (lifecycle stage 3)
 			log.Debug("initializing plugins")
 			appCtx := app.PluginContext()
-			for _, p := range plugin.ByCapability[plugin.Initializable]() {
+			for _, p := range plugin.InitializablesForStartup() {
 				if err := p.Initialize(cmd.Context(), appCtx); err != nil {
 					return fmt.Errorf("initialize plugin %s: %w", p.Name(), err)
 				}

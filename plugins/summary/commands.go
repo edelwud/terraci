@@ -34,9 +34,12 @@ Example:
 }
 
 func (p *Plugin) runSummary(ctx context.Context, appCtx *plugin.AppContext) error {
+	cfg := appCtx.Config()
+	serviceDir := appCtx.ServiceDir()
+
 	// Scan plan results (provider-agnostic)
 	log.Info("scanning for plan results")
-	segments := []string(appCtx.Config.Structure.Segments)
+	segments := []string(cfg.Structure.Segments)
 	collection, err := discovery.ScanPlanResults(".", segments)
 	if err != nil {
 		return fmt.Errorf("failed to scan plan results: %w", err)
@@ -53,7 +56,7 @@ func (p *Plugin) runSummary(ctx context.Context, appCtx *plugin.AppContext) erro
 	plans := collection.ToModulePlans()
 
 	// Load plugin reports from service directory
-	reports := summaryengine.LoadReports(appCtx.ServiceDir)
+	reports := summaryengine.LoadReports(serviceDir)
 	for _, r := range reports {
 		summaryengine.EnrichPlans(plans, r.Modules)
 	}

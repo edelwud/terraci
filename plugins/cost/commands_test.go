@@ -118,7 +118,7 @@ func TestPlugin_RunEstimation_Success(t *testing.T) {
 	}
 
 	// Verify cost-results.json was saved
-	resultsPath := filepath.Join(appCtx.ServiceDir, resultsFile)
+	resultsPath := filepath.Join(appCtx.ServiceDir(), resultsFile)
 	if _, statErr := os.Stat(resultsPath); os.IsNotExist(statErr) {
 		t.Error("cost-results.json was not saved to serviceDir")
 	} else {
@@ -143,7 +143,7 @@ func TestPlugin_RunEstimation_Success(t *testing.T) {
 	}
 
 	// Verify cost-report.json was saved
-	reportPath := filepath.Join(appCtx.ServiceDir, "cost-report.json")
+	reportPath := filepath.Join(appCtx.ServiceDir(), "cost-report.json")
 	if _, statErr := os.Stat(reportPath); os.IsNotExist(statErr) {
 		t.Error("cost-report.json was not saved to serviceDir")
 	} else {
@@ -193,7 +193,7 @@ func TestPlugin_RunEstimation_ModuleFilter(t *testing.T) {
 	}
 
 	// Verify only one module was estimated
-	resultsPath := filepath.Join(appCtx.ServiceDir, resultsFile)
+	resultsPath := filepath.Join(appCtx.ServiceDir(), resultsFile)
 	data, readErr := os.ReadFile(resultsPath)
 	if readErr != nil {
 		t.Fatalf("failed to read cost-results.json: %v", readErr)

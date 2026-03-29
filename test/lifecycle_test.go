@@ -146,14 +146,9 @@ func TestPluginInitialization(t *testing.T) {
 		t.Fatalf("failed to load config: %v", err)
 	}
 
-	appCtx := &plugin.AppContext{
-		Config:     cfg,
-		WorkDir:    dir,
-		ServiceDir: filepath.Join(dir, ".terraci"),
-		Version:    "test",
-	}
+	appCtx := plugin.NewAppContext(cfg, dir, filepath.Join(dir, ".terraci"), "test", nil)
 
-	for _, p := range plugin.ByCapability[plugin.Initializable]() {
+	for _, p := range plugin.InitializablesForStartup() {
 		if initErr := p.Initialize(context.Background(), appCtx); initErr != nil {
 			// Some plugins may fail if their external deps are missing (e.g., git not in a repo).
 			// We log but don't fail — the important thing is the interface works.
