@@ -18,7 +18,7 @@ func (p *Plugin) Initialize(_ context.Context, appCtx *plugin.AppContext) error 
 	}
 
 	log.Debug("cost: initializing estimator and pricing cache")
-	p.estimator = costengine.NewEstimatorFromConfig(p.cfg)
+	p.estimator = costengine.NewEstimatorFromConfig(p.Config())
 	p.estimator.CleanExpiredCache()
 
 	entries := p.estimator.CacheEntries()

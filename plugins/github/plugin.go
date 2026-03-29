@@ -8,19 +8,50 @@ import (
 )
 
 func init() { //nolint:gochecknoinits // intentional plugin registration
-	plugin.Register(&Plugin{})
+	plugin.Register(&Plugin{
+		BasePlugin: plugin.BasePlugin[*githubci.Config]{
+			PluginName: "github",
+			PluginDesc: "GitHub Actions pipeline generation and PR comments",
+			EnableMode: plugin.EnabledWhenConfigured,
+			DefaultCfg: func() *githubci.Config {
+				return &githubci.Config{
+					TerraformBinary: "terraform",
+					RunsOn:          "ubuntu-latest",
+					PlanEnabled:     true,
+					InitEnabled:     true,
+				}
+			},
+		},
+	})
 }
-
-const pluginName = "github"
 
 // Plugin is the GitHub Actions plugin.
 type Plugin struct {
-	cfg        *githubci.Config
-	prCtx      *githubci.PRContext
-	inCI       bool
-	configured bool
+	plugin.BasePlugin[*githubci.Config]
+	prCtx *githubci.PRContext
+	inCI  bool
 }
 
-func (p *Plugin) Name() string        { return pluginName }
-func (p *Plugin) Description() string { return "GitHub Actions pipeline generation and PR comments" }
-func (p *Plugin) Reset()              { *p = Plugin{} }
+// Reset resets all plugin state.
+func (p *Plugin) Reset() {
+	p.BasePlugin.Reset()
+	p.prCtx = nil
+	p.inCI = false
+}
+
+// SetPlanOnly sets plan-only mode directly on the typed config.
+func (p *Plugin) SetPlanOnly(v bool) {
+	if cfg := p.Config(); cfg != nil {
+		cfg.PlanOnly = v
+		if v {
+			cfg.PlanEnabled = true
+		}
+	}
+}
+
+// SetAutoApprove sets auto-approve mode directly on the typed config.
+func (p *Plugin) SetAutoApprove(v bool) {
+	if cfg := p.Config(); cfg != nil {
+		cfg.AutoApprove = v
+	}
+}

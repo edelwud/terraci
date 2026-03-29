@@ -35,17 +35,17 @@ func TestPluginRegistration(t *testing.T) {
 }
 
 func TestPluginCapabilities(t *testing.T) {
-	// ConfigProvider plugins
-	configProviders := plugin.ByCapability[plugin.ConfigProvider]()
-	if len(configProviders) == 0 {
-		t.Fatal("expected at least one ConfigProvider")
+	// ConfigLoader plugins
+	configLoaders := plugin.ByCapability[plugin.ConfigLoader]()
+	if len(configLoaders) == 0 {
+		t.Fatal("expected at least one ConfigLoader")
 	}
 
 	configKeys := make(map[string]bool)
-	for _, cp := range configProviders {
-		key := cp.ConfigKey()
+	for _, cl := range configLoaders {
+		key := cl.ConfigKey()
 		if key == "" {
-			t.Errorf("plugin %s has empty ConfigKey", cp.Name())
+			t.Errorf("plugin %s has empty ConfigKey", cl.Name())
 		}
 		if configKeys[key] {
 			t.Errorf("duplicate ConfigKey: %s", key)
@@ -60,10 +60,10 @@ func TestPluginCapabilities(t *testing.T) {
 		}
 	}
 
-	// GeneratorProvider plugins (gitlab + github)
-	generators := plugin.ByCapability[plugin.GeneratorProvider]()
-	if len(generators) < 2 {
-		t.Errorf("expected at least 2 GeneratorProviders (gitlab, github), got %d", len(generators))
+	// CI provider plugins (gitlab + github) — must implement all CI interfaces
+	ciMetadata := plugin.ByCapability[plugin.CIMetadata]()
+	if len(ciMetadata) < 2 {
+		t.Errorf("expected at least 2 CIMetadata providers (gitlab, github), got %d", len(ciMetadata))
 	}
 
 	// Initializable plugins
@@ -87,25 +87,23 @@ func TestPluginConfigLoading(t *testing.T) {
 	}
 
 	// Configure plugins from the fixture config
-	for _, p := range plugin.ByCapability[plugin.ConfigProvider]() {
-		if _, exists := cfg.Plugins[p.ConfigKey()]; !exists {
+	for _, cl := range plugin.ByCapability[plugin.ConfigLoader]() {
+		if _, exists := cfg.Plugins[cl.ConfigKey()]; !exists {
 			continue
 		}
-		cfgVal := p.NewConfig()
-		if decErr := cfg.PluginConfig(p.ConfigKey(), cfgVal); decErr != nil {
-			t.Fatalf("failed to decode %s config: %v", p.ConfigKey(), decErr)
-		}
-		if setErr := p.SetConfig(cfgVal); setErr != nil {
-			t.Fatalf("failed to set %s config: %v", p.ConfigKey(), setErr)
+		if decErr := cl.DecodeAndSet(func(target any) error {
+			return cfg.PluginConfig(cl.ConfigKey(), target)
+		}); decErr != nil {
+			t.Fatalf("failed to decode %s config: %v", cl.ConfigKey(), decErr)
 		}
 	}
 
 	// gitlab should be configured (it's in the fixture)
-	for _, p := range plugin.ByCapability[plugin.ConfigProvider]() {
-		if p.ConfigKey() == "gitlab" && !p.IsConfigured() {
+	for _, cl := range plugin.ByCapability[plugin.ConfigLoader]() {
+		if cl.ConfigKey() == "gitlab" && !cl.IsConfigured() {
 			t.Error("gitlab should be configured after loading basic fixture")
 		}
-		if p.ConfigKey() == "github" && p.IsConfigured() {
+		if cl.ConfigKey() == "github" && cl.IsConfigured() {
 			t.Error("github should NOT be configured (not in basic fixture)")
 		}
 	}
@@ -118,16 +116,14 @@ func TestProviderResolution(t *testing.T) {
 		t.Fatalf("load config: %v", err)
 	}
 
-	for _, p := range plugin.ByCapability[plugin.ConfigProvider]() {
-		if _, exists := cfg.Plugins[p.ConfigKey()]; !exists {
+	for _, cl := range plugin.ByCapability[plugin.ConfigLoader]() {
+		if _, exists := cfg.Plugins[cl.ConfigKey()]; !exists {
 			continue
 		}
-		cfgVal := p.NewConfig()
-		if decErr := cfg.PluginConfig(p.ConfigKey(), cfgVal); decErr != nil {
-			t.Fatalf("failed to decode %s config: %v", p.ConfigKey(), decErr)
-		}
-		if setErr := p.SetConfig(cfgVal); setErr != nil {
-			t.Fatalf("failed to set %s config: %v", p.ConfigKey(), setErr)
+		if decErr := cl.DecodeAndSet(func(target any) error {
+			return cfg.PluginConfig(cl.ConfigKey(), target)
+		}); decErr != nil {
+			t.Fatalf("failed to decode %s config: %v", cl.ConfigKey(), decErr)
 		}
 	}
 

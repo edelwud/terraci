@@ -6,19 +6,30 @@ import (
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
 
-const pluginName = "policy"
-
 func init() { //nolint:gochecknoinits // intentional plugin registration
-	plugin.Register(&Plugin{})
+	plugin.Register(&Plugin{
+		BasePlugin: plugin.BasePlugin[*policyengine.Config]{
+			PluginName: "policy",
+			PluginDesc: "OPA policy checks for Terraform plans",
+			EnableMode: plugin.EnabledExplicitly,
+			DefaultCfg: func() *policyengine.Config {
+				return &policyengine.Config{}
+			},
+			IsEnabledFn: func(cfg *policyengine.Config) bool {
+				return cfg != nil && cfg.Enabled
+			},
+		},
+	})
 }
 
 // Plugin is the OPA policy check plugin.
 type Plugin struct {
-	cfg           *policyengine.Config
-	configured    bool
+	plugin.BasePlugin[*policyengine.Config]
 	serviceDirRel string // relative path, for pipeline artifact paths
 }
 
-func (p *Plugin) Name() string        { return pluginName }
-func (p *Plugin) Description() string { return "OPA policy checks for Terraform plans" }
-func (p *Plugin) Reset()              { *p = Plugin{} }
+// Reset resets all plugin state.
+func (p *Plugin) Reset() {
+	p.BasePlugin.Reset()
+	p.serviceDirRel = ""
+}

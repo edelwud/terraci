@@ -8,19 +8,52 @@ import (
 )
 
 func init() { //nolint:gochecknoinits // intentional plugin registration
-	plugin.Register(&Plugin{})
+	plugin.Register(&Plugin{
+		BasePlugin: plugin.BasePlugin[*gitlabci.Config]{
+			PluginName: "gitlab",
+			PluginDesc: "GitLab CI pipeline generation and MR comments",
+			EnableMode: plugin.EnabledWhenConfigured,
+			DefaultCfg: func() *gitlabci.Config {
+				return &gitlabci.Config{
+					TerraformBinary: "terraform",
+					Image:           gitlabci.Image{Name: "hashicorp/terraform:1.6"},
+					StagesPrefix:    "deploy",
+					Parallelism:     5,
+					PlanEnabled:     true,
+					InitEnabled:     true,
+				}
+			},
+		},
+	})
 }
-
-const pluginName = "gitlab"
 
 // Plugin is the GitLab CI plugin.
 type Plugin struct {
-	cfg        *gitlabci.Config
-	mrCtx      *gitlabci.MRContext
-	inCI       bool
-	configured bool
+	plugin.BasePlugin[*gitlabci.Config]
+	mrCtx *gitlabci.MRContext
+	inCI  bool
 }
 
-func (p *Plugin) Name() string        { return pluginName }
-func (p *Plugin) Description() string { return "GitLab CI pipeline generation and MR comments" }
-func (p *Plugin) Reset()              { *p = Plugin{} }
+// Reset resets all plugin state.
+func (p *Plugin) Reset() {
+	p.BasePlugin.Reset()
+	p.mrCtx = nil
+	p.inCI = false
+}
+
+// SetPlanOnly sets plan-only mode directly on the typed config.
+func (p *Plugin) SetPlanOnly(v bool) {
+	if cfg := p.Config(); cfg != nil {
+		cfg.PlanOnly = v
+		if v {
+			cfg.PlanEnabled = true
+		}
+	}
+}
+
+// SetAutoApprove sets auto-approve mode directly on the typed config.
+func (p *Plugin) SetAutoApprove(v bool) {
+	if cfg := p.Config(); cfg != nil {
+		cfg.AutoApprove = v
+	}
+}

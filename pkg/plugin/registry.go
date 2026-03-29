@@ -56,43 +56,57 @@ func ByCapability[T Plugin]() []T {
 	return result
 }
 
-// ResolveProvider detects the active CI provider from registered GeneratorProviders.
-// Priority: env detection → TERRACI_PROVIDER env → single registered → default gitlab fallback.
-func ResolveProvider() (GeneratorProvider, error) {
-	generators := ByCapability[GeneratorProvider]()
-	if len(generators) == 0 {
+// ciProviderPlugin is a plugin that implements all CI provider interfaces.
+// Used internally by ResolveProvider to find qualifying plugins.
+type ciProviderPlugin interface {
+	Plugin
+	EnvDetector
+	CIMetadata
+	GeneratorFactory
+	CommentFactory
+}
+
+// ResolveProvider detects the active CI provider.
+// Priority: env detection → TERRACI_PROVIDER env → single registered → configured.
+func ResolveProvider() (*CIProvider, error) {
+	candidates := ByCapability[ciProviderPlugin]()
+	if len(candidates) == 0 {
 		return nil, fmt.Errorf("no CI provider plugins registered")
 	}
 
 	// Check env detection (CI environment variables)
-	for _, g := range generators {
-		if g.DetectEnv() {
-			return g, nil
+	for _, c := range candidates {
+		if c.DetectEnv() {
+			return buildCIProvider(c), nil
 		}
 	}
 
 	// Check TERRACI_PROVIDER env var
 	if name := os.Getenv("TERRACI_PROVIDER"); name != "" {
-		return findProvider(generators, name)
+		return findProvider(candidates, name)
 	}
 
 	// Single provider registered
-	if len(generators) == 1 {
-		return generators[0], nil
+	if len(candidates) == 1 {
+		return buildCIProvider(candidates[0]), nil
 	}
 
 	// Filter by explicitly configured providers
-	var configured []GeneratorProvider
-	for _, g := range generators {
-		if cp, ok := g.(ConfigProvider); ok && cp.IsConfigured() {
-			configured = append(configured, g)
+	var configured []ciProviderPlugin
+	for _, c := range candidates {
+		if cl, ok := c.(ConfigLoader); ok && cl.IsConfigured() {
+			configured = append(configured, c)
 		}
 	}
 	if len(configured) == 1 {
-		return configured[0], nil
+		return buildCIProvider(configured[0]), nil
 	}
 
-	return nil, fmt.Errorf("cannot determine CI provider: multiple plugins registered (%s), set TERRACI_PROVIDER", providerNames(generators))
+	return nil, fmt.Errorf("cannot determine CI provider: multiple plugins registered (%s), set TERRACI_PROVIDER", providerNames(candidates))
+}
+
+func buildCIProvider(p ciProviderPlugin) *CIProvider {
+	return NewCIProvider(p, p, p, p)
 }
 
 // ResolveChangeDetector returns the active ChangeDetectionProvider.
@@ -106,29 +120,29 @@ func ResolveChangeDetector() (ChangeDetectionProvider, error) {
 		return detectors[0], nil
 	}
 	for _, d := range detectors {
-		if cp, ok := d.(ConfigProvider); ok && cp.IsConfigured() {
+		if cl, ok := d.(ConfigLoader); ok && cl.IsConfigured() {
 			return d, nil
 		}
 	}
 	return detectors[0], nil
 }
 
-func findProvider(generators []GeneratorProvider, name string) (GeneratorProvider, error) {
-	for _, g := range generators {
-		if g.ProviderName() == name {
-			return g, nil
+func findProvider(candidates []ciProviderPlugin, name string) (*CIProvider, error) {
+	for _, c := range candidates {
+		if c.ProviderName() == name {
+			return buildCIProvider(c), nil
 		}
 	}
-	return nil, fmt.Errorf("provider %q not found (available: %s)", name, providerNames(generators))
+	return nil, fmt.Errorf("provider %q not found (available: %s)", name, providerNames(candidates))
 }
 
-func providerNames(generators []GeneratorProvider) string {
+func providerNames(candidates []ciProviderPlugin) string {
 	names := ""
-	for i, g := range generators {
+	for i, c := range candidates {
 		if i > 0 {
 			names += ", "
 		}
-		names += g.ProviderName()
+		names += c.ProviderName()
 	}
 	return names
 }

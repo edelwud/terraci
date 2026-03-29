@@ -18,7 +18,6 @@ func newInitCmd(app *App) *cobra.Command {
 		forceInit    bool
 		initProvider string
 		initBinary   string
-		initImage    string
 		initPattern  string
 		ciMode       bool
 	)
@@ -33,8 +32,8 @@ By default, runs an interactive wizard. Use --ci flag for non-interactive mode.
 Examples:
   terraci init
   terraci init --ci
-  terraci init --provider github
-  terraci init --binary tofu --image ghcr.io/opentofu/opentofu:1.6`,
+  terraci init --ci --provider github
+  terraci init --ci --provider gitlab --binary tofu`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			configPath := filepath.Join(app.WorkDir, ".terraci.yaml")
 
@@ -42,7 +41,7 @@ Examples:
 				return fmt.Errorf("config file already exists: %s (use --force to overwrite)", configPath)
 			}
 
-			hasFlags := initProvider != "" || initBinary != "" || initImage != "" || initPattern != ""
+			hasFlags := initProvider != "" || initBinary != "" || initPattern != ""
 
 			var newCfg *config.Config
 			var err error
@@ -60,9 +59,6 @@ Examples:
 				}
 				if initPattern != "" {
 					state.Set("pattern", initPattern)
-				}
-				if initImage != "" {
-					state.Set("gitlab.image", initImage)
 				}
 
 				newCfg = buildConfigFromState(state)
@@ -88,7 +84,6 @@ Examples:
 	cmd.Flags().BoolVar(&ciMode, "ci", false, "non-interactive mode (skip wizard)")
 	cmd.Flags().StringVar(&initProvider, "provider", "", "CI provider: gitlab or github")
 	cmd.Flags().StringVar(&initBinary, "binary", "", "terraform binary: terraform or tofu")
-	cmd.Flags().StringVar(&initImage, "image", "", "docker image for CI jobs")
 	cmd.Flags().StringVar(&initPattern, "pattern", "", "directory pattern")
 
 	return cmd
@@ -97,13 +92,14 @@ Examples:
 // initStateDefaults populates a StateMap with default values for the init wizard.
 // Shared between interactive (TUI) and non-interactive (--ci) paths.
 func initStateDefaults(state *plugin.StateMap) {
-	providerPlugins := plugin.ByCapability[plugin.GeneratorProvider]()
+	providerPlugins := plugin.ByCapability[plugin.CIMetadata]()
 	if len(providerPlugins) > 0 {
 		state.Set("provider", providerPlugins[0].ProviderName())
 	}
 	state.Set("binary", "terraform")
 	state.Set("pattern", config.DefaultConfig().Structure.Pattern)
-	state.Set("plan_enabled", true)
+	// summary (MR/PR comments) enabled by default
+	state.Set("summary.enabled", true)
 }
 
 func logGenerateHint() {

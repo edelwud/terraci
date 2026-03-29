@@ -1,5 +1,11 @@
 package gitlabci
 
+import "github.com/edelwud/terraci/pkg/ciprovider"
+
+// Type aliases for shared types — keeps all existing code working via gitlabci.Image etc.
+type Image = ciprovider.Image
+type MRCommentConfig = ciprovider.MRCommentConfig
+
 // Config contains GitLab CI specific settings
 type Config struct {
 	// TerraformBinary is the terraform binary to use (e.g., "terraform", "tofu")
@@ -57,17 +63,6 @@ type SummaryJobConfig struct {
 	Image *Image `yaml:"image,omitempty" json:"image,omitempty" jsonschema:"description=Docker image for summary job (must contain terraci)"`
 	// Tags for the summary job runner
 	Tags []string `yaml:"tags,omitempty" json:"tags,omitempty" jsonschema:"description=Runner tags for summary job"`
-}
-
-// MRCommentConfig contains settings for MR/PR comments.
-// Shared by both GitLab and GitHub plugins.
-type MRCommentConfig struct {
-	// Enabled enables MR comments (default: true when in MR pipeline)
-	Enabled *bool `yaml:"enabled,omitempty" json:"enabled,omitempty" jsonschema:"description=Enable MR comments,default=true"`
-	// OnChangesOnly only comment when there are changes (default: false)
-	OnChangesOnly bool `yaml:"on_changes_only,omitempty" json:"on_changes_only,omitempty" jsonschema:"description=Only comment when there are changes"`
-	// IncludeDetails includes full plan output in collapsible sections
-	IncludeDetails bool `yaml:"include_details,omitempty" json:"include_details,omitempty" jsonschema:"description=Include full plan output in expandable sections,default=true"`
 }
 
 // JobConfig is an interface for job configuration (defaults and overwrites)
@@ -228,42 +223,4 @@ func (v *CfgVaultSecret) UnmarshalYAML(unmarshal func(any) error) error {
 	}
 	*v = CfgVaultSecret(alias)
 	return nil
-}
-
-// Image defines a Docker image configuration
-// Supports both string format and object format with entrypoint
-type Image struct {
-	// Name is the image name (e.g., "hashicorp/terraform:1.6")
-	Name string `yaml:"name,omitempty" json:"name,omitempty" jsonschema:"description=Docker image name"`
-	// Entrypoint overrides the default entrypoint
-	Entrypoint []string `yaml:"entrypoint,omitempty" json:"entrypoint,omitempty" jsonschema:"description=Override default entrypoint"`
-}
-
-// UnmarshalYAML implements custom unmarshaling for Image to support string shorthand
-func (img *Image) UnmarshalYAML(unmarshal func(any) error) error {
-	// Try string shorthand first (just image name)
-	var shorthand string
-	if err := unmarshal(&shorthand); err == nil {
-		img.Name = shorthand
-		return nil
-	}
-
-	// Try full object syntax
-	type imageAlias Image
-	var alias imageAlias
-	if err := unmarshal(&alias); err != nil {
-		return err
-	}
-	*img = Image(alias)
-	return nil
-}
-
-// String returns the image name
-func (img *Image) String() string {
-	return img.Name
-}
-
-// HasEntrypoint returns true if entrypoint is configured
-func (img *Image) HasEntrypoint() bool {
-	return len(img.Entrypoint) > 0
 }

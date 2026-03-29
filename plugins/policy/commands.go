@@ -33,7 +33,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 
 			log.Info("pulling policies from configured sources")
 
-			cfg := p.cfg
+			cfg := p.Config()
 			if policyOutput != "" {
 				cfg.CacheDir = policyOutput
 			}
@@ -67,7 +67,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 
 			log.Info("running policy checks")
 
-			puller, err := policyengine.NewPuller(p.cfg, ctx.WorkDir, ctx.ServiceDir)
+			puller, err := policyengine.NewPuller(p.Config(), ctx.WorkDir, ctx.ServiceDir)
 			if err != nil {
 				return fmt.Errorf("failed to create puller: %w", err)
 			}
@@ -80,7 +80,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 				return fmt.Errorf("failed to pull policies: %w", err)
 			}
 
-			checker := policyengine.NewChecker(p.cfg, policyDirs, ctx.WorkDir)
+			checker := policyengine.NewChecker(p.Config(), policyDirs, ctx.WorkDir)
 
 			var summary *policyengine.Summary
 

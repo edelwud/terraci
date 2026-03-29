@@ -59,7 +59,7 @@ func (p *Plugin) runSummary(ctx context.Context, appCtx *plugin.AppContext) erro
 	}
 
 	// Check if we should skip (on_changes_only)
-	if p.cfg != nil && p.cfg.OnChangesOnly && !hasReportableChanges(plans, reports) {
+	if p.Config() != nil && p.Config().OnChangesOnly && !hasReportableChanges(plans, reports) {
 		log.Info("no reportable changes, skipping comment")
 		printSummary(collection)
 		return nil

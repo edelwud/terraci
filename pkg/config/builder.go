@@ -44,19 +44,3 @@ func setPluginNode(cfg *Config, key string, value any) error {
 	}
 	return nil
 }
-
-// SetPluginValue is a public helper for setting a plugin config value.
-// Used by CLI commands that need to modify plugin configs (e.g., --plan-only).
-func SetPluginValue(cfg *Config, pluginKey, field string, value any) error {
-	// Decode existing config into a map
-	m := make(map[string]any)
-	if cfg.Plugins != nil {
-		if node, ok := cfg.Plugins[pluginKey]; ok {
-			if err := node.Decode(&m); err != nil {
-				return fmt.Errorf("decode plugin %q config: %w", pluginKey, err)
-			}
-		}
-	}
-	m[field] = value
-	return setPluginNode(cfg, pluginKey, m)
-}

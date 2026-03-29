@@ -138,3 +138,70 @@ func TestStateMap_Binary_NonStringValue(t *testing.T) {
 		t.Errorf("Binary with non-string = %q, want empty", s.Binary())
 	}
 }
+
+func TestStateMap_String(t *testing.T) {
+	s := NewStateMap()
+
+	if s.String("missing") != "" {
+		t.Error("String(missing) should return empty string")
+	}
+
+	s.Set("key", "hello")
+	if s.String("key") != "hello" {
+		t.Errorf("String(key) = %q, want hello", s.String("key"))
+	}
+
+	// Non-string value
+	s.Set("num", 42)
+	if s.String("num") != "" {
+		t.Errorf("String(num) = %q, want empty for non-string", s.String("num"))
+	}
+}
+
+func TestStateMap_Bool(t *testing.T) {
+	s := NewStateMap()
+
+	if s.Bool("missing") {
+		t.Error("Bool(missing) should return false")
+	}
+
+	s.Set("flag", true)
+	if !s.Bool("flag") {
+		t.Error("Bool(flag) should return true")
+	}
+
+	s.Set("flag", false)
+	if s.Bool("flag") {
+		t.Error("Bool(flag) should return false")
+	}
+
+	// Non-bool value
+	s.Set("str", "yes")
+	if s.Bool("str") {
+		t.Error("Bool(str) should return false for non-bool")
+	}
+}
+
+func TestStateMap_String_PrefersPointerValue(t *testing.T) {
+	s := NewStateMap()
+	s.Set("key", "plain")
+
+	ptr := s.StringPtr("key")
+	*ptr = "pointer"
+
+	if s.String("key") != "pointer" {
+		t.Errorf("String should prefer pointer value, got %q", s.String("key"))
+	}
+}
+
+func TestStateMap_Bool_PrefersPointerValue(t *testing.T) {
+	s := NewStateMap()
+	s.Set("flag", false)
+
+	ptr := s.BoolPtr("flag")
+	*ptr = true
+
+	if !s.Bool("flag") {
+		t.Error("Bool should prefer pointer value")
+	}
+}

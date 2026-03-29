@@ -10,12 +10,10 @@ import (
 const resultsFile = "policy-results.json"
 
 // PipelineContribution adds a policy-check job to the CI pipeline.
+// Framework guarantees this is only called when IsEnabled() == true.
 func (p *Plugin) PipelineContribution() *pipeline.Contribution {
-	if !p.IsConfigured() {
-		return nil
-	}
 	serviceDir := p.serviceDirRel
-	allowFailure := p.cfg.OnFailure == policyengine.ActionWarn
+	allowFailure := p.Config().OnFailure == policyengine.ActionWarn
 	return &pipeline.Contribution{
 		Jobs: []pipeline.ContributedJob{{
 			Name:          "policy-check",

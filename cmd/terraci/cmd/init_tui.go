@@ -63,32 +63,60 @@ func newInitModel() *initModel {
 
 	m := &initModel{state: state}
 
-	// Collect plugin groups sorted by Order
+	// Collect all plugin group specs
 	contributors := plugin.ByCapability[plugin.InitContributor]()
-	type orderedGroup struct {
-		order int
-		group *huh.Group
-	}
-	var pluginGroups []orderedGroup
+	var allSpecs []*plugin.InitGroupSpec
 	for _, c := range contributors {
-		spec := c.InitGroup()
-		if spec == nil {
-			continue
-		}
-		g := buildPluginGroup(spec, state)
-		pluginGroups = append(pluginGroups, orderedGroup{order: spec.Order, group: g})
+		allSpecs = append(allSpecs, c.InitGroups()...)
 	}
-	sort.Slice(pluginGroups, func(i, j int) bool {
-		return pluginGroups[i].order < pluginGroups[j].order
+
+	// Sort specs by Order
+	sort.Slice(allSpecs, func(i, j int) bool {
+		return allSpecs[i].Order < allSpecs[j].Order
 	})
 
-	groups := make([]*huh.Group, 0, 2+len(pluginGroups)+1)
-	groups = append(groups, m.basicsGroup(), m.structureGroup())
-	for _, pg := range pluginGroups {
-		groups = append(groups, pg.group)
+	// Categorize specs
+	var providerSpecs, pipelineSpecs, featureSpecs, detailSpecs []*plugin.InitGroupSpec
+	for _, spec := range allSpecs {
+		switch spec.Category {
+		case plugin.CategoryProvider:
+			providerSpecs = append(providerSpecs, spec)
+		case plugin.CategoryPipeline:
+			pipelineSpecs = append(pipelineSpecs, spec)
+		case plugin.CategoryFeature:
+			featureSpecs = append(featureSpecs, spec)
+		case plugin.CategoryDetail:
+			detailSpecs = append(detailSpecs, spec)
+		}
 	}
 
-	groups = append(groups, m.pipelineGroup())
+	// Assemble groups in logical order:
+	// Basics (hardcoded) → Provider → Pipeline (merged) → Features (merged) → Detail
+	const initialGroupCap = 8
+	groups := make([]*huh.Group, 0, initialGroupCap)
+
+	// 1. Basics — the only hardcoded group
+	groups = append(groups, m.basicsGroup())
+
+	// 2. Provider groups — separate, with ShowWhen
+	for _, spec := range providerSpecs {
+		groups = append(groups, buildPluginGroup(spec, state))
+	}
+
+	// 3. Pipeline — merge all CategoryPipeline fields into one group
+	if len(pipelineSpecs) > 0 {
+		groups = append(groups, buildMergedGroup("Pipeline", pipelineSpecs, state))
+	}
+
+	// 4. Features — merge all CategoryFeature fields into one group
+	if len(featureSpecs) > 0 {
+		groups = append(groups, buildMergedGroup("Features", featureSpecs, state))
+	}
+
+	// 5. Detail groups — separate, with ShowWhen (gated by feature toggles)
+	for _, spec := range detailSpecs {
+		groups = append(groups, buildPluginGroup(spec, state))
+	}
 
 	m.form = huh.NewForm(groups...).WithWidth(formWidth).WithShowHelp(true)
 
@@ -97,7 +125,7 @@ func newInitModel() *initModel {
 
 func (m *initModel) basicsGroup() *huh.Group {
 	// Build provider options dynamically from registered plugins
-	providerPlugins := plugin.ByCapability[plugin.GeneratorProvider]()
+	providerPlugins := plugin.ByCapability[plugin.CIMetadata]()
 	providerOpts := make([]huh.Option[string], 0, len(providerPlugins))
 	for _, pp := range providerPlugins {
 		providerOpts = append(providerOpts, huh.NewOption(pp.Description(), pp.ProviderName()))
@@ -111,37 +139,58 @@ func (m *initModel) basicsGroup() *huh.Group {
 			Value(m.state.StringPtr("provider")),
 
 		huh.NewSelect[string]().
-			Title("Terraform Binary").
-			Description("Which IaC tool do you use?").
+			Title("IaC Tool").
+			Description("Which infrastructure-as-code tool do you use?").
 			Options(
 				huh.NewOption("Terraform", "terraform"),
 				huh.NewOption("OpenTofu", "tofu"),
 			).Value(m.state.StringPtr("binary")),
+
+		huh.NewInput().
+			Title("Directory Pattern").
+			Description("How are your Terraform modules organized?").
+			Placeholder("{service}/{environment}/{region}/{module}").
+			Value(m.state.StringPtr("pattern")),
 	).Title("Basics")
 }
 
-func (m *initModel) structureGroup() *huh.Group {
-	return huh.NewGroup(
-		huh.NewInput().
-			Title("Directory Pattern").
-			Description("How are your modules organized?").
-			Placeholder("{service}/{environment}/{region}/{module}").
-			Value(m.state.StringPtr("pattern")),
-	).Title("Project Structure")
-}
+// buildMergedGroup combines fields from multiple specs into a single group.
+// Used for CategoryPipeline and CategoryFeature — merges toggle fields
+// from different plugins into one cohesive step.
+// Fields with duplicate keys are deduplicated (first occurrence wins).
+func buildMergedGroup(title string, specs []*plugin.InitGroupSpec, state *plugin.StateMap) *huh.Group {
+	var fields []huh.Field
+	var showFns []func(*plugin.StateMap) bool
+	seen := make(map[string]bool)
 
-func (m *initModel) pipelineGroup() *huh.Group {
-	return huh.NewGroup(
-		huh.NewConfirm().
-			Title("Enable plan stage?").
-			Description("Generate separate plan + apply jobs").
-			Value(m.state.BoolPtr("plan_enabled")),
+	for _, spec := range specs {
+		for _, f := range spec.Fields {
+			if seen[f.Key] {
+				continue
+			}
+			seen[f.Key] = true
+			fields = append(fields, buildPluginField(f, state))
+		}
+		if spec.ShowWhen != nil {
+			showFns = append(showFns, spec.ShowWhen)
+		}
+	}
 
-		huh.NewConfirm().
-			Title("Auto-approve applies?").
-			Description("Skip manual approval for terraform apply").
-			Value(m.state.BoolPtr("auto_approve")),
-	).Title("Pipeline Options")
+	g := huh.NewGroup(fields...).Title(title)
+
+	// If any spec has ShowWhen, hide the merged group when ALL ShowWhen return false
+	if len(showFns) > 0 {
+		g = g.WithHideFunc(func() bool {
+			for _, fn := range showFns {
+				if fn(state) {
+					return false // at least one wants to show
+				}
+			}
+			return true // all hidden
+		})
+	}
+
+	return g
 }
 
 // buildPluginGroup converts an InitGroupSpec into a huh.Group.
@@ -200,7 +249,7 @@ func buildPluginField(f plugin.InitField, state *plugin.StateMap) huh.Field {
 
 // buildConfigFromState collects InitContributor results and builds a Config.
 func buildConfigFromState(state *plugin.StateMap) *config.Config {
-	pattern, _ := state.Get("pattern").(string) //nolint:errcheck // safe type assertion
+	pattern := state.String("pattern")
 	pluginConfigs := make(map[string]map[string]any)
 
 	for _, c := range plugin.ByCapability[plugin.InitContributor]() {

@@ -1,7 +1,7 @@
 package plugin
 
-// StateMap is the default InitState implementation backed by maps.
-// It provides stable pointers for huh form field binding.
+// StateMap is the typed init state backed by maps.
+// It provides both typed accessors and stable pointers for huh form field binding.
 type StateMap struct {
 	values  map[string]any
 	strings map[string]*string
@@ -31,23 +31,29 @@ func (s *StateMap) Get(key string) any {
 	return s.values[key]
 }
 
-// Provider returns the current provider name.
-func (s *StateMap) Provider() string {
-	v, ok := s.Get("provider").(string)
+// String returns a string value for the key, or empty string if not found.
+func (s *StateMap) String(key string) string {
+	v, ok := s.Get(key).(string)
 	if !ok {
 		return ""
 	}
 	return v
 }
 
-// Binary returns the current binary name.
-func (s *StateMap) Binary() string {
-	v, ok := s.Get("binary").(string)
+// Bool returns a bool value for the key, or false if not found.
+func (s *StateMap) Bool(key string) bool {
+	v, ok := s.Get(key).(bool)
 	if !ok {
-		return ""
+		return false
 	}
 	return v
 }
+
+// Provider returns the current provider name.
+func (s *StateMap) Provider() string { return s.String("provider") }
+
+// Binary returns the current binary name.
+func (s *StateMap) Binary() string { return s.String("binary") }
 
 // StringPtr returns a stable *string pointer for huh form binding.
 // If a value was previously Set for the key, it initializes the pointer with that value.

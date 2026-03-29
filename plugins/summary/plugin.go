@@ -7,18 +7,23 @@ import (
 	summaryengine "github.com/edelwud/terraci/plugins/summary/internal"
 )
 
-const pluginName = "summary"
-
 func init() { //nolint:gochecknoinits // intentional plugin registration
-	plugin.Register(&Plugin{})
+	plugin.Register(&Plugin{
+		BasePlugin: plugin.BasePlugin[*summaryengine.Config]{
+			PluginName: "summary",
+			PluginDesc: "MR/PR comment posting from plan results",
+			EnableMode: plugin.EnabledByDefault,
+			DefaultCfg: func() *summaryengine.Config {
+				return &summaryengine.Config{}
+			},
+			IsEnabledFn: func(cfg *summaryengine.Config) bool {
+				return cfg == nil || cfg.Enabled == nil || *cfg.Enabled
+			},
+		},
+	})
 }
 
 // Plugin is the summary plugin.
 type Plugin struct {
-	cfg        *summaryengine.Config
-	configured bool
+	plugin.BasePlugin[*summaryengine.Config]
 }
-
-func (p *Plugin) Name() string        { return pluginName }
-func (p *Plugin) Description() string { return "MR/PR comment posting from plan results" }
-func (p *Plugin) Reset()              { *p = Plugin{} }

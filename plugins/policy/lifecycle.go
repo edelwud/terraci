@@ -19,7 +19,7 @@ func (p *Plugin) Initialize(_ context.Context, appCtx *plugin.AppContext) error 
 	log.WithField("opa", policyengine.OPAVersion()).Debug("policy: OPA engine available")
 
 	// Validate policy sources are configured
-	if len(p.cfg.Sources) == 0 {
+	if len(p.Config().Sources) == 0 {
 		log.Warn("policy: enabled but no sources configured")
 	}
 

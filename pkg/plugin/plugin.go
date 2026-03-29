@@ -39,13 +39,15 @@ type Resettable interface {
 
 // --- Configuration ---
 
-// ConfigProvider declares a config section under "plugins:" in .terraci.yaml.
-type ConfigProvider interface {
+// ConfigLoader declares a config section under "plugins:" in .terraci.yaml.
+// Implemented automatically by embedding BasePlugin[C].
+type ConfigLoader interface {
 	Plugin
 	ConfigKey() string
 	NewConfig() any
-	SetConfig(cfg any) error
-	IsConfigured() bool // true if SetConfig was called AND the plugin is enabled
+	DecodeAndSet(decode func(target any) error) error
+	IsConfigured() bool
+	IsEnabled() bool
 }
 
 // --- Commands ---
@@ -56,17 +58,72 @@ type CommandProvider interface {
 	Commands(ctx *AppContext) []*cobra.Command
 }
 
-// --- CI Provider ---
+// --- CI Provider (split into focused interfaces) ---
 
-// GeneratorProvider supplies a pipeline generator and comment service for a CI provider.
-type GeneratorProvider interface {
+// EnvDetector detects whether this plugin's CI environment is active.
+type EnvDetector interface {
+	Plugin
+	DetectEnv() bool
+}
+
+// CIMetadata provides CI-specific metadata.
+type CIMetadata interface {
 	Plugin
 	ProviderName() string
-	DetectEnv() bool
 	PipelineID() string
 	CommitSHA() string
+}
+
+// GeneratorFactory creates pipeline generators.
+type GeneratorFactory interface {
+	Plugin
 	NewGenerator(ctx *AppContext, depGraph *graph.DependencyGraph, modules []*discovery.Module) pipeline.Generator
+}
+
+// CommentFactory creates PR/MR comment services.
+type CommentFactory interface {
+	Plugin
 	NewCommentService(ctx *AppContext) ci.CommentService
+}
+
+// CIProvider is the resolved CI provider, assembled from the focused interfaces above.
+// Returned by ResolveProvider().
+type CIProvider struct {
+	plugin   Plugin
+	metadata CIMetadata
+	gen      GeneratorFactory
+	comment  CommentFactory
+}
+
+// NewCIProvider constructs a CIProvider from a plugin implementing all CI interfaces.
+func NewCIProvider(p Plugin, meta CIMetadata, gen GeneratorFactory, comment CommentFactory) *CIProvider {
+	return &CIProvider{plugin: p, metadata: meta, gen: gen, comment: comment}
+}
+
+func (c *CIProvider) Name() string         { return c.plugin.Name() }
+func (c *CIProvider) Description() string  { return c.plugin.Description() }
+func (c *CIProvider) ProviderName() string { return c.metadata.ProviderName() }
+func (c *CIProvider) PipelineID() string   { return c.metadata.PipelineID() }
+func (c *CIProvider) CommitSHA() string    { return c.metadata.CommitSHA() }
+
+func (c *CIProvider) NewGenerator(ctx *AppContext, depGraph *graph.DependencyGraph, modules []*discovery.Module) pipeline.Generator {
+	return c.gen.NewGenerator(ctx, depGraph, modules)
+}
+
+func (c *CIProvider) NewCommentService(ctx *AppContext) ci.CommentService {
+	return c.comment.NewCommentService(ctx)
+}
+
+// Plugin returns the underlying plugin instance.
+func (c *CIProvider) Plugin() Plugin { return c.plugin }
+
+// --- CLI Flag Overrides ---
+
+// FlagOverridable plugins support direct CLI flag overrides on their config.
+type FlagOverridable interface {
+	Plugin
+	SetPlanOnly(bool)
+	SetAutoApprove(bool)
 }
 
 // --- Version ---
@@ -88,19 +145,38 @@ type ChangeDetectionProvider interface {
 
 // --- Init Wizard ---
 
+// InitCategory determines how an InitGroupSpec is rendered in the wizard.
+type InitCategory string
+
+const (
+	// CategoryProvider groups contain CI-specific infrastructure settings (image, runner).
+	// Rendered as separate groups with ShowWhen.
+	CategoryProvider InitCategory = "provider"
+	// CategoryPipeline groups contain pipeline behavior settings (plan_enabled, auto_approve).
+	// Fields from all CategoryPipeline groups are merged into a single "Pipeline" group.
+	CategoryPipeline InitCategory = "pipeline"
+	// CategoryFeature groups contain optional feature toggles (cost, policy, summary).
+	// Fields from all CategoryFeature groups are merged into a single "Features" group.
+	CategoryFeature InitCategory = "feature"
+	// CategoryDetail groups contain detail settings for enabled features (policy settings).
+	// Rendered as separate groups with ShowWhen (typically gated by a feature toggle).
+	CategoryDetail InitCategory = "detail"
+)
+
 // InitContributor plugins contribute fields and config to the init wizard.
 type InitContributor interface {
 	Plugin
-	InitGroup() *InitGroupSpec
-	BuildInitConfig(state InitState) *InitContribution
+	InitGroups() []*InitGroupSpec
+	BuildInitConfig(state *StateMap) *InitContribution
 }
 
 // InitGroupSpec describes a group of form fields contributed by a plugin.
 type InitGroupSpec struct {
 	Title    string
+	Category InitCategory
 	Order    int
 	Fields   []InitField
-	ShowWhen func(InitState) bool
+	ShowWhen func(*StateMap) bool
 }
 
 // InitField describes a single form field in the init wizard.
@@ -124,14 +200,6 @@ type InitOption struct {
 type InitContribution struct {
 	PluginKey string
 	Config    map[string]any
-}
-
-// InitState provides read/write access to the shared init wizard state.
-type InitState interface {
-	Get(key string) any
-	Set(key string, val any)
-	Provider() string
-	Binary() string
 }
 
 // --- Pipeline Contribution ---

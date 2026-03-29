@@ -8,7 +8,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/filter"
 	"github.com/edelwud/terraci/pkg/graph"
@@ -43,7 +42,7 @@ Examples:
   terraci generate --auto-approve
   terraci generate --plan-only`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			applyProviderFlags(app, planOnly, cmd)
+			applyProviderFlags(planOnly, cmd)
 
 			result, err := workflow.Run(cmd.Context(), workflowOptions(app, ff))
 			if err != nil {
@@ -102,7 +101,7 @@ Examples:
 }
 
 // applyProviderFlags applies CLI override flags (--plan-only, --auto-approve) to the provider config.
-func applyProviderFlags(app *App, planOnly bool, cmd *cobra.Command) {
+func applyProviderFlags(planOnly bool, cmd *cobra.Command) {
 	if !planOnly && !cmd.Flags().Changed("auto-approve") && !cmd.Flags().Changed("no-auto-approve") {
 		return
 	}
@@ -111,39 +110,20 @@ func applyProviderFlags(app *App, planOnly bool, cmd *cobra.Command) {
 		log.WithError(err).Debug("cannot apply CLI flags: provider not resolved")
 		return
 	}
-	name := resolved.ProviderName()
-	if planOnly {
-		if err := config.SetPluginValue(app.Config, name, "plan_only", true); err != nil {
-			log.WithError(err).Warn("failed to set plan_only flag")
-			return
-		}
-		if err := config.SetPluginValue(app.Config, name, "plan_enabled", true); err != nil {
-			log.WithError(err).Warn("failed to set plan_enabled flag")
-			return
-		}
-	}
-	if cmd.Flags().Changed("auto-approve") {
-		if err := config.SetPluginValue(app.Config, name, "auto_approve", true); err != nil {
-			log.WithError(err).Warn("failed to set auto_approve flag")
-			return
-		}
-	} else if cmd.Flags().Changed("no-auto-approve") {
-		if err := config.SetPluginValue(app.Config, name, "auto_approve", false); err != nil {
-			log.WithError(err).Warn("failed to set auto_approve flag")
-			return
-		}
+
+	fo, ok := resolved.Plugin().(plugin.FlagOverridable)
+	if !ok {
+		log.Debug("CI provider does not support flag overrides")
+		return
 	}
 
-	// Re-apply config to the plugin so the parsed struct reflects CLI overrides.
-	if cp, ok := resolved.(plugin.ConfigProvider); ok {
-		cfg := cp.NewConfig()
-		if decodeErr := app.Config.PluginConfig(cp.ConfigKey(), cfg); decodeErr != nil {
-			log.WithError(decodeErr).Warn("failed to re-decode plugin config after CLI override")
-			return
-		}
-		if setErr := cp.SetConfig(cfg); setErr != nil {
-			log.WithError(setErr).Warn("failed to re-set plugin config after CLI override")
-		}
+	if planOnly {
+		fo.SetPlanOnly(true)
+	}
+	if cmd.Flags().Changed("auto-approve") {
+		fo.SetAutoApprove(true)
+	} else if cmd.Flags().Changed("no-auto-approve") {
+		fo.SetAutoApprove(false)
 	}
 }
 

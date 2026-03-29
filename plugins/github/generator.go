@@ -12,7 +12,7 @@ import (
 )
 
 // ProviderName returns the provider name.
-func (p *Plugin) ProviderName() string { return pluginName }
+func (p *Plugin) ProviderName() string { return p.Name() }
 
 // DetectEnv returns true if running in GitHub Actions.
 func (p *Plugin) DetectEnv() bool {
@@ -28,14 +28,14 @@ func (p *Plugin) CommitSHA() string { return os.Getenv("GITHUB_SHA") }
 // NewGenerator creates a new GitHub Actions pipeline generator.
 func (p *Plugin) NewGenerator(_ *plugin.AppContext, depGraph *graph.DependencyGraph, modules []*discovery.Module) pipeline.Generator {
 	contributions := plugin.CollectContributions()
-	return githubci.NewGenerator(p.cfg, contributions, depGraph, modules)
+	return githubci.NewGenerator(p.Config(), contributions, depGraph, modules)
 }
 
 // NewCommentService creates a new PR comment service.
 func (p *Plugin) NewCommentService(_ *plugin.AppContext) ci.CommentService {
 	var prCfg *githubci.PRConfig
-	if p.cfg != nil {
-		prCfg = p.cfg.PR
+	if p.Config() != nil {
+		prCfg = p.Config().PR
 	}
 	return githubci.NewPRServiceFromEnv(prCfg)
 }

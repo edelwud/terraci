@@ -6,20 +6,36 @@ import (
 	costengine "github.com/edelwud/terraci/plugins/cost/internal"
 )
 
-const pluginName = "cost"
-
 func init() { //nolint:gochecknoinits // intentional plugin registration
-	plugin.Register(&Plugin{})
+	plugin.Register(&Plugin{
+		BasePlugin: plugin.BasePlugin[*costengine.CostConfig]{
+			PluginName: "cost",
+			PluginDesc: "AWS cost estimation from Terraform plans",
+			EnableMode: plugin.EnabledExplicitly,
+			DefaultCfg: func() *costengine.CostConfig {
+				return &costengine.CostConfig{}
+			},
+			IsEnabledFn: func(cfg *costengine.CostConfig) bool {
+				return cfg != nil && cfg.Enabled
+			},
+		},
+	})
 }
 
 // Plugin is the AWS cost estimation plugin.
 type Plugin struct {
-	cfg           *costengine.CostConfig
+	plugin.BasePlugin[*costengine.CostConfig]
 	estimator     *costengine.Estimator
-	configured    bool
 	serviceDirRel string // relative path, for pipeline artifact paths
 }
 
-func (p *Plugin) Name() string        { return pluginName }
-func (p *Plugin) Description() string { return "AWS cost estimation from Terraform plans" }
-func (p *Plugin) Reset()              { *p = Plugin{} }
+// Reset resets all plugin state.
+func (p *Plugin) Reset() {
+	p.BasePlugin.Reset()
+	p.estimator = nil
+	p.serviceDirRel = ""
+}
+
+func (p *Plugin) getEstimator() *costengine.Estimator {
+	return p.estimator
+}

@@ -90,11 +90,15 @@ Features:
 
 			// Initialize plugins (lifecycle stage 3)
 			log.Debug("initializing plugins")
+			appCtx := app.PluginContext()
 			for _, p := range plugin.ByCapability[plugin.Initializable]() {
-				if err := p.Initialize(cmd.Context(), app.PluginContext()); err != nil {
+				if err := p.Initialize(cmd.Context(), appCtx); err != nil {
 					return fmt.Errorf("initialize plugin %s: %w", p.Name(), err)
 				}
 			}
+
+			// Freeze context after initialization — no further mutations allowed
+			appCtx.Freeze()
 
 			return nil
 		},

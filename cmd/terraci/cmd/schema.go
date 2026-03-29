@@ -33,8 +33,8 @@ Examples:
   # yaml-language-server: $schema=./terraci.schema.json`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			pluginSchemas := make(map[string]any)
-			for _, cp := range plugin.ByCapability[plugin.ConfigProvider]() {
-				pluginSchemas[cp.ConfigKey()] = cp.NewConfig()
+			for _, cl := range plugin.ByCapability[plugin.ConfigLoader]() {
+				pluginSchemas[cl.ConfigKey()] = cl.NewConfig()
 			}
 			schema := config.GenerateJSONSchema(pluginSchemas)
 

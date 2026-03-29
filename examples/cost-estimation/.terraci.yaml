@@ -3,18 +3,17 @@ service_dir: .terraci
 structure:
     pattern: '{service}/{environment}/{region}/{module}'
 plugins:
-    cost:
-        enabled: true
-    gitlab:
-        auto_approve: true
-        image:
-            name: hashicorp/terraform:1.6
+    github:
+        auto_approve: false
         init_enabled: true
+        job_defaults:
+            steps_before:
+                - uses: actions/checkout@v4
+                - uses: hashicorp/setup-terraform@v3
         plan_enabled: true
-        terraform_binary: tofu
-    policy:
-        enabled: true
-        on_failure: warn
-        sources:
-            - path: policies
+        pr:
+            comment:
+                enabled: true
+        runs_on: ubuntu-latest
+        terraform_binary: terraform
     summary: {}

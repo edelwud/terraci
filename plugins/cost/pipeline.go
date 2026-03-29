@@ -9,11 +9,8 @@ import (
 const resultsFile = "cost-results.json"
 
 // PipelineContribution adds a cost estimation job to the CI pipeline.
+// Framework guarantees this is only called when IsEnabled() == true.
 func (p *Plugin) PipelineContribution() *pipeline.Contribution {
-	if !p.IsConfigured() {
-		return nil
-	}
-
 	serviceDir := p.serviceDirRel
 	return &pipeline.Contribution{
 		Jobs: []pipeline.ContributedJob{{

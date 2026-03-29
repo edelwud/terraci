@@ -38,6 +38,9 @@ func (a *App) PluginContext() *plugin.AppContext {
 
 // ensurePluginContext updates the shared AppContext fields from current App state.
 func (a *App) ensurePluginContext() {
+	if a.pluginCtx.IsFrozen() {
+		return
+	}
 	serviceDir := ".terraci"
 	if a.Config != nil && a.Config.ServiceDir != "" {
 		serviceDir = a.Config.ServiceDir
@@ -49,20 +52,21 @@ func (a *App) ensurePluginContext() {
 	a.pluginCtx.WorkDir = a.WorkDir
 	a.pluginCtx.ServiceDir = serviceDir
 	a.pluginCtx.Version = a.Version
+	if a.pluginCtx.Reports == nil {
+		a.pluginCtx.Reports = plugin.NewReportRegistry()
+	}
 }
 
 // InitPluginConfigs decodes plugin-specific configurations from the Plugins map
-// and passes them to each ConfigProvider plugin.
+// and passes them to each ConfigLoader plugin.
 func (a *App) InitPluginConfigs() error {
-	for _, p := range plugin.ByCapability[plugin.ConfigProvider]() {
+	for _, p := range plugin.ByCapability[plugin.ConfigLoader]() {
 		if _, exists := a.Config.Plugins[p.ConfigKey()]; !exists {
 			continue
 		}
-		cfg := p.NewConfig()
-		if err := a.Config.PluginConfig(p.ConfigKey(), cfg); err != nil {
-			return err
-		}
-		if err := p.SetConfig(cfg); err != nil {
+		if err := p.DecodeAndSet(func(target any) error {
+			return a.Config.PluginConfig(p.ConfigKey(), target)
+		}); err != nil {
 			return err
 		}
 	}
