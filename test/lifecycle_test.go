@@ -110,6 +110,10 @@ func TestPluginConfigLoading(t *testing.T) {
 }
 
 func TestProviderResolution(t *testing.T) {
+	// Clear CI env vars so DetectEnv() doesn't interfere (e.g., GITHUB_ACTIONS on GH Actions)
+	for _, key := range []string{"GITHUB_ACTIONS", "GITLAB_CI", "CI_SERVER_URL"} {
+		t.Setenv(key, "")
+	}
 	plugin.ResetPlugins()
 	cfg, err := config.Load(filepath.Join(fixtureDir(t, "basic"), ".terraci.yaml"))
 	if err != nil {
@@ -137,6 +141,10 @@ func TestProviderResolution(t *testing.T) {
 }
 
 func TestPluginInitialization(t *testing.T) {
+	// Clear CI env vars so plugins don't detect a CI environment (e.g., GITHUB_ACTIONS on GH Actions)
+	for _, key := range []string{"GITHUB_ACTIONS", "GITLAB_CI", "CI_SERVER_URL"} {
+		t.Setenv(key, "")
+	}
 	plugin.ResetPlugins()
 	dir := fixtureDir(t, "basic")
 	cfg, err := config.Load(filepath.Join(dir, ".terraci.yaml"))
