@@ -28,21 +28,22 @@ type Estimator struct {
 
 // NewEstimator creates a new cost estimator with the given pricing fetcher.
 func NewEstimator(cacheDir string, cacheTTL time.Duration, fetcher pricing.PriceFetcher) *Estimator {
-	registry := handler.NewRegistry()
-	awsProvider, ok := cloud.Get(awskit.ProviderID)
-	def := cloud.Definition{
-		Manifest: awskit.Manifest,
-	}
-	if ok {
-		def = awsProvider.Definition()
-		cloud.RegisterDefinitionHandlers(registry, def)
-	}
-	runtimes := map[string]*ProviderRuntime{
-		def.Manifest.ID: {
+	providers := cloud.Providers()
+	registry := newDefaultRegistry(providers)
+	runtimes := make(map[string]*ProviderRuntime, len(providers))
+
+	for _, cp := range providers {
+		def := cp.Definition()
+		runtimeFetcher := def.FetcherFactory()
+		if len(providers) == 1 && fetcher != nil {
+			runtimeFetcher = fetcher
+		}
+		runtimes[def.Manifest.ID] = &ProviderRuntime{
 			Definition: def,
-			Cache:      pricing.NewCache(cacheDir, cacheTTL, fetcher),
-		},
+			Cache:      pricing.NewCache(cacheDir, cacheTTL, runtimeFetcher),
+		}
 	}
+
 	return NewEstimatorWithRuntimes(registry, runtimes)
 }
 
