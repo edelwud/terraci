@@ -3,8 +3,6 @@ package pricing
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,8 +10,15 @@ import (
 	"time"
 )
 
+// stubFetcher is a no-op fetcher for cache tests that don't need real pricing data.
+type stubFetcher struct{}
+
+func (s *stubFetcher) FetchRegionIndex(_ context.Context, _ ServiceCode, _ string) (*PriceIndex, error) {
+	return nil, fmt.Errorf("stub fetcher: not implemented")
+}
+
 func TestNewCache_Defaults(t *testing.T) {
-	c := NewCache("", 0)
+	c := NewCache("", 0, &stubFetcher{})
 
 	if c.ttl != DefaultCacheTTL {
 		t.Errorf("expected ttl %v, got %v", DefaultCacheTTL, c.ttl)
@@ -30,7 +35,7 @@ func TestNewCache_Custom(t *testing.T) {
 	tmpDir := t.TempDir()
 	ttl := 1 * time.Hour
 
-	c := NewCache(tmpDir, ttl)
+	c := NewCache(tmpDir, ttl, &stubFetcher{})
 
 	if c.dir != tmpDir {
 		t.Errorf("expected dir %s, got %s", tmpDir, c.dir)
@@ -319,43 +324,39 @@ func TestCleanExpired(t *testing.T) {
 	}
 }
 
-// newTestServer returns an httptest server that serves valid AWS pricing JSON
-func newTestServer() *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		fmt.Fprint(w, `{
-			"formatVersion": "v1.0",
-			"offerCode": "AmazonEC2",
-			"version": "test",
-			"products": {
+// fakeFetcher returns PriceIndex directly without HTTP, for tests needing fetch behavior.
+type fakeFetcher struct {
+	index *PriceIndex
+	err   error
+}
+
+func (f *fakeFetcher) FetchRegionIndex(_ context.Context, _ ServiceCode, _ string) (*PriceIndex, error) {
+	return f.index, f.err
+}
+
+func newTestFetcher() *fakeFetcher {
+	return &fakeFetcher{
+		index: &PriceIndex{
+			ServiceCode: ServiceEC2,
+			Region:      "us-east-1",
+			Version:     "test",
+			UpdatedAt:   time.Now(),
+			Products: map[string]Price{
 				"SKU1": {
-					"sku": "SKU1",
-					"productFamily": "Compute Instance",
-					"attributes": {"instanceType": "t3.micro", "location": "US East (N. Virginia)"}
-				}
+					SKU:           "SKU1",
+					ProductFamily: "Compute Instance",
+					Attributes:    map[string]string{"instanceType": "t3.micro", "location": "US East (N. Virginia)"},
+					OnDemandUSD:   0.0104,
+					Unit:          "Hrs",
+				},
 			},
-			"terms": {
-				"OnDemand": {
-					"SKU1": {
-						"SKU1.T1": {
-							"offerTermCode": "JRTCKXETXF",
-							"sku": "SKU1",
-							"priceDimensions": {
-								"SKU1.T1.D1": {
-									"unit": "Hrs",
-									"pricePerUnit": {"USD": "0.0104"}
-								}
-							}
-						}
-					}
-				}
-			}
-		}`)
-	}))
+		},
+	}
 }
 
 func TestGetIndex_CacheHit(t *testing.T) {
 	tmpDir := t.TempDir()
-	c := NewCache(tmpDir, time.Hour)
+	c := NewCache(tmpDir, time.Hour, &stubFetcher{})
 
 	// Pre-populate cache
 	idx := &PriceIndex{
@@ -379,12 +380,8 @@ func TestGetIndex_CacheHit(t *testing.T) {
 }
 
 func TestGetIndex_CacheMiss(t *testing.T) {
-	ts := newTestServer()
-	defer ts.Close()
-
 	tmpDir := t.TempDir()
-	c := NewCache(tmpDir, time.Hour)
-	c.fetcher = &Fetcher{Client: ts.Client(), BaseURL: ts.URL}
+	c := NewCache(tmpDir, time.Hour, newTestFetcher())
 
 	got, err := c.GetIndex(context.Background(), ServiceEC2, "us-east-1")
 	if err != nil {
@@ -405,14 +402,9 @@ func TestGetIndex_CacheMiss(t *testing.T) {
 }
 
 func TestGetIndex_FetchError(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
-	defer ts.Close()
-
 	tmpDir := t.TempDir()
-	c := NewCache(tmpDir, time.Hour)
-	c.fetcher = &Fetcher{Client: ts.Client(), BaseURL: ts.URL}
+	errFetcher := &fakeFetcher{err: fmt.Errorf("network error")}
+	c := NewCache(tmpDir, time.Hour, errFetcher)
 
 	_, err := c.GetIndex(context.Background(), ServiceEC2, "us-east-1")
 	if err == nil {
@@ -421,12 +413,8 @@ func TestGetIndex_FetchError(t *testing.T) {
 }
 
 func TestPrewarmCache(t *testing.T) {
-	ts := newTestServer()
-	defer ts.Close()
-
 	tmpDir := t.TempDir()
-	c := NewCache(tmpDir, time.Hour)
-	c.fetcher = &Fetcher{Client: ts.Client(), BaseURL: ts.URL}
+	c := NewCache(tmpDir, time.Hour, newTestFetcher())
 
 	services := map[ServiceCode][]string{
 		ServiceEC2: {"us-east-1"},
@@ -445,7 +433,7 @@ func TestPrewarmCache(t *testing.T) {
 func TestCache_Accessors(t *testing.T) {
 	tmpDir := t.TempDir()
 	ttl := 2 * time.Hour
-	c := NewCache(tmpDir, ttl)
+	c := NewCache(tmpDir, ttl, &stubFetcher{})
 
 	t.Run("Dir", func(t *testing.T) {
 		if c.Dir() != tmpDir {
@@ -460,7 +448,7 @@ func TestCache_Accessors(t *testing.T) {
 	})
 
 	t.Run("SetFetcher", func(t *testing.T) {
-		f := &Fetcher{}
+		f := &stubFetcher{}
 		c.SetFetcher(f)
 		if c.fetcher != f {
 			t.Error("SetFetcher did not set fetcher")
@@ -509,14 +497,9 @@ func TestCache_Accessors(t *testing.T) {
 }
 
 func TestPrewarmCache_Error(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
-	defer ts.Close()
-
 	tmpDir := t.TempDir()
-	c := NewCache(tmpDir, time.Hour)
-	c.fetcher = &Fetcher{Client: ts.Client(), BaseURL: ts.URL}
+	errFetcher := &fakeFetcher{err: fmt.Errorf("network error")}
+	c := NewCache(tmpDir, time.Hour, errFetcher)
 
 	err := c.PrewarmCache(context.Background(), map[ServiceCode][]string{
 		ServiceEC2: {"us-east-1"},

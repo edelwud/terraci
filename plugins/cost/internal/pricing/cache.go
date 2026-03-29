@@ -37,8 +37,9 @@ type Cache struct {
 	mu      sync.Mutex // protects file writes
 }
 
-// NewCache creates a new pricing cache
-func NewCache(cacheDir string, ttl time.Duration) *Cache {
+// NewCache creates a new pricing cache with the given fetcher.
+// The fetcher determines which cloud provider's pricing API is used.
+func NewCache(cacheDir string, ttl time.Duration, fetcher PriceFetcher) *Cache {
 	if cacheDir == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
@@ -52,7 +53,7 @@ func NewCache(cacheDir string, ttl time.Duration) *Cache {
 	return &Cache{
 		dir:     cacheDir,
 		ttl:     ttl,
-		fetcher: NewFetcher(),
+		fetcher: fetcher,
 	}
 }
 

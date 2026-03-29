@@ -24,19 +24,19 @@ type Estimator struct {
 	cache    *pricing.Cache
 }
 
-// NewEstimator creates a new cost estimator.
-func NewEstimator(cacheDir string, cacheTTL time.Duration) *Estimator {
+// NewEstimator creates a new cost estimator with the given pricing fetcher.
+func NewEstimator(cacheDir string, cacheTTL time.Duration, fetcher pricing.PriceFetcher) *Estimator {
 	return &Estimator{
 		registry: newDefaultRegistry(),
-		cache:    pricing.NewCache(cacheDir, cacheTTL),
+		cache:    pricing.NewCache(cacheDir, cacheTTL, fetcher),
 	}
 }
 
 // CacheDir returns the resolved pricing cache directory path.
 func (e *Estimator) CacheDir() string { return e.cache.Dir() }
 
-// SetPricingFetcher replaces the pricing fetcher (for testing with httptest).
-func (e *Estimator) SetPricingFetcher(f *pricing.Fetcher) { e.cache.SetFetcher(f) }
+// SetPricingFetcher replaces the pricing fetcher (for testing or alternative providers).
+func (e *Estimator) SetPricingFetcher(f pricing.PriceFetcher) { e.cache.SetFetcher(f) }
 
 // CacheOldestAge returns the age of the oldest cache entry, or 0 if empty.
 func (e *Estimator) CacheOldestAge() time.Duration { return e.cache.OldestAge() }

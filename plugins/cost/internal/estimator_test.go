@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/aws"
 )
 
 // fakePricingServer returns an httptest server serving minimal AWS pricing JSON.
@@ -59,11 +59,11 @@ func newTestEstimator(t *testing.T) (estimator *Estimator, cleanup func()) {
 	t.Helper()
 	ts := fakePricingServer()
 	cacheDir := filepath.Join(t.TempDir(), "cache")
-	estimator = NewEstimator(cacheDir, 0)
-	estimator.SetPricingFetcher(&pricing.Fetcher{
+	fetcher := &aws.Fetcher{
 		Client:  ts.Client(),
 		BaseURL: ts.URL,
-	})
+	}
+	estimator = NewEstimator(cacheDir, 0, fetcher)
 	return estimator, ts.Close
 }
 
@@ -182,7 +182,7 @@ func TestEstimator_EstimateModules(t *testing.T) {
 }
 
 func TestNewEstimator(t *testing.T) {
-	estimator := NewEstimator("", 0)
+	estimator := NewEstimator("", 0, aws.NewFetcher())
 	if estimator == nil {
 		t.Fatal("nil")
 	}
@@ -222,7 +222,7 @@ func TestNewEstimatorFromConfig(t *testing.T) {
 
 func TestEstimator_Accessors(t *testing.T) {
 	cacheDir := t.TempDir()
-	estimator := NewEstimator(cacheDir, 0)
+	estimator := NewEstimator(cacheDir, 0, aws.NewFetcher())
 
 	t.Run("CacheDir", func(t *testing.T) {
 		got := estimator.CacheDir()

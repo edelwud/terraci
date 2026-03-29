@@ -31,5 +31,5 @@ func NewEstimatorFromConfig(cfg *CostConfig) *Estimator {
 		}
 	}
 
-	return NewEstimator(cacheDir, cacheTTL)
+	return NewEstimator(cacheDir, cacheTTL, aws.NewFetcher())
 }
