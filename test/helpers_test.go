@@ -19,6 +19,7 @@ import (
 	_ "github.com/edelwud/terraci/plugins/gitlab"
 	_ "github.com/edelwud/terraci/plugins/policy"
 	_ "github.com/edelwud/terraci/plugins/summary"
+	_ "github.com/edelwud/terraci/plugins/update"
 )
 
 // clearCIEnv neutralizes CI-specific environment variables so that

@@ -32,14 +32,30 @@ func (p *Parser) Segments() []string { return p.segments }
 
 // ParsedModule contains the parsed content of a Terraform module.
 type ParsedModule struct {
-	Path         string
-	Locals       map[string]cty.Value
-	Variables    map[string]cty.Value
-	Backend      *BackendConfig
-	RemoteStates []*RemoteStateRef
-	ModuleCalls  []*ModuleCall
-	Files        map[string]*hcl.File
-	Diagnostics  hcl.Diagnostics
+	Path              string
+	Locals            map[string]cty.Value
+	Variables         map[string]cty.Value
+	Backend           *BackendConfig
+	RequiredProviders []*RequiredProvider
+	LockedProviders   []*LockedProvider
+	RemoteStates      []*RemoteStateRef
+	ModuleCalls       []*ModuleCall
+	Files             map[string]*hcl.File
+	Diagnostics       hcl.Diagnostics
+}
+
+// RequiredProvider represents a provider requirement from a required_providers block.
+type RequiredProvider struct {
+	Name              string // local name (e.g., "aws")
+	Source            string // full source (e.g., "hashicorp/aws")
+	VersionConstraint string // constraint string (e.g., "~> 5.0")
+}
+
+// LockedProvider represents a provider entry from .terraform.lock.hcl.
+type LockedProvider struct {
+	Source      string // full registry source (e.g., "registry.terraform.io/hashicorp/aws")
+	Version     string // exact locked version (e.g., "5.67.0")
+	Constraints string // original constraints (e.g., "~> 5.0")
 }
 
 // ModuleCall represents a module block in Terraform.

@@ -11,8 +11,8 @@ import (
 
 func TestPluginRegistration(t *testing.T) {
 	all := plugin.All()
-	if len(all) != 6 {
-		t.Fatalf("expected 6 plugins, got %d", len(all))
+	if len(all) != 7 {
+		t.Fatalf("expected 7 plugins, got %d", len(all))
 	}
 
 	names := make(map[string]bool)
@@ -26,7 +26,7 @@ func TestPluginRegistration(t *testing.T) {
 		names[p.Name()] = true
 	}
 
-	expected := []string{"cost", "git", "github", "gitlab", "policy", "summary"}
+	expected := []string{"cost", "git", "github", "gitlab", "policy", "summary", "update"}
 	for _, name := range expected {
 		if !names[name] {
 			t.Errorf("missing plugin: %s", name)

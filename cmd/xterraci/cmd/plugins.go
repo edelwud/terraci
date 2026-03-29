@@ -15,6 +15,7 @@ var BuiltinPlugins = map[string]string{
 	"policy":  "github.com/edelwud/terraci/plugins/policy",
 	"git":     "github.com/edelwud/terraci/plugins/git",
 	"summary": "github.com/edelwud/terraci/plugins/summary",
+	"update":  "github.com/edelwud/terraci/plugins/update",
 }
 
 // builtinNames returns a sorted, comma-separated list of built-in plugin names.

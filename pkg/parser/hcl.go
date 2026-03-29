@@ -23,12 +23,13 @@ func (p *Parser) ParseModule(ctx context.Context, modulePath string) (*ParsedMod
 	}
 
 	pm := &ParsedModule{
-		Path:         modulePath,
-		Locals:       make(map[string]cty.Value),
-		Variables:    make(map[string]cty.Value),
-		RemoteStates: make([]*RemoteStateRef, 0),
-		ModuleCalls:  make([]*ModuleCall, 0),
-		Files:        make(map[string]*hcl.File),
+		Path:              modulePath,
+		Locals:            make(map[string]cty.Value),
+		Variables:         make(map[string]cty.Value),
+		RequiredProviders: make([]*RequiredProvider, 0),
+		RemoteStates:      make([]*RemoteStateRef, 0),
+		ModuleCalls:       make([]*ModuleCall, 0),
+		Files:             make(map[string]*hcl.File),
 	}
 
 	hclParser := hclparse.NewParser()
@@ -53,6 +54,8 @@ func (p *Parser) ParseModule(ctx context.Context, modulePath string) (*ParsedMod
 	p.extractLocals(pm)
 	p.extractTfvars(pm, hclParser)
 	p.extractBackendConfig(pm)
+	p.extractRequiredProviders(pm)
+	p.extractLockFile(pm, hclParser)
 	p.extractRemoteStates(pm)
 	p.extractModuleCalls(pm)
 
@@ -196,6 +199,117 @@ func (p *Parser) extractBackendConfig(pm *ParsedModule) {
 				Config: cfg,
 			}
 			return // only first backend block matters
+		}
+	}
+}
+
+// --- Lock file ---
+
+const lockFileName = ".terraform.lock.hcl"
+
+func (p *Parser) extractLockFile(pm *ParsedModule, hclParser *hclparse.Parser) {
+	lockPath := filepath.Join(pm.Path, lockFileName)
+	content, err := os.ReadFile(lockPath)
+	if err != nil {
+		return // lock file is optional
+	}
+
+	file, diags := hclParser.ParseHCL(content, lockPath)
+	pm.addDiags(diags)
+	if file == nil {
+		return
+	}
+
+	schema := &hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{{Type: "provider", LabelNames: []string{"source"}}},
+	}
+
+	bodyContent, _, diags := file.Body.PartialContent(schema)
+	pm.addDiags(diags)
+	if bodyContent == nil {
+		return
+	}
+
+	for _, block := range bodyContent.Blocks {
+		if len(block.Labels) < 1 {
+			continue
+		}
+
+		lp := &LockedProvider{Source: block.Labels[0]}
+
+		attrSchema := &hcl.BodySchema{
+			Attributes: []hcl.AttributeSchema{
+				{Name: "version"},
+				{Name: "constraints"},
+			},
+		}
+		attrContent, _, attrDiags := block.Body.PartialContent(attrSchema)
+		pm.addDiags(attrDiags)
+		if attrContent == nil {
+			continue
+		}
+
+		if v, ok := evalContentStringAttr(attrContent, "version"); ok {
+			lp.Version = v
+		}
+		if v, ok := evalContentStringAttr(attrContent, "constraints"); ok {
+			lp.Constraints = v
+		}
+
+		pm.LockedProviders = append(pm.LockedProviders, lp)
+	}
+}
+
+// --- Required providers ---
+
+func (p *Parser) extractRequiredProviders(pm *ParsedModule) {
+	rpSchema := &hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{{Type: "required_providers"}},
+	}
+
+	for _, block := range p.findBlocks(pm, "terraform", nil) {
+		content, _, diags := block.Body.PartialContent(rpSchema)
+		pm.addDiags(diags)
+		if content == nil {
+			continue
+		}
+
+		for _, rpBlock := range content.Blocks {
+			attrs, attrDiags := rpBlock.Body.JustAttributes()
+			pm.addDiags(attrDiags)
+
+			for name, attr := range attrs {
+				rp := &RequiredProvider{Name: name}
+
+				// Try evaluating as a simple string (legacy shorthand: aws = "~> 5.0")
+				if val, valDiags := attr.Expr.Value(nil); !valDiags.HasErrors() && val.Type() == cty.String {
+					rp.VersionConstraint = val.AsString()
+					pm.RequiredProviders = append(pm.RequiredProviders, rp)
+					continue
+				}
+
+				// Object form: aws = { source = "hashicorp/aws", version = "~> 5.0" }
+				if objExpr, isObj := attr.Expr.(*hclsyntax.ObjectConsExpr); isObj {
+					for _, item := range objExpr.Items {
+						keyVal, keyDiags := item.KeyExpr.Value(nil)
+						if keyDiags.HasErrors() || keyVal.Type() != cty.String {
+							continue
+						}
+						switch keyVal.AsString() {
+						case "source":
+							if v, ok := evalStringExpr(item.ValueExpr, nil); ok {
+								rp.Source = v
+							}
+						case "version":
+							if v, ok := evalStringExpr(item.ValueExpr, nil); ok {
+								rp.VersionConstraint = v
+							}
+						}
+					}
+				}
+
+				pm.RequiredProviders = append(pm.RequiredProviders, rp)
+			}
 		}
 	}
 }
