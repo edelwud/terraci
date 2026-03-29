@@ -21,6 +21,17 @@ import (
 	_ "github.com/edelwud/terraci/plugins/summary"
 )
 
+// clearCIEnv neutralizes CI-specific environment variables so that
+// DetectEnv() in provider plugins does not interfere with tests.
+// Without this, running tests on GitHub Actions causes the github plugin
+// to win provider resolution over the gitlab plugin configured in fixtures.
+func clearCIEnv(t *testing.T) {
+	t.Helper()
+	for _, key := range []string{"GITHUB_ACTIONS", "GITLAB_CI", "CI_SERVER_URL"} {
+		t.Setenv(key, "")
+	}
+}
+
 func testdataDir(t *testing.T) string {
 	t.Helper()
 	_, filename, _, ok := runtime.Caller(0)
@@ -40,6 +51,7 @@ func fixtureDir(t *testing.T, name string) string {
 // the -o flag or captureTerraCi instead.
 func runTerraCi(t *testing.T, dir string, args ...string) error {
 	t.Helper()
+	clearCIEnv(t)
 	plugin.ResetPlugins()
 
 	origDir, err := os.Getwd()
@@ -61,6 +73,7 @@ func runTerraCi(t *testing.T, dir string, args ...string) error {
 // This is needed for commands that write via fmt.Print (version, schema, generate without -o).
 func captureTerraCi(t *testing.T, dir string, args ...string) (string, error) {
 	t.Helper()
+	clearCIEnv(t)
 	plugin.ResetPlugins()
 
 	origDir, err := os.Getwd()
