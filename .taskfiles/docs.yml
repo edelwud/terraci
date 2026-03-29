@@ -1,0 +1,40 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: '3'
+
+tasks:
+  install:
+    desc: Install documentation dependencies
+    cmds:
+      - npm install
+    sources:
+      - package.json
+      - package-lock.json
+    generates:
+      - node_modules/.package-lock.json
+    method: checksum
+
+  dev:
+    desc: Start VitePress dev server
+    deps: [install]
+    interactive: true
+    cmds:
+      - npm run docs:dev
+
+  build:
+    desc: Build documentation
+    deps: [install]
+    cmds:
+      - npm run docs:build
+    sources:
+      - '**/*.md'
+      - .vitepress/**/*
+      - exclude: node_modules/**
+    generates:
+      - .vitepress/dist/**/*
+
+  preview:
+    desc: Preview built documentation
+    deps: [build]
+    interactive: true
+    cmds:
+      - npm run docs:preview

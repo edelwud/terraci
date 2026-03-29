@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: '3'
+
+tasks:
+  test:
+    desc: "CI: lint + test with coverage"
+    cmds:
+      - task lint:golangci
+      - task test:unit
+
+  security:
+    desc: "CI: security scanning"
+    cmds:
+      - task dev:security
+
+  pr:
+    desc: "CI: full PR validation"
+    cmds:
+      - task build:deps
+      - task lint:fmt-check
+      - task lint:golangci
+      - task test:unit
+      - task test:integration
+      - task release:check
+
+  release-check:
+    desc: "CI: validate release configuration"
+    cmds:
+      - task release:check
+      - task release:snapshot

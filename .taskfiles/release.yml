@@ -1,0 +1,74 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: '3'
+
+tasks:
+  # --- parametric generate task ---
+  generate:
+    internal: true
+    label: 'release:generate-{{.ARTIFACT}}'
+    requires:
+      vars: [ARTIFACT, SCRIPT]
+    cmds:
+      - task build
+      - ./scripts/{{.SCRIPT}}
+    sources:
+      - cmd/terraci/cmd/**/*.go
+      - cmd/xterraci/cmd/**/*.go
+      - scripts/{{.SCRIPT}}
+    generates:
+      - '{{.ARTIFACT}}/**/*'
+
+  completions:
+    desc: Generate shell completions for both binaries
+    cmds:
+      - task: generate
+        vars: { ARTIFACT: completions, SCRIPT: generate-completions.sh }
+
+  manpages:
+    desc: Generate man pages for both binaries
+    cmds:
+      - task: generate
+        vars: { ARTIFACT: manpages, SCRIPT: generate-manpages.sh }
+
+  schema:
+    desc: Generate JSON schema
+    cmds:
+      - task build:terraci
+      - ./{{.BUILD_DIR}}/terraci schema -o terraci.schema.json
+    sources:
+      - pkg/config/**/*.go
+    generates:
+      - terraci.schema.json
+
+  # --- goreleaser ---
+  goreleaser:
+    internal: true
+    label: 'release:goreleaser-{{.MODE}}'
+    requires:
+      vars: [MODE]
+    preconditions:
+      - sh: command -v goreleaser
+        msg: "goreleaser not installed. Run 'task dev:setup' to install."
+    cmds:
+      - goreleaser {{.MODE}} {{.GORELEASER_FLAGS | default ""}}
+
+  check:
+    desc: Run goreleaser check
+    cmds:
+      - task: goreleaser
+        vars: { MODE: check }
+
+  snapshot:
+    desc: Build a snapshot release (no publish)
+    cmds:
+      - task: goreleaser
+        vars: { MODE: release, GORELEASER_FLAGS: "--snapshot --clean" }
+
+  release:
+    desc: Run full goreleaser release (CI only)
+    preconditions:
+      - sh: test -n "$GITHUB_TOKEN"
+        msg: "GITHUB_TOKEN must be set for release."
+    cmds:
+      - task: goreleaser
+        vars: { MODE: release, GORELEASER_FLAGS: "--clean" }

@@ -1,0 +1,49 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: '3'
+
+vars:
+  DOCKER_IMAGE: ghcr.io/edelwud/terraci
+  DOCKER_TAG: '{{.VERSION}}'
+
+tasks:
+  # --- parametric docker build ---
+  buildx:
+    internal: true
+    label: 'docker:buildx-{{.PLATFORM | default "local"}}'
+    preconditions:
+      - sh: docker info > /dev/null 2>&1
+        msg: "Docker daemon is not running."
+    cmds:
+      - >-
+        docker buildx build
+        {{if .PLATFORM}}--platform {{.PLATFORM}}{{end}}
+        --tag {{.DOCKER_IMAGE}}:{{.TAG | default .DOCKER_TAG}}
+        {{if .EXTRA_TAGS}}--tag {{.DOCKER_IMAGE}}:{{.EXTRA_TAGS}}{{end}}
+        {{if .PUSH}}--push{{end}}
+        --label "org.opencontainers.image.version={{.VERSION}}"
+        --label "org.opencontainers.image.revision={{.COMMIT}}"
+        --label "org.opencontainers.image.created={{.DATE}}"
+        .
+
+  build:
+    desc: Build multi-platform Docker image
+    cmds:
+      - task: buildx
+        vars:
+          PLATFORM: linux/amd64,linux/arm64
+          EXTRA_TAGS: latest
+
+  build-local:
+    desc: Build Docker image for local platform
+    cmds:
+      - task: buildx
+        vars: { TAG: local }
+
+  push:
+    desc: Build and push multi-platform Docker image
+    cmds:
+      - task: buildx
+        vars:
+          PLATFORM: linux/amd64,linux/arm64
+          EXTRA_TAGS: latest
+          PUSH: "true"

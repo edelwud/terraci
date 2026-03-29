@@ -1,0 +1,98 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: '3'
+
+vars:
+  PLATFORMS: >-
+    linux/amd64
+    linux/arm64
+    darwin/amd64
+    darwin/arm64
+    windows/amd64
+
+tasks:
+  # --- parametric internal task ---
+  go-build:
+    internal: true
+    label: 'build:{{.BINARY}}'
+    requires:
+      vars: [BINARY]
+    vars:
+      OUT: '{{.OUT | default (printf "%s/%s" .BUILD_DIR .BINARY)}}'
+    cmds:
+      - mkdir -p {{dir .OUT}}
+      - go build -ldflags '{{.LDFLAGS}}' -o {{.OUT}} ./cmd/{{.BINARY}}
+    sources:
+      - cmd/{{.BINARY}}/**/*.go
+      - internal/**/*.go
+      - pkg/**/*.go
+      - plugins/**/*.go
+      - go.mod
+      - go.sum
+    generates:
+      - '{{.OUT}}'
+    env:
+      CGO_ENABLED: '{{.CGO_ENABLED | default "0"}}'
+      GOOS: '{{.GOOS | default ""}}'
+      GOARCH: '{{.GOARCH | default ""}}'
+
+  terraci:
+    desc: Build the terraci binary
+    cmds:
+      - task: go-build
+        vars: { BINARY: terraci }
+
+  xterraci:
+    desc: Build the xterraci binary
+    cmds:
+      - task: go-build
+        vars: { BINARY: xterraci }
+
+  # --- cross-compilation ---
+  all:
+    desc: Build for all platforms (linux, darwin, windows)
+    cmds:
+      - for: { var: PLATFORMS }
+        cmd: >-
+          GOOS=$(echo {{.ITEM}} | cut -d/ -f1)
+          GOARCH=$(echo {{.ITEM}} | cut -d/ -f2)
+          EXT=$([ "$GOOS" = "windows" ] && echo ".exe" || echo "")
+          && mkdir -p {{.BUILD_DIR}}
+          && CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build
+          -ldflags '{{.LDFLAGS}}'
+          -o {{.BUILD_DIR}}/terraci-${GOOS}-${GOARCH}${EXT}
+          ./cmd/terraci
+          && CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build
+          -ldflags '{{.LDFLAGS}}'
+          -o {{.BUILD_DIR}}/xterraci-${GOOS}-${GOARCH}${EXT}
+          ./cmd/xterraci
+
+  # --- install ---
+  install:
+    desc: Install both binaries to $GOPATH/bin
+    cmds:
+      - for: { var: BINARIES }
+        task: go-build
+        vars:
+          BINARY: '{{.ITEM}}'
+          OUT: '{{.GOPATH}}/bin/{{.ITEM}}'
+
+  # --- housekeeping ---
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - rm -rf {{.BUILD_DIR}}
+      - rm -f coverage.out coverage.html
+
+  deps:
+    desc: Download dependencies
+    cmds:
+      - go mod download
+    sources:
+      - go.mod
+      - go.sum
+    method: checksum
+
+  tidy:
+    desc: Tidy go modules
+    cmds:
+      - go mod tidy

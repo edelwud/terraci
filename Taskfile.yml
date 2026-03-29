@@ -1,0 +1,89 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: '3'
+
+vars:
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
+  COMMIT:
+    sh: git rev-parse --short HEAD 2>/dev/null || echo "unknown"
+  DATE:
+    sh: date -u +"%Y-%m-%dT%H:%M:%SZ"
+  BUILD_DIR: build
+  LDFLAGS: >-
+    -X main.version={{.VERSION}}
+    -X main.commit={{.COMMIT}}
+    -X main.date={{.DATE}}
+  BINARIES: terraci xterraci
+  GO_SOURCES: cmd/**/*.go internal/**/*.go pkg/**/*.go plugins/**/*.go go.mod go.sum
+
+includes:
+  build:
+    taskfile: .taskfiles/build.yml
+    dir: .
+  test:
+    taskfile: .taskfiles/test.yml
+    dir: .
+  lint:
+    taskfile: .taskfiles/lint.yml
+    dir: .
+  release:
+    taskfile: .taskfiles/release.yml
+    dir: .
+  dev:
+    taskfile: .taskfiles/dev.yml
+    dir: .
+  docs:
+    taskfile: .taskfiles/docs.yml
+    dir: docs
+  docker:
+    taskfile: .taskfiles/docker.yml
+    dir: .
+  ci:
+    taskfile: .taskfiles/ci.yml
+    dir: .
+
+tasks:
+  default:
+    desc: Show available tasks
+    silent: true
+    cmds:
+      - task --list-all
+
+  build:
+    desc: Build terraci and xterraci
+    deps: [build:terraci, build:xterraci]
+
+  test:
+    desc: Run tests with race detection and coverage
+    cmds:
+      - task: test:unit
+
+  lint:
+    desc: Run linters
+    cmds:
+      - task: lint:all
+
+  fmt:
+    desc: Format code
+    cmds:
+      - task: lint:fmt
+
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - task: build:clean
+
+  check:
+    desc: Quick verification (build + vet + short tests)
+    cmds:
+      - task: build
+      - task: lint:vet
+      - task: test:short
+
+  version:
+    desc: Show version info
+    silent: true
+    cmds:
+      - 'echo "Version: {{.VERSION}}"'
+      - 'echo "Commit:  {{.COMMIT}}"'
+      - 'echo "Date:    {{.DATE}}"'

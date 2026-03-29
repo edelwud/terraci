@@ -1,0 +1,72 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: '3'
+
+tasks:
+  # --- parametric tool installer ---
+  install-tool:
+    internal: true
+    label: 'dev:install-{{.TOOL}}'
+    requires:
+      vars: [TOOL, PKG]
+    status:
+      - command -v {{.TOOL}}
+    cmds:
+      - go install {{.PKG}}@latest
+
+  setup:
+    desc: Install all development tools
+    cmds:
+      - task: install-tool
+        vars: { TOOL: golangci-lint, PKG: github.com/golangci/golangci-lint/cmd/golangci-lint }
+      - task: install-tool
+        vars: { TOOL: goimports, PKG: golang.org/x/tools/cmd/goimports }
+      - task: install-tool
+        vars: { TOOL: goreleaser, PKG: github.com/goreleaser/goreleaser/v2 }
+      - task: install-tool
+        vars: { TOOL: govulncheck, PKG: golang.org/x/vuln/cmd/govulncheck }
+      - task: setup-pre-commit
+
+  setup-pre-commit:
+    desc: Install pre-commit hooks
+    internal: true
+    status:
+      - test -f .git/hooks/pre-commit
+    cmds:
+      - pip install pre-commit || brew install pre-commit
+      - pre-commit install
+
+  # --- run ---
+  run:
+    desc: Build and run terraci
+    cmds:
+      - task build:terraci
+      - ./{{.BUILD_DIR}}/terraci {{.CLI_ARGS}}
+
+  example:
+    desc: Run terraci generate --dry-run
+    cmds:
+      - task build:terraci
+      - ./{{.BUILD_DIR}}/terraci generate --dry-run
+
+  # --- watch ---
+  watch:
+    desc: Watch source files and rebuild on change
+    watch: true
+    sources:
+      - cmd/**/*.go
+      - internal/**/*.go
+      - pkg/**/*.go
+      - plugins/**/*.go
+      - go.mod
+      - go.sum
+    cmds:
+      - task build
+
+  # --- security ---
+  security:
+    desc: Run govulncheck
+    preconditions:
+      - sh: command -v govulncheck
+        msg: "govulncheck not installed. Run 'task dev:setup' to install."
+    cmds:
+      - govulncheck ./...

@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: '3'
+
+vars:
+  COVERAGE_FILE: coverage.out
+  COVERAGE_HTML: coverage.html
+
+tasks:
+  unit:
+    desc: Run unit tests with race detection and coverage
+    deps: [build:deps]
+    env:
+      CGO_ENABLED: "1"
+    cmds:
+      - go test -v -race -coverprofile={{.COVERAGE_FILE}} ./...
+
+  short:
+    desc: Run short tests only
+    cmds:
+      - go test -v -short ./...
+
+  integration:
+    desc: Run integration tests
+    deps: [build:deps]
+    env:
+      CGO_ENABLED: "1"
+    cmds:
+      - go test -v -race -count=1 -run Integration ./...
+
+  bench:
+    desc: Run benchmark tests
+    cmds:
+      - go test -bench=. -benchmem -run=^$ ./...
+
+  coverage:
+    desc: Generate HTML coverage report
+    deps: [unit]
+    cmds:
+      - go tool cover -html={{.COVERAGE_FILE}} -o {{.COVERAGE_HTML}}
+    generates:
+      - '{{.COVERAGE_HTML}}'
+    preconditions:
+      - sh: test -f {{.COVERAGE_FILE}}
+        msg: "No {{.COVERAGE_FILE}} found. Run 'task test:unit' first."
+
+  coverage-func:
+    desc: Show coverage by function
+    cmds:
+      - go tool cover -func={{.COVERAGE_FILE}}
+    preconditions:
+      - sh: test -f {{.COVERAGE_FILE}}
+        msg: "No {{.COVERAGE_FILE}} found. Run 'task test:unit' first."

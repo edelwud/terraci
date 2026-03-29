@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: '3'
+
+vars:
+  LOCAL_PREFIX: github.com/edelwud/terraci
+
+tasks:
+  all:
+    desc: Run all linters
+    deps: [golangci, vet]
+
+  golangci:
+    desc: Run golangci-lint
+    preconditions:
+      - sh: command -v golangci-lint
+        msg: "golangci-lint not installed. Run 'task dev:setup' to install."
+    cmds:
+      - golangci-lint run --timeout=5m ./...
+
+  vet:
+    desc: Run go vet
+    cmds:
+      - go vet ./...
+
+  fmt:
+    desc: Format code
+    cmds:
+      - go fmt ./...
+
+  fmt-check:
+    desc: Check formatting without modifying files
+    cmds:
+      - test -z "$(gofmt -l .)" || (echo "Files not formatted:" && gofmt -l . && exit 1)
+
+  imports:
+    desc: Run goimports
+    preconditions:
+      - sh: command -v goimports
+        msg: "goimports not installed. Run 'task dev:setup' to install."
+    cmds:
+      - goimports -local {{.LOCAL_PREFIX}} -l -w $(find . -name "*.go" -not -path "./vendor/*")

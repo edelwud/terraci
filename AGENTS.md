@@ -5,12 +5,19 @@ CLI tool for analyzing Terraform projects, building dependency graphs, generatin
 ## Build & Test
 
 ```bash
-make build      # Build terraci + xterraci → build/
-make test       # Run tests with coverage
-make test-short # Short tests
-make lint       # golangci-lint or go vet
-make fmt        # Format code
-make install    # Install both to $GOPATH/bin
+task build          # Build terraci + xterraci → build/ (incremental)
+task test           # Run tests with race detection and coverage
+task test:short     # Short tests
+task lint           # golangci-lint + go vet
+task fmt            # Format code
+task build:install  # Install both to $GOPATH/bin
+task build:all      # Cross-compile for all platforms
+task clean          # Clean build artifacts
+task dev:setup      # Install all dev tools (idempotent)
+task dev:run        # Build and run terraci (-- args passthrough)
+task dev:watch      # Watch files and rebuild on change
+task dev:security   # Run govulncheck
+task ci:pr          # Full PR validation (lint + test + integration)
 ```
 
 ## Project Structure
@@ -99,7 +106,27 @@ plugins/                        # Built-in plugins — one file per capability
 │   ├── pipeline.go             # PipelineContributor
 │   ├── init_wizard.go          # InitContributor
 │   ├── output.go               # Rendering helpers (segment tree, submodules)
-│   └── internal/               # (package costengine) estimator, aws handlers, pricing cache
+│   └── internal/               # (package costengine) — layered cost estimation engine
+│       ├── estimator.go        #   Estimator orchestrator
+│       ├── factory.go          #   NewEstimatorFromConfig (auto-discovers cloud providers)
+│       ├── resolver.go         #   CostResolver + middleware chain
+│       ├── resolver_types.go   #   ResolveRequest, RegistryLookup, PricingSource, CostMiddleware
+│       ├── types.go            #   ResourceCost, ModuleCost, EstimateResult, CostConfig
+│       ├── modules.go          #   groupByModule (flat → hierarchical)
+│       ├── tree.go             #   SegmentTree for path-based visualization
+│       ├── cloud/              #   Cloud provider registry (init() + RegisterCloudProvider)
+│       │   ├── registry.go     #     CloudProvider interface + global registry
+│       │   ├── routing.go      #     RoutingFetcher for multi-provider
+│       │   ├── aws/            #     AWS provider + handler subpackages
+│       │   │   ├── provider.go #       init() self-registration + RegisterHandlers
+│       │   │   ├── ec2/, rds/, elb/, eks/, elasticache/, serverless/, storage/
+│       │   └── awskit/         #     AWS utilities (no handler imports)
+│       │       ├── region.go, lookup.go, fetcher.go, constants.go
+│       ├── handler/            #   Provider-agnostic handler interfaces
+│       │   ├── handler.go      #     ResourceHandler, CompoundHandler, SubResource
+│       │   ├── registry.go     #     Handler registry
+│       │   ├── attrs.go, calc.go
+│       └── pricing/            #   Disk-based pricing cache + types
 ├── policy/
 │   ├── plugin.go               # init, BasePlugin[*Config] embed
 │   ├── lifecycle.go            # Initializable (OPA validation, serviceDir)
