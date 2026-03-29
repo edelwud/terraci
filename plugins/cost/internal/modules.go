@@ -36,11 +36,13 @@ func groupByModule(resources []ResourceCost) []SubmoduleCost {
 	}
 
 	// Step 3: attach children to parents, collect roots.
+	// Process deepest-first (reverse order) so that when a node is copied
+	// into its parent's Children slice, it already has its own children attached.
 	// Do NOT add child cost to parent — TotalCost() computes recursive totals.
-	var roots []SubmoduleCost
 	attached := make(map[string]bool)
 
-	for _, addr := range order {
+	for i := len(order) - 1; i >= 0; i-- {
+		addr := order[i]
 		parent := findParentAddr(addr, nodes)
 		if parent != "" {
 			nodes[parent].Children = append(nodes[parent].Children, *nodes[addr])
@@ -48,6 +50,7 @@ func groupByModule(resources []ResourceCost) []SubmoduleCost {
 		}
 	}
 
+	var roots []SubmoduleCost
 	for _, addr := range order {
 		if !attached[addr] {
 			roots = append(roots, *nodes[addr])

@@ -82,15 +82,22 @@ type ModuleCost struct {
 	Error       string          `json:"error,omitempty"`
 }
 
+// ModuleError captures a structured error from a failed module estimation.
+type ModuleError struct {
+	ModuleID string `json:"module_id"`
+	Error    string `json:"error"`
+}
+
 // EstimateResult contains the full cost estimation result
 type EstimateResult struct {
-	Modules        []ModuleCost `json:"modules"`
-	TotalBefore    float64      `json:"total_before"`
-	TotalAfter     float64      `json:"total_after"`
-	TotalDiff      float64      `json:"total_diff"`
-	Currency       string       `json:"currency"` // USD
-	GeneratedAt    time.Time    `json:"generated_at"`
-	PricingVersion string       `json:"pricing_version"` // AWS pricing version/date
+	Modules        []ModuleCost  `json:"modules"`
+	TotalBefore    float64       `json:"total_before"`
+	TotalAfter     float64       `json:"total_after"`
+	TotalDiff      float64       `json:"total_diff"`
+	Currency       string        `json:"currency"` // USD
+	GeneratedAt    time.Time     `json:"generated_at"`
+	PricingVersion string        `json:"pricing_version"`  // AWS pricing version/date
+	Errors         []ModuleError `json:"errors,omitempty"` // Modules that failed estimation
 }
 
 // FormatCost formats a cost value as a string with currency

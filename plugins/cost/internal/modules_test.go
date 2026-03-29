@@ -96,6 +96,99 @@ func TestSubmoduleCost_TotalCost_NoChildren(t *testing.T) {
 	}
 }
 
+func TestGroupByModule_ThreeLevelNesting(t *testing.T) {
+	resources := []ResourceCost{
+		{Address: "module.infra.aws_vpc.main", ModuleAddr: "module.infra", MonthlyCost: 5},
+		{Address: "module.infra.module.eks.aws_eks_cluster.main", ModuleAddr: "module.infra.module.eks", MonthlyCost: 73},
+		{Address: "module.infra.module.eks.module.nodes.aws_instance.worker", ModuleAddr: "module.infra.module.eks.module.nodes", MonthlyCost: 200},
+	}
+
+	roots := groupByModule(resources)
+	if len(roots) != 1 {
+		t.Fatalf("expected 1 root (module.infra), got %d", len(roots))
+	}
+
+	root := roots[0]
+	if root.ModuleAddr != "module.infra" {
+		t.Errorf("root addr = %q, want module.infra", root.ModuleAddr)
+	}
+	if root.MonthlyCost != 5 {
+		t.Errorf("root direct cost = %.2f, want 5 (direct only)", root.MonthlyCost)
+	}
+	if root.TotalCost() != 278 {
+		t.Errorf("root TotalCost = %.2f, want 278 (5+73+200)", root.TotalCost())
+	}
+
+	// module.infra should have 1 child: module.infra.module.eks
+	if len(root.Children) != 1 {
+		t.Fatalf("expected 1 child of root, got %d", len(root.Children))
+	}
+	eks := root.Children[0]
+	if eks.ModuleAddr != "module.infra.module.eks" {
+		t.Errorf("child addr = %q, want module.infra.module.eks", eks.ModuleAddr)
+	}
+	if eks.MonthlyCost != 73 {
+		t.Errorf("eks direct cost = %.2f, want 73", eks.MonthlyCost)
+	}
+
+	// module.infra.module.eks should have 1 child: .module.nodes
+	if len(eks.Children) != 1 {
+		t.Fatalf("expected 1 child of eks, got %d", len(eks.Children))
+	}
+	nodes := eks.Children[0]
+	if nodes.MonthlyCost != 200 {
+		t.Errorf("nodes direct cost = %.2f, want 200", nodes.MonthlyCost)
+	}
+}
+
+func TestGroupByModule_MixedRootAndModule(t *testing.T) {
+	resources := []ResourceCost{
+		{Address: "aws_vpc.main", ModuleAddr: "", MonthlyCost: 0},
+		{Address: "module.compute.aws_instance.web", ModuleAddr: "module.compute", MonthlyCost: 100},
+		{Address: "aws_route53_zone.dns", ModuleAddr: "", MonthlyCost: 0.50},
+	}
+
+	roots := groupByModule(resources)
+	if len(roots) != 2 {
+		t.Fatalf("expected 2 roots (root + module.compute), got %d", len(roots))
+	}
+
+	// Root module (addr="") should have 2 resources
+	var rootModule *SubmoduleCost
+	for i := range roots {
+		if roots[i].ModuleAddr == "" {
+			rootModule = &roots[i]
+			break
+		}
+	}
+	if rootModule == nil {
+		t.Fatal("missing root module (addr='')")
+	}
+	if len(rootModule.Resources) != 2 {
+		t.Errorf("root resources = %d, want 2", len(rootModule.Resources))
+	}
+}
+
+func TestGroupByModule_SiblingsAtSameDepth(t *testing.T) {
+	resources := []ResourceCost{
+		{Address: "module.vpc.aws_vpc.main", ModuleAddr: "module.vpc", MonthlyCost: 5},
+		{Address: "module.rds.aws_db_instance.main", ModuleAddr: "module.rds", MonthlyCost: 300},
+		{Address: "module.eks.aws_eks_cluster.main", ModuleAddr: "module.eks", MonthlyCost: 73},
+	}
+
+	roots := groupByModule(resources)
+	if len(roots) != 3 {
+		t.Fatalf("expected 3 roots (siblings), got %d", len(roots))
+	}
+
+	// None should have children — all are at the same depth
+	for _, r := range roots {
+		if len(r.Children) != 0 {
+			t.Errorf("module %q has %d children, want 0", r.ModuleAddr, len(r.Children))
+		}
+	}
+}
+
 func TestFindParentAddr(t *testing.T) {
 	nodes := map[string]*SubmoduleCost{
 		"module.eks":              {},
@@ -112,5 +205,24 @@ func TestFindParentAddr(t *testing.T) {
 
 	if got := findParentAddr("", nodes); got != "" {
 		t.Errorf("findParentAddr(empty) = %q, want empty", got)
+	}
+}
+
+func TestFindParentAddr_DeepNesting(t *testing.T) {
+	nodes := map[string]*SubmoduleCost{
+		"module.a":                            {},
+		"module.a.module.b":                   {},
+		"module.a.module.b.module.c":          {},
+		"module.a.module.b.module.c.module.d": {},
+	}
+
+	// module.a.module.b.module.c.module.d → parent is module.a.module.b.module.c
+	if got := findParentAddr("module.a.module.b.module.c.module.d", nodes); got != "module.a.module.b.module.c" {
+		t.Errorf("findParentAddr(d) = %q, want module.a.module.b.module.c", got)
+	}
+
+	// module.a.module.b.module.c → parent is module.a.module.b
+	if got := findParentAddr("module.a.module.b.module.c", nodes); got != "module.a.module.b" {
+		t.Errorf("findParentAddr(c) = %q, want module.a.module.b", got)
 	}
 }

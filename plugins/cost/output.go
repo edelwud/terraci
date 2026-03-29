@@ -2,16 +2,16 @@ package cost
 
 import (
 	"encoding/json"
-	"os"
+	"io"
 
 	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/plugin"
 	costengine "github.com/edelwud/terraci/plugins/cost/internal"
 )
 
-func (p *Plugin) outputResult(appCtx *plugin.AppContext, outputFmt string, result *costengine.EstimateResult) error {
+func (p *Plugin) outputResult(w io.Writer, appCtx *plugin.AppContext, outputFmt string, result *costengine.EstimateResult) error {
 	if outputFmt == "json" {
-		enc := json.NewEncoder(os.Stdout)
+		enc := json.NewEncoder(w)
 		enc.SetIndent("", "  ")
 		return enc.Encode(result)
 	}

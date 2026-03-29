@@ -3,6 +3,7 @@ package cost
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -108,7 +109,7 @@ func (p *Plugin) runEstimation(ctx context.Context, appCtx *plugin.AppContext, m
 		}
 	}
 
-	return p.outputResult(appCtx, outputFmt, result)
+	return p.outputResult(os.Stdout, appCtx, outputFmt, result)
 }
 
 func buildCostReport(result *costengine.EstimateResult) *ci.Report {

@@ -508,3 +508,98 @@ func TestPrewarmCache_Error(t *testing.T) {
 		t.Error("expected error on prewarm failure")
 	}
 }
+
+func TestGetIndex_StaleFallback(t *testing.T) {
+	tmpDir := t.TempDir()
+	ttl := 1 * time.Hour
+	c := NewCache(tmpDir, ttl, &stubFetcher{})
+
+	// Save a valid index to cache
+	idx := &PriceIndex{
+		ServiceCode: ServiceEC2,
+		Region:      "us-east-1",
+		Version:     "stale-version",
+		UpdatedAt:   time.Now(),
+		Products:    map[string]Price{"SKU1": {SKU: "SKU1", OnDemandUSD: 0.01}},
+	}
+	if err := c.saveToCache(idx); err != nil {
+		t.Fatalf("saveToCache: %v", err)
+	}
+
+	// Age the cache file beyond TTL
+	cachePath := c.cachePath(ServiceEC2, "us-east-1")
+	oldTime := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(cachePath, oldTime, oldTime); err != nil {
+		t.Fatalf("Chtimes: %v", err)
+	}
+
+	// Replace fetcher with one that fails — should fall back to stale cache
+	c.SetFetcher(&fakeFetcher{err: fmt.Errorf("network unreachable")})
+
+	got, err := c.GetIndex(context.Background(), ServiceEC2, "us-east-1")
+	if err != nil {
+		t.Fatalf("GetIndex should succeed with stale fallback, got error: %v", err)
+	}
+	if got.Version != "stale-version" {
+		t.Errorf("expected stale version, got %q", got.Version)
+	}
+}
+
+func TestGetIndex_ConcurrentAccess(t *testing.T) {
+	tmpDir := t.TempDir()
+	c := NewCache(tmpDir, time.Hour, newTestFetcher())
+
+	// Run 10 goroutines fetching the same service/region concurrently
+	const goroutines = 10
+	errs := make(chan error, goroutines)
+
+	for range goroutines {
+		go func() {
+			_, err := c.GetIndex(context.Background(), ServiceEC2, "us-east-1")
+			errs <- err
+		}()
+	}
+
+	for range goroutines {
+		if err := <-errs; err != nil {
+			t.Errorf("concurrent GetIndex error: %v", err)
+		}
+	}
+
+	// Verify cache has exactly one entry
+	entries := c.Entries()
+	if len(entries) != 1 {
+		t.Errorf("entries = %d, want 1 after concurrent access", len(entries))
+	}
+}
+
+func TestGetIndex_FetchError_NoStaleCache(t *testing.T) {
+	tmpDir := t.TempDir()
+	errFetcher := &fakeFetcher{err: fmt.Errorf("network error")}
+	c := NewCache(tmpDir, time.Hour, errFetcher)
+
+	// No pre-populated cache, fetch fails — should return error
+	_, err := c.GetIndex(context.Background(), ServiceEC2, "us-east-1")
+	if err == nil {
+		t.Error("expected error when fetch fails and no stale cache exists")
+	}
+}
+
+func TestCleanExpired_EmptyDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	c := &Cache{dir: tmpDir, ttl: time.Hour}
+
+	// Should not error on empty directory
+	if err := c.CleanExpired(); err != nil {
+		t.Errorf("CleanExpired on empty dir: %v", err)
+	}
+}
+
+func TestCleanExpired_NonexistentDir(t *testing.T) {
+	c := &Cache{dir: filepath.Join(t.TempDir(), "nonexistent"), ttl: time.Hour}
+
+	// Should not error on nonexistent directory
+	if err := c.CleanExpired(); err != nil {
+		t.Errorf("CleanExpired on nonexistent dir: %v", err)
+	}
+}

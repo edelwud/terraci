@@ -11,8 +11,8 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/edelwud/terraci/internal/terraform/plan"
+	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
-	"github.com/edelwud/terraci/plugins/cost/internal/provider"
 )
 
 // DefaultRegion is used when no region is specified.
@@ -20,15 +20,24 @@ const DefaultRegion = "us-east-1"
 
 // Estimator calculates cost estimates for terraform plans.
 type Estimator struct {
-	registry *provider.Registry
+	resolver *CostResolver
 	cache    *pricing.Cache
 }
 
 // NewEstimator creates a new cost estimator with the given pricing fetcher.
 func NewEstimator(cacheDir string, cacheTTL time.Duration, fetcher pricing.PriceFetcher) *Estimator {
+	registry := newDefaultRegistry()
+	cache := pricing.NewCache(cacheDir, cacheTTL, fetcher)
+	resolver := NewCostResolver(registry, cache)
+	return NewEstimatorWithResolver(cache, resolver)
+}
+
+// NewEstimatorWithResolver creates an Estimator with an explicit resolver and cache.
+// Use this for custom registries, middleware, or testing.
+func NewEstimatorWithResolver(cache *pricing.Cache, resolver *CostResolver) *Estimator {
 	return &Estimator{
-		registry: newDefaultRegistry(),
-		cache:    pricing.NewCache(cacheDir, cacheTTL, fetcher),
+		resolver: resolver,
+		cache:    cache,
 	}
 }
 
@@ -54,6 +63,9 @@ func (e *Estimator) CleanExpiredCache() {
 // CacheEntries returns info about all cached pricing files.
 func (e *Estimator) CacheEntries() []pricing.CacheEntry { return e.cache.Entries() }
 
+// Resolver returns the underlying CostResolver for middleware registration.
+func (e *Estimator) Resolver() *CostResolver { return e.resolver }
+
 // EstimateModule calculates cost for a single module from plan.json.
 func (e *Estimator) EstimateModule(ctx context.Context, modulePath, region string) (*ModuleCost, error) {
 	planJSONPath := filepath.Join(modulePath, "plan.json")
@@ -71,7 +83,7 @@ func (e *Estimator) EstimateModule(ctx context.Context, modulePath, region strin
 	}
 
 	// Pre-fetch pricing data for all required services
-	requiredServices := e.collectRequiredServices(parsedPlan.Resources, region)
+	requiredServices := e.resolver.collectRequiredServices(parsedPlan.Resources, region)
 	if prefetchErr := e.cache.PrewarmCache(ctx, requiredServices); prefetchErr != nil {
 		log.WithError(prefetchErr).Warn("failed to prefetch some pricing data")
 	}
@@ -83,18 +95,27 @@ func (e *Estimator) EstimateModule(ctx context.Context, modulePath, region strin
 			attrs = rc.BeforeValues // delete has no after
 		}
 
-		resourceCost := e.resolveResourceCost(ctx, rc.Type, rc.Address, rc.Name, rc.ModuleAddr, region, attrs)
-
-		// For update/replace, calculate before-state cost separately
-		if (rc.Action == plan.ActionUpdate || rc.Action == plan.ActionReplace) && rc.BeforeValues != nil {
-			e.resolveBeforeCost(ctx, &resourceCost, rc.Type, rc.BeforeValues, region)
+		req := ResolveRequest{
+			ResourceType: rc.Type,
+			Address:      rc.Address,
+			Name:         rc.Name,
+			ModuleAddr:   rc.ModuleAddr,
+			Region:       region,
+			Attrs:        attrs,
 		}
 
-		result.Resources = append(result.Resources, resourceCost)
-		aggregateCost(result, resourceCost, rc.Action)
+		// Resolve resource cost including any compound sub-resources
+		costs := e.resolver.ResolveWithSubResources(ctx, req)
 
-		// Synthesize sub-resources from CompoundHandler (e.g., root_block_device → EBS)
-		e.synthesizeSubResources(ctx, result, rc, attrs, region)
+		for i := range costs {
+			// For the primary resource on update/replace, calculate before-state cost
+			if i == 0 && (rc.Action == plan.ActionUpdate || rc.Action == plan.ActionReplace) && rc.BeforeValues != nil {
+				e.resolver.ResolveBeforeCost(ctx, &costs[i], rc.Type, rc.BeforeValues, region)
+			}
+
+			result.Resources = append(result.Resources, costs[i])
+			aggregateCost(result, costs[i], rc.Action)
+		}
 	}
 
 	result.DiffCost = result.AfterCost - result.BeforeCost
@@ -102,47 +123,6 @@ func (e *Estimator) EstimateModule(ctx context.Context, modulePath, region strin
 	result.Submodules = groupByModule(result.Resources)
 
 	return result, nil
-}
-
-// resolveBeforeCost calculates the before-state cost for update/replace resources.
-func (e *Estimator) resolveBeforeCost(ctx context.Context, rc *ResourceCost, resourceType string, beforeAttrs map[string]any, region string) {
-	handler, ok := e.registry.GetHandler(resourceType)
-	if !ok {
-		return
-	}
-
-	switch handler.Category() {
-	case provider.CostCategoryStandard:
-		before := e.resolveStandardCost(ctx, handler, beforeAttrs, region, ResourceCost{})
-		rc.BeforeHourlyCost = before.HourlyCost
-		rc.BeforeMonthlyCost = before.MonthlyCost
-	case provider.CostCategoryFixed:
-		h, m := handler.CalculateCost(nil, nil, region, beforeAttrs)
-		rc.BeforeHourlyCost = h
-		rc.BeforeMonthlyCost = m
-	case provider.CostCategoryUsageBased:
-		// no cost
-	}
-}
-
-// synthesizeSubResources creates cost entries for compound resources (e.g., EC2 root_block_device).
-func (e *Estimator) synthesizeSubResources(ctx context.Context, result *ModuleCost, rc plan.ResourceChange, attrs map[string]any, region string) {
-	handler, ok := e.registry.GetHandler(rc.Type)
-	if !ok {
-		return
-	}
-
-	ch, ok := handler.(provider.CompoundHandler)
-	if !ok {
-		return
-	}
-
-	for _, sub := range ch.SubResources(attrs) {
-		subAddr := rc.Address + sub.Suffix
-		subCost := e.resolveResourceCost(ctx, sub.Type, subAddr, sub.Suffix, rc.ModuleAddr, region, sub.Attrs)
-		result.Resources = append(result.Resources, subCost)
-		aggregateCost(result, subCost, rc.Action)
-	}
 }
 
 // aggregateCost adds a resource's cost to the module totals based on action.
@@ -208,6 +188,12 @@ func (e *Estimator) EstimateModules(ctx context.Context, modulePaths []string, r
 	for i := range results {
 		result.TotalBefore += results[i].BeforeCost
 		result.TotalAfter += results[i].AfterCost
+		if results[i].Error != "" {
+			result.Errors = append(result.Errors, ModuleError{
+				ModuleID: results[i].ModuleID,
+				Error:    results[i].Error,
+			})
+		}
 	}
 	result.TotalDiff = result.TotalAfter - result.TotalBefore
 
@@ -231,12 +217,12 @@ func (e *Estimator) ValidateAndPrefetch(ctx context.Context, modulePaths []strin
 		}
 
 		for _, rc := range parsedPlan.Resources {
-			handler, ok := e.registry.GetHandler(rc.Type)
-			if !ok || handler.Category() != provider.CostCategoryStandard {
+			h, ok := e.resolver.registry.GetHandler(rc.Type)
+			if !ok || h.Category() != handler.CostCategoryStandard {
 				continue
 			}
 
-			svc := handler.ServiceCode()
+			svc := h.ServiceCode()
 			if requiredServices[svc] == nil {
 				requiredServices[svc] = make(map[string]bool)
 			}
