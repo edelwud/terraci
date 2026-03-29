@@ -11,6 +11,11 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
+const (
+	blockTerraform         = "terraform"
+	blockRequiredProviders = "required_providers"
+)
+
 // WriteModuleVersion updates the version attribute of a module block in a .tf file.
 func WriteModuleVersion(filePath, moduleName, newVersion string) error {
 	filePath = filepath.Clean(filePath)
@@ -50,11 +55,11 @@ func WriteProviderVersion(filePath, providerName, newConstraint string) error {
 	}
 
 	for _, block := range file.Body().Blocks() {
-		if block.Type() != "terraform" {
+		if block.Type() != blockTerraform {
 			continue
 		}
 		for _, sub := range block.Body().Blocks() {
-			if sub.Type() != "required_providers" {
+			if sub.Type() != blockRequiredProviders {
 				continue
 			}
 
@@ -133,7 +138,7 @@ func containsProviderBlock(filePath, providerName string) bool {
 	if err != nil {
 		return false
 	}
-	if !strings.Contains(string(src), "required_providers") {
+	if !strings.Contains(string(src), blockRequiredProviders) {
 		return false
 	}
 
@@ -143,11 +148,11 @@ func containsProviderBlock(filePath, providerName string) bool {
 	}
 
 	for _, block := range file.Body().Blocks() {
-		if block.Type() != "terraform" {
+		if block.Type() != blockTerraform {
 			continue
 		}
 		for _, sub := range block.Body().Blocks() {
-			if sub.Type() == "required_providers" && sub.Body().GetAttribute(providerName) != nil {
+			if sub.Type() == blockRequiredProviders && sub.Body().GetAttribute(providerName) != nil {
 				return true
 			}
 		}
