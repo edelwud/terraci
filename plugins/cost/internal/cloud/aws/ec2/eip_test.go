@@ -3,69 +3,54 @@ package ec2
 import (
 	"testing"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
 func TestEIPHandler_Category(t *testing.T) {
 	t.Parallel()
 
-	h := &EIPHandler{}
-	if h.Category() != handler.CostCategoryStandard {
-		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
-	}
-}
-
-func TestEIPHandler_Describe(t *testing.T) {
-	t.Parallel()
-
-	h := &EIPHandler{}
-
-	// Without instance → attached=false
-	result := h.Describe(nil, map[string]any{})
-	if result["attached"] != "false" {
-		t.Errorf("Describe()[attached] = %q, want %q", result["attached"], "false")
-	}
-
-	// With instance → attached=true
-	result = h.Describe(nil, map[string]any{"instance": "i-12345"})
-	if result["attached"] != "true" {
-		t.Errorf("Describe()[attached] = %q, want %q", result["attached"], "true")
-	}
-}
-
-func TestEIPHandler_ServiceCode(t *testing.T) {
-	t.Parallel()
-
-	h := &EIPHandler{}
-	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeyVPC) {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeyVPC))
-	}
-}
-
-func TestEIPHandler_BuildLookup(t *testing.T) {
-	t.Parallel()
-
-	h := &EIPHandler{}
-
-	// Without instance (idle)
-	lookup, err := h.BuildLookup("us-east-1", map[string]any{})
-	if err != nil {
-		t.Fatalf("BuildLookup returned error: %v", err)
-	}
-	if lookup.Attributes["group"] != "VPCPublicIPv4Address" {
-		t.Errorf("group = %q, want %q", lookup.Attributes["group"], "VPCPublicIPv4Address")
-	}
-
-	// With instance (in-use)
-	lookup, err = h.BuildLookup("us-east-1", map[string]any{"instance": "i-12345"})
-	if err != nil {
-		t.Fatalf("BuildLookup returned error: %v", err)
-	}
-	if lookup.Attributes["group"] != "VPCPublicIPv4Address" {
-		t.Errorf("group = %q, want %q", lookup.Attributes["group"], "VPCPublicIPv4Address")
-	}
+	category := handler.CostCategoryStandard
+	handlertest.RunContractSuite(t, &EIPHandler{}, handlertest.ContractSuite{
+		Category: &category,
+		LookupCases: []handlertest.LookupCase{
+			{
+				Name:   "idle address",
+				Region: "us-east-1",
+				Attrs:  map[string]any{},
+				Assert: func(tb testing.TB, lookup *pricing.PriceLookup) {
+					tb.Helper()
+					if lookup.Attributes["group"] != "VPCPublicIPv4Address" {
+						tb.Errorf("group = %q, want %q", lookup.Attributes["group"], "VPCPublicIPv4Address")
+					}
+				},
+			},
+			{
+				Name:   "attached address",
+				Region: "us-east-1",
+				Attrs:  map[string]any{"instance": "i-12345"},
+				Assert: func(tb testing.TB, lookup *pricing.PriceLookup) {
+					tb.Helper()
+					if lookup.Attributes["group"] != "VPCPublicIPv4Address" {
+						tb.Errorf("group = %q, want %q", lookup.Attributes["group"], "VPCPublicIPv4Address")
+					}
+				},
+			},
+		},
+		DescribeCases: []handlertest.DescribeCase{
+			{
+				Name:     "idle address",
+				Attrs:    map[string]any{},
+				WantKeys: map[string]string{"attached": "false"},
+			},
+			{
+				Name:     "attached address",
+				Attrs:    map[string]any{"instance": "i-12345"},
+				WantKeys: map[string]string{"attached": "true"},
+			},
+		},
+	})
 }
 
 func TestEIPHandler_CalculateCost(t *testing.T) {

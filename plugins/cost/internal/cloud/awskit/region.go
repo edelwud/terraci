@@ -43,7 +43,7 @@ var awsRegionMapping = map[string]string{
 // ResolveRegionName returns the AWS pricing API region name for a region code.
 // Falls back to the region code if no mapping exists.
 func ResolveRegionName(region string) string {
-	return Manifest.Regions.ResolveLocationName(region)
+	return DefaultRuntime.ResolveRegionName(region)
 }
 
 // RegionUsagePrefix maps AWS region codes to the pricing API usagetype prefix
@@ -94,5 +94,5 @@ const DefaultUsagePrefix = "USE1"
 // ResolveUsagePrefix returns the usagetype prefix for a region.
 // Falls back to DefaultUsagePrefix (us-east-1) for unknown regions.
 func ResolveUsagePrefix(region string) string {
-	return Manifest.Regions.ResolveUsagePrefix(region)
+	return DefaultRuntime.ResolveUsagePrefix(region)
 }

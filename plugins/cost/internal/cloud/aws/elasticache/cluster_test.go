@@ -3,122 +3,91 @@ package elasticache
 import (
 	"testing"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
-func TestClusterHandler_Category(t *testing.T) {
+func TestClusterHandler_Contract(t *testing.T) {
 	t.Parallel()
 
-	h := &ClusterHandler{}
-	if h.Category() != handler.CostCategoryStandard {
-		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
-	}
-}
-
-func TestClusterHandler_Describe(t *testing.T) {
-	t.Parallel()
-
-	h := &ClusterHandler{}
-
-	attrs := map[string]any{
-		"node_type":       "cache.t3.micro",
-		"engine":          "redis",
-		"num_cache_nodes": 3,
-	}
-	result := h.Describe(nil, attrs)
-
-	if result["node_type"] != "cache.t3.micro" {
-		t.Errorf("Describe()[node_type] = %q, want %q", result["node_type"], "cache.t3.micro")
-	}
-	if result["engine"] != "redis" {
-		t.Errorf("Describe()[engine] = %q, want %q", result["engine"], "redis")
-	}
-	if result["nodes"] != "3" {
-		t.Errorf("Describe()[nodes] = %q, want %q", result["nodes"], "3")
-	}
-}
-
-func TestClusterHandler_ServiceCode(t *testing.T) {
-	t.Parallel()
-
-	h := &ClusterHandler{}
-	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeyElastiCache) {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeyElastiCache))
-	}
-}
-
-func TestClusterHandler_BuildLookup(t *testing.T) {
-	t.Parallel()
-
-	h := &ClusterHandler{}
-
-	tests := []struct {
-		name       string
-		attrs      map[string]any
-		wantErr    bool
-		wantType   string
-		wantEngine string
-	}{
-		{
-			name: "redis cluster",
-			attrs: map[string]any{
-				"node_type": "cache.t3.micro",
-				"engine":    "redis",
+	category := handler.CostCategoryStandard
+	handlertest.RunContractSuite(t, &ClusterHandler{}, handlertest.ContractSuite{
+		Category: &category,
+		LookupCases: []handlertest.LookupCase{
+			{
+				Name:   "redis cluster",
+				Region: "us-east-1",
+				Attrs: map[string]any{
+					"node_type": "cache.t3.micro",
+					"engine":    "redis",
+				},
+				Assert: func(tb testing.TB, lookup *pricing.PriceLookup) {
+					tb.Helper()
+					if lookup.Attributes["instanceType"] != "cache.t3.micro" {
+						tb.Errorf("instanceType = %q, want %q", lookup.Attributes["instanceType"], "cache.t3.micro")
+					}
+					if lookup.Attributes["cacheEngine"] != "Redis" {
+						tb.Errorf("cacheEngine = %q, want %q", lookup.Attributes["cacheEngine"], "Redis")
+					}
+				},
 			},
-			wantType:   "cache.t3.micro",
-			wantEngine: "Redis",
-		},
-		{
-			name: "memcached cluster",
-			attrs: map[string]any{
-				"node_type": "cache.m5.large",
-				"engine":    "memcached",
+			{
+				Name:   "memcached cluster",
+				Region: "us-east-1",
+				Attrs: map[string]any{
+					"node_type": "cache.m5.large",
+					"engine":    "memcached",
+				},
+				Assert: func(tb testing.TB, lookup *pricing.PriceLookup) {
+					tb.Helper()
+					if lookup.Attributes["instanceType"] != "cache.m5.large" {
+						tb.Errorf("instanceType = %q, want %q", lookup.Attributes["instanceType"], "cache.m5.large")
+					}
+					if lookup.Attributes["cacheEngine"] != "Memcached" {
+						tb.Errorf("cacheEngine = %q, want %q", lookup.Attributes["cacheEngine"], "Memcached")
+					}
+				},
 			},
-			wantType:   "cache.m5.large",
-			wantEngine: "Memcached",
-		},
-		{
-			name: "default engine",
-			attrs: map[string]any{
-				"node_type": "cache.t3.micro",
+			{
+				Name:   "default engine",
+				Region: "us-east-1",
+				Attrs: map[string]any{
+					"node_type": "cache.t3.micro",
+				},
+				Assert: func(tb testing.TB, lookup *pricing.PriceLookup) {
+					tb.Helper()
+					if lookup.Attributes["instanceType"] != "cache.t3.micro" {
+						tb.Errorf("instanceType = %q, want %q", lookup.Attributes["instanceType"], "cache.t3.micro")
+					}
+					if lookup.Attributes["cacheEngine"] != "Redis" {
+						tb.Errorf("cacheEngine = %q, want %q", lookup.Attributes["cacheEngine"], "Redis")
+					}
+				},
 			},
-			wantType:   "cache.t3.micro",
-			wantEngine: "Redis",
+			{
+				Name:    "missing node_type",
+				Region:  "us-east-1",
+				Attrs:   map[string]any{},
+				WantErr: true,
+			},
 		},
-		{
-			name:    "missing node_type",
-			attrs:   map[string]any{},
-			wantErr: true,
+		DescribeCases: []handlertest.DescribeCase{
+			{
+				Name: "cluster description",
+				Attrs: map[string]any{
+					"node_type":       "cache.t3.micro",
+					"engine":          "redis",
+					"num_cache_nodes": 3,
+				},
+				WantKeys: map[string]string{
+					"node_type": "cache.t3.micro",
+					"engine":    "redis",
+					"nodes":     "3",
+				},
+			},
 		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			lookup, err := h.BuildLookup("us-east-1", tt.attrs)
-
-			if tt.wantErr {
-				if err == nil {
-					t.Error("BuildLookup should return error")
-				}
-				return
-			}
-
-			if err != nil {
-				t.Fatalf("BuildLookup returned error: %v", err)
-			}
-
-			if lookup.Attributes["instanceType"] != tt.wantType {
-				t.Errorf("instanceType = %q, want %q", lookup.Attributes["instanceType"], tt.wantType)
-			}
-			if lookup.Attributes["cacheEngine"] != tt.wantEngine {
-				t.Errorf("cacheEngine = %q, want %q", lookup.Attributes["cacheEngine"], tt.wantEngine)
-			}
-		})
-	}
+	})
 }
 
 func TestClusterHandler_CalculateCost(t *testing.T) {

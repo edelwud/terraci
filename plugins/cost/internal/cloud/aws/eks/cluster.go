@@ -12,29 +12,31 @@ const (
 )
 
 // ClusterHandler handles aws_eks_cluster cost estimation
-type ClusterHandler struct{}
+type ClusterHandler struct {
+	awskit.RuntimeDeps
+}
 
 func (h *ClusterHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
-func (h *ClusterHandler) ServiceCode() pricing.ServiceID {
-	return awskit.MustService(awskit.ServiceKeyEKS)
-}
-
 func (h *ClusterHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
-	desc := make(map[string]string)
-	if v := handler.GetStringAttr(attrs, "version"); v != "" {
-		desc["version"] = v
-	}
-	return desc
+	return awskit.NewDescribeBuilder().
+		String("version", handler.GetStringAttr(attrs, "version")).
+		Map()
 }
 
 func (h *ClusterHandler) BuildLookup(region string, _ map[string]any) (*pricing.PriceLookup, error) {
-	prefix := awskit.ResolveUsagePrefix(region)
+	runtime := h.RuntimeOrDefault()
+	prefix := runtime.ResolveUsagePrefix(region)
 
-	lb := &awskit.LookupBuilder{Service: awskit.MustService(awskit.ServiceKeyEKS), ProductFamily: "Compute"}
-	return lb.Build(region, map[string]string{
-		"usagetype": prefix + "-AmazonEKS-Hours:perCluster",
-	}), nil
+	return runtime.StandardLookupSpec(
+		awskit.ServiceKeyEKS,
+		"Compute",
+		func(_ string, _ map[string]any) (map[string]string, error) {
+			return map[string]string{
+				"usagetype": prefix + "-AmazonEKS-Hours:perCluster",
+			}, nil
+		},
+	).Build(region, nil)
 }
 
 func (h *ClusterHandler) CalculateCost(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {

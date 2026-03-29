@@ -30,10 +30,10 @@ const (
 
 // Service resolves a typed catalog key into a provider service id.
 func Service(key ServiceKey) (pricing.ServiceID, bool) {
-	return Manifest.Service(string(key))
+	return DefaultRuntime.Manifest.Service(string(key))
 }
 
 // MustService resolves a typed catalog key or panics if the service is not registered.
 func MustService(key ServiceKey) pricing.ServiceID {
-	return Manifest.MustService(string(key))
+	return DefaultRuntime.MustService(key)
 }

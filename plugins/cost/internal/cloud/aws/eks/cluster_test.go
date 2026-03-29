@@ -5,6 +5,7 @@ import (
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
@@ -12,18 +13,7 @@ func TestClusterHandler_Category(t *testing.T) {
 	t.Parallel()
 
 	h := &ClusterHandler{}
-	if h.Category() != handler.CostCategoryStandard {
-		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
-	}
-}
-
-func TestClusterHandler_ServiceCode(t *testing.T) {
-	t.Parallel()
-
-	h := &ClusterHandler{}
-	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeyEKS) {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeyEKS))
-	}
+	handlertest.AssertCategory(t, h, handler.CostCategoryStandard)
 }
 
 func TestClusterHandler_BuildLookup(t *testing.T) {
@@ -31,48 +21,41 @@ func TestClusterHandler_BuildLookup(t *testing.T) {
 
 	h := &ClusterHandler{}
 
-	lookup, err := h.BuildLookup("us-east-1", nil)
-	if err != nil {
-		t.Fatalf("BuildLookup: %v", err)
-	}
-	if lookup == nil {
-		t.Fatal("expected non-nil lookup")
-	}
-	if lookup.ServiceID != awskit.MustService(awskit.ServiceKeyEKS) {
-		t.Errorf("ServiceCode = %q, want %q", lookup.ServiceID, awskit.MustService(awskit.ServiceKeyEKS))
-	}
-	if lookup.Attributes["usagetype"] != "USE1-AmazonEKS-Hours:perCluster" {
-		t.Errorf("usagetype = %q, want USE1-AmazonEKS-Hours:perCluster", lookup.Attributes["usagetype"])
-	}
-}
-
-func TestClusterHandler_BuildLookup_EURegion(t *testing.T) {
-	t.Parallel()
-
-	h := &ClusterHandler{}
-
-	lookup, err := h.BuildLookup("eu-central-1", nil)
-	if err != nil {
-		t.Fatalf("BuildLookup: %v", err)
-	}
-	if lookup.Attributes["usagetype"] != "EUC1-AmazonEKS-Hours:perCluster" {
-		t.Errorf("usagetype = %q, want EUC1-AmazonEKS-Hours:perCluster", lookup.Attributes["usagetype"])
-	}
-}
-
-func TestClusterHandler_BuildLookup_UnknownRegion(t *testing.T) {
-	t.Parallel()
-
-	h := &ClusterHandler{}
-
-	lookup, err := h.BuildLookup("xx-unknown-1", nil)
-	if err != nil {
-		t.Fatalf("BuildLookup: %v", err)
-	}
-	// Falls back to USE1 prefix
-	if lookup.Attributes["usagetype"] != "USE1-AmazonEKS-Hours:perCluster" {
-		t.Errorf("usagetype = %q, want USE1 fallback", lookup.Attributes["usagetype"])
-	}
+	handlertest.RunLookupCases(t, h, []handlertest.LookupCase{
+		{
+			Name:   "us east region",
+			Region: "us-east-1",
+			Assert: func(tb testing.TB, lookup *pricing.PriceLookup) {
+				tb.Helper()
+				if lookup.ServiceID != awskit.MustService(awskit.ServiceKeyEKS) {
+					tb.Errorf("ServiceID = %q, want %q", lookup.ServiceID, awskit.MustService(awskit.ServiceKeyEKS))
+				}
+				if lookup.Attributes["usagetype"] != "USE1-AmazonEKS-Hours:perCluster" {
+					tb.Errorf("usagetype = %q, want USE1-AmazonEKS-Hours:perCluster", lookup.Attributes["usagetype"])
+				}
+			},
+		},
+		{
+			Name:   "eu region",
+			Region: "eu-central-1",
+			Assert: func(tb testing.TB, lookup *pricing.PriceLookup) {
+				tb.Helper()
+				if lookup.Attributes["usagetype"] != "EUC1-AmazonEKS-Hours:perCluster" {
+					tb.Errorf("usagetype = %q, want EUC1-AmazonEKS-Hours:perCluster", lookup.Attributes["usagetype"])
+				}
+			},
+		},
+		{
+			Name:   "unknown region falls back",
+			Region: "xx-unknown-1",
+			Assert: func(tb testing.TB, lookup *pricing.PriceLookup) {
+				tb.Helper()
+				if lookup.Attributes["usagetype"] != "USE1-AmazonEKS-Hours:perCluster" {
+					tb.Errorf("usagetype = %q, want USE1 fallback", lookup.Attributes["usagetype"])
+				}
+			},
+		},
+	})
 }
 
 func TestClusterHandler_CalculateCost_FromAPI(t *testing.T) {
@@ -116,47 +99,23 @@ func TestClusterHandler_Describe(t *testing.T) {
 
 	h := &ClusterHandler{}
 
-	tests := []struct {
-		name       string
-		attrs      map[string]any
-		wantKeys   map[string]string
-		wantAbsent []string
-	}{
+	handlertest.RunDescribeCases(t, h, []handlertest.DescribeCase{
 		{
-			name:       "nil attrs",
-			attrs:      nil,
-			wantAbsent: []string{"version"},
+			Name:       "nil attrs",
+			Attrs:      nil,
+			WantAbsent: []string{"version"},
 		},
 		{
-			name:       "empty attrs",
-			attrs:      map[string]any{},
-			wantAbsent: []string{"version"},
+			Name:       "empty attrs",
+			Attrs:      map[string]any{},
+			WantAbsent: []string{"version"},
 		},
 		{
-			name: "with version",
-			attrs: map[string]any{
+			Name: "with version",
+			Attrs: map[string]any{
 				"version": "1.28",
 			},
-			wantKeys: map[string]string{"version": "1.28"},
+			WantKeys: map[string]string{"version": "1.28"},
 		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			result := h.Describe(nil, tt.attrs)
-
-			for k, v := range tt.wantKeys {
-				if result[k] != v {
-					t.Errorf("Describe()[%q] = %q, want %q", k, result[k], v)
-				}
-			}
-			for _, k := range tt.wantAbsent {
-				if _, ok := result[k]; ok {
-					t.Errorf("Describe() should not contain key %q", k)
-				}
-			}
-		})
-	}
+	})
 }

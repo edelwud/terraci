@@ -6,6 +6,7 @@ import (
 	"github.com/caarlos0/log"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
 const priceSourceUsageBased = "usage-based"
@@ -62,7 +63,7 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest) Reso
 		Provider:   "",
 		Address:    req.Address,
 		ModuleAddr: req.ModuleAddr,
-		Type:       req.ResourceType,
+		Type:       req.ResourceType.String(),
 		Name:       req.Name,
 		Region:     req.Region,
 	}
@@ -71,7 +72,7 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest) Reso
 	if !ok {
 		result.ErrorKind = CostErrorNoProvider
 		result.ErrorDetail = "no provider"
-		handler.LogUnsupported(req.ResourceType, req.Address)
+		handler.LogUnsupported(req.ResourceType.String(), req.Address)
 		return result
 	}
 	result.Provider = resolved.Provider
@@ -82,7 +83,7 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest) Reso
 		attrs = make(map[string]any)
 	}
 
-	result.Details = h.Describe(nil, attrs)
+	result.Details = describeResource(h, nil, attrs)
 
 	switch h.Category() {
 	case handler.CostCategoryUsageBased:
@@ -106,7 +107,7 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest) Reso
 }
 
 // ResolveBeforeCost calculates the before-state cost for update/replace resources.
-func (r *CostResolver) ResolveBeforeCost(ctx context.Context, rc *ResourceCost, resourceType string, beforeAttrs map[string]any, region string) {
+func (r *CostResolver) ResolveBeforeCost(ctx context.Context, rc *ResourceCost, resourceType handler.ResourceType, beforeAttrs map[string]any, region string) {
 	resolved, ok := r.registry.Resolve(resourceType)
 	if !ok {
 		return
@@ -160,7 +161,14 @@ func (r *CostResolver) ResolveWithSubResources(ctx context.Context, req ResolveR
 
 // resolveStandardCost handles the full pricing API lookup path.
 func (r *CostResolver) resolveStandardCost(ctx context.Context, providerID string, h handler.ResourceHandler, attrs map[string]any, region string, result ResourceCost) ResourceCost {
-	lookup, err := h.BuildLookup(region, attrs)
+	lookupBuilder, ok := h.(handler.LookupBuilder)
+	if !ok {
+		result.ErrorKind = CostErrorLookupFailed
+		result.ErrorDetail = "lookup builder not implemented"
+		return result
+	}
+
+	lookup, err := lookupBuilder.BuildLookup(region, attrs)
 	if err != nil {
 		result.ErrorKind = CostErrorLookupFailed
 		result.ErrorDetail = err.Error()
@@ -202,7 +210,15 @@ func (r *CostResolver) resolveStandardCost(ctx context.Context, providerID strin
 	result.HourlyCost = hourly
 	result.MonthlyCost = monthly
 	result.PriceSource = r.pricing.SourceName(providerID)
-	result.Details = h.Describe(price, attrs)
+	result.Details = describeResource(h, price, attrs)
 
 	return result
+}
+
+func describeResource(h handler.ResourceHandler, price *pricing.Price, attrs map[string]any) map[string]string {
+	describer, ok := h.(handler.Describer)
+	if !ok {
+		return nil
+	}
+	return describer.Describe(price, attrs)
 }

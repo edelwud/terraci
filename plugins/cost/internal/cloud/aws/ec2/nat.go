@@ -10,20 +10,23 @@ import (
 const DefaultNATGatewayHourlyCost = 0.045
 
 // NATHandler handles aws_nat_gateway cost estimation.
-type NATHandler struct{}
+type NATHandler struct {
+	awskit.RuntimeDeps
+}
 
 func (h *NATHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
-func (h *NATHandler) ServiceCode() pricing.ServiceID {
-	return awskit.MustService(awskit.ServiceKeyEC2)
-}
-
 func (h *NATHandler) BuildLookup(region string, _ map[string]any) (*pricing.PriceLookup, error) {
 	// NAT Gateway pricing is in the EC2 service, not VPC
-	lb := &awskit.LookupBuilder{Service: awskit.MustService(awskit.ServiceKeyEC2), ProductFamily: "NAT Gateway"}
-	return lb.Build(region, map[string]string{
-		"group": "NGW:NatGateway",
-	}), nil
+	return h.RuntimeOrDefault().StandardLookupSpec(
+		awskit.ServiceKeyEC2,
+		"NAT Gateway",
+		func(_ string, _ map[string]any) (map[string]string, error) {
+			return map[string]string{
+				"group": "NGW:NatGateway",
+			}, nil
+		},
+	).Build(region, nil)
 }
 
 func (h *NATHandler) Describe(_ *pricing.Price, _ map[string]any) map[string]string {

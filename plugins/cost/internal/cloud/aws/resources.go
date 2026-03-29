@@ -10,77 +10,52 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/aws/serverless"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/aws/storage"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
+	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
 // ResourceKey is a typed Terraform resource identifier supported by the AWS cost provider.
-type ResourceKey string
+type ResourceKey = awskit.ResourceKey
 
-const (
-	ResourceInstance                     ResourceKey = "aws_instance"
-	ResourceEBSVolume                    ResourceKey = "aws_ebs_volume"
-	ResourceEIP                          ResourceKey = "aws_eip"
-	ResourceNATGateway                   ResourceKey = "aws_nat_gateway"
-	ResourceDBInstance                   ResourceKey = "aws_db_instance"
-	ResourceRDSCluster                   ResourceKey = "aws_rds_cluster"
-	ResourceRDSClusterInstance           ResourceKey = "aws_rds_cluster_instance"
-	ResourceLoadBalancer                 ResourceKey = "aws_lb"
-	ResourceApplicationLoadBalancerAlias ResourceKey = "aws_alb"
-	ResourceClassicLoadBalancer          ResourceKey = "aws_elb"
-	ResourceElastiCacheCluster           ResourceKey = "aws_elasticache_cluster"
-	ResourceElastiCacheReplicationGroup  ResourceKey = "aws_elasticache_replication_group"
-	ResourceElastiCacheServerlessCache   ResourceKey = "aws_elasticache_serverless_cache"
-	ResourceEKSCluster                   ResourceKey = "aws_eks_cluster"
-	ResourceEKSNodeGroup                 ResourceKey = "aws_eks_node_group"
-	ResourceLambdaFunction               ResourceKey = "aws_lambda_function"
-	ResourceDynamoDBTable                ResourceKey = "aws_dynamodb_table"
-	ResourceSQSQueue                     ResourceKey = "aws_sqs_queue"
-	ResourceSNSTopic                     ResourceKey = "aws_sns_topic"
-	ResourceS3Bucket                     ResourceKey = "aws_s3_bucket"
-	ResourceCloudWatchLogGroup           ResourceKey = "aws_cloudwatch_log_group"
-	ResourceCloudWatchMetricAlarm        ResourceKey = "aws_cloudwatch_metric_alarm"
-	ResourceSecretsManagerSecret         ResourceKey = "aws_secretsmanager_secret"
-	ResourceKMSKey                       ResourceKey = "aws_kms_key"
-	ResourceRoute53Zone                  ResourceKey = "aws_route53_zone"
-)
+var providerRuntime = awskit.NewRuntime(awskit.Manifest)
 
 var Definition = cloud.Definition{
-	Manifest: awskit.Manifest,
+	Manifest: providerRuntime.Manifest,
 	FetcherFactory: func() pricing.PriceFetcher {
 		return awskit.NewFetcher()
 	},
 	Resources: []cloud.ResourceRegistration{
 		// EC2
-		{Type: string(ResourceInstance), Handler: &ec2.InstanceHandler{}},
-		{Type: string(ResourceEBSVolume), Handler: &ec2.EBSHandler{}},
-		{Type: string(ResourceEIP), Handler: &ec2.EIPHandler{}},
-		{Type: string(ResourceNATGateway), Handler: &ec2.NATHandler{}},
+		{Type: handler.ResourceType(awskit.ResourceInstance), Handler: &ec2.InstanceHandler{RuntimeDeps: awskit.NewRuntimeDeps(providerRuntime)}},
+		{Type: handler.ResourceType(awskit.ResourceEBSVolume), Handler: &ec2.EBSHandler{RuntimeDeps: awskit.NewRuntimeDeps(providerRuntime)}},
+		{Type: handler.ResourceType(awskit.ResourceEIP), Handler: &ec2.EIPHandler{RuntimeDeps: awskit.NewRuntimeDeps(providerRuntime)}},
+		{Type: handler.ResourceType(awskit.ResourceNATGateway), Handler: &ec2.NATHandler{RuntimeDeps: awskit.NewRuntimeDeps(providerRuntime)}},
 		// RDS
-		{Type: string(ResourceDBInstance), Handler: &rds.InstanceHandler{}},
-		{Type: string(ResourceRDSCluster), Handler: &rds.ClusterHandler{}},
-		{Type: string(ResourceRDSClusterInstance), Handler: &rds.ClusterInstanceHandler{}},
+		{Type: handler.ResourceType(awskit.ResourceDBInstance), Handler: &rds.InstanceHandler{RuntimeDeps: awskit.NewRuntimeDeps(providerRuntime)}},
+		{Type: handler.ResourceType(awskit.ResourceRDSCluster), Handler: &rds.ClusterHandler{RuntimeDeps: awskit.NewRuntimeDeps(providerRuntime)}},
+		{Type: handler.ResourceType(awskit.ResourceRDSClusterInstance), Handler: &rds.ClusterInstanceHandler{RuntimeDeps: awskit.NewRuntimeDeps(providerRuntime)}},
 		// ELB
-		{Type: string(ResourceLoadBalancer), Handler: &elb.ALBHandler{}},
-		{Type: string(ResourceApplicationLoadBalancerAlias), Handler: &elb.ALBHandler{}},
-		{Type: string(ResourceClassicLoadBalancer), Handler: &elb.ClassicHandler{}},
+		{Type: handler.ResourceType(awskit.ResourceLoadBalancer), Handler: &elb.ALBHandler{RuntimeDeps: awskit.NewRuntimeDeps(providerRuntime)}},
+		{Type: handler.ResourceType(awskit.ResourceApplicationLoadBalancerAlias), Handler: &elb.ALBHandler{RuntimeDeps: awskit.NewRuntimeDeps(providerRuntime)}},
+		{Type: handler.ResourceType(awskit.ResourceClassicLoadBalancer), Handler: &elb.ClassicHandler{RuntimeDeps: awskit.NewRuntimeDeps(providerRuntime)}},
 		// ElastiCache
-		{Type: string(ResourceElastiCacheCluster), Handler: &elasticache.ClusterHandler{}},
-		{Type: string(ResourceElastiCacheReplicationGroup), Handler: &elasticache.ReplicationGroupHandler{}},
-		{Type: string(ResourceElastiCacheServerlessCache), Handler: &elasticache.ServerlessHandler{}},
+		{Type: handler.ResourceType(awskit.ResourceElastiCacheCluster), Handler: &elasticache.ClusterHandler{RuntimeDeps: awskit.NewRuntimeDeps(providerRuntime)}},
+		{Type: handler.ResourceType(awskit.ResourceElastiCacheReplicationGroup), Handler: &elasticache.ReplicationGroupHandler{RuntimeDeps: awskit.NewRuntimeDeps(providerRuntime)}},
+		{Type: handler.ResourceType(awskit.ResourceElastiCacheServerlessCache), Handler: &elasticache.ServerlessHandler{RuntimeDeps: awskit.NewRuntimeDeps(providerRuntime)}},
 		// EKS
-		{Type: string(ResourceEKSCluster), Handler: &eks.ClusterHandler{}},
-		{Type: string(ResourceEKSNodeGroup), Handler: &eks.NodeGroupHandler{}},
+		{Type: handler.ResourceType(awskit.ResourceEKSCluster), Handler: &eks.ClusterHandler{RuntimeDeps: awskit.NewRuntimeDeps(providerRuntime)}},
+		{Type: handler.ResourceType(awskit.ResourceEKSNodeGroup), Handler: &eks.NodeGroupHandler{RuntimeDeps: awskit.NewRuntimeDeps(providerRuntime)}},
 		// Serverless
-		{Type: string(ResourceLambdaFunction), Handler: &serverless.LambdaHandler{}},
-		{Type: string(ResourceDynamoDBTable), Handler: &serverless.DynamoDBHandler{}},
-		{Type: string(ResourceSQSQueue), Handler: &serverless.SQSHandler{}},
-		{Type: string(ResourceSNSTopic), Handler: &serverless.SNSHandler{}},
+		{Type: handler.ResourceType(awskit.ResourceLambdaFunction), Handler: &serverless.LambdaHandler{RuntimeDeps: awskit.NewRuntimeDeps(providerRuntime)}},
+		{Type: handler.ResourceType(awskit.ResourceDynamoDBTable), Handler: &serverless.DynamoDBHandler{RuntimeDeps: awskit.NewRuntimeDeps(providerRuntime)}},
+		{Type: handler.ResourceType(awskit.ResourceSQSQueue), Handler: &serverless.SQSHandler{}},
+		{Type: handler.ResourceType(awskit.ResourceSNSTopic), Handler: &serverless.SNSHandler{}},
 		// Storage & misc
-		{Type: string(ResourceS3Bucket), Handler: &storage.S3Handler{}},
-		{Type: string(ResourceCloudWatchLogGroup), Handler: &storage.LogGroupHandler{}},
-		{Type: string(ResourceCloudWatchMetricAlarm), Handler: &storage.AlarmHandler{}},
-		{Type: string(ResourceSecretsManagerSecret), Handler: &storage.SecretsManagerHandler{}},
-		{Type: string(ResourceKMSKey), Handler: &storage.KMSHandler{}},
-		{Type: string(ResourceRoute53Zone), Handler: &storage.Route53Handler{}},
+		{Type: handler.ResourceType(awskit.ResourceS3Bucket), Handler: &storage.S3Handler{}},
+		{Type: handler.ResourceType(awskit.ResourceCloudWatchLogGroup), Handler: &storage.LogGroupHandler{}},
+		{Type: handler.ResourceType(awskit.ResourceCloudWatchMetricAlarm), Handler: &storage.AlarmHandler{}},
+		{Type: handler.ResourceType(awskit.ResourceSecretsManagerSecret), Handler: &storage.SecretsManagerHandler{}},
+		{Type: handler.ResourceType(awskit.ResourceKMSKey), Handler: &storage.KMSHandler{}},
+		{Type: handler.ResourceType(awskit.ResourceRoute53Zone), Handler: &storage.Route53Handler{}},
 	},
 }

@@ -3,32 +3,20 @@ package elasticache
 import (
 	"testing"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
-func TestServerlessHandler_ServiceCode(t *testing.T) {
-	h := &ServerlessHandler{}
-	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeyElastiCache) {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeyElastiCache))
-	}
-}
-
 func TestServerlessHandler_Category(t *testing.T) {
 	h := &ServerlessHandler{}
-	if h.Category() != handler.CostCategoryStandard {
-		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
-	}
+	handlertest.AssertCategory(t, h, handler.CostCategoryStandard)
 }
 
 func TestServerlessHandler_BuildLookup(t *testing.T) {
 	h := &ServerlessHandler{}
 
-	lookup, err := h.BuildLookup("us-east-1", map[string]any{})
-	if err != nil {
-		t.Fatalf("BuildLookup returned error: %v", err)
-	}
+	lookup := handlertest.RequireLookup(t, h, "us-east-1", map[string]any{})
 
 	if lookup.ProductFamily != "ElastiCache Serverless" {
 		t.Errorf("ProductFamily = %q, want %q", lookup.ProductFamily, "ElastiCache Serverless")

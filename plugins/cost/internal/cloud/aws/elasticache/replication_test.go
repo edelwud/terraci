@@ -3,96 +3,53 @@ package elasticache
 import (
 	"testing"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
-func TestReplicationGroupHandler_Category(t *testing.T) {
+func TestReplicationGroupHandler_Contract(t *testing.T) {
 	t.Parallel()
 
-	h := &ReplicationGroupHandler{}
-	if h.Category() != handler.CostCategoryStandard {
-		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
-	}
-}
-
-func TestReplicationGroupHandler_Describe(t *testing.T) {
-	t.Parallel()
-
-	h := &ReplicationGroupHandler{}
-
-	attrs := map[string]any{
-		"node_type":             "cache.r5.large",
-		"num_node_groups":       2,
-		"number_cache_clusters": 4,
-	}
-	result := h.Describe(nil, attrs)
-
-	if result["node_type"] != "cache.r5.large" {
-		t.Errorf("Describe()[node_type] = %q, want %q", result["node_type"], "cache.r5.large")
-	}
-	if result["node_groups"] != "2" {
-		t.Errorf("Describe()[node_groups] = %q, want %q", result["node_groups"], "2")
-	}
-}
-
-func TestReplicationGroupHandler_ServiceCode(t *testing.T) {
-	t.Parallel()
-
-	h := &ReplicationGroupHandler{}
-	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeyElastiCache) {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeyElastiCache))
-	}
-}
-
-func TestReplicationGroupHandler_BuildLookup(t *testing.T) {
-	t.Parallel()
-
-	h := &ReplicationGroupHandler{}
-
-	tests := []struct {
-		name     string
-		attrs    map[string]any
-		wantErr  bool
-		wantType string
-	}{
-		{
-			name: "replication group",
-			attrs: map[string]any{
-				"node_type": "cache.r5.large",
+	category := handler.CostCategoryStandard
+	handlertest.RunContractSuite(t, &ReplicationGroupHandler{}, handlertest.ContractSuite{
+		Category: &category,
+		LookupCases: []handlertest.LookupCase{
+			{
+				Name:   "replication group",
+				Region: "us-east-1",
+				Attrs: map[string]any{
+					"node_type": "cache.r5.large",
+				},
+				Assert: func(tb testing.TB, lookup *pricing.PriceLookup) {
+					tb.Helper()
+					if lookup.Attributes["instanceType"] != "cache.r5.large" {
+						tb.Errorf("instanceType = %q, want %q", lookup.Attributes["instanceType"], "cache.r5.large")
+					}
+				},
 			},
-			wantType: "cache.r5.large",
+			{
+				Name:    "missing node_type",
+				Region:  "us-east-1",
+				Attrs:   map[string]any{},
+				WantErr: true,
+			},
 		},
-		{
-			name:    "missing node_type",
-			attrs:   map[string]any{},
-			wantErr: true,
+		DescribeCases: []handlertest.DescribeCase{
+			{
+				Name: "replication group description",
+				Attrs: map[string]any{
+					"node_type":             "cache.r5.large",
+					"num_node_groups":       2,
+					"number_cache_clusters": 4,
+				},
+				WantKeys: map[string]string{
+					"node_type":   "cache.r5.large",
+					"node_groups": "2",
+				},
+			},
 		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			lookup, err := h.BuildLookup("us-east-1", tt.attrs)
-
-			if tt.wantErr {
-				if err == nil {
-					t.Error("BuildLookup should return error")
-				}
-				return
-			}
-
-			if err != nil {
-				t.Fatalf("BuildLookup returned error: %v", err)
-			}
-
-			if lookup.Attributes["instanceType"] != tt.wantType {
-				t.Errorf("instanceType = %q, want %q", lookup.Attributes["instanceType"], tt.wantType)
-			}
-		})
-	}
+	})
 }
 
 func TestReplicationGroupHandler_CalculateCost(t *testing.T) {

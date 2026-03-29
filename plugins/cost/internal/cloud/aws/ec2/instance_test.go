@@ -5,17 +5,9 @@ import (
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
-
-func TestInstanceHandler_ServiceCode(t *testing.T) {
-	t.Parallel()
-
-	h := &InstanceHandler{}
-	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeyEC2) {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeyEC2))
-	}
-}
 
 func TestInstanceHandler_BuildLookup(t *testing.T) {
 	t.Parallel()
@@ -61,18 +53,15 @@ func TestInstanceHandler_BuildLookup(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			lookup, err := h.BuildLookup(tt.region, tt.attrs)
-
 			if tt.wantErr {
+				_, err := h.BuildLookup(tt.region, tt.attrs)
 				if err == nil {
 					t.Error("BuildLookup should return error")
 				}
 				return
 			}
 
-			if err != nil {
-				t.Fatalf("BuildLookup returned error: %v", err)
-			}
+			lookup := handlertest.RequireLookup(t, h, tt.region, tt.attrs)
 
 			if lookup.Attributes["instanceType"] != tt.wantType {
 				t.Errorf("instanceType = %q, want %q", lookup.Attributes["instanceType"], tt.wantType)
@@ -171,9 +160,7 @@ func TestInstanceHandler_Category(t *testing.T) {
 	t.Parallel()
 
 	h := &InstanceHandler{}
-	if h.Category() != handler.CostCategoryStandard {
-		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
-	}
+	handlertest.AssertCategory(t, h, handler.CostCategoryStandard)
 }
 
 func TestInstanceHandler_Describe(t *testing.T) {

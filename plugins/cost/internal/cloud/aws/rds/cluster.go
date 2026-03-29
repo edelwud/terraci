@@ -1,21 +1,17 @@
 package rds
 
 import (
-	"fmt"
-
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
 // ClusterHandler handles aws_rds_cluster cost estimation (Aurora)
-type ClusterHandler struct{}
+type ClusterHandler struct {
+	awskit.RuntimeDeps
+}
 
 func (h *ClusterHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
-
-func (h *ClusterHandler) ServiceCode() pricing.ServiceID {
-	return awskit.MustService(awskit.ServiceKeyRDS)
-}
 
 func (h *ClusterHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 	// Aurora cluster itself doesn't have hourly compute cost
@@ -27,23 +23,27 @@ func (h *ClusterHandler) BuildLookup(region string, attrs map[string]any) (*pric
 	}
 	_ = engine // Engine used for validation only
 
-	lb := &awskit.LookupBuilder{Service: awskit.MustService(awskit.ServiceKeyRDS), ProductFamily: "Database Storage"}
-	prefix := awskit.ResolveUsagePrefix(region)
-	return lb.Build(region, map[string]string{
-		"volumeType": "Aurora:StorageUsage",
-		"usagetype":  prefix + "-Aurora:StorageUsage",
-	}), nil
+	runtime := h.RuntimeOrDefault()
+	spec := runtime.StandardLookupSpec(
+		awskit.ServiceKeyRDS,
+		"Database Storage",
+		func(region string, _ map[string]any) (map[string]string, error) {
+			prefix := runtime.ResolveUsagePrefix(region)
+			return map[string]string{
+				"volumeType": "Aurora:StorageUsage",
+				"usagetype":  prefix + "-Aurora:StorageUsage",
+			}, nil
+		},
+	)
+
+	return spec.Build(region, attrs)
 }
 
 func (h *ClusterHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
-	d := map[string]string{}
-	if v := handler.GetStringAttr(attrs, "engine"); v != "" {
-		d["engine"] = v
-	}
-	if v := handler.GetFloatAttr(attrs, "allocated_storage"); v > 0 {
-		d["storage_gb"] = fmt.Sprintf("%.0f", v)
-	}
-	return d
+	return awskit.NewDescribeBuilder().
+		String("engine", handler.GetStringAttr(attrs, "engine")).
+		Float("storage_gb", handler.GetFloatAttr(attrs, "allocated_storage"), "%.0f").
+		Map()
 }
 
 func (h *ClusterHandler) CalculateCost(_ *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {

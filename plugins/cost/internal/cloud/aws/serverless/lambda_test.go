@@ -3,37 +3,21 @@ package serverless
 import (
 	"testing"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 )
 
 func TestLambdaHandler_Category(t *testing.T) {
 	t.Parallel()
 
-	h := &LambdaHandler{}
-	if h.Category() != handler.CostCategoryStandard {
-		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
-	}
-}
-
-func TestLambdaHandler_ServiceCode(t *testing.T) {
-	t.Parallel()
-
-	h := &LambdaHandler{}
-	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeyLambda) {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeyLambda))
-	}
+	handlertest.AssertStandardCategory(t, &LambdaHandler{})
 }
 
 func TestLambdaHandler_BuildLookup(t *testing.T) {
 	t.Parallel()
 
 	h := &LambdaHandler{}
-
-	lookup, err := h.BuildLookup("us-east-1", nil)
-	if err != nil {
-		t.Fatalf("BuildLookup returned error: %v", err)
-	}
+	lookup := handlertest.RequireLookup(t, h, "us-east-1", nil)
 
 	if lookup.ProductFamily != "Serverless" {
 		t.Errorf("ProductFamily = %q, want %q", lookup.ProductFamily, "Serverless")

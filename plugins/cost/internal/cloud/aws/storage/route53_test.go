@@ -3,17 +3,18 @@ package storage
 import (
 	"testing"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 )
 
 func TestRoute53Handler_Category(t *testing.T) {
 	t.Parallel()
 
-	h := &Route53Handler{}
-	if h.Category() != handler.CostCategoryFixed {
-		t.Errorf("Category() = %v, want CostCategoryFixed", h.Category())
-	}
+	category := handler.CostCategoryFixed
+	handlertest.RunContractSuite(t, &Route53Handler{}, handlertest.ContractSuite{
+		Category:  &category,
+		NilLookup: &handlertest.LookupInput{Region: "us-east-1"},
+	})
 }
 
 func TestRoute53Handler_Describe(t *testing.T) {
@@ -26,27 +27,10 @@ func TestRoute53Handler_Describe(t *testing.T) {
 	}
 }
 
-func TestRoute53Handler_ServiceCode(t *testing.T) {
-	t.Parallel()
-
-	h := &Route53Handler{}
-	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeyRoute53) {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeyRoute53))
-	}
-}
-
 func TestRoute53Handler_BuildLookup_ReturnsNil(t *testing.T) {
 	t.Parallel()
 
-	h := &Route53Handler{}
-
-	lookup, err := h.BuildLookup("us-east-1", nil)
-	if err != nil {
-		t.Fatalf("BuildLookup returned error: %v", err)
-	}
-	if lookup != nil {
-		t.Error("expected nil lookup for fixed-cost handler")
-	}
+	handlertest.AssertNilLookup(t, &Route53Handler{}, "us-east-1", nil)
 }
 
 func TestRoute53Handler_CalculateCost(t *testing.T) {

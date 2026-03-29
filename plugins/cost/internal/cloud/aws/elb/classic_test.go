@@ -3,52 +3,36 @@ package elb
 import (
 	"testing"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
 func TestClassicHandler_Category(t *testing.T) {
 	t.Parallel()
 
-	h := &ClassicHandler{}
-	if h.Category() != handler.CostCategoryStandard {
-		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
-	}
-}
-
-func TestClassicHandler_Describe(t *testing.T) {
-	t.Parallel()
-
-	h := &ClassicHandler{}
-	result := h.Describe(nil, nil)
-	if result["type"] != "classic" {
-		t.Errorf("Describe()[type] = %q, want %q", result["type"], "classic")
-	}
-}
-
-func TestClassicHandler_ServiceCode(t *testing.T) {
-	t.Parallel()
-
-	h := &ClassicHandler{}
-	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeyELB) {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeyELB))
-	}
-}
-
-func TestClassicHandler_BuildLookup(t *testing.T) {
-	t.Parallel()
-
-	h := &ClassicHandler{}
-
-	lookup, err := h.BuildLookup("us-east-1", nil)
-	if err != nil {
-		t.Fatalf("BuildLookup returned error: %v", err)
-	}
-
-	if lookup.ProductFamily != "Load Balancer" {
-		t.Errorf("ProductFamily = %q, want %q", lookup.ProductFamily, "Load Balancer")
-	}
+	category := handler.CostCategoryStandard
+	handlertest.RunContractSuite(t, &ClassicHandler{}, handlertest.ContractSuite{
+		Category: &category,
+		LookupCases: []handlertest.LookupCase{
+			{
+				Name:   "default lookup",
+				Region: "us-east-1",
+				Assert: func(tb testing.TB, lookup *pricing.PriceLookup) {
+					tb.Helper()
+					if lookup.ProductFamily != "Load Balancer" {
+						tb.Errorf("ProductFamily = %q, want %q", lookup.ProductFamily, "Load Balancer")
+					}
+				},
+			},
+		},
+		DescribeCases: []handlertest.DescribeCase{
+			{
+				Name:     "default describe",
+				WantKeys: map[string]string{"type": "classic"},
+			},
+		},
+	})
 }
 
 func TestClassicHandler_CalculateCost(t *testing.T) {

@@ -169,7 +169,7 @@ func (e *Estimator) EstimateModule(ctx context.Context, modulePath, region strin
 		}
 
 		req := ResolveRequest{
-			ResourceType: rc.Type,
+			ResourceType: handler.ResourceType(rc.Type),
 			Address:      rc.Address,
 			Name:         rc.Name,
 			ModuleAddr:   rc.ModuleAddr,
@@ -183,7 +183,7 @@ func (e *Estimator) EstimateModule(ctx context.Context, modulePath, region strin
 		for i := range costs {
 			// For the primary resource on update/replace, calculate before-state cost
 			if i == 0 && (rc.Action == plan.ActionUpdate || rc.Action == plan.ActionReplace) && rc.BeforeValues != nil {
-				e.resolver.ResolveBeforeCost(ctx, &costs[i], rc.Type, rc.BeforeValues, region)
+				e.resolver.ResolveBeforeCost(ctx, &costs[i], handler.ResourceType(rc.Type), rc.BeforeValues, region)
 			}
 
 			result.Resources = append(result.Resources, costs[i])
@@ -287,6 +287,8 @@ func (e *Estimator) EstimateModules(ctx context.Context, modulePaths []string, r
 }
 
 // ValidateAndPrefetch checks which pricing data is needed and downloads missing data.
+//
+//nolint:gocyclo // Aggregates plan parsing, handler resolution, and service prefetch planning in one orchestration path.
 func (e *Estimator) ValidateAndPrefetch(ctx context.Context, modulePaths []string, regions map[string]string) error {
 	requiredServices := make(map[pricing.ServiceID]map[string]bool)
 
@@ -303,12 +305,27 @@ func (e *Estimator) ValidateAndPrefetch(ctx context.Context, modulePaths []strin
 		}
 
 		for _, rc := range parsedPlan.Resources {
-			resolved, ok := e.resolver.registry.Resolve(rc.Type)
+			resolved, ok := e.resolver.registry.Resolve(handler.ResourceType(rc.Type))
 			if !ok || resolved.Handler.Category() != handler.CostCategoryStandard {
 				continue
 			}
 
-			svc := resolved.Handler.ServiceCode()
+			attrs := rc.AfterValues
+			if attrs == nil {
+				attrs = rc.BeforeValues
+			}
+
+			lookupBuilder, ok := resolved.Handler.(handler.LookupBuilder)
+			if !ok {
+				continue
+			}
+
+			lookup, err := lookupBuilder.BuildLookup(region, attrs)
+			if err != nil || lookup == nil {
+				continue
+			}
+
+			svc := lookup.ServiceID
 			if requiredServices[svc] == nil {
 				requiredServices[svc] = make(map[string]bool)
 			}

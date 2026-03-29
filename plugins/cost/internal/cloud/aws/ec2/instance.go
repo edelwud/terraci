@@ -12,13 +12,11 @@ import (
 const defaultRootVolumeGB = 8
 
 // InstanceHandler handles aws_instance cost estimation.
-type InstanceHandler struct{}
+type InstanceHandler struct {
+	awskit.RuntimeDeps
+}
 
 func (h *InstanceHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
-
-func (h *InstanceHandler) ServiceCode() pricing.ServiceID {
-	return awskit.MustService(awskit.ServiceKeyEC2)
-}
 
 func (h *InstanceHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 	instanceType := handler.GetStringAttr(attrs, "instance_type")
@@ -41,25 +39,28 @@ func (h *InstanceHandler) BuildLookup(region string, attrs map[string]any) (*pri
 		operatingSystem = "Linux"
 	}
 
-	lb := &awskit.LookupBuilder{Service: awskit.MustService(awskit.ServiceKeyEC2), ProductFamily: "Compute Instance"}
-	return lb.Build(region, map[string]string{
-		"instanceType":    instanceType,
-		"tenancy":         tenancy,
-		"operatingSystem": operatingSystem,
-		"preInstalledSw":  "NA",
-		"capacitystatus":  "Used",
-	}), nil
+	return h.RuntimeOrDefault().StandardLookupSpec(
+		awskit.ServiceKeyEC2,
+		"Compute Instance",
+		func(_ string, _ map[string]any) (map[string]string, error) {
+			return map[string]string{
+				"instanceType":    instanceType,
+				"tenancy":         tenancy,
+				"operatingSystem": operatingSystem,
+				"preInstalledSw":  "NA",
+				"capacitystatus":  "Used",
+			}, nil
+		},
+	).Build(region, attrs)
 }
 
 func (h *InstanceHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
-	d := map[string]string{}
-	if v := handler.GetStringAttr(attrs, "instance_type"); v != "" {
-		d["instance_type"] = v
+	desc := awskit.NewDescribeBuilder().
+		String("instance_type", handler.GetStringAttr(attrs, "instance_type"))
+	if tenancy := handler.GetStringAttr(attrs, "tenancy"); tenancy != "" && tenancy != "default" {
+		desc.String("tenancy", tenancy)
 	}
-	if v := handler.GetStringAttr(attrs, "tenancy"); v != "" && v != "default" {
-		d["tenancy"] = v
-	}
-	return d
+	return desc.Map()
 }
 
 func (h *InstanceHandler) CalculateCost(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
@@ -99,7 +100,7 @@ func (h *InstanceHandler) SubResources(attrs map[string]any) []handler.SubResour
 	return []handler.SubResource{
 		{
 			Suffix: "/root_volume",
-			Type:   "aws_ebs_volume",
+			Type:   handler.ResourceType(awskit.ResourceEBSVolume),
 			Attrs:  ebsAttrs,
 		},
 	}

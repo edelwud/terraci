@@ -9,13 +9,11 @@ import (
 )
 
 // ClusterInstanceHandler handles aws_rds_cluster_instance cost estimation
-type ClusterInstanceHandler struct{}
+type ClusterInstanceHandler struct {
+	awskit.RuntimeDeps
+}
 
 func (h *ClusterInstanceHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
-
-func (h *ClusterInstanceHandler) ServiceCode() pricing.ServiceID {
-	return awskit.MustService(awskit.ServiceKeyRDS)
-}
 
 func (h *ClusterInstanceHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 	instanceClass := handler.GetStringAttr(attrs, "instance_class")
@@ -30,22 +28,23 @@ func (h *ClusterInstanceHandler) BuildLookup(region string, attrs map[string]any
 
 	databaseEngine := MapRDSEngine(engine)
 
-	lb := &awskit.LookupBuilder{Service: awskit.MustService(awskit.ServiceKeyRDS), ProductFamily: "Database Instance"}
-	return lb.Build(region, map[string]string{
-		"instanceType":   instanceClass,
-		"databaseEngine": databaseEngine,
-	}), nil
+	return h.RuntimeOrDefault().StandardLookupSpec(
+		awskit.ServiceKeyRDS,
+		"Database Instance",
+		func(_ string, _ map[string]any) (map[string]string, error) {
+			return map[string]string{
+				"instanceType":   instanceClass,
+				"databaseEngine": databaseEngine,
+			}, nil
+		},
+	).Build(region, attrs)
 }
 
 func (h *ClusterInstanceHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
-	d := map[string]string{}
-	if v := handler.GetStringAttr(attrs, "instance_class"); v != "" {
-		d["instance_class"] = v
-	}
-	if v := handler.GetStringAttr(attrs, "engine"); v != "" {
-		d["engine"] = v
-	}
-	return d
+	return awskit.NewDescribeBuilder().
+		String("instance_class", handler.GetStringAttr(attrs, "instance_class")).
+		String("engine", handler.GetStringAttr(attrs, "engine")).
+		Map()
 }
 
 func (h *ClusterInstanceHandler) CalculateCost(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {

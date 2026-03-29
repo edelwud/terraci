@@ -3,99 +3,84 @@ package elb
 import (
 	"testing"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
 func TestALBHandler_Category(t *testing.T) {
 	t.Parallel()
 
-	h := &ALBHandler{}
-	if h.Category() != handler.CostCategoryStandard {
-		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
-	}
-}
-
-func TestALBHandler_Describe(t *testing.T) {
-	t.Parallel()
-
-	h := &ALBHandler{}
-
-	// Default → application
-	result := h.Describe(nil, map[string]any{})
-	if result["type"] != "application" {
-		t.Errorf("Describe()[type] = %q, want %q", result["type"], "application")
-	}
-
-	// Explicit NLB
-	result = h.Describe(nil, map[string]any{"load_balancer_type": "network"})
-	if result["type"] != "network" {
-		t.Errorf("Describe()[type] = %q, want %q", result["type"], "network")
-	}
-}
-
-func TestALBHandler_ServiceCode(t *testing.T) {
-	t.Parallel()
-
-	h := &ALBHandler{}
-	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeyEC2) {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeyEC2))
-	}
-}
-
-func TestALBHandler_BuildLookup(t *testing.T) {
-	t.Parallel()
-
-	h := &ALBHandler{}
-
-	tests := []struct {
-		name       string
-		attrs      map[string]any
-		wantFamily string
-	}{
-		{
-			name:       "default ALB",
-			attrs:      map[string]any{},
-			wantFamily: "Load Balancer-Application",
-		},
-		{
-			name: "explicit ALB",
-			attrs: map[string]any{
-				"load_balancer_type": "application",
+	category := handler.CostCategoryStandard
+	handlertest.RunContractSuite(t, &ALBHandler{}, handlertest.ContractSuite{
+		Category: &category,
+		LookupCases: []handlertest.LookupCase{
+			{
+				Name:   "default ALB",
+				Region: "us-east-1",
+				Attrs:  map[string]any{},
+				Assert: func(tb testing.TB, lookup *pricing.PriceLookup) {
+					tb.Helper()
+					if lookup.ProductFamily != "Load Balancer-Application" {
+						tb.Errorf("ProductFamily = %q, want %q", lookup.ProductFamily, "Load Balancer-Application")
+					}
+				},
 			},
-			wantFamily: "Load Balancer-Application",
-		},
-		{
-			name: "NLB",
-			attrs: map[string]any{
-				"load_balancer_type": "network",
+			{
+				Name:   "explicit ALB",
+				Region: "us-east-1",
+				Attrs: map[string]any{
+					"load_balancer_type": "application",
+				},
+				Assert: func(tb testing.TB, lookup *pricing.PriceLookup) {
+					tb.Helper()
+					if lookup.ProductFamily != "Load Balancer-Application" {
+						tb.Errorf("ProductFamily = %q, want %q", lookup.ProductFamily, "Load Balancer-Application")
+					}
+				},
 			},
-			wantFamily: "Load Balancer-Network",
-		},
-		{
-			name: "Gateway LB",
-			attrs: map[string]any{
-				"load_balancer_type": "gateway",
+			{
+				Name:   "NLB",
+				Region: "us-east-1",
+				Attrs: map[string]any{
+					"load_balancer_type": "network",
+				},
+				Assert: func(tb testing.TB, lookup *pricing.PriceLookup) {
+					tb.Helper()
+					if lookup.ProductFamily != "Load Balancer-Network" {
+						tb.Errorf("ProductFamily = %q, want %q", lookup.ProductFamily, "Load Balancer-Network")
+					}
+				},
 			},
-			wantFamily: "Load Balancer-Gateway",
+			{
+				Name:   "Gateway LB",
+				Region: "us-east-1",
+				Attrs: map[string]any{
+					"load_balancer_type": "gateway",
+				},
+				Assert: func(tb testing.TB, lookup *pricing.PriceLookup) {
+					tb.Helper()
+					if lookup.ProductFamily != "Load Balancer-Gateway" {
+						tb.Errorf("ProductFamily = %q, want %q", lookup.ProductFamily, "Load Balancer-Gateway")
+					}
+				},
+			},
 		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			lookup, err := h.BuildLookup("us-east-1", tt.attrs)
-			if err != nil {
-				t.Fatalf("BuildLookup returned error: %v", err)
-			}
-
-			if lookup.ProductFamily != tt.wantFamily {
-				t.Errorf("ProductFamily = %q, want %q", lookup.ProductFamily, tt.wantFamily)
-			}
-		})
-	}
+		DescribeCases: []handlertest.DescribeCase{
+			{
+				Name:     "default application",
+				Attrs:    map[string]any{},
+				WantKeys: map[string]string{"type": "application"},
+			},
+			{
+				Name: "explicit network",
+				Attrs: map[string]any{
+					"load_balancer_type": "network",
+				},
+				WantKeys: map[string]string{"type": "network"},
+			},
+		},
+	})
 }
 
 func TestALBHandler_CalculateCost(t *testing.T) {

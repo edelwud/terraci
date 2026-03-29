@@ -1,7 +1,6 @@
 package storage //nolint:dupl // Route53 and SecretsManager are structurally similar fixed-cost handlers
 
 import (
-	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
@@ -11,14 +10,10 @@ const (
 	Route53HostedZoneCost = 0.50
 )
 
-// Route53Handler handles aws_route53_zone cost estimation
+// Route53Handler handles aws_route53_zone cost estimation.
 type Route53Handler struct{}
 
 func (h *Route53Handler) Category() handler.CostCategory { return handler.CostCategoryFixed }
-
-func (h *Route53Handler) ServiceCode() pricing.ServiceID {
-	return awskit.MustService(awskit.ServiceKeyRoute53)
-}
 
 func (h *Route53Handler) BuildLookup(_ string, _ map[string]any) (*pricing.PriceLookup, error) {
 	return nil, nil

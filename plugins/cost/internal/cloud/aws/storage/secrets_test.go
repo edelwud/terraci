@@ -3,26 +3,15 @@ package storage
 import (
 	"testing"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 )
 
 func TestSecretsManagerHandler_Category(t *testing.T) {
 	t.Parallel()
 
 	h := &SecretsManagerHandler{}
-	if h.Category() != handler.CostCategoryFixed {
-		t.Errorf("Category() = %v, want CostCategoryFixed", h.Category())
-	}
-}
-
-func TestSecretsManagerHandler_ServiceCode(t *testing.T) {
-	t.Parallel()
-
-	h := &SecretsManagerHandler{}
-	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeySecretsManager) {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeySecretsManager))
-	}
+	handlertest.AssertCategory(t, h, handler.CostCategoryFixed)
 }
 
 func TestSecretsManagerHandler_CalculateCost(t *testing.T) {
@@ -39,14 +28,7 @@ func TestSecretsManagerHandler_CalculateCost(t *testing.T) {
 func TestSecretsManagerHandler_BuildLookup(t *testing.T) {
 	t.Parallel()
 
-	h := &SecretsManagerHandler{}
-	lookup, err := h.BuildLookup("us-east-1", nil)
-	if err != nil {
-		t.Fatalf("BuildLookup returned error: %v", err)
-	}
-	if lookup != nil {
-		t.Error("expected nil lookup for fixed-cost handler")
-	}
+	handlertest.AssertNilLookup(t, &SecretsManagerHandler{}, "us-east-1", nil)
 }
 
 func TestSecretsManagerHandler_Describe(t *testing.T) {

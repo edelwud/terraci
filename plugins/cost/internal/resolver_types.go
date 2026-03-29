@@ -10,8 +10,8 @@ import (
 // RegistryLookup is the minimal interface for finding resource handlers.
 // Satisfied by *handler.Registry.
 type RegistryLookup interface {
-	GetHandler(resourceType string) (handler.ResourceHandler, bool)
-	Resolve(resourceType string) (handler.RegisteredHandler, bool)
+	GetHandler(resourceType handler.ResourceType) (handler.ResourceHandler, bool)
+	Resolve(resourceType handler.ResourceType) (handler.RegisteredHandler, bool)
 }
 
 // PricingSource abstracts pricing index retrieval for cost resolution.
@@ -23,7 +23,7 @@ type PricingSource interface {
 
 // ResolveRequest bundles all inputs for a single resource cost resolution.
 type ResolveRequest struct {
-	ResourceType string
+	ResourceType handler.ResourceType
 	Address      string
 	Name         string
 	ModuleAddr   string

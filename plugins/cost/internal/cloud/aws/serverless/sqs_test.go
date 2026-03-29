@@ -3,49 +3,19 @@ package serverless
 import (
 	"testing"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 )
 
-func TestSQSHandler_Category(t *testing.T) {
+func TestSQSHandler_Contract(t *testing.T) {
 	t.Parallel()
 
-	h := &SQSHandler{}
-	if h.Category() != handler.CostCategoryUsageBased {
-		t.Errorf("Category() = %v, want CostCategoryUsageBased", h.Category())
-	}
-}
-
-func TestSQSHandler_Describe(t *testing.T) {
-	t.Parallel()
-
-	h := &SQSHandler{}
-	result := h.Describe(nil, nil)
-	if result != nil {
-		t.Errorf("Describe() = %v, want nil", result)
-	}
-}
-
-func TestSQSHandler_ServiceCode(t *testing.T) {
-	t.Parallel()
-
-	h := &SQSHandler{}
-	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeySQS) {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeySQS))
-	}
-}
-
-func TestSQSHandler_BuildLookup(t *testing.T) {
-	t.Parallel()
-
-	h := &SQSHandler{}
-	lookup, err := h.BuildLookup("us-east-1", nil)
-	if err != nil {
-		t.Fatalf("BuildLookup returned error: %v", err)
-	}
-	if lookup != nil {
-		t.Errorf("BuildLookup = %v, want nil", lookup)
-	}
+	category := handler.CostCategoryUsageBased
+	handlertest.RunContractSuite(t, &SQSHandler{}, handlertest.ContractSuite{
+		Category:         &category,
+		ExpectNoLookup:   true,
+		ExpectNoDescribe: true,
+	})
 }
 
 func TestSQSHandler_CalculateCost(t *testing.T) {

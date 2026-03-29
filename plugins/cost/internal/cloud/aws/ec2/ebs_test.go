@@ -6,90 +6,9 @@ import (
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
-
-func TestEBSHandler_Category(t *testing.T) {
-	t.Parallel()
-
-	h := &EBSHandler{}
-	if h.Category() != handler.CostCategoryStandard {
-		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
-	}
-}
-
-func TestEBSHandler_ServiceCode(t *testing.T) {
-	t.Parallel()
-
-	h := &EBSHandler{}
-	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeyEC2) {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeyEC2))
-	}
-}
-
-func TestEBSHandler_Describe(t *testing.T) {
-	t.Parallel()
-
-	h := &EBSHandler{}
-
-	tests := []struct {
-		name       string
-		attrs      map[string]any
-		wantKeys   map[string]string
-		wantAbsent []string
-	}{
-		{
-			name:       "nil attrs",
-			attrs:      nil,
-			wantAbsent: []string{"volume_type", "size_gb", "iops", "throughput_mbps"},
-		},
-		{
-			name: "volume_type and size",
-			attrs: map[string]any{
-				"type": "gp3",
-				"size": float64(100),
-			},
-			wantKeys: map[string]string{
-				"volume_type": "gp3",
-				"size_gb":     "100",
-			},
-		},
-		{
-			name: "all fields",
-			attrs: map[string]any{
-				"type":       "gp3",
-				"size":       float64(200),
-				"iops":       float64(5000),
-				"throughput": float64(300),
-			},
-			wantKeys: map[string]string{
-				"volume_type":     "gp3",
-				"size_gb":         "200",
-				"iops":            "5000",
-				"throughput_mbps": "300",
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			result := h.Describe(nil, tt.attrs)
-
-			for k, v := range tt.wantKeys {
-				if result[k] != v {
-					t.Errorf("Describe()[%q] = %q, want %q", k, result[k], v)
-				}
-			}
-			for _, k := range tt.wantAbsent {
-				if _, ok := result[k]; ok {
-					t.Errorf("Describe() should not contain key %q", k)
-				}
-			}
-		})
-	}
-}
 
 const floatTolerance = 1e-9
 
@@ -97,51 +16,85 @@ func approxEqual(a, b float64) bool {
 	return math.Abs(a-b) < floatTolerance
 }
 
-func TestEBSHandler_BuildLookup(t *testing.T) {
+func TestEBSHandler_Contract(t *testing.T) {
 	t.Parallel()
 
-	h := &EBSHandler{}
-
-	tests := []struct {
-		name           string
-		attrs          map[string]any
-		wantVolumeType string
-	}{
-		{
-			name:           "default gp2",
-			attrs:          map[string]any{},
-			wantVolumeType: "gp2",
-		},
-		{
-			name: "explicit gp3",
-			attrs: map[string]any{
-				"type": "gp3",
+	category := handler.CostCategoryStandard
+	handlertest.RunContractSuite(t, &EBSHandler{}, handlertest.ContractSuite{
+		Category: &category,
+		LookupCases: []handlertest.LookupCase{
+			{
+				Name:   "default gp2",
+				Region: "us-east-1",
+				Attrs:  map[string]any{},
+				Assert: func(tb testing.TB, lookup *pricing.PriceLookup) {
+					tb.Helper()
+					if lookup.Attributes["volumeApiName"] != "gp2" {
+						tb.Errorf("volumeApiName = %q, want %q", lookup.Attributes["volumeApiName"], "gp2")
+					}
+				},
 			},
-			wantVolumeType: "gp3",
-		},
-		{
-			name: "io1",
-			attrs: map[string]any{
-				"type": "io1",
+			{
+				Name:   "explicit gp3",
+				Region: "us-east-1",
+				Attrs: map[string]any{
+					"type": "gp3",
+				},
+				Assert: func(tb testing.TB, lookup *pricing.PriceLookup) {
+					tb.Helper()
+					if lookup.Attributes["volumeApiName"] != "gp3" {
+						tb.Errorf("volumeApiName = %q, want %q", lookup.Attributes["volumeApiName"], "gp3")
+					}
+				},
 			},
-			wantVolumeType: "io1",
+			{
+				Name:   "io1",
+				Region: "us-east-1",
+				Attrs: map[string]any{
+					"type": "io1",
+				},
+				Assert: func(tb testing.TB, lookup *pricing.PriceLookup) {
+					tb.Helper()
+					if lookup.Attributes["volumeApiName"] != "io1" {
+						tb.Errorf("volumeApiName = %q, want %q", lookup.Attributes["volumeApiName"], "io1")
+					}
+				},
+			},
 		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			lookup, err := h.BuildLookup("us-east-1", tt.attrs)
-			if err != nil {
-				t.Fatalf("BuildLookup returned error: %v", err)
-			}
-
-			if lookup.Attributes["volumeApiName"] != tt.wantVolumeType {
-				t.Errorf("volumeApiName = %q, want %q", lookup.Attributes["volumeApiName"], tt.wantVolumeType)
-			}
-		})
-	}
+		DescribeCases: []handlertest.DescribeCase{
+			{
+				Name:       "nil attrs",
+				Attrs:      nil,
+				WantAbsent: []string{"volume_type", "size_gb", "iops", "throughput_mbps"},
+			},
+			{
+				Name: "volume_type and size",
+				Attrs: map[string]any{
+					"type": "gp3",
+					"size": float64(100),
+				},
+				WantKeys: map[string]string{
+					"volume_type": "gp3",
+					"size_gb":     "100",
+				},
+			},
+			{
+				Name: "all fields",
+				Attrs: map[string]any{
+					"type":       "gp3",
+					"size":       float64(200),
+					"iops":       float64(5000),
+					"throughput": float64(300),
+				},
+				WantKeys: map[string]string{
+					"volume_type":     "gp3",
+					"size_gb":         "200",
+					"iops":            "5000",
+					"throughput_mbps": "300",
+				},
+			},
+		},
+	})
 }
 
 func TestEBSHandler_CalculateCost(t *testing.T) {

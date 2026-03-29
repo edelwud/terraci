@@ -8,10 +8,11 @@ import (
 
 // LB pricing constants
 const (
-	UsageType       = "LoadBalancerUsage"
-	TypeApplication = "application"
-	TypeNetwork     = "network"
-	TypeGateway     = "gateway"
+	UsageType        = "LoadBalancerUsage"
+	TypeApplication  = "application"
+	TypeNetwork      = "network"
+	TypeGateway      = "gateway"
+	ProductFamilyALB = "Load Balancer-Application"
 
 	// Default hourly costs
 	DefaultALBHourlyCost  = 0.0225
@@ -20,13 +21,11 @@ const (
 )
 
 // ALBHandler handles aws_lb (ALB/NLB) cost estimation
-type ALBHandler struct{}
+type ALBHandler struct {
+	awskit.RuntimeDeps
+}
 
 func (h *ALBHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
-
-func (h *ALBHandler) ServiceCode() pricing.ServiceID {
-	return awskit.MustService(awskit.ServiceKeyEC2)
-}
 
 func (h *ALBHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 	lbType := handler.GetStringAttr(attrs, "load_balancer_type")
@@ -34,21 +33,26 @@ func (h *ALBHandler) BuildLookup(region string, attrs map[string]any) (*pricing.
 		lbType = TypeApplication // Default to ALB
 	}
 
-	// Product family differs by LB type
-	var productFamily string
+	spec := h.RuntimeOrDefault().StandardLookupSpec(
+		awskit.ServiceKeyEC2,
+		"",
+		func(region string, _ map[string]any) (map[string]string, error) {
+			return map[string]string{
+				"usagetype": region + "-" + UsageType,
+			}, nil
+		},
+	)
+
 	switch lbType {
 	case TypeNetwork:
-		productFamily = "Load Balancer-Network"
+		spec.ProductFamily = "Load Balancer-Network"
 	case TypeGateway:
-		productFamily = "Load Balancer-Gateway"
+		spec.ProductFamily = "Load Balancer-Gateway"
 	default:
-		productFamily = "Load Balancer-Application"
+		spec.ProductFamily = ProductFamilyALB
 	}
 
-	lb := &awskit.LookupBuilder{Service: awskit.MustService(awskit.ServiceKeyEC2), ProductFamily: productFamily}
-	return lb.Build(region, map[string]string{
-		"usagetype": region + "-" + UsageType,
-	}), nil
+	return spec.Build(region, attrs)
 }
 
 func (h *ALBHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {

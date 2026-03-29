@@ -3,140 +3,104 @@ package rds
 import (
 	"testing"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
-func TestInstanceHandler_Category(t *testing.T) {
+func TestInstanceHandler_Contract(t *testing.T) {
 	t.Parallel()
 
-	h := &InstanceHandler{}
-	if h.Category() != handler.CostCategoryStandard {
-		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
-	}
-}
-
-func TestInstanceHandler_Describe(t *testing.T) {
-	t.Parallel()
-
-	h := &InstanceHandler{}
-
-	attrs := map[string]any{
-		"instance_class":    "db.t3.micro",
-		"engine":            "postgres",
-		"multi_az":          true,
-		"allocated_storage": float64(100),
-	}
-	result := h.Describe(nil, attrs)
-
-	if result["instance_class"] != "db.t3.micro" {
-		t.Errorf("Describe()[instance_class] = %q, want %q", result["instance_class"], "db.t3.micro")
-	}
-	if result["engine"] != "postgres" {
-		t.Errorf("Describe()[engine] = %q, want %q", result["engine"], "postgres")
-	}
-	if result["multi_az"] != "true" {
-		t.Errorf("Describe()[multi_az] = %q, want %q", result["multi_az"], "true")
-	}
-	if result["storage_gb"] != "100" {
-		t.Errorf("Describe()[storage_gb] = %q, want %q", result["storage_gb"], "100")
-	}
-}
-
-func TestInstanceHandler_ServiceCode(t *testing.T) {
-	t.Parallel()
-
-	h := &InstanceHandler{}
-	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeyRDS) {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeyRDS))
-	}
-}
-
-func TestInstanceHandler_BuildLookup(t *testing.T) {
-	t.Parallel()
-
-	h := &InstanceHandler{}
-
-	tests := []struct {
-		name           string
-		region         string
-		attrs          map[string]any
-		wantErr        bool
-		wantClass      string
-		wantEngine     string
-		wantDeployment string
-	}{
-		{
-			name:   "mysql single-az",
-			region: "us-east-1",
-			attrs: map[string]any{
-				"instance_class": "db.t3.micro",
-				"engine":         "mysql",
+	category := handler.CostCategoryStandard
+	handlertest.RunContractSuite(t, &InstanceHandler{}, handlertest.ContractSuite{
+		Category: &category,
+		LookupCases: []handlertest.LookupCase{
+			{
+				Name:   "mysql single-az",
+				Region: "us-east-1",
+				Attrs: map[string]any{
+					"instance_class": "db.t3.micro",
+					"engine":         "mysql",
+				},
+				Assert: func(tb testing.TB, lookup *pricing.PriceLookup) {
+					tb.Helper()
+					if lookup.Attributes["instanceType"] != "db.t3.micro" {
+						tb.Errorf("instanceType = %q, want %q", lookup.Attributes["instanceType"], "db.t3.micro")
+					}
+					if lookup.Attributes["databaseEngine"] != "MySQL" {
+						tb.Errorf("databaseEngine = %q, want %q", lookup.Attributes["databaseEngine"], "MySQL")
+					}
+					if lookup.Attributes["deploymentOption"] != "Single-AZ" {
+						tb.Errorf("deploymentOption = %q, want %q", lookup.Attributes["deploymentOption"], "Single-AZ")
+					}
+				},
 			},
-			wantClass:      "db.t3.micro",
-			wantEngine:     "MySQL",
-			wantDeployment: "Single-AZ",
-		},
-		{
-			name:   "postgres multi-az",
-			region: "eu-central-1",
-			attrs: map[string]any{
-				"instance_class": "db.m5.large",
-				"engine":         "postgres",
-				"multi_az":       true,
+			{
+				Name:   "postgres multi-az",
+				Region: "eu-central-1",
+				Attrs: map[string]any{
+					"instance_class": "db.m5.large",
+					"engine":         "postgres",
+					"multi_az":       true,
+				},
+				Assert: func(tb testing.TB, lookup *pricing.PriceLookup) {
+					tb.Helper()
+					if lookup.Attributes["instanceType"] != "db.m5.large" {
+						tb.Errorf("instanceType = %q, want %q", lookup.Attributes["instanceType"], "db.m5.large")
+					}
+					if lookup.Attributes["databaseEngine"] != "PostgreSQL" {
+						tb.Errorf("databaseEngine = %q, want %q", lookup.Attributes["databaseEngine"], "PostgreSQL")
+					}
+					if lookup.Attributes["deploymentOption"] != "Multi-AZ" {
+						tb.Errorf("deploymentOption = %q, want %q", lookup.Attributes["deploymentOption"], "Multi-AZ")
+					}
+				},
 			},
-			wantClass:      "db.m5.large",
-			wantEngine:     "PostgreSQL",
-			wantDeployment: "Multi-AZ",
-		},
-		{
-			name:   "aurora-mysql",
-			region: "us-west-2",
-			attrs: map[string]any{
-				"instance_class": "db.r5.large",
-				"engine":         "aurora-mysql",
+			{
+				Name:   "aurora-mysql",
+				Region: "us-west-2",
+				Attrs: map[string]any{
+					"instance_class": "db.r5.large",
+					"engine":         "aurora-mysql",
+				},
+				Assert: func(tb testing.TB, lookup *pricing.PriceLookup) {
+					tb.Helper()
+					if lookup.Attributes["instanceType"] != "db.r5.large" {
+						tb.Errorf("instanceType = %q, want %q", lookup.Attributes["instanceType"], "db.r5.large")
+					}
+					if lookup.Attributes["databaseEngine"] != "Aurora MySQL" {
+						tb.Errorf("databaseEngine = %q, want %q", lookup.Attributes["databaseEngine"], "Aurora MySQL")
+					}
+					if lookup.Attributes["deploymentOption"] != "Single-AZ" {
+						tb.Errorf("deploymentOption = %q, want %q", lookup.Attributes["deploymentOption"], "Single-AZ")
+					}
+				},
 			},
-			wantClass:      "db.r5.large",
-			wantEngine:     "Aurora MySQL",
-			wantDeployment: "Single-AZ",
+			{
+				Name:    "missing instance_class",
+				Region:  "us-east-1",
+				Attrs:   map[string]any{},
+				WantErr: true,
+			},
 		},
-		{
-			name:    "missing instance_class",
-			region:  "us-east-1",
-			attrs:   map[string]any{},
-			wantErr: true,
+		DescribeCases: []handlertest.DescribeCase{
+			{
+				Name: "instance description",
+				Attrs: map[string]any{
+					"instance_class":    "db.t3.micro",
+					"engine":            "postgres",
+					"multi_az":          true,
+					"allocated_storage": float64(100),
+				},
+				WantKeys: map[string]string{
+					"instance_class": "db.t3.micro",
+					"engine":         "postgres",
+					"multi_az":       "true",
+					"storage_gb":     "100",
+				},
+			},
 		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			lookup, err := h.BuildLookup(tt.region, tt.attrs)
-
-			if tt.wantErr {
-				if err == nil {
-					t.Error("BuildLookup should return error")
-				}
-				return
-			}
-
-			if err != nil {
-				t.Fatalf("BuildLookup returned error: %v", err)
-			}
-
-			if lookup.Attributes["instanceType"] != tt.wantClass {
-				t.Errorf("instanceType = %q, want %q", lookup.Attributes["instanceType"], tt.wantClass)
-			}
-			if lookup.Attributes["databaseEngine"] != tt.wantEngine {
-				t.Errorf("databaseEngine = %q, want %q", lookup.Attributes["databaseEngine"], tt.wantEngine)
-			}
-			if lookup.Attributes["deploymentOption"] != tt.wantDeployment {
-				t.Errorf("deploymentOption = %q, want %q", lookup.Attributes["deploymentOption"], tt.wantDeployment)
-			}
-		})
-	}
+	})
 }
 
 func TestInstanceHandler_CalculateCost(t *testing.T) {

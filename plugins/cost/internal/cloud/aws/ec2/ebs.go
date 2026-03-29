@@ -1,8 +1,6 @@
 package ec2
 
 import (
-	"fmt"
-
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
@@ -35,13 +33,11 @@ var ebsVolumeAPIName = map[string]string{
 }
 
 // EBSHandler handles aws_ebs_volume cost estimation.
-type EBSHandler struct{}
+type EBSHandler struct {
+	awskit.RuntimeDeps
+}
 
 func (h *EBSHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
-
-func (h *EBSHandler) ServiceCode() pricing.ServiceID {
-	return awskit.MustService(awskit.ServiceKeyEC2)
-}
 
 func (h *EBSHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 	volumeType := handler.GetStringAttr(attrs, "type")
@@ -54,27 +50,20 @@ func (h *EBSHandler) BuildLookup(region string, attrs map[string]any) (*pricing.
 		apiName = "gp2"
 	}
 
-	lb := &awskit.LookupBuilder{Service: awskit.MustService(awskit.ServiceKeyEC2), ProductFamily: "Storage"}
+	runtime := h.RuntimeOrDefault()
+	lb := &awskit.LookupBuilder{Service: runtime.MustService(awskit.ServiceKeyEC2), ProductFamily: "Storage"}
 	return lb.Build(region, map[string]string{
 		"volumeApiName": apiName,
 	}), nil
 }
 
 func (h *EBSHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
-	d := map[string]string{}
-	if v := handler.GetStringAttr(attrs, "type"); v != "" {
-		d["volume_type"] = v
-	}
-	if v := handler.GetFloatAttr(attrs, "size"); v > 0 {
-		d["size_gb"] = fmt.Sprintf("%.0f", v)
-	}
-	if v := handler.GetFloatAttr(attrs, "iops"); v > 0 {
-		d["iops"] = fmt.Sprintf("%.0f", v)
-	}
-	if v := handler.GetFloatAttr(attrs, "throughput"); v > 0 {
-		d["throughput_mbps"] = fmt.Sprintf("%.0f", v)
-	}
-	return d
+	return awskit.NewDescribeBuilder().
+		String("volume_type", handler.GetStringAttr(attrs, "type")).
+		Float("size_gb", handler.GetFloatAttr(attrs, "size"), "%.0f").
+		Float("iops", handler.GetFloatAttr(attrs, "iops"), "%.0f").
+		Float("throughput_mbps", handler.GetFloatAttr(attrs, "throughput"), "%.0f").
+		Map()
 }
 
 // CalculateCost calculates EBS cost using the price index for
@@ -101,7 +90,7 @@ func (h *EBSHandler) CalculateCost(price *pricing.Price, index *pricing.PriceInd
 				suffix = "io2"
 				fallback = FallbackIO2IOPSCostPerMonth
 			}
-			iopsCost, ok := lookupEBSPrice(index, region, "System Operation", "EBS:VolumeP-IOPS."+suffix)
+			iopsCost, ok := lookupEBSPrice(h.RuntimeOrDefault(), index, region, "System Operation", "EBS:VolumeP-IOPS."+suffix)
 			if !ok {
 				iopsCost = fallback
 			}
@@ -113,7 +102,7 @@ func (h *EBSHandler) CalculateCost(price *pricing.Price, index *pricing.PriceInd
 	if volumeType == awskit.VolumeTypeGP3 {
 		iops := handler.GetFloatAttr(attrs, "iops")
 		if iops > DefaultGP3FreeIOPS {
-			iopsCost, ok := lookupEBSPrice(index, region, "System Operation", "EBS:VolumeP-IOPS.gp3")
+			iopsCost, ok := lookupEBSPrice(h.RuntimeOrDefault(), index, region, "System Operation", "EBS:VolumeP-IOPS.gp3")
 			if !ok {
 				iopsCost = FallbackGP3IOPSCostPerMonth
 			}
@@ -123,7 +112,7 @@ func (h *EBSHandler) CalculateCost(price *pricing.Price, index *pricing.PriceInd
 		// gp3: throughput cost above free tier (125 MBps free)
 		throughput := handler.GetFloatAttr(attrs, "throughput")
 		if throughput > DefaultGP3FreeThroughputMBps {
-			tpCost, ok := lookupEBSPrice(index, region, "Provisioned Throughput", "EBS:VolumeP-Throughput.gp3")
+			tpCost, ok := lookupEBSPrice(h.RuntimeOrDefault(), index, region, "Provisioned Throughput", "EBS:VolumeP-Throughput.gp3")
 			if !ok {
 				tpCost = FallbackGP3ThroughputCostPerMB
 			}
@@ -137,13 +126,13 @@ func (h *EBSHandler) CalculateCost(price *pricing.Price, index *pricing.PriceInd
 
 // lookupEBSPrice finds a price in the index by product family and usagetype.
 // Tries with regional prefix first, then without (us-east-1 uses unprefixed usagetypes).
-func lookupEBSPrice(index *pricing.PriceIndex, region, productFamily, usageSuffix string) (float64, bool) {
+func lookupEBSPrice(runtime *awskit.Runtime, index *pricing.PriceIndex, region, productFamily, usageSuffix string) (float64, bool) {
 	if index == nil {
 		return 0, false
 	}
 
-	location := awskit.ResolveRegionName(region)
-	prefix := awskit.ResolveUsagePrefix(region)
+	location := runtime.ResolveRegionName(region)
+	prefix := runtime.ResolveUsagePrefix(region)
 
 	// Try with regional prefix: "USE1-EBS:VolumeP-IOPS.gp3"
 	if p, err := index.LookupPrice(pricing.PriceLookup{

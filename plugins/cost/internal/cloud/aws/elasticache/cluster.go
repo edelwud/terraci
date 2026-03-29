@@ -10,7 +10,11 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
-const defaultEngine = "redis"
+const (
+	defaultEngine        = "redis"
+	cacheEngineRedis     = "Redis"
+	cacheEngineMemcached = "Memcached"
+)
 
 // Backup storage fallback (used when API lookup unavailable).
 const FallbackBackupStorageCostPerGBMonth = 0.085
@@ -19,13 +23,11 @@ const FallbackBackupStorageCostPerGBMonth = 0.085
 const FallbackDataTieringCostPerGBMonth = 0.0125
 
 // ClusterHandler handles aws_elasticache_cluster cost estimation
-type ClusterHandler struct{}
+type ClusterHandler struct {
+	awskit.RuntimeDeps
+}
 
 func (h *ClusterHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
-
-func (h *ClusterHandler) ServiceCode() pricing.ServiceID {
-	return awskit.MustService(awskit.ServiceKeyElastiCache)
-}
 
 func (h *ClusterHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 	nodeType := handler.GetStringAttr(attrs, "node_type")
@@ -38,22 +40,28 @@ func (h *ClusterHandler) BuildLookup(region string, attrs map[string]any) (*pric
 		engine = defaultEngine
 	}
 
-	cacheEngine := "Redis"
+	cacheEngine := cacheEngineRedis
 	if engine == "memcached" {
-		cacheEngine = "Memcached"
+		cacheEngine = cacheEngineMemcached
 	}
 
 	// Use usagetype to select standard on-demand pricing and exclude
 	// ExtendedSupport variants which have different rates.
-	prefix := awskit.ResolveUsagePrefix(region)
-	usagetype := prefix + "-NodeUsage:" + nodeType
+	runtime := h.RuntimeOrDefault()
+	spec := runtime.StandardLookupSpec(
+		awskit.ServiceKeyElastiCache,
+		"Cache Instance",
+		func(region string, _ map[string]any) (map[string]string, error) {
+			prefix := runtime.ResolveUsagePrefix(region)
+			return map[string]string{
+				"instanceType": nodeType,
+				"cacheEngine":  cacheEngine,
+				"usagetype":    prefix + "-NodeUsage:" + nodeType,
+			}, nil
+		},
+	)
 
-	lb := &awskit.LookupBuilder{Service: awskit.MustService(awskit.ServiceKeyElastiCache), ProductFamily: "Cache Instance"}
-	return lb.Build(region, map[string]string{
-		"instanceType": nodeType,
-		"cacheEngine":  cacheEngine,
-		"usagetype":    usagetype,
-	}), nil
+	return spec.Build(region, attrs)
 }
 
 func (h *ClusterHandler) Describe(price *pricing.Price, attrs map[string]any) map[string]string {
@@ -88,12 +96,12 @@ func (h *ClusterHandler) CalculateCost(price *pricing.Price, index *pricing.Pric
 	_, monthly = handler.ScaledHourlyCost(price.OnDemandUSD, numCacheNodes)
 
 	// Data tiering cost for nodes with local SSD (r6gd/r7gd)
-	monthly += dataTieringCost(price, index, region, numCacheNodes)
+	monthly += dataTieringCost(h.RuntimeOrDefault(), price, index, region, numCacheNodes)
 
 	// Backup storage cost
 	snapshotRetention := handler.GetIntAttr(attrs, "snapshot_retention_limit")
 	if snapshotRetention > 0 {
-		monthly += backupStorageCost(price, index, region, numCacheNodes, snapshotRetention)
+		monthly += backupStorageCost(h.RuntimeOrDefault(), price, index, region, numCacheNodes, snapshotRetention)
 	}
 
 	hourly = monthly / handler.HoursPerMonth

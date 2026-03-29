@@ -11,14 +11,12 @@ import (
 )
 
 // ReplicationGroupHandler handles aws_elasticache_replication_group cost estimation
-type ReplicationGroupHandler struct{}
+type ReplicationGroupHandler struct {
+	awskit.RuntimeDeps
+}
 
 func (h *ReplicationGroupHandler) Category() handler.CostCategory {
 	return handler.CostCategoryStandard
-}
-
-func (h *ReplicationGroupHandler) ServiceCode() pricing.ServiceID {
-	return awskit.MustService(awskit.ServiceKeyElastiCache)
 }
 
 func (h *ReplicationGroupHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
@@ -27,15 +25,21 @@ func (h *ReplicationGroupHandler) BuildLookup(region string, attrs map[string]an
 		return nil, errors.New("node_type not found")
 	}
 
-	prefix := awskit.ResolveUsagePrefix(region)
-	usagetype := prefix + "-NodeUsage:" + nodeType
+	runtime := h.RuntimeOrDefault()
+	spec := runtime.StandardLookupSpec(
+		awskit.ServiceKeyElastiCache,
+		"Cache Instance",
+		func(region string, _ map[string]any) (map[string]string, error) {
+			prefix := runtime.ResolveUsagePrefix(region)
+			return map[string]string{
+				"instanceType": nodeType,
+				"cacheEngine":  "Redis",
+				"usagetype":    prefix + "-NodeUsage:" + nodeType,
+			}, nil
+		},
+	)
 
-	lb := &awskit.LookupBuilder{Service: awskit.MustService(awskit.ServiceKeyElastiCache), ProductFamily: "Cache Instance"}
-	return lb.Build(region, map[string]string{
-		"instanceType": nodeType,
-		"cacheEngine":  "Redis",
-		"usagetype":    usagetype,
-	}), nil
+	return spec.Build(region, attrs)
 }
 
 func (h *ReplicationGroupHandler) Describe(price *pricing.Price, attrs map[string]any) map[string]string {
@@ -71,12 +75,12 @@ func (h *ReplicationGroupHandler) CalculateCost(price *pricing.Price, index *pri
 	_, monthly = handler.ScaledHourlyCost(price.OnDemandUSD, totalNodes)
 
 	// Data tiering cost for nodes with local SSD (r6gd/r7gd)
-	monthly += dataTieringCost(price, index, region, totalNodes)
+	monthly += dataTieringCost(h.RuntimeOrDefault(), price, index, region, totalNodes)
 
 	// Backup storage cost
 	snapshotRetention := handler.GetIntAttr(attrs, "snapshot_retention_limit")
 	if snapshotRetention > 0 {
-		monthly += backupStorageCost(price, index, region, totalNodes, snapshotRetention)
+		monthly += backupStorageCost(h.RuntimeOrDefault(), price, index, region, totalNodes, snapshotRetention)
 	}
 
 	hourly = monthly / handler.HoursPerMonth

@@ -1,8 +1,6 @@
 package serverless
 
 import (
-	"strconv"
-
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
@@ -19,33 +17,30 @@ const (
 // LambdaHandler handles aws_lambda_function cost estimation
 // Note: Lambda pricing is usage-based (requests + duration)
 // For fixed cost estimation, we estimate based on memory and assume average invocations
-type LambdaHandler struct{}
+type LambdaHandler struct {
+	awskit.RuntimeDeps
+}
 
 func (h *LambdaHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
-func (h *LambdaHandler) ServiceCode() pricing.ServiceID {
-	return awskit.MustService(awskit.ServiceKeyLambda)
-}
-
 func (h *LambdaHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
-	desc := make(map[string]string)
-	if v := handler.GetIntAttr(attrs, "memory_size"); v != 0 {
-		desc["memory_mb"] = strconv.Itoa(v)
-	}
-	if v := handler.GetStringAttr(attrs, "runtime"); v != "" {
-		desc["runtime"] = v
-	}
-	if v := handler.GetIntAttr(attrs, "provisioned_concurrent_executions"); v != 0 {
-		desc["provisioned_concurrency"] = strconv.Itoa(v)
-	}
-	return desc
+	return awskit.NewDescribeBuilder().
+		Int("memory_mb", handler.GetIntAttr(attrs, "memory_size")).
+		String("runtime", handler.GetStringAttr(attrs, "runtime")).
+		Int("provisioned_concurrency", handler.GetIntAttr(attrs, "provisioned_concurrent_executions")).
+		Map()
 }
 
 func (h *LambdaHandler) BuildLookup(region string, _ map[string]any) (*pricing.PriceLookup, error) {
-	lb := &awskit.LookupBuilder{Service: awskit.MustService(awskit.ServiceKeyLambda), ProductFamily: "Serverless"}
-	return lb.Build(region, map[string]string{
-		"group": "AWS-Lambda-Duration",
-	}), nil
+	return h.RuntimeOrDefault().StandardLookupSpec(
+		awskit.ServiceKeyLambda,
+		"Serverless",
+		func(_ string, _ map[string]any) (map[string]string, error) {
+			return map[string]string{
+				"group": "AWS-Lambda-Duration",
+			}, nil
+		},
+	).Build(region, nil)
 }
 
 func (h *LambdaHandler) CalculateCost(_ *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {

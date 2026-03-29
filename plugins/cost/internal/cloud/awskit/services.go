@@ -42,4 +42,5 @@ var (
 			DefaultUsagePrefix: DefaultUsagePrefix,
 		},
 	}
+	DefaultRuntime = NewRuntime(Manifest)
 )

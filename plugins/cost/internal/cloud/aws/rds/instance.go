@@ -2,7 +2,6 @@ package rds
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
@@ -32,13 +31,11 @@ const (
 )
 
 // InstanceHandler handles aws_db_instance cost estimation
-type InstanceHandler struct{}
+type InstanceHandler struct {
+	awskit.RuntimeDeps
+}
 
 func (h *InstanceHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
-
-func (h *InstanceHandler) ServiceCode() pricing.ServiceID {
-	return awskit.MustService(awskit.ServiceKeyRDS)
-}
 
 func (h *InstanceHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 	instanceClass := handler.GetStringAttr(attrs, "instance_class")
@@ -60,29 +57,26 @@ func (h *InstanceHandler) BuildLookup(region string, attrs map[string]any) (*pri
 		deploymentOption = "Multi-AZ"
 	}
 
-	lb := &awskit.LookupBuilder{Service: awskit.MustService(awskit.ServiceKeyRDS), ProductFamily: "Database Instance"}
-	return lb.Build(region, map[string]string{
-		"instanceType":     instanceClass,
-		"databaseEngine":   databaseEngine,
-		"deploymentOption": deploymentOption,
-	}), nil
+	return h.RuntimeOrDefault().StandardLookupSpec(
+		awskit.ServiceKeyRDS,
+		"Database Instance",
+		func(_ string, _ map[string]any) (map[string]string, error) {
+			return map[string]string{
+				"instanceType":     instanceClass,
+				"databaseEngine":   databaseEngine,
+				"deploymentOption": deploymentOption,
+			}, nil
+		},
+	).Build(region, attrs)
 }
 
 func (h *InstanceHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
-	d := map[string]string{}
-	if v := handler.GetStringAttr(attrs, "instance_class"); v != "" {
-		d["instance_class"] = v
-	}
-	if v := handler.GetStringAttr(attrs, "engine"); v != "" {
-		d["engine"] = v
-	}
-	if handler.GetBoolAttr(attrs, "multi_az") {
-		d["multi_az"] = "true"
-	}
-	if v := handler.GetFloatAttr(attrs, "allocated_storage"); v > 0 {
-		d["storage_gb"] = fmt.Sprintf("%.0f", v)
-	}
-	return d
+	return awskit.NewDescribeBuilder().
+		String("instance_class", handler.GetStringAttr(attrs, "instance_class")).
+		String("engine", handler.GetStringAttr(attrs, "engine")).
+		Bool("multi_az", handler.GetBoolAttr(attrs, "multi_az")).
+		Float("storage_gb", handler.GetFloatAttr(attrs, "allocated_storage"), "%.0f").
+		Map()
 }
 
 func (h *InstanceHandler) CalculateCost(price *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {

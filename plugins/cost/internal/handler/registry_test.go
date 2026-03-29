@@ -13,10 +13,9 @@ type stubHandler struct {
 	category CostCategory
 }
 
-func (h *stubHandler) Category() CostCategory         { return h.category }
-func (h *stubHandler) ServiceCode() pricing.ServiceID { return h.svc }
+func (h *stubHandler) Category() CostCategory { return h.category }
 func (h *stubHandler) BuildLookup(string, map[string]any) (*pricing.PriceLookup, error) {
-	return nil, nil
+	return &pricing.PriceLookup{ServiceID: h.svc}, nil
 }
 func (h *stubHandler) CalculateCost(*pricing.Price, *pricing.PriceIndex, string, map[string]any) (hourly, monthly float64) {
 	return 0, 0
@@ -25,15 +24,15 @@ func (h *stubHandler) Describe(*pricing.Price, map[string]any) map[string]string
 
 func newTestRegistry() *Registry {
 	r := NewRegistry()
-	r.Register(awskit.ProviderID, "aws_instance", &stubHandler{svc: awskit.MustService(awskit.ServiceKeyEC2), category: CostCategoryStandard})
-	r.Register(awskit.ProviderID, "aws_ebs_volume", &stubHandler{svc: awskit.MustService(awskit.ServiceKeyEC2), category: CostCategoryStandard})
-	r.Register(awskit.ProviderID, "aws_db_instance", &stubHandler{svc: awskit.MustService(awskit.ServiceKeyRDS), category: CostCategoryStandard})
-	r.Register(awskit.ProviderID, "aws_lb", &stubHandler{svc: awskit.MustService(awskit.ServiceKeyEC2), category: CostCategoryStandard})
-	r.Register(awskit.ProviderID, "aws_alb", &stubHandler{svc: awskit.MustService(awskit.ServiceKeyEC2), category: CostCategoryStandard})
-	r.Register(awskit.ProviderID, "aws_elasticache_cluster", &stubHandler{svc: awskit.MustService(awskit.ServiceKeyElastiCache), category: CostCategoryStandard})
-	r.Register(awskit.ProviderID, "aws_eks_cluster", &stubHandler{svc: awskit.MustService(awskit.ServiceKeyEKS), category: CostCategoryStandard})
-	r.Register(awskit.ProviderID, "aws_lambda_function", &stubHandler{svc: awskit.MustService(awskit.ServiceKeyLambda), category: CostCategoryStandard})
-	r.Register(awskit.ProviderID, "aws_dynamodb_table", &stubHandler{svc: awskit.MustService(awskit.ServiceKeyDynamoDB), category: CostCategoryStandard})
+	r.Register(awskit.ProviderID, ResourceType("aws_instance"), &stubHandler{svc: awskit.MustService(awskit.ServiceKeyEC2), category: CostCategoryStandard})
+	r.Register(awskit.ProviderID, ResourceType("aws_ebs_volume"), &stubHandler{svc: awskit.MustService(awskit.ServiceKeyEC2), category: CostCategoryStandard})
+	r.Register(awskit.ProviderID, ResourceType("aws_db_instance"), &stubHandler{svc: awskit.MustService(awskit.ServiceKeyRDS), category: CostCategoryStandard})
+	r.Register(awskit.ProviderID, ResourceType("aws_lb"), &stubHandler{svc: awskit.MustService(awskit.ServiceKeyEC2), category: CostCategoryStandard})
+	r.Register(awskit.ProviderID, ResourceType("aws_alb"), &stubHandler{svc: awskit.MustService(awskit.ServiceKeyEC2), category: CostCategoryStandard})
+	r.Register(awskit.ProviderID, ResourceType("aws_elasticache_cluster"), &stubHandler{svc: awskit.MustService(awskit.ServiceKeyElastiCache), category: CostCategoryStandard})
+	r.Register(awskit.ProviderID, ResourceType("aws_eks_cluster"), &stubHandler{svc: awskit.MustService(awskit.ServiceKeyEKS), category: CostCategoryStandard})
+	r.Register(awskit.ProviderID, ResourceType("aws_lambda_function"), &stubHandler{svc: awskit.MustService(awskit.ServiceKeyLambda), category: CostCategoryStandard})
+	r.Register(awskit.ProviderID, ResourceType("aws_dynamodb_table"), &stubHandler{svc: awskit.MustService(awskit.ServiceKeyDynamoDB), category: CostCategoryStandard})
 	return r
 }
 
@@ -42,18 +41,26 @@ func TestRegistry_GetHandler(t *testing.T) {
 
 	r := newTestRegistry()
 
-	h, ok := r.GetHandler("aws_instance")
+	h, ok := r.GetHandler(ResourceType("aws_instance"))
 	if !ok {
 		t.Fatal("GetHandler should return handler for aws_instance")
 	}
 	if h == nil {
 		t.Fatal("Handler should not be nil")
 	}
-	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeyEC2) {
-		t.Errorf("aws_instance ServiceCode = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeyEC2))
+	lookupBuilder, ok := h.(LookupBuilder)
+	if !ok {
+		t.Fatal("aws_instance handler should implement LookupBuilder")
+	}
+	lookup, err := lookupBuilder.BuildLookup("us-east-1", nil)
+	if err != nil {
+		t.Fatalf("BuildLookup() error = %v", err)
+	}
+	if lookup.ServiceID != awskit.MustService(awskit.ServiceKeyEC2) {
+		t.Errorf("aws_instance lookup service = %q, want %q", lookup.ServiceID, awskit.MustService(awskit.ServiceKeyEC2))
 	}
 
-	_, ok = r.GetHandler("aws_nonexistent_resource")
+	_, ok = r.GetHandler(ResourceType("aws_nonexistent_resource"))
 	if ok {
 		t.Error("GetHandler should return false for nonexistent resource")
 	}
@@ -81,7 +88,7 @@ func TestRegistry_IsSupported(t *testing.T) {
 		t.Run(tt.resourceType, func(t *testing.T) {
 			t.Parallel()
 
-			if r.IsSupported(tt.resourceType) != tt.expected {
+			if r.IsSupported(ResourceType(tt.resourceType)) != tt.expected {
 				t.Errorf("IsSupported(%q) = %v, want %v", tt.resourceType, !tt.expected, tt.expected)
 			}
 		})
@@ -111,27 +118,6 @@ func TestRegistry_SupportedTypes(t *testing.T) {
 	}
 }
 
-func TestRegistry_RequiredServices(t *testing.T) {
-	t.Parallel()
-
-	r := newTestRegistry()
-
-	services := r.RequiredServices([]string{"aws_instance", "aws_db_instance", "aws_elasticache_cluster"})
-
-	if len(services) == 0 {
-		t.Error("RequiredServices should return non-empty map")
-	}
-	if !services[awskit.MustService(awskit.ServiceKeyEC2)] {
-		t.Error("should include ServiceEC2")
-	}
-	if !services[awskit.MustService(awskit.ServiceKeyRDS)] {
-		t.Error("should include ServiceRDS")
-	}
-	if !services[awskit.MustService(awskit.ServiceKeyElastiCache)] {
-		t.Error("should include ServiceElastiCache")
-	}
-}
-
 func TestNewRegistry(t *testing.T) {
 	t.Parallel()
 
@@ -143,31 +129,9 @@ func TestNewRegistry(t *testing.T) {
 		t.Error("SupportedTypes should be empty for new registry")
 	}
 
-	r.Register(awskit.ProviderID, "aws_test_resource", &stubHandler{svc: awskit.MustService(awskit.ServiceKeyEC2), category: CostCategoryStandard})
-	if !r.IsSupported("aws_test_resource") {
+	r.Register(awskit.ProviderID, ResourceType("aws_test_resource"), &stubHandler{svc: awskit.MustService(awskit.ServiceKeyEC2), category: CostCategoryStandard})
+	if !r.IsSupported(ResourceType("aws_test_resource")) {
 		t.Error("should support registered resource")
-	}
-}
-
-func TestRegistry_RequiredServices_UnknownTypes(t *testing.T) {
-	t.Parallel()
-
-	r := newTestRegistry()
-
-	services := r.RequiredServices([]string{"aws_nonexistent", "not_a_resource"})
-	if len(services) != 0 {
-		t.Errorf("RequiredServices with unknown types should return empty map, got %d entries", len(services))
-	}
-}
-
-func TestRegistry_RequiredServices_Empty(t *testing.T) {
-	t.Parallel()
-
-	r := newTestRegistry()
-
-	services := r.RequiredServices([]string{})
-	if len(services) != 0 {
-		t.Errorf("RequiredServices with empty input should return empty map, got %d entries", len(services))
 	}
 }
 

@@ -3,67 +3,10 @@ package serverless
 import (
 	"testing"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
+	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
-
-func TestDynamoDBHandler_Category(t *testing.T) {
-	t.Parallel()
-
-	h := &DynamoDBHandler{}
-	if h.Category() != handler.CostCategoryStandard {
-		t.Errorf("Category() = %v, want CostCategoryStandard", h.Category())
-	}
-}
-
-func TestDynamoDBHandler_ServiceCode(t *testing.T) {
-	t.Parallel()
-
-	h := &DynamoDBHandler{}
-	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeyDynamoDB) {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeyDynamoDB))
-	}
-}
-
-func TestDynamoDBHandler_BuildLookup(t *testing.T) {
-	t.Parallel()
-
-	h := &DynamoDBHandler{}
-
-	tests := []struct {
-		name              string
-		attrs             map[string]any
-		wantProductFamily string
-	}{
-		{
-			name: "pay per request",
-			attrs: map[string]any{
-				"billing_mode": "PAY_PER_REQUEST",
-			},
-			wantProductFamily: "Amazon DynamoDB PayPerRequest Throughput",
-		},
-		{
-			name:              "provisioned default",
-			attrs:             map[string]any{},
-			wantProductFamily: "Provisioned IOPS",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			lookup, err := h.BuildLookup("us-east-1", tt.attrs)
-			if err != nil {
-				t.Fatalf("BuildLookup returned error: %v", err)
-			}
-
-			if lookup.ProductFamily != tt.wantProductFamily {
-				t.Errorf("ProductFamily = %q, want %q", lookup.ProductFamily, tt.wantProductFamily)
-			}
-		})
-	}
-}
 
 func TestDynamoDBHandler_CalculateCost(t *testing.T) {
 	t.Parallel()
@@ -130,66 +73,70 @@ func TestDynamoDBHandler_CalculateCost(t *testing.T) {
 	}
 }
 
-func TestDynamoDBHandler_Describe(t *testing.T) {
+func TestDynamoDBHandler_Contract(t *testing.T) {
 	t.Parallel()
 
-	h := &DynamoDBHandler{}
-
-	tests := []struct {
-		name       string
-		attrs      map[string]any
-		wantKeys   map[string]string
-		wantAbsent []string
-	}{
-		{
-			name:       "nil attrs",
-			attrs:      nil,
-			wantAbsent: []string{"billing_mode", "read_capacity", "write_capacity"},
-		},
-		{
-			name:       "empty attrs",
-			attrs:      map[string]any{},
-			wantAbsent: []string{"billing_mode", "read_capacity", "write_capacity"},
-		},
-		{
-			name: "pay per request",
-			attrs: map[string]any{
-				"billing_mode": "PAY_PER_REQUEST",
+	category := handler.CostCategoryStandard
+	handlertest.RunContractSuite(t, &DynamoDBHandler{}, handlertest.ContractSuite{
+		Category: &category,
+		LookupCases: []handlertest.LookupCase{
+			{
+				Name:   "pay per request",
+				Region: "us-east-1",
+				Attrs: map[string]any{
+					"billing_mode": "PAY_PER_REQUEST",
+				},
+				Assert: func(tb testing.TB, lookup *pricing.PriceLookup) {
+					tb.Helper()
+					if lookup.ProductFamily != "Amazon DynamoDB PayPerRequest Throughput" {
+						tb.Errorf("ProductFamily = %q, want %q", lookup.ProductFamily, "Amazon DynamoDB PayPerRequest Throughput")
+					}
+				},
 			},
-			wantKeys:   map[string]string{"billing_mode": "PAY_PER_REQUEST"},
-			wantAbsent: []string{"read_capacity", "write_capacity"},
-		},
-		{
-			name: "provisioned with capacity",
-			attrs: map[string]any{
-				"billing_mode":   "PROVISIONED",
-				"read_capacity":  float64(10),
-				"write_capacity": float64(20),
-			},
-			wantKeys: map[string]string{
-				"billing_mode":   "PROVISIONED",
-				"read_capacity":  "10",
-				"write_capacity": "20",
+			{
+				Name:   "provisioned default",
+				Region: "us-east-1",
+				Attrs:  map[string]any{},
+				Assert: func(tb testing.TB, lookup *pricing.PriceLookup) {
+					tb.Helper()
+					if lookup.ProductFamily != "Provisioned IOPS" {
+						tb.Errorf("ProductFamily = %q, want %q", lookup.ProductFamily, "Provisioned IOPS")
+					}
+				},
 			},
 		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			result := h.Describe(nil, tt.attrs)
-
-			for k, v := range tt.wantKeys {
-				if result[k] != v {
-					t.Errorf("Describe()[%q] = %q, want %q", k, result[k], v)
-				}
-			}
-			for _, k := range tt.wantAbsent {
-				if _, ok := result[k]; ok {
-					t.Errorf("Describe() should not contain key %q", k)
-				}
-			}
-		})
-	}
+		DescribeCases: []handlertest.DescribeCase{
+			{
+				Name:       "nil attrs",
+				Attrs:      nil,
+				WantAbsent: []string{"billing_mode", "read_capacity", "write_capacity"},
+			},
+			{
+				Name:       "empty attrs",
+				Attrs:      map[string]any{},
+				WantAbsent: []string{"billing_mode", "read_capacity", "write_capacity"},
+			},
+			{
+				Name: "pay per request",
+				Attrs: map[string]any{
+					"billing_mode": "PAY_PER_REQUEST",
+				},
+				WantKeys:   map[string]string{"billing_mode": "PAY_PER_REQUEST"},
+				WantAbsent: []string{"read_capacity", "write_capacity"},
+			},
+			{
+				Name: "provisioned with capacity",
+				Attrs: map[string]any{
+					"billing_mode":   "PROVISIONED",
+					"read_capacity":  float64(10),
+					"write_capacity": float64(20),
+				},
+				WantKeys: map[string]string{
+					"billing_mode":   "PROVISIONED",
+					"read_capacity":  "10",
+					"write_capacity": "20",
+				},
+			},
+		},
+	})
 }

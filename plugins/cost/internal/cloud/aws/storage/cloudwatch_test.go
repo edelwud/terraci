@@ -3,17 +3,15 @@ package storage
 import (
 	"testing"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 )
 
 func TestLogGroupHandler_Category(t *testing.T) {
 	t.Parallel()
 
 	h := &LogGroupHandler{}
-	if h.Category() != handler.CostCategoryUsageBased {
-		t.Errorf("Category() = %v, want CostCategoryUsageBased", h.Category())
-	}
+	handlertest.AssertCategory(t, h, handler.CostCategoryUsageBased)
 }
 
 func TestLogGroupHandler_Describe(t *testing.T) {
@@ -30,31 +28,13 @@ func TestAlarmHandler_Category(t *testing.T) {
 	t.Parallel()
 
 	h := &AlarmHandler{}
-	if h.Category() != handler.CostCategoryFixed {
-		t.Errorf("Category() = %v, want CostCategoryFixed", h.Category())
-	}
-}
-
-func TestLogGroupHandler_ServiceCode(t *testing.T) {
-	t.Parallel()
-
-	h := &LogGroupHandler{}
-	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeyCloudWatch) {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeyCloudWatch))
-	}
+	handlertest.AssertCategory(t, h, handler.CostCategoryFixed)
 }
 
 func TestLogGroupHandler_BuildLookup(t *testing.T) {
 	t.Parallel()
 
-	h := &LogGroupHandler{}
-	lookup, err := h.BuildLookup("us-east-1", nil)
-	if err != nil {
-		t.Fatalf("BuildLookup returned error: %v", err)
-	}
-	if lookup != nil {
-		t.Errorf("BuildLookup = %v, want nil", lookup)
-	}
+	handlertest.AssertNilLookup(t, &LogGroupHandler{}, "us-east-1", nil)
 }
 
 func TestLogGroupHandler_CalculateCost(t *testing.T) {
@@ -70,27 +50,10 @@ func TestLogGroupHandler_CalculateCost(t *testing.T) {
 	}
 }
 
-func TestAlarmHandler_ServiceCode(t *testing.T) {
-	t.Parallel()
-
-	h := &AlarmHandler{}
-	if h.ServiceCode() != awskit.MustService(awskit.ServiceKeyCloudWatch) {
-		t.Errorf("ServiceCode() = %q, want %q", h.ServiceCode(), awskit.MustService(awskit.ServiceKeyCloudWatch))
-	}
-}
-
 func TestAlarmHandler_BuildLookup_ReturnsNil(t *testing.T) {
 	t.Parallel()
 
-	h := &AlarmHandler{}
-
-	lookup, err := h.BuildLookup("us-east-1", nil)
-	if err != nil {
-		t.Fatalf("BuildLookup returned error: %v", err)
-	}
-	if lookup != nil {
-		t.Error("expected nil lookup for fixed-cost handler")
-	}
+	handlertest.AssertNilLookup(t, &AlarmHandler{}, "us-east-1", nil)
 }
 
 func TestAlarmHandler_CalculateCost(t *testing.T) {

@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
@@ -13,14 +12,10 @@ const (
 	HighResolutionThresholdSeconds = 60
 )
 
-// LogGroupHandler handles aws_cloudwatch_log_group cost estimation
+// LogGroupHandler handles aws_cloudwatch_log_group cost estimation.
 type LogGroupHandler struct{}
 
 func (h *LogGroupHandler) Category() handler.CostCategory { return handler.CostCategoryUsageBased }
-
-func (h *LogGroupHandler) ServiceCode() pricing.ServiceID {
-	return awskit.MustService(awskit.ServiceKeyCloudWatch)
-}
 
 func (h *LogGroupHandler) BuildLookup(_ string, _ map[string]any) (*pricing.PriceLookup, error) {
 	// CloudWatch Logs: ingestion + storage
@@ -35,14 +30,10 @@ func (h *LogGroupHandler) CalculateCost(_ *pricing.Price, _ *pricing.PriceIndex,
 	return 0, 0
 }
 
-// AlarmHandler handles aws_cloudwatch_metric_alarm cost estimation
+// AlarmHandler handles aws_cloudwatch_metric_alarm cost estimation.
 type AlarmHandler struct{}
 
 func (h *AlarmHandler) Category() handler.CostCategory { return handler.CostCategoryFixed }
-
-func (h *AlarmHandler) ServiceCode() pricing.ServiceID {
-	return awskit.MustService(awskit.ServiceKeyCloudWatch)
-}
 
 func (h *AlarmHandler) BuildLookup(_ string, _ map[string]any) (*pricing.PriceLookup, error) {
 	return nil, nil

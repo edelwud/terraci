@@ -23,22 +23,26 @@ const (
 // Pricing is based on data storage (GB-hour) and compute (ECPUs).
 // Since ECPU usage is unknown at plan time, only storage is estimated
 // based on configured cache_usage_limits.
-type ServerlessHandler struct{}
+type ServerlessHandler struct {
+	awskit.RuntimeDeps
+}
 
 func (h *ServerlessHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
-func (h *ServerlessHandler) ServiceCode() pricing.ServiceID {
-	return awskit.MustService(awskit.ServiceKeyElastiCache)
-}
-
 func (h *ServerlessHandler) BuildLookup(region string, _ map[string]any) (*pricing.PriceLookup, error) {
-	prefix := awskit.ResolveUsagePrefix(region)
-	usagetype := prefix + "-ElastiCache:ServerlessStorage"
+	runtime := h.RuntimeOrDefault()
+	spec := runtime.StandardLookupSpec(
+		awskit.ServiceKeyElastiCache,
+		"ElastiCache Serverless",
+		func(region string, _ map[string]any) (map[string]string, error) {
+			prefix := runtime.ResolveUsagePrefix(region)
+			return map[string]string{
+				"usagetype": prefix + "-ElastiCache:ServerlessStorage",
+			}, nil
+		},
+	)
 
-	lb := &awskit.LookupBuilder{Service: awskit.MustService(awskit.ServiceKeyElastiCache), ProductFamily: "ElastiCache Serverless"}
-	return lb.Build(region, map[string]string{
-		"usagetype": usagetype,
-	}), nil
+	return spec.Build(region, nil)
 }
 
 func (h *ServerlessHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {

@@ -47,7 +47,7 @@ func nodeSSDFromPrice(price *pricing.Price) float64 {
 
 // dataTieringCost calculates the SSD data tiering cost for nodes with local SSD.
 // SSD capacity is extracted from the price's "storage" attribute.
-func dataTieringCost(price *pricing.Price, index *pricing.PriceIndex, region string, nodeCount int) float64 {
+func dataTieringCost(runtime *awskit.Runtime, price *pricing.Price, index *pricing.PriceIndex, region string, nodeCount int) float64 {
 	ssdGB := nodeSSDFromPrice(price)
 	if ssdGB == 0 {
 		return 0
@@ -55,7 +55,7 @@ func dataTieringCost(price *pricing.Price, index *pricing.PriceIndex, region str
 
 	costPerGB := FallbackDataTieringCostPerGBMonth
 	if index != nil && region != "" {
-		if looked, found := lookupElastiCachePrice(index, region, "Cache Storage", awskit.ResolveUsagePrefix(region)+"-DataTiering:StorageUsage"); found {
+		if looked, found := lookupElastiCachePrice(runtime, index, region, "Cache Storage", runtime.ResolveUsagePrefix(region)+"-DataTiering:StorageUsage"); found {
 			costPerGB = looked
 		}
 	}
@@ -67,7 +67,7 @@ func dataTieringCost(price *pricing.Price, index *pricing.PriceIndex, region str
 // Memory size is extracted from the price's "memory" attribute.
 // AWS provides free backup storage equal to the total cache memory.
 // Additional backup is charged per GB-month.
-func backupStorageCost(price *pricing.Price, index *pricing.PriceIndex, region string, nodeCount, snapshotRetention int) float64 {
+func backupStorageCost(runtime *awskit.Runtime, price *pricing.Price, index *pricing.PriceIndex, region string, nodeCount, snapshotRetention int) float64 {
 	memGB := nodeMemoryFromPrice(price)
 	if memGB == 0 {
 		return 0
@@ -84,7 +84,7 @@ func backupStorageCost(price *pricing.Price, index *pricing.PriceIndex, region s
 
 	costPerGB := FallbackBackupStorageCostPerGBMonth
 	if index != nil && region != "" {
-		if looked, found := lookupElastiCachePrice(index, region, "Storage Snapshot", awskit.ResolveUsagePrefix(region)+"-BackupUsage"); found {
+		if looked, found := lookupElastiCachePrice(runtime, index, region, "Storage Snapshot", runtime.ResolveUsagePrefix(region)+"-BackupUsage"); found {
 			costPerGB = looked
 		}
 	}
@@ -93,14 +93,14 @@ func backupStorageCost(price *pricing.Price, index *pricing.PriceIndex, region s
 }
 
 // lookupElastiCachePrice finds a price in the index by product family and usagetype.
-func lookupElastiCachePrice(index *pricing.PriceIndex, region, productFamily, usagetype string) (float64, bool) {
+func lookupElastiCachePrice(runtime *awskit.Runtime, index *pricing.PriceIndex, region, productFamily, usagetype string) (float64, bool) {
 	if index == nil {
 		return 0, false
 	}
 	lookup := pricing.PriceLookup{
 		ProductFamily: productFamily,
 		Attributes: map[string]string{
-			"location":  awskit.ResolveRegionName(region),
+			"location":  runtime.ResolveRegionName(region),
 			"usagetype": usagetype,
 		},
 	}

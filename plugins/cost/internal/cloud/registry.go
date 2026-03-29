@@ -11,7 +11,7 @@ import (
 
 // ResourceRegistration binds a supported Terraform resource type to its handler.
 type ResourceRegistration struct {
-	Type    string
+	Type    handler.ResourceType
 	Handler handler.ResourceHandler
 }
 
