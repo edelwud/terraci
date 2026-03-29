@@ -27,9 +27,10 @@ func (h *ClusterHandler) BuildLookup(region string, attrs map[string]any) (*pric
 	_ = engine // Engine used for validation only
 
 	lb := &aws.LookupBuilder{Service: pricing.ServiceRDS, ProductFamily: "Database Storage"}
+	prefix := aws.ResolveUsagePrefix(region)
 	return lb.Build(region, map[string]string{
 		"volumeType": "Aurora:StorageUsage",
-		"usagetype":  region + "-Aurora:StorageUsage",
+		"usagetype":  prefix + "-Aurora:StorageUsage",
 	}), nil
 }
 

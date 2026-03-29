@@ -118,6 +118,78 @@ func TestModuleCost(t *testing.T) {
 	}
 }
 
+func TestCostConfig_Validate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		cfg     CostConfig
+		wantErr bool
+	}{
+		{"valid defaults", CostConfig{Enabled: true}, false},
+		{"valid TTL 48h", CostConfig{CacheTTL: "48h"}, false},
+		{"valid TTL 30m", CostConfig{CacheTTL: "30m"}, false},
+		{"empty TTL ok", CostConfig{CacheTTL: ""}, false},
+		{"invalid TTL", CostConfig{CacheTTL: "invalid"}, true},
+		{"bad TTL format", CostConfig{CacheTTL: "24hours"}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := tt.cfg.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestResourceCost_IsUnsupported(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		kind CostErrorKind
+		want bool
+	}{
+		{CostErrorNone, false},
+		{CostErrorUsageBased, false},
+		{CostErrorNoHandler, true},
+		{CostErrorLookupFailed, true},
+		{CostErrorAPIFailure, true},
+		{CostErrorNoPrice, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.kind), func(t *testing.T) {
+			t.Parallel()
+			rc := ResourceCost{ErrorKind: tt.kind}
+			if rc.IsUnsupported() != tt.want {
+				t.Errorf("IsUnsupported(%q) = %v, want %v", tt.kind, rc.IsUnsupported(), tt.want)
+			}
+		})
+	}
+}
+
+func TestSubmoduleCost_TotalCost(t *testing.T) {
+	t.Parallel()
+
+	s := SubmoduleCost{
+		MonthlyCost: 10,
+		Children: []SubmoduleCost{
+			{MonthlyCost: 20, Children: []SubmoduleCost{{MonthlyCost: 30}}},
+		},
+	}
+	if s.TotalCost() != 60 {
+		t.Errorf("TotalCost() = %v, want 60", s.TotalCost())
+	}
+
+	leaf := SubmoduleCost{MonthlyCost: 42}
+	if leaf.TotalCost() != 42 {
+		t.Errorf("TotalCost() leaf = %v, want 42", leaf.TotalCost())
+	}
+}
+
 func TestResourceCost(t *testing.T) {
 	t.Parallel()
 

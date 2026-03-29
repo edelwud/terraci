@@ -17,6 +17,11 @@ func (p *Plugin) Initialize(_ context.Context, appCtx *plugin.AppContext) error 
 		return nil
 	}
 
+	// Validate config before proceeding
+	if err := p.Config().Validate(); err != nil {
+		log.WithError(err).Warn("cost: invalid configuration, using defaults")
+	}
+
 	log.Debug("cost: initializing estimator and pricing cache")
 	p.estimator = costengine.NewEstimatorFromConfig(p.Config())
 	p.estimator.CleanExpiredCache()

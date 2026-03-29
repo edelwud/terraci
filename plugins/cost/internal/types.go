@@ -1,7 +1,10 @@
 // Package cost provides AWS cost estimation for Terraform plans
 package costengine
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // Formatting constants
 const (
@@ -47,11 +50,21 @@ const (
 
 // SubmoduleCost groups resource costs by Terraform module address.
 // Children contains nested submodules (e.g., module.eks contains module.eks.module.node_group).
+// MonthlyCost reflects only direct resources; use TotalCost() for recursive totals.
 type SubmoduleCost struct {
 	ModuleAddr  string          `json:"module_addr"`         // e.g., "module.runner" or "" for root
-	MonthlyCost float64         `json:"monthly_cost"`        // Total including children
+	MonthlyCost float64         `json:"monthly_cost"`        // Direct resources only
 	Resources   []ResourceCost  `json:"resources,omitempty"` // Direct resources only
 	Children    []SubmoduleCost `json:"children,omitempty"`  // Nested submodules
+}
+
+// TotalCost returns MonthlyCost including all nested children recursively.
+func (s *SubmoduleCost) TotalCost() float64 {
+	total := s.MonthlyCost
+	for i := range s.Children {
+		total += s.Children[i].TotalCost()
+	}
+	return total
 }
 
 // ModuleCost represents the total cost estimate for a terraform module
@@ -262,4 +275,14 @@ type CostConfig struct {
 	// CacheTTL is how long cached pricing data is valid (e.g., '24h', '7d')
 	// Default: 24h
 	CacheTTL string `yaml:"cache_ttl,omitempty" json:"cache_ttl,omitempty" jsonschema:"description=How long cached pricing is valid (e.g. 24h),default=24h"`
+}
+
+// Validate checks if the CostConfig values are valid.
+func (c *CostConfig) Validate() error {
+	if c.CacheTTL != "" {
+		if _, err := time.ParseDuration(c.CacheTTL); err != nil {
+			return fmt.Errorf("invalid cache_ttl %q: %w", c.CacheTTL, err)
+		}
+	}
+	return nil
 }

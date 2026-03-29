@@ -85,6 +85,9 @@ func (p *Plugin) runEstimation(ctx context.Context, appCtx *plugin.AppContext, m
 	}
 
 	estimator := p.getEstimator()
+	if estimator == nil {
+		return fmt.Errorf("cost estimator not initialized (check plugins.cost configuration)")
+	}
 
 	if prefetchErr := estimator.ValidateAndPrefetch(ctx, modulePaths, regions); prefetchErr != nil {
 		log.WithError(prefetchErr).Warn("failed to prefetch some pricing data")

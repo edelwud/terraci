@@ -11,11 +11,17 @@ import (
 // RDS pricing constants
 const (
 	// Storage costs per GB-month
-	StorageCostGP2         = 0.115
-	StorageCostGP3         = 0.115
-	StorageCostIO1         = 0.125
-	StorageCostStandard    = 0.10
-	IOPSCostPerMonth       = 0.10
+	StorageCostGP2      = 0.115
+	StorageCostGP3      = 0.115
+	StorageCostIO1      = 0.125
+	StorageCostIO2      = 0.125
+	StorageCostStandard = 0.10
+
+	// IOPS costs per provisioned IOPS per month
+	IOPSCostIO1PerMonth = 0.10
+	IOPSCostIO2PerMonth = 0.10
+	IOPSCostGP3PerMonth = 0.00 // gp3 IOPS included (3000 baseline)
+
 	AuroraStorageCostPerGB = 0.10
 
 	// Default engine
@@ -89,12 +95,16 @@ func (h *InstanceHandler) CalculateCost(price *pricing.Price, _ *pricing.PriceIn
 		monthly += allocatedStorage * storageCostPerGB
 	}
 
-	// Add IOPS cost for io1
-	if storageType == aws.VolumeTypeIO1 {
-		iops := aws.GetFloatAttr(attrs, "iops")
-		if iops > 0 {
-			monthly += iops * IOPSCostPerMonth
+	// Add IOPS cost for provisioned IOPS storage types
+	iops := aws.GetFloatAttr(attrs, "iops")
+	if iops > 0 {
+		switch storageType {
+		case aws.VolumeTypeIO1:
+			monthly += iops * IOPSCostIO1PerMonth
+		case aws.VolumeTypeIO2:
+			monthly += iops * IOPSCostIO2PerMonth
 		}
+		// gp3 IOPS are included in the base price for RDS (unlike EBS)
 	}
 
 	hourly = monthly / aws.HoursPerMonth
@@ -133,6 +143,8 @@ func GetStorageCostPerGB(storageType string) float64 {
 		return StorageCostGP2
 	case aws.VolumeTypeIO1:
 		return StorageCostIO1
+	case aws.VolumeTypeIO2:
+		return StorageCostIO2
 	case aws.VolumeTypeStandard:
 		return StorageCostStandard
 	default:
