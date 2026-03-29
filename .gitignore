@@ -38,3 +38,4 @@ vendor/
 *.tfplan
 .terraform.lock.hcl
 .terraci/
+!test/testdata/**/.terraci/

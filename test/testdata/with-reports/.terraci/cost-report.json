@@ -1,0 +1,16 @@
+{
+  "plugin": "cost",
+  "title": "Cost Estimation",
+  "status": "pass",
+  "summary": "1 module, total: $50.00/mo",
+  "body": "| Module | Cost |\n|--------|------|\n| vpc | $50.00 |\n",
+  "modules": [
+    {
+      "module_path": "platform/prod/eu-central-1/vpc",
+      "cost_before": 0,
+      "cost_after": 50.0,
+      "cost_diff": 50.0,
+      "has_cost": true
+    }
+  ]
+}
