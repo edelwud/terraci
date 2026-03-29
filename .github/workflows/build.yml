@@ -20,7 +20,7 @@ jobs:
       - uses: arduino/setup-task@v2
         with:
           version: 3.x
-      - uses: golangci/golangci-lint-action@4afd733a84b2f1a21f7c8dd4399f413b7b7612ec # v6.5.0
+      - uses: golangci/golangci-lint-action@v6
         with:
           version: latest
           install-only: true
