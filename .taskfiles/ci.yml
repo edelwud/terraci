@@ -5,7 +5,6 @@ tasks:
   test:
     desc: "CI: lint + test with coverage"
     cmds:
-      - task lint:golangci
       - task test:unit
 
   security:

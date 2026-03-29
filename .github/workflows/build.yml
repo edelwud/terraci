@@ -23,7 +23,7 @@ jobs:
       - uses: golangci/golangci-lint-action@v6
         with:
           version: latest
-          install-only: true
+          args: --timeout=5m
       - name: Run tests with coverage
         run: task ci:test
       - name: Upload coverage to Codecov
