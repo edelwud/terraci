@@ -2,7 +2,17 @@ package pricing
 
 import "testing"
 
+func initTestRegionMapping() {
+	SetRegionMapping(map[string]string{
+		"us-east-1":      "US East (N. Virginia)",
+		"eu-central-1":   "EU (Frankfurt)",
+		"ap-northeast-1": "Asia Pacific (Tokyo)",
+	})
+}
+
 func TestRegionMapping(t *testing.T) {
+	initTestRegionMapping()
+
 	tests := []struct {
 		regionCode string
 		regionName string
@@ -23,7 +33,8 @@ func TestRegionMapping(t *testing.T) {
 }
 
 func TestRegionCodeMapping(t *testing.T) {
-	// Verify reverse mapping works
+	initTestRegionMapping()
+
 	if RegionCodeMapping["US East (N. Virginia)"] != "us-east-1" {
 		t.Error("RegionCodeMapping should map 'US East (N. Virginia)' to 'us-east-1'")
 	}

@@ -1,4 +1,4 @@
-package aws
+package provider
 
 // GetStringAttr extracts a string attribute from a resource attributes map.
 func GetStringAttr(attrs map[string]any, key string) string {

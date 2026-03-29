@@ -23,7 +23,7 @@ func (h *stubHandler) CalculateCost(*pricing.Price, *pricing.PriceIndex, string,
 func (h *stubHandler) Describe(*pricing.Price, map[string]any) map[string]string { return nil }
 
 func newTestRegistry() *Registry {
-	r := &Registry{handlers: make(map[string]ResourceHandler)}
+	r := NewRegistryEmpty()
 	r.Register("aws_instance", &stubHandler{svc: pricing.ServiceEC2, category: CostCategoryStandard})
 	r.Register("aws_ebs_volume", &stubHandler{svc: pricing.ServiceEC2, category: CostCategoryStandard})
 	r.Register("aws_db_instance", &stubHandler{svc: pricing.ServiceRDS, category: CostCategoryStandard})

@@ -1,4 +1,7 @@
-package aws
+package provider
+
+// HoursPerMonth is the average number of hours in a month for cost calculations.
+const HoursPerMonth = 730
 
 // HourlyCost returns hourly and monthly costs from an hourly rate.
 func HourlyCost(pricePerHour float64) (hourly, monthly float64) {

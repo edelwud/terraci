@@ -2,9 +2,18 @@ package costengine
 
 import (
 	"time"
+
+	"github.com/edelwud/terraci/plugins/cost/internal/aws"
+	"github.com/edelwud/terraci/plugins/cost/internal/provider"
 )
 
 const defaultCacheTTL = 24 * time.Hour
+
+// newDefaultRegistry creates a provider registry with all AWS handlers.
+// When GCP/Azure support is added, their handlers register here too.
+func newDefaultRegistry() *provider.Registry {
+	return aws.NewRegistry()
+}
 
 // NewEstimatorFromConfig creates an Estimator using CostConfig settings.
 func NewEstimatorFromConfig(cfg *CostConfig) *Estimator {

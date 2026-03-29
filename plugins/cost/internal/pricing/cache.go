@@ -22,12 +22,18 @@ const (
 	cacheFileExt = ".json"
 )
 
+// PriceFetcher abstracts pricing data retrieval.
+// Implemented by Fetcher (AWS) and potentially GCP/Azure fetchers.
+type PriceFetcher interface {
+	FetchRegionIndex(ctx context.Context, service ServiceCode, region string) (*PriceIndex, error)
+}
+
 // Cache manages local pricing data cache.
 // Safe for concurrent use.
 type Cache struct {
 	dir     string
 	ttl     time.Duration
-	fetcher *Fetcher
+	fetcher PriceFetcher
 	mu      sync.Mutex // protects file writes
 }
 
@@ -50,8 +56,8 @@ func NewCache(cacheDir string, ttl time.Duration) *Cache {
 	}
 }
 
-// SetFetcher replaces the fetcher (used for testing with httptest).
-func (c *Cache) SetFetcher(f *Fetcher) { c.fetcher = f }
+// SetFetcher replaces the fetcher (used for testing or alternative providers).
+func (c *Cache) SetFetcher(f PriceFetcher) { c.fetcher = f }
 
 // Dir returns the resolved cache directory path (absolute).
 func (c *Cache) Dir() string {

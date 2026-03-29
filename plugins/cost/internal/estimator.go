@@ -11,8 +11,8 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/edelwud/terraci/internal/terraform/plan"
-	"github.com/edelwud/terraci/plugins/cost/internal/aws"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/provider"
 )
 
 // DefaultRegion is used when no region is specified.
@@ -20,14 +20,14 @@ const DefaultRegion = "us-east-1"
 
 // Estimator calculates cost estimates for terraform plans.
 type Estimator struct {
-	registry *aws.Registry
+	registry *provider.Registry
 	cache    *pricing.Cache
 }
 
 // NewEstimator creates a new cost estimator.
 func NewEstimator(cacheDir string, cacheTTL time.Duration) *Estimator {
 	return &Estimator{
-		registry: aws.NewRegistry(),
+		registry: newDefaultRegistry(),
 		cache:    pricing.NewCache(cacheDir, cacheTTL),
 	}
 }
@@ -112,15 +112,15 @@ func (e *Estimator) resolveBeforeCost(ctx context.Context, rc *ResourceCost, res
 	}
 
 	switch handler.Category() {
-	case aws.CostCategoryStandard:
+	case provider.CostCategoryStandard:
 		before := e.resolveStandardCost(ctx, handler, beforeAttrs, region, ResourceCost{})
 		rc.BeforeHourlyCost = before.HourlyCost
 		rc.BeforeMonthlyCost = before.MonthlyCost
-	case aws.CostCategoryFixed:
+	case provider.CostCategoryFixed:
 		h, m := handler.CalculateCost(nil, nil, region, beforeAttrs)
 		rc.BeforeHourlyCost = h
 		rc.BeforeMonthlyCost = m
-	case aws.CostCategoryUsageBased:
+	case provider.CostCategoryUsageBased:
 		// no cost
 	}
 }
@@ -132,7 +132,7 @@ func (e *Estimator) synthesizeSubResources(ctx context.Context, result *ModuleCo
 		return
 	}
 
-	ch, ok := handler.(aws.CompoundHandler)
+	ch, ok := handler.(provider.CompoundHandler)
 	if !ok {
 		return
 	}
@@ -232,7 +232,7 @@ func (e *Estimator) ValidateAndPrefetch(ctx context.Context, modulePaths []strin
 
 		for _, rc := range parsedPlan.Resources {
 			handler, ok := e.registry.GetHandler(rc.Type)
-			if !ok || handler.Category() != aws.CostCategoryStandard {
+			if !ok || handler.Category() != provider.CostCategoryStandard {
 				continue
 			}
 

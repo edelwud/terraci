@@ -6,8 +6,8 @@ import (
 	"github.com/caarlos0/log"
 
 	"github.com/edelwud/terraci/internal/terraform/plan"
-	"github.com/edelwud/terraci/plugins/cost/internal/aws"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/provider"
 )
 
 // resolveResourceCost calculates cost for a resource given its full attributes.
@@ -24,7 +24,7 @@ func (e *Estimator) resolveResourceCost(ctx context.Context, resourceType, addre
 	if !ok {
 		result.ErrorKind = CostErrorNoHandler
 		result.ErrorDetail = "no handler"
-		aws.LogUnsupported(resourceType, address)
+		provider.LogUnsupported(resourceType, address)
 		return result
 	}
 
@@ -35,20 +35,20 @@ func (e *Estimator) resolveResourceCost(ctx context.Context, resourceType, addre
 	result.Details = handler.Describe(nil, attrs)
 
 	switch handler.Category() {
-	case aws.CostCategoryUsageBased:
+	case provider.CostCategoryUsageBased:
 		result.ErrorKind = CostErrorUsageBased
 		result.ErrorDetail = "usage-based"
 		result.PriceSource = "usage-based"
 		return result
 
-	case aws.CostCategoryFixed:
+	case provider.CostCategoryFixed:
 		hourly, monthly := handler.CalculateCost(nil, nil, region, attrs)
 		result.HourlyCost = hourly
 		result.MonthlyCost = monthly
 		result.PriceSource = "fixed"
 		return result
 
-	case aws.CostCategoryStandard:
+	case provider.CostCategoryStandard:
 		return e.resolveStandardCost(ctx, handler, attrs, region, result)
 	}
 
@@ -56,7 +56,7 @@ func (e *Estimator) resolveResourceCost(ctx context.Context, resourceType, addre
 }
 
 // resolveStandardCost handles the full pricing API lookup path.
-func (e *Estimator) resolveStandardCost(ctx context.Context, handler aws.ResourceHandler, attrs map[string]any, region string, result ResourceCost) ResourceCost {
+func (e *Estimator) resolveStandardCost(ctx context.Context, handler provider.ResourceHandler, attrs map[string]any, region string, result ResourceCost) ResourceCost {
 	lookup, err := handler.BuildLookup(region, attrs)
 	if err != nil {
 		result.ErrorKind = CostErrorLookupFailed
@@ -113,7 +113,7 @@ func (e *Estimator) collectRequiredServices(resources []resourceChange, region s
 
 	for _, rc := range resources {
 		handler, ok := e.registry.GetHandler(rc.Type)
-		if !ok || handler.Category() != aws.CostCategoryStandard {
+		if !ok || handler.Category() != provider.CostCategoryStandard {
 			continue
 		}
 

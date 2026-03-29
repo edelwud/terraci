@@ -2,13 +2,56 @@ package aws
 
 import "github.com/edelwud/terraci/plugins/cost/internal/pricing"
 
-// HoursPerMonth is the average number of hours in a month for cost calculations.
-const HoursPerMonth = 730
+// awsRegionMapping maps AWS region codes to pricing API region names.
+var awsRegionMapping = map[string]string{
+	// US
+	"us-east-1": "US East (N. Virginia)",
+	"us-east-2": "US East (Ohio)",
+	"us-west-1": "US West (N. California)",
+	"us-west-2": "US West (Oregon)",
+	// Europe
+	"eu-west-1":    "EU (Ireland)",
+	"eu-west-2":    "EU (London)",
+	"eu-west-3":    "EU (Paris)",
+	"eu-central-1": "EU (Frankfurt)",
+	"eu-central-2": "EU (Zurich)",
+	"eu-north-1":   "EU (Stockholm)",
+	"eu-south-1":   "EU (Milan)",
+	"eu-south-2":   "EU (Spain)",
+	// Asia Pacific
+	"ap-northeast-1": "Asia Pacific (Tokyo)",
+	"ap-northeast-2": "Asia Pacific (Seoul)",
+	"ap-northeast-3": "Asia Pacific (Osaka)",
+	"ap-southeast-1": "Asia Pacific (Singapore)",
+	"ap-southeast-2": "Asia Pacific (Sydney)",
+	"ap-southeast-3": "Asia Pacific (Jakarta)",
+	"ap-southeast-4": "Asia Pacific (Melbourne)",
+	"ap-south-1":     "Asia Pacific (Mumbai)",
+	"ap-south-2":     "Asia Pacific (Hyderabad)",
+	"ap-east-1":      "Asia Pacific (Hong Kong)",
+	// South America
+	"sa-east-1": "South America (Sao Paulo)",
+	// Canada
+	"ca-central-1": "Canada (Central)",
+	"ca-west-1":    "Canada West (Calgary)",
+	// Middle East
+	"me-south-1":   "Middle East (Bahrain)",
+	"me-central-1": "Middle East (UAE)",
+	"il-central-1": "Israel (Tel Aviv)",
+	// Africa
+	"af-south-1": "Africa (Cape Town)",
+}
+
+// InitRegionMapping registers AWS region mapping with the pricing package.
+// Called automatically by NewRegistry.
+func InitRegionMapping() {
+	pricing.SetRegionMapping(awsRegionMapping)
+}
 
 // ResolveRegionName returns the AWS pricing API region name for a region code.
 // Falls back to the region code if no mapping exists.
 func ResolveRegionName(region string) string {
-	if name := pricing.RegionMapping[region]; name != "" {
+	if name := awsRegionMapping[region]; name != "" {
 		return name
 	}
 	return region
@@ -56,11 +99,14 @@ var RegionUsagePrefix = map[string]string{
 	"af-south-1": "AFS1",
 }
 
+// DefaultUsagePrefix is the fallback usagetype prefix (us-east-1).
+const DefaultUsagePrefix = "USE1"
+
 // ResolveUsagePrefix returns the usagetype prefix for a region.
-// Falls back to "USE1" (us-east-1) for unknown regions.
+// Falls back to DefaultUsagePrefix (us-east-1) for unknown regions.
 func ResolveUsagePrefix(region string) string {
 	if prefix := RegionUsagePrefix[region]; prefix != "" {
 		return prefix
 	}
-	return "USE1"
+	return DefaultUsagePrefix
 }
