@@ -1,4 +1,4 @@
-package costengine
+package engine
 
 import (
 	"context"
@@ -8,17 +8,19 @@ import (
 
 	"github.com/caarlos0/log"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/edelwud/terraci/plugins/cost/internal/model"
+	costruntime "github.com/edelwud/terraci/plugins/cost/internal/runtime"
 )
 
-// estimateCoordinator orchestrates best-effort estimation for multiple modules.
 type estimateCoordinator struct {
 	scanner    *ModuleScanner
 	planner    *PrefetchPlanner
 	executor   *ModuleExecutor
 	prefetcher interface {
-		PrefetchPricing(context.Context, PrefetchPlan) error
+		PrefetchPricing(context.Context, costruntime.ServicePlan) error
 	}
-	providerMetadata func() map[string]ProviderMetadata
+	providerMetadata func() map[string]model.ProviderMetadata
 }
 
 func newEstimateCoordinator(
@@ -26,9 +28,9 @@ func newEstimateCoordinator(
 	planner *PrefetchPlanner,
 	executor *ModuleExecutor,
 	prefetcher interface {
-		PrefetchPricing(context.Context, PrefetchPlan) error
+		PrefetchPricing(context.Context, costruntime.ServicePlan) error
 	},
-	providerMetadata func() map[string]ProviderMetadata,
+	providerMetadata func() map[string]model.ProviderMetadata,
 ) *estimateCoordinator {
 	return &estimateCoordinator{
 		scanner:          scanner,
@@ -40,10 +42,10 @@ func newEstimateCoordinator(
 }
 
 // Estimate estimates multiple modules with best-effort scan semantics.
-func (b *estimateCoordinator) Estimate(ctx context.Context, modulePaths []string, regions map[string]string) (*EstimateResult, error) {
+func (b *estimateCoordinator) Estimate(ctx context.Context, modulePaths []string, regions map[string]string) (*model.EstimateResult, error) {
 	const maxConcurrency = 4
 
-	results := make([]ModuleCost, len(modulePaths))
+	results := make([]model.ModuleCost, len(modulePaths))
 	scannedPlans := b.scanner.ScanManyBestEffort(modulePaths, regions)
 
 	executablePlans := make([]ScannedModulePlan, 0, len(scannedPlans))
@@ -64,17 +66,15 @@ func (b *estimateCoordinator) Estimate(ctx context.Context, modulePaths []string
 
 	var g errgroup.Group
 	g.SetLimit(maxConcurrency)
-
 	for _, scanned := range executablePlans {
 		g.Go(func() error {
 			results[scanned.Index] = *b.executor.Execute(ctx, scanned.Plan)
 			return nil
 		})
 	}
-
 	_ = g.Wait() //nolint:errcheck // individual errors collected in results
 
-	result := &EstimateResult{
+	result := &model.EstimateResult{
 		Modules:          results,
 		Currency:         "USD",
 		GeneratedAt:      time.Now().UTC(),
@@ -88,7 +88,7 @@ func (b *estimateCoordinator) Estimate(ctx context.Context, modulePaths []string
 			providerSet[providerID] = true
 		}
 		if results[i].Error != "" {
-			result.Errors = append(result.Errors, ModuleError{
+			result.Errors = append(result.Errors, model.ModuleError{
 				ModuleID: results[i].ModuleID,
 				Error:    results[i].Error,
 			})
@@ -102,8 +102,8 @@ func (b *estimateCoordinator) Estimate(ctx context.Context, modulePaths []string
 	return result, nil
 }
 
-func moduleCostFromScanError(modulePath, region string, err error) ModuleCost {
-	return ModuleCost{
+func moduleCostFromScanError(modulePath, region string, err error) model.ModuleCost {
+	return model.ModuleCost{
 		ModuleID:   strings.ReplaceAll(modulePath, string(filepath.Separator), "/"),
 		ModulePath: modulePath,
 		Region:     region,

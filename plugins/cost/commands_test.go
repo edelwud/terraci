@@ -10,8 +10,9 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/ci"
-	costengine "github.com/edelwud/terraci/plugins/cost/internal"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
+	"github.com/edelwud/terraci/plugins/cost/internal/engine"
+	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
 
 func TestPlugin_Commands_Registration(t *testing.T) {
@@ -57,7 +58,7 @@ func TestPlugin_Commands_RunE_NotConfigured(t *testing.T) {
 
 func TestPlugin_RunEstimation_NoPlanFiles(t *testing.T) {
 	p := newTestPlugin(t)
-	enablePlugin(t, p, &costengine.CostConfig{Enabled: true, CacheDir: t.TempDir()})
+	enablePlugin(t, p, &model.CostConfig{Enabled: true, CacheDir: t.TempDir()})
 	p.estimator = newTestEstimator(t)
 
 	workDir := t.TempDir()
@@ -74,7 +75,7 @@ func TestPlugin_RunEstimation_NoPlanFiles(t *testing.T) {
 
 func TestPlugin_RunEstimation_NilEstimator(t *testing.T) {
 	p := newTestPlugin(t)
-	enablePlugin(t, p, &costengine.CostConfig{Enabled: true})
+	enablePlugin(t, p, &model.CostConfig{Enabled: true})
 	// Do NOT call Initialize — estimator stays nil
 
 	workDir := t.TempDir()
@@ -97,14 +98,14 @@ func TestPlugin_RunEstimation_Success(t *testing.T) {
 	ts := fakePricingServer(t)
 	cacheDir := t.TempDir()
 
-	enablePlugin(t, p, &costengine.CostConfig{
+	enablePlugin(t, p, &model.CostConfig{
 		Enabled:  true,
 		CacheDir: cacheDir,
 	})
 
 	// Create estimator with fake pricing server
 	fetcher := &awskit.Fetcher{Client: ts.Client(), BaseURL: ts.URL}
-	p.estimator = costengine.NewEstimator(cacheDir, 0, fetcher)
+	p.estimator = engine.NewEstimator(cacheDir, 0, fetcher)
 
 	workDir := t.TempDir()
 	moduleDir := filepath.Join(workDir, "platform", "prod", "us-east-1", "vpc")
@@ -127,7 +128,7 @@ func TestPlugin_RunEstimation_Success(t *testing.T) {
 		if readErr != nil {
 			t.Fatalf("failed to read cost-results.json: %v", readErr)
 		}
-		var result costengine.EstimateResult
+		var result model.EstimateResult
 		if jsonErr := json.Unmarshal(data, &result); jsonErr != nil {
 			t.Fatalf("failed to parse cost-results.json: %v", jsonErr)
 		}
@@ -169,13 +170,13 @@ func TestPlugin_RunEstimation_ModuleFilter(t *testing.T) {
 	ts := fakePricingServer(t)
 	cacheDir := t.TempDir()
 
-	enablePlugin(t, p, &costengine.CostConfig{
+	enablePlugin(t, p, &model.CostConfig{
 		Enabled:  true,
 		CacheDir: cacheDir,
 	})
 
 	fetcher := &awskit.Fetcher{Client: ts.Client(), BaseURL: ts.URL}
-	p.estimator = costengine.NewEstimator(cacheDir, 0, fetcher)
+	p.estimator = engine.NewEstimator(cacheDir, 0, fetcher)
 
 	workDir := t.TempDir()
 	// Create two modules
@@ -198,7 +199,7 @@ func TestPlugin_RunEstimation_ModuleFilter(t *testing.T) {
 	if readErr != nil {
 		t.Fatalf("failed to read cost-results.json: %v", readErr)
 	}
-	var result costengine.EstimateResult
+	var result model.EstimateResult
 	if jsonErr := json.Unmarshal(data, &result); jsonErr != nil {
 		t.Fatalf("failed to parse cost-results.json: %v", jsonErr)
 	}
@@ -212,13 +213,13 @@ func TestPlugin_RunEstimation_JSONOutput(t *testing.T) {
 	ts := fakePricingServer(t)
 	cacheDir := t.TempDir()
 
-	enablePlugin(t, p, &costengine.CostConfig{
+	enablePlugin(t, p, &model.CostConfig{
 		Enabled:  true,
 		CacheDir: cacheDir,
 	})
 
 	fetcher := &awskit.Fetcher{Client: ts.Client(), BaseURL: ts.URL}
-	p.estimator = costengine.NewEstimator(cacheDir, 0, fetcher)
+	p.estimator = engine.NewEstimator(cacheDir, 0, fetcher)
 
 	workDir := t.TempDir()
 	moduleDir := filepath.Join(workDir, "platform", "prod", "us-east-1", "vpc")
@@ -228,8 +229,8 @@ func TestPlugin_RunEstimation_JSONOutput(t *testing.T) {
 
 	// Capture JSON output via the io.Writer parameter
 	var buf bytes.Buffer
-	err := p.outputResult(&buf, appCtx, "json", &costengine.EstimateResult{
-		Modules: []costengine.ModuleCost{
+	err := p.outputResult(&buf, appCtx, "json", &model.EstimateResult{
+		Modules: []model.ModuleCost{
 			{
 				ModuleID:   "test/module",
 				ModulePath: "/tmp/test",
@@ -245,7 +246,7 @@ func TestPlugin_RunEstimation_JSONOutput(t *testing.T) {
 	}
 
 	// Verify output is valid JSON
-	var parsed costengine.EstimateResult
+	var parsed model.EstimateResult
 	if jsonErr := json.Unmarshal(buf.Bytes(), &parsed); jsonErr != nil {
 		t.Fatalf("output is not valid JSON: %v\nOutput: %s", jsonErr, buf.String())
 	}
@@ -263,8 +264,8 @@ func TestPlugin_RunEstimation_TextOutput(t *testing.T) {
 
 	// Text output uses log package — just verify it doesn't error
 	var buf bytes.Buffer
-	err := p.outputResult(&buf, appCtx, "text", &costengine.EstimateResult{
-		Modules: []costengine.ModuleCost{
+	err := p.outputResult(&buf, appCtx, "text", &model.EstimateResult{
+		Modules: []model.ModuleCost{
 			{
 				ModuleID:   "platform/prod/us-east-1/vpc",
 				ModulePath: "/tmp/platform/prod/us-east-1/vpc",
@@ -281,8 +282,8 @@ func TestPlugin_RunEstimation_TextOutput(t *testing.T) {
 }
 
 func TestBuildCostReport(t *testing.T) {
-	result := &costengine.EstimateResult{
-		Modules: []costengine.ModuleCost{
+	result := &model.EstimateResult{
+		Modules: []model.ModuleCost{
 			{
 				ModuleID:   "platform/prod/vpc",
 				ModulePath: "/tmp/vpc",
@@ -347,8 +348,8 @@ func TestBuildCostReport(t *testing.T) {
 }
 
 func TestBuildCostReport_Empty(t *testing.T) {
-	result := &costengine.EstimateResult{
-		Modules:  []costengine.ModuleCost{},
+	result := &model.EstimateResult{
+		Modules:  []model.ModuleCost{},
 		Currency: "USD",
 	}
 
@@ -366,8 +367,8 @@ func TestBuildCostReport_Empty(t *testing.T) {
 }
 
 func TestBuildCostReport_AllErrors(t *testing.T) {
-	result := &costengine.EstimateResult{
-		Modules: []costengine.ModuleCost{
+	result := &model.EstimateResult{
+		Modules: []model.ModuleCost{
 			{ModuleID: "a", Error: "fail1"},
 			{ModuleID: "b", Error: "fail2"},
 		},

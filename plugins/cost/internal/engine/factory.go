@@ -1,4 +1,4 @@
-package costengine
+package engine
 
 import (
 	"fmt"
@@ -6,11 +6,12 @@ import (
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/model"
+	costruntime "github.com/edelwud/terraci/plugins/cost/internal/runtime"
 )
 
 const defaultCacheTTL = 24 * time.Hour
 
-// newDefaultRegistry creates a handler registry with all enabled cloud providers' handlers.
 func newDefaultRegistry(providers []cloud.Provider) *handler.Registry {
 	r := handler.NewRegistry()
 	for _, cp := range providers {
@@ -19,7 +20,7 @@ func newDefaultRegistry(providers []cloud.Provider) *handler.Registry {
 	return r
 }
 
-func configuredProviders(cfg *CostConfig) ([]cloud.Provider, error) {
+func configuredProviders(cfg *model.CostConfig) ([]cloud.Provider, error) {
 	enabled := map[string]bool{}
 	for _, id := range cfg.EnabledProviderIDs() {
 		enabled[id] = true
@@ -42,14 +43,13 @@ func configuredProviders(cfg *CostConfig) ([]cloud.Provider, error) {
 	return selected, nil
 }
 
-func newProviderRuntimeRegistry(cfg *CostConfig, providers []cloud.Provider) *ProviderRuntimeRegistry {
+func newProviderRuntimeRegistry(cfg *model.CostConfig, providers []cloud.Provider) *costruntime.ProviderRuntimeRegistry {
 	cacheDir, cacheTTL := parseCacheConfig(cfg)
-	return NewProviderRuntimeRegistryFromProviders(providers, cacheDir, cacheTTL, nil)
+	return costruntime.NewProviderRuntimeRegistryFromProviders(providers, cacheDir, cacheTTL, nil)
 }
 
 // NewEstimatorFromConfig creates an Estimator using CostConfig settings.
-// Uses the configured cloud providers registered via init() + cloud.Register.
-func NewEstimatorFromConfig(cfg *CostConfig) (*Estimator, error) {
+func NewEstimatorFromConfig(cfg *model.CostConfig) (*Estimator, error) {
 	providers, err := configuredProviders(cfg)
 	if err != nil {
 		return nil, err
@@ -61,16 +61,14 @@ func NewEstimatorFromConfig(cfg *CostConfig) (*Estimator, error) {
 }
 
 // NewEstimatorFromConfigWithProvider creates an Estimator for a specific cloud provider.
-// Use this to override auto-discovery for testing or single-provider usage.
-func NewEstimatorFromConfigWithProvider(cfg *CostConfig, cp cloud.Provider) *Estimator {
+func NewEstimatorFromConfigWithProvider(cfg *model.CostConfig, cp cloud.Provider) *Estimator {
 	registry := handler.NewRegistry()
 	cloud.RegisterDefinitionHandlers(registry, cp.Definition())
 	runtimeRegistry := newProviderRuntimeRegistry(cfg, []cloud.Provider{cp})
 	return NewEstimatorWithRuntimeRegistry(registry, runtimeRegistry)
 }
 
-// parseCacheConfig extracts cache directory and TTL from config.
-func parseCacheConfig(cfg *CostConfig) (string, time.Duration) {
+func parseCacheConfig(cfg *model.CostConfig) (string, time.Duration) {
 	cacheDir := ""
 	cacheTTL := defaultCacheTTL
 

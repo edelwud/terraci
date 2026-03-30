@@ -6,7 +6,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/plugin"
-	costengine "github.com/edelwud/terraci/plugins/cost/internal"
+	"github.com/edelwud/terraci/plugins/cost/internal/engine"
 )
 
 // Initialize creates the estimator and cleans expired cache at startup.
@@ -26,7 +26,7 @@ func (p *Plugin) Initialize(_ context.Context, appCtx *plugin.AppContext) error 
 	}
 
 	log.Debug("cost: initializing estimator and pricing cache")
-	estimator, err := costengine.NewEstimatorFromConfig(p.Config())
+	estimator, err := engine.NewEstimatorFromConfig(p.Config())
 	if err != nil {
 		return err
 	}

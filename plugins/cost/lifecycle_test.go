@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	costengine "github.com/edelwud/terraci/plugins/cost/internal"
+	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
 
 func TestPlugin_Name(t *testing.T) {
@@ -20,7 +20,7 @@ func TestPlugin_Name(t *testing.T) {
 func TestPlugin_EnablePolicy(t *testing.T) {
 	tests := []struct {
 		name           string
-		cfg            *costengine.CostConfig
+		cfg            *model.CostConfig
 		setCfg         bool
 		wantConfigured bool
 		wantEnabled    bool
@@ -33,14 +33,14 @@ func TestPlugin_EnablePolicy(t *testing.T) {
 		},
 		{
 			name:           "config set, enabled=false",
-			cfg:            &costengine.CostConfig{Enabled: false},
+			cfg:            &model.CostConfig{Enabled: false},
 			setCfg:         true,
 			wantConfigured: true,
 			wantEnabled:    false,
 		},
 		{
 			name:           "config set, enabled=true",
-			cfg:            &costengine.CostConfig{Enabled: true},
+			cfg:            &model.CostConfig{Enabled: true},
 			setCfg:         true,
 			wantConfigured: true,
 			wantEnabled:    true,
@@ -77,7 +77,7 @@ func TestPlugin_Initialize_Disabled(t *testing.T) {
 
 func TestPlugin_Initialize_ConfiguredButDisabled(t *testing.T) {
 	p := newTestPlugin(t)
-	enablePlugin(t, p, &costengine.CostConfig{Enabled: false, CacheDir: t.TempDir()})
+	enablePlugin(t, p, &model.CostConfig{Enabled: false, CacheDir: t.TempDir()})
 	appCtx := newTestAppContext(t, t.TempDir())
 
 	if err := p.Initialize(context.Background(), appCtx); err != nil {
@@ -91,7 +91,7 @@ func TestPlugin_Initialize_ConfiguredButDisabled(t *testing.T) {
 func TestPlugin_Initialize_Enabled(t *testing.T) {
 	p := newTestPlugin(t)
 	cacheDir := t.TempDir()
-	enablePlugin(t, p, &costengine.CostConfig{
+	enablePlugin(t, p, &model.CostConfig{
 		Enabled:  true,
 		CacheDir: cacheDir,
 	})
@@ -110,7 +110,7 @@ func TestPlugin_Initialize_Enabled(t *testing.T) {
 
 func TestPlugin_Initialize_InvalidTTL(t *testing.T) {
 	p := newTestPlugin(t)
-	enablePlugin(t, p, &costengine.CostConfig{
+	enablePlugin(t, p, &model.CostConfig{
 		Enabled:  true,
 		CacheDir: t.TempDir(),
 		CacheTTL: "not-a-duration",
@@ -128,7 +128,7 @@ func TestPlugin_Initialize_InvalidTTL(t *testing.T) {
 
 func TestPlugin_Reset(t *testing.T) {
 	p := newTestPlugin(t)
-	enablePlugin(t, p, &costengine.CostConfig{
+	enablePlugin(t, p, &model.CostConfig{
 		Enabled:  true,
 		CacheDir: t.TempDir(),
 	})

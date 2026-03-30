@@ -1,4 +1,4 @@
-package costengine
+package engine_test
 
 import (
 	"context"
@@ -15,8 +15,11 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
 	_ "github.com/edelwud/terraci/plugins/cost/internal/cloud/aws"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
+	"github.com/edelwud/terraci/plugins/cost/internal/engine"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	costruntime "github.com/edelwud/terraci/plugins/cost/internal/runtime"
 )
 
 // multiServicePricingServer returns an httptest server that routes requests by
@@ -104,7 +107,7 @@ const ec2PricingJSON = `{
 }`
 
 // newTestEstimator creates an estimator backed by a multi-service httptest server.
-func newTestEstimator(t *testing.T) *Estimator {
+func newTestEstimator(t *testing.T) *engine.Estimator {
 	t.Helper()
 	ts := multiServicePricingServer(t)
 	cacheDir := filepath.Join(t.TempDir(), "cache")
@@ -112,7 +115,7 @@ func newTestEstimator(t *testing.T) *Estimator {
 		Client:  ts.Client(),
 		BaseURL: ts.URL,
 	}
-	return NewEstimator(cacheDir, 0, fetcher)
+	return engine.NewEstimator(cacheDir, 0, fetcher)
 }
 
 // writePlan writes a plan.json file to the given directory.
@@ -127,7 +130,7 @@ func writePlan(t *testing.T, dir, planJSON string) {
 }
 
 // findResource returns the ResourceCost with the given address, or nil.
-func findResource(resources []ResourceCost, address string) *ResourceCost {
+func findResource(resources []model.ResourceCost, address string) *model.ResourceCost {
 	for i := range resources {
 		if resources[i].Address == address {
 			return &resources[i]
@@ -213,6 +216,24 @@ const planNoOp = `{
 			"actions": ["no-op"],
 			"before": {"instance_type": "t3.micro", "ami": "ami-12345"},
 			"after": {"instance_type": "t3.micro", "ami": "ami-12345"},
+			"after_unknown": {}
+		}
+	}]
+}`
+
+// planReplaceEC2 replaces a t3.micro instance.
+const planReplaceEC2 = `{
+	"format_version": "1.2",
+	"terraform_version": "1.6.0",
+	"resource_changes": [{
+		"address": "aws_instance.web",
+		"module_address": "",
+		"type": "aws_instance",
+		"name": "web",
+		"change": {
+			"actions": ["delete", "create"],
+			"before": {"instance_type": "t3.micro", "ami": "ami-12345"},
+			"after": {"instance_type": "t3.micro", "ami": "ami-67890"},
 			"after_unknown": {}
 		}
 	}]
@@ -383,7 +404,7 @@ func TestEstimateModule_CreateAction(t *testing.T) {
 	if rc.PriceSource != "aws-bulk-api" {
 		t.Errorf("PriceSource = %q, want aws-bulk-api", rc.PriceSource)
 	}
-	if rc.ErrorKind != CostErrorNone {
+	if rc.ErrorKind != model.CostErrorNone {
 		t.Errorf("ErrorKind = %q, want empty", rc.ErrorKind)
 	}
 
@@ -481,8 +502,8 @@ func TestEstimateModule_UnsupportedResource(t *testing.T) {
 	if rc == nil {
 		t.Fatal("missing resource in results")
 	}
-	if rc.ErrorKind != CostErrorNoProvider {
-		t.Errorf("ErrorKind = %q, want %q", rc.ErrorKind, CostErrorNoProvider)
+	if rc.ErrorKind != model.CostErrorNoProvider {
+		t.Errorf("ErrorKind = %q, want %q", rc.ErrorKind, model.CostErrorNoProvider)
 	}
 	if rc.MonthlyCost != 0 {
 		t.Errorf("MonthlyCost = %.4f, want 0 for unsupported", rc.MonthlyCost)
@@ -494,7 +515,7 @@ func TestEstimateModule_UnsupportedResource(t *testing.T) {
 
 func TestEstimateModule_KnownProviderMissingHandler(t *testing.T) {
 	registry := handler.NewRegistry()
-	router := NewResourceProviderRouter()
+	router := costruntime.NewResourceProviderRouter()
 	router.Register(awskit.ProviderID, handler.ResourceType("aws_cloudfront_distribution"))
 
 	ts := multiServicePricingServer(t)
@@ -510,17 +531,17 @@ func TestEstimateModule_KnownProviderMissingHandler(t *testing.T) {
 	}
 
 	def := awsProvider.Definition()
-	runtimes := map[string]*ProviderRuntime{
+	runtimes := map[string]*costruntime.ProviderRuntime{
 		awskit.ProviderID: {
 			Definition: def,
 			Cache:      pricing.NewCache(cacheDir, 0, fetcher),
 		},
 	}
-	runtimeRegistry := NewProviderRuntimeRegistry(cloud.Providers(), runtimes)
+	runtimeRegistry := costruntime.NewProviderRuntimeRegistry(cloud.Providers(), runtimes)
 
-	resolver := NewCostResolver(router, registry, nil)
-	runtimeRegistry.router = router
-	e := newEstimator(runtimeRegistry, resolver)
+	resolver := costruntime.NewCostResolver(router, registry, nil)
+	runtimeRegistry.SetRouter(router)
+	e := engine.NewEstimatorWithResolver(runtimeRegistry, resolver)
 	dir := filepath.Join(t.TempDir(), "mod")
 	writePlan(t, dir, planUnsupportedResource)
 
@@ -536,8 +557,8 @@ func TestEstimateModule_KnownProviderMissingHandler(t *testing.T) {
 	if rc.Provider != awskit.ProviderID {
 		t.Errorf("Provider = %q, want %q", rc.Provider, awskit.ProviderID)
 	}
-	if rc.ErrorKind != CostErrorNoHandler {
-		t.Errorf("ErrorKind = %q, want %q", rc.ErrorKind, CostErrorNoHandler)
+	if rc.ErrorKind != model.CostErrorNoHandler {
+		t.Errorf("ErrorKind = %q, want %q", rc.ErrorKind, model.CostErrorNoHandler)
 	}
 	if rc.ErrorDetail != "no handler" {
 		t.Errorf("ErrorDetail = %q, want %q", rc.ErrorDetail, "no handler")
@@ -561,8 +582,8 @@ func TestEstimateModule_UsageBasedResource(t *testing.T) {
 	if rc == nil {
 		t.Fatal("missing resource in results")
 	}
-	if rc.ErrorKind != CostErrorUsageBased {
-		t.Errorf("ErrorKind = %q, want %q", rc.ErrorKind, CostErrorUsageBased)
+	if rc.ErrorKind != model.CostErrorUsageBased {
+		t.Errorf("ErrorKind = %q, want %q", rc.ErrorKind, model.CostErrorUsageBased)
 	}
 	if rc.PriceSource != "usage-based" {
 		t.Errorf("PriceSource = %q, want usage-based", rc.PriceSource)
@@ -818,8 +839,8 @@ func TestEstimateModules_DefaultRegion(t *testing.T) {
 	if len(result.Modules) != 1 {
 		t.Fatalf("modules = %d, want 1", len(result.Modules))
 	}
-	if result.Modules[0].Region != DefaultRegion {
-		t.Errorf("Region = %q, want %q", result.Modules[0].Region, DefaultRegion)
+	if result.Modules[0].Region != engine.DefaultRegion {
+		t.Errorf("Region = %q, want %q", result.Modules[0].Region, engine.DefaultRegion)
 	}
 }
 
@@ -878,7 +899,7 @@ func TestValidateAndPrefetch_SkipsCachedData(t *testing.T) {
 }
 
 func TestNewEstimator(t *testing.T) {
-	e := NewEstimator("", 0, awskit.NewFetcher())
+	e := engine.NewEstimator("", 0, awskit.NewFetcher())
 	if e == nil {
 		t.Fatal("NewEstimator returned nil")
 	}
@@ -886,7 +907,7 @@ func TestNewEstimator(t *testing.T) {
 
 func TestNewEstimatorFromConfig(t *testing.T) {
 	t.Run("nil config", func(t *testing.T) {
-		e, err := NewEstimatorFromConfig(nil)
+		e, err := engine.NewEstimatorFromConfig(nil)
 		if err != nil {
 			t.Fatalf("NewEstimatorFromConfig() error = %v", err)
 		}
@@ -897,14 +918,14 @@ func TestNewEstimatorFromConfig(t *testing.T) {
 
 	t.Run("custom cache dir and TTL", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		cfg := &CostConfig{
+		cfg := &model.CostConfig{
 			CacheDir: tmpDir,
 			CacheTTL: "2h",
-			Providers: CostProvidersConfig{
-				AWS: &ProviderConfig{Enabled: true},
+			Providers: model.CostProvidersConfig{
+				AWS: &model.ProviderConfig{Enabled: true},
 			},
 		}
-		e, err := NewEstimatorFromConfig(cfg)
+		e, err := engine.NewEstimatorFromConfig(cfg)
 		if err != nil {
 			t.Fatalf("NewEstimatorFromConfig() error = %v", err)
 		}
@@ -917,13 +938,13 @@ func TestNewEstimatorFromConfig(t *testing.T) {
 	})
 
 	t.Run("invalid TTL uses default", func(t *testing.T) {
-		cfg := &CostConfig{
+		cfg := &model.CostConfig{
 			CacheTTL: "invalid",
-			Providers: CostProvidersConfig{
-				AWS: &ProviderConfig{Enabled: true},
+			Providers: model.CostProvidersConfig{
+				AWS: &model.ProviderConfig{Enabled: true},
 			},
 		}
-		e, err := NewEstimatorFromConfig(cfg)
+		e, err := engine.NewEstimatorFromConfig(cfg)
 		if err != nil {
 			t.Fatalf("NewEstimatorFromConfig() error = %v", err)
 		}
@@ -935,7 +956,7 @@ func TestNewEstimatorFromConfig(t *testing.T) {
 
 func TestEstimator_CacheAccessors(t *testing.T) {
 	cacheDir := t.TempDir()
-	e := NewEstimator(cacheDir, 0, awskit.NewFetcher())
+	e := engine.NewEstimator(cacheDir, 0, awskit.NewFetcher())
 
 	if e.CacheDir() != cacheDir {
 		t.Errorf("CacheDir() = %q, want %q", e.CacheDir(), cacheDir)
@@ -955,23 +976,23 @@ func TestEstimator_CacheAccessors(t *testing.T) {
 func TestAggregateCost(t *testing.T) {
 	tests := []struct {
 		name       string
-		action     string
+		action     engine.EstimateAction
 		cost       float64
 		wantBefore float64
 		wantAfter  float64
 	}{
-		{"create", "create", 10, 0, 10},
-		{"delete", "delete", 10, 10, 0},
-		{"update", "update", 10, 10, 10},
-		{"replace", "replace", 10, 10, 10},
-		{"no-op", "no-op", 10, 10, 10},
+		{"create", engine.ActionCreate, 10, 0, 10},
+		{"delete", engine.ActionDelete, 10, 10, 0},
+		{"update", engine.ActionUpdate, 10, 10, 10},
+		{"replace", engine.ActionReplace, 10, 10, 10},
+		{"no-op", engine.ActionNoOp, 10, 10, 10},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := &ModuleCost{}
-			rc := ResourceCost{MonthlyCost: tt.cost, BeforeMonthlyCost: tt.cost}
-			aggregateCost(result, rc, tt.action)
+			result := &model.ModuleCost{}
+			rc := model.ResourceCost{MonthlyCost: tt.cost, BeforeMonthlyCost: tt.cost}
+			engine.AggregateCost(result, rc, tt.action)
 
 			assertCostNear(t, "BeforeCost", result.BeforeCost, tt.wantBefore, 0.001)
 			assertCostNear(t, "AfterCost", result.AfterCost, tt.wantAfter, 0.001)
@@ -980,12 +1001,12 @@ func TestAggregateCost(t *testing.T) {
 }
 
 func TestAggregateCost_UnsupportedNotCounted(t *testing.T) {
-	result := &ModuleCost{}
-	rc := ResourceCost{
+	result := &model.ModuleCost{}
+	rc := model.ResourceCost{
 		MonthlyCost: 100,
-		ErrorKind:   CostErrorNoHandler,
+		ErrorKind:   model.CostErrorNoHandler,
 	}
-	aggregateCost(result, rc, "create")
+	engine.AggregateCost(result, rc, engine.ActionCreate)
 
 	if result.AfterCost != 0 {
 		t.Errorf("AfterCost = %.2f, want 0 (unsupported should not add cost)", result.AfterCost)

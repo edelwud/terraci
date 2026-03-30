@@ -1,20 +1,38 @@
-package costengine
+package engine
 
 import (
-	"fmt"
-	"path/filepath"
-	"strings"
-
-	"github.com/edelwud/terraci/internal/terraform/plan"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/model"
+	costruntime "github.com/edelwud/terraci/plugins/cost/internal/runtime"
 )
 
-// ModuleScanner converts Terraform plan files into internal module plans.
-type ModuleScanner struct{}
+// DefaultRegion is used when no region is specified.
+const DefaultRegion = model.DefaultRegion
 
-// NewModuleScanner creates a module scanner.
-func NewModuleScanner() *ModuleScanner {
-	return &ModuleScanner{}
+// EstimateAction is the provider-neutral action model used by the cost engine.
+type EstimateAction string
+
+const (
+	ActionCreate  EstimateAction = "create"
+	ActionDelete  EstimateAction = "delete"
+	ActionUpdate  EstimateAction = "update"
+	ActionReplace EstimateAction = "replace"
+	ActionNoOp    EstimateAction = "no-op"
+)
+
+// ModulePlanAdapter converts external plan sources into the cost engine input model.
+type ModulePlanAdapter interface {
+	LoadModule(modulePath, region string) (*ModulePlan, error)
+}
+
+// ModuleScanner loads module plans through a source-specific adapter.
+type ModuleScanner struct {
+	adapter ModulePlanAdapter
+}
+
+// NewModuleScanner creates a module scanner for the provided plan adapter.
+func NewModuleScanner(adapter ModulePlanAdapter) *ModuleScanner {
+	return &ModuleScanner{adapter: adapter}
 }
 
 // PlannedResource is the scanner's internal resource IR decoupled from raw Terraform plan types.
@@ -23,14 +41,14 @@ type PlannedResource struct {
 	Address      string
 	Name         string
 	ModuleAddr   string
-	Action       string
+	Action       EstimateAction
 	BeforeAttrs  map[string]any
 	AfterAttrs   map[string]any
 }
 
 // ResolveRequest returns the primary resolution request for this planned resource.
-func (r PlannedResource) ResolveRequest(region string) ResolveRequest {
-	return ResolveRequest{
+func (r PlannedResource) ResolveRequest(region string) costruntime.ResolveRequest {
+	return costruntime.ResolveRequest{
 		ResourceType: r.ResourceType,
 		Address:      r.Address,
 		Name:         r.Name,
@@ -50,10 +68,10 @@ func (r PlannedResource) ActiveAttrs() map[string]any {
 
 // RequiresBeforeCost reports whether the before-state should be priced separately.
 func (r PlannedResource) RequiresBeforeCost() bool {
-	return (r.Action == plan.ActionUpdate || r.Action == plan.ActionReplace) && r.BeforeAttrs != nil
+	return (r.Action == ActionUpdate || r.Action == ActionReplace) && r.BeforeAttrs != nil
 }
 
-// ModulePlan is the scanner's internal module IR produced from Terraform plan JSON.
+// ModulePlan is the provider-neutral input model consumed by the cost engine.
 type ModulePlan struct {
 	ModuleID   string
 	ModulePath string
@@ -62,36 +80,9 @@ type ModulePlan struct {
 	Resources  []PlannedResource
 }
 
-// Scan reads a module plan from disk and converts it into the estimator IR.
+// Scan loads a module plan through the configured adapter.
 func (s *ModuleScanner) Scan(modulePath, region string) (*ModulePlan, error) {
-	planJSONPath := filepath.Join(modulePath, "plan.json")
-
-	parsedPlan, err := plan.ParseJSON(planJSONPath)
-	if err != nil {
-		return nil, fmt.Errorf("parse plan.json: %w", err)
-	}
-
-	modulePlan := &ModulePlan{
-		ModuleID:   strings.ReplaceAll(modulePath, string(filepath.Separator), "/"),
-		ModulePath: modulePath,
-		Region:     region,
-		HasChanges: parsedPlan.HasChanges(),
-		Resources:  make([]PlannedResource, 0, len(parsedPlan.Resources)),
-	}
-
-	for _, rc := range parsedPlan.Resources {
-		modulePlan.Resources = append(modulePlan.Resources, PlannedResource{
-			ResourceType: handler.ResourceType(rc.Type),
-			Address:      rc.Address,
-			Name:         rc.Name,
-			ModuleAddr:   rc.ModuleAddr,
-			Action:       rc.Action,
-			BeforeAttrs:  rc.BeforeValues,
-			AfterAttrs:   rc.AfterValues,
-		})
-	}
-
-	return modulePlan, nil
+	return s.adapter.LoadModule(modulePath, region)
 }
 
 // ScanMany scans multiple modules strictly, returning an error on the first failure.

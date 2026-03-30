@@ -1,17 +1,20 @@
-package costengine
+package model
 
 import (
 	"path/filepath"
 	"strings"
 )
 
-// SegmentNode is a tree node representing one path segment (service, environment, region, or module).
+// DefaultRegion is used when no region is specified.
+const DefaultRegion = "us-east-1"
+
+// SegmentNode is a tree node representing one path segment.
 type SegmentNode struct {
-	Name      string         // segment value, e.g., "prod", "eu-central-1", "rds"
-	AfterCost float64        // total cost including all children
-	DiffCost  float64        // total diff including all children
-	Children  []*SegmentNode // child segments
-	Module    *ModuleCost    // non-nil only for leaf nodes (actual modules)
+	Name      string
+	AfterCost float64
+	DiffCost  float64
+	Children  []*SegmentNode
+	Module    *ModuleCost
 }
 
 // BuildSegmentTree creates a tree from module paths split by "/".
@@ -57,7 +60,7 @@ func FindChild(node *SegmentNode, name string) *SegmentNode {
 	return nil
 }
 
-// CompactSegmentTree merges nodes that have exactly one child and no module into "parent/child".
+// CompactSegmentTree merges nodes that have exactly one child and no module.
 func CompactSegmentTree(node *SegmentNode) {
 	for _, c := range node.Children {
 		CompactSegmentTree(c)
@@ -73,9 +76,7 @@ func CompactSegmentTree(node *SegmentNode) {
 	}
 }
 
-// StripModulePrefix removes the "module.x.module.y." prefix from a resource address
-// when displayed inside its module group, since it's redundant.
-// e.g., "module.runner.aws_instance.web" with prefix "module.runner" → "aws_instance.web"
+// StripModulePrefix removes the module prefix from a resource address.
 func StripModulePrefix(address, moduleAddr string) string {
 	if moduleAddr == "" {
 		return address
@@ -101,7 +102,6 @@ func SplitPath(p string) []string {
 }
 
 // DetectRegion extracts region from a module path using configured pattern segments.
-// Falls back to "us-east-1" if no region segment is found.
 func DetectRegion(segments []string, modulePath string) string {
 	parts := SplitPath(modulePath)
 	for i, seg := range segments {

@@ -1,6 +1,10 @@
-package costengine
+package model_test
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/edelwud/terraci/plugins/cost/internal/model"
+)
 
 func TestFormatCost(t *testing.T) {
 	t.Parallel()
@@ -29,7 +33,7 @@ func TestFormatCost(t *testing.T) {
 		t.Run(tt.expected, func(t *testing.T) {
 			t.Parallel()
 
-			result := FormatCost(tt.cost)
+			result := model.FormatCost(tt.cost)
 			if result != tt.expected {
 				t.Errorf("FormatCost(%v) = %q, want %q", tt.cost, result, tt.expected)
 			}
@@ -57,7 +61,7 @@ func TestFormatCostDiff(t *testing.T) {
 		t.Run(tt.expected, func(t *testing.T) {
 			t.Parallel()
 
-			result := FormatCostDiff(tt.diff)
+			result := model.FormatCostDiff(tt.diff)
 			if result != tt.expected {
 				t.Errorf("FormatCostDiff(%v) = %q, want %q", tt.diff, result, tt.expected)
 			}
@@ -70,15 +74,15 @@ func TestCostConfig_Validate(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		cfg     CostConfig
+		cfg     model.CostConfig
 		wantErr bool
 	}{
-		{"valid defaults", CostConfig{Enabled: true}, false},
-		{"valid TTL 48h", CostConfig{CacheTTL: "48h"}, false},
-		{"valid TTL 30m", CostConfig{CacheTTL: "30m"}, false},
-		{"empty TTL ok", CostConfig{CacheTTL: ""}, false},
-		{"invalid TTL", CostConfig{CacheTTL: "invalid"}, true},
-		{"bad TTL format", CostConfig{CacheTTL: "24hours"}, true},
+		{"valid defaults", model.CostConfig{Enabled: true}, false},
+		{"valid TTL 48h", model.CostConfig{CacheTTL: "48h"}, false},
+		{"valid TTL 30m", model.CostConfig{CacheTTL: "30m"}, false},
+		{"empty TTL ok", model.CostConfig{CacheTTL: ""}, false},
+		{"invalid TTL", model.CostConfig{CacheTTL: "invalid"}, true},
+		{"bad TTL format", model.CostConfig{CacheTTL: "24hours"}, true},
 	}
 
 	for _, tt := range tests {
@@ -96,21 +100,21 @@ func TestResourceCost_IsUnsupported(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		kind CostErrorKind
+		kind model.CostErrorKind
 		want bool
 	}{
-		{CostErrorNone, false},
-		{CostErrorUsageBased, false},
-		{CostErrorNoHandler, true},
-		{CostErrorLookupFailed, true},
-		{CostErrorAPIFailure, true},
-		{CostErrorNoPrice, true},
+		{model.CostErrorNone, false},
+		{model.CostErrorUsageBased, false},
+		{model.CostErrorNoHandler, true},
+		{model.CostErrorLookupFailed, true},
+		{model.CostErrorAPIFailure, true},
+		{model.CostErrorNoPrice, true},
 	}
 
 	for _, tt := range tests {
 		t.Run(string(tt.kind), func(t *testing.T) {
 			t.Parallel()
-			rc := ResourceCost{ErrorKind: tt.kind}
+			rc := model.ResourceCost{ErrorKind: tt.kind}
 			if rc.IsUnsupported() != tt.want {
 				t.Errorf("IsUnsupported(%q) = %v, want %v", tt.kind, rc.IsUnsupported(), tt.want)
 			}
@@ -121,17 +125,17 @@ func TestResourceCost_IsUnsupported(t *testing.T) {
 func TestSubmoduleCost_TotalCost(t *testing.T) {
 	t.Parallel()
 
-	s := SubmoduleCost{
+	s := model.SubmoduleCost{
 		MonthlyCost: 10,
-		Children: []SubmoduleCost{
-			{MonthlyCost: 20, Children: []SubmoduleCost{{MonthlyCost: 30}}},
+		Children: []model.SubmoduleCost{
+			{MonthlyCost: 20, Children: []model.SubmoduleCost{{MonthlyCost: 30}}},
 		},
 	}
 	if s.TotalCost() != 60 {
 		t.Errorf("TotalCost() = %v, want 60", s.TotalCost())
 	}
 
-	leaf := SubmoduleCost{MonthlyCost: 42}
+	leaf := model.SubmoduleCost{MonthlyCost: 42}
 	if leaf.TotalCost() != 42 {
 		t.Errorf("TotalCost() leaf = %v, want 42", leaf.TotalCost())
 	}

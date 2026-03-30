@@ -15,7 +15,7 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/plugin"
-	costengine "github.com/edelwud/terraci/plugins/cost/internal"
+	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
 
 // Commands returns the CLI commands provided by the cost plugin.
@@ -86,7 +86,7 @@ func (p *Plugin) runEstimation(ctx context.Context, appCtx *plugin.AppContext, m
 	for _, fullPath := range modulePaths {
 		relDir, relErr := filepath.Rel(workDir, fullPath)
 		if relErr == nil {
-			regions[fullPath] = costengine.DetectRegion(cfg.Structure.Segments, relDir)
+			regions[fullPath] = model.DetectRegion(cfg.Structure.Segments, relDir)
 		}
 	}
 
@@ -113,7 +113,7 @@ func (p *Plugin) runEstimation(ctx context.Context, appCtx *plugin.AppContext, m
 	return p.outputResult(os.Stdout, appCtx, outputFmt, result)
 }
 
-func buildCostReport(result *costengine.EstimateResult) *ci.Report {
+func buildCostReport(result *model.EstimateResult) *ci.Report {
 	modules := make([]ci.ModuleReport, 0, len(result.Modules))
 	for i := range result.Modules {
 		if result.Modules[i].Error == "" {
@@ -137,7 +137,7 @@ func buildCostReport(result *costengine.EstimateResult) *ci.Report {
 	}
 }
 
-func renderCostReportBody(result *costengine.EstimateResult) string {
+func renderCostReportBody(result *model.EstimateResult) string {
 	var b strings.Builder
 	b.WriteString("| Module | Before | After | Diff |\n")
 	b.WriteString("|--------|--------|-------|------|\n")

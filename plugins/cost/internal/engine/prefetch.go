@@ -1,8 +1,9 @@
-package costengine
+package engine
 
 import (
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	costruntime "github.com/edelwud/terraci/plugins/cost/internal/runtime"
 )
 
 // PrefetchPlan collects the pricing indexes required to estimate one or more module plans.
@@ -29,12 +30,12 @@ func (p PrefetchPlan) Services() map[pricing.ServiceID][]string {
 
 // PrefetchPlanner builds pricing warmup requirements from scanned module plans.
 type PrefetchPlanner struct {
-	router   ProviderRouter
-	registry RegistryLookup
+	router   costruntime.ProviderRouter
+	registry costruntime.RegistryLookup
 }
 
 // NewPrefetchPlanner creates a prefetch planner backed by the handler registry.
-func NewPrefetchPlanner(router ProviderRouter, registry RegistryLookup) *PrefetchPlanner {
+func NewPrefetchPlanner(router costruntime.ProviderRouter, registry costruntime.RegistryLookup) *PrefetchPlanner {
 	return &PrefetchPlanner{router: router, registry: registry}
 }
 

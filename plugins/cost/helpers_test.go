@@ -10,8 +10,9 @@ import (
 
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/plugin"
-	costengine "github.com/edelwud/terraci/plugins/cost/internal"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
+	"github.com/edelwud/terraci/plugins/cost/internal/engine"
+	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
 
 // testPlanEC2 is a minimal plan.json with a single aws_instance.web (t3.micro, create).
@@ -37,14 +38,14 @@ const testPlanEC2 = `{
 func newTestPlugin(t *testing.T) *Plugin {
 	t.Helper()
 	p := &Plugin{
-		BasePlugin: plugin.BasePlugin[*costengine.CostConfig]{
+		BasePlugin: plugin.BasePlugin[*model.CostConfig]{
 			PluginName: "cost",
 			PluginDesc: "Cloud cost estimation from Terraform plans",
 			EnableMode: plugin.EnabledExplicitly,
-			DefaultCfg: func() *costengine.CostConfig {
-				return &costengine.CostConfig{}
+			DefaultCfg: func() *model.CostConfig {
+				return &model.CostConfig{}
 			},
-			IsEnabledFn: func(cfg *costengine.CostConfig) bool {
+			IsEnabledFn: func(cfg *model.CostConfig) bool {
 				return cfg != nil && cfg.HasEnabledProviders()
 			},
 		},
@@ -54,7 +55,7 @@ func newTestPlugin(t *testing.T) *Plugin {
 }
 
 // enablePlugin configures the plugin with the given config, marking it as configured.
-func enablePlugin(t *testing.T, p *Plugin, cfg *costengine.CostConfig) {
+func enablePlugin(t *testing.T, p *Plugin, cfg *model.CostConfig) {
 	t.Helper()
 	p.SetTypedConfig(cfg)
 }
@@ -126,7 +127,7 @@ func fakePricingServer(t *testing.T) *httptest.Server {
 }
 
 // newTestEstimator creates an Estimator backed by a fake pricing server.
-func newTestEstimator(t *testing.T) *costengine.Estimator {
+func newTestEstimator(t *testing.T) *engine.Estimator {
 	t.Helper()
 	ts := fakePricingServer(t)
 	cacheDir := filepath.Join(t.TempDir(), "cache")
@@ -134,7 +135,7 @@ func newTestEstimator(t *testing.T) *costengine.Estimator {
 		Client:  ts.Client(),
 		BaseURL: ts.URL,
 	}
-	return costengine.NewEstimator(cacheDir, 0, fetcher)
+	return engine.NewEstimator(cacheDir, 0, fetcher)
 }
 
 // writePlanJSON creates the module directory and writes plan.json into it.

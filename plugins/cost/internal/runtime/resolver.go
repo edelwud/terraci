@@ -1,4 +1,4 @@
-package costengine
+package runtime
 
 import (
 	"context"
@@ -6,16 +6,40 @@ import (
 	"github.com/caarlos0/log"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
 const priceSourceUsageBased = "usage-based"
 
-// CostResolver handles the cost resolution logic: looking up handlers,
-// fetching pricing, and calculating costs. Decoupled from the Estimator
-// orchestration layer.
-//
-// Supports middleware for intercepting cost resolution (discounts, overrides, logging).
+// RegistryLookup is the minimal interface for finding resource handlers.
+type RegistryLookup interface {
+	ResolveHandler(providerID string, resourceType handler.ResourceType) (handler.ResourceHandler, bool)
+}
+
+// PricingSource abstracts pricing index retrieval for cost resolution.
+type PricingSource interface {
+	GetIndex(ctx context.Context, service pricing.ServiceID, region string) (*pricing.PriceIndex, error)
+	SourceName(providerID string) string
+}
+
+// ResolveRequest bundles all inputs for a single resource cost resolution.
+type ResolveRequest struct {
+	ResourceType handler.ResourceType
+	Address      string
+	Name         string
+	ModuleAddr   string
+	Region       string
+	Attrs        map[string]any
+}
+
+// ResolveFunc is the signature of a cost resolution function.
+type ResolveFunc func(ctx context.Context, req ResolveRequest) model.ResourceCost
+
+// CostMiddleware wraps a cost resolution step.
+type CostMiddleware func(ctx context.Context, next ResolveFunc, req ResolveRequest) model.ResourceCost
+
+// CostResolver handles the cost resolution logic.
 type CostResolver struct {
 	router     ProviderRouter
 	registry   RegistryLookup
@@ -32,36 +56,38 @@ func NewCostResolver(router ProviderRouter, registry RegistryLookup, pricingSrc 
 	}
 }
 
+// Registry returns the underlying handler lookup dependency.
+func (r *CostResolver) Registry() RegistryLookup {
+	return r.registry
+}
+
 // Use appends a middleware to the resolver chain.
-// Middleware is applied in order: the first added is the outermost wrapper.
 func (r *CostResolver) Use(mw CostMiddleware) {
 	r.middleware = append(r.middleware, mw)
 }
 
-// Resolve calculates cost for a single resource, applying any registered middleware.
-func (r *CostResolver) Resolve(ctx context.Context, req ResolveRequest) ResourceCost {
+// Resolve calculates cost for a single resource.
+func (r *CostResolver) Resolve(ctx context.Context, req ResolveRequest) model.ResourceCost {
 	if len(r.middleware) > 0 {
 		return r.resolveWithMiddleware(ctx, req)
 	}
 	return r.coreResolve(ctx, req)
 }
 
-// resolveWithMiddleware builds the middleware chain and executes it.
-func (r *CostResolver) resolveWithMiddleware(ctx context.Context, req ResolveRequest) ResourceCost {
+func (r *CostResolver) resolveWithMiddleware(ctx context.Context, req ResolveRequest) model.ResourceCost {
 	fn := r.coreResolve
 	for i := len(r.middleware) - 1; i >= 0; i-- {
 		mw := r.middleware[i]
 		next := fn
-		fn = func(ctx context.Context, req ResolveRequest) ResourceCost {
+		fn = func(ctx context.Context, req ResolveRequest) model.ResourceCost {
 			return mw(ctx, next, req)
 		}
 	}
 	return fn(ctx, req)
 }
 
-// coreResolve is the actual resolution logic without middleware.
-func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest) ResourceCost {
-	result := ResourceCost{
+func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest) model.ResourceCost {
+	result := model.ResourceCost{
 		Provider:   "",
 		Address:    req.Address,
 		ModuleAddr: req.ModuleAddr,
@@ -72,7 +98,7 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest) Reso
 
 	providerID, ok := r.router.ResolveProvider(req.ResourceType)
 	if !ok {
-		result.ErrorKind = CostErrorNoProvider
+		result.ErrorKind = model.CostErrorNoProvider
 		result.ErrorDetail = "no provider"
 		handler.LogUnsupported(req.ResourceType.String(), req.Address)
 		return result
@@ -81,7 +107,7 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest) Reso
 
 	h, ok := r.registry.ResolveHandler(providerID, req.ResourceType)
 	if !ok {
-		result.ErrorKind = CostErrorNoHandler
+		result.ErrorKind = model.CostErrorNoHandler
 		result.ErrorDetail = "no handler"
 		return result
 	}
@@ -95,27 +121,25 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest) Reso
 
 	switch h.Category() {
 	case handler.CostCategoryUsageBased:
-		result.ErrorKind = CostErrorUsageBased
+		result.ErrorKind = model.CostErrorUsageBased
 		result.ErrorDetail = priceSourceUsageBased
 		result.PriceSource = priceSourceUsageBased
 		return result
-
 	case handler.CostCategoryFixed:
 		hourly, monthly := h.CalculateCost(nil, nil, req.Region, attrs)
 		result.HourlyCost = hourly
 		result.MonthlyCost = monthly
 		result.PriceSource = "fixed"
 		return result
-
 	case handler.CostCategoryStandard:
 		return r.resolveStandardCost(ctx, providerID, h, attrs, req.Region, result)
+	default:
+		return result
 	}
-
-	return result
 }
 
 // ResolveBeforeCost calculates the before-state cost for update/replace resources.
-func (r *CostResolver) ResolveBeforeCost(ctx context.Context, rc *ResourceCost, resourceType handler.ResourceType, beforeAttrs map[string]any, region string) {
+func (r *CostResolver) ResolveBeforeCost(ctx context.Context, rc *model.ResourceCost, resourceType handler.ResourceType, beforeAttrs map[string]any, region string) {
 	providerID, ok := r.router.ResolveProvider(resourceType)
 	if !ok {
 		return
@@ -127,7 +151,7 @@ func (r *CostResolver) ResolveBeforeCost(ctx context.Context, rc *ResourceCost, 
 
 	switch h.Category() {
 	case handler.CostCategoryStandard:
-		before := r.resolveStandardCost(ctx, providerID, h, beforeAttrs, region, ResourceCost{Provider: providerID})
+		before := r.resolveStandardCost(ctx, providerID, h, beforeAttrs, region, model.ResourceCost{Provider: providerID})
 		rc.BeforeHourlyCost = before.HourlyCost
 		rc.BeforeMonthlyCost = before.MonthlyCost
 	case handler.CostCategoryFixed:
@@ -135,15 +159,13 @@ func (r *CostResolver) ResolveBeforeCost(ctx context.Context, rc *ResourceCost, 
 		rc.BeforeHourlyCost = hourly
 		rc.BeforeMonthlyCost = monthly
 	case handler.CostCategoryUsageBased:
-		// no cost
 	}
 }
 
-// ResolveWithSubResources resolves a resource and any compound sub-resources
-// (e.g., EC2 root_block_device -> EBS volume).
-func (r *CostResolver) ResolveWithSubResources(ctx context.Context, req ResolveRequest) []ResourceCost {
+// ResolveWithSubResources resolves a resource and any compound sub-resources.
+func (r *CostResolver) ResolveWithSubResources(ctx context.Context, req ResolveRequest) []model.ResourceCost {
 	primary := r.Resolve(ctx, req)
-	results := []ResourceCost{primary}
+	results := []model.ResourceCost{primary}
 
 	providerID, ok := r.router.ResolveProvider(req.ResourceType)
 	if !ok {
@@ -175,49 +197,41 @@ func (r *CostResolver) ResolveWithSubResources(ctx context.Context, req ResolveR
 	return results
 }
 
-// resolveStandardCost handles the full pricing API lookup path.
-func (r *CostResolver) resolveStandardCost(ctx context.Context, providerID string, h handler.ResourceHandler, attrs map[string]any, region string, result ResourceCost) ResourceCost {
+func (r *CostResolver) resolveStandardCost(ctx context.Context, providerID string, h handler.ResourceHandler, attrs map[string]any, region string, result model.ResourceCost) model.ResourceCost {
 	lookupBuilder, ok := h.(handler.LookupBuilder)
 	if !ok {
-		result.ErrorKind = CostErrorLookupFailed
+		result.ErrorKind = model.CostErrorLookupFailed
 		result.ErrorDetail = "lookup builder not implemented"
 		return result
 	}
 
 	lookup, err := lookupBuilder.BuildLookup(region, attrs)
 	if err != nil {
-		result.ErrorKind = CostErrorLookupFailed
+		result.ErrorKind = model.CostErrorLookupFailed
 		result.ErrorDetail = err.Error()
 		return result
 	}
-
 	if lookup == nil {
 		return result
 	}
 
 	index, err := r.pricing.GetIndex(ctx, lookup.ServiceID, region)
 	if err != nil {
-		log.WithError(err).
-			WithField("service", lookup.ServiceID.String()).
-			WithField("region", region).
-			Debug("failed to get pricing index")
-		result.ErrorKind = CostErrorAPIFailure
+		log.WithError(err).WithField("service", lookup.ServiceID.String()).WithField("region", region).Debug("failed to get pricing index")
+		result.ErrorKind = model.CostErrorAPIFailure
 		result.ErrorDetail = "pricing unavailable"
 		return result
 	}
-
 	if index == nil {
-		result.ErrorKind = CostErrorAPIFailure
+		result.ErrorKind = model.CostErrorAPIFailure
 		result.ErrorDetail = "empty pricing index"
 		return result
 	}
 
 	price, err := index.LookupPrice(*lookup)
 	if err != nil {
-		log.WithError(err).
-			WithField("address", result.Address).
-			Debug("price lookup failed")
-		result.ErrorKind = CostErrorNoPrice
+		log.WithError(err).WithField("address", result.Address).Debug("price lookup failed")
+		result.ErrorKind = model.CostErrorNoPrice
 		result.ErrorDetail = "no matching price"
 		return result
 	}

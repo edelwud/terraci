@@ -1,10 +1,7 @@
-package costengine
+package model
 
-// groupByModule groups resources by their Terraform module address into a tree.
-// Child modules (e.g., module.eks.module.node_group) are nested under parents (module.eks).
-// Parent MonthlyCost reflects only direct resources; use TotalCost() for recursive totals.
-func groupByModule(resources []ResourceCost) []SubmoduleCost {
-	// Step 1: group resources by exact ModuleAddr
+// GroupByModule groups resources by their Terraform module address into a tree.
+func GroupByModule(resources []ResourceCost) []SubmoduleCost {
 	type flatGroup struct {
 		addr      string
 		resources []ResourceCost
@@ -24,26 +21,20 @@ func groupByModule(resources []ResourceCost) []SubmoduleCost {
 		groups[addr].cost += rc.MonthlyCost
 	}
 
-	// Step 2: build tree nodes — each with only its direct resource cost
 	nodes := make(map[string]*SubmoduleCost, len(order))
 	for _, addr := range order {
 		g := groups[addr]
 		nodes[addr] = &SubmoduleCost{
 			ModuleAddr:  addr,
-			MonthlyCost: g.cost, // direct resources only
+			MonthlyCost: g.cost,
 			Resources:   g.resources,
 		}
 	}
 
-	// Step 3: attach children to parents, collect roots.
-	// Process deepest-first (reverse order) so that when a node is copied
-	// into its parent's Children slice, it already has its own children attached.
-	// Do NOT add child cost to parent — TotalCost() computes recursive totals.
 	attached := make(map[string]bool)
-
 	for i := len(order) - 1; i >= 0; i-- {
 		addr := order[i]
-		parent := findParentAddr(addr, nodes)
+		parent := FindParentAddr(addr, nodes)
 		if parent != "" {
 			nodes[parent].Children = append(nodes[parent].Children, *nodes[addr])
 			attached[addr] = true
@@ -60,9 +51,8 @@ func groupByModule(resources []ResourceCost) []SubmoduleCost {
 	return roots
 }
 
-// findParentAddr finds the nearest existing parent module address.
-// For "module.eks.module.node_group", checks "module.eks" in the nodes map.
-func findParentAddr(addr string, nodes map[string]*SubmoduleCost) string {
+// FindParentAddr finds the nearest existing parent module address.
+func FindParentAddr(addr string, nodes map[string]*SubmoduleCost) string {
 	const modulePrefix = "module."
 
 	for i := len(addr) - 1; i >= 0; i-- {
@@ -70,7 +60,6 @@ func findParentAddr(addr string, nodes map[string]*SubmoduleCost) string {
 			continue
 		}
 		candidate := addr[:i]
-		// The rest after candidate + "." must start with "module." to be a valid boundary
 		rest := addr[len(candidate)+1:]
 		if len(rest) >= len(modulePrefix) && rest[:len(modulePrefix)] == modulePrefix {
 			if _, ok := nodes[candidate]; ok {

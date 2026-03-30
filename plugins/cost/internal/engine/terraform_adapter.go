@@ -1,0 +1,77 @@
+package engine
+
+import (
+	"fmt"
+	"path/filepath"
+	"strings"
+
+	tfplan "github.com/edelwud/terraci/internal/terraform/plan"
+	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+)
+
+// TerraformPlanAdapter converts Terraform plan.json files into the engine input model.
+type TerraformPlanAdapter struct{}
+
+// NewTerraformPlanAdapter creates a Terraform-backed module plan adapter.
+func NewTerraformPlanAdapter() *TerraformPlanAdapter {
+	return &TerraformPlanAdapter{}
+}
+
+// LoadModule reads a Terraform plan and maps it into the provider-neutral input model.
+func (a *TerraformPlanAdapter) LoadModule(modulePath, region string) (*ModulePlan, error) {
+	planJSONPath := filepath.Join(modulePath, "plan.json")
+
+	parsedPlan, err := tfplan.ParseJSON(planJSONPath)
+	if err != nil {
+		return nil, fmt.Errorf("parse plan.json: %w", err)
+	}
+
+	modulePlan := &ModulePlan{
+		ModuleID:   strings.ReplaceAll(modulePath, string(filepath.Separator), "/"),
+		ModulePath: modulePath,
+		Region:     region,
+		HasChanges: parsedPlan.HasChanges(),
+		Resources:  make([]PlannedResource, 0, len(parsedPlan.Resources)),
+	}
+
+	for _, rc := range parsedPlan.Resources {
+		action, err := mapTerraformAction(rc.Action)
+		if err != nil {
+			return nil, fmt.Errorf("map action for %s: %w", rc.Address, err)
+		}
+
+		modulePlan.Resources = append(modulePlan.Resources, PlannedResource{
+			ResourceType: handler.ResourceType(rc.Type),
+			Address:      rc.Address,
+			Name:         rc.Name,
+			ModuleAddr:   rc.ModuleAddr,
+			Action:       action,
+			BeforeAttrs:  rc.BeforeValues,
+			AfterAttrs:   rc.AfterValues,
+		})
+	}
+
+	return modulePlan, nil
+}
+
+func mapTerraformAction(action string) (EstimateAction, error) {
+	switch action {
+	case tfplan.ActionCreate:
+		return ActionCreate, nil
+	case tfplan.ActionDelete:
+		return ActionDelete, nil
+	case tfplan.ActionUpdate:
+		return ActionUpdate, nil
+	case tfplan.ActionReplace:
+		return ActionReplace, nil
+	case tfplan.ActionNoOp:
+		return ActionNoOp, nil
+	default:
+		return "", fmt.Errorf("unsupported action %q", action)
+	}
+}
+
+// MapTerraformAction exposes Terraform action normalization for adapter tests and facades.
+func MapTerraformAction(action string) (EstimateAction, error) {
+	return mapTerraformAction(action)
+}

@@ -1,4 +1,4 @@
-package costengine
+package runtime
 
 import (
 	"context"
@@ -10,8 +10,46 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
+
+// ProviderRouter resolves the owning cloud provider for a Terraform resource type.
+type ProviderRouter interface {
+	ResolveProvider(resourceType handler.ResourceType) (string, bool)
+}
+
+// ResourceProviderRouter is the default resource-type based provider router.
+type ResourceProviderRouter struct {
+	providers map[handler.ResourceType]string
+}
+
+// NewResourceProviderRouter creates an empty provider router.
+func NewResourceProviderRouter() *ResourceProviderRouter {
+	return &ResourceProviderRouter{providers: make(map[handler.ResourceType]string)}
+}
+
+// Register records the owning provider for a resource type.
+func (r *ResourceProviderRouter) Register(providerID string, resourceType handler.ResourceType) {
+	r.providers[resourceType] = providerID
+}
+
+// ResolveProvider returns the provider id for a resource type.
+func (r *ResourceProviderRouter) ResolveProvider(resourceType handler.ResourceType) (string, bool) {
+	providerID, ok := r.providers[resourceType]
+	return providerID, ok
+}
+
+func newDefaultProviderRouter(providers []cloud.Provider) *ResourceProviderRouter {
+	router := NewResourceProviderRouter()
+	for _, cp := range providers {
+		def := cp.Definition()
+		for _, resource := range def.Resources {
+			router.Register(def.Manifest.ID, resource.Type)
+		}
+	}
+	return router
+}
 
 // ProviderRuntimeRegistry is the provider-owned runtime surface used by estimation components.
 type ProviderRuntimeRegistry struct {
@@ -60,6 +98,11 @@ func (r *ProviderRuntimeRegistry) ResolveProvider(resourceType handler.ResourceT
 	return r.router.ResolveProvider(resourceType)
 }
 
+// SetRouter replaces the provider router.
+func (r *ProviderRuntimeRegistry) SetRouter(router *ResourceProviderRouter) {
+	r.router = router
+}
+
 func (r *ProviderRuntimeRegistry) getRuntime(providerID string) (*ProviderRuntime, bool) {
 	runtime, ok := r.runtimes[providerID]
 	return runtime, ok
@@ -84,17 +127,17 @@ func (r *ProviderRuntimeRegistry) SourceName(providerID string) string {
 }
 
 // ProviderMetadata returns provider-specific estimation metadata keyed by provider id.
-func (r *ProviderRuntimeRegistry) ProviderMetadata() map[string]ProviderMetadata {
+func (r *ProviderRuntimeRegistry) ProviderMetadata() map[string]model.ProviderMetadata {
 	if len(r.runtimes) == 0 {
 		return nil
 	}
 
-	meta := make(map[string]ProviderMetadata, len(r.runtimes))
+	meta := make(map[string]model.ProviderMetadata, len(r.runtimes))
 	for providerID, runtime := range r.runtimes {
 		if runtime.Definition.Manifest.ID == "" {
 			continue
 		}
-		meta[providerID] = ProviderMetadata{
+		meta[providerID] = model.ProviderMetadata{
 			DisplayName: runtime.Definition.Manifest.DisplayName,
 			PriceSource: runtime.Definition.Manifest.PriceSource,
 		}
@@ -161,8 +204,13 @@ func (r *ProviderRuntimeRegistry) CacheEntries() []pricing.CacheEntry {
 	return entries
 }
 
+// ServicePlan exposes the minimal prefetch-plan shape consumed by the runtime registry.
+type ServicePlan interface {
+	Services() map[pricing.ServiceID][]string
+}
+
 // PrefetchPricing downloads any missing pricing data required by the plan.
-func (r *ProviderRuntimeRegistry) PrefetchPricing(ctx context.Context, prefetchPlan PrefetchPlan) error {
+func (r *ProviderRuntimeRegistry) PrefetchPricing(ctx context.Context, prefetchPlan ServicePlan) error {
 	services := prefetchPlan.Services()
 	if len(services) == 0 {
 		log.Warn("no supported resources found in plans - nothing to price")
@@ -197,4 +245,14 @@ func (r *ProviderRuntimeRegistry) PrefetchPricing(ctx context.Context, prefetchP
 	}
 
 	return nil
+}
+
+func filterServicesForProvider(services map[pricing.ServiceID][]string, providerID string) map[pricing.ServiceID][]string {
+	filtered := make(map[pricing.ServiceID][]string)
+	for serviceID, regions := range services {
+		if serviceID.Provider == providerID {
+			filtered[serviceID] = regions
+		}
+	}
+	return filtered
 }
