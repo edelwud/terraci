@@ -3,10 +3,8 @@ package resolve
 import (
 	"testing"
 
-	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/hclparse"
-
 	"github.com/edelwud/terraci/pkg/parser/internal/evalctx"
+	"github.com/edelwud/terraci/pkg/parser/internal/testutil"
 )
 
 var benchResolvedPaths []string
@@ -16,15 +14,15 @@ func BenchmarkResolverResolve(b *testing.B) {
 
 	simpleRef := &Ref{
 		Name:   "vpc",
-		Config: parseBenchExpressionMap(b, map[string]string{"key": `"platform/stage/eu-central-1/vpc/terraform.tfstate"`}),
+		Config: testutil.ParseExpressionMap(b, map[string]string{"key": `"platform/stage/eu-central-1/vpc/terraform.tfstate"`}),
 	}
 
 	forEachRef := &Ref{
 		Name: "deps",
-		Config: parseBenchExpressionMap(b, map[string]string{
+		Config: testutil.ParseExpressionMap(b, map[string]string{
 			"key": `"${each.value}/terraform.tfstate"`,
 		}),
-		ForEach: parseBenchExpression(b, `tomap({
+		ForEach: testutil.ParseExpression(b, `tomap({
   vpc = "platform/stage/eu-central-1/vpc"
   rds = "platform/stage/eu-central-1/rds"
 })`),
@@ -51,27 +49,4 @@ func BenchmarkResolverResolve(b *testing.B) {
 			benchResolvedPaths = paths
 		}
 	})
-}
-
-func parseBenchExpressionMap(tb testing.TB, expressions map[string]string) map[string]hcl.Expression {
-	tb.Helper()
-	result := make(map[string]hcl.Expression, len(expressions))
-	for name, expr := range expressions {
-		result[name] = parseBenchExpression(tb, expr)
-	}
-	return result
-}
-
-func parseBenchExpression(tb testing.TB, expr string) hcl.Expression {
-	tb.Helper()
-	parser := hclparse.NewParser()
-	file, diags := parser.ParseHCL([]byte("value = "+expr), "bench.hcl")
-	if diags.HasErrors() {
-		tb.Fatalf("parse expr diagnostics: %v", diags)
-	}
-	attrs, diags := file.Body.JustAttributes()
-	if diags.HasErrors() {
-		tb.Fatalf("parse attrs diagnostics: %v", diags)
-	}
-	return attrs["value"].Expr
 }

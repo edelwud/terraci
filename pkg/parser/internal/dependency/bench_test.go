@@ -3,15 +3,13 @@ package dependency
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/edelwud/terraci/pkg/discovery"
+	"github.com/edelwud/terraci/pkg/parser/internal/testutil"
 	"github.com/edelwud/terraci/pkg/parser/model"
 )
 
@@ -49,7 +47,7 @@ func BenchmarkEngineExtractAllDependencies(b *testing.B) {
 				Name:    "shared",
 				Backend: "s3",
 				Config: map[string]hcl.Expression{
-					"key": mustBenchExpression(b, `"platform/stage/eu-central-1/app-00/terraform.tfstate"`),
+					"key": testutil.ParseExpression(b, `"platform/stage/eu-central-1/app-00/terraform.tfstate"`),
 				},
 			},
 		},
@@ -68,27 +66,6 @@ func BenchmarkEngineExtractAllDependencies(b *testing.B) {
 		}
 		benchDependencyResults = results
 	}
-}
-
-func mustBenchExpression(tb testing.TB, src string) hcl.Expression {
-	tb.Helper()
-
-	dir := tb.TempDir()
-	path := filepath.Join(dir, "expr.hcl")
-	if err := os.WriteFile(path, []byte("value = "+src), 0o600); err != nil {
-		tb.Fatalf("write expr fixture: %v", err)
-	}
-
-	parser := hclparse.NewParser()
-	file, diags := parser.ParseHCL([]byte("value = "+src), path)
-	if diags.HasErrors() {
-		tb.Fatalf("parse expr diagnostics: %v", diags)
-	}
-	attrs, diags := file.Body.JustAttributes()
-	if diags.HasErrors() {
-		tb.Fatalf("parse attrs diagnostics: %v", diags)
-	}
-	return attrs["value"].Expr
 }
 
 func mustBenchExprString(expr hcl.Expression) string {
