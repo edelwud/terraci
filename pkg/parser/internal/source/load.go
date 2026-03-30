@@ -2,9 +2,7 @@ package source
 
 import (
 	"context"
-	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
@@ -17,29 +15,7 @@ func NewLoader() *Loader {
 }
 
 func (l *Loader) Load(ctx context.Context, modulePath string) (*Index, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-
-	hclParser := hclparse.NewParser()
-	index := NewIndex(modulePath, hclParser)
-
-	tfFiles, err := filepath.Glob(filepath.Join(modulePath, "*.tf"))
-	if err != nil {
-		return nil, fmt.Errorf("glob .tf files: %w", err)
-	}
-
-	for _, tfFile := range tfFiles {
-		file, err := index.ParseHCLFile(tfFile)
-		if err != nil {
-			return nil, fmt.Errorf("read %s: %w", tfFile, err)
-		}
-		if file != nil {
-			index.AddFile(tfFile, file)
-		}
-	}
-
-	return index, nil
+	return newLoadSession(modulePath).Run(ctx)
 }
 
 func readFile(path string) ([]byte, error) {
