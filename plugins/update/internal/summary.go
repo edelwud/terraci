@@ -11,7 +11,9 @@ type UpdateSummary struct {
 
 // BuildUpdateSummary recalculates derived counters from the current result items.
 func BuildUpdateSummary(result *UpdateResult) UpdateSummary {
-	summary := result.Summary
+	summary := UpdateSummary{
+		Errors: result.baseErrors,
+	}
 
 	for i := range result.Modules {
 		summary.TotalChecked++

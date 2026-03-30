@@ -1,6 +1,17 @@
 package checker
 
-import updateengine "github.com/edelwud/terraci/plugins/update/internal"
+import (
+	"sort"
+
+	updateengine "github.com/edelwud/terraci/plugins/update/internal"
+)
+
+type versionAnalysis struct {
+	current    updateengine.Version
+	latest     updateengine.Version
+	bumped     updateengine.Version
+	hasCurrent bool
+}
 
 // parseVersionList parses semver strings and ignores unparseable entries.
 func parseVersionList(strs []string) []updateengine.Version {
@@ -16,16 +27,7 @@ func parseVersionList(strs []string) []updateengine.Version {
 }
 
 func latestStable(versions []updateengine.Version) updateengine.Version {
-	var best updateengine.Version
-	for _, v := range versions {
-		if v.Prerelease != "" {
-			continue
-		}
-		if v.Compare(best) > 0 {
-			best = v
-		}
-	}
-	return best
+	return analyzeLatestStable(sortVersionsDesc(versions))
 }
 
 // versionFromConstraint extracts the base version from a constraint string.
@@ -37,4 +39,113 @@ func versionFromConstraint(s string) updateengine.Version {
 		return v
 	}
 	return constraints[0].Version
+}
+
+func analyzeModuleVersions(
+	constraint string,
+	versions []updateengine.Version,
+	bump string,
+) versionAnalysis {
+	current := versionFromConstraint(constraint)
+	analysis := versionAnalysis{
+		current:    current,
+		hasCurrent: !current.IsZero(),
+	}
+
+	sorted := sortVersionsDesc(versions)
+	analysis.latest = analyzeLatestStable(sorted)
+	if analysis.hasCurrent {
+		analysis.bumped = findBumpedVersion(sorted, current, bump)
+	}
+
+	return analysis
+}
+
+func analyzeProviderVersions(
+	constraint string,
+	currentVersion string,
+	versions []updateengine.Version,
+	bump string,
+) versionAnalysis {
+	analysis := versionAnalysis{}
+	if currentVersion != "" {
+		if version, err := updateengine.ParseVersion(currentVersion); err == nil {
+			analysis.current = version
+			analysis.hasCurrent = true
+		}
+	}
+
+	sorted := sortVersionsDesc(versions)
+	analysis.latest = analyzeLatestStable(sorted)
+
+	if !analysis.hasCurrent && constraint != "" {
+		constraints, err := updateengine.ParseConstraints(constraint)
+		if err == nil {
+			analysis.current, analysis.hasCurrent = findLatestAllowed(sorted, constraints)
+		}
+	}
+
+	if analysis.hasCurrent {
+		analysis.bumped = findBumpedVersion(sorted, analysis.current, bump)
+	}
+
+	return analysis
+}
+
+func sortVersionsDesc(versions []updateengine.Version) []updateengine.Version {
+	sorted := make([]updateengine.Version, len(versions))
+	copy(sorted, versions)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Compare(sorted[j]) > 0
+	})
+	return sorted
+}
+
+func analyzeLatestStable(sorted []updateengine.Version) updateengine.Version {
+	for _, version := range sorted {
+		if version.Prerelease == "" {
+			return version
+		}
+	}
+	return updateengine.Version{}
+}
+
+func findLatestAllowed(
+	sorted []updateengine.Version,
+	constraints []updateengine.Constraint,
+) (updateengine.Version, bool) {
+	for _, version := range sorted {
+		if version.Prerelease != "" {
+			continue
+		}
+		if updateengine.SatisfiesAll(version, constraints) {
+			return version, true
+		}
+	}
+	return updateengine.Version{}, false
+}
+
+func findBumpedVersion(
+	sorted []updateengine.Version,
+	current updateengine.Version,
+	bump string,
+) updateengine.Version {
+	for _, version := range sorted {
+		if version.Prerelease != "" || version.Compare(current) <= 0 {
+			continue
+		}
+		switch bump {
+		case updateengine.BumpPatch:
+			if version.Major == current.Major && version.Minor == current.Minor {
+				return version
+			}
+		case updateengine.BumpMinor:
+			if version.Major == current.Major {
+				return version
+			}
+		case updateengine.BumpMajor:
+			return version
+		}
+	}
+	return updateengine.Version{}
 }

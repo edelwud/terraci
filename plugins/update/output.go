@@ -35,8 +35,8 @@ func outputLog(result *updateengine.UpdateResult) {
 }
 
 type moduleUpdates struct {
-	providers []updateengine.ProviderVersionUpdate
-	modules   []updateengine.ModuleVersionUpdate
+	providers []*updateengine.ProviderVersionUpdate
+	modules   []*updateengine.ModuleVersionUpdate
 }
 
 func collectModuleUpdates(result *updateengine.UpdateResult) (groups map[string]*moduleUpdates, order []string) {
@@ -49,7 +49,7 @@ func collectModuleUpdates(result *updateengine.UpdateResult) (groups map[string]
 		}
 		modulePath := p.ModulePath()
 		groups, order = ensureModuleGroup(groups, order, modulePath)
-		groups[modulePath].providers = append(groups[modulePath].providers, *p)
+		groups[modulePath].providers = append(groups[modulePath].providers, p)
 	}
 
 	for i := range result.Modules {
@@ -59,7 +59,7 @@ func collectModuleUpdates(result *updateengine.UpdateResult) (groups map[string]
 		}
 		modulePath := m.ModulePath()
 		groups, order = ensureModuleGroup(groups, order, modulePath)
-		groups[modulePath].modules = append(groups[modulePath].modules, *m)
+		groups[modulePath].modules = append(groups[modulePath].modules, m)
 	}
 
 	return groups, order
@@ -78,11 +78,11 @@ func logModuleUpdates(path string, updates *moduleUpdates) {
 	count := len(updates.providers) + len(updates.modules)
 	log.WithField("updates", count).Info(path)
 	log.IncreasePadding()
-	for i := range updates.providers {
-		logProviderUpdate(&updates.providers[i])
+	for _, update := range updates.providers {
+		logProviderUpdate(update)
 	}
-	for i := range updates.modules {
-		logModuleUpdate(&updates.modules[i])
+	for _, update := range updates.modules {
+		logModuleUpdate(update)
 	}
 	log.DecreasePadding()
 }

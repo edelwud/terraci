@@ -5,7 +5,6 @@ import (
 
 	"github.com/edelwud/terraci/pkg/parser"
 	updateengine "github.com/edelwud/terraci/plugins/update/internal"
-	"github.com/edelwud/terraci/plugins/update/internal/tffile"
 )
 
 func newModuleDependency(modulePath string, call *parser.ModuleCall) updateengine.ModuleDependency {
@@ -41,11 +40,10 @@ func errorModuleUpdate(
 
 func markModuleUpdateAvailable(
 	update updateengine.ModuleVersionUpdate,
-	modulePath string,
-	callName string,
+	file string,
 	bumpedVersion string,
 ) updateengine.ModuleVersionUpdate {
-	update.File = tffile.FindModuleBlockFile(modulePath, callName)
+	update.File = file
 	update.BumpedVersion = bumpedVersion
 	update.Status = updateengine.StatusUpdateAvailable
 	return update
@@ -87,11 +85,10 @@ func errorProviderUpdate(
 
 func markProviderUpdateAvailable(
 	update updateengine.ProviderVersionUpdate,
-	modulePath string,
-	providerName string,
+	file string,
 	bumpedVersion string,
 ) updateengine.ProviderVersionUpdate {
-	update.File = tffile.FindProviderBlockFile(modulePath, providerName)
+	update.File = file
 	update.BumpedVersion = bumpedVersion
 	update.Status = updateengine.StatusUpdateAvailable
 	return update

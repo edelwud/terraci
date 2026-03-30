@@ -97,6 +97,55 @@ terraform {
 	})
 }
 
+func TestBuildIndex(t *testing.T) {
+	t.Run("finds module and provider files across multiple lookups", func(t *testing.T) {
+		dir := t.TempDir()
+		moduleFile := writeTF(t, dir, "main.tf", `
+module "vpc" {
+  source  = "terraform-aws-modules/vpc/aws"
+  version = "~> 5.0"
+}
+`)
+		providerFile := writeTF(t, dir, "versions.tf", `
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+`)
+
+		index, err := BuildIndex(dir)
+		if err != nil {
+			t.Fatalf("BuildIndex() error = %v", err)
+		}
+		if got := index.FindModuleBlockFile("vpc"); got != moduleFile {
+			t.Errorf("FindModuleBlockFile(vpc) = %q, want %q", got, moduleFile)
+		}
+		if got := index.FindProviderBlockFile("aws"); got != providerFile {
+			t.Errorf("FindProviderBlockFile(aws) = %q, want %q", got, providerFile)
+		}
+		if got := index.FindModuleBlockFile("vpc"); got != moduleFile {
+			t.Errorf("second FindModuleBlockFile(vpc) = %q, want %q", got, moduleFile)
+		}
+	})
+
+	t.Run("invalid files are ignored", func(t *testing.T) {
+		dir := t.TempDir()
+		writeTF(t, dir, "bad.tf", `module not valid HCL {{{`)
+
+		index, err := BuildIndex(dir)
+		if err != nil {
+			t.Fatalf("BuildIndex() error = %v", err)
+		}
+		if got := index.FindModuleBlockFile("vpc"); got != "" {
+			t.Errorf("FindModuleBlockFile(vpc) = %q, want empty", got)
+		}
+	})
+}
+
 func TestContainsModuleBlock(t *testing.T) {
 	t.Run("found", func(t *testing.T) {
 		dir := t.TempDir()
@@ -105,7 +154,8 @@ module "vpc" {
   source = "terraform-aws-modules/vpc/aws"
 }
 `)
-		if !containsModuleBlock(path, "vpc") {
+		facts := inspectFile(path)
+		if len(facts.moduleNames) != 1 || facts.moduleNames[0] != "vpc" {
 			t.Error("expected true for existing module block")
 		}
 	})
@@ -117,7 +167,8 @@ module "other" {
   source = "terraform-aws-modules/eks/aws"
 }
 `)
-		if containsModuleBlock(path, "vpc") {
+		facts := inspectFile(path)
+		if len(facts.moduleNames) != 1 || facts.moduleNames[0] != "other" {
 			t.Error("expected false for non-matching module")
 		}
 	})
@@ -129,13 +180,13 @@ resource "aws_instance" "web" {
   ami = "ami-12345"
 }
 `)
-		if containsModuleBlock(path, "vpc") {
+		if len(inspectFile(path).moduleNames) != 0 {
 			t.Error("expected false when no module keyword")
 		}
 	})
 
 	t.Run("unreadable", func(t *testing.T) {
-		if containsModuleBlock("/nonexistent/file.tf", "vpc") {
+		if len(inspectFile("/nonexistent/file.tf").moduleNames) != 0 {
 			t.Error("expected false for nonexistent file")
 		}
 	})
@@ -143,7 +194,7 @@ resource "aws_instance" "web" {
 	t.Run("invalid_hcl", func(t *testing.T) {
 		dir := t.TempDir()
 		path := writeTF(t, dir, "bad.tf", `module not valid HCL {{{`)
-		if containsModuleBlock(path, "vpc") {
+		if len(inspectFile(path).moduleNames) != 0 {
 			t.Error("expected false for invalid HCL")
 		}
 	})
@@ -162,7 +213,8 @@ terraform {
   }
 }
 `)
-		if !containsProviderBlock(path, "aws") {
+		facts := inspectFile(path)
+		if len(facts.providerNames) != 1 || facts.providerNames[0] != "aws" {
 			t.Error("expected true for existing provider block")
 		}
 	})
@@ -178,7 +230,8 @@ terraform {
   }
 }
 `)
-		if containsProviderBlock(path, "aws") {
+		facts := inspectFile(path)
+		if len(facts.providerNames) != 1 || facts.providerNames[0] != "gcp" {
 			t.Error("expected false for non-matching provider")
 		}
 	})
@@ -190,13 +243,13 @@ resource "aws_instance" "web" {
   ami = "ami-12345"
 }
 `)
-		if containsProviderBlock(path, "aws") {
+		if len(inspectFile(path).providerNames) != 0 {
 			t.Error("expected false when no required_providers keyword")
 		}
 	})
 
 	t.Run("unreadable", func(t *testing.T) {
-		if containsProviderBlock("/nonexistent/file.tf", "aws") {
+		if len(inspectFile("/nonexistent/file.tf").providerNames) != 0 {
 			t.Error("expected false for nonexistent file")
 		}
 	})
@@ -204,7 +257,7 @@ resource "aws_instance" "web" {
 	t.Run("invalid_hcl", func(t *testing.T) {
 		dir := t.TempDir()
 		path := writeTF(t, dir, "bad.tf", `required_providers not valid HCL {{{`)
-		if containsProviderBlock(path, "aws") {
+		if len(inspectFile(path).providerNames) != 0 {
 			t.Error("expected false for invalid HCL")
 		}
 	})
@@ -220,7 +273,7 @@ terraform {
   }
 }
 `)
-		if containsProviderBlock(path, "aws") {
+		if len(inspectFile(path).providerNames) != 0 {
 			t.Error("expected false when required_providers has no matching attribute")
 		}
 	})
@@ -235,7 +288,7 @@ resource "aws_instance" "web" {
   ami = "ami-12345"
 }
 `)
-		if containsProviderBlock(path, "aws") {
+		if len(inspectFile(path).providerNames) != 0 {
 			t.Error("expected false for required_providers outside terraform block")
 		}
 	})

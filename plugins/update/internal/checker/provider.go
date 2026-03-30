@@ -4,37 +4,31 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/parser"
 	updateengine "github.com/edelwud/terraci/plugins/update/internal"
 	"github.com/edelwud/terraci/plugins/update/internal/registryclient"
 )
 
 func (s *checkSession) collectProviderUpdates(
-	mod *discovery.Module,
-	parsed *parser.ParsedModule,
+	scanCtx *moduleScanContext,
 ) {
-	lockIndex := buildLockIndex(parsed.LockedProviders)
-
-	for _, rp := range parsed.RequiredProviders {
-		s.addProviderUpdate(mod, rp, lockIndex)
+	for _, rp := range scanCtx.parsed.RequiredProviders {
+		s.addProviderUpdate(scanCtx, rp)
 	}
 }
 
 func (s *checkSession) addProviderUpdate(
-	mod *discovery.Module,
+	scanCtx *moduleScanContext,
 	requiredProvider *parser.RequiredProvider,
-	lockIndex map[string]*parser.LockedProvider,
 ) {
-	s.builder.AddProviderUpdate(s.scanProvider(mod, requiredProvider, lockIndex))
+	s.builder.AddProviderUpdate(s.scanProvider(scanCtx, requiredProvider))
 }
 
 func (s *checkSession) scanProvider(
-	mod *discovery.Module,
+	scanCtx *moduleScanContext,
 	requiredProvider *parser.RequiredProvider,
-	lockIndex map[string]*parser.LockedProvider,
 ) updateengine.ProviderVersionUpdate {
-	dependency := newProviderDependency(mod.RelativePath, requiredProvider)
+	dependency := newProviderDependency(scanCtx.module.RelativePath, requiredProvider)
 	update := newProviderUpdate(dependency)
 
 	switch {
@@ -44,7 +38,7 @@ func (s *checkSession) scanProvider(
 		return skipProviderUpdate(update, skipReasonIgnored)
 	}
 
-	update = withLockedProviderState(update, lockIndex[requiredProvider.Source])
+	update = withLockedProviderState(update, scanCtx.lockIndex[requiredProvider.Source])
 
 	namespace, typeName, err := registryclient.ParseProviderSource(requiredProvider.Source)
 	if err != nil {
@@ -56,47 +50,30 @@ func (s *checkSession) scanProvider(
 		return errorProviderUpdate(update, err)
 	}
 
-	versions := parseVersionList(versionStrings)
-	current := resolveProviderCurrentVersion(update.Constraint(), update.CurrentVersion, versions)
-	if !current.IsZero() {
-		update.CurrentVersion = current.String()
+	analysis := analyzeProviderVersions(
+		update.Constraint(),
+		update.CurrentVersion,
+		parseVersionList(versionStrings),
+		s.checker.config.Bump,
+	)
+	if analysis.hasCurrent {
+		update.CurrentVersion = analysis.current.String()
 	}
-
-	latest := latestStable(versions)
-	if !latest.IsZero() {
-		update.LatestVersion = latest.String()
+	if !analysis.latest.IsZero() {
+		update.LatestVersion = analysis.latest.String()
 	}
-
-	if current.IsZero() {
+	if !analysis.hasCurrent {
 		return skipProviderUpdate(update, "cannot determine current version")
 	}
-
-	bumped, ok := updateengine.LatestByBump(current, versions, s.checker.config.Bump)
-	if ok {
-		return markProviderUpdateAvailable(update, mod.Path, requiredProvider.Name, bumped.String())
+	if !analysis.bumped.IsZero() {
+		return markProviderUpdateAvailable(
+			update,
+			scanCtx.fileIndex.FindProviderBlockFile(requiredProvider.Name),
+			analysis.bumped.String(),
+		)
 	}
 
 	return update
-}
-
-func resolveProviderCurrentVersion(constraint, currentVersion string, versions []updateengine.Version) updateengine.Version {
-	if currentVersion != "" {
-		if version, err := updateengine.ParseVersion(currentVersion); err == nil {
-			return version
-		}
-	}
-	if constraint == "" {
-		return updateengine.Version{}
-	}
-	constraints, err := updateengine.ParseConstraints(constraint)
-	if err != nil {
-		return updateengine.Version{}
-	}
-	resolved, found := updateengine.LatestAllowed(versions, constraints)
-	if !found {
-		return updateengine.Version{}
-	}
-	return resolved
 }
 
 // buildLockIndex creates a map from short provider source ("hashicorp/aws")

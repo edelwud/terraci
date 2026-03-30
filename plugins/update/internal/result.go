@@ -2,9 +2,10 @@ package updateengine
 
 // UpdateResult contains all version check results.
 type UpdateResult struct {
-	Modules   []ModuleVersionUpdate   `json:"modules,omitempty"`
-	Providers []ProviderVersionUpdate `json:"providers,omitempty"`
-	Summary   UpdateSummary           `json:"summary"`
+	Modules    []ModuleVersionUpdate   `json:"modules,omitempty"`
+	Providers  []ProviderVersionUpdate `json:"providers,omitempty"`
+	Summary    UpdateSummary           `json:"summary"`
+	baseErrors int
 }
 
 // UpdateResultBuilder accumulates update outcomes and summary-level errors.
@@ -24,7 +25,7 @@ func NewUpdateResultBuilder() *UpdateResultBuilder {
 
 // RecordError adds a non-item-specific operational error to the summary.
 func (r *UpdateResult) RecordError() {
-	r.Summary.Errors++
+	r.baseErrors++
 }
 
 // AddModuleUpdate appends a checked module outcome.

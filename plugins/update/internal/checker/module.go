@@ -3,36 +3,34 @@ package checker
 import (
 	"fmt"
 
-	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/parser"
 	updateengine "github.com/edelwud/terraci/plugins/update/internal"
 	"github.com/edelwud/terraci/plugins/update/internal/registryclient"
 )
 
 func (s *checkSession) collectModuleUpdates(
-	mod *discovery.Module,
-	parsed *parser.ParsedModule,
+	scanCtx *moduleScanContext,
 ) {
-	for _, mc := range parsed.ModuleCalls {
+	for _, mc := range scanCtx.parsed.ModuleCalls {
 		if mc.IsLocal || mc.Version == "" || !registryclient.IsRegistrySource(mc.Source) {
 			continue
 		}
-		s.addModuleUpdate(mod, mc)
+		s.addModuleUpdate(scanCtx, mc)
 	}
 }
 
 func (s *checkSession) addModuleUpdate(
-	mod *discovery.Module,
+	scanCtx *moduleScanContext,
 	call *parser.ModuleCall,
 ) {
-	s.builder.AddModuleUpdate(s.scanModuleCall(mod, call))
+	s.builder.AddModuleUpdate(s.scanModuleCall(scanCtx, call))
 }
 
 func (s *checkSession) scanModuleCall(
-	mod *discovery.Module,
+	scanCtx *moduleScanContext,
 	call *parser.ModuleCall,
 ) updateengine.ModuleVersionUpdate {
-	dependency := newModuleDependency(mod.RelativePath, call)
+	dependency := newModuleDependency(scanCtx.module.RelativePath, call)
 	update := newModuleUpdate(dependency)
 
 	if s.checker.config.IsIgnored(call.Source) {
@@ -49,20 +47,19 @@ func (s *checkSession) scanModuleCall(
 		return errorModuleUpdate(update, err)
 	}
 
-	versions := parseVersionList(versionStrings)
-	current := versionFromConstraint(call.Version)
-	if !current.IsZero() {
-		update.CurrentVersion = current.String()
+	analysis := analyzeModuleVersions(call.Version, parseVersionList(versionStrings), s.checker.config.Bump)
+	if analysis.hasCurrent {
+		update.CurrentVersion = analysis.current.String()
 	}
-
-	latest := latestStable(versions)
-	if !latest.IsZero() {
-		update.LatestVersion = latest.String()
+	if !analysis.latest.IsZero() {
+		update.LatestVersion = analysis.latest.String()
 	}
-
-	bumped, ok := updateengine.LatestByBump(current, versions, s.checker.config.Bump)
-	if ok {
-		return markModuleUpdateAvailable(update, mod.Path, call.Name, bumped.String())
+	if !analysis.bumped.IsZero() {
+		return markModuleUpdateAvailable(
+			update,
+			scanCtx.fileIndex.FindModuleBlockFile(call.Name),
+			analysis.bumped.String(),
+		)
 	}
 
 	return update

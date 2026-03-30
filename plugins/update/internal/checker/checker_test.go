@@ -957,4 +957,64 @@ func TestComputeSummary(t *testing.T) {
 	if s.Errors != 1 {
 		t.Errorf("Errors = %d, want 1", s.Errors)
 	}
+
+	s2 := BuildUpdateSummary(result)
+	if s2 != s {
+		t.Errorf("second BuildUpdateSummary() = %+v, want %+v", s2, s)
+	}
+}
+
+func TestAnalyzeModuleVersions(t *testing.T) {
+	analysis := analyzeModuleVersions(
+		"~> 5.0",
+		parseVersionList([]string{"5.0.0", "5.2.0", "6.0.0", "6.1.0-beta"}),
+		BumpMinor,
+	)
+
+	if !analysis.hasCurrent || analysis.current.String() != "5.0.0" {
+		t.Fatalf("current = %v (has=%v), want 5.0.0", analysis.current, analysis.hasCurrent)
+	}
+	if analysis.latest.String() != "6.0.0" {
+		t.Errorf("latest = %v, want 6.0.0", analysis.latest)
+	}
+	if analysis.bumped.String() != "5.2.0" {
+		t.Errorf("bumped = %v, want 5.2.0", analysis.bumped)
+	}
+}
+
+func TestAnalyzeProviderVersions(t *testing.T) {
+	t.Run("uses locked current version", func(t *testing.T) {
+		analysis := analyzeProviderVersions(
+			"~> 5.0",
+			"5.67.0",
+			parseVersionList([]string{"5.67.0", "5.68.0", "6.0.0"}),
+			BumpMinor,
+		)
+
+		if !analysis.hasCurrent || analysis.current.String() != "5.67.0" {
+			t.Fatalf("current = %v (has=%v), want 5.67.0", analysis.current, analysis.hasCurrent)
+		}
+		if analysis.latest.String() != "6.0.0" {
+			t.Errorf("latest = %v, want 6.0.0", analysis.latest)
+		}
+		if analysis.bumped.String() != "5.68.0" {
+			t.Errorf("bumped = %v, want 5.68.0", analysis.bumped)
+		}
+	})
+
+	t.Run("falls back to constraint resolution", func(t *testing.T) {
+		analysis := analyzeProviderVersions(
+			"~> 5.0",
+			"",
+			parseVersionList([]string{"5.0.0", "5.2.0", "6.0.0"}),
+			BumpMinor,
+		)
+
+		if !analysis.hasCurrent || analysis.current.String() != "5.2.0" {
+			t.Fatalf("current = %v (has=%v), want 5.2.0", analysis.current, analysis.hasCurrent)
+		}
+		if !analysis.bumped.IsZero() {
+			t.Fatalf("expected no bumped version, got %v", analysis.bumped)
+		}
+	})
 }

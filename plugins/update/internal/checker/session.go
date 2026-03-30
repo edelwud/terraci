@@ -49,11 +49,13 @@ func (s *checkSession) handleParsedModule(
 	mod *discovery.Module,
 	parsed *parser.ParsedModule,
 ) error {
+	scanCtx := s.newModuleScanContext(mod, parsed)
+
 	if s.checker.config.ShouldCheckProviders() {
-		s.collectProviderUpdates(mod, parsed)
+		s.collectProviderUpdates(scanCtx)
 	}
 	if s.checker.config.ShouldCheckModules() {
-		s.collectModuleUpdates(mod, parsed)
+		s.collectModuleUpdates(scanCtx)
 	}
 	return nil
 }
