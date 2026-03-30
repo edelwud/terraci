@@ -82,7 +82,7 @@ func writePlanJSON(t *testing.T, workDir, modulePath, planJSON string) {
 	}
 }
 
-func writeReportJSON(t *testing.T, serviceDir, name string, report *ci.Report) {
+func writeReportJSON(t *testing.T, serviceDir, pluginName string, report *ci.Report) {
 	t.Helper()
 
 	data, err := json.Marshal(report)
@@ -92,7 +92,7 @@ func writeReportJSON(t *testing.T, serviceDir, name string, report *ci.Report) {
 	if err := os.MkdirAll(serviceDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(serviceDir, name), data, 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(serviceDir, ci.ReportFilename(pluginName)), data, 0o600); err != nil {
 		t.Fatal(err)
 	}
 }

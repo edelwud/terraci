@@ -72,7 +72,7 @@ func TestPolicy_Check(t *testing.T) {
 	assertContains(t, string(resultsData), "warn")
 
 	// Should have created policy-report.json
-	reportPath := filepath.Join(dir, ".terraci", "policy-report.json")
+	reportPath := filepath.Join(dir, ".terraci", ci.ReportFilename("policy"))
 	data, readErr := os.ReadFile(reportPath)
 	if readErr != nil {
 		t.Fatalf("failed to read policy report: %v", readErr)

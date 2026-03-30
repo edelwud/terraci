@@ -17,5 +17,5 @@ func loadUpdateResult(t *testing.T, serviceDir string) updateengine.UpdateResult
 }
 
 func loadUpdateReport(t *testing.T, serviceDir string) ci.Report {
-	return plugintest.LoadReport(t, serviceDir, reportFile)
+	return plugintest.LoadPluginReport(t, serviceDir, "update")
 }

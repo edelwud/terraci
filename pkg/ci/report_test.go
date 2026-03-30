@@ -21,7 +21,7 @@ func TestSaveReport(t *testing.T) {
 		t.Fatalf("SaveReport: %v", err)
 	}
 
-	path := filepath.Join(dir, "test-report.json")
+	path := filepath.Join(dir, ReportFilename("test"))
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read: %v", err)
@@ -100,7 +100,7 @@ func TestSaveReport_ModulesField(t *testing.T) {
 		t.Fatalf("SaveReport: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, "cost-report.json"))
+	data, err := os.ReadFile(filepath.Join(dir, ReportFilename("cost")))
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
@@ -115,6 +115,64 @@ func TestSaveReport_ModulesField(t *testing.T) {
 	}
 	if loaded.Modules[0].CostDiff != 5.0 {
 		t.Errorf("cost diff = %f, want 5.0", loaded.Modules[0].CostDiff)
+	}
+}
+
+func TestReportFilename(t *testing.T) {
+	if got := ReportFilename("cost"); got != "cost-report.json" {
+		t.Fatalf("ReportFilename(cost) = %q, want cost-report.json", got)
+	}
+}
+
+func TestLoadReport(t *testing.T) {
+	dir := t.TempDir()
+	report := &Report{
+		Plugin:  "policy",
+		Title:   "Policy Check",
+		Status:  ReportStatusWarn,
+		Summary: "warned",
+	}
+
+	if err := SaveReport(dir, report); err != nil {
+		t.Fatalf("SaveReport: %v", err)
+	}
+
+	loaded, err := LoadReport(filepath.Join(dir, ReportFilename("policy")))
+	if err != nil {
+		t.Fatalf("LoadReport: %v", err)
+	}
+
+	if loaded.Plugin != "policy" {
+		t.Fatalf("plugin = %q, want policy", loaded.Plugin)
+	}
+	if loaded.Status != ReportStatusWarn {
+		t.Fatalf("status = %q, want warn", loaded.Status)
+	}
+}
+
+func TestLoadReports(t *testing.T) {
+	dir := t.TempDir()
+	reports := []*Report{
+		{Plugin: "update", Title: "Update", Status: ReportStatusPass},
+		{Plugin: "cost", Title: "Cost", Status: ReportStatusWarn},
+	}
+
+	for _, report := range reports {
+		if err := SaveReport(dir, report); err != nil {
+			t.Fatalf("SaveReport(%s): %v", report.Plugin, err)
+		}
+	}
+
+	loaded, err := LoadReports(dir)
+	if err != nil {
+		t.Fatalf("LoadReports: %v", err)
+	}
+
+	if len(loaded) != 2 {
+		t.Fatalf("loaded report count = %d, want 2", len(loaded))
+	}
+	if loaded[0].Plugin != "cost" || loaded[1].Plugin != "update" {
+		t.Fatalf("loaded report order = [%s %s], want [cost update]", loaded[0].Plugin, loaded[1].Plugin)
 	}
 }
 

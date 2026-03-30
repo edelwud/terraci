@@ -68,7 +68,7 @@ func TestRunSummaryUseCase_PostsComment(t *testing.T) {
 	appCtx := newTestAppContext(t, workDir)
 	modulePath := "platform/prod/us-east-1/vpc"
 	writePlanJSON(t, workDir, modulePath, testPlanWithChanges)
-	writeReportJSON(t, appCtx.ServiceDir(), "cost-report.json", newPlanReport(modulePath, ci.ReportStatusWarn))
+	writeReportJSON(t, appCtx.ServiceDir(), "cost", newPlanReport(modulePath, ci.ReportStatusWarn))
 
 	commentSvc := &fakeCommentService{enabled: true}
 	provider := &fakeSummaryProvider{

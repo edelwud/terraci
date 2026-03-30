@@ -42,7 +42,10 @@ func loadSummaryInputs(appCtx *plugin.AppContext) (*summaryInputs, error) {
 	log.WithField("count", len(collection.Results)).Info("found plan results")
 
 	plans := collection.ToModulePlans()
-	reports := summaryengine.LoadReports(serviceDir)
+	reports, err := ci.LoadReports(serviceDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load plugin reports: %w", err)
+	}
 	for _, r := range reports {
 		summaryengine.EnrichPlans(plans, r.Modules)
 	}

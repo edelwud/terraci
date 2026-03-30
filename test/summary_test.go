@@ -50,7 +50,7 @@ func TestSummary_ReportFilesExist(t *testing.T) {
 	dir := fixtureDir(t, "with-reports")
 
 	// Verify that report files are accessible and contain valid JSON
-	costReportPath := filepath.Join(dir, ".terraci", "cost-report.json")
+	costReportPath := filepath.Join(dir, ".terraci", ci.ReportFilename("cost"))
 	costData, err := os.ReadFile(costReportPath)
 	if err != nil {
 		t.Fatalf("cost report not found: %v", err)
@@ -69,7 +69,7 @@ func TestSummary_ReportFilesExist(t *testing.T) {
 	assertContains(t, costReport.Summary, "module")
 
 	// Policy report
-	policyReportPath := filepath.Join(dir, ".terraci", "policy-report.json")
+	policyReportPath := filepath.Join(dir, ".terraci", ci.ReportFilename("policy"))
 	policyData, policyErr := os.ReadFile(policyReportPath)
 	if policyErr != nil {
 		t.Fatalf("policy report not found: %v", policyErr)

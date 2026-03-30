@@ -44,6 +44,11 @@ func LoadReport(t *testing.T, serviceDir, filename string) ci.Report {
 	return LoadJSONFile[ci.Report](t, serviceDir, filename)
 }
 
+func LoadPluginReport(t *testing.T, serviceDir, pluginName string) ci.Report {
+	t.Helper()
+	return LoadReport(t, serviceDir, ci.ReportFilename(pluginName))
+}
+
 func NewAppContext(t *testing.T, workDir string) *plugin.AppContext {
 	t.Helper()
 
