@@ -102,6 +102,25 @@ func (u ModuleVersionUpdate) IsUpdatable() bool {
 	return u.Status == StatusUpdateAvailable || u.Status == StatusApplied
 }
 
+// IsApplyPending returns true when the module update is ready to be written.
+func (u ModuleVersionUpdate) IsApplyPending() bool {
+	return u.Status == StatusUpdateAvailable
+}
+
+// MarkApplied transitions the module outcome into an applied state.
+func (u ModuleVersionUpdate) MarkApplied() ModuleVersionUpdate {
+	u.Status = StatusApplied
+	u.Issue = ""
+	return u
+}
+
+// MarkError transitions the module outcome into an error state with context.
+func (u ModuleVersionUpdate) MarkError(issue string) ModuleVersionUpdate {
+	u.Status = StatusError
+	u.Issue = issue
+	return u
+}
+
 // IncludedInUpdateLogs returns true when this item should appear in grouped update output.
 func (u ModuleVersionUpdate) IncludedInUpdateLogs() bool {
 	return u.IsUpdatable()
@@ -174,6 +193,25 @@ func (u ProviderVersionUpdate) StatusLabel() string {
 // IsUpdatable returns true when the dependency can be applied or surfaced in update logs.
 func (u ProviderVersionUpdate) IsUpdatable() bool {
 	return u.Status == StatusUpdateAvailable || u.Status == StatusApplied
+}
+
+// IsApplyPending returns true when the provider update is ready to be written.
+func (u ProviderVersionUpdate) IsApplyPending() bool {
+	return u.Status == StatusUpdateAvailable
+}
+
+// MarkApplied transitions the provider outcome into an applied state.
+func (u ProviderVersionUpdate) MarkApplied() ProviderVersionUpdate {
+	u.Status = StatusApplied
+	u.Issue = ""
+	return u
+}
+
+// MarkError transitions the provider outcome into an error state with context.
+func (u ProviderVersionUpdate) MarkError(issue string) ProviderVersionUpdate {
+	u.Status = StatusError
+	u.Issue = issue
+	return u
 }
 
 // IncludedInUpdateLogs returns true when this item should appear in grouped update output.

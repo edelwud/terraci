@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 )
@@ -84,19 +84,13 @@ func WriteProviderVersion(filePath, providerName, newConstraint string) error {
 func replaceVersionInTokens(tokens hclwrite.Tokens, newConstraint string) hclwrite.Tokens {
 	foundVersionKey := false
 	for i, tok := range tokens {
-		if tok.Type == 9 { // hclsyntax.TokenQuotedLit
-			val := strings.Trim(string(tok.Bytes), `"`)
-			if val == "version" {
-				foundVersionKey = true
-				continue
-			}
-			if foundVersionKey {
-				tokens[i].Bytes = []byte(`"` + newConstraint + `"`)
-				return tokens
-			}
+		if tok.Type == hclsyntax.TokenIdent && string(tok.Bytes) == "version" {
+			foundVersionKey = true
+			continue
 		}
-		if tok.Type == 9 && !foundVersionKey {
-			foundVersionKey = false
+		if foundVersionKey && tok.Type == hclsyntax.TokenQuotedLit {
+			tokens[i].Bytes = []byte(newConstraint)
+			return tokens
 		}
 	}
 	return tokens

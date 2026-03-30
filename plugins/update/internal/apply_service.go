@@ -28,49 +28,41 @@ func (s *ApplyService) Apply(result *UpdateResult) {
 }
 
 func (s *ApplyService) applyModuleUpdate(update *ModuleVersionUpdate) {
-	if update.Status != StatusUpdateAvailable {
-		return
-	}
-	if update.File == "" {
-		update.Status = StatusError
-		update.Issue = "failed to locate Terraform file for module update"
-		log.WithField("module", update.ModulePath()).Warn("failed to locate Terraform file for module update")
+	if !update.IsApplyPending() {
 		return
 	}
 
-	newConstraint := BumpConstraint(update.Constraint(), parseVersionOrZero(update.BumpedVersion))
+	newConstraint, ok := buildAppliedConstraint(update.BumpedVersion, update.Constraint())
+	if !ok {
+		s.markModuleApplyError(update, "failed to build bumped module constraint", nil)
+		return
+	}
+
 	if err := tfwrite.WriteModuleVersion(update.File, update.CallName(), newConstraint); err != nil {
-		log.WithField("module", update.ModulePath()).WithError(err).Warn("failed to write module version")
-		update.Status = StatusError
-		update.Issue = fmt.Sprintf("write module version: %v", err)
+		s.markModuleApplyError(update, fmt.Sprintf("write module version: %v", err), err)
 		return
 	}
 
-	update.Status = StatusApplied
-	update.Issue = ""
+	*update = update.MarkApplied()
 }
 
 func (s *ApplyService) applyProviderUpdate(update *ProviderVersionUpdate) {
-	if update.Status != StatusUpdateAvailable {
-		return
-	}
-	if update.File == "" {
-		update.Status = StatusError
-		update.Issue = "failed to locate Terraform file for provider update"
-		log.WithField("provider", update.ProviderSource()).Warn("failed to locate Terraform file for provider update")
+	if !update.IsApplyPending() {
 		return
 	}
 
-	newConstraint := BumpConstraint(update.Constraint(), parseVersionOrZero(update.BumpedVersion))
+	newConstraint, ok := buildAppliedConstraint(update.BumpedVersion, update.Constraint())
+	if !ok {
+		s.markProviderApplyError(update, "failed to build bumped provider constraint", nil)
+		return
+	}
+
 	if err := tfwrite.WriteProviderVersion(update.File, update.ProviderName(), newConstraint); err != nil {
-		log.WithField("provider", update.ProviderSource()).WithError(err).Warn("failed to write provider version")
-		update.Status = StatusError
-		update.Issue = fmt.Sprintf("write provider version: %v", err)
+		s.markProviderApplyError(update, fmt.Sprintf("write provider version: %v", err), err)
 		return
 	}
 
-	update.Status = StatusApplied
-	update.Issue = ""
+	*update = update.MarkApplied()
 }
 
 func parseVersionOrZero(s string) Version {
@@ -79,4 +71,30 @@ func parseVersionOrZero(s string) Version {
 		return Version{}
 	}
 	return v
+}
+
+func buildAppliedConstraint(bumpedVersion, originalConstraint string) (string, bool) {
+	version := parseVersionOrZero(bumpedVersion)
+	if version.IsZero() {
+		return "", false
+	}
+	return BumpConstraint(originalConstraint, version), true
+}
+
+func (s *ApplyService) markModuleApplyError(update *ModuleVersionUpdate, issue string, err error) {
+	*update = update.MarkError(issue)
+	entry := log.WithField("module", update.ModulePath())
+	if err != nil {
+		entry = entry.WithError(err)
+	}
+	entry.Warn(issue)
+}
+
+func (s *ApplyService) markProviderApplyError(update *ProviderVersionUpdate, issue string, err error) {
+	*update = update.MarkError(issue)
+	entry := log.WithField("provider", update.ProviderSource())
+	if err != nil {
+		entry = entry.WithError(err)
+	}
+	entry.Warn(issue)
 }

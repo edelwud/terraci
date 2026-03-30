@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 )
 
@@ -93,6 +94,13 @@ terraform {
 		if _, statErr := os.Stat(path); statErr != nil {
 			t.Error("file should still exist after write")
 		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read updated file: %v", err)
+		}
+		if !strings.Contains(string(data), "~> 5.3") {
+			t.Fatalf("file content does not contain new version:\n%s", data)
+		}
 	})
 
 	t.Run("provider_not_found", func(t *testing.T) {
@@ -163,15 +171,16 @@ func TestReplaceVersionInTokens_EmptySlice(t *testing.T) {
 
 func TestReplaceVersionInTokens_WithMatchingPattern(t *testing.T) {
 	tokens := hclwrite.Tokens{
-		{Type: 9, Bytes: []byte("source")},
-		{Type: 9, Bytes: []byte("hashicorp/aws")},
-		{Type: 9, Bytes: []byte("version")},
-		{Type: 9, Bytes: []byte(`"~> 5.0"`)},
+		{Type: hclsyntax.TokenIdent, Bytes: []byte("source")},
+		{Type: hclsyntax.TokenEqual, Bytes: []byte("=")},
+		{Type: hclsyntax.TokenIdent, Bytes: []byte("version")},
+		{Type: hclsyntax.TokenEqual, Bytes: []byte("=")},
+		{Type: hclsyntax.TokenQuotedLit, Bytes: []byte(`~> 5.0`)},
 	}
 
 	result := replaceVersionInTokens(tokens, "~> 5.3")
-	if string(result[3].Bytes) != `"~> 5.3"` {
-		t.Errorf("token[3].Bytes = %q, want '\"~> 5.3\"'", result[3].Bytes)
+	if string(result[4].Bytes) != `~> 5.3` {
+		t.Errorf("token[4].Bytes = %q, want '\"~> 5.3\"'", result[4].Bytes)
 	}
 }
 
