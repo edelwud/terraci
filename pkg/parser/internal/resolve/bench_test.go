@@ -14,12 +14,12 @@ var benchResolvedPaths []string
 func BenchmarkResolverResolve(b *testing.B) {
 	resolver := NewResolver(evalctx.NewBuilder([]string{"service", "environment", "region", "module"}))
 
-	simpleRef := Ref{
+	simpleRef := &Ref{
 		Name:   "vpc",
 		Config: parseBenchExpressionMap(b, map[string]string{"key": `"platform/stage/eu-central-1/vpc/terraform.tfstate"`}),
 	}
 
-	forEachRef := Ref{
+	forEachRef := &Ref{
 		Name: "deps",
 		Config: parseBenchExpressionMap(b, map[string]string{
 			"key": `"${each.value}/terraform.tfstate"`,

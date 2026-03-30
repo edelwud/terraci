@@ -11,7 +11,7 @@ import (
 
 func TestResolver_ResolveSimple(t *testing.T) {
 	resolver := NewResolver(evalctx.NewBuilder([]string{"service", "environment", "region", "module"}))
-	ref := Ref{
+	ref := &Ref{
 		Name:   "vpc",
 		Config: parseExpressionMap(t, map[string]string{"key": `"platform/stage/eu-central-1/vpc/terraform.tfstate"`}),
 	}
@@ -27,7 +27,7 @@ func TestResolver_ResolveSimple(t *testing.T) {
 
 func TestResolver_ResolveForEach(t *testing.T) {
 	resolver := NewResolver(evalctx.NewBuilder([]string{"service", "environment", "region", "module"}))
-	ref := Ref{
+	ref := &Ref{
 		Name: "deps",
 		Config: parseExpressionMap(t, map[string]string{
 			"key": `"${each.value}/terraform.tfstate"`,

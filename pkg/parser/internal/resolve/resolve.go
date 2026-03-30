@@ -9,10 +9,14 @@ import (
 )
 
 func (r Resolver) Resolve(
-	ref Ref,
+	ref *Ref,
 	modulePath string,
 	locals, variables map[string]cty.Value,
 ) ([]string, error) {
+	if ref == nil {
+		return nil, errors.New("remote state ref is nil")
+	}
+
 	log.WithField("module", modulePath).WithField("remote_state", ref.Name).Debug("resolving workspace path")
 
 	evalCtx := r.evalBuilder.Build(modulePath, locals, variables)
