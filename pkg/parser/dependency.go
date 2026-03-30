@@ -62,10 +62,6 @@ func (de *DependencyExtractor) matchPathToModule(statePath string, from *discove
 	return parserdeps.MatchPathToModule(de.index, statePath, from)
 }
 
-func containsDynamicPattern(path string) bool {
-	return parserdeps.ContainsDynamicPattern(path)
-}
-
 // ExtractAllDependencies extracts dependencies for all modules in the index.
 func (de *DependencyExtractor) ExtractAllDependencies(ctx context.Context) (map[string]*ModuleDependencies, []error) {
 	results, errs := de.engine.ExtractAllDependencies(ctx)

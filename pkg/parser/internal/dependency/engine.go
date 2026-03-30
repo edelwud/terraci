@@ -9,6 +9,7 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 	terrierrors "github.com/edelwud/terraci/pkg/errors"
 	parserdeps "github.com/edelwud/terraci/pkg/parser/internal/deps"
+	"github.com/edelwud/terraci/pkg/parser/internal/model"
 )
 
 const maxConcurrentExtractions = 20
@@ -56,7 +57,7 @@ func ContainsDynamicPattern(path string) bool {
 	return parserdeps.ContainsDynamicPattern(path)
 }
 
-func BackendIndexKey(bc *BackendConfig, modulePath string) string {
+func BackendIndexKey(bc *model.BackendConfig, modulePath string) string {
 	if bc == nil {
 		return ""
 	}
@@ -66,18 +67,18 @@ func BackendIndexKey(bc *BackendConfig, modulePath string) string {
 
 type parsedModuleCache struct {
 	parser ModuleParser
-	items  map[string]*ParsedModule
+	items  map[string]*model.ParsedModule
 	mu     sync.RWMutex
 }
 
 func newParsedModuleCache(parser ModuleParser) *parsedModuleCache {
 	return &parsedModuleCache{
 		parser: parser,
-		items:  make(map[string]*ParsedModule),
+		items:  make(map[string]*model.ParsedModule),
 	}
 }
 
-func (c *parsedModuleCache) Get(ctx context.Context, module *discovery.Module) (*ParsedModule, error) {
+func (c *parsedModuleCache) Get(ctx context.Context, module *discovery.Module) (*model.ParsedModule, error) {
 	moduleID := module.ID()
 
 	c.mu.RLock()

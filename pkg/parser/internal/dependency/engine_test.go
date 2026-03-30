@@ -9,6 +9,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/edelwud/terraci/pkg/discovery"
+	"github.com/edelwud/terraci/pkg/parser/internal/model"
 )
 
 func TestDependencyResultBuilderBuild(t *testing.T) {
@@ -23,7 +24,7 @@ func TestDependencyResultBuilderBuild(t *testing.T) {
 		&Dependency{From: module, To: rds, Type: "remote_state", RemoteStateName: "rds"},
 	)
 	builder.AddLibraryDependency(&LibraryDependency{
-		ModuleCall:  &ModuleCall{Name: "shared"},
+		ModuleCall:  &model.ModuleCall{Name: "shared"},
 		LibraryPath: "_modules/shared",
 	})
 	builder.AddErrors(errors.New("dependency error"))
@@ -103,7 +104,7 @@ func TestRemoteStateTargetResolverResolve(t *testing.T) {
 	legacy.RelativePath = "legacy/custom"
 
 	engine := NewEngine(nil, discovery.NewModuleIndex([]*discovery.Module{app, vpc, legacy}))
-	engine.backendIndex.items[BackendIndexKey(&BackendConfig{
+	engine.backendIndex.items[BackendIndexKey(&model.BackendConfig{
 		Type: "s3",
 		Config: map[string]string{
 			"bucket": "shared-state",
@@ -118,12 +119,12 @@ func TestRemoteStateTargetResolverResolve(t *testing.T) {
 		map[string]cty.Value{},
 	)
 
-	pathMatched := resolver.Resolve(&RemoteStateRef{}, "platform/stage/eu-central-1/vpc/terraform.tfstate")
+	pathMatched := resolver.Resolve(&model.RemoteStateRef{}, "platform/stage/eu-central-1/vpc/terraform.tfstate")
 	if pathMatched == nil || pathMatched.ID() != vpc.ID() {
 		t.Fatalf("path match = %v, want %s", pathMatched, vpc.ID())
 	}
 
-	backendMatched := resolver.Resolve(&RemoteStateRef{
+	backendMatched := resolver.Resolve(&model.RemoteStateRef{
 		Name:    "legacy",
 		Backend: "s3",
 		Config: map[string]hcl.Expression{

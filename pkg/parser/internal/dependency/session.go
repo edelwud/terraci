@@ -10,6 +10,7 @@ import (
 	"github.com/edelwud/terraci/internal/terraform/eval"
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/parser/internal/exprfast"
+	"github.com/edelwud/terraci/pkg/parser/internal/model"
 )
 
 type dependencySession struct {
@@ -17,7 +18,7 @@ type dependencySession struct {
 	engine    *Engine
 	module    *discovery.Module
 	builder   *dependencyResultBuilder
-	parsed    *ParsedModule
+	parsed    *model.ParsedModule
 	locals    map[string]cty.Value
 	variables map[string]cty.Value
 }
@@ -68,7 +69,7 @@ func (s *dependencySession) collectLibraryDependencies() {
 	}
 }
 
-func (s *dependencySession) resolveRemoteStateDependency(remoteState *RemoteStateRef) *remoteStateResolution {
+func (s *dependencySession) resolveRemoteStateDependency(remoteState *model.RemoteStateRef) *remoteStateResolution {
 	resolution := newRemoteStateResolution()
 	targetResolver := newRemoteStateTargetResolver(s.engine, s.module, s.locals, s.variables)
 
@@ -121,7 +122,7 @@ func newRemoteStateTargetResolver(
 	}
 }
 
-func (r *remoteStateTargetResolver) Resolve(remoteState *RemoteStateRef, statePath string) *discovery.Module {
+func (r *remoteStateTargetResolver) Resolve(remoteState *model.RemoteStateRef, statePath string) *discovery.Module {
 	target := r.engine.MatchPathToModule(statePath, r.module)
 	if target != nil {
 		return target
@@ -130,7 +131,7 @@ func (r *remoteStateTargetResolver) Resolve(remoteState *RemoteStateRef, statePa
 	return r.matchByBackend(remoteState, statePath)
 }
 
-func (r *remoteStateTargetResolver) matchByBackend(remoteState *RemoteStateRef, statePath string) *discovery.Module {
+func (r *remoteStateTargetResolver) matchByBackend(remoteState *model.RemoteStateRef, statePath string) *discovery.Module {
 	if r.engine.backendIndex == nil || remoteState.Backend == "" {
 		return nil
 	}

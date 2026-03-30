@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/discovery"
+	parserdeps "github.com/edelwud/terraci/pkg/parser/internal/deps"
 )
 
 func TestExtractDependencies_SingleRemoteState(t *testing.T) {
@@ -250,7 +251,7 @@ func TestContainsDynamicPattern(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
-			if got := containsDynamicPattern(tt.path); got != tt.want {
+			if got := parserdeps.ContainsDynamicPattern(tt.path); got != tt.want {
 				t.Errorf("containsDynamicPattern(%q) = %v, want %v", tt.path, got, tt.want)
 			}
 		})

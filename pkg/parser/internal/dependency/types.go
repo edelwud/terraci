@@ -3,43 +3,15 @@ package dependency
 import (
 	"context"
 
-	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/edelwud/terraci/pkg/discovery"
+	"github.com/edelwud/terraci/pkg/parser/internal/model"
 )
 
 type ModuleParser interface {
-	ParseModule(ctx context.Context, modulePath string) (*ParsedModule, error)
-	ResolveWorkspacePath(ref *RemoteStateRef, modulePath string, locals, variables map[string]cty.Value) ([]string, error)
-}
-
-type ParsedModule struct {
-	Locals       map[string]cty.Value
-	Variables    map[string]cty.Value
-	Backend      *BackendConfig
-	RemoteStates []*RemoteStateRef
-	ModuleCalls  []*ModuleCall
-}
-
-type BackendConfig struct {
-	Type   string
-	Config map[string]string
-}
-
-type RemoteStateRef struct {
-	Name    string
-	Backend string
-	Config  map[string]hcl.Expression
-	ForEach hcl.Expression
-}
-
-type ModuleCall struct {
-	Name         string
-	Source       string
-	Version      string
-	IsLocal      bool
-	ResolvedPath string
+	ParseModule(ctx context.Context, modulePath string) (*model.ParsedModule, error)
+	ResolveWorkspacePath(ref *model.RemoteStateRef, modulePath string, locals, variables map[string]cty.Value) ([]string, error)
 }
 
 type Dependency struct {
@@ -50,7 +22,7 @@ type Dependency struct {
 }
 
 type LibraryDependency struct {
-	ModuleCall  *ModuleCall
+	ModuleCall  *model.ModuleCall
 	LibraryPath string
 }
 

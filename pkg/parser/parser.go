@@ -13,12 +13,10 @@ func (p *Parser) ParseModule(ctx context.Context, modulePath string) (*ParsedMod
 		return nil, err
 	}
 
-	parsed := newParsedModule(modulePath)
-	result, err := moduleparse.Run(ctx, modulePath, p.segments, newParsedModuleSink(parsed))
+	parsed, err := moduleparse.Run(ctx, modulePath, p.segments)
 	if err != nil {
 		return nil, fmt.Errorf("load module: %w", err)
 	}
 
-	applyParseResult(parsed, result)
-	return parsed, nil
+	return fromInternalParsedModule(parsed), nil
 }
