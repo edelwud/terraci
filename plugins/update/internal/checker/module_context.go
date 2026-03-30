@@ -17,15 +17,10 @@ func (s *checkSession) newModuleScanContext(
 	mod *discovery.Module,
 	parsed *parser.ParsedModule,
 ) *moduleScanContext {
-	fileIndex, err := tffile.BuildIndex(mod.Path)
-	if err != nil {
-		fileIndex = nil
-	}
-
 	return &moduleScanContext{
 		module:    mod,
 		parsed:    parsed,
 		lockIndex: buildLockIndex(parsed.LockedProviders),
-		fileIndex: fileIndex,
+		fileIndex: tffile.BuildIndexFromParsedFiles(parsed.Files),
 	}
 }

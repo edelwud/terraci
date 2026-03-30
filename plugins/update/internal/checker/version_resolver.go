@@ -1,10 +1,6 @@
 package checker
 
-import (
-	"sort"
-
-	updateengine "github.com/edelwud/terraci/plugins/update/internal"
-)
+import updateengine "github.com/edelwud/terraci/plugins/update/internal"
 
 type versionAnalysis struct {
 	current    updateengine.Version
@@ -27,7 +23,7 @@ func parseVersionList(strs []string) []updateengine.Version {
 }
 
 func latestStable(versions []updateengine.Version) updateengine.Version {
-	return analyzeLatestStable(sortVersionsDesc(versions))
+	return analyzeLatestStable(versions)
 }
 
 // versionFromConstraint extracts the base version from a constraint string.
@@ -52,10 +48,9 @@ func analyzeModuleVersions(
 		hasCurrent: !current.IsZero(),
 	}
 
-	sorted := sortVersionsDesc(versions)
-	analysis.latest = analyzeLatestStable(sorted)
+	analysis.latest = analyzeLatestStable(versions)
 	if analysis.hasCurrent {
-		analysis.bumped = findBumpedVersion(sorted, current, bump)
+		analysis.bumped = findBumpedVersion(versions, current, bump)
 	}
 
 	return analysis
@@ -75,77 +70,80 @@ func analyzeProviderVersions(
 		}
 	}
 
-	sorted := sortVersionsDesc(versions)
-	analysis.latest = analyzeLatestStable(sorted)
+	analysis.latest = analyzeLatestStable(versions)
 
 	if !analysis.hasCurrent && constraint != "" {
 		constraints, err := updateengine.ParseConstraints(constraint)
 		if err == nil {
-			analysis.current, analysis.hasCurrent = findLatestAllowed(sorted, constraints)
+			analysis.current, analysis.hasCurrent = findLatestAllowed(versions, constraints)
 		}
 	}
 
 	if analysis.hasCurrent {
-		analysis.bumped = findBumpedVersion(sorted, analysis.current, bump)
+		analysis.bumped = findBumpedVersion(versions, analysis.current, bump)
 	}
 
 	return analysis
 }
 
-func sortVersionsDesc(versions []updateengine.Version) []updateengine.Version {
-	sorted := make([]updateengine.Version, len(versions))
-	copy(sorted, versions)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].Compare(sorted[j]) > 0
-	})
-	return sorted
-}
-
-func analyzeLatestStable(sorted []updateengine.Version) updateengine.Version {
-	for _, version := range sorted {
-		if version.Prerelease == "" {
-			return version
-		}
-	}
-	return updateengine.Version{}
-}
-
-func findLatestAllowed(
-	sorted []updateengine.Version,
-	constraints []updateengine.Constraint,
-) (updateengine.Version, bool) {
-	for _, version := range sorted {
+func analyzeLatestStable(versions []updateengine.Version) updateengine.Version {
+	var best updateengine.Version
+	for _, version := range versions {
 		if version.Prerelease != "" {
 			continue
 		}
-		if updateengine.SatisfiesAll(version, constraints) {
-			return version, true
+		if version.Compare(best) > 0 {
+			best = version
 		}
 	}
-	return updateengine.Version{}, false
+	return best
+}
+
+func findLatestAllowed(
+	versions []updateengine.Version,
+	constraints []updateengine.Constraint,
+) (updateengine.Version, bool) {
+	var best updateengine.Version
+	found := false
+	for _, version := range versions {
+		if version.Prerelease != "" {
+			continue
+		}
+		if !updateengine.SatisfiesAll(version, constraints) {
+			continue
+		}
+		if !found || version.Compare(best) > 0 {
+			best = version
+			found = true
+		}
+	}
+	return best, found
 }
 
 func findBumpedVersion(
-	sorted []updateengine.Version,
+	versions []updateengine.Version,
 	current updateengine.Version,
 	bump string,
 ) updateengine.Version {
-	for _, version := range sorted {
+	var best updateengine.Version
+	for _, version := range versions {
 		if version.Prerelease != "" || version.Compare(current) <= 0 {
 			continue
 		}
 		switch bump {
 		case updateengine.BumpPatch:
-			if version.Major == current.Major && version.Minor == current.Minor {
-				return version
+			if version.Major == current.Major && version.Minor == current.Minor && version.Compare(best) > 0 {
+				best = version
 			}
 		case updateengine.BumpMinor:
-			if version.Major == current.Major {
-				return version
+			if version.Major == current.Major && version.Compare(best) > 0 {
+				best = version
 			}
 		case updateengine.BumpMajor:
-			return version
+			if version.Compare(best) > 0 {
+				best = version
+			}
 		}
 	}
-	return updateengine.Version{}
+	return best
 }

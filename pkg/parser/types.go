@@ -42,6 +42,7 @@ type ParsedModule struct {
 	ModuleCalls       []*ModuleCall
 	Files             map[string]*hcl.File
 	Diagnostics       hcl.Diagnostics
+	topLevelBlocks    map[string][]*hcl.Block
 }
 
 // RequiredProvider represents a provider requirement from a required_providers block.
