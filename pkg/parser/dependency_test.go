@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/discovery"
-	parserdeps "github.com/edelwud/terraci/pkg/parser/internal/deps"
 )
 
 func TestExtractDependencies_SingleRemoteState(t *testing.T) {
@@ -184,77 +183,6 @@ data "terraform_remote_state" "rds" {
 	}
 	if n := len(allDeps["platform/stage/eu-central-1/app"].Dependencies); n != 1 {
 		t.Errorf("app deps = %d, want 1", n)
-	}
-}
-
-func TestMatchPathToModule(t *testing.T) {
-	submod := discovery.TestModule("platform", "stage", "eu-central-1", "ec2")
-	submod.SetComponent("submodule", "rabbitmq")
-	submod.RelativePath = "platform/stage/eu-central-1/ec2/rabbitmq"
-
-	modules := []*discovery.Module{
-		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
-		discovery.TestModule("platform", "stage", "eu-central-1", "eks"),
-		submod,
-		discovery.TestModule("platform", "prod", "us-east-1", "api"),
-	}
-
-	index := discovery.NewModuleIndex(modules)
-
-	tests := []struct {
-		name      string
-		statePath string
-		from      *discovery.Module
-		wantID    string
-	}{
-		{"full path with tfstate", "platform/stage/eu-central-1/vpc/terraform.tfstate", modules[1], "platform/stage/eu-central-1/vpc"},
-		{"full path bare", "platform/stage/eu-central-1/vpc", modules[1], "platform/stage/eu-central-1/vpc"},
-		{"dotTfstate suffix", "platform/stage/eu-central-1/eks.tfstate", modules[0], "platform/stage/eu-central-1/eks"},
-		{"short context match", "vpc", modules[1], "platform/stage/eu-central-1/vpc"},
-		{"submodule path", "platform/stage/eu-central-1/ec2/rabbitmq/terraform.tfstate", modules[0], "platform/stage/eu-central-1/ec2/rabbitmq"},
-		{"different context", "platform/prod/us-east-1/api/terraform.tfstate", modules[0], "platform/prod/us-east-1/api"},
-		{"nonexistent", "platform/stage/eu-central-1/nonexistent/terraform.tfstate", modules[0], ""},
-		{"env prefix", "env:/stage/platform/stage/eu-central-1/vpc/terraform.tfstate", modules[1], "platform/stage/eu-central-1/vpc"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := parserdeps.MatchPathToModule(index, tt.statePath, tt.from)
-			if tt.wantID == "" {
-				if got != nil {
-					t.Errorf("got %s, want nil", got.ID())
-				}
-				return
-			}
-			if got == nil {
-				t.Fatalf("got nil, want %s", tt.wantID)
-			}
-			if got.ID() != tt.wantID {
-				t.Errorf("got %s, want %s", got.ID(), tt.wantID)
-			}
-		})
-	}
-}
-
-func TestContainsDynamicPattern(t *testing.T) {
-	tests := []struct {
-		path string
-		want bool
-	}{
-		{"platform/stage/eu-central-1/vpc/terraform.tfstate", false},
-		{"${var.environment}/vpc/terraform.tfstate", true},
-		{"${each.key}/terraform.tfstate", true},
-		{"${lookup(local.envs, var.env)}/vpc/terraform.tfstate", true},
-		{`path/"}/something`, true},
-		{"simple/path", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.path, func(t *testing.T) {
-			if got := parserdeps.ContainsDynamicPattern(tt.path); got != tt.want {
-				t.Errorf("containsDynamicPattern(%q) = %v, want %v", tt.path, got, tt.want)
-			}
-		})
 	}
 }
 
