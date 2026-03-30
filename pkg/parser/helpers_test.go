@@ -1,42 +1,26 @@
 package parser
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/hashicorp/hcl/v2"
+
+	"github.com/edelwud/terraci/pkg/parser/internal/testutil"
 )
 
 // setupTempModule creates a temporary module directory with the given files.
 func setupTempModule(t *testing.T, files map[string]string) string {
-	t.Helper()
-	tmpDir := t.TempDir()
-	for name, content := range files {
-		path := filepath.Join(tmpDir, name)
-		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-			t.Fatalf("write %s: %v", name, err)
-		}
-	}
-	return tmpDir
+	return testutil.SetupTempModule(t, files)
 }
 
 // createTestModuleDir creates nested directories and returns the leaf path.
 func createTestModuleDir(t *testing.T, tmpDir string, parts ...string) string {
-	t.Helper()
-	path := filepath.Join(append([]string{tmpDir}, parts...)...)
-	if err := os.MkdirAll(path, 0o755); err != nil {
-		t.Fatalf("mkdir %s: %v", path, err)
-	}
-	return path
+	return testutil.CreateTestModuleDir(t, tmpDir, parts...)
 }
 
 // writeTestFile writes content to a file in the given directory.
 func writeTestFile(t *testing.T, dir, filename, content string) {
-	t.Helper()
-	if err := os.WriteFile(filepath.Join(dir, filename), []byte(content), 0o600); err != nil {
-		t.Fatalf("write %s: %v", filename, err)
-	}
+	testutil.WriteFile(t, dir, filename, content)
 }
 
 func TestParserSegmentsReturnsCopy(t *testing.T) {

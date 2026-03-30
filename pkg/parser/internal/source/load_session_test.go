@@ -3,10 +3,12 @@ package source
 import (
 	"context"
 	"testing"
+
+	"github.com/edelwud/terraci/pkg/parser/internal/testutil"
 )
 
 func TestLoadSessionRun(t *testing.T) {
-	dir := setupTempModule(t, map[string]string{
+	dir := testutil.SetupTempModule(t, map[string]string{
 		"a.tf": `locals { service = "platform" }`,
 		"b.tf": `module "vpc" { source = "../_modules/vpc" }`,
 	})

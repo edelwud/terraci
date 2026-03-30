@@ -3,17 +3,15 @@ package resolve
 import (
 	"testing"
 
-	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/hclparse"
-
 	"github.com/edelwud/terraci/pkg/parser/internal/evalctx"
+	"github.com/edelwud/terraci/pkg/parser/internal/testutil"
 )
 
 func TestResolver_ResolveSimple(t *testing.T) {
 	resolver := NewResolver(evalctx.NewBuilder([]string{"service", "environment", "region", "module"}))
 	ref := &Ref{
 		Name:   "vpc",
-		Config: parseExpressionMap(t, map[string]string{"key": `"platform/stage/eu-central-1/vpc/terraform.tfstate"`}),
+		Config: testutil.ParseExpressionMap(t, map[string]string{"key": `"platform/stage/eu-central-1/vpc/terraform.tfstate"`}),
 	}
 
 	paths, err := resolver.Resolve(ref, "platform/stage/eu-central-1/eks", nil, nil)
@@ -29,10 +27,10 @@ func TestResolver_ResolveForEach(t *testing.T) {
 	resolver := NewResolver(evalctx.NewBuilder([]string{"service", "environment", "region", "module"}))
 	ref := &Ref{
 		Name: "deps",
-		Config: parseExpressionMap(t, map[string]string{
+		Config: testutil.ParseExpressionMap(t, map[string]string{
 			"key": `"${each.value}/terraform.tfstate"`,
 		}),
-		ForEach: parseExpression(t, `tomap({
+		ForEach: testutil.ParseExpression(t, `tomap({
   vpc = "platform/stage/eu-central-1/vpc"
   rds = "platform/stage/eu-central-1/rds"
 })`),
@@ -57,27 +55,4 @@ func TestResolver_ResolveForEach(t *testing.T) {
 			t.Fatalf("missing path %q in %v", want, paths)
 		}
 	}
-}
-
-func parseExpressionMap(t *testing.T, expressions map[string]string) map[string]hcl.Expression {
-	t.Helper()
-	result := make(map[string]hcl.Expression, len(expressions))
-	for name, expr := range expressions {
-		result[name] = parseExpression(t, expr)
-	}
-	return result
-}
-
-func parseExpression(t *testing.T, expr string) hcl.Expression {
-	t.Helper()
-	parser := hclparse.NewParser()
-	file, diags := parser.ParseHCL([]byte("value = "+expr), "test.hcl")
-	if diags.HasErrors() {
-		t.Fatalf("parse expr diagnostics: %v", diags)
-	}
-	attrs, diags := file.Body.JustAttributes()
-	if diags.HasErrors() {
-		t.Fatalf("parse attrs diagnostics: %v", diags)
-	}
-	return attrs["value"].Expr
 }

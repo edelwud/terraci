@@ -2,13 +2,13 @@ package source
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"testing"
+
+	"github.com/edelwud/terraci/pkg/parser/internal/testutil"
 )
 
 func TestIndexBlockAccess(t *testing.T) {
-	dir := setupTempModule(t, map[string]string{
+	dir := testutil.SetupTempModule(t, map[string]string{
 		"locals.tf":  `locals { service = "platform" }`,
 		"vars.tf":    `variable "region" { default = "us-east-1" }`,
 		"backend.tf": `terraform { backend "s3" { bucket = "state" } }`,
@@ -58,18 +58,4 @@ func TestIndexBlockAccess(t *testing.T) {
 	if got := index.RemoteStateBlockViews()[0].Name(); got != "vpc" {
 		t.Fatalf("remote state name = %q, want vpc", got)
 	}
-}
-
-func setupTempModule(t *testing.T, files map[string]string) string {
-	t.Helper()
-
-	tmpDir := t.TempDir()
-	for name, content := range files {
-		path := filepath.Join(tmpDir, name)
-		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-			t.Fatalf("write %s: %v", name, err)
-		}
-	}
-
-	return tmpDir
 }

@@ -2,7 +2,6 @@ package extract
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/hashicorp/hcl/v2"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/parser/internal/evalctx"
 	"github.com/edelwud/terraci/pkg/parser/internal/source"
+	"github.com/edelwud/terraci/pkg/parser/internal/testutil"
 )
 
 type testSink struct {
@@ -56,14 +56,14 @@ func (s *testSink) AppendModuleCall(call ModuleCall) { s.moduleCalls = append(s.
 
 func TestRunDefault_ExtractsModuleFacts(t *testing.T) {
 	dir := t.TempDir()
-	writeTestFile(t, dir, "locals.tf", `
+	testutil.WriteFile(t, dir, "locals.tf", `
 locals {
   state_bucket = "team-a-state"
 }
 `)
-	writeTestFile(t, dir, "variables.tf", `variable "region" { default = "us-east-1" }`)
-	writeTestFile(t, dir, "terraform.tfvars", `region = "eu-west-1"`)
-	writeTestFile(t, dir, "backend.tf", `
+	testutil.WriteFile(t, dir, "variables.tf", `variable "region" { default = "us-east-1" }`)
+	testutil.WriteFile(t, dir, "terraform.tfvars", `region = "eu-west-1"`)
+	testutil.WriteFile(t, dir, "backend.tf", `
 terraform {
   backend "s3" {
     bucket = local.state_bucket
@@ -71,7 +71,7 @@ terraform {
   }
 }
 `)
-	writeTestFile(t, dir, "providers.tf", `
+	testutil.WriteFile(t, dir, "providers.tf", `
 terraform {
   required_providers {
     aws = {
@@ -81,13 +81,13 @@ terraform {
   }
 }
 `)
-	writeTestFile(t, dir, ".terraform.lock.hcl", `
+	testutil.WriteFile(t, dir, ".terraform.lock.hcl", `
 provider "registry.terraform.io/hashicorp/aws" {
   version     = "5.67.0"
   constraints = "~> 5.0"
 }
 `)
-	writeTestFile(t, dir, "data.tf", `
+	testutil.WriteFile(t, dir, "data.tf", `
 data "terraform_remote_state" "vpc" {
   backend = "s3"
   config = {
@@ -96,7 +96,7 @@ data "terraform_remote_state" "vpc" {
   }
 }
 `)
-	writeTestFile(t, dir, "modules.tf", `
+	testutil.WriteFile(t, dir, "modules.tf", `
 module "vpc" {
   source  = "../_modules/vpc"
   version = "~> 5.0"
@@ -150,13 +150,5 @@ module "vpc" {
 	}
 	if !sink.moduleCalls[0].IsLocal {
 		t.Fatal("expected local module call")
-	}
-}
-
-func writeTestFile(t *testing.T, dir, filename, content string) {
-	t.Helper()
-	path := dir + "/" + filename
-	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-		t.Fatalf("write %s: %v", filename, err)
 	}
 }
