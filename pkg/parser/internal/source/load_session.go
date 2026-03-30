@@ -18,7 +18,6 @@ type loadSession struct {
 func newLoadSession(modulePath string) *loadSession {
 	return &loadSession{
 		modulePath: modulePath,
-		builder:    newIndexBuilder(modulePath, hclparse.NewParser()),
 	}
 }
 
@@ -31,6 +30,8 @@ func (s *loadSession) Run(ctx context.Context) (*Snapshot, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	s.builder = newIndexBuilder(s.modulePath, hclparse.NewParser(), len(tfFiles))
 
 	if err := s.parseFiles(tfFiles); err != nil {
 		return nil, err

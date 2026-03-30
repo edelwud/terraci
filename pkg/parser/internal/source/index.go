@@ -24,16 +24,24 @@ type indexBuilder struct {
 	snapshot  *Snapshot
 }
 
-func newSnapshot(path string) *Snapshot {
+func newSnapshot(path string, fileCap int) *Snapshot {
+	if fileCap < 0 {
+		fileCap = 0
+	}
+
 	return &Snapshot{
 		path:           path,
-		files:          make(map[string]*hcl.File),
-		topLevelBlocks: make(map[string][]*hcl.Block),
+		files:          make(map[string]*hcl.File, fileCap),
+		topLevelBlocks: make(map[string][]*hcl.Block, 5),
+		variableViews:  make([]VariableBlockView, 0, fileCap),
+		terraformViews: make([]TerraformBlockView, 0, fileCap),
+		moduleViews:    make([]ModuleBlockView, 0, fileCap),
+		remoteViews:    make([]RemoteStateBlockView, 0, fileCap),
 	}
 }
 
-func newIndexBuilder(path string, hclParser *hclparse.Parser) *indexBuilder {
-	snapshot := newSnapshot(path)
+func newIndexBuilder(path string, hclParser *hclparse.Parser, fileCap int) *indexBuilder {
+	snapshot := newSnapshot(path, fileCap)
 	snapshot.hclParser = hclParser
 
 	return &indexBuilder{
