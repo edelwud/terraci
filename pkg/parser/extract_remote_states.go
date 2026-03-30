@@ -1,29 +1,25 @@
 package parser
 
 import (
+	"maps"
+
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/hclsyntax"
-	"github.com/zclconf/go-cty/cty"
 )
 
 func extractRemoteStates(ctx *extractContext) {
-	for _, block := range ctx.index.dataBlocks() {
-		if len(block.Labels) < 2 || block.Labels[0] != "terraform_remote_state" {
-			continue
-		}
-
+	for _, remoteState := range ctx.index.remoteStateBlockViews() {
 		ref := &RemoteStateRef{
-			Name:    block.Labels[1],
+			Name:    remoteState.Name(),
 			Config:  make(map[string]hcl.Expression),
-			RawBody: block.Body,
+			RawBody: remoteState.RawBody(),
 		}
-		parseRemoteStateBlock(ctx, ref, block.Body)
+		parseRemoteStateBlock(ctx, remoteState, ref)
 		ctx.parsed.RemoteStates = append(ctx.parsed.RemoteStates, ref)
 	}
 }
 
-func parseRemoteStateBlock(ctx *extractContext, ref *RemoteStateRef, body hcl.Body) {
-	content, _, diags := body.PartialContent(remoteStateSchema())
+func parseRemoteStateBlock(ctx *extractContext, view remoteStateBlockView, ref *RemoteStateRef) {
+	content, diags := view.Content()
 	ctx.addDiags(diags)
 	if content == nil {
 		return
@@ -36,23 +32,11 @@ func parseRemoteStateBlock(ctx *extractContext, ref *RemoteStateRef, body hcl.Bo
 		ref.ForEach = attr.Expr
 	}
 
-	if attr, ok := content.Attributes["config"]; ok {
-		if objExpr, isObj := attr.Expr.(*hclsyntax.ObjectConsExpr); isObj {
-			for _, item := range objExpr.Items {
-				if keyVal, keyDiags := item.KeyExpr.Value(nil); !keyDiags.HasErrors() && keyVal.Type() == cty.String {
-					ref.Config[keyVal.AsString()] = item.ValueExpr
-				}
-			}
-		}
+	if _, ok := content.Attributes["config"]; ok {
+		maps.Copy(ref.Config, view.InlineConfigExpressions(content))
 	}
 
-	for _, block := range content.Blocks {
-		if block.Type == "config" {
-			attrs, blockDiags := block.Body.JustAttributes()
-			ctx.addDiags(blockDiags)
-			for name, attr := range attrs {
-				ref.Config[name] = attr.Expr
-			}
-		}
-	}
+	configAttrs, configDiags := view.ConfigBlockAttributes(content)
+	ctx.addDiags(configDiags)
+	maps.Copy(ref.Config, configAttrs)
 }

@@ -3,23 +3,18 @@ package parser
 import (
 	"path/filepath"
 	"strings"
-
-	"github.com/hashicorp/hcl/v2"
 )
 
 func extractModuleCalls(ctx *extractContext) {
-	for _, block := range ctx.index.moduleBlocks() {
-		if len(block.Labels) < 1 {
-			continue
-		}
-		call := &ModuleCall{Name: block.Labels[0]}
-		parseModuleBlock(ctx, call, block.Body)
+	for _, module := range ctx.index.moduleBlockViews() {
+		call := &ModuleCall{Name: module.Name()}
+		parseModuleBlock(ctx, module, call)
 		ctx.parsed.ModuleCalls = append(ctx.parsed.ModuleCalls, call)
 	}
 }
 
-func parseModuleBlock(ctx *extractContext, call *ModuleCall, body hcl.Body) {
-	content, _, diags := body.PartialContent(moduleCallSchema())
+func parseModuleBlock(ctx *extractContext, view moduleBlockView, call *ModuleCall) {
+	content, diags := view.Content()
 	ctx.addDiags(diags)
 	if content == nil {
 		return

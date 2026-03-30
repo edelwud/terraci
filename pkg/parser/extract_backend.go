@@ -3,22 +3,14 @@ package parser
 import "github.com/hashicorp/hcl/v2"
 
 func extractBackendConfig(ctx *extractContext) {
-	for _, block := range ctx.index.terraformBlocks() {
-		content, _, diags := block.Body.PartialContent(backendSchema())
+	for _, terraformBlock := range ctx.index.terraformBlockViews() {
+		backends, diags := terraformBlock.BackendBlocks()
 		ctx.addDiags(diags)
-		if content == nil {
-			continue
-		}
-
-		for _, backendBlock := range content.Blocks {
-			if len(backendBlock.Labels) < 1 {
-				continue
-			}
-
-			cfg := extractBackendAttributes(ctx, backendBlock, ctx.buildEvalContext())
+		for _, backend := range backends {
+			cfg := extractBackendAttributes(ctx, backend, ctx.buildEvalContext())
 
 			ctx.parsed.Backend = &BackendConfig{
-				Type:   backendBlock.Labels[0],
+				Type:   backend.Type(),
 				Config: cfg,
 			}
 			return
@@ -26,9 +18,9 @@ func extractBackendConfig(ctx *extractContext) {
 	}
 }
 
-func extractBackendAttributes(ctx *extractContext, block *hcl.Block, evalCtx *hcl.EvalContext) map[string]string {
+func extractBackendAttributes(ctx *extractContext, block backendBlockView, evalCtx *hcl.EvalContext) map[string]string {
 	cfg := make(map[string]string)
-	attrs, diags := block.Body.JustAttributes()
+	attrs, diags := block.Attributes()
 	ctx.addDiags(diags)
 	for name, attr := range attrs {
 		if val, ok := evalStringExpr(attr.Expr, evalCtx); ok {

@@ -46,14 +46,10 @@ func extractLockFile(ctx *extractContext) {
 }
 
 func extractRequiredProviders(ctx *extractContext) {
-	for _, block := range ctx.index.terraformBlocks() {
-		content, _, diags := block.Body.PartialContent(requiredProvidersSchema())
+	for _, terraformBlock := range ctx.index.terraformBlockViews() {
+		requiredProviders, diags := terraformBlock.RequiredProviderBlocks()
 		ctx.addDiags(diags)
-		if content == nil {
-			continue
-		}
-
-		for _, rpBlock := range content.Blocks {
+		for _, rpBlock := range requiredProviders {
 			attrs, attrDiags := rpBlock.Body.JustAttributes()
 			ctx.addDiags(attrDiags)
 

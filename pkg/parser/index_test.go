@@ -34,4 +34,26 @@ func TestModuleIndex_BlockAccess(t *testing.T) {
 	if got := len(index.moduleBlocks()); got != 1 {
 		t.Fatalf("module blocks = %d, want 1", got)
 	}
+	if got := len(index.variableBlockViews()); got != 1 {
+		t.Fatalf("variable block views = %d, want 1", got)
+	}
+	if got := len(index.terraformBlockViews()); got != 1 {
+		t.Fatalf("terraform block views = %d, want 1", got)
+	}
+	if got := len(index.remoteStateBlockViews()); got != 1 {
+		t.Fatalf("remote state block views = %d, want 1", got)
+	}
+	if got := len(index.moduleBlockViews()); got != 1 {
+		t.Fatalf("module block views = %d, want 1", got)
+	}
+
+	if got := index.variableBlockViews()[0].Name(); got != "region" {
+		t.Fatalf("variable name = %q, want region", got)
+	}
+	if got := index.moduleBlockViews()[0].Name(); got != "vpc" {
+		t.Fatalf("module name = %q, want vpc", got)
+	}
+	if got := index.remoteStateBlockViews()[0].Name(); got != "vpc" {
+		t.Fatalf("remote state name = %q, want vpc", got)
+	}
 }

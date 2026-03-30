@@ -16,22 +16,13 @@ func extractTfvars(ctx *extractContext) {
 }
 
 func extractVariableDefaults(ctx *extractContext) {
-	for _, block := range ctx.index.variableBlocks() {
-		if len(block.Labels) < 1 {
-			continue
-		}
-
-		schema := variableDefaultSchema()
-		content, _, diags := block.Body.PartialContent(schema)
+	for _, variable := range ctx.index.variableBlockViews() {
+		val, ok, diags := variable.DefaultValue()
 		ctx.addDiags(diags)
-		if content == nil {
+		if !ok {
 			continue
 		}
-		if attr, ok := content.Attributes["default"]; ok {
-			if val, valDiags := attr.Expr.Value(nil); !valDiags.HasErrors() {
-				ctx.parsed.Variables[block.Labels[0]] = val
-			}
-		}
+		ctx.parsed.Variables[variable.Name()] = val
 	}
 }
 
