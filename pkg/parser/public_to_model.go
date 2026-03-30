@@ -67,64 +67,92 @@ func toInternalBackend(backend *BackendConfig) *model.BackendConfig {
 func toInternalRequiredProviders(providers []*RequiredProvider) []*model.RequiredProvider {
 	result := make([]*model.RequiredProvider, 0, len(providers))
 	for _, provider := range providers {
-		if provider == nil {
-			continue
+		if converted := toInternalRequiredProvider(provider); converted != nil {
+			result = append(result, converted)
 		}
-		result = append(result, &model.RequiredProvider{
-			Name:              provider.Name,
-			Source:            provider.Source,
-			VersionConstraint: provider.VersionConstraint,
-		})
 	}
 	return result
+}
+
+func toInternalRequiredProvider(provider *RequiredProvider) *model.RequiredProvider {
+	if provider == nil {
+		return nil
+	}
+
+	return &model.RequiredProvider{
+		Name:              provider.Name,
+		Source:            provider.Source,
+		VersionConstraint: provider.VersionConstraint,
+	}
 }
 
 func toInternalLockedProviders(providers []*LockedProvider) []*model.LockedProvider {
 	result := make([]*model.LockedProvider, 0, len(providers))
 	for _, provider := range providers {
-		if provider == nil {
-			continue
+		if converted := toInternalLockedProvider(provider); converted != nil {
+			result = append(result, converted)
 		}
-		result = append(result, &model.LockedProvider{
-			Source:      provider.Source,
-			Version:     provider.Version,
-			Constraints: provider.Constraints,
-		})
 	}
 	return result
+}
+
+func toInternalLockedProvider(provider *LockedProvider) *model.LockedProvider {
+	if provider == nil {
+		return nil
+	}
+
+	return &model.LockedProvider{
+		Source:      provider.Source,
+		Version:     provider.Version,
+		Constraints: provider.Constraints,
+	}
 }
 
 func toInternalRemoteStates(remoteStates []*RemoteStateRef) []*model.RemoteStateRef {
 	result := make([]*model.RemoteStateRef, 0, len(remoteStates))
 	for _, remoteState := range remoteStates {
-		if remoteState == nil {
-			continue
+		if converted := toInternalRemoteState(remoteState); converted != nil {
+			result = append(result, converted)
 		}
-		result = append(result, &model.RemoteStateRef{
-			Name:         remoteState.Name,
-			Backend:      remoteState.Backend,
-			Config:       remoteState.Config,
-			ForEach:      remoteState.ForEach,
-			WorkspaceDir: remoteState.WorkspaceDir,
-			RawBody:      remoteState.RawBody,
-		})
 	}
 	return result
+}
+
+func toInternalRemoteState(remoteState *RemoteStateRef) *model.RemoteStateRef {
+	if remoteState == nil {
+		return nil
+	}
+
+	return &model.RemoteStateRef{
+		Name:         remoteState.Name,
+		Backend:      remoteState.Backend,
+		Config:       remoteState.Config,
+		ForEach:      remoteState.ForEach,
+		WorkspaceDir: remoteState.WorkspaceDir,
+		RawBody:      remoteState.RawBody,
+	}
 }
 
 func toInternalModuleCalls(moduleCalls []*ModuleCall) []*model.ModuleCall {
 	result := make([]*model.ModuleCall, 0, len(moduleCalls))
 	for _, moduleCall := range moduleCalls {
-		if moduleCall == nil {
-			continue
+		if converted := toInternalModuleCall(moduleCall); converted != nil {
+			result = append(result, converted)
 		}
-		result = append(result, &model.ModuleCall{
-			Name:         moduleCall.Name,
-			Source:       moduleCall.Source,
-			Version:      moduleCall.Version,
-			IsLocal:      moduleCall.IsLocal,
-			ResolvedPath: moduleCall.ResolvedPath,
-		})
 	}
 	return result
+}
+
+func toInternalModuleCall(moduleCall *ModuleCall) *model.ModuleCall {
+	if moduleCall == nil {
+		return nil
+	}
+
+	return &model.ModuleCall{
+		Name:         moduleCall.Name,
+		Source:       moduleCall.Source,
+		Version:      moduleCall.Version,
+		IsLocal:      moduleCall.IsLocal,
+		ResolvedPath: moduleCall.ResolvedPath,
+	}
 }

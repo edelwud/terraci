@@ -18,30 +18,42 @@ func fromDependencyModuleDependencies(deps *dependencyengine.ModuleDependencies)
 	}
 
 	for _, dependency := range deps.Dependencies {
-		if dependency == nil {
-			continue
+		if converted := fromDependencyEdge(dependency); converted != nil {
+			result.Dependencies = append(result.Dependencies, converted)
 		}
-
-		result.Dependencies = append(result.Dependencies, &Dependency{
-			From:            dependency.From,
-			To:              dependency.To,
-			Type:            dependency.Type,
-			RemoteStateName: dependency.RemoteStateName,
-		})
 	}
 
 	for _, libraryDependency := range deps.LibraryDependencies {
-		if libraryDependency == nil {
-			continue
+		if converted := fromLibraryDependency(libraryDependency); converted != nil {
+			result.LibraryDependencies = append(result.LibraryDependencies, converted)
 		}
-
-		result.LibraryDependencies = append(result.LibraryDependencies, &LibraryDependency{
-			ModuleCall:  fromInternalModuleCall(libraryDependency.ModuleCall),
-			LibraryPath: libraryDependency.LibraryPath,
-		})
 	}
 
 	return result
+}
+
+func fromDependencyEdge(dependency *dependencyengine.Dependency) *Dependency {
+	if dependency == nil {
+		return nil
+	}
+
+	return &Dependency{
+		From:            dependency.From,
+		To:              dependency.To,
+		Type:            dependency.Type,
+		RemoteStateName: dependency.RemoteStateName,
+	}
+}
+
+func fromLibraryDependency(libraryDependency *dependencyengine.LibraryDependency) *LibraryDependency {
+	if libraryDependency == nil {
+		return nil
+	}
+
+	return &LibraryDependency{
+		ModuleCall:  fromInternalModuleCall(libraryDependency.ModuleCall),
+		LibraryPath: libraryDependency.LibraryPath,
+	}
 }
 
 func fromDependencyModuleDependenciesMap(results map[string]*dependencyengine.ModuleDependencies) map[string]*ModuleDependencies {
