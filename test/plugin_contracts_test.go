@@ -1,0 +1,240 @@
+package test
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"slices"
+	"testing"
+
+	"github.com/edelwud/terraci/pkg/config"
+	"github.com/edelwud/terraci/pkg/plugin"
+)
+
+func TestBuiltInPluginContractMatrix(t *testing.T) {
+	expected := map[string]struct {
+		configLoader bool
+		command      bool
+		preflight    bool
+		runtime      bool
+		pipeline     bool
+	}{
+		"cost": {
+			configLoader: true,
+			command:      true,
+			preflight:    true,
+			runtime:      true,
+			pipeline:     true,
+		},
+		"git": {
+			preflight: true,
+		},
+		"github": {
+			configLoader: true,
+			preflight:    true,
+		},
+		"gitlab": {
+			configLoader: true,
+			preflight:    true,
+		},
+		"policy": {
+			configLoader: true,
+			command:      true,
+			preflight:    true,
+			runtime:      true,
+			pipeline:     true,
+		},
+		"summary": {
+			configLoader: true,
+			command:      true,
+			pipeline:     true,
+		},
+		"update": {
+			configLoader: true,
+			command:      true,
+			preflight:    true,
+			runtime:      true,
+			pipeline:     true,
+		},
+	}
+
+	for _, p := range plugin.All() {
+		want, ok := expected[p.Name()]
+		if !ok {
+			t.Fatalf("unexpected plugin %q in registry", p.Name())
+		}
+
+		_, hasConfigLoader := p.(plugin.ConfigLoader)
+		_, hasCommandProvider := p.(plugin.CommandProvider)
+		_, hasPreflight := p.(plugin.Preflightable)
+		_, hasRuntime := p.(plugin.RuntimeProvider)
+		_, hasPipeline := p.(plugin.PipelineContributor)
+
+		if hasConfigLoader != want.configLoader {
+			t.Errorf("%s ConfigLoader = %v, want %v", p.Name(), hasConfigLoader, want.configLoader)
+		}
+		if hasCommandProvider != want.command {
+			t.Errorf("%s CommandProvider = %v, want %v", p.Name(), hasCommandProvider, want.command)
+		}
+		if hasPreflight != want.preflight {
+			t.Errorf("%s Preflightable = %v, want %v", p.Name(), hasPreflight, want.preflight)
+		}
+		if hasRuntime != want.runtime {
+			t.Errorf("%s RuntimeProvider = %v, want %v", p.Name(), hasRuntime, want.runtime)
+		}
+		if hasPipeline != want.pipeline {
+			t.Errorf("%s PipelineContributor = %v, want %v", p.Name(), hasPipeline, want.pipeline)
+		}
+	}
+}
+
+func TestPreflightsForStartup_UsesEnabledPlugins(t *testing.T) {
+	appCtx := loadPluginContractConfig(t, `service_dir: .terraci
+structure:
+  pattern: "{service}/{environment}/{region}/{module}"
+plugins:
+  gitlab:
+    terraform_binary: terraform
+    image:
+      name: hashicorp/terraform:1.6
+  cost:
+    providers:
+      aws:
+        enabled: true
+  policy:
+    enabled: true
+    sources:
+      - path: terraform
+  summary: {}
+  update:
+    enabled: true
+`)
+
+	preflightables := plugin.PreflightsForStartup()
+	got := make([]string, 0, len(preflightables))
+	for _, p := range preflightables {
+		if err := p.Preflight(context.Background(), appCtx); err != nil && p.Name() != "git" {
+			t.Fatalf("Preflight(%s) error = %v", p.Name(), err)
+		}
+		got = append(got, p.Name())
+	}
+	slices.Sort(got)
+
+	want := []string{"cost", "git", "gitlab", "policy", "update"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("PreflightsForStartup() = %v, want %v", got, want)
+	}
+}
+
+func TestRuntimeProviders_CreateRuntimeWithoutPreflight(t *testing.T) {
+	appCtx := loadPluginContractConfig(t, `service_dir: .terraci
+structure:
+  pattern: "{service}/{environment}/{region}/{module}"
+plugins:
+  cost:
+    providers:
+      aws:
+        enabled: true
+  policy:
+    enabled: true
+    sources:
+      - path: terraform
+  update:
+    enabled: true
+`)
+
+	expectedRuntimeProviders := []string{"cost", "policy", "update"}
+	got := make([]string, 0, len(expectedRuntimeProviders))
+	for _, p := range plugin.ByCapability[plugin.RuntimeProvider]() {
+		rawRuntime, err := p.Runtime(context.Background(), appCtx)
+		if err != nil {
+			t.Fatalf("Runtime(%s) error = %v", p.Name(), err)
+		}
+		if rawRuntime == nil {
+			t.Fatalf("Runtime(%s) returned nil runtime", p.Name())
+		}
+		got = append(got, p.Name())
+	}
+	slices.Sort(got)
+	if !slices.Equal(got, expectedRuntimeProviders) {
+		t.Fatalf("Runtime providers = %v, want %v", got, expectedRuntimeProviders)
+	}
+}
+
+func TestCollectContributions_UsesContextualStateWithoutPreflight(t *testing.T) {
+	appCtx := loadPluginContractConfig(t, `service_dir: custom-artifacts
+structure:
+  pattern: "{service}/{environment}/{region}/{module}"
+plugins:
+  cost:
+    providers:
+      aws:
+        enabled: true
+  policy:
+    enabled: true
+    sources:
+      - path: terraform
+  summary: {}
+  update:
+    enabled: true
+    pipeline: true
+`)
+
+	contributions := plugin.CollectContributions(appCtx)
+	if len(contributions) != 4 {
+		t.Fatalf("CollectContributions() returned %d contributions, want 4", len(contributions))
+	}
+
+	foundUpdateArtifactPath := false
+	for _, contrib := range contributions {
+		for _, job := range contrib.Jobs {
+			if job.Name != "dependency-update-check" {
+				continue
+			}
+			if len(job.ArtifactPaths) != 1 {
+				t.Fatalf("dependency-update-check artifact paths = %v, want one path", job.ArtifactPaths)
+			}
+			if job.ArtifactPaths[0] != filepath.Join("custom-artifacts", "update-results.json") {
+				t.Fatalf("dependency-update-check artifact path = %q, want %q", job.ArtifactPaths[0], filepath.Join("custom-artifacts", "update-results.json"))
+			}
+			foundUpdateArtifactPath = true
+		}
+	}
+
+	if !foundUpdateArtifactPath {
+		t.Fatal("CollectContributions() did not include dependency-update-check job")
+	}
+}
+
+func loadPluginContractConfig(t *testing.T, rawConfig string) *plugin.AppContext {
+	t.Helper()
+
+	clearCIEnv(t)
+	plugin.ResetPlugins()
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, ".terraci.yaml")
+	if err := os.WriteFile(configPath, []byte(rawConfig), 0o600); err != nil {
+		t.Fatalf("failed to write config fixture: %v", err)
+	}
+
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		t.Fatalf("failed to load config fixture: %v", err)
+	}
+
+	for _, cl := range plugin.ByCapability[plugin.ConfigLoader]() {
+		if _, exists := cfg.Plugins[cl.ConfigKey()]; !exists {
+			continue
+		}
+		if err := cl.DecodeAndSet(func(target any) error {
+			return cfg.PluginConfig(cl.ConfigKey(), target)
+		}); err != nil {
+			t.Fatalf("failed to decode %s config: %v", cl.ConfigKey(), err)
+		}
+	}
+
+	serviceDir := filepath.Join(dir, cfg.ServiceDir)
+	appCtx := plugin.NewAppContext(cfg, dir, serviceDir, "test", nil)
+	return appCtx
+}
