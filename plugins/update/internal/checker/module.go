@@ -30,8 +30,7 @@ func (s *checkSession) scanModuleCall(
 	scanCtx *moduleScanContext,
 	call *parser.ModuleCall,
 ) updateengine.ModuleVersionUpdate {
-	dependency := newModuleDependency(scanCtx.module.RelativePath, call)
-	update := newModuleUpdate(dependency)
+	update := newModuleUpdate(newModuleDependency(scanCtx.module.RelativePath, call))
 
 	if s.checker.config.IsIgnored(call.Source) {
 		return skipModuleUpdate(update, skipReasonIgnored)
@@ -47,20 +46,9 @@ func (s *checkSession) scanModuleCall(
 		return errorModuleUpdate(update, err)
 	}
 
-	analysis := analyzeModuleVersions(call.Version, parseVersionList(versionStrings), s.checker.config.Bump)
-	if analysis.hasCurrent {
-		update.CurrentVersion = analysis.current.String()
-	}
-	if !analysis.latest.IsZero() {
-		update.LatestVersion = analysis.latest.String()
-	}
-	if !analysis.bumped.IsZero() {
-		return markModuleUpdateAvailable(
-			update,
-			scanCtx.fileIndex.FindModuleBlockFile(call.Name),
-			analysis.bumped.String(),
-		)
-	}
-
-	return update
+	result := newModuleScanResult(
+		update,
+		analyzeModuleVersions(call.Version, parseVersionList(versionStrings), s.checker.config.Bump),
+	)
+	return result.outcome(scanCtx.fileIndex.FindModuleBlockFile(call.Name))
 }

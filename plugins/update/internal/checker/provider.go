@@ -28,8 +28,7 @@ func (s *checkSession) scanProvider(
 	scanCtx *moduleScanContext,
 	requiredProvider *parser.RequiredProvider,
 ) updateengine.ProviderVersionUpdate {
-	dependency := newProviderDependency(scanCtx.module.RelativePath, requiredProvider)
-	update := newProviderUpdate(dependency)
+	update := newProviderUpdate(newProviderDependency(scanCtx.module.RelativePath, requiredProvider))
 
 	switch {
 	case requiredProvider.Source == "":
@@ -50,30 +49,16 @@ func (s *checkSession) scanProvider(
 		return errorProviderUpdate(update, err)
 	}
 
-	analysis := analyzeProviderVersions(
-		update.Constraint(),
-		update.CurrentVersion,
-		parseVersionList(versionStrings),
-		s.checker.config.Bump,
+	result := newProviderScanResult(
+		update,
+		analyzeProviderVersions(
+			update.Constraint(),
+			update.CurrentVersion,
+			parseVersionList(versionStrings),
+			s.checker.config.Bump,
+		),
 	)
-	if analysis.hasCurrent {
-		update.CurrentVersion = analysis.current.String()
-	}
-	if !analysis.latest.IsZero() {
-		update.LatestVersion = analysis.latest.String()
-	}
-	if !analysis.hasCurrent {
-		return skipProviderUpdate(update, "cannot determine current version")
-	}
-	if !analysis.bumped.IsZero() {
-		return markProviderUpdateAvailable(
-			update,
-			scanCtx.fileIndex.FindProviderBlockFile(requiredProvider.Name),
-			analysis.bumped.String(),
-		)
-	}
-
-	return update
+	return result.outcome(scanCtx.fileIndex.FindProviderBlockFile(requiredProvider.Name))
 }
 
 // buildLockIndex creates a map from short provider source ("hashicorp/aws")

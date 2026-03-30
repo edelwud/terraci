@@ -1018,3 +1018,69 @@ func TestAnalyzeProviderVersions(t *testing.T) {
 		}
 	})
 }
+
+func TestModuleScanResult_Outcome(t *testing.T) {
+	update := ModuleVersionUpdate{}
+	result := newModuleScanResult(update, versionAnalysis{
+		current:    Version{Major: 5, Minor: 0, Patch: 0},
+		latest:     Version{Major: 6, Minor: 0, Patch: 0},
+		bumped:     Version{Major: 5, Minor: 2, Patch: 0},
+		hasCurrent: true,
+	})
+
+	outcome := result.outcome("/tmp/main.tf")
+	if outcome.CurrentVersion != "5.0.0" {
+		t.Errorf("CurrentVersion = %q, want %q", outcome.CurrentVersion, "5.0.0")
+	}
+	if outcome.LatestVersion != "6.0.0" {
+		t.Errorf("LatestVersion = %q, want %q", outcome.LatestVersion, "6.0.0")
+	}
+	if outcome.BumpedVersion != "5.2.0" {
+		t.Errorf("BumpedVersion = %q, want %q", outcome.BumpedVersion, "5.2.0")
+	}
+	if outcome.File != "/tmp/main.tf" {
+		t.Errorf("File = %q, want %q", outcome.File, "/tmp/main.tf")
+	}
+	if outcome.Status != StatusUpdateAvailable {
+		t.Errorf("Status = %q, want %q", outcome.Status, StatusUpdateAvailable)
+	}
+}
+
+func TestProviderScanResult_Outcome(t *testing.T) {
+	t.Run("cannot determine current version", func(t *testing.T) {
+		update := ProviderVersionUpdate{}
+		outcome := newProviderScanResult(update, versionAnalysis{}).outcome("/tmp/versions.tf")
+		if outcome.Status != StatusSkipped {
+			t.Errorf("Status = %q, want %q", outcome.Status, StatusSkipped)
+		}
+		if outcome.Issue != "cannot determine current version" {
+			t.Errorf("Issue = %q, want %q", outcome.Issue, "cannot determine current version")
+		}
+	})
+
+	t.Run("available update", func(t *testing.T) {
+		update := ProviderVersionUpdate{}
+		outcome := newProviderScanResult(update, versionAnalysis{
+			current:    Version{Major: 5, Minor: 67, Patch: 0},
+			latest:     Version{Major: 6, Minor: 0, Patch: 0},
+			bumped:     Version{Major: 5, Minor: 68, Patch: 0},
+			hasCurrent: true,
+		}).outcome("/tmp/versions.tf")
+
+		if outcome.CurrentVersion != "5.67.0" {
+			t.Errorf("CurrentVersion = %q, want %q", outcome.CurrentVersion, "5.67.0")
+		}
+		if outcome.LatestVersion != "6.0.0" {
+			t.Errorf("LatestVersion = %q, want %q", outcome.LatestVersion, "6.0.0")
+		}
+		if outcome.BumpedVersion != "5.68.0" {
+			t.Errorf("BumpedVersion = %q, want %q", outcome.BumpedVersion, "5.68.0")
+		}
+		if outcome.File != "/tmp/versions.tf" {
+			t.Errorf("File = %q, want %q", outcome.File, "/tmp/versions.tf")
+		}
+		if outcome.Status != StatusUpdateAvailable {
+			t.Errorf("Status = %q, want %q", outcome.Status, StatusUpdateAvailable)
+		}
+	})
+}
