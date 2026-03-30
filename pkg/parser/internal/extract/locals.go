@@ -16,21 +16,22 @@ func extractLocals(ctx *Context) {
 		maps.Copy(allAttrs, attrs)
 	}
 
-	evalCtx := eval.NewContext(ctx.Sink.Locals(), ctx.Sink.Variables(), ctx.Sink.Path())
+	locals := ctx.Sink.Locals()
+	evalCtx := eval.NewContext(locals, ctx.Sink.Variables(), ctx.Sink.Path())
+	evalCtx.Variables["local"] = eval.SafeObjectVal(locals)
 
 	const maxPasses = 10
 	for range maxPasses {
 		resolved := 0
 		for name, attr := range allAttrs {
-			if _, exists := ctx.Sink.Locals()[name]; exists {
+			if _, exists := locals[name]; exists {
 				continue
 			}
-
-			evalCtx.Variables["local"] = eval.SafeObjectVal(ctx.Sink.Locals())
 
 			val, diags := attr.Expr.Value(evalCtx)
 			if !diags.HasErrors() && val.IsKnown() {
 				ctx.Sink.SetLocal(name, val)
+				evalCtx.Variables["local"] = eval.SafeObjectVal(locals)
 				resolved++
 			}
 		}

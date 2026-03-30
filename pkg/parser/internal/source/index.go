@@ -4,24 +4,23 @@ import (
 	"maps"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/hclparse"
 )
 
 type Snapshot struct {
 	path           string
-	hclParser      *hclparse.Parser
 	files          map[string]*hcl.File
 	topLevelBlocks map[string][]*hcl.Block
 	variableViews  []VariableBlockView
 	terraformViews []TerraformBlockView
 	moduleViews    []ModuleBlockView
 	remoteViews    []RemoteStateBlockView
+	lockFile       *hcl.File
+	lockFileDiags  hcl.Diagnostics
 	diagnostics    hcl.Diagnostics
 }
 
 type indexBuilder struct {
-	hclParser *hclparse.Parser
-	snapshot  *Snapshot
+	snapshot *Snapshot
 }
 
 func newSnapshot(path string, fileCap int) *Snapshot {
@@ -40,13 +39,9 @@ func newSnapshot(path string, fileCap int) *Snapshot {
 	}
 }
 
-func newIndexBuilder(path string, hclParser *hclparse.Parser, fileCap int) *indexBuilder {
-	snapshot := newSnapshot(path, fileCap)
-	snapshot.hclParser = hclParser
-
+func newIndexBuilder(path string, fileCap int) *indexBuilder {
 	return &indexBuilder{
-		hclParser: hclParser,
-		snapshot:  snapshot,
+		snapshot: newSnapshot(path, fileCap),
 	}
 }
 
@@ -60,7 +55,7 @@ func (b *indexBuilder) AddFile(path string, file *hcl.File) {
 }
 
 func (b *indexBuilder) ParseHCLFile(path string) (*hcl.File, error) {
-	file, diags, err := parseHCLFile(b.hclParser, path)
+	file, diags, err := parseHCLFile(path)
 	b.AddDiagnostics(diags)
 	if err != nil {
 		return nil, err
@@ -70,6 +65,11 @@ func (b *indexBuilder) ParseHCLFile(path string) (*hcl.File, error) {
 
 func (b *indexBuilder) Snapshot() *Snapshot {
 	return b.snapshot
+}
+
+func (b *indexBuilder) SetLockFile(file *hcl.File, diags hcl.Diagnostics) {
+	b.snapshot.lockFile = file
+	b.snapshot.lockFileDiags = diags
 }
 
 func (s *Snapshot) SharedFiles() map[string]*hcl.File {
@@ -83,11 +83,15 @@ func (s *Snapshot) Files() map[string]*hcl.File {
 }
 
 func (s *Snapshot) ParseHCLFile(path string) (*hcl.File, hcl.Diagnostics, error) {
-	file, diags, err := parseHCLFile(s.hclParser, path)
+	file, diags, err := parseHCLFile(path)
 	if err != nil {
 		return nil, diags, err
 	}
 	return file, diags, nil
+}
+
+func (s *Snapshot) LockFile() (*hcl.File, hcl.Diagnostics) {
+	return s.lockFile, append(hcl.Diagnostics(nil), s.lockFileDiags...)
 }
 
 func (s *Snapshot) Diagnostics() hcl.Diagnostics {

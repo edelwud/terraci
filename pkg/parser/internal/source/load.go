@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 )
 
 type Loader struct{}
@@ -22,11 +22,11 @@ func readFile(path string) ([]byte, error) {
 	return os.ReadFile(path)
 }
 
-func parseHCLFile(hclParser *hclparse.Parser, path string) (*hcl.File, hcl.Diagnostics, error) {
+func parseHCLFile(path string) (*hcl.File, hcl.Diagnostics, error) {
 	content, err := readFile(path)
 	if err != nil {
 		return nil, nil, err
 	}
-	file, diags := hclParser.ParseHCL(content, path)
+	file, diags := hclsyntax.ParseConfig(content, path, hcl.Pos{Line: 1, Column: 1})
 	return file, diags, nil
 }

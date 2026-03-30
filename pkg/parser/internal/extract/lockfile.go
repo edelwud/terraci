@@ -1,14 +1,9 @@
 package extract
 
-import (
-	"path/filepath"
-)
-
 func extractLockFile(ctx *Context) {
-	lockPath := filepath.Join(ctx.Sink.Path(), lockFileName)
-	file, diags, err := ctx.Source.ParseHCLFile(lockPath)
+	file, diags := ctx.Source.LockFile()
 	ctx.Sink.AddDiags(diags)
-	if err != nil || file == nil {
+	if file == nil {
 		return
 	}
 

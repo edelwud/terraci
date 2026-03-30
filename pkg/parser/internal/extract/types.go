@@ -9,8 +9,6 @@ import (
 	"github.com/edelwud/terraci/pkg/parser/model"
 )
 
-const lockFileName = ".terraform.lock.hcl"
-
 type Sink interface {
 	Path() string
 	Locals() map[string]cty.Value
@@ -31,6 +29,7 @@ type Source interface {
 	TerraformBlockViews() []source.TerraformBlockView
 	RemoteStateBlockViews() []source.RemoteStateBlockView
 	ModuleBlockViews() []source.ModuleBlockView
+	LockFile() (*hcl.File, hcl.Diagnostics)
 	ParseHCLFile(path string) (*hcl.File, hcl.Diagnostics, error)
 }
 
