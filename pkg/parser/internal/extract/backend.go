@@ -8,7 +8,7 @@ func extractBackendConfig(ctx *Context) {
 		ctx.Sink.AddDiags(diags)
 		for _, backend := range backends {
 			cfg := extractBackendAttributes(ctx, backend)
-			ctx.Sink.SetBackend(Backend{
+			ctx.Sink.SetBackend(BackendConfig{
 				Type:   backend.Type(),
 				Config: cfg,
 			})

@@ -6,6 +6,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/parser/internal/evalctx"
 	"github.com/edelwud/terraci/pkg/parser/internal/source"
+	"github.com/edelwud/terraci/pkg/parser/model"
 )
 
 const lockFileName = ".terraform.lock.hcl"
@@ -17,10 +18,10 @@ type Sink interface {
 	AddDiags(hcl.Diagnostics)
 	SetLocal(name string, value cty.Value)
 	SetVariable(name string, value cty.Value)
-	SetBackend(Backend)
+	SetBackend(BackendConfig)
 	AppendRequiredProvider(RequiredProvider)
 	AppendLockedProvider(LockedProvider)
-	AppendRemoteState(RemoteState)
+	AppendRemoteState(RemoteStateRef)
 	AppendModuleCall(ModuleCall)
 }
 
@@ -39,35 +40,12 @@ type Context struct {
 	Sink        Sink
 }
 
-type Backend struct {
-	Type   string
-	Config map[string]string
-}
+type BackendConfig = model.BackendConfig
 
-type RequiredProvider struct {
-	Name              string
-	Source            string
-	VersionConstraint string
-}
+type RequiredProvider = model.RequiredProvider
 
-type LockedProvider struct {
-	Source      string
-	Version     string
-	Constraints string
-}
+type LockedProvider = model.LockedProvider
 
-type RemoteState struct {
-	Name    string
-	Backend string
-	Config  map[string]hcl.Expression
-	ForEach hcl.Expression
-	RawBody hcl.Body
-}
+type RemoteStateRef = model.RemoteStateRef
 
-type ModuleCall struct {
-	Name         string
-	Source       string
-	Version      string
-	IsLocal      bool
-	ResolvedPath string
-}
+type ModuleCall = model.ModuleCall

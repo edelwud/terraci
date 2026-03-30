@@ -16,10 +16,10 @@ type testSink struct {
 	path              string
 	locals            map[string]cty.Value
 	variables         map[string]cty.Value
-	backend           *Backend
+	backend           *BackendConfig
 	requiredProviders []RequiredProvider
 	lockedProviders   []LockedProvider
-	remoteStates      []RemoteState
+	remoteStates      []RemoteStateRef
 	moduleCalls       []ModuleCall
 	diagnostics       hcl.Diagnostics
 }
@@ -31,7 +31,7 @@ func newTestSink(path string) *testSink {
 		variables:         make(map[string]cty.Value),
 		requiredProviders: make([]RequiredProvider, 0),
 		lockedProviders:   make([]LockedProvider, 0),
-		remoteStates:      make([]RemoteState, 0),
+		remoteStates:      make([]RemoteStateRef, 0),
 		moduleCalls:       make([]ModuleCall, 0),
 	}
 }
@@ -42,15 +42,17 @@ func (s *testSink) Variables() map[string]cty.Value          { return s.variable
 func (s *testSink) AddDiags(diags hcl.Diagnostics)           { s.diagnostics = append(s.diagnostics, diags...) }
 func (s *testSink) SetLocal(name string, value cty.Value)    { s.locals[name] = value }
 func (s *testSink) SetVariable(name string, value cty.Value) { s.variables[name] = value }
-func (s *testSink) SetBackend(backend Backend)               { s.backend = &backend }
+func (s *testSink) SetBackend(backend BackendConfig)         { s.backend = &backend }
 func (s *testSink) AppendRequiredProvider(provider RequiredProvider) {
 	s.requiredProviders = append(s.requiredProviders, provider)
 }
 func (s *testSink) AppendLockedProvider(provider LockedProvider) {
 	s.lockedProviders = append(s.lockedProviders, provider)
 }
-func (s *testSink) AppendRemoteState(ref RemoteState) { s.remoteStates = append(s.remoteStates, ref) }
-func (s *testSink) AppendModuleCall(call ModuleCall)  { s.moduleCalls = append(s.moduleCalls, call) }
+func (s *testSink) AppendRemoteState(ref RemoteStateRef) {
+	s.remoteStates = append(s.remoteStates, ref)
+}
+func (s *testSink) AppendModuleCall(call ModuleCall) { s.moduleCalls = append(s.moduleCalls, call) }
 
 func TestRunDefault_ExtractsModuleFacts(t *testing.T) {
 	dir := t.TempDir()

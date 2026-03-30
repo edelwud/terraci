@@ -10,7 +10,7 @@ import (
 
 func extractRemoteStates(ctx *Context) {
 	for _, remoteState := range ctx.Source.RemoteStateBlockViews() {
-		ref := RemoteState{
+		ref := RemoteStateRef{
 			Name:    remoteState.Name(),
 			Config:  make(map[string]hcl.Expression),
 			RawBody: remoteState.RawBody(),
@@ -20,7 +20,7 @@ func extractRemoteStates(ctx *Context) {
 	}
 }
 
-func parseRemoteStateBlock(ctx *Context, view source.RemoteStateBlockView, ref *RemoteState) {
+func parseRemoteStateBlock(ctx *Context, view source.RemoteStateBlockView, ref *RemoteStateRef) {
 	content, diags := view.Content()
 	ctx.Sink.AddDiags(diags)
 	if content == nil {

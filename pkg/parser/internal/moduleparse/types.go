@@ -85,47 +85,24 @@ func (s *parsedModuleSink) SetVariable(name string, value cty.Value) {
 	s.parsed.Variables[name] = value
 }
 
-func (s *parsedModuleSink) SetBackend(backend extract.Backend) {
-	s.parsed.Backend = &model.BackendConfig{
-		Type:   backend.Type,
-		Config: backend.Config,
-	}
+func (s *parsedModuleSink) SetBackend(backend extract.BackendConfig) {
+	s.parsed.Backend = &backend
 }
 
 func (s *parsedModuleSink) AppendRequiredProvider(provider extract.RequiredProvider) {
-	s.parsed.RequiredProviders = append(s.parsed.RequiredProviders, &model.RequiredProvider{
-		Name:              provider.Name,
-		Source:            provider.Source,
-		VersionConstraint: provider.VersionConstraint,
-	})
+	s.parsed.RequiredProviders = append(s.parsed.RequiredProviders, &provider)
 }
 
 func (s *parsedModuleSink) AppendLockedProvider(provider extract.LockedProvider) {
-	s.parsed.LockedProviders = append(s.parsed.LockedProviders, &model.LockedProvider{
-		Source:      provider.Source,
-		Version:     provider.Version,
-		Constraints: provider.Constraints,
-	})
+	s.parsed.LockedProviders = append(s.parsed.LockedProviders, &provider)
 }
 
-func (s *parsedModuleSink) AppendRemoteState(ref extract.RemoteState) {
-	s.parsed.RemoteStates = append(s.parsed.RemoteStates, &model.RemoteStateRef{
-		Name:    ref.Name,
-		Backend: ref.Backend,
-		Config:  ref.Config,
-		ForEach: ref.ForEach,
-		RawBody: ref.RawBody,
-	})
+func (s *parsedModuleSink) AppendRemoteState(ref extract.RemoteStateRef) {
+	s.parsed.RemoteStates = append(s.parsed.RemoteStates, &ref)
 }
 
 func (s *parsedModuleSink) AppendModuleCall(call extract.ModuleCall) {
-	s.parsed.ModuleCalls = append(s.parsed.ModuleCalls, &model.ModuleCall{
-		Name:         call.Name,
-		Source:       call.Source,
-		Version:      call.Version,
-		IsLocal:      call.IsLocal,
-		ResolvedPath: call.ResolvedPath,
-	})
+	s.parsed.ModuleCalls = append(s.parsed.ModuleCalls, &call)
 }
 
 func (r *runner) Run(ctx context.Context) (*model.ParsedModule, error) {
