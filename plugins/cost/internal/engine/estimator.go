@@ -17,33 +17,46 @@ type Estimator struct {
 	executor *ModuleExecutor
 	planner  *PrefetchPlanner
 	coord    *estimateCoordinator
+	catalog  *costruntime.ProviderCatalog
 	runtimes *costruntime.ProviderRuntimeRegistry
+	prefetch *costruntime.PricingPrefetcher
 }
 
 // NewEstimator creates a new cost estimator with the given pricing fetcher.
 func NewEstimator(cacheDir string, cacheTTL time.Duration, fetcher pricing.PriceFetcher) *Estimator {
 	providers := cloud.Providers()
 	registry := newDefaultRegistry(providers)
-	runtimeRegistry := costruntime.NewProviderRuntimeRegistryFromProviders(providers, registry, cacheDir, cacheTTL, fetcher)
-	return NewEstimatorWithRuntimeRegistry(runtimeRegistry)
+	catalog := costruntime.NewProviderCatalogFromProviders(providers, registry)
+	runtimeRegistry := costruntime.NewProviderRuntimeRegistryFromProviders(providers, cacheDir, cacheTTL, fetcher)
+	return NewEstimatorWithCatalogAndRuntimeRegistry(catalog, runtimeRegistry)
 }
 
 // NewEstimatorWithRuntimeRegistry creates an Estimator with an explicit provider runtime registry.
 func NewEstimatorWithRuntimeRegistry(runtimeRegistry *costruntime.ProviderRuntimeRegistry) *Estimator {
-	resolver := costruntime.NewCostResolver(runtimeRegistry)
-	return newEstimator(runtimeRegistry, resolver)
+	providers := cloud.Providers()
+	registry := newDefaultRegistry(providers)
+	catalog := costruntime.NewProviderCatalogFromProviders(providers, registry)
+	return NewEstimatorWithCatalogAndRuntimeRegistry(catalog, runtimeRegistry)
 }
 
-// NewEstimatorWithResolver creates an estimator with an explicit runtime registry and resolver.
-func NewEstimatorWithResolver(runtimeRegistry *costruntime.ProviderRuntimeRegistry, resolver *costruntime.CostResolver) *Estimator {
-	return newEstimator(runtimeRegistry, resolver)
+// NewEstimatorWithCatalogAndRuntimeRegistry creates an Estimator with explicit catalog and runtime dependencies.
+func NewEstimatorWithCatalogAndRuntimeRegistry(catalog *costruntime.ProviderCatalog, runtimeRegistry *costruntime.ProviderRuntimeRegistry) *Estimator {
+	resolutionRuntime := costruntime.NewResolutionRuntime(catalog, runtimeRegistry)
+	resolver := costruntime.NewCostResolver(resolutionRuntime)
+	return newEstimator(catalog, runtimeRegistry, resolver)
 }
 
-func newEstimator(runtimeRegistry *costruntime.ProviderRuntimeRegistry, resolver *costruntime.CostResolver) *Estimator {
+// NewEstimatorWithResolver creates an estimator with explicit catalog, runtime registry, and resolver.
+func NewEstimatorWithResolver(catalog *costruntime.ProviderCatalog, runtimeRegistry *costruntime.ProviderRuntimeRegistry, resolver *costruntime.CostResolver) *Estimator {
+	return newEstimator(catalog, runtimeRegistry, resolver)
+}
+
+func newEstimator(catalog *costruntime.ProviderCatalog, runtimeRegistry *costruntime.ProviderRuntimeRegistry, resolver *costruntime.CostResolver) *Estimator {
 	scanner := NewModuleScanner(NewTerraformPlanAdapter())
 	executor := NewModuleExecutor(resolver)
-	planner := NewPrefetchPlanner(runtimeRegistry)
-	coord := newEstimateCoordinator(scanner, planner, executor, runtimeRegistry, runtimeRegistry.ProviderMetadata)
+	planner := NewPrefetchPlanner(catalog)
+	prefetcher := costruntime.NewPricingPrefetcher(runtimeRegistry)
+	coord := newEstimateCoordinator(scanner, planner, executor, prefetcher, catalog.ProviderMetadata)
 
 	return &Estimator{
 		resolver: resolver,
@@ -51,7 +64,9 @@ func newEstimator(runtimeRegistry *costruntime.ProviderRuntimeRegistry, resolver
 		executor: executor,
 		planner:  planner,
 		coord:    coord,
+		catalog:  catalog,
 		runtimes: runtimeRegistry,
+		prefetch: prefetcher,
 	}
 }
 
@@ -104,5 +119,5 @@ func (e *Estimator) ValidateAndPrefetch(ctx context.Context, modulePaths []strin
 	if err != nil {
 		return err
 	}
-	return e.runtimes.PrefetchPricing(ctx, e.planner.Build(modulePlans))
+	return e.prefetch.PrefetchPricing(ctx, e.planner.Build(modulePlans))
 }

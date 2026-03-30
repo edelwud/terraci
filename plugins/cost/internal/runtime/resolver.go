@@ -12,12 +12,48 @@ import (
 
 const priceSourceUsageBased = "usage-based"
 
-// ResolverRuntime exposes the provider-aware runtime surface required by cost resolution.
-type ResolverRuntime interface {
+// ProviderCatalogRuntime exposes provider ownership and handler lookup for resolution and planning.
+type ProviderCatalogRuntime interface {
 	ResolveProvider(resourceType handler.ResourceType) (string, bool)
 	ResolveHandler(providerID string, resourceType handler.ResourceType) (handler.ResourceHandler, bool)
+}
+
+// PricingRuntime exposes provider-scoped pricing access for resolution.
+type PricingRuntime interface {
 	GetIndex(ctx context.Context, service pricing.ServiceID, region string) (*pricing.PriceIndex, error)
 	SourceName(providerID string) string
+}
+
+// ResolutionRuntime exposes the provider-aware runtime surface required by cost resolution.
+type ResolutionRuntime interface {
+	ProviderCatalogRuntime
+	PricingRuntime
+}
+
+type resolutionRuntime struct {
+	catalog ProviderCatalogRuntime
+	pricing PricingRuntime
+}
+
+// NewResolutionRuntime combines provider catalog and pricing runtime into one resolver runtime.
+func NewResolutionRuntime(catalog ProviderCatalogRuntime, pricingRuntime PricingRuntime) ResolutionRuntime {
+	return resolutionRuntime{catalog: catalog, pricing: pricingRuntime}
+}
+
+func (r resolutionRuntime) ResolveProvider(resourceType handler.ResourceType) (string, bool) {
+	return r.catalog.ResolveProvider(resourceType)
+}
+
+func (r resolutionRuntime) ResolveHandler(providerID string, resourceType handler.ResourceType) (handler.ResourceHandler, bool) {
+	return r.catalog.ResolveHandler(providerID, resourceType)
+}
+
+func (r resolutionRuntime) GetIndex(ctx context.Context, service pricing.ServiceID, region string) (*pricing.PriceIndex, error) {
+	return r.pricing.GetIndex(ctx, service, region)
+}
+
+func (r resolutionRuntime) SourceName(providerID string) string {
+	return r.pricing.SourceName(providerID)
 }
 
 // ResolveRequest bundles all inputs for a single resource cost resolution.
@@ -38,12 +74,12 @@ type CostMiddleware func(ctx context.Context, next ResolveFunc, req ResolveReque
 
 // CostResolver handles the cost resolution logic.
 type CostResolver struct {
-	runtime    ResolverRuntime
+	runtime    ResolutionRuntime
 	middleware []CostMiddleware
 }
 
 // NewCostResolver creates a new resolver with the given provider-aware runtime.
-func NewCostResolver(runtime ResolverRuntime) *CostResolver {
+func NewCostResolver(runtime ResolutionRuntime) *CostResolver {
 	return &CostResolver{
 		runtime: runtime,
 	}

@@ -191,9 +191,14 @@ func TestEstimateModule_KnownProviderMissingHandler(t *testing.T) {
 			Cache:      pricing.NewCache(cacheDir, 0, fetcher),
 		},
 	}
-	runtimeRegistry := costruntime.NewProviderRuntimeRegistry(cloud.Providers(), registry, runtimes)
-	runtimeRegistry.SetRouter(router)
-	e := engine.NewEstimatorWithRuntimeRegistry(runtimeRegistry)
+	catalog := costruntime.NewProviderCatalog(router, registry, map[string]model.ProviderMetadata{
+		awskit.ProviderID: {
+			DisplayName: def.Manifest.DisplayName,
+			PriceSource: def.Manifest.PriceSource,
+		},
+	})
+	runtimeRegistry := costruntime.NewProviderRuntimeRegistry(runtimes)
+	e := engine.NewEstimatorWithCatalogAndRuntimeRegistry(catalog, runtimeRegistry)
 	dir := filepath.Join(t.TempDir(), "mod")
 	enginetest.WritePlan(t, dir, enginetest.LoadPlanFixture(t, "unsupported_resource"))
 

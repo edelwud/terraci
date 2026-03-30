@@ -30,12 +30,12 @@ func (p PrefetchPlan) Services() map[pricing.ServiceID][]string {
 
 // PrefetchPlanner builds pricing warmup requirements from scanned module plans.
 type PrefetchPlanner struct {
-	runtime costruntime.ResolverRuntime
+	catalog costruntime.ProviderCatalogRuntime
 }
 
 // NewPrefetchPlanner creates a prefetch planner backed by a provider-aware runtime.
-func NewPrefetchPlanner(runtime costruntime.ResolverRuntime) *PrefetchPlanner {
-	return &PrefetchPlanner{runtime: runtime}
+func NewPrefetchPlanner(catalog costruntime.ProviderCatalogRuntime) *PrefetchPlanner {
+	return &PrefetchPlanner{catalog: catalog}
 }
 
 // Build constructs the set of service/region indexes needed for the provided module plans.
@@ -44,12 +44,12 @@ func (p *PrefetchPlanner) Build(modulePlans []*ModulePlan) PrefetchPlan {
 
 	for _, modulePlan := range modulePlans {
 		for _, resource := range modulePlan.Resources {
-			providerID, ok := p.runtime.ResolveProvider(resource.ResourceType)
+			providerID, ok := p.catalog.ResolveProvider(resource.ResourceType)
 			if !ok {
 				continue
 			}
 
-			h, ok := p.runtime.ResolveHandler(providerID, resource.ResourceType)
+			h, ok := p.catalog.ResolveHandler(providerID, resource.ResourceType)
 			if !ok || h.Category() != handler.CostCategoryStandard {
 				continue
 			}

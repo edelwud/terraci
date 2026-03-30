@@ -107,11 +107,23 @@ type RuntimeSuite struct {
 	PricingCases  []PricingCase
 }
 
-type ResolverRuntime interface {
+type ProviderResolver interface {
 	ResolveProvider(resourceType handler.ResourceType) (string, bool)
+}
+
+type HandlerResolver interface {
 	ResolveHandler(providerID string, resourceType handler.ResourceType) (handler.ResourceHandler, bool)
+}
+
+type PricingResolver interface {
 	GetIndex(ctx context.Context, service pricing.ServiceID, region string) (*pricing.PriceIndex, error)
 	SourceName(providerID string) string
+}
+
+type ResolverRuntime interface {
+	ProviderResolver
+	HandlerResolver
+	PricingResolver
 }
 
 // RunResolverRuntimeSuite executes the configured runtime contract checks.
@@ -199,7 +211,7 @@ func runPricingCases(t *testing.T, runtime ResolverRuntime, cases []PricingCase)
 }
 
 // AssertNoProviderContract verifies that a resource type is not owned by any provider.
-func AssertNoProviderContract(tb testing.TB, runtime ResolverRuntime, resourceType handler.ResourceType) {
+func AssertNoProviderContract(tb testing.TB, runtime ProviderResolver, resourceType handler.ResourceType) {
 	tb.Helper()
 
 	providerID, ok := runtime.ResolveProvider(resourceType)
@@ -209,7 +221,10 @@ func AssertNoProviderContract(tb testing.TB, runtime ResolverRuntime, resourceTy
 }
 
 // AssertNoHandlerContract verifies that a provider owns a type but has no registered handler for it.
-func AssertNoHandlerContract(tb testing.TB, runtime ResolverRuntime, providerID string, resourceType handler.ResourceType) {
+func AssertNoHandlerContract(tb testing.TB, runtime interface {
+	ProviderResolver
+	HandlerResolver
+}, providerID string, resourceType handler.ResourceType) {
 	tb.Helper()
 
 	gotProvider, ok := runtime.ResolveProvider(resourceType)
@@ -225,7 +240,7 @@ func AssertNoHandlerContract(tb testing.TB, runtime ResolverRuntime, providerID 
 }
 
 // AssertPricingSourceContract verifies pricing index lookup and source-name behavior together.
-func AssertPricingSourceContract(tb testing.TB, runtime ResolverRuntime, providerID string, serviceID pricing.ServiceID, region, wantSource string) *pricing.PriceIndex {
+func AssertPricingSourceContract(tb testing.TB, runtime PricingResolver, providerID string, serviceID pricing.ServiceID, region, wantSource string) *pricing.PriceIndex {
 	tb.Helper()
 
 	idx, err := runtime.GetIndex(context.Background(), serviceID, region)

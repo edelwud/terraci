@@ -9,52 +9,11 @@ import (
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
-	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
-// ProviderRouter resolves the owning cloud provider for a Terraform resource type.
-type ProviderRouter interface {
-	ResolveProvider(resourceType handler.ResourceType) (string, bool)
-}
-
-// ResourceProviderRouter is the default resource-type based provider router.
-type ResourceProviderRouter struct {
-	providers map[handler.ResourceType]string
-}
-
-// NewResourceProviderRouter creates an empty provider router.
-func NewResourceProviderRouter() *ResourceProviderRouter {
-	return &ResourceProviderRouter{providers: make(map[handler.ResourceType]string)}
-}
-
-// Register records the owning provider for a resource type.
-func (r *ResourceProviderRouter) Register(providerID string, resourceType handler.ResourceType) {
-	r.providers[resourceType] = providerID
-}
-
-// ResolveProvider returns the provider id for a resource type.
-func (r *ResourceProviderRouter) ResolveProvider(resourceType handler.ResourceType) (string, bool) {
-	providerID, ok := r.providers[resourceType]
-	return providerID, ok
-}
-
-func newDefaultProviderRouter(providers []cloud.Provider) *ResourceProviderRouter {
-	router := NewResourceProviderRouter()
-	for _, cp := range providers {
-		def := cp.Definition()
-		for _, resource := range def.Resources {
-			router.Register(def.Manifest.ID, resource.Type)
-		}
-	}
-	return router
-}
-
-// ProviderRuntimeRegistry is the provider-owned runtime surface used by estimation components.
+// ProviderRuntimeRegistry is the pricing/cache runtime surface used by estimation components.
 type ProviderRuntimeRegistry struct {
-	registry *handler.Registry
-	router   *ResourceProviderRouter
 	runtimes map[string]*ProviderRuntime
 }
 
@@ -64,19 +23,14 @@ type ProviderRuntime struct {
 	Cache      *pricing.Cache
 }
 
-// NewProviderRuntimeRegistry creates a provider runtime registry from provider definitions and runtimes.
-func NewProviderRuntimeRegistry(providers []cloud.Provider, registry *handler.Registry, runtimes map[string]*ProviderRuntime) *ProviderRuntimeRegistry {
-	return &ProviderRuntimeRegistry{
-		registry: registry,
-		router:   newDefaultProviderRouter(providers),
-		runtimes: runtimes,
-	}
+// NewProviderRuntimeRegistry creates a provider runtime registry from explicit provider runtimes.
+func NewProviderRuntimeRegistry(runtimes map[string]*ProviderRuntime) *ProviderRuntimeRegistry {
+	return &ProviderRuntimeRegistry{runtimes: runtimes}
 }
 
 // NewProviderRuntimeRegistryFromProviders creates a runtime registry directly from provider definitions.
 func NewProviderRuntimeRegistryFromProviders(
 	providers []cloud.Provider,
-	registry *handler.Registry,
 	cacheDir string,
 	cacheTTL time.Duration,
 	fetcher pricing.PriceFetcher,
@@ -93,25 +47,7 @@ func NewProviderRuntimeRegistryFromProviders(
 			Cache:      pricing.NewCache(cacheDir, cacheTTL, runtimeFetcher),
 		}
 	}
-	return NewProviderRuntimeRegistry(providers, registry, runtimes)
-}
-
-// ResolveProvider returns the owning provider for a resource type.
-func (r *ProviderRuntimeRegistry) ResolveProvider(resourceType handler.ResourceType) (string, bool) {
-	return r.router.ResolveProvider(resourceType)
-}
-
-// ResolveHandler returns a provider-scoped resource handler.
-func (r *ProviderRuntimeRegistry) ResolveHandler(providerID string, resourceType handler.ResourceType) (handler.ResourceHandler, bool) {
-	if r.registry == nil {
-		return nil, false
-	}
-	return r.registry.ResolveHandler(providerID, resourceType)
-}
-
-// SetRouter replaces the provider router.
-func (r *ProviderRuntimeRegistry) SetRouter(router *ResourceProviderRouter) {
-	r.router = router
+	return NewProviderRuntimeRegistry(runtimes)
 }
 
 func (r *ProviderRuntimeRegistry) getRuntime(providerID string) (*ProviderRuntime, bool) {
@@ -135,25 +71,6 @@ func (r *ProviderRuntimeRegistry) SourceName(providerID string) string {
 		return ""
 	}
 	return runtime.Definition.Manifest.PriceSource
-}
-
-// ProviderMetadata returns provider-specific estimation metadata keyed by provider id.
-func (r *ProviderRuntimeRegistry) ProviderMetadata() map[string]model.ProviderMetadata {
-	if len(r.runtimes) == 0 {
-		return nil
-	}
-
-	meta := make(map[string]model.ProviderMetadata, len(r.runtimes))
-	for providerID, runtime := range r.runtimes {
-		if runtime.Definition.Manifest.ID == "" {
-			continue
-		}
-		meta[providerID] = model.ProviderMetadata{
-			DisplayName: runtime.Definition.Manifest.DisplayName,
-			PriceSource: runtime.Definition.Manifest.PriceSource,
-		}
-	}
-	return meta
 }
 
 // CacheDir returns the resolved pricing cache directory path.
@@ -213,57 +130,4 @@ func (r *ProviderRuntimeRegistry) CacheEntries() []pricing.CacheEntry {
 		entries = append(entries, runtime.Cache.Entries()...)
 	}
 	return entries
-}
-
-// ServicePlan exposes the minimal prefetch-plan shape consumed by the runtime registry.
-type ServicePlan interface {
-	Services() map[pricing.ServiceID][]string
-}
-
-// PrefetchPricing downloads any missing pricing data required by the plan.
-func (r *ProviderRuntimeRegistry) PrefetchPricing(ctx context.Context, prefetchPlan ServicePlan) error {
-	services := prefetchPlan.Services()
-	if len(services) == 0 {
-		log.Warn("no supported resources found in plans - nothing to price")
-		return nil
-	}
-
-	var totalMissing int
-	for providerID, runtime := range r.runtimes {
-		providerServices := filterServicesForProvider(services, providerID)
-		if len(providerServices) == 0 {
-			continue
-		}
-		missing := runtime.Cache.Validate(providerServices)
-		if len(missing) == 0 {
-			continue
-		}
-		for i, m := range missing {
-			totalMissing++
-			log.WithField("provider", providerID).
-				WithField("service", m.Service.String()).
-				WithField("region", m.Region).
-				WithField("progress", fmt.Sprintf("%d/%d", i+1, len(missing))).
-				Info("downloading pricing data")
-			if _, err := runtime.Cache.GetIndex(ctx, m.Service, m.Region); err != nil {
-				return fmt.Errorf("fetch %s/%s pricing: %w", m.Service.String(), m.Region, err)
-			}
-		}
-	}
-
-	if totalMissing == 0 {
-		log.Info("all pricing data is cached and valid")
-	}
-
-	return nil
-}
-
-func filterServicesForProvider(services map[pricing.ServiceID][]string, providerID string) map[pricing.ServiceID][]string {
-	filtered := make(map[pricing.ServiceID][]string)
-	for serviceID, regions := range services {
-		if serviceID.Provider == providerID {
-			filtered[serviceID] = regions
-		}
-	}
-	return filtered
 }
