@@ -3,7 +3,7 @@ package extract
 import "github.com/edelwud/terraci/pkg/parser/internal/source"
 
 func extractBackendConfig(ctx *Context) {
-	for _, terraformBlock := range ctx.Index.TerraformBlockViews() {
+	for _, terraformBlock := range ctx.Source.TerraformBlockViews() {
 		backends, diags := terraformBlock.BackendBlocks()
 		ctx.Sink.AddDiags(diags)
 		for _, backend := range backends {

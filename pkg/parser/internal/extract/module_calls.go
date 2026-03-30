@@ -8,7 +8,7 @@ import (
 )
 
 func extractModuleCalls(ctx *Context) {
-	for _, module := range ctx.Index.ModuleBlockViews() {
+	for _, module := range ctx.Source.ModuleBlockViews() {
 		call := ModuleCall{Name: module.Name()}
 		parseModuleBlock(ctx, module, &call)
 		ctx.Sink.AppendModuleCall(call)

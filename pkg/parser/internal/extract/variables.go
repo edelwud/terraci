@@ -18,7 +18,7 @@ func extractTfvars(ctx *Context) {
 }
 
 func extractVariableDefaults(ctx *Context) {
-	for _, variable := range ctx.Index.VariableBlockViews() {
+	for _, variable := range ctx.Source.VariableBlockViews() {
 		val, ok, diags := variable.DefaultValue()
 		ctx.Sink.AddDiags(diags)
 		if !ok {
@@ -29,7 +29,7 @@ func extractVariableDefaults(ctx *Context) {
 }
 
 func loadTfvarsFile(ctx *Context, path string) {
-	file, err := ctx.Index.ParseHCLFile(path)
+	file, err := ctx.Source.ParseHCLFile(path)
 	if err != nil {
 		ctx.Sink.AddDiags(tfvarsReadDiagnostic(path, err))
 		return

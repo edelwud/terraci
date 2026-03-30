@@ -24,8 +24,17 @@ type Sink interface {
 	AppendModuleCall(ModuleCall)
 }
 
+type Source interface {
+	LocalsBlocks() []*hcl.Block
+	VariableBlockViews() []source.VariableBlockView
+	TerraformBlockViews() []source.TerraformBlockView
+	RemoteStateBlockViews() []source.RemoteStateBlockView
+	ModuleBlockViews() []source.ModuleBlockView
+	ParseHCLFile(path string) (*hcl.File, error)
+}
+
 type Context struct {
-	Index       *source.Index
+	Source      Source
 	EvalBuilder evalctx.Builder
 	Sink        Sink
 }

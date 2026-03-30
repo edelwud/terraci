@@ -9,7 +9,7 @@ import (
 )
 
 func extractRemoteStates(ctx *Context) {
-	for _, remoteState := range ctx.Index.RemoteStateBlockViews() {
+	for _, remoteState := range ctx.Source.RemoteStateBlockViews() {
 		ref := RemoteState{
 			Name:    remoteState.Name(),
 			Config:  make(map[string]hcl.Expression),

@@ -10,7 +10,7 @@ import (
 
 func extractLocals(ctx *Context) {
 	allAttrs := make(map[string]*hcl.Attribute)
-	for _, block := range ctx.Index.LocalsBlocks() {
+	for _, block := range ctx.Source.LocalsBlocks() {
 		attrs, diags := block.Body.JustAttributes()
 		ctx.Sink.AddDiags(diags)
 		maps.Copy(allAttrs, attrs)

@@ -108,7 +108,7 @@ module "vpc" {
 
 	sink := newTestSink(dir)
 	RunDefault(&Context{
-		Index:       index,
+		Source:      index,
 		EvalBuilder: evalctx.NewBuilder([]string{"service", "environment", "region", "module"}),
 		Sink:        sink,
 	})

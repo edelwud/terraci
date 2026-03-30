@@ -27,6 +27,7 @@ func newRunner(modulePath string, segments []string) *runner {
 		modulePath: modulePath,
 		parsed:     parsed,
 		extractCtx: &extract.Context{
+			Source:      nil,
 			EvalBuilder: evalctx.NewBuilder(segments),
 			Sink:        sink,
 		},
@@ -122,7 +123,7 @@ func (r *runner) load(ctx context.Context) error {
 	}
 
 	r.index = index
-	r.extractCtx.Index = index
+	r.extractCtx.Source = index
 	return nil
 }
 

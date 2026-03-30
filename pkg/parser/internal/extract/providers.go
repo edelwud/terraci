@@ -6,7 +6,7 @@ import (
 )
 
 func extractRequiredProviders(ctx *Context) {
-	for _, terraformBlock := range ctx.Index.TerraformBlockViews() {
+	for _, terraformBlock := range ctx.Source.TerraformBlockViews() {
 		requiredProviders, diags := terraformBlock.RequiredProviderBlocks()
 		ctx.Sink.AddDiags(diags)
 		for _, rpBlock := range requiredProviders {
