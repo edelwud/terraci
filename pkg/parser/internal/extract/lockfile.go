@@ -6,7 +6,8 @@ import (
 
 func extractLockFile(ctx *Context) {
 	lockPath := filepath.Join(ctx.Sink.Path(), lockFileName)
-	file, err := ctx.Source.ParseHCLFile(lockPath)
+	file, diags, err := ctx.Source.ParseHCLFile(lockPath)
+	ctx.Sink.AddDiags(diags)
 	if err != nil || file == nil {
 		return
 	}

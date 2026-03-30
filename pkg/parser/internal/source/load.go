@@ -14,7 +14,7 @@ func NewLoader() *Loader {
 	return &Loader{}
 }
 
-func (l *Loader) Load(ctx context.Context, modulePath string) (*Index, error) {
+func (l *Loader) Load(ctx context.Context, modulePath string) (*Snapshot, error) {
 	return newLoadSession(modulePath).Run(ctx)
 }
 

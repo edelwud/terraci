@@ -30,7 +30,7 @@ type Source interface {
 	TerraformBlockViews() []source.TerraformBlockView
 	RemoteStateBlockViews() []source.RemoteStateBlockView
 	ModuleBlockViews() []source.ModuleBlockView
-	ParseHCLFile(path string) (*hcl.File, error)
+	ParseHCLFile(path string) (*hcl.File, hcl.Diagnostics, error)
 }
 
 type Context struct {

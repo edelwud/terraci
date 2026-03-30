@@ -10,17 +10,17 @@ import (
 
 type loadSession struct {
 	modulePath string
-	index      *Index
+	builder    *indexBuilder
 }
 
 func newLoadSession(modulePath string) *loadSession {
 	return &loadSession{
 		modulePath: modulePath,
-		index:      NewIndex(modulePath, hclparse.NewParser()),
+		builder:    newIndexBuilder(modulePath, hclparse.NewParser()),
 	}
 }
 
-func (s *loadSession) Run(ctx context.Context) (*Index, error) {
+func (s *loadSession) Run(ctx context.Context) (*Snapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -34,7 +34,7 @@ func (s *loadSession) Run(ctx context.Context) (*Index, error) {
 		return nil, err
 	}
 
-	return s.index, nil
+	return s.builder.Snapshot(), nil
 }
 
 func (s *loadSession) discoverTFFiles() ([]string, error) {
@@ -48,12 +48,12 @@ func (s *loadSession) discoverTFFiles() ([]string, error) {
 
 func (s *loadSession) parseFiles(tfFiles []string) error {
 	for _, tfFile := range tfFiles {
-		file, err := s.index.ParseHCLFile(tfFile)
+		file, err := s.builder.ParseHCLFile(tfFile)
 		if err != nil {
 			return fmt.Errorf("read %s: %w", tfFile, err)
 		}
 		if file != nil {
-			s.index.AddFile(tfFile, file)
+			s.builder.AddFile(tfFile, file)
 		}
 	}
 

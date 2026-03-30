@@ -14,7 +14,7 @@ import (
 
 type runner struct {
 	modulePath string
-	index      *source.Index
+	source     *source.Snapshot
 	parsed     *model.ParsedModule
 	extractCtx *extract.Context
 }
@@ -117,13 +117,13 @@ func (r *runner) Run(ctx context.Context) (*model.ParsedModule, error) {
 }
 
 func (r *runner) load(ctx context.Context) error {
-	index, err := source.NewLoader().Load(ctx, r.modulePath)
+	loadedSource, err := source.NewLoader().Load(ctx, r.modulePath)
 	if err != nil {
 		return err
 	}
 
-	r.index = index
-	r.extractCtx.Source = index
+	r.source = loadedSource
+	r.extractCtx.Source = loadedSource
 	return nil
 }
 
@@ -132,7 +132,7 @@ func (r *runner) extract() {
 }
 
 func (r *runner) finalize() {
-	r.parsed.Files = r.index.Files()
-	r.parsed.AddDiags(r.index.Diagnostics())
-	r.parsed.TopLevelBlocks = r.index.TopLevelBlockIndex()
+	r.parsed.Files = r.source.Files()
+	r.parsed.AddDiags(r.source.Diagnostics())
+	r.parsed.TopLevelBlocks = r.source.TopLevelBlockIndex()
 }

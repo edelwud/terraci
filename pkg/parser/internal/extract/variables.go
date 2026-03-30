@@ -29,7 +29,8 @@ func extractVariableDefaults(ctx *Context) {
 }
 
 func loadTfvarsFile(ctx *Context, path string) {
-	file, err := ctx.Source.ParseHCLFile(path)
+	file, diags, err := ctx.Source.ParseHCLFile(path)
+	ctx.Sink.AddDiags(diags)
 	if err != nil {
 		ctx.Sink.AddDiags(tfvarsReadDiagnostic(path, err))
 		return

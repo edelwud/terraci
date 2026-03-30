@@ -1,7 +1,7 @@
 package source
 
-func (i *Index) VariableBlockViews() []VariableBlockView {
-	blocks := i.VariableBlocks()
+func (s *Snapshot) VariableBlockViews() []VariableBlockView {
+	blocks := s.VariableBlocks()
 	views := make([]VariableBlockView, 0, len(blocks))
 	for _, block := range blocks {
 		if len(block.Labels) == 0 {
@@ -12,8 +12,8 @@ func (i *Index) VariableBlockViews() []VariableBlockView {
 	return views
 }
 
-func (i *Index) TerraformBlockViews() []TerraformBlockView {
-	blocks := i.TerraformBlocks()
+func (s *Snapshot) TerraformBlockViews() []TerraformBlockView {
+	blocks := s.TerraformBlocks()
 	views := make([]TerraformBlockView, 0, len(blocks))
 	for _, block := range blocks {
 		views = append(views, TerraformBlockView{block: block})
@@ -21,8 +21,8 @@ func (i *Index) TerraformBlockViews() []TerraformBlockView {
 	return views
 }
 
-func (i *Index) ModuleBlockViews() []ModuleBlockView {
-	blocks := i.ModuleBlocks()
+func (s *Snapshot) ModuleBlockViews() []ModuleBlockView {
+	blocks := s.ModuleBlocks()
 	views := make([]ModuleBlockView, 0, len(blocks))
 	for _, block := range blocks {
 		if len(block.Labels) == 0 {
@@ -33,8 +33,8 @@ func (i *Index) ModuleBlockViews() []ModuleBlockView {
 	return views
 }
 
-func (i *Index) RemoteStateBlockViews() []RemoteStateBlockView {
-	blocks := i.DataBlocks()
+func (s *Snapshot) RemoteStateBlockViews() []RemoteStateBlockView {
+	blocks := s.DataBlocks()
 	views := make([]RemoteStateBlockView, 0, len(blocks))
 	for _, block := range blocks {
 		if len(block.Labels) < 2 || block.Labels[0] != "terraform_remote_state" {
