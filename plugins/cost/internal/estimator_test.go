@@ -12,8 +12,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
 	_ "github.com/edelwud/terraci/plugins/cost/internal/cloud/aws"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
+	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
 // multiServicePricingServer returns an httptest server that routes requests by
@@ -483,6 +486,61 @@ func TestEstimateModule_UnsupportedResource(t *testing.T) {
 	}
 	if rc.MonthlyCost != 0 {
 		t.Errorf("MonthlyCost = %.4f, want 0 for unsupported", rc.MonthlyCost)
+	}
+	if result.Unsupported != 1 {
+		t.Errorf("Unsupported = %d, want 1", result.Unsupported)
+	}
+}
+
+func TestEstimateModule_KnownProviderMissingHandler(t *testing.T) {
+	registry := handler.NewRegistry()
+	router := NewResourceProviderRouter()
+	router.Register(awskit.ProviderID, handler.ResourceType("aws_cloudfront_distribution"))
+
+	ts := multiServicePricingServer(t)
+	cacheDir := filepath.Join(t.TempDir(), "cache")
+	fetcher := &awskit.Fetcher{
+		Client:  ts.Client(),
+		BaseURL: ts.URL,
+	}
+
+	awsProvider, ok := cloud.Get(awskit.ProviderID)
+	if !ok {
+		t.Fatal("aws provider not registered")
+	}
+
+	def := awsProvider.Definition()
+	runtimes := map[string]*ProviderRuntime{
+		awskit.ProviderID: {
+			Definition: def,
+			Cache:      pricing.NewCache(cacheDir, 0, fetcher),
+		},
+	}
+	runtimeRegistry := NewProviderRuntimeRegistry(cloud.Providers(), runtimes)
+
+	resolver := NewCostResolver(router, registry, nil)
+	runtimeRegistry.router = router
+	e := newEstimator(runtimeRegistry, resolver)
+	dir := filepath.Join(t.TempDir(), "mod")
+	writePlan(t, dir, planUnsupportedResource)
+
+	result, err := e.EstimateModule(context.Background(), dir, "us-east-1")
+	if err != nil {
+		t.Fatalf("EstimateModule: %v", err)
+	}
+
+	rc := findResource(result.Resources, "aws_cloudfront_distribution.main")
+	if rc == nil {
+		t.Fatal("missing resource in results")
+	}
+	if rc.Provider != awskit.ProviderID {
+		t.Errorf("Provider = %q, want %q", rc.Provider, awskit.ProviderID)
+	}
+	if rc.ErrorKind != CostErrorNoHandler {
+		t.Errorf("ErrorKind = %q, want %q", rc.ErrorKind, CostErrorNoHandler)
+	}
+	if rc.ErrorDetail != "no handler" {
+		t.Errorf("ErrorDetail = %q, want %q", rc.ErrorDetail, "no handler")
 	}
 	if result.Unsupported != 1 {
 		t.Errorf("Unsupported = %d, want 1", result.Unsupported)

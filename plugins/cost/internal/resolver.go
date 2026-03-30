@@ -17,14 +17,16 @@ const priceSourceUsageBased = "usage-based"
 //
 // Supports middleware for intercepting cost resolution (discounts, overrides, logging).
 type CostResolver struct {
+	router     ProviderRouter
 	registry   RegistryLookup
 	pricing    PricingSource
 	middleware []CostMiddleware
 }
 
 // NewCostResolver creates a new resolver with the given registry and pricing source.
-func NewCostResolver(registry RegistryLookup, pricingSrc PricingSource) *CostResolver {
+func NewCostResolver(router ProviderRouter, registry RegistryLookup, pricingSrc PricingSource) *CostResolver {
 	return &CostResolver{
+		router:   router,
 		registry: registry,
 		pricing:  pricingSrc,
 	}
@@ -68,15 +70,21 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest) Reso
 		Region:     req.Region,
 	}
 
-	resolved, ok := r.registry.Resolve(req.ResourceType)
+	providerID, ok := r.router.ResolveProvider(req.ResourceType)
 	if !ok {
 		result.ErrorKind = CostErrorNoProvider
 		result.ErrorDetail = "no provider"
 		handler.LogUnsupported(req.ResourceType.String(), req.Address)
 		return result
 	}
-	result.Provider = resolved.Provider
-	h := resolved.Handler
+	result.Provider = providerID
+
+	h, ok := r.registry.ResolveHandler(providerID, req.ResourceType)
+	if !ok {
+		result.ErrorKind = CostErrorNoHandler
+		result.ErrorDetail = "no handler"
+		return result
+	}
 
 	attrs := req.Attrs
 	if attrs == nil {
@@ -100,7 +108,7 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest) Reso
 		return result
 
 	case handler.CostCategoryStandard:
-		return r.resolveStandardCost(ctx, resolved.Provider, h, attrs, req.Region, result)
+		return r.resolveStandardCost(ctx, providerID, h, attrs, req.Region, result)
 	}
 
 	return result
@@ -108,15 +116,18 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest) Reso
 
 // ResolveBeforeCost calculates the before-state cost for update/replace resources.
 func (r *CostResolver) ResolveBeforeCost(ctx context.Context, rc *ResourceCost, resourceType handler.ResourceType, beforeAttrs map[string]any, region string) {
-	resolved, ok := r.registry.Resolve(resourceType)
+	providerID, ok := r.router.ResolveProvider(resourceType)
 	if !ok {
 		return
 	}
-	h := resolved.Handler
+	h, ok := r.registry.ResolveHandler(providerID, resourceType)
+	if !ok {
+		return
+	}
 
 	switch h.Category() {
 	case handler.CostCategoryStandard:
-		before := r.resolveStandardCost(ctx, resolved.Provider, h, beforeAttrs, region, ResourceCost{Provider: resolved.Provider})
+		before := r.resolveStandardCost(ctx, providerID, h, beforeAttrs, region, ResourceCost{Provider: providerID})
 		rc.BeforeHourlyCost = before.HourlyCost
 		rc.BeforeMonthlyCost = before.MonthlyCost
 	case handler.CostCategoryFixed:
@@ -134,7 +145,12 @@ func (r *CostResolver) ResolveWithSubResources(ctx context.Context, req ResolveR
 	primary := r.Resolve(ctx, req)
 	results := []ResourceCost{primary}
 
-	h, ok := r.registry.GetHandler(req.ResourceType)
+	providerID, ok := r.router.ResolveProvider(req.ResourceType)
+	if !ok {
+		return results
+	}
+
+	h, ok := r.registry.ResolveHandler(providerID, req.ResourceType)
 	if !ok {
 		return results
 	}

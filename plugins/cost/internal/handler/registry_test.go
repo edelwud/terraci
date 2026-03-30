@@ -36,14 +36,14 @@ func newTestRegistry() *Registry {
 	return r
 }
 
-func TestRegistry_GetHandler(t *testing.T) {
+func TestRegistry_ResolveHandler(t *testing.T) {
 	t.Parallel()
 
 	r := newTestRegistry()
 
-	h, ok := r.GetHandler(ResourceType("aws_instance"))
+	h, ok := r.ResolveHandler(awskit.ProviderID, ResourceType("aws_instance"))
 	if !ok {
-		t.Fatal("GetHandler should return handler for aws_instance")
+		t.Fatal("ResolveHandler should return handler for aws_instance")
 	}
 	if h == nil {
 		t.Fatal("Handler should not be nil")
@@ -60,9 +60,21 @@ func TestRegistry_GetHandler(t *testing.T) {
 		t.Errorf("aws_instance lookup service = %q, want %q", lookup.ServiceID, awskit.MustService(awskit.ServiceKeyEC2))
 	}
 
-	_, ok = r.GetHandler(ResourceType("aws_nonexistent_resource"))
+	_, ok = r.ResolveHandler(awskit.ProviderID, ResourceType("aws_nonexistent_resource"))
 	if ok {
-		t.Error("GetHandler should return false for nonexistent resource")
+		t.Error("ResolveHandler should return false for nonexistent resource")
+	}
+}
+
+func TestRegistry_ResolveHandler_ForRegisteredType(t *testing.T) {
+	t.Parallel()
+
+	r := NewRegistry()
+	r.Register(awskit.ProviderID, ResourceType("aws_instance"), &stubHandler{svc: awskit.MustService(awskit.ServiceKeyEC2), category: CostCategoryStandard})
+
+	h, ok := r.ResolveHandler(awskit.ProviderID, ResourceType("aws_instance"))
+	if !ok || h == nil {
+		t.Fatal("ResolveHandler should return registered handler")
 	}
 }
 

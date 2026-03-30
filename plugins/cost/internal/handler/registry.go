@@ -7,52 +7,55 @@ import (
 // Registry maps terraform resource types to cost estimation handlers.
 // Provider-agnostic: AWS, GCP, Azure handlers all register here.
 type Registry struct {
-	handlers map[ResourceType]RegisteredHandler
-}
-
-// RegisteredHandler keeps the owning provider id alongside the handler.
-type RegisteredHandler struct {
-	Provider string
-	Handler  ResourceHandler
+	handlers map[string]map[ResourceType]ResourceHandler
 }
 
 // NewRegistry creates a new empty resource registry.
 func NewRegistry() *Registry {
 	return &Registry{
-		handlers: make(map[ResourceType]RegisteredHandler),
+		handlers: make(map[string]map[ResourceType]ResourceHandler),
 	}
 }
 
 // Register adds a handler for a resource type.
 func (r *Registry) Register(providerID string, resourceType ResourceType, handler ResourceHandler) {
-	r.handlers[resourceType] = RegisteredHandler{
-		Provider: providerID,
-		Handler:  handler,
+	if r.handlers[providerID] == nil {
+		r.handlers[providerID] = make(map[ResourceType]ResourceHandler)
 	}
+	r.handlers[providerID][resourceType] = handler
 }
 
-// GetHandler returns a handler for a resource type.
-func (r *Registry) GetHandler(resourceType ResourceType) (ResourceHandler, bool) {
-	h, ok := r.handlers[resourceType]
-	return h.Handler, ok
-}
-
-// Resolve returns the registered provider id and handler for a resource type.
-func (r *Registry) Resolve(resourceType ResourceType) (RegisteredHandler, bool) {
-	h, ok := r.handlers[resourceType]
+// ResolveHandler returns a handler scoped to a provider and resource type.
+func (r *Registry) ResolveHandler(providerID string, resourceType ResourceType) (ResourceHandler, bool) {
+	providerHandlers, ok := r.handlers[providerID]
+	if !ok {
+		return nil, false
+	}
+	h, ok := providerHandlers[resourceType]
 	return h, ok
 }
 
 // IsSupported checks if a resource type is supported.
 func (r *Registry) IsSupported(resourceType ResourceType) bool {
-	_, ok := r.handlers[resourceType]
-	return ok
+	for _, providerHandlers := range r.handlers {
+		if _, ok := providerHandlers[resourceType]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 // SupportedTypes returns all supported resource types.
 func (r *Registry) SupportedTypes() []string {
-	types := make([]string, 0, len(r.handlers))
-	for t := range r.handlers {
+	typeSet := make(map[ResourceType]bool)
+	for _, providerHandlers := range r.handlers {
+		for t := range providerHandlers {
+			typeSet[t] = true
+		}
+	}
+
+	types := make([]string, 0, len(typeSet))
+	for t := range typeSet {
 		types = append(types, t.String())
 	}
 	return types

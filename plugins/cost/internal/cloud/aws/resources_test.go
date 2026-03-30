@@ -30,14 +30,11 @@ func TestProviderRegisterHandlersUsesCatalog(t *testing.T) {
 	cloud.RegisterDefinitionHandlers(registry, Definition)
 
 	for _, registration := range Definition.Resources {
-		resolved, ok := registry.Resolve(registration.Type)
+		resolved, ok := registry.ResolveHandler(Definition.Manifest.ID, registration.Type)
 		if !ok {
 			t.Fatalf("resource %q was not registered", registration.Type)
 		}
-		if resolved.Provider != Definition.Manifest.ID {
-			t.Fatalf("resource %q provider = %q, want %q", registration.Type, resolved.Provider, Definition.Manifest.ID)
-		}
-		if resolved.Handler == nil {
+		if resolved == nil {
 			t.Fatalf("resource %q has nil resolved handler", registration.Type)
 		}
 	}
