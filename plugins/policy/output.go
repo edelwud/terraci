@@ -1,0 +1,56 @@
+package policy
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+
+	"github.com/edelwud/terraci/pkg/log"
+	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
+)
+
+func outputResult(w io.Writer, format string, summary *policyengine.Summary, shouldBlock bool) error {
+	if format == "json" {
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "  ")
+		return enc.Encode(summary)
+	}
+
+	return outputText(summary, shouldBlock)
+}
+
+func outputText(summary *policyengine.Summary, shouldBlock bool) error {
+	log.WithField("total", summary.TotalModules).
+		WithField("passed", summary.PassedModules).
+		WithField("warned", summary.WarnedModules).
+		WithField("failed", summary.FailedModules).
+		Info("policy check summary")
+
+	for _, result := range summary.Results {
+		if result.Status() == "pass" {
+			continue
+		}
+		log.WithField("module", result.Module).WithField("status", result.Status()).Info("module result")
+		log.IncreasePadding()
+		for _, failure := range result.Failures {
+			log.WithField("namespace", failure.Namespace).WithField("message", failure.Message).Error("failure")
+		}
+		for _, warning := range result.Warnings {
+			log.WithField("namespace", warning.Namespace).WithField("message", warning.Message).Warn("warning")
+		}
+		log.DecreasePadding()
+	}
+
+	if shouldBlock {
+		log.Error("policy check FAILED")
+		return fmt.Errorf("policy check failed with %d failures", summary.TotalFailures)
+	}
+
+	if summary.HasWarnings() {
+		log.Warn("policy check passed with warnings")
+	} else {
+		log.Info("policy check PASSED")
+	}
+
+	return nil
+}

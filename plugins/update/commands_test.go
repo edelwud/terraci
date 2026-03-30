@@ -289,14 +289,13 @@ terraform {
 		t.Fatalf("RunE() error = %v", err)
 	}
 
-	// Verify artifacts saved
-	resultsPath := appCtx.ServiceDir() + "/" + resultsFile
-	if _, statErr := os.Stat(resultsPath); os.IsNotExist(statErr) {
-		t.Error("update-results.json was not saved")
+	result := loadUpdateResult(t, appCtx.ServiceDir())
+	if result.Summary.TotalChecked == 0 {
+		t.Fatal("saved result has empty summary")
 	}
-	reportPath := appCtx.ServiceDir() + "/" + reportFile
-	if _, statErr := os.Stat(reportPath); os.IsNotExist(statErr) {
-		t.Error("update-report.json was not saved")
+	report := loadUpdateReport(t, appCtx.ServiceDir())
+	if report.Plugin != "update" {
+		t.Fatalf("report.Plugin = %q, want update", report.Plugin)
 	}
 }
 

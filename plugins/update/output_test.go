@@ -3,6 +3,7 @@ package update
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	updateengine "github.com/edelwud/terraci/plugins/update/internal"
@@ -53,10 +54,13 @@ func TestOutputResult_Text(t *testing.T) {
 		Summary: updateengine.UpdateSummary{TotalChecked: 1, UpdatesAvailable: 1},
 	}
 
-	var buf bytes.Buffer
-	err := outputResult(&buf, "text", result)
-	if err != nil {
-		t.Fatalf("outputResult(text) error = %v", err)
+	output := captureUpdateTextOutput(t, func() {
+		if err := outputResult(&bytes.Buffer{}, "text", result); err != nil {
+			t.Fatalf("outputResult(text) error = %v", err)
+		}
+	})
+	if !strings.Contains(output, "updates available") {
+		t.Fatalf("output = %q, want summary line", output)
 	}
 }
 
@@ -65,10 +69,13 @@ func TestOutputResult_TextNoUpdates(t *testing.T) {
 		Summary: updateengine.UpdateSummary{TotalChecked: 3},
 	}
 
-	var buf bytes.Buffer
-	err := outputResult(&buf, "text", result)
-	if err != nil {
-		t.Fatalf("outputResult(text) error = %v", err)
+	output := captureUpdateTextOutput(t, func() {
+		if err := outputResult(&bytes.Buffer{}, "text", result); err != nil {
+			t.Fatalf("outputResult(text) error = %v", err)
+		}
+	})
+	if !strings.Contains(output, "all dependencies are up to date") {
+		t.Fatalf("output = %q, want no-updates message", output)
 	}
 }
 
