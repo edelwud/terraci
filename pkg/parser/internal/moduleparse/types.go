@@ -8,8 +8,8 @@ import (
 
 	"github.com/edelwud/terraci/pkg/parser/internal/evalctx"
 	"github.com/edelwud/terraci/pkg/parser/internal/extract"
-	"github.com/edelwud/terraci/pkg/parser/internal/model"
 	"github.com/edelwud/terraci/pkg/parser/internal/source"
+	"github.com/edelwud/terraci/pkg/parser/model"
 )
 
 type loadedSource interface {
@@ -157,5 +157,5 @@ func (r *runner) extract() {
 func (r *runner) finalize() {
 	r.parsed.Files = r.source.Files()
 	r.parsed.AddDiags(r.source.Diagnostics())
-	r.parsed.TopLevelBlocks = r.source.TopLevelBlockIndex()
+	r.parsed.SetTopLevelBlocks(r.source.TopLevelBlockIndex())
 }

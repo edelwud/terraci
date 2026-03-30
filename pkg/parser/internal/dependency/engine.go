@@ -9,7 +9,7 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 	terrierrors "github.com/edelwud/terraci/pkg/errors"
 	parserdeps "github.com/edelwud/terraci/pkg/parser/internal/deps"
-	"github.com/edelwud/terraci/pkg/parser/internal/model"
+	"github.com/edelwud/terraci/pkg/parser/model"
 )
 
 const maxConcurrentExtractions = 20

@@ -10,7 +10,7 @@ import (
 	"github.com/edelwud/terraci/internal/terraform/eval"
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/parser/internal/exprfast"
-	"github.com/edelwud/terraci/pkg/parser/internal/model"
+	"github.com/edelwud/terraci/pkg/parser/model"
 )
 
 type dependencySession struct {

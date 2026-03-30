@@ -6,7 +6,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/edelwud/terraci/pkg/discovery"
-	"github.com/edelwud/terraci/pkg/parser/internal/model"
+	"github.com/edelwud/terraci/pkg/parser/model"
 )
 
 type ModuleParser interface {
@@ -14,25 +14,11 @@ type ModuleParser interface {
 	ResolveWorkspacePath(ref *model.RemoteStateRef, modulePath string, locals, variables map[string]cty.Value) ([]string, error)
 }
 
-type Dependency struct {
-	From            *discovery.Module
-	To              *discovery.Module
-	Type            string
-	RemoteStateName string
-}
+type Dependency = model.Dependency
 
-type LibraryDependency struct {
-	ModuleCall  *model.ModuleCall
-	LibraryPath string
-}
+type LibraryDependency = model.LibraryDependency
 
-type ModuleDependencies struct {
-	Module              *discovery.Module
-	Dependencies        []*Dependency
-	LibraryDependencies []*LibraryDependency
-	DependsOn           []string
-	Errors              []error
-}
+type ModuleDependencies = model.ModuleDependencies
 
 type dependencyResultBuilder struct {
 	module              *discovery.Module

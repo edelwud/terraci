@@ -3,7 +3,7 @@ package moduleparse
 import (
 	"context"
 
-	"github.com/edelwud/terraci/pkg/parser/internal/model"
+	"github.com/edelwud/terraci/pkg/parser/model"
 )
 
 func Run(ctx context.Context, modulePath string, segments []string) (*model.ParsedModule, error) {

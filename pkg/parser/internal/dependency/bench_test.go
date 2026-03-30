@@ -12,7 +12,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/edelwud/terraci/pkg/discovery"
-	"github.com/edelwud/terraci/pkg/parser/internal/model"
+	"github.com/edelwud/terraci/pkg/parser/model"
 )
 
 type benchParser struct {

@@ -4,8 +4,9 @@ package parser
 import (
 	"context"
 
-	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
+
+	parsermodel "github.com/edelwud/terraci/pkg/parser/model"
 )
 
 // ModuleParser is the interface for parsing Terraform modules.
@@ -28,58 +29,36 @@ func NewParser(segments []string) *Parser {
 }
 
 // Segments returns the parser's configured pattern segments.
-func (p *Parser) Segments() []string { return p.segments }
+func (p *Parser) Segments() []string { return append([]string(nil), p.segments...) }
 
 // ParsedModule contains the parsed content of a Terraform module.
-type ParsedModule struct {
-	Path              string
-	Locals            map[string]cty.Value
-	Variables         map[string]cty.Value
-	Backend           *BackendConfig
-	RequiredProviders []*RequiredProvider
-	LockedProviders   []*LockedProvider
-	RemoteStates      []*RemoteStateRef
-	ModuleCalls       []*ModuleCall
-	Files             map[string]*hcl.File
-	Diagnostics       hcl.Diagnostics
-	topLevelBlocks    map[string][]*hcl.Block
+type ParsedModule = parsermodel.ParsedModule
+
+// NewParsedModule creates an empty parsed module with initialized collections.
+func NewParsedModule(modulePath string) *ParsedModule {
+	return parsermodel.NewParsedModule(modulePath)
 }
 
 // RequiredProvider represents a provider requirement from a required_providers block.
-type RequiredProvider struct {
-	Name              string // local name (e.g., "aws")
-	Source            string // full source (e.g., "hashicorp/aws")
-	VersionConstraint string // constraint string (e.g., "~> 5.0")
-}
+type RequiredProvider = parsermodel.RequiredProvider
 
 // LockedProvider represents a provider entry from .terraform.lock.hcl.
-type LockedProvider struct {
-	Source      string // full registry source (e.g., "registry.terraform.io/hashicorp/aws")
-	Version     string // exact locked version (e.g., "5.67.0")
-	Constraints string // original constraints (e.g., "~> 5.0")
-}
+type LockedProvider = parsermodel.LockedProvider
 
 // ModuleCall represents a module block in Terraform.
-type ModuleCall struct {
-	Name         string
-	Source       string
-	Version      string
-	IsLocal      bool
-	ResolvedPath string
-}
+type ModuleCall = parsermodel.ModuleCall
 
 // BackendConfig represents a module's terraform backend configuration.
-type BackendConfig struct {
-	Type   string            // "s3", "gcs", "azurerm"
-	Config map[string]string // evaluated string attributes: bucket, key, region, etc.
-}
+type BackendConfig = parsermodel.BackendConfig
 
 // RemoteStateRef represents a terraform_remote_state data source reference.
-type RemoteStateRef struct {
-	Name         string
-	Backend      string
-	Config       map[string]hcl.Expression
-	ForEach      hcl.Expression
-	WorkspaceDir string
-	RawBody      hcl.Body
-}
+type RemoteStateRef = parsermodel.RemoteStateRef
+
+// Dependency represents a dependency between two modules.
+type Dependency = parsermodel.Dependency
+
+// LibraryDependency represents a dependency on a library module.
+type LibraryDependency = parsermodel.LibraryDependency
+
+// ModuleDependencies contains all dependencies for a module.
+type ModuleDependencies = parsermodel.ModuleDependencies

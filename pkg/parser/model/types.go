@@ -3,6 +3,8 @@ package model
 import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
+
+	"github.com/edelwud/terraci/pkg/discovery"
 )
 
 type ParsedModule struct {
@@ -16,7 +18,7 @@ type ParsedModule struct {
 	ModuleCalls       []*ModuleCall
 	Files             map[string]*hcl.File
 	Diagnostics       hcl.Diagnostics
-	TopLevelBlocks    map[string][]*hcl.Block
+	topLevelBlocks    map[string][]*hcl.Block
 }
 
 type RequiredProvider struct {
@@ -53,6 +55,26 @@ type RemoteStateRef struct {
 	RawBody      hcl.Body
 }
 
+type Dependency struct {
+	From            *discovery.Module
+	To              *discovery.Module
+	Type            string
+	RemoteStateName string
+}
+
+type LibraryDependency struct {
+	ModuleCall  *ModuleCall
+	LibraryPath string
+}
+
+type ModuleDependencies struct {
+	Module              *discovery.Module
+	Dependencies        []*Dependency
+	LibraryDependencies []*LibraryDependency
+	DependsOn           []string
+	Errors              []error
+}
+
 func NewParsedModule(modulePath string) *ParsedModule {
 	return &ParsedModule{
 		Path:              modulePath,
@@ -64,10 +86,35 @@ func NewParsedModule(modulePath string) *ParsedModule {
 		ModuleCalls:       make([]*ModuleCall, 0),
 		Files:             make(map[string]*hcl.File),
 		Diagnostics:       make(hcl.Diagnostics, 0),
-		TopLevelBlocks:    make(map[string][]*hcl.Block),
+		topLevelBlocks:    make(map[string][]*hcl.Block),
 	}
 }
 
 func (pm *ParsedModule) AddDiags(diags hcl.Diagnostics) {
 	pm.Diagnostics = append(pm.Diagnostics, diags...)
+}
+
+func (pm *ParsedModule) TopLevelBlocks() map[string][]*hcl.Block {
+	if pm == nil {
+		return nil
+	}
+
+	return cloneTopLevelBlocks(pm.topLevelBlocks)
+}
+
+func (pm *ParsedModule) SetTopLevelBlocks(blocks map[string][]*hcl.Block) {
+	if pm == nil {
+		return
+	}
+
+	pm.topLevelBlocks = cloneTopLevelBlocks(blocks)
+}
+
+func cloneTopLevelBlocks(blocks map[string][]*hcl.Block) map[string][]*hcl.Block {
+	cloned := make(map[string][]*hcl.Block, len(blocks))
+	for blockType, entries := range blocks {
+		cloned[blockType] = append([]*hcl.Block(nil), entries...)
+	}
+
+	return cloned
 }

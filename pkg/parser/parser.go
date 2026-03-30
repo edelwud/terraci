@@ -18,5 +18,5 @@ func (p *Parser) ParseModule(ctx context.Context, modulePath string) (*ParsedMod
 		return nil, fmt.Errorf("load module: %w", err)
 	}
 
-	return fromInternalParsedModule(parsed), nil
+	return parsed, nil
 }
