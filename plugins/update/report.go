@@ -39,7 +39,7 @@ func renderReportBody(result *updateengine.UpdateResult) string {
 		for i := range result.Providers {
 			update := &result.Providers[i]
 			fmt.Fprintf(&b, "| %s | %s | %s | %s | %s |\n",
-				update.ModulePath, update.ProviderSource, update.DisplayCurrent(), update.LatestVersion, update.StatusLabel())
+				update.ModulePath(), update.ProviderSource(), update.DisplayCurrent(), update.LatestVersion, update.StatusLabel())
 		}
 		b.WriteString("\n")
 	}
@@ -51,7 +51,7 @@ func renderReportBody(result *updateengine.UpdateResult) string {
 		for i := range result.Modules {
 			update := &result.Modules[i]
 			fmt.Fprintf(&b, "| %s | %s | %s | %s | %s |\n",
-				update.ModulePath, update.Source, update.DisplayCurrent(), update.LatestVersion, update.StatusLabel())
+				update.ModulePath(), update.Source(), update.DisplayCurrent(), update.LatestVersion, update.StatusLabel())
 		}
 	}
 

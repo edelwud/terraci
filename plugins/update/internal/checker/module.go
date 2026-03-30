@@ -1,7 +1,6 @@
 package checker
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/edelwud/terraci/pkg/discovery"
@@ -10,37 +9,33 @@ import (
 	"github.com/edelwud/terraci/plugins/update/internal/registryclient"
 )
 
-func (s *Checker) checkModuleUpdates(
-	ctx context.Context,
+func (s *checkSession) collectModuleUpdates(
 	mod *discovery.Module,
 	parsed *parser.ParsedModule,
-	result *updateengine.UpdateResult,
 ) {
 	for _, mc := range parsed.ModuleCalls {
 		if mc.IsLocal || mc.Version == "" || !registryclient.IsRegistrySource(mc.Source) {
 			continue
 		}
-		s.appendModuleUpdate(ctx, mod, mc, result)
+		s.addModuleUpdate(mod, mc)
 	}
 }
 
-func (s *Checker) appendModuleUpdate(
-	ctx context.Context,
+func (s *checkSession) addModuleUpdate(
 	mod *discovery.Module,
 	call *parser.ModuleCall,
-	result *updateengine.UpdateResult,
 ) {
-	result.Modules = append(result.Modules, s.scanModuleCall(ctx, mod, call))
+	s.builder.AddModuleUpdate(s.scanModuleCall(mod, call))
 }
 
-func (s *Checker) scanModuleCall(
-	ctx context.Context,
+func (s *checkSession) scanModuleCall(
 	mod *discovery.Module,
 	call *parser.ModuleCall,
 ) updateengine.ModuleVersionUpdate {
-	update := newModuleUpdate(mod.RelativePath, call)
+	dependency := newModuleDependency(mod.RelativePath, call)
+	update := newModuleUpdate(dependency)
 
-	if s.config.IsIgnored(call.Source) {
+	if s.checker.config.IsIgnored(call.Source) {
 		return skipModuleUpdate(update, skipReasonIgnored)
 	}
 
@@ -49,7 +44,7 @@ func (s *Checker) scanModuleCall(
 		return skipModuleUpdate(update, fmt.Sprintf("invalid source: %v", err))
 	}
 
-	versionStrings, err := s.registry.ModuleVersions(ctx, namespace, name, provider)
+	versionStrings, err := s.checker.registry.ModuleVersions(s.ctx, namespace, name, provider)
 	if err != nil {
 		return errorModuleUpdate(update, err)
 	}
@@ -65,7 +60,7 @@ func (s *Checker) scanModuleCall(
 		update.LatestVersion = latest.String()
 	}
 
-	bumped, ok := updateengine.LatestByBump(current, versions, s.config.Bump)
+	bumped, ok := updateengine.LatestByBump(current, versions, s.checker.config.Bump)
 	if ok {
 		return markModuleUpdateAvailable(update, mod.Path, call.Name, bumped.String())
 	}

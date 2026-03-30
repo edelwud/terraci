@@ -5,10 +5,10 @@ import "testing"
 func TestApplyUpdates_ErrorSetsError(t *testing.T) {
 	result := &UpdateResult{
 		Modules: []ModuleVersionUpdate{
-			{Status: StatusUpdateAvailable, File: "/nonexistent/file.tf", CallName: "vpc", BumpedVersion: "5.2.0", Constraint: "~> 5.0"},
+			{Dependency: ModuleDependency{CallName: "vpc", Constraint: "~> 5.0"}, Status: StatusUpdateAvailable, File: "/nonexistent/file.tf", BumpedVersion: "5.2.0"},
 		},
 		Providers: []ProviderVersionUpdate{
-			{Status: StatusUpdateAvailable, File: "/nonexistent/file.tf", ProviderName: "aws", BumpedVersion: "5.2.0", Constraint: "~> 5.0"},
+			{Dependency: ProviderDependency{ProviderName: "aws", Constraint: "~> 5.0"}, Status: StatusUpdateAvailable, File: "/nonexistent/file.tf", BumpedVersion: "5.2.0"},
 		},
 	}
 

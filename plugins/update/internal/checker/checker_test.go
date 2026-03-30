@@ -174,8 +174,8 @@ terraform {
 		t.Fatalf("providers = %d, want 1", len(result.Providers))
 	}
 	prov := result.Providers[0]
-	if prov.ProviderSource != "hashicorp/aws" {
-		t.Errorf("ProviderSource = %q", prov.ProviderSource)
+	if prov.ProviderSource() != "hashicorp/aws" {
+		t.Errorf("ProviderSource = %q", prov.ProviderSource())
 	}
 	if prov.LatestVersion != "6.0.0" {
 		t.Errorf("LatestVersion = %q, want 6.0.0", prov.LatestVersion)
@@ -221,8 +221,8 @@ module "vpc" {
 		t.Fatalf("modules = %d, want 1", len(result.Modules))
 	}
 	mod := result.Modules[0]
-	if mod.Source != "terraform-aws-modules/vpc/aws" {
-		t.Errorf("Source = %q", mod.Source)
+	if mod.Source() != "terraform-aws-modules/vpc/aws" {
+		t.Errorf("Source = %q", mod.Source())
 	}
 	if mod.Status != StatusUpdateAvailable {
 		t.Errorf("Status = %q, want %q", mod.Status, StatusUpdateAvailable)
@@ -758,10 +758,10 @@ provider "registry.terraform.io/hashicorp/aws" {
 func TestApplyUpdates_ErrorSetsError(t *testing.T) {
 	result := &UpdateResult{
 		Modules: []ModuleVersionUpdate{
-			{Status: StatusUpdateAvailable, File: "/nonexistent/file.tf", CallName: "vpc", BumpedVersion: "5.2.0", Constraint: "~> 5.0"},
+			{Dependency: updateengine.ModuleDependency{CallName: "vpc", Constraint: "~> 5.0"}, Status: StatusUpdateAvailable, File: "/nonexistent/file.tf", BumpedVersion: "5.2.0"},
 		},
 		Providers: []ProviderVersionUpdate{
-			{Status: StatusUpdateAvailable, File: "/nonexistent/file.tf", ProviderName: "aws", BumpedVersion: "5.2.0", Constraint: "~> 5.0"},
+			{Dependency: updateengine.ProviderDependency{ProviderName: "aws", Constraint: "~> 5.0"}, Status: StatusUpdateAvailable, File: "/nonexistent/file.tf", BumpedVersion: "5.2.0"},
 		},
 	}
 

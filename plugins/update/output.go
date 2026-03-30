@@ -47,8 +47,9 @@ func collectModuleUpdates(result *updateengine.UpdateResult) (groups map[string]
 		if !p.IncludedInUpdateLogs() {
 			continue
 		}
-		groups, order = ensureModuleGroup(groups, order, p.ModulePath)
-		groups[p.ModulePath].providers = append(groups[p.ModulePath].providers, *p)
+		modulePath := p.ModulePath()
+		groups, order = ensureModuleGroup(groups, order, modulePath)
+		groups[modulePath].providers = append(groups[modulePath].providers, *p)
 	}
 
 	for i := range result.Modules {
@@ -56,8 +57,9 @@ func collectModuleUpdates(result *updateengine.UpdateResult) (groups map[string]
 		if !m.IncludedInUpdateLogs() {
 			continue
 		}
-		groups, order = ensureModuleGroup(groups, order, m.ModulePath)
-		groups[m.ModulePath].modules = append(groups[m.ModulePath].modules, *m)
+		modulePath := m.ModulePath()
+		groups, order = ensureModuleGroup(groups, order, modulePath)
+		groups[modulePath].modules = append(groups[modulePath].modules, *m)
 	}
 
 	return groups, order
@@ -86,8 +88,8 @@ func logModuleUpdates(path string, updates *moduleUpdates) {
 }
 
 func logProviderUpdate(update *updateengine.ProviderVersionUpdate) {
-	label := update.ProviderName + " " + update.ProviderSource
-	entry := log.WithField("current", formatCurrent(update.Constraint, update.CurrentVersion)).
+	label := update.ProviderName() + " " + update.ProviderSource()
+	entry := log.WithField("current", formatCurrent(update.Constraint(), update.CurrentVersion)).
 		WithField("available", update.BumpedVersion)
 	if update.Status == updateengine.StatusApplied {
 		entry = entry.WithField("status", string(update.Status))
@@ -99,8 +101,8 @@ func logProviderUpdate(update *updateengine.ProviderVersionUpdate) {
 }
 
 func logModuleUpdate(update *updateengine.ModuleVersionUpdate) {
-	label := update.CallName + " " + update.Source
-	entry := log.WithField("current", formatCurrent(update.Constraint, update.CurrentVersion)).
+	label := update.CallName() + " " + update.Source()
+	entry := log.WithField("current", formatCurrent(update.Constraint(), update.CurrentVersion)).
 		WithField("available", update.BumpedVersion)
 	if update.Status == updateengine.StatusApplied {
 		entry = entry.WithField("status", string(update.Status))

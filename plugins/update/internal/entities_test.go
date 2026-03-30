@@ -103,3 +103,55 @@ func TestProviderVersionUpdate_StatusHelpers(t *testing.T) {
 		})
 	}
 }
+
+func TestNewModuleVersionUpdate(t *testing.T) {
+	dep := ModuleDependency{
+		ModulePath: "platform/prod/vpc",
+		CallName:   "vpc",
+		Source:     "terraform-aws-modules/vpc/aws",
+		Constraint: "~> 5.0",
+	}
+
+	update := NewModuleVersionUpdate(dep)
+	if update.ModulePath() != dep.ModulePath {
+		t.Errorf("ModulePath = %q, want %q", update.ModulePath(), dep.ModulePath)
+	}
+	if update.CallName() != dep.CallName {
+		t.Errorf("CallName = %q, want %q", update.CallName(), dep.CallName)
+	}
+	if update.Source() != dep.Source {
+		t.Errorf("Source = %q, want %q", update.Source(), dep.Source)
+	}
+	if update.Constraint() != dep.Constraint {
+		t.Errorf("Constraint = %q, want %q", update.Constraint(), dep.Constraint)
+	}
+	if update.Status != StatusUpToDate {
+		t.Errorf("Status = %q, want %q", update.Status, StatusUpToDate)
+	}
+}
+
+func TestNewProviderVersionUpdate(t *testing.T) {
+	dep := ProviderDependency{
+		ModulePath:     "platform/prod/vpc",
+		ProviderName:   "aws",
+		ProviderSource: "hashicorp/aws",
+		Constraint:     "~> 5.0",
+	}
+
+	update := NewProviderVersionUpdate(dep)
+	if update.ModulePath() != dep.ModulePath {
+		t.Errorf("ModulePath = %q, want %q", update.ModulePath(), dep.ModulePath)
+	}
+	if update.ProviderName() != dep.ProviderName {
+		t.Errorf("ProviderName = %q, want %q", update.ProviderName(), dep.ProviderName)
+	}
+	if update.ProviderSource() != dep.ProviderSource {
+		t.Errorf("ProviderSource = %q, want %q", update.ProviderSource(), dep.ProviderSource)
+	}
+	if update.Constraint() != dep.Constraint {
+		t.Errorf("Constraint = %q, want %q", update.Constraint(), dep.Constraint)
+	}
+	if update.Status != StatusUpToDate {
+		t.Errorf("Status = %q, want %q", update.Status, StatusUpToDate)
+	}
+}

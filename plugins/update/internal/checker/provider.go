@@ -1,7 +1,6 @@
 package checker
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -11,41 +10,37 @@ import (
 	"github.com/edelwud/terraci/plugins/update/internal/registryclient"
 )
 
-func (s *Checker) checkProviderUpdates(
-	ctx context.Context,
+func (s *checkSession) collectProviderUpdates(
 	mod *discovery.Module,
 	parsed *parser.ParsedModule,
-	result *updateengine.UpdateResult,
 ) {
 	lockIndex := buildLockIndex(parsed.LockedProviders)
 
 	for _, rp := range parsed.RequiredProviders {
-		s.appendProviderUpdate(ctx, mod, rp, lockIndex, result)
+		s.addProviderUpdate(mod, rp, lockIndex)
 	}
 }
 
-func (s *Checker) appendProviderUpdate(
-	ctx context.Context,
+func (s *checkSession) addProviderUpdate(
 	mod *discovery.Module,
 	requiredProvider *parser.RequiredProvider,
 	lockIndex map[string]*parser.LockedProvider,
-	result *updateengine.UpdateResult,
 ) {
-	result.Providers = append(result.Providers, s.scanProvider(ctx, mod, requiredProvider, lockIndex))
+	s.builder.AddProviderUpdate(s.scanProvider(mod, requiredProvider, lockIndex))
 }
 
-func (s *Checker) scanProvider(
-	ctx context.Context,
+func (s *checkSession) scanProvider(
 	mod *discovery.Module,
 	requiredProvider *parser.RequiredProvider,
 	lockIndex map[string]*parser.LockedProvider,
 ) updateengine.ProviderVersionUpdate {
-	update := newProviderUpdate(mod.RelativePath, requiredProvider)
+	dependency := newProviderDependency(mod.RelativePath, requiredProvider)
+	update := newProviderUpdate(dependency)
 
 	switch {
 	case requiredProvider.Source == "":
 		return skipProviderUpdate(update, "no source specified")
-	case s.config.IsIgnored(requiredProvider.Source):
+	case s.checker.config.IsIgnored(requiredProvider.Source):
 		return skipProviderUpdate(update, skipReasonIgnored)
 	}
 
@@ -56,13 +51,13 @@ func (s *Checker) scanProvider(
 		return skipProviderUpdate(update, fmt.Sprintf("invalid source: %v", err))
 	}
 
-	versionStrings, err := s.registry.ProviderVersions(ctx, namespace, typeName)
+	versionStrings, err := s.checker.registry.ProviderVersions(s.ctx, namespace, typeName)
 	if err != nil {
 		return errorProviderUpdate(update, err)
 	}
 
 	versions := parseVersionList(versionStrings)
-	current := resolveProviderCurrentVersion(update.Constraint, update.CurrentVersion, versions)
+	current := resolveProviderCurrentVersion(update.Constraint(), update.CurrentVersion, versions)
 	if !current.IsZero() {
 		update.CurrentVersion = current.String()
 	}
@@ -76,7 +71,7 @@ func (s *Checker) scanProvider(
 		return skipProviderUpdate(update, "cannot determine current version")
 	}
 
-	bumped, ok := updateengine.LatestByBump(current, versions, s.config.Bump)
+	bumped, ok := updateengine.LatestByBump(current, versions, s.checker.config.Bump)
 	if ok {
 		return markProviderUpdateAvailable(update, mod.Path, requiredProvider.Name, bumped.String())
 	}
@@ -136,8 +131,8 @@ func withLockedProviderState(
 	if lockedProvider.Version != "" {
 		update.CurrentVersion = lockedProvider.Version
 	}
-	if update.Constraint == "" && lockedProvider.Constraints != "" {
-		update.Constraint = lockedProvider.Constraints
+	if update.Constraint() == "" && lockedProvider.Constraints != "" {
+		update.Dependency.Constraint = lockedProvider.Constraints
 	}
 	return update
 }

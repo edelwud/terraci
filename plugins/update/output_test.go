@@ -13,9 +13,11 @@ func TestOutputResult_JSON(t *testing.T) {
 	result := &updateengine.UpdateResult{
 		Modules: []updateengine.ModuleVersionUpdate{
 			{
-				ModulePath:    "platform/prod/vpc",
-				CallName:      "vpc",
-				Source:        "terraform-aws-modules/vpc/aws",
+				Dependency: updateengine.ModuleDependency{
+					ModulePath: "platform/prod/vpc",
+					CallName:   "vpc",
+					Source:     "terraform-aws-modules/vpc/aws",
+				},
 				LatestVersion: "5.2.0",
 			},
 		},
@@ -44,11 +46,13 @@ func TestOutputResult_Text(t *testing.T) {
 	result := &updateengine.UpdateResult{
 		Providers: []updateengine.ProviderVersionUpdate{
 			{
-				ModulePath:     "test",
-				ProviderName:   "aws",
-				ProviderSource: "hashicorp/aws",
-				BumpedVersion:  "5.3.0",
-				Status:         updateengine.StatusUpdateAvailable,
+				Dependency: updateengine.ProviderDependency{
+					ModulePath:     "test",
+					ProviderName:   "aws",
+					ProviderSource: "hashicorp/aws",
+				},
+				BumpedVersion: "5.3.0",
+				Status:        updateengine.StatusUpdateAvailable,
 			},
 		},
 		Summary: updateengine.UpdateSummary{TotalChecked: 1, UpdatesAvailable: 1},
@@ -89,20 +93,24 @@ func TestOutputResult_TextWithModuleUpdates(t *testing.T) {
 	result := &updateengine.UpdateResult{
 		Modules: []updateengine.ModuleVersionUpdate{
 			{
-				ModulePath:     "platform/prod/vpc",
-				CallName:       "vpc",
-				Source:         "terraform-aws-modules/vpc/aws",
-				Constraint:     "~> 5.0",
+				Dependency: updateengine.ModuleDependency{
+					ModulePath: "platform/prod/vpc",
+					CallName:   "vpc",
+					Source:     "terraform-aws-modules/vpc/aws",
+					Constraint: "~> 5.0",
+				},
 				CurrentVersion: "5.0.0",
 				BumpedVersion:  "5.2.0",
 				LatestVersion:  "6.0.0",
 				Status:         updateengine.StatusUpdateAvailable,
 			},
 			{
-				ModulePath:     "platform/prod/vpc",
-				CallName:       "eks",
-				Source:         "terraform-aws-modules/eks/aws",
-				Constraint:     "~> 20.0",
+				Dependency: updateengine.ModuleDependency{
+					ModulePath: "platform/prod/vpc",
+					CallName:   "eks",
+					Source:     "terraform-aws-modules/eks/aws",
+					Constraint: "~> 20.0",
+				},
 				CurrentVersion: "20.0.0",
 				BumpedVersion:  "20.1.0",
 				Status:         updateengine.StatusUpdateAvailable,
@@ -110,10 +118,12 @@ func TestOutputResult_TextWithModuleUpdates(t *testing.T) {
 		},
 		Providers: []updateengine.ProviderVersionUpdate{
 			{
-				ModulePath:     "platform/prod/vpc",
-				ProviderName:   "aws",
-				ProviderSource: "hashicorp/aws",
-				Constraint:     "~> 5.0",
+				Dependency: updateengine.ProviderDependency{
+					ModulePath:     "platform/prod/vpc",
+					ProviderName:   "aws",
+					ProviderSource: "hashicorp/aws",
+					Constraint:     "~> 5.0",
+				},
 				CurrentVersion: "5.67.0",
 				BumpedVersion:  "5.69.0",
 				LatestVersion:  "6.0.0",
@@ -134,10 +144,10 @@ func TestOutputResult_TextSkippedOnly(t *testing.T) {
 	// All items skipped or not updated — should print "all up to date"
 	result := &updateengine.UpdateResult{
 		Providers: []updateengine.ProviderVersionUpdate{
-			{ModulePath: "test", Status: updateengine.StatusSkipped, Issue: "ignored"},
+			{Dependency: updateengine.ProviderDependency{ModulePath: "test"}, Status: updateengine.StatusSkipped, Issue: "ignored"},
 		},
 		Modules: []updateengine.ModuleVersionUpdate{
-			{ModulePath: "test"},
+			{Dependency: updateengine.ModuleDependency{ModulePath: "test"}},
 		},
 		Summary: updateengine.UpdateSummary{TotalChecked: 2, Skipped: 1},
 	}
@@ -154,10 +164,12 @@ func TestOutputResult_TextModuleWithSameBumpedLatest(t *testing.T) {
 	result := &updateengine.UpdateResult{
 		Modules: []updateengine.ModuleVersionUpdate{
 			{
-				ModulePath:     "platform/prod/vpc",
-				CallName:       "vpc",
-				Source:         "terraform-aws-modules/vpc/aws",
-				Constraint:     "~> 5.0",
+				Dependency: updateengine.ModuleDependency{
+					ModulePath: "platform/prod/vpc",
+					CallName:   "vpc",
+					Source:     "terraform-aws-modules/vpc/aws",
+					Constraint: "~> 5.0",
+				},
 				CurrentVersion: "5.0.0",
 				BumpedVersion:  "5.2.0",
 				LatestVersion:  "5.2.0",
@@ -178,10 +190,12 @@ func TestOutputResult_TextProviderWithSameBumpedLatest(t *testing.T) {
 	result := &updateengine.UpdateResult{
 		Providers: []updateengine.ProviderVersionUpdate{
 			{
-				ModulePath:     "test",
-				ProviderName:   "aws",
-				ProviderSource: "hashicorp/aws",
-				Constraint:     "~> 5.0",
+				Dependency: updateengine.ProviderDependency{
+					ModulePath:     "test",
+					ProviderName:   "aws",
+					ProviderSource: "hashicorp/aws",
+					Constraint:     "~> 5.0",
+				},
 				CurrentVersion: "5.0.0",
 				BumpedVersion:  "5.69.0",
 				LatestVersion:  "5.69.0",

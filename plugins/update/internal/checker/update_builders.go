@@ -8,14 +8,17 @@ import (
 	"github.com/edelwud/terraci/plugins/update/internal/tffile"
 )
 
-func newModuleUpdate(modulePath string, call *parser.ModuleCall) updateengine.ModuleVersionUpdate {
-	return updateengine.ModuleVersionUpdate{
+func newModuleDependency(modulePath string, call *parser.ModuleCall) updateengine.ModuleDependency {
+	return updateengine.ModuleDependency{
 		ModulePath: modulePath,
 		CallName:   call.Name,
 		Source:     call.Source,
 		Constraint: call.Version,
-		Status:     updateengine.StatusUpToDate,
 	}
+}
+
+func newModuleUpdate(dep updateengine.ModuleDependency) updateengine.ModuleVersionUpdate {
+	return updateengine.NewModuleVersionUpdate(dep)
 }
 
 func skipModuleUpdate(
@@ -48,17 +51,20 @@ func markModuleUpdateAvailable(
 	return update
 }
 
-func newProviderUpdate(
+func newProviderDependency(
 	modulePath string,
 	requiredProvider *parser.RequiredProvider,
-) updateengine.ProviderVersionUpdate {
-	return updateengine.ProviderVersionUpdate{
+) updateengine.ProviderDependency {
+	return updateengine.ProviderDependency{
 		ModulePath:     modulePath,
 		ProviderName:   requiredProvider.Name,
 		ProviderSource: requiredProvider.Source,
 		Constraint:     requiredProvider.VersionConstraint,
-		Status:         updateengine.StatusUpToDate,
 	}
+}
+
+func newProviderUpdate(dep updateengine.ProviderDependency) updateengine.ProviderVersionUpdate {
+	return updateengine.NewProviderVersionUpdate(dep)
 }
 
 func skipProviderUpdate(
