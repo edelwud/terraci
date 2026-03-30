@@ -1,4 +1,4 @@
-package parser
+package evalctx
 
 import (
 	"testing"
@@ -6,10 +6,10 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-func TestEvalContextBuilder_ExtractPathLocals(t *testing.T) {
-	builder := newEvalContextBuilder([]string{"service", "environment", "region", "module"})
+func TestBuilderExtractPathLocals(t *testing.T) {
+	builder := NewBuilder([]string{"service", "environment", "region", "module"})
 
-	locals := builder.extractPathLocals([]string{"platform", "stage", "eu-central-1", "proxy", "prod"})
+	locals := builder.ExtractPathLocals([]string{"platform", "stage", "eu-central-1", "proxy", "prod"})
 
 	if got := locals["service"].AsString(); got != "platform" {
 		t.Fatalf("service = %q, want %q", got, "platform")
@@ -31,9 +31,9 @@ func TestEvalContextBuilder_ExtractPathLocals(t *testing.T) {
 	}
 }
 
-func TestEvalContextBuilder_Build(t *testing.T) {
-	builder := newEvalContextBuilder([]string{"service", "environment", "region", "module"})
-	evalCtx := builder.build(
+func TestBuilderBuild(t *testing.T) {
+	builder := NewBuilder([]string{"service", "environment", "region", "module"})
+	evalCtx := builder.Build(
 		"platform/stage/eu-central-1/eks",
 		map[string]cty.Value{"service": cty.StringVal("override")},
 		map[string]cty.Value{"region": cty.StringVal("ignored")},

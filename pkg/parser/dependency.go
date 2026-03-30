@@ -4,24 +4,23 @@ import (
 	"context"
 
 	"github.com/edelwud/terraci/pkg/discovery"
+	dependencyengine "github.com/edelwud/terraci/pkg/parser/internal/dependency"
 	parserdeps "github.com/edelwud/terraci/pkg/parser/internal/deps"
 )
 
 // DependencyExtractor extracts module dependencies from parsed Terraform files.
 type DependencyExtractor struct {
-	parser       ModuleParser
-	index        *discovery.ModuleIndex
-	cache        *parsedModuleCache
-	backendIndex *backendModuleIndex
+	parser ModuleParser
+	index  *discovery.ModuleIndex
+	engine *dependencyengine.Engine
 }
 
 // NewDependencyExtractor creates a new dependency extractor.
 func NewDependencyExtractor(parser ModuleParser, index *discovery.ModuleIndex) *DependencyExtractor {
 	return &DependencyExtractor{
-		parser:       parser,
-		index:        index,
-		cache:        newParsedModuleCache(parser),
-		backendIndex: newBackendModuleIndex(),
+		parser: parser,
+		index:  index,
+		engine: dependencyengine.NewEngine(newDependencyParserAdapter(parser), index),
 	}
 }
 
@@ -50,7 +49,12 @@ type ModuleDependencies struct {
 
 // ExtractDependencies extracts dependencies for a single module.
 func (de *DependencyExtractor) ExtractDependencies(ctx context.Context, module *discovery.Module) (*ModuleDependencies, error) {
-	return newDependencySession(ctx, de, module).Run()
+	deps, err := de.engine.ExtractDependencies(ctx, module)
+	if err != nil {
+		return nil, err
+	}
+
+	return fromDependencyModuleDependencies(deps), nil
 }
 
 // matchPathToModule matches a state file path to a module using multiple strategies.
@@ -62,36 +66,8 @@ func containsDynamicPattern(path string) bool {
 	return parserdeps.ContainsDynamicPattern(path)
 }
 
-func (de *DependencyExtractor) buildBackendIndex(ctx context.Context) {
-	de.backendIndex.Build(ctx, de.index, de.cache)
-}
-
-// backendIndexKey builds a lookup key from a module's backend config.
-func backendIndexKey(bc *BackendConfig, modulePath string) string {
-	return parserdeps.BackendIndexKey(bc.Type, bc.Config["bucket"], bc.Config["key"], modulePath)
-}
-
-// maxConcurrentExtractions is the maximum number of concurrent module extractions.
-const maxConcurrentExtractions = 20
-
 // ExtractAllDependencies extracts dependencies for all modules in the index.
 func (de *DependencyExtractor) ExtractAllDependencies(ctx context.Context) (map[string]*ModuleDependencies, []error) {
-	de.buildBackendIndex(ctx)
-
-	results := make(map[string]*ModuleDependencies)
-	var allErrors []error
-	var collector resultCollector
-
-	collector.run(de.index.All(), func(module *discovery.Module) (*ModuleDependencies, error) {
-		return de.ExtractDependencies(ctx, module)
-	}, func(module *discovery.Module, deps *ModuleDependencies, err error) {
-		if err != nil {
-			allErrors = append(allErrors, err)
-			return
-		}
-		results[module.ID()] = deps
-		allErrors = append(allErrors, deps.Errors...)
-	})
-
-	return results, allErrors
+	results, errs := de.engine.ExtractAllDependencies(ctx)
+	return fromDependencyModuleDependenciesMap(results), errs
 }

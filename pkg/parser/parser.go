@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/edelwud/terraci/pkg/parser/internal/extract"
+	moduleparse "github.com/edelwud/terraci/pkg/parser/internal/moduleparse"
 )
 
 // ParseModule parses all Terraform files in a module directory.
@@ -13,15 +13,12 @@ func (p *Parser) ParseModule(ctx context.Context, modulePath string) (*ParsedMod
 		return nil, err
 	}
 
-	index, err := newModuleLoader().Load(ctx, modulePath)
+	parsed := newParsedModule(modulePath)
+	result, err := moduleparse.Run(ctx, modulePath, p.segments, newParsedModuleSink(parsed))
 	if err != nil {
 		return nil, fmt.Errorf("load module: %w", err)
 	}
 
-	assembler := newModuleAssembler(modulePath, index)
-	parsed := assembler.Result()
-	extractCtx := newExtractContext(index, parsed, p.evalContextBuilder())
-	extract.RunDefault(extractCtx.extractionContext())
-
+	applyParseResult(parsed, result)
 	return parsed, nil
 }
