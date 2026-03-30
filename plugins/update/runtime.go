@@ -50,10 +50,11 @@ func newRuntime(cfg *updateengine.UpdateConfig, registryFactory func() updateeng
 			return registryclient.New()
 		}
 	}
+	registry := updateengine.NewCachedRegistryClient(registryFactory())
 
 	return &updateRuntime{
 		config:   &runtimeConfig,
-		registry: registryFactory(),
+		registry: registry,
 		options:  opts,
 	}, nil
 }
