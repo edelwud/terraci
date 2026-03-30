@@ -4,6 +4,7 @@ import (
 	"maps"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/zclconf/go-cty/cty"
 
 	"github.com/edelwud/terraci/internal/terraform/eval"
 )
@@ -18,11 +19,12 @@ func extractLocals(ctx *Context) {
 
 	locals := ctx.Sink.Locals()
 	evalCtx := eval.NewContext(locals, ctx.Sink.Variables(), ctx.Sink.Path())
-	evalCtx.Variables["local"] = eval.SafeObjectVal(locals)
 
 	const maxPasses = 10
 	for range maxPasses {
-		resolved := 0
+		evalCtx.Variables["local"] = eval.SafeObjectVal(locals)
+
+		resolved := make(map[string]cty.Value)
 		for name, attr := range allAttrs {
 			if _, exists := locals[name]; exists {
 				continue
@@ -30,13 +32,15 @@ func extractLocals(ctx *Context) {
 
 			val, diags := attr.Expr.Value(evalCtx)
 			if !diags.HasErrors() && val.IsKnown() {
-				ctx.Sink.SetLocal(name, val)
-				evalCtx.Variables["local"] = eval.SafeObjectVal(locals)
-				resolved++
+				resolved[name] = val
 			}
 		}
-		if resolved == 0 {
+		if len(resolved) == 0 {
 			break
+		}
+
+		for name, val := range resolved {
+			ctx.Sink.SetLocal(name, val)
 		}
 	}
 }
