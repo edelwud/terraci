@@ -33,6 +33,8 @@ func newRuntimeWithEstimator(estimator *engine.Estimator) *costRuntime {
 	return &costRuntime{estimator: estimator}
 }
 
+// Runtime implements plugin.RuntimeProvider and serves as the reference lazy
+// runtime pattern for runtime-heavy plugins in TerraCi.
 func (p *Plugin) Runtime(_ context.Context, _ *plugin.AppContext) (any, error) {
 	return newRuntime(p.Config())
 }

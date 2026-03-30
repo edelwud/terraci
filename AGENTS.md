@@ -1,6 +1,6 @@
 # TerraCi
 
-CLI tool for analyzing Terraform projects, building dependency graphs, generating CI pipelines, and estimating AWS costs. Extended via compile-time plugin system.
+CLI tool for analyzing Terraform projects, building dependency graphs, generating CI pipelines, and estimating cloud costs. Extended via compile-time plugin system.
 
 ## Build & Test
 
@@ -60,9 +60,11 @@ pkg/                            # Public API — importable by external plugins
 │   ├── enable.go               # EnablePolicy enum
 │   ├── registry.go             # Register(), All(), ByCapability[T](), ResolveProvider()
 │   ├── context.go              # AppContext (with ServiceDir, Reports, Freeze)
+│   ├── runtime.go              # RuntimeProvider + RuntimeAs() for lazy plugin runtimes
 │   ├── reports.go              # ReportRegistry — in-memory report exchange
 │   ├── init_state.go           # StateMap — typed form state with pointer getters for huh
-│   └── helpers.go              # CollectContributions() with framework-level filtering
+│   ├── helpers.go              # CollectContributions() with framework-level filtering
+│   └── plugintest/             # Shared plugin-facing test helpers
 ├── ciprovider/
 │   └── types.go                # Shared CI types: Image, MRCommentConfig
 ├── pipeline/
@@ -89,52 +91,68 @@ pkg/                            # Public API — importable by external plugins
 plugins/                        # Built-in plugins — one file per capability
 ├── gitlab/
 │   ├── plugin.go               # init, BasePlugin[*Config] embed, FlagOverridable
-│   ├── lifecycle.go            # Initializable (MR context detection)
+│   ├── lifecycle.go            # Preflightable (cheap MR context detection)
 │   ├── generator.go            # EnvDetector + CIMetadata + GeneratorFactory + CommentFactory
 │   ├── init_wizard.go          # InitContributor
 │   └── internal/               # (package gitlabci) config, client, generator, MR service, types
 ├── github/
 │   ├── plugin.go               # init, BasePlugin[*Config] embed, FlagOverridable
-│   ├── lifecycle.go            # Initializable (PR context detection)
+│   ├── lifecycle.go            # Preflightable (cheap PR context detection)
 │   ├── generator.go            # EnvDetector + CIMetadata + GeneratorFactory + CommentFactory
 │   ├── init_wizard.go          # InitContributor
 │   └── internal/               # (package githubci) config, client, generator, PR service, types
 ├── cost/
 │   ├── plugin.go               # init, BasePlugin[*CostConfig] embed
-│   ├── lifecycle.go            # Initializable (create estimator, clean cache)
+│   ├── lifecycle.go            # Preflightable (cheap config/cache validation)
 │   ├── commands.go             # CommandProvider (terraci cost)
+│   ├── runtime.go              # RuntimeProvider (lazy estimator construction)
+│   ├── usecases.go             # Discovery/estimate/artifact orchestration
 │   ├── pipeline.go             # PipelineContributor
 │   ├── init_wizard.go          # InitContributor
-│   ├── output.go               # Rendering helpers (segment tree, submodules)
+│   ├── output.go               # CLI rendering helpers
+│   ├── report.go               # CI report assembly
 │   └── internal/               # (package costengine) — layered cost estimation engine
-│       ├── estimator.go        #   Estimator orchestrator
-│       ├── factory.go          #   NewEstimatorFromConfig (auto-discovers cloud providers)
-│       ├── resolver.go         #   CostResolver + middleware chain
-│       ├── resolver_types.go   #   ResolveRequest, RegistryLookup, PricingSource, CostMiddleware
-│       ├── types.go            #   ResourceCost, ModuleCost, EstimateResult, CostConfig
-│       ├── modules.go          #   groupByModule (flat → hierarchical)
-│       ├── tree.go             #   SegmentTree for path-based visualization
+│       ├── engine/             #   Estimation orchestration, Terraform adapter, prefetch/execution
+│       ├── runtime/            #   Provider catalog, pricing runtime, resolver, prefetch service
+│       ├── model/              #   Cost result/config types + tree/module helpers
+│       ├── results/            #   Result assembly layer
 │       ├── cloud/              #   Cloud provider registry (init() + RegisterCloudProvider)
-│       │   ├── registry.go     #     CloudProvider interface + global registry
-│       │   ├── routing.go      #     RoutingFetcher for multi-provider
+│       │   ├── registry.go     #     Provider definitions + global registry
 │       │   ├── aws/            #     AWS provider + handler subpackages
-│       │   │   ├── provider.go #       init() self-registration + RegisterHandlers
+│       │   │   ├── provider.go #       init() self-registration + provider definition
 │       │   │   ├── ec2/, rds/, elb/, eks/, elasticache/, serverless/, storage/
 │       │   └── awskit/         #     AWS utilities (no handler imports)
-│       │       ├── region.go, lookup.go, fetcher.go, constants.go
+│       │       ├── runtime.go, standard_lookup.go, describe.go, services.go
 │       ├── handler/            #   Provider-agnostic handler interfaces
-│       │   ├── handler.go      #     ResourceHandler, CompoundHandler, SubResource
-│       │   ├── registry.go     #     Handler registry
+│       │   ├── handler.go      #     ResourceHandler + capability interfaces
+│       │   ├── registry.go     #     Provider-scoped handler registry
 │       │   ├── attrs.go, calc.go
-│       └── pricing/            #   Disk-based pricing cache + types
+│       ├── pricing/            #   Disk-based pricing cache + types
+│       ├── handlertest/        #   Handler contract test kit
+│       ├── runtimetest/        #   Runtime contract test kit
+│       └── enginetest/         #   Engine fixture/test helpers
 ├── policy/
 │   ├── plugin.go               # init, BasePlugin[*Config] embed
-│   ├── lifecycle.go            # Initializable (OPA validation, serviceDir)
+│   ├── lifecycle.go            # Preflightable (OPA/source validation)
 │   ├── commands.go             # CommandProvider (terraci policy pull/check)
+│   ├── runtime.go              # RuntimeProvider (lazy puller/runtime construction)
+│   ├── usecases.go             # Pull/check orchestration
 │   ├── pipeline.go             # PipelineContributor (policy-check job)
 │   ├── version.go              # VersionProvider (OPA version)
 │   ├── init_wizard.go          # InitContributor
+│   ├── output.go               # CLI rendering
+│   ├── report.go               # CI report assembly
 │   └── internal/               # (package policyengine) OPA engine, checker, sources
+├── update/
+│   ├── plugin.go               # init, BasePlugin[*Config] embed
+│   ├── lifecycle.go            # Preflightable (cheap config validation)
+│   ├── commands.go             # CommandProvider (terraci update)
+│   ├── runtime.go              # RuntimeProvider (lazy registry/runtime construction)
+│   ├── usecases.go             # Update-check orchestration
+│   ├── output.go               # CLI rendering
+│   ├── report.go               # CI report assembly
+│   ├── init_wizard.go          # InitContributor
+│   └── internal/               # (package updateengine) parser, checker, registry client
 ├── summary/
 │   ├── plugin.go               # init, BasePlugin[*Config] embed
 │   ├── commands.go             # CommandProvider (terraci summary)
@@ -144,7 +162,7 @@ plugins/                        # Built-in plugins — one file per capability
 │   └── internal/               # (package summaryengine) config, renderer, report_loader
 └── git/
     ├── plugin.go               # init, Plugin struct (no config, no BasePlugin)
-    ├── lifecycle.go            # Initializable (verify repo, cache client)
+    ├── lifecycle.go            # Preflightable (cheap repo detection)
     ├── detect.go               # ChangeDetectionProvider
     └── internal/               # (package gitclient) client, detector, diff
 
@@ -162,15 +180,18 @@ Compile-time plugins via `init()` + blank import (Caddy/database-sql pattern). P
 
 ### Plugin File Convention
 
-Each plugin follows one-file-per-capability:
+Each plugin follows one-file-per-capability, with runtime-heavy plugins also using a lazy runtime layer:
 - `plugin.go` — init(), Plugin struct with BasePlugin[C] embedding, Reset(), FlagOverridable
-- `lifecycle.go` — Initializable
+- `lifecycle.go` — Preflightable
+- `runtime.go` — RuntimeProvider for lazy runtime construction
+- `usecases.go` — command orchestration over typed runtime
 - `commands.go` — CommandProvider with cobra definitions
 - `generator.go` — EnvDetector + CIMetadata + GeneratorFactory + CommentFactory
-- `pipeline.go` — PipelineContributor (no self-check, framework filters)
+- `pipeline.go` — PipelineContributor(ctx) (no self-check, framework filters)
 - `init_wizard.go` — InitContributor (uses typed *StateMap)
 - `version.go` — VersionProvider
 - `output.go` — Rendering/formatting helpers
+- `report.go` — CI report assembly
 - `detect.go` — ChangeDetectionProvider
 
 ### Plugin Lifecycle
@@ -178,9 +199,9 @@ Each plugin follows one-file-per-capability:
 ```
 1. Register    — init() calls plugin.Register() with BasePlugin[C] embedding
 2. Configure   — ConfigLoader.DecodeAndSet() for plugins with config in .terraci.yaml
-3. Initialize  — Initializable.Initialize() sets up resources
+3. Preflight   — Preflightable.Preflight() performs cheap validation/env detection
 4. Freeze      — AppContext.Freeze() prevents further mutations
-5. Execute     — Commands, PipelineContributor
+5. Execute     — Commands/use-cases lazily build RuntimeProvider runtimes as needed
 ```
 
 ### Capability Interfaces
@@ -188,8 +209,10 @@ Each plugin follows one-file-per-capability:
 | Interface | Purpose | Implemented by |
 |-----------|---------|----------------|
 | `Plugin` | Base: Name(), Description() | all |
-| `ConfigLoader` | Config section under `plugins:` + IsEnabled() via EnablePolicy | gitlab, github, cost, policy, summary |
-| `CommandProvider` | CLI subcommands | cost, policy, summary |
+| `ConfigLoader` | Config section under `plugins:` + IsEnabled() via EnablePolicy | gitlab, github, cost, policy, summary, update |
+| `CommandProvider` | CLI subcommands | cost, policy, summary, update |
+| `Preflightable` | Cheap startup validation / env detection | gitlab, github, cost, policy, git, update |
+| `RuntimeProvider` | Lazy command-time runtime construction | cost, policy, update |
 | `EnvDetector` | CI environment detection | gitlab, github |
 | `CIMetadata` | Provider name, pipeline ID, commit SHA | gitlab, github |
 | `GeneratorFactory` | Pipeline generator creation | gitlab, github |
@@ -197,9 +220,9 @@ Each plugin follows one-file-per-capability:
 | `FlagOverridable` | Direct CLI flag overrides (--plan-only, --auto-approve) | gitlab, github |
 | `VersionProvider` | Version info contributions | policy |
 | `ChangeDetectionProvider` | VCS change detection | git |
-| `InitContributor` | Init wizard form fields + config building | gitlab, github, cost, policy, summary |
+| `InitContributor` | Init wizard form fields + config building | gitlab, github, cost, policy, summary, update |
 | `PipelineContributor` | Pipeline steps/jobs via Contribution | cost, policy, summary |
-| `Initializable` | Setup after config load | gitlab, github, cost, policy, git |
+| `Initializable` | Legacy compatibility lifecycle hook | compatibility only |
 
 ### BasePlugin[C] Generic Embedding
 
@@ -222,7 +245,7 @@ GitLab: IR → Pipeline{Stages, Jobs} → YAML
 GitHub: IR → Workflow{Jobs, Steps} → YAML
 ```
 
-Plugins contribute via `PipelineContributor.PipelineContribution()`:
+Plugins contribute via `PipelineContributor.PipelineContribution(ctx)`:
 - `Contribution.Steps` — injected into plan/apply jobs (PrePlan/PostPlan/PreApply/PostApply)
 - `Contribution.Jobs` — standalone jobs (e.g., policy-check after plans)
 
@@ -300,11 +323,13 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **One file per capability**: plugin.go < 30 lines; each interface in its own file
 - **Compile-time extensibility**: `xterraci build --with/--without` for custom binaries
 - **Pipeline IR**: `pkg/pipeline.Build()` → provider transforms to YAML
-- **PipelineContributor**: plugins inject steps/jobs without cross-plugin imports
+- **Preflight, then lazy runtime**: framework performs cheap startup validation; heavy plugin state is built lazily inside RuntimeProvider/use-cases
+- **PipelineContributor(ctx)**: plugins inject steps/jobs without cross-plugin imports or cached service-dir state
 - **ServiceDir**: configurable project directory; `AppContext.ServiceDir` (absolute) for runtime, `Config.ServiceDir` (relative) for pipeline templates
 - **File-based reports**: plugins write `{serviceDir}/{plugin}-report.json`; summary plugin loads and merges them
 - **Zero cross-plugin imports**: plugins communicate only via registry + shared types + file-based reports
 - **Shared workflow**: `workflow.Run()` — scan, filter, parse, graph building
+- **Reference runtime-heavy plugins**: `cost`, `policy`, `update`
 
 ## CLI Commands
 
@@ -316,9 +341,10 @@ terraci validate                            # Validate config
 terraci graph --format dot --stats          # Dependency graph
 terraci init                                # Interactive wizard
 terraci init --ci --provider gitlab         # Non-interactive
-terraci cost                                # AWS cost estimation
+terraci cost                                # Cloud cost estimation
 terraci summary                             # Post MR/PR comment
 terraci policy pull && terraci policy check # Policy checks
+terraci update                              # Dependency version checks
 terraci schema                              # JSON schema
 terraci version                             # Version + plugin info
 

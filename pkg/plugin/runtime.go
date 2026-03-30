@@ -12,6 +12,23 @@ import (
 // Use Preflightable for cheap validation and environment checks. Use
 // RuntimeProvider for typed runtime construction inside plugin commands and
 // use-cases.
+//
+// Typical shape:
+//
+//	func (p *Plugin) Runtime(_ context.Context, appCtx *AppContext) (any, error) {
+//		return newRuntime(appCtx, p.Config(), runtimeOptions{})
+//	}
+//
+//	func (p *Plugin) runtime(ctx context.Context, appCtx *AppContext, opts runtimeOptions) (*myRuntime, error) {
+//		if opts == (runtimeOptions{}) {
+//			rawRuntime, err := p.Runtime(ctx, appCtx)
+//			if err != nil {
+//				return nil, err
+//			}
+//			return RuntimeAs[*myRuntime](rawRuntime)
+//		}
+//		return newRuntime(appCtx, p.Config(), opts)
+//	}
 type RuntimeProvider interface {
 	Plugin
 	Runtime(ctx context.Context, appCtx *AppContext) (any, error)
