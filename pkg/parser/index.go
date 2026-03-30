@@ -2,46 +2,20 @@ package parser
 
 import (
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/hclparse"
+
+	"github.com/edelwud/terraci/pkg/parser/internal/source"
 )
 
 type moduleIndex struct {
-	path           string
-	hclParser      *hclparse.Parser
-	files          map[string]*hcl.File
-	topLevelBlocks map[string][]*hcl.Block
-	diagnostics    hcl.Diagnostics
+	inner *source.Index
 }
 
-func newModuleIndex(path string, hclParser *hclparse.Parser) *moduleIndex {
-	return &moduleIndex{
-		path:           path,
-		hclParser:      hclParser,
-		files:          make(map[string]*hcl.File),
-		topLevelBlocks: make(map[string][]*hcl.Block),
-	}
-}
-
-func (i *moduleIndex) addDiagnostics(diags hcl.Diagnostics) {
-	i.diagnostics = append(i.diagnostics, diags...)
-}
-
-func (i *moduleIndex) addFile(path string, file *hcl.File) {
-	i.files[path] = file
-	i.collectTopLevelBlocks(file)
-}
-
-func (i *moduleIndex) parseHCLFile(path string) (*hcl.File, error) {
-	file, diags, err := parseHCLFile(i.hclParser, path)
-	i.addDiagnostics(diags)
-	if err != nil {
-		return nil, err
-	}
-	return file, nil
+func newModuleIndex(inner *source.Index) *moduleIndex {
+	return &moduleIndex{inner: inner}
 }
 
 func (i *moduleIndex) blocks(blockType string) []*hcl.Block {
-	return i.topLevelBlocks[blockType]
+	return i.inner.Blocks(blockType)
 }
 
 func (i *moduleIndex) localsBlocks() []*hcl.Block {
@@ -62,4 +36,16 @@ func (i *moduleIndex) dataBlocks() []*hcl.Block {
 
 func (i *moduleIndex) moduleBlocks() []*hcl.Block {
 	return i.blocks("module")
+}
+
+func (i *moduleIndex) files() map[string]*hcl.File {
+	return i.inner.Files()
+}
+
+func (i *moduleIndex) diagnostics() hcl.Diagnostics {
+	return i.inner.Diagnostics()
+}
+
+func (i *moduleIndex) topLevelBlockIndex() map[string][]*hcl.Block {
+	return i.inner.TopLevelBlockIndex()
 }

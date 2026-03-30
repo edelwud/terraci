@@ -2,206 +2,120 @@ package parser
 
 import (
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
+
+	"github.com/edelwud/terraci/pkg/parser/internal/source"
 )
 
 type variableBlockView struct {
-	block *hcl.Block
+	inner source.VariableBlockView
 }
 
 func (v variableBlockView) Name() string {
-	if len(v.block.Labels) == 0 {
-		return ""
-	}
-	return v.block.Labels[0]
+	return v.inner.Name()
 }
 
 func (v variableBlockView) DefaultValue() (cty.Value, bool, hcl.Diagnostics) {
-	content, _, diags := v.block.Body.PartialContent(variableDefaultSchema())
-	if content == nil {
-		return cty.NilVal, false, diags
-	}
-
-	attr, ok := content.Attributes["default"]
-	if !ok {
-		return cty.NilVal, false, diags
-	}
-
-	val, valDiags := attr.Expr.Value(nil)
-	diags = append(diags, valDiags...)
-	if valDiags.HasErrors() {
-		return cty.NilVal, false, diags
-	}
-
-	return val, true, diags
+	return v.inner.DefaultValue()
 }
 
 type backendBlockView struct {
-	block *hcl.Block
+	inner source.BackendBlockView
 }
 
 func (v backendBlockView) Type() string {
-	if len(v.block.Labels) == 0 {
-		return ""
-	}
-	return v.block.Labels[0]
+	return v.inner.Type()
 }
 
 func (v backendBlockView) Attributes() (map[string]*hcl.Attribute, hcl.Diagnostics) {
-	attrs, diags := v.block.Body.JustAttributes()
-	return attrs, diags
+	return v.inner.Attributes()
 }
 
 type terraformBlockView struct {
-	block *hcl.Block
+	inner source.TerraformBlockView
 }
 
 func (v terraformBlockView) BackendBlocks() ([]backendBlockView, hcl.Diagnostics) {
-	content, _, diags := v.block.Body.PartialContent(backendSchema())
-	if content == nil {
-		return nil, diags
+	blocks, diags := v.inner.BackendBlocks()
+	views := make([]backendBlockView, 0, len(blocks))
+	for _, block := range blocks {
+		views = append(views, backendBlockView{inner: block})
 	}
-
-	views := make([]backendBlockView, 0, len(content.Blocks))
-	for _, block := range content.Blocks {
-		if len(block.Labels) == 0 {
-			continue
-		}
-		views = append(views, backendBlockView{block: block})
-	}
-
 	return views, diags
 }
 
 func (v terraformBlockView) RequiredProviderBlocks() ([]*hcl.Block, hcl.Diagnostics) {
-	content, _, diags := v.block.Body.PartialContent(requiredProvidersSchema())
-	if content == nil {
-		return nil, diags
-	}
-
-	return append([]*hcl.Block(nil), content.Blocks...), diags
+	return v.inner.RequiredProviderBlocks()
 }
 
 type moduleBlockView struct {
-	block *hcl.Block
+	inner source.ModuleBlockView
 }
 
 func (v moduleBlockView) Name() string {
-	if len(v.block.Labels) == 0 {
-		return ""
-	}
-	return v.block.Labels[0]
+	return v.inner.Name()
 }
 
 func (v moduleBlockView) Content() (*hcl.BodyContent, hcl.Diagnostics) {
-	content, _, diags := v.block.Body.PartialContent(moduleCallSchema())
-	return content, diags
+	return v.inner.Content()
 }
 
 type remoteStateBlockView struct {
-	block *hcl.Block
+	inner source.RemoteStateBlockView
 }
 
 func (v remoteStateBlockView) Name() string {
-	if len(v.block.Labels) < 2 {
-		return ""
-	}
-	return v.block.Labels[1]
+	return v.inner.Name()
 }
 
 func (v remoteStateBlockView) RawBody() hcl.Body {
-	return v.block.Body
+	return v.inner.RawBody()
 }
 
 func (v remoteStateBlockView) Content() (*hcl.BodyContent, hcl.Diagnostics) {
-	content, _, diags := v.block.Body.PartialContent(remoteStateSchema())
-	return content, diags
+	return v.inner.Content()
 }
 
 func (v remoteStateBlockView) InlineConfigExpressions(content *hcl.BodyContent) map[string]hcl.Expression {
-	config := make(map[string]hcl.Expression)
-	attr, ok := content.Attributes["config"]
-	if !ok {
-		return config
-	}
-
-	objExpr, isObj := attr.Expr.(*hclsyntax.ObjectConsExpr)
-	if !isObj {
-		return config
-	}
-
-	for _, item := range objExpr.Items {
-		keyVal, keyDiags := item.KeyExpr.Value(nil)
-		if keyDiags.HasErrors() || keyVal.Type() != cty.String {
-			continue
-		}
-		config[keyVal.AsString()] = item.ValueExpr
-	}
-
-	return config
+	return v.inner.InlineConfigExpressions(content)
 }
 
 func (v remoteStateBlockView) ConfigBlockAttributes(content *hcl.BodyContent) (map[string]hcl.Expression, hcl.Diagnostics) {
-	config := make(map[string]hcl.Expression)
-	var diags hcl.Diagnostics
-
-	for _, block := range content.Blocks {
-		if block.Type != "config" {
-			continue
-		}
-
-		attrs, blockDiags := block.Body.JustAttributes()
-		diags = append(diags, blockDiags...)
-		for name, attr := range attrs {
-			config[name] = attr.Expr
-		}
-	}
-
-	return config, diags
+	return v.inner.ConfigBlockAttributes(content)
 }
 
 func (i *moduleIndex) variableBlockViews() []variableBlockView {
-	blocks := i.variableBlocks()
-	views := make([]variableBlockView, 0, len(blocks))
-	for _, block := range blocks {
-		if len(block.Labels) == 0 {
-			continue
-		}
-		views = append(views, variableBlockView{block: block})
+	views := i.inner.VariableBlockViews()
+	result := make([]variableBlockView, 0, len(views))
+	for _, view := range views {
+		result = append(result, variableBlockView{inner: view})
 	}
-	return views
+	return result
 }
 
 func (i *moduleIndex) terraformBlockViews() []terraformBlockView {
-	blocks := i.terraformBlocks()
-	views := make([]terraformBlockView, 0, len(blocks))
-	for _, block := range blocks {
-		views = append(views, terraformBlockView{block: block})
+	views := i.inner.TerraformBlockViews()
+	result := make([]terraformBlockView, 0, len(views))
+	for _, view := range views {
+		result = append(result, terraformBlockView{inner: view})
 	}
-	return views
+	return result
 }
 
 func (i *moduleIndex) moduleBlockViews() []moduleBlockView {
-	blocks := i.moduleBlocks()
-	views := make([]moduleBlockView, 0, len(blocks))
-	for _, block := range blocks {
-		if len(block.Labels) == 0 {
-			continue
-		}
-		views = append(views, moduleBlockView{block: block})
+	views := i.inner.ModuleBlockViews()
+	result := make([]moduleBlockView, 0, len(views))
+	for _, view := range views {
+		result = append(result, moduleBlockView{inner: view})
 	}
-	return views
+	return result
 }
 
 func (i *moduleIndex) remoteStateBlockViews() []remoteStateBlockView {
-	blocks := i.dataBlocks()
-	views := make([]remoteStateBlockView, 0, len(blocks))
-	for _, block := range blocks {
-		if len(block.Labels) < 2 || block.Labels[0] != "terraform_remote_state" {
-			continue
-		}
-		views = append(views, remoteStateBlockView{block: block})
+	views := i.inner.RemoteStateBlockViews()
+	result := make([]remoteStateBlockView, 0, len(views))
+	for _, view := range views {
+		result = append(result, remoteStateBlockView{inner: view})
 	}
-	return views
+	return result
 }

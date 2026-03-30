@@ -21,9 +21,9 @@ func newModuleAssembler(modulePath string, index *moduleIndex) *moduleAssembler 
 			LockedProviders:   make([]*LockedProvider, 0),
 			RemoteStates:      make([]*RemoteStateRef, 0),
 			ModuleCalls:       make([]*ModuleCall, 0),
-			Files:             cloneFiles(index.files),
-			Diagnostics:       append(hcl.Diagnostics(nil), index.diagnostics...),
-			topLevelBlocks:    cloneBlockIndex(index.topLevelBlocks),
+			Files:             cloneFiles(index.files()),
+			Diagnostics:       append(hcl.Diagnostics(nil), index.diagnostics()...),
+			topLevelBlocks:    cloneBlockIndex(index.topLevelBlockIndex()),
 		},
 	}
 }
