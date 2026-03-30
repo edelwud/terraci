@@ -9,32 +9,36 @@ type UpdateResult struct {
 
 // ModuleVersionUpdate represents a version check for a Terraform module dependency.
 type ModuleVersionUpdate struct {
-	ModulePath     string `json:"module_path"`
-	CallName       string `json:"call_name"`
-	Source         string `json:"source"`
-	CurrentVersion string `json:"current_version"`
-	LatestVersion  string `json:"latest_version"`
-	BumpedVersion  string `json:"bumped_version,omitempty"`
-	Constraint     string `json:"constraint"`
-	Updated        bool   `json:"updated"`
-	Skipped        bool   `json:"skipped"`
-	SkipReason     string `json:"skip_reason,omitempty"`
-	File           string `json:"file,omitempty"`
+	ModulePath      string `json:"module_path"`
+	CallName        string `json:"call_name"`
+	Source          string `json:"source"`
+	CurrentVersion  string `json:"current_version"`
+	LatestVersion   string `json:"latest_version"`
+	BumpedVersion   string `json:"bumped_version,omitempty"`
+	Constraint      string `json:"constraint"`
+	UpdateAvailable bool   `json:"update_available"`
+	Applied         bool   `json:"applied"`
+	Skipped         bool   `json:"skipped"`
+	SkipReason      string `json:"skip_reason,omitempty"`
+	Error           string `json:"error,omitempty"`
+	File            string `json:"file,omitempty"`
 }
 
 // ProviderVersionUpdate represents a version check for a Terraform provider.
 type ProviderVersionUpdate struct {
-	ModulePath     string `json:"module_path"`
-	ProviderName   string `json:"provider_name"`
-	ProviderSource string `json:"provider_source"`
-	CurrentVersion string `json:"current_version"`
-	LatestVersion  string `json:"latest_version"`
-	BumpedVersion  string `json:"bumped_version,omitempty"`
-	Constraint     string `json:"constraint"`
-	Updated        bool   `json:"updated"`
-	Skipped        bool   `json:"skipped"`
-	SkipReason     string `json:"skip_reason,omitempty"`
-	File           string `json:"file,omitempty"`
+	ModulePath      string `json:"module_path"`
+	ProviderName    string `json:"provider_name"`
+	ProviderSource  string `json:"provider_source"`
+	CurrentVersion  string `json:"current_version"`
+	LatestVersion   string `json:"latest_version"`
+	BumpedVersion   string `json:"bumped_version,omitempty"`
+	Constraint      string `json:"constraint"`
+	UpdateAvailable bool   `json:"update_available"`
+	Applied         bool   `json:"applied"`
+	Skipped         bool   `json:"skipped"`
+	SkipReason      string `json:"skip_reason,omitempty"`
+	Error           string `json:"error,omitempty"`
+	File            string `json:"file,omitempty"`
 }
 
 // UpdateSummary provides aggregated counts.

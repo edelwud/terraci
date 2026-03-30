@@ -68,7 +68,13 @@ func runUpdateCheck(ctx context.Context, appCtx *plugin.AppContext, runtime *upd
 	}
 
 	persistUpdateArtifacts(appCtx.ServiceDir(), result)
-	return outputResult(w, runtime.options.outputFmt, result)
+	if outputErr := outputResult(w, runtime.options.outputFmt, result); outputErr != nil {
+		return outputErr
+	}
+	if result.Summary.Errors > 0 {
+		return fmt.Errorf("update check completed with %d errors", result.Summary.Errors)
+	}
+	return nil
 }
 
 func filterModules(modules []*discovery.Module, modulePath string) []*discovery.Module {

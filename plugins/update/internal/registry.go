@@ -3,7 +3,9 @@ package updateengine
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -119,19 +121,15 @@ func (c *HTTPRegistryClient) doGet(ctx context.Context, url string) ([]byte, err
 	}
 
 	const maxBody = 10 << 20 // 10MB
-	body := make([]byte, 0, 4096)
-	buf := make([]byte, 4096)
-	for {
-		n, readErr := resp.Body.Read(buf)
-		if n > 0 {
-			body = append(body, buf[:n]...)
-			if len(body) > maxBody {
-				return nil, fmt.Errorf("response too large from %s", url)
-			}
+	limited := io.LimitReader(resp.Body, maxBody+1)
+	body, err := io.ReadAll(limited)
+	if err != nil {
+		if !errors.Is(err, io.EOF) {
+			return nil, fmt.Errorf("read response from %s: %w", url, err)
 		}
-		if readErr != nil {
-			break
-		}
+	}
+	if len(body) > maxBody {
+		return nil, fmt.Errorf("response too large from %s", url)
 	}
 	return body, nil
 }

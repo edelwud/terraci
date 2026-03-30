@@ -10,16 +10,22 @@ import (
 
 func buildUpdateReport(result *updateengine.UpdateResult) *ci.Report {
 	status := ci.ReportStatusPass
-	if result.Summary.UpdatesAvailable > 0 {
+	if result.Summary.Errors > 0 || result.Summary.UpdatesAvailable > 0 {
 		status = ci.ReportStatusWarn
 	}
 
 	return &ci.Report{
-		Plugin:  "update",
-		Title:   "Dependency Update Check",
-		Status:  status,
-		Summary: fmt.Sprintf("%d checked, %d updates available", result.Summary.TotalChecked, result.Summary.UpdatesAvailable),
-		Body:    renderReportBody(result),
+		Plugin: "update",
+		Title:  "Dependency Update Check",
+		Status: status,
+		Summary: fmt.Sprintf(
+			"%d checked, %d updates available, %d applied, %d errors",
+			result.Summary.TotalChecked,
+			result.Summary.UpdatesAvailable,
+			result.Summary.UpdatesApplied,
+			result.Summary.Errors,
+		),
+		Body: renderReportBody(result),
 	}
 }
 
@@ -32,14 +38,8 @@ func renderReportBody(result *updateengine.UpdateResult) string {
 		b.WriteString("|--------|----------|---------|--------|--------|\n")
 		for i := range result.Providers {
 			update := &result.Providers[i]
-			status := "up to date"
-			if update.Skipped {
-				status = update.SkipReason
-			} else if update.Updated {
-				status = "update available"
-			}
 			fmt.Fprintf(&b, "| %s | %s | %s | %s | %s |\n",
-				update.ModulePath, update.ProviderSource, update.Constraint, update.LatestVersion, status)
+				update.ModulePath, update.ProviderSource, reportCurrent(update.Constraint, update.CurrentVersion), update.LatestVersion, providerReportStatus(update))
 		}
 		b.WriteString("\n")
 	}
@@ -50,16 +50,47 @@ func renderReportBody(result *updateengine.UpdateResult) string {
 		b.WriteString("|--------|--------|---------|--------|--------|\n")
 		for i := range result.Modules {
 			update := &result.Modules[i]
-			status := "up to date"
-			if update.Skipped {
-				status = update.SkipReason
-			} else if update.Updated {
-				status = "update available"
-			}
 			fmt.Fprintf(&b, "| %s | %s | %s | %s | %s |\n",
-				update.ModulePath, update.Source, update.Constraint, update.LatestVersion, status)
+				update.ModulePath, update.Source, reportCurrent(update.Constraint, update.CurrentVersion), update.LatestVersion, moduleReportStatus(update))
 		}
 	}
 
 	return b.String()
+}
+
+func reportCurrent(constraint, current string) string {
+	if current != "" {
+		return current
+	}
+	return constraint
+}
+
+func providerReportStatus(update *updateengine.ProviderVersionUpdate) string {
+	switch {
+	case update.Skipped:
+		return "skipped: " + update.SkipReason
+	case update.Error != "":
+		return "error: " + update.Error
+	case update.Applied:
+		return "applied"
+	case update.UpdateAvailable:
+		return "update available"
+	default:
+		return "up to date"
+	}
+}
+
+func moduleReportStatus(update *updateengine.ModuleVersionUpdate) string {
+	switch {
+	case update.Skipped:
+		return "skipped: " + update.SkipReason
+	case update.Error != "":
+		return "error: " + update.Error
+	case update.Applied:
+		return "applied"
+	case update.UpdateAvailable:
+		return "update available"
+	default:
+		return "up to date"
+	}
 }

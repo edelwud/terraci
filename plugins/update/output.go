@@ -20,98 +20,121 @@ func outputResult(w io.Writer, format string, result *updateengine.UpdateResult)
 }
 
 func outputLog(result *updateengine.UpdateResult) {
-	// Group updates by module path.
-	type moduleUpdates struct {
-		providers []updateengine.ProviderVersionUpdate
-		modules   []updateengine.ModuleVersionUpdate
-	}
-
-	// Collect order and grouping.
-	groups := make(map[string]*moduleUpdates)
-	var order []string
-
-	for i := range result.Providers {
-		p := &result.Providers[i]
-		if p.Skipped || !p.Updated {
-			continue
-		}
-		g, ok := groups[p.ModulePath]
-		if !ok {
-			g = &moduleUpdates{}
-			groups[p.ModulePath] = g
-			order = append(order, p.ModulePath)
-		}
-		g.providers = append(g.providers, *p)
-	}
-
-	for i := range result.Modules {
-		m := &result.Modules[i]
-		if m.Skipped || !m.Updated {
-			continue
-		}
-		g, ok := groups[m.ModulePath]
-		if !ok {
-			g = &moduleUpdates{}
-			groups[m.ModulePath] = g
-			order = append(order, m.ModulePath)
-		}
-		g.modules = append(g.modules, *m)
-	}
-
+	groups, order := collectModuleUpdates(result)
 	if len(groups) == 0 {
-		s := result.Summary
-		log.Info("summary")
-		log.IncreasePadding()
-		log.WithField("checked", s.TotalChecked).Info("checked")
-		if s.Skipped > 0 {
-			log.WithField("count", s.Skipped).Warn("skipped")
-		}
-		log.DecreasePadding()
-		log.Info("all dependencies are up to date")
+		logNoUpdatesSummary(result.Summary)
 		return
 	}
 
 	log.WithField("modules", len(groups)).Info("updates available")
-
 	for _, path := range order {
-		g := groups[path]
-		count := len(g.providers) + len(g.modules)
-		log.WithField("updates", count).Info(path)
-
-		log.IncreasePadding()
-
-		for i := range g.providers {
-			p := &g.providers[i]
-			label := p.ProviderName + " " + p.ProviderSource
-			entry := log.WithField("current", formatCurrent(p.Constraint, p.CurrentVersion)).
-				WithField("available", p.BumpedVersion)
-			if p.LatestVersion != "" && p.LatestVersion != p.BumpedVersion {
-				entry = entry.WithField("latest", p.LatestVersion)
-			}
-			entry.Info(label)
-		}
-
-		for i := range g.modules {
-			m := &g.modules[i]
-			label := m.CallName + " " + m.Source
-			entry := log.WithField("current", formatCurrent(m.Constraint, m.CurrentVersion)).
-				WithField("available", m.BumpedVersion)
-			if m.LatestVersion != "" && m.LatestVersion != m.BumpedVersion {
-				entry = entry.WithField("latest", m.LatestVersion)
-			}
-			entry.Info(label)
-		}
-
-		log.DecreasePadding()
+		logModuleUpdates(path, groups[path])
 	}
 
-	s := result.Summary
+	logSummary(result.Summary)
+}
+
+type moduleUpdates struct {
+	providers []updateengine.ProviderVersionUpdate
+	modules   []updateengine.ModuleVersionUpdate
+}
+
+func collectModuleUpdates(result *updateengine.UpdateResult) (groups map[string]*moduleUpdates, order []string) {
+	groups = make(map[string]*moduleUpdates)
+
+	for i := range result.Providers {
+		p := &result.Providers[i]
+		if p.Skipped || !p.UpdateAvailable {
+			continue
+		}
+		groups, order = ensureModuleGroup(groups, order, p.ModulePath)
+		groups[p.ModulePath].providers = append(groups[p.ModulePath].providers, *p)
+	}
+
+	for i := range result.Modules {
+		m := &result.Modules[i]
+		if m.Skipped || !m.UpdateAvailable {
+			continue
+		}
+		groups, order = ensureModuleGroup(groups, order, m.ModulePath)
+		groups[m.ModulePath].modules = append(groups[m.ModulePath].modules, *m)
+	}
+
+	return groups, order
+}
+
+func ensureModuleGroup(groups map[string]*moduleUpdates, order []string, modulePath string) (updatedGroups map[string]*moduleUpdates, updatedOrder []string) {
+	if _, ok := groups[modulePath]; ok {
+		return groups, order
+	}
+	groups[modulePath] = &moduleUpdates{}
+	order = append(order, modulePath)
+	return groups, order
+}
+
+func logModuleUpdates(path string, updates *moduleUpdates) {
+	count := len(updates.providers) + len(updates.modules)
+	log.WithField("updates", count).Info(path)
+	log.IncreasePadding()
+	for i := range updates.providers {
+		logProviderUpdate(&updates.providers[i])
+	}
+	for i := range updates.modules {
+		logModuleUpdate(&updates.modules[i])
+	}
+	log.DecreasePadding()
+}
+
+func logProviderUpdate(update *updateengine.ProviderVersionUpdate) {
+	label := update.ProviderName + " " + update.ProviderSource
+	entry := log.WithField("current", formatCurrent(update.Constraint, update.CurrentVersion)).
+		WithField("available", update.BumpedVersion)
+	if update.Applied {
+		entry = entry.WithField("status", "applied")
+	}
+	if update.LatestVersion != "" && update.LatestVersion != update.BumpedVersion {
+		entry = entry.WithField("latest", update.LatestVersion)
+	}
+	entry.Info(label)
+}
+
+func logModuleUpdate(update *updateengine.ModuleVersionUpdate) {
+	label := update.CallName + " " + update.Source
+	entry := log.WithField("current", formatCurrent(update.Constraint, update.CurrentVersion)).
+		WithField("available", update.BumpedVersion)
+	if update.Applied {
+		entry = entry.WithField("status", "applied")
+	}
+	if update.LatestVersion != "" && update.LatestVersion != update.BumpedVersion {
+		entry = entry.WithField("latest", update.LatestVersion)
+	}
+	entry.Info(label)
+}
+
+func logNoUpdatesSummary(summary updateengine.UpdateSummary) {
 	log.Info("summary")
 	log.IncreasePadding()
-	log.WithField("count", s.TotalChecked).Info("checked")
-	log.WithField("count", s.UpdatesAvailable).Warn("updates available")
-	if s.Skipped > 0 {
-		log.WithField("count", s.Skipped).Warn("skipped")
+	log.WithField("checked", summary.TotalChecked).Info("checked")
+	if summary.Skipped > 0 {
+		log.WithField("count", summary.Skipped).Warn("skipped")
+	}
+	log.DecreasePadding()
+	log.Info("all dependencies are up to date")
+}
+
+func logSummary(summary updateengine.UpdateSummary) {
+	log.Info("summary")
+	log.IncreasePadding()
+	log.WithField("count", summary.TotalChecked).Info("checked")
+	log.WithField("count", summary.UpdatesAvailable).Warn("updates available")
+	if summary.UpdatesApplied > 0 {
+		log.WithField("count", summary.UpdatesApplied).Info("updates applied")
+	}
+	if summary.Errors > 0 {
+		log.WithField("count", summary.Errors).Warn("errors")
+	}
+	if summary.Skipped > 0 {
+		log.WithField("count", summary.Skipped).Warn("skipped")
 	}
 	log.DecreasePadding()
 }

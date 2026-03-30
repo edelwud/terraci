@@ -28,11 +28,16 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "update",
-		Short: "Check and update Terraform dependency versions",
-		Long: `Check for outdated Terraform provider and module versions.
+		Short: "Check or apply Terraform dependency version updates",
+		Long: `Check Terraform provider and module versions for available updates.
 
-Queries the Terraform Registry for latest versions and reports available updates.
-Use --write to apply version bumps to .tf files.
+Default mode is read-only and reports available updates.
+Use --write to apply version bumps to matching .tf files.
+
+Exit behavior:
+  0 when the scan completes without operational errors
+  non-zero when parse, registry, or write errors are encountered
+  available updates alone do not make the command fail
 
 Examples:
   terraci update

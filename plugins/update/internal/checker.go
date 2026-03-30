@@ -111,8 +111,7 @@ func (c *Checker) checkProviders(ctx context.Context, mod *discovery.Module, par
 
 		versionStrings, err := c.registry.ProviderVersions(ctx, namespace, typeName)
 		if err != nil {
-			update.Skipped = true
-			update.SkipReason = fmt.Sprintf("registry error: %v", err)
+			update.Error = fmt.Sprintf("registry error: %v", err)
 			result.Providers = append(result.Providers, update)
 			continue
 		}
@@ -151,8 +150,9 @@ func (c *Checker) checkProviders(ctx context.Context, mod *discovery.Module, par
 
 		bumped, ok := LatestByBump(current, versions, c.config.Bump)
 		if ok {
+			update.File = FindTFFileForProvider(mod.Path, rp.Name)
 			update.BumpedVersion = bumped.String()
-			update.Updated = true
+			update.UpdateAvailable = true
 		}
 
 		result.Providers = append(result.Providers, update)
@@ -215,8 +215,7 @@ func (c *Checker) checkModules(ctx context.Context, mod *discovery.Module, parse
 
 		versionStrings, err := c.registry.ModuleVersions(ctx, namespace, name, provider)
 		if err != nil {
-			update.Skipped = true
-			update.SkipReason = fmt.Sprintf("registry error: %v", err)
+			update.Error = fmt.Sprintf("registry error: %v", err)
 			result.Modules = append(result.Modules, update)
 			continue
 		}
@@ -237,8 +236,9 @@ func (c *Checker) checkModules(ctx context.Context, mod *discovery.Module, parse
 
 		bumped, ok := LatestByBump(current, versions, c.config.Bump)
 		if ok {
+			update.File = FindTFFileForModule(mod.Path, mc.Name)
 			update.BumpedVersion = bumped.String()
-			update.Updated = true
+			update.UpdateAvailable = true
 		}
 
 		result.Modules = append(result.Modules, update)
@@ -248,26 +248,40 @@ func (c *Checker) checkModules(ctx context.Context, mod *discovery.Module, parse
 func (c *Checker) applyUpdates(result *UpdateResult) {
 	for i := range result.Modules {
 		u := &result.Modules[i]
-		if !u.Updated || u.File == "" {
+		if !u.UpdateAvailable {
+			continue
+		}
+		if u.File == "" {
+			u.Error = "failed to locate Terraform file for module update"
+			log.WithField("module", u.ModulePath).Warn("failed to locate Terraform file for module update")
 			continue
 		}
 		newConstraint := BumpConstraint(u.Constraint, mustParseVersion(u.BumpedVersion))
 		if err := WriteModuleVersion(u.File, u.CallName, newConstraint); err != nil {
 			log.WithField("module", u.ModulePath).WithError(err).Warn("failed to write module version")
-			u.Updated = false
+			u.Error = fmt.Sprintf("write module version: %v", err)
+			continue
 		}
+		u.Applied = true
 	}
 
 	for i := range result.Providers {
 		u := &result.Providers[i]
-		if !u.Updated || u.File == "" {
+		if !u.UpdateAvailable {
+			continue
+		}
+		if u.File == "" {
+			u.Error = "failed to locate Terraform file for provider update"
+			log.WithField("provider", u.ProviderSource).Warn("failed to locate Terraform file for provider update")
 			continue
 		}
 		newConstraint := BumpConstraint(u.Constraint, mustParseVersion(u.BumpedVersion))
 		if err := WriteProviderVersion(u.File, u.ProviderName, newConstraint); err != nil {
 			log.WithField("provider", u.ProviderSource).WithError(err).Warn("failed to write provider version")
-			u.Updated = false
+			u.Error = fmt.Sprintf("write provider version: %v", err)
+			continue
 		}
+		u.Applied = true
 	}
 }
 
@@ -317,21 +331,33 @@ func mustParseVersion(s string) Version {
 }
 
 func computeSummary(result *UpdateResult) UpdateSummary {
-	s := UpdateSummary{}
+	s := result.Summary
 	for i := range result.Modules {
 		s.TotalChecked++
-		if result.Modules[i].Skipped {
+		switch {
+		case result.Modules[i].Error != "":
+			s.Errors++
+		case result.Modules[i].Skipped:
 			s.Skipped++
-		} else if result.Modules[i].Updated {
+		case result.Modules[i].UpdateAvailable:
 			s.UpdatesAvailable++
+		}
+		if result.Modules[i].Applied {
+			s.UpdatesApplied++
 		}
 	}
 	for i := range result.Providers {
 		s.TotalChecked++
-		if result.Providers[i].Skipped {
+		switch {
+		case result.Providers[i].Error != "":
+			s.Errors++
+		case result.Providers[i].Skipped:
 			s.Skipped++
-		} else if result.Providers[i].Updated {
+		case result.Providers[i].UpdateAvailable:
 			s.UpdatesAvailable++
+		}
+		if result.Providers[i].Applied {
+			s.UpdatesApplied++
 		}
 	}
 	return s

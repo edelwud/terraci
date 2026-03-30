@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/discovery"
@@ -152,8 +153,11 @@ terraform {
 	if prov.LatestVersion != "6.0.0" {
 		t.Errorf("LatestVersion = %q, want 6.0.0", prov.LatestVersion)
 	}
-	if !prov.Updated {
-		t.Error("expected Updated = true")
+	if !prov.UpdateAvailable {
+		t.Error("expected UpdateAvailable = true")
+	}
+	if prov.File == "" {
+		t.Error("expected provider file to be resolved")
 	}
 }
 
@@ -193,11 +197,14 @@ module "vpc" {
 	if mod.Source != "terraform-aws-modules/vpc/aws" {
 		t.Errorf("Source = %q", mod.Source)
 	}
-	if !mod.Updated {
-		t.Error("expected Updated = true")
+	if !mod.UpdateAvailable {
+		t.Error("expected UpdateAvailable = true")
 	}
 	if mod.BumpedVersion == "" {
 		t.Error("BumpedVersion should not be empty")
+	}
+	if mod.File == "" {
+		t.Error("expected module file to be resolved")
 	}
 }
 
@@ -337,11 +344,11 @@ terraform {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !result.Providers[0].Skipped {
-		t.Error("expected Skipped = true for registry error")
+	if result.Providers[0].Error == "" {
+		t.Error("expected Error for registry error")
 	}
-	if result.Providers[0].SkipReason == "" {
-		t.Error("SkipReason should not be empty")
+	if result.Summary.Errors != 1 {
+		t.Errorf("Summary.Errors = %d, want 1", result.Summary.Errors)
 	}
 }
 
@@ -609,8 +616,11 @@ module "vpc" {
 	if len(result.Modules) != 1 {
 		t.Fatalf("modules = %d, want 1", len(result.Modules))
 	}
-	if !result.Modules[0].Skipped {
-		t.Error("expected Skipped = true for registry error")
+	if result.Modules[0].Error == "" {
+		t.Error("expected Error for registry error")
+	}
+	if result.Summary.Errors != 1 {
+		t.Errorf("Summary.Errors = %d, want 1", result.Summary.Errors)
 	}
 }
 
@@ -643,10 +653,18 @@ module "vpc" {
 	if err != nil {
 		t.Fatalf("Check() error = %v", err)
 	}
-	// Module was found as updated but has no File field set (checker doesn't set it),
-	// so applyUpdates skips it.
 	if len(result.Modules) != 1 {
 		t.Fatalf("modules = %d, want 1", len(result.Modules))
+	}
+	if !result.Modules[0].Applied {
+		t.Fatal("expected module update to be applied when write=true")
+	}
+	data, readErr := os.ReadFile(filepath.Join(dir, "main.tf"))
+	if readErr != nil {
+		t.Fatalf("read updated file: %v", readErr)
+	}
+	if !strings.Contains(string(data), "~> 5.2") {
+		t.Fatalf("updated file does not contain bumped constraint: %s", data)
 	}
 }
 
@@ -699,12 +717,12 @@ provider "registry.terraform.io/hashicorp/aws" {
 	if prov.CurrentVersion != "5.67.0" {
 		t.Errorf("CurrentVersion = %q, want '5.67.0' (from lock file)", prov.CurrentVersion)
 	}
-	if !prov.Updated {
-		t.Error("expected Updated = true")
+	if !prov.UpdateAvailable {
+		t.Error("expected UpdateAvailable = true")
 	}
 }
 
-func TestApplyUpdates_ErrorSetsUpdatedFalse(t *testing.T) {
+func TestApplyUpdates_ErrorSetsError(t *testing.T) {
 	c := NewChecker(
 		&UpdateConfig{Target: TargetAll, Bump: BumpMinor},
 		parser.NewParser(nil),
@@ -714,20 +732,20 @@ func TestApplyUpdates_ErrorSetsUpdatedFalse(t *testing.T) {
 
 	result := &UpdateResult{
 		Modules: []ModuleVersionUpdate{
-			{Updated: true, File: "/nonexistent/file.tf", CallName: "vpc", BumpedVersion: "5.2.0", Constraint: "~> 5.0"},
+			{UpdateAvailable: true, File: "/nonexistent/file.tf", CallName: "vpc", BumpedVersion: "5.2.0", Constraint: "~> 5.0"},
 		},
 		Providers: []ProviderVersionUpdate{
-			{Updated: true, File: "/nonexistent/file.tf", ProviderName: "aws", BumpedVersion: "5.2.0", Constraint: "~> 5.0"},
+			{UpdateAvailable: true, File: "/nonexistent/file.tf", ProviderName: "aws", BumpedVersion: "5.2.0", Constraint: "~> 5.0"},
 		},
 	}
 
 	c.applyUpdates(result)
 
-	if result.Modules[0].Updated {
-		t.Error("Module.Updated should be false after write error")
+	if result.Modules[0].Error == "" {
+		t.Error("Module.Error should be set after write error")
 	}
-	if result.Providers[0].Updated {
-		t.Error("Provider.Updated should be false after write error")
+	if result.Providers[0].Error == "" {
+		t.Error("Provider.Error should be set after write error")
 	}
 }
 
@@ -741,10 +759,10 @@ func TestApplyUpdates_SkipsNotUpdated(_ *testing.T) {
 
 	result := &UpdateResult{
 		Modules: []ModuleVersionUpdate{
-			{Updated: false, File: "some.tf"},
+			{UpdateAvailable: false, File: "some.tf"},
 		},
 		Providers: []ProviderVersionUpdate{
-			{Updated: true, File: ""},
+			{UpdateAvailable: true, File: ""},
 		},
 	}
 
@@ -900,12 +918,12 @@ func TestMustParseVersion(t *testing.T) {
 func TestComputeSummary(t *testing.T) {
 	result := &UpdateResult{
 		Modules: []ModuleVersionUpdate{
-			{Updated: true},
+			{UpdateAvailable: true},
 			{Skipped: true},
 			{},
 		},
 		Providers: []ProviderVersionUpdate{
-			{Updated: true},
+			{UpdateAvailable: true},
 			{Skipped: true},
 		},
 	}
