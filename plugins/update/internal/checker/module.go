@@ -10,20 +10,16 @@ import (
 
 func (s *checkSession) collectModuleUpdates(
 	scanCtx *moduleScanContext,
-) {
+) []updateengine.ModuleVersionUpdate {
+	updates := make([]updateengine.ModuleVersionUpdate, 0, len(scanCtx.parsed.ModuleCalls))
 	for _, mc := range scanCtx.parsed.ModuleCalls {
 		if mc.IsLocal || mc.Version == "" || !registryclient.IsRegistrySource(mc.Source) {
 			continue
 		}
-		s.addModuleUpdate(scanCtx, mc)
+		updates = append(updates, s.scanModuleCall(scanCtx, mc))
 	}
-}
 
-func (s *checkSession) addModuleUpdate(
-	scanCtx *moduleScanContext,
-	call *parser.ModuleCall,
-) {
-	s.builder.AddModuleUpdate(s.scanModuleCall(scanCtx, call))
+	return updates
 }
 
 func (s *checkSession) scanModuleCall(

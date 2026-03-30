@@ -11,17 +11,13 @@ import (
 
 func (s *checkSession) collectProviderUpdates(
 	scanCtx *moduleScanContext,
-) {
+) []updateengine.ProviderVersionUpdate {
+	updates := make([]updateengine.ProviderVersionUpdate, 0, len(scanCtx.parsed.RequiredProviders))
 	for _, rp := range scanCtx.parsed.RequiredProviders {
-		s.addProviderUpdate(scanCtx, rp)
+		updates = append(updates, s.scanProvider(scanCtx, rp))
 	}
-}
 
-func (s *checkSession) addProviderUpdate(
-	scanCtx *moduleScanContext,
-	requiredProvider *parser.RequiredProvider,
-) {
-	s.builder.AddProviderUpdate(s.scanProvider(scanCtx, requiredProvider))
+	return updates
 }
 
 func (s *checkSession) scanProvider(
