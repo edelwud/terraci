@@ -3,6 +3,7 @@ package engine
 import (
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
+	"github.com/edelwud/terraci/plugins/cost/internal/results"
 	costruntime "github.com/edelwud/terraci/plugins/cost/internal/runtime"
 )
 
@@ -10,14 +11,14 @@ import (
 const DefaultRegion = model.DefaultRegion
 
 // EstimateAction is the provider-neutral action model used by the cost engine.
-type EstimateAction string
+type EstimateAction = results.EstimateAction
 
 const (
-	ActionCreate  EstimateAction = "create"
-	ActionDelete  EstimateAction = "delete"
-	ActionUpdate  EstimateAction = "update"
-	ActionReplace EstimateAction = "replace"
-	ActionNoOp    EstimateAction = "no-op"
+	ActionCreate  = results.ActionCreate
+	ActionDelete  = results.ActionDelete
+	ActionUpdate  = results.ActionUpdate
+	ActionReplace = results.ActionReplace
+	ActionNoOp    = results.ActionNoOp
 )
 
 // ModulePlanAdapter converts external plan sources into the cost engine input model.
