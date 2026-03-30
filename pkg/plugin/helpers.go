@@ -2,8 +2,10 @@ package plugin
 
 import "github.com/edelwud/terraci/pkg/pipeline"
 
-// CollectContributions gathers pipeline contributions from all enabled PipelineContributor plugins.
-// Plugins that implement ConfigLoader and are not enabled are skipped (framework-level filtering).
+// CollectContributions gathers pipeline contributions from all enabled
+// PipelineContributor plugins. Pipeline contribution stays a framework-owned
+// capability; plugins should derive paths from AppContext rather than cached
+// lifecycle state.
 func CollectContributions(ctx *AppContext) []*pipeline.Contribution {
 	contributors := ByCapability[PipelineContributor]()
 	contributions := make([]*pipeline.Contribution, 0, len(contributors))

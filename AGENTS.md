@@ -222,7 +222,6 @@ Each plugin follows one-file-per-capability, with runtime-heavy plugins also usi
 | `ChangeDetectionProvider` | VCS change detection | git |
 | `InitContributor` | Init wizard form fields + config building | gitlab, github, cost, policy, summary, update |
 | `PipelineContributor` | Pipeline steps/jobs via Contribution | cost, policy, summary |
-| `Initializable` | Legacy compatibility lifecycle hook | compatibility only |
 
 ### BasePlugin[C] Generic Embedding
 

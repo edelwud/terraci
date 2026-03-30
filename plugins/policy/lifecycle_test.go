@@ -25,13 +25,13 @@ func newTestPlugin() *Plugin {
 	}
 }
 
-func TestPlugin_Initialize_ConfiguredButDisabled(t *testing.T) {
+func TestPlugin_Preflight_ConfiguredButDisabled(t *testing.T) {
 	p := newTestPlugin()
 	p.SetTypedConfig(&policyengine.Config{Enabled: false})
 	appCtx := plugintest.NewAppContext(t, t.TempDir())
 
-	if err := p.Initialize(context.Background(), appCtx); err != nil {
-		t.Fatalf("Initialize() error = %v", err)
+	if err := p.Preflight(context.Background(), appCtx); err != nil {
+		t.Fatalf("Preflight() error = %v", err)
 	}
 }
 

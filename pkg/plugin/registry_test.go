@@ -24,18 +24,6 @@ type testCommandPlugin struct {
 	testPlugin
 }
 
-type testInitializablePlugin struct {
-	BasePlugin[*testConfig]
-	called *string
-}
-
-func (p *testInitializablePlugin) Initialize(_ context.Context, _ *AppContext) error {
-	if p.called != nil {
-		*p.called = "initialize"
-	}
-	return nil
-}
-
 type testPreflightPlugin struct {
 	BasePlugin[*testConfig]
 	called *string
@@ -44,25 +32,6 @@ type testPreflightPlugin struct {
 func (p *testPreflightPlugin) Preflight(_ context.Context, _ *AppContext) error {
 	if p.called != nil {
 		*p.called = "preflight"
-	}
-	return nil
-}
-
-type testDualLifecyclePlugin struct {
-	BasePlugin[*testConfig]
-	called *string
-}
-
-func (p *testDualLifecyclePlugin) Preflight(_ context.Context, _ *AppContext) error {
-	if p.called != nil {
-		*p.called = "preflight"
-	}
-	return nil
-}
-
-func (p *testDualLifecyclePlugin) Initialize(_ context.Context, _ *AppContext) error {
-	if p.called != nil {
-		*p.called = "initialize"
 	}
 	return nil
 }
@@ -438,43 +407,6 @@ func TestResolveProvider_TERRACI_PROVIDERMustBeActive(t *testing.T) {
 	}
 }
 
-func TestInitializablesForStartup_FiltersDisabledPlugins(t *testing.T) {
-	t.Cleanup(func() { Reset() })
-	Reset()
-
-	disabled := &testInitializablePlugin{
-		BasePlugin: BasePlugin[*testConfig]{
-			PluginName:  "disabled",
-			PluginDesc:  "disabled",
-			EnableMode:  EnabledExplicitly,
-			DefaultCfg:  func() *testConfig { return &testConfig{} },
-			IsEnabledFn: func(cfg *testConfig) bool { return cfg != nil && cfg.Enabled },
-		},
-	}
-	disabled.SetTypedConfig(&testConfig{Enabled: false})
-	Register(disabled)
-
-	enabled := &testInitializablePlugin{
-		BasePlugin: BasePlugin[*testConfig]{
-			PluginName:  "enabled",
-			PluginDesc:  "enabled",
-			EnableMode:  EnabledExplicitly,
-			DefaultCfg:  func() *testConfig { return &testConfig{} },
-			IsEnabledFn: func(cfg *testConfig) bool { return cfg != nil && cfg.Enabled },
-		},
-	}
-	enabled.SetTypedConfig(&testConfig{Enabled: true})
-	Register(enabled)
-
-	initializables := InitializablesForStartup()
-	if len(initializables) != 1 {
-		t.Fatalf("InitializablesForStartup() returned %d plugins, want 1", len(initializables))
-	}
-	if initializables[0].Name() != "enabled" {
-		t.Fatalf("InitializablesForStartup()[0] = %q, want enabled", initializables[0].Name())
-	}
-}
-
 func TestPreflightsForStartup_FiltersDisabledPlugins(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
@@ -513,70 +445,6 @@ func TestPreflightsForStartup_FiltersDisabledPlugins(t *testing.T) {
 	}
 	if preflights[0].Name() != "enabled-preflight" {
 		t.Fatalf("PreflightsForStartup()[0] = %q, want enabled-preflight", preflights[0].Name())
-	}
-}
-
-func TestPreflightsForStartup_PrefersPreflightOverInitialize(t *testing.T) {
-	t.Cleanup(func() { Reset() })
-	Reset()
-
-	called := ""
-	p := &testDualLifecyclePlugin{
-		BasePlugin: BasePlugin[*testConfig]{
-			PluginName: "both-hooks",
-			PluginDesc: "plugin with both hooks",
-			EnableMode: EnabledExplicitly,
-			DefaultCfg: func() *testConfig { return &testConfig{} },
-			IsEnabledFn: func(cfg *testConfig) bool {
-				return cfg != nil && cfg.Enabled
-			},
-		},
-		called: &called,
-	}
-	p.SetTypedConfig(&testConfig{Enabled: true})
-	Register(p)
-
-	preflights := PreflightsForStartup()
-	if len(preflights) != 1 {
-		t.Fatalf("PreflightsForStartup() returned %d plugins, want 1", len(preflights))
-	}
-	if err := preflights[0].Preflight(context.Background(), NewAppContext(config.DefaultConfig(), "/work", "/service", "test", NewReportRegistry())); err != nil {
-		t.Fatalf("Preflight() error = %v", err)
-	}
-	if called != "preflight" {
-		t.Fatalf("called hook = %q, want preflight", called)
-	}
-}
-
-func TestPreflightsForStartup_FallsBackToInitialize(t *testing.T) {
-	t.Cleanup(func() { Reset() })
-	Reset()
-
-	called := ""
-	p := &testInitializablePlugin{
-		BasePlugin: BasePlugin[*testConfig]{
-			PluginName: "legacy-hook",
-			PluginDesc: "legacy initialize plugin",
-			EnableMode: EnabledExplicitly,
-			DefaultCfg: func() *testConfig { return &testConfig{} },
-			IsEnabledFn: func(cfg *testConfig) bool {
-				return cfg != nil && cfg.Enabled
-			},
-		},
-		called: &called,
-	}
-	p.SetTypedConfig(&testConfig{Enabled: true})
-	Register(p)
-
-	preflights := PreflightsForStartup()
-	if len(preflights) != 1 {
-		t.Fatalf("PreflightsForStartup() returned %d plugins, want 1", len(preflights))
-	}
-	if err := preflights[0].Preflight(context.Background(), NewAppContext(config.DefaultConfig(), "/work", "/service", "test", NewReportRegistry())); err != nil {
-		t.Fatalf("Preflight() error = %v", err)
-	}
-	if called != "initialize" {
-		t.Fatalf("called hook = %q, want initialize", called)
 	}
 }
 

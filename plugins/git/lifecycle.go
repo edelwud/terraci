@@ -20,11 +20,6 @@ func (p *Plugin) Preflight(_ context.Context, appCtx *plugin.AppContext) error {
 
 	return nil
 }
-
-func (p *Plugin) Initialize(ctx context.Context, appCtx *plugin.AppContext) error {
-	return p.Preflight(ctx, appCtx)
-}
-
 func (p *Plugin) resolveRef(baseRef string, client *gitclient.Client) string {
 	if baseRef != "" {
 		return baseRef

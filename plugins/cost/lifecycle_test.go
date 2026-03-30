@@ -64,26 +64,26 @@ func TestPlugin_EnablePolicy(t *testing.T) {
 	}
 }
 
-func TestPlugin_Initialize_Disabled(t *testing.T) {
+func TestPlugin_Preflight_Disabled(t *testing.T) {
 	p := newTestPlugin(t)
 	appCtx := newTestAppContext(t, t.TempDir())
 
-	if err := p.Initialize(context.Background(), appCtx); err != nil {
-		t.Fatalf("Initialize() error = %v", err)
+	if err := p.Preflight(context.Background(), appCtx); err != nil {
+		t.Fatalf("Preflight() error = %v", err)
 	}
 }
 
-func TestPlugin_Initialize_ConfiguredButDisabled(t *testing.T) {
+func TestPlugin_Preflight_ConfiguredButDisabled(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &model.CostConfig{Enabled: false, CacheDir: t.TempDir()})
 	appCtx := newTestAppContext(t, t.TempDir())
 
-	if err := p.Initialize(context.Background(), appCtx); err != nil {
-		t.Fatalf("Initialize() error = %v", err)
+	if err := p.Preflight(context.Background(), appCtx); err != nil {
+		t.Fatalf("Preflight() error = %v", err)
 	}
 }
 
-func TestPlugin_Initialize_Enabled(t *testing.T) {
+func TestPlugin_Preflight_Enabled(t *testing.T) {
 	p := newTestPlugin(t)
 	cacheDir := t.TempDir()
 	enablePlugin(t, p, &model.CostConfig{
@@ -92,12 +92,12 @@ func TestPlugin_Initialize_Enabled(t *testing.T) {
 	})
 	appCtx := newTestAppContext(t, t.TempDir())
 
-	if err := p.Initialize(context.Background(), appCtx); err != nil {
-		t.Fatalf("Initialize() error = %v", err)
+	if err := p.Preflight(context.Background(), appCtx); err != nil {
+		t.Fatalf("Preflight() error = %v", err)
 	}
 }
 
-func TestPlugin_Initialize_InvalidTTL(t *testing.T) {
+func TestPlugin_Preflight_InvalidTTL(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &model.CostConfig{
 		Enabled:  true,
@@ -106,12 +106,12 @@ func TestPlugin_Initialize_InvalidTTL(t *testing.T) {
 	})
 	appCtx := newTestAppContext(t, t.TempDir())
 
-	err := p.Initialize(context.Background(), appCtx)
+	err := p.Preflight(context.Background(), appCtx)
 	if err == nil {
-		t.Fatal("Initialize() error = nil, want invalid configuration error")
+		t.Fatal("Preflight() error = nil, want invalid configuration error")
 	}
 	if got := err.Error(); got == "" || got == "invalid cost configuration" {
-		t.Fatalf("Initialize() error = %q, want actionable validation error", got)
+		t.Fatalf("Preflight() error = %q, want actionable validation error", got)
 	}
 }
 
@@ -123,8 +123,8 @@ func TestPlugin_Reset(t *testing.T) {
 	})
 	appCtx := newTestAppContext(t, t.TempDir())
 
-	if err := p.Initialize(context.Background(), appCtx); err != nil {
-		t.Fatalf("Initialize() error = %v", err)
+	if err := p.Preflight(context.Background(), appCtx); err != nil {
+		t.Fatalf("Preflight() error = %v", err)
 	}
 
 	p.Reset()

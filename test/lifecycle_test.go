@@ -66,10 +66,10 @@ func TestPluginCapabilities(t *testing.T) {
 		t.Errorf("expected at least 2 CIMetadata providers (gitlab, github), got %d", len(ciMetadata))
 	}
 
-	// Initializable plugins
-	initializables := plugin.ByCapability[plugin.Initializable]()
-	if len(initializables) == 0 {
-		t.Fatal("expected at least one Initializable plugin")
+	// Preflightable plugins
+	preflightables := plugin.ByCapability[plugin.Preflightable]()
+	if len(preflightables) == 0 {
+		t.Fatal("expected at least one Preflightable plugin")
 	}
 
 	// CommandProvider plugins

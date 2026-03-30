@@ -35,7 +35,3 @@ func (p *Plugin) Preflight(_ context.Context, _ *plugin.AppContext) error {
 
 	return nil
 }
-
-func (p *Plugin) Initialize(ctx context.Context, appCtx *plugin.AppContext) error {
-	return p.Preflight(ctx, appCtx)
-}

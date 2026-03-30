@@ -7,7 +7,7 @@ import (
 
 // RuntimeProvider is the preferred pattern for plugins with heavy command-time
 // setup. Runtime creation is lazy and command-driven; the framework does not
-// invoke it automatically during startup.
+// invoke it automatically during startup or preflight.
 //
 // Use Preflightable for cheap validation and environment checks. Use
 // RuntimeProvider for typed runtime construction inside plugin commands and
@@ -35,7 +35,8 @@ type RuntimeProvider interface {
 }
 
 // RuntimeAs converts a runtime returned by RuntimeProvider into the expected
-// plugin-local type.
+// plugin-local type at the plugin boundary. The framework intentionally treats
+// runtime values as opaque.
 func RuntimeAs[T any](runtime any) (T, error) {
 	typed, ok := runtime.(T)
 	if !ok {
