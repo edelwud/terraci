@@ -9,15 +9,15 @@ import (
 
 const lockFileName = ".terraform.lock.hcl"
 
-func (p *Parser) extractLockFile(index *moduleIndex, pm *ParsedModule) {
-	lockPath := filepath.Join(pm.Path, lockFileName)
-	file, err := index.parseHCLFile(lockPath)
+func extractLockFile(ctx *extractContext) {
+	lockPath := filepath.Join(ctx.parsed.Path, lockFileName)
+	file, err := ctx.index.parseHCLFile(lockPath)
 	if err != nil || file == nil {
 		return
 	}
 
 	bodyContent, _, diags := file.Body.PartialContent(lockFileSchema())
-	pm.addDiags(diags)
+	ctx.addDiags(diags)
 	if bodyContent == nil {
 		return
 	}
@@ -29,7 +29,7 @@ func (p *Parser) extractLockFile(index *moduleIndex, pm *ParsedModule) {
 
 		lp := &LockedProvider{Source: block.Labels[0]}
 		attrContent, _, attrDiags := block.Body.PartialContent(lockProviderAttrSchema())
-		pm.addDiags(attrDiags)
+		ctx.addDiags(attrDiags)
 		if attrContent == nil {
 			continue
 		}
@@ -41,28 +41,28 @@ func (p *Parser) extractLockFile(index *moduleIndex, pm *ParsedModule) {
 			lp.Constraints = v
 		}
 
-		pm.LockedProviders = append(pm.LockedProviders, lp)
+		ctx.parsed.LockedProviders = append(ctx.parsed.LockedProviders, lp)
 	}
 }
 
-func (p *Parser) extractRequiredProviders(index *moduleIndex, pm *ParsedModule) {
-	for _, block := range index.terraformBlocks() {
+func extractRequiredProviders(ctx *extractContext) {
+	for _, block := range ctx.index.terraformBlocks() {
 		content, _, diags := block.Body.PartialContent(requiredProvidersSchema())
-		pm.addDiags(diags)
+		ctx.addDiags(diags)
 		if content == nil {
 			continue
 		}
 
 		for _, rpBlock := range content.Blocks {
 			attrs, attrDiags := rpBlock.Body.JustAttributes()
-			pm.addDiags(attrDiags)
+			ctx.addDiags(attrDiags)
 
 			for name, attr := range attrs {
 				rp := &RequiredProvider{Name: name}
 
 				if val, valDiags := attr.Expr.Value(nil); !valDiags.HasErrors() && val.Type() == cty.String {
 					rp.VersionConstraint = val.AsString()
-					pm.RequiredProviders = append(pm.RequiredProviders, rp)
+					ctx.parsed.RequiredProviders = append(ctx.parsed.RequiredProviders, rp)
 					continue
 				}
 
@@ -70,7 +70,7 @@ func (p *Parser) extractRequiredProviders(index *moduleIndex, pm *ParsedModule) 
 					fillRequiredProviderFromObject(rp, objExpr)
 				}
 
-				pm.RequiredProviders = append(pm.RequiredProviders, rp)
+				ctx.parsed.RequiredProviders = append(ctx.parsed.RequiredProviders, rp)
 			}
 		}
 	}

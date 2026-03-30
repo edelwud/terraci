@@ -6,8 +6,8 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-func (p *Parser) extractRemoteStates(index *moduleIndex, pm *ParsedModule) {
-	for _, block := range index.dataBlocks() {
+func extractRemoteStates(ctx *extractContext) {
+	for _, block := range ctx.index.dataBlocks() {
 		if len(block.Labels) < 2 || block.Labels[0] != "terraform_remote_state" {
 			continue
 		}
@@ -17,14 +17,14 @@ func (p *Parser) extractRemoteStates(index *moduleIndex, pm *ParsedModule) {
 			Config:  make(map[string]hcl.Expression),
 			RawBody: block.Body,
 		}
-		parseRemoteStateBlock(ref, block.Body, pm)
-		pm.RemoteStates = append(pm.RemoteStates, ref)
+		parseRemoteStateBlock(ctx, ref, block.Body)
+		ctx.parsed.RemoteStates = append(ctx.parsed.RemoteStates, ref)
 	}
 }
 
-func parseRemoteStateBlock(ref *RemoteStateRef, body hcl.Body, pm *ParsedModule) {
+func parseRemoteStateBlock(ctx *extractContext, ref *RemoteStateRef, body hcl.Body) {
 	content, _, diags := body.PartialContent(remoteStateSchema())
-	pm.addDiags(diags)
+	ctx.addDiags(diags)
 	if content == nil {
 		return
 	}
@@ -49,7 +49,7 @@ func parseRemoteStateBlock(ref *RemoteStateRef, body hcl.Body, pm *ParsedModule)
 	for _, block := range content.Blocks {
 		if block.Type == "config" {
 			attrs, blockDiags := block.Body.JustAttributes()
-			pm.addDiags(blockDiags)
+			ctx.addDiags(blockDiags)
 			for name, attr := range attrs {
 				ref.Config[name] = attr.Expr
 			}

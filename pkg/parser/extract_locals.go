@@ -8,29 +8,29 @@ import (
 	"github.com/edelwud/terraci/internal/terraform/eval"
 )
 
-func (p *Parser) extractLocals(index *moduleIndex, pm *ParsedModule) {
+func extractLocals(ctx *extractContext) {
 	allAttrs := make(map[string]*hcl.Attribute)
-	for _, block := range index.localsBlocks() {
+	for _, block := range ctx.index.localsBlocks() {
 		attrs, diags := block.Body.JustAttributes()
-		pm.addDiags(diags)
+		ctx.addDiags(diags)
 		maps.Copy(allAttrs, attrs)
 	}
 
-	evalCtx := eval.NewContext(pm.Locals, pm.Variables, pm.Path)
+	evalCtx := eval.NewContext(ctx.parsed.Locals, ctx.parsed.Variables, ctx.parsed.Path)
 
 	const maxPasses = 10
 	for range maxPasses {
 		resolved := 0
 		for name, attr := range allAttrs {
-			if _, exists := pm.Locals[name]; exists {
+			if _, exists := ctx.parsed.Locals[name]; exists {
 				continue
 			}
 
-			evalCtx.Variables["local"] = eval.SafeObjectVal(pm.Locals)
+			evalCtx.Variables["local"] = eval.SafeObjectVal(ctx.parsed.Locals)
 
 			val, diags := attr.Expr.Value(evalCtx)
 			if !diags.HasErrors() && val.IsKnown() {
-				pm.Locals[name] = val
+				ctx.parsed.Locals[name] = val
 				resolved++
 			}
 		}

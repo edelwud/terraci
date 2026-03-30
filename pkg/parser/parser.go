@@ -18,14 +18,23 @@ func (p *Parser) ParseModule(ctx context.Context, modulePath string) (*ParsedMod
 
 	assembler := newModuleAssembler(modulePath, index)
 	parsed := assembler.Result()
+	extractCtx := newExtractContext(index, parsed, p.evalContextBuilder())
 
-	p.extractLocals(index, parsed)
-	p.extractTfvars(index, parsed)
-	p.extractBackendConfig(index, parsed)
-	p.extractRequiredProviders(index, parsed)
-	p.extractLockFile(index, parsed)
-	p.extractRemoteStates(index, parsed)
-	p.extractModuleCalls(index, parsed)
+	for _, extractor := range p.extractors() {
+		extractor(extractCtx)
+	}
 
 	return parsed, nil
+}
+
+func (p *Parser) extractors() []moduleExtractor {
+	return []moduleExtractor{
+		extractLocals,
+		extractTfvars,
+		extractBackendConfig,
+		extractRequiredProviders,
+		extractLockFile,
+		extractRemoteStates,
+		extractModuleCalls,
+	}
 }

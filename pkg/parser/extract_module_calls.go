@@ -7,20 +7,20 @@ import (
 	"github.com/hashicorp/hcl/v2"
 )
 
-func (p *Parser) extractModuleCalls(index *moduleIndex, pm *ParsedModule) {
-	for _, block := range index.moduleBlocks() {
+func extractModuleCalls(ctx *extractContext) {
+	for _, block := range ctx.index.moduleBlocks() {
 		if len(block.Labels) < 1 {
 			continue
 		}
 		call := &ModuleCall{Name: block.Labels[0]}
-		parseModuleBlock(call, block.Body, pm)
-		pm.ModuleCalls = append(pm.ModuleCalls, call)
+		parseModuleBlock(ctx, call, block.Body)
+		ctx.parsed.ModuleCalls = append(ctx.parsed.ModuleCalls, call)
 	}
 }
 
-func parseModuleBlock(call *ModuleCall, body hcl.Body, pm *ParsedModule) {
+func parseModuleBlock(ctx *extractContext, call *ModuleCall, body hcl.Body) {
 	content, _, diags := body.PartialContent(moduleCallSchema())
-	pm.addDiags(diags)
+	ctx.addDiags(diags)
 	if content == nil {
 		return
 	}
@@ -29,7 +29,7 @@ func parseModuleBlock(call *ModuleCall, body hcl.Body, pm *ParsedModule) {
 		call.Source = src
 		if strings.HasPrefix(src, "./") || strings.HasPrefix(src, "../") {
 			call.IsLocal = true
-			call.ResolvedPath = filepath.Clean(filepath.Join(pm.Path, src))
+			call.ResolvedPath = filepath.Clean(filepath.Join(ctx.parsed.Path, src))
 		}
 	}
 

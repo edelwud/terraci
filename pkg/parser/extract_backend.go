@@ -2,10 +2,10 @@ package parser
 
 import "github.com/hashicorp/hcl/v2"
 
-func (p *Parser) extractBackendConfig(index *moduleIndex, pm *ParsedModule) {
-	for _, block := range index.terraformBlocks() {
+func extractBackendConfig(ctx *extractContext) {
+	for _, block := range ctx.index.terraformBlocks() {
 		content, _, diags := block.Body.PartialContent(backendSchema())
-		pm.addDiags(diags)
+		ctx.addDiags(diags)
 		if content == nil {
 			continue
 		}
@@ -15,10 +15,9 @@ func (p *Parser) extractBackendConfig(index *moduleIndex, pm *ParsedModule) {
 				continue
 			}
 
-			evalCtx := p.evalContextBuilder().build(pm.Path, pm.Locals, pm.Variables)
-			cfg := extractBackendAttributes(backendBlock, evalCtx, pm)
+			cfg := extractBackendAttributes(ctx, backendBlock, ctx.buildEvalContext())
 
-			pm.Backend = &BackendConfig{
+			ctx.parsed.Backend = &BackendConfig{
 				Type:   backendBlock.Labels[0],
 				Config: cfg,
 			}
@@ -27,10 +26,10 @@ func (p *Parser) extractBackendConfig(index *moduleIndex, pm *ParsedModule) {
 	}
 }
 
-func extractBackendAttributes(block *hcl.Block, evalCtx *hcl.EvalContext, pm *ParsedModule) map[string]string {
+func extractBackendAttributes(ctx *extractContext, block *hcl.Block, evalCtx *hcl.EvalContext) map[string]string {
 	cfg := make(map[string]string)
 	attrs, diags := block.Body.JustAttributes()
-	pm.addDiags(diags)
+	ctx.addDiags(diags)
 	for name, attr := range attrs {
 		if val, ok := evalStringExpr(attr.Expr, evalCtx); ok {
 			cfg[name] = val
