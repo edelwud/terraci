@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
 
@@ -25,16 +25,10 @@ func newTestPlugin() *Plugin {
 	}
 }
 
-func newTestAppContext(workDir string) *plugin.AppContext {
-	cfg := config.DefaultConfig()
-	cfg.ServiceDir = ".terraci"
-	return plugin.NewAppContext(cfg, workDir, workDir+"/.terraci", "", plugin.NewReportRegistry())
-}
-
 func TestPlugin_Initialize_ConfiguredButDisabled(t *testing.T) {
 	p := newTestPlugin()
 	p.SetTypedConfig(&policyengine.Config{Enabled: false})
-	appCtx := newTestAppContext(t.TempDir())
+	appCtx := plugintest.NewAppContext(t, t.TempDir())
 
 	if err := p.Initialize(context.Background(), appCtx); err != nil {
 		t.Fatalf("Initialize() error = %v", err)

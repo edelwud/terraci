@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/engine"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
@@ -156,9 +156,5 @@ func writePlanJSON(t *testing.T, moduleDir, planJSON string) {
 // newTestAppContext creates a minimal AppContext suitable for plugin testing.
 // workDir should contain the module directories with plan.json files.
 func newTestAppContext(t *testing.T, workDir string) *plugin.AppContext {
-	t.Helper()
-	serviceDir := filepath.Join(t.TempDir(), ".terraci")
-	cfg := config.DefaultConfig()
-	cfg.ServiceDir = ".terraci"
-	return plugin.NewAppContext(cfg, workDir, serviceDir, "test", plugin.NewReportRegistry())
+	return plugintest.NewAppContext(t, workDir)
 }

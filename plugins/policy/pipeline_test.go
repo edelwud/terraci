@@ -5,13 +5,14 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/pipeline"
+	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
 
 func TestPlugin_PipelineContribution_UsesAppContextServiceDir(t *testing.T) {
 	p := newTestPlugin()
 	p.SetTypedConfig(&policyengine.Config{Enabled: true, OnFailure: policyengine.ActionWarn})
-	appCtx := newTestAppContext(t.TempDir())
+	appCtx := plugintest.NewAppContext(t, t.TempDir())
 
 	contrib := p.PipelineContribution(appCtx)
 	if contrib == nil {

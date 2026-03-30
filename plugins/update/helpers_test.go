@@ -2,11 +2,10 @@ package update
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 
-	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	updateengine "github.com/edelwud/terraci/plugins/update/internal"
 )
 
@@ -64,9 +63,5 @@ func enablePlugin(t *testing.T, p *Plugin, cfg *updateengine.UpdateConfig) {
 
 // newTestAppContext creates a minimal AppContext suitable for plugin testing.
 func newTestAppContext(t *testing.T, workDir string) *plugin.AppContext {
-	t.Helper()
-	serviceDir := filepath.Join(t.TempDir(), ".terraci")
-	cfg := config.DefaultConfig()
-	cfg.ServiceDir = ".terraci"
-	return plugin.NewAppContext(cfg, workDir, serviceDir, "test", plugin.NewReportRegistry())
+	return plugintest.NewAppContext(t, workDir)
 }
