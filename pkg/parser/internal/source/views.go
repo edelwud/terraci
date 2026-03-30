@@ -4,6 +4,8 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
+
+	"github.com/edelwud/terraci/pkg/parser/internal/exprfast"
 )
 
 var variableDefaultSchema = &hcl.BodySchema{
@@ -158,11 +160,11 @@ func (v RemoteStateBlockView) InlineConfigExpressions(content *hcl.BodyContent) 
 	}
 
 	for _, item := range objExpr.Items {
-		keyVal, keyDiags := item.KeyExpr.Value(nil)
-		if keyDiags.HasErrors() || keyVal.Type() != cty.String {
+		key, ok := exprfast.EvalString(item.KeyExpr, nil)
+		if !ok {
 			continue
 		}
-		config[keyVal.AsString()] = item.ValueExpr
+		config[key] = item.ValueExpr
 	}
 	return config
 }

@@ -13,6 +13,7 @@ import (
 
 	"github.com/edelwud/terraci/internal/terraform/eval"
 	"github.com/edelwud/terraci/pkg/parser/internal/evalctx"
+	"github.com/edelwud/terraci/pkg/parser/internal/exprfast"
 	"github.com/edelwud/terraci/pkg/parser/internal/source"
 )
 
@@ -180,7 +181,7 @@ func extractBackendAttributes(ctx *Context, block source.BackendBlockView, evalC
 	attrs, diags := block.Attributes()
 	ctx.Sink.AddDiags(diags)
 	for name, attr := range attrs {
-		if val, ok := evalStringExpr(attr.Expr, evalCtx); ok {
+		if val, ok := exprfast.EvalString(attr.Expr, evalCtx); ok {
 			cfg[name] = val
 		}
 	}
@@ -212,10 +213,10 @@ func extractLockFile(ctx *Context) {
 			continue
 		}
 
-		if v, ok := evalContentStringAttr(attrContent, "version"); ok {
+		if v, ok := exprfast.ContentStringAttr(attrContent, "version", nil); ok {
 			lp.Version = v
 		}
-		if v, ok := evalContentStringAttr(attrContent, "constraints"); ok {
+		if v, ok := exprfast.ContentStringAttr(attrContent, "constraints", nil); ok {
 			lp.Constraints = v
 		}
 
@@ -258,11 +259,11 @@ func fillRequiredProviderFromObject(rp *RequiredProvider, objExpr *hclsyntax.Obj
 		}
 		switch keyVal.AsString() {
 		case "source":
-			if v, ok := evalStringExpr(item.ValueExpr, nil); ok {
+			if v, ok := exprfast.EvalString(item.ValueExpr, nil); ok {
 				rp.Source = v
 			}
 		case "version":
-			if v, ok := evalStringExpr(item.ValueExpr, nil); ok {
+			if v, ok := exprfast.EvalString(item.ValueExpr, nil); ok {
 				rp.VersionConstraint = v
 			}
 		}
@@ -288,7 +289,7 @@ func parseRemoteStateBlock(ctx *Context, view source.RemoteStateBlockView, ref *
 		return
 	}
 
-	if val, ok := evalContentStringAttr(content, "backend"); ok {
+	if val, ok := exprfast.ContentStringAttr(content, "backend", nil); ok {
 		ref.Backend = val
 	}
 	if attr, ok := content.Attributes["for_each"]; ok {
@@ -319,7 +320,7 @@ func parseModuleBlock(ctx *Context, view source.ModuleBlockView, call *ModuleCal
 		return
 	}
 
-	if src, ok := evalContentStringAttr(content, "source"); ok {
+	if src, ok := exprfast.ContentStringAttr(content, "source", nil); ok {
 		call.Source = src
 		if strings.HasPrefix(src, "./") || strings.HasPrefix(src, "../") {
 			call.IsLocal = true
@@ -327,7 +328,7 @@ func parseModuleBlock(ctx *Context, view source.ModuleBlockView, call *ModuleCal
 		}
 	}
 
-	if ver, ok := evalContentStringAttr(content, "version"); ok {
+	if ver, ok := exprfast.ContentStringAttr(content, "version", nil); ok {
 		call.Version = ver
 	}
 }
@@ -353,22 +354,6 @@ func tfvarsReadDiagnostic(path string, err error) hcl.Diagnostics {
 		Summary:  "Failed to read tfvars file",
 		Detail:   fmt.Sprintf("Could not read %s: %v", path, err),
 	}}
-}
-
-func evalContentStringAttr(content *hcl.BodyContent, name string) (string, bool) {
-	attr, ok := content.Attributes[name]
-	if !ok {
-		return "", false
-	}
-	return evalStringExpr(attr.Expr, nil)
-}
-
-func evalStringExpr(expr hcl.Expression, ctx *hcl.EvalContext) (string, bool) {
-	val, diags := expr.Value(ctx)
-	if diags.HasErrors() || val.Type() != cty.String {
-		return "", false
-	}
-	return val.AsString(), true
 }
 
 func fileExists(path string) bool {
