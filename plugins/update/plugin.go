@@ -28,11 +28,11 @@ func init() {
 // Plugin is the dependency version checker and updater plugin.
 type Plugin struct {
 	plugin.BasePlugin[*updateengine.UpdateConfig]
-	registry updateengine.RegistryClient
+	registryFactory func() updateengine.RegistryClient
 }
 
 // Reset resets all plugin state.
 func (p *Plugin) Reset() {
 	p.BasePlugin.Reset()
-	p.registry = nil
+	p.registryFactory = nil
 }

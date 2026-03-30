@@ -579,3 +579,20 @@ func TestPreflightsForStartup_FallsBackToInitialize(t *testing.T) {
 		t.Fatalf("called hook = %q, want initialize", called)
 	}
 }
+
+func TestRuntimeAs_Success(t *testing.T) {
+	value, err := RuntimeAs[*testPlugin](&testPlugin{name: "runtime"})
+	if err != nil {
+		t.Fatalf("RuntimeAs() error = %v", err)
+	}
+	if value.Name() != "runtime" {
+		t.Fatalf("RuntimeAs() returned %q, want runtime", value.Name())
+	}
+}
+
+func TestRuntimeAs_TypeMismatch(t *testing.T) {
+	_, err := RuntimeAs[*testCommandPlugin](&testPlugin{name: "runtime"})
+	if err == nil {
+		t.Fatal("RuntimeAs() error = nil, want mismatch")
+	}
+}

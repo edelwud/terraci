@@ -2,6 +2,7 @@ package plugintest
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -50,4 +51,20 @@ func NewAppContext(t *testing.T, workDir string) *plugin.AppContext {
 	cfg := config.DefaultConfig()
 	cfg.ServiceDir = ".terraci"
 	return plugin.NewAppContext(cfg, workDir, serviceDir, "test", plugin.NewReportRegistry())
+}
+
+func MustRuntime[T any](t *testing.T, provider plugin.RuntimeProvider, appCtx *plugin.AppContext) T {
+	t.Helper()
+
+	rawRuntime, err := provider.Runtime(context.Background(), appCtx)
+	if err != nil {
+		t.Fatalf("Runtime() error = %v", err)
+	}
+
+	runtime, err := plugin.RuntimeAs[T](rawRuntime)
+	if err != nil {
+		t.Fatalf("Runtime() type assertion failed: %v", err)
+	}
+
+	return runtime
 }

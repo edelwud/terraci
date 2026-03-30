@@ -34,3 +34,16 @@ func TestPlugin_Initialize_ConfiguredButDisabled(t *testing.T) {
 		t.Fatalf("Initialize() error = %v", err)
 	}
 }
+
+func TestPlugin_Runtime_CreatesPuller(t *testing.T) {
+	p := newTestPlugin()
+	p.SetTypedConfig(&policyengine.Config{
+		Enabled: true,
+		Sources: []policyengine.SourceConfig{{Path: "terraform"}},
+	})
+
+	runtime := plugintest.MustRuntime[*policyRuntime](t, p, plugintest.NewAppContext(t, t.TempDir()))
+	if runtime.puller == nil {
+		t.Fatal("runtime.puller should not be nil")
+	}
+}

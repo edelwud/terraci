@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
 
@@ -130,5 +131,18 @@ func TestPlugin_Reset(t *testing.T) {
 
 	if p.IsConfigured() {
 		t.Error("IsConfigured() should be false after Reset")
+	}
+}
+
+func TestPlugin_Runtime_CreatesEstimator(t *testing.T) {
+	p := newTestPlugin(t)
+	enablePlugin(t, p, &model.CostConfig{
+		Enabled:  true,
+		CacheDir: t.TempDir(),
+	})
+
+	runtime := plugintest.MustRuntime[*costRuntime](t, p, newTestAppContext(t, t.TempDir()))
+	if runtime.estimator == nil {
+		t.Fatal("runtime.estimator should not be nil")
 	}
 }

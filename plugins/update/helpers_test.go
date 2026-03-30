@@ -61,6 +61,10 @@ func enablePlugin(t *testing.T, p *Plugin, cfg *updateengine.UpdateConfig) {
 	p.SetTypedConfig(cfg)
 }
 
+func useMockRegistry(p *Plugin, reg updateengine.RegistryClient) {
+	p.registryFactory = func() updateengine.RegistryClient { return reg }
+}
+
 // newTestAppContext creates a minimal AppContext suitable for plugin testing.
 func newTestAppContext(t *testing.T, workDir string) *plugin.AppContext {
 	return plugintest.NewAppContext(t, workDir)

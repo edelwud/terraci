@@ -208,7 +208,7 @@ func TestRenderReportBody_UpdateAvailable(t *testing.T) {
 func TestPlugin_RunCheck_NoModules(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &updateengine.UpdateConfig{Enabled: true})
-	p.registry = &mockRegistry{}
+	useMockRegistry(p, &mockRegistry{})
 
 	// Empty workDir — no modules to discover
 	workDir := t.TempDir()
@@ -233,7 +233,7 @@ func TestPlugin_RunCheck_InvalidOptions(t *testing.T) {
 		Enabled: true,
 		Target:  "invalid-target",
 	})
-	p.registry = &mockRegistry{}
+	useMockRegistry(p, &mockRegistry{})
 
 	workDir := t.TempDir()
 	appCtx := newTestAppContext(t, workDir)
@@ -254,11 +254,11 @@ func TestPlugin_RunCheck_InvalidOptions(t *testing.T) {
 func TestPlugin_RunCheck_Success(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &updateengine.UpdateConfig{Enabled: true})
-	p.registry = &mockRegistry{
+	useMockRegistry(p, &mockRegistry{
 		providerVersions: map[string][]string{
 			"hashicorp/aws": {"5.0.0", "5.1.0"},
 		},
-	}
+	})
 
 	// Create module directory matching default structure pattern
 	workDir := t.TempDir()
@@ -302,11 +302,11 @@ terraform {
 func TestPlugin_RunCheck_EmptyServiceDir(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &updateengine.UpdateConfig{Enabled: true})
-	p.registry = &mockRegistry{
+	useMockRegistry(p, &mockRegistry{
 		providerVersions: map[string][]string{
 			"hashicorp/aws": {"5.0.0"},
 		},
-	}
+	})
 
 	workDir := t.TempDir()
 	moduleDir := workDir + "/platform/prod/us-east-1/vpc"
@@ -343,11 +343,11 @@ terraform {
 func TestPlugin_RunCheck_FlagOverrides(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &updateengine.UpdateConfig{Enabled: true})
-	p.registry = &mockRegistry{
+	useMockRegistry(p, &mockRegistry{
 		providerVersions: map[string][]string{
 			"hashicorp/aws": {"5.0.0"},
 		},
-	}
+	})
 
 	workDir := t.TempDir()
 	moduleDir := workDir + "/platform/prod/us-east-1/vpc"
@@ -385,7 +385,7 @@ terraform {
 func TestPlugin_RunCheck_DiscoverError(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &updateengine.UpdateConfig{Enabled: true})
-	p.registry = &mockRegistry{}
+	useMockRegistry(p, &mockRegistry{})
 
 	// Point to a file instead of directory to trigger workflow.Run error
 	workDir := t.TempDir()
@@ -412,11 +412,11 @@ func TestPlugin_RunCheck_DiscoverError(t *testing.T) {
 func TestPlugin_RunCheck_WithModuleFilter(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &updateengine.UpdateConfig{Enabled: true})
-	p.registry = &mockRegistry{
+	useMockRegistry(p, &mockRegistry{
 		providerVersions: map[string][]string{
 			"hashicorp/aws": {"5.0.0"},
 		},
-	}
+	})
 
 	workDir := t.TempDir()
 	for _, mod := range []string{"vpc", "eks"} {

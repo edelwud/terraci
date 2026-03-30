@@ -1,11 +1,13 @@
 package cost
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/edelwud/terraci/pkg/log"
+	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/plugins/cost/internal/engine"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
@@ -29,6 +31,18 @@ func newRuntime(cfg *model.CostConfig) (*costRuntime, error) {
 
 func newRuntimeWithEstimator(estimator *engine.Estimator) *costRuntime {
 	return &costRuntime{estimator: estimator}
+}
+
+func (p *Plugin) Runtime(_ context.Context, _ *plugin.AppContext) (any, error) {
+	return newRuntime(p.Config())
+}
+
+func (p *Plugin) runtime(ctx context.Context, appCtx *plugin.AppContext) (*costRuntime, error) {
+	rawRuntime, err := p.Runtime(ctx, appCtx)
+	if err != nil {
+		return nil, err
+	}
+	return plugin.RuntimeAs[*costRuntime](rawRuntime)
 }
 
 func validateRuntimeConfig(cfg *model.CostConfig) error {

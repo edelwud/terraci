@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	updateengine "github.com/edelwud/terraci/plugins/update/internal"
 )
 
@@ -70,8 +71,8 @@ func TestPlugin_Preflight_Disabled(t *testing.T) {
 	if err := p.Preflight(context.Background(), appCtx); err != nil {
 		t.Fatalf("Preflight() error = %v", err)
 	}
-	if p.registry != nil {
-		t.Error("registry should be nil when plugin is not configured")
+	if p.registryFactory != nil {
+		t.Error("registry factory should be nil when plugin is not configured")
 	}
 }
 
@@ -83,8 +84,8 @@ func TestPlugin_Preflight_ConfiguredButDisabled(t *testing.T) {
 	if err := p.Preflight(context.Background(), appCtx); err != nil {
 		t.Fatalf("Preflight() error = %v", err)
 	}
-	if p.registry != nil {
-		t.Error("registry should be nil when plugin is configured but disabled")
+	if p.registryFactory != nil {
+		t.Error("registry factory should be nil when plugin is configured but disabled")
 	}
 }
 
@@ -96,8 +97,8 @@ func TestPlugin_Preflight_Enabled(t *testing.T) {
 	if err := p.Preflight(context.Background(), appCtx); err != nil {
 		t.Fatalf("Preflight() error = %v", err)
 	}
-	if p.registry != nil {
-		t.Fatal("registry should remain nil after preflight; runtime is lazy")
+	if p.registryFactory != nil {
+		t.Fatal("registry factory should remain nil after preflight; runtime is lazy")
 	}
 }
 
@@ -117,14 +118,25 @@ func TestPlugin_Preflight_InvalidConfig(t *testing.T) {
 func TestPlugin_Reset(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &updateengine.UpdateConfig{Enabled: true})
-	p.registry = &mockRegistry{}
+	useMockRegistry(p, &mockRegistry{})
 
 	p.Reset()
 
 	if p.IsConfigured() {
 		t.Error("IsConfigured() should be false after Reset")
 	}
-	if p.registry != nil {
-		t.Error("registry should be nil after Reset")
+	if p.registryFactory != nil {
+		t.Error("registry factory should be nil after Reset")
+	}
+}
+
+func TestPlugin_Runtime_CreatesRegistryLazily(t *testing.T) {
+	p := newTestPlugin(t)
+	enablePlugin(t, p, &updateengine.UpdateConfig{Enabled: true})
+	useMockRegistry(p, &mockRegistry{})
+
+	runtime := plugintest.MustRuntime[*updateRuntime](t, p, newTestAppContext(t, t.TempDir()))
+	if runtime.registry == nil {
+		t.Fatal("runtime.registry should not be nil")
 	}
 }

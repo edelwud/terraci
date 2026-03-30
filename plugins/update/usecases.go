@@ -99,7 +99,7 @@ func persistUpdateArtifacts(serviceDir string, result *updateengine.UpdateResult
 }
 
 func (p *Plugin) runCheck(ctx context.Context, appCtx *plugin.AppContext, cmd *cobra.Command) error {
-	runtime, err := newRuntime(p.Config(), p.registry, parseRuntimeOptions(cmd))
+	runtime, err := p.runtime(ctx, appCtx, parseRuntimeOptions(cmd))
 	if err != nil {
 		return err
 	}

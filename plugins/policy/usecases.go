@@ -12,50 +12,31 @@ import (
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
 
-func runPullPolicies(ctx context.Context, appCtx *plugin.AppContext, cfg *policyengine.Config, outputDir string) error {
-	workDir := appCtx.WorkDir()
-	serviceDir := appCtx.ServiceDir()
-	if outputDir != "" {
-		cfg.CacheDir = outputDir
-	}
-
-	puller, err := policyengine.NewPuller(cfg, workDir, serviceDir)
-	if err != nil {
-		return fmt.Errorf("failed to create puller: %w", err)
-	}
-
-	dirs, err := puller.Pull(ctx)
+func runPullPoliciesUseCase(ctx context.Context, runtime *policyRuntime) error {
+	dirs, err := runtime.puller.Pull(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to pull policies: %w", err)
 	}
 
 	log.WithField("count", len(dirs)).Info("policy sources pulled")
-	log.WithField("cache", puller.CacheDir()).Info("policies cached")
+	log.WithField("cache", runtime.puller.CacheDir()).Info("policies cached")
 	return nil
 }
 
-func runPolicyCheck(ctx context.Context, appCtx *plugin.AppContext, cfg *policyengine.Config, modulePath, outputFmt string, w io.Writer) error {
-	workDir := appCtx.WorkDir()
-	serviceDir := appCtx.ServiceDir()
-
-	puller, err := policyengine.NewPuller(cfg, workDir, serviceDir)
-	if err != nil {
-		return fmt.Errorf("failed to create puller: %w", err)
-	}
-
-	policyDirs, err := puller.Pull(ctx)
+func runPolicyCheckUseCase(ctx context.Context, runtime *policyRuntime, w io.Writer) error {
+	policyDirs, err := runtime.puller.Pull(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to pull policies: %w", err)
 	}
 
-	checker := policyengine.NewChecker(cfg, policyDirs, workDir)
-	summary, err := buildPolicySummary(ctx, checker, modulePath)
+	checker := policyengine.NewChecker(runtime.config, policyDirs, runtime.workDir)
+	summary, err := buildPolicySummary(ctx, checker, runtime.options.modulePath)
 	if err != nil {
 		return fmt.Errorf("policy check failed: %w", err)
 	}
 
-	persistPolicyArtifacts(serviceDir, summary)
-	return outputResult(w, outputFmt, summary, checker.ShouldBlock(summary))
+	persistPolicyArtifacts(runtime.serviceDir, summary)
+	return outputResult(w, runtime.options.outputFmt, summary, checker.ShouldBlock(summary))
 }
 
 func buildPolicySummary(ctx context.Context, checker *policyengine.Checker, modulePath string) (*policyengine.Summary, error) {
@@ -83,6 +64,23 @@ func persistPolicyArtifacts(serviceDir string, summary *policyengine.Summary) {
 	}
 }
 
+func (p *Plugin) runPull(ctx context.Context, appCtx *plugin.AppContext, outputDir string) error {
+	runtime, err := p.runtime(ctx, appCtx, runtimeOptions{outputDir: outputDir})
+	if err != nil {
+		return err
+	}
+
+	return runPullPoliciesUseCase(ctx, runtime)
+}
+
 func (p *Plugin) runCheck(ctx context.Context, appCtx *plugin.AppContext, modulePath, outputFmt string) error {
-	return runPolicyCheck(ctx, appCtx, p.Config(), modulePath, outputFmt, os.Stdout)
+	runtime, err := p.runtime(ctx, appCtx, runtimeOptions{
+		modulePath: modulePath,
+		outputFmt:  outputFmt,
+	})
+	if err != nil {
+		return err
+	}
+
+	return runPolicyCheckUseCase(ctx, runtime, os.Stdout)
 }

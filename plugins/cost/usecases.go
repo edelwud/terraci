@@ -105,7 +105,7 @@ func (p *Plugin) runEstimation(ctx context.Context, appCtx *plugin.AppContext, m
 }
 
 func (p *Plugin) runEstimationWithWriter(ctx context.Context, appCtx *plugin.AppContext, modulePath, outputFmt string, w io.Writer) error {
-	runtime, err := newRuntime(p.Config())
+	runtime, err := p.runtime(ctx, appCtx)
 	if err != nil {
 		return err
 	}

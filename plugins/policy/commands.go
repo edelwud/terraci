@@ -29,7 +29,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 			log.Info("pulling policies from configured sources")
 			c, cancel := context.WithTimeout(cmd.Context(), 5*time.Minute)
 			defer cancel()
-			return runPullPolicies(c, ctx, p.Config(), policyOutput)
+			return p.runPull(c, ctx, policyOutput)
 		},
 	}
 
