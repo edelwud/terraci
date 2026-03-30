@@ -3,8 +3,6 @@ package model
 import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
-
-	"github.com/edelwud/terraci/pkg/discovery"
 )
 
 type ParsedModule struct {
@@ -53,26 +51,6 @@ type RemoteStateRef struct {
 	ForEach      hcl.Expression
 	WorkspaceDir string
 	RawBody      hcl.Body
-}
-
-type Dependency struct {
-	From            *discovery.Module
-	To              *discovery.Module
-	Type            string
-	RemoteStateName string
-}
-
-type LibraryDependency struct {
-	ModuleCall  *ModuleCall
-	LibraryPath string
-}
-
-type ModuleDependencies struct {
-	Module              *discovery.Module
-	Dependencies        []*Dependency
-	LibraryDependencies []*LibraryDependency
-	DependsOn           []string
-	Errors              []error
 }
 
 func NewParsedModule(modulePath string) *ParsedModule {
