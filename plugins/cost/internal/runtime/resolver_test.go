@@ -7,60 +7,15 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/runtimetest"
 )
-
-type resolverTestRuntime struct {
-	providerID string
-	handlers   map[handler.ResourceType]handler.ResourceHandler
-}
-
-func (r resolverTestRuntime) ResolveProvider(resourceType handler.ResourceType) (string, bool) {
-	if r.providerID == "" {
-		return "", false
-	}
-	_, ok := r.handlers[resourceType]
-	if ok {
-		return r.providerID, true
-	}
-	if resourceType == handler.ResourceType("known_without_handler") {
-		return r.providerID, true
-	}
-	return "", false
-}
-
-func (r resolverTestRuntime) ResolveHandler(_ string, resourceType handler.ResourceType) (handler.ResourceHandler, bool) {
-	h, ok := r.handlers[resourceType]
-	return h, ok
-}
-
-func (resolverTestRuntime) GetIndex(context.Context, pricing.ServiceID, string) (*pricing.PriceIndex, error) {
-	return nil, nil
-}
-
-func (resolverTestRuntime) SourceName(string) string {
-	return "test-source"
-}
-
-type fixedResolverHandler struct{}
-
-func (fixedResolverHandler) Category() handler.CostCategory { return handler.CostCategoryFixed }
-
-func (fixedResolverHandler) CalculateCost(*pricing.Price, *pricing.PriceIndex, string, map[string]any) (hourly, monthly float64) {
-	return 0.5, 10
-}
-
-type usageResolverHandler struct{}
-
-func (usageResolverHandler) Category() handler.CostCategory { return handler.CostCategoryUsageBased }
-
-func (usageResolverHandler) CalculateCost(*pricing.Price, *pricing.PriceIndex, string, map[string]any) (hourly, monthly float64) {
-	return 0, 0
-}
 
 func TestCostResolver_ResolveNoProvider(t *testing.T) {
 	t.Parallel()
 
-	resolver := NewCostResolver(resolverTestRuntime{})
+	testRuntime := runtimetest.StubRuntime{}
+	runtimetest.AssertNoProviderContract(t, testRuntime, handler.ResourceType("unknown_resource"))
+	resolver := NewCostResolver(testRuntime)
 	got := resolver.Resolve(context.Background(), ResolveRequest{
 		ResourceType: handler.ResourceType("unknown_resource"),
 		Address:      "unknown_resource.example",
@@ -74,7 +29,16 @@ func TestCostResolver_ResolveNoProvider(t *testing.T) {
 func TestCostResolver_ResolveKnownProviderMissingHandler(t *testing.T) {
 	t.Parallel()
 
-	resolver := NewCostResolver(resolverTestRuntime{providerID: "aws"})
+	testRuntime := runtimetest.StubRuntime{
+		ResolveProviderFunc: func(resourceType handler.ResourceType) (string, bool) {
+			if resourceType == handler.ResourceType("known_without_handler") {
+				return "aws", true
+			}
+			return "", false
+		},
+	}
+	runtimetest.AssertNoHandlerContract(t, testRuntime, "aws", handler.ResourceType("known_without_handler"))
+	resolver := NewCostResolver(testRuntime)
 	got := resolver.Resolve(context.Background(), ResolveRequest{
 		ResourceType: handler.ResourceType("known_without_handler"),
 		Address:      "known_without_handler.example",
@@ -91,12 +55,27 @@ func TestCostResolver_ResolveKnownProviderMissingHandler(t *testing.T) {
 func TestCostResolver_ResolveFixedAndUsageBased(t *testing.T) {
 	t.Parallel()
 
-	resolver := NewCostResolver(resolverTestRuntime{
-		providerID: "aws",
-		handlers: map[handler.ResourceType]handler.ResourceHandler{
-			handler.ResourceType("fixed_resource"): fixedResolverHandler{},
-			handler.ResourceType("usage_resource"): usageResolverHandler{},
+	handlers := map[handler.ResourceType]handler.ResourceHandler{
+		handler.ResourceType("fixed_resource"): runtimetest.StubHandler{
+			CategoryValue: handler.CostCategoryFixed,
+			CalculateFunc: func(_ *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
+				return 0.5, 10
+			},
 		},
+		handler.ResourceType("usage_resource"): runtimetest.StubHandler{CategoryValue: handler.CostCategoryUsageBased},
+	}
+	resolver := NewCostResolver(runtimetest.StubRuntime{
+		ResolveProviderFunc: func(resourceType handler.ResourceType) (string, bool) {
+			if _, ok := handlers[resourceType]; ok {
+				return "aws", true
+			}
+			return "", false
+		},
+		ResolveHandlerFunc: func(_ string, resourceType handler.ResourceType) (handler.ResourceHandler, bool) {
+			h, ok := handlers[resourceType]
+			return h, ok
+		},
+		SourceNameFunc: func(string) string { return "test-source" },
 	})
 
 	fixed := resolver.Resolve(context.Background(), ResolveRequest{
@@ -125,10 +104,23 @@ func TestCostResolver_ResolveFixedAndUsageBased(t *testing.T) {
 func TestCostResolver_MiddlewareChain(t *testing.T) {
 	t.Parallel()
 
-	resolver := NewCostResolver(resolverTestRuntime{
-		providerID: "aws",
-		handlers: map[handler.ResourceType]handler.ResourceHandler{
-			handler.ResourceType("fixed_resource"): fixedResolverHandler{},
+	resolver := NewCostResolver(runtimetest.StubRuntime{
+		ResolveProviderFunc: func(resourceType handler.ResourceType) (string, bool) {
+			if resourceType == handler.ResourceType("fixed_resource") {
+				return "aws", true
+			}
+			return "", false
+		},
+		ResolveHandlerFunc: func(_ string, resourceType handler.ResourceType) (handler.ResourceHandler, bool) {
+			if resourceType == handler.ResourceType("fixed_resource") {
+				return runtimetest.StubHandler{
+					CategoryValue: handler.CostCategoryFixed,
+					CalculateFunc: func(_ *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
+						return 0.5, 10
+					},
+				}, true
+			}
+			return nil, false
 		},
 	})
 

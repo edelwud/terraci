@@ -1,0 +1,20 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.6.0",
+  "resource_changes": [
+    {
+      "address": "aws_route53_zone.main",
+      "module_address": "",
+      "type": "aws_route53_zone",
+      "name": "main",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "name": "example.com"
+        },
+        "after_unknown": {}
+      }
+    }
+  ]
+}

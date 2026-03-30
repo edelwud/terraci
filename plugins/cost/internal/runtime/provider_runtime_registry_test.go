@@ -10,25 +10,8 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/runtimetest"
 )
-
-type registryTestFetcher struct {
-	index *pricing.PriceIndex
-}
-
-func (f registryTestFetcher) FetchRegionIndex(_ context.Context, _ pricing.ServiceID, _ string) (*pricing.PriceIndex, error) {
-	return f.index, nil
-}
-
-type registryTestHandler struct {
-	category handler.CostCategory
-}
-
-func (h registryTestHandler) Category() handler.CostCategory { return h.category }
-
-func (registryTestHandler) CalculateCost(*pricing.Price, *pricing.PriceIndex, string, map[string]any) (hourly, monthly float64) {
-	return 0, 0
-}
 
 func TestProviderRuntimeRegistry_ResolveProviderAndHandler(t *testing.T) {
 	t.Parallel()
@@ -39,7 +22,7 @@ func TestProviderRuntimeRegistry_ResolveProviderAndHandler(t *testing.T) {
 	}
 
 	registry := handler.NewRegistry()
-	registry.Register(awskit.ProviderID, handler.ResourceType("aws_instance"), registryTestHandler{category: handler.CostCategoryStandard})
+	registry.Register(awskit.ProviderID, handler.ResourceType("aws_instance"), runtimetest.StubHandler{CategoryValue: handler.CostCategoryStandard})
 
 	runtimeRegistry := NewProviderRuntimeRegistry(
 		[]cloud.Provider{awsProvider},
@@ -52,18 +35,24 @@ func TestProviderRuntimeRegistry_ResolveProviderAndHandler(t *testing.T) {
 		},
 	)
 
-	providerID, ok := runtimeRegistry.ResolveProvider(handler.ResourceType("aws_instance"))
-	if !ok {
-		t.Fatal("ResolveProvider should resolve aws_instance")
-	}
-	if providerID != awskit.ProviderID {
-		t.Fatalf("ResolveProvider() = %q, want %q", providerID, awskit.ProviderID)
-	}
-
-	resolved, ok := runtimeRegistry.ResolveHandler(providerID, handler.ResourceType("aws_instance"))
-	if !ok || resolved == nil {
-		t.Fatal("ResolveHandler should resolve a registered handler")
-	}
+	runtimetest.RunResolverRuntimeSuite(t, runtimeRegistry, runtimetest.RuntimeSuite{
+		ProviderCases: []runtimetest.ProviderCase{
+			{
+				Name:         "aws instance provider",
+				ResourceType: handler.ResourceType("aws_instance"),
+				WantProvider: awskit.ProviderID,
+				WantOK:       true,
+			},
+		},
+		HandlerCases: []runtimetest.HandlerCase{
+			{
+				Name:         "aws instance handler",
+				ProviderID:   awskit.ProviderID,
+				ResourceType: handler.ResourceType("aws_instance"),
+				WantOK:       true,
+			},
+		},
+	})
 }
 
 func TestProviderRuntimeRegistry_DistinguishesNoProviderFromNoHandler(t *testing.T) {
@@ -89,21 +78,8 @@ func TestProviderRuntimeRegistry_DistinguishesNoProviderFromNoHandler(t *testing
 	)
 	runtimeRegistry.SetRouter(router)
 
-	providerID, ok := runtimeRegistry.ResolveProvider(handler.ResourceType("aws_cloudfront_distribution"))
-	if !ok {
-		t.Fatal("ResolveProvider should resolve known provider-owned resource type")
-	}
-	if providerID != awskit.ProviderID {
-		t.Fatalf("ResolveProvider() = %q, want %q", providerID, awskit.ProviderID)
-	}
-
-	if _, ok := runtimeRegistry.ResolveHandler(providerID, handler.ResourceType("aws_cloudfront_distribution")); ok {
-		t.Fatal("ResolveHandler should fail when provider is known but no handler is registered")
-	}
-
-	if _, ok := runtimeRegistry.ResolveProvider(handler.ResourceType("custom_unknown_resource")); ok {
-		t.Fatal("ResolveProvider should fail for an unknown resource type")
-	}
+	runtimetest.AssertNoHandlerContract(t, runtimeRegistry, awskit.ProviderID, handler.ResourceType("aws_cloudfront_distribution"))
+	runtimetest.AssertNoProviderContract(t, runtimeRegistry, handler.ResourceType("custom_unknown_resource"))
 }
 
 func TestProviderRuntimeRegistry_GetIndexAndSourceName(t *testing.T) {
@@ -131,22 +107,17 @@ func TestProviderRuntimeRegistry_GetIndexAndSourceName(t *testing.T) {
 		map[string]*ProviderRuntime{
 			awskit.ProviderID: {
 				Definition: awsProvider.Definition(),
-				Cache:      pricing.NewCache(t.TempDir(), time.Hour, registryTestFetcher{index: expected}),
+				Cache: pricing.NewCache(t.TempDir(), time.Hour, runtimetest.StubFetcher{
+					FetchRegionIndexFunc: func(_ context.Context, _ pricing.ServiceID, _ string) (*pricing.PriceIndex, error) {
+						return expected, nil
+					},
+				}),
 			},
 		},
 	)
 
-	got, err := runtimeRegistry.GetIndex(context.Background(), serviceID, "us-east-1")
-	if err != nil {
-		t.Fatalf("GetIndex() error = %v", err)
-	}
-	if got == nil {
-		t.Fatal("GetIndex() returned nil index")
-	}
+	got := runtimetest.AssertPricingSourceContract(t, runtimeRegistry, awskit.ProviderID, serviceID, "us-east-1", awsProvider.Definition().Manifest.PriceSource)
 	if got.ServiceID != serviceID {
 		t.Fatalf("GetIndex().ServiceID = %q, want %q", got.ServiceID, serviceID)
-	}
-	if runtimeRegistry.SourceName(awskit.ProviderID) != awsProvider.Definition().Manifest.PriceSource {
-		t.Fatalf("SourceName() = %q, want %q", runtimeRegistry.SourceName(awskit.ProviderID), awsProvider.Definition().Manifest.PriceSource)
 	}
 }

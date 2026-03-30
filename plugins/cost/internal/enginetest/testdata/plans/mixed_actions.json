@@ -1,0 +1,50 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.6.0",
+  "resource_changes": [
+    {
+      "address": "aws_instance.new",
+      "module_address": "",
+      "type": "aws_instance",
+      "name": "new",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "instance_type": "t3.micro"
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_route53_zone.dns",
+      "module_address": "",
+      "type": "aws_route53_zone",
+      "name": "dns",
+      "change": {
+        "actions": ["no-op"],
+        "before": {
+          "name": "example.com"
+        },
+        "after": {
+          "name": "example.com"
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_sqs_queue.events",
+      "module_address": "",
+      "type": "aws_sqs_queue",
+      "name": "events",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "name": "events"
+        },
+        "after_unknown": {}
+      }
+    }
+  ]
+}

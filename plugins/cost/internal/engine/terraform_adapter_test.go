@@ -1,18 +1,17 @@
 package engine_test
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/engine"
+	"github.com/edelwud/terraci/plugins/cost/internal/enginetest"
 )
 
 func TestTerraformPlanAdapter_LoadModule_MapsPlanToInputModel(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	writeTerraformPlanFixture(t, dir, planUpdateEC2)
+	enginetest.WritePlan(t, dir, enginetest.LoadPlanFixture(t, "update_ec2"))
 
 	adapter := engine.NewTerraformPlanAdapter()
 	modulePlan, err := adapter.LoadModule(dir, "us-east-1")
@@ -59,11 +58,11 @@ func TestTerraformPlanAdapter_LoadModule_MapsAllSupportedActions(t *testing.T) {
 		planJSON string
 		want     engine.EstimateAction
 	}{
-		{name: "create", planJSON: planCreateEC2, want: engine.ActionCreate},
-		{name: "delete", planJSON: planDeleteEC2, want: engine.ActionDelete},
-		{name: "update", planJSON: planUpdateEC2, want: engine.ActionUpdate},
+		{name: "create", planJSON: enginetest.LoadPlanFixture(t, "create_ec2"), want: engine.ActionCreate},
+		{name: "delete", planJSON: enginetest.LoadPlanFixture(t, "delete_ec2"), want: engine.ActionDelete},
+		{name: "update", planJSON: enginetest.LoadPlanFixture(t, "update_ec2"), want: engine.ActionUpdate},
 		{name: "replace", planJSON: planReplaceEC2, want: engine.ActionReplace},
-		{name: "no-op", planJSON: planNoOp, want: engine.ActionNoOp},
+		{name: "no-op", planJSON: enginetest.LoadPlanFixture(t, "no_op"), want: engine.ActionNoOp},
 	}
 
 	for _, tt := range tests {
@@ -71,7 +70,7 @@ func TestTerraformPlanAdapter_LoadModule_MapsAllSupportedActions(t *testing.T) {
 			t.Parallel()
 
 			dir := t.TempDir()
-			writeTerraformPlanFixture(t, dir, tt.planJSON)
+			enginetest.WritePlan(t, dir, tt.planJSON)
 
 			modulePlan, err := engine.NewTerraformPlanAdapter().LoadModule(dir, "us-east-1")
 			if err != nil {
@@ -90,15 +89,5 @@ func TestMapTerraformAction_RejectsUnknownAction(t *testing.T) {
 	_, err := engine.MapTerraformAction("import")
 	if err == nil {
 		t.Fatal("mapTerraformAction() error = nil, want error for unknown action")
-	}
-}
-
-func writeTerraformPlanFixture(t *testing.T, dir, planJSON string) {
-	t.Helper()
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "plan.json"), []byte(planJSON), 0o600); err != nil {
-		t.Fatal(err)
 	}
 }

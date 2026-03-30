@@ -1,0 +1,34 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.6.0",
+  "resource_changes": [
+    {
+      "address": "module.vpc.aws_route53_zone.main",
+      "module_address": "module.vpc",
+      "type": "aws_route53_zone",
+      "name": "main",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "name": "example.com"
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "module.compute.aws_instance.web",
+      "module_address": "module.compute",
+      "type": "aws_instance",
+      "name": "web",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "instance_type": "t3.micro"
+        },
+        "after_unknown": {}
+      }
+    }
+  ]
+}

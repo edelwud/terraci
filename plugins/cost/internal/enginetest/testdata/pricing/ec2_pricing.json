@@ -1,0 +1,59 @@
+{
+  "formatVersion": "v1.0",
+  "offerCode": "AmazonEC2",
+  "version": "test-v1",
+  "products": {
+    "SKU_T3MICRO": {
+      "sku": "SKU_T3MICRO",
+      "productFamily": "Compute Instance",
+      "attributes": {
+        "instanceType": "t3.micro",
+        "location": "US East (N. Virginia)",
+        "tenancy": "Shared",
+        "operatingSystem": "Linux",
+        "preInstalledSw": "NA",
+        "capacitystatus": "Used"
+      }
+    },
+    "SKU_GP2": {
+      "sku": "SKU_GP2",
+      "productFamily": "Storage",
+      "attributes": {
+        "volumeApiName": "gp2",
+        "location": "US East (N. Virginia)"
+      }
+    }
+  },
+  "terms": {
+    "OnDemand": {
+      "SKU_T3MICRO": {
+        "SKU_T3MICRO.T1": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_T3MICRO",
+          "priceDimensions": {
+            "SKU_T3MICRO.T1.D1": {
+              "unit": "Hrs",
+              "pricePerUnit": {
+                "USD": "0.0104"
+              }
+            }
+          }
+        }
+      },
+      "SKU_GP2": {
+        "SKU_GP2.T1": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_GP2",
+          "priceDimensions": {
+            "SKU_GP2.T1.D1": {
+              "unit": "GB-Mo",
+              "pricePerUnit": {
+                "USD": "0.10"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
