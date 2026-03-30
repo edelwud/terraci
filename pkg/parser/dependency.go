@@ -5,21 +5,16 @@ import (
 
 	"github.com/edelwud/terraci/pkg/discovery"
 	dependencyengine "github.com/edelwud/terraci/pkg/parser/internal/dependency"
-	parserdeps "github.com/edelwud/terraci/pkg/parser/internal/deps"
 )
 
 // DependencyExtractor extracts module dependencies from parsed Terraform files.
 type DependencyExtractor struct {
-	parser ModuleParser
-	index  *discovery.ModuleIndex
 	engine *dependencyengine.Engine
 }
 
 // NewDependencyExtractor creates a new dependency extractor.
 func NewDependencyExtractor(parser ModuleParser, index *discovery.ModuleIndex) *DependencyExtractor {
 	return &DependencyExtractor{
-		parser: parser,
-		index:  index,
 		engine: dependencyengine.NewEngine(newDependencyParserAdapter(parser), index),
 	}
 }
@@ -55,11 +50,6 @@ func (de *DependencyExtractor) ExtractDependencies(ctx context.Context, module *
 	}
 
 	return fromDependencyModuleDependencies(deps), nil
-}
-
-// matchPathToModule matches a state file path to a module using multiple strategies.
-func (de *DependencyExtractor) matchPathToModule(statePath string, from *discovery.Module) *discovery.Module {
-	return parserdeps.MatchPathToModule(de.index, statePath, from)
 }
 
 // ExtractAllDependencies extracts dependencies for all modules in the index.

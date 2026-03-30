@@ -199,7 +199,7 @@ func TestMatchPathToModule(t *testing.T) {
 		discovery.TestModule("platform", "prod", "us-east-1", "api"),
 	}
 
-	extractor := NewDependencyExtractor(NewParser(nil), discovery.NewModuleIndex(modules))
+	index := discovery.NewModuleIndex(modules)
 
 	tests := []struct {
 		name      string
@@ -219,7 +219,7 @@ func TestMatchPathToModule(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := extractor.matchPathToModule(tt.statePath, tt.from)
+			got := parserdeps.MatchPathToModule(index, tt.statePath, tt.from)
 			if tt.wantID == "" {
 				if got != nil {
 					t.Errorf("got %s, want nil", got.ID())
