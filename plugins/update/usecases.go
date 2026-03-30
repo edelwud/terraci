@@ -41,41 +41,20 @@ func parseRuntimeOptions(cmd *cobra.Command) runtimeOptions {
 }
 
 func runUpdateCheck(ctx context.Context, appCtx *plugin.AppContext, runtime *updateRuntime, w io.Writer) error {
-	baseCfg := appCtx.Config()
-	workDir := appCtx.WorkDir()
-
-	wfResult, err := workflow.Run(ctx, workflow.Options{
-		WorkDir:  workDir,
-		Segments: baseCfg.Structure.Segments,
-		Excludes: baseCfg.Exclude,
-		Includes: baseCfg.Include,
-	})
+	modules, err := discoverUpdateModules(ctx, appCtx, runtime.options.modulePath)
 	if err != nil {
-		return fmt.Errorf("discover modules: %w", err)
-	}
-
-	modules := filterModules(wfResult.FilteredModules, runtime.options.modulePath)
-	if len(modules) == 0 {
-		return errors.New("no modules found")
+		return err
 	}
 
 	log.WithField("count", len(modules)).Info("modules to check")
 
-	tfParser := parser.NewParser(baseCfg.Structure.Segments)
-	checker := updatechecker.NewChecker(runtime.config, tfParser, runtime.registry, runtime.options.write)
-	result, err := checker.Check(ctx, modules)
+	result, err := executeUpdateCheck(ctx, appCtx, runtime, modules)
 	if err != nil {
-		return fmt.Errorf("check versions: %w", err)
+		return err
 	}
 
-	persistUpdateArtifacts(appCtx.ServiceDir(), result)
-	if outputErr := outputResult(w, runtime.options.outputFmt, result); outputErr != nil {
-		return outputErr
-	}
-	if result.Summary.Errors > 0 {
-		return fmt.Errorf("update check completed with %d errors", result.Summary.Errors)
-	}
-	return nil
+	emitUpdateArtifacts(appCtx.ServiceDir(), result)
+	return finalizeUpdateCheck(w, runtime.options.outputFmt, result)
 }
 
 func filterModules(modules []*discovery.Module, modulePath string) []*discovery.Module {
@@ -92,7 +71,49 @@ func filterModules(modules []*discovery.Module, modulePath string) []*discovery.
 	return filtered
 }
 
-func persistUpdateArtifacts(serviceDir string, result *updateengine.UpdateResult) {
+func discoverUpdateModules(
+	ctx context.Context,
+	appCtx *plugin.AppContext,
+	modulePath string,
+) ([]*discovery.Module, error) {
+	baseCfg := appCtx.Config()
+
+	wfResult, err := workflow.Run(ctx, workflow.Options{
+		WorkDir:  appCtx.WorkDir(),
+		Segments: baseCfg.Structure.Segments,
+		Excludes: baseCfg.Exclude,
+		Includes: baseCfg.Include,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("discover modules: %w", err)
+	}
+
+	modules := filterModules(wfResult.FilteredModules, modulePath)
+	if len(modules) == 0 {
+		return nil, errors.New("no modules found")
+	}
+
+	return modules, nil
+}
+
+func executeUpdateCheck(
+	ctx context.Context,
+	appCtx *plugin.AppContext,
+	runtime *updateRuntime,
+	modules []*discovery.Module,
+) (*updateengine.UpdateResult, error) {
+	tfParser := parser.NewParser(appCtx.Config().Structure.Segments)
+	checker := updatechecker.NewChecker(runtime.config, tfParser, runtime.registry, runtime.options.write)
+
+	result, err := checker.Check(ctx, modules)
+	if err != nil {
+		return nil, fmt.Errorf("check versions: %w", err)
+	}
+
+	return result, nil
+}
+
+func emitUpdateArtifacts(serviceDir string, result *updateengine.UpdateResult) {
 	if serviceDir == "" {
 		return
 	}
@@ -103,6 +124,16 @@ func persistUpdateArtifacts(serviceDir string, result *updateengine.UpdateResult
 	if saveErr := ci.SaveReport(serviceDir, buildUpdateReport(result)); saveErr != nil {
 		log.WithError(saveErr).Warn("failed to save update report")
 	}
+}
+
+func finalizeUpdateCheck(w io.Writer, outputFmt string, result *updateengine.UpdateResult) error {
+	if outputErr := outputResult(w, outputFmt, result); outputErr != nil {
+		return outputErr
+	}
+	if result.Summary.Errors > 0 {
+		return fmt.Errorf("update check completed with %d errors", result.Summary.Errors)
+	}
+	return nil
 }
 
 func (p *Plugin) runCheck(ctx context.Context, appCtx *plugin.AppContext, cmd *cobra.Command) error {

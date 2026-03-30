@@ -2,11 +2,13 @@ package update
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/discovery"
 	updateengine "github.com/edelwud/terraci/plugins/update/internal"
 )
 
@@ -456,4 +458,53 @@ terraform {
 	if err != nil {
 		t.Fatalf("RunE() error = %v", err)
 	}
+}
+
+func TestFilterModules(t *testing.T) {
+	modules := []*discovery.Module{
+		{RelativePath: "platform/prod/us-east-1/vpc"},
+		{RelativePath: "platform/prod/us-east-1/eks"},
+	}
+
+	got := filterModules(modules, "vpc")
+	if len(got) != 1 {
+		t.Fatalf("len = %d, want 1", len(got))
+	}
+	if got[0].RelativePath != "platform/prod/us-east-1/vpc" {
+		t.Fatalf("RelativePath = %q, want vpc module", got[0].RelativePath)
+	}
+}
+
+func TestFinalizeUpdateCheck(t *testing.T) {
+	t.Run("returns summary error after output", func(t *testing.T) {
+		var out strings.Builder
+		err := finalizeUpdateCheck(&out, "json", &updateengine.UpdateResult{
+			Summary: updateengine.UpdateSummary{Errors: 2},
+		})
+		if err == nil {
+			t.Fatal("expected summary error")
+		}
+		if !strings.Contains(err.Error(), "2 errors") {
+			t.Fatalf("error = %q, want summary errors", err.Error())
+		}
+		if out.Len() == 0 {
+			t.Fatal("expected output to be written before returning error")
+		}
+	})
+
+	t.Run("returns output error directly", func(t *testing.T) {
+		err := finalizeUpdateCheck(failingWriter{}, "json", &updateengine.UpdateResult{})
+		if err == nil {
+			t.Fatal("expected output error")
+		}
+		if !strings.Contains(err.Error(), "write failed") {
+			t.Fatalf("error = %q, want output failure", err.Error())
+		}
+	})
+}
+
+type failingWriter struct{}
+
+func (failingWriter) Write(_ []byte) (int, error) {
+	return 0, errors.New("write failed")
 }
