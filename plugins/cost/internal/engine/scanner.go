@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"sync"
+
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/results"
@@ -9,6 +11,7 @@ import (
 
 // DefaultRegion is used when no region is specified.
 const DefaultRegion = model.DefaultRegion
+const scanConcurrency = 4
 
 // EstimateAction is the provider-neutral action model used by the cost engine.
 type EstimateAction = results.EstimateAction
@@ -88,18 +91,32 @@ func (s *ModuleScanner) Scan(modulePath, region string) (*ModulePlan, error) {
 
 // ScanMany scans multiple modules strictly, returning an error on the first failure.
 func (s *ModuleScanner) ScanMany(modulePaths []string, regions map[string]string) ([]*ModulePlan, error) {
-	plans := make([]*ModulePlan, 0, len(modulePaths))
-	for _, modulePath := range modulePaths {
+	plans := make([]*ModulePlan, len(modulePaths))
+	errs := make([]error, len(modulePaths))
+
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, scanConcurrency)
+
+	for i, modulePath := range modulePaths {
 		region := regions[modulePath]
 		if region == "" {
 			region = DefaultRegion
 		}
 
-		modulePlan, err := s.Scan(modulePath, region)
-		if err != nil {
-			return nil, err
+		wg.Go(func() {
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			plans[i], errs[i] = s.Scan(modulePath, region)
+		})
+	}
+
+	wg.Wait()
+
+	for i := range errs {
+		if errs[i] != nil {
+			return nil, errs[i]
 		}
-		plans = append(plans, modulePlan)
 	}
 	return plans, nil
 }
@@ -115,21 +132,32 @@ type ScannedModulePlan struct {
 
 // ScanManyBestEffort scans multiple modules and preserves per-module failures.
 func (s *ModuleScanner) ScanManyBestEffort(modulePaths []string, regions map[string]string) []ScannedModulePlan {
-	plans := make([]ScannedModulePlan, 0, len(modulePaths))
+	plans := make([]ScannedModulePlan, len(modulePaths))
+
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, scanConcurrency)
+
 	for i, modulePath := range modulePaths {
 		region := regions[modulePath]
 		if region == "" {
 			region = DefaultRegion
 		}
 
-		modulePlan, err := s.Scan(modulePath, region)
-		plans = append(plans, ScannedModulePlan{
-			Index:      i,
-			ModulePath: modulePath,
-			Region:     region,
-			Plan:       modulePlan,
-			Err:        err,
+		wg.Go(func() {
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			modulePlan, err := s.Scan(modulePath, region)
+			plans[i] = ScannedModulePlan{
+				Index:      i,
+				ModulePath: modulePath,
+				Region:     region,
+				Plan:       modulePlan,
+				Err:        err,
+			}
 		})
 	}
+
+	wg.Wait()
 	return plans
 }

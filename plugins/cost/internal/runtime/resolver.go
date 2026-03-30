@@ -78,6 +78,17 @@ type CostResolver struct {
 	middleware []CostMiddleware
 }
 
+// ResolutionState stores per-resource pricing lookups that can be reused across
+// current/before-state resolution without changing handler contracts.
+type ResolutionState struct {
+	indexes map[string]*pricing.PriceIndex
+}
+
+// NewResolutionState creates an empty per-resource resolution cache.
+func NewResolutionState() *ResolutionState {
+	return &ResolutionState{indexes: make(map[string]*pricing.PriceIndex)}
+}
+
 // NewCostResolver creates a new resolver with the given provider-aware runtime.
 func NewCostResolver(runtime ResolutionRuntime) *CostResolver {
 	return &CostResolver{
@@ -92,14 +103,21 @@ func (r *CostResolver) Use(mw CostMiddleware) {
 
 // Resolve calculates cost for a single resource.
 func (r *CostResolver) Resolve(ctx context.Context, req ResolveRequest) model.ResourceCost {
-	if len(r.middleware) > 0 {
-		return r.resolveWithMiddleware(ctx, req)
-	}
-	return r.coreResolve(ctx, req)
+	return r.ResolveWithState(ctx, req, nil)
 }
 
-func (r *CostResolver) resolveWithMiddleware(ctx context.Context, req ResolveRequest) model.ResourceCost {
-	fn := r.coreResolve
+// ResolveWithState calculates cost for a single resource using an optional per-resource cache.
+func (r *CostResolver) ResolveWithState(ctx context.Context, req ResolveRequest, state *ResolutionState) model.ResourceCost {
+	if len(r.middleware) > 0 {
+		return r.resolveWithMiddleware(ctx, req, state)
+	}
+	return r.coreResolve(ctx, req, state)
+}
+
+func (r *CostResolver) resolveWithMiddleware(ctx context.Context, req ResolveRequest, state *ResolutionState) model.ResourceCost {
+	fn := func(ctx context.Context, req ResolveRequest) model.ResourceCost {
+		return r.coreResolve(ctx, req, state)
+	}
 	for i := len(r.middleware) - 1; i >= 0; i-- {
 		mw := r.middleware[i]
 		next := fn
@@ -110,7 +128,7 @@ func (r *CostResolver) resolveWithMiddleware(ctx context.Context, req ResolveReq
 	return fn(ctx, req)
 }
 
-func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest) model.ResourceCost {
+func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest, state *ResolutionState) model.ResourceCost {
 	result := model.ResourceCost{
 		Provider:   "",
 		Address:    req.Address,
@@ -156,7 +174,7 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest) mode
 		result.PriceSource = "fixed"
 		return result
 	case handler.CostCategoryStandard:
-		return r.resolveStandardCost(ctx, providerID, h, attrs, req.Region, result)
+		return r.resolveStandardCost(ctx, providerID, h, attrs, req.Region, result, state)
 	default:
 		return result
 	}
@@ -164,6 +182,11 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest) mode
 
 // ResolveBeforeCost calculates the before-state cost for update/replace resources.
 func (r *CostResolver) ResolveBeforeCost(ctx context.Context, rc *model.ResourceCost, resourceType handler.ResourceType, beforeAttrs map[string]any, region string) {
+	r.ResolveBeforeCostWithState(ctx, rc, resourceType, beforeAttrs, region, nil)
+}
+
+// ResolveBeforeCostWithState calculates the before-state cost using an optional per-resource cache.
+func (r *CostResolver) ResolveBeforeCostWithState(ctx context.Context, rc *model.ResourceCost, resourceType handler.ResourceType, beforeAttrs map[string]any, region string, state *ResolutionState) {
 	providerID, ok := r.runtime.ResolveProvider(resourceType)
 	if !ok {
 		return
@@ -175,7 +198,7 @@ func (r *CostResolver) ResolveBeforeCost(ctx context.Context, rc *model.Resource
 
 	switch h.Category() {
 	case handler.CostCategoryStandard:
-		before := r.resolveStandardCost(ctx, providerID, h, beforeAttrs, region, model.ResourceCost{Provider: providerID})
+		before := r.resolveStandardCost(ctx, providerID, h, beforeAttrs, region, model.ResourceCost{Provider: providerID}, state)
 		rc.BeforeHourlyCost = before.HourlyCost
 		rc.BeforeMonthlyCost = before.MonthlyCost
 	case handler.CostCategoryFixed:
@@ -188,7 +211,12 @@ func (r *CostResolver) ResolveBeforeCost(ctx context.Context, rc *model.Resource
 
 // ResolveWithSubResources resolves a resource and any compound sub-resources.
 func (r *CostResolver) ResolveWithSubResources(ctx context.Context, req ResolveRequest) []model.ResourceCost {
-	primary := r.Resolve(ctx, req)
+	return r.ResolveWithSubResourcesState(ctx, req, nil)
+}
+
+// ResolveWithSubResourcesState resolves a resource and any sub-resources using an optional per-resource cache.
+func (r *CostResolver) ResolveWithSubResourcesState(ctx context.Context, req ResolveRequest, state *ResolutionState) []model.ResourceCost {
+	primary := r.ResolveWithState(ctx, req, state)
 	results := []model.ResourceCost{primary}
 
 	providerID, ok := r.runtime.ResolveProvider(req.ResourceType)
@@ -215,13 +243,13 @@ func (r *CostResolver) ResolveWithSubResources(ctx context.Context, req ResolveR
 			Region:       req.Region,
 			Attrs:        sub.Attrs,
 		}
-		results = append(results, r.Resolve(ctx, subReq))
+		results = append(results, r.ResolveWithState(ctx, subReq, state))
 	}
 
 	return results
 }
 
-func (r *CostResolver) resolveStandardCost(ctx context.Context, providerID string, h handler.ResourceHandler, attrs map[string]any, region string, result model.ResourceCost) model.ResourceCost {
+func (r *CostResolver) resolveStandardCost(ctx context.Context, providerID string, h handler.ResourceHandler, attrs map[string]any, region string, result model.ResourceCost, state *ResolutionState) model.ResourceCost {
 	lookupBuilder, ok := h.(handler.LookupBuilder)
 	if !ok {
 		result.ErrorKind = model.CostErrorLookupFailed
@@ -239,7 +267,7 @@ func (r *CostResolver) resolveStandardCost(ctx context.Context, providerID strin
 		return result
 	}
 
-	index, err := r.runtime.GetIndex(ctx, lookup.ServiceID, region)
+	index, err := r.getIndex(ctx, lookup.ServiceID, region, state)
 	if err != nil {
 		log.WithError(err).WithField("service", lookup.ServiceID.String()).WithField("region", region).Debug("failed to get pricing index")
 		result.ErrorKind = model.CostErrorAPIFailure
@@ -267,6 +295,27 @@ func (r *CostResolver) resolveStandardCost(ctx context.Context, providerID strin
 	result.Details = describeResource(h, price, attrs)
 
 	return result
+}
+
+func (r *CostResolver) getIndex(ctx context.Context, service pricing.ServiceID, region string, state *ResolutionState) (*pricing.PriceIndex, error) {
+	if state != nil {
+		if idx, ok := state.indexes[indexCacheKey(service, region)]; ok {
+			return idx, nil
+		}
+	}
+
+	idx, err := r.runtime.GetIndex(ctx, service, region)
+	if err != nil {
+		return nil, err
+	}
+	if state != nil && idx != nil {
+		state.indexes[indexCacheKey(service, region)] = idx
+	}
+	return idx, nil
+}
+
+func indexCacheKey(service pricing.ServiceID, region string) string {
+	return service.String() + "|" + region
 }
 
 func describeResource(h handler.ResourceHandler, price *pricing.Price, attrs map[string]any) map[string]string {

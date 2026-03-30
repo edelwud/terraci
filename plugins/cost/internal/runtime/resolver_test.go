@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
@@ -143,4 +144,94 @@ func TestCostResolver_MiddlewareChain(t *testing.T) {
 	if got.Name != "wrapped" {
 		t.Fatalf("Name = %q, want %q", got.Name, "wrapped")
 	}
+}
+
+func TestCostResolver_ResolveBeforeCostWithState_ReusesPricingIndex(t *testing.T) {
+	t.Parallel()
+
+	serviceID := pricing.ServiceID{Provider: "aws", Name: "AmazonEC2"}
+	var getIndexCalls int
+	testRuntime := runtimetest.StubRuntime{
+		ResolveProviderFunc: func(resourceType handler.ResourceType) (string, bool) {
+			if resourceType == handler.ResourceType("aws_instance") {
+				return "aws", true
+			}
+			return "", false
+		},
+		ResolveHandlerFunc: func(_ string, resourceType handler.ResourceType) (handler.ResourceHandler, bool) {
+			if resourceType != handler.ResourceType("aws_instance") {
+				return nil, false
+			}
+			return lookupHandler{
+				StubHandler: runtimetest.StubHandler{
+					CategoryValue: handler.CostCategoryStandard,
+					CalculateFunc: func(_ *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
+						if attrs["instance_type"] == "before" {
+							return 1, 10
+						}
+						return 2, 20
+					},
+				},
+				serviceID: serviceID,
+			}, true
+		},
+		GetIndexFunc: func(_ context.Context, service pricing.ServiceID, region string) (*pricing.PriceIndex, error) {
+			getIndexCalls++
+			return &pricing.PriceIndex{
+				ServiceID: service,
+				Region:    region,
+				UpdatedAt: time.Now(),
+				Products: map[string]pricing.Price{
+					"sku": {
+						SKU:           "sku",
+						ProductFamily: "Compute Instance",
+						Attributes:    map[string]string{"instanceType": "t3.micro"},
+						OnDemandUSD:   0.01,
+					},
+				},
+			}, nil
+		},
+		SourceNameFunc: func(string) string { return "test-source" },
+	}
+
+	resolver := NewCostResolver(testRuntime)
+	state := NewResolutionState()
+	after := resolver.ResolveWithState(context.Background(), ResolveRequest{
+		ResourceType: handler.ResourceType("aws_instance"),
+		Address:      "aws_instance.web",
+		Region:       "us-east-1",
+		Attrs:        map[string]any{"instance_type": "after"},
+	}, state)
+
+	resolver.ResolveBeforeCostWithState(
+		context.Background(),
+		&after,
+		handler.ResourceType("aws_instance"),
+		map[string]any{"instance_type": "before"},
+		"us-east-1",
+		state,
+	)
+
+	if getIndexCalls != 1 {
+		t.Fatalf("GetIndex() calls = %d, want 1 with shared resolution state", getIndexCalls)
+	}
+	if after.MonthlyCost != 20 || after.BeforeMonthlyCost != 10 {
+		t.Fatalf("after costs = before %.2f / after %.2f, want 10 / 20", after.BeforeMonthlyCost, after.MonthlyCost)
+	}
+}
+
+type lookupHandler struct {
+	runtimetest.StubHandler
+	serviceID pricing.ServiceID
+}
+
+func (h lookupHandler) BuildLookup(region string, _ map[string]any) (*pricing.PriceLookup, error) {
+	return &pricing.PriceLookup{
+		ServiceID:     h.serviceID,
+		Region:        region,
+		ProductFamily: "Compute Instance",
+		Attributes: map[string]string{
+			"instanceType": "t3.micro",
+		},
+	}, nil
 }

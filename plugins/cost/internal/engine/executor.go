@@ -28,12 +28,13 @@ func (e *ModuleExecutor) Execute(ctx context.Context, modulePlan *ModulePlan) *m
 	})
 
 	for _, resource := range modulePlan.Resources {
+		state := costruntime.NewResolutionState()
 		req := resource.ResolveRequest(modulePlan.Region)
-		costs := e.resolver.ResolveWithSubResources(ctx, req)
+		costs := e.resolver.ResolveWithSubResourcesState(ctx, req, state)
 
 		for i := range costs {
 			if i == 0 && resource.RequiresBeforeCost() {
-				e.resolver.ResolveBeforeCost(ctx, &costs[i], resource.ResourceType, resource.BeforeAttrs, modulePlan.Region)
+				e.resolver.ResolveBeforeCostWithState(ctx, &costs[i], resource.ResourceType, resource.BeforeAttrs, modulePlan.Region, state)
 			}
 			assembler.AddResource(costs[i], resource.Action)
 		}

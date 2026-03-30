@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -553,21 +555,33 @@ func TestGetIndex_StaleFallback(t *testing.T) {
 
 func TestGetIndex_ConcurrentAccess(t *testing.T) {
 	tmpDir := t.TempDir()
-	c := NewCache(tmpDir, time.Hour, newTestFetcher())
+	var fetchCount atomic.Int32
+	fetcher := &fakeFetcher{
+		index: newTestFetcher().index,
+	}
+	c := NewCache(tmpDir, time.Hour, PriceFetcherFunc(func(ctx context.Context, service ServiceID, region string) (*PriceIndex, error) {
+		fetchCount.Add(1)
+		time.Sleep(10 * time.Millisecond)
+		return fetcher.FetchRegionIndex(ctx, service, region)
+	}))
 
 	// Run 10 goroutines fetching the same service/region concurrently
 	const goroutines = 10
 	errs := make(chan error, goroutines)
+	var wg sync.WaitGroup
 
 	for range goroutines {
-		go func() {
+		wg.Go(func() {
 			_, err := c.GetIndex(context.Background(), awsServiceEC2, "us-east-1")
 			errs <- err
-		}()
+		})
 	}
 
-	for range goroutines {
-		if err := <-errs; err != nil {
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		if err != nil {
 			t.Errorf("concurrent GetIndex error: %v", err)
 		}
 	}
@@ -577,6 +591,53 @@ func TestGetIndex_ConcurrentAccess(t *testing.T) {
 	if len(entries) != 1 {
 		t.Errorf("entries = %d, want 1 after concurrent access", len(entries))
 	}
+	if got := fetchCount.Load(); got != 1 {
+		t.Errorf("fetchCount = %d, want 1 for deduplicated concurrent access", got)
+	}
+}
+
+func TestGetIndex_ConcurrentDifferentKeysFetchIndependently(t *testing.T) {
+	tmpDir := t.TempDir()
+	var fetchCount atomic.Int32
+	c := NewCache(tmpDir, time.Hour, PriceFetcherFunc(func(_ context.Context, service ServiceID, region string) (*PriceIndex, error) {
+		fetchCount.Add(1)
+		return &PriceIndex{
+			ServiceID: service,
+			Region:    region,
+			Version:   "test",
+			UpdatedAt: time.Now(),
+			Products:  map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
+		}, nil
+	}))
+
+	var wg sync.WaitGroup
+	requests := []struct {
+		service ServiceID
+		region  string
+	}{
+		{service: awsServiceEC2, region: "us-east-1"},
+		{service: awsServiceEC2, region: "us-west-2"},
+		{service: awsServiceRDS, region: "us-east-1"},
+	}
+
+	for _, req := range requests {
+		wg.Go(func() {
+			if _, err := c.GetIndex(context.Background(), req.service, req.region); err != nil {
+				t.Errorf("GetIndex(%s,%s) error: %v", req.service, req.region, err)
+			}
+		})
+	}
+	wg.Wait()
+
+	if got := fetchCount.Load(); got != int32(len(requests)) {
+		t.Fatalf("fetchCount = %d, want %d for distinct keys", got, len(requests))
+	}
+}
+
+type PriceFetcherFunc func(ctx context.Context, service ServiceID, region string) (*PriceIndex, error)
+
+func (f PriceFetcherFunc) FetchRegionIndex(ctx context.Context, service ServiceID, region string) (*PriceIndex, error) {
+	return f(ctx, service, region)
 }
 
 func TestGetIndex_FetchError_NoStaleCache(t *testing.T) {

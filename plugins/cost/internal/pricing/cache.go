@@ -32,10 +32,18 @@ type PriceFetcher interface {
 // Cache manages local pricing data cache.
 // Safe for concurrent use.
 type Cache struct {
-	dir     string
-	ttl     time.Duration
-	fetcher PriceFetcher
-	mu      sync.Mutex // protects file writes
+	dir        string
+	ttl        time.Duration
+	fetcher    PriceFetcher
+	mu         sync.Mutex // protects file writes
+	inflightMu sync.Mutex
+	inflight   map[string]*inflightFetch
+}
+
+type inflightFetch struct {
+	done chan struct{}
+	idx  *PriceIndex
+	err  error
 }
 
 // NewCache creates a new pricing cache with the given fetcher.
@@ -52,9 +60,10 @@ func NewCache(cacheDir string, ttl time.Duration, fetcher PriceFetcher) *Cache {
 		ttl = DefaultCacheTTL
 	}
 	return &Cache{
-		dir:     cacheDir,
-		ttl:     ttl,
-		fetcher: fetcher,
+		dir:      cacheDir,
+		ttl:      ttl,
+		fetcher:  fetcher,
+		inflight: make(map[string]*inflightFetch),
 	}
 }
 
@@ -156,30 +165,7 @@ func (c *Cache) GetIndex(ctx context.Context, service ServiceID, region string) 
 			Debug("cache expired")
 	}
 
-	// Fetch fresh data
-	log.WithField("service", service.String()).
-		WithField("region", region).
-		Info("downloading pricing data")
-
-	idx, err = c.fetcher.FetchRegionIndex(ctx, service, region)
-	if err != nil {
-		// If fetch fails and we have stale cache, use it as fallback
-		if stale, loadErr := c.loadFromCache(service, region); loadErr == nil && stale != nil {
-			log.WithError(err).
-				WithField("service", service.String()).
-				WithField("region", region).
-				Warn("fetch failed, using stale cache")
-			return stale, nil
-		}
-		return nil, err
-	}
-
-	// Save to cache
-	if saveErr := c.saveToCache(idx); saveErr != nil {
-		log.WithError(saveErr).Warn("failed to save pricing cache")
-	}
-
-	return idx, nil
+	return c.fetchAndCacheIndex(ctx, service, region)
 }
 
 // Invalidate removes cached data for a service/region
@@ -222,6 +208,61 @@ func (c *Cache) Validate(services map[ServiceID][]string) []struct {
 	return missing
 }
 
+func (c *Cache) fetchAndCacheIndex(ctx context.Context, service ServiceID, region string) (*PriceIndex, error) {
+	key := c.cacheKey(service, region)
+
+	c.inflightMu.Lock()
+	if call, ok := c.inflight[key]; ok {
+		c.inflightMu.Unlock()
+		<-call.done
+		return call.idx, call.err
+	}
+
+	call := &inflightFetch{done: make(chan struct{})}
+	c.inflight[key] = call
+	c.inflightMu.Unlock()
+
+	call.idx, call.err = c.fetchAndCacheIndexLeader(ctx, service, region)
+
+	c.inflightMu.Lock()
+	delete(c.inflight, key)
+	close(call.done)
+	c.inflightMu.Unlock()
+
+	return call.idx, call.err
+}
+
+func (c *Cache) fetchAndCacheIndexLeader(ctx context.Context, service ServiceID, region string) (*PriceIndex, error) {
+	// One last cache check after winning the in-flight slot, so a previous leader
+	// can satisfy late joiners without another remote fetch.
+	if idx, err := c.loadFromCache(service, region); err == nil && c.isValid(idx) {
+		return idx, nil
+	}
+
+	log.WithField("service", service.String()).
+		WithField("region", region).
+		Info("downloading pricing data")
+
+	idx, err := c.fetcher.FetchRegionIndex(ctx, service, region)
+	if err != nil {
+		// If fetch fails and we have stale cache, use it as fallback
+		if stale, loadErr := c.loadFromCache(service, region); loadErr == nil && stale != nil {
+			log.WithError(err).
+				WithField("service", service.String()).
+				WithField("region", region).
+				Warn("fetch failed, using stale cache")
+			return stale, nil
+		}
+		return nil, err
+	}
+
+	if saveErr := c.saveToCache(idx); saveErr != nil {
+		log.WithError(saveErr).Warn("failed to save pricing cache")
+	}
+
+	return idx, nil
+}
+
 // PrewarmCache downloads and caches pricing data for specified services/regions
 func (c *Cache) PrewarmCache(ctx context.Context, services map[ServiceID][]string) error {
 	for service, regions := range services {
@@ -237,6 +278,10 @@ func (c *Cache) PrewarmCache(ctx context.Context, services map[ServiceID][]strin
 // cachePath returns the cache file path for a service/region
 func (c *Cache) cachePath(service ServiceID, region string) string {
 	return filepath.Join(c.dir, service.Provider, service.Name, region+".json")
+}
+
+func (c *Cache) cacheKey(service ServiceID, region string) string {
+	return service.String() + "|" + region
 }
 
 // isValid checks if cached data is still valid

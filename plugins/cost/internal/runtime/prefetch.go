@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/caarlos0/log"
 
@@ -38,19 +37,12 @@ func (p *PricingPrefetcher) PrefetchPricing(ctx context.Context, prefetchPlan Se
 		if len(providerServices) == 0 {
 			continue
 		}
-		missing := runtime.Cache.Validate(providerServices)
-		if len(missing) == 0 {
-			continue
-		}
-		for i, m := range missing {
-			totalMissing++
-			log.WithField("provider", providerID).
-				WithField("service", m.Service.String()).
-				WithField("region", m.Region).
-				WithField("progress", fmt.Sprintf("%d/%d", i+1, len(missing))).
-				Info("downloading pricing data")
-			if _, err := runtime.Cache.GetIndex(ctx, m.Service, m.Region); err != nil {
-				return fmt.Errorf("fetch %s/%s pricing: %w", m.Service.String(), m.Region, err)
+		for serviceID, regions := range providerServices {
+			for _, region := range regions {
+				if _, err := runtime.Cache.GetIndex(ctx, serviceID, region); err != nil {
+					return err
+				}
+				totalMissing++
 			}
 		}
 	}
