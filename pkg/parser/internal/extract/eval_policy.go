@@ -13,35 +13,15 @@ func (c *Context) buildEvalContext() *hcl.EvalContext {
 }
 
 func evalStringAttr(attrs map[string]*hcl.Attribute, name string, ctx *hcl.EvalContext) (string, bool) {
-	attr, ok := attrs[name]
-	if !ok {
-		return "", false
-	}
-
-	return exprfast.EvalString(attr.Expr, ctx)
+	return exprfast.New(ctx).Attr(attrs, name)
 }
 
 func evalObjectStringAttrs(objExpr *hclsyntax.ObjectConsExpr, ctx *hcl.EvalContext) map[string]string {
-	values := make(map[string]string)
-	for _, item := range objExpr.Items {
-		key, ok := exprfast.EvalString(item.KeyExpr, nil)
-		if !ok {
-			continue
-		}
-
-		value, ok := exprfast.EvalString(item.ValueExpr, ctx)
-		if !ok {
-			continue
-		}
-
-		values[key] = value
-	}
-
-	return values
+	return exprfast.New(ctx).ObjectStringAttrs(objExpr)
 }
 
 func evalLiteralString(expr hcl.Expression) (string, bool) {
-	return exprfast.EvalString(expr, nil)
+	return exprfast.New(nil).String(expr)
 }
 
 func evalAttrValue(attr *hcl.Attribute) (cty.Value, hcl.Diagnostics) {

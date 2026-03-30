@@ -8,15 +8,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-func ContentStringAttr(content *hcl.BodyContent, name string, ctx *hcl.EvalContext) (string, bool) {
-	attr, ok := content.Attributes[name]
-	if !ok {
-		return "", false
-	}
-	return EvalString(attr.Expr, ctx)
-}
-
-func EvalString(expr hcl.Expression, ctx *hcl.EvalContext) (string, bool) {
+func evalString(expr hcl.Expression, ctx *hcl.EvalContext) (string, bool) {
 	if val, ok := literalString(expr); ok {
 		return val, true
 	}
@@ -52,8 +44,9 @@ func templateString(expr hcl.Expression, ctx *hcl.EvalContext) (string, bool) {
 	}
 
 	var builder strings.Builder
+	evaluator := New(ctx)
 	for _, part := range template.Parts {
-		val, ok := EvalString(part, ctx)
+		val, ok := evaluator.String(part)
 		if !ok {
 			return "", false
 		}
