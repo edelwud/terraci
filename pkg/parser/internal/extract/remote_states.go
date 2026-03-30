@@ -1,8 +1,6 @@
 package extract
 
 import (
-	"maps"
-
 	"github.com/hashicorp/hcl/v2"
 
 	"github.com/edelwud/terraci/pkg/parser/internal/source"
@@ -35,10 +33,8 @@ func parseRemoteStateBlock(ctx *Context, view source.RemoteStateBlockView, ref *
 	}
 
 	if _, ok := content.Attributes["config"]; ok {
-		maps.Copy(ref.Config, view.InlineConfigExpressions(content))
+		view.AppendInlineConfigExpressions(content, ref.Config)
 	}
 
-	configAttrs, configDiags := view.ConfigBlockAttributes(content)
-	ctx.Sink.AddDiags(configDiags)
-	maps.Copy(ref.Config, configAttrs)
+	ctx.Sink.AddDiags(view.AppendConfigBlockAttributes(content, ref.Config))
 }

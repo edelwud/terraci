@@ -1028,7 +1028,7 @@ func TestModuleScanResult_Outcome(t *testing.T) {
 		hasCurrent: true,
 	})
 
-	outcome := result.outcome("/tmp/main.tf")
+	outcome := result.outcome(func() string { return "/tmp/main.tf" })
 	if outcome.CurrentVersion != "5.0.0" {
 		t.Errorf("CurrentVersion = %q, want %q", outcome.CurrentVersion, "5.0.0")
 	}
@@ -1049,7 +1049,7 @@ func TestModuleScanResult_Outcome(t *testing.T) {
 func TestProviderScanResult_Outcome(t *testing.T) {
 	t.Run("cannot determine current version", func(t *testing.T) {
 		update := ProviderVersionUpdate{}
-		outcome := newProviderScanResult(update, versionAnalysis{}).outcome("/tmp/versions.tf")
+		outcome := newProviderScanResult(update, versionAnalysis{}).outcome(func() string { return "/tmp/versions.tf" })
 		if outcome.Status != StatusSkipped {
 			t.Errorf("Status = %q, want %q", outcome.Status, StatusSkipped)
 		}
@@ -1065,7 +1065,7 @@ func TestProviderScanResult_Outcome(t *testing.T) {
 			latest:     Version{Major: 6, Minor: 0, Patch: 0},
 			bumped:     Version{Major: 5, Minor: 68, Patch: 0},
 			hasCurrent: true,
-		}).outcome("/tmp/versions.tf")
+		}).outcome(func() string { return "/tmp/versions.tf" })
 
 		if outcome.CurrentVersion != "5.67.0" {
 			t.Errorf("CurrentVersion = %q, want %q", outcome.CurrentVersion, "5.67.0")

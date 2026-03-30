@@ -42,5 +42,5 @@ func (v TerraformBlockView) RequiredProviderBlocks() ([]*hcl.Block, hcl.Diagnost
 	if content == nil {
 		return nil, diags
 	}
-	return append([]*hcl.Block(nil), content.Blocks...), diags
+	return content.Blocks, diags
 }

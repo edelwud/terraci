@@ -72,6 +72,14 @@ func (pm *ParsedModule) AddDiags(diags hcl.Diagnostics) {
 	pm.Diagnostics = append(pm.Diagnostics, diags...)
 }
 
+func (pm *ParsedModule) AdoptDiags(diags hcl.Diagnostics) {
+	if pm == nil {
+		return
+	}
+
+	pm.Diagnostics = diags
+}
+
 func (pm *ParsedModule) TopLevelBlocks() map[string][]*hcl.Block {
 	if pm == nil {
 		return nil
@@ -86,6 +94,14 @@ func (pm *ParsedModule) SetTopLevelBlocks(blocks map[string][]*hcl.Block) {
 	}
 
 	pm.topLevelBlocks = cloneTopLevelBlocks(blocks)
+}
+
+func (pm *ParsedModule) AdoptTopLevelBlocks(blocks map[string][]*hcl.Block) {
+	if pm == nil {
+		return
+	}
+
+	pm.topLevelBlocks = blocks
 }
 
 func cloneTopLevelBlocks(blocks map[string][]*hcl.Block) map[string][]*hcl.Block {

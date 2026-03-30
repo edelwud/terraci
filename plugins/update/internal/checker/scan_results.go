@@ -14,7 +14,7 @@ func newModuleScanResult(update updateengine.ModuleVersionUpdate, analysis versi
 	}
 }
 
-func (r moduleScanResult) outcome(file string) updateengine.ModuleVersionUpdate {
+func (r moduleScanResult) outcome(resolveFile func() string) updateengine.ModuleVersionUpdate {
 	update := r.update
 	if r.analysis.hasCurrent {
 		update.CurrentVersion = r.analysis.current.String()
@@ -23,7 +23,7 @@ func (r moduleScanResult) outcome(file string) updateengine.ModuleVersionUpdate 
 		update.LatestVersion = r.analysis.latest.String()
 	}
 	if !r.analysis.bumped.IsZero() {
-		return markModuleUpdateAvailable(update, file, r.analysis.bumped.String())
+		return markModuleUpdateAvailable(update, resolveFile(), r.analysis.bumped.String())
 	}
 	return update
 }
@@ -40,7 +40,7 @@ func newProviderScanResult(update updateengine.ProviderVersionUpdate, analysis v
 	}
 }
 
-func (r providerScanResult) outcome(file string) updateengine.ProviderVersionUpdate {
+func (r providerScanResult) outcome(resolveFile func() string) updateengine.ProviderVersionUpdate {
 	update := r.update
 	if r.analysis.hasCurrent {
 		update.CurrentVersion = r.analysis.current.String()
@@ -52,7 +52,7 @@ func (r providerScanResult) outcome(file string) updateengine.ProviderVersionUpd
 		return skipProviderUpdate(update, "cannot determine current version")
 	}
 	if !r.analysis.bumped.IsZero() {
-		return markProviderUpdateAvailable(update, file, r.analysis.bumped.String())
+		return markProviderUpdateAvailable(update, resolveFile(), r.analysis.bumped.String())
 	}
 	return update
 }

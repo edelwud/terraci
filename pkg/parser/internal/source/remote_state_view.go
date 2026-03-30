@@ -27,16 +27,18 @@ func (v RemoteStateBlockView) Content() (*hcl.BodyContent, hcl.Diagnostics) {
 	return content, diags
 }
 
-func (v RemoteStateBlockView) InlineConfigExpressions(content *hcl.BodyContent) map[string]hcl.Expression {
-	config := make(map[string]hcl.Expression)
+func (v RemoteStateBlockView) AppendInlineConfigExpressions(
+	content *hcl.BodyContent,
+	dst map[string]hcl.Expression,
+) {
 	attr, ok := content.Attributes["config"]
 	if !ok {
-		return config
+		return
 	}
 
 	objExpr, isObj := attr.Expr.(*hclsyntax.ObjectConsExpr)
 	if !isObj {
-		return config
+		return
 	}
 
 	evaluator := exprfast.New(nil)
@@ -45,13 +47,14 @@ func (v RemoteStateBlockView) InlineConfigExpressions(content *hcl.BodyContent) 
 		if !ok {
 			continue
 		}
-		config[key] = item.ValueExpr
+		dst[key] = item.ValueExpr
 	}
-	return config
 }
 
-func (v RemoteStateBlockView) ConfigBlockAttributes(content *hcl.BodyContent) (map[string]hcl.Expression, hcl.Diagnostics) {
-	config := make(map[string]hcl.Expression)
+func (v RemoteStateBlockView) AppendConfigBlockAttributes(
+	content *hcl.BodyContent,
+	dst map[string]hcl.Expression,
+) hcl.Diagnostics {
 	var diags hcl.Diagnostics
 
 	for _, block := range content.Blocks {
@@ -61,9 +64,9 @@ func (v RemoteStateBlockView) ConfigBlockAttributes(content *hcl.BodyContent) (m
 		attrs, blockDiags := block.Body.JustAttributes()
 		diags = append(diags, blockDiags...)
 		for name, attr := range attrs {
-			config[name] = attr.Expr
+			dst[name] = attr.Expr
 		}
 	}
 
-	return config, diags
+	return diags
 }

@@ -14,9 +14,9 @@ import (
 
 type loadedSource interface {
 	extract.Source
-	Files() map[string]*hcl.File
-	Diagnostics() hcl.Diagnostics
-	TopLevelBlockIndex() map[string][]*hcl.Block
+	SharedFiles() map[string]*hcl.File
+	SharedDiagnostics() hcl.Diagnostics
+	SharedTopLevelBlockIndex() map[string][]*hcl.Block
 }
 
 type sourceLoader interface {
@@ -132,7 +132,7 @@ func (r *runner) extract() {
 }
 
 func (r *runner) finalize() {
-	r.parsed.Files = r.source.Files()
-	r.parsed.AddDiags(r.source.Diagnostics())
-	r.parsed.SetTopLevelBlocks(r.source.TopLevelBlockIndex())
+	r.parsed.Files = r.source.SharedFiles()
+	r.parsed.AdoptDiags(r.source.SharedDiagnostics())
+	r.parsed.AdoptTopLevelBlocks(r.source.SharedTopLevelBlockIndex())
 }

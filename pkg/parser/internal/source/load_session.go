@@ -3,7 +3,9 @@ package source
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/hashicorp/hcl/v2/hclparse"
 )
@@ -38,9 +40,17 @@ func (s *loadSession) Run(ctx context.Context) (*Snapshot, error) {
 }
 
 func (s *loadSession) discoverTFFiles() ([]string, error) {
-	tfFiles, err := filepath.Glob(filepath.Join(s.modulePath, "*.tf"))
+	entries, err := os.ReadDir(s.modulePath)
 	if err != nil {
-		return nil, fmt.Errorf("glob .tf files: %w", err)
+		return nil, fmt.Errorf("read module dir: %w", err)
+	}
+
+	tfFiles := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".tf") {
+			continue
+		}
+		tfFiles = append(tfFiles, filepath.Join(s.modulePath, entry.Name()))
 	}
 
 	return tfFiles, nil

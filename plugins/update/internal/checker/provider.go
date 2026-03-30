@@ -58,7 +58,9 @@ func (s *checkSession) scanProvider(
 			s.checker.config.Bump,
 		),
 	)
-	return result.outcome(scanCtx.fileIndex.FindProviderBlockFile(requiredProvider.Name))
+	return result.outcome(func() string {
+		return scanCtx.findProviderFile(requiredProvider.Name)
+	})
 }
 
 // buildLockIndex creates a map from short provider source ("hashicorp/aws")

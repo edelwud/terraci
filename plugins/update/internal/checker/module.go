@@ -50,5 +50,7 @@ func (s *checkSession) scanModuleCall(
 		update,
 		analyzeModuleVersions(call.Version, parseVersionList(versionStrings), s.checker.config.Bump),
 	)
-	return result.outcome(scanCtx.fileIndex.FindModuleBlockFile(call.Name))
+	return result.outcome(func() string {
+		return scanCtx.findModuleFile(call.Name)
+	})
 }

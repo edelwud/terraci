@@ -12,6 +12,10 @@ type Snapshot struct {
 	hclParser      *hclparse.Parser
 	files          map[string]*hcl.File
 	topLevelBlocks map[string][]*hcl.Block
+	variableViews  []VariableBlockView
+	terraformViews []TerraformBlockView
+	moduleViews    []ModuleBlockView
+	remoteViews    []RemoteStateBlockView
 	diagnostics    hcl.Diagnostics
 }
 
@@ -60,6 +64,10 @@ func (b *indexBuilder) Snapshot() *Snapshot {
 	return b.snapshot
 }
 
+func (s *Snapshot) SharedFiles() map[string]*hcl.File {
+	return s.files
+}
+
 func (s *Snapshot) Files() map[string]*hcl.File {
 	cloned := make(map[string]*hcl.File, len(s.files))
 	maps.Copy(cloned, s.files)
@@ -76,6 +84,14 @@ func (s *Snapshot) ParseHCLFile(path string) (*hcl.File, hcl.Diagnostics, error)
 
 func (s *Snapshot) Diagnostics() hcl.Diagnostics {
 	return append(hcl.Diagnostics(nil), s.diagnostics...)
+}
+
+func (s *Snapshot) SharedDiagnostics() hcl.Diagnostics {
+	return s.diagnostics
+}
+
+func (s *Snapshot) SharedTopLevelBlockIndex() map[string][]*hcl.Block {
+	return s.topLevelBlocks
 }
 
 func (s *Snapshot) TopLevelBlockIndex() map[string][]*hcl.Block {

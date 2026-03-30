@@ -21,6 +21,21 @@ func (s *checkSession) newModuleScanContext(
 		module:    mod,
 		parsed:    parsed,
 		lockIndex: buildLockIndex(parsed.LockedProviders),
-		fileIndex: tffile.BuildIndexFromParsedFiles(parsed.Files),
 	}
+}
+
+func (c *moduleScanContext) findModuleFile(callName string) string {
+	return c.ensureFileIndex().FindModuleBlockFile(callName)
+}
+
+func (c *moduleScanContext) findProviderFile(providerName string) string {
+	return c.ensureFileIndex().FindProviderBlockFile(providerName)
+}
+
+func (c *moduleScanContext) ensureFileIndex() *tffile.Index {
+	if c.fileIndex == nil {
+		c.fileIndex = tffile.BuildIndexFromParsedFiles(c.parsed.Files)
+	}
+
+	return c.fileIndex
 }
