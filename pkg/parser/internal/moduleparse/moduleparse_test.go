@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/edelwud/terraci/pkg/parser/internal/source"
 )
 
 func TestRun_BuildsParsedModule(t *testing.T) {
@@ -35,6 +37,37 @@ data "terraform_remote_state" "vpc" {
 	}
 	if len(parsed.Files) != 4 {
 		t.Fatalf("files = %d, want 4", len(parsed.Files))
+	}
+}
+
+type fakeSourceLoader struct {
+	loaded loadedSource
+}
+
+func (l fakeSourceLoader) Load(context.Context, string) (loadedSource, error) {
+	return l.loaded, nil
+}
+
+func TestRunner_UsesInjectedSourceLoader(t *testing.T) {
+	dir := t.TempDir()
+	writeModuleFile(t, dir, "locals.tf", `locals { service = "platform" }`)
+
+	loaded, err := source.NewLoader().Load(context.Background(), dir)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	runner := newRunnerWithLoader("ignored", []string{"service", "environment", "region", "module"}, fakeSourceLoader{loaded: loaded})
+	parsed, err := runner.Run(context.Background())
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	if got := parsed.Path; got != "ignored" {
+		t.Fatalf("parsed path = %q, want %q", got, "ignored")
+	}
+	if got := parsed.Locals["service"].AsString(); got != "platform" {
+		t.Fatalf("local service = %q, want %q", got, "platform")
 	}
 }
 

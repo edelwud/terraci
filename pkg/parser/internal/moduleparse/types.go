@@ -12,19 +12,42 @@ import (
 	"github.com/edelwud/terraci/pkg/parser/internal/source"
 )
 
+type loadedSource interface {
+	extract.Source
+	Files() map[string]*hcl.File
+	Diagnostics() hcl.Diagnostics
+	TopLevelBlockIndex() map[string][]*hcl.Block
+}
+
+type sourceLoader interface {
+	Load(context.Context, string) (loadedSource, error)
+}
+
+type defaultSourceLoader struct{}
+
+func (defaultSourceLoader) Load(ctx context.Context, modulePath string) (loadedSource, error) {
+	return source.NewLoader().Load(ctx, modulePath)
+}
+
 type runner struct {
 	modulePath string
-	source     *source.Snapshot
+	loader     sourceLoader
+	source     loadedSource
 	parsed     *model.ParsedModule
 	extractCtx *extract.Context
 }
 
 func newRunner(modulePath string, segments []string) *runner {
+	return newRunnerWithLoader(modulePath, segments, defaultSourceLoader{})
+}
+
+func newRunnerWithLoader(modulePath string, segments []string, loader sourceLoader) *runner {
 	parsed := model.NewParsedModule(modulePath)
 	sink := &parsedModuleSink{parsed: parsed}
 
 	return &runner{
 		modulePath: modulePath,
+		loader:     loader,
 		parsed:     parsed,
 		extractCtx: &extract.Context{
 			Source:      nil,
@@ -117,13 +140,13 @@ func (r *runner) Run(ctx context.Context) (*model.ParsedModule, error) {
 }
 
 func (r *runner) load(ctx context.Context) error {
-	loadedSource, err := source.NewLoader().Load(ctx, r.modulePath)
+	src, err := r.loader.Load(ctx, r.modulePath)
 	if err != nil {
 		return err
 	}
 
-	r.source = loadedSource
-	r.extractCtx.Source = loadedSource
+	r.source = src
+	r.extractCtx.Source = src
 	return nil
 }
 
