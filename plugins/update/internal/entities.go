@@ -74,10 +74,22 @@ func (u ModuleVersionUpdate) Constraint() string {
 
 // DisplayCurrent returns the best current-version representation for humans.
 func (u ModuleVersionUpdate) DisplayCurrent() string {
-	if u.CurrentVersion != "" {
-		return u.CurrentVersion
-	}
-	return u.Constraint()
+	return displayCurrent(u.Constraint(), u.CurrentVersion)
+}
+
+// DisplayAvailable returns the version selected for update application.
+func (u ModuleVersionUpdate) DisplayAvailable() string {
+	return u.BumpedVersion
+}
+
+// DisplayLatest returns the latest version only when it adds signal beyond the chosen bump.
+func (u ModuleVersionUpdate) DisplayLatest() string {
+	return displayLatest(u.LatestVersion, u.BumpedVersion)
+}
+
+// IsApplied returns true when the module update was written successfully.
+func (u ModuleVersionUpdate) IsApplied() bool {
+	return u.Status == StatusApplied
 }
 
 // StatusLabel returns a human-readable state for reporting surfaces.
@@ -167,10 +179,22 @@ func (u ProviderVersionUpdate) Constraint() string {
 
 // DisplayCurrent returns the best current-version representation for humans.
 func (u ProviderVersionUpdate) DisplayCurrent() string {
-	if u.CurrentVersion != "" {
-		return u.CurrentVersion
-	}
-	return u.Constraint()
+	return displayCurrent(u.Constraint(), u.CurrentVersion)
+}
+
+// DisplayAvailable returns the version selected for update application.
+func (u ProviderVersionUpdate) DisplayAvailable() string {
+	return u.BumpedVersion
+}
+
+// DisplayLatest returns the latest version only when it adds signal beyond the chosen bump.
+func (u ProviderVersionUpdate) DisplayLatest() string {
+	return displayLatest(u.LatestVersion, u.BumpedVersion)
+}
+
+// IsApplied returns true when the provider update was written successfully.
+func (u ProviderVersionUpdate) IsApplied() bool {
+	return u.Status == StatusApplied
 }
 
 // StatusLabel returns a human-readable state for reporting surfaces.
@@ -217,4 +241,21 @@ func (u ProviderVersionUpdate) MarkError(issue string) ProviderVersionUpdate {
 // IncludedInUpdateLogs returns true when this item should appear in grouped update output.
 func (u ProviderVersionUpdate) IncludedInUpdateLogs() bool {
 	return u.IsUpdatable()
+}
+
+func displayCurrent(constraint, resolved string) string {
+	if resolved == "" || constraint == resolved {
+		return constraint
+	}
+	if constraint == "" {
+		return resolved
+	}
+	return constraint + " (" + resolved + ")"
+}
+
+func displayLatest(latest, bumped string) string {
+	if latest == "" || latest == bumped {
+		return ""
+	}
+	return latest
 }

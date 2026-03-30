@@ -89,26 +89,26 @@ func logModuleUpdates(path string, updates *moduleUpdates) {
 
 func logProviderUpdate(update *updateengine.ProviderVersionUpdate) {
 	label := update.ProviderName() + " " + update.ProviderSource()
-	entry := log.WithField("current", formatCurrent(update.Constraint(), update.CurrentVersion)).
-		WithField("available", update.BumpedVersion)
-	if update.Status == updateengine.StatusApplied {
+	entry := log.WithField("current", update.DisplayCurrent()).
+		WithField("available", update.DisplayAvailable())
+	if update.IsApplied() {
 		entry = entry.WithField("status", string(update.Status))
 	}
-	if update.LatestVersion != "" && update.LatestVersion != update.BumpedVersion {
-		entry = entry.WithField("latest", update.LatestVersion)
+	if latest := update.DisplayLatest(); latest != "" {
+		entry = entry.WithField("latest", latest)
 	}
 	entry.Info(label)
 }
 
 func logModuleUpdate(update *updateengine.ModuleVersionUpdate) {
 	label := update.CallName() + " " + update.Source()
-	entry := log.WithField("current", formatCurrent(update.Constraint(), update.CurrentVersion)).
-		WithField("available", update.BumpedVersion)
-	if update.Status == updateengine.StatusApplied {
+	entry := log.WithField("current", update.DisplayCurrent()).
+		WithField("available", update.DisplayAvailable())
+	if update.IsApplied() {
 		entry = entry.WithField("status", string(update.Status))
 	}
-	if update.LatestVersion != "" && update.LatestVersion != update.BumpedVersion {
-		entry = entry.WithField("latest", update.LatestVersion)
+	if latest := update.DisplayLatest(); latest != "" {
+		entry = entry.WithField("latest", latest)
 	}
 	entry.Info(label)
 }
@@ -139,16 +139,4 @@ func logSummary(summary updateengine.UpdateSummary) {
 		log.WithField("count", summary.Skipped).Warn("skipped")
 	}
 	log.DecreasePadding()
-}
-
-// formatCurrent renders the current version field.
-// When constraint differs from resolved version, shows "~> 5.0 (5.84.0)".
-func formatCurrent(constraint, resolved string) string {
-	if resolved == "" || constraint == resolved {
-		return constraint
-	}
-	if constraint == "" {
-		return resolved
-	}
-	return constraint + " (" + resolved + ")"
 }

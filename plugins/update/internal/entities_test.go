@@ -155,3 +155,49 @@ func TestNewProviderVersionUpdate(t *testing.T) {
 		t.Errorf("Status = %q, want %q", update.Status, StatusUpToDate)
 	}
 }
+
+func TestModuleVersionUpdate_DisplayHelpers(t *testing.T) {
+	update := ModuleVersionUpdate{
+		Dependency:     ModuleDependency{Constraint: "~> 5.0"},
+		CurrentVersion: "5.84.0",
+		LatestVersion:  "6.0.0",
+		BumpedVersion:  "5.90.0",
+		Status:         StatusApplied,
+	}
+
+	if got := update.DisplayCurrent(); got != "~> 5.0 (5.84.0)" {
+		t.Errorf("DisplayCurrent() = %q, want %q", got, "~> 5.0 (5.84.0)")
+	}
+	if got := update.DisplayAvailable(); got != "5.90.0" {
+		t.Errorf("DisplayAvailable() = %q, want %q", got, "5.90.0")
+	}
+	if got := update.DisplayLatest(); got != "6.0.0" {
+		t.Errorf("DisplayLatest() = %q, want %q", got, "6.0.0")
+	}
+	if !update.IsApplied() {
+		t.Error("IsApplied() = false, want true")
+	}
+}
+
+func TestProviderVersionUpdate_DisplayHelpers(t *testing.T) {
+	update := ProviderVersionUpdate{
+		Dependency:     ProviderDependency{Constraint: "~> 5.0"},
+		CurrentVersion: "5.84.0",
+		LatestVersion:  "5.90.0",
+		BumpedVersion:  "5.90.0",
+		Status:         StatusUpdateAvailable,
+	}
+
+	if got := update.DisplayCurrent(); got != "~> 5.0 (5.84.0)" {
+		t.Errorf("DisplayCurrent() = %q, want %q", got, "~> 5.0 (5.84.0)")
+	}
+	if got := update.DisplayAvailable(); got != "5.90.0" {
+		t.Errorf("DisplayAvailable() = %q, want %q", got, "5.90.0")
+	}
+	if got := update.DisplayLatest(); got != "" {
+		t.Errorf("DisplayLatest() = %q, want empty", got)
+	}
+	if update.IsApplied() {
+		t.Error("IsApplied() = true, want false")
+	}
+}

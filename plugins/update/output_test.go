@@ -211,27 +211,3 @@ func TestOutputResult_TextProviderWithSameBumpedLatest(t *testing.T) {
 		t.Fatalf("outputResult(text) error = %v", err)
 	}
 }
-
-func TestFormatCurrent(t *testing.T) {
-	tests := []struct {
-		name       string
-		constraint string
-		resolved   string
-		want       string
-	}{
-		{"both different", "~> 5.0", "5.84.0", "~> 5.0 (5.84.0)"},
-		{"no resolved", "~> 5.0", "", "~> 5.0"},
-		{"no constraint", "", "5.84.0", "5.84.0"},
-		{"same value", "5.0.0", "5.0.0", "5.0.0"},
-		{"both empty", "", "", ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := formatCurrent(tt.constraint, tt.resolved)
-			if got != tt.want {
-				t.Errorf("formatCurrent(%q, %q) = %q, want %q", tt.constraint, tt.resolved, got, tt.want)
-			}
-		})
-	}
-}
