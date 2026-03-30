@@ -62,13 +62,3 @@ type ModuleCall struct {
 	IsLocal      bool
 	ResolvedPath string
 }
-
-func RunDefault(ctx *Context) {
-	extractLocals(ctx)
-	extractTfvars(ctx)
-	extractBackendConfig(ctx)
-	extractRequiredProviders(ctx)
-	extractLockFile(ctx)
-	extractRemoteStates(ctx)
-	extractModuleCalls(ctx)
-}
