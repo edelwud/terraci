@@ -53,6 +53,14 @@ func (e *Engine) MatchPathToModule(statePath string, from *discovery.Module) *di
 	return parserdeps.MatchPathToModule(e.index, statePath, from)
 }
 
+func (e *Engine) MatchBackend(backendType, bucket, statePath string) *discovery.Module {
+	if e.backendIndex == nil {
+		return nil
+	}
+
+	return e.backendIndex.Match(backendType, bucket, statePath)
+}
+
 func ContainsDynamicPattern(path string) bool {
 	return parserdeps.ContainsDynamicPattern(path)
 }

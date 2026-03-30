@@ -15,7 +15,7 @@ import (
 
 type dependencySession struct {
 	ctx       context.Context
-	engine    *Engine
+	deps      sessionDependencies
 	module    *discovery.Module
 	builder   *dependencyResultBuilder
 	parsed    *model.ParsedModule
@@ -23,17 +23,44 @@ type dependencySession struct {
 	variables map[string]cty.Value
 }
 
+type parsedModuleStore interface {
+	Get(context.Context, *discovery.Module) (*model.ParsedModule, error)
+}
+
+type workspaceResolver interface {
+	ResolveWorkspacePath(ref *model.RemoteStateRef, modulePath string, locals, variables map[string]cty.Value) ([]string, error)
+}
+
+type targetMatcher interface {
+	MatchPathToModule(statePath string, from *discovery.Module) *discovery.Module
+	MatchBackend(backendType, bucket, statePath string) *discovery.Module
+}
+
+type sessionDependencies struct {
+	resolver      workspaceResolver
+	parsedModules parsedModuleStore
+	targets       targetMatcher
+}
+
+func newSessionDependencies(engine *Engine) sessionDependencies {
+	return sessionDependencies{
+		resolver:      engine.parser,
+		parsedModules: engine.cache,
+		targets:       engine,
+	}
+}
+
 func newDependencySession(ctx context.Context, engine *Engine, module *discovery.Module) *dependencySession {
 	return &dependencySession{
 		ctx:     ctx,
-		engine:  engine,
+		deps:    newSessionDependencies(engine),
 		module:  module,
 		builder: newDependencyResultBuilder(module),
 	}
 }
 
 func (s *dependencySession) Run() (*ModuleDependencies, error) {
-	parsed, err := s.engine.cache.Get(s.ctx, s.module)
+	parsed, err := s.deps.parsedModules.Get(s.ctx, s.module)
 	if err != nil {
 		return nil, err
 	}
@@ -71,9 +98,9 @@ func (s *dependencySession) collectLibraryDependencies() {
 
 func (s *dependencySession) resolveRemoteStateDependency(remoteState *model.RemoteStateRef) *remoteStateResolution {
 	resolution := newRemoteStateResolution()
-	targetResolver := newRemoteStateTargetResolver(s.engine, s.module, s.locals, s.variables)
+	targetResolver := newRemoteStateTargetResolver(s.deps.targets, s.module, s.locals, s.variables)
 
-	paths, err := s.engine.parser.ResolveWorkspacePath(remoteState, s.module.RelativePath, s.locals, s.variables)
+	paths, err := s.deps.resolver.ResolveWorkspacePath(remoteState, s.module.RelativePath, s.locals, s.variables)
 	if err != nil {
 		resolution.AddError(fmt.Errorf("resolve workspace path for %s.%s: %w", s.module.ID(), remoteState.Name, err))
 		return resolution
@@ -103,19 +130,19 @@ func (s *dependencySession) resolveRemoteStateDependency(remoteState *model.Remo
 }
 
 type remoteStateTargetResolver struct {
-	engine    *Engine
+	targets   targetMatcher
 	module    *discovery.Module
 	locals    map[string]cty.Value
 	variables map[string]cty.Value
 }
 
 func newRemoteStateTargetResolver(
-	engine *Engine,
+	targets targetMatcher,
 	module *discovery.Module,
 	locals, variables map[string]cty.Value,
 ) *remoteStateTargetResolver {
 	return &remoteStateTargetResolver{
-		engine:    engine,
+		targets:   targets,
 		module:    module,
 		locals:    locals,
 		variables: variables,
@@ -123,7 +150,7 @@ func newRemoteStateTargetResolver(
 }
 
 func (r *remoteStateTargetResolver) Resolve(remoteState *model.RemoteStateRef, statePath string) *discovery.Module {
-	target := r.engine.MatchPathToModule(statePath, r.module)
+	target := r.targets.MatchPathToModule(statePath, r.module)
 	if target != nil {
 		return target
 	}
@@ -132,7 +159,7 @@ func (r *remoteStateTargetResolver) Resolve(remoteState *model.RemoteStateRef, s
 }
 
 func (r *remoteStateTargetResolver) matchByBackend(remoteState *model.RemoteStateRef, statePath string) *discovery.Module {
-	if r.engine.backendIndex == nil || remoteState.Backend == "" {
+	if remoteState.Backend == "" {
 		return nil
 	}
 
@@ -147,7 +174,7 @@ func (r *remoteStateTargetResolver) matchByBackend(remoteState *model.RemoteStat
 		return nil
 	}
 
-	return r.engine.backendIndex.Match(remoteState.Backend, bucket, statePath)
+	return r.targets.MatchBackend(remoteState.Backend, bucket, statePath)
 }
 
 func evalStringExpr(expr hcl.Expression, ctx *hcl.EvalContext) (string, bool) {
