@@ -5,21 +5,23 @@ import (
 
 	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/plugin"
-	updateengine "github.com/edelwud/terraci/plugins/update/internal"
 )
 
-// Initialize sets up the registry client.
-func (p *Plugin) Initialize(_ context.Context, _ *plugin.AppContext) error {
+// Preflight validates update plugin configuration.
+func (p *Plugin) Preflight(_ context.Context, _ *plugin.AppContext) error {
 	if !p.IsEnabled() {
 		return nil
 	}
 
 	if err := p.Config().Validate(); err != nil {
-		log.WithError(err).Warn("update: invalid configuration, using defaults")
+		return err
 	}
 
-	log.Debug("update: initializing registry client")
-	p.registry = updateengine.NewRegistryClient()
+	log.Debug("update: configuration validated")
 
 	return nil
+}
+
+func (p *Plugin) Initialize(ctx context.Context, appCtx *plugin.AppContext) error {
+	return p.Preflight(ctx, appCtx)
 }

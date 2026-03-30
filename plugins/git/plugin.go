@@ -3,7 +3,6 @@ package git
 
 import (
 	"github.com/edelwud/terraci/pkg/plugin"
-	gitclient "github.com/edelwud/terraci/plugins/git/internal"
 )
 
 const pluginName = "git"
@@ -13,12 +12,8 @@ func init() {
 }
 
 // Plugin is the Git change detection plugin.
-type Plugin struct {
-	client     *gitclient.Client
-	defaultRef string
-	isRepo     bool
-}
+type Plugin struct{}
 
 func (p *Plugin) Name() string        { return pluginName }
 func (p *Plugin) Description() string { return "Git change detection for incremental pipelines" }
-func (p *Plugin) Reset()              { *p = Plugin{} }
+func (p *Plugin) Reset()              {}

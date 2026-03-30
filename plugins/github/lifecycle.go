@@ -8,19 +8,22 @@ import (
 	githubci "github.com/edelwud/terraci/plugins/github/internal"
 )
 
-// Initialize detects PR context at startup.
-func (p *Plugin) Initialize(_ context.Context, _ *plugin.AppContext) error {
-	p.inCI = p.DetectEnv()
-	if !p.inCI {
+// Preflight detects PR context when running inside GitHub Actions.
+func (p *Plugin) Preflight(_ context.Context, _ *plugin.AppContext) error {
+	if !p.DetectEnv() {
 		return nil
 	}
 
-	p.prCtx = githubci.DetectPRContext()
-	if p.prCtx.InPR {
-		log.WithField("pr", p.prCtx.PRNumber).Debug("github: PR context detected")
+	prCtx := githubci.DetectPRContext()
+	if prCtx.InPR {
+		log.WithField("pr", prCtx.PRNumber).Debug("github: PR context detected")
 	} else {
 		log.Debug("github: Actions detected but not in PR workflow")
 	}
 
 	return nil
+}
+
+func (p *Plugin) Initialize(ctx context.Context, appCtx *plugin.AppContext) error {
+	return p.Preflight(ctx, appCtx)
 }

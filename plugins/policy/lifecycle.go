@@ -8,8 +8,8 @@ import (
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
 
-// Initialize validates OPA availability at startup.
-func (p *Plugin) Initialize(_ context.Context, _ *plugin.AppContext) error {
+// Preflight validates policy plugin prerequisites.
+func (p *Plugin) Preflight(_ context.Context, _ *plugin.AppContext) error {
 	if !p.IsEnabled() {
 		return nil
 	}
@@ -22,4 +22,8 @@ func (p *Plugin) Initialize(_ context.Context, _ *plugin.AppContext) error {
 	}
 
 	return nil
+}
+
+func (p *Plugin) Initialize(ctx context.Context, appCtx *plugin.AppContext) error {
+	return p.Preflight(ctx, appCtx)
 }

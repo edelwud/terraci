@@ -25,9 +25,6 @@ func newRuntime(cfg *updateengine.UpdateConfig, registry updateengine.RegistryCl
 	if cfg == nil {
 		return nil, errors.New("update configuration is not set")
 	}
-	if registry == nil {
-		return nil, errors.New("update registry client is not initialized")
-	}
 
 	runtimeConfig := *cfg
 	if opts.target != "" {
@@ -44,6 +41,9 @@ func newRuntime(cfg *updateengine.UpdateConfig, registry updateengine.RegistryCl
 	}
 	if err := runtimeConfig.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid options: %w", err)
+	}
+	if registry == nil {
+		registry = updateengine.NewRegistryClient()
 	}
 
 	return &updateRuntime{

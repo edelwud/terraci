@@ -30,15 +30,11 @@ func init() {
 // Plugin is the GitLab CI plugin.
 type Plugin struct {
 	plugin.BasePlugin[*gitlabci.Config]
-	mrCtx *gitlabci.MRContext
-	inCI  bool
 }
 
 // Reset resets all plugin state.
 func (p *Plugin) Reset() {
 	p.BasePlugin.Reset()
-	p.mrCtx = nil
-	p.inCI = false
 }
 
 // SetPlanOnly sets plan-only mode directly on the typed config.

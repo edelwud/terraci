@@ -88,12 +88,12 @@ Features:
 				return err
 			}
 
-			// Initialize plugins (lifecycle stage 3)
-			log.Debug("initializing plugins")
+			// Run plugin preflight hooks (lifecycle stage 3)
+			log.Debug("running plugin preflight")
 			appCtx := app.PluginContext()
-			for _, p := range plugin.InitializablesForStartup() {
-				if err := p.Initialize(cmd.Context(), appCtx); err != nil {
-					return fmt.Errorf("initialize plugin %s: %w", p.Name(), err)
+			for _, p := range plugin.PreflightsForStartup() {
+				if err := p.Preflight(cmd.Context(), appCtx); err != nil {
+					return fmt.Errorf("preflight plugin %s: %w", p.Name(), err)
 				}
 			}
 

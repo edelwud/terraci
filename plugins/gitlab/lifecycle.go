@@ -8,19 +8,22 @@ import (
 	gitlabci "github.com/edelwud/terraci/plugins/gitlab/internal"
 )
 
-// Initialize detects MR context at startup.
-func (p *Plugin) Initialize(_ context.Context, _ *plugin.AppContext) error {
-	p.inCI = p.DetectEnv()
-	if !p.inCI {
+// Preflight detects MR context when running inside GitLab CI.
+func (p *Plugin) Preflight(_ context.Context, _ *plugin.AppContext) error {
+	if !p.DetectEnv() {
 		return nil
 	}
 
-	p.mrCtx = gitlabci.DetectMRContext()
-	if p.mrCtx.InMR {
-		log.WithField("mr", p.mrCtx.MRIID).Debug("gitlab: MR context detected")
+	mrCtx := gitlabci.DetectMRContext()
+	if mrCtx.InMR {
+		log.WithField("mr", mrCtx.MRIID).Debug("gitlab: MR context detected")
 	} else {
 		log.Debug("gitlab: CI detected but not in MR pipeline")
 	}
 
 	return nil
+}
+
+func (p *Plugin) Initialize(ctx context.Context, appCtx *plugin.AppContext) error {
+	return p.Preflight(ctx, appCtx)
 }

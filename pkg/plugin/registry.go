@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -158,8 +159,38 @@ func providerNames(candidates []ciProviderPlugin) string {
 	return names
 }
 
+type legacyInitializablePreflight struct {
+	Initializable
+}
+
+func (p legacyInitializablePreflight) Preflight(ctx context.Context, appCtx *AppContext) error {
+	return p.Initialize(ctx, appCtx)
+}
+
+// PreflightsForStartup returns plugins that should participate in lifecycle
+// preflight for the current config state. Preflightable is preferred over the
+// legacy Initializable hook.
+func PreflightsForStartup() []Preflightable {
+	result := make([]Preflightable, 0, len(All()))
+	for _, p := range All() {
+		if !isPluginEnabled(p) {
+			continue
+		}
+		if preflightable, ok := p.(Preflightable); ok {
+			result = append(result, preflightable)
+			continue
+		}
+		if initializable, ok := p.(Initializable); ok {
+			result = append(result, legacyInitializablePreflight{Initializable: initializable})
+		}
+	}
+	return result
+}
+
 // InitializablesForStartup returns plugins that should participate in lifecycle
 // initialization for the current config state.
+//
+// Deprecated: prefer PreflightsForStartup.
 func InitializablesForStartup() []Initializable {
 	initializables := ByCapability[Initializable]()
 	result := make([]Initializable, 0, len(initializables))

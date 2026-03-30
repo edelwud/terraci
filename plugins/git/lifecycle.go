@@ -8,35 +8,29 @@ import (
 	gitclient "github.com/edelwud/terraci/plugins/git/internal"
 )
 
-// Initialize verifies the git repository and caches the client at startup.
-func (p *Plugin) Initialize(_ context.Context, appCtx *plugin.AppContext) error {
-	p.client = gitclient.NewClient(appCtx.WorkDir())
-	p.isRepo = p.client.IsGitRepo()
-
-	if !p.isRepo {
+// Preflight verifies whether the workdir is a git repository.
+func (p *Plugin) Preflight(_ context.Context, appCtx *plugin.AppContext) error {
+	client := gitclient.NewClient(appCtx.WorkDir())
+	if !client.IsGitRepo() {
 		log.Debug("git: not a git repository, change detection disabled")
 		return nil
 	}
 
-	p.defaultRef = p.client.GetDefaultBranch()
-	log.WithField("branch", p.defaultRef).Debug("git: repository detected")
+	log.WithField("branch", client.GetDefaultBranch()).Debug("git: repository detected")
 
 	return nil
 }
 
-func (p *Plugin) getClient() *gitclient.Client {
-	if !p.isRepo {
-		return nil
-	}
-	return p.client
+func (p *Plugin) Initialize(ctx context.Context, appCtx *plugin.AppContext) error {
+	return p.Preflight(ctx, appCtx)
 }
 
-func (p *Plugin) resolveRef(baseRef string) string {
+func (p *Plugin) resolveRef(baseRef string, client *gitclient.Client) string {
 	if baseRef != "" {
 		return baseRef
 	}
-	if p.defaultRef != "" {
-		return p.defaultRef
+	if defaultRef := client.GetDefaultBranch(); defaultRef != "" {
+		return defaultRef
 	}
 	return "main"
 }

@@ -28,12 +28,21 @@ type Plugin interface {
 //   - registered: discovered via init() + Register()
 //   - configured: plugin config section was decoded successfully
 //   - enabled: plugin should actively participate for this run
-//   - initialized: plugin completed runtime setup for this command
+//   - preflighted: plugin completed cheap validation for this command
 //
 // IsConfigured() answers whether config exists; IsEnabled() answers whether the
 // plugin should be used. Framework lifecycle should key off IsEnabled().
 
-// Initializable plugins set up resources after config is loaded, before any command runs.
+// Preflightable plugins run cheap validation after config is loaded, before any
+// command runs. Preflight should not cache mutable command state or perform
+// heavy runtime setup that can be created lazily inside plugin use-cases.
+type Preflightable interface {
+	Plugin
+	Preflight(ctx context.Context, appCtx *AppContext) error
+}
+
+// Initializable is the legacy lifecycle hook retained for compatibility.
+// Prefer Preflightable for new plugins and migrations.
 type Initializable interface {
 	Plugin
 	Initialize(ctx context.Context, appCtx *AppContext) error

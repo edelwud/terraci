@@ -63,45 +63,45 @@ func TestPlugin_EnablePolicy(t *testing.T) {
 	}
 }
 
-func TestPlugin_Initialize_Disabled(t *testing.T) {
+func TestPlugin_Preflight_Disabled(t *testing.T) {
 	p := newTestPlugin(t)
 	appCtx := newTestAppContext(t, t.TempDir())
 
-	if err := p.Initialize(context.Background(), appCtx); err != nil {
-		t.Fatalf("Initialize() error = %v", err)
+	if err := p.Preflight(context.Background(), appCtx); err != nil {
+		t.Fatalf("Preflight() error = %v", err)
 	}
 	if p.registry != nil {
 		t.Error("registry should be nil when plugin is not configured")
 	}
 }
 
-func TestPlugin_Initialize_ConfiguredButDisabled(t *testing.T) {
+func TestPlugin_Preflight_ConfiguredButDisabled(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &updateengine.UpdateConfig{Enabled: false})
 	appCtx := newTestAppContext(t, t.TempDir())
 
-	if err := p.Initialize(context.Background(), appCtx); err != nil {
-		t.Fatalf("Initialize() error = %v", err)
+	if err := p.Preflight(context.Background(), appCtx); err != nil {
+		t.Fatalf("Preflight() error = %v", err)
 	}
 	if p.registry != nil {
 		t.Error("registry should be nil when plugin is configured but disabled")
 	}
 }
 
-func TestPlugin_Initialize_Enabled(t *testing.T) {
+func TestPlugin_Preflight_Enabled(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &updateengine.UpdateConfig{Enabled: true})
 	appCtx := newTestAppContext(t, t.TempDir())
 
-	if err := p.Initialize(context.Background(), appCtx); err != nil {
-		t.Fatalf("Initialize() error = %v", err)
+	if err := p.Preflight(context.Background(), appCtx); err != nil {
+		t.Fatalf("Preflight() error = %v", err)
 	}
-	if p.registry == nil {
-		t.Fatal("registry should not be nil after Initialize with enabled config")
+	if p.registry != nil {
+		t.Fatal("registry should remain nil after preflight; runtime is lazy")
 	}
 }
 
-func TestPlugin_Initialize_InvalidConfig(t *testing.T) {
+func TestPlugin_Preflight_InvalidConfig(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &updateengine.UpdateConfig{
 		Enabled: true,
@@ -109,26 +109,15 @@ func TestPlugin_Initialize_InvalidConfig(t *testing.T) {
 	})
 	appCtx := newTestAppContext(t, t.TempDir())
 
-	// Should not return error — invalid config is logged as warning, not fatal.
-	if err := p.Initialize(context.Background(), appCtx); err != nil {
-		t.Fatalf("Initialize() error = %v", err)
-	}
-	if p.registry == nil {
-		t.Fatal("registry should still be created despite invalid config")
+	if err := p.Preflight(context.Background(), appCtx); err == nil {
+		t.Fatal("Preflight() error = nil, want invalid configuration error")
 	}
 }
 
 func TestPlugin_Reset(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &updateengine.UpdateConfig{Enabled: true})
-	appCtx := newTestAppContext(t, t.TempDir())
-
-	if err := p.Initialize(context.Background(), appCtx); err != nil {
-		t.Fatalf("Initialize() error = %v", err)
-	}
-	if p.registry == nil {
-		t.Fatal("registry should be set before reset")
-	}
+	p.registry = &mockRegistry{}
 
 	p.Reset()
 

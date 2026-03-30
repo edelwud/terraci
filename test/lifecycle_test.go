@@ -148,11 +148,11 @@ func TestPluginInitialization(t *testing.T) {
 
 	appCtx := plugin.NewAppContext(cfg, dir, filepath.Join(dir, ".terraci"), "test", nil)
 
-	for _, p := range plugin.InitializablesForStartup() {
-		if initErr := p.Initialize(context.Background(), appCtx); initErr != nil {
+	for _, p := range plugin.PreflightsForStartup() {
+		if preflightErr := p.Preflight(context.Background(), appCtx); preflightErr != nil {
 			// Some plugins may fail if their external deps are missing (e.g., git not in a repo).
 			// We log but don't fail — the important thing is the interface works.
-			t.Logf("initialize %s: %v (may be expected outside real env)", p.Name(), initErr)
+			t.Logf("preflight %s: %v (may be expected outside real env)", p.Name(), preflightErr)
 		}
 	}
 }

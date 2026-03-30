@@ -28,15 +28,11 @@ func init() {
 // Plugin is the GitHub Actions plugin.
 type Plugin struct {
 	plugin.BasePlugin[*githubci.Config]
-	prCtx *githubci.PRContext
-	inCI  bool
 }
 
 // Reset resets all plugin state.
 func (p *Plugin) Reset() {
 	p.BasePlugin.Reset()
-	p.prCtx = nil
-	p.inCI = false
 }
 
 // SetPlanOnly sets plan-only mode directly on the typed config.
