@@ -20,11 +20,19 @@ func outputResult(w io.Writer, format string, summary *policyengine.Summary, sho
 }
 
 func outputText(summary *policyengine.Summary, shouldBlock bool) error {
-	log.WithField("total", summary.TotalModules).
-		WithField("passed", summary.PassedModules).
-		WithField("warned", summary.WarnedModules).
-		WithField("failed", summary.FailedModules).
-		Info("policy check summary")
+	log.Info("summary")
+	log.IncreasePadding()
+	log.WithField("total", summary.TotalModules).Info("modules")
+	if summary.PassedModules > 0 {
+		log.WithField("count", summary.PassedModules).Info("passed")
+	}
+	if summary.WarnedModules > 0 {
+		log.WithField("count", summary.WarnedModules).Warn("warned")
+	}
+	if summary.FailedModules > 0 {
+		log.WithField("count", summary.FailedModules).Error("failed")
+	}
+	log.DecreasePadding()
 
 	for _, result := range summary.Results {
 		if result.Status() == "pass" {

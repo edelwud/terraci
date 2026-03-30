@@ -59,6 +59,9 @@ func TestOutputResult_Text(t *testing.T) {
 			t.Fatalf("outputResult(text) error = %v", err)
 		}
 	})
+	if !strings.Contains(output, "summary") {
+		t.Fatalf("output = %q, want summary block", output)
+	}
 	if !strings.Contains(output, "updates available") {
 		t.Fatalf("output = %q, want summary line", output)
 	}
@@ -74,6 +77,9 @@ func TestOutputResult_TextNoUpdates(t *testing.T) {
 			t.Fatalf("outputResult(text) error = %v", err)
 		}
 	})
+	if !strings.Contains(output, "summary") {
+		t.Fatalf("output = %q, want summary block", output)
+	}
 	if !strings.Contains(output, "all dependencies are up to date") {
 		t.Fatalf("output = %q, want no-updates message", output)
 	}

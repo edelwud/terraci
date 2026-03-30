@@ -8,7 +8,10 @@ import (
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
 
-const resultsFile = "policy-results.json"
+const (
+	resultsFile = "policy-results.json"
+	reportFile  = "policy-report.json"
+)
 
 // PipelineContribution adds a policy-check job to the CI pipeline.
 // Framework guarantees this is only called when IsEnabled() == true.

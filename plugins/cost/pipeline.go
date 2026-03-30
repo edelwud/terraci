@@ -7,7 +7,10 @@ import (
 	"github.com/edelwud/terraci/pkg/plugin"
 )
 
-const resultsFile = "cost-results.json"
+const (
+	resultsFile = "cost-results.json"
+	reportFile  = "cost-report.json"
+)
 
 // PipelineContribution adds a cost estimation job to the CI pipeline.
 // Framework guarantees this is only called when IsEnabled() == true.

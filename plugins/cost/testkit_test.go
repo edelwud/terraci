@@ -17,5 +17,5 @@ func loadEstimateResult(t *testing.T, serviceDir string) model.EstimateResult {
 }
 
 func loadCostReport(t *testing.T, serviceDir string) ci.Report {
-	return plugintest.LoadReport(t, serviceDir, "cost-report.json")
+	return plugintest.LoadReport(t, serviceDir, reportFile)
 }

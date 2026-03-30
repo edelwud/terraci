@@ -59,6 +59,14 @@ func outputLog(result *updateengine.UpdateResult) {
 	}
 
 	if len(groups) == 0 {
+		s := result.Summary
+		log.Info("summary")
+		log.IncreasePadding()
+		log.WithField("checked", s.TotalChecked).Info("checked")
+		if s.Skipped > 0 {
+			log.WithField("count", s.Skipped).Warn("skipped")
+		}
+		log.DecreasePadding()
 		log.Info("all dependencies are up to date")
 		return
 	}
@@ -98,10 +106,14 @@ func outputLog(result *updateengine.UpdateResult) {
 	}
 
 	s := result.Summary
-	log.WithField("checked", s.TotalChecked).
-		WithField("updates", s.UpdatesAvailable).
-		WithField("skipped", s.Skipped).
-		Info("summary")
+	log.Info("summary")
+	log.IncreasePadding()
+	log.WithField("count", s.TotalChecked).Info("checked")
+	log.WithField("count", s.UpdatesAvailable).Warn("updates available")
+	if s.Skipped > 0 {
+		log.WithField("count", s.Skipped).Warn("skipped")
+	}
+	log.DecreasePadding()
 }
 
 // formatCurrent renders the current version field.

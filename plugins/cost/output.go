@@ -20,17 +20,28 @@ func outputResult(w io.Writer, workDir, outputFmt string, result *model.Estimate
 	tree := model.BuildSegmentTree(result, workDir)
 	model.CompactSegmentTree(tree)
 	renderSegmentTree(tree)
+	renderSummary(result)
+	return nil
+}
 
+func renderSummary(result *model.EstimateResult) {
+	log.Info("summary")
+	log.IncreasePadding()
+	log.WithField("count", len(result.Modules)).Info("modules")
+	if len(result.Errors) > 0 {
+		log.WithField("count", len(result.Errors)).Warn("errored")
+	}
 	if result.TotalDiff != 0 {
 		log.WithField("before", model.FormatCost(result.TotalBefore)).
 			WithField("after", model.FormatCost(result.TotalAfter)).
 			WithField("diff", model.FormatCostDiff(result.TotalDiff)).
 			Info("total")
-		return nil
+		log.DecreasePadding()
+		return
 	}
 
 	log.WithField("monthly", model.FormatCost(result.TotalAfter)).Info("total")
-	return nil
+	log.DecreasePadding()
 }
 
 func renderSegmentTree(node *model.SegmentNode) {

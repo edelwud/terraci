@@ -2,11 +2,13 @@ package policy
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
 
@@ -103,10 +105,57 @@ func TestOutputText_UsesLogger(t *testing.T) {
 			t.Fatalf("outputText() error = %v", err)
 		}
 	})
+	if !strings.Contains(output, "summary") {
+		t.Fatalf("output = %q, want summary header", output)
+	}
 	if !strings.Contains(output, "platform/prod/app") {
 		t.Fatalf("output = %q, want module path", output)
 	}
 	if !strings.Contains(output, "tag missing") {
 		t.Fatalf("output = %q, want warning message", output)
+	}
+}
+
+func TestPlugin_Commands_Registration(t *testing.T) {
+	p := newTestPlugin()
+	appCtx := plugintest.NewAppContext(t, t.TempDir())
+
+	cmds := p.Commands(appCtx)
+	if len(cmds) != 1 {
+		t.Fatalf("Commands() returned %d commands, want 1", len(cmds))
+	}
+
+	cmd := cmds[0]
+	checkCmd, _, err := cmd.Find([]string{"check"})
+	if err != nil {
+		t.Fatalf("Find(check) error = %v", err)
+	}
+	outputFlag := checkCmd.Flags().Lookup("output")
+	if outputFlag == nil {
+		t.Fatal("missing --output flag on policy check")
+	}
+	if outputFlag.DefValue != "" {
+		t.Fatalf("check --output default = %q, want empty default for shared policy output flag", outputFlag.DefValue)
+	}
+}
+
+func TestPlugin_Commands_RunE_NotConfigured(t *testing.T) {
+	p := newTestPlugin()
+	appCtx := plugintest.NewAppContext(t, t.TempDir())
+
+	cmds := p.Commands(appCtx)
+	cmd := cmds[0]
+	checkCmd, _, err := cmd.Find([]string{"check"})
+	if err != nil {
+		t.Fatalf("Find(check) error = %v", err)
+	}
+	checkCmd.SetContext(context.Background())
+
+	err = checkCmd.RunE(checkCmd, nil)
+	if err == nil {
+		t.Fatal("expected error for unconfigured plugin")
+	}
+	if !strings.Contains(err.Error(), "plugins.policy.enabled: true") {
+		t.Fatalf("error = %q, want actionable enablement hint", err.Error())
 	}
 }

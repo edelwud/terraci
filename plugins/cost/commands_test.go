@@ -219,6 +219,9 @@ func TestPlugin_RunEstimation_TextOutput(t *testing.T) {
 	if !strings.Contains(output, "vpc") {
 		t.Fatalf("text output = %q, want to contain module name", output)
 	}
+	if !strings.Contains(output, "summary") {
+		t.Fatalf("text output = %q, want summary block", output)
+	}
 	if !strings.Contains(output, "monthly") {
 		t.Fatalf("text output = %q, want to contain monthly field", output)
 	}
