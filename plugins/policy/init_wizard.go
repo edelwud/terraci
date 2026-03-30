@@ -18,7 +18,7 @@ func (p *Plugin) InitGroups() []*plugin.InitGroupSpec {
 				{
 					Key:         "policy.enabled",
 					Title:       "Enable policy checks?",
-					Description: "Run OPA policy checks against Terraform plans",
+					Description: "Evaluate Terraform plans with OPA policies",
 					Type:        "bool",
 					Default:     false,
 				},

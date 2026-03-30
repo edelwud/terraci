@@ -17,8 +17,8 @@ func (p *Plugin) InitGroups() []*plugin.InitGroupSpec {
 			Fields: []plugin.InitField{
 				{
 					Key:         "summary.enabled",
-					Title:       "Enable plan summary & MR/PR comments?",
-					Description: "Post plan summaries as comments on merge/pull requests",
+					Title:       "Enable plan summaries?",
+					Description: "Post Terraform plan summaries as merge and pull request comments",
 					Type:        "bool",
 					Default:     true,
 				},

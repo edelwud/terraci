@@ -75,7 +75,7 @@ Examples:
 			}
 
 			log.WithField("file", configPath).Info("configuration created")
-			logGenerateHint()
+			logGenerateHint(newCfg)
 
 			return nil
 		},
@@ -103,10 +103,23 @@ func initStateDefaults(state *plugin.StateMap) {
 	state.Set("summary.enabled", true)
 }
 
-func logGenerateHint() {
+func logGenerateHint(cfg *config.Config) {
 	log.Info("generate your pipeline with:")
 	log.IncreasePadding()
-	resolved, _ := plugin.ResolveProvider() //nolint:errcheck // best-effort hint, non-critical
+	if cfg != nil {
+		if _, ok := cfg.Plugins["github"]; ok {
+			log.Info("terraci generate -o .github/workflows/terraform.yml")
+			log.DecreasePadding()
+			return
+		}
+		if _, ok := cfg.Plugins["gitlab"]; ok {
+			log.Info("terraci generate -o .gitlab-ci.yml")
+			log.DecreasePadding()
+			return
+		}
+	}
+
+	resolved, _ := plugin.ResolveProvider() //nolint:errcheck // best-effort fallback, non-critical
 	if resolved != nil && resolved.ProviderName() == "github" {
 		log.Info("terraci generate -o .github/workflows/terraform.yml")
 	} else {

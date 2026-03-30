@@ -17,7 +17,7 @@ func (p *Plugin) InitGroups() []*plugin.InitGroupSpec {
 				{
 					Key:         "update.enabled",
 					Title:       "Enable dependency update checks?",
-					Description: "Check for outdated Terraform provider and module versions",
+					Description: "Check Terraform providers and modules for newer versions",
 					Type:        "bool",
 					Default:     false,
 				},
