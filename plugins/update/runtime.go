@@ -7,6 +7,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/plugin"
 	updateengine "github.com/edelwud/terraci/plugins/update/internal"
+	"github.com/edelwud/terraci/plugins/update/internal/registryclient"
 )
 
 type runtimeOptions struct {
@@ -46,7 +47,7 @@ func newRuntime(cfg *updateengine.UpdateConfig, registryFactory func() updateeng
 	}
 	if registryFactory == nil {
 		registryFactory = func() updateengine.RegistryClient {
-			return updateengine.NewRegistryClient()
+			return registryclient.New()
 		}
 	}
 

@@ -44,7 +44,7 @@ func collectModuleUpdates(result *updateengine.UpdateResult) (groups map[string]
 
 	for i := range result.Providers {
 		p := &result.Providers[i]
-		if p.Skipped || !p.UpdateAvailable {
+		if !p.IncludedInUpdateLogs() {
 			continue
 		}
 		groups, order = ensureModuleGroup(groups, order, p.ModulePath)
@@ -53,7 +53,7 @@ func collectModuleUpdates(result *updateengine.UpdateResult) (groups map[string]
 
 	for i := range result.Modules {
 		m := &result.Modules[i]
-		if m.Skipped || !m.UpdateAvailable {
+		if !m.IncludedInUpdateLogs() {
 			continue
 		}
 		groups, order = ensureModuleGroup(groups, order, m.ModulePath)

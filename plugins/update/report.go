@@ -39,7 +39,7 @@ func renderReportBody(result *updateengine.UpdateResult) string {
 		for i := range result.Providers {
 			update := &result.Providers[i]
 			fmt.Fprintf(&b, "| %s | %s | %s | %s | %s |\n",
-				update.ModulePath, update.ProviderSource, reportCurrent(update.Constraint, update.CurrentVersion), update.LatestVersion, providerReportStatus(update))
+				update.ModulePath, update.ProviderSource, update.DisplayCurrent(), update.LatestVersion, update.StatusLabel())
 		}
 		b.WriteString("\n")
 	}
@@ -51,46 +51,9 @@ func renderReportBody(result *updateengine.UpdateResult) string {
 		for i := range result.Modules {
 			update := &result.Modules[i]
 			fmt.Fprintf(&b, "| %s | %s | %s | %s | %s |\n",
-				update.ModulePath, update.Source, reportCurrent(update.Constraint, update.CurrentVersion), update.LatestVersion, moduleReportStatus(update))
+				update.ModulePath, update.Source, update.DisplayCurrent(), update.LatestVersion, update.StatusLabel())
 		}
 	}
 
 	return b.String()
-}
-
-func reportCurrent(constraint, current string) string {
-	if current != "" {
-		return current
-	}
-	return constraint
-}
-
-func providerReportStatus(update *updateengine.ProviderVersionUpdate) string {
-	switch {
-	case update.Skipped:
-		return "skipped: " + update.SkipReason
-	case update.Error != "":
-		return "error: " + update.Error
-	case update.Applied:
-		return "applied"
-	case update.UpdateAvailable:
-		return "update available"
-	default:
-		return "up to date"
-	}
-}
-
-func moduleReportStatus(update *updateengine.ModuleVersionUpdate) string {
-	switch {
-	case update.Skipped:
-		return "skipped: " + update.SkipReason
-	case update.Error != "":
-		return "error: " + update.Error
-	case update.Applied:
-		return "applied"
-	case update.UpdateAvailable:
-		return "update available"
-	default:
-		return "up to date"
-	}
 }

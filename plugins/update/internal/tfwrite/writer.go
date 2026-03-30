@@ -1,4 +1,4 @@
-package updateengine
+package tfwrite
 
 import (
 	"fmt"
@@ -68,7 +68,6 @@ func WriteProviderVersion(filePath, providerName, newConstraint string) error {
 				continue
 			}
 
-			// Get the raw tokens of the attribute value and replace the version string.
 			tokens := attr.Expr().BuildTokens(nil)
 			replaced := replaceVersionInTokens(tokens, newConstraint)
 			sub.Body().SetAttributeRaw(providerName, replaced)
@@ -83,8 +82,6 @@ func WriteProviderVersion(filePath, providerName, newConstraint string) error {
 // replaceVersionInTokens finds the version value token in a required_providers object
 // and replaces it with the new constraint.
 func replaceVersionInTokens(tokens hclwrite.Tokens, newConstraint string) hclwrite.Tokens {
-	// Look for pattern: "version" = "constraint"
-	// We need to find the string token after "version" key.
 	foundVersionKey := false
 	for i, tok := range tokens {
 		if tok.Type == 9 { // hclsyntax.TokenQuotedLit
@@ -94,68 +91,13 @@ func replaceVersionInTokens(tokens hclwrite.Tokens, newConstraint string) hclwri
 				continue
 			}
 			if foundVersionKey {
-				// This is the version value token — replace it.
 				tokens[i].Bytes = []byte(`"` + newConstraint + `"`)
 				return tokens
 			}
 		}
-		// Reset if we hit a key that isn't "version".
 		if tok.Type == 9 && !foundVersionKey {
 			foundVersionKey = false
 		}
 	}
 	return tokens
-}
-
-// containsModuleBlock checks if a .tf file contains a module block with the given name.
-func containsModuleBlock(filePath, moduleName string) bool {
-	src, err := os.ReadFile(filePath)
-	if err != nil {
-		return false
-	}
-	// Quick string check before parsing.
-	if !strings.Contains(string(src), "module") {
-		return false
-	}
-
-	file, diags := hclwrite.ParseConfig(src, filePath, hcl.Pos{Line: 1, Column: 1})
-	if diags.HasErrors() {
-		return false
-	}
-
-	for _, block := range file.Body().Blocks() {
-		if block.Type() == "module" && len(block.Labels()) > 0 && block.Labels()[0] == moduleName {
-			return true
-		}
-	}
-	return false
-}
-
-// containsProviderBlock checks if a .tf file contains a required_providers block
-// with the given provider name.
-func containsProviderBlock(filePath, providerName string) bool {
-	src, err := os.ReadFile(filePath)
-	if err != nil {
-		return false
-	}
-	if !strings.Contains(string(src), blockRequiredProviders) {
-		return false
-	}
-
-	file, diags := hclwrite.ParseConfig(src, filePath, hcl.Pos{Line: 1, Column: 1})
-	if diags.HasErrors() {
-		return false
-	}
-
-	for _, block := range file.Body().Blocks() {
-		if block.Type() != blockTerraform {
-			continue
-		}
-		for _, sub := range block.Body().Blocks() {
-			if sub.Type() == blockRequiredProviders && sub.Body().GetAttribute(providerName) != nil {
-				return true
-			}
-		}
-	}
-	return false
 }

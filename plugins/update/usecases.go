@@ -17,6 +17,7 @@ import (
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/workflow"
 	updateengine "github.com/edelwud/terraci/plugins/update/internal"
+	updatechecker "github.com/edelwud/terraci/plugins/update/internal/checker"
 )
 
 func parseRuntimeOptions(cmd *cobra.Command) runtimeOptions {
@@ -61,7 +62,7 @@ func runUpdateCheck(ctx context.Context, appCtx *plugin.AppContext, runtime *upd
 	log.WithField("count", len(modules)).Info("modules to check")
 
 	tfParser := parser.NewParser(baseCfg.Structure.Segments)
-	checker := updateengine.NewChecker(runtime.config, tfParser, runtime.registry, runtime.options.write)
+	checker := updatechecker.NewChecker(runtime.config, tfParser, runtime.registry, runtime.options.write)
 	result, err := checker.Check(ctx, modules)
 	if err != nil {
 		return fmt.Errorf("check versions: %w", err)

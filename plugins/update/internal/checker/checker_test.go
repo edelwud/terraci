@@ -1,4 +1,4 @@
-package updateengine
+package checker
 
 import (
 	"context"
@@ -9,6 +9,27 @@ import (
 
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/parser"
+	updateengine "github.com/edelwud/terraci/plugins/update/internal"
+)
+
+type UpdateConfig = updateengine.UpdateConfig
+type UpdateResult = updateengine.UpdateResult
+type ModuleVersionUpdate = updateengine.ModuleVersionUpdate
+type ProviderVersionUpdate = updateengine.ProviderVersionUpdate
+type Version = updateengine.Version
+
+const (
+	TargetAll       = updateengine.TargetAll
+	TargetModules   = updateengine.TargetModules
+	TargetProviders = updateengine.TargetProviders
+	BumpPatch       = updateengine.BumpPatch
+	BumpMinor       = updateengine.BumpMinor
+	BumpMajor       = updateengine.BumpMajor
+)
+
+var (
+	NewApplyService    = updateengine.NewApplyService
+	BuildUpdateSummary = updateengine.BuildUpdateSummary
 )
 
 // mockRegistry implements RegistryClient for testing.
@@ -45,7 +66,7 @@ func setupModuleDir(t *testing.T, files map[string]string) string {
 	return dir
 }
 
-func TestNewChecker(t *testing.T) {
+func TestNew(t *testing.T) {
 	cfg := &UpdateConfig{Target: TargetAll, Bump: BumpMinor}
 	p := parser.NewParser(nil)
 	reg := &mockRegistry{}
@@ -723,13 +744,6 @@ provider "registry.terraform.io/hashicorp/aws" {
 }
 
 func TestApplyUpdates_ErrorSetsError(t *testing.T) {
-	c := NewChecker(
-		&UpdateConfig{Target: TargetAll, Bump: BumpMinor},
-		parser.NewParser(nil),
-		&mockRegistry{},
-		true,
-	)
-
 	result := &UpdateResult{
 		Modules: []ModuleVersionUpdate{
 			{UpdateAvailable: true, File: "/nonexistent/file.tf", CallName: "vpc", BumpedVersion: "5.2.0", Constraint: "~> 5.0"},
@@ -739,7 +753,7 @@ func TestApplyUpdates_ErrorSetsError(t *testing.T) {
 		},
 	}
 
-	c.applyUpdates(result)
+	NewApplyService().Apply(result)
 
 	if result.Modules[0].Error == "" {
 		t.Error("Module.Error should be set after write error")
@@ -750,13 +764,6 @@ func TestApplyUpdates_ErrorSetsError(t *testing.T) {
 }
 
 func TestApplyUpdates_SkipsNotUpdated(_ *testing.T) {
-	c := NewChecker(
-		&UpdateConfig{Target: TargetAll, Bump: BumpMinor},
-		parser.NewParser(nil),
-		&mockRegistry{},
-		true,
-	)
-
 	result := &UpdateResult{
 		Modules: []ModuleVersionUpdate{
 			{UpdateAvailable: false, File: "some.tf"},
@@ -767,7 +774,7 @@ func TestApplyUpdates_SkipsNotUpdated(_ *testing.T) {
 	}
 
 	// Should not panic — skips entries without Updated or without File
-	c.applyUpdates(result)
+	NewApplyService().Apply(result)
 }
 
 func TestBuildLockIndex(t *testing.T) {
@@ -851,10 +858,12 @@ func TestParseVersionList(t *testing.T) {
 func TestLatestStable(t *testing.T) {
 	t.Run("skips_prereleases", func(t *testing.T) {
 		versions := []Version{
-			{1, 0, 0, ""}, {2, 0, 0, "beta"}, {1, 5, 0, ""},
+			{Major: 1, Minor: 0, Patch: 0, Prerelease: ""},
+			{Major: 2, Minor: 0, Patch: 0, Prerelease: "beta"},
+			{Major: 1, Minor: 5, Patch: 0, Prerelease: ""},
 		}
 		got := latestStable(versions)
-		if got != (Version{1, 5, 0, ""}) {
+		if got != (Version{Major: 1, Minor: 5, Patch: 0, Prerelease: ""}) {
 			t.Errorf("latestStable = %v, want 1.5.0", got)
 		}
 	})
@@ -868,10 +877,12 @@ func TestLatestStable(t *testing.T) {
 
 	t.Run("finds_highest", func(t *testing.T) {
 		versions := []Version{
-			{1, 0, 0, ""}, {3, 0, 0, ""}, {2, 0, 0, ""},
+			{Major: 1, Minor: 0, Patch: 0, Prerelease: ""},
+			{Major: 3, Minor: 0, Patch: 0, Prerelease: ""},
+			{Major: 2, Minor: 0, Patch: 0, Prerelease: ""},
 		}
 		got := latestStable(versions)
-		if got != (Version{3, 0, 0, ""}) {
+		if got != (Version{Major: 3, Minor: 0, Patch: 0, Prerelease: ""}) {
 			t.Errorf("latestStable = %v, want 3.0.0", got)
 		}
 	})
@@ -883,9 +894,9 @@ func TestVersionFromConstraint(t *testing.T) {
 		input string
 		want  Version
 	}{
-		{"pessimistic", "~> 5.0", Version{5, 0, 0, ""}},
-		{"greater_equal", ">= 1.2.3", Version{1, 2, 3, ""}},
-		{"plain_version", "5.0.0", Version{5, 0, 0, ""}},
+		{"pessimistic", "~> 5.0", Version{Major: 5, Minor: 0, Patch: 0, Prerelease: ""}},
+		{"greater_equal", ">= 1.2.3", Version{Major: 1, Minor: 2, Patch: 3, Prerelease: ""}},
+		{"plain_version", "5.0.0", Version{Major: 5, Minor: 0, Patch: 0, Prerelease: ""}},
 		{"invalid", "garbage", Version{}},
 	}
 
@@ -897,22 +908,6 @@ func TestVersionFromConstraint(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestMustParseVersion(t *testing.T) {
-	t.Run("valid", func(t *testing.T) {
-		got := mustParseVersion("1.2.3")
-		if got != (Version{1, 2, 3, ""}) {
-			t.Errorf("mustParseVersion(1.2.3) = %v", got)
-		}
-	})
-
-	t.Run("invalid", func(t *testing.T) {
-		got := mustParseVersion("bad")
-		if !got.IsZero() {
-			t.Errorf("mustParseVersion(bad) = %v, want zero", got)
-		}
-	})
 }
 
 func TestComputeSummary(t *testing.T) {
@@ -928,7 +923,7 @@ func TestComputeSummary(t *testing.T) {
 		},
 	}
 
-	s := computeSummary(result)
+	s := BuildUpdateSummary(result)
 	if s.TotalChecked != 5 {
 		t.Errorf("TotalChecked = %d, want 5", s.TotalChecked)
 	}
@@ -938,90 +933,4 @@ func TestComputeSummary(t *testing.T) {
 	if s.Skipped != 2 {
 		t.Errorf("Skipped = %d, want 2", s.Skipped)
 	}
-}
-
-func TestFindTFFileForModule(t *testing.T) {
-	t.Run("found", func(t *testing.T) {
-		dir := setupModuleDir(t, map[string]string{
-			"main.tf": `
-module "vpc" {
-  source  = "terraform-aws-modules/vpc/aws"
-  version = "~> 5.0"
-}
-`,
-		})
-		got := FindTFFileForModule(dir, "vpc")
-		if got == "" {
-			t.Error("expected to find file for module 'vpc'")
-		}
-	})
-
-	t.Run("not_found", func(t *testing.T) {
-		dir := setupModuleDir(t, map[string]string{
-			"main.tf": `
-module "other" {
-  source = "terraform-aws-modules/eks/aws"
-}
-`,
-		})
-		got := FindTFFileForModule(dir, "vpc")
-		if got != "" {
-			t.Errorf("expected empty, got %q", got)
-		}
-	})
-
-	t.Run("no_tf_files", func(t *testing.T) {
-		dir := t.TempDir()
-		got := FindTFFileForModule(dir, "vpc")
-		if got != "" {
-			t.Errorf("expected empty, got %q", got)
-		}
-	})
-}
-
-func TestFindTFFileForProvider(t *testing.T) {
-	t.Run("found", func(t *testing.T) {
-		dir := setupModuleDir(t, map[string]string{
-			"versions.tf": `
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-  }
-}
-`,
-		})
-		got := FindTFFileForProvider(dir, "aws")
-		if got == "" {
-			t.Error("expected to find file for provider 'aws'")
-		}
-	})
-
-	t.Run("not_found", func(t *testing.T) {
-		dir := setupModuleDir(t, map[string]string{
-			"versions.tf": `
-terraform {
-  required_providers {
-    gcp = {
-      source = "hashicorp/google"
-    }
-  }
-}
-`,
-		})
-		got := FindTFFileForProvider(dir, "aws")
-		if got != "" {
-			t.Errorf("expected empty, got %q", got)
-		}
-	})
-
-	t.Run("no_tf_files", func(t *testing.T) {
-		dir := t.TempDir()
-		got := FindTFFileForProvider(dir, "aws")
-		if got != "" {
-			t.Errorf("expected empty, got %q", got)
-		}
-	})
 }
