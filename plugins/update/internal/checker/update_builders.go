@@ -14,15 +14,16 @@ func newModuleUpdate(modulePath string, call *parser.ModuleCall) updateengine.Mo
 		CallName:   call.Name,
 		Source:     call.Source,
 		Constraint: call.Version,
+		Status:     updateengine.StatusUpToDate,
 	}
 }
 
 func skipModuleUpdate(
 	update updateengine.ModuleVersionUpdate,
-	reason string,
+	issue string,
 ) updateengine.ModuleVersionUpdate {
-	update.Skipped = true
-	update.SkipReason = reason
+	update.Status = updateengine.StatusSkipped
+	update.Issue = issue
 	return update
 }
 
@@ -30,7 +31,8 @@ func errorModuleUpdate(
 	update updateengine.ModuleVersionUpdate,
 	err error,
 ) updateengine.ModuleVersionUpdate {
-	update.Error = fmt.Sprintf("registry error: %v", err)
+	update.Status = updateengine.StatusError
+	update.Issue = fmt.Sprintf("registry error: %v", err)
 	return update
 }
 
@@ -42,7 +44,7 @@ func markModuleUpdateAvailable(
 ) updateengine.ModuleVersionUpdate {
 	update.File = tffile.FindModuleBlockFile(modulePath, callName)
 	update.BumpedVersion = bumpedVersion
-	update.UpdateAvailable = true
+	update.Status = updateengine.StatusUpdateAvailable
 	return update
 }
 
@@ -55,15 +57,16 @@ func newProviderUpdate(
 		ProviderName:   requiredProvider.Name,
 		ProviderSource: requiredProvider.Source,
 		Constraint:     requiredProvider.VersionConstraint,
+		Status:         updateengine.StatusUpToDate,
 	}
 }
 
 func skipProviderUpdate(
 	update updateengine.ProviderVersionUpdate,
-	reason string,
+	issue string,
 ) updateengine.ProviderVersionUpdate {
-	update.Skipped = true
-	update.SkipReason = reason
+	update.Status = updateengine.StatusSkipped
+	update.Issue = issue
 	return update
 }
 
@@ -71,7 +74,8 @@ func errorProviderUpdate(
 	update updateengine.ProviderVersionUpdate,
 	err error,
 ) updateengine.ProviderVersionUpdate {
-	update.Error = fmt.Sprintf("registry error: %v", err)
+	update.Status = updateengine.StatusError
+	update.Issue = fmt.Sprintf("registry error: %v", err)
 	return update
 }
 
@@ -83,6 +87,6 @@ func markProviderUpdateAvailable(
 ) updateengine.ProviderVersionUpdate {
 	update.File = tffile.FindProviderBlockFile(modulePath, providerName)
 	update.BumpedVersion = bumpedVersion
-	update.UpdateAvailable = true
+	update.Status = updateengine.StatusUpdateAvailable
 	return update
 }

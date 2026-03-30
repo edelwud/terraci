@@ -16,32 +16,32 @@ func BuildUpdateSummary(result *UpdateResult) UpdateSummary {
 	for i := range result.Modules {
 		summary.TotalChecked++
 		module := result.Modules[i]
-		switch {
-		case module.Error != "":
+		switch module.Status {
+		case StatusError:
 			summary.Errors++
-		case module.Skipped:
+		case StatusSkipped:
 			summary.Skipped++
-		case module.UpdateAvailable:
+		case StatusUpdateAvailable:
 			summary.UpdatesAvailable++
-		}
-		if module.Applied {
+		case StatusApplied:
 			summary.UpdatesApplied++
+		case StatusUpToDate:
 		}
 	}
 
 	for i := range result.Providers {
 		summary.TotalChecked++
 		provider := result.Providers[i]
-		switch {
-		case provider.Error != "":
+		switch provider.Status {
+		case StatusError:
 			summary.Errors++
-		case provider.Skipped:
+		case StatusSkipped:
 			summary.Skipped++
-		case provider.UpdateAvailable:
+		case StatusUpdateAvailable:
 			summary.UpdatesAvailable++
-		}
-		if provider.Applied {
+		case StatusApplied:
 			summary.UpdatesApplied++
+		case StatusUpToDate:
 		}
 	}
 

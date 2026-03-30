@@ -16,15 +16,21 @@ type UpdateConfig = updateengine.UpdateConfig
 type UpdateResult = updateengine.UpdateResult
 type ModuleVersionUpdate = updateengine.ModuleVersionUpdate
 type ProviderVersionUpdate = updateengine.ProviderVersionUpdate
+type UpdateStatus = updateengine.UpdateStatus
 type Version = updateengine.Version
 
 const (
-	TargetAll       = updateengine.TargetAll
-	TargetModules   = updateengine.TargetModules
-	TargetProviders = updateengine.TargetProviders
-	BumpPatch       = updateengine.BumpPatch
-	BumpMinor       = updateengine.BumpMinor
-	BumpMajor       = updateengine.BumpMajor
+	TargetAll             = updateengine.TargetAll
+	TargetModules         = updateengine.TargetModules
+	TargetProviders       = updateengine.TargetProviders
+	BumpPatch             = updateengine.BumpPatch
+	BumpMinor             = updateengine.BumpMinor
+	BumpMajor             = updateengine.BumpMajor
+	StatusUpToDate        = updateengine.StatusUpToDate
+	StatusUpdateAvailable = updateengine.StatusUpdateAvailable
+	StatusApplied         = updateengine.StatusApplied
+	StatusSkipped         = updateengine.StatusSkipped
+	StatusError           = updateengine.StatusError
 )
 
 var (
@@ -174,8 +180,8 @@ terraform {
 	if prov.LatestVersion != "6.0.0" {
 		t.Errorf("LatestVersion = %q, want 6.0.0", prov.LatestVersion)
 	}
-	if !prov.UpdateAvailable {
-		t.Error("expected UpdateAvailable = true")
+	if prov.Status != StatusUpdateAvailable {
+		t.Errorf("Status = %q, want %q", prov.Status, StatusUpdateAvailable)
 	}
 	if prov.File == "" {
 		t.Error("expected provider file to be resolved")
@@ -218,8 +224,8 @@ module "vpc" {
 	if mod.Source != "terraform-aws-modules/vpc/aws" {
 		t.Errorf("Source = %q", mod.Source)
 	}
-	if !mod.UpdateAvailable {
-		t.Error("expected UpdateAvailable = true")
+	if mod.Status != StatusUpdateAvailable {
+		t.Errorf("Status = %q, want %q", mod.Status, StatusUpdateAvailable)
 	}
 	if mod.BumpedVersion == "" {
 		t.Error("BumpedVersion should not be empty")
@@ -256,11 +262,11 @@ terraform {
 	if len(result.Providers) != 1 {
 		t.Fatalf("providers = %d, want 1", len(result.Providers))
 	}
-	if !result.Providers[0].Skipped {
-		t.Error("expected Skipped = true")
+	if result.Providers[0].Status != StatusSkipped {
+		t.Errorf("Status = %q, want %q", result.Providers[0].Status, StatusSkipped)
 	}
-	if result.Providers[0].SkipReason != "no source specified" {
-		t.Errorf("SkipReason = %q", result.Providers[0].SkipReason)
+	if result.Providers[0].Issue != "no source specified" {
+		t.Errorf("Issue = %q", result.Providers[0].Issue)
 	}
 }
 
@@ -291,11 +297,11 @@ terraform {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !result.Providers[0].Skipped {
-		t.Error("expected Skipped = true")
+	if result.Providers[0].Status != StatusSkipped {
+		t.Errorf("Status = %q, want %q", result.Providers[0].Status, StatusSkipped)
 	}
-	if result.Providers[0].SkipReason != skipReasonIgnored {
-		t.Errorf("SkipReason = %q", result.Providers[0].SkipReason)
+	if result.Providers[0].Issue != skipReasonIgnored {
+		t.Errorf("Issue = %q", result.Providers[0].Issue)
 	}
 }
 
@@ -329,8 +335,8 @@ terraform {
 	if len(result.Providers) != 1 {
 		t.Fatalf("providers = %d, want 1", len(result.Providers))
 	}
-	if !result.Providers[0].Skipped {
-		t.Error("expected Skipped = true for invalid source")
+	if result.Providers[0].Status != StatusSkipped {
+		t.Errorf("Status = %q, want %q", result.Providers[0].Status, StatusSkipped)
 	}
 }
 
@@ -365,8 +371,11 @@ terraform {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Providers[0].Error == "" {
-		t.Error("expected Error for registry error")
+	if result.Providers[0].Status != StatusError {
+		t.Errorf("Status = %q, want %q", result.Providers[0].Status, StatusError)
+	}
+	if result.Providers[0].Issue == "" {
+		t.Error("expected Issue for registry error")
 	}
 	if result.Summary.Errors != 1 {
 		t.Errorf("Summary.Errors = %d, want 1", result.Summary.Errors)
@@ -410,8 +419,8 @@ terraform {
 		t.Fatalf("providers = %d, want 1", len(result.Providers))
 	}
 	prov := result.Providers[0]
-	if !prov.Skipped {
-		t.Error("expected Skipped = true when cannot determine version")
+	if prov.Status != StatusSkipped {
+		t.Errorf("Status = %q, want %q", prov.Status, StatusSkipped)
 	}
 	if prov.LatestVersion == "" {
 		t.Error("LatestVersion should still be reported")
@@ -526,11 +535,11 @@ module "vpc" {
 	if len(result.Modules) != 1 {
 		t.Fatalf("modules = %d, want 1", len(result.Modules))
 	}
-	if !result.Modules[0].Skipped {
-		t.Error("expected Skipped = true")
+	if result.Modules[0].Status != StatusSkipped {
+		t.Errorf("Status = %q, want %q", result.Modules[0].Status, StatusSkipped)
 	}
-	if result.Modules[0].SkipReason != skipReasonIgnored {
-		t.Errorf("SkipReason = %q", result.Modules[0].SkipReason)
+	if result.Modules[0].Issue != skipReasonIgnored {
+		t.Errorf("Issue = %q", result.Modules[0].Issue)
 	}
 }
 
@@ -637,8 +646,11 @@ module "vpc" {
 	if len(result.Modules) != 1 {
 		t.Fatalf("modules = %d, want 1", len(result.Modules))
 	}
-	if result.Modules[0].Error == "" {
-		t.Error("expected Error for registry error")
+	if result.Modules[0].Status != StatusError {
+		t.Errorf("Status = %q, want %q", result.Modules[0].Status, StatusError)
+	}
+	if result.Modules[0].Issue == "" {
+		t.Error("expected Issue for registry error")
 	}
 	if result.Summary.Errors != 1 {
 		t.Errorf("Summary.Errors = %d, want 1", result.Summary.Errors)
@@ -677,8 +689,8 @@ module "vpc" {
 	if len(result.Modules) != 1 {
 		t.Fatalf("modules = %d, want 1", len(result.Modules))
 	}
-	if !result.Modules[0].Applied {
-		t.Fatal("expected module update to be applied when write=true")
+	if result.Modules[0].Status != StatusApplied {
+		t.Fatalf("Status = %q, want %q", result.Modules[0].Status, StatusApplied)
 	}
 	data, readErr := os.ReadFile(filepath.Join(dir, "main.tf"))
 	if readErr != nil {
@@ -738,38 +750,44 @@ provider "registry.terraform.io/hashicorp/aws" {
 	if prov.CurrentVersion != "5.67.0" {
 		t.Errorf("CurrentVersion = %q, want '5.67.0' (from lock file)", prov.CurrentVersion)
 	}
-	if !prov.UpdateAvailable {
-		t.Error("expected UpdateAvailable = true")
+	if prov.Status != StatusUpdateAvailable {
+		t.Errorf("Status = %q, want %q", prov.Status, StatusUpdateAvailable)
 	}
 }
 
 func TestApplyUpdates_ErrorSetsError(t *testing.T) {
 	result := &UpdateResult{
 		Modules: []ModuleVersionUpdate{
-			{UpdateAvailable: true, File: "/nonexistent/file.tf", CallName: "vpc", BumpedVersion: "5.2.0", Constraint: "~> 5.0"},
+			{Status: StatusUpdateAvailable, File: "/nonexistent/file.tf", CallName: "vpc", BumpedVersion: "5.2.0", Constraint: "~> 5.0"},
 		},
 		Providers: []ProviderVersionUpdate{
-			{UpdateAvailable: true, File: "/nonexistent/file.tf", ProviderName: "aws", BumpedVersion: "5.2.0", Constraint: "~> 5.0"},
+			{Status: StatusUpdateAvailable, File: "/nonexistent/file.tf", ProviderName: "aws", BumpedVersion: "5.2.0", Constraint: "~> 5.0"},
 		},
 	}
 
 	NewApplyService().Apply(result)
 
-	if result.Modules[0].Error == "" {
-		t.Error("Module.Error should be set after write error")
+	if result.Modules[0].Status != StatusError {
+		t.Errorf("Module.Status = %q, want %q", result.Modules[0].Status, StatusError)
 	}
-	if result.Providers[0].Error == "" {
-		t.Error("Provider.Error should be set after write error")
+	if result.Modules[0].Issue == "" {
+		t.Error("Module.Issue should be set after write error")
+	}
+	if result.Providers[0].Status != StatusError {
+		t.Errorf("Provider.Status = %q, want %q", result.Providers[0].Status, StatusError)
+	}
+	if result.Providers[0].Issue == "" {
+		t.Error("Provider.Issue should be set after write error")
 	}
 }
 
 func TestApplyUpdates_SkipsNotUpdated(_ *testing.T) {
 	result := &UpdateResult{
 		Modules: []ModuleVersionUpdate{
-			{UpdateAvailable: false, File: "some.tf"},
+			{Status: StatusUpToDate, File: "some.tf"},
 		},
 		Providers: []ProviderVersionUpdate{
-			{UpdateAvailable: true, File: ""},
+			{Status: StatusUpdateAvailable, File: ""},
 		},
 	}
 
@@ -913,13 +931,13 @@ func TestVersionFromConstraint(t *testing.T) {
 func TestComputeSummary(t *testing.T) {
 	result := &UpdateResult{
 		Modules: []ModuleVersionUpdate{
-			{UpdateAvailable: true},
-			{Skipped: true},
-			{},
+			{Status: StatusUpdateAvailable},
+			{Status: StatusSkipped},
+			{Status: StatusUpToDate},
 		},
 		Providers: []ProviderVersionUpdate{
-			{UpdateAvailable: true},
-			{Skipped: true},
+			{Status: StatusApplied},
+			{Status: StatusError},
 		},
 	}
 
@@ -927,10 +945,16 @@ func TestComputeSummary(t *testing.T) {
 	if s.TotalChecked != 5 {
 		t.Errorf("TotalChecked = %d, want 5", s.TotalChecked)
 	}
-	if s.UpdatesAvailable != 2 {
-		t.Errorf("UpdatesAvailable = %d, want 2", s.UpdatesAvailable)
+	if s.UpdatesAvailable != 1 {
+		t.Errorf("UpdatesAvailable = %d, want 1", s.UpdatesAvailable)
 	}
-	if s.Skipped != 2 {
-		t.Errorf("Skipped = %d, want 2", s.Skipped)
+	if s.UpdatesApplied != 1 {
+		t.Errorf("UpdatesApplied = %d, want 1", s.UpdatesApplied)
+	}
+	if s.Skipped != 1 {
+		t.Errorf("Skipped = %d, want 1", s.Skipped)
+	}
+	if s.Errors != 1 {
+		t.Errorf("Errors = %d, want 1", s.Errors)
 	}
 }

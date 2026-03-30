@@ -92,11 +92,11 @@ func TestRenderReportBody_Providers(t *testing.T) {
 	result := &updateengine.UpdateResult{
 		Providers: []updateengine.ProviderVersionUpdate{
 			{
-				ModulePath:      "platform/prod/vpc",
-				ProviderSource:  "hashicorp/aws",
-				Constraint:      "~> 5.0",
-				LatestVersion:   "5.3.0",
-				UpdateAvailable: true,
+				ModulePath:     "platform/prod/vpc",
+				ProviderSource: "hashicorp/aws",
+				Constraint:     "~> 5.0",
+				LatestVersion:  "5.3.0",
+				Status:         updateengine.StatusUpdateAvailable,
 			},
 		},
 	}
@@ -143,7 +143,7 @@ func TestRenderReportBody_Modules(t *testing.T) {
 func TestRenderReportBody_Mixed(t *testing.T) {
 	result := &updateengine.UpdateResult{
 		Providers: []updateengine.ProviderVersionUpdate{
-			{ModulePath: "a", ProviderSource: "hashicorp/aws", UpdateAvailable: true},
+			{ModulePath: "a", ProviderSource: "hashicorp/aws", Status: updateengine.StatusUpdateAvailable},
 		},
 		Modules: []updateengine.ModuleVersionUpdate{
 			{ModulePath: "b", Source: "terraform-aws-modules/vpc/aws"},
@@ -165,8 +165,8 @@ func TestRenderReportBody_Skipped(t *testing.T) {
 			{
 				ModulePath:     "test",
 				ProviderSource: "hashicorp/aws",
-				Skipped:        true,
-				SkipReason:     "ignored by config",
+				Status:         updateengine.StatusSkipped,
+				Issue:          "ignored by config",
 			},
 		},
 	}
@@ -190,11 +190,11 @@ func TestRenderReportBody_UpdateAvailable(t *testing.T) {
 	result := &updateengine.UpdateResult{
 		Modules: []updateengine.ModuleVersionUpdate{
 			{
-				ModulePath:      "test",
-				Source:          "terraform-aws-modules/vpc/aws",
-				Constraint:      "~> 5.0",
-				LatestVersion:   "5.3.0",
-				UpdateAvailable: true,
+				ModulePath:    "test",
+				Source:        "terraform-aws-modules/vpc/aws",
+				Constraint:    "~> 5.0",
+				LatestVersion: "5.3.0",
+				Status:        updateengine.StatusUpdateAvailable,
 			},
 		},
 	}

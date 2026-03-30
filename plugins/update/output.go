@@ -89,8 +89,8 @@ func logProviderUpdate(update *updateengine.ProviderVersionUpdate) {
 	label := update.ProviderName + " " + update.ProviderSource
 	entry := log.WithField("current", formatCurrent(update.Constraint, update.CurrentVersion)).
 		WithField("available", update.BumpedVersion)
-	if update.Applied {
-		entry = entry.WithField("status", "applied")
+	if update.Status == updateengine.StatusApplied {
+		entry = entry.WithField("status", string(update.Status))
 	}
 	if update.LatestVersion != "" && update.LatestVersion != update.BumpedVersion {
 		entry = entry.WithField("latest", update.LatestVersion)
@@ -102,8 +102,8 @@ func logModuleUpdate(update *updateengine.ModuleVersionUpdate) {
 	label := update.CallName + " " + update.Source
 	entry := log.WithField("current", formatCurrent(update.Constraint, update.CurrentVersion)).
 		WithField("available", update.BumpedVersion)
-	if update.Applied {
-		entry = entry.WithField("status", "applied")
+	if update.Status == updateengine.StatusApplied {
+		entry = entry.WithField("status", string(update.Status))
 	}
 	if update.LatestVersion != "" && update.LatestVersion != update.BumpedVersion {
 		entry = entry.WithField("latest", update.LatestVersion)
