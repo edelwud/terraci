@@ -9,12 +9,7 @@ import (
 )
 
 // Initialize sets up the registry client.
-func (p *Plugin) Initialize(_ context.Context, appCtx *plugin.AppContext) error {
-	cfg := appCtx.Config()
-	if cfg != nil {
-		p.serviceDirRel = cfg.ServiceDir
-	}
-
+func (p *Plugin) Initialize(_ context.Context, _ *plugin.AppContext) error {
 	if !p.IsEnabled() {
 		return nil
 	}

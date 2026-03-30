@@ -26,8 +26,8 @@ func (p *Plugin) PipelineID() string { return os.Getenv("GITHUB_RUN_ID") }
 func (p *Plugin) CommitSHA() string { return os.Getenv("GITHUB_SHA") }
 
 // NewGenerator creates a new GitHub Actions pipeline generator.
-func (p *Plugin) NewGenerator(_ *plugin.AppContext, depGraph *graph.DependencyGraph, modules []*discovery.Module) pipeline.Generator {
-	contributions := plugin.CollectContributions()
+func (p *Plugin) NewGenerator(ctx *plugin.AppContext, depGraph *graph.DependencyGraph, modules []*discovery.Module) pipeline.Generator {
+	contributions := plugin.CollectContributions(ctx)
 	return githubci.NewGenerator(p.Config(), contributions, depGraph, modules)
 }
 

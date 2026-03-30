@@ -25,11 +25,9 @@ func init() {
 // Plugin is the OPA policy check plugin.
 type Plugin struct {
 	plugin.BasePlugin[*policyengine.Config]
-	serviceDirRel string // relative path, for pipeline artifact paths
 }
 
 // Reset resets all plugin state.
 func (p *Plugin) Reset() {
 	p.BasePlugin.Reset()
-	p.serviceDirRel = ""
 }

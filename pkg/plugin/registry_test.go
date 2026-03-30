@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
@@ -35,9 +36,11 @@ func (p *testInitializablePlugin) Initialize(_ context.Context, _ *AppContext) e
 type testContributorPlugin struct {
 	BasePlugin[*testConfig]
 	contribution *pipeline.Contribution
+	seenCtx      *AppContext
 }
 
-func (p *testContributorPlugin) PipelineContribution() *pipeline.Contribution {
+func (p *testContributorPlugin) PipelineContribution(ctx *AppContext) *pipeline.Contribution {
+	p.seenCtx = ctx
 	return p.contribution
 }
 
@@ -147,7 +150,7 @@ func TestCollectContributions_Empty(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
 
-	contribs := CollectContributions()
+	contribs := CollectContributions(nil)
 	if len(contribs) != 0 {
 		t.Errorf("expected 0 contributions, got %d", len(contribs))
 	}
@@ -231,12 +234,16 @@ func TestCollectContributions_FiltersDisabledPlugins(t *testing.T) {
 	disabled.SetTypedConfig(&testConfig{Enabled: false})
 	Register(disabled)
 
-	contribs := CollectContributions()
+	appCtx := NewAppContext(config.DefaultConfig(), "/work", "/service", "test", NewReportRegistry())
+	contribs := CollectContributions(appCtx)
 	if len(contribs) != 1 {
 		t.Fatalf("expected 1 contribution, got %d", len(contribs))
 	}
 	if contribs[0].Jobs[0].Name != "enabled-job" {
 		t.Errorf("expected enabled-job, got %s", contribs[0].Jobs[0].Name)
+	}
+	if enabled.seenCtx != appCtx {
+		t.Fatal("enabled contributor did not receive app context")
 	}
 }
 
@@ -258,7 +265,7 @@ func TestCollectContributions_IncludesPluginWithoutConfigLoader(t *testing.T) {
 
 	// bareContributor doesn't satisfy PipelineContributor since it doesn't have PipelineContribution()
 	// So CollectContributions won't find it — this is expected behavior
-	contribs := CollectContributions()
+	contribs := CollectContributions(nil)
 	if len(contribs) != 0 {
 		t.Errorf("expected 0 contributions from bare plugin, got %d", len(contribs))
 	}

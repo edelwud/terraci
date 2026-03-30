@@ -9,9 +9,9 @@ import (
 
 func TestPlugin_PipelineContribution(t *testing.T) {
 	p := newTestPlugin(t)
-	p.serviceDirRel = ".terraci"
+	appCtx := newTestAppContext(t, t.TempDir())
 
-	contrib := p.PipelineContribution()
+	contrib := p.PipelineContribution(appCtx)
 
 	if contrib == nil {
 		t.Fatal("PipelineContribution() returned nil")
@@ -46,9 +46,12 @@ func TestPlugin_PipelineContribution(t *testing.T) {
 
 func TestPlugin_PipelineContribution_EmptyServiceDir(t *testing.T) {
 	p := newTestPlugin(t)
-	p.serviceDirRel = ""
+	appCtx := newTestAppContext(t, t.TempDir())
+	cfg := appCtx.Config()
+	cfg.ServiceDir = ""
+	appCtx.Update(cfg, appCtx.WorkDir(), appCtx.ServiceDir(), appCtx.Version())
 
-	contrib := p.PipelineContribution()
+	contrib := p.PipelineContribution(appCtx)
 	job := contrib.Jobs[0]
 
 	if len(job.ArtifactPaths) != 1 || job.ArtifactPaths[0] != resultsFile {
@@ -58,9 +61,9 @@ func TestPlugin_PipelineContribution_EmptyServiceDir(t *testing.T) {
 
 func TestPlugin_PipelineContribution_NoSteps(t *testing.T) {
 	p := newTestPlugin(t)
-	p.serviceDirRel = ".terraci"
+	appCtx := newTestAppContext(t, t.TempDir())
 
-	contrib := p.PipelineContribution()
+	contrib := p.PipelineContribution(appCtx)
 
 	if len(contrib.Steps) != 0 {
 		t.Errorf("steps count = %d, want 0 (cost plugin contributes jobs, not steps)", len(contrib.Steps))

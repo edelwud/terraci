@@ -112,6 +112,7 @@ type ModuleReport struct {
 	CostAfter  float64 `json:"cost_after,omitempty"`
 	CostDiff   float64 `json:"cost_diff,omitempty"`
 	HasCost    bool    `json:"has_cost,omitempty"`
+	Error      string  `json:"error,omitempty"`
 }
 
 // ToModulePlans converts plan results to ModulePlan for comment rendering

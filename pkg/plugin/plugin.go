@@ -216,5 +216,5 @@ type InitContribution struct {
 // PipelineContributor plugins add steps or jobs to the generated CI pipeline.
 type PipelineContributor interface {
 	Plugin
-	PipelineContribution() *pipeline.Contribution
+	PipelineContribution(ctx *AppContext) *pipeline.Contribution
 }

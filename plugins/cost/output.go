@@ -3,109 +3,193 @@ package cost
 import (
 	"encoding/json"
 	"io"
+	"slices"
+	"sort"
 
 	"github.com/edelwud/terraci/pkg/log"
-	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
 
-func (p *Plugin) outputResult(w io.Writer, appCtx *plugin.AppContext, outputFmt string, result *model.EstimateResult) error {
+func outputResult(w io.Writer, workDir, outputFmt string, result *model.EstimateResult) error {
 	if outputFmt == "json" {
 		enc := json.NewEncoder(w)
 		enc.SetIndent("", "  ")
 		return enc.Encode(result)
 	}
 
-	tree := model.BuildSegmentTree(result, appCtx.WorkDir())
+	tree := model.BuildSegmentTree(result, workDir)
 	model.CompactSegmentTree(tree)
-	renderSegmentTree(tree, 0)
+	renderSegmentTree(tree)
 
 	if result.TotalDiff != 0 {
 		log.WithField("before", model.FormatCost(result.TotalBefore)).
 			WithField("after", model.FormatCost(result.TotalAfter)).
 			WithField("diff", model.FormatCostDiff(result.TotalDiff)).
 			Info("total")
-	} else {
-		log.WithField("monthly", model.FormatCost(result.TotalAfter)).Info("total")
+		return nil
 	}
 
+	log.WithField("monthly", model.FormatCost(result.TotalAfter)).Info("total")
 	return nil
 }
 
-func renderSegmentTree(node *model.SegmentNode, depth int) {
-	for _, c := range node.Children {
-		if c.AfterCost == 0 && c.DiffCost == 0 && (c.Module == nil || c.Module.Error == "") {
+func renderSegmentTree(node *model.SegmentNode) {
+	for _, child := range node.Children {
+		if !shouldShowTextSegment(child) {
 			continue
 		}
 
-		entry := log.WithField("monthly", model.FormatCost(c.AfterCost))
-		if c.DiffCost != 0 {
-			entry = entry.WithField("diff", model.FormatCostDiff(c.DiffCost))
-		}
-		if c.Module != nil && c.Module.Error != "" {
-			entry = entry.WithField("error", c.Module.Error)
-		}
-		entry.Info(c.Name)
-
-		if c.Module != nil && len(c.Module.Submodules) > 0 {
-			log.IncreasePadding()
-			renderSubmodules(c.Module.Submodules, "")
-			log.DecreasePadding()
+		if child.Module != nil && child.Module.Error != "" {
+			log.WithField("error", child.Module.Error).Info(child.Name)
+		} else {
+			entry := log.WithField("monthly", model.FormatCost(child.AfterCost))
+			if child.DiffCost != 0 {
+				entry = entry.WithField("diff", model.FormatCostDiff(child.DiffCost))
+			}
+			entry.Info(child.Name)
 		}
 
-		if len(c.Children) > 0 && c.Module == nil {
+		if child.Module != nil {
 			log.IncreasePadding()
-			renderSegmentTree(c, depth+1)
+			renderModuleDetails(child.Module)
+			log.DecreasePadding()
+			continue
+		}
+
+		if len(child.Children) > 0 {
+			log.IncreasePadding()
+			renderSegmentTree(child)
 			log.DecreasePadding()
 		}
+	}
+}
+
+func shouldShowTextSegment(node *model.SegmentNode) bool {
+	if node == nil {
+		return false
+	}
+	if node.Module != nil {
+		return shouldShowTextModule(node.Module)
+	}
+	return node.AfterCost != 0 || node.DiffCost != 0 || hasVisibleTextDescendant(node)
+}
+
+func hasVisibleTextDescendant(node *model.SegmentNode) bool {
+	return slices.ContainsFunc(node.Children, shouldShowTextSegment)
+}
+
+func shouldShowTextModule(module *model.ModuleCost) bool {
+	if module == nil {
+		return false
+	}
+	return module.BeforeCost != 0 || module.AfterCost != 0 || module.DiffCost != 0
+}
+
+func renderModuleDetails(module *model.ModuleCost) {
+	if module == nil || module.Error != "" {
+		return
+	}
+
+	renderResources(module.Resources, "")
+	if len(module.Submodules) > 0 {
+		renderSubmodules(module.Submodules, "")
 	}
 }
 
 func renderSubmodules(submodules []model.SubmoduleCost, parentAddr string) {
 	for i := range submodules {
-		sm := &submodules[i]
-		if sm.MonthlyCost == 0 && len(sm.Children) == 0 {
+		submodule := &submodules[i]
+		if !shouldShowSubmodule(submodule) {
 			continue
 		}
 
-		showHeader := len(submodules) > 1 || len(sm.Children) > 0
-		if showHeader && sm.ModuleAddr != "" {
-			label := model.StripModulePrefix(sm.ModuleAddr, parentAddr)
-			log.WithField("monthly", model.FormatCost(sm.MonthlyCost)).Info(label)
+		showHeader := (len(submodules) > 1 || len(submodule.Children) > 0) && !isRenderedZeroCost(submodule.MonthlyCost)
+		if showHeader && submodule.ModuleAddr != "" {
+			label := model.StripModulePrefix(submodule.ModuleAddr, parentAddr)
+			log.WithField("monthly", model.FormatCost(submodule.MonthlyCost)).Info(label)
 			log.IncreasePadding()
 		}
 
-		for k := range sm.Resources {
-			rc := &sm.Resources[k]
-			displayAddr := model.StripModulePrefix(rc.Address, sm.ModuleAddr)
-			renderResource(rc, displayAddr)
+		renderResources(submodule.Resources, submodule.ModuleAddr)
+		if len(submodule.Children) > 0 {
+			renderSubmodules(submodule.Children, submodule.ModuleAddr)
 		}
 
-		if len(sm.Children) > 0 {
-			renderSubmodules(sm.Children, sm.ModuleAddr)
-		}
-
-		if showHeader && sm.ModuleAddr != "" {
+		if showHeader && submodule.ModuleAddr != "" {
 			log.DecreasePadding()
 		}
 	}
 }
 
-func renderResource(rc *model.ResourceCost, displayAddr string) {
-	switch rc.ErrorKind {
-	case model.CostErrorNone:
-		if rc.MonthlyCost > 0 {
-			entry := log.WithField("monthly", model.FormatCost(rc.MonthlyCost))
-			for dk, dv := range rc.Details {
-				entry = entry.WithField(dk, dv)
+func shouldShowSubmodule(submodule *model.SubmoduleCost) bool {
+	if submodule == nil {
+		return false
+	}
+	if submodule.MonthlyCost != 0 {
+		return true
+	}
+	for i := range submodule.Resources {
+		if shouldShowResource(&submodule.Resources[i]) {
+			return true
+		}
+	}
+	for i := range submodule.Children {
+		if shouldShowSubmodule(&submodule.Children[i]) {
+			return true
+		}
+	}
+	return false
+}
+
+func renderResources(resources []model.ResourceCost, moduleAddr string) {
+	for i := range resources {
+		resource := &resources[i]
+		if !shouldShowResource(resource) {
+			continue
+		}
+
+		displayAddr := model.StripModulePrefix(resource.Address, moduleAddr)
+		switch resource.ErrorKind {
+		case model.CostErrorNone:
+			entry := log.WithField("monthly", model.FormatCost(resource.MonthlyCost))
+			for _, key := range sortedDetailKeys(resource.Details) {
+				entry = entry.WithField(key, resource.Details[key])
 			}
 			entry.Info(displayAddr)
+		case model.CostErrorUsageBased:
+			log.WithField("note", "usage-based").Debug(displayAddr)
+		case model.CostErrorNoProvider, model.CostErrorNoHandler:
+			log.WithField("note", "unsupported").Debug(displayAddr)
+		case model.CostErrorLookupFailed, model.CostErrorAPIFailure, model.CostErrorNoPrice:
+			log.WithField("error", resource.ErrorDetail).Warn(displayAddr)
 		}
-	case model.CostErrorUsageBased:
-		log.WithField("note", "usage-based").Debug(displayAddr)
-	case model.CostErrorNoProvider, model.CostErrorNoHandler:
-		log.WithField("note", "unsupported").Debug(displayAddr)
-	case model.CostErrorLookupFailed, model.CostErrorAPIFailure, model.CostErrorNoPrice:
-		log.WithField("error", rc.ErrorDetail).Warn(displayAddr)
 	}
+}
+
+func shouldShowResource(resource *model.ResourceCost) bool {
+	if resource == nil {
+		return false
+	}
+	switch resource.ErrorKind {
+	case model.CostErrorNone:
+		return resource.MonthlyCost != 0 || resource.BeforeMonthlyCost != 0
+	case model.CostErrorUsageBased, model.CostErrorNoProvider, model.CostErrorNoHandler,
+		model.CostErrorLookupFailed, model.CostErrorAPIFailure, model.CostErrorNoPrice:
+		return true
+	default:
+		return true
+	}
+}
+
+func sortedDetailKeys(details map[string]string) []string {
+	keys := make([]string, 0, len(details))
+	for key := range details {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func isRenderedZeroCost(cost float64) bool {
+	return model.FormatCost(cost) == "$0"
 }

@@ -6,36 +6,24 @@ import (
 
 	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/plugin"
-	"github.com/edelwud/terraci/plugins/cost/internal/engine"
 )
 
 // Initialize creates the estimator and cleans expired cache at startup.
-func (p *Plugin) Initialize(_ context.Context, appCtx *plugin.AppContext) error {
-	cfg := appCtx.Config()
-	if cfg != nil {
-		p.serviceDirRel = cfg.ServiceDir
-	}
-
+func (p *Plugin) Initialize(_ context.Context, _ *plugin.AppContext) error {
 	if !p.IsEnabled() {
 		return nil
 	}
 
-	// Validate config before proceeding
-	if err := p.Config().Validate(); err != nil {
-		log.WithError(err).Warn("cost: invalid configuration, using defaults")
-	}
-
-	log.Debug("cost: initializing estimator and pricing cache")
-	estimator, err := engine.NewEstimatorFromConfig(p.Config())
+	log.Debug("cost: validating runtime and pricing cache")
+	runtime, err := newRuntime(p.Config())
 	if err != nil {
 		return err
 	}
-	p.estimator = estimator
-	p.estimator.CleanExpiredCache()
+	runtime.estimator.CleanExpiredCache()
 
-	entries := p.estimator.CacheEntries()
+	entries := runtime.estimator.CacheEntries()
 	if len(entries) == 0 {
-		log.WithField("dir", p.estimator.CacheDir()).Debug("pricing cache empty")
+		log.WithField("dir", runtime.estimator.CacheDir()).Debug("pricing cache empty")
 	} else {
 		for _, e := range entries {
 			log.WithField("service", e.Service.String()).

@@ -70,9 +70,6 @@ func TestPlugin_Initialize_Disabled(t *testing.T) {
 	if err := p.Initialize(context.Background(), appCtx); err != nil {
 		t.Fatalf("Initialize() error = %v", err)
 	}
-	if p.getEstimator() != nil {
-		t.Error("estimator should be nil when plugin is not configured")
-	}
 }
 
 func TestPlugin_Initialize_ConfiguredButDisabled(t *testing.T) {
@@ -82,9 +79,6 @@ func TestPlugin_Initialize_ConfiguredButDisabled(t *testing.T) {
 
 	if err := p.Initialize(context.Background(), appCtx); err != nil {
 		t.Fatalf("Initialize() error = %v", err)
-	}
-	if p.getEstimator() != nil {
-		t.Error("estimator should be nil when plugin is configured but disabled")
 	}
 }
 
@@ -100,12 +94,6 @@ func TestPlugin_Initialize_Enabled(t *testing.T) {
 	if err := p.Initialize(context.Background(), appCtx); err != nil {
 		t.Fatalf("Initialize() error = %v", err)
 	}
-	if p.getEstimator() == nil {
-		t.Fatal("estimator should not be nil after Initialize with enabled config")
-	}
-	if p.serviceDirRel != appCtx.Config().ServiceDir {
-		t.Errorf("serviceDirRel = %q, want %q", p.serviceDirRel, appCtx.Config().ServiceDir)
-	}
 }
 
 func TestPlugin_Initialize_InvalidTTL(t *testing.T) {
@@ -117,12 +105,12 @@ func TestPlugin_Initialize_InvalidTTL(t *testing.T) {
 	})
 	appCtx := newTestAppContext(t, t.TempDir())
 
-	// Should not return error — invalid TTL is logged as warning, not fatal
-	if err := p.Initialize(context.Background(), appCtx); err != nil {
-		t.Fatalf("Initialize() error = %v", err)
+	err := p.Initialize(context.Background(), appCtx)
+	if err == nil {
+		t.Fatal("Initialize() error = nil, want invalid configuration error")
 	}
-	if p.getEstimator() == nil {
-		t.Fatal("estimator should still be created with invalid TTL")
+	if got := err.Error(); got == "" || got == "invalid cost configuration" {
+		t.Fatalf("Initialize() error = %q, want actionable validation error", got)
 	}
 }
 
@@ -137,20 +125,10 @@ func TestPlugin_Reset(t *testing.T) {
 	if err := p.Initialize(context.Background(), appCtx); err != nil {
 		t.Fatalf("Initialize() error = %v", err)
 	}
-	// Verify state is set before reset
-	if p.getEstimator() == nil {
-		t.Fatal("estimator should be set before reset")
-	}
 
 	p.Reset()
 
 	if p.IsConfigured() {
 		t.Error("IsConfigured() should be false after Reset")
-	}
-	if p.getEstimator() != nil {
-		t.Error("estimator should be nil after Reset")
-	}
-	if p.serviceDirRel != "" {
-		t.Errorf("serviceDirRel = %q, want empty after Reset", p.serviceDirRel)
 	}
 }

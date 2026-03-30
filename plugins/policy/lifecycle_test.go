@@ -39,7 +39,4 @@ func TestPlugin_Initialize_ConfiguredButDisabled(t *testing.T) {
 	if err := p.Initialize(context.Background(), appCtx); err != nil {
 		t.Fatalf("Initialize() error = %v", err)
 	}
-	if p.serviceDirRel != appCtx.Config().ServiceDir {
-		t.Fatalf("serviceDirRel = %q, want %q", p.serviceDirRel, appCtx.Config().ServiceDir)
-	}
 }

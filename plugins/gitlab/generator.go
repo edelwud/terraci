@@ -26,8 +26,8 @@ func (p *Plugin) PipelineID() string { return os.Getenv("CI_PIPELINE_ID") }
 func (p *Plugin) CommitSHA() string { return os.Getenv("CI_COMMIT_SHA") }
 
 // NewGenerator creates a new GitLab CI pipeline generator.
-func (p *Plugin) NewGenerator(_ *plugin.AppContext, depGraph *graph.DependencyGraph, modules []*discovery.Module) pipeline.Generator {
-	contributions := plugin.CollectContributions()
+func (p *Plugin) NewGenerator(ctx *plugin.AppContext, depGraph *graph.DependencyGraph, modules []*discovery.Module) pipeline.Generator {
+	contributions := plugin.CollectContributions(ctx)
 	return gitlabci.NewGenerator(p.Config(), contributions, depGraph, modules)
 }
 

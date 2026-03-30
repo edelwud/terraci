@@ -1,19 +1,14 @@
 package cost
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"os"
+	"io"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	rawlog "github.com/caarlos0/log"
-
 	"github.com/edelwud/terraci/pkg/ci"
-	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/engine"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
 
@@ -61,12 +56,11 @@ func TestPlugin_Commands_RunE_NotConfigured(t *testing.T) {
 func TestPlugin_RunEstimation_NoPlanFiles(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &model.CostConfig{Enabled: true, CacheDir: t.TempDir()})
-	p.estimator = newTestEstimator(t)
 
 	workDir := t.TempDir()
 	appCtx := newTestAppContext(t, workDir)
 
-	err := p.runEstimation(context.Background(), appCtx, "", "text")
+	err := p.runEstimationWithWriter(context.Background(), appCtx, "", "text", io.Discard)
 	if err == nil {
 		t.Fatal("expected error when no plan.json files exist")
 	}
@@ -75,10 +69,12 @@ func TestPlugin_RunEstimation_NoPlanFiles(t *testing.T) {
 	}
 }
 
-func TestPlugin_RunEstimation_NilEstimator(t *testing.T) {
+func TestPlugin_RunEstimation_InvalidConfig(t *testing.T) {
 	p := newTestPlugin(t)
-	enablePlugin(t, p, &model.CostConfig{Enabled: true})
-	// Do NOT call Initialize — estimator stays nil
+	enablePlugin(t, p, &model.CostConfig{
+		Enabled:  true,
+		CacheTTL: "invalid-duration",
+	})
 
 	workDir := t.TempDir()
 	moduleDir := filepath.Join(workDir, "platform", "prod", "us-east-1", "vpc")
@@ -86,99 +82,62 @@ func TestPlugin_RunEstimation_NilEstimator(t *testing.T) {
 
 	appCtx := newTestAppContext(t, workDir)
 
-	err := p.runEstimation(context.Background(), appCtx, "", "text")
+	err := p.runEstimationWithWriter(context.Background(), appCtx, "", "text", io.Discard)
 	if err == nil {
-		t.Fatal("expected error when estimator is nil")
+		t.Fatal("expected error when config is invalid")
 	}
-	if !strings.Contains(err.Error(), "not initialized") {
-		t.Errorf("error = %q, want to contain 'not initialized'", err.Error())
+	if !strings.Contains(err.Error(), "invalid cost configuration") {
+		t.Errorf("error = %q, want to contain 'invalid cost configuration'", err.Error())
 	}
 }
 
 func TestPlugin_RunEstimation_Success(t *testing.T) {
 	p := newTestPlugin(t)
-	ts := fakePricingServer(t)
-	cacheDir := t.TempDir()
 
 	enablePlugin(t, p, &model.CostConfig{
 		Enabled:  true,
-		CacheDir: cacheDir,
+		CacheDir: t.TempDir(),
 	})
-
-	// Create estimator with fake pricing server
-	fetcher := &awskit.Fetcher{Client: ts.Client(), BaseURL: ts.URL}
-	p.estimator = engine.NewEstimator(cacheDir, 0, fetcher)
 
 	workDir := t.TempDir()
 	moduleDir := filepath.Join(workDir, "platform", "prod", "us-east-1", "vpc")
 	writePlanJSON(t, moduleDir, testPlanEC2)
 
 	appCtx := newTestAppContext(t, workDir)
+	runtime := newRuntimeWithEstimator(newTestEstimator(t))
 
-	err := p.runEstimation(context.Background(), appCtx, "", "text")
+	err := runEstimationUseCase(context.Background(), appCtx, runtime, "", "text", io.Discard)
 	if err != nil {
 		t.Fatalf("runEstimation() error = %v", err)
 	}
 
-	// Verify cost-results.json was saved
-	resultsPath := filepath.Join(appCtx.ServiceDir(), resultsFile)
-	if _, statErr := os.Stat(resultsPath); os.IsNotExist(statErr) {
-		t.Error("cost-results.json was not saved to serviceDir")
-	} else {
-		// Parse and validate the results
-		data, readErr := os.ReadFile(resultsPath)
-		if readErr != nil {
-			t.Fatalf("failed to read cost-results.json: %v", readErr)
-		}
-		var result model.EstimateResult
-		if jsonErr := json.Unmarshal(data, &result); jsonErr != nil {
-			t.Fatalf("failed to parse cost-results.json: %v", jsonErr)
-		}
-		if len(result.Modules) != 1 {
-			t.Errorf("modules count = %d, want 1", len(result.Modules))
-		}
-		if result.TotalAfter <= 0 {
-			t.Errorf("TotalAfter = %.4f, want > 0", result.TotalAfter)
-		}
-		if result.Currency != "USD" {
-			t.Errorf("Currency = %q, want USD", result.Currency)
-		}
+	result := loadEstimateResult(t, appCtx.ServiceDir())
+	if len(result.Modules) != 1 {
+		t.Errorf("modules count = %d, want 1", len(result.Modules))
+	}
+	if result.TotalAfter <= 0 {
+		t.Errorf("TotalAfter = %.4f, want > 0", result.TotalAfter)
+	}
+	if result.Currency != "USD" {
+		t.Errorf("Currency = %q, want USD", result.Currency)
 	}
 
-	// Verify cost-report.json was saved
-	reportPath := filepath.Join(appCtx.ServiceDir(), "cost-report.json")
-	if _, statErr := os.Stat(reportPath); os.IsNotExist(statErr) {
-		t.Error("cost-report.json was not saved to serviceDir")
-	} else {
-		data, readErr := os.ReadFile(reportPath)
-		if readErr != nil {
-			t.Fatalf("failed to read cost-report.json: %v", readErr)
-		}
-		var report ci.Report
-		if jsonErr := json.Unmarshal(data, &report); jsonErr != nil {
-			t.Fatalf("failed to parse cost-report.json: %v", jsonErr)
-		}
-		if report.Plugin != "cost" {
-			t.Errorf("report.Plugin = %q, want %q", report.Plugin, "cost")
-		}
-		if report.Status != ci.ReportStatusPass {
-			t.Errorf("report.Status = %q, want %q", report.Status, ci.ReportStatusPass)
-		}
+	report := loadCostReport(t, appCtx.ServiceDir())
+	if report.Plugin != "cost" {
+		t.Errorf("report.Plugin = %q, want %q", report.Plugin, "cost")
+	}
+	if report.Status != ci.ReportStatusPass {
+		t.Errorf("report.Status = %q, want %q", report.Status, ci.ReportStatusPass)
 	}
 }
 
 func TestPlugin_RunEstimation_ModuleFilter(t *testing.T) {
 	p := newTestPlugin(t)
-	ts := fakePricingServer(t)
-	cacheDir := t.TempDir()
 
 	enablePlugin(t, p, &model.CostConfig{
 		Enabled:  true,
-		CacheDir: cacheDir,
+		CacheDir: t.TempDir(),
 	})
-
-	fetcher := &awskit.Fetcher{Client: ts.Client(), BaseURL: ts.URL}
-	p.estimator = engine.NewEstimator(cacheDir, 0, fetcher)
 
 	workDir := t.TempDir()
 	// Create two modules
@@ -188,50 +147,27 @@ func TestPlugin_RunEstimation_ModuleFilter(t *testing.T) {
 	writePlanJSON(t, eksDir, testPlanEC2)
 
 	appCtx := newTestAppContext(t, workDir)
+	runtime := newRuntimeWithEstimator(newTestEstimator(t))
 
 	// Filter to only VPC module
-	err := p.runEstimation(context.Background(), appCtx, "platform/prod/us-east-1/vpc", "text")
+	err := runEstimationUseCase(context.Background(), appCtx, runtime, "platform/prod/us-east-1/vpc", "text", io.Discard)
 	if err != nil {
 		t.Fatalf("runEstimation() error = %v", err)
 	}
 
 	// Verify only one module was estimated
-	resultsPath := filepath.Join(appCtx.ServiceDir(), resultsFile)
-	data, readErr := os.ReadFile(resultsPath)
-	if readErr != nil {
-		t.Fatalf("failed to read cost-results.json: %v", readErr)
-	}
-	var result model.EstimateResult
-	if jsonErr := json.Unmarshal(data, &result); jsonErr != nil {
-		t.Fatalf("failed to parse cost-results.json: %v", jsonErr)
-	}
+	result := loadEstimateResult(t, appCtx.ServiceDir())
 	if len(result.Modules) != 1 {
 		t.Errorf("modules count = %d, want 1 (filter should select only vpc)", len(result.Modules))
 	}
 }
 
 func TestPlugin_RunEstimation_JSONOutput(t *testing.T) {
-	p := newTestPlugin(t)
-	ts := fakePricingServer(t)
-	cacheDir := t.TempDir()
-
-	enablePlugin(t, p, &model.CostConfig{
-		Enabled:  true,
-		CacheDir: cacheDir,
-	})
-
-	fetcher := &awskit.Fetcher{Client: ts.Client(), BaseURL: ts.URL}
-	p.estimator = engine.NewEstimator(cacheDir, 0, fetcher)
-
-	workDir := t.TempDir()
-	moduleDir := filepath.Join(workDir, "platform", "prod", "us-east-1", "vpc")
-	writePlanJSON(t, moduleDir, testPlanEC2)
-
-	appCtx := newTestAppContext(t, workDir)
+	appCtx := newTestAppContext(t, t.TempDir())
 
 	// Capture JSON output via the io.Writer parameter
-	var buf bytes.Buffer
-	err := p.outputResult(&buf, appCtx, "json", &model.EstimateResult{
+	var buf strings.Builder
+	err := outputResult(&buf, appCtx.WorkDir(), "json", &model.EstimateResult{
 		Modules: []model.ModuleCost{
 			{
 				ModuleID:   "test/module",
@@ -249,7 +185,7 @@ func TestPlugin_RunEstimation_JSONOutput(t *testing.T) {
 
 	// Verify output is valid JSON
 	var parsed model.EstimateResult
-	if jsonErr := json.Unmarshal(buf.Bytes(), &parsed); jsonErr != nil {
+	if jsonErr := json.Unmarshal([]byte(buf.String()), &parsed); jsonErr != nil {
 		t.Fatalf("output is not valid JSON: %v\nOutput: %s", jsonErr, buf.String())
 	}
 	if parsed.TotalAfter != 7.592 {
@@ -261,59 +197,87 @@ func TestPlugin_RunEstimation_JSONOutput(t *testing.T) {
 }
 
 func TestPlugin_RunEstimation_TextOutput(t *testing.T) {
-	p := newTestPlugin(t)
 	appCtx := newTestAppContext(t, t.TempDir())
 
-	oldLogger := rawlog.Log
-	var buf bytes.Buffer
-	rawlog.Log = rawlog.New(&buf)
-	defer func() { rawlog.Log = oldLogger }()
-
-	err := p.outputResult(&buf, appCtx, "text", &model.EstimateResult{
-		Modules: []model.ModuleCost{
-			{
-				ModuleID:   "platform/prod/us-east-1/vpc",
-				ModulePath: "/tmp/platform/prod/us-east-1/vpc",
-				Region:     "us-east-1",
-				AfterCost:  10.50,
+	output := captureTextOutput(t, func() {
+		err := outputResult(io.Discard, appCtx.WorkDir(), "text", &model.EstimateResult{
+			Modules: []model.ModuleCost{
+				{
+					ModuleID:   "platform/prod/us-east-1/vpc",
+					ModulePath: "/tmp/platform/prod/us-east-1/vpc",
+					Region:     "us-east-1",
+					AfterCost:  10.50,
+				},
 			},
-		},
-		TotalAfter: 10.50,
-		Currency:   "USD",
+			TotalAfter: 10.50,
+			Currency:   "USD",
+		})
+		if err != nil {
+			t.Fatalf("outputResult(text) error = %v", err)
+		}
 	})
-	if err != nil {
-		t.Fatalf("outputResult(text) error = %v", err)
+	if !strings.Contains(output, "vpc") {
+		t.Fatalf("text output = %q, want to contain module name", output)
+	}
+	if !strings.Contains(output, "monthly") {
+		t.Fatalf("text output = %q, want to contain monthly field", output)
 	}
 }
 
-func TestPlugin_OutputResult_TextOutput_IncludesErroredZeroCostModule(t *testing.T) {
-	p := newTestPlugin(t)
+func TestPlugin_OutputResult_TextOutput_SkipsZeroCostModule(t *testing.T) {
 	appCtx := newTestAppContext(t, t.TempDir())
 
-	oldLogger := rawlog.Log
-	var buf bytes.Buffer
-	rawlog.Log = rawlog.New(&buf)
-	defer func() { rawlog.Log = oldLogger }()
-
-	err := p.outputResult(&buf, appCtx, "text", &model.EstimateResult{
-		Modules: []model.ModuleCost{
-			{
-				ModuleID:   "cdp/infra/eu-central-1/eks",
-				ModulePath: "/tmp/cdp/infra/eu-central-1/eks",
-				Region:     "eu-central-1",
-				Error:      "map action for data.aws_eks_addon_version.this: unsupported action \"read\"",
+	output := captureTextOutput(t, func() {
+		err := outputResult(io.Discard, appCtx.WorkDir(), "text", &model.EstimateResult{
+			Modules: []model.ModuleCost{
+				{
+					ModuleID:   "cdp/infra/eu-central-1/eks",
+					ModulePath: "/tmp/cdp/infra/eu-central-1/eks",
+					Region:     "eu-central-1",
+				},
 			},
-		},
-		Currency: "USD",
+			Currency: "USD",
+		})
+		if err != nil {
+			t.Fatalf("outputResult(text) error = %v", err)
+		}
 	})
-	if err != nil {
-		t.Fatalf("outputResult(text) error = %v", err)
+	if strings.Contains(output, "eks") {
+		t.Fatalf("text output = %q, want zero-cost module to be hidden", output)
 	}
-	if !strings.Contains(buf.String(), "eks") {
-		t.Fatalf("text output = %q, want to contain errored module name", buf.String())
-	}
-	if !strings.Contains(buf.String(), "unsupported action") {
-		t.Fatalf("text output = %q, want to contain module error", buf.String())
+}
+
+func TestPlugin_OutputResult_TextOutput_SkipsZeroCostSubmoduleHeader(t *testing.T) {
+	appCtx := newTestAppContext(t, t.TempDir())
+
+	output := captureTextOutput(t, func() {
+		err := outputResult(io.Discard, appCtx.WorkDir(), "text", &model.EstimateResult{
+			Modules: []model.ModuleCost{
+				{
+					ModuleID:   "cdp/infra/eu-central-1/eks",
+					ModulePath: "/tmp/cdp/infra/eu-central-1/eks",
+					Region:     "eu-central-1",
+					AfterCost:  1.23,
+					Submodules: []model.SubmoduleCost{
+						{
+							ModuleAddr:  "module.velero_irsa_role",
+							MonthlyCost: 0,
+							Resources: []model.ResourceCost{
+								{Address: "module.velero_irsa_role.aws_iam_role.this", MonthlyCost: 0},
+							},
+						},
+					},
+				},
+			},
+			TotalAfter: 1.23,
+			Currency:   "USD",
+		})
+		if err != nil {
+			t.Fatalf("outputResult(text) error = %v", err)
+		}
+	})
+	if strings.Contains(output, "module.velero_irsa_role") {
+		t.Fatalf("text output = %q, want zero-cost submodule header hidden", output)
 	}
 }
 
@@ -348,9 +312,6 @@ func TestBuildCostReport(t *testing.T) {
 	if report.Title != "Cost Estimation" {
 		t.Errorf("Title = %q, want %q", report.Title, "Cost Estimation")
 	}
-	if report.Status != ci.ReportStatusPass {
-		t.Errorf("Status = %q, want %q", report.Status, ci.ReportStatusPass)
-	}
 	if !strings.Contains(report.Summary, "2 modules") {
 		t.Errorf("Summary = %q, want to contain '2 modules'", report.Summary)
 	}
@@ -362,15 +323,18 @@ func TestBuildCostReport(t *testing.T) {
 	if !strings.Contains(report.Body, "/tmp/vpc") {
 		t.Error("Body missing successful module path")
 	}
-	// Error module should be excluded from body table rows
-	if strings.Contains(report.Body, "/tmp/broken") {
-		t.Error("Body should not contain error module")
+	if !strings.Contains(report.Body, "/tmp/broken") {
+		t.Error("Body should contain error module")
 	}
 
-	// Modules should exclude error entries
-	if len(report.Modules) != 1 {
-		t.Fatalf("Modules count = %d, want 1 (error module excluded)", len(report.Modules))
+	if report.Status != ci.ReportStatusWarn {
+		t.Errorf("Status = %q, want %q when report has errors", report.Status, ci.ReportStatusWarn)
 	}
+
+	if len(report.Modules) != 2 {
+		t.Fatalf("Modules count = %d, want 2 (including errored module)", len(report.Modules))
+	}
+
 	m := report.Modules[0]
 	if !m.HasCost {
 		t.Error("Module.HasCost should be true")
@@ -380,6 +344,9 @@ func TestBuildCostReport(t *testing.T) {
 	}
 	if m.CostDiff != 5.25 {
 		t.Errorf("Module.CostDiff = %.2f, want 5.25", m.CostDiff)
+	}
+	if report.Modules[1].Error != "parse error" {
+		t.Errorf("Error module error = %q, want %q", report.Modules[1].Error, "parse error")
 	}
 }
 
@@ -413,11 +380,16 @@ func TestBuildCostReport_AllErrors(t *testing.T) {
 
 	report := buildCostReport(result)
 
-	if len(report.Modules) != 0 {
-		t.Errorf("Modules count = %d, want 0 (all have errors)", len(report.Modules))
+	if len(report.Modules) != 2 {
+		t.Errorf("Modules count = %d, want 2 (all errors should still be visible)", len(report.Modules))
 	}
-	// Body should have table header but no data rows
+	if report.Status != ci.ReportStatusWarn {
+		t.Errorf("Status = %q, want %q", report.Status, ci.ReportStatusWarn)
+	}
 	if !strings.Contains(report.Body, "| Module |") {
 		t.Error("Body missing table header")
+	}
+	if !strings.Contains(report.Body, "fail1") || !strings.Contains(report.Body, "fail2") {
+		t.Error("Body should contain module errors")
 	}
 }

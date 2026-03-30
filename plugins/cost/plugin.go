@@ -1,4 +1,4 @@
-// Package cost provides the AWS cost estimation plugin for TerraCi.
+// Package cost provides the cloud cost estimation plugin for TerraCi.
 package cost
 
 import (
@@ -6,7 +6,6 @@ import (
 	_ "github.com/edelwud/terraci/plugins/cost/internal/cloud/aws"
 
 	"github.com/edelwud/terraci/pkg/plugin"
-	"github.com/edelwud/terraci/plugins/cost/internal/engine"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
 
@@ -14,7 +13,7 @@ func init() {
 	plugin.Register(&Plugin{
 		BasePlugin: plugin.BasePlugin[*model.CostConfig]{
 			PluginName: "cost",
-			PluginDesc: "AWS cost estimation from Terraform plans",
+			PluginDesc: "Cloud cost estimation from Terraform plans",
 			EnableMode: plugin.EnabledExplicitly,
 			DefaultCfg: func() *model.CostConfig {
 				return &model.CostConfig{}
@@ -29,17 +28,9 @@ func init() {
 // Plugin is the cloud cost estimation plugin.
 type Plugin struct {
 	plugin.BasePlugin[*model.CostConfig]
-	estimator     *engine.Estimator
-	serviceDirRel string // relative path, for pipeline artifact paths
 }
 
 // Reset resets all plugin state.
 func (p *Plugin) Reset() {
 	p.BasePlugin.Reset()
-	p.estimator = nil
-	p.serviceDirRel = ""
-}
-
-func (p *Plugin) getEstimator() *engine.Estimator {
-	return p.estimator
 }

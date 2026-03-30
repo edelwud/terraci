@@ -99,9 +99,6 @@ func TestPlugin_Initialize_Enabled(t *testing.T) {
 	if p.registry == nil {
 		t.Fatal("registry should not be nil after Initialize with enabled config")
 	}
-	if p.serviceDirRel != appCtx.Config().ServiceDir {
-		t.Errorf("serviceDirRel = %q, want %q", p.serviceDirRel, appCtx.Config().ServiceDir)
-	}
 }
 
 func TestPlugin_Initialize_InvalidConfig(t *testing.T) {
@@ -140,8 +137,5 @@ func TestPlugin_Reset(t *testing.T) {
 	}
 	if p.registry != nil {
 		t.Error("registry should be nil after Reset")
-	}
-	if p.serviceDirRel != "" {
-		t.Errorf("serviceDirRel = %q, want empty after Reset", p.serviceDirRel)
 	}
 }

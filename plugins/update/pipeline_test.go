@@ -11,9 +11,9 @@ import (
 func TestPlugin_PipelineContribution(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &updateengine.UpdateConfig{Enabled: true, Pipeline: true})
-	p.serviceDirRel = ".terraci"
+	appCtx := newTestAppContext(t, t.TempDir())
 
-	contrib := p.PipelineContribution()
+	contrib := p.PipelineContribution(appCtx)
 	if contrib == nil {
 		t.Fatal("PipelineContribution() returned nil")
 	}
@@ -48,7 +48,7 @@ func TestPlugin_PipelineContribution(t *testing.T) {
 func TestPlugin_PipelineContribution_NotConfigured(t *testing.T) {
 	p := newTestPlugin(t)
 	// No config set — Config() returns nil.
-	contrib := p.PipelineContribution()
+	contrib := p.PipelineContribution(newTestAppContext(t, t.TempDir()))
 	if contrib != nil {
 		t.Errorf("PipelineContribution() = %v, want nil for unconfigured plugin", contrib)
 	}
@@ -58,7 +58,7 @@ func TestPlugin_PipelineContribution_PipelineFalse(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &updateengine.UpdateConfig{Enabled: true, Pipeline: false})
 
-	contrib := p.PipelineContribution()
+	contrib := p.PipelineContribution(newTestAppContext(t, t.TempDir()))
 	if contrib != nil {
 		t.Errorf("PipelineContribution() = %v, want nil when Pipeline=false", contrib)
 	}
@@ -67,9 +67,12 @@ func TestPlugin_PipelineContribution_PipelineFalse(t *testing.T) {
 func TestPlugin_PipelineContribution_EmptyServiceDir(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &updateengine.UpdateConfig{Enabled: true, Pipeline: true})
-	p.serviceDirRel = ""
+	appCtx := newTestAppContext(t, t.TempDir())
+	cfg := appCtx.Config()
+	cfg.ServiceDir = ""
+	appCtx.Update(cfg, appCtx.WorkDir(), appCtx.ServiceDir(), appCtx.Version())
 
-	contrib := p.PipelineContribution()
+	contrib := p.PipelineContribution(appCtx)
 	job := contrib.Jobs[0]
 
 	if len(job.ArtifactPaths) != 1 || job.ArtifactPaths[0] != resultsFile {
@@ -80,9 +83,9 @@ func TestPlugin_PipelineContribution_EmptyServiceDir(t *testing.T) {
 func TestPlugin_PipelineContribution_NoSteps(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &updateengine.UpdateConfig{Enabled: true, Pipeline: true})
-	p.serviceDirRel = ".terraci"
+	appCtx := newTestAppContext(t, t.TempDir())
 
-	contrib := p.PipelineContribution()
+	contrib := p.PipelineContribution(appCtx)
 	if len(contrib.Steps) != 0 {
 		t.Errorf("steps count = %d, want 0 (update plugin contributes jobs, not steps)", len(contrib.Steps))
 	}
