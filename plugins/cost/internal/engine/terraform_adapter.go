@@ -35,6 +35,12 @@ func (a *TerraformPlanAdapter) LoadModule(modulePath, region string) (*ModulePla
 	}
 
 	for _, rc := range parsedPlan.Resources {
+		if rc.Action == tfplan.ActionRead {
+			// Data-source refreshes are not cost-bearing changes and should not fail
+			// module estimation just because Terraform records them as read actions.
+			continue
+		}
+
 		action, err := mapTerraformAction(rc.Action)
 		if err != nil {
 			return nil, fmt.Errorf("map action for %s: %w", rc.Address, err)

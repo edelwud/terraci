@@ -34,7 +34,7 @@ func (p *Plugin) outputResult(w io.Writer, appCtx *plugin.AppContext, outputFmt 
 
 func renderSegmentTree(node *model.SegmentNode, depth int) {
 	for _, c := range node.Children {
-		if c.AfterCost == 0 && c.DiffCost == 0 {
+		if c.AfterCost == 0 && c.DiffCost == 0 && (c.Module == nil || c.Module.Error == "") {
 			continue
 		}
 

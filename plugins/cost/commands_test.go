@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	rawlog "github.com/caarlos0/log"
+
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/engine"
@@ -262,8 +264,11 @@ func TestPlugin_RunEstimation_TextOutput(t *testing.T) {
 	p := newTestPlugin(t)
 	appCtx := newTestAppContext(t, t.TempDir())
 
-	// Text output uses log package — just verify it doesn't error
+	oldLogger := rawlog.Log
 	var buf bytes.Buffer
+	rawlog.Log = rawlog.New(&buf)
+	defer func() { rawlog.Log = oldLogger }()
+
 	err := p.outputResult(&buf, appCtx, "text", &model.EstimateResult{
 		Modules: []model.ModuleCost{
 			{
@@ -278,6 +283,37 @@ func TestPlugin_RunEstimation_TextOutput(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("outputResult(text) error = %v", err)
+	}
+}
+
+func TestPlugin_OutputResult_TextOutput_IncludesErroredZeroCostModule(t *testing.T) {
+	p := newTestPlugin(t)
+	appCtx := newTestAppContext(t, t.TempDir())
+
+	oldLogger := rawlog.Log
+	var buf bytes.Buffer
+	rawlog.Log = rawlog.New(&buf)
+	defer func() { rawlog.Log = oldLogger }()
+
+	err := p.outputResult(&buf, appCtx, "text", &model.EstimateResult{
+		Modules: []model.ModuleCost{
+			{
+				ModuleID:   "cdp/infra/eu-central-1/eks",
+				ModulePath: "/tmp/cdp/infra/eu-central-1/eks",
+				Region:     "eu-central-1",
+				Error:      "map action for data.aws_eks_addon_version.this: unsupported action \"read\"",
+			},
+		},
+		Currency: "USD",
+	})
+	if err != nil {
+		t.Fatalf("outputResult(text) error = %v", err)
+	}
+	if !strings.Contains(buf.String(), "eks") {
+		t.Fatalf("text output = %q, want to contain errored module name", buf.String())
+	}
+	if !strings.Contains(buf.String(), "unsupported action") {
+		t.Fatalf("text output = %q, want to contain module error", buf.String())
 	}
 }
 

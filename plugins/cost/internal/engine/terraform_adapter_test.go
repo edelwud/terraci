@@ -91,3 +91,50 @@ func TestMapTerraformAction_RejectsUnknownAction(t *testing.T) {
 		t.Fatal("mapTerraformAction() error = nil, want error for unknown action")
 	}
 }
+
+func TestTerraformPlanAdapter_LoadModule_IgnoresReadActions(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	enginetest.WritePlan(t, dir, `{
+		"format_version": "1.2",
+		"terraform_version": "1.6.0",
+		"resource_changes": [
+			{
+				"address": "data.aws_eks_addon_version.this",
+				"mode": "data",
+				"type": "aws_eks_addon_version",
+				"name": "this",
+				"change": {
+					"actions": ["read"],
+					"before": null,
+					"after": {"addon_name": "coredns"},
+					"after_unknown": {}
+				}
+			},
+			{
+				"address": "aws_instance.web",
+				"module_address": "",
+				"type": "aws_instance",
+				"name": "web",
+				"change": {
+					"actions": ["create"],
+					"before": null,
+					"after": {"instance_type": "t3.micro", "ami": "ami-12345"},
+					"after_unknown": {}
+				}
+			}
+		]
+	}`)
+
+	modulePlan, err := engine.NewTerraformPlanAdapter().LoadModule(dir, "us-east-1")
+	if err != nil {
+		t.Fatalf("LoadModule() error = %v", err)
+	}
+	if len(modulePlan.Resources) != 1 {
+		t.Fatalf("Resources len = %d, want 1 after skipping read action", len(modulePlan.Resources))
+	}
+	if modulePlan.Resources[0].Address != "aws_instance.web" {
+		t.Fatalf("Resource[0].Address = %q, want aws_instance.web", modulePlan.Resources[0].Address)
+	}
+}
