@@ -43,9 +43,9 @@ func configuredProviders(cfg *model.CostConfig) ([]cloud.Provider, error) {
 	return selected, nil
 }
 
-func newProviderRuntimeRegistry(cfg *model.CostConfig, providers []cloud.Provider) *costruntime.ProviderRuntimeRegistry {
+func newProviderRuntimeRegistry(cfg *model.CostConfig, providers []cloud.Provider, registry *handler.Registry) *costruntime.ProviderRuntimeRegistry {
 	cacheDir, cacheTTL := parseCacheConfig(cfg)
-	return costruntime.NewProviderRuntimeRegistryFromProviders(providers, cacheDir, cacheTTL, nil)
+	return costruntime.NewProviderRuntimeRegistryFromProviders(providers, registry, cacheDir, cacheTTL, nil)
 }
 
 // NewEstimatorFromConfig creates an Estimator using CostConfig settings.
@@ -56,16 +56,17 @@ func NewEstimatorFromConfig(cfg *model.CostConfig) (*Estimator, error) {
 	}
 
 	registry := newDefaultRegistry(providers)
-	runtimeRegistry := newProviderRuntimeRegistry(cfg, providers)
-	return NewEstimatorWithRuntimeRegistry(registry, runtimeRegistry), nil
+	runtimeRegistry := newProviderRuntimeRegistry(cfg, providers, registry)
+	return NewEstimatorWithRuntimeRegistry(runtimeRegistry), nil
 }
 
 // NewEstimatorFromConfigWithProvider creates an Estimator for a specific cloud provider.
 func NewEstimatorFromConfigWithProvider(cfg *model.CostConfig, cp cloud.Provider) *Estimator {
 	registry := handler.NewRegistry()
 	cloud.RegisterDefinitionHandlers(registry, cp.Definition())
-	runtimeRegistry := newProviderRuntimeRegistry(cfg, []cloud.Provider{cp})
-	return NewEstimatorWithRuntimeRegistry(registry, runtimeRegistry)
+	cacheDir, cacheTTL := parseCacheConfig(cfg)
+	runtimeRegistry := costruntime.NewProviderRuntimeRegistryFromProviders([]cloud.Provider{cp}, registry, cacheDir, cacheTTL, nil)
+	return NewEstimatorWithRuntimeRegistry(runtimeRegistry)
 }
 
 func parseCacheConfig(cfg *model.CostConfig) (string, time.Duration) {

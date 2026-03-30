@@ -12,13 +12,10 @@ import (
 
 const priceSourceUsageBased = "usage-based"
 
-// RegistryLookup is the minimal interface for finding resource handlers.
-type RegistryLookup interface {
+// ResolverRuntime exposes the provider-aware runtime surface required by cost resolution.
+type ResolverRuntime interface {
+	ResolveProvider(resourceType handler.ResourceType) (string, bool)
 	ResolveHandler(providerID string, resourceType handler.ResourceType) (handler.ResourceHandler, bool)
-}
-
-// PricingSource abstracts pricing index retrieval for cost resolution.
-type PricingSource interface {
 	GetIndex(ctx context.Context, service pricing.ServiceID, region string) (*pricing.PriceIndex, error)
 	SourceName(providerID string) string
 }
@@ -41,24 +38,15 @@ type CostMiddleware func(ctx context.Context, next ResolveFunc, req ResolveReque
 
 // CostResolver handles the cost resolution logic.
 type CostResolver struct {
-	router     ProviderRouter
-	registry   RegistryLookup
-	pricing    PricingSource
+	runtime    ResolverRuntime
 	middleware []CostMiddleware
 }
 
-// NewCostResolver creates a new resolver with the given registry and pricing source.
-func NewCostResolver(router ProviderRouter, registry RegistryLookup, pricingSrc PricingSource) *CostResolver {
+// NewCostResolver creates a new resolver with the given provider-aware runtime.
+func NewCostResolver(runtime ResolverRuntime) *CostResolver {
 	return &CostResolver{
-		router:   router,
-		registry: registry,
-		pricing:  pricingSrc,
+		runtime: runtime,
 	}
-}
-
-// Registry returns the underlying handler lookup dependency.
-func (r *CostResolver) Registry() RegistryLookup {
-	return r.registry
 }
 
 // Use appends a middleware to the resolver chain.
@@ -96,7 +84,7 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest) mode
 		Region:     req.Region,
 	}
 
-	providerID, ok := r.router.ResolveProvider(req.ResourceType)
+	providerID, ok := r.runtime.ResolveProvider(req.ResourceType)
 	if !ok {
 		result.ErrorKind = model.CostErrorNoProvider
 		result.ErrorDetail = "no provider"
@@ -105,7 +93,7 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest) mode
 	}
 	result.Provider = providerID
 
-	h, ok := r.registry.ResolveHandler(providerID, req.ResourceType)
+	h, ok := r.runtime.ResolveHandler(providerID, req.ResourceType)
 	if !ok {
 		result.ErrorKind = model.CostErrorNoHandler
 		result.ErrorDetail = "no handler"
@@ -140,11 +128,11 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest) mode
 
 // ResolveBeforeCost calculates the before-state cost for update/replace resources.
 func (r *CostResolver) ResolveBeforeCost(ctx context.Context, rc *model.ResourceCost, resourceType handler.ResourceType, beforeAttrs map[string]any, region string) {
-	providerID, ok := r.router.ResolveProvider(resourceType)
+	providerID, ok := r.runtime.ResolveProvider(resourceType)
 	if !ok {
 		return
 	}
-	h, ok := r.registry.ResolveHandler(providerID, resourceType)
+	h, ok := r.runtime.ResolveHandler(providerID, resourceType)
 	if !ok {
 		return
 	}
@@ -167,12 +155,12 @@ func (r *CostResolver) ResolveWithSubResources(ctx context.Context, req ResolveR
 	primary := r.Resolve(ctx, req)
 	results := []model.ResourceCost{primary}
 
-	providerID, ok := r.router.ResolveProvider(req.ResourceType)
+	providerID, ok := r.runtime.ResolveProvider(req.ResourceType)
 	if !ok {
 		return results
 	}
 
-	h, ok := r.registry.ResolveHandler(providerID, req.ResourceType)
+	h, ok := r.runtime.ResolveHandler(providerID, req.ResourceType)
 	if !ok {
 		return results
 	}
@@ -215,7 +203,7 @@ func (r *CostResolver) resolveStandardCost(ctx context.Context, providerID strin
 		return result
 	}
 
-	index, err := r.pricing.GetIndex(ctx, lookup.ServiceID, region)
+	index, err := r.runtime.GetIndex(ctx, lookup.ServiceID, region)
 	if err != nil {
 		log.WithError(err).WithField("service", lookup.ServiceID.String()).WithField("region", region).Debug("failed to get pricing index")
 		result.ErrorKind = model.CostErrorAPIFailure
@@ -239,7 +227,7 @@ func (r *CostResolver) resolveStandardCost(ctx context.Context, providerID strin
 	hourly, monthly := h.CalculateCost(price, index, region, attrs)
 	result.HourlyCost = hourly
 	result.MonthlyCost = monthly
-	result.PriceSource = r.pricing.SourceName(providerID)
+	result.PriceSource = r.runtime.SourceName(providerID)
 	result.Details = describeResource(h, price, attrs)
 
 	return result

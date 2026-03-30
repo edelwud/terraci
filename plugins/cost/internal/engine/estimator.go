@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	costruntime "github.com/edelwud/terraci/plugins/cost/internal/runtime"
@@ -25,13 +24,13 @@ type Estimator struct {
 func NewEstimator(cacheDir string, cacheTTL time.Duration, fetcher pricing.PriceFetcher) *Estimator {
 	providers := cloud.Providers()
 	registry := newDefaultRegistry(providers)
-	runtimeRegistry := costruntime.NewProviderRuntimeRegistryFromProviders(providers, cacheDir, cacheTTL, fetcher)
-	return NewEstimatorWithRuntimeRegistry(registry, runtimeRegistry)
+	runtimeRegistry := costruntime.NewProviderRuntimeRegistryFromProviders(providers, registry, cacheDir, cacheTTL, fetcher)
+	return NewEstimatorWithRuntimeRegistry(runtimeRegistry)
 }
 
 // NewEstimatorWithRuntimeRegistry creates an Estimator with an explicit provider runtime registry.
-func NewEstimatorWithRuntimeRegistry(registry *handler.Registry, runtimeRegistry *costruntime.ProviderRuntimeRegistry) *Estimator {
-	resolver := costruntime.NewCostResolver(runtimeRegistry, registry, runtimeRegistry)
+func NewEstimatorWithRuntimeRegistry(runtimeRegistry *costruntime.ProviderRuntimeRegistry) *Estimator {
+	resolver := costruntime.NewCostResolver(runtimeRegistry)
 	return newEstimator(runtimeRegistry, resolver)
 }
 
@@ -43,7 +42,7 @@ func NewEstimatorWithResolver(runtimeRegistry *costruntime.ProviderRuntimeRegist
 func newEstimator(runtimeRegistry *costruntime.ProviderRuntimeRegistry, resolver *costruntime.CostResolver) *Estimator {
 	scanner := NewModuleScanner(NewTerraformPlanAdapter())
 	executor := NewModuleExecutor(resolver)
-	planner := NewPrefetchPlanner(runtimeRegistry, resolver.Registry())
+	planner := NewPrefetchPlanner(runtimeRegistry)
 	coord := newEstimateCoordinator(scanner, planner, executor, runtimeRegistry, runtimeRegistry.ProviderMetadata)
 
 	return &Estimator{

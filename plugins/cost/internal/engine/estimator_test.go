@@ -537,11 +537,9 @@ func TestEstimateModule_KnownProviderMissingHandler(t *testing.T) {
 			Cache:      pricing.NewCache(cacheDir, 0, fetcher),
 		},
 	}
-	runtimeRegistry := costruntime.NewProviderRuntimeRegistry(cloud.Providers(), runtimes)
-
-	resolver := costruntime.NewCostResolver(router, registry, nil)
+	runtimeRegistry := costruntime.NewProviderRuntimeRegistry(cloud.Providers(), registry, runtimes)
 	runtimeRegistry.SetRouter(router)
-	e := engine.NewEstimatorWithResolver(runtimeRegistry, resolver)
+	e := engine.NewEstimatorWithRuntimeRegistry(runtimeRegistry)
 	dir := filepath.Join(t.TempDir(), "mod")
 	writePlan(t, dir, planUnsupportedResource)
 

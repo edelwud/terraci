@@ -53,6 +53,7 @@ func newDefaultProviderRouter(providers []cloud.Provider) *ResourceProviderRoute
 
 // ProviderRuntimeRegistry is the provider-owned runtime surface used by estimation components.
 type ProviderRuntimeRegistry struct {
+	registry *handler.Registry
 	router   *ResourceProviderRouter
 	runtimes map[string]*ProviderRuntime
 }
@@ -64,8 +65,9 @@ type ProviderRuntime struct {
 }
 
 // NewProviderRuntimeRegistry creates a provider runtime registry from provider definitions and runtimes.
-func NewProviderRuntimeRegistry(providers []cloud.Provider, runtimes map[string]*ProviderRuntime) *ProviderRuntimeRegistry {
+func NewProviderRuntimeRegistry(providers []cloud.Provider, registry *handler.Registry, runtimes map[string]*ProviderRuntime) *ProviderRuntimeRegistry {
 	return &ProviderRuntimeRegistry{
+		registry: registry,
 		router:   newDefaultProviderRouter(providers),
 		runtimes: runtimes,
 	}
@@ -74,6 +76,7 @@ func NewProviderRuntimeRegistry(providers []cloud.Provider, runtimes map[string]
 // NewProviderRuntimeRegistryFromProviders creates a runtime registry directly from provider definitions.
 func NewProviderRuntimeRegistryFromProviders(
 	providers []cloud.Provider,
+	registry *handler.Registry,
 	cacheDir string,
 	cacheTTL time.Duration,
 	fetcher pricing.PriceFetcher,
@@ -90,12 +93,20 @@ func NewProviderRuntimeRegistryFromProviders(
 			Cache:      pricing.NewCache(cacheDir, cacheTTL, runtimeFetcher),
 		}
 	}
-	return NewProviderRuntimeRegistry(providers, runtimes)
+	return NewProviderRuntimeRegistry(providers, registry, runtimes)
 }
 
 // ResolveProvider returns the owning provider for a resource type.
 func (r *ProviderRuntimeRegistry) ResolveProvider(resourceType handler.ResourceType) (string, bool) {
 	return r.router.ResolveProvider(resourceType)
+}
+
+// ResolveHandler returns a provider-scoped resource handler.
+func (r *ProviderRuntimeRegistry) ResolveHandler(providerID string, resourceType handler.ResourceType) (handler.ResourceHandler, bool) {
+	if r.registry == nil {
+		return nil, false
+	}
+	return r.registry.ResolveHandler(providerID, resourceType)
 }
 
 // SetRouter replaces the provider router.
