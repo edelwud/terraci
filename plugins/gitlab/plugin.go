@@ -4,11 +4,12 @@ package gitlab
 
 import (
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/registry"
 	gitlabci "github.com/edelwud/terraci/plugins/gitlab/internal"
 )
 
 func init() {
-	plugin.Register(&Plugin{
+	registry.Register(&Plugin{
 		BasePlugin: plugin.BasePlugin[*gitlabci.Config]{
 			PluginName: "gitlab",
 			PluginDesc: "GitLab CI pipeline generation and MR comments",
@@ -30,11 +31,6 @@ func init() {
 // Plugin is the GitLab CI plugin.
 type Plugin struct {
 	plugin.BasePlugin[*gitlabci.Config]
-}
-
-// Reset resets all plugin state.
-func (p *Plugin) Reset() {
-	p.BasePlugin.Reset()
 }
 
 // SetPlanOnly sets plan-only mode directly on the typed config.

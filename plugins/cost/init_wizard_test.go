@@ -3,7 +3,7 @@ package cost
 import (
 	"testing"
 
-	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/initwiz"
 )
 
 func TestPlugin_InitGroups(t *testing.T) {
@@ -18,7 +18,7 @@ func TestPlugin_InitGroups(t *testing.T) {
 	if g.Title != "Cost Estimation" {
 		t.Errorf("group.Title = %q, want %q", g.Title, "Cost Estimation")
 	}
-	if g.Category != plugin.CategoryFeature {
+	if g.Category != initwiz.CategoryFeature {
 		t.Errorf("group.Category = %v, want CategoryFeature", g.Category)
 	}
 	if g.Order != initGroupOrder {
@@ -32,8 +32,8 @@ func TestPlugin_InitGroups(t *testing.T) {
 	if f.Key != "cost.providers.aws.enabled" {
 		t.Errorf("field.Key = %q, want %q", f.Key, "cost.providers.aws.enabled")
 	}
-	if f.Type != "bool" {
-		t.Errorf("field.Type = %q, want %q", f.Type, "bool")
+	if f.Type != initwiz.FieldBool {
+		t.Errorf("field.Type = %q, want %q", f.Type, initwiz.FieldBool)
 	}
 	if f.Default != false {
 		t.Errorf("field.Default = %v, want false", f.Default)
@@ -42,7 +42,7 @@ func TestPlugin_InitGroups(t *testing.T) {
 
 func TestPlugin_BuildInitConfig_Enabled(t *testing.T) {
 	p := newTestPlugin(t)
-	state := plugin.NewStateMap()
+	state := initwiz.NewStateMap()
 	state.Set("cost.providers.aws.enabled", true)
 
 	contrib := p.BuildInitConfig(state)
@@ -68,7 +68,7 @@ func TestPlugin_BuildInitConfig_Enabled(t *testing.T) {
 
 func TestPlugin_BuildInitConfig_Disabled(t *testing.T) {
 	p := newTestPlugin(t)
-	state := plugin.NewStateMap()
+	state := initwiz.NewStateMap()
 	state.Set("cost.providers.aws.enabled", false)
 
 	contrib := p.BuildInitConfig(state)
@@ -80,7 +80,7 @@ func TestPlugin_BuildInitConfig_Disabled(t *testing.T) {
 
 func TestPlugin_BuildInitConfig_NotSet(t *testing.T) {
 	p := newTestPlugin(t)
-	state := plugin.NewStateMap()
+	state := initwiz.NewStateMap()
 	// No key set — Bool("cost.providers.aws.enabled") returns false
 
 	contrib := p.BuildInitConfig(state)

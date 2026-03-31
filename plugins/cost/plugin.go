@@ -6,11 +6,12 @@ import (
 	_ "github.com/edelwud/terraci/plugins/cost/internal/cloud/aws"
 
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/registry"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
 
 func init() {
-	plugin.Register(&Plugin{
+	registry.Register(&Plugin{
 		BasePlugin: plugin.BasePlugin[*model.CostConfig]{
 			PluginName: "cost",
 			PluginDesc: "Cloud cost estimation from Terraform plans",
@@ -28,9 +29,4 @@ func init() {
 // Plugin is the cloud cost estimation plugin.
 type Plugin struct {
 	plugin.BasePlugin[*model.CostConfig]
-}
-
-// Reset resets all plugin state.
-func (p *Plugin) Reset() {
-	p.BasePlugin.Reset()
 }

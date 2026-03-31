@@ -8,13 +8,14 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/registry"
 	summaryengine "github.com/edelwud/terraci/plugins/summary/internal"
 )
 
 type summaryProvider interface {
 	CommitSHA() string
 	PipelineID() string
-	NewCommentService(ctx *plugin.AppContext) ci.CommentService
+	NewCommentService(ctx *plugin.AppContext) (ci.CommentService, bool)
 }
 
 type summaryInputs struct {
@@ -58,7 +59,7 @@ func loadSummaryInputs(appCtx *plugin.AppContext) (*summaryInputs, error) {
 }
 
 func resolveSummaryProvider() (summaryProvider, error) {
-	return plugin.ResolveProvider()
+	return registry.ResolveProvider()
 }
 
 func runSummaryUseCase(ctx context.Context, appCtx *plugin.AppContext, cfg *summaryengine.Config, resolveProvider func() (summaryProvider, error)) error {
@@ -96,8 +97,8 @@ func runSummaryUseCase(ctx context.Context, appCtx *plugin.AppContext, cfg *summ
 		inputs.collection.GeneratedAt,
 	)
 
-	commentSvc := provider.NewCommentService(appCtx)
-	if !commentSvc.IsEnabled() {
+	commentSvc, ok := provider.NewCommentService(appCtx)
+	if !ok || !commentSvc.IsEnabled() {
 		log.Info("PR/MR comments disabled or no token available")
 		printSummary(inputs.collection)
 		return nil

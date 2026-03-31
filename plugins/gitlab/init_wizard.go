@@ -1,6 +1,6 @@
 package gitlab
 
-import "github.com/edelwud/terraci/pkg/plugin"
+import "github.com/edelwud/terraci/pkg/plugin/initwiz"
 
 // InitContributor — contributes GitLab CI fields to the init wizard.
 
@@ -10,23 +10,23 @@ const (
 )
 
 // InitGroups returns the init wizard group specs for GitLab CI.
-func (p *Plugin) InitGroups() []*plugin.InitGroupSpec {
-	showGitLab := func(s *plugin.StateMap) bool {
+func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
+	showGitLab := func(s *initwiz.StateMap) bool {
 		return s.Provider() == "gitlab"
 	}
 
-	return []*plugin.InitGroupSpec{
+	return []*initwiz.InitGroupSpec{
 		{
 			Title:    "GitLab CI",
-			Category: plugin.CategoryProvider,
+			Category: initwiz.CategoryProvider,
 			Order:    100,
 			ShowWhen: showGitLab,
-			Fields: []plugin.InitField{
+			Fields: []initwiz.InitField{
 				{
 					Key:         "gitlab.image",
 					Title:       "Docker Image",
 					Description: "Base Docker image for terraform jobs",
-					Type:        "string",
+					Type:        initwiz.FieldString,
 					Default:     defaultTerraformImage,
 					Placeholder: defaultTerraformImage,
 				},
@@ -34,7 +34,7 @@ func (p *Plugin) InitGroups() []*plugin.InitGroupSpec {
 					Key:         "gitlab.stages_prefix",
 					Title:       "Stages Prefix",
 					Description: "Prefix for pipeline stage names (e.g. deploy-plan-0)",
-					Type:        "string",
+					Type:        initwiz.FieldString,
 					Default:     "deploy",
 					Placeholder: "deploy",
 				},
@@ -42,29 +42,29 @@ func (p *Plugin) InitGroups() []*plugin.InitGroupSpec {
 					Key:         "gitlab.cache_enabled",
 					Title:       "Enable .terraform caching?",
 					Description: "Cache .terraform directory between pipeline runs",
-					Type:        "bool",
+					Type:        initwiz.FieldBool,
 					Default:     true,
 				},
 			},
 		},
 		{
 			Title:    "Pipeline",
-			Category: plugin.CategoryPipeline,
+			Category: initwiz.CategoryPipeline,
 			Order:    100,
 			ShowWhen: showGitLab,
-			Fields: []plugin.InitField{
+			Fields: []initwiz.InitField{
 				{
 					Key:         "plan_enabled",
 					Title:       "Enable plan stage?",
 					Description: "Generate separate plan + apply jobs",
-					Type:        "bool",
+					Type:        initwiz.FieldBool,
 					Default:     true,
 				},
 				{
 					Key:         "auto_approve",
 					Title:       "Auto-approve applies?",
 					Description: "Skip manual approval for terraform apply",
-					Type:        "bool",
+					Type:        initwiz.FieldBool,
 					Default:     false,
 				},
 			},
@@ -73,7 +73,7 @@ func (p *Plugin) InitGroups() []*plugin.InitGroupSpec {
 }
 
 // BuildInitConfig builds the GitLab CI init contribution.
-func (p *Plugin) BuildInitConfig(state *plugin.StateMap) *plugin.InitContribution {
+func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribution {
 	if state.Provider() != "gitlab" {
 		return nil
 	}
@@ -121,7 +121,7 @@ func (p *Plugin) BuildInitConfig(state *plugin.StateMap) *plugin.InitContributio
 		}
 	}
 
-	return &plugin.InitContribution{
+	return &initwiz.InitContribution{
 		PluginKey: "gitlab",
 		Config:    cfg,
 	}

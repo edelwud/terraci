@@ -8,7 +8,9 @@ const (
 	// exists in .terraci.yaml (e.g., gitlab, github).
 	EnabledWhenConfigured EnablePolicy = iota
 
-	// EnabledExplicitly requires an explicit enabled: true in config (e.g., cost, policy).
+	// EnabledExplicitly requires an explicit opt-in beyond having config (e.g., cost, policy).
+	// When IsEnabledFn is set: called after config is loaded, must return true to activate.
+	// When IsEnabledFn is nil: always returns false, even if configured.
 	EnabledExplicitly
 
 	// EnabledByDefault means the plugin is active unless enabled: false is set (e.g., summary).

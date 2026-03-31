@@ -1,8 +1,11 @@
-package plugin
+package registry
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/ci"
@@ -10,6 +13,7 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
+	"github.com/edelwud/terraci/pkg/plugin"
 )
 
 type testPlugin struct {
@@ -25,11 +29,11 @@ type testCommandPlugin struct {
 }
 
 type testPreflightPlugin struct {
-	BasePlugin[*testConfig]
+	plugin.BasePlugin[*testConfig]
 	called *string
 }
 
-func (p *testPreflightPlugin) Preflight(_ context.Context, _ *AppContext) error {
+func (p *testPreflightPlugin) Preflight(_ context.Context, _ *plugin.AppContext) error {
 	if p.called != nil {
 		*p.called = "preflight"
 	}
@@ -38,14 +42,19 @@ func (p *testPreflightPlugin) Preflight(_ context.Context, _ *AppContext) error 
 
 // testContributorPlugin implements PipelineContributor + ConfigLoader for testing.
 type testContributorPlugin struct {
-	BasePlugin[*testConfig]
+	plugin.BasePlugin[*testConfig]
 	contribution *pipeline.Contribution
-	seenCtx      *AppContext
+	seenCtx      *plugin.AppContext
 }
 
-func (p *testContributorPlugin) PipelineContribution(ctx *AppContext) *pipeline.Contribution {
+func (p *testContributorPlugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribution {
 	p.seenCtx = ctx
 	return p.contribution
+}
+
+type testConfig struct {
+	Name    string
+	Enabled bool
 }
 
 func TestRegisterAndGet(t *testing.T) {
@@ -111,7 +120,7 @@ func TestByCapability(t *testing.T) {
 	// Only command plugins — testCommandPlugin doesn't actually implement CommandProvider,
 	// but we can test that ByCapability filters correctly with our test interface
 	type hasName interface {
-		Plugin
+		plugin.Plugin
 		Name() string
 	}
 	named := ByCapability[hasName]()
@@ -177,7 +186,7 @@ func TestByCapability_NoMatch(t *testing.T) {
 	Register(&testPlugin{name: "basic"})
 
 	// VersionProvider is not implemented by testPlugin
-	vp := ByCapability[VersionProvider]()
+	vp := ByCapability[plugin.VersionProvider]()
 	if len(vp) != 0 {
 		t.Errorf("expected 0 VersionProviders, got %d", len(vp))
 	}
@@ -204,10 +213,10 @@ func TestCollectContributions_FiltersDisabledPlugins(t *testing.T) {
 
 	// Enabled plugin with contribution
 	enabled := &testContributorPlugin{
-		BasePlugin: BasePlugin[*testConfig]{
+		BasePlugin: plugin.BasePlugin[*testConfig]{
 			PluginName: "enabled",
 			PluginDesc: "enabled plugin",
-			EnableMode: EnabledExplicitly,
+			EnableMode: plugin.EnabledExplicitly,
 			DefaultCfg: func() *testConfig { return &testConfig{} },
 			IsEnabledFn: func(cfg *testConfig) bool {
 				return cfg != nil && cfg.Enabled
@@ -222,10 +231,10 @@ func TestCollectContributions_FiltersDisabledPlugins(t *testing.T) {
 
 	// Disabled plugin with contribution
 	disabled := &testContributorPlugin{
-		BasePlugin: BasePlugin[*testConfig]{
+		BasePlugin: plugin.BasePlugin[*testConfig]{
 			PluginName: "disabled",
 			PluginDesc: "disabled plugin",
-			EnableMode: EnabledExplicitly,
+			EnableMode: plugin.EnabledExplicitly,
 			DefaultCfg: func() *testConfig { return &testConfig{} },
 			IsEnabledFn: func(cfg *testConfig) bool {
 				return cfg != nil && cfg.Enabled
@@ -238,7 +247,7 @@ func TestCollectContributions_FiltersDisabledPlugins(t *testing.T) {
 	disabled.SetTypedConfig(&testConfig{Enabled: false})
 	Register(disabled)
 
-	appCtx := NewAppContext(config.DefaultConfig(), "/work", "/service", "test", NewReportRegistry())
+	appCtx := plugin.NewAppContext(config.DefaultConfig(), "/work", "/service", "test", plugin.NewReportRegistry())
 	contribs := CollectContributions(appCtx)
 	if len(contribs) != 1 {
 		t.Fatalf("expected 1 contribution, got %d", len(contribs))
@@ -280,10 +289,10 @@ func TestResetPlugins_ResetsConfigState(t *testing.T) {
 	Reset()
 
 	p := &testContributorPlugin{
-		BasePlugin: BasePlugin[*testConfig]{
+		BasePlugin: plugin.BasePlugin[*testConfig]{
 			PluginName: "resettable",
 			PluginDesc: "resettable plugin",
-			EnableMode: EnabledWhenConfigured,
+			EnableMode: plugin.EnabledWhenConfigured,
 			DefaultCfg: func() *testConfig { return &testConfig{} },
 		},
 	}
@@ -302,11 +311,9 @@ func TestResetPlugins_ResetsConfigState(t *testing.T) {
 }
 
 func TestCIProvider_Methods(t *testing.T) {
-	p := &testPlugin{name: "test-ci", desc: "Test CI"}
+	tp := &testProviderPlugin{testPlugin: testPlugin{name: "test-ci", desc: "Test CI"}}
 
-	provider := &CIProvider{
-		plugin: p,
-	}
+	provider := plugin.NewCIProvider(tp, tp, tp, nil)
 
 	if provider.Name() != "test-ci" {
 		t.Errorf("Name() = %q, want test-ci", provider.Name())
@@ -314,27 +321,27 @@ func TestCIProvider_Methods(t *testing.T) {
 	if provider.Description() != "Test CI" {
 		t.Errorf("Description() = %q, want Test CI", provider.Description())
 	}
-	if provider.Plugin() != p {
-		t.Error("Plugin() should return underlying plugin")
-	}
 }
 
 type testProviderPlugin struct {
-	BasePlugin[*testConfig]
+	plugin.BasePlugin[*testConfig]
+	testPlugin
 	detectEnv bool
 	provider  string
 }
 
-func (p *testProviderPlugin) DetectEnv() bool { return p.detectEnv }
+func (p *testProviderPlugin) Name() string        { return p.name }
+func (p *testProviderPlugin) Description() string { return p.desc }
+func (p *testProviderPlugin) DetectEnv() bool     { return p.detectEnv }
 func (p *testProviderPlugin) ProviderName() string {
 	return p.provider
 }
 func (p *testProviderPlugin) PipelineID() string { return "1" }
 func (p *testProviderPlugin) CommitSHA() string  { return "abc" }
-func (p *testProviderPlugin) NewGenerator(_ *AppContext, _ *graph.DependencyGraph, _ []*discovery.Module) pipeline.Generator {
+func (p *testProviderPlugin) NewGenerator(_ *plugin.AppContext, _ *graph.DependencyGraph, _ []*discovery.Module) pipeline.Generator {
 	return nil
 }
-func (p *testProviderPlugin) NewCommentService(_ *AppContext) ci.CommentService {
+func (p *testProviderPlugin) NewCommentService(_ *plugin.AppContext) ci.CommentService {
 	return nil
 }
 
@@ -346,28 +353,30 @@ func TestResolveProvider_SkipsDisabledEnvDetectedProvider(t *testing.T) {
 	Reset()
 
 	disabledEnv := &testProviderPlugin{
-		BasePlugin: BasePlugin[*testConfig]{
+		BasePlugin: plugin.BasePlugin[*testConfig]{
 			PluginName:  "github",
 			PluginDesc:  "GitHub",
-			EnableMode:  EnabledExplicitly,
+			EnableMode:  plugin.EnabledExplicitly,
 			DefaultCfg:  func() *testConfig { return &testConfig{} },
 			IsEnabledFn: func(cfg *testConfig) bool { return cfg != nil && cfg.Enabled },
 		},
-		detectEnv: true,
-		provider:  "github",
+		testPlugin: testPlugin{name: "github", desc: "GitHub"},
+		detectEnv:  true,
+		provider:   "github",
 	}
 	disabledEnv.SetTypedConfig(&testConfig{Enabled: false})
 	Register(disabledEnv)
 
 	enabled := &testProviderPlugin{
-		BasePlugin: BasePlugin[*testConfig]{
+		BasePlugin: plugin.BasePlugin[*testConfig]{
 			PluginName:  "gitlab",
 			PluginDesc:  "GitLab",
-			EnableMode:  EnabledExplicitly,
+			EnableMode:  plugin.EnabledExplicitly,
 			DefaultCfg:  func() *testConfig { return &testConfig{} },
 			IsEnabledFn: func(cfg *testConfig) bool { return cfg != nil && cfg.Enabled },
 		},
-		provider: "gitlab",
+		testPlugin: testPlugin{name: "gitlab", desc: "GitLab"},
+		provider:   "gitlab",
 	}
 	enabled.SetTypedConfig(&testConfig{Enabled: true})
 	Register(enabled)
@@ -390,14 +399,15 @@ func TestResolveProvider_TERRACI_PROVIDERMustBeActive(t *testing.T) {
 	t.Setenv("TERRACI_PROVIDER", "github")
 
 	disabled := &testProviderPlugin{
-		BasePlugin: BasePlugin[*testConfig]{
+		BasePlugin: plugin.BasePlugin[*testConfig]{
 			PluginName:  "github",
 			PluginDesc:  "GitHub",
-			EnableMode:  EnabledExplicitly,
+			EnableMode:  plugin.EnabledExplicitly,
 			DefaultCfg:  func() *testConfig { return &testConfig{} },
 			IsEnabledFn: func(cfg *testConfig) bool { return cfg != nil && cfg.Enabled },
 		},
-		provider: "github",
+		testPlugin: testPlugin{name: "github", desc: "GitHub"},
+		provider:   "github",
 	}
 	disabled.SetTypedConfig(&testConfig{Enabled: false})
 	Register(disabled)
@@ -412,10 +422,10 @@ func TestPreflightsForStartup_FiltersDisabledPlugins(t *testing.T) {
 	Reset()
 
 	disabled := &testPreflightPlugin{
-		BasePlugin: BasePlugin[*testConfig]{
+		BasePlugin: plugin.BasePlugin[*testConfig]{
 			PluginName: "disabled-preflight",
 			PluginDesc: "disabled preflight plugin",
-			EnableMode: EnabledExplicitly,
+			EnableMode: plugin.EnabledExplicitly,
 			DefaultCfg: func() *testConfig { return &testConfig{} },
 			IsEnabledFn: func(cfg *testConfig) bool {
 				return cfg != nil && cfg.Enabled
@@ -426,10 +436,10 @@ func TestPreflightsForStartup_FiltersDisabledPlugins(t *testing.T) {
 	Register(disabled)
 
 	enabled := &testPreflightPlugin{
-		BasePlugin: BasePlugin[*testConfig]{
+		BasePlugin: plugin.BasePlugin[*testConfig]{
 			PluginName: "enabled-preflight",
 			PluginDesc: "enabled preflight plugin",
-			EnableMode: EnabledExplicitly,
+			EnableMode: plugin.EnabledExplicitly,
 			DefaultCfg: func() *testConfig { return &testConfig{} },
 			IsEnabledFn: func(cfg *testConfig) bool {
 				return cfg != nil && cfg.Enabled
@@ -448,8 +458,140 @@ func TestPreflightsForStartup_FiltersDisabledPlugins(t *testing.T) {
 	}
 }
 
+// --- ChangeDetectionProvider tests ---
+
+type testDetectorPlugin struct {
+	plugin.BasePlugin[*testConfig]
+}
+
+func (d *testDetectorPlugin) DetectChangedModules(_ context.Context, _ *plugin.AppContext, _ string, _ *discovery.ModuleIndex) ([]*discovery.Module, []string, error) {
+	return nil, nil, nil
+}
+
+func (d *testDetectorPlugin) DetectChangedLibraries(_ context.Context, _ *plugin.AppContext, _ string, _ []string) ([]string, error) {
+	return nil, nil
+}
+
+func TestResolveChangeDetector_Single(t *testing.T) {
+	t.Cleanup(func() { Reset() })
+	Reset()
+
+	det := &testDetectorPlugin{
+		BasePlugin: plugin.BasePlugin[*testConfig]{
+			PluginName: "git",
+			PluginDesc: "Git detector",
+			EnableMode: plugin.EnabledAlways,
+			DefaultCfg: func() *testConfig { return &testConfig{} },
+		},
+	}
+	Register(det)
+
+	got, err := ResolveChangeDetector()
+	if err != nil {
+		t.Fatalf("ResolveChangeDetector() error = %v", err)
+	}
+	if got.Name() != "git" {
+		t.Fatalf("ResolveChangeDetector() = %q, want git", got.Name())
+	}
+}
+
+func TestResolveChangeDetector_MultipleWithConfigured(t *testing.T) {
+	t.Cleanup(func() { Reset() })
+	Reset()
+
+	det1 := &testDetectorPlugin{
+		BasePlugin: plugin.BasePlugin[*testConfig]{
+			PluginName:  "detector-a",
+			PluginDesc:  "Detector A",
+			EnableMode:  plugin.EnabledExplicitly,
+			DefaultCfg:  func() *testConfig { return &testConfig{} },
+			IsEnabledFn: func(cfg *testConfig) bool { return cfg != nil && cfg.Enabled },
+		},
+	}
+	Register(det1)
+
+	det2 := &testDetectorPlugin{
+		BasePlugin: plugin.BasePlugin[*testConfig]{
+			PluginName:  "detector-b",
+			PluginDesc:  "Detector B",
+			EnableMode:  plugin.EnabledExplicitly,
+			DefaultCfg:  func() *testConfig { return &testConfig{} },
+			IsEnabledFn: func(cfg *testConfig) bool { return cfg != nil && cfg.Enabled },
+		},
+	}
+	det2.SetTypedConfig(&testConfig{Enabled: true})
+	Register(det2)
+
+	got, err := ResolveChangeDetector()
+	if err != nil {
+		t.Fatalf("ResolveChangeDetector() error = %v", err)
+	}
+	if got.Name() != "detector-b" {
+		t.Fatalf("ResolveChangeDetector() = %q, want detector-b", got.Name())
+	}
+}
+
+// bareDetector implements ChangeDetectionProvider without ConfigLoader.
+type bareDetector struct {
+	name string
+}
+
+func (d *bareDetector) Name() string        { return d.name }
+func (d *bareDetector) Description() string { return d.name }
+func (d *bareDetector) DetectChangedModules(_ context.Context, _ *plugin.AppContext, _ string, _ *discovery.ModuleIndex) ([]*discovery.Module, []string, error) {
+	return nil, nil, nil
+}
+func (d *bareDetector) DetectChangedLibraries(_ context.Context, _ *plugin.AppContext, _ string, _ []string) ([]string, error) {
+	return nil, nil
+}
+
+func TestResolveChangeDetector_MultipleNoneConfigured(t *testing.T) {
+	t.Cleanup(func() { Reset() })
+	Reset()
+
+	// Two detectors without ConfigLoader — neither can be prioritized.
+	Register(&bareDetector{name: "det-x"})
+	Register(&bareDetector{name: "det-y"})
+
+	_, err := ResolveChangeDetector()
+	if err == nil {
+		t.Fatal("ResolveChangeDetector() should fail with multiple unconfigured detectors")
+	}
+	if !strings.Contains(err.Error(), "det-x") || !strings.Contains(err.Error(), "det-y") {
+		t.Fatalf("error should list detector names, got: %v", err)
+	}
+}
+
+// --- Concurrent registry access tests ---
+
+func TestConcurrentRegistryAccess(t *testing.T) {
+	t.Cleanup(func() { Reset() })
+	Reset()
+
+	// Pre-register plugins
+	for i := range 10 {
+		Register(&testPlugin{name: fmt.Sprintf("plugin-%d", i), desc: "concurrent test"})
+	}
+
+	// Concurrent reads
+	var wg sync.WaitGroup
+	for range 50 {
+		wg.Go(func() {
+			_ = All()
+			_, _ = Get("plugin-0")
+			_ = ByCapability[plugin.Plugin]()
+		})
+	}
+	wg.Wait()
+
+	all := All()
+	if len(all) != 10 {
+		t.Fatalf("expected 10 plugins after concurrent access, got %d", len(all))
+	}
+}
+
 func TestRuntimeAs_Success(t *testing.T) {
-	value, err := RuntimeAs[*testPlugin](&testPlugin{name: "runtime"})
+	value, err := plugin.RuntimeAs[*testPlugin](&testPlugin{name: "runtime"})
 	if err != nil {
 		t.Fatalf("RuntimeAs() error = %v", err)
 	}
@@ -459,7 +601,7 @@ func TestRuntimeAs_Success(t *testing.T) {
 }
 
 func TestRuntimeAs_TypeMismatch(t *testing.T) {
-	_, err := RuntimeAs[*testCommandPlugin](&testPlugin{name: "runtime"})
+	_, err := plugin.RuntimeAs[*testCommandPlugin](&testPlugin{name: "runtime"})
 	if err == nil {
 		t.Fatal("RuntimeAs() error = nil, want mismatch")
 	}

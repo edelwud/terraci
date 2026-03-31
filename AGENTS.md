@@ -81,7 +81,20 @@ pkg/                            # Public API — importable by external plugins
 │   └── schema.go               # GenerateJSONSchema (with plugin schemas)
 ├── ci/                         # Provider-agnostic CI types, Report, CommentService
 ├── discovery/                  # Module, Scanner, ModuleIndex, PlanScanner
-├── parser/                     # HCL parser, DependencyExtractor
+├── parser/                     # Public parser facade + shared model
+│   ├── parser.go               # ParseModule() facade over internal moduleparse pipeline
+│   ├── dependency.go           # DependencyExtractor facade
+│   ├── model/                  # Stable shared parser model used by facade + internals
+│   └── internal/               # Layered parser internals
+│       ├── moduleparse/        # Parse orchestration/session
+│       ├── dependency/         # Dependency extraction orchestration/session
+│       ├── source/             # File loading, source snapshots, typed block views
+│       ├── extract/            # Feature extractors (locals, vars, backend, providers, modules)
+│       ├── resolve/            # Remote-state/workspace path resolution
+│       ├── evalctx/            # Shared eval context builder
+│       ├── exprfast/           # Cheap expression fast paths before full eval fallback
+│       ├── deps/               # Dependency/path matching helpers
+│       └── testutil/           # Shared parser test and benchmark fixtures
 ├── graph/                      # DependencyGraph, algorithms, visualization
 ├── filter/                     # GlobFilter, flags
 ├── workflow/                   # Module discovery, filtering, graph building
@@ -152,7 +165,11 @@ plugins/                        # Built-in plugins — one file per capability
 │   ├── output.go               # CLI rendering
 │   ├── report.go               # CI report assembly
 │   ├── init_wizard.go          # InitContributor
-│   └── internal/               # (package updateengine) parser, checker, registry client
+│   └── internal/               # (package updateengine) layered update engine
+│       ├── checker/            # Read-side check orchestration/session, module/provider scans
+│       ├── registryclient/     # Terraform registry adapter + source parsing
+│       ├── tffile/             # Terraform file discovery and per-module index
+│       └── tfwrite/            # Terraform version constraint mutation
 ├── summary/
 │   ├── plugin.go               # init, BasePlugin[*Config] embed
 │   ├── commands.go             # CommandProvider (terraci summary)
@@ -329,6 +346,9 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **Zero cross-plugin imports**: plugins communicate only via registry + shared types + file-based reports
 - **Shared workflow**: `workflow.Run()` — scan, filter, parse, graph building
 - **Reference runtime-heavy plugins**: `cost`, `policy`, `update`
+- **Parser architecture**: keep `pkg/parser` as a thin public facade; put orchestration, extraction, resolution, and source mechanics in `pkg/parser/internal/*` around the shared `pkg/parser/model`
+- **Update architecture**: keep `plugins/update` command/runtime surfaces thin; engine internals live under `checker`, `registryclient`, `tffile`, and `tfwrite`
+- **Performance priority**: for `terraci update`, optimize registry lookup reuse and checker throughput before micro-optimizing formatting/output; parser hot paths matter because `update` rides on them transitively
 
 ## CLI Commands
 
@@ -343,7 +363,7 @@ terraci init --ci --provider gitlab         # Non-interactive
 terraci cost                                # Cloud cost estimation
 terraci summary                             # Post MR/PR comment
 terraci policy pull && terraci policy check # Policy checks
-terraci update                              # Dependency version checks
+terraci update                              # Dependency version checks / optional in-place writes
 terraci schema                              # JSON schema
 terraci version                             # Version + plugin info
 

@@ -1,4 +1,4 @@
-package plugin
+package initwiz
 
 import "testing"
 
@@ -47,20 +47,17 @@ func TestStateMap_Binary(t *testing.T) {
 func TestStateMap_StringPtr(t *testing.T) {
 	s := NewStateMap()
 
-	// First call creates pointer with empty default
 	ptr := s.StringPtr("name")
 	if *ptr != "" {
 		t.Errorf("StringPtr default = %q, want empty", *ptr)
 	}
 
-	// Mutating pointer updates Get
 	*ptr = "hello"
 	got := s.Get("name")
 	if got != "hello" {
 		t.Errorf("Get after pointer mutation = %v, want hello", got)
 	}
 
-	// Second call returns same pointer
 	ptr2 := s.StringPtr("name")
 	if ptr != ptr2 {
 		t.Error("StringPtr should return stable pointer")
@@ -91,7 +88,6 @@ func TestStateMap_BoolPtr(t *testing.T) {
 		t.Errorf("Get after pointer mutation = %v, want true", got)
 	}
 
-	// Stable pointer
 	ptr2 := s.BoolPtr("enabled")
 	if ptr != ptr2 {
 		t.Error("BoolPtr should return stable pointer")
@@ -115,7 +111,6 @@ func TestStateMap_StringPtr_OverridesPlainValue(t *testing.T) {
 	ptr := s.StringPtr("key")
 	*ptr = "pointer"
 
-	// Get should prefer pointer-backed value
 	if s.Get("key") != "pointer" {
 		t.Errorf("Get should return pointer value, got %v", s.Get("key"))
 	}
@@ -123,7 +118,7 @@ func TestStateMap_StringPtr_OverridesPlainValue(t *testing.T) {
 
 func TestStateMap_Provider_NonStringValue(t *testing.T) {
 	s := NewStateMap()
-	s.Set("provider", 42) // not a string
+	s.Set("provider", 42)
 
 	if s.Provider() != "" {
 		t.Errorf("Provider with non-string = %q, want empty", s.Provider())
@@ -132,7 +127,7 @@ func TestStateMap_Provider_NonStringValue(t *testing.T) {
 
 func TestStateMap_Binary_NonStringValue(t *testing.T) {
 	s := NewStateMap()
-	s.Set("binary", true) // not a string
+	s.Set("binary", true)
 
 	if s.Binary() != "" {
 		t.Errorf("Binary with non-string = %q, want empty", s.Binary())
@@ -151,7 +146,6 @@ func TestStateMap_String(t *testing.T) {
 		t.Errorf("String(key) = %q, want hello", s.String("key"))
 	}
 
-	// Non-string value
 	s.Set("num", 42)
 	if s.String("num") != "" {
 		t.Errorf("String(num) = %q, want empty for non-string", s.String("num"))
@@ -175,7 +169,6 @@ func TestStateMap_Bool(t *testing.T) {
 		t.Error("Bool(flag) should return false")
 	}
 
-	// Non-bool value
 	s.Set("str", "yes")
 	if s.Bool("str") {
 		t.Error("Bool(str) should return false for non-bool")

@@ -1,6 +1,6 @@
 package policy
 
-import "github.com/edelwud/terraci/pkg/plugin"
+import "github.com/edelwud/terraci/pkg/plugin/initwiz"
 
 // InitContributor — contributes policy check fields to the init wizard.
 
@@ -8,35 +8,35 @@ const initGroupOrder = 201
 
 // InitGroups returns the init wizard group specs for policy checks.
 // Two groups: a feature toggle and a detail group for settings.
-func (p *Plugin) InitGroups() []*plugin.InitGroupSpec {
-	return []*plugin.InitGroupSpec{
+func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
+	return []*initwiz.InitGroupSpec{
 		{
 			Title:    "Policy Checks",
-			Category: plugin.CategoryFeature,
+			Category: initwiz.CategoryFeature,
 			Order:    initGroupOrder,
-			Fields: []plugin.InitField{
+			Fields: []initwiz.InitField{
 				{
 					Key:         "policy.enabled",
 					Title:       "Enable policy checks?",
 					Description: "Evaluate Terraform plans with OPA policies",
-					Type:        "bool",
+					Type:        initwiz.FieldBool,
 					Default:     false,
 				},
 			},
 		},
 		{
 			Title:    "Policy Settings",
-			Category: plugin.CategoryDetail,
+			Category: initwiz.CategoryDetail,
 			Order:    initGroupOrder,
-			ShowWhen: func(s *plugin.StateMap) bool {
+			ShowWhen: func(s *initwiz.StateMap) bool {
 				return s.Bool("policy.enabled")
 			},
-			Fields: []plugin.InitField{
+			Fields: []initwiz.InitField{
 				{
 					Key:         "policy.source_path",
 					Title:       "Policy files directory",
 					Description: "Local directory containing .rego policy files",
-					Type:        "string",
+					Type:        initwiz.FieldString,
 					Default:     "policies",
 					Placeholder: "policies",
 				},
@@ -44,9 +44,9 @@ func (p *Plugin) InitGroups() []*plugin.InitGroupSpec {
 					Key:         "policy.on_failure",
 					Title:       "On policy failure",
 					Description: "Action when policy check fails",
-					Type:        "select",
+					Type:        initwiz.FieldSelect,
 					Default:     "block",
-					Options: []plugin.InitOption{
+					Options: []initwiz.InitOption{
 						{Label: "Block pipeline", Value: "block"},
 						{Label: "Warn only", Value: "warn"},
 					},
@@ -57,7 +57,7 @@ func (p *Plugin) InitGroups() []*plugin.InitGroupSpec {
 }
 
 // BuildInitConfig builds the policy checks init contribution.
-func (p *Plugin) BuildInitConfig(state *plugin.StateMap) *plugin.InitContribution {
+func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribution {
 	enabled := state.Bool("policy.enabled")
 	if !enabled {
 		return nil
@@ -73,7 +73,7 @@ func (p *Plugin) BuildInitConfig(state *plugin.StateMap) *plugin.InitContributio
 		onFailure = "block"
 	}
 
-	return &plugin.InitContribution{
+	return &initwiz.InitContribution{
 		PluginKey: "policy",
 		Config: map[string]any{
 			"enabled":    true,

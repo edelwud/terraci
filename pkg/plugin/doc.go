@@ -1,5 +1,11 @@
 // Package plugin provides the compile-time plugin system for TerraCi.
 //
+// The plugin system is organized into three packages:
+//
+//   - pkg/plugin: core interfaces, BasePlugin[C], AppContext, EnablePolicy, RuntimeProvider
+//   - pkg/plugin/registry: global plugin registration and resolution (Register, ByCapability, ResolveProvider)
+//   - pkg/plugin/initwiz: init wizard types (StateMap, InitContributor, InitGroupSpec)
+//
 // Preferred plugin architecture for runtime-heavy built-in and external plugins:
 //
 //   - plugin.go: registration shell and typed BasePlugin config

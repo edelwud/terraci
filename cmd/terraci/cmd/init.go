@@ -12,6 +12,8 @@ import (
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/initwiz"
+	"github.com/edelwud/terraci/pkg/plugin/registry"
 )
 
 func newInitCmd(app *App) *cobra.Command {
@@ -48,7 +50,7 @@ Examples:
 			var err error
 
 			if ciMode || hasFlags {
-				state := plugin.NewStateMap()
+				state := initwiz.NewStateMap()
 				initStateDefaults(state)
 
 				// Override defaults with CLI flags
@@ -92,8 +94,8 @@ Examples:
 
 // initStateDefaults populates a StateMap with default values for the init wizard.
 // Shared between interactive (TUI) and non-interactive (--ci) paths.
-func initStateDefaults(state *plugin.StateMap) {
-	providerPlugins := plugin.ByCapability[plugin.CIMetadata]()
+func initStateDefaults(state *initwiz.StateMap) {
+	providerPlugins := registry.ByCapability[plugin.CIMetadata]()
 	if len(providerPlugins) > 0 {
 		state.Set("provider", providerPlugins[0].ProviderName())
 	}
@@ -119,7 +121,7 @@ func logGenerateHint(cfg *config.Config) {
 		}
 	}
 
-	resolved, _ := plugin.ResolveProvider() //nolint:errcheck // best-effort fallback, non-critical
+	resolved, _ := registry.ResolveProvider() //nolint:errcheck // best-effort fallback, non-critical
 	if resolved != nil && resolved.ProviderName() == "github" {
 		log.Info("terraci generate -o .github/workflows/terraform.yml")
 	} else {

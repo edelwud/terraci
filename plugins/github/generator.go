@@ -8,6 +8,7 @@ import (
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/registry"
 	githubci "github.com/edelwud/terraci/plugins/github/internal"
 )
 
@@ -27,7 +28,7 @@ func (p *Plugin) CommitSHA() string { return os.Getenv("GITHUB_SHA") }
 
 // NewGenerator creates a new GitHub Actions pipeline generator.
 func (p *Plugin) NewGenerator(ctx *plugin.AppContext, depGraph *graph.DependencyGraph, modules []*discovery.Module) pipeline.Generator {
-	contributions := plugin.CollectContributions(ctx)
+	contributions := registry.CollectContributions(ctx)
 	return githubci.NewGenerator(p.Config(), contributions, depGraph, modules)
 }
 

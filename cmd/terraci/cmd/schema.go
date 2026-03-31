@@ -8,6 +8,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/registry"
 )
 
 func newSchemaCmd() *cobra.Command {
@@ -33,7 +34,7 @@ Examples:
   # yaml-language-server: $schema=./terraci.schema.json`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			pluginSchemas := make(map[string]any)
-			for _, cl := range plugin.ByCapability[plugin.ConfigLoader]() {
+			for _, cl := range registry.ByCapability[plugin.ConfigLoader]() {
 				pluginSchemas[cl.ConfigKey()] = cl.NewConfig()
 			}
 			schema := config.GenerateJSONSchema(pluginSchemas)

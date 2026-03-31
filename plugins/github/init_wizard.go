@@ -1,29 +1,29 @@
 package github
 
-import "github.com/edelwud/terraci/pkg/plugin"
+import "github.com/edelwud/terraci/pkg/plugin/initwiz"
 
 // InitContributor — contributes GitHub Actions fields to the init wizard.
 
 const defaultGitHubRunner = "ubuntu-latest"
 
 // InitGroups returns the init wizard group specs for GitHub Actions.
-func (p *Plugin) InitGroups() []*plugin.InitGroupSpec {
-	showGitHub := func(s *plugin.StateMap) bool {
+func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
+	showGitHub := func(s *initwiz.StateMap) bool {
 		return s.Provider() == "github"
 	}
 
-	return []*plugin.InitGroupSpec{
+	return []*initwiz.InitGroupSpec{
 		{
 			Title:    "GitHub Actions",
-			Category: plugin.CategoryProvider,
+			Category: initwiz.CategoryProvider,
 			Order:    100,
 			ShowWhen: showGitHub,
-			Fields: []plugin.InitField{
+			Fields: []initwiz.InitField{
 				{
 					Key:         "github.runs_on",
 					Title:       "Runner Label",
 					Description: "GitHub Actions runs-on value",
-					Type:        "string",
+					Type:        initwiz.FieldString,
 					Default:     defaultGitHubRunner,
 					Placeholder: defaultGitHubRunner,
 				},
@@ -31,22 +31,22 @@ func (p *Plugin) InitGroups() []*plugin.InitGroupSpec {
 		},
 		{
 			Title:    "Pipeline",
-			Category: plugin.CategoryPipeline,
+			Category: initwiz.CategoryPipeline,
 			Order:    100,
 			ShowWhen: showGitHub,
-			Fields: []plugin.InitField{
+			Fields: []initwiz.InitField{
 				{
 					Key:         "plan_enabled",
 					Title:       "Enable plan stage?",
 					Description: "Generate separate plan + apply jobs",
-					Type:        "bool",
+					Type:        initwiz.FieldBool,
 					Default:     true,
 				},
 				{
 					Key:         "auto_approve",
 					Title:       "Auto-approve applies?",
 					Description: "Skip manual approval for terraform apply",
-					Type:        "bool",
+					Type:        initwiz.FieldBool,
 					Default:     false,
 				},
 			},
@@ -55,7 +55,7 @@ func (p *Plugin) InitGroups() []*plugin.InitGroupSpec {
 }
 
 // BuildInitConfig builds the GitHub Actions init contribution.
-func (p *Plugin) BuildInitConfig(state *plugin.StateMap) *plugin.InitContribution {
+func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribution {
 	if state.Provider() != "github" {
 		return nil
 	}
@@ -100,7 +100,7 @@ func (p *Plugin) BuildInitConfig(state *plugin.StateMap) *plugin.InitContributio
 		}
 	}
 
-	return &plugin.InitContribution{
+	return &initwiz.InitContribution{
 		PluginKey: "github",
 		Config:    cfg,
 	}

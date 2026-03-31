@@ -3,7 +3,7 @@ package update
 import (
 	"testing"
 
-	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/initwiz"
 )
 
 func TestPlugin_InitGroups(t *testing.T) {
@@ -19,7 +19,7 @@ func TestPlugin_InitGroups(t *testing.T) {
 	if g0.Title != "Dependency Updates" {
 		t.Errorf("group[0].Title = %q, want %q", g0.Title, "Dependency Updates")
 	}
-	if g0.Category != plugin.CategoryFeature {
+	if g0.Category != initwiz.CategoryFeature {
 		t.Errorf("group[0].Category = %v, want CategoryFeature", g0.Category)
 	}
 	if g0.Order != initGroupOrder {
@@ -32,8 +32,8 @@ func TestPlugin_InitGroups(t *testing.T) {
 	if f.Key != "update.enabled" {
 		t.Errorf("field.Key = %q, want %q", f.Key, "update.enabled")
 	}
-	if f.Type != "bool" {
-		t.Errorf("field.Type = %q, want %q", f.Type, "bool")
+	if f.Type != initwiz.FieldBool {
+		t.Errorf("field.Type = %q, want %q", f.Type, initwiz.FieldBool)
 	}
 	if f.Default != false {
 		t.Errorf("field.Default = %v, want false", f.Default)
@@ -44,7 +44,7 @@ func TestPlugin_InitGroups(t *testing.T) {
 	if g1.Title != "Update Settings" {
 		t.Errorf("group[1].Title = %q, want %q", g1.Title, "Update Settings")
 	}
-	if g1.Category != plugin.CategoryDetail {
+	if g1.Category != initwiz.CategoryDetail {
 		t.Errorf("group[1].Category = %v, want CategoryDetail", g1.Category)
 	}
 	if len(g1.Fields) != 3 {
@@ -79,13 +79,13 @@ func TestPlugin_InitGroups_ShowWhen(t *testing.T) {
 		t.Fatal("group[1].ShowWhen is nil")
 	}
 
-	stateEnabled := plugin.NewStateMap()
+	stateEnabled := initwiz.NewStateMap()
 	stateEnabled.Set("update.enabled", true)
 	if !showWhen(stateEnabled) {
 		t.Error("ShowWhen should return true when update.enabled=true")
 	}
 
-	stateDisabled := plugin.NewStateMap()
+	stateDisabled := initwiz.NewStateMap()
 	stateDisabled.Set("update.enabled", false)
 	if showWhen(stateDisabled) {
 		t.Error("ShowWhen should return false when update.enabled=false")
@@ -94,7 +94,7 @@ func TestPlugin_InitGroups_ShowWhen(t *testing.T) {
 
 func TestPlugin_BuildInitConfig_Enabled(t *testing.T) {
 	p := newTestPlugin(t)
-	state := plugin.NewStateMap()
+	state := initwiz.NewStateMap()
 	state.Set("update.enabled", true)
 
 	contrib := p.BuildInitConfig(state)
@@ -115,7 +115,7 @@ func TestPlugin_BuildInitConfig_Enabled(t *testing.T) {
 
 func TestPlugin_BuildInitConfig_Disabled(t *testing.T) {
 	p := newTestPlugin(t)
-	state := plugin.NewStateMap()
+	state := initwiz.NewStateMap()
 	state.Set("update.enabled", false)
 
 	contrib := p.BuildInitConfig(state)
@@ -126,7 +126,7 @@ func TestPlugin_BuildInitConfig_Disabled(t *testing.T) {
 
 func TestPlugin_BuildInitConfig_NotSet(t *testing.T) {
 	p := newTestPlugin(t)
-	state := plugin.NewStateMap()
+	state := initwiz.NewStateMap()
 
 	contrib := p.BuildInitConfig(state)
 	if contrib != nil {
@@ -136,7 +136,7 @@ func TestPlugin_BuildInitConfig_NotSet(t *testing.T) {
 
 func TestPlugin_BuildInitConfig_NonDefaultTarget(t *testing.T) {
 	p := newTestPlugin(t)
-	state := plugin.NewStateMap()
+	state := initwiz.NewStateMap()
 	state.Set("update.enabled", true)
 	state.Set("update.target", "modules")
 
@@ -151,7 +151,7 @@ func TestPlugin_BuildInitConfig_NonDefaultTarget(t *testing.T) {
 
 func TestPlugin_BuildInitConfig_NonDefaultBump(t *testing.T) {
 	p := newTestPlugin(t)
-	state := plugin.NewStateMap()
+	state := initwiz.NewStateMap()
 	state.Set("update.enabled", true)
 	state.Set("update.bump", "patch")
 
@@ -166,7 +166,7 @@ func TestPlugin_BuildInitConfig_NonDefaultBump(t *testing.T) {
 
 func TestPlugin_BuildInitConfig_Pipeline(t *testing.T) {
 	p := newTestPlugin(t)
-	state := plugin.NewStateMap()
+	state := initwiz.NewStateMap()
 	state.Set("update.enabled", true)
 	state.Set("update.pipeline", true)
 
@@ -181,7 +181,7 @@ func TestPlugin_BuildInitConfig_Pipeline(t *testing.T) {
 
 func TestPlugin_BuildInitConfig_AllDefaults(t *testing.T) {
 	p := newTestPlugin(t)
-	state := plugin.NewStateMap()
+	state := initwiz.NewStateMap()
 	state.Set("update.enabled", true)
 	state.Set("update.target", "all")
 	state.Set("update.bump", "minor")

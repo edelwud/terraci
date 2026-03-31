@@ -4,11 +4,12 @@ package github
 
 import (
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/registry"
 	githubci "github.com/edelwud/terraci/plugins/github/internal"
 )
 
 func init() {
-	plugin.Register(&Plugin{
+	registry.Register(&Plugin{
 		BasePlugin: plugin.BasePlugin[*githubci.Config]{
 			PluginName: "github",
 			PluginDesc: "GitHub Actions pipeline generation and PR comments",
@@ -28,11 +29,6 @@ func init() {
 // Plugin is the GitHub Actions plugin.
 type Plugin struct {
 	plugin.BasePlugin[*githubci.Config]
-}
-
-// Reset resets all plugin state.
-func (p *Plugin) Reset() {
-	p.BasePlugin.Reset()
 }
 
 // SetPlanOnly sets plan-only mode directly on the typed config.

@@ -4,11 +4,12 @@ package summary
 
 import (
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/registry"
 	summaryengine "github.com/edelwud/terraci/plugins/summary/internal"
 )
 
 func init() {
-	plugin.Register(&Plugin{
+	registry.Register(&Plugin{
 		BasePlugin: plugin.BasePlugin[*summaryengine.Config]{
 			PluginName: "summary",
 			PluginDesc: "MR/PR comment posting from plan results",

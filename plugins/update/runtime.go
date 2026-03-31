@@ -65,12 +65,7 @@ func (p *Plugin) Runtime(_ context.Context, _ *plugin.AppContext) (any, error) {
 
 func (p *Plugin) runtime(ctx context.Context, appCtx *plugin.AppContext, opts runtimeOptions) (*updateRuntime, error) {
 	if opts == (runtimeOptions{}) {
-		rawRuntime, err := p.Runtime(ctx, appCtx)
-		if err != nil {
-			return nil, err
-		}
-		return plugin.RuntimeAs[*updateRuntime](rawRuntime)
+		return plugin.BuildRuntime[*updateRuntime](ctx, p, appCtx)
 	}
-
 	return newRuntime(p.Config(), p.registryFactory, opts)
 }

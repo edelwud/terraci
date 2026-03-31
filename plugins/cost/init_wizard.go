@@ -1,24 +1,24 @@
 package cost
 
-import "github.com/edelwud/terraci/pkg/plugin"
+import "github.com/edelwud/terraci/pkg/plugin/initwiz"
 
 // InitContributor — contributes cost estimation field to the init wizard.
 
 const initGroupOrder = 200
 
 // InitGroups returns the init wizard group spec for cost estimation.
-func (p *Plugin) InitGroups() []*plugin.InitGroupSpec {
-	return []*plugin.InitGroupSpec{
+func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
+	return []*initwiz.InitGroupSpec{
 		{
 			Title:    "Cost Estimation",
-			Category: plugin.CategoryFeature,
+			Category: initwiz.CategoryFeature,
 			Order:    initGroupOrder,
-			Fields: []plugin.InitField{
+			Fields: []initwiz.InitField{
 				{
 					Key:         "cost.providers.aws.enabled",
 					Title:       "Enable cloud cost estimation?",
 					Description: "Estimate cloud costs from Terraform plans",
-					Type:        "bool",
+					Type:        initwiz.FieldBool,
 					Default:     false,
 				},
 			},
@@ -27,12 +27,12 @@ func (p *Plugin) InitGroups() []*plugin.InitGroupSpec {
 }
 
 // BuildInitConfig builds the cost estimation init contribution.
-func (p *Plugin) BuildInitConfig(state *plugin.StateMap) *plugin.InitContribution {
+func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribution {
 	enabled := state.Bool("cost.providers.aws.enabled")
 	if !enabled {
 		return nil
 	}
-	return &plugin.InitContribution{
+	return &initwiz.InitContribution{
 		PluginKey: "cost",
 		Config: map[string]any{
 			"providers": map[string]any{

@@ -5,6 +5,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/initwiz"
 	summaryengine "github.com/edelwud/terraci/plugins/summary/internal"
 )
 
@@ -26,7 +27,7 @@ func newTestPlugin() *Plugin {
 
 func TestPlugin_BuildInitConfig_Enabled(t *testing.T) {
 	p := newTestPlugin()
-	state := plugin.NewStateMap()
+	state := initwiz.NewStateMap()
 	state.Set("summary.enabled", true)
 
 	contrib := p.BuildInitConfig(state)
@@ -40,7 +41,7 @@ func TestPlugin_BuildInitConfig_Enabled(t *testing.T) {
 
 func TestPlugin_BuildInitConfig_Disabled(t *testing.T) {
 	p := newTestPlugin()
-	state := plugin.NewStateMap()
+	state := initwiz.NewStateMap()
 	state.Set("summary.enabled", false)
 
 	contrib := p.BuildInitConfig(state)
@@ -54,7 +55,7 @@ func TestPlugin_BuildInitConfig_Disabled(t *testing.T) {
 
 func TestPlugin_BuildInitConfig_DisabledRoundTripDisablesPlugin(t *testing.T) {
 	p := newTestPlugin()
-	state := plugin.NewStateMap()
+	state := initwiz.NewStateMap()
 	state.Set("summary.enabled", false)
 
 	contrib := p.BuildInitConfig(state)

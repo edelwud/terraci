@@ -1,25 +1,25 @@
 // Package summary provides the summary plugin for TerraCi.
 package summary
 
-import "github.com/edelwud/terraci/pkg/plugin"
+import "github.com/edelwud/terraci/pkg/plugin/initwiz"
 
 // InitContributor — contributes summary field to the init wizard.
 
 const initGroupOrder = 199 // before cost/policy so it appears first in Features
 
 // InitGroups returns the summary plugin's form group for the init wizard.
-func (p *Plugin) InitGroups() []*plugin.InitGroupSpec {
-	return []*plugin.InitGroupSpec{
+func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
+	return []*initwiz.InitGroupSpec{
 		{
 			Title:    "Summary",
-			Category: plugin.CategoryFeature,
+			Category: initwiz.CategoryFeature,
 			Order:    initGroupOrder,
-			Fields: []plugin.InitField{
+			Fields: []initwiz.InitField{
 				{
 					Key:         "summary.enabled",
 					Title:       "Enable plan summaries?",
 					Description: "Post Terraform plan summaries as merge and pull request comments",
-					Type:        "bool",
+					Type:        initwiz.FieldBool,
 					Default:     true,
 				},
 			},
@@ -28,9 +28,9 @@ func (p *Plugin) InitGroups() []*plugin.InitGroupSpec {
 }
 
 // BuildInitConfig builds the summary plugin config from wizard state.
-func (p *Plugin) BuildInitConfig(state *plugin.StateMap) *plugin.InitContribution {
+func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribution {
 	enabled := state.Bool("summary.enabled")
-	return &plugin.InitContribution{
+	return &initwiz.InitContribution{
 		PluginKey: "summary",
 		Config: map[string]any{
 			"enabled": enabled,

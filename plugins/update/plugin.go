@@ -3,11 +3,12 @@ package update
 
 import (
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/registry"
 	updateengine "github.com/edelwud/terraci/plugins/update/internal"
 )
 
 func init() {
-	plugin.Register(&Plugin{
+	registry.Register(&Plugin{
 		BasePlugin: plugin.BasePlugin[*updateengine.UpdateConfig]{
 			PluginName: "update",
 			PluginDesc: "Terraform dependency version checker and updater",

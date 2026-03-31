@@ -10,7 +10,7 @@ import (
 	"go.yaml.in/yaml/v4"
 
 	"github.com/edelwud/terraci/cmd/terraci/cmd"
-	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/registry"
 
 	// Register all built-in plugins via init()
 	_ "github.com/edelwud/terraci/plugins/cost"
@@ -53,7 +53,7 @@ func fixtureDir(t *testing.T, name string) string {
 func runTerraCi(t *testing.T, dir string, args ...string) error {
 	t.Helper()
 	clearCIEnv(t)
-	plugin.ResetPlugins()
+	registry.ResetPlugins()
 
 	t.Chdir(dir)
 
@@ -68,7 +68,7 @@ func runTerraCi(t *testing.T, dir string, args ...string) error {
 func captureTerraCi(t *testing.T, dir string, args ...string) (string, error) {
 	t.Helper()
 	clearCIEnv(t)
-	plugin.ResetPlugins()
+	registry.ResetPlugins()
 
 	t.Chdir(dir)
 

@@ -1,6 +1,9 @@
 package plugin
 
-import "github.com/edelwud/terraci/pkg/config"
+import (
+	"github.com/edelwud/terraci/pkg/config"
+	"github.com/edelwud/terraci/pkg/log"
+)
 
 // AppContext is the public API available to plugins.
 //
@@ -33,6 +36,7 @@ func NewAppContext(cfg *config.Config, workDir, serviceDir, version string, repo
 // Update refreshes the framework-managed view of app state until the context is frozen.
 func (ctx *AppContext) Update(cfg *config.Config, workDir, serviceDir, version string) {
 	if ctx.frozen {
+		log.Debug("AppContext.Update called after Freeze — ignored")
 		return
 	}
 	ctx.config = cfg.Clone()
@@ -44,7 +48,13 @@ func (ctx *AppContext) Update(cfg *config.Config, workDir, serviceDir, version s
 	}
 }
 
-// Config returns a copy of the loaded TerraCi configuration.
+// Config returns a defensive copy of the loaded TerraCi configuration.
+// For repeated access within a single use-case, cache the result locally:
+//
+//	cfg := appCtx.Config()
+//	// use cfg throughout the function
+//
+// This avoids repeated deep copies while preserving immutability guarantees.
 func (ctx *AppContext) Config() *config.Config {
 	return ctx.config.Clone()
 }

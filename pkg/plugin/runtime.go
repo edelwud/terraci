@@ -45,3 +45,19 @@ func RuntimeAs[T any](runtime any) (T, error) {
 	}
 	return typed, nil
 }
+
+// BuildRuntime calls p.Runtime and type-asserts the result to T in one step.
+// It combines the Runtime() call and RuntimeAs[T]() assertion — the recommended
+// shorthand for plugin use-cases:
+//
+//	func (p *Plugin) runtime(ctx context.Context, appCtx *AppContext) (*myRuntime, error) {
+//		return plugin.BuildRuntime[*myRuntime](ctx, p, appCtx)
+//	}
+func BuildRuntime[T any](ctx context.Context, p RuntimeProvider, appCtx *AppContext) (T, error) {
+	raw, err := p.Runtime(ctx, appCtx)
+	if err != nil {
+		var zero T
+		return zero, err
+	}
+	return RuntimeAs[T](raw)
+}

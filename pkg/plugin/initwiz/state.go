@@ -1,7 +1,19 @@
-package plugin
+// Package initwiz provides init wizard state management and types for TerraCi.
+// It contains the StateMap for huh form binding and all init-related type
+// definitions (InitContributor, InitGroupSpec, InitField, etc.).
+package initwiz
 
 // StateMap is the typed init state backed by maps.
 // It provides both typed accessors and stable pointers for huh form field binding.
+//
+// Lifecycle:
+//  1. Core calls Set("key", "default") to populate initial values.
+//  2. Plugins call StringPtr("key") / BoolPtr("key") to get stable pointers for huh fields.
+//  3. huh form mutates values through the pointers during user interaction.
+//  4. After form completes, BuildInitConfig reads back via Get() / String() / Bool().
+//
+// Get() resolves with priority: StringPtr store > BoolPtr store > Set store.
+// This ensures pointer-backed values (mutated by forms) take precedence.
 type StateMap struct {
 	values  map[string]any
 	strings map[string]*string

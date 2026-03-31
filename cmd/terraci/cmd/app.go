@@ -5,6 +5,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/registry"
 )
 
 // App holds shared state for all commands, replacing package-level globals.
@@ -54,7 +55,7 @@ func (a *App) ensurePluginContext() {
 // InitPluginConfigs decodes plugin-specific configurations from the Plugins map
 // and passes them to each ConfigLoader plugin.
 func (a *App) InitPluginConfigs() error {
-	for _, p := range plugin.ByCapability[plugin.ConfigLoader]() {
+	for _, p := range registry.ByCapability[plugin.ConfigLoader]() {
 		if _, exists := a.Config.Plugins[p.ConfigKey()]; !exists {
 			continue
 		}

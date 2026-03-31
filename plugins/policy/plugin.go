@@ -3,11 +3,12 @@ package policy
 
 import (
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/registry"
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
 
 func init() {
-	plugin.Register(&Plugin{
+	registry.Register(&Plugin{
 		BasePlugin: plugin.BasePlugin[*policyengine.Config]{
 			PluginName: "policy",
 			PluginDesc: "OPA policy checks for Terraform plans",
@@ -25,9 +26,4 @@ func init() {
 // Plugin is the OPA policy check plugin.
 type Plugin struct {
 	plugin.BasePlugin[*policyengine.Config]
-}
-
-// Reset resets all plugin state.
-func (p *Plugin) Reset() {
-	p.BasePlugin.Reset()
 }

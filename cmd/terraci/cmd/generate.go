@@ -15,6 +15,7 @@ import (
 	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/registry"
 	"github.com/edelwud/terraci/pkg/workflow"
 )
 
@@ -106,7 +107,7 @@ func applyProviderFlags(planOnly bool, cmd *cobra.Command) {
 	if !planOnly && !cmd.Flags().Changed("auto-approve") && !cmd.Flags().Changed("no-auto-approve") {
 		return
 	}
-	resolved, err := plugin.ResolveProvider()
+	resolved, err := registry.ResolveProvider()
 	if err != nil {
 		log.WithError(err).Debug("cannot apply CLI flags: provider not resolved")
 		return
@@ -174,7 +175,7 @@ func logCycles(depGraph *graph.DependencyGraph) {
 // --- Pipeline generation ---
 
 func newPipelineGenerator(app *App, depGraph *graph.DependencyGraph, modules []*discovery.Module) (pipeline.Generator, error) {
-	provider, err := plugin.ResolveProvider()
+	provider, err := registry.ResolveProvider()
 	if err != nil {
 		return nil, fmt.Errorf("resolve CI provider: %w", err)
 	}
@@ -234,7 +235,7 @@ func detectChangedTargetModules(
 	fullIndex, filteredIndex *discovery.ModuleIndex,
 	depGraph *graph.DependencyGraph,
 ) ([]*discovery.Module, error) {
-	detector, detErr := plugin.ResolveChangeDetector()
+	detector, detErr := registry.ResolveChangeDetector()
 	if detErr != nil {
 		return nil, fmt.Errorf("change detection: %w", detErr)
 	}

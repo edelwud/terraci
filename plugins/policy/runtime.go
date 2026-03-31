@@ -56,12 +56,7 @@ func (p *Plugin) Runtime(_ context.Context, appCtx *plugin.AppContext) (any, err
 
 func (p *Plugin) runtime(ctx context.Context, appCtx *plugin.AppContext, opts runtimeOptions) (*policyRuntime, error) {
 	if opts == (runtimeOptions{}) {
-		rawRuntime, err := p.Runtime(ctx, appCtx)
-		if err != nil {
-			return nil, err
-		}
-		return plugin.RuntimeAs[*policyRuntime](rawRuntime)
+		return plugin.BuildRuntime[*policyRuntime](ctx, p, appCtx)
 	}
-
 	return newRuntime(appCtx, p.Config(), opts)
 }

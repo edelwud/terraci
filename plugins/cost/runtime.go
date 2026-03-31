@@ -40,11 +40,7 @@ func (p *Plugin) Runtime(_ context.Context, _ *plugin.AppContext) (any, error) {
 }
 
 func (p *Plugin) runtime(ctx context.Context, appCtx *plugin.AppContext) (*costRuntime, error) {
-	rawRuntime, err := p.Runtime(ctx, appCtx)
-	if err != nil {
-		return nil, err
-	}
-	return plugin.RuntimeAs[*costRuntime](rawRuntime)
+	return plugin.BuildRuntime[*costRuntime](ctx, p, appCtx)
 }
 
 func validateRuntimeConfig(cfg *model.CostConfig) error {

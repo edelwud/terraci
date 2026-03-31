@@ -12,6 +12,8 @@ import (
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/initwiz"
+	"github.com/edelwud/terraci/pkg/plugin/registry"
 )
 
 // --- TUI styles ---
@@ -54,18 +56,18 @@ type initModel struct {
 	width  int
 	height int
 	result *config.Config
-	state  *plugin.StateMap
+	state  *initwiz.StateMap
 }
 
 func newInitModel() *initModel {
-	state := plugin.NewStateMap()
+	state := initwiz.NewStateMap()
 	initStateDefaults(state)
 
 	m := &initModel{state: state}
 
 	// Collect all plugin group specs
-	contributors := plugin.ByCapability[plugin.InitContributor]()
-	var allSpecs []*plugin.InitGroupSpec
+	contributors := registry.ByCapability[initwiz.InitContributor]()
+	var allSpecs []*initwiz.InitGroupSpec
 	for _, c := range contributors {
 		allSpecs = append(allSpecs, c.InitGroups()...)
 	}
@@ -76,16 +78,16 @@ func newInitModel() *initModel {
 	})
 
 	// Categorize specs
-	var providerSpecs, pipelineSpecs, featureSpecs, detailSpecs []*plugin.InitGroupSpec
+	var providerSpecs, pipelineSpecs, featureSpecs, detailSpecs []*initwiz.InitGroupSpec
 	for _, spec := range allSpecs {
 		switch spec.Category {
-		case plugin.CategoryProvider:
+		case initwiz.CategoryProvider:
 			providerSpecs = append(providerSpecs, spec)
-		case plugin.CategoryPipeline:
+		case initwiz.CategoryPipeline:
 			pipelineSpecs = append(pipelineSpecs, spec)
-		case plugin.CategoryFeature:
+		case initwiz.CategoryFeature:
 			featureSpecs = append(featureSpecs, spec)
-		case plugin.CategoryDetail:
+		case initwiz.CategoryDetail:
 			detailSpecs = append(detailSpecs, spec)
 		}
 	}
@@ -125,7 +127,7 @@ func newInitModel() *initModel {
 
 func (m *initModel) basicsGroup() *huh.Group {
 	// Build provider options dynamically from registered plugins
-	providerPlugins := plugin.ByCapability[plugin.CIMetadata]()
+	providerPlugins := registry.ByCapability[plugin.CIMetadata]()
 	providerOpts := make([]huh.Option[string], 0, len(providerPlugins))
 	for _, pp := range providerPlugins {
 		providerOpts = append(providerOpts, huh.NewOption(pp.Description(), pp.ProviderName()))
@@ -158,9 +160,9 @@ func (m *initModel) basicsGroup() *huh.Group {
 // Used for CategoryPipeline and CategoryFeature — merges toggle fields
 // from different plugins into one cohesive step.
 // Fields with duplicate keys are deduplicated (first occurrence wins).
-func buildMergedGroup(title string, specs []*plugin.InitGroupSpec, state *plugin.StateMap) *huh.Group {
+func buildMergedGroup(title string, specs []*initwiz.InitGroupSpec, state *initwiz.StateMap) *huh.Group {
 	var fields []huh.Field
-	var showFns []func(*plugin.StateMap) bool
+	var showFns []func(*initwiz.StateMap) bool
 	seen := make(map[string]bool)
 
 	for _, spec := range specs {
@@ -194,7 +196,7 @@ func buildMergedGroup(title string, specs []*plugin.InitGroupSpec, state *plugin
 }
 
 // buildPluginGroup converts an InitGroupSpec into a huh.Group.
-func buildPluginGroup(spec *plugin.InitGroupSpec, state *plugin.StateMap) *huh.Group {
+func buildPluginGroup(spec *initwiz.InitGroupSpec, state *initwiz.StateMap) *huh.Group {
 	fields := make([]huh.Field, 0, len(spec.Fields))
 	for _, f := range spec.Fields {
 		fields = append(fields, buildPluginField(f, state))
@@ -211,7 +213,7 @@ func buildPluginGroup(spec *plugin.InitGroupSpec, state *plugin.StateMap) *huh.G
 }
 
 // buildPluginField converts an InitField into a huh.Field.
-func buildPluginField(f plugin.InitField, state *plugin.StateMap) huh.Field {
+func buildPluginField(f initwiz.InitField, state *initwiz.StateMap) huh.Field {
 	// Initialize default value
 	if f.Default != nil {
 		if state.Get(f.Key) == nil {
@@ -220,12 +222,12 @@ func buildPluginField(f plugin.InitField, state *plugin.StateMap) huh.Field {
 	}
 
 	switch f.Type {
-	case "bool":
+	case initwiz.FieldBool:
 		return huh.NewConfirm().
 			Title(f.Title).
 			Description(f.Description).
 			Value(state.BoolPtr(f.Key))
-	case "select":
+	case initwiz.FieldSelect:
 		opts := make([]huh.Option[string], len(f.Options))
 		for i, o := range f.Options {
 			opts[i] = huh.NewOption(o.Label, o.Value)
@@ -235,7 +237,7 @@ func buildPluginField(f plugin.InitField, state *plugin.StateMap) huh.Field {
 			Description(f.Description).
 			Options(opts...).
 			Value(state.StringPtr(f.Key))
-	default: // "string"
+	case initwiz.FieldString:
 		input := huh.NewInput().
 			Title(f.Title).
 			Description(f.Description).
@@ -244,15 +246,20 @@ func buildPluginField(f plugin.InitField, state *plugin.StateMap) huh.Field {
 			input = input.Placeholder(f.Placeholder)
 		}
 		return input
+	default:
+		return huh.NewInput().
+			Title(f.Title).
+			Description(f.Description).
+			Value(state.StringPtr(f.Key))
 	}
 }
 
 // buildConfigFromState collects InitContributor results and builds a Config.
-func buildConfigFromState(state *plugin.StateMap) *config.Config {
+func buildConfigFromState(state *initwiz.StateMap) *config.Config {
 	pattern := state.String("pattern")
 	pluginConfigs := make(map[string]map[string]any)
 
-	for _, c := range plugin.ByCapability[plugin.InitContributor]() {
+	for _, c := range registry.ByCapability[initwiz.InitContributor]() {
 		contrib := c.BuildInitConfig(state)
 		if contrib != nil {
 			pluginConfigs[contrib.PluginKey] = contrib.Config

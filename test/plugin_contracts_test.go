@@ -9,6 +9,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/registry"
 )
 
 func TestBuiltInPluginContractMatrix(t *testing.T) {
@@ -58,7 +59,7 @@ func TestBuiltInPluginContractMatrix(t *testing.T) {
 		},
 	}
 
-	for _, p := range plugin.All() {
+	for _, p := range registry.All() {
 		want, ok := expected[p.Name()]
 		if !ok {
 			t.Fatalf("unexpected plugin %q in registry", p.Name())
@@ -110,7 +111,7 @@ plugins:
     enabled: true
 `)
 
-	preflightables := plugin.PreflightsForStartup()
+	preflightables := registry.PreflightsForStartup()
 	got := make([]string, 0, len(preflightables))
 	for _, p := range preflightables {
 		if err := p.Preflight(context.Background(), appCtx); err != nil && p.Name() != "git" {
@@ -145,7 +146,7 @@ plugins:
 
 	expectedRuntimeProviders := []string{"cost", "policy", "update"}
 	got := make([]string, 0, len(expectedRuntimeProviders))
-	for _, p := range plugin.ByCapability[plugin.RuntimeProvider]() {
+	for _, p := range registry.ByCapability[plugin.RuntimeProvider]() {
 		rawRuntime, err := p.Runtime(context.Background(), appCtx)
 		if err != nil {
 			t.Fatalf("Runtime(%s) error = %v", p.Name(), err)
@@ -180,7 +181,7 @@ plugins:
     pipeline: true
 `)
 
-	contributions := plugin.CollectContributions(appCtx)
+	contributions := registry.CollectContributions(appCtx)
 	if len(contributions) != 4 {
 		t.Fatalf("CollectContributions() returned %d contributions, want 4", len(contributions))
 	}
@@ -210,7 +211,7 @@ func loadPluginContractConfig(t *testing.T, rawConfig string) *plugin.AppContext
 	t.Helper()
 
 	clearCIEnv(t)
-	plugin.ResetPlugins()
+	registry.ResetPlugins()
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, ".terraci.yaml")
@@ -223,7 +224,7 @@ func loadPluginContractConfig(t *testing.T, rawConfig string) *plugin.AppContext
 		t.Fatalf("failed to load config fixture: %v", err)
 	}
 
-	for _, cl := range plugin.ByCapability[plugin.ConfigLoader]() {
+	for _, cl := range registry.ByCapability[plugin.ConfigLoader]() {
 		if _, exists := cfg.Plugins[cl.ConfigKey()]; !exists {
 			continue
 		}

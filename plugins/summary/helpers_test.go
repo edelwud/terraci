@@ -58,8 +58,8 @@ type fakeSummaryProvider struct {
 
 func (p *fakeSummaryProvider) CommitSHA() string  { return p.commitSHA }
 func (p *fakeSummaryProvider) PipelineID() string { return p.pipelineID }
-func (p *fakeSummaryProvider) NewCommentService(_ *plugin.AppContext) ci.CommentService {
-	return p.service
+func (p *fakeSummaryProvider) NewCommentService(_ *plugin.AppContext) (ci.CommentService, bool) {
+	return p.service, p.service != nil
 }
 
 func newTestAppContext(t *testing.T, workDir string) *plugin.AppContext {

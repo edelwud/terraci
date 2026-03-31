@@ -9,6 +9,7 @@ import (
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/registry"
 )
 
 // NewRootCmd creates and returns the root cobra command with all subcommands.
@@ -91,7 +92,7 @@ Features:
 			// Run plugin preflight hooks (lifecycle stage 3)
 			log.Debug("running plugin preflight")
 			appCtx := app.PluginContext()
-			for _, p := range plugin.PreflightsForStartup() {
+			for _, p := range registry.PreflightsForStartup() {
 				if err := p.Preflight(cmd.Context(), appCtx); err != nil {
 					return fmt.Errorf("preflight plugin %s: %w", p.Name(), err)
 				}
@@ -123,7 +124,7 @@ Features:
 
 	// Register plugin-provided commands
 	pluginCtx := app.PluginContext()
-	for _, cp := range plugin.ByCapability[plugin.CommandProvider]() {
+	for _, cp := range registry.ByCapability[plugin.CommandProvider]() {
 		for _, cmd := range cp.Commands(pluginCtx) {
 			rootCmd.AddCommand(cmd)
 		}
