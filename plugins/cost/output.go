@@ -101,10 +101,11 @@ func renderModuleDetails(module *model.ModuleCost) {
 		return
 	}
 
-	renderResources(module.Resources, "")
 	if len(module.Submodules) > 0 {
 		renderSubmodules(module.Submodules, "")
+		return
 	}
+	renderResources(module.Resources, "")
 }
 
 func renderSubmodules(submodules []model.SubmoduleCost, parentAddr string) {
