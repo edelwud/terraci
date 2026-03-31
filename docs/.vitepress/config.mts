@@ -108,6 +108,7 @@ export default withMermaid(defineConfig({
                 { text: 'Policy Checks', link: '/config/policy' },
                 { text: 'Cost Estimation', link: '/config/cost' },
                 { text: 'Dependency Updates', link: '/config/update' },
+                { text: 'Summary', link: '/config/summary' },
               ]
             },
             {
@@ -212,6 +213,7 @@ export default withMermaid(defineConfig({
                 { text: 'Проверка политик', link: '/ru/config/policy' },
                 { text: 'Оценка стоимости', link: '/ru/config/cost' },
                 { text: 'Обновление зависимостей', link: '/ru/config/update' },
+                { text: 'Summary', link: '/ru/config/summary' },
               ]
             },
             {
