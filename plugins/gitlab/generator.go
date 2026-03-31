@@ -9,7 +9,9 @@ import (
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/registry"
-	gitlabci "github.com/edelwud/terraci/plugins/gitlab/internal"
+	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
+	generatepkg "github.com/edelwud/terraci/plugins/gitlab/internal/generate"
+	mrpkg "github.com/edelwud/terraci/plugins/gitlab/internal/mr"
 )
 
 // ProviderName returns the provider name.
@@ -29,14 +31,14 @@ func (p *Plugin) CommitSHA() string { return os.Getenv("CI_COMMIT_SHA") }
 // NewGenerator creates a new GitLab CI pipeline generator.
 func (p *Plugin) NewGenerator(ctx *plugin.AppContext, depGraph *graph.DependencyGraph, modules []*discovery.Module) pipeline.Generator {
 	contributions := registry.CollectContributions(ctx)
-	return gitlabci.NewGenerator(p.Config(), contributions, depGraph, modules)
+	return generatepkg.NewGenerator(p.Config(), contributions, depGraph, modules)
 }
 
 // NewCommentService creates a new MR comment service.
 func (p *Plugin) NewCommentService(_ *plugin.AppContext) ci.CommentService {
-	var mrCfg *gitlabci.MRConfig
+	var mrCfg *configpkg.MRConfig
 	if p.Config() != nil {
 		mrCfg = p.Config().MR
 	}
-	return gitlabci.NewMRServiceFromEnv(mrCfg)
+	return mrpkg.NewServiceFromEnv(mrCfg)
 }

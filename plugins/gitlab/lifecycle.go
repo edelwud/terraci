@@ -5,7 +5,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/plugin"
-	gitlabci "github.com/edelwud/terraci/plugins/gitlab/internal"
+	mrpkg "github.com/edelwud/terraci/plugins/gitlab/internal/mr"
 )
 
 // Preflight detects MR context when running inside GitLab CI.
@@ -14,7 +14,7 @@ func (p *Plugin) Preflight(_ context.Context, _ *plugin.AppContext) error {
 		return nil
 	}
 
-	mrCtx := gitlabci.DetectMRContext()
+	mrCtx := mrpkg.DetectContext()
 	if mrCtx.InMR {
 		log.WithField("mr", mrCtx.MRIID).Debug("gitlab: MR context detected")
 	} else {

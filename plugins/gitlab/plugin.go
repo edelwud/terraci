@@ -5,19 +5,19 @@ package gitlab
 import (
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/registry"
-	gitlabci "github.com/edelwud/terraci/plugins/gitlab/internal"
+	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
 )
 
 func init() {
 	registry.Register(&Plugin{
-		BasePlugin: plugin.BasePlugin[*gitlabci.Config]{
+		BasePlugin: plugin.BasePlugin[*configpkg.Config]{
 			PluginName: "gitlab",
 			PluginDesc: "GitLab CI pipeline generation and MR comments",
 			EnableMode: plugin.EnabledWhenConfigured,
-			DefaultCfg: func() *gitlabci.Config {
-				return &gitlabci.Config{
+			DefaultCfg: func() *configpkg.Config {
+				return &configpkg.Config{
 					TerraformBinary: "terraform",
-					Image:           gitlabci.Image{Name: "hashicorp/terraform:1.6"},
+					Image:           configpkg.Image{Name: "hashicorp/terraform:1.6"},
 					StagesPrefix:    "deploy",
 					Parallelism:     5,
 					PlanEnabled:     true,
@@ -30,7 +30,7 @@ func init() {
 
 // Plugin is the GitLab CI plugin.
 type Plugin struct {
-	plugin.BasePlugin[*gitlabci.Config]
+	plugin.BasePlugin[*configpkg.Config]
 }
 
 // SetPlanOnly sets plan-only mode directly on the typed config.

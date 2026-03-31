@@ -9,7 +9,9 @@ import (
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/registry"
-	githubci "github.com/edelwud/terraci/plugins/github/internal"
+	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
+	generatepkg "github.com/edelwud/terraci/plugins/github/internal/generate"
+	prpkg "github.com/edelwud/terraci/plugins/github/internal/pr"
 )
 
 // ProviderName returns the provider name.
@@ -29,14 +31,14 @@ func (p *Plugin) CommitSHA() string { return os.Getenv("GITHUB_SHA") }
 // NewGenerator creates a new GitHub Actions pipeline generator.
 func (p *Plugin) NewGenerator(ctx *plugin.AppContext, depGraph *graph.DependencyGraph, modules []*discovery.Module) pipeline.Generator {
 	contributions := registry.CollectContributions(ctx)
-	return githubci.NewGenerator(p.Config(), contributions, depGraph, modules)
+	return generatepkg.NewGenerator(p.Config(), contributions, depGraph, modules)
 }
 
 // NewCommentService creates a new PR comment service.
 func (p *Plugin) NewCommentService(_ *plugin.AppContext) ci.CommentService {
-	var prCfg *githubci.PRConfig
+	var prCfg *configpkg.PRConfig
 	if p.Config() != nil {
 		prCfg = p.Config().PR
 	}
-	return githubci.NewPRServiceFromEnv(prCfg)
+	return prpkg.NewServiceFromEnv(prCfg)
 }

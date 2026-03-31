@@ -5,17 +5,17 @@ package github
 import (
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/registry"
-	githubci "github.com/edelwud/terraci/plugins/github/internal"
+	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
 )
 
 func init() {
 	registry.Register(&Plugin{
-		BasePlugin: plugin.BasePlugin[*githubci.Config]{
+		BasePlugin: plugin.BasePlugin[*configpkg.Config]{
 			PluginName: "github",
 			PluginDesc: "GitHub Actions pipeline generation and PR comments",
 			EnableMode: plugin.EnabledWhenConfigured,
-			DefaultCfg: func() *githubci.Config {
-				return &githubci.Config{
+			DefaultCfg: func() *configpkg.Config {
+				return &configpkg.Config{
 					TerraformBinary: "terraform",
 					RunsOn:          "ubuntu-latest",
 					PlanEnabled:     true,
@@ -28,7 +28,7 @@ func init() {
 
 // Plugin is the GitHub Actions plugin.
 type Plugin struct {
-	plugin.BasePlugin[*githubci.Config]
+	plugin.BasePlugin[*configpkg.Config]
 }
 
 // SetPlanOnly sets plan-only mode directly on the typed config.
