@@ -102,17 +102,36 @@ func (b jobBuilder) contributedJob(irJob *pipeline.Job) *domainpkg.Job {
 		}
 	}
 
-	job := &domainpkg.Job{
-		RunsOn: b.settings.runsOn(),
-		Needs:  irJob.Dependencies,
-		Steps: []domainpkg.Step{
-			checkoutStep(),
-			downloadAllArtifactsStep(),
-			runStep("Run "+irJob.Name, strings.Join(scriptLines, "\n")),
-		},
+	steps := []domainpkg.Step{
+		checkoutStep(),
+		downloadAllArtifactsStep(),
 	}
+	steps = append(steps, b.settings.defaultStepsBefore()...)
+	steps = append(steps, b.settings.overwriteStepsBefore(irJob.Name)...)
+	steps = append(steps, runStep("Run "+irJob.Name, strings.Join(scriptLines, "\n")))
+	steps = append(steps, b.settings.defaultStepsAfter()...)
+	steps = append(steps, b.settings.overwriteStepsAfter(irJob.Name)...)
 	if len(irJob.ArtifactPaths) > 0 {
-		job.Steps = append(job.Steps, uploadArtifactStep(fmt.Sprintf("Upload %s results", irJob.Name), irJob.Name+"-results", irJob.ArtifactPaths))
+		steps = append(steps, uploadArtifactStep(fmt.Sprintf("Upload %s results", irJob.Name), irJob.Name+"-results", irJob.ArtifactPaths))
+	}
+
+	runsOn := b.settings.runsOn()
+	if ow := b.settings.overwriteRunsOn(irJob.Name); ow != "" {
+		runsOn = ow
+	}
+
+	job := &domainpkg.Job{
+		RunsOn: runsOn,
+		Needs:  irJob.Dependencies,
+		Steps:  steps,
+	}
+	if container := b.settings.overwriteContainer(irJob.Name); container != nil {
+		job.Container = container
+	} else if container := b.settings.container(); container != nil {
+		job.Container = container
+	}
+	if env := b.settings.overwriteEnv(irJob.Name); len(env) > 0 {
+		job.Env = env
 	}
 	if summaryRunsOn := b.settings.summaryRunsOn(); irJob.Phase == pipeline.PhaseFinalize && summaryRunsOn != "" {
 		job.RunsOn = summaryRunsOn

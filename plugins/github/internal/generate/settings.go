@@ -116,3 +116,82 @@ func (s settings) stepsBefore(jobType configpkg.JobOverwriteType) []domainpkg.St
 func (s settings) stepsAfter(jobType configpkg.JobOverwriteType) []domainpkg.Step {
 	return stepsAfter(s.config, jobType)
 }
+
+func (s settings) defaultStepsBefore() []domainpkg.Step {
+	if s.config == nil || s.config.JobDefaults == nil {
+		return nil
+	}
+	steps := make([]domainpkg.Step, 0, len(s.config.JobDefaults.StepsBefore))
+	for _, step := range s.config.JobDefaults.StepsBefore {
+		steps = append(steps, convertConfigStep(step))
+	}
+	return steps
+}
+
+func (s settings) defaultStepsAfter() []domainpkg.Step {
+	if s.config == nil || s.config.JobDefaults == nil {
+		return nil
+	}
+	steps := make([]domainpkg.Step, 0, len(s.config.JobDefaults.StepsAfter))
+	for _, step := range s.config.JobDefaults.StepsAfter {
+		steps = append(steps, convertConfigStep(step))
+	}
+	return steps
+}
+
+func (s settings) overwriteFor(jobName string) *configpkg.JobOverwrite {
+	if s.config == nil {
+		return nil
+	}
+	for i := range s.config.Overwrites {
+		if s.config.Overwrites[i].Type == configpkg.JobOverwriteType(jobName) {
+			return &s.config.Overwrites[i]
+		}
+	}
+	return nil
+}
+
+func (s settings) overwriteRunsOn(jobName string) string {
+	if ow := s.overwriteFor(jobName); ow != nil && ow.RunsOn != "" {
+		return ow.RunsOn
+	}
+	return ""
+}
+
+func (s settings) overwriteContainer(jobName string) *domainpkg.Container {
+	if ow := s.overwriteFor(jobName); ow != nil && ow.Container != nil {
+		return &domainpkg.Container{Image: ow.Container.Name}
+	}
+	return nil
+}
+
+func (s settings) overwriteStepsBefore(jobName string) []domainpkg.Step {
+	ow := s.overwriteFor(jobName)
+	if ow == nil {
+		return nil
+	}
+	steps := make([]domainpkg.Step, 0, len(ow.StepsBefore))
+	for _, step := range ow.StepsBefore {
+		steps = append(steps, convertConfigStep(step))
+	}
+	return steps
+}
+
+func (s settings) overwriteStepsAfter(jobName string) []domainpkg.Step {
+	ow := s.overwriteFor(jobName)
+	if ow == nil {
+		return nil
+	}
+	steps := make([]domainpkg.Step, 0, len(ow.StepsAfter))
+	for _, step := range ow.StepsAfter {
+		steps = append(steps, convertConfigStep(step))
+	}
+	return steps
+}
+
+func (s settings) overwriteEnv(jobName string) map[string]string {
+	if ow := s.overwriteFor(jobName); ow != nil {
+		return ow.Env
+	}
+	return nil
+}

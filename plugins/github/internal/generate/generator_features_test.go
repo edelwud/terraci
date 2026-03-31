@@ -35,6 +35,74 @@ func TestGenerate_WithPR(t *testing.T) {
 		hasNeed("plan-platform-stage-eu-central-1-eks")
 }
 
+func TestGenerate_ContributedJobInheritsJobDefaults(t *testing.T) {
+	module := createTestModule("platform", "stage", "eu-central-1", "vpc")
+	workflow := newGeneratorScenario(t).
+		withConfig(func(cfg *configpkg.Config) {
+			cfg.JobDefaults = &configpkg.JobDefaults{
+				Container:   &configpkg.Image{Name: "custom:latest"},
+				StepsBefore: []configpkg.ConfigStep{{Name: "Setup", Run: "echo setup"}},
+				StepsAfter:  []configpkg.ConfigStep{{Name: "Cleanup", Run: "echo cleanup"}},
+			}
+		}).
+		withContributions([]*pipeline.Contribution{{
+			Jobs: []pipeline.ContributedJob{{
+				Name:          "cost-estimation",
+				Phase:         pipeline.PhasePostPlan,
+				Commands:      []string{"terraci cost"},
+				DependsOnPlan: true,
+				AllowFailure:  true,
+			}},
+		}}).
+		withModules(module).
+		withDependencies(map[string][]string{module.ID(): {}}).
+		generate()
+
+	assertWorkflow(t, workflow).
+		hasJob("cost-estimation").
+		job("cost-estimation").
+		containerImage("custom:latest").
+		stepNamed("Setup").
+		stepNamed("Cleanup")
+}
+
+func TestGenerate_ContributedJobOverwriteByName(t *testing.T) {
+	module := createTestModule("platform", "stage", "eu-central-1", "vpc")
+	workflow := newGeneratorScenario(t).
+		withConfig(func(cfg *configpkg.Config) {
+			cfg.JobDefaults = &configpkg.JobDefaults{
+				Container: &configpkg.Image{Name: "default:latest"},
+			}
+			cfg.Overwrites = []configpkg.JobOverwrite{{
+				Type:      "cost-estimation",
+				Container: &configpkg.Image{Name: "cost-specific:1.0"},
+				RunsOn:    "cost-runner",
+			}}
+		}).
+		withContributions([]*pipeline.Contribution{{
+			Jobs: []pipeline.ContributedJob{{
+				Name:          "cost-estimation",
+				Phase:         pipeline.PhasePostPlan,
+				Commands:      []string{"terraci cost"},
+				DependsOnPlan: true,
+				AllowFailure:  true,
+			}},
+		}}).
+		withModules(module).
+		withDependencies(map[string][]string{module.ID(): {}}).
+		generate()
+
+	assertWorkflow(t, workflow).
+		hasJob("cost-estimation").
+		job("cost-estimation").
+		containerImage("cost-specific:1.0")
+
+	job := workflow.Jobs["cost-estimation"]
+	if job.RunsOn != "cost-runner" {
+		t.Fatalf("RunsOn = %q, want cost-runner", job.RunsOn)
+	}
+}
+
 func TestGenerate_WithPolicy(t *testing.T) {
 	module := createTestModule("platform", "stage", "eu-central-1", "vpc")
 	workflow := newGeneratorScenario(t).

@@ -68,6 +68,8 @@ func (b jobBuilder) contributedJob(irJob *pipeline.Job) *domain.Job {
 		job.Artifacts = artifacts
 	}
 
+	b.applyConfig(job, configpkg.JobOverwriteType(irJob.Name))
+
 	return job
 }
 

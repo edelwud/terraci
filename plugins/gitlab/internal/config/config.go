@@ -110,7 +110,7 @@ const (
 
 // JobOverwrite defines job-level overrides for plan or apply jobs.
 type JobOverwrite struct {
-	Type         JobOverwriteType     `yaml:"type" json:"type" jsonschema:"description=Type of jobs to override,enum=plan,enum=apply,required"`
+	Type         JobOverwriteType     `yaml:"type" json:"type" jsonschema:"description=Type of jobs to override (plan\\, apply\\, or contributed job name),required"`
 	Image        *Image               `yaml:"image,omitempty" json:"image,omitempty" jsonschema:"description=Docker image override for matching jobs"`
 	IDTokens     map[string]IDToken   `yaml:"id_tokens,omitempty" json:"id_tokens,omitempty" jsonschema:"description=OIDC tokens for matching jobs"`
 	Secrets      map[string]CfgSecret `yaml:"secrets,omitempty" json:"secrets,omitempty" jsonschema:"description=Secrets for matching jobs"`

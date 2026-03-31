@@ -30,7 +30,7 @@ type JobDefaults struct {
 }
 
 type JobOverwrite struct {
-	Type        JobOverwriteType  `yaml:"type" json:"type" jsonschema:"description=Type of jobs to override,enum=plan,enum=apply,required"`
+	Type        JobOverwriteType  `yaml:"type" json:"type" jsonschema:"description=Type of jobs to override (plan\\, apply\\, or contributed job name),required"`
 	RunsOn      string            `yaml:"runs_on,omitempty" json:"runs_on,omitempty" jsonschema:"description=Override runner label"`
 	Container   *Image            `yaml:"container,omitempty" json:"container,omitempty" jsonschema:"description=Container image override"`
 	Env         map[string]string `yaml:"env,omitempty" json:"env,omitempty" jsonschema:"description=Additional environment variables"`
