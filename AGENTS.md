@@ -28,7 +28,7 @@ cmd/terraci/
 └── cmd/
     ├── app.go                  # App struct, PluginContext() with ServiceDir, InitPluginConfigs()
     ├── root.go                 # NewRootCmd(), plugin lifecycle (Init), dynamic commands
-    ├── generate.go             # Pipeline generation (uses plugin.ResolveProvider())
+    ├── generate.go             # Pipeline generation (uses registry.ResolveProvider())
     ├── graph.go                # Dependency graph visualization
     ├── validate.go             # Config/project validation
     ├── filters.go              # filterFlags struct — shared filter flags, mergedFilterOpts()
@@ -54,17 +54,25 @@ cmd/xterraci/
     └── *_test.go
 
 pkg/                            # Public API — importable by external plugins
-├── plugin/
-│   ├── plugin.go               # Plugin interface + capability interfaces (split CI provider)
+├── plugin/                     # Core plugin contract — interfaces, BasePlugin, AppContext
+│   ├── plugin.go               # Plugin, Resettable
+│   ├── lifecycle.go            # ConfigLoader, Preflightable
+│   ├── commands.go             # CommandProvider, FlagOverridable, VersionProvider
+│   ├── ciprovider.go           # EnvDetector, CIMetadata, GeneratorFactory, CommentFactory, CIProvider
+│   ├── change.go               # ChangeDetectionProvider
+│   ├── contribution.go         # PipelineContributor
 │   ├── base.go                 # BasePlugin[C] generic embedding
 │   ├── enable.go               # EnablePolicy enum
-│   ├── registry.go             # Register(), All(), ByCapability[T](), ResolveProvider()
 │   ├── context.go              # AppContext (with ServiceDir, Reports, Freeze)
-│   ├── runtime.go              # RuntimeProvider + RuntimeAs() for lazy plugin runtimes
+│   ├── runtime.go              # RuntimeProvider + RuntimeAs() + BuildRuntime[T]()
 │   ├── reports.go              # ReportRegistry — in-memory report exchange
-│   ├── init_state.go           # StateMap — typed form state with pointer getters for huh
-│   ├── helpers.go              # CollectContributions() with framework-level filtering
-│   └── plugintest/             # Shared plugin-facing test helpers
+│   ├── registry/               # Global plugin registry — Register, All, ByCapability, Resolve*
+│   │   ├── registry.go         # Register(), All(), Get(), ByCapability[T](), Reset()
+│   │   └── resolve.go          # ResolveProvider(), ResolveChangeDetector(), CollectContributions()
+│   ├── initwiz/                # Init wizard state + types
+│   │   ├── state.go            # StateMap — typed form state with pointer getters for huh
+│   │   └── types.go            # InitContributor, InitGroupSpec, InitField, FieldType
+│   └── plugintest/             # Shared plugin-facing test helpers + mock doubles
 ├── ciprovider/
 │   └── types.go                # Shared CI types: Image, MRCommentConfig
 ├── pipeline/
@@ -193,19 +201,19 @@ internal/                       # Private — only terraform eval
 
 ### Architecture
 
-Compile-time plugins via `init()` + blank import (Caddy/database-sql pattern). Plugins register via `plugin.Register()`, core discovers via `plugin.ByCapability[T]()`.
+Compile-time plugins via `init()` + blank import (Caddy/database-sql pattern). Plugins register via `registry.Register()`, core discovers via `registry.ByCapability[T]()`. Core types (interfaces, BasePlugin, AppContext) live in `pkg/plugin`; global registry in `pkg/plugin/registry`; init wizard types in `pkg/plugin/initwiz`.
 
 ### Plugin File Convention
 
 Each plugin follows one-file-per-capability, with runtime-heavy plugins also using a lazy runtime layer:
-- `plugin.go` — init(), Plugin struct with BasePlugin[C] embedding, Reset(), FlagOverridable
+- `plugin.go` — init(), Plugin struct with BasePlugin[C] embedding, FlagOverridable
 - `lifecycle.go` — Preflightable
 - `runtime.go` — RuntimeProvider for lazy runtime construction
 - `usecases.go` — command orchestration over typed runtime
 - `commands.go` — CommandProvider with cobra definitions
 - `generator.go` — EnvDetector + CIMetadata + GeneratorFactory + CommentFactory
 - `pipeline.go` — PipelineContributor(ctx) (no self-check, framework filters)
-- `init_wizard.go` — InitContributor (uses typed *StateMap)
+- `init_wizard.go` — initwiz.InitContributor (uses typed *initwiz.StateMap)
 - `version.go` — VersionProvider
 - `output.go` — Rendering/formatting helpers
 - `report.go` — CI report assembly
@@ -214,7 +222,7 @@ Each plugin follows one-file-per-capability, with runtime-heavy plugins also usi
 ### Plugin Lifecycle
 
 ```
-1. Register    — init() calls plugin.Register() with BasePlugin[C] embedding
+1. Register    — init() calls registry.Register() with BasePlugin[C] embedding
 2. Configure   — ConfigLoader.DecodeAndSet() for plugins with config in .terraci.yaml
 3. Preflight   — Preflightable.Preflight() performs cheap validation/env detection
 4. Freeze      — AppContext.Freeze() prevents further mutations
@@ -267,7 +275,7 @@ Plugins contribute via `PipelineContributor.PipelineContribution(ctx)`:
 
 ### Provider Resolution
 
-`plugin.ResolveProvider()` returns `*CIProvider` (struct wrapping EnvDetector + CIMetadata + GeneratorFactory + CommentFactory): CI env → `TERRACI_PROVIDER` env → single registered → IsConfigured() filter → error. Core has zero knowledge of specific providers. Commands that don't need config use `Annotations["skipConfig"]` to skip config loading in `PersistentPreRunE`. CLI flag overrides use `FlagOverridable` for direct struct mutation (no encode-decode cycle).
+`registry.ResolveProvider()` returns `*plugin.CIProvider` (struct wrapping EnvDetector + CIMetadata + GeneratorFactory + CommentFactory): CI env → `TERRACI_PROVIDER` env → single registered → IsConfigured() filter → error. Core has zero knowledge of specific providers. Commands that don't need config use `Annotations["skipConfig"]` to skip config loading in `PersistentPreRunE`. CLI flag overrides use `FlagOverridable` for direct struct mutation (no encode-decode cycle).
 
 ### Service Directory
 
@@ -295,11 +303,10 @@ plugins:
     auto_approve: false
     mr:
       comment: { enabled: true }
-      summary_job:
-        image: { name: "ghcr.io/edelwud/terraci:latest" }
 
   # cost:
-  #   enabled: true
+  #   providers:
+  #     aws: { enabled: true }
   #   cache_dir: ~/.terraci/pricing
   #   cache_ttl: "24h"
 
@@ -307,6 +314,11 @@ plugins:
   #   enabled: true
   #   sources: [{ path: terraform }]
   #   on_failure: block
+
+  # update:
+  #   enabled: true
+  #   target: all
+  #   bump: minor
 ```
 
 Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`, `plugins` (opaque map). All provider/feature config under `plugins:`.
@@ -316,7 +328,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 ### Generate pipeline
 1. `workflow.Run(ctx, opts)` — scan → filter → parse → graph
 2. `ChangeDetectionProvider.DetectChangedModules()` (if --changed-only)
-3. `plugin.CollectContributions()` — gather PipelineContributor steps/jobs
+3. `registry.CollectContributions()` — gather PipelineContributor steps/jobs
 4. `pipeline.Build(opts)` — construct provider-agnostic IR
 5. `GeneratorProvider.NewGenerator()` — transform IR to provider YAML
 
@@ -325,12 +337,12 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 2. Load plugin reports from `{serviceDir}/*-report.json` (file-based enrichment)
 3. `summaryengine.EnrichPlans()` merges report data into plan results
 4. `summaryengine.ComposeComment()` renders markdown
-5. `plugin.ResolveProvider()` → `NewCommentService()` → `UpsertComment(ctx, body)`
+5. `registry.ResolveProvider()` → `NewCommentService()` → `UpsertComment(ctx, body)`
 
 ### Init wizard
 1. `initStateDefaults()` populates shared defaults (provider, binary, pattern, plan_enabled)
 2. Core groups: Basics, Structure, Pipeline Options
-3. `InitContributor` plugins add dynamic form groups
+3. `initwiz.InitContributor` plugins add dynamic form groups
 4. `BuildConfigFromPlugins(pattern, pluginConfigs)` assembles config (returns `(*Config, error)`)
 
 ## Key Patterns
@@ -343,7 +355,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **PipelineContributor(ctx)**: plugins inject steps/jobs without cross-plugin imports or cached service-dir state
 - **ServiceDir**: configurable project directory; `AppContext.ServiceDir` (absolute) for runtime, `Config.ServiceDir` (relative) for pipeline templates
 - **File-based reports**: plugins write `{serviceDir}/{plugin}-report.json`; summary plugin loads and merges them
-- **Zero cross-plugin imports**: plugins communicate only via registry + shared types + file-based reports
+- **Zero cross-plugin imports**: plugins communicate only via `pkg/plugin/registry` + shared types + file-based reports
 - **Shared workflow**: `workflow.Run()` — scan, filter, parse, graph building
 - **Reference runtime-heavy plugins**: `cost`, `policy`, `update`
 - **Parser architecture**: keep `pkg/parser` as a thin public facade; put orchestration, extraction, resolution, and source mechanics in `pkg/parser/internal/*` around the shared `pkg/parser/model`

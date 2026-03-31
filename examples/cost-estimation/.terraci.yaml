@@ -1,19 +1,21 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/edelwud/terraci/main/.terraci.schema.json
-service_dir: .terraci
+# yaml-language-server: $schema=https://raw.githubusercontent.com/edelwud/terraci/main/terraci.schema.json
 structure:
-    pattern: '{service}/{environment}/{region}/{module}'
+  pattern: "{service}/{environment}/{region}/{module}"
+
 plugins:
-    github:
-        auto_approve: false
-        init_enabled: true
-        job_defaults:
-            steps_before:
-                - uses: actions/checkout@v4
-                - uses: hashicorp/setup-terraform@v3
-        plan_enabled: true
-        pr:
-            comment:
-                enabled: true
-        runs_on: ubuntu-latest
-        terraform_binary: terraform
-    summary: {}
+  gitlab:
+    image: { name: hashicorp/terraform:1.6 }
+    terraform_binary: terraform
+    plan_enabled: true
+    auto_approve: false
+    mr:
+      comment: { enabled: true }
+
+  cost:
+    cache_dir: .terraci/pricing
+    cache_ttl: "24h"
+    providers:
+      aws:
+        enabled: true
+
+  summary: {}
