@@ -1,24 +1,19 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/edelwud/terraci/main/terraci.schema.json
-provider: gitlab
-
-# TerraCi configuration for library modules example
-
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
-# Library/shared modules configuration
 library_modules:
   paths:
     - "_modules"
 
-# GitLab CI configuration
-gitlab:
-  terraform_binary: "terraform"
-  image:
-    name: hashicorp/terraform:1.6
-  stages_prefix: "deploy"
-  parallelism: 5
-  plan_enabled: true
-  auto_approve: false
-  cache_enabled: true
-  init_enabled: true
+plugins:
+  gitlab:
+    terraform_binary: "terraform"
+    image:
+      name: hashicorp/terraform:1.6
+    stages_prefix: "deploy"
+    parallelism: 5
+    plan_enabled: true
+    auto_approve: false
+    cache_enabled: true
+    init_enabled: true

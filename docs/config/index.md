@@ -36,9 +36,6 @@ This launches an interactive TUI wizard that guides you through provider selecti
 ## Full Example
 
 ```yaml
-# CI provider (auto-detected from environment if not set)
-provider: gitlab  # or "github"
-
 # Directory structure configuration
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
@@ -51,42 +48,52 @@ exclude:
 
 include: []  # Empty means all (after excludes)
 
-# GitLab CI pipeline settings (omitted when provider: github)
-gitlab:
-  terraform_binary: "terraform"
-  image: "hashicorp/terraform:1.6"
-  stages_prefix: "deploy"
-  parallelism: 5
-  plan_enabled: true
-  auto_approve: false
-  init_enabled: true
+plugins:
+  # GitLab CI pipeline settings (used when GITLAB_CI is detected)
+  gitlab:
+    terraform_binary: "terraform"
+    image: "hashicorp/terraform:1.6"
+    stages_prefix: "deploy"
+    parallelism: 5
+    plan_enabled: true
+    auto_approve: false
+    init_enabled: true
 
-  variables:
-    TF_IN_AUTOMATION: "true"
-    TF_INPUT: "false"
+    variables:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
 
-  # Job defaults (applied to all jobs)
-  job_defaults:
-    tags:
-      - terraform
-      - docker
-    before_script:
-      - aws sts get-caller-identity
-    artifacts:
-      paths:
-        - "*.tfplan"
-      expire_in: "1 day"
+    # Job defaults (applied to all jobs)
+    job_defaults:
+      tags:
+        - terraform
+        - docker
+      before_script:
+        - aws sts get-caller-identity
+      artifacts:
+        paths:
+          - "*.tfplan"
+        expire_in: "1 day"
 
-# GitHub Actions pipeline settings (omitted when provider: gitlab)
-# github:
-#   terraform_binary: "terraform"
-#   runs_on: "ubuntu-latest"
-#   plan_enabled: true
-#   auto_approve: false
-#   init_enabled: true
-#   permissions:
-#     contents: read
-#     pull-requests: write
+  # GitHub Actions pipeline settings (used when GITHUB_ACTIONS is detected)
+  # github:
+  #   terraform_binary: "terraform"
+  #   runs_on: "ubuntu-latest"
+  #   plan_enabled: true
+  #   auto_approve: false
+  #   init_enabled: true
+  #   permissions:
+  #     contents: read
+  #     pull-requests: write
+
+  # Summary plugin settings
+  # summary:
+  #   on_changes_only: false
+  #   include_details: true
+
+  # Dependency update checks
+  # update:
+  #   enabled: true
 ```
 
 ## Sections
@@ -99,6 +106,8 @@ gitlab:
 | [filters](./filters) | Include/exclude patterns |
 | [policy](./policy) | OPA policy checks configuration |
 | [cost](./cost) | AWS cost estimation configuration |
+| [summary](./summary) | Summary plugin |
+| [update](./update) | Dependency update checks |
 | [gitlab-mr](./gitlab-mr) | Merge request integration |
 
 ## Default Values
@@ -114,14 +123,15 @@ If a configuration file is not found, these defaults are used:
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
-gitlab:
-  terraform_binary: "terraform"
-  image: "hashicorp/terraform:1.6"
-  stages_prefix: "deploy"
-  parallelism: 5
-  plan_enabled: true
-  auto_approve: false
-  init_enabled: true
+plugins:
+  gitlab:
+    terraform_binary: "terraform"
+    image: "hashicorp/terraform:1.6"
+    stages_prefix: "deploy"
+    parallelism: 5
+    plan_enabled: true
+    auto_approve: false
+    init_enabled: true
 ```
 
 ## Validation
@@ -142,9 +152,10 @@ This checks:
 Some values can be overridden via environment variables in the CI pipeline:
 
 ```yaml
-gitlab:
-  variables:
-    AWS_REGION: "${AWS_REGION}"  # From CI environment
+plugins:
+  gitlab:
+    variables:
+      AWS_REGION: "${AWS_REGION}"  # From CI environment
 ```
 
 ## YAML Anchors
@@ -159,10 +170,11 @@ defaults: &defaults
   before_script:
     - aws sts get-caller-identity
 
-gitlab:
-  image: "hashicorp/terraform:1.6"
-  job_defaults:
-    <<: *defaults
+plugins:
+  gitlab:
+    image: "hashicorp/terraform:1.6"
+    job_defaults:
+      <<: *defaults
 ```
 
 ## OpenTofu with Minimal Images
@@ -170,9 +182,10 @@ gitlab:
 For OpenTofu minimal images that have a non-shell entrypoint, use the object format:
 
 ```yaml
-gitlab:
-  terraform_binary: "tofu"
-  image:
-    name: "ghcr.io/opentofu/opentofu:1.9-minimal"
-    entrypoint: [""]
+plugins:
+  gitlab:
+    terraform_binary: "tofu"
+    image:
+      name: "ghcr.io/opentofu/opentofu:1.9-minimal"
+      entrypoint: [""]
 ```

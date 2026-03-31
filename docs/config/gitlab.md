@@ -6,7 +6,7 @@ outline: deep
 
 # GitLab CI Configuration
 
-The `gitlab` section configures the generated GitLab CI pipeline. This section is only used when the resolved provider is `gitlab` (the default). When `provider: github` is set, this section is omitted and the `github` section is used instead. See [GitHub Actions Configuration](/config/github) for the GitHub equivalent.
+The `gitlab` section configures the generated GitLab CI pipeline. This section is only used when the resolved provider is `gitlab` (the default, auto-detected from `GITLAB_CI` or `CI_SERVER_URL`). When the provider is `github`, this section is omitted and the `github` section is used instead. See [GitHub Actions Configuration](/config/github) for the GitHub equivalent.
 
 ## Options
 
@@ -18,8 +18,9 @@ The `gitlab` section configures the generated GitLab CI pipeline. This section i
 The Terraform/OpenTofu binary to use.
 
 ```yaml
-gitlab:
-  terraform_binary: "terraform"  # or "tofu"
+plugins:
+  gitlab:
+    terraform_binary: "terraform"  # or "tofu"
 ```
 
 This sets the `TERRAFORM_BINARY` variable in the pipeline.
@@ -34,29 +35,31 @@ Docker image for Terraform jobs (in `default` section). Supports both simple str
 
 **String format** (simple):
 ```yaml
-gitlab:
-  # Terraform
-  image: "hashicorp/terraform:1.6"
+plugins:
+  gitlab:
+    # Terraform
+    image: "hashicorp/terraform:1.6"
 
-  # OpenTofu
-  image: "ghcr.io/opentofu/opentofu:1.6"
+    # OpenTofu
+    image: "ghcr.io/opentofu/opentofu:1.6"
 
-  # Custom image
-  image: "registry.example.com/terraform:1.6"
+    # Custom image
+    image: "registry.example.com/terraform:1.6"
 ```
 
 **Object format** (with entrypoint):
 ```yaml
-gitlab:
-  # OpenTofu minimal image requires entrypoint override
-  image:
-    name: "ghcr.io/opentofu/opentofu:1.9-minimal"
-    entrypoint: [""]
+plugins:
+  gitlab:
+    # OpenTofu minimal image requires entrypoint override
+    image:
+      name: "ghcr.io/opentofu/opentofu:1.9-minimal"
+      entrypoint: [""]
 
-  # Custom image with specific entrypoint
-  image:
-    name: "registry.example.com/terraform:1.6"
-    entrypoint: ["/bin/sh", "-c"]
+    # Custom image with specific entrypoint
+    image:
+      name: "registry.example.com/terraform:1.6"
+      entrypoint: ["/bin/sh", "-c"]
 ```
 
 ::: tip OpenTofu Minimal Images
@@ -75,9 +78,10 @@ The `terraform_image` field is deprecated. Use `image` instead.
 Prefix for generated stage names.
 
 ```yaml
-gitlab:
-  stages_prefix: "deploy"  # Produces: deploy-plan-0, deploy-apply-0
-  # stages_prefix: "terraform"  # Produces: terraform-plan-0, terraform-apply-0
+plugins:
+  gitlab:
+    stages_prefix: "deploy"  # Produces: deploy-plan-0, deploy-apply-0
+    # stages_prefix: "terraform"  # Produces: terraform-plan-0, terraform-apply-0
 ```
 
 ### parallelism
@@ -88,8 +92,9 @@ gitlab:
 Maximum number of parallel jobs per stage (reserved for future use).
 
 ```yaml
-gitlab:
-  parallelism: 5
+plugins:
+  gitlab:
+    parallelism: 5
 ```
 
 ### plan_enabled
@@ -100,9 +105,10 @@ gitlab:
 Generate separate plan jobs.
 
 ```yaml
-gitlab:
-  plan_enabled: true   # plan + apply jobs
-  # plan_enabled: false  # apply only
+plugins:
+  gitlab:
+    plan_enabled: true   # plan + apply jobs
+    # plan_enabled: false  # apply only
 ```
 
 When enabled, generates:
@@ -119,9 +125,10 @@ When disabled, generates only `apply-*` jobs that run `terraform apply`.
 Auto-approve apply jobs without manual trigger.
 
 ```yaml
-gitlab:
-  auto_approve: false  # Apply requires manual trigger (when: manual)
-  # auto_approve: true   # Apply runs automatically
+plugins:
+  gitlab:
+    auto_approve: false  # Apply requires manual trigger (when: manual)
+    # auto_approve: true   # Apply runs automatically
 ```
 
 ### cache_enabled
@@ -132,8 +139,9 @@ gitlab:
 Enable caching of `.terraform` directory for each module. This significantly speeds up pipeline execution by reusing downloaded providers and modules.
 
 ```yaml
-gitlab:
-  cache_enabled: true
+plugins:
+  gitlab:
+    cache_enabled: true
 ```
 
 When enabled, each job will have a cache configuration:
@@ -156,9 +164,10 @@ The cache key is derived from the module path with slashes replaced by dashes.
 Automatically run `terraform init` after changing to the module directory. This ensures initialization happens in the correct context.
 
 ```yaml
-gitlab:
-  init_enabled: true   # Adds ${TERRAFORM_BINARY} init after cd
-  # init_enabled: false  # Skip automatic init (use job_defaults.before_script instead)
+plugins:
+  gitlab:
+    init_enabled: true   # Adds ${TERRAFORM_BINARY} init after cd
+    # init_enabled: false  # Skip automatic init (use job_defaults.before_script instead)
 ```
 
 The generated script will be:
@@ -177,11 +186,12 @@ script:
 Global pipeline variables.
 
 ```yaml
-gitlab:
-  variables:
-    TF_IN_AUTOMATION: "true"
-    TF_INPUT: "false"
-    AWS_DEFAULT_REGION: "us-east-1"
+plugins:
+  gitlab:
+    variables:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      AWS_DEFAULT_REGION: "us-east-1"
 ```
 
 ### rules
@@ -192,15 +202,16 @@ gitlab:
 Workflow rules for conditional pipeline execution. Controls when pipelines are created.
 
 ```yaml
-gitlab:
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-      when: always
-    - if: '$CI_COMMIT_BRANCH == "main"'
-      when: always
-    - if: '$CI_COMMIT_TAG'
-      when: never
-    - when: never
+plugins:
+  gitlab:
+    rules:
+      - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+        when: always
+      - if: '$CI_COMMIT_BRANCH == "main"'
+        when: always
+      - if: '$CI_COMMIT_TAG'
+        when: never
+      - when: never
 ```
 
 Generated output:
@@ -240,16 +251,17 @@ Available fields:
 
 **Example: Common settings for all jobs**
 ```yaml
-gitlab:
-  job_defaults:
-    tags:
-      - terraform
-      - docker
-    rules:
-      - if: '$CI_COMMIT_BRANCH == "main"'
-        when: on_success
-    variables:
-      CUSTOM_VAR: "value"
+plugins:
+  gitlab:
+    job_defaults:
+      tags:
+        - terraform
+        - docker
+      rules:
+        - if: '$CI_COMMIT_BRANCH == "main"'
+          when: on_success
+      variables:
+        CUSTOM_VAR: "value"
 ```
 
 ### overwrites
@@ -273,127 +285,132 @@ Each overwrite has:
 
 **Example: Different images for plan and apply**
 ```yaml
-gitlab:
-  image: "hashicorp/terraform:1.6"
+plugins:
+  gitlab:
+    image: "hashicorp/terraform:1.6"
 
-  overwrites:
-    - type: plan
-      image: "custom/terraform-plan:1.6"
-      tags:
-        - plan-runner
+    overwrites:
+      - type: plan
+        image: "custom/terraform-plan:1.6"
+        tags:
+          - plan-runner
 
-    - type: apply
-      image: "custom/terraform-apply:1.6"
-      tags:
-        - apply-runner
-        - production
+      - type: apply
+        image: "custom/terraform-apply:1.6"
+        tags:
+          - apply-runner
+          - production
 ```
 
 **Example: Add job-level rules for apply jobs**
 ```yaml
-gitlab:
-  overwrites:
-    - type: apply
-      rules:
-        - if: '$CI_COMMIT_BRANCH == "main"'
-          when: manual
-        - when: never
+plugins:
+  gitlab:
+    overwrites:
+      - type: apply
+        rules:
+          - if: '$CI_COMMIT_BRANCH == "main"'
+            when: manual
+          - when: never
 ```
 
 **Example: Different secrets for different job types**
 ```yaml
-gitlab:
-  job_defaults:
-    secrets:
-      COMMON_SECRET:
-        vault: common/secret@namespace
-
-  overwrites:
-    - type: apply
+plugins:
+  gitlab:
+    job_defaults:
       secrets:
-        DEPLOY_KEY:
-          vault: deploy/key@namespace
-          file: true
+        COMMON_SECRET:
+          vault: common/secret@namespace
+
+    overwrites:
+      - type: apply
+        secrets:
+          DEPLOY_KEY:
+            vault: deploy/key@namespace
+            file: true
 ```
 
 **Example: job_defaults with overwrites**
 ```yaml
-gitlab:
-  # Common settings for all jobs
-  job_defaults:
-    tags:
-      - terraform
-    rules:
-      - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-        when: on_success
-
-  # Override for apply jobs only
-  overwrites:
-    - type: apply
+plugins:
+  gitlab:
+    # Common settings for all jobs
+    job_defaults:
       tags:
         - terraform
-        - production
       rules:
-        - if: '$CI_COMMIT_BRANCH == "main"'
-          when: manual
+        - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+          when: on_success
+
+    # Override for apply jobs only
+    overwrites:
+      - type: apply
+        tags:
+          - terraform
+          - production
+        rules:
+          - if: '$CI_COMMIT_BRANCH == "main"'
+            when: manual
 ```
 
 ## Full Example
 
 ```yaml
-gitlab:
-  # Binary configuration
-  terraform_binary: "terraform"
-  image: "hashicorp/terraform:1.6"
+plugins:
+  gitlab:
+    # Binary configuration
+    terraform_binary: "terraform"
+    image: "hashicorp/terraform:1.6"
 
-  # Pipeline structure
-  stages_prefix: "deploy"
-  parallelism: 5
-  plan_enabled: true
-  auto_approve: false
-  cache_enabled: true
-  init_enabled: true
+    # Pipeline structure
+    stages_prefix: "deploy"
+    parallelism: 5
+    plan_enabled: true
+    auto_approve: false
+    cache_enabled: true
+    init_enabled: true
 
-  # Pipeline variables
-  variables:
-    TF_IN_AUTOMATION: "true"
-    TF_INPUT: "false"
+    # Pipeline variables
+    variables:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
 
-  # Workflow rules
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-      when: always
-    - if: '$CI_COMMIT_BRANCH == "main"'
-      when: always
-
-  # Job defaults (applied to all jobs)
-  job_defaults:
-    tags:
-      - terraform
-      - docker
-    before_script:
-      - aws sts get-caller-identity
-    after_script:
-      - echo "Job completed"
-    id_tokens:
-      AWS_OIDC_TOKEN:
-        aud: "https://gitlab.example.com"
-    secrets:
-      CREDENTIALS:
-        vault: ci/terraform/credentials@namespace
+    # Workflow rules
     rules:
       - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-        when: on_success
+        when: always
+      - if: '$CI_COMMIT_BRANCH == "main"'
+        when: always
 
-  # Job overwrites (override job_defaults for specific job types)
-  overwrites:
-    - type: apply
+    # Job defaults (applied to all jobs)
+    job_defaults:
       tags:
-        - production
-        - secure
+        - terraform
+        - docker
+      before_script:
+        - aws sts get-caller-identity
+      after_script:
+        - echo "Job completed"
+      id_tokens:
+        AWS_OIDC_TOKEN:
+          aud: "https://gitlab.example.com"
+      secrets:
+        CREDENTIALS:
+          vault: ci/terraform/credentials@namespace
       rules:
-        - if: '$CI_COMMIT_BRANCH == "main"'
-          when: manual
+        - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+          when: on_success
+
+    # Job overwrites (override job_defaults for specific job types)
+    overwrites:
+      - type: apply
+        tags:
+          - production
+          - secure
+        rules:
+          - if: '$CI_COMMIT_BRANCH == "main"'
+            when: manual
 ```
 
 ## Generated Output

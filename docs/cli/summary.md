@@ -102,22 +102,26 @@ Plan: 2 to add, 1 to change, 0 to destroy.
 
 ## Configuration
 
-Configure the summary job via `.terraci.yaml`:
+The `summary` plugin is **enabled by default** — no explicit `enabled: true` is required. It can be disabled via `plugins.summary`:
+
+```yaml
+plugins:
+  summary:
+    enabled: false  # disable the summary plugin
+```
+
+Configure the MR/PR comment behavior via the CI provider config in `.terraci.yaml`:
 
 ### GitLab
 
 ```yaml
-gitlab:
-  mr:
-    comment:
-      enabled: true
-      on_changes_only: false
-      include_details: true
-    summary_job:
-      image:
-        name: "ghcr.io/edelwud/terraci:latest"
-      tags:
-        - docker
+plugins:
+  gitlab:
+    mr:
+      comment:
+        enabled: true
+        on_changes_only: false
+        include_details: true
 ```
 
 See [GitLab MR Configuration](/config/gitlab-mr) for full options.
@@ -125,13 +129,12 @@ See [GitLab MR Configuration](/config/gitlab-mr) for full options.
 ### GitHub
 
 ```yaml
-github:
-  pr:
-    comment:
-      enabled: true
-      on_changes_only: false
-    summary_job:
-      runs_on: ubuntu-latest
+plugins:
+  github:
+    pr:
+      comment:
+        enabled: true
+        on_changes_only: false
 ```
 
 See [GitHub Actions Configuration](/config/github) for full options.

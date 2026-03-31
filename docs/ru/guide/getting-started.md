@@ -65,13 +65,12 @@ terraci init --ci --provider gitlab --binary tofu --image ghcr.io/opentofu/opent
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
-provider: gitlab  # или "github" — автоопределяется из окружения, если не указан
-
-gitlab:
-  terraform_binary: "terraform"
-  image: "hashicorp/terraform:1.6"
-  plan_enabled: true
-  auto_approve: false
+plugins:
+  gitlab:
+    terraform_binary: "terraform"
+    image: "hashicorp/terraform:1.6"
+    plan_enabled: true
+    auto_approve: false
 ```
 
 ### 2. Валидация проекта

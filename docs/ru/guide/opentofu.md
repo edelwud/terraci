@@ -13,14 +13,15 @@ TerraCi полноценно поддерживает [OpenTofu](https://opentof
 Переключитесь на OpenTofu, обновив `.terraci.yaml`:
 
 ```yaml
-# Для GitLab CI
-gitlab:
-  terraform_binary: "tofu"
-  image: "ghcr.io/opentofu/opentofu:1.6"
+plugins:
+  # Для GitLab CI
+  gitlab:
+    terraform_binary: "tofu"
+    image: "ghcr.io/opentofu/opentofu:1.6"
 
-# Для GitHub Actions
-github:
-  terraform_binary: "tofu"
+  # Для GitHub Actions
+  github:
+    terraform_binary: "tofu"
 ```
 
 ## Как это работает
@@ -60,14 +61,15 @@ plan-platform-prod-vpc:
 
 1. Обновите `.terraci.yaml` (для вашего провайдера):
    ```yaml
-   # GitLab CI
-   gitlab:
-     terraform_binary: "tofu"
-     image: "ghcr.io/opentofu/opentofu:1.6"
+   plugins:
+     # GitLab CI
+     gitlab:
+       terraform_binary: "tofu"
+       image: "ghcr.io/opentofu/opentofu:1.6"
 
-   # GitHub Actions
-   github:
-     terraform_binary: "tofu"
+     # GitHub Actions
+     github:
+       terraform_binary: "tofu"
    ```
 
 2. Перегенерируйте пайплайны:
@@ -135,15 +137,16 @@ TerraCi работает с:
 Если бинарник имеет нестандартное имя или путь:
 
 ```yaml
-# GitLab
-gitlab:
-  terraform_binary: "/usr/local/bin/tofu-1.6"
-  before_script:
-    - ${TERRAFORM_BINARY} init
+plugins:
+  # GitLab
+  gitlab:
+    terraform_binary: "/usr/local/bin/tofu-1.6"
+    before_script:
+      - ${TERRAFORM_BINARY} init
 
-# GitHub Actions
-github:
-  terraform_binary: "/usr/local/bin/tofu-1.6"
+  # GitHub Actions
+  github:
+    terraform_binary: "/usr/local/bin/tofu-1.6"
 ```
 
 ## Переменные окружения
@@ -151,19 +154,20 @@ github:
 Настройте переменные окружения, специфичные для OpenTofu:
 
 ```yaml
-# GitLab
-gitlab:
-  variables:
-    TERRAFORM_BINARY: "tofu"
-    TF_CLI_CONFIG_FILE: "/etc/tofu/config.tfrc"
-    TOFU_LOG: "INFO"
+plugins:
+  # GitLab
+  gitlab:
+    variables:
+      TERRAFORM_BINARY: "tofu"
+      TF_CLI_CONFIG_FILE: "/etc/tofu/config.tfrc"
+      TOFU_LOG: "INFO"
 
-# GitHub Actions
-github:
-  variables:
-    TERRAFORM_BINARY: "tofu"
-    TF_CLI_CONFIG_FILE: "/etc/tofu/config.tfrc"
-    TOFU_LOG: "INFO"
+  # GitHub Actions
+  github:
+    variables:
+      TERRAFORM_BINARY: "tofu"
+      TF_CLI_CONFIG_FILE: "/etc/tofu/config.tfrc"
+      TOFU_LOG: "INFO"
 ```
 
 ## Следующие шаги

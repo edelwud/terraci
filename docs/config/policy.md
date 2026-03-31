@@ -11,13 +11,14 @@ TerraCi integrates [Open Policy Agent (OPA)](https://www.openpolicyagent.org/) t
 ## Basic Configuration
 
 ```yaml
-policy:
-  enabled: true
-  sources:
-    - path: terraform           # directory name = Rego package name
-  namespaces:
-    - terraform
-  on_failure: block
+plugins:
+  policy:
+    enabled: true
+    sources:
+      - path: terraform           # directory name = Rego package name
+    namespaces:
+      - terraform
+    on_failure: block
 ```
 
 ## Configuration Options
@@ -27,8 +28,9 @@ policy:
 Enable or disable policy checks globally.
 
 ```yaml
-policy:
-  enabled: true  # default: false
+plugins:
+  policy:
+    enabled: true  # default: false
 ```
 
 ### sources
@@ -38,27 +40,30 @@ List of policy sources. Each source is a directory of `.rego` files. The directo
 #### Local Path
 
 ```yaml
-policy:
-  sources:
-    - path: terraform           # package terraform → data.terraform.deny/warn
-    - path: compliance          # package compliance → data.compliance.deny/warn
+plugins:
+  policy:
+    sources:
+      - path: terraform           # package terraform → data.terraform.deny/warn
+      - path: compliance          # package compliance → data.compliance.deny/warn
 ```
 
 #### Git Repository
 
 ```yaml
-policy:
-  sources:
-    - git: https://github.com/org/terraform-policies.git
-      ref: main                # Branch, tag, or commit SHA
+plugins:
+  policy:
+    sources:
+      - git: https://github.com/org/terraform-policies.git
+        ref: main                # Branch, tag, or commit SHA
 ```
 
 #### OCI Registry
 
 ```yaml
-policy:
-  sources:
-    - oci: oci://ghcr.io/org/policies:v1.0
+plugins:
+  policy:
+    sources:
+      - oci: oci://ghcr.io/org/policies:v1.0
 ```
 
 ### namespaces
@@ -66,10 +71,11 @@ policy:
 Rego package namespaces to evaluate. TerraCi queries `data.<namespace>.deny` and `data.<namespace>.warn` for each namespace.
 
 ```yaml
-policy:
-  namespaces:
-    - terraform              # data.terraform.deny, data.terraform.warn
-    - compliance             # data.compliance.deny, data.compliance.warn
+plugins:
+  policy:
+    namespaces:
+      - terraform              # data.terraform.deny, data.terraform.warn
+      - compliance             # data.compliance.deny, data.compliance.warn
 ```
 
 Default: `["terraform"]`
@@ -91,17 +97,9 @@ Action when `deny` rules fire:
 Action when `warn` rules fire:
 
 ```yaml
-policy:
-  on_warning: warn  # default
-```
-
-### show_in_comment
-
-Include policy results in MR/PR comment.
-
-```yaml
-policy:
-  show_in_comment: true  # default: true
+plugins:
+  policy:
+    on_warning: warn  # default
 ```
 
 ### cache_dir
@@ -109,8 +107,9 @@ policy:
 Directory for caching downloaded policies (git/OCI sources).
 
 ```yaml
-policy:
-  cache_dir: .terraci/policies  # default
+plugins:
+  policy:
+    cache_dir: .terraci/policies  # default
 ```
 
 ### overwrites
@@ -118,24 +117,25 @@ policy:
 Override policy settings for specific modules using `**` glob patterns:
 
 ```yaml
-policy:
-  enabled: true
-  on_failure: block
+plugins:
+  policy:
+    enabled: true
+    on_failure: block
 
-  overwrites:
-    # Sandbox: reclassify failures as warnings (don't block)
-    - match: "**/sandbox/**"
-      on_failure: warn
+    overwrites:
+      # Sandbox: reclassify failures as warnings (don't block)
+      - match: "**/sandbox/**"
+        on_failure: warn
 
-    # Legacy: skip policy checks entirely
-    - match: "legacy/**"
-      enabled: false
+      # Legacy: skip policy checks entirely
+      - match: "legacy/**"
+        enabled: false
 
-    # Production: add compliance namespace
-    - match: "**/prod/**"
-      namespaces:
-        - terraform
-        - compliance
+      # Production: add compliance namespace
+      - match: "**/prod/**"
+        namespaces:
+          - terraform
+          - compliance
 ```
 
 #### Glob patterns
@@ -226,13 +226,14 @@ compliance/         → package compliance   (cost controls)
 ```
 
 ```yaml
-policy:
-  sources:
-    - path: terraform
-    - path: compliance
-  namespaces:
-    - terraform
-    - compliance
+plugins:
+  policy:
+    sources:
+      - path: terraform
+      - path: compliance
+    namespaces:
+      - terraform
+      - compliance
 ```
 
 ### Input Structure

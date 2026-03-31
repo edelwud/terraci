@@ -107,17 +107,13 @@ Plan: 2 to add, 1 to change, 0 to destroy.
 ### GitLab
 
 ```yaml
-gitlab:
-  mr:
-    comment:
-      enabled: true
-      on_changes_only: false
-      include_details: true
-    summary_job:
-      image:
-        name: "ghcr.io/edelwud/terraci:latest"
-      tags:
-        - docker
+plugins:
+  gitlab:
+    mr:
+      comment:
+        enabled: true
+        on_changes_only: false
+        include_details: true
 ```
 
 Полные опции смотрите в [Конфигурация GitLab MR](/ru/config/gitlab-mr).
@@ -125,13 +121,12 @@ gitlab:
 ### GitHub
 
 ```yaml
-github:
-  pr:
-    comment:
-      enabled: true
-      on_changes_only: false
-    summary_job:
-      runs_on: ubuntu-latest
+plugins:
+  github:
+    pr:
+      comment:
+        enabled: true
+        on_changes_only: false
 ```
 
 Полные опции смотрите в [Конфигурация GitHub Actions](/ru/config/github).

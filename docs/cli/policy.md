@@ -25,10 +25,10 @@ This command:
 
 **Example output:**
 ```
-pulling policies...
-  source: path:policies
-  source: git:https://github.com/org/policies.git@main
-pulled 2 policy sources to .terraci/policies
+pulling policies
+  source                                      path: policies
+  source                                      git: https://github.com/org/policies.git@main
+  pulled                                      sources: 2  dest: .terraci/policies
 ```
 
 ### terraci policy check
@@ -61,24 +61,15 @@ terraci policy check --output json
 
 **Text output:**
 ```
-Policy Check Results
-====================
+summary
+  modules                                     total: 3
+  passed                                      count: 2
+  failed                                      count: 1
 
-✅ platform/prod/eu-central-1/vpc
-   0 failures, 0 warnings
+module result                                 module: platform/prod/eu-central-1/eks  status: fail
+  failure                                     namespace: terraform.deny  message: EKS must use private endpoint
 
-⚠️ platform/prod/eu-central-1/ec2
-   0 failures, 1 warning
-   - terraform: Instance 'web' should have Environment tag
-
-❌ platform/prod/eu-central-1/s3
-   1 failure, 0 warnings
-   - terraform: S3 bucket 'logs' must not be public
-
-Summary: 3 modules checked
-  Passed:  1
-  Warned:  1
-  Failed:  1
+policy check FAILED
 ```
 
 **JSON output:**
@@ -160,13 +151,14 @@ See [Policy Configuration](/config/policy) for full configuration options.
 Minimal example:
 
 ```yaml
-policy:
-  enabled: true
-  sources:
-    - path: policies
-  namespaces:
-    - terraform
-  on_failure: block
+plugins:
+  policy:
+    enabled: true
+    sources:
+      - path: policies
+    namespaces:
+      - terraform
+    on_failure: block
 ```
 
 ## See Also

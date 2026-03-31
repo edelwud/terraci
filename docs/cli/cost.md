@@ -51,13 +51,17 @@ terraci cost -v
 ### Text (default)
 
 ```
-• cost estimation results
-  • module   module=platform/prod/eu-central-1/eks status=🔄 monthly=$35.04
-    • cost change   before=$0 after=$35.04 diff=$35.04
-  • module   module=platform/prod/eu-central-1/rds status=🔄 monthly=$689.12
-    • cost change   before=$0 after=$689.12 diff=$689.12
-• total estimated monthly cost
-  • monthly   before=$0 after=$762.12 diff=$762.12
+platform
+  prod
+    eu-central-1
+      vpc                                     monthly: $120.50  diff: +$64.80
+        aws_nat_gateway.main                  monthly: $32.40   az: eu-central-1a
+        aws_eip.nat                           monthly: $3.60
+      eks                                     monthly: $450.00
+        aws_eks_cluster.main                  monthly: $73.00
+summary
+  modules                                     count: 3
+  total                                       before: $570.50  after: $635.30  diff: +$64.80
 ```
 
 ### JSON

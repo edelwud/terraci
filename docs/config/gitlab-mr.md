@@ -12,7 +12,7 @@ TerraCi can automatically post terraform plan summaries as comments on GitLab Me
 
 When running in a GitLab MR pipeline, TerraCi:
 1. Captures terraform plan output from each module
-2. Collects all results in a summary job
+2. Collects all results via the `terraci summary` command
 3. Posts a formatted comment to the MR with all plan summaries
 
 ## Configuration
@@ -20,43 +20,33 @@ When running in a GitLab MR pipeline, TerraCi:
 ### Basic Setup
 
 ```yaml
-gitlab:
-  mr:
-    comment:
-      enabled: true
-    summary_job:
-      image:
-        name: "ghcr.io/edelwud/terraci:latest"
+plugins:
+  gitlab:
+    mr:
+      comment:
+        enabled: true
 ```
 
 ### Full Options
 
 ```yaml
-gitlab:
-  mr:
-    # Comment configuration
-    comment:
-      # Enable MR comments (default: true when mr section exists)
-      enabled: true
-      # Only comment when there are changes (default: false)
-      on_changes_only: false
-      # Include full plan output in expandable sections (default: true)
-      include_details: true
+plugins:
+  gitlab:
+    mr:
+      # Comment configuration
+      comment:
+        # Enable MR comments (default: true when mr section exists)
+        enabled: true
+        # Only comment when there are changes (default: false)
+        on_changes_only: false
+        # Include full plan output in expandable sections (default: true)
+        include_details: true
 
-    # Labels to add to MR (supports placeholders)
-    labels:
-      - "terraform"
-      - "env:{environment}"
-      - "service:{service}"
-
-    # Summary job configuration
-    summary_job:
-      # Docker image containing terraci binary
-      image:
-        name: "ghcr.io/edelwud/terraci:latest"
-      # Runner tags
-      tags:
-        - docker
+      # Labels to add to MR (supports placeholders)
+      labels:
+        - "terraform"
+        - "env:{environment}"
+        - "service:{service}"
 ```
 
 ## Label Placeholders
@@ -181,10 +171,11 @@ The summary job uses these CI/CD variables:
 
 1. Check MR integration is enabled:
    ```yaml
-   gitlab:
-     mr:
-       comment:
-         enabled: true
+   plugins:
+     gitlab:
+       mr:
+         comment:
+           enabled: true
    ```
 
 2. Verify running in MR pipeline:
@@ -210,12 +201,6 @@ The summary job uses these CI/CD variables:
    artifacts:
      when: always  # Required for failed plans
    ```
-
-### Summary Job Missing
-
-The summary job only appears when:
-1. MR integration is enabled (`gitlab.mr` section exists)
-2. Plans are enabled (`gitlab.plan_enabled: true`)
 
 ## See Also
 

@@ -65,7 +65,7 @@ terraci init --provider github
 terraci init --provider gitlab
 ```
 
-При `--provider github` сгенерированный конфиг будет содержать секцию `github:` (с `runs_on`, `steps_before` и т.д.) и не будет содержать секцию `gitlab:`. При `--provider gitlab` — наоборот.
+При `--provider github` сгенерированный конфиг будет содержать секцию `plugins.github` (с `runs_on`, `steps_before` и т.д.) и не будет содержать секцию `plugins.gitlab`. При `--provider gitlab` — наоборот.
 
 ### Настройка OpenTofu
 
@@ -113,26 +113,22 @@ terraci -d /path/to/project init
 
 ### Провайдер GitLab
 
-При `provider: gitlab` (или по умолчанию) создаётся:
+При выборе GitLab (или по умолчанию) создаётся:
 
 ```yaml
-provider: gitlab
-
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
-gitlab:
-  terraform_binary: "terraform"
-  image: "hashicorp/terraform:1.6"
-  plan_enabled: true
-  auto_approve: false
-  init_enabled: true
-  mr:
-    comment:
-      enabled: true
-    summary_job:
-      image:
-        name: "ghcr.io/edelwud/terraci:latest"
+plugins:
+  gitlab:
+    terraform_binary: "terraform"
+    image: "hashicorp/terraform:1.6"
+    plan_enabled: true
+    auto_approve: false
+    init_enabled: true
+    mr:
+      comment:
+        enabled: true
 
 backend:
   type: s3
@@ -141,29 +137,28 @@ backend:
 
 ### Провайдер GitHub
 
-При `provider: github` создаётся:
+При выборе GitHub создаётся:
 
 ```yaml
-provider: github
-
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
-github:
-  terraform_binary: "terraform"
-  runs_on: "ubuntu-latest"
-  plan_enabled: true
-  auto_approve: false
-  init_enabled: true
-  permissions:
-    contents: read
-    pull-requests: write
-  job_defaults:
-    steps_before:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
-  pr:
-    comment: {}
+plugins:
+  github:
+    terraform_binary: "terraform"
+    runs_on: "ubuntu-latest"
+    plan_enabled: true
+    auto_approve: false
+    init_enabled: true
+    permissions:
+      contents: read
+      pull-requests: write
+    job_defaults:
+      steps_before:
+        - uses: actions/checkout@v4
+        - uses: hashicorp/setup-terraform@v3
+    pr:
+      comment: {}
 
 backend:
   type: s3

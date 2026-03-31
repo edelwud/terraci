@@ -61,24 +61,13 @@ terraci policy check --output json
 
 **Текстовый вывод:**
 ```
-Policy Check Results
-====================
-
-✅ platform/prod/eu-central-1/vpc
-   0 ошибок, 0 предупреждений
-
-⚠️ platform/prod/eu-central-1/ec2
-   0 ошибок, 1 предупреждение
-   - terraform: Инстанс 'web' должен иметь тег Environment
-
-❌ platform/prod/eu-central-1/s3
-   1 ошибка, 0 предупреждений
-   - terraform: S3 бакет 'logs' не должен быть публичным
-
-Summary: 3 модуля проверено
-  Пройдено:         1
-  С предупреждениями: 1
-  С ошибками:       1
+• policy check results   modules=3
+  • module   module=platform/prod/eu-central-1/vpc status=passed
+  • module   module=platform/prod/eu-central-1/ec2 status=warned
+    • warning   namespace=terraform msg="Инстанс 'web' должен иметь тег Environment"
+  • module   module=platform/prod/eu-central-1/s3 status=failed
+    • failure   namespace=terraform msg="S3 бакет 'logs' не должен быть публичным"
+• summary   modules=3 passed=1 warned=1 failed=1
 ```
 
 **JSON вывод:**
@@ -160,13 +149,14 @@ plan-module:
 Минимальный пример:
 
 ```yaml
-policy:
-  enabled: true
-  sources:
-    - path: policies
-  namespaces:
-    - terraform
-  on_failure: block
+plugins:
+  policy:
+    enabled: true
+    sources:
+      - path: policies
+    namespaces:
+      - terraform
+    on_failure: block
 ```
 
 ## См. также

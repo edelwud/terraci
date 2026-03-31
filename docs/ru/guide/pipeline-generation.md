@@ -229,9 +229,10 @@ apply-platform-prod-us-east-1-vpc:
 Включение или отключение стадии plan:
 
 ```yaml
-gitlab:
-  plan_enabled: true   # Генерировать plan джобы
-  # plan_enabled: false  # Сразу к apply
+plugins:
+  gitlab:
+    plan_enabled: true   # Генерировать plan джобы
+    # plan_enabled: false  # Сразу к apply
 ```
 
 ### Auto-approve
@@ -239,9 +240,10 @@ gitlab:
 Пропуск ручного подтверждения для apply-джобов:
 
 ```yaml
-gitlab:
-  auto_approve: false  # Требовать ручной запуск (по умолчанию)
-  # auto_approve: true   # Автоматический apply
+plugins:
+  gitlab:
+    auto_approve: false  # Требовать ручной запуск (по умолчанию)
+    # auto_approve: true   # Автоматический apply
 ```
 
 Можно переопределить через CLI:
@@ -261,8 +263,9 @@ terraci generate --no-auto-approve -o .gitlab-ci.yml
 Настройка имён стадий:
 
 ```yaml
-gitlab:
-  stages_prefix: "terraform"  # terraform-plan-0, terraform-apply-0
+plugins:
+  gitlab:
+    stages_prefix: "terraform"  # terraform-plan-0, terraform-apply-0
 ```
 
 ### Пользовательские скрипты
@@ -270,13 +273,14 @@ gitlab:
 Добавьте скрипты до и после выполнения через `job_defaults`:
 
 ```yaml
-gitlab:
-  job_defaults:
-    before_script:
-      - ${TERRAFORM_BINARY} init
-      - ${TERRAFORM_BINARY} workspace select ${TF_ENVIRONMENT} || ${TERRAFORM_BINARY} workspace new ${TF_ENVIRONMENT}
-    after_script:
-      - ${TERRAFORM_BINARY} output -json > outputs.json
+plugins:
+  gitlab:
+    job_defaults:
+      before_script:
+        - ${TERRAFORM_BINARY} init
+        - ${TERRAFORM_BINARY} workspace select ${TF_ENVIRONMENT} || ${TERRAFORM_BINARY} workspace new ${TF_ENVIRONMENT}
+      after_script:
+        - ${TERRAFORM_BINARY} output -json > outputs.json
 ```
 
 ### Теги раннеров
@@ -284,12 +288,13 @@ gitlab:
 Укажите теги GitLab-раннеров через `job_defaults`:
 
 ```yaml
-gitlab:
-  job_defaults:
-    tags:
-      - terraform
-      - docker
-      - aws
+plugins:
+  gitlab:
+    job_defaults:
+      tags:
+        - terraform
+        - docker
+        - aws
 ```
 
 ## Dry Run

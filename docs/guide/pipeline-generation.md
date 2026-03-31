@@ -233,9 +233,10 @@ This ensures only one apply job runs per module at a time.
 Enable or disable the plan stage:
 
 ```yaml
-gitlab:
-  plan_enabled: true  # Generate plan jobs
-  # plan_enabled: false  # Skip straight to apply
+plugins:
+  gitlab:
+    plan_enabled: true  # Generate plan jobs
+    # plan_enabled: false  # Skip straight to apply
 ```
 
 ### Auto-Approve
@@ -243,9 +244,10 @@ gitlab:
 Skip manual approval for apply jobs:
 
 ```yaml
-gitlab:
-  auto_approve: false  # Require manual trigger (default)
-  # auto_approve: true  # Run apply automatically
+plugins:
+  gitlab:
+    auto_approve: false  # Require manual trigger (default)
+    # auto_approve: true  # Run apply automatically
 ```
 
 You can also override this via CLI:
@@ -265,8 +267,9 @@ CLI flags override the configuration file setting.
 Customize stage names:
 
 ```yaml
-gitlab:
-  stages_prefix: "terraform"  # terraform-plan-0, terraform-apply-0
+plugins:
+  gitlab:
+    stages_prefix: "terraform"  # terraform-plan-0, terraform-apply-0
 ```
 
 ### Custom Scripts
@@ -274,13 +277,14 @@ gitlab:
 Add custom before/after scripts via `job_defaults`:
 
 ```yaml
-gitlab:
-  job_defaults:
-    before_script:
-      - ${TERRAFORM_BINARY} init
-      - ${TERRAFORM_BINARY} workspace select ${TF_ENVIRONMENT} || ${TERRAFORM_BINARY} workspace new ${TF_ENVIRONMENT}
-    after_script:
-      - ${TERRAFORM_BINARY} output -json > outputs.json
+plugins:
+  gitlab:
+    job_defaults:
+      before_script:
+        - ${TERRAFORM_BINARY} init
+        - ${TERRAFORM_BINARY} workspace select ${TF_ENVIRONMENT} || ${TERRAFORM_BINARY} workspace new ${TF_ENVIRONMENT}
+      after_script:
+        - ${TERRAFORM_BINARY} output -json > outputs.json
 ```
 
 ### Runner Tags
@@ -288,12 +292,13 @@ gitlab:
 Specify GitLab runner tags via `job_defaults`:
 
 ```yaml
-gitlab:
-  job_defaults:
-    tags:
-      - terraform
-      - docker
-      - aws
+plugins:
+  gitlab:
+    job_defaults:
+      tags:
+        - terraform
+        - docker
+        - aws
 ```
 
 ## Dry Run

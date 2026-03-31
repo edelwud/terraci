@@ -27,11 +27,13 @@ Pricing data is cached locally (default: `.terraci/pricing`, TTL: 24h).
 ## Configuration
 
 ```yaml
-cost:
-  enabled: true
-  show_in_comment: true       # Include cost table in MR/PR comments
-  cache_dir: .terraci/pricing # Local pricing cache
-  cache_ttl: "24h"            # Re-fetch after this duration
+plugins:
+  cost:
+    cache_dir: .terraci/pricing   # Local pricing cache
+    cache_ttl: "24h"              # Re-fetch after this duration
+    providers:
+      aws:
+        enabled: true             # Enable AWS cost estimation
 ```
 
 No AWS credentials required — pricing data is public.

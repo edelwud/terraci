@@ -65,13 +65,12 @@ This creates a `.terraci.yaml` configuration file:
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
-provider: gitlab  # or "github" — auto-detected from environment if omitted
-
-gitlab:
-  terraform_binary: "terraform"
-  image: "hashicorp/terraform:1.6"
-  plan_enabled: true
-  auto_approve: false
+plugins:
+  gitlab:
+    terraform_binary: "terraform"
+    image: "hashicorp/terraform:1.6"
+    plan_enabled: true
+    auto_approve: false
 ```
 
 ### 2. Validate Your Project

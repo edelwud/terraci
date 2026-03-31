@@ -42,10 +42,10 @@ terraci validate
 
 Успешный вывод:
 ```
-Configuration: valid
-Modules discovered: 15
-Dependencies resolved: 23
-Cycles detected: 0
+✓ Found 12 modules
+✓ Built dependency graph with 15 edges
+✓ No circular dependencies detected
+✓ 4 execution levels identified
 
 Validation passed
 ```
@@ -60,27 +60,28 @@ terraci validate --verbose
 ```
 Configuration:
   Pattern: {service}/{environment}/{region}/{module}
+  Min depth: 4
+  Max depth: 5
 
 Discovered modules:
-  platform/prod/eu-central-1/vpc
-  platform/prod/eu-central-1/eks
-  platform/prod/eu-central-1/rds
-  platform/prod/eu-west-1/vpc
-  platform/prod/eu-west-1/eks
+  - platform/production/us-east-1/vpc
+  - platform/production/us-east-1/eks
+  - platform/production/us-east-1/rds
+  - platform/production/us-east-1/app
   ...
 
-Dependencies:
-  platform/prod/eu-central-1/eks -> platform/prod/eu-central-1/vpc
-  platform/prod/eu-central-1/rds -> platform/prod/eu-central-1/vpc
-  platform/prod/eu-west-1/eks -> platform/prod/eu-west-1/vpc
-  ...
+Dependency graph:
+  eks → vpc
+  rds → vpc
+  app → eks
+  app → rds
 
 Execution levels:
-  Level 0: vpc (eu-central-1), vpc (eu-west-1)
-  Level 1: eks (eu-central-1), eks (eu-west-1), rds (eu-central-1)
-  ...
+  Level 0: [vpc]
+  Level 1: [eks, rds]
+  Level 2: [app]
 
-Validation passed
+✓ Validation passed
 ```
 
 ### Валидация с конфигом

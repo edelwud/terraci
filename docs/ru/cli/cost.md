@@ -46,6 +46,47 @@ terraci cost --output json
 terraci cost -v
 ```
 
+## Вывод
+
+### Текстовый формат (по умолчанию)
+
+```
+• cost estimation results
+  • module   module=platform/prod/eu-central-1/eks status=🔄 monthly=$35.04
+    • cost change   before=$0 after=$35.04 diff=$35.04
+  • module   module=platform/prod/eu-central-1/rds status=🔄 monthly=$689.12
+    • cost change   before=$0 after=$689.12 diff=$689.12
+• total estimated monthly cost
+  • monthly   before=$0 after=$762.12 diff=$762.12
+```
+
+### JSON формат
+
+```bash
+terraci cost --output json
+```
+
+```json
+{
+  "modules": [
+    {
+      "module_id": "platform/prod/eu-central-1/rds",
+      "before_cost": 0,
+      "after_cost": 689.12,
+      "diff_cost": 689.12,
+      "resources": [
+        {"address": "aws_db_instance.postgres", "monthly_cost": 400.77},
+        {"address": "aws_elasticache_cluster.redis", "monthly_cost": 180.31}
+      ]
+    }
+  ],
+  "total_before": 0,
+  "total_after": 762.12,
+  "total_diff": 762.12,
+  "currency": "USD"
+}
+```
+
 ## Необходимые условия
 
 - `cost.enabled: true` в `.terraci.yaml`

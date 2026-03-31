@@ -36,9 +36,6 @@ terraci init
 ## Полный пример
 
 ```yaml
-# CI-провайдер (автоопределяется из переменных окружения, если не задан)
-provider: gitlab  # или "github"
-
 # Структура директорий
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
@@ -51,42 +48,44 @@ exclude:
 
 include: []  # Пустой означает все (после исключений)
 
-# Настройки GitLab CI (не используется при provider: github)
-gitlab:
-  terraform_binary: "terraform"
-  image: "hashicorp/terraform:1.6"
-  stages_prefix: "deploy"
-  parallelism: 5
-  plan_enabled: true
-  auto_approve: false
-  init_enabled: true
+# Настройки плагинов
+plugins:
+  # Настройки GitLab CI
+  gitlab:
+    terraform_binary: "terraform"
+    image: "hashicorp/terraform:1.6"
+    stages_prefix: "deploy"
+    parallelism: 5
+    plan_enabled: true
+    auto_approve: false
+    init_enabled: true
 
-  variables:
-    TF_IN_AUTOMATION: "true"
-    TF_INPUT: "false"
+    variables:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
 
-  # Настройки по умолчанию для всех джобов
-  job_defaults:
-    tags:
-      - terraform
-      - docker
-    before_script:
-      - aws sts get-caller-identity
-    artifacts:
-      paths:
-        - "*.tfplan"
-      expire_in: "1 day"
+    # Настройки по умолчанию для всех джобов
+    job_defaults:
+      tags:
+        - terraform
+        - docker
+      before_script:
+        - aws sts get-caller-identity
+      artifacts:
+        paths:
+          - "*.tfplan"
+        expire_in: "1 day"
 
-# Настройки GitHub Actions (не используется при provider: gitlab)
-# github:
-#   terraform_binary: "terraform"
-#   runs_on: "ubuntu-latest"
-#   plan_enabled: true
-#   auto_approve: false
-#   init_enabled: true
-#   permissions:
-#     contents: read
-#     pull-requests: write
+  # Настройки GitHub Actions
+  # github:
+  #   terraform_binary: "terraform"
+  #   runs_on: "ubuntu-latest"
+  #   plan_enabled: true
+  #   auto_approve: false
+  #   init_enabled: true
+  #   permissions:
+  #     contents: read
+  #     pull-requests: write
 ```
 
 ## Секции конфигурации
@@ -100,6 +99,8 @@ gitlab:
 | [policy](./policy) | Конфигурация OPA-политик |
 | [cost](./cost) | Оценка стоимости AWS-инфраструктуры |
 | [gitlab-mr](./gitlab-mr) | Интеграция с Merge Request |
+| [summary](./summary) | Настройки сводного комментария MR/PR |
+| [update](./update) | Проверка обновлений зависимостей Terraform |
 
 ## Значения по умолчанию
 
@@ -114,14 +115,15 @@ gitlab:
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
-gitlab:
-  terraform_binary: "terraform"
-  image: "hashicorp/terraform:1.6"
-  stages_prefix: "deploy"
-  parallelism: 5
-  plan_enabled: true
-  auto_approve: false
-  init_enabled: true
+plugins:
+  gitlab:
+    terraform_binary: "terraform"
+    image: "hashicorp/terraform:1.6"
+    stages_prefix: "deploy"
+    parallelism: 5
+    plan_enabled: true
+    auto_approve: false
+    init_enabled: true
 ```
 
 ## Валидация
@@ -142,9 +144,10 @@ terraci validate
 Переменные окружения можно использовать в конфигурации CI:
 
 ```yaml
-gitlab:
-  variables:
-    AWS_REGION: "${AWS_REGION}"  # Из окружения CI
+plugins:
+  gitlab:
+    variables:
+      AWS_REGION: "${AWS_REGION}"  # Из окружения CI
 ```
 
 ## YAML-якоря
@@ -159,10 +162,11 @@ defaults: &defaults
   before_script:
     - aws sts get-caller-identity
 
-gitlab:
-  image: "hashicorp/terraform:1.6"
-  job_defaults:
-    <<: *defaults
+plugins:
+  gitlab:
+    image: "hashicorp/terraform:1.6"
+    job_defaults:
+      <<: *defaults
 ```
 
 ## OpenTofu с минимальными образами
@@ -170,9 +174,10 @@ gitlab:
 Для минимальных образов OpenTofu с не-shell entrypoint используйте объектный формат:
 
 ```yaml
-gitlab:
-  terraform_binary: "tofu"
-  image:
-    name: "ghcr.io/opentofu/opentofu:1.9-minimal"
-    entrypoint: [""]
+plugins:
+  gitlab:
+    terraform_binary: "tofu"
+    image:
+      name: "ghcr.io/opentofu/opentofu:1.9-minimal"
+      entrypoint: [""]
 ```

@@ -63,8 +63,6 @@ TerraCi extracts state paths from these backends:
 | s3 | `key` |
 | gcs | `prefix` |
 | azurerm | `key` |
-| http | `address` |
-| consul | `path` |
 
 ## Dynamic References with `for_each`
 

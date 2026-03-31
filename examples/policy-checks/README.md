@@ -56,29 +56,30 @@ module: platform/stage/eu-central-1/vpc      status=fail     ← S3 encryption m
 ## Configuration
 
 ```yaml
-policy:
-  enabled: true
+plugins:
+  policy:
+    enabled: true
 
-  # Multiple policy sources — each directory is a Rego package
-  sources:
-    - path: terraform       # package terraform → deny/warn rules
-    - path: compliance      # package compliance → cost rules
+    # Multiple policy sources — each directory is a Rego package
+    sources:
+      - path: terraform       # package terraform → deny/warn rules
+      - path: compliance      # package compliance → cost rules
 
-  # Evaluate both namespaces
-  namespaces:
-    - terraform
-    - compliance
+    # Evaluate both namespaces
+    namespaces:
+      - terraform
+      - compliance
 
-  on_failure: block         # Default: block pipeline on deny violations
-  on_warning: warn          # Default: continue with warnings
+    on_failure: block         # Default: block pipeline on deny violations
+    on_warning: warn          # Default: continue with warnings
 
-  # Per-module overwrites using ** glob patterns
-  overwrites:
-    - match: "**/sandbox/**"
-      on_failure: warn      # Sandbox: reclassify failures → warnings
+    # Per-module overwrites using ** glob patterns
+    overwrites:
+      - match: "**/sandbox/**"
+        on_failure: warn      # Sandbox: reclassify failures → warnings
 
-    - match: "legacy/**"
-      enabled: false        # Legacy: skip policy checks entirely
+      - match: "legacy/**"
+        enabled: false        # Legacy: skip policy checks entirely
 ```
 
 ### Overwrites
@@ -185,15 +186,16 @@ The generated pipeline includes a `policy-check` stage between plan and apply. I
 ## Policy Sources
 
 ```yaml
-policy:
-  sources:
-    # Local directory
-    - path: terraform
+plugins:
+  policy:
+    sources:
+      # Local directory
+      - path: terraform
 
-    # Git repository
-    - git: https://github.com/org/terraform-policies.git
-      ref: main
+      # Git repository
+      - git: https://github.com/org/terraform-policies.git
+        ref: main
 
-    # OCI registry
-    - oci: oci://ghcr.io/org/policies:v1.0
+      # OCI registry
+      - oci: oci://ghcr.io/org/policies:v1.0
 ```

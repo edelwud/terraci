@@ -11,20 +11,27 @@ TerraCi can estimate the monthly cost impact of infrastructure changes by analyz
 ## Basic Configuration
 
 ```yaml
-cost:
-  enabled: true
-  show_in_comment: true
+plugins:
+  cost:
+    cache_dir: "~/.terraci/pricing"
+    cache_ttl: "24h"
+    providers:
+      aws:
+        enabled: true
 ```
 
 ## Configuration Options
 
-### enabled
+### providers.aws.enabled
 
-Enable or disable cost estimation globally.
+Enable AWS cost estimation.
 
 ```yaml
-cost:
-  enabled: true  # default: false
+plugins:
+  cost:
+    providers:
+      aws:
+        enabled: true
 ```
 
 ### cache_dir
@@ -32,8 +39,9 @@ cost:
 Directory to cache AWS pricing data fetched from the Bulk Pricing API. Caching avoids repeated API calls and speeds up subsequent runs.
 
 ```yaml
-cost:
-  cache_dir: ~/.terraci/pricing  # default
+plugins:
+  cost:
+    cache_dir: ~/.terraci/pricing  # default
 ```
 
 ### cache_ttl
@@ -41,20 +49,12 @@ cost:
 How long cached pricing data remains valid before being re-fetched.
 
 ```yaml
-cost:
-  cache_ttl: "24h"  # default
+plugins:
+  cost:
+    cache_ttl: "24h"  # default
 ```
 
 Accepts Go duration strings: `"1h"`, `"30m"`, `"72h"`, etc.
-
-### show_in_comment
-
-Include cost estimates in the MR/PR comment table alongside plan results and policy checks.
-
-```yaml
-cost:
-  show_in_comment: true  # default: true
-```
 
 ## How It Works
 
@@ -82,7 +82,7 @@ Each resource type has a dedicated handler that maps Terraform resource attribut
 
 ## MR/PR Integration
 
-When `show_in_comment` is enabled, cost estimates appear in the MR/PR comment table. Each module shows its monthly cost difference:
+When cost estimation is enabled, cost estimates appear in the MR/PR comment table. Each module shows its monthly cost difference:
 
 ```markdown
 ### 💰 Cost Estimation
@@ -97,25 +97,27 @@ When `show_in_comment` is enabled, cost estimates appear in the MR/PR comment ta
 ## Full Example
 
 ```yaml
-cost:
-  enabled: true
-  cache_dir: ~/.terraci/pricing
-  cache_ttl: "24h"
-  show_in_comment: true
+plugins:
+  cost:
+    cache_dir: ~/.terraci/pricing
+    cache_ttl: "24h"
+    providers:
+      aws:
+        enabled: true
 
-# Works with either provider:
-gitlab:
-  plan_enabled: true
-  mr:
-    comment:
-      enabled: true
+  # Works with either provider:
+  gitlab:
+    plan_enabled: true
+    mr:
+      comment:
+        enabled: true
 
-# Or with GitHub:
-# github:
-#   plan_enabled: true
-#   pr:
-#     comment:
-#       enabled: true
+  # Or with GitHub:
+  # github:
+  #   plan_enabled: true
+  #   pr:
+  #     comment:
+  #       enabled: true
 ```
 
 This configuration enables cost estimation with default caching, and displays the results in MR/PR comments alongside plan output.
@@ -140,7 +142,7 @@ terraci cost -v
 
 The `terraci cost` command scans for `plan.json` files, fetches pricing data, and outputs per-module cost estimates. Pricing cache location and TTL expiration are shown in the output.
 
-> **Note:** `terraci cost` requires `cost.enabled: true` in your `.terraci.yaml`.
+> **Note:** `terraci cost` requires `plugins.cost.providers.aws.enabled: true` in your `.terraci.yaml`.
 
 In CI pipelines, cost estimation runs automatically as part of the `terraci summary` command (which posts MR/PR comments). Use `terraci cost` for local development and ad-hoc cost checks.
 

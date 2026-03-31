@@ -41,46 +41,19 @@ terraci validate
 
 Output:
 ```
-✓ Found 12 modules
-✓ Built dependency graph with 15 edges
-✓ No circular dependencies detected
-✓ 4 execution levels identified
+validating terraform project structure
+  dependency links found                      count: 5
 
-Validation passed
-```
+validating dependency graph
+  no circular dependencies
+  root modules (no deps)                      count: 2
+  leaf modules (no dependents)                count: 1
+  max dependency depth                        depth: 3
 
-### Verbose Output
+checking execution order
+  execution levels determined                 levels: 3
 
-```bash
-terraci validate -v
-```
-
-Output:
-```
-Configuration:
-  Pattern: {service}/{environment}/{region}/{module}
-  Min depth: 4
-  Max depth: 5
-
-Discovered modules:
-  - platform/production/us-east-1/vpc
-  - platform/production/us-east-1/eks
-  - platform/production/us-east-1/rds
-  - platform/production/us-east-1/app
-  ...
-
-Dependency graph:
-  eks → vpc
-  rds → vpc
-  app → eks
-  app → rds
-
-Execution levels:
-  Level 0: [vpc]
-  Level 1: [eks, rds]
-  Level 2: [app]
-
-✓ Validation passed
+validation PASSED
 ```
 
 ### With Circular Dependencies
@@ -91,12 +64,13 @@ terraci validate
 
 Output:
 ```
-✓ Found 5 modules
-✓ Built dependency graph with 6 edges
-✗ Circular dependency detected:
-  module-a → module-b → module-c → module-a
+validating terraform project structure
+  dependency links found                      count: 6
 
-Validation failed
+validating dependency graph
+  circular dependency detected                cycle: module-a → module-b → module-c → module-a
+
+validation FAILED
 ```
 
 ## What Gets Validated
@@ -162,7 +136,8 @@ terraci validate -v 2>&1 | grep "Discovered modules" -A 100
 ### No Modules Found
 
 ```
-✗ Found 0 modules
+validating terraform project structure
+  dependency links found                      count: 0
 ```
 
 Check:
@@ -184,7 +159,7 @@ Check:
 ### Circular Dependencies
 
 ```
-✗ Circular dependency detected
+  circular dependency detected                cycle: module-a → module-b → module-a
 ```
 
 Review the cycle path and fix remote_state references to break the cycle.

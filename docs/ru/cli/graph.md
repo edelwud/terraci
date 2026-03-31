@@ -42,17 +42,11 @@ terraci graph --format levels
 ```
 
 ```
-Level 0 (parallel):
-  platform/prod/eu-central-1/vpc
-  platform/prod/eu-west-1/vpc
-
-Level 1:
-  platform/prod/eu-central-1/eks
-  platform/prod/eu-central-1/rds
-  platform/prod/eu-west-1/eks
-
-Level 2:
-  platform/prod/eu-central-1/apps
+Execution Levels:
+  Level 0: vpc, iam
+  Level 1: eks, rds, cache
+  Level 2: app-backend, app-frontend
+  Level 3: monitoring
 ```
 
 ### dot
@@ -153,11 +147,11 @@ terraci graph --format list
 ```
 
 ```
-platform/prod/eu-central-1/vpc
-platform/prod/eu-central-1/eks
-platform/prod/eu-central-1/rds
-platform/prod/eu-west-1/vpc
-platform/prod/eu-west-1/eks
+Dependencies:
+  platform/prod/eu-central-1/eks → platform/prod/eu-central-1/vpc
+  platform/prod/eu-central-1/rds → platform/prod/eu-central-1/vpc
+  platform/prod/eu-central-1/app → platform/prod/eu-central-1/eks
+  platform/prod/eu-central-1/app → platform/prod/eu-central-1/rds
 ```
 
 ## Статистика

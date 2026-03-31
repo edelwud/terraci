@@ -48,7 +48,7 @@ terraci generate -o .github/workflows/terraform.yml
 terraci generate
 ```
 
-Провайдер автоопределяется из переменных окружения CI или задаётся через `provider:` в `.terraci.yaml`.
+Провайдер автоопределяется из переменных окружения CI (например, `GITLAB_CI` или `GITHUB_ACTIONS`).
 
 ### Только изменённые модули
 

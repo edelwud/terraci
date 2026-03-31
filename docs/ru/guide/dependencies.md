@@ -61,8 +61,6 @@ flowchart TD
 | s3 | `key` |
 | gcs | `prefix` |
 | azurerm | `key` |
-| http | `address` |
-| consul | `path` |
 
 ## Динамические ссылки с `for_each`
 

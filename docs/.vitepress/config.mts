@@ -41,6 +41,7 @@ export default withMermaid(defineConfig({
       themeConfig: {
         nav: [
           { text: 'Guide', link: '/guide/getting-started' },
+          { text: 'Plugins', link: '/plugins/' },
           { text: 'Configuration', link: '/config/' },
           { text: 'CLI', link: '/cli/' },
           {
@@ -76,6 +77,24 @@ export default withMermaid(defineConfig({
                 { text: 'Git Integration', link: '/guide/git-integration' },
                 { text: 'OpenTofu Support', link: '/guide/opentofu' },
                 { text: 'Submodules', link: '/guide/submodules' },
+                { text: 'Plugin System', link: '/guide/plugins' },
+              ]
+            }
+          ],
+          '/plugins/': [
+            {
+              text: 'Overview',
+              items: [
+                { text: 'What Plugins Can Do', link: '/plugins/' },
+              ]
+            },
+            {
+              text: 'Plugin Guides',
+              items: [
+                { text: 'CLI Command Plugin', link: '/plugins/command-plugin' },
+                { text: 'Pipeline Step Plugin', link: '/plugins/pipeline-plugin' },
+                { text: 'CI Provider Plugin', link: '/plugins/provider-plugin' },
+                { text: 'Init Wizard Plugin', link: '/plugins/init-plugin' },
               ]
             }
           ],
@@ -88,13 +107,15 @@ export default withMermaid(defineConfig({
                 { text: 'Filters', link: '/config/filters' },
                 { text: 'Policy Checks', link: '/config/policy' },
                 { text: 'Cost Estimation', link: '/config/cost' },
+                { text: 'Dependency Updates', link: '/config/update' },
               ]
             },
             {
-              text: 'GitLab',
+              text: 'CI Providers',
               items: [
-                { text: 'CI Pipeline', link: '/config/gitlab' },
-                { text: 'Merge Request', link: '/config/gitlab-mr' },
+                { text: 'GitLab CI', link: '/config/gitlab' },
+                { text: 'GitLab MR', link: '/config/gitlab-mr' },
+                { text: 'GitHub Actions', link: '/config/github' },
               ]
             }
           ],
@@ -108,7 +129,9 @@ export default withMermaid(defineConfig({
                 { text: 'graph', link: '/cli/graph' },
                 { text: 'init', link: '/cli/init' },
                 { text: 'summary', link: '/cli/summary' },
+                { text: 'cost', link: '/cli/cost' },
                 { text: 'policy', link: '/cli/policy' },
+                { text: 'update', link: '/cli/update' },
               ]
             }
           ]
@@ -122,6 +145,7 @@ export default withMermaid(defineConfig({
       themeConfig: {
         nav: [
           { text: 'Руководство', link: '/ru/guide/getting-started' },
+          { text: 'Плагины', link: '/ru/plugins/' },
           { text: 'Конфигурация', link: '/ru/config/' },
           { text: 'CLI', link: '/ru/cli/' },
           {
@@ -157,6 +181,24 @@ export default withMermaid(defineConfig({
                 { text: 'Git интеграция', link: '/ru/guide/git-integration' },
                 { text: 'Поддержка OpenTofu', link: '/ru/guide/opentofu' },
                 { text: 'Сабмодули', link: '/ru/guide/submodules' },
+                { text: 'Система плагинов', link: '/ru/guide/plugins' },
+              ]
+            }
+          ],
+          '/ru/plugins/': [
+            {
+              text: 'Обзор',
+              items: [
+                { text: 'Что могут плагины', link: '/ru/plugins/' },
+              ]
+            },
+            {
+              text: 'Гайды по плагинам',
+              items: [
+                { text: 'CLI-команда', link: '/ru/plugins/command-plugin' },
+                { text: 'Шаг пайплайна', link: '/ru/plugins/pipeline-plugin' },
+                { text: 'CI-провайдер', link: '/ru/plugins/provider-plugin' },
+                { text: 'Мастер настройки', link: '/ru/plugins/init-plugin' },
               ]
             }
           ],
@@ -169,13 +211,15 @@ export default withMermaid(defineConfig({
                 { text: 'Фильтры', link: '/ru/config/filters' },
                 { text: 'Проверка политик', link: '/ru/config/policy' },
                 { text: 'Оценка стоимости', link: '/ru/config/cost' },
+                { text: 'Обновление зависимостей', link: '/ru/config/update' },
               ]
             },
             {
-              text: 'GitLab',
+              text: 'CI Провайдеры',
               items: [
-                { text: 'CI Pipeline', link: '/ru/config/gitlab' },
-                { text: 'Merge Request', link: '/ru/config/gitlab-mr' },
+                { text: 'GitLab CI', link: '/ru/config/gitlab' },
+                { text: 'GitLab MR', link: '/ru/config/gitlab-mr' },
+                { text: 'GitHub Actions', link: '/ru/config/github' },
               ]
             }
           ],
@@ -189,7 +233,9 @@ export default withMermaid(defineConfig({
                 { text: 'graph', link: '/ru/cli/graph' },
                 { text: 'init', link: '/ru/cli/init' },
                 { text: 'summary', link: '/ru/cli/summary' },
+                { text: 'cost', link: '/ru/cli/cost' },
                 { text: 'policy', link: '/ru/cli/policy' },
+                { text: 'update', link: '/ru/cli/update' },
               ]
             }
           ]

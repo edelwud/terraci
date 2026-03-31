@@ -2,8 +2,9 @@
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
-gitlab:
-  image:
-    name: hashicorp/terraform:1.6
-  plan_enabled: true
-  auto_approve: false
+plugins:
+  gitlab:
+    image:
+      name: hashicorp/terraform:1.6
+    plan_enabled: true
+    auto_approve: false

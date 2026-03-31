@@ -1,36 +1,36 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/edelwud/terraci/main/terraci.schema.json
-provider: github
-
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
-github:
-  terraform_binary: terraform
-  runs_on: ubuntu-latest
-  plan_enabled: true
-  auto_approve: false
-  init_enabled: true
+plugins:
+  github:
+    terraform_binary: terraform
+    runs_on: ubuntu-latest
+    plan_enabled: true
+    auto_approve: false
+    init_enabled: true
 
-  permissions:
-    contents: read
-    pull-requests: write
-    id-token: write
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
 
-  job_defaults:
-    steps_before:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.6"
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::role/terraform
-          aws-region: eu-central-1
+    job_defaults:
+      steps_before:
+        - uses: actions/checkout@v4
+        - uses: hashicorp/setup-terraform@v3
+          with:
+            terraform_version: "1.6"
+        - uses: aws-actions/configure-aws-credentials@v4
+          with:
+            role-to-assume: arn:aws:iam::role/terraform
+            aws-region: eu-central-1
 
-  pr:
-    comment:
-      enabled: true
+    pr:
+      comment:
+        enabled: true
 
-cost:
-  enabled: true
-  show_in_comment: true
+  cost:
+    providers:
+      aws:
+        enabled: true

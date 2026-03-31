@@ -11,13 +11,14 @@ TerraCi интегрирует [Open Policy Agent (OPA)](https://www.openpolicya
 ## Базовая конфигурация
 
 ```yaml
-policy:
-  enabled: true
-  sources:
-    - path: terraform           # имя директории = имя Rego package
-  namespaces:
-    - terraform
-  on_failure: block
+plugins:
+  policy:
+    enabled: true
+    sources:
+      - path: terraform           # имя директории = имя Rego package
+    namespaces:
+      - terraform
+    on_failure: block
 ```
 
 ## Параметры конфигурации
@@ -27,8 +28,9 @@ policy:
 Включение/отключение проверки политик глобально.
 
 ```yaml
-policy:
-  enabled: true  # по умолчанию: false
+plugins:
+  policy:
+    enabled: true  # по умолчанию: false
 ```
 
 ### sources
@@ -38,27 +40,30 @@ policy:
 #### Локальный путь
 
 ```yaml
-policy:
-  sources:
-    - path: terraform           # package terraform → data.terraform.deny/warn
-    - path: compliance          # package compliance → data.compliance.deny/warn
+plugins:
+  policy:
+    sources:
+      - path: terraform           # package terraform → data.terraform.deny/warn
+      - path: compliance          # package compliance → data.compliance.deny/warn
 ```
 
 #### Git репозиторий
 
 ```yaml
-policy:
-  sources:
-    - git: https://github.com/org/terraform-policies.git
-      ref: main
+plugins:
+  policy:
+    sources:
+      - git: https://github.com/org/terraform-policies.git
+        ref: main
 ```
 
 #### OCI реестр
 
 ```yaml
-policy:
-  sources:
-    - oci: oci://ghcr.io/org/policies:v1.0
+plugins:
+  policy:
+    sources:
+      - oci: oci://ghcr.io/org/policies:v1.0
 ```
 
 ### namespaces
@@ -66,10 +71,11 @@ policy:
 Rego пакеты для проверки. TerraCi запрашивает `data.<namespace>.deny` и `data.<namespace>.warn` для каждого namespace.
 
 ```yaml
-policy:
-  namespaces:
-    - terraform              # data.terraform.deny, data.terraform.warn
-    - compliance             # data.compliance.deny, data.compliance.warn
+plugins:
+  policy:
+    namespaces:
+      - terraform              # data.terraform.deny, data.terraform.warn
+      - compliance             # data.compliance.deny, data.compliance.warn
 ```
 
 По умолчанию: `["terraform"]`
@@ -91,17 +97,9 @@ policy:
 Действие при срабатывании `warn` правил:
 
 ```yaml
-policy:
-  on_warning: warn  # по умолчанию
-```
-
-### show_in_comment
-
-Включить результаты в комментарий MR/PR.
-
-```yaml
-policy:
-  show_in_comment: true  # по умолчанию: true
+plugins:
+  policy:
+    on_warning: warn  # по умолчанию
 ```
 
 ### cache_dir
@@ -109,8 +107,9 @@ policy:
 Директория для кэширования загруженных политик (git/OCI источники).
 
 ```yaml
-policy:
-  cache_dir: .terraci/policies  # по умолчанию
+plugins:
+  policy:
+    cache_dir: .terraci/policies  # по умолчанию
 ```
 
 ### overwrites
@@ -118,24 +117,25 @@ policy:
 Переопределение настроек для конкретных модулей через `**` glob-паттерны:
 
 ```yaml
-policy:
-  enabled: true
-  on_failure: block
+plugins:
+  policy:
+    enabled: true
+    on_failure: block
 
-  overwrites:
-    # Sandbox: переклассифицировать ошибки в предупреждения
-    - match: "**/sandbox/**"
-      on_failure: warn
+    overwrites:
+      # Sandbox: переклассифицировать ошибки в предупреждения
+      - match: "**/sandbox/**"
+        on_failure: warn
 
-    # Legacy: полностью отключить проверки
-    - match: "legacy/**"
-      enabled: false
+      # Legacy: полностью отключить проверки
+      - match: "legacy/**"
+        enabled: false
 
-    # Production: добавить compliance namespace
-    - match: "**/prod/**"
-      namespaces:
-        - terraform
-        - compliance
+      # Production: добавить compliance namespace
+      - match: "**/prod/**"
+        namespaces:
+          - terraform
+          - compliance
 ```
 
 #### Glob-паттерны
@@ -224,13 +224,14 @@ compliance/         → package compliance   (контроль расходов)
 ```
 
 ```yaml
-policy:
-  sources:
-    - path: terraform
-    - path: compliance
-  namespaces:
-    - terraform
-    - compliance
+plugins:
+  policy:
+    sources:
+      - path: terraform
+      - path: compliance
+    namespaces:
+      - terraform
+      - compliance
 ```
 
 ### Структура Input

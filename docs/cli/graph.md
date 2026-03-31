@@ -131,20 +131,14 @@ terraci graph --stats
 
 Output:
 ```
-Graph Statistics:
-  Total modules: 12
-  Total edges: 15
-  Max depth: 4
-  Root modules: 2
-  Leaf modules: 3
-
-  Modules with most dependencies:
-    app (3 dependencies)
-    monitoring (2 dependencies)
-
-  Most depended-on modules:
-    vpc (5 dependents)
-    eks (2 dependents)
+dependency graph statistics
+  total modules                               count: 12
+  total edges                                 count: 15
+  root modules (no dependencies)              count: 2
+  leaf modules (no dependents)                count: 3
+  max depth (execution levels)                depth: 4
+  average depth                               depth: 1.8
+  no cycles ✓
 ```
 
 ## Module Queries

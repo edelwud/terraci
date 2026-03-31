@@ -6,7 +6,7 @@ outline: deep
 
 # GitHub Actions Configuration
 
-The `github` section configures the generated GitHub Actions workflow. This section is used when the resolved provider is `github` (set via `provider: github` in config, or auto-detected from the `GITHUB_ACTIONS` environment variable). When the provider is `gitlab`, this section is omitted and the `gitlab` section is used instead. See [GitLab CI Configuration](/config/gitlab) for the GitLab equivalent.
+The `github` section configures the generated GitHub Actions workflow. This section is used when the resolved provider is `github` (auto-detected from the `GITHUB_ACTIONS` environment variable, or set via the `TERRACI_PROVIDER` environment variable). When the provider is `gitlab`, this section is omitted and the `gitlab` section is used instead. See [GitLab CI Configuration](/config/gitlab) for the GitLab equivalent.
 
 ## Options
 
@@ -18,8 +18,9 @@ The `github` section configures the generated GitHub Actions workflow. This sect
 The Terraform/OpenTofu binary to use.
 
 ```yaml
-github:
-  terraform_binary: "terraform"  # or "tofu"
+plugins:
+  github:
+    terraform_binary: "terraform"  # or "tofu"
 ```
 
 ### runs_on
@@ -30,9 +31,10 @@ github:
 The GitHub Actions runner label for jobs.
 
 ```yaml
-github:
-  runs_on: "ubuntu-latest"
-  # runs_on: "self-hosted"
+plugins:
+  github:
+    runs_on: "ubuntu-latest"
+    # runs_on: "self-hosted"
 ```
 
 ### container
@@ -43,10 +45,11 @@ github:
 Optionally run jobs inside a container. Supports both string and object format.
 
 ```yaml
-github:
-  container:
-    name: "hashicorp/terraform:1.6"
-    entrypoint: [""]
+plugins:
+  github:
+    container:
+      name: "hashicorp/terraform:1.6"
+      entrypoint: [""]
 ```
 
 ### env
@@ -57,11 +60,12 @@ github:
 Workflow-level environment variables.
 
 ```yaml
-github:
-  env:
-    TF_IN_AUTOMATION: "true"
-    TF_INPUT: "false"
-    AWS_DEFAULT_REGION: "us-east-1"
+plugins:
+  github:
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      AWS_DEFAULT_REGION: "us-east-1"
 ```
 
 ### plan_enabled
@@ -72,9 +76,10 @@ github:
 Generate separate plan jobs.
 
 ```yaml
-github:
-  plan_enabled: true   # plan + apply jobs
-  # plan_enabled: false  # apply only
+plugins:
+  github:
+    plan_enabled: true   # plan + apply jobs
+    # plan_enabled: false  # apply only
 ```
 
 ### plan_only
@@ -85,8 +90,9 @@ github:
 Generate only plan jobs without apply jobs.
 
 ```yaml
-github:
-  plan_only: true
+plugins:
+  github:
+    plan_only: true
 ```
 
 ### auto_approve
@@ -97,9 +103,10 @@ github:
 Auto-approve apply jobs without environment protection.
 
 ```yaml
-github:
-  auto_approve: false  # Apply uses environment protection
-  # auto_approve: true   # Apply runs automatically
+plugins:
+  github:
+    auto_approve: false  # Apply uses environment protection
+    # auto_approve: true   # Apply runs automatically
 ```
 
 ### init_enabled
@@ -110,8 +117,9 @@ github:
 Automatically run `terraform init` before terraform commands.
 
 ```yaml
-github:
-  init_enabled: true
+plugins:
+  github:
+    init_enabled: true
 ```
 
 ### permissions
@@ -122,11 +130,12 @@ github:
 Workflow-level permissions. Required for PR comments and OIDC authentication.
 
 ```yaml
-github:
-  permissions:
-    contents: read
-    pull-requests: write
-    id-token: write        # Required for OIDC
+plugins:
+  github:
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write        # Required for OIDC
 ```
 
 ### job_defaults
@@ -145,19 +154,20 @@ Available fields:
 
 **Example: Common setup steps for all jobs**
 ```yaml
-github:
-  job_defaults:
-    steps_before:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::123456789012:role/terraform
-          aws-region: us-east-1
-    steps_after:
-      - name: Upload logs
-        run: echo "Job completed"
+plugins:
+  github:
+    job_defaults:
+      steps_before:
+        - uses: actions/checkout@v4
+        - uses: hashicorp/setup-terraform@v3
+        - name: Configure AWS credentials
+          uses: aws-actions/configure-aws-credentials@v4
+          with:
+            role-to-assume: arn:aws:iam::123456789012:role/terraform
+            aws-region: us-east-1
+      steps_after:
+        - name: Upload logs
+          run: echo "Job completed"
 ```
 
 Each step in `steps_before` / `steps_after` supports:
@@ -184,27 +194,29 @@ Each overwrite has:
 
 **Example: Different runners for plan and apply**
 ```yaml
-github:
-  overwrites:
-    - type: plan
-      runs_on: ubuntu-latest
+plugins:
+  github:
+    overwrites:
+      - type: plan
+        runs_on: ubuntu-latest
 
-    - type: apply
-      runs_on: self-hosted
-      env:
-        DEPLOY_ENV: "production"
+      - type: apply
+        runs_on: self-hosted
+        env:
+          DEPLOY_ENV: "production"
 ```
 
 **Example: Extra steps for apply jobs**
 ```yaml
-github:
-  overwrites:
-    - type: apply
-      steps_before:
-        - uses: actions/checkout@v4
-        - uses: hashicorp/setup-terraform@v3
-        - name: Approve deployment
-          run: echo "Deploying..."
+plugins:
+  github:
+    overwrites:
+      - type: apply
+        steps_before:
+          - uses: actions/checkout@v4
+          - uses: hashicorp/setup-terraform@v3
+          - name: Approve deployment
+            run: echo "Deploying..."
 ```
 
 ### pr
@@ -215,13 +227,12 @@ github:
 Pull request integration settings. Equivalent to GitLab's `mr` section.
 
 ```yaml
-github:
-  pr:
-    comment:
-      enabled: true
-      on_changes_only: false
-    summary_job:
-      runs_on: ubuntu-latest
+plugins:
+  github:
+    pr:
+      comment:
+        enabled: true
+        on_changes_only: false
 ```
 
 #### pr.comment
@@ -234,63 +245,52 @@ Controls PR comment behavior:
 | `on_changes_only` | bool | false | Only comment when there are changes |
 | `include_details` | bool | true | Include full plan output in expandable sections |
 
-#### pr.summary_job
-
-Configures the summary job that posts PR comments:
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `runs_on` | string | `ubuntu-latest` | Runner label for the summary job |
-
 ## Full Example
 
 ```yaml
-provider: github
+plugins:
+  github:
+    # Binary configuration
+    terraform_binary: "terraform"
+    runs_on: "ubuntu-latest"
 
-github:
-  # Binary configuration
-  terraform_binary: "terraform"
-  runs_on: "ubuntu-latest"
+    # Workflow settings
+    plan_enabled: true
+    auto_approve: false
+    init_enabled: true
 
-  # Workflow settings
-  plan_enabled: true
-  auto_approve: false
-  init_enabled: true
+    # Workflow-level environment variables
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
 
-  # Workflow-level environment variables
-  env:
-    TF_IN_AUTOMATION: "true"
-    TF_INPUT: "false"
+    # Permissions (required for PR comments and OIDC)
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
 
-  # Permissions (required for PR comments and OIDC)
-  permissions:
-    contents: read
-    pull-requests: write
-    id-token: write
+    # Job defaults (applied to all jobs)
+    job_defaults:
+      steps_before:
+        - uses: actions/checkout@v4
+        - uses: hashicorp/setup-terraform@v3
+        - name: Configure AWS credentials
+          uses: aws-actions/configure-aws-credentials@v4
+          with:
+            role-to-assume: arn:aws:iam::123456789012:role/terraform
+            aws-region: us-east-1
 
-  # Job defaults (applied to all jobs)
-  job_defaults:
-    steps_before:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::123456789012:role/terraform
-          aws-region: us-east-1
+    # Job overwrites (override job_defaults for specific job types)
+    overwrites:
+      - type: apply
+        runs_on: self-hosted
 
-  # Job overwrites (override job_defaults for specific job types)
-  overwrites:
-    - type: apply
-      runs_on: self-hosted
-
-  # Pull request integration
-  pr:
-    comment:
-      enabled: true
-      on_changes_only: false
-    summary_job:
-      runs_on: ubuntu-latest
+    # Pull request integration
+    pr:
+      comment:
+        enabled: true
+        on_changes_only: false
 ```
 
 ## Per-Job Environment Variables

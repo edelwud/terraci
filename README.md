@@ -55,6 +55,7 @@ TerraCi solves all of this. Point it at your repo, and it generates correct, dep
 - OPA policy enforcement (local, git, OCI sources)
 - MR/PR comments with plan summaries, costs & policy results
 - Dependency graph visualization (DOT/PlantUML)
+- Provider & module update checks with optional in-place writes
 
 </td></tr>
 <tr><td>
@@ -74,6 +75,7 @@ TerraCi solves all of this. Point it at your repo, and it generates correct, dep
 - JSON schema for IDE autocomplete
 - Shell completions (bash, zsh, fish)
 - Dry-run mode to preview changes
+- Custom plugins via `xterraci build --with`
 
 </td></tr>
 </table>
@@ -199,8 +201,6 @@ Each level gets plan + apply stages. Apply requires the previous level to comple
 
 ```yaml
 # .terraci.yaml
-provider: gitlab                         # or "github" (auto-detected from CI env)
-
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
@@ -208,41 +208,42 @@ exclude:
   - "*/test/*"
   - "*/sandbox/*"
 
-# GitLab CI config (omitted when provider=github)
-gitlab:
-  image: "hashicorp/terraform:1.6"
-  terraform_binary: "terraform"          # or "tofu"
-  auto_approve: false
-  job_defaults:
-    tags: [terraform, docker]
-  mr:
-    comment:
-      enabled: true
-    summary_job:
-      image: { name: "ghcr.io/edelwud/terraci:latest" }
+plugins:
+  # GitLab CI (omit for GitHub Actions)
+  gitlab:
+    image: { name: "hashicorp/terraform:1.6" }
+    terraform_binary: "terraform"        # or "tofu"
+    plan_enabled: true
+    auto_approve: false
+    mr:
+      comment: { enabled: true }
+      summary_job:
+        image: { name: "ghcr.io/edelwud/terraci:latest" }
 
-# GitHub Actions config (omitted when provider=gitlab)
-github:
-  terraform_binary: "terraform"
-  runs_on: "ubuntu-latest"
-  permissions: { contents: read, pull-requests: write }
-  pr:
-    comment: { enabled: true }
+  # GitHub Actions (omit for GitLab CI)
+  # github:
+  #   terraform_binary: "terraform"
+  #   runs_on: "ubuntu-latest"
+  #   pr:
+  #     comment: { enabled: true }
 
-# AWS cost estimation
-cost:
-  enabled: true
-  show_in_comment: true
+  # AWS cost estimation
+  # cost:
+  #   providers:
+  #     aws: { enabled: true }
 
-# OPA policy checks
-policy:
-  enabled: true
-  sources:
-    - path: policies
-    - git: https://github.com/org/policies.git
-      ref: main
-  namespaces: [terraform]
-  on_failure: block                      # block, warn, ignore
+  # OPA policy checks
+  # policy:
+  #   enabled: true
+  #   sources:
+  #     - path: policies
+  #   on_failure: block                  # block, warn
+
+  # Dependency update checks
+  # update:
+  #   enabled: true
+  #   target: all                        # all, modules, providers
+  #   bump: minor                        # patch, minor, major
 ```
 
 > **Tip:** Add `# yaml-language-server: $schema=https://raw.githubusercontent.com/edelwud/terraci/main/terraci.schema.json` at the top of your `.terraci.yaml` for IDE autocomplete. Or run `terraci schema` to generate the schema locally.
@@ -260,6 +261,7 @@ policy:
 | `terraci policy pull` | Download policies from configured sources |
 | `terraci policy check` | Evaluate plans against OPA policies |
 | `terraci schema` | Generate JSON schema for config validation |
+| `terraci update` | Check Terraform providers/modules for newer versions |
 | `terraci version` | Show version and embedded OPA version |
 
 <details>
@@ -337,6 +339,29 @@ terraci cost --output json
 ```
 
 </details>
+
+## Custom Plugins
+
+Build a custom TerraCi binary with additional (or fewer) plugins using `xterraci`:
+
+```bash
+# Install xterraci
+go install github.com/edelwud/terraci/cmd/xterraci@latest
+
+# Add an external plugin
+xterraci build --with github.com/myorg/terraci-plugin-slack
+
+# Use a local plugin during development
+xterraci build --with github.com/myorg/plugin=../my-plugin
+
+# Remove a built-in plugin
+xterraci build --without cost
+
+# List available built-in plugins
+xterraci list-plugins
+```
+
+See [`examples/external-plugin/`](examples/external-plugin/) for a minimal plugin example.
 
 ## Documentation
 
