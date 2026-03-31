@@ -217,8 +217,6 @@ plugins:
     auto_approve: false
     mr:
       comment: { enabled: true }
-      summary_job:
-        image: { name: "ghcr.io/edelwud/terraci:latest" }
 
   # GitHub Actions (omit for GitLab CI)
   # github:
