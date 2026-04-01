@@ -38,6 +38,9 @@ func TestBuiltInPluginContractMatrix(t *testing.T) {
 			configLoader: true,
 			preflight:    true,
 		},
+		"inmemcache": {
+			configLoader: true,
+		},
 		"policy": {
 			configLoader: true,
 			command:      true,

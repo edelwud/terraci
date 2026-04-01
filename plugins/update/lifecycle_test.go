@@ -3,8 +3,11 @@ package update
 import (
 	"context"
 	"testing"
+	"time"
 
+	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
+	"github.com/edelwud/terraci/pkg/plugin/registry"
 	updateengine "github.com/edelwud/terraci/plugins/update/internal"
 )
 
@@ -140,3 +143,98 @@ func TestPlugin_Runtime_CreatesRegistryLazily(t *testing.T) {
 		t.Fatal("runtime.registry should not be nil")
 	}
 }
+
+func TestPlugin_Runtime_DefaultsToInmemcache(t *testing.T) {
+	p := newTestPlugin(t)
+	enablePlugin(t, p, &updateengine.UpdateConfig{Enabled: true})
+	useMockRegistry(p, &mockRegistry{})
+
+	runtime := plugintest.MustRuntime[*updateRuntime](t, p, newTestAppContext(t, t.TempDir()))
+	if runtime.registry == nil {
+		t.Fatal("runtime.registry should not be nil")
+	}
+
+	got, err := runtime.registry.ModuleVersions(context.Background(), "hashicorp", "consul", "aws")
+	if err != nil {
+		t.Fatalf("ModuleVersions() error = %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("ModuleVersions() = %v, want empty slice for mock response", got)
+	}
+}
+
+func TestPlugin_Runtime_UnknownCacheBackend(t *testing.T) {
+	p := newTestPlugin(t)
+	enablePlugin(t, p, &updateengine.UpdateConfig{
+		Enabled: true,
+		Cache: &updateengine.CacheConfig{
+			Backend: "missing-backend",
+		},
+	})
+	useMockRegistry(p, &mockRegistry{})
+
+	if _, err := p.Runtime(context.Background(), newTestAppContext(t, t.TempDir())); err == nil {
+		t.Fatal("Runtime() error = nil, want missing backend error")
+	}
+}
+
+func TestPlugin_Runtime_DefaultBackendStableWithAdditionalProvider(t *testing.T) {
+	alt := &testKVCacheProvider{
+		testPlugin: testPlugin{
+			name: "alt-cache-provider",
+			desc: "extra cache backend",
+		},
+		cache: stubKVCache{},
+	}
+	registry.Register(alt)
+
+	p := newTestPlugin(t)
+	enablePlugin(t, p, &updateengine.UpdateConfig{Enabled: true})
+	useMockRegistry(p, &mockRegistry{
+		moduleVersions: map[string][]string{
+			"hashicorp/consul/aws": {"1.0.0"},
+		},
+	})
+
+	runtime := plugintest.MustRuntime[*updateRuntime](t, p, newTestAppContext(t, t.TempDir()))
+	got, err := runtime.registry.ModuleVersions(context.Background(), "hashicorp", "consul", "aws")
+	if err != nil {
+		t.Fatalf("ModuleVersions() error = %v", err)
+	}
+	if len(got) != 1 || got[0] != "1.0.0" {
+		t.Fatalf("ModuleVersions() = %v, want [1.0.0]", got)
+	}
+	if alt.calls != 0 {
+		t.Fatalf("alt cache provider should not be used by default, got %d calls", alt.calls)
+	}
+}
+
+type testPlugin struct {
+	name string
+	desc string
+}
+
+func (p testPlugin) Name() string        { return p.name }
+func (p testPlugin) Description() string { return p.desc }
+
+type testKVCacheProvider struct {
+	testPlugin
+	cache plugin.KVCache
+	calls int
+}
+
+func (p *testKVCacheProvider) NewKVCache(context.Context, *plugin.AppContext) (plugin.KVCache, error) {
+	p.calls++
+	return p.cache, nil
+}
+
+type stubKVCache struct{}
+
+func (stubKVCache) Get(context.Context, string, string) (value []byte, found bool, err error) {
+	return nil, false, nil
+}
+func (stubKVCache) Set(context.Context, string, string, []byte, time.Duration) error {
+	return nil
+}
+func (stubKVCache) Delete(context.Context, string, string) error  { return nil }
+func (stubKVCache) DeleteNamespace(context.Context, string) error { return nil }

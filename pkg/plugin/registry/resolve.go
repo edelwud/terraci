@@ -116,6 +116,28 @@ func providerNames(candidates []ciProviderPlugin) string {
 	return sb.String()
 }
 
+// ResolveKVCacheProvider returns a named KV cache backend provider.
+func ResolveKVCacheProvider(name string) (plugin.KVCacheProvider, error) {
+	if name == "" {
+		return nil, errors.New("cache backend name is required")
+	}
+
+	resolved, ok := Get(name)
+	if !ok {
+		return nil, fmt.Errorf("cache backend %q not found", name)
+	}
+
+	provider, ok := resolved.(plugin.KVCacheProvider)
+	if !ok {
+		return nil, fmt.Errorf("plugin %q does not provide a KV cache backend", name)
+	}
+	if !isPluginEnabled(provider) {
+		return nil, fmt.Errorf("cache backend %q is not active", name)
+	}
+
+	return provider, nil
+}
+
 // PreflightsForStartup returns enabled plugins that participate in framework
 // preflight for the current config state.
 func PreflightsForStartup() []plugin.Preflightable {

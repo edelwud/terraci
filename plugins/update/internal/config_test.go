@@ -1,6 +1,9 @@
 package updateengine
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestUpdateConfig_Validate(t *testing.T) {
 	tests := []struct {
@@ -91,5 +94,39 @@ func TestUpdateConfig_IsIgnored(t *testing.T) {
 				t.Errorf("IsIgnored(%q) = %v, want %v", tt.source, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestUpdateConfig_CacheDefaults(t *testing.T) {
+	cfg := &UpdateConfig{}
+
+	if got := cfg.CacheBackend(); got != DefaultCacheBackend {
+		t.Fatalf("CacheBackend() = %q, want %q", got, DefaultCacheBackend)
+	}
+	if got := cfg.CacheNamespace(); got != DefaultCacheNamespace {
+		t.Fatalf("CacheNamespace() = %q, want %q", got, DefaultCacheNamespace)
+	}
+	if got := cfg.CacheTTL(); got != DefaultCacheTTL {
+		t.Fatalf("CacheTTL() = %v, want %v", got, DefaultCacheTTL)
+	}
+}
+
+func TestUpdateConfig_CacheOverrides(t *testing.T) {
+	cfg := &UpdateConfig{
+		Cache: &CacheConfig{
+			Backend:   "redis",
+			Namespace: "custom/update",
+			TTL:       "2h",
+		},
+	}
+
+	if got := cfg.CacheBackend(); got != "redis" {
+		t.Fatalf("CacheBackend() = %q, want %q", got, "redis")
+	}
+	if got := cfg.CacheNamespace(); got != "custom/update" {
+		t.Fatalf("CacheNamespace() = %q, want %q", got, "custom/update")
+	}
+	if got := cfg.CacheTTL(); got != 2*time.Hour {
+		t.Fatalf("CacheTTL() = %v, want %v", got, 2*time.Hour)
 	}
 }

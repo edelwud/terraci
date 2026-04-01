@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/config"
@@ -51,6 +52,26 @@ func (p *testContributorPlugin) PipelineContribution(ctx *plugin.AppContext) *pi
 	p.seenCtx = ctx
 	return p.contribution
 }
+
+type testKVCacheProvider struct {
+	testPlugin
+	cache plugin.KVCache
+}
+
+func (p *testKVCacheProvider) NewKVCache(context.Context, *plugin.AppContext) (plugin.KVCache, error) {
+	return p.cache, nil
+}
+
+type testKVCache struct{}
+
+func (testKVCache) Get(context.Context, string, string) (value []byte, found bool, err error) {
+	return nil, false, nil
+}
+func (testKVCache) Set(context.Context, string, string, []byte, time.Duration) error {
+	return nil
+}
+func (testKVCache) Delete(context.Context, string, string) error  { return nil }
+func (testKVCache) DeleteNamespace(context.Context, string) error { return nil }
 
 type testConfig struct {
 	Name    string
@@ -146,6 +167,45 @@ func TestResolveProvider_NoPlugins(t *testing.T) {
 	_, err := ResolveProvider()
 	if err == nil {
 		t.Fatal("expected error with no providers")
+	}
+}
+
+func TestResolveKVCacheProvider(t *testing.T) {
+	t.Cleanup(func() { Reset() })
+	Reset()
+
+	provider := &testKVCacheProvider{
+		testPlugin: testPlugin{name: "cache", desc: "cache backend"},
+		cache:      testKVCache{},
+	}
+	Register(provider)
+
+	got, err := ResolveKVCacheProvider("cache")
+	if err != nil {
+		t.Fatalf("ResolveKVCacheProvider() error = %v", err)
+	}
+	if got.Name() != "cache" {
+		t.Fatalf("ResolveKVCacheProvider() = %q, want %q", got.Name(), "cache")
+	}
+}
+
+func TestResolveKVCacheProvider_NotFound(t *testing.T) {
+	t.Cleanup(func() { Reset() })
+	Reset()
+
+	if _, err := ResolveKVCacheProvider("missing"); err == nil {
+		t.Fatal("expected error for missing cache backend")
+	}
+}
+
+func TestResolveKVCacheProvider_WrongCapability(t *testing.T) {
+	t.Cleanup(func() { Reset() })
+	Reset()
+
+	Register(&testPlugin{name: "plain", desc: "plain plugin"})
+
+	if _, err := ResolveKVCacheProvider("plain"); err == nil {
+		t.Fatal("expected error when plugin does not implement KV cache capability")
 	}
 }
 

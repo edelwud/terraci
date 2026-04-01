@@ -6,6 +6,8 @@ import (
 
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
+	"github.com/edelwud/terraci/pkg/plugin/registry"
+	_ "github.com/edelwud/terraci/plugins/inmemcache"
 	updateengine "github.com/edelwud/terraci/plugins/update/internal"
 )
 
@@ -35,6 +37,7 @@ func (m *mockRegistry) ProviderVersions(_ context.Context, ns, typeName string) 
 // registered in init(), but without touching the global plugin registry.
 func newTestPlugin(t *testing.T) *Plugin {
 	t.Helper()
+	registry.ResetPlugins()
 	p := &Plugin{
 		BasePlugin: plugin.BasePlugin[*updateengine.UpdateConfig]{
 			PluginName: "update",

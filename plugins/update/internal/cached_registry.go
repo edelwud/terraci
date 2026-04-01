@@ -2,32 +2,32 @@ package updateengine
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"slices"
-	"sync"
+	"time"
+
+	"github.com/edelwud/terraci/pkg/log"
+	"github.com/edelwud/terraci/pkg/plugin"
 )
 
 type cachedRegistryClient struct {
-	base RegistryClient
-
-	mu        sync.Mutex
-	modules   map[string]cachedVersionResult
-	providers map[string]cachedVersionResult
+	base      RegistryClient
+	cache     plugin.KVCache
+	namespace string
+	ttl       time.Duration
 }
 
-type cachedVersionResult struct {
-	versions []string
-	err      error
-}
-
-func NewCachedRegistryClient(base RegistryClient) RegistryClient {
-	if base == nil {
+func NewCachedRegistryClient(base RegistryClient, cache plugin.KVCache, namespace string, ttl time.Duration) RegistryClient {
+	if base == nil || cache == nil {
 		return nil
 	}
 
 	return &cachedRegistryClient{
 		base:      base,
-		modules:   make(map[string]cachedVersionResult),
-		providers: make(map[string]cachedVersionResult),
+		cache:     cache,
+		namespace: namespace,
+		ttl:       ttl,
 	}
 }
 
@@ -35,70 +35,85 @@ func (c *cachedRegistryClient) ModuleVersions(
 	ctx context.Context,
 	namespace, name, provider string,
 ) ([]string, error) {
-	key := namespace + "/" + name + "/" + provider
+	key := cacheKeyForModule(namespace, name, provider)
 
-	if result, ok := c.lookupModule(key); ok {
-		return cloneCachedVersions(result.versions), result.err
+	if versions, ok := c.load(ctx, key); ok {
+		return cloneCachedVersions(versions), nil
 	}
 
 	versions, err := c.base.ModuleVersions(ctx, namespace, name, provider)
-	result := cachedVersionResult{
-		versions: cloneCachedVersions(versions),
-		err:      err,
+	if err != nil {
+		return nil, err
 	}
 
-	c.storeModule(key, result)
-	return cloneCachedVersions(result.versions), result.err
+	c.store(ctx, key, versions)
+	return cloneCachedVersions(versions), nil
 }
 
 func (c *cachedRegistryClient) ProviderVersions(
 	ctx context.Context,
 	namespace, typeName string,
 ) ([]string, error) {
-	key := namespace + "/" + typeName
+	key := cacheKeyForProvider(namespace, typeName)
 
-	if result, ok := c.lookupProvider(key); ok {
-		return cloneCachedVersions(result.versions), result.err
+	if versions, ok := c.load(ctx, key); ok {
+		return cloneCachedVersions(versions), nil
 	}
 
 	versions, err := c.base.ProviderVersions(ctx, namespace, typeName)
-	result := cachedVersionResult{
-		versions: cloneCachedVersions(versions),
-		err:      err,
+	if err != nil {
+		return nil, err
 	}
 
-	c.storeProvider(key, result)
-	return cloneCachedVersions(result.versions), result.err
+	c.store(ctx, key, versions)
+	return cloneCachedVersions(versions), nil
 }
 
-func (c *cachedRegistryClient) lookupModule(key string) (cachedVersionResult, bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (c *cachedRegistryClient) load(ctx context.Context, key string) ([]string, bool) {
+	payload, ok, err := c.cache.Get(ctx, c.namespace, key)
+	if err != nil {
+		log.WithError(err).
+			WithField("backend_namespace", c.namespace).
+			WithField("cache_key", key).
+			Debug("update: cache read failed; falling back to registry")
+		return nil, false
+	}
+	if !ok {
+		return nil, false
+	}
 
-	result, ok := c.modules[key]
-	return result, ok
+	var versions []string
+	if err := json.Unmarshal(payload, &versions); err != nil {
+		log.WithError(err).
+			WithField("backend_namespace", c.namespace).
+			WithField("cache_key", key).
+			Debug("update: cache payload decode failed; refreshing from registry")
+		return nil, false
+	}
+
+	return versions, true
 }
 
-func (c *cachedRegistryClient) storeModule(key string, result cachedVersionResult) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (c *cachedRegistryClient) store(ctx context.Context, key string, versions []string) {
+	payload, err := json.Marshal(cloneCachedVersions(versions))
+	if err != nil {
+		log.WithError(err).
+			WithField("backend_namespace", c.namespace).
+			WithField("cache_key", key).
+			Debug("update: cache payload encode failed; skipping cache write")
+		return
+	}
 
-	c.modules[key] = result
+	if err := c.cache.Set(ctx, c.namespace, key, payload, c.ttl); err != nil {
+		log.WithError(err).
+			WithField("backend_namespace", c.namespace).
+			WithField("cache_key", key).
+			Debug("update: cache write failed; continuing without cached result")
+	}
 }
 
-func (c *cachedRegistryClient) lookupProvider(key string) (cachedVersionResult, bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	result, ok := c.providers[key]
-	return result, ok
-}
-
-func (c *cachedRegistryClient) storeProvider(key string, result cachedVersionResult) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.providers[key] = result
+func cacheKeyForModule(namespace, name, provider string) string {
+	return fmt.Sprintf("module:%s/%s/%s", namespace, name, provider)
 }
 
 func cloneCachedVersions(versions []string) []string {
@@ -107,4 +122,8 @@ func cloneCachedVersions(versions []string) []string {
 	}
 
 	return slices.Clone(versions)
+}
+
+func cacheKeyForProvider(namespace, typeName string) string {
+	return fmt.Sprintf("provider:%s/%s", namespace, typeName)
 }
