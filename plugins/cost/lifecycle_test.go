@@ -103,8 +103,10 @@ func TestPlugin_Preflight_Enabled(t *testing.T) {
 func TestPlugin_Preflight_InvalidTTL(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &model.CostConfig{
-		Enabled:  true,
-		CacheTTL: "not-a-duration",
+		Enabled: true,
+		BlobCache: &model.BlobCacheConfig{
+			TTL: "not-a-duration",
+		},
 	})
 	appCtx := newTestAppContext(t, t.TempDir())
 

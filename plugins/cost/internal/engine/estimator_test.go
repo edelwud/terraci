@@ -552,7 +552,9 @@ func TestNewEstimatorFromConfig(t *testing.T) {
 	t.Run("custom cache dir and TTL", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		cfg := &model.CostConfig{
-			CacheTTL: "2h",
+			BlobCache: &model.BlobCacheConfig{
+				TTL: "2h",
+			},
 			Providers: model.CostProvidersConfig{
 				AWS: &model.ProviderConfig{Enabled: true},
 			},
@@ -571,7 +573,9 @@ func TestNewEstimatorFromConfig(t *testing.T) {
 
 	t.Run("invalid TTL uses default", func(t *testing.T) {
 		cfg := &model.CostConfig{
-			CacheTTL: "invalid",
+			BlobCache: &model.BlobCacheConfig{
+				TTL: "invalid",
+			},
 			Providers: model.CostProvidersConfig{
 				AWS: &model.ProviderConfig{Enabled: true},
 			},

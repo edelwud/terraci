@@ -87,8 +87,8 @@ func CacheTTLFromConfig(cfg *model.CostConfig) time.Duration {
 	cacheTTL := defaultCacheTTL
 
 	if cfg != nil {
-		if cfg.CacheTTL != "" {
-			if d, err := time.ParseDuration(cfg.CacheTTL); err == nil {
+		if ttl := cfg.BlobCacheTTL(); ttl != "" {
+			if d, err := time.ParseDuration(ttl); err == nil {
 				cacheTTL = d
 			}
 		}

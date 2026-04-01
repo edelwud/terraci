@@ -78,11 +78,11 @@ func TestCostConfig_Validate(t *testing.T) {
 		wantErr bool
 	}{
 		{"valid defaults", model.CostConfig{Enabled: true}, false},
-		{"valid TTL 48h", model.CostConfig{CacheTTL: "48h"}, false},
-		{"valid TTL 30m", model.CostConfig{CacheTTL: "30m"}, false},
-		{"empty TTL ok", model.CostConfig{CacheTTL: ""}, false},
-		{"invalid TTL", model.CostConfig{CacheTTL: "invalid"}, true},
-		{"bad TTL format", model.CostConfig{CacheTTL: "24hours"}, true},
+		{"valid TTL 48h", model.CostConfig{BlobCache: &model.BlobCacheConfig{TTL: "48h"}}, false},
+		{"valid TTL 30m", model.CostConfig{BlobCache: &model.BlobCacheConfig{TTL: "30m"}}, false},
+		{"empty TTL ok", model.CostConfig{BlobCache: &model.BlobCacheConfig{TTL: ""}}, false},
+		{"invalid TTL", model.CostConfig{BlobCache: &model.BlobCacheConfig{TTL: "invalid"}}, true},
+		{"bad TTL format", model.CostConfig{BlobCache: &model.BlobCacheConfig{TTL: "24hours"}}, true},
 	}
 
 	for _, tt := range tests {

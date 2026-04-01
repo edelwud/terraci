@@ -307,8 +307,9 @@ plugins:
   # cost:
   #   providers:
   #     aws: { enabled: true }
-  #   cache_dir: ~/.terraci/pricing
-  #   cache_ttl: "24h"
+  #   blob_cache:
+  #     backend: diskblob
+  #     ttl: "24h"
 
   # policy:
   #   enabled: true

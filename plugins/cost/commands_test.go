@@ -72,8 +72,10 @@ func TestPlugin_RunEstimation_NoPlanFiles(t *testing.T) {
 func TestPlugin_RunEstimation_InvalidConfig(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &model.CostConfig{
-		Enabled:  true,
-		CacheTTL: "invalid-duration",
+		Enabled: true,
+		BlobCache: &model.BlobCacheConfig{
+			TTL: "invalid-duration",
+		},
 	})
 
 	workDir := t.TempDir()

@@ -12,7 +12,6 @@ import (
 type CostConfig struct {
 	Enabled       bool                `yaml:"-" json:"-"`
 	CacheDir      string              `yaml:"cache_dir,omitempty" json:"cache_dir,omitempty" jsonschema:"description=Deprecated and unsupported; use plugins.diskblob.root_dir instead"`
-	CacheTTL      string              `yaml:"cache_ttl,omitempty" json:"cache_ttl,omitempty" jsonschema:"description=How long cached pricing is valid (e.g. 24h),default=24h"`
 	BlobCache     *BlobCacheConfig    `yaml:"blob_cache,omitempty" json:"blob_cache,omitempty" jsonschema:"description=Blob cache backend selection for pricing data"`
 	Providers     CostProvidersConfig `yaml:"providers" json:"providers"`
 	LegacyEnabled *bool               `yaml:"enabled,omitempty" json:"-"`
@@ -22,6 +21,7 @@ type CostConfig struct {
 type BlobCacheConfig struct {
 	Backend   string `yaml:"backend,omitempty" json:"backend,omitempty" jsonschema:"description=Blob cache backend plugin name,default=diskblob"`
 	Namespace string `yaml:"namespace,omitempty" json:"namespace,omitempty" jsonschema:"description=Blob cache namespace for pricing data,default=cost/pricing"`
+	TTL       string `yaml:"ttl,omitempty" json:"ttl,omitempty" jsonschema:"description=How long cached pricing is valid (e.g. 24h),default=24h"`
 }
 
 const (
@@ -69,9 +69,9 @@ func (c *CostConfig) Validate() error {
 	if c.CacheDir != "" {
 		return errors.New("plugins.cost.cache_dir is no longer supported; use plugins.diskblob.root_dir")
 	}
-	if c.CacheTTL != "" {
-		if _, err := time.ParseDuration(c.CacheTTL); err != nil {
-			return fmt.Errorf("invalid cache_ttl %q: %w", c.CacheTTL, err)
+	if c.BlobCache != nil && c.BlobCache.TTL != "" {
+		if _, err := time.ParseDuration(c.BlobCache.TTL); err != nil {
+			return fmt.Errorf("invalid blob_cache.ttl %q: %w", c.BlobCache.TTL, err)
 		}
 	}
 	if !c.HasEnabledProviders() {
@@ -94,4 +94,12 @@ func (c *CostConfig) BlobCacheNamespace() string {
 		return DefaultBlobCacheNamespace
 	}
 	return c.BlobCache.Namespace
+}
+
+// BlobCacheTTL returns the configured blob cache TTL string or empty when unset.
+func (c *CostConfig) BlobCacheTTL() string {
+	if c == nil || c.BlobCache == nil {
+		return ""
+	}
+	return c.BlobCache.TTL
 }
