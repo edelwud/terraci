@@ -138,6 +138,28 @@ func ResolveKVCacheProvider(name string) (plugin.KVCacheProvider, error) {
 	return provider, nil
 }
 
+// ResolveBlobStoreProvider returns a named blob store backend provider.
+func ResolveBlobStoreProvider(name string) (plugin.BlobStoreProvider, error) {
+	if name == "" {
+		return nil, errors.New("blob backend name is required")
+	}
+
+	resolved, ok := Get(name)
+	if !ok {
+		return nil, fmt.Errorf("blob backend %q not found", name)
+	}
+
+	provider, ok := resolved.(plugin.BlobStoreProvider)
+	if !ok {
+		return nil, fmt.Errorf("plugin %q does not provide a blob store backend", name)
+	}
+	if !isPluginEnabled(provider) {
+		return nil, fmt.Errorf("blob backend %q is not active", name)
+	}
+
+	return provider, nil
+}
+
 // PreflightsForStartup returns enabled plugins that participate in framework
 // preflight for the current config state.
 func PreflightsForStartup() []plugin.Preflightable {

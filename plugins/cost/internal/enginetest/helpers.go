@@ -14,6 +14,7 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/engine"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
+	"github.com/edelwud/terraci/plugins/diskblob"
 )
 
 // MultiServicePricingServer routes pricing requests by service code.
@@ -52,7 +53,7 @@ func NewTestEstimator(tb testing.TB) *engine.Estimator {
 		Client:  ts.Client(),
 		BaseURL: ts.URL,
 	}
-	return engine.NewEstimator(cacheDir, 0, fetcher)
+	return engine.NewEstimator(diskblob.NewStore(cacheDir), "", 0, fetcher)
 }
 
 // WritePlan writes a plan.json file to the given directory.

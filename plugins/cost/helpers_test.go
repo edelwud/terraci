@@ -10,9 +10,11 @@ import (
 
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
+	"github.com/edelwud/terraci/pkg/plugin/registry"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/engine"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
+	"github.com/edelwud/terraci/plugins/diskblob"
 )
 
 // testPlanEC2 is a minimal plan.json with a single aws_instance.web (t3.micro, create).
@@ -37,6 +39,7 @@ const testPlanEC2 = `{
 // registered in init(), but without touching the global plugin registry.
 func newTestPlugin(t *testing.T) *Plugin {
 	t.Helper()
+	registry.ResetPlugins()
 	p := &Plugin{
 		BasePlugin: plugin.BasePlugin[*model.CostConfig]{
 			PluginName: "cost",
@@ -135,7 +138,7 @@ func newTestEstimator(t *testing.T) *engine.Estimator {
 		Client:  ts.Client(),
 		BaseURL: ts.URL,
 	}
-	return engine.NewEstimator(cacheDir, 0, fetcher)
+	return engine.NewEstimator(diskblob.NewStore(cacheDir), "", 0, fetcher)
 }
 
 // writePlanJSON creates the module directory and writes plan.json into it.

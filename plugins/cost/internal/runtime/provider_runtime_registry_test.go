@@ -12,6 +12,7 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	"github.com/edelwud/terraci/plugins/cost/internal/runtimetest"
+	"github.com/edelwud/terraci/plugins/diskblob"
 )
 
 func TestProviderCatalog_ResolveProviderAndHandler(t *testing.T) {
@@ -68,7 +69,7 @@ func TestProviderRuntimeRegistry_GetIndexAndSourceName(t *testing.T) {
 		map[string]*ProviderRuntime{
 			awskit.ProviderID: {
 				Definition: awsProvider.Definition(),
-				Cache: pricing.NewCache(t.TempDir(), time.Hour, runtimetest.StubFetcher{
+				Cache: pricing.NewCache(diskblob.NewStore(t.TempDir()), "", time.Hour, runtimetest.StubFetcher{
 					FetchRegionIndexFunc: func(_ context.Context, _ pricing.ServiceID, _ string) (*pricing.PriceIndex, error) {
 						return expected, nil
 					},
@@ -119,7 +120,7 @@ func TestPricingPrefetcher_PrefetchPricing(t *testing.T) {
 		map[string]*ProviderRuntime{
 			awskit.ProviderID: {
 				Definition: awsProvider.Definition(),
-				Cache: pricing.NewCache(t.TempDir(), time.Hour, runtimetest.StubFetcher{
+				Cache: pricing.NewCache(diskblob.NewStore(t.TempDir()), "", time.Hour, runtimetest.StubFetcher{
 					FetchRegionIndexFunc: func(_ context.Context, _ pricing.ServiceID, _ string) (*pricing.PriceIndex, error) {
 						fetchCount++
 						return &pricing.PriceIndex{

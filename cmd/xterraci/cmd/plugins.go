@@ -12,6 +12,7 @@ var BuiltinPlugins = map[string]string{
 	"gitlab":     "github.com/edelwud/terraci/plugins/gitlab",
 	"github":     "github.com/edelwud/terraci/plugins/github",
 	"cost":       "github.com/edelwud/terraci/plugins/cost",
+	"diskblob":   "github.com/edelwud/terraci/plugins/diskblob",
 	"policy":     "github.com/edelwud/terraci/plugins/policy",
 	"git":        "github.com/edelwud/terraci/plugins/git",
 	"inmemcache": "github.com/edelwud/terraci/plugins/inmemcache",

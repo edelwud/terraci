@@ -3,6 +3,7 @@ package registry
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"sync"
@@ -72,6 +73,33 @@ func (testKVCache) Set(context.Context, string, string, []byte, time.Duration) e
 }
 func (testKVCache) Delete(context.Context, string, string) error  { return nil }
 func (testKVCache) DeleteNamespace(context.Context, string) error { return nil }
+
+type testBlobStoreProvider struct {
+	testPlugin
+	store plugin.BlobStore
+}
+
+func (p *testBlobStoreProvider) NewBlobStore(context.Context, *plugin.AppContext) (plugin.BlobStore, error) {
+	return p.store, nil
+}
+
+type testBlobStore struct{}
+
+func (testBlobStore) Get(context.Context, string, string) (data []byte, ok bool, meta plugin.BlobMeta, err error) {
+	return nil, false, plugin.BlobMeta{}, nil
+}
+func (testBlobStore) Put(context.Context, string, string, []byte, plugin.PutBlobOptions) (plugin.BlobMeta, error) {
+	return plugin.BlobMeta{}, nil
+}
+func (testBlobStore) Open(context.Context, string, string) (io.ReadCloser, bool, plugin.BlobMeta, error) {
+	return nil, false, plugin.BlobMeta{}, nil
+}
+func (testBlobStore) PutStream(context.Context, string, string, io.Reader, plugin.PutBlobOptions) (plugin.BlobMeta, error) {
+	return plugin.BlobMeta{}, nil
+}
+func (testBlobStore) Delete(context.Context, string, string) error              { return nil }
+func (testBlobStore) DeleteNamespace(context.Context, string) error             { return nil }
+func (testBlobStore) List(context.Context, string) ([]plugin.BlobObject, error) { return nil, nil }
 
 type testConfig struct {
 	Name    string
@@ -206,6 +234,45 @@ func TestResolveKVCacheProvider_WrongCapability(t *testing.T) {
 
 	if _, err := ResolveKVCacheProvider("plain"); err == nil {
 		t.Fatal("expected error when plugin does not implement KV cache capability")
+	}
+}
+
+func TestResolveBlobStoreProvider(t *testing.T) {
+	t.Cleanup(func() { Reset() })
+	Reset()
+
+	provider := &testBlobStoreProvider{
+		testPlugin: testPlugin{name: "blob", desc: "blob backend"},
+		store:      testBlobStore{},
+	}
+	Register(provider)
+
+	got, err := ResolveBlobStoreProvider("blob")
+	if err != nil {
+		t.Fatalf("ResolveBlobStoreProvider() error = %v", err)
+	}
+	if got.Name() != "blob" {
+		t.Fatalf("ResolveBlobStoreProvider() = %q, want %q", got.Name(), "blob")
+	}
+}
+
+func TestResolveBlobStoreProvider_NotFound(t *testing.T) {
+	t.Cleanup(func() { Reset() })
+	Reset()
+
+	if _, err := ResolveBlobStoreProvider("missing"); err == nil {
+		t.Fatal("expected error for missing blob backend")
+	}
+}
+
+func TestResolveBlobStoreProvider_WrongCapability(t *testing.T) {
+	t.Cleanup(func() { Reset() })
+	Reset()
+
+	Register(&testPlugin{name: "plain", desc: "plain plugin"})
+
+	if _, err := ResolveBlobStoreProvider("plain"); err == nil {
+		t.Fatal("expected error when plugin does not implement blob store capability")
 	}
 }
 

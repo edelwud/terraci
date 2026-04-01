@@ -3,13 +3,12 @@ package pricing
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/edelwud/terraci/plugins/diskblob"
 )
 
 var (
@@ -26,13 +25,11 @@ func (s *stubFetcher) FetchRegionIndex(_ context.Context, _ ServiceID, _ string)
 }
 
 func TestNewCache_Defaults(t *testing.T) {
-	c := NewCache("", 0, &stubFetcher{})
+	store := diskblob.NewStore(t.TempDir())
+	c := NewCache(store, "", 0, &stubFetcher{})
 
-	if c.ttl != DefaultCacheTTL {
-		t.Errorf("expected ttl %v, got %v", DefaultCacheTTL, c.ttl)
-	}
-	if !strings.HasSuffix(c.dir, filepath.Join(".terraci", "pricing")) {
-		t.Errorf("expected dir to end with .terraci/pricing, got %s", c.dir)
+	if c.blobs == nil {
+		t.Fatal("expected blob cache to be initialized")
 	}
 	if c.fetcher == nil {
 		t.Error("expected fetcher to be non-nil")
@@ -43,25 +40,10 @@ func TestNewCache_Custom(t *testing.T) {
 	tmpDir := t.TempDir()
 	ttl := 1 * time.Hour
 
-	c := NewCache(tmpDir, ttl, &stubFetcher{})
+	c := NewCache(diskblob.NewStore(tmpDir), "", ttl, &stubFetcher{})
 
-	if c.dir != tmpDir {
-		t.Errorf("expected dir %s, got %s", tmpDir, c.dir)
-	}
-	if c.ttl != ttl {
-		t.Errorf("expected ttl %v, got %v", ttl, c.ttl)
-	}
-}
-
-func TestCachePath(t *testing.T) {
-	cacheDir := filepath.Join(os.TempDir(), "cache")
-	c := &Cache{dir: cacheDir}
-
-	got := c.cachePath(awsServiceEC2, "us-east-1")
-	want := filepath.Join(cacheDir, awsProviderID, "AmazonEC2", "us-east-1.json")
-
-	if got != want {
-		t.Errorf("expected %s, got %s", want, got)
+	if c.ttl() != ttl {
+		t.Errorf("expected ttl %v, got %v", ttl, c.ttl())
 	}
 }
 
@@ -98,7 +80,10 @@ func TestIsValid(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &Cache{ttl: tt.ttl}
+			c := &Cache{}
+			if tt.ttl > 0 {
+				c = NewCache(diskblob.NewStore(t.TempDir()), "", tt.ttl, &stubFetcher{})
+			}
 			got := c.isValid(tt.idx)
 			if got != tt.want {
 				t.Errorf("isValid() = %v, want %v", got, tt.want)
@@ -109,7 +94,7 @@ func TestIsValid(t *testing.T) {
 
 func TestSaveAndLoad(t *testing.T) {
 	tmpDir := t.TempDir()
-	c := &Cache{dir: tmpDir, ttl: DefaultCacheTTL}
+	c := NewCache(diskblob.NewStore(tmpDir), "", DefaultCacheTTL, &stubFetcher{})
 
 	now := time.Now().Truncate(time.Second)
 	idx := &PriceIndex{
@@ -129,11 +114,11 @@ func TestSaveAndLoad(t *testing.T) {
 		Attributes: map[string]string{"format": "test"},
 	}
 
-	if err := c.saveToCache(idx); err != nil {
+	if err := c.saveToCache(context.Background(), idx); err != nil {
 		t.Fatalf("saveToCache() error: %v", err)
 	}
 
-	loaded, err := c.loadFromCache(awsServiceEC2, "us-east-1")
+	loaded, err := c.loadFromCache(context.Background(), awsServiceEC2, "us-east-1")
 	if err != nil {
 		t.Fatalf("loadFromCache() error: %v", err)
 	}
@@ -167,9 +152,9 @@ func TestSaveAndLoad(t *testing.T) {
 
 func TestLoadFromCache_NotFound(t *testing.T) {
 	tmpDir := t.TempDir()
-	c := &Cache{dir: tmpDir, ttl: DefaultCacheTTL}
+	c := NewCache(diskblob.NewStore(tmpDir), "", DefaultCacheTTL, &stubFetcher{})
 
-	_, err := c.loadFromCache(ServiceID{Provider: awsProviderID, Name: "NoSuchService"}, "no-region")
+	_, err := c.loadFromCache(context.Background(), ServiceID{Provider: awsProviderID, Name: "NoSuchService"}, "no-region")
 	if err == nil {
 		t.Error("expected error for non-existent cache file, got nil")
 	}
@@ -177,7 +162,7 @@ func TestLoadFromCache_NotFound(t *testing.T) {
 
 func TestInvalidate(t *testing.T) {
 	tmpDir := t.TempDir()
-	c := &Cache{dir: tmpDir, ttl: DefaultCacheTTL}
+	c := NewCache(diskblob.NewStore(tmpDir), "", DefaultCacheTTL, &stubFetcher{})
 
 	idx := &PriceIndex{
 		ServiceID: awsServiceEC2,
@@ -186,56 +171,23 @@ func TestInvalidate(t *testing.T) {
 		Products:  map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
 	}
 
-	if err := c.saveToCache(idx); err != nil {
+	if err := c.saveToCache(context.Background(), idx); err != nil {
 		t.Fatalf("saveToCache() error: %v", err)
 	}
 
-	if err := c.Invalidate(awsServiceEC2, "us-west-2"); err != nil {
+	if err := c.Invalidate(context.Background(), awsServiceEC2, "us-west-2"); err != nil {
 		t.Fatalf("Invalidate() error: %v", err)
 	}
 
-	_, err := c.loadFromCache(awsServiceEC2, "us-west-2")
+	_, err := c.loadFromCache(context.Background(), awsServiceEC2, "us-west-2")
 	if err == nil {
 		t.Error("expected error after Invalidate, got nil")
 	}
 }
 
-func TestInvalidateAll(t *testing.T) {
-	tmpDir := t.TempDir()
-	c := &Cache{dir: tmpDir, ttl: DefaultCacheTTL}
-
-	services := []struct {
-		code   ServiceID
-		region string
-	}{
-		{awsServiceEC2, "us-east-1"},
-		{awsServiceRDS, "eu-west-1"},
-	}
-
-	for _, s := range services {
-		idx := &PriceIndex{
-			ServiceID: s.code,
-			Region:    s.region,
-			UpdatedAt: time.Now(),
-			Products:  map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
-		}
-		if err := c.saveToCache(idx); err != nil {
-			t.Fatalf("saveToCache(%s, %s) error: %v", s.code, s.region, err)
-		}
-	}
-
-	if err := c.InvalidateAll(); err != nil {
-		t.Fatalf("InvalidateAll() error: %v", err)
-	}
-
-	if _, err := os.Stat(tmpDir); !os.IsNotExist(err) {
-		t.Errorf("expected cache dir to be removed, stat error: %v", err)
-	}
-}
-
 func TestValidate_AllCached(t *testing.T) {
 	tmpDir := t.TempDir()
-	c := &Cache{dir: tmpDir, ttl: DefaultCacheTTL}
+	c := NewCache(diskblob.NewStore(tmpDir), "", DefaultCacheTTL, &stubFetcher{})
 
 	idx := &PriceIndex{
 		ServiceID: awsServiceEC2,
@@ -243,11 +195,11 @@ func TestValidate_AllCached(t *testing.T) {
 		UpdatedAt: time.Now(),
 		Products:  map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
 	}
-	if err := c.saveToCache(idx); err != nil {
+	if err := c.saveToCache(context.Background(), idx); err != nil {
 		t.Fatalf("saveToCache() error: %v", err)
 	}
 
-	missing := c.Validate(map[ServiceID][]string{
+	missing := c.Validate(context.Background(), map[ServiceID][]string{
 		awsServiceEC2: {"us-east-1"},
 	})
 
@@ -258,7 +210,7 @@ func TestValidate_AllCached(t *testing.T) {
 
 func TestValidate_SomeMissing(t *testing.T) {
 	tmpDir := t.TempDir()
-	c := &Cache{dir: tmpDir, ttl: DefaultCacheTTL}
+	c := NewCache(diskblob.NewStore(tmpDir), "", DefaultCacheTTL, &stubFetcher{})
 
 	idx := &PriceIndex{
 		ServiceID: awsServiceEC2,
@@ -266,11 +218,11 @@ func TestValidate_SomeMissing(t *testing.T) {
 		UpdatedAt: time.Now(),
 		Products:  map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
 	}
-	if err := c.saveToCache(idx); err != nil {
+	if err := c.saveToCache(context.Background(), idx); err != nil {
 		t.Fatalf("saveToCache() error: %v", err)
 	}
 
-	missing := c.Validate(map[ServiceID][]string{
+	missing := c.Validate(context.Background(), map[ServiceID][]string{
 		awsServiceEC2: {"us-east-1", "eu-west-1"},
 	})
 
@@ -279,56 +231,6 @@ func TestValidate_SomeMissing(t *testing.T) {
 	}
 	if missing[0].Service != awsServiceEC2 || missing[0].Region != "eu-west-1" {
 		t.Errorf("unexpected missing entry: %+v", missing[0])
-	}
-}
-
-func TestCleanExpired(t *testing.T) {
-	tmpDir := t.TempDir()
-	ttl := 1 * time.Hour
-	c := &Cache{dir: tmpDir, ttl: ttl}
-
-	// Save a fresh index
-	fresh := &PriceIndex{
-		ServiceID: awsServiceEC2,
-		Region:    "us-east-1",
-		UpdatedAt: time.Now(),
-		Products:  map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
-	}
-	if err := c.saveToCache(fresh); err != nil {
-		t.Fatalf("saveToCache(fresh) error: %v", err)
-	}
-
-	// Save an old index
-	old := &PriceIndex{
-		ServiceID: awsServiceRDS,
-		Region:    "eu-west-1",
-		UpdatedAt: time.Now(),
-		Products:  map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
-	}
-	if err := c.saveToCache(old); err != nil {
-		t.Fatalf("saveToCache(old) error: %v", err)
-	}
-
-	// Set old file modification time to 2 hours ago (beyond TTL)
-	oldPath := c.cachePath(awsServiceRDS, "eu-west-1")
-	oldTime := time.Now().Add(-2 * time.Hour)
-	if err := os.Chtimes(oldPath, oldTime, oldTime); err != nil {
-		t.Fatalf("Chtimes() error: %v", err)
-	}
-
-	if err := c.CleanExpired(); err != nil {
-		t.Fatalf("CleanExpired() error: %v", err)
-	}
-
-	// Fresh file should still exist
-	freshPath := c.cachePath(awsServiceEC2, "us-east-1")
-	if _, err := os.Stat(freshPath); err != nil {
-		t.Errorf("expected fresh cache file to exist, got error: %v", err)
-	}
-
-	// Old file should be removed
-	if _, err := os.Stat(oldPath); !os.IsNotExist(err) {
-		t.Errorf("expected old cache file to be removed, stat error: %v", err)
 	}
 }
 
@@ -364,7 +266,7 @@ func newTestFetcher() *fakeFetcher {
 
 func TestGetIndex_CacheHit(t *testing.T) {
 	tmpDir := t.TempDir()
-	c := NewCache(tmpDir, time.Hour, &stubFetcher{})
+	c := NewCache(diskblob.NewStore(tmpDir), "", time.Hour, &stubFetcher{})
 
 	// Pre-populate cache
 	idx := &PriceIndex{
@@ -374,7 +276,7 @@ func TestGetIndex_CacheHit(t *testing.T) {
 		UpdatedAt: time.Now(),
 		Products:  map[string]Price{"SKU1": {SKU: "SKU1", OnDemandUSD: 0.01}},
 	}
-	if err := c.saveToCache(idx); err != nil {
+	if err := c.saveToCache(context.Background(), idx); err != nil {
 		t.Fatalf("saveToCache: %v", err)
 	}
 
@@ -389,7 +291,7 @@ func TestGetIndex_CacheHit(t *testing.T) {
 
 func TestGetIndex_CacheMiss(t *testing.T) {
 	tmpDir := t.TempDir()
-	c := NewCache(tmpDir, time.Hour, newTestFetcher())
+	c := NewCache(diskblob.NewStore(tmpDir), "", time.Hour, newTestFetcher())
 
 	got, err := c.GetIndex(context.Background(), awsServiceEC2, "us-east-1")
 	if err != nil {
@@ -400,7 +302,7 @@ func TestGetIndex_CacheMiss(t *testing.T) {
 	}
 
 	// Verify it was saved to cache
-	loaded, err := c.loadFromCache(awsServiceEC2, "us-east-1")
+	loaded, err := c.loadFromCache(context.Background(), awsServiceEC2, "us-east-1")
 	if err != nil {
 		t.Fatalf("expected cache to be populated: %v", err)
 	}
@@ -412,7 +314,7 @@ func TestGetIndex_CacheMiss(t *testing.T) {
 func TestGetIndex_FetchError(t *testing.T) {
 	tmpDir := t.TempDir()
 	errFetcher := &fakeFetcher{err: fmt.Errorf("network error")}
-	c := NewCache(tmpDir, time.Hour, errFetcher)
+	c := NewCache(diskblob.NewStore(tmpDir), "", time.Hour, errFetcher)
 
 	_, err := c.GetIndex(context.Background(), awsServiceEC2, "us-east-1")
 	if err == nil {
@@ -422,7 +324,7 @@ func TestGetIndex_FetchError(t *testing.T) {
 
 func TestPrewarmCache(t *testing.T) {
 	tmpDir := t.TempDir()
-	c := NewCache(tmpDir, time.Hour, newTestFetcher())
+	c := NewCache(diskblob.NewStore(tmpDir), "", time.Hour, newTestFetcher())
 
 	services := map[ServiceID][]string{
 		awsServiceEC2: {"us-east-1"},
@@ -432,28 +334,14 @@ func TestPrewarmCache(t *testing.T) {
 	}
 
 	// Verify cached
-	_, err := c.loadFromCache(awsServiceEC2, "us-east-1")
+	_, err := c.loadFromCache(context.Background(), awsServiceEC2, "us-east-1")
 	if err != nil {
 		t.Errorf("expected cache to be populated after prewarm: %v", err)
 	}
 }
 
-func TestCache_Accessors(t *testing.T) {
-	tmpDir := t.TempDir()
-	ttl := 2 * time.Hour
-	c := NewCache(tmpDir, ttl, &stubFetcher{})
-
-	t.Run("Dir", func(t *testing.T) {
-		if c.Dir() != tmpDir {
-			t.Errorf("Dir() = %q, want %q", c.Dir(), tmpDir)
-		}
-	})
-
-	t.Run("TTL", func(t *testing.T) {
-		if c.TTL() != ttl {
-			t.Errorf("TTL() = %v, want %v", c.TTL(), ttl)
-		}
-	})
+func TestCache_SetFetcher(t *testing.T) {
+	c := NewCache(diskblob.NewStore(t.TempDir()), "", 2*time.Hour, &stubFetcher{})
 
 	t.Run("SetFetcher", func(t *testing.T) {
 		f := &stubFetcher{}
@@ -462,52 +350,12 @@ func TestCache_Accessors(t *testing.T) {
 			t.Error("SetFetcher did not set fetcher")
 		}
 	})
-
-	t.Run("OldestAge empty", func(t *testing.T) {
-		if c.OldestAge() != 0 {
-			t.Errorf("OldestAge() = %v, want 0 for empty cache", c.OldestAge())
-		}
-	})
-
-	t.Run("Entries empty", func(t *testing.T) {
-		entries := c.Entries()
-		if len(entries) != 0 {
-			t.Errorf("Entries() len = %d, want 0", len(entries))
-		}
-	})
-
-	t.Run("Entries with data", func(t *testing.T) {
-		idx := &PriceIndex{
-			ServiceID: awsServiceEC2,
-			Region:    "us-east-1",
-			UpdatedAt: time.Now(),
-			Products:  map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
-		}
-		if err := c.saveToCache(idx); err != nil {
-			t.Fatalf("saveToCache: %v", err)
-		}
-
-		entries := c.Entries()
-		if len(entries) != 1 {
-			t.Fatalf("Entries() len = %d, want 1", len(entries))
-		}
-		if entries[0].Service != awsServiceEC2 {
-			t.Errorf("entry service = %q, want %q", entries[0].Service, awsServiceEC2)
-		}
-	})
-
-	t.Run("OldestAge with data", func(t *testing.T) {
-		age := c.OldestAge()
-		if age <= 0 {
-			t.Errorf("OldestAge() = %v, want > 0 with cached data", age)
-		}
-	})
 }
 
 func TestPrewarmCache_Error(t *testing.T) {
 	tmpDir := t.TempDir()
 	errFetcher := &fakeFetcher{err: fmt.Errorf("network error")}
-	c := NewCache(tmpDir, time.Hour, errFetcher)
+	c := NewCache(diskblob.NewStore(tmpDir), "", time.Hour, errFetcher)
 
 	err := c.PrewarmCache(context.Background(), map[ServiceID][]string{
 		awsServiceEC2: {"us-east-1"},
@@ -520,7 +368,7 @@ func TestPrewarmCache_Error(t *testing.T) {
 func TestGetIndex_StaleFallback(t *testing.T) {
 	tmpDir := t.TempDir()
 	ttl := 1 * time.Hour
-	c := NewCache(tmpDir, ttl, &stubFetcher{})
+	c := NewCache(diskblob.NewStore(tmpDir), "", ttl, &stubFetcher{})
 
 	// Save a valid index to cache
 	idx := &PriceIndex{
@@ -530,15 +378,13 @@ func TestGetIndex_StaleFallback(t *testing.T) {
 		UpdatedAt: time.Now(),
 		Products:  map[string]Price{"SKU1": {SKU: "SKU1", OnDemandUSD: 0.01}},
 	}
-	if err := c.saveToCache(idx); err != nil {
+	if err := c.saveToCache(context.Background(), idx); err != nil {
 		t.Fatalf("saveToCache: %v", err)
 	}
 
-	// Age the cache file beyond TTL
-	cachePath := c.cachePath(awsServiceEC2, "us-east-1")
-	oldTime := time.Now().Add(-2 * time.Hour)
-	if err := os.Chtimes(cachePath, oldTime, oldTime); err != nil {
-		t.Fatalf("Chtimes: %v", err)
+	idx.UpdatedAt = time.Now().Add(-2 * time.Hour)
+	if err := c.saveToCache(context.Background(), idx); err != nil {
+		t.Fatalf("saveToCache stale: %v", err)
 	}
 
 	// Replace fetcher with one that fails — should fall back to stale cache
@@ -559,7 +405,7 @@ func TestGetIndex_ConcurrentAccess(t *testing.T) {
 	fetcher := &fakeFetcher{
 		index: newTestFetcher().index,
 	}
-	c := NewCache(tmpDir, time.Hour, PriceFetcherFunc(func(ctx context.Context, service ServiceID, region string) (*PriceIndex, error) {
+	c := NewCache(diskblob.NewStore(tmpDir), "", time.Hour, PriceFetcherFunc(func(ctx context.Context, service ServiceID, region string) (*PriceIndex, error) {
 		fetchCount.Add(1)
 		time.Sleep(10 * time.Millisecond)
 		return fetcher.FetchRegionIndex(ctx, service, region)
@@ -586,11 +432,6 @@ func TestGetIndex_ConcurrentAccess(t *testing.T) {
 		}
 	}
 
-	// Verify cache has exactly one entry
-	entries := c.Entries()
-	if len(entries) != 1 {
-		t.Errorf("entries = %d, want 1 after concurrent access", len(entries))
-	}
 	if got := fetchCount.Load(); got != 1 {
 		t.Errorf("fetchCount = %d, want 1 for deduplicated concurrent access", got)
 	}
@@ -599,7 +440,7 @@ func TestGetIndex_ConcurrentAccess(t *testing.T) {
 func TestGetIndex_ConcurrentDifferentKeysFetchIndependently(t *testing.T) {
 	tmpDir := t.TempDir()
 	var fetchCount atomic.Int32
-	c := NewCache(tmpDir, time.Hour, PriceFetcherFunc(func(_ context.Context, service ServiceID, region string) (*PriceIndex, error) {
+	c := NewCache(diskblob.NewStore(tmpDir), "", time.Hour, PriceFetcherFunc(func(_ context.Context, service ServiceID, region string) (*PriceIndex, error) {
 		fetchCount.Add(1)
 		return &PriceIndex{
 			ServiceID: service,
@@ -643,30 +484,11 @@ func (f PriceFetcherFunc) FetchRegionIndex(ctx context.Context, service ServiceI
 func TestGetIndex_FetchError_NoStaleCache(t *testing.T) {
 	tmpDir := t.TempDir()
 	errFetcher := &fakeFetcher{err: fmt.Errorf("network error")}
-	c := NewCache(tmpDir, time.Hour, errFetcher)
+	c := NewCache(diskblob.NewStore(tmpDir), "", time.Hour, errFetcher)
 
 	// No pre-populated cache, fetch fails — should return error
 	_, err := c.GetIndex(context.Background(), awsServiceEC2, "us-east-1")
 	if err == nil {
 		t.Error("expected error when fetch fails and no stale cache exists")
-	}
-}
-
-func TestCleanExpired_EmptyDir(t *testing.T) {
-	tmpDir := t.TempDir()
-	c := &Cache{dir: tmpDir, ttl: time.Hour}
-
-	// Should not error on empty directory
-	if err := c.CleanExpired(); err != nil {
-		t.Errorf("CleanExpired on empty dir: %v", err)
-	}
-}
-
-func TestCleanExpired_NonexistentDir(t *testing.T) {
-	c := &Cache{dir: filepath.Join(t.TempDir(), "nonexistent"), ttl: time.Hour}
-
-	// Should not error on nonexistent directory
-	if err := c.CleanExpired(); err != nil {
-		t.Errorf("CleanExpired on nonexistent dir: %v", err)
 	}
 }

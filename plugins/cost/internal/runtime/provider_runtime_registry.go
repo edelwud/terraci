@@ -7,6 +7,8 @@ import (
 
 	"github.com/caarlos0/log"
 
+	"github.com/edelwud/terraci/pkg/cache/blobcache"
+	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
@@ -15,6 +17,8 @@ import (
 // ProviderRuntimeRegistry is the pricing/cache runtime surface used by estimation components.
 type ProviderRuntimeRegistry struct {
 	runtimes map[string]*ProviderRuntime
+	cache    *blobcache.Cache
+	inspect  *pricing.CacheInspector
 }
 
 // ProviderRuntime groups the provider registry entry with its pricing cache.
@@ -31,8 +35,27 @@ func NewProviderRuntimeRegistry(runtimes map[string]*ProviderRuntime) *ProviderR
 // NewProviderRuntimeRegistryFromProviders creates a runtime registry directly from provider definitions.
 func NewProviderRuntimeRegistryFromProviders(
 	providers []cloud.Provider,
-	cacheDir string,
+	store plugin.BlobStore,
+	cacheNamespace string,
 	cacheTTL time.Duration,
+	fetcher pricing.PriceFetcher,
+) *ProviderRuntimeRegistry {
+	if cacheTTL == 0 {
+		cacheTTL = pricing.DefaultCacheTTL
+	}
+
+	return NewProviderRuntimeRegistryFromProvidersWithBlobCache(
+		providers,
+		blobcache.New(store, cacheNamespace, cacheTTL),
+		fetcher,
+	)
+}
+
+// NewProviderRuntimeRegistryFromProvidersWithBlobCache creates a runtime registry from provider
+// definitions over a prepared blob cache.
+func NewProviderRuntimeRegistryFromProvidersWithBlobCache(
+	providers []cloud.Provider,
+	cache *blobcache.Cache,
 	fetcher pricing.PriceFetcher,
 ) *ProviderRuntimeRegistry {
 	runtimes := make(map[string]*ProviderRuntime, len(providers))
@@ -44,10 +67,14 @@ func NewProviderRuntimeRegistryFromProviders(
 		}
 		runtimes[def.Manifest.ID] = &ProviderRuntime{
 			Definition: def,
-			Cache:      pricing.NewCache(cacheDir, cacheTTL, runtimeFetcher),
+			Cache:      pricing.NewCacheFromBlobCache(cache, runtimeFetcher),
 		}
 	}
-	return NewProviderRuntimeRegistry(runtimes)
+	return &ProviderRuntimeRegistry{
+		runtimes: runtimes,
+		cache:    cache,
+		inspect:  pricing.NewCacheInspector(cache),
+	}
 }
 
 func (r *ProviderRuntimeRegistry) getRuntime(providerID string) (*ProviderRuntime, bool) {
@@ -75,10 +102,10 @@ func (r *ProviderRuntimeRegistry) SourceName(providerID string) string {
 
 // CacheDir returns the resolved pricing cache directory path.
 func (r *ProviderRuntimeRegistry) CacheDir() string {
-	for _, runtime := range r.runtimes {
-		return runtime.Cache.Dir()
+	if r.inspect == nil {
+		return ""
 	}
-	return ""
+	return r.inspect.Dir()
 }
 
 // SetPricingFetcher replaces the pricing fetcher.
@@ -95,39 +122,35 @@ func (r *ProviderRuntimeRegistry) SetPricingFetcher(f pricing.PriceFetcher) {
 }
 
 // CacheOldestAge returns the age of the oldest cache entry, or 0 if empty.
-func (r *ProviderRuntimeRegistry) CacheOldestAge() time.Duration {
-	oldest := time.Duration(0)
-	for _, runtime := range r.runtimes {
-		age := runtime.Cache.OldestAge()
-		if oldest == 0 || (age != 0 && age > oldest) {
-			oldest = age
-		}
+func (r *ProviderRuntimeRegistry) CacheOldestAge(ctx context.Context) time.Duration {
+	if r.inspect == nil {
+		return 0
 	}
-	return oldest
+	return r.inspect.OldestAge(ctx)
 }
 
 // CacheTTL returns the cache TTL.
 func (r *ProviderRuntimeRegistry) CacheTTL() time.Duration {
-	for _, runtime := range r.runtimes {
-		return runtime.Cache.TTL()
+	if r.inspect == nil {
+		return 0
 	}
-	return 0
+	return r.inspect.TTL()
 }
 
 // CleanExpiredCache removes expired cache entries.
-func (r *ProviderRuntimeRegistry) CleanExpiredCache() {
-	for providerID, runtime := range r.runtimes {
-		if err := runtime.Cache.CleanExpired(); err != nil {
-			log.WithError(err).WithField("provider", providerID).Debug("failed to clean expired cache")
-		}
+func (r *ProviderRuntimeRegistry) CleanExpiredCache(ctx context.Context) {
+	if r.cache == nil {
+		return
+	}
+	if err := r.cache.CleanExpired(ctx); err != nil {
+		log.WithError(err).Debug("failed to clean expired cache")
 	}
 }
 
 // CacheEntries returns info about all cached pricing files.
-func (r *ProviderRuntimeRegistry) CacheEntries() []pricing.CacheEntry {
-	var entries []pricing.CacheEntry
-	for _, runtime := range r.runtimes {
-		entries = append(entries, runtime.Cache.Entries()...)
+func (r *ProviderRuntimeRegistry) CacheEntries(ctx context.Context) []pricing.CacheEntry {
+	if r.inspect == nil {
+		return nil
 	}
-	return entries
+	return r.inspect.Entries(ctx)
 }

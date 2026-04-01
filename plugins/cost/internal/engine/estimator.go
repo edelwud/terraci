@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/edelwud/terraci/pkg/cache/blobcache"
+	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
@@ -22,12 +24,21 @@ type Estimator struct {
 	prefetch *costruntime.PricingPrefetcher
 }
 
-// NewEstimator creates a new cost estimator with the given pricing fetcher.
-func NewEstimator(cacheDir string, cacheTTL time.Duration, fetcher pricing.PriceFetcher) *Estimator {
+// NewEstimator creates a new cost estimator with the given blob store and pricing fetcher.
+func NewEstimator(store plugin.BlobStore, cacheNamespace string, cacheTTL time.Duration, fetcher pricing.PriceFetcher) *Estimator {
+	if cacheTTL == 0 {
+		cacheTTL = pricing.DefaultCacheTTL
+	}
+
+	return NewEstimatorWithBlobCache(blobcache.New(store, cacheNamespace, cacheTTL), fetcher)
+}
+
+// NewEstimatorWithBlobCache creates a new cost estimator over a prepared blob cache.
+func NewEstimatorWithBlobCache(cache *blobcache.Cache, fetcher pricing.PriceFetcher) *Estimator {
 	providers := cloud.Providers()
 	registry := newDefaultRegistry(providers)
 	catalog := costruntime.NewProviderCatalogFromProviders(providers, registry)
-	runtimeRegistry := costruntime.NewProviderRuntimeRegistryFromProviders(providers, cacheDir, cacheTTL, fetcher)
+	runtimeRegistry := costruntime.NewProviderRuntimeRegistryFromProvidersWithBlobCache(providers, cache, fetcher)
 	return NewEstimatorWithCatalogAndRuntimeRegistry(catalog, runtimeRegistry)
 }
 
@@ -77,16 +88,20 @@ func (e *Estimator) CacheDir() string { return e.runtimes.CacheDir() }
 func (e *Estimator) SetPricingFetcher(f pricing.PriceFetcher) { e.runtimes.SetPricingFetcher(f) }
 
 // CacheOldestAge returns the age of the oldest cache entry, or 0 if empty.
-func (e *Estimator) CacheOldestAge() time.Duration { return e.runtimes.CacheOldestAge() }
+func (e *Estimator) CacheOldestAge(ctx context.Context) time.Duration {
+	return e.runtimes.CacheOldestAge(ctx)
+}
 
 // CacheTTL returns the cache TTL.
 func (e *Estimator) CacheTTL() time.Duration { return e.runtimes.CacheTTL() }
 
 // CleanExpiredCache removes expired cache entries.
-func (e *Estimator) CleanExpiredCache() { e.runtimes.CleanExpiredCache() }
+func (e *Estimator) CleanExpiredCache(ctx context.Context) { e.runtimes.CleanExpiredCache(ctx) }
 
 // CacheEntries returns info about all cached pricing files.
-func (e *Estimator) CacheEntries() []pricing.CacheEntry { return e.runtimes.CacheEntries() }
+func (e *Estimator) CacheEntries(ctx context.Context) []pricing.CacheEntry {
+	return e.runtimes.CacheEntries(ctx)
+}
 
 // Resolver returns the underlying CostResolver for middleware registration.
 func (e *Estimator) Resolver() *costruntime.CostResolver { return e.resolver }

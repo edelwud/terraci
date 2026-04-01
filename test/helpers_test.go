@@ -14,6 +14,7 @@ import (
 
 	// Register all built-in plugins via init()
 	_ "github.com/edelwud/terraci/plugins/cost"
+	_ "github.com/edelwud/terraci/plugins/diskblob"
 	_ "github.com/edelwud/terraci/plugins/git"
 	_ "github.com/edelwud/terraci/plugins/github"
 	_ "github.com/edelwud/terraci/plugins/gitlab"

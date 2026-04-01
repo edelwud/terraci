@@ -55,7 +55,7 @@ func TestPlugin_Commands_RunE_NotConfigured(t *testing.T) {
 
 func TestPlugin_RunEstimation_NoPlanFiles(t *testing.T) {
 	p := newTestPlugin(t)
-	enablePlugin(t, p, &model.CostConfig{Enabled: true, CacheDir: t.TempDir()})
+	enablePlugin(t, p, &model.CostConfig{Enabled: true})
 
 	workDir := t.TempDir()
 	appCtx := newTestAppContext(t, workDir)
@@ -95,8 +95,7 @@ func TestPlugin_RunEstimation_Success(t *testing.T) {
 	p := newTestPlugin(t)
 
 	enablePlugin(t, p, &model.CostConfig{
-		Enabled:  true,
-		CacheDir: t.TempDir(),
+		Enabled: true,
 	})
 
 	workDir := t.TempDir()
@@ -135,8 +134,7 @@ func TestPlugin_RunEstimation_ModuleFilter(t *testing.T) {
 	p := newTestPlugin(t)
 
 	enablePlugin(t, p, &model.CostConfig{
-		Enabled:  true,
-		CacheDir: t.TempDir(),
+		Enabled: true,
 	})
 
 	workDir := t.TempDir()

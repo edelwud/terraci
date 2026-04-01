@@ -27,6 +27,9 @@ func TestBuiltInPluginContractMatrix(t *testing.T) {
 			runtime:      true,
 			pipeline:     true,
 		},
+		"diskblob": {
+			configLoader: true,
+		},
 		"git": {
 			preflight: true,
 		},

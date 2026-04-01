@@ -16,6 +16,7 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	costruntime "github.com/edelwud/terraci/plugins/cost/internal/runtime"
+	"github.com/edelwud/terraci/plugins/diskblob"
 )
 
 // planReplaceEC2 replaces a t3.micro instance.
@@ -188,7 +189,7 @@ func TestEstimateModule_KnownProviderMissingHandler(t *testing.T) {
 	runtimes := map[string]*costruntime.ProviderRuntime{
 		awskit.ProviderID: {
 			Definition: def,
-			Cache:      pricing.NewCache(cacheDir, 0, fetcher),
+			Cache:      pricing.NewCache(diskblob.NewStore(cacheDir), "", 0, fetcher),
 		},
 	}
 	catalog := costruntime.NewProviderCatalog(router, registry, map[string]model.ProviderMetadata{
@@ -488,7 +489,7 @@ func TestValidateAndPrefetch_DownloadsMissing(t *testing.T) {
 	}
 
 	// After prefetch, cache should have EC2 pricing
-	entries := e.CacheEntries()
+	entries := e.CacheEntries(context.Background())
 	if len(entries) == 0 {
 		t.Error("cache should have entries after prefetch")
 	}
@@ -506,7 +507,7 @@ func TestValidateAndPrefetch_SkipsUsageBased(t *testing.T) {
 	}
 
 	// Usage-based resources should not trigger any downloads
-	entries := e.CacheEntries()
+	entries := e.CacheEntries(context.Background())
 	if len(entries) != 0 {
 		t.Errorf("cache entries = %d, want 0 (no standard resources to fetch)", len(entries))
 	}
@@ -531,7 +532,7 @@ func TestValidateAndPrefetch_SkipsCachedData(t *testing.T) {
 }
 
 func TestNewEstimator(t *testing.T) {
-	e := engine.NewEstimator("", 0, awskit.NewFetcher())
+	e := engine.NewEstimator(diskblob.NewStore(t.TempDir()), "", 0, awskit.NewFetcher())
 	if e == nil {
 		t.Fatal("NewEstimator returned nil")
 	}
@@ -539,7 +540,7 @@ func TestNewEstimator(t *testing.T) {
 
 func TestNewEstimatorFromConfig(t *testing.T) {
 	t.Run("nil config", func(t *testing.T) {
-		e, err := engine.NewEstimatorFromConfig(nil)
+		e, err := engine.NewEstimatorFromConfig(nil, diskblob.NewStore(t.TempDir()))
 		if err != nil {
 			t.Fatalf("NewEstimatorFromConfig() error = %v", err)
 		}
@@ -551,13 +552,12 @@ func TestNewEstimatorFromConfig(t *testing.T) {
 	t.Run("custom cache dir and TTL", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		cfg := &model.CostConfig{
-			CacheDir: tmpDir,
 			CacheTTL: "2h",
 			Providers: model.CostProvidersConfig{
 				AWS: &model.ProviderConfig{Enabled: true},
 			},
 		}
-		e, err := engine.NewEstimatorFromConfig(cfg)
+		e, err := engine.NewEstimatorFromConfig(cfg, diskblob.NewStore(tmpDir))
 		if err != nil {
 			t.Fatalf("NewEstimatorFromConfig() error = %v", err)
 		}
@@ -576,7 +576,7 @@ func TestNewEstimatorFromConfig(t *testing.T) {
 				AWS: &model.ProviderConfig{Enabled: true},
 			},
 		}
-		e, err := engine.NewEstimatorFromConfig(cfg)
+		e, err := engine.NewEstimatorFromConfig(cfg, diskblob.NewStore(t.TempDir()))
 		if err != nil {
 			t.Fatalf("NewEstimatorFromConfig() error = %v", err)
 		}
@@ -588,7 +588,7 @@ func TestNewEstimatorFromConfig(t *testing.T) {
 
 func TestEstimator_CacheAccessors(t *testing.T) {
 	cacheDir := t.TempDir()
-	e := engine.NewEstimator(cacheDir, 0, awskit.NewFetcher())
+	e := engine.NewEstimator(diskblob.NewStore(cacheDir), "", 0, awskit.NewFetcher())
 
 	if e.CacheDir() != cacheDir {
 		t.Errorf("CacheDir() = %q, want %q", e.CacheDir(), cacheDir)
@@ -596,13 +596,13 @@ func TestEstimator_CacheAccessors(t *testing.T) {
 	if e.CacheTTL() <= 0 {
 		t.Errorf("CacheTTL() = %v, want > 0", e.CacheTTL())
 	}
-	if e.CacheOldestAge() != 0 {
-		t.Errorf("CacheOldestAge() = %v, want 0 for empty cache", e.CacheOldestAge())
+	if e.CacheOldestAge(context.Background()) != 0 {
+		t.Errorf("CacheOldestAge() = %v, want 0 for empty cache", e.CacheOldestAge(context.Background()))
 	}
-	if len(e.CacheEntries()) != 0 {
-		t.Errorf("CacheEntries() len = %d, want 0", len(e.CacheEntries()))
+	if len(e.CacheEntries(context.Background())) != 0 {
+		t.Errorf("CacheEntries() len = %d, want 0", len(e.CacheEntries(context.Background())))
 	}
-	e.CleanExpiredCache() // should not panic
+	e.CleanExpiredCache(context.Background()) // should not panic
 }
 
 func TestAggregateCost(t *testing.T) {

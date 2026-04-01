@@ -12,8 +12,8 @@ import (
 
 func TestPluginRegistration(t *testing.T) {
 	all := registry.All()
-	if len(all) != 8 {
-		t.Fatalf("expected 8 plugins, got %d", len(all))
+	if len(all) != 9 {
+		t.Fatalf("expected 9 plugins, got %d", len(all))
 	}
 
 	names := make(map[string]bool)
@@ -27,7 +27,7 @@ func TestPluginRegistration(t *testing.T) {
 		names[p.Name()] = true
 	}
 
-	expected := []string{"cost", "git", "github", "gitlab", "inmemcache", "policy", "summary", "update"}
+	expected := []string{"cost", "diskblob", "git", "github", "gitlab", "inmemcache", "policy", "summary", "update"}
 	for _, name := range expected {
 		if !names[name] {
 			t.Errorf("missing plugin: %s", name)
@@ -55,7 +55,7 @@ func TestPluginCapabilities(t *testing.T) {
 	}
 
 	// Verify specific expected config keys
-	for _, expectedKey := range []string{"gitlab", "github", "cost", "inmemcache", "policy"} {
+	for _, expectedKey := range []string{"gitlab", "github", "cost", "diskblob", "inmemcache", "policy"} {
 		if !configKeys[expectedKey] {
 			t.Errorf("missing expected ConfigKey: %s", expectedKey)
 		}

@@ -1,0 +1,251 @@
+package fsstore
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/edelwud/terraci/pkg/plugin"
+)
+
+// StoreDeps groups the internal store dependencies for explicit assembly.
+type StoreDeps struct {
+	Layout   PathLayout
+	Metadata MetadataCodec
+	Writer   ObjectWriter
+}
+
+// Store is a filesystem-backed blob store implementation.
+type Store struct {
+	layout   PathLayout
+	metadata MetadataCodec
+	writer   ObjectWriter
+}
+
+// New constructs a filesystem-backed blob store rooted at rootDir.
+func New(rootDir string) *Store {
+	layout := NewNestedPathLayout(rootDir)
+	metadata := FileMetadataCodec{}
+	return NewWithDeps(StoreDeps{
+		Layout:   layout,
+		Metadata: metadata,
+		Writer:   NewFileObjectWriter(metadata, realClock{}),
+	})
+}
+
+// NewWithDeps constructs a store from explicit internal dependencies.
+func NewWithDeps(deps StoreDeps) *Store {
+	return &Store{
+		layout:   deps.Layout,
+		metadata: deps.Metadata,
+		writer:   deps.Writer,
+	}
+}
+
+// BlobStoreRootDir returns the root directory used for blob storage.
+func (s *Store) BlobStoreRootDir() string {
+	return s.layout.RootDir()
+}
+
+// DescribeBlobStore returns backend diagnostics for disk-backed blob storage.
+func (s *Store) DescribeBlobStore() plugin.BlobStoreInfo {
+	return plugin.BlobStoreInfo{
+		Backend:                 "diskblob",
+		Root:                    s.layout.RootDir(),
+		SupportsList:            true,
+		SupportsStream:          true,
+		SupportsDeleteNamespace: true,
+	}
+}
+
+// CheckBlobStore verifies that the configured root looks usable.
+func (s *Store) CheckBlobStore(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("diskblob: health check failed: %w", err)
+	}
+	if err := ValidateRootDir(s.layout.RootDir()); err != nil {
+		return fmt.Errorf("diskblob: health check failed: %w", err)
+	}
+
+	rootDir := s.layout.RootDir()
+	if info, err := os.Stat(rootDir); err == nil && info.IsDir() {
+		if _, err := os.ReadDir(rootDir); err != nil {
+			return fmt.Errorf("diskblob: health check failed: read root_dir: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// Get loads a blob fully into memory.
+func (s *Store) Get(_ context.Context, namespace, key string) (data []byte, ok bool, meta plugin.BlobMeta, err error) {
+	var paths ObjectPaths
+	paths, err = s.resolveObject(namespace, key)
+	if err != nil {
+		return nil, false, plugin.BlobMeta{}, fmt.Errorf("diskblob: resolve blob path: %w", err)
+	}
+
+	data, err = os.ReadFile(paths.DataPath)
+	if os.IsNotExist(err) {
+		return nil, false, plugin.BlobMeta{}, nil
+	}
+	if err != nil {
+		return nil, false, plugin.BlobMeta{}, fmt.Errorf("diskblob: read blob: %w", err)
+	}
+
+	meta, err = s.metadata.Read(paths.MetaPath)
+	if err != nil {
+		return nil, false, plugin.BlobMeta{}, fmt.Errorf("diskblob: read blob metadata: %w", err)
+	}
+
+	return data, true, meta, nil
+}
+
+// Put stores a byte slice as a blob.
+func (s *Store) Put(ctx context.Context, namespace, key string, value []byte, opts plugin.PutBlobOptions) (plugin.BlobMeta, error) {
+	return s.PutStream(ctx, namespace, key, bytes.NewReader(value), opts)
+}
+
+// Open opens a streaming reader for a blob.
+func (s *Store) Open(_ context.Context, namespace, key string) (io.ReadCloser, bool, plugin.BlobMeta, error) {
+	paths, err := s.resolveObject(namespace, key)
+	if err != nil {
+		return nil, false, plugin.BlobMeta{}, fmt.Errorf("diskblob: resolve blob path: %w", err)
+	}
+
+	file, err := os.Open(paths.DataPath)
+	if os.IsNotExist(err) {
+		return nil, false, plugin.BlobMeta{}, nil
+	}
+	if err != nil {
+		return nil, false, plugin.BlobMeta{}, fmt.Errorf("diskblob: open blob: %w", err)
+	}
+
+	meta, err := s.metadata.Read(paths.MetaPath)
+	if err != nil {
+		_ = file.Close()
+		return nil, false, plugin.BlobMeta{}, fmt.Errorf("diskblob: read blob metadata: %w", err)
+	}
+
+	return file, true, meta, nil
+}
+
+// PutStream stores a streamed blob and metadata.
+func (s *Store) PutStream(ctx context.Context, namespace, key string, r io.Reader, opts plugin.PutBlobOptions) (plugin.BlobMeta, error) {
+	paths, err := s.resolveObject(namespace, key)
+	if err != nil {
+		return plugin.BlobMeta{}, fmt.Errorf("diskblob: resolve blob path: %w", err)
+	}
+
+	meta, err := s.writer.Write(ctx, paths, r, opts)
+	if err != nil {
+		return plugin.BlobMeta{}, fmt.Errorf("diskblob: write blob data: %w", err)
+	}
+
+	return meta, nil
+}
+
+// Delete removes a single blob and its metadata sidecar.
+func (s *Store) Delete(_ context.Context, namespace, key string) error {
+	paths, err := s.resolveObject(namespace, key)
+	if err != nil {
+		return fmt.Errorf("diskblob: resolve blob path: %w", err)
+	}
+
+	if err := os.Remove(paths.DataPath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("diskblob: delete blob data: %w", err)
+	}
+	if err := os.Remove(paths.MetaPath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("diskblob: delete blob metadata: %w", err)
+	}
+
+	return nil
+}
+
+// DeleteNamespace removes all blobs in a namespace.
+func (s *Store) DeleteNamespace(_ context.Context, namespace string) error {
+	ns, err := parseNamespaceBoundary(namespace)
+	if err != nil {
+		return fmt.Errorf("diskblob: resolve namespace path: %w", err)
+	}
+
+	namespacePath, err := s.layout.ResolveNamespace(ns)
+	if err != nil {
+		return fmt.Errorf("diskblob: resolve namespace path: %w", err)
+	}
+
+	if err := os.RemoveAll(namespacePath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("diskblob: delete namespace: %w", err)
+	}
+
+	return nil
+}
+
+// List returns all blobs stored under a namespace.
+func (s *Store) List(_ context.Context, namespace string) ([]plugin.BlobObject, error) {
+	ns, err := parseNamespaceBoundary(namespace)
+	if err != nil {
+		return nil, fmt.Errorf("diskblob: resolve namespace path: %w", err)
+	}
+
+	namespacePath, err := s.layout.ResolveNamespace(ns)
+	if err != nil {
+		return nil, fmt.Errorf("diskblob: resolve namespace path: %w", err)
+	}
+
+	var out []plugin.BlobObject
+	err = filepath.WalkDir(namespacePath, func(current string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			if os.IsNotExist(walkErr) {
+				return nil
+			}
+			return fmt.Errorf("walk namespace: %w", walkErr)
+		}
+		if entry.IsDir() || strings.HasSuffix(current, metadataSuffix) {
+			return nil
+		}
+
+		key, decodeErr := s.layout.DecodeListedObject(ns, current)
+		if decodeErr != nil {
+			return fmt.Errorf("decode listed object: %w", decodeErr)
+		}
+
+		meta, readErr := s.metadata.Read(current + metadataSuffix)
+		if readErr != nil {
+			return fmt.Errorf("read blob metadata: %w", readErr)
+		}
+
+		out = append(out, plugin.BlobObject{
+			Key:  key.Value(),
+			Meta: meta,
+		})
+		return nil
+	})
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("diskblob: list namespace: %w", err)
+	}
+
+	return out, nil
+}
+
+func (s *Store) resolveObject(namespace, key string) (ObjectPaths, error) {
+	ns, err := parseNamespaceBoundary(namespace)
+	if err != nil {
+		return ObjectPaths{}, err
+	}
+
+	blobKey, err := ParseBlobKey(key)
+	if err != nil {
+		return ObjectPaths{}, err
+	}
+
+	return s.layout.Resolve(ns, blobKey)
+}

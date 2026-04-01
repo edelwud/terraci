@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/edelwud/terraci/pkg/cache/blobcache"
+	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
@@ -47,13 +49,13 @@ func newProviderCatalog(providers []cloud.Provider, registry *handler.Registry) 
 	return costruntime.NewProviderCatalogFromProviders(providers, registry)
 }
 
-func newProviderRuntimeRegistry(cfg *model.CostConfig, providers []cloud.Provider) *costruntime.ProviderRuntimeRegistry {
-	cacheDir, cacheTTL := parseCacheConfig(cfg)
-	return costruntime.NewProviderRuntimeRegistryFromProviders(providers, cacheDir, cacheTTL, nil)
+// NewEstimatorFromConfig creates an Estimator using CostConfig settings and the resolved blob store.
+func NewEstimatorFromConfig(cfg *model.CostConfig, store plugin.BlobStore) (*Estimator, error) {
+	return NewEstimatorFromConfigWithBlobCache(cfg, blobcache.New(store, cfg.BlobCacheNamespace(), CacheTTLFromConfig(cfg)))
 }
 
-// NewEstimatorFromConfig creates an Estimator using CostConfig settings.
-func NewEstimatorFromConfig(cfg *model.CostConfig) (*Estimator, error) {
+// NewEstimatorFromConfigWithBlobCache creates an Estimator using CostConfig settings and a prepared blob cache.
+func NewEstimatorFromConfigWithBlobCache(cfg *model.CostConfig, cache *blobcache.Cache) (*Estimator, error) {
 	providers, err := configuredProviders(cfg)
 	if err != nil {
 		return nil, err
@@ -61,28 +63,30 @@ func NewEstimatorFromConfig(cfg *model.CostConfig) (*Estimator, error) {
 
 	registry := newDefaultRegistry(providers)
 	catalog := newProviderCatalog(providers, registry)
-	runtimeRegistry := newProviderRuntimeRegistry(cfg, providers)
+	runtimeRegistry := costruntime.NewProviderRuntimeRegistryFromProvidersWithBlobCache(providers, cache, nil)
 	return NewEstimatorWithCatalogAndRuntimeRegistry(catalog, runtimeRegistry), nil
 }
 
 // NewEstimatorFromConfigWithProvider creates an Estimator for a specific cloud provider.
-func NewEstimatorFromConfigWithProvider(cfg *model.CostConfig, cp cloud.Provider) *Estimator {
+func NewEstimatorFromConfigWithProvider(cfg *model.CostConfig, cp cloud.Provider, store plugin.BlobStore) *Estimator {
+	return NewEstimatorFromConfigWithProviderAndBlobCache(cp, blobcache.New(store, cfg.BlobCacheNamespace(), CacheTTLFromConfig(cfg)))
+}
+
+// NewEstimatorFromConfigWithProviderAndBlobCache creates an Estimator for a specific cloud provider
+// over a prepared blob cache.
+func NewEstimatorFromConfigWithProviderAndBlobCache(cp cloud.Provider, cache *blobcache.Cache) *Estimator {
 	registry := handler.NewRegistry()
 	cloud.RegisterDefinitionHandlers(registry, cp.Definition())
 	catalog := newProviderCatalog([]cloud.Provider{cp}, registry)
-	cacheDir, cacheTTL := parseCacheConfig(cfg)
-	runtimeRegistry := costruntime.NewProviderRuntimeRegistryFromProviders([]cloud.Provider{cp}, cacheDir, cacheTTL, nil)
+	runtimeRegistry := costruntime.NewProviderRuntimeRegistryFromProvidersWithBlobCache([]cloud.Provider{cp}, cache, nil)
 	return NewEstimatorWithCatalogAndRuntimeRegistry(catalog, runtimeRegistry)
 }
 
-func parseCacheConfig(cfg *model.CostConfig) (string, time.Duration) {
-	cacheDir := ""
+// CacheTTLFromConfig resolves the configured pricing cache TTL or the built-in default.
+func CacheTTLFromConfig(cfg *model.CostConfig) time.Duration {
 	cacheTTL := defaultCacheTTL
 
 	if cfg != nil {
-		if cfg.CacheDir != "" {
-			cacheDir = cfg.CacheDir
-		}
 		if cfg.CacheTTL != "" {
 			if d, err := time.ParseDuration(cfg.CacheTTL); err == nil {
 				cacheTTL = d
@@ -90,5 +94,5 @@ func parseCacheConfig(cfg *model.CostConfig) (string, time.Duration) {
 		}
 	}
 
-	return cacheDir, cacheTTL
+	return cacheTTL
 }
