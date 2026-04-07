@@ -15,7 +15,6 @@ import (
 // Estimator calculates cost estimates for terraform plans.
 type Estimator struct {
 	coord    *estimateCoordinator
-	catalog  *costruntime.ProviderCatalog
 	runtimes *costruntime.ProviderRuntimeRegistry
 }
 
@@ -28,7 +27,7 @@ func NewEstimatorFromConfig(cfg *model.CostConfig, cache *blobcache.Cache) (*Est
 	}
 	registry := buildHandlerRegistry(providers)
 	catalog := costruntime.NewProviderCatalogFromProviders(providers, registry)
-	runtimeRegistry := costruntime.NewProviderRuntimeRegistryFromProvidersWithBlobCache(providers, cache, nil)
+	runtimeRegistry := costruntime.NewProviderRuntimeRegistryFromProviders(providers, cache, nil)
 	return newEstimator(catalog, runtimeRegistry), nil
 }
 
@@ -40,15 +39,13 @@ func NewEstimatorWithDeps(catalog *costruntime.ProviderCatalog, runtimeRegistry 
 
 // newEstimator is the internal constructor that wires all engine components.
 func newEstimator(catalog *costruntime.ProviderCatalog, runtimeRegistry *costruntime.ProviderRuntimeRegistry) *Estimator {
-	resolutionRuntime := costruntime.NewResolutionRuntime(catalog, runtimeRegistry)
-	resolver := costruntime.NewCostResolver(resolutionRuntime)
+	resolver := costruntime.NewCostResolver(costruntime.CombineRuntime(catalog, runtimeRegistry))
 	scanner := NewModuleScanner(NewTerraformPlanAdapter())
 	executor := NewModuleExecutor(resolver)
 	coord := newEstimateCoordinator(scanner, executor, catalog, catalog.ProviderMetadata, runtimeRegistry)
 
 	return &Estimator{
 		coord:    coord,
-		catalog:  catalog,
 		runtimes: runtimeRegistry,
 	}
 }
@@ -71,15 +68,15 @@ func enabledProviderIDs(cfg *model.CostConfig) []string {
 // configuredProviders resolves the subset of registered cloud providers enabled by config.
 // Matches enabled config keys against cloud.Definition.ConfigKey — no hardcoded provider names.
 func configuredProviders(cfg *model.CostConfig) ([]cloud.Provider, error) {
-	enabled := map[string]bool{}
+	enabled := map[string]struct{}{}
 	for _, id := range enabledProviderIDs(cfg) {
-		enabled[id] = true
+		enabled[id] = struct{}{}
 	}
 
 	all := cloud.Providers()
 	selected := make([]cloud.Provider, 0, len(enabled))
 	for _, cp := range all {
-		if enabled[cp.Definition().ConfigKey] {
+		if _, ok := enabled[cp.Definition().ConfigKey]; ok {
 			selected = append(selected, cp)
 		}
 	}

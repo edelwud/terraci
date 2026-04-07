@@ -6,19 +6,18 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/caarlos0/log"
 	"golang.org/x/sync/singleflight"
 
 	"github.com/edelwud/terraci/pkg/cache/blobcache"
-	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
 
-const (
-	// DefaultCacheTTL is how long cached data is considered valid.
-	DefaultCacheTTL = 24 * time.Hour
-)
+// DefaultCacheTTL re-exports model.DefaultCacheTTL for backward compatibility.
+const DefaultCacheTTL = model.DefaultCacheTTL
 
 // PriceFetcher abstracts pricing data retrieval.
 // Implemented by Fetcher (AWS) and potentially GCP/Azure fetchers.
@@ -30,34 +29,23 @@ type PriceFetcher interface {
 // Safe for concurrent use.
 type Cache struct {
 	blobs        *blobcache.Cache
-	fetcher      PriceFetcher
+	fetcher      atomic.Pointer[PriceFetcher]
 	fetchFlights singleflight.Group
 }
 
-// NewCache creates a new pricing cache using the given blob store.
-func NewCache(store plugin.BlobStore, namespace string, ttl time.Duration, fetcher PriceFetcher) *Cache {
-	if ttl == 0 {
-		ttl = DefaultCacheTTL
-	}
-
-	return NewCacheFromBlobCache(blobcache.New(store, namespace, ttl), fetcher)
-}
-
 // NewCacheFromBlobCache creates a new pricing cache over a prepared blob cache.
-func NewCacheFromBlobCache(blobs *blobcache.Cache, fetcher PriceFetcher) *Cache {
-	return &Cache{
-		blobs:   blobs,
-		fetcher: fetcher,
-	}
+// Call SetFetcher before calling GetIndex.
+func NewCacheFromBlobCache(blobs *blobcache.Cache) *Cache {
+	return &Cache{blobs: blobs}
 }
 
-// SetFetcher replaces the fetcher (used for testing or alternative providers).
-func (c *Cache) SetFetcher(f PriceFetcher) { c.fetcher = f }
+// SetFetcher replaces the fetcher. Safe for concurrent use.
+func (c *Cache) SetFetcher(f PriceFetcher) { c.fetcher.Store(&f) }
 
 // GetIndex returns a pricing index for a service/region, using cache if valid.
 func (c *Cache) GetIndex(ctx context.Context, service ServiceID, region string) (*PriceIndex, error) {
 	idx, err := c.loadFromCache(ctx, service, region)
-	if err == nil && c.isValid(idx) {
+	if err == nil && c.isFresh(idx) {
 		log.WithField("service", service.String()).
 			WithField("region", region).
 			Debug("using cached pricing data")
@@ -101,7 +89,7 @@ func (c *Cache) Validate(ctx context.Context, services map[ServiceID][]string) [
 	for service, regions := range services {
 		for _, region := range regions {
 			idx, err := c.loadFromCache(ctx, service, region)
-			if err != nil || !c.isValid(idx) {
+			if err != nil || !c.isFresh(idx) {
 				missing = append(missing, MissingPricingEntry{service, region})
 			}
 		}
@@ -133,15 +121,20 @@ func (c *Cache) fetchAndCacheIndex(ctx context.Context, service ServiceID, regio
 }
 
 func (c *Cache) fetchAndCacheIndexLeader(ctx context.Context, service ServiceID, region string) (*PriceIndex, error) {
-	if idx, err := c.loadFromCache(ctx, service, region); err == nil && c.isValid(idx) {
+	if idx, err := c.loadFromCache(ctx, service, region); err == nil && c.isFresh(idx) {
 		return idx, nil
+	}
+
+	fp := c.fetcher.Load()
+	if fp == nil {
+		return nil, fmt.Errorf("pricing: no fetcher configured for %s/%s", service, region)
 	}
 
 	log.WithField("service", service.String()).
 		WithField("region", region).
 		Info("downloading pricing data")
 
-	idx, err := c.fetcher.FetchRegionIndex(ctx, service, region)
+	idx, err := (*fp).FetchRegionIndex(ctx, service, region)
 	if err != nil {
 		if stale, loadErr := c.loadFromCache(ctx, service, region); loadErr == nil && stale != nil {
 			log.WithError(err).
@@ -160,24 +153,12 @@ func (c *Cache) fetchAndCacheIndexLeader(ctx context.Context, service ServiceID,
 	return idx, nil
 }
 
-// PrewarmCache downloads and caches pricing data for specified services/regions.
-func (c *Cache) PrewarmCache(ctx context.Context, services map[ServiceID][]string) error {
-	for service, regions := range services {
-		for _, region := range regions {
-			if _, err := c.GetIndex(ctx, service, region); err != nil {
-				return fmt.Errorf("prewarm %s/%s: %w", service, region, err)
-			}
-		}
-	}
-	return nil
-}
-
 func (c *Cache) cacheKey(service ServiceID, region string) string {
 	return strings.Join([]string{service.Provider, service.Name, region + ".json"}, "/")
 }
 
-// isValid checks if cached data is still valid.
-func (c *Cache) isValid(idx *PriceIndex) bool {
+// isFresh checks if cached data is still valid.
+func (c *Cache) isFresh(idx *PriceIndex) bool {
 	if idx == nil {
 		return false
 	}
@@ -202,7 +183,7 @@ func (c *Cache) loadFromCache(ctx context.Context, service ServiceID, region str
 	if err := json.Unmarshal(data, &idx); err != nil {
 		return nil, err
 	}
-	if !idx.isValid() {
+	if !idx.isFresh() {
 		return nil, errors.New("invalid cache entry")
 	}
 

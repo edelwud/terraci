@@ -90,8 +90,9 @@ func filterModulePaths(workDir string, modulePaths []string, modulePath string) 
 // For example, "other/foo/bar" does NOT match "foo/bar" — only exact suffix
 // at a directory boundary counts.
 func matchesModulePath(path, modulePath string) bool {
-	sep := string(filepath.Separator)
-	return strings.HasSuffix(path, sep+modulePath) || strings.HasSuffix(path, "/"+modulePath)
+	p := filepath.ToSlash(path)
+	m := filepath.ToSlash(modulePath)
+	return strings.HasSuffix(p, "/"+m)
 }
 
 func (p *Plugin) runEstimation(ctx context.Context, appCtx *plugin.AppContext, modulePath, outputFmt string) error {

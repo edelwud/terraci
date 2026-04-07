@@ -87,7 +87,11 @@ func (c *CostConfig) blobCacheTTL() string {
 	return c.BlobCache.TTL
 }
 
-const defaultCacheTTL = 24 * time.Hour
+// DefaultCacheTTL is how long pricing cache data is considered valid.
+const DefaultCacheTTL = 24 * time.Hour
+
+// defaultCacheTTL is used internally by CacheTTLDuration.
+const defaultCacheTTL = DefaultCacheTTL
 
 // CacheTTLDuration returns the configured blob cache TTL, or the default 24h when unset or invalid.
 func (c *CostConfig) CacheTTLDuration() time.Duration {

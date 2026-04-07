@@ -32,7 +32,7 @@ func buildCostReport(result *model.EstimateResult) *ci.Report {
 	}
 
 	return &ci.Report{
-		Plugin:  "cost",
+		Plugin:  pluginName,
 		Title:   "Cost Estimation",
 		Status:  status,
 		Summary: fmt.Sprintf("%d modules, total: $%.2f/mo (diff: %+.2f)", len(visible), result.TotalAfter, result.TotalDiff),
@@ -91,7 +91,7 @@ func shouldShowReportModule(module *model.ModuleCost) bool {
 	if module == nil {
 		return false
 	}
-	return module.Error != "" || module.BeforeCost != 0 || module.AfterCost != 0 || module.DiffCost != 0
+	return module.Error != "" || !model.CostIsZero(module.BeforeCost) || !model.CostIsZero(module.AfterCost) || !model.CostIsZero(module.DiffCost)
 }
 
 // saveArtifacts persists the estimation result and CI report to the service directory.

@@ -14,6 +14,9 @@ func outputResult(w io.Writer, workDir, outputFmt string, result *model.Estimate
 		return outputJSONResult(w, result)
 	}
 
+	// Text output uses the structured logger (pkg/log) for rich rendering.
+	// The io.Writer w is intentionally unused in text mode — it exists to
+	// provide a testable seam for JSON output only.
 	outputTextResult(workDir, result)
 	return nil
 }
@@ -61,7 +64,7 @@ func renderSegmentTree(node *model.SegmentNode) {
 			log.WithField("error", child.Module.Error).Info(child.Name)
 		} else {
 			entry := log.WithField("monthly", model.FormatCost(child.AfterCost))
-			if child.DiffCost != 0 {
+			if !model.CostIsZero(child.DiffCost) {
 				entry = entry.WithField("diff", model.FormatCostDiff(child.DiffCost))
 			}
 			entry.Info(child.Name)
@@ -89,7 +92,7 @@ func shouldShowTextSegment(node *model.SegmentNode) bool {
 	if node.Module != nil {
 		return shouldShowTextModule(node.Module)
 	}
-	return node.AfterCost != 0 || node.DiffCost != 0 || hasVisibleTextDescendant(node)
+	return !model.CostIsZero(node.AfterCost) || !model.CostIsZero(node.DiffCost) || hasVisibleTextDescendant(node)
 }
 
 func hasVisibleTextDescendant(node *model.SegmentNode) bool {
@@ -100,7 +103,7 @@ func shouldShowTextModule(module *model.ModuleCost) bool {
 	if module == nil {
 		return false
 	}
-	return module.BeforeCost != 0 || module.AfterCost != 0 || module.DiffCost != 0
+	return !model.CostIsZero(module.BeforeCost) || !model.CostIsZero(module.AfterCost) || !model.CostIsZero(module.DiffCost)
 }
 
 func renderModuleDetails(module *model.ModuleCost) {
@@ -122,7 +125,7 @@ func renderSubmodules(submodules []model.SubmoduleCost, parentAddr string) {
 			continue
 		}
 
-		showHeader := (len(submodules) > 1 || len(submodule.Children) > 0) && submodule.MonthlyCost != 0
+		showHeader := (len(submodules) > 1 || len(submodule.Children) > 0) && !model.CostIsZero(submodule.MonthlyCost)
 		if showHeader && submodule.ModuleAddr != "" {
 			label := model.StripModulePrefix(submodule.ModuleAddr, parentAddr)
 			log.WithField("monthly", model.FormatCost(submodule.MonthlyCost)).Info(label)
@@ -144,7 +147,7 @@ func shouldShowSubmodule(submodule *model.SubmoduleCost) bool {
 	if submodule == nil {
 		return false
 	}
-	if submodule.MonthlyCost != 0 {
+	if !model.CostIsZero(submodule.MonthlyCost) {
 		return true
 	}
 	for i := range submodule.Resources {
@@ -193,7 +196,7 @@ func shouldShowResource(resource *model.ResourceCost) bool {
 	}
 	switch resource.ErrorKind {
 	case model.CostErrorNone:
-		return resource.MonthlyCost != 0 || resource.BeforeMonthlyCost != 0
+		return !model.CostIsZero(resource.MonthlyCost) || !model.CostIsZero(resource.BeforeMonthlyCost)
 	case model.CostErrorUsageBased, model.CostErrorNoProvider, model.CostErrorNoHandler,
 		model.CostErrorLookupFailed, model.CostErrorAPIFailure, model.CostErrorNoPrice, model.CostErrorInternal:
 		return true

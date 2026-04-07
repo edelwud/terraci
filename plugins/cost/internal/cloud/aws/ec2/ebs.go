@@ -35,6 +35,12 @@ var ebsVolumeAPIName = map[string]string{
 // EBSHandler handles aws_ebs_volume cost estimation.
 type EBSHandler struct {
 	awskit.RuntimeDeps
+	ec2ServiceID pricing.ServiceID
+}
+
+// NewEBSHandler creates an EBSHandler with a pre-resolved EC2 service ID.
+func NewEBSHandler(deps awskit.RuntimeDeps) *EBSHandler {
+	return &EBSHandler{RuntimeDeps: deps, ec2ServiceID: deps.RuntimeOrDefault().MustService(awskit.ServiceKeyEC2)}
 }
 
 type ebsVolumeAttrs struct {
@@ -75,8 +81,7 @@ func (h *EBSHandler) BuildLookup(region string, attrs map[string]any) (*pricing.
 		apiName = "gp2"
 	}
 
-	runtime := h.RuntimeOrDefault()
-	lb := &awskit.PriceLookupSpec{Service: runtime.MustService(awskit.ServiceKeyEC2), ProductFamily: "Storage"}
+	lb := &awskit.PriceLookupSpec{Service: h.ec2ServiceID, ProductFamily: "Storage"}
 	return lb.Lookup(region, map[string]string{
 		"volumeApiName": apiName,
 	}), nil

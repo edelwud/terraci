@@ -9,7 +9,6 @@ import (
 	"github.com/caarlos0/log"
 
 	"github.com/edelwud/terraci/pkg/cache/blobcache"
-	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
@@ -32,46 +31,10 @@ func NewProviderRuntimeRegistry(runtimes map[string]*ProviderRuntime) *ProviderR
 	return &ProviderRuntimeRegistry{runtimes: runtimes}
 }
 
-// NewProviderRuntimeRegistryFromProviders creates a runtime registry directly from provider definitions.
+// NewProviderRuntimeRegistryFromProviders creates a runtime registry from provider definitions
+// over a prepared blob cache, with optional per-provider fetcher overrides.
+// If fetchers is nil, each provider uses its default fetcher from cloud.Definition.FetcherFactory.
 func NewProviderRuntimeRegistryFromProviders(
-	providers []cloud.Provider,
-	store plugin.BlobStore,
-	cacheNamespace string,
-	cacheTTL time.Duration,
-	fetcher pricing.PriceFetcher,
-) *ProviderRuntimeRegistry {
-	if cacheTTL == 0 {
-		cacheTTL = pricing.DefaultCacheTTL
-	}
-
-	return NewProviderRuntimeRegistryFromProvidersWithBlobCache(
-		providers,
-		blobcache.New(store, cacheNamespace, cacheTTL),
-		fetcher,
-	)
-}
-
-// NewProviderRuntimeRegistryFromProvidersWithBlobCache creates a runtime registry from provider
-// definitions over a prepared blob cache.
-func NewProviderRuntimeRegistryFromProvidersWithBlobCache(
-	providers []cloud.Provider,
-	cache *blobcache.Cache,
-	fetcher pricing.PriceFetcher,
-) *ProviderRuntimeRegistry {
-	var fetchers map[string]pricing.PriceFetcher
-	if fetcher != nil {
-		if len(providers) == 1 {
-			fetchers = map[string]pricing.PriceFetcher{providers[0].Definition().Manifest.ID: fetcher}
-		} else {
-			log.Debug("runtime: ignoring shared fetcher override for multi-provider setup; use provider-scoped overrides")
-		}
-	}
-	return NewProviderRuntimeRegistryFromProvidersWithBlobCacheAndFetchers(providers, cache, fetchers)
-}
-
-// NewProviderRuntimeRegistryFromProvidersWithBlobCacheAndFetchers creates a runtime
-// registry with optional provider-scoped fetcher overrides.
-func NewProviderRuntimeRegistryFromProvidersWithBlobCacheAndFetchers(
 	providers []cloud.Provider,
 	cache *blobcache.Cache,
 	fetchers map[string]pricing.PriceFetcher,
@@ -83,9 +46,11 @@ func NewProviderRuntimeRegistryFromProvidersWithBlobCacheAndFetchers(
 		if fetcher := fetchers[def.Manifest.ID]; fetcher != nil {
 			runtimeFetcher = fetcher
 		}
+		c := pricing.NewCacheFromBlobCache(cache)
+		c.SetFetcher(runtimeFetcher)
 		runtimes[def.Manifest.ID] = &ProviderRuntime{
 			Definition: def,
-			Cache:      pricing.NewCacheFromBlobCache(cache, runtimeFetcher),
+			Cache:      c,
 		}
 	}
 	return &ProviderRuntimeRegistry{

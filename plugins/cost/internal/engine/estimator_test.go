@@ -191,9 +191,10 @@ func TestEstimateModule_KnownProviderMissingHandler(t *testing.T) {
 	runtimes := map[string]*costruntime.ProviderRuntime{
 		"aws": {
 			Definition: def,
-			Cache:      pricing.NewCache(diskblob.NewStore(cacheDir), "", 0, fetcher),
+			Cache:      pricing.NewCacheFromBlobCache(blobcache.New(diskblob.NewStore(cacheDir), "", 0)),
 		},
 	}
+	runtimes["aws"].Cache.SetFetcher(fetcher)
 	catalog := costruntime.NewProviderCatalog(router, registry, map[string]model.ProviderMetadata{
 		"aws": {
 			DisplayName: def.Manifest.DisplayName,

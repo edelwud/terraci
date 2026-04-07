@@ -20,7 +20,7 @@ type ModuleIdentity struct {
 // ModuleAssembler builds a module-level result from resolved resources.
 type ModuleAssembler struct {
 	result      model.ModuleCost
-	providerSet map[string]bool
+	providerSet map[string]struct{}
 }
 
 // NewModuleAssembler creates a module result assembler for a single module.
@@ -33,7 +33,7 @@ func NewModuleAssembler(identity ModuleIdentity) *ModuleAssembler {
 			Resources:  make([]model.ResourceCost, 0),
 			HasChanges: identity.HasChanges,
 		},
-		providerSet: make(map[string]bool),
+		providerSet: make(map[string]struct{}),
 	}
 }
 
@@ -41,7 +41,7 @@ func NewModuleAssembler(identity ModuleIdentity) *ModuleAssembler {
 func (a *ModuleAssembler) AddResource(rc model.ResourceCost, action model.EstimateAction) {
 	a.result.Resources = append(a.result.Resources, rc)
 	if rc.Provider != "" {
-		a.providerSet[rc.Provider] = true
+		a.providerSet[rc.Provider] = struct{}{}
 	}
 	AggregateCost(&a.result, rc, action)
 }
@@ -105,13 +105,13 @@ func (a *EstimateAssembler) Build() *model.EstimateResult {
 		ProviderMetadata: a.providerMetadata,
 	}
 
-	providerSet := make(map[string]bool)
+	providerSet := make(map[string]struct{})
 	for i := range a.modules {
 		module := &a.modules[i]
 		result.TotalBefore += module.BeforeCost
 		result.TotalAfter += module.AfterCost
 		for _, providerID := range module.Providers {
-			providerSet[providerID] = true
+			providerSet[providerID] = struct{}{}
 		}
 		if module.Error != "" {
 			result.Errors = append(result.Errors, model.ModuleError{
@@ -137,7 +137,7 @@ func NewErroredModule(modulePath, region string, err error) model.ModuleCost {
 	}
 }
 
-func summarizeProviders(providerSet map[string]bool) (primary string, providers []string) {
+func summarizeProviders(providerSet map[string]struct{}) (primary string, providers []string) {
 	if len(providerSet) == 0 {
 		return "", nil
 	}
@@ -149,7 +149,7 @@ func summarizeProviders(providerSet map[string]bool) (primary string, providers 
 	return "", providers
 }
 
-func sortedProviderIDs(providerSet map[string]bool) []string {
+func sortedProviderIDs(providerSet map[string]struct{}) []string {
 	providers := make([]string, 0, len(providerSet))
 	for providerID := range providerSet {
 		providers = append(providers, providerID)

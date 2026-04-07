@@ -9,9 +9,9 @@ import (
 )
 
 func TestResourceRegistrationsUnique(t *testing.T) {
-	seen := make(map[ResourceKey]bool, len(definition.Resources))
+	seen := make(map[awskit.ResourceKey]bool, len(definition.Resources))
 	for _, registration := range definition.Resources {
-		key := ResourceKey(registration.Type)
+		key := awskit.ResourceKey(registration.Type)
 		if key == "" {
 			t.Fatal("resource registration key must not be empty")
 		}

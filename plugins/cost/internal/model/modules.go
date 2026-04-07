@@ -1,5 +1,7 @@
 package model
 
+import "strings"
+
 // GroupByModule groups resources by their Terraform module address into a tree.
 func GroupByModule(resources []ResourceCost) []SubmoduleCost {
 	type flatGroup struct {
@@ -31,19 +33,19 @@ func GroupByModule(resources []ResourceCost) []SubmoduleCost {
 		}
 	}
 
-	attached := make(map[string]bool)
+	attached := make(map[string]struct{})
 	for i := len(order) - 1; i >= 0; i-- {
 		addr := order[i]
 		parent := FindParentAddr(addr, nodes)
 		if parent != "" {
 			nodes[parent].Children = append(nodes[parent].Children, *nodes[addr])
-			attached[addr] = true
+			attached[addr] = struct{}{}
 		}
 	}
 
 	var roots []SubmoduleCost
 	for _, addr := range order {
-		if !attached[addr] {
+		if _, ok := attached[addr]; !ok {
 			roots = append(roots, *nodes[addr])
 		}
 	}
@@ -60,8 +62,8 @@ func FindParentAddr(addr string, nodes map[string]*SubmoduleCost) string {
 			continue
 		}
 		candidate := addr[:i]
-		rest := addr[len(candidate)+1:]
-		if len(rest) >= len(modulePrefix) && rest[:len(modulePrefix)] == modulePrefix {
+		rest := addr[i+1:]
+		if strings.HasPrefix(rest, modulePrefix) {
 			if _, ok := nodes[candidate]; ok {
 				return candidate
 			}

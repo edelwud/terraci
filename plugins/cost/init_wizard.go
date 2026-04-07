@@ -33,7 +33,7 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribut
 		return nil
 	}
 	return &initwiz.InitContribution{
-		PluginKey: "cost",
+		PluginKey: pluginName,
 		Config: map[string]any{
 			"providers": map[string]any{
 				"aws": map[string]any{

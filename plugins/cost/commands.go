@@ -24,7 +24,7 @@ func (p *Plugin) Commands(appCtx *plugin.AppContext) []*cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "cost",
+		Use:   pluginName,
 		Short: "Estimate cloud costs from Terraform plans",
 		Long: `Estimate monthly cloud costs by analyzing plan.json files in module directories.
 

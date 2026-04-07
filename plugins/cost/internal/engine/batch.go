@@ -91,7 +91,7 @@ func (b *estimateCoordinator) Estimate(ctx context.Context, modulePaths []string
 // buildPrefetchRequirements analyses scanned module plans and returns the set of
 // service/region pricing indexes that must be warm before estimation can run.
 func buildPrefetchRequirements(catalog costruntime.ProviderCatalogRuntime, modulePlans []*ModulePlan) map[pricing.ServiceID][]string {
-	regionSet := make(map[pricing.ServiceID]map[string]bool)
+	regionSet := make(map[pricing.ServiceID]map[string]struct{})
 
 	for _, modulePlan := range modulePlans {
 		for _, resource := range modulePlan.Resources {
@@ -116,9 +116,9 @@ func buildPrefetchRequirements(catalog costruntime.ProviderCatalogRuntime, modul
 			}
 
 			if regionSet[lookup.ServiceID] == nil {
-				regionSet[lookup.ServiceID] = make(map[string]bool)
+				regionSet[lookup.ServiceID] = make(map[string]struct{})
 			}
-			regionSet[lookup.ServiceID][modulePlan.Region] = true
+			regionSet[lookup.ServiceID][modulePlan.Region] = struct{}{}
 		}
 	}
 

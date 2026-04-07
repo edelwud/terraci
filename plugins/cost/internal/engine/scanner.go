@@ -9,7 +9,7 @@ import (
 )
 
 // maxModuleConcurrency caps the number of modules processed simultaneously
-// across both scanning and estimation phases.
+// within each phase (scanning and estimation use separate semaphores of this size).
 const maxModuleConcurrency = 4
 
 // EstimateAction is the provider-neutral action model used by the cost engine.
@@ -86,19 +86,6 @@ type ModulePlan struct {
 // Scan loads a module plan through the configured adapter.
 func (s *ModuleScanner) Scan(modulePath, region string) (*ModulePlan, error) {
 	return s.adapter.LoadModule(modulePath, region)
-}
-
-// ScanMany scans multiple modules strictly, returning an error on the first failure.
-func (s *ModuleScanner) ScanMany(modulePaths []string, regions map[string]string) ([]*ModulePlan, error) {
-	scanned := s.scanConcurrently(modulePaths, regions)
-	plans := make([]*ModulePlan, len(modulePaths))
-	for _, r := range scanned {
-		if r.Err != nil {
-			return nil, r.Err
-		}
-		plans[r.Index] = r.Plan
-	}
-	return plans, nil
 }
 
 // ScannedModulePlan captures either a scanned plan or a per-module scan error.

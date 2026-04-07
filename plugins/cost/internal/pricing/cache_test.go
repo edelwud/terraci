@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/edelwud/terraci/pkg/cache/blobcache"
 	"github.com/edelwud/terraci/plugins/diskblob"
 )
 
@@ -25,14 +26,26 @@ func (s *stubFetcher) FetchRegionIndex(_ context.Context, _ ServiceID, _ string)
 	return nil, fmt.Errorf("stub fetcher: not implemented")
 }
 
+// newTestCache builds a Cache from a raw diskblob store — mirrors the deleted NewCache constructor.
+func newTestCache(store *diskblob.Store, ttl time.Duration, fetcher PriceFetcher) *Cache {
+	if ttl == 0 {
+		ttl = DefaultCacheTTL
+	}
+	c := NewCacheFromBlobCache(blobcache.New(store, "", ttl))
+	if fetcher != nil {
+		c.SetFetcher(fetcher)
+	}
+	return c
+}
+
 func TestNewCache_Defaults(t *testing.T) {
 	store := diskblob.NewStore(t.TempDir())
-	c := NewCache(store, "", 0, &stubFetcher{})
+	c := newTestCache(store, 0, &stubFetcher{})
 
 	if c.blobs == nil {
 		t.Fatal("expected blob cache to be initialized")
 	}
-	if c.fetcher == nil {
+	if c.fetcher.Load() == nil {
 		t.Error("expected fetcher to be non-nil")
 	}
 }
@@ -41,7 +54,7 @@ func TestNewCache_Custom(t *testing.T) {
 	tmpDir := t.TempDir()
 	ttl := 1 * time.Hour
 
-	c := NewCache(diskblob.NewStore(tmpDir), "", ttl, &stubFetcher{})
+	c := newTestCache(diskblob.NewStore(tmpDir), ttl, &stubFetcher{})
 
 	if c.ttl() != ttl {
 		t.Errorf("expected ttl %v, got %v", ttl, c.ttl())
@@ -83,9 +96,9 @@ func TestIsValid(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &Cache{}
 			if tt.ttl > 0 {
-				c = NewCache(diskblob.NewStore(t.TempDir()), "", tt.ttl, &stubFetcher{})
+				c = newTestCache(diskblob.NewStore(t.TempDir()), tt.ttl, &stubFetcher{})
 			}
-			got := c.isValid(tt.idx)
+			got := c.isFresh(tt.idx)
 			if got != tt.want {
 				t.Errorf("isValid() = %v, want %v", got, tt.want)
 			}
@@ -95,7 +108,7 @@ func TestIsValid(t *testing.T) {
 
 func TestSaveAndLoad(t *testing.T) {
 	tmpDir := t.TempDir()
-	c := NewCache(diskblob.NewStore(tmpDir), "", DefaultCacheTTL, &stubFetcher{})
+	c := newTestCache(diskblob.NewStore(tmpDir), DefaultCacheTTL, &stubFetcher{})
 
 	now := time.Now().Truncate(time.Second)
 	idx := &PriceIndex{
@@ -153,7 +166,7 @@ func TestSaveAndLoad(t *testing.T) {
 
 func TestLoadFromCache_NotFound(t *testing.T) {
 	tmpDir := t.TempDir()
-	c := NewCache(diskblob.NewStore(tmpDir), "", DefaultCacheTTL, &stubFetcher{})
+	c := newTestCache(diskblob.NewStore(tmpDir), DefaultCacheTTL, &stubFetcher{})
 
 	_, err := c.loadFromCache(context.Background(), ServiceID{Provider: awsProviderID, Name: "NoSuchService"}, "no-region")
 	if err == nil {
@@ -163,7 +176,7 @@ func TestLoadFromCache_NotFound(t *testing.T) {
 
 func TestInvalidate(t *testing.T) {
 	tmpDir := t.TempDir()
-	c := NewCache(diskblob.NewStore(tmpDir), "", DefaultCacheTTL, &stubFetcher{})
+	c := newTestCache(diskblob.NewStore(tmpDir), DefaultCacheTTL, &stubFetcher{})
 
 	idx := &PriceIndex{
 		ServiceID: awsServiceEC2,
@@ -188,7 +201,7 @@ func TestInvalidate(t *testing.T) {
 
 func TestValidate_AllCached(t *testing.T) {
 	tmpDir := t.TempDir()
-	c := NewCache(diskblob.NewStore(tmpDir), "", DefaultCacheTTL, &stubFetcher{})
+	c := newTestCache(diskblob.NewStore(tmpDir), DefaultCacheTTL, &stubFetcher{})
 
 	idx := &PriceIndex{
 		ServiceID: awsServiceEC2,
@@ -211,7 +224,7 @@ func TestValidate_AllCached(t *testing.T) {
 
 func TestValidate_SomeMissing(t *testing.T) {
 	tmpDir := t.TempDir()
-	c := NewCache(diskblob.NewStore(tmpDir), "", DefaultCacheTTL, &stubFetcher{})
+	c := newTestCache(diskblob.NewStore(tmpDir), DefaultCacheTTL, &stubFetcher{})
 
 	idx := &PriceIndex{
 		ServiceID: awsServiceEC2,
@@ -267,7 +280,7 @@ func newTestFetcher() *fakeFetcher {
 
 func TestGetIndex_CacheHit(t *testing.T) {
 	tmpDir := t.TempDir()
-	c := NewCache(diskblob.NewStore(tmpDir), "", time.Hour, &stubFetcher{})
+	c := newTestCache(diskblob.NewStore(tmpDir), time.Hour, &stubFetcher{})
 
 	// Pre-populate cache
 	idx := &PriceIndex{
@@ -292,7 +305,7 @@ func TestGetIndex_CacheHit(t *testing.T) {
 
 func TestGetIndex_CacheMiss(t *testing.T) {
 	tmpDir := t.TempDir()
-	c := NewCache(diskblob.NewStore(tmpDir), "", time.Hour, newTestFetcher())
+	c := newTestCache(diskblob.NewStore(tmpDir), time.Hour, newTestFetcher())
 
 	got, err := c.GetIndex(context.Background(), awsServiceEC2, "us-east-1")
 	if err != nil {
@@ -315,7 +328,7 @@ func TestGetIndex_CacheMiss(t *testing.T) {
 func TestGetIndex_FetchError(t *testing.T) {
 	tmpDir := t.TempDir()
 	errFetcher := &fakeFetcher{err: fmt.Errorf("network error")}
-	c := NewCache(diskblob.NewStore(tmpDir), "", time.Hour, errFetcher)
+	c := newTestCache(diskblob.NewStore(tmpDir), time.Hour, errFetcher)
 
 	_, err := c.GetIndex(context.Background(), awsServiceEC2, "us-east-1")
 	if err == nil {
@@ -323,53 +336,23 @@ func TestGetIndex_FetchError(t *testing.T) {
 	}
 }
 
-func TestPrewarmCache(t *testing.T) {
-	tmpDir := t.TempDir()
-	c := NewCache(diskblob.NewStore(tmpDir), "", time.Hour, newTestFetcher())
-
-	services := map[ServiceID][]string{
-		awsServiceEC2: {"us-east-1"},
-	}
-	if err := c.PrewarmCache(context.Background(), services); err != nil {
-		t.Fatalf("PrewarmCache: %v", err)
-	}
-
-	// Verify cached
-	_, err := c.loadFromCache(context.Background(), awsServiceEC2, "us-east-1")
-	if err != nil {
-		t.Errorf("expected cache to be populated after prewarm: %v", err)
-	}
-}
-
 func TestCache_SetFetcher(t *testing.T) {
-	c := NewCache(diskblob.NewStore(t.TempDir()), "", 2*time.Hour, &stubFetcher{})
+	c := newTestCache(diskblob.NewStore(t.TempDir()), 2*time.Hour, &stubFetcher{})
 
 	t.Run("SetFetcher", func(t *testing.T) {
 		f := &stubFetcher{}
 		c.SetFetcher(f)
-		if c.fetcher != PriceFetcher(f) {
+		loaded := c.fetcher.Load()
+		if loaded == nil || *loaded != PriceFetcher(f) {
 			t.Error("SetFetcher did not set fetcher")
 		}
 	})
 }
 
-func TestPrewarmCache_Error(t *testing.T) {
-	tmpDir := t.TempDir()
-	errFetcher := &fakeFetcher{err: fmt.Errorf("network error")}
-	c := NewCache(diskblob.NewStore(tmpDir), "", time.Hour, errFetcher)
-
-	err := c.PrewarmCache(context.Background(), map[ServiceID][]string{
-		awsServiceEC2: {"us-east-1"},
-	})
-	if err == nil {
-		t.Error("expected error on prewarm failure")
-	}
-}
-
 func TestGetIndex_StaleFallback(t *testing.T) {
 	tmpDir := t.TempDir()
 	ttl := 1 * time.Hour
-	c := NewCache(diskblob.NewStore(tmpDir), "", ttl, &stubFetcher{})
+	c := newTestCache(diskblob.NewStore(tmpDir), ttl, &stubFetcher{})
 
 	// Save a valid index to cache
 	idx := &PriceIndex{
@@ -406,7 +389,7 @@ func TestGetIndex_ConcurrentAccess(t *testing.T) {
 	fetcher := &fakeFetcher{
 		index: newTestFetcher().index,
 	}
-	c := NewCache(diskblob.NewStore(tmpDir), "", time.Hour, PriceFetcherFunc(func(ctx context.Context, service ServiceID, region string) (*PriceIndex, error) {
+	c := newTestCache(diskblob.NewStore(tmpDir), time.Hour, PriceFetcherFunc(func(ctx context.Context, service ServiceID, region string) (*PriceIndex, error) {
 		fetchCount.Add(1)
 		time.Sleep(10 * time.Millisecond)
 		return fetcher.FetchRegionIndex(ctx, service, region)
@@ -444,7 +427,7 @@ func TestGetIndex_ConcurrentWaiterRespectsContext(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})
 
-	c := NewCache(diskblob.NewStore(tmpDir), "", time.Hour, PriceFetcherFunc(func(_ context.Context, service ServiceID, region string) (*PriceIndex, error) {
+	c := newTestCache(diskblob.NewStore(tmpDir), time.Hour, PriceFetcherFunc(func(_ context.Context, service ServiceID, region string) (*PriceIndex, error) {
 		fetchCount.Add(1)
 		close(started)
 		<-release
@@ -484,7 +467,7 @@ func TestGetIndex_ConcurrentWaiterRespectsContext(t *testing.T) {
 func TestGetIndex_ConcurrentDifferentKeysFetchIndependently(t *testing.T) {
 	tmpDir := t.TempDir()
 	var fetchCount atomic.Int32
-	c := NewCache(diskblob.NewStore(tmpDir), "", time.Hour, PriceFetcherFunc(func(_ context.Context, service ServiceID, region string) (*PriceIndex, error) {
+	c := newTestCache(diskblob.NewStore(tmpDir), time.Hour, PriceFetcherFunc(func(_ context.Context, service ServiceID, region string) (*PriceIndex, error) {
 		fetchCount.Add(1)
 		return &PriceIndex{
 			ServiceID: service,
@@ -528,7 +511,7 @@ func (f PriceFetcherFunc) FetchRegionIndex(ctx context.Context, service ServiceI
 func TestGetIndex_FetchError_NoStaleCache(t *testing.T) {
 	tmpDir := t.TempDir()
 	errFetcher := &fakeFetcher{err: fmt.Errorf("network error")}
-	c := NewCache(diskblob.NewStore(tmpDir), "", time.Hour, errFetcher)
+	c := newTestCache(diskblob.NewStore(tmpDir), time.Hour, errFetcher)
 
 	// No pre-populated cache, fetch fails — should return error
 	_, err := c.GetIndex(context.Background(), awsServiceEC2, "us-east-1")

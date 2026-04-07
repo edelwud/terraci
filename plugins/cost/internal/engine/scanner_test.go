@@ -10,28 +10,6 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
 
-func TestModuleScanner_ScanMany_PreservesOrderAndReturnsFirstInputError(t *testing.T) {
-	t.Parallel()
-
-	adapter := &countingAdapter{
-		results: map[string]adapterResult{
-			"mod-a": {plan: &engine.ModulePlan{ModulePath: "mod-a", Region: "us-east-1"}},
-			"mod-b": {err: fmt.Errorf("mod-b failed")},
-			"mod-c": {err: fmt.Errorf("mod-c failed")},
-		},
-	}
-
-	scanner := engine.NewModuleScanner(adapter)
-	_, err := scanner.ScanMany([]string{"mod-a", "mod-b", "mod-c"}, map[string]string{
-		"mod-a": "us-east-1",
-		"mod-b": "us-east-1",
-		"mod-c": "us-east-1",
-	})
-	if err == nil || err.Error() != "mod-b failed" {
-		t.Fatalf("ScanMany() error = %v, want first input error from mod-b", err)
-	}
-}
-
 func TestModuleScanner_ScanManyBestEffort_PreservesIndicesAndDefaultRegion(t *testing.T) {
 	t.Parallel()
 
@@ -55,7 +33,7 @@ func TestModuleScanner_ScanManyBestEffort_PreservesIndicesAndDefaultRegion(t *te
 	}
 }
 
-func TestModuleScanner_ScanMany_RunsConcurrently(t *testing.T) {
+func TestModuleScanner_ScanManyBestEffort_RunsConcurrently(t *testing.T) {
 	t.Parallel()
 
 	adapter := &countingAdapter{
@@ -69,16 +47,14 @@ func TestModuleScanner_ScanMany_RunsConcurrently(t *testing.T) {
 	}
 
 	scanner := engine.NewModuleScanner(adapter)
-	if _, err := scanner.ScanMany([]string{"mod-a", "mod-b", "mod-c", "mod-d"}, map[string]string{}); err != nil {
-		t.Fatalf("ScanMany() error = %v", err)
-	}
+	scanner.ScanManyBestEffort([]string{"mod-a", "mod-b", "mod-c", "mod-d"}, map[string]string{})
 
 	if got := adapter.maxConcurrent.Load(); got < 2 {
 		t.Fatalf("maxConcurrent = %d, want >= 2 to confirm bounded parallel scanning", got)
 	}
 }
 
-func TestModuleScanner_ScanMany_RespectsConcurrencyLimit(t *testing.T) {
+func TestModuleScanner_ScanManyBestEffort_RespectsConcurrencyLimit(t *testing.T) {
 	t.Parallel()
 
 	const moduleCount = 12
@@ -95,9 +71,7 @@ func TestModuleScanner_ScanMany_RespectsConcurrencyLimit(t *testing.T) {
 		delay:   20 * time.Millisecond,
 	}
 	scanner := engine.NewModuleScanner(adapter)
-	if _, err := scanner.ScanMany(paths, map[string]string{}); err != nil {
-		t.Fatalf("ScanMany() error = %v", err)
-	}
+	scanner.ScanManyBestEffort(paths, map[string]string{})
 
 	if got := adapter.maxConcurrent.Load(); got > 4 {
 		t.Fatalf("maxConcurrent = %d, want <= 4", got)

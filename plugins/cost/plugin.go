@@ -10,10 +10,13 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
 
+// pluginName is the canonical plugin identifier used in commands, reports and config.
+const pluginName = "cost"
+
 func init() {
 	registry.Register(&Plugin{
 		BasePlugin: plugin.BasePlugin[*model.CostConfig]{
-			PluginName: "cost",
+			PluginName: pluginName,
 			PluginDesc: "Cloud cost estimation from Terraform plans",
 			EnableMode: plugin.EnabledExplicitly,
 			DefaultCfg: func() *model.CostConfig {

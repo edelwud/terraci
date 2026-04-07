@@ -23,7 +23,7 @@ func BuildSegmentTree(result *EstimateResult, workDir string) *SegmentNode {
 
 	for i := range result.Modules {
 		mc := &result.Modules[i]
-		if mc.AfterCost == 0 && mc.BeforeCost == 0 && mc.DiffCost == 0 && mc.Error == "" {
+		if CostIsZero(mc.AfterCost) && CostIsZero(mc.BeforeCost) && CostIsZero(mc.DiffCost) && mc.Error == "" {
 			continue
 		}
 
@@ -88,17 +88,9 @@ func StripModulePrefix(address, moduleAddr string) string {
 	return address
 }
 
-// splitPath splits a filepath into its component parts.
+// splitPath splits a filepath into its OS-independent path segments.
 func splitPath(p string) []string {
-	var parts []string
-	for p != "" && p != "." && p != "/" {
-		dir, file := filepath.Split(p)
-		if file != "" {
-			parts = append([]string{file}, parts...)
-		}
-		p = filepath.Clean(dir)
-	}
-	return parts
+	return strings.Split(filepath.ToSlash(filepath.Clean(p)), "/")
 }
 
 // DetectRegion extracts region from a module path using configured pattern segments.

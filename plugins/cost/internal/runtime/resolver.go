@@ -36,8 +36,9 @@ type resolutionRuntime struct {
 	pricing PricingRuntime
 }
 
-// NewResolutionRuntime combines provider catalog and pricing runtime into one resolver runtime.
-func NewResolutionRuntime(catalog ProviderCatalogRuntime, pricingRuntime PricingRuntime) ResolutionRuntime {
+// CombineRuntime combines a ProviderCatalogRuntime and a PricingRuntime into a single
+// ResolutionRuntime that can be passed to NewCostResolver.
+func CombineRuntime(catalog ProviderCatalogRuntime, pricingRuntime PricingRuntime) ResolutionRuntime {
 	return resolutionRuntime{catalog: catalog, pricing: pricingRuntime}
 }
 
@@ -90,7 +91,9 @@ func NewResolutionState() *ResolutionState {
 	return &ResolutionState{indexes: make(map[string]*pricing.PriceIndex)}
 }
 
-// NewCostResolver creates a new resolver with the given provider-aware runtime.
+// NewCostResolver creates a new resolver. The runtime parameter must implement
+// both ProviderCatalogRuntime and PricingRuntime. Use CombineRuntime to
+// combine separate catalog and pricing implementations.
 func NewCostResolver(runtime ResolutionRuntime) *CostResolver {
 	return &CostResolver{
 		runtime: runtime,

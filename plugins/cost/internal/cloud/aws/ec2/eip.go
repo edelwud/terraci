@@ -12,6 +12,12 @@ const DefaultEIPHourlyCost = 0.005
 // EIPHandler handles aws_eip cost estimation.
 type EIPHandler struct {
 	awskit.RuntimeDeps
+	vpcServiceID pricing.ServiceID
+}
+
+// NewEIPHandler creates an EIPHandler with a pre-resolved VPC service ID.
+func NewEIPHandler(deps awskit.RuntimeDeps) *EIPHandler {
+	return &EIPHandler{RuntimeDeps: deps, vpcServiceID: deps.RuntimeOrDefault().MustService(awskit.ServiceKeyVPC)}
 }
 
 type eipAttrs struct {
@@ -41,7 +47,7 @@ func (h *EIPHandler) BuildLookup(region string, attrs map[string]any) (*pricing.
 
 	// AWS VPC pricing uses group "VPCPublicIPv4Address" and no product family.
 	return &pricing.PriceLookup{
-		ServiceID: runtime.MustService(awskit.ServiceKeyVPC),
+		ServiceID: h.vpcServiceID,
 		Region:    region,
 		Attributes: map[string]string{
 			"location":  runtime.ResolveRegionName(region),

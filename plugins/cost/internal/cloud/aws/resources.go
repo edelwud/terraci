@@ -14,9 +14,6 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
-// ResourceKey is a typed Terraform resource identifier supported by the AWS cost provider.
-type ResourceKey = awskit.ResourceKey
-
 var providerRuntime = awskit.NewRuntime(awskit.Manifest)
 
 // deps is a single shared RuntimeDeps instance for all AWS handlers.
@@ -31,8 +28,8 @@ var definition = cloud.Definition{
 	Resources: []cloud.ResourceRegistration{
 		// EC2
 		{Type: handler.ResourceType(awskit.ResourceInstance), Handler: &ec2.InstanceHandler{RuntimeDeps: deps}},
-		{Type: handler.ResourceType(awskit.ResourceEBSVolume), Handler: &ec2.EBSHandler{RuntimeDeps: deps}},
-		{Type: handler.ResourceType(awskit.ResourceEIP), Handler: &ec2.EIPHandler{RuntimeDeps: deps}},
+		{Type: handler.ResourceType(awskit.ResourceEBSVolume), Handler: ec2.NewEBSHandler(deps)},
+		{Type: handler.ResourceType(awskit.ResourceEIP), Handler: ec2.NewEIPHandler(deps)},
 		{Type: handler.ResourceType(awskit.ResourceNATGateway), Handler: &ec2.NATHandler{RuntimeDeps: deps}},
 		// RDS
 		{Type: handler.ResourceType(awskit.ResourceDBInstance), Handler: &rds.InstanceHandler{RuntimeDeps: deps}},

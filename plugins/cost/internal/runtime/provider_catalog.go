@@ -8,11 +8,6 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
 
-// ProviderRouter resolves the owning cloud provider for a Terraform resource type.
-type ProviderRouter interface {
-	ResolveProvider(resourceType handler.ResourceType) (string, bool)
-}
-
 // ResourceProviderRouter is the default resource-type based provider router.
 type ResourceProviderRouter struct {
 	providers map[handler.ResourceType]string
@@ -48,12 +43,12 @@ func newDefaultProviderRouter(providers []cloud.Provider) *ResourceProviderRoute
 // ProviderCatalog resolves provider ownership, handlers, and provider metadata.
 type ProviderCatalog struct {
 	registry *handler.Registry
-	router   ProviderRouter
+	router   *ResourceProviderRouter
 	metadata map[string]model.ProviderMetadata
 }
 
 // NewProviderCatalog creates a provider catalog from explicit router, registry, and metadata.
-func NewProviderCatalog(router ProviderRouter, registry *handler.Registry, metadata map[string]model.ProviderMetadata) *ProviderCatalog {
+func NewProviderCatalog(router *ResourceProviderRouter, registry *handler.Registry, metadata map[string]model.ProviderMetadata) *ProviderCatalog {
 	copiedMetadata := make(map[string]model.ProviderMetadata, len(metadata))
 	maps.Copy(copiedMetadata, metadata)
 

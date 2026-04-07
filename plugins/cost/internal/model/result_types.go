@@ -1,6 +1,17 @@
 package model
 
-import "time"
+import (
+	"math"
+	"time"
+)
+
+// costZeroThreshold is the epsilon used to treat accumulated float64 costs as zero.
+// Costs below this threshold are considered effectively zero for display purposes.
+const costZeroThreshold = 0.0001
+
+// CostIsZero reports whether a cost value should be treated as zero for display.
+// Uses an epsilon comparison to avoid false non-zero results from floating-point accumulation.
+func CostIsZero(v float64) bool { return math.Abs(v) < costZeroThreshold }
 
 // ResourceCost represents the estimated cost of a single resource.
 type ResourceCost struct {

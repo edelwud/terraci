@@ -23,13 +23,11 @@ func TestProviderCatalog_ResolveProviderAndHandler(t *testing.T) {
 	registry := handler.NewRegistry()
 	registry.Register(awskit.ProviderID, handler.ResourceType("aws_instance"), runtimetest.StubHandler{CategoryValue: handler.CostCategoryStandard})
 
+	router := NewResourceProviderRouter()
+	router.Register(awskit.ProviderID, handler.ResourceType("aws_instance"))
+
 	catalog := NewProviderCatalog(
-		funcProviderRouter(func(resourceType handler.ResourceType) (string, bool) {
-			if resourceType == handler.ResourceType("aws_instance") {
-				return awskit.ProviderID, true
-			}
-			return "", false
-		}),
+		router,
 		registry,
 		map[string]model.ProviderMetadata{
 			awskit.ProviderID: {DisplayName: "AWS", PriceSource: "aws-bulk-api"},
@@ -67,15 +65,17 @@ func TestProviderRuntimeRegistry_GetIndexAndSourceName(t *testing.T) {
 		},
 	}
 
+	cache1 := pricing.NewCacheFromBlobCache(blobcache.New(diskblob.NewStore(t.TempDir()), "", time.Hour))
+	cache1.SetFetcher(runtimetest.StubFetcher{
+		FetchRegionIndexFunc: func(_ context.Context, _ pricing.ServiceID, _ string) (*pricing.PriceIndex, error) {
+			return expected, nil
+		},
+	})
 	runtimeRegistry := NewProviderRuntimeRegistry(
 		map[string]*ProviderRuntime{
 			awskit.ProviderID: {
 				Definition: awsProvider.Definition(),
-				Cache: pricing.NewCache(diskblob.NewStore(t.TempDir()), "", time.Hour, runtimetest.StubFetcher{
-					FetchRegionIndexFunc: func(_ context.Context, _ pricing.ServiceID, _ string) (*pricing.PriceIndex, error) {
-						return expected, nil
-					},
-				}),
+				Cache:      cache1,
 			},
 		},
 	)
@@ -118,24 +118,26 @@ func TestProviderRuntimeRegistry_WarmIndexes(t *testing.T) {
 
 	serviceID := awskit.MustService(awskit.ServiceKeyEC2)
 	fetchCount := 0
+	cache2 := pricing.NewCacheFromBlobCache(blobcache.New(diskblob.NewStore(t.TempDir()), "", time.Hour))
+	cache2.SetFetcher(runtimetest.StubFetcher{
+		FetchRegionIndexFunc: func(_ context.Context, _ pricing.ServiceID, _ string) (*pricing.PriceIndex, error) {
+			fetchCount++
+			return &pricing.PriceIndex{
+				ServiceID: serviceID,
+				Region:    "us-east-1",
+				Version:   "test-v1",
+				UpdatedAt: time.Now(),
+				Products: map[string]pricing.Price{
+					"sku": {SKU: "sku", OnDemandUSD: 0.01},
+				},
+			}, nil
+		},
+	})
 	runtimeRegistry := NewProviderRuntimeRegistry(
 		map[string]*ProviderRuntime{
 			awskit.ProviderID: {
 				Definition: awsProvider.Definition(),
-				Cache: pricing.NewCache(diskblob.NewStore(t.TempDir()), "", time.Hour, runtimetest.StubFetcher{
-					FetchRegionIndexFunc: func(_ context.Context, _ pricing.ServiceID, _ string) (*pricing.PriceIndex, error) {
-						fetchCount++
-						return &pricing.PriceIndex{
-							ServiceID: serviceID,
-							Region:    "us-east-1",
-							Version:   "test-v1",
-							UpdatedAt: time.Now(),
-							Products: map[string]pricing.Price{
-								"sku": {SKU: "sku", OnDemandUSD: 0.01},
-							},
-						}, nil
-					},
-				}),
+				Cache:      cache2,
 			},
 		},
 	)
@@ -170,13 +172,13 @@ func TestProviderRuntimeRegistry_SharedFetcherOverrideDoesNotPanicForMultiplePro
 
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			t.Fatalf("constructor should not panic for multi-provider shared override: %v", recovered)
+			t.Fatalf("constructor should not panic for multi-provider setup: %v", recovered)
 		}
 	}()
-	_ = NewProviderRuntimeRegistryFromProvidersWithBlobCache(
+	_ = NewProviderRuntimeRegistryFromProviders(
 		providers,
 		blobcache.New(diskblob.NewStore(t.TempDir()), "", time.Hour),
-		runtimetest.StubFetcher{},
+		nil,
 	)
 }
 
@@ -190,7 +192,7 @@ func TestProviderRuntimeRegistry_ProviderScopedFetcherOverrides(t *testing.T) {
 	serviceOne := pricing.ServiceID{Provider: "one", Name: "ServiceOne"}
 	serviceTwo := pricing.ServiceID{Provider: "two", Name: "ServiceTwo"}
 
-	runtimeRegistry := NewProviderRuntimeRegistryFromProvidersWithBlobCacheAndFetchers(
+	runtimeRegistry := NewProviderRuntimeRegistryFromProviders(
 		providers,
 		blobcache.New(diskblob.NewStore(t.TempDir()), "", time.Hour),
 		map[string]pricing.PriceFetcher{
@@ -261,10 +263,4 @@ func testPriceIndex(service pricing.ServiceID, region, version string) *pricing.
 			"sku": {SKU: "sku", OnDemandUSD: 0.01},
 		},
 	}
-}
-
-type funcProviderRouter func(resourceType handler.ResourceType) (string, bool)
-
-func (f funcProviderRouter) ResolveProvider(resourceType handler.ResourceType) (string, bool) {
-	return f(resourceType)
 }
