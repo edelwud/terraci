@@ -17,7 +17,7 @@ func TestResolveRegionName_KnownRegions(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		got := ResolveRegionName(tt.region)
+		got := DefaultRuntime.ResolveRegionName(tt.region)
 		if got != tt.want {
 			t.Errorf("ResolveRegionName(%q) = %q, want %q", tt.region, got, tt.want)
 		}
@@ -27,7 +27,7 @@ func TestResolveRegionName_KnownRegions(t *testing.T) {
 func TestResolveRegionName_UnknownRegion(t *testing.T) {
 	t.Parallel()
 
-	got := ResolveRegionName("xx-unknown-1")
+	got := DefaultRuntime.ResolveRegionName("xx-unknown-1")
 	if got != "xx-unknown-1" {
 		t.Errorf("ResolveRegionName(unknown) = %q, want %q", got, "xx-unknown-1")
 	}
@@ -36,7 +36,7 @@ func TestResolveRegionName_UnknownRegion(t *testing.T) {
 func TestResolveRegionName_EmptyString(t *testing.T) {
 	t.Parallel()
 
-	got := ResolveRegionName("")
+	got := DefaultRuntime.ResolveRegionName("")
 	if got != "" {
 		t.Errorf("ResolveRegionName(\"\") = %q, want empty", got)
 	}
@@ -65,7 +65,7 @@ func TestResolveUsagePrefix_KnownRegions(t *testing.T) {
 		t.Run(tt.region, func(t *testing.T) {
 			t.Parallel()
 
-			got := ResolveUsagePrefix(tt.region)
+			got := DefaultRuntime.ResolveUsagePrefix(tt.region)
 			if got != tt.want {
 				t.Errorf("ResolveUsagePrefix(%q) = %q, want %q", tt.region, got, tt.want)
 			}
@@ -76,7 +76,7 @@ func TestResolveUsagePrefix_KnownRegions(t *testing.T) {
 func TestResolveUsagePrefix_UnknownRegion(t *testing.T) {
 	t.Parallel()
 
-	got := ResolveUsagePrefix("xx-unknown-1")
+	got := DefaultRuntime.ResolveUsagePrefix("xx-unknown-1")
 	if got != "USE1" {
 		t.Errorf("ResolveUsagePrefix(unknown) = %q, want %q", got, "USE1")
 	}
@@ -85,7 +85,7 @@ func TestResolveUsagePrefix_UnknownRegion(t *testing.T) {
 func TestResolveUsagePrefix_EmptyString(t *testing.T) {
 	t.Parallel()
 
-	got := ResolveUsagePrefix("")
+	got := DefaultRuntime.ResolveUsagePrefix("")
 	if got != "USE1" {
 		t.Errorf("ResolveUsagePrefix(\"\") = %q, want %q", got, "USE1")
 	}

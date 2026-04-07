@@ -141,12 +141,12 @@ func TestParseLBAttrs_DefaultsToApplication(t *testing.T) {
 	t.Parallel()
 
 	got := parseLBAttrs(map[string]any{})
-	if got.LoadBalancerType != TypeApplication {
-		t.Fatalf("parseLBAttrs(default).LoadBalancerType = %q, want %q", got.LoadBalancerType, TypeApplication)
+	if got.LoadBalancerType != typeApplication {
+		t.Fatalf("parseLBAttrs(default).LoadBalancerType = %q, want %q", got.LoadBalancerType, typeApplication)
 	}
 
-	got = parseLBAttrs(map[string]any{"load_balancer_type": TypeNetwork})
-	if got.LoadBalancerType != TypeNetwork {
-		t.Fatalf("parseLBAttrs(network).LoadBalancerType = %q, want %q", got.LoadBalancerType, TypeNetwork)
+	got = parseLBAttrs(map[string]any{"load_balancer_type": typeNetwork})
+	if got.LoadBalancerType != typeNetwork {
+		t.Fatalf("parseLBAttrs(network).LoadBalancerType = %q, want %q", got.LoadBalancerType, typeNetwork)
 	}
 }

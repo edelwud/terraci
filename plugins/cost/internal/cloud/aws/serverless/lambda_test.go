@@ -10,7 +10,7 @@ import (
 func TestLambdaHandler_Category(t *testing.T) {
 	t.Parallel()
 
-	handlertest.AssertStandardCategory(t, &LambdaHandler{})
+	handlertest.AssertUsageBasedCategory(t, &LambdaHandler{})
 }
 
 func TestLambdaHandler_BuildLookup(t *testing.T) {

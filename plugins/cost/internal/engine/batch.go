@@ -61,11 +61,9 @@ func (b *estimateCoordinator) Estimate(ctx context.Context, modulePaths []string
 		modulePlans = append(modulePlans, scanned.Plan)
 	}
 
-	if b.runtimes != nil && b.catalog != nil {
-		requirements := buildPrefetchRequirements(b.catalog, modulePlans)
-		if prefetchErr := b.runtimes.WarmIndexes(ctx, requirements); prefetchErr != nil {
-			log.WithError(prefetchErr).Warn("failed to prefetch some pricing data")
-		}
+	requirements := buildPrefetchRequirements(b.catalog, modulePlans)
+	if prefetchErr := b.runtimes.WarmIndexes(ctx, requirements); prefetchErr != nil {
+		log.WithError(prefetchErr).Warn("failed to prefetch some pricing data")
 	}
 
 	sem := make(chan struct{}, maxModuleConcurrency)

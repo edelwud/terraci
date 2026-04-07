@@ -8,16 +8,16 @@ import (
 
 // LB pricing constants
 const (
-	UsageType        = "LoadBalancerUsage"
-	TypeApplication  = "application"
-	TypeNetwork      = "network"
-	TypeGateway      = "gateway"
-	ProductFamilyALB = "Load Balancer-Application"
+	usageType        = "LoadBalancerUsage"
+	typeApplication  = "application"
+	typeNetwork      = "network"
+	typeGateway      = "gateway"
+	productFamilyALB = "Load Balancer-Application"
 
 	// Default hourly costs
-	DefaultALBHourlyCost  = 0.0225
-	DefaultNLBHourlyCost  = 0.0225
-	DefaultGWLBHourlyCost = 0.0125
+	defaultALBHourlyCost  = 0.0225
+	defaultNLBHourlyCost  = 0.0225
+	defaultGWLBHourlyCost = 0.0125
 )
 
 // ALBHandler handles aws_lb (ALB/NLB) cost estimation
@@ -34,7 +34,7 @@ func parseLBAttrs(attrs map[string]any) lbAttrs {
 		LoadBalancerType: handler.GetStringAttr(attrs, "load_balancer_type"),
 	}
 	if parsed.LoadBalancerType == "" {
-		parsed.LoadBalancerType = TypeApplication
+		parsed.LoadBalancerType = typeApplication
 	}
 	return parsed
 }
@@ -44,23 +44,24 @@ func (h *ALBHandler) Category() handler.CostCategory { return handler.CostCatego
 func (h *ALBHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 	parsed := parseLBAttrs(attrs)
 
-	spec := h.RuntimeOrDefault().StandardLookupSpec(
+	runtime := h.RuntimeOrDefault()
+	spec := runtime.StandardLookupSpec(
 		awskit.ServiceKeyEC2,
 		"",
 		func(region string, _ map[string]any) (map[string]string, error) {
 			return map[string]string{
-				"usagetype": region + "-" + UsageType,
+				"usagetype": runtime.ResolveUsagePrefix(region) + "-" + usageType,
 			}, nil
 		},
 	)
 
 	switch parsed.LoadBalancerType {
-	case TypeNetwork:
+	case typeNetwork:
 		spec.ProductFamily = "Load Balancer-Network"
-	case TypeGateway:
+	case typeGateway:
 		spec.ProductFamily = "Load Balancer-Gateway"
 	default:
-		spec.ProductFamily = ProductFamilyALB
+		spec.ProductFamily = productFamilyALB
 	}
 
 	return spec.Build(region, attrs)
@@ -75,12 +76,12 @@ func (h *ALBHandler) CalculateCost(price *pricing.Price, _ *pricing.PriceIndex, 
 	if rate == 0 {
 		// Default pricing if lookup fails
 		switch parseLBAttrs(attrs).LoadBalancerType {
-		case TypeNetwork:
-			rate = DefaultNLBHourlyCost
-		case TypeGateway:
-			rate = DefaultGWLBHourlyCost
+		case typeNetwork:
+			rate = defaultNLBHourlyCost
+		case typeGateway:
+			rate = defaultGWLBHourlyCost
 		default:
-			rate = DefaultALBHourlyCost
+			rate = defaultALBHourlyCost
 		}
 	}
 	return handler.HourlyCost(rate)

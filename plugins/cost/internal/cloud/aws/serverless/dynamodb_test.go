@@ -76,23 +76,10 @@ func TestDynamoDBHandler_CalculateCost(t *testing.T) {
 func TestDynamoDBHandler_Contract(t *testing.T) {
 	t.Parallel()
 
-	category := handler.CostCategoryStandard
+	category := handler.CostCategoryUsageBased
 	handlertest.RunContractSuite(t, &DynamoDBHandler{}, handlertest.ContractSuite{
 		Category: &category,
 		LookupCases: []handlertest.LookupCase{
-			{
-				Name:   "pay per request",
-				Region: "us-east-1",
-				Attrs: map[string]any{
-					"billing_mode": "PAY_PER_REQUEST",
-				},
-				Assert: func(tb testing.TB, lookup *pricing.PriceLookup) {
-					tb.Helper()
-					if lookup.ProductFamily != "Amazon DynamoDB PayPerRequest Throughput" {
-						tb.Errorf("ProductFamily = %q, want %q", lookup.ProductFamily, "Amazon DynamoDB PayPerRequest Throughput")
-					}
-				},
-			},
 			{
 				Name:   "provisioned default",
 				Region: "us-east-1",

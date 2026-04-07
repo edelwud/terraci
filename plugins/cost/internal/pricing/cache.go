@@ -13,11 +13,7 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	"github.com/edelwud/terraci/pkg/cache/blobcache"
-	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
-
-// DefaultCacheTTL re-exports model.DefaultCacheTTL for backward compatibility.
-const DefaultCacheTTL = model.DefaultCacheTTL
 
 // PriceFetcher abstracts pricing data retrieval.
 // Implemented by Fetcher (AWS) and potentially GCP/Azure fetchers.
@@ -136,7 +132,7 @@ func (c *Cache) fetchAndCacheIndexLeader(ctx context.Context, service ServiceID,
 
 	idx, err := (*fp).FetchRegionIndex(ctx, service, region)
 	if err != nil {
-		if stale, loadErr := c.loadFromCache(ctx, service, region); loadErr == nil && stale != nil {
+		if stale, loadErr := c.loadCachedRaw(ctx, service, region); loadErr == nil && stale != nil {
 			log.WithError(err).
 				WithField("service", service.String()).
 				WithField("region", region).
@@ -166,7 +162,21 @@ func (c *Cache) isFresh(idx *PriceIndex) bool {
 }
 
 // loadFromCache loads a cached index from the blob store.
+// Returns an error if the entry is missing, corrupt, or expired.
 func (c *Cache) loadFromCache(ctx context.Context, service ServiceID, region string) (*PriceIndex, error) {
+	idx, err := c.loadCachedRaw(ctx, service, region)
+	if err != nil {
+		return nil, err
+	}
+	if !c.isFresh(idx) {
+		return nil, errors.New("cache entry expired")
+	}
+	return idx, nil
+}
+
+// loadCachedRaw loads a cached index without checking freshness.
+// Used for stale-fallback paths where any cached data is better than nothing.
+func (c *Cache) loadCachedRaw(ctx context.Context, service ServiceID, region string) (*PriceIndex, error) {
 	if c.blobs == nil {
 		return nil, blobcache.ErrStoreNotConfigured
 	}
@@ -183,8 +193,8 @@ func (c *Cache) loadFromCache(ctx context.Context, service ServiceID, region str
 	if err := json.Unmarshal(data, &idx); err != nil {
 		return nil, err
 	}
-	if !idx.isFresh() {
-		return nil, errors.New("invalid cache entry")
+	if !idx.isComplete() {
+		return nil, errors.New("invalid cache entry: missing required fields")
 	}
 
 	return &idx, nil

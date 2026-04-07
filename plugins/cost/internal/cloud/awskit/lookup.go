@@ -18,7 +18,7 @@ type PriceLookupSpec struct {
 func (b *PriceLookupSpec) Lookup(region string, attrs map[string]string) *pricing.PriceLookup {
 	merged := make(map[string]string, len(attrs)+1)
 	maps.Copy(merged, attrs)
-	merged["location"] = ResolveRegionName(region)
+	merged["location"] = DefaultRuntime.ResolveRegionName(region)
 
 	return &pricing.PriceLookup{
 		ServiceID:     b.Service,

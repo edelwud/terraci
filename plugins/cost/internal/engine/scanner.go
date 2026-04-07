@@ -12,17 +12,6 @@ import (
 // within each phase (scanning and estimation use separate semaphores of this size).
 const maxModuleConcurrency = 4
 
-// EstimateAction is the provider-neutral action model used by the cost engine.
-type EstimateAction = model.EstimateAction
-
-const (
-	ActionCreate  = model.ActionCreate
-	ActionDelete  = model.ActionDelete
-	ActionUpdate  = model.ActionUpdate
-	ActionReplace = model.ActionReplace
-	ActionNoOp    = model.ActionNoOp
-)
-
 // ModulePlanAdapter converts external plan sources into the cost engine input model.
 type ModulePlanAdapter interface {
 	LoadModule(modulePath, region string) (*ModulePlan, error)
@@ -44,7 +33,7 @@ type PlannedResource struct {
 	Address      string
 	Name         string
 	ModuleAddr   string
-	Action       EstimateAction
+	Action       model.EstimateAction
 	BeforeAttrs  map[string]any
 	AfterAttrs   map[string]any
 }
@@ -71,7 +60,7 @@ func (r PlannedResource) ActiveAttrs() map[string]any {
 
 // RequiresBeforeCost reports whether the before-state should be priced separately.
 func (r PlannedResource) RequiresBeforeCost() bool {
-	return (r.Action == ActionUpdate || r.Action == ActionReplace) && r.BeforeAttrs != nil
+	return (r.Action == model.ActionUpdate || r.Action == model.ActionReplace) && r.BeforeAttrs != nil
 }
 
 // ModulePlan is the provider-neutral input model consumed by the cost engine.

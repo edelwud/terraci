@@ -48,7 +48,7 @@ func TestPriceLookupSpec_Lookup_AddsLocation(t *testing.T) {
 		t.Error("location should be the resolved name, not the raw region code")
 	}
 	// Should be the full AWS region name
-	expected := ResolveRegionName("eu-west-1")
+	expected := DefaultRuntime.ResolveRegionName("eu-west-1")
 	if location != expected {
 		t.Errorf("location = %q, want %q", location, expected)
 	}

@@ -3,7 +3,6 @@ package elasticache
 import (
 	"errors"
 	"fmt"
-	"strconv"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
@@ -44,30 +43,22 @@ func (h *ReplicationGroupHandler) BuildLookup(region string, attrs map[string]an
 
 func (h *ReplicationGroupHandler) Describe(price *pricing.Price, attrs map[string]any) map[string]string {
 	parsed := parseReplicationGroupAttrs(attrs)
-	desc := make(map[string]string)
-	if parsed.NodeType != "" {
-		desc["node_type"] = parsed.NodeType
-	}
+	b := awskit.DescribeBuilder{}
+	b.String("node_type", parsed.NodeType)
 	if parsed.NumNodeGroupsSet {
-		desc["node_groups"] = strconv.Itoa(parsed.NumNodeGroups)
+		b.Int("node_groups", parsed.NumNodeGroups)
 	}
-	if parsed.ReplicasPerNodeGroup != 0 {
-		desc["replicas_per_group"] = strconv.Itoa(parsed.ReplicasPerNodeGroup)
-	}
-	if parsed.SnapshotRetentionDays > 0 {
-		desc["snapshot_retention_days"] = strconv.Itoa(parsed.SnapshotRetentionDays)
-	}
+	b.Int("replicas_per_group", parsed.ReplicasPerNodeGroup)
+	b.Int("snapshot_retention_days", parsed.SnapshotRetentionDays)
 	totalNodes := parsed.totalNodes()
-	if totalNodes > 0 {
-		desc["total_nodes"] = strconv.Itoa(totalNodes)
-	}
+	b.Int("total_nodes", totalNodes)
 	if mem := nodeMemoryFromPrice(price); mem > 0 {
-		desc["memory_gib"] = fmt.Sprintf("%.2f", mem)
+		b.String("memory_gib", fmt.Sprintf("%.2f", mem))
 	}
 	if ssd := nodeSSDFromPrice(price); ssd > 0 {
-		desc["ssd_gib"] = fmt.Sprintf("%.0f", ssd)
+		b.String("ssd_gib", fmt.Sprintf("%.0f", ssd))
 	}
-	return desc
+	return b.Map()
 }
 
 func (h *ReplicationGroupHandler) CalculateCost(price *pricing.Price, index *pricing.PriceIndex, region string, attrs map[string]any) (hourly, monthly float64) {

@@ -1,12 +1,14 @@
 package rds
 
 import (
+	"strings"
+
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
-// ClusterHandler handles aws_rds_cluster cost estimation (Aurora)
+// ClusterHandler handles aws_rds_cluster cost estimation (Aurora).
 type ClusterHandler struct {
 	awskit.RuntimeDeps
 }
@@ -23,18 +25,24 @@ func parseClusterAttrs(attrs map[string]any) clusterAttrs {
 	}
 }
 
+// isAuroraEngine returns true when the engine string is an Aurora variant.
+func isAuroraEngine(engine string) bool {
+	return strings.HasPrefix(strings.ToLower(engine), "aurora")
+}
+
 func (h *ClusterHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
 func (h *ClusterHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
-	// Aurora cluster itself doesn't have hourly compute cost
-	// Cost comes from cluster instances and storage
-	// Return a lookup for storage pricing
+	// Aurora cluster cost comes from storage; compute cost is on cluster instances.
 	parsed := parseClusterAttrs(attrs)
 	engine := parsed.Engine
 	if engine == "" {
 		engine = DefaultAuroraEngine
 	}
-	_ = engine // Engine used for validation only
+	if !isAuroraEngine(engine) {
+		// Non-Aurora cluster engines are not supported; skip pricing lookup.
+		return nil, nil
+	}
 
 	runtime := h.RuntimeOrDefault()
 	spec := runtime.StandardLookupSpec(
@@ -60,17 +68,20 @@ func (h *ClusterHandler) Describe(_ *pricing.Price, attrs map[string]any) map[st
 		Map()
 }
 
-func (h *ClusterHandler) CalculateCost(_ *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
+func (h *ClusterHandler) CalculateCost(price *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
 	parsed := parseClusterAttrs(attrs)
-	// Aurora storage is billed per GB-month
-	// Estimate based on allocated storage or minimum
 	allocatedStorage := parsed.AllocatedStorage
 	if allocatedStorage == 0 {
-		allocatedStorage = 10 // Minimum 10GB
+		allocatedStorage = 10 // Aurora minimum 10 GB
 	}
 
-	// Aurora storage: ~$0.10 per GB-month
-	monthly = allocatedStorage * AuroraStorageCostPerGB
+	// Prefer fetched price; fall back to hardcoded constant.
+	costPerGB := AuroraStorageCostPerGB
+	if price != nil && price.OnDemandUSD > 0 {
+		costPerGB = price.OnDemandUSD
+	}
+
+	monthly = allocatedStorage * costPerGB
 	hourly = monthly / handler.HoursPerMonth
 	return hourly, monthly
 }

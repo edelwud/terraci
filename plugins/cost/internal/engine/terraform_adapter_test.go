@@ -5,6 +5,7 @@ import (
 
 	"github.com/edelwud/terraci/plugins/cost/internal/engine"
 	"github.com/edelwud/terraci/plugins/cost/internal/enginetest"
+	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
 
 func TestTerraformPlanAdapter_LoadModule_MapsPlanToInputModel(t *testing.T) {
@@ -33,8 +34,8 @@ func TestTerraformPlanAdapter_LoadModule_MapsPlanToInputModel(t *testing.T) {
 	}
 
 	resource := modulePlan.Resources[0]
-	if resource.Action != engine.ActionUpdate {
-		t.Fatalf("Action = %q, want %q", resource.Action, engine.ActionUpdate)
+	if resource.Action != model.ActionUpdate {
+		t.Fatalf("Action = %q, want %q", resource.Action, model.ActionUpdate)
 	}
 	if resource.Address != "aws_instance.web" {
 		t.Fatalf("Address = %q, want aws_instance.web", resource.Address)
@@ -56,13 +57,13 @@ func TestTerraformPlanAdapter_LoadModule_MapsAllSupportedActions(t *testing.T) {
 	tests := []struct {
 		name     string
 		planJSON string
-		want     engine.EstimateAction
+		want     model.EstimateAction
 	}{
-		{name: "create", planJSON: enginetest.LoadPlanFixture(t, "create_ec2"), want: engine.ActionCreate},
-		{name: "delete", planJSON: enginetest.LoadPlanFixture(t, "delete_ec2"), want: engine.ActionDelete},
-		{name: "update", planJSON: enginetest.LoadPlanFixture(t, "update_ec2"), want: engine.ActionUpdate},
-		{name: "replace", planJSON: planReplaceEC2, want: engine.ActionReplace},
-		{name: "no-op", planJSON: enginetest.LoadPlanFixture(t, "no_op"), want: engine.ActionNoOp},
+		{name: "create", planJSON: enginetest.LoadPlanFixture(t, "create_ec2"), want: model.ActionCreate},
+		{name: "delete", planJSON: enginetest.LoadPlanFixture(t, "delete_ec2"), want: model.ActionDelete},
+		{name: "update", planJSON: enginetest.LoadPlanFixture(t, "update_ec2"), want: model.ActionUpdate},
+		{name: "replace", planJSON: planReplaceEC2, want: model.ActionReplace},
+		{name: "no-op", planJSON: enginetest.LoadPlanFixture(t, "no_op"), want: model.ActionNoOp},
 	}
 
 	for _, tt := range tests {

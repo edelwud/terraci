@@ -21,7 +21,7 @@ const (
 	// IOPS costs per provisioned IOPS per month
 	IOPSCostIO1PerMonth = 0.10
 	IOPSCostIO2PerMonth = 0.10
-	IOPSCostGP3PerMonth = 0.00 // gp3 IOPS included (3000 baseline)
+	// gp3 IOPS are included in baseline (3000 IOPS) — no additional cost constant needed
 
 	AuroraStorageCostPerGB = 0.10
 
@@ -69,7 +69,7 @@ func (h *InstanceHandler) BuildLookup(region string, attrs map[string]any) (*pri
 	}
 
 	// Map terraform engine to RDS database engine
-	databaseEngine := MapRDSEngine(engine)
+	databaseEngine := mapRDSEngine(engine)
 
 	// Deployment option
 	deploymentOption := "Single-AZ"
@@ -101,13 +101,16 @@ func (h *InstanceHandler) Describe(_ *pricing.Price, attrs map[string]any) map[s
 }
 
 func (h *InstanceHandler) CalculateCost(price *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
+	if price == nil {
+		return 0, 0
+	}
 	parsed := parseInstanceAttrs(attrs)
 	hourly = price.OnDemandUSD
 	monthly = hourly * handler.HoursPerMonth
 
 	// Add storage cost
 	if parsed.AllocatedStorage > 0 {
-		storageCostPerGB := GetStorageCostPerGB(parsed.StorageType)
+		storageCostPerGB := getStorageCostPerGB(parsed.StorageType)
 		monthly += parsed.AllocatedStorage * storageCostPerGB
 	}
 
@@ -126,8 +129,8 @@ func (h *InstanceHandler) CalculateCost(price *pricing.Price, _ *pricing.PriceIn
 	return hourly, monthly
 }
 
-// MapRDSEngine maps terraform engine names to AWS pricing database engine names
-func MapRDSEngine(engine string) string {
+// mapRDSEngine maps terraform engine names to AWS pricing database engine names.
+func mapRDSEngine(engine string) string {
 	engine = strings.ToLower(engine)
 	switch {
 	case strings.HasPrefix(engine, "aurora-mysql"):
@@ -151,11 +154,13 @@ func MapRDSEngine(engine string) string {
 	}
 }
 
-// GetStorageCostPerGB returns estimated storage cost per GB-month
-func GetStorageCostPerGB(storageType string) float64 {
+// getStorageCostPerGB returns estimated storage cost per GB-month.
+func getStorageCostPerGB(storageType string) float64 {
 	switch storageType {
-	case awskit.VolumeTypeGP2, awskit.VolumeTypeGP3:
+	case awskit.VolumeTypeGP2:
 		return StorageCostGP2
+	case awskit.VolumeTypeGP3:
+		return StorageCostGP3
 	case awskit.VolumeTypeIO1:
 		return StorageCostIO1
 	case awskit.VolumeTypeIO2:

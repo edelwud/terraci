@@ -177,9 +177,9 @@ func TestMapRDSEngine(t *testing.T) {
 		t.Run(tt.engine, func(t *testing.T) {
 			t.Parallel()
 
-			result := MapRDSEngine(tt.engine)
+			result := mapRDSEngine(tt.engine)
 			if result != tt.expected {
-				t.Errorf("MapRDSEngine(%q) = %q, want %q", tt.engine, result, tt.expected)
+				t.Errorf("mapRDSEngine(%q) = %q, want %q", tt.engine, result, tt.expected)
 			}
 		})
 	}
@@ -203,9 +203,9 @@ func TestGetStorageCostPerGB(t *testing.T) {
 		t.Run(tt.storageType, func(t *testing.T) {
 			t.Parallel()
 
-			result := GetStorageCostPerGB(tt.storageType)
+			result := getStorageCostPerGB(tt.storageType)
 			if result != tt.expected {
-				t.Errorf("GetStorageCostPerGB(%q) = %v, want %v", tt.storageType, result, tt.expected)
+				t.Errorf("getStorageCostPerGB(%q) = %v, want %v", tt.storageType, result, tt.expected)
 			}
 		})
 	}

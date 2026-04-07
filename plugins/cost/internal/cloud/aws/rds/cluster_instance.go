@@ -38,7 +38,7 @@ func (h *ClusterInstanceHandler) BuildLookup(region string, attrs map[string]any
 		engine = DefaultAuroraEngine
 	}
 
-	databaseEngine := MapRDSEngine(engine)
+	databaseEngine := mapRDSEngine(engine)
 
 	return h.RuntimeOrDefault().StandardLookupSpec(
 		awskit.ServiceKeyRDS,
@@ -61,5 +61,8 @@ func (h *ClusterInstanceHandler) Describe(_ *pricing.Price, attrs map[string]any
 }
 
 func (h *ClusterInstanceHandler) CalculateCost(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
+	if price == nil {
+		return 0, 0
+	}
 	return handler.HourlyCost(price.OnDemandUSD)
 }

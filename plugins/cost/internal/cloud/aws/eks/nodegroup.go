@@ -84,6 +84,9 @@ func (h *NodeGroupHandler) BuildLookup(region string, attrs map[string]any) (*pr
 }
 
 func (h *NodeGroupHandler) CalculateCost(price *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
+	if price == nil {
+		return 0, 0
+	}
 	parsed := parseNodeGroupAttrs(attrs)
 	return handler.ScaledHourlyCost(price.OnDemandUSD, parsed.DesiredSize)
 }

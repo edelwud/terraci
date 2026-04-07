@@ -18,12 +18,13 @@ type ClassicHandler struct {
 func (h *ClassicHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
 func (h *ClassicHandler) BuildLookup(region string, _ map[string]any) (*pricing.PriceLookup, error) {
-	return h.RuntimeOrDefault().StandardLookupSpec(
+	runtime := h.RuntimeOrDefault()
+	return runtime.StandardLookupSpec(
 		awskit.ServiceKeyELB,
 		"Load Balancer",
-		func(_ string, _ map[string]any) (map[string]string, error) {
+		func(region string, _ map[string]any) (map[string]string, error) {
 			return map[string]string{
-				"usagetype": region + "-" + UsageType,
+				"usagetype": runtime.ResolveUsagePrefix(region) + "-" + usageType,
 			}, nil
 		},
 	).Build(region, nil)

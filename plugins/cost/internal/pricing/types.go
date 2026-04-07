@@ -96,7 +96,7 @@ type PriceLookup struct {
 	Attributes    map[string]string
 }
 
-// isFresh checks if the index contains usable data.
-func (idx *PriceIndex) isFresh() bool {
+// isComplete checks that the index contains usable data (structural check, not TTL).
+func (idx *PriceIndex) isComplete() bool {
 	return idx != nil && idx.ServiceID.Name != "" && idx.Region != "" && len(idx.Products) > 0
 }

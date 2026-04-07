@@ -50,27 +50,16 @@ func newEstimator(catalog *costruntime.ProviderCatalog, runtimeRegistry *costrun
 	}
 }
 
-// enabledProviderIDs returns IDs of all cloud providers enabled in the config.
-// Iterates the provider config map — no knowledge of specific provider IDs required.
-func enabledProviderIDs(cfg *model.CostConfig) []string {
-	if cfg == nil {
-		return nil
-	}
-	var ids []string
-	for id, p := range cfg.Providers {
-		if p.Enabled {
-			ids = append(ids, id)
-		}
-	}
-	return ids
-}
-
 // configuredProviders resolves the subset of registered cloud providers enabled by config.
 // Matches enabled config keys against cloud.Definition.ConfigKey — no hardcoded provider names.
 func configuredProviders(cfg *model.CostConfig) ([]cloud.Provider, error) {
 	enabled := map[string]struct{}{}
-	for _, id := range enabledProviderIDs(cfg) {
-		enabled[id] = struct{}{}
+	if cfg != nil {
+		for id, p := range cfg.Providers {
+			if p.Enabled {
+				enabled[id] = struct{}{}
+			}
+		}
 	}
 
 	all := cloud.Providers()

@@ -35,7 +35,7 @@ func parseLambdaAttrs(attrs map[string]any) lambdaAttrs {
 	}
 }
 
-func (h *LambdaHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
+func (h *LambdaHandler) Category() handler.CostCategory { return handler.CostCategoryUsageBased }
 
 func (h *LambdaHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
 	parsed := parseLambdaAttrs(attrs)

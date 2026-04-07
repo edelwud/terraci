@@ -40,12 +40,6 @@ var awsRegionMapping = map[string]string{
 	"af-south-1": "Africa (Cape Town)",
 }
 
-// ResolveRegionName returns the AWS pricing API region name for a region code.
-// Falls back to the region code if no mapping exists.
-func ResolveRegionName(region string) string {
-	return DefaultRuntime.ResolveRegionName(region)
-}
-
 // RegionUsagePrefix maps AWS region codes to the pricing API usagetype prefix
 // (e.g., "us-east-1" → "USE1"). Used for services like EKS and VPC that
 // use region-prefixed usagetypes.
@@ -90,9 +84,3 @@ var awsRegionUsagePrefix = map[string]string{
 
 // DefaultUsagePrefix is the fallback usagetype prefix (us-east-1).
 const DefaultUsagePrefix = "USE1"
-
-// ResolveUsagePrefix returns the usagetype prefix for a region.
-// Falls back to DefaultUsagePrefix (us-east-1) for unknown regions.
-func ResolveUsagePrefix(region string) string {
-	return DefaultRuntime.ResolveUsagePrefix(region)
-}

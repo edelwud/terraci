@@ -32,7 +32,7 @@ func parseDynamoDBAttrs(attrs map[string]any) dynamoDBAttrs {
 	}
 }
 
-func (h *DynamoDBHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
+func (h *DynamoDBHandler) Category() handler.CostCategory { return handler.CostCategoryUsageBased }
 
 func (h *DynamoDBHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 	parsed := parseDynamoDBAttrs(attrs)

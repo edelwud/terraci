@@ -7,6 +7,7 @@ import (
 
 	tfplan "github.com/edelwud/terraci/internal/terraform/plan"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
 
 // TerraformPlanAdapter converts Terraform plan.json files into the engine input model.
@@ -60,24 +61,19 @@ func (a *TerraformPlanAdapter) LoadModule(modulePath, region string) (*ModulePla
 	return modulePlan, nil
 }
 
-func mapTerraformAction(action string) (EstimateAction, error) {
+func mapTerraformAction(action string) (model.EstimateAction, error) {
 	switch action {
 	case tfplan.ActionCreate:
-		return ActionCreate, nil
+		return model.ActionCreate, nil
 	case tfplan.ActionDelete:
-		return ActionDelete, nil
+		return model.ActionDelete, nil
 	case tfplan.ActionUpdate:
-		return ActionUpdate, nil
+		return model.ActionUpdate, nil
 	case tfplan.ActionReplace:
-		return ActionReplace, nil
+		return model.ActionReplace, nil
 	case tfplan.ActionNoOp:
-		return ActionNoOp, nil
+		return model.ActionNoOp, nil
 	default:
 		return "", fmt.Errorf("unsupported action %q", action)
 	}
-}
-
-// MapTerraformAction exposes Terraform action normalization for adapter tests and facades.
-func MapTerraformAction(action string) (EstimateAction, error) {
-	return mapTerraformAction(action)
 }

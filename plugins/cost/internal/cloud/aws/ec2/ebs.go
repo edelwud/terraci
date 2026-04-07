@@ -14,23 +14,11 @@ const (
 	FallbackGP3ThroughputCostPerMB = 0.040
 )
 
-// EBS product limits (not prices — these are AWS-defined free tiers).
+// GP3 free tier thresholds (AWS always includes these without extra charge).
 const (
 	DefaultGP3FreeIOPS           = 3000
 	DefaultGP3FreeThroughputMBps = 125
 )
-
-// ebsVolumeAPIName maps Terraform volume types to AWS pricing volumeApiName.
-// AWS API uses short names: "gp2", "gp3", "io1", "io2", "st1", "sc1", "standard".
-var ebsVolumeAPIName = map[string]string{
-	awskit.VolumeTypeGP2:      "gp2",
-	awskit.VolumeTypeGP3:      "gp3",
-	awskit.VolumeTypeIO1:      "io1",
-	awskit.VolumeTypeIO2:      "io2",
-	awskit.VolumeTypeST1:      "st1",
-	awskit.VolumeTypeSC1:      "sc1",
-	awskit.VolumeTypeStandard: "standard",
-}
 
 // EBSHandler handles aws_ebs_volume cost estimation.
 type EBSHandler struct {
@@ -76,14 +64,9 @@ func (h *EBSHandler) Category() handler.CostCategory { return handler.CostCatego
 
 func (h *EBSHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 	parsed := parseEBSVolumeAttrs(attrs)
-	apiName := ebsVolumeAPIName[parsed.VolumeType]
-	if apiName == "" {
-		apiName = "gp2"
-	}
-
 	lb := &awskit.PriceLookupSpec{Service: h.ec2ServiceID, ProductFamily: "Storage"}
 	return lb.Lookup(region, map[string]string{
-		"volumeApiName": apiName,
+		"volumeApiName": parsed.VolumeType,
 	}), nil
 }
 
@@ -109,6 +92,9 @@ func (h *EBSHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string
 // secondary lookups (IOPS, throughput). Falls back to hardcoded values
 // when the index is nil or the lookup fails.
 func (h *EBSHandler) CalculateCost(price *pricing.Price, index *pricing.PriceIndex, region string, attrs map[string]any) (hourly, monthly float64) {
+	if price == nil {
+		return 0, 0
+	}
 	parsed := parseEBSVolumeAttrs(attrs)
 
 	// Storage cost (per GB-month from primary API lookup)

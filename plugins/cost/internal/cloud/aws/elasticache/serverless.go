@@ -58,9 +58,13 @@ func (h *ServerlessHandler) Describe(_ *pricing.Price, attrs map[string]any) map
 }
 
 func (h *ServerlessHandler) CalculateCost(price *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
+	if price == nil {
+		return 0, 0
+	}
 	storageGB := parseServerlessAttrs(attrs).StorageMaxGB
 	if storageGB == 0 {
-		storageGB = 1 // minimum 1 GB
+		// cache_usage_limits not configured; default to 1 GB (minimum ElastiCache Serverless allocation).
+		storageGB = 1
 	}
 
 	// price.OnDemandUSD is per GB-hour from API

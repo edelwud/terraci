@@ -76,10 +76,14 @@ func (i *CacheInspector) Entries(ctx context.Context) []CacheEntry {
 // OldestAge returns the age of the oldest cached entry, or 0 if cache is empty.
 func (i *CacheInspector) OldestAge(ctx context.Context) time.Duration {
 	entries := i.Entries(ctx)
-	oldest := time.Duration(0)
+	var (
+		oldest time.Duration
+		found  bool
+	)
 	for _, entry := range entries {
-		if oldest == 0 || entry.Age > oldest {
+		if !found || entry.Age > oldest {
 			oldest = entry.Age
+			found = true
 		}
 	}
 	return oldest

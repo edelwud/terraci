@@ -5,7 +5,7 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
-// CloudWatch pricing constants
+// CloudWatch pricing constants.
 const (
 	CloudWatchStandardAlarmCost    = 0.10
 	CloudWatchHighResAlarmCost     = 0.30
@@ -16,13 +16,6 @@ const (
 type LogGroupHandler struct{}
 
 func (h *LogGroupHandler) Category() handler.CostCategory { return handler.CostCategoryUsageBased }
-
-func (h *LogGroupHandler) BuildLookup(_ string, _ map[string]any) (*pricing.PriceLookup, error) {
-	// CloudWatch Logs: ingestion + storage
-	return nil, nil
-}
-
-func (h *LogGroupHandler) Describe(_ *pricing.Price, _ map[string]any) map[string]string { return nil }
 
 func (h *LogGroupHandler) CalculateCost(_ *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
 	// CloudWatch Logs: $0.50 per GB ingested, $0.03 per GB stored

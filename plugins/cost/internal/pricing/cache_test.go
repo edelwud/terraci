@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/edelwud/terraci/pkg/cache/blobcache"
+	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/diskblob"
 )
 
@@ -29,7 +30,7 @@ func (s *stubFetcher) FetchRegionIndex(_ context.Context, _ ServiceID, _ string)
 // newTestCache builds a Cache from a raw diskblob store — mirrors the deleted NewCache constructor.
 func newTestCache(store *diskblob.Store, ttl time.Duration, fetcher PriceFetcher) *Cache {
 	if ttl == 0 {
-		ttl = DefaultCacheTTL
+		ttl = model.DefaultCacheTTL
 	}
 	c := NewCacheFromBlobCache(blobcache.New(store, "", ttl))
 	if fetcher != nil {
@@ -108,7 +109,7 @@ func TestIsValid(t *testing.T) {
 
 func TestSaveAndLoad(t *testing.T) {
 	tmpDir := t.TempDir()
-	c := newTestCache(diskblob.NewStore(tmpDir), DefaultCacheTTL, &stubFetcher{})
+	c := newTestCache(diskblob.NewStore(tmpDir), model.DefaultCacheTTL, &stubFetcher{})
 
 	now := time.Now().Truncate(time.Second)
 	idx := &PriceIndex{
@@ -166,7 +167,7 @@ func TestSaveAndLoad(t *testing.T) {
 
 func TestLoadFromCache_NotFound(t *testing.T) {
 	tmpDir := t.TempDir()
-	c := newTestCache(diskblob.NewStore(tmpDir), DefaultCacheTTL, &stubFetcher{})
+	c := newTestCache(diskblob.NewStore(tmpDir), model.DefaultCacheTTL, &stubFetcher{})
 
 	_, err := c.loadFromCache(context.Background(), ServiceID{Provider: awsProviderID, Name: "NoSuchService"}, "no-region")
 	if err == nil {
@@ -176,7 +177,7 @@ func TestLoadFromCache_NotFound(t *testing.T) {
 
 func TestInvalidate(t *testing.T) {
 	tmpDir := t.TempDir()
-	c := newTestCache(diskblob.NewStore(tmpDir), DefaultCacheTTL, &stubFetcher{})
+	c := newTestCache(diskblob.NewStore(tmpDir), model.DefaultCacheTTL, &stubFetcher{})
 
 	idx := &PriceIndex{
 		ServiceID: awsServiceEC2,
@@ -201,7 +202,7 @@ func TestInvalidate(t *testing.T) {
 
 func TestValidate_AllCached(t *testing.T) {
 	tmpDir := t.TempDir()
-	c := newTestCache(diskblob.NewStore(tmpDir), DefaultCacheTTL, &stubFetcher{})
+	c := newTestCache(diskblob.NewStore(tmpDir), model.DefaultCacheTTL, &stubFetcher{})
 
 	idx := &PriceIndex{
 		ServiceID: awsServiceEC2,
@@ -224,7 +225,7 @@ func TestValidate_AllCached(t *testing.T) {
 
 func TestValidate_SomeMissing(t *testing.T) {
 	tmpDir := t.TempDir()
-	c := newTestCache(diskblob.NewStore(tmpDir), DefaultCacheTTL, &stubFetcher{})
+	c := newTestCache(diskblob.NewStore(tmpDir), model.DefaultCacheTTL, &stubFetcher{})
 
 	idx := &PriceIndex{
 		ServiceID: awsServiceEC2,

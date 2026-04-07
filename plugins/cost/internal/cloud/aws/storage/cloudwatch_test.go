@@ -14,27 +14,11 @@ func TestLogGroupHandler_Category(t *testing.T) {
 	handlertest.AssertCategory(t, h, handler.CostCategoryUsageBased)
 }
 
-func TestLogGroupHandler_Describe(t *testing.T) {
-	t.Parallel()
-
-	h := &LogGroupHandler{}
-	result := h.Describe(nil, nil)
-	if result != nil {
-		t.Errorf("Describe() = %v, want nil", result)
-	}
-}
-
 func TestAlarmHandler_Category(t *testing.T) {
 	t.Parallel()
 
 	h := &AlarmHandler{}
 	handlertest.AssertCategory(t, h, handler.CostCategoryFixed)
-}
-
-func TestLogGroupHandler_BuildLookup(t *testing.T) {
-	t.Parallel()
-
-	handlertest.AssertNilLookup(t, &LogGroupHandler{}, "us-east-1", nil)
 }
 
 func TestLogGroupHandler_CalculateCost(t *testing.T) {
