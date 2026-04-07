@@ -18,12 +18,25 @@ type DynamoDBHandler struct {
 	awskit.RuntimeDeps
 }
 
+type dynamoDBAttrs struct {
+	BillingMode   string
+	ReadCapacity  int
+	WriteCapacity int
+}
+
+func parseDynamoDBAttrs(attrs map[string]any) dynamoDBAttrs {
+	return dynamoDBAttrs{
+		BillingMode:   handler.GetStringAttr(attrs, "billing_mode"),
+		ReadCapacity:  handler.GetIntAttr(attrs, "read_capacity"),
+		WriteCapacity: handler.GetIntAttr(attrs, "write_capacity"),
+	}
+}
+
 func (h *DynamoDBHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
 func (h *DynamoDBHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
-	// Check billing mode
-	billingMode := handler.GetStringAttr(attrs, "billing_mode")
-	if billingMode == "PAY_PER_REQUEST" {
+	parsed := parseDynamoDBAttrs(attrs)
+	if parsed.BillingMode == "PAY_PER_REQUEST" {
 		spec := h.RuntimeOrDefault().StandardLookupSpec(
 			awskit.ServiceKeyDynamoDB,
 			"Amazon DynamoDB PayPerRequest Throughput",
@@ -48,23 +61,24 @@ func (h *DynamoDBHandler) BuildLookup(region string, attrs map[string]any) (*pri
 }
 
 func (h *DynamoDBHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
+	parsed := parseDynamoDBAttrs(attrs)
 	return awskit.NewDescribeBuilder().
-		String("billing_mode", handler.GetStringAttr(attrs, "billing_mode")).
-		Int("read_capacity", handler.GetIntAttr(attrs, "read_capacity")).
-		Int("write_capacity", handler.GetIntAttr(attrs, "write_capacity")).
+		String("billing_mode", parsed.BillingMode).
+		Int("read_capacity", parsed.ReadCapacity).
+		Int("write_capacity", parsed.WriteCapacity).
 		Map()
 }
 
 func (h *DynamoDBHandler) CalculateCost(_ *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
-	billingMode := handler.GetStringAttr(attrs, "billing_mode")
-	if billingMode == "PAY_PER_REQUEST" {
+	parsed := parseDynamoDBAttrs(attrs)
+	if parsed.BillingMode == "PAY_PER_REQUEST" {
 		// On-demand: usage-based, no fixed cost
 		return 0, 0
 	}
 
 	// Provisioned throughput
-	readCapacity := handler.GetIntAttr(attrs, "read_capacity")
-	writeCapacity := handler.GetIntAttr(attrs, "write_capacity")
+	readCapacity := parsed.ReadCapacity
+	writeCapacity := parsed.WriteCapacity
 
 	if readCapacity == 0 {
 		readCapacity = DynamoDBDefaultCapacity

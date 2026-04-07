@@ -30,12 +30,12 @@ type ClusterHandler struct {
 func (h *ClusterHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
 func (h *ClusterHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
-	nodeType := handler.GetStringAttr(attrs, "node_type")
-	if nodeType == "" {
+	parsed := parseClusterAttrs(attrs)
+	if parsed.NodeType == "" {
 		return nil, errors.New("node_type not found")
 	}
 
-	engine := handler.GetStringAttr(attrs, "engine")
+	engine := parsed.Engine
 	if engine == "" {
 		engine = defaultEngine
 	}
@@ -54,9 +54,9 @@ func (h *ClusterHandler) BuildLookup(region string, attrs map[string]any) (*pric
 		func(region string, _ map[string]any) (map[string]string, error) {
 			prefix := runtime.ResolveUsagePrefix(region)
 			return map[string]string{
-				"instanceType": nodeType,
+				"instanceType": parsed.NodeType,
 				"cacheEngine":  cacheEngine,
-				"usagetype":    prefix + "-NodeUsage:" + nodeType,
+				"usagetype":    prefix + "-NodeUsage:" + parsed.NodeType,
 			}, nil
 		},
 	)
@@ -65,18 +65,19 @@ func (h *ClusterHandler) BuildLookup(region string, attrs map[string]any) (*pric
 }
 
 func (h *ClusterHandler) Describe(price *pricing.Price, attrs map[string]any) map[string]string {
+	parsed := parseClusterAttrs(attrs)
 	desc := make(map[string]string)
-	if v := handler.GetStringAttr(attrs, "node_type"); v != "" {
-		desc["node_type"] = v
+	if parsed.NodeType != "" {
+		desc["node_type"] = parsed.NodeType
 	}
-	if v := handler.GetStringAttr(attrs, "engine"); v != "" {
-		desc["engine"] = v
+	if parsed.Engine != "" {
+		desc["engine"] = parsed.Engine
 	}
-	if v := handler.GetIntAttr(attrs, "num_cache_nodes"); v != 0 {
-		desc["nodes"] = strconv.Itoa(v)
+	if parsed.NumCacheNodes != 0 {
+		desc["nodes"] = strconv.Itoa(parsed.NumCacheNodes)
 	}
-	if v := handler.GetIntAttr(attrs, "snapshot_retention_limit"); v > 0 {
-		desc["snapshot_retention_days"] = strconv.Itoa(v)
+	if parsed.SnapshotRetentionDays > 0 {
+		desc["snapshot_retention_days"] = strconv.Itoa(parsed.SnapshotRetentionDays)
 	}
 	if mem := nodeMemoryFromPrice(price); mem > 0 {
 		desc["memory_gib"] = fmt.Sprintf("%.2f", mem)
@@ -88,7 +89,8 @@ func (h *ClusterHandler) Describe(price *pricing.Price, attrs map[string]any) ma
 }
 
 func (h *ClusterHandler) CalculateCost(price *pricing.Price, index *pricing.PriceIndex, region string, attrs map[string]any) (hourly, monthly float64) {
-	numCacheNodes := handler.GetIntAttr(attrs, "num_cache_nodes")
+	parsed := parseClusterAttrs(attrs)
+	numCacheNodes := parsed.NumCacheNodes
 	if numCacheNodes == 0 {
 		numCacheNodes = 1
 	}
@@ -99,9 +101,8 @@ func (h *ClusterHandler) CalculateCost(price *pricing.Price, index *pricing.Pric
 	monthly += dataTieringCost(h.RuntimeOrDefault(), price, index, region, numCacheNodes)
 
 	// Backup storage cost
-	snapshotRetention := handler.GetIntAttr(attrs, "snapshot_retention_limit")
-	if snapshotRetention > 0 {
-		monthly += backupStorageCost(h.RuntimeOrDefault(), price, index, region, numCacheNodes, snapshotRetention)
+	if parsed.SnapshotRetentionDays > 0 {
+		monthly += backupStorageCost(h.RuntimeOrDefault(), price, index, region, numCacheNodes, parsed.SnapshotRetentionDays)
 	}
 
 	hourly = monthly / handler.HoursPerMonth

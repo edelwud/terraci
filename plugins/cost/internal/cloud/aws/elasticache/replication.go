@@ -20,8 +20,8 @@ func (h *ReplicationGroupHandler) Category() handler.CostCategory {
 }
 
 func (h *ReplicationGroupHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
-	nodeType := handler.GetStringAttr(attrs, "node_type")
-	if nodeType == "" {
+	parsed := parseReplicationGroupAttrs(attrs)
+	if parsed.NodeType == "" {
 		return nil, errors.New("node_type not found")
 	}
 
@@ -32,9 +32,9 @@ func (h *ReplicationGroupHandler) BuildLookup(region string, attrs map[string]an
 		func(region string, _ map[string]any) (map[string]string, error) {
 			prefix := runtime.ResolveUsagePrefix(region)
 			return map[string]string{
-				"instanceType": nodeType,
+				"instanceType": parsed.NodeType,
 				"cacheEngine":  "Redis",
-				"usagetype":    prefix + "-NodeUsage:" + nodeType,
+				"usagetype":    prefix + "-NodeUsage:" + parsed.NodeType,
 			}, nil
 		},
 	)
@@ -43,20 +43,21 @@ func (h *ReplicationGroupHandler) BuildLookup(region string, attrs map[string]an
 }
 
 func (h *ReplicationGroupHandler) Describe(price *pricing.Price, attrs map[string]any) map[string]string {
+	parsed := parseReplicationGroupAttrs(attrs)
 	desc := make(map[string]string)
-	if v := handler.GetStringAttr(attrs, "node_type"); v != "" {
-		desc["node_type"] = v
+	if parsed.NodeType != "" {
+		desc["node_type"] = parsed.NodeType
 	}
-	if v := handler.GetIntAttr(attrs, "num_node_groups"); v != 0 {
-		desc["node_groups"] = strconv.Itoa(v)
+	if parsed.NumNodeGroupsSet {
+		desc["node_groups"] = strconv.Itoa(parsed.NumNodeGroups)
 	}
-	if v := handler.GetIntAttr(attrs, "replicas_per_node_group"); v != 0 {
-		desc["replicas_per_group"] = strconv.Itoa(v)
+	if parsed.ReplicasPerNodeGroup != 0 {
+		desc["replicas_per_group"] = strconv.Itoa(parsed.ReplicasPerNodeGroup)
 	}
-	if v := handler.GetIntAttr(attrs, "snapshot_retention_limit"); v > 0 {
-		desc["snapshot_retention_days"] = strconv.Itoa(v)
+	if parsed.SnapshotRetentionDays > 0 {
+		desc["snapshot_retention_days"] = strconv.Itoa(parsed.SnapshotRetentionDays)
 	}
-	totalNodes := replicationGroupNodeCount(attrs)
+	totalNodes := parsed.totalNodes()
 	if totalNodes > 0 {
 		desc["total_nodes"] = strconv.Itoa(totalNodes)
 	}
@@ -70,7 +71,8 @@ func (h *ReplicationGroupHandler) Describe(price *pricing.Price, attrs map[strin
 }
 
 func (h *ReplicationGroupHandler) CalculateCost(price *pricing.Price, index *pricing.PriceIndex, region string, attrs map[string]any) (hourly, monthly float64) {
-	totalNodes := replicationGroupNodeCount(attrs)
+	parsed := parseReplicationGroupAttrs(attrs)
+	totalNodes := parsed.totalNodes()
 
 	_, monthly = handler.ScaledHourlyCost(price.OnDemandUSD, totalNodes)
 
@@ -78,31 +80,10 @@ func (h *ReplicationGroupHandler) CalculateCost(price *pricing.Price, index *pri
 	monthly += dataTieringCost(h.RuntimeOrDefault(), price, index, region, totalNodes)
 
 	// Backup storage cost
-	snapshotRetention := handler.GetIntAttr(attrs, "snapshot_retention_limit")
-	if snapshotRetention > 0 {
-		monthly += backupStorageCost(h.RuntimeOrDefault(), price, index, region, totalNodes, snapshotRetention)
+	if parsed.SnapshotRetentionDays > 0 {
+		monthly += backupStorageCost(h.RuntimeOrDefault(), price, index, region, totalNodes, parsed.SnapshotRetentionDays)
 	}
 
 	hourly = monthly / handler.HoursPerMonth
 	return hourly, monthly
-}
-
-// replicationGroupNodeCount calculates total node count from replication group attributes.
-func replicationGroupNodeCount(attrs map[string]any) int {
-	numNodeGroups := handler.GetIntAttr(attrs, "num_node_groups")
-	if numNodeGroups == 0 {
-		numNodeGroups = 1
-	}
-
-	replicasPerGroup := handler.GetIntAttr(attrs, "replicas_per_node_group")
-	totalNodes := numNodeGroups * (1 + replicasPerGroup)
-
-	// Legacy attribute support
-	if totalNodes == 1 {
-		if n := handler.GetIntAttr(attrs, "number_cache_clusters"); n > 0 {
-			totalNodes = n
-		}
-	}
-
-	return totalNodes
 }

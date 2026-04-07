@@ -102,6 +102,61 @@ func TestCostResolver_ResolveFixedAndUsageBased(t *testing.T) {
 	}
 }
 
+func TestCostResolver_ResolveUnknownCategory(t *testing.T) {
+	t.Parallel()
+
+	resolver := NewCostResolver(runtimetest.StubRuntime{
+		ResolveProviderFunc: func(resourceType handler.ResourceType) (string, bool) {
+			if resourceType == handler.ResourceType("weird_resource") {
+				return "aws", true
+			}
+			return "", false
+		},
+		ResolveHandlerFunc: func(_ string, resourceType handler.ResourceType) (handler.ResourceHandler, bool) {
+			if resourceType == handler.ResourceType("weird_resource") {
+				return runtimetest.StubHandler{CategoryValue: handler.CostCategory(99)}, true
+			}
+			return nil, false
+		},
+	})
+
+	got := resolver.Resolve(context.Background(), ResolveRequest{
+		ResourceType: handler.ResourceType("weird_resource"),
+		Address:      "weird_resource.example",
+	})
+	if got.ErrorKind != model.CostErrorInternal {
+		t.Fatalf("ErrorKind = %q, want %q", got.ErrorKind, model.CostErrorInternal)
+	}
+	if got.ErrorDetail == "" {
+		t.Fatal("ErrorDetail should explain the unknown category")
+	}
+}
+
+func TestCostResolver_ResolveBeforeCostUnknownCategory(t *testing.T) {
+	t.Parallel()
+
+	resolver := NewCostResolver(runtimetest.StubRuntime{
+		ResolveProviderFunc: func(resourceType handler.ResourceType) (string, bool) {
+			if resourceType == handler.ResourceType("weird_resource") {
+				return "aws", true
+			}
+			return "", false
+		},
+		ResolveHandlerFunc: func(_ string, resourceType handler.ResourceType) (handler.ResourceHandler, bool) {
+			if resourceType == handler.ResourceType("weird_resource") {
+				return runtimetest.StubHandler{CategoryValue: handler.CostCategory(99)}, true
+			}
+			return nil, false
+		},
+	})
+
+	rc := model.ResourceCost{}
+	resolver.ResolveBeforeCost(context.Background(), &rc, handler.ResourceType("weird_resource"), nil, "us-east-1")
+	if rc.ErrorKind != model.CostErrorInternal {
+		t.Fatalf("ErrorKind = %q, want %q", rc.ErrorKind, model.CostErrorInternal)
+	}
+}
+
 func TestCostResolver_MiddlewareChain(t *testing.T) {
 	t.Parallel()
 

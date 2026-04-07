@@ -61,11 +61,20 @@ func renderCostReportBody(result *model.EstimateResult, visible []model.ModuleCo
 		}
 
 		fmt.Fprintf(&b, "| %s | %s | %s | %s | %s |\n",
-			module.ModulePath, before, after, diff, notes)
+			escapeMarkdownTableCell(module.ModulePath), before, after, diff, escapeMarkdownTableCell(notes))
 	}
 
 	fmt.Fprintf(&b, "\n**Total:** $%.2f/mo (diff: %+.2f)\n", result.TotalAfter, result.TotalDiff)
 	return b.String()
+}
+
+func escapeMarkdownTableCell(s string) string {
+	s = strings.ReplaceAll(s, "\\", "\\\\")
+	s = strings.ReplaceAll(s, "|", "\\|")
+	s = strings.ReplaceAll(s, "\r\n", "<br>")
+	s = strings.ReplaceAll(s, "\n", "<br>")
+	s = strings.ReplaceAll(s, "\r", "<br>")
+	return s
 }
 
 func visibleReportModules(modules []model.ModuleCost) []model.ModuleCost {

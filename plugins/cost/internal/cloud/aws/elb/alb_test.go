@@ -136,3 +136,17 @@ func TestALBHandler_CalculateCost(t *testing.T) {
 		})
 	}
 }
+
+func TestParseLBAttrs_DefaultsToApplication(t *testing.T) {
+	t.Parallel()
+
+	got := parseLBAttrs(map[string]any{})
+	if got.LoadBalancerType != TypeApplication {
+		t.Fatalf("parseLBAttrs(default).LoadBalancerType = %q, want %q", got.LoadBalancerType, TypeApplication)
+	}
+
+	got = parseLBAttrs(map[string]any{"load_balancer_type": TypeNetwork})
+	if got.LoadBalancerType != TypeNetwork {
+		t.Fatalf("parseLBAttrs(network).LoadBalancerType = %q, want %q", got.LoadBalancerType, TypeNetwork)
+	}
+}

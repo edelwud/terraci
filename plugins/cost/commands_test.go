@@ -229,6 +229,35 @@ func TestPlugin_RunEstimation_TextOutput(t *testing.T) {
 	}
 }
 
+func TestPlugin_OutputResult_TextOutput_UsesLoggerNotWriter(t *testing.T) {
+	appCtx := newTestAppContext(t, t.TempDir())
+
+	var buf strings.Builder
+	output := captureTextOutput(t, func() {
+		err := outputResult(&buf, appCtx.WorkDir(), "text", &model.EstimateResult{
+			Modules: []model.ModuleCost{
+				{
+					ModuleID:   "platform/prod/us-east-1/vpc",
+					ModulePath: "/tmp/platform/prod/us-east-1/vpc",
+					Region:     "us-east-1",
+					AfterCost:  10.50,
+				},
+			},
+			TotalAfter: 10.50,
+			Currency:   "USD",
+		})
+		if err != nil {
+			t.Fatalf("outputResult(text) error = %v", err)
+		}
+	})
+	if buf.Len() != 0 {
+		t.Fatalf("writer output = %q, want empty for logger-backed text mode", buf.String())
+	}
+	if !strings.Contains(output, "summary") {
+		t.Fatalf("captured logger output = %q, want summary block", output)
+	}
+}
+
 func TestPlugin_OutputResult_TextOutput_SkipsZeroCostModule(t *testing.T) {
 	appCtx := newTestAppContext(t, t.TempDir())
 
@@ -396,5 +425,28 @@ func TestBuildCostReport_AllErrors(t *testing.T) {
 	}
 	if !strings.Contains(report.Body, "fail1") || !strings.Contains(report.Body, "fail2") {
 		t.Error("Body should contain module errors")
+	}
+}
+
+func TestBuildCostReport_EscapesMarkdownTableCells(t *testing.T) {
+	t.Parallel()
+
+	result := &model.EstimateResult{
+		Modules: []model.ModuleCost{
+			{
+				ModuleID:   "a",
+				ModulePath: "/tmp/with|pipe\\slash",
+				Error:      "line1\nline2 | detail",
+			},
+		},
+		Currency: "USD",
+	}
+
+	report := buildCostReport(result)
+	if !strings.Contains(report.Body, `/tmp/with\|pipe\\slash`) {
+		t.Fatalf("report body = %q, want escaped module path", report.Body)
+	}
+	if !strings.Contains(report.Body, `line1<br>line2 \| detail`) {
+		t.Fatalf("report body = %q, want escaped error note", report.Body)
 	}
 }

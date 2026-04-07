@@ -128,8 +128,8 @@ func (s *ModuleScanner) scanConcurrently(modulePaths []string, regions map[strin
 			region = model.DefaultRegion
 		}
 
+		sem <- struct{}{}
 		wg.Go(func() {
-			sem <- struct{}{}
 			defer func() { <-sem }()
 
 			plan, err := s.Scan(modulePath, region)

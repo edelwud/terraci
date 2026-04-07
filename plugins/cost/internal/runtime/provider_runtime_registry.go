@@ -58,16 +58,29 @@ func NewProviderRuntimeRegistryFromProvidersWithBlobCache(
 	cache *blobcache.Cache,
 	fetcher pricing.PriceFetcher,
 ) *ProviderRuntimeRegistry {
+	var fetchers map[string]pricing.PriceFetcher
+	if fetcher != nil {
+		if len(providers) == 1 {
+			fetchers = map[string]pricing.PriceFetcher{providers[0].Definition().Manifest.ID: fetcher}
+		} else {
+			log.Debug("runtime: ignoring shared fetcher override for multi-provider setup; use provider-scoped overrides")
+		}
+	}
+	return NewProviderRuntimeRegistryFromProvidersWithBlobCacheAndFetchers(providers, cache, fetchers)
+}
+
+// NewProviderRuntimeRegistryFromProvidersWithBlobCacheAndFetchers creates a runtime
+// registry with optional provider-scoped fetcher overrides.
+func NewProviderRuntimeRegistryFromProvidersWithBlobCacheAndFetchers(
+	providers []cloud.Provider,
+	cache *blobcache.Cache,
+	fetchers map[string]pricing.PriceFetcher,
+) *ProviderRuntimeRegistry {
 	runtimes := make(map[string]*ProviderRuntime, len(providers))
 	for _, cp := range providers {
 		def := cp.Definition()
 		runtimeFetcher := def.FetcherFactory()
-		// fetcher override is only supported for single-provider setups (typically tests).
-		// For multi-provider setups, pass nil and use SetFetcherForProvider per provider.
-		if fetcher != nil {
-			if len(providers) != 1 {
-				panic("runtime: fetcher override requires exactly one provider; use SetFetcherForProvider for multi-provider setups")
-			}
+		if fetcher := fetchers[def.Manifest.ID]; fetcher != nil {
 			runtimeFetcher = fetcher
 		}
 		runtimes[def.Manifest.ID] = &ProviderRuntime{

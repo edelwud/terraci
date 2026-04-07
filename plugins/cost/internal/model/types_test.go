@@ -109,6 +109,7 @@ func TestResourceCost_IsUnsupported(t *testing.T) {
 		{model.CostErrorLookupFailed, true},
 		{model.CostErrorAPIFailure, true},
 		{model.CostErrorNoPrice, true},
+		{model.CostErrorInternal, true},
 	}
 
 	for _, tt := range tests {

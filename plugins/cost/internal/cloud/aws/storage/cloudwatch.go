@@ -33,6 +33,16 @@ func (h *LogGroupHandler) CalculateCost(_ *pricing.Price, _ *pricing.PriceIndex,
 // AlarmHandler handles aws_cloudwatch_metric_alarm cost estimation.
 type AlarmHandler struct{}
 
+type alarmAttrs struct {
+	Period int
+}
+
+func parseAlarmAttrs(attrs map[string]any) alarmAttrs {
+	return alarmAttrs{
+		Period: handler.GetIntAttr(attrs, "period"),
+	}
+}
+
 func (h *AlarmHandler) Category() handler.CostCategory { return handler.CostCategoryFixed }
 
 func (h *AlarmHandler) BuildLookup(_ string, _ map[string]any) (*pricing.PriceLookup, error) {
@@ -41,8 +51,8 @@ func (h *AlarmHandler) BuildLookup(_ string, _ map[string]any) (*pricing.PriceLo
 
 func (h *AlarmHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
 	desc := make(map[string]string)
-	period := handler.GetIntAttr(attrs, "period")
-	if period > 0 && period < HighResolutionThresholdSeconds {
+	parsed := parseAlarmAttrs(attrs)
+	if parsed.Period > 0 && parsed.Period < HighResolutionThresholdSeconds {
 		desc["resolution"] = "high"
 	} else {
 		desc["resolution"] = "standard"
@@ -53,8 +63,8 @@ func (h *AlarmHandler) Describe(_ *pricing.Price, attrs map[string]any) map[stri
 func (h *AlarmHandler) CalculateCost(_ *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
 	// Standard resolution alarm: $0.10/alarm/month
 	// High resolution alarm: $0.30/alarm/month
-	period := handler.GetIntAttr(attrs, "period")
-	if period > 0 && period < HighResolutionThresholdSeconds {
+	parsed := parseAlarmAttrs(attrs)
+	if parsed.Period > 0 && parsed.Period < HighResolutionThresholdSeconds {
 		return handler.FixedMonthlyCost(CloudWatchHighResAlarmCost)
 	}
 	return handler.FixedMonthlyCost(CloudWatchStandardAlarmCost)

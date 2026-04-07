@@ -2,9 +2,11 @@ package runtime
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/edelwud/terraci/pkg/cache/blobcache"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
 	_ "github.com/edelwud/terraci/plugins/cost/internal/cloud/aws"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
@@ -151,6 +153,113 @@ func TestProviderRuntimeRegistry_WarmIndexes(t *testing.T) {
 	}
 	if fetchCount != 1 {
 		t.Fatalf("fetchCount after cached warm = %d, want 1", fetchCount)
+	}
+}
+
+func TestProviderRuntimeRegistry_SharedFetcherOverrideDoesNotPanicForMultipleProviders(t *testing.T) {
+	t.Parallel()
+
+	awsProvider, ok := cloud.Get(awskit.ProviderID)
+	if !ok {
+		t.Fatal("aws provider not registered")
+	}
+	providers := []cloud.Provider{
+		awsProvider,
+		fakeCloudProvider{id: "fake", serviceName: "FakeService"},
+	}
+
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			t.Fatalf("constructor should not panic for multi-provider shared override: %v", recovered)
+		}
+	}()
+	_ = NewProviderRuntimeRegistryFromProvidersWithBlobCache(
+		providers,
+		blobcache.New(diskblob.NewStore(t.TempDir()), "", time.Hour),
+		runtimetest.StubFetcher{},
+	)
+}
+
+func TestProviderRuntimeRegistry_ProviderScopedFetcherOverrides(t *testing.T) {
+	t.Parallel()
+
+	providers := []cloud.Provider{
+		fakeCloudProvider{id: "one", serviceName: "ServiceOne"},
+		fakeCloudProvider{id: "two", serviceName: "ServiceTwo"},
+	}
+	serviceOne := pricing.ServiceID{Provider: "one", Name: "ServiceOne"}
+	serviceTwo := pricing.ServiceID{Provider: "two", Name: "ServiceTwo"}
+
+	runtimeRegistry := NewProviderRuntimeRegistryFromProvidersWithBlobCacheAndFetchers(
+		providers,
+		blobcache.New(diskblob.NewStore(t.TempDir()), "", time.Hour),
+		map[string]pricing.PriceFetcher{
+			"one": runtimetest.StubFetcher{
+				FetchRegionIndexFunc: func(_ context.Context, service pricing.ServiceID, region string) (*pricing.PriceIndex, error) {
+					return testPriceIndex(service, region, "override-one"), nil
+				},
+			},
+			"two": runtimetest.StubFetcher{
+				FetchRegionIndexFunc: func(_ context.Context, service pricing.ServiceID, region string) (*pricing.PriceIndex, error) {
+					return testPriceIndex(service, region, "override-two"), nil
+				},
+			},
+		},
+	)
+
+	gotOne, err := runtimeRegistry.GetIndex(context.Background(), serviceOne, "us-east-1")
+	if err != nil {
+		t.Fatalf("GetIndex(one) error = %v", err)
+	}
+	if gotOne.Version != "override-one" {
+		t.Fatalf("GetIndex(one).Version = %q, want override-one", gotOne.Version)
+	}
+
+	gotTwo, err := runtimeRegistry.GetIndex(context.Background(), serviceTwo, "us-east-1")
+	if err != nil {
+		t.Fatalf("GetIndex(two) error = %v", err)
+	}
+	if gotTwo.Version != "override-two" {
+		t.Fatalf("GetIndex(two).Version = %q, want override-two", gotTwo.Version)
+	}
+}
+
+type fakeCloudProvider struct {
+	id          string
+	serviceName string
+}
+
+func (p fakeCloudProvider) Definition() cloud.Definition {
+	service := pricing.ServiceID{Provider: p.id, Name: p.serviceName}
+	return cloud.Definition{
+		ConfigKey: p.id,
+		Manifest: pricing.ProviderManifest{
+			ID:          p.id,
+			DisplayName: p.id,
+			PriceSource: "test",
+			Services: pricing.ServiceCatalog{
+				"default": service,
+			},
+		},
+		FetcherFactory: func() pricing.PriceFetcher {
+			return runtimetest.StubFetcher{
+				FetchRegionIndexFunc: func(_ context.Context, service pricing.ServiceID, region string) (*pricing.PriceIndex, error) {
+					return testPriceIndex(service, region, fmt.Sprintf("default-%s", p.id)), nil
+				},
+			}
+		},
+	}
+}
+
+func testPriceIndex(service pricing.ServiceID, region, version string) *pricing.PriceIndex {
+	return &pricing.PriceIndex{
+		ServiceID: service,
+		Region:    region,
+		Version:   version,
+		UpdatedAt: time.Now(),
+		Products: map[string]pricing.Price{
+			"sku": {SKU: "sku", OnDemandUSD: 0.01},
+		},
 	}
 }
 

@@ -11,13 +11,26 @@ type ClusterHandler struct {
 	awskit.RuntimeDeps
 }
 
+type clusterAttrs struct {
+	Engine           string
+	AllocatedStorage float64
+}
+
+func parseClusterAttrs(attrs map[string]any) clusterAttrs {
+	return clusterAttrs{
+		Engine:           handler.GetStringAttr(attrs, "engine"),
+		AllocatedStorage: handler.GetFloatAttr(attrs, "allocated_storage"),
+	}
+}
+
 func (h *ClusterHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
 func (h *ClusterHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 	// Aurora cluster itself doesn't have hourly compute cost
 	// Cost comes from cluster instances and storage
 	// Return a lookup for storage pricing
-	engine := handler.GetStringAttr(attrs, "engine")
+	parsed := parseClusterAttrs(attrs)
+	engine := parsed.Engine
 	if engine == "" {
 		engine = DefaultAuroraEngine
 	}
@@ -40,16 +53,18 @@ func (h *ClusterHandler) BuildLookup(region string, attrs map[string]any) (*pric
 }
 
 func (h *ClusterHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
+	parsed := parseClusterAttrs(attrs)
 	return awskit.NewDescribeBuilder().
-		String("engine", handler.GetStringAttr(attrs, "engine")).
-		Float("storage_gb", handler.GetFloatAttr(attrs, "allocated_storage"), "%.0f").
+		String("engine", parsed.Engine).
+		Float("storage_gb", parsed.AllocatedStorage, "%.0f").
 		Map()
 }
 
 func (h *ClusterHandler) CalculateCost(_ *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
+	parsed := parseClusterAttrs(attrs)
 	// Aurora storage is billed per GB-month
 	// Estimate based on allocated storage or minimum
-	allocatedStorage := handler.GetFloatAttr(attrs, "allocated_storage")
+	allocatedStorage := parsed.AllocatedStorage
 	if allocatedStorage == 0 {
 		allocatedStorage = 10 // Minimum 10GB
 	}

@@ -140,3 +140,17 @@ func TestDynamoDBHandler_Contract(t *testing.T) {
 		},
 	})
 }
+
+func TestParseDynamoDBAttrs_ParsesStringNumbers(t *testing.T) {
+	t.Parallel()
+
+	got := parseDynamoDBAttrs(map[string]any{
+		"billing_mode":   "PROVISIONED",
+		"read_capacity":  "10",
+		"write_capacity": float64(20),
+	})
+
+	if got.BillingMode != "PROVISIONED" || got.ReadCapacity != 10 || got.WriteCapacity != 20 {
+		t.Fatalf("parseDynamoDBAttrs() = %+v, want PROVISIONED/10/20", got)
+	}
+}

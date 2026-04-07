@@ -16,11 +16,22 @@ type ClusterHandler struct {
 	awskit.RuntimeDeps
 }
 
+type clusterAttrs struct {
+	Version string
+}
+
+func parseClusterAttrs(attrs map[string]any) clusterAttrs {
+	return clusterAttrs{
+		Version: handler.GetStringAttr(attrs, "version"),
+	}
+}
+
 func (h *ClusterHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
 func (h *ClusterHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
+	parsed := parseClusterAttrs(attrs)
 	return awskit.NewDescribeBuilder().
-		String("version", handler.GetStringAttr(attrs, "version")).
+		String("version", parsed.Version).
 		Map()
 }
 

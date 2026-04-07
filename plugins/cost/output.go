@@ -11,16 +11,24 @@ import (
 
 func outputResult(w io.Writer, workDir, outputFmt string, result *model.EstimateResult) error {
 	if outputFmt == "json" {
-		enc := json.NewEncoder(w)
-		enc.SetIndent("", "  ")
-		return enc.Encode(result)
+		return outputJSONResult(w, result)
 	}
 
+	outputTextResult(workDir, result)
+	return nil
+}
+
+func outputJSONResult(w io.Writer, result *model.EstimateResult) error {
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(result)
+}
+
+func outputTextResult(workDir string, result *model.EstimateResult) {
 	tree := model.BuildSegmentTree(result, workDir)
 	model.CompactSegmentTree(tree)
 	renderSegmentTree(tree)
 	renderSummary(result)
-	return nil
 }
 
 func renderSummary(result *model.EstimateResult) {
@@ -171,7 +179,7 @@ func renderResources(resources []model.ResourceCost, moduleAddr string) {
 			log.WithField("note", "usage-based").Debug(displayAddr)
 		case model.CostErrorNoProvider, model.CostErrorNoHandler:
 			log.WithField("note", "unsupported").Debug(displayAddr)
-		case model.CostErrorLookupFailed, model.CostErrorAPIFailure, model.CostErrorNoPrice:
+		case model.CostErrorLookupFailed, model.CostErrorAPIFailure, model.CostErrorNoPrice, model.CostErrorInternal:
 			log.WithField("error", resource.ErrorDetail).Warn(displayAddr)
 		}
 	}
@@ -187,7 +195,7 @@ func shouldShowResource(resource *model.ResourceCost) bool {
 	case model.CostErrorNone:
 		return resource.MonthlyCost != 0 || resource.BeforeMonthlyCost != 0
 	case model.CostErrorUsageBased, model.CostErrorNoProvider, model.CostErrorNoHandler,
-		model.CostErrorLookupFailed, model.CostErrorAPIFailure, model.CostErrorNoPrice:
+		model.CostErrorLookupFailed, model.CostErrorAPIFailure, model.CostErrorNoPrice, model.CostErrorInternal:
 		return true
 	default:
 		return false

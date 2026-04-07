@@ -13,15 +13,27 @@ type ClusterInstanceHandler struct {
 	awskit.RuntimeDeps
 }
 
+type clusterInstanceAttrs struct {
+	InstanceClass string
+	Engine        string
+}
+
+func parseClusterInstanceAttrs(attrs map[string]any) clusterInstanceAttrs {
+	return clusterInstanceAttrs{
+		InstanceClass: handler.GetStringAttr(attrs, "instance_class"),
+		Engine:        handler.GetStringAttr(attrs, "engine"),
+	}
+}
+
 func (h *ClusterInstanceHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
 func (h *ClusterInstanceHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
-	instanceClass := handler.GetStringAttr(attrs, "instance_class")
-	if instanceClass == "" {
+	parsed := parseClusterInstanceAttrs(attrs)
+	if parsed.InstanceClass == "" {
 		return nil, errors.New("instance_class not found")
 	}
 
-	engine := handler.GetStringAttr(attrs, "engine")
+	engine := parsed.Engine
 	if engine == "" {
 		engine = DefaultAuroraEngine
 	}
@@ -33,7 +45,7 @@ func (h *ClusterInstanceHandler) BuildLookup(region string, attrs map[string]any
 		"Database Instance",
 		func(_ string, _ map[string]any) (map[string]string, error) {
 			return map[string]string{
-				"instanceType":   instanceClass,
+				"instanceType":   parsed.InstanceClass,
 				"databaseEngine": databaseEngine,
 			}, nil
 		},
@@ -41,9 +53,10 @@ func (h *ClusterInstanceHandler) BuildLookup(region string, attrs map[string]any
 }
 
 func (h *ClusterInstanceHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
+	parsed := parseClusterInstanceAttrs(attrs)
 	return awskit.NewDescribeBuilder().
-		String("instance_class", handler.GetStringAttr(attrs, "instance_class")).
-		String("engine", handler.GetStringAttr(attrs, "engine")).
+		String("instance_class", parsed.InstanceClass).
+		String("engine", parsed.Engine).
 		Map()
 }
 

@@ -37,6 +37,7 @@ const (
 	CostErrorLookupFailed CostErrorKind = "lookup_failed"
 	CostErrorAPIFailure   CostErrorKind = "api_failure"
 	CostErrorNoPrice      CostErrorKind = "no_price"
+	CostErrorInternal     CostErrorKind = "internal"
 )
 
 // SubmoduleCost groups resource costs by Terraform module address.

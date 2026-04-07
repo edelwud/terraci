@@ -25,13 +25,24 @@ type ALBHandler struct {
 	awskit.RuntimeDeps
 }
 
+type lbAttrs struct {
+	LoadBalancerType string
+}
+
+func parseLBAttrs(attrs map[string]any) lbAttrs {
+	parsed := lbAttrs{
+		LoadBalancerType: handler.GetStringAttr(attrs, "load_balancer_type"),
+	}
+	if parsed.LoadBalancerType == "" {
+		parsed.LoadBalancerType = TypeApplication
+	}
+	return parsed
+}
+
 func (h *ALBHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
 func (h *ALBHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
-	lbType := handler.GetStringAttr(attrs, "load_balancer_type")
-	if lbType == "" {
-		lbType = TypeApplication // Default to ALB
-	}
+	parsed := parseLBAttrs(attrs)
 
 	spec := h.RuntimeOrDefault().StandardLookupSpec(
 		awskit.ServiceKeyEC2,
@@ -43,7 +54,7 @@ func (h *ALBHandler) BuildLookup(region string, attrs map[string]any) (*pricing.
 		},
 	)
 
-	switch lbType {
+	switch parsed.LoadBalancerType {
 	case TypeNetwork:
 		spec.ProductFamily = "Load Balancer-Network"
 	case TypeGateway:
@@ -56,21 +67,14 @@ func (h *ALBHandler) BuildLookup(region string, attrs map[string]any) (*pricing.
 }
 
 func (h *ALBHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
-	d := map[string]string{}
-	lbType := handler.GetStringAttr(attrs, "load_balancer_type")
-	if lbType == "" {
-		lbType = TypeApplication
-	}
-	d["type"] = lbType
-	return d
+	return map[string]string{"type": parseLBAttrs(attrs).LoadBalancerType}
 }
 
 func (h *ALBHandler) CalculateCost(price *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
 	rate := price.OnDemandUSD
 	if rate == 0 {
 		// Default pricing if lookup fails
-		lbType := handler.GetStringAttr(attrs, "load_balancer_type")
-		switch lbType {
+		switch parseLBAttrs(attrs).LoadBalancerType {
 		case TypeNetwork:
 			rate = DefaultNLBHourlyCost
 		case TypeGateway:

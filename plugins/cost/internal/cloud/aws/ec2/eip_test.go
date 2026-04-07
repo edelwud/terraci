@@ -81,3 +81,12 @@ func TestEIPHandler_CalculateCost(t *testing.T) {
 		t.Errorf("nil price hourly = %v, want %v", hourly, DefaultEIPHourlyCost)
 	}
 }
+
+func TestParseEIPAttrs(t *testing.T) {
+	t.Parallel()
+
+	got := parseEIPAttrs(map[string]any{"instance": "i-12345"})
+	if got.Instance != "i-12345" {
+		t.Fatalf("parseEIPAttrs().Instance = %q, want i-12345", got.Instance)
+	}
+}

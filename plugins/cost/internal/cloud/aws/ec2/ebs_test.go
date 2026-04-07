@@ -97,6 +97,28 @@ func TestEBSHandler_Contract(t *testing.T) {
 	})
 }
 
+func TestParseEBSVolumeAttrs_ParsesStringNumbersAndDefaults(t *testing.T) {
+	t.Parallel()
+
+	got := parseEBSVolumeAttrs(map[string]any{
+		"type":       "gp3",
+		"size":       "100",
+		"iops":       "4000",
+		"throughput": "250",
+	})
+	if got.VolumeType != "gp3" || got.SizeGB != 100 || got.IOPS != 4000 || got.Throughput != 250 {
+		t.Fatalf("parseEBSVolumeAttrs() = %+v, want parsed gp3/100/4000/250", got)
+	}
+
+	defaulted := parseEBSVolumeAttrs(map[string]any{})
+	if defaulted.VolumeType != awskit.VolumeTypeGP2 || defaulted.SizeGB != defaultRootVolumeGB {
+		t.Fatalf("parseEBSVolumeAttrs(default) = %+v, want gp2/%d", defaulted, defaultRootVolumeGB)
+	}
+	if defaulted.VolumeTypeSet || defaulted.SizeGBSet {
+		t.Fatalf("parseEBSVolumeAttrs(default) = %+v, want defaults marked implicit", defaulted)
+	}
+}
+
 func TestEBSHandler_CalculateCost(t *testing.T) {
 	t.Parallel()
 

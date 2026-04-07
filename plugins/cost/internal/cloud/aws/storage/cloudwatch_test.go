@@ -167,3 +167,12 @@ func TestAlarmHandler_Describe(t *testing.T) {
 		})
 	}
 }
+
+func TestParseAlarmAttrs_ParsesStringPeriod(t *testing.T) {
+	t.Parallel()
+
+	got := parseAlarmAttrs(map[string]any{"period": "30"})
+	if got.Period != 30 {
+		t.Fatalf("parseAlarmAttrs().Period = %d, want 30", got.Period)
+	}
+}

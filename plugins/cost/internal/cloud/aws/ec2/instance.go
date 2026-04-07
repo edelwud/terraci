@@ -16,15 +16,52 @@ type InstanceHandler struct {
 	awskit.RuntimeDeps
 }
 
+type instanceAttrs struct {
+	InstanceType string
+	Tenancy      string
+	RootVolume   ebsVolumeAttrs
+}
+
+func parseInstanceAttrs(attrs map[string]any) instanceAttrs {
+	parsed := instanceAttrs{
+		InstanceType: handler.GetStringAttr(attrs, "instance_type"),
+		Tenancy:      handler.GetStringAttr(attrs, "tenancy"),
+		RootVolume: ebsVolumeAttrs{
+			VolumeType: awskit.VolumeTypeGP2,
+			SizeGB:     defaultRootVolumeGB,
+		},
+	}
+	if root := getRootBlockDevice(attrs); root != nil {
+		parsed.RootVolume = parseRootVolumeAttrs(root)
+	}
+	return parsed
+}
+
+func parseRootVolumeAttrs(attrs map[string]any) ebsVolumeAttrs {
+	parsed := ebsVolumeAttrs{
+		VolumeType: handler.GetStringAttr(attrs, "volume_type"),
+		SizeGB:     handler.GetFloatAttr(attrs, "volume_size"),
+		IOPS:       handler.GetFloatAttr(attrs, "iops"),
+		Throughput: handler.GetFloatAttr(attrs, "throughput"),
+	}
+	if parsed.VolumeType == "" {
+		parsed.VolumeType = awskit.VolumeTypeGP2
+	}
+	if parsed.SizeGB == 0 {
+		parsed.SizeGB = defaultRootVolumeGB
+	}
+	return parsed
+}
+
 func (h *InstanceHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
 func (h *InstanceHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
-	instanceType := handler.GetStringAttr(attrs, "instance_type")
-	if instanceType == "" {
+	parsed := parseInstanceAttrs(attrs)
+	if parsed.InstanceType == "" {
 		return nil, errors.New("instance_type not found")
 	}
 
-	tenancy := handler.GetStringAttr(attrs, "tenancy")
+	tenancy := parsed.Tenancy
 	switch tenancy {
 	case "", "default":
 		tenancy = "Shared"
@@ -41,7 +78,7 @@ func (h *InstanceHandler) BuildLookup(region string, attrs map[string]any) (*pri
 		"Compute Instance",
 		func(_ string, _ map[string]any) (map[string]string, error) {
 			return map[string]string{
-				"instanceType":    instanceType,
+				"instanceType":    parsed.InstanceType,
 				"tenancy":         tenancy,
 				"operatingSystem": operatingSystem,
 				"preInstalledSw":  "NA",
@@ -52,10 +89,11 @@ func (h *InstanceHandler) BuildLookup(region string, attrs map[string]any) (*pri
 }
 
 func (h *InstanceHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
+	parsed := parseInstanceAttrs(attrs)
 	desc := awskit.NewDescribeBuilder().
-		String("instance_type", handler.GetStringAttr(attrs, "instance_type"))
-	if tenancy := handler.GetStringAttr(attrs, "tenancy"); tenancy != "" && tenancy != "default" {
-		desc.String("tenancy", tenancy)
+		String("instance_type", parsed.InstanceType)
+	if parsed.Tenancy != "" && parsed.Tenancy != "default" {
+		desc.String("tenancy", parsed.Tenancy)
 	}
 	return desc.Map()
 }
@@ -67,31 +105,18 @@ func (h *InstanceHandler) CalculateCost(price *pricing.Price, _ *pricing.PriceIn
 // SubResources synthesizes sub-resources from inline attributes.
 // root_block_device is dispatched to EBSHandler as a virtual aws_ebs_volume.
 func (h *InstanceHandler) SubResources(attrs map[string]any) []handler.SubResource {
-	root := getRootBlockDevice(attrs)
-	if root == nil {
-		// Default root volume: 8 GB gp2
-		root = map[string]any{
-			"volume_type": awskit.VolumeTypeGP2,
-			"volume_size": float64(defaultRootVolumeGB),
-		}
-	}
+	root := parseInstanceAttrs(attrs).RootVolume
 
 	// Translate root_block_device attrs → aws_ebs_volume attrs
 	ebsAttrs := map[string]any{
-		"type": handler.GetStringAttr(root, "volume_type"),
-		"size": handler.GetFloatAttr(root, "volume_size"),
+		"type": root.VolumeType,
+		"size": root.SizeGB,
 	}
-	if ebsAttrs["type"] == "" {
-		ebsAttrs["type"] = awskit.VolumeTypeGP2
+	if root.IOPS > 0 {
+		ebsAttrs["iops"] = root.IOPS
 	}
-	if ebsAttrs["size"] == float64(0) {
-		ebsAttrs["size"] = float64(defaultRootVolumeGB)
-	}
-	if iops := handler.GetFloatAttr(root, "iops"); iops > 0 {
-		ebsAttrs["iops"] = iops
-	}
-	if tp := handler.GetFloatAttr(root, "throughput"); tp > 0 {
-		ebsAttrs["throughput"] = tp
+	if root.Throughput > 0 {
+		ebsAttrs["throughput"] = root.Throughput
 	}
 
 	return []handler.SubResource{
@@ -105,17 +130,5 @@ func (h *InstanceHandler) SubResources(attrs map[string]any) []handler.SubResour
 
 // getRootBlockDevice extracts root_block_device from instance attributes.
 func getRootBlockDevice(attrs map[string]any) map[string]any {
-	rbd, ok := attrs["root_block_device"]
-	if !ok {
-		return nil
-	}
-	list, ok := rbd.([]any)
-	if !ok || len(list) == 0 {
-		return nil
-	}
-	m, ok := list[0].(map[string]any)
-	if !ok {
-		return nil
-	}
-	return m
+	return handler.GetFirstObjectAttr(attrs, "root_block_device")
 }

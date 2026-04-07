@@ -2,6 +2,7 @@ package pricing
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -434,6 +435,49 @@ func TestGetIndex_ConcurrentAccess(t *testing.T) {
 
 	if got := fetchCount.Load(); got != 1 {
 		t.Errorf("fetchCount = %d, want 1 for deduplicated concurrent access", got)
+	}
+}
+
+func TestGetIndex_ConcurrentWaiterRespectsContext(t *testing.T) {
+	tmpDir := t.TempDir()
+	var fetchCount atomic.Int32
+	started := make(chan struct{})
+	release := make(chan struct{})
+
+	c := NewCache(diskblob.NewStore(tmpDir), "", time.Hour, PriceFetcherFunc(func(_ context.Context, service ServiceID, region string) (*PriceIndex, error) {
+		fetchCount.Add(1)
+		close(started)
+		<-release
+		return &PriceIndex{
+			ServiceID: service,
+			Region:    region,
+			Version:   "test",
+			UpdatedAt: time.Now(),
+			Products:  map[string]Price{"sku1": {SKU: "sku1", OnDemandUSD: 0.01}},
+		}, nil
+	}))
+
+	leaderErr := make(chan error, 1)
+	go func() {
+		_, err := c.GetIndex(context.Background(), awsServiceEC2, "us-east-1")
+		leaderErr <- err
+	}()
+
+	<-started
+
+	waiterCtx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
+
+	if _, err := c.GetIndex(waiterCtx, awsServiceEC2, "us-east-1"); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("waiter GetIndex error = %v, want %v", err, context.DeadlineExceeded)
+	}
+
+	close(release)
+	if err := <-leaderErr; err != nil {
+		t.Fatalf("leader GetIndex error: %v", err)
+	}
+	if got := fetchCount.Load(); got != 1 {
+		t.Fatalf("fetchCount = %d, want 1", got)
 	}
 }
 

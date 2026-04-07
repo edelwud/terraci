@@ -15,52 +15,65 @@ type NodeGroupHandler struct {
 	awskit.RuntimeDeps
 }
 
+type nodeGroupAttrs struct {
+	InstanceType    string
+	InstanceTypeSet bool
+	DesiredSize     int
+	DesiredSizeSet  bool
+}
+
+func parseNodeGroupAttrs(attrs map[string]any) nodeGroupAttrs {
+	instanceType := ""
+	if instanceTypes := handler.GetStringSliceAttr(attrs, "instance_types"); len(instanceTypes) > 0 {
+		instanceType = instanceTypes[0]
+	}
+	instanceTypeSet := instanceType != ""
+	if instanceType == "" {
+		instanceType = DefaultInstanceType
+	}
+
+	desiredSize := 1
+	desiredSizeSet := false
+	if cfg := handler.GetFirstObjectAttr(attrs, "scaling_config"); cfg != nil {
+		if d := handler.GetIntAttr(cfg, "desired_size"); d > 0 {
+			desiredSize = d
+			desiredSizeSet = true
+		}
+	}
+
+	return nodeGroupAttrs{
+		InstanceType:    instanceType,
+		InstanceTypeSet: instanceTypeSet,
+		DesiredSize:     desiredSize,
+		DesiredSizeSet:  desiredSizeSet,
+	}
+}
+
 func (h *NodeGroupHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
 func (h *NodeGroupHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
+	parsed := parseNodeGroupAttrs(attrs)
 	desc := awskit.NewDescribeBuilder()
 
-	var instanceType string
-	if instanceTypes, ok := attrs["instance_types"].([]any); ok && len(instanceTypes) > 0 {
-		if t, ok := instanceTypes[0].(string); ok {
-			instanceType = t
-		}
-	}
-	if instanceType != "" {
-		desc.String("instance_type", instanceType)
+	if parsed.InstanceTypeSet {
+		desc.String("instance_type", parsed.InstanceType)
 	}
 
-	if scalingConfig, ok := attrs["scaling_config"].([]any); ok && len(scalingConfig) > 0 {
-		if cfg, ok := scalingConfig[0].(map[string]any); ok {
-			if d := handler.GetIntAttr(cfg, "desired_size"); d > 0 {
-				desc.Int("desired_size", d)
-			}
-		}
+	if parsed.DesiredSizeSet {
+		desc.Int("desired_size", parsed.DesiredSize)
 	}
 	return desc.Map()
 }
 
 func (h *NodeGroupHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
-	// Get instance types from node group
-	var instanceType string
-
-	// Instance types can be in different locations depending on terraform version
-	if instanceTypes, ok := attrs["instance_types"].([]any); ok && len(instanceTypes) > 0 {
-		if t, ok := instanceTypes[0].(string); ok {
-			instanceType = t
-		}
-	}
-
-	if instanceType == "" {
-		instanceType = DefaultInstanceType
-	}
+	parsed := parseNodeGroupAttrs(attrs)
 
 	return h.RuntimeOrDefault().StandardLookupSpec(
 		awskit.ServiceKeyEC2,
 		"Compute Instance",
 		func(_ string, _ map[string]any) (map[string]string, error) {
 			return map[string]string{
-				"instanceType":    instanceType,
+				"instanceType":    parsed.InstanceType,
 				"tenancy":         "Shared",
 				"operatingSystem": "Linux",
 				"preInstalledSw":  "NA",
@@ -71,16 +84,6 @@ func (h *NodeGroupHandler) BuildLookup(region string, attrs map[string]any) (*pr
 }
 
 func (h *NodeGroupHandler) CalculateCost(price *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
-	// Determine node count from scaling_config
-	desiredSize := 1
-
-	if scalingConfig, ok := attrs["scaling_config"].([]any); ok && len(scalingConfig) > 0 {
-		if cfg, ok := scalingConfig[0].(map[string]any); ok {
-			if d := handler.GetIntAttr(cfg, "desired_size"); d > 0 {
-				desiredSize = d
-			}
-		}
-	}
-
-	return handler.ScaledHourlyCost(price.OnDemandUSD, desiredSize)
+	parsed := parseNodeGroupAttrs(attrs)
+	return handler.ScaledHourlyCost(price.OnDemandUSD, parsed.DesiredSize)
 }

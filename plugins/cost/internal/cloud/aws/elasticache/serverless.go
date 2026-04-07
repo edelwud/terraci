@@ -46,18 +46,19 @@ func (h *ServerlessHandler) BuildLookup(region string, _ map[string]any) (*prici
 }
 
 func (h *ServerlessHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
+	parsed := parseServerlessAttrs(attrs)
 	desc := map[string]string{"type": "serverless"}
-	if v := handler.GetStringAttr(attrs, "engine"); v != "" {
-		desc["engine"] = v
+	if parsed.Engine != "" {
+		desc["engine"] = parsed.Engine
 	}
-	if storageMax := getServerlessStorageMaxGB(attrs); storageMax > 0 {
-		desc["storage_max_gb"] = fmt.Sprintf("%.0f", storageMax)
+	if parsed.StorageMaxGB > 0 {
+		desc["storage_max_gb"] = fmt.Sprintf("%.0f", parsed.StorageMaxGB)
 	}
 	return desc
 }
 
 func (h *ServerlessHandler) CalculateCost(price *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
-	storageGB := getServerlessStorageMaxGB(attrs)
+	storageGB := parseServerlessAttrs(attrs).StorageMaxGB
 	if storageGB == 0 {
 		storageGB = 1 // minimum 1 GB
 	}
@@ -71,38 +72,4 @@ func (h *ServerlessHandler) CalculateCost(price *pricing.Price, _ *pricing.Price
 	hourly = storageGB * costPerGBHour
 	monthly = hourly * handler.HoursPerMonth
 	return hourly, monthly
-}
-
-// getServerlessStorageMaxGB extracts maximum storage from cache_usage_limits.
-// Terraform schema: cache_usage_limits { data_storage { maximum = N, unit = "GB" } }
-func getServerlessStorageMaxGB(attrs map[string]any) float64 {
-	limits, ok := attrs["cache_usage_limits"]
-	if !ok {
-		return 0
-	}
-
-	// Terraform plan JSON represents blocks as list of objects
-	limitsList, ok := limits.([]any)
-	if !ok || len(limitsList) == 0 {
-		return 0
-	}
-	limitsMap, ok := limitsList[0].(map[string]any)
-	if !ok {
-		return 0
-	}
-
-	dataStorage, ok := limitsMap["data_storage"]
-	if !ok {
-		return 0
-	}
-	dsList, ok := dataStorage.([]any)
-	if !ok || len(dsList) == 0 {
-		return 0
-	}
-	dsMap, ok := dsList[0].(map[string]any)
-	if !ok {
-		return 0
-	}
-
-	return handler.GetFloatAttr(dsMap, "maximum")
 }

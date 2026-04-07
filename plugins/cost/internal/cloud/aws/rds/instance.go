@@ -35,15 +35,35 @@ type InstanceHandler struct {
 	awskit.RuntimeDeps
 }
 
+type instanceAttrs struct {
+	InstanceClass    string
+	Engine           string
+	StorageType      string
+	AllocatedStorage float64
+	IOPS             float64
+	MultiAZ          bool
+}
+
+func parseInstanceAttrs(attrs map[string]any) instanceAttrs {
+	return instanceAttrs{
+		InstanceClass:    handler.GetStringAttr(attrs, "instance_class"),
+		Engine:           handler.GetStringAttr(attrs, "engine"),
+		StorageType:      handler.GetStringAttr(attrs, "storage_type"),
+		AllocatedStorage: handler.GetFloatAttr(attrs, "allocated_storage"),
+		IOPS:             handler.GetFloatAttr(attrs, "iops"),
+		MultiAZ:          handler.GetBoolAttr(attrs, "multi_az"),
+	}
+}
+
 func (h *InstanceHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
 func (h *InstanceHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
-	instanceClass := handler.GetStringAttr(attrs, "instance_class")
-	if instanceClass == "" {
+	parsed := parseInstanceAttrs(attrs)
+	if parsed.InstanceClass == "" {
 		return nil, errors.New("instance_class not found")
 	}
 
-	engine := handler.GetStringAttr(attrs, "engine")
+	engine := parsed.Engine
 	if engine == "" {
 		engine = DefaultEngine
 	}
@@ -53,7 +73,7 @@ func (h *InstanceHandler) BuildLookup(region string, attrs map[string]any) (*pri
 
 	// Deployment option
 	deploymentOption := "Single-AZ"
-	if handler.GetBoolAttr(attrs, "multi_az") {
+	if parsed.MultiAZ {
 		deploymentOption = "Multi-AZ"
 	}
 
@@ -62,7 +82,7 @@ func (h *InstanceHandler) BuildLookup(region string, attrs map[string]any) (*pri
 		"Database Instance",
 		func(_ string, _ map[string]any) (map[string]string, error) {
 			return map[string]string{
-				"instanceType":     instanceClass,
+				"instanceType":     parsed.InstanceClass,
 				"databaseEngine":   databaseEngine,
 				"deploymentOption": deploymentOption,
 			}, nil
@@ -71,34 +91,33 @@ func (h *InstanceHandler) BuildLookup(region string, attrs map[string]any) (*pri
 }
 
 func (h *InstanceHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
+	parsed := parseInstanceAttrs(attrs)
 	return awskit.NewDescribeBuilder().
-		String("instance_class", handler.GetStringAttr(attrs, "instance_class")).
-		String("engine", handler.GetStringAttr(attrs, "engine")).
-		Bool("multi_az", handler.GetBoolAttr(attrs, "multi_az")).
-		Float("storage_gb", handler.GetFloatAttr(attrs, "allocated_storage"), "%.0f").
+		String("instance_class", parsed.InstanceClass).
+		String("engine", parsed.Engine).
+		Bool("multi_az", parsed.MultiAZ).
+		Float("storage_gb", parsed.AllocatedStorage, "%.0f").
 		Map()
 }
 
 func (h *InstanceHandler) CalculateCost(price *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
+	parsed := parseInstanceAttrs(attrs)
 	hourly = price.OnDemandUSD
 	monthly = hourly * handler.HoursPerMonth
 
 	// Add storage cost
-	storageType := handler.GetStringAttr(attrs, "storage_type")
-	allocatedStorage := handler.GetFloatAttr(attrs, "allocated_storage")
-	if allocatedStorage > 0 {
-		storageCostPerGB := GetStorageCostPerGB(storageType)
-		monthly += allocatedStorage * storageCostPerGB
+	if parsed.AllocatedStorage > 0 {
+		storageCostPerGB := GetStorageCostPerGB(parsed.StorageType)
+		monthly += parsed.AllocatedStorage * storageCostPerGB
 	}
 
 	// Add IOPS cost for provisioned IOPS storage types
-	iops := handler.GetFloatAttr(attrs, "iops")
-	if iops > 0 {
-		switch storageType {
+	if parsed.IOPS > 0 {
+		switch parsed.StorageType {
 		case awskit.VolumeTypeIO1:
-			monthly += iops * IOPSCostIO1PerMonth
+			monthly += parsed.IOPS * IOPSCostIO1PerMonth
 		case awskit.VolumeTypeIO2:
-			monthly += iops * IOPSCostIO2PerMonth
+			monthly += parsed.IOPS * IOPSCostIO2PerMonth
 		}
 		// gp3 IOPS are included in the base price for RDS (unlike EBS)
 	}

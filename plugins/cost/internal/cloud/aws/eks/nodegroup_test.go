@@ -56,6 +56,17 @@ func TestNodeGroupHandler_Contract(t *testing.T) {
 				},
 			},
 			{
+				Name:   "with typed instance_types slice",
+				Region: "us-east-1",
+				Attrs:  map[string]any{"instance_types": []string{"c6i.large"}},
+				Assert: func(tb testing.TB, lookup *pricing.PriceLookup) {
+					tb.Helper()
+					if lookup.Attributes["instanceType"] != "c6i.large" {
+						tb.Errorf("instanceType = %q, want %q", lookup.Attributes["instanceType"], "c6i.large")
+					}
+				},
+			},
+			{
 				Name:   "default",
 				Region: "us-east-1",
 				Attrs:  map[string]any{},

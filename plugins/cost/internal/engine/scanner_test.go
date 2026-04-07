@@ -78,6 +78,32 @@ func TestModuleScanner_ScanMany_RunsConcurrently(t *testing.T) {
 	}
 }
 
+func TestModuleScanner_ScanMany_RespectsConcurrencyLimit(t *testing.T) {
+	t.Parallel()
+
+	const moduleCount = 12
+	results := make(map[string]adapterResult, moduleCount)
+	paths := make([]string, 0, moduleCount)
+	for i := range moduleCount {
+		path := fmt.Sprintf("mod-%02d", i)
+		paths = append(paths, path)
+		results[path] = adapterResult{plan: &engine.ModulePlan{ModulePath: path}}
+	}
+
+	adapter := &countingAdapter{
+		results: results,
+		delay:   20 * time.Millisecond,
+	}
+	scanner := engine.NewModuleScanner(adapter)
+	if _, err := scanner.ScanMany(paths, map[string]string{}); err != nil {
+		t.Fatalf("ScanMany() error = %v", err)
+	}
+
+	if got := adapter.maxConcurrent.Load(); got > 4 {
+		t.Fatalf("maxConcurrent = %d, want <= 4", got)
+	}
+}
+
 type adapterResult struct {
 	plan *engine.ModulePlan
 	err  error

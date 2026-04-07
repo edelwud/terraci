@@ -6,10 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/caarlos0/log"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/edelwud/terraci/pkg/cache/blobcache"
 	"github.com/edelwud/terraci/pkg/plugin"
@@ -29,16 +29,9 @@ type PriceFetcher interface {
 // Cache manages pricing data over a pluggable blob store.
 // Safe for concurrent use.
 type Cache struct {
-	blobs      *blobcache.Cache
-	fetcher    PriceFetcher
-	inflightMu sync.Mutex
-	inflight   map[string]*inflightFetch
-}
-
-type inflightFetch struct {
-	done chan struct{}
-	idx  *PriceIndex
-	err  error
+	blobs        *blobcache.Cache
+	fetcher      PriceFetcher
+	fetchFlights singleflight.Group
 }
 
 // NewCache creates a new pricing cache using the given blob store.
@@ -53,9 +46,8 @@ func NewCache(store plugin.BlobStore, namespace string, ttl time.Duration, fetch
 // NewCacheFromBlobCache creates a new pricing cache over a prepared blob cache.
 func NewCacheFromBlobCache(blobs *blobcache.Cache, fetcher PriceFetcher) *Cache {
 	return &Cache{
-		blobs:    blobs,
-		fetcher:  fetcher,
-		inflight: make(map[string]*inflightFetch),
+		blobs:   blobs,
+		fetcher: fetcher,
 	}
 }
 
@@ -121,25 +113,23 @@ func (c *Cache) Validate(ctx context.Context, services map[ServiceID][]string) [
 func (c *Cache) fetchAndCacheIndex(ctx context.Context, service ServiceID, region string) (*PriceIndex, error) {
 	key := c.cacheKey(service, region)
 
-	c.inflightMu.Lock()
-	if call, ok := c.inflight[key]; ok {
-		c.inflightMu.Unlock()
-		<-call.done
-		return call.idx, call.err
+	ch := c.fetchFlights.DoChan(key, func() (any, error) {
+		return c.fetchAndCacheIndexLeader(ctx, service, region)
+	})
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case result := <-ch:
+		if result.Err != nil {
+			return nil, result.Err
+		}
+		idx, ok := result.Val.(*PriceIndex)
+		if !ok {
+			return nil, fmt.Errorf("pricing fetch %s returned %T, want *PriceIndex", key, result.Val)
+		}
+		return idx, nil
 	}
-
-	call := &inflightFetch{done: make(chan struct{})}
-	c.inflight[key] = call
-	c.inflightMu.Unlock()
-
-	call.idx, call.err = c.fetchAndCacheIndexLeader(ctx, service, region)
-
-	c.inflightMu.Lock()
-	delete(c.inflight, key)
-	close(call.done)
-	c.inflightMu.Unlock()
-
-	return call.idx, call.err
 }
 
 func (c *Cache) fetchAndCacheIndexLeader(ctx context.Context, service ServiceID, region string) (*PriceIndex, error) {

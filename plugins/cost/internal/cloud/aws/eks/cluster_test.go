@@ -119,3 +119,12 @@ func TestClusterHandler_Describe(t *testing.T) {
 		},
 	})
 }
+
+func TestParseClusterAttrs(t *testing.T) {
+	t.Parallel()
+
+	got := parseClusterAttrs(map[string]any{"version": "1.29"})
+	if got.Version != "1.29" {
+		t.Fatalf("parseClusterAttrs().Version = %q, want 1.29", got.Version)
+	}
+}

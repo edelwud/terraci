@@ -102,8 +102,9 @@ func TestGetBoolAttr(t *testing.T) {
 	attrs := map[string]any{
 		"enabled":  true,
 		"disabled": false,
-		"str":      "true", // wrong type
-		"num":      1,      // wrong type
+		"str":      "true",
+		"num":      1,
+		"bad":      "definitely",
 	}
 
 	tests := []struct {
@@ -112,14 +113,72 @@ func TestGetBoolAttr(t *testing.T) {
 	}{
 		{"enabled", true},
 		{"disabled", false},
-		{"str", false},     // wrong type → false
-		{"num", false},     // wrong type → false
+		{"str", true},
+		{"num", true},
+		{"bad", false},
 		{"missing", false}, // missing → false
 	}
 
 	for _, tt := range tests {
 		if got := GetBoolAttr(attrs, tt.key); got != tt.want {
 			t.Errorf("GetBoolAttr(%q) = %v, want %v", tt.key, got, tt.want)
+		}
+	}
+}
+
+func TestGetStringSliceAttr(t *testing.T) {
+	t.Parallel()
+
+	attrs := map[string]any{
+		"strings": []string{"a", "b"},
+		"anys":    []any{"c", 7, "d"},
+		"wrong":   "not-a-slice",
+	}
+
+	if got := GetStringSliceAttr(attrs, "strings"); len(got) != 2 || got[0] != "a" || got[1] != "b" {
+		t.Fatalf("GetStringSliceAttr(strings) = %#v, want [a b]", got)
+	}
+	if got := GetStringSliceAttr(attrs, "anys"); len(got) != 2 || got[0] != "c" || got[1] != "d" {
+		t.Fatalf("GetStringSliceAttr(anys) = %#v, want [c d]", got)
+	}
+	if got := GetStringSliceAttr(attrs, "wrong"); got != nil {
+		t.Fatalf("GetStringSliceAttr(wrong) = %#v, want nil", got)
+	}
+}
+
+func TestGetFirstObjectAttr(t *testing.T) {
+	t.Parallel()
+
+	attrs := map[string]any{
+		"objects": []any{map[string]any{"name": "first"}},
+		"typed":   []map[string]any{{"name": "typed"}},
+		"direct":  map[string]any{"name": "direct"},
+		"empty":   []any{},
+		"wrong":   []any{"nope"},
+	}
+
+	tests := []struct {
+		key  string
+		want string
+	}{
+		{"objects", "first"},
+		{"typed", "typed"},
+		{"direct", "direct"},
+		{"empty", ""},
+		{"wrong", ""},
+		{"missing", ""},
+	}
+
+	for _, tt := range tests {
+		got := GetFirstObjectAttr(attrs, tt.key)
+		if tt.want == "" {
+			if got != nil {
+				t.Fatalf("GetFirstObjectAttr(%q) = %#v, want nil", tt.key, got)
+			}
+			continue
+		}
+		if got["name"] != tt.want {
+			t.Fatalf("GetFirstObjectAttr(%q)[name] = %q, want %q", tt.key, got["name"], tt.want)
 		}
 	}
 }

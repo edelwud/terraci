@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/caarlos0/log"
 
@@ -184,6 +185,8 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest, stat
 			state:      state,
 		})
 	default:
+		result.ErrorKind = model.CostErrorInternal
+		result.ErrorDetail = fmt.Sprintf("unknown cost category: %d", h.Category())
 		return result
 	}
 }
@@ -223,6 +226,9 @@ func (r *CostResolver) ResolveBeforeCostWithState(ctx context.Context, rc *model
 	case handler.CostCategoryUsageBased:
 		// Usage-based resources (e.g. data transfer, Lambda invocations) require
 		// runtime telemetry that is unavailable at plan time; skip silently.
+	default:
+		rc.ErrorKind = model.CostErrorInternal
+		rc.ErrorDetail = fmt.Sprintf("unknown cost category: %d", h.Category())
 	}
 }
 

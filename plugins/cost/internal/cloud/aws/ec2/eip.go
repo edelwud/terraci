@@ -14,16 +14,28 @@ type EIPHandler struct {
 	awskit.RuntimeDeps
 }
 
+type eipAttrs struct {
+	Instance string
+}
+
+func parseEIPAttrs(attrs map[string]any) eipAttrs {
+	return eipAttrs{
+		Instance: handler.GetStringAttr(attrs, "instance"),
+	}
+}
+
 func (h *EIPHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
 
 func (h *EIPHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
+	parsed := parseEIPAttrs(attrs)
+
 	// Since Feb 2024, AWS charges $0.005/hr for all public IPv4 addresses.
 	// Pricing is under AmazonVPC service with productFamily "None".
 	runtime := h.RuntimeOrDefault()
 	prefix := runtime.ResolveUsagePrefix(region)
 
 	usagetype := prefix + "-PublicIPv4:InUseAddress"
-	if instance := handler.GetStringAttr(attrs, "instance"); instance == "" {
+	if parsed.Instance == "" {
 		usagetype = prefix + "-PublicIPv4:IdleAddress"
 	}
 
@@ -41,7 +53,7 @@ func (h *EIPHandler) BuildLookup(region string, attrs map[string]any) (*pricing.
 
 func (h *EIPHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
 	d := map[string]string{}
-	if handler.GetStringAttr(attrs, "instance") != "" {
+	if parseEIPAttrs(attrs).Instance != "" {
 		d["attached"] = "true"
 	} else {
 		d["attached"] = "false"
