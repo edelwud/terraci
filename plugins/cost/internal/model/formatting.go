@@ -52,7 +52,7 @@ func formatWithCommas(cost float64) string {
 		if i > 0 && (len(intPart)-i)%digitsPerGroup == 0 {
 			result = append(result, ',')
 		}
-		result = append(result, byte(c))
+		result = append(result, byte(c)) //nolint:gosec // c is always an ASCII digit [0-9] or separator
 	}
 
 	if decPart != "" {

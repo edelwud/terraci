@@ -10,12 +10,12 @@ import (
 
 // JobPlan contains prepared data for pipeline generation.
 type JobPlan struct {
-	TargetModules       []*discovery.Module
-	TargetSet           map[string]bool
-	ExecutionLevels     [][]string
-	Subgraph            *graph.DependencyGraph
-	ModuleIndex         *discovery.ModuleIndex
-	HasContributedJobs  bool
+	TargetModules      []*discovery.Module
+	TargetSet          map[string]bool
+	ExecutionLevels    [][]string
+	Subgraph           *graph.DependencyGraph
+	ModuleIndex        *discovery.ModuleIndex
+	HasContributedJobs bool
 }
 
 // BuildJobPlan prepares the execution plan from target modules.
@@ -43,7 +43,7 @@ func BuildJobPlan(
 		return nil, fmt.Errorf("failed to calculate execution levels: %w", err)
 	}
 
-		return &JobPlan{
+	return &JobPlan{
 		TargetModules:      targetModules,
 		TargetSet:          targetSet,
 		ExecutionLevels:    levels,

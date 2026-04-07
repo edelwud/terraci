@@ -15,6 +15,6 @@ func ScaledHourlyCost(pricePerHour float64, count int) (hourly, monthly float64)
 }
 
 // FixedMonthlyCost returns hourly and monthly costs from a fixed monthly rate.
-func FixedMonthlyCost(monthly float64) (float64, float64) {
+func FixedMonthlyCost(monthly float64) (hourly, monthlyCost float64) {
 	return monthly / HoursPerMonth, monthly
 }
