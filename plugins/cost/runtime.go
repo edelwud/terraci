@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/edelwud/terraci/pkg/cache/blobcache"
 	"github.com/edelwud/terraci/pkg/log"
@@ -22,21 +23,20 @@ func newRuntime(ctx context.Context, appCtx *plugin.AppContext, cfg *model.CostC
 		return nil, err
 	}
 
-	cache, _, err := resolveBlobCache(ctx, appCtx, cfg)
+	cache, err := resolveBlobCache(ctx, appCtx, cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	estimator, err := engine.NewEstimatorFromConfigWithBlobCache(cfg, cache)
+	estimator, err := engine.NewEstimatorFromConfig(cfg, cache)
 	if err != nil {
 		return nil, fmt.Errorf("create cost estimator: %w", err)
 	}
 
-	return &costRuntime{estimator: estimator}, nil
-}
+	logCacheState(ctx, estimator)
+	estimator.Cache().CleanExpired(ctx)
 
-func newRuntimeWithEstimator(estimator *engine.Estimator) *costRuntime {
-	return &costRuntime{estimator: estimator}
+	return &costRuntime{estimator: estimator}, nil
 }
 
 // Runtime implements plugin.RuntimeProvider and serves as the reference lazy
@@ -61,18 +61,20 @@ func validateRuntimeConfig(cfg *model.CostConfig) error {
 	return nil
 }
 
-func resolveBlobStore(ctx context.Context, appCtx *plugin.AppContext, cfg *model.CostConfig) (plugin.BlobStore, plugin.BlobStoreInfo, error) {
+// resolveBlobCache resolves the underlying blob store and wraps it in a blobcache.Cache
+// configured with the plugin's namespace and TTL settings.
+func resolveBlobCache(ctx context.Context, appCtx *plugin.AppContext, cfg *model.CostConfig) (*blobcache.Cache, error) {
 	blobProvider, err := registry.ResolveBlobStoreProvider(cfg.BlobCacheBackend())
 	if err != nil {
-		return nil, plugin.BlobStoreInfo{}, fmt.Errorf("resolve blob backend: %w", err)
+		return nil, fmt.Errorf("resolve blob backend: %w", err)
 	}
 
 	blobStore, err := blobProvider.NewBlobStore(ctx, appCtx)
 	if err != nil {
-		return nil, plugin.BlobStoreInfo{}, fmt.Errorf("create blob backend %q: %w", blobProvider.Name(), err)
+		return nil, fmt.Errorf("create blob backend %q: %w", blobProvider.Name(), err)
 	}
 	if err := plugin.CheckBlobStore(ctx, blobStore); err != nil {
-		return nil, plugin.BlobStoreInfo{}, fmt.Errorf("check blob backend %q: %w", blobProvider.Name(), err)
+		return nil, fmt.Errorf("check blob backend %q: %w", blobProvider.Name(), err)
 	}
 
 	info := plugin.DescribeBlobStore(blobStore, blobProvider.Name())
@@ -80,14 +82,36 @@ func resolveBlobStore(ctx context.Context, appCtx *plugin.AppContext, cfg *model
 		WithField("root", info.Root).
 		Debug("cost: resolved blob backend")
 
-	return blobStore, info, nil
+	return blobcache.New(blobStore, cfg.BlobCacheNamespace(), cfg.CacheTTLDuration()), nil
 }
 
-func resolveBlobCache(ctx context.Context, appCtx *plugin.AppContext, cfg *model.CostConfig) (*blobcache.Cache, plugin.BlobStoreInfo, error) {
-	blobStore, info, err := resolveBlobStore(ctx, appCtx, cfg)
-	if err != nil {
-		return nil, plugin.BlobStoreInfo{}, err
+// logCacheState logs the current pricing cache entries for diagnostic visibility.
+// Called once after the estimator is built.
+func logCacheState(ctx context.Context, e *engine.Estimator) {
+	cache := e.Cache()
+	dir := cache.Dir()
+	if dir == "" {
+		return
 	}
 
-	return blobcache.New(blobStore, cfg.BlobCacheNamespace(), engine.CacheTTLFromConfig(cfg)), info, nil
+	entries := cache.Entries(ctx)
+
+	log.WithField("dir", dir).
+		WithField("ttl", cache.TTL().String()).
+		WithField("entries", len(entries)).
+		Debug("cost: pricing cache state")
+
+	for _, entry := range entries {
+		l := log.WithField("service", entry.Service.Name).
+			WithField("region", entry.Region).
+			WithField("age", entry.Age.Round(time.Second).String())
+
+		if entry.ExpiresIn < 0 {
+			l.WithField("expired_by", (-entry.ExpiresIn).Round(time.Second).String()).
+				Debug("cost: cache entry (expired)")
+		} else {
+			l.WithField("expires_in", entry.ExpiresIn.Round(time.Second).String()).
+				Debug("cost: cache entry")
+		}
+	}
 }

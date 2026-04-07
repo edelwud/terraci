@@ -2,13 +2,13 @@ package awskit
 
 import "testing"
 
-func TestLookupBuilder_Build(t *testing.T) {
-	builder := LookupBuilder{
+func TestPriceLookupSpec_Lookup(t *testing.T) {
+	spec := PriceLookupSpec{
 		Service:       MustService(ServiceKeyEC2),
 		ProductFamily: "Compute Instance",
 	}
 
-	lookup := builder.Build("us-east-1", map[string]string{
+	lookup := spec.Lookup("us-east-1", map[string]string{
 		"instanceType": "t3.micro",
 		"tenancy":      "Shared",
 	})
@@ -30,13 +30,13 @@ func TestLookupBuilder_Build(t *testing.T) {
 	}
 }
 
-func TestLookupBuilder_Build_AddsLocation(t *testing.T) {
-	builder := LookupBuilder{
+func TestPriceLookupSpec_Lookup_AddsLocation(t *testing.T) {
+	spec := PriceLookupSpec{
 		Service:       MustService(ServiceKeyRDS),
 		ProductFamily: "Database Instance",
 	}
 
-	lookup := builder.Build("eu-west-1", map[string]string{
+	lookup := spec.Lookup("eu-west-1", map[string]string{
 		"instanceType": "db.t3.medium",
 	})
 
@@ -54,13 +54,13 @@ func TestLookupBuilder_Build_AddsLocation(t *testing.T) {
 	}
 }
 
-func TestLookupBuilder_Build_NilAttrs(t *testing.T) {
-	builder := LookupBuilder{
+func TestPriceLookupSpec_Lookup_NilAttrs(t *testing.T) {
+	spec := PriceLookupSpec{
 		Service:       MustService(ServiceKeyEC2),
 		ProductFamily: "NAT Gateway",
 	}
 
-	lookup := builder.Build("us-west-2", nil)
+	lookup := spec.Lookup("us-west-2", nil)
 
 	if lookup.Attributes == nil {
 		t.Fatal("Attributes should not be nil")
@@ -70,13 +70,13 @@ func TestLookupBuilder_Build_NilAttrs(t *testing.T) {
 	}
 }
 
-func TestLookupBuilder_Build_UnknownRegion(t *testing.T) {
-	builder := LookupBuilder{
+func TestPriceLookupSpec_Lookup_UnknownRegion(t *testing.T) {
+	spec := PriceLookupSpec{
 		Service:       MustService(ServiceKeyEC2),
 		ProductFamily: "Storage",
 	}
 
-	lookup := builder.Build("xx-unknown-1", nil)
+	lookup := spec.Lookup("xx-unknown-1", nil)
 
 	// Unknown region falls back to raw code
 	if lookup.Attributes["location"] != "xx-unknown-1" {
@@ -87,8 +87,8 @@ func TestLookupBuilder_Build_UnknownRegion(t *testing.T) {
 	}
 }
 
-func TestLookupBuilder_Build_DoesNotOverwriteExistingAttrs(t *testing.T) {
-	builder := LookupBuilder{
+func TestPriceLookupSpec_Lookup_DoesNotOverwriteExistingAttrs(t *testing.T) {
+	spec := PriceLookupSpec{
 		Service:       MustService(ServiceKeyEC2),
 		ProductFamily: "Compute Instance",
 	}
@@ -98,7 +98,7 @@ func TestLookupBuilder_Build_DoesNotOverwriteExistingAttrs(t *testing.T) {
 		"tenancy":      "Dedicated",
 	}
 
-	lookup := builder.Build("us-east-1", attrs)
+	lookup := spec.Lookup("us-east-1", attrs)
 
 	// Original attrs preserved
 	if lookup.Attributes["instanceType"] != "m5.xlarge" {

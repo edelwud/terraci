@@ -9,10 +9,6 @@ type ServiceID struct {
 	Name     string `json:"name"`
 }
 
-// ServiceCode is kept as a backward-compatible alias while the cost engine
-// migrates to provider-aware service identifiers.
-type ServiceCode = ServiceID
-
 // ServiceCatalog keeps provider-owned pricing services under stable keys.
 type ServiceCatalog map[string]ServiceID
 
@@ -73,7 +69,7 @@ func (r RegionResolver) ResolveUsagePrefix(region string) string {
 	return r.DefaultUsagePrefix
 }
 
-// PriceIndex represents a compact pricing index for a service/region
+// PriceIndex represents a compact pricing index for a service/region.
 type PriceIndex struct {
 	ServiceID  ServiceID         `json:"service_id"`
 	Region     string            `json:"region"`
@@ -83,7 +79,7 @@ type PriceIndex struct {
 	Attributes map[string]string `json:"attributes,omitempty"`
 }
 
-// Price represents a single product price
+// Price represents a single product price.
 type Price struct {
 	SKU           string            `json:"sku"`
 	ProductFamily string            `json:"product_family"`
@@ -92,7 +88,7 @@ type Price struct {
 	Unit          string            `json:"unit"`          // Hrs, GB-Mo, etc.
 }
 
-// PriceLookup represents criteria for finding a price
+// PriceLookup represents criteria for finding a price.
 type PriceLookup struct {
 	ServiceID     ServiceID
 	Region        string

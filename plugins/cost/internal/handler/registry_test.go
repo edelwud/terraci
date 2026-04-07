@@ -117,7 +117,7 @@ func TestRegistry_SupportedTypes(t *testing.T) {
 		t.Error("SupportedTypes should return non-empty list")
 	}
 
-	typeSet := make(map[string]bool)
+	typeSet := make(map[ResourceType]bool)
 	for _, tp := range types {
 		typeSet[tp] = true
 	}
@@ -145,10 +145,4 @@ func TestNewRegistry(t *testing.T) {
 	if !r.IsSupported(ResourceType("aws_test_resource")) {
 		t.Error("should support registered resource")
 	}
-}
-
-func TestLogUnsupported(_ *testing.T) {
-	// Just verify it doesn't panic
-	LogUnsupported("aws_unknown_resource", "module.foo.aws_unknown_resource.bar")
-	LogUnsupported("", "")
 }

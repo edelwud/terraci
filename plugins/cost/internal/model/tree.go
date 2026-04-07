@@ -23,7 +23,7 @@ func BuildSegmentTree(result *EstimateResult, workDir string) *SegmentNode {
 
 	for i := range result.Modules {
 		mc := &result.Modules[i]
-		if mc.AfterCost == 0 && mc.BeforeCost == 0 && mc.Error == "" {
+		if mc.AfterCost == 0 && mc.BeforeCost == 0 && mc.DiffCost == 0 && mc.Error == "" {
 			continue
 		}
 
@@ -35,7 +35,7 @@ func BuildSegmentTree(result *EstimateResult, workDir string) *SegmentNode {
 		parts := strings.Split(moduleID, "/")
 		node := root
 		for _, part := range parts {
-			child := FindChild(node, part)
+			child := findChild(node, part)
 			if child == nil {
 				child = &SegmentNode{Name: part}
 				node.Children = append(node.Children, child)
@@ -50,8 +50,8 @@ func BuildSegmentTree(result *EstimateResult, workDir string) *SegmentNode {
 	return root
 }
 
-// FindChild returns the child node with the given name, or nil.
-func FindChild(node *SegmentNode, name string) *SegmentNode {
+// findChild returns the child node with the given name, or nil.
+func findChild(node *SegmentNode, name string) *SegmentNode {
 	for _, c := range node.Children {
 		if c.Name == name {
 			return c
@@ -88,8 +88,8 @@ func StripModulePrefix(address, moduleAddr string) string {
 	return address
 }
 
-// SplitPath splits a filepath into its component parts.
-func SplitPath(p string) []string {
+// splitPath splits a filepath into its component parts.
+func splitPath(p string) []string {
 	var parts []string
 	for p != "" && p != "." && p != "/" {
 		dir, file := filepath.Split(p)
@@ -103,7 +103,7 @@ func SplitPath(p string) []string {
 
 // DetectRegion extracts region from a module path using configured pattern segments.
 func DetectRegion(segments []string, modulePath string) string {
-	parts := SplitPath(modulePath)
+	parts := splitPath(modulePath)
 	for i, seg := range segments {
 		if seg == "region" && i < len(parts) {
 			return parts[i]

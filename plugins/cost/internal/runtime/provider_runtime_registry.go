@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -10,7 +11,6 @@ import (
 	"github.com/edelwud/terraci/pkg/cache/blobcache"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
-	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
@@ -62,7 +62,12 @@ func NewProviderRuntimeRegistryFromProvidersWithBlobCache(
 	for _, cp := range providers {
 		def := cp.Definition()
 		runtimeFetcher := def.FetcherFactory()
-		if len(providers) == 1 && fetcher != nil {
+		// fetcher override is only supported for single-provider setups (typically tests).
+		// For multi-provider setups, pass nil and use SetFetcherForProvider per provider.
+		if fetcher != nil {
+			if len(providers) != 1 {
+				panic("runtime: fetcher override requires exactly one provider; use SetFetcherForProvider for multi-provider setups")
+			}
 			runtimeFetcher = fetcher
 		}
 		runtimes[def.Manifest.ID] = &ProviderRuntime{
@@ -108,17 +113,36 @@ func (r *ProviderRuntimeRegistry) CacheDir() string {
 	return r.inspect.Dir()
 }
 
-// SetPricingFetcher replaces the pricing fetcher.
-func (r *ProviderRuntimeRegistry) SetPricingFetcher(f pricing.PriceFetcher) {
-	if len(r.runtimes) == 1 {
-		for _, runtime := range r.runtimes {
-			runtime.Cache.SetFetcher(f)
-			return
+// SetFetcherForProvider replaces the pricing fetcher for a specific provider.
+// Intended for tests only: inject a stub fetcher without building a full runtime.
+// Silent no-op if providerID is not registered (multi-provider setups must call
+// this for each registered provider separately).
+func (r *ProviderRuntimeRegistry) SetFetcherForProvider(providerID string, f pricing.PriceFetcher) {
+	if rt, ok := r.runtimes[providerID]; ok {
+		rt.Cache.SetFetcher(f)
+	}
+}
+
+// WarmIndexes downloads any missing pricing data for the given service/region requirements.
+// Warming is best-effort: all service/region pairs are attempted even if some fail.
+// Returns a joined error if one or more downloads fail.
+func (r *ProviderRuntimeRegistry) WarmIndexes(ctx context.Context, services map[pricing.ServiceID][]string) error {
+	if len(services) == 0 {
+		return nil
+	}
+	var errs []error
+	for serviceID, regions := range services {
+		rt, ok := r.runtimes[serviceID.Provider]
+		if !ok {
+			continue
+		}
+		for _, region := range regions {
+			if _, err := rt.Cache.GetIndex(ctx, serviceID, region); err != nil {
+				errs = append(errs, fmt.Errorf("%s/%s: %w", serviceID, region, err))
+			}
 		}
 	}
-	if runtime, ok := r.runtimes[awskit.ProviderID]; ok {
-		runtime.Cache.SetFetcher(f)
-	}
+	return errors.Join(errs...)
 }
 
 // CacheOldestAge returns the age of the oldest cache entry, or 0 if empty.
@@ -139,7 +163,7 @@ func (r *ProviderRuntimeRegistry) CacheTTL() time.Duration {
 
 // CleanExpiredCache removes expired cache entries.
 func (r *ProviderRuntimeRegistry) CleanExpiredCache(ctx context.Context) {
-	if r.cache == nil {
+	if r.inspect == nil {
 		return
 	}
 	if err := r.cache.CleanExpired(ctx); err != nil {

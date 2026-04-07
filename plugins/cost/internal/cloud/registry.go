@@ -17,6 +17,10 @@ type ResourceRegistration struct {
 
 // Definition is the provider-neutral runtime contract for a cloud provider.
 type Definition struct {
+	// ConfigKey is the YAML key under plugins.cost.providers that enables this provider.
+	// Example: "aws" maps to `plugins.cost.providers.aws.enabled: true`.
+	// It must match the key used in CostProvidersConfig.
+	ConfigKey      string
 	Manifest       pricing.ProviderManifest
 	FetcherFactory func() pricing.PriceFetcher
 	Resources      []ResourceRegistration
@@ -43,7 +47,7 @@ func RegisterDefinitionHandlers(r *handler.Registry, def Definition) {
 }
 
 var (
-	cpMu      sync.Mutex
+	cpMu      sync.RWMutex
 	providers = make(map[string]Provider)
 	cpOrder   []string
 )
@@ -63,8 +67,8 @@ func Register(cp Provider) {
 
 // Providers returns all registered cloud providers in registration order.
 func Providers() []Provider {
-	cpMu.Lock()
-	defer cpMu.Unlock()
+	cpMu.RLock()
+	defer cpMu.RUnlock()
 	result := make([]Provider, 0, len(cpOrder))
 	for _, name := range cpOrder {
 		result = append(result, providers[name])
@@ -72,18 +76,10 @@ func Providers() []Provider {
 	return result
 }
 
-// Get returns a cloud provider by name.
+// Get returns a registered cloud provider by its provider ID.
 func Get(name string) (Provider, bool) {
-	cpMu.Lock()
-	defer cpMu.Unlock()
+	cpMu.RLock()
+	defer cpMu.RUnlock()
 	cp, ok := providers[name]
 	return cp, ok
-}
-
-// Reset clears the registry. Only for testing.
-func Reset() {
-	cpMu.Lock()
-	defer cpMu.Unlock()
-	providers = make(map[string]Provider)
-	cpOrder = nil
 }

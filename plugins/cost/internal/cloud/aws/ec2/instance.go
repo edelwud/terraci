@@ -35,9 +35,6 @@ func (h *InstanceHandler) BuildLookup(region string, attrs map[string]any) (*pri
 	}
 
 	operatingSystem := "Linux"
-	if ami := handler.GetStringAttr(attrs, "ami"); ami != "" {
-		operatingSystem = "Linux"
-	}
 
 	return h.RuntimeOrDefault().StandardLookupSpec(
 		awskit.ServiceKeyEC2,

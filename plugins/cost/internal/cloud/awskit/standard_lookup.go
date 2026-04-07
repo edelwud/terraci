@@ -24,9 +24,9 @@ func (s StandardLookupSpec) Build(region string, attrs map[string]any) (*pricing
 		return nil, err
 	}
 
-	lb := &LookupBuilder{
+	lb := &PriceLookupSpec{
 		Service:       s.Service,
 		ProductFamily: s.ProductFamily,
 	}
-	return lb.Build(region, lookupAttrs), nil
+	return lb.Lookup(region, lookupAttrs), nil
 }

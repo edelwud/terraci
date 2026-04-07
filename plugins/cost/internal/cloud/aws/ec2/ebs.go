@@ -51,8 +51,8 @@ func (h *EBSHandler) BuildLookup(region string, attrs map[string]any) (*pricing.
 	}
 
 	runtime := h.RuntimeOrDefault()
-	lb := &awskit.LookupBuilder{Service: runtime.MustService(awskit.ServiceKeyEC2), ProductFamily: "Storage"}
-	return lb.Build(region, map[string]string{
+	lb := &awskit.PriceLookupSpec{Service: runtime.MustService(awskit.ServiceKeyEC2), ProductFamily: "Storage"}
+	return lb.Lookup(region, map[string]string{
 		"volumeApiName": apiName,
 	}), nil
 }

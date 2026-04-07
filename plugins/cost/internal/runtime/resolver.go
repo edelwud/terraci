@@ -142,7 +142,7 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest, stat
 	if !ok {
 		result.ErrorKind = model.CostErrorNoProvider
 		result.ErrorDetail = "no provider"
-		handler.LogUnsupported(req.ResourceType.String(), req.Address)
+		logUnsupportedResource(req.ResourceType.String(), req.Address)
 		return result
 	}
 	result.Provider = providerID
@@ -151,6 +151,7 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest, stat
 	if !ok {
 		result.ErrorKind = model.CostErrorNoHandler
 		result.ErrorDetail = "no handler"
+		logUnsupportedResource(req.ResourceType.String(), req.Address)
 		return result
 	}
 
@@ -174,7 +175,14 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest, stat
 		result.PriceSource = "fixed"
 		return result
 	case handler.CostCategoryStandard:
-		return r.resolveStandardCost(ctx, providerID, h, attrs, req.Region, result, state)
+		return r.resolveStandardCost(ctx, standardResolutionCtx{
+			providerID: providerID,
+			handler:    h,
+			attrs:      attrs,
+			region:     req.Region,
+			result:     result,
+			state:      state,
+		})
 	default:
 		return result
 	}
@@ -198,7 +206,14 @@ func (r *CostResolver) ResolveBeforeCostWithState(ctx context.Context, rc *model
 
 	switch h.Category() {
 	case handler.CostCategoryStandard:
-		before := r.resolveStandardCost(ctx, providerID, h, beforeAttrs, region, model.ResourceCost{Provider: providerID}, state)
+		before := r.resolveStandardCost(ctx, standardResolutionCtx{
+			providerID: providerID,
+			handler:    h,
+			attrs:      beforeAttrs,
+			region:     region,
+			result:     model.ResourceCost{Provider: providerID},
+			state:      state,
+		})
 		rc.BeforeHourlyCost = before.HourlyCost
 		rc.BeforeMonthlyCost = before.MonthlyCost
 	case handler.CostCategoryFixed:
@@ -206,6 +221,8 @@ func (r *CostResolver) ResolveBeforeCostWithState(ctx context.Context, rc *model
 		rc.BeforeHourlyCost = hourly
 		rc.BeforeMonthlyCost = monthly
 	case handler.CostCategoryUsageBased:
+		// Usage-based resources (e.g. data transfer, Lambda invocations) require
+		// runtime telemetry that is unavailable at plan time; skip silently.
 	}
 }
 
@@ -249,15 +266,28 @@ func (r *CostResolver) ResolveWithSubResourcesState(ctx context.Context, req Res
 	return results
 }
 
-func (r *CostResolver) resolveStandardCost(ctx context.Context, providerID string, h handler.ResourceHandler, attrs map[string]any, region string, result model.ResourceCost, state *ResolutionState) model.ResourceCost {
-	lookupBuilder, ok := h.(handler.LookupBuilder)
+// standardResolutionCtx carries the per-call context for resolveStandardCost,
+// reducing the parameter count and making call sites readable.
+type standardResolutionCtx struct {
+	providerID string
+	handler    handler.ResourceHandler
+	attrs      map[string]any
+	region     string
+	result     model.ResourceCost
+	state      *ResolutionState
+}
+
+func (r *CostResolver) resolveStandardCost(ctx context.Context, sc standardResolutionCtx) model.ResourceCost {
+	result := sc.result
+
+	lookupBuilder, ok := sc.handler.(handler.LookupBuilder)
 	if !ok {
 		result.ErrorKind = model.CostErrorLookupFailed
 		result.ErrorDetail = "lookup builder not implemented"
 		return result
 	}
 
-	lookup, err := lookupBuilder.BuildLookup(region, attrs)
+	lookup, err := lookupBuilder.BuildLookup(sc.region, sc.attrs)
 	if err != nil {
 		result.ErrorKind = model.CostErrorLookupFailed
 		result.ErrorDetail = err.Error()
@@ -267,9 +297,9 @@ func (r *CostResolver) resolveStandardCost(ctx context.Context, providerID strin
 		return result
 	}
 
-	index, err := r.getIndex(ctx, lookup.ServiceID, region, state)
+	index, err := r.getIndex(ctx, lookup.ServiceID, sc.region, sc.state)
 	if err != nil {
-		log.WithError(err).WithField("service", lookup.ServiceID.String()).WithField("region", region).Debug("failed to get pricing index")
+		log.WithError(err).WithField("service", lookup.ServiceID.String()).WithField("region", sc.region).Debug("failed to get pricing index")
 		result.ErrorKind = model.CostErrorAPIFailure
 		result.ErrorDetail = "pricing unavailable"
 		return result
@@ -288,11 +318,11 @@ func (r *CostResolver) resolveStandardCost(ctx context.Context, providerID strin
 		return result
 	}
 
-	hourly, monthly := h.CalculateCost(price, index, region, attrs)
+	hourly, monthly := sc.handler.CalculateCost(price, index, sc.region, sc.attrs)
 	result.HourlyCost = hourly
 	result.MonthlyCost = monthly
-	result.PriceSource = r.runtime.SourceName(providerID)
-	result.Details = describeResource(h, price, attrs)
+	result.PriceSource = r.runtime.SourceName(sc.providerID)
+	result.Details = describeResource(sc.handler, price, sc.attrs)
 
 	return result
 }
@@ -324,4 +354,11 @@ func describeResource(h handler.ResourceHandler, price *pricing.Price, attrs map
 		return nil
 	}
 	return describer.Describe(price, attrs)
+}
+
+// logUnsupportedResource emits a debug-level trace when a resource type has no registered handler.
+func logUnsupportedResource(resourceType, address string) {
+	log.WithField("type", resourceType).
+		WithField("address", address).
+		Debug("resource type not supported for cost estimation")
 }

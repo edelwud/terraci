@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/edelwud/terraci/pkg/cache/blobcache"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	"github.com/edelwud/terraci/pkg/plugin/registry"
@@ -16,6 +17,12 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/diskblob"
 )
+
+// newRuntimeWithEstimator wraps an estimator in a costRuntime for tests that
+// need to bypass the full runtime construction path.
+func newRuntimeWithEstimator(estimator *engine.Estimator) *costRuntime {
+	return &costRuntime{estimator: estimator}
+}
 
 // testPlanEC2 is a minimal plan.json with a single aws_instance.web (t3.micro, create).
 const testPlanEC2 = `{
@@ -138,7 +145,16 @@ func newTestEstimator(t *testing.T) *engine.Estimator {
 		Client:  ts.Client(),
 		BaseURL: ts.URL,
 	}
-	return engine.NewEstimator(diskblob.NewStore(cacheDir), "", 0, fetcher)
+	cfg := &model.CostConfig{
+		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
+	}
+	cache := blobcache.New(diskblob.NewStore(cacheDir), model.DefaultBlobCacheNamespace, cfg.CacheTTLDuration())
+	e, err := engine.NewEstimatorFromConfig(cfg, cache)
+	if err != nil {
+		t.Fatalf("newTestEstimator: %v", err)
+	}
+	e.SetFetcherForProvider(awskit.ProviderID, fetcher)
+	return e
 }
 
 // writePlanJSON creates the module directory and writes plan.json into it.

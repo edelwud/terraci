@@ -15,10 +15,11 @@ const (
 // PipelineContribution adds a cost estimation job to the CI pipeline.
 // Framework guarantees this is only called when IsEnabled() == true.
 func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribution {
-	serviceDir := ""
-	if cfg := ctx.Config(); cfg != nil {
-		serviceDir = cfg.ServiceDir
+	cfg := ctx.Config()
+	if cfg == nil {
+		return nil
 	}
+	serviceDir := cfg.ServiceDir
 	return &pipeline.Contribution{
 		Jobs: []pipeline.ContributedJob{{
 			Name:          "cost-estimation",
@@ -26,7 +27,9 @@ func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribu
 			Commands:      []string{"terraci cost"},
 			ArtifactPaths: []string{filepath.Join(serviceDir, resultsFile)},
 			DependsOnPlan: true,
-			AllowFailure:  true,
+			// AllowFailure lets the pipeline proceed even when cost estimation fails
+			// (e.g., missing AWS credentials or unsupported resource types).
+			AllowFailure: true,
 		}},
 	}
 }

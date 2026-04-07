@@ -2,11 +2,11 @@ package engine
 
 import (
 	"context"
-	"time"
+	"fmt"
 
 	"github.com/edelwud/terraci/pkg/cache/blobcache"
-	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
+	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	costruntime "github.com/edelwud/terraci/plugins/cost/internal/runtime"
@@ -14,125 +14,120 @@ import (
 
 // Estimator calculates cost estimates for terraform plans.
 type Estimator struct {
-	resolver *costruntime.CostResolver
-	scanner  *ModuleScanner
-	executor *ModuleExecutor
-	planner  *PrefetchPlanner
 	coord    *estimateCoordinator
 	catalog  *costruntime.ProviderCatalog
 	runtimes *costruntime.ProviderRuntimeRegistry
-	prefetch *costruntime.PricingPrefetcher
 }
 
-// NewEstimator creates a new cost estimator with the given blob store and pricing fetcher.
-func NewEstimator(store plugin.BlobStore, cacheNamespace string, cacheTTL time.Duration, fetcher pricing.PriceFetcher) *Estimator {
-	if cacheTTL == 0 {
-		cacheTTL = pricing.DefaultCacheTTL
+// NewEstimatorFromConfig creates an Estimator from config and a prepared blob cache.
+// This is the canonical production constructor.
+func NewEstimatorFromConfig(cfg *model.CostConfig, cache *blobcache.Cache) (*Estimator, error) {
+	providers, err := configuredProviders(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("resolve cost providers: %w", err)
 	}
-
-	return NewEstimatorWithBlobCache(blobcache.New(store, cacheNamespace, cacheTTL), fetcher)
-}
-
-// NewEstimatorWithBlobCache creates a new cost estimator over a prepared blob cache.
-func NewEstimatorWithBlobCache(cache *blobcache.Cache, fetcher pricing.PriceFetcher) *Estimator {
-	providers := cloud.Providers()
-	registry := newDefaultRegistry(providers)
+	registry := buildHandlerRegistry(providers)
 	catalog := costruntime.NewProviderCatalogFromProviders(providers, registry)
-	runtimeRegistry := costruntime.NewProviderRuntimeRegistryFromProvidersWithBlobCache(providers, cache, fetcher)
-	return NewEstimatorWithCatalogAndRuntimeRegistry(catalog, runtimeRegistry)
+	runtimeRegistry := costruntime.NewProviderRuntimeRegistryFromProvidersWithBlobCache(providers, cache, nil)
+	return newEstimator(catalog, runtimeRegistry), nil
 }
 
-// NewEstimatorWithRuntimeRegistry creates an Estimator with an explicit provider runtime registry.
-func NewEstimatorWithRuntimeRegistry(runtimeRegistry *costruntime.ProviderRuntimeRegistry) *Estimator {
-	providers := cloud.Providers()
-	registry := newDefaultRegistry(providers)
-	catalog := costruntime.NewProviderCatalogFromProviders(providers, registry)
-	return NewEstimatorWithCatalogAndRuntimeRegistry(catalog, runtimeRegistry)
+// NewEstimatorWithDeps creates an Estimator with explicit catalog and runtime dependencies.
+// Use for testing or advanced DI scenarios where exact provider wiring must be controlled.
+func NewEstimatorWithDeps(catalog *costruntime.ProviderCatalog, runtimeRegistry *costruntime.ProviderRuntimeRegistry) *Estimator {
+	return newEstimator(catalog, runtimeRegistry)
 }
 
-// NewEstimatorWithCatalogAndRuntimeRegistry creates an Estimator with explicit catalog and runtime dependencies.
-func NewEstimatorWithCatalogAndRuntimeRegistry(catalog *costruntime.ProviderCatalog, runtimeRegistry *costruntime.ProviderRuntimeRegistry) *Estimator {
+// newEstimator is the internal constructor that wires all engine components.
+func newEstimator(catalog *costruntime.ProviderCatalog, runtimeRegistry *costruntime.ProviderRuntimeRegistry) *Estimator {
 	resolutionRuntime := costruntime.NewResolutionRuntime(catalog, runtimeRegistry)
 	resolver := costruntime.NewCostResolver(resolutionRuntime)
-	return newEstimator(catalog, runtimeRegistry, resolver)
-}
-
-// NewEstimatorWithResolver creates an estimator with explicit catalog, runtime registry, and resolver.
-func NewEstimatorWithResolver(catalog *costruntime.ProviderCatalog, runtimeRegistry *costruntime.ProviderRuntimeRegistry, resolver *costruntime.CostResolver) *Estimator {
-	return newEstimator(catalog, runtimeRegistry, resolver)
-}
-
-func newEstimator(catalog *costruntime.ProviderCatalog, runtimeRegistry *costruntime.ProviderRuntimeRegistry, resolver *costruntime.CostResolver) *Estimator {
 	scanner := NewModuleScanner(NewTerraformPlanAdapter())
 	executor := NewModuleExecutor(resolver)
-	planner := NewPrefetchPlanner(catalog)
-	prefetcher := costruntime.NewPricingPrefetcher(runtimeRegistry)
-	coord := newEstimateCoordinator(scanner, planner, executor, prefetcher, catalog.ProviderMetadata)
+	coord := newEstimateCoordinator(scanner, executor, catalog, catalog.ProviderMetadata, runtimeRegistry)
 
 	return &Estimator{
-		resolver: resolver,
-		scanner:  scanner,
-		executor: executor,
-		planner:  planner,
 		coord:    coord,
 		catalog:  catalog,
 		runtimes: runtimeRegistry,
-		prefetch: prefetcher,
 	}
 }
 
-// CacheDir returns the resolved pricing cache directory path.
-func (e *Estimator) CacheDir() string { return e.runtimes.CacheDir() }
-
-// SetPricingFetcher replaces the pricing fetcher (for testing or alternative providers).
-func (e *Estimator) SetPricingFetcher(f pricing.PriceFetcher) { e.runtimes.SetPricingFetcher(f) }
-
-// CacheOldestAge returns the age of the oldest cache entry, or 0 if empty.
-func (e *Estimator) CacheOldestAge(ctx context.Context) time.Duration {
-	return e.runtimes.CacheOldestAge(ctx)
+// enabledProviderIDs returns IDs of all cloud providers enabled in the config.
+// Iterates the provider config map — no knowledge of specific provider IDs required.
+func enabledProviderIDs(cfg *model.CostConfig) []string {
+	if cfg == nil {
+		return nil
+	}
+	var ids []string
+	for id, p := range cfg.Providers {
+		if p.Enabled {
+			ids = append(ids, id)
+		}
+	}
+	return ids
 }
 
-// CacheTTL returns the cache TTL.
-func (e *Estimator) CacheTTL() time.Duration { return e.runtimes.CacheTTL() }
+// configuredProviders resolves the subset of registered cloud providers enabled by config.
+// Matches enabled config keys against cloud.Definition.ConfigKey — no hardcoded provider names.
+func configuredProviders(cfg *model.CostConfig) ([]cloud.Provider, error) {
+	enabled := map[string]bool{}
+	for _, id := range enabledProviderIDs(cfg) {
+		enabled[id] = true
+	}
 
-// CleanExpiredCache removes expired cache entries.
-func (e *Estimator) CleanExpiredCache(ctx context.Context) { e.runtimes.CleanExpiredCache(ctx) }
+	all := cloud.Providers()
+	selected := make([]cloud.Provider, 0, len(enabled))
+	for _, cp := range all {
+		if enabled[cp.Definition().ConfigKey] {
+			selected = append(selected, cp)
+		}
+	}
 
-// CacheEntries returns info about all cached pricing files.
-func (e *Estimator) CacheEntries(ctx context.Context) []pricing.CacheEntry {
-	return e.runtimes.CacheEntries(ctx)
+	for id := range enabled {
+		found := false
+		for _, cp := range all {
+			if cp.Definition().ConfigKey == id {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, fmt.Errorf("cost provider %q is enabled but not registered", id)
+		}
+	}
+
+	return selected, nil
 }
 
-// Resolver returns the underlying CostResolver for middleware registration.
-func (e *Estimator) Resolver() *costruntime.CostResolver { return e.resolver }
-
-// GetIndex resolves pricing through the provider runtime selected by service id.
-func (e *Estimator) GetIndex(ctx context.Context, service pricing.ServiceID, region string) (*pricing.PriceIndex, error) {
-	return e.runtimes.GetIndex(ctx, service, region)
+// buildHandlerRegistry populates a handler registry from provider definitions.
+func buildHandlerRegistry(providers []cloud.Provider) *handler.Registry {
+	r := handler.NewRegistry()
+	for _, cp := range providers {
+		cloud.RegisterDefinitionHandlers(r, cp.Definition())
+	}
+	return r
 }
 
-// SourceName returns the configured price source for a provider.
-func (e *Estimator) SourceName(providerID string) string { return e.runtimes.SourceName(providerID) }
+// Cache returns a CacheInspector for diagnostic and maintenance access to the pricing cache.
+func (e *Estimator) Cache() CacheInspector { return &cacheInspector{r: e.runtimes} }
+
+// SetFetcherForProvider replaces the pricing fetcher for a specific provider.
+// Use only in tests to inject a stub fetcher before running estimates.
+func (e *Estimator) SetFetcherForProvider(providerID string, f pricing.PriceFetcher) {
+	e.runtimes.SetFetcherForProvider(providerID, f)
+}
 
 // EstimateModule calculates cost for a single module from plan.json.
 func (e *Estimator) EstimateModule(ctx context.Context, modulePath, region string) (*model.ModuleCost, error) {
-	modulePlan, err := e.scanner.Scan(modulePath, region)
+	modulePlan, err := e.coord.scanner.Scan(modulePath, region)
 	if err != nil {
 		return nil, err
 	}
-	return e.executor.Execute(ctx, modulePlan), nil
+	return e.coord.executor.Execute(ctx, modulePlan), nil
 }
 
 // EstimateModules calculates costs for multiple modules concurrently.
 func (e *Estimator) EstimateModules(ctx context.Context, modulePaths []string, regions map[string]string) (*model.EstimateResult, error) {
 	return e.coord.Estimate(ctx, modulePaths, regions)
-}
-
-// ValidateAndPrefetch checks which pricing data is needed and downloads missing data.
-func (e *Estimator) ValidateAndPrefetch(ctx context.Context, modulePaths []string, regions map[string]string) error {
-	modulePlans, err := e.scanner.ScanMany(modulePaths, regions)
-	if err != nil {
-		return err
-	}
-	return e.prefetch.PrefetchPricing(ctx, e.planner.Build(modulePlans))
 }

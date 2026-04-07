@@ -1,24 +1,29 @@
 package awskit
 
-import "github.com/edelwud/terraci/plugins/cost/internal/pricing"
+import (
+	"maps"
 
-// LookupBuilder constructs PriceLookup objects with common defaults.
-type LookupBuilder struct {
+	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+)
+
+// PriceLookupSpec constructs PriceLookup objects with common defaults.
+// It is a concrete builder helper — distinct from the handler.LookupBuilder interface.
+type PriceLookupSpec struct {
 	Service       pricing.ServiceID
 	ProductFamily string
 }
 
-// Build creates a PriceLookup, automatically adding the resolved region name as "location".
-func (b *LookupBuilder) Build(region string, attrs map[string]string) *pricing.PriceLookup {
-	if attrs == nil {
-		attrs = make(map[string]string)
-	}
-	attrs["location"] = ResolveRegionName(region)
+// Lookup creates a PriceLookup, automatically adding the resolved region name as "location".
+// The caller's attrs map is not modified.
+func (b *PriceLookupSpec) Lookup(region string, attrs map[string]string) *pricing.PriceLookup {
+	merged := make(map[string]string, len(attrs)+1)
+	maps.Copy(merged, attrs)
+	merged["location"] = ResolveRegionName(region)
 
 	return &pricing.PriceLookup{
 		ServiceID:     b.Service,
 		Region:        region,
 		ProductFamily: b.ProductFamily,
-		Attributes:    attrs,
+		Attributes:    merged,
 	}
 }

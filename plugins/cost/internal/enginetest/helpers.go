@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/edelwud/terraci/pkg/cache/blobcache"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/engine"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
@@ -53,7 +54,17 @@ func NewTestEstimator(tb testing.TB) *engine.Estimator {
 		Client:  ts.Client(),
 		BaseURL: ts.URL,
 	}
-	return engine.NewEstimator(diskblob.NewStore(cacheDir), "", 0, fetcher)
+
+	cfg := &model.CostConfig{
+		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
+	}
+	cache := blobcache.New(diskblob.NewStore(cacheDir), model.DefaultBlobCacheNamespace, cfg.CacheTTLDuration())
+	e, err := engine.NewEstimatorFromConfig(cfg, cache)
+	if err != nil {
+		tb.Fatalf("NewTestEstimator: %v", err)
+	}
+	e.SetFetcherForProvider(awskit.ProviderID, fetcher)
+	return e
 }
 
 // WritePlan writes a plan.json file to the given directory.

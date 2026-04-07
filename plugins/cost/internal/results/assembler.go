@@ -9,17 +9,6 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
 
-// EstimateAction is the result-assembly action model shared with the engine.
-type EstimateAction string
-
-const (
-	ActionCreate  EstimateAction = "create"
-	ActionDelete  EstimateAction = "delete"
-	ActionUpdate  EstimateAction = "update"
-	ActionReplace EstimateAction = "replace"
-	ActionNoOp    EstimateAction = "no-op"
-)
-
 // ModuleIdentity identifies the module result being assembled.
 type ModuleIdentity struct {
 	ModuleID   string
@@ -49,7 +38,7 @@ func NewModuleAssembler(identity ModuleIdentity) *ModuleAssembler {
 }
 
 // AddResource adds a resolved resource and updates the module totals.
-func (a *ModuleAssembler) AddResource(rc model.ResourceCost, action EstimateAction) {
+func (a *ModuleAssembler) AddResource(rc model.ResourceCost, action model.EstimateAction) {
 	a.result.Resources = append(a.result.Resources, rc)
 	if rc.Provider != "" {
 		a.providerSet[rc.Provider] = true
@@ -66,21 +55,21 @@ func (a *ModuleAssembler) Build() *model.ModuleCost {
 }
 
 // AggregateCost applies one resource contribution to the module totals.
-func AggregateCost(result *model.ModuleCost, rc model.ResourceCost, action EstimateAction) {
+func AggregateCost(result *model.ModuleCost, rc model.ResourceCost, action model.EstimateAction) {
 	if rc.IsUnsupported() {
 		result.Unsupported++
 		return
 	}
 
 	switch action {
-	case ActionCreate:
+	case model.ActionCreate:
 		result.AfterCost += rc.MonthlyCost
-	case ActionDelete:
+	case model.ActionDelete:
 		result.BeforeCost += rc.MonthlyCost
-	case ActionUpdate, ActionReplace:
+	case model.ActionUpdate, model.ActionReplace:
 		result.BeforeCost += rc.BeforeMonthlyCost
 		result.AfterCost += rc.MonthlyCost
-	case ActionNoOp:
+	case model.ActionNoOp:
 		result.BeforeCost += rc.MonthlyCost
 		result.AfterCost += rc.MonthlyCost
 	}
@@ -110,7 +99,7 @@ func (a *EstimateAssembler) AddModule(module model.ModuleCost) {
 // Build finalizes and returns the estimate result.
 func (a *EstimateAssembler) Build() *model.EstimateResult {
 	result := &model.EstimateResult{
-		Modules:          append([]model.ModuleCost(nil), a.modules...),
+		Modules:          slices.Clone(a.modules),
 		Currency:         "USD",
 		GeneratedAt:      a.generatedAt,
 		ProviderMetadata: a.providerMetadata,
@@ -144,6 +133,7 @@ func NewErroredModule(modulePath, region string, err error) model.ModuleCost {
 		ModulePath: modulePath,
 		Region:     region,
 		Error:      err.Error(),
+		Resources:  []model.ResourceCost{},
 	}
 }
 

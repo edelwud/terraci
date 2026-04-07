@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/edelwud/terraci/pkg/cache/blobcache"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
 	_ "github.com/edelwud/terraci/plugins/cost/internal/cloud/aws"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
@@ -15,6 +16,7 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/results"
 	costruntime "github.com/edelwud/terraci/plugins/cost/internal/runtime"
 	"github.com/edelwud/terraci/plugins/diskblob"
 )
@@ -171,7 +173,7 @@ func TestEstimateModule_UnsupportedResource(t *testing.T) {
 func TestEstimateModule_KnownProviderMissingHandler(t *testing.T) {
 	registry := handler.NewRegistry()
 	router := costruntime.NewResourceProviderRouter()
-	router.Register(awskit.ProviderID, handler.ResourceType("aws_cloudfront_distribution"))
+	router.Register("aws", handler.ResourceType("aws_cloudfront_distribution"))
 
 	ts := enginetest.MultiServicePricingServer(t)
 	cacheDir := filepath.Join(t.TempDir(), "cache")
@@ -180,26 +182,26 @@ func TestEstimateModule_KnownProviderMissingHandler(t *testing.T) {
 		BaseURL: ts.URL,
 	}
 
-	awsProvider, ok := cloud.Get(awskit.ProviderID)
+	awsProvider, ok := cloud.Get("aws")
 	if !ok {
 		t.Fatal("aws provider not registered")
 	}
 
 	def := awsProvider.Definition()
 	runtimes := map[string]*costruntime.ProviderRuntime{
-		awskit.ProviderID: {
+		"aws": {
 			Definition: def,
 			Cache:      pricing.NewCache(diskblob.NewStore(cacheDir), "", 0, fetcher),
 		},
 	}
 	catalog := costruntime.NewProviderCatalog(router, registry, map[string]model.ProviderMetadata{
-		awskit.ProviderID: {
+		"aws": {
 			DisplayName: def.Manifest.DisplayName,
 			PriceSource: def.Manifest.PriceSource,
 		},
 	})
 	runtimeRegistry := costruntime.NewProviderRuntimeRegistry(runtimes)
-	e := engine.NewEstimatorWithCatalogAndRuntimeRegistry(catalog, runtimeRegistry)
+	e := engine.NewEstimatorWithDeps(catalog, runtimeRegistry)
 	dir := filepath.Join(t.TempDir(), "mod")
 	enginetest.WritePlan(t, dir, enginetest.LoadPlanFixture(t, "unsupported_resource"))
 
@@ -208,7 +210,7 @@ func TestEstimateModule_KnownProviderMissingHandler(t *testing.T) {
 		t.Fatalf("EstimateModule: %v", err)
 	}
 
-	rc := enginetest.AssertUnsupportedResource(t, result.Resources, "aws_cloudfront_distribution.main", awskit.ProviderID, model.CostErrorNoHandler)
+	rc := enginetest.AssertUnsupportedResource(t, result.Resources, "aws_cloudfront_distribution.main", "aws", model.CostErrorNoHandler)
 	if rc.ErrorDetail != "no handler" {
 		t.Errorf("ErrorDetail = %q, want %q", rc.ErrorDetail, "no handler")
 	}
@@ -472,48 +474,46 @@ func TestEstimateModules_DefaultRegion(t *testing.T) {
 	if len(result.Modules) != 1 {
 		t.Fatalf("modules = %d, want 1", len(result.Modules))
 	}
-	if result.Modules[0].Region != engine.DefaultRegion {
-		t.Errorf("Region = %q, want %q", result.Modules[0].Region, engine.DefaultRegion)
+	if result.Modules[0].Region != model.DefaultRegion {
+		t.Errorf("Region = %q, want %q", result.Modules[0].Region, model.DefaultRegion)
 	}
 }
 
-func TestValidateAndPrefetch_DownloadsMissing(t *testing.T) {
+func TestEstimateModules_PrefetchDownloadsMissing(t *testing.T) {
 	e := enginetest.NewTestEstimator(t)
 	dir := filepath.Join(t.TempDir(), "mod")
 	enginetest.WritePlan(t, dir, enginetest.LoadPlanFixture(t, "create_ec2"))
 
 	regions := map[string]string{dir: "us-east-1"}
-	err := e.ValidateAndPrefetch(context.Background(), []string{dir}, regions)
-	if err != nil {
-		t.Fatalf("ValidateAndPrefetch: %v", err)
+	if _, err := e.EstimateModules(context.Background(), []string{dir}, regions); err != nil {
+		t.Fatalf("EstimateModules: %v", err)
 	}
 
-	// After prefetch, cache should have EC2 pricing
-	entries := e.CacheEntries(context.Background())
+	// After estimation (which includes prefetch), cache should have EC2 pricing
+	entries := e.Cache().Entries(context.Background())
 	if len(entries) == 0 {
-		t.Error("cache should have entries after prefetch")
+		t.Error("cache should have entries after estimation")
 	}
 }
 
-func TestValidateAndPrefetch_SkipsUsageBased(t *testing.T) {
+func TestEstimateModules_PrefetchSkipsUsageBased(t *testing.T) {
 	e := enginetest.NewTestEstimator(t)
 	dir := filepath.Join(t.TempDir(), "mod")
 	enginetest.WritePlan(t, dir, enginetest.LoadPlanFixture(t, "usage_based"))
 
 	regions := map[string]string{dir: "us-east-1"}
-	err := e.ValidateAndPrefetch(context.Background(), []string{dir}, regions)
-	if err != nil {
-		t.Fatalf("ValidateAndPrefetch: %v", err)
+	if _, err := e.EstimateModules(context.Background(), []string{dir}, regions); err != nil {
+		t.Fatalf("EstimateModules: %v", err)
 	}
 
 	// Usage-based resources should not trigger any downloads
-	entries := e.CacheEntries(context.Background())
+	entries := e.Cache().Entries(context.Background())
 	if len(entries) != 0 {
 		t.Errorf("cache entries = %d, want 0 (no standard resources to fetch)", len(entries))
 	}
 }
 
-func TestValidateAndPrefetch_SkipsCachedData(t *testing.T) {
+func TestEstimateModules_PrefetchSkipsCachedData(t *testing.T) {
 	e := enginetest.NewTestEstimator(t)
 	dir := filepath.Join(t.TempDir(), "mod")
 	enginetest.WritePlan(t, dir, enginetest.LoadPlanFixture(t, "create_ec2"))
@@ -521,26 +521,34 @@ func TestValidateAndPrefetch_SkipsCachedData(t *testing.T) {
 	regions := map[string]string{dir: "us-east-1"}
 
 	// First call: downloads
-	if err := e.ValidateAndPrefetch(context.Background(), []string{dir}, regions); err != nil {
-		t.Fatalf("first prefetch: %v", err)
+	if _, err := e.EstimateModules(context.Background(), []string{dir}, regions); err != nil {
+		t.Fatalf("first estimate: %v", err)
 	}
 
 	// Second call: should succeed without downloading (data cached)
-	if err := e.ValidateAndPrefetch(context.Background(), []string{dir}, regions); err != nil {
-		t.Fatalf("second prefetch: %v", err)
+	if _, err := e.EstimateModules(context.Background(), []string{dir}, regions); err != nil {
+		t.Fatalf("second estimate: %v", err)
 	}
 }
 
 func TestNewEstimator(t *testing.T) {
-	e := engine.NewEstimator(diskblob.NewStore(t.TempDir()), "", 0, awskit.NewFetcher())
+	cfg := &model.CostConfig{
+		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
+	}
+	cache := blobcache.New(diskblob.NewStore(t.TempDir()), model.DefaultBlobCacheNamespace, cfg.CacheTTLDuration())
+	e, err := engine.NewEstimatorFromConfig(cfg, cache)
+	if err != nil {
+		t.Fatalf("NewEstimatorFromConfig() error = %v", err)
+	}
 	if e == nil {
-		t.Fatal("NewEstimator returned nil")
+		t.Fatal("NewEstimatorFromConfig returned nil")
 	}
 }
 
 func TestNewEstimatorFromConfig(t *testing.T) {
 	t.Run("nil config", func(t *testing.T) {
-		e, err := engine.NewEstimatorFromConfig(nil, diskblob.NewStore(t.TempDir()))
+		cache := blobcache.New(diskblob.NewStore(t.TempDir()), model.DefaultBlobCacheNamespace, (*model.CostConfig)(nil).CacheTTLDuration())
+		e, err := engine.NewEstimatorFromConfig(nil, cache)
 		if err != nil {
 			t.Fatalf("NewEstimatorFromConfig() error = %v", err)
 		}
@@ -555,19 +563,18 @@ func TestNewEstimatorFromConfig(t *testing.T) {
 			BlobCache: &model.BlobCacheConfig{
 				TTL: "2h",
 			},
-			Providers: model.CostProvidersConfig{
-				AWS: &model.ProviderConfig{Enabled: true},
-			},
+			Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 		}
-		e, err := engine.NewEstimatorFromConfig(cfg, diskblob.NewStore(tmpDir))
+		cache := blobcache.New(diskblob.NewStore(tmpDir), model.DefaultBlobCacheNamespace, cfg.CacheTTLDuration())
+		e, err := engine.NewEstimatorFromConfig(cfg, cache)
 		if err != nil {
 			t.Fatalf("NewEstimatorFromConfig() error = %v", err)
 		}
-		if e.CacheDir() != tmpDir {
-			t.Errorf("CacheDir() = %q, want %q", e.CacheDir(), tmpDir)
+		if e.Cache().Dir() != tmpDir {
+			t.Errorf("CacheDir() = %q, want %q", e.Cache().Dir(), tmpDir)
 		}
-		if e.CacheTTL() != 2*time.Hour {
-			t.Errorf("CacheTTL() = %v, want 2h", e.CacheTTL())
+		if e.Cache().TTL() != 2*time.Hour {
+			t.Errorf("CacheTTL() = %v, want 2h", e.Cache().TTL())
 		}
 	})
 
@@ -576,59 +583,65 @@ func TestNewEstimatorFromConfig(t *testing.T) {
 			BlobCache: &model.BlobCacheConfig{
 				TTL: "invalid",
 			},
-			Providers: model.CostProvidersConfig{
-				AWS: &model.ProviderConfig{Enabled: true},
-			},
+			Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 		}
-		e, err := engine.NewEstimatorFromConfig(cfg, diskblob.NewStore(t.TempDir()))
+		cache := blobcache.New(diskblob.NewStore(t.TempDir()), model.DefaultBlobCacheNamespace, cfg.CacheTTLDuration())
+		e, err := engine.NewEstimatorFromConfig(cfg, cache)
 		if err != nil {
 			t.Fatalf("NewEstimatorFromConfig() error = %v", err)
 		}
-		if e.CacheTTL() != 24*time.Hour {
-			t.Errorf("CacheTTL() = %v, want 24h", e.CacheTTL())
+		if e.Cache().TTL() != 24*time.Hour {
+			t.Errorf("CacheTTL() = %v, want 24h", e.Cache().TTL())
 		}
 	})
 }
 
 func TestEstimator_CacheAccessors(t *testing.T) {
 	cacheDir := t.TempDir()
-	e := engine.NewEstimator(diskblob.NewStore(cacheDir), "", 0, awskit.NewFetcher())
+	cfg := &model.CostConfig{
+		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
+	}
+	cache := blobcache.New(diskblob.NewStore(cacheDir), model.DefaultBlobCacheNamespace, cfg.CacheTTLDuration())
+	e, err := engine.NewEstimatorFromConfig(cfg, cache)
+	if err != nil {
+		t.Fatalf("NewEstimatorFromConfig() error = %v", err)
+	}
 
-	if e.CacheDir() != cacheDir {
-		t.Errorf("CacheDir() = %q, want %q", e.CacheDir(), cacheDir)
+	if e.Cache().Dir() != cacheDir {
+		t.Errorf("CacheDir() = %q, want %q", e.Cache().Dir(), cacheDir)
 	}
-	if e.CacheTTL() <= 0 {
-		t.Errorf("CacheTTL() = %v, want > 0", e.CacheTTL())
+	if e.Cache().TTL() <= 0 {
+		t.Errorf("CacheTTL() = %v, want > 0", e.Cache().TTL())
 	}
-	if e.CacheOldestAge(context.Background()) != 0 {
-		t.Errorf("CacheOldestAge() = %v, want 0 for empty cache", e.CacheOldestAge(context.Background()))
+	if e.Cache().OldestAge(context.Background()) != 0 {
+		t.Errorf("CacheOldestAge() = %v, want 0 for empty cache", e.Cache().OldestAge(context.Background()))
 	}
-	if len(e.CacheEntries(context.Background())) != 0 {
-		t.Errorf("CacheEntries() len = %d, want 0", len(e.CacheEntries(context.Background())))
+	if len(e.Cache().Entries(context.Background())) != 0 {
+		t.Errorf("CacheEntries() len = %d, want 0", len(e.Cache().Entries(context.Background())))
 	}
-	e.CleanExpiredCache(context.Background()) // should not panic
+	e.Cache().CleanExpired(context.Background()) // should not panic
 }
 
 func TestAggregateCost(t *testing.T) {
 	tests := []struct {
 		name       string
-		action     engine.EstimateAction
+		action     model.EstimateAction
 		cost       float64
 		wantBefore float64
 		wantAfter  float64
 	}{
-		{"create", engine.ActionCreate, 10, 0, 10},
-		{"delete", engine.ActionDelete, 10, 10, 0},
-		{"update", engine.ActionUpdate, 10, 10, 10},
-		{"replace", engine.ActionReplace, 10, 10, 10},
-		{"no-op", engine.ActionNoOp, 10, 10, 10},
+		{"create", model.ActionCreate, 10, 0, 10},
+		{"delete", model.ActionDelete, 10, 10, 0},
+		{"update", model.ActionUpdate, 10, 10, 10},
+		{"replace", model.ActionReplace, 10, 10, 10},
+		{"no-op", model.ActionNoOp, 10, 10, 10},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := &model.ModuleCost{}
 			rc := model.ResourceCost{MonthlyCost: tt.cost, BeforeMonthlyCost: tt.cost}
-			engine.AggregateCost(result, rc, tt.action)
+			results.AggregateCost(result, rc, tt.action)
 
 			enginetest.AssertCostNear(t, "BeforeCost", result.BeforeCost, tt.wantBefore, 0.001)
 			enginetest.AssertCostNear(t, "AfterCost", result.AfterCost, tt.wantAfter, 0.001)
@@ -642,7 +655,7 @@ func TestAggregateCost_UnsupportedNotCounted(t *testing.T) {
 		MonthlyCost: 100,
 		ErrorKind:   model.CostErrorNoHandler,
 	}
-	engine.AggregateCost(result, rc, engine.ActionCreate)
+	results.AggregateCost(result, rc, model.ActionCreate)
 
 	if result.AfterCost != 0 {
 		t.Errorf("AfterCost = %.2f, want 0 (unsupported should not add cost)", result.AfterCost)

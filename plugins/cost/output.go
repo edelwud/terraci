@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"io"
 	"slices"
-	"sort"
 
 	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
@@ -27,6 +26,8 @@ func outputResult(w io.Writer, workDir, outputFmt string, result *model.Estimate
 func renderSummary(result *model.EstimateResult) {
 	log.Info("summary")
 	log.IncreasePadding()
+	defer log.DecreasePadding()
+
 	log.WithField("count", len(result.Modules)).Info("modules")
 	if len(result.Errors) > 0 {
 		log.WithField("count", len(result.Errors)).Warn("errored")
@@ -36,12 +37,10 @@ func renderSummary(result *model.EstimateResult) {
 			WithField("after", model.FormatCost(result.TotalAfter)).
 			WithField("diff", model.FormatCostDiff(result.TotalDiff)).
 			Info("total")
-		log.DecreasePadding()
 		return
 	}
 
 	log.WithField("monthly", model.FormatCost(result.TotalAfter)).Info("total")
-	log.DecreasePadding()
 }
 
 func renderSegmentTree(node *model.SegmentNode) {
@@ -115,7 +114,7 @@ func renderSubmodules(submodules []model.SubmoduleCost, parentAddr string) {
 			continue
 		}
 
-		showHeader := (len(submodules) > 1 || len(submodule.Children) > 0) && !isRenderedZeroCost(submodule.MonthlyCost)
+		showHeader := (len(submodules) > 1 || len(submodule.Children) > 0) && submodule.MonthlyCost != 0
 		if showHeader && submodule.ModuleAddr != "" {
 			label := model.StripModulePrefix(submodule.ModuleAddr, parentAddr)
 			log.WithField("monthly", model.FormatCost(submodule.MonthlyCost)).Info(label)
@@ -178,6 +177,8 @@ func renderResources(resources []model.ResourceCost, moduleAddr string) {
 	}
 }
 
+// shouldShowResource returns whether a resource should be included in text output.
+// Unknown error kinds default to hidden to avoid showing unsupported resource types.
 func shouldShowResource(resource *model.ResourceCost) bool {
 	if resource == nil {
 		return false
@@ -189,7 +190,7 @@ func shouldShowResource(resource *model.ResourceCost) bool {
 		model.CostErrorLookupFailed, model.CostErrorAPIFailure, model.CostErrorNoPrice:
 		return true
 	default:
-		return true
+		return false
 	}
 }
 
@@ -198,10 +199,6 @@ func sortedDetailKeys(details map[string]string) []string {
 	for key := range details {
 		keys = append(keys, key)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	return keys
-}
-
-func isRenderedZeroCost(cost float64) bool {
-	return model.FormatCost(cost) == "$0"
 }

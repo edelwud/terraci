@@ -13,6 +13,6 @@ func init() {
 // provider implements cloud.Provider for Amazon Web Services.
 type provider struct{}
 
-func (p *provider) Definition() cloud.Definition { return Definition }
+func (p *provider) Definition() cloud.Definition { return definition }
 
 var _ cloud.Provider = (*provider)(nil)

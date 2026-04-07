@@ -14,16 +14,16 @@ func TestAggregateCost(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		action     results.EstimateAction
+		action     model.EstimateAction
 		cost       float64
 		wantBefore float64
 		wantAfter  float64
 	}{
-		{"create", results.ActionCreate, 10, 0, 10},
-		{"delete", results.ActionDelete, 10, 10, 0},
-		{"update", results.ActionUpdate, 10, 10, 10},
-		{"replace", results.ActionReplace, 10, 10, 10},
-		{"no-op", results.ActionNoOp, 10, 10, 10},
+		{"create", model.ActionCreate, 10, 0, 10},
+		{"delete", model.ActionDelete, 10, 10, 0},
+		{"update", model.ActionUpdate, 10, 10, 10},
+		{"replace", model.ActionReplace, 10, 10, 10},
+		{"no-op", model.ActionNoOp, 10, 10, 10},
 	}
 
 	for _, tt := range tests {
@@ -48,7 +48,7 @@ func TestAggregateCost_UnsupportedAndUsageBased(t *testing.T) {
 	t.Parallel()
 
 	module := &model.ModuleCost{}
-	results.AggregateCost(module, model.ResourceCost{MonthlyCost: 100, ErrorKind: model.CostErrorNoHandler}, results.ActionCreate)
+	results.AggregateCost(module, model.ResourceCost{MonthlyCost: 100, ErrorKind: model.CostErrorNoHandler}, model.ActionCreate)
 	if module.AfterCost != 0 {
 		t.Fatalf("AfterCost = %.2f, want 0", module.AfterCost)
 	}
@@ -56,7 +56,7 @@ func TestAggregateCost_UnsupportedAndUsageBased(t *testing.T) {
 		t.Fatalf("Unsupported = %d, want 1", module.Unsupported)
 	}
 
-	results.AggregateCost(module, model.ResourceCost{ErrorKind: model.CostErrorUsageBased}, results.ActionCreate)
+	results.AggregateCost(module, model.ResourceCost{ErrorKind: model.CostErrorUsageBased}, model.ActionCreate)
 	if module.Unsupported != 1 {
 		t.Fatalf("Unsupported after usage-based = %d, want 1", module.Unsupported)
 	}
@@ -76,13 +76,13 @@ func TestModuleAssembler_BuildDeterministicProvidersAndSubmodules(t *testing.T) 
 		Address:     "module.compute.aws_instance.web",
 		ModuleAddr:  "module.compute",
 		MonthlyCost: 10,
-	}, results.ActionCreate)
+	}, model.ActionCreate)
 	assembler.AddResource(model.ResourceCost{
 		Provider:    "alpha",
 		Address:     "module.network.aws_vpc.main",
 		ModuleAddr:  "module.network",
 		MonthlyCost: 5,
-	}, results.ActionCreate)
+	}, model.ActionCreate)
 
 	module := assembler.Build()
 	if module.Provider != "" {

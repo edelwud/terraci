@@ -48,5 +48,5 @@ func (d DescribeBuilder) Float(key string, value float64, format string) Describ
 
 // Map returns the underlying description map.
 func (d DescribeBuilder) Map() map[string]string {
-	return map[string]string(d)
+	return d
 }

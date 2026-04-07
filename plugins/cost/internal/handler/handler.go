@@ -1,4 +1,4 @@
-// Package provider defines provider-agnostic interfaces for cloud cost estimation.
+// Package handler defines provider-agnostic interfaces for cloud cost estimation.
 // AWS, GCP, Azure handlers all implement these interfaces.
 package handler
 

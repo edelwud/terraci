@@ -55,7 +55,9 @@ func TestPlugin_Commands_RunE_NotConfigured(t *testing.T) {
 
 func TestPlugin_RunEstimation_NoPlanFiles(t *testing.T) {
 	p := newTestPlugin(t)
-	enablePlugin(t, p, &model.CostConfig{Enabled: true})
+	enablePlugin(t, p, &model.CostConfig{
+		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
+	})
 
 	workDir := t.TempDir()
 	appCtx := newTestAppContext(t, workDir)
@@ -72,7 +74,7 @@ func TestPlugin_RunEstimation_NoPlanFiles(t *testing.T) {
 func TestPlugin_RunEstimation_InvalidConfig(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &model.CostConfig{
-		Enabled: true,
+		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 		BlobCache: &model.BlobCacheConfig{
 			TTL: "invalid-duration",
 		},
@@ -97,7 +99,7 @@ func TestPlugin_RunEstimation_Success(t *testing.T) {
 	p := newTestPlugin(t)
 
 	enablePlugin(t, p, &model.CostConfig{
-		Enabled: true,
+		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	})
 
 	workDir := t.TempDir()
@@ -136,7 +138,7 @@ func TestPlugin_RunEstimation_ModuleFilter(t *testing.T) {
 	p := newTestPlugin(t)
 
 	enablePlugin(t, p, &model.CostConfig{
-		Enabled: true,
+		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	})
 
 	workDir := t.TempDir()

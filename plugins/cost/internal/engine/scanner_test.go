@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/engine"
+	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
 
 func TestModuleScanner_ScanMany_PreservesOrderAndReturnsFirstInputError(t *testing.T) {
@@ -46,10 +47,10 @@ func TestModuleScanner_ScanManyBestEffort_PreservesIndicesAndDefaultRegion(t *te
 	if len(plans) != 2 {
 		t.Fatalf("len(plans) = %d, want 2", len(plans))
 	}
-	if plans[0].Index != 0 || plans[0].ModulePath != "mod-a" || plans[0].Region != engine.DefaultRegion {
+	if plans[0].Index != 0 || plans[0].ModulePath != "mod-a" || plans[0].Region != model.DefaultRegion {
 		t.Fatalf("plans[0] = %+v, want preserved index/path/default region", plans[0])
 	}
-	if plans[1].Index != 1 || plans[1].Err == nil || plans[1].Region != engine.DefaultRegion {
+	if plans[1].Index != 1 || plans[1].Err == nil || plans[1].Region != model.DefaultRegion {
 		t.Fatalf("plans[1] = %+v, want preserved index and error", plans[1])
 	}
 }

@@ -106,7 +106,7 @@ func TestProviderCatalog_DistinguishesNoProviderFromNoHandler(t *testing.T) {
 	runtimetest.AssertNoProviderContract(t, catalog, handler.ResourceType("custom_unknown_resource"))
 }
 
-func TestPricingPrefetcher_PrefetchPricing(t *testing.T) {
+func TestProviderRuntimeRegistry_WarmIndexes(t *testing.T) {
 	t.Parallel()
 
 	awsProvider, ok := cloud.Get(awskit.ProviderID)
@@ -138,19 +138,19 @@ func TestPricingPrefetcher_PrefetchPricing(t *testing.T) {
 		},
 	)
 
-	prefetcher := NewPricingPrefetcher(runtimeRegistry)
-	plan := pricingPlan{services: map[pricing.ServiceID][]string{serviceID: {"us-east-1"}}}
-	if err := prefetcher.PrefetchPricing(context.Background(), plan); err != nil {
-		t.Fatalf("PrefetchPricing() error = %v", err)
+	services := map[pricing.ServiceID][]string{serviceID: {"us-east-1"}}
+	if err := runtimeRegistry.WarmIndexes(context.Background(), services); err != nil {
+		t.Fatalf("WarmIndexes() error = %v", err)
 	}
 	if fetchCount != 1 {
 		t.Fatalf("fetchCount = %d, want 1", fetchCount)
 	}
-	if err := prefetcher.PrefetchPricing(context.Background(), plan); err != nil {
-		t.Fatalf("second PrefetchPricing() error = %v", err)
+	// Second warm-up should use the cached index, not fetch again.
+	if err := runtimeRegistry.WarmIndexes(context.Background(), services); err != nil {
+		t.Fatalf("second WarmIndexes() error = %v", err)
 	}
 	if fetchCount != 1 {
-		t.Fatalf("fetchCount after cached prefetch = %d, want 1", fetchCount)
+		t.Fatalf("fetchCount after cached warm = %d, want 1", fetchCount)
 	}
 }
 
@@ -158,12 +158,4 @@ type funcProviderRouter func(resourceType handler.ResourceType) (string, bool)
 
 func (f funcProviderRouter) ResolveProvider(resourceType handler.ResourceType) (string, bool) {
 	return f(resourceType)
-}
-
-type pricingPlan struct {
-	services map[pricing.ServiceID][]string
-}
-
-func (p pricingPlan) Services() map[pricing.ServiceID][]string {
-	return p.services
 }

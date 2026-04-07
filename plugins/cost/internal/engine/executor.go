@@ -3,18 +3,25 @@ package engine
 import (
 	"context"
 
+	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/results"
 	costruntime "github.com/edelwud/terraci/plugins/cost/internal/runtime"
 )
 
+// moduleResolver is the narrow interface that ModuleExecutor requires from the cost resolver.
+type moduleResolver interface {
+	ResolveWithSubResourcesState(ctx context.Context, req costruntime.ResolveRequest, state *costruntime.ResolutionState) []model.ResourceCost
+	ResolveBeforeCostWithState(ctx context.Context, rc *model.ResourceCost, resourceType handler.ResourceType, beforeAttrs map[string]any, region string, state *costruntime.ResolutionState)
+}
+
 // ModuleExecutor executes scanned module plans through the cost resolver.
 type ModuleExecutor struct {
-	resolver *costruntime.CostResolver
+	resolver moduleResolver
 }
 
 // NewModuleExecutor creates a module executor for the provided resolver.
-func NewModuleExecutor(resolver *costruntime.CostResolver) *ModuleExecutor {
+func NewModuleExecutor(resolver moduleResolver) *ModuleExecutor {
 	return &ModuleExecutor{resolver: resolver}
 }
 
@@ -41,9 +48,4 @@ func (e *ModuleExecutor) Execute(ctx context.Context, modulePlan *ModulePlan) *m
 	}
 
 	return assembler.Build()
-}
-
-// AggregateCost exposes module cost aggregation for tests and facades.
-func AggregateCost(result *model.ModuleCost, rc model.ResourceCost, action EstimateAction) {
-	results.AggregateCost(result, rc, action)
 }

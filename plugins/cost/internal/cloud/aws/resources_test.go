@@ -9,8 +9,8 @@ import (
 )
 
 func TestResourceRegistrationsUnique(t *testing.T) {
-	seen := make(map[ResourceKey]bool, len(Definition.Resources))
-	for _, registration := range Definition.Resources {
+	seen := make(map[ResourceKey]bool, len(definition.Resources))
+	for _, registration := range definition.Resources {
 		key := ResourceKey(registration.Type)
 		if key == "" {
 			t.Fatal("resource registration key must not be empty")
@@ -27,10 +27,10 @@ func TestResourceRegistrationsUnique(t *testing.T) {
 
 func TestProviderRegisterHandlersUsesCatalog(t *testing.T) {
 	registry := handler.NewRegistry()
-	cloud.RegisterDefinitionHandlers(registry, Definition)
+	cloud.RegisterDefinitionHandlers(registry, definition)
 
-	for _, registration := range Definition.Resources {
-		resolved, ok := registry.ResolveHandler(Definition.Manifest.ID, registration.Type)
+	for _, registration := range definition.Resources {
+		resolved, ok := registry.ResolveHandler(definition.Manifest.ID, registration.Type)
 		if !ok {
 			t.Fatalf("resource %q was not registered", registration.Type)
 		}
@@ -41,10 +41,10 @@ func TestProviderRegisterHandlersUsesCatalog(t *testing.T) {
 }
 
 func TestDefinitionContainsManifest(t *testing.T) {
-	if Definition.Manifest.ID != awskit.ProviderID {
-		t.Fatalf("Definition.Manifest.ID = %q, want %q", Definition.Manifest.ID, awskit.ProviderID)
+	if definition.Manifest.ID != awskit.ProviderID {
+		t.Fatalf("Definition.Manifest.ID = %q, want %q", definition.Manifest.ID, awskit.ProviderID)
 	}
-	if len(Definition.Resources) == 0 {
+	if len(definition.Resources) == 0 {
 		t.Fatal("Definition.Resources must not be empty")
 	}
 }

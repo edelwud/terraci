@@ -2,69 +2,69 @@ package cost
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
 
-type estimateInputs struct {
+type planDiscovery struct {
 	modulePaths []string
 	regions     map[string]string
 }
 
 func runEstimationUseCase(ctx context.Context, appCtx *plugin.AppContext, runtime *costRuntime, modulePath, outputFmt string, w io.Writer) error {
-	inputs, err := discoverEstimateInputs(appCtx, modulePath)
+	plans, err := discoverModulePlans(appCtx, modulePath)
 	if err != nil {
 		return err
 	}
 
-	result, err := runtime.estimator.EstimateModules(ctx, inputs.modulePaths, inputs.regions)
+	result, err := runtime.estimator.EstimateModules(ctx, plans.modulePaths, plans.regions)
 	if err != nil {
-		return fmt.Errorf("estimate costs: %w", err)
+		return fmt.Errorf("cost: estimate costs: %w", err)
 	}
 
-	persistEstimateArtifacts(appCtx.ServiceDir(), result)
+	if err := saveArtifacts(appCtx.ServiceDir(), result); err != nil {
+		log.WithError(err).Warn("cost: failed to save artifacts")
+	}
 
 	return outputResult(w, appCtx.WorkDir(), outputFmt, result)
 }
 
-func discoverEstimateInputs(appCtx *plugin.AppContext, modulePath string) (*estimateInputs, error) {
+func discoverModulePlans(appCtx *plugin.AppContext, modulePath string) (*planDiscovery, error) {
 	cfg := appCtx.Config()
 	workDir := appCtx.WorkDir()
 
-	log.WithField("dir", workDir).Info("scanning for plan.json files")
+	log.WithField("dir", workDir).Info("cost: scanning for plan.json files")
 
-	modulePaths, err := discovery.FindModulesWithPlan(workDir)
+	paths, err := discovery.FindModulesWithPlan(workDir)
 	if err != nil {
-		return nil, fmt.Errorf("scan for plan.json: %w", err)
+		return nil, fmt.Errorf("cost: scan for plan.json: %w", err)
 	}
 
-	modulePaths = filterModulePaths(workDir, modulePaths, modulePath)
-	if len(modulePaths) == 0 {
-		return nil, errors.New("no plan.json files found")
+	paths = filterModulePaths(workDir, paths, modulePath)
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("cost: no plan.json files found in %s", workDir)
 	}
 
-	log.WithField("count", len(modulePaths)).Info("modules with plan.json found")
+	log.WithField("count", len(paths)).Info("cost: modules with plan.json found")
 
-	regions := make(map[string]string, len(modulePaths))
-	for _, fullPath := range modulePaths {
+	regions := make(map[string]string, len(paths))
+	for _, fullPath := range paths {
 		relDir, relErr := filepath.Rel(workDir, fullPath)
 		if relErr == nil {
 			regions[fullPath] = model.DetectRegion(cfg.Structure.Segments, relDir)
 		}
 	}
 
-	return &estimateInputs{
-		modulePaths: modulePaths,
+	return &planDiscovery{
+		modulePaths: paths,
 		regions:     regions,
 	}, nil
 }
@@ -75,9 +75,9 @@ func filterModulePaths(workDir string, modulePaths []string, modulePath string) 
 	}
 
 	target := filepath.Join(workDir, modulePath)
-	filtered := make([]string, 0, 1)
+	var filtered []string
 	for _, path := range modulePaths {
-		if path == target || strings.HasSuffix(path, modulePath) {
+		if path == target || matchesModulePath(path, modulePath) {
 			filtered = append(filtered, path)
 		}
 	}
@@ -85,19 +85,13 @@ func filterModulePaths(workDir string, modulePaths []string, modulePath string) 
 	return filtered
 }
 
-func persistEstimateArtifacts(serviceDir string, result *model.EstimateResult) {
-	if serviceDir == "" {
-		return
-	}
-
-	if saveErr := ci.SaveJSON(serviceDir, resultsFile, result); saveErr != nil {
-		log.WithError(saveErr).Warn("failed to save cost results")
-	}
-
-	report := buildCostReport(result)
-	if saveErr := ci.SaveReport(serviceDir, report); saveErr != nil {
-		log.WithError(saveErr).Warn("failed to save cost report")
-	}
+// matchesModulePath reports whether path ends with the given modulePath segment,
+// anchored to a path separator to prevent partial-segment false positives.
+// For example, "other/foo/bar" does NOT match "foo/bar" — only exact suffix
+// at a directory boundary counts.
+func matchesModulePath(path, modulePath string) bool {
+	sep := string(filepath.Separator)
+	return strings.HasSuffix(path, sep+modulePath) || strings.HasSuffix(path, "/"+modulePath)
 }
 
 func (p *Plugin) runEstimation(ctx context.Context, appCtx *plugin.AppContext, modulePath, outputFmt string) error {

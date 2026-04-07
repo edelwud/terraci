@@ -1,9 +1,5 @@
 package handler
 
-import (
-	"github.com/caarlos0/log"
-)
-
 // Registry maps terraform resource types to cost estimation handlers.
 // Provider-agnostic: AWS, GCP, Azure handlers all register here.
 type Registry struct {
@@ -46,7 +42,7 @@ func (r *Registry) IsSupported(resourceType ResourceType) bool {
 }
 
 // SupportedTypes returns all supported resource types.
-func (r *Registry) SupportedTypes() []string {
+func (r *Registry) SupportedTypes() []ResourceType {
 	typeSet := make(map[ResourceType]bool)
 	for _, providerHandlers := range r.handlers {
 		for t := range providerHandlers {
@@ -54,16 +50,9 @@ func (r *Registry) SupportedTypes() []string {
 		}
 	}
 
-	types := make([]string, 0, len(typeSet))
+	types := make([]ResourceType, 0, len(typeSet))
 	for t := range typeSet {
-		types = append(types, t.String())
+		types = append(types, t)
 	}
 	return types
-}
-
-// LogUnsupported logs unsupported resource types at debug level.
-func LogUnsupported(resourceType, address string) {
-	log.WithField("type", resourceType).
-		WithField("address", address).
-		Debug("resource type not supported for cost estimation")
 }

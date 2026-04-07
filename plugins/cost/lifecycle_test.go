@@ -39,14 +39,16 @@ func TestPlugin_EnablePolicy(t *testing.T) {
 		},
 		{
 			name:           "config set, enabled=false",
-			cfg:            &model.CostConfig{Enabled: false},
+			cfg:            &model.CostConfig{},
 			setCfg:         true,
 			wantConfigured: true,
 			wantEnabled:    false,
 		},
 		{
-			name:           "config set, enabled=true",
-			cfg:            &model.CostConfig{Enabled: true},
+			name: "config set, enabled=true",
+			cfg: &model.CostConfig{
+				Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
+			},
 			setCfg:         true,
 			wantConfigured: true,
 			wantEnabled:    true,
@@ -80,7 +82,7 @@ func TestPlugin_Preflight_Disabled(t *testing.T) {
 
 func TestPlugin_Preflight_ConfiguredButDisabled(t *testing.T) {
 	p := newTestPlugin(t)
-	enablePlugin(t, p, &model.CostConfig{Enabled: false})
+	enablePlugin(t, p, &model.CostConfig{})
 	appCtx := newTestAppContext(t, t.TempDir())
 
 	if err := p.Preflight(context.Background(), appCtx); err != nil {
@@ -91,7 +93,7 @@ func TestPlugin_Preflight_ConfiguredButDisabled(t *testing.T) {
 func TestPlugin_Preflight_Enabled(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &model.CostConfig{
-		Enabled: true,
+		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	})
 	appCtx := newTestAppContext(t, t.TempDir())
 
@@ -103,7 +105,7 @@ func TestPlugin_Preflight_Enabled(t *testing.T) {
 func TestPlugin_Preflight_InvalidTTL(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &model.CostConfig{
-		Enabled: true,
+		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 		BlobCache: &model.BlobCacheConfig{
 			TTL: "not-a-duration",
 		},
@@ -122,7 +124,7 @@ func TestPlugin_Preflight_InvalidTTL(t *testing.T) {
 func TestPlugin_Reset(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &model.CostConfig{
-		Enabled: true,
+		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	})
 	appCtx := newTestAppContext(t, t.TempDir())
 
@@ -140,7 +142,7 @@ func TestPlugin_Reset(t *testing.T) {
 func TestPlugin_Runtime_CreatesEstimator(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &model.CostConfig{
-		Enabled: true,
+		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	})
 
 	runtime := plugintest.MustRuntime[*costRuntime](t, p, newTestAppContext(t, t.TempDir()))
@@ -152,10 +154,7 @@ func TestPlugin_Runtime_CreatesEstimator(t *testing.T) {
 func TestPlugin_Runtime_DefaultsToDiskblob(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &model.CostConfig{
-		Enabled: true,
-		Providers: model.CostProvidersConfig{
-			AWS: &model.ProviderConfig{Enabled: true},
-		},
+		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	})
 
 	appCtx := newTestAppContext(t, t.TempDir())
@@ -164,19 +163,16 @@ func TestPlugin_Runtime_DefaultsToDiskblob(t *testing.T) {
 		t.Fatal("runtime.estimator should not be nil")
 	}
 	wantCacheDir := appCtx.ServiceDir() + "/blobs"
-	if runtime.estimator.CacheDir() != wantCacheDir {
-		t.Fatalf("CacheDir() = %q, want %q", runtime.estimator.CacheDir(), wantCacheDir)
+	if runtime.estimator.Cache().Dir() != wantCacheDir {
+		t.Fatalf("CacheDir() = %q, want %q", runtime.estimator.Cache().Dir(), wantCacheDir)
 	}
 }
 
 func TestPlugin_Runtime_RejectsLegacyCacheDir(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &model.CostConfig{
-		Enabled:  true,
-		CacheDir: t.TempDir(),
-		Providers: model.CostProvidersConfig{
-			AWS: &model.ProviderConfig{Enabled: true},
-		},
+		CacheDir:  t.TempDir(),
+		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	})
 
 	_, err := p.Runtime(context.Background(), newTestAppContext(t, t.TempDir()))
@@ -188,13 +184,10 @@ func TestPlugin_Runtime_RejectsLegacyCacheDir(t *testing.T) {
 func TestPlugin_Runtime_UnknownBlobBackend(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &model.CostConfig{
-		Enabled: true,
 		BlobCache: &model.BlobCacheConfig{
 			Backend: "missing-backend",
 		},
-		Providers: model.CostProvidersConfig{
-			AWS: &model.ProviderConfig{Enabled: true},
-		},
+		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	})
 
 	if _, err := p.Runtime(context.Background(), newTestAppContext(t, t.TempDir())); err == nil {
@@ -219,21 +212,18 @@ func TestPlugin_Runtime_UsesBlobStoreDiagnostics(t *testing.T) {
 
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &model.CostConfig{
-		Enabled: true,
 		BlobCache: &model.BlobCacheConfig{
 			Backend: providerName,
 		},
-		Providers: model.CostProvidersConfig{
-			AWS: &model.ProviderConfig{Enabled: true},
-		},
+		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	})
 
 	runtime := plugintest.MustRuntime[*costRuntime](t, p, newTestAppContext(t, t.TempDir()))
 	if runtime.estimator == nil {
 		t.Fatal("runtime.estimator should not be nil")
 	}
-	if runtime.estimator.CacheDir() != "/tmp/blob-cache" {
-		t.Fatalf("CacheDir() = %q, want %q", runtime.estimator.CacheDir(), "/tmp/blob-cache")
+	if runtime.estimator.Cache().Dir() != "/tmp/blob-cache" {
+		t.Fatalf("CacheDir() = %q, want %q", runtime.estimator.Cache().Dir(), "/tmp/blob-cache")
 	}
 }
 
@@ -248,18 +238,15 @@ func TestPlugin_Runtime_UsesBlobStoreFallbackDiagnostics(t *testing.T) {
 
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &model.CostConfig{
-		Enabled: true,
 		BlobCache: &model.BlobCacheConfig{
 			Backend: providerName,
 		},
-		Providers: model.CostProvidersConfig{
-			AWS: &model.ProviderConfig{Enabled: true},
-		},
+		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	})
 
 	runtime := plugintest.MustRuntime[*costRuntime](t, p, newTestAppContext(t, t.TempDir()))
-	if runtime.estimator.CacheDir() != "/tmp/legacy-cache" {
-		t.Fatalf("CacheDir() = %q, want %q", runtime.estimator.CacheDir(), "/tmp/legacy-cache")
+	if runtime.estimator.Cache().Dir() != "/tmp/legacy-cache" {
+		t.Fatalf("CacheDir() = %q, want %q", runtime.estimator.Cache().Dir(), "/tmp/legacy-cache")
 	}
 }
 
@@ -272,21 +259,18 @@ func TestPlugin_Runtime_BlobStoreFallbackWithoutDiagnostics(t *testing.T) {
 
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &model.CostConfig{
-		Enabled: true,
 		BlobCache: &model.BlobCacheConfig{
 			Backend: providerName,
 		},
-		Providers: model.CostProvidersConfig{
-			AWS: &model.ProviderConfig{Enabled: true},
-		},
+		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	})
 
 	runtime := plugintest.MustRuntime[*costRuntime](t, p, newTestAppContext(t, t.TempDir()))
 	if runtime.estimator == nil {
 		t.Fatal("runtime.estimator should not be nil")
 	}
-	if runtime.estimator.CacheDir() != "" {
-		t.Fatalf("CacheDir() = %q, want empty root for plain blob store", runtime.estimator.CacheDir())
+	if runtime.estimator.Cache().Dir() != "" {
+		t.Fatalf("CacheDir() = %q, want empty root for plain blob store", runtime.estimator.Cache().Dir())
 	}
 }
 
@@ -301,13 +285,10 @@ func TestPlugin_Runtime_HealthCheckFailure(t *testing.T) {
 
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &model.CostConfig{
-		Enabled: true,
 		BlobCache: &model.BlobCacheConfig{
 			Backend: providerName,
 		},
-		Providers: model.CostProvidersConfig{
-			AWS: &model.ProviderConfig{Enabled: true},
-		},
+		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	})
 
 	_, err := p.Runtime(context.Background(), newTestAppContext(t, t.TempDir()))

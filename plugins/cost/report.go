@@ -1,6 +1,7 @@
 package cost
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -35,17 +36,16 @@ func buildCostReport(result *model.EstimateResult) *ci.Report {
 		Title:   "Cost Estimation",
 		Status:  status,
 		Summary: fmt.Sprintf("%d modules, total: $%.2f/mo (diff: %+.2f)", len(visible), result.TotalAfter, result.TotalDiff),
-		Body:    renderCostReportBody(result),
+		Body:    renderCostReportBody(result, visible),
 		Modules: modules,
 	}
 }
 
-func renderCostReportBody(result *model.EstimateResult) string {
+func renderCostReportBody(result *model.EstimateResult, visible []model.ModuleCost) string {
 	var b strings.Builder
 	b.WriteString("| Module | Before | After | Diff | Notes |\n")
 	b.WriteString("|--------|--------|-------|------|-------|\n")
 
-	visible := visibleReportModules(result.Modules)
 	for i := range visible {
 		module := &visible[i]
 		before := fmt.Sprintf("$%.2f", module.BeforeCost)
@@ -83,4 +83,22 @@ func shouldShowReportModule(module *model.ModuleCost) bool {
 		return false
 	}
 	return module.Error != "" || module.BeforeCost != 0 || module.AfterCost != 0 || module.DiffCost != 0
+}
+
+// saveArtifacts persists the estimation result and CI report to the service directory.
+// Returns a joined error if one or both saves fail.
+func saveArtifacts(serviceDir string, result *model.EstimateResult) error {
+	if serviceDir == "" {
+		return nil
+	}
+
+	var errs []error
+	if err := ci.SaveJSON(serviceDir, resultsFile, result); err != nil {
+		errs = append(errs, fmt.Errorf("save results: %w", err))
+	}
+	report := buildCostReport(result)
+	if err := ci.SaveReport(serviceDir, report); err != nil {
+		errs = append(errs, fmt.Errorf("save report: %w", err))
+	}
+	return errors.Join(errs...)
 }

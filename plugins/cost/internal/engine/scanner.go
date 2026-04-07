@@ -5,23 +5,22 @@ import (
 
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
-	"github.com/edelwud/terraci/plugins/cost/internal/results"
 	costruntime "github.com/edelwud/terraci/plugins/cost/internal/runtime"
 )
 
-// DefaultRegion is used when no region is specified.
-const DefaultRegion = model.DefaultRegion
-const scanConcurrency = 4
+// maxModuleConcurrency caps the number of modules processed simultaneously
+// across both scanning and estimation phases.
+const maxModuleConcurrency = 4
 
 // EstimateAction is the provider-neutral action model used by the cost engine.
-type EstimateAction = results.EstimateAction
+type EstimateAction = model.EstimateAction
 
 const (
-	ActionCreate  = results.ActionCreate
-	ActionDelete  = results.ActionDelete
-	ActionUpdate  = results.ActionUpdate
-	ActionReplace = results.ActionReplace
-	ActionNoOp    = results.ActionNoOp
+	ActionCreate  = model.ActionCreate
+	ActionDelete  = model.ActionDelete
+	ActionUpdate  = model.ActionUpdate
+	ActionReplace = model.ActionReplace
+	ActionNoOp    = model.ActionNoOp
 )
 
 // ModulePlanAdapter converts external plan sources into the cost engine input model.
@@ -91,32 +90,13 @@ func (s *ModuleScanner) Scan(modulePath, region string) (*ModulePlan, error) {
 
 // ScanMany scans multiple modules strictly, returning an error on the first failure.
 func (s *ModuleScanner) ScanMany(modulePaths []string, regions map[string]string) ([]*ModulePlan, error) {
+	scanned := s.scanConcurrently(modulePaths, regions)
 	plans := make([]*ModulePlan, len(modulePaths))
-	errs := make([]error, len(modulePaths))
-
-	var wg sync.WaitGroup
-	sem := make(chan struct{}, scanConcurrency)
-
-	for i, modulePath := range modulePaths {
-		region := regions[modulePath]
-		if region == "" {
-			region = DefaultRegion
+	for _, r := range scanned {
+		if r.Err != nil {
+			return nil, r.Err
 		}
-
-		wg.Go(func() {
-			sem <- struct{}{}
-			defer func() { <-sem }()
-
-			plans[i], errs[i] = s.Scan(modulePath, region)
-		})
-	}
-
-	wg.Wait()
-
-	for i := range errs {
-		if errs[i] != nil {
-			return nil, errs[i]
-		}
+		plans[r.Index] = r.Plan
 	}
 	return plans, nil
 }
@@ -132,32 +112,37 @@ type ScannedModulePlan struct {
 
 // ScanManyBestEffort scans multiple modules and preserves per-module failures.
 func (s *ModuleScanner) ScanManyBestEffort(modulePaths []string, regions map[string]string) []ScannedModulePlan {
-	plans := make([]ScannedModulePlan, len(modulePaths))
+	return s.scanConcurrently(modulePaths, regions)
+}
+
+// scanConcurrently runs Scan for each modulePath in parallel, capped at maxModuleConcurrency.
+func (s *ModuleScanner) scanConcurrently(modulePaths []string, regions map[string]string) []ScannedModulePlan {
+	results := make([]ScannedModulePlan, len(modulePaths))
 
 	var wg sync.WaitGroup
-	sem := make(chan struct{}, scanConcurrency)
+	sem := make(chan struct{}, maxModuleConcurrency)
 
 	for i, modulePath := range modulePaths {
 		region := regions[modulePath]
 		if region == "" {
-			region = DefaultRegion
+			region = model.DefaultRegion
 		}
 
 		wg.Go(func() {
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			modulePlan, err := s.Scan(modulePath, region)
-			plans[i] = ScannedModulePlan{
+			plan, err := s.Scan(modulePath, region)
+			results[i] = ScannedModulePlan{
 				Index:      i,
 				ModulePath: modulePath,
 				Region:     region,
-				Plan:       modulePlan,
+				Plan:       plan,
 				Err:        err,
 			}
 		})
 	}
 
 	wg.Wait()
-	return plans
+	return results
 }

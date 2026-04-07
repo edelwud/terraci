@@ -95,25 +95,22 @@ func (c *Cache) Invalidate(ctx context.Context, service ServiceID, region string
 	return c.blobs.Delete(ctx, c.cacheKey(service, region))
 }
 
-// Validate checks if required pricing data is cached and valid.
-// Returns list of missing service/region combinations.
-func (c *Cache) Validate(ctx context.Context, services map[ServiceID][]string) []struct {
+// MissingPricingEntry identifies a service/region combination absent from the cache.
+type MissingPricingEntry struct {
 	Service ServiceID
 	Region  string
-} {
-	var missing []struct {
-		Service ServiceID
-		Region  string
-	}
+}
+
+// Validate checks if required pricing data is cached and valid.
+// Returns list of missing service/region combinations.
+func (c *Cache) Validate(ctx context.Context, services map[ServiceID][]string) []MissingPricingEntry {
+	var missing []MissingPricingEntry
 
 	for service, regions := range services {
 		for _, region := range regions {
 			idx, err := c.loadFromCache(ctx, service, region)
 			if err != nil || !c.isValid(idx) {
-				missing = append(missing, struct {
-					Service ServiceID
-					Region  string
-				}{service, region})
+				missing = append(missing, MissingPricingEntry{service, region})
 			}
 		}
 	}
@@ -242,7 +239,7 @@ func (c *Cache) saveToCache(ctx context.Context, idx *PriceIndex) error {
 		},
 	}
 	if ttl := c.ttl(); ttl > 0 {
-		expiresAt := idx.UpdatedAt.Add(ttl)
+		expiresAt := time.Now().Add(ttl)
 		opts.ExpiresAt = &expiresAt
 	}
 

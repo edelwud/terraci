@@ -120,44 +120,6 @@ func TestBuildSegmentTree(t *testing.T) {
 	})
 }
 
-func TestFindChild(t *testing.T) {
-	t.Parallel()
-
-	root := &model.SegmentNode{
-		Children: []*model.SegmentNode{
-			{Name: "alpha"},
-			{Name: "beta"},
-		},
-	}
-
-	t.Run("found", func(t *testing.T) {
-		t.Parallel()
-
-		c := model.FindChild(root, "beta")
-		if c == nil || c.Name != "beta" {
-			t.Errorf("FindChild(beta) = %v, want beta", c)
-		}
-	})
-
-	t.Run("not found", func(t *testing.T) {
-		t.Parallel()
-
-		c := model.FindChild(root, "gamma")
-		if c != nil {
-			t.Errorf("FindChild(gamma) = %v, want nil", c)
-		}
-	})
-
-	t.Run("empty children", func(t *testing.T) {
-		t.Parallel()
-
-		c := model.FindChild(&model.SegmentNode{}, "x")
-		if c != nil {
-			t.Errorf("FindChild on empty = %v, want nil", c)
-		}
-	})
-}
-
 func TestCompactSegmentTree(t *testing.T) {
 	t.Parallel()
 
@@ -254,38 +216,6 @@ func TestStripModulePrefix(t *testing.T) {
 			got := model.StripModulePrefix(tt.address, tt.moduleAddr)
 			if got != tt.want {
 				t.Errorf("StripModulePrefix(%q, %q) = %q, want %q", tt.address, tt.moduleAddr, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestSplitPath(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		input string
-		want  []string
-	}{
-		{"simple path", "a/b/c", []string{"a", "b", "c"}},
-		{"single segment", "vpc", []string{"vpc"}},
-		{"empty", "", nil},
-		{"dot", ".", nil},
-		{"nested", "platform/prod/eu-central-1/rds", []string{"platform", "prod", "eu-central-1", "rds"}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := model.SplitPath(tt.input)
-			if len(got) != len(tt.want) {
-				t.Fatalf("SplitPath(%q) = %v (len %d), want %v (len %d)", tt.input, got, len(got), tt.want, len(tt.want))
-			}
-			for i := range tt.want {
-				if got[i] != tt.want[i] {
-					t.Errorf("SplitPath(%q)[%d] = %q, want %q", tt.input, i, got[i], tt.want[i])
-				}
 			}
 		})
 	}

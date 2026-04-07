@@ -77,7 +77,7 @@ func TestCostConfig_Validate(t *testing.T) {
 		cfg     model.CostConfig
 		wantErr bool
 	}{
-		{"valid defaults", model.CostConfig{Enabled: true}, false},
+		{"valid defaults", model.CostConfig{}, false},
 		{"valid TTL 48h", model.CostConfig{BlobCache: &model.BlobCacheConfig{TTL: "48h"}}, false},
 		{"valid TTL 30m", model.CostConfig{BlobCache: &model.BlobCacheConfig{TTL: "30m"}}, false},
 		{"empty TTL ok", model.CostConfig{BlobCache: &model.BlobCacheConfig{TTL: ""}}, false},
