@@ -59,7 +59,7 @@ func loadSummaryInputs(appCtx *plugin.AppContext) (*summaryInputs, error) {
 }
 
 func resolveSummaryProvider() (summaryProvider, error) {
-	return registry.ResolveProvider()
+	return registry.ResolveCIProvider()
 }
 
 func runSummaryUseCase(ctx context.Context, appCtx *plugin.AppContext, cfg *summaryengine.Config, resolveProvider func() (summaryProvider, error)) error {

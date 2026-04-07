@@ -28,7 +28,7 @@ cmd/terraci/
 └── cmd/
     ├── app.go                  # App struct, PluginContext() with ServiceDir, InitPluginConfigs()
     ├── root.go                 # NewRootCmd(), plugin lifecycle (Init), dynamic commands
-    ├── generate.go             # Pipeline generation (uses registry.ResolveProvider())
+    ├── generate.go             # Pipeline generation (uses registry.ResolveCIProvider())
     ├── graph.go                # Dependency graph visualization
     ├── validate.go             # Config/project validation
     ├── filters.go              # filterFlags struct — shared filter flags, mergedFilterOpts()
@@ -58,7 +58,7 @@ pkg/                            # Public API — importable by external plugins
 │   ├── plugin.go               # Plugin, Resettable
 │   ├── lifecycle.go            # ConfigLoader, Preflightable
 │   ├── commands.go             # CommandProvider, FlagOverridable, VersionProvider
-│   ├── ciprovider.go           # EnvDetector, CIMetadata, GeneratorFactory, CommentFactory, CIProvider
+│   ├── ci_provider.go          # EnvDetector, CIInfoProvider, PipelineGeneratorFactory, CommentServiceFactory, ResolvedCIProvider
 │   ├── change.go               # ChangeDetectionProvider
 │   ├── contribution.go         # PipelineContributor
 │   ├── base.go                 # BasePlugin[C] generic embedding
@@ -68,13 +68,11 @@ pkg/                            # Public API — importable by external plugins
 │   ├── reports.go              # ReportRegistry — in-memory report exchange
 │   ├── registry/               # Global plugin registry — Register, All, ByCapability, Resolve*
 │   │   ├── registry.go         # Register(), All(), Get(), ByCapability[T](), Reset()
-│   │   └── resolve.go          # ResolveProvider(), ResolveChangeDetector(), CollectContributions()
+│   │   └── resolve.go          # ResolveCIProvider(), ResolveChangeDetector(), CollectContributions()
 │   ├── initwiz/                # Init wizard state + types
 │   │   ├── state.go            # StateMap — typed form state with pointer getters for huh
 │   │   └── types.go            # InitContributor, InitGroupSpec, InitField, FieldType
 │   └── plugintest/             # Shared plugin-facing test helpers + mock doubles
-├── ciprovider/
-│   └── types.go                # Shared CI types: Image, MRCommentConfig
 ├── pipeline/
 │   ├── types.go                # IR, Level, ModuleJobs, Job, Step, Phase, Contribution, ContributedJob
 │   ├── builder.go              # Build(opts) — constructs provider-agnostic pipeline IR
@@ -113,13 +111,13 @@ plugins/                        # Built-in plugins — one file per capability
 ├── gitlab/
 │   ├── plugin.go               # init, BasePlugin[*Config] embed, FlagOverridable
 │   ├── lifecycle.go            # Preflightable (cheap MR context detection)
-│   ├── generator.go            # EnvDetector + CIMetadata + GeneratorFactory + CommentFactory
+│   ├── generator.go            # EnvDetector + CIInfoProvider + PipelineGeneratorFactory + CommentServiceFactory
 │   ├── init_wizard.go          # InitContributor
 │   └── internal/               # (package gitlabci) config, client, generator, MR service, types
 ├── github/
 │   ├── plugin.go               # init, BasePlugin[*Config] embed, FlagOverridable
 │   ├── lifecycle.go            # Preflightable (cheap PR context detection)
-│   ├── generator.go            # EnvDetector + CIMetadata + GeneratorFactory + CommentFactory
+│   ├── generator.go            # EnvDetector + CIInfoProvider + PipelineGeneratorFactory + CommentServiceFactory
 │   ├── init_wizard.go          # InitContributor
 │   └── internal/               # (package githubci) config, client, generator, PR service, types
 ├── cost/
@@ -211,7 +209,7 @@ Each plugin follows one-file-per-capability, with runtime-heavy plugins also usi
 - `runtime.go` — RuntimeProvider for lazy runtime construction
 - `usecases.go` — command orchestration over typed runtime
 - `commands.go` — CommandProvider with cobra definitions
-- `generator.go` — EnvDetector + CIMetadata + GeneratorFactory + CommentFactory
+- `generator.go` — EnvDetector + CIInfoProvider + PipelineGeneratorFactory + CommentServiceFactory
 - `pipeline.go` — PipelineContributor(ctx) (no self-check, framework filters)
 - `init_wizard.go` — initwiz.InitContributor (uses typed *initwiz.StateMap)
 - `version.go` — VersionProvider
@@ -239,9 +237,9 @@ Each plugin follows one-file-per-capability, with runtime-heavy plugins also usi
 | `Preflightable` | Cheap startup validation / env detection | gitlab, github, cost, policy, git, update |
 | `RuntimeProvider` | Lazy command-time runtime construction | cost, policy, update |
 | `EnvDetector` | CI environment detection | gitlab, github |
-| `CIMetadata` | Provider name, pipeline ID, commit SHA | gitlab, github |
-| `GeneratorFactory` | Pipeline generator creation | gitlab, github |
-| `CommentFactory` | MR/PR comment service creation | gitlab, github |
+| `CIInfoProvider` | Provider name, pipeline ID, commit SHA | gitlab, github |
+| `PipelineGeneratorFactory` | Pipeline generator creation | gitlab, github |
+| `CommentServiceFactory` | MR/PR comment service creation | gitlab, github |
 | `FlagOverridable` | Direct CLI flag overrides (--plan-only, --auto-approve) | gitlab, github |
 | `VersionProvider` | Version info contributions | policy |
 | `ChangeDetectionProvider` | VCS change detection | git |
@@ -256,7 +254,7 @@ Plugins with config embed `BasePlugin[C]` which auto-implements:
 
 ### Shared Types
 
-`pkg/ciprovider/` contains types shared by CI providers: `Image` (with YAML shorthand), `MRCommentConfig`. Both gitlab and github internal packages use type aliases to these.
+`pkg/ci/` contains shared CI-domain types including provider-shared config such as `Image` (with YAML shorthand) and `MRCommentConfig`. Both gitlab and github internal packages use type aliases to these.
 
 ### Pipeline IR
 
@@ -275,7 +273,7 @@ Plugins contribute via `PipelineContributor.PipelineContribution(ctx)`:
 
 ### Provider Resolution
 
-`registry.ResolveProvider()` returns `*plugin.CIProvider` (struct wrapping EnvDetector + CIMetadata + GeneratorFactory + CommentFactory): CI env → `TERRACI_PROVIDER` env → single registered → IsConfigured() filter → error. Core has zero knowledge of specific providers. Commands that don't need config use `Annotations["skipConfig"]` to skip config loading in `PersistentPreRunE`. CLI flag overrides use `FlagOverridable` for direct struct mutation (no encode-decode cycle).
+`registry.ResolveCIProvider()` returns `*plugin.ResolvedCIProvider` (struct wrapping EnvDetector + CIInfoProvider + PipelineGeneratorFactory + CommentServiceFactory): CI env → `TERRACI_PROVIDER` env → single registered → IsConfigured() filter → error. Core has zero knowledge of specific providers. Commands that don't need config use `Annotations["skipConfig"]` to skip config loading in `PersistentPreRunE`. CLI flag overrides use `FlagOverridable` for direct struct mutation (no encode-decode cycle).
 
 ### Service Directory
 
@@ -338,7 +336,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 2. Load plugin reports from `{serviceDir}/*-report.json` (file-based enrichment)
 3. `summaryengine.EnrichPlans()` merges report data into plan results
 4. `summaryengine.ComposeComment()` renders markdown
-5. `registry.ResolveProvider()` → `NewCommentService()` → `UpsertComment(ctx, body)`
+5. `registry.ResolveCIProvider()` → `NewCommentService()` → `UpsertComment(ctx, body)`
 
 ### Init wizard
 1. `initStateDefaults()` populates shared defaults (provider, binary, pattern, plan_enabled)

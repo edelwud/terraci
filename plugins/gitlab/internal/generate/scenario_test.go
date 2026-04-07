@@ -3,7 +3,7 @@ package generate
 import (
 	"testing"
 
-	"github.com/edelwud/terraci/pkg/ciprovider/ciprovidertest"
+	"github.com/edelwud/terraci/pkg/ci/citest"
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/pipeline"
 )
@@ -50,7 +50,7 @@ func (s *generatorScenario) withTargets(targets ...*discovery.Module) *generator
 
 func (s *generatorScenario) generator() *Generator {
 	s.t.Helper()
-	depGraph := ciprovidertest.DependencyGraph(s.modules, s.dependencies)
+	depGraph := citest.DependencyGraph(s.modules, s.dependencies)
 	return NewGenerator(s.cfg.GitLab, s.cfg.Contributions, depGraph, s.modules)
 }
 

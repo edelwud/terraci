@@ -2,7 +2,7 @@ package ci
 
 import "time"
 
-// CommentMarker is used to identify terraci comments for updates
+// CommentMarker is used to identify TerraCI review comments for updates.
 const CommentMarker = "<!-- terraci-plan-comment -->"
 
 // ModulePlan represents terraform plan output for a single module
@@ -51,7 +51,7 @@ func PlanStatusFromPlan(hasChanges bool) PlanStatus {
 	return PlanStatusChanges
 }
 
-// PlanResult represents the result of a terraform plan for a single module
+// PlanResult represents a persisted CI artifact for a single module plan.
 type PlanResult struct {
 	ModuleID          string            `json:"module_id"`
 	ModulePath        string            `json:"module_path"`
@@ -77,7 +77,7 @@ func (r *PlanResult) Get(name string) string {
 	return ""
 }
 
-// PlanResultCollection is a collection of plan results from multiple jobs
+// PlanResultCollection is the persisted CI artifact collection for a pipeline run.
 type PlanResultCollection struct {
 	Results     []PlanResult `json:"results"`
 	PipelineID  string       `json:"pipeline_id,omitempty"`
@@ -85,7 +85,7 @@ type PlanResultCollection struct {
 	GeneratedAt time.Time    `json:"generated_at"`
 }
 
-// Report is a plugin's contribution to the summary comment.
+// Report is a plugin-produced CI enrichment artifact consumed by summary flows.
 // Plugins write reports as {serviceDir}/{plugin}-report.json.
 type Report struct {
 	Plugin  string         `json:"plugin"`

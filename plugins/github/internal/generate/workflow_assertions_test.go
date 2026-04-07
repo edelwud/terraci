@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/edelwud/terraci/pkg/ciprovider/ciprovidertest"
+	"github.com/edelwud/terraci/pkg/ci/citest"
 	domainpkg "github.com/edelwud/terraci/plugins/github/internal/domain"
 )
 
@@ -67,13 +67,13 @@ type jobAssert struct {
 
 func (a *jobAssert) hasNeed(name string) *jobAssert {
 	a.t.Helper()
-	ciprovidertest.AssertHasNeed(a.t, a.name, a.job.Needs, name)
+	citest.AssertHasNeed(a.t, a.name, a.job.Needs, name)
 	return a
 }
 
 func (a *jobAssert) noNeedWithPrefix(prefix string) *jobAssert {
 	a.t.Helper()
-	ciprovidertest.AssertNoNeedWithPrefix(a.t, a.name, a.job.Needs, prefix)
+	citest.AssertNoNeedWithPrefix(a.t, a.name, a.job.Needs, prefix)
 	return a
 }
 

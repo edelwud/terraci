@@ -42,3 +42,6 @@ vendor/
 .terraform.lock.hcl
 .terraci/
 !test/testdata/**/.terraci/
+
+.idea
+.claude

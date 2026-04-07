@@ -1,4 +1,4 @@
-package ciprovidertest
+package citest
 
 import (
 	"github.com/edelwud/terraci/pkg/discovery"

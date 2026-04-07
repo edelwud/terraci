@@ -30,45 +30,45 @@ func TestBuildJobPlan(t *testing.T) {
 	tests := []struct {
 		name           string
 		targets        []*discovery.Module
-		isPolicy       bool
-		isPlan         bool
+		hasJobs        bool
+		planEnabled    bool
 		wantCount      int
-		wantPolicy     bool
+		wantContrib    bool
 		wantLevelCount int
 	}{
 		{
 			name:           "empty targets falls back to allModules",
 			targets:        nil,
-			isPolicy:       false,
-			isPlan:         false,
+			hasJobs:        false,
+			planEnabled:    false,
 			wantCount:      2,
-			wantPolicy:     false,
+			wantContrib:    false,
 			wantLevelCount: 2,
 		},
 		{
 			name:           "non-empty targets used directly",
 			targets:        []*discovery.Module{modA},
-			isPolicy:       false,
-			isPlan:         false,
+			hasJobs:        false,
+			planEnabled:    false,
 			wantCount:      1,
-			wantPolicy:     false,
+			wantContrib:    false,
 			wantLevelCount: 1,
 		},
 		{
-			name:       "policy and plan enabled sets IncludePolicy",
-			targets:    allModules,
-			isPolicy:   true,
-			isPlan:     true,
-			wantCount:  2,
-			wantPolicy: true,
+			name:        "contributed jobs and plan enabled set HasContributedJobs",
+			targets:     allModules,
+			hasJobs:     true,
+			planEnabled: true,
+			wantCount:   2,
+			wantContrib: true,
 		},
 		{
-			name:       "policy enabled but plan disabled does not set IncludePolicy",
-			targets:    allModules,
-			isPolicy:   true,
-			isPlan:     false,
-			wantCount:  2,
-			wantPolicy: false,
+			name:        "contributed jobs without plan do not affect dry run stage math",
+			targets:     allModules,
+			hasJobs:     true,
+			planEnabled: false,
+			wantCount:   2,
+			wantContrib: false,
 		},
 	}
 
@@ -76,7 +76,7 @@ func TestBuildJobPlan(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			plan, err := BuildJobPlan(depGraph, tt.targets, allModules, idx, tt.isPolicy, tt.isPlan)
+			plan, err := BuildJobPlan(depGraph, tt.targets, allModules, idx, tt.hasJobs, tt.planEnabled)
 			if err != nil {
 				t.Fatalf("BuildJobPlan() error = %v", err)
 			}
@@ -84,8 +84,8 @@ func TestBuildJobPlan(t *testing.T) {
 			if got := len(plan.TargetModules); got != tt.wantCount {
 				t.Errorf("TargetModules count = %d, want %d", got, tt.wantCount)
 			}
-			if plan.IncludePolicy != tt.wantPolicy {
-				t.Errorf("IncludePolicy = %v, want %v", plan.IncludePolicy, tt.wantPolicy)
+			if plan.HasContributedJobs != tt.wantContrib {
+				t.Errorf("HasContributedJobs = %v, want %v", plan.HasContributedJobs, tt.wantContrib)
 			}
 			if tt.wantLevelCount > 0 && len(plan.ExecutionLevels) != tt.wantLevelCount {
 				t.Errorf("ExecutionLevels count = %d, want %d", len(plan.ExecutionLevels), tt.wantLevelCount)
@@ -261,11 +261,11 @@ func TestBuildDryRunResult(t *testing.T) {
 		wantTotal    int
 	}{
 		{
-			name: "basic no policy",
+			name: "basic without contributed jobs",
 			plan: &JobPlan{
-				TargetModules:   []*discovery.Module{modA, modB},
-				ExecutionLevels: [][]string{{modA.ID()}, {modB.ID()}},
-				IncludePolicy:   false,
+				TargetModules:      []*discovery.Module{modA, modB},
+				ExecutionLevels:    [][]string{{modA.ID()}, {modB.ID()}},
+				HasContributedJobs: false,
 			},
 			totalModules: 5,
 			planEnabled:  false,
@@ -277,9 +277,9 @@ func TestBuildDryRunResult(t *testing.T) {
 		{
 			name: "planEnabled doubles job count per level",
 			plan: &JobPlan{
-				TargetModules:   []*discovery.Module{modA, modB},
-				ExecutionLevels: [][]string{{modA.ID()}, {modB.ID()}},
-				IncludePolicy:   false,
+				TargetModules:      []*discovery.Module{modA, modB},
+				ExecutionLevels:    [][]string{{modA.ID()}, {modB.ID()}},
+				HasContributedJobs: false,
 			},
 			totalModules: 5,
 			planEnabled:  true,
@@ -289,30 +289,30 @@ func TestBuildDryRunResult(t *testing.T) {
 			wantTotal:    5,
 		},
 		{
-			name: "with policy adds 1 job and 1 stage",
+			name: "contributed jobs add 1 job and 1 stage",
 			plan: &JobPlan{
-				TargetModules:   []*discovery.Module{modA},
-				ExecutionLevels: [][]string{{modA.ID()}},
-				IncludePolicy:   true,
+				TargetModules:      []*discovery.Module{modA},
+				ExecutionLevels:    [][]string{{modA.ID()}},
+				HasContributedJobs: true,
 			},
 			totalModules: 3,
 			planEnabled:  false,
-			wantJobs:     2, // 1 module + 1 policy
-			wantStages:   2, // 1 level + 1 policy
+			wantJobs:     2, // 1 module + 1 contributed job
+			wantStages:   2, // 1 level + 1 contributed stage
 			wantAffected: 1,
 			wantTotal:    3,
 		},
 		{
-			name: "planEnabled with policy",
+			name: "planEnabled with contributed jobs",
 			plan: &JobPlan{
-				TargetModules:   []*discovery.Module{modA, modB},
-				ExecutionLevels: [][]string{{modA.ID(), modB.ID()}},
-				IncludePolicy:   true,
+				TargetModules:      []*discovery.Module{modA, modB},
+				ExecutionLevels:    [][]string{{modA.ID(), modB.ID()}},
+				HasContributedJobs: true,
 			},
 			totalModules: 10,
 			planEnabled:  true,
-			wantJobs:     5, // 2*2 modules (plan+apply) + 1 policy
-			wantStages:   2, // 1 level + 1 policy
+			wantJobs:     5, // 2*2 modules (plan+apply) + 1 contributed job
+			wantStages:   2, // 1 level + 1 contributed stage
 			wantAffected: 2,
 			wantTotal:    10,
 		},

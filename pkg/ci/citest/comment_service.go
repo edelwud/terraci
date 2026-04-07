@@ -1,4 +1,4 @@
-package ciprovidertest
+package citest
 
 import "testing"
 

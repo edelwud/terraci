@@ -10,12 +10,12 @@ import (
 
 // JobPlan contains prepared data for pipeline generation.
 type JobPlan struct {
-	TargetModules   []*discovery.Module
-	TargetSet       map[string]bool
-	ExecutionLevels [][]string
-	Subgraph        *graph.DependencyGraph
-	ModuleIndex     *discovery.ModuleIndex
-	IncludePolicy   bool
+	TargetModules       []*discovery.Module
+	TargetSet           map[string]bool
+	ExecutionLevels     [][]string
+	Subgraph            *graph.DependencyGraph
+	ModuleIndex         *discovery.ModuleIndex
+	HasContributedJobs  bool
 }
 
 // BuildJobPlan prepares the execution plan from target modules.
@@ -23,7 +23,7 @@ func BuildJobPlan(
 	depGraph *graph.DependencyGraph,
 	targetModules, allModules []*discovery.Module,
 	moduleIndex *discovery.ModuleIndex,
-	isPolicyEnabled, isPlanEnabled bool,
+	hasContributedJobs, planEnabled bool,
 ) (*JobPlan, error) {
 	if len(targetModules) == 0 {
 		targetModules = allModules
@@ -43,13 +43,13 @@ func BuildJobPlan(
 		return nil, fmt.Errorf("failed to calculate execution levels: %w", err)
 	}
 
-	return &JobPlan{
-		TargetModules:   targetModules,
-		TargetSet:       targetSet,
-		ExecutionLevels: levels,
-		Subgraph:        subgraph,
-		ModuleIndex:     moduleIndex,
-		IncludePolicy:   isPolicyEnabled && isPlanEnabled,
+		return &JobPlan{
+		TargetModules:      targetModules,
+		TargetSet:          targetSet,
+		ExecutionLevels:    levels,
+		Subgraph:           subgraph,
+		ModuleIndex:        moduleIndex,
+		HasContributedJobs: hasContributedJobs && planEnabled,
 	}, nil
 }
 
@@ -93,7 +93,7 @@ func BuildDryRunResult(plan *JobPlan, totalModules int, planEnabled bool) *DryRu
 	}
 
 	stageCount := len(plan.ExecutionLevels)
-	if plan.IncludePolicy {
+	if plan.HasContributedJobs {
 		jobCount++
 		stageCount++
 	}

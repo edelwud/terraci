@@ -127,7 +127,7 @@ func newInitModel() *initModel {
 
 func (m *initModel) basicsGroup() *huh.Group {
 	// Build provider options dynamically from registered plugins
-	providerPlugins := registry.ByCapability[plugin.CIMetadata]()
+	providerPlugins := registry.ByCapability[plugin.CIInfoProvider]()
 	providerOpts := make([]huh.Option[string], 0, len(providerPlugins))
 	for _, pp := range providerPlugins {
 		providerOpts = append(providerOpts, huh.NewOption(pp.Description(), pp.ProviderName()))

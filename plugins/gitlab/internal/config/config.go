@@ -1,10 +1,10 @@
 package config
 
-import "github.com/edelwud/terraci/pkg/ciprovider"
+import "github.com/edelwud/terraci/pkg/ci"
 
 // Type aliases for shared types keep the public config surface stable.
-type Image = ciprovider.Image
-type MRCommentConfig = ciprovider.MRCommentConfig
+type Image = ci.Image
+type MRCommentConfig = ci.MRCommentConfig
 
 // Config contains GitLab CI specific settings.
 type Config struct {

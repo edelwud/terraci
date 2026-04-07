@@ -3,7 +3,7 @@ package pr
 import (
 	gh "github.com/google/go-github/v68/github"
 
-	"github.com/edelwud/terraci/pkg/ciprovider"
+	"github.com/edelwud/terraci/pkg/ci"
 )
 
 func FindTerraCIComment(comments []*gh.IssueComment) *gh.IssueComment {
@@ -11,7 +11,7 @@ func FindTerraCIComment(comments []*gh.IssueComment) *gh.IssueComment {
 		if comment == nil || comment.Body == nil {
 			continue
 		}
-		if ciprovider.HasCommentMarker(*comment.Body) {
+		if ci.HasCommentMarker(*comment.Body) {
 			return comment
 		}
 	}

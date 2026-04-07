@@ -7,12 +7,12 @@ import (
 	gh "github.com/google/go-github/v68/github"
 
 	"github.com/edelwud/terraci/pkg/ci"
-	"github.com/edelwud/terraci/pkg/ciprovider/ciprovidertest"
+	"github.com/edelwud/terraci/pkg/ci/citest"
 	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
 )
 
 func TestService_IsEnabled(t *testing.T) {
-	ciprovidertest.RunEnabledCases(t, []ciprovidertest.EnabledCase[*Context, *configpkg.PRConfig]{
+	citest.RunEnabledCases(t, []citest.EnabledCase[*Context, *configpkg.PRConfig]{
 		{Name: "not in PR", Context: &Context{InPR: false}, HasToken: true, Expected: false},
 		{Name: "in PR without token", Context: &Context{InPR: true}, HasToken: false, Expected: false},
 		{Name: "in PR with token, default config", Context: &Context{InPR: true}, HasToken: true, Expected: true},
@@ -21,7 +21,7 @@ func TestService_IsEnabled(t *testing.T) {
 			Context:  &Context{InPR: true},
 			HasToken: true,
 			Config: &configpkg.PRConfig{
-				Comment: &configpkg.MRCommentConfig{Enabled: ciprovidertest.BoolPtr(false)},
+				Comment: &configpkg.MRCommentConfig{Enabled: citest.BoolPtr(false)},
 			},
 			Expected: false,
 		},
@@ -45,7 +45,7 @@ func TestService_UpsertComment_CreateNew(t *testing.T) {
 	if err := scenario.upsert(ci.CommentMarker + "\n\n## Test"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	ciprovidertest.AssertCreateOnly(t, scenario.client.createdBody, scenario.client.updatedBody)
+	citest.AssertCreateOnly(t, scenario.client.createdBody, scenario.client.updatedBody)
 }
 
 func TestService_UpsertComment_UpdateExisting(t *testing.T) {
@@ -56,7 +56,7 @@ func TestService_UpsertComment_UpdateExisting(t *testing.T) {
 	if err := scenario.upsert(ci.CommentMarker + "\n\n## Test"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	ciprovidertest.AssertUpdateOnly(t, scenario.client.createdBody, scenario.client.updatedBody, scenario.client.updatedCommentID, 42)
+	citest.AssertUpdateOnly(t, scenario.client.createdBody, scenario.client.updatedBody, scenario.client.updatedCommentID, 42)
 }
 
 func TestService_UpsertComment_ListError(t *testing.T) {

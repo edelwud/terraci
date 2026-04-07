@@ -7,12 +7,12 @@ import (
 	gitlab "gitlab.com/gitlab-org/api/client-go"
 
 	"github.com/edelwud/terraci/pkg/ci"
-	"github.com/edelwud/terraci/pkg/ciprovider/ciprovidertest"
+	"github.com/edelwud/terraci/pkg/ci/citest"
 	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
 )
 
 func TestMRService_IsEnabled(t *testing.T) {
-	ciprovidertest.RunEnabledCases(t, []ciprovidertest.EnabledCase[*Context, *configpkg.MRConfig]{
+	citest.RunEnabledCases(t, []citest.EnabledCase[*Context, *configpkg.MRConfig]{
 		{Name: "not in MR", Context: &Context{InMR: false}, HasToken: true, Expected: false},
 		{Name: "in MR without token", Context: &Context{InMR: true}, HasToken: false, Expected: false},
 		{Name: "in MR with token, default config", Context: &Context{InMR: true}, HasToken: true, Expected: true},
@@ -21,7 +21,7 @@ func TestMRService_IsEnabled(t *testing.T) {
 			Context:  &Context{InMR: true},
 			HasToken: true,
 			Config: &configpkg.MRConfig{
-				Comment: &configpkg.MRCommentConfig{Enabled: ciprovidertest.BoolPtr(false)},
+				Comment: &configpkg.MRCommentConfig{Enabled: citest.BoolPtr(false)},
 			},
 			Expected: false,
 		},
@@ -47,7 +47,7 @@ func TestMRService_UpsertComment_CreateNew(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	ciprovidertest.AssertCreateOnly(t, scenario.client.createdBody, scenario.client.updatedBody)
+	citest.AssertCreateOnly(t, scenario.client.createdBody, scenario.client.updatedBody)
 }
 
 func TestMRService_UpsertComment_UpdateExisting(t *testing.T) {
@@ -59,7 +59,7 @@ func TestMRService_UpsertComment_UpdateExisting(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	ciprovidertest.AssertUpdateOnly(t, scenario.client.createdBody, scenario.client.updatedBody, scenario.client.updatedNoteID, 42)
+	citest.AssertUpdateOnly(t, scenario.client.createdBody, scenario.client.updatedBody, scenario.client.updatedNoteID, 42)
 }
 
 func TestMRService_UpsertComment_GetNotesError(t *testing.T) {

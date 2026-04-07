@@ -1,10 +1,6 @@
-package ciprovider
+package ci
 
-import (
-	"testing"
-
-	"github.com/edelwud/terraci/pkg/ci"
-)
+import "testing"
 
 func TestCommentEnabled(t *testing.T) {
 	t.Run("nil config defaults true", func(t *testing.T) {
@@ -35,7 +31,7 @@ func TestCommentEnabled(t *testing.T) {
 }
 
 func TestHasCommentMarker(t *testing.T) {
-	if !HasCommentMarker("before " + ci.CommentMarker + " after") {
+	if !HasCommentMarker("before " + CommentMarker + " after") {
 		t.Fatal("expected marker to be detected")
 	}
 	if HasCommentMarker("plain body") {

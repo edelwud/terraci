@@ -62,9 +62,9 @@ func TestPluginCapabilities(t *testing.T) {
 	}
 
 	// CI provider plugins (gitlab + github) — must implement all CI interfaces
-	ciMetadata := registry.ByCapability[plugin.CIMetadata]()
-	if len(ciMetadata) < 2 {
-		t.Errorf("expected at least 2 CIMetadata providers (gitlab, github), got %d", len(ciMetadata))
+	ciProviders := registry.ByCapability[plugin.CIInfoProvider]()
+	if len(ciProviders) < 2 {
+		t.Errorf("expected at least 2 CIInfoProvider plugins (gitlab, github), got %d", len(ciProviders))
 	}
 
 	// Preflightable plugins
@@ -129,7 +129,7 @@ func TestProviderResolution(t *testing.T) {
 		}
 	}
 
-	provider, resolveErr := registry.ResolveProvider()
+	provider, resolveErr := registry.ResolveCIProvider()
 	if resolveErr != nil {
 		t.Fatalf("resolve provider: %v", resolveErr)
 	}

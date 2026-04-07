@@ -3,7 +3,7 @@ package generate
 import (
 	"testing"
 
-	"github.com/edelwud/terraci/pkg/ciprovider/ciprovidertest"
+	"github.com/edelwud/terraci/pkg/ci/citest"
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
@@ -207,7 +207,7 @@ func TestGenerator_DryRun(t *testing.T) {
 		}).
 		dryRun()
 
-	ciprovidertest.AssertDryRun(t, result, ciprovidertest.DryRunExpectation{
+	citest.AssertDryRun(t, result, citest.DryRunExpectation{
 		TotalModules:    2,
 		AffectedModules: 2,
 		Jobs:            4,

@@ -95,7 +95,7 @@ Examples:
 // initStateDefaults populates a StateMap with default values for the init wizard.
 // Shared between interactive (TUI) and non-interactive (--ci) paths.
 func initStateDefaults(state *initwiz.StateMap) {
-	providerPlugins := registry.ByCapability[plugin.CIMetadata]()
+	providerPlugins := registry.ByCapability[plugin.CIInfoProvider]()
 	if len(providerPlugins) > 0 {
 		state.Set("provider", providerPlugins[0].ProviderName())
 	}
@@ -121,7 +121,7 @@ func logGenerateHint(cfg *config.Config) {
 		}
 	}
 
-	resolved, _ := registry.ResolveProvider() //nolint:errcheck // best-effort fallback, non-critical
+	resolved, _ := registry.ResolveCIProvider() //nolint:errcheck // best-effort fallback, non-critical
 	if resolved != nil && resolved.ProviderName() == "github" {
 		log.Info("terraci generate -o .github/workflows/terraform.yml")
 	} else {

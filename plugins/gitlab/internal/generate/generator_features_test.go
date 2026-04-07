@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/edelwud/terraci/pkg/ciprovider/ciprovidertest"
+	"github.com/edelwud/terraci/pkg/ci/citest"
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/pipeline"
 )
@@ -28,7 +28,7 @@ func TestGenerator_Generate_WithMRIntegration(t *testing.T) {
 		discovery.TestModule("platform", "stage", "eu-central-1", "eks"),
 	}
 
-	depGraph := ciprovidertest.DependencyGraph(modules, map[string][]string{
+	depGraph := citest.DependencyGraph(modules, map[string][]string{
 		modules[0].ID(): {},
 		modules[1].ID(): {modules[0].ID()},
 	})
@@ -65,7 +65,7 @@ func TestGenerator_Generate_WithMRIntegration_Disabled(t *testing.T) {
 		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
 	}
 
-	depGraph := ciprovidertest.DependencyGraph(modules, map[string][]string{
+	depGraph := citest.DependencyGraph(modules, map[string][]string{
 		modules[0].ID(): {},
 	})
 
@@ -101,7 +101,7 @@ func TestGenerator_Generate_WithSecrets(t *testing.T) {
 	modules := []*discovery.Module{
 		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
 	}
-	depGraph := ciprovidertest.DependencyGraph(modules, map[string][]string{
+	depGraph := citest.DependencyGraph(modules, map[string][]string{
 		modules[0].ID(): {},
 	})
 
@@ -159,7 +159,7 @@ func TestGenerator_Generate_WithArtifacts(t *testing.T) {
 	modules := []*discovery.Module{
 		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
 	}
-	depGraph := ciprovidertest.DependencyGraph(modules, map[string][]string{
+	depGraph := citest.DependencyGraph(modules, map[string][]string{
 		modules[0].ID(): {},
 	})
 
@@ -214,7 +214,7 @@ func TestGenerator_Generate_WithPolicyCheck(t *testing.T) {
 	modules := []*discovery.Module{
 		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
 	}
-	depGraph := ciprovidertest.DependencyGraph(modules, map[string][]string{
+	depGraph := citest.DependencyGraph(modules, map[string][]string{
 		modules[0].ID(): {},
 	})
 

@@ -107,7 +107,7 @@ func applyProviderFlags(planOnly bool, cmd *cobra.Command) {
 	if !planOnly && !cmd.Flags().Changed("auto-approve") && !cmd.Flags().Changed("no-auto-approve") {
 		return
 	}
-	resolved, err := registry.ResolveProvider()
+	resolved, err := registry.ResolveCIProvider()
 	if err != nil {
 		log.WithError(err).Debug("cannot apply CLI flags: provider not resolved")
 		return
@@ -175,7 +175,7 @@ func logCycles(depGraph *graph.DependencyGraph) {
 // --- Pipeline generation ---
 
 func newPipelineGenerator(app *App, depGraph *graph.DependencyGraph, modules []*discovery.Module) (pipeline.Generator, error) {
-	provider, err := registry.ResolveProvider()
+	provider, err := registry.ResolveCIProvider()
 	if err != nil {
 		return nil, fmt.Errorf("resolve CI provider: %w", err)
 	}

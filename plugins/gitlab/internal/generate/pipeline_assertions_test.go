@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/edelwud/terraci/pkg/ciprovider/ciprovidertest"
+	"github.com/edelwud/terraci/pkg/ci/citest"
 )
 
 type pipelineAssert struct {
@@ -145,20 +145,20 @@ type jobAssert struct {
 
 func (a *jobAssert) hasNeed(name string) *jobAssert {
 	a.t.Helper()
-	ciprovidertest.AssertHasNeed(a.t, a.name, a.needNames(), name)
+	citest.AssertHasNeed(a.t, a.name, a.needNames(), name)
 	return a
 }
 
 func (a *jobAssert) noNeed(name string) *jobAssert {
 	a.t.Helper()
-	ciprovidertest.AssertNoNeed(a.t, a.name, a.needNames(), name)
+	citest.AssertNoNeed(a.t, a.name, a.needNames(), name)
 	return a
 }
 
 //nolint:unparam // Fluent assertion API keeps a consistent shape across helpers.
 func (a *jobAssert) noNeedWithPrefix(prefix string) *jobAssert {
 	a.t.Helper()
-	ciprovidertest.AssertNoNeedWithPrefix(a.t, a.name, a.needNames(), prefix)
+	citest.AssertNoNeedWithPrefix(a.t, a.name, a.needNames(), prefix)
 	return a
 }
 

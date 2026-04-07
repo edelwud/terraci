@@ -188,11 +188,11 @@ func TestGetNotFound(t *testing.T) {
 	}
 }
 
-func TestResolveProvider_NoPlugins(t *testing.T) {
+func TestResolveCIProvider_NoPlugins(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
 
-	_, err := ResolveProvider()
+	_, err := ResolveCIProvider()
 	if err == nil {
 		t.Fatal("expected error with no providers")
 	}
@@ -437,10 +437,10 @@ func TestResetPlugins_ResetsConfigState(t *testing.T) {
 	}
 }
 
-func TestCIProvider_Methods(t *testing.T) {
+func TestResolvedCIProvider_Methods(t *testing.T) {
 	tp := &testProviderPlugin{testPlugin: testPlugin{name: "test-ci", desc: "Test CI"}}
 
-	provider := plugin.NewCIProvider(tp, tp, tp, nil)
+	provider := plugin.NewResolvedCIProvider(tp, tp, tp, nil)
 
 	if provider.Name() != "test-ci" {
 		t.Errorf("Name() = %q, want test-ci", provider.Name())
@@ -508,16 +508,16 @@ func TestResolveProvider_SkipsDisabledEnvDetectedProvider(t *testing.T) {
 	enabled.SetTypedConfig(&testConfig{Enabled: true})
 	Register(enabled)
 
-	provider, err := ResolveProvider()
+	provider, err := ResolveCIProvider()
 	if err != nil {
-		t.Fatalf("ResolveProvider() error = %v", err)
+		t.Fatalf("ResolveCIProvider() error = %v", err)
 	}
 	if provider.ProviderName() != "gitlab" {
-		t.Fatalf("ResolveProvider() = %q, want gitlab", provider.ProviderName())
+		t.Fatalf("ResolveCIProvider() = %q, want gitlab", provider.ProviderName())
 	}
 }
 
-func TestResolveProvider_TERRACI_PROVIDERMustBeActive(t *testing.T) {
+func TestResolveCIProvider_TERRACI_PROVIDERMustBeActive(t *testing.T) {
 	t.Cleanup(func() {
 		Reset()
 		os.Unsetenv("TERRACI_PROVIDER")
@@ -539,8 +539,8 @@ func TestResolveProvider_TERRACI_PROVIDERMustBeActive(t *testing.T) {
 	disabled.SetTypedConfig(&testConfig{Enabled: false})
 	Register(disabled)
 
-	if _, err := ResolveProvider(); err == nil {
-		t.Fatal("ResolveProvider() should fail when TERRACI_PROVIDER points to disabled plugin")
+	if _, err := ResolveCIProvider(); err == nil {
+		t.Fatal("ResolveCIProvider() should fail when TERRACI_PROVIDER points to disabled plugin")
 	}
 }
 

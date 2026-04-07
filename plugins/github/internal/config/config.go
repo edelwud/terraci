@@ -1,9 +1,9 @@
 package config
 
-import "github.com/edelwud/terraci/pkg/ciprovider"
+import "github.com/edelwud/terraci/pkg/ci"
 
-type Image = ciprovider.Image
-type MRCommentConfig = ciprovider.MRCommentConfig
+type Image = ci.Image
+type MRCommentConfig = ci.MRCommentConfig
 
 // Config contains GitHub Actions specific settings.
 type Config struct {

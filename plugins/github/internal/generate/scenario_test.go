@@ -3,7 +3,7 @@ package generate
 import (
 	"testing"
 
-	"github.com/edelwud/terraci/pkg/ciprovider/ciprovidertest"
+	"github.com/edelwud/terraci/pkg/ci/citest"
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
@@ -11,7 +11,7 @@ import (
 )
 
 func createTestModule(service, env, region, module string) *discovery.Module {
-	return ciprovidertest.TestModule(service, env, region, module)
+	return citest.TestModule(service, env, region, module)
 }
 
 type testCfg struct {
@@ -71,7 +71,7 @@ func (s *generatorScenario) withDependencies(deps map[string][]string) *generato
 
 func (s *generatorScenario) generator() *Generator {
 	s.t.Helper()
-	depGraph := ciprovidertest.DependencyGraph(s.modules, s.dependencies)
+	depGraph := citest.DependencyGraph(s.modules, s.dependencies)
 	return NewGenerator(s.cfg.GitHub, s.cfg.Contributions, depGraph, s.modules)
 }
 

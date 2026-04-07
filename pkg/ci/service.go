@@ -1,5 +1,5 @@
-// Package ci provides shared CI/CD types and interfaces for provider-agnostic
-// plan result handling and PR/MR comment rendering.
+// Package ci defines TerraCI's CI-facing domain: persisted plan/report
+// artifacts, review-comment contracts, and provider-shared CI config types.
 package ci
 
 import "context"

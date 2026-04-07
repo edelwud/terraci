@@ -11,12 +11,12 @@ import (
 )
 
 // ciProviderPlugin is the minimum interface set for a CI provider plugin.
-// CommentFactory is optional — checked via type assertion in buildCIProvider.
+// CommentServiceFactory is optional — checked via type assertion in buildResolvedCIProvider.
 type ciProviderPlugin interface {
 	plugin.Plugin
 	plugin.EnvDetector
-	plugin.CIMetadata
-	plugin.GeneratorFactory
+	plugin.CIInfoProvider
+	plugin.PipelineGeneratorFactory
 }
 
 func activeCIProviders() []ciProviderPlugin {
@@ -30,9 +30,9 @@ func activeCIProviders() []ciProviderPlugin {
 	return active
 }
 
-// ResolveProvider detects the active CI provider.
+// ResolveCIProvider detects the active CI provider.
 // Priority: env detection → TERRACI_PROVIDER env → single registered → configured.
-func ResolveProvider() (*plugin.CIProvider, error) {
+func ResolveCIProvider() (*plugin.ResolvedCIProvider, error) {
 	candidates := activeCIProviders()
 	if len(candidates) == 0 {
 		return nil, errors.New("no active CI provider plugins registered")
@@ -41,7 +41,7 @@ func ResolveProvider() (*plugin.CIProvider, error) {
 	// Check env detection (CI environment variables)
 	for _, c := range candidates {
 		if c.DetectEnv() {
-			return buildCIProvider(c), nil
+			return buildResolvedCIProvider(c), nil
 		}
 	}
 
@@ -52,18 +52,18 @@ func ResolveProvider() (*plugin.CIProvider, error) {
 
 	// Single provider registered
 	if len(candidates) == 1 {
-		return buildCIProvider(candidates[0]), nil
+		return buildResolvedCIProvider(candidates[0]), nil
 	}
 
 	return nil, fmt.Errorf("cannot determine CI provider: multiple plugins registered (%s), set TERRACI_PROVIDER", providerNames(candidates))
 }
 
-func buildCIProvider(p ciProviderPlugin) *plugin.CIProvider {
-	var comment plugin.CommentFactory
-	if cf, ok := p.(plugin.CommentFactory); ok {
+func buildResolvedCIProvider(p ciProviderPlugin) *plugin.ResolvedCIProvider {
+	var comment plugin.CommentServiceFactory
+	if cf, ok := p.(plugin.CommentServiceFactory); ok {
 		comment = cf
 	}
-	return plugin.NewCIProvider(p, p, p, comment)
+	return plugin.NewResolvedCIProvider(p, p, p, comment)
 }
 
 // ResolveChangeDetector returns the active ChangeDetectionProvider.
@@ -96,10 +96,10 @@ func detectorNames(detectors []plugin.ChangeDetectionProvider) string {
 	return sb.String()
 }
 
-func findProvider(candidates []ciProviderPlugin, name string) (*plugin.CIProvider, error) {
+func findProvider(candidates []ciProviderPlugin, name string) (*plugin.ResolvedCIProvider, error) {
 	for _, c := range candidates {
 		if c.ProviderName() == name {
-			return buildCIProvider(c), nil
+			return buildResolvedCIProvider(c), nil
 		}
 	}
 	return nil, fmt.Errorf("provider %q not found (available: %s)", name, providerNames(candidates))

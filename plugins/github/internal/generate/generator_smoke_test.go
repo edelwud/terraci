@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/edelwud/terraci/pkg/ciprovider/ciprovidertest"
+	"github.com/edelwud/terraci/pkg/ci/citest"
 	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
 )
 
@@ -186,7 +186,7 @@ func TestDryRun(t *testing.T) {
 		}).
 		dryRun()
 
-	ciprovidertest.AssertDryRun(t, result, ciprovidertest.DryRunExpectation{
+	citest.AssertDryRun(t, result, citest.DryRunExpectation{
 		TotalModules:    2,
 		AffectedModules: 2,
 		Jobs:            4,
