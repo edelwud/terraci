@@ -5,10 +5,11 @@ import (
 
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
+	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
-func TestDynamoDBHandler_CalculateCost(t *testing.T) {
+func TestDynamoDBHandler_CalculateUsageCost(t *testing.T) {
 	t.Parallel()
 
 	h := &DynamoDBHandler{}
@@ -47,26 +48,32 @@ func TestDynamoDBHandler_CalculateCost(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			hourly, monthly := h.CalculateCost(nil, nil, "", tt.attrs)
+			got := h.CalculateUsageCost("", tt.attrs)
 
 			if tt.expectNonZero {
-				if hourly == 0 {
+				if got.HourlyCost == 0 {
 					t.Error("hourly should be non-zero")
 				}
-				if monthly == 0 {
+				if got.MonthlyCost == 0 {
 					t.Error("monthly should be non-zero")
 				}
 
 				// Verify monthly = hourly * HoursPerMonth relationship holds
-				if monthly != hourly*handler.HoursPerMonth {
-					t.Errorf("monthly (%v) should equal hourly*HoursPerMonth (%v)", monthly, hourly*handler.HoursPerMonth)
+				if got.MonthlyCost != got.HourlyCost*handler.HoursPerMonth {
+					t.Errorf("monthly (%v) should equal hourly*HoursPerMonth (%v)", got.MonthlyCost, got.HourlyCost*handler.HoursPerMonth)
+				}
+				if got.Status != model.ResourceEstimateStatusUsageEstimated {
+					t.Errorf("status = %q, want %q", got.Status, model.ResourceEstimateStatusUsageEstimated)
 				}
 			} else {
-				if hourly != tt.wantHourly {
-					t.Errorf("hourly = %v, want %v", hourly, tt.wantHourly)
+				if got.HourlyCost != tt.wantHourly {
+					t.Errorf("hourly = %v, want %v", got.HourlyCost, tt.wantHourly)
 				}
-				if monthly != tt.wantMonthly {
-					t.Errorf("monthly = %v, want %v", monthly, tt.wantMonthly)
+				if got.MonthlyCost != tt.wantMonthly {
+					t.Errorf("monthly = %v, want %v", got.MonthlyCost, tt.wantMonthly)
+				}
+				if got.Status != model.ResourceEstimateStatusUsageUnknown {
+					t.Errorf("status = %q, want %q", got.Status, model.ResourceEstimateStatusUsageUnknown)
 				}
 			}
 		})

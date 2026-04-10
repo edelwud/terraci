@@ -3,6 +3,7 @@ package serverless
 import (
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
@@ -58,7 +59,7 @@ func (h *LambdaHandler) BuildLookup(region string, _ map[string]any) (*pricing.P
 	).Build(region, nil)
 }
 
-func (h *LambdaHandler) CalculateCost(_ *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
+func (h *LambdaHandler) CalculateUsageCost(_ string, attrs map[string]any) model.UsageCostEstimate {
 	parsed := parseLambdaAttrs(attrs)
 	// Lambda has complex pricing: requests + GB-seconds
 	// For fixed cost, return 0 as it's usage-based
@@ -71,7 +72,13 @@ func (h *LambdaHandler) CalculateCost(_ *pricing.Price, _ *pricing.PriceIndex, _
 		// Provisioned concurrency: $0.000004646 per GB-second
 		gbSeconds := float64(parsed.ProvisionedConcurrency) * (float64(memoryMB) / LambdaMemoryDivisor) * SecondsPerHour
 		rate := gbSeconds * LambdaProvisionedConcurrencyCostPerGBSecond
-		return handler.HourlyCost(rate)
+		hourly, monthly := handler.HourlyCost(rate)
+		return model.UsageCostEstimate{
+			HourlyCost:  hourly,
+			MonthlyCost: monthly,
+			Status:      model.ResourceEstimateStatusUsageEstimated,
+			Detail:      "usage-based estimate derived from provisioned concurrency",
+		}
 	}
-	return 0, 0 // Usage-based, no fixed cost
+	return model.UsageCostEstimate{Status: model.ResourceEstimateStatusUsageUnknown}
 }

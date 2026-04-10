@@ -14,11 +14,11 @@ func TestSecretsManagerHandler_Category(t *testing.T) {
 	handlertest.AssertCategory(t, h, handler.CostCategoryFixed)
 }
 
-func TestSecretsManagerHandler_CalculateCost(t *testing.T) {
+func TestSecretsManagerHandler_CalculateFixedCost(t *testing.T) {
 	t.Parallel()
 
 	h := &SecretsManagerHandler{}
-	_, monthly := h.CalculateCost(nil, nil, "", nil)
+	_, monthly := h.CalculateFixedCost("", nil)
 
 	if monthly != SecretsManagerSecretCost {
 		t.Errorf("monthly = %v, want %v", monthly, SecretsManagerSecretCost)

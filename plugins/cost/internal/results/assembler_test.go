@@ -31,7 +31,11 @@ func TestAggregateCost(t *testing.T) {
 			t.Parallel()
 
 			module := &model.ModuleCost{}
-			rc := model.ResourceCost{MonthlyCost: tt.cost, BeforeMonthlyCost: tt.cost}
+			rc := model.ResourceCost{
+				MonthlyCost:       tt.cost,
+				BeforeMonthlyCost: tt.cost,
+				Status:            model.ResourceEstimateStatusExact,
+			}
 			results.AggregateCost(module, rc, tt.action)
 
 			if module.BeforeCost != tt.wantBefore {
@@ -48,7 +52,7 @@ func TestAggregateCost_UnsupportedAndUsageBased(t *testing.T) {
 	t.Parallel()
 
 	module := &model.ModuleCost{}
-	results.AggregateCost(module, model.ResourceCost{MonthlyCost: 100, ErrorKind: model.CostErrorNoHandler}, model.ActionCreate)
+	results.AggregateCost(module, model.ResourceCost{MonthlyCost: 100, Status: model.ResourceEstimateStatusUnsupported}, model.ActionCreate)
 	if module.AfterCost != 0 {
 		t.Fatalf("AfterCost = %.2f, want 0", module.AfterCost)
 	}
@@ -56,9 +60,12 @@ func TestAggregateCost_UnsupportedAndUsageBased(t *testing.T) {
 		t.Fatalf("Unsupported = %d, want 1", module.Unsupported)
 	}
 
-	results.AggregateCost(module, model.ResourceCost{ErrorKind: model.CostErrorUsageBased}, model.ActionCreate)
+	results.AggregateCost(module, model.ResourceCost{Status: model.ResourceEstimateStatusUsageUnknown}, model.ActionCreate)
 	if module.Unsupported != 1 {
 		t.Fatalf("Unsupported after usage-based = %d, want 1", module.Unsupported)
+	}
+	if module.UsageUnknown != 1 {
+		t.Fatalf("UsageUnknown = %d, want 1", module.UsageUnknown)
 	}
 }
 

@@ -38,7 +38,7 @@ func NewProviderRuntimeRegistryFromProviders(
 	providers []cloud.Provider,
 	cache *blobcache.Cache,
 	fetchers map[string]pricing.PriceFetcher,
-) *ProviderRuntimeRegistry {
+) (*ProviderRuntimeRegistry, error) {
 	runtimes := make(map[string]*ProviderRuntime, len(providers))
 	for _, cp := range providers {
 		def := cp.Definition()
@@ -46,8 +46,10 @@ func NewProviderRuntimeRegistryFromProviders(
 		if fetcher := fetchers[def.Manifest.ID]; fetcher != nil {
 			runtimeFetcher = fetcher
 		}
-		c := pricing.NewCacheFromBlobCache(cache)
-		c.SetFetcher(runtimeFetcher)
+		c, err := pricing.NewCacheFromBlobCache(cache, runtimeFetcher)
+		if err != nil {
+			return nil, fmt.Errorf("create pricing cache for provider %q: %w", def.Manifest.ID, err)
+		}
 		runtimes[def.Manifest.ID] = &ProviderRuntime{
 			Definition: def,
 			Cache:      c,
@@ -57,7 +59,7 @@ func NewProviderRuntimeRegistryFromProviders(
 		runtimes: runtimes,
 		cache:    cache,
 		inspect:  pricing.NewCacheInspector(cache),
-	}
+	}, nil
 }
 
 func (r *ProviderRuntimeRegistry) getRuntime(providerID string) (*ProviderRuntime, bool) {
@@ -89,16 +91,6 @@ func (r *ProviderRuntimeRegistry) CacheDir() string {
 		return ""
 	}
 	return r.inspect.Dir()
-}
-
-// SetFetcherForProvider replaces the pricing fetcher for a specific provider.
-// Intended for tests only: inject a stub fetcher without building a full runtime.
-// Silent no-op if providerID is not registered (multi-provider setups must call
-// this for each registered provider separately).
-func (r *ProviderRuntimeRegistry) SetFetcherForProvider(providerID string, f pricing.PriceFetcher) {
-	if rt, ok := r.runtimes[providerID]; ok {
-		rt.Cache.SetFetcher(f)
-	}
 }
 
 // WarmIndexes downloads any missing pricing data for the given service/region requirements.

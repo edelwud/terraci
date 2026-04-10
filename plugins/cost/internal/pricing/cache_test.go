@@ -32,9 +32,9 @@ func newTestCache(store *diskblob.Store, ttl time.Duration, fetcher PriceFetcher
 	if ttl == 0 {
 		ttl = model.DefaultCacheTTL
 	}
-	c := NewCacheFromBlobCache(blobcache.New(store, "", ttl))
-	if fetcher != nil {
-		c.SetFetcher(fetcher)
+	c, err := NewCacheFromBlobCache(blobcache.New(store, "", ttl), fetcher)
+	if err != nil {
+		panic(err)
 	}
 	return c
 }
@@ -46,7 +46,7 @@ func TestNewCache_Defaults(t *testing.T) {
 	if c.blobs == nil {
 		t.Fatal("expected blob cache to be initialized")
 	}
-	if c.fetcher.Load() == nil {
+	if c.fetcher == nil {
 		t.Error("expected fetcher to be non-nil")
 	}
 }
@@ -337,17 +337,11 @@ func TestGetIndex_FetchError(t *testing.T) {
 	}
 }
 
-func TestCache_SetFetcher(t *testing.T) {
-	c := newTestCache(diskblob.NewStore(t.TempDir()), 2*time.Hour, &stubFetcher{})
-
-	t.Run("SetFetcher", func(t *testing.T) {
-		f := &stubFetcher{}
-		c.SetFetcher(f)
-		loaded := c.fetcher.Load()
-		if loaded == nil || *loaded != PriceFetcher(f) {
-			t.Error("SetFetcher did not set fetcher")
-		}
-	})
+func TestNewCacheFromBlobCache_RequiresFetcher(t *testing.T) {
+	_, err := NewCacheFromBlobCache(blobcache.New(diskblob.NewStore(t.TempDir()), "", time.Hour), nil)
+	if !errors.Is(err, ErrFetcherNotConfigured) {
+		t.Fatalf("NewCacheFromBlobCache() error = %v, want %v", err, ErrFetcherNotConfigured)
+	}
 }
 
 func TestGetIndex_StaleFallback(t *testing.T) {
@@ -373,7 +367,7 @@ func TestGetIndex_StaleFallback(t *testing.T) {
 	}
 
 	// Replace fetcher with one that fails — should fall back to stale cache
-	c.SetFetcher(&fakeFetcher{err: fmt.Errorf("network unreachable")})
+	c = newTestCache(diskblob.NewStore(tmpDir), ttl, &fakeFetcher{err: fmt.Errorf("network unreachable")})
 
 	got, err := c.GetIndex(context.Background(), awsServiceEC2, "us-east-1")
 	if err != nil {
@@ -518,5 +512,40 @@ func TestGetIndex_FetchError_NoStaleCache(t *testing.T) {
 	_, err := c.GetIndex(context.Background(), awsServiceEC2, "us-east-1")
 	if err == nil {
 		t.Error("expected error when fetch fails and no stale cache exists")
+	}
+}
+
+func TestLoadFromCache_ReturnsExpiredError(t *testing.T) {
+	c := newTestCache(diskblob.NewStore(t.TempDir()), time.Hour, &stubFetcher{})
+	idx := &PriceIndex{
+		ServiceID: awsServiceEC2,
+		Region:    "us-east-1",
+		Version:   "v1",
+		UpdatedAt: time.Now().Add(-48 * time.Hour),
+		Products: map[string]Price{
+			"sku": {SKU: "sku", OnDemandUSD: 0.01},
+		},
+	}
+	if err := c.saveToCache(context.Background(), idx); err != nil {
+		t.Fatalf("saveToCache() error = %v", err)
+	}
+
+	_, err := c.loadFromCache(context.Background(), awsServiceEC2, "us-east-1")
+	if !errors.Is(err, ErrCacheEntryExpired) {
+		t.Fatalf("loadFromCache() error = %v, want %v", err, ErrCacheEntryExpired)
+	}
+}
+
+func TestLoadCachedRaw_ReturnsInvalidEntryError(t *testing.T) {
+	store := diskblob.NewStore(t.TempDir())
+	c := newTestCache(store, time.Hour, &stubFetcher{})
+	cache := blobcache.New(store, "", time.Hour)
+	if _, err := cache.Put(context.Background(), c.cacheKey(awsServiceEC2, "us-east-1"), []byte(`{"service_id":{"provider":"aws"}}`), blobcache.PutOptions{}); err != nil {
+		t.Fatalf("cache.Put() error = %v", err)
+	}
+
+	_, err := c.loadCachedRaw(context.Background(), awsServiceEC2, "us-east-1")
+	if !errors.Is(err, ErrInvalidCacheEntry) {
+		t.Fatalf("loadCachedRaw() error = %v, want %v", err, ErrInvalidCacheEntry)
 	}
 }

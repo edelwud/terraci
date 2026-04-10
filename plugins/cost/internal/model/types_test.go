@@ -1,6 +1,7 @@
 package model_test
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
@@ -100,24 +101,92 @@ func TestResourceCost_IsUnsupported(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		kind model.CostErrorKind
-		want bool
+		status model.ResourceEstimateStatus
+		want   bool
 	}{
-		{model.CostErrorNone, false},
-		{model.CostErrorUsageBased, false},
-		{model.CostErrorNoHandler, true},
-		{model.CostErrorLookupFailed, true},
-		{model.CostErrorAPIFailure, true},
-		{model.CostErrorNoPrice, true},
-		{model.CostErrorInternal, true},
+		{model.ResourceEstimateStatusExact, false},
+		{model.ResourceEstimateStatusUsageEstimated, false},
+		{model.ResourceEstimateStatusUsageUnknown, false},
+		{model.ResourceEstimateStatusUnsupported, true},
+		{model.ResourceEstimateStatusFailed, false},
 	}
 
 	for _, tt := range tests {
-		t.Run(string(tt.kind), func(t *testing.T) {
+		t.Run(string(tt.status), func(t *testing.T) {
 			t.Parallel()
-			rc := model.ResourceCost{ErrorKind: tt.kind}
+			rc := model.ResourceCost{Status: tt.status}
 			if rc.IsUnsupported() != tt.want {
-				t.Errorf("IsUnsupported(%q) = %v, want %v", tt.kind, rc.IsUnsupported(), tt.want)
+				t.Errorf("IsUnsupported(%q) = %v, want %v", tt.status, rc.IsUnsupported(), tt.want)
+			}
+		})
+	}
+}
+
+func TestResourceCost_IsUsageBased(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		rc   model.ResourceCost
+		want bool
+	}{
+		{
+			name: "exact priced resource",
+			rc:   model.ResourceCost{Status: model.ResourceEstimateStatusExact},
+			want: false,
+		},
+		{
+			name: "usage estimated",
+			rc: model.ResourceCost{
+				Status: model.ResourceEstimateStatusUsageEstimated,
+			},
+			want: true,
+		},
+		{
+			name: "usage unknown",
+			rc: model.ResourceCost{
+				Status: model.ResourceEstimateStatusUsageUnknown,
+			},
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := tt.rc.IsUsageBased(); got != tt.want {
+				t.Fatalf("IsUsageBased() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestResourceCost_IsFailedAndContributesAfterCost(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		status          model.ResourceEstimateStatus
+		wantFailed      bool
+		wantContributes bool
+	}{
+		{"exact", model.ResourceEstimateStatusExact, false, true},
+		{"usage estimated", model.ResourceEstimateStatusUsageEstimated, false, true},
+		{"usage unknown", model.ResourceEstimateStatusUsageUnknown, false, false},
+		{"unsupported", model.ResourceEstimateStatusUnsupported, false, false},
+		{"failed", model.ResourceEstimateStatusFailed, true, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			rc := model.ResourceCost{Status: tt.status}
+			if got := rc.IsFailed(); got != tt.wantFailed {
+				t.Fatalf("IsFailed() = %v, want %v", got, tt.wantFailed)
+			}
+			if got := rc.ContributesAfterCost(); got != tt.wantContributes {
+				t.Fatalf("ContributesAfterCost() = %v, want %v", got, tt.wantContributes)
 			}
 		})
 	}
@@ -139,5 +208,42 @@ func TestSubmoduleCost_TotalCost(t *testing.T) {
 	leaf := model.SubmoduleCost{MonthlyCost: 42}
 	if leaf.TotalCost() != 42 {
 		t.Errorf("TotalCost() leaf = %v, want 42", leaf.TotalCost())
+	}
+}
+
+func TestResourceCost_JSONShape(t *testing.T) {
+	t.Parallel()
+
+	rc := model.ResourceCost{
+		Address:      "aws_lambda_function.worker",
+		Type:         "aws_lambda_function",
+		Region:       "us-east-1",
+		MonthlyCost:  12.04,
+		PriceSource:  "usage-based",
+		Status:       model.ResourceEstimateStatusUsageEstimated,
+		StatusDetail: "usage-based estimate derived from provisioned concurrency",
+	}
+
+	data, err := json.Marshal(rc)
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+
+	if got["status"] != string(model.ResourceEstimateStatusUsageEstimated) {
+		t.Fatalf("status = %#v, want %q", got["status"], model.ResourceEstimateStatusUsageEstimated)
+	}
+	if got["status_detail"] != "usage-based estimate derived from provisioned concurrency" {
+		t.Fatalf("status_detail = %#v, want detail", got["status_detail"])
+	}
+	if _, ok := got["error_kind"]; ok {
+		t.Fatalf("unexpected legacy field error_kind in JSON: %s", data)
+	}
+	if _, ok := got["estimate_kind"]; ok {
+		t.Fatalf("unexpected legacy field estimate_kind in JSON: %s", data)
 	}
 }

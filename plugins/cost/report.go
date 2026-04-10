@@ -30,12 +30,18 @@ func buildCostReport(result *model.EstimateResult) *ci.Report {
 		}
 		modules = append(modules, moduleReport)
 	}
+	if len(result.PrefetchWarnings) > 0 {
+		status = ci.ReportStatusWarn
+	}
+	if result.UsageUnknown > 0 || result.Unsupported > 0 {
+		status = ci.ReportStatusWarn
+	}
 
 	return &ci.Report{
 		Plugin:  pluginName,
 		Title:   "Cost Estimation",
 		Status:  status,
-		Summary: fmt.Sprintf("%d modules, total: $%.2f/mo (diff: %+.2f)", len(visible), result.TotalAfter, result.TotalDiff),
+		Summary: buildCostReportSummary(result, len(visible)),
 		Body:    renderCostReportBody(result, visible),
 		Modules: modules,
 	}
@@ -65,7 +71,46 @@ func renderCostReportBody(result *model.EstimateResult, visible []model.ModuleCo
 	}
 
 	fmt.Fprintf(&b, "\n**Total:** $%.2f/mo (diff: %+.2f)\n", result.TotalAfter, result.TotalDiff)
+	if result.UsageEstimated > 0 || result.UsageUnknown > 0 || result.Unsupported > 0 {
+		b.WriteString("\n**Resource statuses:**\n")
+		if result.UsageEstimated > 0 {
+			fmt.Fprintf(&b, "- usage estimated: %d\n", result.UsageEstimated)
+		}
+		if result.UsageUnknown > 0 {
+			fmt.Fprintf(&b, "- usage unknown: %d\n", result.UsageUnknown)
+		}
+		if result.Unsupported > 0 {
+			fmt.Fprintf(&b, "- unsupported: %d\n", result.Unsupported)
+		}
+	}
+	if len(result.PrefetchWarnings) > 0 {
+		b.WriteString("\n**Prefetch warnings:**\n")
+		for i := range result.PrefetchWarnings {
+			w := result.PrefetchWarnings[i]
+			fmt.Fprintf(&b, "- `%s` `%s` %s", escapeMarkdownTableCell(w.Kind), escapeMarkdownTableCell(w.ResourceType), escapeMarkdownTableCell(w.Address))
+			if w.Detail != "" {
+				fmt.Fprintf(&b, " (%s)", escapeMarkdownTableCell(w.Detail))
+			}
+			b.WriteString("\n")
+		}
+	}
 	return b.String()
+}
+
+func buildCostReportSummary(result *model.EstimateResult, moduleCount int) string {
+	parts := []string{
+		fmt.Sprintf("%d modules, total: $%.2f/mo (diff: %+.2f)", moduleCount, result.TotalAfter, result.TotalDiff),
+	}
+	if result.UsageEstimated > 0 {
+		parts = append(parts, fmt.Sprintf("usage estimated: %d", result.UsageEstimated))
+	}
+	if result.UsageUnknown > 0 {
+		parts = append(parts, fmt.Sprintf("usage unknown: %d", result.UsageUnknown))
+	}
+	if result.Unsupported > 0 {
+		parts = append(parts, fmt.Sprintf("unsupported: %d", result.Unsupported))
+	}
+	return strings.Join(parts, "; ")
 }
 
 func escapeMarkdownTableCell(s string) string {

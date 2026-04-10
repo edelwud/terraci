@@ -21,7 +21,7 @@ func (h *Route53Handler) BuildLookup(_ string, _ map[string]any) (*pricing.Price
 
 func (h *Route53Handler) Describe(_ *pricing.Price, _ map[string]any) map[string]string { return nil }
 
-func (h *Route53Handler) CalculateCost(_ *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
+func (h *Route53Handler) CalculateFixedCost(_ string, _ map[string]any) (hourly, monthly float64) {
 	// Route53: $0.50 per hosted zone per month (first 25 zones)
 	return handler.FixedMonthlyCost(Route53HostedZoneCost)
 }

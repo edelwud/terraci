@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/caarlos0/log"
@@ -21,22 +20,30 @@ type PriceFetcher interface {
 	FetchRegionIndex(ctx context.Context, service ServiceID, region string) (*PriceIndex, error)
 }
 
+var (
+	ErrFetcherNotConfigured = errors.New("pricing fetcher not configured")
+	ErrCacheEntryExpired    = errors.New("pricing cache entry expired")
+	ErrInvalidCacheEntry    = errors.New("invalid pricing cache entry")
+)
+
 // Cache manages pricing data over a pluggable blob store.
 // Safe for concurrent use.
 type Cache struct {
 	blobs        *blobcache.Cache
-	fetcher      atomic.Pointer[PriceFetcher]
+	fetcher      PriceFetcher
 	fetchFlights singleflight.Group
 }
 
 // NewCacheFromBlobCache creates a new pricing cache over a prepared blob cache.
-// Call SetFetcher before calling GetIndex.
-func NewCacheFromBlobCache(blobs *blobcache.Cache) *Cache {
-	return &Cache{blobs: blobs}
+func NewCacheFromBlobCache(blobs *blobcache.Cache, fetcher PriceFetcher) (*Cache, error) {
+	if fetcher == nil {
+		return nil, ErrFetcherNotConfigured
+	}
+	return &Cache{
+		blobs:   blobs,
+		fetcher: fetcher,
+	}, nil
 }
-
-// SetFetcher replaces the fetcher. Safe for concurrent use.
-func (c *Cache) SetFetcher(f PriceFetcher) { c.fetcher.Store(&f) }
 
 // GetIndex returns a pricing index for a service/region, using cache if valid.
 func (c *Cache) GetIndex(ctx context.Context, service ServiceID, region string) (*PriceIndex, error) {
@@ -121,16 +128,15 @@ func (c *Cache) fetchAndCacheIndexLeader(ctx context.Context, service ServiceID,
 		return idx, nil
 	}
 
-	fp := c.fetcher.Load()
-	if fp == nil {
-		return nil, fmt.Errorf("pricing: no fetcher configured for %s/%s", service, region)
+	if c.fetcher == nil {
+		return nil, fmt.Errorf("%w for %s/%s", ErrFetcherNotConfigured, service, region)
 	}
 
 	log.WithField("service", service.String()).
 		WithField("region", region).
 		Info("downloading pricing data")
 
-	idx, err := (*fp).FetchRegionIndex(ctx, service, region)
+	idx, err := c.fetcher.FetchRegionIndex(ctx, service, region)
 	if err != nil {
 		if stale, loadErr := c.loadCachedRaw(ctx, service, region); loadErr == nil && stale != nil {
 			log.WithError(err).
@@ -169,7 +175,7 @@ func (c *Cache) loadFromCache(ctx context.Context, service ServiceID, region str
 		return nil, err
 	}
 	if !c.isFresh(idx) {
-		return nil, errors.New("cache entry expired")
+		return nil, ErrCacheEntryExpired
 	}
 	return idx, nil
 }
@@ -194,7 +200,7 @@ func (c *Cache) loadCachedRaw(ctx context.Context, service ServiceID, region str
 		return nil, err
 	}
 	if !idx.isComplete() {
-		return nil, errors.New("invalid cache entry: missing required fields")
+		return nil, fmt.Errorf("%w: missing required fields", ErrInvalidCacheEntry)
 	}
 
 	return &idx, nil

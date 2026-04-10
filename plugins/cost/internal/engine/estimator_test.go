@@ -67,8 +67,8 @@ func TestEstimateModule_CreateAction(t *testing.T) {
 	if rc.PriceSource != "aws-bulk-api" {
 		t.Errorf("PriceSource = %q, want aws-bulk-api", rc.PriceSource)
 	}
-	if rc.ErrorKind != model.CostErrorNone {
-		t.Errorf("ErrorKind = %q, want empty", rc.ErrorKind)
+	if rc.Status != model.ResourceEstimateStatusExact {
+		t.Errorf("Status = %q, want %q", rc.Status, model.ResourceEstimateStatusExact)
 	}
 
 	rootVol := enginetest.FindResource(result.Resources, "aws_instance.web/root_volume")
@@ -161,7 +161,7 @@ func TestEstimateModule_UnsupportedResource(t *testing.T) {
 		t.Fatalf("EstimateModule: %v", err)
 	}
 
-	rc := enginetest.AssertUnsupportedResource(t, result.Resources, "aws_cloudfront_distribution.main", "", model.CostErrorNoProvider)
+	rc := enginetest.AssertUnsupportedResource(t, result.Resources, "aws_cloudfront_distribution.main", "", model.FailureKindNoProvider)
 	if rc.MonthlyCost != 0 {
 		t.Errorf("MonthlyCost = %.4f, want 0 for unsupported", rc.MonthlyCost)
 	}
@@ -188,13 +188,16 @@ func TestEstimateModule_KnownProviderMissingHandler(t *testing.T) {
 	}
 
 	def := awsProvider.Definition()
+	cache, err := pricing.NewCacheFromBlobCache(blobcache.New(diskblob.NewStore(cacheDir), "", 0), fetcher)
+	if err != nil {
+		t.Fatalf("NewCacheFromBlobCache: %v", err)
+	}
 	runtimes := map[string]*costruntime.ProviderRuntime{
 		"aws": {
 			Definition: def,
-			Cache:      pricing.NewCacheFromBlobCache(blobcache.New(diskblob.NewStore(cacheDir), "", 0)),
+			Cache:      cache,
 		},
 	}
-	runtimes["aws"].Cache.SetFetcher(fetcher)
 	catalog := costruntime.NewProviderCatalog(router, registry, map[string]model.ProviderMetadata{
 		"aws": {
 			DisplayName: def.Manifest.DisplayName,
@@ -202,7 +205,10 @@ func TestEstimateModule_KnownProviderMissingHandler(t *testing.T) {
 		},
 	})
 	runtimeRegistry := costruntime.NewProviderRuntimeRegistry(runtimes)
-	e := engine.NewEstimatorWithDeps(catalog, runtimeRegistry)
+	e, err := engine.NewEstimatorWithDeps(catalog, runtimeRegistry)
+	if err != nil {
+		t.Fatalf("NewEstimatorWithDeps: %v", err)
+	}
 	dir := filepath.Join(t.TempDir(), "mod")
 	enginetest.WritePlan(t, dir, enginetest.LoadPlanFixture(t, "unsupported_resource"))
 
@@ -211,9 +217,9 @@ func TestEstimateModule_KnownProviderMissingHandler(t *testing.T) {
 		t.Fatalf("EstimateModule: %v", err)
 	}
 
-	rc := enginetest.AssertUnsupportedResource(t, result.Resources, "aws_cloudfront_distribution.main", "aws", model.CostErrorNoHandler)
-	if rc.ErrorDetail != "no handler" {
-		t.Errorf("ErrorDetail = %q, want %q", rc.ErrorDetail, "no handler")
+	rc := enginetest.AssertUnsupportedResource(t, result.Resources, "aws_cloudfront_distribution.main", "aws", model.FailureKindNoHandler)
+	if rc.StatusDetail != "no handler" {
+		t.Errorf("StatusDetail = %q, want %q", rc.StatusDetail, "no handler")
 	}
 	if result.Unsupported != 1 {
 		t.Errorf("Unsupported = %d, want 1", result.Unsupported)
@@ -230,7 +236,7 @@ func TestEstimateModule_UsageBasedResource(t *testing.T) {
 		t.Fatalf("EstimateModule: %v", err)
 	}
 
-	enginetest.AssertUsageBasedResource(t, result.Resources, "aws_sqs_queue.main")
+	enginetest.AssertUsageBasedUnknownResource(t, result.Resources, "aws_sqs_queue.main")
 	// Usage-based should NOT increment Unsupported counter
 	if result.Unsupported != 0 {
 		t.Errorf("Unsupported = %d, want 0 (usage-based is not unsupported)", result.Unsupported)
@@ -641,7 +647,11 @@ func TestAggregateCost(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := &model.ModuleCost{}
-			rc := model.ResourceCost{MonthlyCost: tt.cost, BeforeMonthlyCost: tt.cost}
+			rc := model.ResourceCost{
+				MonthlyCost:       tt.cost,
+				BeforeMonthlyCost: tt.cost,
+				Status:            model.ResourceEstimateStatusExact,
+			}
 			results.AggregateCost(result, rc, tt.action)
 
 			enginetest.AssertCostNear(t, "BeforeCost", result.BeforeCost, tt.wantBefore, 0.001)
@@ -654,7 +664,7 @@ func TestAggregateCost_UnsupportedNotCounted(t *testing.T) {
 	result := &model.ModuleCost{}
 	rc := model.ResourceCost{
 		MonthlyCost: 100,
-		ErrorKind:   model.CostErrorNoHandler,
+		Status:      model.ResourceEstimateStatusUnsupported,
 	}
 	results.AggregateCost(result, rc, model.ActionCreate)
 
@@ -663,5 +673,16 @@ func TestAggregateCost_UnsupportedNotCounted(t *testing.T) {
 	}
 	if result.Unsupported != 1 {
 		t.Errorf("Unsupported = %d, want 1", result.Unsupported)
+	}
+}
+
+func TestNewEstimatorWithDeps_RejectsNilDependencies(t *testing.T) {
+	if _, err := engine.NewEstimatorWithDeps(nil, nil); err == nil {
+		t.Fatal("NewEstimatorWithDeps() should reject nil dependencies")
+	}
+
+	catalog := costruntime.NewProviderCatalog(costruntime.NewResourceProviderRouter(), handler.NewRegistry(), nil)
+	if _, err := engine.NewEstimatorWithDeps(catalog, nil); err == nil {
+		t.Fatal("NewEstimatorWithDeps() should reject nil runtime registry")
 	}
 }

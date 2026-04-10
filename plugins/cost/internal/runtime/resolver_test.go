@@ -11,19 +11,31 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/runtimetest"
 )
 
+func mustNewResolver(t testing.TB, runtime runtimetest.StubRuntime) *CostResolver {
+	t.Helper()
+	resolver, err := NewCostResolver(runtime, runtime)
+	if err != nil {
+		t.Fatalf("NewCostResolver() error = %v", err)
+	}
+	return resolver
+}
+
 func TestCostResolver_ResolveNoProvider(t *testing.T) {
 	t.Parallel()
 
 	testRuntime := runtimetest.StubRuntime{}
 	runtimetest.AssertNoProviderContract(t, testRuntime, handler.ResourceType("unknown_resource"))
-	resolver := NewCostResolver(testRuntime)
+	resolver := mustNewResolver(t, testRuntime)
 	got := resolver.Resolve(context.Background(), ResolveRequest{
 		ResourceType: handler.ResourceType("unknown_resource"),
 		Address:      "unknown_resource.example",
 	})
 
-	if got.ErrorKind != model.CostErrorNoProvider {
-		t.Fatalf("ErrorKind = %q, want %q", got.ErrorKind, model.CostErrorNoProvider)
+	if got.Status != model.ResourceEstimateStatusUnsupported {
+		t.Fatalf("Status = %q, want %q", got.Status, model.ResourceEstimateStatusUnsupported)
+	}
+	if got.FailureKind != model.FailureKindNoProvider {
+		t.Fatalf("FailureKind = %q, want %q", got.FailureKind, model.FailureKindNoProvider)
 	}
 }
 
@@ -39,7 +51,7 @@ func TestCostResolver_ResolveKnownProviderMissingHandler(t *testing.T) {
 		},
 	}
 	runtimetest.AssertNoHandlerContract(t, testRuntime, "aws", handler.ResourceType("known_without_handler"))
-	resolver := NewCostResolver(testRuntime)
+	resolver := mustNewResolver(t, testRuntime)
 	got := resolver.Resolve(context.Background(), ResolveRequest{
 		ResourceType: handler.ResourceType("known_without_handler"),
 		Address:      "known_without_handler.example",
@@ -48,8 +60,11 @@ func TestCostResolver_ResolveKnownProviderMissingHandler(t *testing.T) {
 	if got.Provider != "aws" {
 		t.Fatalf("Provider = %q, want %q", got.Provider, "aws")
 	}
-	if got.ErrorKind != model.CostErrorNoHandler {
-		t.Fatalf("ErrorKind = %q, want %q", got.ErrorKind, model.CostErrorNoHandler)
+	if got.Status != model.ResourceEstimateStatusUnsupported {
+		t.Fatalf("Status = %q, want %q", got.Status, model.ResourceEstimateStatusUnsupported)
+	}
+	if got.FailureKind != model.FailureKindNoHandler {
+		t.Fatalf("FailureKind = %q, want %q", got.FailureKind, model.FailureKindNoHandler)
 	}
 }
 
@@ -59,13 +74,28 @@ func TestCostResolver_ResolveFixedAndUsageBased(t *testing.T) {
 	handlers := map[handler.ResourceType]handler.ResourceHandler{
 		handler.ResourceType("fixed_resource"): runtimetest.StubHandler{
 			CategoryValue: handler.CostCategoryFixed,
-			CalculateFunc: func(_ *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
+			CalculateFixedFunc: func(_ string, _ map[string]any) (hourly, monthly float64) {
 				return 0.5, 10
 			},
 		},
-		handler.ResourceType("usage_resource"): runtimetest.StubHandler{CategoryValue: handler.CostCategoryUsageBased},
+		handler.ResourceType("usage_resource"): runtimetest.StubHandler{
+			CategoryValue: handler.CostCategoryUsageBased,
+			CalculateUsageFunc: func(_ string, _ map[string]any) model.UsageCostEstimate {
+				return model.UsageCostEstimate{
+					HourlyCost:  0.25,
+					MonthlyCost: 5,
+					Status:      model.ResourceEstimateStatusUsageEstimated,
+				}
+			},
+		},
+		handler.ResourceType("usage_unknown_resource"): runtimetest.StubHandler{
+			CategoryValue: handler.CostCategoryUsageBased,
+			CalculateUsageFunc: func(_ string, _ map[string]any) model.UsageCostEstimate {
+				return model.UsageCostEstimate{Status: model.ResourceEstimateStatusUsageUnknown}
+			},
+		},
 	}
-	resolver := NewCostResolver(runtimetest.StubRuntime{
+	resolver := mustNewResolver(t, runtimetest.StubRuntime{
 		ResolveProviderFunc: func(resourceType handler.ResourceType) (string, bool) {
 			if _, ok := handlers[resourceType]; ok {
 				return "aws", true
@@ -94,18 +124,32 @@ func TestCostResolver_ResolveFixedAndUsageBased(t *testing.T) {
 		ResourceType: handler.ResourceType("usage_resource"),
 		Address:      "usage_resource.example",
 	})
-	if usage.ErrorKind != model.CostErrorUsageBased {
-		t.Fatalf("usage.ErrorKind = %q, want %q", usage.ErrorKind, model.CostErrorUsageBased)
+	if usage.Status != model.ResourceEstimateStatusUsageEstimated {
+		t.Fatalf("usage.Status = %q, want %q", usage.Status, model.ResourceEstimateStatusUsageEstimated)
 	}
 	if usage.PriceSource != "usage-based" {
 		t.Fatalf("usage.PriceSource = %q, want %q", usage.PriceSource, "usage-based")
+	}
+	if usage.MonthlyCost != 5 {
+		t.Fatalf("usage.MonthlyCost = %.2f, want 5", usage.MonthlyCost)
+	}
+
+	usageUnknown := resolver.Resolve(context.Background(), ResolveRequest{
+		ResourceType: handler.ResourceType("usage_unknown_resource"),
+		Address:      "usage_unknown_resource.example",
+	})
+	if usageUnknown.Status != model.ResourceEstimateStatusUsageUnknown {
+		t.Fatalf("usageUnknown.Status = %q, want %q", usageUnknown.Status, model.ResourceEstimateStatusUsageUnknown)
+	}
+	if usageUnknown.MonthlyCost != 0 {
+		t.Fatalf("usageUnknown.MonthlyCost = %.2f, want 0", usageUnknown.MonthlyCost)
 	}
 }
 
 func TestCostResolver_ResolveUnknownCategory(t *testing.T) {
 	t.Parallel()
 
-	resolver := NewCostResolver(runtimetest.StubRuntime{
+	resolver := mustNewResolver(t, runtimetest.StubRuntime{
 		ResolveProviderFunc: func(resourceType handler.ResourceType) (string, bool) {
 			if resourceType == handler.ResourceType("weird_resource") {
 				return "aws", true
@@ -124,18 +168,21 @@ func TestCostResolver_ResolveUnknownCategory(t *testing.T) {
 		ResourceType: handler.ResourceType("weird_resource"),
 		Address:      "weird_resource.example",
 	})
-	if got.ErrorKind != model.CostErrorInternal {
-		t.Fatalf("ErrorKind = %q, want %q", got.ErrorKind, model.CostErrorInternal)
+	if got.Status != model.ResourceEstimateStatusFailed {
+		t.Fatalf("Status = %q, want %q", got.Status, model.ResourceEstimateStatusFailed)
 	}
-	if got.ErrorDetail == "" {
-		t.Fatal("ErrorDetail should explain the unknown category")
+	if got.FailureKind != model.FailureKindInternal {
+		t.Fatalf("FailureKind = %q, want %q", got.FailureKind, model.FailureKindInternal)
+	}
+	if got.StatusDetail == "" {
+		t.Fatal("StatusDetail should explain the unknown category")
 	}
 }
 
 func TestCostResolver_ResolveBeforeCostUnknownCategory(t *testing.T) {
 	t.Parallel()
 
-	resolver := NewCostResolver(runtimetest.StubRuntime{
+	resolver := mustNewResolver(t, runtimetest.StubRuntime{
 		ResolveProviderFunc: func(resourceType handler.ResourceType) (string, bool) {
 			if resourceType == handler.ResourceType("weird_resource") {
 				return "aws", true
@@ -152,52 +199,8 @@ func TestCostResolver_ResolveBeforeCostUnknownCategory(t *testing.T) {
 
 	rc := model.ResourceCost{}
 	resolver.ResolveBeforeCost(context.Background(), &rc, handler.ResourceType("weird_resource"), nil, "us-east-1")
-	if rc.ErrorKind != model.CostErrorInternal {
-		t.Fatalf("ErrorKind = %q, want %q", rc.ErrorKind, model.CostErrorInternal)
-	}
-}
-
-func TestCostResolver_MiddlewareChain(t *testing.T) {
-	t.Parallel()
-
-	resolver := NewCostResolver(runtimetest.StubRuntime{
-		ResolveProviderFunc: func(resourceType handler.ResourceType) (string, bool) {
-			if resourceType == handler.ResourceType("fixed_resource") {
-				return "aws", true
-			}
-			return "", false
-		},
-		ResolveHandlerFunc: func(_ string, resourceType handler.ResourceType) (handler.ResourceHandler, bool) {
-			if resourceType == handler.ResourceType("fixed_resource") {
-				return runtimetest.StubHandler{
-					CategoryValue: handler.CostCategoryFixed,
-					CalculateFunc: func(_ *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
-						return 0.5, 10
-					},
-				}, true
-			}
-			return nil, false
-		},
-	})
-
-	var called bool
-	resolver.Use(func(ctx context.Context, next ResolveFunc, req ResolveRequest) model.ResourceCost {
-		called = true
-		rc := next(ctx, req)
-		rc.Name = "wrapped"
-		return rc
-	})
-
-	got := resolver.Resolve(context.Background(), ResolveRequest{
-		ResourceType: handler.ResourceType("fixed_resource"),
-		Address:      "fixed_resource.example",
-	})
-
-	if !called {
-		t.Fatal("middleware was not called")
-	}
-	if got.Name != "wrapped" {
-		t.Fatalf("Name = %q, want %q", got.Name, "wrapped")
+	if rc.Status != model.ResourceEstimateStatusFailed {
+		t.Fatalf("Status = %q, want %q", rc.Status, model.ResourceEstimateStatusFailed)
 	}
 }
 
@@ -249,7 +252,7 @@ func TestCostResolver_ResolveBeforeCostWithState_ReusesPricingIndex(t *testing.T
 		SourceNameFunc: func(string) string { return "test-source" },
 	}
 
-	resolver := NewCostResolver(testRuntime)
+	resolver := mustNewResolver(t, testRuntime)
 	state := NewResolutionState()
 	after := resolver.ResolveWithState(context.Background(), ResolveRequest{
 		ResourceType: handler.ResourceType("aws_instance"),

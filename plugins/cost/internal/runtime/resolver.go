@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/caarlos0/log"
@@ -25,39 +26,6 @@ type PricingRuntime interface {
 	SourceName(providerID string) string
 }
 
-// ResolutionRuntime exposes the provider-aware runtime surface required by cost resolution.
-type ResolutionRuntime interface {
-	ProviderCatalogRuntime
-	PricingRuntime
-}
-
-type resolutionRuntime struct {
-	catalog ProviderCatalogRuntime
-	pricing PricingRuntime
-}
-
-// CombineRuntime combines a ProviderCatalogRuntime and a PricingRuntime into a single
-// ResolutionRuntime that can be passed to NewCostResolver.
-func CombineRuntime(catalog ProviderCatalogRuntime, pricingRuntime PricingRuntime) ResolutionRuntime {
-	return resolutionRuntime{catalog: catalog, pricing: pricingRuntime}
-}
-
-func (r resolutionRuntime) ResolveProvider(resourceType handler.ResourceType) (string, bool) {
-	return r.catalog.ResolveProvider(resourceType)
-}
-
-func (r resolutionRuntime) ResolveHandler(providerID string, resourceType handler.ResourceType) (handler.ResourceHandler, bool) {
-	return r.catalog.ResolveHandler(providerID, resourceType)
-}
-
-func (r resolutionRuntime) GetIndex(ctx context.Context, service pricing.ServiceID, region string) (*pricing.PriceIndex, error) {
-	return r.pricing.GetIndex(ctx, service, region)
-}
-
-func (r resolutionRuntime) SourceName(providerID string) string {
-	return r.pricing.SourceName(providerID)
-}
-
 // ResolveRequest bundles all inputs for a single resource cost resolution.
 type ResolveRequest struct {
 	ResourceType handler.ResourceType
@@ -68,16 +36,10 @@ type ResolveRequest struct {
 	Attrs        map[string]any
 }
 
-// ResolveFunc is the signature of a cost resolution function.
-type ResolveFunc func(ctx context.Context, req ResolveRequest) model.ResourceCost
-
-// CostMiddleware wraps a cost resolution step.
-type CostMiddleware func(ctx context.Context, next ResolveFunc, req ResolveRequest) model.ResourceCost
-
 // CostResolver handles the cost resolution logic.
 type CostResolver struct {
-	runtime    ResolutionRuntime
-	middleware []CostMiddleware
+	catalog ProviderCatalogRuntime
+	pricing PricingRuntime
 }
 
 // ResolutionState stores per-resource pricing lookups that can be reused across
@@ -91,18 +53,18 @@ func NewResolutionState() *ResolutionState {
 	return &ResolutionState{indexes: make(map[string]*pricing.PriceIndex)}
 }
 
-// NewCostResolver creates a new resolver. The runtime parameter must implement
-// both ProviderCatalogRuntime and PricingRuntime. Use CombineRuntime to
-// combine separate catalog and pricing implementations.
-func NewCostResolver(runtime ResolutionRuntime) *CostResolver {
-	return &CostResolver{
-		runtime: runtime,
+// NewCostResolver creates a resolver from explicit catalog and pricing dependencies.
+func NewCostResolver(catalog ProviderCatalogRuntime, pricingRuntime PricingRuntime) (*CostResolver, error) {
+	if catalog == nil {
+		return nil, errors.New("cost resolver: provider catalog is required")
 	}
-}
-
-// Use appends a middleware to the resolver chain.
-func (r *CostResolver) Use(mw CostMiddleware) {
-	r.middleware = append(r.middleware, mw)
+	if pricingRuntime == nil {
+		return nil, errors.New("cost resolver: pricing runtime is required")
+	}
+	return &CostResolver{
+		catalog: catalog,
+		pricing: pricingRuntime,
+	}, nil
 }
 
 // Resolve calculates cost for a single resource.
@@ -112,24 +74,7 @@ func (r *CostResolver) Resolve(ctx context.Context, req ResolveRequest) model.Re
 
 // ResolveWithState calculates cost for a single resource using an optional per-resource cache.
 func (r *CostResolver) ResolveWithState(ctx context.Context, req ResolveRequest, state *ResolutionState) model.ResourceCost {
-	if len(r.middleware) > 0 {
-		return r.resolveWithMiddleware(ctx, req, state)
-	}
 	return r.coreResolve(ctx, req, state)
-}
-
-func (r *CostResolver) resolveWithMiddleware(ctx context.Context, req ResolveRequest, state *ResolutionState) model.ResourceCost {
-	fn := func(ctx context.Context, req ResolveRequest) model.ResourceCost {
-		return r.coreResolve(ctx, req, state)
-	}
-	for i := len(r.middleware) - 1; i >= 0; i-- {
-		mw := r.middleware[i]
-		next := fn
-		fn = func(ctx context.Context, req ResolveRequest) model.ResourceCost {
-			return mw(ctx, next, req)
-		}
-	}
-	return fn(ctx, req)
 }
 
 func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest, state *ResolutionState) model.ResourceCost {
@@ -140,21 +85,24 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest, stat
 		Type:       req.ResourceType.String(),
 		Name:       req.Name,
 		Region:     req.Region,
+		Status:     model.ResourceEstimateStatusExact,
 	}
 
-	providerID, ok := r.runtime.ResolveProvider(req.ResourceType)
+	providerID, ok := r.catalog.ResolveProvider(req.ResourceType)
 	if !ok {
-		result.ErrorKind = model.CostErrorNoProvider
-		result.ErrorDetail = "no provider"
+		result.Status = model.ResourceEstimateStatusUnsupported
+		result.FailureKind = model.FailureKindNoProvider
+		result.StatusDetail = "no provider"
 		logUnsupportedResource(req.ResourceType.String(), req.Address)
 		return result
 	}
 	result.Provider = providerID
 
-	h, ok := r.runtime.ResolveHandler(providerID, req.ResourceType)
+	h, ok := r.catalog.ResolveHandler(providerID, req.ResourceType)
 	if !ok {
-		result.ErrorKind = model.CostErrorNoHandler
-		result.ErrorDetail = "no handler"
+		result.Status = model.ResourceEstimateStatusUnsupported
+		result.FailureKind = model.FailureKindNoHandler
+		result.StatusDetail = "no handler"
 		logUnsupportedResource(req.ResourceType.String(), req.Address)
 		return result
 	}
@@ -168,14 +116,32 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest, stat
 
 	switch h.Category() {
 	case handler.CostCategoryUsageBased:
-		result.ErrorKind = model.CostErrorUsageBased
-		result.ErrorDetail = priceSourceUsageBased
+		usageHandler, ok := h.(handler.UsageBasedCostHandler)
+		if !ok {
+			result.Status = model.ResourceEstimateStatusFailed
+			result.FailureKind = model.FailureKindInternal
+			result.StatusDetail = "usage-based handler does not implement UsageBasedCostHandler"
+			return result
+		}
+		estimate := usageHandler.CalculateUsageCost(req.Region, attrs)
+		result.HourlyCost = estimate.HourlyCost
+		result.MonthlyCost = estimate.MonthlyCost
+		result.Status = usageEstimateStatus(estimate)
+		result.StatusDetail = usageEstimateDetail(estimate)
 		result.PriceSource = priceSourceUsageBased
 		return result
 	case handler.CostCategoryFixed:
-		hourly, monthly := h.CalculateCost(nil, nil, req.Region, attrs)
+		fixedHandler, ok := h.(handler.FixedCostHandler)
+		if !ok {
+			result.Status = model.ResourceEstimateStatusFailed
+			result.FailureKind = model.FailureKindInternal
+			result.StatusDetail = "fixed-cost handler does not implement FixedCostHandler"
+			return result
+		}
+		hourly, monthly := fixedHandler.CalculateFixedCost(req.Region, attrs)
 		result.HourlyCost = hourly
 		result.MonthlyCost = monthly
+		result.Status = model.ResourceEstimateStatusExact
 		result.PriceSource = "fixed"
 		return result
 	case handler.CostCategoryStandard:
@@ -188,8 +154,9 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest, stat
 			state:      state,
 		})
 	default:
-		result.ErrorKind = model.CostErrorInternal
-		result.ErrorDetail = fmt.Sprintf("unknown cost category: %d", h.Category())
+		result.Status = model.ResourceEstimateStatusFailed
+		result.FailureKind = model.FailureKindInternal
+		result.StatusDetail = fmt.Sprintf("unknown cost category: %d", h.Category())
 		return result
 	}
 }
@@ -201,11 +168,11 @@ func (r *CostResolver) ResolveBeforeCost(ctx context.Context, rc *model.Resource
 
 // ResolveBeforeCostWithState calculates the before-state cost using an optional per-resource cache.
 func (r *CostResolver) ResolveBeforeCostWithState(ctx context.Context, rc *model.ResourceCost, resourceType handler.ResourceType, beforeAttrs map[string]any, region string, state *ResolutionState) {
-	providerID, ok := r.runtime.ResolveProvider(resourceType)
+	providerID, ok := r.catalog.ResolveProvider(resourceType)
 	if !ok {
 		return
 	}
-	h, ok := r.runtime.ResolveHandler(providerID, resourceType)
+	h, ok := r.catalog.ResolveHandler(providerID, resourceType)
 	if !ok {
 		return
 	}
@@ -223,15 +190,23 @@ func (r *CostResolver) ResolveBeforeCostWithState(ctx context.Context, rc *model
 		rc.BeforeHourlyCost = before.HourlyCost
 		rc.BeforeMonthlyCost = before.MonthlyCost
 	case handler.CostCategoryFixed:
-		hourly, monthly := h.CalculateCost(nil, nil, region, beforeAttrs)
+		fixedHandler, ok := h.(handler.FixedCostHandler)
+		if !ok {
+			rc.Status = model.ResourceEstimateStatusFailed
+			rc.FailureKind = model.FailureKindInternal
+			rc.StatusDetail = "fixed-cost handler does not implement FixedCostHandler"
+			return
+		}
+		hourly, monthly := fixedHandler.CalculateFixedCost(region, beforeAttrs)
 		rc.BeforeHourlyCost = hourly
 		rc.BeforeMonthlyCost = monthly
 	case handler.CostCategoryUsageBased:
 		// Usage-based resources (e.g. data transfer, Lambda invocations) require
 		// runtime telemetry that is unavailable at plan time; skip silently.
 	default:
-		rc.ErrorKind = model.CostErrorInternal
-		rc.ErrorDetail = fmt.Sprintf("unknown cost category: %d", h.Category())
+		rc.Status = model.ResourceEstimateStatusFailed
+		rc.FailureKind = model.FailureKindInternal
+		rc.StatusDetail = fmt.Sprintf("unknown cost category: %d", h.Category())
 	}
 }
 
@@ -245,12 +220,12 @@ func (r *CostResolver) ResolveWithSubResourcesState(ctx context.Context, req Res
 	primary := r.ResolveWithState(ctx, req, state)
 	results := []model.ResourceCost{primary}
 
-	providerID, ok := r.runtime.ResolveProvider(req.ResourceType)
+	providerID, ok := r.catalog.ResolveProvider(req.ResourceType)
 	if !ok {
 		return results
 	}
 
-	h, ok := r.runtime.ResolveHandler(providerID, req.ResourceType)
+	h, ok := r.catalog.ResolveHandler(providerID, req.ResourceType)
 	if !ok {
 		return results
 	}
@@ -289,48 +264,55 @@ type standardResolutionCtx struct {
 func (r *CostResolver) resolveStandardCost(ctx context.Context, sc standardResolutionCtx) model.ResourceCost {
 	result := sc.result
 
-	lookupBuilder, ok := sc.handler.(handler.LookupBuilder)
+	standardHandler, ok := sc.handler.(handler.StandardCostHandler)
 	if !ok {
-		result.ErrorKind = model.CostErrorLookupFailed
-		result.ErrorDetail = "lookup builder not implemented"
+		result.Status = model.ResourceEstimateStatusFailed
+		result.FailureKind = model.FailureKindLookupFailed
+		result.StatusDetail = "standard handler does not implement StandardCostHandler"
 		return result
 	}
 
-	lookup, err := lookupBuilder.BuildLookup(sc.region, sc.attrs)
+	lookup, err := standardHandler.BuildLookup(sc.region, sc.attrs)
 	if err != nil {
-		result.ErrorKind = model.CostErrorLookupFailed
-		result.ErrorDetail = err.Error()
+		result.Status = model.ResourceEstimateStatusFailed
+		result.FailureKind = model.FailureKindLookupFailed
+		result.StatusDetail = err.Error()
 		return result
 	}
 	if lookup == nil {
+		result.Status = model.ResourceEstimateStatusExact
 		return result
 	}
 
 	index, err := r.getIndex(ctx, lookup.ServiceID, sc.region, sc.state)
 	if err != nil {
 		log.WithError(err).WithField("service", lookup.ServiceID.String()).WithField("region", sc.region).Debug("failed to get pricing index")
-		result.ErrorKind = model.CostErrorAPIFailure
-		result.ErrorDetail = "pricing unavailable"
+		result.Status = model.ResourceEstimateStatusFailed
+		result.FailureKind = model.FailureKindAPIFailure
+		result.StatusDetail = "pricing unavailable"
 		return result
 	}
 	if index == nil {
-		result.ErrorKind = model.CostErrorAPIFailure
-		result.ErrorDetail = "empty pricing index"
+		result.Status = model.ResourceEstimateStatusFailed
+		result.FailureKind = model.FailureKindAPIFailure
+		result.StatusDetail = "empty pricing index"
 		return result
 	}
 
 	price, err := index.LookupPrice(*lookup)
 	if err != nil {
 		log.WithError(err).WithField("address", result.Address).Debug("price lookup failed")
-		result.ErrorKind = model.CostErrorNoPrice
-		result.ErrorDetail = "no matching price"
+		result.Status = model.ResourceEstimateStatusFailed
+		result.FailureKind = model.FailureKindNoPrice
+		result.StatusDetail = "no matching price"
 		return result
 	}
 
-	hourly, monthly := sc.handler.CalculateCost(price, index, sc.region, sc.attrs)
+	hourly, monthly := standardHandler.CalculateCost(price, index, sc.region, sc.attrs)
 	result.HourlyCost = hourly
 	result.MonthlyCost = monthly
-	result.PriceSource = r.runtime.SourceName(sc.providerID)
+	result.Status = model.ResourceEstimateStatusExact
+	result.PriceSource = r.pricing.SourceName(sc.providerID)
 	result.Details = describeResource(sc.handler, price, sc.attrs)
 
 	return result
@@ -343,7 +325,7 @@ func (r *CostResolver) getIndex(ctx context.Context, service pricing.ServiceID, 
 		}
 	}
 
-	idx, err := r.runtime.GetIndex(ctx, service, region)
+	idx, err := r.pricing.GetIndex(ctx, service, region)
 	if err != nil {
 		return nil, err
 	}
@@ -370,4 +352,37 @@ func logUnsupportedResource(resourceType, address string) {
 	log.WithField("type", resourceType).
 		WithField("address", address).
 		Debug("resource type not supported for cost estimation")
+}
+
+func usageEstimateDetail(estimate model.UsageCostEstimate) string {
+	if estimate.Detail != "" {
+		return estimate.Detail
+	}
+
+	switch usageEstimateStatus(estimate) {
+	case model.ResourceEstimateStatusUsageEstimated:
+		return "usage-based estimate derived from configured capacity"
+	case model.ResourceEstimateStatusUsageUnknown, model.ResourceEstimateStatusExact,
+		model.ResourceEstimateStatusUnsupported, model.ResourceEstimateStatusFailed:
+		return priceSourceUsageBased
+	default:
+		return priceSourceUsageBased
+	}
+}
+
+func usageEstimateStatus(estimate model.UsageCostEstimate) model.ResourceEstimateStatus {
+	switch estimate.Status {
+	case model.ResourceEstimateStatusUsageEstimated, model.ResourceEstimateStatusUsageUnknown:
+		return estimate.Status
+	case model.ResourceEstimateStatusExact, model.ResourceEstimateStatusUnsupported, model.ResourceEstimateStatusFailed:
+		if !model.CostIsZero(estimate.MonthlyCost) || !model.CostIsZero(estimate.HourlyCost) {
+			return model.ResourceEstimateStatusUsageEstimated
+		}
+		return model.ResourceEstimateStatusUsageUnknown
+	default:
+		if !model.CostIsZero(estimate.MonthlyCost) || !model.CostIsZero(estimate.HourlyCost) {
+			return model.ResourceEstimateStatusUsageEstimated
+		}
+		return model.ResourceEstimateStatusUsageUnknown
+	}
 }

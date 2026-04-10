@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
+	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
 
 func TestSNSHandler_UsageBasedContract(t *testing.T) {
@@ -12,15 +13,18 @@ func TestSNSHandler_UsageBasedContract(t *testing.T) {
 	handlertest.AssertUsageBasedContract(t, &SNSHandler{})
 }
 
-func TestSNSHandler_CalculateCost(t *testing.T) {
+func TestSNSHandler_CalculateUsageCost(t *testing.T) {
 	t.Parallel()
 
 	h := &SNSHandler{}
-	hourly, monthly := h.CalculateCost(nil, nil, "", nil)
-	if hourly != 0 {
-		t.Errorf("hourly = %v, want 0", hourly)
+	got := h.CalculateUsageCost("", nil)
+	if got.HourlyCost != 0 {
+		t.Errorf("hourly = %v, want 0", got.HourlyCost)
 	}
-	if monthly != 0 {
-		t.Errorf("monthly = %v, want 0", monthly)
+	if got.MonthlyCost != 0 {
+		t.Errorf("monthly = %v, want 0", got.MonthlyCost)
+	}
+	if got.Status != model.ResourceEstimateStatusUsageUnknown {
+		t.Errorf("status = %q, want %q", got.Status, model.ResourceEstimateStatusUsageUnknown)
 	}
 }

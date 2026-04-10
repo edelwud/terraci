@@ -56,8 +56,34 @@ func (a *ModuleAssembler) Build() *model.ModuleCost {
 
 // AggregateCost applies one resource contribution to the module totals.
 func AggregateCost(result *model.ModuleCost, rc model.ResourceCost, action model.EstimateAction) {
-	if rc.IsUnsupported() {
+	switch rc.Status {
+	case model.ResourceEstimateStatusUnsupported:
 		result.Unsupported++
+		return
+	case model.ResourceEstimateStatusUsageEstimated:
+		result.UsageEstimated++
+	case model.ResourceEstimateStatusUsageUnknown:
+		result.UsageUnknown++
+		return
+	case model.ResourceEstimateStatusFailed:
+		return
+	case model.ResourceEstimateStatusExact:
+		// handled below
+	default:
+		return
+	}
+
+	if !rc.ContributesAfterCost() {
+		return
+	}
+
+	if rc.Status == model.ResourceEstimateStatusUsageEstimated {
+		switch action {
+		case model.ActionCreate, model.ActionUpdate, model.ActionReplace, model.ActionNoOp:
+			result.AfterCost += rc.MonthlyCost
+		case model.ActionDelete:
+			result.BeforeCost += rc.MonthlyCost
+		}
 		return
 	}
 
@@ -110,6 +136,9 @@ func (a *EstimateAssembler) Build() *model.EstimateResult {
 		module := &a.modules[i]
 		result.TotalBefore += module.BeforeCost
 		result.TotalAfter += module.AfterCost
+		result.Unsupported += module.Unsupported
+		result.UsageEstimated += module.UsageEstimated
+		result.UsageUnknown += module.UsageUnknown
 		for _, providerID := range module.Providers {
 			providerSet[providerID] = struct{}{}
 		}

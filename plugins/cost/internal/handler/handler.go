@@ -2,7 +2,10 @@
 // AWS, GCP, Azure handlers all implement these interfaces.
 package handler
 
-import "github.com/edelwud/terraci/plugins/cost/internal/pricing"
+import (
+	"github.com/edelwud/terraci/plugins/cost/internal/model"
+	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+)
 
 // ResourceType is a provider-neutral Terraform resource identifier.
 type ResourceType string
@@ -36,19 +39,32 @@ const (
 	CostCategoryUsageBased
 )
 
-// ResourceHandler extracts pricing information from terraform resource attributes.
-// Implemented by each cloud provider's resource handlers.
+// ResourceHandler is the shared contract for all pricing handlers.
 type ResourceHandler interface {
-	// Category returns how this handler calculates costs.
 	Category() CostCategory
-	// CalculateCost calculates monthly cost from price, index, and resource attributes.
-	// For Fixed/UsageBased handlers, price and index may be nil.
+}
+
+// StandardCostHandler is implemented by handlers that require a pricing lookup.
+type StandardCostHandler interface {
+	ResourceHandler
+	LookupBuilder
 	CalculateCost(price *pricing.Price, index *pricing.PriceIndex, region string, attrs map[string]any) (hourly, monthly float64)
 }
 
-// LookupBuilder is implemented by handlers that require a pricing lookup.
+// FixedCostHandler is implemented by handlers that can calculate cost without pricing API data.
+type FixedCostHandler interface {
+	ResourceHandler
+	CalculateFixedCost(region string, attrs map[string]any) (hourly, monthly float64)
+}
+
+// UsageBasedCostHandler is implemented by handlers whose fixed estimate is usage-derived.
+type UsageBasedCostHandler interface {
+	ResourceHandler
+	CalculateUsageCost(region string, attrs map[string]any) model.UsageCostEstimate
+}
+
+// LookupBuilder is implemented by handlers that expose pricing lookup construction.
 type LookupBuilder interface {
-	// BuildLookup creates a PriceLookup from terraform resource attributes.
 	BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error)
 }
 

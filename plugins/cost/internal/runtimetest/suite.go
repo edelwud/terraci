@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
@@ -58,8 +59,10 @@ func (f StubFetcher) FetchRegionIndex(ctx context.Context, service pricing.Servi
 
 // StubHandler is a minimal resource handler for runtime-focused tests.
 type StubHandler struct {
-	CategoryValue handler.CostCategory
-	CalculateFunc func(price *pricing.Price, index *pricing.PriceIndex, region string, attrs map[string]any) (hourly, monthly float64)
+	CategoryValue      handler.CostCategory
+	CalculateFunc      func(price *pricing.Price, index *pricing.PriceIndex, region string, attrs map[string]any) (hourly, monthly float64)
+	CalculateFixedFunc func(region string, attrs map[string]any) (hourly, monthly float64)
+	CalculateUsageFunc func(region string, attrs map[string]any) model.UsageCostEstimate
 }
 
 func (h StubHandler) Category() handler.CostCategory { return h.CategoryValue }
@@ -69,6 +72,20 @@ func (h StubHandler) CalculateCost(price *pricing.Price, index *pricing.PriceInd
 		return h.CalculateFunc(price, index, region, attrs)
 	}
 	return 0, 0
+}
+
+func (h StubHandler) CalculateFixedCost(region string, attrs map[string]any) (hourly, monthly float64) {
+	if h.CalculateFixedFunc != nil {
+		return h.CalculateFixedFunc(region, attrs)
+	}
+	return 0, 0
+}
+
+func (h StubHandler) CalculateUsageCost(region string, attrs map[string]any) model.UsageCostEstimate {
+	if h.CalculateUsageFunc != nil {
+		return h.CalculateUsageFunc(region, attrs)
+	}
+	return model.UsageCostEstimate{}
 }
 
 // ProviderCase defines one contract test case for provider resolution.

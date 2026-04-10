@@ -12,9 +12,13 @@ import (
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	"github.com/edelwud/terraci/pkg/plugin/registry"
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/engine"
+	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
+	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	costruntime "github.com/edelwud/terraci/plugins/cost/internal/runtime"
 	"github.com/edelwud/terraci/plugins/diskblob"
 )
 
@@ -149,11 +153,25 @@ func newTestEstimator(t *testing.T) *engine.Estimator {
 		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	}
 	cache := blobcache.New(diskblob.NewStore(cacheDir), model.DefaultBlobCacheNamespace, cfg.CacheTTLDuration())
-	e, err := engine.NewEstimatorFromConfig(cfg, cache)
+	awsProvider, ok := cloud.Get(awskit.ProviderID)
+	if !ok {
+		t.Fatal("aws provider not registered")
+	}
+	reg := handler.NewRegistry()
+	cloud.RegisterDefinitionHandlers(reg, awsProvider.Definition())
+	catalog := costruntime.NewProviderCatalogFromProviders([]cloud.Provider{awsProvider}, reg)
+	runtimeRegistry, err := costruntime.NewProviderRuntimeRegistryFromProviders(
+		[]cloud.Provider{awsProvider},
+		cache,
+		map[string]pricing.PriceFetcher{awskit.ProviderID: fetcher},
+	)
 	if err != nil {
 		t.Fatalf("newTestEstimator: %v", err)
 	}
-	e.SetFetcherForProvider(awskit.ProviderID, fetcher)
+	e, err := engine.NewEstimatorWithDeps(catalog, runtimeRegistry)
+	if err != nil {
+		t.Fatalf("newTestEstimator: %v", err)
+	}
 	return e
 }
 

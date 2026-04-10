@@ -43,6 +43,18 @@ func renderSummary(result *model.EstimateResult) {
 	if len(result.Errors) > 0 {
 		log.WithField("count", len(result.Errors)).Warn("errored")
 	}
+	if result.Unsupported > 0 {
+		log.WithField("count", result.Unsupported).Warn("unsupported")
+	}
+	if len(result.PrefetchWarnings) > 0 {
+		log.WithField("count", len(result.PrefetchWarnings)).Warn("prefetch warnings")
+	}
+	if result.UsageEstimated > 0 {
+		log.WithField("count", result.UsageEstimated).Info("usage estimated")
+	}
+	if result.UsageUnknown > 0 {
+		log.WithField("count", result.UsageUnknown).Warn("usage unknown")
+	}
 	if result.TotalDiff != 0 {
 		log.WithField("before", model.FormatCost(result.TotalBefore)).
 			WithField("after", model.FormatCost(result.TotalAfter)).
@@ -171,19 +183,28 @@ func renderResources(resources []model.ResourceCost, moduleAddr string) {
 		}
 
 		displayAddr := model.StripModulePrefix(resource.Address, moduleAddr)
-		switch resource.ErrorKind {
-		case model.CostErrorNone:
+		switch resource.Status {
+		case model.ResourceEstimateStatusExact:
 			entry := log.WithField("monthly", model.FormatCost(resource.MonthlyCost))
 			for _, key := range sortedDetailKeys(resource.Details) {
 				entry = entry.WithField(key, resource.Details[key])
 			}
 			entry.Info(displayAddr)
-		case model.CostErrorUsageBased:
-			log.WithField("note", "usage-based").Debug(displayAddr)
-		case model.CostErrorNoProvider, model.CostErrorNoHandler:
+		case model.ResourceEstimateStatusUsageEstimated:
+			entry := log.WithField("monthly", model.FormatCost(resource.MonthlyCost)).
+				WithField("note", "usage-based (estimated)")
+			for _, key := range sortedDetailKeys(resource.Details) {
+				entry = entry.WithField(key, resource.Details[key])
+			}
+			entry.Info(displayAddr)
+		case model.ResourceEstimateStatusUsageUnknown:
+			log.WithField("note", "usage-based (unknown)").Debug(displayAddr)
+		case model.ResourceEstimateStatusUnsupported:
 			log.WithField("note", "unsupported").Debug(displayAddr)
-		case model.CostErrorLookupFailed, model.CostErrorAPIFailure, model.CostErrorNoPrice, model.CostErrorInternal:
-			log.WithField("error", resource.ErrorDetail).Warn(displayAddr)
+		case model.ResourceEstimateStatusFailed:
+			log.WithField("error", resource.StatusDetail).Warn(displayAddr)
+		default:
+			log.WithField("status", resource.Status).Warn(displayAddr)
 		}
 	}
 }
@@ -194,11 +215,11 @@ func shouldShowResource(resource *model.ResourceCost) bool {
 	if resource == nil {
 		return false
 	}
-	switch resource.ErrorKind {
-	case model.CostErrorNone:
+	switch resource.Status {
+	case model.ResourceEstimateStatusExact:
 		return !model.CostIsZero(resource.MonthlyCost) || !model.CostIsZero(resource.BeforeMonthlyCost)
-	case model.CostErrorUsageBased, model.CostErrorNoProvider, model.CostErrorNoHandler,
-		model.CostErrorLookupFailed, model.CostErrorAPIFailure, model.CostErrorNoPrice, model.CostErrorInternal:
+	case model.ResourceEstimateStatusUsageEstimated, model.ResourceEstimateStatusUsageUnknown,
+		model.ResourceEstimateStatusUnsupported, model.ResourceEstimateStatusFailed:
 		return true
 	default:
 		return false

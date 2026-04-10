@@ -2,6 +2,7 @@ package storage
 
 import (
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
@@ -17,10 +18,10 @@ type LogGroupHandler struct{}
 
 func (h *LogGroupHandler) Category() handler.CostCategory { return handler.CostCategoryUsageBased }
 
-func (h *LogGroupHandler) CalculateCost(_ *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
+func (h *LogGroupHandler) CalculateUsageCost(_ string, _ map[string]any) model.UsageCostEstimate {
 	// CloudWatch Logs: $0.50 per GB ingested, $0.03 per GB stored
 	// Usage-based, no fixed cost
-	return 0, 0
+	return model.UsageCostEstimate{Status: model.ResourceEstimateStatusUsageUnknown}
 }
 
 // AlarmHandler handles aws_cloudwatch_metric_alarm cost estimation.
@@ -53,7 +54,7 @@ func (h *AlarmHandler) Describe(_ *pricing.Price, attrs map[string]any) map[stri
 	return desc
 }
 
-func (h *AlarmHandler) CalculateCost(_ *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
+func (h *AlarmHandler) CalculateFixedCost(_ string, attrs map[string]any) (hourly, monthly float64) {
 	// Standard resolution alarm: $0.10/alarm/month
 	// High resolution alarm: $0.30/alarm/month
 	parsed := parseAlarmAttrs(attrs)

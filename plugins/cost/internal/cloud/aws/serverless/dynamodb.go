@@ -3,6 +3,7 @@ package serverless
 import (
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
@@ -69,11 +70,11 @@ func (h *DynamoDBHandler) Describe(_ *pricing.Price, attrs map[string]any) map[s
 		Map()
 }
 
-func (h *DynamoDBHandler) CalculateCost(_ *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
+func (h *DynamoDBHandler) CalculateUsageCost(_ string, attrs map[string]any) model.UsageCostEstimate {
 	parsed := parseDynamoDBAttrs(attrs)
 	if parsed.BillingMode == "PAY_PER_REQUEST" {
 		// On-demand: usage-based, no fixed cost
-		return 0, 0
+		return model.UsageCostEstimate{Status: model.ResourceEstimateStatusUsageUnknown}
 	}
 
 	// Provisioned throughput
@@ -91,5 +92,11 @@ func (h *DynamoDBHandler) CalculateCost(_ *pricing.Price, _ *pricing.PriceIndex,
 	rcuCostPerHour := float64(readCapacity) * DynamoDBRCUCostPerHour
 	wcuCostPerHour := float64(writeCapacity) * DynamoDBWCUCostPerHour
 
-	return handler.HourlyCost(rcuCostPerHour + wcuCostPerHour)
+	hourly, monthly := handler.HourlyCost(rcuCostPerHour + wcuCostPerHour)
+	return model.UsageCostEstimate{
+		HourlyCost:  hourly,
+		MonthlyCost: monthly,
+		Status:      model.ResourceEstimateStatusUsageEstimated,
+		Detail:      "usage-based estimate derived from provisioned throughput",
+	}
 }

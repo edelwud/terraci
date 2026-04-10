@@ -336,6 +336,12 @@ terraci cost --module platform/prod/eu-central-1/rds
 terraci cost --output json
 ```
 
+JSON output now uses explicit resource `status` values:
+- `exact` — fully priced at plan time
+- `usage_estimated` — partly estimated from configured capacity
+- `usage_unknown` — still unknown at plan time and needs runtime telemetry
+- `unsupported` / `failed` — not priced, with optional `failure_kind` and `status_detail`
+
 </details>
 
 ## Custom Plugins

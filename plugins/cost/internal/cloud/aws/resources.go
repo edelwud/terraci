@@ -25,38 +25,77 @@ var definition = cloud.Definition{
 	FetcherFactory: func() pricing.PriceFetcher {
 		return awskit.NewFetcher()
 	},
-	Resources: []cloud.ResourceRegistration{
-		// EC2
+	Resources: awsResources(),
+}
+
+func awsResources() []cloud.ResourceRegistration {
+	resources := make([]cloud.ResourceRegistration, 0, 24)
+	resources = append(resources, ec2Resources()...)
+	resources = append(resources, rdsResources()...)
+	resources = append(resources, elbResources()...)
+	resources = append(resources, elasticacheResources()...)
+	resources = append(resources, eksResources()...)
+	resources = append(resources, serverlessResources()...)
+	resources = append(resources, storageResources()...)
+	return resources
+}
+
+func ec2Resources() []cloud.ResourceRegistration {
+	return []cloud.ResourceRegistration{
 		{Type: handler.ResourceType(awskit.ResourceInstance), Handler: &ec2.InstanceHandler{RuntimeDeps: deps}},
 		{Type: handler.ResourceType(awskit.ResourceEBSVolume), Handler: ec2.NewEBSHandler(deps)},
 		{Type: handler.ResourceType(awskit.ResourceEIP), Handler: ec2.NewEIPHandler(deps)},
 		{Type: handler.ResourceType(awskit.ResourceNATGateway), Handler: &ec2.NATHandler{RuntimeDeps: deps}},
-		// RDS
+	}
+}
+
+func rdsResources() []cloud.ResourceRegistration {
+	return []cloud.ResourceRegistration{
 		{Type: handler.ResourceType(awskit.ResourceDBInstance), Handler: &rds.InstanceHandler{RuntimeDeps: deps}},
 		{Type: handler.ResourceType(awskit.ResourceRDSCluster), Handler: &rds.ClusterHandler{RuntimeDeps: deps}},
 		{Type: handler.ResourceType(awskit.ResourceRDSClusterInstance), Handler: &rds.ClusterInstanceHandler{RuntimeDeps: deps}},
-		// ELB
+	}
+}
+
+func elbResources() []cloud.ResourceRegistration {
+	return []cloud.ResourceRegistration{
 		{Type: handler.ResourceType(awskit.ResourceLoadBalancer), Handler: &elb.ALBHandler{RuntimeDeps: deps}},
 		{Type: handler.ResourceType(awskit.ResourceApplicationLoadBalancerAlias), Handler: &elb.ALBHandler{RuntimeDeps: deps}},
 		{Type: handler.ResourceType(awskit.ResourceClassicLoadBalancer), Handler: &elb.ClassicHandler{RuntimeDeps: deps}},
-		// ElastiCache
+	}
+}
+
+func elasticacheResources() []cloud.ResourceRegistration {
+	return []cloud.ResourceRegistration{
 		{Type: handler.ResourceType(awskit.ResourceElastiCacheCluster), Handler: &elasticache.ClusterHandler{RuntimeDeps: deps}},
 		{Type: handler.ResourceType(awskit.ResourceElastiCacheReplicationGroup), Handler: &elasticache.ReplicationGroupHandler{RuntimeDeps: deps}},
 		{Type: handler.ResourceType(awskit.ResourceElastiCacheServerlessCache), Handler: &elasticache.ServerlessHandler{RuntimeDeps: deps}},
-		// EKS
+	}
+}
+
+func eksResources() []cloud.ResourceRegistration {
+	return []cloud.ResourceRegistration{
 		{Type: handler.ResourceType(awskit.ResourceEKSCluster), Handler: &eks.ClusterHandler{RuntimeDeps: deps}},
 		{Type: handler.ResourceType(awskit.ResourceEKSNodeGroup), Handler: &eks.NodeGroupHandler{RuntimeDeps: deps}},
-		// Serverless
+	}
+}
+
+func serverlessResources() []cloud.ResourceRegistration {
+	return []cloud.ResourceRegistration{
 		{Type: handler.ResourceType(awskit.ResourceLambdaFunction), Handler: &serverless.LambdaHandler{RuntimeDeps: deps}},
 		{Type: handler.ResourceType(awskit.ResourceDynamoDBTable), Handler: &serverless.DynamoDBHandler{RuntimeDeps: deps}},
 		{Type: handler.ResourceType(awskit.ResourceSQSQueue), Handler: &serverless.SQSHandler{}},
 		{Type: handler.ResourceType(awskit.ResourceSNSTopic), Handler: &serverless.SNSHandler{}},
-		// Storage & misc
+	}
+}
+
+func storageResources() []cloud.ResourceRegistration {
+	return []cloud.ResourceRegistration{
 		{Type: handler.ResourceType(awskit.ResourceS3Bucket), Handler: &storage.S3Handler{}},
 		{Type: handler.ResourceType(awskit.ResourceCloudWatchLogGroup), Handler: &storage.LogGroupHandler{}},
 		{Type: handler.ResourceType(awskit.ResourceCloudWatchMetricAlarm), Handler: &storage.AlarmHandler{}},
 		{Type: handler.ResourceType(awskit.ResourceSecretsManagerSecret), Handler: &storage.SecretsManagerHandler{}},
 		{Type: handler.ResourceType(awskit.ResourceKMSKey), Handler: &storage.KMSHandler{}},
 		{Type: handler.ResourceType(awskit.ResourceRoute53Zone), Handler: &storage.Route53Handler{}},
-	},
+	}
 }

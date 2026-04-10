@@ -79,8 +79,24 @@ terraci cost --output json
       "after_cost": 689.12,
       "diff_cost": 689.12,
       "resources": [
-        {"address": "aws_db_instance.postgres", "monthly_cost": 400.77},
-        {"address": "aws_elasticache_cluster.redis", "monthly_cost": 180.31}
+        {
+          "address": "aws_db_instance.postgres",
+          "monthly_cost": 400.77,
+          "price_source": "aws-bulk-api"
+        },
+        {
+          "address": "aws_lambda_function.worker",
+          "monthly_cost": 12.04,
+          "price_source": "usage-based",
+          "status": "usage_estimated",
+          "status_detail": "usage-based estimate derived from provisioned concurrency"
+        },
+        {
+          "address": "aws_sqs_queue.jobs",
+          "monthly_cost": 0,
+          "price_source": "usage-based",
+          "status": "usage_unknown"
+        }
       ]
     }
   ],
@@ -90,6 +106,13 @@ terraci cost --output json
   "currency": "USD"
 }
 ```
+
+`status` is present for every resource result:
+
+- `exact` means TerraCi found a plan-time price
+- `usage_estimated` means TerraCi derived a partial estimate from configured capacity
+- `usage_unknown` means cost is still unknown at plan time
+- `unsupported` / `failed` may also include `failure_kind` and `status_detail`
 
 ## Prerequisites
 

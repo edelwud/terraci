@@ -12,9 +12,13 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/cache/blobcache"
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/engine"
+	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
+	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	costruntime "github.com/edelwud/terraci/plugins/cost/internal/runtime"
 	"github.com/edelwud/terraci/plugins/diskblob"
 )
 
@@ -59,11 +63,25 @@ func NewTestEstimator(tb testing.TB) *engine.Estimator {
 		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	}
 	cache := blobcache.New(diskblob.NewStore(cacheDir), model.DefaultBlobCacheNamespace, cfg.CacheTTLDuration())
-	e, err := engine.NewEstimatorFromConfig(cfg, cache)
+	awsProvider, ok := cloud.Get(awskit.ProviderID)
+	if !ok {
+		tb.Fatal("aws provider not registered")
+	}
+	reg := handler.NewRegistry()
+	cloud.RegisterDefinitionHandlers(reg, awsProvider.Definition())
+	catalog := costruntime.NewProviderCatalogFromProviders([]cloud.Provider{awsProvider}, reg)
+	runtimeRegistry, err := costruntime.NewProviderRuntimeRegistryFromProviders(
+		[]cloud.Provider{awsProvider},
+		cache,
+		map[string]pricing.PriceFetcher{awskit.ProviderID: fetcher},
+	)
 	if err != nil {
 		tb.Fatalf("NewTestEstimator: %v", err)
 	}
-	e.SetFetcherForProvider(awskit.ProviderID, fetcher)
+	e, err := engine.NewEstimatorWithDeps(catalog, runtimeRegistry)
+	if err != nil {
+		tb.Fatalf("NewTestEstimator: %v", err)
+	}
 	return e
 }
 
@@ -110,7 +128,7 @@ func LoadPricingFixture(tb testing.TB, name string) string {
 }
 
 // AssertUnsupportedResource verifies the common unsupported-resource contract.
-func AssertUnsupportedResource(tb testing.TB, resources []model.ResourceCost, address, wantProvider string, wantKind model.CostErrorKind) *model.ResourceCost {
+func AssertUnsupportedResource(tb testing.TB, resources []model.ResourceCost, address, wantProvider string, wantFailure model.FailureKind) *model.ResourceCost {
 	tb.Helper()
 
 	rc := FindResource(resources, address)
@@ -121,14 +139,17 @@ func AssertUnsupportedResource(tb testing.TB, resources []model.ResourceCost, ad
 	if rc.Provider != wantProvider {
 		tb.Fatalf("Provider = %q, want %q", rc.Provider, wantProvider)
 	}
-	if rc.ErrorKind != wantKind {
-		tb.Fatalf("ErrorKind = %q, want %q", rc.ErrorKind, wantKind)
+	if rc.Status != model.ResourceEstimateStatusUnsupported {
+		tb.Fatalf("Status = %q, want %q", rc.Status, model.ResourceEstimateStatusUnsupported)
+	}
+	if rc.FailureKind != wantFailure {
+		tb.Fatalf("FailureKind = %q, want %q", rc.FailureKind, wantFailure)
 	}
 	return rc
 }
 
-// AssertUsageBasedResource verifies the common usage-based resource contract.
-func AssertUsageBasedResource(tb testing.TB, resources []model.ResourceCost, address string) *model.ResourceCost {
+// AssertUsageBasedUnknownResource verifies the common usage-based unknown contract.
+func AssertUsageBasedUnknownResource(tb testing.TB, resources []model.ResourceCost, address string) *model.ResourceCost {
 	tb.Helper()
 
 	rc := FindResource(resources, address)
@@ -136,9 +157,28 @@ func AssertUsageBasedResource(tb testing.TB, resources []model.ResourceCost, add
 		tb.Fatalf("missing resource %q in results", address)
 		return nil
 	}
-	if rc.ErrorKind != model.CostErrorUsageBased {
-		tb.Fatalf("ErrorKind = %q, want %q", rc.ErrorKind, model.CostErrorUsageBased)
+	if rc.Status != model.ResourceEstimateStatusUsageUnknown {
+		tb.Fatalf("Status = %q, want %q", rc.Status, model.ResourceEstimateStatusUsageUnknown)
 	}
+	if rc.PriceSource != "usage-based" {
+		tb.Fatalf("PriceSource = %q, want %q", rc.PriceSource, "usage-based")
+	}
+	return rc
+}
+
+// AssertUsageBasedEstimatedResource verifies the common usage-based estimated contract.
+func AssertUsageBasedEstimatedResource(tb testing.TB, resources []model.ResourceCost, address string, wantMonthly, tolerance float64) *model.ResourceCost {
+	tb.Helper()
+
+	rc := FindResource(resources, address)
+	if rc == nil {
+		tb.Fatalf("missing resource %q in results", address)
+		return nil
+	}
+	if rc.Status != model.ResourceEstimateStatusUsageEstimated {
+		tb.Fatalf("Status = %q, want %q", rc.Status, model.ResourceEstimateStatusUsageEstimated)
+	}
+	AssertCostNear(tb, address+" monthly", rc.MonthlyCost, wantMonthly, tolerance)
 	if rc.PriceSource != "usage-based" {
 		tb.Fatalf("PriceSource = %q, want %q", rc.PriceSource, "usage-based")
 	}

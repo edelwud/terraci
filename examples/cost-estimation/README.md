@@ -62,6 +62,8 @@ terraci generate --dry-run
 terraci validate
 ```
 
+In JSON output, each resource has a `status`, so you can tell apart exact plan-time pricing, partial usage estimates (`usage_estimated`), unknown usage (`usage_unknown`), and unsupported or failed estimates.
+
 Example output:
 
 ```

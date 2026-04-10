@@ -5,6 +5,7 @@ import (
 
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
+	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
 
 func TestSQSHandler_Contract(t *testing.T) {
@@ -18,15 +19,18 @@ func TestSQSHandler_Contract(t *testing.T) {
 	})
 }
 
-func TestSQSHandler_CalculateCost(t *testing.T) {
+func TestSQSHandler_CalculateUsageCost(t *testing.T) {
 	t.Parallel()
 
 	h := &SQSHandler{}
-	hourly, monthly := h.CalculateCost(nil, nil, "", nil)
-	if hourly != 0 {
-		t.Errorf("hourly = %v, want 0", hourly)
+	got := h.CalculateUsageCost("", nil)
+	if got.HourlyCost != 0 {
+		t.Errorf("hourly = %v, want 0", got.HourlyCost)
 	}
-	if monthly != 0 {
-		t.Errorf("monthly = %v, want 0", monthly)
+	if got.MonthlyCost != 0 {
+		t.Errorf("monthly = %v, want 0", got.MonthlyCost)
+	}
+	if got.Status != model.ResourceEstimateStatusUsageUnknown {
+		t.Errorf("status = %q, want %q", got.Status, model.ResourceEstimateStatusUsageUnknown)
 	}
 }

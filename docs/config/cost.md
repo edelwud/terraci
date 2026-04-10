@@ -142,6 +142,13 @@ terraci cost -v
 
 The `terraci cost` command scans for `plan.json` files, fetches pricing data, and outputs per-module cost estimates. Pricing cache location and TTL expiration are shown in the output.
 
+In JSON output, each resource now carries a `status`:
+
+- `exact` for fully priced resources
+- `usage_estimated` when TerraCi can derive a partial estimate from configured capacity
+- `usage_unknown` when the resource still needs runtime usage data
+- `unsupported` / `failed` with optional `failure_kind` and `status_detail`
+
 > **Note:** `terraci cost` requires `plugins.cost.providers.aws.enabled: true` in your `.terraci.yaml`.
 
 In CI pipelines, cost estimation runs automatically as part of the `terraci summary` command (which posts MR/PR comments). Use `terraci cost` for local development and ad-hoc cost checks.

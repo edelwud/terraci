@@ -28,6 +28,11 @@ type estimateCoordinator struct {
 	runtimes         indexWarmer
 }
 
+type prefetchPlan struct {
+	services    map[pricing.ServiceID][]string
+	diagnostics []model.PrefetchDiagnostic
+}
+
 func newEstimateCoordinator(
 	scanner *ModuleScanner,
 	executor *ModuleExecutor,
@@ -61,8 +66,9 @@ func (b *estimateCoordinator) Estimate(ctx context.Context, modulePaths []string
 		modulePlans = append(modulePlans, scanned.Plan)
 	}
 
-	requirements := buildPrefetchRequirements(b.catalog, modulePlans)
-	if prefetchErr := b.runtimes.WarmIndexes(ctx, requirements); prefetchErr != nil {
+	prefetch := buildPrefetchPlan(b.catalog, modulePlans)
+	logPrefetchDiagnostics(prefetch.diagnostics)
+	if prefetchErr := b.runtimes.WarmIndexes(ctx, prefetch.services); prefetchErr != nil {
 		log.WithError(prefetchErr).Warn("failed to prefetch some pricing data")
 	}
 
@@ -83,33 +89,70 @@ func (b *estimateCoordinator) Estimate(ctx context.Context, modulePaths []string
 		assembler.AddModule(moduleResults[i])
 	}
 
-	return assembler.Build(), nil
+	result := assembler.Build()
+	result.PrefetchWarnings = append(result.PrefetchWarnings, prefetch.diagnostics...)
+	return result, nil
 }
 
-// buildPrefetchRequirements analyses scanned module plans and returns the set of
-// service/region pricing indexes that must be warm before estimation can run.
-func buildPrefetchRequirements(catalog costruntime.ProviderCatalogRuntime, modulePlans []*ModulePlan) map[pricing.ServiceID][]string {
+// buildPrefetchPlan analyses scanned module plans and returns the pricing requirements
+// that should be warmed before execution together with non-fatal diagnostics.
+func buildPrefetchPlan(catalog costruntime.ProviderCatalogRuntime, modulePlans []*ModulePlan) prefetchPlan {
 	regionSet := make(map[pricing.ServiceID]map[string]struct{})
+	diagnostics := make([]model.PrefetchDiagnostic, 0)
 
 	for _, modulePlan := range modulePlans {
 		for _, resource := range modulePlan.Resources {
 			providerID, ok := catalog.ResolveProvider(resource.ResourceType)
 			if !ok {
+				diagnostics = append(diagnostics, model.PrefetchDiagnostic{
+					Kind:         "unsupported",
+					ModuleID:     modulePlan.ModuleID,
+					ResourceType: resource.ResourceType.String(),
+					Address:      resource.Address,
+					Detail:       "no provider",
+				})
 				continue
 			}
 
 			h, ok := catalog.ResolveHandler(providerID, resource.ResourceType)
-			if !ok || h.Category() != handler.CostCategoryStandard {
-				continue
-			}
-
-			lb, ok := h.(handler.LookupBuilder)
 			if !ok {
+				diagnostics = append(diagnostics, model.PrefetchDiagnostic{
+					Kind:         "no-handler",
+					ModuleID:     modulePlan.ModuleID,
+					ResourceType: resource.ResourceType.String(),
+					Address:      resource.Address,
+					Detail:       "no handler",
+				})
+				continue
+			}
+			if h.Category() != handler.CostCategoryStandard {
 				continue
 			}
 
-			lookup, err := lb.BuildLookup(modulePlan.Region, resource.ActiveAttrs())
-			if err != nil || lookup == nil {
+			standardHandler, ok := h.(handler.StandardCostHandler)
+			if !ok {
+				diagnostics = append(diagnostics, model.PrefetchDiagnostic{
+					Kind:         "lookup-failed",
+					ModuleID:     modulePlan.ModuleID,
+					ResourceType: resource.ResourceType.String(),
+					Address:      resource.Address,
+					Detail:       "standard handler does not implement StandardCostHandler",
+				})
+				continue
+			}
+
+			lookup, err := standardHandler.BuildLookup(modulePlan.Region, resource.ActiveAttrs())
+			if err != nil {
+				diagnostics = append(diagnostics, model.PrefetchDiagnostic{
+					Kind:         "lookup-failed",
+					ModuleID:     modulePlan.ModuleID,
+					ResourceType: resource.ResourceType.String(),
+					Address:      resource.Address,
+					Detail:       err.Error(),
+				})
+				continue
+			}
+			if lookup == nil {
 				continue
 			}
 
@@ -126,5 +169,20 @@ func buildPrefetchRequirements(catalog costruntime.ProviderCatalogRuntime, modul
 			services[svc] = append(services[svc], region)
 		}
 	}
-	return services
+	return prefetchPlan{
+		services:    services,
+		diagnostics: diagnostics,
+	}
+}
+
+func logPrefetchDiagnostics(diagnostics []model.PrefetchDiagnostic) {
+	for _, diag := range diagnostics {
+		fields := log.WithField("module", diag.ModuleID).
+			WithField("type", diag.ResourceType).
+			WithField("address", diag.Address)
+		if diag.Detail != "" {
+			fields = fields.WithField("detail", diag.Detail)
+		}
+		fields.Debug("cost: prefetch skipped")
+	}
 }

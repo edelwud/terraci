@@ -65,12 +65,14 @@ func TestProviderRuntimeRegistry_GetIndexAndSourceName(t *testing.T) {
 		},
 	}
 
-	cache1 := pricing.NewCacheFromBlobCache(blobcache.New(diskblob.NewStore(t.TempDir()), "", time.Hour))
-	cache1.SetFetcher(runtimetest.StubFetcher{
+	cache1, err := pricing.NewCacheFromBlobCache(blobcache.New(diskblob.NewStore(t.TempDir()), "", time.Hour), runtimetest.StubFetcher{
 		FetchRegionIndexFunc: func(_ context.Context, _ pricing.ServiceID, _ string) (*pricing.PriceIndex, error) {
 			return expected, nil
 		},
 	})
+	if err != nil {
+		t.Fatalf("NewCacheFromBlobCache() error = %v", err)
+	}
 	runtimeRegistry := NewProviderRuntimeRegistry(
 		map[string]*ProviderRuntime{
 			awskit.ProviderID: {
@@ -118,8 +120,7 @@ func TestProviderRuntimeRegistry_WarmIndexes(t *testing.T) {
 
 	serviceID := awskit.MustService(awskit.ServiceKeyEC2)
 	fetchCount := 0
-	cache2 := pricing.NewCacheFromBlobCache(blobcache.New(diskblob.NewStore(t.TempDir()), "", time.Hour))
-	cache2.SetFetcher(runtimetest.StubFetcher{
+	cache2, err := pricing.NewCacheFromBlobCache(blobcache.New(diskblob.NewStore(t.TempDir()), "", time.Hour), runtimetest.StubFetcher{
 		FetchRegionIndexFunc: func(_ context.Context, _ pricing.ServiceID, _ string) (*pricing.PriceIndex, error) {
 			fetchCount++
 			return &pricing.PriceIndex{
@@ -133,6 +134,9 @@ func TestProviderRuntimeRegistry_WarmIndexes(t *testing.T) {
 			}, nil
 		},
 	})
+	if err != nil {
+		t.Fatalf("NewCacheFromBlobCache() error = %v", err)
+	}
 	runtimeRegistry := NewProviderRuntimeRegistry(
 		map[string]*ProviderRuntime{
 			awskit.ProviderID: {
@@ -175,11 +179,13 @@ func TestProviderRuntimeRegistry_SharedFetcherOverrideDoesNotPanicForMultiplePro
 			t.Fatalf("constructor should not panic for multi-provider setup: %v", recovered)
 		}
 	}()
-	_ = NewProviderRuntimeRegistryFromProviders(
+	if _, err := NewProviderRuntimeRegistryFromProviders(
 		providers,
 		blobcache.New(diskblob.NewStore(t.TempDir()), "", time.Hour),
 		nil,
-	)
+	); err != nil {
+		t.Fatalf("NewProviderRuntimeRegistryFromProviders() error = %v", err)
+	}
 }
 
 func TestProviderRuntimeRegistry_ProviderScopedFetcherOverrides(t *testing.T) {
@@ -192,7 +198,7 @@ func TestProviderRuntimeRegistry_ProviderScopedFetcherOverrides(t *testing.T) {
 	serviceOne := pricing.ServiceID{Provider: "one", Name: "ServiceOne"}
 	serviceTwo := pricing.ServiceID{Provider: "two", Name: "ServiceTwo"}
 
-	runtimeRegistry := NewProviderRuntimeRegistryFromProviders(
+	runtimeRegistry, err := NewProviderRuntimeRegistryFromProviders(
 		providers,
 		blobcache.New(diskblob.NewStore(t.TempDir()), "", time.Hour),
 		map[string]pricing.PriceFetcher{
@@ -208,6 +214,9 @@ func TestProviderRuntimeRegistry_ProviderScopedFetcherOverrides(t *testing.T) {
 			},
 		},
 	)
+	if err != nil {
+		t.Fatalf("NewProviderRuntimeRegistryFromProviders() error = %v", err)
+	}
 
 	gotOne, err := runtimeRegistry.GetIndex(context.Background(), serviceOne, "us-east-1")
 	if err != nil {

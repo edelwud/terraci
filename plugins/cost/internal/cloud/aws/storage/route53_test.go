@@ -33,11 +33,11 @@ func TestRoute53Handler_BuildLookup_ReturnsNil(t *testing.T) {
 	handlertest.AssertNilLookup(t, &Route53Handler{}, "us-east-1", nil)
 }
 
-func TestRoute53Handler_CalculateCost(t *testing.T) {
+func TestRoute53Handler_CalculateFixedCost(t *testing.T) {
 	t.Parallel()
 
 	h := &Route53Handler{}
-	hourly, monthly := h.CalculateCost(nil, nil, "", nil)
+	hourly, monthly := h.CalculateFixedCost("", nil)
 
 	if monthly != Route53HostedZoneCost {
 		t.Errorf("monthly = %v, want %v", monthly, Route53HostedZoneCost)

@@ -75,8 +75,24 @@ terraci cost --output json
       "after_cost": 689.12,
       "diff_cost": 689.12,
       "resources": [
-        {"address": "aws_db_instance.postgres", "monthly_cost": 400.77},
-        {"address": "aws_elasticache_cluster.redis", "monthly_cost": 180.31}
+        {
+          "address": "aws_db_instance.postgres",
+          "monthly_cost": 400.77,
+          "price_source": "aws-bulk-api"
+        },
+        {
+          "address": "aws_lambda_function.worker",
+          "monthly_cost": 12.04,
+          "price_source": "usage-based",
+          "status": "usage_estimated",
+          "status_detail": "usage-based estimate derived from provisioned concurrency"
+        },
+        {
+          "address": "aws_sqs_queue.jobs",
+          "monthly_cost": 0,
+          "price_source": "usage-based",
+          "status": "usage_unknown"
+        }
       ]
     }
   ],
@@ -86,6 +102,13 @@ terraci cost --output json
   "currency": "USD"
 }
 ```
+
+Для каждого ресурса в JSON теперь есть поле `status`:
+
+- `exact` — TerraCi нашел цену на этапе plan
+- `usage_estimated` — TerraCi смог вывести частичную оценку из конфигурации
+- `usage_unknown` — стоимость по-прежнему неизвестна на этапе plan
+- `unsupported` / `failed` — цена не получена; могут присутствовать `failure_kind` и `status_detail`
 
 ## Необходимые условия
 

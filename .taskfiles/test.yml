@@ -8,7 +8,7 @@ vars:
 tasks:
   unit:
     desc: Run unit tests with race detection and coverage
-    deps: [build:deps]
+    deps: [":build:deps"]
     env:
       CGO_ENABLED: "1"
     cmds:
@@ -21,7 +21,7 @@ tasks:
 
   integration:
     desc: Run integration tests
-    deps: [build:deps]
+    deps: [":build:deps"]
     env:
       CGO_ENABLED: "1"
     cmds:

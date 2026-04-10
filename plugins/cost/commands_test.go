@@ -384,6 +384,62 @@ func TestBuildCostReport(t *testing.T) {
 	}
 }
 
+func TestBuildCostReport_IncludesPrefetchWarnings(t *testing.T) {
+	t.Parallel()
+
+	result := &model.EstimateResult{
+		Modules: []model.ModuleCost{
+			{
+				ModuleID:   "platform/prod/vpc",
+				ModulePath: "/tmp/vpc",
+				AfterCost:  10.50,
+				Resources: []model.ResourceCost{
+					{
+						Address: "aws_lambda_function.worker",
+						Status:  model.ResourceEstimateStatusUsageEstimated,
+					},
+					{
+						Address: "aws_sqs_queue.jobs",
+						Status:  model.ResourceEstimateStatusUsageUnknown,
+					},
+				},
+			},
+		},
+		TotalAfter:     10.50,
+		Currency:       "USD",
+		UsageEstimated: 1,
+		UsageUnknown:   1,
+		PrefetchWarnings: []model.PrefetchDiagnostic{
+			{
+				Kind:         "lookup-failed",
+				ResourceType: "aws_db_instance",
+				Address:      "aws_db_instance.db",
+				Detail:       "missing instance_class",
+			},
+		},
+	}
+
+	report := buildCostReport(result)
+	if report.Status != ci.ReportStatusWarn {
+		t.Fatalf("Status = %q, want %q", report.Status, ci.ReportStatusWarn)
+	}
+	if !strings.Contains(report.Body, "Prefetch warnings") {
+		t.Fatalf("report body = %q, want prefetch warnings section", report.Body)
+	}
+	if !strings.Contains(report.Body, "Resource statuses") {
+		t.Fatalf("report body = %q, want resource statuses section", report.Body)
+	}
+	if !strings.Contains(report.Summary, "usage estimated: 1") {
+		t.Fatalf("summary = %q, want usage estimated count", report.Summary)
+	}
+	if !strings.Contains(report.Summary, "usage unknown: 1") {
+		t.Fatalf("summary = %q, want usage unknown count", report.Summary)
+	}
+	if !strings.Contains(report.Body, "aws_db_instance.db") {
+		t.Fatalf("report body = %q, want warning address", report.Body)
+	}
+}
+
 func TestBuildCostReport_Empty(t *testing.T) {
 	result := &model.EstimateResult{
 		Modules:  []model.ModuleCost{},

@@ -13,11 +13,11 @@ func TestKMSHandler_FixedContract(t *testing.T) {
 	handlertest.AssertFixedCategory(t, &KMSHandler{})
 }
 
-func TestKMSHandler_CalculateCost(t *testing.T) {
+func TestKMSHandler_CalculateFixedCost(t *testing.T) {
 	t.Parallel()
 
 	h := &KMSHandler{}
-	hourly, monthly := h.CalculateCost(nil, nil, "", nil)
+	hourly, monthly := h.CalculateFixedCost("", nil)
 
 	if monthly != KMSKeyCost {
 		t.Errorf("monthly = %v, want %v", monthly, KMSKeyCost)
