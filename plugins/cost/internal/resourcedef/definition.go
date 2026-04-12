@@ -1,13 +1,41 @@
+// Package resourcedef defines the canonical runtime contract for resource cost estimation.
+// It owns the core value types (ResourceType, CostCategory, SubResource) and the
+// Definition struct that replaces the legacy handler interface hierarchy.
 package resourcedef
 
 import (
 	"errors"
 	"fmt"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
+
+// ResourceType is a provider-neutral Terraform resource identifier.
+type ResourceType string
+
+// String returns the raw Terraform resource type value.
+func (r ResourceType) String() string { return string(r) }
+
+// CostCategory classifies how a resource definition calculates costs.
+type CostCategory int
+
+const (
+	// CostCategoryStandard requires pricing API lookup.
+	CostCategoryStandard CostCategory = iota
+	// CostCategoryFixed uses hardcoded costs (no API call needed).
+	CostCategoryFixed
+	// CostCategoryUsageBased is usage-based pricing (returns $0 for fixed estimates).
+	CostCategoryUsageBased
+)
+
+// SubResource represents a virtual sub-resource synthesized from a parent resource's
+// inline attributes (e.g., root_block_device inside aws_instance → aws_ebs_volume).
+type SubResource struct {
+	Suffix string       // Address suffix, e.g., "/root_volume"
+	Type   ResourceType // Resource type for handler lookup, e.g., "aws_ebs_volume"
+	Attrs  map[string]any
+}
 
 // LookupFunc builds a pricing lookup for one resource instance.
 type LookupFunc func(region string, attrs map[string]any) (*pricing.PriceLookup, error)
@@ -25,12 +53,12 @@ type FixedCostFunc func(region string, attrs map[string]any) (hourly, monthly fl
 type UsageCostFunc func(region string, attrs map[string]any) model.UsageCostEstimate
 
 // SubresourceFunc synthesizes subresources from resource attributes.
-type SubresourceFunc func(attrs map[string]any) []handler.SubResource
+type SubresourceFunc func(attrs map[string]any) []SubResource
 
 // Definition is the canonical runtime execution contract for one resource type.
 type Definition struct {
-	Type         handler.ResourceType
-	Category     handler.CostCategory
+	Type         ResourceType
+	Category     CostCategory
 	Lookup       LookupFunc
 	Describe     DescribeFunc
 	StandardCost StandardCostFunc
@@ -46,15 +74,15 @@ func (d Definition) Validate() error {
 	}
 
 	switch d.Category {
-	case handler.CostCategoryStandard:
+	case CostCategoryStandard:
 		if d.StandardCost == nil {
 			return fmt.Errorf("resource definition %q: standard cost function is required", d.Type)
 		}
-	case handler.CostCategoryFixed:
+	case CostCategoryFixed:
 		if d.FixedCost == nil {
 			return fmt.Errorf("resource definition %q: fixed cost function is required", d.Type)
 		}
-	case handler.CostCategoryUsageBased:
+	case CostCategoryUsageBased:
 		if d.UsageCost == nil {
 			return fmt.Errorf("resource definition %q: usage cost function is required", d.Type)
 		}
@@ -108,7 +136,7 @@ func (d Definition) CalculateUsageCost(region string, attrs map[string]any) (mod
 }
 
 // BuildSubresources returns synthesized subresources when configured.
-func (d Definition) BuildSubresources(attrs map[string]any) []handler.SubResource {
+func (d Definition) BuildSubresources(attrs map[string]any) []SubResource {
 	if d.Subresources == nil {
 		return nil
 	}
