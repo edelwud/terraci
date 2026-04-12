@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
@@ -12,20 +11,20 @@ import (
 
 // StubRuntime is a compact provider-aware runtime stub for runtime and resolver tests.
 type StubRuntime struct {
-	ResolveProviderFunc   func(resourceType handler.ResourceType) (string, bool)
-	ResolveDefinitionFunc func(providerID string, resourceType handler.ResourceType) (resourcedef.Definition, bool)
+	ResolveProviderFunc   func(resourceType resourcedef.ResourceType) (string, bool)
+	ResolveDefinitionFunc func(providerID string, resourceType resourcedef.ResourceType) (resourcedef.Definition, bool)
 	GetIndexFunc          func(ctx context.Context, service pricing.ServiceID, region string) (*pricing.PriceIndex, error)
 	SourceNameFunc        func(providerID string) string
 }
 
-func (r StubRuntime) ResolveProvider(resourceType handler.ResourceType) (string, bool) {
+func (r StubRuntime) ResolveProvider(resourceType resourcedef.ResourceType) (string, bool) {
 	if r.ResolveProviderFunc == nil {
 		return "", false
 	}
 	return r.ResolveProviderFunc(resourceType)
 }
 
-func (r StubRuntime) ResolveDefinition(providerID string, resourceType handler.ResourceType) (resourcedef.Definition, bool) {
+func (r StubRuntime) ResolveDefinition(providerID string, resourceType resourcedef.ResourceType) (resourcedef.Definition, bool) {
 	if r.ResolveDefinitionFunc == nil {
 		return resourcedef.Definition{}, false
 	}
@@ -60,16 +59,16 @@ func (f StubFetcher) FetchRegionIndex(ctx context.Context, service pricing.Servi
 
 // StubDefinition is a compact resource definition builder for runtime-focused tests.
 type StubDefinition struct {
-	CategoryValue      handler.CostCategory
+	CategoryValue      resourcedef.CostCategory
 	LookupFunc         func(region string, attrs map[string]any) (*pricing.PriceLookup, error)
 	DescribeFunc       func(price *pricing.Price, attrs map[string]any) map[string]string
 	CalculateFunc      func(price *pricing.Price, index *pricing.PriceIndex, region string, attrs map[string]any) (hourly, monthly float64)
 	CalculateFixedFunc func(region string, attrs map[string]any) (hourly, monthly float64)
 	CalculateUsageFunc func(region string, attrs map[string]any) model.UsageCostEstimate
-	SubresourcesFunc   func(attrs map[string]any) []handler.SubResource
+	SubresourcesFunc   func(attrs map[string]any) []resourcedef.SubResource
 }
 
-func (d StubDefinition) Definition(resourceType handler.ResourceType) resourcedef.Definition {
+func (d StubDefinition) Definition(resourceType resourcedef.ResourceType) resourcedef.Definition {
 	return resourcedef.Definition{
 		Type:         resourceType,
 		Category:     d.CategoryValue,
@@ -85,7 +84,7 @@ func (d StubDefinition) Definition(resourceType handler.ResourceType) resourcede
 // ProviderCase defines one contract test case for provider resolution.
 type ProviderCase struct {
 	Name         string
-	ResourceType handler.ResourceType
+	ResourceType resourcedef.ResourceType
 	WantProvider string
 	WantOK       bool
 }
@@ -94,7 +93,7 @@ type ProviderCase struct {
 type HandlerCase struct {
 	Name         string
 	ProviderID   string
-	ResourceType handler.ResourceType
+	ResourceType resourcedef.ResourceType
 	WantOK       bool
 	Assert       func(testing.TB, resourcedef.Definition)
 }
@@ -119,11 +118,11 @@ type RuntimeSuite struct {
 }
 
 type ProviderResolver interface {
-	ResolveProvider(resourceType handler.ResourceType) (string, bool)
+	ResolveProvider(resourceType resourcedef.ResourceType) (string, bool)
 }
 
 type DefinitionResolver interface {
-	ResolveDefinition(providerID string, resourceType handler.ResourceType) (resourcedef.Definition, bool)
+	ResolveDefinition(providerID string, resourceType resourcedef.ResourceType) (resourcedef.Definition, bool)
 }
 
 type PricingResolver interface {
@@ -222,7 +221,7 @@ func runPricingCases(t *testing.T, runtime ResolverRuntime, cases []PricingCase)
 }
 
 // AssertNoProviderContract verifies that a resource type is not owned by any provider.
-func AssertNoProviderContract(tb testing.TB, runtime ProviderResolver, resourceType handler.ResourceType) {
+func AssertNoProviderContract(tb testing.TB, runtime ProviderResolver, resourceType resourcedef.ResourceType) {
 	tb.Helper()
 
 	providerID, ok := runtime.ResolveProvider(resourceType)
@@ -235,7 +234,7 @@ func AssertNoProviderContract(tb testing.TB, runtime ProviderResolver, resourceT
 func AssertNoHandlerContract(tb testing.TB, runtime interface {
 	ProviderResolver
 	DefinitionResolver
-}, providerID string, resourceType handler.ResourceType) {
+}, providerID string, resourceType resourcedef.ResourceType) {
 	tb.Helper()
 
 	gotProvider, ok := runtime.ResolveProvider(resourceType)

@@ -8,7 +8,6 @@ import (
 
 	"github.com/edelwud/terraci/pkg/cache/blobcache"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
@@ -50,11 +49,11 @@ func NewEstimationRuntimeFromProviders(
 	return NewEstimationRuntime(catalog, pricingRuntime)
 }
 
-func (r *EstimationRuntime) ResolveProvider(resourceType handler.ResourceType) (string, bool) {
+func (r *EstimationRuntime) ResolveProvider(resourceType resourcedef.ResourceType) (string, bool) {
 	return r.catalog.ResolveProvider(resourceType)
 }
 
-func (r *EstimationRuntime) ResolveDefinition(providerID string, resourceType handler.ResourceType) (resourcedef.Definition, bool) {
+func (r *EstimationRuntime) ResolveDefinition(providerID string, resourceType resourcedef.ResourceType) (resourcedef.Definition, bool) {
 	return r.catalog.ResolveDefinition(providerID, resourceType)
 }
 

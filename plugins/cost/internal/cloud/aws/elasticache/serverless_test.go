@@ -4,15 +4,16 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
 func TestServerlessHandler_Category(t *testing.T) {
 	def := resourcespec.MustCompile(ServerlessSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
-	handlertest.AssertCategory(t, def, handler.CostCategoryStandard)
+	handlertest.AssertCategory(t, def, resourcedef.CostCategoryStandard)
 }
 
 func TestServerlessHandler_BuildLookup(t *testing.T) {
@@ -41,7 +42,7 @@ func TestServerlessHandler_CalculateCost(t *testing.T) {
 		{
 			name:            "default 1GB",
 			attrs:           map[string]any{},
-			expectedMonthly: 0.000171 * handler.HoursPerMonth,
+			expectedMonthly: 0.000171 * costutil.HoursPerMonth,
 		},
 		{
 			name: "10GB configured",
@@ -57,7 +58,7 @@ func TestServerlessHandler_CalculateCost(t *testing.T) {
 					},
 				},
 			},
-			expectedMonthly: 10 * 0.000171 * handler.HoursPerMonth,
+			expectedMonthly: 10 * 0.000171 * costutil.HoursPerMonth,
 		},
 	}
 
@@ -99,7 +100,7 @@ func TestServerlessHandler_CalculateCost_FallbackPrice(t *testing.T) {
 		t.Fatal("CalculateStandardCost returned ok=false")
 	}
 
-	expectedMonthly := 5 * FallbackServerlessStorageCostPerGBHour * handler.HoursPerMonth
+	expectedMonthly := 5 * FallbackServerlessStorageCostPerGBHour * costutil.HoursPerMonth
 
 	const epsilon = 0.01
 	if diff := monthly - expectedMonthly; diff < -epsilon || diff > epsilon {

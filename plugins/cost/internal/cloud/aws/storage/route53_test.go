@@ -3,15 +3,16 @@ package storage
 import (
 	"testing"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
 func TestRoute53Handler_Category(t *testing.T) {
 	t.Parallel()
 
-	category := handler.CostCategoryFixed
+	category := resourcedef.CostCategoryFixed
 	handlertest.RunContractSuite(t, resourcespec.MustCompile(Route53Spec()), handlertest.ContractSuite{
 		Category:  &category,
 		NilLookup: &handlertest.LookupInput{Region: "us-east-1"},
@@ -48,7 +49,7 @@ func TestRoute53Handler_CalculateFixedCost(t *testing.T) {
 		t.Errorf("monthly = %v, want %v", monthly, Route53HostedZoneCost)
 	}
 
-	expectedHourly := Route53HostedZoneCost / handler.HoursPerMonth
+	expectedHourly := Route53HostedZoneCost / costutil.HoursPerMonth
 	if hourly != expectedHourly {
 		t.Errorf("hourly = %v, want %v", hourly, expectedHourly)
 	}

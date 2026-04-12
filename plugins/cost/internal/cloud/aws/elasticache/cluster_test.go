@@ -4,16 +4,17 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
 func TestClusterHandler_Contract(t *testing.T) {
 	t.Parallel()
 
-	category := handler.CostCategoryStandard
+	category := resourcedef.CostCategoryStandard
 	handlertest.RunContractSuite(t, resourcespec.MustCompile(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
 		Category: &category,
 		LookupCases: []handlertest.LookupCase{
@@ -176,7 +177,7 @@ func TestClusterHandler_CalculateCost_BackupStorage(t *testing.T) {
 		t.Fatal("CalculateStandardCost returned ok=false")
 	}
 
-	_, nodeMonthly := handler.ScaledHourlyCost(0.05, 3)
+	_, nodeMonthly := costutil.ScaledHourlyCost(0.05, 3)
 	chargeableGB := 13.07*3*5 - 13.07*3
 	expectedMonthly := nodeMonthly + chargeableGB*backupPrice
 
@@ -224,7 +225,7 @@ func TestClusterHandler_CalculateCost_DataTiering(t *testing.T) {
 		t.Fatal("CalculateStandardCost returned ok=false")
 	}
 
-	_, nodeMonthly := handler.ScaledHourlyCost(0.50, 2)
+	_, nodeMonthly := costutil.ScaledHourlyCost(0.50, 2)
 	ssdCost := 75.0 * 2 * dtPrice
 	expectedMonthly := nodeMonthly + ssdCost
 
@@ -263,7 +264,7 @@ func TestClusterHandler_CalculateCost_Fallback(t *testing.T) {
 		t.Fatal("CalculateStandardCost returned ok=false")
 	}
 
-	_, nodeMonthly := handler.ScaledHourlyCost(0.50, 1)
+	_, nodeMonthly := costutil.ScaledHourlyCost(0.50, 1)
 	ssdCost := 75.0 * 1 * FallbackDataTieringCostPerGBMonth
 	chargeableGB := 26.32*1*3 - 26.32*1
 	backupCost := chargeableGB * FallbackBackupStorageCostPerGBMonth
@@ -299,7 +300,7 @@ func TestClusterHandler_NoBackupCostWithRetention1(t *testing.T) {
 		t.Fatal("CalculateStandardCost returned ok=false")
 	}
 
-	_, nodeMonthly := handler.ScaledHourlyCost(0.05, 1)
+	_, nodeMonthly := costutil.ScaledHourlyCost(0.05, 1)
 	// chargeableGB = 13.07*1*1 - 13.07*1 = 0, so no backup cost
 	if monthly != nodeMonthly {
 		t.Errorf("monthly = %v, want %v (no backup cost for retention=1)", monthly, nodeMonthly)
@@ -330,7 +331,7 @@ func TestClusterHandler_NoStorageCostWithoutSSD(t *testing.T) {
 		t.Fatal("CalculateStandardCost returned ok=false")
 	}
 
-	_, nodeMonthly := handler.ScaledHourlyCost(0.05, 1)
+	_, nodeMonthly := costutil.ScaledHourlyCost(0.05, 1)
 	if monthly != nodeMonthly {
 		t.Errorf("monthly = %v, want %v (no SSD cost for non-SSD node)", monthly, nodeMonthly)
 	}

@@ -2,8 +2,9 @@ package elb
 
 import (
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
@@ -14,8 +15,8 @@ const (
 // ClassicSpec declares aws_elb cost estimation.
 func ClassicSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 	return resourcespec.ResourceSpec{
-		Type:     handler.ResourceType(awskit.ResourceClassicLoadBalancer),
-		Category: handler.CostCategoryStandard,
+		Type:     resourcedef.ResourceType(awskit.ResourceClassicLoadBalancer),
+		Category: resourcedef.CostCategoryStandard,
 		Lookup: &resourcespec.LookupSpec{
 			BuildFunc: func(region string, _ map[string]any) (*pricing.PriceLookup, error) {
 				runtime := deps.RuntimeOrDefault()
@@ -38,9 +39,9 @@ func ClassicSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 		Standard: &resourcespec.StandardPricingSpec{
 			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
 				if price != nil && price.OnDemandUSD > 0 {
-					return handler.HourlyCost(price.OnDemandUSD)
+					return costutil.HourlyCost(price.OnDemandUSD)
 				}
-				return handler.HourlyCost(DefaultClassicLBHourlyCost)
+				return costutil.HourlyCost(DefaultClassicLBHourlyCost)
 			},
 		},
 	}

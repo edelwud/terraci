@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
@@ -25,10 +24,10 @@ func TestCostResolver_ResolveNoProvider(t *testing.T) {
 	t.Parallel()
 
 	testRuntime := runtimetest.StubRuntime{}
-	runtimetest.AssertNoProviderContract(t, testRuntime, handler.ResourceType("unknown_resource"))
+	runtimetest.AssertNoProviderContract(t, testRuntime, resourcedef.ResourceType("unknown_resource"))
 	resolver := mustNewResolver(t, testRuntime)
 	got := resolver.Resolve(context.Background(), ResolveRequest{
-		ResourceType: handler.ResourceType("unknown_resource"),
+		ResourceType: resourcedef.ResourceType("unknown_resource"),
 		Address:      "unknown_resource.example",
 	})
 
@@ -44,17 +43,17 @@ func TestCostResolver_ResolveKnownProviderMissingHandler(t *testing.T) {
 	t.Parallel()
 
 	testRuntime := runtimetest.StubRuntime{
-		ResolveProviderFunc: func(resourceType handler.ResourceType) (string, bool) {
-			if resourceType == handler.ResourceType("known_without_handler") {
+		ResolveProviderFunc: func(resourceType resourcedef.ResourceType) (string, bool) {
+			if resourceType == resourcedef.ResourceType("known_without_handler") {
 				return "aws", true
 			}
 			return "", false
 		},
 	}
-	runtimetest.AssertNoHandlerContract(t, testRuntime, "aws", handler.ResourceType("known_without_handler"))
+	runtimetest.AssertNoHandlerContract(t, testRuntime, "aws", resourcedef.ResourceType("known_without_handler"))
 	resolver := mustNewResolver(t, testRuntime)
 	got := resolver.Resolve(context.Background(), ResolveRequest{
-		ResourceType: handler.ResourceType("known_without_handler"),
+		ResourceType: resourcedef.ResourceType("known_without_handler"),
 		Address:      "known_without_handler.example",
 	})
 
@@ -72,15 +71,15 @@ func TestCostResolver_ResolveKnownProviderMissingHandler(t *testing.T) {
 func TestCostResolver_ResolveFixedAndUsageBased(t *testing.T) {
 	t.Parallel()
 
-	definitions := map[handler.ResourceType]runtimetest.StubDefinition{
-		handler.ResourceType("fixed_resource"): {
-			CategoryValue: handler.CostCategoryFixed,
+	definitions := map[resourcedef.ResourceType]runtimetest.StubDefinition{
+		resourcedef.ResourceType("fixed_resource"): {
+			CategoryValue: resourcedef.CostCategoryFixed,
 			CalculateFixedFunc: func(_ string, _ map[string]any) (hourly, monthly float64) {
 				return 0.5, 10
 			},
 		},
-		handler.ResourceType("usage_resource"): {
-			CategoryValue: handler.CostCategoryUsageBased,
+		resourcedef.ResourceType("usage_resource"): {
+			CategoryValue: resourcedef.CostCategoryUsageBased,
 			CalculateUsageFunc: func(_ string, _ map[string]any) model.UsageCostEstimate {
 				return model.UsageCostEstimate{
 					HourlyCost:  0.25,
@@ -89,21 +88,21 @@ func TestCostResolver_ResolveFixedAndUsageBased(t *testing.T) {
 				}
 			},
 		},
-		handler.ResourceType("usage_unknown_resource"): {
-			CategoryValue: handler.CostCategoryUsageBased,
+		resourcedef.ResourceType("usage_unknown_resource"): {
+			CategoryValue: resourcedef.CostCategoryUsageBased,
 			CalculateUsageFunc: func(_ string, _ map[string]any) model.UsageCostEstimate {
 				return model.UsageCostEstimate{Status: model.ResourceEstimateStatusUsageUnknown}
 			},
 		},
 	}
 	resolver := mustNewResolver(t, runtimetest.StubRuntime{
-		ResolveProviderFunc: func(resourceType handler.ResourceType) (string, bool) {
+		ResolveProviderFunc: func(resourceType resourcedef.ResourceType) (string, bool) {
 			if _, ok := definitions[resourceType]; ok {
 				return "aws", true
 			}
 			return "", false
 		},
-		ResolveDefinitionFunc: func(_ string, resourceType handler.ResourceType) (def resourcedef.Definition, ok bool) {
+		ResolveDefinitionFunc: func(_ string, resourceType resourcedef.ResourceType) (def resourcedef.Definition, ok bool) {
 			stub, ok := definitions[resourceType]
 			if !ok {
 				return resourcedef.Definition{}, false
@@ -114,7 +113,7 @@ func TestCostResolver_ResolveFixedAndUsageBased(t *testing.T) {
 	})
 
 	fixed := resolver.Resolve(context.Background(), ResolveRequest{
-		ResourceType: handler.ResourceType("fixed_resource"),
+		ResourceType: resourcedef.ResourceType("fixed_resource"),
 		Address:      "fixed_resource.example",
 	})
 	if fixed.MonthlyCost != 10 {
@@ -125,7 +124,7 @@ func TestCostResolver_ResolveFixedAndUsageBased(t *testing.T) {
 	}
 
 	usage := resolver.Resolve(context.Background(), ResolveRequest{
-		ResourceType: handler.ResourceType("usage_resource"),
+		ResourceType: resourcedef.ResourceType("usage_resource"),
 		Address:      "usage_resource.example",
 	})
 	if usage.Status != model.ResourceEstimateStatusUsageEstimated {
@@ -139,7 +138,7 @@ func TestCostResolver_ResolveFixedAndUsageBased(t *testing.T) {
 	}
 
 	usageUnknown := resolver.Resolve(context.Background(), ResolveRequest{
-		ResourceType: handler.ResourceType("usage_unknown_resource"),
+		ResourceType: resourcedef.ResourceType("usage_unknown_resource"),
 		Address:      "usage_unknown_resource.example",
 	})
 	if usageUnknown.Status != model.ResourceEstimateStatusUsageUnknown {
@@ -154,22 +153,22 @@ func TestCostResolver_ResolveUnknownCategory(t *testing.T) {
 	t.Parallel()
 
 	resolver := mustNewResolver(t, runtimetest.StubRuntime{
-		ResolveProviderFunc: func(resourceType handler.ResourceType) (string, bool) {
-			if resourceType == handler.ResourceType("weird_resource") {
+		ResolveProviderFunc: func(resourceType resourcedef.ResourceType) (string, bool) {
+			if resourceType == resourcedef.ResourceType("weird_resource") {
 				return "aws", true
 			}
 			return "", false
 		},
-		ResolveDefinitionFunc: func(_ string, resourceType handler.ResourceType) (resourcedef.Definition, bool) {
-			if resourceType == handler.ResourceType("weird_resource") {
-				return runtimetest.StubDefinition{CategoryValue: handler.CostCategory(99)}.Definition(resourceType), true
+		ResolveDefinitionFunc: func(_ string, resourceType resourcedef.ResourceType) (resourcedef.Definition, bool) {
+			if resourceType == resourcedef.ResourceType("weird_resource") {
+				return runtimetest.StubDefinition{CategoryValue: resourcedef.CostCategory(99)}.Definition(resourceType), true
 			}
 			return resourcedef.Definition{}, false
 		},
 	})
 
 	got := resolver.Resolve(context.Background(), ResolveRequest{
-		ResourceType: handler.ResourceType("weird_resource"),
+		ResourceType: resourcedef.ResourceType("weird_resource"),
 		Address:      "weird_resource.example",
 	})
 	if got.Status != model.ResourceEstimateStatusFailed {
@@ -187,22 +186,22 @@ func TestCostResolver_ResolveBeforeCostUnknownCategory(t *testing.T) {
 	t.Parallel()
 
 	resolver := mustNewResolver(t, runtimetest.StubRuntime{
-		ResolveProviderFunc: func(resourceType handler.ResourceType) (string, bool) {
-			if resourceType == handler.ResourceType("weird_resource") {
+		ResolveProviderFunc: func(resourceType resourcedef.ResourceType) (string, bool) {
+			if resourceType == resourcedef.ResourceType("weird_resource") {
 				return "aws", true
 			}
 			return "", false
 		},
-		ResolveDefinitionFunc: func(_ string, resourceType handler.ResourceType) (resourcedef.Definition, bool) {
-			if resourceType == handler.ResourceType("weird_resource") {
-				return runtimetest.StubDefinition{CategoryValue: handler.CostCategory(99)}.Definition(resourceType), true
+		ResolveDefinitionFunc: func(_ string, resourceType resourcedef.ResourceType) (resourcedef.Definition, bool) {
+			if resourceType == resourcedef.ResourceType("weird_resource") {
+				return runtimetest.StubDefinition{CategoryValue: resourcedef.CostCategory(99)}.Definition(resourceType), true
 			}
 			return resourcedef.Definition{}, false
 		},
 	})
 
 	rc := model.ResourceCost{}
-	resolver.ResolveBeforeCost(context.Background(), &rc, handler.ResourceType("weird_resource"), nil, "us-east-1")
+	resolver.ResolveBeforeCost(context.Background(), &rc, resourcedef.ResourceType("weird_resource"), nil, "us-east-1")
 	if rc.Status != model.ResourceEstimateStatusFailed {
 		t.Fatalf("Status = %q, want %q", rc.Status, model.ResourceEstimateStatusFailed)
 	}
@@ -214,18 +213,18 @@ func TestCostResolver_ResolveBeforeCostWithState_ReusesPricingIndex(t *testing.T
 	serviceID := pricing.ServiceID{Provider: "aws", Name: "AmazonEC2"}
 	var getIndexCalls int
 	testRuntime := runtimetest.StubRuntime{
-		ResolveProviderFunc: func(resourceType handler.ResourceType) (string, bool) {
-			if resourceType == handler.ResourceType("aws_instance") {
+		ResolveProviderFunc: func(resourceType resourcedef.ResourceType) (string, bool) {
+			if resourceType == resourcedef.ResourceType("aws_instance") {
 				return "aws", true
 			}
 			return "", false
 		},
-		ResolveDefinitionFunc: func(_ string, resourceType handler.ResourceType) (resourcedef.Definition, bool) {
-			if resourceType != handler.ResourceType("aws_instance") {
+		ResolveDefinitionFunc: func(_ string, resourceType resourcedef.ResourceType) (resourcedef.Definition, bool) {
+			if resourceType != resourcedef.ResourceType("aws_instance") {
 				return resourcedef.Definition{}, false
 			}
 			return runtimetest.StubDefinition{
-				CategoryValue: handler.CostCategoryStandard,
+				CategoryValue: resourcedef.CostCategoryStandard,
 				LookupFunc: func(region string, _ map[string]any) (*pricing.PriceLookup, error) {
 					return &pricing.PriceLookup{
 						ServiceID:     serviceID,
@@ -266,7 +265,7 @@ func TestCostResolver_ResolveBeforeCostWithState_ReusesPricingIndex(t *testing.T
 	resolver := mustNewResolver(t, testRuntime)
 	state := NewResolutionState()
 	after := resolver.ResolveWithState(context.Background(), ResolveRequest{
-		ResourceType: handler.ResourceType("aws_instance"),
+		ResourceType: resourcedef.ResourceType("aws_instance"),
 		Address:      "aws_instance.web",
 		Region:       "us-east-1",
 		Attrs:        map[string]any{"instance_type": "after"},
@@ -275,7 +274,7 @@ func TestCostResolver_ResolveBeforeCostWithState_ReusesPricingIndex(t *testing.T
 	resolver.ResolveBeforeCostWithState(
 		context.Background(),
 		&after,
-		handler.ResourceType("aws_instance"),
+		resourcedef.ResourceType("aws_instance"),
 		map[string]any{"instance_type": "before"},
 		"us-east-1",
 		state,

@@ -5,14 +5,13 @@ package cloud
 import (
 	"sync"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 )
 
 // ResourceRegistration binds a supported Terraform resource type to its runtime definition.
 type ResourceRegistration struct {
-	Type       handler.ResourceType
+	Type       resourcedef.ResourceType
 	Definition resourcedef.Definition
 }
 

@@ -2,8 +2,9 @@ package elb
 
 import (
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
@@ -27,7 +28,7 @@ type lbAttrs struct {
 
 func parseLBAttrs(attrs map[string]any) lbAttrs {
 	parsed := lbAttrs{
-		LoadBalancerType: handler.GetStringAttr(attrs, "load_balancer_type"),
+		LoadBalancerType: costutil.GetStringAttr(attrs, "load_balancer_type"),
 	}
 	if parsed.LoadBalancerType == "" {
 		parsed.LoadBalancerType = typeApplication
@@ -38,8 +39,8 @@ func parseLBAttrs(attrs map[string]any) lbAttrs {
 // ALBSpec declares aws_lb/aws_alb cost estimation.
 func ALBSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 	return resourcespec.ResourceSpec{
-		Type:     handler.ResourceType(awskit.ResourceLoadBalancer),
-		Category: handler.CostCategoryStandard,
+		Type:     resourcedef.ResourceType(awskit.ResourceLoadBalancer),
+		Category: resourcedef.CostCategoryStandard,
 		Lookup: &resourcespec.LookupSpec{
 			BuildFunc: func(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 				parsed := parseLBAttrs(attrs)
@@ -74,15 +75,15 @@ func ALBSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 		Standard: &resourcespec.StandardPricingSpec{
 			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
 				if price != nil && price.OnDemandUSD > 0 {
-					return handler.HourlyCost(price.OnDemandUSD)
+					return costutil.HourlyCost(price.OnDemandUSD)
 				}
 				switch parseLBAttrs(attrs).LoadBalancerType {
 				case typeNetwork:
-					return handler.HourlyCost(defaultNLBHourlyCost)
+					return costutil.HourlyCost(defaultNLBHourlyCost)
 				case typeGateway:
-					return handler.HourlyCost(defaultGWLBHourlyCost)
+					return costutil.HourlyCost(defaultGWLBHourlyCost)
 				default:
-					return handler.HourlyCost(defaultALBHourlyCost)
+					return costutil.HourlyCost(defaultALBHourlyCost)
 				}
 			},
 		},

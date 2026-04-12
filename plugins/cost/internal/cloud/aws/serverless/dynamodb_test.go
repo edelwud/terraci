@@ -4,10 +4,11 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
@@ -64,8 +65,8 @@ func TestDynamoDBHandler_CalculateUsageCost(t *testing.T) {
 				}
 
 				// Verify monthly = hourly * HoursPerMonth relationship holds
-				if got.MonthlyCost != got.HourlyCost*handler.HoursPerMonth {
-					t.Errorf("monthly (%v) should equal hourly*HoursPerMonth (%v)", got.MonthlyCost, got.HourlyCost*handler.HoursPerMonth)
+				if got.MonthlyCost != got.HourlyCost*costutil.HoursPerMonth {
+					t.Errorf("monthly (%v) should equal hourly*HoursPerMonth (%v)", got.MonthlyCost, got.HourlyCost*costutil.HoursPerMonth)
 				}
 				if got.Status != model.ResourceEstimateStatusUsageEstimated {
 					t.Errorf("status = %q, want %q", got.Status, model.ResourceEstimateStatusUsageEstimated)
@@ -88,7 +89,7 @@ func TestDynamoDBHandler_CalculateUsageCost(t *testing.T) {
 func TestDynamoDBHandler_Contract(t *testing.T) {
 	t.Parallel()
 
-	category := handler.CostCategoryUsageBased
+	category := resourcedef.CostCategoryUsageBased
 	handlertest.RunContractSuite(t, resourcespec.MustCompile(DynamoDBSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
 		Category: &category,
 		LookupCases: []handlertest.LookupCase{

@@ -5,8 +5,9 @@ import (
 	"strings"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
@@ -21,8 +22,8 @@ const (
 // ClusterSpec declares aws_elasticache_cluster cost estimation.
 func ClusterSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 	return resourcespec.ResourceSpec{
-		Type:     handler.ResourceType(awskit.ResourceElastiCacheCluster),
-		Category: handler.CostCategoryStandard,
+		Type:     resourcedef.ResourceType(awskit.ResourceElastiCacheCluster),
+		Category: resourcedef.CostCategoryStandard,
 		Lookup: &resourcespec.LookupSpec{
 			BuildFunc: func(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 				parsed := parseClusterAttrs(attrs)
@@ -77,9 +78,9 @@ func ClusterSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 					numCacheNodes = 1
 				}
 
-				_, monthly = handler.ScaledHourlyCost(price.OnDemandUSD, numCacheNodes)
+				_, monthly = costutil.ScaledHourlyCost(price.OnDemandUSD, numCacheNodes)
 				monthly += nodeStorageAddOnMonthlyCost(deps.RuntimeOrDefault(), price, index, region, numCacheNodes, parsed.SnapshotRetentionDays)
-				return monthly / handler.HoursPerMonth, monthly
+				return monthly / costutil.HoursPerMonth, monthly
 			},
 		},
 	}

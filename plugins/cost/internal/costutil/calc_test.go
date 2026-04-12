@@ -1,4 +1,4 @@
-package handler
+package costutil
 
 import (
 	"math"
@@ -69,7 +69,6 @@ func TestFixedMonthlyCost_Zero(t *testing.T) {
 }
 
 func TestFixedMonthlyCost_Roundtrip(t *testing.T) {
-	// hourly * HoursPerMonth should give back the monthly
 	h, m := FixedMonthlyCost(100.0)
 	if !almostEqual(h*HoursPerMonth, m) {
 		t.Errorf("roundtrip: %v * %d = %v, want %v", h, HoursPerMonth, h*HoursPerMonth, m)

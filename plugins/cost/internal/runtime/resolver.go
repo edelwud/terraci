@@ -7,7 +7,6 @@ import (
 
 	"github.com/caarlos0/log"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
@@ -17,8 +16,8 @@ const priceSourceUsageBased = "usage-based"
 
 // ProviderCatalogRuntime exposes provider ownership and handler lookup for resolution and planning.
 type ProviderCatalogRuntime interface {
-	ResolveProvider(resourceType handler.ResourceType) (string, bool)
-	ResolveDefinition(providerID string, resourceType handler.ResourceType) (resourcedef.Definition, bool)
+	ResolveProvider(resourceType resourcedef.ResourceType) (string, bool)
+	ResolveDefinition(providerID string, resourceType resourcedef.ResourceType) (resourcedef.Definition, bool)
 }
 
 // PricingRuntime exposes provider-scoped pricing access for resolution.
@@ -29,7 +28,7 @@ type PricingRuntime interface {
 
 // ResolveRequest bundles all inputs for a single resource cost resolution.
 type ResolveRequest struct {
-	ResourceType handler.ResourceType
+	ResourceType resourcedef.ResourceType
 	Address      string
 	Name         string
 	ModuleAddr   string
@@ -116,7 +115,7 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest, stat
 	result.Details = def.DescribeResource(nil, attrs)
 
 	switch def.Category {
-	case handler.CostCategoryUsageBased:
+	case resourcedef.CostCategoryUsageBased:
 		estimate, ok := def.CalculateUsageCost(req.Region, attrs)
 		if !ok {
 			result.Status = model.ResourceEstimateStatusFailed
@@ -130,7 +129,7 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest, stat
 		result.StatusDetail = usageEstimateDetail(estimate)
 		result.PriceSource = priceSourceUsageBased
 		return result
-	case handler.CostCategoryFixed:
+	case resourcedef.CostCategoryFixed:
 		hourly, monthly, ok := def.CalculateFixedCost(req.Region, attrs)
 		if !ok {
 			result.Status = model.ResourceEstimateStatusFailed
@@ -143,7 +142,7 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest, stat
 		result.Status = model.ResourceEstimateStatusExact
 		result.PriceSource = "fixed"
 		return result
-	case handler.CostCategoryStandard:
+	case resourcedef.CostCategoryStandard:
 		return r.resolveStandardCost(ctx, standardResolutionCtx{
 			providerID: providerID,
 			definition: def,
@@ -161,12 +160,12 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest, stat
 }
 
 // ResolveBeforeCost calculates the before-state cost for update/replace resources.
-func (r *CostResolver) ResolveBeforeCost(ctx context.Context, rc *model.ResourceCost, resourceType handler.ResourceType, beforeAttrs map[string]any, region string) {
+func (r *CostResolver) ResolveBeforeCost(ctx context.Context, rc *model.ResourceCost, resourceType resourcedef.ResourceType, beforeAttrs map[string]any, region string) {
 	r.ResolveBeforeCostWithState(ctx, rc, resourceType, beforeAttrs, region, nil)
 }
 
 // ResolveBeforeCostWithState calculates the before-state cost using an optional per-resource cache.
-func (r *CostResolver) ResolveBeforeCostWithState(ctx context.Context, rc *model.ResourceCost, resourceType handler.ResourceType, beforeAttrs map[string]any, region string, state *ResolutionState) {
+func (r *CostResolver) ResolveBeforeCostWithState(ctx context.Context, rc *model.ResourceCost, resourceType resourcedef.ResourceType, beforeAttrs map[string]any, region string, state *ResolutionState) {
 	providerID, ok := r.catalog.ResolveProvider(resourceType)
 	if !ok {
 		return
@@ -177,7 +176,7 @@ func (r *CostResolver) ResolveBeforeCostWithState(ctx context.Context, rc *model
 	}
 
 	switch def.Category {
-	case handler.CostCategoryStandard:
+	case resourcedef.CostCategoryStandard:
 		before := r.resolveStandardCost(ctx, standardResolutionCtx{
 			providerID: providerID,
 			definition: def,
@@ -188,7 +187,7 @@ func (r *CostResolver) ResolveBeforeCostWithState(ctx context.Context, rc *model
 		})
 		rc.BeforeHourlyCost = before.HourlyCost
 		rc.BeforeMonthlyCost = before.MonthlyCost
-	case handler.CostCategoryFixed:
+	case resourcedef.CostCategoryFixed:
 		hourly, monthly, ok := def.CalculateFixedCost(region, beforeAttrs)
 		if !ok {
 			rc.Status = model.ResourceEstimateStatusFailed
@@ -198,7 +197,7 @@ func (r *CostResolver) ResolveBeforeCostWithState(ctx context.Context, rc *model
 		}
 		rc.BeforeHourlyCost = hourly
 		rc.BeforeMonthlyCost = monthly
-	case handler.CostCategoryUsageBased:
+	case resourcedef.CostCategoryUsageBased:
 		// Usage-based resources (e.g. data transfer, Lambda invocations) require
 		// runtime telemetry that is unavailable at plan time; skip silently.
 	default:

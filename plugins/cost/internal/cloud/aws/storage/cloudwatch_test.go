@@ -3,9 +3,10 @@ package storage
 import (
 	"testing"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
@@ -13,14 +14,14 @@ func TestLogGroupHandler_Category(t *testing.T) {
 	t.Parallel()
 
 	def := resourcespec.MustCompile(LogGroupSpec())
-	handlertest.AssertCategory(t, def, handler.CostCategoryUsageBased)
+	handlertest.AssertCategory(t, def, resourcedef.CostCategoryUsageBased)
 }
 
 func TestAlarmHandler_Category(t *testing.T) {
 	t.Parallel()
 
 	def := resourcespec.MustCompile(AlarmSpec())
-	handlertest.AssertCategory(t, def, handler.CostCategoryFixed)
+	handlertest.AssertCategory(t, def, resourcedef.CostCategoryFixed)
 }
 
 func TestLogGroupHandler_CalculateUsageCost(t *testing.T) {
@@ -100,7 +101,7 @@ func TestAlarmHandler_CalculateFixedCost(t *testing.T) {
 				t.Errorf("monthly = %v, want %v", monthly, tt.wantMonthly)
 			}
 
-			expectedHourly := tt.wantMonthly / handler.HoursPerMonth
+			expectedHourly := tt.wantMonthly / costutil.HoursPerMonth
 			if hourly != expectedHourly {
 				t.Errorf("hourly = %v, want %v", hourly, expectedHourly)
 			}

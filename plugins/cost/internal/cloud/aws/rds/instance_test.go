@@ -4,16 +4,17 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
 func TestInstanceHandler_Contract(t *testing.T) {
 	t.Parallel()
 
-	category := handler.CostCategoryStandard
+	category := resourcedef.CostCategoryStandard
 	def := resourcespec.MustCompile(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 	handlertest.RunContractSuite(t, def, handlertest.ContractSuite{
 		Category: &category,
@@ -123,7 +124,7 @@ func TestInstanceHandler_CalculateCost(t *testing.T) {
 		{
 			name:            "compute only",
 			attrs:           map[string]any{},
-			expectedMonthly: 0.10 * handler.HoursPerMonth,
+			expectedMonthly: 0.10 * costutil.HoursPerMonth,
 		},
 		{
 			name: "with gp2 storage",
@@ -131,7 +132,7 @@ func TestInstanceHandler_CalculateCost(t *testing.T) {
 				"storage_type":      "gp2",
 				"allocated_storage": float64(100),
 			},
-			expectedMonthly: 0.10*handler.HoursPerMonth + 100*0.115, // compute + storage
+			expectedMonthly: 0.10*costutil.HoursPerMonth + 100*0.115, // compute + storage
 		},
 		{
 			name: "with io1 storage and iops",
@@ -140,7 +141,7 @@ func TestInstanceHandler_CalculateCost(t *testing.T) {
 				"allocated_storage": float64(100),
 				"iops":              float64(1000),
 			},
-			expectedMonthly: 0.10*handler.HoursPerMonth + 100*0.125 + 1000*0.10, // compute + storage + iops
+			expectedMonthly: 0.10*costutil.HoursPerMonth + 100*0.125 + 1000*0.10, // compute + storage + iops
 		},
 	}
 

@@ -2,8 +2,9 @@ package eks
 
 import (
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
@@ -18,15 +19,15 @@ type clusterAttrs struct {
 
 func parseClusterAttrs(attrs map[string]any) clusterAttrs {
 	return clusterAttrs{
-		Version: handler.GetStringAttr(attrs, "version"),
+		Version: costutil.GetStringAttr(attrs, "version"),
 	}
 }
 
 // ClusterSpec declares aws_eks_cluster cost estimation.
 func ClusterSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 	return resourcespec.ResourceSpec{
-		Type:     handler.ResourceType(awskit.ResourceEKSCluster),
-		Category: handler.CostCategoryStandard,
+		Type:     resourcedef.ResourceType(awskit.ResourceEKSCluster),
+		Category: resourcedef.CostCategoryStandard,
 		Lookup: &resourcespec.LookupSpec{
 			BuildFunc: func(region string, _ map[string]any) (*pricing.PriceLookup, error) {
 				runtime := deps.RuntimeOrDefault()
@@ -50,9 +51,9 @@ func ClusterSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 		Standard: &resourcespec.StandardPricingSpec{
 			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
 				if price != nil && price.OnDemandUSD > 0 {
-					return handler.HourlyCost(price.OnDemandUSD)
+					return costutil.HourlyCost(price.OnDemandUSD)
 				}
-				return handler.HourlyCost(DefaultClusterHourlyCost)
+				return costutil.HourlyCost(DefaultClusterHourlyCost)
 			},
 		},
 	}

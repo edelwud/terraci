@@ -13,9 +13,9 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/engine"
 	"github.com/edelwud/terraci/plugins/cost/internal/enginetest"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/results"
 	costruntime "github.com/edelwud/terraci/plugins/cost/internal/runtime"
 	"github.com/edelwud/terraci/plugins/diskblob"
@@ -172,7 +172,7 @@ func TestEstimateModule_UnsupportedResource(t *testing.T) {
 
 func TestEstimateModule_KnownProviderMissingHandler(t *testing.T) {
 	router := costruntime.NewResourceProviderRouter()
-	router.Register("aws", handler.ResourceType("aws_cloudfront_distribution"))
+	router.Register("aws", resourcedef.ResourceType("aws_cloudfront_distribution"))
 
 	ts := enginetest.MultiServicePricingServer(t)
 	cacheDir := filepath.Join(t.TempDir(), "cache")

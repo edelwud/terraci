@@ -4,8 +4,9 @@ import (
 	"strings"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
@@ -16,8 +17,8 @@ type clusterAttrs struct {
 
 func parseClusterAttrs(attrs map[string]any) clusterAttrs {
 	return clusterAttrs{
-		Engine:           handler.GetStringAttr(attrs, "engine"),
-		AllocatedStorage: handler.GetFloatAttr(attrs, "allocated_storage"),
+		Engine:           costutil.GetStringAttr(attrs, "engine"),
+		AllocatedStorage: costutil.GetFloatAttr(attrs, "allocated_storage"),
 	}
 }
 
@@ -29,8 +30,8 @@ func isAuroraEngine(engine string) bool {
 // ClusterSpec declares aws_rds_cluster cost estimation.
 func ClusterSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 	return resourcespec.ResourceSpec{
-		Type:     handler.ResourceType(awskit.ResourceRDSCluster),
-		Category: handler.CostCategoryStandard,
+		Type:     resourcedef.ResourceType(awskit.ResourceRDSCluster),
+		Category: resourcedef.CostCategoryStandard,
 		Lookup: &resourcespec.LookupSpec{
 			BuildFunc: func(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 				parsed := parseClusterAttrs(attrs)
@@ -77,7 +78,7 @@ func ClusterSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 					costPerGB = price.OnDemandUSD
 				}
 				monthly = allocatedStorage * costPerGB
-				return monthly / handler.HoursPerMonth, monthly
+				return monthly / costutil.HoursPerMonth, monthly
 			},
 		},
 	}

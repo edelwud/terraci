@@ -3,8 +3,8 @@ package engine
 import (
 	"sync"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	costruntime "github.com/edelwud/terraci/plugins/cost/internal/runtime"
 )
 
@@ -29,7 +29,7 @@ func NewModuleScanner(adapter ModulePlanAdapter) *ModuleScanner {
 
 // PlannedResource is the scanner's internal resource IR decoupled from raw Terraform plan types.
 type PlannedResource struct {
-	ResourceType handler.ResourceType
+	ResourceType resourcedef.ResourceType
 	Address      string
 	Name         string
 	ModuleAddr   string

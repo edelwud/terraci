@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
@@ -13,16 +12,16 @@ import (
 )
 
 type stubCatalog struct {
-	providers map[handler.ResourceType]string
-	defs      map[handler.ResourceType]resourcedef.Definition
+	providers map[resourcedef.ResourceType]string
+	defs      map[resourcedef.ResourceType]resourcedef.Definition
 }
 
-func (c stubCatalog) ResolveProvider(resourceType handler.ResourceType) (string, bool) {
+func (c stubCatalog) ResolveProvider(resourceType resourcedef.ResourceType) (string, bool) {
 	providerID, ok := c.providers[resourceType]
 	return providerID, ok
 }
 
-func (c stubCatalog) ResolveDefinition(_ string, resourceType handler.ResourceType) (resourcedef.Definition, bool) {
+func (c stubCatalog) ResolveDefinition(_ string, resourceType resourcedef.ResourceType) (resourcedef.Definition, bool) {
 	def, ok := c.defs[resourceType]
 	return def, ok
 }
@@ -41,10 +40,10 @@ type stubAdapterResult struct {
 	err  error
 }
 
-func (h stubStandardDefinition) Definition(resourceType handler.ResourceType) resourcedef.Definition {
+func (h stubStandardDefinition) Definition(resourceType resourcedef.ResourceType) resourcedef.Definition {
 	return resourcedef.Definition{
 		Type:     resourceType,
-		Category: handler.CostCategoryStandard,
+		Category: resourcedef.CostCategoryStandard,
 		Lookup: func(string, map[string]any) (*pricing.PriceLookup, error) {
 			return h.lookup, h.err
 		},
@@ -77,12 +76,12 @@ func TestBuildPrefetchPlan_CollectsDiagnosticsAndRequirements(t *testing.T) {
 	}
 
 	catalog := stubCatalog{
-		providers: map[handler.ResourceType]string{
+		providers: map[resourcedef.ResourceType]string{
 			"aws_instance":              "aws",
 			"aws_db_instance":           "aws",
 			"aws_secretsmanager_secret": "aws",
 		},
-		defs: map[handler.ResourceType]resourcedef.Definition{
+		defs: map[resourcedef.ResourceType]resourcedef.Definition{
 			"aws_instance": stubStandardDefinition{
 				lookup: &pricing.PriceLookup{ServiceID: pricing.ServiceID{Provider: "aws", Name: "AmazonEC2"}},
 			}.Definition("aws_instance"),
@@ -139,14 +138,14 @@ func (noopResolver) ResolveWithSubResourcesState(context.Context, costruntime.Re
 	return nil
 }
 
-func (noopResolver) ResolveBeforeCostWithState(context.Context, *model.ResourceCost, handler.ResourceType, map[string]any, string, *costruntime.ResolutionState) {
+func (noopResolver) ResolveBeforeCostWithState(context.Context, *model.ResourceCost, resourcedef.ResourceType, map[string]any, string, *costruntime.ResolutionState) {
 }
 
 func newStubEstimationRuntime(t testing.TB, stub stubCatalog) *costruntime.EstimationRuntime {
 	t.Helper()
 
 	router := costruntime.NewResourceProviderRouter()
-	defs := make(map[string]map[handler.ResourceType]resourcedef.Definition)
+	defs := make(map[string]map[resourcedef.ResourceType]resourcedef.Definition)
 	for resourceType, providerID := range stub.providers {
 		router.Register(providerID, resourceType)
 	}
@@ -156,7 +155,7 @@ func newStubEstimationRuntime(t testing.TB, stub stubCatalog) *costruntime.Estim
 			continue
 		}
 		if defs[providerID] == nil {
-			defs[providerID] = make(map[handler.ResourceType]resourcedef.Definition)
+			defs[providerID] = make(map[resourcedef.ResourceType]resourcedef.Definition)
 		}
 		defs[providerID][resourceType] = def
 	}

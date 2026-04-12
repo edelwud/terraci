@@ -10,7 +10,6 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
 	_ "github.com/edelwud/terraci/plugins/cost/internal/cloud/aws"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
@@ -22,18 +21,18 @@ func TestProviderCatalog_ResolveProviderAndDefinition(t *testing.T) {
 	t.Parallel()
 
 	router := NewResourceProviderRouter()
-	router.Register(awskit.ProviderID, handler.ResourceType("aws_instance"))
+	router.Register(awskit.ProviderID, resourcedef.ResourceType("aws_instance"))
 
 	catalog := NewProviderCatalog(
 		router,
-		map[string]map[handler.ResourceType]resourcedef.Definition{
+		map[string]map[resourcedef.ResourceType]resourcedef.Definition{
 			awskit.ProviderID: {
-				handler.ResourceType("aws_instance"): runtimetest.StubDefinition{
-					CategoryValue: handler.CostCategoryStandard,
+				resourcedef.ResourceType("aws_instance"): runtimetest.StubDefinition{
+					CategoryValue: resourcedef.CostCategoryStandard,
 					CalculateFunc: func(_ *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
 						return 0, 0
 					},
-				}.Definition(handler.ResourceType("aws_instance")),
+				}.Definition(resourcedef.ResourceType("aws_instance")),
 			},
 		},
 		map[string]model.ProviderMetadata{
@@ -41,10 +40,10 @@ func TestProviderCatalog_ResolveProviderAndDefinition(t *testing.T) {
 		},
 	)
 
-	if providerID, ok := catalog.ResolveProvider(handler.ResourceType("aws_instance")); !ok || providerID != awskit.ProviderID {
+	if providerID, ok := catalog.ResolveProvider(resourcedef.ResourceType("aws_instance")); !ok || providerID != awskit.ProviderID {
 		t.Fatalf("ResolveProvider() = (%q, %v), want (%q, true)", providerID, ok, awskit.ProviderID)
 	}
-	if def, ok := catalog.ResolveDefinition(awskit.ProviderID, handler.ResourceType("aws_instance")); !ok {
+	if def, ok := catalog.ResolveDefinition(awskit.ProviderID, resourcedef.ResourceType("aws_instance")); !ok {
 		t.Fatal("ResolveDefinition() should resolve aws_instance")
 	} else if err := def.Validate(); err != nil {
 		t.Fatalf("ResolveDefinition() returned invalid definition: %v", err)
@@ -106,7 +105,7 @@ func TestProviderCatalog_DistinguishesNoProviderFromNoHandler(t *testing.T) {
 	}
 
 	router := NewResourceProviderRouter()
-	router.Register(awskit.ProviderID, handler.ResourceType("aws_cloudfront_distribution"))
+	router.Register(awskit.ProviderID, resourcedef.ResourceType("aws_cloudfront_distribution"))
 
 	catalog := NewProviderCatalog(router, nil, map[string]model.ProviderMetadata{
 		awskit.ProviderID: {
@@ -115,8 +114,8 @@ func TestProviderCatalog_DistinguishesNoProviderFromNoHandler(t *testing.T) {
 		},
 	})
 
-	runtimetest.AssertNoHandlerContract(t, catalog, awskit.ProviderID, handler.ResourceType("aws_cloudfront_distribution"))
-	runtimetest.AssertNoProviderContract(t, catalog, handler.ResourceType("custom_unknown_resource"))
+	runtimetest.AssertNoHandlerContract(t, catalog, awskit.ProviderID, resourcedef.ResourceType("aws_cloudfront_distribution"))
+	runtimetest.AssertNoProviderContract(t, catalog, resourcedef.ResourceType("custom_unknown_resource"))
 }
 
 func TestProviderRuntimeRegistry_WarmIndexes(t *testing.T) {

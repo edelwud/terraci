@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	tfplan "github.com/edelwud/terraci/internal/terraform/plan"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 )
 
 // TerraformPlanAdapter converts Terraform plan.json files into the engine input model.
@@ -48,7 +48,7 @@ func (a *TerraformPlanAdapter) LoadModule(modulePath, region string) (*ModulePla
 		}
 
 		modulePlan.Resources = append(modulePlan.Resources, PlannedResource{
-			ResourceType: handler.ResourceType(rc.Type),
+			ResourceType: resourcedef.ResourceType(rc.Type),
 			Address:      rc.Address,
 			Name:         rc.Name,
 			ModuleAddr:   rc.ModuleAddr,

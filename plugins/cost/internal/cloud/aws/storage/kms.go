@@ -2,7 +2,8 @@ package storage
 
 import (
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
@@ -14,11 +15,11 @@ const (
 // KMSSpec declares aws_kms_key cost estimation.
 func KMSSpec() resourcespec.ResourceSpec {
 	return resourcespec.ResourceSpec{
-		Type:     handler.ResourceType(awskit.ResourceKMSKey),
-		Category: handler.CostCategoryFixed,
+		Type:     resourcedef.ResourceType(awskit.ResourceKMSKey),
+		Category: resourcedef.CostCategoryFixed,
 		Fixed: &resourcespec.FixedPricingSpec{
 			CostFunc: func(_ string, _ map[string]any) (hourly, monthly float64) {
-				return handler.FixedMonthlyCost(KMSKeyCost)
+				return costutil.FixedMonthlyCost(KMSKeyCost)
 			},
 		},
 	}

@@ -2,8 +2,9 @@ package eks
 
 import (
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
@@ -20,7 +21,7 @@ type nodeGroupAttrs struct {
 
 func parseNodeGroupAttrs(attrs map[string]any) nodeGroupAttrs {
 	instanceType := ""
-	if instanceTypes := handler.GetStringSliceAttr(attrs, "instance_types"); len(instanceTypes) > 0 {
+	if instanceTypes := costutil.GetStringSliceAttr(attrs, "instance_types"); len(instanceTypes) > 0 {
 		instanceType = instanceTypes[0]
 	}
 	instanceTypeSet := instanceType != ""
@@ -30,8 +31,8 @@ func parseNodeGroupAttrs(attrs map[string]any) nodeGroupAttrs {
 
 	desiredSize := 1
 	desiredSizeSet := false
-	if cfg := handler.GetFirstObjectAttr(attrs, "scaling_config"); cfg != nil {
-		if d := handler.GetIntAttr(cfg, "desired_size"); d > 0 {
+	if cfg := costutil.GetFirstObjectAttr(attrs, "scaling_config"); cfg != nil {
+		if d := costutil.GetIntAttr(cfg, "desired_size"); d > 0 {
 			desiredSize = d
 			desiredSizeSet = true
 		}
@@ -48,8 +49,8 @@ func parseNodeGroupAttrs(attrs map[string]any) nodeGroupAttrs {
 // NodeGroupSpec declares aws_eks_node_group cost estimation.
 func NodeGroupSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 	return resourcespec.ResourceSpec{
-		Type:     handler.ResourceType(awskit.ResourceEKSNodeGroup),
-		Category: handler.CostCategoryStandard,
+		Type:     resourcedef.ResourceType(awskit.ResourceEKSNodeGroup),
+		Category: resourcedef.CostCategoryStandard,
 		Lookup: &resourcespec.LookupSpec{
 			BuildFunc: func(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 				parsed := parseNodeGroupAttrs(attrs)
@@ -86,7 +87,7 @@ func NodeGroupSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 				if price == nil {
 					return 0, 0
 				}
-				return handler.ScaledHourlyCost(price.OnDemandUSD, parseNodeGroupAttrs(attrs).DesiredSize)
+				return costutil.ScaledHourlyCost(price.OnDemandUSD, parseNodeGroupAttrs(attrs).DesiredSize)
 			},
 		},
 	}

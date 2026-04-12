@@ -4,9 +4,10 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
@@ -14,7 +15,7 @@ func TestClusterHandler_Category(t *testing.T) {
 	t.Parallel()
 
 	def := resourcespec.MustCompile(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
-	handlertest.AssertCategory(t, def, handler.CostCategoryStandard)
+	handlertest.AssertCategory(t, def, resourcedef.CostCategoryStandard)
 }
 
 func TestClusterHandler_BuildLookup(t *testing.T) {
@@ -72,8 +73,8 @@ func TestClusterHandler_CalculateCost_FromAPI(t *testing.T) {
 	if hourly != 0.10 {
 		t.Errorf("hourly = %v, want 0.10", hourly)
 	}
-	if monthly != 0.10*handler.HoursPerMonth {
-		t.Errorf("monthly = %v, want %v", monthly, 0.10*handler.HoursPerMonth)
+	if monthly != 0.10*costutil.HoursPerMonth {
+		t.Errorf("monthly = %v, want %v", monthly, 0.10*costutil.HoursPerMonth)
 	}
 }
 
@@ -90,8 +91,8 @@ func TestClusterHandler_CalculateCost_Fallback(t *testing.T) {
 	if hourly != DefaultClusterHourlyCost {
 		t.Errorf("hourly = %v, want %v", hourly, DefaultClusterHourlyCost)
 	}
-	if monthly != DefaultClusterHourlyCost*handler.HoursPerMonth {
-		t.Errorf("monthly = %v, want %v", monthly, DefaultClusterHourlyCost*handler.HoursPerMonth)
+	if monthly != DefaultClusterHourlyCost*costutil.HoursPerMonth {
+		t.Errorf("monthly = %v, want %v", monthly, DefaultClusterHourlyCost*costutil.HoursPerMonth)
 	}
 
 	// zero price -> fallback

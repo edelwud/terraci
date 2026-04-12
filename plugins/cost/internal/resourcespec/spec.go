@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
@@ -30,7 +30,7 @@ type FixedCostFunc func(region string, attrs map[string]any) (hourly, monthly fl
 type UsageEstimateFunc func(region string, attrs map[string]any) model.UsageCostEstimate
 
 // SubresourceBuildFunc synthesizes subresources from resource attributes.
-type SubresourceBuildFunc func(attrs map[string]any) []handler.SubResource
+type SubresourceBuildFunc func(attrs map[string]any) []resourcedef.SubResource
 
 // LookupSpec declares pricing lookup behavior.
 type LookupSpec struct {
@@ -72,8 +72,8 @@ type SubresourceSpec struct {
 
 // ResourceSpec is a provider-agnostic declaration of one resource's pricing behavior.
 type ResourceSpec struct {
-	Type         handler.ResourceType
-	Category     handler.CostCategory
+	Type         resourcedef.ResourceType
+	Category     resourcedef.CostCategory
 	Lookup       *LookupSpec
 	Describe     *DescribeSpec
 	Standard     *StandardPricingSpec
@@ -102,15 +102,15 @@ func (s ResourceSpec) Validate() error {
 
 func (s ResourceSpec) validateCategory() error {
 	switch s.Category {
-	case handler.CostCategoryStandard:
+	case resourcedef.CostCategoryStandard:
 		if s.Standard == nil || s.Standard.CostFunc == nil {
 			return fmt.Errorf("resource spec %q: standard pricing function is required", s.Type)
 		}
-	case handler.CostCategoryFixed:
+	case resourcedef.CostCategoryFixed:
 		if s.Fixed == nil || s.Fixed.CostFunc == nil {
 			return fmt.Errorf("resource spec %q: fixed pricing function is required", s.Type)
 		}
-	case handler.CostCategoryUsageBased:
+	case resourcedef.CostCategoryUsageBased:
 		if s.Usage == nil || s.Usage.EstimateFunc == nil {
 			return fmt.Errorf("resource spec %q: usage pricing function is required", s.Type)
 		}
@@ -167,7 +167,7 @@ func Const(value string) ValueFunc {
 // StringAttr resolves a string attribute.
 func StringAttr(key string) ValueFunc {
 	return func(_ *pricing.Price, attrs map[string]any) (string, bool) {
-		value := handler.GetStringAttr(attrs, key)
+		value := costutil.GetStringAttr(attrs, key)
 		if value == "" {
 			return "", false
 		}
@@ -178,7 +178,7 @@ func StringAttr(key string) ValueFunc {
 // IntAttr resolves an integer attribute as a string.
 func IntAttr(key string) ValueFunc {
 	return func(_ *pricing.Price, attrs map[string]any) (string, bool) {
-		value := handler.GetIntAttr(attrs, key)
+		value := costutil.GetIntAttr(attrs, key)
 		if value == 0 {
 			return "", false
 		}
@@ -246,7 +246,7 @@ func Compile(spec ResourceSpec) (resourcedef.Definition, error) {
 		}
 	}
 	if spec.Subresources != nil {
-		def.Subresources = func(attrs map[string]any) []handler.SubResource {
+		def.Subresources = func(attrs map[string]any) []resourcedef.SubResource {
 			return spec.Subresources.BuildFunc(attrs)
 		}
 	}

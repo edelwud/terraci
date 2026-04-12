@@ -3,8 +3,8 @@ package engine
 import (
 	"context"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/results"
 	costruntime "github.com/edelwud/terraci/plugins/cost/internal/runtime"
 )
@@ -12,7 +12,7 @@ import (
 // moduleResolver is the narrow interface that ModuleExecutor requires from the cost resolver.
 type moduleResolver interface {
 	ResolveWithSubResourcesState(ctx context.Context, req costruntime.ResolveRequest, state *costruntime.ResolutionState) []model.ResourceCost
-	ResolveBeforeCostWithState(ctx context.Context, rc *model.ResourceCost, resourceType handler.ResourceType, beforeAttrs map[string]any, region string, state *costruntime.ResolutionState)
+	ResolveBeforeCostWithState(ctx context.Context, rc *model.ResourceCost, resourceType resourcedef.ResourceType, beforeAttrs map[string]any, region string, state *costruntime.ResolutionState)
 }
 
 // ModuleExecutor executes scanned module plans through the cost resolver.

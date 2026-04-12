@@ -7,7 +7,7 @@ import (
 )
 
 // PriceLookupSpec constructs PriceLookup objects with common defaults.
-// It is a concrete builder helper — distinct from the handler.LookupBuilder interface.
+// It is a concrete builder helper — distinct from the resourcedef.LookupFunc type.
 type PriceLookupSpec struct {
 	Service       pricing.ServiceID
 	ProductFamily string

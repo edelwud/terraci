@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
@@ -20,7 +20,7 @@ func approxEqual(a, b float64) bool {
 func TestEBSHandler_Contract(t *testing.T) {
 	t.Parallel()
 
-	category := handler.CostCategoryStandard
+	category := resourcedef.CostCategoryStandard
 	handlertest.RunContractSuite(t, resourcespec.MustCompile(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
 		Category: &category,
 		LookupCases: []handlertest.LookupCase{

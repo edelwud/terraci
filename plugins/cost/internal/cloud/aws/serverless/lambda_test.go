@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
@@ -99,8 +99,8 @@ func TestLambdaHandler_CalculateUsageCost(t *testing.T) {
 				if got.MonthlyCost == 0 {
 					t.Error("monthly should be non-zero")
 				}
-				if got.MonthlyCost != got.HourlyCost*handler.HoursPerMonth {
-					t.Errorf("monthly (%v) should equal hourly*HoursPerMonth (%v)", got.MonthlyCost, got.HourlyCost*handler.HoursPerMonth)
+				if got.MonthlyCost != got.HourlyCost*costutil.HoursPerMonth {
+					t.Errorf("monthly (%v) should equal hourly*HoursPerMonth (%v)", got.MonthlyCost, got.HourlyCost*costutil.HoursPerMonth)
 				}
 				if got.Status != model.ResourceEstimateStatusUsageEstimated {
 					t.Errorf("status = %q, want %q", got.Status, model.ResourceEstimateStatusUsageEstimated)

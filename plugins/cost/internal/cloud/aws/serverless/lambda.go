@@ -2,9 +2,10 @@ package serverless
 
 import (
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
@@ -24,17 +25,17 @@ type lambdaAttrs struct {
 
 func parseLambdaAttrs(attrs map[string]any) lambdaAttrs {
 	return lambdaAttrs{
-		MemoryMB:               handler.GetIntAttr(attrs, "memory_size"),
-		Runtime:                handler.GetStringAttr(attrs, "runtime"),
-		ProvisionedConcurrency: handler.GetIntAttr(attrs, "provisioned_concurrent_executions"),
+		MemoryMB:               costutil.GetIntAttr(attrs, "memory_size"),
+		Runtime:                costutil.GetStringAttr(attrs, "runtime"),
+		ProvisionedConcurrency: costutil.GetIntAttr(attrs, "provisioned_concurrent_executions"),
 	}
 }
 
 // LambdaSpec declares aws_lambda_function cost estimation.
 func LambdaSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 	return resourcespec.ResourceSpec{
-		Type:     handler.ResourceType(awskit.ResourceLambdaFunction),
-		Category: handler.CostCategoryUsageBased,
+		Type:     resourcedef.ResourceType(awskit.ResourceLambdaFunction),
+		Category: resourcedef.CostCategoryUsageBased,
 		Lookup: &resourcespec.LookupSpec{
 			BuildFunc: func(region string, _ map[string]any) (*pricing.PriceLookup, error) {
 				return deps.RuntimeOrDefault().StandardLookupSpec(
@@ -66,7 +67,7 @@ func LambdaSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 					}
 					gbSeconds := float64(parsed.ProvisionedConcurrency) * (float64(memoryMB) / LambdaMemoryDivisor) * SecondsPerHour
 					rate := gbSeconds * LambdaProvisionedConcurrencyCostPerGBSecond
-					hourly, monthly := handler.HourlyCost(rate)
+					hourly, monthly := costutil.HourlyCost(rate)
 					return model.UsageCostEstimate{
 						HourlyCost:  hourly,
 						MonthlyCost: monthly,

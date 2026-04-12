@@ -3,7 +3,7 @@ package storage
 import (
 	"testing"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
@@ -27,7 +27,7 @@ func TestKMSHandler_CalculateFixedCost(t *testing.T) {
 		t.Errorf("monthly = %v, want %v", monthly, KMSKeyCost)
 	}
 
-	expectedHourly := KMSKeyCost / handler.HoursPerMonth
+	expectedHourly := KMSKeyCost / costutil.HoursPerMonth
 	if hourly != expectedHourly {
 		t.Errorf("hourly = %v, want %v", hourly, expectedHourly)
 	}

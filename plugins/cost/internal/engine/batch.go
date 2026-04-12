@@ -7,9 +7,9 @@ import (
 
 	"github.com/caarlos0/log"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/results"
 	costruntime "github.com/edelwud/terraci/plugins/cost/internal/runtime"
 )
@@ -115,7 +115,7 @@ func buildPrefetchPlan(runtime *costruntime.EstimationRuntime, modulePlans []*Mo
 				})
 				continue
 			}
-			if def.Category != handler.CostCategoryStandard {
+			if def.Category != resourcedef.CostCategoryStandard {
 				continue
 			}
 

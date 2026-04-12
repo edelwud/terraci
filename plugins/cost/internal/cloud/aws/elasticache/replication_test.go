@@ -4,16 +4,17 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
 func TestReplicationGroupHandler_Contract(t *testing.T) {
 	t.Parallel()
 
-	category := handler.CostCategoryStandard
+	category := resourcedef.CostCategoryStandard
 	handlertest.RunContractSuite(t, resourcespec.MustCompile(ReplicationGroupSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
 		Category: &category,
 		LookupCases: []handlertest.LookupCase{
@@ -160,7 +161,7 @@ func TestReplicationGroupHandler_CalculateCost_BackupAndDataTiering(t *testing.T
 	}
 
 	totalNodes := 4
-	_, nodeMonthly := handler.ScaledHourlyCost(0.50, totalNodes)
+	_, nodeMonthly := costutil.ScaledHourlyCost(0.50, totalNodes)
 	ssdCost := 150.0 * float64(totalNodes) * dtPrice
 	chargeableGB := 52.82*float64(totalNodes)*3 - 52.82*float64(totalNodes)
 	backupCost := chargeableGB * backupPrice

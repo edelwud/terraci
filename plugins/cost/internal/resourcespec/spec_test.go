@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
@@ -16,7 +16,7 @@ func TestCompile_StandardSpec(t *testing.T) {
 
 	spec := resourcespec.ResourceSpec{
 		Type:     "aws_test_standard",
-		Category: handler.CostCategoryStandard,
+		Category: resourcedef.CostCategoryStandard,
 		Lookup: &resourcespec.LookupSpec{
 			BuildFunc: func(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 				return &pricing.PriceLookup{
@@ -71,10 +71,10 @@ func TestCompile_FixedSpec(t *testing.T) {
 
 	def := mustCompile(t, resourcespec.ResourceSpec{
 		Type:     "aws_test_fixed",
-		Category: handler.CostCategoryFixed,
+		Category: resourcedef.CostCategoryFixed,
 		Fixed: &resourcespec.FixedPricingSpec{
 			CostFunc: func(_ string, _ map[string]any) (hourly, monthly float64) {
-				return handler.FixedMonthlyCost(2.5)
+				return costutil.FixedMonthlyCost(2.5)
 			},
 		},
 	})
@@ -93,7 +93,7 @@ func TestCompile_UsageSpec(t *testing.T) {
 
 	spec := resourcespec.ResourceSpec{
 		Type:     "aws_test_usage",
-		Category: handler.CostCategoryUsageBased,
+		Category: resourcedef.CostCategoryUsageBased,
 		Usage: &resourcespec.UsagePricingSpec{
 			EstimateFunc: func(_ string, attrs map[string]any) model.UsageCostEstimate {
 				if attrs["estimated"] == true {
@@ -145,13 +145,13 @@ func TestCompile_Subresources(t *testing.T) {
 
 	def := mustCompile(t, resourcespec.ResourceSpec{
 		Type:     "aws_test_compound",
-		Category: handler.CostCategoryFixed,
+		Category: resourcedef.CostCategoryFixed,
 		Fixed: &resourcespec.FixedPricingSpec{
 			CostFunc: func(_ string, _ map[string]any) (hourly, monthly float64) { return 0, 0 },
 		},
 		Subresources: &resourcespec.SubresourceSpec{
-			BuildFunc: func(_ map[string]any) []handler.SubResource {
-				return []handler.SubResource{{
+			BuildFunc: func(_ map[string]any) []resourcedef.SubResource {
+				return []resourcedef.SubResource{{
 					Suffix: "/child",
 					Type:   "aws_child",
 					Attrs:  map[string]any{"size": 10},
@@ -174,7 +174,7 @@ func TestCompile_InvalidSpec(t *testing.T) {
 
 	_, err := resourcespec.Compile(resourcespec.ResourceSpec{
 		Type:     "aws_invalid",
-		Category: handler.CostCategoryStandard,
+		Category: resourcedef.CostCategoryStandard,
 	})
 	if err == nil {
 		t.Fatal("expected error for invalid spec")
@@ -199,7 +199,7 @@ func TestCompile_LookupError(t *testing.T) {
 
 	def := mustCompile(t, resourcespec.ResourceSpec{
 		Type:     "aws_lookup_error",
-		Category: handler.CostCategoryStandard,
+		Category: resourcedef.CostCategoryStandard,
 		Lookup: &resourcespec.LookupSpec{
 			BuildFunc: func(_ string, _ map[string]any) (*pricing.PriceLookup, error) {
 				return nil, errors.New("boom")

@@ -4,9 +4,10 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
@@ -24,15 +25,15 @@ func TestClusterInstanceHandler_CalculateCost(t *testing.T) {
 	if hourly != 0.29 {
 		t.Errorf("hourly = %v, want 0.29", hourly)
 	}
-	if monthly != 0.29*handler.HoursPerMonth {
-		t.Errorf("monthly = %v, want %v", monthly, 0.29*handler.HoursPerMonth)
+	if monthly != 0.29*costutil.HoursPerMonth {
+		t.Errorf("monthly = %v, want %v", monthly, 0.29*costutil.HoursPerMonth)
 	}
 }
 
 func TestClusterInstanceHandler_Contract(t *testing.T) {
 	t.Parallel()
 
-	category := handler.CostCategoryStandard
+	category := resourcedef.CostCategoryStandard
 	def := resourcespec.MustCompile(ClusterInstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 	handlertest.RunContractSuite(t, def, handlertest.ContractSuite{
 		Category: &category,

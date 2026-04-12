@@ -2,9 +2,10 @@ package storage
 
 import (
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
@@ -18,8 +19,8 @@ const (
 // LogGroupSpec declares aws_cloudwatch_log_group cost estimation.
 func LogGroupSpec() resourcespec.ResourceSpec {
 	return resourcespec.ResourceSpec{
-		Type:     handler.ResourceType(awskit.ResourceCloudWatchLogGroup),
-		Category: handler.CostCategoryUsageBased,
+		Type:     resourcedef.ResourceType(awskit.ResourceCloudWatchLogGroup),
+		Category: resourcedef.CostCategoryUsageBased,
 		Usage: &resourcespec.UsagePricingSpec{
 			EstimateFunc: func(_ string, _ map[string]any) model.UsageCostEstimate {
 				return model.UsageCostEstimate{Status: model.ResourceEstimateStatusUsageUnknown}
@@ -34,15 +35,15 @@ type alarmAttrs struct {
 
 func parseAlarmAttrs(attrs map[string]any) alarmAttrs {
 	return alarmAttrs{
-		Period: handler.GetIntAttr(attrs, "period"),
+		Period: costutil.GetIntAttr(attrs, "period"),
 	}
 }
 
 // AlarmSpec declares aws_cloudwatch_metric_alarm cost estimation.
 func AlarmSpec() resourcespec.ResourceSpec {
 	return resourcespec.ResourceSpec{
-		Type:     handler.ResourceType(awskit.ResourceCloudWatchMetricAlarm),
-		Category: handler.CostCategoryFixed,
+		Type:     resourcedef.ResourceType(awskit.ResourceCloudWatchMetricAlarm),
+		Category: resourcedef.CostCategoryFixed,
 		Lookup: &resourcespec.LookupSpec{
 			BuildFunc: func(_ string, _ map[string]any) (*pricing.PriceLookup, error) { return nil, nil },
 		},
@@ -62,9 +63,9 @@ func AlarmSpec() resourcespec.ResourceSpec {
 			CostFunc: func(_ string, attrs map[string]any) (hourly, monthly float64) {
 				parsed := parseAlarmAttrs(attrs)
 				if parsed.Period > 0 && parsed.Period < HighResolutionThresholdSeconds {
-					return handler.FixedMonthlyCost(CloudWatchHighResAlarmCost)
+					return costutil.FixedMonthlyCost(CloudWatchHighResAlarmCost)
 				}
-				return handler.FixedMonthlyCost(CloudWatchStandardAlarmCost)
+				return costutil.FixedMonthlyCost(CloudWatchStandardAlarmCost)
 			},
 		},
 	}

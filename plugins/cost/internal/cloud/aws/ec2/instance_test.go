@@ -4,9 +4,10 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
@@ -88,7 +89,7 @@ func TestInstanceHandler_CalculateCost_ComputeOnly(t *testing.T) {
 		t.Fatal("CalculateStandardCost should return ok=true")
 	}
 
-	expectedMonthly := 0.10 * handler.HoursPerMonth
+	expectedMonthly := 0.10 * costutil.HoursPerMonth
 	if monthly != expectedMonthly {
 		t.Errorf("monthly = %v, want %v (compute only)", monthly, expectedMonthly)
 	}
@@ -115,11 +116,11 @@ func TestInstanceHandler_SubResources_Default(t *testing.T) {
 	if sub.Type != "aws_ebs_volume" {
 		t.Errorf("Type = %q, want aws_ebs_volume", sub.Type)
 	}
-	if handler.GetStringAttr(sub.Attrs, "type") != awskit.VolumeTypeGP2 {
-		t.Errorf("volume type = %q, want %q", handler.GetStringAttr(sub.Attrs, "type"), awskit.VolumeTypeGP2)
+	if costutil.GetStringAttr(sub.Attrs, "type") != awskit.VolumeTypeGP2 {
+		t.Errorf("volume type = %q, want %q", costutil.GetStringAttr(sub.Attrs, "type"), awskit.VolumeTypeGP2)
 	}
-	if handler.GetFloatAttr(sub.Attrs, "size") != 8 {
-		t.Errorf("size = %v, want 8", handler.GetFloatAttr(sub.Attrs, "size"))
+	if costutil.GetFloatAttr(sub.Attrs, "size") != 8 {
+		t.Errorf("size = %v, want 8", costutil.GetFloatAttr(sub.Attrs, "size"))
 	}
 }
 
@@ -146,17 +147,17 @@ func TestInstanceHandler_SubResources_Custom(t *testing.T) {
 		t.Fatalf("BuildSubresources() returned %d, want 1", len(subs))
 	}
 	sub := subs[0]
-	if handler.GetStringAttr(sub.Attrs, "type") != "gp3" {
-		t.Errorf("type = %q, want gp3", handler.GetStringAttr(sub.Attrs, "type"))
+	if costutil.GetStringAttr(sub.Attrs, "type") != "gp3" {
+		t.Errorf("type = %q, want gp3", costutil.GetStringAttr(sub.Attrs, "type"))
 	}
-	if handler.GetFloatAttr(sub.Attrs, "size") != 50 {
-		t.Errorf("size = %v, want 50", handler.GetFloatAttr(sub.Attrs, "size"))
+	if costutil.GetFloatAttr(sub.Attrs, "size") != 50 {
+		t.Errorf("size = %v, want 50", costutil.GetFloatAttr(sub.Attrs, "size"))
 	}
-	if handler.GetFloatAttr(sub.Attrs, "iops") != 4000 {
-		t.Errorf("iops = %v, want 4000", handler.GetFloatAttr(sub.Attrs, "iops"))
+	if costutil.GetFloatAttr(sub.Attrs, "iops") != 4000 {
+		t.Errorf("iops = %v, want 4000", costutil.GetFloatAttr(sub.Attrs, "iops"))
 	}
-	if handler.GetFloatAttr(sub.Attrs, "throughput") != 200 {
-		t.Errorf("throughput = %v, want 200", handler.GetFloatAttr(sub.Attrs, "throughput"))
+	if costutil.GetFloatAttr(sub.Attrs, "throughput") != 200 {
+		t.Errorf("throughput = %v, want 200", costutil.GetFloatAttr(sub.Attrs, "throughput"))
 	}
 }
 
@@ -164,7 +165,7 @@ func TestInstanceHandler_Category(t *testing.T) {
 	t.Parallel()
 
 	def := resourcespec.MustCompile(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
-	handlertest.AssertCategory(t, def, handler.CostCategoryStandard)
+	handlertest.AssertCategory(t, def, resourcedef.CostCategoryStandard)
 }
 
 func TestInstanceHandler_Describe(t *testing.T) {

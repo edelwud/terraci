@@ -5,8 +5,9 @@ import (
 	"strings"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
@@ -49,20 +50,20 @@ type instanceAttrs struct {
 
 func parseInstanceAttrs(attrs map[string]any) instanceAttrs {
 	return instanceAttrs{
-		InstanceClass:    handler.GetStringAttr(attrs, "instance_class"),
-		Engine:           handler.GetStringAttr(attrs, "engine"),
-		StorageType:      handler.GetStringAttr(attrs, "storage_type"),
-		AllocatedStorage: handler.GetFloatAttr(attrs, "allocated_storage"),
-		IOPS:             handler.GetFloatAttr(attrs, "iops"),
-		MultiAZ:          handler.GetBoolAttr(attrs, "multi_az"),
+		InstanceClass:    costutil.GetStringAttr(attrs, "instance_class"),
+		Engine:           costutil.GetStringAttr(attrs, "engine"),
+		StorageType:      costutil.GetStringAttr(attrs, "storage_type"),
+		AllocatedStorage: costutil.GetFloatAttr(attrs, "allocated_storage"),
+		IOPS:             costutil.GetFloatAttr(attrs, "iops"),
+		MultiAZ:          costutil.GetBoolAttr(attrs, "multi_az"),
 	}
 }
 
 // InstanceSpec declares aws_db_instance cost estimation.
 func InstanceSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 	return resourcespec.ResourceSpec{
-		Type:     handler.ResourceType(awskit.ResourceDBInstance),
-		Category: handler.CostCategoryStandard,
+		Type:     resourcedef.ResourceType(awskit.ResourceDBInstance),
+		Category: resourcedef.CostCategoryStandard,
 		Lookup: &resourcespec.LookupSpec{
 			BuildFunc: func(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 				parsed := parseInstanceAttrs(attrs)
@@ -110,7 +111,7 @@ func InstanceSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 				}
 				parsed := parseInstanceAttrs(attrs)
 				hourly = price.OnDemandUSD
-				monthly = hourly * handler.HoursPerMonth
+				monthly = hourly * costutil.HoursPerMonth
 				if parsed.AllocatedStorage > 0 {
 					monthly += parsed.AllocatedStorage * getStorageCostPerGB(parsed.StorageType)
 				}
@@ -122,7 +123,7 @@ func InstanceSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 						monthly += parsed.IOPS * IOPSCostIO2PerMonth
 					}
 				}
-				return monthly / handler.HoursPerMonth, monthly
+				return monthly / costutil.HoursPerMonth, monthly
 			},
 		},
 	}

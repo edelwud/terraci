@@ -1,6 +1,6 @@
 package elasticache
 
-import "github.com/edelwud/terraci/plugins/cost/internal/handler"
+import "github.com/edelwud/terraci/plugins/cost/internal/costutil"
 
 type clusterAttrs struct {
 	NodeType              string
@@ -11,10 +11,10 @@ type clusterAttrs struct {
 
 func parseClusterAttrs(attrs map[string]any) clusterAttrs {
 	return clusterAttrs{
-		NodeType:              handler.GetStringAttr(attrs, "node_type"),
-		Engine:                handler.GetStringAttr(attrs, "engine"),
-		NumCacheNodes:         handler.GetIntAttr(attrs, "num_cache_nodes"),
-		SnapshotRetentionDays: handler.GetIntAttr(attrs, "snapshot_retention_limit"),
+		NodeType:              costutil.GetStringAttr(attrs, "node_type"),
+		Engine:                costutil.GetStringAttr(attrs, "engine"),
+		NumCacheNodes:         costutil.GetIntAttr(attrs, "num_cache_nodes"),
+		SnapshotRetentionDays: costutil.GetIntAttr(attrs, "snapshot_retention_limit"),
 	}
 }
 
@@ -28,14 +28,14 @@ type replicationGroupAttrs struct {
 }
 
 func parseReplicationGroupAttrs(attrs map[string]any) replicationGroupAttrs {
-	numNodeGroups := handler.GetIntAttr(attrs, "num_node_groups")
+	numNodeGroups := costutil.GetIntAttr(attrs, "num_node_groups")
 	parsed := replicationGroupAttrs{
-		NodeType:              handler.GetStringAttr(attrs, "node_type"),
+		NodeType:              costutil.GetStringAttr(attrs, "node_type"),
 		NumNodeGroups:         numNodeGroups,
 		NumNodeGroupsSet:      numNodeGroups != 0,
-		ReplicasPerNodeGroup:  handler.GetIntAttr(attrs, "replicas_per_node_group"),
-		NumberCacheClusters:   handler.GetIntAttr(attrs, "number_cache_clusters"),
-		SnapshotRetentionDays: handler.GetIntAttr(attrs, "snapshot_retention_limit"),
+		ReplicasPerNodeGroup:  costutil.GetIntAttr(attrs, "replicas_per_node_group"),
+		NumberCacheClusters:   costutil.GetIntAttr(attrs, "number_cache_clusters"),
+		SnapshotRetentionDays: costutil.GetIntAttr(attrs, "snapshot_retention_limit"),
 	}
 	if parsed.NumNodeGroups == 0 {
 		parsed.NumNodeGroups = 1
@@ -57,10 +57,10 @@ type serverlessAttrs struct {
 }
 
 func parseServerlessAttrs(attrs map[string]any) serverlessAttrs {
-	limits := handler.GetFirstObjectAttr(attrs, "cache_usage_limits")
-	storage := handler.GetFirstObjectAttr(limits, "data_storage")
+	limits := costutil.GetFirstObjectAttr(attrs, "cache_usage_limits")
+	storage := costutil.GetFirstObjectAttr(limits, "data_storage")
 	return serverlessAttrs{
-		Engine:       handler.GetStringAttr(attrs, "engine"),
-		StorageMaxGB: handler.GetFloatAttr(storage, "maximum"),
+		Engine:       costutil.GetStringAttr(attrs, "engine"),
+		StorageMaxGB: costutil.GetFloatAttr(storage, "maximum"),
 	}
 }

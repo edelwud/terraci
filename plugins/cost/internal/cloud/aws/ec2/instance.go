@@ -4,8 +4,9 @@ import (
 	"errors"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
@@ -20,8 +21,8 @@ type instanceAttrs struct {
 
 func parseInstanceAttrs(attrs map[string]any) instanceAttrs {
 	parsed := instanceAttrs{
-		InstanceType: handler.GetStringAttr(attrs, "instance_type"),
-		Tenancy:      handler.GetStringAttr(attrs, "tenancy"),
+		InstanceType: costutil.GetStringAttr(attrs, "instance_type"),
+		Tenancy:      costutil.GetStringAttr(attrs, "tenancy"),
 		RootVolume: ebsVolumeAttrs{
 			VolumeType: awskit.VolumeTypeGP2,
 			SizeGB:     defaultRootVolumeGB,
@@ -35,10 +36,10 @@ func parseInstanceAttrs(attrs map[string]any) instanceAttrs {
 
 func parseRootVolumeAttrs(attrs map[string]any) ebsVolumeAttrs {
 	parsed := ebsVolumeAttrs{
-		VolumeType: handler.GetStringAttr(attrs, "volume_type"),
-		SizeGB:     handler.GetFloatAttr(attrs, "volume_size"),
-		IOPS:       handler.GetFloatAttr(attrs, "iops"),
-		Throughput: handler.GetFloatAttr(attrs, "throughput"),
+		VolumeType: costutil.GetStringAttr(attrs, "volume_type"),
+		SizeGB:     costutil.GetFloatAttr(attrs, "volume_size"),
+		IOPS:       costutil.GetFloatAttr(attrs, "iops"),
+		Throughput: costutil.GetFloatAttr(attrs, "throughput"),
 	}
 	if parsed.VolumeType == "" {
 		parsed.VolumeType = awskit.VolumeTypeGP2
@@ -52,8 +53,8 @@ func parseRootVolumeAttrs(attrs map[string]any) ebsVolumeAttrs {
 // InstanceSpec declares aws_instance cost estimation.
 func InstanceSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 	return resourcespec.ResourceSpec{
-		Type:     handler.ResourceType(awskit.ResourceInstance),
-		Category: handler.CostCategoryStandard,
+		Type:     resourcedef.ResourceType(awskit.ResourceInstance),
+		Category: resourcedef.CostCategoryStandard,
 		Lookup: &resourcespec.LookupSpec{
 			BuildFunc: func(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 				parsed := parseInstanceAttrs(attrs)
@@ -99,11 +100,11 @@ func InstanceSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 		},
 		Standard: &resourcespec.StandardPricingSpec{
 			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
-				return handler.HourlyCost(price.OnDemandUSD)
+				return costutil.HourlyCost(price.OnDemandUSD)
 			},
 		},
 		Subresources: &resourcespec.SubresourceSpec{
-			BuildFunc: func(attrs map[string]any) []handler.SubResource {
+			BuildFunc: func(attrs map[string]any) []resourcedef.SubResource {
 				root := parseInstanceAttrs(attrs).RootVolume
 				ebsAttrs := map[string]any{
 					"type": root.VolumeType,
@@ -116,9 +117,9 @@ func InstanceSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 					ebsAttrs["throughput"] = root.Throughput
 				}
 
-				return []handler.SubResource{{
+				return []resourcedef.SubResource{{
 					Suffix: "/root_volume",
-					Type:   handler.ResourceType(awskit.ResourceEBSVolume),
+					Type:   resourcedef.ResourceType(awskit.ResourceEBSVolume),
 					Attrs:  ebsAttrs,
 				}}
 			},
@@ -128,5 +129,5 @@ func InstanceSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 
 // getRootBlockDevice extracts root_block_device from instance attributes.
 func getRootBlockDevice(attrs map[string]any) map[string]any {
-	return handler.GetFirstObjectAttr(attrs, "root_block_device")
+	return costutil.GetFirstObjectAttr(attrs, "root_block_device")
 }

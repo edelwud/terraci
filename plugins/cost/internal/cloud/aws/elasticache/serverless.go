@@ -4,8 +4,9 @@ import (
 	"fmt"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
@@ -23,8 +24,8 @@ const (
 // ServerlessSpec declares aws_elasticache_serverless_cache cost estimation.
 func ServerlessSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 	return resourcespec.ResourceSpec{
-		Type:     handler.ResourceType(awskit.ResourceElastiCacheServerlessCache),
-		Category: handler.CostCategoryStandard,
+		Type:     resourcedef.ResourceType(awskit.ResourceElastiCacheServerlessCache),
+		Category: resourcedef.CostCategoryStandard,
 		Lookup: &resourcespec.LookupSpec{
 			BuildFunc: func(region string, _ map[string]any) (*pricing.PriceLookup, error) {
 				runtime := deps.RuntimeOrDefault()
@@ -67,7 +68,7 @@ func ServerlessSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 					costPerGBHour = FallbackServerlessStorageCostPerGBHour
 				}
 				hourly = storageGB * costPerGBHour
-				return hourly, hourly * handler.HoursPerMonth
+				return hourly, hourly * costutil.HoursPerMonth
 			},
 		},
 	}

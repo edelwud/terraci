@@ -4,16 +4,17 @@ import (
 	"errors"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
 // ReplicationGroupSpec declares aws_elasticache_replication_group cost estimation.
 func ReplicationGroupSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 	return resourcespec.ResourceSpec{
-		Type:     handler.ResourceType(awskit.ResourceElastiCacheReplicationGroup),
-		Category: handler.CostCategoryStandard,
+		Type:     resourcedef.ResourceType(awskit.ResourceElastiCacheReplicationGroup),
+		Category: resourcedef.CostCategoryStandard,
 		Lookup: &resourcespec.LookupSpec{
 			BuildFunc: func(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 				parsed := parseReplicationGroupAttrs(attrs)
@@ -54,9 +55,9 @@ func ReplicationGroupSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 			CostFunc: func(price *pricing.Price, index *pricing.PriceIndex, region string, attrs map[string]any) (hourly, monthly float64) {
 				parsed := parseReplicationGroupAttrs(attrs)
 				totalNodes := parsed.totalNodes()
-				_, monthly = handler.ScaledHourlyCost(price.OnDemandUSD, totalNodes)
+				_, monthly = costutil.ScaledHourlyCost(price.OnDemandUSD, totalNodes)
 				monthly += nodeStorageAddOnMonthlyCost(deps.RuntimeOrDefault(), price, index, region, totalNodes, parsed.SnapshotRetentionDays)
-				return monthly / handler.HoursPerMonth, monthly
+				return monthly / costutil.HoursPerMonth, monthly
 			},
 		},
 	}

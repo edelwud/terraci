@@ -2,8 +2,9 @@ package ec2
 
 import (
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
@@ -13,8 +14,8 @@ const DefaultNATGatewayHourlyCost = 0.045
 // NATSpec declares aws_nat_gateway cost estimation.
 func NATSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 	return resourcespec.ResourceSpec{
-		Type:     handler.ResourceType(awskit.ResourceNATGateway),
-		Category: handler.CostCategoryStandard,
+		Type:     resourcedef.ResourceType(awskit.ResourceNATGateway),
+		Category: resourcedef.CostCategoryStandard,
 		Lookup: &resourcespec.LookupSpec{
 			BuildFunc: func(region string, _ map[string]any) (*pricing.PriceLookup, error) {
 				return deps.RuntimeOrDefault().StandardLookupSpec(
@@ -37,7 +38,7 @@ func NATSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 				if price != nil && price.OnDemandUSD > 0 {
 					rate = price.OnDemandUSD
 				}
-				return handler.HourlyCost(rate)
+				return costutil.HourlyCost(rate)
 			},
 		},
 	}

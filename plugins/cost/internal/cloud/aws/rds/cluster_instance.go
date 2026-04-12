@@ -4,8 +4,9 @@ import (
 	"errors"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
@@ -16,16 +17,16 @@ type clusterInstanceAttrs struct {
 
 func parseClusterInstanceAttrs(attrs map[string]any) clusterInstanceAttrs {
 	return clusterInstanceAttrs{
-		InstanceClass: handler.GetStringAttr(attrs, "instance_class"),
-		Engine:        handler.GetStringAttr(attrs, "engine"),
+		InstanceClass: costutil.GetStringAttr(attrs, "instance_class"),
+		Engine:        costutil.GetStringAttr(attrs, "engine"),
 	}
 }
 
 // ClusterInstanceSpec declares aws_rds_cluster_instance cost estimation.
 func ClusterInstanceSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 	return resourcespec.ResourceSpec{
-		Type:     handler.ResourceType(awskit.ResourceRDSClusterInstance),
-		Category: handler.CostCategoryStandard,
+		Type:     resourcedef.ResourceType(awskit.ResourceRDSClusterInstance),
+		Category: resourcedef.CostCategoryStandard,
 		Lookup: &resourcespec.LookupSpec{
 			BuildFunc: func(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 				parsed := parseClusterInstanceAttrs(attrs)
@@ -62,7 +63,7 @@ func ClusterInstanceSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 				if price == nil {
 					return 0, 0
 				}
-				return handler.HourlyCost(price.OnDemandUSD)
+				return costutil.HourlyCost(price.OnDemandUSD)
 			},
 		},
 	}

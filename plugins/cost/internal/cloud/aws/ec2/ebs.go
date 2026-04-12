@@ -2,8 +2,9 @@ package ec2
 
 import (
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
@@ -31,15 +32,15 @@ type ebsVolumeAttrs struct {
 }
 
 func parseEBSVolumeAttrs(attrs map[string]any) ebsVolumeAttrs {
-	volumeType := handler.GetStringAttr(attrs, "type")
-	sizeGB := handler.GetFloatAttr(attrs, "size")
+	volumeType := costutil.GetStringAttr(attrs, "type")
+	sizeGB := costutil.GetFloatAttr(attrs, "size")
 	parsed := ebsVolumeAttrs{
 		VolumeType:    volumeType,
 		VolumeTypeSet: volumeType != "",
 		SizeGB:        sizeGB,
 		SizeGBSet:     sizeGB != 0,
-		IOPS:          handler.GetFloatAttr(attrs, "iops"),
-		Throughput:    handler.GetFloatAttr(attrs, "throughput"),
+		IOPS:          costutil.GetFloatAttr(attrs, "iops"),
+		Throughput:    costutil.GetFloatAttr(attrs, "throughput"),
 	}
 	if parsed.VolumeType == "" {
 		parsed.VolumeType = awskit.VolumeTypeGP2
@@ -55,8 +56,8 @@ func EBSSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 	ec2ServiceID := deps.RuntimeOrDefault().MustService(awskit.ServiceKeyEC2)
 
 	return resourcespec.ResourceSpec{
-		Type:     handler.ResourceType(awskit.ResourceEBSVolume),
-		Category: handler.CostCategoryStandard,
+		Type:     resourcedef.ResourceType(awskit.ResourceEBSVolume),
+		Category: resourcedef.CostCategoryStandard,
 		Lookup: &resourcespec.LookupSpec{
 			BuildFunc: func(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 				parsed := parseEBSVolumeAttrs(attrs)
@@ -126,7 +127,7 @@ func EBSSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 					}
 				}
 
-				return monthly / handler.HoursPerMonth, monthly
+				return monthly / costutil.HoursPerMonth, monthly
 			},
 		},
 	}

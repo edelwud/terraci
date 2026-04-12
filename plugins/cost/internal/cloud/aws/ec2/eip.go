@@ -2,8 +2,9 @@ package ec2
 
 import (
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
@@ -16,7 +17,7 @@ type eipAttrs struct {
 
 func parseEIPAttrs(attrs map[string]any) eipAttrs {
 	return eipAttrs{
-		Instance: handler.GetStringAttr(attrs, "instance"),
+		Instance: costutil.GetStringAttr(attrs, "instance"),
 	}
 }
 
@@ -25,8 +26,8 @@ func EIPSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 	vpcServiceID := deps.RuntimeOrDefault().MustService(awskit.ServiceKeyVPC)
 
 	return resourcespec.ResourceSpec{
-		Type:     handler.ResourceType(awskit.ResourceEIP),
-		Category: handler.CostCategoryStandard,
+		Type:     resourcedef.ResourceType(awskit.ResourceEIP),
+		Category: resourcedef.CostCategoryStandard,
 		Lookup: &resourcespec.LookupSpec{
 			BuildFunc: func(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
 				parsed := parseEIPAttrs(attrs)
@@ -63,9 +64,9 @@ func EIPSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 		Standard: &resourcespec.StandardPricingSpec{
 			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
 				if price != nil && price.OnDemandUSD > 0 {
-					return handler.HourlyCost(price.OnDemandUSD)
+					return costutil.HourlyCost(price.OnDemandUSD)
 				}
-				return handler.HourlyCost(DefaultEIPHourlyCost)
+				return costutil.HourlyCost(DefaultEIPHourlyCost)
 			},
 		},
 	}
