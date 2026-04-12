@@ -217,34 +217,6 @@ func TestCompile_LookupError(t *testing.T) {
 	}
 }
 
-func TestNewHandler_AdaptsCompiledDefinition(t *testing.T) {
-	t.Helper()
-
-	spec := resourcespec.ResourceSpec{
-		Type:     "aws_test_legacy",
-		Category: handler.CostCategoryFixed,
-		Fixed: &resourcespec.FixedPricingSpec{
-			CostFunc: func(_ string, _ map[string]any) (hourly, monthly float64) {
-				return handler.FixedMonthlyCost(3)
-			},
-		},
-	}
-
-	legacy, err := resourcespec.NewHandler(spec)
-	if err != nil {
-		t.Fatalf("NewHandler() error = %v", err)
-	}
-	fixed, ok := legacy.(interface {
-		CalculateFixedCost(region string, attrs map[string]any) (hourly, monthly float64)
-	})
-	if !ok {
-		t.Fatal("legacy handler should expose fixed-cost behavior")
-	}
-	if _, monthly := fixed.CalculateFixedCost("", nil); monthly != 3 {
-		t.Fatalf("monthly = %.2f, want 3", monthly)
-	}
-}
-
 func mustCompile(t *testing.T, spec resourcespec.ResourceSpec) resourcedef.Definition {
 	t.Helper()
 

@@ -3,7 +3,6 @@ package handlertest
 import (
 	"testing"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 )
@@ -14,20 +13,14 @@ func requireDefinition(tb testing.TB, subject any) resourcedef.Definition {
 	switch v := subject.(type) {
 	case resourcedef.Definition:
 		return v
-	case handler.ResourceHandler:
-		def, err := resourcedef.FromLegacyHandler(handler.ResourceType("__test_resource__"), v)
-		if err != nil {
-			tb.Fatalf("adapt legacy handler to definition: %v", err)
-		}
-		return def
 	default:
-		tb.Fatalf("unsupported handler test subject type %T", subject)
+		tb.Fatalf("unsupported handler test subject type %T; expected resourcedef.Definition", subject)
 		return resourcedef.Definition{}
 	}
 }
 
 // AssertCategory verifies that a definition exposes the expected cost category.
-func AssertCategory(tb testing.TB, subject any, want handler.CostCategory) {
+func AssertCategory(tb testing.TB, subject any, want resourcedef.CostCategory) {
 	tb.Helper()
 	def := requireDefinition(tb, subject)
 	if got := def.Category; got != want {

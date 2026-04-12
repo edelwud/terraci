@@ -90,13 +90,13 @@ type ProviderCase struct {
 	WantOK       bool
 }
 
-// HandlerCase defines one contract test case for handler resolution.
+// HandlerCase defines one contract test case for definition resolution.
 type HandlerCase struct {
 	Name         string
 	ProviderID   string
 	ResourceType handler.ResourceType
 	WantOK       bool
-	Assert       func(testing.TB, handler.ResourceHandler)
+	Assert       func(testing.TB, resourcedef.Definition)
 }
 
 // PricingCase defines one contract test case for pricing/source behavior.
@@ -179,7 +179,7 @@ func runHandlerCases(t *testing.T, runtime ResolverRuntime, cases []HandlerCase)
 				t.Fatalf("ResolveDefinition() returned invalid definition: %v", err)
 			}
 			if tc.Assert != nil {
-				tc.Assert(t, resourcedef.MustLegacyHandler(gotDef))
+				tc.Assert(t, gotDef)
 			}
 		})
 	}

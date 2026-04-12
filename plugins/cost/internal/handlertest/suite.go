@@ -3,26 +3,26 @@ package handlertest
 import (
 	"testing"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 )
 
 // AssertStandardCategory verifies the standard pricing category contract.
 func AssertStandardCategory(tb testing.TB, subject any) {
 	tb.Helper()
-	AssertCategory(tb, subject, handler.CostCategoryStandard)
+	AssertCategory(tb, subject, resourcedef.CostCategoryStandard)
 }
 
 // AssertFixedCategory verifies the fixed pricing category contract.
 func AssertFixedCategory(tb testing.TB, subject any) {
 	tb.Helper()
-	AssertCategory(tb, subject, handler.CostCategoryFixed)
+	AssertCategory(tb, subject, resourcedef.CostCategoryFixed)
 }
 
 // AssertUsageBasedCategory verifies the usage-based pricing category contract.
 func AssertUsageBasedCategory(tb testing.TB, subject any) {
 	tb.Helper()
-	AssertCategory(tb, subject, handler.CostCategoryUsageBased)
+	AssertCategory(tb, subject, resourcedef.CostCategoryUsageBased)
 }
 
 // AssertFixedContract verifies the common fixed-cost handler contract:
@@ -72,7 +72,7 @@ type DescribeCase struct {
 //
 // Example:
 //
-//	category := handler.CostCategoryStandard
+//	category := resourcedef.CostCategoryStandard
 //	handlertest.RunContractSuite(t, &ClassicHandler{}, handlertest.ContractSuite{
 //		Category: &category,
 //		LookupCases: []handlertest.LookupCase{
@@ -95,7 +95,7 @@ type DescribeCase struct {
 //		},
 //	})
 type ContractSuite struct {
-	Category         *handler.CostCategory
+	Category         *resourcedef.CostCategory
 	ExpectNoLookup   bool
 	ExpectNoDescribe bool
 	NilLookup        *LookupInput

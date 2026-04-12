@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 )
 
 func TestResourceRegistrationsUnique(t *testing.T) {
@@ -21,18 +20,6 @@ func TestResourceRegistrationsUnique(t *testing.T) {
 			t.Fatalf("duplicate resource registration: %q", key)
 		}
 		seen[key] = true
-	}
-}
-
-func TestProviderDefinitionsCompileToLegacyHandlers(t *testing.T) {
-	for _, registration := range definition.Resources {
-		resolved, err := resourcedef.NewLegacyHandler(registration.Definition)
-		if err != nil {
-			t.Fatalf("resource %q failed to compile to legacy handler: %v", registration.Type, err)
-		}
-		if resolved == nil {
-			t.Fatalf("resource %q has nil legacy handler", registration.Type)
-		}
 	}
 }
 
