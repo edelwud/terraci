@@ -7,6 +7,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
+	"github.com/edelwud/terraci/plugins/cost/internal/view"
 )
 
 func outputResult(w io.Writer, workDir, outputFmt string, result *model.EstimateResult) error {
@@ -28,8 +29,8 @@ func outputJSONResult(w io.Writer, result *model.EstimateResult) error {
 }
 
 func outputTextResult(workDir string, result *model.EstimateResult) {
-	tree := model.BuildSegmentTree(result, workDir)
-	model.CompactSegmentTree(tree)
+	tree := view.BuildSegmentTree(result, workDir)
+	view.CompactSegmentTree(tree)
 	renderSegmentTree(tree)
 	renderSummary(result)
 }
@@ -66,7 +67,7 @@ func renderSummary(result *model.EstimateResult) {
 	log.WithField("monthly", model.FormatCost(result.TotalAfter)).Info("total")
 }
 
-func renderSegmentTree(node *model.SegmentNode) {
+func renderSegmentTree(node *view.SegmentNode) {
 	for _, child := range node.Children {
 		if !shouldShowTextSegment(child) {
 			continue
@@ -97,7 +98,7 @@ func renderSegmentTree(node *model.SegmentNode) {
 	}
 }
 
-func shouldShowTextSegment(node *model.SegmentNode) bool {
+func shouldShowTextSegment(node *view.SegmentNode) bool {
 	if node == nil {
 		return false
 	}
@@ -107,7 +108,7 @@ func shouldShowTextSegment(node *model.SegmentNode) bool {
 	return !model.CostIsZero(node.AfterCost) || !model.CostIsZero(node.DiffCost) || hasVisibleTextDescendant(node)
 }
 
-func hasVisibleTextDescendant(node *model.SegmentNode) bool {
+func hasVisibleTextDescendant(node *view.SegmentNode) bool {
 	return slices.ContainsFunc(node.Children, shouldShowTextSegment)
 }
 
@@ -123,14 +124,15 @@ func renderModuleDetails(module *model.ModuleCost) {
 		return
 	}
 
-	if len(module.Submodules) > 0 {
-		renderSubmodules(module.Submodules, "")
+	submodules := view.GroupByModule(module.Resources)
+	if len(submodules) > 0 {
+		renderSubmodules(submodules, "")
 		return
 	}
 	renderResources(module.Resources, "")
 }
 
-func renderSubmodules(submodules []model.SubmoduleCost, parentAddr string) {
+func renderSubmodules(submodules []view.SubmoduleCost, parentAddr string) {
 	for i := range submodules {
 		submodule := &submodules[i]
 		if !shouldShowSubmodule(submodule) {
@@ -139,7 +141,7 @@ func renderSubmodules(submodules []model.SubmoduleCost, parentAddr string) {
 
 		showHeader := (len(submodules) > 1 || len(submodule.Children) > 0) && !model.CostIsZero(submodule.MonthlyCost)
 		if showHeader && submodule.ModuleAddr != "" {
-			label := model.StripModulePrefix(submodule.ModuleAddr, parentAddr)
+			label := view.StripModulePrefix(submodule.ModuleAddr, parentAddr)
 			log.WithField("monthly", model.FormatCost(submodule.MonthlyCost)).Info(label)
 			log.IncreasePadding()
 		}
@@ -155,7 +157,7 @@ func renderSubmodules(submodules []model.SubmoduleCost, parentAddr string) {
 	}
 }
 
-func shouldShowSubmodule(submodule *model.SubmoduleCost) bool {
+func shouldShowSubmodule(submodule *view.SubmoduleCost) bool {
 	if submodule == nil {
 		return false
 	}
@@ -182,7 +184,7 @@ func renderResources(resources []model.ResourceCost, moduleAddr string) {
 			continue
 		}
 
-		displayAddr := model.StripModulePrefix(resource.Address, moduleAddr)
+		displayAddr := view.StripModulePrefix(resource.Address, moduleAddr)
 		switch resource.Status {
 		case model.ResourceEstimateStatusExact:
 			entry := log.WithField("monthly", model.FormatCost(resource.MonthlyCost))

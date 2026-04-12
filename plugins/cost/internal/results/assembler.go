@@ -49,7 +49,6 @@ func (a *ModuleAssembler) AddResource(rc model.ResourceCost, action model.Estima
 // Build finalizes and returns the assembled module result.
 func (a *ModuleAssembler) Build() *model.ModuleCost {
 	a.result.DiffCost = a.result.AfterCost - a.result.BeforeCost
-	a.result.Submodules = model.GroupByModule(a.result.Resources)
 	a.result.Provider, a.result.Providers = summarizeProviders(a.providerSet)
 	return &a.result
 }

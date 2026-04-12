@@ -86,7 +86,8 @@ func TestBuildPrefetchPlan_CollectsDiagnosticsAndRequirements(t *testing.T) {
 		},
 	}
 
-	prefetch := buildPrefetchPlan(catalog, []*ModulePlan{plan})
+	runtime := newStubEstimationRuntime(t, catalog)
+	prefetch := buildPrefetchPlan(runtime, []*ModulePlan{plan})
 
 	if got := prefetch.services[pricing.ServiceID{Provider: "aws", Name: "AmazonEC2"}]; len(got) != 1 || got[0] != "us-east-1" {
 		t.Fatalf("prefetch.services = %#v, want EC2 us-east-1 warm requirement", prefetch.services)
@@ -113,10 +114,8 @@ func TestEstimate_AssignsPrefetchWarningsToResult(t *testing.T) {
 				},
 			},
 		}),
-		executor:         NewModuleExecutor(noopResolver{}),
-		providerMetadata: func() map[string]model.ProviderMetadata { return nil },
-		catalog:          stubCatalog{},
-		runtimes:         stubWarmer{},
+		executor: NewModuleExecutor(noopResolver{}),
+		runtime:  newStubEstimationRuntime(t, stubCatalog{}),
 	}
 
 	result, err := coord.Estimate(context.Background(), []string{"mod-a"}, map[string]string{"mod-a": "us-east-1"})
@@ -128,10 +127,6 @@ func TestEstimate_AssignsPrefetchWarningsToResult(t *testing.T) {
 	}
 }
 
-type stubWarmer struct{}
-
-func (stubWarmer) WarmIndexes(context.Context, map[pricing.ServiceID][]string) error { return nil }
-
 type noopResolver struct{}
 
 func (noopResolver) ResolveWithSubResourcesState(context.Context, costruntime.ResolveRequest, *costruntime.ResolutionState) []model.ResourceCost {
@@ -139,4 +134,30 @@ func (noopResolver) ResolveWithSubResourcesState(context.Context, costruntime.Re
 }
 
 func (noopResolver) ResolveBeforeCostWithState(context.Context, *model.ResourceCost, handler.ResourceType, map[string]any, string, *costruntime.ResolutionState) {
+}
+
+func newStubEstimationRuntime(t testing.TB, stub stubCatalog) *costruntime.EstimationRuntime {
+	t.Helper()
+
+	router := costruntime.NewResourceProviderRouter()
+	registry := handler.NewRegistry()
+	for resourceType, providerID := range stub.providers {
+		router.Register(providerID, resourceType)
+	}
+	for resourceType, h := range stub.handlers {
+		providerID, ok := stub.providers[resourceType]
+		if !ok {
+			continue
+		}
+		registry.Register(providerID, resourceType, h)
+	}
+
+	runtime, err := costruntime.NewEstimationRuntime(
+		costruntime.NewProviderCatalog(router, registry, nil),
+		costruntime.NewProviderRuntimeRegistry(nil),
+	)
+	if err != nil {
+		t.Fatalf("NewEstimationRuntime() error = %v", err)
+	}
+	return runtime
 }

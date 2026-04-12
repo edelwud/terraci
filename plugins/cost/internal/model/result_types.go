@@ -84,40 +84,22 @@ type UsageCostEstimate struct {
 	Detail      string
 }
 
-// SubmoduleCost groups resource costs by Terraform module address.
-type SubmoduleCost struct {
-	ModuleAddr  string          `json:"module_addr"`
-	MonthlyCost float64         `json:"monthly_cost"`
-	Resources   []ResourceCost  `json:"resources,omitempty"`
-	Children    []SubmoduleCost `json:"children,omitempty"`
-}
-
-// TotalCost returns MonthlyCost including all nested children recursively.
-func (s *SubmoduleCost) TotalCost() float64 {
-	total := s.MonthlyCost
-	for i := range s.Children {
-		total += s.Children[i].TotalCost()
-	}
-	return total
-}
-
 // ModuleCost represents the total cost estimate for a terraform module.
 type ModuleCost struct {
-	ModuleID       string          `json:"module_id"`
-	ModulePath     string          `json:"module_path"`
-	Region         string          `json:"region"`
-	Provider       string          `json:"provider,omitempty"`
-	Providers      []string        `json:"providers,omitempty"`
-	BeforeCost     float64         `json:"before_cost"`
-	AfterCost      float64         `json:"after_cost"`
-	DiffCost       float64         `json:"diff_cost"`
-	Resources      []ResourceCost  `json:"resources"`
-	Submodules     []SubmoduleCost `json:"submodules,omitempty"`
-	Unsupported    int             `json:"unsupported"`
-	UsageEstimated int             `json:"usage_estimated"`
-	UsageUnknown   int             `json:"usage_unknown"`
-	HasChanges     bool            `json:"has_changes"`
-	Error          string          `json:"error,omitempty"`
+	ModuleID       string         `json:"module_id"`
+	ModulePath     string         `json:"module_path"`
+	Region         string         `json:"region"`
+	Provider       string         `json:"provider,omitempty"`
+	Providers      []string       `json:"providers,omitempty"`
+	BeforeCost     float64        `json:"before_cost"`
+	AfterCost      float64        `json:"after_cost"`
+	DiffCost       float64        `json:"diff_cost"`
+	Resources      []ResourceCost `json:"resources"`
+	Unsupported    int            `json:"unsupported"`
+	UsageEstimated int            `json:"usage_estimated"`
+	UsageUnknown   int            `json:"usage_unknown"`
+	HasChanges     bool           `json:"has_changes"`
+	Error          string         `json:"error,omitempty"`
 }
 
 // ModuleError captures a structured error from a failed module estimation.

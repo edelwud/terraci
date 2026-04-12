@@ -1,12 +1,33 @@
-package model
+package view
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/edelwud/terraci/plugins/cost/internal/model"
+)
+
+// SubmoduleCost groups resource costs by Terraform module address for presentation.
+type SubmoduleCost struct {
+	ModuleAddr  string               `json:"module_addr"`
+	MonthlyCost float64              `json:"monthly_cost"`
+	Resources   []model.ResourceCost `json:"resources,omitempty"`
+	Children    []SubmoduleCost      `json:"children,omitempty"`
+}
+
+// TotalCost returns MonthlyCost including all nested children recursively.
+func (s *SubmoduleCost) TotalCost() float64 {
+	total := s.MonthlyCost
+	for i := range s.Children {
+		total += s.Children[i].TotalCost()
+	}
+	return total
+}
 
 // GroupByModule groups resources by their Terraform module address into a tree.
-func GroupByModule(resources []ResourceCost) []SubmoduleCost {
+func GroupByModule(resources []model.ResourceCost) []SubmoduleCost {
 	type flatGroup struct {
 		addr      string
-		resources []ResourceCost
+		resources []model.ResourceCost
 		cost      float64
 	}
 	groups := make(map[string]*flatGroup)
@@ -70,4 +91,16 @@ func FindParentAddr(addr string, nodes map[string]*SubmoduleCost) string {
 		}
 	}
 	return ""
+}
+
+// StripModulePrefix removes the module prefix from a resource address.
+func StripModulePrefix(address, moduleAddr string) string {
+	if moduleAddr == "" {
+		return address
+	}
+	prefix := moduleAddr + "."
+	if len(address) > len(prefix) && address[:len(prefix)] == prefix {
+		return address[len(prefix):]
+	}
+	return address
 }

@@ -205,7 +205,11 @@ func TestEstimateModule_KnownProviderMissingHandler(t *testing.T) {
 		},
 	})
 	runtimeRegistry := costruntime.NewProviderRuntimeRegistry(runtimes)
-	e, err := engine.NewEstimatorWithDeps(catalog, runtimeRegistry)
+	runtime, err := costruntime.NewEstimationRuntime(catalog, runtimeRegistry)
+	if err != nil {
+		t.Fatalf("NewEstimationRuntime: %v", err)
+	}
+	e, err := engine.NewEstimatorWithDeps(runtime)
 	if err != nil {
 		t.Fatalf("NewEstimatorWithDeps: %v", err)
 	}
@@ -317,29 +321,24 @@ func TestEstimateModule_SubmoduleGrouping(t *testing.T) {
 		t.Fatalf("EstimateModule: %v", err)
 	}
 
-	if len(result.Submodules) < 2 {
-		t.Fatalf("submodules = %d, want >= 2 (module.vpc, module.compute)", len(result.Submodules))
-	}
-
-	// Verify both modules are present
 	var foundVPC, foundCompute bool
-	for _, sm := range result.Submodules {
-		switch sm.ModuleAddr {
+	for _, rc := range result.Resources {
+		switch rc.ModuleAddr {
 		case "module.vpc":
 			foundVPC = true
-			enginetest.AssertCostNear(t, "vpc cost", sm.MonthlyCost, 0.50, 0.01)
+			enginetest.AssertCostNear(t, "vpc cost", rc.MonthlyCost, 0.50, 0.01)
 		case "module.compute":
 			foundCompute = true
-			if sm.MonthlyCost <= 0 {
-				t.Errorf("compute cost = %.4f, want > 0", sm.MonthlyCost)
+			if rc.MonthlyCost <= 0 {
+				t.Errorf("compute cost = %.4f, want > 0", rc.MonthlyCost)
 			}
 		}
 	}
 	if !foundVPC {
-		t.Error("missing module.vpc in submodules")
+		t.Error("missing module.vpc resources")
 	}
 	if !foundCompute {
-		t.Error("missing module.compute in submodules")
+		t.Error("missing module.compute resources")
 	}
 }
 
@@ -677,12 +676,7 @@ func TestAggregateCost_UnsupportedNotCounted(t *testing.T) {
 }
 
 func TestNewEstimatorWithDeps_RejectsNilDependencies(t *testing.T) {
-	if _, err := engine.NewEstimatorWithDeps(nil, nil); err == nil {
-		t.Fatal("NewEstimatorWithDeps() should reject nil dependencies")
-	}
-
-	catalog := costruntime.NewProviderCatalog(costruntime.NewResourceProviderRouter(), handler.NewRegistry(), nil)
-	if _, err := engine.NewEstimatorWithDeps(catalog, nil); err == nil {
-		t.Fatal("NewEstimatorWithDeps() should reject nil runtime registry")
+	if _, err := engine.NewEstimatorWithDeps(nil); err == nil {
+		t.Fatal("NewEstimatorWithDeps() should reject nil runtime")
 	}
 }

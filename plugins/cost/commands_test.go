@@ -292,13 +292,11 @@ func TestPlugin_OutputResult_TextOutput_SkipsZeroCostSubmoduleHeader(t *testing.
 					ModulePath: "/tmp/cdp/infra/eu-central-1/eks",
 					Region:     "eu-central-1",
 					AfterCost:  1.23,
-					Submodules: []model.SubmoduleCost{
+					Resources: []model.ResourceCost{
 						{
-							ModuleAddr:  "module.velero_irsa_role",
-							MonthlyCost: 0,
-							Resources: []model.ResourceCost{
-								{Address: "module.velero_irsa_role.aws_iam_role.this", MonthlyCost: 0},
-							},
+							Address:    "module.velero_irsa_role.aws_iam_role.this",
+							ModuleAddr: "module.velero_irsa_role",
+							Status:     model.ResourceEstimateStatusExact,
 						},
 					},
 				},

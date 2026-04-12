@@ -98,8 +98,8 @@ func TestModuleAssembler_BuildDeterministicProvidersAndSubmodules(t *testing.T) 
 	if len(module.Providers) != 2 || module.Providers[0] != "alpha" || module.Providers[1] != "zeta" {
 		t.Fatalf("Providers = %v, want [alpha zeta]", module.Providers)
 	}
-	if len(module.Submodules) != 2 {
-		t.Fatalf("Submodules len = %d, want 2", len(module.Submodules))
+	if len(module.Resources) != 2 {
+		t.Fatalf("Resources len = %d, want 2", len(module.Resources))
 	}
 }
 

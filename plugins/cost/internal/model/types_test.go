@@ -192,25 +192,6 @@ func TestResourceCost_IsFailedAndContributesAfterCost(t *testing.T) {
 	}
 }
 
-func TestSubmoduleCost_TotalCost(t *testing.T) {
-	t.Parallel()
-
-	s := model.SubmoduleCost{
-		MonthlyCost: 10,
-		Children: []model.SubmoduleCost{
-			{MonthlyCost: 20, Children: []model.SubmoduleCost{{MonthlyCost: 30}}},
-		},
-	}
-	if s.TotalCost() != 60 {
-		t.Errorf("TotalCost() = %v, want 60", s.TotalCost())
-	}
-
-	leaf := model.SubmoduleCost{MonthlyCost: 42}
-	if leaf.TotalCost() != 42 {
-		t.Errorf("TotalCost() leaf = %v, want 42", leaf.TotalCost())
-	}
-}
-
 func TestResourceCost_JSONShape(t *testing.T) {
 	t.Parallel()
 

@@ -1,10 +1,11 @@
-package model_test
+package view_test
 
 import (
 	"path/filepath"
 	"testing"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
+	"github.com/edelwud/terraci/plugins/cost/internal/view"
 )
 
 func TestBuildSegmentTree(t *testing.T) {
@@ -23,7 +24,7 @@ func TestBuildSegmentTree(t *testing.T) {
 			},
 		}
 
-		tree := model.BuildSegmentTree(result, workDir)
+		tree := view.BuildSegmentTree(result, workDir)
 
 		if len(tree.Children) != 1 {
 			t.Fatalf("root children = %d, want 1 (svc)", len(tree.Children))
@@ -50,9 +51,7 @@ func TestBuildSegmentTree(t *testing.T) {
 			},
 		}
 
-		tree := model.BuildSegmentTree(result, workDir)
-
-		// Only rds should be in the tree
+		tree := view.BuildSegmentTree(result, workDir)
 		if len(tree.Children) != 1 {
 			t.Fatalf("root children = %d, want 1", len(tree.Children))
 		}
@@ -67,8 +66,7 @@ func TestBuildSegmentTree(t *testing.T) {
 			},
 		}
 
-		tree := model.BuildSegmentTree(result, workDir)
-
+		tree := view.BuildSegmentTree(result, workDir)
 		if len(tree.Children) != 1 {
 			t.Fatalf("root children = %d, want 1 (module with error)", len(tree.Children))
 		}
@@ -84,7 +82,7 @@ func TestBuildSegmentTree(t *testing.T) {
 			},
 		}
 
-		tree := model.BuildSegmentTree(result, workDir)
+		tree := view.BuildSegmentTree(result, workDir)
 		svc := tree.Children[0]
 		if svc.DiffCost != 2.0 {
 			t.Errorf("svc diff = %.2f, want 2.00", svc.DiffCost)
@@ -100,8 +98,8 @@ func TestBuildSegmentTree(t *testing.T) {
 			},
 		}
 
-		tree := model.BuildSegmentTree(result, workDir)
-		leaf := tree.Children[0].Children[0].Children[0] // svc/prod/vpc
+		tree := view.BuildSegmentTree(result, workDir)
+		leaf := tree.Children[0].Children[0].Children[0]
 		if leaf.Module == nil {
 			t.Error("leaf module should not be nil")
 		}
@@ -113,7 +111,7 @@ func TestBuildSegmentTree(t *testing.T) {
 	t.Run("empty result", func(t *testing.T) {
 		t.Parallel()
 
-		tree := model.BuildSegmentTree(&model.EstimateResult{}, workDir)
+		tree := view.BuildSegmentTree(&model.EstimateResult{}, workDir)
 		if len(tree.Children) != 0 {
 			t.Errorf("root children = %d, want 0", len(tree.Children))
 		}
@@ -126,17 +124,17 @@ func TestCompactSegmentTree(t *testing.T) {
 	t.Run("merges single-child chain", func(t *testing.T) {
 		t.Parallel()
 
-		root := &model.SegmentNode{
-			Children: []*model.SegmentNode{
-				{Name: "a", Children: []*model.SegmentNode{
-					{Name: "b", Children: []*model.SegmentNode{
+		root := &view.SegmentNode{
+			Children: []*view.SegmentNode{
+				{Name: "a", Children: []*view.SegmentNode{
+					{Name: "b", Children: []*view.SegmentNode{
 						{Name: "c", Module: &model.ModuleCost{AfterCost: 10}},
 					}},
 				}},
 			},
 		}
 
-		model.CompactSegmentTree(root)
+		view.CompactSegmentTree(root)
 
 		if len(root.Children) != 1 {
 			t.Fatalf("children = %d, want 1", len(root.Children))
@@ -149,16 +147,16 @@ func TestCompactSegmentTree(t *testing.T) {
 	t.Run("stops at branch point", func(t *testing.T) {
 		t.Parallel()
 
-		root := &model.SegmentNode{
-			Children: []*model.SegmentNode{
-				{Name: "a", Children: []*model.SegmentNode{
+		root := &view.SegmentNode{
+			Children: []*view.SegmentNode{
+				{Name: "a", Children: []*view.SegmentNode{
 					{Name: "b1", Module: &model.ModuleCost{}},
 					{Name: "b2", Module: &model.ModuleCost{}},
 				}},
 			},
 		}
 
-		model.CompactSegmentTree(root)
+		view.CompactSegmentTree(root)
 
 		if root.Children[0].Name != "a" {
 			t.Errorf("branch should not be compacted, got %q", root.Children[0].Name)
@@ -171,82 +169,25 @@ func TestCompactSegmentTree(t *testing.T) {
 	t.Run("stops at module node", func(t *testing.T) {
 		t.Parallel()
 
-		root := &model.SegmentNode{
-			Children: []*model.SegmentNode{
-				{Name: "a", Module: &model.ModuleCost{}, Children: []*model.SegmentNode{
+		root := &view.SegmentNode{
+			Children: []*view.SegmentNode{
+				{Name: "a", Module: &model.ModuleCost{}, Children: []*view.SegmentNode{
 					{Name: "b"},
 				}},
 			},
 		}
 
-		model.CompactSegmentTree(root)
+		view.CompactSegmentTree(root)
 
-		// a has a module, so should not be merged with b
 		if root.Children[0].Name != "a" {
 			t.Errorf("module node should not be compacted, got %q", root.Children[0].Name)
 		}
 	})
 
-	t.Run("empty tree", func(_ *testing.T) {
-		root := &model.SegmentNode{}
-		model.CompactSegmentTree(root) // should not panic
+	t.Run("empty tree", func(t *testing.T) {
+		t.Parallel()
+
+		root := &view.SegmentNode{}
+		view.CompactSegmentTree(root)
 	})
-}
-
-func TestStripModulePrefix(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name       string
-		address    string
-		moduleAddr string
-		want       string
-	}{
-		{"empty module addr", "aws_instance.web", "", "aws_instance.web"},
-		{"matching prefix", "module.runner.aws_instance.web", "module.runner", "aws_instance.web"},
-		{"no match", "aws_instance.web", "module.runner", "aws_instance.web"},
-		{"prefix equals address", "module.runner", "module.runner", "module.runner"},
-		{"nested modules", "module.a.module.b.aws_instance.web", "module.a.module.b", "aws_instance.web"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := model.StripModulePrefix(tt.address, tt.moduleAddr)
-			if got != tt.want {
-				t.Errorf("StripModulePrefix(%q, %q) = %q, want %q", tt.address, tt.moduleAddr, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestDetectRegion(t *testing.T) {
-	t.Parallel()
-
-	segments := []string{"service", "environment", "region", "module"}
-
-	tests := []struct {
-		name       string
-		segments   []string
-		modulePath string
-		want       string
-	}{
-		{"extracts region from pattern", segments, "platform/prod/eu-central-1/rds", "eu-central-1"},
-		{"extracts us-east-1", segments, "svc/staging/us-east-1/vpc", "us-east-1"},
-		{"falls back when no region segment", []string{"service", "module"}, "svc/vpc", "us-east-1"},
-		{"falls back on nil segments", nil, "svc/prod/eu-west-1/vpc", "us-east-1"},
-		{"falls back when path too short", segments, "svc", "us-east-1"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := model.DetectRegion(tt.segments, tt.modulePath)
-			if got != tt.want {
-				t.Errorf("DetectRegion(%v, %q) = %q, want %q", tt.segments, tt.modulePath, got, tt.want)
-			}
-		})
-	}
 }

@@ -23,9 +23,9 @@ type CacheInspector interface {
 	CleanExpired(ctx context.Context)
 }
 
-// cacheInspector implements CacheInspector backed by ProviderRuntimeRegistry.
+// cacheInspector implements CacheInspector backed by EstimationRuntime.
 type cacheInspector struct {
-	r *costruntime.ProviderRuntimeRegistry
+	r *costruntime.EstimationRuntime
 }
 
 func (c *cacheInspector) Dir() string                                 { return c.r.CacheDir() }

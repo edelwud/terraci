@@ -7,15 +7,14 @@ import (
 
 	"github.com/edelwud/terraci/pkg/cache/blobcache"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	costruntime "github.com/edelwud/terraci/plugins/cost/internal/runtime"
 )
 
 // Estimator calculates cost estimates for terraform plans.
 type Estimator struct {
-	coord    *estimateCoordinator
-	runtimes *costruntime.ProviderRuntimeRegistry
+	coord   *estimateCoordinator
+	runtime *costruntime.EstimationRuntime
 }
 
 // NewEstimatorFromConfig creates an Estimator from config and a prepared blob cache.
@@ -25,40 +24,35 @@ func NewEstimatorFromConfig(cfg *model.CostConfig, cache *blobcache.Cache) (*Est
 	if err != nil {
 		return nil, fmt.Errorf("resolve cost providers: %w", err)
 	}
-	registry := buildHandlerRegistry(providers)
-	catalog := costruntime.NewProviderCatalogFromProviders(providers, registry)
-	runtimeRegistry, err := costruntime.NewProviderRuntimeRegistryFromProviders(providers, cache, nil)
+	runtime, err := costruntime.NewEstimationRuntimeFromProviders(providers, cache, nil)
 	if err != nil {
-		return nil, fmt.Errorf("create pricing runtimes: %w", err)
+		return nil, fmt.Errorf("create estimation runtime: %w", err)
 	}
-	return newEstimator(catalog, runtimeRegistry)
+	return newEstimator(runtime)
 }
 
-// NewEstimatorWithDeps creates an Estimator with explicit catalog and runtime dependencies.
+// NewEstimatorWithDeps creates an Estimator with an explicit combined runtime dependency.
 // Use for testing or advanced DI scenarios where exact provider wiring must be controlled.
-func NewEstimatorWithDeps(catalog *costruntime.ProviderCatalog, runtimeRegistry *costruntime.ProviderRuntimeRegistry) (*Estimator, error) {
-	return newEstimator(catalog, runtimeRegistry)
+func NewEstimatorWithDeps(runtime *costruntime.EstimationRuntime) (*Estimator, error) {
+	return newEstimator(runtime)
 }
 
 // newEstimator is the internal constructor that wires all engine components.
-func newEstimator(catalog *costruntime.ProviderCatalog, runtimeRegistry *costruntime.ProviderRuntimeRegistry) (*Estimator, error) {
-	if catalog == nil {
-		return nil, errors.New("cost estimator: provider catalog is required")
+func newEstimator(runtime *costruntime.EstimationRuntime) (*Estimator, error) {
+	if runtime == nil {
+		return nil, errors.New("cost estimator: estimation runtime is required")
 	}
-	if runtimeRegistry == nil {
-		return nil, errors.New("cost estimator: provider runtime registry is required")
-	}
-	resolver, err := costruntime.NewCostResolver(catalog, runtimeRegistry)
+	resolver, err := costruntime.NewCostResolver(runtime, runtime)
 	if err != nil {
 		return nil, fmt.Errorf("create cost resolver: %w", err)
 	}
 	scanner := NewModuleScanner(NewTerraformPlanAdapter())
 	executor := NewModuleExecutor(resolver)
-	coord := newEstimateCoordinator(scanner, executor, catalog, catalog.ProviderMetadata, runtimeRegistry)
+	coord := newEstimateCoordinator(scanner, executor, runtime)
 
 	return &Estimator{
-		coord:    coord,
-		runtimes: runtimeRegistry,
+		coord:   coord,
+		runtime: runtime,
 	}, nil
 }
 
@@ -98,17 +92,8 @@ func configuredProviders(cfg *model.CostConfig) ([]cloud.Provider, error) {
 	return selected, nil
 }
 
-// buildHandlerRegistry populates a handler registry from provider definitions.
-func buildHandlerRegistry(providers []cloud.Provider) *handler.Registry {
-	r := handler.NewRegistry()
-	for _, cp := range providers {
-		cloud.RegisterDefinitionHandlers(r, cp.Definition())
-	}
-	return r
-}
-
 // Cache returns a CacheInspector for diagnostic and maintenance access to the pricing cache.
-func (e *Estimator) Cache() CacheInspector { return &cacheInspector{r: e.runtimes} }
+func (e *Estimator) Cache() CacheInspector { return &cacheInspector{r: e.runtime} }
 
 // EstimateModule calculates cost for a single module from plan.json.
 func (e *Estimator) EstimateModule(ctx context.Context, modulePath, region string) (*model.ModuleCost, error) {

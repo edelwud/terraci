@@ -16,16 +16,10 @@ import (
 
 // indexWarmer downloads pricing indexes for a set of service/region pairs
 // before estimation begins, reducing per-resource latency during concurrent execution.
-type indexWarmer interface {
-	WarmIndexes(ctx context.Context, services map[pricing.ServiceID][]string) error
-}
-
 type estimateCoordinator struct {
-	scanner          *ModuleScanner
-	executor         *ModuleExecutor
-	providerMetadata func() map[string]model.ProviderMetadata
-	catalog          costruntime.ProviderCatalogRuntime
-	runtimes         indexWarmer
+	scanner  *ModuleScanner
+	executor *ModuleExecutor
+	runtime  *costruntime.EstimationRuntime
 }
 
 type prefetchPlan struct {
@@ -36,16 +30,12 @@ type prefetchPlan struct {
 func newEstimateCoordinator(
 	scanner *ModuleScanner,
 	executor *ModuleExecutor,
-	catalog costruntime.ProviderCatalogRuntime,
-	providerMetadata func() map[string]model.ProviderMetadata,
-	runtimes indexWarmer,
+	runtime *costruntime.EstimationRuntime,
 ) *estimateCoordinator {
 	return &estimateCoordinator{
-		scanner:          scanner,
-		executor:         executor,
-		catalog:          catalog,
-		providerMetadata: providerMetadata,
-		runtimes:         runtimes,
+		scanner:  scanner,
+		executor: executor,
+		runtime:  runtime,
 	}
 }
 
@@ -66,9 +56,9 @@ func (b *estimateCoordinator) Estimate(ctx context.Context, modulePaths []string
 		modulePlans = append(modulePlans, scanned.Plan)
 	}
 
-	prefetch := buildPrefetchPlan(b.catalog, modulePlans)
+	prefetch := buildPrefetchPlan(b.runtime, modulePlans)
 	logPrefetchDiagnostics(prefetch.diagnostics)
-	if prefetchErr := b.runtimes.WarmIndexes(ctx, prefetch.services); prefetchErr != nil {
+	if prefetchErr := b.runtime.WarmIndexes(ctx, prefetch.services); prefetchErr != nil {
 		log.WithError(prefetchErr).Warn("failed to prefetch some pricing data")
 	}
 
@@ -84,7 +74,7 @@ func (b *estimateCoordinator) Estimate(ctx context.Context, modulePaths []string
 	}
 	wg.Wait()
 
-	assembler := results.NewEstimateAssembler(b.providerMetadata(), time.Now().UTC())
+	assembler := results.NewEstimateAssembler(b.runtime.ProviderMetadata(), time.Now().UTC())
 	for i := range moduleResults {
 		assembler.AddModule(moduleResults[i])
 	}
@@ -96,13 +86,13 @@ func (b *estimateCoordinator) Estimate(ctx context.Context, modulePaths []string
 
 // buildPrefetchPlan analyses scanned module plans and returns the pricing requirements
 // that should be warmed before execution together with non-fatal diagnostics.
-func buildPrefetchPlan(catalog costruntime.ProviderCatalogRuntime, modulePlans []*ModulePlan) prefetchPlan {
+func buildPrefetchPlan(runtime *costruntime.EstimationRuntime, modulePlans []*ModulePlan) prefetchPlan {
 	regionSet := make(map[pricing.ServiceID]map[string]struct{})
 	diagnostics := make([]model.PrefetchDiagnostic, 0)
 
 	for _, modulePlan := range modulePlans {
 		for _, resource := range modulePlan.Resources {
-			providerID, ok := catalog.ResolveProvider(resource.ResourceType)
+			providerID, ok := runtime.ResolveProvider(resource.ResourceType)
 			if !ok {
 				diagnostics = append(diagnostics, model.PrefetchDiagnostic{
 					Kind:         "unsupported",
@@ -114,7 +104,7 @@ func buildPrefetchPlan(catalog costruntime.ProviderCatalogRuntime, modulePlans [
 				continue
 			}
 
-			h, ok := catalog.ResolveHandler(providerID, resource.ResourceType)
+			h, ok := runtime.ResolveHandler(providerID, resource.ResourceType)
 			if !ok {
 				diagnostics = append(diagnostics, model.PrefetchDiagnostic{
 					Kind:         "no-handler",

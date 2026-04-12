@@ -1,9 +1,10 @@
-package model_test
+package view_test
 
 import (
 	"testing"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
+	"github.com/edelwud/terraci/plugins/cost/internal/view"
 )
 
 func TestGroupByModule_SingleModule(t *testing.T) {
@@ -12,7 +13,7 @@ func TestGroupByModule_SingleModule(t *testing.T) {
 		{Address: "aws_ebs_volume.data", ModuleAddr: "", MonthlyCost: 10},
 	}
 
-	roots := model.GroupByModule(resources)
+	roots := view.GroupByModule(resources)
 	if len(roots) != 1 {
 		t.Fatalf("expected 1 root, got %d", len(roots))
 	}
@@ -30,17 +31,15 @@ func TestGroupByModule_NestedModules_NoDoubleCounting(t *testing.T) {
 		{Address: "module.eks.module.nodes.aws_instance.worker", ModuleAddr: "module.eks.module.nodes", MonthlyCost: 200},
 	}
 
-	roots := model.GroupByModule(resources)
+	roots := view.GroupByModule(resources)
 	if len(roots) != 1 {
 		t.Fatalf("expected 1 root (module.eks), got %d", len(roots))
 	}
 
 	parent := roots[0]
-	// Parent MonthlyCost should be ONLY its direct resources ($73), NOT $73 + $200
 	if parent.MonthlyCost != 73 {
 		t.Errorf("parent MonthlyCost = %v, want 73 (direct only)", parent.MonthlyCost)
 	}
-
 	if len(parent.Children) != 1 {
 		t.Fatalf("expected 1 child, got %d", len(parent.Children))
 	}
@@ -49,8 +48,6 @@ func TestGroupByModule_NestedModules_NoDoubleCounting(t *testing.T) {
 	if child.MonthlyCost != 200 {
 		t.Errorf("child MonthlyCost = %v, want 200", child.MonthlyCost)
 	}
-
-	// TotalCost should be recursive: 73 + 200 = 273
 	if parent.TotalCost() != 273 {
 		t.Errorf("parent TotalCost() = %v, want 273", parent.TotalCost())
 	}
@@ -62,26 +59,26 @@ func TestGroupByModule_MultipleRoots(t *testing.T) {
 		{Address: "module.rds.aws_db_instance.db", ModuleAddr: "module.rds", MonthlyCost: 300},
 	}
 
-	roots := model.GroupByModule(resources)
+	roots := view.GroupByModule(resources)
 	if len(roots) != 2 {
 		t.Fatalf("expected 2 roots, got %d", len(roots))
 	}
 }
 
 func TestGroupByModule_Empty(t *testing.T) {
-	roots := model.GroupByModule(nil)
+	roots := view.GroupByModule(nil)
 	if len(roots) != 0 {
 		t.Errorf("expected 0 roots for nil, got %d", len(roots))
 	}
 }
 
-func TestSubmoduleCost_TotalCost_DeepNesting(t *testing.T) {
-	s := model.SubmoduleCost{
+func TestSubmoduleCost_TotalCost(t *testing.T) {
+	s := view.SubmoduleCost{
 		MonthlyCost: 10,
-		Children: []model.SubmoduleCost{
+		Children: []view.SubmoduleCost{
 			{
 				MonthlyCost: 20,
-				Children: []model.SubmoduleCost{
+				Children: []view.SubmoduleCost{
 					{MonthlyCost: 30},
 				},
 			},
@@ -91,12 +88,10 @@ func TestSubmoduleCost_TotalCost_DeepNesting(t *testing.T) {
 	if s.TotalCost() != 60 {
 		t.Errorf("TotalCost() = %v, want 60", s.TotalCost())
 	}
-}
 
-func TestSubmoduleCost_TotalCost_NoChildren(t *testing.T) {
-	s := model.SubmoduleCost{MonthlyCost: 42}
-	if s.TotalCost() != 42 {
-		t.Errorf("TotalCost() = %v, want 42", s.TotalCost())
+	leaf := view.SubmoduleCost{MonthlyCost: 42}
+	if leaf.TotalCost() != 42 {
+		t.Errorf("TotalCost() = %v, want 42", leaf.TotalCost())
 	}
 }
 
@@ -107,7 +102,7 @@ func TestGroupByModule_ThreeLevelNesting(t *testing.T) {
 		{Address: "module.infra.module.eks.module.nodes.aws_instance.worker", ModuleAddr: "module.infra.module.eks.module.nodes", MonthlyCost: 200},
 	}
 
-	roots := model.GroupByModule(resources)
+	roots := view.GroupByModule(resources)
 	if len(roots) != 1 {
 		t.Fatalf("expected 1 root (module.infra), got %d", len(roots))
 	}
@@ -122,8 +117,6 @@ func TestGroupByModule_ThreeLevelNesting(t *testing.T) {
 	if root.TotalCost() != 278 {
 		t.Errorf("root TotalCost = %.2f, want 278 (5+73+200)", root.TotalCost())
 	}
-
-	// module.infra should have 1 child: module.infra.module.eks
 	if len(root.Children) != 1 {
 		t.Fatalf("expected 1 child of root, got %d", len(root.Children))
 	}
@@ -134,8 +127,6 @@ func TestGroupByModule_ThreeLevelNesting(t *testing.T) {
 	if eks.MonthlyCost != 73 {
 		t.Errorf("eks direct cost = %.2f, want 73", eks.MonthlyCost)
 	}
-
-	// module.infra.module.eks should have 1 child: .module.nodes
 	if len(eks.Children) != 1 {
 		t.Fatalf("expected 1 child of eks, got %d", len(eks.Children))
 	}
@@ -152,13 +143,12 @@ func TestGroupByModule_MixedRootAndModule(t *testing.T) {
 		{Address: "aws_route53_zone.dns", ModuleAddr: "", MonthlyCost: 0.50},
 	}
 
-	roots := model.GroupByModule(resources)
+	roots := view.GroupByModule(resources)
 	if len(roots) != 2 {
 		t.Fatalf("expected 2 roots (root + module.compute), got %d", len(roots))
 	}
 
-	// Root module (addr="") should have 2 resources
-	var rootModule *model.SubmoduleCost
+	var rootModule *view.SubmoduleCost
 	for i := range roots {
 		if roots[i].ModuleAddr == "" {
 			rootModule = &roots[i]
@@ -180,53 +170,71 @@ func TestGroupByModule_SiblingsAtSameDepth(t *testing.T) {
 		{Address: "module.eks.aws_eks_cluster.main", ModuleAddr: "module.eks", MonthlyCost: 73},
 	}
 
-	roots := model.GroupByModule(resources)
+	roots := view.GroupByModule(resources)
 	if len(roots) != 3 {
 		t.Fatalf("expected 3 roots (siblings), got %d", len(roots))
 	}
 
-	// None should have children — all are at the same depth
-	for _, r := range roots {
-		if len(r.Children) != 0 {
-			t.Errorf("module %q has %d children, want 0", r.ModuleAddr, len(r.Children))
+	for _, root := range roots {
+		if len(root.Children) != 0 {
+			t.Errorf("module %q has %d children, want 0", root.ModuleAddr, len(root.Children))
 		}
 	}
 }
 
 func TestFindParentAddr(t *testing.T) {
-	nodes := map[string]*model.SubmoduleCost{
+	nodes := map[string]*view.SubmoduleCost{
 		"module.eks":              {},
 		"module.eks.module.nodes": {},
 	}
 
-	if got := model.FindParentAddr("module.eks.module.nodes", nodes); got != "module.eks" {
-		t.Errorf("findParentAddr = %q, want module.eks", got)
+	if got := view.FindParentAddr("module.eks.module.nodes", nodes); got != "module.eks" {
+		t.Errorf("FindParentAddr = %q, want module.eks", got)
 	}
-
-	if got := model.FindParentAddr("module.eks", nodes); got != "" {
-		t.Errorf("findParentAddr(root) = %q, want empty", got)
+	if got := view.FindParentAddr("module.eks", nodes); got != "" {
+		t.Errorf("FindParentAddr(root) = %q, want empty", got)
 	}
-
-	if got := model.FindParentAddr("", nodes); got != "" {
-		t.Errorf("findParentAddr(empty) = %q, want empty", got)
+	if got := view.FindParentAddr("", nodes); got != "" {
+		t.Errorf("FindParentAddr(empty) = %q, want empty", got)
 	}
 }
 
 func TestFindParentAddr_DeepNesting(t *testing.T) {
-	nodes := map[string]*model.SubmoduleCost{
+	nodes := map[string]*view.SubmoduleCost{
 		"module.a":                            {},
 		"module.a.module.b":                   {},
 		"module.a.module.b.module.c":          {},
 		"module.a.module.b.module.c.module.d": {},
 	}
 
-	// module.a.module.b.module.c.module.d → parent is module.a.module.b.module.c
-	if got := model.FindParentAddr("module.a.module.b.module.c.module.d", nodes); got != "module.a.module.b.module.c" {
-		t.Errorf("findParentAddr(d) = %q, want module.a.module.b.module.c", got)
+	if got := view.FindParentAddr("module.a.module.b.module.c.module.d", nodes); got != "module.a.module.b.module.c" {
+		t.Errorf("FindParentAddr(d) = %q, want module.a.module.b.module.c", got)
+	}
+	if got := view.FindParentAddr("module.a.module.b.module.c", nodes); got != "module.a.module.b" {
+		t.Errorf("FindParentAddr(c) = %q, want module.a.module.b", got)
+	}
+}
+
+func TestStripModulePrefix(t *testing.T) {
+	tests := []struct {
+		name       string
+		address    string
+		moduleAddr string
+		want       string
+	}{
+		{"empty module addr", "aws_instance.web", "", "aws_instance.web"},
+		{"matching prefix", "module.runner.aws_instance.web", "module.runner", "aws_instance.web"},
+		{"no match", "aws_instance.web", "module.runner", "aws_instance.web"},
+		{"prefix equals address", "module.runner", "module.runner", "module.runner"},
+		{"nested modules", "module.a.module.b.aws_instance.web", "module.a.module.b", "aws_instance.web"},
 	}
 
-	// module.a.module.b.module.c → parent is module.a.module.b
-	if got := model.FindParentAddr("module.a.module.b.module.c", nodes); got != "module.a.module.b" {
-		t.Errorf("findParentAddr(c) = %q, want module.a.module.b", got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := view.StripModulePrefix(tt.address, tt.moduleAddr)
+			if got != tt.want {
+				t.Errorf("StripModulePrefix(%q, %q) = %q, want %q", tt.address, tt.moduleAddr, got, tt.want)
+			}
+		})
 	}
 }
