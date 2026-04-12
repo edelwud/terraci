@@ -11,6 +11,7 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 )
 
 // EstimationRuntime is the single engine-facing runtime surface for provider routing,
@@ -41,12 +42,7 @@ func NewEstimationRuntimeFromProviders(
 	cache *blobcache.Cache,
 	fetchers map[string]pricing.PriceFetcher,
 ) (*EstimationRuntime, error) {
-	registry := handler.NewRegistry()
-	for _, cp := range providers {
-		cloud.RegisterDefinitionHandlers(registry, cp.Definition())
-	}
-
-	catalog := NewProviderCatalogFromProviders(providers, registry)
+	catalog := NewProviderCatalogFromProviders(providers)
 	pricingRuntime, err := NewProviderRuntimeRegistryFromProviders(providers, cache, fetchers)
 	if err != nil {
 		return nil, fmt.Errorf("create pricing runtime registry: %w", err)
@@ -58,8 +54,8 @@ func (r *EstimationRuntime) ResolveProvider(resourceType handler.ResourceType) (
 	return r.catalog.ResolveProvider(resourceType)
 }
 
-func (r *EstimationRuntime) ResolveHandler(providerID string, resourceType handler.ResourceType) (handler.ResourceHandler, bool) {
-	return r.catalog.ResolveHandler(providerID, resourceType)
+func (r *EstimationRuntime) ResolveDefinition(providerID string, resourceType handler.ResourceType) (resourcedef.Definition, bool) {
+	return r.catalog.ResolveDefinition(providerID, resourceType)
 }
 
 func (r *EstimationRuntime) ProviderMetadata() map[string]model.ProviderMetadata {

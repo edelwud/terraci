@@ -1,7 +1,10 @@
+// Package handler contains legacy compatibility surfaces that remain useful in tests
+// while the canonical runtime contract lives in internal/resourcedef.
 package handler
 
-// Registry maps terraform resource types to cost estimation handlers.
-// Provider-agnostic: AWS, GCP, Azure handlers all register here.
+// Registry maps terraform resource types to legacy handler adapters.
+// It is retained for compatibility-oriented tests while production estimation
+// now resolves canonical resource definitions directly.
 type Registry struct {
 	handlers map[string]map[ResourceType]ResourceHandler
 }

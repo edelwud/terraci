@@ -8,21 +8,21 @@ import (
 )
 
 // AssertStandardCategory verifies the standard pricing category contract.
-func AssertStandardCategory(tb testing.TB, h handler.ResourceHandler) {
+func AssertStandardCategory(tb testing.TB, subject any) {
 	tb.Helper()
-	AssertCategory(tb, h, handler.CostCategoryStandard)
+	AssertCategory(tb, subject, handler.CostCategoryStandard)
 }
 
 // AssertFixedCategory verifies the fixed pricing category contract.
-func AssertFixedCategory(tb testing.TB, h handler.ResourceHandler) {
+func AssertFixedCategory(tb testing.TB, subject any) {
 	tb.Helper()
-	AssertCategory(tb, h, handler.CostCategoryFixed)
+	AssertCategory(tb, subject, handler.CostCategoryFixed)
 }
 
 // AssertUsageBasedCategory verifies the usage-based pricing category contract.
-func AssertUsageBasedCategory(tb testing.TB, h handler.ResourceHandler) {
+func AssertUsageBasedCategory(tb testing.TB, subject any) {
 	tb.Helper()
-	AssertCategory(tb, h, handler.CostCategoryUsageBased)
+	AssertCategory(tb, subject, handler.CostCategoryUsageBased)
 }
 
 // AssertFixedContract verifies the common fixed-cost handler contract:
@@ -30,14 +30,11 @@ func AssertUsageBasedCategory(tb testing.TB, h handler.ResourceHandler) {
 //
 // Example:
 //
-//	handlertest.AssertFixedContract(t, &Route53Handler{}, "us-east-1", nil)
-func AssertFixedContract(tb testing.TB, h interface {
-	handler.ResourceHandler
-	handler.LookupBuilder
-}, region string, attrs map[string]any) {
+//	handlertest.AssertFixedContract(t, def, "us-east-1", nil)
+func AssertFixedContract(tb testing.TB, subject any, region string, attrs map[string]any) {
 	tb.Helper()
-	AssertFixedCategory(tb, h)
-	AssertNilLookup(tb, h, region, attrs)
+	AssertFixedCategory(tb, subject)
+	AssertNilLookup(tb, subject, region, attrs)
 }
 
 // AssertUsageBasedContract verifies the common usage-based handler contract:
@@ -45,15 +42,15 @@ func AssertFixedContract(tb testing.TB, h interface {
 //
 // Example:
 //
-//	handlertest.AssertUsageBasedContract(t, &SQSHandler{})
-func AssertUsageBasedContract(tb testing.TB, h handler.ResourceHandler) {
+//	handlertest.AssertUsageBasedContract(t, def)
+func AssertUsageBasedContract(tb testing.TB, subject any) {
 	tb.Helper()
-	AssertUsageBasedCategory(tb, h)
-	AssertNoLookupCapability(tb, h)
-	AssertNoDescribeCapability(tb, h)
+	AssertUsageBasedCategory(tb, subject)
+	AssertNoLookupCapability(tb, subject)
+	AssertNoDescribeCapability(tb, subject)
 }
 
-// LookupCase defines one contract test case for a handler.LookupBuilder.
+// LookupCase defines one contract test case for a definition lookup function.
 type LookupCase struct {
 	Name    string
 	Region  string
@@ -62,7 +59,7 @@ type LookupCase struct {
 	Assert  func(testing.TB, *pricing.PriceLookup)
 }
 
-// DescribeCase defines one contract test case for a handler.Describer.
+// DescribeCase defines one contract test case for a definition describe function.
 type DescribeCase struct {
 	Name       string
 	Attrs      map[string]any
@@ -113,10 +110,11 @@ type LookupInput struct {
 }
 
 // AssertNilLookup verifies that BuildLookup succeeds and returns nil.
-func AssertNilLookup(tb testing.TB, h handler.LookupBuilder, region string, attrs map[string]any) {
+func AssertNilLookup(tb testing.TB, subject any, region string, attrs map[string]any) {
 	tb.Helper()
+	def := requireDefinition(tb, subject)
 
-	lookup, err := h.BuildLookup(region, attrs)
+	lookup, err := def.BuildLookup(region, attrs)
 	if err != nil {
 		tb.Fatalf("BuildLookup() error = %v", err)
 	}
@@ -126,21 +124,22 @@ func AssertNilLookup(tb testing.TB, h handler.LookupBuilder, region string, attr
 }
 
 // RunLookupCases runs table-driven lookup contract tests with consistent failure messages.
-func RunLookupCases(t *testing.T, h handler.LookupBuilder, cases []LookupCase) {
+func RunLookupCases(t *testing.T, subject any, cases []LookupCase) {
 	t.Helper()
+	def := requireDefinition(t, subject)
 
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 
 			if tc.WantErr {
-				if _, err := h.BuildLookup(tc.Region, tc.Attrs); err == nil {
+				if _, err := def.BuildLookup(tc.Region, tc.Attrs); err == nil {
 					t.Fatal("BuildLookup() should return error")
 				}
 				return
 			}
 
-			lookup := RequireLookup(t, h, tc.Region, tc.Attrs)
+			lookup := RequireLookup(t, def, tc.Region, tc.Attrs)
 			if tc.Assert != nil {
 				tc.Assert(t, lookup)
 			}
@@ -149,14 +148,15 @@ func RunLookupCases(t *testing.T, h handler.LookupBuilder, cases []LookupCase) {
 }
 
 // RunDescribeCases runs table-driven describe contract tests with common key/absence assertions.
-func RunDescribeCases(t *testing.T, h handler.Describer, cases []DescribeCase) {
+func RunDescribeCases(t *testing.T, subject any, cases []DescribeCase) {
 	t.Helper()
+	def := requireDefinition(t, subject)
 
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 
-			result := h.Describe(nil, tc.Attrs)
+			result := def.DescribeResource(nil, tc.Attrs)
 
 			for k, want := range tc.WantKeys {
 				if got := result[k]; got != want {
@@ -175,40 +175,38 @@ func RunDescribeCases(t *testing.T, h handler.Describer, cases []DescribeCase) {
 	}
 }
 
-// RunContractSuite executes the configured handler contract checks.
-// It is the preferred entry point for new provider handler tests when multiple
+// RunContractSuite executes the configured definition contract checks.
+// It is the preferred entry point for new provider resource-definition tests when multiple
 // category/capability/lookup/describe assertions are needed in one place.
-func RunContractSuite(t *testing.T, h handler.ResourceHandler, suite ContractSuite) {
+func RunContractSuite(t *testing.T, subject any, suite ContractSuite) {
 	t.Helper()
+	def := requireDefinition(t, subject)
 
 	if suite.Category != nil {
-		AssertCategory(t, h, *suite.Category)
+		AssertCategory(t, def, *suite.Category)
 	}
 	if suite.ExpectNoLookup {
-		AssertNoLookupCapability(t, h)
+		AssertNoLookupCapability(t, def)
 	}
 	if suite.ExpectNoDescribe {
-		AssertNoDescribeCapability(t, h)
+		AssertNoDescribeCapability(t, def)
 	}
 	if suite.NilLookup != nil {
-		lookupBuilder, ok := h.(handler.LookupBuilder)
-		if !ok {
-			t.Fatal("handler should implement handler.LookupBuilder")
+		if def.Lookup == nil {
+			t.Fatal("definition should expose lookup behavior")
 		}
-		AssertNilLookup(t, lookupBuilder, suite.NilLookup.Region, suite.NilLookup.Attrs)
+		AssertNilLookup(t, def, suite.NilLookup.Region, suite.NilLookup.Attrs)
 	}
 	if len(suite.LookupCases) > 0 {
-		lookupBuilder, ok := h.(handler.LookupBuilder)
-		if !ok {
-			t.Fatal("handler should implement handler.LookupBuilder")
+		if def.Lookup == nil {
+			t.Fatal("definition should expose lookup behavior")
 		}
-		RunLookupCases(t, lookupBuilder, suite.LookupCases)
+		RunLookupCases(t, def, suite.LookupCases)
 	}
 	if len(suite.DescribeCases) > 0 {
-		describer, ok := h.(handler.Describer)
-		if !ok {
-			t.Fatal("handler should implement handler.Describer")
+		if def.Describe == nil {
+			t.Fatal("definition should expose describe behavior")
 		}
-		RunDescribeCases(t, describer, suite.DescribeCases)
+		RunDescribeCases(t, def, suite.DescribeCases)
 	}
 }

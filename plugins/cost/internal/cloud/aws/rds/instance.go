@@ -29,6 +29,13 @@ const (
 	// Default engine
 	DefaultEngine       = "mysql"
 	DefaultAuroraEngine = "aurora-mysql"
+
+	// Deployment options
+	DeploymentSingleAZ = "Single-AZ"
+	DeploymentMultiAZ  = "Multi-AZ"
+
+	// Pricing engine names
+	EngineMySQL = "MySQL"
 )
 
 type instanceAttrs struct {
@@ -67,9 +74,9 @@ func InstanceSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 				if engine == "" {
 					engine = DefaultEngine
 				}
-				deploymentOption := "Single-AZ"
+				deploymentOption := DeploymentSingleAZ
 				if parsed.MultiAZ {
-					deploymentOption = "Multi-AZ"
+					deploymentOption = DeploymentMultiAZ
 				}
 
 				return deps.RuntimeOrDefault().StandardLookupSpec(
@@ -132,7 +139,7 @@ func mapRDSEngine(engine string) string {
 	case strings.HasPrefix(engine, "aurora"):
 		return "Aurora MySQL"
 	case engine == "mysql":
-		return "MySQL"
+		return EngineMySQL
 	case engine == "postgres", engine == "postgresql":
 		return "PostgreSQL"
 	case engine == "mariadb":
@@ -142,7 +149,7 @@ func mapRDSEngine(engine string) string {
 	case strings.HasPrefix(engine, "sqlserver"):
 		return "SQL Server"
 	default:
-		return "MySQL"
+		return EngineMySQL
 	}
 }
 

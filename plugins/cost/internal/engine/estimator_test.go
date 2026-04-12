@@ -171,7 +171,6 @@ func TestEstimateModule_UnsupportedResource(t *testing.T) {
 }
 
 func TestEstimateModule_KnownProviderMissingHandler(t *testing.T) {
-	registry := handler.NewRegistry()
 	router := costruntime.NewResourceProviderRouter()
 	router.Register("aws", handler.ResourceType("aws_cloudfront_distribution"))
 
@@ -198,7 +197,7 @@ func TestEstimateModule_KnownProviderMissingHandler(t *testing.T) {
 			Cache:      cache,
 		},
 	}
-	catalog := costruntime.NewProviderCatalog(router, registry, map[string]model.ProviderMetadata{
+	catalog := costruntime.NewProviderCatalog(router, nil, map[string]model.ProviderMetadata{
 		"aws": {
 			DisplayName: def.Manifest.DisplayName,
 			PriceSource: def.Manifest.PriceSource,

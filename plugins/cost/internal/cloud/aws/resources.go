@@ -43,60 +43,60 @@ func awsResources() []cloud.ResourceRegistration {
 
 func ec2Resources() []cloud.ResourceRegistration {
 	return []cloud.ResourceRegistration{
-		{Type: handler.ResourceType(awskit.ResourceInstance), Handler: resourcespec.MustHandler(ec2.InstanceSpec(deps))},
-		{Type: handler.ResourceType(awskit.ResourceEBSVolume), Handler: resourcespec.MustHandler(ec2.EBSSpec(deps))},
-		{Type: handler.ResourceType(awskit.ResourceEIP), Handler: resourcespec.MustHandler(ec2.EIPSpec(deps))},
-		{Type: handler.ResourceType(awskit.ResourceNATGateway), Handler: resourcespec.MustHandler(ec2.NATSpec(deps))},
+		{Type: handler.ResourceType(awskit.ResourceInstance), Definition: resourcespec.MustCompile(ec2.InstanceSpec(deps))},
+		{Type: handler.ResourceType(awskit.ResourceEBSVolume), Definition: resourcespec.MustCompile(ec2.EBSSpec(deps))},
+		{Type: handler.ResourceType(awskit.ResourceEIP), Definition: resourcespec.MustCompile(ec2.EIPSpec(deps))},
+		{Type: handler.ResourceType(awskit.ResourceNATGateway), Definition: resourcespec.MustCompile(ec2.NATSpec(deps))},
 	}
 }
 
 func rdsResources() []cloud.ResourceRegistration {
 	return []cloud.ResourceRegistration{
-		{Type: handler.ResourceType(awskit.ResourceDBInstance), Handler: resourcespec.MustHandler(rds.InstanceSpec(deps))},
-		{Type: handler.ResourceType(awskit.ResourceRDSCluster), Handler: resourcespec.MustHandler(rds.ClusterSpec(deps))},
-		{Type: handler.ResourceType(awskit.ResourceRDSClusterInstance), Handler: resourcespec.MustHandler(rds.ClusterInstanceSpec(deps))},
+		{Type: handler.ResourceType(awskit.ResourceDBInstance), Definition: resourcespec.MustCompile(rds.InstanceSpec(deps))},
+		{Type: handler.ResourceType(awskit.ResourceRDSCluster), Definition: resourcespec.MustCompile(rds.ClusterSpec(deps))},
+		{Type: handler.ResourceType(awskit.ResourceRDSClusterInstance), Definition: resourcespec.MustCompile(rds.ClusterInstanceSpec(deps))},
 	}
 }
 
 func elbResources() []cloud.ResourceRegistration {
 	return []cloud.ResourceRegistration{
-		{Type: handler.ResourceType(awskit.ResourceLoadBalancer), Handler: resourcespec.MustHandler(elb.ALBSpec(deps))},
-		{Type: handler.ResourceType(awskit.ResourceApplicationLoadBalancerAlias), Handler: resourcespec.MustHandler(elb.ALBSpec(deps))},
-		{Type: handler.ResourceType(awskit.ResourceClassicLoadBalancer), Handler: resourcespec.MustHandler(elb.ClassicSpec(deps))},
+		{Type: handler.ResourceType(awskit.ResourceLoadBalancer), Definition: resourcespec.MustCompile(elb.ALBSpec(deps))},
+		{Type: handler.ResourceType(awskit.ResourceApplicationLoadBalancerAlias), Definition: resourcespec.MustCompile(elb.ALBSpec(deps))},
+		{Type: handler.ResourceType(awskit.ResourceClassicLoadBalancer), Definition: resourcespec.MustCompile(elb.ClassicSpec(deps))},
 	}
 }
 
 func elasticacheResources() []cloud.ResourceRegistration {
 	return []cloud.ResourceRegistration{
-		{Type: handler.ResourceType(awskit.ResourceElastiCacheCluster), Handler: resourcespec.MustHandler(elasticache.ClusterSpec(deps))},
-		{Type: handler.ResourceType(awskit.ResourceElastiCacheReplicationGroup), Handler: resourcespec.MustHandler(elasticache.ReplicationGroupSpec(deps))},
-		{Type: handler.ResourceType(awskit.ResourceElastiCacheServerlessCache), Handler: resourcespec.MustHandler(elasticache.ServerlessSpec(deps))},
+		{Type: handler.ResourceType(awskit.ResourceElastiCacheCluster), Definition: resourcespec.MustCompile(elasticache.ClusterSpec(deps))},
+		{Type: handler.ResourceType(awskit.ResourceElastiCacheReplicationGroup), Definition: resourcespec.MustCompile(elasticache.ReplicationGroupSpec(deps))},
+		{Type: handler.ResourceType(awskit.ResourceElastiCacheServerlessCache), Definition: resourcespec.MustCompile(elasticache.ServerlessSpec(deps))},
 	}
 }
 
 func eksResources() []cloud.ResourceRegistration {
 	return []cloud.ResourceRegistration{
-		{Type: handler.ResourceType(awskit.ResourceEKSCluster), Handler: resourcespec.MustHandler(eks.ClusterSpec(deps))},
-		{Type: handler.ResourceType(awskit.ResourceEKSNodeGroup), Handler: resourcespec.MustHandler(eks.NodeGroupSpec(deps))},
+		{Type: handler.ResourceType(awskit.ResourceEKSCluster), Definition: resourcespec.MustCompile(eks.ClusterSpec(deps))},
+		{Type: handler.ResourceType(awskit.ResourceEKSNodeGroup), Definition: resourcespec.MustCompile(eks.NodeGroupSpec(deps))},
 	}
 }
 
 func serverlessResources() []cloud.ResourceRegistration {
 	return []cloud.ResourceRegistration{
-		{Type: handler.ResourceType(awskit.ResourceLambdaFunction), Handler: resourcespec.MustHandler(serverless.LambdaSpec(deps))},
-		{Type: handler.ResourceType(awskit.ResourceDynamoDBTable), Handler: resourcespec.MustHandler(serverless.DynamoDBSpec(deps))},
-		{Type: handler.ResourceType(awskit.ResourceSQSQueue), Handler: resourcespec.MustHandler(serverless.SQSSpec())},
-		{Type: handler.ResourceType(awskit.ResourceSNSTopic), Handler: resourcespec.MustHandler(serverless.SNSSpec())},
+		{Type: handler.ResourceType(awskit.ResourceLambdaFunction), Definition: resourcespec.MustCompile(serverless.LambdaSpec(deps))},
+		{Type: handler.ResourceType(awskit.ResourceDynamoDBTable), Definition: resourcespec.MustCompile(serverless.DynamoDBSpec(deps))},
+		{Type: handler.ResourceType(awskit.ResourceSQSQueue), Definition: resourcespec.MustCompile(serverless.SQSSpec())},
+		{Type: handler.ResourceType(awskit.ResourceSNSTopic), Definition: resourcespec.MustCompile(serverless.SNSSpec())},
 	}
 }
 
 func storageResources() []cloud.ResourceRegistration {
 	return []cloud.ResourceRegistration{
-		{Type: handler.ResourceType(awskit.ResourceS3Bucket), Handler: resourcespec.MustHandler(storage.S3Spec())},
-		{Type: handler.ResourceType(awskit.ResourceCloudWatchLogGroup), Handler: resourcespec.MustHandler(storage.LogGroupSpec())},
-		{Type: handler.ResourceType(awskit.ResourceCloudWatchMetricAlarm), Handler: resourcespec.MustHandler(storage.AlarmSpec())},
-		{Type: handler.ResourceType(awskit.ResourceSecretsManagerSecret), Handler: resourcespec.MustHandler(storage.SecretsManagerSpec())},
-		{Type: handler.ResourceType(awskit.ResourceKMSKey), Handler: resourcespec.MustHandler(storage.KMSSpec())},
-		{Type: handler.ResourceType(awskit.ResourceRoute53Zone), Handler: resourcespec.MustHandler(storage.Route53Spec())},
+		{Type: handler.ResourceType(awskit.ResourceS3Bucket), Definition: resourcespec.MustCompile(storage.S3Spec())},
+		{Type: handler.ResourceType(awskit.ResourceCloudWatchLogGroup), Definition: resourcespec.MustCompile(storage.LogGroupSpec())},
+		{Type: handler.ResourceType(awskit.ResourceCloudWatchMetricAlarm), Definition: resourcespec.MustCompile(storage.AlarmSpec())},
+		{Type: handler.ResourceType(awskit.ResourceSecretsManagerSecret), Definition: resourcespec.MustCompile(storage.SecretsManagerSpec())},
+		{Type: handler.ResourceType(awskit.ResourceKMSKey), Definition: resourcespec.MustCompile(storage.KMSSpec())},
+		{Type: handler.ResourceType(awskit.ResourceRoute53Zone), Definition: resourcespec.MustCompile(storage.Route53Spec())},
 	}
 }

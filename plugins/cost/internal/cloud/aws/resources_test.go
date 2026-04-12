@@ -3,9 +3,8 @@ package aws
 import (
 	"testing"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 )
 
 func TestResourceRegistrationsUnique(t *testing.T) {
@@ -15,8 +14,8 @@ func TestResourceRegistrationsUnique(t *testing.T) {
 		if key == "" {
 			t.Fatal("resource registration key must not be empty")
 		}
-		if registration.Handler == nil {
-			t.Fatalf("resource registration %q has nil handler", key)
+		if err := registration.Definition.Validate(); err != nil {
+			t.Fatalf("resource registration %q is invalid: %v", key, err)
 		}
 		if seen[key] {
 			t.Fatalf("duplicate resource registration: %q", key)
@@ -25,17 +24,14 @@ func TestResourceRegistrationsUnique(t *testing.T) {
 	}
 }
 
-func TestProviderRegisterHandlersUsesCatalog(t *testing.T) {
-	registry := handler.NewRegistry()
-	cloud.RegisterDefinitionHandlers(registry, definition)
-
+func TestProviderDefinitionsCompileToLegacyHandlers(t *testing.T) {
 	for _, registration := range definition.Resources {
-		resolved, ok := registry.ResolveHandler(definition.Manifest.ID, registration.Type)
-		if !ok {
-			t.Fatalf("resource %q was not registered", registration.Type)
+		resolved, err := resourcedef.NewLegacyHandler(registration.Definition)
+		if err != nil {
+			t.Fatalf("resource %q failed to compile to legacy handler: %v", registration.Type, err)
 		}
 		if resolved == nil {
-			t.Fatalf("resource %q has nil resolved handler", registration.Type)
+			t.Fatalf("resource %q has nil legacy handler", registration.Type)
 		}
 	}
 }

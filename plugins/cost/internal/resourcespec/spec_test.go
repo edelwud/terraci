@@ -7,10 +7,11 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
-func TestNewHandler_StandardSpec(t *testing.T) {
+func TestCompile_StandardSpec(t *testing.T) {
 	t.Parallel()
 
 	spec := resourcespec.ResourceSpec{
@@ -40,13 +41,8 @@ func TestNewHandler_StandardSpec(t *testing.T) {
 		},
 	}
 
-	h := mustHandler(t, spec)
-	standard, ok := h.(handler.StandardCostHandler)
-	if !ok {
-		t.Fatal("handler should implement StandardCostHandler")
-	}
-
-	lookup, err := standard.BuildLookup("us-east-1", map[string]any{"size": "small"})
+	def := mustCompile(t, spec)
+	lookup, err := def.BuildLookup("us-east-1", map[string]any{"size": "small"})
 	if err != nil {
 		t.Fatalf("BuildLookup() error = %v", err)
 	}
@@ -57,24 +53,23 @@ func TestNewHandler_StandardSpec(t *testing.T) {
 		t.Fatalf("size = %q, want %q", lookup.Attributes["size"], "small")
 	}
 
-	_, monthly := standard.CalculateCost(&pricing.Price{OnDemandUSD: 1.5}, nil, "us-east-1", nil)
+	_, monthly, ok := def.CalculateStandardCost(&pricing.Price{OnDemandUSD: 1.5}, nil, "us-east-1", nil)
+	if !ok {
+		t.Fatal("definition should expose standard cost behavior")
+	}
 	if monthly != 1095 {
 		t.Fatalf("monthly = %.2f, want 1095", monthly)
 	}
 
-	describer, ok := h.(handler.Describer)
-	if !ok {
-		t.Fatal("handler should implement Describer")
-	}
-	if got := describer.Describe(nil, map[string]any{"size": "small"}); got["size"] != "small" {
+	if got := def.DescribeResource(nil, map[string]any{"size": "small"}); got["size"] != "small" {
 		t.Fatalf("Describe()[size] = %q, want %q", got["size"], "small")
 	}
 }
 
-func TestNewHandler_FixedSpec(t *testing.T) {
+func TestCompile_FixedSpec(t *testing.T) {
 	t.Parallel()
 
-	h := mustHandler(t, resourcespec.ResourceSpec{
+	def := mustCompile(t, resourcespec.ResourceSpec{
 		Type:     "aws_test_fixed",
 		Category: handler.CostCategoryFixed,
 		Fixed: &resourcespec.FixedPricingSpec{
@@ -84,17 +79,16 @@ func TestNewHandler_FixedSpec(t *testing.T) {
 		},
 	})
 
-	fixed, ok := h.(handler.FixedCostHandler)
+	_, monthly, ok := def.CalculateFixedCost("", nil)
 	if !ok {
-		t.Fatal("handler should implement FixedCostHandler")
+		t.Fatal("definition should expose fixed cost behavior")
 	}
-	_, monthly := fixed.CalculateFixedCost("", nil)
 	if monthly != 2.5 {
 		t.Fatalf("monthly = %.2f, want 2.5", monthly)
 	}
 }
 
-func TestNewHandler_UsageSpec(t *testing.T) {
+func TestCompile_UsageSpec(t *testing.T) {
 	t.Parallel()
 
 	spec := resourcespec.ResourceSpec{
@@ -114,16 +108,15 @@ func TestNewHandler_UsageSpec(t *testing.T) {
 		},
 	}
 
-	h := mustHandler(t, spec)
-	usage, ok := h.(handler.UsageBasedCostHandler)
+	def := mustCompile(t, spec)
+	estimate, ok := def.CalculateUsageCost("", map[string]any{"estimated": true})
 	if !ok {
-		t.Fatal("handler should implement UsageBasedCostHandler")
+		t.Fatal("definition should expose usage cost behavior")
 	}
-
-	if got := usage.CalculateUsageCost("", map[string]any{"estimated": true}); got.Status != model.ResourceEstimateStatusUsageEstimated {
-		t.Fatalf("status = %q, want %q", got.Status, model.ResourceEstimateStatusUsageEstimated)
+	if estimate.Status != model.ResourceEstimateStatusUsageEstimated {
+		t.Fatalf("status = %q, want %q", estimate.Status, model.ResourceEstimateStatusUsageEstimated)
 	}
-	if got := usage.CalculateUsageCost("", nil); got.Status != model.ResourceEstimateStatusUsageUnknown {
+	if got, _ := def.CalculateUsageCost("", nil); got.Status != model.ResourceEstimateStatusUsageUnknown {
 		t.Fatalf("status = %q, want %q", got.Status, model.ResourceEstimateStatusUsageUnknown)
 	}
 }
@@ -147,10 +140,10 @@ func TestDescribeSpec_OmitEmpty(t *testing.T) {
 	}
 }
 
-func TestNewHandler_Subresources(t *testing.T) {
+func TestCompile_Subresources(t *testing.T) {
 	t.Parallel()
 
-	h := mustHandler(t, resourcespec.ResourceSpec{
+	def := mustCompile(t, resourcespec.ResourceSpec{
 		Type:     "aws_test_compound",
 		Category: handler.CostCategoryFixed,
 		Fixed: &resourcespec.FixedPricingSpec{
@@ -167,11 +160,7 @@ func TestNewHandler_Subresources(t *testing.T) {
 		},
 	})
 
-	compound, ok := h.(handler.CompoundHandler)
-	if !ok {
-		t.Fatal("handler should implement CompoundHandler")
-	}
-	subs := compound.SubResources(nil)
+	subs := def.BuildSubresources(nil)
 	if len(subs) != 1 {
 		t.Fatalf("subresources = %d, want 1", len(subs))
 	}
@@ -180,10 +169,10 @@ func TestNewHandler_Subresources(t *testing.T) {
 	}
 }
 
-func TestNewHandler_InvalidSpec(t *testing.T) {
+func TestCompile_InvalidSpec(t *testing.T) {
 	t.Parallel()
 
-	_, err := resourcespec.NewHandler(resourcespec.ResourceSpec{
+	_, err := resourcespec.Compile(resourcespec.ResourceSpec{
 		Type:     "aws_invalid",
 		Category: handler.CostCategoryStandard,
 	})
@@ -205,10 +194,10 @@ func TestDescribeSpec_BuildFunc(t *testing.T) {
 	}
 }
 
-func TestNewHandler_LookupError(t *testing.T) {
+func TestCompile_LookupError(t *testing.T) {
 	t.Parallel()
 
-	h := mustHandler(t, resourcespec.ResourceSpec{
+	def := mustCompile(t, resourcespec.ResourceSpec{
 		Type:     "aws_lookup_error",
 		Category: handler.CostCategoryStandard,
 		Lookup: &resourcespec.LookupSpec{
@@ -223,21 +212,45 @@ func TestNewHandler_LookupError(t *testing.T) {
 		},
 	})
 
-	lookupBuilder, ok := h.(handler.LookupBuilder)
-	if !ok {
-		t.Fatal("handler should implement LookupBuilder")
-	}
-	if _, err := lookupBuilder.BuildLookup("", nil); err == nil {
+	if _, err := def.BuildLookup("", nil); err == nil {
 		t.Fatal("expected lookup error")
 	}
 }
 
-func mustHandler(t *testing.T, spec resourcespec.ResourceSpec) handler.ResourceHandler {
+func TestNewHandler_AdaptsCompiledDefinition(t *testing.T) {
 	t.Helper()
 
-	h, err := resourcespec.NewHandler(spec)
+	spec := resourcespec.ResourceSpec{
+		Type:     "aws_test_legacy",
+		Category: handler.CostCategoryFixed,
+		Fixed: &resourcespec.FixedPricingSpec{
+			CostFunc: func(_ string, _ map[string]any) (hourly, monthly float64) {
+				return handler.FixedMonthlyCost(3)
+			},
+		},
+	}
+
+	legacy, err := resourcespec.NewHandler(spec)
 	if err != nil {
 		t.Fatalf("NewHandler() error = %v", err)
 	}
-	return h
+	fixed, ok := legacy.(interface {
+		CalculateFixedCost(region string, attrs map[string]any) (hourly, monthly float64)
+	})
+	if !ok {
+		t.Fatal("legacy handler should expose fixed-cost behavior")
+	}
+	if _, monthly := fixed.CalculateFixedCost("", nil); monthly != 3 {
+		t.Fatalf("monthly = %.2f, want 3", monthly)
+	}
+}
+
+func mustCompile(t *testing.T, spec resourcespec.ResourceSpec) resourcedef.Definition {
+	t.Helper()
+
+	def, err := resourcespec.Compile(spec)
+	if err != nil {
+		t.Fatalf("Compile() error = %v", err)
+	}
+	return def
 }

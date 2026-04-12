@@ -104,7 +104,7 @@ func buildPrefetchPlan(runtime *costruntime.EstimationRuntime, modulePlans []*Mo
 				continue
 			}
 
-			h, ok := runtime.ResolveHandler(providerID, resource.ResourceType)
+			def, ok := runtime.ResolveDefinition(providerID, resource.ResourceType)
 			if !ok {
 				diagnostics = append(diagnostics, model.PrefetchDiagnostic{
 					Kind:         "no-handler",
@@ -115,23 +115,11 @@ func buildPrefetchPlan(runtime *costruntime.EstimationRuntime, modulePlans []*Mo
 				})
 				continue
 			}
-			if h.Category() != handler.CostCategoryStandard {
+			if def.Category != handler.CostCategoryStandard {
 				continue
 			}
 
-			standardHandler, ok := h.(handler.StandardCostHandler)
-			if !ok {
-				diagnostics = append(diagnostics, model.PrefetchDiagnostic{
-					Kind:         "lookup-failed",
-					ModuleID:     modulePlan.ModuleID,
-					ResourceType: resource.ResourceType.String(),
-					Address:      resource.Address,
-					Detail:       "standard handler does not implement StandardCostHandler",
-				})
-				continue
-			}
-
-			lookup, err := standardHandler.BuildLookup(modulePlan.Region, resource.ActiveAttrs())
+			lookup, err := def.BuildLookup(modulePlan.Region, resource.ActiveAttrs())
 			if err != nil {
 				diagnostics = append(diagnostics, model.PrefetchDiagnostic{
 					Kind:         "lookup-failed",

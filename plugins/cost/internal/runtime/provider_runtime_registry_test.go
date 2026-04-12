@@ -13,22 +13,29 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/runtimetest"
 	"github.com/edelwud/terraci/plugins/diskblob"
 )
 
-func TestProviderCatalog_ResolveProviderAndHandler(t *testing.T) {
+func TestProviderCatalog_ResolveProviderAndDefinition(t *testing.T) {
 	t.Parallel()
-
-	registry := handler.NewRegistry()
-	registry.Register(awskit.ProviderID, handler.ResourceType("aws_instance"), runtimetest.StubHandler{CategoryValue: handler.CostCategoryStandard})
 
 	router := NewResourceProviderRouter()
 	router.Register(awskit.ProviderID, handler.ResourceType("aws_instance"))
 
 	catalog := NewProviderCatalog(
 		router,
-		registry,
+		map[string]map[handler.ResourceType]resourcedef.Definition{
+			awskit.ProviderID: {
+				handler.ResourceType("aws_instance"): runtimetest.StubDefinition{
+					CategoryValue: handler.CostCategoryStandard,
+					CalculateFunc: func(_ *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
+						return 0, 0
+					},
+				}.Definition(handler.ResourceType("aws_instance")),
+			},
+		},
 		map[string]model.ProviderMetadata{
 			awskit.ProviderID: {DisplayName: "AWS", PriceSource: "aws-bulk-api"},
 		},
@@ -37,8 +44,10 @@ func TestProviderCatalog_ResolveProviderAndHandler(t *testing.T) {
 	if providerID, ok := catalog.ResolveProvider(handler.ResourceType("aws_instance")); !ok || providerID != awskit.ProviderID {
 		t.Fatalf("ResolveProvider() = (%q, %v), want (%q, true)", providerID, ok, awskit.ProviderID)
 	}
-	if h, ok := catalog.ResolveHandler(awskit.ProviderID, handler.ResourceType("aws_instance")); !ok || h == nil {
-		t.Fatal("ResolveHandler() should resolve aws_instance")
+	if def, ok := catalog.ResolveDefinition(awskit.ProviderID, handler.ResourceType("aws_instance")); !ok {
+		t.Fatal("ResolveDefinition() should resolve aws_instance")
+	} else if err := def.Validate(); err != nil {
+		t.Fatalf("ResolveDefinition() returned invalid definition: %v", err)
 	}
 
 	if meta := catalog.ProviderMetadata(); meta[awskit.ProviderID].PriceSource != "aws-bulk-api" {
@@ -99,7 +108,7 @@ func TestProviderCatalog_DistinguishesNoProviderFromNoHandler(t *testing.T) {
 	router := NewResourceProviderRouter()
 	router.Register(awskit.ProviderID, handler.ResourceType("aws_cloudfront_distribution"))
 
-	catalog := NewProviderCatalog(router, handler.NewRegistry(), map[string]model.ProviderMetadata{
+	catalog := NewProviderCatalog(router, nil, map[string]model.ProviderMetadata{
 		awskit.ProviderID: {
 			DisplayName: awsProvider.Definition().Manifest.DisplayName,
 			PriceSource: awsProvider.Definition().Manifest.PriceSource,

@@ -8,12 +8,13 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	costruntime "github.com/edelwud/terraci/plugins/cost/internal/runtime"
 )
 
 type stubCatalog struct {
 	providers map[handler.ResourceType]string
-	handlers  map[handler.ResourceType]handler.ResourceHandler
+	defs      map[handler.ResourceType]resourcedef.Definition
 }
 
 func (c stubCatalog) ResolveProvider(resourceType handler.ResourceType) (string, bool) {
@@ -21,12 +22,12 @@ func (c stubCatalog) ResolveProvider(resourceType handler.ResourceType) (string,
 	return providerID, ok
 }
 
-func (c stubCatalog) ResolveHandler(_ string, resourceType handler.ResourceType) (handler.ResourceHandler, bool) {
-	h, ok := c.handlers[resourceType]
-	return h, ok
+func (c stubCatalog) ResolveDefinition(_ string, resourceType handler.ResourceType) (resourcedef.Definition, bool) {
+	def, ok := c.defs[resourceType]
+	return def, ok
 }
 
-type stubStandardHandler struct {
+type stubStandardDefinition struct {
 	lookup *pricing.PriceLookup
 	err    error
 }
@@ -40,12 +41,17 @@ type stubAdapterResult struct {
 	err  error
 }
 
-func (h stubStandardHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
-func (h stubStandardHandler) BuildLookup(string, map[string]any) (*pricing.PriceLookup, error) {
-	return h.lookup, h.err
-}
-func (h stubStandardHandler) CalculateCost(*pricing.Price, *pricing.PriceIndex, string, map[string]any) (hourly, monthly float64) {
-	return 0, 0
+func (h stubStandardDefinition) Definition(resourceType handler.ResourceType) resourcedef.Definition {
+	return resourcedef.Definition{
+		Type:     resourceType,
+		Category: handler.CostCategoryStandard,
+		Lookup: func(string, map[string]any) (*pricing.PriceLookup, error) {
+			return h.lookup, h.err
+		},
+		StandardCost: func(*pricing.Price, *pricing.PriceIndex, string, map[string]any) (hourly, monthly float64) {
+			return 0, 0
+		},
+	}
 }
 
 func (a stubAdapter) LoadModule(modulePath, _ string) (*ModulePlan, error) {
@@ -76,13 +82,13 @@ func TestBuildPrefetchPlan_CollectsDiagnosticsAndRequirements(t *testing.T) {
 			"aws_db_instance":           "aws",
 			"aws_secretsmanager_secret": "aws",
 		},
-		handlers: map[handler.ResourceType]handler.ResourceHandler{
-			"aws_instance": stubStandardHandler{
+		defs: map[handler.ResourceType]resourcedef.Definition{
+			"aws_instance": stubStandardDefinition{
 				lookup: &pricing.PriceLookup{ServiceID: pricing.ServiceID{Provider: "aws", Name: "AmazonEC2"}},
-			},
-			"aws_db_instance": stubStandardHandler{
+			}.Definition("aws_instance"),
+			"aws_db_instance": stubStandardDefinition{
 				err: fmt.Errorf("missing instance_class"),
-			},
+			}.Definition("aws_db_instance"),
 		},
 	}
 
@@ -140,20 +146,23 @@ func newStubEstimationRuntime(t testing.TB, stub stubCatalog) *costruntime.Estim
 	t.Helper()
 
 	router := costruntime.NewResourceProviderRouter()
-	registry := handler.NewRegistry()
+	defs := make(map[string]map[handler.ResourceType]resourcedef.Definition)
 	for resourceType, providerID := range stub.providers {
 		router.Register(providerID, resourceType)
 	}
-	for resourceType, h := range stub.handlers {
+	for resourceType, def := range stub.defs {
 		providerID, ok := stub.providers[resourceType]
 		if !ok {
 			continue
 		}
-		registry.Register(providerID, resourceType, h)
+		if defs[providerID] == nil {
+			defs[providerID] = make(map[handler.ResourceType]resourcedef.Definition)
+		}
+		defs[providerID][resourceType] = def
 	}
 
 	runtime, err := costruntime.NewEstimationRuntime(
-		costruntime.NewProviderCatalog(router, registry, nil),
+		costruntime.NewProviderCatalog(router, defs, nil),
 		costruntime.NewProviderRuntimeRegistry(nil),
 	)
 	if err != nil {

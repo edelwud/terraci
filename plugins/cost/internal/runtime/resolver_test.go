@@ -8,6 +8,7 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/runtimetest"
 )
 
@@ -71,14 +72,14 @@ func TestCostResolver_ResolveKnownProviderMissingHandler(t *testing.T) {
 func TestCostResolver_ResolveFixedAndUsageBased(t *testing.T) {
 	t.Parallel()
 
-	handlers := map[handler.ResourceType]handler.ResourceHandler{
-		handler.ResourceType("fixed_resource"): runtimetest.StubHandler{
+	definitions := map[handler.ResourceType]runtimetest.StubDefinition{
+		handler.ResourceType("fixed_resource"): {
 			CategoryValue: handler.CostCategoryFixed,
 			CalculateFixedFunc: func(_ string, _ map[string]any) (hourly, monthly float64) {
 				return 0.5, 10
 			},
 		},
-		handler.ResourceType("usage_resource"): runtimetest.StubHandler{
+		handler.ResourceType("usage_resource"): {
 			CategoryValue: handler.CostCategoryUsageBased,
 			CalculateUsageFunc: func(_ string, _ map[string]any) model.UsageCostEstimate {
 				return model.UsageCostEstimate{
@@ -88,7 +89,7 @@ func TestCostResolver_ResolveFixedAndUsageBased(t *testing.T) {
 				}
 			},
 		},
-		handler.ResourceType("usage_unknown_resource"): runtimetest.StubHandler{
+		handler.ResourceType("usage_unknown_resource"): {
 			CategoryValue: handler.CostCategoryUsageBased,
 			CalculateUsageFunc: func(_ string, _ map[string]any) model.UsageCostEstimate {
 				return model.UsageCostEstimate{Status: model.ResourceEstimateStatusUsageUnknown}
@@ -97,14 +98,17 @@ func TestCostResolver_ResolveFixedAndUsageBased(t *testing.T) {
 	}
 	resolver := mustNewResolver(t, runtimetest.StubRuntime{
 		ResolveProviderFunc: func(resourceType handler.ResourceType) (string, bool) {
-			if _, ok := handlers[resourceType]; ok {
+			if _, ok := definitions[resourceType]; ok {
 				return "aws", true
 			}
 			return "", false
 		},
-		ResolveHandlerFunc: func(_ string, resourceType handler.ResourceType) (handler.ResourceHandler, bool) {
-			h, ok := handlers[resourceType]
-			return h, ok
+		ResolveDefinitionFunc: func(_ string, resourceType handler.ResourceType) (def resourcedef.Definition, ok bool) {
+			stub, ok := definitions[resourceType]
+			if !ok {
+				return resourcedef.Definition{}, false
+			}
+			return stub.Definition(resourceType), true
 		},
 		SourceNameFunc: func(string) string { return "test-source" },
 	})
@@ -156,11 +160,11 @@ func TestCostResolver_ResolveUnknownCategory(t *testing.T) {
 			}
 			return "", false
 		},
-		ResolveHandlerFunc: func(_ string, resourceType handler.ResourceType) (handler.ResourceHandler, bool) {
+		ResolveDefinitionFunc: func(_ string, resourceType handler.ResourceType) (resourcedef.Definition, bool) {
 			if resourceType == handler.ResourceType("weird_resource") {
-				return runtimetest.StubHandler{CategoryValue: handler.CostCategory(99)}, true
+				return runtimetest.StubDefinition{CategoryValue: handler.CostCategory(99)}.Definition(resourceType), true
 			}
-			return nil, false
+			return resourcedef.Definition{}, false
 		},
 	})
 
@@ -189,11 +193,11 @@ func TestCostResolver_ResolveBeforeCostUnknownCategory(t *testing.T) {
 			}
 			return "", false
 		},
-		ResolveHandlerFunc: func(_ string, resourceType handler.ResourceType) (handler.ResourceHandler, bool) {
+		ResolveDefinitionFunc: func(_ string, resourceType handler.ResourceType) (resourcedef.Definition, bool) {
 			if resourceType == handler.ResourceType("weird_resource") {
-				return runtimetest.StubHandler{CategoryValue: handler.CostCategory(99)}, true
+				return runtimetest.StubDefinition{CategoryValue: handler.CostCategory(99)}.Definition(resourceType), true
 			}
-			return nil, false
+			return resourcedef.Definition{}, false
 		},
 	})
 
@@ -216,22 +220,29 @@ func TestCostResolver_ResolveBeforeCostWithState_ReusesPricingIndex(t *testing.T
 			}
 			return "", false
 		},
-		ResolveHandlerFunc: func(_ string, resourceType handler.ResourceType) (handler.ResourceHandler, bool) {
+		ResolveDefinitionFunc: func(_ string, resourceType handler.ResourceType) (resourcedef.Definition, bool) {
 			if resourceType != handler.ResourceType("aws_instance") {
-				return nil, false
+				return resourcedef.Definition{}, false
 			}
-			return lookupHandler{
-				StubHandler: runtimetest.StubHandler{
-					CategoryValue: handler.CostCategoryStandard,
-					CalculateFunc: func(_ *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
-						if attrs["instance_type"] == "before" {
-							return 1, 10
-						}
-						return 2, 20
-					},
+			return runtimetest.StubDefinition{
+				CategoryValue: handler.CostCategoryStandard,
+				LookupFunc: func(region string, _ map[string]any) (*pricing.PriceLookup, error) {
+					return &pricing.PriceLookup{
+						ServiceID:     serviceID,
+						Region:        region,
+						ProductFamily: "Compute Instance",
+						Attributes: map[string]string{
+							"instanceType": "t3.micro",
+						},
+					}, nil
 				},
-				serviceID: serviceID,
-			}, true
+				CalculateFunc: func(_ *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
+					if attrs["instance_type"] == "before" {
+						return 1, 10
+					}
+					return 2, 20
+				},
+			}.Definition(resourceType), true
 		},
 		GetIndexFunc: func(_ context.Context, service pricing.ServiceID, region string) (*pricing.PriceIndex, error) {
 			getIndexCalls++
@@ -276,20 +287,4 @@ func TestCostResolver_ResolveBeforeCostWithState_ReusesPricingIndex(t *testing.T
 	if after.MonthlyCost != 20 || after.BeforeMonthlyCost != 10 {
 		t.Fatalf("after costs = before %.2f / after %.2f, want 10 / 20", after.BeforeMonthlyCost, after.MonthlyCost)
 	}
-}
-
-type lookupHandler struct {
-	runtimetest.StubHandler
-	serviceID pricing.ServiceID
-}
-
-func (h lookupHandler) BuildLookup(region string, _ map[string]any) (*pricing.PriceLookup, error) {
-	return &pricing.PriceLookup{
-		ServiceID:     h.serviceID,
-		Region:        region,
-		ProductFamily: "Compute Instance",
-		Attributes: map[string]string{
-			"instanceType": "t3.micro",
-		},
-	}, nil
 }

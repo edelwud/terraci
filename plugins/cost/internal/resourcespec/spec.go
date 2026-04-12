@@ -8,6 +8,7 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 )
 
 // ValueFunc resolves a string field from pricing context and resource attributes.
@@ -209,4 +210,55 @@ func (s *DescribeSpec) Describe(price *pricing.Price, attrs map[string]any) map[
 		return nil
 	}
 	return details
+}
+
+// Compile turns a typed resource spec into the canonical runtime definition.
+func Compile(spec ResourceSpec) (resourcedef.Definition, error) {
+	if err := spec.Validate(); err != nil {
+		return resourcedef.Definition{}, err
+	}
+
+	def := resourcedef.Definition{
+		Type:     spec.Type,
+		Category: spec.Category,
+	}
+	if spec.Lookup != nil {
+		def.Lookup = func(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
+			return spec.Lookup.BuildFunc(region, attrs)
+		}
+	}
+	if spec.Describe != nil {
+		def.Describe = spec.Describe.Describe
+	}
+	if spec.Standard != nil {
+		def.StandardCost = func(price *pricing.Price, index *pricing.PriceIndex, region string, attrs map[string]any) (hourly, monthly float64) {
+			return spec.Standard.CostFunc(price, index, region, attrs)
+		}
+	}
+	if spec.Fixed != nil {
+		def.FixedCost = func(region string, attrs map[string]any) (hourly, monthly float64) {
+			return spec.Fixed.CostFunc(region, attrs)
+		}
+	}
+	if spec.Usage != nil {
+		def.UsageCost = func(region string, attrs map[string]any) model.UsageCostEstimate {
+			return spec.Usage.EstimateFunc(region, attrs)
+		}
+	}
+	if spec.Subresources != nil {
+		def.Subresources = func(attrs map[string]any) []handler.SubResource {
+			return spec.Subresources.BuildFunc(attrs)
+		}
+	}
+
+	return def, nil
+}
+
+// MustCompile turns a spec into a runtime definition and panics on invalid configuration.
+func MustCompile(spec ResourceSpec) resourcedef.Definition {
+	def, err := Compile(spec)
+	if err != nil {
+		panic(err)
+	}
+	return def
 }

@@ -7,14 +7,15 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 )
 
 // StubRuntime is a compact provider-aware runtime stub for runtime and resolver tests.
 type StubRuntime struct {
-	ResolveProviderFunc func(resourceType handler.ResourceType) (string, bool)
-	ResolveHandlerFunc  func(providerID string, resourceType handler.ResourceType) (handler.ResourceHandler, bool)
-	GetIndexFunc        func(ctx context.Context, service pricing.ServiceID, region string) (*pricing.PriceIndex, error)
-	SourceNameFunc      func(providerID string) string
+	ResolveProviderFunc   func(resourceType handler.ResourceType) (string, bool)
+	ResolveDefinitionFunc func(providerID string, resourceType handler.ResourceType) (resourcedef.Definition, bool)
+	GetIndexFunc          func(ctx context.Context, service pricing.ServiceID, region string) (*pricing.PriceIndex, error)
+	SourceNameFunc        func(providerID string) string
 }
 
 func (r StubRuntime) ResolveProvider(resourceType handler.ResourceType) (string, bool) {
@@ -24,11 +25,11 @@ func (r StubRuntime) ResolveProvider(resourceType handler.ResourceType) (string,
 	return r.ResolveProviderFunc(resourceType)
 }
 
-func (r StubRuntime) ResolveHandler(providerID string, resourceType handler.ResourceType) (handler.ResourceHandler, bool) {
-	if r.ResolveHandlerFunc == nil {
-		return nil, false
+func (r StubRuntime) ResolveDefinition(providerID string, resourceType handler.ResourceType) (resourcedef.Definition, bool) {
+	if r.ResolveDefinitionFunc == nil {
+		return resourcedef.Definition{}, false
 	}
-	return r.ResolveHandlerFunc(providerID, resourceType)
+	return r.ResolveDefinitionFunc(providerID, resourceType)
 }
 
 func (r StubRuntime) GetIndex(ctx context.Context, service pricing.ServiceID, region string) (*pricing.PriceIndex, error) {
@@ -57,35 +58,28 @@ func (f StubFetcher) FetchRegionIndex(ctx context.Context, service pricing.Servi
 	return f.FetchRegionIndexFunc(ctx, service, region)
 }
 
-// StubHandler is a minimal resource handler for runtime-focused tests.
-type StubHandler struct {
+// StubDefinition is a compact resource definition builder for runtime-focused tests.
+type StubDefinition struct {
 	CategoryValue      handler.CostCategory
+	LookupFunc         func(region string, attrs map[string]any) (*pricing.PriceLookup, error)
+	DescribeFunc       func(price *pricing.Price, attrs map[string]any) map[string]string
 	CalculateFunc      func(price *pricing.Price, index *pricing.PriceIndex, region string, attrs map[string]any) (hourly, monthly float64)
 	CalculateFixedFunc func(region string, attrs map[string]any) (hourly, monthly float64)
 	CalculateUsageFunc func(region string, attrs map[string]any) model.UsageCostEstimate
+	SubresourcesFunc   func(attrs map[string]any) []handler.SubResource
 }
 
-func (h StubHandler) Category() handler.CostCategory { return h.CategoryValue }
-
-func (h StubHandler) CalculateCost(price *pricing.Price, index *pricing.PriceIndex, region string, attrs map[string]any) (hourly, monthly float64) {
-	if h.CalculateFunc != nil {
-		return h.CalculateFunc(price, index, region, attrs)
+func (d StubDefinition) Definition(resourceType handler.ResourceType) resourcedef.Definition {
+	return resourcedef.Definition{
+		Type:         resourceType,
+		Category:     d.CategoryValue,
+		Lookup:       d.LookupFunc,
+		Describe:     d.DescribeFunc,
+		StandardCost: d.CalculateFunc,
+		FixedCost:    d.CalculateFixedFunc,
+		UsageCost:    d.CalculateUsageFunc,
+		Subresources: d.SubresourcesFunc,
 	}
-	return 0, 0
-}
-
-func (h StubHandler) CalculateFixedCost(region string, attrs map[string]any) (hourly, monthly float64) {
-	if h.CalculateFixedFunc != nil {
-		return h.CalculateFixedFunc(region, attrs)
-	}
-	return 0, 0
-}
-
-func (h StubHandler) CalculateUsageCost(region string, attrs map[string]any) model.UsageCostEstimate {
-	if h.CalculateUsageFunc != nil {
-		return h.CalculateUsageFunc(region, attrs)
-	}
-	return model.UsageCostEstimate{}
 }
 
 // ProviderCase defines one contract test case for provider resolution.
@@ -128,8 +122,8 @@ type ProviderResolver interface {
 	ResolveProvider(resourceType handler.ResourceType) (string, bool)
 }
 
-type HandlerResolver interface {
-	ResolveHandler(providerID string, resourceType handler.ResourceType) (handler.ResourceHandler, bool)
+type DefinitionResolver interface {
+	ResolveDefinition(providerID string, resourceType handler.ResourceType) (resourcedef.Definition, bool)
 }
 
 type PricingResolver interface {
@@ -139,7 +133,7 @@ type PricingResolver interface {
 
 type ResolverRuntime interface {
 	ProviderResolver
-	HandlerResolver
+	DefinitionResolver
 	PricingResolver
 }
 
@@ -174,18 +168,18 @@ func runHandlerCases(t *testing.T, runtime ResolverRuntime, cases []HandlerCase)
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 
-			gotHandler, gotOK := runtime.ResolveHandler(tc.ProviderID, tc.ResourceType)
+			gotDef, gotOK := runtime.ResolveDefinition(tc.ProviderID, tc.ResourceType)
 			if gotOK != tc.WantOK {
-				t.Fatalf("ResolveHandler() ok = %v, want %v", gotOK, tc.WantOK)
+				t.Fatalf("ResolveDefinition() ok = %v, want %v", gotOK, tc.WantOK)
 			}
 			if !gotOK {
 				return
 			}
-			if gotHandler == nil {
-				t.Fatal("ResolveHandler() returned nil handler")
+			if err := gotDef.Validate(); err != nil {
+				t.Fatalf("ResolveDefinition() returned invalid definition: %v", err)
 			}
 			if tc.Assert != nil {
-				tc.Assert(t, gotHandler)
+				tc.Assert(t, resourcedef.MustLegacyHandler(gotDef))
 			}
 		})
 	}
@@ -240,7 +234,7 @@ func AssertNoProviderContract(tb testing.TB, runtime ProviderResolver, resourceT
 // AssertNoHandlerContract verifies that a provider owns a type but has no registered handler for it.
 func AssertNoHandlerContract(tb testing.TB, runtime interface {
 	ProviderResolver
-	HandlerResolver
+	DefinitionResolver
 }, providerID string, resourceType handler.ResourceType) {
 	tb.Helper()
 
@@ -251,8 +245,8 @@ func AssertNoHandlerContract(tb testing.TB, runtime interface {
 	if gotProvider != providerID {
 		tb.Fatalf("ResolveProvider() = %q, want %q", gotProvider, providerID)
 	}
-	if h, ok := runtime.ResolveHandler(providerID, resourceType); ok || h != nil {
-		tb.Fatalf("ResolveHandler() = (%v, %v), want no handler", h, ok)
+	if def, ok := runtime.ResolveDefinition(providerID, resourceType); ok {
+		tb.Fatalf("ResolveDefinition() = (%v, %v), want no definition", def, ok)
 	}
 }
 

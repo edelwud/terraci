@@ -7,12 +7,13 @@ import (
 
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 )
 
-// ResourceRegistration binds a supported Terraform resource type to its handler.
+// ResourceRegistration binds a supported Terraform resource type to its runtime definition.
 type ResourceRegistration struct {
-	Type    handler.ResourceType
-	Handler handler.ResourceHandler
+	Type       handler.ResourceType
+	Definition resourcedef.Definition
 }
 
 // Definition is the provider-neutral runtime contract for a cloud provider.
@@ -37,13 +38,6 @@ type Definition struct {
 type Provider interface {
 	// Definition returns the provider-neutral runtime contract owned by this provider.
 	Definition() Definition
-}
-
-// RegisterDefinitionHandlers populates the handler registry from a provider definition.
-func RegisterDefinitionHandlers(r *handler.Registry, def Definition) {
-	for _, resource := range def.Resources {
-		r.Register(def.Manifest.ID, resource.Type, resource.Handler)
-	}
 }
 
 var (

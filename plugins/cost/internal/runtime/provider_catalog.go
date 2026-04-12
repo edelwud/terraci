@@ -6,6 +6,7 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 )
 
 // ResourceProviderRouter is the default resource-type based provider router.
@@ -42,38 +43,50 @@ func newDefaultProviderRouter(providers []cloud.Provider) *ResourceProviderRoute
 
 // ProviderCatalog resolves provider ownership, handlers, and provider metadata.
 type ProviderCatalog struct {
-	registry *handler.Registry
+	defs     map[string]map[handler.ResourceType]resourcedef.Definition
 	router   *ResourceProviderRouter
 	metadata map[string]model.ProviderMetadata
 }
 
-// NewProviderCatalog creates a provider catalog from explicit router, registry, and metadata.
-func NewProviderCatalog(router *ResourceProviderRouter, registry *handler.Registry, metadata map[string]model.ProviderMetadata) *ProviderCatalog {
+// NewProviderCatalog creates a provider catalog from explicit router, resource definitions, and metadata.
+func NewProviderCatalog(router *ResourceProviderRouter, defs map[string]map[handler.ResourceType]resourcedef.Definition, metadata map[string]model.ProviderMetadata) *ProviderCatalog {
 	copiedMetadata := make(map[string]model.ProviderMetadata, len(metadata))
 	maps.Copy(copiedMetadata, metadata)
 
+	copiedDefs := make(map[string]map[handler.ResourceType]resourcedef.Definition, len(defs))
+	for providerID, providerDefs := range defs {
+		copiedDefs[providerID] = maps.Clone(providerDefs)
+	}
+
 	return &ProviderCatalog{
-		registry: registry,
+		defs:     copiedDefs,
 		router:   router,
 		metadata: copiedMetadata,
 	}
 }
 
 // NewProviderCatalogFromProviders creates a provider catalog directly from provider definitions.
-func NewProviderCatalogFromProviders(providers []cloud.Provider, registry *handler.Registry) *ProviderCatalog {
+func NewProviderCatalogFromProviders(providers []cloud.Provider) *ProviderCatalog {
+	defs := make(map[string]map[handler.ResourceType]resourcedef.Definition, len(providers))
 	metadata := make(map[string]model.ProviderMetadata, len(providers))
 	for _, cp := range providers {
-		manifest := cp.Definition().Manifest
+		definition := cp.Definition()
+		manifest := definition.Manifest
 		if manifest.ID == "" {
 			continue
 		}
+		providerDefs := make(map[handler.ResourceType]resourcedef.Definition, len(definition.Resources))
+		for _, resource := range definition.Resources {
+			providerDefs[resource.Type] = resource.Definition
+		}
+		defs[manifest.ID] = providerDefs
 		metadata[manifest.ID] = model.ProviderMetadata{
 			DisplayName: manifest.DisplayName,
 			PriceSource: manifest.PriceSource,
 		}
 	}
 
-	return NewProviderCatalog(newDefaultProviderRouter(providers), registry, metadata)
+	return NewProviderCatalog(newDefaultProviderRouter(providers), defs, metadata)
 }
 
 // ResolveProvider returns the owning provider for a resource type.
@@ -84,12 +97,17 @@ func (c *ProviderCatalog) ResolveProvider(resourceType handler.ResourceType) (st
 	return c.router.ResolveProvider(resourceType)
 }
 
-// ResolveHandler returns a provider-scoped resource handler.
-func (c *ProviderCatalog) ResolveHandler(providerID string, resourceType handler.ResourceType) (handler.ResourceHandler, bool) {
-	if c.registry == nil {
-		return nil, false
+// ResolveDefinition returns a provider-scoped canonical resource definition.
+func (c *ProviderCatalog) ResolveDefinition(providerID string, resourceType handler.ResourceType) (resourcedef.Definition, bool) {
+	if c.defs == nil {
+		return resourcedef.Definition{}, false
 	}
-	return c.registry.ResolveHandler(providerID, resourceType)
+	providerDefs, ok := c.defs[providerID]
+	if !ok {
+		return resourcedef.Definition{}, false
+	}
+	def, ok := providerDefs[resourceType]
+	return def, ok
 }
 
 // ProviderMetadata returns provider-specific estimation metadata keyed by provider id.
