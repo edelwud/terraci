@@ -114,7 +114,7 @@ func TestProviderCatalog_DistinguishesNoProviderFromNoHandler(t *testing.T) {
 		},
 	})
 
-	runtimetest.AssertNoHandlerContract(t, catalog, awskit.ProviderID, resourcedef.ResourceType("aws_cloudfront_distribution"))
+	runtimetest.AssertNoDefinitionContract(t, catalog, awskit.ProviderID, resourcedef.ResourceType("aws_cloudfront_distribution"))
 	runtimetest.AssertNoProviderContract(t, catalog, resourcedef.ResourceType("custom_unknown_resource"))
 }
 

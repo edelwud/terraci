@@ -69,7 +69,7 @@ type FailureKind string
 const (
 	FailureKindNone         FailureKind = ""
 	FailureKindNoProvider   FailureKind = "no_provider"
-	FailureKindNoHandler    FailureKind = "no_handler"
+	FailureKindNoDefinition FailureKind = "no_definition"
 	FailureKindLookupFailed FailureKind = "lookup_failed"
 	FailureKindAPIFailure   FailureKind = "api_failure"
 	FailureKindNoPrice      FailureKind = "no_price"

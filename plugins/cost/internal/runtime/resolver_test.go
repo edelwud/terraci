@@ -50,7 +50,7 @@ func TestCostResolver_ResolveKnownProviderMissingHandler(t *testing.T) {
 			return "", false
 		},
 	}
-	runtimetest.AssertNoHandlerContract(t, testRuntime, "aws", resourcedef.ResourceType("known_without_handler"))
+	runtimetest.AssertNoDefinitionContract(t, testRuntime, "aws", resourcedef.ResourceType("known_without_handler"))
 	resolver := mustNewResolver(t, testRuntime)
 	got := resolver.Resolve(context.Background(), ResolveRequest{
 		ResourceType: resourcedef.ResourceType("known_without_handler"),
@@ -63,8 +63,8 @@ func TestCostResolver_ResolveKnownProviderMissingHandler(t *testing.T) {
 	if got.Status != model.ResourceEstimateStatusUnsupported {
 		t.Fatalf("Status = %q, want %q", got.Status, model.ResourceEstimateStatusUnsupported)
 	}
-	if got.FailureKind != model.FailureKindNoHandler {
-		t.Fatalf("FailureKind = %q, want %q", got.FailureKind, model.FailureKindNoHandler)
+	if got.FailureKind != model.FailureKindNoDefinition {
+		t.Fatalf("FailureKind = %q, want %q", got.FailureKind, model.FailureKindNoDefinition)
 	}
 }
 

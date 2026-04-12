@@ -17,7 +17,7 @@ import (
 
 var providerRuntime = awskit.NewRuntime(awskit.Manifest)
 
-// deps is a single shared RuntimeDeps instance for all AWS handlers.
+// deps is a single shared RuntimeDeps instance for all AWS resource definitions.
 var deps = awskit.NewRuntimeDeps(providerRuntime)
 
 var definition = cloud.Definition{

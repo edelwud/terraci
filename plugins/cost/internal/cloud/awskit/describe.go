@@ -5,7 +5,7 @@ import (
 	"strconv"
 )
 
-// DescribeBuilder helps handlers build human-readable description maps
+// DescribeBuilder helps resource definitions build human-readable description maps
 // without repeating nil/zero-value guards inline.
 type DescribeBuilder map[string]string
 

@@ -101,8 +101,8 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest, stat
 	def, ok := r.catalog.ResolveDefinition(providerID, req.ResourceType)
 	if !ok {
 		result.Status = model.ResourceEstimateStatusUnsupported
-		result.FailureKind = model.FailureKindNoHandler
-		result.StatusDetail = "no handler"
+		result.FailureKind = model.FailureKindNoDefinition
+		result.StatusDetail = "no definition"
 		logUnsupportedResource(req.ResourceType.String(), req.Address)
 		return result
 	}

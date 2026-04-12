@@ -89,8 +89,8 @@ type ProviderCase struct {
 	WantOK       bool
 }
 
-// HandlerCase defines one contract test case for definition resolution.
-type HandlerCase struct {
+// DefinitionCase defines one contract test case for definition resolution.
+type DefinitionCase struct {
 	Name         string
 	ProviderID   string
 	ResourceType resourcedef.ResourceType
@@ -110,11 +110,11 @@ type PricingCase struct {
 	WantSource     string
 }
 
-// RuntimeSuite groups provider, handler, and pricing contract cases.
+// RuntimeSuite groups provider, definition, and pricing contract cases.
 type RuntimeSuite struct {
-	ProviderCases []ProviderCase
-	HandlerCases  []HandlerCase
-	PricingCases  []PricingCase
+	ProviderCases   []ProviderCase
+	DefinitionCases []DefinitionCase
+	PricingCases    []PricingCase
 }
 
 type ProviderResolver interface {
@@ -140,7 +140,7 @@ type ResolverRuntime interface {
 func RunResolverRuntimeSuite(t *testing.T, runtime ResolverRuntime, suite RuntimeSuite) {
 	t.Helper()
 	runProviderCases(t, runtime, suite.ProviderCases)
-	runHandlerCases(t, runtime, suite.HandlerCases)
+	runDefinitionCases(t, runtime, suite.DefinitionCases)
 	runPricingCases(t, runtime, suite.PricingCases)
 }
 
@@ -161,7 +161,7 @@ func runProviderCases(t *testing.T, runtime ResolverRuntime, cases []ProviderCas
 	}
 }
 
-func runHandlerCases(t *testing.T, runtime ResolverRuntime, cases []HandlerCase) {
+func runDefinitionCases(t *testing.T, runtime ResolverRuntime, cases []DefinitionCase) {
 	t.Helper()
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
@@ -230,8 +230,8 @@ func AssertNoProviderContract(tb testing.TB, runtime ProviderResolver, resourceT
 	}
 }
 
-// AssertNoHandlerContract verifies that a provider owns a type but has no registered handler for it.
-func AssertNoHandlerContract(tb testing.TB, runtime interface {
+// AssertNoDefinitionContract verifies that a provider owns a type but has no registered definition for it.
+func AssertNoDefinitionContract(tb testing.TB, runtime interface {
 	ProviderResolver
 	DefinitionResolver
 }, providerID string, resourceType resourcedef.ResourceType) {

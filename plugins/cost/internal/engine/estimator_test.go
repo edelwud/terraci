@@ -220,9 +220,9 @@ func TestEstimateModule_KnownProviderMissingHandler(t *testing.T) {
 		t.Fatalf("EstimateModule: %v", err)
 	}
 
-	rc := enginetest.AssertUnsupportedResource(t, result.Resources, "aws_cloudfront_distribution.main", "aws", model.FailureKindNoHandler)
-	if rc.StatusDetail != "no handler" {
-		t.Errorf("StatusDetail = %q, want %q", rc.StatusDetail, "no handler")
+	rc := enginetest.AssertUnsupportedResource(t, result.Resources, "aws_cloudfront_distribution.main", "aws", model.FailureKindNoDefinition)
+	if rc.StatusDetail != "no definition" {
+		t.Errorf("StatusDetail = %q, want %q", rc.StatusDetail, "no definition")
 	}
 	if result.Unsupported != 1 {
 		t.Errorf("Unsupported = %d, want 1", result.Unsupported)

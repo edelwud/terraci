@@ -1,6 +1,6 @@
 package awskit
 
-// Shared EBS volume type constants, used by both EC2 and RDS handlers.
+// Shared EBS volume type constants, used by both EC2 and RDS resource definitions.
 const (
 	VolumeTypeGP2      = "gp2"
 	VolumeTypeGP3      = "gp3"

@@ -107,11 +107,11 @@ func buildPrefetchPlan(runtime *costruntime.EstimationRuntime, modulePlans []*Mo
 			def, ok := runtime.ResolveDefinition(providerID, resource.ResourceType)
 			if !ok {
 				diagnostics = append(diagnostics, model.PrefetchDiagnostic{
-					Kind:         "no-handler",
+					Kind:         "no-definition",
 					ModuleID:     modulePlan.ModuleID,
 					ResourceType: resource.ResourceType.String(),
 					Address:      resource.Address,
-					Detail:       "no handler",
+					Detail:       "no definition",
 				})
 				continue
 			}
