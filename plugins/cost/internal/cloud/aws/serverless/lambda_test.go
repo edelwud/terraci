@@ -13,13 +13,13 @@ import (
 func TestLambdaHandler_Category(t *testing.T) {
 	t.Parallel()
 
-	handlertest.AssertUsageBasedCategory(t, resourcespec.MustCompile(LambdaSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))))
+	handlertest.AssertUsageBasedCategory(t, resourcespec.MustCompileTyped(LambdaSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))))
 }
 
 func TestLambdaHandler_BuildLookup(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(LambdaSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(LambdaSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 	lookup := handlertest.RequireLookup(t, def, "us-east-1", nil)
 
 	if lookup.ProductFamily != "Serverless" {
@@ -42,7 +42,7 @@ func TestLambdaHandler_BuildLookup(t *testing.T) {
 func TestLambdaHandler_CalculateUsageCost(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(LambdaSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(LambdaSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	tests := []struct {
 		name        string
@@ -123,7 +123,7 @@ func TestLambdaHandler_CalculateUsageCost(t *testing.T) {
 func TestLambdaHandler_Describe(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(LambdaSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(LambdaSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	tests := []struct {
 		name       string

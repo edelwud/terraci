@@ -14,7 +14,7 @@ func TestALBHandler_Category(t *testing.T) {
 	t.Parallel()
 
 	category := resourcedef.CostCategoryStandard
-	handlertest.RunContractSuite(t, resourcespec.MustCompile(ALBSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
+	handlertest.RunContractSuite(t, resourcespec.MustCompileTyped(ALBSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
 		Category: &category,
 		LookupCases: []handlertest.LookupCase{
 			{
@@ -88,7 +88,7 @@ func TestALBHandler_Category(t *testing.T) {
 func TestALBHandler_CalculateCost(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(ALBSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(ALBSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	tests := []struct {
 		name           string

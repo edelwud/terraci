@@ -37,13 +37,13 @@ func parseLBAttrs(attrs map[string]any) lbAttrs {
 }
 
 // ALBSpec declares aws_lb/aws_alb cost estimation.
-func ALBSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
-	return resourcespec.ResourceSpec{
+func ALBSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[lbAttrs] {
+	return resourcespec.TypedSpec[lbAttrs]{
 		Type:     resourcedef.ResourceType(awskit.ResourceLoadBalancer),
 		Category: resourcedef.CostCategoryStandard,
-		Lookup: &resourcespec.LookupSpec{
-			BuildFunc: func(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
-				parsed := parseLBAttrs(attrs)
+		Parse:    parseLBAttrs,
+		Lookup: &resourcespec.TypedLookupSpec[lbAttrs]{
+			BuildFunc: func(region string, p lbAttrs) (*pricing.PriceLookup, error) {
 				runtime := deps.RuntimeOrDefault()
 				spec := runtime.StandardLookupSpec(
 					awskit.ServiceKeyEC2,
@@ -54,7 +54,7 @@ func ALBSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 						}, nil
 					},
 				)
-				switch parsed.LoadBalancerType {
+				switch p.LoadBalancerType {
 				case typeNetwork:
 					spec.ProductFamily = "Load Balancer-Network"
 				case typeGateway:
@@ -62,22 +62,20 @@ func ALBSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 				default:
 					spec.ProductFamily = productFamilyALB
 				}
-				return spec.Build(region, attrs)
+				return spec.Build(region, nil)
 			},
 		},
-		Describe: &resourcespec.DescribeSpec{
-			Fields: []resourcespec.DescribeField{
-				{Key: "type", Value: func(_ *pricing.Price, attrs map[string]any) (string, bool) {
-					return parseLBAttrs(attrs).LoadBalancerType, true
-				}},
+		Describe: &resourcespec.TypedDescribeSpec[lbAttrs]{
+			BuildFunc: func(_ *pricing.Price, p lbAttrs) map[string]string {
+				return map[string]string{"type": p.LoadBalancerType}
 			},
 		},
-		Standard: &resourcespec.StandardPricingSpec{
-			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
+		Standard: &resourcespec.TypedStandardPricingSpec[lbAttrs]{
+			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, p lbAttrs) (hourly, monthly float64) {
 				if price != nil && price.OnDemandUSD > 0 {
 					return costutil.HourlyCost(price.OnDemandUSD)
 				}
-				switch parseLBAttrs(attrs).LoadBalancerType {
+				switch p.LoadBalancerType {
 				case typeNetwork:
 					return costutil.HourlyCost(defaultNLBHourlyCost)
 				case typeGateway:

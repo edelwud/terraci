@@ -11,14 +11,14 @@ import (
 func TestSecretsManagerHandler_Category(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(SecretsManagerSpec())
+	def := resourcespec.MustCompileTyped(SecretsManagerSpec())
 	handlertest.AssertCategory(t, def, resourcedef.CostCategoryFixed)
 }
 
 func TestSecretsManagerHandler_CalculateFixedCost(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(SecretsManagerSpec())
+	def := resourcespec.MustCompileTyped(SecretsManagerSpec())
 	_, monthly, ok := def.CalculateFixedCost("", nil)
 	if !ok {
 		t.Fatal("CalculateFixedCost should be available")
@@ -32,14 +32,14 @@ func TestSecretsManagerHandler_CalculateFixedCost(t *testing.T) {
 func TestSecretsManagerHandler_BuildLookup(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(SecretsManagerSpec())
+	def := resourcespec.MustCompileTyped(SecretsManagerSpec())
 	handlertest.AssertNilLookup(t, def, "us-east-1", nil)
 }
 
 func TestSecretsManagerHandler_Describe(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(SecretsManagerSpec())
+	def := resourcespec.MustCompileTyped(SecretsManagerSpec())
 	result := def.DescribeResource(nil, nil)
 	if result != nil {
 		t.Errorf("DescribeResource() = %v, want nil", result)

@@ -52,53 +52,51 @@ func parseEBSVolumeAttrs(attrs map[string]any) ebsVolumeAttrs {
 }
 
 // EBSSpec declares aws_ebs_volume cost estimation.
-func EBSSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
+func EBSSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[ebsVolumeAttrs] {
 	ec2ServiceID := deps.RuntimeOrDefault().MustService(awskit.ServiceKeyEC2)
 
-	return resourcespec.ResourceSpec{
+	return resourcespec.TypedSpec[ebsVolumeAttrs]{
 		Type:     resourcedef.ResourceType(awskit.ResourceEBSVolume),
 		Category: resourcedef.CostCategoryStandard,
-		Lookup: &resourcespec.LookupSpec{
-			BuildFunc: func(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
-				parsed := parseEBSVolumeAttrs(attrs)
+		Parse:    parseEBSVolumeAttrs,
+		Lookup: &resourcespec.TypedLookupSpec[ebsVolumeAttrs]{
+			BuildFunc: func(region string, p ebsVolumeAttrs) (*pricing.PriceLookup, error) {
 				lb := &awskit.PriceLookupSpec{Service: ec2ServiceID, ProductFamily: "Storage"}
 				return lb.Lookup(region, map[string]string{
-					"volumeApiName": parsed.VolumeType,
+					"volumeApiName": p.VolumeType,
 				}), nil
 			},
 		},
-		Describe: &resourcespec.DescribeSpec{
-			BuildFunc: func(_ *pricing.Price, attrs map[string]any) map[string]string {
-				parsed := parseEBSVolumeAttrs(attrs)
+		Describe: &resourcespec.TypedDescribeSpec[ebsVolumeAttrs]{
+			BuildFunc: func(_ *pricing.Price, p ebsVolumeAttrs) map[string]string {
 				volumeType := ""
-				if parsed.VolumeTypeSet {
-					volumeType = parsed.VolumeType
+				if p.VolumeTypeSet {
+					volumeType = p.VolumeType
 				}
 				sizeGB := 0.0
-				if parsed.SizeGBSet {
-					sizeGB = parsed.SizeGB
+				if p.SizeGBSet {
+					sizeGB = p.SizeGB
 				}
 				return awskit.NewDescribeBuilder().
 					String("volume_type", volumeType).
 					Float("size_gb", sizeGB, "%.0f").
-					Float("iops", parsed.IOPS, "%.0f").
-					Float("throughput_mbps", parsed.Throughput, "%.0f").
+					Float("iops", p.IOPS, "%.0f").
+					Float("throughput_mbps", p.Throughput, "%.0f").
 					Map()
 			},
 		},
-		Standard: &resourcespec.StandardPricingSpec{
-			CostFunc: func(price *pricing.Price, index *pricing.PriceIndex, region string, attrs map[string]any) (hourly, monthly float64) {
+		Standard: &resourcespec.TypedStandardPricingSpec[ebsVolumeAttrs]{
+			CostFunc: func(price *pricing.Price, index *pricing.PriceIndex, region string, p ebsVolumeAttrs) (hourly, monthly float64) {
 				if price == nil {
 					return 0, 0
 				}
-				parsed := parseEBSVolumeAttrs(attrs)
-				monthly = price.OnDemandUSD * parsed.SizeGB
+				monthly = price.OnDemandUSD * p.SizeGB
 
-				if parsed.VolumeType == awskit.VolumeTypeIO1 || parsed.VolumeType == awskit.VolumeTypeIO2 {
-					if parsed.IOPS > 0 {
+				if p.VolumeType == awskit.VolumeTypeIO1 || p.VolumeType == awskit.VolumeTypeIO2 {
+					if p.IOPS > 0 {
 						suffix := "piops"
 						fallback := FallbackIO1IOPSCostPerMonth
-						if parsed.VolumeType == awskit.VolumeTypeIO2 {
+						if p.VolumeType == awskit.VolumeTypeIO2 {
 							suffix = "io2"
 							fallback = FallbackIO2IOPSCostPerMonth
 						}
@@ -106,24 +104,24 @@ func EBSSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 						if !ok {
 							iopsCost = fallback
 						}
-						monthly += parsed.IOPS * iopsCost
+						monthly += p.IOPS * iopsCost
 					}
 				}
 
-				if parsed.VolumeType == awskit.VolumeTypeGP3 {
-					if parsed.IOPS > DefaultGP3FreeIOPS {
+				if p.VolumeType == awskit.VolumeTypeGP3 {
+					if p.IOPS > DefaultGP3FreeIOPS {
 						iopsCost, ok := lookupEBSPrice(deps.RuntimeOrDefault(), index, region, "System Operation", "EBS:VolumeP-IOPS.gp3")
 						if !ok {
 							iopsCost = FallbackGP3IOPSCostPerMonth
 						}
-						monthly += (parsed.IOPS - DefaultGP3FreeIOPS) * iopsCost
+						monthly += (p.IOPS - DefaultGP3FreeIOPS) * iopsCost
 					}
-					if parsed.Throughput > DefaultGP3FreeThroughputMBps {
+					if p.Throughput > DefaultGP3FreeThroughputMBps {
 						tpCost, ok := lookupEBSPrice(deps.RuntimeOrDefault(), index, region, "Provisioned Throughput", "EBS:VolumeP-Throughput.gp3")
 						if !ok {
 							tpCost = FallbackGP3ThroughputCostPerMB
 						}
-						monthly += (parsed.Throughput - DefaultGP3FreeThroughputMBps) * tpCost
+						monthly += (p.Throughput - DefaultGP3FreeThroughputMBps) * tpCost
 					}
 				}
 

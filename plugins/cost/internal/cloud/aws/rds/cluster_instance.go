@@ -23,18 +23,18 @@ func parseClusterInstanceAttrs(attrs map[string]any) clusterInstanceAttrs {
 }
 
 // ClusterInstanceSpec declares aws_rds_cluster_instance cost estimation.
-func ClusterInstanceSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
-	return resourcespec.ResourceSpec{
+func ClusterInstanceSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[clusterInstanceAttrs] {
+	return resourcespec.TypedSpec[clusterInstanceAttrs]{
 		Type:     resourcedef.ResourceType(awskit.ResourceRDSClusterInstance),
 		Category: resourcedef.CostCategoryStandard,
-		Lookup: &resourcespec.LookupSpec{
-			BuildFunc: func(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
-				parsed := parseClusterInstanceAttrs(attrs)
-				if parsed.InstanceClass == "" {
+		Parse:    parseClusterInstanceAttrs,
+		Lookup: &resourcespec.TypedLookupSpec[clusterInstanceAttrs]{
+			BuildFunc: func(region string, p clusterInstanceAttrs) (*pricing.PriceLookup, error) {
+				if p.InstanceClass == "" {
 					return nil, errors.New("instance_class not found")
 				}
 
-				engine := parsed.Engine
+				engine := p.Engine
 				if engine == "" {
 					engine = DefaultAuroraEngine
 				}
@@ -45,21 +45,23 @@ func ClusterInstanceSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 					"Database Instance",
 					func(_ string, _ map[string]any) (map[string]string, error) {
 						return map[string]string{
-							"instanceType":   parsed.InstanceClass,
+							"instanceType":   p.InstanceClass,
 							"databaseEngine": databaseEngine,
 						}, nil
 					},
-				).Build(region, attrs)
+				).Build(region, nil)
 			},
 		},
-		Describe: &resourcespec.DescribeSpec{
-			Fields: []resourcespec.DescribeField{
-				{Key: "instance_class", Value: resourcespec.StringAttr("instance_class"), OmitEmpty: true},
-				{Key: "engine", Value: resourcespec.StringAttr("engine"), OmitEmpty: true},
+		Describe: &resourcespec.TypedDescribeSpec[clusterInstanceAttrs]{
+			BuildFunc: func(_ *pricing.Price, p clusterInstanceAttrs) map[string]string {
+				return awskit.NewDescribeBuilder().
+					String("instance_class", p.InstanceClass).
+					String("engine", p.Engine).
+					Map()
 			},
 		},
-		Standard: &resourcespec.StandardPricingSpec{
-			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
+		Standard: &resourcespec.TypedStandardPricingSpec[clusterInstanceAttrs]{
+			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ clusterInstanceAttrs) (hourly, monthly float64) {
 				if price == nil {
 					return 0, 0
 				}

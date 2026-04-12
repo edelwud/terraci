@@ -14,7 +14,7 @@ func TestClassicHandler_Category(t *testing.T) {
 	t.Parallel()
 
 	category := resourcedef.CostCategoryStandard
-	handlertest.RunContractSuite(t, resourcespec.MustCompile(ClassicSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
+	handlertest.RunContractSuite(t, resourcespec.MustCompileTyped(ClassicSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
 		Category: &category,
 		LookupCases: []handlertest.LookupCase{
 			{
@@ -40,7 +40,7 @@ func TestClassicHandler_Category(t *testing.T) {
 func TestClassicHandler_CalculateCost(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(ClassicSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(ClassicSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	// With price
 	price := &pricing.Price{OnDemandUSD: 0.03}

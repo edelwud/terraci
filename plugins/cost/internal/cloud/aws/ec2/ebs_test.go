@@ -21,7 +21,7 @@ func TestEBSHandler_Contract(t *testing.T) {
 	t.Parallel()
 
 	category := resourcedef.CostCategoryStandard
-	handlertest.RunContractSuite(t, resourcespec.MustCompile(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
+	handlertest.RunContractSuite(t, resourcespec.MustCompileTyped(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
 		Category: &category,
 		LookupCases: []handlertest.LookupCase{
 			{
@@ -123,7 +123,7 @@ func TestParseEBSVolumeAttrs_ParsesStringNumbersAndDefaults(t *testing.T) {
 func TestEBSHandler_CalculateCost(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	price := &pricing.Price{
 		OnDemandUSD: 0.10, // $0.10 per GB-month
@@ -170,7 +170,7 @@ func TestEBSHandler_CalculateCost(t *testing.T) {
 func TestEBSHandler_CalculateCost_IO1(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	price := &pricing.Price{
 		OnDemandUSD: 0.125, // io1 per GB-month
@@ -196,7 +196,7 @@ func TestEBSHandler_CalculateCost_IO1(t *testing.T) {
 func TestEBSHandler_CalculateCost_GP3Throughput(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	price := &pricing.Price{
 		OnDemandUSD: 0.08, // gp3 per GB-month
@@ -222,7 +222,7 @@ func TestEBSHandler_CalculateCost_GP3Throughput(t *testing.T) {
 func TestEBSHandler_CalculateCost_IO1_WithIndex(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	storagePrice := &pricing.Price{OnDemandUSD: 0.125}
 
@@ -259,7 +259,7 @@ func TestEBSHandler_CalculateCost_IO1_WithIndex(t *testing.T) {
 func TestEBSHandler_CalculateCost_IO2(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	storagePrice := &pricing.Price{OnDemandUSD: 0.125}
 
@@ -296,7 +296,7 @@ func TestEBSHandler_CalculateCost_IO2(t *testing.T) {
 func TestEBSHandler_CalculateCost_GP3(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	storagePrice := &pricing.Price{OnDemandUSD: 0.08}
 
@@ -344,7 +344,7 @@ func TestEBSHandler_CalculateCost_GP3(t *testing.T) {
 func TestEBSHandler_CalculateCost_FallbackOnMissingProduct(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	storagePrice := &pricing.Price{OnDemandUSD: 0.125}
 
@@ -374,7 +374,7 @@ func TestEBSHandler_CalculateCost_FallbackOnMissingProduct(t *testing.T) {
 func TestEBSHandler_CalculateCost_NilIndex(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	storagePrice := &pricing.Price{OnDemandUSD: 0.08}
 

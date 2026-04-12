@@ -15,7 +15,7 @@ import (
 func TestDynamoDBHandler_CalculateUsageCost(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(DynamoDBSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(DynamoDBSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	tests := []struct {
 		name          string
@@ -90,7 +90,7 @@ func TestDynamoDBHandler_Contract(t *testing.T) {
 	t.Parallel()
 
 	category := resourcedef.CostCategoryUsageBased
-	handlertest.RunContractSuite(t, resourcespec.MustCompile(DynamoDBSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
+	handlertest.RunContractSuite(t, resourcespec.MustCompileTyped(DynamoDBSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
 		Category: &category,
 		LookupCases: []handlertest.LookupCase{
 			{

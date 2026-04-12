@@ -13,12 +13,13 @@ const (
 )
 
 // KMSSpec declares aws_kms_key cost estimation.
-func KMSSpec() resourcespec.ResourceSpec {
-	return resourcespec.ResourceSpec{
+func KMSSpec() resourcespec.TypedSpec[resourcespec.NoAttrs] {
+	return resourcespec.TypedSpec[resourcespec.NoAttrs]{
 		Type:     resourcedef.ResourceType(awskit.ResourceKMSKey),
 		Category: resourcedef.CostCategoryFixed,
-		Fixed: &resourcespec.FixedPricingSpec{
-			CostFunc: func(_ string, _ map[string]any) (hourly, monthly float64) {
+		Parse:    resourcespec.ParseNoAttrs,
+		Fixed: &resourcespec.TypedFixedPricingSpec[resourcespec.NoAttrs]{
+			CostFunc: func(_ string, _ resourcespec.NoAttrs) (hourly, monthly float64) {
 				return costutil.FixedMonthlyCost(KMSKeyCost)
 			},
 		},

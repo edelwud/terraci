@@ -12,12 +12,13 @@ import (
 const DefaultNATGatewayHourlyCost = 0.045
 
 // NATSpec declares aws_nat_gateway cost estimation.
-func NATSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
-	return resourcespec.ResourceSpec{
+func NATSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[resourcespec.NoAttrs] {
+	return resourcespec.TypedSpec[resourcespec.NoAttrs]{
 		Type:     resourcedef.ResourceType(awskit.ResourceNATGateway),
 		Category: resourcedef.CostCategoryStandard,
-		Lookup: &resourcespec.LookupSpec{
-			BuildFunc: func(region string, _ map[string]any) (*pricing.PriceLookup, error) {
+		Parse:    resourcespec.ParseNoAttrs,
+		Lookup: &resourcespec.TypedLookupSpec[resourcespec.NoAttrs]{
+			BuildFunc: func(region string, _ resourcespec.NoAttrs) (*pricing.PriceLookup, error) {
 				return deps.RuntimeOrDefault().StandardLookupSpec(
 					awskit.ServiceKeyEC2,
 					"NAT Gateway",
@@ -27,13 +28,13 @@ func NATSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 				).Build(region, nil)
 			},
 		},
-		Describe: &resourcespec.DescribeSpec{
-			BuildFunc: func(_ *pricing.Price, _ map[string]any) map[string]string {
+		Describe: &resourcespec.TypedDescribeSpec[resourcespec.NoAttrs]{
+			BuildFunc: func(_ *pricing.Price, _ resourcespec.NoAttrs) map[string]string {
 				return map[string]string{}
 			},
 		},
-		Standard: &resourcespec.StandardPricingSpec{
-			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
+		Standard: &resourcespec.TypedStandardPricingSpec[resourcespec.NoAttrs]{
+			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ resourcespec.NoAttrs) (hourly, monthly float64) {
 				rate := DefaultNATGatewayHourlyCost
 				if price != nil && price.OnDemandUSD > 0 {
 					rate = price.OnDemandUSD

@@ -13,21 +13,21 @@ import (
 func TestLogGroupHandler_Category(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(LogGroupSpec())
+	def := resourcespec.MustCompileTyped(LogGroupSpec())
 	handlertest.AssertCategory(t, def, resourcedef.CostCategoryUsageBased)
 }
 
 func TestAlarmHandler_Category(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(AlarmSpec())
+	def := resourcespec.MustCompileTyped(AlarmSpec())
 	handlertest.AssertCategory(t, def, resourcedef.CostCategoryFixed)
 }
 
 func TestLogGroupHandler_CalculateUsageCost(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(LogGroupSpec())
+	def := resourcespec.MustCompileTyped(LogGroupSpec())
 	got, ok := def.CalculateUsageCost("", nil)
 	if !ok {
 		t.Fatal("CalculateUsageCost should be available")
@@ -46,14 +46,14 @@ func TestLogGroupHandler_CalculateUsageCost(t *testing.T) {
 func TestAlarmHandler_BuildLookup_ReturnsNil(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(AlarmSpec())
+	def := resourcespec.MustCompileTyped(AlarmSpec())
 	handlertest.AssertNilLookup(t, def, "us-east-1", nil)
 }
 
 func TestAlarmHandler_CalculateFixedCost(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(AlarmSpec())
+	def := resourcespec.MustCompileTyped(AlarmSpec())
 
 	tests := []struct {
 		name        string
@@ -112,7 +112,7 @@ func TestAlarmHandler_CalculateFixedCost(t *testing.T) {
 func TestAlarmHandler_Describe(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(AlarmSpec())
+	def := resourcespec.MustCompileTyped(AlarmSpec())
 
 	tests := []struct {
 		name           string

@@ -8,12 +8,13 @@ import (
 )
 
 // S3Spec declares aws_s3_bucket cost estimation.
-func S3Spec() resourcespec.ResourceSpec {
-	return resourcespec.ResourceSpec{
+func S3Spec() resourcespec.TypedSpec[resourcespec.NoAttrs] {
+	return resourcespec.TypedSpec[resourcespec.NoAttrs]{
 		Type:     resourcedef.ResourceType(awskit.ResourceS3Bucket),
 		Category: resourcedef.CostCategoryUsageBased,
-		Usage: &resourcespec.UsagePricingSpec{
-			EstimateFunc: func(_ string, _ map[string]any) model.UsageCostEstimate {
+		Parse:    resourcespec.ParseNoAttrs,
+		Usage: &resourcespec.TypedUsagePricingSpec[resourcespec.NoAttrs]{
+			EstimateFunc: func(_ string, _ resourcespec.NoAttrs) model.UsageCostEstimate {
 				return model.UsageCostEstimate{Status: model.ResourceEstimateStatusUsageUnknown}
 			},
 		},

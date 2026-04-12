@@ -51,18 +51,18 @@ func parseRootVolumeAttrs(attrs map[string]any) ebsVolumeAttrs {
 }
 
 // InstanceSpec declares aws_instance cost estimation.
-func InstanceSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
-	return resourcespec.ResourceSpec{
+func InstanceSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[instanceAttrs] {
+	return resourcespec.TypedSpec[instanceAttrs]{
 		Type:     resourcedef.ResourceType(awskit.ResourceInstance),
 		Category: resourcedef.CostCategoryStandard,
-		Lookup: &resourcespec.LookupSpec{
-			BuildFunc: func(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
-				parsed := parseInstanceAttrs(attrs)
-				if parsed.InstanceType == "" {
+		Parse:    parseInstanceAttrs,
+		Lookup: &resourcespec.TypedLookupSpec[instanceAttrs]{
+			BuildFunc: func(region string, p instanceAttrs) (*pricing.PriceLookup, error) {
+				if p.InstanceType == "" {
 					return nil, errors.New("instance_type not found")
 				}
 
-				tenancy := parsed.Tenancy
+				tenancy := p.Tenancy
 				switch tenancy {
 				case "", "default":
 					tenancy = "Shared"
@@ -77,35 +77,34 @@ func InstanceSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 					"Compute Instance",
 					func(_ string, _ map[string]any) (map[string]string, error) {
 						return map[string]string{
-							"instanceType":    parsed.InstanceType,
+							"instanceType":    p.InstanceType,
 							"tenancy":         tenancy,
 							"operatingSystem": "Linux",
 							"preInstalledSw":  "NA",
 							"capacitystatus":  "Used",
 						}, nil
 					},
-				).Build(region, attrs)
+				).Build(region, nil)
 			},
 		},
-		Describe: &resourcespec.DescribeSpec{
-			BuildFunc: func(_ *pricing.Price, attrs map[string]any) map[string]string {
-				parsed := parseInstanceAttrs(attrs)
+		Describe: &resourcespec.TypedDescribeSpec[instanceAttrs]{
+			BuildFunc: func(_ *pricing.Price, p instanceAttrs) map[string]string {
 				desc := awskit.NewDescribeBuilder().
-					String("instance_type", parsed.InstanceType)
-				if parsed.Tenancy != "" && parsed.Tenancy != "default" {
-					desc.String("tenancy", parsed.Tenancy)
+					String("instance_type", p.InstanceType)
+				if p.Tenancy != "" && p.Tenancy != "default" {
+					desc.String("tenancy", p.Tenancy)
 				}
 				return desc.Map()
 			},
 		},
-		Standard: &resourcespec.StandardPricingSpec{
-			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
+		Standard: &resourcespec.TypedStandardPricingSpec[instanceAttrs]{
+			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ instanceAttrs) (hourly, monthly float64) {
 				return costutil.HourlyCost(price.OnDemandUSD)
 			},
 		},
-		Subresources: &resourcespec.SubresourceSpec{
-			BuildFunc: func(attrs map[string]any) []resourcedef.SubResource {
-				root := parseInstanceAttrs(attrs).RootVolume
+		Subresources: &resourcespec.TypedSubresourceSpec[instanceAttrs]{
+			BuildFunc: func(p instanceAttrs) []resourcedef.SubResource {
+				root := p.RootVolume
 				ebsAttrs := map[string]any{
 					"type": root.VolumeType,
 					"size": root.SizeGB,

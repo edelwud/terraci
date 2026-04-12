@@ -14,7 +14,7 @@ func TestEIPHandler_Category(t *testing.T) {
 	t.Parallel()
 
 	category := resourcedef.CostCategoryStandard
-	handlertest.RunContractSuite(t, resourcespec.MustCompile(EIPSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
+	handlertest.RunContractSuite(t, resourcespec.MustCompileTyped(EIPSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
 		Category: &category,
 		LookupCases: []handlertest.LookupCase{
 			{
@@ -58,7 +58,7 @@ func TestEIPHandler_Category(t *testing.T) {
 func TestEIPHandler_CalculateCost(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(EIPSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(EIPSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	// With price from lookup
 	price := &pricing.Price{OnDemandUSD: 0.005}

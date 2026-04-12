@@ -47,47 +47,46 @@ func parseNodeGroupAttrs(attrs map[string]any) nodeGroupAttrs {
 }
 
 // NodeGroupSpec declares aws_eks_node_group cost estimation.
-func NodeGroupSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
-	return resourcespec.ResourceSpec{
+func NodeGroupSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[nodeGroupAttrs] {
+	return resourcespec.TypedSpec[nodeGroupAttrs]{
 		Type:     resourcedef.ResourceType(awskit.ResourceEKSNodeGroup),
 		Category: resourcedef.CostCategoryStandard,
-		Lookup: &resourcespec.LookupSpec{
-			BuildFunc: func(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
-				parsed := parseNodeGroupAttrs(attrs)
+		Parse:    parseNodeGroupAttrs,
+		Lookup: &resourcespec.TypedLookupSpec[nodeGroupAttrs]{
+			BuildFunc: func(region string, p nodeGroupAttrs) (*pricing.PriceLookup, error) {
 				return deps.RuntimeOrDefault().StandardLookupSpec(
 					awskit.ServiceKeyEC2,
 					"Compute Instance",
 					func(_ string, _ map[string]any) (map[string]string, error) {
 						return map[string]string{
-							"instanceType":    parsed.InstanceType,
+							"instanceType":    p.InstanceType,
 							"tenancy":         "Shared",
 							"operatingSystem": "Linux",
 							"preInstalledSw":  "NA",
 							"capacitystatus":  "Used",
 						}, nil
 					},
-				).Build(region, attrs)
+				).Build(region, nil)
 			},
 		},
-		Describe: &resourcespec.DescribeSpec{
-			BuildFunc: func(_ *pricing.Price, attrs map[string]any) map[string]string {
-				parsed := parseNodeGroupAttrs(attrs)
+		Describe: &resourcespec.TypedDescribeSpec[nodeGroupAttrs]{
+			BuildFunc: func(_ *pricing.Price, p nodeGroupAttrs) map[string]string {
 				desc := awskit.NewDescribeBuilder()
-				if parsed.InstanceTypeSet {
-					desc.String("instance_type", parsed.InstanceType)
+				if p.InstanceTypeSet {
+					desc.String("instance_type", p.InstanceType)
 				}
-				if parsed.DesiredSizeSet {
-					desc.Int("desired_size", parsed.DesiredSize)
+				if p.DesiredSizeSet {
+					desc.Int("desired_size", p.DesiredSize)
 				}
 				return desc.Map()
 			},
 		},
-		Standard: &resourcespec.StandardPricingSpec{
-			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
+		Standard: &resourcespec.TypedStandardPricingSpec[nodeGroupAttrs]{
+			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, p nodeGroupAttrs) (hourly, monthly float64) {
 				if price == nil {
 					return 0, 0
 				}
-				return costutil.ScaledHourlyCost(price.OnDemandUSD, parseNodeGroupAttrs(attrs).DesiredSize)
+				return costutil.ScaledHourlyCost(price.OnDemandUSD, p.DesiredSize)
 			},
 		},
 	}

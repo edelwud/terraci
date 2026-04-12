@@ -15,7 +15,7 @@ func TestInstanceHandler_Contract(t *testing.T) {
 	t.Parallel()
 
 	category := resourcedef.CostCategoryStandard
-	def := resourcespec.MustCompile(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 	handlertest.RunContractSuite(t, def, handlertest.ContractSuite{
 		Category: &category,
 		LookupCases: []handlertest.LookupCase{
@@ -110,7 +110,7 @@ func TestInstanceHandler_Contract(t *testing.T) {
 func TestInstanceHandler_CalculateCost(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	price := &pricing.Price{
 		OnDemandUSD: 0.10, // $0.10/hour

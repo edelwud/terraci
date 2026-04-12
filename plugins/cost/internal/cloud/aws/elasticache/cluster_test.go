@@ -15,7 +15,7 @@ func TestClusterHandler_Contract(t *testing.T) {
 	t.Parallel()
 
 	category := resourcedef.CostCategoryStandard
-	handlertest.RunContractSuite(t, resourcespec.MustCompile(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
+	handlertest.RunContractSuite(t, resourcespec.MustCompileTyped(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
 		Category: &category,
 		LookupCases: []handlertest.LookupCase{
 			{
@@ -96,7 +96,7 @@ func TestClusterHandler_Contract(t *testing.T) {
 func TestClusterHandler_CalculateCost(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	price := &pricing.Price{OnDemandUSD: 0.05}
 
@@ -138,7 +138,7 @@ func TestClusterHandler_CalculateCost(t *testing.T) {
 func TestClusterHandler_CalculateCost_BackupStorage(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	// Price with memory attribute from AWS API
 	price := &pricing.Price{
@@ -190,7 +190,7 @@ func TestClusterHandler_CalculateCost_BackupStorage(t *testing.T) {
 func TestClusterHandler_CalculateCost_DataTiering(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	// Price with SSD storage attribute from AWS API
 	price := &pricing.Price{
@@ -238,7 +238,7 @@ func TestClusterHandler_CalculateCost_DataTiering(t *testing.T) {
 func TestClusterHandler_CalculateCost_Fallback(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	// Price with storage/memory from AWS API, empty index → fallback pricing
 	price := &pricing.Price{
@@ -279,7 +279,7 @@ func TestClusterHandler_CalculateCost_Fallback(t *testing.T) {
 func TestClusterHandler_NoBackupCostWithRetention1(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	price := &pricing.Price{
 		OnDemandUSD: 0.05,
@@ -310,7 +310,7 @@ func TestClusterHandler_NoBackupCostWithRetention1(t *testing.T) {
 func TestClusterHandler_NoStorageCostWithoutSSD(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	// Non-SSD node — storage attribute is "None"
 	price := &pricing.Price{

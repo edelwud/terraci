@@ -14,7 +14,7 @@ func TestNodeGroupHandler_CalculateCost(t *testing.T) {
 	t.Parallel()
 
 	price := &pricing.Price{OnDemandUSD: 0.10}
-	def := resourcespec.MustCompile(NodeGroupSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(NodeGroupSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	tests := []struct {
 		name       string
@@ -46,7 +46,7 @@ func TestNodeGroupHandler_Contract(t *testing.T) {
 	t.Parallel()
 
 	category := resourcedef.CostCategoryStandard
-	handlertest.RunContractSuite(t, resourcespec.MustCompile(NodeGroupSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
+	handlertest.RunContractSuite(t, resourcespec.MustCompileTyped(NodeGroupSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
 		Category: &category,
 		LookupCases: []handlertest.LookupCase{
 			{

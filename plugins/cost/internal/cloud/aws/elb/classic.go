@@ -13,12 +13,13 @@ const (
 )
 
 // ClassicSpec declares aws_elb cost estimation.
-func ClassicSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
-	return resourcespec.ResourceSpec{
+func ClassicSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[resourcespec.NoAttrs] {
+	return resourcespec.TypedSpec[resourcespec.NoAttrs]{
 		Type:     resourcedef.ResourceType(awskit.ResourceClassicLoadBalancer),
 		Category: resourcedef.CostCategoryStandard,
-		Lookup: &resourcespec.LookupSpec{
-			BuildFunc: func(region string, _ map[string]any) (*pricing.PriceLookup, error) {
+		Parse:    resourcespec.ParseNoAttrs,
+		Lookup: &resourcespec.TypedLookupSpec[resourcespec.NoAttrs]{
+			BuildFunc: func(region string, _ resourcespec.NoAttrs) (*pricing.PriceLookup, error) {
 				runtime := deps.RuntimeOrDefault()
 				return runtime.StandardLookupSpec(
 					awskit.ServiceKeyELB,
@@ -31,13 +32,13 @@ func ClassicSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 				).Build(region, nil)
 			},
 		},
-		Describe: &resourcespec.DescribeSpec{
-			Fields: []resourcespec.DescribeField{
-				{Key: "type", Value: resourcespec.Const("classic")},
+		Describe: &resourcespec.TypedDescribeSpec[resourcespec.NoAttrs]{
+			BuildFunc: func(_ *pricing.Price, _ resourcespec.NoAttrs) map[string]string {
+				return map[string]string{"type": "classic"}
 			},
 		},
-		Standard: &resourcespec.StandardPricingSpec{
-			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
+		Standard: &resourcespec.TypedStandardPricingSpec[resourcespec.NoAttrs]{
+			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ resourcespec.NoAttrs) (hourly, monthly float64) {
 				if price != nil && price.OnDemandUSD > 0 {
 					return costutil.HourlyCost(price.OnDemandUSD)
 				}

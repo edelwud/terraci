@@ -28,14 +28,14 @@ func isAuroraEngine(engine string) bool {
 }
 
 // ClusterSpec declares aws_rds_cluster cost estimation.
-func ClusterSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
-	return resourcespec.ResourceSpec{
+func ClusterSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[clusterAttrs] {
+	return resourcespec.TypedSpec[clusterAttrs]{
 		Type:     resourcedef.ResourceType(awskit.ResourceRDSCluster),
 		Category: resourcedef.CostCategoryStandard,
-		Lookup: &resourcespec.LookupSpec{
-			BuildFunc: func(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
-				parsed := parseClusterAttrs(attrs)
-				engine := parsed.Engine
+		Parse:    parseClusterAttrs,
+		Lookup: &resourcespec.TypedLookupSpec[clusterAttrs]{
+			BuildFunc: func(region string, p clusterAttrs) (*pricing.PriceLookup, error) {
+				engine := p.Engine
 				if engine == "" {
 					engine = DefaultAuroraEngine
 				}
@@ -54,22 +54,20 @@ func ClusterSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 							"usagetype":  prefix + "-Aurora:StorageUsage",
 						}, nil
 					},
-				).Build(region, attrs)
+				).Build(region, nil)
 			},
 		},
-		Describe: &resourcespec.DescribeSpec{
-			BuildFunc: func(_ *pricing.Price, attrs map[string]any) map[string]string {
-				parsed := parseClusterAttrs(attrs)
+		Describe: &resourcespec.TypedDescribeSpec[clusterAttrs]{
+			BuildFunc: func(_ *pricing.Price, p clusterAttrs) map[string]string {
 				return awskit.NewDescribeBuilder().
-					String("engine", parsed.Engine).
-					Float("storage_gb", parsed.AllocatedStorage, "%.0f").
+					String("engine", p.Engine).
+					Float("storage_gb", p.AllocatedStorage, "%.0f").
 					Map()
 			},
 		},
-		Standard: &resourcespec.StandardPricingSpec{
-			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
-				parsed := parseClusterAttrs(attrs)
-				allocatedStorage := parsed.AllocatedStorage
+		Standard: &resourcespec.TypedStandardPricingSpec[clusterAttrs]{
+			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, p clusterAttrs) (hourly, monthly float64) {
+				allocatedStorage := p.AllocatedStorage
 				if allocatedStorage == 0 {
 					allocatedStorage = 10
 				}

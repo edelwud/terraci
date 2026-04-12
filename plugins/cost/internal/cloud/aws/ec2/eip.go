@@ -22,20 +22,20 @@ func parseEIPAttrs(attrs map[string]any) eipAttrs {
 }
 
 // EIPSpec declares aws_eip cost estimation.
-func EIPSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
+func EIPSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[eipAttrs] {
 	vpcServiceID := deps.RuntimeOrDefault().MustService(awskit.ServiceKeyVPC)
 
-	return resourcespec.ResourceSpec{
+	return resourcespec.TypedSpec[eipAttrs]{
 		Type:     resourcedef.ResourceType(awskit.ResourceEIP),
 		Category: resourcedef.CostCategoryStandard,
-		Lookup: &resourcespec.LookupSpec{
-			BuildFunc: func(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
-				parsed := parseEIPAttrs(attrs)
+		Parse:    parseEIPAttrs,
+		Lookup: &resourcespec.TypedLookupSpec[eipAttrs]{
+			BuildFunc: func(region string, p eipAttrs) (*pricing.PriceLookup, error) {
 				runtime := deps.RuntimeOrDefault()
 				prefix := runtime.ResolveUsagePrefix(region)
 
 				usagetype := prefix + "-PublicIPv4:InUseAddress"
-				if parsed.Instance == "" {
+				if p.Instance == "" {
 					usagetype = prefix + "-PublicIPv4:IdleAddress"
 				}
 
@@ -50,10 +50,10 @@ func EIPSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 				}, nil
 			},
 		},
-		Describe: &resourcespec.DescribeSpec{
-			BuildFunc: func(_ *pricing.Price, attrs map[string]any) map[string]string {
+		Describe: &resourcespec.TypedDescribeSpec[eipAttrs]{
+			BuildFunc: func(_ *pricing.Price, p eipAttrs) map[string]string {
 				details := map[string]string{}
-				if parseEIPAttrs(attrs).Instance != "" {
+				if p.Instance != "" {
 					details["attached"] = "true"
 				} else {
 					details["attached"] = "false"
@@ -61,8 +61,8 @@ func EIPSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 				return details
 			},
 		},
-		Standard: &resourcespec.StandardPricingSpec{
-			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
+		Standard: &resourcespec.TypedStandardPricingSpec[eipAttrs]{
+			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ eipAttrs) (hourly, monthly float64) {
 				if price != nil && price.OnDemandUSD > 0 {
 					return costutil.HourlyCost(price.OnDemandUSD)
 				}

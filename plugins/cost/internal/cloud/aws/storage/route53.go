@@ -14,18 +14,19 @@ const (
 )
 
 // Route53Spec declares aws_route53_zone cost estimation.
-func Route53Spec() resourcespec.ResourceSpec {
-	return resourcespec.ResourceSpec{
+func Route53Spec() resourcespec.TypedSpec[resourcespec.NoAttrs] {
+	return resourcespec.TypedSpec[resourcespec.NoAttrs]{
 		Type:     resourcedef.ResourceType(awskit.ResourceRoute53Zone),
 		Category: resourcedef.CostCategoryFixed,
-		Lookup: &resourcespec.LookupSpec{
-			BuildFunc: func(_ string, _ map[string]any) (*pricing.PriceLookup, error) { return nil, nil },
+		Parse:    resourcespec.ParseNoAttrs,
+		Lookup: &resourcespec.TypedLookupSpec[resourcespec.NoAttrs]{
+			BuildFunc: func(_ string, _ resourcespec.NoAttrs) (*pricing.PriceLookup, error) { return nil, nil },
 		},
-		Describe: &resourcespec.DescribeSpec{
-			BuildFunc: func(_ *pricing.Price, _ map[string]any) map[string]string { return nil },
+		Describe: &resourcespec.TypedDescribeSpec[resourcespec.NoAttrs]{
+			BuildFunc: func(_ *pricing.Price, _ resourcespec.NoAttrs) map[string]string { return nil },
 		},
-		Fixed: &resourcespec.FixedPricingSpec{
-			CostFunc: func(_ string, _ map[string]any) (hourly, monthly float64) {
+		Fixed: &resourcespec.TypedFixedPricingSpec[resourcespec.NoAttrs]{
+			CostFunc: func(_ string, _ resourcespec.NoAttrs) (hourly, monthly float64) {
 				return costutil.FixedMonthlyCost(Route53HostedZoneCost)
 			},
 		},

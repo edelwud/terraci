@@ -8,12 +8,13 @@ import (
 )
 
 // SNSSpec declares aws_sns_topic cost estimation.
-func SNSSpec() resourcespec.ResourceSpec {
-	return resourcespec.ResourceSpec{
+func SNSSpec() resourcespec.TypedSpec[resourcespec.NoAttrs] {
+	return resourcespec.TypedSpec[resourcespec.NoAttrs]{
 		Type:     resourcedef.ResourceType(awskit.ResourceSNSTopic),
 		Category: resourcedef.CostCategoryUsageBased,
-		Usage: &resourcespec.UsagePricingSpec{
-			EstimateFunc: func(_ string, _ map[string]any) model.UsageCostEstimate {
+		Parse:    resourcespec.ParseNoAttrs,
+		Usage: &resourcespec.TypedUsagePricingSpec[resourcespec.NoAttrs]{
+			EstimateFunc: func(_ string, _ resourcespec.NoAttrs) model.UsageCostEstimate {
 				return model.UsageCostEstimate{Status: model.ResourceEstimateStatusUsageUnknown}
 			},
 		},

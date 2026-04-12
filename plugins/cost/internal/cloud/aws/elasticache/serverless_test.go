@@ -12,12 +12,12 @@ import (
 )
 
 func TestServerlessHandler_Category(t *testing.T) {
-	def := resourcespec.MustCompile(ServerlessSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(ServerlessSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 	handlertest.AssertCategory(t, def, resourcedef.CostCategoryStandard)
 }
 
 func TestServerlessHandler_BuildLookup(t *testing.T) {
-	def := resourcespec.MustCompile(ServerlessSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(ServerlessSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	lookup := handlertest.RequireLookup(t, def, "us-east-1", map[string]any{})
 
@@ -30,7 +30,7 @@ func TestServerlessHandler_BuildLookup(t *testing.T) {
 }
 
 func TestServerlessHandler_CalculateCost(t *testing.T) {
-	def := resourcespec.MustCompile(ServerlessSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(ServerlessSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	price := &pricing.Price{OnDemandUSD: 0.000171} // per GB-hour
 
@@ -77,7 +77,7 @@ func TestServerlessHandler_CalculateCost(t *testing.T) {
 }
 
 func TestServerlessHandler_CalculateCost_FallbackPrice(t *testing.T) {
-	def := resourcespec.MustCompile(ServerlessSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(ServerlessSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	// Price with 0 USD — should fall back to default
 	price := &pricing.Price{OnDemandUSD: 0}
@@ -109,7 +109,7 @@ func TestServerlessHandler_CalculateCost_FallbackPrice(t *testing.T) {
 }
 
 func TestServerlessHandler_Describe(t *testing.T) {
-	def := resourcespec.MustCompile(ServerlessSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(ServerlessSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	attrs := map[string]any{
 		"engine": "redis",

@@ -13,7 +13,7 @@ func TestSQSHandler_Contract(t *testing.T) {
 	t.Parallel()
 
 	category := resourcedef.CostCategoryUsageBased
-	handlertest.RunContractSuite(t, resourcespec.MustCompile(SQSSpec()), handlertest.ContractSuite{
+	handlertest.RunContractSuite(t, resourcespec.MustCompileTyped(SQSSpec()), handlertest.ContractSuite{
 		Category: &category,
 	})
 }
@@ -21,7 +21,7 @@ func TestSQSHandler_Contract(t *testing.T) {
 func TestSQSHandler_CalculateUsageCost(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(SQSSpec())
+	def := resourcespec.MustCompileTyped(SQSSpec())
 	got, ok := def.CalculateUsageCost("", nil)
 	if !ok {
 		t.Fatal("CalculateUsageCost should be available")

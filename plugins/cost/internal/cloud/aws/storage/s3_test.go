@@ -12,21 +12,21 @@ import (
 func TestS3Handler_Category(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(S3Spec())
+	def := resourcespec.MustCompileTyped(S3Spec())
 	handlertest.AssertCategory(t, def, resourcedef.CostCategoryUsageBased)
 }
 
 func TestS3Handler_BuildLookupReturnsNil(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(S3Spec())
+	def := resourcespec.MustCompileTyped(S3Spec())
 	handlertest.AssertNilLookup(t, def, "us-east-1", nil)
 }
 
 func TestS3Handler_CalculateUsageCost(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(S3Spec())
+	def := resourcespec.MustCompileTyped(S3Spec())
 	got, ok := def.CalculateUsageCost("", nil)
 	if !ok {
 		t.Fatal("CalculateUsageCost should be available")
@@ -45,7 +45,7 @@ func TestS3Handler_CalculateUsageCost(t *testing.T) {
 func TestS3Handler_DescribeReturnsNil(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(S3Spec())
+	def := resourcespec.MustCompileTyped(S3Spec())
 	if got := def.DescribeResource(nil, nil); got != nil {
 		t.Fatalf("DescribeResource() = %#v, want nil", got)
 	}

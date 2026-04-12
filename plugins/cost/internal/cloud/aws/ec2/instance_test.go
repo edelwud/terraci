@@ -14,7 +14,7 @@ import (
 func TestInstanceHandler_BuildLookup(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	tests := []struct {
 		name        string
@@ -79,7 +79,7 @@ func TestInstanceHandler_BuildLookup(t *testing.T) {
 func TestInstanceHandler_CalculateCost_ComputeOnly(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	price := &pricing.Price{OnDemandUSD: 0.10}
 
@@ -101,7 +101,7 @@ func TestInstanceHandler_CalculateCost_ComputeOnly(t *testing.T) {
 func TestInstanceHandler_SubResources_Default(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	// No root_block_device → default 8 GB gp2
 	subs := def.BuildSubresources(map[string]any{})
@@ -127,7 +127,7 @@ func TestInstanceHandler_SubResources_Default(t *testing.T) {
 func TestInstanceHandler_SubResources_Custom(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	attrs := map[string]any{
 		"instance_type": "t3.micro",
@@ -164,14 +164,14 @@ func TestInstanceHandler_SubResources_Custom(t *testing.T) {
 func TestInstanceHandler_Category(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 	handlertest.AssertCategory(t, def, resourcedef.CostCategoryStandard)
 }
 
 func TestInstanceHandler_Describe(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	tests := []struct {
 		name       string

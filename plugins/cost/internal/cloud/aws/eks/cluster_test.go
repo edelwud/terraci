@@ -14,14 +14,14 @@ import (
 func TestClusterHandler_Category(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 	handlertest.AssertCategory(t, def, resourcedef.CostCategoryStandard)
 }
 
 func TestClusterHandler_BuildLookup(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	handlertest.RunLookupCases(t, def, []handlertest.LookupCase{
 		{
@@ -63,7 +63,7 @@ func TestClusterHandler_BuildLookup(t *testing.T) {
 func TestClusterHandler_CalculateCost_FromAPI(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	price := &pricing.Price{OnDemandUSD: 0.10}
 	hourly, monthly, ok := def.CalculateStandardCost(price, nil, "", nil)
@@ -81,7 +81,7 @@ func TestClusterHandler_CalculateCost_FromAPI(t *testing.T) {
 func TestClusterHandler_CalculateCost_Fallback(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	// nil price -> fallback to default
 	hourly, monthly, ok := def.CalculateStandardCost(nil, nil, "", nil)
@@ -108,7 +108,7 @@ func TestClusterHandler_CalculateCost_Fallback(t *testing.T) {
 func TestClusterHandler_Describe(t *testing.T) {
 	t.Parallel()
 
-	def := resourcespec.MustCompile(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	def := resourcespec.MustCompileTyped(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	handlertest.RunDescribeCases(t, def, []handlertest.DescribeCase{
 		{

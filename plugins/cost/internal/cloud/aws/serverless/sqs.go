@@ -8,12 +8,13 @@ import (
 )
 
 // SQSSpec declares aws_sqs_queue cost estimation.
-func SQSSpec() resourcespec.ResourceSpec {
-	return resourcespec.ResourceSpec{
+func SQSSpec() resourcespec.TypedSpec[resourcespec.NoAttrs] {
+	return resourcespec.TypedSpec[resourcespec.NoAttrs]{
 		Type:     resourcedef.ResourceType(awskit.ResourceSQSQueue),
 		Category: resourcedef.CostCategoryUsageBased,
-		Usage: &resourcespec.UsagePricingSpec{
-			EstimateFunc: func(_ string, _ map[string]any) model.UsageCostEstimate {
+		Parse:    resourcespec.ParseNoAttrs,
+		Usage: &resourcespec.TypedUsagePricingSpec[resourcespec.NoAttrs]{
+			EstimateFunc: func(_ string, _ resourcespec.NoAttrs) model.UsageCostEstimate {
 				return model.UsageCostEstimate{Status: model.ResourceEstimateStatusUsageUnknown}
 			},
 		},

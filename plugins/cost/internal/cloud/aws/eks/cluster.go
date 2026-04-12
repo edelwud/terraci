@@ -24,12 +24,13 @@ func parseClusterAttrs(attrs map[string]any) clusterAttrs {
 }
 
 // ClusterSpec declares aws_eks_cluster cost estimation.
-func ClusterSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
-	return resourcespec.ResourceSpec{
+func ClusterSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[clusterAttrs] {
+	return resourcespec.TypedSpec[clusterAttrs]{
 		Type:     resourcedef.ResourceType(awskit.ResourceEKSCluster),
 		Category: resourcedef.CostCategoryStandard,
-		Lookup: &resourcespec.LookupSpec{
-			BuildFunc: func(region string, _ map[string]any) (*pricing.PriceLookup, error) {
+		Parse:    parseClusterAttrs,
+		Lookup: &resourcespec.TypedLookupSpec[clusterAttrs]{
+			BuildFunc: func(region string, _ clusterAttrs) (*pricing.PriceLookup, error) {
 				runtime := deps.RuntimeOrDefault()
 				prefix := runtime.ResolveUsagePrefix(region)
 				return runtime.StandardLookupSpec(
@@ -43,13 +44,15 @@ func ClusterSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 				).Build(region, nil)
 			},
 		},
-		Describe: &resourcespec.DescribeSpec{
-			Fields: []resourcespec.DescribeField{
-				{Key: "version", Value: resourcespec.StringAttr("version"), OmitEmpty: true},
+		Describe: &resourcespec.TypedDescribeSpec[clusterAttrs]{
+			BuildFunc: func(_ *pricing.Price, p clusterAttrs) map[string]string {
+				return awskit.NewDescribeBuilder().
+					String("version", p.Version).
+					Map()
 			},
 		},
-		Standard: &resourcespec.StandardPricingSpec{
-			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
+		Standard: &resourcespec.TypedStandardPricingSpec[clusterAttrs]{
+			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ clusterAttrs) (hourly, monthly float64) {
 				if price != nil && price.OnDemandUSD > 0 {
 					return costutil.HourlyCost(price.OnDemandUSD)
 				}

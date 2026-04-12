@@ -60,23 +60,23 @@ func parseInstanceAttrs(attrs map[string]any) instanceAttrs {
 }
 
 // InstanceSpec declares aws_db_instance cost estimation.
-func InstanceSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
-	return resourcespec.ResourceSpec{
+func InstanceSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[instanceAttrs] {
+	return resourcespec.TypedSpec[instanceAttrs]{
 		Type:     resourcedef.ResourceType(awskit.ResourceDBInstance),
 		Category: resourcedef.CostCategoryStandard,
-		Lookup: &resourcespec.LookupSpec{
-			BuildFunc: func(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
-				parsed := parseInstanceAttrs(attrs)
-				if parsed.InstanceClass == "" {
+		Parse:    parseInstanceAttrs,
+		Lookup: &resourcespec.TypedLookupSpec[instanceAttrs]{
+			BuildFunc: func(region string, p instanceAttrs) (*pricing.PriceLookup, error) {
+				if p.InstanceClass == "" {
 					return nil, errors.New("instance_class not found")
 				}
 
-				engine := parsed.Engine
+				engine := p.Engine
 				if engine == "" {
 					engine = DefaultEngine
 				}
 				deploymentOption := DeploymentSingleAZ
-				if parsed.MultiAZ {
+				if p.MultiAZ {
 					deploymentOption = DeploymentMultiAZ
 				}
 
@@ -85,42 +85,40 @@ func InstanceSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 					"Database Instance",
 					func(_ string, _ map[string]any) (map[string]string, error) {
 						return map[string]string{
-							"instanceType":     parsed.InstanceClass,
+							"instanceType":     p.InstanceClass,
 							"databaseEngine":   mapRDSEngine(engine),
 							"deploymentOption": deploymentOption,
 						}, nil
 					},
-				).Build(region, attrs)
+				).Build(region, nil)
 			},
 		},
-		Describe: &resourcespec.DescribeSpec{
-			BuildFunc: func(_ *pricing.Price, attrs map[string]any) map[string]string {
-				parsed := parseInstanceAttrs(attrs)
+		Describe: &resourcespec.TypedDescribeSpec[instanceAttrs]{
+			BuildFunc: func(_ *pricing.Price, p instanceAttrs) map[string]string {
 				return awskit.NewDescribeBuilder().
-					String("instance_class", parsed.InstanceClass).
-					String("engine", parsed.Engine).
-					Bool("multi_az", parsed.MultiAZ).
-					Float("storage_gb", parsed.AllocatedStorage, "%.0f").
+					String("instance_class", p.InstanceClass).
+					String("engine", p.Engine).
+					Bool("multi_az", p.MultiAZ).
+					Float("storage_gb", p.AllocatedStorage, "%.0f").
 					Map()
 			},
 		},
-		Standard: &resourcespec.StandardPricingSpec{
-			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
+		Standard: &resourcespec.TypedStandardPricingSpec[instanceAttrs]{
+			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, p instanceAttrs) (hourly, monthly float64) {
 				if price == nil {
 					return 0, 0
 				}
-				parsed := parseInstanceAttrs(attrs)
 				hourly = price.OnDemandUSD
 				monthly = hourly * costutil.HoursPerMonth
-				if parsed.AllocatedStorage > 0 {
-					monthly += parsed.AllocatedStorage * getStorageCostPerGB(parsed.StorageType)
+				if p.AllocatedStorage > 0 {
+					monthly += p.AllocatedStorage * getStorageCostPerGB(p.StorageType)
 				}
-				if parsed.IOPS > 0 {
-					switch parsed.StorageType {
+				if p.IOPS > 0 {
+					switch p.StorageType {
 					case awskit.VolumeTypeIO1:
-						monthly += parsed.IOPS * IOPSCostIO1PerMonth
+						monthly += p.IOPS * IOPSCostIO1PerMonth
 					case awskit.VolumeTypeIO2:
-						monthly += parsed.IOPS * IOPSCostIO2PerMonth
+						monthly += p.IOPS * IOPSCostIO2PerMonth
 					}
 				}
 				return monthly / costutil.HoursPerMonth, monthly

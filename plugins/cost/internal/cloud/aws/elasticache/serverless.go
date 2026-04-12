@@ -22,12 +22,13 @@ const (
 )
 
 // ServerlessSpec declares aws_elasticache_serverless_cache cost estimation.
-func ServerlessSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
-	return resourcespec.ResourceSpec{
+func ServerlessSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[serverlessAttrs] {
+	return resourcespec.TypedSpec[serverlessAttrs]{
 		Type:     resourcedef.ResourceType(awskit.ResourceElastiCacheServerlessCache),
 		Category: resourcedef.CostCategoryStandard,
-		Lookup: &resourcespec.LookupSpec{
-			BuildFunc: func(region string, _ map[string]any) (*pricing.PriceLookup, error) {
+		Parse:    parseServerlessAttrs,
+		Lookup: &resourcespec.TypedLookupSpec[serverlessAttrs]{
+			BuildFunc: func(region string, _ serverlessAttrs) (*pricing.PriceLookup, error) {
 				runtime := deps.RuntimeOrDefault()
 				return runtime.StandardLookupSpec(
 					awskit.ServiceKeyElastiCache,
@@ -41,25 +42,24 @@ func ServerlessSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 				).Build(region, nil)
 			},
 		},
-		Describe: &resourcespec.DescribeSpec{
-			BuildFunc: func(_ *pricing.Price, attrs map[string]any) map[string]string {
-				parsed := parseServerlessAttrs(attrs)
+		Describe: &resourcespec.TypedDescribeSpec[serverlessAttrs]{
+			BuildFunc: func(_ *pricing.Price, p serverlessAttrs) map[string]string {
 				desc := map[string]string{"type": "serverless"}
-				if parsed.Engine != "" {
-					desc["engine"] = parsed.Engine
+				if p.Engine != "" {
+					desc["engine"] = p.Engine
 				}
-				if parsed.StorageMaxGB > 0 {
-					desc["storage_max_gb"] = fmt.Sprintf("%.0f", parsed.StorageMaxGB)
+				if p.StorageMaxGB > 0 {
+					desc["storage_max_gb"] = fmt.Sprintf("%.0f", p.StorageMaxGB)
 				}
 				return desc
 			},
 		},
-		Standard: &resourcespec.StandardPricingSpec{
-			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
+		Standard: &resourcespec.TypedStandardPricingSpec[serverlessAttrs]{
+			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, p serverlessAttrs) (hourly, monthly float64) {
 				if price == nil {
 					return 0, 0
 				}
-				storageGB := parseServerlessAttrs(attrs).StorageMaxGB
+				storageGB := p.StorageMaxGB
 				if storageGB == 0 {
 					storageGB = 1
 				}

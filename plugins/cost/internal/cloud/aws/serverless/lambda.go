@@ -32,12 +32,13 @@ func parseLambdaAttrs(attrs map[string]any) lambdaAttrs {
 }
 
 // LambdaSpec declares aws_lambda_function cost estimation.
-func LambdaSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
-	return resourcespec.ResourceSpec{
+func LambdaSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[lambdaAttrs] {
+	return resourcespec.TypedSpec[lambdaAttrs]{
 		Type:     resourcedef.ResourceType(awskit.ResourceLambdaFunction),
 		Category: resourcedef.CostCategoryUsageBased,
-		Lookup: &resourcespec.LookupSpec{
-			BuildFunc: func(region string, _ map[string]any) (*pricing.PriceLookup, error) {
+		Parse:    parseLambdaAttrs,
+		Lookup: &resourcespec.TypedLookupSpec[lambdaAttrs]{
+			BuildFunc: func(region string, _ lambdaAttrs) (*pricing.PriceLookup, error) {
 				return deps.RuntimeOrDefault().StandardLookupSpec(
 					awskit.ServiceKeyLambda,
 					"Serverless",
@@ -47,25 +48,23 @@ func LambdaSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 				).Build(region, nil)
 			},
 		},
-		Describe: &resourcespec.DescribeSpec{
-			BuildFunc: func(_ *pricing.Price, attrs map[string]any) map[string]string {
-				parsed := parseLambdaAttrs(attrs)
+		Describe: &resourcespec.TypedDescribeSpec[lambdaAttrs]{
+			BuildFunc: func(_ *pricing.Price, p lambdaAttrs) map[string]string {
 				return awskit.NewDescribeBuilder().
-					Int("memory_mb", parsed.MemoryMB).
-					String("runtime", parsed.Runtime).
-					Int("provisioned_concurrency", parsed.ProvisionedConcurrency).
+					Int("memory_mb", p.MemoryMB).
+					String("runtime", p.Runtime).
+					Int("provisioned_concurrency", p.ProvisionedConcurrency).
 					Map()
 			},
 		},
-		Usage: &resourcespec.UsagePricingSpec{
-			EstimateFunc: func(_ string, attrs map[string]any) model.UsageCostEstimate {
-				parsed := parseLambdaAttrs(attrs)
-				if parsed.ProvisionedConcurrency > 0 {
-					memoryMB := parsed.MemoryMB
+		Usage: &resourcespec.TypedUsagePricingSpec[lambdaAttrs]{
+			EstimateFunc: func(_ string, p lambdaAttrs) model.UsageCostEstimate {
+				if p.ProvisionedConcurrency > 0 {
+					memoryMB := p.MemoryMB
 					if memoryMB == 0 {
 						memoryMB = LambdaDefaultMemoryMB
 					}
-					gbSeconds := float64(parsed.ProvisionedConcurrency) * (float64(memoryMB) / LambdaMemoryDivisor) * SecondsPerHour
+					gbSeconds := float64(p.ProvisionedConcurrency) * (float64(memoryMB) / LambdaMemoryDivisor) * SecondsPerHour
 					rate := gbSeconds * LambdaProvisionedConcurrencyCostPerGBSecond
 					hourly, monthly := costutil.HourlyCost(rate)
 					return model.UsageCostEstimate{

@@ -31,19 +31,19 @@ func parseDynamoDBAttrs(attrs map[string]any) dynamoDBAttrs {
 }
 
 // DynamoDBSpec declares aws_dynamodb_table cost estimation.
-func DynamoDBSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
-	return resourcespec.ResourceSpec{
+func DynamoDBSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[dynamoDBAttrs] {
+	return resourcespec.TypedSpec[dynamoDBAttrs]{
 		Type:     resourcedef.ResourceType(awskit.ResourceDynamoDBTable),
 		Category: resourcedef.CostCategoryUsageBased,
-		Lookup: &resourcespec.LookupSpec{
-			BuildFunc: func(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
-				parsed := parseDynamoDBAttrs(attrs)
-				if parsed.BillingMode == "PAY_PER_REQUEST" {
+		Parse:    parseDynamoDBAttrs,
+		Lookup: &resourcespec.TypedLookupSpec[dynamoDBAttrs]{
+			BuildFunc: func(region string, p dynamoDBAttrs) (*pricing.PriceLookup, error) {
+				if p.BillingMode == "PAY_PER_REQUEST" {
 					return deps.RuntimeOrDefault().StandardLookupSpec(
 						awskit.ServiceKeyDynamoDB,
 						"Amazon DynamoDB PayPerRequest Throughput",
 						func(string, map[string]any) (map[string]string, error) { return nil, nil },
-					).Build(region, attrs)
+					).Build(region, nil)
 				}
 				return deps.RuntimeOrDefault().StandardLookupSpec(
 					awskit.ServiceKeyDynamoDB,
@@ -51,28 +51,26 @@ func DynamoDBSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
 					func(string, map[string]any) (map[string]string, error) {
 						return map[string]string{"group": "DDB-WriteUnits"}, nil
 					},
-				).Build(region, attrs)
+				).Build(region, nil)
 			},
 		},
-		Describe: &resourcespec.DescribeSpec{
-			BuildFunc: func(_ *pricing.Price, attrs map[string]any) map[string]string {
-				parsed := parseDynamoDBAttrs(attrs)
+		Describe: &resourcespec.TypedDescribeSpec[dynamoDBAttrs]{
+			BuildFunc: func(_ *pricing.Price, p dynamoDBAttrs) map[string]string {
 				return awskit.NewDescribeBuilder().
-					String("billing_mode", parsed.BillingMode).
-					Int("read_capacity", parsed.ReadCapacity).
-					Int("write_capacity", parsed.WriteCapacity).
+					String("billing_mode", p.BillingMode).
+					Int("read_capacity", p.ReadCapacity).
+					Int("write_capacity", p.WriteCapacity).
 					Map()
 			},
 		},
-		Usage: &resourcespec.UsagePricingSpec{
-			EstimateFunc: func(_ string, attrs map[string]any) model.UsageCostEstimate {
-				parsed := parseDynamoDBAttrs(attrs)
-				if parsed.BillingMode == "PAY_PER_REQUEST" {
+		Usage: &resourcespec.TypedUsagePricingSpec[dynamoDBAttrs]{
+			EstimateFunc: func(_ string, p dynamoDBAttrs) model.UsageCostEstimate {
+				if p.BillingMode == "PAY_PER_REQUEST" {
 					return model.UsageCostEstimate{Status: model.ResourceEstimateStatusUsageUnknown}
 				}
 
-				readCapacity := parsed.ReadCapacity
-				writeCapacity := parsed.WriteCapacity
+				readCapacity := p.ReadCapacity
+				writeCapacity := p.WriteCapacity
 				if readCapacity == 0 {
 					readCapacity = DynamoDBDefaultCapacity
 				}

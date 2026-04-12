@@ -17,12 +17,13 @@ const (
 )
 
 // LogGroupSpec declares aws_cloudwatch_log_group cost estimation.
-func LogGroupSpec() resourcespec.ResourceSpec {
-	return resourcespec.ResourceSpec{
+func LogGroupSpec() resourcespec.TypedSpec[resourcespec.NoAttrs] {
+	return resourcespec.TypedSpec[resourcespec.NoAttrs]{
 		Type:     resourcedef.ResourceType(awskit.ResourceCloudWatchLogGroup),
 		Category: resourcedef.CostCategoryUsageBased,
-		Usage: &resourcespec.UsagePricingSpec{
-			EstimateFunc: func(_ string, _ map[string]any) model.UsageCostEstimate {
+		Parse:    resourcespec.ParseNoAttrs,
+		Usage: &resourcespec.TypedUsagePricingSpec[resourcespec.NoAttrs]{
+			EstimateFunc: func(_ string, _ resourcespec.NoAttrs) model.UsageCostEstimate {
 				return model.UsageCostEstimate{Status: model.ResourceEstimateStatusUsageUnknown}
 			},
 		},
@@ -40,18 +41,15 @@ func parseAlarmAttrs(attrs map[string]any) alarmAttrs {
 }
 
 // AlarmSpec declares aws_cloudwatch_metric_alarm cost estimation.
-func AlarmSpec() resourcespec.ResourceSpec {
-	return resourcespec.ResourceSpec{
+func AlarmSpec() resourcespec.TypedSpec[alarmAttrs] {
+	return resourcespec.TypedSpec[alarmAttrs]{
 		Type:     resourcedef.ResourceType(awskit.ResourceCloudWatchMetricAlarm),
 		Category: resourcedef.CostCategoryFixed,
-		Lookup: &resourcespec.LookupSpec{
-			BuildFunc: func(_ string, _ map[string]any) (*pricing.PriceLookup, error) { return nil, nil },
-		},
-		Describe: &resourcespec.DescribeSpec{
-			BuildFunc: func(_ *pricing.Price, attrs map[string]any) map[string]string {
+		Parse:    parseAlarmAttrs,
+		Describe: &resourcespec.TypedDescribeSpec[alarmAttrs]{
+			BuildFunc: func(_ *pricing.Price, p alarmAttrs) map[string]string {
 				desc := make(map[string]string)
-				parsed := parseAlarmAttrs(attrs)
-				if parsed.Period > 0 && parsed.Period < HighResolutionThresholdSeconds {
+				if p.Period > 0 && p.Period < HighResolutionThresholdSeconds {
 					desc["resolution"] = "high"
 				} else {
 					desc["resolution"] = "standard"
@@ -59,10 +57,9 @@ func AlarmSpec() resourcespec.ResourceSpec {
 				return desc
 			},
 		},
-		Fixed: &resourcespec.FixedPricingSpec{
-			CostFunc: func(_ string, attrs map[string]any) (hourly, monthly float64) {
-				parsed := parseAlarmAttrs(attrs)
-				if parsed.Period > 0 && parsed.Period < HighResolutionThresholdSeconds {
+		Fixed: &resourcespec.TypedFixedPricingSpec[alarmAttrs]{
+			CostFunc: func(_ string, p alarmAttrs) (hourly, monthly float64) {
+				if p.Period > 0 && p.Period < HighResolutionThresholdSeconds {
 					return costutil.FixedMonthlyCost(CloudWatchHighResAlarmCost)
 				}
 				return costutil.FixedMonthlyCost(CloudWatchStandardAlarmCost)
