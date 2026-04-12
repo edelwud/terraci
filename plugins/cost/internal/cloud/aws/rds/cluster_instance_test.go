@@ -5,7 +5,7 @@ import (
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
-	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
+	"github.com/edelwud/terraci/plugins/cost/internal/definitiontest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
@@ -35,9 +35,9 @@ func TestClusterInstanceHandler_Contract(t *testing.T) {
 
 	category := resourcedef.CostCategoryStandard
 	def := resourcespec.MustCompileTyped(ClusterInstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
-	handlertest.RunContractSuite(t, def, handlertest.ContractSuite{
+	definitiontest.RunContractSuite(t, def, definitiontest.ContractSuite{
 		Category: &category,
-		LookupCases: []handlertest.LookupCase{
+		LookupCases: []definitiontest.LookupCase{
 			{
 				Name:   "aurora-mysql instance",
 				Region: "us-east-1",
@@ -79,7 +79,7 @@ func TestClusterInstanceHandler_Contract(t *testing.T) {
 				WantErr: true,
 			},
 		},
-		DescribeCases: []handlertest.DescribeCase{
+		DescribeCases: []definitiontest.DescribeCase{
 			{
 				Name:       "nil attrs",
 				Attrs:      nil,

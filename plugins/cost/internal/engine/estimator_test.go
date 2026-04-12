@@ -306,7 +306,7 @@ func TestEstimateModule_CompoundResource(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Error("CompoundHandler did not synthesize root_block_device")
+		t.Error("resource definition did not synthesize root_block_device")
 	}
 }
 

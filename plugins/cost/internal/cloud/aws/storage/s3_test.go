@@ -3,7 +3,7 @@ package storage
 import (
 	"testing"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
+	"github.com/edelwud/terraci/plugins/cost/internal/definitiontest"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
@@ -13,14 +13,14 @@ func TestS3Handler_Category(t *testing.T) {
 	t.Parallel()
 
 	def := resourcespec.MustCompileTyped(S3Spec())
-	handlertest.AssertCategory(t, def, resourcedef.CostCategoryUsageBased)
+	definitiontest.AssertCategory(t, def, resourcedef.CostCategoryUsageBased)
 }
 
 func TestS3Handler_BuildLookupReturnsNil(t *testing.T) {
 	t.Parallel()
 
 	def := resourcespec.MustCompileTyped(S3Spec())
-	handlertest.AssertNilLookup(t, def, "us-east-1", nil)
+	definitiontest.AssertNilLookup(t, def, "us-east-1", nil)
 }
 
 func TestS3Handler_CalculateUsageCost(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
-	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
+	"github.com/edelwud/terraci/plugins/cost/internal/definitiontest"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
@@ -14,14 +14,14 @@ func TestLogGroupHandler_Category(t *testing.T) {
 	t.Parallel()
 
 	def := resourcespec.MustCompileTyped(LogGroupSpec())
-	handlertest.AssertCategory(t, def, resourcedef.CostCategoryUsageBased)
+	definitiontest.AssertCategory(t, def, resourcedef.CostCategoryUsageBased)
 }
 
 func TestAlarmHandler_Category(t *testing.T) {
 	t.Parallel()
 
 	def := resourcespec.MustCompileTyped(AlarmSpec())
-	handlertest.AssertCategory(t, def, resourcedef.CostCategoryFixed)
+	definitiontest.AssertCategory(t, def, resourcedef.CostCategoryFixed)
 }
 
 func TestLogGroupHandler_CalculateUsageCost(t *testing.T) {
@@ -47,7 +47,7 @@ func TestAlarmHandler_BuildLookup_ReturnsNil(t *testing.T) {
 	t.Parallel()
 
 	def := resourcespec.MustCompileTyped(AlarmSpec())
-	handlertest.AssertNilLookup(t, def, "us-east-1", nil)
+	definitiontest.AssertNilLookup(t, def, "us-east-1", nil)
 }
 
 func TestAlarmHandler_CalculateFixedCost(t *testing.T) {

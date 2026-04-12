@@ -4,17 +4,17 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
 
-// Runtime exposes provider-owned metadata and helpers to AWS handlers.
+// Runtime exposes provider-owned metadata and helpers to AWS resource specs and definitions.
 type Runtime struct {
 	Manifest pricing.ProviderManifest
 }
 
-// RuntimeDeps stores an optional AWS provider runtime for a handler.
+// RuntimeDeps stores an optional AWS provider runtime for a resource spec.
 type RuntimeDeps struct {
 	Runtime *Runtime
 }
 
-// NewRuntimeDeps constructs handler runtime dependencies for AWS handlers.
+// NewRuntimeDeps constructs runtime dependencies for AWS resource specs.
 func NewRuntimeDeps(runtime *Runtime) RuntimeDeps {
 	return RuntimeDeps{Runtime: runtime}
 }

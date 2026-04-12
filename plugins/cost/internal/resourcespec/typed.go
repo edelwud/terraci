@@ -10,7 +10,7 @@ import (
 )
 
 // TypedSpec is a resource spec where all callbacks receive pre-parsed typed attributes.
-// A is the handler's own attrs struct (e.g., instanceAttrs, ebsVolumeAttrs).
+// A is the resource's own attrs struct (e.g., instanceAttrs, ebsVolumeAttrs).
 // It compiles down to the same resourcedef.Definition via CompileTyped.
 type TypedSpec[A any] struct {
 	Type     resourcedef.ResourceType
@@ -103,7 +103,7 @@ func (s TypedSpec[A]) Validate() error {
 }
 
 // CompileTyped turns a typed resource spec into the canonical runtime definition.
-// The Parse function wraps each callback so handlers receive pre-parsed attributes.
+// The Parse function wraps each callback so resource logic receives pre-parsed attributes.
 func CompileTyped[A any](spec TypedSpec[A]) (resourcedef.Definition, error) {
 	if err := spec.Validate(); err != nil {
 		return resourcedef.Definition{}, err

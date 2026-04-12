@@ -3,7 +3,7 @@ package serverless
 import (
 	"testing"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
+	"github.com/edelwud/terraci/plugins/cost/internal/definitiontest"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
@@ -13,7 +13,7 @@ func TestSQSHandler_Contract(t *testing.T) {
 	t.Parallel()
 
 	category := resourcedef.CostCategoryUsageBased
-	handlertest.RunContractSuite(t, resourcespec.MustCompileTyped(SQSSpec()), handlertest.ContractSuite{
+	definitiontest.RunContractSuite(t, resourcespec.MustCompileTyped(SQSSpec()), definitiontest.ContractSuite{
 		Category: &category,
 	})
 }

@@ -5,7 +5,7 @@ import (
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
-	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
+	"github.com/edelwud/terraci/plugins/cost/internal/definitiontest"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
@@ -90,9 +90,9 @@ func TestDynamoDBHandler_Contract(t *testing.T) {
 	t.Parallel()
 
 	category := resourcedef.CostCategoryUsageBased
-	handlertest.RunContractSuite(t, resourcespec.MustCompileTyped(DynamoDBSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
+	definitiontest.RunContractSuite(t, resourcespec.MustCompileTyped(DynamoDBSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), definitiontest.ContractSuite{
 		Category: &category,
-		LookupCases: []handlertest.LookupCase{
+		LookupCases: []definitiontest.LookupCase{
 			{
 				Name:   "provisioned default",
 				Region: "us-east-1",
@@ -105,7 +105,7 @@ func TestDynamoDBHandler_Contract(t *testing.T) {
 				},
 			},
 		},
-		DescribeCases: []handlertest.DescribeCase{
+		DescribeCases: []definitiontest.DescribeCase{
 			{
 				Name:       "nil attrs",
 				Attrs:      nil,

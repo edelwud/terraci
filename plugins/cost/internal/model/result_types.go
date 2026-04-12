@@ -42,7 +42,7 @@ func (r ResourceCost) IsUsageBased() bool {
 	return r.Status == ResourceEstimateStatusUsageEstimated || r.Status == ResourceEstimateStatusUsageUnknown
 }
 
-// IsFailed reports whether the resource estimation failed after handler selection.
+// IsFailed reports whether the resource estimation failed after resource-definition resolution.
 func (r ResourceCost) IsFailed() bool {
 	return r.Status == ResourceEstimateStatusFailed
 }

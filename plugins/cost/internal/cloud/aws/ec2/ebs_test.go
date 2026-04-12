@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
+	"github.com/edelwud/terraci/plugins/cost/internal/definitiontest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
@@ -21,9 +21,9 @@ func TestEBSHandler_Contract(t *testing.T) {
 	t.Parallel()
 
 	category := resourcedef.CostCategoryStandard
-	handlertest.RunContractSuite(t, resourcespec.MustCompileTyped(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
+	definitiontest.RunContractSuite(t, resourcespec.MustCompileTyped(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), definitiontest.ContractSuite{
 		Category: &category,
-		LookupCases: []handlertest.LookupCase{
+		LookupCases: []definitiontest.LookupCase{
 			{
 				Name:   "default gp2",
 				Region: "us-east-1",
@@ -62,7 +62,7 @@ func TestEBSHandler_Contract(t *testing.T) {
 				},
 			},
 		},
-		DescribeCases: []handlertest.DescribeCase{
+		DescribeCases: []definitiontest.DescribeCase{
 			{
 				Name:       "nil attrs",
 				Attrs:      nil,

@@ -33,7 +33,7 @@ const (
 // inline attributes (e.g., root_block_device inside aws_instance → aws_ebs_volume).
 type SubResource struct {
 	Suffix string       // Address suffix, e.g., "/root_volume"
-	Type   ResourceType // Resource type for handler lookup, e.g., "aws_ebs_volume"
+	Type   ResourceType // Resource type for definition lookup, e.g., "aws_ebs_volume"
 	Attrs  map[string]any
 }
 

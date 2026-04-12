@@ -14,7 +14,7 @@ import (
 )
 
 // EstimationRuntime is the single engine-facing runtime surface for provider routing,
-// handler lookup, pricing access, metadata, and cache diagnostics.
+// resource-definition lookup, pricing access, metadata, and cache diagnostics.
 type EstimationRuntime struct {
 	catalog *ProviderCatalog
 	pricing *ProviderRuntimeRegistry
@@ -34,8 +34,8 @@ func NewEstimationRuntime(catalog *ProviderCatalog, pricingRuntime *ProviderRunt
 	}, nil
 }
 
-// NewEstimationRuntimeFromProviders creates the default runtime from provider definitions,
-// handler registration, and pricing cache wiring.
+// NewEstimationRuntimeFromProviders creates the default runtime from provider definitions
+// and pricing cache wiring.
 func NewEstimationRuntimeFromProviders(
 	providers []cloud.Provider,
 	cache *blobcache.Cache,

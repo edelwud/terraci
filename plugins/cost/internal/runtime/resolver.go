@@ -14,7 +14,7 @@ import (
 
 const priceSourceUsageBased = "usage-based"
 
-// ProviderCatalogRuntime exposes provider ownership and handler lookup for resolution and planning.
+// ProviderCatalogRuntime exposes provider ownership and resource-definition lookup for resolution and planning.
 type ProviderCatalogRuntime interface {
 	ResolveProvider(resourceType resourcedef.ResourceType) (string, bool)
 	ResolveDefinition(providerID string, resourceType resourcedef.ResourceType) (resourcedef.Definition, bool)
@@ -43,7 +43,7 @@ type CostResolver struct {
 }
 
 // ResolutionState stores per-resource pricing lookups that can be reused across
-// current/before-state resolution without changing handler contracts.
+// current/before-state resolution without changing resource-definition contracts.
 type ResolutionState struct {
 	indexes map[string]*pricing.PriceIndex
 }
@@ -334,7 +334,7 @@ func indexCacheKey(service pricing.ServiceID, region string) string {
 	return service.String() + "|" + region
 }
 
-// logUnsupportedResource emits a debug-level trace when a resource type has no registered handler.
+// logUnsupportedResource emits a debug-level trace when a resource type has no registered definition.
 func logUnsupportedResource(resourceType, address string) {
 	log.WithField("type", resourceType).
 		WithField("address", address).

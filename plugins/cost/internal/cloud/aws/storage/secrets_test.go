@@ -3,7 +3,7 @@ package storage
 import (
 	"testing"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
+	"github.com/edelwud/terraci/plugins/cost/internal/definitiontest"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
@@ -12,7 +12,7 @@ func TestSecretsManagerHandler_Category(t *testing.T) {
 	t.Parallel()
 
 	def := resourcespec.MustCompileTyped(SecretsManagerSpec())
-	handlertest.AssertCategory(t, def, resourcedef.CostCategoryFixed)
+	definitiontest.AssertCategory(t, def, resourcedef.CostCategoryFixed)
 }
 
 func TestSecretsManagerHandler_CalculateFixedCost(t *testing.T) {
@@ -33,7 +33,7 @@ func TestSecretsManagerHandler_BuildLookup(t *testing.T) {
 	t.Parallel()
 
 	def := resourcespec.MustCompileTyped(SecretsManagerSpec())
-	handlertest.AssertNilLookup(t, def, "us-east-1", nil)
+	definitiontest.AssertNilLookup(t, def, "us-east-1", nil)
 }
 
 func TestSecretsManagerHandler_Describe(t *testing.T) {

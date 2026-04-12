@@ -4,14 +4,14 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
-	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
+	"github.com/edelwud/terraci/plugins/cost/internal/definitiontest"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
 func TestKMSHandler_FixedContract(t *testing.T) {
 	t.Parallel()
 
-	handlertest.AssertFixedCategory(t, resourcespec.MustCompileTyped(KMSSpec()))
+	definitiontest.AssertFixedCategory(t, resourcespec.MustCompileTyped(KMSSpec()))
 }
 
 func TestKMSHandler_CalculateFixedCost(t *testing.T) {
@@ -37,7 +37,7 @@ func TestKMSHandler_BuildLookupReturnsNil(t *testing.T) {
 	t.Parallel()
 
 	def := resourcespec.MustCompileTyped(KMSSpec())
-	handlertest.AssertNilLookup(t, def, "us-east-1", nil)
+	definitiontest.AssertNilLookup(t, def, "us-east-1", nil)
 }
 
 func TestKMSHandler_DescribeReturnsNil(t *testing.T) {

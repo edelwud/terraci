@@ -5,7 +5,7 @@ import (
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
-	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
+	"github.com/edelwud/terraci/plugins/cost/internal/definitiontest"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
@@ -13,14 +13,14 @@ import (
 func TestLambdaHandler_Category(t *testing.T) {
 	t.Parallel()
 
-	handlertest.AssertUsageBasedCategory(t, resourcespec.MustCompileTyped(LambdaSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))))
+	definitiontest.AssertUsageBasedCategory(t, resourcespec.MustCompileTyped(LambdaSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))))
 }
 
 func TestLambdaHandler_BuildLookup(t *testing.T) {
 	t.Parallel()
 
 	def := resourcespec.MustCompileTyped(LambdaSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
-	lookup := handlertest.RequireLookup(t, def, "us-east-1", nil)
+	lookup := definitiontest.RequireLookup(t, def, "us-east-1", nil)
 
 	if lookup.ProductFamily != "Serverless" {
 		t.Errorf("ProductFamily = %q, want %q", lookup.ProductFamily, "Serverless")

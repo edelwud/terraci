@@ -5,7 +5,7 @@ import (
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
-	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
+	"github.com/edelwud/terraci/plugins/cost/internal/definitiontest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
@@ -15,9 +15,9 @@ func TestReplicationGroupHandler_Contract(t *testing.T) {
 	t.Parallel()
 
 	category := resourcedef.CostCategoryStandard
-	handlertest.RunContractSuite(t, resourcespec.MustCompileTyped(ReplicationGroupSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
+	definitiontest.RunContractSuite(t, resourcespec.MustCompileTyped(ReplicationGroupSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), definitiontest.ContractSuite{
 		Category: &category,
-		LookupCases: []handlertest.LookupCase{
+		LookupCases: []definitiontest.LookupCase{
 			{
 				Name:   "replication group",
 				Region: "us-east-1",
@@ -38,7 +38,7 @@ func TestReplicationGroupHandler_Contract(t *testing.T) {
 				WantErr: true,
 			},
 		},
-		DescribeCases: []handlertest.DescribeCase{
+		DescribeCases: []definitiontest.DescribeCase{
 			{
 				Name: "replication group description",
 				Attrs: map[string]any{

@@ -40,7 +40,7 @@ func newDefaultProviderRouter(providers []cloud.Provider) *ResourceProviderRoute
 	return router
 }
 
-// ProviderCatalog resolves provider ownership, handlers, and provider metadata.
+// ProviderCatalog resolves provider ownership, resource definitions, and provider metadata.
 type ProviderCatalog struct {
 	defs     map[string]map[resourcedef.ResourceType]resourcedef.Definition
 	router   *ResourceProviderRouter

@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
+	"github.com/edelwud/terraci/plugins/cost/internal/definitiontest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
@@ -14,9 +14,9 @@ func TestALBHandler_Category(t *testing.T) {
 	t.Parallel()
 
 	category := resourcedef.CostCategoryStandard
-	handlertest.RunContractSuite(t, resourcespec.MustCompileTyped(ALBSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
+	definitiontest.RunContractSuite(t, resourcespec.MustCompileTyped(ALBSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), definitiontest.ContractSuite{
 		Category: &category,
-		LookupCases: []handlertest.LookupCase{
+		LookupCases: []definitiontest.LookupCase{
 			{
 				Name:   "default ALB",
 				Region: "us-east-1",
@@ -68,7 +68,7 @@ func TestALBHandler_Category(t *testing.T) {
 				},
 			},
 		},
-		DescribeCases: []handlertest.DescribeCase{
+		DescribeCases: []definitiontest.DescribeCase{
 			{
 				Name:     "default application",
 				Attrs:    map[string]any{},

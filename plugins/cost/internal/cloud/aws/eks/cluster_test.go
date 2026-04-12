@@ -5,7 +5,7 @@ import (
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
-	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
+	"github.com/edelwud/terraci/plugins/cost/internal/definitiontest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
@@ -15,7 +15,7 @@ func TestClusterHandler_Category(t *testing.T) {
 	t.Parallel()
 
 	def := resourcespec.MustCompileTyped(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
-	handlertest.AssertCategory(t, def, resourcedef.CostCategoryStandard)
+	definitiontest.AssertCategory(t, def, resourcedef.CostCategoryStandard)
 }
 
 func TestClusterHandler_BuildLookup(t *testing.T) {
@@ -23,7 +23,7 @@ func TestClusterHandler_BuildLookup(t *testing.T) {
 
 	def := resourcespec.MustCompileTyped(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
-	handlertest.RunLookupCases(t, def, []handlertest.LookupCase{
+	definitiontest.RunLookupCases(t, def, []definitiontest.LookupCase{
 		{
 			Name:   "us east region",
 			Region: "us-east-1",
@@ -110,7 +110,7 @@ func TestClusterHandler_Describe(t *testing.T) {
 
 	def := resourcespec.MustCompileTyped(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
-	handlertest.RunDescribeCases(t, def, []handlertest.DescribeCase{
+	definitiontest.RunDescribeCases(t, def, []definitiontest.DescribeCase{
 		{
 			Name:       "nil attrs",
 			Attrs:      nil,
