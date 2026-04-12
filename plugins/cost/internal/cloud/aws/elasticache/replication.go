@@ -2,79 +2,62 @@ package elasticache
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
-// ReplicationGroupHandler handles aws_elasticache_replication_group cost estimation
-type ReplicationGroupHandler struct {
-	awskit.RuntimeDeps
-}
-
-func (h *ReplicationGroupHandler) Category() handler.CostCategory {
-	return handler.CostCategoryStandard
-}
-
-func (h *ReplicationGroupHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
-	parsed := parseReplicationGroupAttrs(attrs)
-	if parsed.NodeType == "" {
-		return nil, errors.New("node_type not found")
-	}
-
-	runtime := h.RuntimeOrDefault()
-	spec := runtime.StandardLookupSpec(
-		awskit.ServiceKeyElastiCache,
-		"Cache Instance",
-		func(region string, _ map[string]any) (map[string]string, error) {
-			prefix := runtime.ResolveUsagePrefix(region)
-			return map[string]string{
-				"instanceType": parsed.NodeType,
-				"cacheEngine":  "Redis",
-				"usagetype":    prefix + "-NodeUsage:" + parsed.NodeType,
-			}, nil
+// ReplicationGroupSpec declares aws_elasticache_replication_group cost estimation.
+func ReplicationGroupSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
+	return resourcespec.ResourceSpec{
+		Type:     handler.ResourceType(awskit.ResourceElastiCacheReplicationGroup),
+		Category: handler.CostCategoryStandard,
+		Lookup: &resourcespec.LookupSpec{
+			BuildFunc: func(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
+				parsed := parseReplicationGroupAttrs(attrs)
+				if parsed.NodeType == "" {
+					return nil, errors.New("node_type not found")
+				}
+				runtime := deps.RuntimeOrDefault()
+				return runtime.StandardLookupSpec(
+					awskit.ServiceKeyElastiCache,
+					"Cache Instance",
+					func(region string, _ map[string]any) (map[string]string, error) {
+						prefix := runtime.ResolveUsagePrefix(region)
+						return map[string]string{
+							"instanceType": parsed.NodeType,
+							"cacheEngine":  "Redis",
+							"usagetype":    prefix + "-NodeUsage:" + parsed.NodeType,
+						}, nil
+					},
+				).Build(region, attrs)
+			},
 		},
-	)
-
-	return spec.Build(region, attrs)
-}
-
-func (h *ReplicationGroupHandler) Describe(price *pricing.Price, attrs map[string]any) map[string]string {
-	parsed := parseReplicationGroupAttrs(attrs)
-	b := awskit.DescribeBuilder{}
-	b.String("node_type", parsed.NodeType)
-	if parsed.NumNodeGroupsSet {
-		b.Int("node_groups", parsed.NumNodeGroups)
+		Describe: &resourcespec.DescribeSpec{
+			BuildFunc: func(price *pricing.Price, attrs map[string]any) map[string]string {
+				parsed := parseReplicationGroupAttrs(attrs)
+				b := awskit.DescribeBuilder{}
+				b.String("node_type", parsed.NodeType)
+				if parsed.NumNodeGroupsSet {
+					b.Int("node_groups", parsed.NumNodeGroups)
+				}
+				b.Int("replicas_per_group", parsed.ReplicasPerNodeGroup)
+				b.Int("snapshot_retention_days", parsed.SnapshotRetentionDays)
+				b.Int("total_nodes", parsed.totalNodes())
+				appendNodeCapacityDescribeFields(&b, price)
+				return b.Map()
+			},
+		},
+		Standard: &resourcespec.StandardPricingSpec{
+			CostFunc: func(price *pricing.Price, index *pricing.PriceIndex, region string, attrs map[string]any) (hourly, monthly float64) {
+				parsed := parseReplicationGroupAttrs(attrs)
+				totalNodes := parsed.totalNodes()
+				_, monthly = handler.ScaledHourlyCost(price.OnDemandUSD, totalNodes)
+				monthly += nodeStorageAddOnMonthlyCost(deps.RuntimeOrDefault(), price, index, region, totalNodes, parsed.SnapshotRetentionDays)
+				return monthly / handler.HoursPerMonth, monthly
+			},
+		},
 	}
-	b.Int("replicas_per_group", parsed.ReplicasPerNodeGroup)
-	b.Int("snapshot_retention_days", parsed.SnapshotRetentionDays)
-	totalNodes := parsed.totalNodes()
-	b.Int("total_nodes", totalNodes)
-	if mem := nodeMemoryFromPrice(price); mem > 0 {
-		b.String("memory_gib", fmt.Sprintf("%.2f", mem))
-	}
-	if ssd := nodeSSDFromPrice(price); ssd > 0 {
-		b.String("ssd_gib", fmt.Sprintf("%.0f", ssd))
-	}
-	return b.Map()
-}
-
-func (h *ReplicationGroupHandler) CalculateCost(price *pricing.Price, index *pricing.PriceIndex, region string, attrs map[string]any) (hourly, monthly float64) {
-	parsed := parseReplicationGroupAttrs(attrs)
-	totalNodes := parsed.totalNodes()
-
-	_, monthly = handler.ScaledHourlyCost(price.OnDemandUSD, totalNodes)
-
-	// Data tiering cost for nodes with local SSD (r6gd/r7gd)
-	monthly += dataTieringCost(h.RuntimeOrDefault(), price, index, region, totalNodes)
-
-	// Backup storage cost
-	if parsed.SnapshotRetentionDays > 0 {
-		monthly += backupStorageCost(h.RuntimeOrDefault(), price, index, region, totalNodes, parsed.SnapshotRetentionDays)
-	}
-
-	hourly = monthly / handler.HoursPerMonth
-	return hourly, monthly
 }

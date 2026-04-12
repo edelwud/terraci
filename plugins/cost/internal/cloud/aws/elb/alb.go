@@ -4,6 +4,7 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
 // LB pricing constants
@@ -20,11 +21,6 @@ const (
 	defaultGWLBHourlyCost = 0.0125
 )
 
-// ALBHandler handles aws_lb (ALB/NLB) cost estimation
-type ALBHandler struct {
-	awskit.RuntimeDeps
-}
-
 type lbAttrs struct {
 	LoadBalancerType string
 }
@@ -39,50 +35,56 @@ func parseLBAttrs(attrs map[string]any) lbAttrs {
 	return parsed
 }
 
-func (h *ALBHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
-
-func (h *ALBHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
-	parsed := parseLBAttrs(attrs)
-
-	runtime := h.RuntimeOrDefault()
-	spec := runtime.StandardLookupSpec(
-		awskit.ServiceKeyEC2,
-		"",
-		func(region string, _ map[string]any) (map[string]string, error) {
-			return map[string]string{
-				"usagetype": runtime.ResolveUsagePrefix(region) + "-" + usageType,
-			}, nil
+// ALBSpec declares aws_lb/aws_alb cost estimation.
+func ALBSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
+	return resourcespec.ResourceSpec{
+		Type:     handler.ResourceType(awskit.ResourceLoadBalancer),
+		Category: handler.CostCategoryStandard,
+		Lookup: &resourcespec.LookupSpec{
+			BuildFunc: func(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
+				parsed := parseLBAttrs(attrs)
+				runtime := deps.RuntimeOrDefault()
+				spec := runtime.StandardLookupSpec(
+					awskit.ServiceKeyEC2,
+					"",
+					func(region string, _ map[string]any) (map[string]string, error) {
+						return map[string]string{
+							"usagetype": runtime.ResolveUsagePrefix(region) + "-" + usageType,
+						}, nil
+					},
+				)
+				switch parsed.LoadBalancerType {
+				case typeNetwork:
+					spec.ProductFamily = "Load Balancer-Network"
+				case typeGateway:
+					spec.ProductFamily = "Load Balancer-Gateway"
+				default:
+					spec.ProductFamily = productFamilyALB
+				}
+				return spec.Build(region, attrs)
+			},
 		},
-	)
-
-	switch parsed.LoadBalancerType {
-	case typeNetwork:
-		spec.ProductFamily = "Load Balancer-Network"
-	case typeGateway:
-		spec.ProductFamily = "Load Balancer-Gateway"
-	default:
-		spec.ProductFamily = productFamilyALB
+		Describe: &resourcespec.DescribeSpec{
+			Fields: []resourcespec.DescribeField{
+				{Key: "type", Value: func(_ *pricing.Price, attrs map[string]any) (string, bool) {
+					return parseLBAttrs(attrs).LoadBalancerType, true
+				}},
+			},
+		},
+		Standard: &resourcespec.StandardPricingSpec{
+			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
+				if price != nil && price.OnDemandUSD > 0 {
+					return handler.HourlyCost(price.OnDemandUSD)
+				}
+				switch parseLBAttrs(attrs).LoadBalancerType {
+				case typeNetwork:
+					return handler.HourlyCost(defaultNLBHourlyCost)
+				case typeGateway:
+					return handler.HourlyCost(defaultGWLBHourlyCost)
+				default:
+					return handler.HourlyCost(defaultALBHourlyCost)
+				}
+			},
+		},
 	}
-
-	return spec.Build(region, attrs)
-}
-
-func (h *ALBHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
-	return map[string]string{"type": parseLBAttrs(attrs).LoadBalancerType}
-}
-
-func (h *ALBHandler) CalculateCost(price *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
-	rate := price.OnDemandUSD
-	if rate == 0 {
-		// Default pricing if lookup fails
-		switch parseLBAttrs(attrs).LoadBalancerType {
-		case typeNetwork:
-			rate = defaultNLBHourlyCost
-		case typeGateway:
-			rate = defaultGWLBHourlyCost
-		default:
-			rate = defaultALBHourlyCost
-		}
-	}
-	return handler.HourlyCost(rate)
 }

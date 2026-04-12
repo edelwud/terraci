@@ -1,17 +1,21 @@
-package serverless //nolint:dupl // SQS and SNS are structurally similar usage-based handlers
+package serverless
 
 import (
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
-// SQSHandler handles aws_sqs_queue cost estimation.
-type SQSHandler struct{}
-
-func (h *SQSHandler) Category() handler.CostCategory { return handler.CostCategoryUsageBased }
-
-func (h *SQSHandler) CalculateUsageCost(_ string, _ map[string]any) model.UsageCostEstimate {
-	// SQS: $0.40 per million requests (first million free)
-	// Usage-based, no fixed cost
-	return model.UsageCostEstimate{Status: model.ResourceEstimateStatusUsageUnknown}
+// SQSSpec declares aws_sqs_queue cost estimation.
+func SQSSpec() resourcespec.ResourceSpec {
+	return resourcespec.ResourceSpec{
+		Type:     handler.ResourceType(awskit.ResourceSQSQueue),
+		Category: handler.CostCategoryUsageBased,
+		Usage: &resourcespec.UsagePricingSpec{
+			EstimateFunc: func(_ string, _ map[string]any) model.UsageCostEstimate {
+				return model.UsageCostEstimate{Status: model.ResourceEstimateStatusUsageUnknown}
+			},
+		},
+	}
 }

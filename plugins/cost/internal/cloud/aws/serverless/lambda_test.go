@@ -3,21 +3,26 @@ package serverless
 import (
 	"testing"
 
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
 func TestLambdaHandler_Category(t *testing.T) {
 	t.Parallel()
 
-	handlertest.AssertUsageBasedCategory(t, &LambdaHandler{})
+	handlertest.AssertUsageBasedCategory(t, resourcespec.MustHandler(LambdaSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))))
 }
 
 func TestLambdaHandler_BuildLookup(t *testing.T) {
 	t.Parallel()
 
-	h := &LambdaHandler{}
+	h, ok := resourcespec.MustHandler(LambdaSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.LookupBuilder)
+	if !ok {
+		t.Fatal("handler should implement LookupBuilder")
+	}
 	lookup := handlertest.RequireLookup(t, h, "us-east-1", nil)
 
 	if lookup.ProductFamily != "Serverless" {
@@ -40,7 +45,10 @@ func TestLambdaHandler_BuildLookup(t *testing.T) {
 func TestLambdaHandler_CalculateUsageCost(t *testing.T) {
 	t.Parallel()
 
-	h := &LambdaHandler{}
+	h, ok := resourcespec.MustHandler(LambdaSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.UsageBasedCostHandler)
+	if !ok {
+		t.Fatal("handler should implement UsageBasedCostHandler")
+	}
 
 	tests := []struct {
 		name        string
@@ -118,7 +126,10 @@ func TestLambdaHandler_CalculateUsageCost(t *testing.T) {
 func TestLambdaHandler_Describe(t *testing.T) {
 	t.Parallel()
 
-	h := &LambdaHandler{}
+	h, ok := resourcespec.MustHandler(LambdaSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.Describer)
+	if !ok {
+		t.Fatal("handler should implement Describer")
+	}
 
 	tests := []struct {
 		name       string

@@ -1,12 +1,24 @@
 package elasticache
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 )
+
+// Backup storage fallback (used when API lookup unavailable).
+const FallbackBackupStorageCostPerGBMonth = 0.085
+
+// Data tiering fallback for r6gd/r7gd nodes.
+const FallbackDataTieringCostPerGBMonth = 0.0125
+
+type nodeCapacity struct {
+	MemoryGiB float64
+	SSDGiB    float64
+}
 
 // parseGiB extracts the numeric GiB value from AWS pricing attribute strings
 // like "13.07 GiB", "75 GiB NVMe SSD", etc. Returns 0 if parsing fails.
@@ -27,6 +39,13 @@ func parseGiB(s string) float64 {
 	return v
 }
 
+func nodeCapacityFromPrice(price *pricing.Price) nodeCapacity {
+	return nodeCapacity{
+		MemoryGiB: nodeMemoryFromPrice(price),
+		SSDGiB:    nodeSSDFromPrice(price),
+	}
+}
+
 // nodeMemoryFromPrice extracts memory in GiB from the primary price's attributes.
 // AWS pricing products include "memory" attribute like "13.07 GiB".
 func nodeMemoryFromPrice(price *pricing.Price) float64 {
@@ -45,10 +64,24 @@ func nodeSSDFromPrice(price *pricing.Price) float64 {
 	return parseGiB(price.Attributes["storage"])
 }
 
+func appendNodeCapacityDescribeFields(builder *awskit.DescribeBuilder, price *pricing.Price) {
+	if builder == nil || price == nil {
+		return
+	}
+
+	capacity := nodeCapacityFromPrice(price)
+	if capacity.MemoryGiB > 0 {
+		builder.String("memory_gib", fmt.Sprintf("%.2f", capacity.MemoryGiB))
+	}
+	if capacity.SSDGiB > 0 {
+		builder.String("ssd_gib", fmt.Sprintf("%.0f", capacity.SSDGiB))
+	}
+}
+
 // dataTieringCost calculates the SSD data tiering cost for nodes with local SSD.
 // SSD capacity is extracted from the price's "storage" attribute.
 func dataTieringCost(runtime *awskit.Runtime, price *pricing.Price, index *pricing.PriceIndex, region string, nodeCount int) float64 {
-	ssdGB := nodeSSDFromPrice(price)
+	ssdGB := nodeCapacityFromPrice(price).SSDGiB
 	if ssdGB == 0 {
 		return 0
 	}
@@ -68,7 +101,7 @@ func dataTieringCost(runtime *awskit.Runtime, price *pricing.Price, index *prici
 // AWS provides free backup storage equal to the total cache memory.
 // Additional backup is charged per GB-month.
 func backupStorageCost(runtime *awskit.Runtime, price *pricing.Price, index *pricing.PriceIndex, region string, nodeCount, snapshotRetention int) float64 {
-	memGB := nodeMemoryFromPrice(price)
+	memGB := nodeCapacityFromPrice(price).MemoryGiB
 	if memGB == 0 {
 		return 0
 	}
@@ -90,6 +123,14 @@ func backupStorageCost(runtime *awskit.Runtime, price *pricing.Price, index *pri
 	}
 
 	return chargeableGB * costPerGB
+}
+
+func nodeStorageAddOnMonthlyCost(runtime *awskit.Runtime, price *pricing.Price, index *pricing.PriceIndex, region string, nodeCount, snapshotRetention int) float64 {
+	monthly := dataTieringCost(runtime, price, index, region, nodeCount)
+	if snapshotRetention > 0 {
+		monthly += backupStorageCost(runtime, price, index, region, nodeCount, snapshotRetention)
+	}
+	return monthly
 }
 
 // lookupElastiCachePrice finds a price in the index by product family and usagetype.

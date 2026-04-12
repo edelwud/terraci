@@ -6,23 +6,25 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
 func TestSQSHandler_Contract(t *testing.T) {
 	t.Parallel()
 
 	category := handler.CostCategoryUsageBased
-	handlertest.RunContractSuite(t, &SQSHandler{}, handlertest.ContractSuite{
-		Category:         &category,
-		ExpectNoLookup:   true,
-		ExpectNoDescribe: true,
+	handlertest.RunContractSuite(t, resourcespec.MustHandler(SQSSpec()), handlertest.ContractSuite{
+		Category: &category,
 	})
 }
 
 func TestSQSHandler_CalculateUsageCost(t *testing.T) {
 	t.Parallel()
 
-	h := &SQSHandler{}
+	h, ok := resourcespec.MustHandler(SQSSpec()).(handler.UsageBasedCostHandler)
+	if !ok {
+		t.Fatal("handler should implement UsageBasedCostHandler")
+	}
 	got := h.CalculateUsageCost("", nil)
 	if got.HourlyCost != 0 {
 		t.Errorf("hourly = %v, want 0", got.HourlyCost)

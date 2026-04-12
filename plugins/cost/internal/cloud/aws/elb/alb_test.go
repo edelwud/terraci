@@ -3,16 +3,18 @@ package elb
 import (
 	"testing"
 
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
 func TestALBHandler_Category(t *testing.T) {
 	t.Parallel()
 
 	category := handler.CostCategoryStandard
-	handlertest.RunContractSuite(t, &ALBHandler{}, handlertest.ContractSuite{
+	handlertest.RunContractSuite(t, resourcespec.MustHandler(ALBSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
 		Category: &category,
 		LookupCases: []handlertest.LookupCase{
 			{
@@ -86,7 +88,10 @@ func TestALBHandler_Category(t *testing.T) {
 func TestALBHandler_CalculateCost(t *testing.T) {
 	t.Parallel()
 
-	h := &ALBHandler{}
+	h, ok := resourcespec.MustHandler(ALBSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
+	if !ok {
+		t.Fatal("handler should implement StandardCostHandler")
+	}
 
 	tests := []struct {
 		name           string

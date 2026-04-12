@@ -3,18 +3,23 @@ package elasticache
 import (
 	"testing"
 
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
 func TestServerlessHandler_Category(t *testing.T) {
-	h := &ServerlessHandler{}
+	h := resourcespec.MustHandler(ServerlessSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 	handlertest.AssertCategory(t, h, handler.CostCategoryStandard)
 }
 
 func TestServerlessHandler_BuildLookup(t *testing.T) {
-	h := &ServerlessHandler{}
+	h, ok := resourcespec.MustHandler(ServerlessSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.LookupBuilder)
+	if !ok {
+		t.Fatal("handler should implement LookupBuilder")
+	}
 
 	lookup := handlertest.RequireLookup(t, h, "us-east-1", map[string]any{})
 
@@ -27,7 +32,10 @@ func TestServerlessHandler_BuildLookup(t *testing.T) {
 }
 
 func TestServerlessHandler_CalculateCost(t *testing.T) {
-	h := &ServerlessHandler{}
+	h, ok := resourcespec.MustHandler(ServerlessSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
+	if !ok {
+		t.Fatal("handler should implement StandardCostHandler")
+	}
 
 	price := &pricing.Price{OnDemandUSD: 0.000171} // per GB-hour
 
@@ -71,7 +79,10 @@ func TestServerlessHandler_CalculateCost(t *testing.T) {
 }
 
 func TestServerlessHandler_CalculateCost_FallbackPrice(t *testing.T) {
-	h := &ServerlessHandler{}
+	h, ok := resourcespec.MustHandler(ServerlessSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
+	if !ok {
+		t.Fatal("handler should implement StandardCostHandler")
+	}
 
 	// Price with 0 USD — should fall back to default
 	price := &pricing.Price{OnDemandUSD: 0}
@@ -100,7 +111,10 @@ func TestServerlessHandler_CalculateCost_FallbackPrice(t *testing.T) {
 }
 
 func TestServerlessHandler_Describe(t *testing.T) {
-	h := &ServerlessHandler{}
+	h, ok := resourcespec.MustHandler(ServerlessSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.Describer)
+	if !ok {
+		t.Fatal("handler should implement Describer")
+	}
 
 	attrs := map[string]any{
 		"engine": "redis",

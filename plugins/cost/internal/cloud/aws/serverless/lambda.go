@@ -5,6 +5,7 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
 // Lambda pricing constants
@@ -14,13 +15,6 @@ const (
 	LambdaMemoryDivisor                         = 1024
 	SecondsPerHour                              = 3600
 )
-
-// LambdaHandler handles aws_lambda_function cost estimation
-// Note: Lambda pricing is usage-based (requests + duration)
-// For fixed cost estimation, we estimate based on memory and assume average invocations
-type LambdaHandler struct {
-	awskit.RuntimeDeps
-}
 
 type lambdaAttrs struct {
 	MemoryMB               int
@@ -36,49 +30,52 @@ func parseLambdaAttrs(attrs map[string]any) lambdaAttrs {
 	}
 }
 
-func (h *LambdaHandler) Category() handler.CostCategory { return handler.CostCategoryUsageBased }
-
-func (h *LambdaHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
-	parsed := parseLambdaAttrs(attrs)
-	return awskit.NewDescribeBuilder().
-		Int("memory_mb", parsed.MemoryMB).
-		String("runtime", parsed.Runtime).
-		Int("provisioned_concurrency", parsed.ProvisionedConcurrency).
-		Map()
-}
-
-func (h *LambdaHandler) BuildLookup(region string, _ map[string]any) (*pricing.PriceLookup, error) {
-	return h.RuntimeOrDefault().StandardLookupSpec(
-		awskit.ServiceKeyLambda,
-		"Serverless",
-		func(_ string, _ map[string]any) (map[string]string, error) {
-			return map[string]string{
-				"group": "AWS-Lambda-Duration",
-			}, nil
+// LambdaSpec declares aws_lambda_function cost estimation.
+func LambdaSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
+	return resourcespec.ResourceSpec{
+		Type:     handler.ResourceType(awskit.ResourceLambdaFunction),
+		Category: handler.CostCategoryUsageBased,
+		Lookup: &resourcespec.LookupSpec{
+			BuildFunc: func(region string, _ map[string]any) (*pricing.PriceLookup, error) {
+				return deps.RuntimeOrDefault().StandardLookupSpec(
+					awskit.ServiceKeyLambda,
+					"Serverless",
+					func(_ string, _ map[string]any) (map[string]string, error) {
+						return map[string]string{"group": "AWS-Lambda-Duration"}, nil
+					},
+				).Build(region, nil)
+			},
 		},
-	).Build(region, nil)
-}
-
-func (h *LambdaHandler) CalculateUsageCost(_ string, attrs map[string]any) model.UsageCostEstimate {
-	parsed := parseLambdaAttrs(attrs)
-	// Lambda has complex pricing: requests + GB-seconds
-	// For fixed cost, return 0 as it's usage-based
-	// Could estimate based on provisioned concurrency if set
-	if parsed.ProvisionedConcurrency > 0 {
-		memoryMB := parsed.MemoryMB
-		if memoryMB == 0 {
-			memoryMB = LambdaDefaultMemoryMB
-		}
-		// Provisioned concurrency: $0.000004646 per GB-second
-		gbSeconds := float64(parsed.ProvisionedConcurrency) * (float64(memoryMB) / LambdaMemoryDivisor) * SecondsPerHour
-		rate := gbSeconds * LambdaProvisionedConcurrencyCostPerGBSecond
-		hourly, monthly := handler.HourlyCost(rate)
-		return model.UsageCostEstimate{
-			HourlyCost:  hourly,
-			MonthlyCost: monthly,
-			Status:      model.ResourceEstimateStatusUsageEstimated,
-			Detail:      "usage-based estimate derived from provisioned concurrency",
-		}
+		Describe: &resourcespec.DescribeSpec{
+			BuildFunc: func(_ *pricing.Price, attrs map[string]any) map[string]string {
+				parsed := parseLambdaAttrs(attrs)
+				return awskit.NewDescribeBuilder().
+					Int("memory_mb", parsed.MemoryMB).
+					String("runtime", parsed.Runtime).
+					Int("provisioned_concurrency", parsed.ProvisionedConcurrency).
+					Map()
+			},
+		},
+		Usage: &resourcespec.UsagePricingSpec{
+			EstimateFunc: func(_ string, attrs map[string]any) model.UsageCostEstimate {
+				parsed := parseLambdaAttrs(attrs)
+				if parsed.ProvisionedConcurrency > 0 {
+					memoryMB := parsed.MemoryMB
+					if memoryMB == 0 {
+						memoryMB = LambdaDefaultMemoryMB
+					}
+					gbSeconds := float64(parsed.ProvisionedConcurrency) * (float64(memoryMB) / LambdaMemoryDivisor) * SecondsPerHour
+					rate := gbSeconds * LambdaProvisionedConcurrencyCostPerGBSecond
+					hourly, monthly := handler.HourlyCost(rate)
+					return model.UsageCostEstimate{
+						HourlyCost:  hourly,
+						MonthlyCost: monthly,
+						Status:      model.ResourceEstimateStatusUsageEstimated,
+						Detail:      "usage-based estimate derived from provisioned concurrency",
+					}
+				}
+				return model.UsageCostEstimate{Status: model.ResourceEstimateStatusUsageUnknown}
+			},
+		},
 	}
-	return model.UsageCostEstimate{Status: model.ResourceEstimateStatusUsageUnknown}
 }

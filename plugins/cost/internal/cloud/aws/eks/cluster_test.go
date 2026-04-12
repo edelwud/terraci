@@ -7,19 +7,23 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
 func TestClusterHandler_Category(t *testing.T) {
 	t.Parallel()
 
-	h := &ClusterHandler{}
+	h := resourcespec.MustHandler(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 	handlertest.AssertCategory(t, h, handler.CostCategoryStandard)
 }
 
 func TestClusterHandler_BuildLookup(t *testing.T) {
 	t.Parallel()
 
-	h := &ClusterHandler{}
+	h, ok := resourcespec.MustHandler(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.LookupBuilder)
+	if !ok {
+		t.Fatal("handler should implement LookupBuilder")
+	}
 
 	handlertest.RunLookupCases(t, h, []handlertest.LookupCase{
 		{
@@ -61,7 +65,10 @@ func TestClusterHandler_BuildLookup(t *testing.T) {
 func TestClusterHandler_CalculateCost_FromAPI(t *testing.T) {
 	t.Parallel()
 
-	h := &ClusterHandler{}
+	h, ok := resourcespec.MustHandler(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
+	if !ok {
+		t.Fatal("handler should implement StandardCostHandler")
+	}
 
 	price := &pricing.Price{OnDemandUSD: 0.10}
 	hourly, monthly := h.CalculateCost(price, nil, "", nil)
@@ -76,7 +83,10 @@ func TestClusterHandler_CalculateCost_FromAPI(t *testing.T) {
 func TestClusterHandler_CalculateCost_Fallback(t *testing.T) {
 	t.Parallel()
 
-	h := &ClusterHandler{}
+	h, ok := resourcespec.MustHandler(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
+	if !ok {
+		t.Fatal("handler should implement StandardCostHandler")
+	}
 
 	// nil price -> fallback to default
 	hourly, monthly := h.CalculateCost(nil, nil, "", nil)
@@ -97,7 +107,10 @@ func TestClusterHandler_CalculateCost_Fallback(t *testing.T) {
 func TestClusterHandler_Describe(t *testing.T) {
 	t.Parallel()
 
-	h := &ClusterHandler{}
+	h, ok := resourcespec.MustHandler(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.Describer)
+	if !ok {
+		t.Fatal("handler should implement Describer")
+	}
 
 	handlertest.RunDescribeCases(t, h, []handlertest.DescribeCase{
 		{

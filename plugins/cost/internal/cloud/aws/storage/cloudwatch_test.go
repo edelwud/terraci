@@ -6,26 +6,30 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
 func TestLogGroupHandler_Category(t *testing.T) {
 	t.Parallel()
 
-	h := &LogGroupHandler{}
+	h := resourcespec.MustHandler(LogGroupSpec())
 	handlertest.AssertCategory(t, h, handler.CostCategoryUsageBased)
 }
 
 func TestAlarmHandler_Category(t *testing.T) {
 	t.Parallel()
 
-	h := &AlarmHandler{}
+	h := resourcespec.MustHandler(AlarmSpec())
 	handlertest.AssertCategory(t, h, handler.CostCategoryFixed)
 }
 
 func TestLogGroupHandler_CalculateUsageCost(t *testing.T) {
 	t.Parallel()
 
-	h := &LogGroupHandler{}
+	h, ok := resourcespec.MustHandler(LogGroupSpec()).(handler.UsageBasedCostHandler)
+	if !ok {
+		t.Fatal("handler should implement UsageBasedCostHandler")
+	}
 	got := h.CalculateUsageCost("", nil)
 	if got.HourlyCost != 0 {
 		t.Errorf("hourly = %v, want 0", got.HourlyCost)
@@ -41,13 +45,20 @@ func TestLogGroupHandler_CalculateUsageCost(t *testing.T) {
 func TestAlarmHandler_BuildLookup_ReturnsNil(t *testing.T) {
 	t.Parallel()
 
-	handlertest.AssertNilLookup(t, &AlarmHandler{}, "us-east-1", nil)
+	lookupBuilder, ok := resourcespec.MustHandler(AlarmSpec()).(handler.LookupBuilder)
+	if !ok {
+		t.Fatal("handler should implement LookupBuilder")
+	}
+	handlertest.AssertNilLookup(t, lookupBuilder, "us-east-1", nil)
 }
 
 func TestAlarmHandler_CalculateFixedCost(t *testing.T) {
 	t.Parallel()
 
-	h := &AlarmHandler{}
+	h, ok := resourcespec.MustHandler(AlarmSpec()).(handler.FixedCostHandler)
+	if !ok {
+		t.Fatal("handler should implement FixedCostHandler")
+	}
 
 	tests := []struct {
 		name        string
@@ -103,7 +114,10 @@ func TestAlarmHandler_CalculateFixedCost(t *testing.T) {
 func TestAlarmHandler_Describe(t *testing.T) {
 	t.Parallel()
 
-	h := &AlarmHandler{}
+	h, ok := resourcespec.MustHandler(AlarmSpec()).(handler.Describer)
+	if !ok {
+		t.Fatal("handler should implement Describer")
+	}
 
 	tests := []struct {
 		name           string

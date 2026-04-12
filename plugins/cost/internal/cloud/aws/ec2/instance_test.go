@@ -7,12 +7,16 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
 func TestInstanceHandler_BuildLookup(t *testing.T) {
 	t.Parallel()
 
-	h := &InstanceHandler{}
+	h, ok := resourcespec.MustHandler(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.LookupBuilder)
+	if !ok {
+		t.Fatal("handler should implement LookupBuilder")
+	}
 
 	tests := []struct {
 		name        string
@@ -77,7 +81,10 @@ func TestInstanceHandler_BuildLookup(t *testing.T) {
 func TestInstanceHandler_CalculateCost_ComputeOnly(t *testing.T) {
 	t.Parallel()
 
-	h := &InstanceHandler{}
+	h, ok := resourcespec.MustHandler(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
+	if !ok {
+		t.Fatal("handler should implement StandardCostHandler")
+	}
 
 	price := &pricing.Price{OnDemandUSD: 0.10}
 
@@ -96,7 +103,10 @@ func TestInstanceHandler_CalculateCost_ComputeOnly(t *testing.T) {
 func TestInstanceHandler_SubResources_Default(t *testing.T) {
 	t.Parallel()
 
-	h := &InstanceHandler{}
+	h, ok := resourcespec.MustHandler(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.CompoundHandler)
+	if !ok {
+		t.Fatal("handler should implement CompoundHandler")
+	}
 
 	// No root_block_device → default 8 GB gp2
 	subs := h.SubResources(map[string]any{})
@@ -122,7 +132,10 @@ func TestInstanceHandler_SubResources_Default(t *testing.T) {
 func TestInstanceHandler_SubResources_Custom(t *testing.T) {
 	t.Parallel()
 
-	h := &InstanceHandler{}
+	h, ok := resourcespec.MustHandler(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.CompoundHandler)
+	if !ok {
+		t.Fatal("handler should implement CompoundHandler")
+	}
 
 	attrs := map[string]any{
 		"instance_type": "t3.micro",
@@ -159,14 +172,17 @@ func TestInstanceHandler_SubResources_Custom(t *testing.T) {
 func TestInstanceHandler_Category(t *testing.T) {
 	t.Parallel()
 
-	h := &InstanceHandler{}
+	h := resourcespec.MustHandler(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 	handlertest.AssertCategory(t, h, handler.CostCategoryStandard)
 }
 
 func TestInstanceHandler_Describe(t *testing.T) {
 	t.Parallel()
 
-	h := &InstanceHandler{}
+	h, ok := resourcespec.MustHandler(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.Describer)
+	if !ok {
+		t.Fatal("handler should implement Describer")
+	}
 
 	tests := []struct {
 		name       string

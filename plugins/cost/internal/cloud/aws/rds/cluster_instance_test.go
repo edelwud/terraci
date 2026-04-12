@@ -3,16 +3,21 @@ package rds
 import (
 	"testing"
 
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
 func TestClusterInstanceHandler_CalculateCost(t *testing.T) {
 	t.Parallel()
 
 	price := &pricing.Price{OnDemandUSD: 0.29}
-	h := &ClusterInstanceHandler{}
+	h, ok := resourcespec.MustHandler(ClusterInstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
+	if !ok {
+		t.Fatal("handler should implement StandardCostHandler")
+	}
 	hourly, monthly := h.CalculateCost(price, nil, "", nil)
 
 	if hourly != 0.29 {
@@ -27,7 +32,7 @@ func TestClusterInstanceHandler_Contract(t *testing.T) {
 	t.Parallel()
 
 	category := handler.CostCategoryStandard
-	handlertest.RunContractSuite(t, &ClusterInstanceHandler{}, handlertest.ContractSuite{
+	handlertest.RunContractSuite(t, resourcespec.MustHandler(ClusterInstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
 		Category: &category,
 		LookupCases: []handlertest.LookupCase{
 			{

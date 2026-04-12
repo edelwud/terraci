@@ -6,6 +6,7 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
 // Serverless pricing fallbacks.
@@ -19,61 +20,55 @@ const (
 	FallbackServerlessECPUCostPerMillion = 0.0034
 )
 
-// ServerlessHandler handles aws_elasticache_serverless_cache cost estimation.
-// Pricing is based on data storage (GB-hour) and compute (ECPUs).
-// Since ECPU usage is unknown at plan time, only storage is estimated
-// based on configured cache_usage_limits.
-type ServerlessHandler struct {
-	awskit.RuntimeDeps
-}
-
-func (h *ServerlessHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
-
-func (h *ServerlessHandler) BuildLookup(region string, _ map[string]any) (*pricing.PriceLookup, error) {
-	runtime := h.RuntimeOrDefault()
-	spec := runtime.StandardLookupSpec(
-		awskit.ServiceKeyElastiCache,
-		"ElastiCache Serverless",
-		func(region string, _ map[string]any) (map[string]string, error) {
-			prefix := runtime.ResolveUsagePrefix(region)
-			return map[string]string{
-				"usagetype": prefix + "-ElastiCache:ServerlessStorage",
-			}, nil
+// ServerlessSpec declares aws_elasticache_serverless_cache cost estimation.
+func ServerlessSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
+	return resourcespec.ResourceSpec{
+		Type:     handler.ResourceType(awskit.ResourceElastiCacheServerlessCache),
+		Category: handler.CostCategoryStandard,
+		Lookup: &resourcespec.LookupSpec{
+			BuildFunc: func(region string, _ map[string]any) (*pricing.PriceLookup, error) {
+				runtime := deps.RuntimeOrDefault()
+				return runtime.StandardLookupSpec(
+					awskit.ServiceKeyElastiCache,
+					"ElastiCache Serverless",
+					func(region string, _ map[string]any) (map[string]string, error) {
+						prefix := runtime.ResolveUsagePrefix(region)
+						return map[string]string{
+							"usagetype": prefix + "-ElastiCache:ServerlessStorage",
+						}, nil
+					},
+				).Build(region, nil)
+			},
 		},
-	)
-
-	return spec.Build(region, nil)
-}
-
-func (h *ServerlessHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
-	parsed := parseServerlessAttrs(attrs)
-	desc := map[string]string{"type": "serverless"}
-	if parsed.Engine != "" {
-		desc["engine"] = parsed.Engine
+		Describe: &resourcespec.DescribeSpec{
+			BuildFunc: func(_ *pricing.Price, attrs map[string]any) map[string]string {
+				parsed := parseServerlessAttrs(attrs)
+				desc := map[string]string{"type": "serverless"}
+				if parsed.Engine != "" {
+					desc["engine"] = parsed.Engine
+				}
+				if parsed.StorageMaxGB > 0 {
+					desc["storage_max_gb"] = fmt.Sprintf("%.0f", parsed.StorageMaxGB)
+				}
+				return desc
+			},
+		},
+		Standard: &resourcespec.StandardPricingSpec{
+			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
+				if price == nil {
+					return 0, 0
+				}
+				storageGB := parseServerlessAttrs(attrs).StorageMaxGB
+				if storageGB == 0 {
+					storageGB = 1
+				}
+				costPerGBHour := price.OnDemandUSD
+				if costPerGBHour == 0 {
+					costPerGBHour = FallbackServerlessStorageCostPerGBHour
+				}
+				hourly = storageGB * costPerGBHour
+				return hourly, hourly * handler.HoursPerMonth
+			},
+		},
 	}
-	if parsed.StorageMaxGB > 0 {
-		desc["storage_max_gb"] = fmt.Sprintf("%.0f", parsed.StorageMaxGB)
-	}
-	return desc
-}
-
-func (h *ServerlessHandler) CalculateCost(price *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
-	if price == nil {
-		return 0, 0
-	}
-	storageGB := parseServerlessAttrs(attrs).StorageMaxGB
-	if storageGB == 0 {
-		// cache_usage_limits not configured; default to 1 GB (minimum ElastiCache Serverless allocation).
-		storageGB = 1
-	}
-
-	// price.OnDemandUSD is per GB-hour from API
-	costPerGBHour := price.OnDemandUSD
-	if costPerGBHour == 0 {
-		costPerGBHour = FallbackServerlessStorageCostPerGBHour
-	}
-
-	hourly = storageGB * costPerGBHour
-	monthly = hourly * handler.HoursPerMonth
-	return hourly, monthly
 }

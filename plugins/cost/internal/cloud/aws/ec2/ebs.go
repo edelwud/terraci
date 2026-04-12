@@ -4,6 +4,7 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
 // EBS pricing fallbacks (used when API lookup unavailable).
@@ -19,17 +20,6 @@ const (
 	DefaultGP3FreeIOPS           = 3000
 	DefaultGP3FreeThroughputMBps = 125
 )
-
-// EBSHandler handles aws_ebs_volume cost estimation.
-type EBSHandler struct {
-	awskit.RuntimeDeps
-	ec2ServiceID pricing.ServiceID
-}
-
-// NewEBSHandler creates an EBSHandler with a pre-resolved EC2 service ID.
-func NewEBSHandler(deps awskit.RuntimeDeps) *EBSHandler {
-	return &EBSHandler{RuntimeDeps: deps, ec2ServiceID: deps.RuntimeOrDefault().MustService(awskit.ServiceKeyEC2)}
-}
 
 type ebsVolumeAttrs struct {
 	VolumeType    string
@@ -60,85 +50,86 @@ func parseEBSVolumeAttrs(attrs map[string]any) ebsVolumeAttrs {
 	return parsed
 }
 
-func (h *EBSHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
+// EBSSpec declares aws_ebs_volume cost estimation.
+func EBSSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
+	ec2ServiceID := deps.RuntimeOrDefault().MustService(awskit.ServiceKeyEC2)
 
-func (h *EBSHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
-	parsed := parseEBSVolumeAttrs(attrs)
-	lb := &awskit.PriceLookupSpec{Service: h.ec2ServiceID, ProductFamily: "Storage"}
-	return lb.Lookup(region, map[string]string{
-		"volumeApiName": parsed.VolumeType,
-	}), nil
-}
+	return resourcespec.ResourceSpec{
+		Type:     handler.ResourceType(awskit.ResourceEBSVolume),
+		Category: handler.CostCategoryStandard,
+		Lookup: &resourcespec.LookupSpec{
+			BuildFunc: func(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
+				parsed := parseEBSVolumeAttrs(attrs)
+				lb := &awskit.PriceLookupSpec{Service: ec2ServiceID, ProductFamily: "Storage"}
+				return lb.Lookup(region, map[string]string{
+					"volumeApiName": parsed.VolumeType,
+				}), nil
+			},
+		},
+		Describe: &resourcespec.DescribeSpec{
+			BuildFunc: func(_ *pricing.Price, attrs map[string]any) map[string]string {
+				parsed := parseEBSVolumeAttrs(attrs)
+				volumeType := ""
+				if parsed.VolumeTypeSet {
+					volumeType = parsed.VolumeType
+				}
+				sizeGB := 0.0
+				if parsed.SizeGBSet {
+					sizeGB = parsed.SizeGB
+				}
+				return awskit.NewDescribeBuilder().
+					String("volume_type", volumeType).
+					Float("size_gb", sizeGB, "%.0f").
+					Float("iops", parsed.IOPS, "%.0f").
+					Float("throughput_mbps", parsed.Throughput, "%.0f").
+					Map()
+			},
+		},
+		Standard: &resourcespec.StandardPricingSpec{
+			CostFunc: func(price *pricing.Price, index *pricing.PriceIndex, region string, attrs map[string]any) (hourly, monthly float64) {
+				if price == nil {
+					return 0, 0
+				}
+				parsed := parseEBSVolumeAttrs(attrs)
+				monthly = price.OnDemandUSD * parsed.SizeGB
 
-func (h *EBSHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
-	parsed := parseEBSVolumeAttrs(attrs)
-	volumeType := ""
-	if parsed.VolumeTypeSet {
-		volumeType = parsed.VolumeType
+				if parsed.VolumeType == awskit.VolumeTypeIO1 || parsed.VolumeType == awskit.VolumeTypeIO2 {
+					if parsed.IOPS > 0 {
+						suffix := "piops"
+						fallback := FallbackIO1IOPSCostPerMonth
+						if parsed.VolumeType == awskit.VolumeTypeIO2 {
+							suffix = "io2"
+							fallback = FallbackIO2IOPSCostPerMonth
+						}
+						iopsCost, ok := lookupEBSPrice(deps.RuntimeOrDefault(), index, region, "System Operation", "EBS:VolumeP-IOPS."+suffix)
+						if !ok {
+							iopsCost = fallback
+						}
+						monthly += parsed.IOPS * iopsCost
+					}
+				}
+
+				if parsed.VolumeType == awskit.VolumeTypeGP3 {
+					if parsed.IOPS > DefaultGP3FreeIOPS {
+						iopsCost, ok := lookupEBSPrice(deps.RuntimeOrDefault(), index, region, "System Operation", "EBS:VolumeP-IOPS.gp3")
+						if !ok {
+							iopsCost = FallbackGP3IOPSCostPerMonth
+						}
+						monthly += (parsed.IOPS - DefaultGP3FreeIOPS) * iopsCost
+					}
+					if parsed.Throughput > DefaultGP3FreeThroughputMBps {
+						tpCost, ok := lookupEBSPrice(deps.RuntimeOrDefault(), index, region, "Provisioned Throughput", "EBS:VolumeP-Throughput.gp3")
+						if !ok {
+							tpCost = FallbackGP3ThroughputCostPerMB
+						}
+						monthly += (parsed.Throughput - DefaultGP3FreeThroughputMBps) * tpCost
+					}
+				}
+
+				return monthly / handler.HoursPerMonth, monthly
+			},
+		},
 	}
-	sizeGB := 0.0
-	if parsed.SizeGBSet {
-		sizeGB = parsed.SizeGB
-	}
-	return awskit.NewDescribeBuilder().
-		String("volume_type", volumeType).
-		Float("size_gb", sizeGB, "%.0f").
-		Float("iops", parsed.IOPS, "%.0f").
-		Float("throughput_mbps", parsed.Throughput, "%.0f").
-		Map()
-}
-
-// CalculateCost calculates EBS cost using the price index for
-// secondary lookups (IOPS, throughput). Falls back to hardcoded values
-// when the index is nil or the lookup fails.
-func (h *EBSHandler) CalculateCost(price *pricing.Price, index *pricing.PriceIndex, region string, attrs map[string]any) (hourly, monthly float64) {
-	if price == nil {
-		return 0, 0
-	}
-	parsed := parseEBSVolumeAttrs(attrs)
-
-	// Storage cost (per GB-month from primary API lookup)
-	monthly = price.OnDemandUSD * parsed.SizeGB
-
-	// IOPS cost for io1/io2
-	if parsed.VolumeType == awskit.VolumeTypeIO1 || parsed.VolumeType == awskit.VolumeTypeIO2 {
-		if parsed.IOPS > 0 {
-			suffix := "piops"
-			fallback := FallbackIO1IOPSCostPerMonth
-			if parsed.VolumeType == awskit.VolumeTypeIO2 {
-				suffix = "io2"
-				fallback = FallbackIO2IOPSCostPerMonth
-			}
-			iopsCost, ok := lookupEBSPrice(h.RuntimeOrDefault(), index, region, "System Operation", "EBS:VolumeP-IOPS."+suffix)
-			if !ok {
-				iopsCost = fallback
-			}
-			monthly += parsed.IOPS * iopsCost
-		}
-	}
-
-	// gp3: IOPS cost above free tier (3000 free)
-	if parsed.VolumeType == awskit.VolumeTypeGP3 {
-		if parsed.IOPS > DefaultGP3FreeIOPS {
-			iopsCost, ok := lookupEBSPrice(h.RuntimeOrDefault(), index, region, "System Operation", "EBS:VolumeP-IOPS.gp3")
-			if !ok {
-				iopsCost = FallbackGP3IOPSCostPerMonth
-			}
-			monthly += (parsed.IOPS - DefaultGP3FreeIOPS) * iopsCost
-		}
-
-		// gp3: throughput cost above free tier (125 MBps free)
-		if parsed.Throughput > DefaultGP3FreeThroughputMBps {
-			tpCost, ok := lookupEBSPrice(h.RuntimeOrDefault(), index, region, "Provisioned Throughput", "EBS:VolumeP-Throughput.gp3")
-			if !ok {
-				tpCost = FallbackGP3ThroughputCostPerMB
-			}
-			monthly += (parsed.Throughput - DefaultGP3FreeThroughputMBps) * tpCost
-		}
-	}
-
-	hourly = monthly / handler.HoursPerMonth
-	return hourly, monthly
 }
 
 // lookupEBSPrice finds a price in the index by product family and usagetype.

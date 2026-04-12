@@ -1,9 +1,11 @@
 package storage
 
 import (
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
 // CloudWatch pricing constants.
@@ -13,19 +15,18 @@ const (
 	HighResolutionThresholdSeconds = 60
 )
 
-// LogGroupHandler handles aws_cloudwatch_log_group cost estimation.
-type LogGroupHandler struct{}
-
-func (h *LogGroupHandler) Category() handler.CostCategory { return handler.CostCategoryUsageBased }
-
-func (h *LogGroupHandler) CalculateUsageCost(_ string, _ map[string]any) model.UsageCostEstimate {
-	// CloudWatch Logs: $0.50 per GB ingested, $0.03 per GB stored
-	// Usage-based, no fixed cost
-	return model.UsageCostEstimate{Status: model.ResourceEstimateStatusUsageUnknown}
+// LogGroupSpec declares aws_cloudwatch_log_group cost estimation.
+func LogGroupSpec() resourcespec.ResourceSpec {
+	return resourcespec.ResourceSpec{
+		Type:     handler.ResourceType(awskit.ResourceCloudWatchLogGroup),
+		Category: handler.CostCategoryUsageBased,
+		Usage: &resourcespec.UsagePricingSpec{
+			EstimateFunc: func(_ string, _ map[string]any) model.UsageCostEstimate {
+				return model.UsageCostEstimate{Status: model.ResourceEstimateStatusUsageUnknown}
+			},
+		},
+	}
 }
-
-// AlarmHandler handles aws_cloudwatch_metric_alarm cost estimation.
-type AlarmHandler struct{}
 
 type alarmAttrs struct {
 	Period int
@@ -37,29 +38,34 @@ func parseAlarmAttrs(attrs map[string]any) alarmAttrs {
 	}
 }
 
-func (h *AlarmHandler) Category() handler.CostCategory { return handler.CostCategoryFixed }
-
-func (h *AlarmHandler) BuildLookup(_ string, _ map[string]any) (*pricing.PriceLookup, error) {
-	return nil, nil
-}
-
-func (h *AlarmHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
-	desc := make(map[string]string)
-	parsed := parseAlarmAttrs(attrs)
-	if parsed.Period > 0 && parsed.Period < HighResolutionThresholdSeconds {
-		desc["resolution"] = "high"
-	} else {
-		desc["resolution"] = "standard"
+// AlarmSpec declares aws_cloudwatch_metric_alarm cost estimation.
+func AlarmSpec() resourcespec.ResourceSpec {
+	return resourcespec.ResourceSpec{
+		Type:     handler.ResourceType(awskit.ResourceCloudWatchMetricAlarm),
+		Category: handler.CostCategoryFixed,
+		Lookup: &resourcespec.LookupSpec{
+			BuildFunc: func(_ string, _ map[string]any) (*pricing.PriceLookup, error) { return nil, nil },
+		},
+		Describe: &resourcespec.DescribeSpec{
+			BuildFunc: func(_ *pricing.Price, attrs map[string]any) map[string]string {
+				desc := make(map[string]string)
+				parsed := parseAlarmAttrs(attrs)
+				if parsed.Period > 0 && parsed.Period < HighResolutionThresholdSeconds {
+					desc["resolution"] = "high"
+				} else {
+					desc["resolution"] = "standard"
+				}
+				return desc
+			},
+		},
+		Fixed: &resourcespec.FixedPricingSpec{
+			CostFunc: func(_ string, attrs map[string]any) (hourly, monthly float64) {
+				parsed := parseAlarmAttrs(attrs)
+				if parsed.Period > 0 && parsed.Period < HighResolutionThresholdSeconds {
+					return handler.FixedMonthlyCost(CloudWatchHighResAlarmCost)
+				}
+				return handler.FixedMonthlyCost(CloudWatchStandardAlarmCost)
+			},
+		},
 	}
-	return desc
-}
-
-func (h *AlarmHandler) CalculateFixedCost(_ string, attrs map[string]any) (hourly, monthly float64) {
-	// Standard resolution alarm: $0.10/alarm/month
-	// High resolution alarm: $0.30/alarm/month
-	parsed := parseAlarmAttrs(attrs)
-	if parsed.Period > 0 && parsed.Period < HighResolutionThresholdSeconds {
-		return handler.FixedMonthlyCost(CloudWatchHighResAlarmCost)
-	}
-	return handler.FixedMonthlyCost(CloudWatchStandardAlarmCost)
 }

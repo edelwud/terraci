@@ -3,16 +3,18 @@ package ec2
 import (
 	"testing"
 
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
 func TestEIPHandler_Category(t *testing.T) {
 	t.Parallel()
 
 	category := handler.CostCategoryStandard
-	handlertest.RunContractSuite(t, &EIPHandler{}, handlertest.ContractSuite{
+	handlertest.RunContractSuite(t, resourcespec.MustHandler(EIPSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
 		Category: &category,
 		LookupCases: []handlertest.LookupCase{
 			{
@@ -56,7 +58,10 @@ func TestEIPHandler_Category(t *testing.T) {
 func TestEIPHandler_CalculateCost(t *testing.T) {
 	t.Parallel()
 
-	h := &EIPHandler{}
+	h, ok := resourcespec.MustHandler(EIPSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
+	if !ok {
+		t.Fatal("handler should implement StandardCostHandler")
+	}
 
 	// With price from lookup
 	price := &pricing.Price{OnDemandUSD: 0.005}

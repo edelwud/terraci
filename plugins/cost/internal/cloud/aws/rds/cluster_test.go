@@ -7,11 +7,15 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
 func TestClusterHandler_CalculateCost(t *testing.T) {
 	t.Parallel()
-	h := &ClusterHandler{}
+	h, ok := resourcespec.MustHandler(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
+	if !ok {
+		t.Fatal("handler should implement StandardCostHandler")
+	}
 
 	tests := []struct {
 		name        string
@@ -59,7 +63,7 @@ func TestClusterHandler_Contract(t *testing.T) {
 	t.Parallel()
 
 	category := handler.CostCategoryStandard
-	handlertest.RunContractSuite(t, &ClusterHandler{}, handlertest.ContractSuite{
+	handlertest.RunContractSuite(t, resourcespec.MustHandler(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
 		Category: &category,
 		LookupCases: []handlertest.LookupCase{
 			{

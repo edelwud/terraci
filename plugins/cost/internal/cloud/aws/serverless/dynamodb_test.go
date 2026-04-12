@@ -3,16 +3,21 @@ package serverless
 import (
 	"testing"
 
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/handlertest"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
 func TestDynamoDBHandler_CalculateUsageCost(t *testing.T) {
 	t.Parallel()
 
-	h := &DynamoDBHandler{}
+	h, ok := resourcespec.MustHandler(DynamoDBSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.UsageBasedCostHandler)
+	if !ok {
+		t.Fatal("handler should implement UsageBasedCostHandler")
+	}
 
 	tests := []struct {
 		name          string
@@ -84,7 +89,7 @@ func TestDynamoDBHandler_Contract(t *testing.T) {
 	t.Parallel()
 
 	category := handler.CostCategoryUsageBased
-	handlertest.RunContractSuite(t, &DynamoDBHandler{}, handlertest.ContractSuite{
+	handlertest.RunContractSuite(t, resourcespec.MustHandler(DynamoDBSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
 		Category: &category,
 		LookupCases: []handlertest.LookupCase{
 			{

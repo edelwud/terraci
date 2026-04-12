@@ -7,6 +7,7 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/handler"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
 // RDS pricing constants
@@ -30,11 +31,6 @@ const (
 	DefaultAuroraEngine = "aurora-mysql"
 )
 
-// InstanceHandler handles aws_db_instance cost estimation
-type InstanceHandler struct {
-	awskit.RuntimeDeps
-}
-
 type instanceAttrs struct {
 	InstanceClass    string
 	Engine           string
@@ -55,78 +51,74 @@ func parseInstanceAttrs(attrs map[string]any) instanceAttrs {
 	}
 }
 
-func (h *InstanceHandler) Category() handler.CostCategory { return handler.CostCategoryStandard }
+// InstanceSpec declares aws_db_instance cost estimation.
+func InstanceSpec(deps awskit.RuntimeDeps) resourcespec.ResourceSpec {
+	return resourcespec.ResourceSpec{
+		Type:     handler.ResourceType(awskit.ResourceDBInstance),
+		Category: handler.CostCategoryStandard,
+		Lookup: &resourcespec.LookupSpec{
+			BuildFunc: func(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
+				parsed := parseInstanceAttrs(attrs)
+				if parsed.InstanceClass == "" {
+					return nil, errors.New("instance_class not found")
+				}
 
-func (h *InstanceHandler) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
-	parsed := parseInstanceAttrs(attrs)
-	if parsed.InstanceClass == "" {
-		return nil, errors.New("instance_class not found")
-	}
+				engine := parsed.Engine
+				if engine == "" {
+					engine = DefaultEngine
+				}
+				deploymentOption := "Single-AZ"
+				if parsed.MultiAZ {
+					deploymentOption = "Multi-AZ"
+				}
 
-	engine := parsed.Engine
-	if engine == "" {
-		engine = DefaultEngine
-	}
-
-	// Map terraform engine to RDS database engine
-	databaseEngine := mapRDSEngine(engine)
-
-	// Deployment option
-	deploymentOption := "Single-AZ"
-	if parsed.MultiAZ {
-		deploymentOption = "Multi-AZ"
-	}
-
-	return h.RuntimeOrDefault().StandardLookupSpec(
-		awskit.ServiceKeyRDS,
-		"Database Instance",
-		func(_ string, _ map[string]any) (map[string]string, error) {
-			return map[string]string{
-				"instanceType":     parsed.InstanceClass,
-				"databaseEngine":   databaseEngine,
-				"deploymentOption": deploymentOption,
-			}, nil
+				return deps.RuntimeOrDefault().StandardLookupSpec(
+					awskit.ServiceKeyRDS,
+					"Database Instance",
+					func(_ string, _ map[string]any) (map[string]string, error) {
+						return map[string]string{
+							"instanceType":     parsed.InstanceClass,
+							"databaseEngine":   mapRDSEngine(engine),
+							"deploymentOption": deploymentOption,
+						}, nil
+					},
+				).Build(region, attrs)
+			},
 		},
-	).Build(region, attrs)
-}
-
-func (h *InstanceHandler) Describe(_ *pricing.Price, attrs map[string]any) map[string]string {
-	parsed := parseInstanceAttrs(attrs)
-	return awskit.NewDescribeBuilder().
-		String("instance_class", parsed.InstanceClass).
-		String("engine", parsed.Engine).
-		Bool("multi_az", parsed.MultiAZ).
-		Float("storage_gb", parsed.AllocatedStorage, "%.0f").
-		Map()
-}
-
-func (h *InstanceHandler) CalculateCost(price *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
-	if price == nil {
-		return 0, 0
+		Describe: &resourcespec.DescribeSpec{
+			BuildFunc: func(_ *pricing.Price, attrs map[string]any) map[string]string {
+				parsed := parseInstanceAttrs(attrs)
+				return awskit.NewDescribeBuilder().
+					String("instance_class", parsed.InstanceClass).
+					String("engine", parsed.Engine).
+					Bool("multi_az", parsed.MultiAZ).
+					Float("storage_gb", parsed.AllocatedStorage, "%.0f").
+					Map()
+			},
+		},
+		Standard: &resourcespec.StandardPricingSpec{
+			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, attrs map[string]any) (hourly, monthly float64) {
+				if price == nil {
+					return 0, 0
+				}
+				parsed := parseInstanceAttrs(attrs)
+				hourly = price.OnDemandUSD
+				monthly = hourly * handler.HoursPerMonth
+				if parsed.AllocatedStorage > 0 {
+					monthly += parsed.AllocatedStorage * getStorageCostPerGB(parsed.StorageType)
+				}
+				if parsed.IOPS > 0 {
+					switch parsed.StorageType {
+					case awskit.VolumeTypeIO1:
+						monthly += parsed.IOPS * IOPSCostIO1PerMonth
+					case awskit.VolumeTypeIO2:
+						monthly += parsed.IOPS * IOPSCostIO2PerMonth
+					}
+				}
+				return monthly / handler.HoursPerMonth, monthly
+			},
+		},
 	}
-	parsed := parseInstanceAttrs(attrs)
-	hourly = price.OnDemandUSD
-	monthly = hourly * handler.HoursPerMonth
-
-	// Add storage cost
-	if parsed.AllocatedStorage > 0 {
-		storageCostPerGB := getStorageCostPerGB(parsed.StorageType)
-		monthly += parsed.AllocatedStorage * storageCostPerGB
-	}
-
-	// Add IOPS cost for provisioned IOPS storage types
-	if parsed.IOPS > 0 {
-		switch parsed.StorageType {
-		case awskit.VolumeTypeIO1:
-			monthly += parsed.IOPS * IOPSCostIO1PerMonth
-		case awskit.VolumeTypeIO2:
-			monthly += parsed.IOPS * IOPSCostIO2PerMonth
-		}
-		// gp3 IOPS are included in the base price for RDS (unlike EBS)
-	}
-
-	hourly = monthly / handler.HoursPerMonth
-	return hourly, monthly
 }
 
 // mapRDSEngine maps terraform engine names to AWS pricing database engine names.

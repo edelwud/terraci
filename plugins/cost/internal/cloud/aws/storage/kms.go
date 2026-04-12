@@ -1,19 +1,25 @@
-package storage //nolint:dupl // KMS and SecretsManager are structurally similar fixed-cost handlers
+package storage
 
-import "github.com/edelwud/terraci/plugins/cost/internal/handler"
+import (
+	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
+	"github.com/edelwud/terraci/plugins/cost/internal/handler"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
+)
 
 const (
 	// KMSKeyCost is the monthly cost for a customer-managed KMS key.
 	KMSKeyCost = 1.00
 )
 
-// KMSHandler handles aws_kms_key cost estimation.
-type KMSHandler struct{}
-
-func (h *KMSHandler) Category() handler.CostCategory { return handler.CostCategoryFixed }
-
-func (h *KMSHandler) CalculateFixedCost(_ string, _ map[string]any) (hourly, monthly float64) {
-	// KMS: $1.00 per customer-managed key per month
-	// AWS managed keys are free
-	return handler.FixedMonthlyCost(KMSKeyCost)
+// KMSSpec declares aws_kms_key cost estimation.
+func KMSSpec() resourcespec.ResourceSpec {
+	return resourcespec.ResourceSpec{
+		Type:     handler.ResourceType(awskit.ResourceKMSKey),
+		Category: handler.CostCategoryFixed,
+		Fixed: &resourcespec.FixedPricingSpec{
+			CostFunc: func(_ string, _ map[string]any) (hourly, monthly float64) {
+				return handler.FixedMonthlyCost(KMSKeyCost)
+			},
+		},
+	}
 }
