@@ -13,19 +13,16 @@ import (
 func TestClusterHandler_Category(t *testing.T) {
 	t.Parallel()
 
-	h := resourcespec.MustHandler(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
-	handlertest.AssertCategory(t, h, handler.CostCategoryStandard)
+	def := resourcespec.MustCompile(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	handlertest.AssertCategory(t, def, handler.CostCategoryStandard)
 }
 
 func TestClusterHandler_BuildLookup(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.LookupBuilder)
-	if !ok {
-		t.Fatal("handler should implement LookupBuilder")
-	}
+	def := resourcespec.MustCompile(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
-	handlertest.RunLookupCases(t, h, []handlertest.LookupCase{
+	handlertest.RunLookupCases(t, def, []handlertest.LookupCase{
 		{
 			Name:   "us east region",
 			Region: "us-east-1",
@@ -65,13 +62,13 @@ func TestClusterHandler_BuildLookup(t *testing.T) {
 func TestClusterHandler_CalculateCost_FromAPI(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
-	if !ok {
-		t.Fatal("handler should implement StandardCostHandler")
-	}
+	def := resourcespec.MustCompile(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	price := &pricing.Price{OnDemandUSD: 0.10}
-	hourly, monthly := h.CalculateCost(price, nil, "", nil)
+	hourly, monthly, ok := def.CalculateStandardCost(price, nil, "", nil)
+	if !ok {
+		t.Fatal("CalculateStandardCost() ok = false, want true")
+	}
 	if hourly != 0.10 {
 		t.Errorf("hourly = %v, want 0.10", hourly)
 	}
@@ -83,13 +80,13 @@ func TestClusterHandler_CalculateCost_FromAPI(t *testing.T) {
 func TestClusterHandler_CalculateCost_Fallback(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
-	if !ok {
-		t.Fatal("handler should implement StandardCostHandler")
-	}
+	def := resourcespec.MustCompile(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	// nil price -> fallback to default
-	hourly, monthly := h.CalculateCost(nil, nil, "", nil)
+	hourly, monthly, ok := def.CalculateStandardCost(nil, nil, "", nil)
+	if !ok {
+		t.Fatal("CalculateStandardCost() ok = false, want true")
+	}
 	if hourly != DefaultClusterHourlyCost {
 		t.Errorf("hourly = %v, want %v", hourly, DefaultClusterHourlyCost)
 	}
@@ -98,7 +95,10 @@ func TestClusterHandler_CalculateCost_Fallback(t *testing.T) {
 	}
 
 	// zero price -> fallback
-	hourly2, _ := h.CalculateCost(&pricing.Price{OnDemandUSD: 0}, nil, "", nil)
+	hourly2, _, ok2 := def.CalculateStandardCost(&pricing.Price{OnDemandUSD: 0}, nil, "", nil)
+	if !ok2 {
+		t.Fatal("CalculateStandardCost() ok = false, want true")
+	}
 	if hourly2 != DefaultClusterHourlyCost {
 		t.Errorf("hourly with zero price = %v, want fallback %v", hourly2, DefaultClusterHourlyCost)
 	}
@@ -107,12 +107,9 @@ func TestClusterHandler_CalculateCost_Fallback(t *testing.T) {
 func TestClusterHandler_Describe(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.Describer)
-	if !ok {
-		t.Fatal("handler should implement Describer")
-	}
+	def := resourcespec.MustCompile(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
-	handlertest.RunDescribeCases(t, h, []handlertest.DescribeCase{
+	handlertest.RunDescribeCases(t, def, []handlertest.DescribeCase{
 		{
 			Name:       "nil attrs",
 			Attrs:      nil,

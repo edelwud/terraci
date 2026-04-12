@@ -12,28 +12,25 @@ import (
 func TestS3Handler_Category(t *testing.T) {
 	t.Parallel()
 
-	h := resourcespec.MustHandler(S3Spec())
-	handlertest.AssertCategory(t, h, handler.CostCategoryUsageBased)
+	def := resourcespec.MustCompile(S3Spec())
+	handlertest.AssertCategory(t, def, handler.CostCategoryUsageBased)
 }
 
 func TestS3Handler_BuildLookupReturnsNil(t *testing.T) {
 	t.Parallel()
 
-	lookupBuilder, ok := resourcespec.MustHandler(S3Spec()).(handler.LookupBuilder)
-	if !ok {
-		t.Fatal("handler should implement LookupBuilder")
-	}
-	handlertest.AssertNilLookup(t, lookupBuilder, "us-east-1", nil)
+	def := resourcespec.MustCompile(S3Spec())
+	handlertest.AssertNilLookup(t, def, "us-east-1", nil)
 }
 
 func TestS3Handler_CalculateUsageCost(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(S3Spec()).(handler.UsageBasedCostHandler)
+	def := resourcespec.MustCompile(S3Spec())
+	got, ok := def.CalculateUsageCost("", nil)
 	if !ok {
-		t.Fatal("handler should implement UsageBasedCostHandler")
+		t.Fatal("CalculateUsageCost should be available")
 	}
-	got := h.CalculateUsageCost("", nil)
 	if got.HourlyCost != 0 {
 		t.Errorf("hourly = %v, want 0", got.HourlyCost)
 	}
@@ -48,11 +45,8 @@ func TestS3Handler_CalculateUsageCost(t *testing.T) {
 func TestS3Handler_DescribeReturnsNil(t *testing.T) {
 	t.Parallel()
 
-	describer, ok := resourcespec.MustHandler(S3Spec()).(handler.Describer)
-	if !ok {
-		t.Fatal("handler should implement Describer")
-	}
-	if got := describer.Describe(nil, nil); got != nil {
-		t.Fatalf("Describe() = %#v, want nil", got)
+	def := resourcespec.MustCompile(S3Spec())
+	if got := def.DescribeResource(nil, nil); got != nil {
+		t.Fatalf("DescribeResource() = %#v, want nil", got)
 	}
 }

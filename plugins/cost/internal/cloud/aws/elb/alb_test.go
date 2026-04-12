@@ -14,7 +14,7 @@ func TestALBHandler_Category(t *testing.T) {
 	t.Parallel()
 
 	category := handler.CostCategoryStandard
-	handlertest.RunContractSuite(t, resourcespec.MustHandler(ALBSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
+	handlertest.RunContractSuite(t, resourcespec.MustCompile(ALBSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
 		Category: &category,
 		LookupCases: []handlertest.LookupCase{
 			{
@@ -88,10 +88,7 @@ func TestALBHandler_Category(t *testing.T) {
 func TestALBHandler_CalculateCost(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(ALBSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
-	if !ok {
-		t.Fatal("handler should implement StandardCostHandler")
-	}
+	def := resourcespec.MustCompile(ALBSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	tests := []struct {
 		name           string
@@ -133,7 +130,10 @@ func TestALBHandler_CalculateCost(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			hourly, _ := h.CalculateCost(tt.price, nil, "", tt.attrs)
+			hourly, _, ok := def.CalculateStandardCost(tt.price, nil, "", tt.attrs)
+			if !ok {
+				t.Fatal("CalculateStandardCost() ok = false, want true")
+			}
 
 			if hourly != tt.expectedHourly {
 				t.Errorf("hourly = %v, want %v", hourly, tt.expectedHourly)

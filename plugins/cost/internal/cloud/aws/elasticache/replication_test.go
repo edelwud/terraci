@@ -14,7 +14,7 @@ func TestReplicationGroupHandler_Contract(t *testing.T) {
 	t.Parallel()
 
 	category := handler.CostCategoryStandard
-	handlertest.RunContractSuite(t, resourcespec.MustHandler(ReplicationGroupSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
+	handlertest.RunContractSuite(t, resourcespec.MustCompile(ReplicationGroupSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
 		Category: &category,
 		LookupCases: []handlertest.LookupCase{
 			{
@@ -57,10 +57,7 @@ func TestReplicationGroupHandler_Contract(t *testing.T) {
 func TestReplicationGroupHandler_CalculateCost(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(ReplicationGroupSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
-	if !ok {
-		t.Fatal("handler should implement StandardCostHandler")
-	}
+	def := resourcespec.MustCompile(ReplicationGroupSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	price := &pricing.Price{OnDemandUSD: 0.10}
 
@@ -100,7 +97,10 @@ func TestReplicationGroupHandler_CalculateCost(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			hourly, _ := h.CalculateCost(price, nil, "", tt.attrs)
+			hourly, _, ok := def.CalculateStandardCost(price, nil, "", tt.attrs)
+			if !ok {
+				t.Fatal("CalculateStandardCost returned ok=false")
+			}
 			if diff := hourly - tt.expectedHourly; diff < -epsilon || diff > epsilon {
 				t.Errorf("hourly = %v, want %v (expected %d nodes)", hourly, tt.expectedHourly, tt.expectedNodes)
 			}
@@ -111,10 +111,7 @@ func TestReplicationGroupHandler_CalculateCost(t *testing.T) {
 func TestReplicationGroupHandler_CalculateCost_BackupAndDataTiering(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(ReplicationGroupSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
-	if !ok {
-		t.Fatal("handler should implement StandardCostHandler")
-	}
+	def := resourcespec.MustCompile(ReplicationGroupSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	// Price with memory and SSD from AWS API
 	price := &pricing.Price{
@@ -157,7 +154,10 @@ func TestReplicationGroupHandler_CalculateCost_BackupAndDataTiering(t *testing.T
 		},
 	}
 
-	_, monthly := h.CalculateCost(price, index, "us-east-1", attrs)
+	_, monthly, ok := def.CalculateStandardCost(price, index, "us-east-1", attrs)
+	if !ok {
+		t.Fatal("CalculateStandardCost returned ok=false")
+	}
 
 	totalNodes := 4
 	_, nodeMonthly := handler.ScaledHourlyCost(0.50, totalNodes)

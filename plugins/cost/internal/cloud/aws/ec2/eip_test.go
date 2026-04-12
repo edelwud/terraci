@@ -14,7 +14,7 @@ func TestEIPHandler_Category(t *testing.T) {
 	t.Parallel()
 
 	category := handler.CostCategoryStandard
-	handlertest.RunContractSuite(t, resourcespec.MustHandler(EIPSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
+	handlertest.RunContractSuite(t, resourcespec.MustCompile(EIPSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
 		Category: &category,
 		LookupCases: []handlertest.LookupCase{
 			{
@@ -58,14 +58,14 @@ func TestEIPHandler_Category(t *testing.T) {
 func TestEIPHandler_CalculateCost(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(EIPSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
-	if !ok {
-		t.Fatal("handler should implement StandardCostHandler")
-	}
+	def := resourcespec.MustCompile(EIPSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	// With price from lookup
 	price := &pricing.Price{OnDemandUSD: 0.005}
-	hourly, monthly := h.CalculateCost(price, nil, "", nil)
+	hourly, monthly, ok := def.CalculateStandardCost(price, nil, "", nil)
+	if !ok {
+		t.Fatal("CalculateStandardCost should return ok=true")
+	}
 	if hourly != 0.005 {
 		t.Errorf("hourly = %v, want %v", hourly, 0.005)
 	}
@@ -75,13 +75,19 @@ func TestEIPHandler_CalculateCost(t *testing.T) {
 	}
 
 	// Fallback when price is zero
-	hourly, _ = h.CalculateCost(&pricing.Price{OnDemandUSD: 0}, nil, "", nil)
+	hourly, _, ok = def.CalculateStandardCost(&pricing.Price{OnDemandUSD: 0}, nil, "", nil)
+	if !ok {
+		t.Fatal("CalculateStandardCost should return ok=true")
+	}
 	if hourly != DefaultEIPHourlyCost {
 		t.Errorf("fallback hourly = %v, want %v", hourly, DefaultEIPHourlyCost)
 	}
 
 	// Fallback when price is nil
-	hourly, _ = h.CalculateCost(nil, nil, "", nil)
+	hourly, _, ok = def.CalculateStandardCost(nil, nil, "", nil)
+	if !ok {
+		t.Fatal("CalculateStandardCost should return ok=true")
+	}
 	if hourly != DefaultEIPHourlyCost {
 		t.Errorf("nil price hourly = %v, want %v", hourly, DefaultEIPHourlyCost)
 	}

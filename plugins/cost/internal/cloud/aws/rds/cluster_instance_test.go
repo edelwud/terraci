@@ -14,11 +14,12 @@ func TestClusterInstanceHandler_CalculateCost(t *testing.T) {
 	t.Parallel()
 
 	price := &pricing.Price{OnDemandUSD: 0.29}
-	h, ok := resourcespec.MustHandler(ClusterInstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
+	def := resourcespec.MustCompile(ClusterInstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+
+	hourly, monthly, ok := def.CalculateStandardCost(price, nil, "", nil)
 	if !ok {
-		t.Fatal("handler should implement StandardCostHandler")
+		t.Fatal("CalculateStandardCost returned ok=false")
 	}
-	hourly, monthly := h.CalculateCost(price, nil, "", nil)
 
 	if hourly != 0.29 {
 		t.Errorf("hourly = %v, want 0.29", hourly)
@@ -32,7 +33,8 @@ func TestClusterInstanceHandler_Contract(t *testing.T) {
 	t.Parallel()
 
 	category := handler.CostCategoryStandard
-	handlertest.RunContractSuite(t, resourcespec.MustHandler(ClusterInstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
+	def := resourcespec.MustCompile(ClusterInstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	handlertest.RunContractSuite(t, def, handlertest.ContractSuite{
 		Category: &category,
 		LookupCases: []handlertest.LookupCase{
 			{

@@ -14,7 +14,7 @@ func TestNATHandler_Category(t *testing.T) {
 	t.Parallel()
 
 	category := handler.CostCategoryStandard
-	handlertest.RunContractSuite(t, resourcespec.MustHandler(NATSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
+	handlertest.RunContractSuite(t, resourcespec.MustCompile(NATSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
 		Category: &category,
 		LookupCases: []handlertest.LookupCase{
 			{
@@ -34,7 +34,7 @@ func TestNATHandler_Category(t *testing.T) {
 				Assert: func(tb testing.TB, result map[string]string) {
 					tb.Helper()
 					if len(result) != 0 {
-						tb.Errorf("Describe() = %v, want empty map", result)
+						tb.Errorf("DescribeResource() = %v, want empty map", result)
 					}
 				},
 			},
@@ -45,17 +45,17 @@ func TestNATHandler_Category(t *testing.T) {
 func TestNATHandler_CalculateCost(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(NATSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
-	if !ok {
-		t.Fatal("handler should implement StandardCostHandler")
-	}
+	def := resourcespec.MustCompile(NATSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	// With price from lookup
 	price := &pricing.Price{
 		OnDemandUSD: 0.045,
 	}
 
-	hourly, monthly := h.CalculateCost(price, nil, "", nil)
+	hourly, monthly, ok := def.CalculateStandardCost(price, nil, "", nil)
+	if !ok {
+		t.Fatal("CalculateStandardCost should return ok=true")
+	}
 
 	if hourly != 0.045 {
 		t.Errorf("hourly = %v, want %v", hourly, 0.045)
@@ -67,7 +67,10 @@ func TestNATHandler_CalculateCost(t *testing.T) {
 	}
 
 	// Without price (fallback)
-	hourly, _ = h.CalculateCost(&pricing.Price{OnDemandUSD: 0}, nil, "", nil)
+	hourly, _, ok = def.CalculateStandardCost(&pricing.Price{OnDemandUSD: 0}, nil, "", nil)
+	if !ok {
+		t.Fatal("CalculateStandardCost should return ok=true")
+	}
 	if hourly != 0.045 {
 		t.Errorf("fallback hourly = %v, want %v", hourly, 0.045)
 	}

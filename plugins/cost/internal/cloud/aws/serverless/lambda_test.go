@@ -13,17 +13,14 @@ import (
 func TestLambdaHandler_Category(t *testing.T) {
 	t.Parallel()
 
-	handlertest.AssertUsageBasedCategory(t, resourcespec.MustHandler(LambdaSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))))
+	handlertest.AssertUsageBasedCategory(t, resourcespec.MustCompile(LambdaSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))))
 }
 
 func TestLambdaHandler_BuildLookup(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(LambdaSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.LookupBuilder)
-	if !ok {
-		t.Fatal("handler should implement LookupBuilder")
-	}
-	lookup := handlertest.RequireLookup(t, h, "us-east-1", nil)
+	def := resourcespec.MustCompile(LambdaSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	lookup := handlertest.RequireLookup(t, def, "us-east-1", nil)
 
 	if lookup.ProductFamily != "Serverless" {
 		t.Errorf("ProductFamily = %q, want %q", lookup.ProductFamily, "Serverless")
@@ -45,10 +42,7 @@ func TestLambdaHandler_BuildLookup(t *testing.T) {
 func TestLambdaHandler_CalculateUsageCost(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(LambdaSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.UsageBasedCostHandler)
-	if !ok {
-		t.Fatal("handler should implement UsageBasedCostHandler")
-	}
+	def := resourcespec.MustCompile(LambdaSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	tests := []struct {
 		name        string
@@ -93,7 +87,10 @@ func TestLambdaHandler_CalculateUsageCost(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := h.CalculateUsageCost("", tt.attrs)
+			got, ok := def.CalculateUsageCost("", tt.attrs)
+			if !ok {
+				t.Fatal("CalculateUsageCost should be available")
+			}
 
 			if tt.wantNonZero {
 				if got.HourlyCost == 0 {
@@ -126,10 +123,7 @@ func TestLambdaHandler_CalculateUsageCost(t *testing.T) {
 func TestLambdaHandler_Describe(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(LambdaSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.Describer)
-	if !ok {
-		t.Fatal("handler should implement Describer")
-	}
+	def := resourcespec.MustCompile(LambdaSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	tests := []struct {
 		name       string
@@ -178,16 +172,16 @@ func TestLambdaHandler_Describe(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := h.Describe(nil, tt.attrs)
+			result := def.DescribeResource(nil, tt.attrs)
 
 			for k, v := range tt.wantKeys {
 				if result[k] != v {
-					t.Errorf("Describe()[%q] = %q, want %q", k, result[k], v)
+					t.Errorf("DescribeResource()[%q] = %q, want %q", k, result[k], v)
 				}
 			}
 			for _, k := range tt.wantAbsent {
 				if _, ok := result[k]; ok {
-					t.Errorf("Describe() should not contain key %q", k)
+					t.Errorf("DescribeResource() should not contain key %q", k)
 				}
 			}
 		})

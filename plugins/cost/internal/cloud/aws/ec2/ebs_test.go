@@ -21,7 +21,7 @@ func TestEBSHandler_Contract(t *testing.T) {
 	t.Parallel()
 
 	category := handler.CostCategoryStandard
-	handlertest.RunContractSuite(t, resourcespec.MustHandler(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
+	handlertest.RunContractSuite(t, resourcespec.MustCompile(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
 		Category: &category,
 		LookupCases: []handlertest.LookupCase{
 			{
@@ -123,10 +123,7 @@ func TestParseEBSVolumeAttrs_ParsesStringNumbersAndDefaults(t *testing.T) {
 func TestEBSHandler_CalculateCost(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
-	if !ok {
-		t.Fatal("handler should implement StandardCostHandler")
-	}
+	def := resourcespec.MustCompile(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	price := &pricing.Price{
 		OnDemandUSD: 0.10, // $0.10 per GB-month
@@ -158,7 +155,10 @@ func TestEBSHandler_CalculateCost(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, monthly := h.CalculateCost(price, nil, "", tt.attrs)
+			_, monthly, ok := def.CalculateStandardCost(price, nil, "", tt.attrs)
+			if !ok {
+				t.Fatal("CalculateStandardCost should return ok=true")
+			}
 
 			if monthly != tt.expectedMonthly {
 				t.Errorf("monthly = %v, want %v", monthly, tt.expectedMonthly)
@@ -170,10 +170,7 @@ func TestEBSHandler_CalculateCost(t *testing.T) {
 func TestEBSHandler_CalculateCost_IO1(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
-	if !ok {
-		t.Fatal("handler should implement StandardCostHandler")
-	}
+	def := resourcespec.MustCompile(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	price := &pricing.Price{
 		OnDemandUSD: 0.125, // io1 per GB-month
@@ -185,7 +182,10 @@ func TestEBSHandler_CalculateCost_IO1(t *testing.T) {
 		"iops": float64(3000),
 	}
 
-	_, monthly := h.CalculateCost(price, nil, "", attrs)
+	_, monthly, ok := def.CalculateStandardCost(price, nil, "", attrs)
+	if !ok {
+		t.Fatal("CalculateStandardCost should return ok=true")
+	}
 
 	expectedMonthly := 0.125*100 + 3000*FallbackIO1IOPSCostPerMonth
 	if monthly != expectedMonthly {
@@ -196,10 +196,7 @@ func TestEBSHandler_CalculateCost_IO1(t *testing.T) {
 func TestEBSHandler_CalculateCost_GP3Throughput(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
-	if !ok {
-		t.Fatal("handler should implement StandardCostHandler")
-	}
+	def := resourcespec.MustCompile(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	price := &pricing.Price{
 		OnDemandUSD: 0.08, // gp3 per GB-month
@@ -211,7 +208,10 @@ func TestEBSHandler_CalculateCost_GP3Throughput(t *testing.T) {
 		"throughput": float64(250),
 	}
 
-	_, monthly := h.CalculateCost(price, nil, "", attrs)
+	_, monthly, ok := def.CalculateStandardCost(price, nil, "", attrs)
+	if !ok {
+		t.Fatal("CalculateStandardCost should return ok=true")
+	}
 
 	expectedMonthly := 0.08*100 + (250-DefaultGP3FreeThroughputMBps)*FallbackGP3ThroughputCostPerMB
 	if monthly != expectedMonthly {
@@ -222,10 +222,7 @@ func TestEBSHandler_CalculateCost_GP3Throughput(t *testing.T) {
 func TestEBSHandler_CalculateCost_IO1_WithIndex(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
-	if !ok {
-		t.Fatal("handler should implement StandardCostHandler")
-	}
+	def := resourcespec.MustCompile(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	storagePrice := &pricing.Price{OnDemandUSD: 0.125}
 
@@ -248,7 +245,10 @@ func TestEBSHandler_CalculateCost_IO1_WithIndex(t *testing.T) {
 		"iops": float64(3000),
 	}
 
-	_, monthly := h.CalculateCost(storagePrice, index, "us-east-1", attrs)
+	_, monthly, ok := def.CalculateStandardCost(storagePrice, index, "us-east-1", attrs)
+	if !ok {
+		t.Fatal("CalculateStandardCost should return ok=true")
+	}
 
 	expectedMonthly := 0.125*100 + 3000*0.070
 	if !approxEqual(monthly, expectedMonthly) {
@@ -259,10 +259,7 @@ func TestEBSHandler_CalculateCost_IO1_WithIndex(t *testing.T) {
 func TestEBSHandler_CalculateCost_IO2(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
-	if !ok {
-		t.Fatal("handler should implement StandardCostHandler")
-	}
+	def := resourcespec.MustCompile(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	storagePrice := &pricing.Price{OnDemandUSD: 0.125}
 
@@ -285,7 +282,10 @@ func TestEBSHandler_CalculateCost_IO2(t *testing.T) {
 		"iops": float64(5000),
 	}
 
-	_, monthly := h.CalculateCost(storagePrice, index, "us-east-1", attrs)
+	_, monthly, ok := def.CalculateStandardCost(storagePrice, index, "us-east-1", attrs)
+	if !ok {
+		t.Fatal("CalculateStandardCost should return ok=true")
+	}
 
 	expectedMonthly := 0.125*50 + 5000*0.072
 	if !approxEqual(monthly, expectedMonthly) {
@@ -296,10 +296,7 @@ func TestEBSHandler_CalculateCost_IO2(t *testing.T) {
 func TestEBSHandler_CalculateCost_GP3(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
-	if !ok {
-		t.Fatal("handler should implement StandardCostHandler")
-	}
+	def := resourcespec.MustCompile(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	storagePrice := &pricing.Price{OnDemandUSD: 0.08}
 
@@ -331,7 +328,10 @@ func TestEBSHandler_CalculateCost_GP3(t *testing.T) {
 		"throughput": float64(250),
 	}
 
-	_, monthly := h.CalculateCost(storagePrice, index, "us-east-1", attrs)
+	_, monthly, ok := def.CalculateStandardCost(storagePrice, index, "us-east-1", attrs)
+	if !ok {
+		t.Fatal("CalculateStandardCost should return ok=true")
+	}
 
 	expectedMonthly := 0.08*100 +
 		(4000-DefaultGP3FreeIOPS)*0.007 +
@@ -344,10 +344,7 @@ func TestEBSHandler_CalculateCost_GP3(t *testing.T) {
 func TestEBSHandler_CalculateCost_FallbackOnMissingProduct(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
-	if !ok {
-		t.Fatal("handler should implement StandardCostHandler")
-	}
+	def := resourcespec.MustCompile(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	storagePrice := &pricing.Price{OnDemandUSD: 0.125}
 
@@ -362,7 +359,10 @@ func TestEBSHandler_CalculateCost_FallbackOnMissingProduct(t *testing.T) {
 		"iops": float64(3000),
 	}
 
-	_, monthly := h.CalculateCost(storagePrice, index, "us-east-1", attrs)
+	_, monthly, ok := def.CalculateStandardCost(storagePrice, index, "us-east-1", attrs)
+	if !ok {
+		t.Fatal("CalculateStandardCost should return ok=true")
+	}
 
 	// Should fall back to FallbackIO1IOPSCostPerMonth
 	expectedMonthly := 0.125*100 + 3000*FallbackIO1IOPSCostPerMonth
@@ -374,10 +374,7 @@ func TestEBSHandler_CalculateCost_FallbackOnMissingProduct(t *testing.T) {
 func TestEBSHandler_CalculateCost_NilIndex(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
-	if !ok {
-		t.Fatal("handler should implement StandardCostHandler")
-	}
+	def := resourcespec.MustCompile(EBSSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	storagePrice := &pricing.Price{OnDemandUSD: 0.08}
 
@@ -388,8 +385,11 @@ func TestEBSHandler_CalculateCost_NilIndex(t *testing.T) {
 		"throughput": float64(250),
 	}
 
-	// nil index — same as CalculateCost path
-	_, monthly := h.CalculateCost(storagePrice, nil, "", attrs)
+	// nil index — same as CalculateStandardCost path
+	_, monthly, ok := def.CalculateStandardCost(storagePrice, nil, "", attrs)
+	if !ok {
+		t.Fatal("CalculateStandardCost should return ok=true")
+	}
 
 	expectedMonthly := 0.08*100 +
 		(4000-DefaultGP3FreeIOPS)*FallbackGP3IOPSCostPerMonth +

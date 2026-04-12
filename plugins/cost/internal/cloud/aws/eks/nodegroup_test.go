@@ -14,10 +14,7 @@ func TestNodeGroupHandler_CalculateCost(t *testing.T) {
 	t.Parallel()
 
 	price := &pricing.Price{OnDemandUSD: 0.10}
-	h, ok := resourcespec.MustHandler(NodeGroupSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
-	if !ok {
-		t.Fatal("handler should implement StandardCostHandler")
-	}
+	def := resourcespec.MustCompile(NodeGroupSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	tests := []struct {
 		name       string
@@ -34,7 +31,10 @@ func TestNodeGroupHandler_CalculateCost(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			hourly, _ := h.CalculateCost(price, nil, "", tt.attrs)
+			hourly, _, ok := def.CalculateStandardCost(price, nil, "", tt.attrs)
+			if !ok {
+				t.Fatal("CalculateStandardCost() ok = false, want true")
+			}
 			if diff := hourly - tt.wantHourly; diff < -0.001 || diff > 0.001 {
 				t.Errorf("hourly = %v, want %v", hourly, tt.wantHourly)
 			}
@@ -46,7 +46,7 @@ func TestNodeGroupHandler_Contract(t *testing.T) {
 	t.Parallel()
 
 	category := handler.CostCategoryStandard
-	handlertest.RunContractSuite(t, resourcespec.MustHandler(NodeGroupSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
+	handlertest.RunContractSuite(t, resourcespec.MustCompile(NodeGroupSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
 		Category: &category,
 		LookupCases: []handlertest.LookupCase{
 			{

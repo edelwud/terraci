@@ -13,10 +13,7 @@ import (
 func TestInstanceHandler_BuildLookup(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.LookupBuilder)
-	if !ok {
-		t.Fatal("handler should implement LookupBuilder")
-	}
+	def := resourcespec.MustCompile(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	tests := []struct {
 		name        string
@@ -58,14 +55,14 @@ func TestInstanceHandler_BuildLookup(t *testing.T) {
 			t.Parallel()
 
 			if tt.wantErr {
-				_, err := h.BuildLookup(tt.region, tt.attrs)
+				_, err := def.BuildLookup(tt.region, tt.attrs)
 				if err == nil {
 					t.Error("BuildLookup should return error")
 				}
 				return
 			}
 
-			lookup := handlertest.RequireLookup(t, h, tt.region, tt.attrs)
+			lookup := handlertest.RequireLookup(t, def, tt.region, tt.attrs)
 
 			if lookup.Attributes["instanceType"] != tt.wantType {
 				t.Errorf("instanceType = %q, want %q", lookup.Attributes["instanceType"], tt.wantType)
@@ -81,15 +78,15 @@ func TestInstanceHandler_BuildLookup(t *testing.T) {
 func TestInstanceHandler_CalculateCost_ComputeOnly(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
-	if !ok {
-		t.Fatal("handler should implement StandardCostHandler")
-	}
+	def := resourcespec.MustCompile(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	price := &pricing.Price{OnDemandUSD: 0.10}
 
 	// CalculateCost now returns compute cost only (no root volume)
-	hourly, monthly := h.CalculateCost(price, nil, "", map[string]any{})
+	hourly, monthly, ok := def.CalculateStandardCost(price, nil, "", map[string]any{})
+	if !ok {
+		t.Fatal("CalculateStandardCost should return ok=true")
+	}
 
 	expectedMonthly := 0.10 * handler.HoursPerMonth
 	if monthly != expectedMonthly {
@@ -103,16 +100,13 @@ func TestInstanceHandler_CalculateCost_ComputeOnly(t *testing.T) {
 func TestInstanceHandler_SubResources_Default(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.CompoundHandler)
-	if !ok {
-		t.Fatal("handler should implement CompoundHandler")
-	}
+	def := resourcespec.MustCompile(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	// No root_block_device → default 8 GB gp2
-	subs := h.SubResources(map[string]any{})
+	subs := def.BuildSubresources(map[string]any{})
 
 	if len(subs) != 1 {
-		t.Fatalf("SubResources() returned %d, want 1", len(subs))
+		t.Fatalf("BuildSubresources() returned %d, want 1", len(subs))
 	}
 	sub := subs[0]
 	if sub.Suffix != "/root_volume" {
@@ -132,10 +126,7 @@ func TestInstanceHandler_SubResources_Default(t *testing.T) {
 func TestInstanceHandler_SubResources_Custom(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.CompoundHandler)
-	if !ok {
-		t.Fatal("handler should implement CompoundHandler")
-	}
+	def := resourcespec.MustCompile(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	attrs := map[string]any{
 		"instance_type": "t3.micro",
@@ -149,10 +140,10 @@ func TestInstanceHandler_SubResources_Custom(t *testing.T) {
 		},
 	}
 
-	subs := h.SubResources(attrs)
+	subs := def.BuildSubresources(attrs)
 
 	if len(subs) != 1 {
-		t.Fatalf("SubResources() returned %d, want 1", len(subs))
+		t.Fatalf("BuildSubresources() returned %d, want 1", len(subs))
 	}
 	sub := subs[0]
 	if handler.GetStringAttr(sub.Attrs, "type") != "gp3" {
@@ -172,17 +163,14 @@ func TestInstanceHandler_SubResources_Custom(t *testing.T) {
 func TestInstanceHandler_Category(t *testing.T) {
 	t.Parallel()
 
-	h := resourcespec.MustHandler(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
-	handlertest.AssertCategory(t, h, handler.CostCategoryStandard)
+	def := resourcespec.MustCompile(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	handlertest.AssertCategory(t, def, handler.CostCategoryStandard)
 }
 
 func TestInstanceHandler_Describe(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.Describer)
-	if !ok {
-		t.Fatal("handler should implement Describer")
-	}
+	def := resourcespec.MustCompile(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	tests := []struct {
 		name       string
@@ -229,16 +217,16 @@ func TestInstanceHandler_Describe(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := h.Describe(nil, tt.attrs)
+			result := def.DescribeResource(nil, tt.attrs)
 
 			for k, v := range tt.wantKeys {
 				if result[k] != v {
-					t.Errorf("Describe()[%q] = %q, want %q", k, result[k], v)
+					t.Errorf("DescribeResource()[%q] = %q, want %q", k, result[k], v)
 				}
 			}
 			for _, k := range tt.wantAbsent {
 				if _, ok := result[k]; ok {
-					t.Errorf("Describe() should not contain key %q", k)
+					t.Errorf("DescribeResource() should not contain key %q", k)
 				}
 			}
 		})

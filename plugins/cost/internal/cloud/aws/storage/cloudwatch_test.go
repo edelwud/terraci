@@ -12,25 +12,25 @@ import (
 func TestLogGroupHandler_Category(t *testing.T) {
 	t.Parallel()
 
-	h := resourcespec.MustHandler(LogGroupSpec())
-	handlertest.AssertCategory(t, h, handler.CostCategoryUsageBased)
+	def := resourcespec.MustCompile(LogGroupSpec())
+	handlertest.AssertCategory(t, def, handler.CostCategoryUsageBased)
 }
 
 func TestAlarmHandler_Category(t *testing.T) {
 	t.Parallel()
 
-	h := resourcespec.MustHandler(AlarmSpec())
-	handlertest.AssertCategory(t, h, handler.CostCategoryFixed)
+	def := resourcespec.MustCompile(AlarmSpec())
+	handlertest.AssertCategory(t, def, handler.CostCategoryFixed)
 }
 
 func TestLogGroupHandler_CalculateUsageCost(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(LogGroupSpec()).(handler.UsageBasedCostHandler)
+	def := resourcespec.MustCompile(LogGroupSpec())
+	got, ok := def.CalculateUsageCost("", nil)
 	if !ok {
-		t.Fatal("handler should implement UsageBasedCostHandler")
+		t.Fatal("CalculateUsageCost should be available")
 	}
-	got := h.CalculateUsageCost("", nil)
 	if got.HourlyCost != 0 {
 		t.Errorf("hourly = %v, want 0", got.HourlyCost)
 	}
@@ -45,20 +45,14 @@ func TestLogGroupHandler_CalculateUsageCost(t *testing.T) {
 func TestAlarmHandler_BuildLookup_ReturnsNil(t *testing.T) {
 	t.Parallel()
 
-	lookupBuilder, ok := resourcespec.MustHandler(AlarmSpec()).(handler.LookupBuilder)
-	if !ok {
-		t.Fatal("handler should implement LookupBuilder")
-	}
-	handlertest.AssertNilLookup(t, lookupBuilder, "us-east-1", nil)
+	def := resourcespec.MustCompile(AlarmSpec())
+	handlertest.AssertNilLookup(t, def, "us-east-1", nil)
 }
 
 func TestAlarmHandler_CalculateFixedCost(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(AlarmSpec()).(handler.FixedCostHandler)
-	if !ok {
-		t.Fatal("handler should implement FixedCostHandler")
-	}
+	def := resourcespec.MustCompile(AlarmSpec())
 
 	tests := []struct {
 		name        string
@@ -97,7 +91,10 @@ func TestAlarmHandler_CalculateFixedCost(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			hourly, monthly := h.CalculateFixedCost("", tt.attrs)
+			hourly, monthly, ok := def.CalculateFixedCost("", tt.attrs)
+			if !ok {
+				t.Fatal("CalculateFixedCost should be available")
+			}
 
 			if monthly != tt.wantMonthly {
 				t.Errorf("monthly = %v, want %v", monthly, tt.wantMonthly)
@@ -114,10 +111,7 @@ func TestAlarmHandler_CalculateFixedCost(t *testing.T) {
 func TestAlarmHandler_Describe(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(AlarmSpec()).(handler.Describer)
-	if !ok {
-		t.Fatal("handler should implement Describer")
-	}
+	def := resourcespec.MustCompile(AlarmSpec())
 
 	tests := []struct {
 		name           string
@@ -161,10 +155,10 @@ func TestAlarmHandler_Describe(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := h.Describe(nil, tt.attrs)
+			result := def.DescribeResource(nil, tt.attrs)
 
 			if result["resolution"] != tt.wantResolution {
-				t.Errorf("Describe()[resolution] = %q, want %q", result["resolution"], tt.wantResolution)
+				t.Errorf("DescribeResource()[resolution] = %q, want %q", result["resolution"], tt.wantResolution)
 			}
 		})
 	}

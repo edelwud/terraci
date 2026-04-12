@@ -14,7 +14,7 @@ func TestClusterHandler_Contract(t *testing.T) {
 	t.Parallel()
 
 	category := handler.CostCategoryStandard
-	handlertest.RunContractSuite(t, resourcespec.MustHandler(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
+	handlertest.RunContractSuite(t, resourcespec.MustCompile(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
 		Category: &category,
 		LookupCases: []handlertest.LookupCase{
 			{
@@ -95,10 +95,7 @@ func TestClusterHandler_Contract(t *testing.T) {
 func TestClusterHandler_CalculateCost(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
-	if !ok {
-		t.Fatal("handler should implement StandardCostHandler")
-	}
+	def := resourcespec.MustCompile(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	price := &pricing.Price{OnDemandUSD: 0.05}
 
@@ -126,7 +123,10 @@ func TestClusterHandler_CalculateCost(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			hourly, _ := h.CalculateCost(price, nil, "", tt.attrs)
+			hourly, _, ok := def.CalculateStandardCost(price, nil, "", tt.attrs)
+			if !ok {
+				t.Fatal("CalculateStandardCost returned ok=false")
+			}
 			if diff := hourly - tt.expectedHourly; diff < -epsilon || diff > epsilon {
 				t.Errorf("hourly = %v, want %v", hourly, tt.expectedHourly)
 			}
@@ -137,10 +137,7 @@ func TestClusterHandler_CalculateCost(t *testing.T) {
 func TestClusterHandler_CalculateCost_BackupStorage(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
-	if !ok {
-		t.Fatal("handler should implement StandardCostHandler")
-	}
+	def := resourcespec.MustCompile(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	// Price with memory attribute from AWS API
 	price := &pricing.Price{
@@ -174,7 +171,10 @@ func TestClusterHandler_CalculateCost_BackupStorage(t *testing.T) {
 		},
 	}
 
-	_, monthly := h.CalculateCost(price, index, "us-east-1", attrs)
+	_, monthly, ok := def.CalculateStandardCost(price, index, "us-east-1", attrs)
+	if !ok {
+		t.Fatal("CalculateStandardCost returned ok=false")
+	}
 
 	_, nodeMonthly := handler.ScaledHourlyCost(0.05, 3)
 	chargeableGB := 13.07*3*5 - 13.07*3
@@ -189,10 +189,7 @@ func TestClusterHandler_CalculateCost_BackupStorage(t *testing.T) {
 func TestClusterHandler_CalculateCost_DataTiering(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
-	if !ok {
-		t.Fatal("handler should implement StandardCostHandler")
-	}
+	def := resourcespec.MustCompile(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	// Price with SSD storage attribute from AWS API
 	price := &pricing.Price{
@@ -222,7 +219,10 @@ func TestClusterHandler_CalculateCost_DataTiering(t *testing.T) {
 		},
 	}
 
-	_, monthly := h.CalculateCost(price, index, "us-east-1", attrs)
+	_, monthly, ok := def.CalculateStandardCost(price, index, "us-east-1", attrs)
+	if !ok {
+		t.Fatal("CalculateStandardCost returned ok=false")
+	}
 
 	_, nodeMonthly := handler.ScaledHourlyCost(0.50, 2)
 	ssdCost := 75.0 * 2 * dtPrice
@@ -237,10 +237,7 @@ func TestClusterHandler_CalculateCost_DataTiering(t *testing.T) {
 func TestClusterHandler_CalculateCost_Fallback(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
-	if !ok {
-		t.Fatal("handler should implement StandardCostHandler")
-	}
+	def := resourcespec.MustCompile(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	// Price with storage/memory from AWS API, empty index → fallback pricing
 	price := &pricing.Price{
@@ -261,7 +258,10 @@ func TestClusterHandler_CalculateCost_Fallback(t *testing.T) {
 		Products: map[string]pricing.Price{},
 	}
 
-	_, monthly := h.CalculateCost(price, index, "us-east-1", attrs)
+	_, monthly, ok := def.CalculateStandardCost(price, index, "us-east-1", attrs)
+	if !ok {
+		t.Fatal("CalculateStandardCost returned ok=false")
+	}
 
 	_, nodeMonthly := handler.ScaledHourlyCost(0.50, 1)
 	ssdCost := 75.0 * 1 * FallbackDataTieringCostPerGBMonth
@@ -278,10 +278,7 @@ func TestClusterHandler_CalculateCost_Fallback(t *testing.T) {
 func TestClusterHandler_NoBackupCostWithRetention1(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
-	if !ok {
-		t.Fatal("handler should implement StandardCostHandler")
-	}
+	def := resourcespec.MustCompile(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	price := &pricing.Price{
 		OnDemandUSD: 0.05,
@@ -297,7 +294,10 @@ func TestClusterHandler_NoBackupCostWithRetention1(t *testing.T) {
 		"snapshot_retention_limit": 1,
 	}
 
-	_, monthly := h.CalculateCost(price, nil, "", attrs)
+	_, monthly, ok := def.CalculateStandardCost(price, nil, "", attrs)
+	if !ok {
+		t.Fatal("CalculateStandardCost returned ok=false")
+	}
 
 	_, nodeMonthly := handler.ScaledHourlyCost(0.05, 1)
 	// chargeableGB = 13.07*1*1 - 13.07*1 = 0, so no backup cost
@@ -309,10 +309,7 @@ func TestClusterHandler_NoBackupCostWithRetention1(t *testing.T) {
 func TestClusterHandler_NoStorageCostWithoutSSD(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
-	if !ok {
-		t.Fatal("handler should implement StandardCostHandler")
-	}
+	def := resourcespec.MustCompile(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	// Non-SSD node — storage attribute is "None"
 	price := &pricing.Price{
@@ -328,7 +325,10 @@ func TestClusterHandler_NoStorageCostWithoutSSD(t *testing.T) {
 		"num_cache_nodes": 1,
 	}
 
-	_, monthly := h.CalculateCost(price, nil, "", attrs)
+	_, monthly, ok := def.CalculateStandardCost(price, nil, "", attrs)
+	if !ok {
+		t.Fatal("CalculateStandardCost returned ok=false")
+	}
 
 	_, nodeMonthly := handler.ScaledHourlyCost(0.05, 1)
 	if monthly != nodeMonthly {

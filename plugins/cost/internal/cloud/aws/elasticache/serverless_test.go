@@ -11,17 +11,14 @@ import (
 )
 
 func TestServerlessHandler_Category(t *testing.T) {
-	h := resourcespec.MustHandler(ServerlessSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
-	handlertest.AssertCategory(t, h, handler.CostCategoryStandard)
+	def := resourcespec.MustCompile(ServerlessSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
+	handlertest.AssertCategory(t, def, handler.CostCategoryStandard)
 }
 
 func TestServerlessHandler_BuildLookup(t *testing.T) {
-	h, ok := resourcespec.MustHandler(ServerlessSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.LookupBuilder)
-	if !ok {
-		t.Fatal("handler should implement LookupBuilder")
-	}
+	def := resourcespec.MustCompile(ServerlessSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
-	lookup := handlertest.RequireLookup(t, h, "us-east-1", map[string]any{})
+	lookup := handlertest.RequireLookup(t, def, "us-east-1", map[string]any{})
 
 	if lookup.ProductFamily != "ElastiCache Serverless" {
 		t.Errorf("ProductFamily = %q, want %q", lookup.ProductFamily, "ElastiCache Serverless")
@@ -32,10 +29,7 @@ func TestServerlessHandler_BuildLookup(t *testing.T) {
 }
 
 func TestServerlessHandler_CalculateCost(t *testing.T) {
-	h, ok := resourcespec.MustHandler(ServerlessSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
-	if !ok {
-		t.Fatal("handler should implement StandardCostHandler")
-	}
+	def := resourcespec.MustCompile(ServerlessSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	price := &pricing.Price{OnDemandUSD: 0.000171} // per GB-hour
 
@@ -70,7 +64,10 @@ func TestServerlessHandler_CalculateCost(t *testing.T) {
 	const epsilon = 0.01
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, monthly := h.CalculateCost(price, nil, "", tt.attrs)
+			_, monthly, ok := def.CalculateStandardCost(price, nil, "", tt.attrs)
+			if !ok {
+				t.Fatal("CalculateStandardCost returned ok=false")
+			}
 			if diff := monthly - tt.expectedMonthly; diff < -epsilon || diff > epsilon {
 				t.Errorf("monthly = %v, want %v", monthly, tt.expectedMonthly)
 			}
@@ -79,10 +76,7 @@ func TestServerlessHandler_CalculateCost(t *testing.T) {
 }
 
 func TestServerlessHandler_CalculateCost_FallbackPrice(t *testing.T) {
-	h, ok := resourcespec.MustHandler(ServerlessSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
-	if !ok {
-		t.Fatal("handler should implement StandardCostHandler")
-	}
+	def := resourcespec.MustCompile(ServerlessSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	// Price with 0 USD — should fall back to default
 	price := &pricing.Price{OnDemandUSD: 0}
@@ -100,7 +94,10 @@ func TestServerlessHandler_CalculateCost_FallbackPrice(t *testing.T) {
 		},
 	}
 
-	_, monthly := h.CalculateCost(price, nil, "", attrs)
+	_, monthly, ok := def.CalculateStandardCost(price, nil, "", attrs)
+	if !ok {
+		t.Fatal("CalculateStandardCost returned ok=false")
+	}
 
 	expectedMonthly := 5 * FallbackServerlessStorageCostPerGBHour * handler.HoursPerMonth
 
@@ -111,10 +108,7 @@ func TestServerlessHandler_CalculateCost_FallbackPrice(t *testing.T) {
 }
 
 func TestServerlessHandler_Describe(t *testing.T) {
-	h, ok := resourcespec.MustHandler(ServerlessSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.Describer)
-	if !ok {
-		t.Fatal("handler should implement Describer")
-	}
+	def := resourcespec.MustCompile(ServerlessSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	attrs := map[string]any{
 		"engine": "redis",
@@ -130,7 +124,7 @@ func TestServerlessHandler_Describe(t *testing.T) {
 		},
 	}
 
-	desc := h.Describe(nil, attrs)
+	desc := def.DescribeResource(nil, attrs)
 	if desc["type"] != "serverless" {
 		t.Errorf("type = %q, want %q", desc["type"], "serverless")
 	}

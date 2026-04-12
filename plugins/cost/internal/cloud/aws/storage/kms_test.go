@@ -11,17 +11,17 @@ import (
 func TestKMSHandler_FixedContract(t *testing.T) {
 	t.Parallel()
 
-	handlertest.AssertFixedCategory(t, resourcespec.MustHandler(KMSSpec()))
+	handlertest.AssertFixedCategory(t, resourcespec.MustCompile(KMSSpec()))
 }
 
 func TestKMSHandler_CalculateFixedCost(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(KMSSpec()).(handler.FixedCostHandler)
+	def := resourcespec.MustCompile(KMSSpec())
+	hourly, monthly, ok := def.CalculateFixedCost("", nil)
 	if !ok {
-		t.Fatal("handler should implement FixedCostHandler")
+		t.Fatal("CalculateFixedCost should be available")
 	}
-	hourly, monthly := h.CalculateFixedCost("", nil)
 
 	if monthly != KMSKeyCost {
 		t.Errorf("monthly = %v, want %v", monthly, KMSKeyCost)
@@ -36,21 +36,15 @@ func TestKMSHandler_CalculateFixedCost(t *testing.T) {
 func TestKMSHandler_BuildLookupReturnsNil(t *testing.T) {
 	t.Parallel()
 
-	lookupBuilder, ok := resourcespec.MustHandler(KMSSpec()).(handler.LookupBuilder)
-	if !ok {
-		t.Fatal("handler should implement LookupBuilder")
-	}
-	handlertest.AssertNilLookup(t, lookupBuilder, "us-east-1", nil)
+	def := resourcespec.MustCompile(KMSSpec())
+	handlertest.AssertNilLookup(t, def, "us-east-1", nil)
 }
 
 func TestKMSHandler_DescribeReturnsNil(t *testing.T) {
 	t.Parallel()
 
-	describer, ok := resourcespec.MustHandler(KMSSpec()).(handler.Describer)
-	if !ok {
-		t.Fatal("handler should implement Describer")
-	}
-	if got := describer.Describe(nil, nil); got != nil {
-		t.Fatalf("Describe() = %#v, want nil", got)
+	def := resourcespec.MustCompile(KMSSpec())
+	if got := def.DescribeResource(nil, nil); got != nil {
+		t.Fatalf("DescribeResource() = %#v, want nil", got)
 	}
 }

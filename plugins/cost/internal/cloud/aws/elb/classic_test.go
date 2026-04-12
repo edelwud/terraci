@@ -14,7 +14,7 @@ func TestClassicHandler_Category(t *testing.T) {
 	t.Parallel()
 
 	category := handler.CostCategoryStandard
-	handlertest.RunContractSuite(t, resourcespec.MustHandler(ClassicSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
+	handlertest.RunContractSuite(t, resourcespec.MustCompile(ClassicSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
 		Category: &category,
 		LookupCases: []handlertest.LookupCase{
 			{
@@ -40,14 +40,14 @@ func TestClassicHandler_Category(t *testing.T) {
 func TestClassicHandler_CalculateCost(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(ClassicSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.StandardCostHandler)
-	if !ok {
-		t.Fatal("handler should implement StandardCostHandler")
-	}
+	def := resourcespec.MustCompile(ClassicSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	// With price
 	price := &pricing.Price{OnDemandUSD: 0.03}
-	hourly, monthly := h.CalculateCost(price, nil, "", nil)
+	hourly, monthly, ok := def.CalculateStandardCost(price, nil, "", nil)
+	if !ok {
+		t.Fatal("CalculateStandardCost() ok = false, want true")
+	}
 	if hourly != 0.03 {
 		t.Errorf("hourly = %v, want %v", hourly, 0.03)
 	}
@@ -56,7 +56,10 @@ func TestClassicHandler_CalculateCost(t *testing.T) {
 	}
 
 	// Fallback
-	hourly, _ = h.CalculateCost(&pricing.Price{OnDemandUSD: 0}, nil, "", nil)
+	hourly, _, ok = def.CalculateStandardCost(&pricing.Price{OnDemandUSD: 0}, nil, "", nil)
+	if !ok {
+		t.Fatal("CalculateStandardCost() ok = false, want true")
+	}
 	if hourly != 0.025 {
 		t.Errorf("fallback hourly = %v, want %v", hourly, 0.025)
 	}

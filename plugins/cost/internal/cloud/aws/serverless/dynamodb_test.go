@@ -14,10 +14,7 @@ import (
 func TestDynamoDBHandler_CalculateUsageCost(t *testing.T) {
 	t.Parallel()
 
-	h, ok := resourcespec.MustHandler(DynamoDBSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))).(handler.UsageBasedCostHandler)
-	if !ok {
-		t.Fatal("handler should implement UsageBasedCostHandler")
-	}
+	def := resourcespec.MustCompile(DynamoDBSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	tests := []struct {
 		name          string
@@ -53,7 +50,10 @@ func TestDynamoDBHandler_CalculateUsageCost(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := h.CalculateUsageCost("", tt.attrs)
+			got, ok := def.CalculateUsageCost("", tt.attrs)
+			if !ok {
+				t.Fatal("CalculateUsageCost should be available")
+			}
 
 			if tt.expectNonZero {
 				if got.HourlyCost == 0 {
@@ -89,7 +89,7 @@ func TestDynamoDBHandler_Contract(t *testing.T) {
 	t.Parallel()
 
 	category := handler.CostCategoryUsageBased
-	handlertest.RunContractSuite(t, resourcespec.MustHandler(DynamoDBSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
+	handlertest.RunContractSuite(t, resourcespec.MustCompile(DynamoDBSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), handlertest.ContractSuite{
 		Category: &category,
 		LookupCases: []handlertest.LookupCase{
 			{
