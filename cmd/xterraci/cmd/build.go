@@ -34,7 +34,7 @@ Examples:
 				log.SetLevel(log.DebugLevel)
 			}
 
-			terraciVersion := app.Version
+			terraciVersion := "v" + app.Version
 			if len(args) > 0 {
 				terraciVersion = args[0]
 			}
