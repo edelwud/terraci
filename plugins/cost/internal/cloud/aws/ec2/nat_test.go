@@ -33,21 +33,21 @@ func TestNATHandler_Category(t *testing.T) {
 				Name: "default attrs",
 				Assert: func(tb testing.TB, result map[string]string) {
 					tb.Helper()
-					if result["connectivity"] != "public" {
-						tb.Errorf("connectivity = %q, want %q", result["connectivity"], "public")
+					if result["connectivity"] != DefaultNATConnectivityType {
+						tb.Errorf("connectivity = %q, want %q", result["connectivity"], DefaultNATConnectivityType)
 					}
 				},
 			},
 			{
 				Name:  "with public ip",
-				Attrs: map[string]any{"public_ip": "203.0.113.5", "connectivity_type": "public"},
+				Attrs: map[string]any{"public_ip": "203.0.113.5", "connectivity_type": DefaultNATConnectivityType},
 				Assert: func(tb testing.TB, result map[string]string) {
 					tb.Helper()
 					if result["public_ip"] != "203.0.113.5" {
 						tb.Errorf("public_ip = %q, want %q", result["public_ip"], "203.0.113.5")
 					}
-					if result["connectivity"] != "public" {
-						tb.Errorf("connectivity = %q, want %q", result["connectivity"], "public")
+					if result["connectivity"] != DefaultNATConnectivityType {
+						tb.Errorf("connectivity = %q, want %q", result["connectivity"], DefaultNATConnectivityType)
 					}
 				},
 			},

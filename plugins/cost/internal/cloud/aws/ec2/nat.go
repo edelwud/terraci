@@ -8,8 +8,12 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
 
-// DefaultNATGatewayHourlyCost is the default NAT Gateway hourly rate.
-const DefaultNATGatewayHourlyCost = 0.045
+const (
+	// DefaultNATGatewayHourlyCost is the default NAT Gateway hourly rate.
+	DefaultNATGatewayHourlyCost = 0.045
+	// DefaultNATConnectivityType is the Terraform default when connectivity_type is not set.
+	DefaultNATConnectivityType = "public"
+)
 
 type natAttrs struct {
 	PublicIP         string
@@ -19,7 +23,7 @@ type natAttrs struct {
 func parseNATAttrs(attrs map[string]any) natAttrs {
 	ct := costutil.GetStringAttr(attrs, "connectivity_type")
 	if ct == "" {
-		ct = "public"
+		ct = DefaultNATConnectivityType
 	}
 	return natAttrs{
 		PublicIP:         costutil.GetStringAttr(attrs, "public_ip"),
