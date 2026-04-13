@@ -9,6 +9,7 @@ type (
 	Image            = configpkg.Image
 	MRCommentConfig  = configpkg.MRCommentConfig
 	Config           = configpkg.Config
+	CacheConfig      = configpkg.CacheConfig
 	MRConfig         = configpkg.MRConfig
 	SummaryJobConfig = configpkg.SummaryJobConfig
 	JobDefaults      = configpkg.JobDefaults

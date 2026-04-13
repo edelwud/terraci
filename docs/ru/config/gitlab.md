@@ -18,7 +18,7 @@ outline: deep
 | `parallelism` | int | `5` | Макс. параллельных джобов |
 | `plan_enabled` | bool | `true` | Генерировать plan-джобы |
 | `auto_approve` | bool | `false` | Автоматический apply |
-| `cache_enabled` | bool | `false` | Кеширование .terraform |
+| `cache_enabled` | bool | `true` | Кеширование .terraform |
 | `init_enabled` | bool | `true` | Авто-инициализация terraform после cd |
 | `variables` | map | `{}` | Переменные пайплайна |
 | `rules` | []object | `[]` | Правила workflow пайплайна |
@@ -184,6 +184,38 @@ plan-platform-prod-eu-central-1-vpc:
 - Экономия трафика — модули и провайдеры не скачиваются повторно
 - Работает на уровне отдельных модулей — независимое кеширование
 :::
+
+## cache
+
+Расширенная настройка кеша для GitLab jobs. Подходит, когда одного `cache_enabled` недостаточно и нужно управлять `key`, `paths` или `policy`.
+
+```yaml
+plugins:
+  gitlab:
+    cache:
+      enabled: true
+      key: "terraform-{service}-{environment}-{module}"
+      policy: pull-push
+      paths:
+        - "{module_path}/.terraform/"
+        - "{module_path}/.terraform.lock.hcl"
+```
+
+Поддерживаемые плейсхолдеры для `cache.key` и `cache.paths`:
+
+- `{module_path}`
+- `{service}`
+- `{environment}`
+- `{region}`
+- `{module}`
+
+Если `cache.paths` не указан, TerraCi сохраняет текущее поведение по умолчанию:
+
+```yaml
+cache:
+  paths:
+    - "{module_path}/.terraform/"
+```
 
 ## init_enabled
 

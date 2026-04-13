@@ -134,7 +134,7 @@ plugins:
 ### cache_enabled
 
 **Type:** `boolean`
-**Default:** `false`
+**Default:** `true`
 
 Enable caching of `.terraform` directory for each module. This significantly speeds up pipeline execution by reusing downloaded providers and modules.
 
@@ -155,6 +155,41 @@ plan-platform-prod-vpc:
 ```
 
 The cache key is derived from the module path with slashes replaced by dashes.
+
+### cache
+
+**Type:** `object`
+**Default:** `null`
+
+Advanced cache settings for generated GitLab jobs. Use this when `cache_enabled` is not enough and you need to control cache key, paths, or GitLab cache policy.
+
+```yaml
+plugins:
+  gitlab:
+    cache:
+      enabled: true
+      key: "terraform-{service}-{environment}-{module}"
+      policy: pull-push
+      paths:
+        - "{module_path}/.terraform/"
+        - "{module_path}/.terraform.lock.hcl"
+```
+
+Supported placeholders for `cache.key` and `cache.paths`:
+
+- `{module_path}`
+- `{service}`
+- `{environment}`
+- `{region}`
+- `{module}`
+
+If `cache.paths` is omitted, TerraCi keeps the default module-local cache path:
+
+```yaml
+cache:
+  paths:
+    - "{module_path}/.terraform/"
+```
 
 ### init_enabled
 

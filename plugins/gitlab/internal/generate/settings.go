@@ -2,6 +2,7 @@ package generate
 
 import (
 	"maps"
+	"strings"
 
 	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
 )
@@ -71,7 +72,31 @@ func (s settings) overwrites() []configpkg.JobOverwrite {
 }
 
 func (s settings) cacheEnabled() bool {
+	if s.config.Cache != nil && s.config.Cache.Enabled != nil {
+		return *s.config.Cache.Enabled
+	}
 	return s.config.CacheEnabled
+}
+
+func (s settings) cachePolicy() string {
+	if s.config.Cache == nil {
+		return ""
+	}
+	return strings.TrimSpace(s.config.Cache.Policy)
+}
+
+func (s settings) cacheKeyTemplate() string {
+	if s.config.Cache == nil {
+		return ""
+	}
+	return strings.TrimSpace(s.config.Cache.Key)
+}
+
+func (s settings) cachePathTemplates() []string {
+	if s.config.Cache == nil {
+		return nil
+	}
+	return s.config.Cache.Paths
 }
 
 func (s settings) mrCommentEnabled() bool {

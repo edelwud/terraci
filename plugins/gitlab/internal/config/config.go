@@ -17,11 +17,20 @@ type Config struct {
 	PlanOnly        bool              `yaml:"plan_only" json:"plan_only" jsonschema:"description=Generate only plan jobs (no apply jobs),default=false"`
 	AutoApprove     bool              `yaml:"auto_approve" json:"auto_approve" jsonschema:"description=Auto-approve applies (skip manual confirmation),default=false"`
 	CacheEnabled    bool              `yaml:"cache_enabled" json:"cache_enabled" jsonschema:"description=Enable caching of .terraform directory,default=true"`
+	Cache           *CacheConfig      `yaml:"cache,omitempty" json:"cache,omitempty" jsonschema:"description=Advanced GitLab cache configuration for terraform jobs"`
 	InitEnabled     bool              `yaml:"init_enabled" json:"init_enabled" jsonschema:"description=Automatically run terraform init after cd to module directory,default=true"`
 	Rules           []Rule            `yaml:"rules,omitempty" json:"rules,omitempty" jsonschema:"description=Workflow rules for conditional pipeline execution"`
 	JobDefaults     *JobDefaults      `yaml:"job_defaults,omitempty" json:"job_defaults,omitempty" jsonschema:"description=Default settings applied to all jobs"`
 	Overwrites      []JobOverwrite    `yaml:"overwrites,omitempty" json:"overwrites,omitempty" jsonschema:"description=Job-level overrides for plan or apply jobs"`
 	MR              *MRConfig         `yaml:"mr,omitempty" json:"mr,omitempty" jsonschema:"description=Merge request integration settings"`
+}
+
+// CacheConfig defines advanced GitLab CI cache configuration.
+type CacheConfig struct {
+	Enabled *bool    `yaml:"enabled,omitempty" json:"enabled,omitempty" jsonschema:"description=Enable GitLab cache for terraform jobs"`
+	Key     string   `yaml:"key,omitempty" json:"key,omitempty" jsonschema:"description=Cache key template. Supports placeholders: {module_path}\\, {service}\\, {environment}\\, {region}\\, {module}"`
+	Paths   []string `yaml:"paths,omitempty" json:"paths,omitempty" jsonschema:"description=Cache path templates. Supports placeholders: {module_path}\\, {service}\\, {environment}\\, {region}\\, {module}"`
+	Policy  string   `yaml:"policy,omitempty" json:"policy,omitempty" jsonschema:"description=GitLab cache policy,enum=pull,enum=push,enum=pull-push"`
 }
 
 // GetImage returns the configured image.

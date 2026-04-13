@@ -62,6 +62,67 @@ func TestJobBuilderApplyJobHonorsAutoApprove(t *testing.T) {
 	}
 }
 
+func TestJobBuilderCacheSupportsAdvancedOptions(t *testing.T) {
+	enabled := true
+	builder := newJobBuilder(
+		newSettings(&configpkg.Config{
+			CacheEnabled: true,
+			Cache: &configpkg.CacheConfig{
+				Enabled: &enabled,
+				Key:     "terraform-{service}-{environment}-{module}",
+				Paths: []string{
+					"{module_path}/.terraform/",
+					"{module_path}/.terraform.lock.hcl",
+				},
+				Policy: "pull-push",
+			},
+		}),
+		contributionIndex{},
+		func(_ *domain.Job, _ configpkg.JobOverwriteType) {},
+	)
+
+	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
+
+	cache := builder.cache(module)
+	if cache == nil {
+		t.Fatal("expected cache to be populated")
+	}
+	if cache.Key != "terraform-platform-stage-vpc" {
+		t.Fatalf("Key = %q", cache.Key)
+	}
+	if cache.Policy != "pull-push" {
+		t.Fatalf("Policy = %q", cache.Policy)
+	}
+	if len(cache.Paths) != 2 {
+		t.Fatalf("Paths = %#v", cache.Paths)
+	}
+	if cache.Paths[0] != "platform/stage/eu-central-1/vpc/.terraform/" {
+		t.Fatalf("Paths[0] = %q", cache.Paths[0])
+	}
+	if cache.Paths[1] != "platform/stage/eu-central-1/vpc/.terraform.lock.hcl" {
+		t.Fatalf("Paths[1] = %q", cache.Paths[1])
+	}
+}
+
+func TestJobBuilderCacheConfigCanDisableLegacyCache(t *testing.T) {
+	enabled := false
+	builder := newJobBuilder(
+		newSettings(&configpkg.Config{
+			CacheEnabled: true,
+			Cache: &configpkg.CacheConfig{
+				Enabled: &enabled,
+			},
+		}),
+		contributionIndex{},
+		func(_ *domain.Job, _ configpkg.JobOverwriteType) {},
+	)
+
+	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
+	if cache := builder.cache(module); cache != nil {
+		t.Fatalf("cache = %#v, want nil", cache)
+	}
+}
+
 func TestJobBuilderContributedJobInheritsJobDefaults(t *testing.T) {
 	cfg := &configpkg.Config{
 		JobDefaults: &configpkg.JobDefaults{

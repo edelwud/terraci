@@ -114,13 +114,51 @@ func (b jobBuilder) cache(module *discovery.Module) *domain.Cache {
 	}
 
 	return &domain.Cache{
-		Key:   cacheKey(module),
-		Paths: []string{module.RelativePath + "/.terraform/"},
+		Key:    renderCacheTemplate(b.settings.cacheKeyTemplate(), module, cacheKey(module)),
+		Paths:  cachePaths(module, b.settings.cachePathTemplates()),
+		Policy: b.settings.cachePolicy(),
 	}
 }
 
 func cacheKey(module *discovery.Module) string {
 	return strings.ReplaceAll(module.RelativePath, "/", "-")
+}
+
+func cachePaths(module *discovery.Module, templates []string) []string {
+	if len(templates) == 0 {
+		return []string{module.RelativePath + "/.terraform/"}
+	}
+
+	paths := make([]string, 0, len(templates))
+	for _, template := range templates {
+		path := renderCacheTemplate(template, module, "")
+		if path == "" {
+			continue
+		}
+		paths = append(paths, path)
+	}
+
+	if len(paths) == 0 {
+		return []string{module.RelativePath + "/.terraform/"}
+	}
+
+	return paths
+}
+
+func renderCacheTemplate(template string, module *discovery.Module, fallback string) string {
+	if strings.TrimSpace(template) == "" {
+		return fallback
+	}
+
+	replacer := strings.NewReplacer(
+		"{module_path}", module.RelativePath,
+		"{service}", module.Get("service"),
+		"{environment}", module.Get("environment"),
+		"{region}", module.Get("region"),
+		"{module}", module.Get("module"),
+	)
+
+	return replacer.Replace(template)
 }
 
 func requiredNeeds(deps []string) []domain.JobNeed {

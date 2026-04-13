@@ -21,6 +21,7 @@ func init() {
 					StagesPrefix:    "deploy",
 					Parallelism:     5,
 					PlanEnabled:     true,
+					CacheEnabled:    true,
 					InitEnabled:     true,
 				}
 			},
