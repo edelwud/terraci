@@ -7,7 +7,7 @@ require (
 	charm.land/huh/v2 v2.0.3
 	charm.land/lipgloss/v2 v2.0.2
 	github.com/caarlos0/log v0.6.0
-	github.com/go-git/go-git/v6 v6.0.0-20260328145551-a93bccd59f82
+	github.com/go-git/go-git/v6 v6.0.0-alpha.1
 	github.com/google/go-github/v68 v68.0.0
 	github.com/hashicorp/hcl/v2 v2.24.0
 	github.com/hashicorp/terraform-json v0.27.2
