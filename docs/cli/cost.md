@@ -25,7 +25,7 @@ terraci cost [flags]
 1. Scans the working directory for `plan.json` files (output of `terraform show -json plan.tfplan`)
 2. Detects the region from the module path using the configured `structure.pattern`
 3. Fetches AWS pricing data from the [Bulk Pricing API](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/price-changes.html) (cached locally)
-4. Matches each resource to a cost handler and calculates monthly estimates
+4. Matches each resource to a cost definition and calculates monthly estimates
 5. Outputs per-module cost with before/after/diff
 
 No AWS credentials required — pricing data is public.

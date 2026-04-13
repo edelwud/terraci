@@ -59,7 +59,7 @@ Accepts Go duration strings: `"1h"`, `"30m"`, `"72h"`, etc.
 ## How It Works
 
 1. After `terraform plan` completes, TerraCi reads the `plan.json` file from each module directory.
-2. Resource changes are extracted and matched against registered AWS resource handlers.
+2. Resource changes are extracted and matched against registered AWS resource definitions.
 3. Pricing is fetched from the AWS Bulk Pricing API and cached locally according to `cache_ttl`.
 4. Per-resource hourly and monthly costs are calculated for both the before and after states.
 5. Results are aggregated into a per-module cost summary with before/after/diff values.
@@ -73,12 +73,12 @@ Cost estimation requires `plan.json` (produced by `terraform show -json`) to be 
 | **EC2** | Instances, EBS volumes, Elastic IPs, NAT Gateways |
 | **RDS** | Instances, clusters, cluster instances |
 | **ELB** | Application Load Balancers, Classic Load Balancers |
-| **ElastiCache** | Clusters, replication groups |
+| **ElastiCache** | Clusters, replication groups, serverless caches |
 | **EKS** | Clusters, node groups |
-| **Serverless** | Lambda, DynamoDB, SQS, SNS, Secrets Manager |
-| **Storage** | S3 buckets, VPC endpoints |
+| **Serverless** | Lambda, DynamoDB, SQS, SNS |
+| **Storage** | S3, CloudWatch alarms/log groups, KMS keys, Route 53 zones, Secrets Manager |
 
-Each resource type has a dedicated handler that maps Terraform resource attributes to the corresponding pricing dimensions.
+Each resource type has a dedicated definition that maps Terraform resource attributes to the corresponding pricing dimensions.
 
 ## MR/PR Integration
 
