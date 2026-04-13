@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
+	"github.com/edelwud/terraci/plugins/cost/internal/contracttest"
 	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
-	"github.com/edelwud/terraci/plugins/cost/internal/definitiontest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
@@ -63,7 +63,7 @@ func TestInstanceHandler_BuildLookup(t *testing.T) {
 				return
 			}
 
-			lookup := definitiontest.RequireLookup(t, def, tt.region, tt.attrs)
+			lookup := contracttest.RequireLookup(t, def, tt.region, tt.attrs)
 
 			if lookup.Attributes["instanceType"] != tt.wantType {
 				t.Errorf("instanceType = %q, want %q", lookup.Attributes["instanceType"], tt.wantType)
@@ -165,7 +165,7 @@ func TestInstanceHandler_Category(t *testing.T) {
 	t.Parallel()
 
 	def := resourcespec.MustCompileTyped(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
-	definitiontest.AssertCategory(t, def, resourcedef.CostCategoryStandard)
+	contracttest.AssertCategory(t, def, resourcedef.CostCategoryStandard)
 }
 
 func TestInstanceHandler_Describe(t *testing.T) {

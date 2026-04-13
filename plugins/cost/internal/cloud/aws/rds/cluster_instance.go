@@ -38,18 +38,12 @@ func ClusterInstanceSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[cluster
 				if engine == "" {
 					engine = DefaultAuroraEngine
 				}
-				databaseEngine := mapRDSEngine(engine)
 
-				return deps.RuntimeOrDefault().StandardLookupSpec(
-					awskit.ServiceKeyRDS,
-					"Database Instance",
-					func(_ string, _ map[string]any) (map[string]string, error) {
-						return map[string]string{
-							"instanceType":   p.InstanceClass,
-							"databaseEngine": databaseEngine,
-						}, nil
-					},
-				).Build(region, nil)
+				return deps.RuntimeOrDefault().
+					NewLookupBuilder(awskit.ServiceKeyRDS, "Database Instance").
+					Attr("instanceType", p.InstanceClass).
+					Attr("databaseEngine", mapRDSEngine(engine)).
+					Build(region), nil
 			},
 		},
 		Describe: &resourcespec.TypedDescribeSpec[clusterInstanceAttrs]{
@@ -62,10 +56,7 @@ func ClusterInstanceSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[cluster
 		},
 		Standard: &resourcespec.TypedStandardPricingSpec[clusterInstanceAttrs]{
 			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ clusterInstanceAttrs) (hourly, monthly float64) {
-				if price == nil {
-					return 0, 0
-				}
-				return costutil.HourlyCost(price.OnDemandUSD)
+				return awskit.NewCostBuilder().Hourly().Calc(price, nil, "")
 			},
 		},
 	}

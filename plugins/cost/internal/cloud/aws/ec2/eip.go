@@ -23,8 +23,6 @@ func parseEIPAttrs(attrs map[string]any) eipAttrs {
 
 // EIPSpec declares aws_eip cost estimation.
 func EIPSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[eipAttrs] {
-	vpcServiceID := deps.RuntimeOrDefault().MustService(awskit.ServiceKeyVPC)
-
 	return resourcespec.TypedSpec[eipAttrs]{
 		Type:     resourcedef.ResourceType(awskit.ResourceEIP),
 		Category: resourcedef.CostCategoryStandard,
@@ -32,41 +30,25 @@ func EIPSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[eipAttrs] {
 		Lookup: &resourcespec.TypedLookupSpec[eipAttrs]{
 			BuildFunc: func(region string, p eipAttrs) (*pricing.PriceLookup, error) {
 				runtime := deps.RuntimeOrDefault()
-				prefix := runtime.ResolveUsagePrefix(region)
-
-				usagetype := prefix + "-PublicIPv4:InUseAddress"
-				if p.Instance == "" {
-					usagetype = prefix + "-PublicIPv4:IdleAddress"
-				}
-
-				return &pricing.PriceLookup{
-					ServiceID: vpcServiceID,
-					Region:    region,
-					Attributes: map[string]string{
-						"location":  runtime.ResolveRegionName(region),
-						"usagetype": usagetype,
-						"group":     "VPCPublicIPv4Address",
-					},
-				}, nil
+				return runtime.
+					NewLookupBuilder(awskit.ServiceKeyVPC, "").
+					Attr("group", "VPCPublicIPv4Address").
+					UsageType(region, awskit.MatchString(p.Instance, "PublicIPv4:InUseAddress", map[string]string{
+						"": "PublicIPv4:IdleAddress",
+					})).
+					Build(region), nil
 			},
 		},
 		Describe: &resourcespec.TypedDescribeSpec[eipAttrs]{
 			BuildFunc: func(_ *pricing.Price, p eipAttrs) map[string]string {
-				details := map[string]string{}
-				if p.Instance != "" {
-					details["attached"] = "true"
-				} else {
-					details["attached"] = "false"
-				}
-				return details
+				return awskit.NewDescribeBuilder().
+					String("attached", map[bool]string{true: "true", false: "false"}[p.Instance != ""]).
+					Map()
 			},
 		},
 		Standard: &resourcespec.TypedStandardPricingSpec[eipAttrs]{
 			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ eipAttrs) (hourly, monthly float64) {
-				if price != nil && price.OnDemandUSD > 0 {
-					return costutil.HourlyCost(price.OnDemandUSD)
-				}
-				return costutil.HourlyCost(DefaultEIPHourlyCost)
+				return awskit.NewCostBuilder().Hourly().Fallback(DefaultEIPHourlyCost).Calc(price, nil, "")
 			},
 		},
 	}

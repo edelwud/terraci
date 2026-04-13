@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
+	"github.com/edelwud/terraci/plugins/cost/internal/contracttest"
 	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
-	"github.com/edelwud/terraci/plugins/cost/internal/definitiontest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
@@ -13,13 +13,13 @@ import (
 
 func TestServerlessHandler_Category(t *testing.T) {
 	def := resourcespec.MustCompileTyped(ServerlessSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
-	definitiontest.AssertCategory(t, def, resourcedef.CostCategoryStandard)
+	contracttest.AssertCategory(t, def, resourcedef.CostCategoryStandard)
 }
 
 func TestServerlessHandler_BuildLookup(t *testing.T) {
 	def := resourcespec.MustCompileTyped(ServerlessSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
-	lookup := definitiontest.RequireLookup(t, def, "us-east-1", map[string]any{})
+	lookup := contracttest.RequireLookup(t, def, "us-east-1", map[string]any{})
 
 	if lookup.ProductFamily != "ElastiCache Serverless" {
 		t.Errorf("ProductFamily = %q, want %q", lookup.ProductFamily, "ElastiCache Serverless")

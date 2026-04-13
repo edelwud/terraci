@@ -10,10 +10,10 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
 	_ "github.com/edelwud/terraci/plugins/cost/internal/cloud/aws"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
+	"github.com/edelwud/terraci/plugins/cost/internal/contracttest"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
-	"github.com/edelwud/terraci/plugins/cost/internal/runtimetest"
 	"github.com/edelwud/terraci/plugins/diskblob"
 )
 
@@ -27,7 +27,7 @@ func TestProviderCatalog_ResolveProviderAndDefinition(t *testing.T) {
 		router,
 		map[string]map[resourcedef.ResourceType]resourcedef.Definition{
 			awskit.ProviderID: {
-				resourcedef.ResourceType("aws_instance"): runtimetest.StubDefinition{
+				resourcedef.ResourceType("aws_instance"): contracttest.StubDefinition{
 					CategoryValue: resourcedef.CostCategoryStandard,
 					CalculateFunc: func(_ *pricing.Price, _ *pricing.PriceIndex, _ string, _ map[string]any) (hourly, monthly float64) {
 						return 0, 0
@@ -73,7 +73,7 @@ func TestProviderRuntimeRegistry_GetIndexAndSourceName(t *testing.T) {
 		},
 	}
 
-	cache1, err := pricing.NewCacheFromBlobCache(blobcache.New(diskblob.NewStore(t.TempDir()), "", time.Hour), runtimetest.StubFetcher{
+	cache1, err := pricing.NewCacheFromBlobCache(blobcache.New(diskblob.NewStore(t.TempDir()), "", time.Hour), contracttest.StubFetcher{
 		FetchRegionIndexFunc: func(_ context.Context, _ pricing.ServiceID, _ string) (*pricing.PriceIndex, error) {
 			return expected, nil
 		},
@@ -90,7 +90,7 @@ func TestProviderRuntimeRegistry_GetIndexAndSourceName(t *testing.T) {
 		},
 	)
 
-	got := runtimetest.AssertPricingSourceContract(t, runtimeRegistry, awskit.ProviderID, serviceID, "us-east-1", awsProvider.Definition().Manifest.PriceSource)
+	got := contracttest.AssertPricingSourceContract(t, runtimeRegistry, awskit.ProviderID, serviceID, "us-east-1", awsProvider.Definition().Manifest.PriceSource)
 	if got.ServiceID != serviceID {
 		t.Fatalf("GetIndex().ServiceID = %q, want %q", got.ServiceID, serviceID)
 	}
@@ -114,8 +114,8 @@ func TestProviderCatalog_DistinguishesNoProviderFromNoHandler(t *testing.T) {
 		},
 	})
 
-	runtimetest.AssertNoDefinitionContract(t, catalog, awskit.ProviderID, resourcedef.ResourceType("aws_cloudfront_distribution"))
-	runtimetest.AssertNoProviderContract(t, catalog, resourcedef.ResourceType("custom_unknown_resource"))
+	contracttest.AssertNoDefinitionContract(t, catalog, awskit.ProviderID, resourcedef.ResourceType("aws_cloudfront_distribution"))
+	contracttest.AssertNoProviderContract(t, catalog, resourcedef.ResourceType("custom_unknown_resource"))
 }
 
 func TestProviderRuntimeRegistry_WarmIndexes(t *testing.T) {
@@ -128,7 +128,7 @@ func TestProviderRuntimeRegistry_WarmIndexes(t *testing.T) {
 
 	serviceID := awskit.MustService(awskit.ServiceKeyEC2)
 	fetchCount := 0
-	cache2, err := pricing.NewCacheFromBlobCache(blobcache.New(diskblob.NewStore(t.TempDir()), "", time.Hour), runtimetest.StubFetcher{
+	cache2, err := pricing.NewCacheFromBlobCache(blobcache.New(diskblob.NewStore(t.TempDir()), "", time.Hour), contracttest.StubFetcher{
 		FetchRegionIndexFunc: func(_ context.Context, _ pricing.ServiceID, _ string) (*pricing.PriceIndex, error) {
 			fetchCount++
 			return &pricing.PriceIndex{
@@ -210,12 +210,12 @@ func TestProviderRuntimeRegistry_ProviderScopedFetcherOverrides(t *testing.T) {
 		providers,
 		blobcache.New(diskblob.NewStore(t.TempDir()), "", time.Hour),
 		map[string]pricing.PriceFetcher{
-			"one": runtimetest.StubFetcher{
+			"one": contracttest.StubFetcher{
 				FetchRegionIndexFunc: func(_ context.Context, service pricing.ServiceID, region string) (*pricing.PriceIndex, error) {
 					return testPriceIndex(service, region, "override-one"), nil
 				},
 			},
-			"two": runtimetest.StubFetcher{
+			"two": contracttest.StubFetcher{
 				FetchRegionIndexFunc: func(_ context.Context, service pricing.ServiceID, region string) (*pricing.PriceIndex, error) {
 					return testPriceIndex(service, region, "override-two"), nil
 				},
@@ -261,7 +261,7 @@ func (p fakeCloudProvider) Definition() cloud.Definition {
 			},
 		},
 		FetcherFactory: func() pricing.PriceFetcher {
-			return runtimetest.StubFetcher{
+			return contracttest.StubFetcher{
 				FetchRegionIndexFunc: func(_ context.Context, service pricing.ServiceID, region string) (*pricing.PriceIndex, error) {
 					return testPriceIndex(service, region, fmt.Sprintf("default-%s", p.id)), nil
 				},

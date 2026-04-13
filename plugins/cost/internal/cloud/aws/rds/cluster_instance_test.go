@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
+	"github.com/edelwud/terraci/plugins/cost/internal/contracttest"
 	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
-	"github.com/edelwud/terraci/plugins/cost/internal/definitiontest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
@@ -14,20 +14,33 @@ import (
 func TestClusterInstanceHandler_CalculateCost(t *testing.T) {
 	t.Parallel()
 
-	price := &pricing.Price{OnDemandUSD: 0.29}
 	def := resourcespec.MustCompileTyped(ClusterInstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
-	hourly, monthly, ok := def.CalculateStandardCost(price, nil, "", nil)
-	if !ok {
-		t.Fatal("CalculateStandardCost returned ok=false")
-	}
+	t.Run("standard hourly", func(t *testing.T) {
+		t.Parallel()
+		p := &pricing.Price{OnDemandUSD: 0.29}
+		hourly, monthly, ok := def.CalculateStandardCost(p, nil, "", nil)
+		if !ok {
+			t.Fatal("CalculateStandardCost returned ok=false")
+		}
+		if hourly != 0.29 {
+			t.Errorf("hourly = %v, want 0.29", hourly)
+		}
+		if monthly != 0.29*costutil.HoursPerMonth {
+			t.Errorf("monthly = %v, want %v", monthly, 0.29*costutil.HoursPerMonth)
+		}
+	})
 
-	if hourly != 0.29 {
-		t.Errorf("hourly = %v, want 0.29", hourly)
-	}
-	if monthly != 0.29*costutil.HoursPerMonth {
-		t.Errorf("monthly = %v, want %v", monthly, 0.29*costutil.HoursPerMonth)
-	}
+	t.Run("nil price returns zero", func(t *testing.T) {
+		t.Parallel()
+		hourly, monthly, ok := def.CalculateStandardCost(nil, nil, "", nil)
+		if !ok {
+			t.Fatal("CalculateStandardCost returned ok=false")
+		}
+		if hourly != 0 || monthly != 0 {
+			t.Errorf("expected (0, 0), got (%v, %v)", hourly, monthly)
+		}
+	})
 }
 
 func TestClusterInstanceHandler_Contract(t *testing.T) {
@@ -35,9 +48,9 @@ func TestClusterInstanceHandler_Contract(t *testing.T) {
 
 	category := resourcedef.CostCategoryStandard
 	def := resourcespec.MustCompileTyped(ClusterInstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
-	definitiontest.RunContractSuite(t, def, definitiontest.ContractSuite{
+	contracttest.RunContractSuite(t, def, contracttest.ContractSuite{
 		Category: &category,
-		LookupCases: []definitiontest.LookupCase{
+		LookupCases: []contracttest.LookupCase{
 			{
 				Name:   "aurora-mysql instance",
 				Region: "us-east-1",
@@ -73,13 +86,26 @@ func TestClusterInstanceHandler_Contract(t *testing.T) {
 				},
 			},
 			{
+				Name:   "default engine (empty) resolves to aurora-mysql",
+				Region: "us-east-1",
+				Attrs: map[string]any{
+					"instance_class": "db.r6g.large",
+				},
+				Assert: func(tb testing.TB, lookup *pricing.PriceLookup) {
+					tb.Helper()
+					if lookup.Attributes["databaseEngine"] != "Aurora MySQL" {
+						tb.Errorf("databaseEngine = %q, want %q", lookup.Attributes["databaseEngine"], "Aurora MySQL")
+					}
+				},
+			},
+			{
 				Name:    "missing instance_class",
 				Region:  "us-east-1",
 				Attrs:   map[string]any{},
 				WantErr: true,
 			},
 		},
-		DescribeCases: []definitiontest.DescribeCase{
+		DescribeCases: []contracttest.DescribeCase{
 			{
 				Name:       "nil attrs",
 				Attrs:      nil,

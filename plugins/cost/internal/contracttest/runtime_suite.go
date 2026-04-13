@@ -1,4 +1,4 @@
-package runtimetest
+package contracttest
 
 import (
 	"context"

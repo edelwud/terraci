@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
+
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
@@ -35,50 +35,57 @@ func ClusterSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[clusterAttrs] {
 				if engine == "" {
 					engine = defaultEngine
 				}
-				cacheEngine := awsEngineRedis
-				if strings.EqualFold(engine, "memcached") {
-					cacheEngine = awsEngineMemcached
-				}
 
-				runtime := deps.RuntimeOrDefault()
-				return runtime.StandardLookupSpec(
-					awskit.ServiceKeyElastiCache,
-					"Cache Instance",
-					func(region string, _ map[string]any) (map[string]string, error) {
-						prefix := runtime.ResolveUsagePrefix(region)
-						return map[string]string{
-							"instanceType": p.NodeType,
-							"cacheEngine":  cacheEngine,
-							"usagetype":    prefix + "-NodeUsage:" + p.NodeType,
-						}, nil
-					},
-				).Build(region, nil)
+				return deps.RuntimeOrDefault().
+					NewLookupBuilder(awskit.ServiceKeyElastiCache, "Cache Instance").
+					Attr("instanceType", p.NodeType).
+					AttrMatch("cacheEngine", strings.ToLower(engine), awsEngineRedis, map[string]string{
+						"memcached": awsEngineMemcached,
+						"redis":     awsEngineRedis,
+					}).
+					UsageType(region, "NodeUsage:"+p.NodeType).
+					Build(region), nil
 			},
 		},
 		Describe: &resourcespec.TypedDescribeSpec[clusterAttrs]{
 			BuildFunc: func(price *pricing.Price, p clusterAttrs) map[string]string {
-				b := awskit.DescribeBuilder{}
-				b.String("node_type", p.NodeType)
-				b.String("engine", p.Engine)
-				b.Int("nodes", p.NumCacheNodes)
-				b.Int("snapshot_retention_days", p.SnapshotRetentionDays)
-				appendNodeCapacityDescribeFields(&b, price)
-				return b.Map()
+				memoryGiB := 0.0
+				ssdGiB := 0.0
+				if price != nil {
+					memoryGiB = awskit.ParseGiB(price.Attributes["memory"])
+					ssdGiB = awskit.ParseGiB(price.Attributes["storage"])
+				}
+				return awskit.NewDescribeBuilder().
+					String("node_type", p.NodeType).
+					String("engine", p.Engine).
+					Int("nodes", p.NumCacheNodes).
+					Int("snapshot_retention_days", p.SnapshotRetentionDays).
+					FloatIf(memoryGiB > 0, "memory_gib", memoryGiB, "%.2f").
+					FloatIf(ssdGiB > 0, "ssd_gib", ssdGiB, "%.0f").
+					Map()
 			},
 		},
 		Standard: &resourcespec.TypedStandardPricingSpec[clusterAttrs]{
 			CostFunc: func(price *pricing.Price, index *pricing.PriceIndex, region string, p clusterAttrs) (hourly, monthly float64) {
-				if price == nil {
-					return 0, 0
+				rt := deps.RuntimeOrDefault()
+				nodes := p.NumCacheNodes
+				if nodes == 0 {
+					nodes = 1
 				}
-				numCacheNodes := p.NumCacheNodes
-				if numCacheNodes == 0 {
-					numCacheNodes = 1
-				}
+				ssdGB := priceGiB(price, "storage")
+				memGB := priceGiB(price, "memory")
+				backupGB := memGB * float64(nodes) * float64(max(p.SnapshotRetentionDays-1, 0))
 
-				_, monthly = costutil.ScaledHourlyCost(price.OnDemandUSD, numCacheNodes)
-				monthly += nodeStorageAddOnMonthlyCost(deps.RuntimeOrDefault(), price, index, region, numCacheNodes, p.SnapshotRetentionDays)
-				return monthly / costutil.HoursPerMonth, monthly
+				return awskit.NewCostBuilder().
+					Hourly().
+					Scale(float64(nodes)).
+					Charge(awskit.NewCharge(ssdGB*float64(nodes)).
+						Rate(awskit.IndexRate(rt, "Cache Storage", rt.ResolveUsagePrefix(region)+"-DataTiering:StorageUsage")).
+						Fallback(FallbackDataTieringCostPerGBMonth)).
+					Charge(awskit.NewCharge(backupGB).
+						Rate(awskit.IndexRate(rt, "Storage Snapshot", rt.ResolveUsagePrefix(region)+"-BackupUsage")).
+						Fallback(FallbackBackupStorageCostPerGBMonth)).
+					Calc(price, index, region)
 			},
 		},
 	}

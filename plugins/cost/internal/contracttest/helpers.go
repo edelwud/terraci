@@ -1,4 +1,4 @@
-package definitiontest
+package contracttest
 
 import (
 	"testing"

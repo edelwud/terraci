@@ -3,7 +3,7 @@ package serverless
 import (
 	"testing"
 
-	"github.com/edelwud/terraci/plugins/cost/internal/definitiontest"
+	"github.com/edelwud/terraci/plugins/cost/internal/contracttest"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
@@ -11,7 +11,7 @@ import (
 func TestSNSHandler_UsageBasedContract(t *testing.T) {
 	t.Parallel()
 
-	definitiontest.AssertUsageBasedCategory(t, resourcespec.MustCompileTyped(SNSSpec()))
+	contracttest.AssertUsageBasedCategory(t, resourcespec.MustCompileTyped(SNSSpec()))
 }
 
 func TestSNSHandler_CalculateUsageCost(t *testing.T) {

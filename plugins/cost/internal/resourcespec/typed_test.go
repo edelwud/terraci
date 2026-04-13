@@ -133,6 +133,46 @@ func TestCompileTyped_UsageSpec(t *testing.T) {
 	}
 }
 
+func TestFixedMonthlyNoAttrsSpec(t *testing.T) {
+	t.Parallel()
+
+	def := resourcespec.MustCompileTyped(resourcespec.FixedMonthlyNoAttrsSpec("aws_test_fixed_noattrs", 12.0))
+
+	_, monthly, ok := def.CalculateFixedCost("", nil)
+	if !ok {
+		t.Fatal("fixed cost should be available")
+	}
+	if monthly != 12.0 {
+		t.Fatalf("monthly = %.2f, want 12.0", monthly)
+	}
+
+	lookup, err := def.BuildLookup("us-east-1", nil)
+	if err != nil {
+		t.Fatalf("BuildLookup() error = %v", err)
+	}
+	if lookup != nil {
+		t.Fatalf("BuildLookup() = %#v, want nil", lookup)
+	}
+}
+
+func TestUsageUnknownNoAttrsSpec(t *testing.T) {
+	t.Parallel()
+
+	def := resourcespec.MustCompileTyped(resourcespec.UsageUnknownNoAttrsSpec("aws_test_usage_noattrs"))
+
+	estimate, ok := def.CalculateUsageCost("", nil)
+	if !ok {
+		t.Fatal("usage cost should be available")
+	}
+	if estimate.Status != model.ResourceEstimateStatusUsageUnknown {
+		t.Fatalf("status = %q, want %q", estimate.Status, model.ResourceEstimateStatusUsageUnknown)
+	}
+
+	if got := def.DescribeResource(nil, nil); got != nil {
+		t.Fatalf("DescribeResource() = %#v, want nil", got)
+	}
+}
+
 func TestCompileTyped_Subresources(t *testing.T) {
 	t.Parallel()
 

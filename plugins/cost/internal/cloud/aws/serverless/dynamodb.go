@@ -38,20 +38,16 @@ func DynamoDBSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[dynamoDBAttrs]
 		Parse:    parseDynamoDBAttrs,
 		Lookup: &resourcespec.TypedLookupSpec[dynamoDBAttrs]{
 			BuildFunc: func(region string, p dynamoDBAttrs) (*pricing.PriceLookup, error) {
+				runtime := deps.RuntimeOrDefault()
 				if p.BillingMode == "PAY_PER_REQUEST" {
-					return deps.RuntimeOrDefault().StandardLookupSpec(
-						awskit.ServiceKeyDynamoDB,
-						"Amazon DynamoDB PayPerRequest Throughput",
-						func(string, map[string]any) (map[string]string, error) { return nil, nil },
-					).Build(region, nil)
+					return runtime.
+						NewLookupBuilder(awskit.ServiceKeyDynamoDB, "Amazon DynamoDB PayPerRequest Throughput").
+						Build(region), nil
 				}
-				return deps.RuntimeOrDefault().StandardLookupSpec(
-					awskit.ServiceKeyDynamoDB,
-					"Provisioned IOPS",
-					func(string, map[string]any) (map[string]string, error) {
-						return map[string]string{"group": "DDB-WriteUnits"}, nil
-					},
-				).Build(region, nil)
+				return runtime.
+					NewLookupBuilder(awskit.ServiceKeyDynamoDB, "Provisioned IOPS").
+					Attr("group", "DDB-WriteUnits").
+					Build(region), nil
 			},
 		},
 		Describe: &resourcespec.TypedDescribeSpec[dynamoDBAttrs]{

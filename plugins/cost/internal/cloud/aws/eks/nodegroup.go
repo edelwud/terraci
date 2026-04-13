@@ -54,39 +54,27 @@ func NodeGroupSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[nodeGroupAttr
 		Parse:    parseNodeGroupAttrs,
 		Lookup: &resourcespec.TypedLookupSpec[nodeGroupAttrs]{
 			BuildFunc: func(region string, p nodeGroupAttrs) (*pricing.PriceLookup, error) {
-				return deps.RuntimeOrDefault().StandardLookupSpec(
-					awskit.ServiceKeyEC2,
-					"Compute Instance",
-					func(_ string, _ map[string]any) (map[string]string, error) {
-						return map[string]string{
-							"instanceType":    p.InstanceType,
-							"tenancy":         "Shared",
-							"operatingSystem": "Linux",
-							"preInstalledSw":  "NA",
-							"capacitystatus":  "Used",
-						}, nil
-					},
-				).Build(region, nil)
+				return deps.RuntimeOrDefault().
+					NewLookupBuilder(awskit.ServiceKeyEC2, "Compute Instance").
+					Attr("instanceType", p.InstanceType).
+					Attr("tenancy", "Shared").
+					Attr("operatingSystem", "Linux").
+					Attr("preInstalledSw", "NA").
+					Attr("capacitystatus", "Used").
+					Build(region), nil
 			},
 		},
 		Describe: &resourcespec.TypedDescribeSpec[nodeGroupAttrs]{
 			BuildFunc: func(_ *pricing.Price, p nodeGroupAttrs) map[string]string {
-				desc := awskit.NewDescribeBuilder()
-				if p.InstanceTypeSet {
-					desc.String("instance_type", p.InstanceType)
-				}
-				if p.DesiredSizeSet {
-					desc.Int("desired_size", p.DesiredSize)
-				}
-				return desc.Map()
+				return awskit.NewDescribeBuilder().
+					StringIf(p.InstanceTypeSet, "instance_type", p.InstanceType).
+					IntIf(p.DesiredSizeSet, "desired_size", p.DesiredSize).
+					Map()
 			},
 		},
 		Standard: &resourcespec.TypedStandardPricingSpec[nodeGroupAttrs]{
 			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, p nodeGroupAttrs) (hourly, monthly float64) {
-				if price == nil {
-					return 0, 0
-				}
-				return costutil.ScaledHourlyCost(price.OnDemandUSD, p.DesiredSize)
+				return awskit.NewCostBuilder().Hourly().Scale(float64(p.DesiredSize)).Calc(price, nil, "")
 			},
 		},
 	}

@@ -25,7 +25,8 @@ const (
 	IOPSCostIO2PerMonth = 0.10
 	// gp3 IOPS are included in baseline (3000 IOPS) — no additional cost constant needed
 
-	AuroraStorageCostPerGB = 0.10
+	AuroraStorageCostPerGB      = 0.10
+	AuroraIOOptStorageCostPerGB = 0.225
 
 	// Default engine
 	DefaultEngine       = "mysql"
@@ -80,17 +81,12 @@ func InstanceSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[instanceAttrs]
 					deploymentOption = DeploymentMultiAZ
 				}
 
-				return deps.RuntimeOrDefault().StandardLookupSpec(
-					awskit.ServiceKeyRDS,
-					"Database Instance",
-					func(_ string, _ map[string]any) (map[string]string, error) {
-						return map[string]string{
-							"instanceType":     p.InstanceClass,
-							"databaseEngine":   mapRDSEngine(engine),
-							"deploymentOption": deploymentOption,
-						}, nil
-					},
-				).Build(region, nil)
+				return deps.RuntimeOrDefault().
+					NewLookupBuilder(awskit.ServiceKeyRDS, "Database Instance").
+					Attr("instanceType", p.InstanceClass).
+					Attr("databaseEngine", mapRDSEngine(engine)).
+					Attr("deploymentOption", deploymentOption).
+					Build(region), nil
 			},
 		},
 		Describe: &resourcespec.TypedDescribeSpec[instanceAttrs]{
@@ -105,23 +101,16 @@ func InstanceSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[instanceAttrs]
 		},
 		Standard: &resourcespec.TypedStandardPricingSpec[instanceAttrs]{
 			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, p instanceAttrs) (hourly, monthly float64) {
-				if price == nil {
-					return 0, 0
-				}
-				hourly = price.OnDemandUSD
-				monthly = hourly * costutil.HoursPerMonth
-				if p.AllocatedStorage > 0 {
-					monthly += p.AllocatedStorage * getStorageCostPerGB(p.StorageType)
-				}
-				if p.IOPS > 0 {
-					switch p.StorageType {
-					case awskit.VolumeTypeIO1:
-						monthly += p.IOPS * IOPSCostIO1PerMonth
-					case awskit.VolumeTypeIO2:
-						monthly += p.IOPS * IOPSCostIO2PerMonth
-					}
-				}
-				return monthly / costutil.HoursPerMonth, monthly
+				return awskit.NewCostBuilder().
+					Hourly().
+					Match(p.StorageType, []awskit.Charge{awskit.NewCharge(p.AllocatedStorage).Fixed(StorageCostGP2)}, map[string][]awskit.Charge{
+						awskit.VolumeTypeGP2:      {awskit.NewCharge(p.AllocatedStorage).Fixed(StorageCostGP2)},
+						awskit.VolumeTypeGP3:      {awskit.NewCharge(p.AllocatedStorage).Fixed(StorageCostGP3)},
+						awskit.VolumeTypeIO1:      {awskit.NewCharge(p.AllocatedStorage).Fixed(StorageCostIO1), awskit.NewCharge(p.IOPS).Fixed(IOPSCostIO1PerMonth)},
+						awskit.VolumeTypeIO2:      {awskit.NewCharge(p.AllocatedStorage).Fixed(StorageCostIO2), awskit.NewCharge(p.IOPS).Fixed(IOPSCostIO2PerMonth)},
+						awskit.VolumeTypeStandard: {awskit.NewCharge(p.AllocatedStorage).Fixed(StorageCostStandard)},
+					}).
+					Calc(price, nil, "")
 			},
 		},
 	}

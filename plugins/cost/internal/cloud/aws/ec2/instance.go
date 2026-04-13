@@ -62,44 +62,33 @@ func InstanceSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[instanceAttrs]
 					return nil, errors.New("instance_type not found")
 				}
 
-				tenancy := p.Tenancy
-				switch tenancy {
-				case "", "default":
-					tenancy = "Shared"
-				case "dedicated":
-					tenancy = "Dedicated"
-				case "host":
-					tenancy = "Host"
-				}
-
-				return deps.RuntimeOrDefault().StandardLookupSpec(
-					awskit.ServiceKeyEC2,
-					"Compute Instance",
-					func(_ string, _ map[string]any) (map[string]string, error) {
-						return map[string]string{
-							"instanceType":    p.InstanceType,
-							"tenancy":         tenancy,
-							"operatingSystem": "Linux",
-							"preInstalledSw":  "NA",
-							"capacitystatus":  "Used",
-						}, nil
-					},
-				).Build(region, nil)
+				runtime := deps.RuntimeOrDefault()
+				return runtime.
+					NewLookupBuilder(awskit.ServiceKeyEC2, "Compute Instance").
+					Attr("instanceType", p.InstanceType).
+					Attr("operatingSystem", "Linux").
+					Attr("preInstalledSw", "NA").
+					Attr("capacitystatus", "Used").
+					AttrMatch("tenancy", p.Tenancy, p.Tenancy, map[string]string{
+						"":          "Shared",
+						"default":   "Shared",
+						"dedicated": "Dedicated",
+						"host":      "Host",
+					}).
+					Build(region), nil
 			},
 		},
 		Describe: &resourcespec.TypedDescribeSpec[instanceAttrs]{
 			BuildFunc: func(_ *pricing.Price, p instanceAttrs) map[string]string {
-				desc := awskit.NewDescribeBuilder().
-					String("instance_type", p.InstanceType)
-				if p.Tenancy != "" && p.Tenancy != "default" {
-					desc.String("tenancy", p.Tenancy)
-				}
-				return desc.Map()
+				return awskit.NewDescribeBuilder().
+					String("instance_type", p.InstanceType).
+					StringIf(p.Tenancy != "" && p.Tenancy != "default", "tenancy", p.Tenancy).
+					Map()
 			},
 		},
 		Standard: &resourcespec.TypedStandardPricingSpec[instanceAttrs]{
 			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ instanceAttrs) (hourly, monthly float64) {
-				return costutil.HourlyCost(price.OnDemandUSD)
+				return awskit.NewCostBuilder().Hourly().Calc(price, nil, "")
 			},
 		},
 		Subresources: &resourcespec.TypedSubresourceSpec[instanceAttrs]{

@@ -1,4 +1,4 @@
-package definitiontest
+package contracttest
 
 import (
 	"testing"
@@ -30,7 +30,7 @@ func AssertUsageBasedCategory(tb testing.TB, def resourcedef.Definition) {
 //
 // Example:
 //
-//	definitiontest.AssertFixedContract(t, def, "us-east-1", nil)
+//	contracttest.AssertFixedContract(t, def, "us-east-1", nil)
 func AssertFixedContract(tb testing.TB, def resourcedef.Definition, region string, attrs map[string]any) {
 	tb.Helper()
 	AssertFixedCategory(tb, def)
@@ -42,7 +42,7 @@ func AssertFixedContract(tb testing.TB, def resourcedef.Definition, region strin
 //
 // Example:
 //
-//	definitiontest.AssertUsageBasedContract(t, def)
+//	contracttest.AssertUsageBasedContract(t, def)
 func AssertUsageBasedContract(tb testing.TB, def resourcedef.Definition) {
 	tb.Helper()
 	AssertUsageBasedCategory(tb, def)
@@ -73,9 +73,9 @@ type DescribeCase struct {
 // Example:
 //
 //	category := resourcedef.CostCategoryStandard
-//	definitiontest.RunContractSuite(t, def, definitiontest.ContractSuite{
+//	contracttest.RunContractSuite(t, def, contracttest.ContractSuite{
 //		Category: &category,
-//		LookupCases: []definitiontest.LookupCase{
+//		LookupCases: []contracttest.LookupCase{
 //			{
 //				Name:   "default lookup",
 //				Region: "us-east-1",
@@ -87,7 +87,7 @@ type DescribeCase struct {
 //				},
 //			},
 //		},
-//		DescribeCases: []definitiontest.DescribeCase{
+//		DescribeCases: []contracttest.DescribeCase{
 //			{
 //				Name:     "default describe",
 //				WantKeys: map[string]string{"type": "classic"},
@@ -188,9 +188,6 @@ func RunContractSuite(t *testing.T, def resourcedef.Definition, suite ContractSu
 		AssertNoDescribeCapability(t, def)
 	}
 	if suite.NilLookup != nil {
-		if def.Lookup == nil {
-			t.Fatal("definition should expose lookup behavior")
-		}
 		AssertNilLookup(t, def, suite.NilLookup.Region, suite.NilLookup.Attrs)
 	}
 	if len(suite.LookupCases) > 0 {

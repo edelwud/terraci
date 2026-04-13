@@ -45,24 +45,14 @@ func ALBSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[lbAttrs] {
 		Lookup: &resourcespec.TypedLookupSpec[lbAttrs]{
 			BuildFunc: func(region string, p lbAttrs) (*pricing.PriceLookup, error) {
 				runtime := deps.RuntimeOrDefault()
-				spec := runtime.StandardLookupSpec(
-					awskit.ServiceKeyEC2,
-					"",
-					func(region string, _ map[string]any) (map[string]string, error) {
-						return map[string]string{
-							"usagetype": runtime.ResolveUsagePrefix(region) + "-" + usageType,
-						}, nil
-					},
-				)
-				switch p.LoadBalancerType {
-				case typeNetwork:
-					spec.ProductFamily = "Load Balancer-Network"
-				case typeGateway:
-					spec.ProductFamily = "Load Balancer-Gateway"
-				default:
-					spec.ProductFamily = productFamilyALB
-				}
-				return spec.Build(region, nil)
+				builder := runtime.
+					NewLookupBuilder(awskit.ServiceKeyEC2, productFamilyALB).
+					UsageType(region, usageType).
+					ProductFamilyMatch(p.LoadBalancerType, productFamilyALB, map[string]string{
+						typeNetwork: "Load Balancer-Network",
+						typeGateway: "Load Balancer-Gateway",
+					})
+				return builder.Build(region), nil
 			},
 		},
 		Describe: &resourcespec.TypedDescribeSpec[lbAttrs]{
@@ -72,17 +62,14 @@ func ALBSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[lbAttrs] {
 		},
 		Standard: &resourcespec.TypedStandardPricingSpec[lbAttrs]{
 			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, p lbAttrs) (hourly, monthly float64) {
-				if price != nil && price.OnDemandUSD > 0 {
-					return costutil.HourlyCost(price.OnDemandUSD)
-				}
+				fallback := defaultALBHourlyCost
 				switch p.LoadBalancerType {
 				case typeNetwork:
-					return costutil.HourlyCost(defaultNLBHourlyCost)
+					fallback = defaultNLBHourlyCost
 				case typeGateway:
-					return costutil.HourlyCost(defaultGWLBHourlyCost)
-				default:
-					return costutil.HourlyCost(defaultALBHourlyCost)
+					fallback = defaultGWLBHourlyCost
 				}
+				return awskit.NewCostBuilder().Hourly().Fallback(fallback).Calc(price, nil, "")
 			},
 		},
 	}

@@ -39,13 +39,10 @@ func LambdaSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[lambdaAttrs] {
 		Parse:    parseLambdaAttrs,
 		Lookup: &resourcespec.TypedLookupSpec[lambdaAttrs]{
 			BuildFunc: func(region string, _ lambdaAttrs) (*pricing.PriceLookup, error) {
-				return deps.RuntimeOrDefault().StandardLookupSpec(
-					awskit.ServiceKeyLambda,
-					"Serverless",
-					func(_ string, _ map[string]any) (map[string]string, error) {
-						return map[string]string{"group": "AWS-Lambda-Duration"}, nil
-					},
-				).Build(region, nil)
+				return deps.RuntimeOrDefault().
+					NewLookupBuilder(awskit.ServiceKeyLambda, "Serverless").
+					Attr("group", "AWS-Lambda-Duration").
+					Build(region), nil
 			},
 		},
 		Describe: &resourcespec.TypedDescribeSpec[lambdaAttrs]{

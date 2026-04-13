@@ -31,17 +31,10 @@ func ClusterSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[clusterAttrs] {
 		Parse:    parseClusterAttrs,
 		Lookup: &resourcespec.TypedLookupSpec[clusterAttrs]{
 			BuildFunc: func(region string, _ clusterAttrs) (*pricing.PriceLookup, error) {
-				runtime := deps.RuntimeOrDefault()
-				prefix := runtime.ResolveUsagePrefix(region)
-				return runtime.StandardLookupSpec(
-					awskit.ServiceKeyEKS,
-					"Compute",
-					func(_ string, _ map[string]any) (map[string]string, error) {
-						return map[string]string{
-							"usagetype": prefix + "-AmazonEKS-Hours:perCluster",
-						}, nil
-					},
-				).Build(region, nil)
+				return deps.RuntimeOrDefault().
+					NewLookupBuilder(awskit.ServiceKeyEKS, "Compute").
+					UsageType(region, "AmazonEKS-Hours:perCluster").
+					Build(region), nil
 			},
 		},
 		Describe: &resourcespec.TypedDescribeSpec[clusterAttrs]{
@@ -53,10 +46,7 @@ func ClusterSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[clusterAttrs] {
 		},
 		Standard: &resourcespec.TypedStandardPricingSpec[clusterAttrs]{
 			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ clusterAttrs) (hourly, monthly float64) {
-				if price != nil && price.OnDemandUSD > 0 {
-					return costutil.HourlyCost(price.OnDemandUSD)
-				}
-				return costutil.HourlyCost(DefaultClusterHourlyCost)
+				return awskit.NewCostBuilder().Hourly().Fallback(DefaultClusterHourlyCost).Calc(price, nil, "")
 			},
 		},
 	}

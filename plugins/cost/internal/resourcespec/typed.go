@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
@@ -61,6 +62,37 @@ type NoAttrs struct{}
 // ParseNoAttrs ignores raw attributes and returns an empty typed payload.
 func ParseNoAttrs(map[string]any) NoAttrs {
 	return NoAttrs{}
+}
+
+// NoAttrsSpec creates a typed spec for resources that do not need parsed attributes.
+func NoAttrsSpec(resourceType resourcedef.ResourceType, category resourcedef.CostCategory) TypedSpec[NoAttrs] {
+	return TypedSpec[NoAttrs]{
+		Type:     resourceType,
+		Category: category,
+		Parse:    ParseNoAttrs,
+	}
+}
+
+// FixedMonthlyNoAttrsSpec creates a fixed-price no-attrs spec with a constant monthly cost.
+func FixedMonthlyNoAttrsSpec(resourceType resourcedef.ResourceType, monthlyCost float64) TypedSpec[NoAttrs] {
+	spec := NoAttrsSpec(resourceType, resourcedef.CostCategoryFixed)
+	spec.Fixed = &TypedFixedPricingSpec[NoAttrs]{
+		CostFunc: func(_ string, _ NoAttrs) (hourly, monthly float64) {
+			return monthlyCost / costutil.HoursPerMonth, monthlyCost
+		},
+	}
+	return spec
+}
+
+// UsageUnknownNoAttrsSpec creates a no-attrs usage-based spec with unknown plan-time usage.
+func UsageUnknownNoAttrsSpec(resourceType resourcedef.ResourceType) TypedSpec[NoAttrs] {
+	spec := NoAttrsSpec(resourceType, resourcedef.CostCategoryUsageBased)
+	spec.Usage = &TypedUsagePricingSpec[NoAttrs]{
+		EstimateFunc: func(_ string, _ NoAttrs) model.UsageCostEstimate {
+			return model.UsageCostEstimate{Status: model.ResourceEstimateStatusUsageUnknown}
+		},
+	}
+	return spec
 }
 
 // Validate ensures the typed spec is internally consistent before compilation.

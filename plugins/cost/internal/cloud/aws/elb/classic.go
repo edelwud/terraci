@@ -2,7 +2,6 @@ package elb
 
 import (
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
@@ -21,15 +20,10 @@ func ClassicSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[resourcespec.No
 		Lookup: &resourcespec.TypedLookupSpec[resourcespec.NoAttrs]{
 			BuildFunc: func(region string, _ resourcespec.NoAttrs) (*pricing.PriceLookup, error) {
 				runtime := deps.RuntimeOrDefault()
-				return runtime.StandardLookupSpec(
-					awskit.ServiceKeyELB,
-					"Load Balancer",
-					func(region string, _ map[string]any) (map[string]string, error) {
-						return map[string]string{
-							"usagetype": runtime.ResolveUsagePrefix(region) + "-" + usageType,
-						}, nil
-					},
-				).Build(region, nil)
+				return runtime.
+					NewLookupBuilder(awskit.ServiceKeyELB, "Load Balancer").
+					UsageType(region, usageType).
+					Build(region), nil
 			},
 		},
 		Describe: &resourcespec.TypedDescribeSpec[resourcespec.NoAttrs]{
@@ -39,10 +33,7 @@ func ClassicSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[resourcespec.No
 		},
 		Standard: &resourcespec.TypedStandardPricingSpec[resourcespec.NoAttrs]{
 			CostFunc: func(price *pricing.Price, _ *pricing.PriceIndex, _ string, _ resourcespec.NoAttrs) (hourly, monthly float64) {
-				if price != nil && price.OnDemandUSD > 0 {
-					return costutil.HourlyCost(price.OnDemandUSD)
-				}
-				return costutil.HourlyCost(DefaultClassicLBHourlyCost)
+				return awskit.NewCostBuilder().Hourly().Fallback(DefaultClassicLBHourlyCost).Calc(price, nil, "")
 			},
 		},
 	}

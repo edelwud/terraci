@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/definitiontest"
+	"github.com/edelwud/terraci/plugins/cost/internal/contracttest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
@@ -14,9 +14,9 @@ func TestNATHandler_Category(t *testing.T) {
 	t.Parallel()
 
 	category := resourcedef.CostCategoryStandard
-	definitiontest.RunContractSuite(t, resourcespec.MustCompileTyped(NATSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), definitiontest.ContractSuite{
+	contracttest.RunContractSuite(t, resourcespec.MustCompileTyped(NATSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), contracttest.ContractSuite{
 		Category: &category,
-		LookupCases: []definitiontest.LookupCase{
+		LookupCases: []contracttest.LookupCase{
 			{
 				Name:   "default lookup",
 				Region: "us-east-1",
@@ -28,13 +28,39 @@ func TestNATHandler_Category(t *testing.T) {
 				},
 			},
 		},
-		DescribeCases: []definitiontest.DescribeCase{
+		DescribeCases: []contracttest.DescribeCase{
 			{
-				Name: "empty describe",
+				Name: "default attrs",
 				Assert: func(tb testing.TB, result map[string]string) {
 					tb.Helper()
-					if len(result) != 0 {
-						tb.Errorf("DescribeResource() = %v, want empty map", result)
+					if result["connectivity"] != "public" {
+						tb.Errorf("connectivity = %q, want %q", result["connectivity"], "public")
+					}
+				},
+			},
+			{
+				Name:  "with public ip",
+				Attrs: map[string]any{"public_ip": "203.0.113.5", "connectivity_type": "public"},
+				Assert: func(tb testing.TB, result map[string]string) {
+					tb.Helper()
+					if result["public_ip"] != "203.0.113.5" {
+						tb.Errorf("public_ip = %q, want %q", result["public_ip"], "203.0.113.5")
+					}
+					if result["connectivity"] != "public" {
+						tb.Errorf("connectivity = %q, want %q", result["connectivity"], "public")
+					}
+				},
+			},
+			{
+				Name:  "private nat gateway",
+				Attrs: map[string]any{"connectivity_type": "private"},
+				Assert: func(tb testing.TB, result map[string]string) {
+					tb.Helper()
+					if result["connectivity"] != "private" {
+						tb.Errorf("connectivity = %q, want %q", result["connectivity"], "private")
+					}
+					if _, ok := result["public_ip"]; ok {
+						tb.Errorf("public_ip should not be present for private NAT")
 					}
 				},
 			},

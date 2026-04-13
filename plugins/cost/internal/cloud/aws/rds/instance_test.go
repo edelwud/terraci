@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
+	"github.com/edelwud/terraci/plugins/cost/internal/contracttest"
 	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
-	"github.com/edelwud/terraci/plugins/cost/internal/definitiontest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
@@ -16,9 +16,9 @@ func TestInstanceHandler_Contract(t *testing.T) {
 
 	category := resourcedef.CostCategoryStandard
 	def := resourcespec.MustCompileTyped(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
-	definitiontest.RunContractSuite(t, def, definitiontest.ContractSuite{
+	contracttest.RunContractSuite(t, def, contracttest.ContractSuite{
 		Category: &category,
-		LookupCases: []definitiontest.LookupCase{
+		LookupCases: []contracttest.LookupCase{
 			{
 				Name:   "mysql single-az",
 				Region: "us-east-1",
@@ -81,13 +81,54 @@ func TestInstanceHandler_Contract(t *testing.T) {
 				},
 			},
 			{
+				Name:   "mariadb engine",
+				Region: "us-east-1",
+				Attrs: map[string]any{
+					"instance_class": "db.t3.micro",
+					"engine":         "mariadb",
+				},
+				Assert: func(tb testing.TB, lookup *pricing.PriceLookup) {
+					tb.Helper()
+					if lookup.Attributes["databaseEngine"] != "MariaDB" {
+						tb.Errorf("databaseEngine = %q, want %q", lookup.Attributes["databaseEngine"], "MariaDB")
+					}
+				},
+			},
+			{
+				Name:   "oracle engine",
+				Region: "us-east-1",
+				Attrs: map[string]any{
+					"instance_class": "db.r5.large",
+					"engine":         "oracle-se2",
+				},
+				Assert: func(tb testing.TB, lookup *pricing.PriceLookup) {
+					tb.Helper()
+					if lookup.Attributes["databaseEngine"] != "Oracle" {
+						tb.Errorf("databaseEngine = %q, want %q", lookup.Attributes["databaseEngine"], "Oracle")
+					}
+				},
+			},
+			{
+				Name:   "default engine (empty) resolves to MySQL",
+				Region: "us-east-1",
+				Attrs: map[string]any{
+					"instance_class": "db.t3.micro",
+				},
+				Assert: func(tb testing.TB, lookup *pricing.PriceLookup) {
+					tb.Helper()
+					if lookup.Attributes["databaseEngine"] != "MySQL" {
+						tb.Errorf("databaseEngine = %q, want %q", lookup.Attributes["databaseEngine"], "MySQL")
+					}
+				},
+			},
+			{
 				Name:    "missing instance_class",
 				Region:  "us-east-1",
 				Attrs:   map[string]any{},
 				WantErr: true,
 			},
 		},
-		DescribeCases: []definitiontest.DescribeCase{
+		DescribeCases: []contracttest.DescribeCase{
 			{
 				Name: "instance description",
 				Attrs: map[string]any{
@@ -142,6 +183,44 @@ func TestInstanceHandler_CalculateCost(t *testing.T) {
 				"iops":              float64(1000),
 			},
 			expectedMonthly: 0.10*costutil.HoursPerMonth + 100*0.125 + 1000*0.10, // compute + storage + iops
+		},
+		{
+			name: "with io2 storage and iops",
+			attrs: map[string]any{
+				"storage_type":      "io2",
+				"allocated_storage": float64(200),
+				"iops":              float64(5000),
+			},
+			expectedMonthly: 0.10*costutil.HoursPerMonth + 200*StorageCostIO2 + 5000*IOPSCostIO2PerMonth,
+		},
+		{
+			name: "gp3 storage with iops (no iops charge for gp3)",
+			attrs: map[string]any{
+				"storage_type":      "gp3",
+				"allocated_storage": float64(100),
+				"iops":              float64(5000),
+			},
+			// gp3 in RDS: IOPS are NOT separately charged (unlike EBS gp3 with free tier)
+			// RDS gp3 includes up to 3000 IOPS free and doesn't support provisioned IOPS
+			expectedMonthly: 0.10*costutil.HoursPerMonth + 100*StorageCostGP3,
+		},
+		{
+			name: "default storage_type with allocated storage",
+			attrs: map[string]any{
+				"allocated_storage": float64(50),
+			},
+			// empty storage_type → fallback to gp2
+			expectedMonthly: 0.10*costutil.HoursPerMonth + 50*StorageCostGP2,
+		},
+		{
+			name: "multi_az with gp2 storage",
+			attrs: map[string]any{
+				"storage_type":      "gp2",
+				"allocated_storage": float64(100),
+				"multi_az":          true,
+			},
+			// Multi-AZ affects compute price (via pricing lookup), but storage cost is the same
+			expectedMonthly: 0.10*costutil.HoursPerMonth + 100*StorageCostGP2,
 		},
 	}
 

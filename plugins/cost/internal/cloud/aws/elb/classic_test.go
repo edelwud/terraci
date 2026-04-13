@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
-	"github.com/edelwud/terraci/plugins/cost/internal/definitiontest"
+	"github.com/edelwud/terraci/plugins/cost/internal/contracttest"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
@@ -14,9 +14,9 @@ func TestClassicHandler_Category(t *testing.T) {
 	t.Parallel()
 
 	category := resourcedef.CostCategoryStandard
-	definitiontest.RunContractSuite(t, resourcespec.MustCompileTyped(ClassicSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), definitiontest.ContractSuite{
+	contracttest.RunContractSuite(t, resourcespec.MustCompileTyped(ClassicSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest)))), contracttest.ContractSuite{
 		Category: &category,
-		LookupCases: []definitiontest.LookupCase{
+		LookupCases: []contracttest.LookupCase{
 			{
 				Name:   "default lookup",
 				Region: "us-east-1",
@@ -28,7 +28,7 @@ func TestClassicHandler_Category(t *testing.T) {
 				},
 			},
 		},
-		DescribeCases: []definitiontest.DescribeCase{
+		DescribeCases: []contracttest.DescribeCase{
 			{
 				Name:     "default describe",
 				WantKeys: map[string]string{"type": "classic"},

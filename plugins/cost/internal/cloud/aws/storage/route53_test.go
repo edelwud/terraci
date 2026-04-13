@@ -3,8 +3,8 @@ package storage
 import (
 	"testing"
 
+	"github.com/edelwud/terraci/plugins/cost/internal/contracttest"
 	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
-	"github.com/edelwud/terraci/plugins/cost/internal/definitiontest"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcespec"
 )
@@ -13,9 +13,9 @@ func TestRoute53Handler_Category(t *testing.T) {
 	t.Parallel()
 
 	category := resourcedef.CostCategoryFixed
-	definitiontest.RunContractSuite(t, resourcespec.MustCompileTyped(Route53Spec()), definitiontest.ContractSuite{
+	contracttest.RunContractSuite(t, resourcespec.MustCompileTyped(Route53Spec()), contracttest.ContractSuite{
 		Category:  &category,
-		NilLookup: &definitiontest.LookupInput{Region: "us-east-1"},
+		NilLookup: &contracttest.LookupInput{Region: "us-east-1"},
 	})
 }
 
@@ -33,7 +33,7 @@ func TestRoute53Handler_BuildLookup_ReturnsNil(t *testing.T) {
 	t.Parallel()
 
 	def := resourcespec.MustCompileTyped(Route53Spec())
-	definitiontest.AssertNilLookup(t, def, "us-east-1", nil)
+	contracttest.AssertNilLookup(t, def, "us-east-1", nil)
 }
 
 func TestRoute53Handler_CalculateFixedCost(t *testing.T) {
