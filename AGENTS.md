@@ -137,18 +137,19 @@ plugins/                        # Built-in plugins — one file per capability
 │       ├── results/            #   Result assembly layer
 │       ├── cloud/              #   Cloud provider registry (init() + RegisterCloudProvider)
 │       │   ├── registry.go     #     Provider definitions + global registry
-│       │   ├── aws/            #     AWS provider + handler subpackages
+│       │   ├── aws/            #     AWS provider + resource spec subpackages
 │       │   │   ├── provider.go #       init() self-registration + provider definition
 │       │   │   ├── ec2/, rds/, elb/, eks/, elasticache/, serverless/, storage/
-│       │   └── awskit/         #     AWS utilities (no handler imports)
-│       │       ├── runtime.go, standard_lookup.go, describe.go, services.go
-│       ├── handler/            #   Provider-agnostic handler interfaces
-│       │   ├── handler.go      #     ResourceHandler + capability interfaces
-│       │   ├── registry.go     #     Provider-scoped handler registry
-│       │   ├── attrs.go, calc.go
+│       │   └── awskit/         #     AWS declarative builders + utilities
+│       │       ├── cost_builder.go  #  CostBuilder: Hourly/PerUnit/Scale/Match/Charge → Calc
+│       │       ├── lookup_builder.go # LookupBuilder: Attr/AttrMatch/UsageType → Build
+│       │       ├── describe.go      # DescribeBuilder: String/Int/Float/Bool → Map
+│       │       ├── runtime.go, standard_lookup.go, services.go, size.go
+│       ├── resourcedef/        #   Canonical runtime Definition + value types
+│       ├── resourcespec/       #   TypedSpec[A] compilation to Definition
+│       ├── costutil/           #   Attribute extractors + cost calc helpers
 │       ├── pricing/            #   Disk-based pricing cache + types
-│       ├── handlertest/        #   Handler contract test kit
-│       ├── runtimetest/        #   Runtime contract test kit
+│       ├── contracttest/       #   Definition + Runtime contract test suites
 │       └── enginetest/         #   Engine fixture/test helpers
 ├── policy/
 │   ├── plugin.go               # init, BasePlugin[*Config] embed
