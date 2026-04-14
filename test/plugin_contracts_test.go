@@ -56,7 +56,7 @@ func TestBuiltInPluginContractMatrix(t *testing.T) {
 			command:      true,
 			pipeline:     true,
 		},
-		"update": {
+		"tfupdate": {
 			configLoader: true,
 			command:      true,
 			preflight:    true,
@@ -113,7 +113,7 @@ plugins:
     sources:
       - path: terraform
   summary: {}
-  update:
+  tfupdate:
     enabled: true
 `)
 
@@ -127,7 +127,7 @@ plugins:
 	}
 	slices.Sort(got)
 
-	want := []string{"cost", "git", "gitlab", "policy", "update"}
+	want := []string{"cost", "git", "gitlab", "policy", "tfupdate"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("PreflightsForStartup() = %v, want %v", got, want)
 	}
@@ -146,11 +146,13 @@ plugins:
     enabled: true
     sources:
       - path: terraform
-  update:
+  tfupdate:
     enabled: true
+    policy:
+      bump: minor
 `)
 
-	expectedRuntimeProviders := []string{"cost", "policy", "update"}
+	expectedRuntimeProviders := []string{"cost", "policy", "tfupdate"}
 	got := make([]string, 0, len(expectedRuntimeProviders))
 	for _, p := range registry.ByCapability[plugin.RuntimeProvider]() {
 		rawRuntime, err := p.Runtime(context.Background(), appCtx)
@@ -182,7 +184,7 @@ plugins:
     sources:
       - path: terraform
   summary: {}
-  update:
+  tfupdate:
     enabled: true
     pipeline: true
 `)
@@ -195,14 +197,14 @@ plugins:
 	foundUpdateArtifactPath := false
 	for _, contrib := range contributions {
 		for _, job := range contrib.Jobs {
-			if job.Name != "dependency-update-check" {
+			if job.Name != "tfupdate-check" {
 				continue
 			}
 			if len(job.ArtifactPaths) != 1 {
-				t.Fatalf("dependency-update-check artifact paths = %v, want one path", job.ArtifactPaths)
+				t.Fatalf("tfupdate-check artifact paths = %v, want one path", job.ArtifactPaths)
 			}
-			if job.ArtifactPaths[0] != filepath.Join("custom-artifacts", "update-results.json") {
-				t.Fatalf("dependency-update-check artifact path = %q, want %q", job.ArtifactPaths[0], filepath.Join("custom-artifacts", "update-results.json"))
+			if job.ArtifactPaths[0] != filepath.Join("custom-artifacts", "tfupdate-results.json") {
+				t.Fatalf("dtfupdate-check artifact path = %q, want %q", job.ArtifactPaths[0], filepath.Join("custom-artifacts", "tfupdate-results.json"))
 			}
 			foundUpdateArtifactPath = true
 		}

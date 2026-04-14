@@ -113,13 +113,13 @@ plugins/                        # Built-in plugins — one file per capability
 │   ├── lifecycle.go            # Preflightable (cheap MR context detection)
 │   ├── generator.go            # EnvDetector + CIInfoProvider + PipelineGeneratorFactory + CommentServiceFactory
 │   ├── init_wizard.go          # InitContributor
-│   └── internal/               # (package gitlabci) config, client, generator, MR service, types
+│   └── internal/               # config, generator, MR service, domain types
 ├── github/
 │   ├── plugin.go               # init, BasePlugin[*Config] embed, FlagOverridable
 │   ├── lifecycle.go            # Preflightable (cheap PR context detection)
 │   ├── generator.go            # EnvDetector + CIInfoProvider + PipelineGeneratorFactory + CommentServiceFactory
 │   ├── init_wizard.go          # InitContributor
-│   └── internal/               # (package githubci) config, client, generator, PR service, types
+│   └── internal/               # config, generator, PR service, domain types
 ├── cost/
 │   ├── plugin.go               # init, BasePlugin[*CostConfig] embed
 │   ├── lifecycle.go            # Preflightable (cheap config/cache validation)
@@ -169,6 +169,7 @@ plugins/                        # Built-in plugins — one file per capability
 │   ├── commands.go             # CommandProvider (terraci update)
 │   ├── runtime.go              # RuntimeProvider (lazy registry/runtime construction)
 │   ├── usecases.go             # Update-check orchestration
+│   ├── pipeline.go             # PipelineContributor (dependency-update-check job)
 │   ├── output.go               # CLI rendering
 │   ├── report.go               # CI report assembly
 │   ├── init_wizard.go          # InitContributor
@@ -180,10 +181,21 @@ plugins/                        # Built-in plugins — one file per capability
 ├── summary/
 │   ├── plugin.go               # init, BasePlugin[*Config] embed
 │   ├── commands.go             # CommandProvider (terraci summary)
+│   ├── usecases.go             # Summary orchestration + provider/comment resolution
 │   ├── pipeline.go             # PipelineContributor (PhaseFinalize summary job)
 │   ├── init_wizard.go          # InitContributor
 │   ├── output.go               # CLI output helpers
 │   └── internal/               # (package summaryengine) config, renderer, report_loader
+├── diskblob/
+│   ├── plugin.go               # init, BasePlugin[*Config] embed, BlobStoreProvider
+│   ├── config.go               # Backend config (enabled, root_dir)
+│   ├── store.go                # Blob store construction helpers
+│   ├── home.go                 # Home/service-dir root resolution
+│   └── internal/               # Filesystem-backed blob store implementation
+├── inmemcache/
+│   ├── plugin.go               # init, BasePlugin[*Config] embed, KVCacheProvider
+│   ├── cache.go                # Process-local in-memory cache implementation
+│   └── *_test.go
 └── git/
     ├── plugin.go               # init, Plugin struct (no config, no BasePlugin)
     ├── lifecycle.go            # Preflightable (cheap repo detection)
@@ -204,7 +216,7 @@ Compile-time plugins via `init()` + blank import (Caddy/database-sql pattern). P
 
 ### Plugin File Convention
 
-Each plugin follows one-file-per-capability, with runtime-heavy plugins also using a lazy runtime layer:
+Each feature/plugin follows one-file-per-capability where it applies, with runtime-heavy plugins also using a lazy runtime layer. Backend plugins such as `diskblob` and `inmemcache` are intentionally smaller and only implement their relevant provider interfaces:
 - `plugin.go` — init(), Plugin struct with BasePlugin[C] embedding, FlagOverridable
 - `lifecycle.go` — Preflightable
 - `runtime.go` — RuntimeProvider for lazy runtime construction
@@ -244,14 +256,16 @@ Each plugin follows one-file-per-capability, with runtime-heavy plugins also usi
 | `FlagOverridable` | Direct CLI flag overrides (--plan-only, --auto-approve) | gitlab, github |
 | `VersionProvider` | Version info contributions | policy |
 | `ChangeDetectionProvider` | VCS change detection | git |
+| `KVCacheProvider` | Named key/value cache backend resolution | inmemcache |
+| `BlobStoreProvider` | Named blob/object store backend resolution | diskblob |
 | `InitContributor` | Init wizard form fields + config building | gitlab, github, cost, policy, summary, update |
-| `PipelineContributor` | Pipeline steps/jobs via Contribution | cost, policy, summary |
+| `PipelineContributor` | Pipeline steps/jobs via Contribution | cost, policy, summary, update |
 
 ### BasePlugin[C] Generic Embedding
 
 Plugins with config embed `BasePlugin[C]` which auto-implements:
 - `Name()`, `Description()`, `ConfigKey()`, `NewConfig()`, `DecodeAndSet()`, `IsConfigured()`, `IsEnabled()`, `Config()`, `Reset()`
-- `EnablePolicy` controls enabled semantics: `EnabledWhenConfigured` (gitlab/github), `EnabledExplicitly` (cost/policy), `EnabledByDefault` (summary), `EnabledAlways` (git)
+- `EnablePolicy` controls enabled semantics: `EnabledWhenConfigured` (gitlab/github), `EnabledExplicitly` (cost/policy/update), `EnabledByDefault` (summary/diskblob/inmemcache), `EnabledAlways` (git)
 
 ### Shared Types
 
@@ -300,6 +314,10 @@ plugins:
     terraform_binary: terraform
     plan_enabled: true
     auto_approve: false
+    cache_enabled: true
+    cache:
+      policy: pull-push
+      paths: [ "{module_path}/.terraform/" ]
     mr:
       comment: { enabled: true }
 

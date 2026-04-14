@@ -13,7 +13,7 @@ import (
 	_ "github.com/edelwud/terraci/plugins/inmemcache"
 	_ "github.com/edelwud/terraci/plugins/policy"
 	_ "github.com/edelwud/terraci/plugins/summary"
-	_ "github.com/edelwud/terraci/plugins/update"
+	_ "github.com/edelwud/terraci/plugins/tfupdate"
 )
 
 // Version information (set via ldflags)

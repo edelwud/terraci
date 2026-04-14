@@ -27,7 +27,7 @@ func TestPluginRegistration(t *testing.T) {
 		names[p.Name()] = true
 	}
 
-	expected := []string{"cost", "diskblob", "git", "github", "gitlab", "inmemcache", "policy", "summary", "update"}
+	expected := []string{"cost", "diskblob", "git", "github", "gitlab", "inmemcache", "policy", "summary", "tfupdate"}
 	for _, name := range expected {
 		if !names[name] {
 			t.Errorf("missing plugin: %s", name)
