@@ -163,19 +163,23 @@ plugins/                        # Built-in plugins — one file per capability
 │   ├── output.go               # CLI rendering
 │   ├── report.go               # CI report assembly
 │   └── internal/               # (package policyengine) OPA engine, checker, sources
-├── update/
-│   ├── plugin.go               # init, BasePlugin[*Config] embed
+├── tfupdate/
+│   ├── plugin.go               # init, BasePlugin[*UpdateConfig] embed
 │   ├── lifecycle.go            # Preflightable (cheap config validation)
-│   ├── commands.go             # CommandProvider (terraci update)
+│   ├── commands.go             # CommandProvider (terraci tfupdate)
 │   ├── runtime.go              # RuntimeProvider (lazy registry/runtime construction)
-│   ├── usecases.go             # Update-check orchestration
-│   ├── pipeline.go             # PipelineContributor (dependency-update-check job)
+│   ├── usecases.go             # Tfupdate orchestration
+│   ├── pipeline.go             # PipelineContributor (tfupdate-check job)
 │   ├── output.go               # CLI rendering
 │   ├── report.go               # CI report assembly
 │   ├── init_wizard.go          # InitContributor
-│   └── internal/               # (package updateengine) layered update engine
-│       ├── checker/            # Read-side check orchestration/session, module/provider scans
-│       ├── registryclient/     # Terraform registry adapter + source parsing
+│   └── internal/               # (package tfupdateengine) dependency resolver engine
+│       ├── planner/            # Dependency-aware version resolution, solver
+│       ├── lockfile/           # .terraform.lock.hcl sync service
+│       ├── sourceaddr/         # Provider/module source address parsing
+│       ├── registrymeta/       # Registry metadata types
+│       ├── usecase/            # Use-case orchestration service
+│       ├── registryclient/     # Terraform registry HTTP adapter
 │       ├── tffile/             # Terraform file discovery and per-module index
 │       └── tfwrite/            # Terraform version constraint mutation
 ├── summary/
@@ -245,10 +249,10 @@ Each feature/plugin follows one-file-per-capability where it applies, with runti
 | Interface | Purpose | Implemented by |
 |-----------|---------|----------------|
 | `Plugin` | Base: Name(), Description() | all |
-| `ConfigLoader` | Config section under `plugins:` + IsEnabled() via EnablePolicy | gitlab, github, cost, policy, summary, update |
-| `CommandProvider` | CLI subcommands | cost, policy, summary, update |
-| `Preflightable` | Cheap startup validation / env detection | gitlab, github, cost, policy, git, update |
-| `RuntimeProvider` | Lazy command-time runtime construction | cost, policy, update |
+| `ConfigLoader` | Config section under `plugins:` + IsEnabled() via EnablePolicy | gitlab, github, cost, policy, summary, tfupdate |
+| `CommandProvider` | CLI subcommands | cost, policy, summary, tfupdate |
+| `Preflightable` | Cheap startup validation / env detection | gitlab, github, cost, policy, git, tfupdate |
+| `RuntimeProvider` | Lazy command-time runtime construction | cost, policy, tfupdate |
 | `EnvDetector` | CI environment detection | gitlab, github |
 | `CIInfoProvider` | Provider name, pipeline ID, commit SHA | gitlab, github |
 | `PipelineGeneratorFactory` | Pipeline generator creation | gitlab, github |
@@ -258,14 +262,14 @@ Each feature/plugin follows one-file-per-capability where it applies, with runti
 | `ChangeDetectionProvider` | VCS change detection | git |
 | `KVCacheProvider` | Named key/value cache backend resolution | inmemcache |
 | `BlobStoreProvider` | Named blob/object store backend resolution | diskblob |
-| `InitContributor` | Init wizard form fields + config building | gitlab, github, cost, policy, summary, update |
-| `PipelineContributor` | Pipeline steps/jobs via Contribution | cost, policy, summary, update |
+| `InitContributor` | Init wizard form fields + config building | gitlab, github, cost, policy, summary, tfupdate |
+| `PipelineContributor` | Pipeline steps/jobs via Contribution | cost, policy, summary, tfupdate |
 
 ### BasePlugin[C] Generic Embedding
 
 Plugins with config embed `BasePlugin[C]` which auto-implements:
 - `Name()`, `Description()`, `ConfigKey()`, `NewConfig()`, `DecodeAndSet()`, `IsConfigured()`, `IsEnabled()`, `Config()`, `Reset()`
-- `EnablePolicy` controls enabled semantics: `EnabledWhenConfigured` (gitlab/github), `EnabledExplicitly` (cost/policy/update), `EnabledByDefault` (summary/diskblob/inmemcache), `EnabledAlways` (git)
+- `EnablePolicy` controls enabled semantics: `EnabledWhenConfigured` (gitlab/github), `EnabledExplicitly` (cost/policy/tfupdate), `EnabledByDefault` (summary/diskblob/inmemcache), `EnabledAlways` (git)
 
 ### Shared Types
 
@@ -333,10 +337,13 @@ plugins:
   #   sources: [{ path: terraform }]
   #   on_failure: block
 
-  # update:
+  # tfupdate:
   #   enabled: true
   #   target: all
-  #   bump: minor
+  #   policy:
+  #     bump: minor
+  #   lock:
+  #     platforms: [linux_amd64, darwin_arm64]
 ```
 
 Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`, `plugins` (opaque map). All provider/feature config under `plugins:`.
@@ -375,10 +382,10 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **File-based reports**: plugins write `{serviceDir}/{plugin}-report.json`; summary plugin loads and merges them
 - **Zero cross-plugin imports**: plugins communicate only via `pkg/plugin/registry` + shared types + file-based reports
 - **Shared workflow**: `workflow.Run()` — scan, filter, parse, graph building
-- **Reference runtime-heavy plugins**: `cost`, `policy`, `update`
+- **Reference runtime-heavy plugins**: `cost`, `policy`, `tfupdate`
 - **Parser architecture**: keep `pkg/parser` as a thin public facade; put orchestration, extraction, resolution, and source mechanics in `pkg/parser/internal/*` around the shared `pkg/parser/model`
-- **Update architecture**: keep `plugins/update` command/runtime surfaces thin; engine internals live under `checker`, `registryclient`, `tffile`, and `tfwrite`
-- **Performance priority**: for `terraci update`, optimize registry lookup reuse and checker throughput before micro-optimizing formatting/output; parser hot paths matter because `update` rides on them transitively
+- **Tfupdate architecture**: keep `plugins/tfupdate` command/runtime surfaces thin; engine internals live under `planner`, `lockfile`, `sourceaddr`, `registrymeta`, `usecase`, `registryclient`, `tffile`, and `tfwrite`
+- **Performance priority**: for `terraci tfupdate`, optimize registry lookup reuse and solver throughput before micro-optimizing formatting/output; parser hot paths matter because `tfupdate` rides on them transitively
 
 ## CLI Commands
 
@@ -393,7 +400,7 @@ terraci init --ci --provider gitlab         # Non-interactive
 terraci cost                                # Cloud cost estimation
 terraci summary                             # Post MR/PR comment
 terraci policy pull && terraci policy check # Policy checks
-terraci update                              # Dependency version checks / optional in-place writes
+terraci tfupdate                            # Terraform dependency resolution and lock synchronization
 terraci schema                              # JSON schema
 terraci version                             # Version + plugin info
 

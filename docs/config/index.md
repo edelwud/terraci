@@ -92,8 +92,10 @@ plugins:
   #   include_details: true
 
   # Dependency update checks
-  # update:
+  # tfupdate:
   #   enabled: true
+  #   policy:
+  #     bump: minor
 ```
 
 ## Sections
@@ -107,7 +109,7 @@ plugins:
 | [policy](./policy) | OPA policy checks configuration |
 | [cost](./cost) | AWS cost estimation configuration |
 | [summary](./summary) | Summary plugin |
-| [update](./update) | Dependency update checks |
+| [tfupdate](./tfupdate) | Terraform dependency resolution and lock sync |
 | [gitlab-mr](./gitlab-mr) | Merge request integration |
 
 ## Default Values

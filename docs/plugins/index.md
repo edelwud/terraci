@@ -50,7 +50,7 @@ xterraci build --with github.com/your-org/terraci-plugin-slack
         │  gitlab    │   │  cost      │   │  slack    │
         │  github    │   │  policy    │   │  jira     │
         │  git       │   │  summary   │   │  vault    │
-        │            │   │  update    │   │  ...      │
+        │            │   │  tfupdate  │   │  ...      │
         └────────────┘   └────────────┘   └───────────┘
 ```
 
@@ -84,7 +84,7 @@ Add configuration fields to the `terraci init` interactive wizard. Users configu
 | **summary** | Command, Pipeline, Init | Enabled by default |
 | **cost** | Command, Pipeline, Runtime, Preflight, Init | [config/cost](/config/cost) |
 | **policy** | Command, Pipeline, Runtime, Preflight, Version, Init | [config/policy](/config/policy) |
-| **update** | Command, Runtime, Preflight, Init | [config/update](/config/update) |
+| **tfupdate** | Command, Pipeline, Runtime, Preflight, Init | [config/tfupdate](/config/tfupdate) |
 
 ## Plugin Basics
 

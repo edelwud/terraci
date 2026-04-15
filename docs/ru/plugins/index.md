@@ -50,7 +50,7 @@ xterraci build --with github.com/your-org/terraci-plugin-slack
         │  gitlab    │   │  cost      │   │  slack    │
         │  github    │   │  policy    │   │  jira     │
         │  git       │   │  summary   │   │  vault    │
-        │            │   │  update    │   │  ...      │
+        │            │   │  tfupdate  │   │  ...      │
         └────────────┘   └────────────┘   └───────────┘
 ```
 
@@ -80,7 +80,7 @@ xterraci build --with github.com/your-org/terraci-plugin-slack
 | **summary** | Command, Pipeline, Init | Включён по умолчанию |
 | **cost** | Command, Pipeline, Runtime, Preflight, Init | [config/cost](/ru/config/cost) |
 | **policy** | Command, Pipeline, Runtime, Preflight, Version, Init | [config/policy](/ru/config/policy) |
-| **update** | Command, Runtime, Preflight, Init | [config/update](/ru/config/update) |
+| **tfupdate** | Command, Pipeline, Runtime, Preflight, Init | [config/tfupdate](/ru/config/tfupdate) |
 
 ## Основы
 

@@ -107,7 +107,7 @@ export default withMermaid(defineConfig({
                 { text: 'Filters', link: '/config/filters' },
                 { text: 'Policy Checks', link: '/config/policy' },
                 { text: 'Cost Estimation', link: '/config/cost' },
-                { text: 'Dependency Updates', link: '/config/update' },
+                { text: 'Dependency Updates', link: '/config/tfupdate' },
                 { text: 'Summary', link: '/config/summary' },
               ]
             },
@@ -132,7 +132,7 @@ export default withMermaid(defineConfig({
                 { text: 'summary', link: '/cli/summary' },
                 { text: 'cost', link: '/cli/cost' },
                 { text: 'policy', link: '/cli/policy' },
-                { text: 'update', link: '/cli/update' },
+                { text: 'tfupdate', link: '/cli/tfupdate' },
               ]
             }
           ]
@@ -212,7 +212,7 @@ export default withMermaid(defineConfig({
                 { text: 'Фильтры', link: '/ru/config/filters' },
                 { text: 'Проверка политик', link: '/ru/config/policy' },
                 { text: 'Оценка стоимости', link: '/ru/config/cost' },
-                { text: 'Обновление зависимостей', link: '/ru/config/update' },
+                { text: 'Обновление зависимостей', link: '/ru/config/tfupdate' },
                 { text: 'Summary', link: '/ru/config/summary' },
               ]
             },
@@ -237,7 +237,7 @@ export default withMermaid(defineConfig({
                 { text: 'summary', link: '/ru/cli/summary' },
                 { text: 'cost', link: '/ru/cli/cost' },
                 { text: 'policy', link: '/ru/cli/policy' },
-                { text: 'update', link: '/ru/cli/update' },
+                { text: 'tfupdate', link: '/ru/cli/tfupdate' },
               ]
             }
           ]

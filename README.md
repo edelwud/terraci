@@ -55,7 +55,7 @@ TerraCi solves all of this. Point it at your repo, and it generates correct, dep
 - OPA policy enforcement (local, git, OCI sources)
 - MR/PR comments with plan summaries, costs & policy results
 - Dependency graph visualization (DOT/PlantUML)
-- Provider & module update checks with optional in-place writes
+- Terraform dependency resolution with lock file synchronization
 
 </td></tr>
 <tr><td>
@@ -238,10 +238,11 @@ plugins:
   #   on_failure: block                  # block, warn
 
   # Dependency update checks
-  # update:
+  # tfupdate:
   #   enabled: true
   #   target: all                        # all, modules, providers
-  #   bump: minor                        # patch, minor, major
+  #   policy:
+  #     bump: minor                      # patch, minor, major
 ```
 
 > **Tip:** Add `# yaml-language-server: $schema=https://raw.githubusercontent.com/edelwud/terraci/main/terraci.schema.json` at the top of your `.terraci.yaml` for IDE autocomplete. Or run `terraci schema` to generate the schema locally.
@@ -259,7 +260,7 @@ plugins:
 | `terraci policy pull` | Download policies from configured sources |
 | `terraci policy check` | Evaluate plans against OPA policies |
 | `terraci schema` | Generate JSON schema for config validation |
-| `terraci update` | Check Terraform providers/modules for newer versions |
+| `terraci tfupdate` | Resolve Terraform dependency versions and sync lock files |
 | `terraci version` | Show version and embedded OPA version |
 
 <details>

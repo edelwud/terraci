@@ -30,6 +30,7 @@ These options are available for all commands:
 | [cost](./cost) | Estimate AWS costs from plan files |
 | [summary](./summary) | Post plan results to MR/PR |
 | [policy](./policy) | Pull and check OPA policies |
+| [tfupdate](./tfupdate) | Resolve Terraform dependency versions and sync lock files |
 | `version` | Show version information |
 
 ## Usage

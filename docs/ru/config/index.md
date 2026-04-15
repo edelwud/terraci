@@ -100,7 +100,7 @@ plugins:
 | [cost](./cost) | Оценка стоимости AWS-инфраструктуры |
 | [gitlab-mr](./gitlab-mr) | Интеграция с Merge Request |
 | [summary](./summary) | Настройки сводного комментария MR/PR |
-| [update](./update) | Проверка обновлений зависимостей Terraform |
+| [tfupdate](./tfupdate) | Разрешение зависимостей Terraform и синхронизация lock-файлов |
 
 ## Значения по умолчанию
 

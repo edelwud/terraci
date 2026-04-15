@@ -18,7 +18,7 @@ TerraCi uses a compile-time plugin system inspired by the `database/sql` driver 
 | `summary` | MR/PR plan summary comments | No (enabled by default) |
 | `cost` | Cloud cost estimation (AWS) | Yes (`providers.aws.enabled: true`) |
 | `policy` | OPA policy checks | Yes (`enabled: true`) |
-| `update` | Terraform provider and module version checks | Yes (`enabled: true`) |
+| `tfupdate` | Terraform dependency resolver and lock synchronizer | Yes (`enabled: true`) |
 
 ## Activation Policies
 
@@ -50,7 +50,7 @@ plugins:
 
 ### Explicitly Enabled
 
-**cost**, **policy**, and **update** must be explicitly opted in:
+**cost**, **policy**, and **tfupdate** must be explicitly opted in:
 
 ```yaml
 plugins:
@@ -64,8 +64,10 @@ plugins:
     sources:
       - path: policies
 
-  update:
+  tfupdate:
     enabled: true
+    policy:
+      bump: minor
 ```
 
 ## CI Provider Detection
@@ -87,15 +89,15 @@ Plugins implement one or more capability interfaces. The framework discovers the
 
 | Capability | Purpose | Plugins |
 |------------|---------|---------|
-| `CommandProvider` | CLI subcommands (`terraci cost`, etc.) | cost, policy, summary, update |
+| `CommandProvider` | CLI subcommands (`terraci cost`, etc.) | cost, policy, summary, tfupdate |
 | `PipelineContributor` | Inject steps/jobs into pipeline IR | cost, policy, summary |
-| `InitContributor` | Form fields for `terraci init` wizard | gitlab, github, cost, policy, summary, update |
+| `InitContributor` | Form fields for `terraci init` wizard | gitlab, github, cost, policy, summary, tfupdate |
 | `GeneratorFactory` | Create provider-specific pipeline generator | gitlab, github |
 | `CommentFactory` | Create MR/PR comment service | gitlab, github |
 | `EnvDetector` | Detect CI environment from env vars | gitlab, github |
 | `ChangeDetectionProvider` | Detect changed modules via VCS diff | git |
-| `RuntimeProvider` | Lazy construction of heavy runtime state | cost, policy, update |
-| `Preflightable` | Cheap startup validation before commands run | gitlab, github, git, cost, policy, update |
+| `RuntimeProvider` | Lazy construction of heavy runtime state | cost, policy, tfupdate |
+| `Preflightable` | Cheap startup validation before commands run | gitlab, github, git, cost, policy, tfupdate |
 | `VersionProvider` | Contribute version info to `terraci version` | policy |
 
 A single plugin can implement multiple capabilities. For example, `cost` implements `CommandProvider` (the `terraci cost` command), `PipelineContributor` (adds cost estimation step to pipeline), `InitContributor` (adds toggle to init wizard), `RuntimeProvider` (lazy estimator setup), and `Preflightable` (config validation).
@@ -241,4 +243,4 @@ See [examples/external-plugin](https://github.com/edelwud/terraci/tree/main/exam
 | GitHub Actions | [config/github](/config/github) |
 | Cost Estimation | [config/cost](/config/cost) |
 | Policy Checks | [config/policy](/config/policy) |
-| Dependency Updates | [config/update](/config/update) |
+| Dependency Updates | [config/tfupdate](/config/tfupdate) |

@@ -1,24 +1,24 @@
 ---
-title: terraci update
-description: Check Terraform provider and module versions for available updates, optionally writing version bumps back to .tf files
+title: terraci tfupdate
+description: Resolve Terraform provider and module versions, optionally writing version bumps and lock file updates back to .tf files
 outline: deep
 ---
 
-# terraci update
+# terraci tfupdate
 
-Check Terraform provider and module versions for available updates against the Terraform registry.
+Resolve Terraform provider and module versions against the Terraform registry, with optional in-place updates and lock file synchronization.
 
 ## Synopsis
 
 ```bash
-terraci update [flags]
+terraci tfupdate [flags]
 ```
 
 ## Description
 
-The `update` command scans all discovered modules for Terraform provider and module version constraints, queries the Terraform registry for the latest available versions, and reports what can be updated.
+The `tfupdate` command scans all discovered modules for Terraform provider and module version constraints, queries the Terraform registry for the latest available versions, and reports what can be updated.
 
-Default mode is read-only and reports available updates without modifying any files. Use `--write` to apply version bumps in-place to matching `.tf` files.
+Default mode is read-only and reports available updates without modifying any files. Use `--write` to apply version bumps in-place to matching `.tf` files and synchronize `.terraform.lock.hcl` lock files.
 
 Exit behavior:
 - Exits `0` when the scan completes without operational errors
@@ -30,37 +30,49 @@ Exit behavior:
 | Flag | Short | Type | Default | Description |
 |------|-------|------|---------|-------------|
 | `--target` | `-t` | string | `all` | What to check: `modules`, `providers`, `all` |
-| `--bump` | `-b` | string | `minor` | Version bump level: `patch`, `minor`, `major` |
-| `--write` | `-w` | bool | false | Write updated versions back to `.tf` files |
+| `--bump` | `-b` | string | | Version bump level: `patch`, `minor`, `major` |
+| `--write` | `-w` | bool | false | Write updated versions back to `.tf` files and sync lock files |
+| `--pin` | | bool | false | Pin updated constraints to an exact version when writing |
 | `--module` | `-m` | string | | Check a specific module path only |
 | `--output` | `-o` | string | `text` | Output format: `text`, `json` |
+| `--timeout` | | string | | Overall timeout for the run (e.g., `15m`) |
+| `--lock-platforms` | | []string | | Platforms for lock file h1 hashes (e.g., `linux_amd64,darwin_arm64`) |
 
 ## Examples
 
 ```bash
 # Check all providers and modules for updates
-terraci update
+terraci tfupdate
 
 # Check only providers
-terraci update --target providers
+terraci tfupdate --target providers
 
 # Check only modules
-terraci update --target modules
+terraci tfupdate --target modules
 
 # Check only patch-level updates
-terraci update --bump patch
+terraci tfupdate --bump patch
 
-# Apply updates in-place to .tf files
-terraci update --write
+# Apply updates in-place to .tf files and sync lock files
+terraci tfupdate --write
+
+# Pin constraints to exact versions
+terraci tfupdate --write --pin
 
 # Check and write minor updates for providers only
-terraci update --target providers --bump minor --write
+terraci tfupdate --target providers --bump minor --write
+
+# Specify platforms for lock file hashing
+terraci tfupdate --write --lock-platforms linux_amd64,darwin_arm64
+
+# Set a custom timeout
+terraci tfupdate --timeout 15m
 
 # Check a single module
-terraci update --module platform/prod/eu-central-1/vpc
+terraci tfupdate --module platform/prod/eu-central-1/vpc
 
 # JSON output (for scripts/CI)
-terraci update --output json
+terraci tfupdate --output json
 ```
 
 ## Output
@@ -92,7 +104,7 @@ When `--write` is applied, each updated entry includes a `status=applied` field.
 ### JSON
 
 ```bash
-terraci update --output json
+terraci tfupdate --output json
 ```
 
 ```json
@@ -136,8 +148,6 @@ The `--bump` flag controls the maximum version constraint change proposed:
 | `patch` | `5.80.3` available | `~> 5.80` |
 | `minor` | `5.80.0` available | `~> 5.80` (default) |
 | `major` | `6.0.0` available | `~> 6.0` |
-
-Minor is the default to avoid unexpected breaking changes from major version upgrades.
 
 ## Version Constraint Handling
 
@@ -185,9 +195,21 @@ terraform {
 
 Only the version constraint value is modified; all other content is preserved.
 
+## Lock File Synchronization
+
+When `--write` is used, `.terraform.lock.hcl` files are automatically updated alongside `.tf` constraint changes:
+
+- Provider lock entries are created or updated with the new version
+- `zh:` hashes are collected from registry metadata for all available platforms
+- `h1:` hashes are computed by downloading provider archives for the configured platforms
+- Existing hashes are preserved and merged with new ones
+
+Use `--lock-platforms` to restrict which platforms get `h1:` hashes (download-heavy). Platforms not in the list still get `zh:` hashes from registry metadata.
+
 ## Prerequisites
 
-- `plugins.update.enabled: true` in `.terraci.yaml`
+- `plugins.tfupdate.enabled: true` in `.terraci.yaml`
+- `plugins.tfupdate.policy.bump` must be set (via config or `--bump` flag)
 - Network access to the Terraform registry (`registry.terraform.io`) for provider lookups
 - Network access to the appropriate registry for module lookups
 
@@ -195,10 +217,9 @@ Only the version constraint value is modified; all other content is preserved.
 
 After each run, TerraCi writes two files to the service directory (`.terraci/` by default):
 
-- `update-results.json` — full results for further processing
-- `update-report.json` — summary report for CI integration
+- `tfupdate-results.json` — full results for further processing
+- `tfupdate-report.json` — summary report for CI integration
 
 ## See Also
 
-- [Update configuration](/config/update) — enable and configure the update plugin
-- [examples/update](https://github.com/edelwud/terraci/tree/main/examples/update) — working example
+- [Tfupdate configuration](/config/tfupdate) — enable and configure the tfupdate plugin
