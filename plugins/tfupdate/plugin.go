@@ -3,12 +3,13 @@ package tfupdate
 
 import (
 	"github.com/edelwud/terraci/pkg/plugin"
-	"github.com/edelwud/terraci/pkg/plugin/registry"
+	pluginregistry "github.com/edelwud/terraci/pkg/plugin/registry"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
+	tfregistry "github.com/edelwud/terraci/plugins/tfupdate/internal/registry"
 )
 
 func init() {
-	registry.Register(&Plugin{
+	pluginregistry.Register(&Plugin{
 		BasePlugin: plugin.BasePlugin[*tfupdateengine.UpdateConfig]{
 			PluginName: "tfupdate",
 			PluginDesc: "Terraform dependency resolver and lock synchronizer",
@@ -24,7 +25,7 @@ func init() {
 // Plugin is the Terraform dependency resolver plugin.
 type Plugin struct {
 	plugin.BasePlugin[*tfupdateengine.UpdateConfig]
-	registryFactory func() tfupdateengine.RegistryClient
+	registryFactory func() tfregistry.Client
 }
 
 // Reset resets all plugin state.

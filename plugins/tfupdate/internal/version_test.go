@@ -2,16 +2,56 @@ package tfupdateengine
 
 import (
 	"testing"
+
+	"github.com/edelwud/terraci/plugins/tfupdate/internal/versionkit"
 )
+
+type Version = versionkit.Version
+type Constraint = versionkit.Constraint
+type ConstraintOp = versionkit.ConstraintOp
+
+const (
+	OpEqual        = versionkit.OpEqual
+	OpNotEqual     = versionkit.OpNotEqual
+	OpGreater      = versionkit.OpGreater
+	OpGreaterEqual = versionkit.OpGreaterEqual
+	OpLess         = versionkit.OpLess
+	OpLessEqual    = versionkit.OpLessEqual
+	OpPessimistic  = versionkit.OpPessimistic
+)
+
+var (
+	ParseVersion     = versionkit.ParseVersion
+	ParseConstraints = versionkit.ParseConstraints
+	SatisfiesAll     = versionkit.SatisfiesAll
+	LatestAllowed    = versionkit.LatestAllowed
+	LatestByBump     = versionkit.LatestByBump
+	BumpConstraint   = versionkit.BumpConstraint
+)
+
+func v(major, minor, patch int, prerelease string) Version {
+	return Version{Major: major, Minor: minor, Patch: patch, Prerelease: prerelease}
+}
+
+func parseSingleConstraint(s string) (Constraint, error) {
+	constraints, err := versionkit.ParseConstraints(s)
+	if err != nil {
+		return Constraint{}, err
+	}
+	if len(constraints) == 0 {
+		return Constraint{}, nil
+	}
+	return constraints[0], nil
+}
 
 func TestVersion_String(t *testing.T) {
 	tests := []struct {
 		v    Version
 		want string
 	}{
-		{Version{1, 2, 3, ""}, "1.2.3"},
-		{Version{1, 2, 3, "beta"}, "1.2.3-beta"},
-		{Version{0, 0, 0, ""}, "0.0.0"},
+		{v(1, 2, 3, ""), "1.2.3"},
+		{v(1, 2, 3, "beta"), "1.2.3-beta"},
+		{v(0, 0, 0, ""), "0.0.0"},
 	}
 
 	for _, tt := range tests {
@@ -26,10 +66,10 @@ func TestVersion_IsZero(t *testing.T) {
 		v    Version
 		want bool
 	}{
-		{Version{0, 0, 0, ""}, true},
-		{Version{1, 0, 0, ""}, false},
-		{Version{0, 0, 1, ""}, false},
-		{Version{0, 0, 0, "beta"}, false},
+		{v(0, 0, 0, ""), true},
+		{v(1, 0, 0, ""), false},
+		{v(0, 0, 1, ""), false},
+		{v(0, 0, 0, "beta"), false},
 	}
 
 	for _, tt := range tests {
@@ -45,13 +85,13 @@ func TestParseVersion(t *testing.T) {
 		want    Version
 		wantErr bool
 	}{
-		{"1.2.3", Version{1, 2, 3, ""}, false},
-		{"0.1.0", Version{0, 1, 0, ""}, false},
-		{"5.67.0", Version{5, 67, 0, ""}, false},
-		{"v1.2.3", Version{1, 2, 3, ""}, false},
-		{"1.2.3-beta", Version{1, 2, 3, "beta"}, false},
-		{"1.0", Version{1, 0, 0, ""}, false},
-		{"5", Version{5, 0, 0, ""}, false},
+		{"1.2.3", v(1, 2, 3, ""), false},
+		{"0.1.0", v(0, 1, 0, ""), false},
+		{"5.67.0", v(5, 67, 0, ""), false},
+		{"v1.2.3", v(1, 2, 3, ""), false},
+		{"1.2.3-beta", v(1, 2, 3, "beta"), false},
+		{"1.0", v(1, 0, 0, ""), false},
+		{"5", v(5, 0, 0, ""), false},
 		{"", Version{}, true},
 		{"abc", Version{}, true},
 	}
@@ -75,13 +115,13 @@ func TestVersionCompare(t *testing.T) {
 		a, b Version
 		want int
 	}{
-		{Version{1, 0, 0, ""}, Version{2, 0, 0, ""}, -1},
-		{Version{1, 0, 0, ""}, Version{1, 0, 0, ""}, 0},
-		{Version{2, 0, 0, ""}, Version{1, 0, 0, ""}, 1},
-		{Version{1, 2, 0, ""}, Version{1, 1, 0, ""}, 1},
-		{Version{1, 0, 1, ""}, Version{1, 0, 0, ""}, 1},
-		{Version{1, 0, 0, "beta"}, Version{1, 0, 0, ""}, -1},
-		{Version{1, 0, 0, ""}, Version{1, 0, 0, "beta"}, 1},
+		{v(1, 0, 0, ""), v(2, 0, 0, ""), -1},
+		{v(1, 0, 0, ""), v(1, 0, 0, ""), 0},
+		{v(2, 0, 0, ""), v(1, 0, 0, ""), 1},
+		{v(1, 2, 0, ""), v(1, 1, 0, ""), 1},
+		{v(1, 0, 1, ""), v(1, 0, 0, ""), 1},
+		{v(1, 0, 0, "beta"), v(1, 0, 0, ""), -1},
+		{v(1, 0, 0, ""), v(1, 0, 0, "beta"), 1},
 	}
 
 	for _, tt := range tests {
@@ -157,32 +197,32 @@ func TestPessimisticConstraint(t *testing.T) {
 
 func TestLatestByBump(t *testing.T) {
 	versions := []Version{
-		{5, 0, 0, ""}, {5, 0, 1, ""}, {5, 1, 0, ""}, {5, 2, 0, ""},
-		{6, 0, 0, ""}, {6, 1, 0, ""},
+		v(5, 0, 0, ""), v(5, 0, 1, ""), v(5, 1, 0, ""), v(5, 2, 0, ""),
+		v(6, 0, 0, ""), v(6, 1, 0, ""),
 	}
-	current := Version{5, 0, 0, ""}
+	current := v(5, 0, 0, "")
 
 	// Patch: same major.minor only.
 	got, ok := LatestByBump(current, versions, BumpPatch)
-	if !ok || got != (Version{5, 0, 1, ""}) {
+	if !ok || got != (v(5, 0, 1, "")) {
 		t.Errorf("patch bump = %v (%v), want 5.0.1", got, ok)
 	}
 
 	// Minor: same major.
 	got, ok = LatestByBump(current, versions, BumpMinor)
-	if !ok || got != (Version{5, 2, 0, ""}) {
+	if !ok || got != (v(5, 2, 0, "")) {
 		t.Errorf("minor bump = %v (%v), want 5.2.0", got, ok)
 	}
 
 	// Major: absolute latest.
 	got, ok = LatestByBump(current, versions, BumpMajor)
-	if !ok || got != (Version{6, 1, 0, ""}) {
+	if !ok || got != (v(6, 1, 0, "")) {
 		t.Errorf("major bump = %v (%v), want 6.1.0", got, ok)
 	}
 }
 
 func TestSatisfiesAll_EmptyConstraints(t *testing.T) {
-	v := Version{5, 0, 0, ""}
+	v := v(5, 0, 0, "")
 	if !SatisfiesAll(v, nil) {
 		t.Error("SatisfiesAll with nil constraints should return true")
 	}
@@ -192,8 +232,8 @@ func TestSatisfiesAll_EmptyConstraints(t *testing.T) {
 }
 
 func TestConstraint_Satisfies_AllOperators(t *testing.T) {
-	v100 := Version{1, 0, 0, ""}
-	v200 := Version{2, 0, 0, ""}
+	v100 := v(1, 0, 0, "")
+	v200 := v(2, 0, 0, "")
 
 	tests := []struct {
 		name string
@@ -226,20 +266,20 @@ func TestConstraint_Satisfies_AllOperators(t *testing.T) {
 
 func TestLatestAllowed(t *testing.T) {
 	t.Run("found", func(t *testing.T) {
-		versions := []Version{{1, 0, 0, ""}, {2, 0, 0, ""}, {3, 0, 0, ""}}
-		constraints := []Constraint{{Op: OpPessimistic, Version: Version{2, 0, 0, ""}, Parts: 2}}
+		versions := []Version{v(1, 0, 0, ""), v(2, 0, 0, ""), v(3, 0, 0, "")}
+		constraints := []Constraint{{Op: OpPessimistic, Version: v(2, 0, 0, ""), Parts: 2}}
 		got, ok := LatestAllowed(versions, constraints)
 		if !ok {
 			t.Fatal("expected to find a version")
 		}
-		if got != (Version{2, 0, 0, ""}) {
+		if got != (v(2, 0, 0, "")) {
 			t.Errorf("LatestAllowed = %v, want 2.0.0", got)
 		}
 	})
 
 	t.Run("not_found", func(t *testing.T) {
-		versions := []Version{{1, 0, 0, ""}}
-		constraints := []Constraint{{Op: OpGreater, Version: Version{5, 0, 0, ""}}}
+		versions := []Version{v(1, 0, 0, "")}
+		constraints := []Constraint{{Op: OpGreater, Version: v(5, 0, 0, "")}}
 		_, ok := LatestAllowed(versions, constraints)
 		if ok {
 			t.Error("expected not found")
@@ -247,13 +287,13 @@ func TestLatestAllowed(t *testing.T) {
 	})
 
 	t.Run("skips_prereleases", func(t *testing.T) {
-		versions := []Version{{1, 0, 0, ""}, {2, 0, 0, "beta"}}
-		constraints := []Constraint{{Op: OpGreaterEqual, Version: Version{1, 0, 0, ""}}}
+		versions := []Version{v(1, 0, 0, ""), v(2, 0, 0, "beta")}
+		constraints := []Constraint{{Op: OpGreaterEqual, Version: v(1, 0, 0, "")}}
 		got, ok := LatestAllowed(versions, constraints)
 		if !ok {
 			t.Fatal("expected to find a version")
 		}
-		if got != (Version{1, 0, 0, ""}) {
+		if got != (v(1, 0, 0, "")) {
 			t.Errorf("LatestAllowed = %v, want 1.0.0", got)
 		}
 	})
@@ -299,8 +339,8 @@ func TestParseConstraints_EmptyParts(t *testing.T) {
 
 func TestLatestByBump_NoMatch(t *testing.T) {
 	// Current is already the latest — no bump available.
-	versions := []Version{{5, 0, 0, ""}}
-	current := Version{5, 0, 0, ""}
+	versions := []Version{v(5, 0, 0, "")}
+	current := v(5, 0, 0, "")
 
 	_, ok := LatestByBump(current, versions, BumpPatch)
 	if ok {
@@ -310,22 +350,22 @@ func TestLatestByBump_NoMatch(t *testing.T) {
 
 func TestLatestByBump_SkipsPrereleases(t *testing.T) {
 	versions := []Version{
-		{5, 0, 0, ""}, {5, 0, 1, "rc1"}, {5, 0, 2, ""},
+		v(5, 0, 0, ""), v(5, 0, 1, "rc1"), v(5, 0, 2, ""),
 	}
-	current := Version{5, 0, 0, ""}
+	current := v(5, 0, 0, "")
 
 	got, ok := LatestByBump(current, versions, BumpPatch)
 	if !ok {
 		t.Fatal("expected a match")
 	}
-	if got != (Version{5, 0, 2, ""}) {
+	if got != (v(5, 0, 2, "")) {
 		t.Errorf("got %v, want 5.0.2 (skipping prerelease)", got)
 	}
 }
 
 func TestBumpConstraint_Complex(t *testing.T) {
 	// Complex constraint (multiple constraints) falls back to pessimistic
-	got := BumpConstraint(">= 1.0, < 2.0", Version{1, 5, 0, ""})
+	got := BumpConstraint(">= 1.0, < 2.0", v(1, 5, 0, ""))
 	if got != "~> 1.5" {
 		t.Errorf("BumpConstraint(complex) = %q, want '~> 1.5'", got)
 	}
@@ -333,7 +373,7 @@ func TestBumpConstraint_Complex(t *testing.T) {
 
 func TestBumpConstraint_ParseError(t *testing.T) {
 	// Unparseable constraint returns original
-	got := BumpConstraint("???", Version{1, 0, 0, ""})
+	got := BumpConstraint("???", v(1, 0, 0, ""))
 	if got != "???" {
 		t.Errorf("BumpConstraint(invalid) = %q, want '???'", got)
 	}
@@ -341,7 +381,7 @@ func TestBumpConstraint_ParseError(t *testing.T) {
 
 func TestBumpConstraint_LessOperator(t *testing.T) {
 	// < operator is not handled by the switch — falls through to default pessimistic
-	got := BumpConstraint("< 5.0", Version{4, 5, 0, ""})
+	got := BumpConstraint("< 5.0", v(4, 5, 0, ""))
 	if got != "~> 4.5" {
 		t.Errorf("BumpConstraint(< 5.0) = %q, want '~> 4.5'", got)
 	}
@@ -349,22 +389,22 @@ func TestBumpConstraint_LessOperator(t *testing.T) {
 
 func TestBumpConstraint_NotEqualOperator(t *testing.T) {
 	// != operator is not handled by the switch
-	got := BumpConstraint("!= 3.0", Version{4, 0, 0, ""})
+	got := BumpConstraint("!= 3.0", v(4, 0, 0, ""))
 	if got != "~> 4.0" {
 		t.Errorf("BumpConstraint(!= 3.0) = %q, want '~> 4.0'", got)
 	}
 }
 
 func TestBumpConstraint_Empty(t *testing.T) {
-	got := BumpConstraint("", Version{1, 0, 0, ""})
+	got := BumpConstraint("", v(1, 0, 0, ""))
 	if got != "" {
 		t.Errorf("BumpConstraint(empty) = %q, want empty", got)
 	}
 }
 
 func TestConstraint_Satisfies_UnknownOp(t *testing.T) {
-	c := Constraint{Op: ConstraintOp(99), Version: Version{1, 0, 0, ""}}
-	if c.Satisfies(Version{1, 0, 0, ""}) {
+	c := Constraint{Op: ConstraintOp(99), Version: v(1, 0, 0, "")}
+	if c.Satisfies(v(1, 0, 0, "")) {
 		t.Error("unknown op should return false")
 	}
 }
@@ -382,12 +422,12 @@ func TestBumpConstraint(t *testing.T) {
 		newVersion Version
 		want       string
 	}{
-		{"~> 5.0", Version{5, 3, 0, ""}, "~> 5.3"},
-		{"~> 5.0", Version{6, 0, 0, ""}, "~> 6.0"},
-		{"~> 5.0.1", Version{5, 0, 3, ""}, "~> 5.0.3"},
-		{"= 1.2.3", Version{1, 2, 5, ""}, "= 1.2.5"},
-		{">= 1.0", Version{2, 0, 0, ""}, ">= 2.0"},
-		{">= 1.0.0", Version{2, 0, 0, ""}, ">= 2.0.0"},
+		{"~> 5.0", v(5, 3, 0, ""), "~> 5.3"},
+		{"~> 5.0", v(6, 0, 0, ""), "~> 6.0"},
+		{"~> 5.0.1", v(5, 0, 3, ""), "~> 5.0.3"},
+		{"= 1.2.3", v(1, 2, 5, ""), "= 1.2.5"},
+		{">= 1.0", v(2, 0, 0, ""), ">= 2.0"},
+		{">= 1.0.0", v(2, 0, 0, ""), ">= 2.0.0"},
 	}
 
 	for _, tt := range tests {

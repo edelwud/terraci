@@ -1,6 +1,9 @@
-package tfupdateengine
+package domain
 
-import "github.com/edelwud/terraci/plugins/tfupdate/internal/registrymeta"
+import (
+	"github.com/edelwud/terraci/plugins/tfupdate/internal/registrymeta"
+	"github.com/edelwud/terraci/plugins/tfupdate/internal/versionkit"
+)
 
 type VersionPolicy struct {
 	Bump string
@@ -14,7 +17,7 @@ type RegistrySelection struct {
 
 type VersionConstraintSet struct {
 	Raw         []string
-	Constraints []Constraint
+	Constraints []versionkit.Constraint
 }
 
 type TransitiveProviderConstraint struct {

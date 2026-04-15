@@ -7,13 +7,14 @@ import (
 	"testing"
 
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
+	"github.com/edelwud/terraci/plugins/tfupdate/internal/domain"
 )
 
 func TestOutputResult_JSON(t *testing.T) {
 	result := &tfupdateengine.UpdateResult{
-		Modules: []tfupdateengine.ModuleVersionUpdate{
+		Modules: []domain.ModuleVersionUpdate{
 			{
-				Dependency: tfupdateengine.ModuleDependency{
+				Dependency: domain.ModuleDependency{
 					ModulePath: "platform/prod/vpc",
 					CallName:   "vpc",
 					Source:     "terraform-aws-modules/vpc/aws",
@@ -44,15 +45,15 @@ func TestOutputResult_JSON(t *testing.T) {
 
 func TestOutputResult_Text(t *testing.T) {
 	result := &tfupdateengine.UpdateResult{
-		Providers: []tfupdateengine.ProviderVersionUpdate{
+		Providers: []domain.ProviderVersionUpdate{
 			{
-				Dependency: tfupdateengine.ProviderDependency{
+				Dependency: domain.ProviderDependency{
 					ModulePath:     "test",
 					ProviderName:   "aws",
 					ProviderSource: "hashicorp/aws",
 				},
 				BumpedVersion: "5.3.0",
-				Status:        tfupdateengine.StatusUpdateAvailable,
+				Status:        domain.StatusUpdateAvailable,
 			},
 		},
 		Summary: tfupdateengine.UpdateSummary{TotalChecked: 1, UpdatesAvailable: 1},
@@ -91,9 +92,9 @@ func TestOutputResult_TextNoUpdates(t *testing.T) {
 
 func TestOutputResult_TextWithModuleUpdates(t *testing.T) {
 	result := &tfupdateengine.UpdateResult{
-		Modules: []tfupdateengine.ModuleVersionUpdate{
+		Modules: []domain.ModuleVersionUpdate{
 			{
-				Dependency: tfupdateengine.ModuleDependency{
+				Dependency: domain.ModuleDependency{
 					ModulePath: "platform/prod/vpc",
 					CallName:   "vpc",
 					Source:     "terraform-aws-modules/vpc/aws",
@@ -102,10 +103,10 @@ func TestOutputResult_TextWithModuleUpdates(t *testing.T) {
 				CurrentVersion: "5.0.0",
 				BumpedVersion:  "5.2.0",
 				LatestVersion:  "6.0.0",
-				Status:         tfupdateengine.StatusUpdateAvailable,
+				Status:         domain.StatusUpdateAvailable,
 			},
 			{
-				Dependency: tfupdateengine.ModuleDependency{
+				Dependency: domain.ModuleDependency{
 					ModulePath: "platform/prod/vpc",
 					CallName:   "eks",
 					Source:     "terraform-aws-modules/eks/aws",
@@ -113,12 +114,12 @@ func TestOutputResult_TextWithModuleUpdates(t *testing.T) {
 				},
 				CurrentVersion: "20.0.0",
 				BumpedVersion:  "20.1.0",
-				Status:         tfupdateengine.StatusUpdateAvailable,
+				Status:         domain.StatusUpdateAvailable,
 			},
 		},
-		Providers: []tfupdateengine.ProviderVersionUpdate{
+		Providers: []domain.ProviderVersionUpdate{
 			{
-				Dependency: tfupdateengine.ProviderDependency{
+				Dependency: domain.ProviderDependency{
 					ModulePath:     "platform/prod/vpc",
 					ProviderName:   "aws",
 					ProviderSource: "hashicorp/aws",
@@ -127,7 +128,7 @@ func TestOutputResult_TextWithModuleUpdates(t *testing.T) {
 				CurrentVersion: "5.67.0",
 				BumpedVersion:  "5.69.0",
 				LatestVersion:  "6.0.0",
-				Status:         tfupdateengine.StatusUpdateAvailable,
+				Status:         domain.StatusUpdateAvailable,
 			},
 		},
 		Summary: tfupdateengine.UpdateSummary{TotalChecked: 3, UpdatesAvailable: 3, Skipped: 1},
@@ -143,11 +144,11 @@ func TestOutputResult_TextWithModuleUpdates(t *testing.T) {
 func TestOutputResult_TextSkippedOnly(t *testing.T) {
 	// All items skipped or not updated — should print "all up to date"
 	result := &tfupdateengine.UpdateResult{
-		Providers: []tfupdateengine.ProviderVersionUpdate{
-			{Dependency: tfupdateengine.ProviderDependency{ModulePath: "test"}, Status: tfupdateengine.StatusSkipped, Issue: "ignored"},
+		Providers: []domain.ProviderVersionUpdate{
+			{Dependency: domain.ProviderDependency{ModulePath: "test"}, Status: domain.StatusSkipped, Issue: "ignored"},
 		},
-		Modules: []tfupdateengine.ModuleVersionUpdate{
-			{Dependency: tfupdateengine.ModuleDependency{ModulePath: "test"}},
+		Modules: []domain.ModuleVersionUpdate{
+			{Dependency: domain.ModuleDependency{ModulePath: "test"}},
 		},
 		Summary: tfupdateengine.UpdateSummary{TotalChecked: 2, Skipped: 1},
 	}
@@ -162,9 +163,9 @@ func TestOutputResult_TextSkippedOnly(t *testing.T) {
 func TestOutputResult_TextModuleWithSameBumpedLatest(t *testing.T) {
 	// When LatestVersion == BumpedVersion, the "latest" field should be omitted from log.
 	result := &tfupdateengine.UpdateResult{
-		Modules: []tfupdateengine.ModuleVersionUpdate{
+		Modules: []domain.ModuleVersionUpdate{
 			{
-				Dependency: tfupdateengine.ModuleDependency{
+				Dependency: domain.ModuleDependency{
 					ModulePath: "platform/prod/vpc",
 					CallName:   "vpc",
 					Source:     "terraform-aws-modules/vpc/aws",
@@ -173,7 +174,7 @@ func TestOutputResult_TextModuleWithSameBumpedLatest(t *testing.T) {
 				CurrentVersion: "5.0.0",
 				BumpedVersion:  "5.2.0",
 				LatestVersion:  "5.2.0",
-				Status:         tfupdateengine.StatusUpdateAvailable,
+				Status:         domain.StatusUpdateAvailable,
 			},
 		},
 		Summary: tfupdateengine.UpdateSummary{TotalChecked: 1, UpdatesAvailable: 1},
@@ -188,9 +189,9 @@ func TestOutputResult_TextModuleWithSameBumpedLatest(t *testing.T) {
 
 func TestOutputResult_TextProviderWithSameBumpedLatest(t *testing.T) {
 	result := &tfupdateengine.UpdateResult{
-		Providers: []tfupdateengine.ProviderVersionUpdate{
+		Providers: []domain.ProviderVersionUpdate{
 			{
-				Dependency: tfupdateengine.ProviderDependency{
+				Dependency: domain.ProviderDependency{
 					ModulePath:     "test",
 					ProviderName:   "aws",
 					ProviderSource: "hashicorp/aws",
@@ -199,7 +200,7 @@ func TestOutputResult_TextProviderWithSameBumpedLatest(t *testing.T) {
 				CurrentVersion: "5.0.0",
 				BumpedVersion:  "5.69.0",
 				LatestVersion:  "5.69.0",
-				Status:         tfupdateengine.StatusUpdateAvailable,
+				Status:         domain.StatusUpdateAvailable,
 			},
 		},
 		Summary: tfupdateengine.UpdateSummary{TotalChecked: 1, UpdatesAvailable: 1},

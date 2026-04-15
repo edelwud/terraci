@@ -4,19 +4,20 @@ import (
 	"sort"
 
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
+	"github.com/edelwud/terraci/plugins/tfupdate/internal/versionkit"
 )
 
 type versionAnalysis struct {
-	current    tfupdateengine.Version
-	latest     tfupdateengine.Version
-	bumped     tfupdateengine.Version
+	current    versionkit.Version
+	latest     versionkit.Version
+	bumped     versionkit.Version
 	hasCurrent bool
 }
 
-func parseVersionList(strs []string) []tfupdateengine.Version {
-	versions := make([]tfupdateengine.Version, 0, len(strs))
+func parseVersionList(strs []string) []versionkit.Version {
+	versions := make([]versionkit.Version, 0, len(strs))
 	for _, s := range strs {
-		v, err := tfupdateengine.ParseVersion(s)
+		v, err := versionkit.ParseVersion(s)
 		if err != nil {
 			continue
 		}
@@ -25,26 +26,26 @@ func parseVersionList(strs []string) []tfupdateengine.Version {
 	return versions
 }
 
-func latestStable(versions []tfupdateengine.Version) tfupdateengine.Version {
+func latestStable(versions []versionkit.Version) versionkit.Version {
 	return analyzeLatestStable(versions)
 }
 
-func versionFromConstraint(s string) tfupdateengine.Version {
-	constraints, err := tfupdateengine.ParseConstraints(s)
+func versionFromConstraint(s string) versionkit.Version {
+	constraints, err := versionkit.ParseConstraints(s)
 	if err != nil || len(constraints) == 0 {
-		v, parseErr := tfupdateengine.ParseVersion(s)
+		v, parseErr := versionkit.ParseVersion(s)
 		if parseErr != nil {
-			return tfupdateengine.Version{}
+			return versionkit.Version{}
 		}
 		return v
 	}
 	return constraints[0].Version
 }
 
-func analyzeProviderVersions(constraint, currentVersion string, versions []tfupdateengine.Version, bump string) versionAnalysis {
+func analyzeProviderVersions(constraint, currentVersion string, versions []versionkit.Version, bump string) versionAnalysis {
 	analysis := versionAnalysis{}
 	if currentVersion != "" {
-		if version, err := tfupdateengine.ParseVersion(currentVersion); err == nil {
+		if version, err := versionkit.ParseVersion(currentVersion); err == nil {
 			analysis.current = version
 			analysis.hasCurrent = true
 		}
@@ -53,7 +54,7 @@ func analyzeProviderVersions(constraint, currentVersion string, versions []tfupd
 	analysis.latest = analyzeLatestStable(versions)
 
 	if !analysis.hasCurrent && constraint != "" {
-		constraints, err := tfupdateengine.ParseConstraints(constraint)
+		constraints, err := versionkit.ParseConstraints(constraint)
 		if err == nil {
 			analysis.current, analysis.hasCurrent = findLatestAllowed(versions, constraints)
 		}
@@ -65,8 +66,8 @@ func analyzeProviderVersions(constraint, currentVersion string, versions []tfupd
 	return analysis
 }
 
-func analyzeLatestStable(versions []tfupdateengine.Version) tfupdateengine.Version {
-	var best tfupdateengine.Version
+func analyzeLatestStable(versions []versionkit.Version) versionkit.Version {
+	var best versionkit.Version
 	for _, version := range versions {
 		if version.Prerelease != "" {
 			continue
@@ -78,14 +79,14 @@ func analyzeLatestStable(versions []tfupdateengine.Version) tfupdateengine.Versi
 	return best
 }
 
-func findLatestAllowed(versions []tfupdateengine.Version, constraints []tfupdateengine.Constraint) (tfupdateengine.Version, bool) {
-	var best tfupdateengine.Version
+func findLatestAllowed(versions []versionkit.Version, constraints []versionkit.Constraint) (versionkit.Version, bool) {
+	var best versionkit.Version
 	found := false
 	for _, version := range versions {
 		if version.Prerelease != "" {
 			continue
 		}
-		if !tfupdateengine.SatisfiesAll(version, constraints) {
+		if !versionkit.SatisfiesAll(version, constraints) {
 			continue
 		}
 		if !found || version.Compare(best) > 0 {
@@ -96,8 +97,8 @@ func findLatestAllowed(versions []tfupdateengine.Version, constraints []tfupdate
 	return best, found
 }
 
-func findBumpedVersion(versions []tfupdateengine.Version, current tfupdateengine.Version, bump string) tfupdateengine.Version {
-	var best tfupdateengine.Version
+func findBumpedVersion(versions []versionkit.Version, current versionkit.Version, bump string) versionkit.Version {
+	var best versionkit.Version
 	for _, version := range versions {
 		if version.Prerelease != "" || version.Compare(current) <= 0 {
 			continue
@@ -120,17 +121,17 @@ func findBumpedVersion(versions []tfupdateengine.Version, current tfupdateengine
 	return best
 }
 
-func sortVersionsDesc(versions []tfupdateengine.Version) []tfupdateengine.Version {
-	sorted := append([]tfupdateengine.Version(nil), versions...)
+func sortVersionsDesc(versions []versionkit.Version) []versionkit.Version {
+	sorted := append([]versionkit.Version(nil), versions...)
 	sort.Slice(sorted, func(i, j int) bool {
 		return sorted[i].Compare(sorted[j]) > 0
 	})
 	return sorted
 }
 
-func sortBumpCandidates(versions []tfupdateengine.Version, current tfupdateengine.Version, bump string) []tfupdateengine.Version {
+func sortBumpCandidates(versions []versionkit.Version, current versionkit.Version, bump string) []versionkit.Version {
 	sorted := sortVersionsDesc(versions)
-	result := make([]tfupdateengine.Version, 0, len(sorted))
+	result := make([]versionkit.Version, 0, len(sorted))
 	for _, version := range sorted {
 		if version.Compare(current) <= 0 || !withinBump(current, version, bump) {
 			continue
@@ -140,7 +141,7 @@ func sortBumpCandidates(versions []tfupdateengine.Version, current tfupdateengin
 	return result
 }
 
-func withinBump(current, candidate tfupdateengine.Version, bump string) bool {
+func withinBump(current, candidate versionkit.Version, bump string) bool {
 	switch bump {
 	case tfupdateengine.BumpPatch:
 		return candidate.Major == current.Major && candidate.Minor == current.Minor

@@ -1,11 +1,13 @@
 package tfupdateengine
 
+import "github.com/edelwud/terraci/plugins/tfupdate/internal/domain"
+
 // UpdateResult contains all version check results.
 type UpdateResult struct {
-	Modules    []ModuleVersionUpdate   `json:"modules,omitempty"`
-	Providers  []ProviderVersionUpdate `json:"providers,omitempty"`
-	LockSync   []LockSyncPlan          `json:"-"`
-	Summary    UpdateSummary           `json:"summary"`
+	Modules    []domain.ModuleVersionUpdate   `json:"modules,omitempty"`
+	Providers  []domain.ProviderVersionUpdate `json:"providers,omitempty"`
+	LockSync   []domain.LockSyncPlan          `json:"-"`
+	Summary    UpdateSummary                  `json:"summary"`
 	baseErrors int
 }
 
@@ -30,17 +32,17 @@ func (r *UpdateResult) RecordError() {
 }
 
 // AddModuleUpdate appends a checked module outcome.
-func (b *UpdateResultBuilder) AddModuleUpdate(update ModuleVersionUpdate) {
+func (b *UpdateResultBuilder) AddModuleUpdate(update domain.ModuleVersionUpdate) {
 	b.result.Modules = append(b.result.Modules, update)
 }
 
 // AddProviderUpdate appends a checked provider outcome.
-func (b *UpdateResultBuilder) AddProviderUpdate(update ProviderVersionUpdate) {
+func (b *UpdateResultBuilder) AddProviderUpdate(update domain.ProviderVersionUpdate) {
 	b.result.Providers = append(b.result.Providers, update)
 }
 
 // AddLockSyncPlan appends an explicit lock synchronization plan.
-func (b *UpdateResultBuilder) AddLockSyncPlan(plan LockSyncPlan) {
+func (b *UpdateResultBuilder) AddLockSyncPlan(plan domain.LockSyncPlan) {
 	if len(plan.Providers) == 0 {
 		return
 	}

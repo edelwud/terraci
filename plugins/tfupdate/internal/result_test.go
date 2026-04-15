@@ -1,11 +1,15 @@
 package tfupdateengine
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/edelwud/terraci/plugins/tfupdate/internal/domain"
+)
 
 func TestUpdateResultBuilder_Build(t *testing.T) {
 	builder := NewUpdateResultBuilder()
-	builder.AddModuleUpdate(ModuleVersionUpdate{Status: StatusUpdateAvailable})
-	builder.AddProviderUpdate(ProviderVersionUpdate{Status: StatusApplied})
+	builder.AddModuleUpdate(domain.ModuleVersionUpdate{Status: domain.StatusUpdateAvailable})
+	builder.AddProviderUpdate(domain.ProviderVersionUpdate{Status: domain.StatusApplied})
 	builder.RecordError()
 
 	result := builder.Build()
@@ -39,8 +43,8 @@ func TestUpdateResultBuilder_Build(t *testing.T) {
 
 func TestBuildUpdateSummary_IdempotentWithBaseErrors(t *testing.T) {
 	builder := NewUpdateResultBuilder()
-	builder.AddModuleUpdate(ModuleVersionUpdate{Status: StatusSkipped})
-	builder.AddProviderUpdate(ProviderVersionUpdate{Status: StatusError})
+	builder.AddModuleUpdate(domain.ModuleVersionUpdate{Status: domain.StatusSkipped})
+	builder.AddProviderUpdate(domain.ProviderVersionUpdate{Status: domain.StatusError})
 	builder.RecordError()
 
 	result := builder.Build()

@@ -1,4 +1,4 @@
-package tfupdateengine
+package registry
 
 import (
 	"context"
@@ -10,21 +10,22 @@ import (
 	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/plugins/tfupdate/internal/registrymeta"
+	"github.com/edelwud/terraci/plugins/tfupdate/internal/sourceaddr"
 )
 
-type cachedRegistryClient struct {
-	base      RegistryClient
+type cachedClient struct {
+	base      Client
 	cache     plugin.KVCache
 	namespace string
 	ttl       time.Duration
 }
 
-func NewCachedRegistryClient(base RegistryClient, cache plugin.KVCache, namespace string, ttl time.Duration) RegistryClient {
+func NewCachedClient(base Client, cache plugin.KVCache, namespace string, ttl time.Duration) Client {
 	if base == nil || cache == nil {
 		return nil
 	}
 
-	return &cachedRegistryClient{
+	return &cachedClient{
 		base:      base,
 		cache:     cache,
 		namespace: namespace,
@@ -32,17 +33,17 @@ func NewCachedRegistryClient(base RegistryClient, cache plugin.KVCache, namespac
 	}
 }
 
-func (c *cachedRegistryClient) ModuleVersions(
+func (c *cachedClient) ModuleVersions(
 	ctx context.Context,
-	hostname, namespace, name, provider string,
+	address sourceaddr.ModuleAddress,
 ) ([]string, error) {
-	key := cacheKeyForModule(hostname, namespace, name, provider)
+	key := cacheKeyForModule(address)
 
 	if versions, ok := c.load(ctx, key); ok {
 		return cloneCachedVersions(versions), nil
 	}
 
-	versions, err := c.base.ModuleVersions(ctx, hostname, namespace, name, provider)
+	versions, err := c.base.ModuleVersions(ctx, address)
 	if err != nil {
 		return nil, err
 	}
@@ -51,11 +52,12 @@ func (c *cachedRegistryClient) ModuleVersions(
 	return cloneCachedVersions(versions), nil
 }
 
-func (c *cachedRegistryClient) ModuleProviderDeps(
+func (c *cachedClient) ModuleProviderDeps(
 	ctx context.Context,
-	hostname, namespace, name, provider, version string,
+	address sourceaddr.ModuleAddress,
+	version string,
 ) ([]registrymeta.ModuleProviderDep, error) {
-	key := fmt.Sprintf("module-deps:%s/%s/%s/%s@%s", hostname, namespace, name, provider, version)
+	key := fmt.Sprintf("module-deps:%s@%s", addressKey(address), version)
 
 	if payload, ok, err := c.cache.Get(ctx, c.namespace, key); err == nil && ok {
 		var deps []registrymeta.ModuleProviderDep
@@ -64,7 +66,7 @@ func (c *cachedRegistryClient) ModuleProviderDeps(
 		}
 	}
 
-	deps, err := c.base.ModuleProviderDeps(ctx, hostname, namespace, name, provider, version)
+	deps, err := c.base.ModuleProviderDeps(ctx, address, version)
 	if err != nil {
 		return nil, err
 	}
@@ -81,17 +83,17 @@ func (c *cachedRegistryClient) ModuleProviderDeps(
 	return deps, nil
 }
 
-func (c *cachedRegistryClient) ProviderVersions(
+func (c *cachedClient) ProviderVersions(
 	ctx context.Context,
-	hostname, namespace, typeName string,
+	address sourceaddr.ProviderAddress,
 ) ([]string, error) {
-	key := cacheKeyForProvider(hostname, namespace, typeName)
+	key := cacheKeyForProvider(address)
 
 	if versions, ok := c.load(ctx, key); ok {
 		return cloneCachedVersions(versions), nil
 	}
 
-	versions, err := c.base.ProviderVersions(ctx, hostname, namespace, typeName)
+	versions, err := c.base.ProviderVersions(ctx, address)
 	if err != nil {
 		return nil, err
 	}
@@ -100,17 +102,18 @@ func (c *cachedRegistryClient) ProviderVersions(
 	return cloneCachedVersions(versions), nil
 }
 
-func (c *cachedRegistryClient) ProviderPlatforms(
+func (c *cachedClient) ProviderPlatforms(
 	ctx context.Context,
-	hostname, namespace, typeName, version string,
+	address sourceaddr.ProviderAddress,
+	version string,
 ) ([]string, error) {
-	key := cacheKeyForProviderPlatforms(hostname, namespace, typeName, version)
+	key := cacheKeyForProviderPlatforms(address, version)
 
 	if platforms, ok := c.loadPlatforms(ctx, key); ok {
 		return cloneCachedPlatforms(platforms), nil
 	}
 
-	platforms, err := c.base.ProviderPlatforms(ctx, hostname, namespace, typeName, version)
+	platforms, err := c.base.ProviderPlatforms(ctx, address, version)
 	if err != nil {
 		return nil, err
 	}
@@ -119,14 +122,15 @@ func (c *cachedRegistryClient) ProviderPlatforms(
 	return cloneCachedPlatforms(platforms), nil
 }
 
-func (c *cachedRegistryClient) ProviderPackage(
+func (c *cachedClient) ProviderPackage(
 	ctx context.Context,
-	hostname, namespace, typeName, version, platform string,
+	address sourceaddr.ProviderAddress,
+	version, platform string,
 ) (*registrymeta.ProviderPackage, error) {
-	return c.base.ProviderPackage(ctx, hostname, namespace, typeName, version, platform)
+	return c.base.ProviderPackage(ctx, address, version, platform)
 }
 
-func (c *cachedRegistryClient) load(ctx context.Context, key string) ([]string, bool) {
+func (c *cachedClient) load(ctx context.Context, key string) ([]string, bool) {
 	payload, ok, err := c.cache.Get(ctx, c.namespace, key)
 	if err != nil {
 		log.WithError(err).
@@ -151,7 +155,7 @@ func (c *cachedRegistryClient) load(ctx context.Context, key string) ([]string, 
 	return versions, true
 }
 
-func (c *cachedRegistryClient) loadPlatforms(ctx context.Context, key string) ([]string, bool) {
+func (c *cachedClient) loadPlatforms(ctx context.Context, key string) ([]string, bool) {
 	payload, ok, err := c.cache.Get(ctx, c.namespace, key)
 	if err != nil {
 		log.WithError(err).
@@ -176,7 +180,7 @@ func (c *cachedRegistryClient) loadPlatforms(ctx context.Context, key string) ([
 	return platforms, true
 }
 
-func (c *cachedRegistryClient) store(ctx context.Context, key string, versions []string) {
+func (c *cachedClient) store(ctx context.Context, key string, versions []string) {
 	payload, err := json.Marshal(cloneCachedVersions(versions))
 	if err != nil {
 		log.WithError(err).
@@ -194,7 +198,7 @@ func (c *cachedRegistryClient) store(ctx context.Context, key string, versions [
 	}
 }
 
-func (c *cachedRegistryClient) storePlatforms(ctx context.Context, key string, platforms []string) {
+func (c *cachedClient) storePlatforms(ctx context.Context, key string, platforms []string) {
 	payload, err := json.Marshal(cloneCachedPlatforms(platforms))
 	if err != nil {
 		log.WithError(err).
@@ -212,15 +216,14 @@ func (c *cachedRegistryClient) storePlatforms(ctx context.Context, key string, p
 	}
 }
 
-func cacheKeyForModule(hostname, namespace, name, provider string) string {
-	return fmt.Sprintf("module:%s/%s/%s/%s", hostname, namespace, name, provider)
+func cacheKeyForModule(address sourceaddr.ModuleAddress) string {
+	return "module:" + addressKey(address)
 }
 
 func cloneCachedVersions(versions []string) []string {
 	if len(versions) == 0 {
 		return nil
 	}
-
 	return slices.Clone(versions)
 }
 
@@ -228,14 +231,21 @@ func cloneCachedPlatforms(platforms []string) []string {
 	if len(platforms) == 0 {
 		return nil
 	}
-
 	return slices.Clone(platforms)
 }
 
-func cacheKeyForProvider(hostname, namespace, typeName string) string {
-	return fmt.Sprintf("provider:%s/%s/%s", hostname, namespace, typeName)
+func cacheKeyForProvider(address sourceaddr.ProviderAddress) string {
+	return "provider:" + providerKey(address)
 }
 
-func cacheKeyForProviderPlatforms(hostname, namespace, typeName, version string) string {
-	return fmt.Sprintf("provider-platforms:%s/%s/%s@%s", hostname, namespace, typeName, version)
+func cacheKeyForProviderPlatforms(address sourceaddr.ProviderAddress, version string) string {
+	return fmt.Sprintf("provider-platforms:%s@%s", providerKey(address), version)
+}
+
+func addressKey(address sourceaddr.ModuleAddress) string {
+	return fmt.Sprintf("%s/%s/%s/%s", address.Hostname, address.Namespace, address.Name, address.Provider)
+}
+
+func providerKey(address sourceaddr.ProviderAddress) string {
+	return fmt.Sprintf("%s/%s/%s", address.Hostname, address.Namespace, address.Type)
 }

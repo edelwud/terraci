@@ -7,6 +7,13 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/edelwud/terraci/plugins/tfupdate/internal/sourceaddr"
+)
+
+var (
+	testProviderAddress = sourceaddr.ProviderAddress{Hostname: "registry.terraform.io", Namespace: "hashicorp", Type: "aws"}
+	testModuleAddress   = sourceaddr.ModuleAddress{Hostname: "registry.terraform.io", Namespace: "hashicorp", Name: "consul", Provider: "aws"}
 )
 
 func TestNew(t *testing.T) {
@@ -76,7 +83,7 @@ func TestModuleVersions_EmptyModules(t *testing.T) {
 	defer srv.Close()
 
 	client := NewWithBase(srv.URL + "/v1")
-	versions, err := client.ModuleVersions(context.Background(), "registry.terraform.io", "ns", "name", "provider")
+	versions, err := client.ModuleVersions(context.Background(), sourceaddr.ModuleAddress{Hostname: "registry.terraform.io", Namespace: "ns", Name: "name", Provider: "provider"})
 	if err != nil {
 		t.Fatalf("ModuleVersions() error = %v", err)
 	}
@@ -93,7 +100,7 @@ func TestProviderVersions_DecodeError(t *testing.T) {
 	defer srv.Close()
 
 	client := NewWithBase(srv.URL + "/v1")
-	_, err := client.ProviderVersions(context.Background(), "registry.terraform.io", "hashicorp", "aws")
+	_, err := client.ProviderVersions(context.Background(), testProviderAddress)
 	if err == nil {
 		t.Fatal("expected error for invalid JSON")
 	}
@@ -132,7 +139,7 @@ func TestProviderVersions_FetchError(t *testing.T) {
 	defer srv.Close()
 
 	client := NewWithBase(srv.URL + "/v1")
-	_, err := client.ProviderVersions(context.Background(), "registry.terraform.io", "hashicorp", "aws")
+	_, err := client.ProviderVersions(context.Background(), testProviderAddress)
 	if err == nil {
 		t.Fatal("expected error for HTTP 500")
 	}
@@ -145,7 +152,7 @@ func TestModuleVersions_FetchError(t *testing.T) {
 	defer srv.Close()
 
 	client := NewWithBase(srv.URL + "/v1")
-	_, err := client.ModuleVersions(context.Background(), "registry.terraform.io", "ns", "name", "provider")
+	_, err := client.ModuleVersions(context.Background(), sourceaddr.ModuleAddress{Hostname: "registry.terraform.io", Namespace: "ns", Name: "name", Provider: "provider"})
 	if err == nil {
 		t.Fatal("expected error for HTTP 500")
 	}
@@ -159,7 +166,7 @@ func TestModuleVersions_DecodeError(t *testing.T) {
 	defer srv.Close()
 
 	client := NewWithBase(srv.URL + "/v1")
-	_, err := client.ModuleVersions(context.Background(), "registry.terraform.io", "ns", "name", "provider")
+	_, err := client.ModuleVersions(context.Background(), sourceaddr.ModuleAddress{Hostname: "registry.terraform.io", Namespace: "ns", Name: "name", Provider: "provider"})
 	if err == nil {
 		t.Fatal("expected error for invalid JSON")
 	}
@@ -187,7 +194,7 @@ func TestClient_ProviderVersions(t *testing.T) {
 	defer srv.Close()
 
 	client := NewWithBase(srv.URL + "/v1")
-	versions, err := client.ProviderVersions(context.Background(), "registry.terraform.io", "hashicorp", "aws")
+	versions, err := client.ProviderVersions(context.Background(), testProviderAddress)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +226,7 @@ func TestClient_ProviderPlatforms(t *testing.T) {
 	defer srv.Close()
 
 	client := NewWithBase(srv.URL + "/v1")
-	platforms, err := client.ProviderPlatforms(context.Background(), "registry.terraform.io", "hashicorp", "aws", "5.2.0")
+	platforms, err := client.ProviderPlatforms(context.Background(), testProviderAddress, "5.2.0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -250,7 +257,7 @@ func TestClient_ProviderPackage(t *testing.T) {
 	defer srv.Close()
 
 	client := NewWithBase(srv.URL + "/v1")
-	pkg, err := client.ProviderPackage(context.Background(), "registry.terraform.io", "hashicorp", "aws", "5.2.0", "linux_amd64")
+	pkg, err := client.ProviderPackage(context.Background(), testProviderAddress, "5.2.0", "linux_amd64")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -287,7 +294,7 @@ func TestClient_ModuleVersions(t *testing.T) {
 	defer srv.Close()
 
 	client := NewWithBase(srv.URL + "/v1")
-	versions, err := client.ModuleVersions(context.Background(), "registry.terraform.io", "hashicorp", "consul", "aws")
+	versions, err := client.ModuleVersions(context.Background(), testModuleAddress)
 	if err != nil {
 		t.Fatal(err)
 	}

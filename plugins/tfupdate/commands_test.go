@@ -11,6 +11,7 @@ import (
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/discovery"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
+	"github.com/edelwud/terraci/plugins/tfupdate/internal/domain"
 )
 
 func TestPlugin_Commands_Registration(t *testing.T) {
@@ -146,15 +147,15 @@ func TestBuildUpdateReport_WithUpdates(t *testing.T) {
 
 func TestRenderReportBody_Providers(t *testing.T) {
 	result := &tfupdateengine.UpdateResult{
-		Providers: []tfupdateengine.ProviderVersionUpdate{
+		Providers: []domain.ProviderVersionUpdate{
 			{
-				Dependency: tfupdateengine.ProviderDependency{
+				Dependency: domain.ProviderDependency{
 					ModulePath:     "platform/prod/vpc",
 					ProviderSource: "hashicorp/aws",
 					Constraint:     "~> 5.0",
 				},
 				LatestVersion: "5.3.0",
-				Status:        tfupdateengine.StatusUpdateAvailable,
+				Status:        domain.StatusUpdateAvailable,
 			},
 		},
 	}
@@ -176,9 +177,9 @@ func TestRenderReportBody_Providers(t *testing.T) {
 
 func TestRenderReportBody_Modules(t *testing.T) {
 	result := &tfupdateengine.UpdateResult{
-		Modules: []tfupdateengine.ModuleVersionUpdate{
+		Modules: []domain.ModuleVersionUpdate{
 			{
-				Dependency: tfupdateengine.ModuleDependency{
+				Dependency: domain.ModuleDependency{
 					ModulePath: "platform/prod/vpc",
 					Source:     "terraform-aws-modules/vpc/aws",
 					Constraint: "~> 5.0",
@@ -202,11 +203,11 @@ func TestRenderReportBody_Modules(t *testing.T) {
 
 func TestRenderReportBody_Mixed(t *testing.T) {
 	result := &tfupdateengine.UpdateResult{
-		Providers: []tfupdateengine.ProviderVersionUpdate{
-			{Dependency: tfupdateengine.ProviderDependency{ModulePath: "a", ProviderSource: "hashicorp/aws"}, Status: tfupdateengine.StatusUpdateAvailable},
+		Providers: []domain.ProviderVersionUpdate{
+			{Dependency: domain.ProviderDependency{ModulePath: "a", ProviderSource: "hashicorp/aws"}, Status: domain.StatusUpdateAvailable},
 		},
-		Modules: []tfupdateengine.ModuleVersionUpdate{
-			{Dependency: tfupdateengine.ModuleDependency{ModulePath: "b", Source: "terraform-aws-modules/vpc/aws"}},
+		Modules: []domain.ModuleVersionUpdate{
+			{Dependency: domain.ModuleDependency{ModulePath: "b", Source: "terraform-aws-modules/vpc/aws"}},
 		},
 	}
 
@@ -221,13 +222,13 @@ func TestRenderReportBody_Mixed(t *testing.T) {
 
 func TestRenderReportBody_Skipped(t *testing.T) {
 	result := &tfupdateengine.UpdateResult{
-		Providers: []tfupdateengine.ProviderVersionUpdate{
+		Providers: []domain.ProviderVersionUpdate{
 			{
-				Dependency: tfupdateengine.ProviderDependency{
+				Dependency: domain.ProviderDependency{
 					ModulePath:     "test",
 					ProviderSource: "hashicorp/aws",
 				},
-				Status: tfupdateengine.StatusSkipped,
+				Status: domain.StatusSkipped,
 				Issue:  "ignored by config",
 			},
 		},
@@ -250,15 +251,15 @@ func TestRenderReportBody_Empty(t *testing.T) {
 
 func TestRenderReportBody_UpdateAvailable(t *testing.T) {
 	result := &tfupdateengine.UpdateResult{
-		Modules: []tfupdateengine.ModuleVersionUpdate{
+		Modules: []domain.ModuleVersionUpdate{
 			{
-				Dependency: tfupdateengine.ModuleDependency{
+				Dependency: domain.ModuleDependency{
 					ModulePath: "test",
 					Source:     "terraform-aws-modules/vpc/aws",
 					Constraint: "~> 5.0",
 				},
 				LatestVersion: "5.3.0",
-				Status:        tfupdateengine.StatusUpdateAvailable,
+				Status:        domain.StatusUpdateAvailable,
 			},
 		},
 	}

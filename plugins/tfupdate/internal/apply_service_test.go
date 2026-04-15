@@ -13,7 +13,24 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/edelwud/terraci/plugins/tfupdate/internal/domain"
 	"github.com/edelwud/terraci/plugins/tfupdate/internal/registrymeta"
+	"github.com/edelwud/terraci/plugins/tfupdate/internal/sourceaddr"
+)
+
+type ModuleVersionUpdate = domain.ModuleVersionUpdate
+type ProviderVersionUpdate = domain.ProviderVersionUpdate
+type ModuleDependency = domain.ModuleDependency
+type ProviderDependency = domain.ProviderDependency
+type LockSyncPlan = domain.LockSyncPlan
+type LockProviderSync = domain.LockProviderSync
+
+const (
+	StatusUpToDate        = domain.StatusUpToDate
+	StatusUpdateAvailable = domain.StatusUpdateAvailable
+	StatusApplied         = domain.StatusApplied
+	StatusSkipped         = domain.StatusSkipped
+	StatusError           = domain.StatusError
 )
 
 type mockPackageDownloader struct {
@@ -38,24 +55,24 @@ type mockApplyRegistry struct {
 	packages  map[string]*registrymeta.ProviderPackage
 }
 
-func (r *mockApplyRegistry) ModuleVersions(_ context.Context, _, _, _, _ string) ([]string, error) {
+func (r *mockApplyRegistry) ModuleVersions(_ context.Context, _ sourceaddr.ModuleAddress) ([]string, error) {
 	return nil, nil
 }
 
-func (r *mockApplyRegistry) ModuleProviderDeps(_ context.Context, _, _, _, _, _ string) ([]registrymeta.ModuleProviderDep, error) {
+func (r *mockApplyRegistry) ModuleProviderDeps(_ context.Context, _ sourceaddr.ModuleAddress, _ string) ([]registrymeta.ModuleProviderDep, error) {
 	return nil, nil
 }
 
-func (r *mockApplyRegistry) ProviderVersions(_ context.Context, _, _, _ string) ([]string, error) {
+func (r *mockApplyRegistry) ProviderVersions(_ context.Context, _ sourceaddr.ProviderAddress) ([]string, error) {
 	return nil, nil
 }
 
-func (r *mockApplyRegistry) ProviderPlatforms(_ context.Context, _, ns, typeName, version string) ([]string, error) {
-	return append([]string(nil), r.platforms[ns+"/"+typeName+"@"+version]...), nil
+func (r *mockApplyRegistry) ProviderPlatforms(_ context.Context, address sourceaddr.ProviderAddress, version string) ([]string, error) {
+	return append([]string(nil), r.platforms[address.Namespace+"/"+address.Type+"@"+version]...), nil
 }
 
-func (r *mockApplyRegistry) ProviderPackage(_ context.Context, _, ns, typeName, version, platform string) (*registrymeta.ProviderPackage, error) {
-	pkg := r.packages[ns+"/"+typeName+"@"+version+"/"+platform]
+func (r *mockApplyRegistry) ProviderPackage(_ context.Context, address sourceaddr.ProviderAddress, version, platform string) (*registrymeta.ProviderPackage, error) {
+	pkg := r.packages[address.Namespace+"/"+address.Type+"@"+version+"/"+platform]
 	if pkg == nil {
 		return nil, nil
 	}
@@ -993,7 +1010,7 @@ terraform {
 func TestParseVersionOrZero(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		got := parseVersionOrZero("1.2.3")
-		if got != (Version{1, 2, 3, ""}) {
+		if got != (v(1, 2, 3, "")) {
 			t.Errorf("parseVersionOrZero(1.2.3) = %v", got)
 		}
 	})

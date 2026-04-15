@@ -8,6 +8,7 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/parser"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
+	tfregistry "github.com/edelwud/terraci/plugins/tfupdate/internal/registry"
 	"github.com/edelwud/terraci/plugins/tfupdate/internal/tffile"
 )
 
@@ -16,7 +17,7 @@ const skipReasonIgnored = "ignored by config"
 type Solver struct {
 	ctx      context.Context
 	config   *tfupdateengine.UpdateConfig
-	registry tfupdateengine.RegistryClient
+	registry tfregistry.Client
 }
 
 type moduleScanContext struct {
@@ -26,7 +27,7 @@ type moduleScanContext struct {
 	fileIndex *tffile.Index
 }
 
-func New(ctx context.Context, config *tfupdateengine.UpdateConfig, registry tfupdateengine.RegistryClient) *Solver {
+func New(ctx context.Context, config *tfupdateengine.UpdateConfig, registry tfregistry.Client) *Solver {
 	return &Solver{
 		ctx:      ctx,
 		config:   config,

@@ -14,10 +14,10 @@ type ProviderLockRequest struct {
 	TerraformFile  string
 }
 
-// Registry exposes provider package metadata needed to construct lock entries.
-type Registry interface {
-	ProviderPlatforms(ctx context.Context, hostname, namespace, typeName, version string) ([]string, error)
-	ProviderPackage(ctx context.Context, hostname, namespace, typeName, version, platform string) (*registrymeta.ProviderPackage, error)
+// ProviderMetadataSource exposes provider package metadata needed to construct lock entries.
+type ProviderMetadataSource interface {
+	ProviderPlatforms(ctx context.Context, address ProviderAddress, version string) ([]string, error)
+	ProviderPackage(ctx context.Context, address ProviderAddress, version, platform string) (*registrymeta.ProviderPackage, error)
 }
 
 // Downloader retrieves provider zip archives to a local path.

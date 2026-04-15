@@ -9,6 +9,7 @@ import (
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	"github.com/edelwud/terraci/pkg/plugin/registry"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
+	"github.com/edelwud/terraci/plugins/tfupdate/internal/sourceaddr"
 )
 
 func TestPlugin_Name(t *testing.T) {
@@ -154,7 +155,7 @@ func TestPlugin_Runtime_DefaultsToInmemcache(t *testing.T) {
 		t.Fatal("runtime.registry should not be nil")
 	}
 
-	got, err := runtime.registry.ModuleVersions(context.Background(), "registry.terraform.io", "hashicorp", "consul", "aws")
+	got, err := runtime.registry.ModuleVersions(context.Background(), sourceaddr.ModuleAddress{Hostname: "registry.terraform.io", Namespace: "hashicorp", Name: "consul", Provider: "aws"})
 	if err != nil {
 		t.Fatalf("ModuleVersions() error = %v", err)
 	}
@@ -197,7 +198,7 @@ func TestPlugin_Runtime_DefaultBackendStableWithAdditionalProvider(t *testing.T)
 	})
 
 	runtime := plugintest.MustRuntime[*updateRuntime](t, p, newTestAppContext(t, t.TempDir()))
-	got, err := runtime.registry.ModuleVersions(context.Background(), "registry.terraform.io", "hashicorp", "consul", "aws")
+	got, err := runtime.registry.ModuleVersions(context.Background(), sourceaddr.ModuleAddress{Hostname: "registry.terraform.io", Namespace: "hashicorp", Name: "consul", Provider: "aws"})
 	if err != nil {
 		t.Fatalf("ModuleVersions() error = %v", err)
 	}

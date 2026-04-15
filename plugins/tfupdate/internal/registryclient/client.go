@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/edelwud/terraci/plugins/tfupdate/internal/registrymeta"
+	"github.com/edelwud/terraci/plugins/tfupdate/internal/sourceaddr"
 )
 
 const (
@@ -75,12 +76,12 @@ type providerPackageResponse struct {
 }
 
 // ModuleVersions fetches available versions for a registry module.
-func (c *Client) ModuleVersions(ctx context.Context, hostname, namespace, name, provider string) ([]string, error) {
-	url := fmt.Sprintf("%s/modules/%s/%s/%s/versions", c.moduleBaseURL(hostname), namespace, name, provider)
+func (c *Client) ModuleVersions(ctx context.Context, address sourceaddr.ModuleAddress) ([]string, error) {
+	url := fmt.Sprintf("%s/modules/%s/%s/%s/versions", c.moduleBaseURL(address.Hostname), address.Namespace, address.Name, address.Provider)
 
 	body, err := c.doGet(ctx, url)
 	if err != nil {
-		return nil, fmt.Errorf("fetch module versions for %s/%s/%s: %w", namespace, name, provider, err)
+		return nil, fmt.Errorf("fetch module versions for %s/%s/%s: %w", address.Namespace, address.Name, address.Provider, err)
 	}
 
 	var resp moduleVersionsResponse
@@ -106,12 +107,12 @@ type moduleDetailResponse struct {
 }
 
 // ModuleProviderDeps fetches provider dependencies for a specific module version.
-func (c *Client) ModuleProviderDeps(ctx context.Context, hostname, namespace, name, provider, version string) ([]registrymeta.ModuleProviderDep, error) {
-	url := fmt.Sprintf("%s/modules/%s/%s/%s/%s", c.moduleBaseURL(hostname), namespace, name, provider, version)
+func (c *Client) ModuleProviderDeps(ctx context.Context, address sourceaddr.ModuleAddress, version string) ([]registrymeta.ModuleProviderDep, error) {
+	url := fmt.Sprintf("%s/modules/%s/%s/%s/%s", c.moduleBaseURL(address.Hostname), address.Namespace, address.Name, address.Provider, version)
 
 	body, err := c.doGet(ctx, url)
 	if err != nil {
-		return nil, fmt.Errorf("fetch module details for %s/%s/%s %s: %w", namespace, name, provider, version, err)
+		return nil, fmt.Errorf("fetch module details for %s/%s/%s %s: %w", address.Namespace, address.Name, address.Provider, version, err)
 	}
 
 	var resp moduleDetailResponse
@@ -123,8 +124,8 @@ func (c *Client) ModuleProviderDeps(ctx context.Context, hostname, namespace, na
 }
 
 // ProviderVersions fetches available versions for a registry provider.
-func (c *Client) ProviderVersions(ctx context.Context, hostname, namespace, typeName string) ([]string, error) {
-	resp, err := c.providerVersions(ctx, hostname, namespace, typeName)
+func (c *Client) ProviderVersions(ctx context.Context, address sourceaddr.ProviderAddress) ([]string, error) {
+	resp, err := c.providerVersions(ctx, address)
 	if err != nil {
 		return nil, err
 	}
@@ -137,8 +138,8 @@ func (c *Client) ProviderVersions(ctx context.Context, hostname, namespace, type
 }
 
 // ProviderPlatforms fetches all published platforms for a specific provider version.
-func (c *Client) ProviderPlatforms(ctx context.Context, hostname, namespace, typeName, version string) ([]string, error) {
-	resp, err := c.providerVersions(ctx, hostname, namespace, typeName)
+func (c *Client) ProviderPlatforms(ctx context.Context, address sourceaddr.ProviderAddress, version string) ([]string, error) {
+	resp, err := c.providerVersions(ctx, address)
 	if err != nil {
 		return nil, err
 	}
@@ -164,17 +165,18 @@ func (c *Client) ProviderPlatforms(ctx context.Context, hostname, namespace, typ
 // ProviderPackage fetches package metadata for a specific provider platform build.
 func (c *Client) ProviderPackage(
 	ctx context.Context,
-	hostname, namespace, typeName, version, platform string,
+	address sourceaddr.ProviderAddress,
+	version, platform string,
 ) (*registrymeta.ProviderPackage, error) {
 	osName, arch, ok := strings.Cut(platform, "_")
 	if !ok || osName == "" || arch == "" {
 		return nil, fmt.Errorf("invalid provider platform %q", platform)
 	}
 
-	url := fmt.Sprintf("%s/providers/%s/%s/%s/download/%s/%s", c.providerBaseURL(hostname), namespace, typeName, version, osName, arch)
+	url := fmt.Sprintf("%s/providers/%s/%s/%s/download/%s/%s", c.providerBaseURL(address.Hostname), address.Namespace, address.Type, version, osName, arch)
 	body, err := c.doGet(ctx, url)
 	if err != nil {
-		return nil, fmt.Errorf("fetch provider package for %s/%s %s %s: %w", namespace, typeName, version, platform, err)
+		return nil, fmt.Errorf("fetch provider package for %s/%s %s %s: %w", address.Namespace, address.Type, version, platform, err)
 	}
 
 	var resp providerPackageResponse
@@ -190,12 +192,12 @@ func (c *Client) ProviderPackage(
 	}, nil
 }
 
-func (c *Client) providerVersions(ctx context.Context, hostname, namespace, typeName string) (*providerVersionsResponse, error) {
-	url := fmt.Sprintf("%s/providers/%s/%s/versions", c.providerBaseURL(hostname), namespace, typeName)
+func (c *Client) providerVersions(ctx context.Context, address sourceaddr.ProviderAddress) (*providerVersionsResponse, error) {
+	url := fmt.Sprintf("%s/providers/%s/%s/versions", c.providerBaseURL(address.Hostname), address.Namespace, address.Type)
 
 	body, err := c.doGet(ctx, url)
 	if err != nil {
-		return nil, fmt.Errorf("fetch provider versions for %s/%s: %w", namespace, typeName, err)
+		return nil, fmt.Errorf("fetch provider versions for %s/%s: %w", address.Namespace, address.Type, err)
 	}
 
 	var resp providerVersionsResponse

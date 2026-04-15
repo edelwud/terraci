@@ -6,6 +6,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/log"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
+	"github.com/edelwud/terraci/plugins/tfupdate/internal/domain"
 )
 
 func outputResult(w io.Writer, format string, result *tfupdateengine.UpdateResult) error {
@@ -35,8 +36,8 @@ func outputLog(result *tfupdateengine.UpdateResult) {
 }
 
 type moduleUpdates struct {
-	providers []*tfupdateengine.ProviderVersionUpdate
-	modules   []*tfupdateengine.ModuleVersionUpdate
+	providers []*domain.ProviderVersionUpdate
+	modules   []*domain.ModuleVersionUpdate
 }
 
 func collectModuleUpdates(result *tfupdateengine.UpdateResult) (groups map[string]*moduleUpdates, order []string) {
@@ -87,7 +88,7 @@ func logModuleUpdates(path string, updates *moduleUpdates) {
 	log.DecreasePadding()
 }
 
-func logProviderUpdate(update *tfupdateengine.ProviderVersionUpdate) {
+func logProviderUpdate(update *domain.ProviderVersionUpdate) {
 	label := update.ProviderName() + " " + update.ProviderSource()
 	entry := log.WithField("current", update.DisplayCurrent()).
 		WithField("available", update.DisplayAvailable())
@@ -100,7 +101,7 @@ func logProviderUpdate(update *tfupdateengine.ProviderVersionUpdate) {
 	entry.Info(label)
 }
 
-func logModuleUpdate(update *tfupdateengine.ModuleVersionUpdate) {
+func logModuleUpdate(update *domain.ModuleVersionUpdate) {
 	label := update.CallName() + " " + update.Source()
 	entry := log.WithField("current", update.DisplayCurrent()).
 		WithField("available", update.DisplayAvailable())

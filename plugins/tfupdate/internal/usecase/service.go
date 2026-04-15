@@ -11,14 +11,16 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/parser"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
+	"github.com/edelwud/terraci/plugins/tfupdate/internal/domain"
 	"github.com/edelwud/terraci/plugins/tfupdate/internal/lockfile"
 	"github.com/edelwud/terraci/plugins/tfupdate/internal/planner"
+	tfregistry "github.com/edelwud/terraci/plugins/tfupdate/internal/registry"
 )
 
 type Service struct {
 	config     *tfupdateengine.UpdateConfig
 	parser     *parser.Parser
-	registry   tfupdateengine.RegistryClient
+	registry   tfregistry.Client
 	downloader lockfile.Downloader
 	write      bool
 }
@@ -26,7 +28,7 @@ type Service struct {
 func New(
 	config *tfupdateengine.UpdateConfig,
 	moduleParser *parser.Parser,
-	registry tfupdateengine.RegistryClient,
+	registry tfregistry.Client,
 	downloader lockfile.Downloader,
 	write bool,
 ) *Service {
@@ -125,7 +127,7 @@ func (s *Service) planModules(
 	return results, nil
 }
 
-func mapPlanToResult(plan *tfupdateengine.ModulePlan) *tfupdateengine.UpdateResult {
+func mapPlanToResult(plan *domain.ModulePlan) *tfupdateengine.UpdateResult {
 	result := tfupdateengine.NewUpdateResult()
 	if plan == nil {
 		return result
@@ -133,7 +135,7 @@ func mapPlanToResult(plan *tfupdateengine.ModulePlan) *tfupdateengine.UpdateResu
 
 	for i := range plan.Modules {
 		module := &plan.Modules[i]
-		update := tfupdateengine.NewModuleVersionUpdate(module.Dependency)
+		update := domain.NewModuleVersionUpdate(module.Dependency)
 		update.File = module.File
 		update.CurrentVersion = module.Current
 		update.LatestVersion = module.Latest
@@ -146,7 +148,7 @@ func mapPlanToResult(plan *tfupdateengine.ModulePlan) *tfupdateengine.UpdateResu
 
 	for i := range plan.Providers {
 		provider := &plan.Providers[i]
-		update := tfupdateengine.NewProviderVersionUpdate(provider.Dependency)
+		update := domain.NewProviderVersionUpdate(provider.Dependency)
 		update.File = provider.File
 		update.CurrentVersion = provider.Current
 		update.LatestVersion = provider.Latest

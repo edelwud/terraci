@@ -10,10 +10,12 @@ import (
 	_ "github.com/edelwud/terraci/plugins/diskblob"
 	_ "github.com/edelwud/terraci/plugins/inmemcache"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
+	tfregistry "github.com/edelwud/terraci/plugins/tfupdate/internal/registry"
 	"github.com/edelwud/terraci/plugins/tfupdate/internal/registrymeta"
+	"github.com/edelwud/terraci/plugins/tfupdate/internal/sourceaddr"
 )
 
-// mockRegistry implements tfupdateengine.RegistryClient for testing.
+// mockRegistry implements tfregistry.Client for testing.
 type mockRegistry struct {
 	moduleVersions    map[string][]string                      // key: "ns/name/provider"
 	providerVersions  map[string][]string                      // key: "ns/type"
@@ -23,36 +25,36 @@ type mockRegistry struct {
 	providerErr       error
 }
 
-func (m *mockRegistry) ModuleVersions(_ context.Context, _, ns, name, provider string) ([]string, error) {
+func (m *mockRegistry) ModuleVersions(_ context.Context, address sourceaddr.ModuleAddress) ([]string, error) {
 	if m.moduleErr != nil {
 		return nil, m.moduleErr
 	}
-	return m.moduleVersions[ns+"/"+name+"/"+provider], nil
+	return m.moduleVersions[address.Namespace+"/"+address.Name+"/"+address.Provider], nil
 }
 
-func (m *mockRegistry) ModuleProviderDeps(_ context.Context, _, _, _, _, _ string) ([]registrymeta.ModuleProviderDep, error) {
+func (m *mockRegistry) ModuleProviderDeps(_ context.Context, _ sourceaddr.ModuleAddress, _ string) ([]registrymeta.ModuleProviderDep, error) {
 	return nil, nil
 }
 
-func (m *mockRegistry) ProviderVersions(_ context.Context, _, ns, typeName string) ([]string, error) {
+func (m *mockRegistry) ProviderVersions(_ context.Context, address sourceaddr.ProviderAddress) ([]string, error) {
 	if m.providerErr != nil {
 		return nil, m.providerErr
 	}
-	return m.providerVersions[ns+"/"+typeName], nil
+	return m.providerVersions[address.Namespace+"/"+address.Type], nil
 }
 
-func (m *mockRegistry) ProviderPlatforms(_ context.Context, _, ns, typeName, version string) ([]string, error) {
+func (m *mockRegistry) ProviderPlatforms(_ context.Context, address sourceaddr.ProviderAddress, version string) ([]string, error) {
 	if m.providerErr != nil {
 		return nil, m.providerErr
 	}
-	return append([]string(nil), m.providerPlatforms[ns+"/"+typeName+"@"+version]...), nil
+	return append([]string(nil), m.providerPlatforms[address.Namespace+"/"+address.Type+"@"+version]...), nil
 }
 
-func (m *mockRegistry) ProviderPackage(_ context.Context, _, ns, typeName, version, platform string) (*registrymeta.ProviderPackage, error) {
+func (m *mockRegistry) ProviderPackage(_ context.Context, address sourceaddr.ProviderAddress, version, platform string) (*registrymeta.ProviderPackage, error) {
 	if m.providerErr != nil {
 		return nil, m.providerErr
 	}
-	pkg := m.providerPackages[ns+"/"+typeName+"@"+version+"/"+platform]
+	pkg := m.providerPackages[address.Namespace+"/"+address.Type+"@"+version+"/"+platform]
 	if pkg == nil {
 		return nil, nil
 	}
@@ -94,8 +96,8 @@ func enablePlugin(t *testing.T, p *Plugin, cfg *tfupdateengine.UpdateConfig) {
 	p.SetTypedConfig(cfg)
 }
 
-func useMockRegistry(p *Plugin, reg tfupdateengine.RegistryClient) {
-	p.registryFactory = func() tfupdateengine.RegistryClient { return reg }
+func useMockRegistry(p *Plugin, reg tfregistry.Client) {
+	p.registryFactory = func() tfregistry.Client { return reg }
 }
 
 // newTestAppContext creates a minimal AppContext suitable for plugin testing.

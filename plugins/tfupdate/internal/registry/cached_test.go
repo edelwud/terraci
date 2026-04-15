@@ -1,4 +1,4 @@
-package tfupdateengine
+package registry
 
 import (
 	"context"
@@ -6,11 +6,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/plugins/tfupdate/internal/registrymeta"
+	"github.com/edelwud/terraci/plugins/tfupdate/internal/sourceaddr"
 )
 
-type countingRegistryClient struct {
+const testCacheNamespace = "tfupdate/registry"
+
+type countingClient struct {
 	moduleVersions        []string
 	providerVersions      []string
 	providerPlatforms     []string
@@ -23,26 +25,26 @@ type countingRegistryClient struct {
 	providerPackageCalls  int
 }
 
-func (c *countingRegistryClient) ModuleVersions(_ context.Context, _, _, _, _ string) ([]string, error) {
+func (c *countingClient) ModuleVersions(_ context.Context, _ sourceaddr.ModuleAddress) ([]string, error) {
 	c.moduleCalls++
 	return c.moduleVersions, c.moduleErr
 }
 
-func (c *countingRegistryClient) ModuleProviderDeps(_ context.Context, _, _, _, _, _ string) ([]registrymeta.ModuleProviderDep, error) {
+func (c *countingClient) ModuleProviderDeps(_ context.Context, _ sourceaddr.ModuleAddress, _ string) ([]registrymeta.ModuleProviderDep, error) {
 	return nil, nil
 }
 
-func (c *countingRegistryClient) ProviderVersions(_ context.Context, _, _, _ string) ([]string, error) {
+func (c *countingClient) ProviderVersions(_ context.Context, _ sourceaddr.ProviderAddress) ([]string, error) {
 	c.providerCalls++
 	return c.providerVersions, c.providerErr
 }
 
-func (c *countingRegistryClient) ProviderPlatforms(_ context.Context, _, _, _, _ string) ([]string, error) {
+func (c *countingClient) ProviderPlatforms(_ context.Context, _ sourceaddr.ProviderAddress, _ string) ([]string, error) {
 	c.providerPlatformCalls++
 	return cloneCachedPlatforms(c.providerPlatforms), c.providerErr
 }
 
-func (c *countingRegistryClient) ProviderPackage(_ context.Context, _, _, _, _, _ string) (*registrymeta.ProviderPackage, error) {
+func (c *countingClient) ProviderPackage(_ context.Context, _ sourceaddr.ProviderAddress, _, _ string) (*registrymeta.ProviderPackage, error) {
 	c.providerPackageCalls++
 	if c.providerPackage == nil {
 		return nil, c.providerErr
@@ -101,15 +103,16 @@ func (c failingKVCache) DeleteNamespace(_ context.Context, _ string) error {
 	return nil
 }
 
-func TestCachedRegistryClient_ModuleVersions(t *testing.T) {
-	base := &countingRegistryClient{moduleVersions: []string{"1.0.0", "1.1.0"}}
-	client := NewCachedRegistryClient(base, newMemoryKVCache(), DefaultCacheNamespace, time.Hour)
+func TestCachedClient_ModuleVersions(t *testing.T) {
+	base := &countingClient{moduleVersions: []string{"1.0.0", "1.1.0"}}
+	client := NewCachedClient(base, newMemoryKVCache(), testCacheNamespace, time.Hour)
+	address := sourceaddr.ModuleAddress{Hostname: "registry.terraform.io", Namespace: "hashicorp", Name: "consul", Provider: "aws"}
 
-	first, err := client.ModuleVersions(context.Background(), "registry.terraform.io", "hashicorp", "consul", "aws")
+	first, err := client.ModuleVersions(context.Background(), address)
 	if err != nil {
 		t.Fatalf("ModuleVersions() first error = %v", err)
 	}
-	second, err := client.ModuleVersions(context.Background(), "registry.terraform.io", "hashicorp", "consul", "aws")
+	second, err := client.ModuleVersions(context.Background(), address)
 	if err != nil {
 		t.Fatalf("ModuleVersions() second error = %v", err)
 	}
@@ -123,15 +126,16 @@ func TestCachedRegistryClient_ModuleVersions(t *testing.T) {
 	}
 }
 
-func TestCachedRegistryClient_ProviderVersions(t *testing.T) {
-	base := &countingRegistryClient{providerVersions: []string{"5.0.0", "5.1.0"}}
-	client := NewCachedRegistryClient(base, newMemoryKVCache(), DefaultCacheNamespace, time.Hour)
+func TestCachedClient_ProviderVersions(t *testing.T) {
+	base := &countingClient{providerVersions: []string{"5.0.0", "5.1.0"}}
+	client := NewCachedClient(base, newMemoryKVCache(), testCacheNamespace, time.Hour)
+	address := sourceaddr.ProviderAddress{Hostname: "registry.terraform.io", Namespace: "hashicorp", Type: "aws"}
 
-	_, err := client.ProviderVersions(context.Background(), "registry.terraform.io", "hashicorp", "aws")
+	_, err := client.ProviderVersions(context.Background(), address)
 	if err != nil {
 		t.Fatalf("ProviderVersions() first error = %v", err)
 	}
-	_, err = client.ProviderVersions(context.Background(), "registry.terraform.io", "hashicorp", "aws")
+	_, err = client.ProviderVersions(context.Background(), address)
 	if err != nil {
 		t.Fatalf("ProviderVersions() second error = %v", err)
 	}
@@ -141,15 +145,15 @@ func TestCachedRegistryClient_ProviderVersions(t *testing.T) {
 	}
 }
 
-func TestCachedRegistryClient_ProviderVersions_CacheKeyIncludesHostname(t *testing.T) {
-	base := &countingRegistryClient{providerVersions: []string{"5.0.0", "5.1.0"}}
-	client := NewCachedRegistryClient(base, newMemoryKVCache(), DefaultCacheNamespace, time.Hour)
+func TestCachedClient_ProviderVersions_CacheKeyIncludesHostname(t *testing.T) {
+	base := &countingClient{providerVersions: []string{"5.0.0", "5.1.0"}}
+	client := NewCachedClient(base, newMemoryKVCache(), testCacheNamespace, time.Hour)
 
-	_, err := client.ProviderVersions(context.Background(), "registry.terraform.io", "hashicorp", "aws")
+	_, err := client.ProviderVersions(context.Background(), sourceaddr.ProviderAddress{Hostname: "registry.terraform.io", Namespace: "hashicorp", Type: "aws"})
 	if err != nil {
 		t.Fatalf("ProviderVersions() terraform error = %v", err)
 	}
-	_, err = client.ProviderVersions(context.Background(), "registry.opentofu.org", "hashicorp", "aws")
+	_, err = client.ProviderVersions(context.Background(), sourceaddr.ProviderAddress{Hostname: "registry.opentofu.org", Namespace: "hashicorp", Type: "aws"})
 	if err != nil {
 		t.Fatalf("ProviderVersions() opentofu error = %v", err)
 	}
@@ -159,17 +163,18 @@ func TestCachedRegistryClient_ProviderVersions_CacheKeyIncludesHostname(t *testi
 	}
 }
 
-func TestCachedRegistryClient_ProviderPlatforms(t *testing.T) {
-	base := &countingRegistryClient{
+func TestCachedClient_ProviderPlatforms(t *testing.T) {
+	base := &countingClient{
 		providerPlatforms: []string{"darwin_arm64", "linux_amd64"},
 	}
-	client := NewCachedRegistryClient(base, newMemoryKVCache(), DefaultCacheNamespace, time.Hour)
+	client := NewCachedClient(base, newMemoryKVCache(), testCacheNamespace, time.Hour)
+	address := sourceaddr.ProviderAddress{Hostname: "registry.terraform.io", Namespace: "hashicorp", Type: "aws"}
 
-	first, err := client.ProviderPlatforms(context.Background(), "registry.terraform.io", "hashicorp", "aws", "5.0.0")
+	first, err := client.ProviderPlatforms(context.Background(), address, "5.0.0")
 	if err != nil {
 		t.Fatalf("ProviderPlatforms() first error = %v", err)
 	}
-	second, err := client.ProviderPlatforms(context.Background(), "registry.terraform.io", "hashicorp", "aws", "5.0.0")
+	second, err := client.ProviderPlatforms(context.Background(), address, "5.0.0")
 	if err != nil {
 		t.Fatalf("ProviderPlatforms() second error = %v", err)
 	}
@@ -183,15 +188,16 @@ func TestCachedRegistryClient_ProviderPlatforms(t *testing.T) {
 	}
 }
 
-func TestCachedRegistryClient_DecodeFailureRefreshesFromRegistry(t *testing.T) {
+func TestCachedClient_DecodeFailureRefreshesFromRegistry(t *testing.T) {
 	cache := newMemoryKVCache()
-	key := cacheKeyForModule("registry.terraform.io", "hashicorp", "consul", "aws")
-	cache.entries[DefaultCacheNamespace+"|"+key] = []byte("not-json")
+	address := sourceaddr.ModuleAddress{Hostname: "registry.terraform.io", Namespace: "hashicorp", Name: "consul", Provider: "aws"}
+	key := cacheKeyForModule(address)
+	cache.entries[testCacheNamespace+"|"+key] = []byte("not-json")
 
-	base := &countingRegistryClient{moduleVersions: []string{"1.2.3"}}
-	client := NewCachedRegistryClient(base, cache, DefaultCacheNamespace, time.Hour)
+	base := &countingClient{moduleVersions: []string{"1.2.3"}}
+	client := NewCachedClient(base, cache, testCacheNamespace, time.Hour)
 
-	got, err := client.ModuleVersions(context.Background(), "registry.terraform.io", "hashicorp", "consul", "aws")
+	got, err := client.ModuleVersions(context.Background(), address)
 	if err != nil {
 		t.Fatalf("ModuleVersions() error = %v", err)
 	}
@@ -203,11 +209,11 @@ func TestCachedRegistryClient_DecodeFailureRefreshesFromRegistry(t *testing.T) {
 	}
 }
 
-func TestCachedRegistryClient_CacheFailureFallsBackToRegistry(t *testing.T) {
-	base := &countingRegistryClient{providerVersions: []string{"6.0.0"}}
-	client := NewCachedRegistryClient(base, failingKVCache{getErr: errors.New("boom")}, DefaultCacheNamespace, time.Hour)
+func TestCachedClient_CacheFailureFallsBackToRegistry(t *testing.T) {
+	base := &countingClient{providerVersions: []string{"6.0.0"}}
+	client := NewCachedClient(base, failingKVCache{getErr: errors.New("boom")}, testCacheNamespace, time.Hour)
 
-	got, err := client.ProviderVersions(context.Background(), "registry.terraform.io", "hashicorp", "aws")
+	got, err := client.ProviderVersions(context.Background(), sourceaddr.ProviderAddress{Hostname: "registry.terraform.io", Namespace: "hashicorp", Type: "aws"})
 	if err != nil {
 		t.Fatalf("ProviderVersions() error = %v", err)
 	}
@@ -219,13 +225,11 @@ func TestCachedRegistryClient_CacheFailureFallsBackToRegistry(t *testing.T) {
 	}
 }
 
-func TestNewCachedRegistryClient_NilDeps(t *testing.T) {
-	if got := NewCachedRegistryClient(nil, newMemoryKVCache(), DefaultCacheNamespace, time.Hour); got != nil {
-		t.Fatal("expected nil client when base registry is nil")
+func TestNewCachedClient_NilDeps(t *testing.T) {
+	if got := NewCachedClient(nil, newMemoryKVCache(), testCacheNamespace, time.Hour); got != nil {
+		t.Fatalf("NewCachedClient(nil base) = %T, want nil", got)
 	}
-	if got := NewCachedRegistryClient(&countingRegistryClient{}, nil, DefaultCacheNamespace, time.Hour); got != nil {
-		t.Fatal("expected nil client when cache backend is nil")
+	if got := NewCachedClient(&countingClient{}, nil, testCacheNamespace, time.Hour); got != nil {
+		t.Fatalf("NewCachedClient(nil cache) = %T, want nil", got)
 	}
 }
-
-var _ plugin.KVCache = (*memoryKVCache)(nil)

@@ -1,5 +1,7 @@
 package tfupdateengine
 
+import "github.com/edelwud/terraci/plugins/tfupdate/internal/domain"
+
 // UpdateSummary provides aggregated counts.
 type UpdateSummary struct {
 	TotalChecked     int `json:"total_checked"`
@@ -19,15 +21,15 @@ func BuildUpdateSummary(result *UpdateResult) UpdateSummary {
 		summary.TotalChecked++
 		module := result.Modules[i]
 		switch module.Status {
-		case StatusError:
+		case domain.StatusError:
 			summary.Errors++
-		case StatusSkipped:
+		case domain.StatusSkipped:
 			summary.Skipped++
-		case StatusUpdateAvailable:
+		case domain.StatusUpdateAvailable:
 			summary.UpdatesAvailable++
-		case StatusApplied:
+		case domain.StatusApplied:
 			summary.UpdatesApplied++
-		case StatusUpToDate:
+		case domain.StatusUpToDate:
 		}
 	}
 
@@ -35,15 +37,15 @@ func BuildUpdateSummary(result *UpdateResult) UpdateSummary {
 		summary.TotalChecked++
 		provider := result.Providers[i]
 		switch provider.Status {
-		case StatusError:
+		case domain.StatusError:
 			summary.Errors++
-		case StatusSkipped:
+		case domain.StatusSkipped:
 			summary.Skipped++
-		case StatusUpdateAvailable:
+		case domain.StatusUpdateAvailable:
 			summary.UpdatesAvailable++
-		case StatusApplied:
+		case domain.StatusApplied:
 			summary.UpdatesApplied++
-		case StatusUpToDate:
+		case domain.StatusUpToDate:
 		}
 	}
 

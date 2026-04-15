@@ -6,9 +6,10 @@ import (
 	"fmt"
 
 	"github.com/edelwud/terraci/pkg/plugin"
-	"github.com/edelwud/terraci/pkg/plugin/registry"
+	pluginregistry "github.com/edelwud/terraci/pkg/plugin/registry"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
 	"github.com/edelwud/terraci/plugins/tfupdate/internal/lockfile"
+	tfregistry "github.com/edelwud/terraci/plugins/tfupdate/internal/registry"
 	"github.com/edelwud/terraci/plugins/tfupdate/internal/registryclient"
 )
 
@@ -25,7 +26,7 @@ type runtimeOptions struct {
 
 type updateRuntime struct {
 	config     *tfupdateengine.UpdateConfig
-	registry   tfupdateengine.RegistryClient
+	registry   tfregistry.Client
 	downloader lockfile.Downloader
 	options    runtimeOptions
 }
@@ -34,7 +35,7 @@ func newRuntime(
 	ctx context.Context,
 	appCtx *plugin.AppContext,
 	cfg *tfupdateengine.UpdateConfig,
-	registryFactory func() tfupdateengine.RegistryClient,
+	registryFactory func() tfregistry.Client,
 	opts runtimeOptions,
 ) (*updateRuntime, error) {
 	if cfg == nil {
@@ -64,11 +65,11 @@ func newRuntime(
 		return nil, fmt.Errorf("invalid options: %w", err)
 	}
 	if registryFactory == nil {
-		registryFactory = func() tfupdateengine.RegistryClient {
+		registryFactory = func() tfregistry.Client {
 			return registryclient.New()
 		}
 	}
-	cacheProvider, err := registry.ResolveKVCacheProvider(runtimeConfig.MetadataCacheBackend())
+	cacheProvider, err := pluginregistry.ResolveKVCacheProvider(runtimeConfig.MetadataCacheBackend())
 	if err != nil {
 		return nil, fmt.Errorf("resolve cache backend: %w", err)
 	}
@@ -78,7 +79,7 @@ func newRuntime(
 		return nil, fmt.Errorf("create cache backend %q: %w", cacheProvider.Name(), err)
 	}
 
-	cachedRegistry := tfupdateengine.NewCachedRegistryClient(
+	cachedRegistry := tfregistry.NewCachedClient(
 		registryFactory(),
 		cache,
 		runtimeConfig.MetadataCacheNamespace(),
@@ -88,7 +89,7 @@ func newRuntime(
 		return nil, errors.New("failed to create cached registry client")
 	}
 
-	blobProvider, err := registry.ResolveBlobStoreProvider(runtimeConfig.ArtifactCacheBackend())
+	blobProvider, err := pluginregistry.ResolveBlobStoreProvider(runtimeConfig.ArtifactCacheBackend())
 	if err != nil {
 		return nil, fmt.Errorf("resolve artifact cache backend: %w", err)
 	}
