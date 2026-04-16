@@ -46,17 +46,17 @@ func constraintLess(items []string) func(i, j int) bool {
 		v     Version
 		hasOp bool
 	}
-	cache := make([]parsed, len(items))
-	for idx, s := range items {
+	cache := make(map[string]parsed, len(items))
+	for _, s := range items {
 		c, err := parseSingleConstraint(s)
 		if err != nil {
 			continue
 		}
-		cache[idx] = parsed{v: c.Version, hasOp: c.Op != OpEqual}
+		cache[s] = parsed{v: c.Version, hasOp: c.Op != OpEqual}
 	}
 
 	return func(i, j int) bool {
-		ci, cj := cache[i], cache[j]
+		ci, cj := cache[items[i]], cache[items[j]]
 		if cmp := ci.v.Compare(cj.v); cmp != 0 {
 			return cmp < 0
 		}

@@ -8,9 +8,6 @@ func (s *Service) writeProviderEntry(lockPath string, entry LockProviderEntry) e
 		return err
 	}
 
-	if existing := doc.Provider(entry.Source); existing != nil {
-		entry.Hashes = existing.Hashes.Merge(entry.Hashes)
-	}
 	doc.UpsertProvider(entry)
 
 	if err := s.writer.WriteDocument(lockPath, doc); err != nil {

@@ -57,3 +57,11 @@ func TestMergeConstraints(t *testing.T) {
 		t.Fatalf("MergeConstraints() = %q, want %q", got, want)
 	}
 }
+
+func TestMergeConstraints_PinWithMixedConstraints(t *testing.T) {
+	got := MergeConstraints("5.100.0", []string{">= 3.29.0, ~> 5.0", ">= 4.66.0"})
+	want := ">= 3.29.0, >= 4.66.0, ~> 5.0, 5.100.0"
+	if got != want {
+		t.Fatalf("MergeConstraints() = %q, want %q", got, want)
+	}
+}
