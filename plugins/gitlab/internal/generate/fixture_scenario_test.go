@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/discovery"
+	"github.com/edelwud/terraci/pkg/execution"
 )
 
 type fixtureScenario struct {
@@ -23,7 +24,14 @@ func newFixtureScenario(t *testing.T, name string) *fixtureScenario {
 func (s *fixtureScenario) withConfig(apply func(*Config)) *fixtureScenario {
 	s.t.Helper()
 	apply(s.fixture.GLConfig)
-	s.fixture.Generator = NewGenerator(s.fixture.GLConfig, s.fixture.Contributions, s.fixture.DepGraph, s.fixture.Modules)
+	s.fixture.Generator = NewGenerator(s.fixture.GLConfig, s.fixture.ExecConfig, s.fixture.Contributions, s.fixture.DepGraph, s.fixture.Modules)
+	return s
+}
+
+func (s *fixtureScenario) withExecution(apply func(*execution.Config)) *fixtureScenario {
+	s.t.Helper()
+	apply(&s.fixture.ExecConfig)
+	s.fixture.Generator = NewGenerator(s.fixture.GLConfig, s.fixture.ExecConfig, s.fixture.Contributions, s.fixture.DepGraph, s.fixture.Modules)
 	return s
 }
 

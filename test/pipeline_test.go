@@ -30,9 +30,8 @@ func TestPipelineBuild_BasicModules(t *testing.T) {
 		AllModules:    modules,
 		ModuleIndex:   index,
 		Script: pipeline.ScriptConfig{
-			TerraformBinary: "terraform",
-			InitEnabled:     true,
-			PlanEnabled:     true,
+			InitEnabled: true,
+			PlanEnabled: true,
 		},
 		PlanEnabled: true,
 	})
@@ -80,8 +79,7 @@ func TestPipelineBuild_PlanOnly(t *testing.T) {
 		AllModules:    modules,
 		ModuleIndex:   index,
 		Script: pipeline.ScriptConfig{
-			TerraformBinary: "terraform",
-			PlanEnabled:     true,
+			PlanEnabled: true,
 		},
 		PlanEnabled: true,
 		PlanOnly:    true,
@@ -127,8 +125,7 @@ func TestPipelineBuild_WithContributions(t *testing.T) {
 		AllModules:    modules,
 		ModuleIndex:   index,
 		Script: pipeline.ScriptConfig{
-			TerraformBinary: "terraform",
-			PlanEnabled:     true,
+			PlanEnabled: true,
 		},
 		Contributions: contributions,
 		PlanEnabled:   true,
@@ -178,7 +175,7 @@ func TestPipelineBuild_PhaseFinalize(t *testing.T) {
 	ir, err := pipeline.Build(pipeline.BuildOptions{
 		DepGraph: depGraph, TargetModules: modules, AllModules: modules,
 		ModuleIndex:   index,
-		Script:        pipeline.ScriptConfig{TerraformBinary: "terraform", PlanEnabled: true},
+		Script:        pipeline.ScriptConfig{PlanEnabled: true},
 		Contributions: contributions, PlanEnabled: true,
 	})
 	if err != nil {
@@ -239,8 +236,7 @@ func TestPipelineBuild_DependencyOrdering(t *testing.T) {
 		AllModules:    modules,
 		ModuleIndex:   index,
 		Script: pipeline.ScriptConfig{
-			TerraformBinary: "terraform",
-			PlanEnabled:     true,
+			PlanEnabled: true,
 		},
 		PlanEnabled: true,
 	})

@@ -27,7 +27,7 @@ func newJobBuilder(settings settings, contributions contributionIndex, applyConf
 func (b jobBuilder) planJob(irJob *pipeline.Job, module *discovery.Module, levelIdx int, prefix string) *domain.Job {
 	job := &domain.Job{
 		Stage:         fmt.Sprintf("%s-plan-%d", prefix, levelIdx),
-		Script:        b.scriptWithSteps(irJob.Script, irJob.Steps, pipeline.PhasePrePlan, pipeline.PhasePostPlan),
+		Script:        b.scriptWithSteps(pipeline.RenderOperationScript(irJob.Operation), irJob.Steps, pipeline.PhasePrePlan, pipeline.PhasePostPlan),
 		Variables:     irJob.Env,
 		Artifacts:     defaultArtifacts(irJob.ArtifactPaths),
 		Cache:         b.cache(module),
@@ -42,7 +42,7 @@ func (b jobBuilder) planJob(irJob *pipeline.Job, module *discovery.Module, level
 func (b jobBuilder) applyJob(irJob *pipeline.Job, module *discovery.Module, levelIdx int, prefix string) *domain.Job {
 	job := &domain.Job{
 		Stage:         fmt.Sprintf("%s-apply-%d", prefix, levelIdx),
-		Script:        b.scriptWithSteps(irJob.Script, irJob.Steps, pipeline.PhasePreApply, pipeline.PhasePostApply),
+		Script:        b.scriptWithSteps(pipeline.RenderOperationScript(irJob.Operation), irJob.Steps, pipeline.PhasePreApply, pipeline.PhasePostApply),
 		Variables:     irJob.Env,
 		Cache:         b.cache(module),
 		ResourceGroup: module.ID(),
@@ -60,7 +60,7 @@ func (b jobBuilder) applyJob(irJob *pipeline.Job, module *discovery.Module, leve
 func (b jobBuilder) contributedJob(irJob *pipeline.Job) *domain.Job {
 	job := &domain.Job{
 		Stage:  b.contributions.stageFor(irJob.Name),
-		Script: contributedScript(irJob.Script, irJob.AllowFailure),
+		Script: contributedScript(pipeline.RenderOperationScript(irJob.Operation), irJob.AllowFailure),
 		Needs:  optionalNeeds(irJob.Dependencies),
 	}
 

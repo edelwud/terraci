@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
 )
@@ -31,7 +32,13 @@ func TestContributionIndexBuildsStageLookup(t *testing.T) {
 
 func TestStagePlannerPlacesContributedStagesAfterPlanAndFinalizeLast(t *testing.T) {
 	planner := newStagePlanner(
-		newSettings(&configpkg.Config{PlanEnabled: true}),
+		newSettings(&configpkg.Config{}, execution.Config{
+			Binary:      "terraform",
+			InitEnabled: true,
+			PlanEnabled: true,
+			PlanMode:    execution.PlanModeStandard,
+			Parallelism: 4,
+		}),
 		newContributionIndex([]*pipeline.Contribution{
 			{
 				Jobs: []pipeline.ContributedJob{
@@ -63,7 +70,13 @@ func TestStagePlannerPlacesContributedStagesAfterPlanAndFinalizeLast(t *testing.
 
 func TestStagePlannerAppendsContributionsWhenNoPlanStagesExist(t *testing.T) {
 	planner := newStagePlanner(
-		newSettings(&configpkg.Config{PlanEnabled: false}),
+		newSettings(&configpkg.Config{}, execution.Config{
+			Binary:      "terraform",
+			InitEnabled: true,
+			PlanEnabled: false,
+			PlanMode:    execution.PlanModeStandard,
+			Parallelism: 4,
+		}),
 		newContributionIndex([]*pipeline.Contribution{
 			{
 				Jobs: []pipeline.ContributedJob{

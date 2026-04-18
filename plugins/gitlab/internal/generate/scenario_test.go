@@ -5,6 +5,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/ci/citest"
 	"github.com/edelwud/terraci/pkg/discovery"
+	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/pipeline"
 )
 
@@ -30,6 +31,12 @@ func (s *generatorScenario) withConfig(apply func(*Config)) *generatorScenario {
 	return s
 }
 
+func (s *generatorScenario) withExecution(apply func(*execution.Config)) *generatorScenario {
+	s.t.Helper()
+	apply(&s.cfg.Execution)
+	return s
+}
+
 func (s *generatorScenario) withModules(modules ...*discovery.Module) *generatorScenario {
 	s.t.Helper()
 	s.modules = modules
@@ -51,7 +58,7 @@ func (s *generatorScenario) withTargets(targets ...*discovery.Module) *generator
 func (s *generatorScenario) generator() *Generator {
 	s.t.Helper()
 	depGraph := citest.DependencyGraph(s.modules, s.dependencies)
-	return NewGenerator(s.cfg.GitLab, s.cfg.Contributions, depGraph, s.modules)
+	return NewGenerator(s.cfg.GitLab, s.cfg.Execution, s.cfg.Contributions, depGraph, s.modules)
 }
 
 func (s *generatorScenario) generate() *Pipeline {

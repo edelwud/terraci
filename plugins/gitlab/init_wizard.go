@@ -101,17 +101,13 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribut
 		cacheEnabled = state.Bool("gitlab.cache_enabled")
 	}
 
-	planEnabled := state.Bool("plan_enabled")
 	autoApprove := state.Bool("auto_approve")
 
 	cfg := map[string]any{
-		"terraform_binary": binary,
-		"image":            map[string]any{"name": image},
-		"stages_prefix":    stagesPrefix,
-		"plan_enabled":     planEnabled,
-		"auto_approve":     autoApprove,
-		"cache_enabled":    cacheEnabled,
-		"init_enabled":     true,
+		"image":         map[string]any{"name": image},
+		"stages_prefix": stagesPrefix,
+		"auto_approve":  autoApprove,
+		"cache_enabled": cacheEnabled,
 	}
 
 	// Enable MR comments when summary is enabled

@@ -5,6 +5,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/ci/citest"
 	"github.com/edelwud/terraci/pkg/discovery"
+	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
 )
@@ -12,6 +13,7 @@ import (
 // testCfg is a local wrapper used by tests to hold both gitlab and contributed pipeline data.
 type testCfg struct {
 	GitLab        *Config
+	Execution     execution.Config
 	Contributions []*pipeline.Contribution
 }
 
@@ -22,7 +24,13 @@ func createTestConfig() *testCfg {
 			Image: Image{
 				Name: "hashicorp/terraform:1.6",
 			},
+		},
+		Execution: execution.Config{
+			Binary:      "terraform",
+			InitEnabled: true,
 			PlanEnabled: true,
+			PlanMode:    execution.PlanModeStandard,
+			Parallelism: 4,
 		},
 	}
 }
@@ -34,7 +42,7 @@ func TestNewGenerator(t *testing.T) {
 	}
 	depGraph := graph.NewDependencyGraph()
 
-	gen := NewGenerator(cfg.GitLab, cfg.Contributions, depGraph, modules)
+	gen := NewGenerator(cfg.GitLab, cfg.Execution, cfg.Contributions, depGraph, modules)
 
 	if gen == nil {
 		t.Fatal("NewGenerator returned nil")
@@ -83,6 +91,8 @@ func TestGenerator_Generate_PlanOnly(t *testing.T) {
 	p := newGeneratorScenario(t).
 		withConfig(func(cfg *Config) {
 			cfg.PlanOnly = true
+		}).
+		withExecution(func(cfg *execution.Config) {
 			cfg.PlanEnabled = true
 		}).
 		withModules(module).
@@ -102,6 +112,8 @@ func TestGenerator_Generate_PlanOnlyWithDependencies(t *testing.T) {
 	p := newGeneratorScenario(t).
 		withConfig(func(cfg *Config) {
 			cfg.PlanOnly = true
+		}).
+		withExecution(func(cfg *execution.Config) {
 			cfg.PlanEnabled = true
 		}).
 		withModules(vpc, eks).
@@ -154,10 +166,10 @@ func TestGenerator_Generate_CustomStagesPrefix(t *testing.T) {
 	assertPipeline(t, p).stagesHavePrefix("terraform-")
 }
 
-func TestGenerator_Generate_TerraformBinary(t *testing.T) {
+func TestGenerator_Generate_ExecutionBinary(t *testing.T) {
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	p := newGeneratorScenario(t).
-		withConfig(func(cfg *Config) { cfg.TerraformBinary = "tofu" }).
+		withExecution(func(cfg *execution.Config) { cfg.Binary = "tofu" }).
 		withModules(module).
 		withDependencies(map[string][]string{module.ID(): {}}).
 		generate()

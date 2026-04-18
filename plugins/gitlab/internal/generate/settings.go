@@ -4,23 +4,25 @@ import (
 	"maps"
 	"strings"
 
+	"github.com/edelwud/terraci/pkg/execution"
 	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
 )
 
 type settings struct {
-	config *configpkg.Config
+	config    *configpkg.Config
+	execution execution.Config
 }
 
-func newSettings(cfg *configpkg.Config) settings {
+func newSettings(cfg *configpkg.Config, execCfg execution.Config) settings {
 	if cfg == nil {
 		cfg = &configpkg.Config{}
 	}
-	return settings{config: cfg}
+	return settings{config: cfg, execution: execCfg}
 }
 
 func (s settings) terraformBinary() string {
-	if s.config.TerraformBinary != "" {
-		return s.config.TerraformBinary
+	if s.execution.Binary != "" {
+		return s.execution.Binary
 	}
 	return "terraform"
 }
@@ -37,11 +39,11 @@ func (s settings) defaultImage() configpkg.Image {
 }
 
 func (s settings) initEnabled() bool {
-	return s.config.InitEnabled
+	return s.execution.InitEnabled
 }
 
 func (s settings) planEnabled() bool {
-	return s.config.PlanEnabled
+	return s.execution.PlanEnabled
 }
 
 func (s settings) planOnly() bool {

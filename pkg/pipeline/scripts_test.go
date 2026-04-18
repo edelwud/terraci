@@ -20,9 +20,8 @@ func TestScriptConfig_PlanScript(t *testing.T) {
 		{
 			name: "InitEnabled adds init command",
 			config: ScriptConfig{
-				TerraformBinary: "terraform",
-				InitEnabled:     true,
-				DetailedPlan:    false,
+				InitEnabled:  true,
+				DetailedPlan: false,
 			},
 			wantInitCmd:       true,
 			wantSimplePlan:    true,
@@ -31,9 +30,8 @@ func TestScriptConfig_PlanScript(t *testing.T) {
 		{
 			name: "InitEnabled false skips init",
 			config: ScriptConfig{
-				TerraformBinary: "terraform",
-				InitEnabled:     false,
-				DetailedPlan:    false,
+				InitEnabled:  false,
+				DetailedPlan: false,
 			},
 			wantInitCmd:       false,
 			wantSimplePlan:    true,
@@ -42,9 +40,8 @@ func TestScriptConfig_PlanScript(t *testing.T) {
 		{
 			name: "DetailedPlan adds tee show json commands",
 			config: ScriptConfig{
-				TerraformBinary: "terraform",
-				InitEnabled:     false,
-				DetailedPlan:    true,
+				InitEnabled:  false,
+				DetailedPlan: true,
 			},
 			wantInitCmd:       false,
 			wantDetailedCmds:  true,
@@ -53,9 +50,8 @@ func TestScriptConfig_PlanScript(t *testing.T) {
 		{
 			name: "DetailedPlan with init",
 			config: ScriptConfig{
-				TerraformBinary: "terraform",
-				InitEnabled:     true,
-				DetailedPlan:    true,
+				InitEnabled:  true,
+				DetailedPlan: true,
 			},
 			wantInitCmd:       true,
 			wantDetailedCmds:  true,
@@ -67,7 +63,8 @@ func TestScriptConfig_PlanScript(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			script, artifacts := tt.config.PlanScript(modulePath)
+			op, artifacts := tt.config.NewPlanOperation(modulePath)
+			script := RenderOperationScript(op)
 
 			// First command is always cd
 			if script[0] != "cd "+modulePath {
@@ -141,10 +138,9 @@ func TestScriptConfig_ApplyScript(t *testing.T) {
 		{
 			name: "PlanEnabled applies plan.tfplan",
 			config: ScriptConfig{
-				TerraformBinary: "terraform",
-				PlanEnabled:     true,
-				AutoApprove:     false,
-				InitEnabled:     false,
+				PlanEnabled: true,
+				AutoApprove: false,
+				InitEnabled: false,
 			},
 			wantInitCmd:  false,
 			wantApplyCmd: "${TERRAFORM_BINARY} apply plan.tfplan",
@@ -152,10 +148,9 @@ func TestScriptConfig_ApplyScript(t *testing.T) {
 		{
 			name: "AutoApprove without plan uses -auto-approve",
 			config: ScriptConfig{
-				TerraformBinary: "terraform",
-				PlanEnabled:     false,
-				AutoApprove:     true,
-				InitEnabled:     false,
+				PlanEnabled: false,
+				AutoApprove: true,
+				InitEnabled: false,
 			},
 			wantInitCmd:  false,
 			wantApplyCmd: "${TERRAFORM_BINARY} apply -auto-approve",
@@ -163,10 +158,9 @@ func TestScriptConfig_ApplyScript(t *testing.T) {
 		{
 			name: "default is plain apply",
 			config: ScriptConfig{
-				TerraformBinary: "terraform",
-				PlanEnabled:     false,
-				AutoApprove:     false,
-				InitEnabled:     false,
+				PlanEnabled: false,
+				AutoApprove: false,
+				InitEnabled: false,
 			},
 			wantInitCmd:  false,
 			wantApplyCmd: "${TERRAFORM_BINARY} apply",
@@ -174,9 +168,8 @@ func TestScriptConfig_ApplyScript(t *testing.T) {
 		{
 			name: "InitEnabled adds init command",
 			config: ScriptConfig{
-				TerraformBinary: "terraform",
-				PlanEnabled:     true,
-				InitEnabled:     true,
+				PlanEnabled: true,
+				InitEnabled: true,
 			},
 			wantInitCmd:  true,
 			wantApplyCmd: "${TERRAFORM_BINARY} apply plan.tfplan",
@@ -184,10 +177,9 @@ func TestScriptConfig_ApplyScript(t *testing.T) {
 		{
 			name: "PlanEnabled takes priority over AutoApprove",
 			config: ScriptConfig{
-				TerraformBinary: "terraform",
-				PlanEnabled:     true,
-				AutoApprove:     true,
-				InitEnabled:     false,
+				PlanEnabled: true,
+				AutoApprove: true,
+				InitEnabled: false,
 			},
 			wantInitCmd:  false,
 			wantApplyCmd: "${TERRAFORM_BINARY} apply plan.tfplan",
@@ -198,7 +190,7 @@ func TestScriptConfig_ApplyScript(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			script := tt.config.ApplyScript(modulePath)
+			script := RenderOperationScript(tt.config.NewApplyOperation(modulePath))
 
 			// First command is always cd
 			if script[0] != "cd "+modulePath {

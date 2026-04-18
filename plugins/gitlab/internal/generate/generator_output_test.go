@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/discovery"
+	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
 )
@@ -110,7 +111,13 @@ func TestGenerator_isMREnabled(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gen := NewGenerator(tt.glCfg, nil, graph.NewDependencyGraph(), nil)
+			gen := NewGenerator(tt.glCfg, execution.Config{
+				Binary:      "terraform",
+				InitEnabled: true,
+				PlanEnabled: true,
+				PlanMode:    execution.PlanModeStandard,
+				Parallelism: 4,
+			}, nil, graph.NewDependencyGraph(), nil)
 			result := gen.IsMREnabled()
 			if result != tt.expected {
 				t.Errorf("isMREnabled() = %v, expected %v", result, tt.expected)

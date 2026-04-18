@@ -30,7 +30,7 @@ func newJobBuilder(settings settings, targetSet map[string]bool, depGraph *graph
 }
 
 func (b jobBuilder) planJob(irJob *pipeline.Job, module *discovery.Module) *domainpkg.Job {
-	runScript := strings.Join(irJob.Script, "\n")
+	runScript := strings.Join(pipeline.RenderOperationScript(irJob.Operation), "\n")
 	steps := make([]domainpkg.Step, 0, stepsInitialCap)
 	steps = append(steps, checkoutStep())
 	steps = append(steps, b.settings.stepsBefore(configpkg.OverwriteTypePlan)...)
@@ -63,7 +63,7 @@ func (b jobBuilder) planJob(irJob *pipeline.Job, module *discovery.Module) *doma
 }
 
 func (b jobBuilder) applyJob(irJob *pipeline.Job, module *discovery.Module) *domainpkg.Job {
-	runScript := strings.Join(irJob.Script, "\n")
+	runScript := strings.Join(pipeline.RenderOperationScript(irJob.Operation), "\n")
 	steps := []domainpkg.Step{checkoutStep()}
 	if b.settings.planEnabled() {
 		steps = append(steps, downloadArtifactStep("Download plan artifacts", pipeline.JobName("plan", module)))
@@ -94,10 +94,10 @@ func (b jobBuilder) applyJob(irJob *pipeline.Job, module *discovery.Module) *dom
 }
 
 func (b jobBuilder) contributedJob(irJob *pipeline.Job) *domainpkg.Job {
-	scriptLines := irJob.Script
+	scriptLines := pipeline.RenderOperationScript(irJob.Operation)
 	if irJob.AllowFailure {
 		scriptLines = nil
-		for _, command := range irJob.Script {
+		for _, command := range pipeline.RenderOperationScript(irJob.Operation) {
 			scriptLines = append(scriptLines, command+" || true")
 		}
 	}

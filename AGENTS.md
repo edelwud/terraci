@@ -312,11 +312,13 @@ include: []
 library_modules:
   paths: ["_modules"]
 
+execution:
+  binary: terraform
+  plan_enabled: true
+
 plugins:
   gitlab:
     image: { name: hashicorp/terraform:1.6 }
-    terraform_binary: terraform
-    plan_enabled: true
     auto_approve: false
     cache_enabled: true
     cache:

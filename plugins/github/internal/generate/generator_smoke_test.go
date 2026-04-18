@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/ci/citest"
+	"github.com/edelwud/terraci/pkg/execution"
 	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
 )
 
@@ -50,6 +51,8 @@ func TestGenerate_PlanOnly(t *testing.T) {
 	workflow := newGeneratorScenario(t).
 		withConfig(func(cfg *configpkg.Config) {
 			cfg.PlanOnly = true
+		}).
+		withExecution(func(cfg *execution.Config) {
 			cfg.PlanEnabled = true
 		}).
 		withModules(module).
@@ -68,6 +71,8 @@ func TestGenerate_PlanOnlyWithDeps(t *testing.T) {
 	workflow := newGeneratorScenario(t).
 		withConfig(func(cfg *configpkg.Config) {
 			cfg.PlanOnly = true
+		}).
+		withExecution(func(cfg *execution.Config) {
 			cfg.PlanEnabled = true
 		}).
 		withModules(vpc, eks).
@@ -112,7 +117,7 @@ func TestGenerate_ManualApprove(t *testing.T) {
 func TestGenerate_CustomBinary(t *testing.T) {
 	module := createTestModule("platform", "stage", "eu-central-1", "vpc")
 	workflow := newGeneratorScenario(t).
-		withConfig(func(cfg *configpkg.Config) { cfg.TerraformBinary = "tofu" }).
+		withExecution(func(cfg *execution.Config) { cfg.Binary = "tofu" }).
 		withModules(module).
 		withDependencies(map[string][]string{module.ID(): {}}).
 		generate()

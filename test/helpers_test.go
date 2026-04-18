@@ -180,9 +180,10 @@ func writeConfig(t *testing.T, dir string) {
 	t.Helper()
 	cfg := `structure:
   pattern: "{service}/{environment}/{region}/{module}"
+execution:
+  binary: terraform
 plugins:
   gitlab:
-    terraform_binary: terraform
     image:
       name: hashicorp/terraform:1.6
   summary: {}

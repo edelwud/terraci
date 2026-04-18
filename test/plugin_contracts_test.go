@@ -99,9 +99,10 @@ func TestPreflightsForStartup_UsesEnabledPlugins(t *testing.T) {
 	appCtx := loadPluginContractConfig(t, `service_dir: .terraci
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
+execution:
+  binary: terraform
 plugins:
   gitlab:
-    terraform_binary: terraform
     image:
       name: hashicorp/terraform:1.6
   cost:

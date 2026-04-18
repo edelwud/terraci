@@ -15,6 +15,7 @@ type BuildOptions struct {
 	Contributions []*Contribution
 	PlanEnabled   bool
 	PlanOnly      bool
+	ApplyOnly     bool
 }
 
 // Build constructs a provider-agnostic IR from the given options.
@@ -50,8 +51,8 @@ func Build(opts BuildOptions) (*IR, error) {
 			mj := ModuleJobs{Module: mod}
 
 			// Plan job
-			if opts.PlanEnabled {
-				planScript, artifactPaths := opts.Script.PlanScript(mod.RelativePath)
+			if opts.PlanEnabled && !opts.ApplyOnly {
+				planOperation, artifactPaths := opts.Script.NewPlanOperation(mod.RelativePath)
 				planName := JobName("plan", mod)
 
 				// Resolve plan dependencies
@@ -68,15 +69,15 @@ func Build(opts BuildOptions) (*IR, error) {
 					Module:        mod,
 					Env:           env,
 					Dependencies:  planDeps,
-					Script:        planScript,
 					ArtifactPaths: artifactPaths,
 					Steps:         filterSteps(allSteps, PhasePrePlan, PhasePostPlan),
+					Operation:     planOperation,
 				}
 			}
 
 			// Apply job
 			if !opts.PlanOnly {
-				applyScript := opts.Script.ApplyScript(mod.RelativePath)
+				applyOperation := opts.Script.NewApplyOperation(mod.RelativePath)
 				applyName := JobName("apply", mod)
 
 				applyDeps := ResolveDependencyNames(mod, "apply", plan.TargetSet, plan.Subgraph, plan.ModuleIndex)
@@ -92,8 +93,8 @@ func Build(opts BuildOptions) (*IR, error) {
 					Module:       mod,
 					Env:          env,
 					Dependencies: applyDeps,
-					Script:       applyScript,
 					Steps:        filterSteps(allSteps, PhasePreApply, PhasePostApply),
+					Operation:    applyOperation,
 				}
 			}
 
@@ -111,9 +112,12 @@ func Build(opts BuildOptions) (*IR, error) {
 		job := Job{
 			Name:          cj.Name,
 			Phase:         cj.Phase,
-			Script:        cj.Commands,
 			ArtifactPaths: cj.ArtifactPaths,
 			AllowFailure:  cj.AllowFailure,
+			Operation: Operation{
+				Type:     OperationTypeCommands,
+				Commands: append([]string(nil), cj.Commands...),
+			},
 		}
 
 		deps := make([]string, 0)

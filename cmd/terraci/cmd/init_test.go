@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/config"
+	"github.com/edelwud/terraci/pkg/plugin/initwiz"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 )
 
@@ -49,4 +50,22 @@ func loadInitTestConfig(t *testing.T, pluginConfigYAML string) *config.Config {
 		t.Fatalf("load config: %v", err)
 	}
 	return cfg
+}
+
+func TestInitStateDefaults(t *testing.T) {
+	state := initwiz.NewStateMap()
+	initStateDefaults(state)
+
+	if got := state.String("binary"); got != "terraform" {
+		t.Fatalf("binary = %q, want terraform", got)
+	}
+	if got := state.Bool("plan_enabled"); !got {
+		t.Fatal("plan_enabled should default to true")
+	}
+	if got := state.String("pattern"); got != config.DefaultConfig().Structure.Pattern {
+		t.Fatalf("pattern = %q", got)
+	}
+	if got := state.Bool("summary.enabled"); !got {
+		t.Fatal("summary.enabled should default to true")
+	}
 }

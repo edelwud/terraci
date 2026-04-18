@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/discovery"
+	"github.com/edelwud/terraci/pkg/execution"
 )
 
 // TestFixture_Basic tests basic pipeline generation using real terraform fixtures
@@ -53,8 +54,8 @@ func TestFixture_PlanOnly(t *testing.T) {
 	pipeline := newFixtureScenario(t, "basic").
 		withConfig(func(cfg *Config) {
 			cfg.PlanOnly = true
-			cfg.PlanEnabled = true
 		}).
+		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
 		generate()
 
 	assertPipeline(t, pipeline).jobCount(6)
@@ -118,8 +119,8 @@ func TestFixture_ChangedOnlyPlanOnly(t *testing.T) {
 	scenario := newFixtureScenario(t, "basic").
 		withConfig(func(cfg *Config) {
 			cfg.PlanOnly = true
-			cfg.PlanEnabled = true
 		}).
+		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
 		withTargetNames("eks")
 	var changedModules []*discovery.Module
 	for _, module := range scenario.targets {
@@ -226,7 +227,7 @@ func TestFixture_ApplyDependsOnPlan(t *testing.T) {
 // TestFixture_NoPlanEnabled tests pipeline without plan stage
 func TestFixture_NoPlanEnabled(t *testing.T) {
 	pipeline := newFixtureScenario(t, "basic").
-		withConfig(func(cfg *Config) { cfg.PlanEnabled = false }).
+		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = false }).
 		generate()
 
 	assertPipeline(t, pipeline).jobCount(6)

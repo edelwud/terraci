@@ -41,13 +41,14 @@ func TestLoad(t *testing.T) {
 structure:
   pattern: "{service}/{env}/{region}/{module}"
 
+execution:
+  binary: tofu
+
 plugins:
   gitlab:
     image: hashicorp/terraform:1.7
-    terraform_binary: tofu
     stages_prefix: infra
     parallelism: 10
-    plan_enabled: false
     auto_approve: true
 
 `
@@ -74,8 +75,8 @@ plugins:
 	if err := cfg.PluginConfig("gitlab", &glCfg); err != nil {
 		t.Fatal(err)
 	}
-	if glCfg["terraform_binary"] != "tofu" {
-		t.Errorf("expected terraform_binary=tofu, got %v", glCfg["terraform_binary"])
+	if cfg.Execution.Binary != "tofu" {
+		t.Errorf("expected execution.binary=tofu, got %v", cfg.Execution.Binary)
 	}
 }
 

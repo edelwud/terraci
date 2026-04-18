@@ -5,6 +5,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/discovery"
+	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
@@ -31,7 +32,7 @@ func (p *Plugin) CommitSHA() string { return os.Getenv("GITHUB_SHA") }
 // NewGenerator creates a new GitHub Actions pipeline generator.
 func (p *Plugin) NewGenerator(ctx *plugin.AppContext, depGraph *graph.DependencyGraph, modules []*discovery.Module) pipeline.Generator {
 	contributions := registry.CollectContributions(ctx)
-	return generatepkg.NewGenerator(p.Config(), contributions, depGraph, modules)
+	return generatepkg.NewGenerator(p.Config(), execution.ConfigFromProject(ctx.Config()), contributions, depGraph, modules)
 }
 
 // NewCommentService creates a new PR comment service.

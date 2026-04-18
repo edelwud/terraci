@@ -69,7 +69,6 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribut
 		runsOn = defaultGitHubRunner
 	}
 
-	planEnabled := state.Bool("plan_enabled")
 	autoApprove := state.Bool("auto_approve")
 
 	setupAction := "hashicorp/setup-terraform@v3"
@@ -83,11 +82,8 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribut
 	}
 
 	cfg := map[string]any{
-		"terraform_binary": binary,
-		"runs_on":          runsOn,
-		"plan_enabled":     planEnabled,
-		"auto_approve":     autoApprove,
-		"init_enabled":     true,
+		"runs_on":      runsOn,
+		"auto_approve": autoApprove,
 		"job_defaults": map[string]any{
 			"steps_before": setupSteps,
 		},

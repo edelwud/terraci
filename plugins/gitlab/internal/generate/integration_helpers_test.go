@@ -8,6 +8,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/discovery"
+	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/parser"
 	"github.com/edelwud/terraci/pkg/pipeline"
@@ -35,6 +36,7 @@ type Fixture struct {
 	Dir           string
 	Config        *config.Config
 	GLConfig      *Config
+	ExecConfig    execution.Config
 	Contributions []*pipeline.Contribution
 	Modules       []*discovery.Module
 	ModuleIndex   *discovery.ModuleIndex
@@ -45,10 +47,7 @@ type Fixture struct {
 // decodeGLConfig extracts the gitlab plugin config from the plugins map.
 func decodeGLConfig(cfg *config.Config) *Config {
 	glCfg := &Config{
-		TerraformBinary: "terraform",
-		Image:           Image{Name: "hashicorp/terraform:1.6"},
-		PlanEnabled:     true,
-		InitEnabled:     true,
+		Image: Image{Name: "hashicorp/terraform:1.6"},
 	}
 	if err := cfg.PluginConfig("gitlab", glCfg); err != nil {
 		return glCfg
@@ -69,6 +68,7 @@ func LoadFixture(t *testing.T, name string) *Fixture {
 	}
 
 	glCfg := decodeGLConfig(cfg)
+	execCfg := execution.ConfigFromProject(cfg)
 
 	// Scan modules
 	scanner := discovery.NewScanner(dir, cfg.Structure.Segments)
@@ -94,13 +94,14 @@ func LoadFixture(t *testing.T, name string) *Fixture {
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
 	// Create generator (no contributions in test fixtures)
-	generator := NewGenerator(glCfg, nil, depGraph, modules)
+	generator := NewGenerator(glCfg, execCfg, nil, depGraph, modules)
 
 	return &Fixture{
 		Name:        name,
 		Dir:         dir,
 		Config:      cfg,
 		GLConfig:    glCfg,
+		ExecConfig:  execCfg,
 		Modules:     modules,
 		ModuleIndex: moduleIndex,
 		DepGraph:    depGraph,

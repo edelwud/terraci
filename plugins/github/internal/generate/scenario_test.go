@@ -5,6 +5,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/ci/citest"
 	"github.com/edelwud/terraci/pkg/discovery"
+	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
 	domainpkg "github.com/edelwud/terraci/plugins/github/internal/domain"
@@ -16,15 +17,21 @@ func createTestModule(service, env, region, module string) *discovery.Module {
 
 type testCfg struct {
 	GitHub        *configpkg.Config
+	Execution     execution.Config
 	Contributions []*pipeline.Contribution
 }
 
 func createTestConfig() *testCfg {
 	return &testCfg{
 		GitHub: &configpkg.Config{
-			RunsOn:      "ubuntu-latest",
-			PlanEnabled: true,
+			RunsOn: "ubuntu-latest",
+		},
+		Execution: execution.Config{
+			Binary:      "terraform",
 			InitEnabled: true,
+			PlanEnabled: true,
+			PlanMode:    execution.PlanModeStandard,
+			Parallelism: 4,
 		},
 	}
 }
@@ -57,6 +64,12 @@ func (s *generatorScenario) withContributions(contributions []*pipeline.Contribu
 	return s
 }
 
+func (s *generatorScenario) withExecution(apply func(*execution.Config)) *generatorScenario {
+	s.t.Helper()
+	apply(&s.cfg.Execution)
+	return s
+}
+
 func (s *generatorScenario) withModules(modules ...*discovery.Module) *generatorScenario {
 	s.t.Helper()
 	s.modules = modules
@@ -72,7 +85,7 @@ func (s *generatorScenario) withDependencies(deps map[string][]string) *generato
 func (s *generatorScenario) generator() *Generator {
 	s.t.Helper()
 	depGraph := citest.DependencyGraph(s.modules, s.dependencies)
-	return NewGenerator(s.cfg.GitHub, s.cfg.Contributions, depGraph, s.modules)
+	return NewGenerator(s.cfg.GitHub, s.cfg.Execution, s.cfg.Contributions, depGraph, s.modules)
 }
 
 func (s *generatorScenario) generate() *domainpkg.Workflow {

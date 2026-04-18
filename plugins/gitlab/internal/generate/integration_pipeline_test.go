@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/discovery"
+	"github.com/edelwud/terraci/pkg/execution"
 )
 
 // createTestModules creates a standard test module set with dependencies:
@@ -25,9 +26,9 @@ func TestPipelineGeneration_Basic(t *testing.T) {
 	modules := createTestModules()
 	pipeline := newGeneratorScenario(t).
 		withConfig(func(cfg *Config) {
-			cfg.PlanEnabled = true
 			cfg.AutoApprove = false
 		}).
+		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
 		withModules(modules...).
 		withDependencies(map[string][]string{
 			"platform/stage/eu-central-1/vpc": {},
@@ -80,9 +81,9 @@ func TestPipelineGeneration_PlanOnly(t *testing.T) {
 	modules := createTestModules()
 	pipeline := newGeneratorScenario(t).
 		withConfig(func(cfg *Config) {
-			cfg.PlanEnabled = true
 			cfg.PlanOnly = true
 		}).
+		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
 		withModules(modules...).
 		withDependencies(map[string][]string{
 			"platform/stage/eu-central-1/vpc": {},
@@ -120,9 +121,9 @@ func TestPipelineGeneration_PlanOnlyNeeds(t *testing.T) {
 	modules := createTestModules()
 	pipeline := newGeneratorScenario(t).
 		withConfig(func(cfg *Config) {
-			cfg.PlanEnabled = true
 			cfg.PlanOnly = true
 		}).
+		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
 		withModules(modules...).
 		withDependencies(map[string][]string{
 			"platform/stage/eu-central-1/vpc": {},
@@ -152,7 +153,7 @@ func TestPipelineGeneration_PlanOnlyNeeds(t *testing.T) {
 func TestPipelineGeneration_ChangedOnlyFilteredNeeds(t *testing.T) {
 	modules := createTestModules()
 	pipeline := newGeneratorScenario(t).
-		withConfig(func(cfg *Config) { cfg.PlanEnabled = true }).
+		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
 		withModules(modules...).
 		withDependencies(map[string][]string{
 			"platform/stage/eu-central-1/vpc": {},
@@ -204,9 +205,9 @@ func TestPipelineGeneration_ChangedOnlyPlanOnly(t *testing.T) {
 	modules := createTestModules()
 	pipeline := newGeneratorScenario(t).
 		withConfig(func(cfg *Config) {
-			cfg.PlanEnabled = true
 			cfg.PlanOnly = true
 		}).
+		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
 		withModules(modules...).
 		withDependencies(map[string][]string{
 			"platform/stage/eu-central-1/vpc": {},
@@ -240,7 +241,7 @@ func TestPipelineGeneration_ChangedOnlyPlanOnly(t *testing.T) {
 func TestPipelineGeneration_ApplyDependsOnPlan(t *testing.T) {
 	modules := createTestModules()
 	pipeline := newGeneratorScenario(t).
-		withConfig(func(cfg *Config) { cfg.PlanEnabled = true }).
+		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
 		withModules(modules...).
 		withDependencies(map[string][]string{
 			"platform/stage/eu-central-1/vpc": {},
@@ -266,7 +267,7 @@ func TestPipelineGeneration_ApplyDependsOnPlan(t *testing.T) {
 func TestPipelineGeneration_NoPlanEnabled(t *testing.T) {
 	modules := createTestModules()
 	pipeline := newGeneratorScenario(t).
-		withConfig(func(cfg *Config) { cfg.PlanEnabled = false }).
+		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = false }).
 		withModules(modules...).
 		withDependencies(map[string][]string{
 			"platform/stage/eu-central-1/vpc": {},
@@ -301,7 +302,7 @@ func TestPipelineGeneration_NoPlanEnabled(t *testing.T) {
 func TestPipelineGeneration_DependencyOrder(t *testing.T) {
 	modules := createTestModules()
 	pipeline := newGeneratorScenario(t).
-		withConfig(func(cfg *Config) { cfg.PlanEnabled = true }).
+		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
 		withModules(modules...).
 		withDependencies(map[string][]string{
 			"platform/stage/eu-central-1/vpc": {},
@@ -324,7 +325,7 @@ func TestPipelineGeneration_DependencyOrder(t *testing.T) {
 func TestPipelineGeneration_EmptyModules(t *testing.T) {
 	modules := createTestModules()
 	pipeline := newGeneratorScenario(t).
-		withConfig(func(cfg *Config) { cfg.PlanEnabled = true }).
+		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
 		withModules(modules...).
 		withDependencies(map[string][]string{
 			"platform/stage/eu-central-1/vpc": {},
@@ -346,7 +347,7 @@ func TestPipelineGeneration_EmptyModules(t *testing.T) {
 func TestPipelineGeneration_SingleModule(t *testing.T) {
 	modules := createTestModules()
 	pipeline := newGeneratorScenario(t).
-		withConfig(func(cfg *Config) { cfg.PlanEnabled = true }).
+		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
 		withModules(modules...).
 		withDependencies(map[string][]string{
 			"platform/stage/eu-central-1/vpc": {},

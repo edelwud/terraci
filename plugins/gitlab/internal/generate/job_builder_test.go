@@ -4,21 +4,35 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/discovery"
+	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
 	"github.com/edelwud/terraci/plugins/gitlab/internal/domain"
 )
 
+func testExecutionConfig() execution.Config {
+	return execution.Config{
+		Binary:      "terraform",
+		InitEnabled: true,
+		PlanEnabled: true,
+		PlanMode:    execution.PlanModeStandard,
+		Parallelism: 4,
+	}
+}
+
 func TestJobBuilderPlanJobBuildsExpectedDefaults(t *testing.T) {
 	builder := newJobBuilder(
-		newSettings(&configpkg.Config{CacheEnabled: true, PlanEnabled: true}),
+		newSettings(&configpkg.Config{CacheEnabled: true}, testExecutionConfig()),
 		contributionIndex{},
 		func(_ *domain.Job, _ configpkg.JobOverwriteType) {},
 	)
 
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	irJob := &pipeline.Job{
-		Script:        []string{"terraform plan"},
+		Operation: pipeline.Operation{
+			Type:     pipeline.OperationTypeCommands,
+			Commands: []string{"terraform plan"},
+		},
 		Dependencies:  []string{"apply-platform-stage-eu-central-1-base"},
 		ArtifactPaths: []string{"plan.json"},
 		Env:           map[string]string{"TF_VAR_env": "stage"},
@@ -51,7 +65,7 @@ func TestJobBuilderPlanJobBuildsExpectedDefaults(t *testing.T) {
 
 func TestJobBuilderApplyJobHonorsAutoApprove(t *testing.T) {
 	builder := newJobBuilder(
-		newSettings(&configpkg.Config{AutoApprove: false}),
+		newSettings(&configpkg.Config{AutoApprove: false}, testExecutionConfig()),
 		contributionIndex{},
 		func(_ *domain.Job, _ configpkg.JobOverwriteType) {},
 	)
@@ -76,7 +90,7 @@ func TestJobBuilderCacheSupportsAdvancedOptions(t *testing.T) {
 				},
 				Policy: "pull-push",
 			},
-		}),
+		}, testExecutionConfig()),
 		contributionIndex{},
 		func(_ *domain.Job, _ configpkg.JobOverwriteType) {},
 	)
@@ -112,7 +126,7 @@ func TestJobBuilderCacheConfigCanDisableLegacyCache(t *testing.T) {
 			Cache: &configpkg.CacheConfig{
 				Enabled: &enabled,
 			},
-		}),
+		}, testExecutionConfig()),
 		contributionIndex{},
 		func(_ *domain.Job, _ configpkg.JobOverwriteType) {},
 	)
@@ -131,7 +145,7 @@ func TestJobBuilderContributedJobInheritsJobDefaults(t *testing.T) {
 			BeforeScript: []string{"echo setup"},
 		},
 	}
-	s := newSettings(cfg)
+	s := newSettings(cfg, testExecutionConfig())
 	builder := newJobBuilder(
 		s,
 		contributionIndex{
@@ -144,8 +158,11 @@ func TestJobBuilderContributedJobInheritsJobDefaults(t *testing.T) {
 	)
 
 	job := builder.contributedJob(&pipeline.Job{
-		Name:   "cost-estimation",
-		Script: []string{"terraci cost"},
+		Name: "cost-estimation",
+		Operation: pipeline.Operation{
+			Type:     pipeline.OperationTypeCommands,
+			Commands: []string{"terraci cost"},
+		},
 	})
 
 	if job.Image == nil || job.Image.Name != "custom:latest" {
@@ -170,7 +187,7 @@ func TestJobBuilderContributedJobOverwriteByName(t *testing.T) {
 			Image: &configpkg.Image{Name: "cost-image:1.0"},
 		}},
 	}
-	s := newSettings(cfg)
+	s := newSettings(cfg, testExecutionConfig())
 	builder := newJobBuilder(
 		s,
 		contributionIndex{
@@ -183,8 +200,11 @@ func TestJobBuilderContributedJobOverwriteByName(t *testing.T) {
 	)
 
 	job := builder.contributedJob(&pipeline.Job{
-		Name:   "cost-estimation",
-		Script: []string{"terraci cost"},
+		Name: "cost-estimation",
+		Operation: pipeline.Operation{
+			Type:     pipeline.OperationTypeCommands,
+			Commands: []string{"terraci cost"},
+		},
 	})
 
 	// Overwrite should win over defaults
@@ -204,7 +224,7 @@ func TestJobBuilderContributedJobUsesOptionalNeedsAndSummaryOverrides(t *testing
 					Tags: []string{"docker"},
 				},
 			},
-		}),
+		}, testExecutionConfig()),
 		contributionIndex{
 			hasJobs:    true,
 			stageByJob: map[string]string{"summary": "finalize"},
@@ -214,9 +234,12 @@ func TestJobBuilderContributedJobUsesOptionalNeedsAndSummaryOverrides(t *testing
 
 	job := builder.contributedJob(&pipeline.Job{
 		Name:         "summary",
-		Script:       []string{"terraci summary"},
 		Dependencies: []string{"apply-a"},
 		AllowFailure: true,
+		Operation: pipeline.Operation{
+			Type:     pipeline.OperationTypeCommands,
+			Commands: []string{"terraci summary"},
+		},
 	})
 	builder.applySummaryOverrides(job)
 

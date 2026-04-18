@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/spf13/cobra"
@@ -95,14 +96,39 @@ Examples:
 // initStateDefaults populates a StateMap with default values for the init wizard.
 // Shared between interactive (TUI) and non-interactive (--ci) paths.
 func initStateDefaults(state *initwiz.StateMap) {
-	providerPlugins := registry.ByCapability[plugin.CIInfoProvider]()
-	if len(providerPlugins) > 0 {
-		state.Set("provider", providerPlugins[0].ProviderName())
+	if provider := defaultInitProvider(); provider != "" {
+		state.Set("provider", provider)
 	}
 	state.Set("binary", "terraform")
+	state.Set("plan_enabled", true)
 	state.Set("pattern", config.DefaultConfig().Structure.Pattern)
 	// summary (MR/PR comments) enabled by default
 	state.Set("summary.enabled", true)
+}
+
+func defaultInitProvider() string {
+	providerPlugins := registry.ByCapability[plugin.CIInfoProvider]()
+	if len(providerPlugins) == 0 {
+		return ""
+	}
+
+	available := make(map[string]struct{}, len(providerPlugins))
+	for _, provider := range providerPlugins {
+		available[provider.ProviderName()] = struct{}{}
+	}
+
+	for _, preferred := range []string{"gitlab", "github"} {
+		if _, ok := available[preferred]; ok {
+			return preferred
+		}
+	}
+
+	names := make([]string, 0, len(available))
+	for name := range available {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names[0]
 }
 
 func logGenerateHint(cfg *config.Config) {

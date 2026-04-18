@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/discovery"
+	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/parser"
 )
@@ -71,7 +72,7 @@ func TestEdgeCase_AllModulesIndependent(t *testing.T) {
 	}
 
 	pipeline := newGeneratorScenario(t).
-		withConfig(func(cfg *Config) { cfg.PlanEnabled = true }).
+		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
 		withModules(modules...).
 		withDependencies(map[string][]string{
 			"svc/stage/eu-central-1/a": {},
@@ -97,7 +98,7 @@ func TestEdgeCase_DeepDependencyChain(t *testing.T) {
 	}
 
 	pipeline := newGeneratorScenario(t).
-		withConfig(func(cfg *Config) { cfg.PlanEnabled = true }).
+		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
 		withModules(modules...).
 		withDependencies(map[string][]string{
 			"svc/stage/eu-central-1/a": {},
@@ -126,7 +127,7 @@ func TestEdgeCase_DiamondDependency(t *testing.T) {
 	}
 
 	pipeline := newGeneratorScenario(t).
-		withConfig(func(cfg *Config) { cfg.PlanEnabled = true }).
+		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
 		withModules(modules...).
 		withDependencies(map[string][]string{
 			"svc/stage/eu-central-1/a": {},
@@ -156,7 +157,7 @@ func TestEdgeCase_PartialChainChanged(t *testing.T) {
 	}
 
 	pipeline := newGeneratorScenario(t).
-		withConfig(func(cfg *Config) { cfg.PlanEnabled = true }).
+		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
 		withModules(modules...).
 		withDependencies(map[string][]string{
 			"svc/stage/eu-central-1/a": {},
@@ -182,8 +183,8 @@ func TestEdgeCase_PlanOnlyWithNoPlanEnabled(t *testing.T) {
 	pipeline := newFixtureScenario(t, "basic").
 		withConfig(func(cfg *Config) {
 			cfg.PlanOnly = true
-			cfg.PlanEnabled = false
 		}).
+		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = false }).
 		generate()
 
 	if len(pipeline.Jobs) != 0 {
@@ -245,9 +246,16 @@ func TestEdgeCase_ModuleWithSelfReference(t *testing.T) {
 
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	glCfg := &Config{PlanEnabled: true}
+	glCfg := &Config{}
+	execCfg := execution.Config{
+		Binary:      "terraform",
+		InitEnabled: true,
+		PlanEnabled: true,
+		PlanMode:    execution.PlanModeStandard,
+		Parallelism: 4,
+	}
 
-	generator := NewGenerator(glCfg, nil, depGraph, modules)
+	generator := NewGenerator(glCfg, execCfg, nil, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		// Self-reference might cause cycle detection
@@ -274,9 +282,16 @@ func TestEdgeCase_SpecialCharactersInModuleName(t *testing.T) {
 
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	glCfg := &Config{PlanEnabled: true}
+	glCfg := &Config{}
+	execCfg := execution.Config{
+		Binary:      "terraform",
+		InitEnabled: true,
+		PlanEnabled: true,
+		PlanMode:    execution.PlanModeStandard,
+		Parallelism: 4,
+	}
 
-	generator := NewGenerator(glCfg, nil, depGraph, modules)
+	generator := NewGenerator(glCfg, execCfg, nil, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -306,9 +321,16 @@ func TestEdgeCase_VeryLongModulePath(t *testing.T) {
 
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	glCfg := &Config{PlanEnabled: true}
+	glCfg := &Config{}
+	execCfg := execution.Config{
+		Binary:      "terraform",
+		InitEnabled: true,
+		PlanEnabled: true,
+		PlanMode:    execution.PlanModeStandard,
+		Parallelism: 4,
+	}
 
-	generator := NewGenerator(glCfg, nil, depGraph, modules)
+	generator := NewGenerator(glCfg, execCfg, nil, depGraph, modules)
 	result, err := generator.Generate(modules)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)

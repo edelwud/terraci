@@ -7,6 +7,53 @@
       "description": "Service directory for cache and artifacts",
       "default": ".terraci"
     },
+    "execution": {
+      "properties": {
+        "binary": {
+          "type": "string",
+          "enum": [
+            "terraform",
+            "tofu"
+          ],
+          "description": "Terraform/OpenTofu binary to use",
+          "default": "terraform"
+        },
+        "init_enabled": {
+          "type": "boolean",
+          "description": "Automatically run terraform init before terraform operations",
+          "default": true
+        },
+        "plan_enabled": {
+          "type": "boolean",
+          "description": "Enable terraform plan jobs",
+          "default": true
+        },
+        "plan_mode": {
+          "type": "string",
+          "enum": [
+            "standard",
+            "detailed"
+          ],
+          "description": "Controls plan artifact verbosity. standard writes only plan.tfplan; detailed also writes plan.txt and plan.json for summary",
+          "default": "standard"
+        },
+        "parallelism": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum parallel jobs for local execution",
+          "default": 4
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "Execution-wide environment variables"
+        }
+      },
+      "type": "object",
+      "description": "Shared execution settings for Terraform/OpenTofu"
+    },
     "structure": {
       "properties": {
         "pattern": {
@@ -47,36 +94,6 @@
     },
     "plugins": {
       "properties": {
-        "inmemcache": {
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "description": "Enable the built-in in-memory KV cache backend",
-              "default": true
-            }
-          },
-          "type": "object"
-        },
-        "summary": {
-          "properties": {
-            "enabled": {
-              "type": "boolean"
-            },
-            "on_changes_only": {
-              "type": "boolean"
-            },
-            "include_details": {
-              "type": "boolean"
-            },
-            "labels": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            }
-          },
-          "type": "object"
-        },
         "cost": {
           "properties": {
             "cache_dir": {
@@ -258,15 +275,6 @@
         },
         "github": {
           "properties": {
-            "terraform_binary": {
-              "type": "string",
-              "enum": [
-                "terraform",
-                "tofu"
-              ],
-              "description": "Terraform/OpenTofu binary to use",
-              "default": "terraform"
-            },
             "runs_on": {
               "type": "string",
               "description": "GitHub Actions runner label (e.g. ubuntu-latest)",
@@ -296,11 +304,6 @@
               "type": "object",
               "description": "Workflow-level environment variables"
             },
-            "plan_enabled": {
-              "type": "boolean",
-              "description": "Enable terraform plan jobs",
-              "default": true
-            },
             "plan_only": {
               "type": "boolean",
               "description": "Generate only plan jobs (no apply jobs)",
@@ -310,11 +313,6 @@
               "type": "boolean",
               "description": "Auto-approve applies (skip environment protection)",
               "default": false
-            },
-            "init_enabled": {
-              "type": "boolean",
-              "description": "Automatically run terraform init",
-              "default": true
             },
             "permissions": {
               "additionalProperties": {
@@ -582,15 +580,6 @@
         },
         "gitlab": {
           "properties": {
-            "terraform_binary": {
-              "type": "string",
-              "enum": [
-                "terraform",
-                "tofu"
-              ],
-              "description": "Terraform/OpenTofu binary to use",
-              "default": "terraform"
-            },
             "image": {
               "properties": {
                 "name": {
@@ -625,11 +614,6 @@
               },
               "type": "object",
               "description": "Global pipeline variables"
-            },
-            "plan_enabled": {
-              "type": "boolean",
-              "description": "Enable terraform plan stage",
-              "default": true
             },
             "plan_only": {
               "type": "boolean",
@@ -675,11 +659,6 @@
               },
               "type": "object",
               "description": "Advanced GitLab cache configuration for terraform jobs"
-            },
-            "init_enabled": {
-              "type": "boolean",
-              "description": "Automatically run terraform init after cd to module directory",
-              "default": true
             },
             "rules": {
               "items": {
@@ -1265,6 +1244,36 @@
               "type": "string",
               "description": "Directory where blob objects are stored",
               "default": "~/.terraci/blobs"
+            }
+          },
+          "type": "object"
+        },
+        "inmemcache": {
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable the built-in in-memory KV cache backend",
+              "default": true
+            }
+          },
+          "type": "object"
+        },
+        "summary": {
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "on_changes_only": {
+              "type": "boolean"
+            },
+            "include_details": {
+              "type": "boolean"
+            },
+            "labels": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
             }
           },
           "type": "object"

@@ -30,12 +30,13 @@ func TestInit_CI_GitLab(t *testing.T) {
 	// Should have gitlab plugin config
 	assertContains(t, content, "gitlab:")
 
-	// Should have terraform binary
-	assertContains(t, content, "terraform_binary:")
+	// Should have shared execution config
+	assertContains(t, content, "execution:")
+	assertContains(t, content, "binary: terraform")
 
 	// Should have specific default values
 	assertContains(t, content, "hashicorp/terraform:1.6")
-	assertContains(t, content, "plan_enabled")
+	assertContains(t, content, "plan_mode: detailed")
 }
 
 func TestInit_CI_GitHub(t *testing.T) {

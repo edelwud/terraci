@@ -16,13 +16,10 @@ func init() {
 			EnableMode: plugin.EnabledWhenConfigured,
 			DefaultCfg: func() *configpkg.Config {
 				return &configpkg.Config{
-					TerraformBinary: "terraform",
-					Image:           configpkg.Image{Name: "hashicorp/terraform:1.6"},
-					StagesPrefix:    "deploy",
-					Parallelism:     5,
-					PlanEnabled:     true,
-					CacheEnabled:    true,
-					InitEnabled:     true,
+					Image:        configpkg.Image{Name: "hashicorp/terraform:1.6"},
+					StagesPrefix: "deploy",
+					Parallelism:  5,
+					CacheEnabled: true,
 				}
 			},
 		},
@@ -38,9 +35,6 @@ type Plugin struct {
 func (p *Plugin) SetPlanOnly(v bool) {
 	if cfg := p.Config(); cfg != nil {
 		cfg.PlanOnly = v
-		if v {
-			cfg.PlanEnabled = true
-		}
 	}
 }
 

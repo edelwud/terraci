@@ -90,10 +90,10 @@ type Job struct {
 	Module        *discovery.Module // nil for contributed/summary jobs
 	Env           map[string]string
 	Dependencies  []string // job names this depends on
-	Script        []string // commands to run
 	ArtifactPaths []string
 	AllowFailure  bool
 	Steps         []Step // pre/post steps from plugins
+	Operation     Operation
 }
 
 // Step is an injected command at a specific phase.
@@ -101,6 +101,35 @@ type Step struct {
 	Phase   Phase
 	Name    string
 	Command string
+}
+
+// OperationType identifies the executable job payload.
+type OperationType string
+
+const (
+	OperationTypeTerraformPlan  OperationType = "terraform_plan"
+	OperationTypeTerraformApply OperationType = "terraform_apply"
+	OperationTypeCommands       OperationType = "commands"
+)
+
+// Operation describes an executable payload for a pipeline job.
+type Operation struct {
+	Type      OperationType
+	Terraform *TerraformOperation
+	Commands  []string
+}
+
+// TerraformOperation describes a terraform/tofu operation in a module.
+type TerraformOperation struct {
+	Kind         OperationType
+	ModulePath   string
+	InitEnabled  bool
+	PlanFile     string
+	PlanTextFile string
+	PlanJSONFile string
+	DetailedPlan bool
+	UsePlanFile  bool
+	AutoApprove  bool
 }
 
 // Contribution is what a PipelineContributor plugin provides.

@@ -1,50 +1,103 @@
 package pipeline
 
-// ScriptConfig controls terraform script generation for plan/apply jobs.
+import "fmt"
+
+// ScriptConfig controls terraform operation generation.
 type ScriptConfig struct {
-	TerraformBinary string
-	InitEnabled     bool
-	PlanEnabled     bool
-	AutoApprove     bool
-	DetailedPlan    bool // true when MR/PR integration needs plan.txt + plan.json
+	InitEnabled  bool
+	PlanEnabled  bool
+	AutoApprove  bool
+	DetailedPlan bool // true when MR/PR integration needs plan.txt + plan.json
 }
 
-// PlanScript generates the terraform plan commands and artifact paths for a module.
-func (sc ScriptConfig) PlanScript(modulePath string) (script, artifactPaths []string) {
-	script = append(script, "cd "+modulePath)
-	if sc.InitEnabled {
+// NewPlanOperation creates a typed terraform plan operation plus artifact paths.
+func (sc ScriptConfig) NewPlanOperation(modulePath string) (op Operation, artifactPaths []string) {
+	op = Operation{
+		Type: OperationTypeTerraformPlan,
+		Terraform: &TerraformOperation{
+			Kind:         OperationTypeTerraformPlan,
+			ModulePath:   modulePath,
+			InitEnabled:  sc.InitEnabled,
+			PlanFile:     modulePath + "/plan.tfplan",
+			DetailedPlan: sc.DetailedPlan,
+		},
+	}
+
+	artifactPaths = []string{op.Terraform.PlanFile}
+	if sc.DetailedPlan {
+		op.Terraform.PlanTextFile = modulePath + "/plan.txt"
+		op.Terraform.PlanJSONFile = modulePath + "/plan.json"
+		artifactPaths = append(artifactPaths, op.Terraform.PlanTextFile, op.Terraform.PlanJSONFile)
+	}
+
+	return op, artifactPaths
+}
+
+// NewApplyOperation creates a typed terraform apply operation.
+func (sc ScriptConfig) NewApplyOperation(modulePath string) Operation {
+	return Operation{
+		Type: OperationTypeTerraformApply,
+		Terraform: &TerraformOperation{
+			Kind:        OperationTypeTerraformApply,
+			ModulePath:  modulePath,
+			InitEnabled: sc.InitEnabled,
+			PlanFile:    modulePath + "/plan.tfplan",
+			UsePlanFile: sc.PlanEnabled,
+			AutoApprove: sc.AutoApprove,
+		},
+	}
+}
+
+// RenderOperationScript converts a typed operation into shell commands for CI renderers.
+func RenderOperationScript(op Operation) []string {
+	switch op.Type {
+	case OperationTypeCommands:
+		return append([]string(nil), op.Commands...)
+	case OperationTypeTerraformPlan:
+		return renderTerraformPlan(op.Terraform)
+	case OperationTypeTerraformApply:
+		return renderTerraformApply(op.Terraform)
+	default:
+		return nil
+	}
+}
+
+func renderTerraformPlan(op *TerraformOperation) []string {
+	if op == nil {
+		return nil
+	}
+
+	script := []string{"cd " + op.ModulePath}
+	if op.InitEnabled {
 		script = append(script, "${TERRAFORM_BINARY} init")
 	}
 
-	artifactPaths = []string{modulePath + "/plan.tfplan"}
-
-	if sc.DetailedPlan {
+	if op.DetailedPlan {
 		script = append(script,
-			"(${TERRAFORM_BINARY} plan -out=plan.tfplan -detailed-exitcode 2>&1 || echo $? > .tf_exit) | tee plan.txt",
-			"${TERRAFORM_BINARY} show -json plan.tfplan > plan.json",
+			fmt.Sprintf("(${TERRAFORM_BINARY} plan -out=%s -detailed-exitcode 2>&1 || echo $? > .tf_exit) | tee %s", "plan.tfplan", "plan.txt"),
+			fmt.Sprintf("${TERRAFORM_BINARY} show -json %s > %s", "plan.tfplan", "plan.json"),
 			`TF_EXIT=$(cat .tf_exit 2>/dev/null || echo 0); rm -f .tf_exit; if [ "$TF_EXIT" -eq 2 ]; then exit 0; else exit "$TF_EXIT"; fi`,
 		)
-		artifactPaths = append(artifactPaths,
-			modulePath+"/plan.txt",
-			modulePath+"/plan.json")
-	} else {
-		script = append(script, "${TERRAFORM_BINARY} plan -out=plan.tfplan")
+		return script
 	}
 
-	return script, artifactPaths
+	return append(script, "${TERRAFORM_BINARY} plan -out=plan.tfplan")
 }
 
-// ApplyScript generates the terraform apply commands for a module.
-func (sc ScriptConfig) ApplyScript(modulePath string) []string {
-	script := []string{"cd " + modulePath}
-	if sc.InitEnabled {
+func renderTerraformApply(op *TerraformOperation) []string {
+	if op == nil {
+		return nil
+	}
+
+	script := []string{"cd " + op.ModulePath}
+	if op.InitEnabled {
 		script = append(script, "${TERRAFORM_BINARY} init")
 	}
 
 	switch {
-	case sc.PlanEnabled:
+	case op.UsePlanFile:
 		script = append(script, "${TERRAFORM_BINARY} apply plan.tfplan")
-	case sc.AutoApprove:
+	case op.AutoApprove:
 		script = append(script, "${TERRAFORM_BINARY} apply -auto-approve")
 	default:
 		script = append(script, "${TERRAFORM_BINARY} apply")

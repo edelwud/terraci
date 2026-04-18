@@ -11,6 +11,7 @@ import (
 	_ "github.com/edelwud/terraci/plugins/github"
 	_ "github.com/edelwud/terraci/plugins/gitlab"
 	_ "github.com/edelwud/terraci/plugins/inmemcache"
+	_ "github.com/edelwud/terraci/plugins/localexec"
 	_ "github.com/edelwud/terraci/plugins/policy"
 	_ "github.com/edelwud/terraci/plugins/summary"
 	_ "github.com/edelwud/terraci/plugins/tfupdate"

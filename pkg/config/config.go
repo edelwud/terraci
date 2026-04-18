@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 
@@ -32,6 +33,9 @@ type Config struct {
 	// ServiceDir is the project-level service directory for cache and artifacts.
 	ServiceDir string `yaml:"service_dir,omitempty" json:"service_dir,omitempty" jsonschema:"description=Service directory for cache and artifacts,default=.terraci"`
 
+	// Execution defines shared Terraform/OpenTofu execution semantics.
+	Execution ExecutionConfig `yaml:"execution,omitempty" json:"execution,omitempty" jsonschema:"description=Shared execution settings for Terraform/OpenTofu"` //nolint:modernize // yaml/v4 does not support omitzero
+
 	// Structure defines the directory structure pattern
 	Structure StructureConfig `yaml:"structure" json:"structure" jsonschema:"description=Directory structure configuration"`
 
@@ -47,6 +51,16 @@ type Config struct {
 	// Plugins holds plugin-specific configuration.
 	// Each key is a plugin's ConfigKey(), value is decoded by the plugin.
 	Plugins map[string]yaml.Node `yaml:"plugins,omitempty" json:"-" jsonschema:"-"`
+}
+
+// ExecutionConfig defines shared Terraform/OpenTofu execution settings.
+type ExecutionConfig struct {
+	Binary      string            `yaml:"binary,omitempty" json:"binary,omitempty" jsonschema:"description=Terraform/OpenTofu binary to use,enum=terraform,enum=tofu,default=terraform"`
+	InitEnabled bool              `yaml:"init_enabled,omitempty" json:"init_enabled,omitempty" jsonschema:"description=Automatically run terraform init before terraform operations,default=true"`
+	PlanEnabled bool              `yaml:"plan_enabled,omitempty" json:"plan_enabled,omitempty" jsonschema:"description=Enable terraform plan jobs,default=true"`
+	PlanMode    string            `yaml:"plan_mode,omitempty" json:"plan_mode,omitempty" jsonschema:"description=Controls plan artifact verbosity. standard writes only plan.tfplan; detailed also writes plan.txt and plan.json for summary, policy, cost, and PR/MR comment flows,enum=standard,enum=detailed,default=standard"`
+	Parallelism int               `yaml:"parallelism,omitempty" json:"parallelism,omitempty" jsonschema:"description=Maximum parallel jobs for local execution,minimum=1,default=4"`
+	Env         map[string]string `yaml:"env,omitempty" json:"env,omitempty" jsonschema:"description=Execution-wide environment variables"`
 }
 
 // PluginConfig decodes plugin-specific configuration into the target struct.
@@ -71,6 +85,10 @@ func (c *Config) Clone() *Config {
 	cloned := *c
 	if c.Structure.Segments != nil {
 		cloned.Structure.Segments = append(PatternSegments(nil), c.Structure.Segments...)
+	}
+	if c.Execution.Env != nil {
+		cloned.Execution.Env = make(map[string]string, len(c.Execution.Env))
+		maps.Copy(cloned.Execution.Env, c.Execution.Env)
 	}
 	if c.Exclude != nil {
 		cloned.Exclude = append([]string(nil), c.Exclude...)
@@ -114,6 +132,13 @@ type StructureConfig struct {
 func DefaultConfig() *Config {
 	return &Config{
 		ServiceDir: ".terraci",
+		Execution: ExecutionConfig{
+			Binary:      "terraform",
+			InitEnabled: true,
+			PlanEnabled: true,
+			PlanMode:    "standard",
+			Parallelism: 4,
+		},
 		Structure: StructureConfig{
 			Pattern:  "{service}/{environment}/{region}/{module}",
 			Segments: PatternSegments{"service", "environment", "region", "module"},
@@ -193,6 +218,22 @@ func (c *Config) Validate() error {
 
 	if _, err := ParsePattern(c.Structure.Pattern); err != nil {
 		return fmt.Errorf("structure.pattern: %w", err)
+	}
+
+	switch c.Execution.Binary {
+	case "", "terraform", "tofu": //nolint:goconst // validation literal, not worth extracting
+	default:
+		return fmt.Errorf("execution.binary: unsupported value %q", c.Execution.Binary)
+	}
+
+	switch c.Execution.PlanMode {
+	case "", "standard", "detailed":
+	default:
+		return fmt.Errorf("execution.plan_mode: unsupported value %q", c.Execution.PlanMode)
+	}
+
+	if c.Execution.Parallelism < 0 {
+		return errors.New("execution.parallelism: must be >= 0")
 	}
 
 	return nil

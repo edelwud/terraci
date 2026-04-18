@@ -10,6 +10,7 @@ require (
 	github.com/go-git/go-git/v6 v6.0.0-alpha.1
 	github.com/google/go-github/v68 v68.0.0
 	github.com/hashicorp/hcl/v2 v2.24.0
+	github.com/hashicorp/terraform-exec v0.25.0
 	github.com/hashicorp/terraform-json v0.27.2
 	github.com/invopop/jsonschema v0.13.0
 	github.com/open-policy-agent/opa v1.15.1

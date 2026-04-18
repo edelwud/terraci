@@ -257,6 +257,18 @@ func buildPluginField(f initwiz.InitField, state *initwiz.StateMap) huh.Field {
 // buildConfigFromState collects InitContributor results and builds a Config.
 func buildConfigFromState(state *initwiz.StateMap) *config.Config {
 	pattern := state.String("pattern")
+	planEnabled := config.DefaultConfig().Execution.PlanEnabled
+	if state.Get("plan_enabled") != nil {
+		planEnabled = state.Bool("plan_enabled")
+	}
+	execution := map[string]any{
+		"binary":       state.String("binary"),
+		"init_enabled": true,
+		"plan_enabled": planEnabled,
+	}
+	if planEnabled && state.Bool("summary.enabled") {
+		execution["plan_mode"] = "detailed"
+	}
 	pluginConfigs := make(map[string]map[string]any)
 
 	for _, c := range registry.ByCapability[initwiz.InitContributor]() {
@@ -266,7 +278,7 @@ func buildConfigFromState(state *initwiz.StateMap) *config.Config {
 		}
 	}
 
-	cfg, err := config.BuildConfigFromPlugins(pattern, pluginConfigs)
+	cfg, err := config.BuildConfigFromPlugins(pattern, execution, pluginConfigs)
 	if err != nil {
 		log.WithError(err).Warn("failed to build config from init state")
 		return config.DefaultConfig()

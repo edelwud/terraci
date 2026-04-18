@@ -16,10 +16,7 @@ func init() {
 			EnableMode: plugin.EnabledWhenConfigured,
 			DefaultCfg: func() *configpkg.Config {
 				return &configpkg.Config{
-					TerraformBinary: "terraform",
-					RunsOn:          "ubuntu-latest",
-					PlanEnabled:     true,
-					InitEnabled:     true,
+					RunsOn: "ubuntu-latest",
 				}
 			},
 		},
@@ -35,9 +32,6 @@ type Plugin struct {
 func (p *Plugin) SetPlanOnly(v bool) {
 	if cfg := p.Config(); cfg != nil {
 		cfg.PlanOnly = v
-		if v {
-			cfg.PlanEnabled = true
-		}
 	}
 }
 

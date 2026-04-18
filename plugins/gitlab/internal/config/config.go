@@ -8,21 +8,18 @@ type MRCommentConfig = ci.MRCommentConfig
 
 // Config contains GitLab CI specific settings.
 type Config struct {
-	TerraformBinary string            `yaml:"terraform_binary" json:"terraform_binary" jsonschema:"description=Terraform/OpenTofu binary to use,enum=terraform,enum=tofu,default=terraform"`
-	Image           Image             `yaml:"image" json:"image" jsonschema:"description=Docker image for terraform jobs,default=hashicorp/terraform:1.6"`
-	StagesPrefix    string            `yaml:"stages_prefix" json:"stages_prefix" jsonschema:"description=Prefix for stage names (produces: {prefix}-plan-0\\, {prefix}-apply-0\\, etc.),default=deploy"`
-	Parallelism     int               `yaml:"parallelism" json:"parallelism" jsonschema:"description=Maximum parallel jobs per stage,minimum=1,default=5"`
-	Variables       map[string]string `yaml:"variables,omitempty" json:"variables,omitempty" jsonschema:"description=Global pipeline variables"`
-	PlanEnabled     bool              `yaml:"plan_enabled" json:"plan_enabled" jsonschema:"description=Enable terraform plan stage,default=true"`
-	PlanOnly        bool              `yaml:"plan_only" json:"plan_only" jsonschema:"description=Generate only plan jobs (no apply jobs),default=false"`
-	AutoApprove     bool              `yaml:"auto_approve" json:"auto_approve" jsonschema:"description=Auto-approve applies (skip manual confirmation),default=false"`
-	CacheEnabled    bool              `yaml:"cache_enabled" json:"cache_enabled" jsonschema:"description=Enable caching of .terraform directory,default=true"`
-	Cache           *CacheConfig      `yaml:"cache,omitempty" json:"cache,omitempty" jsonschema:"description=Advanced GitLab cache configuration for terraform jobs"`
-	InitEnabled     bool              `yaml:"init_enabled" json:"init_enabled" jsonschema:"description=Automatically run terraform init after cd to module directory,default=true"`
-	Rules           []Rule            `yaml:"rules,omitempty" json:"rules,omitempty" jsonschema:"description=Workflow rules for conditional pipeline execution"`
-	JobDefaults     *JobDefaults      `yaml:"job_defaults,omitempty" json:"job_defaults,omitempty" jsonschema:"description=Default settings applied to all jobs"`
-	Overwrites      []JobOverwrite    `yaml:"overwrites,omitempty" json:"overwrites,omitempty" jsonschema:"description=Job-level overrides for plan or apply jobs"`
-	MR              *MRConfig         `yaml:"mr,omitempty" json:"mr,omitempty" jsonschema:"description=Merge request integration settings"`
+	Image        Image             `yaml:"image" json:"image" jsonschema:"description=Docker image for terraform jobs,default=hashicorp/terraform:1.6"`
+	StagesPrefix string            `yaml:"stages_prefix" json:"stages_prefix" jsonschema:"description=Prefix for stage names (produces: {prefix}-plan-0\\, {prefix}-apply-0\\, etc.),default=deploy"`
+	Parallelism  int               `yaml:"parallelism" json:"parallelism" jsonschema:"description=Maximum parallel jobs per stage,minimum=1,default=5"`
+	Variables    map[string]string `yaml:"variables,omitempty" json:"variables,omitempty" jsonschema:"description=Global pipeline variables"`
+	PlanOnly     bool              `yaml:"plan_only" json:"plan_only" jsonschema:"description=Generate only plan jobs (no apply jobs),default=false"`
+	AutoApprove  bool              `yaml:"auto_approve" json:"auto_approve" jsonschema:"description=Auto-approve applies (skip manual confirmation),default=false"`
+	CacheEnabled bool              `yaml:"cache_enabled" json:"cache_enabled" jsonschema:"description=Enable caching of .terraform directory,default=true"`
+	Cache        *CacheConfig      `yaml:"cache,omitempty" json:"cache,omitempty" jsonschema:"description=Advanced GitLab cache configuration for terraform jobs"`
+	Rules        []Rule            `yaml:"rules,omitempty" json:"rules,omitempty" jsonschema:"description=Workflow rules for conditional pipeline execution"`
+	JobDefaults  *JobDefaults      `yaml:"job_defaults,omitempty" json:"job_defaults,omitempty" jsonschema:"description=Default settings applied to all jobs"`
+	Overwrites   []JobOverwrite    `yaml:"overwrites,omitempty" json:"overwrites,omitempty" jsonschema:"description=Job-level overrides for plan or apply jobs"`
+	MR           *MRConfig         `yaml:"mr,omitempty" json:"mr,omitempty" jsonschema:"description=Merge request integration settings"`
 }
 
 // CacheConfig defines advanced GitLab CI cache configuration.

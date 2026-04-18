@@ -6,8 +6,8 @@ import (
 	"go.yaml.in/yaml/v4"
 )
 
-// BuildConfigFromPlugins assembles a Config from a pattern and plugin contributions.
-func BuildConfigFromPlugins(pattern string, pluginConfigs map[string]map[string]any) (*Config, error) {
+// BuildConfigFromPlugins assembles a Config from a pattern, execution settings, and plugin contributions.
+func BuildConfigFromPlugins(pattern string, execution map[string]any, pluginConfigs map[string]map[string]any) (*Config, error) {
 	cfg := DefaultConfig()
 	if pattern != "" {
 		cfg.Structure.Pattern = pattern
@@ -15,10 +15,22 @@ func BuildConfigFromPlugins(pattern string, pluginConfigs map[string]map[string]
 			cfg.Structure.Segments = segments
 		}
 	}
+	if len(execution) != 0 {
+		data, err := yaml.Marshal(execution)
+		if err != nil {
+			return nil, fmt.Errorf("marshal execution config: %w", err)
+		}
+		if err := yaml.Unmarshal(data, &cfg.Execution); err != nil {
+			return nil, fmt.Errorf("decode execution config: %w", err)
+		}
+	}
 	for key, m := range pluginConfigs {
 		if err := setPluginNode(cfg, key, m); err != nil {
 			return nil, fmt.Errorf("set plugin %q config: %w", key, err)
 		}
+	}
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("validate config: %w", err)
 	}
 	return cfg, nil
 }

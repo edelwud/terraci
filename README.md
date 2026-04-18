@@ -208,19 +208,20 @@ exclude:
   - "*/test/*"
   - "*/sandbox/*"
 
+execution:
+  binary: "terraform"           # or "tofu"
+  plan_enabled: true
+
 plugins:
   # GitLab CI (omit for GitHub Actions)
   gitlab:
     image: { name: "hashicorp/terraform:1.6" }
-    terraform_binary: "terraform"        # or "tofu"
-    plan_enabled: true
     auto_approve: false
     mr:
       comment: { enabled: true }
 
   # GitHub Actions (omit for GitLab CI)
   # github:
-  #   terraform_binary: "terraform"
   #   runs_on: "ubuntu-latest"
   #   pr:
   #     comment: { enabled: true }

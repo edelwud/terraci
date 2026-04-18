@@ -2,6 +2,7 @@ package generate
 
 import (
 	"github.com/edelwud/terraci/pkg/discovery"
+	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
@@ -16,9 +17,9 @@ type Generator struct {
 	moduleIndex   *discovery.ModuleIndex
 }
 
-func NewGenerator(cfg *configpkg.Config, contributions []*pipeline.Contribution, depGraph *graph.DependencyGraph, modules []*discovery.Module) *Generator {
+func NewGenerator(cfg *configpkg.Config, execCfg execution.Config, contributions []*pipeline.Contribution, depGraph *graph.DependencyGraph, modules []*discovery.Module) *Generator {
 	return &Generator{
-		settings:      newSettings(cfg),
+		settings:      newSettings(cfg, execCfg),
 		contributions: contributions,
 		depGraph:      depGraph,
 		modules:       modules,
@@ -62,11 +63,10 @@ func (g *Generator) buildIR(targetModules []*discovery.Module) (*pipeline.IR, er
 		AllModules:    g.modules,
 		ModuleIndex:   g.moduleIndex,
 		Script: pipeline.ScriptConfig{
-			TerraformBinary: g.settings.terraformBinary(),
-			InitEnabled:     g.settings.initEnabled(),
-			PlanEnabled:     g.settings.planEnabled(),
-			AutoApprove:     g.settings.autoApprove(),
-			DetailedPlan:    g.settings.prEnabled(),
+			InitEnabled:  g.settings.initEnabled(),
+			PlanEnabled:  g.settings.planEnabled(),
+			AutoApprove:  g.settings.autoApprove(),
+			DetailedPlan: g.settings.prEnabled(),
 		},
 		Contributions: g.contributions,
 		PlanEnabled:   g.settings.planEnabled(),
