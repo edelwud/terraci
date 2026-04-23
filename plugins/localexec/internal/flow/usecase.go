@@ -75,13 +75,14 @@ func DefaultDependencies(appCtx *plugin.AppContext) Dependencies {
 }
 
 func New(appCtx *plugin.AppContext, opts ...Option) *UseCase {
-	deps := DefaultDependencies(appCtx)
+	defaults := DefaultDependencies(appCtx)
+	deps := defaults
 	for _, opt := range opts {
 		if opt != nil {
 			opt(&deps)
 		}
 	}
-	deps = withDefaults(appCtx, deps)
+	deps = withDefaults(deps, defaults)
 
 	return &UseCase{
 		appCtx:         appCtx,
@@ -93,8 +94,7 @@ func New(appCtx *plugin.AppContext, opts ...Option) *UseCase {
 	}
 }
 
-func withDefaults(appCtx *plugin.AppContext, deps Dependencies) Dependencies {
-	defaults := DefaultDependencies(appCtx)
+func withDefaults(deps, defaults Dependencies) Dependencies {
 	if deps.Targets == nil {
 		deps.Targets = defaults.Targets
 	}

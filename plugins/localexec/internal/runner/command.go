@@ -36,10 +36,7 @@ func (r *shellCommandRunner) Run(ctx context.Context, spec commandSpec) error {
 		cmd.Dir = r.workspace.WorkDir()
 	}
 
-	cmd.Env = os.Environ()
-	for key, value := range mergeEnv(r.execEnv, spec.Env) {
-		cmd.Env = append(cmd.Env, key+"="+value)
-	}
+	cmd.Env = envMapToList(mergeEnv(environMap(), r.execEnv, spec.Env))
 
 	var stderr bytes.Buffer
 	cmd.Stdout = os.Stdout

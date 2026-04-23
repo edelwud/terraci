@@ -3,6 +3,7 @@ package runner
 import (
 	"maps"
 	"os"
+	"sort"
 	"strings"
 )
 
@@ -20,6 +21,23 @@ func environMap() map[string]string {
 		if k, v, ok := strings.Cut(entry, "="); ok {
 			result[k] = v
 		}
+	}
+	return result
+}
+
+func envMapToList(env map[string]string) []string {
+	if len(env) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(env))
+	for key := range env {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	result := make([]string, 0, len(keys))
+	for _, key := range keys {
+		result = append(result, key+"="+env[key])
 	}
 	return result
 }

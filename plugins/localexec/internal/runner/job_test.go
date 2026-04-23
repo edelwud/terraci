@@ -152,6 +152,34 @@ func TestPhaseRunnerStopsWhenPreStepFails(t *testing.T) {
 	}
 }
 
+func TestPhaseRunnerRejectsMissingCollaborators(t *testing.T) {
+	t.Parallel()
+
+	job := &pipeline.Job{
+		Name:   "plan-platform-stage-eu-central-1-vpc",
+		Type:   pipeline.JobTypePlan,
+		Module: discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
+	}
+
+	tests := []struct {
+		name   string
+		runner phaseRunner
+	}{
+		{name: "missing commands", runner: phaseRunner{main: &recordOperationRunner{}}},
+		{name: "missing main", runner: phaseRunner{commands: &recordCommandRunner{}}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if err := tt.runner.Run(context.Background(), job); err == nil {
+				t.Fatal("Run() error = nil, want missing collaborator error")
+			}
+		})
+	}
+}
+
 func TestOperationDispatcherRoutesTerraformOperations(t *testing.T) {
 	t.Parallel()
 
@@ -272,5 +300,82 @@ func TestOperationDispatcherRejectsUnsupportedOperation(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("Run() error = nil, want unsupported operation error")
+	}
+}
+
+func TestOperationDispatcherRejectsMissingCollaborators(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		job  *pipeline.Job
+	}{
+		{
+			name: "missing terraform runner",
+			job: &pipeline.Job{
+				Name: "plan-platform-stage-eu-central-1-vpc",
+				Operation: pipeline.Operation{
+					Type:      pipeline.OperationTypeTerraformPlan,
+					Terraform: &pipeline.TerraformOperation{ModulePath: "platform/stage/eu-central-1/vpc"},
+				},
+			},
+		},
+		{
+			name: "missing command runner",
+			job: &pipeline.Job{
+				Name: "summary",
+				Operation: pipeline.Operation{
+					Type:     pipeline.OperationTypeCommands,
+					Commands: []string{"terraci summary"},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if err := (operationDispatcher{}).Run(context.Background(), tt.job); err == nil {
+				t.Fatal("Run() error = nil, want missing collaborator error")
+			}
+		})
+	}
+}
+
+func TestOperationDispatcherRejectsNilJob(t *testing.T) {
+	t.Parallel()
+
+	err := (operationDispatcher{}).Run(context.Background(), nil)
+	if err == nil {
+		t.Fatal("Run() error = nil, want nil job error")
+	}
+}
+
+func TestOperationDispatcherRejectsNilTerraformOperation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		typ  pipeline.OperationType
+	}{
+		{name: "plan", typ: pipeline.OperationTypeTerraformPlan},
+		{name: "apply", typ: pipeline.OperationTypeTerraformApply},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := (operationDispatcher{}).Run(context.Background(), &pipeline.Job{
+				Name: "terraform-" + tt.name,
+				Operation: pipeline.Operation{
+					Type: tt.typ,
+				},
+			})
+			if err == nil {
+				t.Fatal("Run() error = nil, want nil terraform operation error")
+			}
+		})
 	}
 }

@@ -25,18 +25,9 @@ type terraformOperationRunner struct {
 }
 
 func (r *terraformOperationRunner) RunPlan(ctx context.Context, job *pipeline.Job, op *pipeline.TerraformOperation) error {
-	tf, err := tfexec.NewTerraform(r.workspace.ModuleDir(op.ModulePath), r.binaryPath)
+	tf, err := r.prepare(ctx, job, op)
 	if err != nil {
-		return fmt.Errorf("%s: create terraform runner: %w", job.Name, err)
-	}
-	if err = tf.SetEnv(mergeEnv(environMap(), r.execConfig.Env, job.Env)); err != nil {
-		return fmt.Errorf("%s: set env: %w", job.Name, err)
-	}
-
-	if op.InitEnabled {
-		if err = tf.Init(ctx); err != nil {
-			return fmt.Errorf("%s: init: %w", job.Name, err)
-		}
+		return err
 	}
 
 	opts := []tfexec.PlanOption{tfexec.Out(filepath.Base(op.PlanFile))}
@@ -75,18 +66,9 @@ func (r *terraformOperationRunner) RunPlan(ctx context.Context, job *pipeline.Jo
 }
 
 func (r *terraformOperationRunner) RunApply(ctx context.Context, job *pipeline.Job, op *pipeline.TerraformOperation) error {
-	tf, err := tfexec.NewTerraform(r.workspace.ModuleDir(op.ModulePath), r.binaryPath)
+	tf, err := r.prepare(ctx, job, op)
 	if err != nil {
-		return fmt.Errorf("%s: create terraform runner: %w", job.Name, err)
-	}
-	if err = tf.SetEnv(mergeEnv(environMap(), r.execConfig.Env, job.Env)); err != nil {
-		return fmt.Errorf("%s: set env: %w", job.Name, err)
-	}
-
-	if op.InitEnabled {
-		if err = tf.Init(ctx); err != nil {
-			return fmt.Errorf("%s: init: %w", job.Name, err)
-		}
+		return err
 	}
 
 	var opts []tfexec.ApplyOption
@@ -97,4 +79,22 @@ func (r *terraformOperationRunner) RunApply(ctx context.Context, job *pipeline.J
 		return fmt.Errorf("%s: apply: %w", job.Name, err)
 	}
 	return nil
+}
+
+func (r *terraformOperationRunner) prepare(ctx context.Context, job *pipeline.Job, op *pipeline.TerraformOperation) (*tfexec.Terraform, error) {
+	tf, err := tfexec.NewTerraform(r.workspace.ModuleDir(op.ModulePath), r.binaryPath)
+	if err != nil {
+		return nil, fmt.Errorf("%s: create terraform runner: %w", job.Name, err)
+	}
+	if err = tf.SetEnv(mergeEnv(environMap(), r.execConfig.Env, job.Env)); err != nil {
+		return nil, fmt.Errorf("%s: set env: %w", job.Name, err)
+	}
+
+	if op.InitEnabled {
+		if err = tf.Init(ctx); err != nil {
+			return nil, fmt.Errorf("%s: init: %w", job.Name, err)
+		}
+	}
+
+	return tf, nil
 }

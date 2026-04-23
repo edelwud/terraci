@@ -127,6 +127,36 @@ func TestResolveTargets_ChangedOnlyNoTargetsReturnsEmpty(t *testing.T) {
 	}
 }
 
+func TestResolveTargets_ModulePathDoesNotMutateFilteredModules(t *testing.T) {
+	t.Parallel()
+
+	vpc := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
+	eks := discovery.TestModule("platform", "stage", "eu-central-1", "eks")
+	appCtx := plugintest.NewAppContext(t, t.TempDir())
+	result := &Result{
+		FilteredModules: []*discovery.Module{vpc, eks},
+		FullIndex:       discovery.NewModuleIndex([]*discovery.Module{vpc, eks}),
+		FilteredIndex:   discovery.NewModuleIndex([]*discovery.Module{vpc, eks}),
+		Graph:           graph.BuildFromDependencies([]*discovery.Module{vpc, eks}, nil),
+	}
+
+	targets, err := resolveTargets(context.Background(), appCtx, result, TargetSelectionOptions{
+		ModulePath: vpc.RelativePath,
+	}, func() (plugin.ChangeDetectionProvider, error) {
+		return stubChangeDetector{}, nil
+	})
+	if err != nil {
+		t.Fatalf("resolveTargets() error = %v", err)
+	}
+
+	if got := moduleIDs(targets); !reflect.DeepEqual(got, []string{vpc.ID()}) {
+		t.Fatalf("target ids = %v, want [%s]", got, vpc.ID())
+	}
+	if got := moduleIDs(result.FilteredModules); !reflect.DeepEqual(got, []string{vpc.ID(), eks.ID()}) {
+		t.Fatalf("filtered modules were mutated: %v", got)
+	}
+}
+
 func TestResolveTargets_ChangedOnlyAppliesModuleAfterFiltersAndAffectedModules(t *testing.T) {
 	t.Parallel()
 

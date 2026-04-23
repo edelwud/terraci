@@ -124,7 +124,7 @@ func filterModulesByPath(modules []*discovery.Module, modulePath string) []*disc
 	if modulePath == "" {
 		return modules
 	}
-	filtered := modules[:0]
+	filtered := make([]*discovery.Module, 0, len(modules))
 	for _, module := range modules {
 		if module.RelativePath == modulePath {
 			filtered = append(filtered, module)

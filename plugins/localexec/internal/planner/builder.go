@@ -16,16 +16,28 @@ type Builder interface {
 	Build(targets []*discovery.Module, result *workflow.Result, execCfg execution.Config, mode spec.ExecutionMode) (*execution.Plan, error)
 }
 
+type ContributionCollector interface {
+	Collect(appCtx *plugin.AppContext) []*pipeline.Contribution
+}
+
 type defaultBuilder struct {
-	appCtx *plugin.AppContext
+	appCtx        *plugin.AppContext
+	contributions ContributionCollector
 }
 
 func New(appCtx *plugin.AppContext) Builder {
-	return defaultBuilder{appCtx: appCtx}
+	return NewWithContributionCollector(appCtx, registryContributionCollector{})
+}
+
+func NewWithContributionCollector(appCtx *plugin.AppContext, collector ContributionCollector) Builder {
+	if collector == nil {
+		collector = registryContributionCollector{}
+	}
+	return defaultBuilder{appCtx: appCtx, contributions: collector}
 }
 
 func (b defaultBuilder) Build(targets []*discovery.Module, result *workflow.Result, execCfg execution.Config, mode spec.ExecutionMode) (*execution.Plan, error) {
-	contributions := registry.CollectContributions(b.appCtx)
+	contributions := b.contributions.Collect(b.appCtx)
 
 	planOnly := mode == spec.ExecutionModePlan
 	if planOnly {
@@ -51,4 +63,10 @@ func (b defaultBuilder) Build(targets []*discovery.Module, result *workflow.Resu
 	}
 
 	return execution.NewPlan(ir), nil
+}
+
+type registryContributionCollector struct{}
+
+func (registryContributionCollector) Collect(appCtx *plugin.AppContext) []*pipeline.Contribution {
+	return registry.CollectContributions(appCtx)
 }

@@ -19,6 +19,16 @@ func TestMergeEnvAppliesLaterValuesLast(t *testing.T) {
 	}
 }
 
+func TestEnvMapToListSortsKeys(t *testing.T) {
+	t.Parallel()
+
+	got := envMapToList(map[string]string{"B": "2", "A": "1"})
+	want := []string{"A=1", "B=2"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("envMapToList() = %v, want %v", got, want)
+	}
+}
+
 func TestRewriteTerraciCommand(t *testing.T) {
 	t.Parallel()
 
