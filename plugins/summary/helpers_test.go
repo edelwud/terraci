@@ -35,6 +35,8 @@ const testPlanNoChanges = `{
 	"resource_changes": []
 }`
 
+const testModulePath = "platform/prod/us-east-1/vpc"
+
 type fakeCommentService struct {
 	enabled bool
 	body    string
@@ -67,13 +69,13 @@ func newTestAppContext(t *testing.T, workDir string) *plugin.AppContext {
 	return plugintest.NewAppContext(t, workDir)
 }
 
-func writePlanJSON(t *testing.T, workDir, modulePath, planJSON string) {
+func writePlanJSON(t *testing.T, workDir, planJSON string) {
 	t.Helper()
 	if planJSON == "" {
 		planJSON = testPlanWithChanges
 	}
 
-	moduleDir := filepath.Join(workDir, modulePath)
+	moduleDir := filepath.Join(workDir, testModulePath)
 	if err := os.MkdirAll(moduleDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -97,10 +99,10 @@ func writeReportJSON(t *testing.T, serviceDir, pluginName string, report *ci.Rep
 	}
 }
 
-func readReportJSON(t *testing.T, serviceDir, pluginName string) *ci.Report {
+func readSummaryReportJSON(t *testing.T, serviceDir string) *ci.Report {
 	t.Helper()
 
-	report, err := ci.LoadReport(filepath.Join(serviceDir, ci.ReportFilename(pluginName)))
+	report, err := ci.LoadReport(filepath.Join(serviceDir, ci.ReportFilename("summary")))
 	if err != nil {
 		t.Fatal(err)
 	}

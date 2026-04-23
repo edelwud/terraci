@@ -82,27 +82,42 @@ func ResolveDependencyNames(
 	return names
 }
 
-// BuildDryRunResult creates a DryRunResult from a job plan.
-func BuildDryRunResult(plan *JobPlan, totalModules int, planEnabled bool) *DryRunResult {
-	jobCount := 0
-	for _, level := range plan.ExecutionLevels {
-		jobCount += len(level)
-		if planEnabled {
-			jobCount += len(level)
-		}
+// BuildDryRunResult creates a DryRunResult from the canonical pipeline IR.
+func BuildDryRunResult(ir *IR, totalModules int) *DryRunResult {
+	if ir == nil {
+		return &DryRunResult{TotalModules: totalModules}
 	}
 
-	stageCount := len(plan.ExecutionLevels)
-	if plan.HasContributedJobs {
-		jobCount++
-		stageCount++
+	executionOrder := make([][]string, 0, len(ir.Levels))
+	jobCount := len(ir.Jobs)
+	affectedModules := 0
+	for _, level := range ir.Levels {
+		levelOrder := make([]string, 0, len(level.Modules))
+		for _, moduleJobs := range level.Modules {
+			if moduleJobs.Module != nil {
+				levelOrder = append(levelOrder, moduleJobs.Module.ID())
+				affectedModules++
+			}
+			if moduleJobs.Plan != nil {
+				jobCount++
+			}
+			if moduleJobs.Apply != nil {
+				jobCount++
+			}
+		}
+		executionOrder = append(executionOrder, levelOrder)
+	}
+
+	contributedPhases := make(map[Phase]struct{}, len(ir.Jobs))
+	for i := range ir.Jobs {
+		contributedPhases[ir.Jobs[i].Phase] = struct{}{}
 	}
 
 	return &DryRunResult{
 		TotalModules:    totalModules,
-		AffectedModules: len(plan.TargetModules),
-		Stages:          stageCount,
+		AffectedModules: affectedModules,
+		Stages:          len(ir.Levels) + len(contributedPhases),
 		Jobs:            jobCount,
-		ExecutionOrder:  plan.ExecutionLevels,
+		ExecutionOrder:  executionOrder,
 	}
 }

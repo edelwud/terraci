@@ -89,7 +89,7 @@ func runSummaryUseCase(ctx context.Context, appCtx *plugin.AppContext, cfg *summ
 		commitSHA = provider.CommitSHA()
 		pipelineID = provider.PipelineID()
 	}
-	if err := saveSummaryReport(appCtx, inputs, commitSHA, pipelineID); err != nil {
+	if err := saveSummaryReport(appCtx, inputs, cfg, commitSHA, pipelineID); err != nil {
 		return err
 	}
 
@@ -105,12 +105,13 @@ func runSummaryUseCase(ctx context.Context, appCtx *plugin.AppContext, cfg *summ
 		return nil //nolint:nilerr // intentional: no provider is gracefully handled
 	}
 
-	body := summaryengine.ComposeComment(
+	body := summaryengine.ComposeCommentWithOptions(
 		inputs.plans,
 		inputs.reports,
 		provider.CommitSHA(),
 		provider.PipelineID(),
 		inputs.collection.GeneratedAt,
+		summaryIncludeDetails(cfg),
 	)
 
 	commentSvc, ok := provider.NewCommentService(appCtx)
@@ -148,22 +149,39 @@ func hasReportableChanges(plans []ci.ModulePlan, reports []*ci.Report) bool {
 	return false
 }
 
-func saveSummaryReport(appCtx *plugin.AppContext, inputs *summaryInputs, _, _ string) error {
-	report := buildSummaryReport(inputs)
+func saveSummaryReport(appCtx *plugin.AppContext, inputs *summaryInputs, cfg *summaryengine.Config, commitSHA, pipelineID string) error {
+	if inputs != nil && inputs.collection != nil {
+		inputs.collection.CommitSHA = commitSHA
+		inputs.collection.PipelineID = pipelineID
+	}
+	report := buildSummaryReport(inputs, cfg)
 	if err := ci.SaveReport(appCtx.ServiceDir(), report); err != nil {
 		return fmt.Errorf("save summary report: %w", err)
 	}
 	return nil
 }
 
-func buildSummaryReport(inputs *summaryInputs) *ci.Report {
+func buildSummaryReport(inputs *summaryInputs, cfg *summaryengine.Config) *ci.Report {
 	return &ci.Report{
-		Plugin:   summaryPluginName,
-		Title:    "Terraform Plan Summary",
-		Status:   summaryReportStatus(inputs.plans, inputs.reports),
-		Summary:  summaryReportSummary(inputs.collection),
-		Sections: summaryengine.BuildSummarySections(inputs.plans, inputs.reports),
+		Plugin:  summaryPluginName,
+		Title:   "Terraform Plan Summary",
+		Status:  summaryReportStatus(inputs.plans, inputs.reports),
+		Summary: summaryReportSummary(inputs.collection),
+		Provenance: &ci.ReportProvenance{
+			Producer:               summaryPluginName,
+			CommitSHA:              inputs.collection.CommitSHA,
+			PipelineID:             inputs.collection.PipelineID,
+			PlanResultsFingerprint: inputs.collection.Fingerprint(),
+		},
+		Sections: summaryengine.BuildSummarySectionsWithOptions(inputs.plans, inputs.reports, summaryIncludeDetails(cfg)),
 	}
+}
+
+func summaryIncludeDetails(cfg *summaryengine.Config) bool {
+	if cfg == nil || cfg.IncludeDetails == nil {
+		return true
+	}
+	return *cfg.IncludeDetails
 }
 
 func summaryReportStatus(plans []ci.ModulePlan, reports []*ci.Report) ci.ReportStatus {

@@ -41,8 +41,8 @@ summary plugin produced summary-report.json in the service directory,
 local-exec also renders that structured summary report in the terminal.
 
 Target selection flags such as --module, --filter, --include, --exclude, and
---changed-only narrow the module set before execution. If no modules match, the
-command exits cleanly after logging "no modules to process".`,
+--changed-only are available on the "plan" and "run" subcommands. If no modules
+match, the command exits cleanly after logging "no modules to process".`,
 		Example: `  terraci local-exec plan
   terraci local-exec plan --changed-only
   terraci local-exec plan --filter environment=stage

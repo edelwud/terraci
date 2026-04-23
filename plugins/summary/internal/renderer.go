@@ -22,7 +22,12 @@ const CommentMarker = ci.CommentMarker
 
 // ComposeComment builds the final markdown comment from plans and typed plugin reports.
 func ComposeComment(plans []ci.ModulePlan, reports []*ci.Report, commitSHA, pipelineID string, generatedAt time.Time) string {
-	sections := BuildSummarySections(plans, reports)
+	return ComposeCommentWithOptions(plans, reports, commitSHA, pipelineID, generatedAt, true)
+}
+
+// ComposeCommentWithOptions builds the final markdown comment with explicit rendering options.
+func ComposeCommentWithOptions(plans []ci.ModulePlan, reports []*ci.Report, commitSHA, pipelineID string, generatedAt time.Time, includeDetails bool) string {
+	sections := BuildSummarySectionsWithOptions(plans, reports, includeDetails)
 
 	var sb strings.Builder
 	sb.WriteString(ci.CommentMarker)
@@ -57,9 +62,14 @@ func ComposeComment(plans []ci.ModulePlan, reports []*ci.Report, commitSHA, pipe
 
 // BuildSummarySections builds the filtered summary view from plan results and typed plugin reports.
 func BuildSummarySections(plans []ci.ModulePlan, reports []*ci.Report) []ci.ReportSection {
+	return BuildSummarySectionsWithOptions(plans, reports, true)
+}
+
+// BuildSummarySectionsWithOptions builds the filtered summary view with explicit rendering options.
+func BuildSummarySectionsWithOptions(plans []ci.ModulePlan, reports []*ci.Report, includeDetails bool) []ci.ReportSection {
 	sections := make([]ci.ReportSection, 0, 1+len(plans)+len(reports))
 	sections = append(sections, buildSummaryOverviewSection(plans, reports))
-	sections = append(sections, buildTerraformPlanSections(plans)...)
+	sections = append(sections, buildTerraformPlanSections(plans, includeDetails)...)
 	for _, report := range reports {
 		sections = append(sections, filteredReportSections(report)...)
 	}
@@ -133,7 +143,7 @@ func overallSummaryStatus(plans []ci.ModulePlan, reports []*ci.Report) ci.Report
 	return ci.ReportStatusPass
 }
 
-func buildTerraformPlanSections(plans []ci.ModulePlan) []ci.ReportSection {
+func buildTerraformPlanSections(plans []ci.ModulePlan, includeDetails bool) []ci.ReportSection {
 	byEnv := groupByEnvironment(plans)
 	envOrder := sortedKeys(byEnv)
 	sections := make([]ci.ReportSection, 0, len(envOrder))
@@ -155,18 +165,20 @@ func buildTerraformPlanSections(plans []ci.ModulePlan) []ci.ReportSection {
 				status = ci.ReportStatusFail
 			}
 			rows = append(rows, ci.ModuleTableRow{
-				ModuleID:          plan.ModuleID,
-				ModulePath:        plan.ModulePath,
-				Status:            plan.Status,
-				Summary:           plan.Summary,
-				Error:             plan.Error,
-				StructuredDetails: plan.StructuredDetails,
-				RawPlanOutput:     plan.RawPlanOutput,
-				CostBefore:        plan.CostBefore,
-				CostAfter:         plan.CostAfter,
-				CostDiff:          plan.CostDiff,
-				HasCost:           plan.HasCost,
+				ModuleID:   plan.ModuleID,
+				ModulePath: plan.ModulePath,
+				Status:     plan.Status,
+				Summary:    plan.Summary,
+				Error:      plan.Error,
+				CostBefore: plan.CostBefore,
+				CostAfter:  plan.CostAfter,
+				CostDiff:   plan.CostDiff,
+				HasCost:    plan.HasCost,
 			})
+			if includeDetails {
+				rows[len(rows)-1].StructuredDetails = plan.StructuredDetails
+				rows[len(rows)-1].RawPlanOutput = plan.RawPlanOutput
+			}
 		}
 
 		sections = append(sections, ci.ReportSection{

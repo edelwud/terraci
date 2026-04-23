@@ -120,15 +120,7 @@ func (g *Generator) DryRun(targetModules []*discovery.Module) (*pipeline.DryRunR
 		return nil, err
 	}
 
-	plan, planErr := pipeline.BuildJobPlan(
-		g.depGraph, targetModules, g.modules, g.moduleIndex,
-		g.hasContributedJobs(), g.settings.planEnabled(),
-	)
-	if planErr != nil {
-		return nil, planErr
-	}
-
-	result := pipeline.BuildDryRunResult(plan, len(g.modules), g.settings.planEnabled())
+	result := pipeline.BuildDryRunResult(ir, len(g.modules))
 	result.Stages = len(g.stagePlanner.stages(ir))
 	return result, nil
 }
@@ -136,10 +128,6 @@ func (g *Generator) DryRun(targetModules []*discovery.Module) (*pipeline.DryRunR
 // IsMREnabled returns true if MR integration is enabled in config.
 func (g *Generator) IsMREnabled() bool {
 	return g.settings.mrCommentEnabled()
-}
-
-func (g *Generator) hasContributedJobs() bool {
-	return g.contributionIndex.hasContributedJobs()
 }
 
 func (g *Generator) stagesPrefix() string {

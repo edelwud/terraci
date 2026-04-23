@@ -29,6 +29,9 @@ func TestPlugin_Commands_Registration(t *testing.T) {
 	if !strings.Contains(root.Long, "summary plugin produced summary-report.json") {
 		t.Fatalf("root command long help should describe summary report contract:\n%s", root.Long)
 	}
+	if !strings.Contains(root.Long, `available on the "plan" and "run" subcommands`) {
+		t.Fatalf("root command long help should scope target flags to subcommands:\n%s", root.Long)
+	}
 	for _, wanted := range []string{"local-exec plan --changed-only", "local-exec plan --filter environment=stage", "local-exec run --filter environment=stage --parallelism 2"} {
 		if !strings.Contains(root.Example, wanted) {
 			t.Fatalf("root command example missing %q:\n%s", wanted, root.Example)

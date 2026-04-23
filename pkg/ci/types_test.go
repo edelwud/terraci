@@ -65,6 +65,34 @@ func TestPlanResultCollection_ToModulePlans_PreservesCostFields(t *testing.T) {
 	}
 }
 
+func TestPlanResultCollection_FingerprintStableAcrossOrder(t *testing.T) {
+	a := PlanResult{
+		ModuleID:          "svc/prod/us-east-1/vpc",
+		ModulePath:        "svc/prod/us-east-1/vpc",
+		Status:            PlanStatusChanges,
+		Summary:           "+1",
+		StructuredDetails: "details",
+		RawPlanOutput:     "raw",
+		ExitCode:          2,
+	}
+	b := PlanResult{
+		ModuleID:   "svc/prod/us-east-1/rds",
+		ModulePath: "svc/prod/us-east-1/rds",
+		Status:     PlanStatusNoChanges,
+		Summary:    "No changes",
+		ExitCode:   0,
+	}
+
+	first := (&PlanResultCollection{Results: []PlanResult{a, b}}).Fingerprint()
+	second := (&PlanResultCollection{Results: []PlanResult{b, a}}).Fingerprint()
+	if first == "" {
+		t.Fatal("Fingerprint() = empty, want value")
+	}
+	if first != second {
+		t.Fatalf("Fingerprint() should be stable across order: %q != %q", first, second)
+	}
+}
+
 func TestModulePlan_Get(t *testing.T) {
 	plan := &ModulePlan{
 		Components: map[string]string{

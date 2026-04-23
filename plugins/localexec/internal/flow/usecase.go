@@ -65,11 +65,15 @@ func WithSummaryReports(loader render.SummaryReportLoader) Option {
 }
 
 func DefaultDependencies(appCtx *plugin.AppContext) Dependencies {
+	segments := []string(nil)
+	if cfg := appCtx.Config(); cfg != nil {
+		segments = append(segments, cfg.Structure.Segments...)
+	}
 	return Dependencies{
 		Targets:        targeting.NewWorkflowResolver(appCtx),
 		Planner:        planner.New(appCtx),
 		RuntimeFactory: runner.NewFactory(),
-		SummaryReports: render.NewSummaryReportLoader(appCtx.ServiceDir()),
+		SummaryReports: render.NewSummaryReportLoader(appCtx.ServiceDir(), appCtx.WorkDir(), segments),
 		Output:         render.NewLogOutput(),
 	}
 }
@@ -136,6 +140,9 @@ func (u *UseCase) Run(ctx context.Context, req spec.ExecuteRequest) error {
 	plan, err := u.planner.Build(targets, result, execRuntime.ExecConfig, req.Mode)
 	if err != nil {
 		return err
+	}
+	if resetErr := u.summaryReports.Reset(); resetErr != nil {
+		return resetErr
 	}
 
 	reporter := render.NewProgressReporter()

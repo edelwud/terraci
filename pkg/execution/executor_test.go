@@ -151,3 +151,62 @@ func TestExecutorRecordsEmptyFinalizeStage(t *testing.T) {
 		t.Fatalf("finalize job count = %d, want 0", last.JobCount)
 	}
 }
+
+func TestDefaultSchedulerHonorsSamePhaseDependencies(t *testing.T) {
+	t.Parallel()
+
+	plan := NewPlan(&pipeline.IR{
+		Jobs: []pipeline.Job{
+			{Name: "summary", Phase: pipeline.PhaseFinalize, Dependencies: []string{"policy-check"}},
+			{Name: "policy-check", Phase: pipeline.PhaseFinalize},
+			{Name: "notify", Phase: pipeline.PhaseFinalize, Dependencies: []string{"summary"}},
+		},
+	})
+
+	runner := &orderRunner{}
+	_, err := NewExecutor(runner, WithParallelism(10)).Execute(context.Background(), plan)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	want := []string{"policy-check", "summary", "notify"}
+	if len(runner.order) != len(want) {
+		t.Fatalf("order len = %d, want %d (%v)", len(runner.order), len(want), runner.order)
+	}
+	for i := range want {
+		if runner.order[i] != want[i] {
+			t.Fatalf("order[%d] = %q, want %q (%v)", i, runner.order[i], want[i], runner.order)
+		}
+	}
+}
+
+func TestDefaultSchedulerIgnoresDependenciesAlreadySatisfiedByPreviousGroups(t *testing.T) {
+	t.Parallel()
+
+	plan := NewPlan(&pipeline.IR{
+		Levels: []pipeline.Level{{
+			Index: 0,
+			Modules: []pipeline.ModuleJobs{{
+				Plan: &pipeline.Job{Name: "plan-vpc"},
+			}},
+		}},
+		Jobs: []pipeline.Job{{
+			Name:         "policy-check",
+			Phase:        pipeline.PhasePostPlan,
+			Dependencies: []string{"plan-vpc"},
+		}},
+	})
+
+	runner := &orderRunner{}
+	_, err := NewExecutor(runner, WithParallelism(10)).Execute(context.Background(), plan)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	want := []string{"plan-vpc", "policy-check"}
+	for i := range want {
+		if runner.order[i] != want[i] {
+			t.Fatalf("order[%d] = %q, want %q (%v)", i, runner.order[i], want[i], runner.order)
+		}
+	}
+}

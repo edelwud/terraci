@@ -113,6 +113,54 @@ func TestComposeComment_WithReport(t *testing.T) {
 	}
 }
 
+func TestComposeCommentWithOptions_WithoutDetailsOmitsPlanBody(t *testing.T) {
+	t.Parallel()
+
+	plans := []ci.ModulePlan{{
+		ModuleID:          "svc/prod/us-east-1/vpc",
+		Components:        map[string]string{"environment": "prod"},
+		Status:            ci.PlanStatusChanges,
+		Summary:           "+1",
+		StructuredDetails: "### Resources\n- aws_vpc.main (create)",
+		RawPlanOutput:     "+ resource \"aws_vpc\" \"main\"",
+	}}
+
+	result := ComposeCommentWithOptions(plans, nil, "", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC), false)
+
+	if strings.Contains(result, "### Resources") {
+		t.Fatalf("comment should omit structured details when includeDetails=false:\n%s", result)
+	}
+	if strings.Contains(result, "Full plan output") {
+		t.Fatalf("comment should omit raw plan output when includeDetails=false:\n%s", result)
+	}
+}
+
+func TestBuildSummarySectionsWithOptions_WithoutDetailsClearsRowDetails(t *testing.T) {
+	t.Parallel()
+
+	plans := []ci.ModulePlan{{
+		ModuleID:          "svc/prod/us-east-1/vpc",
+		Components:        map[string]string{"environment": "prod"},
+		Status:            ci.PlanStatusChanges,
+		Summary:           "+1",
+		StructuredDetails: "### Resources\n- aws_vpc.main (create)",
+		RawPlanOutput:     "+ resource \"aws_vpc\" \"main\"",
+	}}
+
+	sections := BuildSummarySectionsWithOptions(plans, nil, false)
+	if len(sections) < 2 || sections[1].ModuleTable == nil || len(sections[1].ModuleTable.Rows) != 1 {
+		t.Fatalf("sections = %#v, want module table row", sections)
+	}
+
+	row := sections[1].ModuleTable.Rows[0]
+	if row.StructuredDetails != "" {
+		t.Fatalf("StructuredDetails = %q, want empty", row.StructuredDetails)
+	}
+	if row.RawPlanOutput != "" {
+		t.Fatalf("RawPlanOutput = %q, want empty", row.RawPlanOutput)
+	}
+}
+
 func TestComposeComment_WithCostData(t *testing.T) {
 	t.Parallel()
 

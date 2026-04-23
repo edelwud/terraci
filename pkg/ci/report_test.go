@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestSaveReport(t *testing.T) {
@@ -216,6 +217,41 @@ func TestLoadReport_UnknownSectionKindFails(t *testing.T) {
 
 	if _, err := LoadReport(path); err == nil {
 		t.Fatal("expected LoadReport to fail for unknown section kind")
+	}
+}
+
+func TestSaveReport_PreservesProvenance(t *testing.T) {
+	dir := t.TempDir()
+	report := &Report{
+		Plugin:  "summary",
+		Title:   "Terraform Plan Summary",
+		Status:  ReportStatusWarn,
+		Summary: "summary",
+		Provenance: &ReportProvenance{
+			Producer:               "summary",
+			GeneratedAt:            time.Date(2026, 4, 23, 10, 0, 0, 0, time.UTC),
+			CommitSHA:              "abcdef1234567890",
+			PipelineID:             "123",
+			PlanResultsFingerprint: "fingerprint",
+		},
+	}
+
+	if err := SaveReport(dir, report); err != nil {
+		t.Fatalf("SaveReport: %v", err)
+	}
+
+	loaded, err := LoadReport(filepath.Join(dir, ReportFilename("summary")))
+	if err != nil {
+		t.Fatalf("LoadReport: %v", err)
+	}
+	if loaded.Provenance == nil {
+		t.Fatal("Provenance = nil, want value")
+	}
+	if loaded.Provenance.Producer != "summary" {
+		t.Fatalf("Producer = %q, want summary", loaded.Provenance.Producer)
+	}
+	if loaded.Provenance.PlanResultsFingerprint != "fingerprint" {
+		t.Fatalf("PlanResultsFingerprint = %q, want fingerprint", loaded.Provenance.PlanResultsFingerprint)
 	}
 }
 

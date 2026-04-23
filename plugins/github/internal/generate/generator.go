@@ -37,19 +37,12 @@ func (g *Generator) Generate(targetModules []*discovery.Module) (pipeline.Genera
 }
 
 func (g *Generator) DryRun(targetModules []*discovery.Module) (*pipeline.DryRunResult, error) {
-	plan, err := pipeline.BuildJobPlan(
-		g.depGraph,
-		targetModules,
-		g.modules,
-		g.moduleIndex,
-		g.hasContributedJobs(),
-		g.settings.planEnabled(),
-	)
+	ir, err := g.buildIR(targetModules)
 	if err != nil {
 		return nil, err
 	}
 
-	return pipeline.BuildDryRunResult(plan, len(g.modules), g.settings.planEnabled()), nil
+	return pipeline.BuildDryRunResult(ir, len(g.modules)), nil
 }
 
 func (g *Generator) IsPREnabled() bool {
@@ -108,13 +101,4 @@ func (g *Generator) buildTargetSet(targetModules []*discovery.Module) map[string
 		targetSet[module.ID()] = true
 	}
 	return targetSet
-}
-
-func (g *Generator) hasContributedJobs() bool {
-	for _, contribution := range g.contributions {
-		if len(contribution.Jobs) > 0 {
-			return true
-		}
-	}
-	return false
 }

@@ -44,7 +44,7 @@ func TestRunSummaryUseCase_NoPlanResults(t *testing.T) {
 func TestRunSummaryUseCase_NoProvider_PrintsSummaryOnly(t *testing.T) {
 	workDir := t.TempDir()
 	appCtx := newTestAppContext(t, workDir)
-	writePlanJSON(t, workDir, "platform/prod/us-east-1/vpc", testPlanWithChanges)
+	writePlanJSON(t, workDir, testPlanWithChanges)
 
 	output := plugSummaryOutput(t, func() {
 		err := runSummaryUseCase(context.Background(), appCtx, &summaryengine.Config{}, func() (summaryProvider, error) {
@@ -62,7 +62,7 @@ func TestRunSummaryUseCase_NoProvider_PrintsSummaryOnly(t *testing.T) {
 		t.Fatalf("output = %q, want summary output", output)
 	}
 
-	report := readReportJSON(t, appCtx.ServiceDir(), "summary")
+	report := readSummaryReportJSON(t, appCtx.ServiceDir())
 	if report.Plugin != "summary" {
 		t.Fatalf("report plugin = %q, want summary", report.Plugin)
 	}
@@ -74,8 +74,8 @@ func TestRunSummaryUseCase_NoProvider_PrintsSummaryOnly(t *testing.T) {
 func TestRunSummaryUseCase_PostsComment(t *testing.T) {
 	workDir := t.TempDir()
 	appCtx := newTestAppContext(t, workDir)
-	modulePath := "platform/prod/us-east-1/vpc"
-	writePlanJSON(t, workDir, modulePath, testPlanWithChanges)
+	modulePath := testModulePath
+	writePlanJSON(t, workDir, testPlanWithChanges)
 	writeReportJSON(t, appCtx.ServiceDir(), "cost", newPlanReport(modulePath, ci.ReportStatusWarn))
 
 	commentSvc := &fakeCommentService{enabled: true}
@@ -101,19 +101,34 @@ func TestRunSummaryUseCase_PostsComment(t *testing.T) {
 		t.Fatalf("comment body = %q, want terraci marker", commentSvc.body)
 	}
 
-	report := readReportJSON(t, appCtx.ServiceDir(), "summary")
+	report := readSummaryReportJSON(t, appCtx.ServiceDir())
 	if len(report.Sections) == 0 {
 		t.Fatal("summary report sections are empty")
 	}
 	if report.Status != ci.ReportStatusWarn {
 		t.Fatalf("report status = %q, want %q", report.Status, ci.ReportStatusWarn)
 	}
+	if report.Provenance == nil {
+		t.Fatal("report provenance = nil, want value")
+	}
+	if report.Provenance.Producer != "summary" {
+		t.Fatalf("report provenance producer = %q, want summary", report.Provenance.Producer)
+	}
+	if report.Provenance.CommitSHA != "abcdef1234567890" {
+		t.Fatalf("report provenance commit = %q, want abcdef1234567890", report.Provenance.CommitSHA)
+	}
+	if report.Provenance.PipelineID != "123" {
+		t.Fatalf("report provenance pipeline = %q, want 123", report.Provenance.PipelineID)
+	}
+	if report.Provenance.PlanResultsFingerprint == "" {
+		t.Fatal("report provenance fingerprint = empty, want value")
+	}
 }
 
 func TestRunSummaryUseCase_OnChangesOnlySkipsNoChanges(t *testing.T) {
 	workDir := t.TempDir()
 	appCtx := newTestAppContext(t, workDir)
-	writePlanJSON(t, workDir, "platform/prod/us-east-1/vpc", testPlanNoChanges)
+	writePlanJSON(t, workDir, testPlanNoChanges)
 
 	commentSvc := &fakeCommentService{enabled: true}
 	output := plugSummaryOutput(t, func() {
@@ -136,8 +151,43 @@ func TestRunSummaryUseCase_OnChangesOnlySkipsNoChanges(t *testing.T) {
 		t.Fatalf("output = %q, want no reportable changes message", output)
 	}
 
-	report := readReportJSON(t, appCtx.ServiceDir(), "summary")
+	report := readSummaryReportJSON(t, appCtx.ServiceDir())
 	if report.Status != ci.ReportStatusPass {
 		t.Fatalf("report status = %q, want %q", report.Status, ci.ReportStatusPass)
+	}
+}
+
+func TestRunSummaryUseCase_IncludeDetailsFalseRemovesDetailsFromCommentAndReport(t *testing.T) {
+	workDir := t.TempDir()
+	appCtx := newTestAppContext(t, workDir)
+	writePlanJSON(t, workDir, testPlanWithChanges)
+
+	commentSvc := &fakeCommentService{enabled: true}
+	includeDetails := false
+	err := runSummaryUseCase(context.Background(), appCtx, &summaryengine.Config{IncludeDetails: &includeDetails}, func() (summaryProvider, error) {
+		return &fakeSummaryProvider{
+			commitSHA:  "abcdef1234567890",
+			pipelineID: "123",
+			service:    commentSvc,
+		}, nil
+	})
+	if err != nil {
+		t.Fatalf("runSummaryUseCase() error = %v", err)
+	}
+
+	if strings.Contains(commentSvc.body, "Full plan output") {
+		t.Fatalf("comment body should omit full plan output when include_details=false:\n%s", commentSvc.body)
+	}
+
+	report := readSummaryReportJSON(t, appCtx.ServiceDir())
+	if len(report.Sections) < 2 || report.Sections[1].ModuleTable == nil || len(report.Sections[1].ModuleTable.Rows) != 1 {
+		t.Fatalf("report sections = %#v, want module table row", report.Sections)
+	}
+	row := report.Sections[1].ModuleTable.Rows[0]
+	if row.StructuredDetails != "" {
+		t.Fatalf("StructuredDetails = %q, want empty", row.StructuredDetails)
+	}
+	if row.RawPlanOutput != "" {
+		t.Fatalf("RawPlanOutput = %q, want empty", row.RawPlanOutput)
 	}
 }

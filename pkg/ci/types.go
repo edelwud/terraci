@@ -1,8 +1,11 @@
 package ci
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"time"
 )
 
@@ -89,14 +92,58 @@ type PlanResultCollection struct {
 	GeneratedAt time.Time    `json:"generated_at"`
 }
 
+// Fingerprint returns a stable content fingerprint for the collection.
+func (c *PlanResultCollection) Fingerprint() string {
+	if c == nil {
+		return ""
+	}
+
+	type fingerprintResult PlanResult
+
+	results := make([]fingerprintResult, 0, len(c.Results))
+	for i := range c.Results {
+		results = append(results, fingerprintResult(c.Results[i]))
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].ModuleID == results[j].ModuleID {
+			return results[i].ModulePath < results[j].ModulePath
+		}
+		return results[i].ModuleID < results[j].ModuleID
+	})
+
+	payload := struct {
+		Results []fingerprintResult `json:"results"`
+	}{
+		Results: results,
+	}
+
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
+}
+
 // Report is a plugin-produced CI enrichment artifact consumed by summary flows.
 // Plugins write reports as {serviceDir}/{plugin}-report.json.
 type Report struct {
-	Plugin   string          `json:"plugin"`
-	Title    string          `json:"title"`
-	Status   ReportStatus    `json:"status"`
-	Summary  string          `json:"summary"`
-	Sections []ReportSection `json:"sections,omitempty"`
+	Plugin     string            `json:"plugin"`
+	Title      string            `json:"title"`
+	Status     ReportStatus      `json:"status"`
+	Summary    string            `json:"summary"`
+	Provenance *ReportProvenance `json:"provenance,omitempty"`
+	Sections   []ReportSection   `json:"sections,omitempty"`
+}
+
+// ReportProvenance captures the source run identity for a persisted report.
+type ReportProvenance struct {
+	Producer               string    `json:"producer,omitempty"`
+	GeneratedAt            time.Time `json:"generated_at"`
+	CommitSHA              string    `json:"commit_sha,omitempty"`
+	PipelineID             string    `json:"pipeline_id,omitempty"`
+	PlanResultsFingerprint string    `json:"plan_results_fingerprint,omitempty"`
 }
 
 // ReportSectionKind identifies the shape of one typed report section.

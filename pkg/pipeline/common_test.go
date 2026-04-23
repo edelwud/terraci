@@ -252,69 +252,51 @@ func TestBuildDryRunResult(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		plan         *JobPlan
 		totalModules int
-		planEnabled  bool
 		wantJobs     int
 		wantStages   int
 		wantAffected int
 		wantTotal    int
 	}{
 		{
-			name: "basic without contributed jobs",
-			plan: &JobPlan{
-				TargetModules:      []*discovery.Module{modA, modB},
-				ExecutionLevels:    [][]string{{modA.ID()}, {modB.ID()}},
-				HasContributedJobs: false,
-			},
+			name:         "basic without contributed jobs",
 			totalModules: 5,
-			planEnabled:  false,
 			wantJobs:     2,
 			wantStages:   2,
 			wantAffected: 2,
 			wantTotal:    5,
 		},
 		{
-			name: "planEnabled doubles job count per level",
-			plan: &JobPlan{
-				TargetModules:      []*discovery.Module{modA, modB},
-				ExecutionLevels:    [][]string{{modA.ID()}, {modB.ID()}},
-				HasContributedJobs: false,
-			},
+			name:         "planEnabled doubles job count per level",
 			totalModules: 5,
-			planEnabled:  true,
 			wantJobs:     4, // 2 levels * 1 module * 2 (plan+apply)
 			wantStages:   2,
 			wantAffected: 2,
 			wantTotal:    5,
 		},
 		{
-			name: "contributed jobs add 1 job and 1 stage",
-			plan: &JobPlan{
-				TargetModules:      []*discovery.Module{modA},
-				ExecutionLevels:    [][]string{{modA.ID()}},
-				HasContributedJobs: true,
-			},
+			name:         "contributed jobs add 1 job and 1 stage",
 			totalModules: 3,
-			planEnabled:  false,
 			wantJobs:     2, // 1 module + 1 contributed job
 			wantStages:   2, // 1 level + 1 contributed stage
 			wantAffected: 1,
 			wantTotal:    3,
 		},
 		{
-			name: "planEnabled with contributed jobs",
-			plan: &JobPlan{
-				TargetModules:      []*discovery.Module{modA, modB},
-				ExecutionLevels:    [][]string{{modA.ID(), modB.ID()}},
-				HasContributedJobs: true,
-			},
+			name:         "multiple contributed jobs count individually and phases count once",
 			totalModules: 10,
-			planEnabled:  true,
-			wantJobs:     5, // 2*2 modules (plan+apply) + 1 contributed job
-			wantStages:   2, // 1 level + 1 contributed stage
+			wantJobs:     6, // 2*2 module jobs + 2 contributed jobs
+			wantStages:   2, // 1 level + 1 contributed phase
 			wantAffected: 2,
 			wantTotal:    10,
+		},
+		{
+			name:         "multiple contributed phases increase stage count",
+			totalModules: 2,
+			wantJobs:     3,
+			wantStages:   3,
+			wantAffected: 1,
+			wantTotal:    2,
 		},
 	}
 
@@ -322,7 +304,57 @@ func TestBuildDryRunResult(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := BuildDryRunResult(tt.plan, tt.totalModules, tt.planEnabled)
+			var ir *IR
+			switch tt.name {
+			case "basic without contributed jobs":
+				ir = &IR{
+					Levels: []Level{
+						{Index: 0, Modules: []ModuleJobs{{Module: modA, Apply: &Job{Name: "apply-a"}}}},
+						{Index: 1, Modules: []ModuleJobs{{Module: modB, Apply: &Job{Name: "apply-b"}}}},
+					},
+				}
+			case "planEnabled doubles job count per level":
+				ir = &IR{
+					Levels: []Level{
+						{Index: 0, Modules: []ModuleJobs{{Module: modA, Plan: &Job{Name: "plan-a"}, Apply: &Job{Name: "apply-a"}}}},
+						{Index: 1, Modules: []ModuleJobs{{Module: modB, Plan: &Job{Name: "plan-b"}, Apply: &Job{Name: "apply-b"}}}},
+					},
+				}
+			case "contributed jobs add 1 job and 1 stage":
+				ir = &IR{
+					Levels: []Level{
+						{Index: 0, Modules: []ModuleJobs{{Module: modA, Apply: &Job{Name: "apply-a"}}}},
+					},
+					Jobs: []Job{{Name: "summary", Phase: PhaseFinalize}},
+				}
+			case "multiple contributed jobs count individually and phases count once":
+				ir = &IR{
+					Levels: []Level{
+						{Index: 0, Modules: []ModuleJobs{
+							{Module: modA, Plan: &Job{Name: "plan-a"}, Apply: &Job{Name: "apply-a"}},
+							{Module: modB, Plan: &Job{Name: "plan-b"}, Apply: &Job{Name: "apply-b"}},
+						}},
+					},
+					Jobs: []Job{
+						{Name: "policy", Phase: PhasePostPlan},
+						{Name: "cost", Phase: PhasePostPlan},
+					},
+				}
+			case "multiple contributed phases increase stage count":
+				ir = &IR{
+					Levels: []Level{
+						{Index: 0, Modules: []ModuleJobs{{Module: modA, Apply: &Job{Name: "apply-a"}}}},
+					},
+					Jobs: []Job{
+						{Name: "policy", Phase: PhasePostPlan},
+						{Name: "summary", Phase: PhaseFinalize},
+					},
+				}
+			default:
+				t.Fatalf("unhandled test case %q", tt.name)
+			}
+
+			result := BuildDryRunResult(ir, tt.totalModules)
 			if result.Jobs != tt.wantJobs {
 				t.Errorf("Jobs = %d, want %d", result.Jobs, tt.wantJobs)
 			}
