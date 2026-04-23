@@ -100,3 +100,54 @@ func TestDefaultSchedulerPreservesGroupOrder(t *testing.T) {
 		}
 	}
 }
+
+func TestDefaultSchedulerAlwaysIncludesFinalizeStage(t *testing.T) {
+	t.Parallel()
+
+	plan := NewPlan(&pipeline.IR{
+		Levels: []pipeline.Level{
+			{Index: 0, Modules: []pipeline.ModuleJobs{{Plan: &pipeline.Job{Name: "plan-0"}}}},
+		},
+	})
+
+	groups := DefaultScheduler{}.Schedule(plan)
+	if len(groups) == 0 {
+		t.Fatal("expected scheduled groups")
+	}
+
+	last := groups[len(groups)-1]
+	if last.Name != "finalize" {
+		t.Fatalf("last group = %q, want finalize", last.Name)
+	}
+	if len(last.Jobs) != 0 {
+		t.Fatalf("finalize jobs = %d, want 0", len(last.Jobs))
+	}
+}
+
+func TestExecutorRecordsEmptyFinalizeStage(t *testing.T) {
+	t.Parallel()
+
+	plan := NewPlan(&pipeline.IR{
+		Levels: []pipeline.Level{
+			{Index: 0, Modules: []pipeline.ModuleJobs{{Plan: &pipeline.Job{Name: "plan-0"}}}},
+		},
+	})
+
+	runner := &orderRunner{}
+	result, err := NewExecutor(runner, WithParallelism(1)).Execute(context.Background(), plan)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if len(result.Groups) == 0 {
+		t.Fatal("expected execution groups to be recorded")
+	}
+
+	last := result.Groups[len(result.Groups)-1]
+	if last.Name != "finalize" {
+		t.Fatalf("last recorded group = %q, want finalize", last.Name)
+	}
+	if last.JobCount != 0 {
+		t.Fatalf("finalize job count = %d, want 0", last.JobCount)
+	}
+}

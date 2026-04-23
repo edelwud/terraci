@@ -15,7 +15,6 @@ type BuildOptions struct {
 	Contributions []*Contribution
 	PlanEnabled   bool
 	PlanOnly      bool
-	ApplyOnly     bool
 }
 
 // Build constructs a provider-agnostic IR from the given options.
@@ -51,7 +50,7 @@ func Build(opts BuildOptions) (*IR, error) {
 			mj := ModuleJobs{Module: mod}
 
 			// Plan job
-			if opts.PlanEnabled && !opts.ApplyOnly {
+			if opts.PlanEnabled {
 				planOperation, artifactPaths := opts.Script.NewPlanOperation(mod.RelativePath)
 				planName := JobName("plan", mod)
 

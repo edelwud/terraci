@@ -12,6 +12,8 @@ import (
 	summaryengine "github.com/edelwud/terraci/plugins/summary/internal"
 )
 
+const summaryPluginName = "summary"
+
 type summaryProvider interface {
 	CommitSHA() string
 	PipelineID() string
@@ -47,14 +49,19 @@ func loadSummaryInputs(appCtx *plugin.AppContext) (*summaryInputs, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to load plugin reports: %w", err)
 	}
+	filteredReports := reports[:0]
 	for _, r := range reports {
-		summaryengine.EnrichPlans(plans, r.Modules)
+		if r == nil || r.Plugin == summaryPluginName {
+			continue
+		}
+		filteredReports = append(filteredReports, r)
 	}
+	summaryengine.EnrichPlansFromReports(plans, filteredReports)
 
 	return &summaryInputs{
 		collection: collection,
 		plans:      plans,
-		reports:    reports,
+		reports:    filteredReports,
 	}, nil
 }
 
@@ -76,13 +83,22 @@ func runSummaryUseCase(ctx context.Context, appCtx *plugin.AppContext, cfg *summ
 		return nil
 	}
 
+	provider, resolveErr := resolveProvider()
+	commitSHA, pipelineID := "", ""
+	if resolveErr == nil && provider != nil {
+		commitSHA = provider.CommitSHA()
+		pipelineID = provider.PipelineID()
+	}
+	if err := saveSummaryReport(appCtx, inputs, commitSHA, pipelineID); err != nil {
+		return err
+	}
+
 	if cfg.OnChangesOnly && !hasReportableChanges(inputs.plans, inputs.reports) {
 		log.Info("no reportable changes, skipping comment")
 		printSummary(inputs.collection)
 		return nil
 	}
 
-	provider, resolveErr := resolveProvider()
 	if resolveErr != nil || provider == nil {
 		log.Info("no CI provider detected, printing summary only")
 		printSummary(inputs.collection)
@@ -130,4 +146,79 @@ func hasReportableChanges(plans []ci.ModulePlan, reports []*ci.Report) bool {
 		}
 	}
 	return false
+}
+
+func saveSummaryReport(appCtx *plugin.AppContext, inputs *summaryInputs, _, _ string) error {
+	report := buildSummaryReport(inputs)
+	if err := ci.SaveReport(appCtx.ServiceDir(), report); err != nil {
+		return fmt.Errorf("save summary report: %w", err)
+	}
+	return nil
+}
+
+func buildSummaryReport(inputs *summaryInputs) *ci.Report {
+	return &ci.Report{
+		Plugin:   summaryPluginName,
+		Title:    "Terraform Plan Summary",
+		Status:   summaryReportStatus(inputs.plans, inputs.reports),
+		Summary:  summaryReportSummary(inputs.collection),
+		Sections: summaryengine.BuildSummarySections(inputs.plans, inputs.reports),
+	}
+}
+
+func summaryReportStatus(plans []ci.ModulePlan, reports []*ci.Report) ci.ReportStatus {
+	for i := range plans {
+		if plans[i].Status == ci.PlanStatusFailed {
+			return ci.ReportStatusFail
+		}
+	}
+	for _, report := range reports {
+		if report.Status == ci.ReportStatusFail {
+			return ci.ReportStatusFail
+		}
+	}
+	for i := range plans {
+		if plans[i].Status == ci.PlanStatusChanges {
+			return ci.ReportStatusWarn
+		}
+	}
+	for _, report := range reports {
+		if report.Status == ci.ReportStatusWarn {
+			return ci.ReportStatusWarn
+		}
+	}
+	return ci.ReportStatusPass
+}
+
+func summaryReportSummary(collection *ci.PlanResultCollection) string {
+	var changes, noChanges, failed, pending, running int
+	for i := range collection.Results {
+		switch collection.Results[i].Status {
+		case ci.PlanStatusChanges:
+			changes++
+		case ci.PlanStatusNoChanges, ci.PlanStatusSuccess:
+			noChanges++
+		case ci.PlanStatusFailed:
+			failed++
+		case ci.PlanStatusPending:
+			pending++
+		case ci.PlanStatusRunning:
+			running++
+		}
+	}
+
+	summary := fmt.Sprintf(
+		"%d modules: %d with changes, %d no changes, %d failed",
+		len(collection.Results),
+		changes,
+		noChanges,
+		failed,
+	)
+	if pending > 0 {
+		summary += fmt.Sprintf(", %d pending", pending)
+	}
+	if running > 0 {
+		summary += fmt.Sprintf(", %d running", running)
+	}
+	return summary
 }

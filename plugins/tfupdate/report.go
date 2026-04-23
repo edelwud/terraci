@@ -6,12 +6,42 @@ import (
 
 	"github.com/edelwud/terraci/pkg/ci"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
+	"github.com/edelwud/terraci/plugins/tfupdate/internal/domain"
 )
 
 func buildUpdateReport(result *tfupdateengine.UpdateResult) *ci.Report {
 	status := ci.ReportStatusPass
 	if result.Summary.Errors > 0 || result.Summary.UpdatesAvailable > 0 {
 		status = ci.ReportStatusWarn
+	}
+
+	rows := make([]ci.DependencyUpdateRow, 0, len(result.Providers)+len(result.Modules))
+	for i := range result.Providers {
+		update := &result.Providers[i]
+		rows = append(rows, ci.DependencyUpdateRow{
+			ModulePath: update.ModulePath(),
+			Kind:       ci.DependencyKindProvider,
+			Name:       update.ProviderSource(),
+			Current:    update.DisplayCurrent(),
+			Latest:     update.DisplayLatest(),
+			Bumped:     update.DisplayAvailable(),
+			Status:     mapUpdateStatus(update.Status),
+			Issue:      update.Issue,
+		})
+	}
+
+	for i := range result.Modules {
+		update := &result.Modules[i]
+		rows = append(rows, ci.DependencyUpdateRow{
+			ModulePath: update.ModulePath(),
+			Kind:       ci.DependencyKindModule,
+			Name:       update.Source(),
+			Current:    update.DisplayCurrent(),
+			Latest:     update.DisplayLatest(),
+			Bumped:     update.DisplayAvailable(),
+			Status:     mapUpdateStatus(update.Status),
+			Issue:      update.Issue,
+		})
 	}
 
 	return &ci.Report{
@@ -25,7 +55,32 @@ func buildUpdateReport(result *tfupdateengine.UpdateResult) *ci.Report {
 			result.Summary.UpdatesApplied,
 			result.Summary.Errors,
 		),
-		Body: renderReportBody(result),
+		Sections: []ci.ReportSection{{
+			Kind:           ci.ReportSectionKindDependencyUpdates,
+			Title:          "Dependency Update Check",
+			Status:         status,
+			SectionSummary: fmt.Sprintf("%d checked, %d updates available, %d applied, %d errors", result.Summary.TotalChecked, result.Summary.UpdatesAvailable, result.Summary.UpdatesApplied, result.Summary.Errors),
+			DependencyUpdates: &ci.DependencyUpdatesSection{
+				Rows: rows,
+			},
+		}},
+	}
+}
+
+func mapUpdateStatus(status domain.UpdateStatus) ci.DependencyUpdateStatus {
+	switch status {
+	case domain.StatusUpdateAvailable:
+		return ci.DependencyUpdateStatusUpdateAvailable
+	case domain.StatusApplied:
+		return ci.DependencyUpdateStatusApplied
+	case domain.StatusSkipped:
+		return ci.DependencyUpdateStatusSkipped
+	case domain.StatusError:
+		return ci.DependencyUpdateStatusError
+	case domain.StatusUpToDate:
+		return ci.DependencyUpdateStatusUpToDate
+	default:
+		return ci.DependencyUpdateStatusUpToDate
 	}
 }
 

@@ -348,37 +348,33 @@ func TestBuildCostReport(t *testing.T) {
 		t.Errorf("Summary = %q, want to contain '2 modules'", report.Summary)
 	}
 
-	// Body should contain markdown table
-	if !strings.Contains(report.Body, "| Module |") {
-		t.Error("Body missing markdown table header")
-	}
-	if !strings.Contains(report.Body, "/tmp/vpc") {
-		t.Error("Body missing successful module path")
-	}
-	if !strings.Contains(report.Body, "/tmp/broken") {
-		t.Error("Body should contain error module")
-	}
-
 	if report.Status != ci.ReportStatusWarn {
 		t.Errorf("Status = %q, want %q when report has errors", report.Status, ci.ReportStatusWarn)
 	}
 
-	if len(report.Modules) != 2 {
-		t.Fatalf("Modules count = %d, want 2 (including errored module)", len(report.Modules))
+	if len(report.Sections) != 1 {
+		t.Fatalf("Sections count = %d, want 1", len(report.Sections))
+	}
+	section := report.Sections[0].CostChanges
+	if section == nil {
+		t.Fatal("expected cost section payload")
+	}
+	if len(section.Rows) != 2 {
+		t.Fatalf("Rows count = %d, want 2 (including errored module)", len(section.Rows))
 	}
 
-	m := report.Modules[0]
+	m := section.Rows[0]
 	if !m.HasCost {
 		t.Error("Module.HasCost should be true")
 	}
-	if m.CostAfter != 10.50 {
-		t.Errorf("Module.CostAfter = %.2f, want 10.50", m.CostAfter)
+	if m.After != 10.50 {
+		t.Errorf("Module.After = %.2f, want 10.50", m.After)
 	}
-	if m.CostDiff != 5.25 {
-		t.Errorf("Module.CostDiff = %.2f, want 5.25", m.CostDiff)
+	if m.Diff != 5.25 {
+		t.Errorf("Module.Diff = %.2f, want 5.25", m.Diff)
 	}
-	if report.Modules[1].Error != "parse error" {
-		t.Errorf("Error module error = %q, want %q", report.Modules[1].Error, "parse error")
+	if section.Rows[1].Error != "parse error" {
+		t.Errorf("Error module error = %q, want %q", section.Rows[1].Error, "parse error")
 	}
 }
 
@@ -421,20 +417,18 @@ func TestBuildCostReport_IncludesPrefetchWarnings(t *testing.T) {
 	if report.Status != ci.ReportStatusWarn {
 		t.Fatalf("Status = %q, want %q", report.Status, ci.ReportStatusWarn)
 	}
-	if !strings.Contains(report.Body, "Prefetch warnings") {
-		t.Fatalf("report body = %q, want prefetch warnings section", report.Body)
-	}
-	if !strings.Contains(report.Body, "Resource statuses") {
-		t.Fatalf("report body = %q, want resource statuses section", report.Body)
-	}
 	if !strings.Contains(report.Summary, "usage estimated: 1") {
 		t.Fatalf("summary = %q, want usage estimated count", report.Summary)
 	}
 	if !strings.Contains(report.Summary, "usage unknown: 1") {
 		t.Fatalf("summary = %q, want usage unknown count", report.Summary)
 	}
-	if !strings.Contains(report.Body, "aws_db_instance.db") {
-		t.Fatalf("report body = %q, want warning address", report.Body)
+	section := report.Sections[0].CostChanges
+	if section == nil {
+		t.Fatal("expected cost section payload")
+	}
+	if section.Totals.UsageEstimated != 1 || section.Totals.UsageUnknown != 1 {
+		t.Fatalf("unexpected usage totals: %+v", section.Totals)
 	}
 }
 
@@ -452,8 +446,11 @@ func TestBuildCostReport_Empty(t *testing.T) {
 	if !strings.Contains(report.Summary, "0 modules") {
 		t.Errorf("Summary = %q, want to contain '0 modules'", report.Summary)
 	}
-	if len(report.Modules) != 0 {
-		t.Errorf("Modules count = %d, want 0", len(report.Modules))
+	if len(report.Sections) != 1 || report.Sections[0].CostChanges == nil {
+		t.Fatalf("expected one cost section")
+	}
+	if len(report.Sections[0].CostChanges.Rows) != 0 {
+		t.Errorf("Rows count = %d, want 0", len(report.Sections[0].CostChanges.Rows))
 	}
 }
 
@@ -468,17 +465,17 @@ func TestBuildCostReport_AllErrors(t *testing.T) {
 
 	report := buildCostReport(result)
 
-	if len(report.Modules) != 2 {
-		t.Errorf("Modules count = %d, want 2 (all errors should still be visible)", len(report.Modules))
+	if len(report.Sections) != 1 || report.Sections[0].CostChanges == nil {
+		t.Fatalf("expected one cost section")
+	}
+	if len(report.Sections[0].CostChanges.Rows) != 2 {
+		t.Errorf("Rows count = %d, want 2 (all errors should still be visible)", len(report.Sections[0].CostChanges.Rows))
 	}
 	if report.Status != ci.ReportStatusWarn {
 		t.Errorf("Status = %q, want %q", report.Status, ci.ReportStatusWarn)
 	}
-	if !strings.Contains(report.Body, "| Module |") {
-		t.Error("Body missing table header")
-	}
-	if !strings.Contains(report.Body, "fail1") || !strings.Contains(report.Body, "fail2") {
-		t.Error("Body should contain module errors")
+	if report.Sections[0].CostChanges.Rows[0].Error != "fail1" || report.Sections[0].CostChanges.Rows[1].Error != "fail2" {
+		t.Error("Rows should contain module errors")
 	}
 }
 
@@ -497,10 +494,14 @@ func TestBuildCostReport_EscapesMarkdownTableCells(t *testing.T) {
 	}
 
 	report := buildCostReport(result)
-	if !strings.Contains(report.Body, `/tmp/with\|pipe\\slash`) {
-		t.Fatalf("report body = %q, want escaped module path", report.Body)
+	section := report.Sections[0].CostChanges
+	if section == nil {
+		t.Fatal("expected cost section payload")
 	}
-	if !strings.Contains(report.Body, `line1<br>line2 \| detail`) {
-		t.Fatalf("report body = %q, want escaped error note", report.Body)
+	if section.Rows[0].ModulePath != "/tmp/with|pipe\\slash" {
+		t.Fatalf("module path = %q, want raw path preserved", section.Rows[0].ModulePath)
+	}
+	if section.Rows[0].Error != "line1\nline2 | detail" {
+		t.Fatalf("error = %q, want raw error preserved", section.Rows[0].Error)
 	}
 }

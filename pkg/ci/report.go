@@ -66,7 +66,7 @@ func LoadReports(serviceDir string) ([]*Report, error) {
 	for _, file := range files {
 		report, err := LoadReport(file)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("load report %s: %w", filepath.Base(file), err)
 		}
 		reports = append(reports, report)
 	}

@@ -80,7 +80,23 @@ func TestComposeComment_WithReport(t *testing.T) {
 			Title:   "Policy Check",
 			Status:  ci.ReportStatusFail,
 			Summary: "2 modules: 1 passed, 0 warned, 1 failed",
-			Body:    "**svc/prod/us-east-1/vpc** (fail)\n- :x: too expensive (terraform.cost)\n",
+			Sections: []ci.ReportSection{{
+				Kind:           ci.ReportSectionKindFindings,
+				Title:          "Policy Check",
+				Status:         ci.ReportStatusFail,
+				SectionSummary: "2 modules: 1 passed, 0 warned, 1 failed",
+				Findings: &ci.FindingsSection{
+					Rows: []ci.FindingRow{{
+						ModulePath: "svc/prod/us-east-1/vpc",
+						Status:     ci.FindingRowStatusFail,
+						Findings: []ci.Finding{{
+							Severity:  ci.FindingSeverityFail,
+							Message:   "too expensive",
+							Namespace: "terraform.cost",
+						}},
+					}},
+				},
+			}},
 		},
 	}
 
@@ -120,6 +136,120 @@ func TestComposeComment_WithCostData(t *testing.T) {
 	}
 	if !strings.Contains(result, "$10.00") {
 		t.Errorf("expected cost before in output, got: %s", result)
+	}
+}
+
+func TestComposeComment_FiltersEnvironmentPlansToChangedAndFailed(t *testing.T) {
+	t.Parallel()
+
+	plans := []ci.ModulePlan{
+		{
+			ModuleID:   "svc/prod/us-east-1/vpc",
+			Components: map[string]string{"environment": "prod"},
+			Status:     ci.PlanStatusChanges,
+			Summary:    "+1",
+		},
+		{
+			ModuleID:   "svc/prod/us-east-1/rds",
+			Components: map[string]string{"environment": "prod"},
+			Status:     ci.PlanStatusNoChanges,
+			Summary:    "No changes",
+		},
+		{
+			ModuleID:   "svc/prod/us-east-1/iam",
+			Components: map[string]string{"environment": "prod"},
+			Status:     ci.PlanStatusFailed,
+			Error:      "apply failed",
+		},
+	}
+
+	result := ComposeComment(plans, nil, "", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
+
+	if !strings.Contains(result, "svc/prod/us-east-1/vpc") {
+		t.Fatalf("expected changed module in output: %s", result)
+	}
+	if !strings.Contains(result, "svc/prod/us-east-1/iam") {
+		t.Fatalf("expected failed module in output: %s", result)
+	}
+	if strings.Contains(result, "svc/prod/us-east-1/rds") {
+		t.Fatalf("unexpected unchanged module in output: %s", result)
+	}
+}
+
+func TestComposeComment_FiltersCostReportToAddedCosts(t *testing.T) {
+	t.Parallel()
+
+	reports := []*ci.Report{{
+		Plugin:  "cost",
+		Title:   "Cost Estimation",
+		Status:  ci.ReportStatusWarn,
+		Summary: "3 modules, total: $27.00/mo (diff: +5.00)",
+		Sections: []ci.ReportSection{{
+			Kind:           ci.ReportSectionKindCostChanges,
+			Title:          "Cost Estimation",
+			Status:         ci.ReportStatusWarn,
+			SectionSummary: "3 modules, total: $27.00/mo (diff: +5.00)",
+			CostChanges: &ci.CostChangesSection{
+				Totals: ci.CostTotals{After: 37, Diff: -5},
+				Rows: []ci.CostChangeRow{
+					{ModulePath: "svc/prod/us-east-1/vpc", Before: 10, After: 15, Diff: 5, HasCost: true},
+					{ModulePath: "svc/prod/us-east-1/rds", Before: 12, After: 12, Diff: 0, HasCost: true},
+					{ModulePath: "svc/prod/us-east-1/redis", Before: 20, After: 10, Diff: -10, HasCost: true},
+				},
+			},
+		}},
+	}}
+
+	result := ComposeComment(nil, reports, "", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
+
+	if !strings.Contains(result, "svc/prod/us-east-1/vpc") {
+		t.Fatalf("expected positive diff row in output: %s", result)
+	}
+	if strings.Contains(result, "svc/prod/us-east-1/rds") {
+		t.Fatalf("unexpected zero diff row in output: %s", result)
+	}
+	if strings.Contains(result, "svc/prod/us-east-1/redis") {
+		t.Fatalf("unexpected negative diff row in output: %s", result)
+	}
+}
+
+func TestComposeComment_FiltersTfupdateReportToUpdatableModules(t *testing.T) {
+	t.Parallel()
+
+	reports := []*ci.Report{{
+		Plugin:  "tfupdate",
+		Title:   "Dependency Update Check",
+		Status:  ci.ReportStatusWarn,
+		Summary: "4 checked, 2 updates available, 0 applied, 0 errors",
+		Sections: []ci.ReportSection{{
+			Kind:           ci.ReportSectionKindDependencyUpdates,
+			Title:          "Dependency Update Check",
+			Status:         ci.ReportStatusWarn,
+			SectionSummary: "4 checked, 2 updates available, 0 applied, 0 errors",
+			DependencyUpdates: &ci.DependencyUpdatesSection{
+				Rows: []ci.DependencyUpdateRow{
+					{ModulePath: "svc/prod/us-east-1/vpc", Kind: ci.DependencyKindProvider, Name: "hashicorp/aws", Current: "~> 5.0", Latest: "5.4.0", Status: ci.DependencyUpdateStatusUpdateAvailable},
+					{ModulePath: "svc/prod/us-east-1/rds", Kind: ci.DependencyKindProvider, Name: "hashicorp/random", Current: "3.0.0", Latest: "3.0.0", Status: ci.DependencyUpdateStatusUpToDate},
+					{ModulePath: "svc/prod/us-east-1/eks", Kind: ci.DependencyKindModule, Name: "terraform-aws-modules/eks/aws", Current: "20.0.0", Latest: "21.0.0", Status: ci.DependencyUpdateStatusApplied},
+					{ModulePath: "svc/prod/us-east-1/iam", Kind: ci.DependencyKindModule, Name: "terraform-aws-modules/iam/aws", Current: "1.0.0", Latest: "1.0.0", Status: ci.DependencyUpdateStatusUpToDate},
+				},
+			},
+		}},
+	}}
+
+	result := ComposeComment(nil, reports, "", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
+
+	if !strings.Contains(result, "svc/prod/us-east-1/vpc") {
+		t.Fatalf("expected update available provider row in output: %s", result)
+	}
+	if !strings.Contains(result, "svc/prod/us-east-1/eks") {
+		t.Fatalf("expected applied module row in output: %s", result)
+	}
+	if strings.Contains(result, "svc/prod/us-east-1/rds") {
+		t.Fatalf("unexpected up-to-date provider row in output: %s", result)
+	}
+	if strings.Contains(result, "svc/prod/us-east-1/iam") {
+		t.Fatalf("unexpected up-to-date module row in output: %s", result)
 	}
 }
 
@@ -565,7 +695,23 @@ func TestRenderReportSection(t *testing.T) {
 			Title:   "Policy Check",
 			Status:  ci.ReportStatusFail,
 			Summary: "3 modules: 1 passed, 0 warned, 2 failed",
-			Body:    "**svc/prod/us-east-1/vpc** (fail)\n- :x: no public access (terraform.security)\n",
+			Sections: []ci.ReportSection{{
+				Kind:           ci.ReportSectionKindFindings,
+				Title:          "Policy Check",
+				Status:         ci.ReportStatusFail,
+				SectionSummary: "3 modules: 1 passed, 0 warned, 2 failed",
+				Findings: &ci.FindingsSection{
+					Rows: []ci.FindingRow{{
+						ModulePath: "svc/prod/us-east-1/vpc",
+						Status:     ci.FindingRowStatusFail,
+						Findings: []ci.Finding{{
+							Severity:  ci.FindingSeverityFail,
+							Message:   "no public access",
+							Namespace: "terraform.security",
+						}},
+					}},
+				},
+			}},
 		}
 
 		got := renderReportSection(report)
@@ -589,7 +735,23 @@ func TestRenderReportSection(t *testing.T) {
 			Title:   "Policy Check",
 			Status:  ci.ReportStatusWarn,
 			Summary: "1 modules: 0 passed, 1 warned, 0 failed",
-			Body:    "**svc/staging/us-east-1/vpc** (warn)\n- :warning: non-standard naming (terraform.naming)\n",
+			Sections: []ci.ReportSection{{
+				Kind:           ci.ReportSectionKindFindings,
+				Title:          "Policy Check",
+				Status:         ci.ReportStatusWarn,
+				SectionSummary: "1 modules: 0 passed, 1 warned, 0 failed",
+				Findings: &ci.FindingsSection{
+					Rows: []ci.FindingRow{{
+						ModulePath: "svc/staging/us-east-1/vpc",
+						Status:     ci.FindingRowStatusWarn,
+						Findings: []ci.Finding{{
+							Severity:  ci.FindingSeverityWarn,
+							Message:   "non-standard naming",
+							Namespace: "terraform.naming",
+						}},
+					}},
+				},
+			}},
 		}
 
 		got := renderReportSection(report)

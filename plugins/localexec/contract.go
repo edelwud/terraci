@@ -2,6 +2,7 @@ package localexec
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/edelwud/terraci/pkg/filter"
 	"github.com/edelwud/terraci/pkg/plugin"
@@ -9,23 +10,40 @@ import (
 )
 
 // ExecutionMode determines which pipeline phases to execute.
-type ExecutionMode = localexecinternal.ExecutionMode
+type ExecutionMode int
 
 const (
-	ExecutionModeFull      = localexecinternal.ExecutionModeFull
-	ExecutionModePlanOnly  = localexecinternal.ExecutionModePlanOnly
-	ExecutionModeApplyOnly = localexecinternal.ExecutionModeApplyOnly
+	// ExecutionModeRun executes the full local flow, including apply jobs.
+	ExecutionModeRun ExecutionMode = iota
+	// ExecutionModePlan executes plan and finalize phases only.
+	ExecutionModePlan
 )
+
+func (m ExecutionMode) String() string {
+	switch m {
+	case ExecutionModeRun:
+		return "run"
+	case ExecutionModePlan:
+		return "plan"
+	default:
+		return fmt.Sprintf("ExecutionMode(%d)", m)
+	}
+}
 
 // ExecuteRequest describes one local-exec invocation.
 type ExecuteRequest struct {
+	// ChangedOnly narrows execution to changed modules and their dependents.
 	ChangedOnly bool
-	BaseRef     string
-	Mode        ExecutionMode
-	ModulePath  string
+	// BaseRef controls the comparison base for change detection.
+	BaseRef string
+	// Mode must be either ExecutionModeRun or ExecutionModePlan.
+	Mode ExecutionMode
+	// ModulePath selects a single module after filter resolution when set.
+	ModulePath string
+	// Parallelism <= 0 keeps the project execution config default.
 	Parallelism int
-	DryRun      bool
-	Filters     *filter.Flags
+	// Filters may be nil and is normalized to an empty filter set.
+	Filters *filter.Flags
 }
 
 // Executor runs the local execution flow.
@@ -43,13 +61,37 @@ type executorAdapter struct {
 }
 
 func (e executorAdapter) Run(ctx context.Context, req ExecuteRequest) error {
-	return e.executor.Run(ctx, localexecinternal.ExecuteRequest{
+	mapped, err := mapExecuteRequest(req)
+	if err != nil {
+		return err
+	}
+	return e.executor.Run(ctx, mapped)
+}
+
+func mapExecuteRequest(req ExecuteRequest) (localexecinternal.ExecuteRequest, error) {
+	switch req.Mode {
+	case ExecutionModeRun, ExecutionModePlan:
+	default:
+		return localexecinternal.ExecuteRequest{}, fmt.Errorf("invalid local-exec mode %q", req.Mode.String())
+	}
+
+	mapped := localexecinternal.ExecuteRequest{
 		ChangedOnly: req.ChangedOnly,
 		BaseRef:     req.BaseRef,
-		Mode:        req.Mode,
 		ModulePath:  req.ModulePath,
 		Parallelism: req.Parallelism,
-		DryRun:      req.DryRun,
 		Filters:     req.Filters,
-	})
+	}
+	if mapped.Filters == nil {
+		mapped.Filters = &filter.Flags{}
+	}
+
+	switch req.Mode {
+	case ExecutionModeRun:
+		mapped.Mode = localexecinternal.ExecutionModeRun
+	case ExecutionModePlan:
+		mapped.Mode = localexecinternal.ExecutionModePlan
+	}
+
+	return mapped, nil
 }

@@ -97,18 +97,38 @@ func writeReportJSON(t *testing.T, serviceDir, pluginName string, report *ci.Rep
 	}
 }
 
+func readReportJSON(t *testing.T, serviceDir, pluginName string) *ci.Report {
+	t.Helper()
+
+	report, err := ci.LoadReport(filepath.Join(serviceDir, ci.ReportFilename(pluginName)))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return report
+}
+
 func newPlanReport(modulePath string, status ci.ReportStatus) *ci.Report {
 	return &ci.Report{
 		Plugin:  "cost",
 		Title:   "Cost Estimation",
 		Status:  status,
 		Summary: "summary",
-		Modules: []ci.ModuleReport{{
-			ModulePath: modulePath,
-			CostBefore: 1,
-			CostAfter:  2,
-			CostDiff:   1,
-			HasCost:    true,
+		Sections: []ci.ReportSection{{
+			Kind:           ci.ReportSectionKindCostChanges,
+			Title:          "Cost Estimation",
+			Status:         status,
+			SectionSummary: "summary",
+			CostChanges: &ci.CostChangesSection{
+				Totals: ci.CostTotals{After: 2, Diff: 1},
+				Rows: []ci.CostChangeRow{{
+					ModulePath: modulePath,
+					Before:     1,
+					After:      2,
+					Diff:       1,
+					HasCost:    true,
+				}},
+			},
 		}},
 	}
 }

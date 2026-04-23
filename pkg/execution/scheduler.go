@@ -41,7 +41,7 @@ func (DefaultScheduler) Schedule(plan *Plan) []JobGroup {
 		}
 	}
 	appendPhaseGroup("post-apply", pipeline.PhasePostApply)
-	appendPhaseGroup("finalize", pipeline.PhaseFinalize)
+	groups = append(groups, JobGroup{Name: "finalize", Jobs: plan.JobsByPhase(pipeline.PhaseFinalize)})
 
 	return groups
 }

@@ -1,0 +1,161 @@
+package flow
+
+import (
+	"context"
+
+	"github.com/edelwud/terraci/pkg/execution"
+	"github.com/edelwud/terraci/pkg/filter"
+	"github.com/edelwud/terraci/pkg/log"
+	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/workflow"
+	"github.com/edelwud/terraci/plugins/localexec/internal/planner"
+	"github.com/edelwud/terraci/plugins/localexec/internal/render"
+	"github.com/edelwud/terraci/plugins/localexec/internal/runner"
+	"github.com/edelwud/terraci/plugins/localexec/internal/spec"
+	"github.com/edelwud/terraci/plugins/localexec/internal/targeting"
+)
+
+type UseCase struct {
+	appCtx         *plugin.AppContext
+	targets        targeting.Resolver
+	planner        planner.Builder
+	runtimeFactory runner.Factory
+	summaryReports render.SummaryReportLoader
+	output         render.Output
+}
+
+type Dependencies struct {
+	Targets        targeting.Resolver
+	Planner        planner.Builder
+	RuntimeFactory runner.Factory
+	SummaryReports render.SummaryReportLoader
+	Output         render.Output
+}
+
+type Option func(*Dependencies)
+
+func WithTargetResolver(resolver targeting.Resolver) Option {
+	return func(deps *Dependencies) {
+		deps.Targets = resolver
+	}
+}
+
+func WithRuntimeFactory(factory runner.Factory) Option {
+	return func(deps *Dependencies) {
+		deps.RuntimeFactory = factory
+	}
+}
+
+func WithPlanner(builder planner.Builder) Option {
+	return func(deps *Dependencies) {
+		deps.Planner = builder
+	}
+}
+
+func WithOutput(output render.Output) Option {
+	return func(deps *Dependencies) {
+		deps.Output = output
+	}
+}
+
+func WithSummaryReports(loader render.SummaryReportLoader) Option {
+	return func(deps *Dependencies) {
+		deps.SummaryReports = loader
+	}
+}
+
+func DefaultDependencies(appCtx *plugin.AppContext) Dependencies {
+	return Dependencies{
+		Targets:        targeting.NewWorkflowResolver(appCtx),
+		Planner:        planner.New(appCtx),
+		RuntimeFactory: runner.NewFactory(),
+		SummaryReports: render.NewSummaryReportLoader(appCtx.ServiceDir()),
+		Output:         render.NewLogOutput(),
+	}
+}
+
+func New(appCtx *plugin.AppContext, opts ...Option) *UseCase {
+	deps := DefaultDependencies(appCtx)
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&deps)
+		}
+	}
+	deps = withDefaults(appCtx, deps)
+
+	return &UseCase{
+		appCtx:         appCtx,
+		targets:        deps.Targets,
+		planner:        deps.Planner,
+		runtimeFactory: deps.RuntimeFactory,
+		summaryReports: deps.SummaryReports,
+		output:         deps.Output,
+	}
+}
+
+func withDefaults(appCtx *plugin.AppContext, deps Dependencies) Dependencies {
+	defaults := DefaultDependencies(appCtx)
+	if deps.Targets == nil {
+		deps.Targets = defaults.Targets
+	}
+	if deps.Planner == nil {
+		deps.Planner = defaults.Planner
+	}
+	if deps.RuntimeFactory == nil {
+		deps.RuntimeFactory = defaults.RuntimeFactory
+	}
+	if deps.SummaryReports == nil {
+		deps.SummaryReports = defaults.SummaryReports
+	}
+	if deps.Output == nil {
+		deps.Output = defaults.Output
+	}
+	return deps
+}
+
+func (u *UseCase) Run(ctx context.Context, req spec.ExecuteRequest) error {
+	result, err := workflow.Run(ctx, workflowOptionsFromContext(u.appCtx, req.Filters))
+	if err != nil {
+		return err
+	}
+
+	targets, err := u.targets.Resolve(ctx, req, result)
+	if err != nil {
+		return err
+	}
+	if len(targets) == 0 {
+		log.Info("no modules to process")
+		return nil
+	}
+
+	execRuntime, err := u.runtimeFactory.Build(u.appCtx, runner.Options{Parallelism: req.Parallelism})
+	if err != nil {
+		return err
+	}
+
+	plan, err := u.planner.Build(targets, result, execRuntime.ExecConfig, req.Mode)
+	if err != nil {
+		return err
+	}
+
+	reporter := render.NewProgressReporter()
+	resultExec, err := execution.NewExecutor(
+		execRuntime.JobRunner,
+		execution.WithParallelism(execRuntime.ExecConfig.Parallelism),
+		execution.WithEventSink(reporter),
+	).Execute(ctx, plan)
+	if err != nil {
+		return u.output.Failure(resultExec, err)
+	}
+
+	summaryReport, err := u.summaryReports.Load()
+	if err != nil {
+		log.WithError(err).Warn("skip summary report rendering")
+	}
+	u.output.Completed(resultExec, summaryReport)
+	return nil
+}
+
+func workflowOptionsFromContext(appCtx *plugin.AppContext, ff *filter.Flags) workflow.Options {
+	return workflow.OptionsFromConfig(appCtx.WorkDir(), appCtx.Config(), ff)
+}

@@ -61,6 +61,14 @@ func TestRunSummaryUseCase_NoProvider_PrintsSummaryOnly(t *testing.T) {
 	if !strings.Contains(output, "summary") {
 		t.Fatalf("output = %q, want summary output", output)
 	}
+
+	report := readReportJSON(t, appCtx.ServiceDir(), "summary")
+	if report.Plugin != "summary" {
+		t.Fatalf("report plugin = %q, want summary", report.Plugin)
+	}
+	if report.Status != ci.ReportStatusWarn {
+		t.Fatalf("report status = %q, want %q", report.Status, ci.ReportStatusWarn)
+	}
 }
 
 func TestRunSummaryUseCase_PostsComment(t *testing.T) {
@@ -92,6 +100,14 @@ func TestRunSummaryUseCase_PostsComment(t *testing.T) {
 	if !strings.Contains(commentSvc.body, "terraci-plan-comment") {
 		t.Fatalf("comment body = %q, want terraci marker", commentSvc.body)
 	}
+
+	report := readReportJSON(t, appCtx.ServiceDir(), "summary")
+	if len(report.Sections) == 0 {
+		t.Fatal("summary report sections are empty")
+	}
+	if report.Status != ci.ReportStatusWarn {
+		t.Fatalf("report status = %q, want %q", report.Status, ci.ReportStatusWarn)
+	}
 }
 
 func TestRunSummaryUseCase_OnChangesOnlySkipsNoChanges(t *testing.T) {
@@ -118,5 +134,10 @@ func TestRunSummaryUseCase_OnChangesOnlySkipsNoChanges(t *testing.T) {
 	}
 	if !strings.Contains(output, "no reportable changes") {
 		t.Fatalf("output = %q, want no reportable changes message", output)
+	}
+
+	report := readReportJSON(t, appCtx.ServiceDir(), "summary")
+	if report.Status != ci.ReportStatusPass {
+		t.Fatalf("report status = %q, want %q", report.Status, ci.ReportStatusPass)
 	}
 }

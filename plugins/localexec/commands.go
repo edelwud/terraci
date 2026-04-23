@@ -12,7 +12,6 @@ type sharedFlags struct {
 	baseRef     string
 	modulePath  string
 	parallelism int
-	dryRun      bool
 	filters     filter.Flags
 }
 
@@ -23,7 +22,6 @@ func (sf *sharedFlags) toRequest(mode ExecutionMode) ExecuteRequest {
 		Mode:        mode,
 		ModulePath:  sf.modulePath,
 		Parallelism: sf.parallelism,
-		DryRun:      sf.dryRun,
 		Filters:     &sf.filters,
 	}
 }
@@ -34,11 +32,27 @@ func (p *Plugin) Commands(appCtx *plugin.AppContext) []*cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "local-exec",
 		Short: "Execute the generated terraci flow locally",
+		Long: `Execute the terraci pipeline IR locally against the current Terraform project.
+
+Use "plan" to run the local plan flow and finalize jobs such as summary.
+Use "run" to run the full local flow: plan, apply, and finalize.
+After execution, local-exec always prints a local stage/job summary. If the
+summary plugin produced summary-report.json in the service directory,
+local-exec also renders that structured summary report in the terminal.
+
+Target selection flags such as --module, --filter, --include, --exclude, and
+--changed-only narrow the module set before execution. If no modules match, the
+command exits cleanly after logging "no modules to process".`,
+		Example: `  terraci local-exec plan
+  terraci local-exec plan --changed-only
+  terraci local-exec plan --filter environment=stage
+  terraci local-exec run --changed-only
+  terraci local-exec plan --module platform/stage/eu-central-1/vpc
+  terraci local-exec run --filter environment=stage --parallelism 2`,
 	}
 
 	cmd.AddCommand(
 		newPlanCmd(executor),
-		newApplyCmd(executor),
 		newRunCmd(executor),
 	)
 
@@ -49,22 +63,19 @@ func newPlanCmd(executor Executor) *cobra.Command {
 	var sf sharedFlags
 	cmd := &cobra.Command{
 		Use:   "plan",
-		Short: "Run plan stages only (pre-plan, plan, post-plan)",
+		Short: "Run plan flow locally and finish with summary jobs",
+		Long: `Run local planning for the selected modules and then execute finalize jobs
+such as summary reporting. local-exec always prints the execution summary and,
+when the summary plugin wrote summary-report.json, renders that structured
+report locally. If target selection resolves to no modules, the command exits
+without error after logging "no modules to process".`,
+		Example: `  terraci local-exec plan
+  terraci local-exec plan --changed-only
+  terraci local-exec plan --module platform/stage/eu-central-1/vpc
+  terraci local-exec plan --filter environment=stage
+  terraci local-exec plan --include 'platform/*' --exclude '*/test/*'`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return executor.Run(cmd.Context(), sf.toRequest(ExecutionModePlanOnly))
-		},
-	}
-	registerSharedFlags(cmd, &sf)
-	return cmd
-}
-
-func newApplyCmd(executor Executor) *cobra.Command {
-	var sf sharedFlags
-	cmd := &cobra.Command{
-		Use:   "apply",
-		Short: "Run apply stages only (pre-apply, apply, post-apply)",
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return executor.Run(cmd.Context(), sf.toRequest(ExecutionModeApplyOnly))
+			return executor.Run(cmd.Context(), sf.toRequest(ExecutionModePlan))
 		},
 	}
 	registerSharedFlags(cmd, &sf)
@@ -75,9 +86,18 @@ func newRunCmd(executor Executor) *cobra.Command {
 	var sf sharedFlags
 	cmd := &cobra.Command{
 		Use:   "run",
-		Short: "Run all stages (plan + apply)",
+		Short: "Run the full flow locally (plan, apply, finalize)",
+		Long: `Run the full local execution flow for the selected modules: plan, apply,
+and finalize jobs. local-exec always prints the execution summary and, when the
+summary plugin wrote summary-report.json, renders that structured report
+locally. If target selection resolves to no modules, the command exits without
+error after logging "no modules to process".`,
+		Example: `  terraci local-exec run
+  terraci local-exec run --changed-only
+  terraci local-exec run --module platform/stage/eu-central-1/vpc
+  terraci local-exec run --filter environment=stage --parallelism 2`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return executor.Run(cmd.Context(), sf.toRequest(ExecutionModeFull))
+			return executor.Run(cmd.Context(), sf.toRequest(ExecutionModeRun))
 		},
 	}
 	registerSharedFlags(cmd, &sf)
@@ -89,7 +109,6 @@ func registerSharedFlags(cmd *cobra.Command, sf *sharedFlags) {
 	cmd.Flags().StringVar(&sf.baseRef, "base-ref", "", "base git ref for change detection")
 	cmd.Flags().StringVarP(&sf.modulePath, "module", "m", "", "restrict execution to a single module path")
 	cmd.Flags().IntVar(&sf.parallelism, "parallelism", 0, "override local execution parallelism")
-	cmd.Flags().BoolVar(&sf.dryRun, "dry-run", false, "print the local execution order without running commands")
 	cmd.Flags().StringArrayVarP(&sf.filters.Excludes, "exclude", "x", nil, "glob patterns to exclude modules")
 	cmd.Flags().StringArrayVarP(&sf.filters.Includes, "include", "i", nil, "glob patterns to include modules")
 	cmd.Flags().StringArrayVarP(&sf.filters.SegmentArgs, "filter", "f", nil, "filter by segment (e.g. -f environment=stage)")

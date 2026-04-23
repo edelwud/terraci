@@ -115,6 +115,10 @@ func (e *Executor) Execute(ctx context.Context, plan *Plan) (*Result, error) {
 	}
 
 	for _, group := range e.scheduler.Schedule(plan) {
+		result.Groups = append(result.Groups, GroupResult{
+			Name:     group.Name,
+			JobCount: len(group.Jobs),
+		})
 		if len(group.Jobs) == 0 {
 			continue
 		}

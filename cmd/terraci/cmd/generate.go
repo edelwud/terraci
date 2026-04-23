@@ -59,12 +59,9 @@ Examples:
 			logLibraryModuleUsage(result.Graph, app.WorkDir)
 			logCycles(result.Graph)
 
-			targets := result.FilteredModules
-			if changedOnly {
-				targets, err = detectChangedTargetModules(cmd.Context(), app, ff, baseRef, result.FullIndex, result.FilteredIndex, result.Graph)
-				if err != nil {
-					return err
-				}
+			targets, err := resolveGenerateTargets(cmd.Context(), app, result, changedOnly, baseRef, ff)
+			if err != nil {
+				return err
 			}
 
 			if len(targets) == 0 {
@@ -100,6 +97,21 @@ Examples:
 	registerFilterFlags(cmd, ff)
 
 	return cmd
+}
+
+func resolveGenerateTargets(
+	ctx context.Context,
+	app *App,
+	result *workflow.Result,
+	changedOnly bool,
+	baseRef string,
+	ff *filter.Flags,
+) ([]*discovery.Module, error) {
+	return workflow.ResolveTargets(ctx, app.PluginContext(), result, workflow.TargetSelectionOptions{
+		ChangedOnly: changedOnly,
+		BaseRef:     baseRef,
+		Filters:     ff,
+	})
 }
 
 // applyProviderFlags applies CLI override flags (--plan-only, --auto-approve) to the provider config.
@@ -224,100 +236,6 @@ func writePipelineOutput(p pipeline.GeneratedPipeline, outputFile string) error 
 
 	return nil
 }
-
-// --- Changed module detection ---
-
-func detectChangedTargetModules(
-	ctx context.Context,
-	app *App,
-	ff *filter.Flags,
-	baseRef string,
-	fullIndex, filteredIndex *discovery.ModuleIndex,
-	depGraph *graph.DependencyGraph,
-) ([]*discovery.Module, error) {
-	detector, detErr := registry.ResolveChangeDetector()
-	if detErr != nil {
-		return nil, fmt.Errorf("change detection: %w", detErr)
-	}
-	appCtx := app.PluginContext()
-
-	log.Info("detecting changed modules")
-
-	changedModules, changedFiles, err := detector.DetectChangedModules(ctx, appCtx, baseRef, fullIndex)
-	if err != nil {
-		return nil, fmt.Errorf("detect changed modules: %w", err)
-	}
-
-	log.WithField("files", len(changedFiles)).Debug("git changes detected")
-	log.WithField("count", len(changedModules)).Info("changed modules detected")
-
-	changedIDs := moduleIDs(changedModules)
-
-	var libraryPaths []string
-	if app.Config.LibraryModules != nil && len(app.Config.LibraryModules.Paths) > 0 {
-		log.Debug("checking for changed library modules")
-		libraryPaths, err = detector.DetectChangedLibraries(ctx, appCtx, baseRef, app.Config.LibraryModules.Paths)
-		if err != nil {
-			log.WithError(err).Warn("failed to detect changed libraries")
-		}
-		if len(libraryPaths) > 0 {
-			log.WithField("count", len(libraryPaths)).Info("changed library modules")
-		}
-	}
-
-	var affectedIDs []string
-	if len(libraryPaths) > 0 {
-		affectedIDs = depGraph.GetAffectedModulesWithLibraries(changedIDs, libraryPaths)
-	} else {
-		affectedIDs = depGraph.GetAffectedModules(changedIDs)
-	}
-
-	targets := resolveAffectedModules(app, ff, affectedIDs, changedIDs, fullIndex, filteredIndex)
-	log.WithField("count", len(targets)).Info("affected modules (including dependents)")
-
-	return targets, nil
-}
-
-func resolveAffectedModules(
-	app *App,
-	ff *filter.Flags,
-	affectedIDs, changedIDs []string,
-	fullIndex, filteredIndex *discovery.ModuleIndex,
-) []*discovery.Module {
-	idSet := make(map[string]bool, len(affectedIDs)+len(changedIDs))
-	for _, id := range affectedIDs {
-		idSet[id] = true
-	}
-	for _, id := range changedIDs {
-		idSet[id] = true
-	}
-
-	targets := make([]*discovery.Module, 0, len(idSet))
-	for id := range idSet {
-		if m := filteredIndex.ByID(id); m != nil {
-			targets = append(targets, m)
-		} else if m := fullIndex.ByID(id); m != nil {
-			if filtered := applyFilters(app, ff, []*discovery.Module{m}); len(filtered) > 0 {
-				targets = append(targets, m)
-			} else {
-				log.WithField("module", m.ID()).Debug("filtered out")
-			}
-		}
-	}
-
-	return targets
-}
-
-// --- Helpers ---
-
-func moduleIDs(modules []*discovery.Module) []string {
-	ids := make([]string, len(modules))
-	for i, m := range modules {
-		ids[i] = m.ID()
-	}
-	return ids
-}
-
 func makeRelative(path, base string) string {
 	if absBase, err := filepath.Abs(base); err == nil {
 		if rel, err := filepath.Rel(absBase, path); err == nil {

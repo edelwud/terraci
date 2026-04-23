@@ -81,47 +81,6 @@ func TestBuild_PlanOnly(t *testing.T) {
 	}
 }
 
-func TestBuild_ApplyOnly(t *testing.T) {
-	t.Parallel()
-
-	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
-	modules := []*discovery.Module{mod}
-	depGraph := buildGraph(modules, nil)
-	index := discovery.NewModuleIndex(modules)
-
-	ir, err := Build(BuildOptions{
-		DepGraph:      depGraph,
-		TargetModules: modules,
-		AllModules:    modules,
-		ModuleIndex:   index,
-		Script:        ScriptConfig{AutoApprove: true},
-		ApplyOnly:     true,
-	})
-	if err != nil {
-		t.Fatalf("Build: %v", err)
-	}
-
-	for _, level := range ir.Levels {
-		for _, mj := range level.Modules {
-			if mj.Plan != nil {
-				t.Error("apply-only should have no plan jobs")
-			}
-			if mj.Apply == nil {
-				t.Error("apply-only should still have apply jobs")
-			}
-			if mj.Apply != nil && mj.Apply.Operation.Terraform != nil {
-				op := mj.Apply.Operation.Terraform
-				if op.UsePlanFile {
-					t.Error("apply-only should not use plan file")
-				}
-				if !op.AutoApprove {
-					t.Error("apply-only should use auto-approve")
-				}
-			}
-		}
-	}
-}
-
 func TestBuild_PlanDisabled(t *testing.T) {
 	t.Parallel()
 

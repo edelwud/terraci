@@ -14,7 +14,15 @@ func TestSaveReport(t *testing.T) {
 		Title:   "Test Report",
 		Status:  ReportStatusPass,
 		Summary: "all good",
-		Body:    "details here",
+		Sections: []ReportSection{{
+			Kind:           ReportSectionKindOverview,
+			Title:          "Summary",
+			Status:         ReportStatusPass,
+			SectionSummary: "all good",
+			Overview: &OverviewSection{
+				PlanStats: SummaryPlanStats{Total: 1, NoChanges: 1, Success: 1},
+			},
+		}},
 	}
 
 	if err := SaveReport(dir, report); err != nil {
@@ -85,15 +93,24 @@ func TestSaveJSON_CreatesDirectory(t *testing.T) {
 	}
 }
 
-func TestSaveReport_ModulesField(t *testing.T) {
+func TestSaveReport_SectionsField(t *testing.T) {
 	dir := t.TempDir()
 	report := &Report{
 		Plugin: "cost",
 		Title:  "Cost Report",
 		Status: ReportStatusWarn,
-		Modules: []ModuleReport{
-			{ModulePath: "svc/prod/eu/vpc", CostBefore: 10.0, CostAfter: 15.0, CostDiff: 5.0, HasCost: true},
-		},
+		Sections: []ReportSection{{
+			Kind:           ReportSectionKindCostChanges,
+			Title:          "Cost Estimation",
+			Status:         ReportStatusWarn,
+			SectionSummary: "1 module",
+			CostChanges: &CostChangesSection{
+				Totals: CostTotals{After: 15, Diff: 5},
+				Rows: []CostChangeRow{
+					{ModulePath: "svc/prod/eu/vpc", Before: 10.0, After: 15.0, Diff: 5.0, HasCost: true},
+				},
+			},
+		}},
 	}
 
 	if err := SaveReport(dir, report); err != nil {
@@ -110,11 +127,14 @@ func TestSaveReport_ModulesField(t *testing.T) {
 		t.Fatalf("unmarshal: %v", err)
 	}
 
-	if len(loaded.Modules) != 1 {
-		t.Fatalf("expected 1 module, got %d", len(loaded.Modules))
+	if len(loaded.Sections) != 1 {
+		t.Fatalf("expected 1 section, got %d", len(loaded.Sections))
 	}
-	if loaded.Modules[0].CostDiff != 5.0 {
-		t.Errorf("cost diff = %f, want 5.0", loaded.Modules[0].CostDiff)
+	if loaded.Sections[0].CostChanges == nil {
+		t.Fatal("expected cost section payload")
+	}
+	if loaded.Sections[0].CostChanges.Rows[0].Diff != 5.0 {
+		t.Errorf("cost diff = %f, want 5.0", loaded.Sections[0].CostChanges.Rows[0].Diff)
 	}
 }
 
@@ -173,6 +193,29 @@ func TestLoadReports(t *testing.T) {
 	}
 	if loaded[0].Plugin != "cost" || loaded[1].Plugin != "update" {
 		t.Fatalf("loaded report order = [%s %s], want [cost update]", loaded[0].Plugin, loaded[1].Plugin)
+	}
+}
+
+func TestLoadReport_UnknownSectionKindFails(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ReportFilename("broken"))
+	content := `{
+  "plugin": "broken",
+  "title": "Broken",
+  "status": "warn",
+  "summary": "bad",
+  "sections": [
+    {
+      "kind": "mystery"
+    }
+  ]
+}`
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	if _, err := LoadReport(path); err == nil {
+		t.Fatal("expected LoadReport to fail for unknown section kind")
 	}
 }
 

@@ -11,24 +11,24 @@ import (
 
 func buildCostReport(result *model.EstimateResult) *ci.Report {
 	visible := visibleReportModules(result.Modules)
-	modules := make([]ci.ModuleReport, 0, len(visible))
+	rows := make([]ci.CostChangeRow, 0, len(visible))
 	status := ci.ReportStatusPass
 
 	for i := range visible {
 		module := visible[i]
-		moduleReport := ci.ModuleReport{
+		row := ci.CostChangeRow{
 			ModulePath: module.ModulePath,
 			Error:      module.Error,
 		}
 		if module.Error == "" {
-			moduleReport.CostBefore = module.BeforeCost
-			moduleReport.CostAfter = module.AfterCost
-			moduleReport.CostDiff = module.DiffCost
-			moduleReport.HasCost = true
+			row.Before = module.BeforeCost
+			row.After = module.AfterCost
+			row.Diff = module.DiffCost
+			row.HasCost = true
 		} else {
 			status = ci.ReportStatusWarn
 		}
-		modules = append(modules, moduleReport)
+		rows = append(rows, row)
 	}
 	if len(result.PrefetchWarnings) > 0 {
 		status = ci.ReportStatusWarn
@@ -42,59 +42,25 @@ func buildCostReport(result *model.EstimateResult) *ci.Report {
 		Title:   "Cost Estimation",
 		Status:  status,
 		Summary: buildCostReportSummary(result, len(visible)),
-		Body:    renderCostReportBody(result, visible),
-		Modules: modules,
+		Sections: []ci.ReportSection{{
+			Kind:           ci.ReportSectionKindCostChanges,
+			Title:          "Cost Estimation",
+			Status:         status,
+			SectionSummary: buildCostReportSummary(result, len(visible)),
+			CostChanges: &ci.CostChangesSection{
+				Totals: ci.CostTotals{
+					Currency:       result.Currency,
+					Before:         result.TotalBefore,
+					After:          result.TotalAfter,
+					Diff:           result.TotalDiff,
+					UsageEstimated: result.UsageEstimated,
+					UsageUnknown:   result.UsageUnknown,
+					Unsupported:    result.Unsupported,
+				},
+				Rows: rows,
+			},
+		}},
 	}
-}
-
-func renderCostReportBody(result *model.EstimateResult, visible []model.ModuleCost) string {
-	var b strings.Builder
-	b.WriteString("| Module | Before | After | Diff | Notes |\n")
-	b.WriteString("|--------|--------|-------|------|-------|\n")
-
-	for i := range visible {
-		module := &visible[i]
-		before := fmt.Sprintf("$%.2f", module.BeforeCost)
-		after := fmt.Sprintf("$%.2f", module.AfterCost)
-		diff := fmt.Sprintf("%+.2f", module.DiffCost)
-		notes := ""
-
-		if module.Error != "" {
-			before = "-"
-			after = "-"
-			diff = "-"
-			notes = module.Error
-		}
-
-		fmt.Fprintf(&b, "| %s | %s | %s | %s | %s |\n",
-			escapeMarkdownTableCell(module.ModulePath), before, after, diff, escapeMarkdownTableCell(notes))
-	}
-
-	fmt.Fprintf(&b, "\n**Total:** $%.2f/mo (diff: %+.2f)\n", result.TotalAfter, result.TotalDiff)
-	if result.UsageEstimated > 0 || result.UsageUnknown > 0 || result.Unsupported > 0 {
-		b.WriteString("\n**Resource statuses:**\n")
-		if result.UsageEstimated > 0 {
-			fmt.Fprintf(&b, "- usage estimated: %d\n", result.UsageEstimated)
-		}
-		if result.UsageUnknown > 0 {
-			fmt.Fprintf(&b, "- usage unknown: %d\n", result.UsageUnknown)
-		}
-		if result.Unsupported > 0 {
-			fmt.Fprintf(&b, "- unsupported: %d\n", result.Unsupported)
-		}
-	}
-	if len(result.PrefetchWarnings) > 0 {
-		b.WriteString("\n**Prefetch warnings:**\n")
-		for i := range result.PrefetchWarnings {
-			w := result.PrefetchWarnings[i]
-			fmt.Fprintf(&b, "- `%s` `%s` %s", escapeMarkdownTableCell(w.Kind), escapeMarkdownTableCell(w.ResourceType), escapeMarkdownTableCell(w.Address))
-			if w.Detail != "" {
-				fmt.Fprintf(&b, " (%s)", escapeMarkdownTableCell(w.Detail))
-			}
-			b.WriteString("\n")
-		}
-	}
-	return b.String()
 }
 
 func buildCostReportSummary(result *model.EstimateResult, moduleCount int) string {
@@ -111,15 +77,6 @@ func buildCostReportSummary(result *model.EstimateResult, moduleCount int) strin
 		parts = append(parts, fmt.Sprintf("unsupported: %d", result.Unsupported))
 	}
 	return strings.Join(parts, "; ")
-}
-
-func escapeMarkdownTableCell(s string) string {
-	s = strings.ReplaceAll(s, "\\", "\\\\")
-	s = strings.ReplaceAll(s, "|", "\\|")
-	s = strings.ReplaceAll(s, "\r\n", "<br>")
-	s = strings.ReplaceAll(s, "\n", "<br>")
-	s = strings.ReplaceAll(s, "\r", "<br>")
-	return s
 }
 
 func visibleReportModules(modules []model.ModuleCost) []model.ModuleCost {

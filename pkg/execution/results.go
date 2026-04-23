@@ -21,9 +21,16 @@ type JobResult struct {
 	Err         error
 }
 
+// GroupResult describes one scheduled execution group.
+type GroupResult struct {
+	Name     string
+	JobCount int
+}
+
 // Result is the aggregate outcome for a run.
 type Result struct {
-	Jobs []*JobResult
+	Groups []GroupResult
+	Jobs   []*JobResult
 }
 
 // Failed returns the first failed job result, if any.

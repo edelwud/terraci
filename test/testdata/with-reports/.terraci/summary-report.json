@@ -1,0 +1,39 @@
+{
+  "plugin": "summary",
+  "title": "Terraform Plan Summary",
+  "status": "warn",
+  "summary": "1 modules: 1 with changes, 0 no changes, 0 failed",
+  "sections": [
+    {
+      "kind": "overview",
+      "title": "Summary",
+      "status": "warn",
+      "section_summary": "**1** modules: **1** with changes",
+      "overview": {
+        "plan_stats": {
+          "total": 1,
+          "success": 1,
+          "changes": 1
+        }
+      }
+    },
+    {
+      "kind": "module_table",
+      "title": "Environment: `prod`",
+      "status": "warn",
+      "section_summary": "1 actionable modules",
+      "module_table": {
+        "environment": "prod",
+        "rows": [
+          {
+            "module_id": "platform/prod/eu-central-1/vpc",
+            "module_path": "platform/prod/eu-central-1/vpc",
+            "status": "changes",
+            "summary": "+1",
+            "structured_details": "**Create:**\n- `aws_vpc.main`\n"
+          }
+        ]
+      }
+    }
+  ]
+}
