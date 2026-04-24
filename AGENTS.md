@@ -190,6 +190,18 @@ plugins/                        # Built-in plugins — one file per capability
 │   ├── init_wizard.go          # InitContributor
 │   ├── output.go               # CLI output helpers
 │   └── internal/               # (package summaryengine) config, renderer, report_loader
+├── localexec/
+│   ├── plugin.go               # init, Plugin struct
+│   ├── commands.go             # CommandProvider (terraci local-exec with plan/run only)
+│   ├── contract.go             # Public stable NewExecutor(...) boundary for in-process callers
+│   └── internal/
+│       ├── executor.go         # Thin adapter from public contract to internal flow
+│       ├── flow/               # Use-case orchestration: workflow → targets → plan → execute → render
+│       ├── planner/            # Pipeline IR → execution.Plan adapter with contribution filtering
+│       ├── render/             # Progress output, summary-report loader, local CLI summary rendering
+│       ├── runner/             # Shell/Terraform runners + phase/job orchestration
+│       ├── spec/               # Internal validated execute request/mode types
+│       └── targeting/          # Shared workflow target-resolution adapter
 ├── diskblob/
 │   ├── plugin.go               # init, BasePlugin[*Config] embed, BlobStoreProvider
 │   ├── config.go               # Backend config (enabled, root_dir)
@@ -273,7 +285,7 @@ Plugins with config embed `BasePlugin[C]` which auto-implements:
 
 ### Shared Types
 
-`pkg/ci/` contains shared CI-domain types including provider-shared config such as `Image` (with YAML shorthand) and `MRCommentConfig`. Both gitlab and github internal packages use type aliases to these.
+`pkg/ci/` contains shared CI-domain types including provider-shared config such as `Image` (with YAML shorthand) and `MRCommentConfig`. `ci.Report` is the typed file-based report contract shared by cost/policy/tfupdate/summary and now also carries optional provenance metadata for local validation. Both gitlab and github internal packages use type aliases to these.
 
 ### Pipeline IR
 
@@ -363,8 +375,17 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 1. `discovery.ScanPlanResults()` → PlanResultCollection
 2. Load plugin reports from `{serviceDir}/*-report.json` (file-based enrichment)
 3. `summaryengine.EnrichPlans()` merges report data into plan results
-4. `summaryengine.ComposeComment()` renders markdown
-5. `registry.ResolveCIProvider()` → `NewCommentService()` → `UpsertComment(ctx, body)`
+4. `summary` writes `summary-report.json` with typed sections plus report provenance/fingerprint
+5. `summaryengine.ComposeComment()` renders markdown
+6. `registry.ResolveCIProvider()` → `NewCommentService()` → `UpsertComment(ctx, body)`
+
+### Local Execution
+1. `workflow.Run(ctx, workflow.Options)` builds the canonical filtered module/graph result
+2. `workflow.ResolveTargets(...)` applies merged filters, `--module`, `--changed-only`, and affected-library expansion
+3. `localexec/internal/planner` converts `pipeline.Build(...)` output into `execution.Plan`
+4. `pkg/execution` schedules jobs with dependency-aware phase grouping
+5. `localexec/internal/runner` executes shell/tfexec jobs locally
+6. `localexec/internal/render` always prints execution stage/job summary and optionally renders `summary-report.json` if its provenance matches the current plan artifacts
 
 ### Init wizard
 1. `initStateDefaults()` populates shared defaults (provider, binary, pattern, plan_enabled)
@@ -378,12 +399,15 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **One file per capability**: plugin.go < 30 lines; each interface in its own file
 - **Compile-time extensibility**: `xterraci build --with/--without` for custom binaries
 - **Pipeline IR**: `pkg/pipeline.Build()` → provider transforms to YAML
+- **Canonical dry-run source**: dry-run stage/job counts should be derived from built IR, not inferred from booleans on `JobPlan`
 - **Preflight, then lazy runtime**: framework performs cheap startup validation; heavy plugin state is built lazily inside RuntimeProvider/use-cases
 - **PipelineContributor(ctx)**: plugins inject steps/jobs without cross-plugin imports or cached service-dir state
 - **ServiceDir**: configurable project directory; `AppContext.ServiceDir` (absolute) for runtime, `Config.ServiceDir` (relative) for pipeline templates
-- **File-based reports**: plugins write `{serviceDir}/{plugin}-report.json`; summary plugin loads and merges them
+- **File-based reports**: plugins write `{serviceDir}/{plugin}-report.json`; summary is the canonical producer of `summary-report.json`, and localexec is only its local consumer/renderer
+- **Report provenance**: persisted reports may carry producer/run provenance; local consumers should validate provenance/fingerprint when correctness depends on current workspace artifacts
 - **Zero cross-plugin imports**: plugins communicate only via `pkg/plugin/registry` + shared types + file-based reports
 - **Shared workflow**: `workflow.Run()` — scan, filter, parse, graph building
+- **Localexec boundary**: keep shell/tfexec details inside `plugins/localexec`; `pkg/execution` stays provider-agnostic scheduler/executor infrastructure
 - **Reference runtime-heavy plugins**: `cost`, `policy`, `tfupdate`
 - **Parser architecture**: keep `pkg/parser` as a thin public facade; put orchestration, extraction, resolution, and source mechanics in `pkg/parser/internal/*` around the shared `pkg/parser/model`
 - **Tfupdate architecture**: keep `plugins/tfupdate` command/runtime surfaces thin; engine internals live under `planner`, `lockfile`, `sourceaddr`, `registrymeta`, `usecase`, `registryclient`, `tffile`, and `tfwrite`
@@ -401,6 +425,8 @@ terraci init                                # Interactive wizard
 terraci init --ci --provider gitlab         # Non-interactive
 terraci cost                                # Cloud cost estimation
 terraci summary                             # Post MR/PR comment
+terraci local-exec plan                     # Local plan flow + finalize summary jobs
+terraci local-exec run --changed-only       # Full local execution flow for changed modules
 terraci policy pull && terraci policy check # Policy checks
 terraci tfupdate                            # Terraform dependency resolution and lock synchronization
 terraci schema                              # JSON schema
