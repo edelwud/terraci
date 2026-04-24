@@ -13,6 +13,11 @@ import (
 	terrierrors "github.com/edelwud/terraci/pkg/errors"
 )
 
+const (
+	ExecutionBinaryTerraform = "terraform"
+	ExecutionBinaryTofu      = "tofu"
+)
+
 func cloneYAMLNode(node yaml.Node) yaml.Node {
 	cloned := node
 	if len(node.Content) > 0 {
@@ -133,7 +138,7 @@ func DefaultConfig() *Config {
 	return &Config{
 		ServiceDir: ".terraci",
 		Execution: ExecutionConfig{
-			Binary:      "terraform",
+			Binary:      ExecutionBinaryTerraform,
 			InitEnabled: true,
 			PlanEnabled: true,
 			PlanMode:    "standard",
@@ -221,7 +226,7 @@ func (c *Config) Validate() error {
 	}
 
 	switch c.Execution.Binary {
-	case "", "terraform", "tofu": //nolint:goconst // validation literal, not worth extracting
+	case "", ExecutionBinaryTerraform, ExecutionBinaryTofu:
 	default:
 		return fmt.Errorf("execution.binary: unsupported value %q", c.Execution.Binary)
 	}

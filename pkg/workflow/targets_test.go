@@ -53,8 +53,9 @@ func TestResolveTargets_ModulePathIntersectedWithChangedModules(t *testing.T) {
 	targets, err := resolveTargets(context.Background(), appCtx, result, TargetSelectionOptions{
 		ChangedOnly: true,
 		ModulePath:  vpc.RelativePath,
-	}, func() (plugin.ChangeDetectionProvider, error) {
-		return stubChangeDetector{changedModules: []*discovery.Module{eks}}, nil
+		ChangeDetectorResolver: func() (plugin.ChangeDetectionProvider, error) {
+			return stubChangeDetector{changedModules: []*discovery.Module{eks}}, nil
+		},
 	})
 	if err != nil {
 		t.Fatalf("resolveTargets() error = %v", err)
@@ -89,8 +90,9 @@ func TestResolveTargets_ChangedLibrariesRespectFilters(t *testing.T) {
 	targets, err := resolveTargets(context.Background(), appCtx, result, TargetSelectionOptions{
 		ChangedOnly: true,
 		Filters:     &filter.Flags{SegmentArgs: []string{"environment=stage"}},
-	}, func() (plugin.ChangeDetectionProvider, error) {
-		return stubChangeDetector{changedLibraries: []string{"_modules/network"}}, nil
+		ChangeDetectorResolver: func() (plugin.ChangeDetectionProvider, error) {
+			return stubChangeDetector{changedLibraries: []string{"_modules/network"}}, nil
+		},
 	})
 	if err != nil {
 		t.Fatalf("resolveTargets() error = %v", err)
@@ -116,8 +118,9 @@ func TestResolveTargets_ChangedOnlyNoTargetsReturnsEmpty(t *testing.T) {
 	targets, err := resolveTargets(context.Background(), appCtx, result, TargetSelectionOptions{
 		ChangedOnly: true,
 		ModulePath:  "missing/path",
-	}, func() (plugin.ChangeDetectionProvider, error) {
-		return stubChangeDetector{changedModules: []*discovery.Module{app}}, nil
+		ChangeDetectorResolver: func() (plugin.ChangeDetectionProvider, error) {
+			return stubChangeDetector{changedModules: []*discovery.Module{app}}, nil
+		},
 	})
 	if err != nil {
 		t.Fatalf("resolveTargets() error = %v", err)
@@ -142,8 +145,6 @@ func TestResolveTargets_ModulePathDoesNotMutateFilteredModules(t *testing.T) {
 
 	targets, err := resolveTargets(context.Background(), appCtx, result, TargetSelectionOptions{
 		ModulePath: vpc.RelativePath,
-	}, func() (plugin.ChangeDetectionProvider, error) {
-		return stubChangeDetector{}, nil
 	})
 	if err != nil {
 		t.Fatalf("resolveTargets() error = %v", err)
@@ -212,8 +213,9 @@ func TestResolveTargets_ChangedOnlyAppliesModuleAfterFiltersAndAffectedModules(t
 				ChangedOnly: true,
 				ModulePath:  tt.modulePath,
 				Filters:     flags,
-			}, func() (plugin.ChangeDetectionProvider, error) {
-				return stubChangeDetector{changedModules: []*discovery.Module{eks}}, nil
+				ChangeDetectorResolver: func() (plugin.ChangeDetectionProvider, error) {
+					return stubChangeDetector{changedModules: []*discovery.Module{eks}}, nil
+				},
 			})
 			if err != nil {
 				t.Fatalf("resolveTargets() error = %v", err)
@@ -223,6 +225,42 @@ func TestResolveTargets_ChangedOnlyAppliesModuleAfterFiltersAndAffectedModules(t
 				t.Fatalf("module ids = %v, want %v", got, tt.wantIDs)
 			}
 		})
+	}
+}
+
+func TestResolveTargets_ChangedOnlyPreservesFilteredModuleOrder(t *testing.T) {
+	t.Parallel()
+
+	vpc := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
+	eks := discovery.TestModule("platform", "stage", "eu-central-1", "eks")
+	app := discovery.TestModule("platform", "stage", "eu-central-1", "app")
+	appCtx := plugintest.NewAppContext(t, t.TempDir())
+
+	depGraph := graph.NewDependencyGraph()
+	for _, module := range []*discovery.Module{vpc, eks, app} {
+		depGraph.AddNode(module)
+	}
+
+	result := &Result{
+		AllModules:      []*discovery.Module{vpc, eks, app},
+		FilteredModules: []*discovery.Module{vpc, eks, app},
+		FullIndex:       discovery.NewModuleIndex([]*discovery.Module{vpc, eks, app}),
+		FilteredIndex:   discovery.NewModuleIndex([]*discovery.Module{vpc, eks, app}),
+		Graph:           depGraph,
+	}
+
+	targets, err := resolveTargets(context.Background(), appCtx, result, TargetSelectionOptions{
+		ChangedOnly: true,
+		ChangeDetectorResolver: func() (plugin.ChangeDetectionProvider, error) {
+			return stubChangeDetector{changedModules: []*discovery.Module{app, vpc}}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("resolveTargets() error = %v", err)
+	}
+
+	if got := moduleIDs(targets); !reflect.DeepEqual(got, []string{vpc.ID(), app.ID()}) {
+		t.Fatalf("module ids = %v, want [%s %s]", got, vpc.ID(), app.ID())
 	}
 }
 
@@ -286,8 +324,9 @@ func TestResolveTargets_ChangedLibrariesIntersectModuleAndFilters(t *testing.T) 
 				ChangedOnly: true,
 				ModulePath:  tt.modulePath,
 				Filters:     flags,
-			}, func() (plugin.ChangeDetectionProvider, error) {
-				return stubChangeDetector{changedLibraries: []string{"_modules/network"}}, nil
+				ChangeDetectorResolver: func() (plugin.ChangeDetectionProvider, error) {
+					return stubChangeDetector{changedLibraries: []string{"_modules/network"}}, nil
+				},
 			})
 			if err != nil {
 				t.Fatalf("resolveTargets() error = %v", err)

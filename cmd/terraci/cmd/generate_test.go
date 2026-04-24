@@ -73,9 +73,10 @@ func TestResolveGenerateTargetsUsesWorkflowResolveTargets(t *testing.T) {
 		t.Fatalf("resolveGenerateTargets() error = %v", err)
 	}
 	want, err := workflow.ResolveTargets(context.Background(), app.PluginContext(), result, workflow.TargetSelectionOptions{
-		ChangedOnly: true,
-		BaseRef:     "main",
-		Filters:     ff,
+		ChangedOnly:            true,
+		BaseRef:                "main",
+		Filters:                ff,
+		ChangeDetectorResolver: registry.ResolveChangeDetector,
 	})
 	if err != nil {
 		t.Fatalf("workflow.ResolveTargets() error = %v", err)

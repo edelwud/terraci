@@ -133,6 +133,6 @@ func (r *runner) extract() {
 
 func (r *runner) finalize() {
 	r.parsed.Files = r.source.SharedFiles()
-	r.parsed.AdoptDiags(r.source.SharedDiagnostics())
+	r.parsed.AddDiags(r.source.SharedDiagnostics())
 	r.parsed.AdoptTopLevelBlocks(r.source.SharedTopLevelBlockIndex())
 }

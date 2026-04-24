@@ -31,11 +31,17 @@ func activeCIProviders() []ciProviderPlugin {
 }
 
 // ResolveCIProvider detects the active CI provider.
-// Priority: env detection → TERRACI_PROVIDER env → single registered → configured.
+// Priority: TERRACI_PROVIDER env → env detection → single active provider.
 func ResolveCIProvider() (*plugin.ResolvedCIProvider, error) {
 	candidates := activeCIProviders()
 	if len(candidates) == 0 {
 		return nil, errors.New("no active CI provider plugins registered")
+	}
+
+	// Explicit selection wins over auto-detection. This is important for local
+	// debugging inside CI-like environments and keeps CLI/env overrides predictable.
+	if name := os.Getenv("TERRACI_PROVIDER"); name != "" {
+		return findProvider(candidates, name)
 	}
 
 	// Check env detection (CI environment variables)
@@ -45,12 +51,7 @@ func ResolveCIProvider() (*plugin.ResolvedCIProvider, error) {
 		}
 	}
 
-	// Check TERRACI_PROVIDER env var
-	if name := os.Getenv("TERRACI_PROVIDER"); name != "" {
-		return findProvider(candidates, name)
-	}
-
-	// Single provider registered
+	// Single active provider registered
 	if len(candidates) == 1 {
 		return buildResolvedCIProvider(candidates[0]), nil
 	}
@@ -67,22 +68,28 @@ func buildResolvedCIProvider(p ciProviderPlugin) *plugin.ResolvedCIProvider {
 }
 
 // ResolveChangeDetector returns the active ChangeDetectionProvider.
-// Priority: single registered → configured+enabled → error.
+// Priority: single active detector → error.
 func ResolveChangeDetector() (plugin.ChangeDetectionProvider, error) {
-	detectors := ByCapability[plugin.ChangeDetectionProvider]()
+	detectors := activeChangeDetectors()
 	if len(detectors) == 0 {
 		return nil, errors.New("no change detection plugin registered")
 	}
 	if len(detectors) == 1 {
 		return detectors[0], nil
 	}
-	for _, d := range detectors {
-		if cl, ok := d.(plugin.ConfigLoader); ok && cl.IsEnabled() {
-			return d, nil
-		}
-	}
 	return nil, fmt.Errorf("cannot determine change detector: multiple plugins registered (%s)",
 		detectorNames(detectors))
+}
+
+func activeChangeDetectors() []plugin.ChangeDetectionProvider {
+	candidates := ByCapability[plugin.ChangeDetectionProvider]()
+	active := make([]plugin.ChangeDetectionProvider, 0, len(candidates))
+	for _, c := range candidates {
+		if isPluginEnabled(c) {
+			active = append(active, c)
+		}
+	}
+	return active
 }
 
 func detectorNames(detectors []plugin.ChangeDetectionProvider) string {

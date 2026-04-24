@@ -2,6 +2,7 @@ package dependency
 
 import (
 	"context"
+	"sync"
 
 	"github.com/edelwud/terraci/pkg/discovery"
 	parserdeps "github.com/edelwud/terraci/pkg/parser/internal/deps"
@@ -15,6 +16,7 @@ type Engine struct {
 	index        *discovery.ModuleIndex
 	cache        *parsedModuleCache
 	backendIndex *backendModuleIndex
+	backendOnce  sync.Once
 }
 
 func NewEngine(parser ModuleParser, index *discovery.ModuleIndex) *Engine {
@@ -27,11 +29,12 @@ func NewEngine(parser ModuleParser, index *discovery.ModuleIndex) *Engine {
 }
 
 func (e *Engine) ExtractDependencies(ctx context.Context, module *discovery.Module) (*ModuleDependencies, error) {
+	e.prepareBackendIndex(ctx)
 	return newDependencySession(ctx, e, module).Run()
 }
 
 func (e *Engine) ExtractAllDependencies(ctx context.Context) (map[string]*ModuleDependencies, []error) {
-	e.backendIndex.Build(ctx, e.index, e.cache)
+	e.prepareBackendIndex(ctx)
 
 	builder := newDependencyCollectionBuilder()
 	var collector resultCollector
@@ -43,6 +46,12 @@ func (e *Engine) ExtractAllDependencies(ctx context.Context) (map[string]*Module
 	})
 
 	return builder.Build()
+}
+
+func (e *Engine) prepareBackendIndex(ctx context.Context) {
+	e.backendOnce.Do(func() {
+		e.backendIndex.Build(ctx, e.index, e.cache)
+	})
 }
 
 func (e *Engine) MatchPathToModule(statePath string, from *discovery.Module) *discovery.Module {

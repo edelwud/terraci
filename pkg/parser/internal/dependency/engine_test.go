@@ -1,6 +1,7 @@
 package dependency
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -133,6 +134,76 @@ func TestRemoteStateTargetResolverResolve(t *testing.T) {
 	}, "legacy/custom/terraform.tfstate")
 	if backendMatched == nil || backendMatched.ID() != legacy.ID() {
 		t.Fatalf("backend match = %v, want %s", backendMatched, legacy.ID())
+	}
+}
+
+type fakeDependencyParser struct {
+	modules map[string]*model.ParsedModule
+	paths   []string
+}
+
+func (p *fakeDependencyParser) ParseModule(_ context.Context, modulePath string) (*model.ParsedModule, error) {
+	parsed := p.modules[modulePath]
+	if parsed == nil {
+		return nil, errors.New("missing module")
+	}
+	return parsed, nil
+}
+
+func (p *fakeDependencyParser) ResolveWorkspacePath(_ *model.RemoteStateRef, _ string, _, _ map[string]cty.Value) ([]string, error) {
+	return p.paths, nil
+}
+
+func TestExtractDependenciesBuildsBackendIndexForSingleModule(t *testing.T) {
+	app := discovery.TestModule("platform", "stage", "eu-central-1", "app")
+	app.RelativePath = "platform/stage/eu-central-1/app"
+	app.Path = "app-path"
+
+	legacy := discovery.TestModule("network", "shared", "global", "legacy")
+	legacy.RelativePath = "legacy/custom"
+	legacy.Path = "legacy-path"
+
+	parser := &fakeDependencyParser{
+		modules: map[string]*model.ParsedModule{
+			app.Path: {
+				Path:      app.Path,
+				Locals:    map[string]cty.Value{},
+				Variables: map[string]cty.Value{},
+				RemoteStates: []*model.RemoteStateRef{{
+					Name:    "legacy",
+					Backend: "s3",
+					Config: map[string]hcl.Expression{
+						"bucket": mustParseExpression(t, `"shared-state"`),
+					},
+				}},
+			},
+			legacy.Path: {
+				Path: legacy.Path,
+				Backend: &model.BackendConfig{
+					Type: "s3",
+					Config: map[string]string{
+						"bucket": "shared-state",
+						"key":    "legacy/custom/terraform.tfstate",
+					},
+				},
+			},
+		},
+		paths: []string{"legacy/custom/terraform.tfstate"},
+	}
+
+	engine := NewEngine(parser, discovery.NewModuleIndex([]*discovery.Module{app, legacy}))
+	deps, err := engine.ExtractDependencies(context.Background(), app)
+	if err != nil {
+		t.Fatalf("ExtractDependencies() error = %v", err)
+	}
+	if len(deps.Errors) != 0 {
+		t.Fatalf("dependency errors = %v, want none", deps.Errors)
+	}
+	if len(deps.Dependencies) != 1 {
+		t.Fatalf("dependencies = %d, want 1", len(deps.Dependencies))
+	}
+	if deps.Dependencies[0].To.ID() != legacy.ID() {
+		t.Fatalf("dependency target = %s, want %s", deps.Dependencies[0].To.ID(), legacy.ID())
 	}
 }
 

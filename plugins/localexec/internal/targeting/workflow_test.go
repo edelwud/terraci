@@ -78,10 +78,11 @@ func TestWorkflowResolverUsesWorkflowResolveTargets(t *testing.T) {
 		t.Fatalf("WorkflowResolver.Resolve() error = %v", err)
 	}
 	want, err := workflow.ResolveTargets(context.Background(), appCtx, result, workflow.TargetSelectionOptions{
-		ModulePath:  req.ModulePath,
-		ChangedOnly: req.ChangedOnly,
-		BaseRef:     req.BaseRef,
-		Filters:     req.Filters,
+		ModulePath:             req.ModulePath,
+		ChangedOnly:            req.ChangedOnly,
+		BaseRef:                req.BaseRef,
+		Filters:                req.Filters,
+		ChangeDetectorResolver: registry.ResolveChangeDetector,
 	})
 	if err != nil {
 		t.Fatalf("workflow.ResolveTargets() error = %v", err)

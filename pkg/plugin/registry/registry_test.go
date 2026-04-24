@@ -517,6 +517,48 @@ func TestResolveProvider_SkipsDisabledEnvDetectedProvider(t *testing.T) {
 	}
 }
 
+func TestResolveCIProvider_ExplicitProviderOverridesDetectedEnv(t *testing.T) {
+	t.Cleanup(func() {
+		Reset()
+		os.Unsetenv("TERRACI_PROVIDER")
+	})
+	Reset()
+	t.Setenv("TERRACI_PROVIDER", "github")
+
+	gitlab := &testProviderPlugin{
+		BasePlugin: plugin.BasePlugin[*testConfig]{
+			PluginName: "gitlab",
+			PluginDesc: "GitLab",
+			EnableMode: plugin.EnabledAlways,
+			DefaultCfg: func() *testConfig { return &testConfig{} },
+		},
+		testPlugin: testPlugin{name: "gitlab", desc: "GitLab"},
+		detectEnv:  true,
+		provider:   "gitlab",
+	}
+	Register(gitlab)
+
+	github := &testProviderPlugin{
+		BasePlugin: plugin.BasePlugin[*testConfig]{
+			PluginName: "github",
+			PluginDesc: "GitHub",
+			EnableMode: plugin.EnabledAlways,
+			DefaultCfg: func() *testConfig { return &testConfig{} },
+		},
+		testPlugin: testPlugin{name: "github", desc: "GitHub"},
+		provider:   "github",
+	}
+	Register(github)
+
+	provider, err := ResolveCIProvider()
+	if err != nil {
+		t.Fatalf("ResolveCIProvider() error = %v", err)
+	}
+	if provider.ProviderName() != "github" {
+		t.Fatalf("ResolveCIProvider() = %q, want github", provider.ProviderName())
+	}
+}
+
 func TestResolveCIProvider_TERRACI_PROVIDERMustBeActive(t *testing.T) {
 	t.Cleanup(func() {
 		Reset()
@@ -619,6 +661,27 @@ func TestResolveChangeDetector_Single(t *testing.T) {
 	}
 	if got.Name() != "git" {
 		t.Fatalf("ResolveChangeDetector() = %q, want git", got.Name())
+	}
+}
+
+func TestResolveChangeDetector_SingleDisabledIsNotActive(t *testing.T) {
+	t.Cleanup(func() { Reset() })
+	Reset()
+
+	det := &testDetectorPlugin{
+		BasePlugin: plugin.BasePlugin[*testConfig]{
+			PluginName:  "git",
+			PluginDesc:  "Git detector",
+			EnableMode:  plugin.EnabledExplicitly,
+			DefaultCfg:  func() *testConfig { return &testConfig{} },
+			IsEnabledFn: func(cfg *testConfig) bool { return cfg != nil && cfg.Enabled },
+		},
+	}
+	det.SetTypedConfig(&testConfig{Enabled: false})
+	Register(det)
+
+	if _, err := ResolveChangeDetector(); err == nil {
+		t.Fatal("ResolveChangeDetector() should fail when the only detector is disabled")
 	}
 }
 

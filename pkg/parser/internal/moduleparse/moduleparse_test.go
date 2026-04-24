@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/hashicorp/hcl/v2"
+
 	"github.com/edelwud/terraci/pkg/parser/internal/source"
 )
 
@@ -68,6 +70,74 @@ func TestRunner_UsesInjectedSourceLoader(t *testing.T) {
 	}
 	if got := parsed.Locals["service"].AsString(); got != "platform" {
 		t.Fatalf("local service = %q, want %q", got, "platform")
+	}
+}
+
+type diagnosticSource struct {
+	diags hcl.Diagnostics
+}
+
+func (s diagnosticSource) LocalsBlocks() []*hcl.Block {
+	return nil
+}
+
+func (s diagnosticSource) VariableBlockViews() []source.VariableBlockView {
+	return nil
+}
+
+func (s diagnosticSource) TerraformBlockViews() []source.TerraformBlockView {
+	return nil
+}
+
+func (s diagnosticSource) RemoteStateBlockViews() []source.RemoteStateBlockView {
+	return nil
+}
+
+func (s diagnosticSource) ModuleBlockViews() []source.ModuleBlockView {
+	return nil
+}
+
+func (s diagnosticSource) LockFile() (*hcl.File, hcl.Diagnostics) {
+	return nil, nil
+}
+
+func (s diagnosticSource) ParseHCLFile(string) (*hcl.File, hcl.Diagnostics, error) {
+	return nil, nil, nil
+}
+
+func (s diagnosticSource) SharedFiles() map[string]*hcl.File {
+	return nil
+}
+
+func (s diagnosticSource) SharedDiagnostics() hcl.Diagnostics {
+	return s.diags
+}
+
+func (s diagnosticSource) SharedTopLevelBlockIndex() map[string][]*hcl.Block {
+	return nil
+}
+
+func TestRunnerFinalizePreservesExtractionDiagnostics(t *testing.T) {
+	runner := newRunner("module", []string{"service", "environment", "region", "module"})
+	runner.source = diagnosticSource{
+		diags: hcl.Diagnostics{{
+			Summary: "source diagnostic",
+		}},
+	}
+	runner.parsed.AddDiags(hcl.Diagnostics{{
+		Summary: "extraction diagnostic",
+	}})
+
+	runner.finalize()
+
+	if len(runner.parsed.Diagnostics) != 2 {
+		t.Fatalf("diagnostics = %d, want 2", len(runner.parsed.Diagnostics))
+	}
+	if runner.parsed.Diagnostics[0].Summary != "extraction diagnostic" {
+		t.Fatalf("first diagnostic = %q, want extraction diagnostic", runner.parsed.Diagnostics[0].Summary)
+	}
+	if runner.parsed.Diagnostics[1].Summary != "source diagnostic" {
+		t.Fatalf("second diagnostic = %q, want source diagnostic", runner.parsed.Diagnostics[1].Summary)
 	}
 }
 

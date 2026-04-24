@@ -5,6 +5,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/registry"
 	"github.com/edelwud/terraci/pkg/workflow"
 	"github.com/edelwud/terraci/plugins/localexec/internal/spec"
 )
@@ -23,9 +24,10 @@ func NewWorkflowResolver(appCtx *plugin.AppContext) Resolver {
 
 func (r WorkflowResolver) Resolve(ctx context.Context, req spec.ExecuteRequest, result *workflow.Result) ([]*discovery.Module, error) {
 	return workflow.ResolveTargets(ctx, r.appCtx, result, workflow.TargetSelectionOptions{
-		ModulePath:  req.ModulePath,
-		ChangedOnly: req.ChangedOnly,
-		BaseRef:     req.BaseRef,
-		Filters:     req.Filters,
+		ModulePath:             req.ModulePath,
+		ChangedOnly:            req.ChangedOnly,
+		BaseRef:                req.BaseRef,
+		Filters:                req.Filters,
+		ChangeDetectorResolver: registry.ResolveChangeDetector,
 	})
 }

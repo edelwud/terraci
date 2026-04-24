@@ -9,7 +9,6 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/filter"
 	"github.com/edelwud/terraci/pkg/plugin"
-	"github.com/edelwud/terraci/pkg/plugin/registry"
 )
 
 // TargetSelectionOptions controls how executable targets are selected from a workflow result.
@@ -18,13 +17,16 @@ type TargetSelectionOptions struct {
 	ChangedOnly bool
 	BaseRef     string
 	Filters     *filter.Flags
+
+	ChangeDetectorResolver ChangeDetectorResolver
 }
 
-type changeDetectorResolver func() (plugin.ChangeDetectionProvider, error)
+// ChangeDetectorResolver resolves the change detection provider for changed-only target selection.
+type ChangeDetectorResolver func() (plugin.ChangeDetectionProvider, error)
 
 // ResolveTargets applies module/path filters and optional change detection to a workflow result.
 func ResolveTargets(ctx context.Context, appCtx *plugin.AppContext, result *Result, opts TargetSelectionOptions) ([]*discovery.Module, error) {
-	return resolveTargets(ctx, appCtx, result, opts, registry.ResolveChangeDetector)
+	return resolveTargets(ctx, appCtx, result, opts)
 }
 
 func resolveTargets(
@@ -32,7 +34,6 @@ func resolveTargets(
 	appCtx *plugin.AppContext,
 	result *Result,
 	opts TargetSelectionOptions,
-	resolveChangeDetector changeDetectorResolver,
 ) ([]*discovery.Module, error) {
 	if appCtx == nil {
 		return nil, errors.New("app context is required")
@@ -52,7 +53,11 @@ func resolveTargets(
 		return targets, nil
 	}
 
-	detector, err := resolveChangeDetector()
+	if opts.ChangeDetectorResolver == nil {
+		return nil, errors.New("change detector resolver is required for changed-only target selection")
+	}
+
+	detector, err := opts.ChangeDetectorResolver()
 	if err != nil {
 		return nil, fmt.Errorf("change detection: %w", err)
 	}
@@ -79,7 +84,7 @@ func resolveTargets(
 		affectedIDs = result.Graph.GetAffectedModules(changedIDs)
 	}
 
-	targets = resolveAffectedModules(cfg, opts.Filters, affectedIDs, changedIDs, result.FullIndex, result.FilteredIndex)
+	targets = resolveAffectedModules(cfg, opts.Filters, affectedIDs, changedIDs, result.AllModules, result.FilteredModules, result.FullIndex, result.FilteredIndex)
 	if opts.ModulePath != "" {
 		targets = filterModulesByPath(targets, opts.ModulePath)
 	}
@@ -91,8 +96,16 @@ func resolveAffectedModules(
 	cfg *config.Config,
 	ff *filter.Flags,
 	affectedIDs, changedIDs []string,
+	allModules, filteredModules []*discovery.Module,
 	fullIndex, filteredIndex *discovery.ModuleIndex,
 ) []*discovery.Module {
+	if len(allModules) == 0 && fullIndex != nil {
+		allModules = fullIndex.All()
+	}
+	if len(filteredModules) == 0 && filteredIndex != nil {
+		filteredModules = filteredIndex.All()
+	}
+
 	idSet := make(map[string]bool, len(affectedIDs)+len(changedIDs))
 	for _, id := range affectedIDs {
 		idSet[id] = true
@@ -102,18 +115,27 @@ func resolveAffectedModules(
 	}
 
 	targets := make([]*discovery.Module, 0, len(idSet))
-	for id := range idSet {
-		if module := filteredIndex.ByID(id); module != nil {
-			targets = append(targets, module)
-			continue
-		}
+	seen := make(map[string]bool, len(idSet))
 
-		module := fullIndex.ByID(id)
-		if module == nil {
+	for _, module := range filteredModules {
+		id := module.ID()
+		if idSet[id] {
+			targets = append(targets, module)
+			seen[id] = true
+		}
+	}
+
+	for _, module := range allModules {
+		id := module.ID()
+		if !idSet[id] || seen[id] {
 			continue
 		}
-		if filtered := ApplyFilters(cfg, ff, []*discovery.Module{module}); len(filtered) > 0 {
+		if filteredIndex.ByID(id) != nil {
+			continue
+		}
+		if fullIndex.ByID(id) != nil && len(ApplyFilters(cfg, ff, []*discovery.Module{module})) > 0 {
 			targets = append(targets, module)
+			seen[id] = true
 		}
 	}
 
