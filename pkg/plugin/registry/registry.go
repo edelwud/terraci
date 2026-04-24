@@ -1,6 +1,6 @@
-// Package registry provides the global plugin registry for TerraCi.
-// Plugins register themselves via init() and are discovered by capability
-// using the ByCapability generic function.
+// Package registry provides TerraCi's plugin catalog and per-run plugin sets.
+// Plugin packages register factories via init(); commands instantiate a fresh
+// Registry from those factories for each app run.
 package registry
 
 import (
@@ -9,50 +9,137 @@ import (
 	"github.com/edelwud/terraci/pkg/plugin"
 )
 
+type Factory func() plugin.Plugin
+
+type descriptor struct {
+	factory Factory
+}
+
 var (
-	mu      sync.Mutex
-	plugins = make(map[string]plugin.Plugin)
-	order   []string
+	mu          sync.Mutex
+	descriptors = make(map[string]descriptor)
+	order       []string
+	defaultSet  *Registry
 )
 
-// Register adds a plugin to the global registry. Called from init() in plugin packages.
-// Panics on duplicate names (fail-fast at startup).
+// Register adds a prebuilt plugin to the global catalog.
+//
+// Production plugins should prefer RegisterFactory so each app run receives
+// fresh plugin instances. Register remains useful for focused tests that want
+// to install a specific in-memory double.
 func Register(p plugin.Plugin) {
+	RegisterFactory(func() plugin.Plugin { return p })
+}
+
+// RegisterFactory adds a plugin factory to the global catalog. Called from
+// init() in plugin packages.
+// Panics on duplicate names (fail-fast at startup).
+func RegisterFactory(factory Factory) {
+	if factory == nil {
+		panic("terraci: nil plugin factory")
+	}
+
+	prototype := factory()
+	if prototype == nil {
+		panic("terraci: nil plugin from factory")
+	}
+
 	mu.Lock()
 	defer mu.Unlock()
-	if _, exists := plugins[p.Name()]; exists {
-		panic("terraci: duplicate plugin: " + p.Name())
+	if _, exists := descriptors[prototype.Name()]; exists {
+		panic("terraci: duplicate plugin: " + prototype.Name())
 	}
-	plugins[p.Name()] = p
-	order = append(order, p.Name())
+	descriptors[prototype.Name()] = descriptor{factory: factory}
+	order = append(order, prototype.Name())
+	defaultSet = nil
+}
+
+// Registry is an isolated plugin instance set for one app run.
+type Registry struct {
+	plugins map[string]plugin.Plugin
+	order   []string
+}
+
+// New instantiates a fresh plugin set from the registered factories.
+func New() *Registry {
+	mu.Lock()
+	defer mu.Unlock()
+	return instantiateLocked()
+}
+
+// Default returns the package-level plugin set used by legacy package
+// functions. Runtime code should prefer an app-owned Registry from New().
+func Default() *Registry {
+	mu.Lock()
+	defer mu.Unlock()
+	if defaultSet == nil {
+		defaultSet = instantiateLocked()
+	}
+	return defaultSet
+}
+
+func instantiateLocked() *Registry {
+	r := &Registry{
+		plugins: make(map[string]plugin.Plugin, len(order)),
+		order:   append([]string(nil), order...),
+	}
+	for _, name := range order {
+		p := descriptors[name].factory()
+		if p == nil {
+			panic("terraci: nil plugin from factory: " + name)
+		}
+		if p.Name() != name {
+			panic("terraci: plugin factory name changed: " + name + " -> " + p.Name())
+		}
+		r.plugins[name] = p
+	}
+	return r
 }
 
 // All returns registered plugins in registration order.
 func All() []plugin.Plugin {
-	mu.Lock()
-	defer mu.Unlock()
-	result := make([]plugin.Plugin, 0, len(order))
-	for _, name := range order {
-		result = append(result, plugins[name])
+	return Default().All()
+}
+
+// All returns plugins in registration order.
+func (r *Registry) All() []plugin.Plugin {
+	if r == nil {
+		return nil
+	}
+	result := make([]plugin.Plugin, 0, len(r.order))
+	for _, name := range r.order {
+		result = append(result, r.plugins[name])
 	}
 	return result
 }
 
 // Get returns a plugin by name.
 func Get(name string) (plugin.Plugin, bool) {
-	mu.Lock()
-	defer mu.Unlock()
-	p, ok := plugins[name]
+	return Default().Get(name)
+}
+
+// Get returns a plugin by name.
+func (r *Registry) Get(name string) (plugin.Plugin, bool) {
+	if r == nil {
+		return nil, false
+	}
+	p, ok := r.plugins[name]
 	return p, ok
 }
 
 // ByCapability returns all plugins that implement the given capability interface.
 func ByCapability[T plugin.Plugin]() []T {
-	mu.Lock()
-	defer mu.Unlock()
+	return ByCapabilityFrom[T](Default())
+}
+
+// ByCapabilityFrom returns all plugins in r that implement the given capability interface.
+func ByCapabilityFrom[T plugin.Plugin](r *Registry) []T {
+	if r == nil {
+		return nil
+	}
 	var result []T
-	for _, name := range order {
-		if t, ok := plugins[name].(T); ok {
+	for _, name := range r.order {
+		if t, ok := r.plugins[name].(T); ok {
 			result = append(result, t)
 		}
 	}
@@ -63,18 +150,17 @@ func ByCapability[T plugin.Plugin]() []T {
 func Reset() {
 	mu.Lock()
 	defer mu.Unlock()
-	plugins = make(map[string]plugin.Plugin)
+	descriptors = make(map[string]descriptor)
 	order = nil
+	defaultSet = nil
 }
 
 // ResetPlugins resets mutable state on all registered plugins that implement Resettable.
 // The registry itself is NOT cleared — plugins stay registered, only their internal state
 // (config, flags, cached clients) is zeroed. Intended for test isolation.
 func ResetPlugins() {
-	mu.Lock()
-	defer mu.Unlock()
-	for _, name := range order {
-		if r, ok := plugins[name].(plugin.Resettable); ok {
+	for _, p := range Default().All() {
+		if r, ok := p.(plugin.Resettable); ok {
 			r.Reset()
 		}
 	}

@@ -12,6 +12,7 @@ import (
 type App struct {
 	Config  *config.Config
 	WorkDir string
+	Plugins *registry.Registry
 
 	// Global flag values
 	cfgFile  string
@@ -30,9 +31,13 @@ type App struct {
 // The returned pointer is stable; call Ensure() to refresh its fields
 // after Config or WorkDir change.
 func (a *App) PluginContext() *plugin.AppContext {
-	if a.pluginCtx == nil {
-		a.pluginCtx = plugin.NewAppContext(nil, "", "", "", nil)
+	if a.Plugins == nil {
+		a.Plugins = registry.New()
 	}
+	if a.pluginCtx == nil {
+		a.pluginCtx = plugin.NewAppContext(nil, "", "", "", nil, a.Plugins)
+	}
+	a.pluginCtx.SetResolver(a.Plugins)
 	a.ensurePluginContext()
 	return a.pluginCtx
 }
@@ -55,7 +60,7 @@ func (a *App) ensurePluginContext() {
 // InitPluginConfigs decodes plugin-specific configurations from the Plugins map
 // and passes them to each ConfigLoader plugin.
 func (a *App) InitPluginConfigs() error {
-	for _, p := range registry.ByCapability[plugin.ConfigLoader]() {
+	for _, p := range registry.ByCapabilityFrom[plugin.ConfigLoader](a.Plugins) {
 		if _, exists := a.Config.Plugins[p.ConfigKey()]; !exists {
 			continue
 		}

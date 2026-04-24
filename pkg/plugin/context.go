@@ -3,7 +3,16 @@ package plugin
 import (
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/log"
+	"github.com/edelwud/terraci/pkg/pipeline"
 )
+
+type Resolver interface {
+	ResolveCIProvider() (*ResolvedCIProvider, error)
+	ResolveChangeDetector() (ChangeDetectionProvider, error)
+	ResolveKVCacheProvider(name string) (KVCacheProvider, error)
+	ResolveBlobStoreProvider(name string) (BlobStoreProvider, error)
+	CollectContributions(ctx *AppContext) []*pipeline.Contribution
+}
 
 // AppContext is the public API available to plugins.
 //
@@ -19,16 +28,20 @@ type AppContext struct {
 	serviceDir string // resolved absolute path to project service directory
 	version    string
 	reports    *ReportRegistry
+	resolver   Resolver
 
 	frozen bool
 }
 
 // NewAppContext creates a framework-managed plugin context.
-func NewAppContext(cfg *config.Config, workDir, serviceDir, version string, reports *ReportRegistry) *AppContext {
+func NewAppContext(cfg *config.Config, workDir, serviceDir, version string, reports *ReportRegistry, resolver ...Resolver) *AppContext {
 	if reports == nil {
 		reports = NewReportRegistry()
 	}
 	ctx := &AppContext{reports: reports}
+	if len(resolver) > 0 {
+		ctx.resolver = resolver[0]
+	}
 	ctx.Update(cfg, workDir, serviceDir, version)
 	return ctx
 }
@@ -77,6 +90,21 @@ func (ctx *AppContext) Version() string {
 // Reports returns the shared in-process report registry.
 func (ctx *AppContext) Reports() *ReportRegistry {
 	return ctx.reports
+}
+
+// Resolver returns the per-run plugin resolver bound to this context.
+func (ctx *AppContext) Resolver() Resolver {
+	return ctx.resolver
+}
+
+// SetResolver binds the per-run plugin resolver. Framework code calls this
+// before plugins receive the context.
+func (ctx *AppContext) SetResolver(resolver Resolver) {
+	if ctx.frozen {
+		log.Debug("AppContext.SetResolver called after Freeze — ignored")
+		return
+	}
+	ctx.resolver = resolver
 }
 
 // Freeze marks the context as final for framework-managed updates.

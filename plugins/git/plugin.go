@@ -2,13 +2,14 @@
 package git
 
 import (
+	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/registry"
 )
 
 const pluginName = "git"
 
 func init() {
-	registry.Register(&Plugin{})
+	registry.RegisterFactory(func() plugin.Plugin { return &Plugin{} })
 }
 
 // Plugin is the Git change detection plugin.

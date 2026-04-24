@@ -10,8 +10,8 @@ import (
 )
 
 func init() {
-	registry.Register(&Plugin{
-		BasePlugin: plugin.BasePlugin[*Config]{
+	registry.RegisterFactory(func() plugin.Plugin {
+		return &Plugin{BasePlugin: plugin.BasePlugin[*Config]{
 			PluginName: "inmemcache",
 			PluginDesc: "Built-in process-local KV cache backend",
 			EnableMode: plugin.EnabledByDefault,
@@ -20,7 +20,8 @@ func init() {
 				return cfg == nil || cfg.Enabled
 			},
 		},
-		cache: newCache(),
+			cache: newCache(),
+		}
 	})
 }
 

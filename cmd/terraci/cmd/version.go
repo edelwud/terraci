@@ -20,13 +20,13 @@ func newVersionCmd(app *App) *cobra.Command {
 			fmt.Printf("  built:  %s\n", app.Date)
 
 			// Version info from plugins (e.g., OPA version from policy plugin)
-			for _, vp := range registry.ByCapability[plugin.VersionProvider]() {
+			for _, vp := range registry.ByCapabilityFrom[plugin.VersionProvider](app.Plugins) {
 				for k, v := range vp.VersionInfo() {
 					fmt.Printf("  %s: %s\n", k, v)
 				}
 			}
 
-			plugins := registry.All()
+			plugins := app.Plugins.All()
 			if len(plugins) > 0 {
 				fmt.Printf("  plugins:\n")
 				for _, p := range plugins {

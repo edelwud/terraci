@@ -9,7 +9,6 @@ import (
 	"github.com/edelwud/terraci/pkg/cache/blobcache"
 	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/plugin"
-	"github.com/edelwud/terraci/pkg/plugin/registry"
 	"github.com/edelwud/terraci/plugins/cost/internal/engine"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
@@ -64,7 +63,7 @@ func validateRuntimeConfig(cfg *model.CostConfig) error {
 // resolveBlobCache resolves the underlying blob store and wraps it in a blobcache.Cache
 // configured with the plugin's namespace and TTL settings.
 func resolveBlobCache(ctx context.Context, appCtx *plugin.AppContext, cfg *model.CostConfig) (*blobcache.Cache, error) {
-	blobProvider, err := registry.ResolveBlobStoreProvider(cfg.BlobCacheBackend())
+	blobProvider, err := appCtx.Resolver().ResolveBlobStoreProvider(cfg.BlobCacheBackend())
 	if err != nil {
 		return nil, fmt.Errorf("resolve blob backend: %w", err)
 	}

@@ -8,8 +8,8 @@ import (
 )
 
 func init() {
-	registry.Register(&Plugin{
-		BasePlugin: plugin.BasePlugin[*policyengine.Config]{
+	registry.RegisterFactory(func() plugin.Plugin {
+		return &Plugin{BasePlugin: plugin.BasePlugin[*policyengine.Config]{
 			PluginName: "policy",
 			PluginDesc: "OPA policy checks for Terraform plans",
 			EnableMode: plugin.EnabledExplicitly,
@@ -19,7 +19,7 @@ func init() {
 			IsEnabledFn: func(cfg *policyengine.Config) bool {
 				return cfg != nil && cfg.Enabled
 			},
-		},
+		}}
 	})
 }
 

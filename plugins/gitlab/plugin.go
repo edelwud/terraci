@@ -9,8 +9,8 @@ import (
 )
 
 func init() {
-	registry.Register(&Plugin{
-		BasePlugin: plugin.BasePlugin[*configpkg.Config]{
+	registry.RegisterFactory(func() plugin.Plugin {
+		return &Plugin{BasePlugin: plugin.BasePlugin[*configpkg.Config]{
 			PluginName: "gitlab",
 			PluginDesc: "GitLab CI pipeline generation and MR comments",
 			EnableMode: plugin.EnabledWhenConfigured,
@@ -22,7 +22,7 @@ func init() {
 					CacheEnabled: true,
 				}
 			},
-		},
+		}}
 	})
 }
 

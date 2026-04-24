@@ -11,8 +11,8 @@ import (
 )
 
 func init() {
-	registry.Register(&Plugin{
-		BasePlugin: plugin.BasePlugin[*Config]{
+	registry.RegisterFactory(func() plugin.Plugin {
+		return &Plugin{BasePlugin: plugin.BasePlugin[*Config]{
 			PluginName: "diskblob",
 			PluginDesc: "Filesystem-backed blob store backend",
 			EnableMode: plugin.EnabledByDefault,
@@ -20,7 +20,7 @@ func init() {
 			IsEnabledFn: func(cfg *Config) bool {
 				return cfg == nil || cfg.Enabled
 			},
-		},
+		}}
 	})
 }
 

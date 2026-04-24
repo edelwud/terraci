@@ -52,7 +52,7 @@ Examples:
 
 			if ciMode || hasFlags {
 				state := initwiz.NewStateMap()
-				initStateDefaults(state)
+				initStateDefaults(app.Plugins, state)
 
 				// Override defaults with CLI flags
 				if initProvider != "" {
@@ -65,9 +65,9 @@ Examples:
 					state.Set("pattern", initPattern)
 				}
 
-				newCfg = buildConfigFromState(state)
+				newCfg = buildConfigFromState(app.Plugins, state)
 			} else {
-				newCfg, err = runInteractiveInit()
+				newCfg, err = runInteractiveInit(app)
 				if err != nil {
 					return err
 				}
@@ -78,7 +78,7 @@ Examples:
 			}
 
 			log.WithField("file", configPath).Info("configuration created")
-			logGenerateHint(newCfg)
+			logGenerateHint(app, newCfg)
 
 			return nil
 		},
@@ -95,8 +95,8 @@ Examples:
 
 // initStateDefaults populates a StateMap with default values for the init wizard.
 // Shared between interactive (TUI) and non-interactive (--ci) paths.
-func initStateDefaults(state *initwiz.StateMap) {
-	if provider := defaultInitProvider(); provider != "" {
+func initStateDefaults(plugins *registry.Registry, state *initwiz.StateMap) {
+	if provider := defaultInitProvider(plugins); provider != "" {
 		state.Set("provider", provider)
 	}
 	state.Set("binary", "terraform")
@@ -106,8 +106,8 @@ func initStateDefaults(state *initwiz.StateMap) {
 	state.Set("summary.enabled", true)
 }
 
-func defaultInitProvider() string {
-	providerPlugins := registry.ByCapability[plugin.CIInfoProvider]()
+func defaultInitProvider(plugins *registry.Registry) string {
+	providerPlugins := registry.ByCapabilityFrom[plugin.CIInfoProvider](plugins)
 	if len(providerPlugins) == 0 {
 		return ""
 	}
@@ -131,7 +131,7 @@ func defaultInitProvider() string {
 	return names[0]
 }
 
-func logGenerateHint(cfg *config.Config) {
+func logGenerateHint(app *App, cfg *config.Config) {
 	log.Info("generate your pipeline with:")
 	log.IncreasePadding()
 	if cfg != nil {
@@ -147,7 +147,7 @@ func logGenerateHint(cfg *config.Config) {
 		}
 	}
 
-	resolved, _ := registry.ResolveCIProvider() //nolint:errcheck // best-effort fallback, non-critical
+	resolved, _ := app.Plugins.ResolveCIProvider() //nolint:errcheck // best-effort fallback, non-critical
 	if resolved != nil && resolved.ProviderName() == "github" {
 		log.Info("terraci generate -o .github/workflows/terraform.yml")
 	} else {
@@ -156,8 +156,8 @@ func logGenerateHint(cfg *config.Config) {
 	log.DecreasePadding()
 }
 
-func runInteractiveInit() (*config.Config, error) {
-	m := newInitModel()
+func runInteractiveInit(app *App) (*config.Config, error) {
+	m := newInitModel(app.Plugins)
 	finalModel, err := tea.NewProgram(m).Run()
 	if err != nil {
 		return nil, fmt.Errorf("interactive init: %w", err)

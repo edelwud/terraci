@@ -14,8 +14,8 @@ import (
 const pluginName = "cost"
 
 func init() {
-	registry.Register(&Plugin{
-		BasePlugin: plugin.BasePlugin[*model.CostConfig]{
+	registry.RegisterFactory(func() plugin.Plugin {
+		return &Plugin{BasePlugin: plugin.BasePlugin[*model.CostConfig]{
 			PluginName: pluginName,
 			PluginDesc: "Cloud cost estimation from Terraform plans",
 			EnableMode: plugin.EnabledExplicitly,
@@ -25,7 +25,7 @@ func init() {
 			IsEnabledFn: func(cfg *model.CostConfig) bool {
 				return cfg != nil && cfg.HasEnabledProviders()
 			},
-		},
+		}}
 	})
 }
 

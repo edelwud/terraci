@@ -9,8 +9,8 @@ import (
 )
 
 func init() {
-	registry.Register(&Plugin{
-		BasePlugin: plugin.BasePlugin[*summaryengine.Config]{
+	registry.RegisterFactory(func() plugin.Plugin {
+		return &Plugin{BasePlugin: plugin.BasePlugin[*summaryengine.Config]{
 			PluginName: "summary",
 			PluginDesc: "MR/PR comment posting from plan results",
 			EnableMode: plugin.EnabledByDefault,
@@ -20,7 +20,7 @@ func init() {
 			IsEnabledFn: func(cfg *summaryengine.Config) bool {
 				return cfg == nil || cfg.Enabled == nil || *cfg.Enabled
 			},
-		},
+		}}
 	})
 }
 

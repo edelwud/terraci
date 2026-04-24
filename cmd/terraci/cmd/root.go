@@ -18,6 +18,7 @@ func NewRootCmd(version, commit, date string) *cobra.Command {
 		Version: version,
 		Commit:  commit,
 		Date:    date,
+		Plugins: registry.New(),
 	}
 
 	cwd, err := os.Getwd()
@@ -92,7 +93,7 @@ Features:
 			// Run plugin preflight hooks (lifecycle stage 3)
 			log.Debug("running plugin preflight")
 			appCtx := app.PluginContext()
-			for _, p := range registry.PreflightsForStartup() {
+			for _, p := range app.Plugins.PreflightsForStartup() {
 				if err := p.Preflight(cmd.Context(), appCtx); err != nil {
 					return fmt.Errorf("preflight plugin %s: %w", p.Name(), err)
 				}
@@ -118,13 +119,13 @@ Features:
 	// Note: summary and policy commands are now provided by plugins
 	rootCmd.AddCommand(newInitCmd(app))
 	rootCmd.AddCommand(newVersionCmd(app))
-	rootCmd.AddCommand(newSchemaCmd())
+	rootCmd.AddCommand(newSchemaCmd(app))
 	rootCmd.AddCommand(newCompletionCmd(rootCmd))
 	rootCmd.AddCommand(newManCmd(rootCmd))
 
 	// Register plugin-provided commands
 	pluginCtx := app.PluginContext()
-	for _, cp := range registry.ByCapability[plugin.CommandProvider]() {
+	for _, cp := range registry.ByCapabilityFrom[plugin.CommandProvider](app.Plugins) {
 		for _, cmd := range cp.Commands(pluginCtx) {
 			rootCmd.AddCommand(cmd)
 		}

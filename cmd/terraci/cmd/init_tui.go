@@ -52,21 +52,22 @@ var (
 // --- Model ---
 
 type initModel struct {
-	form   *huh.Form
-	width  int
-	height int
-	result *config.Config
-	state  *initwiz.StateMap
+	form    *huh.Form
+	width   int
+	height  int
+	result  *config.Config
+	state   *initwiz.StateMap
+	plugins *registry.Registry
 }
 
-func newInitModel() *initModel {
+func newInitModel(plugins *registry.Registry) *initModel {
 	state := initwiz.NewStateMap()
-	initStateDefaults(state)
+	initStateDefaults(plugins, state)
 
-	m := &initModel{state: state}
+	m := &initModel{state: state, plugins: plugins}
 
 	// Collect all plugin group specs
-	contributors := registry.ByCapability[initwiz.InitContributor]()
+	contributors := registry.ByCapabilityFrom[initwiz.InitContributor](plugins)
 	var allSpecs []*initwiz.InitGroupSpec
 	for _, c := range contributors {
 		allSpecs = append(allSpecs, c.InitGroups()...)
@@ -127,7 +128,7 @@ func newInitModel() *initModel {
 
 func (m *initModel) basicsGroup() *huh.Group {
 	// Build provider options dynamically from registered plugins
-	providerPlugins := registry.ByCapability[plugin.CIInfoProvider]()
+	providerPlugins := registry.ByCapabilityFrom[plugin.CIInfoProvider](m.plugins)
 	providerOpts := make([]huh.Option[string], 0, len(providerPlugins))
 	for _, pp := range providerPlugins {
 		providerOpts = append(providerOpts, huh.NewOption(pp.Description(), pp.ProviderName()))
@@ -255,7 +256,7 @@ func buildPluginField(f initwiz.InitField, state *initwiz.StateMap) huh.Field {
 }
 
 // buildConfigFromState collects InitContributor results and builds a Config.
-func buildConfigFromState(state *initwiz.StateMap) *config.Config {
+func buildConfigFromState(plugins *registry.Registry, state *initwiz.StateMap) *config.Config {
 	pattern := state.String("pattern")
 	planEnabled := config.DefaultConfig().Execution.PlanEnabled
 	if state.Get("plan_enabled") != nil {
@@ -271,7 +272,7 @@ func buildConfigFromState(state *initwiz.StateMap) *config.Config {
 	}
 	pluginConfigs := make(map[string]map[string]any)
 
-	for _, c := range registry.ByCapability[initwiz.InitContributor]() {
+	for _, c := range registry.ByCapabilityFrom[initwiz.InitContributor](plugins) {
 		contrib := c.BuildInitConfig(state)
 		if contrib != nil {
 			pluginConfigs[contrib.PluginKey] = contrib.Config
@@ -304,7 +305,7 @@ func (m *initModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	_, cmd := m.form.Update(msg)
 
 	if m.form.State == huh.StateCompleted {
-		m.result = buildConfigFromState(m.state)
+		m.result = buildConfigFromState(m.plugins, m.state)
 		return m, tea.Quit
 	}
 
@@ -331,7 +332,7 @@ func (m *initModel) View() tea.View {
 // --- YAML preview ---
 
 func (m *initModel) renderYAMLPreview() string {
-	data, err := yaml.Marshal(buildConfigFromState(m.state))
+	data, err := yaml.Marshal(buildConfigFromState(m.plugins, m.state))
 	if err != nil {
 		data = []byte("# error generating preview")
 	}

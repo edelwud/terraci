@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	registry.Register(&Plugin{})
+	registry.RegisterFactory(func() plugin.Plugin { return &Plugin{} })
 }
 
 // Plugin is the example "hello" plugin.

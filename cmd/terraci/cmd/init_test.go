@@ -9,13 +9,14 @@ import (
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/plugin/initwiz"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
+	"github.com/edelwud/terraci/pkg/plugin/registry"
 )
 
 func TestLogGenerateHint_GitHubConfig(t *testing.T) {
 	cfg := loadInitTestConfig(t, "plugins:\n  github: {}\n")
 
 	output := plugintest.CaptureLogOutput(t, func() {
-		logGenerateHint(cfg)
+		logGenerateHint(&App{Plugins: registry.New()}, cfg)
 	})
 
 	if !strings.Contains(output, ".github/workflows/terraform.yml") {
@@ -27,7 +28,7 @@ func TestLogGenerateHint_GitLabConfig(t *testing.T) {
 	cfg := loadInitTestConfig(t, "plugins:\n  gitlab: {}\n")
 
 	output := plugintest.CaptureLogOutput(t, func() {
-		logGenerateHint(cfg)
+		logGenerateHint(&App{Plugins: registry.New()}, cfg)
 	})
 
 	if !strings.Contains(output, ".gitlab-ci.yml") {
@@ -54,7 +55,7 @@ func loadInitTestConfig(t *testing.T, pluginConfigYAML string) *config.Config {
 
 func TestInitStateDefaults(t *testing.T) {
 	state := initwiz.NewStateMap()
-	initStateDefaults(state)
+	initStateDefaults(registry.New(), state)
 
 	if got := state.String("binary"); got != "terraform" {
 		t.Fatalf("binary = %q, want terraform", got)

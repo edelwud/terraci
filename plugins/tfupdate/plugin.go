@@ -9,8 +9,8 @@ import (
 )
 
 func init() {
-	pluginregistry.Register(&Plugin{
-		BasePlugin: plugin.BasePlugin[*tfupdateengine.UpdateConfig]{
+	pluginregistry.RegisterFactory(func() plugin.Plugin {
+		return &Plugin{BasePlugin: plugin.BasePlugin[*tfupdateengine.UpdateConfig]{
 			PluginName: "tfupdate",
 			PluginDesc: "Terraform dependency resolver and lock synchronizer",
 			EnableMode: plugin.EnabledExplicitly,
@@ -18,7 +18,7 @@ func init() {
 			IsEnabledFn: func(cfg *tfupdateengine.UpdateConfig) bool {
 				return cfg != nil && cfg.Enabled
 			},
-		},
+		}}
 	})
 }
 

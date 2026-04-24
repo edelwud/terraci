@@ -15,7 +15,6 @@ import (
 	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
-	"github.com/edelwud/terraci/pkg/plugin/registry"
 	"github.com/edelwud/terraci/pkg/workflow"
 )
 
@@ -44,7 +43,7 @@ Examples:
   terraci generate --auto-approve
   terraci generate --plan-only`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			applyProviderFlags(planOnly, cmd)
+			applyProviderFlags(app, planOnly, cmd)
 
 			result, err := workflow.Run(cmd.Context(), workflowOptions(app, ff))
 			if err != nil {
@@ -111,16 +110,16 @@ func resolveGenerateTargets(
 		ChangedOnly:            changedOnly,
 		BaseRef:                baseRef,
 		Filters:                ff,
-		ChangeDetectorResolver: registry.ResolveChangeDetector,
+		ChangeDetectorResolver: app.Plugins.ResolveChangeDetector,
 	})
 }
 
 // applyProviderFlags applies CLI override flags (--plan-only, --auto-approve) to the provider config.
-func applyProviderFlags(planOnly bool, cmd *cobra.Command) {
+func applyProviderFlags(app *App, planOnly bool, cmd *cobra.Command) {
 	if !planOnly && !cmd.Flags().Changed("auto-approve") && !cmd.Flags().Changed("no-auto-approve") {
 		return
 	}
-	resolved, err := registry.ResolveCIProvider()
+	resolved, err := app.Plugins.ResolveCIProvider()
 	if err != nil {
 		log.WithError(err).Debug("cannot apply CLI flags: provider not resolved")
 		return
@@ -188,7 +187,7 @@ func logCycles(depGraph *graph.DependencyGraph) {
 // --- Pipeline generation ---
 
 func newPipelineGenerator(app *App, depGraph *graph.DependencyGraph, modules []*discovery.Module) (pipeline.Generator, error) {
-	provider, err := registry.ResolveCIProvider()
+	provider, err := app.Plugins.ResolveCIProvider()
 	if err != nil {
 		return nil, fmt.Errorf("resolve CI provider: %w", err)
 	}

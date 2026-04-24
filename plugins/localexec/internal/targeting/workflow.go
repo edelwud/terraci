@@ -5,7 +5,6 @@ import (
 
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/plugin"
-	"github.com/edelwud/terraci/pkg/plugin/registry"
 	"github.com/edelwud/terraci/pkg/workflow"
 	"github.com/edelwud/terraci/plugins/localexec/internal/spec"
 )
@@ -28,6 +27,6 @@ func (r WorkflowResolver) Resolve(ctx context.Context, req spec.ExecuteRequest, 
 		ChangedOnly:            req.ChangedOnly,
 		BaseRef:                req.BaseRef,
 		Filters:                req.Filters,
-		ChangeDetectorResolver: registry.ResolveChangeDetector,
+		ChangeDetectorResolver: r.appCtx.Resolver().ResolveChangeDetector,
 	})
 }

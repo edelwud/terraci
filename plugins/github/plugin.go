@@ -9,18 +9,24 @@ import (
 )
 
 func init() {
-	registry.Register(&Plugin{
-		BasePlugin: plugin.BasePlugin[*configpkg.Config]{
-			PluginName: "github",
-			PluginDesc: "GitHub Actions pipeline generation and PR comments",
-			EnableMode: plugin.EnabledWhenConfigured,
-			DefaultCfg: func() *configpkg.Config {
-				return &configpkg.Config{
-					RunsOn: "ubuntu-latest",
-				}
-			},
-		},
+	registry.RegisterFactory(func() plugin.Plugin {
+		return &Plugin{
+			BasePlugin: newBasePlugin(),
+		}
 	})
+}
+
+func newBasePlugin() plugin.BasePlugin[*configpkg.Config] {
+	return plugin.BasePlugin[*configpkg.Config]{
+		PluginName: "github",
+		PluginDesc: "GitHub Actions pipeline generation and PR comments",
+		EnableMode: plugin.EnabledWhenConfigured,
+		DefaultCfg: func() *configpkg.Config {
+			return &configpkg.Config{
+				RunsOn: "ubuntu-latest",
+			}
+		},
+	}
 }
 
 // Plugin is the GitHub Actions plugin.

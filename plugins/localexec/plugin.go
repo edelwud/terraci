@@ -1,9 +1,12 @@
 package localexec
 
-import pluginregistry "github.com/edelwud/terraci/pkg/plugin/registry"
+import (
+	"github.com/edelwud/terraci/pkg/plugin"
+	pluginregistry "github.com/edelwud/terraci/pkg/plugin/registry"
+)
 
 func init() {
-	pluginregistry.Register(&Plugin{})
+	pluginregistry.RegisterFactory(func() plugin.Plugin { return &Plugin{} })
 }
 
 // Plugin runs the shared execution plan locally.

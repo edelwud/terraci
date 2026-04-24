@@ -9,7 +9,6 @@ import (
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
-	"github.com/edelwud/terraci/pkg/plugin/registry"
 	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
 	generatepkg "github.com/edelwud/terraci/plugins/gitlab/internal/generate"
 	mrpkg "github.com/edelwud/terraci/plugins/gitlab/internal/mr"
@@ -31,7 +30,7 @@ func (p *Plugin) CommitSHA() string { return os.Getenv("CI_COMMIT_SHA") }
 
 // NewGenerator creates a new GitLab CI pipeline generator.
 func (p *Plugin) NewGenerator(ctx *plugin.AppContext, depGraph *graph.DependencyGraph, modules []*discovery.Module) pipeline.Generator {
-	contributions := registry.CollectContributions(ctx)
+	contributions := ctx.Resolver().CollectContributions(ctx)
 	return generatepkg.NewGenerator(p.Config(), execution.ConfigFromProject(ctx.Config()), contributions, depGraph, modules)
 }
 

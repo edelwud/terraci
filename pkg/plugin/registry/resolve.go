@@ -19,8 +19,8 @@ type ciProviderPlugin interface {
 	plugin.PipelineGeneratorFactory
 }
 
-func activeCIProviders() []ciProviderPlugin {
-	candidates := ByCapability[ciProviderPlugin]()
+func (r *Registry) activeCIProviders() []ciProviderPlugin {
+	candidates := ByCapabilityFrom[ciProviderPlugin](r)
 	active := make([]ciProviderPlugin, 0, len(candidates))
 	for _, c := range candidates {
 		if isPluginEnabled(c) {
@@ -33,7 +33,13 @@ func activeCIProviders() []ciProviderPlugin {
 // ResolveCIProvider detects the active CI provider.
 // Priority: TERRACI_PROVIDER env → env detection → single active provider.
 func ResolveCIProvider() (*plugin.ResolvedCIProvider, error) {
-	candidates := activeCIProviders()
+	return Default().ResolveCIProvider()
+}
+
+// ResolveCIProvider detects the active CI provider in this registry.
+// Priority: TERRACI_PROVIDER env → env detection → single active provider.
+func (r *Registry) ResolveCIProvider() (*plugin.ResolvedCIProvider, error) {
+	candidates := r.activeCIProviders()
 	if len(candidates) == 0 {
 		return nil, errors.New("no active CI provider plugins registered")
 	}
@@ -70,7 +76,13 @@ func buildResolvedCIProvider(p ciProviderPlugin) *plugin.ResolvedCIProvider {
 // ResolveChangeDetector returns the active ChangeDetectionProvider.
 // Priority: single active detector → error.
 func ResolveChangeDetector() (plugin.ChangeDetectionProvider, error) {
-	detectors := activeChangeDetectors()
+	return Default().ResolveChangeDetector()
+}
+
+// ResolveChangeDetector returns the active ChangeDetectionProvider in this registry.
+// Priority: single active detector → error.
+func (r *Registry) ResolveChangeDetector() (plugin.ChangeDetectionProvider, error) {
+	detectors := r.activeChangeDetectors()
 	if len(detectors) == 0 {
 		return nil, errors.New("no change detection plugin registered")
 	}
@@ -81,8 +93,8 @@ func ResolveChangeDetector() (plugin.ChangeDetectionProvider, error) {
 		detectorNames(detectors))
 }
 
-func activeChangeDetectors() []plugin.ChangeDetectionProvider {
-	candidates := ByCapability[plugin.ChangeDetectionProvider]()
+func (r *Registry) activeChangeDetectors() []plugin.ChangeDetectionProvider {
+	candidates := ByCapabilityFrom[plugin.ChangeDetectionProvider](r)
 	active := make([]plugin.ChangeDetectionProvider, 0, len(candidates))
 	for _, c := range candidates {
 		if isPluginEnabled(c) {
@@ -125,11 +137,16 @@ func providerNames(candidates []ciProviderPlugin) string {
 
 // ResolveKVCacheProvider returns a named KV cache backend provider.
 func ResolveKVCacheProvider(name string) (plugin.KVCacheProvider, error) {
+	return Default().ResolveKVCacheProvider(name)
+}
+
+// ResolveKVCacheProvider returns a named KV cache backend provider from this registry.
+func (r *Registry) ResolveKVCacheProvider(name string) (plugin.KVCacheProvider, error) {
 	if name == "" {
 		return nil, errors.New("cache backend name is required")
 	}
 
-	resolved, ok := Get(name)
+	resolved, ok := r.Get(name)
 	if !ok {
 		return nil, fmt.Errorf("cache backend %q not found", name)
 	}
@@ -147,11 +164,16 @@ func ResolveKVCacheProvider(name string) (plugin.KVCacheProvider, error) {
 
 // ResolveBlobStoreProvider returns a named blob store backend provider.
 func ResolveBlobStoreProvider(name string) (plugin.BlobStoreProvider, error) {
+	return Default().ResolveBlobStoreProvider(name)
+}
+
+// ResolveBlobStoreProvider returns a named blob store backend provider from this registry.
+func (r *Registry) ResolveBlobStoreProvider(name string) (plugin.BlobStoreProvider, error) {
 	if name == "" {
 		return nil, errors.New("blob backend name is required")
 	}
 
-	resolved, ok := Get(name)
+	resolved, ok := r.Get(name)
 	if !ok {
 		return nil, fmt.Errorf("blob backend %q not found", name)
 	}
@@ -170,8 +192,15 @@ func ResolveBlobStoreProvider(name string) (plugin.BlobStoreProvider, error) {
 // PreflightsForStartup returns enabled plugins that participate in framework
 // preflight for the current config state.
 func PreflightsForStartup() []plugin.Preflightable {
-	result := make([]plugin.Preflightable, 0, len(All()))
-	for _, p := range All() {
+	return Default().PreflightsForStartup()
+}
+
+// PreflightsForStartup returns enabled plugins from this registry that
+// participate in framework preflight for the current config state.
+func (r *Registry) PreflightsForStartup() []plugin.Preflightable {
+	plugins := r.All()
+	result := make([]plugin.Preflightable, 0, len(plugins))
+	for _, p := range plugins {
 		if !isPluginEnabled(p) {
 			continue
 		}
@@ -185,7 +214,13 @@ func PreflightsForStartup() []plugin.Preflightable {
 // CollectContributions gathers pipeline contributions from all enabled
 // PipelineContributor plugins.
 func CollectContributions(ctx *plugin.AppContext) []*pipeline.Contribution {
-	contributors := ByCapability[plugin.PipelineContributor]()
+	return Default().CollectContributions(ctx)
+}
+
+// CollectContributions gathers pipeline contributions from all enabled
+// PipelineContributor plugins in this registry.
+func (r *Registry) CollectContributions(ctx *plugin.AppContext) []*pipeline.Contribution {
+	contributors := ByCapabilityFrom[plugin.PipelineContributor](r)
 	contributions := make([]*pipeline.Contribution, 0, len(contributors))
 	for _, c := range contributors {
 		if cl, ok := c.(plugin.ConfigLoader); ok && !cl.IsEnabled() {

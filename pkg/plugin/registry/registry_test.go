@@ -178,6 +178,49 @@ func TestByCapability(t *testing.T) {
 	}
 }
 
+func TestNewCreatesIsolatedPluginInstances(t *testing.T) {
+	t.Cleanup(func() { Reset() })
+	Reset()
+
+	RegisterFactory(func() plugin.Plugin {
+		return &testPreflightPlugin{
+			BasePlugin: plugin.BasePlugin[*testConfig]{
+				PluginName: "isolated",
+				PluginDesc: "isolated plugin",
+				EnableMode: plugin.EnabledExplicitly,
+				DefaultCfg: func() *testConfig { return &testConfig{} },
+				IsEnabledFn: func(cfg *testConfig) bool {
+					return cfg != nil && cfg.Enabled
+				},
+			},
+		}
+	})
+
+	first := New()
+	second := New()
+
+	firstPlugin := ByCapabilityFrom[plugin.ConfigLoader](first)[0]
+	secondPlugin := ByCapabilityFrom[plugin.ConfigLoader](second)[0]
+	if firstPlugin == secondPlugin {
+		t.Fatal("New() returned shared plugin instances")
+	}
+
+	if err := firstPlugin.DecodeAndSet(func(target any) error {
+		cfg := target.(**testConfig)
+		*cfg = &testConfig{Enabled: true}
+		return nil
+	}); err != nil {
+		t.Fatalf("DecodeAndSet() error = %v", err)
+	}
+
+	if !firstPlugin.IsEnabled() {
+		t.Fatal("first plugin should be enabled after decode")
+	}
+	if secondPlugin.IsEnabled() {
+		t.Fatal("second plugin observed config state from first plugin")
+	}
+}
+
 func TestGetNotFound(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()

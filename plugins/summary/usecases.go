@@ -8,7 +8,6 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/plugin"
-	"github.com/edelwud/terraci/pkg/plugin/registry"
 	summaryengine "github.com/edelwud/terraci/plugins/summary/internal"
 )
 
@@ -65,8 +64,10 @@ func loadSummaryInputs(appCtx *plugin.AppContext) (*summaryInputs, error) {
 	}, nil
 }
 
-func resolveSummaryProvider() (summaryProvider, error) {
-	return registry.ResolveCIProvider()
+func resolveSummaryProvider(appCtx *plugin.AppContext) func() (summaryProvider, error) {
+	return func() (summaryProvider, error) {
+		return appCtx.Resolver().ResolveCIProvider()
+	}
 }
 
 func runSummaryUseCase(ctx context.Context, appCtx *plugin.AppContext, cfg *summaryengine.Config, resolveProvider func() (summaryProvider, error)) error {
@@ -132,7 +133,7 @@ func runSummaryUseCase(ctx context.Context, appCtx *plugin.AppContext, cfg *summ
 }
 
 func (p *Plugin) runSummary(ctx context.Context, appCtx *plugin.AppContext) error {
-	return runSummaryUseCase(ctx, appCtx, p.Config(), resolveSummaryProvider)
+	return runSummaryUseCase(ctx, appCtx, p.Config(), resolveSummaryProvider(appCtx))
 }
 
 func hasReportableChanges(plans []ci.ModulePlan, reports []*ci.Report) bool {

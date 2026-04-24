@@ -13,6 +13,7 @@ import (
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/registry"
 )
 
 func CaptureLogOutput(t *testing.T, fn func()) string {
@@ -55,7 +56,7 @@ func NewAppContext(t *testing.T, workDir string) *plugin.AppContext {
 	serviceDir := filepath.Join(t.TempDir(), ".terraci")
 	cfg := config.DefaultConfig()
 	cfg.ServiceDir = ".terraci"
-	return plugin.NewAppContext(cfg, workDir, serviceDir, "test", plugin.NewReportRegistry())
+	return plugin.NewAppContext(cfg, workDir, serviceDir, "test", plugin.NewReportRegistry(), registry.New())
 }
 
 func MustRuntime[T any](t *testing.T, provider plugin.RuntimeProvider, appCtx *plugin.AppContext) T {

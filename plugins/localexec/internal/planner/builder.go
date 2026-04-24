@@ -7,7 +7,6 @@ import (
 	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
-	"github.com/edelwud/terraci/pkg/plugin/registry"
 	"github.com/edelwud/terraci/pkg/workflow"
 	"github.com/edelwud/terraci/plugins/localexec/internal/spec"
 )
@@ -26,12 +25,12 @@ type defaultBuilder struct {
 }
 
 func New(appCtx *plugin.AppContext) Builder {
-	return NewWithContributionCollector(appCtx, registryContributionCollector{})
+	return NewWithContributionCollector(appCtx, contextContributionCollector{})
 }
 
 func NewWithContributionCollector(appCtx *plugin.AppContext, collector ContributionCollector) Builder {
 	if collector == nil {
-		collector = registryContributionCollector{}
+		collector = contextContributionCollector{}
 	}
 	return defaultBuilder{appCtx: appCtx, contributions: collector}
 }
@@ -66,10 +65,10 @@ func (b defaultBuilder) Build(targets []*discovery.Module, result *workflow.Resu
 	return execution.NewPlan(ir), nil
 }
 
-type registryContributionCollector struct{}
+type contextContributionCollector struct{}
 
-func (registryContributionCollector) Collect(appCtx *plugin.AppContext) []*pipeline.Contribution {
-	return registry.CollectContributions(appCtx)
+func (contextContributionCollector) Collect(appCtx *plugin.AppContext) []*pipeline.Contribution {
+	return appCtx.Resolver().CollectContributions(appCtx)
 }
 
 func planModeContributions(contributions []*pipeline.Contribution) []*pipeline.Contribution {
