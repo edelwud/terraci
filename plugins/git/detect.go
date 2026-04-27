@@ -5,13 +5,11 @@ import (
 	"fmt"
 
 	"github.com/edelwud/terraci/pkg/discovery"
-	"github.com/edelwud/terraci/pkg/plugin"
 	gitclient "github.com/edelwud/terraci/plugins/git/internal"
 )
 
 // DetectChangedModules returns modules changed since the given base ref.
-func (p *Plugin) DetectChangedModules(_ context.Context, appCtx *plugin.AppContext, baseRef string, moduleIndex *discovery.ModuleIndex) ([]*discovery.Module, []string, error) {
-	workDir := appCtx.WorkDir()
+func (p *Plugin) DetectChangedModules(_ context.Context, workDir, baseRef string, moduleIndex *discovery.ModuleIndex) ([]*discovery.Module, []string, error) {
 	client := gitclient.NewClient(workDir)
 	if !client.IsGitRepo() {
 		return nil, nil, fmt.Errorf("not a git repository: %s", workDir)
@@ -23,8 +21,7 @@ func (p *Plugin) DetectChangedModules(_ context.Context, appCtx *plugin.AppConte
 }
 
 // DetectChangedLibraries returns library paths changed since the given base ref.
-func (p *Plugin) DetectChangedLibraries(_ context.Context, appCtx *plugin.AppContext, baseRef string, libraryPaths []string) ([]string, error) {
-	workDir := appCtx.WorkDir()
+func (p *Plugin) DetectChangedLibraries(_ context.Context, workDir, baseRef string, libraryPaths []string) ([]string, error) {
 	client := gitclient.NewClient(workDir)
 	if !client.IsGitRepo() {
 		return nil, nil

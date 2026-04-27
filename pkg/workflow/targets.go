@@ -8,7 +8,6 @@ import (
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/filter"
-	"github.com/edelwud/terraci/pkg/plugin"
 )
 
 // TargetSelectionOptions controls how executable targets are selected from a workflow result.
@@ -22,21 +21,28 @@ type TargetSelectionOptions struct {
 }
 
 // ChangeDetectorResolver resolves the change detection provider for changed-only target selection.
-type ChangeDetectorResolver func() (plugin.ChangeDetectionProvider, error)
+type ChangeDetectorResolver func() (ChangeDetector, error)
+
+// ChangeDetector detects changed modules and library paths for target selection.
+type ChangeDetector interface {
+	DetectChangedModules(ctx context.Context, workDir, baseRef string, moduleIndex *discovery.ModuleIndex) (changed []*discovery.Module, changedFiles []string, err error)
+	DetectChangedLibraries(ctx context.Context, workDir, baseRef string, libraryPaths []string) ([]string, error)
+}
 
 // ResolveTargets applies module/path filters and optional change detection to a workflow result.
-func ResolveTargets(ctx context.Context, appCtx *plugin.AppContext, result *Result, opts TargetSelectionOptions) ([]*discovery.Module, error) {
-	return resolveTargets(ctx, appCtx, result, opts)
+func ResolveTargets(ctx context.Context, workDir string, cfg *config.Config, result *Result, opts TargetSelectionOptions) ([]*discovery.Module, error) {
+	return resolveTargets(ctx, workDir, cfg, result, opts)
 }
 
 func resolveTargets(
 	ctx context.Context,
-	appCtx *plugin.AppContext,
+	workDir string,
+	cfg *config.Config,
 	result *Result,
 	opts TargetSelectionOptions,
 ) ([]*discovery.Module, error) {
-	if appCtx == nil {
-		return nil, errors.New("app context is required")
+	if cfg == nil {
+		return nil, errors.New("config is required")
 	}
 	if result == nil {
 		return nil, errors.New("workflow result is required")
@@ -62,8 +68,7 @@ func resolveTargets(
 		return nil, fmt.Errorf("change detection: %w", err)
 	}
 
-	cfg := appCtx.Config()
-	changedModules, _, err := detector.DetectChangedModules(ctx, appCtx, opts.BaseRef, result.FullIndex)
+	changedModules, _, err := detector.DetectChangedModules(ctx, workDir, opts.BaseRef, result.FullIndex)
 	if err != nil {
 		return nil, fmt.Errorf("detect changed modules: %w", err)
 	}
@@ -72,7 +77,7 @@ func resolveTargets(
 	var affectedIDs []string
 
 	if cfg.LibraryModules != nil && len(cfg.LibraryModules.Paths) > 0 {
-		libraryPaths, libraryErr := detector.DetectChangedLibraries(ctx, appCtx, opts.BaseRef, cfg.LibraryModules.Paths)
+		libraryPaths, libraryErr := detector.DetectChangedLibraries(ctx, workDir, opts.BaseRef, cfg.LibraryModules.Paths)
 		if libraryErr != nil {
 			return nil, fmt.Errorf("detect changed libraries: %w", libraryErr)
 		}

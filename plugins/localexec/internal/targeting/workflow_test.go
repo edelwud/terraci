@@ -28,7 +28,7 @@ func (d workflowResolverTestChangeDetector) Description() string {
 
 func (d workflowResolverTestChangeDetector) DetectChangedModules(
 	context.Context,
-	*plugin.AppContext,
+	string,
 	string,
 	*discovery.ModuleIndex,
 ) ([]*discovery.Module, []string, error) {
@@ -37,7 +37,7 @@ func (d workflowResolverTestChangeDetector) DetectChangedModules(
 
 func (d workflowResolverTestChangeDetector) DetectChangedLibraries(
 	context.Context,
-	*plugin.AppContext,
+	string,
 	string,
 	[]string,
 ) ([]string, error) {
@@ -73,16 +73,20 @@ func TestWorkflowResolverUsesWorkflowResolveTargets(t *testing.T) {
 		Filters:     filters,
 	}
 
-	got, err := NewWorkflowResolver(appCtx, plugins.ResolveChangeDetector).Resolve(context.Background(), req, result)
+	resolveChangeDetector := func() (workflow.ChangeDetector, error) {
+		return plugins.ResolveChangeDetector()
+	}
+
+	got, err := NewWorkflowResolver(appCtx, resolveChangeDetector).Resolve(context.Background(), req, result)
 	if err != nil {
 		t.Fatalf("WorkflowResolver.Resolve() error = %v", err)
 	}
-	want, err := workflow.ResolveTargets(context.Background(), appCtx, result, workflow.TargetSelectionOptions{
+	want, err := workflow.ResolveTargets(context.Background(), appCtx.WorkDir(), appCtx.Config(), result, workflow.TargetSelectionOptions{
 		ModulePath:             req.ModulePath,
 		ChangedOnly:            req.ChangedOnly,
 		BaseRef:                req.BaseRef,
 		Filters:                req.Filters,
-		ChangeDetectorResolver: plugins.ResolveChangeDetector,
+		ChangeDetectorResolver: resolveChangeDetector,
 	})
 	if err != nil {
 		t.Fatalf("workflow.ResolveTargets() error = %v", err)

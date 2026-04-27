@@ -26,7 +26,7 @@ func (d generateTargetTestChangeDetector) Description() string {
 
 func (d generateTargetTestChangeDetector) DetectChangedModules(
 	context.Context,
-	*plugin.AppContext,
+	string,
 	string,
 	*discovery.ModuleIndex,
 ) ([]*discovery.Module, []string, error) {
@@ -35,7 +35,7 @@ func (d generateTargetTestChangeDetector) DetectChangedModules(
 
 func (d generateTargetTestChangeDetector) DetectChangedLibraries(
 	context.Context,
-	*plugin.AppContext,
+	string,
 	string,
 	[]string,
 ) ([]string, error) {
@@ -73,11 +73,13 @@ func TestResolveGenerateTargetsUsesWorkflowResolveTargets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveGenerateTargets() error = %v", err)
 	}
-	want, err := workflow.ResolveTargets(context.Background(), app.PluginContext(), result, workflow.TargetSelectionOptions{
-		ChangedOnly:            true,
-		BaseRef:                "main",
-		Filters:                ff,
-		ChangeDetectorResolver: app.Plugins.ResolveChangeDetector,
+	want, err := workflow.ResolveTargets(context.Background(), app.WorkDir, app.Config, result, workflow.TargetSelectionOptions{
+		ChangedOnly: true,
+		BaseRef:     "main",
+		Filters:     ff,
+		ChangeDetectorResolver: func() (workflow.ChangeDetector, error) {
+			return app.Plugins.ResolveChangeDetector()
+		},
 	})
 	if err != nil {
 		t.Fatalf("workflow.ResolveTargets() error = %v", err)

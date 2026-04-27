@@ -680,11 +680,11 @@ type testDetectorPlugin struct {
 	plugin.BasePlugin[*testConfig]
 }
 
-func (d *testDetectorPlugin) DetectChangedModules(_ context.Context, _ *plugin.AppContext, _ string, _ *discovery.ModuleIndex) ([]*discovery.Module, []string, error) {
+func (d *testDetectorPlugin) DetectChangedModules(_ context.Context, _, _ string, _ *discovery.ModuleIndex) ([]*discovery.Module, []string, error) {
 	return nil, nil, nil
 }
 
-func (d *testDetectorPlugin) DetectChangedLibraries(_ context.Context, _ *plugin.AppContext, _ string, _ []string) ([]string, error) {
+func (d *testDetectorPlugin) DetectChangedLibraries(_ context.Context, _, _ string, _ []string) ([]string, error) {
 	return nil, nil
 }
 
@@ -774,10 +774,10 @@ type bareDetector struct {
 
 func (d *bareDetector) Name() string        { return d.name }
 func (d *bareDetector) Description() string { return d.name }
-func (d *bareDetector) DetectChangedModules(_ context.Context, _ *plugin.AppContext, _ string, _ *discovery.ModuleIndex) ([]*discovery.Module, []string, error) {
+func (d *bareDetector) DetectChangedModules(_ context.Context, _, _ string, _ *discovery.ModuleIndex) ([]*discovery.Module, []string, error) {
 	return nil, nil, nil
 }
-func (d *bareDetector) DetectChangedLibraries(_ context.Context, _ *plugin.AppContext, _ string, _ []string) ([]string, error) {
+func (d *bareDetector) DetectChangedLibraries(_ context.Context, _, _ string, _ []string) ([]string, error) {
 	return nil, nil
 }
 

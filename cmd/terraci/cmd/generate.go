@@ -106,11 +106,13 @@ func resolveGenerateTargets(
 	baseRef string,
 	ff *filter.Flags,
 ) ([]*discovery.Module, error) {
-	return workflow.ResolveTargets(ctx, app.PluginContext(), result, workflow.TargetSelectionOptions{
-		ChangedOnly:            changedOnly,
-		BaseRef:                baseRef,
-		Filters:                ff,
-		ChangeDetectorResolver: app.Plugins.ResolveChangeDetector,
+	return workflow.ResolveTargets(ctx, app.WorkDir, app.Config, result, workflow.TargetSelectionOptions{
+		ChangedOnly: changedOnly,
+		BaseRef:     baseRef,
+		Filters:     ff,
+		ChangeDetectorResolver: func() (workflow.ChangeDetector, error) {
+			return app.Plugins.ResolveChangeDetector()
+		},
 	})
 }
 

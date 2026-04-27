@@ -10,8 +10,6 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/filter"
 	"github.com/edelwud/terraci/pkg/graph"
-	"github.com/edelwud/terraci/pkg/plugin"
-	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 )
 
 type stubChangeDetector struct {
@@ -22,11 +20,11 @@ type stubChangeDetector struct {
 func (d stubChangeDetector) Name() string        { return "stub-detector" }
 func (d stubChangeDetector) Description() string { return "stub detector" }
 
-func (d stubChangeDetector) DetectChangedModules(context.Context, *plugin.AppContext, string, *discovery.ModuleIndex) ([]*discovery.Module, []string, error) {
+func (d stubChangeDetector) DetectChangedModules(context.Context, string, string, *discovery.ModuleIndex) ([]*discovery.Module, []string, error) {
 	return d.changedModules, nil, nil
 }
 
-func (d stubChangeDetector) DetectChangedLibraries(context.Context, *plugin.AppContext, string, []string) ([]string, error) {
+func (d stubChangeDetector) DetectChangedLibraries(context.Context, string, string, []string) ([]string, error) {
 	return d.changedLibraries, nil
 }
 
@@ -35,7 +33,8 @@ func TestResolveTargets_ModulePathIntersectedWithChangedModules(t *testing.T) {
 
 	vpc := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	eks := discovery.TestModule("platform", "stage", "eu-central-1", "eks")
-	appCtx := plugintest.NewAppContext(t, t.TempDir())
+	cfg := config.DefaultConfig()
+	workDir := t.TempDir()
 
 	result := &Result{
 		FilteredModules: []*discovery.Module{vpc, eks},
@@ -50,10 +49,10 @@ func TestResolveTargets_ModulePathIntersectedWithChangedModules(t *testing.T) {
 		}(),
 	}
 
-	targets, err := resolveTargets(context.Background(), appCtx, result, TargetSelectionOptions{
+	targets, err := resolveTargets(context.Background(), workDir, cfg, result, TargetSelectionOptions{
 		ChangedOnly: true,
 		ModulePath:  vpc.RelativePath,
-		ChangeDetectorResolver: func() (plugin.ChangeDetectionProvider, error) {
+		ChangeDetectorResolver: func() (ChangeDetector, error) {
 			return stubChangeDetector{changedModules: []*discovery.Module{eks}}, nil
 		},
 	})
@@ -71,10 +70,9 @@ func TestResolveTargets_ChangedLibrariesRespectFilters(t *testing.T) {
 
 	stage := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	prod := discovery.TestModule("platform", "prod", "eu-central-1", "vpc")
-	appCtx := plugintest.NewAppContext(t, t.TempDir())
-	cfg := appCtx.Config()
+	cfg := config.DefaultConfig()
+	workDir := t.TempDir()
 	cfg.LibraryModules = &config.LibraryModulesConfig{Paths: []string{"_modules"}}
-	appCtx = plugin.NewAppContext(cfg, appCtx.WorkDir(), appCtx.ServiceDir(), appCtx.Version(), appCtx.Reports())
 
 	depGraph := graph.BuildFromDependencies([]*discovery.Module{stage, prod}, nil)
 	depGraph.AddLibraryUsage("_modules/network", stage.ID())
@@ -87,10 +85,10 @@ func TestResolveTargets_ChangedLibrariesRespectFilters(t *testing.T) {
 		Graph:           depGraph,
 	}
 
-	targets, err := resolveTargets(context.Background(), appCtx, result, TargetSelectionOptions{
+	targets, err := resolveTargets(context.Background(), workDir, cfg, result, TargetSelectionOptions{
 		ChangedOnly: true,
 		Filters:     &filter.Flags{SegmentArgs: []string{"environment=stage"}},
-		ChangeDetectorResolver: func() (plugin.ChangeDetectionProvider, error) {
+		ChangeDetectorResolver: func() (ChangeDetector, error) {
 			return stubChangeDetector{changedLibraries: []string{"_modules/network"}}, nil
 		},
 	})
@@ -107,7 +105,8 @@ func TestResolveTargets_ChangedOnlyNoTargetsReturnsEmpty(t *testing.T) {
 	t.Parallel()
 
 	app := discovery.TestModule("svc", "stage", "eu", "app")
-	appCtx := plugintest.NewAppContext(t, t.TempDir())
+	cfg := config.DefaultConfig()
+	workDir := t.TempDir()
 	result := &Result{
 		FilteredModules: []*discovery.Module{app},
 		FullIndex:       discovery.NewModuleIndex([]*discovery.Module{app}),
@@ -115,10 +114,10 @@ func TestResolveTargets_ChangedOnlyNoTargetsReturnsEmpty(t *testing.T) {
 		Graph:           graph.BuildFromDependencies([]*discovery.Module{app}, nil),
 	}
 
-	targets, err := resolveTargets(context.Background(), appCtx, result, TargetSelectionOptions{
+	targets, err := resolveTargets(context.Background(), workDir, cfg, result, TargetSelectionOptions{
 		ChangedOnly: true,
 		ModulePath:  "missing/path",
-		ChangeDetectorResolver: func() (plugin.ChangeDetectionProvider, error) {
+		ChangeDetectorResolver: func() (ChangeDetector, error) {
 			return stubChangeDetector{changedModules: []*discovery.Module{app}}, nil
 		},
 	})
@@ -135,7 +134,8 @@ func TestResolveTargets_ModulePathDoesNotMutateFilteredModules(t *testing.T) {
 
 	vpc := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	eks := discovery.TestModule("platform", "stage", "eu-central-1", "eks")
-	appCtx := plugintest.NewAppContext(t, t.TempDir())
+	cfg := config.DefaultConfig()
+	workDir := t.TempDir()
 	result := &Result{
 		FilteredModules: []*discovery.Module{vpc, eks},
 		FullIndex:       discovery.NewModuleIndex([]*discovery.Module{vpc, eks}),
@@ -143,7 +143,7 @@ func TestResolveTargets_ModulePathDoesNotMutateFilteredModules(t *testing.T) {
 		Graph:           graph.BuildFromDependencies([]*discovery.Module{vpc, eks}, nil),
 	}
 
-	targets, err := resolveTargets(context.Background(), appCtx, result, TargetSelectionOptions{
+	targets, err := resolveTargets(context.Background(), workDir, cfg, result, TargetSelectionOptions{
 		ModulePath: vpc.RelativePath,
 	})
 	if err != nil {
@@ -164,10 +164,9 @@ func TestResolveTargets_ChangedOnlyAppliesModuleAfterFiltersAndAffectedModules(t
 	vpc := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	eks := discovery.TestModule("platform", "stage", "eu-central-1", "eks")
 	prodVPC := discovery.TestModule("platform", "prod", "eu-central-1", "vpc")
-	appCtx := plugintest.NewAppContext(t, t.TempDir())
-	cfg := appCtx.Config()
+	cfg := config.DefaultConfig()
+	workDir := t.TempDir()
 	cfg.Exclude = []string{"platform/prod/**"}
-	appCtx = plugin.NewAppContext(cfg, appCtx.WorkDir(), appCtx.ServiceDir(), appCtx.Version(), appCtx.Reports())
 	flags := &filter.Flags{SegmentArgs: []string{"environment=stage"}}
 
 	depGraph := graph.NewDependencyGraph()
@@ -209,11 +208,11 @@ func TestResolveTargets_ChangedOnlyAppliesModuleAfterFiltersAndAffectedModules(t
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			targets, err := resolveTargets(context.Background(), appCtx, result, TargetSelectionOptions{
+			targets, err := resolveTargets(context.Background(), workDir, cfg, result, TargetSelectionOptions{
 				ChangedOnly: true,
 				ModulePath:  tt.modulePath,
 				Filters:     flags,
-				ChangeDetectorResolver: func() (plugin.ChangeDetectionProvider, error) {
+				ChangeDetectorResolver: func() (ChangeDetector, error) {
 					return stubChangeDetector{changedModules: []*discovery.Module{eks}}, nil
 				},
 			})
@@ -234,7 +233,8 @@ func TestResolveTargets_ChangedOnlyPreservesFilteredModuleOrder(t *testing.T) {
 	vpc := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	eks := discovery.TestModule("platform", "stage", "eu-central-1", "eks")
 	app := discovery.TestModule("platform", "stage", "eu-central-1", "app")
-	appCtx := plugintest.NewAppContext(t, t.TempDir())
+	cfg := config.DefaultConfig()
+	workDir := t.TempDir()
 
 	depGraph := graph.NewDependencyGraph()
 	for _, module := range []*discovery.Module{vpc, eks, app} {
@@ -249,9 +249,9 @@ func TestResolveTargets_ChangedOnlyPreservesFilteredModuleOrder(t *testing.T) {
 		Graph:           depGraph,
 	}
 
-	targets, err := resolveTargets(context.Background(), appCtx, result, TargetSelectionOptions{
+	targets, err := resolveTargets(context.Background(), workDir, cfg, result, TargetSelectionOptions{
 		ChangedOnly: true,
-		ChangeDetectorResolver: func() (plugin.ChangeDetectionProvider, error) {
+		ChangeDetectorResolver: func() (ChangeDetector, error) {
 			return stubChangeDetector{changedModules: []*discovery.Module{app, vpc}}, nil
 		},
 	})
@@ -270,11 +270,10 @@ func TestResolveTargets_ChangedLibrariesIntersectModuleAndFilters(t *testing.T) 
 	stageVPC := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	stageEKS := discovery.TestModule("platform", "stage", "eu-central-1", "eks")
 	prodVPC := discovery.TestModule("platform", "prod", "eu-central-1", "vpc")
-	appCtx := plugintest.NewAppContext(t, t.TempDir())
-	cfg := appCtx.Config()
+	cfg := config.DefaultConfig()
+	workDir := t.TempDir()
 	cfg.Exclude = []string{"platform/prod/**"}
 	cfg.LibraryModules = &config.LibraryModulesConfig{Paths: []string{"_modules"}}
-	appCtx = plugin.NewAppContext(cfg, appCtx.WorkDir(), appCtx.ServiceDir(), appCtx.Version(), appCtx.Reports())
 	flags := &filter.Flags{SegmentArgs: []string{"environment=stage"}}
 
 	tests := []struct {
@@ -320,11 +319,11 @@ func TestResolveTargets_ChangedLibrariesIntersectModuleAndFilters(t *testing.T) 
 				Graph:           depGraph,
 			}
 
-			targets, err := resolveTargets(context.Background(), appCtx, result, TargetSelectionOptions{
+			targets, err := resolveTargets(context.Background(), workDir, cfg, result, TargetSelectionOptions{
 				ChangedOnly: true,
 				ModulePath:  tt.modulePath,
 				Filters:     flags,
-				ChangeDetectorResolver: func() (plugin.ChangeDetectionProvider, error) {
+				ChangeDetectorResolver: func() (ChangeDetector, error) {
 					return stubChangeDetector{changedLibraries: []string{"_modules/network"}}, nil
 				},
 			})

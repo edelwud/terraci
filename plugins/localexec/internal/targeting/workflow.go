@@ -20,7 +20,7 @@ type WorkflowResolver struct {
 
 func NewWorkflowResolver(appCtx *plugin.AppContext, changeDetectorResolver workflow.ChangeDetectorResolver) Resolver {
 	if changeDetectorResolver == nil {
-		changeDetectorResolver = func() (plugin.ChangeDetectionProvider, error) {
+		changeDetectorResolver = func() (workflow.ChangeDetector, error) {
 			return plugin.ResolveChangeDetector(appCtx)
 		}
 	}
@@ -28,7 +28,7 @@ func NewWorkflowResolver(appCtx *plugin.AppContext, changeDetectorResolver workf
 }
 
 func (r WorkflowResolver) Resolve(ctx context.Context, req spec.ExecuteRequest, result *workflow.Result) ([]*discovery.Module, error) {
-	return workflow.ResolveTargets(ctx, r.appCtx, result, workflow.TargetSelectionOptions{
+	return workflow.ResolveTargets(ctx, r.appCtx.WorkDir(), r.appCtx.Config(), result, workflow.TargetSelectionOptions{
 		ModulePath:             req.ModulePath,
 		ChangedOnly:            req.ChangedOnly,
 		BaseRef:                req.BaseRef,

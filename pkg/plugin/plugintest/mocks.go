@@ -25,11 +25,11 @@ type StubChangeDetector struct {
 	Err              error
 }
 
-func (d *StubChangeDetector) DetectChangedModules(_ context.Context, _ *plugin.AppContext, _ string, _ *discovery.ModuleIndex) ([]*discovery.Module, []string, error) {
+func (d *StubChangeDetector) DetectChangedModules(_ context.Context, _, _ string, _ *discovery.ModuleIndex) ([]*discovery.Module, []string, error) {
 	return d.ChangedModules, d.ChangedFiles, d.Err
 }
 
-func (d *StubChangeDetector) DetectChangedLibraries(_ context.Context, _ *plugin.AppContext, _ string, _ []string) ([]string, error) {
+func (d *StubChangeDetector) DetectChangedLibraries(_ context.Context, _, _ string, _ []string) ([]string, error) {
 	return d.ChangedLibraries, d.Err
 }
 
