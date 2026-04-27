@@ -11,7 +11,6 @@ import (
 	"github.com/edelwud/terraci/pkg/cache/blobcache"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
-	"github.com/edelwud/terraci/pkg/plugin/registry"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/engine"
@@ -49,7 +48,6 @@ const testPlanEC2 = `{
 // registered in init(), but without touching the global plugin registry.
 func newTestPlugin(t *testing.T) *Plugin {
 	t.Helper()
-	registry.ResetPlugins()
 	p := &Plugin{
 		BasePlugin: plugin.BasePlugin[*model.CostConfig]{
 			PluginName: "cost",
@@ -190,4 +188,8 @@ func writePlanJSON(t *testing.T, moduleDir, planJSON string) {
 // workDir should contain the module directories with plan.json files.
 func newTestAppContext(t *testing.T, workDir string) *plugin.AppContext {
 	return plugintest.NewAppContext(t, workDir)
+}
+
+func newTestAppContextWithResolver(t *testing.T, workDir string, resolver plugin.Resolver) *plugin.AppContext {
+	return plugintest.NewAppContextWithResolver(t, workDir, resolver)
 }

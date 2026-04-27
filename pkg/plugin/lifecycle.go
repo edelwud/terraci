@@ -5,7 +5,7 @@ import "context"
 // --- Lifecycle interfaces ---
 //
 // Preferred plugin flow:
-//   - register via init() + Register()
+//   - register via init() + registry.RegisterFactory()
 //   - configure via ConfigLoader
 //   - preflight via Preflightable
 //   - build lazy command-time runtime via RuntimeProvider

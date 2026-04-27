@@ -43,9 +43,9 @@ func (d generateTargetTestChangeDetector) DetectChangedLibraries(
 }
 
 func TestResolveGenerateTargetsUsesWorkflowResolveTargets(t *testing.T) {
-	registry.Reset()
-	t.Cleanup(registry.Reset)
-	registry.Register(generateTargetTestChangeDetector{changedLibraries: []string{"_modules/network"}})
+	plugins := registry.NewFromFactories(func() plugin.Plugin {
+		return generateTargetTestChangeDetector{changedLibraries: []string{"_modules/network"}}
+	})
 
 	stage := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	prod := discovery.TestModule("platform", "prod", "eu-central-1", "vpc")
@@ -65,6 +65,7 @@ func TestResolveGenerateTargetsUsesWorkflowResolveTargets(t *testing.T) {
 		Config:  cfg,
 		WorkDir: t.TempDir(),
 		Version: "test",
+		Plugins: plugins,
 	}
 	ff := &filter.Flags{SegmentArgs: []string{"environment=stage"}}
 
@@ -76,7 +77,7 @@ func TestResolveGenerateTargetsUsesWorkflowResolveTargets(t *testing.T) {
 		ChangedOnly:            true,
 		BaseRef:                "main",
 		Filters:                ff,
-		ChangeDetectorResolver: registry.ResolveChangeDetector,
+		ChangeDetectorResolver: app.Plugins.ResolveChangeDetector,
 	})
 	if err != nil {
 		t.Fatalf("workflow.ResolveTargets() error = %v", err)

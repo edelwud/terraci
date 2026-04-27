@@ -90,13 +90,15 @@ import (
 )
 
 func init() {
-    registry.Register(&Plugin{
-        BasePlugin: plugin.BasePlugin[*Config]{
-            PluginName: "bitbucket",
-            PluginDesc: "Bitbucket Pipelines generation",
-            EnableMode: plugin.EnabledWhenConfigured,
-            DefaultCfg: func() *Config { return &Config{} },
-        },
+    registry.RegisterFactory(func() plugin.Plugin {
+        return &Plugin{
+            BasePlugin: plugin.BasePlugin[*Config]{
+                PluginName: "bitbucket",
+                PluginDesc: "Bitbucket Pipelines generation",
+                EnableMode: plugin.EnabledWhenConfigured,
+                DefaultCfg: func() *Config { return &Config{} },
+            },
+        }
     })
 }
 
@@ -139,9 +141,9 @@ func (g *generator) Generate(ir *pipeline.IR) (*pipeline.GeneratedPipeline, erro
 
 TerraCi определяет активный CI-провайдер в порядке:
 
-1. **Автоопределение** — `DetectEnv()` возвращает `true`
-2. **`TERRACI_PROVIDER`** — явное указание
-3. **Единственный сконфигурированный** — только один провайдер имеет секцию в `.terraci.yaml`
+1. **`TERRACI_PROVIDER`** — явное указание
+2. **Автоопределение** — `DetectEnv()` возвращает `true`
+3. **Единственный активный провайдер** — активен только один провайдер
 
 Ваш провайдер обнаруживается автоматически. Изменения в core не нужны.
 

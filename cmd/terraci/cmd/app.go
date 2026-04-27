@@ -27,6 +27,14 @@ type App struct {
 	pluginCtx *plugin.AppContext
 }
 
+// BeginCommand creates a fresh plugin instance set and context for one command execution.
+func (a *App) BeginCommand() {
+	a.Plugins = registry.New()
+	if a.pluginCtx != nil {
+		a.pluginCtx.BeginCommand(a.Plugins)
+	}
+}
+
 // PluginContext returns the shared AppContext for plugins.
 // The returned pointer is stable; call Ensure() to refresh its fields
 // after Config or WorkDir change.

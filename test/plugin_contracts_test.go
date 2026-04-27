@@ -65,7 +65,7 @@ func TestBuiltInPluginContractMatrix(t *testing.T) {
 		},
 	}
 
-	for _, p := range registry.All() {
+	for _, p := range registry.New().All() {
 		want, ok := expected[p.Name()]
 		if !ok {
 			t.Fatalf("unexpected plugin %q in registry", p.Name())
@@ -118,7 +118,8 @@ plugins:
     enabled: true
 `)
 
-	preflightables := registry.PreflightsForStartup()
+	plugins := appCtx.Resolver().(*registry.Registry)
+	preflightables := plugins.PreflightsForStartup()
 	got := make([]string, 0, len(preflightables))
 	for _, p := range preflightables {
 		if err := p.Preflight(context.Background(), appCtx); err != nil && p.Name() != "git" {
@@ -155,7 +156,8 @@ plugins:
 
 	expectedRuntimeProviders := []string{"cost", "policy", "tfupdate"}
 	got := make([]string, 0, len(expectedRuntimeProviders))
-	for _, p := range registry.ByCapability[plugin.RuntimeProvider]() {
+	plugins := appCtx.Resolver().(*registry.Registry)
+	for _, p := range registry.ByCapabilityFrom[plugin.RuntimeProvider](plugins) {
 		rawRuntime, err := p.Runtime(context.Background(), appCtx)
 		if err != nil {
 			t.Fatalf("Runtime(%s) error = %v", p.Name(), err)
@@ -190,7 +192,8 @@ plugins:
     pipeline: true
 `)
 
-	contributions := registry.CollectContributions(appCtx)
+	plugins := appCtx.Resolver().(*registry.Registry)
+	contributions := plugins.CollectContributions(appCtx)
 	if len(contributions) != 4 {
 		t.Fatalf("CollectContributions() returned %d contributions, want 4", len(contributions))
 	}
@@ -220,7 +223,7 @@ func loadPluginContractConfig(t *testing.T, rawConfig string) *plugin.AppContext
 	t.Helper()
 
 	clearCIEnv(t)
-	registry.ResetPlugins()
+	plugins := registry.New()
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, ".terraci.yaml")
@@ -233,7 +236,7 @@ func loadPluginContractConfig(t *testing.T, rawConfig string) *plugin.AppContext
 		t.Fatalf("failed to load config fixture: %v", err)
 	}
 
-	for _, cl := range registry.ByCapability[plugin.ConfigLoader]() {
+	for _, cl := range registry.ByCapabilityFrom[plugin.ConfigLoader](plugins) {
 		if _, exists := cfg.Plugins[cl.ConfigKey()]; !exists {
 			continue
 		}
@@ -245,6 +248,6 @@ func loadPluginContractConfig(t *testing.T, rawConfig string) *plugin.AppContext
 	}
 
 	serviceDir := filepath.Join(dir, cfg.ServiceDir)
-	appCtx := plugin.NewAppContext(cfg, dir, serviceDir, "test", nil, registry.Default())
+	appCtx := plugin.NewAppContext(cfg, dir, serviceDir, "test", nil, plugins)
 	return appCtx
 }

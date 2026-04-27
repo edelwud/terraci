@@ -74,12 +74,12 @@ plugins:
 
 TerraCi автоматически определяет активный CI-провайдер:
 
-1. **Переменные окружения** -- `GITLAB_CI=true` выбирает GitLab, `GITHUB_ACTIONS=true` выбирает GitHub
-2. **`TERRACI_PROVIDER`** -- явное указание:
+1. **`TERRACI_PROVIDER`** -- явное указание:
    ```bash
    TERRACI_PROVIDER=gitlab terraci generate -o pipeline.yml
    ```
-3. **Единственный сконфигурированный провайдер** -- если настроен только один CI-провайдер, он используется автоматически
+2. **Переменные окружения** -- `GITLAB_CI=true` выбирает GitLab, `GITHUB_ACTIONS=true` выбирает GitHub
+3. **Единственный активный провайдер** -- если активен только один CI-провайдер, он используется автоматически
 
 Если настроено несколько провайдеров и окружение не определено, TerraCi возвращает ошибку с рекомендацией задать `TERRACI_PROVIDER`.
 
@@ -107,7 +107,7 @@ TerraCi автоматически определяет активный CI-пр
 Каждый плагин проходит одинаковый жизненный цикл:
 
 ```
-1. Register    -- init() регистрирует плагин через registry.Register()
+1. Register    -- init() регистрирует плагин через registry.RegisterFactory()
 2. Configure   -- фреймворк декодирует секцию plugins.<key> из YAML
 3. Preflight   -- дешёвая валидация (определение окружения, проверка конфига)
 4. Freeze      -- AppContext замораживается, мутации запрещены
@@ -162,7 +162,7 @@ xterraci list-plugins
 
 Минимальный внешний плагин:
 
-**1. Регистрация** -- функция `init()`, вызывающая `registry.Register()`:
+**1. Регистрация** -- функция `init()`, вызывающая `registry.RegisterFactory()`:
 
 ```go
 package myplugin
@@ -173,16 +173,18 @@ import (
 )
 
 func init() {
-    registry.Register(&Plugin{
-        BasePlugin: plugin.BasePlugin[*Config]{
-            PluginName: "myplugin",
-            PluginDesc: "My custom plugin",
-            EnableMode: plugin.EnabledExplicitly,
-            DefaultCfg: func() *Config { return &Config{} },
-            IsEnabledFn: func(cfg *Config) bool {
-                return cfg != nil && cfg.Enabled
+    registry.RegisterFactory(func() plugin.Plugin {
+        return &Plugin{
+            BasePlugin: plugin.BasePlugin[*Config]{
+                PluginName: "myplugin",
+                PluginDesc: "My custom plugin",
+                EnableMode: plugin.EnabledExplicitly,
+                DefaultCfg: func() *Config { return &Config{} },
+                IsEnabledFn: func(cfg *Config) bool {
+                    return cfg != nil && cfg.Enabled
+                },
             },
-        },
+        }
     })
 }
 

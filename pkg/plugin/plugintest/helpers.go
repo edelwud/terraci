@@ -53,10 +53,22 @@ func LoadPluginReport(t *testing.T, serviceDir, pluginName string) ci.Report {
 func NewAppContext(t *testing.T, workDir string) *plugin.AppContext {
 	t.Helper()
 
+	return NewAppContextWithResolver(t, workDir, registry.New())
+}
+
+func NewRegistry(t *testing.T, factories ...registry.Factory) *registry.Registry {
+	t.Helper()
+
+	return registry.NewFromFactories(factories...)
+}
+
+func NewAppContextWithResolver(t *testing.T, workDir string, resolver plugin.Resolver) *plugin.AppContext {
+	t.Helper()
+
 	serviceDir := filepath.Join(t.TempDir(), ".terraci")
 	cfg := config.DefaultConfig()
 	cfg.ServiceDir = ".terraci"
-	return plugin.NewAppContext(cfg, workDir, serviceDir, "test", plugin.NewReportRegistry(), registry.New())
+	return plugin.NewAppContext(cfg, workDir, serviceDir, "test", plugin.NewReportRegistry(), resolver)
 }
 
 func MustRuntime[T any](t *testing.T, provider plugin.RuntimeProvider, appCtx *plugin.AppContext) T {

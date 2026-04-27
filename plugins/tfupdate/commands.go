@@ -51,13 +51,14 @@ Examples:
   terraci tfupdate --module platform/prod/eu-central-1/vpc
   terraci tfupdate --output json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if !p.IsEnabled() {
+			current := plugin.CommandPlugin(ctx, p)
+			if !current.IsEnabled() {
 				return errors.New("tfupdate plugin is not enabled (set plugins.tfupdate.enabled: true)")
 			}
 
 			log.Info("checking terraform dependency state")
 			opts := parseRuntimeOptions(cmd)
-			timeout, err := resolveCommandTimeout(p.Config(), opts)
+			timeout, err := resolveCommandTimeout(current.Config(), opts)
 			if err != nil {
 				return err
 			}
@@ -65,7 +66,7 @@ Examples:
 			c, cancel := context.WithTimeout(cmd.Context(), timeout)
 			defer cancel()
 
-			return p.runCheck(c, ctx, cmd)
+			return current.runCheck(c, ctx, cmd)
 		},
 	}
 

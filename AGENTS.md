@@ -55,7 +55,7 @@ cmd/xterraci/
 
 pkg/                            # Public API — importable by external plugins
 ├── plugin/                     # Core plugin contract — interfaces, BasePlugin, AppContext
-│   ├── plugin.go               # Plugin, Resettable
+│   ├── plugin.go               # Plugin
 │   ├── lifecycle.go            # ConfigLoader, Preflightable
 │   ├── commands.go             # CommandProvider, FlagOverridable, VersionProvider
 │   ├── ci_provider.go          # EnvDetector, CIInfoProvider, PipelineGeneratorFactory, CommentServiceFactory, ResolvedCIProvider
@@ -66,8 +66,8 @@ pkg/                            # Public API — importable by external plugins
 │   ├── context.go              # AppContext (with ServiceDir, Reports, Freeze)
 │   ├── runtime.go              # RuntimeProvider + RuntimeAs() + BuildRuntime[T]()
 │   ├── reports.go              # ReportRegistry — in-memory report exchange
-│   ├── registry/               # Global plugin registry — Register, All, ByCapability, Resolve*
-│   │   ├── registry.go         # Register(), All(), Get(), ByCapability[T](), Reset()
+│   ├── registry/               # Plugin factory catalog + per-command Registry resolution
+│   │   ├── registry.go         # RegisterFactory(), New(), Registry capability resolution, Reset()
 │   │   └── resolve.go          # ResolveCIProvider(), ResolveChangeDetector(), CollectContributions()
 │   ├── initwiz/                # Init wizard state + types
 │   │   ├── state.go            # StateMap — typed form state with pointer getters for huh
@@ -228,7 +228,7 @@ internal/                       # Private — only terraform eval
 
 ### Architecture
 
-Compile-time plugins via `init()` + blank import (Caddy/database-sql pattern). Plugins register via `registry.Register()`, core discovers via `registry.ByCapability[T]()`. Core types (interfaces, BasePlugin, AppContext) live in `pkg/plugin`; global registry in `pkg/plugin/registry`; init wizard types in `pkg/plugin/initwiz`.
+Compile-time plugins via `init()` + blank import (Caddy/database-sql pattern). Plugins register factories via `registry.RegisterFactory()`, core creates a fresh `registry.Registry` for each command run and discovers capabilities via `registry.ByCapabilityFrom[T](plugins)`. Core types (interfaces, BasePlugin, AppContext) live in `pkg/plugin`; plugin catalog and per-command registries live in `pkg/plugin/registry`; init wizard types in `pkg/plugin/initwiz`.
 
 ### Plugin File Convention
 
@@ -249,7 +249,7 @@ Each feature/plugin follows one-file-per-capability where it applies, with runti
 ### Plugin Lifecycle
 
 ```
-1. Register    — init() calls registry.Register() with BasePlugin[C] embedding
+1. Register    — init() calls registry.RegisterFactory() with a Plugin factory
 2. Configure   — ConfigLoader.DecodeAndSet() for plugins with config in .terraci.yaml
 3. Preflight   — Preflightable.Preflight() performs cheap validation/env detection
 4. Freeze      — AppContext.Freeze() prevents further mutations
@@ -304,7 +304,7 @@ Plugins contribute via `PipelineContributor.PipelineContribution(ctx)`:
 
 ### Provider Resolution
 
-`registry.ResolveCIProvider()` returns `*plugin.ResolvedCIProvider` (struct wrapping EnvDetector + CIInfoProvider + PipelineGeneratorFactory + CommentServiceFactory): CI env → `TERRACI_PROVIDER` env → single registered → IsConfigured() filter → error. Core has zero knowledge of specific providers. Commands that don't need config use `Annotations["skipConfig"]` to skip config loading in `PersistentPreRunE`. CLI flag overrides use `FlagOverridable` for direct struct mutation (no encode-decode cycle).
+`Registry.ResolveCIProvider()` returns `*plugin.ResolvedCIProvider` (struct wrapping EnvDetector + CIInfoProvider + PipelineGeneratorFactory + CommentServiceFactory): `TERRACI_PROVIDER` env → CI env detection → single active provider → error. Core has zero knowledge of specific providers. Commands that don't need config use `Annotations["skipConfig"]` to skip config loading in `PersistentPreRunE`. CLI flag overrides use `FlagOverridable` for direct struct mutation (no encode-decode cycle).
 
 ### Service Directory
 

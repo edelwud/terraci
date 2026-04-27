@@ -48,7 +48,7 @@ terraci generate -o .github/workflows/terraform.yml
 terraci generate
 ```
 
-The provider is auto-detected from CI environment variables, or set via `provider:` in `.terraci.yaml`.
+The provider is selected via `TERRACI_PROVIDER`, auto-detected from CI environment variables, or inferred from a single active provider.
 
 ### Changed-Only Mode
 

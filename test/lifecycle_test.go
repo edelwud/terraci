@@ -11,7 +11,8 @@ import (
 )
 
 func TestPluginRegistration(t *testing.T) {
-	all := registry.All()
+	plugins := registry.New()
+	all := plugins.All()
 	if len(all) != 9 {
 		t.Fatalf("expected 9 plugins, got %d", len(all))
 	}
@@ -36,8 +37,9 @@ func TestPluginRegistration(t *testing.T) {
 }
 
 func TestPluginCapabilities(t *testing.T) {
+	plugins := registry.New()
 	// ConfigLoader plugins
-	configLoaders := registry.ByCapability[plugin.ConfigLoader]()
+	configLoaders := registry.ByCapabilityFrom[plugin.ConfigLoader](plugins)
 	if len(configLoaders) == 0 {
 		t.Fatal("expected at least one ConfigLoader")
 	}
@@ -62,33 +64,33 @@ func TestPluginCapabilities(t *testing.T) {
 	}
 
 	// CI provider plugins (gitlab + github) — must implement all CI interfaces
-	ciProviders := registry.ByCapability[plugin.CIInfoProvider]()
+	ciProviders := registry.ByCapabilityFrom[plugin.CIInfoProvider](plugins)
 	if len(ciProviders) < 2 {
 		t.Errorf("expected at least 2 CIInfoProvider plugins (gitlab, github), got %d", len(ciProviders))
 	}
 
 	// Preflightable plugins
-	preflightables := registry.ByCapability[plugin.Preflightable]()
+	preflightables := registry.ByCapabilityFrom[plugin.Preflightable](plugins)
 	if len(preflightables) == 0 {
 		t.Fatal("expected at least one Preflightable plugin")
 	}
 
 	// CommandProvider plugins
-	commandProviders := registry.ByCapability[plugin.CommandProvider]()
+	commandProviders := registry.ByCapabilityFrom[plugin.CommandProvider](plugins)
 	if len(commandProviders) == 0 {
 		t.Fatal("expected at least one CommandProvider plugin")
 	}
 }
 
 func TestPluginConfigLoading(t *testing.T) {
-	registry.ResetPlugins()
+	plugins := registry.New()
 	cfg, err := config.Load(filepath.Join(fixtureDir(t, "basic"), ".terraci.yaml"))
 	if err != nil {
 		t.Fatalf("failed to load config: %v", err)
 	}
 
 	// Configure plugins from the fixture config
-	for _, cl := range registry.ByCapability[plugin.ConfigLoader]() {
+	for _, cl := range registry.ByCapabilityFrom[plugin.ConfigLoader](plugins) {
 		if _, exists := cfg.Plugins[cl.ConfigKey()]; !exists {
 			continue
 		}
@@ -100,7 +102,7 @@ func TestPluginConfigLoading(t *testing.T) {
 	}
 
 	// gitlab should be configured (it's in the fixture)
-	for _, cl := range registry.ByCapability[plugin.ConfigLoader]() {
+	for _, cl := range registry.ByCapabilityFrom[plugin.ConfigLoader](plugins) {
 		if cl.ConfigKey() == "gitlab" && !cl.IsConfigured() {
 			t.Error("gitlab should be configured after loading basic fixture")
 		}
@@ -112,13 +114,13 @@ func TestPluginConfigLoading(t *testing.T) {
 
 func TestProviderResolution(t *testing.T) {
 	clearCIEnv(t)
-	registry.ResetPlugins()
+	plugins := registry.New()
 	cfg, err := config.Load(filepath.Join(fixtureDir(t, "basic"), ".terraci.yaml"))
 	if err != nil {
 		t.Fatalf("load config: %v", err)
 	}
 
-	for _, cl := range registry.ByCapability[plugin.ConfigLoader]() {
+	for _, cl := range registry.ByCapabilityFrom[plugin.ConfigLoader](plugins) {
 		if _, exists := cfg.Plugins[cl.ConfigKey()]; !exists {
 			continue
 		}
@@ -129,7 +131,7 @@ func TestProviderResolution(t *testing.T) {
 		}
 	}
 
-	provider, resolveErr := registry.ResolveCIProvider()
+	provider, resolveErr := plugins.ResolveCIProvider()
 	if resolveErr != nil {
 		t.Fatalf("resolve provider: %v", resolveErr)
 	}
@@ -140,16 +142,27 @@ func TestProviderResolution(t *testing.T) {
 
 func TestPluginInitialization(t *testing.T) {
 	clearCIEnv(t)
-	registry.ResetPlugins()
+	plugins := registry.New()
 	dir := fixtureDir(t, "basic")
 	cfg, err := config.Load(filepath.Join(dir, ".terraci.yaml"))
 	if err != nil {
 		t.Fatalf("failed to load config: %v", err)
 	}
 
-	appCtx := plugin.NewAppContext(cfg, dir, filepath.Join(dir, ".terraci"), "test", nil)
+	for _, cl := range registry.ByCapabilityFrom[plugin.ConfigLoader](plugins) {
+		if _, exists := cfg.Plugins[cl.ConfigKey()]; !exists {
+			continue
+		}
+		if decErr := cl.DecodeAndSet(func(target any) error {
+			return cfg.PluginConfig(cl.ConfigKey(), target)
+		}); decErr != nil {
+			t.Fatalf("failed to decode %s config: %v", cl.ConfigKey(), decErr)
+		}
+	}
 
-	for _, p := range registry.PreflightsForStartup() {
+	appCtx := plugin.NewAppContext(cfg, dir, filepath.Join(dir, ".terraci"), "test", nil, plugins)
+
+	for _, p := range plugins.PreflightsForStartup() {
 		if preflightErr := p.Preflight(context.Background(), appCtx); preflightErr != nil {
 			// Some plugins may fail if their external deps are missing (e.g., git not in a repo).
 			// We log but don't fail — the important thing is the interface works.

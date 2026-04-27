@@ -7,7 +7,8 @@ import (
 
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
-	"github.com/edelwud/terraci/pkg/plugin/registry"
+	"github.com/edelwud/terraci/plugins/diskblob"
+	"github.com/edelwud/terraci/plugins/inmemcache"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
 	"github.com/edelwud/terraci/plugins/tfupdate/internal/sourceaddr"
 )
@@ -187,7 +188,31 @@ func TestPlugin_Runtime_DefaultBackendStableWithAdditionalProvider(t *testing.T)
 		},
 		cache: stubKVCache{},
 	}
-	registry.Register(alt)
+	plugins := plugintest.NewRegistry(t,
+		func() plugin.Plugin {
+			return &inmemcache.Plugin{BasePlugin: plugin.BasePlugin[*inmemcache.Config]{
+				PluginName: "inmemcache",
+				PluginDesc: "Built-in process-local KV cache backend",
+				EnableMode: plugin.EnabledByDefault,
+				DefaultCfg: func() *inmemcache.Config { return &inmemcache.Config{Enabled: true} },
+				IsEnabledFn: func(cfg *inmemcache.Config) bool {
+					return cfg == nil || cfg.Enabled
+				},
+			}}
+		},
+		func() plugin.Plugin {
+			return &diskblob.Plugin{BasePlugin: plugin.BasePlugin[*diskblob.Config]{
+				PluginName: "diskblob",
+				PluginDesc: "Filesystem-backed blob store backend",
+				EnableMode: plugin.EnabledByDefault,
+				DefaultCfg: func() *diskblob.Config { return &diskblob.Config{Enabled: true} },
+				IsEnabledFn: func(cfg *diskblob.Config) bool {
+					return cfg == nil || cfg.Enabled
+				},
+			}}
+		},
+		func() plugin.Plugin { return alt },
+	)
 
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &tfupdateengine.UpdateConfig{Enabled: true})
@@ -197,7 +222,7 @@ func TestPlugin_Runtime_DefaultBackendStableWithAdditionalProvider(t *testing.T)
 		},
 	})
 
-	runtime := plugintest.MustRuntime[*updateRuntime](t, p, newTestAppContext(t, t.TempDir()))
+	runtime := plugintest.MustRuntime[*updateRuntime](t, p, newTestAppContextWithResolver(t, t.TempDir(), plugins))
 	got, err := runtime.registry.ModuleVersions(context.Background(), sourceaddr.ModuleAddress{Hostname: "registry.terraform.io", Namespace: "hashicorp", Name: "consul", Provider: "aws"})
 	if err != nil {
 		t.Fatalf("ModuleVersions() error = %v", err)

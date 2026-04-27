@@ -197,7 +197,7 @@ func TestPlugin_Runtime_UnknownBlobBackend(t *testing.T) {
 
 func TestPlugin_Runtime_UsesBlobStoreDiagnostics(t *testing.T) {
 	providerName := "blob-dx-cost"
-	registerTestBlobStoreProvider(t, &testBlobStoreProvider{
+	plugins := registerTestBlobStoreProvider(t, &testBlobStoreProvider{
 		name: providerName,
 		store: testBlobStoreWithDiagnostics{
 			info: plugin.BlobStoreInfo{
@@ -218,7 +218,7 @@ func TestPlugin_Runtime_UsesBlobStoreDiagnostics(t *testing.T) {
 		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	})
 
-	runtime := plugintest.MustRuntime[*costRuntime](t, p, newTestAppContext(t, t.TempDir()))
+	runtime := plugintest.MustRuntime[*costRuntime](t, p, newTestAppContextWithResolver(t, t.TempDir(), plugins))
 	if runtime.estimator == nil {
 		t.Fatal("runtime.estimator should not be nil")
 	}
@@ -229,7 +229,7 @@ func TestPlugin_Runtime_UsesBlobStoreDiagnostics(t *testing.T) {
 
 func TestPlugin_Runtime_UsesBlobStoreFallbackDiagnostics(t *testing.T) {
 	providerName := "blob-legacy-root-cost"
-	registerTestBlobStoreProvider(t, &testBlobStoreProvider{
+	plugins := registerTestBlobStoreProvider(t, &testBlobStoreProvider{
 		name: providerName,
 		store: testBlobStoreWithInspector{
 			root: "/tmp/legacy-cache",
@@ -244,7 +244,7 @@ func TestPlugin_Runtime_UsesBlobStoreFallbackDiagnostics(t *testing.T) {
 		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	})
 
-	runtime := plugintest.MustRuntime[*costRuntime](t, p, newTestAppContext(t, t.TempDir()))
+	runtime := plugintest.MustRuntime[*costRuntime](t, p, newTestAppContextWithResolver(t, t.TempDir(), plugins))
 	if runtime.estimator.Cache().Dir() != "/tmp/legacy-cache" {
 		t.Fatalf("CacheDir() = %q, want %q", runtime.estimator.Cache().Dir(), "/tmp/legacy-cache")
 	}
@@ -252,7 +252,7 @@ func TestPlugin_Runtime_UsesBlobStoreFallbackDiagnostics(t *testing.T) {
 
 func TestPlugin_Runtime_BlobStoreFallbackWithoutDiagnostics(t *testing.T) {
 	providerName := "blob-legacy-cost"
-	registerTestBlobStoreProvider(t, &testBlobStoreProvider{
+	plugins := registerTestBlobStoreProvider(t, &testBlobStoreProvider{
 		name:  providerName,
 		store: plainTestBlobStore{},
 	})
@@ -265,7 +265,7 @@ func TestPlugin_Runtime_BlobStoreFallbackWithoutDiagnostics(t *testing.T) {
 		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	})
 
-	runtime := plugintest.MustRuntime[*costRuntime](t, p, newTestAppContext(t, t.TempDir()))
+	runtime := plugintest.MustRuntime[*costRuntime](t, p, newTestAppContextWithResolver(t, t.TempDir(), plugins))
 	if runtime.estimator == nil {
 		t.Fatal("runtime.estimator should not be nil")
 	}
@@ -276,7 +276,7 @@ func TestPlugin_Runtime_BlobStoreFallbackWithoutDiagnostics(t *testing.T) {
 
 func TestPlugin_Runtime_HealthCheckFailure(t *testing.T) {
 	providerName := "blob-healthfail-cost"
-	registerTestBlobStoreProvider(t, &testBlobStoreProvider{
+	plugins := registerTestBlobStoreProvider(t, &testBlobStoreProvider{
 		name: providerName,
 		store: testBlobStoreWithDiagnostics{
 			healthErr: errors.New("root unavailable"),
@@ -291,7 +291,7 @@ func TestPlugin_Runtime_HealthCheckFailure(t *testing.T) {
 		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	})
 
-	_, err := p.Runtime(context.Background(), newTestAppContext(t, t.TempDir()))
+	_, err := p.Runtime(context.Background(), newTestAppContextWithResolver(t, t.TempDir(), plugins))
 	if err == nil || err.Error() == "" {
 		t.Fatal("Runtime() error = nil, want health check failure")
 	}
@@ -355,7 +355,7 @@ func (s testBlobStoreWithDiagnostics) CheckBlobStore(context.Context) error {
 	return nil
 }
 
-func registerTestBlobStoreProvider(t *testing.T, provider *testBlobStoreProvider) {
+func registerTestBlobStoreProvider(t *testing.T, provider *testBlobStoreProvider) *registry.Registry {
 	t.Helper()
-	registry.Register(provider)
+	return plugintest.NewRegistry(t, func() plugin.Plugin { return provider })
 }

@@ -20,7 +20,7 @@ terraci generate -o .gitlab-ci.yml
 terraci generate -o .github/workflows/terraform.yml
 ```
 
-Провайдер автоматически определяется из окружения (переменная `GITLAB_CI` выбирает GitLab, `GITHUB_ACTIONS` выбирает GitHub Actions) или задаётся явно через `provider` в `.terraci.yaml`.
+Провайдер выбирается через `TERRACI_PROVIDER`, автоматически определяется из окружения (переменная `GITLAB_CI` выбирает GitLab, `GITHUB_ACTIONS` выбирает GitHub Actions) или выводится из единственного активного провайдера.
 
 ## Структура GitLab CI пайплайна
 

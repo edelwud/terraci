@@ -4,7 +4,7 @@ TerraCi with GitHub Actions instead of GitLab CI.
 
 ## Configuration
 
-Uses `provider: github` to generate GitHub Actions workflow files.
+Uses `terraci init --ci --provider github`; outside GitHub Actions, set `TERRACI_PROVIDER=github` when generating.
 
 ## Usage
 

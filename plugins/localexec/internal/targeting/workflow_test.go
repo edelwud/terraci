@@ -45,9 +45,9 @@ func (d workflowResolverTestChangeDetector) DetectChangedLibraries(
 }
 
 func TestWorkflowResolverUsesWorkflowResolveTargets(t *testing.T) {
-	registry.Reset()
-	t.Cleanup(registry.Reset)
-	registry.Register(workflowResolverTestChangeDetector{changedLibraries: []string{"_modules/network"}})
+	plugins := registry.NewFromFactories(func() plugin.Plugin {
+		return workflowResolverTestChangeDetector{changedLibraries: []string{"_modules/network"}}
+	})
 
 	stage := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	prod := discovery.TestModule("platform", "prod", "eu-central-1", "vpc")
@@ -64,7 +64,7 @@ func TestWorkflowResolverUsesWorkflowResolveTargets(t *testing.T) {
 	appCtx := plugintest.NewAppContext(t, t.TempDir())
 	cfg := appCtx.Config()
 	cfg.LibraryModules = &config.LibraryModulesConfig{Paths: []string{"_modules"}}
-	appCtx = plugin.NewAppContext(cfg, appCtx.WorkDir(), appCtx.ServiceDir(), appCtx.Version(), appCtx.Reports(), appCtx.Resolver())
+	appCtx = plugin.NewAppContext(cfg, appCtx.WorkDir(), appCtx.ServiceDir(), appCtx.Version(), appCtx.Reports(), plugins)
 	filters := &filter.Flags{SegmentArgs: []string{"environment=stage"}}
 	req := spec.ExecuteRequest{
 		ChangedOnly: true,
@@ -82,7 +82,7 @@ func TestWorkflowResolverUsesWorkflowResolveTargets(t *testing.T) {
 		ChangedOnly:            req.ChangedOnly,
 		BaseRef:                req.BaseRef,
 		Filters:                req.Filters,
-		ChangeDetectorResolver: registry.ResolveChangeDetector,
+		ChangeDetectorResolver: plugins.ResolveChangeDetector,
 	})
 	if err != nil {
 		t.Fatalf("workflow.ResolveTargets() error = %v", err)

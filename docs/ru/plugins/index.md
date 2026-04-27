@@ -97,16 +97,18 @@ import (
 )
 
 func init() {
-    registry.Register(&Plugin{
-        BasePlugin: plugin.BasePlugin[*Config]{
-            PluginName: "myplugin",
-            PluginDesc: "Что делает мой плагин",
-            EnableMode: plugin.EnabledExplicitly,
-            DefaultCfg: func() *Config { return &Config{} },
-            IsEnabledFn: func(cfg *Config) bool {
-                return cfg != nil && cfg.Enabled
+    registry.RegisterFactory(func() plugin.Plugin {
+        return &Plugin{
+            BasePlugin: plugin.BasePlugin[*Config]{
+                PluginName: "myplugin",
+                PluginDesc: "Что делает мой плагин",
+                EnableMode: plugin.EnabledExplicitly,
+                DefaultCfg: func() *Config { return &Config{} },
+                IsEnabledFn: func(cfg *Config) bool {
+                    return cfg != nil && cfg.Enabled
+                },
             },
-        },
+        }
     })
 }
 

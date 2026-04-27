@@ -6,7 +6,6 @@ import (
 
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
-	"github.com/edelwud/terraci/pkg/plugin/registry"
 	_ "github.com/edelwud/terraci/plugins/diskblob"
 	_ "github.com/edelwud/terraci/plugins/inmemcache"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
@@ -66,7 +65,6 @@ func (m *mockRegistry) ProviderPackage(_ context.Context, address sourceaddr.Pro
 // registered in init(), but without touching the global plugin registry.
 func newTestPlugin(t *testing.T) *Plugin {
 	t.Helper()
-	registry.ResetPlugins()
 	p := &Plugin{
 		BasePlugin: plugin.BasePlugin[*tfupdateengine.UpdateConfig]{
 			PluginName: "tfupdate",
@@ -103,4 +101,8 @@ func useMockRegistry(p *Plugin, reg tfregistry.Client) {
 // newTestAppContext creates a minimal AppContext suitable for plugin testing.
 func newTestAppContext(t *testing.T, workDir string) *plugin.AppContext {
 	return plugintest.NewAppContext(t, workDir)
+}
+
+func newTestAppContextWithResolver(t *testing.T, workDir string, resolver plugin.Resolver) *plugin.AppContext {
+	return plugintest.NewAppContextWithResolver(t, workDir, resolver)
 }

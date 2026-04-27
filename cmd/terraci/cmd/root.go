@@ -44,6 +44,7 @@ Features:
   - Parallel execution where possible`,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			log.Init()
+			app.BeginCommand()
 
 			verbose, verboseErr := cmd.Flags().GetBool("verbose")
 			if verboseErr == nil && verbose {

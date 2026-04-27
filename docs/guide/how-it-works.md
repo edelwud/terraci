@@ -167,7 +167,7 @@ Error: circular dependency detected
 
 ## Stage 4: Pipeline Generation
 
-TerraCi generates CI pipeline configuration from the sorted module graph. The provider is auto-detected from the environment (`GITLAB_CI` env var selects GitLab, `GITHUB_ACTIONS` selects GitHub Actions) or can be set explicitly via the `provider` field in `.terraci.yaml`.
+TerraCi generates CI pipeline configuration from the sorted module graph. The provider is selected via `TERRACI_PROVIDER`, auto-detected from the environment (`GITLAB_CI` env var selects GitLab, `GITHUB_ACTIONS` selects GitHub Actions), or inferred from a single active provider.
 
 ### Job Generation
 

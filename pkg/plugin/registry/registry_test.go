@@ -110,10 +110,9 @@ func TestRegisterAndGet(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
 
-	p := &testPlugin{name: "test", desc: "A test plugin"}
-	Register(p)
+	RegisterFactory(func() plugin.Plugin { return &testPlugin{name: "test", desc: "A test plugin"} })
 
-	got, ok := Get("test")
+	got, ok := New().Get("test")
 	if !ok {
 		t.Fatal("expected to find plugin")
 	}
@@ -126,25 +125,25 @@ func TestRegisterDuplicatePanics(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
 
-	Register(&testPlugin{name: "dup"})
+	RegisterFactory(func() plugin.Plugin { return &testPlugin{name: "dup"} })
 
 	defer func() {
 		if r := recover(); r == nil {
 			t.Fatal("expected panic on duplicate registration")
 		}
 	}()
-	Register(&testPlugin{name: "dup"})
+	RegisterFactory(func() plugin.Plugin { return &testPlugin{name: "dup"} })
 }
 
 func TestAll_Order(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
 
-	Register(&testPlugin{name: "b"})
-	Register(&testPlugin{name: "a"})
-	Register(&testPlugin{name: "c"})
+	RegisterFactory(func() plugin.Plugin { return &testPlugin{name: "b"} })
+	RegisterFactory(func() plugin.Plugin { return &testPlugin{name: "a"} })
+	RegisterFactory(func() plugin.Plugin { return &testPlugin{name: "c"} })
 
-	all := All()
+	all := New().All()
 	if len(all) != 3 {
 		t.Fatalf("got %d plugins, want 3", len(all))
 	}
@@ -157,11 +156,11 @@ func TestByCapability(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
 
-	Register(&testPlugin{name: "plain"})
-	Register(&testCommandPlugin{testPlugin: testPlugin{name: "cmd"}})
+	RegisterFactory(func() plugin.Plugin { return &testPlugin{name: "plain"} })
+	RegisterFactory(func() plugin.Plugin { return &testCommandPlugin{testPlugin: testPlugin{name: "cmd"}} })
 
 	// All plugins
-	all := All()
+	all := New().All()
 	if len(all) != 2 {
 		t.Fatalf("got %d plugins, want 2", len(all))
 	}
@@ -172,7 +171,7 @@ func TestByCapability(t *testing.T) {
 		plugin.Plugin
 		Name() string
 	}
-	named := ByCapability[hasName]()
+	named := ByCapabilityFrom[hasName](New())
 	if len(named) != 2 {
 		t.Fatalf("got %d named plugins, want 2", len(named))
 	}
@@ -225,7 +224,7 @@ func TestGetNotFound(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
 
-	_, ok := Get("nonexistent")
+	_, ok := New().Get("nonexistent")
 	if ok {
 		t.Fatal("expected not found")
 	}
@@ -235,7 +234,7 @@ func TestResolveCIProvider_NoPlugins(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
 
-	_, err := ResolveCIProvider()
+	_, err := New().ResolveCIProvider()
 	if err == nil {
 		t.Fatal("expected error with no providers")
 	}
@@ -245,18 +244,19 @@ func TestResolveKVCacheProvider(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
 
-	provider := &testKVCacheProvider{
-		testPlugin: testPlugin{name: "cache", desc: "cache backend"},
-		cache:      testKVCache{},
-	}
-	Register(provider)
+	RegisterFactory(func() plugin.Plugin {
+		return &testKVCacheProvider{
+			testPlugin: testPlugin{name: "cache", desc: "cache backend"},
+			cache:      testKVCache{},
+		}
+	})
 
-	got, err := ResolveKVCacheProvider("cache")
+	got, err := New().ResolveKVCacheProvider("cache")
 	if err != nil {
-		t.Fatalf("ResolveKVCacheProvider() error = %v", err)
+		t.Fatalf("New().ResolveKVCacheProvider() error = %v", err)
 	}
 	if got.Name() != "cache" {
-		t.Fatalf("ResolveKVCacheProvider() = %q, want %q", got.Name(), "cache")
+		t.Fatalf("New().ResolveKVCacheProvider() = %q, want %q", got.Name(), "cache")
 	}
 }
 
@@ -264,7 +264,7 @@ func TestResolveKVCacheProvider_NotFound(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
 
-	if _, err := ResolveKVCacheProvider("missing"); err == nil {
+	if _, err := New().ResolveKVCacheProvider("missing"); err == nil {
 		t.Fatal("expected error for missing cache backend")
 	}
 }
@@ -273,9 +273,9 @@ func TestResolveKVCacheProvider_WrongCapability(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
 
-	Register(&testPlugin{name: "plain", desc: "plain plugin"})
+	RegisterFactory(func() plugin.Plugin { return &testPlugin{name: "plain", desc: "plain plugin"} })
 
-	if _, err := ResolveKVCacheProvider("plain"); err == nil {
+	if _, err := New().ResolveKVCacheProvider("plain"); err == nil {
 		t.Fatal("expected error when plugin does not implement KV cache capability")
 	}
 }
@@ -284,18 +284,19 @@ func TestResolveBlobStoreProvider(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
 
-	provider := &testBlobStoreProvider{
-		testPlugin: testPlugin{name: "blob", desc: "blob backend"},
-		store:      testBlobStore{},
-	}
-	Register(provider)
+	RegisterFactory(func() plugin.Plugin {
+		return &testBlobStoreProvider{
+			testPlugin: testPlugin{name: "blob", desc: "blob backend"},
+			store:      testBlobStore{},
+		}
+	})
 
-	got, err := ResolveBlobStoreProvider("blob")
+	got, err := New().ResolveBlobStoreProvider("blob")
 	if err != nil {
-		t.Fatalf("ResolveBlobStoreProvider() error = %v", err)
+		t.Fatalf("New().ResolveBlobStoreProvider() error = %v", err)
 	}
 	if got.Name() != "blob" {
-		t.Fatalf("ResolveBlobStoreProvider() = %q, want %q", got.Name(), "blob")
+		t.Fatalf("New().ResolveBlobStoreProvider() = %q, want %q", got.Name(), "blob")
 	}
 }
 
@@ -303,7 +304,7 @@ func TestResolveBlobStoreProvider_NotFound(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
 
-	if _, err := ResolveBlobStoreProvider("missing"); err == nil {
+	if _, err := New().ResolveBlobStoreProvider("missing"); err == nil {
 		t.Fatal("expected error for missing blob backend")
 	}
 }
@@ -312,9 +313,9 @@ func TestResolveBlobStoreProvider_WrongCapability(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
 
-	Register(&testPlugin{name: "plain", desc: "plain plugin"})
+	RegisterFactory(func() plugin.Plugin { return &testPlugin{name: "plain", desc: "plain plugin"} })
 
-	if _, err := ResolveBlobStoreProvider("plain"); err == nil {
+	if _, err := New().ResolveBlobStoreProvider("plain"); err == nil {
 		t.Fatal("expected error when plugin does not implement blob store capability")
 	}
 }
@@ -323,7 +324,7 @@ func TestResolveChangeDetector_None(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
 
-	_, err := ResolveChangeDetector()
+	_, err := New().ResolveChangeDetector()
 	if err == nil {
 		t.Fatal("expected error with no detectors")
 	}
@@ -333,7 +334,7 @@ func TestCollectContributions_Empty(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
 
-	contribs := CollectContributions(nil)
+	contribs := New().CollectContributions(nil)
 	if len(contribs) != 0 {
 		t.Errorf("expected 0 contributions, got %d", len(contribs))
 	}
@@ -343,7 +344,7 @@ func TestAll_Empty(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
 
-	all := All()
+	all := New().All()
 	if len(all) != 0 {
 		t.Errorf("expected 0 plugins, got %d", len(all))
 	}
@@ -353,10 +354,10 @@ func TestByCapability_NoMatch(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
 
-	Register(&testPlugin{name: "basic"})
+	RegisterFactory(func() plugin.Plugin { return &testPlugin{name: "basic"} })
 
 	// VersionProvider is not implemented by testPlugin
-	vp := ByCapability[plugin.VersionProvider]()
+	vp := ByCapabilityFrom[plugin.VersionProvider](New())
 	if len(vp) != 0 {
 		t.Errorf("expected 0 VersionProviders, got %d", len(vp))
 	}
@@ -366,13 +367,13 @@ func TestReset(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
 
-	Register(&testPlugin{name: "x"})
-	if len(All()) != 1 {
+	RegisterFactory(func() plugin.Plugin { return &testPlugin{name: "x"} })
+	if len(New().All()) != 1 {
 		t.Fatal("expected 1 plugin after register")
 	}
 
 	Reset()
-	if len(All()) != 0 {
+	if len(New().All()) != 0 {
 		t.Error("expected 0 plugins after reset")
 	}
 }
@@ -397,7 +398,6 @@ func TestCollectContributions_FiltersDisabledPlugins(t *testing.T) {
 		},
 	}
 	enabled.SetTypedConfig(&testConfig{Enabled: true})
-	Register(enabled)
 
 	// Disabled plugin with contribution
 	disabled := &testContributorPlugin{
@@ -415,10 +415,13 @@ func TestCollectContributions_FiltersDisabledPlugins(t *testing.T) {
 		},
 	}
 	disabled.SetTypedConfig(&testConfig{Enabled: false})
-	Register(disabled)
+	plugins := NewFromFactories(
+		func() plugin.Plugin { return enabled },
+		func() plugin.Plugin { return disabled },
+	)
 
 	appCtx := plugin.NewAppContext(config.DefaultConfig(), "/work", "/service", "test", plugin.NewReportRegistry())
-	contribs := CollectContributions(appCtx)
+	contribs := plugins.CollectContributions(appCtx)
 	if len(contribs) != 1 {
 		t.Fatalf("expected 1 contribution, got %d", len(contribs))
 	}
@@ -443,40 +446,39 @@ func TestCollectContributions_IncludesPluginWithoutConfigLoader(t *testing.T) {
 		testPlugin:   testPlugin{name: "bare", desc: "bare contributor"},
 		contribution: &pipeline.Contribution{Jobs: []pipeline.ContributedJob{{Name: "bare-job"}}},
 	}
-	// Satisfy PipelineContributor
-	Register(p)
 
 	// bareContributor doesn't satisfy PipelineContributor since it doesn't have PipelineContribution()
 	// So CollectContributions won't find it — this is expected behavior
-	contribs := CollectContributions(nil)
+	contribs := NewFromFactories(func() plugin.Plugin { return p }).CollectContributions(nil)
 	if len(contribs) != 0 {
 		t.Errorf("expected 0 contributions from bare plugin, got %d", len(contribs))
 	}
 }
 
-func TestResetPlugins_ResetsConfigState(t *testing.T) {
+func TestNewDoesNotReuseConfiguredRegisteredPluginState(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
 
-	p := &testContributorPlugin{
-		BasePlugin: plugin.BasePlugin[*testConfig]{
-			PluginName: "resettable",
-			PluginDesc: "resettable plugin",
-			EnableMode: plugin.EnabledWhenConfigured,
-			DefaultCfg: func() *testConfig { return &testConfig{} },
-		},
+	RegisterFactory(func() plugin.Plugin {
+		return &testContributorPlugin{
+			BasePlugin: plugin.BasePlugin[*testConfig]{
+				PluginName: "fresh",
+				PluginDesc: "fresh plugin",
+				EnableMode: plugin.EnabledWhenConfigured,
+				DefaultCfg: func() *testConfig { return &testConfig{} },
+			},
+		}
+	})
+
+	first := ByCapabilityFrom[plugin.ConfigLoader](New())[0]
+	first.(*testContributorPlugin).SetTypedConfig(&testConfig{Name: "configured"})
+	if !first.IsConfigured() {
+		t.Fatal("first plugin should be configured")
 	}
-	Register(p)
-	p.SetTypedConfig(&testConfig{Name: "configured"})
 
-	if !p.IsConfigured() {
-		t.Fatal("should be configured")
-	}
-
-	ResetPlugins()
-
-	if p.IsConfigured() {
-		t.Error("should not be configured after ResetPlugins")
+	second := ByCapabilityFrom[plugin.ConfigLoader](New())[0]
+	if second.IsConfigured() {
+		t.Error("second plugin should start unconfigured")
 	}
 }
 
@@ -535,7 +537,6 @@ func TestResolveProvider_SkipsDisabledEnvDetectedProvider(t *testing.T) {
 		provider:   "github",
 	}
 	disabledEnv.SetTypedConfig(&testConfig{Enabled: false})
-	Register(disabledEnv)
 
 	enabled := &testProviderPlugin{
 		BasePlugin: plugin.BasePlugin[*testConfig]{
@@ -549,14 +550,16 @@ func TestResolveProvider_SkipsDisabledEnvDetectedProvider(t *testing.T) {
 		provider:   "gitlab",
 	}
 	enabled.SetTypedConfig(&testConfig{Enabled: true})
-	Register(enabled)
 
-	provider, err := ResolveCIProvider()
+	provider, err := NewFromFactories(
+		func() plugin.Plugin { return disabledEnv },
+		func() plugin.Plugin { return enabled },
+	).ResolveCIProvider()
 	if err != nil {
-		t.Fatalf("ResolveCIProvider() error = %v", err)
+		t.Fatalf("New().ResolveCIProvider() error = %v", err)
 	}
 	if provider.ProviderName() != "gitlab" {
-		t.Fatalf("ResolveCIProvider() = %q, want gitlab", provider.ProviderName())
+		t.Fatalf("New().ResolveCIProvider() = %q, want gitlab", provider.ProviderName())
 	}
 }
 
@@ -579,7 +582,6 @@ func TestResolveCIProvider_ExplicitProviderOverridesDetectedEnv(t *testing.T) {
 		detectEnv:  true,
 		provider:   "gitlab",
 	}
-	Register(gitlab)
 
 	github := &testProviderPlugin{
 		BasePlugin: plugin.BasePlugin[*testConfig]{
@@ -591,14 +593,16 @@ func TestResolveCIProvider_ExplicitProviderOverridesDetectedEnv(t *testing.T) {
 		testPlugin: testPlugin{name: "github", desc: "GitHub"},
 		provider:   "github",
 	}
-	Register(github)
 
-	provider, err := ResolveCIProvider()
+	provider, err := NewFromFactories(
+		func() plugin.Plugin { return gitlab },
+		func() plugin.Plugin { return github },
+	).ResolveCIProvider()
 	if err != nil {
-		t.Fatalf("ResolveCIProvider() error = %v", err)
+		t.Fatalf("New().ResolveCIProvider() error = %v", err)
 	}
 	if provider.ProviderName() != "github" {
-		t.Fatalf("ResolveCIProvider() = %q, want github", provider.ProviderName())
+		t.Fatalf("New().ResolveCIProvider() = %q, want github", provider.ProviderName())
 	}
 }
 
@@ -622,10 +626,9 @@ func TestResolveCIProvider_TERRACI_PROVIDERMustBeActive(t *testing.T) {
 		provider:   "github",
 	}
 	disabled.SetTypedConfig(&testConfig{Enabled: false})
-	Register(disabled)
 
-	if _, err := ResolveCIProvider(); err == nil {
-		t.Fatal("ResolveCIProvider() should fail when TERRACI_PROVIDER points to disabled plugin")
+	if _, err := NewFromFactories(func() plugin.Plugin { return disabled }).ResolveCIProvider(); err == nil {
+		t.Fatal("New().ResolveCIProvider() should fail when TERRACI_PROVIDER points to disabled plugin")
 	}
 }
 
@@ -645,7 +648,6 @@ func TestPreflightsForStartup_FiltersDisabledPlugins(t *testing.T) {
 		},
 	}
 	disabled.SetTypedConfig(&testConfig{Enabled: false})
-	Register(disabled)
 
 	enabled := &testPreflightPlugin{
 		BasePlugin: plugin.BasePlugin[*testConfig]{
@@ -659,14 +661,16 @@ func TestPreflightsForStartup_FiltersDisabledPlugins(t *testing.T) {
 		},
 	}
 	enabled.SetTypedConfig(&testConfig{Enabled: true})
-	Register(enabled)
 
-	preflights := PreflightsForStartup()
+	preflights := NewFromFactories(
+		func() plugin.Plugin { return disabled },
+		func() plugin.Plugin { return enabled },
+	).PreflightsForStartup()
 	if len(preflights) != 1 {
-		t.Fatalf("PreflightsForStartup() returned %d plugins, want 1", len(preflights))
+		t.Fatalf("New().PreflightsForStartup() returned %d plugins, want 1", len(preflights))
 	}
 	if preflights[0].Name() != "enabled-preflight" {
-		t.Fatalf("PreflightsForStartup()[0] = %q, want enabled-preflight", preflights[0].Name())
+		t.Fatalf("New().PreflightsForStartup()[0] = %q, want enabled-preflight", preflights[0].Name())
 	}
 }
 
@@ -696,14 +700,13 @@ func TestResolveChangeDetector_Single(t *testing.T) {
 			DefaultCfg: func() *testConfig { return &testConfig{} },
 		},
 	}
-	Register(det)
 
-	got, err := ResolveChangeDetector()
+	got, err := NewFromFactories(func() plugin.Plugin { return det }).ResolveChangeDetector()
 	if err != nil {
-		t.Fatalf("ResolveChangeDetector() error = %v", err)
+		t.Fatalf("New().ResolveChangeDetector() error = %v", err)
 	}
 	if got.Name() != "git" {
-		t.Fatalf("ResolveChangeDetector() = %q, want git", got.Name())
+		t.Fatalf("New().ResolveChangeDetector() = %q, want git", got.Name())
 	}
 }
 
@@ -721,10 +724,9 @@ func TestResolveChangeDetector_SingleDisabledIsNotActive(t *testing.T) {
 		},
 	}
 	det.SetTypedConfig(&testConfig{Enabled: false})
-	Register(det)
 
-	if _, err := ResolveChangeDetector(); err == nil {
-		t.Fatal("ResolveChangeDetector() should fail when the only detector is disabled")
+	if _, err := NewFromFactories(func() plugin.Plugin { return det }).ResolveChangeDetector(); err == nil {
+		t.Fatal("New().ResolveChangeDetector() should fail when the only detector is disabled")
 	}
 }
 
@@ -741,7 +743,6 @@ func TestResolveChangeDetector_MultipleWithConfigured(t *testing.T) {
 			IsEnabledFn: func(cfg *testConfig) bool { return cfg != nil && cfg.Enabled },
 		},
 	}
-	Register(det1)
 
 	det2 := &testDetectorPlugin{
 		BasePlugin: plugin.BasePlugin[*testConfig]{
@@ -753,14 +754,16 @@ func TestResolveChangeDetector_MultipleWithConfigured(t *testing.T) {
 		},
 	}
 	det2.SetTypedConfig(&testConfig{Enabled: true})
-	Register(det2)
 
-	got, err := ResolveChangeDetector()
+	got, err := NewFromFactories(
+		func() plugin.Plugin { return det1 },
+		func() plugin.Plugin { return det2 },
+	).ResolveChangeDetector()
 	if err != nil {
-		t.Fatalf("ResolveChangeDetector() error = %v", err)
+		t.Fatalf("New().ResolveChangeDetector() error = %v", err)
 	}
 	if got.Name() != "detector-b" {
-		t.Fatalf("ResolveChangeDetector() = %q, want detector-b", got.Name())
+		t.Fatalf("New().ResolveChangeDetector() = %q, want detector-b", got.Name())
 	}
 }
 
@@ -783,12 +786,12 @@ func TestResolveChangeDetector_MultipleNoneConfigured(t *testing.T) {
 	Reset()
 
 	// Two detectors without ConfigLoader — neither can be prioritized.
-	Register(&bareDetector{name: "det-x"})
-	Register(&bareDetector{name: "det-y"})
+	RegisterFactory(func() plugin.Plugin { return &bareDetector{name: "det-x"} })
+	RegisterFactory(func() plugin.Plugin { return &bareDetector{name: "det-y"} })
 
-	_, err := ResolveChangeDetector()
+	_, err := New().ResolveChangeDetector()
 	if err == nil {
-		t.Fatal("ResolveChangeDetector() should fail with multiple unconfigured detectors")
+		t.Fatal("New().ResolveChangeDetector() should fail with multiple unconfigured detectors")
 	}
 	if !strings.Contains(err.Error(), "det-x") || !strings.Contains(err.Error(), "det-y") {
 		t.Fatalf("error should list detector names, got: %v", err)
@@ -803,21 +806,21 @@ func TestConcurrentRegistryAccess(t *testing.T) {
 
 	// Pre-register plugins
 	for i := range 10 {
-		Register(&testPlugin{name: fmt.Sprintf("plugin-%d", i), desc: "concurrent test"})
+		RegisterFactory(func() plugin.Plugin { return &testPlugin{name: fmt.Sprintf("plugin-%d", i), desc: "concurrent test"} })
 	}
 
 	// Concurrent reads
 	var wg sync.WaitGroup
 	for range 50 {
 		wg.Go(func() {
-			_ = All()
-			_, _ = Get("plugin-0")
-			_ = ByCapability[plugin.Plugin]()
+			_ = New().All()
+			_, _ = New().Get("plugin-0")
+			_ = ByCapabilityFrom[plugin.Plugin](New())
 		})
 	}
 	wg.Wait()
 
-	all := All()
+	all := New().All()
 	if len(all) != 10 {
 		t.Fatalf("expected 10 plugins after concurrent access, got %d", len(all))
 	}

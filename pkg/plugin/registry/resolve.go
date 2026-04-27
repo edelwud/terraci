@@ -30,12 +30,6 @@ func (r *Registry) activeCIProviders() []ciProviderPlugin {
 	return active
 }
 
-// ResolveCIProvider detects the active CI provider.
-// Priority: TERRACI_PROVIDER env → env detection → single active provider.
-func ResolveCIProvider() (*plugin.ResolvedCIProvider, error) {
-	return Default().ResolveCIProvider()
-}
-
 // ResolveCIProvider detects the active CI provider in this registry.
 // Priority: TERRACI_PROVIDER env → env detection → single active provider.
 func (r *Registry) ResolveCIProvider() (*plugin.ResolvedCIProvider, error) {
@@ -71,12 +65,6 @@ func buildResolvedCIProvider(p ciProviderPlugin) *plugin.ResolvedCIProvider {
 		comment = cf
 	}
 	return plugin.NewResolvedCIProvider(p, p, p, comment)
-}
-
-// ResolveChangeDetector returns the active ChangeDetectionProvider.
-// Priority: single active detector → error.
-func ResolveChangeDetector() (plugin.ChangeDetectionProvider, error) {
-	return Default().ResolveChangeDetector()
 }
 
 // ResolveChangeDetector returns the active ChangeDetectionProvider in this registry.
@@ -135,11 +123,6 @@ func providerNames(candidates []ciProviderPlugin) string {
 	return sb.String()
 }
 
-// ResolveKVCacheProvider returns a named KV cache backend provider.
-func ResolveKVCacheProvider(name string) (plugin.KVCacheProvider, error) {
-	return Default().ResolveKVCacheProvider(name)
-}
-
 // ResolveKVCacheProvider returns a named KV cache backend provider from this registry.
 func (r *Registry) ResolveKVCacheProvider(name string) (plugin.KVCacheProvider, error) {
 	if name == "" {
@@ -160,11 +143,6 @@ func (r *Registry) ResolveKVCacheProvider(name string) (plugin.KVCacheProvider, 
 	}
 
 	return provider, nil
-}
-
-// ResolveBlobStoreProvider returns a named blob store backend provider.
-func ResolveBlobStoreProvider(name string) (plugin.BlobStoreProvider, error) {
-	return Default().ResolveBlobStoreProvider(name)
 }
 
 // ResolveBlobStoreProvider returns a named blob store backend provider from this registry.
@@ -189,12 +167,6 @@ func (r *Registry) ResolveBlobStoreProvider(name string) (plugin.BlobStoreProvid
 	return provider, nil
 }
 
-// PreflightsForStartup returns enabled plugins that participate in framework
-// preflight for the current config state.
-func PreflightsForStartup() []plugin.Preflightable {
-	return Default().PreflightsForStartup()
-}
-
 // PreflightsForStartup returns enabled plugins from this registry that
 // participate in framework preflight for the current config state.
 func (r *Registry) PreflightsForStartup() []plugin.Preflightable {
@@ -209,12 +181,6 @@ func (r *Registry) PreflightsForStartup() []plugin.Preflightable {
 		}
 	}
 	return result
-}
-
-// CollectContributions gathers pipeline contributions from all enabled
-// PipelineContributor plugins.
-func CollectContributions(ctx *plugin.AppContext) []*pipeline.Contribution {
-	return Default().CollectContributions(ctx)
 }
 
 // CollectContributions gathers pipeline contributions from all enabled

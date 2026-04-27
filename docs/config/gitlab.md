@@ -6,7 +6,7 @@ outline: deep
 
 # GitLab CI Configuration
 
-The `gitlab` section configures the generated GitLab CI pipeline. This section is only used when the resolved provider is `gitlab` (the default, auto-detected from `GITLAB_CI` or `CI_SERVER_URL`). When the provider is `github`, this section is omitted and the `github` section is used instead. See [GitHub Actions Configuration](/config/github) for the GitHub equivalent.
+The `gitlab` section configures the generated GitLab CI pipeline. This section is used when the resolved provider is `gitlab`, selected via `TERRACI_PROVIDER`, auto-detected from `GITLAB_CI` or `CI_SERVER_URL`, or inferred as the single active provider. When the provider is `github`, this section is omitted and the `github` section is used instead. See [GitHub Actions Configuration](/config/github) for the GitHub equivalent.
 
 ## Options
 

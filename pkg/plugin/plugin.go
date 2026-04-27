@@ -3,7 +3,7 @@
 // same pattern as database/sql drivers and Caddy modules.
 //
 // Core types (interfaces, BasePlugin, AppContext) live in this package.
-// Global registry functions live in pkg/plugin/registry.
+// Plugin factories and per-command registries live in pkg/plugin/registry.
 // Init wizard types live in pkg/plugin/initwiz.
 package plugin
 
@@ -13,11 +13,4 @@ type Plugin interface {
 	Name() string
 	// Description returns a human-readable description.
 	Description() string
-}
-
-// Resettable plugins can reset their mutable state to zero values.
-// Used by test infrastructure to isolate tests from shared plugin singletons.
-type Resettable interface {
-	Plugin
-	Reset()
 }

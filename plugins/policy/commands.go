@@ -22,14 +22,15 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 		Use:   "pull",
 		Short: "Pull policies from configured sources",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if !p.IsEnabled() {
+			current := plugin.CommandPlugin(ctx, p)
+			if !current.IsEnabled() {
 				return errors.New("policy checks are not enabled (set plugins.policy.enabled: true)")
 			}
 
 			log.Info("pulling policies from configured sources")
 			c, cancel := context.WithTimeout(cmd.Context(), 5*time.Minute)
 			defer cancel()
-			return p.runPull(c, ctx, policyOutput)
+			return current.runPull(c, ctx, policyOutput)
 		},
 	}
 
@@ -37,7 +38,8 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 		Use:   "check",
 		Short: "Check Terraform plans against policies",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if !p.IsEnabled() {
+			current := plugin.CommandPlugin(ctx, p)
+			if !current.IsEnabled() {
 				return errors.New("policy checks are not enabled (set plugins.policy.enabled: true)")
 			}
 
@@ -45,7 +47,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 
 			c, cancel := context.WithTimeout(cmd.Context(), 5*time.Minute)
 			defer cancel()
-			return p.runCheck(c, ctx, policyModulePath, policyOutput)
+			return current.runCheck(c, ctx, policyModulePath, policyOutput)
 		},
 	}
 

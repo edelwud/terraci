@@ -107,10 +107,10 @@ plugins:
 Если файл конфигурации не найден, используются эти значения:
 
 ```yaml
-# provider автоопределяется из переменных окружения CI:
-#   GITHUB_ACTIONS → github
-#   GITLAB_CI / CI_SERVER_URL → gitlab
-#   по умолчанию → gitlab
+# выбор provider:
+#   переменная окружения TERRACI_PROVIDER
+#   автоопределение CI-окружения
+#   единственный активный провайдер
 
 structure:
   pattern: "{service}/{environment}/{region}/{module}"

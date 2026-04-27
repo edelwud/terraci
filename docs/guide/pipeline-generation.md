@@ -20,7 +20,7 @@ terraci generate -o .gitlab-ci.yml
 terraci generate -o .github/workflows/terraform.yml
 ```
 
-The provider is auto-detected from the environment (`GITLAB_CI` env var selects GitLab, `GITHUB_ACTIONS` selects GitHub Actions), or set explicitly via `provider` in `.terraci.yaml`.
+The provider is selected via `TERRACI_PROVIDER`, auto-detected from the environment (`GITLAB_CI` env var selects GitLab, `GITHUB_ACTIONS` selects GitHub Actions), or inferred from a single active provider.
 
 ## GitLab CI Pipeline Structure
 

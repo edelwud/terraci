@@ -74,12 +74,12 @@ plugins:
 
 TerraCi auto-detects the active CI provider at runtime:
 
-1. **Environment variables** -- `GITLAB_CI=true` selects GitLab, `GITHUB_ACTIONS=true` selects GitHub
-2. **`TERRACI_PROVIDER` env var** -- explicit override:
+1. **`TERRACI_PROVIDER` env var** -- explicit override:
    ```bash
    TERRACI_PROVIDER=gitlab terraci generate -o pipeline.yml
    ```
-3. **Single configured provider** -- if only one CI provider has config, it is used automatically
+2. **Environment variables** -- `GITLAB_CI=true` selects GitLab, `GITHUB_ACTIONS=true` selects GitHub
+3. **Single active provider** -- if only one CI provider is active, it is used automatically
 
 If multiple providers are configured and no environment is detected, TerraCi returns an error with instructions to set `TERRACI_PROVIDER`.
 
@@ -107,7 +107,7 @@ A single plugin can implement multiple capabilities. For example, `cost` impleme
 Every plugin goes through the same lifecycle:
 
 ```
-1. Register    -- init() registers the plugin via registry.Register()
+1. Register    -- init() registers the plugin via registry.RegisterFactory()
 2. Configure   -- framework decodes the matching plugins.<key> YAML section
 3. Preflight   -- cheap validation (env detection, config checks)
 4. Freeze      -- AppContext is frozen, no further config mutations
@@ -162,7 +162,7 @@ xterraci list-plugins
 
 A minimal external plugin needs:
 
-**1. Registration** -- `init()` function that calls `registry.Register()`:
+**1. Registration** -- `init()` function that calls `registry.RegisterFactory()`:
 
 ```go
 package myplugin
@@ -173,16 +173,18 @@ import (
 )
 
 func init() {
-    registry.Register(&Plugin{
-        BasePlugin: plugin.BasePlugin[*Config]{
-            PluginName: "myplugin",
-            PluginDesc: "My custom plugin",
-            EnableMode: plugin.EnabledExplicitly,
-            DefaultCfg: func() *Config { return &Config{} },
-            IsEnabledFn: func(cfg *Config) bool {
-                return cfg != nil && cfg.Enabled
+    registry.RegisterFactory(func() plugin.Plugin {
+        return &Plugin{
+            BasePlugin: plugin.BasePlugin[*Config]{
+                PluginName: "myplugin",
+                PluginDesc: "My custom plugin",
+                EnableMode: plugin.EnabledExplicitly,
+                DefaultCfg: func() *Config { return &Config{} },
+                IsEnabledFn: func(cfg *Config) bool {
+                    return cfg != nil && cfg.Enabled
+                },
             },
-        },
+        }
     })
 }
 

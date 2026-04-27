@@ -117,10 +117,10 @@ plugins:
 If a configuration file is not found, these defaults are used:
 
 ```yaml
-# provider is auto-detected from CI environment variables:
-#   GITHUB_ACTIONS → github
-#   GITLAB_CI / CI_SERVER_URL → gitlab
-#   fallback → gitlab
+# provider selection:
+#   TERRACI_PROVIDER env var
+#   CI environment detection
+#   single active provider
 
 structure:
   pattern: "{service}/{environment}/{region}/{module}"

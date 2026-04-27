@@ -180,13 +180,15 @@ import (
 )
 
 func init() {
-    registry.Register(&Plugin{
-        BasePlugin: plugin.BasePlugin[*Config]{
-            PluginName: "bitbucket",
-            PluginDesc: "Bitbucket Pipelines generation",
-            EnableMode: plugin.EnabledWhenConfigured,
-            DefaultCfg: func() *Config { return &Config{} },
-        },
+    registry.RegisterFactory(func() plugin.Plugin {
+        return &Plugin{
+            BasePlugin: plugin.BasePlugin[*Config]{
+                PluginName: "bitbucket",
+                PluginDesc: "Bitbucket Pipelines generation",
+                EnableMode: plugin.EnabledWhenConfigured,
+                DefaultCfg: func() *Config { return &Config{} },
+            },
+        }
     })
 }
 
@@ -246,9 +248,9 @@ func (p *Plugin) NewCommentService(_ *plugin.AppContext) ci.CommentService {
 
 TerraCi resolves the active CI provider in this order:
 
-1. **Environment detection** — `DetectEnv()` returns `true`
-2. **`TERRACI_PROVIDER` env var** — explicit override
-3. **Single configured provider** — only one has config in `.terraci.yaml`
+1. **`TERRACI_PROVIDER` env var** — explicit override
+2. **Environment detection** — `DetectEnv()` returns `true`
+3. **Single active provider** — only one provider is active
 
 Your provider is automatically discovered. No core code changes needed.
 

@@ -41,7 +41,7 @@ external-plugin/
 
 ## Key patterns
 
-1. **Registration**: `registry.Register()` in `init()` — blank import triggers registration
-2. **BasePlugin[C]**: Generic embedding gives you config loading, enable/disable, reset for free
+1. **Registration**: `registry.RegisterFactory()` in `init()` — blank import triggers factory registration
+2. **BasePlugin[C]**: Generic embedding gives each command-run plugin instance config loading and enable/disable behavior
 3. **CommandProvider**: Return `[]*cobra.Command` from `Commands(ctx)` — framework adds them to CLI
 4. **AppContext**: Access config, working directory, service directory at command time
