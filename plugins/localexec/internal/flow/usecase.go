@@ -6,6 +6,7 @@ import (
 	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/filter"
 	"github.com/edelwud/terraci/pkg/log"
+	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/workflow"
 	"github.com/edelwud/terraci/plugins/localexec/internal/planner"
@@ -19,14 +20,20 @@ type UseCase struct {
 	appCtx         *plugin.AppContext
 	targets        targeting.Resolver
 	planner        planner.Builder
+	contributions  ContributionCollector
 	runtimeFactory runner.Factory
 	summaryReports render.SummaryReportLoader
 	output         render.Output
 }
 
+type ContributionCollector interface {
+	Collect(appCtx *plugin.AppContext) []*pipeline.Contribution
+}
+
 type Dependencies struct {
 	Targets        targeting.Resolver
 	Planner        planner.Builder
+	Contributions  ContributionCollector
 	RuntimeFactory runner.Factory
 	SummaryReports render.SummaryReportLoader
 	Output         render.Output
@@ -52,6 +59,12 @@ func WithPlanner(builder planner.Builder) Option {
 	}
 }
 
+func WithContributionCollector(collector ContributionCollector) Option {
+	return func(deps *Dependencies) {
+		deps.Contributions = collector
+	}
+}
+
 func WithOutput(output render.Output) Option {
 	return func(deps *Dependencies) {
 		deps.Output = output
@@ -70,8 +83,9 @@ func DefaultDependencies(appCtx *plugin.AppContext) Dependencies {
 		segments = append(segments, cfg.Structure.Segments...)
 	}
 	return Dependencies{
-		Targets:        targeting.NewWorkflowResolver(appCtx),
-		Planner:        planner.New(appCtx),
+		Targets:        targeting.NewWorkflowResolver(appCtx, nil),
+		Planner:        planner.New(),
+		Contributions:  contextContributionCollector{},
 		RuntimeFactory: runner.NewFactory(),
 		SummaryReports: render.NewSummaryReportLoader(appCtx.ServiceDir(), appCtx.WorkDir(), segments),
 		Output:         render.NewLogOutput(),
@@ -92,6 +106,7 @@ func New(appCtx *plugin.AppContext, opts ...Option) *UseCase {
 		appCtx:         appCtx,
 		targets:        deps.Targets,
 		planner:        deps.Planner,
+		contributions:  deps.Contributions,
 		runtimeFactory: deps.RuntimeFactory,
 		summaryReports: deps.SummaryReports,
 		output:         deps.Output,
@@ -104,6 +119,9 @@ func withDefaults(deps, defaults Dependencies) Dependencies {
 	}
 	if deps.Planner == nil {
 		deps.Planner = defaults.Planner
+	}
+	if deps.Contributions == nil {
+		deps.Contributions = defaults.Contributions
 	}
 	if deps.RuntimeFactory == nil {
 		deps.RuntimeFactory = defaults.RuntimeFactory
@@ -137,7 +155,8 @@ func (u *UseCase) Run(ctx context.Context, req spec.ExecuteRequest) error {
 		return err
 	}
 
-	plan, err := u.planner.Build(targets, result, execRuntime.ExecConfig, req.Mode)
+	contributions := u.contributions.Collect(u.appCtx)
+	plan, err := u.planner.Build(targets, result, execRuntime.ExecConfig, req.Mode, contributions)
 	if err != nil {
 		return err
 	}
@@ -165,4 +184,10 @@ func (u *UseCase) Run(ctx context.Context, req spec.ExecuteRequest) error {
 
 func workflowOptionsFromContext(appCtx *plugin.AppContext, ff *filter.Flags) workflow.Options {
 	return workflow.OptionsFromConfig(appCtx.WorkDir(), appCtx.Config(), ff)
+}
+
+type contextContributionCollector struct{}
+
+func (contextContributionCollector) Collect(appCtx *plugin.AppContext) []*pipeline.Contribution {
+	return plugin.CollectContributions(appCtx)
 }

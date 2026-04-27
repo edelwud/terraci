@@ -125,11 +125,15 @@ func (p *Plugin) NewGenerator(
     ctx *plugin.AppContext,
     depGraph *graph.DependencyGraph,
     modules []*discovery.Module,
+    contributions []*pipeline.Contribution,
 ) pipeline.Generator {
-    return &generator{config: p.Config()}
+    return &generator{config: p.Config(), contributions: contributions}
 }
 
-type generator struct{ config *Config }
+type generator struct {
+    config        *Config
+    contributions []*pipeline.Contribution
+}
 
 func (g *generator) Generate(ir *pipeline.IR) (*pipeline.GeneratedPipeline, error) {
     content := renderBitbucketYAML(ir, g.config)

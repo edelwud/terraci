@@ -26,7 +26,7 @@ type CIInfoProvider interface {
 // PipelineGeneratorFactory creates pipeline generators.
 type PipelineGeneratorFactory interface {
 	Plugin
-	NewGenerator(ctx *AppContext, depGraph *graph.DependencyGraph, modules []*discovery.Module) pipeline.Generator
+	NewGenerator(ctx *AppContext, depGraph *graph.DependencyGraph, modules []*discovery.Module, contributions []*pipeline.Contribution) pipeline.Generator
 }
 
 // CommentServiceFactory creates PR/MR comment services.
@@ -57,8 +57,8 @@ func (c *ResolvedCIProvider) ProviderName() string { return c.metadata.ProviderN
 func (c *ResolvedCIProvider) PipelineID() string   { return c.metadata.PipelineID() }
 func (c *ResolvedCIProvider) CommitSHA() string    { return c.metadata.CommitSHA() }
 
-func (c *ResolvedCIProvider) NewGenerator(ctx *AppContext, depGraph *graph.DependencyGraph, modules []*discovery.Module) pipeline.Generator {
-	return c.gen.NewGenerator(ctx, depGraph, modules)
+func (c *ResolvedCIProvider) NewGenerator(ctx *AppContext, depGraph *graph.DependencyGraph, modules []*discovery.Module, contributions []*pipeline.Contribution) pipeline.Generator {
+	return c.gen.NewGenerator(ctx, depGraph, modules, contributions)
 }
 
 // NewCommentService returns the comment service and true, or nil and false

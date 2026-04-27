@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/config"
-	"github.com/edelwud/terraci/pkg/pipeline"
 )
 
 func TestAppContext_Freeze(t *testing.T) {
@@ -65,26 +64,6 @@ type contextTestResolver struct {
 
 func (r contextTestResolver) GetPlugin(string) (Plugin, bool) {
 	return r.plugin, r.plugin != nil
-}
-
-func (contextTestResolver) ResolveCIProvider() (*ResolvedCIProvider, error) {
-	return nil, nil
-}
-
-func (contextTestResolver) ResolveChangeDetector() (ChangeDetectionProvider, error) {
-	return nil, nil
-}
-
-func (contextTestResolver) ResolveKVCacheProvider(string) (KVCacheProvider, error) {
-	return nil, nil
-}
-
-func (contextTestResolver) ResolveBlobStoreProvider(string) (BlobStoreProvider, error) {
-	return nil, nil
-}
-
-func (contextTestResolver) CollectContributions(*AppContext) []*pipeline.Contribution {
-	return nil
 }
 
 func TestAppContext_BeginCommandRebindsResolver(t *testing.T) {

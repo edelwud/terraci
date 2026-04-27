@@ -191,7 +191,9 @@ func newPipelineGenerator(app *App, depGraph *graph.DependencyGraph, modules []*
 	if err != nil {
 		return nil, fmt.Errorf("resolve CI provider: %w", err)
 	}
-	return provider.NewGenerator(app.PluginContext(), depGraph, modules), nil
+	appCtx := app.PluginContext()
+	contributions := app.Plugins.CollectContributions(appCtx)
+	return provider.NewGenerator(appCtx, depGraph, modules, contributions), nil
 }
 
 func runDryRun(gen pipeline.Generator, targets []*discovery.Module) error {

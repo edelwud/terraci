@@ -66,7 +66,7 @@ func loadSummaryInputs(appCtx *plugin.AppContext) (*summaryInputs, error) {
 
 func resolveSummaryProvider(appCtx *plugin.AppContext) func() (summaryProvider, error) {
 	return func() (summaryProvider, error) {
-		return appCtx.Resolver().ResolveCIProvider()
+		return plugin.ResolveCIProvider(appCtx)
 	}
 }
 

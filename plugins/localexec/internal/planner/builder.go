@@ -6,38 +6,21 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/pipeline"
-	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/workflow"
 	"github.com/edelwud/terraci/plugins/localexec/internal/spec"
 )
 
 type Builder interface {
-	Build(targets []*discovery.Module, result *workflow.Result, execCfg execution.Config, mode spec.ExecutionMode) (*execution.Plan, error)
+	Build(targets []*discovery.Module, result *workflow.Result, execCfg execution.Config, mode spec.ExecutionMode, contributions []*pipeline.Contribution) (*execution.Plan, error)
 }
 
-type ContributionCollector interface {
-	Collect(appCtx *plugin.AppContext) []*pipeline.Contribution
+type defaultBuilder struct{}
+
+func New() Builder {
+	return defaultBuilder{}
 }
 
-type defaultBuilder struct {
-	appCtx        *plugin.AppContext
-	contributions ContributionCollector
-}
-
-func New(appCtx *plugin.AppContext) Builder {
-	return NewWithContributionCollector(appCtx, contextContributionCollector{})
-}
-
-func NewWithContributionCollector(appCtx *plugin.AppContext, collector ContributionCollector) Builder {
-	if collector == nil {
-		collector = contextContributionCollector{}
-	}
-	return defaultBuilder{appCtx: appCtx, contributions: collector}
-}
-
-func (b defaultBuilder) Build(targets []*discovery.Module, result *workflow.Result, execCfg execution.Config, mode spec.ExecutionMode) (*execution.Plan, error) {
-	contributions := b.contributions.Collect(b.appCtx)
-
+func (defaultBuilder) Build(targets []*discovery.Module, result *workflow.Result, execCfg execution.Config, mode spec.ExecutionMode, contributions []*pipeline.Contribution) (*execution.Plan, error) {
 	planOnly := mode == spec.ExecutionModePlan
 	if planOnly {
 		execCfg.PlanEnabled = true
@@ -63,12 +46,6 @@ func (b defaultBuilder) Build(targets []*discovery.Module, result *workflow.Resu
 	}
 
 	return execution.NewPlan(ir), nil
-}
-
-type contextContributionCollector struct{}
-
-func (contextContributionCollector) Collect(appCtx *plugin.AppContext) []*pipeline.Contribution {
-	return appCtx.Resolver().CollectContributions(appCtx)
 }
 
 func planModeContributions(contributions []*pipeline.Contribution) []*pipeline.Contribution {

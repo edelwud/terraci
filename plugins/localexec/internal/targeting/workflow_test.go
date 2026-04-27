@@ -73,7 +73,7 @@ func TestWorkflowResolverUsesWorkflowResolveTargets(t *testing.T) {
 		Filters:     filters,
 	}
 
-	got, err := NewWorkflowResolver(appCtx).Resolve(context.Background(), req, result)
+	got, err := NewWorkflowResolver(appCtx, plugins.ResolveChangeDetector).Resolve(context.Background(), req, result)
 	if err != nil {
 		t.Fatalf("WorkflowResolver.Resolve() error = %v", err)
 	}

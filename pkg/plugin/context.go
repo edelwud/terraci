@@ -3,16 +3,10 @@ package plugin
 import (
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/log"
-	"github.com/edelwud/terraci/pkg/pipeline"
 )
 
 type Resolver interface {
 	GetPlugin(name string) (Plugin, bool)
-	ResolveCIProvider() (*ResolvedCIProvider, error)
-	ResolveChangeDetector() (ChangeDetectionProvider, error)
-	ResolveKVCacheProvider(name string) (KVCacheProvider, error)
-	ResolveBlobStoreProvider(name string) (BlobStoreProvider, error)
-	CollectContributions(ctx *AppContext) []*pipeline.Contribution
 }
 
 // CommandPlugin returns the current per-command plugin instance matching the

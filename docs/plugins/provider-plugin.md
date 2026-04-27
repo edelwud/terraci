@@ -63,11 +63,13 @@ func (p *Plugin) NewGenerator(
     ctx *plugin.AppContext,
     depGraph *graph.DependencyGraph,
     modules []*discovery.Module,
+    contributions []*pipeline.Contribution,
 ) pipeline.Generator {
     return &BitbucketGenerator{
-        config:   p.Config(),
-        depGraph: depGraph,
-        modules:  modules,
+        config:        p.Config(),
+        depGraph:      depGraph,
+        modules:       modules,
+        contributions: contributions,
     }
 }
 ```
@@ -219,14 +221,16 @@ func (p *Plugin) NewGenerator(
     ctx *plugin.AppContext,
     depGraph *graph.DependencyGraph,
     modules []*discovery.Module,
+    contributions []*pipeline.Contribution,
 ) pipeline.Generator {
-    return &generator{config: p.Config(), depGraph: depGraph, modules: modules}
+    return &generator{config: p.Config(), depGraph: depGraph, modules: modules, contributions: contributions}
 }
 
 type generator struct {
-    config   *Config
-    depGraph *graph.DependencyGraph
-    modules  []*discovery.Module
+    config        *Config
+    depGraph      *graph.DependencyGraph
+    modules       []*discovery.Module
+    contributions []*pipeline.Contribution
 }
 
 func (g *generator) Generate(ir *pipeline.IR) (*pipeline.GeneratedPipeline, error) {

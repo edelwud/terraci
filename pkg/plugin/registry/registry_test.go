@@ -510,7 +510,7 @@ func (p *testProviderPlugin) ProviderName() string {
 }
 func (p *testProviderPlugin) PipelineID() string { return "1" }
 func (p *testProviderPlugin) CommitSHA() string  { return "abc" }
-func (p *testProviderPlugin) NewGenerator(_ *plugin.AppContext, _ *graph.DependencyGraph, _ []*discovery.Module) pipeline.Generator {
+func (p *testProviderPlugin) NewGenerator(_ *plugin.AppContext, _ *graph.DependencyGraph, _ []*discovery.Module, _ []*pipeline.Contribution) pipeline.Generator {
 	return nil
 }
 func (p *testProviderPlugin) NewCommentService(_ *plugin.AppContext) ci.CommentService {

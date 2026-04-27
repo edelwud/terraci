@@ -367,9 +367,9 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 ### Generate pipeline
 1. `workflow.Run(ctx, opts)` — scan → filter → parse → graph
 2. `ChangeDetectionProvider.DetectChangedModules()` (if --changed-only)
-3. `registry.CollectContributions()` — gather PipelineContributor steps/jobs
+3. `Registry.CollectContributions(appCtx)` — gather a command-scoped snapshot of PipelineContributor steps/jobs
 4. `pipeline.Build(opts)` — construct provider-agnostic IR
-5. `GeneratorProvider.NewGenerator()` — transform IR to provider YAML
+5. `PipelineGeneratorFactory.NewGenerator(..., contributions)` — transform IR to provider YAML
 
 ### Summary
 1. `discovery.ScanPlanResults()` → PlanResultCollection
@@ -405,7 +405,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **ServiceDir**: configurable project directory; `AppContext.ServiceDir` (absolute) for runtime, `Config.ServiceDir` (relative) for pipeline templates
 - **File-based reports**: plugins write `{serviceDir}/{plugin}-report.json`; summary is the canonical producer of `summary-report.json`, and localexec is only its local consumer/renderer
 - **Report provenance**: persisted reports may carry producer/run provenance; local consumers should validate provenance/fingerprint when correctness depends on current workspace artifacts
-- **Zero cross-plugin imports**: plugins communicate only via `pkg/plugin/registry` + shared types + file-based reports
+- **Zero cross-plugin imports**: plugins communicate only via `pkg/plugin` capability helpers + shared types + file-based reports
 - **Shared workflow**: `workflow.Run()` — scan, filter, parse, graph building
 - **Localexec boundary**: keep shell/tfexec details inside `plugins/localexec`; `pkg/execution` stays provider-agnostic scheduler/executor infrastructure
 - **Reference runtime-heavy plugins**: `cost`, `policy`, `tfupdate`

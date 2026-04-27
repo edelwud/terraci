@@ -14,11 +14,17 @@ type Resolver interface {
 }
 
 type WorkflowResolver struct {
-	appCtx *plugin.AppContext
+	appCtx                 *plugin.AppContext
+	changeDetectorResolver workflow.ChangeDetectorResolver
 }
 
-func NewWorkflowResolver(appCtx *plugin.AppContext) Resolver {
-	return WorkflowResolver{appCtx: appCtx}
+func NewWorkflowResolver(appCtx *plugin.AppContext, changeDetectorResolver workflow.ChangeDetectorResolver) Resolver {
+	if changeDetectorResolver == nil {
+		changeDetectorResolver = func() (plugin.ChangeDetectionProvider, error) {
+			return plugin.ResolveChangeDetector(appCtx)
+		}
+	}
+	return WorkflowResolver{appCtx: appCtx, changeDetectorResolver: changeDetectorResolver}
 }
 
 func (r WorkflowResolver) Resolve(ctx context.Context, req spec.ExecuteRequest, result *workflow.Result) ([]*discovery.Module, error) {
@@ -27,6 +33,6 @@ func (r WorkflowResolver) Resolve(ctx context.Context, req spec.ExecuteRequest, 
 		ChangedOnly:            req.ChangedOnly,
 		BaseRef:                req.BaseRef,
 		Filters:                req.Filters,
-		ChangeDetectorResolver: r.appCtx.Resolver().ResolveChangeDetector,
+		ChangeDetectorResolver: r.changeDetectorResolver,
 	})
 }

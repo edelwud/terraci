@@ -23,7 +23,7 @@ type App struct {
 	Commit  string
 	Date    string
 
-	// Shared plugin context — refreshed via Ensure() after config loads
+	// Shared plugin context pointer used by commands registered before command execution.
 	pluginCtx *plugin.AppContext
 }
 
@@ -35,9 +35,9 @@ func (a *App) BeginCommand() {
 	}
 }
 
-// PluginContext returns the shared AppContext for plugins.
-// The returned pointer is stable; call Ensure() to refresh its fields
-// after Config or WorkDir change.
+// PluginContext returns the shared AppContext pointer for plugins.
+// The pointer is stable for cobra command closures; its contents are rebound to
+// the current command's registry/config during PersistentPreRunE.
 func (a *App) PluginContext() *plugin.AppContext {
 	if a.Plugins == nil {
 		a.Plugins = registry.New()

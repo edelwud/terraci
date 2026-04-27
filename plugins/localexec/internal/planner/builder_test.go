@@ -7,34 +7,22 @@ import (
 	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
-	"github.com/edelwud/terraci/pkg/plugin"
-	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	"github.com/edelwud/terraci/pkg/workflow"
 	"github.com/edelwud/terraci/plugins/localexec/internal/spec"
 )
 
-type stubContributionCollector struct {
-	contributions []*pipeline.Contribution
-	calls         int
-}
-
-func (c *stubContributionCollector) Collect(*plugin.AppContext) []*pipeline.Contribution {
-	c.calls++
-	return c.contributions
-}
-
 func TestBuilderBuildRunModeIncludesPlanAndApplyJobs(t *testing.T) {
 	t.Parallel()
 
-	appCtx := plugintest.NewAppContext(t, t.TempDir())
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	result := workflowResultForModules(module)
 
-	plan, err := New(appCtx).Build(
+	plan, err := New().Build(
 		[]*discovery.Module{module},
 		result,
 		execution.Config{InitEnabled: true, PlanEnabled: true},
 		spec.ExecutionModeRun,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("Build() error = %v", err)
@@ -51,15 +39,15 @@ func TestBuilderBuildRunModeIncludesPlanAndApplyJobs(t *testing.T) {
 func TestBuilderBuildPlanModeForcesPlanOnly(t *testing.T) {
 	t.Parallel()
 
-	appCtx := plugintest.NewAppContext(t, t.TempDir())
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	result := workflowResultForModules(module)
 
-	plan, err := New(appCtx).Build(
+	plan, err := New().Build(
 		[]*discovery.Module{module},
 		result,
 		execution.Config{PlanEnabled: false},
 		spec.ExecutionModePlan,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("Build() error = %v", err)
@@ -73,35 +61,30 @@ func TestBuilderBuildPlanModeForcesPlanOnly(t *testing.T) {
 	}
 }
 
-func TestBuilderBuildUsesInjectedContributionCollector(t *testing.T) {
+func TestBuilderBuildUsesContributionSnapshot(t *testing.T) {
 	t.Parallel()
 
-	appCtx := plugintest.NewAppContext(t, t.TempDir())
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	result := workflowResultForModules(module)
-	collector := &stubContributionCollector{
-		contributions: []*pipeline.Contribution{{
-			Jobs: []pipeline.ContributedJob{{
-				Name:     "summary",
-				Phase:    pipeline.PhaseFinalize,
-				Commands: []string{"terraci summary"},
-			}},
+	contributions := []*pipeline.Contribution{{
+		Jobs: []pipeline.ContributedJob{{
+			Name:     "summary",
+			Phase:    pipeline.PhaseFinalize,
+			Commands: []string{"terraci summary"},
 		}},
-	}
+	}}
 
-	plan, err := NewWithContributionCollector(appCtx, collector).Build(
+	plan, err := New().Build(
 		[]*discovery.Module{module},
 		result,
 		execution.Config{PlanEnabled: true},
 		spec.ExecutionModePlan,
+		contributions,
 	)
 	if err != nil {
 		t.Fatalf("Build() error = %v", err)
 	}
 
-	if collector.calls != 1 {
-		t.Fatalf("collector calls = %d, want 1", collector.calls)
-	}
 	if jobs := plan.JobsByPhase(pipeline.PhaseFinalize); len(jobs) != 1 || jobs[0].Name != "summary" {
 		t.Fatalf("finalize jobs = %#v, want summary job", jobs)
 	}
@@ -110,26 +93,24 @@ func TestBuilderBuildUsesInjectedContributionCollector(t *testing.T) {
 func TestBuilderBuildPlanModeExcludesApplyPhaseContributedJobs(t *testing.T) {
 	t.Parallel()
 
-	appCtx := plugintest.NewAppContext(t, t.TempDir())
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	result := workflowResultForModules(module)
-	collector := &stubContributionCollector{
-		contributions: []*pipeline.Contribution{{
-			Jobs: []pipeline.ContributedJob{
-				{Name: "pre-plan", Phase: pipeline.PhasePrePlan, Commands: []string{"pre-plan"}},
-				{Name: "post-plan", Phase: pipeline.PhasePostPlan, Commands: []string{"post-plan"}},
-				{Name: "pre-apply", Phase: pipeline.PhasePreApply, Commands: []string{"pre-apply"}},
-				{Name: "post-apply", Phase: pipeline.PhasePostApply, Commands: []string{"post-apply"}},
-				{Name: "summary", Phase: pipeline.PhaseFinalize, Commands: []string{"summary"}},
-			},
-		}},
-	}
+	contributions := []*pipeline.Contribution{{
+		Jobs: []pipeline.ContributedJob{
+			{Name: "pre-plan", Phase: pipeline.PhasePrePlan, Commands: []string{"pre-plan"}},
+			{Name: "post-plan", Phase: pipeline.PhasePostPlan, Commands: []string{"post-plan"}},
+			{Name: "pre-apply", Phase: pipeline.PhasePreApply, Commands: []string{"pre-apply"}},
+			{Name: "post-apply", Phase: pipeline.PhasePostApply, Commands: []string{"post-apply"}},
+			{Name: "summary", Phase: pipeline.PhaseFinalize, Commands: []string{"summary"}},
+		},
+	}}
 
-	plan, err := NewWithContributionCollector(appCtx, collector).Build(
+	plan, err := New().Build(
 		[]*discovery.Module{module},
 		result,
 		execution.Config{PlanEnabled: true},
 		spec.ExecutionModePlan,
+		contributions,
 	)
 	if err != nil {
 		t.Fatalf("Build() error = %v", err)
@@ -155,24 +136,22 @@ func TestBuilderBuildPlanModeExcludesApplyPhaseContributedJobs(t *testing.T) {
 func TestBuilderBuildRunModeKeepsApplyPhaseContributedJobs(t *testing.T) {
 	t.Parallel()
 
-	appCtx := plugintest.NewAppContext(t, t.TempDir())
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	result := workflowResultForModules(module)
-	collector := &stubContributionCollector{
-		contributions: []*pipeline.Contribution{{
-			Jobs: []pipeline.ContributedJob{{
-				Name:     "pre-apply",
-				Phase:    pipeline.PhasePreApply,
-				Commands: []string{"pre-apply"},
-			}},
+	contributions := []*pipeline.Contribution{{
+		Jobs: []pipeline.ContributedJob{{
+			Name:     "pre-apply",
+			Phase:    pipeline.PhasePreApply,
+			Commands: []string{"pre-apply"},
 		}},
-	}
+	}}
 
-	plan, err := NewWithContributionCollector(appCtx, collector).Build(
+	plan, err := New().Build(
 		[]*discovery.Module{module},
 		result,
 		execution.Config{PlanEnabled: true},
 		spec.ExecutionModeRun,
+		contributions,
 	)
 	if err != nil {
 		t.Fatalf("Build() error = %v", err)

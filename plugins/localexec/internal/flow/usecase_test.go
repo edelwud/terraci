@@ -60,18 +60,30 @@ type fakePlanner struct {
 	parallelism   int
 	planEnabled   bool
 	filteredCount int
+	contributions []*pipeline.Contribution
 }
 
-func (p *fakePlanner) Build(targets []*discovery.Module, result *workflow.Result, execCfg execution.Config, mode spec.ExecutionMode) (*execution.Plan, error) {
+func (p *fakePlanner) Build(targets []*discovery.Module, result *workflow.Result, execCfg execution.Config, mode spec.ExecutionMode, contributions []*pipeline.Contribution) (*execution.Plan, error) {
 	p.calls++
 	p.targets = targets
 	p.mode = mode
 	p.parallelism = execCfg.Parallelism
 	p.planEnabled = execCfg.PlanEnabled
+	p.contributions = contributions
 	if result != nil {
 		p.filteredCount = len(result.FilteredModules)
 	}
 	return p.plan, p.err
+}
+
+type fakeContributionCollector struct {
+	contributions []*pipeline.Contribution
+	calls         int
+}
+
+func (c *fakeContributionCollector) Collect(*plugin.AppContext) []*pipeline.Contribution {
+	c.calls++
+	return c.contributions
 }
 
 type fakeOutput struct {
@@ -186,6 +198,9 @@ func TestUseCase_RunUsesInjectedPlanner(t *testing.T) {
 		Jobs: []pipeline.Job{{Name: "summary", Phase: pipeline.PhaseFinalize}},
 	})
 	plannerStub := &fakePlanner{plan: plan}
+	contributionCollector := &fakeContributionCollector{
+		contributions: []*pipeline.Contribution{{Jobs: []pipeline.ContributedJob{{Name: "contributed"}}}},
+	}
 	output := &fakeOutput{}
 	loader := &fakeSummaryReportLoader{}
 
@@ -197,6 +212,7 @@ func TestUseCase_RunUsesInjectedPlanner(t *testing.T) {
 		appCtx,
 		WithTargetResolver(fakeTargetResolver{targets: []*discovery.Module{module}}),
 		WithPlanner(plannerStub),
+		WithContributionCollector(contributionCollector),
 		WithRuntimeFactory(runtimeFactory),
 		WithSummaryReports(loader),
 		WithOutput(output),
@@ -223,6 +239,12 @@ func TestUseCase_RunUsesInjectedPlanner(t *testing.T) {
 	}
 	if plannerStub.filteredCount != 1 {
 		t.Fatalf("planner filtered count = %d, want 1", plannerStub.filteredCount)
+	}
+	if contributionCollector.calls != 1 {
+		t.Fatalf("contribution collector calls = %d, want 1", contributionCollector.calls)
+	}
+	if len(plannerStub.contributions) != 1 || plannerStub.contributions[0].Jobs[0].Name != "contributed" {
+		t.Fatalf("planner contributions = %#v, want contributed job", plannerStub.contributions)
 	}
 	if loader.calls != 1 {
 		t.Fatalf("summary loader calls = %d, want 1", loader.calls)
@@ -469,6 +491,7 @@ func TestNewRestoresDefaultsAfterNilOverrides(t *testing.T) {
 		appCtx,
 		WithTargetResolver(nil),
 		WithPlanner(nil),
+		WithContributionCollector(nil),
 		WithRuntimeFactory(nil),
 		WithSummaryReports(nil),
 		WithOutput(nil),
@@ -479,6 +502,9 @@ func TestNewRestoresDefaultsAfterNilOverrides(t *testing.T) {
 	}
 	if useCase.planner == nil {
 		t.Fatal("planner = nil, want default builder")
+	}
+	if useCase.contributions == nil {
+		t.Fatal("contributions = nil, want default collector")
 	}
 	if useCase.runtimeFactory == nil {
 		t.Fatal("runtimeFactory = nil, want default factory")
