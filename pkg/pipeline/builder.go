@@ -124,9 +124,10 @@ func Build(opts BuildOptions) (*IR, error) {
 			deps = append(deps, planNames...)
 		}
 		if cj.Phase == PhaseFinalize {
-			// Finalize jobs depend on ALL other contributed jobs too
+			// Finalize jobs run after the earlier contribution phases. Multiple
+			// finalize jobs may run together unless a plugin adds an explicit edge.
 			for _, other := range allContributedJobs {
-				if other.Name != cj.Name {
+				if other.Name != cj.Name && other.Phase != PhaseFinalize {
 					deps = append(deps, other.Name)
 				}
 			}
@@ -136,6 +137,9 @@ func Build(opts BuildOptions) (*IR, error) {
 	}
 	ir.Jobs = irJobs
 
+	if err := ir.Validate(); err != nil {
+		return nil, err
+	}
 	return ir, nil
 }
 

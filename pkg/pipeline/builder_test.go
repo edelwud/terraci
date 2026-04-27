@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/discovery"
@@ -264,6 +265,108 @@ func TestBuild_FinalizeJobDependsOnOtherContributed(t *testing.T) {
 	}
 	if !hasPolicyDep {
 		t.Error("finalize job should depend on policy-check")
+	}
+}
+
+func TestBuild_MultipleFinalizeJobsDoNotImplicitlyCycle(t *testing.T) {
+	t.Parallel()
+
+	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
+	modules := []*discovery.Module{mod}
+	depGraph := buildGraph(modules, nil)
+	index := discovery.NewModuleIndex(modules)
+
+	contributions := []*Contribution{{
+		Jobs: []ContributedJob{
+			{Name: "policy-check", Phase: PhasePostPlan, Commands: []string{"check"}, DependsOnPlan: true},
+			{Name: "summary", Phase: PhaseFinalize, Commands: []string{"summarize"}, DependsOnPlan: true},
+			{Name: "notify", Phase: PhaseFinalize, Commands: []string{"notify"}, DependsOnPlan: true},
+		},
+	}}
+
+	ir, err := Build(BuildOptions{
+		DepGraph:      depGraph,
+		TargetModules: modules,
+		AllModules:    modules,
+		ModuleIndex:   index,
+		Script:        ScriptConfig{PlanEnabled: true},
+		Contributions: contributions,
+		PlanEnabled:   true,
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+
+	for i := range ir.Jobs {
+		job := &ir.Jobs[i]
+		if job.Phase != PhaseFinalize {
+			continue
+		}
+		for _, dep := range job.Dependencies {
+			if dep == "summary" || dep == "notify" {
+				t.Fatalf("finalize job %q has implicit finalize dependency %q", job.Name, dep)
+			}
+		}
+	}
+}
+
+func TestBuild_RejectsInvalidContributedJobGraph(t *testing.T) {
+	t.Parallel()
+
+	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
+	modules := []*discovery.Module{mod}
+	depGraph := buildGraph(modules, nil)
+	index := discovery.NewModuleIndex(modules)
+
+	tests := []struct {
+		name          string
+		contribution  *Contribution
+		wantErrSubstr string
+	}{
+		{
+			name: "unnamed contributed job",
+			contribution: &Contribution{Jobs: []ContributedJob{{
+				Phase: PhasePostPlan, Commands: []string{"check"},
+			}}},
+			wantErrSubstr: "unnamed job",
+		},
+		{
+			name: "duplicate contributed job",
+			contribution: &Contribution{Jobs: []ContributedJob{
+				{Name: "check", Phase: PhasePostPlan, Commands: []string{"check"}},
+				{Name: "check", Phase: PhaseFinalize, Commands: []string{"check"}},
+			}},
+			wantErrSubstr: `duplicate job name "check"`,
+		},
+		{
+			name: "contributed job collides with module job",
+			contribution: &Contribution{Jobs: []ContributedJob{{
+				Name: JobName("plan", mod), Phase: PhasePostPlan, Commands: []string{"check"},
+			}}},
+			wantErrSubstr: `duplicate job name "` + JobName("plan", mod) + `"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := Build(BuildOptions{
+				DepGraph:      depGraph,
+				TargetModules: modules,
+				AllModules:    modules,
+				ModuleIndex:   index,
+				Script:        ScriptConfig{PlanEnabled: true},
+				Contributions: []*Contribution{tt.contribution},
+				PlanEnabled:   true,
+			})
+			if err == nil {
+				t.Fatal("Build() error = nil, want error")
+			}
+			if !strings.Contains(err.Error(), tt.wantErrSubstr) {
+				t.Fatalf("Build() error = %q, want substring %q", err.Error(), tt.wantErrSubstr)
+			}
+		})
 	}
 }
 

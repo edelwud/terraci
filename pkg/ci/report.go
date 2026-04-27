@@ -15,6 +15,9 @@ func ReportFilename(plugin string) string {
 
 // SaveReport writes a plugin report as {serviceDir}/{plugin}-report.json.
 func SaveReport(serviceDir string, report *Report) error {
+	if err := report.Validate(); err != nil {
+		return fmt.Errorf("validate report: %w", err)
+	}
 	return SaveJSON(serviceDir, ReportFilename(report.Plugin), report)
 }
 
@@ -44,6 +47,9 @@ func LoadReport(path string) (*Report, error) {
 	var report Report
 	if err := json.Unmarshal(data, &report); err != nil {
 		return nil, fmt.Errorf("decode report: %w", err)
+	}
+	if err := report.Validate(); err != nil {
+		return nil, fmt.Errorf("validate report: %w", err)
 	}
 
 	return &report, nil

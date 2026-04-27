@@ -1,6 +1,11 @@
 package execution
 
-import "github.com/edelwud/terraci/pkg/pipeline"
+import (
+	"errors"
+	"fmt"
+
+	"github.com/edelwud/terraci/pkg/pipeline"
+)
 
 // Plan is an immutable executable view over Pipeline IR.
 type Plan struct {
@@ -13,6 +18,17 @@ func NewPlan(ir *pipeline.IR) *Plan {
 	plan := &Plan{IR: ir}
 	plan.index = newJobIndex(ir)
 	return plan
+}
+
+// Validate verifies that the plan is a closed, addressable job graph.
+func (p *Plan) Validate() error {
+	if p == nil || p.IR == nil {
+		return errors.New("execution plan is nil")
+	}
+	if err := p.IR.Validate(); err != nil {
+		return fmt.Errorf("invalid execution plan: %w", err)
+	}
+	return nil
 }
 
 // JobsByPhase returns standalone contributed jobs for a phase.

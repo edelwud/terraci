@@ -29,6 +29,7 @@ func TestSummaryReportLoader_LoadSummaryReport(t *testing.T) {
 	summary := &ci.Report{
 		Plugin:  "summary",
 		Title:   "Terraform Plan Summary",
+		Status:  ci.ReportStatusWarn,
 		Summary: "1 module: 1 with changes",
 	}
 	if err := ci.SaveReport(serviceDir, summary); err != nil {
@@ -57,6 +58,7 @@ func TestSummaryReportLoader_ResetRemovesStaleSummaryReport(t *testing.T) {
 	summary := &ci.Report{
 		Plugin:  "summary",
 		Title:   "Terraform Plan Summary",
+		Status:  ci.ReportStatusWarn,
 		Summary: "old",
 	}
 	if err := ci.SaveReport(serviceDir, summary); err != nil {
@@ -138,6 +140,7 @@ func TestSummaryReportLoader_LoadSummaryReportWithMatchingProvenance(t *testing.
 	summary := &ci.Report{
 		Plugin:  "summary",
 		Title:   "Terraform Plan Summary",
+		Status:  ci.ReportStatusPass,
 		Summary: "1 module",
 		Provenance: &ci.ReportProvenance{
 			Producer:               "summary",
@@ -173,6 +176,7 @@ func TestSummaryReportLoader_LoadSummaryReportWithMismatchedProvenanceReturnsErr
 	summary := &ci.Report{
 		Plugin:  "summary",
 		Title:   "Terraform Plan Summary",
+		Status:  ci.ReportStatusPass,
 		Summary: "1 module",
 		Provenance: &ci.ReportProvenance{
 			Producer:               "summary",

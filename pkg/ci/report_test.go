@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -139,6 +140,36 @@ func TestSaveReport_SectionsField(t *testing.T) {
 	}
 }
 
+func TestSaveReport_RejectsInvalidReport(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		report  *Report
+		wantErr string
+	}{
+		{name: "nil report", report: nil, wantErr: "ci report is nil"},
+		{name: "missing plugin", report: &Report{Title: "Missing Plugin", Status: ReportStatusPass}, wantErr: "plugin is required"},
+		{name: "unsafe plugin name", report: &Report{Plugin: "../cost", Title: "Cost", Status: ReportStatusPass}, wantErr: "not a safe artifact name"},
+		{name: "missing title", report: &Report{Plugin: "cost", Status: ReportStatusPass}, wantErr: "title is required"},
+		{name: "invalid status", report: &Report{Plugin: "cost", Title: "Cost", Status: "unknown"}, wantErr: `status "unknown" is invalid`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := SaveReport(t.TempDir(), tt.report)
+			if err == nil {
+				t.Fatal("SaveReport() error = nil, want error")
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("SaveReport() error = %q, want substring %q", err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestReportFilename(t *testing.T) {
 	if got := ReportFilename("cost"); got != "cost-report.json" {
 		t.Fatalf("ReportFilename(cost) = %q, want cost-report.json", got)
@@ -217,6 +248,25 @@ func TestLoadReport_UnknownSectionKindFails(t *testing.T) {
 
 	if _, err := LoadReport(path); err == nil {
 		t.Fatal("expected LoadReport to fail for unknown section kind")
+	}
+}
+
+func TestLoadReport_InvalidRootFails(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, ReportFilename("broken"))
+	content := `{
+  "plugin": "broken",
+  "title": "Broken",
+  "status": "mystery"
+}`
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	if _, err := LoadReport(path); err == nil {
+		t.Fatal("expected LoadReport to fail for invalid root fields")
 	}
 }
 

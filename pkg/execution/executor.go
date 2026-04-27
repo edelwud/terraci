@@ -93,8 +93,8 @@ func (e *Executor) Execute(ctx context.Context, plan *Plan) (*Result, error) {
 	if e.workers == nil {
 		return nil, errors.New("executor workers are not configured")
 	}
-	if plan == nil || plan.IR == nil {
-		return nil, errors.New("execution plan is nil")
+	if err := plan.Validate(); err != nil {
+		return nil, err
 	}
 
 	result := &Result{}

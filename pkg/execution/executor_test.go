@@ -2,6 +2,7 @@ package execution
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -149,6 +150,77 @@ func TestExecutorRecordsEmptyFinalizeStage(t *testing.T) {
 	}
 	if last.JobCount != 0 {
 		t.Fatalf("finalize job count = %d, want 0", last.JobCount)
+	}
+}
+
+func TestExecutorRejectsInvalidPlanGraph(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		ir      *pipeline.IR
+		wantErr string
+	}{
+		{
+			name: "duplicate names",
+			ir: &pipeline.IR{
+				Jobs: []pipeline.Job{
+					{Name: "policy-check", Phase: pipeline.PhasePostPlan},
+					{Name: "policy-check", Phase: pipeline.PhaseFinalize},
+				},
+			},
+			wantErr: `duplicate job name "policy-check"`,
+		},
+		{
+			name: "unknown dependency",
+			ir: &pipeline.IR{
+				Jobs: []pipeline.Job{
+					{Name: "summary", Phase: pipeline.PhaseFinalize, Dependencies: []string{"policy-check"}},
+				},
+			},
+			wantErr: `depends on unknown job "policy-check"`,
+		},
+		{
+			name: "dependency cycle",
+			ir: &pipeline.IR{
+				Jobs: []pipeline.Job{
+					{Name: "summary", Phase: pipeline.PhaseFinalize, Dependencies: []string{"policy-check"}},
+					{Name: "policy-check", Phase: pipeline.PhaseFinalize, Dependencies: []string{"summary"}},
+				},
+			},
+			wantErr: "dependency cycle",
+		},
+		{
+			name: "duplicate module and contributed job",
+			ir: &pipeline.IR{
+				Levels: []pipeline.Level{{
+					Index: 0,
+					Modules: []pipeline.ModuleJobs{{
+						Plan: &pipeline.Job{Name: "plan-vpc"},
+					}},
+				}},
+				Jobs: []pipeline.Job{{Name: "plan-vpc", Phase: pipeline.PhasePostPlan}},
+			},
+			wantErr: `duplicate job name "plan-vpc"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			runner := &orderRunner{}
+			_, err := NewExecutor(runner).Execute(context.Background(), NewPlan(tt.ir))
+			if err == nil {
+				t.Fatal("Execute() error = nil, want error")
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("Execute() error = %q, want substring %q", err.Error(), tt.wantErr)
+			}
+			if len(runner.order) != 0 {
+				t.Fatalf("runner executed %v, want no jobs", runner.order)
+			}
+		})
 	}
 }
 

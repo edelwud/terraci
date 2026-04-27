@@ -4,8 +4,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -135,6 +137,31 @@ type Report struct {
 	Summary    string            `json:"summary"`
 	Provenance *ReportProvenance `json:"provenance,omitempty"`
 	Sections   []ReportSection   `json:"sections,omitempty"`
+}
+
+// Validate verifies the persisted report artifact contract.
+func (r *Report) Validate() error {
+	if r == nil {
+		return errors.New("ci report is nil")
+	}
+	if strings.TrimSpace(r.Plugin) == "" {
+		return errors.New("ci report plugin is required")
+	}
+	if strings.ContainsAny(r.Plugin, `/\`) {
+		return fmt.Errorf("ci report plugin %q is not a safe artifact name", r.Plugin)
+	}
+	if strings.TrimSpace(r.Title) == "" {
+		return errors.New("ci report title is required")
+	}
+	if !r.Status.Valid() {
+		return fmt.Errorf("ci report status %q is invalid", r.Status)
+	}
+	for i := range r.Sections {
+		if err := validateReportSection(r.Sections[i]); err != nil {
+			return fmt.Errorf("ci report section %d: %w", i, err)
+		}
+	}
+	return nil
 }
 
 // ReportProvenance captures the source run identity for a persisted report.
@@ -329,6 +356,16 @@ const (
 	ReportStatusWarn ReportStatus = "warn"
 	ReportStatusFail ReportStatus = "fail"
 )
+
+// Valid reports whether the status is one of the supported CI report outcomes.
+func (s ReportStatus) Valid() bool {
+	switch s {
+	case ReportStatusPass, ReportStatusWarn, ReportStatusFail:
+		return true
+	default:
+		return false
+	}
+}
 
 // ToModulePlans converts plan results to ModulePlan for comment rendering
 func (c *PlanResultCollection) ToModulePlans() []ModulePlan {
