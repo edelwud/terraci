@@ -94,6 +94,26 @@
     },
     "plugins": {
       "properties": {
+        "summary": {
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "on_changes_only": {
+              "type": "boolean"
+            },
+            "include_details": {
+              "type": "boolean"
+            },
+            "labels": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
         "cost": {
           "properties": {
             "cache_dir": {
@@ -1254,26 +1274,6 @@
               "type": "boolean",
               "description": "Enable the built-in in-memory KV cache backend",
               "default": true
-            }
-          },
-          "type": "object"
-        },
-        "summary": {
-          "properties": {
-            "enabled": {
-              "type": "boolean"
-            },
-            "on_changes_only": {
-              "type": "boolean"
-            },
-            "include_details": {
-              "type": "boolean"
-            },
-            "labels": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
             }
           },
           "type": "object"
