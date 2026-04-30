@@ -1,36 +1,6 @@
 package plugin
 
-import (
-	"github.com/edelwud/terraci/pkg/config"
-	"github.com/edelwud/terraci/pkg/log"
-)
-
-type Resolver interface {
-	GetPlugin(name string) (Plugin, bool)
-}
-
-// CommandPlugin returns the current per-command plugin instance matching the
-// fallback plugin's name. It lets cobra commands be registered from prototype
-// plugin instances while executing against the fresh command-scoped instance.
-func CommandPlugin[T Plugin](ctx *AppContext, fallback T) T {
-	if ctx == nil || ctx.resolver == nil {
-		return fallback
-	}
-	current, ok := ctx.resolver.GetPlugin(fallback.Name())
-	if !ok {
-		return fallback
-	}
-	typed, ok := current.(T)
-	if !ok {
-		return fallback
-	}
-	currentConfig, currentHasConfig := current.(ConfigLoader)
-	fallbackConfig, fallbackHasConfig := any(fallback).(ConfigLoader)
-	if currentHasConfig && fallbackHasConfig && !currentConfig.IsConfigured() && fallbackConfig.IsConfigured() {
-		return fallback
-	}
-	return typed
-}
+import "github.com/edelwud/terraci/pkg/config"
 
 // AppContext is the public API available to plugins.
 //
@@ -62,21 +32,6 @@ func NewAppContext(cfg *config.Config, workDir, serviceDir, version string, repo
 	}
 	ctx.Update(cfg, workDir, serviceDir, version)
 	return ctx
-}
-
-// Update refreshes the framework-managed view of app state until the context is frozen.
-func (ctx *AppContext) Update(cfg *config.Config, workDir, serviceDir, version string) {
-	if ctx.frozen {
-		log.Debug("AppContext.Update called after Freeze — ignored")
-		return
-	}
-	ctx.config = cfg.Clone()
-	ctx.workDir = workDir
-	ctx.serviceDir = serviceDir
-	ctx.version = version
-	if ctx.reports == nil {
-		ctx.reports = NewReportRegistry()
-	}
 }
 
 // Config returns a defensive copy of the loaded TerraCi configuration.
@@ -113,31 +68,4 @@ func (ctx *AppContext) Reports() *ReportRegistry {
 // Resolver returns the per-run plugin resolver bound to this context.
 func (ctx *AppContext) Resolver() Resolver {
 	return ctx.resolver
-}
-
-// SetResolver binds the per-run plugin resolver. Framework code calls this
-// before plugins receive the context.
-func (ctx *AppContext) SetResolver(resolver Resolver) {
-	if ctx.frozen {
-		log.Debug("AppContext.SetResolver called after Freeze — ignored")
-		return
-	}
-	ctx.resolver = resolver
-}
-
-// BeginCommand reopens the framework-managed context for a new command run and
-// binds it to that run's fresh plugin resolver.
-func (ctx *AppContext) BeginCommand(resolver Resolver) {
-	ctx.frozen = false
-	ctx.resolver = resolver
-}
-
-// Freeze marks the context as final for framework-managed updates.
-func (ctx *AppContext) Freeze() {
-	ctx.frozen = true
-}
-
-// IsFrozen returns whether the context has been frozen.
-func (ctx *AppContext) IsFrozen() bool {
-	return ctx.frozen
 }
