@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/edelwud/terraci/pkg/ci"
-	"github.com/edelwud/terraci/pkg/discovery"
+	"github.com/edelwud/terraci/pkg/planresults"
 )
 
 type SummaryReportLoader interface {
@@ -66,7 +66,7 @@ func (l summaryReportLoader) validate(report *ci.Report) error {
 		return nil
 	}
 
-	collection, err := discovery.ScanPlanResults(l.workDir, l.segments)
+	collection, err := planresults.Scan(l.workDir, l.segments)
 	if err != nil {
 		return fmt.Errorf("validate summary report provenance: %w", err)
 	}

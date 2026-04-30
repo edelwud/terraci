@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/ci"
-	"github.com/edelwud/terraci/pkg/discovery"
+	"github.com/edelwud/terraci/pkg/planresults"
 )
 
 func TestSummaryReportLoader_LoadMissingReportReturnsNil(t *testing.T) {
@@ -133,9 +133,9 @@ func TestSummaryReportLoader_LoadSummaryReportWithMatchingProvenance(t *testing.
 		t.Fatalf("WriteFile(plan.json) error = %v", err)
 	}
 
-	collection, err := discovery.ScanPlanResults(workDir, []string{"service", "environment", "region", "module"})
+	collection, err := planresults.Scan(workDir, []string{"service", "environment", "region", "module"})
 	if err != nil {
-		t.Fatalf("ScanPlanResults() error = %v", err)
+		t.Fatalf("Scan() error = %v", err)
 	}
 	summary := &ci.Report{
 		Plugin:  "summary",

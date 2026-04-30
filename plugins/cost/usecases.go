@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/log"
+	"github.com/edelwud/terraci/pkg/planresults"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
@@ -43,7 +43,7 @@ func discoverModulePlans(appCtx *plugin.AppContext, modulePath string) (*planDis
 
 	log.WithField("dir", workDir).Info("cost: scanning for plan.json files")
 
-	paths, err := discovery.FindModulesWithPlan(workDir)
+	paths, err := planresults.FindModulesWithPlan(workDir)
 	if err != nil {
 		return nil, fmt.Errorf("cost: scan for plan.json: %w", err)
 	}

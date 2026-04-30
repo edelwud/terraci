@@ -177,7 +177,7 @@ For plugins that process `terraform plan` output:
 
 ```go
 func readPlanResults(appCtx *plugin.AppContext) error {
-    collection, err := discovery.ScanPlanResults(appCtx.ServiceDir())
+    collection, err := planresults.Scan(appCtx.ServiceDir(), nil)
     if err != nil {
         return err
     }

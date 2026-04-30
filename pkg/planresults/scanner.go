@@ -1,4 +1,4 @@
-package discovery
+package planresults
 
 import (
 	"fmt"
@@ -14,10 +14,10 @@ import (
 // defaultPlanSegments is the default pattern segments when none are provided.
 var defaultPlanSegments = []string{"service", "environment", "region", "module"}
 
-// ScanPlanResults scans for plan.json files in module directories
+// Scan scans for plan.json files in module directories
 // and builds a collection of plan results from their contents.
 // If segments is nil or empty, default segments (service/environment/region/module) are used.
-func ScanPlanResults(rootDir string, segments []string) (*ci.PlanResultCollection, error) {
+func Scan(rootDir string, segments []string) (*ci.PlanResultCollection, error) {
 	if len(segments) == 0 {
 		segments = defaultPlanSegments
 	}

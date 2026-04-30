@@ -37,7 +37,13 @@ const (
 	DeploymentMultiAZ  = "Multi-AZ"
 
 	// Pricing engine names
-	EngineMySQL = "MySQL"
+	EngineMySQL            = "MySQL"
+	EngineAuroraMySQL      = "Aurora MySQL"
+	EngineAuroraPostgreSQL = "Aurora PostgreSQL"
+	EnginePostgreSQL       = "PostgreSQL"
+	EngineMariaDB          = "MariaDB"
+	EngineOracle           = "Oracle"
+	EngineSQLServer        = "SQL Server"
 )
 
 type instanceAttrs struct {
@@ -121,21 +127,21 @@ func mapRDSEngine(engine string) string {
 	engine = strings.ToLower(engine)
 	switch {
 	case strings.HasPrefix(engine, "aurora-mysql"):
-		return "Aurora MySQL"
+		return EngineAuroraMySQL
 	case strings.HasPrefix(engine, "aurora-postgresql"):
-		return "Aurora PostgreSQL"
+		return EngineAuroraPostgreSQL
 	case strings.HasPrefix(engine, "aurora"):
-		return "Aurora MySQL"
+		return EngineAuroraMySQL
 	case engine == "mysql":
 		return EngineMySQL
 	case engine == "postgres", engine == "postgresql":
-		return "PostgreSQL"
+		return EnginePostgreSQL
 	case engine == "mariadb":
-		return "MariaDB"
+		return EngineMariaDB
 	case strings.HasPrefix(engine, "oracle"):
-		return "Oracle"
+		return EngineOracle
 	case strings.HasPrefix(engine, "sqlserver"):
-		return "SQL Server"
+		return EngineSQLServer
 	default:
 		return EngineMySQL
 	}

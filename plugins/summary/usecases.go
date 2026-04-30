@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/edelwud/terraci/pkg/ci"
-	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/log"
+	"github.com/edelwud/terraci/pkg/planresults"
 	"github.com/edelwud/terraci/pkg/plugin"
 	summaryengine "github.com/edelwud/terraci/plugins/summary/internal"
 )
@@ -32,7 +32,7 @@ func loadSummaryInputs(appCtx *plugin.AppContext) (*summaryInputs, error) {
 
 	log.Info("scanning for plan results")
 	segments := []string(cfg.Structure.Segments)
-	collection, err := discovery.ScanPlanResults(workDir, segments)
+	collection, err := planresults.Scan(workDir, segments)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan plan results: %w", err)
 	}

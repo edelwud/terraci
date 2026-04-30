@@ -372,7 +372,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 5. `PipelineGeneratorFactory.NewGenerator(..., contributions)` — transform IR to provider YAML
 
 ### Summary
-1. `discovery.ScanPlanResults()` → PlanResultCollection
+1. `planresults.Scan()` → PlanResultCollection
 2. Load plugin reports from `{serviceDir}/*-report.json` (file-based enrichment)
 3. `summaryengine.EnrichPlans()` merges report data into plan results
 4. `summary` writes `summary-report.json` with typed sections plus report provenance/fingerprint
