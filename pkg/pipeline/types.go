@@ -47,28 +47,6 @@ type IR struct {
 	Jobs   []Job // contributed jobs from plugins
 }
 
-// AllPlanNames returns names of all plan jobs across all levels.
-func (ir *IR) AllPlanNames() []string {
-	var names []string
-	for _, level := range ir.Levels {
-		for _, mj := range level.Modules {
-			if mj.Plan != nil {
-				names = append(names, mj.Plan.Name)
-			}
-		}
-	}
-	return names
-}
-
-// ContributedJobNames returns names of all contributed jobs.
-func (ir *IR) ContributedJobNames() []string {
-	names := make([]string, len(ir.Jobs))
-	for i := range ir.Jobs {
-		names[i] = ir.Jobs[i].Name
-	}
-	return names
-}
-
 // Level groups modules that can execute in parallel.
 type Level struct {
 	Index   int

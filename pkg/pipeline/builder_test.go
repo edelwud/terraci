@@ -459,6 +459,45 @@ func TestIR_ContributedJobNames(t *testing.T) {
 	}
 }
 
+func TestIR_JobRefs(t *testing.T) {
+	t.Parallel()
+
+	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
+	ir := &IR{
+		Levels: []Level{{
+			Index: 2,
+			Modules: []ModuleJobs{{
+				Module: mod,
+				Plan:   &Job{Name: "plan-svc-prod-eu-vpc"},
+				Apply:  &Job{Name: "apply-svc-prod-eu-vpc"},
+			}},
+		}},
+		Jobs: []Job{{Name: "summary", Phase: PhaseFinalize}},
+	}
+
+	refs := ir.JobRefs()
+	if len(refs) != 3 {
+		t.Fatalf("JobRefs() len = %d, want 3", len(refs))
+	}
+	if refs[0].Kind != JobKindContributed || refs[0].Job.Name != "summary" {
+		t.Fatalf("refs[0] = %#v, want contributed summary", refs[0])
+	}
+	if refs[1].Kind != JobKindPlan || refs[1].Level != 2 || refs[1].Module != mod {
+		t.Fatalf("refs[1] = %#v, want level 2 plan module ref", refs[1])
+	}
+	if refs[2].Kind != JobKindApply || refs[2].Level != 2 || refs[2].Module != mod {
+		t.Fatalf("refs[2] = %#v, want level 2 apply module ref", refs[2])
+	}
+
+	names := ir.JobNames()
+	wantNames := []string{"summary", "plan-svc-prod-eu-vpc", "apply-svc-prod-eu-vpc"}
+	for i := range wantNames {
+		if names[i] != wantNames[i] {
+			t.Fatalf("JobNames()[%d] = %q, want %q", i, names[i], wantNames[i])
+		}
+	}
+}
+
 func TestPhase_String(t *testing.T) {
 	t.Parallel()
 

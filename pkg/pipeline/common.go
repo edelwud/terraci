@@ -109,8 +109,10 @@ func BuildDryRunResult(ir *IR, totalModules int) *DryRunResult {
 	}
 
 	contributedPhases := make(map[Phase]struct{}, len(ir.Jobs))
-	for i := range ir.Jobs {
-		contributedPhases[ir.Jobs[i].Phase] = struct{}{}
+	for _, ref := range ir.JobRefs() {
+		if ref.Kind == JobKindContributed && ref.Job != nil {
+			contributedPhases[ref.Job.Phase] = struct{}{}
+		}
 	}
 
 	return &DryRunResult{

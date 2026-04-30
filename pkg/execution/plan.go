@@ -72,20 +72,17 @@ func newJobIndex(ir *pipeline.IR) JobIndex {
 		return index
 	}
 
-	for i := range ir.Jobs {
-		job := &ir.Jobs[i]
-		index.phaseJobs[job.Phase] = append(index.phaseJobs[job.Phase], job)
-	}
-	for levelIdx := range ir.Levels {
-		level := &ir.Levels[levelIdx]
-		for moduleIdx := range level.Modules {
-			moduleJobs := &level.Modules[moduleIdx]
-			if moduleJobs.Plan != nil {
-				index.planJobs[level.Index] = append(index.planJobs[level.Index], moduleJobs.Plan)
-			}
-			if moduleJobs.Apply != nil {
-				index.applyJobs[level.Index] = append(index.applyJobs[level.Index], moduleJobs.Apply)
-			}
+	for _, ref := range ir.JobRefs() {
+		if ref.Job == nil {
+			continue
+		}
+		switch ref.Kind {
+		case pipeline.JobKindContributed:
+			index.phaseJobs[ref.Job.Phase] = append(index.phaseJobs[ref.Job.Phase], ref.Job)
+		case pipeline.JobKindPlan:
+			index.planJobs[ref.Level] = append(index.planJobs[ref.Level], ref.Job)
+		case pipeline.JobKindApply:
+			index.applyJobs[ref.Level] = append(index.applyJobs[ref.Level], ref.Job)
 		}
 	}
 

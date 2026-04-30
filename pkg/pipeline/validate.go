@@ -11,9 +11,10 @@ func (ir *IR) Validate() error {
 		return errors.New("pipeline IR is nil")
 	}
 
-	jobs := ir.allJobs()
-	byName := make(map[string]*Job, len(jobs))
-	for _, job := range jobs {
+	refs := ir.JobRefs()
+	byName := make(map[string]*Job, len(refs))
+	for _, ref := range refs {
+		job := ref.Job
 		if job == nil {
 			return errors.New("pipeline IR contains nil job")
 		}
@@ -26,7 +27,8 @@ func (ir *IR) Validate() error {
 		byName[job.Name] = job
 	}
 
-	for _, job := range jobs {
+	for _, ref := range refs {
+		job := ref.Job
 		for _, dep := range job.Dependencies {
 			if dep == "" {
 				return fmt.Errorf("pipeline job %q has empty dependency", job.Name)
@@ -37,41 +39,16 @@ func (ir *IR) Validate() error {
 		}
 	}
 
-	return validateAcyclicJobs(jobs, byName)
+	return validateAcyclicJobs(refs, byName)
 }
 
-func (ir *IR) allJobs() []*Job {
-	if ir == nil {
-		return nil
-	}
-
-	jobs := make([]*Job, 0, len(ir.Jobs))
-	for i := range ir.Jobs {
-		jobs = append(jobs, &ir.Jobs[i])
-	}
-	for levelIdx := range ir.Levels {
-		level := &ir.Levels[levelIdx]
-		for moduleIdx := range level.Modules {
-			moduleJobs := &level.Modules[moduleIdx]
-			if moduleJobs.Plan != nil {
-				jobs = append(jobs, moduleJobs.Plan)
-			}
-			if moduleJobs.Apply != nil {
-				jobs = append(jobs, moduleJobs.Apply)
-			}
-		}
-	}
-
-	return jobs
-}
-
-func validateAcyclicJobs(jobs []*Job, byName map[string]*Job) error {
+func validateAcyclicJobs(refs []JobRef, byName map[string]*Job) error {
 	const (
 		visiting = 1
 		visited  = 2
 	)
 
-	state := make(map[string]int, len(jobs))
+	state := make(map[string]int, len(refs))
 	var visit func(*Job) error
 	visit = func(job *Job) error {
 		switch state[job.Name] {
@@ -91,8 +68,8 @@ func validateAcyclicJobs(jobs []*Job, byName map[string]*Job) error {
 		return nil
 	}
 
-	for _, job := range jobs {
-		if err := visit(job); err != nil {
+	for _, ref := range refs {
+		if err := visit(ref.Job); err != nil {
 			return err
 		}
 	}
