@@ -54,10 +54,9 @@ func TestResolveGenerateTargetsUsesWorkflowResolveTargets(t *testing.T) {
 	depGraph.AddLibraryUsage("_modules/network", prod.ID())
 
 	result := &workflow.Result{
-		FilteredModules: []*discovery.Module{stage},
-		FullIndex:       discovery.NewModuleIndex([]*discovery.Module{stage, prod}),
-		FilteredIndex:   discovery.NewModuleIndex([]*discovery.Module{stage}),
-		Graph:           depGraph,
+		All:      workflow.NewModuleSet([]*discovery.Module{stage, prod}),
+		Filtered: workflow.NewModuleSet([]*discovery.Module{stage}),
+		Graph:    depGraph,
 	}
 	cfg := config.DefaultConfig()
 	cfg.LibraryModules = &config.LibraryModulesConfig{Paths: []string{"_modules"}}

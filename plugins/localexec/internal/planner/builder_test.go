@@ -169,8 +169,7 @@ func workflowResultForModules(modules ...*discovery.Module) *workflow.Result {
 	}
 
 	return &workflow.Result{
-		FilteredModules: modules,
-		FilteredIndex:   discovery.NewModuleIndex(modules),
-		Graph:           depGraph,
+		Filtered: workflow.NewModuleSet(modules),
+		Graph:    depGraph,
 	}
 }

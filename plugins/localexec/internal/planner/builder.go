@@ -30,8 +30,8 @@ func (defaultBuilder) Build(targets []*discovery.Module, result *workflow.Result
 	ir, err := pipeline.Build(pipeline.BuildOptions{
 		DepGraph:      result.Graph,
 		TargetModules: targets,
-		AllModules:    result.FilteredModules,
-		ModuleIndex:   result.FilteredIndex,
+		AllModules:    result.Filtered.Modules,
+		ModuleIndex:   result.Filtered.Index,
 		Script: pipeline.ScriptConfig{
 			InitEnabled:  execCfg.InitEnabled,
 			PlanEnabled:  execCfg.PlanEnabled,

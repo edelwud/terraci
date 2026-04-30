@@ -71,7 +71,7 @@ func (p *fakePlanner) Build(targets []*discovery.Module, result *workflow.Result
 	p.planEnabled = execCfg.PlanEnabled
 	p.contributions = contributions
 	if result != nil {
-		p.filteredCount = len(result.FilteredModules)
+		p.filteredCount = len(result.Filtered.Modules)
 	}
 	return p.plan, p.err
 }

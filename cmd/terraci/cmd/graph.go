@@ -47,7 +47,7 @@ Examples:
 				return err
 			}
 
-			log.WithField("count", len(result.FilteredModules)).Debug("modules after filtering")
+			log.WithField("count", len(result.Filtered.Modules)).Debug("modules after filtering")
 			depGraph := result.Graph
 
 			if moduleID != "" {

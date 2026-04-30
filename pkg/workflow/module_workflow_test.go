@@ -60,16 +60,16 @@ func TestRun_Basic(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 
-	if len(result.AllModules) != 3 {
-		t.Errorf("AllModules = %d, want 3", len(result.AllModules))
+	if len(result.All.Modules) != 3 {
+		t.Errorf("AllModules = %d, want 3", len(result.All.Modules))
 	}
-	if len(result.FilteredModules) != 3 {
-		t.Errorf("FilteredModules = %d, want 3", len(result.FilteredModules))
+	if len(result.Filtered.Modules) != 3 {
+		t.Errorf("FilteredModules = %d, want 3", len(result.Filtered.Modules))
 	}
-	if result.FullIndex == nil {
+	if result.All.Index == nil {
 		t.Error("FullIndex is nil")
 	}
-	if result.FilteredIndex == nil {
+	if result.Filtered.Index == nil {
 		t.Error("FilteredIndex is nil")
 	}
 	if result.Graph == nil {
@@ -129,11 +129,11 @@ func TestRun_ExcludeFilter(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 
-	if len(result.AllModules) != 3 {
-		t.Errorf("AllModules = %d, want 3 (all discovered)", len(result.AllModules))
+	if len(result.All.Modules) != 3 {
+		t.Errorf("AllModules = %d, want 3 (all discovered)", len(result.All.Modules))
 	}
-	if len(result.FilteredModules) != 2 {
-		t.Errorf("FilteredModules = %d, want 2 (prod excluded)", len(result.FilteredModules))
+	if len(result.Filtered.Modules) != 2 {
+		t.Errorf("FilteredModules = %d, want 2 (prod excluded)", len(result.Filtered.Modules))
 	}
 }
 
@@ -154,8 +154,8 @@ func TestRun_IncludeFilter(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 
-	if len(result.FilteredModules) != 1 {
-		t.Errorf("FilteredModules = %d, want 1 (only prod)", len(result.FilteredModules))
+	if len(result.Filtered.Modules) != 1 {
+		t.Errorf("FilteredModules = %d, want 1 (only prod)", len(result.Filtered.Modules))
 	}
 }
 
@@ -178,11 +178,11 @@ func TestRun_SegmentFilter(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 
-	if len(result.AllModules) != 3 {
-		t.Errorf("AllModules = %d, want 3", len(result.AllModules))
+	if len(result.All.Modules) != 3 {
+		t.Errorf("AllModules = %d, want 3", len(result.All.Modules))
 	}
-	if len(result.FilteredModules) != 2 {
-		t.Errorf("FilteredModules = %d, want 2 (only platform)", len(result.FilteredModules))
+	if len(result.Filtered.Modules) != 2 {
+		t.Errorf("FilteredModules = %d, want 2 (only platform)", len(result.Filtered.Modules))
 	}
 }
 
@@ -224,8 +224,8 @@ resource "aws_eks_cluster" "main" {
 		t.Fatalf("Run: %v", err)
 	}
 
-	if len(result.FilteredModules) != 2 {
-		t.Fatalf("FilteredModules = %d, want 2", len(result.FilteredModules))
+	if len(result.Filtered.Modules) != 2 {
+		t.Fatalf("FilteredModules = %d, want 2", len(result.Filtered.Modules))
 	}
 
 	// Graph should have an edge from eks to vpc
@@ -259,15 +259,15 @@ func TestRun_Indexes(t *testing.T) {
 	}
 
 	// FullIndex should contain all modules
-	if m := result.FullIndex.ByID("platform/prod/eu-central-1/vpc"); m == nil {
+	if m := result.All.Index.ByID("platform/prod/eu-central-1/vpc"); m == nil {
 		t.Error("FullIndex should contain prod/vpc")
 	}
 
 	// FilteredIndex should only contain non-excluded modules
-	if m := result.FilteredIndex.ByID("platform/prod/eu-central-1/vpc"); m != nil {
+	if m := result.Filtered.Index.ByID("platform/prod/eu-central-1/vpc"); m != nil {
 		t.Error("FilteredIndex should NOT contain prod/vpc (excluded)")
 	}
-	if m := result.FilteredIndex.ByID("platform/stage/eu-central-1/vpc"); m == nil {
+	if m := result.Filtered.Index.ByID("platform/stage/eu-central-1/vpc"); m == nil {
 		t.Error("FilteredIndex should contain stage/vpc")
 	}
 }
@@ -309,12 +309,12 @@ func TestRun_CustomSegments(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 
-	if len(result.AllModules) != 2 {
-		t.Errorf("AllModules = %d, want 2", len(result.AllModules))
+	if len(result.All.Modules) != 2 {
+		t.Errorf("AllModules = %d, want 2", len(result.All.Modules))
 	}
 
 	// Verify segments are set correctly
-	for _, m := range result.AllModules {
+	for _, m := range result.All.Modules {
 		if m.Get("team") == "" {
 			t.Errorf("module %s: team segment is empty", m.ID())
 		}
@@ -345,12 +345,12 @@ func TestRun_Submodules(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 
-	if len(result.AllModules) != 2 {
-		t.Errorf("AllModules = %d, want 2", len(result.AllModules))
+	if len(result.All.Modules) != 2 {
+		t.Errorf("AllModules = %d, want 2", len(result.All.Modules))
 	}
 
 	subCount := 0
-	for _, m := range result.AllModules {
+	for _, m := range result.All.Modules {
 		if m.IsSubmodule() {
 			subCount++
 		}
@@ -382,9 +382,9 @@ func TestRun_CombinedFilters(t *testing.T) {
 	}
 
 	// Should exclude prod AND filter to platform only
-	if len(result.FilteredModules) != 2 {
-		t.Errorf("FilteredModules = %d, want 2 (platform/stage only)", len(result.FilteredModules))
-		for _, m := range result.FilteredModules {
+	if len(result.Filtered.Modules) != 2 {
+		t.Errorf("FilteredModules = %d, want 2 (platform/stage only)", len(result.Filtered.Modules))
+		for _, m := range result.Filtered.Modules {
 			t.Logf("  %s", m.ID())
 		}
 	}
@@ -415,8 +415,8 @@ data "terraform_remote_state" "missing" {
 		t.Fatal("result is nil")
 	}
 	// The workflow should complete — warnings are non-fatal
-	if len(result.FilteredModules) != 1 {
-		t.Errorf("FilteredModules = %d, want 1", len(result.FilteredModules))
+	if len(result.Filtered.Modules) != 1 {
+		t.Errorf("FilteredModules = %d, want 1", len(result.Filtered.Modules))
 	}
 }
 
@@ -435,7 +435,7 @@ func TestRun_GraphBuilt(t *testing.T) {
 	}
 
 	// Graph should have all modules as nodes
-	for _, m := range result.FilteredModules {
+	for _, m := range result.Filtered.Modules {
 		if result.Graph.GetNode(m.ID()) == nil {
 			t.Errorf("graph missing node for %s", m.ID())
 		}

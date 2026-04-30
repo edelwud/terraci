@@ -23,15 +23,44 @@ type Options struct {
 	SegmentFilters map[string][]string
 }
 
+// ModuleSet keeps a module slice and its lookup index together.
+type ModuleSet struct {
+	Modules []*discovery.Module
+	Index   *discovery.ModuleIndex
+}
+
+// NewModuleSet builds a consistent module collection and lookup index.
+func NewModuleSet(modules []*discovery.Module) ModuleSet {
+	return ModuleSet{
+		Modules: modules,
+		Index:   discovery.NewModuleIndex(modules),
+	}
+}
+
+// All returns modules in their workflow order.
+func (s ModuleSet) All() []*discovery.Module {
+	if len(s.Modules) == 0 && s.Index != nil {
+		return s.Index.All()
+	}
+	return s.Modules
+}
+
+// ByID returns a module by workflow ID.
+func (s ModuleSet) ByID(id string) *discovery.Module {
+	if s.Index == nil {
+		return nil
+	}
+	return s.Index.ByID(id)
+}
+
 // Result contains everything produced by the module workflow.
 type Result struct {
-	AllModules      []*discovery.Module
-	FilteredModules []*discovery.Module
-	FullIndex       *discovery.ModuleIndex
-	FilteredIndex   *discovery.ModuleIndex
-	Graph           *graph.DependencyGraph
-	Dependencies    map[string]*parser.ModuleDependencies
-	Warnings        []error
+	All      ModuleSet
+	Filtered ModuleSet
+
+	Graph        *graph.DependencyGraph
+	Dependencies map[string]*parser.ModuleDependencies
+	Warnings     []error
 }
 
 // Run executes the full module workflow: scan → filter → parse → build graph.
@@ -59,22 +88,20 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 		log.WithField("before", len(allModules)).WithField("after", len(filtered)).Info("filtered modules")
 	}
 
-	fullIndex := discovery.NewModuleIndex(allModules)
-	filteredIndex := discovery.NewModuleIndex(filtered)
+	allSet := NewModuleSet(allModules)
+	filteredSet := NewModuleSet(filtered)
 
 	hclParser := parser.NewParser(opts.Segments)
 
-	deps, warnings := parser.NewDependencyExtractor(hclParser, filteredIndex).ExtractAllDependencies(ctx)
+	deps, warnings := parser.NewDependencyExtractor(hclParser, filteredSet.Index).ExtractAllDependencies(ctx)
 
 	depGraph := graph.BuildFromDependencies(filtered, deps)
 
 	return &Result{
-		AllModules:      allModules,
-		FilteredModules: filtered,
-		FullIndex:       fullIndex,
-		FilteredIndex:   filteredIndex,
-		Graph:           depGraph,
-		Dependencies:    deps,
-		Warnings:        warnings,
+		All:          allSet,
+		Filtered:     filteredSet,
+		Graph:        depGraph,
+		Dependencies: deps,
+		Warnings:     warnings,
 	}, nil
 }

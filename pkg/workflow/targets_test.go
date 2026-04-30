@@ -37,9 +37,8 @@ func TestResolveTargets_ModulePathIntersectedWithChangedModules(t *testing.T) {
 	workDir := t.TempDir()
 
 	result := &Result{
-		FilteredModules: []*discovery.Module{vpc, eks},
-		FullIndex:       discovery.NewModuleIndex([]*discovery.Module{vpc, eks}),
-		FilteredIndex:   discovery.NewModuleIndex([]*discovery.Module{vpc, eks}),
+		All:      NewModuleSet([]*discovery.Module{vpc, eks}),
+		Filtered: NewModuleSet([]*discovery.Module{vpc, eks}),
 		Graph: func() *graph.DependencyGraph {
 			depGraph := graph.NewDependencyGraph()
 			depGraph.AddNode(vpc)
@@ -79,10 +78,9 @@ func TestResolveTargets_ChangedLibrariesRespectFilters(t *testing.T) {
 	depGraph.AddLibraryUsage("_modules/network", prod.ID())
 
 	result := &Result{
-		FilteredModules: []*discovery.Module{stage},
-		FullIndex:       discovery.NewModuleIndex([]*discovery.Module{stage, prod}),
-		FilteredIndex:   discovery.NewModuleIndex([]*discovery.Module{stage}),
-		Graph:           depGraph,
+		All:      NewModuleSet([]*discovery.Module{stage, prod}),
+		Filtered: NewModuleSet([]*discovery.Module{stage}),
+		Graph:    depGraph,
 	}
 
 	targets, err := resolveTargets(context.Background(), workDir, cfg, result, TargetSelectionOptions{
@@ -108,10 +106,9 @@ func TestResolveTargets_ChangedOnlyNoTargetsReturnsEmpty(t *testing.T) {
 	cfg := config.DefaultConfig()
 	workDir := t.TempDir()
 	result := &Result{
-		FilteredModules: []*discovery.Module{app},
-		FullIndex:       discovery.NewModuleIndex([]*discovery.Module{app}),
-		FilteredIndex:   discovery.NewModuleIndex([]*discovery.Module{app}),
-		Graph:           graph.BuildFromDependencies([]*discovery.Module{app}, nil),
+		All:      NewModuleSet([]*discovery.Module{app}),
+		Filtered: NewModuleSet([]*discovery.Module{app}),
+		Graph:    graph.BuildFromDependencies([]*discovery.Module{app}, nil),
 	}
 
 	targets, err := resolveTargets(context.Background(), workDir, cfg, result, TargetSelectionOptions{
@@ -137,10 +134,9 @@ func TestResolveTargets_ModulePathDoesNotMutateFilteredModules(t *testing.T) {
 	cfg := config.DefaultConfig()
 	workDir := t.TempDir()
 	result := &Result{
-		FilteredModules: []*discovery.Module{vpc, eks},
-		FullIndex:       discovery.NewModuleIndex([]*discovery.Module{vpc, eks}),
-		FilteredIndex:   discovery.NewModuleIndex([]*discovery.Module{vpc, eks}),
-		Graph:           graph.BuildFromDependencies([]*discovery.Module{vpc, eks}, nil),
+		All:      NewModuleSet([]*discovery.Module{vpc, eks}),
+		Filtered: NewModuleSet([]*discovery.Module{vpc, eks}),
+		Graph:    graph.BuildFromDependencies([]*discovery.Module{vpc, eks}, nil),
 	}
 
 	targets, err := resolveTargets(context.Background(), workDir, cfg, result, TargetSelectionOptions{
@@ -153,7 +149,7 @@ func TestResolveTargets_ModulePathDoesNotMutateFilteredModules(t *testing.T) {
 	if got := moduleIDs(targets); !reflect.DeepEqual(got, []string{vpc.ID()}) {
 		t.Fatalf("target ids = %v, want [%s]", got, vpc.ID())
 	}
-	if got := moduleIDs(result.FilteredModules); !reflect.DeepEqual(got, []string{vpc.ID(), eks.ID()}) {
+	if got := moduleIDs(result.Filtered.Modules); !reflect.DeepEqual(got, []string{vpc.ID(), eks.ID()}) {
 		t.Fatalf("filtered modules were mutated: %v", got)
 	}
 }
@@ -177,10 +173,9 @@ func TestResolveTargets_ChangedOnlyAppliesModuleAfterFiltersAndAffectedModules(t
 	filteredModules := ApplyFilters(cfg, flags, []*discovery.Module{vpc, eks, prodVPC})
 
 	result := &Result{
-		FilteredModules: filteredModules,
-		FullIndex:       discovery.NewModuleIndex([]*discovery.Module{vpc, eks, prodVPC}),
-		FilteredIndex:   discovery.NewModuleIndex(filteredModules),
-		Graph:           depGraph,
+		All:      NewModuleSet([]*discovery.Module{vpc, eks, prodVPC}),
+		Filtered: NewModuleSet(filteredModules),
+		Graph:    depGraph,
 	}
 
 	tests := []struct {
@@ -242,11 +237,9 @@ func TestResolveTargets_ChangedOnlyPreservesFilteredModuleOrder(t *testing.T) {
 	}
 
 	result := &Result{
-		AllModules:      []*discovery.Module{vpc, eks, app},
-		FilteredModules: []*discovery.Module{vpc, eks, app},
-		FullIndex:       discovery.NewModuleIndex([]*discovery.Module{vpc, eks, app}),
-		FilteredIndex:   discovery.NewModuleIndex([]*discovery.Module{vpc, eks, app}),
-		Graph:           depGraph,
+		All:      NewModuleSet([]*discovery.Module{vpc, eks, app}),
+		Filtered: NewModuleSet([]*discovery.Module{vpc, eks, app}),
+		Graph:    depGraph,
 	}
 
 	targets, err := resolveTargets(context.Background(), workDir, cfg, result, TargetSelectionOptions{
@@ -313,10 +306,9 @@ func TestResolveTargets_ChangedLibrariesIntersectModuleAndFilters(t *testing.T) 
 			depGraph.AddLibraryUsage(tt.libraryUsagePath, prodVPC.ID())
 			filteredModules := ApplyFilters(cfg, flags, []*discovery.Module{stageVPC, stageEKS, prodVPC})
 			result := &Result{
-				FilteredModules: filteredModules,
-				FullIndex:       discovery.NewModuleIndex([]*discovery.Module{stageVPC, stageEKS, prodVPC}),
-				FilteredIndex:   discovery.NewModuleIndex(filteredModules),
-				Graph:           depGraph,
+				All:      NewModuleSet([]*discovery.Module{stageVPC, stageEKS, prodVPC}),
+				Filtered: NewModuleSet(filteredModules),
+				Graph:    depGraph,
 			}
 
 			targets, err := resolveTargets(context.Background(), workDir, cfg, result, TargetSelectionOptions{

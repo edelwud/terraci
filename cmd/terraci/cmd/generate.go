@@ -50,7 +50,7 @@ Examples:
 				return err
 			}
 
-			if len(result.FilteredModules) == 0 && !changedOnly {
+			if len(result.Filtered.Modules) == 0 && !changedOnly {
 				return errors.New("no modules remaining after filtering")
 			}
 
@@ -69,7 +69,7 @@ Examples:
 			}
 
 			log.WithField("modules", len(targets)).Info("generating pipeline")
-			generator, genErr := newPipelineGenerator(app, result.Graph, result.FilteredModules)
+			generator, genErr := newPipelineGenerator(app, result.Graph, result.Filtered.Modules)
 			if genErr != nil {
 				return genErr
 			}

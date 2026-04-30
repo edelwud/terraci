@@ -97,7 +97,7 @@ func discoverUpdateModules(
 		return nil, fmt.Errorf("discover modules: %w", err)
 	}
 
-	modules := filterModules(wfResult.FilteredModules, modulePath)
+	modules := filterModules(wfResult.Filtered.Modules, modulePath)
 	if len(modules) == 0 {
 		return nil, errors.New("no modules found")
 	}

@@ -48,7 +48,7 @@ func resolveTargets(
 		return nil, errors.New("workflow result is required")
 	}
 
-	targets := result.FilteredModules
+	targets := result.Filtered.Modules
 	if opts.ModulePath != "" {
 		targets = filterModulesByPath(targets, opts.ModulePath)
 	}
@@ -68,7 +68,7 @@ func resolveTargets(
 		return nil, fmt.Errorf("change detection: %w", err)
 	}
 
-	changedModules, _, err := detector.DetectChangedModules(ctx, workDir, opts.BaseRef, result.FullIndex)
+	changedModules, _, err := detector.DetectChangedModules(ctx, workDir, opts.BaseRef, result.All.Index)
 	if err != nil {
 		return nil, fmt.Errorf("detect changed modules: %w", err)
 	}
@@ -89,7 +89,7 @@ func resolveTargets(
 		affectedIDs = result.Graph.GetAffectedModules(changedIDs)
 	}
 
-	targets = resolveAffectedModules(cfg, opts.Filters, affectedIDs, changedIDs, result.AllModules, result.FilteredModules, result.FullIndex, result.FilteredIndex)
+	targets = resolveAffectedModules(cfg, opts.Filters, affectedIDs, changedIDs, result.All, result.Filtered)
 	if opts.ModulePath != "" {
 		targets = filterModulesByPath(targets, opts.ModulePath)
 	}
@@ -101,15 +101,10 @@ func resolveAffectedModules(
 	cfg *config.Config,
 	ff *filter.Flags,
 	affectedIDs, changedIDs []string,
-	allModules, filteredModules []*discovery.Module,
-	fullIndex, filteredIndex *discovery.ModuleIndex,
+	allSet, filteredSet ModuleSet,
 ) []*discovery.Module {
-	if len(allModules) == 0 && fullIndex != nil {
-		allModules = fullIndex.All()
-	}
-	if len(filteredModules) == 0 && filteredIndex != nil {
-		filteredModules = filteredIndex.All()
-	}
+	allModules := allSet.All()
+	filteredModules := filteredSet.All()
 
 	idSet := make(map[string]bool, len(affectedIDs)+len(changedIDs))
 	for _, id := range affectedIDs {
@@ -135,10 +130,10 @@ func resolveAffectedModules(
 		if !idSet[id] || seen[id] {
 			continue
 		}
-		if filteredIndex.ByID(id) != nil {
+		if filteredSet.ByID(id) != nil {
 			continue
 		}
-		if fullIndex.ByID(id) != nil && len(ApplyFilters(cfg, ff, []*discovery.Module{module})) > 0 {
+		if allSet.ByID(id) != nil && len(ApplyFilters(cfg, ff, []*discovery.Module{module})) > 0 {
 			targets = append(targets, module)
 			seen[id] = true
 		}
