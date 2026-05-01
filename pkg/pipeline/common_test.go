@@ -93,12 +93,9 @@ func TestBuildJobPlan(t *testing.T) {
 			if plan.Subgraph == nil {
 				t.Error("Subgraph should not be nil")
 			}
-			if plan.TargetSet == nil {
-				t.Error("TargetSet should not be nil")
-			}
 			for _, m := range plan.TargetModules {
-				if !plan.TargetSet[m.ID()] {
-					t.Errorf("TargetSet missing module %s", m.ID())
+				if plan.Subgraph.GetNode(m.ID()) == nil {
+					t.Errorf("Subgraph missing target module %s", m.ID())
 				}
 			}
 		})
@@ -162,37 +159,29 @@ func TestResolveDependencyNames(t *testing.T) {
 		name        string
 		module      *discovery.Module
 		jobType     string
-		targetSet   map[string]bool
+		targets     []*discovery.Module
 		wantNames   []string
 		wantNoNames bool
 	}{
 		{
-			name:    "dep in target set returns job name",
-			module:  modB,
-			jobType: "plan",
-			targetSet: map[string]bool{
-				modA.ID(): true,
-				modB.ID(): true,
-			},
+			name:      "dep in target set returns job name",
+			module:    modB,
+			jobType:   "plan",
+			targets:   []*discovery.Module{modA, modB},
 			wantNames: []string{"plan-svc-prod-us-east-1-vpc"},
 		},
 		{
-			name:    "dep not in target set is excluded",
-			module:  modB,
-			jobType: "plan",
-			targetSet: map[string]bool{
-				modB.ID(): true,
-			},
+			name:        "dep not in target set is excluded",
+			module:      modB,
+			jobType:     "plan",
+			targets:     []*discovery.Module{modB},
 			wantNoNames: true,
 		},
 		{
-			name:    "module with no dependencies returns empty",
-			module:  modA,
-			jobType: "plan",
-			targetSet: map[string]bool{
-				modA.ID(): true,
-				modB.ID(): true,
-			},
+			name:        "module with no dependencies returns empty",
+			module:      modA,
+			jobType:     "plan",
+			targets:     []*discovery.Module{modA, modB},
 			wantNoNames: true,
 		},
 	}
@@ -201,7 +190,12 @@ func TestResolveDependencyNames(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := ResolveDependencyNames(tt.module, tt.jobType, tt.targetSet, depGraph, idx)
+			ids := make([]string, len(tt.targets))
+			for i, m := range tt.targets {
+				ids[i] = m.ID()
+			}
+			subgraph := depGraph.Subgraph(ids)
+			got := ResolveDependencyNames(tt.module, tt.jobType, subgraph, idx)
 			if tt.wantNoNames {
 				if len(got) != 0 {
 					t.Errorf("expected no names, got %v", got)
@@ -232,12 +226,8 @@ func TestResolveDependencyNames_DepNotInIndex(t *testing.T) {
 	// Build index with only modB (modA is missing from index)
 	idx := discovery.NewModuleIndex([]*discovery.Module{modB})
 
-	targetSet := map[string]bool{
-		modA.ID(): true,
-		modB.ID(): true,
-	}
-
-	got := ResolveDependencyNames(modB, "plan", targetSet, depGraph, idx)
+	subgraph := depGraph.Subgraph([]string{modA.ID(), modB.ID()})
+	got := ResolveDependencyNames(modB, "plan", subgraph, idx)
 	// modA is in target set but not in index, so it should be skipped
 	if len(got) != 0 {
 		t.Errorf("expected no names when dep not in index, got %v", got)

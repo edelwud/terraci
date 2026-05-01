@@ -19,23 +19,18 @@ const (
 	FatalLevel = log.FatalLevel
 )
 
-// currentLevel holds the current log level for IsDebug check
-var currentLevel = InfoLevel
-
-// SetLevel sets the global log level
+// SetLevel sets the global log level.
 func SetLevel(level Level) {
-	currentLevel = level
 	log.SetLevel(level)
 }
 
-// SetLevelFromString sets the log level from a string
-// Supported values: debug, info, warn, error, fatal
+// SetLevelFromString sets the log level from a string.
+// Supported values: debug, info, warn, error, fatal.
 func SetLevelFromString(level string) error {
 	l, err := log.ParseLevel(level)
 	if err != nil {
 		return err
 	}
-	currentLevel = l
 	log.SetLevel(l)
 	return nil
 }
@@ -115,9 +110,12 @@ func ResetPadding() {
 	log.ResetPadding()
 }
 
-// IsDebug returns true if debug level is enabled
+// IsDebug returns true if debug level is enabled.
 func IsDebug() bool {
-	return currentLevel <= DebugLevel
+	if logger, ok := log.Log.(*log.Logger); ok {
+		return logger.Level <= DebugLevel
+	}
+	return false
 }
 
 // Init initializes the logger with default settings

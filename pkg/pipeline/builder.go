@@ -57,9 +57,9 @@ func Build(opts BuildOptions) (*IR, error) {
 				// Resolve plan dependencies
 				var planDeps []string
 				if opts.PlanOnly {
-					planDeps = ResolveDependencyNames(mod, "plan", plan.TargetSet, plan.Subgraph, plan.ModuleIndex)
+					planDeps = ResolveDependencyNames(mod, "plan", plan.Subgraph, plan.ModuleIndex)
 				} else {
-					planDeps = ResolveDependencyNames(mod, "apply", plan.TargetSet, plan.Subgraph, plan.ModuleIndex)
+					planDeps = ResolveDependencyNames(mod, "apply", plan.Subgraph, plan.ModuleIndex)
 				}
 
 				mj.Plan = &Job{
@@ -79,7 +79,7 @@ func Build(opts BuildOptions) (*IR, error) {
 				applyOperation := opts.Script.NewApplyOperation(mod.RelativePath)
 				applyName := JobName("apply", mod)
 
-				applyDeps := ResolveDependencyNames(mod, "apply", plan.TargetSet, plan.Subgraph, plan.ModuleIndex)
+				applyDeps := ResolveDependencyNames(mod, "apply", plan.Subgraph, plan.ModuleIndex)
 
 				// Apply depends on its own plan job
 				if mj.Plan != nil {

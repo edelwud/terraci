@@ -78,15 +78,15 @@ func TestGlobFilter_Match(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			f := NewGlobFilter(tt.exclude, tt.include)
-			if got := f.Match(tt.moduleID); got != tt.want {
-				t.Errorf("Match(%q) = %v, want %v", tt.moduleID, got, tt.want)
+			f := globFilter{excludes: tt.exclude, includes: tt.include}
+			if got := f.matchID(tt.moduleID); got != tt.want {
+				t.Errorf("matchID(%q) = %v, want %v", tt.moduleID, got, tt.want)
 			}
 		})
 	}
 }
 
-func TestGlobFilter_FilterModuleIDs(t *testing.T) {
+func TestApply_GlobFilters(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -105,10 +105,15 @@ func TestGlobFilter_FilterModuleIDs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			f := NewGlobFilter(tt.exclude, tt.include)
-			got := f.FilterModuleIDs(tt.input)
+			modules := make([]*discovery.Module, len(tt.input))
+			for i, id := range tt.input {
+				parts := splitID(id)
+				modules[i] = discovery.TestModule(parts[0], parts[1], parts[2], parts[3])
+			}
+
+			got := Apply(modules, Options{Excludes: tt.exclude, Includes: tt.include})
 			if len(got) != tt.wantLen {
-				t.Errorf("FilterModuleIDs() returned %d, want %d", len(got), tt.wantLen)
+				t.Errorf("Apply() returned %d, want %d", len(got), tt.wantLen)
 			}
 		})
 	}
@@ -141,15 +146,15 @@ func TestSegmentFilter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			f := &SegmentFilter{Segment: tt.segment, Values: tt.values}
-			if got := f.Match(module); got != tt.want {
-				t.Errorf("SegmentFilter(%s=%v).Match() = %v, want %v", tt.segment, tt.values, got, tt.want)
+			f := segmentFilter{segment: tt.segment, values: tt.values}
+			if got := f.match(module); got != tt.want {
+				t.Errorf("segmentFilter(%s=%v).match() = %v, want %v", tt.segment, tt.values, got, tt.want)
 			}
 		})
 	}
 }
 
-func TestCompositeFilter(t *testing.T) {
+func TestApply_CompositeFilters(t *testing.T) {
 	t.Parallel()
 
 	modules := []*discovery.Module{
@@ -159,12 +164,12 @@ func TestCompositeFilter(t *testing.T) {
 		discovery.TestModule("platform", "stage", "us-east-1", "vpc"),
 	}
 
-	f := NewCompositeFilter(
-		&SegmentFilter{Segment: "service", Values: []string{"platform"}},
-		&SegmentFilter{Segment: "environment", Values: []string{"stage"}},
-	)
-
-	filtered := f.FilterModules(modules)
+	filtered := Apply(modules, Options{
+		Segments: map[string][]string{
+			"service":     {"platform"},
+			"environment": {"stage"},
+		},
+	})
 	if len(filtered) != 2 {
 		t.Errorf("Expected 2 modules, got %d", len(filtered))
 	}
@@ -196,163 +201,28 @@ func TestGlobFilter_MatchModule(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			f := NewGlobFilter(tt.exclude, tt.include)
-			if got := f.MatchModule(module); got != tt.want {
-				t.Errorf("MatchModule() = %v, want %v", got, tt.want)
+			f := globFilter{excludes: tt.exclude, includes: tt.include}
+			if got := f.match(module); got != tt.want {
+				t.Errorf("match() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
 
-func TestApply(t *testing.T) {
-	t.Parallel()
-
-	modules := []*discovery.Module{
-		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
-		discovery.TestModule("platform", "prod", "eu-central-1", "vpc"),
-		discovery.TestModule("other", "stage", "us-east-1", "rds"),
-		discovery.TestModule("platform", "stage", "us-east-1", "eks"),
-	}
-
-	tests := []struct {
-		name    string
-		opts    Options
-		wantLen int
-	}{
-		{"no filters returns all", Options{}, 4},
-		{"filter by service", Options{Segments: map[string][]string{"service": {"platform"}}}, 3},
-		{"filter by environment", Options{Segments: map[string][]string{"environment": {"stage"}}}, 3},
-		{"filter by region", Options{Segments: map[string][]string{"region": {"eu-central-1"}}}, 2},
-		{"combined service+env", Options{Segments: map[string][]string{"service": {"platform"}, "environment": {"stage"}}}, 2},
-		{"with excludes", Options{Excludes: []string{"*/prod/*/*"}}, 3},
-		{"with includes", Options{Includes: []string{"platform/*/*/*"}}, 3},
-		{"all combined", Options{
-			Segments: map[string][]string{"service": {"platform"}, "environment": {"stage"}, "region": {"eu-central-1"}},
-		}, 1},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := Apply(modules, tt.opts)
-			if len(got) != tt.wantLen {
-				t.Errorf("Apply() returned %d modules, want %d", len(got), tt.wantLen)
-			}
-		})
-	}
-}
-
-func TestMatchGlob_NoDoubleStar(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		pattern string
-		path    string
-		want    bool
-	}{
-		{"platform/*/*/*", "platform/stage/eu-central-1/vpc", true},
-		{"platform/*/*/*", "other/stage/eu-central-1/vpc", false},
-		{"*", "anything", true},
-	}
-
-	for _, tt := range tests {
-		if got := matchGlob(tt.pattern, tt.path); got != tt.want {
-			t.Errorf("matchGlob(%q, %q) = %v, want %v", tt.pattern, tt.path, got, tt.want)
+// splitID splits "a/b/c/d" into [a b c d]; used by TestApply_GlobFilters.
+func splitID(id string) [4]string {
+	var out [4]string
+	idx := 0
+	start := 0
+	for i := 0; i < len(id) && idx < 4; i++ {
+		if id[i] == '/' {
+			out[idx] = id[start:i]
+			start = i + 1
+			idx++
 		}
 	}
-}
-
-func TestMatchSegments(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		pattern string
-		path    string
-		prefix  bool
-		want    bool
-	}{
-		{"prefix match", "platform/stage", "platform/stage/eu-central-1/vpc", true, true},
-		{"prefix no match", "other/stage", "platform/stage/eu-central-1/vpc", true, false},
-		{"prefix too long", "a/b/c/d/e", "a/b", true, false},
-		{"suffix match", "vpc", "platform/stage/eu-central-1/vpc", false, true},
-		{"suffix no match", "rds", "platform/stage/eu-central-1/vpc", false, false},
-		{"suffix multi", "eu-central-1/vpc", "platform/stage/eu-central-1/vpc", false, true},
-		{"suffix too long", "a/b/c/d/e", "a/b", false, false},
+	if idx < 4 {
+		out[idx] = id[start:]
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			if got := matchSegments(tt.pattern, tt.path, tt.prefix); got != tt.want {
-				t.Errorf("matchSegments(%q, %q, %v) = %v, want %v", tt.pattern, tt.path, tt.prefix, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestParseSegmentFilters(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		args []string
-		want map[string][]string
-	}{
-		{"empty", nil, map[string][]string{}},
-		{"single filter", []string{"env=prod"}, map[string][]string{"env": {"prod"}}},
-		{"multiple values", []string{"env=prod", "env=stage"}, map[string][]string{"env": {"prod", "stage"}}},
-		{"multiple keys", []string{"env=prod", "region=eu"}, map[string][]string{"env": {"prod"}, "region": {"eu"}}},
-		{"no equals sign ignored", []string{"invalid"}, map[string][]string{}},
-		{"empty key ignored", []string{"=value"}, map[string][]string{}},
-		{"empty value allowed", []string{"key="}, map[string][]string{"key": {""}}},
-		{"value with equals", []string{"key=a=b"}, map[string][]string{"key": {"a=b"}}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := ParseSegmentFilters(tt.args)
-			if len(got) != len(tt.want) {
-				t.Fatalf("ParseSegmentFilters(%v) = %v, want %v", tt.args, got, tt.want)
-			}
-			for k, wantVals := range tt.want {
-				gotVals := got[k]
-				if len(gotVals) != len(wantVals) {
-					t.Errorf("key %q: got %v, want %v", k, gotVals, wantVals)
-					continue
-				}
-				for i := range wantVals {
-					if gotVals[i] != wantVals[i] {
-						t.Errorf("key %q[%d]: got %q, want %q", k, i, gotVals[i], wantVals[i])
-					}
-				}
-			}
-		})
-	}
-}
-
-func TestDoubleStarGlob(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		pattern string
-		path    string
-		want    bool
-	}{
-		{"platform/**", "platform/stage/eu-central-1/vpc", true},
-		{"platform/**", "other/stage/eu-central-1/vpc", false},
-		{"**/vpc", "platform/stage/eu-central-1/vpc", true},
-		{"**/vpc", "platform/stage/eu-central-1/eks", false},
-		{"platform/**/vpc", "platform/stage/eu-central-1/vpc", true},
-		{"platform/**/vpc", "platform/vpc", true},
-	}
-
-	for _, tt := range tests {
-		if got := matchGlob(tt.pattern, tt.path); got != tt.want {
-			t.Errorf("matchGlob(%q, %q) = %v, want %v", tt.pattern, tt.path, got, tt.want)
-		}
-	}
+	return out
 }

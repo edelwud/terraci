@@ -8,10 +8,12 @@ import (
 	"github.com/edelwud/terraci/pkg/graph"
 )
 
-// JobPlan contains prepared data for pipeline generation.
+// JobPlan contains prepared data for pipeline generation. The Subgraph is
+// already filtered to the target module set, so callers do not need to track
+// "in target" IDs separately — Subgraph.GetDependencies returns only
+// target-included dependencies.
 type JobPlan struct {
 	TargetModules      []*discovery.Module
-	TargetSet          map[string]bool
 	ExecutionLevels    [][]string
 	Subgraph           *graph.DependencyGraph
 	ModuleIndex        *discovery.ModuleIndex
@@ -31,10 +33,8 @@ func buildJobPlan(
 	}
 
 	moduleIDs := make([]string, len(targetModules))
-	targetSet := make(map[string]bool, len(targetModules))
 	for i, m := range targetModules {
 		moduleIDs[i] = m.ID()
-		targetSet[m.ID()] = true
 	}
 
 	subgraph := depGraph.Subgraph(moduleIDs)
@@ -46,7 +46,6 @@ func buildJobPlan(
 
 	return &JobPlan{
 		TargetModules:      targetModules,
-		TargetSet:          targetSet,
 		ExecutionLevels:    levels,
 		Subgraph:           subgraph,
 		ModuleIndex:        moduleIndex,
@@ -60,20 +59,18 @@ func JobName(jobType string, module *discovery.Module) string {
 	return fmt.Sprintf("%s-%s", jobType, name)
 }
 
-// ResolveDependencyNames returns job names for a module's dependencies within the target set.
+// ResolveDependencyNames returns job names for a module's dependencies in the
+// supplied subgraph. The subgraph is expected to already be scoped to the
+// target module set; only modules present in moduleIndex are emitted.
 func ResolveDependencyNames(
 	module *discovery.Module,
 	jobType string,
-	targetSet map[string]bool,
-	depGraph *graph.DependencyGraph,
+	subgraph *graph.DependencyGraph,
 	moduleIndex *discovery.ModuleIndex,
 ) []string {
-	deps := depGraph.GetDependencies(module.ID())
+	deps := subgraph.GetDependencies(module.ID())
 	names := make([]string, 0, len(deps))
 	for _, depID := range deps {
-		if !targetSet[depID] {
-			continue
-		}
 		depModule := moduleIndex.ByID(depID)
 		if depModule == nil {
 			continue
