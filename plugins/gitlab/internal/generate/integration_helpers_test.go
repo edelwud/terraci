@@ -49,7 +49,7 @@ func decodeGLConfig(cfg *config.Config) *Config {
 	glCfg := &Config{
 		Image: Image{Name: "hashicorp/terraform:1.6"},
 	}
-	if err := cfg.PluginConfig("gitlab", glCfg); err != nil {
+	if err := cfg.Extension("gitlab", glCfg); err != nil {
 		return glCfg
 	}
 	return glCfg

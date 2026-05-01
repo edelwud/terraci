@@ -50,7 +50,7 @@ func loadSummaryInputs(appCtx *plugin.AppContext) (*summaryInputs, error) {
 	}
 	filteredReports := reports[:0]
 	for _, r := range reports {
-		if r == nil || r.Plugin == summaryPluginName {
+		if r == nil || r.Producer == summaryPluginName {
 			continue
 		}
 		filteredReports = append(filteredReports, r)
@@ -64,7 +64,7 @@ func loadSummaryInputs(appCtx *plugin.AppContext) (*summaryInputs, error) {
 
 func resolveSummaryProvider(appCtx *plugin.AppContext) func() (summaryProvider, error) {
 	return func() (summaryProvider, error) {
-		return plugin.ResolveCIProvider(appCtx)
+		return appCtx.Resolver().ResolveCIProvider()
 	}
 }
 
@@ -162,12 +162,11 @@ func saveSummaryReport(appCtx *plugin.AppContext, inputs *summaryInputs, cfg *su
 
 func buildSummaryReport(inputs *summaryInputs, cfg *summaryengine.Config) *ci.Report {
 	return &ci.Report{
-		Plugin:  summaryPluginName,
-		Title:   "Terraform Plan Summary",
-		Status:  summaryReportStatus(inputs.plans, inputs.reports),
-		Summary: summaryReportSummary(inputs.collection),
+		Producer: summaryPluginName,
+		Title:    "Terraform Plan Summary",
+		Status:   summaryReportStatus(inputs.plans, inputs.reports),
+		Summary:  summaryReportSummary(inputs.collection),
 		Provenance: &ci.ReportProvenance{
-			Producer:               summaryPluginName,
 			CommitSHA:              inputs.collection.CommitSHA,
 			PipelineID:             inputs.collection.PipelineID,
 			PlanResultsFingerprint: inputs.collection.Fingerprint(),

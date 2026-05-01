@@ -63,8 +63,8 @@ func TestRunSummaryUseCase_NoProvider_PrintsSummaryOnly(t *testing.T) {
 	}
 
 	report := readSummaryReportJSON(t, appCtx.ServiceDir())
-	if report.Plugin != "summary" {
-		t.Fatalf("report plugin = %q, want summary", report.Plugin)
+	if report.Producer != "summary" {
+		t.Fatalf("report plugin = %q, want summary", report.Producer)
 	}
 	if report.Status != ci.ReportStatusWarn {
 		t.Fatalf("report status = %q, want %q", report.Status, ci.ReportStatusWarn)
@@ -111,8 +111,8 @@ func TestRunSummaryUseCase_PostsComment(t *testing.T) {
 	if report.Provenance == nil {
 		t.Fatal("report provenance = nil, want value")
 	}
-	if report.Provenance.Producer != "summary" {
-		t.Fatalf("report provenance producer = %q, want summary", report.Provenance.Producer)
+	if report.Producer != "summary" {
+		t.Fatalf("report producer = %q, want summary", report.Producer)
 	}
 	if report.Provenance.CommitSHA != "abcdef1234567890" {
 		t.Fatalf("report provenance commit = %q, want abcdef1234567890", report.Provenance.CommitSHA)

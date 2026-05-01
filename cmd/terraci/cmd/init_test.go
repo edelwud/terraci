@@ -13,7 +13,7 @@ import (
 )
 
 func TestLogGenerateHint_GitHubConfig(t *testing.T) {
-	cfg := loadInitTestConfig(t, "plugins:\n  github: {}\n")
+	cfg := loadInitTestConfig(t, "extensions:\n  github: {}\n")
 
 	output := plugintest.CaptureLogOutput(t, func() {
 		logGenerateHint(&App{Plugins: registry.New()}, cfg)
@@ -25,7 +25,7 @@ func TestLogGenerateHint_GitHubConfig(t *testing.T) {
 }
 
 func TestLogGenerateHint_GitLabConfig(t *testing.T) {
-	cfg := loadInitTestConfig(t, "plugins:\n  gitlab: {}\n")
+	cfg := loadInitTestConfig(t, "extensions:\n  gitlab: {}\n")
 
 	output := plugintest.CaptureLogOutput(t, func() {
 		logGenerateHint(&App{Plugins: registry.New()}, cfg)

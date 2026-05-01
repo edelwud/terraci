@@ -91,11 +91,11 @@ func TestPluginConfigLoading(t *testing.T) {
 
 	// Configure plugins from the fixture config
 	for _, cl := range registry.ByCapabilityFrom[plugin.ConfigLoader](plugins) {
-		if _, exists := cfg.Plugins[cl.ConfigKey()]; !exists {
+		if _, exists := cfg.Extensions[cl.ConfigKey()]; !exists {
 			continue
 		}
 		if decErr := cl.DecodeAndSet(func(target any) error {
-			return cfg.PluginConfig(cl.ConfigKey(), target)
+			return cfg.Extension(cl.ConfigKey(), target)
 		}); decErr != nil {
 			t.Fatalf("failed to decode %s config: %v", cl.ConfigKey(), decErr)
 		}
@@ -121,11 +121,11 @@ func TestProviderResolution(t *testing.T) {
 	}
 
 	for _, cl := range registry.ByCapabilityFrom[plugin.ConfigLoader](plugins) {
-		if _, exists := cfg.Plugins[cl.ConfigKey()]; !exists {
+		if _, exists := cfg.Extensions[cl.ConfigKey()]; !exists {
 			continue
 		}
 		if decErr := cl.DecodeAndSet(func(target any) error {
-			return cfg.PluginConfig(cl.ConfigKey(), target)
+			return cfg.Extension(cl.ConfigKey(), target)
 		}); decErr != nil {
 			t.Fatalf("failed to decode %s config: %v", cl.ConfigKey(), decErr)
 		}
@@ -150,17 +150,17 @@ func TestPluginInitialization(t *testing.T) {
 	}
 
 	for _, cl := range registry.ByCapabilityFrom[plugin.ConfigLoader](plugins) {
-		if _, exists := cfg.Plugins[cl.ConfigKey()]; !exists {
+		if _, exists := cfg.Extensions[cl.ConfigKey()]; !exists {
 			continue
 		}
 		if decErr := cl.DecodeAndSet(func(target any) error {
-			return cfg.PluginConfig(cl.ConfigKey(), target)
+			return cfg.Extension(cl.ConfigKey(), target)
 		}); decErr != nil {
 			t.Fatalf("failed to decode %s config: %v", cl.ConfigKey(), decErr)
 		}
 	}
 
-	appCtx := plugin.NewAppContext(cfg, dir, filepath.Join(dir, ".terraci"), "test", nil, plugins.Resolver())
+	appCtx := plugin.NewAppContext(cfg, dir, filepath.Join(dir, ".terraci"), "test", nil, plugins)
 
 	for _, p := range plugins.PreflightsForStartup() {
 		if preflightErr := p.Preflight(context.Background(), appCtx); preflightErr != nil {

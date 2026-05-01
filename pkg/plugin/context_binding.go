@@ -11,7 +11,7 @@ func (ctx *AppContext) Update(cfg *config.Config, workDir, serviceDir, version s
 		log.Debug("AppContext.Update called after Freeze — ignored")
 		return
 	}
-	ctx.config = cfg.Clone()
+	ctx.config = cfg
 	ctx.workDir = workDir
 	ctx.serviceDir = serviceDir
 	ctx.version = version

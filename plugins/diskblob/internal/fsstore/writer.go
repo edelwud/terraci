@@ -9,12 +9,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/cache/blobcache"
 )
 
 // ObjectWriter persists blob data and metadata.
 type ObjectWriter interface {
-	Write(ctx context.Context, paths ObjectPaths, r io.Reader, opts plugin.PutBlobOptions) (plugin.BlobMeta, error)
+	Write(ctx context.Context, paths ObjectPaths, r io.Reader, opts blobcache.PutOptions) (blobcache.Meta, error)
 }
 
 // FileObjectWriter writes blobs to the local filesystem.
@@ -29,14 +29,14 @@ func NewFileObjectWriter(metadata MetadataCodec, clock Clock) FileObjectWriter {
 }
 
 // Write persists blob data and metadata using temp-file + rename.
-func (w FileObjectWriter) Write(ctx context.Context, paths ObjectPaths, r io.Reader, opts plugin.PutBlobOptions) (plugin.BlobMeta, error) {
+func (w FileObjectWriter) Write(ctx context.Context, paths ObjectPaths, r io.Reader, opts blobcache.PutOptions) (blobcache.Meta, error) {
 	if err := os.MkdirAll(filepath.Dir(paths.DataPath), 0o755); err != nil {
-		return plugin.BlobMeta{}, fmt.Errorf("ensure blob directory: %w", err)
+		return blobcache.Meta{}, fmt.Errorf("ensure blob directory: %w", err)
 	}
 
 	tmpFile, err := os.CreateTemp(filepath.Dir(paths.DataPath), "blob-*")
 	if err != nil {
-		return plugin.BlobMeta{}, fmt.Errorf("create blob temp file: %w", err)
+		return blobcache.Meta{}, fmt.Errorf("create blob temp file: %w", err)
 	}
 	tmpName := tmpFile.Name()
 	defer func() {
@@ -47,19 +47,19 @@ func (w FileObjectWriter) Write(ctx context.Context, paths ObjectPaths, r io.Rea
 	hasher := sha256.New()
 	written, err := io.Copy(io.MultiWriter(tmpFile, hasher), r)
 	if err != nil {
-		return plugin.BlobMeta{}, fmt.Errorf("copy blob data: %w", err)
+		return blobcache.Meta{}, fmt.Errorf("copy blob data: %w", err)
 	}
 	if err := ctx.Err(); err != nil {
-		return plugin.BlobMeta{}, fmt.Errorf("blob write canceled: %w", err)
+		return blobcache.Meta{}, fmt.Errorf("blob write canceled: %w", err)
 	}
 	if err := tmpFile.Close(); err != nil {
-		return plugin.BlobMeta{}, fmt.Errorf("close blob temp file: %w", err)
+		return blobcache.Meta{}, fmt.Errorf("close blob temp file: %w", err)
 	}
 	if err := os.Rename(tmpName, paths.DataPath); err != nil {
-		return plugin.BlobMeta{}, fmt.Errorf("rename blob temp file: %w", err)
+		return blobcache.Meta{}, fmt.Errorf("rename blob temp file: %w", err)
 	}
 
-	meta := plugin.BlobMeta{
+	meta := blobcache.Meta{
 		Size:        written,
 		UpdatedAt:   w.clock.Now(),
 		ExpiresAt:   cloneTimePtr(opts.ExpiresAt),
@@ -69,7 +69,7 @@ func (w FileObjectWriter) Write(ctx context.Context, paths ObjectPaths, r io.Rea
 	}
 
 	if err := w.metadata.Write(paths.MetaPath, meta); err != nil {
-		return plugin.BlobMeta{}, fmt.Errorf("write metadata: %w", err)
+		return blobcache.Meta{}, fmt.Errorf("write metadata: %w", err)
 	}
 
 	return meta, nil

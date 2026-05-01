@@ -121,9 +121,9 @@ func TestLogOutputCompleted_NilSummaryReportSkipsCLISection(t *testing.T) {
 
 func TestLogOutputCompleted_WithSummaryReport(t *testing.T) {
 	report := &ci.Report{
-		Plugin:  "summary",
-		Title:   "Terraform Plan Summary",
-		Summary: "1 modules: 1 with changes, 0 no changes, 0 failed",
+		Producer: "summary",
+		Title:    "Terraform Plan Summary",
+		Summary:  "1 modules: 1 with changes, 0 no changes, 0 failed",
 		Sections: []ci.ReportSection{{
 			Kind:   ci.ReportSectionKindOverview,
 			Title:  "Summary",

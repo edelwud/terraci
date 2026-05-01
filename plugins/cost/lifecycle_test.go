@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/edelwud/terraci/pkg/cache/blobcache"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	"github.com/edelwud/terraci/pkg/plugin/registry"
@@ -176,7 +177,7 @@ func TestPlugin_Runtime_RejectsLegacyCacheDir(t *testing.T) {
 	})
 
 	_, err := p.Runtime(context.Background(), newTestAppContext(t, t.TempDir()))
-	if err == nil || !strings.Contains(err.Error(), "plugins.cost.cache_dir is no longer supported") {
+	if err == nil || !strings.Contains(err.Error(), "extensions.cost.cache_dir is no longer supported") {
 		t.Fatalf("Runtime() error = %v, want unsupported cache_dir error", err)
 	}
 }
@@ -200,7 +201,7 @@ func TestPlugin_Runtime_UsesBlobStoreDiagnostics(t *testing.T) {
 	plugins := registerTestBlobStoreProvider(t, &testBlobStoreProvider{
 		name: providerName,
 		store: testBlobStoreWithDiagnostics{
-			info: plugin.BlobStoreInfo{
+			info: blobcache.Info{
 				Backend:                 "diagnostic-blob",
 				Root:                    "/tmp/blob-cache",
 				SupportsList:            true,
@@ -302,32 +303,32 @@ func TestPlugin_Runtime_HealthCheckFailure(t *testing.T) {
 
 type testBlobStoreProvider struct {
 	name  string
-	store plugin.BlobStore
+	store blobcache.Store
 }
 
 func (p *testBlobStoreProvider) Name() string        { return p.name }
 func (p *testBlobStoreProvider) Description() string { return "test blob store provider" }
-func (p *testBlobStoreProvider) NewBlobStore(context.Context, *plugin.AppContext) (plugin.BlobStore, error) {
+func (p *testBlobStoreProvider) NewBlobStore(context.Context, *plugin.AppContext) (blobcache.Store, error) {
 	return p.store, nil
 }
 
 type plainTestBlobStore struct{}
 
-func (plainTestBlobStore) Get(context.Context, string, string) (data []byte, ok bool, meta plugin.BlobMeta, err error) {
-	return nil, false, plugin.BlobMeta{}, nil
+func (plainTestBlobStore) Get(context.Context, string, string) (data []byte, ok bool, meta blobcache.Meta, err error) {
+	return nil, false, blobcache.Meta{}, nil
 }
-func (plainTestBlobStore) Put(context.Context, string, string, []byte, plugin.PutBlobOptions) (plugin.BlobMeta, error) {
-	return plugin.BlobMeta{}, nil
+func (plainTestBlobStore) Put(context.Context, string, string, []byte, blobcache.PutOptions) (blobcache.Meta, error) {
+	return blobcache.Meta{}, nil
 }
-func (plainTestBlobStore) Open(context.Context, string, string) (io.ReadCloser, bool, plugin.BlobMeta, error) {
-	return nil, false, plugin.BlobMeta{}, nil
+func (plainTestBlobStore) Open(context.Context, string, string) (io.ReadCloser, bool, blobcache.Meta, error) {
+	return nil, false, blobcache.Meta{}, nil
 }
-func (plainTestBlobStore) PutStream(context.Context, string, string, io.Reader, plugin.PutBlobOptions) (plugin.BlobMeta, error) {
-	return plugin.BlobMeta{}, nil
+func (plainTestBlobStore) PutStream(context.Context, string, string, io.Reader, blobcache.PutOptions) (blobcache.Meta, error) {
+	return blobcache.Meta{}, nil
 }
-func (plainTestBlobStore) Delete(context.Context, string, string) error              { return nil }
-func (plainTestBlobStore) DeleteNamespace(context.Context, string) error             { return nil }
-func (plainTestBlobStore) List(context.Context, string) ([]plugin.BlobObject, error) { return nil, nil }
+func (plainTestBlobStore) Delete(context.Context, string, string) error             { return nil }
+func (plainTestBlobStore) DeleteNamespace(context.Context, string) error            { return nil }
+func (plainTestBlobStore) List(context.Context, string) ([]blobcache.Object, error) { return nil, nil }
 
 type testBlobStoreWithInspector struct {
 	plainTestBlobStore
@@ -340,11 +341,11 @@ func (s testBlobStoreWithInspector) BlobStoreRootDir() string {
 
 type testBlobStoreWithDiagnostics struct {
 	plainTestBlobStore
-	info      plugin.BlobStoreInfo
+	info      blobcache.Info
 	healthErr error
 }
 
-func (s testBlobStoreWithDiagnostics) DescribeBlobStore() plugin.BlobStoreInfo {
+func (s testBlobStoreWithDiagnostics) DescribeBlobStore() blobcache.Info {
 	return s.info
 }
 

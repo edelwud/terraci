@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/cache/blobcache"
 )
 
 // StoreDeps groups the internal store dependencies for explicit assembly.
@@ -53,8 +53,8 @@ func (s *Store) BlobStoreRootDir() string {
 }
 
 // DescribeBlobStore returns backend diagnostics for disk-backed blob storage.
-func (s *Store) DescribeBlobStore() plugin.BlobStoreInfo {
-	return plugin.BlobStoreInfo{
+func (s *Store) DescribeBlobStore() blobcache.Info {
+	return blobcache.Info{
 		Backend:                 "diskblob",
 		Root:                    s.layout.RootDir(),
 		SupportsList:            true,
@@ -83,68 +83,68 @@ func (s *Store) CheckBlobStore(ctx context.Context) error {
 }
 
 // Get loads a blob fully into memory.
-func (s *Store) Get(_ context.Context, namespace, key string) (data []byte, ok bool, meta plugin.BlobMeta, err error) {
+func (s *Store) Get(_ context.Context, namespace, key string) (data []byte, ok bool, meta blobcache.Meta, err error) {
 	var paths ObjectPaths
 	paths, err = s.resolveObject(namespace, key)
 	if err != nil {
-		return nil, false, plugin.BlobMeta{}, fmt.Errorf("diskblob: resolve blob path: %w", err)
+		return nil, false, blobcache.Meta{}, fmt.Errorf("diskblob: resolve blob path: %w", err)
 	}
 
 	data, err = os.ReadFile(paths.DataPath)
 	if os.IsNotExist(err) {
-		return nil, false, plugin.BlobMeta{}, nil
+		return nil, false, blobcache.Meta{}, nil
 	}
 	if err != nil {
-		return nil, false, plugin.BlobMeta{}, fmt.Errorf("diskblob: read blob: %w", err)
+		return nil, false, blobcache.Meta{}, fmt.Errorf("diskblob: read blob: %w", err)
 	}
 
 	meta, err = s.metadata.Read(paths.MetaPath)
 	if err != nil {
-		return nil, false, plugin.BlobMeta{}, fmt.Errorf("diskblob: read blob metadata: %w", err)
+		return nil, false, blobcache.Meta{}, fmt.Errorf("diskblob: read blob metadata: %w", err)
 	}
 
 	return data, true, meta, nil
 }
 
 // Put stores a byte slice as a blob.
-func (s *Store) Put(ctx context.Context, namespace, key string, value []byte, opts plugin.PutBlobOptions) (plugin.BlobMeta, error) {
+func (s *Store) Put(ctx context.Context, namespace, key string, value []byte, opts blobcache.PutOptions) (blobcache.Meta, error) {
 	return s.PutStream(ctx, namespace, key, bytes.NewReader(value), opts)
 }
 
 // Open opens a streaming reader for a blob.
-func (s *Store) Open(_ context.Context, namespace, key string) (io.ReadCloser, bool, plugin.BlobMeta, error) {
+func (s *Store) Open(_ context.Context, namespace, key string) (io.ReadCloser, bool, blobcache.Meta, error) {
 	paths, err := s.resolveObject(namespace, key)
 	if err != nil {
-		return nil, false, plugin.BlobMeta{}, fmt.Errorf("diskblob: resolve blob path: %w", err)
+		return nil, false, blobcache.Meta{}, fmt.Errorf("diskblob: resolve blob path: %w", err)
 	}
 
 	file, err := os.Open(paths.DataPath)
 	if os.IsNotExist(err) {
-		return nil, false, plugin.BlobMeta{}, nil
+		return nil, false, blobcache.Meta{}, nil
 	}
 	if err != nil {
-		return nil, false, plugin.BlobMeta{}, fmt.Errorf("diskblob: open blob: %w", err)
+		return nil, false, blobcache.Meta{}, fmt.Errorf("diskblob: open blob: %w", err)
 	}
 
 	meta, err := s.metadata.Read(paths.MetaPath)
 	if err != nil {
 		_ = file.Close()
-		return nil, false, plugin.BlobMeta{}, fmt.Errorf("diskblob: read blob metadata: %w", err)
+		return nil, false, blobcache.Meta{}, fmt.Errorf("diskblob: read blob metadata: %w", err)
 	}
 
 	return file, true, meta, nil
 }
 
 // PutStream stores a streamed blob and metadata.
-func (s *Store) PutStream(ctx context.Context, namespace, key string, r io.Reader, opts plugin.PutBlobOptions) (plugin.BlobMeta, error) {
+func (s *Store) PutStream(ctx context.Context, namespace, key string, r io.Reader, opts blobcache.PutOptions) (blobcache.Meta, error) {
 	paths, err := s.resolveObject(namespace, key)
 	if err != nil {
-		return plugin.BlobMeta{}, fmt.Errorf("diskblob: resolve blob path: %w", err)
+		return blobcache.Meta{}, fmt.Errorf("diskblob: resolve blob path: %w", err)
 	}
 
 	meta, err := s.writer.Write(ctx, paths, r, opts)
 	if err != nil {
-		return plugin.BlobMeta{}, fmt.Errorf("diskblob: write blob data: %w", err)
+		return blobcache.Meta{}, fmt.Errorf("diskblob: write blob data: %w", err)
 	}
 
 	return meta, nil
@@ -187,7 +187,7 @@ func (s *Store) DeleteNamespace(_ context.Context, namespace string) error {
 }
 
 // List returns all blobs stored under a namespace.
-func (s *Store) List(_ context.Context, namespace string) ([]plugin.BlobObject, error) {
+func (s *Store) List(_ context.Context, namespace string) ([]blobcache.Object, error) {
 	ns, err := parseNamespaceBoundary(namespace)
 	if err != nil {
 		return nil, fmt.Errorf("diskblob: resolve namespace path: %w", err)
@@ -198,7 +198,7 @@ func (s *Store) List(_ context.Context, namespace string) ([]plugin.BlobObject, 
 		return nil, fmt.Errorf("diskblob: resolve namespace path: %w", err)
 	}
 
-	var out []plugin.BlobObject
+	var out []blobcache.Object
 	err = filepath.WalkDir(namespacePath, func(current string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			if os.IsNotExist(walkErr) {
@@ -220,7 +220,7 @@ func (s *Store) List(_ context.Context, namespace string) ([]plugin.BlobObject, 
 			return fmt.Errorf("read blob metadata: %w", readErr)
 		}
 
-		out = append(out, plugin.BlobObject{
+		out = append(out, blobcache.Object{
 			Key:  key.Value(),
 			Meta: meta,
 		})

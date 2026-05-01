@@ -76,10 +76,10 @@ func TestComposeComment_WithReport(t *testing.T) {
 
 	reports := []*ci.Report{
 		{
-			Plugin:  "policy",
-			Title:   "Policy Check",
-			Status:  ci.ReportStatusFail,
-			Summary: "2 modules: 1 passed, 0 warned, 1 failed",
+			Producer: "policy",
+			Title:    "Policy Check",
+			Status:   ci.ReportStatusFail,
+			Summary:  "2 modules: 1 passed, 0 warned, 1 failed",
 			Sections: []ci.ReportSection{{
 				Kind:           ci.ReportSectionKindFindings,
 				Title:          "Policy Check",
@@ -165,9 +165,9 @@ func TestComposeComment_WithCostReport(t *testing.T) {
 	t.Parallel()
 
 	reports := []*ci.Report{{
-		Plugin: "cost",
-		Title:  "Cost Estimation",
-		Status: ci.ReportStatusWarn,
+		Producer: "cost",
+		Title:    "Cost Estimation",
+		Status:   ci.ReportStatusWarn,
 		Sections: []ci.ReportSection{{
 			Kind:           costChangesSectionKind,
 			Title:          "Cost Estimation",
@@ -237,10 +237,10 @@ func TestComposeComment_FiltersCostReportToAddedCosts(t *testing.T) {
 	t.Parallel()
 
 	reports := []*ci.Report{{
-		Plugin:  "cost",
-		Title:   "Cost Estimation",
-		Status:  ci.ReportStatusWarn,
-		Summary: "3 modules, total: $27.00/mo (diff: +5.00)",
+		Producer: "cost",
+		Title:    "Cost Estimation",
+		Status:   ci.ReportStatusWarn,
+		Summary:  "3 modules, total: $27.00/mo (diff: +5.00)",
 		Sections: []ci.ReportSection{{
 			Kind:           costChangesSectionKind,
 			Title:          "Cost Estimation",
@@ -274,10 +274,10 @@ func TestComposeComment_FiltersTfupdateReportToUpdatableModules(t *testing.T) {
 	t.Parallel()
 
 	reports := []*ci.Report{{
-		Plugin:  "tfupdate",
-		Title:   "Dependency Update Check",
-		Status:  ci.ReportStatusWarn,
-		Summary: "4 checked, 2 updates available, 0 applied, 0 errors",
+		Producer: "tfupdate",
+		Title:    "Dependency Update Check",
+		Status:   ci.ReportStatusWarn,
+		Summary:  "4 checked, 2 updates available, 0 applied, 0 errors",
 		Sections: []ci.ReportSection{{
 			Kind:           ci.ReportSectionKindDependencyUpdates,
 			Title:          "Dependency Update Check",
@@ -706,10 +706,10 @@ func TestRenderReportSection(t *testing.T) {
 		t.Parallel()
 
 		report := &ci.Report{
-			Plugin:  "policy",
-			Title:   "Policy Check",
-			Status:  ci.ReportStatusFail,
-			Summary: "3 modules: 1 passed, 0 warned, 2 failed",
+			Producer: "policy",
+			Title:    "Policy Check",
+			Status:   ci.ReportStatusFail,
+			Summary:  "3 modules: 1 passed, 0 warned, 2 failed",
 			Sections: []ci.ReportSection{{
 				Kind:           ci.ReportSectionKindFindings,
 				Title:          "Policy Check",
@@ -746,10 +746,10 @@ func TestRenderReportSection(t *testing.T) {
 		t.Parallel()
 
 		report := &ci.Report{
-			Plugin:  "policy",
-			Title:   "Policy Check",
-			Status:  ci.ReportStatusWarn,
-			Summary: "1 modules: 0 passed, 1 warned, 0 failed",
+			Producer: "policy",
+			Title:    "Policy Check",
+			Status:   ci.ReportStatusWarn,
+			Summary:  "1 modules: 0 passed, 1 warned, 0 failed",
 			Sections: []ci.ReportSection{{
 				Kind:           ci.ReportSectionKindFindings,
 				Title:          "Policy Check",
@@ -783,10 +783,10 @@ func TestRenderReportSection(t *testing.T) {
 		t.Parallel()
 
 		report := &ci.Report{
-			Plugin:  "policy",
-			Title:   "Policy Check",
-			Status:  ci.ReportStatusPass,
-			Summary: "2 modules: 2 passed, 0 warned, 0 failed",
+			Producer: "policy",
+			Title:    "Policy Check",
+			Status:   ci.ReportStatusPass,
+			Summary:  "2 modules: 2 passed, 0 warned, 0 failed",
 		}
 
 		got := renderReportSection(report)

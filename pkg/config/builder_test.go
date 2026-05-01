@@ -2,10 +2,10 @@ package config
 
 import "testing"
 
-func TestBuildConfigFromPlugins_WithPattern(t *testing.T) {
+func TestBuildConfig_WithPattern(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := BuildConfigFromPlugins("{service}/{environment}/{module}", nil, nil)
+	cfg, err := BuildConfig("{service}/{environment}/{module}", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -18,10 +18,10 @@ func TestBuildConfigFromPlugins_WithPattern(t *testing.T) {
 	}
 }
 
-func TestBuildConfigFromPlugins_EmptyPattern(t *testing.T) {
+func TestBuildConfig_EmptyPattern(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := BuildConfigFromPlugins("", nil, nil)
+	cfg, err := BuildConfig("", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,10 +32,10 @@ func TestBuildConfigFromPlugins_EmptyPattern(t *testing.T) {
 	}
 }
 
-func TestBuildConfigFromPlugins_ProviderA(t *testing.T) {
+func TestBuildConfig_ProviderA(t *testing.T) {
 	t.Parallel()
 
-	pluginConfigs := map[string]map[string]any{
+	extensionConfigs := map[string]map[string]any{
 		"provider_a": {
 			"image":        map[string]any{"name": "hashicorp/terraform:1.6"},
 			"auto_approve": false,
@@ -45,24 +45,24 @@ func TestBuildConfigFromPlugins_ProviderA(t *testing.T) {
 		},
 	}
 
-	cfg, err := BuildConfigFromPlugins("{service}/{environment}/{module}", map[string]any{
+	cfg, err := BuildConfig("{service}/{environment}/{module}", map[string]any{
 		"binary":       "terraform",
 		"plan_enabled": true,
 		"init_enabled": true,
-	}, pluginConfigs)
+	}, extensionConfigs)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if _, ok := cfg.Plugins["provider_a"]; !ok {
-		t.Fatal("expected provider_a in plugins")
+	if _, ok := cfg.Extensions["provider_a"]; !ok {
+		t.Fatal("expected provider_a in extensions")
 	}
-	if _, ok := cfg.Plugins["provider_b"]; ok {
+	if _, ok := cfg.Extensions["provider_b"]; ok {
 		t.Error("expected provider_b to be absent")
 	}
 
 	var providerACfg map[string]any
-	if err := cfg.PluginConfig("provider_a", &providerACfg); err != nil {
+	if err := cfg.Extension("provider_a", &providerACfg); err != nil {
 		t.Fatal(err)
 	}
 	if cfg.Execution.PlanEnabled != true {
@@ -73,10 +73,10 @@ func TestBuildConfigFromPlugins_ProviderA(t *testing.T) {
 	}
 }
 
-func TestBuildConfigFromPlugins_ProviderB(t *testing.T) {
+func TestBuildConfig_ProviderB(t *testing.T) {
 	t.Parallel()
 
-	pluginConfigs := map[string]map[string]any{
+	extensionConfigs := map[string]map[string]any{
 		"provider_b": {
 			"runs_on":      "ubuntu-latest",
 			"auto_approve": true,
@@ -86,24 +86,24 @@ func TestBuildConfigFromPlugins_ProviderB(t *testing.T) {
 		},
 	}
 
-	cfg, err := BuildConfigFromPlugins("", map[string]any{
+	cfg, err := BuildConfig("", map[string]any{
 		"binary":       "tofu",
 		"plan_enabled": true,
 		"init_enabled": true,
-	}, pluginConfigs)
+	}, extensionConfigs)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if _, ok := cfg.Plugins["provider_b"]; !ok {
-		t.Fatal("expected provider_b in plugins")
+	if _, ok := cfg.Extensions["provider_b"]; !ok {
+		t.Fatal("expected provider_b in extensions")
 	}
-	if _, ok := cfg.Plugins["provider_a"]; ok {
+	if _, ok := cfg.Extensions["provider_a"]; ok {
 		t.Error("expected provider_a to be absent")
 	}
 
 	var providerBCfg map[string]any
-	if err := cfg.PluginConfig("provider_b", &providerBCfg); err != nil {
+	if err := cfg.Extension("provider_b", &providerBCfg); err != nil {
 		t.Fatal(err)
 	}
 	if cfg.Execution.Binary != "tofu" {
@@ -117,26 +117,26 @@ func TestBuildConfigFromPlugins_ProviderB(t *testing.T) {
 	}
 }
 
-func TestBuildConfigFromPlugins_WithFeature(t *testing.T) {
+func TestBuildConfig_WithFeature(t *testing.T) {
 	t.Parallel()
 
-	pluginConfigs := map[string]map[string]any{
+	extensionConfigs := map[string]map[string]any{
 		"feature_a": {
 			"enabled": true,
 		},
 	}
 
-	cfg, err := BuildConfigFromPlugins("", map[string]any{"binary": "terraform"}, pluginConfigs)
+	cfg, err := BuildConfig("", map[string]any{"binary": "terraform"}, extensionConfigs)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if _, ok := cfg.Plugins["feature_a"]; !ok {
-		t.Error("expected feature_a in plugins")
+	if _, ok := cfg.Extensions["feature_a"]; !ok {
+		t.Error("expected feature_a in extensions")
 	}
 
 	var featureCfg map[string]any
-	if err := cfg.PluginConfig("feature_a", &featureCfg); err != nil {
+	if err := cfg.Extension("feature_a", &featureCfg); err != nil {
 		t.Fatal(err)
 	}
 	if featureCfg["enabled"] != true {
@@ -144,19 +144,19 @@ func TestBuildConfigFromPlugins_WithFeature(t *testing.T) {
 	}
 }
 
-func TestBuildConfigFromPlugins_InvalidPattern(t *testing.T) {
+func TestBuildConfig_InvalidPattern(t *testing.T) {
 	t.Parallel()
 
-	_, err := BuildConfigFromPlugins("{service}/{service}", nil, nil)
+	_, err := BuildConfig("{service}/{service}", nil, nil)
 	if err == nil {
 		t.Fatal("expected validation error for invalid pattern")
 	}
 }
 
-func TestBuildConfigFromPlugins_InvalidExecution(t *testing.T) {
+func TestBuildConfig_InvalidExecution(t *testing.T) {
 	t.Parallel()
 
-	_, err := BuildConfigFromPlugins("", map[string]any{"binary": "terragrunt"}, nil)
+	_, err := BuildConfig("", map[string]any{"binary": "terragrunt"}, nil)
 	if err == nil {
 		t.Fatal("expected validation error for invalid execution.binary")
 	}

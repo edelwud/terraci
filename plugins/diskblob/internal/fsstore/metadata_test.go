@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/cache/blobcache"
 )
 
 func TestFileMetadataCodecRoundTrip(t *testing.T) {
@@ -14,7 +14,7 @@ func TestFileMetadataCodecRoundTrip(t *testing.T) {
 	rootDir := t.TempDir()
 	metaPath := filepath.Join(rootDir, "blob.meta.json")
 	expiresAt := time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC)
-	want := plugin.BlobMeta{
+	want := blobcache.Meta{
 		Size:        42,
 		UpdatedAt:   time.Date(2026, 4, 1, 10, 0, 0, 0, time.UTC),
 		ExpiresAt:   &expiresAt,

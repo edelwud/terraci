@@ -21,7 +21,7 @@ type WorkflowResolver struct {
 func NewWorkflowResolver(appCtx *plugin.AppContext, changeDetectorResolver workflow.ChangeDetectorResolver) Resolver {
 	if changeDetectorResolver == nil {
 		changeDetectorResolver = func() (workflow.ChangeDetector, error) {
-			return plugin.ResolveChangeDetector(appCtx)
+			return appCtx.Resolver().ResolveChangeDetector()
 		}
 	}
 	return WorkflowResolver{appCtx: appCtx, changeDetectorResolver: changeDetectorResolver}

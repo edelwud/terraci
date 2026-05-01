@@ -279,7 +279,7 @@ func buildConfigFromState(plugins *registry.Registry, state *initwiz.StateMap) *
 		}
 	}
 
-	cfg, err := config.BuildConfigFromPlugins(pattern, execution, pluginConfigs)
+	cfg, err := config.BuildConfig(pattern, execution, pluginConfigs)
 	if err != nil {
 		log.WithError(err).Warn("failed to build config from init state")
 		return config.DefaultConfig()

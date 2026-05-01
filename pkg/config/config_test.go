@@ -29,8 +29,8 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Structure.Pattern != "{service}/{environment}/{region}/{module}" {
 		t.Errorf("expected default pattern, got %q", cfg.Structure.Pattern)
 	}
-	if cfg.Plugins == nil {
-		t.Error("expected non-nil Plugins map")
+	if cfg.Extensions == nil {
+		t.Error("expected non-nil Extensions map")
 	}
 }
 
@@ -44,7 +44,7 @@ structure:
 execution:
   binary: tofu
 
-plugins:
+extensions:
   gitlab:
     image: hashicorp/terraform:1.7
     stages_prefix: infra
@@ -65,14 +65,14 @@ plugins:
 		t.Errorf("expected pattern, got %q", cfg.Structure.Pattern)
 	}
 
-	// Verify gitlab config is in plugins map
-	if _, ok := cfg.Plugins["gitlab"]; !ok {
-		t.Fatal("expected gitlab in plugins map")
+	// Verify gitlab config is in extensions map
+	if _, ok := cfg.Extensions["gitlab"]; !ok {
+		t.Fatal("expected gitlab in extensions map")
 	}
 
 	// Decode and check the config
 	var glCfg map[string]any
-	if err := cfg.PluginConfig("gitlab", &glCfg); err != nil {
+	if err := cfg.Extension("gitlab", &glCfg); err != nil {
 		t.Fatal(err)
 	}
 	if cfg.Execution.Binary != "tofu" {
@@ -111,7 +111,7 @@ func TestLoadOrDefault(t *testing.T) {
 structure:
   pattern: "{svc}/{env}/{region}/{mod}"
 
-plugins:
+extensions:
   gitlab:
     image: custom/image:1.0
 `
@@ -150,7 +150,7 @@ plugins:
 structure:
   pattern: "{a}/{b}/{c}/{d}"
 
-plugins:
+extensions:
   gitlab:
     image: test:1.0
 `
@@ -253,7 +253,7 @@ func TestConfig_Clone(t *testing.T) {
 	if err := yaml.Unmarshal([]byte("enabled: true\nnested:\n  key: value\n"), &node); err != nil {
 		t.Fatalf("yaml.Unmarshal() error = %v", err)
 	}
-	cfg.Plugins["summary"] = *node.Content[0]
+	cfg.Extensions["summary"] = *node.Content[0]
 
 	cloned := cfg.Clone()
 	cloned.ServiceDir = "changed"
@@ -261,9 +261,9 @@ func TestConfig_Clone(t *testing.T) {
 	cloned.Include[0] = "changed-include"
 	cloned.LibraryModules.Paths[0] = "changed-path"
 
-	pluginNode := cloned.Plugins["summary"]
-	pluginNode.Content[0].Value = "disabled"
-	cloned.Plugins["summary"] = pluginNode
+	extensionNode := cloned.Extensions["summary"]
+	extensionNode.Content[0].Value = "disabled"
+	cloned.Extensions["summary"] = extensionNode
 
 	if cfg.ServiceDir != ".terraci" {
 		t.Fatalf("original ServiceDir mutated: %q", cfg.ServiceDir)
@@ -277,8 +277,8 @@ func TestConfig_Clone(t *testing.T) {
 	if cfg.LibraryModules.Paths[0] != "_modules" {
 		t.Fatalf("original LibraryModules mutated: %q", cfg.LibraryModules.Paths[0])
 	}
-	if got := cfg.Plugins["summary"].Content[0].Value; got != "enabled" {
-		t.Fatalf("original plugin yaml mutated: %q", got)
+	if got := cfg.Extensions["summary"].Content[0].Value; got != "enabled" {
+		t.Fatalf("original extension yaml mutated: %q", got)
 	}
 }
 
@@ -306,11 +306,11 @@ func TestParsePatternSegmentCount(t *testing.T) {
 	}
 }
 
-func TestPluginConfig(t *testing.T) {
-	t.Run("nil plugins map returns nil error", func(t *testing.T) {
+func TestExtension(t *testing.T) {
+	t.Run("nil extensions map returns nil error", func(t *testing.T) {
 		cfg := &Config{}
 		var target map[string]any
-		if err := cfg.PluginConfig("missing", &target); err != nil {
+		if err := cfg.Extension("missing", &target); err != nil {
 			t.Errorf("expected nil error, got %v", err)
 		}
 	})
@@ -318,7 +318,7 @@ func TestPluginConfig(t *testing.T) {
 	t.Run("missing key returns nil error", func(t *testing.T) {
 		cfg := DefaultConfig()
 		var target map[string]any
-		if err := cfg.PluginConfig("missing", &target); err != nil {
+		if err := cfg.Extension("missing", &target); err != nil {
 			t.Errorf("expected nil error, got %v", err)
 		}
 	})

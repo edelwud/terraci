@@ -189,5 +189,5 @@ func workflowOptionsFromContext(appCtx *plugin.AppContext, ff *filter.Flags) wor
 type contextContributionCollector struct{}
 
 func (contextContributionCollector) Collect(appCtx *plugin.AppContext) []*pipeline.Contribution {
-	return plugin.CollectContributions(appCtx)
+	return appCtx.Resolver().CollectContributions(appCtx)
 }

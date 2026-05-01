@@ -65,7 +65,7 @@ func writeCostConfig(t *testing.T, dir string) {
 	t.Helper()
 	cfg := `structure:
   pattern: "{service}/{environment}/{region}/{module}"
-plugins:
+extensions:
   cost:
     providers:
       aws:

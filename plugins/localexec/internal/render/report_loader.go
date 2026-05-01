@@ -56,11 +56,14 @@ func (l summaryReportLoader) Load() (*ci.Report, error) {
 }
 
 func (l summaryReportLoader) validate(report *ci.Report) error {
-	if report == nil || report.Provenance == nil {
+	if report == nil {
 		return nil
 	}
-	if report.Provenance.Producer != "" && report.Provenance.Producer != "summary" {
-		return fmt.Errorf("summary report provenance producer mismatch: %q", report.Provenance.Producer)
+	if report.Producer != "" && report.Producer != "summary" {
+		return fmt.Errorf("summary report producer mismatch: %q", report.Producer)
+	}
+	if report.Provenance == nil {
+		return nil
 	}
 	if report.Provenance.PlanResultsFingerprint == "" || l.workDir == "" {
 		return nil

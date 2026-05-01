@@ -10,6 +10,9 @@ import "github.com/edelwud/terraci/pkg/config"
 //
 // After initialization, call Freeze() to prevent the framework from refreshing
 // this shared context from App state again during the current command run.
+//
+// The Config returned by Config() is shared and should be treated as read-only
+// by plugins. Mutate a deep copy if a plugin needs to derive a configuration.
 type AppContext struct {
 	config     *config.Config
 	workDir    string
@@ -34,15 +37,10 @@ func NewAppContext(cfg *config.Config, workDir, serviceDir, version string, repo
 	return ctx
 }
 
-// Config returns a defensive copy of the loaded TerraCi configuration.
-// For repeated access within a single use-case, cache the result locally:
-//
-//	cfg := appCtx.Config()
-//	// use cfg throughout the function
-//
-// This avoids repeated deep copies while preserving immutability guarantees.
+// Config returns the loaded TerraCi configuration. The returned pointer is
+// shared with the framework and must not be mutated by plugins.
 func (ctx *AppContext) Config() *config.Config {
-	return ctx.config.Clone()
+	return ctx.config
 }
 
 // WorkDir returns the working directory for the current command.

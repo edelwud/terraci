@@ -5,8 +5,6 @@ import (
 	"io"
 	"testing"
 	"time"
-
-	"github.com/edelwud/terraci/pkg/plugin"
 )
 
 type memoryBlobStore struct {
@@ -16,7 +14,7 @@ type memoryBlobStore struct {
 
 type memoryBlobObject struct {
 	data []byte
-	meta plugin.BlobMeta
+	meta Meta
 }
 
 func newMemoryBlobStore(root string) *memoryBlobStore {
@@ -30,16 +28,16 @@ func (s *memoryBlobStore) BlobStoreRootDir() string {
 	return s.root
 }
 
-func (s *memoryBlobStore) Get(_ context.Context, namespace, key string) (data []byte, ok bool, meta plugin.BlobMeta, err error) {
+func (s *memoryBlobStore) Get(_ context.Context, namespace, key string) (data []byte, ok bool, meta Meta, err error) {
 	object, ok := s.objects[namespace+"/"+key]
 	if !ok {
-		return nil, false, plugin.BlobMeta{}, nil
+		return nil, false, Meta{}, nil
 	}
-	return append([]byte(nil), object.data...), true, cloneBlobMeta(object.meta), nil
+	return append([]byte(nil), object.data...), true, cloneMeta(object.meta), nil
 }
 
-func (s *memoryBlobStore) Put(_ context.Context, namespace, key string, value []byte, opts plugin.PutBlobOptions) (plugin.BlobMeta, error) {
-	meta := plugin.BlobMeta{
+func (s *memoryBlobStore) Put(_ context.Context, namespace, key string, value []byte, opts PutOptions) (Meta, error) {
+	meta := Meta{
 		ContentType: opts.ContentType,
 		UpdatedAt:   time.Now().UTC(),
 		Size:        int64(len(value)),
@@ -50,15 +48,15 @@ func (s *memoryBlobStore) Put(_ context.Context, namespace, key string, value []
 		data: append([]byte(nil), value...),
 		meta: meta,
 	}
-	return cloneBlobMeta(meta), nil
+	return cloneMeta(meta), nil
 }
 
-func (s *memoryBlobStore) Open(context.Context, string, string) (io.ReadCloser, bool, plugin.BlobMeta, error) {
-	return nil, false, plugin.BlobMeta{}, nil
+func (s *memoryBlobStore) Open(context.Context, string, string) (io.ReadCloser, bool, Meta, error) {
+	return nil, false, Meta{}, nil
 }
 
-func (s *memoryBlobStore) PutStream(context.Context, string, string, io.Reader, plugin.PutBlobOptions) (plugin.BlobMeta, error) {
-	return plugin.BlobMeta{}, nil
+func (s *memoryBlobStore) PutStream(context.Context, string, string, io.Reader, PutOptions) (Meta, error) {
+	return Meta{}, nil
 }
 
 func (s *memoryBlobStore) Delete(_ context.Context, namespace, key string) error {
@@ -75,16 +73,16 @@ func (s *memoryBlobStore) DeleteNamespace(_ context.Context, namespace string) e
 	return nil
 }
 
-func (s *memoryBlobStore) List(_ context.Context, namespace string) ([]plugin.BlobObject, error) {
+func (s *memoryBlobStore) List(_ context.Context, namespace string) ([]Object, error) {
 	prefix := namespace + "/"
-	objects := make([]plugin.BlobObject, 0, len(s.objects))
+	objects := make([]Object, 0, len(s.objects))
 	for scopedKey, object := range s.objects {
 		if len(scopedKey) < len(prefix) || scopedKey[:len(prefix)] != prefix {
 			continue
 		}
-		objects = append(objects, plugin.BlobObject{
+		objects = append(objects, Object{
 			Key:  scopedKey[len(prefix):],
-			Meta: cloneBlobMeta(object.meta),
+			Meta: cloneMeta(object.meta),
 		})
 	}
 	return objects, nil
@@ -128,18 +126,18 @@ func TestCache_PutGetListAndCleanExpired(t *testing.T) {
 		t.Fatalf("Get() meta = %+v, want preserved metadata", meta)
 	}
 
-	objects, err := cache.List(context.Background())
+	entries, err := cache.List(context.Background())
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
 	}
-	if len(objects) != 1 {
-		t.Fatalf("List() len = %d, want 1", len(objects))
+	if len(entries) != 1 {
+		t.Fatalf("List() len = %d, want 1", len(entries))
 	}
-	if objects[0].Key != "aws/AmazonEC2/us-east-1.json" {
-		t.Fatalf("List()[0].Key = %q, want expected key", objects[0].Key)
+	if entries[0].Key != "aws/AmazonEC2/us-east-1.json" {
+		t.Fatalf("List()[0].Key = %q, want expected key", entries[0].Key)
 	}
-	if objects[0].ExpiresIn >= 0 {
-		t.Fatalf("List()[0].ExpiresIn = %v, want expired entry", objects[0].ExpiresIn)
+	if entries[0].ExpiresIn >= 0 {
+		t.Fatalf("List()[0].ExpiresIn = %v, want expired entry", entries[0].ExpiresIn)
 	}
 
 	if cleanErr := cache.CleanExpired(context.Background()); cleanErr != nil {
@@ -174,11 +172,11 @@ func TestCache_DeleteAndDeleteNamespace(t *testing.T) {
 	if err := cache.DeleteNamespace(context.Background()); err != nil {
 		t.Fatalf("DeleteNamespace() error = %v", err)
 	}
-	objects, err := cache.List(context.Background())
+	entries, err := cache.List(context.Background())
 	if err != nil {
 		t.Fatalf("List() after namespace delete error = %v", err)
 	}
-	if len(objects) != 0 {
-		t.Fatalf("List() after namespace delete len = %d, want 0", len(objects))
+	if len(entries) != 0 {
+		t.Fatalf("List() after namespace delete len = %d, want 0", len(entries))
 	}
 }

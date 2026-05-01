@@ -152,7 +152,7 @@ func (c *UpdateConfig) ValidateRuntime() error {
 		return err
 	}
 	if c.BumpPolicy() == "" {
-		return errors.New("tfupdate policy.bump is required (set plugins.tfupdate.policy.bump or pass --bump)")
+		return errors.New("tfupdate policy.bump is required (set extensions.tfupdate.policy.bump or pass --bump)")
 	}
 	return nil
 }

@@ -27,10 +27,10 @@ func TestSummaryReportLoader_LoadSummaryReport(t *testing.T) {
 
 	serviceDir := t.TempDir()
 	summary := &ci.Report{
-		Plugin:  "summary",
-		Title:   "Terraform Plan Summary",
-		Status:  ci.ReportStatusWarn,
-		Summary: "1 module: 1 with changes",
+		Producer: "summary",
+		Title:    "Terraform Plan Summary",
+		Status:   ci.ReportStatusWarn,
+		Summary:  "1 module: 1 with changes",
 	}
 	if err := ci.SaveReport(serviceDir, summary); err != nil {
 		t.Fatalf("SaveReport() error = %v", err)
@@ -43,8 +43,8 @@ func TestSummaryReportLoader_LoadSummaryReport(t *testing.T) {
 	if report == nil {
 		t.Fatal("Load() report = nil, want summary report")
 	}
-	if report.Plugin != "summary" {
-		t.Fatalf("Load() plugin = %q, want summary", report.Plugin)
+	if report.Producer != "summary" {
+		t.Fatalf("Load() plugin = %q, want summary", report.Producer)
 	}
 	if report.Title != summary.Title {
 		t.Fatalf("Load() title = %q, want %q", report.Title, summary.Title)
@@ -56,10 +56,10 @@ func TestSummaryReportLoader_ResetRemovesStaleSummaryReport(t *testing.T) {
 
 	serviceDir := t.TempDir()
 	summary := &ci.Report{
-		Plugin:  "summary",
-		Title:   "Terraform Plan Summary",
-		Status:  ci.ReportStatusWarn,
-		Summary: "old",
+		Producer: "summary",
+		Title:    "Terraform Plan Summary",
+		Status:   ci.ReportStatusWarn,
+		Summary:  "old",
 	}
 	if err := ci.SaveReport(serviceDir, summary); err != nil {
 		t.Fatalf("SaveReport() error = %v", err)
@@ -138,12 +138,11 @@ func TestSummaryReportLoader_LoadSummaryReportWithMatchingProvenance(t *testing.
 		t.Fatalf("Scan() error = %v", err)
 	}
 	summary := &ci.Report{
-		Plugin:  "summary",
-		Title:   "Terraform Plan Summary",
-		Status:  ci.ReportStatusPass,
-		Summary: "1 module",
+		Producer: "summary",
+		Title:    "Terraform Plan Summary",
+		Status:   ci.ReportStatusPass,
+		Summary:  "1 module",
 		Provenance: &ci.ReportProvenance{
-			Producer:               "summary",
 			PlanResultsFingerprint: collection.Fingerprint(),
 		},
 	}
@@ -174,12 +173,11 @@ func TestSummaryReportLoader_LoadSummaryReportWithMismatchedProvenanceReturnsErr
 	}
 
 	summary := &ci.Report{
-		Plugin:  "summary",
-		Title:   "Terraform Plan Summary",
-		Status:  ci.ReportStatusPass,
-		Summary: "1 module",
+		Producer: "summary",
+		Title:    "Terraform Plan Summary",
+		Status:   ci.ReportStatusPass,
+		Summary:  "1 module",
 		Provenance: &ci.ReportProvenance{
-			Producer:               "summary",
 			PlanResultsFingerprint: "stale",
 		},
 	}

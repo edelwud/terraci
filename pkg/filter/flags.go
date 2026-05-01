@@ -2,7 +2,7 @@ package filter
 
 // Flags holds parsed filter values from CLI flags.
 // Source-agnostic — works with any CLI framework (cobra, etc.).
-// Plugins and core commands both use this to collect filter inputs.
+// Both core commands and feature extensions use this to collect filter inputs.
 type Flags struct {
 	Excludes    []string
 	Includes    []string

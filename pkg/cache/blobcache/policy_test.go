@@ -3,8 +3,6 @@ package blobcache
 import (
 	"testing"
 	"time"
-
-	"github.com/edelwud/terraci/pkg/plugin"
 )
 
 type fixedClock struct {
@@ -23,7 +21,7 @@ func TestPolicyTiming(t *testing.T) {
 		Clock: fixedClock{now: now},
 	}
 
-	meta := plugin.BlobMeta{
+	meta := Meta{
 		UpdatedAt: now.Add(-10 * time.Minute),
 	}
 	if got := policy.age(meta); got != 10*time.Minute {

@@ -8,17 +8,17 @@ import (
 	"sort"
 )
 
-// ReportFilename returns the canonical artifact name for a plugin report.
-func ReportFilename(plugin string) string {
-	return plugin + "-report.json"
+// ReportFilename returns the canonical artifact name for a producer's report.
+func ReportFilename(producer string) string {
+	return producer + "-report.json"
 }
 
-// SaveReport writes a plugin report as {serviceDir}/{plugin}-report.json.
+// SaveReport writes a report as {serviceDir}/{producer}-report.json.
 func SaveReport(serviceDir string, report *Report) error {
 	if err := report.Validate(); err != nil {
 		return fmt.Errorf("validate report: %w", err)
 	}
-	return SaveJSON(serviceDir, ReportFilename(report.Plugin), report)
+	return SaveJSON(serviceDir, ReportFilename(report.Producer), report)
 }
 
 // SaveJSON writes any value as indented JSON to {serviceDir}/{filename}.

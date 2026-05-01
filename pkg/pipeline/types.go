@@ -44,7 +44,7 @@ const (
 // IR is the provider-agnostic intermediate representation of a CI pipeline.
 type IR struct {
 	Levels []Level
-	Jobs   []Job // contributed jobs from plugins
+	Jobs   []Job // jobs contributed by feature contributors
 }
 
 // Level groups modules that can execute in parallel.
@@ -70,7 +70,7 @@ type Job struct {
 	Dependencies  []string // job names this depends on
 	ArtifactPaths []string
 	AllowFailure  bool
-	Steps         []Step // pre/post steps from plugins
+	Steps         []Step // pre/post steps from contributors
 	Operation     Operation
 }
 
@@ -110,7 +110,8 @@ type TerraformOperation struct {
 	AutoApprove  bool
 }
 
-// Contribution is what a PipelineContributor plugin provides.
+// Contribution describes additional steps and standalone jobs that an
+// external contributor wants to splice into the generated pipeline.
 type Contribution struct {
 	// Steps are injected into each module's plan/apply jobs.
 	Steps []Step
@@ -118,7 +119,7 @@ type Contribution struct {
 	Jobs []ContributedJob
 }
 
-// ContributedJob is a standalone job from a plugin.
+// ContributedJob is a standalone job contributed to the pipeline.
 type ContributedJob struct {
 	Name          string
 	Phase         Phase // when it runs; Phase.String() gives the stage name

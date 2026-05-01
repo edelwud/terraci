@@ -126,10 +126,10 @@ func newPlanReport(modulePath string, status ci.ReportStatus) *ci.Report {
 	}
 
 	return &ci.Report{
-		Plugin:  "cost",
-		Title:   "Cost Estimation",
-		Status:  status,
-		Summary: "summary",
+		Producer: "cost",
+		Title:    "Cost Estimation",
+		Status:   status,
+		Summary:  "summary",
 		Sections: []ci.ReportSection{{
 			Kind:           "cost_changes",
 			Title:          "Cost Estimation",

@@ -135,12 +135,12 @@ func logGenerateHint(app *App, cfg *config.Config) {
 	log.Info("generate your pipeline with:")
 	log.IncreasePadding()
 	if cfg != nil {
-		if _, ok := cfg.Plugins["github"]; ok {
+		if _, ok := cfg.Extensions["github"]; ok {
 			log.Info("terraci generate -o .github/workflows/terraform.yml")
 			log.DecreasePadding()
 			return
 		}
-		if _, ok := cfg.Plugins["gitlab"]; ok {
+		if _, ok := cfg.Extensions["gitlab"]; ok {
 			log.Info("terraci generate -o .gitlab-ci.yml")
 			log.DecreasePadding()
 			return

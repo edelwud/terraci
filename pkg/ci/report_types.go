@@ -5,10 +5,11 @@ import (
 	"time"
 )
 
-// Report is a plugin-produced CI enrichment artifact consumed by report aggregation flows.
-// Plugins write reports as {serviceDir}/{plugin}-report.json.
+// Report is a CI enrichment artifact written by a tool and consumed by report
+// aggregation flows. Producers persist reports as
+// {serviceDir}/{producer}-report.json.
 type Report struct {
-	Plugin     string            `json:"plugin"`
+	Producer   string            `json:"producer"`
 	Title      string            `json:"title"`
 	Status     ReportStatus      `json:"status"`
 	Summary    string            `json:"summary"`
@@ -18,7 +19,6 @@ type Report struct {
 
 // ReportProvenance captures the source run identity for a persisted report.
 type ReportProvenance struct {
-	Producer               string    `json:"producer,omitempty"`
 	GeneratedAt            time.Time `json:"generated_at"`
 	CommitSHA              string    `json:"commit_sha,omitempty"`
 	PipelineID             string    `json:"pipeline_id,omitempty"`
@@ -35,7 +35,7 @@ const (
 	ReportSectionKindDependencyUpdates ReportSectionKind = "dependency_updates"
 )
 
-// ReportSection is a neutral envelope for plugin-owned report payloads.
+// ReportSection is a neutral envelope for application-owned report payloads.
 type ReportSection struct {
 	Kind              ReportSectionKind         `json:"kind"`
 	Title             string                    `json:"title,omitempty"`
@@ -167,7 +167,7 @@ type SummaryReportOverview struct {
 	Summary string            `json:"summary,omitempty"`
 }
 
-// ReportStatus indicates the outcome of a plugin's check.
+// ReportStatus indicates the outcome of a producer's check.
 type ReportStatus string
 
 const (

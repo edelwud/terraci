@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/cache/blobcache"
 )
 
 type fixedClock struct {
@@ -22,11 +22,11 @@ func (c fixedClock) Now() time.Time {
 
 type failingMetadataCodec struct{}
 
-func (failingMetadataCodec) Read(string) (plugin.BlobMeta, error) {
-	return plugin.BlobMeta{}, nil
+func (failingMetadataCodec) Read(string) (blobcache.Meta, error) {
+	return blobcache.Meta{}, nil
 }
 
-func (failingMetadataCodec) Write(string, plugin.BlobMeta) error {
+func (failingMetadataCodec) Write(string, blobcache.Meta) error {
 	return os.ErrPermission
 }
 
@@ -42,7 +42,7 @@ func TestFileObjectWriterUsesClockAndLeavesNoTempFiles(t *testing.T) {
 		MetaPath: filepath.Join(rootDir, "blob.bin.meta.json"),
 	}
 
-	meta, err := writer.Write(context.Background(), paths, strings.NewReader("payload"), plugin.PutBlobOptions{})
+	meta, err := writer.Write(context.Background(), paths, strings.NewReader("payload"), blobcache.PutOptions{})
 	if err != nil {
 		t.Fatalf("Write() error = %v", err)
 	}
@@ -75,7 +75,7 @@ func TestStoreMetadataWriteFailureWrapped(t *testing.T) {
 		Writer:   NewFileObjectWriter(failingMetadataCodec{}, fixedClock{now: time.Now().UTC()}),
 	})
 
-	_, err := store.PutStream(context.Background(), "cost/pricing", "aws/AmazonEC2/us-east-1.json", strings.NewReader("payload"), plugin.PutBlobOptions{})
+	_, err := store.PutStream(context.Background(), "cost/pricing", "aws/AmazonEC2/us-east-1.json", strings.NewReader("payload"), blobcache.PutOptions{})
 	if err == nil {
 		t.Fatal("PutStream() error = nil, want wrapped metadata failure")
 	}
@@ -89,7 +89,7 @@ func TestStoreOpenCorruptMetadataWrapped(t *testing.T) {
 
 	rootDir := t.TempDir()
 	store := New(rootDir)
-	if _, err := store.Put(context.Background(), "cost/pricing", "aws/AmazonEC2/us-east-1.json", []byte("payload"), plugin.PutBlobOptions{}); err != nil {
+	if _, err := store.Put(context.Background(), "cost/pricing", "aws/AmazonEC2/us-east-1.json", []byte("payload"), blobcache.PutOptions{}); err != nil {
 		t.Fatalf("Put() error = %v", err)
 	}
 
@@ -121,7 +121,7 @@ func TestDataWrittenByExistingLayoutRemainsReadable(t *testing.T) {
 		t.Fatalf("WriteFile(data) error = %v", err)
 	}
 	codec := FileMetadataCodec{}
-	if err := codec.Write(dataPath+metadataSuffix, plugin.BlobMeta{Size: 6, UpdatedAt: time.Now().UTC()}); err != nil {
+	if err := codec.Write(dataPath+metadataSuffix, blobcache.Meta{Size: 6, UpdatedAt: time.Now().UTC()}); err != nil {
 		t.Fatalf("Write(meta) error = %v", err)
 	}
 
@@ -140,7 +140,7 @@ func TestStoreListReturnsOnlyBlobObjects(t *testing.T) {
 
 	rootDir := t.TempDir()
 	store := New(rootDir)
-	if _, err := store.Put(context.Background(), "cost/pricing", "blob.bin", []byte("payload"), plugin.PutBlobOptions{}); err != nil {
+	if _, err := store.Put(context.Background(), "cost/pricing", "blob.bin", []byte("payload"), blobcache.PutOptions{}); err != nil {
 		t.Fatalf("Put() error = %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(rootDir, "cost", "pricing", "README.txt.meta.json"), []byte("{}"), 0o600); err != nil {
@@ -164,7 +164,7 @@ func TestFileObjectWriterOpenRoundTrip(t *testing.T) {
 
 	rootDir := t.TempDir()
 	store := New(rootDir)
-	if _, err := store.PutStream(context.Background(), "cost/pricing", "blob.bin", strings.NewReader("streamed"), plugin.PutBlobOptions{}); err != nil {
+	if _, err := store.PutStream(context.Background(), "cost/pricing", "blob.bin", strings.NewReader("streamed"), blobcache.PutOptions{}); err != nil {
 		t.Fatalf("PutStream() error = %v", err)
 	}
 

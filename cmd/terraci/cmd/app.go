@@ -31,7 +31,7 @@ type App struct {
 func (a *App) BeginCommand() {
 	a.Plugins = registry.New()
 	if a.pluginCtx != nil {
-		a.pluginCtx.BeginCommand(a.Plugins.Resolver())
+		a.pluginCtx.BeginCommand(a.Plugins)
 	}
 }
 
@@ -43,9 +43,9 @@ func (a *App) PluginContext() *plugin.AppContext {
 		a.Plugins = registry.New()
 	}
 	if a.pluginCtx == nil {
-		a.pluginCtx = plugin.NewAppContext(nil, "", "", "", nil, a.Plugins.Resolver())
+		a.pluginCtx = plugin.NewAppContext(nil, "", "", "", nil, a.Plugins)
 	}
-	a.pluginCtx.SetResolver(a.Plugins.Resolver())
+	a.pluginCtx.SetResolver(a.Plugins)
 	a.ensurePluginContext()
 	return a.pluginCtx
 }
@@ -69,11 +69,11 @@ func (a *App) ensurePluginContext() {
 // and passes them to each ConfigLoader plugin.
 func (a *App) InitPluginConfigs() error {
 	for _, p := range registry.ByCapabilityFrom[plugin.ConfigLoader](a.Plugins) {
-		if _, exists := a.Config.Plugins[p.ConfigKey()]; !exists {
+		if _, exists := a.Config.Extensions[p.ConfigKey()]; !exists {
 			continue
 		}
 		if err := p.DecodeAndSet(func(target any) error {
-			return a.Config.PluginConfig(p.ConfigKey(), target)
+			return a.Config.Extension(p.ConfigKey(), target)
 		}); err != nil {
 			return err
 		}

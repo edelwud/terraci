@@ -3,8 +3,6 @@ package blobcache
 import (
 	"context"
 	"time"
-
-	"github.com/edelwud/terraci/pkg/plugin"
 )
 
 // Cache provides cache-oriented operations over a blob store while leaving
@@ -15,12 +13,12 @@ type Cache struct {
 }
 
 // New constructs a cache view over a blob store.
-func New(store plugin.BlobStore, namespace string, ttl time.Duration) *Cache {
+func New(store Store, namespace string, ttl time.Duration) *Cache {
 	return NewWithPolicy(store, namespace, Policy{TTL: ttl})
 }
 
 // NewWithPolicy constructs a cache view with an explicit cache policy.
-func NewWithPolicy(store plugin.BlobStore, namespace string, policy Policy) *Cache {
+func NewWithPolicy(store Store, namespace string, policy Policy) *Cache {
 	return &Cache{
 		store:  newBlobStoreScope(store, namespace),
 		policy: policy.normalized(),
@@ -41,17 +39,17 @@ func (c *Cache) TTL() time.Duration {
 }
 
 // Get reads one cache entry.
-func (c *Cache) Get(ctx context.Context, key string) (data []byte, meta plugin.BlobMeta, ok bool, err error) {
+func (c *Cache) Get(ctx context.Context, key string) (data []byte, meta Meta, ok bool, err error) {
 	if c.store == nil {
-		return nil, plugin.BlobMeta{}, false, ErrStoreNotConfigured
+		return nil, Meta{}, false, ErrStoreNotConfigured
 	}
 	return c.store.Get(ctx, key)
 }
 
 // Put stores one cache entry.
-func (c *Cache) Put(ctx context.Context, key string, value []byte, opts PutOptions) (plugin.BlobMeta, error) {
+func (c *Cache) Put(ctx context.Context, key string, value []byte, opts PutOptions) (Meta, error) {
 	if c.store == nil {
-		return plugin.BlobMeta{}, ErrStoreNotConfigured
+		return Meta{}, ErrStoreNotConfigured
 	}
 	return c.store.Put(ctx, key, value, opts)
 }
@@ -72,8 +70,8 @@ func (c *Cache) DeleteNamespace(ctx context.Context) error {
 	return c.store.DeleteNamespace(ctx)
 }
 
-// List returns cache objects with policy-derived timing info.
-func (c *Cache) List(ctx context.Context) ([]Object, error) {
+// List returns cache entries with policy-derived timing info.
+func (c *Cache) List(ctx context.Context) ([]Entry, error) {
 	if c.store == nil {
 		return nil, nil
 	}
@@ -83,11 +81,11 @@ func (c *Cache) List(ctx context.Context) ([]Object, error) {
 		return nil, err
 	}
 
-	out := make([]Object, 0, len(objects))
+	out := make([]Entry, 0, len(objects))
 	for _, object := range objects {
-		out = append(out, Object{
+		out = append(out, Entry{
 			Key:       object.Key,
-			Meta:      cloneBlobMeta(object.Meta),
+			Meta:      cloneMeta(object.Meta),
 			Age:       c.policy.age(object.Meta),
 			ExpiresIn: c.policy.expiresIn(object.Meta),
 		})

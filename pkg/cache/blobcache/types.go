@@ -3,26 +3,17 @@ package blobcache
 import (
 	"maps"
 	"time"
-
-	"github.com/edelwud/terraci/pkg/plugin"
 )
 
-// PutOptions controls how a cache entry is persisted.
-type PutOptions struct {
-	ContentType string
-	ExpiresAt   *time.Time
-	Metadata    map[string]string
-}
-
-// Object describes one cached blob object together with TTL-derived timing.
-type Object struct {
+// Entry describes one cached blob entry together with TTL-derived timing.
+type Entry struct {
 	Key       string
-	Meta      plugin.BlobMeta
+	Meta      Meta
 	Age       time.Duration
 	ExpiresIn time.Duration
 }
 
-func cloneBlobMeta(meta plugin.BlobMeta) plugin.BlobMeta {
+func cloneMeta(meta Meta) Meta {
 	meta.Metadata = cloneStringMap(meta.Metadata)
 	meta.ExpiresAt = cloneTimePtr(meta.ExpiresAt)
 	return meta

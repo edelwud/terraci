@@ -33,10 +33,10 @@ func TestSchema_ValidJSON(t *testing.T) {
 		t.Fatal("schema missing properties")
 	}
 
-	// Should have plugins section
-	plugins, ok := props["plugins"].(map[string]any)
-	if !ok || plugins == nil {
-		t.Fatal("schema missing plugins property")
+	// Should have extensions section
+	extensions, ok := props["extensions"].(map[string]any)
+	if !ok || extensions == nil {
+		t.Fatal("schema missing extensions property")
 	}
 
 	// Should have structure section

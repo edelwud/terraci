@@ -100,8 +100,17 @@ func useMockRegistry(p *Plugin, reg tfregistry.Client) {
 }
 
 type commandTestResolver struct {
+	plugintest.NoopResolver
 	plugin   plugin.Plugin
 	backends *registry.Registry
+}
+
+func (r commandTestResolver) All() []plugin.Plugin {
+	all := r.backends.All()
+	if r.plugin != nil {
+		return append([]plugin.Plugin{r.plugin}, all...)
+	}
+	return all
 }
 
 func (r commandTestResolver) GetPlugin(name string) (plugin.Plugin, bool) {

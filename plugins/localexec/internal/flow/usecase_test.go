@@ -144,7 +144,7 @@ func TestUseCase_RunUsesInjectedDependencies(t *testing.T) {
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	jobRunner := &fakeJobRunner{}
 	output := &fakeOutput{}
-	report := &ci.Report{Plugin: "summary", Title: "Terraform Plan Summary"}
+	report := &ci.Report{Producer: "summary", Title: "Terraform Plan Summary"}
 	loader := &fakeSummaryReportLoader{report: report}
 	runtimeFactory := &fakeRuntimeFactory{runtime: &runner.Runtime{
 		ExecConfig: execution.Config{PlanEnabled: true, Parallelism: 1},

@@ -59,7 +59,7 @@ func TestPlugin_BuildInitConfig_DisabledRoundTripDisablesPlugin(t *testing.T) {
 	state.Set("summary.enabled", false)
 
 	contrib := p.BuildInitConfig(state)
-	cfg, err := config.BuildConfigFromPlugins("{service}/{environment}/{region}/{module}", map[string]any{
+	cfg, err := config.BuildConfig("{service}/{environment}/{region}/{module}", map[string]any{
 		"binary":       "terraform",
 		"plan_enabled": true,
 		"init_enabled": true,
@@ -67,10 +67,10 @@ func TestPlugin_BuildInitConfig_DisabledRoundTripDisablesPlugin(t *testing.T) {
 		contrib.PluginKey: contrib.Config,
 	})
 	if err != nil {
-		t.Fatalf("BuildConfigFromPlugins() error = %v", err)
+		t.Fatalf("BuildConfig() error = %v", err)
 	}
 	if err := p.DecodeAndSet(func(target any) error {
-		return cfg.PluginConfig("summary", target)
+		return cfg.Extension("summary", target)
 	}); err != nil {
 		t.Fatalf("DecodeAndSet() error = %v", err)
 	}

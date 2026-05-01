@@ -21,7 +21,7 @@ func NewReportRegistry() *ReportRegistry {
 	}
 }
 
-// Publish stores a report in the registry, keyed by plugin name.
+// Publish stores a report in the registry, keyed by its producer.
 func (r *ReportRegistry) Publish(report *ci.Report) {
 	if report == nil {
 		return
@@ -29,14 +29,14 @@ func (r *ReportRegistry) Publish(report *ci.Report) {
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.reports[report.Plugin] = cloneReport(report)
+	r.reports[report.Producer] = cloneReport(report)
 }
 
-// Get retrieves a report by plugin name.
-func (r *ReportRegistry) Get(pluginName string) (*ci.Report, bool) {
+// Get retrieves a report by producer name.
+func (r *ReportRegistry) Get(producer string) (*ci.Report, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	rep, ok := r.reports[pluginName]
+	rep, ok := r.reports[producer]
 	if !ok {
 		return nil, false
 	}

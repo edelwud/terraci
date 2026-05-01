@@ -83,8 +83,8 @@ func TestPolicy_Check(t *testing.T) {
 		t.Fatalf("invalid report JSON: %v", jsonErr)
 	}
 
-	if report.Plugin != "policy" {
-		t.Errorf("expected plugin=policy, got %s", report.Plugin)
+	if report.Producer != "policy" {
+		t.Errorf("expected plugin=policy, got %s", report.Producer)
 	}
 
 	// Our .rego rule warns on create actions — plan has a VPC create

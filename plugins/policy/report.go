@@ -46,10 +46,10 @@ func buildPolicyReport(summary *policyengine.Summary) *ci.Report {
 	}
 
 	return &ci.Report{
-		Plugin:  "policy",
-		Title:   "Policy Check",
-		Status:  status,
-		Summary: fmt.Sprintf("%d modules: %d passed, %d warned, %d failed", summary.TotalModules, summary.PassedModules, summary.WarnedModules, summary.FailedModules),
+		Producer: "policy",
+		Title:    "Policy Check",
+		Status:   status,
+		Summary:  fmt.Sprintf("%d modules: %d passed, %d warned, %d failed", summary.TotalModules, summary.PassedModules, summary.WarnedModules, summary.FailedModules),
 		Sections: []ci.ReportSection{{
 			Kind:           ci.ReportSectionKindFindings,
 			Title:          "Policy Check",

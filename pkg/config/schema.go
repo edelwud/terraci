@@ -7,8 +7,10 @@ import (
 	"github.com/invopop/jsonschema"
 )
 
-// GenerateJSONSchema returns the JSON Schema for .terraci.yaml configuration
-func GenerateJSONSchema(pluginSchemas map[string]any) string {
+// GenerateJSONSchema returns the JSON Schema for .terraci.yaml configuration.
+// extensionSchemas maps each extension key to a sample value whose Go type
+// shape will be reflected as the section's sub-schema.
+func GenerateJSONSchema(extensionSchemas map[string]any) string {
 	r := &jsonschema.Reflector{
 		DoNotReference:             true,
 		ExpandedStruct:             true,
@@ -21,22 +23,20 @@ func GenerateJSONSchema(pluginSchemas map[string]any) string {
 	schema.Title = "TerraCi Configuration"
 	schema.Description = "Configuration schema for TerraCi - CI pipeline generator for Terraform monorepos"
 
-	// Add plugins property with sub-schemas from registered plugins
-	if len(pluginSchemas) > 0 {
-		pluginsProp := &jsonschema.Schema{
+	if len(extensionSchemas) > 0 {
+		extensionsProp := &jsonschema.Schema{
 			Type:                 "object",
-			Description:          "Plugin-specific configuration",
+			Description:          "Extension-specific configuration sections",
 			Properties:           jsonschema.NewProperties(),
 			AdditionalProperties: jsonschema.TrueSchema,
 		}
-		for key, cfg := range pluginSchemas {
+		for key, cfg := range extensionSchemas {
 			subSchema := r.ReflectFromType(reflect.TypeOf(cfg))
-			// Remove the $schema and $id from sub-schemas
 			subSchema.Version = ""
 			subSchema.ID = ""
-			pluginsProp.Properties.Set(key, subSchema)
+			extensionsProp.Properties.Set(key, subSchema)
 		}
-		schema.Properties.Set("plugins", pluginsProp)
+		schema.Properties.Set("extensions", extensionsProp)
 	}
 
 	data, err := json.MarshalIndent(schema, "", "  ")

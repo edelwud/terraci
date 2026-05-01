@@ -17,6 +17,6 @@ func DefaultConfig() *Config {
 			Pattern:  "{service}/{environment}/{region}/{module}",
 			Segments: PatternSegments{"service", "environment", "region", "module"},
 		},
-		Plugins: make(map[string]yaml.Node),
+		Extensions: make(map[string]yaml.Node),
 	}
 }

@@ -8,42 +8,44 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/cache/blobcache"
 )
 
 type storedMeta struct {
-	plugin.BlobMeta
+	blobcache.Meta
 }
+
+func (m storedMeta) inner() blobcache.Meta { return m.Meta }
 
 // MetadataCodec persists blob metadata sidecars.
 type MetadataCodec interface {
-	Read(metaPath string) (plugin.BlobMeta, error)
-	Write(metaPath string, meta plugin.BlobMeta) error
+	Read(metaPath string) (blobcache.Meta, error)
+	Write(metaPath string, meta blobcache.Meta) error
 }
 
 // FileMetadataCodec stores metadata as JSON sidecars.
 type FileMetadataCodec struct{}
 
 // Read loads metadata from a sidecar file.
-func (FileMetadataCodec) Read(metaPath string) (plugin.BlobMeta, error) {
+func (FileMetadataCodec) Read(metaPath string) (blobcache.Meta, error) {
 	data, err := os.ReadFile(metaPath)
 	if err != nil {
-		return plugin.BlobMeta{}, fmt.Errorf("read metadata: %w", err)
+		return blobcache.Meta{}, fmt.Errorf("read metadata: %w", err)
 	}
 
 	var meta storedMeta
 	if err := json.Unmarshal(data, &meta); err != nil {
-		return plugin.BlobMeta{}, fmt.Errorf("decode metadata: %w", err)
+		return blobcache.Meta{}, fmt.Errorf("decode metadata: %w", err)
 	}
 
 	meta.Metadata = cloneStringMap(meta.Metadata)
 	meta.ExpiresAt = cloneTimePtr(meta.ExpiresAt)
-	return meta.BlobMeta, nil
+	return meta.inner(), nil
 }
 
 // Write stores metadata atomically using a temp file and rename.
-func (FileMetadataCodec) Write(metaPath string, meta plugin.BlobMeta) error {
-	data, err := json.MarshalIndent(storedMeta{BlobMeta: meta}, "", "  ")
+func (FileMetadataCodec) Write(metaPath string, meta blobcache.Meta) error {
+	data, err := json.MarshalIndent(storedMeta{Meta: meta}, "", "  ")
 	if err != nil {
 		return fmt.Errorf("encode metadata: %w", err)
 	}

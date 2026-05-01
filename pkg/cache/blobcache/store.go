@@ -2,64 +2,102 @@ package blobcache
 
 import (
 	"context"
-
-	"github.com/edelwud/terraci/pkg/plugin"
+	"io"
+	"time"
 )
 
-type scopedStore interface {
-	Get(ctx context.Context, key string) ([]byte, plugin.BlobMeta, bool, error)
-	Put(ctx context.Context, key string, value []byte, opts PutOptions) (plugin.BlobMeta, error)
-	Delete(ctx context.Context, key string) error
-	DeleteNamespace(ctx context.Context) error
-	List(ctx context.Context) ([]plugin.BlobObject, error)
-	Dir() string
+// Store stores opaque binary objects addressed by namespace + key.
+//
+// Consumers own key layout, serialization, TTL policy, and stale fallback
+// semantics. Backends only persist bytes and metadata.
+type Store interface {
+	Get(ctx context.Context, namespace, key string) ([]byte, bool, Meta, error)
+	Put(ctx context.Context, namespace, key string, value []byte, opts PutOptions) (Meta, error)
+	Open(ctx context.Context, namespace, key string) (io.ReadCloser, bool, Meta, error)
+	PutStream(ctx context.Context, namespace, key string, r io.Reader, opts PutOptions) (Meta, error)
+	Delete(ctx context.Context, namespace, key string) error
+	DeleteNamespace(ctx context.Context, namespace string) error
+	List(ctx context.Context, namespace string) ([]Object, error)
 }
 
-type blobStoreScope struct {
-	store     plugin.BlobStore
-	namespace string
-	dir       string
+// PutOptions controls how an entry is persisted by a Store.
+type PutOptions struct {
+	ContentType string
+	ExpiresAt   *time.Time
+	Metadata    map[string]string
 }
 
-func newBlobStoreScope(store plugin.BlobStore, namespace string) scopedStore {
+// Meta describes a stored blob object.
+type Meta struct {
+	Size        int64
+	UpdatedAt   time.Time
+	ExpiresAt   *time.Time
+	ETag        string
+	ContentType string
+	Metadata    map[string]string
+}
+
+// Object describes a listed blob object.
+type Object struct {
+	Key  string
+	Meta Meta
+}
+
+// Info describes optional backend diagnostics exposed by a blob store.
+type Info struct {
+	Backend                 string
+	Root                    string
+	SupportsList            bool
+	SupportsStream          bool
+	SupportsDeleteNamespace bool
+}
+
+// Inspector exposes optional store details for diagnostics.
+type Inspector interface {
+	BlobStoreRootDir() string
+}
+
+// Describer exposes optional diagnostics for a blob store backend.
+type Describer interface {
+	DescribeBlobStore() Info
+}
+
+// HealthChecker exposes an optional health check for a blob store backend.
+type HealthChecker interface {
+	CheckBlobStore(ctx context.Context) error
+}
+
+// Describe returns the optional backend diagnostics exposed by a blob store,
+// applying a fallback backend name when the store omits one.
+func Describe(store Store, fallbackBackend string) Info {
+	if store == nil {
+		return Info{Backend: fallbackBackend}
+	}
+
+	if describer, ok := store.(Describer); ok {
+		info := describer.DescribeBlobStore()
+		if info.Backend == "" {
+			info.Backend = fallbackBackend
+		}
+		if info.Root != "" || info.Backend != "" || info.SupportsList || info.SupportsStream || info.SupportsDeleteNamespace {
+			return info
+		}
+	}
+
+	info := Info{Backend: fallbackBackend}
+	if inspector, ok := store.(Inspector); ok {
+		info.Root = inspector.BlobStoreRootDir()
+	}
+	return info
+}
+
+// Check runs the optional blob store health check when implemented.
+func Check(ctx context.Context, store Store) error {
 	if store == nil {
 		return nil
 	}
-	return blobStoreScope{
-		store:     store,
-		namespace: namespace,
-		dir:       plugin.DescribeBlobStore(store, "").Root,
+	if checker, ok := store.(HealthChecker); ok {
+		return checker.CheckBlobStore(ctx)
 	}
-}
-
-func (s blobStoreScope) Get(ctx context.Context, key string) (data []byte, meta plugin.BlobMeta, ok bool, err error) {
-	data, ok, meta, err = s.store.Get(ctx, s.namespace, key)
-	if err != nil {
-		return nil, plugin.BlobMeta{}, false, err
-	}
-	return data, meta, ok, nil
-}
-
-func (s blobStoreScope) Put(ctx context.Context, key string, value []byte, opts PutOptions) (plugin.BlobMeta, error) {
-	return s.store.Put(ctx, s.namespace, key, value, plugin.PutBlobOptions{
-		ContentType: opts.ContentType,
-		ExpiresAt:   cloneTimePtr(opts.ExpiresAt),
-		Metadata:    cloneStringMap(opts.Metadata),
-	})
-}
-
-func (s blobStoreScope) Delete(ctx context.Context, key string) error {
-	return s.store.Delete(ctx, s.namespace, key)
-}
-
-func (s blobStoreScope) DeleteNamespace(ctx context.Context) error {
-	return s.store.DeleteNamespace(ctx, s.namespace)
-}
-
-func (s blobStoreScope) List(ctx context.Context) ([]plugin.BlobObject, error) {
-	return s.store.List(ctx, s.namespace)
-}
-
-func (s blobStoreScope) Dir() string {
-	return s.dir
+	return nil
 }

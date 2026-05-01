@@ -6,8 +6,9 @@ import (
 	"go.yaml.in/yaml/v4"
 )
 
-// BuildConfigFromPlugins assembles a Config from a pattern, execution settings, and plugin contributions.
-func BuildConfigFromPlugins(pattern string, execution map[string]any, pluginConfigs map[string]map[string]any) (*Config, error) {
+// BuildConfig assembles a Config from a pattern, execution settings, and
+// per-extension configuration sections.
+func BuildConfig(pattern string, execution map[string]any, extensions map[string]map[string]any) (*Config, error) {
 	cfg := DefaultConfig()
 	if pattern != "" {
 		cfg.Structure.Pattern = pattern
@@ -24,9 +25,9 @@ func BuildConfigFromPlugins(pattern string, execution map[string]any, pluginConf
 			return nil, fmt.Errorf("decode execution config: %w", err)
 		}
 	}
-	for key, m := range pluginConfigs {
-		if err := setPluginNode(cfg, key, m); err != nil {
-			return nil, fmt.Errorf("set plugin %q config: %w", key, err)
+	for key, m := range extensions {
+		if err := setExtensionNode(cfg, key, m); err != nil {
+			return nil, fmt.Errorf("set extension %q config: %w", key, err)
 		}
 	}
 	if err := cfg.Validate(); err != nil {
@@ -35,24 +36,23 @@ func BuildConfigFromPlugins(pattern string, execution map[string]any, pluginConf
 	return cfg, nil
 }
 
-// setPluginNode marshals a value and stores it in the Plugins map.
-func setPluginNode(cfg *Config, key string, value any) error {
+// setExtensionNode marshals a value and stores it in the Extensions map.
+func setExtensionNode(cfg *Config, key string, value any) error {
 	data, err := yaml.Marshal(value)
 	if err != nil {
-		return fmt.Errorf("marshal plugin %q: %w", key, err)
+		return fmt.Errorf("marshal extension %q: %w", key, err)
 	}
 	var doc yaml.Node
 	if err := yaml.Unmarshal(data, &doc); err != nil {
-		return fmt.Errorf("unmarshal plugin %q node: %w", key, err)
+		return fmt.Errorf("unmarshal extension %q node: %w", key, err)
 	}
-	if cfg.Plugins == nil {
-		cfg.Plugins = make(map[string]yaml.Node)
+	if cfg.Extensions == nil {
+		cfg.Extensions = make(map[string]yaml.Node)
 	}
-	// yaml.Unmarshal wraps in a document node — unwrap to get the mapping node
 	if doc.Kind == yaml.DocumentNode && len(doc.Content) > 0 {
-		cfg.Plugins[key] = *doc.Content[0]
+		cfg.Extensions[key] = *doc.Content[0]
 	} else {
-		cfg.Plugins[key] = doc
+		cfg.Extensions[key] = doc
 	}
 	return nil
 }

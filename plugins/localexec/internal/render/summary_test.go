@@ -11,9 +11,9 @@ func TestRenderSummaryReportCLI_RendersStructuredSections(t *testing.T) {
 	t.Parallel()
 
 	report := &ci.Report{
-		Plugin:  "summary",
-		Title:   "Terraform Plan Summary",
-		Summary: "2 modules: 1 with changes, 1 no changes, 0 failed",
+		Producer: "summary",
+		Title:    "Terraform Plan Summary",
+		Summary:  "2 modules: 1 with changes, 1 no changes, 0 failed",
 		Sections: []ci.ReportSection{
 			{
 				Kind:           ci.ReportSectionKindOverview,

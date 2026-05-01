@@ -56,7 +56,7 @@ Examples:
 				return err
 			}
 			if !current.IsEnabled() {
-				return errors.New("tfupdate plugin is not enabled (set plugins.tfupdate.enabled: true)")
+				return errors.New("tfupdate plugin is not enabled (set extensions.tfupdate.enabled: true)")
 			}
 
 			log.Info("checking terraform dependency state")

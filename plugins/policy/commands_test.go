@@ -161,7 +161,7 @@ func TestPlugin_Commands_RunE_NotConfigured(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for unconfigured plugin")
 	}
-	if !strings.Contains(err.Error(), "plugins.policy.enabled: true") {
+	if !strings.Contains(err.Error(), "extensions.policy.enabled: true") {
 		t.Fatalf("error = %q, want actionable enablement hint", err.Error())
 	}
 }

@@ -1,6 +1,7 @@
 // Package registry provides TerraCi's plugin catalog and per-run plugin sets.
 // Plugin packages register factories via init(); commands instantiate a fresh
-// Registry from those factories for each app run.
+// Registry from those factories for each app run. The Registry implements the
+// plugin.Resolver contract and is what plugins receive through AppContext.
 package registry
 
 import (
@@ -9,6 +10,7 @@ import (
 	"github.com/edelwud/terraci/pkg/plugin"
 )
 
+// Factory constructs a fresh plugin instance.
 type Factory func() plugin.Plugin
 
 type descriptor struct {
@@ -30,8 +32,7 @@ func NewCatalog() *Catalog {
 var defaultCatalog = NewCatalog()
 
 // RegisterFactory adds a plugin factory to the global catalog. Called from
-// init() in plugin packages.
-// Panics on duplicate names (fail-fast at startup).
+// init() in plugin packages. Panics on duplicate names (fail-fast at startup).
 func RegisterFactory(factory Factory) {
 	defaultCatalog.RegisterFactory(factory)
 }
@@ -56,13 +57,16 @@ func (c *Catalog) RegisterFactory(factory Factory) {
 	c.order = append(c.order, prototype.Name())
 }
 
-// Registry is an isolated plugin instance set for one app run.
+// Registry is an isolated plugin instance set for one app run. It implements
+// plugin.Resolver — both as the lookup surface for capability discovery and as
+// the policy resolver for canonical capabilities (CI provider, change detector,
+// cache backends, pipeline contributions, preflights).
 type Registry struct {
 	plugins map[string]plugin.Plugin
 	order   []string
 }
 
-// New instantiates a fresh plugin set from the registered factories.
+// New instantiates a fresh plugin set from the registered global factories.
 func New() *Registry {
 	return defaultCatalog.NewRegistry()
 }
@@ -71,7 +75,18 @@ func New() *Registry {
 func (c *Catalog) NewRegistry() *Registry {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.instantiateLocked()
+	r := &Registry{
+		plugins: make(map[string]plugin.Plugin, len(c.order)),
+		order:   append([]string(nil), c.order...),
+	}
+	for _, name := range c.order {
+		p := c.descriptors[name].factory()
+		if p == nil {
+			panic("terraci: nil plugin from factory: " + name)
+		}
+		r.plugins[name] = p
+	}
+	return r
 }
 
 // NewFromFactories creates an isolated registry from explicit factories without
@@ -99,24 +114,6 @@ func NewFromFactories(factories ...Factory) *Registry {
 	return r
 }
 
-func (c *Catalog) instantiateLocked() *Registry {
-	r := &Registry{
-		plugins: make(map[string]plugin.Plugin, len(c.order)),
-		order:   append([]string(nil), c.order...),
-	}
-	for _, name := range c.order {
-		p := c.descriptors[name].factory()
-		if p == nil {
-			panic("terraci: nil plugin from factory: " + name)
-		}
-		if p.Name() != name {
-			panic("terraci: plugin factory name changed: " + name + " -> " + p.Name())
-		}
-		r.plugins[name] = p
-	}
-	return r
-}
-
 // All returns plugins in registration order.
 func (r *Registry) All() []plugin.Plugin {
 	if r == nil {
@@ -129,11 +126,6 @@ func (r *Registry) All() []plugin.Plugin {
 	return result
 }
 
-// Get returns a plugin by name.
-func (r *Registry) Get(name string) (plugin.Plugin, bool) {
-	return r.GetPlugin(name)
-}
-
 // GetPlugin returns a plugin by name.
 func (r *Registry) GetPlugin(name string) (plugin.Plugin, bool) {
 	if r == nil {
@@ -143,14 +135,14 @@ func (r *Registry) GetPlugin(name string) (plugin.Plugin, bool) {
 	return p, ok
 }
 
-// ByCapabilityFrom returns all plugins in source that implement the given
+// ByCapabilityFrom returns all plugins from resolver that implement the given
 // capability interface.
-func ByCapabilityFrom[T plugin.Plugin](source plugin.Source) []T {
-	if source == nil {
+func ByCapabilityFrom[T plugin.Plugin](resolver plugin.Resolver) []T {
+	if resolver == nil {
 		return nil
 	}
 	var result []T
-	for _, p := range source.All() {
+	for _, p := range resolver.All() {
 		if t, ok := p.(T); ok {
 			result = append(result, t)
 		}
@@ -158,7 +150,7 @@ func ByCapabilityFrom[T plugin.Plugin](source plugin.Source) []T {
 	return result
 }
 
-// Reset clears the registry. Only for testing.
+// Reset clears the global catalog. Only for testing.
 func Reset() {
 	defaultCatalog.Reset()
 }

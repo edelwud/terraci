@@ -9,7 +9,7 @@ import (
 func TestReportRegistry_PublishAndGet(t *testing.T) {
 	r := NewReportRegistry()
 
-	report := &ci.Report{Plugin: "feature_a", Title: "Feature Estimation", Status: ci.ReportStatusPass}
+	report := &ci.Report{Producer: "feature_a", Title: "Feature Estimation", Status: ci.ReportStatusPass}
 	r.Publish(report)
 
 	got, ok := r.Get("feature_a")
@@ -33,8 +33,8 @@ func TestReportRegistry_GetMissing(t *testing.T) {
 func TestReportRegistry_PublishOverwrite(t *testing.T) {
 	r := NewReportRegistry()
 
-	r.Publish(&ci.Report{Plugin: "feature_a", Title: "v1"})
-	r.Publish(&ci.Report{Plugin: "feature_a", Title: "v2"})
+	r.Publish(&ci.Report{Producer: "feature_a", Title: "v1"})
+	r.Publish(&ci.Report{Producer: "feature_a", Title: "v2"})
 
 	got, _ := r.Get("feature_a")
 	if got.Title != "v2" {
@@ -45,8 +45,8 @@ func TestReportRegistry_PublishOverwrite(t *testing.T) {
 func TestReportRegistry_All(t *testing.T) {
 	r := NewReportRegistry()
 
-	r.Publish(&ci.Report{Plugin: "report_a", Title: "Report A"})
-	r.Publish(&ci.Report{Plugin: "report_b", Title: "Report B"})
+	r.Publish(&ci.Report{Producer: "report_a", Title: "Report A"})
+	r.Publish(&ci.Report{Producer: "report_b", Title: "Report B"})
 
 	all := r.All()
 	if len(all) != 2 {
@@ -75,8 +75,8 @@ func TestReportRegistry_DefensiveCopies(t *testing.T) {
 	r := NewReportRegistry()
 
 	report := &ci.Report{
-		Plugin: "report_b",
-		Title:  "Report B",
+		Producer: "report_b",
+		Title:    "Report B",
 		Sections: []ci.ReportSection{{
 			Kind:  ci.ReportSectionKindFindings,
 			Title: "Findings",

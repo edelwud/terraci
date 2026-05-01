@@ -1,9 +1,11 @@
 package plugin
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/config"
+	"github.com/edelwud/terraci/pkg/pipeline"
 )
 
 func TestAppContext_Freeze(t *testing.T) {
@@ -39,15 +41,12 @@ func TestAppContext_ReportRegistry(t *testing.T) {
 	}
 }
 
-func TestAppContext_ConfigReturnsCopy(t *testing.T) {
+func TestAppContext_ConfigReturnsBoundPointer(t *testing.T) {
 	cfg := config.DefaultConfig()
 	ctx := NewAppContext(cfg, "/tmp", "/tmp/.terraci", "1.0", nil)
 
-	got := ctx.Config()
-	got.ServiceDir = "changed"
-
-	if ctx.Config().ServiceDir != ".terraci" {
-		t.Error("Config() should return a defensive copy")
+	if ctx.Config() != cfg {
+		t.Error("Config() should return the bound configuration pointer")
 	}
 }
 
@@ -62,9 +61,38 @@ type contextTestResolver struct {
 	plugin Plugin
 }
 
+func (r contextTestResolver) All() []Plugin {
+	if r.plugin == nil {
+		return nil
+	}
+	return []Plugin{r.plugin}
+}
+
 func (r contextTestResolver) GetPlugin(string) (Plugin, bool) {
 	return r.plugin, r.plugin != nil
 }
+
+func (contextTestResolver) ResolveCIProvider() (*ResolvedCIProvider, error) {
+	return nil, errors.New("not configured")
+}
+
+func (contextTestResolver) ResolveChangeDetector() (ChangeDetectionProvider, error) {
+	return nil, errors.New("not configured")
+}
+
+func (contextTestResolver) ResolveKVCacheProvider(string) (KVCacheProvider, error) {
+	return nil, errors.New("not configured")
+}
+
+func (contextTestResolver) ResolveBlobStoreProvider(string) (BlobStoreProvider, error) {
+	return nil, errors.New("not configured")
+}
+
+func (contextTestResolver) CollectContributions(*AppContext) []*pipeline.Contribution {
+	return nil
+}
+
+func (contextTestResolver) PreflightsForStartup() []Preflightable { return nil }
 
 func TestAppContext_BeginCommandRebindsResolver(t *testing.T) {
 	first := &contextTestPlugin{name: "cmd"}

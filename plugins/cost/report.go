@@ -82,10 +82,10 @@ func buildCostReport(result *model.EstimateResult) *ci.Report {
 	}
 
 	return &ci.Report{
-		Plugin:  pluginName,
-		Title:   "Cost Estimation",
-		Status:  status,
-		Summary: buildCostReportSummary(result, len(visible)),
+		Producer: pluginName,
+		Title:    "Cost Estimation",
+		Status:   status,
+		Summary:  buildCostReportSummary(result, len(visible)),
 		Sections: []ci.ReportSection{{
 			Kind:           costChangesSectionKind,
 			Title:          "Cost Estimation",

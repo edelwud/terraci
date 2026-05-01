@@ -27,9 +27,10 @@ type Config struct {
 	// LibraryModules configuration for shared/reusable modules
 	LibraryModules *LibraryModulesConfig `yaml:"library_modules,omitempty" json:"library_modules,omitempty" jsonschema:"description=Configuration for library/shared modules (non-executable modules used by other modules)"`
 
-	// Plugins holds plugin-specific configuration.
-	// Each key is a plugin's ConfigKey(), value is decoded by the plugin.
-	Plugins map[string]yaml.Node `yaml:"plugins,omitempty" json:"-" jsonschema:"-"`
+	// Extensions holds opaque configuration sections decoded by feature
+	// extensions. Each key identifies a section; the value is the raw YAML node
+	// the owning extension decodes into its own typed config.
+	Extensions map[string]yaml.Node `yaml:"extensions,omitempty" json:"-" jsonschema:"-"`
 }
 
 // ExecutionConfig defines shared Terraform/OpenTofu execution settings.

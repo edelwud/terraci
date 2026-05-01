@@ -179,7 +179,7 @@ func writeConfig(t *testing.T, dir string) {
   pattern: "{service}/{environment}/{region}/{module}"
 execution:
   binary: terraform
-plugins:
+extensions:
   gitlab:
     image:
       name: hashicorp/terraform:1.6

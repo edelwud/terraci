@@ -17,8 +17,8 @@ type ResourceRegistration struct {
 
 // Definition is the provider-neutral runtime contract for a cloud provider.
 type Definition struct {
-	// ConfigKey is the YAML key under plugins.cost.providers that enables this provider.
-	// Example: "aws" maps to `plugins.cost.providers.aws.enabled: true`.
+	// ConfigKey is the YAML key under extensions.cost.providers that enables this provider.
+	// Example: "aws" maps to `extensions.cost.providers.aws.enabled: true`.
 	// It must match the key used in CostProvidersConfig.
 	ConfigKey      string
 	Manifest       pricing.ProviderManifest

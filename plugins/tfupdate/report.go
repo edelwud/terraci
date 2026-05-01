@@ -45,9 +45,9 @@ func buildUpdateReport(result *tfupdateengine.UpdateResult) *ci.Report {
 	}
 
 	return &ci.Report{
-		Plugin: "tfupdate",
-		Title:  "Dependency Update Check",
-		Status: status,
+		Producer: "tfupdate",
+		Title:    "Dependency Update Check",
+		Status:   status,
 		Summary: fmt.Sprintf(
 			"%d checked, %d updates available, %d applied, %d errors",
 			result.Summary.TotalChecked,

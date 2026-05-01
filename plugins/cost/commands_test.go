@@ -142,8 +142,8 @@ func TestPlugin_RunEstimation_Success(t *testing.T) {
 	}
 
 	report := loadCostReport(t, appCtx.ServiceDir())
-	if report.Plugin != "cost" {
-		t.Errorf("report.Plugin = %q, want %q", report.Plugin, "cost")
+	if report.Producer != "cost" {
+		t.Errorf("report.Producer = %q, want %q", report.Producer, "cost")
 	}
 	if report.Status != ci.ReportStatusPass {
 		t.Errorf("report.Status = %q, want %q", report.Status, ci.ReportStatusPass)
@@ -354,8 +354,8 @@ func TestBuildCostReport(t *testing.T) {
 
 	report := buildCostReport(result)
 
-	if report.Plugin != "cost" {
-		t.Errorf("Plugin = %q, want %q", report.Plugin, "cost")
+	if report.Producer != "cost" {
+		t.Errorf("Plugin = %q, want %q", report.Producer, "cost")
 	}
 	if report.Title != "Cost Estimation" {
 		t.Errorf("Title = %q, want %q", report.Title, "Cost Estimation")
@@ -447,8 +447,8 @@ func TestBuildCostReport_Empty(t *testing.T) {
 
 	report := buildCostReport(result)
 
-	if report.Plugin != "cost" {
-		t.Errorf("Plugin = %q, want %q", report.Plugin, "cost")
+	if report.Producer != "cost" {
+		t.Errorf("Plugin = %q, want %q", report.Producer, "cost")
 	}
 	if !strings.Contains(report.Summary, "0 modules") {
 		t.Errorf("Summary = %q, want to contain '0 modules'", report.Summary)

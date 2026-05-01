@@ -101,7 +101,7 @@ structure:
   pattern: "{service}/{environment}/{region}/{module}"
 execution:
   binary: terraform
-plugins:
+extensions:
   gitlab:
     image:
       name: hashicorp/terraform:1.6
@@ -118,7 +118,7 @@ plugins:
     enabled: true
 `)
 
-	plugins := appCtx.Resolver().(*registry.Resolver)
+	plugins := appCtx.Resolver().(*registry.Registry)
 	preflightables := plugins.PreflightsForStartup()
 	got := make([]string, 0, len(preflightables))
 	for _, p := range preflightables {
@@ -139,7 +139,7 @@ func TestRuntimeProviders_CreateRuntimeWithoutPreflight(t *testing.T) {
 	appCtx := loadPluginContractConfig(t, `service_dir: .terraci
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
-plugins:
+extensions:
   cost:
     providers:
       aws:
@@ -156,7 +156,7 @@ plugins:
 
 	expectedRuntimeProviders := []string{"cost", "policy", "tfupdate"}
 	got := make([]string, 0, len(expectedRuntimeProviders))
-	plugins := appCtx.Resolver().(*registry.Resolver)
+	plugins := appCtx.Resolver().(*registry.Registry)
 	for _, p := range registry.ByCapabilityFrom[plugin.RuntimeProvider](plugins) {
 		rawRuntime, err := p.Runtime(context.Background(), appCtx)
 		if err != nil {
@@ -177,7 +177,7 @@ func TestCollectContributions_UsesContextualStateWithoutPreflight(t *testing.T) 
 	appCtx := loadPluginContractConfig(t, `service_dir: custom-artifacts
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
-plugins:
+extensions:
   cost:
     providers:
       aws:
@@ -192,7 +192,7 @@ plugins:
     pipeline: true
 `)
 
-	plugins := appCtx.Resolver().(*registry.Resolver)
+	plugins := appCtx.Resolver().(*registry.Registry)
 	contributions := plugins.CollectContributions(appCtx)
 	if len(contributions) != 4 {
 		t.Fatalf("CollectContributions() returned %d contributions, want 4", len(contributions))
@@ -237,17 +237,17 @@ func loadPluginContractConfig(t *testing.T, rawConfig string) *plugin.AppContext
 	}
 
 	for _, cl := range registry.ByCapabilityFrom[plugin.ConfigLoader](plugins) {
-		if _, exists := cfg.Plugins[cl.ConfigKey()]; !exists {
+		if _, exists := cfg.Extensions[cl.ConfigKey()]; !exists {
 			continue
 		}
 		if err := cl.DecodeAndSet(func(target any) error {
-			return cfg.PluginConfig(cl.ConfigKey(), target)
+			return cfg.Extension(cl.ConfigKey(), target)
 		}); err != nil {
 			t.Fatalf("failed to decode %s config: %v", cl.ConfigKey(), err)
 		}
 	}
 
 	serviceDir := filepath.Join(dir, cfg.ServiceDir)
-	appCtx := plugin.NewAppContext(cfg, dir, serviceDir, "test", nil, plugins.Resolver())
+	appCtx := plugin.NewAppContext(cfg, dir, serviceDir, "test", nil, plugins)
 	return appCtx
 }

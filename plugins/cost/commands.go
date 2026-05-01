@@ -38,7 +38,7 @@ Examples:
 				return err
 			}
 			if !current.IsEnabled() {
-				return errors.New("cost estimation is not enabled (enable at least one provider under plugins.cost.providers)")
+				return errors.New("cost estimation is not enabled (enable at least one provider under extensions.cost.providers)")
 			}
 
 			log.Info("cost: running cost estimation")

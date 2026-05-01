@@ -7,13 +7,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/edelwud/terraci/pkg/cache/blobcache"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 )
 
 func TestStore_ContractSuite(t *testing.T) {
 	plugintest.RunBlobStoreContractSuite(t, plugintest.BlobStoreContractSuite{
-		Factory: func(tb testing.TB, backingID string) plugin.BlobStore {
+		Factory: func(tb testing.TB, backingID string) blobcache.Store {
 			tb.Helper()
 			return NewStore(backingID)
 		},

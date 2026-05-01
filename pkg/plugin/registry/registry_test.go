@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/edelwud/terraci/pkg/cache/blobcache"
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/discovery"
@@ -76,30 +77,30 @@ func (testKVCache) DeleteNamespace(context.Context, string) error { return nil }
 
 type testBlobStoreProvider struct {
 	testPlugin
-	store plugin.BlobStore
+	store blobcache.Store
 }
 
-func (p *testBlobStoreProvider) NewBlobStore(context.Context, *plugin.AppContext) (plugin.BlobStore, error) {
+func (p *testBlobStoreProvider) NewBlobStore(context.Context, *plugin.AppContext) (blobcache.Store, error) {
 	return p.store, nil
 }
 
 type testBlobStore struct{}
 
-func (testBlobStore) Get(context.Context, string, string) (data []byte, ok bool, meta plugin.BlobMeta, err error) {
-	return nil, false, plugin.BlobMeta{}, nil
+func (testBlobStore) Get(context.Context, string, string) (data []byte, ok bool, meta blobcache.Meta, err error) {
+	return nil, false, blobcache.Meta{}, nil
 }
-func (testBlobStore) Put(context.Context, string, string, []byte, plugin.PutBlobOptions) (plugin.BlobMeta, error) {
-	return plugin.BlobMeta{}, nil
+func (testBlobStore) Put(context.Context, string, string, []byte, blobcache.PutOptions) (blobcache.Meta, error) {
+	return blobcache.Meta{}, nil
 }
-func (testBlobStore) Open(context.Context, string, string) (io.ReadCloser, bool, plugin.BlobMeta, error) {
-	return nil, false, plugin.BlobMeta{}, nil
+func (testBlobStore) Open(context.Context, string, string) (io.ReadCloser, bool, blobcache.Meta, error) {
+	return nil, false, blobcache.Meta{}, nil
 }
-func (testBlobStore) PutStream(context.Context, string, string, io.Reader, plugin.PutBlobOptions) (plugin.BlobMeta, error) {
-	return plugin.BlobMeta{}, nil
+func (testBlobStore) PutStream(context.Context, string, string, io.Reader, blobcache.PutOptions) (blobcache.Meta, error) {
+	return blobcache.Meta{}, nil
 }
-func (testBlobStore) Delete(context.Context, string, string) error              { return nil }
-func (testBlobStore) DeleteNamespace(context.Context, string) error             { return nil }
-func (testBlobStore) List(context.Context, string) ([]plugin.BlobObject, error) { return nil, nil }
+func (testBlobStore) Delete(context.Context, string, string) error             { return nil }
+func (testBlobStore) DeleteNamespace(context.Context, string) error            { return nil }
+func (testBlobStore) List(context.Context, string) ([]blobcache.Object, error) { return nil, nil }
 
 type testConfig struct {
 	Name    string
@@ -112,7 +113,7 @@ func TestRegisterAndGet(t *testing.T) {
 
 	RegisterFactory(func() plugin.Plugin { return &testPlugin{name: "test", desc: "A test plugin"} })
 
-	got, ok := New().Get("test")
+	got, ok := New().GetPlugin("test")
 	if !ok {
 		t.Fatal("expected to find plugin")
 	}
@@ -239,7 +240,7 @@ func TestGetNotFound(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
 
-	_, ok := New().Get("nonexistent")
+	_, ok := New().GetPlugin("nonexistent")
 	if ok {
 		t.Fatal("expected not found")
 	}
@@ -829,7 +830,7 @@ func TestConcurrentRegistryAccess(t *testing.T) {
 	for range 50 {
 		wg.Go(func() {
 			_ = New().All()
-			_, _ = New().Get("plugin-0")
+			_, _ = New().GetPlugin("plugin-0")
 			_ = ByCapabilityFrom[plugin.Plugin](New())
 		})
 	}

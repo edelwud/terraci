@@ -63,7 +63,7 @@ func validateRuntimeConfig(cfg *model.CostConfig) error {
 // resolveBlobCache resolves the underlying blob store and wraps it in a blobcache.Cache
 // configured with the plugin's namespace and TTL settings.
 func resolveBlobCache(ctx context.Context, appCtx *plugin.AppContext, cfg *model.CostConfig) (*blobcache.Cache, error) {
-	blobProvider, err := plugin.ResolveBlobStoreProvider(appCtx, cfg.BlobCacheBackend())
+	blobProvider, err := appCtx.Resolver().ResolveBlobStoreProvider(cfg.BlobCacheBackend())
 	if err != nil {
 		return nil, fmt.Errorf("resolve blob backend: %w", err)
 	}
@@ -72,11 +72,11 @@ func resolveBlobCache(ctx context.Context, appCtx *plugin.AppContext, cfg *model
 	if err != nil {
 		return nil, fmt.Errorf("create blob backend %q: %w", blobProvider.Name(), err)
 	}
-	if err := plugin.CheckBlobStore(ctx, blobStore); err != nil {
+	if err := blobcache.Check(ctx, blobStore); err != nil {
 		return nil, fmt.Errorf("check blob backend %q: %w", blobProvider.Name(), err)
 	}
 
-	info := plugin.DescribeBlobStore(blobStore, blobProvider.Name())
+	info := blobcache.Describe(blobStore, blobProvider.Name())
 	log.WithField("backend", info.Backend).
 		WithField("root", info.Root).
 		Debug("cost: resolved blob backend")

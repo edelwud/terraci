@@ -48,10 +48,10 @@ func (c *Config) Clone() *Config {
 		}
 		cloned.LibraryModules = &libraryModules
 	}
-	if c.Plugins != nil {
-		cloned.Plugins = make(map[string]yaml.Node, len(c.Plugins))
-		for key := range c.Plugins {
-			cloned.Plugins[key] = cloneYAMLNode(c.Plugins[key])
+	if c.Extensions != nil {
+		cloned.Extensions = make(map[string]yaml.Node, len(c.Extensions))
+		for key := range c.Extensions {
+			cloned.Extensions[key] = cloneYAMLNode(c.Extensions[key])
 		}
 	}
 

@@ -25,7 +25,7 @@ func TestAppBeginCommandReplacesPluginRegistryAndReusesContextPointer(t *testing
 	if secondCtx.IsFrozen() {
 		t.Fatal("BeginCommand should reopen AppContext for the next command")
 	}
-	if _, ok := secondCtx.Resolver().(*registry.Resolver); !ok {
-		t.Fatalf("AppContext resolver = %T, want *registry.Resolver", secondCtx.Resolver())
+	if _, ok := secondCtx.Resolver().(*registry.Registry); !ok {
+		t.Fatalf("AppContext resolver = %T, want *registry.Registry", secondCtx.Resolver())
 	}
 }

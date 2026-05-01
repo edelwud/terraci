@@ -7,7 +7,7 @@ import (
 )
 
 type CostConfig struct {
-	CacheDir      string              `yaml:"cache_dir,omitempty" json:"cache_dir,omitempty" jsonschema:"description=Deprecated and unsupported; use plugins.diskblob.root_dir instead"`
+	CacheDir      string              `yaml:"cache_dir,omitempty" json:"cache_dir,omitempty" jsonschema:"description=Deprecated and unsupported; use extensions.diskblob.root_dir instead"`
 	BlobCache     *BlobCacheConfig    `yaml:"blob_cache,omitempty" json:"blob_cache,omitempty" jsonschema:"description=Blob cache backend selection for pricing data"`
 	Providers     CostProvidersConfig `yaml:"providers" json:"providers"`
 	LegacyEnabled *bool               `yaml:"enabled,omitempty" json:"-"`
@@ -50,10 +50,10 @@ func (c *CostConfig) HasEnabledProviders() bool {
 // Validate checks if the CostConfig values are valid.
 func (c *CostConfig) Validate() error {
 	if c.LegacyEnabled != nil {
-		return errors.New("plugins.cost.enabled is no longer supported; use plugins.cost.providers.aws.enabled")
+		return errors.New("extensions.cost.enabled is no longer supported; use extensions.cost.providers.aws.enabled")
 	}
 	if c.CacheDir != "" {
-		return errors.New("plugins.cost.cache_dir is no longer supported; use plugins.diskblob.root_dir")
+		return errors.New("extensions.cost.cache_dir is no longer supported; use extensions.diskblob.root_dir")
 	}
 	if c.BlobCache != nil && c.BlobCache.TTL != "" {
 		if _, err := time.ParseDuration(c.BlobCache.TTL); err != nil {

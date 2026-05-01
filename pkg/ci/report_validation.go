@@ -12,11 +12,11 @@ func (r *Report) Validate() error {
 	if r == nil {
 		return errors.New("ci report is nil")
 	}
-	if strings.TrimSpace(r.Plugin) == "" {
-		return errors.New("ci report plugin is required")
+	if strings.TrimSpace(r.Producer) == "" {
+		return errors.New("ci report producer is required")
 	}
-	if strings.ContainsAny(r.Plugin, `/\`) {
-		return fmt.Errorf("ci report plugin %q is not a safe artifact name", r.Plugin)
+	if strings.ContainsAny(r.Producer, `/\`) {
+		return fmt.Errorf("ci report producer %q is not a safe artifact name", r.Producer)
 	}
 	if strings.TrimSpace(r.Title) == "" {
 		return errors.New("ci report title is required")

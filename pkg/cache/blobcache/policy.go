@@ -1,10 +1,6 @@
 package blobcache
 
-import (
-	"time"
-
-	"github.com/edelwud/terraci/pkg/plugin"
-)
+import "time"
 
 // Policy defines cache timing behavior over blob metadata.
 type Policy struct {
@@ -19,7 +15,7 @@ func (p Policy) normalized() Policy {
 	return p
 }
 
-func (p Policy) expiresIn(meta plugin.BlobMeta) time.Duration {
+func (p Policy) expiresIn(meta Meta) time.Duration {
 	p = p.normalized()
 
 	if meta.ExpiresAt != nil {
@@ -31,12 +27,12 @@ func (p Policy) expiresIn(meta plugin.BlobMeta) time.Duration {
 	return p.TTL - p.age(meta)
 }
 
-func (p Policy) age(meta plugin.BlobMeta) time.Duration {
+func (p Policy) age(meta Meta) time.Duration {
 	p = p.normalized()
 	return p.Clock.Now().Sub(meta.UpdatedAt)
 }
 
-func (p Policy) isExpired(meta plugin.BlobMeta) bool {
+func (p Policy) isExpired(meta Meta) bool {
 	p = p.normalized()
 
 	if meta.ExpiresAt != nil {

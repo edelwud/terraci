@@ -5,17 +5,17 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/cache/blobcache"
 )
 
 type blobCachingDownloader struct {
 	base      Downloader
-	store     plugin.BlobStore
+	store     blobcache.Store
 	namespace string
 }
 
 // NewBlobCachingDownloader wraps a downloader with blob-store backed artifact caching.
-func NewBlobCachingDownloader(base Downloader, store plugin.BlobStore, namespace string) Downloader {
+func NewBlobCachingDownloader(base Downloader, store blobcache.Store, namespace string) Downloader {
 	if base == nil {
 		base = NewHTTPDownloader()
 	}
@@ -46,7 +46,7 @@ func (d *blobCachingDownloader) DownloadCached(ctx context.Context, cacheKey, ur
 	if err != nil {
 		return fmt.Errorf("read downloaded artifact %s: %w", destPath, err)
 	}
-	if _, err := d.store.Put(ctx, d.namespace, cacheKey, payload, plugin.PutBlobOptions{
+	if _, err := d.store.Put(ctx, d.namespace, cacheKey, payload, blobcache.PutOptions{
 		ContentType: "application/zip",
 	}); err != nil {
 		return fmt.Errorf("cache provider artifact %q: %w", cacheKey, err)

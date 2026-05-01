@@ -114,8 +114,8 @@ func TestBuildUpdateReport_NoUpdates(t *testing.T) {
 	}
 
 	report := buildUpdateReport(result)
-	if report.Plugin != "tfupdate" {
-		t.Errorf("Plugin = %q, want %q", report.Plugin, "tfupdate")
+	if report.Producer != "tfupdate" {
+		t.Errorf("Plugin = %q, want %q", report.Producer, "tfupdate")
 	}
 	if report.Title != "Dependency Update Check" {
 		t.Errorf("Title = %q, want %q", report.Title, "Dependency Update Check")
@@ -359,8 +359,8 @@ terraform {
 		t.Fatal("saved result has empty summary")
 	}
 	report := loadUpdateReport(t, appCtx.ServiceDir())
-	if report.Plugin != "tfupdate" {
-		t.Fatalf("report.Plugin = %q, want update", report.Plugin)
+	if report.Producer != "tfupdate" {
+		t.Fatalf("report.Producer = %q, want update", report.Producer)
 	}
 }
 

@@ -53,7 +53,7 @@ func LoadPluginReport(t *testing.T, serviceDir, pluginName string) ci.Report {
 func NewAppContext(t *testing.T, workDir string) *plugin.AppContext {
 	t.Helper()
 
-	return NewAppContextWithResolver(t, workDir, registry.New().Resolver())
+	return NewAppContextWithResolver(t, workDir, registry.New())
 }
 
 func NewRegistry(t *testing.T, factories ...registry.Factory) *registry.Registry {

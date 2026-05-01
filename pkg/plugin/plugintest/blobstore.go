@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/cache/blobcache"
 )
 
 // BlobStoreFactory creates a store instance bound to the provided backing id.
 // Backends may interpret the backing id as a root directory, prefix, or another
 // stable locator that allows creating another instance over the same storage.
-type BlobStoreFactory func(tb testing.TB, backingID string) plugin.BlobStore
+type BlobStoreFactory func(tb testing.TB, backingID string) blobcache.Store
 
 // BlobStoreContractSuite configures the shared blob-store contract checks.
 type BlobStoreContractSuite struct {
@@ -89,7 +89,7 @@ func runBlobStorePutGet(t *testing.T, suite BlobStoreContractSuite, d blobStoreC
 	store := suite.Factory(t, t.TempDir())
 	expiresAt := time.Now().Add(time.Hour).UTC().Truncate(time.Second)
 
-	meta, err := store.Put(context.Background(), d.namespace, d.key, d.payload, plugin.PutBlobOptions{
+	meta, err := store.Put(context.Background(), d.namespace, d.key, d.payload, blobcache.PutOptions{
 		ContentType: "application/octet-stream",
 		ExpiresAt:   &expiresAt,
 		Metadata: map[string]string{
@@ -127,7 +127,7 @@ func runBlobStorePutGet(t *testing.T, suite BlobStoreContractSuite, d blobStoreC
 func runBlobStorePutStreamOpen(t *testing.T, suite BlobStoreContractSuite, d blobStoreContractDefaults) {
 	t.Helper()
 	store := suite.Factory(t, t.TempDir())
-	if _, err := store.PutStream(context.Background(), d.namespace, d.key, bytes.NewBufferString(d.streamData), plugin.PutBlobOptions{}); err != nil {
+	if _, err := store.PutStream(context.Background(), d.namespace, d.key, bytes.NewBufferString(d.streamData), blobcache.PutOptions{}); err != nil {
 		t.Fatalf("PutStream() error = %v", err)
 	}
 
@@ -155,10 +155,10 @@ func runBlobStorePutStreamOpen(t *testing.T, suite BlobStoreContractSuite, d blo
 func runBlobStoreNamespaceIsolation(t *testing.T, suite BlobStoreContractSuite, d blobStoreContractDefaults) {
 	t.Helper()
 	store := suite.Factory(t, t.TempDir())
-	if _, err := store.Put(context.Background(), d.namespace, d.key, d.payload, plugin.PutBlobOptions{}); err != nil {
+	if _, err := store.Put(context.Background(), d.namespace, d.key, d.payload, blobcache.PutOptions{}); err != nil {
 		t.Fatalf("Put(primary) error = %v", err)
 	}
-	if _, err := store.Put(context.Background(), d.altNamespace, d.altKey, []byte("other"), plugin.PutBlobOptions{}); err != nil {
+	if _, err := store.Put(context.Background(), d.altNamespace, d.altKey, []byte("other"), blobcache.PutOptions{}); err != nil {
 		t.Fatalf("Put(alt) error = %v", err)
 	}
 
@@ -174,7 +174,7 @@ func runBlobStoreNamespaceIsolation(t *testing.T, suite BlobStoreContractSuite, 
 func runBlobStoreDelete(t *testing.T, suite BlobStoreContractSuite, d blobStoreContractDefaults) {
 	t.Helper()
 	store := suite.Factory(t, t.TempDir())
-	if _, err := store.Put(context.Background(), d.namespace, d.key, d.payload, plugin.PutBlobOptions{}); err != nil {
+	if _, err := store.Put(context.Background(), d.namespace, d.key, d.payload, blobcache.PutOptions{}); err != nil {
 		t.Fatalf("Put() error = %v", err)
 	}
 	if err := store.Delete(context.Background(), d.namespace, d.key); err != nil {
@@ -193,10 +193,10 @@ func runBlobStoreDelete(t *testing.T, suite BlobStoreContractSuite, d blobStoreC
 func runBlobStoreDeleteNamespace(t *testing.T, suite BlobStoreContractSuite, d blobStoreContractDefaults) {
 	t.Helper()
 	store := suite.Factory(t, t.TempDir())
-	if _, err := store.Put(context.Background(), d.namespace, d.key, d.payload, plugin.PutBlobOptions{}); err != nil {
+	if _, err := store.Put(context.Background(), d.namespace, d.key, d.payload, blobcache.PutOptions{}); err != nil {
 		t.Fatalf("Put(primary) error = %v", err)
 	}
-	if _, err := store.Put(context.Background(), d.namespace, d.altKey, []byte("other"), plugin.PutBlobOptions{}); err != nil {
+	if _, err := store.Put(context.Background(), d.namespace, d.altKey, []byte("other"), blobcache.PutOptions{}); err != nil {
 		t.Fatalf("Put(secondary) error = %v", err)
 	}
 
@@ -217,7 +217,7 @@ func runBlobStorePersistence(t *testing.T, suite BlobStoreContractSuite, d blobS
 	t.Helper()
 	backingID := t.TempDir()
 	first := suite.Factory(t, backingID)
-	if _, err := first.Put(context.Background(), d.namespace, d.key, d.payload, plugin.PutBlobOptions{}); err != nil {
+	if _, err := first.Put(context.Background(), d.namespace, d.key, d.payload, blobcache.PutOptions{}); err != nil {
 		t.Fatalf("Put() error = %v", err)
 	}
 

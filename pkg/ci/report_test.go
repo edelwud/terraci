@@ -12,10 +12,10 @@ import (
 func TestSaveReport(t *testing.T) {
 	dir := t.TempDir()
 	report := &Report{
-		Plugin:  "test",
-		Title:   "Test Report",
-		Status:  ReportStatusPass,
-		Summary: "all good",
+		Producer: "test",
+		Title:    "Test Report",
+		Status:   ReportStatusPass,
+		Summary:  "all good",
 		Sections: []ReportSection{{
 			Kind:           ReportSectionKindOverview,
 			Title:          "Summary",
@@ -42,8 +42,8 @@ func TestSaveReport(t *testing.T) {
 		t.Fatalf("unmarshal: %v", err)
 	}
 
-	if loaded.Plugin != "test" {
-		t.Errorf("plugin = %q, want test", loaded.Plugin)
+	if loaded.Producer != "test" {
+		t.Errorf("producer = %q, want test", loaded.Producer)
 	}
 	if loaded.Status != ReportStatusPass {
 		t.Errorf("status = %q, want pass", loaded.Status)
@@ -98,12 +98,12 @@ func TestSaveJSON_CreatesDirectory(t *testing.T) {
 func TestSaveReport_SectionsField(t *testing.T) {
 	dir := t.TempDir()
 	report := &Report{
-		Plugin: "report_a",
-		Title:  "Plugin Report",
-		Status: ReportStatusWarn,
+		Producer: "report_a",
+		Title:    "Section Report",
+		Status:   ReportStatusWarn,
 		Sections: []ReportSection{{
-			Kind:           "plugin_section",
-			Title:          "Plugin Section",
+			Kind:           "sample_section",
+			Title:          "Sample Section",
 			Status:         ReportStatusWarn,
 			SectionSummary: "1 module",
 			Payload:        json.RawMessage(`{"rows":[{"module_path":"svc/prod/eu/vpc"}]}`),
@@ -149,10 +149,10 @@ func TestSaveReport_RejectsInvalidReport(t *testing.T) {
 		wantErr string
 	}{
 		{name: "nil report", report: nil, wantErr: "ci report is nil"},
-		{name: "missing plugin", report: &Report{Title: "Missing Plugin", Status: ReportStatusPass}, wantErr: "plugin is required"},
-		{name: "unsafe plugin name", report: &Report{Plugin: "../report_a", Title: "Cost", Status: ReportStatusPass}, wantErr: "not a safe artifact name"},
-		{name: "missing title", report: &Report{Plugin: "report_a", Status: ReportStatusPass}, wantErr: "title is required"},
-		{name: "invalid status", report: &Report{Plugin: "report_a", Title: "Cost", Status: "unknown"}, wantErr: `status "unknown" is invalid`},
+		{name: "missing producer", report: &Report{Title: "Missing Producer", Status: ReportStatusPass}, wantErr: "producer is required"},
+		{name: "unsafe producer name", report: &Report{Producer: "../report_a", Title: "Cost", Status: ReportStatusPass}, wantErr: "not a safe artifact name"},
+		{name: "missing title", report: &Report{Producer: "report_a", Status: ReportStatusPass}, wantErr: "title is required"},
+		{name: "invalid status", report: &Report{Producer: "report_a", Title: "Cost", Status: "unknown"}, wantErr: `status "unknown" is invalid`},
 	}
 
 	for _, tt := range tests {
@@ -179,10 +179,10 @@ func TestReportFilename(t *testing.T) {
 func TestLoadReport(t *testing.T) {
 	dir := t.TempDir()
 	report := &Report{
-		Plugin:  "report_b",
-		Title:   "Report B",
-		Status:  ReportStatusWarn,
-		Summary: "warned",
+		Producer: "report_b",
+		Title:    "Report B",
+		Status:   ReportStatusWarn,
+		Summary:  "warned",
 	}
 
 	if err := SaveReport(dir, report); err != nil {
@@ -194,8 +194,8 @@ func TestLoadReport(t *testing.T) {
 		t.Fatalf("LoadReport: %v", err)
 	}
 
-	if loaded.Plugin != "report_b" {
-		t.Fatalf("plugin = %q, want report_b", loaded.Plugin)
+	if loaded.Producer != "report_b" {
+		t.Fatalf("producer = %q, want report_b", loaded.Producer)
 	}
 	if loaded.Status != ReportStatusWarn {
 		t.Fatalf("status = %q, want warn", loaded.Status)
@@ -205,13 +205,13 @@ func TestLoadReport(t *testing.T) {
 func TestLoadReports(t *testing.T) {
 	dir := t.TempDir()
 	reports := []*Report{
-		{Plugin: "report_c", Title: "Update", Status: ReportStatusPass},
-		{Plugin: "report_a", Title: "Cost", Status: ReportStatusWarn},
+		{Producer: "report_c", Title: "Update", Status: ReportStatusPass},
+		{Producer: "report_a", Title: "Cost", Status: ReportStatusWarn},
 	}
 
 	for _, report := range reports {
 		if err := SaveReport(dir, report); err != nil {
-			t.Fatalf("SaveReport(%s): %v", report.Plugin, err)
+			t.Fatalf("SaveReport(%s): %v", report.Producer, err)
 		}
 	}
 
@@ -223,8 +223,8 @@ func TestLoadReports(t *testing.T) {
 	if len(loaded) != 2 {
 		t.Fatalf("loaded report count = %d, want 2", len(loaded))
 	}
-	if loaded[0].Plugin != "report_a" || loaded[1].Plugin != "report_c" {
-		t.Fatalf("loaded report order = [%s %s], want [report_a report_c]", loaded[0].Plugin, loaded[1].Plugin)
+	if loaded[0].Producer != "report_a" || loaded[1].Producer != "report_c" {
+		t.Fatalf("loaded report order = [%s %s], want [report_a report_c]", loaded[0].Producer, loaded[1].Producer)
 	}
 }
 
@@ -232,7 +232,7 @@ func TestLoadReport_UnknownSectionKindFails(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, ReportFilename("broken"))
 	content := `{
-  "plugin": "broken",
+  "producer": "broken",
   "title": "Broken",
   "status": "warn",
   "summary": "bad",
@@ -257,7 +257,7 @@ func TestLoadReport_InvalidRootFails(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, ReportFilename("broken"))
 	content := `{
-  "plugin": "broken",
+  "producer": "broken",
   "title": "Broken",
   "status": "mystery"
 }`
@@ -273,12 +273,11 @@ func TestLoadReport_InvalidRootFails(t *testing.T) {
 func TestSaveReport_PreservesProvenance(t *testing.T) {
 	dir := t.TempDir()
 	report := &Report{
-		Plugin:  "report_c",
-		Title:   "Terraform Plan Summary",
-		Status:  ReportStatusWarn,
-		Summary: "report_c",
+		Producer: "report_c",
+		Title:    "Terraform Plan Summary",
+		Status:   ReportStatusWarn,
+		Summary:  "report_c",
 		Provenance: &ReportProvenance{
-			Producer:               "report_c",
 			GeneratedAt:            time.Date(2026, 4, 23, 10, 0, 0, 0, time.UTC),
 			CommitSHA:              "abcdef1234567890",
 			PipelineID:             "123",
@@ -297,8 +296,8 @@ func TestSaveReport_PreservesProvenance(t *testing.T) {
 	if loaded.Provenance == nil {
 		t.Fatal("Provenance = nil, want value")
 	}
-	if loaded.Provenance.Producer != "report_c" {
-		t.Fatalf("Producer = %q, want report_c", loaded.Provenance.Producer)
+	if loaded.Producer != "report_c" {
+		t.Fatalf("Producer = %q, want report_c", loaded.Producer)
 	}
 	if loaded.Provenance.PlanResultsFingerprint != "fingerprint" {
 		t.Fatalf("PlanResultsFingerprint = %q, want fingerprint", loaded.Provenance.PlanResultsFingerprint)

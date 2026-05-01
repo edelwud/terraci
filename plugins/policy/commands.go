@@ -27,7 +27,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 				return err
 			}
 			if !current.IsEnabled() {
-				return errors.New("policy checks are not enabled (set plugins.policy.enabled: true)")
+				return errors.New("policy checks are not enabled (set extensions.policy.enabled: true)")
 			}
 
 			log.Info("pulling policies from configured sources")
@@ -46,7 +46,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 				return err
 			}
 			if !current.IsEnabled() {
-				return errors.New("policy checks are not enabled (set plugins.policy.enabled: true)")
+				return errors.New("policy checks are not enabled (set extensions.policy.enabled: true)")
 			}
 
 			log.Info("running policy checks")
