@@ -1,7 +1,9 @@
-package pipeline
+package cishell
 
 import (
 	"testing"
+
+	"github.com/edelwud/terraci/pkg/pipeline"
 )
 
 func TestScriptConfig_PlanScript(t *testing.T) {
@@ -11,7 +13,7 @@ func TestScriptConfig_PlanScript(t *testing.T) {
 
 	tests := []struct {
 		name              string
-		config            ScriptConfig
+		config            pipeline.ScriptConfig
 		wantInitCmd       bool
 		wantDetailedCmds  bool
 		wantSimplePlan    bool
@@ -19,7 +21,7 @@ func TestScriptConfig_PlanScript(t *testing.T) {
 	}{
 		{
 			name: "InitEnabled adds init command",
-			config: ScriptConfig{
+			config: pipeline.ScriptConfig{
 				InitEnabled:  true,
 				DetailedPlan: false,
 			},
@@ -29,7 +31,7 @@ func TestScriptConfig_PlanScript(t *testing.T) {
 		},
 		{
 			name: "InitEnabled false skips init",
-			config: ScriptConfig{
+			config: pipeline.ScriptConfig{
 				InitEnabled:  false,
 				DetailedPlan: false,
 			},
@@ -39,7 +41,7 @@ func TestScriptConfig_PlanScript(t *testing.T) {
 		},
 		{
 			name: "DetailedPlan adds tee show json commands",
-			config: ScriptConfig{
+			config: pipeline.ScriptConfig{
 				InitEnabled:  false,
 				DetailedPlan: true,
 			},
@@ -49,7 +51,7 @@ func TestScriptConfig_PlanScript(t *testing.T) {
 		},
 		{
 			name: "DetailedPlan with init",
-			config: ScriptConfig{
+			config: pipeline.ScriptConfig{
 				InitEnabled:  true,
 				DetailedPlan: true,
 			},
@@ -64,7 +66,7 @@ func TestScriptConfig_PlanScript(t *testing.T) {
 			t.Parallel()
 
 			op, artifacts := tt.config.NewPlanOperation(modulePath)
-			script := RenderOperationScript(op)
+			script := RenderOperation(op)
 
 			// First command is always cd
 			if script[0] != "cd "+modulePath {
@@ -131,13 +133,13 @@ func TestScriptConfig_ApplyScript(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		config       ScriptConfig
+		config       pipeline.ScriptConfig
 		wantInitCmd  bool
 		wantApplyCmd string
 	}{
 		{
 			name: "PlanEnabled applies plan.tfplan",
-			config: ScriptConfig{
+			config: pipeline.ScriptConfig{
 				PlanEnabled: true,
 				AutoApprove: false,
 				InitEnabled: false,
@@ -147,7 +149,7 @@ func TestScriptConfig_ApplyScript(t *testing.T) {
 		},
 		{
 			name: "AutoApprove without plan uses -auto-approve",
-			config: ScriptConfig{
+			config: pipeline.ScriptConfig{
 				PlanEnabled: false,
 				AutoApprove: true,
 				InitEnabled: false,
@@ -157,7 +159,7 @@ func TestScriptConfig_ApplyScript(t *testing.T) {
 		},
 		{
 			name: "default is plain apply",
-			config: ScriptConfig{
+			config: pipeline.ScriptConfig{
 				PlanEnabled: false,
 				AutoApprove: false,
 				InitEnabled: false,
@@ -167,7 +169,7 @@ func TestScriptConfig_ApplyScript(t *testing.T) {
 		},
 		{
 			name: "InitEnabled adds init command",
-			config: ScriptConfig{
+			config: pipeline.ScriptConfig{
 				PlanEnabled: true,
 				InitEnabled: true,
 			},
@@ -176,7 +178,7 @@ func TestScriptConfig_ApplyScript(t *testing.T) {
 		},
 		{
 			name: "PlanEnabled takes priority over AutoApprove",
-			config: ScriptConfig{
+			config: pipeline.ScriptConfig{
 				PlanEnabled: true,
 				AutoApprove: true,
 				InitEnabled: false,
@@ -190,7 +192,7 @@ func TestScriptConfig_ApplyScript(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			script := RenderOperationScript(tt.config.NewApplyOperation(modulePath))
+			script := RenderOperation(tt.config.NewApplyOperation(modulePath))
 
 			// First command is always cd
 			if script[0] != "cd "+modulePath {

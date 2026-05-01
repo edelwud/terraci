@@ -8,6 +8,7 @@ import (
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/filter"
+	"github.com/edelwud/terraci/pkg/plugin"
 )
 
 // TargetSelectionOptions controls how executable targets are selected from a workflow result.
@@ -23,11 +24,10 @@ type TargetSelectionOptions struct {
 // ChangeDetectorResolver resolves the change detection provider for changed-only target selection.
 type ChangeDetectorResolver func() (ChangeDetector, error)
 
-// ChangeDetector detects changed modules and library paths for target selection.
-type ChangeDetector interface {
-	DetectChangedModules(ctx context.Context, workDir, baseRef string, moduleIndex *discovery.ModuleIndex) (changed []*discovery.Module, changedFiles []string, err error)
-	DetectChangedLibraries(ctx context.Context, workDir, baseRef string, libraryPaths []string) ([]string, error)
-}
+// ChangeDetector aliases plugin.ChangeDetectionProvider so target selection
+// accepts any plugin implementing the change-detection capability without
+// re-declaring the interface here.
+type ChangeDetector = plugin.ChangeDetectionProvider
 
 // ResolveTargets applies module/path filters and optional change detection to a workflow result.
 func ResolveTargets(ctx context.Context, workDir string, cfg *config.Config, result *Result, opts TargetSelectionOptions) ([]*discovery.Module, error) {

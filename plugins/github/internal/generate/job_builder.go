@@ -6,6 +6,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/pipeline"
+	"github.com/edelwud/terraci/pkg/pipeline/cishell"
 	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
 	domainpkg "github.com/edelwud/terraci/plugins/github/internal/domain"
 )
@@ -21,7 +22,7 @@ func newJobBuilder(settings settings) jobBuilder {
 }
 
 func (b jobBuilder) planJob(irJob *pipeline.Job, module *discovery.Module) *domainpkg.Job {
-	runScript := strings.Join(pipeline.RenderOperationScript(irJob.Operation), "\n")
+	runScript := strings.Join(cishell.RenderOperation(irJob.Operation), "\n")
 	steps := make([]domainpkg.Step, 0, stepsInitialCap)
 	steps = append(steps, checkoutStep())
 	steps = append(steps, b.settings.stepsBefore(configpkg.OverwriteTypePlan)...)
@@ -49,7 +50,7 @@ func (b jobBuilder) planJob(irJob *pipeline.Job, module *discovery.Module) *doma
 }
 
 func (b jobBuilder) applyJob(irJob *pipeline.Job, module *discovery.Module) *domainpkg.Job {
-	runScript := strings.Join(pipeline.RenderOperationScript(irJob.Operation), "\n")
+	runScript := strings.Join(cishell.RenderOperation(irJob.Operation), "\n")
 	steps := []domainpkg.Step{checkoutStep()}
 	if b.settings.planEnabled() {
 		steps = append(steps, downloadArtifactStep("Download plan artifacts", pipeline.JobName("plan", module)))
@@ -80,10 +81,10 @@ func (b jobBuilder) applyJob(irJob *pipeline.Job, module *discovery.Module) *dom
 }
 
 func (b jobBuilder) contributedJob(irJob *pipeline.Job) *domainpkg.Job {
-	scriptLines := pipeline.RenderOperationScript(irJob.Operation)
+	scriptLines := cishell.RenderOperation(irJob.Operation)
 	if irJob.AllowFailure {
 		scriptLines = nil
-		for _, command := range pipeline.RenderOperationScript(irJob.Operation) {
+		for _, command := range cishell.RenderOperation(irJob.Operation) {
 			scriptLines = append(scriptLines, command+" || true")
 		}
 	}
