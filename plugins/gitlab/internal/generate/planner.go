@@ -15,36 +15,51 @@ type contributionIndex struct {
 }
 
 func newContributionIndex(contributions []*pipeline.Contribution) contributionIndex {
-	index := contributionIndex{
-		stageByJob: make(map[string]string),
-	}
-
-	seenStages := make(map[string]bool)
+	index := contributionIndex{stageByJob: make(map[string]string)}
+	seen := make(map[string]bool)
 	for _, contribution := range contributions {
 		for _, job := range contribution.Jobs {
-			index.hasJobs = true
-			stage := job.Phase.String()
-			index.stageByJob[job.Name] = stage
-			if seenStages[stage] {
-				continue
-			}
-			seenStages[stage] = true
-			if job.Phase == pipeline.PhaseFinalize {
-				index.finalizeStages = append(index.finalizeStages, stage)
-				continue
-			}
-			index.nonFinalizeStages = append(index.nonFinalizeStages, stage)
+			index.recordJob(seen, job.Name, job.Phase)
 		}
 	}
-
 	return index
 }
 
-func (i contributionIndex) stageFor(jobName string) string {
+// newContributionIndexFromIR derives the contribution index from a built IR.
+// The IR's Jobs slice carries every contributed job already.
+func newContributionIndexFromIR(ir *pipeline.IR) contributionIndex {
+	index := contributionIndex{stageByJob: make(map[string]string)}
+	if ir == nil {
+		return index
+	}
+	seen := make(map[string]bool)
+	for i := range ir.Jobs {
+		job := &ir.Jobs[i]
+		index.recordJob(seen, job.Name, job.Phase)
+	}
+	return index
+}
+
+func (i *contributionIndex) recordJob(seen map[string]bool, name string, phase pipeline.Phase) {
+	i.hasJobs = true
+	stage := phase.String()
+	i.stageByJob[name] = stage
+	if seen[stage] {
+		return
+	}
+	seen[stage] = true
+	if phase == pipeline.PhaseFinalize {
+		i.finalizeStages = append(i.finalizeStages, stage)
+		return
+	}
+	i.nonFinalizeStages = append(i.nonFinalizeStages, stage)
+}
+
+func (i *contributionIndex) stageFor(jobName string) string {
 	return i.stageByJob[jobName]
 }
 
-func (i contributionIndex) hasContributedJobs() bool {
+func (i *contributionIndex) hasContributedJobs() bool {
 	return i.hasJobs
 }
 

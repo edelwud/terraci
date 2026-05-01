@@ -37,12 +37,12 @@ func createTestConfig() *testCfg {
 
 func TestNewGenerator(t *testing.T) {
 	cfg := createTestConfig()
-	modules := []*discovery.Module{
-		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
-	}
+	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
+	modules := []*discovery.Module{module}
 	depGraph := graph.NewDependencyGraph()
+	depGraph.AddNode(module)
 
-	gen := NewGenerator(cfg.GitLab, cfg.Execution, cfg.Contributions, depGraph, modules)
+	gen := newTestGenerator(t, cfg.GitLab, cfg.Execution, cfg.Contributions, depGraph, modules)
 
 	if gen == nil {
 		t.Fatal("NewGenerator returned nil")
@@ -50,8 +50,8 @@ func TestNewGenerator(t *testing.T) {
 	if gen.settings.config != cfg.GitLab {
 		t.Error("config not set correctly")
 	}
-	if len(gen.modules) != 1 {
-		t.Errorf("expected 1 module, got %d", len(gen.modules))
+	if gen.ir == nil || len(gen.ir.Levels) != 1 || len(gen.ir.Levels[0].Modules) != 1 {
+		t.Errorf("expected 1 module in IR, got ir=%v", gen.ir)
 	}
 }
 

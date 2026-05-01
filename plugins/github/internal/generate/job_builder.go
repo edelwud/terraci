@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/edelwud/terraci/pkg/discovery"
-	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
 	domainpkg "github.com/edelwud/terraci/plugins/github/internal/domain"
@@ -14,19 +13,11 @@ import (
 const stepsInitialCap = 8
 
 type jobBuilder struct {
-	settings    settings
-	targetSet   map[string]bool
-	depGraph    *graph.DependencyGraph
-	moduleIndex *discovery.ModuleIndex
+	settings settings
 }
 
-func newJobBuilder(settings settings, targetSet map[string]bool, depGraph *graph.DependencyGraph, moduleIndex *discovery.ModuleIndex) jobBuilder {
-	return jobBuilder{
-		settings:    settings,
-		targetSet:   targetSet,
-		depGraph:    depGraph,
-		moduleIndex: moduleIndex,
-	}
+func newJobBuilder(settings settings) jobBuilder {
+	return jobBuilder{settings: settings}
 }
 
 func (b jobBuilder) planJob(irJob *pipeline.Job, module *discovery.Module) *domainpkg.Job {
@@ -53,12 +44,7 @@ func (b jobBuilder) planJob(irJob *pipeline.Job, module *discovery.Module) *doma
 		job.Container = container
 	}
 
-	if b.settings.planOnly() {
-		job.Needs = pipeline.ResolveDependencyNames(module, "plan", b.targetSet, b.depGraph, b.moduleIndex)
-	} else {
-		job.Needs = pipeline.ResolveDependencyNames(module, "apply", b.targetSet, b.depGraph, b.moduleIndex)
-	}
-
+	job.Needs = irJob.Dependencies
 	return job
 }
 

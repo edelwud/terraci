@@ -93,8 +93,15 @@ func LoadFixture(t *testing.T, name string) *Fixture {
 	// Build dependency graph
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	// Create generator (no contributions in test fixtures)
-	generator := NewGenerator(glCfg, execCfg, nil, depGraph, modules)
+	// Create generator (no contributions in test fixtures). Cyclic fixtures
+	// fail at IR construction; tests that load such fixtures inspect the
+	// dep graph directly and never call Generate, so we leave the generator
+	// nil rather than aborting.
+	ir, _ := BuildPipelineIR(glCfg, execCfg, nil, depGraph, modules, nil)
+	var generator *Generator
+	if ir != nil {
+		generator = NewGenerator(glCfg, execCfg, ir)
+	}
 
 	return &Fixture{
 		Name:        name,

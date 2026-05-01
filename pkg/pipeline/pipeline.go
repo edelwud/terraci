@@ -1,8 +1,6 @@
 package pipeline
 
-import "github.com/edelwud/terraci/pkg/discovery"
-
-// DryRunResult returns a summary of what would be generated
+// DryRunResult returns a summary of what would be generated.
 type DryRunResult struct {
 	TotalModules    int
 	AffectedModules int
@@ -11,13 +9,15 @@ type DryRunResult struct {
 	ExecutionOrder  [][]string
 }
 
-// GeneratedPipeline represents a generated CI pipeline
+// GeneratedPipeline represents a generated CI pipeline.
 type GeneratedPipeline interface {
 	ToYAML() ([]byte, error)
 }
 
-// Generator defines the interface for CI pipeline generators.
+// Generator transforms a pipeline IR into a provider-specific pipeline. The
+// IR is bound at construction time; callers do not pass modules to Generate
+// or DryRun because the IR already encodes the canonical execution plan.
 type Generator interface {
-	Generate(targetModules []*discovery.Module) (GeneratedPipeline, error)
-	DryRun(targetModules []*discovery.Module) (*DryRunResult, error)
+	Generate() (GeneratedPipeline, error)
+	DryRun() (*DryRunResult, error)
 }

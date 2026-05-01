@@ -1,76 +1,49 @@
 package generate
 
 import (
-	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/execution"
-	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
 	domainpkg "github.com/edelwud/terraci/plugins/github/internal/domain"
 )
 
+// Generator transforms a pipeline IR into GitHub Actions workflow YAML.
+// The IR is bound at construction time.
 type Generator struct {
-	settings      settings
-	contributions []*pipeline.Contribution
-	depGraph      *graph.DependencyGraph
-	modules       []*discovery.Module
-	moduleIndex   *discovery.ModuleIndex
+	settings settings
+	ir       *pipeline.IR
 }
 
-func NewGenerator(cfg *configpkg.Config, execCfg execution.Config, contributions []*pipeline.Contribution, depGraph *graph.DependencyGraph, modules []*discovery.Module) *Generator {
+// NewGenerator creates a new GitHub Actions pipeline generator bound to the
+// supplied IR.
+func NewGenerator(cfg *configpkg.Config, execCfg execution.Config, ir *pipeline.IR) *Generator {
 	return &Generator{
-		settings:      newSettings(cfg, execCfg),
-		contributions: contributions,
-		depGraph:      depGraph,
-		modules:       modules,
-		moduleIndex:   discovery.NewModuleIndex(modules),
+		settings: newSettings(cfg, execCfg),
+		ir:       ir,
 	}
 }
 
-func (g *Generator) Generate(targetModules []*discovery.Module) (pipeline.GeneratedPipeline, error) {
-	ir, err := g.buildIR(targetModules)
-	if err != nil {
-		return nil, err
+func (g *Generator) Generate() (pipeline.GeneratedPipeline, error) {
+	if g.ir == nil {
+		return &domainpkg.Workflow{Jobs: map[string]*domainpkg.Job{}}, nil
 	}
-
-	return g.transform(ir, targetModules), nil
+	return g.transform(g.ir), nil
 }
 
-func (g *Generator) DryRun(targetModules []*discovery.Module) (*pipeline.DryRunResult, error) {
-	ir, err := g.buildIR(targetModules)
-	if err != nil {
-		return nil, err
+func (g *Generator) DryRun() (*pipeline.DryRunResult, error) {
+	if g.ir == nil {
+		return &pipeline.DryRunResult{}, nil
 	}
-
-	return ir.DryRun(len(g.modules)), nil
+	return g.ir.DryRun(countModules(g.ir)), nil
 }
 
 func (g *Generator) IsPREnabled() bool {
 	return g.settings.prEnabled()
 }
 
-func (g *Generator) buildIR(targetModules []*discovery.Module) (*pipeline.IR, error) {
-	return pipeline.Build(pipeline.BuildOptions{
-		DepGraph:      g.depGraph,
-		TargetModules: targetModules,
-		AllModules:    g.modules,
-		ModuleIndex:   g.moduleIndex,
-		Script: pipeline.ScriptConfig{
-			InitEnabled:  g.settings.initEnabled(),
-			PlanEnabled:  g.settings.planEnabled(),
-			AutoApprove:  g.settings.autoApprove(),
-			DetailedPlan: g.settings.prEnabled(),
-		},
-		Contributions: g.contributions,
-		PlanEnabled:   g.settings.planEnabled(),
-		PlanOnly:      g.settings.planOnly(),
-	})
-}
-
-func (g *Generator) transform(ir *pipeline.IR, targetModules []*discovery.Module) *domainpkg.Workflow {
+func (g *Generator) transform(ir *pipeline.IR) *domainpkg.Workflow {
 	workflow := newWorkflowBuilder(g.settings).baseWorkflow()
-	targetSet := g.buildTargetSet(targetModules)
-	builder := newJobBuilder(g.settings, targetSet, g.depGraph, g.moduleIndex)
+	builder := newJobBuilder(g.settings)
 
 	for _, level := range ir.Levels {
 		for _, moduleJobs := range level.Modules {
@@ -91,14 +64,13 @@ func (g *Generator) transform(ir *pipeline.IR, targetModules []*discovery.Module
 	return workflow
 }
 
-func (g *Generator) buildTargetSet(targetModules []*discovery.Module) map[string]bool {
-	if len(targetModules) == 0 {
-		targetModules = g.modules
+func countModules(ir *pipeline.IR) int {
+	if ir == nil {
+		return 0
 	}
-
-	targetSet := make(map[string]bool, len(targetModules))
-	for _, module := range targetModules {
-		targetSet[module.ID()] = true
+	count := 0
+	for _, level := range ir.Levels {
+		count += len(level.Modules)
 	}
-	return targetSet
+	return count
 }

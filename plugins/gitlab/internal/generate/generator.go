@@ -1,9 +1,7 @@
 package generate
 
 import (
-	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/execution"
-	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
 	"github.com/edelwud/terraci/plugins/gitlab/internal/domain"
@@ -14,22 +12,21 @@ const (
 	WhenManual          = "manual"
 )
 
-// Generator transforms TerraCi IR into GitLab CI domain models.
+// Generator transforms TerraCi IR into GitLab CI domain models. The IR is
+// bound at construction time — the IR carries every module + contribution
+// the pipeline should render.
 type Generator struct {
 	settings          settings
 	stagePlanner      stagePlanner
 	jobBuilder        jobBuilder
 	contributionIndex contributionIndex
-	contributions     []*pipeline.Contribution
-	depGraph          *graph.DependencyGraph
-	modules           []*discovery.Module
-	moduleIndex       *discovery.ModuleIndex
+	ir                *pipeline.IR
 }
 
-// NewGenerator creates a new pipeline generator.
-func NewGenerator(cfg *configpkg.Config, execCfg execution.Config, contributions []*pipeline.Contribution, depGraph *graph.DependencyGraph, modules []*discovery.Module) *Generator {
+// NewGenerator creates a new GitLab pipeline generator bound to the supplied IR.
+func NewGenerator(cfg *configpkg.Config, execCfg execution.Config, ir *pipeline.IR) *Generator {
 	cfgSettings := newSettings(cfg, execCfg)
-	index := newContributionIndex(contributions)
+	index := newContributionIndexFromIR(ir)
 	return &Generator{
 		settings:     cfgSettings,
 		stagePlanner: newStagePlanner(cfgSettings, index),
@@ -37,39 +34,26 @@ func NewGenerator(cfg *configpkg.Config, execCfg execution.Config, contributions
 			applyResolvedJobConfig(cfgSettings, job, jobType)
 		}),
 		contributionIndex: index,
-		contributions:     contributions,
-		depGraph:          depGraph,
-		modules:           modules,
-		moduleIndex:       discovery.NewModuleIndex(modules),
+		ir:                ir,
 	}
 }
 
-// Generate creates a GitLab CI pipeline for the given modules.
-func (g *Generator) Generate(targetModules []*discovery.Module) (pipeline.GeneratedPipeline, error) {
-	ir, err := g.buildIR(targetModules)
-	if err != nil {
-		return nil, err
+// Generate creates a GitLab CI pipeline from the bound IR.
+func (g *Generator) Generate() (pipeline.GeneratedPipeline, error) {
+	if g.ir == nil {
+		return &domain.Pipeline{Jobs: map[string]*domain.Job{}}, nil
 	}
-
-	return g.transform(ir), nil
+	return g.transform(g.ir), nil
 }
 
-func (g *Generator) buildIR(targetModules []*discovery.Module) (*pipeline.IR, error) {
-	return pipeline.Build(pipeline.BuildOptions{
-		DepGraph:      g.depGraph,
-		TargetModules: targetModules,
-		AllModules:    g.modules,
-		ModuleIndex:   g.moduleIndex,
-		Script: pipeline.ScriptConfig{
-			InitEnabled:  g.settings.initEnabled(),
-			DetailedPlan: g.IsMREnabled(),
-			PlanEnabled:  g.settings.planEnabled(),
-			AutoApprove:  g.settings.autoApprove(),
-		},
-		Contributions: g.contributions,
-		PlanEnabled:   g.settings.planEnabled(),
-		PlanOnly:      g.settings.planOnly(),
-	})
+// DryRun returns a summary of the bound IR without rendering YAML.
+func (g *Generator) DryRun() (*pipeline.DryRunResult, error) {
+	if g.ir == nil {
+		return &pipeline.DryRunResult{}, nil
+	}
+	result := g.ir.DryRun(countModules(g.ir))
+	result.Stages = len(g.stagePlanner.stages(g.ir))
+	return result, nil
 }
 
 func (g *Generator) transform(ir *pipeline.IR) *domain.Pipeline {
@@ -114,17 +98,6 @@ func (g *Generator) transform(ir *pipeline.IR) *domain.Pipeline {
 	return result
 }
 
-func (g *Generator) DryRun(targetModules []*discovery.Module) (*pipeline.DryRunResult, error) {
-	ir, err := g.buildIR(targetModules)
-	if err != nil {
-		return nil, err
-	}
-
-	result := ir.DryRun(len(g.modules))
-	result.Stages = len(g.stagePlanner.stages(ir))
-	return result, nil
-}
-
 // IsMREnabled returns true if MR integration is enabled in config.
 func (g *Generator) IsMREnabled() bool {
 	return g.settings.mrCommentEnabled()
@@ -132,4 +105,15 @@ func (g *Generator) IsMREnabled() bool {
 
 func (g *Generator) stagesPrefix() string {
 	return g.settings.stagesPrefix()
+}
+
+func countModules(ir *pipeline.IR) int {
+	if ir == nil {
+		return 0
+	}
+	count := 0
+	for _, level := range ir.Levels {
+		count += len(level.Modules)
+	}
+	return count
 }

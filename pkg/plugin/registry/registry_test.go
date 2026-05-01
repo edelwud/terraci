@@ -14,7 +14,6 @@ import (
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/discovery"
-	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
 )
@@ -532,7 +531,7 @@ func (p *testProviderPlugin) ProviderName() string {
 }
 func (p *testProviderPlugin) PipelineID() string { return "1" }
 func (p *testProviderPlugin) CommitSHA() string  { return "abc" }
-func (p *testProviderPlugin) NewGenerator(_ *plugin.AppContext, _ *graph.DependencyGraph, _ []*discovery.Module, _ []*pipeline.Contribution) pipeline.Generator {
+func (p *testProviderPlugin) NewGenerator(_ *plugin.AppContext, _ *pipeline.IR) pipeline.Generator {
 	return nil
 }
 func (p *testProviderPlugin) NewCommentService(_ *plugin.AppContext) ci.CommentService {

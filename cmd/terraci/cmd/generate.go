@@ -69,16 +69,16 @@ Examples:
 			}
 
 			log.WithField("modules", len(targets)).Info("generating pipeline")
-			generator, genErr := newPipelineGenerator(app, result.Graph, result.Filtered.Modules)
+			generator, genErr := newPipelineGenerator(app, result.Graph, result.Filtered.Modules, targets, planOnly)
 			if genErr != nil {
 				return genErr
 			}
 
 			if dryRun {
-				return runDryRun(generator, targets)
+				return runDryRun(generator)
 			}
 
-			p, err := generator.Generate(targets)
+			p, err := generator.Generate()
 			if err != nil {
 				return fmt.Errorf("generate pipeline: %w", err)
 			}
@@ -188,18 +188,36 @@ func logCycles(depGraph *graph.DependencyGraph) {
 
 // --- Pipeline generation ---
 
-func newPipelineGenerator(app *App, depGraph *graph.DependencyGraph, modules []*discovery.Module) (pipeline.Generator, error) {
+func newPipelineGenerator(app *App, depGraph *graph.DependencyGraph, modules, targets []*discovery.Module, planOnly bool) (pipeline.Generator, error) {
 	provider, err := app.Plugins.ResolveCIProvider()
 	if err != nil {
 		return nil, fmt.Errorf("resolve CI provider: %w", err)
 	}
 	appCtx := app.PluginContext()
 	contributions := app.Plugins.CollectContributions(appCtx)
-	return provider.NewGenerator(appCtx, depGraph, modules, contributions), nil
+
+	exec := app.Config.Execution
+	ir, err := pipeline.Build(pipeline.BuildOptions{
+		DepGraph:      depGraph,
+		TargetModules: targets,
+		AllModules:    modules,
+		ModuleIndex:   discovery.NewModuleIndex(modules),
+		Contributions: contributions,
+		PlanEnabled:   exec.PlanEnabled,
+		PlanOnly:      planOnly,
+		Script: pipeline.ScriptConfig{
+			InitEnabled: exec.InitEnabled,
+			PlanEnabled: exec.PlanEnabled,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("build pipeline IR: %w", err)
+	}
+	return provider.NewGenerator(appCtx, ir), nil
 }
 
-func runDryRun(gen pipeline.Generator, targets []*discovery.Module) error {
-	result, err := gen.DryRun(targets)
+func runDryRun(gen pipeline.Generator) error {
+	result, err := gen.DryRun()
 	if err != nil {
 		return fmt.Errorf("dry run: %w", err)
 	}

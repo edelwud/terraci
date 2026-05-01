@@ -21,29 +21,44 @@ func newFixtureScenario(t *testing.T, name string) *fixtureScenario {
 	}
 }
 
+func (s *fixtureScenario) rebuildGenerator() {
+	s.t.Helper()
+	s.fixture.Generator = newTestGeneratorWithTargets(
+		s.t,
+		s.fixture.GLConfig,
+		s.fixture.ExecConfig,
+		s.fixture.Contributions,
+		s.fixture.DepGraph,
+		s.fixture.Modules,
+		s.targets,
+	)
+}
+
 func (s *fixtureScenario) withConfig(apply func(*Config)) *fixtureScenario {
 	s.t.Helper()
 	apply(s.fixture.GLConfig)
-	s.fixture.Generator = NewGenerator(s.fixture.GLConfig, s.fixture.ExecConfig, s.fixture.Contributions, s.fixture.DepGraph, s.fixture.Modules)
+	s.rebuildGenerator()
 	return s
 }
 
 func (s *fixtureScenario) withExecution(apply func(*execution.Config)) *fixtureScenario {
 	s.t.Helper()
 	apply(&s.fixture.ExecConfig)
-	s.fixture.Generator = NewGenerator(s.fixture.GLConfig, s.fixture.ExecConfig, s.fixture.Contributions, s.fixture.DepGraph, s.fixture.Modules)
+	s.rebuildGenerator()
 	return s
 }
 
 func (s *fixtureScenario) withEnvironment(environment string) *fixtureScenario {
 	s.t.Helper()
 	s.targets = s.fixture.GetModulesByEnvironment(environment)
+	s.rebuildGenerator()
 	return s
 }
 
 func (s *fixtureScenario) withTargets(targets ...*discovery.Module) *fixtureScenario {
 	s.t.Helper()
 	s.targets = targets
+	s.rebuildGenerator()
 	return s
 }
 
@@ -58,17 +73,14 @@ func (s *fixtureScenario) withTargetNames(names ...string) *fixtureScenario {
 		targets = append(targets, module)
 	}
 	s.targets = targets
+	s.rebuildGenerator()
 	return s
 }
 
 func (s *fixtureScenario) generate() *Pipeline {
 	s.t.Helper()
-	targets := s.targets
-	if targets == nil {
-		targets = s.fixture.Modules
-	}
 
-	result, err := s.fixture.Generator.Generate(targets)
+	result, err := s.fixture.Generator.Generate()
 	if err != nil {
 		s.t.Fatalf("failed to generate pipeline: %v", err)
 	}

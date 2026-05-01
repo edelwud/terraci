@@ -34,8 +34,8 @@ func TestGenerator_Generate_WithMRIntegration(t *testing.T) {
 		modules[1].ID(): {modules[0].ID()},
 	})
 
-	gen := NewGenerator(cfg.GitLab, cfg.Execution, cfg.Contributions, depGraph, modules)
-	genPipeline, err := gen.Generate(modules)
+	gen := newTestGenerator(t, cfg.GitLab, cfg.Execution, cfg.Contributions, depGraph, modules)
+	genPipeline, err := gen.Generate()
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
@@ -70,8 +70,8 @@ func TestGenerator_Generate_WithMRIntegration_Disabled(t *testing.T) {
 		modules[0].ID(): {},
 	})
 
-	gen := NewGenerator(cfg.GitLab, cfg.Execution, cfg.Contributions, depGraph, modules)
-	genPipeline, err := gen.Generate(modules)
+	gen := newTestGenerator(t, cfg.GitLab, cfg.Execution, cfg.Contributions, depGraph, modules)
+	genPipeline, err := gen.Generate()
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
@@ -106,8 +106,8 @@ func TestGenerator_Generate_WithSecrets(t *testing.T) {
 		modules[0].ID(): {},
 	})
 
-	gen := NewGenerator(cfg.GitLab, cfg.Execution, cfg.Contributions, depGraph, modules)
-	genPipeline, err := gen.Generate(modules)
+	gen := newTestGenerator(t, cfg.GitLab, cfg.Execution, cfg.Contributions, depGraph, modules)
+	genPipeline, err := gen.Generate()
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
@@ -165,8 +165,8 @@ func TestGenerator_Generate_WithArtifacts(t *testing.T) {
 		modules[0].ID(): {},
 	})
 
-	gen := NewGenerator(cfg.GitLab, cfg.Execution, cfg.Contributions, depGraph, modules)
-	genPipeline, err := gen.Generate(modules)
+	gen := newTestGenerator(t, cfg.GitLab, cfg.Execution, cfg.Contributions, depGraph, modules)
+	genPipeline, err := gen.Generate()
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
@@ -220,8 +220,8 @@ func TestGenerator_Generate_WithPolicyCheck(t *testing.T) {
 		modules[0].ID(): {},
 	})
 
-	gen := NewGenerator(cfg.GitLab, cfg.Execution, cfg.Contributions, depGraph, modules)
-	genPipeline, err := gen.Generate(modules)
+	gen := newTestGenerator(t, cfg.GitLab, cfg.Execution, cfg.Contributions, depGraph, modules)
+	genPipeline, err := gen.Generate()
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}

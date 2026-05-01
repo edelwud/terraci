@@ -85,12 +85,12 @@ func (s *generatorScenario) withDependencies(deps map[string][]string) *generato
 func (s *generatorScenario) generator() *Generator {
 	s.t.Helper()
 	depGraph := citest.DependencyGraph(s.modules, s.dependencies)
-	return NewGenerator(s.cfg.GitHub, s.cfg.Execution, s.cfg.Contributions, depGraph, s.modules)
+	return newTestGeneratorWithTargets(s.t, s.cfg.GitHub, s.cfg.Execution, s.cfg.Contributions, depGraph, s.modules, s.generateTargets())
 }
 
 func (s *generatorScenario) generate() *domainpkg.Workflow {
 	s.t.Helper()
-	result, err := s.generator().Generate(s.generateTargets())
+	result, err := s.generator().Generate()
 	if err != nil {
 		s.t.Fatalf("Generate failed: %v", err)
 	}
@@ -103,7 +103,7 @@ func (s *generatorScenario) generate() *domainpkg.Workflow {
 
 func (s *generatorScenario) dryRun() *pipeline.DryRunResult {
 	s.t.Helper()
-	result, err := s.generator().DryRun(s.generateTargets())
+	result, err := s.generator().DryRun()
 	if err != nil {
 		s.t.Fatalf("DryRun failed: %v", err)
 	}

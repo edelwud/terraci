@@ -255,10 +255,14 @@ func TestEdgeCase_ModuleWithSelfReference(t *testing.T) {
 		Parallelism: 4,
 	}
 
-	generator := NewGenerator(glCfg, execCfg, nil, depGraph, modules)
-	result, err := generator.Generate(modules)
+	ir, buildErr := BuildPipelineIR(glCfg, execCfg, nil, depGraph, modules, nil)
+	if buildErr != nil {
+		t.Logf("Self-reference caused error (expected): %v", buildErr)
+		return
+	}
+	generator := NewGenerator(glCfg, execCfg, ir)
+	result, err := generator.Generate()
 	if err != nil {
-		// Self-reference might cause cycle detection
 		t.Logf("Self-reference caused error (expected): %v", err)
 		return
 	}
@@ -291,8 +295,8 @@ func TestEdgeCase_SpecialCharactersInModuleName(t *testing.T) {
 		Parallelism: 4,
 	}
 
-	generator := NewGenerator(glCfg, execCfg, nil, depGraph, modules)
-	result, err := generator.Generate(modules)
+	generator := newTestGenerator(t, glCfg, execCfg, nil, depGraph, modules)
+	result, err := generator.Generate()
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
@@ -330,8 +334,8 @@ func TestEdgeCase_VeryLongModulePath(t *testing.T) {
 		Parallelism: 4,
 	}
 
-	generator := NewGenerator(glCfg, execCfg, nil, depGraph, modules)
-	result, err := generator.Generate(modules)
+	generator := newTestGenerator(t, glCfg, execCfg, nil, depGraph, modules)
+	result, err := generator.Generate()
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}

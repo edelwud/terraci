@@ -2,8 +2,6 @@ package plugin
 
 import (
 	"github.com/edelwud/terraci/pkg/ci"
-	"github.com/edelwud/terraci/pkg/discovery"
-	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
 )
 
@@ -23,10 +21,13 @@ type CIInfoProvider interface {
 	CommitSHA() string
 }
 
-// PipelineGeneratorFactory creates pipeline generators.
+// PipelineGeneratorFactory creates pipeline generators bound to a pre-built
+// IR. Core builds the IR once via pipeline.Build(opts) and passes it here, so
+// providers do not need depGraph, target modules, or contributions — they
+// only render the IR.
 type PipelineGeneratorFactory interface {
 	Plugin
-	NewGenerator(ctx *AppContext, depGraph *graph.DependencyGraph, modules []*discovery.Module, contributions []*pipeline.Contribution) pipeline.Generator
+	NewGenerator(ctx *AppContext, ir *pipeline.IR) pipeline.Generator
 }
 
 // CommentServiceFactory creates PR/MR comment services.
@@ -57,8 +58,9 @@ func (c *ResolvedCIProvider) ProviderName() string { return c.metadata.ProviderN
 func (c *ResolvedCIProvider) PipelineID() string   { return c.metadata.PipelineID() }
 func (c *ResolvedCIProvider) CommitSHA() string    { return c.metadata.CommitSHA() }
 
-func (c *ResolvedCIProvider) NewGenerator(ctx *AppContext, depGraph *graph.DependencyGraph, modules []*discovery.Module, contributions []*pipeline.Contribution) pipeline.Generator {
-	return c.gen.NewGenerator(ctx, depGraph, modules, contributions)
+// NewGenerator returns a pipeline generator bound to the supplied IR.
+func (c *ResolvedCIProvider) NewGenerator(ctx *AppContext, ir *pipeline.IR) pipeline.Generator {
+	return c.gen.NewGenerator(ctx, ir)
 }
 
 // NewCommentService returns the comment service and true, or nil and false
