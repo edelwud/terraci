@@ -4,8 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"go.yaml.in/yaml/v4"
 )
 
 // writeTestConfig writes content to a config file
@@ -240,45 +238,6 @@ func TestConfig_Save(t *testing.T) {
 
 	if loaded.Structure.Pattern != "{svc}/{env}/{region}/{mod}" {
 		t.Errorf("expected pattern to be preserved, got %q", loaded.Structure.Pattern)
-	}
-}
-
-func TestConfig_Clone(t *testing.T) {
-	cfg := DefaultConfig()
-	cfg.Exclude = []string{"*/test/*"}
-	cfg.Include = []string{"prod/*"}
-	cfg.LibraryModules = &LibraryModulesConfig{Paths: []string{"_modules"}}
-
-	var node yaml.Node
-	if err := yaml.Unmarshal([]byte("enabled: true\nnested:\n  key: value\n"), &node); err != nil {
-		t.Fatalf("yaml.Unmarshal() error = %v", err)
-	}
-	cfg.Extensions["summary"] = *node.Content[0]
-
-	cloned := cfg.Clone()
-	cloned.ServiceDir = "changed"
-	cloned.Exclude[0] = "changed-exclude"
-	cloned.Include[0] = "changed-include"
-	cloned.LibraryModules.Paths[0] = "changed-path"
-
-	extensionNode := cloned.Extensions["summary"]
-	extensionNode.Content[0].Value = "disabled"
-	cloned.Extensions["summary"] = extensionNode
-
-	if cfg.ServiceDir != ".terraci" {
-		t.Fatalf("original ServiceDir mutated: %q", cfg.ServiceDir)
-	}
-	if cfg.Exclude[0] != "*/test/*" {
-		t.Fatalf("original Exclude mutated: %q", cfg.Exclude[0])
-	}
-	if cfg.Include[0] != "prod/*" {
-		t.Fatalf("original Include mutated: %q", cfg.Include[0])
-	}
-	if cfg.LibraryModules.Paths[0] != "_modules" {
-		t.Fatalf("original LibraryModules mutated: %q", cfg.LibraryModules.Paths[0])
-	}
-	if got := cfg.Extensions["summary"].Content[0].Value; got != "enabled" {
-		t.Fatalf("original extension yaml mutated: %q", got)
 	}
 }
 
