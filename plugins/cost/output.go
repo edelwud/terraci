@@ -59,7 +59,7 @@ func renderSummary(result *model.EstimateResult) {
 	if result.TotalDiff != 0 {
 		log.WithField("before", model.FormatCost(result.TotalBefore)).
 			WithField("after", model.FormatCost(result.TotalAfter)).
-			WithField("diff", model.FormatEstimateDiff(result.TotalDiff)).
+			WithField("diff", model.FormatCostDiff(result.TotalDiff)).
 			Info("total")
 		return
 	}
@@ -78,7 +78,7 @@ func renderSegmentTree(node *view.SegmentNode) {
 		} else {
 			entry := log.WithField("monthly", model.FormatCost(child.AfterCost))
 			if !model.CostIsZero(child.DiffCost) {
-				entry = entry.WithField("diff", model.FormatEstimateDiff(child.DiffCost))
+				entry = entry.WithField("diff", model.FormatCostDiff(child.DiffCost))
 			}
 			entry.Info(child.Name)
 		}

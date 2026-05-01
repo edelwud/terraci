@@ -99,19 +99,14 @@ func TestSaveReport_SectionsField(t *testing.T) {
 	dir := t.TempDir()
 	report := &Report{
 		Plugin: "report_a",
-		Title:  "Cost Report",
+		Title:  "Plugin Report",
 		Status: ReportStatusWarn,
 		Sections: []ReportSection{{
-			Kind:           ReportSectionKindEstimateChanges,
-			Title:          "Cost Estimation",
+			Kind:           "plugin_section",
+			Title:          "Plugin Section",
 			Status:         ReportStatusWarn,
 			SectionSummary: "1 module",
-			EstimateChanges: &EstimateChangesSection{
-				Totals: EstimateTotals{After: 15, Diff: 5},
-				Rows: []EstimateChangeRow{
-					{ModulePath: "svc/prod/eu/vpc", Before: 10.0, After: 15.0, Diff: 5.0, HasEstimate: true},
-				},
-			},
+			Payload:        json.RawMessage(`{"rows":[{"module_path":"svc/prod/eu/vpc"}]}`),
 		}},
 	}
 
@@ -132,11 +127,16 @@ func TestSaveReport_SectionsField(t *testing.T) {
 	if len(loaded.Sections) != 1 {
 		t.Fatalf("expected 1 section, got %d", len(loaded.Sections))
 	}
-	if loaded.Sections[0].EstimateChanges == nil {
-		t.Fatal("expected cost section payload")
+	var payload struct {
+		Rows []struct {
+			ModulePath string `json:"module_path"`
+		} `json:"rows"`
 	}
-	if loaded.Sections[0].EstimateChanges.Rows[0].Diff != 5.0 {
-		t.Errorf("cost diff = %f, want 5.0", loaded.Sections[0].EstimateChanges.Rows[0].Diff)
+	if err := json.Unmarshal(loaded.Sections[0].Payload, &payload); err != nil {
+		t.Fatalf("payload decode: %v", err)
+	}
+	if len(payload.Rows) != 1 || payload.Rows[0].ModulePath != "svc/prod/eu/vpc" {
+		t.Fatalf("payload = %+v", payload)
 	}
 }
 

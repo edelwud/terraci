@@ -89,7 +89,7 @@ func cloneReportSection(section ci.ReportSection) ci.ReportSection {
 	}
 	if section.ModuleTable != nil {
 		moduleTable := *section.ModuleTable
-		moduleTable.Rows = cloneModuleTableRows(section.ModuleTable.Rows)
+		moduleTable.Rows = append([]ci.ModuleTableRow(nil), section.ModuleTable.Rows...)
 		cloned.ModuleTable = &moduleTable
 	}
 	if section.Findings != nil {
@@ -102,16 +102,10 @@ func cloneReportSection(section ci.ReportSection) ci.ReportSection {
 		updates.Rows = append([]ci.DependencyUpdateRow(nil), section.DependencyUpdates.Rows...)
 		cloned.DependencyUpdates = &updates
 	}
-	if section.EstimateChanges != nil {
-		estimateChanges := *section.EstimateChanges
-		estimateChanges.Rows = append([]ci.EstimateChangeRow(nil), section.EstimateChanges.Rows...)
-		cloned.EstimateChanges = &estimateChanges
+	if len(section.Payload) > 0 {
+		cloned.Payload = append([]byte(nil), section.Payload...)
 	}
 	return cloned
-}
-
-func cloneModuleTableRows(rows []ci.ModuleTableRow) []ci.ModuleTableRow {
-	return append([]ci.ModuleTableRow(nil), rows...)
 }
 
 func cloneFindingRows(rows []ci.FindingRow) []ci.FindingRow {

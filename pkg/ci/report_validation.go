@@ -65,7 +65,7 @@ func validateReportSection(s ReportSection) error {
 		{name: "module_table", present: s.ModuleTable != nil},
 		{name: "findings", present: s.Findings != nil},
 		{name: "dependency_updates", present: s.DependencyUpdates != nil},
-		{name: "estimate_changes", present: s.EstimateChanges != nil},
+		{name: "payload", present: len(s.Payload) > 0},
 	}
 
 	expectedPayload, err := expectedReportSectionPayload(s.Kind)
@@ -91,11 +91,13 @@ func validateReportSection(s ReportSection) error {
 	if matched != 1 {
 		return fmt.Errorf("report section %q must contain exactly one payload", s.Kind)
 	}
-
 	return nil
 }
 
 func expectedReportSectionPayload(kind ReportSectionKind) (string, error) {
+	if strings.TrimSpace(string(kind)) == "" {
+		return "", errors.New("report section kind is required")
+	}
 	switch kind {
 	case ReportSectionKindOverview:
 		return "overview", nil
@@ -105,9 +107,7 @@ func expectedReportSectionPayload(kind ReportSectionKind) (string, error) {
 		return "findings", nil
 	case ReportSectionKindDependencyUpdates:
 		return "dependency_updates", nil
-	case ReportSectionKindEstimateChanges:
-		return "estimate_changes", nil
 	default:
-		return "", fmt.Errorf("unknown report section kind %q", kind)
+		return "payload", nil
 	}
 }

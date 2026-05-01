@@ -36,6 +36,22 @@ func TestPlugin_Commands_Registration(t *testing.T) {
 	}
 }
 
+func decodeCostSection(t *testing.T, report *ci.Report) costChangesPayload {
+	t.Helper()
+	if len(report.Sections) != 1 {
+		t.Fatalf("Sections count = %d, want 1", len(report.Sections))
+	}
+	section := report.Sections[0]
+	if section.Kind != costChangesSectionKind {
+		t.Fatalf("section kind = %q, want %q", section.Kind, costChangesSectionKind)
+	}
+	var payload costChangesPayload
+	if err := json.Unmarshal(section.Payload, &payload); err != nil {
+		t.Fatalf("decode cost section payload: %v", err)
+	}
+	return payload
+}
+
 func TestPlugin_Commands_RunE_NotConfigured(t *testing.T) {
 	p := newTestPlugin(t)
 	appCtx := newTestAppContext(t, t.TempDir())
@@ -352,20 +368,14 @@ func TestBuildCostReport(t *testing.T) {
 		t.Errorf("Status = %q, want %q when report has errors", report.Status, ci.ReportStatusWarn)
 	}
 
-	if len(report.Sections) != 1 {
-		t.Fatalf("Sections count = %d, want 1", len(report.Sections))
-	}
-	section := report.Sections[0].EstimateChanges
-	if section == nil {
-		t.Fatal("expected cost section payload")
-	}
+	section := decodeCostSection(t, report)
 	if len(section.Rows) != 2 {
 		t.Fatalf("Rows count = %d, want 2 (including errored module)", len(section.Rows))
 	}
 
 	m := section.Rows[0]
-	if !m.HasEstimate {
-		t.Error("Module.HasEstimate should be true")
+	if !m.HasCost {
+		t.Error("Module.HasCost should be true")
 	}
 	if m.After != 10.50 {
 		t.Errorf("Module.After = %.2f, want 10.50", m.After)
@@ -423,10 +433,7 @@ func TestBuildCostReport_IncludesPrefetchWarnings(t *testing.T) {
 	if !strings.Contains(report.Summary, "usage unknown: 1") {
 		t.Fatalf("summary = %q, want usage unknown count", report.Summary)
 	}
-	section := report.Sections[0].EstimateChanges
-	if section == nil {
-		t.Fatal("expected cost section payload")
-	}
+	section := decodeCostSection(t, report)
 	if section.Totals.UsageEstimated != 1 || section.Totals.UsageUnknown != 1 {
 		t.Fatalf("unexpected usage totals: %+v", section.Totals)
 	}
@@ -446,11 +453,9 @@ func TestBuildCostReport_Empty(t *testing.T) {
 	if !strings.Contains(report.Summary, "0 modules") {
 		t.Errorf("Summary = %q, want to contain '0 modules'", report.Summary)
 	}
-	if len(report.Sections) != 1 || report.Sections[0].EstimateChanges == nil {
-		t.Fatalf("expected one cost section")
-	}
-	if len(report.Sections[0].EstimateChanges.Rows) != 0 {
-		t.Errorf("Rows count = %d, want 0", len(report.Sections[0].EstimateChanges.Rows))
+	section := decodeCostSection(t, report)
+	if len(section.Rows) != 0 {
+		t.Errorf("Rows count = %d, want 0", len(section.Rows))
 	}
 }
 
@@ -465,16 +470,14 @@ func TestBuildCostReport_AllErrors(t *testing.T) {
 
 	report := buildCostReport(result)
 
-	if len(report.Sections) != 1 || report.Sections[0].EstimateChanges == nil {
-		t.Fatalf("expected one cost section")
-	}
-	if len(report.Sections[0].EstimateChanges.Rows) != 2 {
-		t.Errorf("Rows count = %d, want 2 (all errors should still be visible)", len(report.Sections[0].EstimateChanges.Rows))
+	section := decodeCostSection(t, report)
+	if len(section.Rows) != 2 {
+		t.Errorf("Rows count = %d, want 2 (all errors should still be visible)", len(section.Rows))
 	}
 	if report.Status != ci.ReportStatusWarn {
 		t.Errorf("Status = %q, want %q", report.Status, ci.ReportStatusWarn)
 	}
-	if report.Sections[0].EstimateChanges.Rows[0].Error != "fail1" || report.Sections[0].EstimateChanges.Rows[1].Error != "fail2" {
+	if section.Rows[0].Error != "fail1" || section.Rows[1].Error != "fail2" {
 		t.Error("Rows should contain module errors")
 	}
 }
@@ -494,10 +497,7 @@ func TestBuildCostReport_EscapesMarkdownTableCells(t *testing.T) {
 	}
 
 	report := buildCostReport(result)
-	section := report.Sections[0].EstimateChanges
-	if section == nil {
-		t.Fatal("expected cost section payload")
-	}
+	section := decodeCostSection(t, report)
 	if section.Rows[0].ModulePath != "/tmp/with|pipe\\slash" {
 		t.Fatalf("module path = %q, want raw path preserved", section.Rows[0].ModulePath)
 	}

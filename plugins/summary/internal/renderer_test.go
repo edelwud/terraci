@@ -161,26 +161,35 @@ func TestBuildSummarySectionsWithOptions_WithoutDetailsClearsRowDetails(t *testi
 	}
 }
 
-func TestComposeComment_WithCostData(t *testing.T) {
+func TestComposeComment_WithCostReport(t *testing.T) {
 	t.Parallel()
 
-	plans := []ci.ModulePlan{
-		{
-			ModuleID:       "svc/prod/us-east-1/vpc",
-			Components:     map[string]string{"environment": "prod"},
-			Status:         ci.PlanStatusChanges,
-			Summary:        "+1",
-			HasEstimate:    true,
-			EstimateBefore: 10.0,
-			EstimateAfter:  15.0,
-			EstimateDiff:   5.0,
-		},
-	}
+	reports := []*ci.Report{{
+		Plugin: "cost",
+		Title:  "Cost Estimation",
+		Status: ci.ReportStatusWarn,
+		Sections: []ci.ReportSection{{
+			Kind:           costChangesSectionKind,
+			Title:          "Cost Estimation",
+			Status:         ci.ReportStatusWarn,
+			SectionSummary: "1 module, total: $15.00/mo (diff: +$5.00)",
+			Payload: encodeCostChangesPayload(costChangesPayload{
+				Totals: costTotals{After: 15, Diff: 5},
+				Rows: []costChangeRow{{
+					ModulePath: "svc/prod/us-east-1/vpc",
+					Before:     10,
+					After:      15,
+					Diff:       5,
+					HasCost:    true,
+				}},
+			}),
+		}},
+	}}
 
-	result := ComposeComment(plans, nil, "", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
+	result := ComposeComment(nil, reports, "", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
 
-	if !strings.Contains(result, "| Cost |") {
-		t.Error("expected 'Cost' column header in table")
+	if !strings.Contains(result, "Cost Estimation") {
+		t.Error("expected cost section")
 	}
 	if !strings.Contains(result, "$10.00") {
 		t.Errorf("expected cost before in output, got: %s", result)
@@ -233,18 +242,18 @@ func TestComposeComment_FiltersCostReportToAddedCosts(t *testing.T) {
 		Status:  ci.ReportStatusWarn,
 		Summary: "3 modules, total: $27.00/mo (diff: +5.00)",
 		Sections: []ci.ReportSection{{
-			Kind:           ci.ReportSectionKindEstimateChanges,
+			Kind:           costChangesSectionKind,
 			Title:          "Cost Estimation",
 			Status:         ci.ReportStatusWarn,
 			SectionSummary: "3 modules, total: $27.00/mo (diff: +5.00)",
-			EstimateChanges: &ci.EstimateChangesSection{
-				Totals: ci.EstimateTotals{After: 37, Diff: -5},
-				Rows: []ci.EstimateChangeRow{
-					{ModulePath: "svc/prod/us-east-1/vpc", Before: 10, After: 15, Diff: 5, HasEstimate: true},
-					{ModulePath: "svc/prod/us-east-1/rds", Before: 12, After: 12, Diff: 0, HasEstimate: true},
-					{ModulePath: "svc/prod/us-east-1/redis", Before: 20, After: 10, Diff: -10, HasEstimate: true},
+			Payload: encodeCostChangesPayload(costChangesPayload{
+				Totals: costTotals{After: 37, Diff: -5},
+				Rows: []costChangeRow{
+					{ModulePath: "svc/prod/us-east-1/vpc", Before: 10, After: 15, Diff: 5, HasCost: true},
+					{ModulePath: "svc/prod/us-east-1/rds", Before: 12, After: 12, Diff: 0, HasCost: true},
+					{ModulePath: "svc/prod/us-east-1/redis", Before: 20, After: 10, Diff: -10, HasCost: true},
 				},
-			},
+			}),
 		}},
 	}}
 
@@ -472,48 +481,6 @@ func TestGroupByEnvironment(t *testing.T) {
 	}
 }
 
-func TestFormatCostCell(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		plan ci.ModulePlan
-		want string
-	}{
-		{
-			name: "no cost",
-			plan: ci.ModulePlan{HasEstimate: false},
-			want: "-",
-		},
-		{
-			name: "zero diff",
-			plan: ci.ModulePlan{HasEstimate: true, EstimateAfter: 25.0, EstimateDiff: 0},
-			want: "$25.00",
-		},
-		{
-			name: "positive diff",
-			plan: ci.ModulePlan{HasEstimate: true, EstimateBefore: 10.0, EstimateAfter: 15.0, EstimateDiff: 5.0},
-			want: "$10.00 +$5.00 -> $15.00",
-		},
-		{
-			name: "negative diff",
-			plan: ci.ModulePlan{HasEstimate: true, EstimateBefore: 20.0, EstimateAfter: 10.0, EstimateDiff: -10.0},
-			want: "$20.00 -$10.00 -> $10.00",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := FormatCostCell(&tt.plan)
-			if got != tt.want {
-				t.Errorf("FormatCostCell() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestFormatMonthlyCost(t *testing.T) {
 	t.Parallel()
 
@@ -543,7 +510,7 @@ func TestFormatMonthlyCost(t *testing.T) {
 	}
 }
 
-func TestFormatEstimateDiff(t *testing.T) {
+func TestFormatCostDiff(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -564,9 +531,9 @@ func TestFormatEstimateDiff(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := FormatEstimateDiff(tt.diff)
+			got := FormatCostDiff(tt.diff)
 			if got != tt.want {
-				t.Errorf("FormatEstimateDiff(%v) = %q, want %q", tt.diff, got, tt.want)
+				t.Errorf("FormatCostDiff(%v) = %q, want %q", tt.diff, got, tt.want)
 			}
 		})
 	}
@@ -842,7 +809,7 @@ func TestRenderPlanRow(t *testing.T) {
 			Summary:  "+2 ~1 -0",
 		}
 
-		got := renderPlanRow(p, false)
+		got := renderPlanRow(p)
 
 		if !strings.Contains(got, "changes") {
 			t.Error("expected changes icon")
@@ -859,29 +826,6 @@ func TestRenderPlanRow(t *testing.T) {
 		}
 	})
 
-	t.Run("with cost", func(t *testing.T) {
-		t.Parallel()
-
-		p := &ci.ModulePlan{
-			ModuleID:      "svc/prod/us-east-1/vpc",
-			Status:        ci.PlanStatusNoChanges,
-			Summary:       "No changes",
-			HasEstimate:   true,
-			EstimateAfter: 50.0,
-			EstimateDiff:  0,
-		}
-
-		got := renderPlanRow(p, true)
-
-		// Should have 4 columns
-		if strings.Count(got, "|") != 5 {
-			t.Errorf("expected 5 pipe chars for 4-column row, got %d in %q", strings.Count(got, "|"), got)
-		}
-		if !strings.Contains(got, "$50.00") {
-			t.Error("expected cost value")
-		}
-	})
-
 	t.Run("with error", func(t *testing.T) {
 		t.Parallel()
 
@@ -891,7 +835,7 @@ func TestRenderPlanRow(t *testing.T) {
 			Error:    "init failed: something went wrong",
 		}
 
-		got := renderPlanRow(p, false)
+		got := renderPlanRow(p)
 
 		if !strings.Contains(got, "init failed: something went wrong") {
 			t.Error("expected error message in summary")
@@ -906,7 +850,7 @@ func TestRenderPlanRow(t *testing.T) {
 			Status:   ci.PlanStatusPending,
 		}
 
-		got := renderPlanRow(p, false)
+		got := renderPlanRow(p)
 
 		if !strings.Contains(got, "| - |") {
 			t.Errorf("expected dash for empty summary, got: %s", got)

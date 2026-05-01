@@ -1,6 +1,7 @@
 package cost
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -9,14 +10,41 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
 
+const costChangesSectionKind ci.ReportSectionKind = "cost_changes"
+
+type costChangesPayload struct {
+	Totals costTotals      `json:"totals"`
+	Rows   []costChangeRow `json:"rows,omitempty"`
+}
+
+type costTotals struct {
+	Currency       string  `json:"currency,omitempty"`
+	Before         float64 `json:"before,omitempty"`
+	After          float64 `json:"after,omitempty"`
+	Diff           float64 `json:"diff,omitempty"`
+	UsageEstimated int     `json:"usage_estimated,omitempty"`
+	UsageUnknown   int     `json:"usage_unknown,omitempty"`
+	Unsupported    int     `json:"unsupported,omitempty"`
+}
+
+type costChangeRow struct {
+	ModulePath string  `json:"module_path"`
+	Before     float64 `json:"before,omitempty"`
+	After      float64 `json:"after,omitempty"`
+	Diff       float64 `json:"diff,omitempty"`
+	HasCost    bool    `json:"has_cost,omitempty"`
+	Error      string  `json:"error,omitempty"`
+	Notes      string  `json:"notes,omitempty"`
+}
+
 func buildCostReport(result *model.EstimateResult) *ci.Report {
 	visible := visibleReportModules(result.Modules)
-	rows := make([]ci.EstimateChangeRow, 0, len(visible))
+	rows := make([]costChangeRow, 0, len(visible))
 	status := ci.ReportStatusPass
 
 	for i := range visible {
 		module := visible[i]
-		row := ci.EstimateChangeRow{
+		row := costChangeRow{
 			ModulePath: module.ModulePath,
 			Error:      module.Error,
 		}
@@ -24,7 +52,7 @@ func buildCostReport(result *model.EstimateResult) *ci.Report {
 			row.Before = module.BeforeCost
 			row.After = module.AfterCost
 			row.Diff = module.DiffCost
-			row.HasEstimate = true
+			row.HasCost = true
 		} else {
 			status = ci.ReportStatusWarn
 		}
@@ -37,28 +65,33 @@ func buildCostReport(result *model.EstimateResult) *ci.Report {
 		status = ci.ReportStatusWarn
 	}
 
+	payload, err := json.Marshal(costChangesPayload{
+		Totals: costTotals{
+			Currency:       result.Currency,
+			Before:         result.TotalBefore,
+			After:          result.TotalAfter,
+			Diff:           result.TotalDiff,
+			UsageEstimated: result.UsageEstimated,
+			UsageUnknown:   result.UsageUnknown,
+			Unsupported:    result.Unsupported,
+		},
+		Rows: rows,
+	})
+	if err != nil {
+		panic(err)
+	}
+
 	return &ci.Report{
 		Plugin:  pluginName,
 		Title:   "Cost Estimation",
 		Status:  status,
 		Summary: buildCostReportSummary(result, len(visible)),
 		Sections: []ci.ReportSection{{
-			Kind:           ci.ReportSectionKindEstimateChanges,
+			Kind:           costChangesSectionKind,
 			Title:          "Cost Estimation",
 			Status:         status,
 			SectionSummary: buildCostReportSummary(result, len(visible)),
-			EstimateChanges: &ci.EstimateChangesSection{
-				Totals: ci.EstimateTotals{
-					Currency:       result.Currency,
-					Before:         result.TotalBefore,
-					After:          result.TotalAfter,
-					Diff:           result.TotalDiff,
-					UsageEstimated: result.UsageEstimated,
-					UsageUnknown:   result.UsageUnknown,
-					Unsupported:    result.Unsupported,
-				},
-				Rows: rows,
-			},
+			Payload:        payload,
 		}},
 	}
 }

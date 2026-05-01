@@ -111,26 +111,31 @@ func readSummaryReportJSON(t *testing.T, serviceDir string) *ci.Report {
 }
 
 func newPlanReport(modulePath string, status ci.ReportStatus) *ci.Report {
+	payload, err := json.Marshal(map[string]any{
+		"totals": map[string]any{"after": 2, "diff": 1},
+		"rows": []map[string]any{{
+			"module_path": modulePath,
+			"before":      1,
+			"after":       2,
+			"diff":        1,
+			"has_cost":    true,
+		}},
+	})
+	if err != nil {
+		panic(err)
+	}
+
 	return &ci.Report{
 		Plugin:  "cost",
 		Title:   "Cost Estimation",
 		Status:  status,
 		Summary: "summary",
 		Sections: []ci.ReportSection{{
-			Kind:           ci.ReportSectionKindEstimateChanges,
+			Kind:           "cost_changes",
 			Title:          "Cost Estimation",
 			Status:         status,
 			SectionSummary: "summary",
-			EstimateChanges: &ci.EstimateChangesSection{
-				Totals: ci.EstimateTotals{After: 2, Diff: 1},
-				Rows: []ci.EstimateChangeRow{{
-					ModulePath:  modulePath,
-					Before:      1,
-					After:       2,
-					Diff:        1,
-					HasEstimate: true,
-				}},
-			},
+			Payload:        payload,
 		}},
 	}
 }

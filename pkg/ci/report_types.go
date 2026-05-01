@@ -1,6 +1,9 @@
 package ci
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // Report is a plugin-produced CI enrichment artifact consumed by report aggregation flows.
 // Plugins write reports as {serviceDir}/{plugin}-report.json.
@@ -22,7 +25,7 @@ type ReportProvenance struct {
 	PlanResultsFingerprint string    `json:"plan_results_fingerprint,omitempty"`
 }
 
-// ReportSectionKind identifies the shape of one typed report section.
+// ReportSectionKind identifies an application-owned report section payload.
 type ReportSectionKind string
 
 const (
@@ -30,10 +33,9 @@ const (
 	ReportSectionKindModuleTable       ReportSectionKind = "module_table"
 	ReportSectionKindFindings          ReportSectionKind = "findings"
 	ReportSectionKindDependencyUpdates ReportSectionKind = "dependency_updates"
-	ReportSectionKindEstimateChanges   ReportSectionKind = "estimate_changes"
 )
 
-// ReportSection is a discriminated union over supported typed report payloads.
+// ReportSection is a neutral envelope for plugin-owned report payloads.
 type ReportSection struct {
 	Kind              ReportSectionKind         `json:"kind"`
 	Title             string                    `json:"title,omitempty"`
@@ -43,7 +45,7 @@ type ReportSection struct {
 	ModuleTable       *ModuleTableSection       `json:"module_table,omitempty"`
 	Findings          *FindingsSection          `json:"findings,omitempty"`
 	DependencyUpdates *DependencyUpdatesSection `json:"dependency_updates,omitempty"`
-	EstimateChanges   *EstimateChangesSection   `json:"estimate_changes,omitempty"`
+	Payload           json.RawMessage           `json:"payload,omitempty"`
 }
 
 type reportSectionPayload struct {
@@ -66,38 +68,6 @@ type ModuleTableRow struct {
 	Error             string     `json:"error,omitempty"`
 	StructuredDetails string     `json:"structured_details,omitempty"`
 	RawPlanOutput     string     `json:"raw_plan_output,omitempty"`
-	EstimateBefore    float64    `json:"estimate_before,omitempty"`
-	EstimateAfter     float64    `json:"estimate_after,omitempty"`
-	EstimateDiff      float64    `json:"estimate_diff,omitempty"`
-	HasEstimate       bool       `json:"has_estimate,omitempty"`
-}
-
-// EstimateChangesSection holds structured numeric estimate data.
-type EstimateChangesSection struct {
-	Totals EstimateTotals      `json:"totals"`
-	Rows   []EstimateChangeRow `json:"rows,omitempty"`
-}
-
-// EstimateTotals are aggregate estimate values for one report.
-type EstimateTotals struct {
-	Currency       string  `json:"currency,omitempty"`
-	Before         float64 `json:"before,omitempty"`
-	After          float64 `json:"after,omitempty"`
-	Diff           float64 `json:"diff,omitempty"`
-	UsageEstimated int     `json:"usage_estimated,omitempty"`
-	UsageUnknown   int     `json:"usage_unknown,omitempty"`
-	Unsupported    int     `json:"unsupported,omitempty"`
-}
-
-// EstimateChangeRow is one actionable module-level estimate result.
-type EstimateChangeRow struct {
-	ModulePath  string  `json:"module_path"`
-	Before      float64 `json:"before,omitempty"`
-	After       float64 `json:"after,omitempty"`
-	Diff        float64 `json:"diff,omitempty"`
-	HasEstimate bool    `json:"has_estimate,omitempty"`
-	Error       string  `json:"error,omitempty"`
-	Notes       string  `json:"notes,omitempty"`
 }
 
 // FindingsSection holds warned/failed findings for modules or resources.

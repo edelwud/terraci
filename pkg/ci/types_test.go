@@ -35,36 +35,6 @@ func TestPlanResultCollection_ToModulePlans_Empty(t *testing.T) {
 	}
 }
 
-func TestPlanResultCollection_ToModulePlans_PreservesCostFields(t *testing.T) {
-	collection := &PlanResultCollection{
-		Results: []PlanResult{
-			{
-				ModuleID:       "svc/prod/eu/vpc",
-				ModulePath:     "svc/prod/eu/vpc",
-				Status:         PlanStatusChanges,
-				EstimateBefore: 10.0,
-				EstimateAfter:  20.0,
-				EstimateDiff:   10.0,
-				HasEstimate:    true,
-			},
-		},
-	}
-
-	plans := collection.ToModulePlans()
-	if !plans[0].HasEstimate {
-		t.Error("expected HasEstimate to be true")
-	}
-	if plans[0].EstimateBefore != 10.0 {
-		t.Errorf("EstimateBefore = %f, want 10.0", plans[0].EstimateBefore)
-	}
-	if plans[0].EstimateAfter != 20.0 {
-		t.Errorf("EstimateAfter = %f, want 20.0", plans[0].EstimateAfter)
-	}
-	if plans[0].EstimateDiff != 10.0 {
-		t.Errorf("EstimateDiff = %f, want 10.0", plans[0].EstimateDiff)
-	}
-}
-
 func TestPlanResultCollection_FingerprintStableAcrossOrder(t *testing.T) {
 	a := PlanResult{
 		ModuleID:          "svc/prod/us-east-1/vpc",

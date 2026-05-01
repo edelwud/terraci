@@ -55,8 +55,6 @@ func loadSummaryInputs(appCtx *plugin.AppContext) (*summaryInputs, error) {
 		}
 		filteredReports = append(filteredReports, r)
 	}
-	summaryengine.EnrichPlansFromReports(plans, filteredReports)
-
 	return &summaryInputs{
 		collection: collection,
 		plans:      plans,

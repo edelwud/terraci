@@ -42,7 +42,7 @@ func TestFormatCost(t *testing.T) {
 	}
 }
 
-func TestFormatEstimateDiff(t *testing.T) {
+func TestFormatCostDiff(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -62,9 +62,9 @@ func TestFormatEstimateDiff(t *testing.T) {
 		t.Run(tt.expected, func(t *testing.T) {
 			t.Parallel()
 
-			result := model.FormatEstimateDiff(tt.diff)
+			result := model.FormatCostDiff(tt.diff)
 			if result != tt.expected {
-				t.Errorf("FormatEstimateDiff(%v) = %q, want %q", tt.diff, result, tt.expected)
+				t.Errorf("FormatCostDiff(%v) = %q, want %q", tt.diff, result, tt.expected)
 			}
 		})
 	}
