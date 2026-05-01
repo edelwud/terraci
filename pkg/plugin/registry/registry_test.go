@@ -220,6 +220,21 @@ func TestNewCreatesIsolatedPluginInstances(t *testing.T) {
 	}
 }
 
+func TestCatalogCreatesIndependentPluginSets(t *testing.T) {
+	catalog := NewCatalog()
+	catalog.RegisterFactory(func() plugin.Plugin { return &testPlugin{name: "first"} })
+
+	other := NewCatalog()
+	other.RegisterFactory(func() plugin.Plugin { return &testPlugin{name: "second"} })
+
+	if _, ok := catalog.NewRegistry().GetPlugin("second"); ok {
+		t.Fatal("catalog observed plugin from another catalog")
+	}
+	if _, ok := other.NewRegistry().GetPlugin("first"); ok {
+		t.Fatal("other catalog observed plugin from catalog")
+	}
+}
+
 func TestGetNotFound(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()

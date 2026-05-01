@@ -15,16 +15,29 @@ type descriptor struct {
 	factory Factory
 }
 
-var (
+// Catalog stores plugin factories and creates isolated per-command plugin sets.
+type Catalog struct {
 	mu          sync.Mutex
-	descriptors = make(map[string]descriptor)
+	descriptors map[string]descriptor
 	order       []string
-)
+}
+
+// NewCatalog creates an empty plugin factory catalog.
+func NewCatalog() *Catalog {
+	return &Catalog{descriptors: make(map[string]descriptor)}
+}
+
+var defaultCatalog = NewCatalog()
 
 // RegisterFactory adds a plugin factory to the global catalog. Called from
 // init() in plugin packages.
 // Panics on duplicate names (fail-fast at startup).
 func RegisterFactory(factory Factory) {
+	defaultCatalog.RegisterFactory(factory)
+}
+
+// RegisterFactory adds a plugin factory to this catalog.
+func (c *Catalog) RegisterFactory(factory Factory) {
 	if factory == nil {
 		panic("terraci: nil plugin factory")
 	}
@@ -34,13 +47,13 @@ func RegisterFactory(factory Factory) {
 		panic("terraci: nil plugin from factory")
 	}
 
-	mu.Lock()
-	defer mu.Unlock()
-	if _, exists := descriptors[prototype.Name()]; exists {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if _, exists := c.descriptors[prototype.Name()]; exists {
 		panic("terraci: duplicate plugin: " + prototype.Name())
 	}
-	descriptors[prototype.Name()] = descriptor{factory: factory}
-	order = append(order, prototype.Name())
+	c.descriptors[prototype.Name()] = descriptor{factory: factory}
+	c.order = append(c.order, prototype.Name())
 }
 
 // Registry is an isolated plugin instance set for one app run.
@@ -51,9 +64,14 @@ type Registry struct {
 
 // New instantiates a fresh plugin set from the registered factories.
 func New() *Registry {
-	mu.Lock()
-	defer mu.Unlock()
-	return instantiateLocked()
+	return defaultCatalog.NewRegistry()
+}
+
+// NewRegistry instantiates a fresh plugin set from this catalog.
+func (c *Catalog) NewRegistry() *Registry {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.instantiateLocked()
 }
 
 // NewFromFactories creates an isolated registry from explicit factories without
@@ -81,13 +99,13 @@ func NewFromFactories(factories ...Factory) *Registry {
 	return r
 }
 
-func instantiateLocked() *Registry {
+func (c *Catalog) instantiateLocked() *Registry {
 	r := &Registry{
-		plugins: make(map[string]plugin.Plugin, len(order)),
-		order:   append([]string(nil), order...),
+		plugins: make(map[string]plugin.Plugin, len(c.order)),
+		order:   append([]string(nil), c.order...),
 	}
-	for _, name := range order {
-		p := descriptors[name].factory()
+	for _, name := range c.order {
+		p := c.descriptors[name].factory()
 		if p == nil {
 			panic("terraci: nil plugin from factory: " + name)
 		}
@@ -142,10 +160,15 @@ func ByCapabilityFrom[T plugin.Plugin](source plugin.Source) []T {
 
 // Reset clears the registry. Only for testing.
 func Reset() {
-	mu.Lock()
-	defer mu.Unlock()
-	descriptors = make(map[string]descriptor)
-	order = nil
+	defaultCatalog.Reset()
+}
+
+// Reset clears the catalog. Only for testing.
+func (c *Catalog) Reset() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.descriptors = make(map[string]descriptor)
+	c.order = nil
 }
 
 func isPluginEnabled(p plugin.Plugin) bool {
