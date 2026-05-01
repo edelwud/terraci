@@ -30,13 +30,9 @@ type Plugin struct {
 	plugin.BasePlugin[*Config]
 }
 
-// NewBlobStore returns a new filesystem-backed blob store.
-func (p *Plugin) NewBlobStore(_ context.Context, appCtx *plugin.AppContext) (blobcache.Store, error) {
-	return p.NewBlobStoreWithOptions(context.Background(), appCtx, plugin.BlobStoreOptions{})
-}
-
-// NewBlobStoreWithOptions returns a new filesystem-backed blob store with optional overrides.
-func (p *Plugin) NewBlobStoreWithOptions(_ context.Context, appCtx *plugin.AppContext, opts plugin.BlobStoreOptions) (blobcache.Store, error) {
+// NewBlobStore returns a new filesystem-backed blob store. Pass
+// plugin.BlobStoreOptions{} to use defaults from configuration.
+func (p *Plugin) NewBlobStore(_ context.Context, appCtx *plugin.AppContext, opts plugin.BlobStoreOptions) (blobcache.Store, error) {
 	rootDir := resolveRootDir(appCtx, p.Config(), opts)
 	if err := fsstore.ValidateRootDir(rootDir); err != nil {
 		return nil, fmt.Errorf("diskblob: invalid root_dir: %w", err)

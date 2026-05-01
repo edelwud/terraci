@@ -93,12 +93,12 @@ func buildSummaryOverviewSection(plans []ci.ModulePlan, reports []*ci.Report) ci
 		}
 	}
 
-	return ci.ReportSection{
-		Kind:           ci.ReportSectionKindOverview,
-		Title:          "Summary",
-		Status:         overallSummaryStatus(plans, reports),
-		SectionSummary: renderStats(stats),
-		Overview: &ci.OverviewSection{
+	return ci.MustEncodeSection(
+		ci.ReportSectionKindOverview,
+		"Summary",
+		renderStats(stats),
+		overallSummaryStatus(plans, reports),
+		ci.OverviewSection{
 			PlanStats: ci.SummaryPlanStats{
 				Total:     stats.Total,
 				Success:   stats.Success,
@@ -110,7 +110,7 @@ func buildSummaryOverviewSection(plans []ci.ModulePlan, reports []*ci.Report) ci
 			},
 			Reports: overviews,
 		},
-	}
+	)
 }
 
 func overallSummaryStatus(plans []ci.ModulePlan, reports []*ci.Report) ci.ReportStatus {
@@ -177,16 +177,16 @@ func buildTerraformPlanSections(plans []ci.ModulePlan, includeDetails bool) []ci
 			}
 		}
 
-		sections = append(sections, ci.ReportSection{
-			Kind:           ci.ReportSectionKindModuleTable,
-			Title:          fmt.Sprintf("Environment: `%s`", env),
-			Status:         status,
-			SectionSummary: fmt.Sprintf("%d actionable modules", len(rows)),
-			ModuleTable: &ci.ModuleTableSection{
+		sections = append(sections, ci.MustEncodeSection(
+			ci.ReportSectionKindModuleTable,
+			fmt.Sprintf("Environment: `%s`", env),
+			fmt.Sprintf("%d actionable modules", len(rows)),
+			status,
+			ci.ModuleTableSection{
 				Environment: env,
 				Rows:        rows,
 			},
-		})
+		))
 	}
 	return sections
 }
@@ -258,11 +258,12 @@ func filterReportSection(section ci.ReportSection) (ci.ReportSection, bool) {
 		section.Payload = encodeCostChangesPayload(payload)
 		return section, true
 	case ci.ReportSectionKindFindings:
-		if section.Findings == nil {
+		findings, err := ci.DecodeSection[ci.FindingsSection](section)
+		if err != nil {
 			return ci.ReportSection{}, false
 		}
-		rows := make([]ci.FindingRow, 0, len(section.Findings.Rows))
-		for _, row := range section.Findings.Rows {
+		rows := make([]ci.FindingRow, 0, len(findings.Rows))
+		for _, row := range findings.Rows {
 			if row.Status == ci.FindingRowStatusWarn || row.Status == ci.FindingRowStatusFail {
 				rows = append(rows, row)
 			}
@@ -270,15 +271,16 @@ func filterReportSection(section ci.ReportSection) (ci.ReportSection, bool) {
 		if len(rows) == 0 {
 			return ci.ReportSection{}, false
 		}
-		section.Findings = &ci.FindingsSection{Rows: rows}
-		return section, true
+		findings.Rows = rows
+		return ci.MustEncodeSection(section.Kind, section.Title, section.SectionSummary, section.Status, findings), true
 	case ci.ReportSectionKindDependencyUpdates:
-		if section.DependencyUpdates == nil {
+		updates, err := ci.DecodeSection[ci.DependencyUpdatesSection](section)
+		if err != nil {
 			return ci.ReportSection{}, false
 		}
-		rows := make([]ci.DependencyUpdateRow, 0, len(section.DependencyUpdates.Rows))
-		for i := range section.DependencyUpdates.Rows {
-			row := section.DependencyUpdates.Rows[i]
+		rows := make([]ci.DependencyUpdateRow, 0, len(updates.Rows))
+		for i := range updates.Rows {
+			row := updates.Rows[i]
 			if row.Status == ci.DependencyUpdateStatusUpdateAvailable || row.Status == ci.DependencyUpdateStatusApplied {
 				rows = append(rows, row)
 			}
@@ -286,8 +288,8 @@ func filterReportSection(section ci.ReportSection) (ci.ReportSection, bool) {
 		if len(rows) == 0 {
 			return ci.ReportSection{}, false
 		}
-		section.DependencyUpdates = &ci.DependencyUpdatesSection{Rows: rows}
-		return section, true
+		updates.Rows = rows
+		return ci.MustEncodeSection(section.Kind, section.Title, section.SectionSummary, section.Status, updates), true
 	case ci.ReportSectionKindOverview:
 		return ci.ReportSection{}, false
 	case ci.ReportSectionKindModuleTable:
@@ -315,27 +317,28 @@ func renderMarkdownSection(section ci.ReportSection) string {
 }
 
 func renderMarkdownOverviewSection(section ci.ReportSection) string {
-	if section.Overview == nil {
+	overview, err := ci.DecodeSection[ci.OverviewSection](section)
+	if err != nil {
 		return ""
 	}
 
 	var sb strings.Builder
 	sb.WriteString(renderStats(planStats{
-		Total:     section.Overview.PlanStats.Total,
-		Success:   section.Overview.PlanStats.Success,
-		NoChanges: section.Overview.PlanStats.NoChanges,
-		Changes:   section.Overview.PlanStats.Changes,
-		Failed:    section.Overview.PlanStats.Failed,
-		Pending:   section.Overview.PlanStats.Pending,
-		Running:   section.Overview.PlanStats.Running,
+		Total:     overview.PlanStats.Total,
+		Success:   overview.PlanStats.Success,
+		NoChanges: overview.PlanStats.NoChanges,
+		Changes:   overview.PlanStats.Changes,
+		Failed:    overview.PlanStats.Failed,
+		Pending:   overview.PlanStats.Pending,
+		Running:   overview.PlanStats.Running,
 	}))
 
-	for _, overview := range section.Overview.Reports {
+	for _, item := range overview.Reports {
 		sb.WriteString("\n")
-		fmt.Fprintf(&sb, "- %s %s", reportStatusIcon(overview.Status), overview.Title)
-		if overview.Summary != "" {
+		fmt.Fprintf(&sb, "- %s %s", reportStatusIcon(item.Status), item.Title)
+		if item.Summary != "" {
 			sb.WriteString(": ")
-			sb.WriteString(overview.Summary)
+			sb.WriteString(item.Summary)
 		}
 	}
 
@@ -343,7 +346,8 @@ func renderMarkdownOverviewSection(section ci.ReportSection) string {
 }
 
 func renderMarkdownModuleTableSection(section ci.ReportSection) string {
-	if section.ModuleTable == nil {
+	table, err := ci.DecodeSection[ci.ModuleTableSection](section)
+	if err != nil {
 		return ""
 	}
 
@@ -353,12 +357,12 @@ func renderMarkdownModuleTableSection(section ci.ReportSection) string {
 	sb.WriteString("| Status | Module | Summary |\n")
 	sb.WriteString("|:------:|--------|--------|\n")
 
-	for i := range section.ModuleTable.Rows {
-		sb.WriteString(renderPlanRow(moduleTableRowAsModulePlan(section.ModuleTable.Rows[i])))
+	for i := range table.Rows {
+		sb.WriteString(renderPlanRow(moduleTableRowAsModulePlan(table.Rows[i])))
 	}
 
-	for i := range section.ModuleTable.Rows {
-		row := section.ModuleTable.Rows[i]
+	for i := range table.Rows {
+		row := table.Rows[i]
 		if row.StructuredDetails == "" && row.RawPlanOutput == "" && row.Error == "" {
 			continue
 		}
@@ -397,13 +401,14 @@ func renderMarkdownCostChangesSection(section ci.ReportSection) string {
 }
 
 func renderMarkdownFindingsSection(section ci.ReportSection) string {
-	if section.Findings == nil {
+	findings, err := ci.DecodeSection[ci.FindingsSection](section)
+	if err != nil {
 		return ""
 	}
 
 	var sb strings.Builder
 	sb.WriteString(renderSectionHeader(section))
-	for _, row := range section.Findings.Rows {
+	for _, row := range findings.Rows {
 		fmt.Fprintf(&sb, "**%s** (%s)\n", row.ModulePath, row.Status)
 		for _, finding := range row.Findings {
 			prefix := ":warning:"
@@ -422,13 +427,14 @@ func renderMarkdownFindingsSection(section ci.ReportSection) string {
 }
 
 func renderMarkdownDependencyUpdatesSection(section ci.ReportSection) string {
-	if section.DependencyUpdates == nil {
+	updates, err := ci.DecodeSection[ci.DependencyUpdatesSection](section)
+	if err != nil {
 		return ""
 	}
 
 	var sb strings.Builder
 	sb.WriteString(renderSectionHeader(section))
-	providers, modules := splitDependencyUpdateRows(section.DependencyUpdates.Rows)
+	providers, modules := splitDependencyUpdateRows(updates.Rows)
 	if len(providers) > 0 {
 		sb.WriteString("### Providers\n\n")
 		sb.WriteString("| Module | Provider | Current | Latest | Status |\n")

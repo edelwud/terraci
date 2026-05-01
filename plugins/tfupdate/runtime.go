@@ -93,7 +93,7 @@ func newRuntime(
 		return nil, fmt.Errorf("resolve artifact cache backend: %w", err)
 	}
 
-	blobStore, err := blobProvider.NewBlobStore(ctx, appCtx)
+	blobStore, err := blobProvider.NewBlobStore(ctx, appCtx, plugin.BlobStoreOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("create artifact cache backend %q: %w", blobProvider.Name(), err)
 	}

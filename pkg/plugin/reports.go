@@ -82,41 +82,8 @@ func cloneReportSections(sections []ci.ReportSection) []ci.ReportSection {
 
 func cloneReportSection(section ci.ReportSection) ci.ReportSection {
 	cloned := section
-	if section.Overview != nil {
-		overview := *section.Overview
-		overview.Reports = append([]ci.SummaryReportOverview(nil), section.Overview.Reports...)
-		cloned.Overview = &overview
-	}
-	if section.ModuleTable != nil {
-		moduleTable := *section.ModuleTable
-		moduleTable.Rows = append([]ci.ModuleTableRow(nil), section.ModuleTable.Rows...)
-		cloned.ModuleTable = &moduleTable
-	}
-	if section.Findings != nil {
-		findings := *section.Findings
-		findings.Rows = cloneFindingRows(section.Findings.Rows)
-		cloned.Findings = &findings
-	}
-	if section.DependencyUpdates != nil {
-		updates := *section.DependencyUpdates
-		updates.Rows = append([]ci.DependencyUpdateRow(nil), section.DependencyUpdates.Rows...)
-		cloned.DependencyUpdates = &updates
-	}
 	if len(section.Payload) > 0 {
 		cloned.Payload = append([]byte(nil), section.Payload...)
-	}
-	return cloned
-}
-
-func cloneFindingRows(rows []ci.FindingRow) []ci.FindingRow {
-	if len(rows) == 0 {
-		return nil
-	}
-
-	cloned := make([]ci.FindingRow, len(rows))
-	for i := range rows {
-		cloned[i] = rows[i]
-		cloned[i].Findings = append([]ci.Finding(nil), rows[i].Findings...)
 	}
 	return cloned
 }

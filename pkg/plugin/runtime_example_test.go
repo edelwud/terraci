@@ -38,7 +38,11 @@ func ExampleRuntimeProvider() {
 	}
 	p.SetTypedConfig(&exampleRuntimeConfig{Enabled: true})
 
-	appCtx := plugin.NewAppContext(nil, "/repo", "/repo/.terraci", "test", nil)
+	appCtx := plugin.NewAppContext(plugin.AppContextOptions{
+		WorkDir:    "/repo",
+		ServiceDir: "/repo/.terraci",
+		Version:    "test",
+	})
 	rawRuntime, _ := p.Runtime(context.Background(), appCtx)
 	runtime, _ := plugin.RuntimeAs[*exampleRuntime](rawRuntime)
 

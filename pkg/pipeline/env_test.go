@@ -6,10 +6,10 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 )
 
-func TestBuildModuleEnvVars(t *testing.T) {
+func TestModuleEnvVars(t *testing.T) {
 	module := discovery.TestModule("payments", "prod", "eu-west-1", "vpc")
 
-	env := BuildModuleEnvVars(module)
+	env := ModuleEnvVars(module)
 
 	expected := map[string]string{
 		"TF_MODULE_PATH": "payments/prod/eu-west-1/vpc",

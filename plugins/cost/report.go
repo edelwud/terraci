@@ -1,7 +1,6 @@
 package cost
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -65,34 +64,32 @@ func buildCostReport(result *model.EstimateResult) *ci.Report {
 		status = ci.ReportStatusWarn
 	}
 
-	payload, err := json.Marshal(costChangesPayload{
-		Totals: costTotals{
-			Currency:       result.Currency,
-			Before:         result.TotalBefore,
-			After:          result.TotalAfter,
-			Diff:           result.TotalDiff,
-			UsageEstimated: result.UsageEstimated,
-			UsageUnknown:   result.UsageUnknown,
-			Unsupported:    result.Unsupported,
+	summary := buildCostReportSummary(result, len(visible))
+	section := ci.MustEncodeSection(
+		costChangesSectionKind,
+		"Cost Estimation",
+		summary,
+		status,
+		costChangesPayload{
+			Totals: costTotals{
+				Currency:       result.Currency,
+				Before:         result.TotalBefore,
+				After:          result.TotalAfter,
+				Diff:           result.TotalDiff,
+				UsageEstimated: result.UsageEstimated,
+				UsageUnknown:   result.UsageUnknown,
+				Unsupported:    result.Unsupported,
+			},
+			Rows: rows,
 		},
-		Rows: rows,
-	})
-	if err != nil {
-		panic(err)
-	}
+	)
 
 	return &ci.Report{
 		Producer: pluginName,
 		Title:    "Cost Estimation",
 		Status:   status,
-		Summary:  buildCostReportSummary(result, len(visible)),
-		Sections: []ci.ReportSection{{
-			Kind:           costChangesSectionKind,
-			Title:          "Cost Estimation",
-			Status:         status,
-			SectionSummary: buildCostReportSummary(result, len(visible)),
-			Payload:        payload,
-		}},
+		Summary:  summary,
+		Sections: []ci.ReportSection{section},
 	}
 }
 

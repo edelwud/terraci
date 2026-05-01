@@ -308,7 +308,7 @@ type testBlobStoreProvider struct {
 
 func (p *testBlobStoreProvider) Name() string        { return p.name }
 func (p *testBlobStoreProvider) Description() string { return "test blob store provider" }
-func (p *testBlobStoreProvider) NewBlobStore(context.Context, *plugin.AppContext) (blobcache.Store, error) {
+func (p *testBlobStoreProvider) NewBlobStore(context.Context, *plugin.AppContext, plugin.BlobStoreOptions) (blobcache.Store, error) {
 	return p.store, nil
 }
 

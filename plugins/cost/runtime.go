@@ -68,7 +68,7 @@ func resolveBlobCache(ctx context.Context, appCtx *plugin.AppContext, cfg *model
 		return nil, fmt.Errorf("resolve blob backend: %w", err)
 	}
 
-	blobStore, err := blobProvider.NewBlobStore(ctx, appCtx)
+	blobStore, err := blobProvider.NewBlobStore(ctx, appCtx, plugin.BlobStoreOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("create blob backend %q: %w", blobProvider.Name(), err)
 	}

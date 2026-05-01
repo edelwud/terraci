@@ -80,7 +80,7 @@ type testBlobStoreProvider struct {
 	store blobcache.Store
 }
 
-func (p *testBlobStoreProvider) NewBlobStore(context.Context, *plugin.AppContext) (blobcache.Store, error) {
+func (p *testBlobStoreProvider) NewBlobStore(context.Context, *plugin.AppContext, plugin.BlobStoreOptions) (blobcache.Store, error) {
 	return p.store, nil
 }
 
@@ -436,7 +436,13 @@ func TestCollectContributions_FiltersDisabledPlugins(t *testing.T) {
 		func() plugin.Plugin { return disabled },
 	)
 
-	appCtx := plugin.NewAppContext(config.DefaultConfig(), "/work", "/service", "test", plugin.NewReportRegistry())
+	appCtx := plugin.NewAppContext(plugin.AppContextOptions{
+		Config:     config.DefaultConfig(),
+		WorkDir:    "/work",
+		ServiceDir: "/service",
+		Version:    "test",
+		Reports:    plugin.NewReportRegistry(),
+	})
 	contribs := plugins.CollectContributions(appCtx)
 	if len(contribs) != 1 {
 		t.Fatalf("expected 1 contribution, got %d", len(contribs))

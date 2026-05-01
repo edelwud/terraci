@@ -124,14 +124,15 @@ func TestLogOutputCompleted_WithSummaryReport(t *testing.T) {
 		Producer: "summary",
 		Title:    "Terraform Plan Summary",
 		Summary:  "1 modules: 1 with changes, 0 no changes, 0 failed",
-		Sections: []ci.ReportSection{{
-			Kind:   ci.ReportSectionKindOverview,
-			Title:  "Summary",
-			Status: ci.ReportStatusWarn,
-			Overview: &ci.OverviewSection{
+		Sections: []ci.ReportSection{ci.MustEncodeSection(
+			ci.ReportSectionKindOverview,
+			"Summary",
+			"",
+			ci.ReportStatusWarn,
+			ci.OverviewSection{
 				PlanStats: ci.SummaryPlanStats{Total: 1, Changes: 1},
 			},
-		}},
+		)},
 	}
 	output := LogOutput{}
 	result := &execution.Result{}

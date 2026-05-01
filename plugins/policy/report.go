@@ -45,19 +45,21 @@ func buildPolicyReport(summary *policyengine.Summary) *ci.Report {
 		}
 	}
 
+	summaryText := fmt.Sprintf("%d modules: %d passed, %d warned, %d failed",
+		summary.TotalModules, summary.PassedModules, summary.WarnedModules, summary.FailedModules)
+	section := ci.MustEncodeSection(
+		ci.ReportSectionKindFindings,
+		"Policy Check",
+		summaryText,
+		status,
+		ci.FindingsSection{Rows: rows},
+	)
+
 	return &ci.Report{
 		Producer: "policy",
 		Title:    "Policy Check",
 		Status:   status,
-		Summary:  fmt.Sprintf("%d modules: %d passed, %d warned, %d failed", summary.TotalModules, summary.PassedModules, summary.WarnedModules, summary.FailedModules),
-		Sections: []ci.ReportSection{{
-			Kind:           ci.ReportSectionKindFindings,
-			Title:          "Policy Check",
-			Status:         status,
-			SectionSummary: fmt.Sprintf("%d modules: %d passed, %d warned, %d failed", summary.TotalModules, summary.PassedModules, summary.WarnedModules, summary.FailedModules),
-			Findings: &ci.FindingsSection{
-				Rows: rows,
-			},
-		}},
+		Summary:  summaryText,
+		Sections: []ci.ReportSection{section},
 	}
 }

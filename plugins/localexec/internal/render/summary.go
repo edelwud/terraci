@@ -51,11 +51,12 @@ func renderCLISection(section ci.ReportSection) string {
 }
 
 func renderCLIOverviewSection(section ci.ReportSection) string {
-	if section.Overview == nil {
+	overview, err := ci.DecodeSection[ci.OverviewSection](section)
+	if err != nil {
 		return ""
 	}
 
-	stats := section.Overview.PlanStats
+	stats := overview.PlanStats
 	var parts []string
 	if stats.Changes > 0 {
 		parts = append(parts, fmt.Sprintf("%d with changes", stats.Changes))
@@ -82,12 +83,12 @@ func renderCLIOverviewSection(section ci.ReportSection) string {
 		fmt.Fprintf(&sb, "%d modules: %s", stats.Total, strings.Join(parts, " | "))
 	}
 
-	for _, overview := range section.Overview.Reports {
+	for _, item := range overview.Reports {
 		sb.WriteString("\n")
-		fmt.Fprintf(&sb, "• %s %s", reportStatusLabel(overview.Status), overview.Title)
-		if overview.Summary != "" {
+		fmt.Fprintf(&sb, "• %s %s", reportStatusLabel(item.Status), item.Title)
+		if item.Summary != "" {
 			sb.WriteString(": ")
-			sb.WriteString(overview.Summary)
+			sb.WriteString(item.Summary)
 		}
 	}
 
@@ -95,14 +96,15 @@ func renderCLIOverviewSection(section ci.ReportSection) string {
 }
 
 func renderCLIModuleTableSection(section ci.ReportSection) string {
-	if section.ModuleTable == nil {
+	table, err := ci.DecodeSection[ci.ModuleTableSection](section)
+	if err != nil {
 		return ""
 	}
 
-	rows := make([][]string, 0, len(section.ModuleTable.Rows)+1)
+	rows := make([][]string, 0, len(table.Rows)+1)
 	rows = append(rows, []string{"Status", "Module", "Summary"})
-	for i := range section.ModuleTable.Rows {
-		row := section.ModuleTable.Rows[i]
+	for i := range table.Rows {
+		row := table.Rows[i]
 		record := []string{
 			planStatusLabel(row.Status),
 			displayValue(row.ModuleID),
@@ -116,8 +118,8 @@ func renderCLIModuleTableSection(section ci.ReportSection) string {
 	sb.WriteString("\n")
 	sb.WriteString(renderTable(rows))
 
-	for i := range section.ModuleTable.Rows {
-		row := section.ModuleTable.Rows[i]
+	for i := range table.Rows {
+		row := table.Rows[i]
 		if row.StructuredDetails == "" && row.RawPlanOutput == "" && row.Error == "" {
 			continue
 		}
@@ -171,13 +173,14 @@ func renderCLICostChangesSection(section ci.ReportSection) string {
 }
 
 func renderCLIFindingsSection(section ci.ReportSection) string {
-	if section.Findings == nil {
+	findings, err := ci.DecodeSection[ci.FindingsSection](section)
+	if err != nil {
 		return ""
 	}
 
 	var sb strings.Builder
 	sb.WriteString(renderSectionHeader(section))
-	for _, row := range section.Findings.Rows {
+	for _, row := range findings.Rows {
 		sb.WriteString("\n")
 		sb.WriteString(renderSubsectionTitle(fmt.Sprintf("%s (%s)", row.ModulePath, row.Status)))
 		for _, finding := range row.Findings {
@@ -199,14 +202,15 @@ func renderCLIFindingsSection(section ci.ReportSection) string {
 }
 
 func renderCLIDependencyUpdatesSection(section ci.ReportSection) string {
-	if section.DependencyUpdates == nil {
+	updates, err := ci.DecodeSection[ci.DependencyUpdatesSection](section)
+	if err != nil {
 		return ""
 	}
 
 	var sb strings.Builder
 	sb.WriteString(renderSectionHeader(section))
 
-	providers, modules := splitDependencyUpdateRows(section.DependencyUpdates.Rows)
+	providers, modules := splitDependencyUpdateRows(updates.Rows)
 	if len(providers) > 0 {
 		sb.WriteString("\n")
 		sb.WriteString(renderSubsectionTitle("Providers"))

@@ -27,20 +27,15 @@ type KVCacheProvider interface {
 	NewKVCache(ctx context.Context, appCtx *AppContext) (KVCache, error)
 }
 
-// BlobStoreProvider creates a blob store backend for plugin consumers.
-type BlobStoreProvider interface {
-	Plugin
-	NewBlobStore(ctx context.Context, appCtx *AppContext) (blobcache.Store, error)
-}
-
 // BlobStoreOptions carries optional backend-specific initialization overrides.
+// Pass the zero value to use the backend's defaults.
 type BlobStoreOptions struct {
 	RootDir string
 }
 
-// BlobStoreProviderWithOptions allows a backend provider to accept optional
-// initialization overrides from a consumer.
-type BlobStoreProviderWithOptions interface {
-	BlobStoreProvider
-	NewBlobStoreWithOptions(ctx context.Context, appCtx *AppContext, opts BlobStoreOptions) (blobcache.Store, error)
+// BlobStoreProvider creates a blob store backend for plugin consumers.
+// Pass BlobStoreOptions{} to use the backend's defaults.
+type BlobStoreProvider interface {
+	Plugin
+	NewBlobStore(ctx context.Context, appCtx *AppContext, opts BlobStoreOptions) (blobcache.Store, error)
 }

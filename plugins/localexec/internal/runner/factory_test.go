@@ -33,7 +33,7 @@ func TestDefaultExecutionConfigResolver_UsesProjectParallelismWhenOverrideIsNonP
 	cfg := config.DefaultConfig()
 	cfg.Execution.Parallelism = 7
 	base := plugintest.NewAppContext(t, t.TempDir())
-	appCtx := plugin.NewAppContext(cfg, base.WorkDir(), base.ServiceDir(), base.Version(), base.Reports())
+	appCtx := plugin.NewAppContext(plugin.AppContextOptions{Config: cfg, WorkDir: base.WorkDir(), ServiceDir: base.ServiceDir(), Version: base.Version(), Reports: base.Reports()})
 
 	resolver := defaultExecutionConfigResolver{}
 
@@ -63,7 +63,7 @@ func TestDefaultExecutionConfigResolver_UsesExplicitParallelismOverride(t *testi
 	cfg := config.DefaultConfig()
 	cfg.Execution.Parallelism = 7
 	base := plugintest.NewAppContext(t, t.TempDir())
-	appCtx := plugin.NewAppContext(cfg, base.WorkDir(), base.ServiceDir(), base.Version(), base.Reports())
+	appCtx := plugin.NewAppContext(plugin.AppContextOptions{Config: cfg, WorkDir: base.WorkDir(), ServiceDir: base.ServiceDir(), Version: base.Version(), Reports: base.Reports()})
 
 	got := defaultExecutionConfigResolver{}.Resolve(appCtx, Options{Parallelism: 3})
 	if got.Parallelism != 3 {

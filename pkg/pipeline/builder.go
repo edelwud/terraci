@@ -19,7 +19,7 @@ type BuildOptions struct {
 
 // Build constructs a provider-agnostic IR from the given options.
 func Build(opts BuildOptions) (*IR, error) {
-	plan, err := BuildJobPlan(
+	plan, err := buildJobPlan(
 		opts.DepGraph, opts.TargetModules, opts.AllModules, opts.ModuleIndex,
 		hasContributedJobs(opts.Contributions), opts.PlanEnabled,
 	)
@@ -46,7 +46,7 @@ func Build(opts BuildOptions) (*IR, error) {
 				continue
 			}
 
-			env := BuildModuleEnvVars(mod)
+			env := ModuleEnvVars(mod)
 			mj := ModuleJobs{Module: mod}
 
 			// Plan job

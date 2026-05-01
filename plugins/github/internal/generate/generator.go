@@ -42,7 +42,7 @@ func (g *Generator) DryRun(targetModules []*discovery.Module) (*pipeline.DryRunR
 		return nil, err
 	}
 
-	return pipeline.BuildDryRunResult(ir, len(g.modules)), nil
+	return ir.DryRun(len(g.modules)), nil
 }
 
 func (g *Generator) IsPREnabled() bool {

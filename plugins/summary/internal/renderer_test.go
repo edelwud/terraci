@@ -80,12 +80,12 @@ func TestComposeComment_WithReport(t *testing.T) {
 			Title:    "Policy Check",
 			Status:   ci.ReportStatusFail,
 			Summary:  "2 modules: 1 passed, 0 warned, 1 failed",
-			Sections: []ci.ReportSection{{
-				Kind:           ci.ReportSectionKindFindings,
-				Title:          "Policy Check",
-				Status:         ci.ReportStatusFail,
-				SectionSummary: "2 modules: 1 passed, 0 warned, 1 failed",
-				Findings: &ci.FindingsSection{
+			Sections: []ci.ReportSection{ci.MustEncodeSection(
+				ci.ReportSectionKindFindings,
+				"Policy Check",
+				"2 modules: 1 passed, 0 warned, 1 failed",
+				ci.ReportStatusFail,
+				ci.FindingsSection{
 					Rows: []ci.FindingRow{{
 						ModulePath: "svc/prod/us-east-1/vpc",
 						Status:     ci.FindingRowStatusFail,
@@ -96,7 +96,7 @@ func TestComposeComment_WithReport(t *testing.T) {
 						}},
 					}},
 				},
-			}},
+			)},
 		},
 	}
 
@@ -148,11 +148,15 @@ func TestBuildSummarySectionsWithOptions_WithoutDetailsClearsRowDetails(t *testi
 	}}
 
 	sections := BuildSummarySectionsWithOptions(plans, nil, false)
-	if len(sections) < 2 || sections[1].ModuleTable == nil || len(sections[1].ModuleTable.Rows) != 1 {
+	if len(sections) < 2 {
 		t.Fatalf("sections = %#v, want module table row", sections)
 	}
+	table, err := ci.DecodeSection[ci.ModuleTableSection](sections[1])
+	if err != nil || len(table.Rows) != 1 {
+		t.Fatalf("ModuleTableSection rows = %v, err = %v", table.Rows, err)
+	}
 
-	row := sections[1].ModuleTable.Rows[0]
+	row := table.Rows[0]
 	if row.StructuredDetails != "" {
 		t.Fatalf("StructuredDetails = %q, want empty", row.StructuredDetails)
 	}
@@ -278,12 +282,12 @@ func TestComposeComment_FiltersTfupdateReportToUpdatableModules(t *testing.T) {
 		Title:    "Dependency Update Check",
 		Status:   ci.ReportStatusWarn,
 		Summary:  "4 checked, 2 updates available, 0 applied, 0 errors",
-		Sections: []ci.ReportSection{{
-			Kind:           ci.ReportSectionKindDependencyUpdates,
-			Title:          "Dependency Update Check",
-			Status:         ci.ReportStatusWarn,
-			SectionSummary: "4 checked, 2 updates available, 0 applied, 0 errors",
-			DependencyUpdates: &ci.DependencyUpdatesSection{
+		Sections: []ci.ReportSection{ci.MustEncodeSection(
+			ci.ReportSectionKindDependencyUpdates,
+			"Dependency Update Check",
+			"4 checked, 2 updates available, 0 applied, 0 errors",
+			ci.ReportStatusWarn,
+			ci.DependencyUpdatesSection{
 				Rows: []ci.DependencyUpdateRow{
 					{ModulePath: "svc/prod/us-east-1/vpc", Kind: ci.DependencyKindProvider, Name: "hashicorp/aws", Current: "~> 5.0", Latest: "5.4.0", Status: ci.DependencyUpdateStatusUpdateAvailable},
 					{ModulePath: "svc/prod/us-east-1/rds", Kind: ci.DependencyKindProvider, Name: "hashicorp/random", Current: "3.0.0", Latest: "3.0.0", Status: ci.DependencyUpdateStatusUpToDate},
@@ -291,7 +295,7 @@ func TestComposeComment_FiltersTfupdateReportToUpdatableModules(t *testing.T) {
 					{ModulePath: "svc/prod/us-east-1/iam", Kind: ci.DependencyKindModule, Name: "terraform-aws-modules/iam/aws", Current: "1.0.0", Latest: "1.0.0", Status: ci.DependencyUpdateStatusUpToDate},
 				},
 			},
-		}},
+		)},
 	}}
 
 	result := ComposeComment(nil, reports, "", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
@@ -710,12 +714,12 @@ func TestRenderReportSection(t *testing.T) {
 			Title:    "Policy Check",
 			Status:   ci.ReportStatusFail,
 			Summary:  "3 modules: 1 passed, 0 warned, 2 failed",
-			Sections: []ci.ReportSection{{
-				Kind:           ci.ReportSectionKindFindings,
-				Title:          "Policy Check",
-				Status:         ci.ReportStatusFail,
-				SectionSummary: "3 modules: 1 passed, 0 warned, 2 failed",
-				Findings: &ci.FindingsSection{
+			Sections: []ci.ReportSection{ci.MustEncodeSection(
+				ci.ReportSectionKindFindings,
+				"Policy Check",
+				"3 modules: 1 passed, 0 warned, 2 failed",
+				ci.ReportStatusFail,
+				ci.FindingsSection{
 					Rows: []ci.FindingRow{{
 						ModulePath: "svc/prod/us-east-1/vpc",
 						Status:     ci.FindingRowStatusFail,
@@ -726,7 +730,7 @@ func TestRenderReportSection(t *testing.T) {
 						}},
 					}},
 				},
-			}},
+			)},
 		}
 
 		got := renderReportSection(report)
@@ -750,12 +754,12 @@ func TestRenderReportSection(t *testing.T) {
 			Title:    "Policy Check",
 			Status:   ci.ReportStatusWarn,
 			Summary:  "1 modules: 0 passed, 1 warned, 0 failed",
-			Sections: []ci.ReportSection{{
-				Kind:           ci.ReportSectionKindFindings,
-				Title:          "Policy Check",
-				Status:         ci.ReportStatusWarn,
-				SectionSummary: "1 modules: 0 passed, 1 warned, 0 failed",
-				Findings: &ci.FindingsSection{
+			Sections: []ci.ReportSection{ci.MustEncodeSection(
+				ci.ReportSectionKindFindings,
+				"Policy Check",
+				"1 modules: 0 passed, 1 warned, 0 failed",
+				ci.ReportStatusWarn,
+				ci.FindingsSection{
 					Rows: []ci.FindingRow{{
 						ModulePath: "svc/staging/us-east-1/vpc",
 						Status:     ci.FindingRowStatusWarn,
@@ -766,7 +770,7 @@ func TestRenderReportSection(t *testing.T) {
 						}},
 					}},
 				},
-			}},
+			)},
 		}
 
 		got := renderReportSection(report)

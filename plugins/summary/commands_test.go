@@ -180,10 +180,14 @@ func TestRunSummaryUseCase_IncludeDetailsFalseRemovesDetailsFromCommentAndReport
 	}
 
 	report := readSummaryReportJSON(t, appCtx.ServiceDir())
-	if len(report.Sections) < 2 || report.Sections[1].ModuleTable == nil || len(report.Sections[1].ModuleTable.Rows) != 1 {
+	if len(report.Sections) < 2 {
 		t.Fatalf("report sections = %#v, want module table row", report.Sections)
 	}
-	row := report.Sections[1].ModuleTable.Rows[0]
+	table, err := ci.DecodeSection[ci.ModuleTableSection](report.Sections[1])
+	if err != nil || len(table.Rows) != 1 {
+		t.Fatalf("decode module table: rows=%v err=%v", table.Rows, err)
+	}
+	row := table.Rows[0]
 	if row.StructuredDetails != "" {
 		t.Fatalf("StructuredDetails = %q, want empty", row.StructuredDetails)
 	}

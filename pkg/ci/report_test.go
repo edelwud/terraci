@@ -16,15 +16,15 @@ func TestSaveReport(t *testing.T) {
 		Title:    "Test Report",
 		Status:   ReportStatusPass,
 		Summary:  "all good",
-		Sections: []ReportSection{{
-			Kind:           ReportSectionKindOverview,
-			Title:          "Summary",
-			Status:         ReportStatusPass,
-			SectionSummary: "all good",
-			Overview: &OverviewSection{
+		Sections: []ReportSection{MustEncodeSection(
+			ReportSectionKindOverview,
+			"Summary",
+			"all good",
+			ReportStatusPass,
+			OverviewSection{
 				PlanStats: SummaryPlanStats{Total: 1, NoChanges: 1, Success: 1},
 			},
-		}},
+		)},
 	}
 
 	if err := SaveReport(dir, report); err != nil {

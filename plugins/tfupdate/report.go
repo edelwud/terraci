@@ -44,26 +44,27 @@ func buildUpdateReport(result *tfupdateengine.UpdateResult) *ci.Report {
 		})
 	}
 
+	summaryText := fmt.Sprintf(
+		"%d checked, %d updates available, %d applied, %d errors",
+		result.Summary.TotalChecked,
+		result.Summary.UpdatesAvailable,
+		result.Summary.UpdatesApplied,
+		result.Summary.Errors,
+	)
+	section := ci.MustEncodeSection(
+		ci.ReportSectionKindDependencyUpdates,
+		"Dependency Update Check",
+		summaryText,
+		status,
+		ci.DependencyUpdatesSection{Rows: rows},
+	)
+
 	return &ci.Report{
 		Producer: "tfupdate",
 		Title:    "Dependency Update Check",
 		Status:   status,
-		Summary: fmt.Sprintf(
-			"%d checked, %d updates available, %d applied, %d errors",
-			result.Summary.TotalChecked,
-			result.Summary.UpdatesAvailable,
-			result.Summary.UpdatesApplied,
-			result.Summary.Errors,
-		),
-		Sections: []ci.ReportSection{{
-			Kind:           ci.ReportSectionKindDependencyUpdates,
-			Title:          "Dependency Update Check",
-			Status:         status,
-			SectionSummary: fmt.Sprintf("%d checked, %d updates available, %d applied, %d errors", result.Summary.TotalChecked, result.Summary.UpdatesAvailable, result.Summary.UpdatesApplied, result.Summary.Errors),
-			DependencyUpdates: &ci.DependencyUpdatesSection{
-				Rows: rows,
-			},
-		}},
+		Summary:  summaryText,
+		Sections: []ci.ReportSection{section},
 	}
 }
 

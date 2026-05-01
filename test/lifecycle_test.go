@@ -160,7 +160,13 @@ func TestPluginInitialization(t *testing.T) {
 		}
 	}
 
-	appCtx := plugin.NewAppContext(cfg, dir, filepath.Join(dir, ".terraci"), "test", nil, plugins)
+	appCtx := plugin.NewAppContext(plugin.AppContextOptions{
+		Config:     cfg,
+		WorkDir:    dir,
+		ServiceDir: filepath.Join(dir, ".terraci"),
+		Version:    "test",
+		Resolver:   plugins,
+	})
 
 	for _, p := range plugins.PreflightsForStartup() {
 		if preflightErr := p.Preflight(context.Background(), appCtx); preflightErr != nil {

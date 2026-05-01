@@ -43,7 +43,7 @@ func (a *App) PluginContext() *plugin.AppContext {
 		a.Plugins = registry.New()
 	}
 	if a.pluginCtx == nil {
-		a.pluginCtx = plugin.NewAppContext(nil, "", "", "", nil, a.Plugins)
+		a.pluginCtx = plugin.NewAppContext(plugin.AppContextOptions{Resolver: a.Plugins})
 	}
 	a.pluginCtx.SetResolver(a.Plugins)
 	a.ensurePluginContext()

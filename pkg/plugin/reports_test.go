@@ -77,10 +77,12 @@ func TestReportRegistry_DefensiveCopies(t *testing.T) {
 	report := &ci.Report{
 		Producer: "report_b",
 		Title:    "Report B",
-		Sections: []ci.ReportSection{{
-			Kind:  ci.ReportSectionKindFindings,
-			Title: "Findings",
-			Findings: &ci.FindingsSection{
+		Sections: []ci.ReportSection{ci.MustEncodeSection(
+			ci.ReportSectionKindFindings,
+			"Findings",
+			"",
+			ci.ReportStatusWarn,
+			ci.FindingsSection{
 				Rows: []ci.FindingRow{{
 					ModulePath: "app",
 					Status:     ci.FindingRowStatusWarn,
@@ -90,12 +92,12 @@ func TestReportRegistry_DefensiveCopies(t *testing.T) {
 					}},
 				}},
 			},
-		}},
+		)},
 	}
 	r.Publish(report)
 
 	report.Title = "mutated"
-	report.Sections[0].Findings.Rows[0].Findings[0].Message = "mutated"
+	report.Sections[0].Payload[0] = '{'
 
 	got, ok := r.Get("report_b")
 	if !ok {
@@ -104,13 +106,21 @@ func TestReportRegistry_DefensiveCopies(t *testing.T) {
 	if got.Title != "Report B" {
 		t.Fatalf("stored report title = %q, want Report B", got.Title)
 	}
-	if got.Sections[0].Findings.Rows[0].Findings[0].Message != "original" {
-		t.Fatalf("stored finding was mutated: %q", got.Sections[0].Findings.Rows[0].Findings[0].Message)
+	findings, err := ci.DecodeSection[ci.FindingsSection](got.Sections[0])
+	if err != nil {
+		t.Fatalf("decode original findings: %v", err)
+	}
+	if findings.Rows[0].Findings[0].Message != "original" {
+		t.Fatalf("stored finding was mutated: %q", findings.Rows[0].Findings[0].Message)
 	}
 
-	got.Sections[0].Findings.Rows[0].Findings[0].Message = "mutated after get"
+	got.Sections[0].Payload[0] = '{'
 	gotAgain, _ := r.Get("report_b")
-	if gotAgain.Sections[0].Findings.Rows[0].Findings[0].Message != "original" {
-		t.Fatalf("Get returned shared report state: %q", gotAgain.Sections[0].Findings.Rows[0].Findings[0].Message)
+	findingsAgain, err := ci.DecodeSection[ci.FindingsSection](gotAgain.Sections[0])
+	if err != nil {
+		t.Fatalf("decode again: %v", err)
+	}
+	if findingsAgain.Rows[0].Findings[0].Message != "original" {
+		t.Fatalf("Get returned shared report state: %q", findingsAgain.Rows[0].Findings[0].Message)
 	}
 }

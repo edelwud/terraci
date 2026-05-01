@@ -13,7 +13,7 @@
       "title": "Summary",
       "status": "warn",
       "section_summary": "**1** modules: **1** with changes",
-      "overview": {
+      "payload": {
         "plan_stats": {
           "total": 1,
           "success": 1,
@@ -26,7 +26,7 @@
       "title": "Environment: `prod`",
       "status": "warn",
       "section_summary": "1 actionable modules",
-      "module_table": {
+      "payload": {
         "environment": "prod",
         "rows": [
           {

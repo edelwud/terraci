@@ -15,24 +15,24 @@ func TestRenderSummaryReportCLI_RendersStructuredSections(t *testing.T) {
 		Title:    "Terraform Plan Summary",
 		Summary:  "2 modules: 1 with changes, 1 no changes, 0 failed",
 		Sections: []ci.ReportSection{
-			{
-				Kind:           ci.ReportSectionKindOverview,
-				Title:          "Summary",
-				Status:         ci.ReportStatusWarn,
-				SectionSummary: "2 modules: 1 with changes, 1 no changes, 0 failed",
-				Overview: &ci.OverviewSection{
+			ci.MustEncodeSection(
+				ci.ReportSectionKindOverview,
+				"Summary",
+				"2 modules: 1 with changes, 1 no changes, 0 failed",
+				ci.ReportStatusWarn,
+				ci.OverviewSection{
 					PlanStats: ci.SummaryPlanStats{Total: 2, Changes: 1, NoChanges: 1, Success: 2},
 					Reports: []ci.SummaryReportOverview{
 						{Kind: "cost_changes", Title: "Cost Estimation", Status: ci.ReportStatusWarn, Summary: "1 module added cost"},
 					},
 				},
-			},
-			{
-				Kind:           ci.ReportSectionKindModuleTable,
-				Title:          "Environment: `prod`",
-				Status:         ci.ReportStatusWarn,
-				SectionSummary: "1 actionable modules",
-				ModuleTable: &ci.ModuleTableSection{
+			),
+			ci.MustEncodeSection(
+				ci.ReportSectionKindModuleTable,
+				"Environment: `prod`",
+				"1 actionable modules",
+				ci.ReportStatusWarn,
+				ci.ModuleTableSection{
 					Environment: "prod",
 					Rows: []ci.ModuleTableRow{{
 						ModuleID:          "svc/prod/eu/vpc",
@@ -43,7 +43,7 @@ func TestRenderSummaryReportCLI_RendersStructuredSections(t *testing.T) {
 						RawPlanOutput:     "+ resource \"aws_vpc\" \"main\"",
 					}},
 				},
-			},
+			),
 		},
 	}
 

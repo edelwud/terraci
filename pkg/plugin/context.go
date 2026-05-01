@@ -24,16 +24,40 @@ type AppContext struct {
 	frozen bool
 }
 
+// AppContextOptions describes how to construct an AppContext. All fields are
+// optional except WorkDir / ServiceDir, which are required for runtime I/O
+// resolution. A zero AppContextOptions is sometimes useful as a sentinel; in
+// production code prefer setting at least Config, WorkDir, and ServiceDir.
+type AppContextOptions struct {
+	// Config is the loaded TerraCi configuration. Treated as read-only.
+	Config *config.Config
+	// WorkDir is the project working directory for the current command.
+	WorkDir string
+	// ServiceDir is the resolved absolute service directory path.
+	ServiceDir string
+	// Version is the current TerraCi version string.
+	Version string
+	// Reports is the shared in-process report registry. Defaults to a fresh
+	// empty registry if nil.
+	Reports *ReportRegistry
+	// Resolver is the per-run plugin resolver. Defaults to a no-op resolver
+	// that returns nothing if nil — plugins may always call ctx.Resolver().
+	Resolver Resolver
+}
+
 // NewAppContext creates a framework-managed plugin context.
-func NewAppContext(cfg *config.Config, workDir, serviceDir, version string, reports *ReportRegistry, resolver ...Resolver) *AppContext {
+func NewAppContext(opts AppContextOptions) *AppContext {
+	reports := opts.Reports
 	if reports == nil {
 		reports = NewReportRegistry()
 	}
-	ctx := &AppContext{reports: reports}
-	if len(resolver) > 0 {
-		ctx.resolver = resolver[0]
+	resolver := opts.Resolver
+	if resolver == nil {
+		resolver = noopResolver{}
 	}
-	ctx.Update(cfg, workDir, serviceDir, version)
+
+	ctx := &AppContext{reports: reports, resolver: resolver}
+	ctx.Update(opts.Config, opts.WorkDir, opts.ServiceDir, opts.Version)
 	return ctx
 }
 
@@ -64,6 +88,8 @@ func (ctx *AppContext) Reports() *ReportRegistry {
 }
 
 // Resolver returns the per-run plugin resolver bound to this context.
+// Always non-nil — when no resolver is configured, returns a no-op resolver
+// whose Resolve* methods return errors and whose lookups return nothing.
 func (ctx *AppContext) Resolver() Resolver {
 	return ctx.resolver
 }

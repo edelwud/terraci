@@ -76,9 +76,9 @@ func TestBuildJobPlan(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			plan, err := BuildJobPlan(depGraph, tt.targets, allModules, idx, tt.hasJobs, tt.planEnabled)
+			plan, err := buildJobPlan(depGraph, tt.targets, allModules, idx, tt.hasJobs, tt.planEnabled)
 			if err != nil {
-				t.Fatalf("BuildJobPlan() error = %v", err)
+				t.Fatalf("buildJobPlan() error = %v", err)
 			}
 
 			if got := len(plan.TargetModules); got != tt.wantCount {
@@ -244,7 +244,7 @@ func TestResolveDependencyNames_DepNotInIndex(t *testing.T) {
 	}
 }
 
-func TestBuildDryRunResult(t *testing.T) {
+func TestIRDryRun(t *testing.T) {
 	t.Parallel()
 
 	modA := discovery.TestModule("svc", "prod", "us-east-1", "vpc")
@@ -354,7 +354,7 @@ func TestBuildDryRunResult(t *testing.T) {
 				t.Fatalf("unhandled test case %q", tt.name)
 			}
 
-			result := BuildDryRunResult(ir, tt.totalModules)
+			result := ir.DryRun(tt.totalModules)
 			if result.Jobs != tt.wantJobs {
 				t.Errorf("Jobs = %d, want %d", result.Jobs, tt.wantJobs)
 			}

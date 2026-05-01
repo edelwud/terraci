@@ -35,11 +35,15 @@ func TestBuildPolicyReport_WithFailures(t *testing.T) {
 	if !strings.Contains(report.Summary, "2 modules") {
 		t.Fatalf("Summary = %q, want module count", report.Summary)
 	}
-	if len(report.Sections) != 1 || report.Sections[0].Findings == nil {
+	if len(report.Sections) != 1 {
 		t.Fatalf("expected one findings section")
 	}
-	if report.Sections[0].Findings.Rows[0].Findings[0].Message != "public endpoint forbidden" {
-		t.Fatalf("unexpected finding: %+v", report.Sections[0].Findings.Rows[0].Findings[0])
+	findings, err := ci.DecodeSection[ci.FindingsSection](report.Sections[0])
+	if err != nil {
+		t.Fatalf("decode findings: %v", err)
+	}
+	if findings.Rows[0].Findings[0].Message != "public endpoint forbidden" {
+		t.Fatalf("unexpected finding: %+v", findings.Rows[0].Findings[0])
 	}
 }
 
@@ -61,11 +65,15 @@ func TestBuildPolicyReport_WithWarnings(t *testing.T) {
 	if report.Status != ci.ReportStatusWarn {
 		t.Fatalf("Status = %q, want %q", report.Status, ci.ReportStatusWarn)
 	}
-	if len(report.Sections) != 1 || report.Sections[0].Findings == nil {
+	if len(report.Sections) != 1 {
 		t.Fatalf("expected one findings section")
 	}
-	if report.Sections[0].Findings.Rows[0].Findings[0].Message != "tag missing" {
-		t.Fatalf("unexpected finding: %+v", report.Sections[0].Findings.Rows[0].Findings[0])
+	findings, err := ci.DecodeSection[ci.FindingsSection](report.Sections[0])
+	if err != nil {
+		t.Fatalf("decode findings: %v", err)
+	}
+	if findings.Rows[0].Findings[0].Message != "tag missing" {
+		t.Fatalf("unexpected finding: %+v", findings.Rows[0].Findings[0])
 	}
 }
 

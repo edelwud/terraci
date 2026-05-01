@@ -68,7 +68,14 @@ func NewAppContextWithResolver(t *testing.T, workDir string, resolver plugin.Res
 	serviceDir := filepath.Join(t.TempDir(), ".terraci")
 	cfg := config.DefaultConfig()
 	cfg.ServiceDir = ".terraci"
-	return plugin.NewAppContext(cfg, workDir, serviceDir, "test", plugin.NewReportRegistry(), resolver)
+	return plugin.NewAppContext(plugin.AppContextOptions{
+		Config:     cfg,
+		WorkDir:    workDir,
+		ServiceDir: serviceDir,
+		Version:    "test",
+		Reports:    plugin.NewReportRegistry(),
+		Resolver:   resolver,
+	})
 }
 
 func MustRuntime[T any](t *testing.T, provider plugin.RuntimeProvider, appCtx *plugin.AppContext) T {

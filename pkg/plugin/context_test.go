@@ -9,7 +9,11 @@ import (
 )
 
 func TestAppContext_Freeze(t *testing.T) {
-	ctx := NewAppContext(nil, "/tmp", "/tmp/.terraci", "1.0", nil)
+	ctx := NewAppContext(AppContextOptions{
+		WorkDir:    "/tmp",
+		ServiceDir: "/tmp/.terraci",
+		Version:    "1.0",
+	})
 
 	if ctx.IsFrozen() {
 		t.Error("should not be frozen initially")
@@ -29,13 +33,12 @@ func TestAppContext_Freeze(t *testing.T) {
 
 func TestAppContext_ReportRegistry(t *testing.T) {
 	r := NewReportRegistry()
-	ctx := NewAppContext(nil, "", "", "", r)
+	ctx := NewAppContext(AppContextOptions{Reports: r})
 
 	if ctx.Reports() == nil {
 		t.Fatal("Reports should not be nil")
 	}
 
-	// Verify it's the same registry
 	if ctx.Reports() != r {
 		t.Error("Reports should be the same registry instance")
 	}
@@ -43,10 +46,25 @@ func TestAppContext_ReportRegistry(t *testing.T) {
 
 func TestAppContext_ConfigReturnsBoundPointer(t *testing.T) {
 	cfg := config.DefaultConfig()
-	ctx := NewAppContext(cfg, "/tmp", "/tmp/.terraci", "1.0", nil)
+	ctx := NewAppContext(AppContextOptions{
+		Config:     cfg,
+		WorkDir:    "/tmp",
+		ServiceDir: "/tmp/.terraci",
+		Version:    "1.0",
+	})
 
 	if ctx.Config() != cfg {
 		t.Error("Config() should return the bound configuration pointer")
+	}
+}
+
+func TestAppContext_NoResolverFallsBackToNoop(t *testing.T) {
+	ctx := NewAppContext(AppContextOptions{})
+	if ctx.Resolver() == nil {
+		t.Fatal("Resolver() should never return nil")
+	}
+	if _, err := ctx.Resolver().ResolveCIProvider(); err == nil {
+		t.Error("noop resolver should reject ResolveCIProvider")
 	}
 }
 
@@ -97,7 +115,12 @@ func (contextTestResolver) PreflightsForStartup() []Preflightable { return nil }
 func TestAppContext_BeginCommandRebindsResolver(t *testing.T) {
 	first := &contextTestPlugin{name: "cmd"}
 	second := &contextTestPlugin{name: "cmd"}
-	ctx := NewAppContext(nil, "/tmp", "/tmp/.terraci", "1.0", nil, contextTestResolver{plugin: first})
+	ctx := NewAppContext(AppContextOptions{
+		WorkDir:    "/tmp",
+		ServiceDir: "/tmp/.terraci",
+		Version:    "1.0",
+		Resolver:   contextTestResolver{plugin: first},
+	})
 
 	got, err := CommandInstance[*contextTestPlugin](ctx, "cmd")
 	if err != nil {
@@ -127,7 +150,11 @@ func TestAppContext_BeginCommandRebindsResolver(t *testing.T) {
 }
 
 func TestCommandInstanceRejectsMissingResolver(t *testing.T) {
-	ctx := NewAppContext(nil, "/tmp", "/tmp/.terraci", "1.0", nil)
+	ctx := NewAppContext(AppContextOptions{
+		WorkDir:    "/tmp",
+		ServiceDir: "/tmp/.terraci",
+		Version:    "1.0",
+	})
 	ctx.resolver = nil
 
 	if _, err := CommandInstance[*contextTestPlugin](ctx, "cmd"); err == nil {

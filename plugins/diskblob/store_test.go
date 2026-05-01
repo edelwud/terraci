@@ -61,10 +61,10 @@ func TestStore_CheckBlobStore_UnusableRoot(t *testing.T) {
 	}
 }
 
-func TestPlugin_NewBlobStoreWithOptions_InvalidRoot(t *testing.T) {
+func TestPlugin_NewBlobStore_InvalidRoot(t *testing.T) {
 	p := &Plugin{}
-	_, err := p.NewBlobStoreWithOptions(context.Background(), nil, plugin.BlobStoreOptions{RootDir: "   "})
+	_, err := p.NewBlobStore(context.Background(), nil, plugin.BlobStoreOptions{RootDir: "   "})
 	if err == nil || !strings.Contains(err.Error(), "diskblob: invalid root_dir") {
-		t.Fatalf("NewBlobStoreWithOptions() error = %v, want invalid root_dir error", err)
+		t.Fatalf("NewBlobStore() error = %v, want invalid root_dir error", err)
 	}
 }

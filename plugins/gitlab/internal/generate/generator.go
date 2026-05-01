@@ -120,7 +120,7 @@ func (g *Generator) DryRun(targetModules []*discovery.Module) (*pipeline.DryRunR
 		return nil, err
 	}
 
-	result := pipeline.BuildDryRunResult(ir, len(g.modules))
+	result := ir.DryRun(len(g.modules))
 	result.Stages = len(g.stagePlanner.stages(ir))
 	return result, nil
 }

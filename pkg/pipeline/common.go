@@ -18,8 +18,9 @@ type JobPlan struct {
 	HasContributedJobs bool
 }
 
-// BuildJobPlan prepares the execution plan from target modules.
-func BuildJobPlan(
+// buildJobPlan prepares the execution plan from target modules. It is an
+// internal step of Build() and is not part of the public package API.
+func buildJobPlan(
 	depGraph *graph.DependencyGraph,
 	targetModules, allModules []*discovery.Module,
 	moduleIndex *discovery.ModuleIndex,
@@ -82,8 +83,10 @@ func ResolveDependencyNames(
 	return names
 }
 
-// BuildDryRunResult creates a DryRunResult from the canonical pipeline IR.
-func BuildDryRunResult(ir *IR, totalModules int) *DryRunResult {
+// DryRun summarizes what the IR would produce. The caller passes the total
+// number of source modules (which can exceed the IR's affected count when
+// filters are active).
+func (ir *IR) DryRun(totalModules int) *DryRunResult {
 	if ir == nil {
 		return &DryRunResult{TotalModules: totalModules}
 	}

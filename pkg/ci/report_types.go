@@ -26,6 +26,8 @@ type ReportProvenance struct {
 }
 
 // ReportSectionKind identifies an application-owned report section payload.
+// New kinds can be added by producers without modifying pkg/ci — the section
+// payload is opaque JSON keyed only by Kind.
 type ReportSectionKind string
 
 const (
@@ -35,22 +37,15 @@ const (
 	ReportSectionKindDependencyUpdates ReportSectionKind = "dependency_updates"
 )
 
-// ReportSection is a neutral envelope for application-owned report payloads.
+// ReportSection is a neutral envelope describing one slice of a CI report. The
+// Payload is opaque JSON owned by the producer — consumers decode it according
+// to Kind. Use EncodeSection / DecodeSection for type-safe access.
 type ReportSection struct {
-	Kind              ReportSectionKind         `json:"kind"`
-	Title             string                    `json:"title,omitempty"`
-	Status            ReportStatus              `json:"status,omitempty"`
-	SectionSummary    string                    `json:"section_summary,omitempty"`
-	Overview          *OverviewSection          `json:"overview,omitempty"`
-	ModuleTable       *ModuleTableSection       `json:"module_table,omitempty"`
-	Findings          *FindingsSection          `json:"findings,omitempty"`
-	DependencyUpdates *DependencyUpdatesSection `json:"dependency_updates,omitempty"`
-	Payload           json.RawMessage           `json:"payload,omitempty"`
-}
-
-type reportSectionPayload struct {
-	name    string
-	present bool
+	Kind           ReportSectionKind `json:"kind"`
+	Title          string            `json:"title,omitempty"`
+	Status         ReportStatus      `json:"status,omitempty"`
+	SectionSummary string            `json:"section_summary,omitempty"`
+	Payload        json.RawMessage   `json:"payload,omitempty"`
 }
 
 // ModuleTableSection groups module-oriented rows such as terraform plan results.

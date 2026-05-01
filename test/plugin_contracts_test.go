@@ -248,6 +248,11 @@ func loadPluginContractConfig(t *testing.T, rawConfig string) *plugin.AppContext
 	}
 
 	serviceDir := filepath.Join(dir, cfg.ServiceDir)
-	appCtx := plugin.NewAppContext(cfg, dir, serviceDir, "test", nil, plugins)
-	return appCtx
+	return plugin.NewAppContext(plugin.AppContextOptions{
+		Config:     cfg,
+		WorkDir:    dir,
+		ServiceDir: serviceDir,
+		Version:    "test",
+		Resolver:   plugins,
+	})
 }
