@@ -32,12 +32,17 @@ outline: deep
 
 ## Работа с Pipeline IR
 
-IR содержит уровни выполнения с модульными джобами и contributed-джобами плагинов:
+Ядро строит IR один раз через `pipeline.Build(opts)` и передаёт его в фабрику —
+генератор только рендерит. IR уже содержит модули, contributions и зависимости.
 
 ```go
-func (g *generator) Generate(ir *pipeline.IR) (*pipeline.GeneratedPipeline, error) {
-    // ir.Levels — уровни параллельного выполнения модулей
-    for _, level := range ir.Levels {
+func (p *Plugin) NewGenerator(ctx *plugin.AppContext, ir *pipeline.IR) pipeline.Generator {
+    return &generator{config: p.Config(), ir: ir}
+}
+
+func (g *generator) Generate() (pipeline.GeneratedPipeline, error) {
+    // g.ir.Levels — уровни параллельного выполнения модулей
+    for _, level := range g.ir.Levels {
         for _, mj := range level.Modules {
             // mj.Module.Path — "platform/prod/eu-central-1/vpc"
             // mj.Plan — *Job (nil если plan отключён)
@@ -45,13 +50,12 @@ func (g *generator) Generate(ir *pipeline.IR) (*pipeline.GeneratedPipeline, erro
         }
     }
 
-    // ir.Jobs — contributed-джобы от плагинов (cost, policy, summary)
-    for _, job := range ir.Jobs {
-        // job.Name, job.Phase, job.Dependencies, job.Script
+    // g.ir.Jobs — contributed-джобы от плагинов (cost, policy, summary)
+    for _, job := range g.ir.Jobs {
+        // job.Name, job.Phase, job.Dependencies, job.Operation
     }
 
-    content := renderYAML(ir)
-    return &pipeline.GeneratedPipeline{Content: content}, nil
+    return renderYAML(g.ir), nil
 }
 ```
 
@@ -82,8 +86,6 @@ package bitbucket
 import (
     "os"
 
-    "github.com/edelwud/terraci/pkg/discovery"
-    "github.com/edelwud/terraci/pkg/graph"
     "github.com/edelwud/terraci/pkg/pipeline"
     "github.com/edelwud/terraci/pkg/plugin"
     "github.com/edelwud/terraci/pkg/plugin/registry"
@@ -121,23 +123,21 @@ func (p *Plugin) PipelineID() string   { return os.Getenv("BITBUCKET_BUILD_NUMBE
 func (p *Plugin) CommitSHA() string    { return os.Getenv("BITBUCKET_COMMIT") }
 
 // GeneratorFactory
-func (p *Plugin) NewGenerator(
-    ctx *plugin.AppContext,
-    depGraph *graph.DependencyGraph,
-    modules []*discovery.Module,
-    contributions []*pipeline.Contribution,
-) pipeline.Generator {
-    return &generator{config: p.Config(), contributions: contributions}
+func (p *Plugin) NewGenerator(ctx *plugin.AppContext, ir *pipeline.IR) pipeline.Generator {
+    return &generator{config: p.Config(), ir: ir}
 }
 
 type generator struct {
-    config        *Config
-    contributions []*pipeline.Contribution
+    config *Config
+    ir     *pipeline.IR
 }
 
-func (g *generator) Generate(ir *pipeline.IR) (*pipeline.GeneratedPipeline, error) {
-    content := renderBitbucketYAML(ir, g.config)
-    return &pipeline.GeneratedPipeline{Content: content}, nil
+func (g *generator) Generate() (pipeline.GeneratedPipeline, error) {
+    return renderBitbucketYAML(g.ir, g.config), nil
+}
+
+func (g *generator) DryRun() (*pipeline.DryRunResult, error) {
+    return g.ir.DryRun(countModules(g.ir)), nil
 }
 ```
 

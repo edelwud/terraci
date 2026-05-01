@@ -118,7 +118,7 @@ When `--provider gitlab` (or default), creates:
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
-plugins:
+extensions:
   gitlab:
     terraform_binary: "terraform"
     image: "hashicorp/terraform:1.6"
@@ -142,7 +142,7 @@ When `--provider github`, creates:
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
-plugins:
+extensions:
   github:
     terraform_binary: "terraform"
     runs_on: "ubuntu-latest"

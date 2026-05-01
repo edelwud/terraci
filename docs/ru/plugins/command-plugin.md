@@ -77,7 +77,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 ## Конфигурация
 
 ```yaml
-plugins:
+extensions:
   slack:
     enabled: true
     webhook_url: "https://hooks.slack.com/services/T.../B.../xxx"
@@ -153,7 +153,7 @@ func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contributi
 Добавьте переключатель `pipeline` в конфиг:
 
 ```yaml
-plugins:
+extensions:
   slack:
     enabled: true
     channel: "#terraform-deploys"

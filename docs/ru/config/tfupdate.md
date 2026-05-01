@@ -11,7 +11,7 @@ TerraCi умеет проверять доступные обновления д
 ## Базовая конфигурация
 
 ```yaml
-plugins:
+extensions:
   tfupdate:
     enabled: true
     policy:
@@ -25,7 +25,7 @@ plugins:
 Включение или отключение плагина обновлений.
 
 ```yaml
-plugins:
+extensions:
   tfupdate:
     enabled: true  # по умолчанию: false
 ```
@@ -37,7 +37,7 @@ plugins:
 Определяет, что проверять: провайдеры, модули или всё.
 
 ```yaml
-plugins:
+extensions:
   tfupdate:
     target: all  # по умолчанию: all
 ```
@@ -53,7 +53,7 @@ plugins:
 Уровень версионирования для определения «доступных» обновлений.
 
 ```yaml
-plugins:
+extensions:
   tfupdate:
     policy:
       bump: minor  # обязательный параметр
@@ -70,7 +70,7 @@ plugins:
 Фиксация обновлённых ограничений до точной версии при записи.
 
 ```yaml
-plugins:
+extensions:
   tfupdate:
     policy:
       bump: minor
@@ -84,7 +84,7 @@ plugins:
 Список провайдеров или модулей, которые следует исключить из проверки. Значения должны совпадать с полем `source` в блоках `required_providers` или `module`.
 
 ```yaml
-plugins:
+extensions:
   tfupdate:
     ignore:
       - registry.terraform.io/hashicorp/null
@@ -97,7 +97,7 @@ plugins:
 Общий таймаут для запуска. По умолчанию 5 минут для чтения, 20 минут для записи.
 
 ```yaml
-plugins:
+extensions:
   tfupdate:
     timeout: "15m"
 ```
@@ -107,7 +107,7 @@ plugins:
 Настройка хостов реестров для поиска провайдеров.
 
 ```yaml
-plugins:
+extensions:
   tfupdate:
     registries:
       default: registry.terraform.io  # по умолчанию
@@ -125,7 +125,7 @@ plugins:
 Настройка синхронизации lock-файлов.
 
 ```yaml
-plugins:
+extensions:
   tfupdate:
     lock:
       platforms:
@@ -142,7 +142,7 @@ plugins:
 Настройка кеширования метаданных реестра и артефактов провайдеров.
 
 ```yaml
-plugins:
+extensions:
   tfupdate:
     cache:
       metadata:
@@ -159,7 +159,7 @@ plugins:
 Добавляет джоб `tfupdate-check` в начало сгенерированного CI пайплайна.
 
 ```yaml
-plugins:
+extensions:
   tfupdate:
     pipeline: false  # по умолчанию: false
 ```
@@ -169,7 +169,7 @@ plugins:
 ## Полный пример конфигурации
 
 ```yaml
-plugins:
+extensions:
   tfupdate:
     enabled: true
     target: all
@@ -268,7 +268,7 @@ terraci tfupdate --module platform/prod/eu-central-1/vpc
 terraci tfupdate --output json
 ```
 
-> **Примечание:** требуется `plugins.tfupdate.enabled: true` в `.terraci.yaml`.
+> **Примечание:** требуется `extensions.tfupdate.enabled: true` в `.terraci.yaml`.
 
 ## Артефакты
 

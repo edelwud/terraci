@@ -149,7 +149,7 @@ plan-module:
 Минимальный пример:
 
 ```yaml
-plugins:
+extensions:
   policy:
     enabled: true
     sources:

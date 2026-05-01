@@ -155,14 +155,14 @@ TerraCi читает и записывает ограничения версий
 
 ## Требования
 
-- `plugins.tfupdate.enabled: true` в `.terraci.yaml`
-- `plugins.tfupdate.policy.bump` должен быть указан (через конфиг или `--bump`)
+- `extensions.tfupdate.enabled: true` в `.terraci.yaml`
+- `extensions.tfupdate.policy.bump` должен быть указан (через конфиг или `--bump`)
 - Доступ к Terraform Registry
 
 ## Конфигурация
 
 ```yaml
-plugins:
+extensions:
   tfupdate:
     enabled: true
     target: all
@@ -183,7 +183,7 @@ plugins:
 
 ## Интеграция с CI пайплайном
 
-При `plugins.tfupdate.pipeline: true` TerraCi добавляет джоб `tfupdate-check` в начало пайплайна. Джоб помечается как `allow_failure: true`.
+При `extensions.tfupdate.pipeline: true` TerraCi добавляет джоб `tfupdate-check` в начало пайплайна. Джоб помечается как `allow_failure: true`.
 
 ## Артефакты
 

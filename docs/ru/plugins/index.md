@@ -124,7 +124,7 @@ type Config struct {
 Пользователи настраивают плагин в `.terraci.yaml`:
 
 ```yaml
-plugins:
+extensions:
   myplugin:
     enabled: true
 ```

@@ -13,7 +13,7 @@ TerraCi has first-class support for [OpenTofu](https://opentofu.org/), the open-
 Switch to OpenTofu by updating `.terraci.yaml`:
 
 ```yaml
-plugins:
+extensions:
   # For GitLab CI
   gitlab:
     terraform_binary: "tofu"
@@ -101,7 +101,7 @@ TerraCi's dependency resolution works identically for both.
 
 1. Update `.terraci.yaml` (for your provider):
    ```yaml
-   plugins:
+   extensions:
      # GitLab CI
      gitlab:
        terraform_binary: "tofu"
@@ -150,7 +150,7 @@ The HCL parsing is compatible with both.
 If your binary has a custom name or path:
 
 ```yaml
-plugins:
+extensions:
   # GitLab
   gitlab:
     terraform_binary: "/usr/local/bin/tofu-1.6"
@@ -167,7 +167,7 @@ plugins:
 Set OpenTofu-specific environment variables:
 
 ```yaml
-plugins:
+extensions:
   # GitLab
   gitlab:
     variables:

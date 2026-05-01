@@ -65,7 +65,7 @@ terraci init --ci --provider gitlab --binary tofu --image ghcr.io/opentofu/opent
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
-plugins:
+extensions:
   gitlab:
     terraform_binary: "terraform"
     image: "hashicorp/terraform:1.6"

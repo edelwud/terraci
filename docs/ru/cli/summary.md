@@ -107,7 +107,7 @@ Plan: 2 to add, 1 to change, 0 to destroy.
 ### GitLab
 
 ```yaml
-plugins:
+extensions:
   gitlab:
     mr:
       comment:
@@ -121,7 +121,7 @@ plugins:
 ### GitHub
 
 ```yaml
-plugins:
+extensions:
   github:
     pr:
       comment:

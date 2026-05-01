@@ -56,20 +56,15 @@ func (p *Plugin) CommitSHA() string    { return os.Getenv("BITBUCKET_COMMIT") }
 
 ## Pipeline Generator
 
-The generator receives the provider-agnostic pipeline IR and transforms it to your CI format:
+Core builds the IR once via `pipeline.Build(opts)` and passes it to your factory.
+Your generator just renders the IR — it does not need depGraph, modules, or
+contributions because the IR already encodes all of them.
 
 ```go
-func (p *Plugin) NewGenerator(
-    ctx *plugin.AppContext,
-    depGraph *graph.DependencyGraph,
-    modules []*discovery.Module,
-    contributions []*pipeline.Contribution,
-) pipeline.Generator {
+func (p *Plugin) NewGenerator(ctx *plugin.AppContext, ir *pipeline.IR) pipeline.Generator {
     return &BitbucketGenerator{
-        config:        p.Config(),
-        depGraph:      depGraph,
-        modules:       modules,
-        contributions: contributions,
+        config: p.Config(),
+        ir:     ir,
     }
 }
 ```
@@ -78,11 +73,12 @@ The generator must implement `pipeline.Generator`:
 
 ```go
 type Generator interface {
-    Generate(ir *IR) (*GeneratedPipeline, error)
+    Generate() (GeneratedPipeline, error)
+    DryRun() (*DryRunResult, error)
 }
 
-type GeneratedPipeline struct {
-    Content []byte // the generated YAML
+type GeneratedPipeline interface {
+    ToYAML() ([]byte, error)
 }
 ```
 
@@ -91,27 +87,26 @@ type GeneratedPipeline struct {
 The IR contains execution levels with module jobs and contributed plugin jobs:
 
 ```go
-func (g *BitbucketGenerator) Generate(ir *pipeline.IR) (*pipeline.GeneratedPipeline, error) {
-    // ir.Levels — ordered groups of parallel module jobs
-    for _, level := range ir.Levels {
+func (g *BitbucketGenerator) Generate() (pipeline.GeneratedPipeline, error) {
+    // g.ir.Levels — ordered groups of parallel module jobs
+    for _, level := range g.ir.Levels {
         for _, mj := range level.Modules {
             // mj.Module.Path — "platform/prod/eu-central-1/vpc"
             // mj.Plan — *Job (nil if plan disabled)
             // mj.Apply — *Job (nil if plan-only mode)
-            // Each Job has: Name, Script, Dependencies, Steps, Env
+            // Each Job has: Name, Operation, Dependencies, Steps, Env
         }
     }
 
-    // ir.Jobs — contributed jobs from plugins (cost, policy, summary, etc.)
-    for _, job := range ir.Jobs {
+    // g.ir.Jobs — contributed jobs from plugins (cost, policy, summary, etc.)
+    for _, job := range g.ir.Jobs {
         // job.Name — "cost-estimation", "policy-check", etc.
         // job.Phase — determines stage name
         // job.Dependencies — job names this depends on
-        // job.Script — commands to run
+        // job.Operation — typed payload; render via cishell.RenderOperation for shell-driven CI
     }
 
-    content := renderBitbucketYAML(ir)
-    return &pipeline.GeneratedPipeline{Content: content}, nil
+    return renderBitbucketYAML(g.ir), nil
 }
 ```
 
@@ -174,8 +169,6 @@ import (
     "os"
 
     "github.com/edelwud/terraci/pkg/ci"
-    "github.com/edelwud/terraci/pkg/discovery"
-    "github.com/edelwud/terraci/pkg/graph"
     "github.com/edelwud/terraci/pkg/pipeline"
     "github.com/edelwud/terraci/pkg/plugin"
     "github.com/edelwud/terraci/pkg/plugin/registry"
@@ -217,27 +210,22 @@ func (p *Plugin) CommitSHA() string    { return os.Getenv("BITBUCKET_COMMIT") }
 
 // --- GeneratorFactory ---
 
-func (p *Plugin) NewGenerator(
-    ctx *plugin.AppContext,
-    depGraph *graph.DependencyGraph,
-    modules []*discovery.Module,
-    contributions []*pipeline.Contribution,
-) pipeline.Generator {
-    return &generator{config: p.Config(), depGraph: depGraph, modules: modules, contributions: contributions}
+func (p *Plugin) NewGenerator(ctx *plugin.AppContext, ir *pipeline.IR) pipeline.Generator {
+    return &generator{config: p.Config(), ir: ir}
 }
 
 type generator struct {
-    config        *Config
-    depGraph      *graph.DependencyGraph
-    modules       []*discovery.Module
-    contributions []*pipeline.Contribution
+    config *Config
+    ir     *pipeline.IR
 }
 
-func (g *generator) Generate(ir *pipeline.IR) (*pipeline.GeneratedPipeline, error) {
+func (g *generator) Generate() (pipeline.GeneratedPipeline, error) {
     // Transform IR to bitbucket-pipelines.yml format
-    // This is where you implement your CI-specific YAML generation
-    content := renderBitbucketPipeline(ir, g.config)
-    return &pipeline.GeneratedPipeline{Content: content}, nil
+    return renderBitbucketPipeline(g.ir, g.config), nil
+}
+
+func (g *generator) DryRun() (*pipeline.DryRunResult, error) {
+    return g.ir.DryRun(countModules(g.ir)), nil
 }
 
 // --- CommentFactory (optional) ---

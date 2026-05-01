@@ -196,7 +196,7 @@ When the wizard completes, `BuildInitConfig` results are assembled into `.terrac
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
-plugins:
+extensions:
   gitlab:
     image: { name: hashicorp/terraform:1.6 }
     plan_enabled: true

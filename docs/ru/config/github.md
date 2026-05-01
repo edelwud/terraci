@@ -18,7 +18,7 @@ outline: deep
 Бинарный файл Terraform/OpenTofu.
 
 ```yaml
-plugins:
+extensions:
   github:
     terraform_binary: "terraform"  # или "tofu"
 ```
@@ -31,7 +31,7 @@ plugins:
 Метка раннера GitHub Actions для джобов.
 
 ```yaml
-plugins:
+extensions:
   github:
     runs_on: "ubuntu-latest"
     # runs_on: "self-hosted"
@@ -45,7 +45,7 @@ plugins:
 Опционально запускать джобы внутри контейнера. Поддерживает строковый и объектный формат.
 
 ```yaml
-plugins:
+extensions:
   github:
     container:
       name: "hashicorp/terraform:1.6"
@@ -60,7 +60,7 @@ plugins:
 Переменные окружения на уровне workflow.
 
 ```yaml
-plugins:
+extensions:
   github:
     env:
       TF_IN_AUTOMATION: "true"
@@ -76,7 +76,7 @@ plugins:
 Генерировать отдельные план-джобы.
 
 ```yaml
-plugins:
+extensions:
   github:
     plan_enabled: true   # plan + apply джобы
     # plan_enabled: false  # только apply
@@ -90,7 +90,7 @@ plugins:
 Генерировать только план-джобы без apply-джобов.
 
 ```yaml
-plugins:
+extensions:
   github:
     plan_only: true
 ```
@@ -103,7 +103,7 @@ plugins:
 Автоматический apply без защиты через environment.
 
 ```yaml
-plugins:
+extensions:
   github:
     auto_approve: false  # Apply использует environment protection
     # auto_approve: true   # Apply выполняется автоматически
@@ -117,7 +117,7 @@ plugins:
 Автоматический запуск `terraform init` перед командами terraform.
 
 ```yaml
-plugins:
+extensions:
   github:
     init_enabled: true
 ```
@@ -130,7 +130,7 @@ plugins:
 Permissions на уровне workflow. Необходимы для комментариев в PR и аутентификации OIDC.
 
 ```yaml
-plugins:
+extensions:
   github:
     permissions:
       contents: read
@@ -154,7 +154,7 @@ plugins:
 
 **Пример: Общие шаги настройки для всех джобов**
 ```yaml
-plugins:
+extensions:
   github:
     job_defaults:
       steps_before:
@@ -194,7 +194,7 @@ plugins:
 
 **Пример: Разные раннеры для plan и apply**
 ```yaml
-plugins:
+extensions:
   github:
     overwrites:
       - type: plan
@@ -208,7 +208,7 @@ plugins:
 
 **Пример: Дополнительные шаги для apply-джобов**
 ```yaml
-plugins:
+extensions:
   github:
     overwrites:
       - type: apply
@@ -227,7 +227,7 @@ plugins:
 Настройки интеграции с Pull Request. Эквивалент секции `mr` в GitLab.
 
 ```yaml
-plugins:
+extensions:
   github:
     pr:
       comment:
@@ -248,7 +248,7 @@ plugins:
 ## Полный пример
 
 ```yaml
-plugins:
+extensions:
   github:
     # Конфигурация бинарного файла
     terraform_binary: "terraform"

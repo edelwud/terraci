@@ -48,7 +48,7 @@ exclude:
 
 include: []  # Empty means all (after excludes)
 
-plugins:
+extensions:
   # GitLab CI pipeline settings (used when GITLAB_CI is detected)
   gitlab:
     terraform_binary: "terraform"
@@ -86,7 +86,7 @@ plugins:
   #     contents: read
   #     pull-requests: write
 
-  # Summary plugin settings
+  # Summary extension settings
   # summary:
   #   on_changes_only: false
   #   include_details: true
@@ -125,7 +125,7 @@ If a configuration file is not found, these defaults are used:
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
-plugins:
+extensions:
   gitlab:
     terraform_binary: "terraform"
     image: "hashicorp/terraform:1.6"
@@ -154,7 +154,7 @@ This checks:
 Some values can be overridden via environment variables in the CI pipeline:
 
 ```yaml
-plugins:
+extensions:
   gitlab:
     variables:
       AWS_REGION: "${AWS_REGION}"  # From CI environment
@@ -172,7 +172,7 @@ defaults: &defaults
   before_script:
     - aws sts get-caller-identity
 
-plugins:
+extensions:
   gitlab:
     image: "hashicorp/terraform:1.6"
     job_defaults:
@@ -184,7 +184,7 @@ plugins:
 For OpenTofu minimal images that have a non-shell entrypoint, use the object format:
 
 ```yaml
-plugins:
+extensions:
   gitlab:
     terraform_binary: "tofu"
     image:

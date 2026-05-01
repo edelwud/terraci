@@ -102,10 +102,10 @@ Plan: 2 to add, 1 to change, 0 to destroy.
 
 ## Configuration
 
-The `summary` plugin is **enabled by default** — no explicit `enabled: true` is required. It can be disabled via `plugins.summary`:
+The `summary` plugin is **enabled by default** — no explicit `enabled: true` is required. It can be disabled via `extensions.summary`:
 
 ```yaml
-plugins:
+extensions:
   summary:
     enabled: false  # disable the summary plugin
 ```
@@ -115,7 +115,7 @@ Configure the MR/PR comment behavior via the CI provider config in `.terraci.yam
 ### GitLab
 
 ```yaml
-plugins:
+extensions:
   gitlab:
     mr:
       comment:
@@ -129,7 +129,7 @@ See [GitLab MR Configuration](/config/gitlab-mr) for full options.
 ### GitHub
 
 ```yaml
-plugins:
+extensions:
   github:
     pr:
       comment:

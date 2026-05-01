@@ -229,7 +229,7 @@ apply-platform-prod-us-east-1-vpc:
 Включение или отключение стадии plan:
 
 ```yaml
-plugins:
+extensions:
   gitlab:
     plan_enabled: true   # Генерировать plan джобы
     # plan_enabled: false  # Сразу к apply
@@ -240,7 +240,7 @@ plugins:
 Пропуск ручного подтверждения для apply-джобов:
 
 ```yaml
-plugins:
+extensions:
   gitlab:
     auto_approve: false  # Требовать ручной запуск (по умолчанию)
     # auto_approve: true   # Автоматический apply
@@ -263,7 +263,7 @@ terraci generate --no-auto-approve -o .gitlab-ci.yml
 Настройка имён стадий:
 
 ```yaml
-plugins:
+extensions:
   gitlab:
     stages_prefix: "terraform"  # terraform-plan-0, terraform-apply-0
 ```
@@ -273,7 +273,7 @@ plugins:
 Добавьте скрипты до и после выполнения через `job_defaults`:
 
 ```yaml
-plugins:
+extensions:
   gitlab:
     job_defaults:
       before_script:
@@ -288,7 +288,7 @@ plugins:
 Укажите теги GitLab-раннеров через `job_defaults`:
 
 ```yaml
-plugins:
+extensions:
   gitlab:
     job_defaults:
       tags:

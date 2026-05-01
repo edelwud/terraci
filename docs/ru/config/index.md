@@ -48,8 +48,8 @@ exclude:
 
 include: []  # Пустой означает все (после исключений)
 
-# Настройки плагинов
-plugins:
+# Настройки расширений
+extensions:
   # Настройки GitLab CI
   gitlab:
     terraform_binary: "terraform"
@@ -115,7 +115,7 @@ plugins:
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
-plugins:
+extensions:
   gitlab:
     terraform_binary: "terraform"
     image: "hashicorp/terraform:1.6"
@@ -144,7 +144,7 @@ terraci validate
 Переменные окружения можно использовать в конфигурации CI:
 
 ```yaml
-plugins:
+extensions:
   gitlab:
     variables:
       AWS_REGION: "${AWS_REGION}"  # Из окружения CI
@@ -162,7 +162,7 @@ defaults: &defaults
   before_script:
     - aws sts get-caller-identity
 
-plugins:
+extensions:
   gitlab:
     image: "hashicorp/terraform:1.6"
     job_defaults:
@@ -174,7 +174,7 @@ plugins:
 Для минимальных образов OpenTofu с не-shell entrypoint используйте объектный формат:
 
 ```yaml
-plugins:
+extensions:
   gitlab:
     terraform_binary: "tofu"
     image:

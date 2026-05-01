@@ -208,8 +208,8 @@ Use `--lock-platforms` to restrict which platforms get `h1:` hashes (download-he
 
 ## Prerequisites
 
-- `plugins.tfupdate.enabled: true` in `.terraci.yaml`
-- `plugins.tfupdate.policy.bump` must be set (via config or `--bump` flag)
+- `extensions.tfupdate.enabled: true` in `.terraci.yaml`
+- `extensions.tfupdate.policy.bump` must be set (via config or `--bump` flag)
 - Network access to the Terraform registry (`registry.terraform.io`) for provider lookups
 - Network access to the appropriate registry for module lookups
 

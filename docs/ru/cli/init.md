@@ -65,7 +65,7 @@ terraci init --provider github
 terraci init --provider gitlab
 ```
 
-При `--provider github` сгенерированный конфиг будет содержать секцию `plugins.github` (с `runs_on`, `steps_before` и т.д.) и не будет содержать секцию `plugins.gitlab`. При `--provider gitlab` — наоборот.
+При `--provider github` сгенерированный конфиг будет содержать секцию `extensions.github` (с `runs_on`, `steps_before` и т.д.) и не будет содержать секцию `extensions.gitlab`. При `--provider gitlab` — наоборот.
 
 ### Настройка OpenTofu
 
@@ -119,7 +119,7 @@ terraci -d /path/to/project init
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
-plugins:
+extensions:
   gitlab:
     terraform_binary: "terraform"
     image: "hashicorp/terraform:1.6"
@@ -143,7 +143,7 @@ backend:
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
-plugins:
+extensions:
   github:
     terraform_binary: "terraform"
     runs_on: "ubuntu-latest"

@@ -11,7 +11,7 @@ TerraCi интегрирует [Open Policy Agent (OPA)](https://www.openpolicya
 ## Базовая конфигурация
 
 ```yaml
-plugins:
+extensions:
   policy:
     enabled: true
     sources:
@@ -28,7 +28,7 @@ plugins:
 Включение/отключение проверки политик глобально.
 
 ```yaml
-plugins:
+extensions:
   policy:
     enabled: true  # по умолчанию: false
 ```
@@ -40,7 +40,7 @@ plugins:
 #### Локальный путь
 
 ```yaml
-plugins:
+extensions:
   policy:
     sources:
       - path: terraform           # package terraform → data.terraform.deny/warn
@@ -50,7 +50,7 @@ plugins:
 #### Git репозиторий
 
 ```yaml
-plugins:
+extensions:
   policy:
     sources:
       - git: https://github.com/org/terraform-policies.git
@@ -60,7 +60,7 @@ plugins:
 #### OCI реестр
 
 ```yaml
-plugins:
+extensions:
   policy:
     sources:
       - oci: oci://ghcr.io/org/policies:v1.0
@@ -71,7 +71,7 @@ plugins:
 Rego пакеты для проверки. TerraCi запрашивает `data.<namespace>.deny` и `data.<namespace>.warn` для каждого namespace.
 
 ```yaml
-plugins:
+extensions:
   policy:
     namespaces:
       - terraform              # data.terraform.deny, data.terraform.warn
@@ -97,7 +97,7 @@ plugins:
 Действие при срабатывании `warn` правил:
 
 ```yaml
-plugins:
+extensions:
   policy:
     on_warning: warn  # по умолчанию
 ```
@@ -107,7 +107,7 @@ plugins:
 Директория для кэширования загруженных политик (git/OCI источники).
 
 ```yaml
-plugins:
+extensions:
   policy:
     cache_dir: .terraci/policies  # по умолчанию
 ```
@@ -117,7 +117,7 @@ plugins:
 Переопределение настроек для конкретных модулей через `**` glob-паттерны:
 
 ```yaml
-plugins:
+extensions:
   policy:
     enabled: true
     on_failure: block
@@ -224,7 +224,7 @@ compliance/         → package compliance   (контроль расходов)
 ```
 
 ```yaml
-plugins:
+extensions:
   policy:
     sources:
       - path: terraform

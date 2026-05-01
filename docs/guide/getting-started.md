@@ -65,7 +65,7 @@ This creates a `.terraci.yaml` configuration file:
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
-plugins:
+extensions:
   gitlab:
     terraform_binary: "terraform"
     image: "hashicorp/terraform:1.6"

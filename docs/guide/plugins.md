@@ -30,10 +30,10 @@ The **git** plugin requires no configuration. It provides changed-module detecti
 
 ### Activated by Config Presence
 
-**gitlab** and **github** plugins activate when their config section exists under `plugins:`. Removing the section disables them:
+**gitlab** and **github** plugins activate when their config section exists under `extensions:`. Removing the section disables them:
 
 ```yaml
-plugins:
+extensions:
   gitlab:      # presence of this section activates the plugin
     image: { name: hashicorp/terraform:1.6 }
 ```
@@ -43,7 +43,7 @@ plugins:
 **summary** is active unless explicitly disabled. It posts plan summaries to MR/PR comments:
 
 ```yaml
-plugins:
+extensions:
   summary:
     enabled: false   # opt out
 ```
@@ -53,7 +53,7 @@ plugins:
 **cost**, **policy**, and **tfupdate** must be explicitly opted in:
 
 ```yaml
-plugins:
+extensions:
   cost:
     providers:
       aws:
@@ -108,7 +108,7 @@ Every plugin goes through the same lifecycle:
 
 ```
 1. Register    -- init() registers the plugin via registry.RegisterFactory()
-2. Configure   -- framework decodes the matching plugins.<key> YAML section
+2. Configure   -- framework decodes the matching extensions.<key> YAML section
 3. Preflight   -- cheap validation (env detection, config checks)
 4. Freeze      -- AppContext is frozen, no further config mutations
 5. Execute     -- commands lazily build RuntimeProvider runtimes as needed

@@ -89,7 +89,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 Users add your plugin to `.terraci.yaml`:
 
 ```yaml
-plugins:
+extensions:
   slack:
     enabled: true
     webhook_url: "https://hooks.slack.com/services/T.../B.../xxx"
@@ -257,7 +257,7 @@ func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contributi
 Add a `pipeline` toggle to your config so users can opt in:
 
 ```yaml
-plugins:
+extensions:
   slack:
     enabled: true
     channel: "#terraform-deploys"

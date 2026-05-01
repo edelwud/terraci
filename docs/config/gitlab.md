@@ -18,7 +18,7 @@ The `gitlab` section configures the generated GitLab CI pipeline. This section i
 The Terraform/OpenTofu binary to use.
 
 ```yaml
-plugins:
+extensions:
   gitlab:
     terraform_binary: "terraform"  # or "tofu"
 ```
@@ -35,7 +35,7 @@ Docker image for Terraform jobs (in `default` section). Supports both simple str
 
 **String format** (simple):
 ```yaml
-plugins:
+extensions:
   gitlab:
     # Terraform
     image: "hashicorp/terraform:1.6"
@@ -49,7 +49,7 @@ plugins:
 
 **Object format** (with entrypoint):
 ```yaml
-plugins:
+extensions:
   gitlab:
     # OpenTofu minimal image requires entrypoint override
     image:
@@ -78,7 +78,7 @@ The `terraform_image` field is deprecated. Use `image` instead.
 Prefix for generated stage names.
 
 ```yaml
-plugins:
+extensions:
   gitlab:
     stages_prefix: "deploy"  # Produces: deploy-plan-0, deploy-apply-0
     # stages_prefix: "terraform"  # Produces: terraform-plan-0, terraform-apply-0
@@ -92,7 +92,7 @@ plugins:
 Maximum number of parallel jobs per stage (reserved for future use).
 
 ```yaml
-plugins:
+extensions:
   gitlab:
     parallelism: 5
 ```
@@ -105,7 +105,7 @@ plugins:
 Generate separate plan jobs.
 
 ```yaml
-plugins:
+extensions:
   gitlab:
     plan_enabled: true   # plan + apply jobs
     # plan_enabled: false  # apply only
@@ -125,7 +125,7 @@ When disabled, generates only `apply-*` jobs that run `terraform apply`.
 Auto-approve apply jobs without manual trigger.
 
 ```yaml
-plugins:
+extensions:
   gitlab:
     auto_approve: false  # Apply requires manual trigger (when: manual)
     # auto_approve: true   # Apply runs automatically
@@ -139,7 +139,7 @@ plugins:
 Enable caching of `.terraform` directory for each module. This significantly speeds up pipeline execution by reusing downloaded providers and modules.
 
 ```yaml
-plugins:
+extensions:
   gitlab:
     cache_enabled: true
 ```
@@ -164,7 +164,7 @@ The cache key is derived from the module path with slashes replaced by dashes.
 Advanced cache settings for generated GitLab jobs. Use this when `cache_enabled` is not enough and you need to control cache key, paths, or GitLab cache policy.
 
 ```yaml
-plugins:
+extensions:
   gitlab:
     cache:
       enabled: true
@@ -199,7 +199,7 @@ cache:
 Automatically run `terraform init` after changing to the module directory. This ensures initialization happens in the correct context.
 
 ```yaml
-plugins:
+extensions:
   gitlab:
     init_enabled: true   # Adds ${TERRAFORM_BINARY} init after cd
     # init_enabled: false  # Skip automatic init (use job_defaults.before_script instead)
@@ -221,7 +221,7 @@ script:
 Global pipeline variables.
 
 ```yaml
-plugins:
+extensions:
   gitlab:
     variables:
       TF_IN_AUTOMATION: "true"
@@ -237,7 +237,7 @@ plugins:
 Workflow rules for conditional pipeline execution. Controls when pipelines are created.
 
 ```yaml
-plugins:
+extensions:
   gitlab:
     rules:
       - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
@@ -286,7 +286,7 @@ Available fields:
 
 **Example: Common settings for all jobs**
 ```yaml
-plugins:
+extensions:
   gitlab:
     job_defaults:
       tags:
@@ -320,7 +320,7 @@ Each overwrite has:
 
 **Example: Different images for plan and apply**
 ```yaml
-plugins:
+extensions:
   gitlab:
     image: "hashicorp/terraform:1.6"
 
@@ -339,7 +339,7 @@ plugins:
 
 **Example: Add job-level rules for apply jobs**
 ```yaml
-plugins:
+extensions:
   gitlab:
     overwrites:
       - type: apply
@@ -351,7 +351,7 @@ plugins:
 
 **Example: Different secrets for different job types**
 ```yaml
-plugins:
+extensions:
   gitlab:
     job_defaults:
       secrets:
@@ -368,7 +368,7 @@ plugins:
 
 **Example: job_defaults with overwrites**
 ```yaml
-plugins:
+extensions:
   gitlab:
     # Common settings for all jobs
     job_defaults:
@@ -392,7 +392,7 @@ plugins:
 ## Full Example
 
 ```yaml
-plugins:
+extensions:
   gitlab:
     # Binary configuration
     terraform_binary: "terraform"

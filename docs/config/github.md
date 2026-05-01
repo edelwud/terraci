@@ -18,7 +18,7 @@ The `github` section configures the generated GitHub Actions workflow. This sect
 The Terraform/OpenTofu binary to use.
 
 ```yaml
-plugins:
+extensions:
   github:
     terraform_binary: "terraform"  # or "tofu"
 ```
@@ -31,7 +31,7 @@ plugins:
 The GitHub Actions runner label for jobs.
 
 ```yaml
-plugins:
+extensions:
   github:
     runs_on: "ubuntu-latest"
     # runs_on: "self-hosted"
@@ -45,7 +45,7 @@ plugins:
 Optionally run jobs inside a container. Supports both string and object format.
 
 ```yaml
-plugins:
+extensions:
   github:
     container:
       name: "hashicorp/terraform:1.6"
@@ -60,7 +60,7 @@ plugins:
 Workflow-level environment variables.
 
 ```yaml
-plugins:
+extensions:
   github:
     env:
       TF_IN_AUTOMATION: "true"
@@ -76,7 +76,7 @@ plugins:
 Generate separate plan jobs.
 
 ```yaml
-plugins:
+extensions:
   github:
     plan_enabled: true   # plan + apply jobs
     # plan_enabled: false  # apply only
@@ -90,7 +90,7 @@ plugins:
 Generate only plan jobs without apply jobs.
 
 ```yaml
-plugins:
+extensions:
   github:
     plan_only: true
 ```
@@ -103,7 +103,7 @@ plugins:
 Auto-approve apply jobs without environment protection.
 
 ```yaml
-plugins:
+extensions:
   github:
     auto_approve: false  # Apply uses environment protection
     # auto_approve: true   # Apply runs automatically
@@ -117,7 +117,7 @@ plugins:
 Automatically run `terraform init` before terraform commands.
 
 ```yaml
-plugins:
+extensions:
   github:
     init_enabled: true
 ```
@@ -130,7 +130,7 @@ plugins:
 Workflow-level permissions. Required for PR comments and OIDC authentication.
 
 ```yaml
-plugins:
+extensions:
   github:
     permissions:
       contents: read
@@ -154,7 +154,7 @@ Available fields:
 
 **Example: Common setup steps for all jobs**
 ```yaml
-plugins:
+extensions:
   github:
     job_defaults:
       steps_before:
@@ -194,7 +194,7 @@ Each overwrite has:
 
 **Example: Different runners for plan and apply**
 ```yaml
-plugins:
+extensions:
   github:
     overwrites:
       - type: plan
@@ -208,7 +208,7 @@ plugins:
 
 **Example: Extra steps for apply jobs**
 ```yaml
-plugins:
+extensions:
   github:
     overwrites:
       - type: apply
@@ -227,7 +227,7 @@ plugins:
 Pull request integration settings. Equivalent to GitLab's `mr` section.
 
 ```yaml
-plugins:
+extensions:
   github:
     pr:
       comment:
@@ -248,7 +248,7 @@ Controls PR comment behavior:
 ## Full Example
 
 ```yaml
-plugins:
+extensions:
   github:
     # Binary configuration
     terraform_binary: "terraform"

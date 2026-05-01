@@ -128,7 +128,7 @@ type Config struct {
 Users configure your plugin in `.terraci.yaml`:
 
 ```yaml
-plugins:
+extensions:
   myplugin:
     enabled: true
 ```
@@ -149,7 +149,7 @@ Register → Configure → Preflight → Freeze → Execute
 ```
 
 1. **Register** — `init()` runs at import time
-2. **Configure** — framework decodes `plugins.<key>` from YAML
+2. **Configure** — framework decodes `extensions.<key>` from YAML
 3. **Preflight** — cheap validation (no network, no heavy state)
 4. **Freeze** — context becomes immutable
 5. **Execute** — commands lazily build runtime as needed

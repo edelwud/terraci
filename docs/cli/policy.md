@@ -151,7 +151,7 @@ See [Policy Configuration](/config/policy) for full configuration options.
 Minimal example:
 
 ```yaml
-plugins:
+extensions:
   policy:
     enabled: true
     sources:

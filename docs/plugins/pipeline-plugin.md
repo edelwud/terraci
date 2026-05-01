@@ -154,7 +154,7 @@ func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contributi
 
 ## Framework Filtering
 
-You don't need to check `IsEnabled()` in `PipelineContribution` — the framework only calls it for enabled plugins. Return `nil` if your plugin has nothing to contribute:
+You don't need to check `IsEnabled()` in `PipelineContribution` — the framework only calls it for enabled extensions. Return `nil` if your plugin has nothing to contribute:
 
 ```go
 func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contribution {
@@ -207,7 +207,7 @@ type Config struct {
 ```
 
 ```yaml
-plugins:
+extensions:
   security:
     enabled: true
     pipeline: true   # inject steps into CI pipeline

@@ -13,7 +13,7 @@ TerraCi полноценно поддерживает [OpenTofu](https://opentof
 Переключитесь на OpenTofu, обновив `.terraci.yaml`:
 
 ```yaml
-plugins:
+extensions:
   # Для GitLab CI
   gitlab:
     terraform_binary: "tofu"
@@ -61,7 +61,7 @@ plan-platform-prod-vpc:
 
 1. Обновите `.terraci.yaml` (для вашего провайдера):
    ```yaml
-   plugins:
+   extensions:
      # GitLab CI
      gitlab:
        terraform_binary: "tofu"
@@ -137,7 +137,7 @@ TerraCi работает с:
 Если бинарник имеет нестандартное имя или путь:
 
 ```yaml
-plugins:
+extensions:
   # GitLab
   gitlab:
     terraform_binary: "/usr/local/bin/tofu-1.6"
@@ -154,7 +154,7 @@ plugins:
 Настройте переменные окружения, специфичные для OpenTofu:
 
 ```yaml
-plugins:
+extensions:
   # GitLab
   gitlab:
     variables:

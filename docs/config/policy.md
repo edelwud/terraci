@@ -11,7 +11,7 @@ TerraCi integrates [Open Policy Agent (OPA)](https://www.openpolicyagent.org/) t
 ## Basic Configuration
 
 ```yaml
-plugins:
+extensions:
   policy:
     enabled: true
     sources:
@@ -28,7 +28,7 @@ plugins:
 Enable or disable policy checks globally.
 
 ```yaml
-plugins:
+extensions:
   policy:
     enabled: true  # default: false
 ```
@@ -40,7 +40,7 @@ List of policy sources. Each source is a directory of `.rego` files. The directo
 #### Local Path
 
 ```yaml
-plugins:
+extensions:
   policy:
     sources:
       - path: terraform           # package terraform → data.terraform.deny/warn
@@ -50,7 +50,7 @@ plugins:
 #### Git Repository
 
 ```yaml
-plugins:
+extensions:
   policy:
     sources:
       - git: https://github.com/org/terraform-policies.git
@@ -60,7 +60,7 @@ plugins:
 #### OCI Registry
 
 ```yaml
-plugins:
+extensions:
   policy:
     sources:
       - oci: oci://ghcr.io/org/policies:v1.0
@@ -71,7 +71,7 @@ plugins:
 Rego package namespaces to evaluate. TerraCi queries `data.<namespace>.deny` and `data.<namespace>.warn` for each namespace.
 
 ```yaml
-plugins:
+extensions:
   policy:
     namespaces:
       - terraform              # data.terraform.deny, data.terraform.warn
@@ -97,7 +97,7 @@ Action when `deny` rules fire:
 Action when `warn` rules fire:
 
 ```yaml
-plugins:
+extensions:
   policy:
     on_warning: warn  # default
 ```
@@ -107,7 +107,7 @@ plugins:
 Directory for caching downloaded policies (git/OCI sources).
 
 ```yaml
-plugins:
+extensions:
   policy:
     cache_dir: .terraci/policies  # default
 ```
@@ -117,7 +117,7 @@ plugins:
 Override policy settings for specific modules using `**` glob patterns:
 
 ```yaml
-plugins:
+extensions:
   policy:
     enabled: true
     on_failure: block
@@ -226,7 +226,7 @@ compliance/         → package compliance   (cost controls)
 ```
 
 ```yaml
-plugins:
+extensions:
   policy:
     sources:
       - path: terraform

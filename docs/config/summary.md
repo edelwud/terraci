@@ -11,7 +11,7 @@ The summary plugin posts plan summaries as MR/PR comments. It is **enabled by de
 ## Configuration
 
 ```yaml
-plugins:
+extensions:
   summary:
     enabled: true            # default: true (opt out with false)
     on_changes_only: false   # only comment when there are changes
@@ -25,7 +25,7 @@ plugins:
 Enable or disable the summary plugin. Since summary uses `EnabledByDefault` policy, it is active unless explicitly disabled.
 
 ```yaml
-plugins:
+extensions:
   summary:
     enabled: false   # disable plan summary comments
 ```
@@ -35,7 +35,7 @@ plugins:
 Only post a comment when the plan contains changes (add/change/destroy).
 
 ```yaml
-plugins:
+extensions:
   summary:
     on_changes_only: true
 ```
@@ -45,7 +45,7 @@ plugins:
 Include full plan output in expandable `<details>` sections within the comment.
 
 ```yaml
-plugins:
+extensions:
   summary:
     include_details: true   # default
 ```

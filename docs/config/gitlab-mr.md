@@ -20,7 +20,7 @@ When running in a GitLab MR pipeline, TerraCi:
 ### Basic Setup
 
 ```yaml
-plugins:
+extensions:
   gitlab:
     mr:
       comment:
@@ -30,7 +30,7 @@ plugins:
 ### Full Options
 
 ```yaml
-plugins:
+extensions:
   gitlab:
     mr:
       # Comment configuration
@@ -171,7 +171,7 @@ The summary job uses these CI/CD variables:
 
 1. Check MR integration is enabled:
    ```yaml
-   plugins:
+   extensions:
      gitlab:
        mr:
          comment:

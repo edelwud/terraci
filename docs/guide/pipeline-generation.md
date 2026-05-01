@@ -233,7 +233,7 @@ This ensures only one apply job runs per module at a time.
 Enable or disable the plan stage:
 
 ```yaml
-plugins:
+extensions:
   gitlab:
     plan_enabled: true  # Generate plan jobs
     # plan_enabled: false  # Skip straight to apply
@@ -244,7 +244,7 @@ plugins:
 Skip manual approval for apply jobs:
 
 ```yaml
-plugins:
+extensions:
   gitlab:
     auto_approve: false  # Require manual trigger (default)
     # auto_approve: true  # Run apply automatically
@@ -267,7 +267,7 @@ CLI flags override the configuration file setting.
 Customize stage names:
 
 ```yaml
-plugins:
+extensions:
   gitlab:
     stages_prefix: "terraform"  # terraform-plan-0, terraform-apply-0
 ```
@@ -277,7 +277,7 @@ plugins:
 Add custom before/after scripts via `job_defaults`:
 
 ```yaml
-plugins:
+extensions:
   gitlab:
     job_defaults:
       before_script:
@@ -292,7 +292,7 @@ plugins:
 Specify GitLab runner tags via `job_defaults`:
 
 ```yaml
-plugins:
+extensions:
   gitlab:
     job_defaults:
       tags:

@@ -11,7 +11,7 @@ TerraCi can estimate the monthly cost impact of infrastructure changes by analyz
 ## Basic Configuration
 
 ```yaml
-plugins:
+extensions:
   cost:
     cache_dir: "~/.terraci/pricing"
     cache_ttl: "24h"
@@ -27,7 +27,7 @@ plugins:
 Enable AWS cost estimation.
 
 ```yaml
-plugins:
+extensions:
   cost:
     providers:
       aws:
@@ -39,7 +39,7 @@ plugins:
 Directory to cache AWS pricing data fetched from the Bulk Pricing API. Caching avoids repeated API calls and speeds up subsequent runs.
 
 ```yaml
-plugins:
+extensions:
   cost:
     cache_dir: ~/.terraci/pricing  # default
 ```
@@ -49,7 +49,7 @@ plugins:
 How long cached pricing data remains valid before being re-fetched.
 
 ```yaml
-plugins:
+extensions:
   cost:
     cache_ttl: "24h"  # default
 ```
@@ -97,7 +97,7 @@ When cost estimation is enabled, cost estimates appear in the MR/PR comment tabl
 ## Full Example
 
 ```yaml
-plugins:
+extensions:
   cost:
     cache_dir: ~/.terraci/pricing
     cache_ttl: "24h"
@@ -149,7 +149,7 @@ In JSON output, each resource now carries a `status`:
 - `usage_unknown` when the resource still needs runtime usage data
 - `unsupported` / `failed` with optional `failure_kind` and `status_detail`
 
-> **Note:** `terraci cost` requires `plugins.cost.providers.aws.enabled: true` in your `.terraci.yaml`.
+> **Note:** `terraci cost` requires `extensions.cost.providers.aws.enabled: true` in your `.terraci.yaml`.
 
 In CI pipelines, cost estimation runs automatically as part of the `terraci summary` command (which posts MR/PR comments). Use `terraci cost` for local development and ad-hoc cost checks.
 

@@ -11,7 +11,7 @@ outline: deep
 ## Конфигурация
 
 ```yaml
-plugins:
+extensions:
   summary:
     enabled: true            # по умолчанию: true (отключить через false)
     on_changes_only: false   # комментировать только при наличии изменений
@@ -25,7 +25,7 @@ plugins:
 Включение/отключение плагина. Так как summary использует политику `EnabledByDefault`, он активен пока не отключён явно.
 
 ```yaml
-plugins:
+extensions:
   summary:
     enabled: false   # отключить сводные комментарии
 ```
@@ -35,7 +35,7 @@ plugins:
 Публиковать комментарий только когда план содержит изменения (add/change/destroy).
 
 ```yaml
-plugins:
+extensions:
   summary:
     on_changes_only: true
 ```
@@ -45,7 +45,7 @@ plugins:
 Включить полный вывод плана в раскрываемых `<details>` секциях комментария.
 
 ```yaml
-plugins:
+extensions:
   summary:
     include_details: true   # по умолчанию
 ```

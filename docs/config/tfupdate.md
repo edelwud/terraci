@@ -11,7 +11,7 @@ TerraCi can resolve Terraform provider and module version constraints against th
 ## Basic Configuration
 
 ```yaml
-plugins:
+extensions:
   tfupdate:
     enabled: true
     policy:
@@ -25,7 +25,7 @@ plugins:
 Enable or disable dependency update checks globally.
 
 ```yaml
-plugins:
+extensions:
   tfupdate:
     enabled: true  # default: false
 ```
@@ -35,7 +35,7 @@ plugins:
 What dependency types to check.
 
 ```yaml
-plugins:
+extensions:
   tfupdate:
     target: all  # default: all
 ```
@@ -51,7 +51,7 @@ plugins:
 The version bump level that determines which updates are proposed.
 
 ```yaml
-plugins:
+extensions:
   tfupdate:
     policy:
       bump: minor  # required
@@ -68,7 +68,7 @@ plugins:
 Pin updated dependency constraints to an exact version when writing.
 
 ```yaml
-plugins:
+extensions:
   tfupdate:
     policy:
       bump: minor
@@ -82,7 +82,7 @@ When `true`, constraints like `~> 5.80` are replaced with `5.80.0` on write.
 List of provider sources or module sources to skip during checks. Useful for internal registries or pinned dependencies that should not be updated.
 
 ```yaml
-plugins:
+extensions:
   tfupdate:
     ignore:
       - registry.terraform.io/hashicorp/null
@@ -96,7 +96,7 @@ Each entry is matched against the full source string of the provider or module.
 Overall timeout for a tfupdate run. Defaults to 5 minutes in read-only mode and 20 minutes in write mode.
 
 ```yaml
-plugins:
+extensions:
   tfupdate:
     timeout: "15m"
 ```
@@ -106,7 +106,7 @@ plugins:
 Configure custom registry hostnames for provider lookups.
 
 ```yaml
-plugins:
+extensions:
   tfupdate:
     registries:
       default: registry.terraform.io  # default
@@ -124,7 +124,7 @@ plugins:
 Configure lock file synchronization behavior.
 
 ```yaml
-plugins:
+extensions:
   tfupdate:
     lock:
       platforms:
@@ -141,7 +141,7 @@ plugins:
 Configure caching for registry metadata and provider archives.
 
 ```yaml
-plugins:
+extensions:
   tfupdate:
     cache:
       metadata:
@@ -166,7 +166,7 @@ plugins:
 Add a dependency update check job to the generated CI pipeline.
 
 ```yaml
-plugins:
+extensions:
   tfupdate:
     pipeline: false  # default: false
 ```
@@ -176,7 +176,7 @@ When `true`, TerraCi adds a `tfupdate-check` job to the pipeline that runs `terr
 ## Full Example
 
 ```yaml
-plugins:
+extensions:
   tfupdate:
     enabled: true
     target: all
