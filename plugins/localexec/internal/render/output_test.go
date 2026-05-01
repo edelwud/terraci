@@ -201,7 +201,7 @@ func TestProgressReporter_LogsFailureStatus(t *testing.T) {
 		reporter.JobFinished(job, result)
 	})
 
-	for _, wanted := range []string{"job=summary", "stage=summary", "status=failed", "error=boom", "job finished"} {
+	for _, wanted := range []string{"job=summary", "stage=finalize", "status=failed", "error=boom", "job finished"} {
 		if !strings.Contains(logs, wanted) {
 			t.Fatalf("logs missing %q:\n%s", wanted, logs)
 		}

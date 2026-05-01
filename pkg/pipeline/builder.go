@@ -102,7 +102,7 @@ func Build(opts BuildOptions) (*IR, error) {
 		ir.Levels = append(ir.Levels, level)
 	}
 
-	// Contributed jobs (e.g., policy-check, terraci-summary)
+	// Contributed jobs.
 	planNames := ir.AllPlanNames()
 
 	// First pass: create all jobs so we know their names

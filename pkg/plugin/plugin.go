@@ -9,7 +9,7 @@ package plugin
 
 // Plugin is the core interface every plugin must implement.
 type Plugin interface {
-	// Name returns a unique identifier (e.g., "gitlab", "cost", "slack").
+	// Name returns a unique plugin identifier.
 	Name() string
 	// Description returns a human-readable description.
 	Description() string

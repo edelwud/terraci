@@ -47,10 +47,10 @@ func TestGenerator_Generate_WithMRIntegration(t *testing.T) {
 
 	assertPipeline(t, p).
 		hasJob("terraci-summary").
-		hasStage("summary")
+		hasStage("finalize")
 	summaryJob := mustJob(t, p, "terraci-summary")
-	if summaryJob.Stage != "summary" {
-		t.Errorf("summary job stage: expected summary, got %s", summaryJob.Stage)
+	if summaryJob.Stage != "finalize" {
+		t.Errorf("summary job stage: expected finalize, got %s", summaryJob.Stage)
 	}
 	if len(summaryJob.Needs) != 2 {
 		t.Errorf("summary job should have 2 needs, got %d", len(summaryJob.Needs))
@@ -83,7 +83,7 @@ func TestGenerator_Generate_WithMRIntegration_Disabled(t *testing.T) {
 
 	assertPipeline(t, p).
 		noJob("terraci-summary").
-		noStage("summary")
+		noStage("finalize")
 }
 
 func TestGenerator_Generate_WithSecrets(t *testing.T) {

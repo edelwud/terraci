@@ -10,7 +10,7 @@ const (
 	CategoryProvider InitCategory = "provider"
 	// CategoryPipeline groups contain pipeline behavior settings (plan_enabled, auto_approve).
 	CategoryPipeline InitCategory = "pipeline"
-	// CategoryFeature groups contain optional feature toggles (cost, policy, summary).
+	// CategoryFeature groups contain optional feature toggles.
 	CategoryFeature InitCategory = "feature"
 	// CategoryDetail groups contain detail settings for enabled features (policy settings).
 	CategoryDetail InitCategory = "detail"

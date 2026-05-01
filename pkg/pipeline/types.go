@@ -10,9 +10,9 @@ const (
 	PhasePostPlan               // after terraform plan
 	PhasePreApply               // before terraform apply
 	PhasePostApply              // after terraform apply
-	PhaseFinalize               // after everything — summary, notifications
+	PhaseFinalize               // after everything — reports, notifications
 
-	phaseFinalizeName = "summary"
+	phaseFinalizeName = "finalize"
 )
 
 // String returns the stage name for this phase (e.g., "pre-plan", "post-apply").
@@ -65,7 +65,7 @@ type Job struct {
 	Name          string
 	Type          JobType
 	Phase         Phase             // for contributed jobs: when they run
-	Module        *discovery.Module // nil for contributed/summary jobs
+	Module        *discovery.Module // nil for contributed jobs
 	Env           map[string]string
 	Dependencies  []string // job names this depends on
 	ArtifactPaths []string

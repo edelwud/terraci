@@ -60,7 +60,7 @@ func TestStagePlannerPlacesContributedStagesAfterPlanAndFinalizeLast(t *testing.
 		"deploy-plan-1",
 		"post-plan",
 		"deploy-apply-1",
-		"summary",
+		"finalize",
 	}
 
 	if !reflect.DeepEqual(got, want) {
@@ -88,7 +88,7 @@ func TestStagePlannerAppendsContributionsWhenNoPlanStagesExist(t *testing.T) {
 
 	ir := &pipeline.IR{Levels: []pipeline.Level{{Index: 0}}}
 	got := planner.stages(ir)
-	want := []string{"deploy-apply-0", "summary"}
+	want := []string{"deploy-apply-0", "finalize"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("stages() = %#v, want %#v", got, want)
 	}

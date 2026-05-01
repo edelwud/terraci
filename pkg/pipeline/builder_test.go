@@ -509,7 +509,7 @@ func TestPhase_String(t *testing.T) {
 		{PhasePostPlan, "post-plan"},
 		{PhasePreApply, "pre-apply"},
 		{PhasePostApply, "post-apply"},
-		{PhaseFinalize, "summary"},
+		{PhaseFinalize, "finalize"},
 		{Phase(99), "unknown"},
 	}
 

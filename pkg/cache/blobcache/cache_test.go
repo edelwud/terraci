@@ -2,16 +2,98 @@ package blobcache
 
 import (
 	"context"
+	"io"
 	"testing"
 	"time"
 
-	"github.com/edelwud/terraci/plugins/diskblob"
+	"github.com/edelwud/terraci/pkg/plugin"
 )
+
+type memoryBlobStore struct {
+	root    string
+	objects map[string]memoryBlobObject
+}
+
+type memoryBlobObject struct {
+	data []byte
+	meta plugin.BlobMeta
+}
+
+func newMemoryBlobStore(root string) *memoryBlobStore {
+	return &memoryBlobStore{
+		root:    root,
+		objects: make(map[string]memoryBlobObject),
+	}
+}
+
+func (s *memoryBlobStore) BlobStoreRootDir() string {
+	return s.root
+}
+
+func (s *memoryBlobStore) Get(_ context.Context, namespace, key string) (data []byte, ok bool, meta plugin.BlobMeta, err error) {
+	object, ok := s.objects[namespace+"/"+key]
+	if !ok {
+		return nil, false, plugin.BlobMeta{}, nil
+	}
+	return append([]byte(nil), object.data...), true, cloneBlobMeta(object.meta), nil
+}
+
+func (s *memoryBlobStore) Put(_ context.Context, namespace, key string, value []byte, opts plugin.PutBlobOptions) (plugin.BlobMeta, error) {
+	meta := plugin.BlobMeta{
+		ContentType: opts.ContentType,
+		UpdatedAt:   time.Now().UTC(),
+		Size:        int64(len(value)),
+		ExpiresAt:   cloneTimePtr(opts.ExpiresAt),
+		Metadata:    cloneStringMap(opts.Metadata),
+	}
+	s.objects[namespace+"/"+key] = memoryBlobObject{
+		data: append([]byte(nil), value...),
+		meta: meta,
+	}
+	return cloneBlobMeta(meta), nil
+}
+
+func (s *memoryBlobStore) Open(context.Context, string, string) (io.ReadCloser, bool, plugin.BlobMeta, error) {
+	return nil, false, plugin.BlobMeta{}, nil
+}
+
+func (s *memoryBlobStore) PutStream(context.Context, string, string, io.Reader, plugin.PutBlobOptions) (plugin.BlobMeta, error) {
+	return plugin.BlobMeta{}, nil
+}
+
+func (s *memoryBlobStore) Delete(_ context.Context, namespace, key string) error {
+	delete(s.objects, namespace+"/"+key)
+	return nil
+}
+
+func (s *memoryBlobStore) DeleteNamespace(_ context.Context, namespace string) error {
+	for scopedKey := range s.objects {
+		if len(scopedKey) >= len(namespace)+1 && scopedKey[:len(namespace)+1] == namespace+"/" {
+			delete(s.objects, scopedKey)
+		}
+	}
+	return nil
+}
+
+func (s *memoryBlobStore) List(_ context.Context, namespace string) ([]plugin.BlobObject, error) {
+	prefix := namespace + "/"
+	objects := make([]plugin.BlobObject, 0, len(s.objects))
+	for scopedKey, object := range s.objects {
+		if len(scopedKey) < len(prefix) || scopedKey[:len(prefix)] != prefix {
+			continue
+		}
+		objects = append(objects, plugin.BlobObject{
+			Key:  scopedKey[len(prefix):],
+			Meta: cloneBlobMeta(object.meta),
+		})
+	}
+	return objects, nil
+}
 
 func TestCache_DefaultsAndAccessors(t *testing.T) {
 	rootDir := t.TempDir()
 	ttl := time.Hour
-	cache := New(diskblob.NewStore(rootDir), "cost/pricing", ttl)
+	cache := New(newMemoryBlobStore(rootDir), "cache/pricing", ttl)
 
 	if cache.Dir() != rootDir {
 		t.Fatalf("Dir() = %q, want %q", cache.Dir(), rootDir)
@@ -22,7 +104,7 @@ func TestCache_DefaultsAndAccessors(t *testing.T) {
 }
 
 func TestCache_PutGetListAndCleanExpired(t *testing.T) {
-	cache := New(diskblob.NewStore(t.TempDir()), "cost/pricing", time.Hour)
+	cache := New(newMemoryBlobStore(t.TempDir()), "cache/pricing", time.Hour)
 	expiresAt := time.Now().Add(-time.Minute).UTC()
 
 	if _, err := cache.Put(context.Background(), "aws/AmazonEC2/us-east-1.json", []byte("payload"), PutOptions{
@@ -73,7 +155,7 @@ func TestCache_PutGetListAndCleanExpired(t *testing.T) {
 }
 
 func TestCache_DeleteAndDeleteNamespace(t *testing.T) {
-	cache := New(diskblob.NewStore(t.TempDir()), "cost/pricing", time.Hour)
+	cache := New(newMemoryBlobStore(t.TempDir()), "cache/pricing", time.Hour)
 
 	if _, err := cache.Put(context.Background(), "one.json", []byte("one"), PutOptions{}); err != nil {
 		t.Fatalf("Put(one) error = %v", err)
