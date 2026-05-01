@@ -28,7 +28,7 @@ func (b *BasePlugin[C]) Name() string { return b.PluginName }
 // Description returns a human-readable description.
 func (b *BasePlugin[C]) Description() string { return b.PluginDesc }
 
-// ConfigKey returns the config section key under "plugins:" in .terraci.yaml.
+// ConfigKey returns the config section key under "extensions:" in .terraci.yaml.
 func (b *BasePlugin[C]) ConfigKey() string {
 	if b.PluginKey != "" {
 		return b.PluginKey
