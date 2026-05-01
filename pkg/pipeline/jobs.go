@@ -94,3 +94,51 @@ func (ir *IR) ContributedJobNames() []string {
 	}
 	return names
 }
+
+// JobsByPhase returns standalone contributed jobs whose Phase matches.
+// The result slice is freshly allocated and safe to mutate.
+func (ir *IR) JobsByPhase(phase Phase) []*Job {
+	if ir == nil {
+		return nil
+	}
+	var jobs []*Job
+	for i := range ir.Jobs {
+		if ir.Jobs[i].Phase == phase {
+			jobs = append(jobs, &ir.Jobs[i])
+		}
+	}
+	return jobs
+}
+
+// PlanJobsForLevel returns plan jobs at the given execution level.
+func (ir *IR) PlanJobsForLevel(levelIdx int) []*Job {
+	return ir.moduleJobsForLevel(levelIdx, true)
+}
+
+// ApplyJobsForLevel returns apply jobs at the given execution level.
+func (ir *IR) ApplyJobsForLevel(levelIdx int) []*Job {
+	return ir.moduleJobsForLevel(levelIdx, false)
+}
+
+func (ir *IR) moduleJobsForLevel(levelIdx int, plan bool) []*Job {
+	if ir == nil {
+		return nil
+	}
+	for i := range ir.Levels {
+		level := &ir.Levels[i]
+		if level.Index != levelIdx {
+			continue
+		}
+		var jobs []*Job
+		for j := range level.Modules {
+			moduleJobs := &level.Modules[j]
+			if plan && moduleJobs.Plan != nil {
+				jobs = append(jobs, moduleJobs.Plan)
+			} else if !plan && moduleJobs.Apply != nil {
+				jobs = append(jobs, moduleJobs.Apply)
+			}
+		}
+		return jobs
+	}
+	return nil
+}

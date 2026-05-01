@@ -3,6 +3,7 @@ package execution
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -20,9 +21,9 @@ type EventSink interface {
 	JobFinished(job *pipeline.Job, result *JobResult)
 }
 
-// Scheduler builds execution groups from a plan.
+// Scheduler builds execution groups from a pipeline IR.
 type Scheduler interface {
-	Schedule(plan *Plan) []JobGroup
+	Schedule(ir *pipeline.IR) []JobGroup
 }
 
 // WorkerPool runs a group of jobs with bounded concurrency.
@@ -82,8 +83,8 @@ func WithEventSink(sink EventSink) ExecutorOption {
 	}
 }
 
-// Execute runs the plan group-by-group.
-func (e *Executor) Execute(ctx context.Context, plan *Plan) (*Result, error) {
+// Execute runs the pipeline IR group-by-group.
+func (e *Executor) Execute(ctx context.Context, ir *pipeline.IR) (*Result, error) {
 	if e == nil || e.runner == nil {
 		return nil, errors.New("executor runner is not configured")
 	}
@@ -93,8 +94,11 @@ func (e *Executor) Execute(ctx context.Context, plan *Plan) (*Result, error) {
 	if e.workers == nil {
 		return nil, errors.New("executor workers are not configured")
 	}
-	if err := plan.Validate(); err != nil {
-		return nil, err
+	if ir == nil {
+		return nil, errors.New("execution IR is nil")
+	}
+	if err := ir.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid execution IR: %w", err)
 	}
 
 	result := &Result{}
@@ -114,7 +118,7 @@ func (e *Executor) Execute(ctx context.Context, plan *Plan) (*Result, error) {
 		return jobResult
 	}
 
-	for _, group := range e.scheduler.Schedule(plan) {
+	for _, group := range e.scheduler.Schedule(ir) {
 		result.Groups = append(result.Groups, GroupResult{
 			Name:     group.Name,
 			JobCount: len(group.Jobs),

@@ -39,16 +39,16 @@ func (r *recordingRunner) Run(ctx context.Context, _ *pipeline.Job) error {
 func TestExecutorHonorsParallelism(t *testing.T) {
 	t.Parallel()
 
-	plan := NewPlan(&pipeline.IR{
+	ir := &pipeline.IR{
 		Jobs: []pipeline.Job{
 			{Name: "pre-a", Phase: pipeline.PhasePrePlan},
 			{Name: "pre-b", Phase: pipeline.PhasePrePlan},
 			{Name: "pre-c", Phase: pipeline.PhasePrePlan},
 		},
-	})
+	}
 
 	runner := &recordingRunner{delay: 20 * time.Millisecond}
-	_, err := NewExecutor(runner, WithParallelism(1)).Execute(context.Background(), plan)
+	_, err := NewExecutor(runner, WithParallelism(1)).Execute(context.Background(), ir)
 	if err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
@@ -73,7 +73,7 @@ func (r *orderRunner) Run(_ context.Context, job *pipeline.Job) error {
 func TestDefaultSchedulerPreservesGroupOrder(t *testing.T) {
 	t.Parallel()
 
-	plan := NewPlan(&pipeline.IR{
+	ir := &pipeline.IR{
 		Levels: []pipeline.Level{
 			{Index: 0, Modules: []pipeline.ModuleJobs{{Plan: &pipeline.Job{Name: "plan-0"}, Apply: &pipeline.Job{Name: "apply-0"}}}},
 			{Index: 1, Modules: []pipeline.ModuleJobs{{Plan: &pipeline.Job{Name: "plan-1"}, Apply: &pipeline.Job{Name: "apply-1"}}}},
@@ -83,10 +83,10 @@ func TestDefaultSchedulerPreservesGroupOrder(t *testing.T) {
 			{Name: "post", Phase: pipeline.PhasePostPlan},
 			{Name: "final", Phase: pipeline.PhaseFinalize},
 		},
-	})
+	}
 
 	runner := &orderRunner{}
-	_, err := NewExecutor(runner, WithParallelism(1)).Execute(context.Background(), plan)
+	_, err := NewExecutor(runner, WithParallelism(1)).Execute(context.Background(), ir)
 	if err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
@@ -105,13 +105,13 @@ func TestDefaultSchedulerPreservesGroupOrder(t *testing.T) {
 func TestDefaultSchedulerAlwaysIncludesFinalizeStage(t *testing.T) {
 	t.Parallel()
 
-	plan := NewPlan(&pipeline.IR{
+	ir := &pipeline.IR{
 		Levels: []pipeline.Level{
 			{Index: 0, Modules: []pipeline.ModuleJobs{{Plan: &pipeline.Job{Name: "plan-0"}}}},
 		},
-	})
+	}
 
-	groups := DefaultScheduler{}.Schedule(plan)
+	groups := DefaultScheduler{}.Schedule(ir)
 	if len(groups) == 0 {
 		t.Fatal("expected scheduled groups")
 	}
@@ -128,14 +128,14 @@ func TestDefaultSchedulerAlwaysIncludesFinalizeStage(t *testing.T) {
 func TestExecutorRecordsEmptyFinalizeStage(t *testing.T) {
 	t.Parallel()
 
-	plan := NewPlan(&pipeline.IR{
+	ir := &pipeline.IR{
 		Levels: []pipeline.Level{
 			{Index: 0, Modules: []pipeline.ModuleJobs{{Plan: &pipeline.Job{Name: "plan-0"}}}},
 		},
-	})
+	}
 
 	runner := &orderRunner{}
-	result, err := NewExecutor(runner, WithParallelism(1)).Execute(context.Background(), plan)
+	result, err := NewExecutor(runner, WithParallelism(1)).Execute(context.Background(), ir)
 	if err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
@@ -210,7 +210,7 @@ func TestExecutorRejectsInvalidPlanGraph(t *testing.T) {
 			t.Parallel()
 
 			runner := &orderRunner{}
-			_, err := NewExecutor(runner).Execute(context.Background(), NewPlan(tt.ir))
+			_, err := NewExecutor(runner).Execute(context.Background(), tt.ir)
 			if err == nil {
 				t.Fatal("Execute() error = nil, want error")
 			}
@@ -227,16 +227,16 @@ func TestExecutorRejectsInvalidPlanGraph(t *testing.T) {
 func TestDefaultSchedulerHonorsSamePhaseDependencies(t *testing.T) {
 	t.Parallel()
 
-	plan := NewPlan(&pipeline.IR{
+	ir := &pipeline.IR{
 		Jobs: []pipeline.Job{
 			{Name: "summary", Phase: pipeline.PhaseFinalize, Dependencies: []string{"policy-check"}},
 			{Name: "policy-check", Phase: pipeline.PhaseFinalize},
 			{Name: "notify", Phase: pipeline.PhaseFinalize, Dependencies: []string{"summary"}},
 		},
-	})
+	}
 
 	runner := &orderRunner{}
-	_, err := NewExecutor(runner, WithParallelism(10)).Execute(context.Background(), plan)
+	_, err := NewExecutor(runner, WithParallelism(10)).Execute(context.Background(), ir)
 	if err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
@@ -255,7 +255,7 @@ func TestDefaultSchedulerHonorsSamePhaseDependencies(t *testing.T) {
 func TestDefaultSchedulerIgnoresDependenciesAlreadySatisfiedByPreviousGroups(t *testing.T) {
 	t.Parallel()
 
-	plan := NewPlan(&pipeline.IR{
+	ir := &pipeline.IR{
 		Levels: []pipeline.Level{{
 			Index: 0,
 			Modules: []pipeline.ModuleJobs{{
@@ -267,10 +267,10 @@ func TestDefaultSchedulerIgnoresDependenciesAlreadySatisfiedByPreviousGroups(t *
 			Phase:        pipeline.PhasePostPlan,
 			Dependencies: []string{"plan-vpc"},
 		}},
-	})
+	}
 
 	runner := &orderRunner{}
-	_, err := NewExecutor(runner, WithParallelism(10)).Execute(context.Background(), plan)
+	_, err := NewExecutor(runner, WithParallelism(10)).Execute(context.Background(), ir)
 	if err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}

@@ -52,7 +52,7 @@ func (r *fakeJobRunner) Run(_ context.Context, job *pipeline.Job) error {
 }
 
 type fakePlanner struct {
-	plan          *execution.Plan
+	plan          *pipeline.IR
 	err           error
 	calls         int
 	targets       []*discovery.Module
@@ -63,7 +63,7 @@ type fakePlanner struct {
 	contributions []*pipeline.Contribution
 }
 
-func (p *fakePlanner) Build(targets []*discovery.Module, result *workflow.Result, execCfg execution.Config, mode spec.ExecutionMode, contributions []*pipeline.Contribution) (*execution.Plan, error) {
+func (p *fakePlanner) Build(targets []*discovery.Module, result *workflow.Result, execCfg execution.Config, mode spec.ExecutionMode, contributions []*pipeline.Contribution) (*pipeline.IR, error) {
 	p.calls++
 	p.targets = targets
 	p.mode = mode
@@ -194,10 +194,10 @@ func TestUseCase_RunUsesInjectedPlanner(t *testing.T) {
 
 	appCtx := plugintest.NewAppContext(t, workDir)
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
-	plan := execution.NewPlan(&pipeline.IR{
+	ir := &pipeline.IR{
 		Jobs: []pipeline.Job{{Name: "summary", Phase: pipeline.PhaseFinalize}},
-	})
-	plannerStub := &fakePlanner{plan: plan}
+	}
+	plannerStub := &fakePlanner{plan: ir}
 	contributionCollector := &fakeContributionCollector{
 		contributions: []*pipeline.Contribution{{Jobs: []pipeline.ContributedJob{{Name: "contributed"}}}},
 	}
@@ -372,9 +372,9 @@ func TestUseCase_RunJobFailureGoesThroughOutputFailure(t *testing.T) {
 	err := New(
 		appCtx,
 		WithTargetResolver(fakeTargetResolver{targets: []*discovery.Module{module}}),
-		WithPlanner(&fakePlanner{plan: execution.NewPlan(&pipeline.IR{
+		WithPlanner(&fakePlanner{plan: &pipeline.IR{
 			Jobs: []pipeline.Job{{Name: "summary", Phase: pipeline.PhaseFinalize}},
-		})}),
+		}}),
 		WithRuntimeFactory(&fakeRuntimeFactory{runtime: &runner.Runtime{
 			ExecConfig: execution.Config{PlanEnabled: true, Parallelism: 1},
 			JobRunner:  &fakeJobRunner{err: jobErr},

@@ -11,7 +11,7 @@ import (
 )
 
 type Builder interface {
-	Build(targets []*discovery.Module, result *workflow.Result, execCfg execution.Config, mode spec.ExecutionMode, contributions []*pipeline.Contribution) (*execution.Plan, error)
+	Build(targets []*discovery.Module, result *workflow.Result, execCfg execution.Config, mode spec.ExecutionMode, contributions []*pipeline.Contribution) (*pipeline.IR, error)
 }
 
 type defaultBuilder struct{}
@@ -20,7 +20,7 @@ func New() Builder {
 	return defaultBuilder{}
 }
 
-func (defaultBuilder) Build(targets []*discovery.Module, result *workflow.Result, execCfg execution.Config, mode spec.ExecutionMode, contributions []*pipeline.Contribution) (*execution.Plan, error) {
+func (defaultBuilder) Build(targets []*discovery.Module, result *workflow.Result, execCfg execution.Config, mode spec.ExecutionMode, contributions []*pipeline.Contribution) (*pipeline.IR, error) {
 	planOnly := mode == spec.ExecutionModePlan
 	if planOnly {
 		execCfg.PlanEnabled = true
@@ -45,7 +45,7 @@ func (defaultBuilder) Build(targets []*discovery.Module, result *workflow.Result
 		return nil, fmt.Errorf("build local execution plan: %w", err)
 	}
 
-	return execution.NewPlan(ir), nil
+	return ir, nil
 }
 
 func planModeContributions(contributions []*pipeline.Contribution) []*pipeline.Contribution {

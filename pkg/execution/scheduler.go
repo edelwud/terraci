@@ -15,14 +15,14 @@ type JobGroup struct {
 // DefaultScheduler schedules pre/post phases around level-based plan/apply groups.
 type DefaultScheduler struct{}
 
-func (DefaultScheduler) Schedule(plan *Plan) []JobGroup {
-	if plan == nil || plan.IR == nil {
+func (DefaultScheduler) Schedule(ir *pipeline.IR) []JobGroup {
+	if ir == nil {
 		return nil
 	}
 
 	var groups []JobGroup
 	appendPhaseGroup := func(name string, phase pipeline.Phase) {
-		jobs := plan.JobsByPhase(phase)
+		jobs := ir.JobsByPhase(phase)
 		if len(jobs) == 0 {
 			return
 		}
@@ -36,15 +36,15 @@ func (DefaultScheduler) Schedule(plan *Plan) []JobGroup {
 	}
 
 	appendPhaseGroup(pipeline.StagePrePlan, pipeline.PhasePrePlan)
-	for levelIdx := range plan.IR.Levels {
-		if jobs := plan.PlanJobsForLevel(levelIdx); len(jobs) > 0 {
+	for levelIdx := range ir.Levels {
+		if jobs := ir.PlanJobsForLevel(levelIdx); len(jobs) > 0 {
 			groups = append(groups, JobGroup{Name: levelGroupName("plan", levelIdx), Jobs: jobs})
 		}
 	}
 	appendPhaseGroup(pipeline.StagePostPlan, pipeline.PhasePostPlan)
 	appendPhaseGroup(pipeline.StagePreApply, pipeline.PhasePreApply)
-	for levelIdx := range plan.IR.Levels {
-		if jobs := plan.ApplyJobsForLevel(levelIdx); len(jobs) > 0 {
+	for levelIdx := range ir.Levels {
+		if jobs := ir.ApplyJobsForLevel(levelIdx); len(jobs) > 0 {
 			groups = append(groups, JobGroup{Name: levelGroupName("apply", levelIdx), Jobs: jobs})
 		}
 	}
@@ -54,7 +54,7 @@ func (DefaultScheduler) Schedule(plan *Plan) []JobGroup {
 	// A finalize group is always recorded, even when empty, so that progress
 	// reporters and event sinks can render a "finalize: no contributions"
 	// stage marker rather than silently skipping the phase boundary.
-	if len(plan.JobsByPhase(pipeline.PhaseFinalize)) == 0 {
+	if len(ir.JobsByPhase(pipeline.PhaseFinalize)) == 0 {
 		groups = append(groups, JobGroup{Name: pipeline.StageFinalize})
 	}
 
