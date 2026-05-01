@@ -27,7 +27,7 @@ Pricing data is cached locally (default: `.terraci/pricing`, TTL: 24h).
 ## Configuration
 
 ```yaml
-plugins:
+extensions:
   cost:
     cache_dir: .terraci/pricing   # Local pricing cache
     cache_ttl: "24h"              # Re-fetch after this duration

@@ -6,7 +6,7 @@ library_modules:
   paths:
     - "_modules"
 
-plugins:
+extensions:
   gitlab:
     terraform_binary: "terraform"
     image:

@@ -2,7 +2,7 @@
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
-plugins:
+extensions:
   gitlab:
     image: { name: hashicorp/terraform:1.6 }
     terraform_binary: terraform

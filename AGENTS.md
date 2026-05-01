@@ -28,13 +28,13 @@ cmd/terraci/
 └── cmd/
     ├── app.go                  # App struct, PluginContext() with ServiceDir, InitPluginConfigs()
     ├── root.go                 # NewRootCmd(), plugin lifecycle (Init), dynamic commands
-    ├── generate.go             # Pipeline generation (uses registry.ResolveCIProvider())
+    ├── generate.go             # Pipeline generation (builds IR, calls provider.NewGenerator(ctx, ir))
     ├── graph.go                # Dependency graph visualization
     ├── validate.go             # Config/project validation
     ├── filters.go              # filterFlags struct — shared filter flags, mergedFilterOpts()
     ├── init.go                 # Config initialization (--ci mode), initStateDefaults()
     ├── init_tui.go             # Interactive TUI wizard, dynamic plugin groups
-    ├── schema.go               # JSON schema (includes plugin schemas)
+    ├── schema.go               # JSON schema (includes extension schemas)
     ├── version.go              # Version info via VersionProvider plugins
     ├── completion.go           # Shell completion
     └── man.go                  # Man page generation
@@ -53,73 +53,91 @@ cmd/xterraci/
     ├── plugins.go              # Built-in plugin import paths + validation
     └── *_test.go
 
-pkg/                            # Public API — importable by external plugins
-├── plugin/                     # Core plugin contract — interfaces, BasePlugin, AppContext
+pkg/                            # Public API — importable by external plugins (plugin-agnostic core + plugin SDK)
+├── plugin/                     # Core plugin SDK — interfaces, BasePlugin, AppContext
 │   ├── plugin.go               # Plugin
 │   ├── lifecycle.go            # ConfigLoader, Preflightable
 │   ├── commands.go             # CommandProvider, FlagOverridable, VersionProvider
 │   ├── ci_provider.go          # EnvDetector, CIInfoProvider, PipelineGeneratorFactory, CommentServiceFactory, ResolvedCIProvider
+│   ├── cache.go                # KVCacheProvider, BlobStoreProvider (single NewBlobStore with options)
 │   ├── change.go               # ChangeDetectionProvider
 │   ├── contribution.go         # PipelineContributor
 │   ├── base.go                 # BasePlugin[C] generic embedding
 │   ├── enable.go               # EnablePolicy enum
-│   ├── context.go              # AppContext (with ServiceDir, Reports, Freeze)
+│   ├── context.go              # AppContext + AppContextOptions constructor
+│   ├── context_binding.go      # AppContext.Update / SetResolver / BeginCommand / Freeze
+│   ├── command_binding.go      # CommandInstance[T] — typed command-scoped lookup
 │   ├── runtime.go              # RuntimeProvider + RuntimeAs() + BuildRuntime[T]()
+│   ├── resolver.go             # Resolver interface (extended with capability resolution methods)
+│   ├── noop_resolver.go        # default no-op Resolver (never nil)
 │   ├── reports.go              # ReportRegistry — in-memory report exchange
-│   ├── registry/               # Plugin factory catalog + per-command Registry resolution
-│   │   ├── registry.go         # RegisterFactory(), New(), Registry capability resolution, Reset()
-│   │   └── resolve.go          # ResolveCIProvider(), ResolveChangeDetector(), CollectContributions()
+│   ├── registry/               # Plugin factory catalog + per-command Registry
+│   │   ├── registry.go         # RegisterFactory(), New(), Catalog, Registry implements plugin.Resolver
+│   │   └── resolve.go          # Registry.ResolveCIProvider/ResolveChangeDetector/Resolve*Provider/CollectContributions/PreflightsForStartup
 │   ├── initwiz/                # Init wizard state + types
 │   │   ├── state.go            # StateMap — typed form state with pointer getters for huh
 │   │   └── types.go            # InitContributor, InitGroupSpec, InitField, FieldType
-│   └── plugintest/             # Shared plugin-facing test helpers + mock doubles
-├── pipeline/
-│   ├── types.go                # IR, Level, ModuleJobs, Job, Step, Phase, Contribution, ContributedJob
+│   └── plugintest/             # Shared plugin-facing test helpers + mock doubles + NoopResolver
+├── pipeline/                   # Plugin-agnostic pipeline IR
+│   ├── types.go                # IR, Level, ModuleJobs, Job, Step, Phase, Operation, TerraformOperation, Contribution, ContributedJob, Stage* string constants
 │   ├── builder.go              # Build(opts) — constructs provider-agnostic pipeline IR
-│   ├── pipeline.go             # Generator, GeneratedPipeline interfaces
-│   ├── common.go               # JobPlan, BuildJobPlan, JobName, ResolveDependencyNames
-│   ├── env.go                  # BuildModuleEnvVars
-│   └── scripts.go              # ScriptConfig, PlanScript, ApplyScript
+│   ├── pipeline.go             # Generator interface (Generate()/DryRun() — IR bound at construction)
+│   ├── common.go               # JobPlan, JobName, ResolveDependencyNames, IR.DryRun
+│   ├── jobs.go                 # IR.JobRefs / JobsByPhase / PlanJobsForLevel / ApplyJobsForLevel
+│   ├── env.go                  # ModuleEnvVars
+│   ├── scripts.go              # ScriptConfig, NewPlanOperation, NewApplyOperation (IR construction only)
+│   └── cishell/                # Shell renderer — keeps shell-specific knowledge out of the IR
+│       └── render.go           # RenderOperation: pipeline.Operation → POSIX shell command lines
+├── ci/                         # Plugin-agnostic CI types
+│   ├── report.go, report_types.go, report_validation.go, section.go
+│   │                           #   Report (Producer/Title/Status/Summary/Provenance/Sections), ReportSection (opaque Payload), EncodeSection/DecodeSection generics, OverviewSection/ModuleTableSection/FindingsSection/DependencyUpdatesSection payloads
+│   ├── plan.go                 # PlanResult (canonical for both in-memory + persisted), PlanResultCollection, PlanStatus
+│   ├── service.go              # CommentService
+│   └── shared.go               # Image, MRCommentConfig, CommentMarker
+├── cache/blobcache/            # Blob store contract + cache layer (owns Store/Meta/Object/PutOptions/Info/Inspector/Describer/HealthChecker, Describe, Check, Cache, Policy)
 ├── config/
-│   ├── config.go               # Config (service_dir, structure, exclude, include, plugins map)
-│   ├── builder.go              # BuildConfigFromPlugins(), SetPluginValue()
+│   ├── types_config.go         # Config (service_dir, structure, exclude, include, library_modules, extensions map[string]yaml.Node)
+│   ├── builder.go              # BuildConfig() — assembles Config from pattern/execution/extensions
+│   ├── extension.go            # (*Config).Extension(key, target) — opaque section decoder
 │   ├── pattern.go              # ParsePattern, PatternSegments
-│   └── schema.go               # GenerateJSONSchema (with plugin schemas)
-├── ci/                         # Provider-agnostic CI types, Report, CommentService
-├── discovery/                  # Module, Scanner, ModuleIndex, PlanScanner
+│   ├── schema.go               # GenerateJSONSchema(extensionSchemas)
+│   ├── io.go                   # Load, LoadOrDefault, Save
+│   ├── defaults.go             # DefaultConfig()
+│   └── validation.go           # Validate
+├── discovery/                  # Module, Scanner, ModuleIndex (slim: All/ByID/ByPath)
 ├── parser/                     # Public parser facade + shared model
 │   ├── parser.go               # ParseModule() facade over internal moduleparse pipeline
 │   ├── dependency.go           # DependencyExtractor facade
+│   ├── model_aliases.go        # Re-exports for ParsedModule/RequiredProvider/LockedProvider/ModuleCall/RemoteStateRef/LibraryDependency/ModuleDependencies
 │   ├── model/                  # Stable shared parser model used by facade + internals
-│   └── internal/               # Layered parser internals
-│       ├── moduleparse/        # Parse orchestration/session
-│       ├── dependency/         # Dependency extraction orchestration/session
-│       ├── source/             # File loading, source snapshots, typed block views
-│       ├── extract/            # Feature extractors (locals, vars, backend, providers, modules)
-│       ├── resolve/            # Remote-state/workspace path resolution
-│       ├── evalctx/            # Shared eval context builder
-│       ├── exprfast/           # Cheap expression fast paths before full eval fallback
-│       ├── deps/               # Dependency/path matching helpers
-│       └── testutil/           # Shared parser test and benchmark fixtures
+│   └── internal/               # Layered parser internals (moduleparse, dependency, source, extract, resolve, evalctx, exprfast, deps, testutil)
+├── planresults/                # PlanResultCollection scanner — reads Terraform plan.json
+├── execution/                  # Plugin-agnostic local execution
+│   ├── executor.go             # Executor.Execute(ctx, *pipeline.IR) — IR is the single execution input
+│   ├── scheduler.go            # DefaultScheduler.Schedule(*pipeline.IR) — barrier-grouped JobGroups
+│   ├── results.go, worker_pool.go, workspace.go, config.go
 ├── graph/                      # DependencyGraph, algorithms, visualization
-├── filter/                     # GlobFilter, flags
-├── workflow/                   # Module discovery, filtering, graph building
-├── errors/                     # Typed errors
-└── log/                        # Structured logging
+├── filter/                     # Public surface: Options + Apply + Flags + ParseSegmentFilters (concrete filter types unexported)
+├── workflow/                   # Module discovery, filtering, graph building, target resolution. workflow.ChangeDetector = plugin.ChangeDetectionProvider alias
+├── errors/                     # Typed errors (ConfigError, ScanError, ParseError, NoModulesError)
+└── log/                        # Thin wrapper over caarlos0/log
 
 plugins/                        # Built-in plugins — one file per capability
 ├── gitlab/
 │   ├── plugin.go               # init, BasePlugin[*Config] embed, FlagOverridable
 │   ├── lifecycle.go            # Preflightable (cheap MR context detection)
-│   ├── generator.go            # EnvDetector + CIInfoProvider + PipelineGeneratorFactory + CommentServiceFactory
+│   ├── generator.go            # EnvDetector + CIInfoProvider + PipelineGeneratorFactory(ctx, *pipeline.IR) + CommentServiceFactory
 │   ├── init_wizard.go          # InitContributor
 │   └── internal/               # config, generator, MR service, domain types
+│       └── generate/
+│           ├── buildir.go      # BuildPipelineIR helper for tests (IR construction with plugin settings)
+│           └── generator.go    # Generator stores *pipeline.IR; Generate()/DryRun() with no args
 ├── github/
 │   ├── plugin.go               # init, BasePlugin[*Config] embed, FlagOverridable
 │   ├── lifecycle.go            # Preflightable (cheap PR context detection)
-│   ├── generator.go            # EnvDetector + CIInfoProvider + PipelineGeneratorFactory + CommentServiceFactory
+│   ├── generator.go            # EnvDetector + CIInfoProvider + PipelineGeneratorFactory(ctx, *pipeline.IR) + CommentServiceFactory
 │   ├── init_wizard.go          # InitContributor
-│   └── internal/               # config, generator, PR service, domain types
+│   └── internal/generate/      # IR-bound generator + buildir.go test helper
 ├── cost/
 │   ├── plugin.go               # init, BasePlugin[*CostConfig] embed
 │   ├── lifecycle.go            # Preflightable (cheap config/cache validation)
@@ -129,66 +147,17 @@ plugins/                        # Built-in plugins — one file per capability
 │   ├── pipeline.go             # PipelineContributor
 │   ├── init_wizard.go          # InitContributor
 │   ├── output.go               # CLI rendering helpers
-│   ├── report.go               # CI report assembly
+│   ├── report.go               # CI report assembly via ci.MustEncodeSection
 │   └── internal/               # (package costengine) — layered cost estimation engine
-│       ├── engine/             #   Estimation orchestration, Terraform adapter, prefetch/execution
-│       ├── runtime/            #   Provider catalog, pricing runtime, resolver, prefetch service
-│       ├── model/              #   Cost result/config types + tree/module helpers
-│       ├── results/            #   Result assembly layer
-│       ├── cloud/              #   Cloud provider registry (init() + RegisterCloudProvider)
-│       │   ├── registry.go     #     Provider definitions + global registry
-│       │   ├── aws/            #     AWS provider + resource spec subpackages
-│       │   │   ├── provider.go #       init() self-registration + provider definition
-│       │   │   ├── ec2/, rds/, elb/, eks/, elasticache/, serverless/, storage/
-│       │   └── awskit/         #     AWS declarative builders + utilities
-│       │       ├── cost_builder.go  #  CostBuilder: Hourly/PerUnit/Scale/Match/Charge → Calc
-│       │       ├── lookup_builder.go # LookupBuilder: Attr/AttrMatch/UsageType → Build
-│       │       ├── describe.go      # DescribeBuilder: String/Int/Float/Bool → Map
-│       │       ├── runtime.go, standard_lookup.go, services.go, size.go
-│       ├── resourcedef/        #   Canonical runtime Definition + value types
-│       ├── resourcespec/       #   TypedSpec[A] compilation to Definition
-│       ├── costutil/           #   Attribute extractors + cost calc helpers
-│       ├── pricing/            #   Disk-based pricing cache + types
-│       ├── contracttest/       #   Definition + Runtime contract test suites
-│       └── enginetest/         #   Engine fixture/test helpers
+│       ├── engine/, runtime/, model/, results/, cloud/{aws,awskit}, resourcedef/, resourcespec/, costutil/, pricing/, contracttest/, enginetest/
 ├── policy/
-│   ├── plugin.go               # init, BasePlugin[*Config] embed
-│   ├── lifecycle.go            # Preflightable (OPA/source validation)
-│   ├── commands.go             # CommandProvider (terraci policy pull/check)
-│   ├── runtime.go              # RuntimeProvider (lazy puller/runtime construction)
-│   ├── usecases.go             # Pull/check orchestration
-│   ├── pipeline.go             # PipelineContributor (policy-check job)
-│   ├── version.go              # VersionProvider (OPA version)
-│   ├── init_wizard.go          # InitContributor
-│   ├── output.go               # CLI rendering
-│   ├── report.go               # CI report assembly
+│   ├── plugin.go, lifecycle.go, commands.go, runtime.go, usecases.go, pipeline.go, version.go, init_wizard.go, output.go, report.go
 │   └── internal/               # (package policyengine) OPA engine, checker, sources
 ├── tfupdate/
-│   ├── plugin.go               # init, BasePlugin[*UpdateConfig] embed
-│   ├── lifecycle.go            # Preflightable (cheap config validation)
-│   ├── commands.go             # CommandProvider (terraci tfupdate)
-│   ├── runtime.go              # RuntimeProvider (lazy registry/runtime construction)
-│   ├── usecases.go             # Tfupdate orchestration
-│   ├── pipeline.go             # PipelineContributor (tfupdate-check job)
-│   ├── output.go               # CLI rendering
-│   ├── report.go               # CI report assembly
-│   ├── init_wizard.go          # InitContributor
-│   └── internal/               # (package tfupdateengine) dependency resolver engine
-│       ├── planner/            # Dependency-aware version resolution, solver
-│       ├── lockfile/           # .terraform.lock.hcl sync service
-│       ├── sourceaddr/         # Provider/module source address parsing
-│       ├── registrymeta/       # Registry metadata types
-│       ├── usecase/            # Use-case orchestration service
-│       ├── registryclient/     # Terraform registry HTTP adapter
-│       ├── tffile/             # Terraform file discovery and per-module index
-│       └── tfwrite/            # Terraform version constraint mutation
+│   ├── plugin.go, lifecycle.go, commands.go, runtime.go, usecases.go, pipeline.go, output.go, report.go, init_wizard.go
+│   └── internal/               # (package tfupdateengine) planner, lockfile, sourceaddr, registrymeta, usecase, registryclient, tffile, tfwrite
 ├── summary/
-│   ├── plugin.go               # init, BasePlugin[*Config] embed
-│   ├── commands.go             # CommandProvider (terraci summary)
-│   ├── usecases.go             # Summary orchestration + provider/comment resolution
-│   ├── pipeline.go             # PipelineContributor (PhaseFinalize summary job)
-│   ├── init_wizard.go          # InitContributor
-│   ├── output.go               # CLI output helpers
+│   ├── plugin.go, commands.go, usecases.go, pipeline.go, init_wizard.go, output.go
 │   └── internal/               # (package summaryengine) config, renderer, report_loader
 ├── localexec/
 │   ├── plugin.go               # init, Plugin struct
@@ -196,18 +165,18 @@ plugins/                        # Built-in plugins — one file per capability
 │   ├── contract.go             # Public stable NewExecutor(...) boundary for in-process callers
 │   └── internal/
 │       ├── executor.go         # Thin adapter from public contract to internal flow
-│       ├── flow/               # Use-case orchestration: workflow → targets → plan → execute → render
-│       ├── planner/            # Pipeline IR → execution.Plan adapter with contribution filtering
+│       ├── flow/               # Use-case orchestration: workflow → targets → IR → execute → render
+│       ├── planner/            # pipeline.Build → *pipeline.IR adapter with contribution filtering
 │       ├── render/             # Progress output, summary-report loader, local CLI summary rendering
 │       ├── runner/             # Shell/Terraform runners + phase/job orchestration
 │       ├── spec/               # Internal validated execute request/mode types
 │       └── targeting/          # Shared workflow target-resolution adapter
 ├── diskblob/
-│   ├── plugin.go               # init, BasePlugin[*Config] embed, BlobStoreProvider
+│   ├── plugin.go               # init, BasePlugin[*Config] embed, BlobStoreProvider (single NewBlobStore with options)
 │   ├── config.go               # Backend config (enabled, root_dir)
 │   ├── store.go                # Blob store construction helpers
 │   ├── home.go                 # Home/service-dir root resolution
-│   └── internal/               # Filesystem-backed blob store implementation
+│   └── internal/               # Filesystem-backed blob store implementing blobcache.Store
 ├── inmemcache/
 │   ├── plugin.go               # init, BasePlugin[*Config] embed, KVCacheProvider
 │   ├── cache.go                # Process-local in-memory cache implementation
@@ -228,7 +197,9 @@ internal/                       # Private — only terraform eval
 
 ### Architecture
 
-Compile-time plugins via `init()` + blank import (Caddy/database-sql pattern). Plugins register factories via `registry.RegisterFactory()`, core creates a fresh `registry.Registry` for each command run and discovers capabilities via `registry.ByCapabilityFrom[T](plugins)`. Core types (interfaces, BasePlugin, AppContext) live in `pkg/plugin`; plugin catalog and per-command registries live in `pkg/plugin/registry`; init wizard types in `pkg/plugin/initwiz`.
+Compile-time plugins via `init()` + blank import (Caddy/database-sql pattern). Plugins register factories via `registry.RegisterFactory()`, core creates a fresh `*registry.Registry` for each command run; that `*Registry` directly implements `plugin.Resolver`. Capability discovery uses `registry.ByCapabilityFrom[T](resolver)`. Core types (interfaces, BasePlugin, AppContext) live in `pkg/plugin`; plugin catalog and per-command registries live in `pkg/plugin/registry`; init wizard types in `pkg/plugin/initwiz`.
+
+The core `pkg/` tree is **plugin-agnostic** — no package outside `pkg/plugin` imports the plugin SDK. Plugin extensibility hangs entirely off `pkg/plugin`'s capability interfaces.
 
 ### Plugin File Convention
 
@@ -250,7 +221,7 @@ Each feature/plugin follows one-file-per-capability where it applies, with runti
 
 ```
 1. Register    — init() calls registry.RegisterFactory() with a Plugin factory
-2. Configure   — ConfigLoader.DecodeAndSet() for plugins with config in .terraci.yaml
+2. Configure   — ConfigLoader.DecodeAndSet() for plugins with a config section under extensions:
 3. Preflight   — Preflightable.Preflight() performs cheap validation/env detection
 4. Freeze      — AppContext.Freeze() prevents further mutations
 5. Execute     — Commands/use-cases lazily build RuntimeProvider runtimes as needed
@@ -261,19 +232,19 @@ Each feature/plugin follows one-file-per-capability where it applies, with runti
 | Interface | Purpose | Implemented by |
 |-----------|---------|----------------|
 | `Plugin` | Base: Name(), Description() | all |
-| `ConfigLoader` | Config section under `plugins:` + IsEnabled() via EnablePolicy | gitlab, github, cost, policy, summary, tfupdate |
-| `CommandProvider` | CLI subcommands | cost, policy, summary, tfupdate |
+| `ConfigLoader` | Config section under `extensions:` + IsEnabled() via EnablePolicy | gitlab, github, cost, policy, summary, tfupdate |
+| `CommandProvider` | CLI subcommands | cost, policy, summary, tfupdate, localexec |
 | `Preflightable` | Cheap startup validation / env detection | gitlab, github, cost, policy, git, tfupdate |
 | `RuntimeProvider` | Lazy command-time runtime construction | cost, policy, tfupdate |
 | `EnvDetector` | CI environment detection | gitlab, github |
 | `CIInfoProvider` | Provider name, pipeline ID, commit SHA | gitlab, github |
-| `PipelineGeneratorFactory` | Pipeline generator creation | gitlab, github |
+| `PipelineGeneratorFactory` | Pipeline generator creation — `NewGenerator(ctx, *pipeline.IR)` | gitlab, github |
 | `CommentServiceFactory` | MR/PR comment service creation | gitlab, github |
 | `FlagOverridable` | Direct CLI flag overrides (--plan-only, --auto-approve) | gitlab, github |
 | `VersionProvider` | Version info contributions | policy |
 | `ChangeDetectionProvider` | VCS change detection | git |
 | `KVCacheProvider` | Named key/value cache backend resolution | inmemcache |
-| `BlobStoreProvider` | Named blob/object store backend resolution | diskblob |
+| `BlobStoreProvider` | Named blob/object store backend (`NewBlobStore(ctx, appCtx, opts)`) | diskblob |
 | `InitContributor` | Init wizard form fields + config building | gitlab, github, cost, policy, summary, tfupdate |
 | `PipelineContributor` | Pipeline steps/jobs via Contribution | cost, policy, summary, tfupdate |
 
@@ -283,9 +254,23 @@ Plugins with config embed `BasePlugin[C]` which auto-implements:
 - `Name()`, `Description()`, `ConfigKey()`, `NewConfig()`, `DecodeAndSet()`, `IsConfigured()`, `IsEnabled()`, `Config()`, `Reset()`
 - `EnablePolicy` controls enabled semantics: `EnabledWhenConfigured` (gitlab/github), `EnabledExplicitly` (cost/policy/tfupdate), `EnabledByDefault` (summary/diskblob/inmemcache), `EnabledAlways` (git)
 
+### AppContext
+
+Construction goes through an options struct — `plugin.NewAppContext(plugin.AppContextOptions{Config, WorkDir, ServiceDir, Version, Reports, Resolver})` — every field is optional. `ctx.Resolver()` is **never nil**: when no resolver is bound, a no-op resolver returns sentinel errors so plugins can call `ctx.Resolver().ResolveCIProvider()` etc. without nil-checks.
+
+`AppContext.Config()` returns the bound `*config.Config` pointer directly; plugins must treat it as read-only.
+
+### Resolver
+
+The single `plugin.Resolver` interface combines lookup (`All`, `GetPlugin`) with capability resolution (`ResolveCIProvider`, `ResolveChangeDetector`, `ResolveKVCacheProvider`, `ResolveBlobStoreProvider`, `CollectContributions`, `PreflightsForStartup`). `*registry.Registry` is the production implementation; `plugintest.NoopResolver` is the test default-deny.
+
 ### Shared Types
 
-`pkg/ci/` contains shared CI-domain types including provider-shared config such as `Image` (with YAML shorthand) and `MRCommentConfig`. `ci.Report` is the typed file-based report contract shared by cost/policy/tfupdate/summary and now also carries optional provenance metadata for local validation. Both gitlab and github internal packages use type aliases to these.
+`pkg/ci/` contains shared CI-domain types including provider-shared config such as `Image` (with YAML shorthand) and `MRCommentConfig`. `ci.Report` is the typed file-based report contract shared by cost/policy/tfupdate/summary; reports carry optional provenance metadata for local validation. Both gitlab and github internal packages use type aliases to these.
+
+`ci.ReportSection` is a neutral envelope with an opaque `Payload json.RawMessage`. Producers call `ci.MustEncodeSection(kind, title, summary, status, body)` with a typed body (`ci.OverviewSection`, `ci.FindingsSection`, etc.); consumers call `ci.DecodeSection[T](section)`.
+
+`ci.PlanResult` is the canonical representation of one module's plan outcome — used both in-memory and on disk; `ci.PlanResultCollection` aggregates them with a stable fingerprint.
 
 ### Pipeline IR
 
@@ -298,9 +283,15 @@ GitLab: IR → Pipeline{Stages, Jobs} → YAML
 GitHub: IR → Workflow{Jobs, Steps} → YAML
 ```
 
+The IR is the **single source** for downstream consumers — `pipeline.Generator` is constructed with an `*IR` and `Generate() (GeneratedPipeline, error)` / `DryRun() (*DryRunResult, error)` take no further arguments. Job-level access methods live on `*IR`: `JobsByPhase(phase)`, `PlanJobsForLevel(idx)`, `ApplyJobsForLevel(idx)`, plus `JobRefs()` / `JobNames()` / `AllPlanNames()` / `ContributedJobNames()`.
+
+Shell rendering (`cd module && ${TERRAFORM_BINARY} init && plan -out=…`) lives in `pkg/pipeline/cishell` (`cishell.RenderOperation(op)`) — never in the IR package itself. Providers driving Terraform via tfexec instead of shell don't need cishell.
+
 Plugins contribute via `PipelineContributor.PipelineContribution(ctx)`:
 - `Contribution.Steps` — injected into plan/apply jobs (PrePlan/PostPlan/PreApply/PostApply)
 - `Contribution.Jobs` — standalone jobs (e.g., policy-check after plans)
+
+Phase string names are exported as `pipeline.StagePrePlan`/`StagePostPlan`/`StagePreApply`/`StagePostApply`/`StageFinalize`.
 
 ### Provider Resolution
 
@@ -328,7 +319,7 @@ execution:
   binary: terraform
   plan_enabled: true
 
-plugins:
+extensions:
   gitlab:
     image: { name: hashicorp/terraform:1.6 }
     auto_approve: false
@@ -360,30 +351,30 @@ plugins:
   #     platforms: [linux_amd64, darwin_arm64]
 ```
 
-Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`, `plugins` (opaque map). All provider/feature config under `plugins:`.
+Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`, `extensions` (opaque map). All provider/feature config under `extensions:`.
 
 ## Data Flow
 
 ### Generate pipeline
 1. `workflow.Run(ctx, opts)` — scan → filter → parse → graph
 2. `ChangeDetectionProvider.DetectChangedModules()` (if --changed-only)
-3. `Registry.CollectContributions(appCtx)` — gather a command-scoped snapshot of PipelineContributor steps/jobs
+3. `app.Plugins.CollectContributions(appCtx)` — gather a command-scoped snapshot of PipelineContributor steps/jobs
 4. `pipeline.Build(opts)` — construct provider-agnostic IR
-5. `PipelineGeneratorFactory.NewGenerator(..., contributions)` — transform IR to provider YAML
+5. `provider.NewGenerator(appCtx, ir)` — bind IR to provider; `generator.Generate()` writes YAML
 
 ### Summary
 1. `planresults.Scan()` → PlanResultCollection
-2. Load plugin reports from `{serviceDir}/*-report.json` (file-based enrichment)
+2. Load reports from `{serviceDir}/*-report.json` (file-based enrichment; filename uses `report.Producer`)
 3. `summaryengine.EnrichPlans()` merges report data into plan results
 4. `summary` writes `summary-report.json` with typed sections plus report provenance/fingerprint
 5. `summaryengine.ComposeComment()` renders markdown
-6. `registry.ResolveCIProvider()` → `NewCommentService()` → `UpsertComment(ctx, body)`
+6. `appCtx.Resolver().ResolveCIProvider()` → `NewCommentService()` → `UpsertComment(ctx, body)`
 
 ### Local Execution
 1. `workflow.Run(ctx, workflow.Options)` builds the canonical filtered module/graph result
 2. `workflow.ResolveTargets(...)` applies merged filters, `--module`, `--changed-only`, and affected-library expansion
-3. `localexec/internal/planner` converts `pipeline.Build(...)` output into `execution.Plan`
-4. `pkg/execution` schedules jobs with dependency-aware phase grouping
+3. `localexec/internal/planner` calls `pipeline.Build(...)` to produce an `*pipeline.IR`
+4. `pkg/execution.Executor.Execute(ctx, ir)` schedules jobs with dependency-aware phase grouping
 5. `localexec/internal/runner` executes shell/tfexec jobs locally
 6. `localexec/internal/render` always prints execution stage/job summary and optionally renders `summary-report.json` if its provenance matches the current plan artifacts
 
@@ -391,23 +382,27 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 1. `initStateDefaults()` populates shared defaults (provider, binary, pattern, plan_enabled)
 2. Core groups: Basics, Structure, Pipeline Options
 3. `initwiz.InitContributor` plugins add dynamic form groups
-4. `BuildConfigFromPlugins(pattern, pluginConfigs)` assembles config (returns `(*Config, error)`)
+4. `config.BuildConfig(pattern, execution, extensionConfigs)` assembles config (returns `(*Config, error)`)
 
 ## Key Patterns
 
-- **Plugin-first**: core is provider-agnostic; all logic in `plugins/`
+- **Plugin-agnostic core**: nothing under `pkg/` (except `pkg/plugin/...`) imports the plugin SDK. No mention of "plugin" in core package types or YAML keys.
+- **Plugin-first feature surfaces**: every CI provider, cost backend, policy engine, etc. lives in `plugins/`.
 - **One file per capability**: plugin.go < 30 lines; each interface in its own file
 - **Compile-time extensibility**: `xterraci build --with/--without` for custom binaries
-- **Pipeline IR**: `pkg/pipeline.Build()` → provider transforms to YAML
-- **Canonical dry-run source**: dry-run stage/job counts should be derived from built IR, not inferred from booleans on `JobPlan`
+- **Pipeline IR**: `pkg/pipeline.Build()` → provider transforms to YAML. The IR is the single execution input — generators and the local executor both consume `*pipeline.IR` directly.
+- **IR-bound generators**: `PipelineGeneratorFactory.NewGenerator(ctx, *pipeline.IR)` — providers don't reach for depGraph/modules/contributions; the IR already encodes them.
+- **Shell rendering separated from IR**: `pkg/pipeline/cishell.RenderOperation(op)` for shell-driven CI; the IR carries `pipeline.TerraformOperation` data only.
+- **Canonical dry-run source**: dry-run stage/job counts derive from `*IR.DryRun(totalModules)`.
 - **Preflight, then lazy runtime**: framework performs cheap startup validation; heavy plugin state is built lazily inside RuntimeProvider/use-cases
 - **PipelineContributor(ctx)**: plugins inject steps/jobs without cross-plugin imports or cached service-dir state
 - **ServiceDir**: configurable project directory; `AppContext.ServiceDir` (absolute) for runtime, `Config.ServiceDir` (relative) for pipeline templates
-- **File-based reports**: plugins write `{serviceDir}/{plugin}-report.json`; summary is the canonical producer of `summary-report.json`, and localexec is only its local consumer/renderer
+- **File-based reports**: producers write `{serviceDir}/{producer}-report.json` (e.g. `cost-report.json`); summary is the canonical producer of `summary-report.json`, and localexec is only its local consumer/renderer
+- **Report sections via opaque payload**: `ci.ReportSection.Payload` is `json.RawMessage`; producers use `ci.MustEncodeSection`, consumers use `ci.DecodeSection[T]`. Adding a new section kind requires no `pkg/ci` change.
 - **Report provenance**: persisted reports may carry producer/run provenance; local consumers should validate provenance/fingerprint when correctness depends on current workspace artifacts
 - **Zero cross-plugin imports**: plugins communicate only via `pkg/plugin` capability helpers + shared types + file-based reports
-- **Shared workflow**: `workflow.Run()` — scan, filter, parse, graph building
-- **Localexec boundary**: keep shell/tfexec details inside `plugins/localexec`; `pkg/execution` stays provider-agnostic scheduler/executor infrastructure
+- **Shared workflow**: `workflow.Run()` — scan, filter, parse, graph building. `workflow.ChangeDetector` is an alias of `plugin.ChangeDetectionProvider`.
+- **Localexec boundary**: keep shell/tfexec details inside `plugins/localexec`; `pkg/execution` stays provider-agnostic scheduler/executor infrastructure that consumes a raw `*pipeline.IR`.
 - **Reference runtime-heavy plugins**: `cost`, `policy`, `tfupdate`
 - **Parser architecture**: keep `pkg/parser` as a thin public facade; put orchestration, extraction, resolution, and source mechanics in `pkg/parser/internal/*` around the shared `pkg/parser/model`
 - **Tfupdate architecture**: keep `plugins/tfupdate` command/runtime surfaces thin; engine internals live under `planner`, `lockfile`, `sourceaddr`, `registrymeta`, `usecase`, `registryclient`, `tffile`, and `tfwrite`

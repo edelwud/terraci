@@ -212,7 +212,7 @@ execution:
   binary: "terraform"           # or "tofu"
   plan_enabled: true
 
-plugins:
+extensions:
   # GitLab CI (omit for GitHub Actions)
   gitlab:
     image: { name: "hashicorp/terraform:1.6" }

@@ -2,7 +2,7 @@
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
-plugins:
+extensions:
   github:
     terraform_binary: terraform
     runs_on: ubuntu-latest

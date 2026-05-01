@@ -56,7 +56,7 @@ module: platform/stage/eu-central-1/vpc      status=fail     ← S3 encryption m
 ## Configuration
 
 ```yaml
-plugins:
+extensions:
   policy:
     enabled: true
 
@@ -186,7 +186,7 @@ The generated pipeline includes a `policy-check` stage between plan and apply. I
 ## Policy Sources
 
 ```yaml
-plugins:
+extensions:
   policy:
     sources:
       # Local directory

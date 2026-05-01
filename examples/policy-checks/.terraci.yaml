@@ -13,7 +13,7 @@ exclude:
   - "modules/**"
 
 # Policy configuration
-plugins:
+extensions:
   policy:
     enabled: true
 

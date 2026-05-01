@@ -24,7 +24,7 @@ xterraci build \
 
 ```yaml
 # .terraci.yaml
-plugins:
+extensions:
   hello:
     greeting: "Hi from my custom plugin!"
 ```

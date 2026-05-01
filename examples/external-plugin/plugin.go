@@ -20,7 +20,7 @@ type Plugin struct {
 	plugin.BasePlugin[*Config]
 }
 
-// Config holds optional plugin configuration under plugins.hello in .terraci.yaml.
+// Config holds optional plugin configuration under extensions.hello in .terraci.yaml.
 type Config struct {
 	Greeting string `yaml:"greeting"`
 }
