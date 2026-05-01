@@ -49,9 +49,12 @@ Examples:
   terraci tfupdate --write
   terraci tfupdate --write --pin
   terraci tfupdate --module platform/prod/eu-central-1/vpc
-  terraci tfupdate --output json`,
+		terraci tfupdate --output json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			current := plugin.CommandPlugin(ctx, p)
+			current, err := plugin.CommandInstance[*Plugin](ctx, p.Name())
+			if err != nil {
+				return err
+			}
 			if !current.IsEnabled() {
 				return errors.New("tfupdate plugin is not enabled (set plugins.tfupdate.enabled: true)")
 			}

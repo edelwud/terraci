@@ -10,6 +10,38 @@ import (
 	"github.com/edelwud/terraci/pkg/plugin"
 )
 
+// Resolver applies TerraCi's plugin resolution policies over a command-scoped
+// plugin source.
+type Resolver struct {
+	source plugin.Source
+}
+
+// NewResolver creates a resolver over source.
+func NewResolver(source plugin.Source) *Resolver {
+	return &Resolver{source: source}
+}
+
+// All returns plugins from the wrapped source.
+func (r *Resolver) All() []plugin.Plugin {
+	if r == nil || r.source == nil {
+		return nil
+	}
+	return r.source.All()
+}
+
+// GetPlugin returns a plugin by name from the wrapped source.
+func (r *Resolver) GetPlugin(name string) (plugin.Plugin, bool) {
+	if r == nil || r.source == nil {
+		return nil, false
+	}
+	return r.source.GetPlugin(name)
+}
+
+// Resolver returns an explicit policy resolver for this registry.
+func (r *Registry) Resolver() *Resolver {
+	return NewResolver(r)
+}
+
 // ciProviderPlugin is the minimum interface set for a CI provider plugin.
 // CommentServiceFactory is optional — checked via type assertion in buildResolvedCIProvider.
 type ciProviderPlugin interface {
@@ -19,7 +51,7 @@ type ciProviderPlugin interface {
 	plugin.PipelineGeneratorFactory
 }
 
-func (r *Registry) activeCIProviders() []ciProviderPlugin {
+func (r *Resolver) activeCIProviders() []ciProviderPlugin {
 	candidates := ByCapabilityFrom[ciProviderPlugin](r)
 	active := make([]ciProviderPlugin, 0, len(candidates))
 	for _, c := range candidates {
@@ -33,6 +65,12 @@ func (r *Registry) activeCIProviders() []ciProviderPlugin {
 // ResolveCIProvider detects the active CI provider in this registry.
 // Priority: TERRACI_PROVIDER env → env detection → single active provider.
 func (r *Registry) ResolveCIProvider() (*plugin.ResolvedCIProvider, error) {
+	return r.Resolver().ResolveCIProvider()
+}
+
+// ResolveCIProvider detects the active CI provider in this plugin source.
+// Priority: TERRACI_PROVIDER env → env detection → single active provider.
+func (r *Resolver) ResolveCIProvider() (*plugin.ResolvedCIProvider, error) {
 	candidates := r.activeCIProviders()
 	if len(candidates) == 0 {
 		return nil, errors.New("no active CI provider plugins registered")
@@ -70,6 +108,12 @@ func buildResolvedCIProvider(p ciProviderPlugin) *plugin.ResolvedCIProvider {
 // ResolveChangeDetector returns the active ChangeDetectionProvider in this registry.
 // Priority: single active detector → error.
 func (r *Registry) ResolveChangeDetector() (plugin.ChangeDetectionProvider, error) {
+	return r.Resolver().ResolveChangeDetector()
+}
+
+// ResolveChangeDetector returns the active ChangeDetectionProvider in this
+// plugin source. Priority: single active detector → error.
+func (r *Resolver) ResolveChangeDetector() (plugin.ChangeDetectionProvider, error) {
 	detectors := r.activeChangeDetectors()
 	if len(detectors) == 0 {
 		return nil, errors.New("no change detection plugin registered")
@@ -81,7 +125,7 @@ func (r *Registry) ResolveChangeDetector() (plugin.ChangeDetectionProvider, erro
 		detectorNames(detectors))
 }
 
-func (r *Registry) activeChangeDetectors() []plugin.ChangeDetectionProvider {
+func (r *Resolver) activeChangeDetectors() []plugin.ChangeDetectionProvider {
 	candidates := ByCapabilityFrom[plugin.ChangeDetectionProvider](r)
 	active := make([]plugin.ChangeDetectionProvider, 0, len(candidates))
 	for _, c := range candidates {
@@ -125,11 +169,17 @@ func providerNames(candidates []ciProviderPlugin) string {
 
 // ResolveKVCacheProvider returns a named KV cache backend provider from this registry.
 func (r *Registry) ResolveKVCacheProvider(name string) (plugin.KVCacheProvider, error) {
+	return r.Resolver().ResolveKVCacheProvider(name)
+}
+
+// ResolveKVCacheProvider returns a named KV cache backend provider from this
+// plugin source.
+func (r *Resolver) ResolveKVCacheProvider(name string) (plugin.KVCacheProvider, error) {
 	if name == "" {
 		return nil, errors.New("cache backend name is required")
 	}
 
-	resolved, ok := r.Get(name)
+	resolved, ok := r.GetPlugin(name)
 	if !ok {
 		return nil, fmt.Errorf("cache backend %q not found", name)
 	}
@@ -147,11 +197,17 @@ func (r *Registry) ResolveKVCacheProvider(name string) (plugin.KVCacheProvider, 
 
 // ResolveBlobStoreProvider returns a named blob store backend provider from this registry.
 func (r *Registry) ResolveBlobStoreProvider(name string) (plugin.BlobStoreProvider, error) {
+	return r.Resolver().ResolveBlobStoreProvider(name)
+}
+
+// ResolveBlobStoreProvider returns a named blob store backend provider from
+// this plugin source.
+func (r *Resolver) ResolveBlobStoreProvider(name string) (plugin.BlobStoreProvider, error) {
 	if name == "" {
 		return nil, errors.New("blob backend name is required")
 	}
 
-	resolved, ok := r.Get(name)
+	resolved, ok := r.GetPlugin(name)
 	if !ok {
 		return nil, fmt.Errorf("blob backend %q not found", name)
 	}
@@ -170,6 +226,12 @@ func (r *Registry) ResolveBlobStoreProvider(name string) (plugin.BlobStoreProvid
 // PreflightsForStartup returns enabled plugins from this registry that
 // participate in framework preflight for the current config state.
 func (r *Registry) PreflightsForStartup() []plugin.Preflightable {
+	return r.Resolver().PreflightsForStartup()
+}
+
+// PreflightsForStartup returns enabled plugins from this source that
+// participate in framework preflight for the current config state.
+func (r *Resolver) PreflightsForStartup() []plugin.Preflightable {
 	plugins := r.All()
 	result := make([]plugin.Preflightable, 0, len(plugins))
 	for _, p := range plugins {
@@ -186,6 +248,12 @@ func (r *Registry) PreflightsForStartup() []plugin.Preflightable {
 // CollectContributions gathers pipeline contributions from all enabled
 // PipelineContributor plugins in this registry.
 func (r *Registry) CollectContributions(ctx *plugin.AppContext) []*pipeline.Contribution {
+	return r.Resolver().CollectContributions(ctx)
+}
+
+// CollectContributions gathers pipeline contributions from all enabled
+// PipelineContributor plugins in this source.
+func (r *Resolver) CollectContributions(ctx *plugin.AppContext) []*pipeline.Contribution {
 	contributors := ByCapabilityFrom[plugin.PipelineContributor](r)
 	contributions := make([]*pipeline.Contribution, 0, len(contributors))
 	for _, c := range contributors {

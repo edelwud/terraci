@@ -6,6 +6,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
+	"github.com/edelwud/terraci/pkg/plugin/registry"
 	_ "github.com/edelwud/terraci/plugins/diskblob"
 	_ "github.com/edelwud/terraci/plugins/inmemcache"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
@@ -98,9 +99,37 @@ func useMockRegistry(p *Plugin, reg tfregistry.Client) {
 	p.registryFactory = func() tfregistry.Client { return reg }
 }
 
+type commandTestResolver struct {
+	plugin   plugin.Plugin
+	backends *registry.Registry
+}
+
+func (r commandTestResolver) GetPlugin(name string) (plugin.Plugin, bool) {
+	if r.plugin != nil && r.plugin.Name() == name {
+		return r.plugin, true
+	}
+	return r.backends.GetPlugin(name)
+}
+
+func (r commandTestResolver) ResolveKVCacheProvider(name string) (plugin.KVCacheProvider, error) {
+	return r.backends.ResolveKVCacheProvider(name)
+}
+
+func (r commandTestResolver) ResolveBlobStoreProvider(name string) (plugin.BlobStoreProvider, error) {
+	return r.backends.ResolveBlobStoreProvider(name)
+}
+
 // newTestAppContext creates a minimal AppContext suitable for plugin testing.
 func newTestAppContext(t *testing.T, workDir string) *plugin.AppContext {
 	return plugintest.NewAppContext(t, workDir)
+}
+
+func newTestCommandAppContext(t *testing.T, workDir string, p *Plugin) *plugin.AppContext {
+	t.Helper()
+	return plugintest.NewAppContextWithResolver(t, workDir, commandTestResolver{
+		plugin:   p,
+		backends: registry.New(),
+	})
 }
 
 func newTestAppContextWithResolver(t *testing.T, workDir string, resolver plugin.Resolver) *plugin.AppContext {

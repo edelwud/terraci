@@ -1,24 +1,20 @@
 package plugin
 
-// CommandPlugin returns the current per-command plugin instance matching the
-// fallback plugin's name. It lets cobra commands be registered from prototype
-// plugin instances while executing against the fresh command-scoped instance.
-func CommandPlugin[T Plugin](ctx *AppContext, fallback T) T {
+import "fmt"
+
+// CommandInstance returns the command-scoped plugin instance matching name.
+func CommandInstance[T Plugin](ctx *AppContext, name string) (T, error) {
+	var zero T
 	if ctx == nil || ctx.resolver == nil {
-		return fallback
+		return zero, fmt.Errorf("command plugin %q: plugin context resolver is not bound", name)
 	}
-	current, ok := ctx.resolver.GetPlugin(fallback.Name())
+	current, ok := ctx.resolver.GetPlugin(name)
 	if !ok {
-		return fallback
+		return zero, fmt.Errorf("command plugin %q: command-scoped instance not found", name)
 	}
 	typed, ok := current.(T)
 	if !ok {
-		return fallback
+		return zero, fmt.Errorf("command plugin %q: command-scoped instance has type %T", name, current)
 	}
-	currentConfig, currentHasConfig := current.(ConfigLoader)
-	fallbackConfig, fallbackHasConfig := any(fallback).(ConfigLoader)
-	if currentHasConfig && fallbackHasConfig && !currentConfig.IsConfigured() && fallbackConfig.IsConfigured() {
-		return fallback
-	}
-	return typed
+	return typed, nil
 }

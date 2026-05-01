@@ -33,7 +33,10 @@ Examples:
   terraci cost --module platform/prod/eu-central-1/rds
   terraci cost --output json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			current := plugin.CommandPlugin(appCtx, p)
+			current, err := plugin.CommandInstance[*Plugin](appCtx, p.Name())
+			if err != nil {
+				return err
+			}
 			if !current.IsEnabled() {
 				return errors.New("cost estimation is not enabled (enable at least one provider under plugins.cost.providers)")
 			}

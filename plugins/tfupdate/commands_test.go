@@ -277,7 +277,7 @@ func TestPlugin_RunCheck_NoModules(t *testing.T) {
 
 	// Empty workDir — no modules to discover
 	workDir := t.TempDir()
-	appCtx := newTestAppContext(t, workDir)
+	appCtx := newTestCommandAppContext(t, workDir, p)
 
 	cmds := p.Commands(appCtx)
 	cmd := cmds[0]
@@ -301,7 +301,7 @@ func TestPlugin_RunCheck_InvalidOptions(t *testing.T) {
 	useMockRegistry(p, &mockRegistry{})
 
 	workDir := t.TempDir()
-	appCtx := newTestAppContext(t, workDir)
+	appCtx := newTestCommandAppContext(t, workDir, p)
 
 	cmds := p.Commands(appCtx)
 	cmd := cmds[0]
@@ -344,7 +344,7 @@ terraform {
 		t.Fatal(err)
 	}
 
-	appCtx := newTestAppContext(t, workDir)
+	appCtx := newTestCommandAppContext(t, workDir, p)
 	cmds := p.Commands(appCtx)
 	cmd := cmds[0]
 	cmd.SetContext(context.Background())
@@ -392,7 +392,7 @@ terraform {
 	}
 
 	// Create AppContext with empty ServiceDir to skip artifact saving
-	appCtx := newTestAppContext(t, workDir)
+	appCtx := newTestCommandAppContext(t, workDir, p)
 	appCtx.Update(appCtx.Config(), appCtx.WorkDir(), "", appCtx.Version())
 
 	cmds := p.Commands(appCtx)
@@ -432,7 +432,7 @@ terraform {
 		t.Fatal(err)
 	}
 
-	appCtx := newTestAppContext(t, workDir)
+	appCtx := newTestCommandAppContext(t, workDir, p)
 	cmds := p.Commands(appCtx)
 	cmd := cmds[0]
 	cmd.SetContext(context.Background())
@@ -459,7 +459,7 @@ func TestPlugin_RunCheck_DiscoverError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	appCtx := newTestAppContext(t, workDir)
+	appCtx := newTestCommandAppContext(t, workDir, p)
 	appCtx.Update(appCtx.Config(), filePath, appCtx.ServiceDir(), appCtx.Version())
 
 	cmds := p.Commands(appCtx)
@@ -503,7 +503,7 @@ terraform {
 		}
 	}
 
-	appCtx := newTestAppContext(t, workDir)
+	appCtx := newTestCommandAppContext(t, workDir, p)
 	cmds := p.Commands(appCtx)
 	cmd := cmds[0]
 	cmd.SetContext(context.Background())

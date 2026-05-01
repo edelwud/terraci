@@ -125,14 +125,15 @@ func (r *Registry) GetPlugin(name string) (plugin.Plugin, bool) {
 	return p, ok
 }
 
-// ByCapabilityFrom returns all plugins in r that implement the given capability interface.
-func ByCapabilityFrom[T plugin.Plugin](r *Registry) []T {
-	if r == nil {
+// ByCapabilityFrom returns all plugins in source that implement the given
+// capability interface.
+func ByCapabilityFrom[T plugin.Plugin](source plugin.Source) []T {
+	if source == nil {
 		return nil
 	}
 	var result []T
-	for _, name := range r.order {
-		if t, ok := r.plugins[name].(T); ok {
+	for _, p := range source.All() {
+		if t, ok := p.(T); ok {
 			result = append(result, t)
 		}
 	}

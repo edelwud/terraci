@@ -22,7 +22,10 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 		Use:   "pull",
 		Short: "Pull policies from configured sources",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			current := plugin.CommandPlugin(ctx, p)
+			current, err := plugin.CommandInstance[*Plugin](ctx, p.Name())
+			if err != nil {
+				return err
+			}
 			if !current.IsEnabled() {
 				return errors.New("policy checks are not enabled (set plugins.policy.enabled: true)")
 			}
@@ -38,7 +41,10 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 		Use:   "check",
 		Short: "Check Terraform plans against policies",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			current := plugin.CommandPlugin(ctx, p)
+			current, err := plugin.CommandInstance[*Plugin](ctx, p.Name())
+			if err != nil {
+				return err
+			}
 			if !current.IsEnabled() {
 				return errors.New("policy checks are not enabled (set plugins.policy.enabled: true)")
 			}

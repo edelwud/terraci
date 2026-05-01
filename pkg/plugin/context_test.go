@@ -71,8 +71,12 @@ func TestAppContext_BeginCommandRebindsResolver(t *testing.T) {
 	second := &contextTestPlugin{name: "cmd"}
 	ctx := NewAppContext(nil, "/tmp", "/tmp/.terraci", "1.0", nil, contextTestResolver{plugin: first})
 
-	if got := CommandPlugin(ctx, &contextTestPlugin{name: "cmd"}); got != first {
-		t.Fatalf("CommandPlugin() = %p, want first %p", got, first)
+	got, err := CommandInstance[*contextTestPlugin](ctx, "cmd")
+	if err != nil {
+		t.Fatalf("CommandInstance() error = %v", err)
+	}
+	if got != first {
+		t.Fatalf("CommandInstance() = %p, want first %p", got, first)
 	}
 
 	ctx.Freeze()
@@ -80,12 +84,25 @@ func TestAppContext_BeginCommandRebindsResolver(t *testing.T) {
 	if ctx.IsFrozen() {
 		t.Fatal("BeginCommand should reopen frozen context")
 	}
-	if got := CommandPlugin(ctx, &contextTestPlugin{name: "cmd"}); got != second {
-		t.Fatalf("CommandPlugin() = %p, want second %p", got, second)
+	got, err = CommandInstance[*contextTestPlugin](ctx, "cmd")
+	if err != nil {
+		t.Fatalf("CommandInstance() error = %v", err)
+	}
+	if got != second {
+		t.Fatalf("CommandInstance() = %p, want second %p", got, second)
 	}
 
 	ctx.Update(nil, "/next", "/next/.terraci", "2.0")
 	if ctx.WorkDir() != "/next" {
 		t.Fatalf("WorkDir() = %q, want /next", ctx.WorkDir())
+	}
+}
+
+func TestCommandInstanceRejectsMissingResolver(t *testing.T) {
+	ctx := NewAppContext(nil, "/tmp", "/tmp/.terraci", "1.0", nil)
+	ctx.resolver = nil
+
+	if _, err := CommandInstance[*contextTestPlugin](ctx, "cmd"); err == nil {
+		t.Fatal("CommandInstance() error = nil, want missing resolver error")
 	}
 }

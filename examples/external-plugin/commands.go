@@ -22,7 +22,11 @@ using the configured structure pattern and prints a summary.
 Build a custom binary with this plugin:
   xterraci build --with github.com/edelwud/terraci/examples/external-plugin=./examples/external-plugin`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runHello(cmd.Context(), ctx, p.greeting())
+			current, err := plugin.CommandInstance[*Plugin](ctx, p.Name())
+			if err != nil {
+				return err
+			}
+			return runHello(cmd.Context(), ctx, current.greeting())
 		},
 	}}
 }
