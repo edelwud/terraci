@@ -31,7 +31,7 @@ type App struct {
 func (a *App) BeginCommand() {
 	a.Plugins = registry.New()
 	if a.pluginCtx != nil {
-		a.pluginCtx.BeginCommand(a.Plugins)
+		a.pluginCtx.BeginCommand(a.Plugins.Resolver())
 	}
 }
 
@@ -43,9 +43,9 @@ func (a *App) PluginContext() *plugin.AppContext {
 		a.Plugins = registry.New()
 	}
 	if a.pluginCtx == nil {
-		a.pluginCtx = plugin.NewAppContext(nil, "", "", "", nil, a.Plugins)
+		a.pluginCtx = plugin.NewAppContext(nil, "", "", "", nil, a.Plugins.Resolver())
 	}
-	a.pluginCtx.SetResolver(a.Plugins)
+	a.pluginCtx.SetResolver(a.Plugins.Resolver())
 	a.ensurePluginContext()
 	return a.pluginCtx
 }

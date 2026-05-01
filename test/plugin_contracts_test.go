@@ -118,7 +118,7 @@ plugins:
     enabled: true
 `)
 
-	plugins := appCtx.Resolver().(*registry.Registry)
+	plugins := appCtx.Resolver().(*registry.Resolver)
 	preflightables := plugins.PreflightsForStartup()
 	got := make([]string, 0, len(preflightables))
 	for _, p := range preflightables {
@@ -156,7 +156,7 @@ plugins:
 
 	expectedRuntimeProviders := []string{"cost", "policy", "tfupdate"}
 	got := make([]string, 0, len(expectedRuntimeProviders))
-	plugins := appCtx.Resolver().(*registry.Registry)
+	plugins := appCtx.Resolver().(*registry.Resolver)
 	for _, p := range registry.ByCapabilityFrom[plugin.RuntimeProvider](plugins) {
 		rawRuntime, err := p.Runtime(context.Background(), appCtx)
 		if err != nil {
@@ -192,7 +192,7 @@ plugins:
     pipeline: true
 `)
 
-	plugins := appCtx.Resolver().(*registry.Registry)
+	plugins := appCtx.Resolver().(*registry.Resolver)
 	contributions := plugins.CollectContributions(appCtx)
 	if len(contributions) != 4 {
 		t.Fatalf("CollectContributions() returned %d contributions, want 4", len(contributions))
@@ -248,6 +248,6 @@ func loadPluginContractConfig(t *testing.T, rawConfig string) *plugin.AppContext
 	}
 
 	serviceDir := filepath.Join(dir, cfg.ServiceDir)
-	appCtx := plugin.NewAppContext(cfg, dir, serviceDir, "test", nil, plugins)
+	appCtx := plugin.NewAppContext(cfg, dir, serviceDir, "test", nil, plugins.Resolver())
 	return appCtx
 }

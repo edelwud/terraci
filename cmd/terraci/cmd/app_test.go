@@ -1,6 +1,10 @@
 package cmd
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/edelwud/terraci/pkg/plugin/registry"
+)
 
 func TestAppBeginCommandReplacesPluginRegistryAndReusesContextPointer(t *testing.T) {
 	app := &App{}
@@ -21,7 +25,7 @@ func TestAppBeginCommandReplacesPluginRegistryAndReusesContextPointer(t *testing
 	if secondCtx.IsFrozen() {
 		t.Fatal("BeginCommand should reopen AppContext for the next command")
 	}
-	if secondCtx.Resolver() != app.Plugins {
-		t.Fatal("AppContext resolver should point at the fresh command registry")
+	if _, ok := secondCtx.Resolver().(*registry.Resolver); !ok {
+		t.Fatalf("AppContext resolver = %T, want *registry.Resolver", secondCtx.Resolver())
 	}
 }

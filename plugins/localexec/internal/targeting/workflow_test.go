@@ -63,7 +63,7 @@ func TestWorkflowResolverUsesWorkflowResolveTargets(t *testing.T) {
 	appCtx := plugintest.NewAppContext(t, t.TempDir())
 	cfg := appCtx.Config()
 	cfg.LibraryModules = &config.LibraryModulesConfig{Paths: []string{"_modules"}}
-	appCtx = plugin.NewAppContext(cfg, appCtx.WorkDir(), appCtx.ServiceDir(), appCtx.Version(), appCtx.Reports(), plugins)
+	appCtx = plugin.NewAppContext(cfg, appCtx.WorkDir(), appCtx.ServiceDir(), appCtx.Version(), appCtx.Reports(), plugins.Resolver())
 	filters := &filter.Flags{SegmentArgs: []string{"environment=stage"}}
 	req := spec.ExecuteRequest{
 		ChangedOnly: true,
