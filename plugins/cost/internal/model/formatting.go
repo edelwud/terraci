@@ -21,8 +21,8 @@ func FormatCost(cost float64) string {
 	return "$" + formatPositive(cost)
 }
 
-// FormatCostDiff formats a cost difference with +/- prefix.
-func FormatCostDiff(diff float64) string {
+// FormatEstimateDiff formats a cost difference with +/- prefix.
+func FormatEstimateDiff(diff float64) string {
 	if diff == 0 {
 		return "$0"
 	}

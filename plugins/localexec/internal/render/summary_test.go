@@ -23,7 +23,7 @@ func TestRenderSummaryReportCLI_RendersStructuredSections(t *testing.T) {
 				Overview: &ci.OverviewSection{
 					PlanStats: ci.SummaryPlanStats{Total: 2, Changes: 1, NoChanges: 1, Success: 2},
 					Reports: []ci.SummaryReportOverview{
-						{Kind: ci.ReportSectionKindCostChanges, Title: "Cost Estimation", Status: ci.ReportStatusWarn, Summary: "1 module added cost"},
+						{Kind: ci.ReportSectionKindEstimateChanges, Title: "Cost Estimation", Status: ci.ReportStatusWarn, Summary: "1 module added cost"},
 					},
 				},
 			},
@@ -41,10 +41,10 @@ func TestRenderSummaryReportCLI_RendersStructuredSections(t *testing.T) {
 						Summary:           "+1",
 						StructuredDetails: "### Resources\n- aws_vpc.main (create)",
 						RawPlanOutput:     "+ resource \"aws_vpc\" \"main\"",
-						CostBefore:        10,
-						CostAfter:         15,
-						CostDiff:          5,
-						HasCost:           true,
+						EstimateBefore:    10,
+						EstimateAfter:     15,
+						EstimateDiff:      5,
+						HasEstimate:       true,
 					}},
 				},
 			},

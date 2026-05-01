@@ -19,11 +19,11 @@ type ModulePlan struct {
 	RawPlanOutput     string // Filtered raw plan output (diff only)
 	Error             string // Error message if plan failed
 	Duration          time.Duration
-	// Cost estimation fields
-	CostBefore float64 // Monthly cost before changes (USD)
-	CostAfter  float64 // Monthly cost after changes (USD)
-	CostDiff   float64 // Cost difference (after - before)
-	HasCost    bool    // True if cost was calculated
+	// Optional numeric estimate fields populated by report producers.
+	EstimateBefore float64 // Estimate before changes
+	EstimateAfter  float64 // Estimate after changes
+	EstimateDiff   float64 // Estimate difference (after - before)
+	HasEstimate    bool    // True if estimate data is available
 }
 
 // Get returns the value of a named component from the Components map.
@@ -65,11 +65,11 @@ type PlanResult struct {
 	RawPlanOutput     string            `json:"raw_plan_output,omitempty"`
 	Error             string            `json:"error,omitempty"`
 	ExitCode          int               `json:"exit_code"`
-	// Cost estimation fields
-	CostBefore float64 `json:"cost_before,omitempty"`
-	CostAfter  float64 `json:"cost_after,omitempty"`
-	CostDiff   float64 `json:"cost_diff,omitempty"`
-	HasCost    bool    `json:"has_cost,omitempty"`
+	// Optional numeric estimate fields populated by report producers.
+	EstimateBefore float64 `json:"estimate_before,omitempty"`
+	EstimateAfter  float64 `json:"estimate_after,omitempty"`
+	EstimateDiff   float64 `json:"estimate_diff,omitempty"`
+	HasEstimate    bool    `json:"has_estimate,omitempty"`
 }
 
 // Get returns the value of a named component from the Components map.
@@ -136,10 +136,10 @@ func (c *PlanResultCollection) ToModulePlans() []ModulePlan {
 			StructuredDetails: r.StructuredDetails,
 			RawPlanOutput:     r.RawPlanOutput,
 			Error:             r.Error,
-			CostBefore:        r.CostBefore,
-			CostAfter:         r.CostAfter,
-			CostDiff:          r.CostDiff,
-			HasCost:           r.HasCost,
+			EstimateBefore:    r.EstimateBefore,
+			EstimateAfter:     r.EstimateAfter,
+			EstimateDiff:      r.EstimateDiff,
+			HasEstimate:       r.HasEstimate,
 		}
 	}
 	return plans

@@ -65,7 +65,7 @@ func validateReportSection(s ReportSection) error {
 		{name: "module_table", present: s.ModuleTable != nil},
 		{name: "findings", present: s.Findings != nil},
 		{name: "dependency_updates", present: s.DependencyUpdates != nil},
-		{name: "cost_changes", present: s.CostChanges != nil},
+		{name: "estimate_changes", present: s.EstimateChanges != nil},
 	}
 
 	expectedPayload, err := expectedReportSectionPayload(s.Kind)
@@ -105,8 +105,8 @@ func expectedReportSectionPayload(kind ReportSectionKind) (string, error) {
 		return "findings", nil
 	case ReportSectionKindDependencyUpdates:
 		return "dependency_updates", nil
-	case ReportSectionKindCostChanges:
-		return "cost_changes", nil
+	case ReportSectionKindEstimateChanges:
+		return "estimate_changes", nil
 	default:
 		return "", fmt.Errorf("unknown report section kind %q", kind)
 	}

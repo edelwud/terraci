@@ -39,29 +39,29 @@ func TestPlanResultCollection_ToModulePlans_PreservesCostFields(t *testing.T) {
 	collection := &PlanResultCollection{
 		Results: []PlanResult{
 			{
-				ModuleID:   "svc/prod/eu/vpc",
-				ModulePath: "svc/prod/eu/vpc",
-				Status:     PlanStatusChanges,
-				CostBefore: 10.0,
-				CostAfter:  20.0,
-				CostDiff:   10.0,
-				HasCost:    true,
+				ModuleID:       "svc/prod/eu/vpc",
+				ModulePath:     "svc/prod/eu/vpc",
+				Status:         PlanStatusChanges,
+				EstimateBefore: 10.0,
+				EstimateAfter:  20.0,
+				EstimateDiff:   10.0,
+				HasEstimate:    true,
 			},
 		},
 	}
 
 	plans := collection.ToModulePlans()
-	if !plans[0].HasCost {
-		t.Error("expected HasCost to be true")
+	if !plans[0].HasEstimate {
+		t.Error("expected HasEstimate to be true")
 	}
-	if plans[0].CostBefore != 10.0 {
-		t.Errorf("CostBefore = %f, want 10.0", plans[0].CostBefore)
+	if plans[0].EstimateBefore != 10.0 {
+		t.Errorf("EstimateBefore = %f, want 10.0", plans[0].EstimateBefore)
 	}
-	if plans[0].CostAfter != 20.0 {
-		t.Errorf("CostAfter = %f, want 20.0", plans[0].CostAfter)
+	if plans[0].EstimateAfter != 20.0 {
+		t.Errorf("EstimateAfter = %f, want 20.0", plans[0].EstimateAfter)
 	}
-	if plans[0].CostDiff != 10.0 {
-		t.Errorf("CostDiff = %f, want 10.0", plans[0].CostDiff)
+	if plans[0].EstimateDiff != 10.0 {
+		t.Errorf("EstimateDiff = %f, want 10.0", plans[0].EstimateDiff)
 	}
 }
 

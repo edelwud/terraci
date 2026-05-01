@@ -166,14 +166,14 @@ func TestComposeComment_WithCostData(t *testing.T) {
 
 	plans := []ci.ModulePlan{
 		{
-			ModuleID:   "svc/prod/us-east-1/vpc",
-			Components: map[string]string{"environment": "prod"},
-			Status:     ci.PlanStatusChanges,
-			Summary:    "+1",
-			HasCost:    true,
-			CostBefore: 10.0,
-			CostAfter:  15.0,
-			CostDiff:   5.0,
+			ModuleID:       "svc/prod/us-east-1/vpc",
+			Components:     map[string]string{"environment": "prod"},
+			Status:         ci.PlanStatusChanges,
+			Summary:        "+1",
+			HasEstimate:    true,
+			EstimateBefore: 10.0,
+			EstimateAfter:  15.0,
+			EstimateDiff:   5.0,
 		},
 	}
 
@@ -233,16 +233,16 @@ func TestComposeComment_FiltersCostReportToAddedCosts(t *testing.T) {
 		Status:  ci.ReportStatusWarn,
 		Summary: "3 modules, total: $27.00/mo (diff: +5.00)",
 		Sections: []ci.ReportSection{{
-			Kind:           ci.ReportSectionKindCostChanges,
+			Kind:           ci.ReportSectionKindEstimateChanges,
 			Title:          "Cost Estimation",
 			Status:         ci.ReportStatusWarn,
 			SectionSummary: "3 modules, total: $27.00/mo (diff: +5.00)",
-			CostChanges: &ci.CostChangesSection{
-				Totals: ci.CostTotals{After: 37, Diff: -5},
-				Rows: []ci.CostChangeRow{
-					{ModulePath: "svc/prod/us-east-1/vpc", Before: 10, After: 15, Diff: 5, HasCost: true},
-					{ModulePath: "svc/prod/us-east-1/rds", Before: 12, After: 12, Diff: 0, HasCost: true},
-					{ModulePath: "svc/prod/us-east-1/redis", Before: 20, After: 10, Diff: -10, HasCost: true},
+			EstimateChanges: &ci.EstimateChangesSection{
+				Totals: ci.EstimateTotals{After: 37, Diff: -5},
+				Rows: []ci.EstimateChangeRow{
+					{ModulePath: "svc/prod/us-east-1/vpc", Before: 10, After: 15, Diff: 5, HasEstimate: true},
+					{ModulePath: "svc/prod/us-east-1/rds", Before: 12, After: 12, Diff: 0, HasEstimate: true},
+					{ModulePath: "svc/prod/us-east-1/redis", Before: 20, After: 10, Diff: -10, HasEstimate: true},
 				},
 			},
 		}},
@@ -482,22 +482,22 @@ func TestFormatCostCell(t *testing.T) {
 	}{
 		{
 			name: "no cost",
-			plan: ci.ModulePlan{HasCost: false},
+			plan: ci.ModulePlan{HasEstimate: false},
 			want: "-",
 		},
 		{
 			name: "zero diff",
-			plan: ci.ModulePlan{HasCost: true, CostAfter: 25.0, CostDiff: 0},
+			plan: ci.ModulePlan{HasEstimate: true, EstimateAfter: 25.0, EstimateDiff: 0},
 			want: "$25.00",
 		},
 		{
 			name: "positive diff",
-			plan: ci.ModulePlan{HasCost: true, CostBefore: 10.0, CostAfter: 15.0, CostDiff: 5.0},
+			plan: ci.ModulePlan{HasEstimate: true, EstimateBefore: 10.0, EstimateAfter: 15.0, EstimateDiff: 5.0},
 			want: "$10.00 +$5.00 -> $15.00",
 		},
 		{
 			name: "negative diff",
-			plan: ci.ModulePlan{HasCost: true, CostBefore: 20.0, CostAfter: 10.0, CostDiff: -10.0},
+			plan: ci.ModulePlan{HasEstimate: true, EstimateBefore: 20.0, EstimateAfter: 10.0, EstimateDiff: -10.0},
 			want: "$20.00 -$10.00 -> $10.00",
 		},
 	}
@@ -543,7 +543,7 @@ func TestFormatMonthlyCost(t *testing.T) {
 	}
 }
 
-func TestFormatCostDiff(t *testing.T) {
+func TestFormatEstimateDiff(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -564,9 +564,9 @@ func TestFormatCostDiff(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := FormatCostDiff(tt.diff)
+			got := FormatEstimateDiff(tt.diff)
 			if got != tt.want {
-				t.Errorf("FormatCostDiff(%v) = %q, want %q", tt.diff, got, tt.want)
+				t.Errorf("FormatEstimateDiff(%v) = %q, want %q", tt.diff, got, tt.want)
 			}
 		})
 	}
@@ -863,12 +863,12 @@ func TestRenderPlanRow(t *testing.T) {
 		t.Parallel()
 
 		p := &ci.ModulePlan{
-			ModuleID:  "svc/prod/us-east-1/vpc",
-			Status:    ci.PlanStatusNoChanges,
-			Summary:   "No changes",
-			HasCost:   true,
-			CostAfter: 50.0,
-			CostDiff:  0,
+			ModuleID:      "svc/prod/us-east-1/vpc",
+			Status:        ci.PlanStatusNoChanges,
+			Summary:       "No changes",
+			HasEstimate:   true,
+			EstimateAfter: 50.0,
+			EstimateDiff:  0,
 		}
 
 		got := renderPlanRow(p, true)

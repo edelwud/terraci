@@ -30,7 +30,7 @@ const (
 	ReportSectionKindModuleTable       ReportSectionKind = "module_table"
 	ReportSectionKindFindings          ReportSectionKind = "findings"
 	ReportSectionKindDependencyUpdates ReportSectionKind = "dependency_updates"
-	ReportSectionKindCostChanges       ReportSectionKind = "cost_changes"
+	ReportSectionKindEstimateChanges   ReportSectionKind = "estimate_changes"
 )
 
 // ReportSection is a discriminated union over supported typed report payloads.
@@ -43,7 +43,7 @@ type ReportSection struct {
 	ModuleTable       *ModuleTableSection       `json:"module_table,omitempty"`
 	Findings          *FindingsSection          `json:"findings,omitempty"`
 	DependencyUpdates *DependencyUpdatesSection `json:"dependency_updates,omitempty"`
-	CostChanges       *CostChangesSection       `json:"cost_changes,omitempty"`
+	EstimateChanges   *EstimateChangesSection   `json:"estimate_changes,omitempty"`
 }
 
 type reportSectionPayload struct {
@@ -66,20 +66,20 @@ type ModuleTableRow struct {
 	Error             string     `json:"error,omitempty"`
 	StructuredDetails string     `json:"structured_details,omitempty"`
 	RawPlanOutput     string     `json:"raw_plan_output,omitempty"`
-	CostBefore        float64    `json:"cost_before,omitempty"`
-	CostAfter         float64    `json:"cost_after,omitempty"`
-	CostDiff          float64    `json:"cost_diff,omitempty"`
-	HasCost           bool       `json:"has_cost,omitempty"`
+	EstimateBefore    float64    `json:"estimate_before,omitempty"`
+	EstimateAfter     float64    `json:"estimate_after,omitempty"`
+	EstimateDiff      float64    `json:"estimate_diff,omitempty"`
+	HasEstimate       bool       `json:"has_estimate,omitempty"`
 }
 
-// CostChangesSection holds structured cost estimation data.
-type CostChangesSection struct {
-	Totals CostTotals      `json:"totals"`
-	Rows   []CostChangeRow `json:"rows,omitempty"`
+// EstimateChangesSection holds structured numeric estimate data.
+type EstimateChangesSection struct {
+	Totals EstimateTotals      `json:"totals"`
+	Rows   []EstimateChangeRow `json:"rows,omitempty"`
 }
 
-// CostTotals are aggregate cost values for one report.
-type CostTotals struct {
+// EstimateTotals are aggregate estimate values for one report.
+type EstimateTotals struct {
 	Currency       string  `json:"currency,omitempty"`
 	Before         float64 `json:"before,omitempty"`
 	After          float64 `json:"after,omitempty"`
@@ -89,15 +89,15 @@ type CostTotals struct {
 	Unsupported    int     `json:"unsupported,omitempty"`
 }
 
-// CostChangeRow is one actionable module-level cost result.
-type CostChangeRow struct {
-	ModulePath string  `json:"module_path"`
-	Before     float64 `json:"before,omitempty"`
-	After      float64 `json:"after,omitempty"`
-	Diff       float64 `json:"diff,omitempty"`
-	HasCost    bool    `json:"has_cost,omitempty"`
-	Error      string  `json:"error,omitempty"`
-	Notes      string  `json:"notes,omitempty"`
+// EstimateChangeRow is one actionable module-level estimate result.
+type EstimateChangeRow struct {
+	ModulePath  string  `json:"module_path"`
+	Before      float64 `json:"before,omitempty"`
+	After       float64 `json:"after,omitempty"`
+	Diff        float64 `json:"diff,omitempty"`
+	HasEstimate bool    `json:"has_estimate,omitempty"`
+	Error       string  `json:"error,omitempty"`
+	Notes       string  `json:"notes,omitempty"`
 }
 
 // FindingsSection holds warned/failed findings for modules or resources.

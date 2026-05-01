@@ -102,14 +102,14 @@ func TestSaveReport_SectionsField(t *testing.T) {
 		Title:  "Cost Report",
 		Status: ReportStatusWarn,
 		Sections: []ReportSection{{
-			Kind:           ReportSectionKindCostChanges,
+			Kind:           ReportSectionKindEstimateChanges,
 			Title:          "Cost Estimation",
 			Status:         ReportStatusWarn,
 			SectionSummary: "1 module",
-			CostChanges: &CostChangesSection{
-				Totals: CostTotals{After: 15, Diff: 5},
-				Rows: []CostChangeRow{
-					{ModulePath: "svc/prod/eu/vpc", Before: 10.0, After: 15.0, Diff: 5.0, HasCost: true},
+			EstimateChanges: &EstimateChangesSection{
+				Totals: EstimateTotals{After: 15, Diff: 5},
+				Rows: []EstimateChangeRow{
+					{ModulePath: "svc/prod/eu/vpc", Before: 10.0, After: 15.0, Diff: 5.0, HasEstimate: true},
 				},
 			},
 		}},
@@ -132,11 +132,11 @@ func TestSaveReport_SectionsField(t *testing.T) {
 	if len(loaded.Sections) != 1 {
 		t.Fatalf("expected 1 section, got %d", len(loaded.Sections))
 	}
-	if loaded.Sections[0].CostChanges == nil {
+	if loaded.Sections[0].EstimateChanges == nil {
 		t.Fatal("expected cost section payload")
 	}
-	if loaded.Sections[0].CostChanges.Rows[0].Diff != 5.0 {
-		t.Errorf("cost diff = %f, want 5.0", loaded.Sections[0].CostChanges.Rows[0].Diff)
+	if loaded.Sections[0].EstimateChanges.Rows[0].Diff != 5.0 {
+		t.Errorf("cost diff = %f, want 5.0", loaded.Sections[0].EstimateChanges.Rows[0].Diff)
 	}
 }
 

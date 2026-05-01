@@ -117,18 +117,18 @@ func newPlanReport(modulePath string, status ci.ReportStatus) *ci.Report {
 		Status:  status,
 		Summary: "summary",
 		Sections: []ci.ReportSection{{
-			Kind:           ci.ReportSectionKindCostChanges,
+			Kind:           ci.ReportSectionKindEstimateChanges,
 			Title:          "Cost Estimation",
 			Status:         status,
 			SectionSummary: "summary",
-			CostChanges: &ci.CostChangesSection{
-				Totals: ci.CostTotals{After: 2, Diff: 1},
-				Rows: []ci.CostChangeRow{{
-					ModulePath: modulePath,
-					Before:     1,
-					After:      2,
-					Diff:       1,
-					HasCost:    true,
+			EstimateChanges: &ci.EstimateChangesSection{
+				Totals: ci.EstimateTotals{After: 2, Diff: 1},
+				Rows: []ci.EstimateChangeRow{{
+					ModulePath:  modulePath,
+					Before:      1,
+					After:       2,
+					Diff:        1,
+					HasEstimate: true,
 				}},
 			},
 		}},

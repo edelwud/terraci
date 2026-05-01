@@ -11,12 +11,12 @@ import (
 
 func buildCostReport(result *model.EstimateResult) *ci.Report {
 	visible := visibleReportModules(result.Modules)
-	rows := make([]ci.CostChangeRow, 0, len(visible))
+	rows := make([]ci.EstimateChangeRow, 0, len(visible))
 	status := ci.ReportStatusPass
 
 	for i := range visible {
 		module := visible[i]
-		row := ci.CostChangeRow{
+		row := ci.EstimateChangeRow{
 			ModulePath: module.ModulePath,
 			Error:      module.Error,
 		}
@@ -24,7 +24,7 @@ func buildCostReport(result *model.EstimateResult) *ci.Report {
 			row.Before = module.BeforeCost
 			row.After = module.AfterCost
 			row.Diff = module.DiffCost
-			row.HasCost = true
+			row.HasEstimate = true
 		} else {
 			status = ci.ReportStatusWarn
 		}
@@ -43,12 +43,12 @@ func buildCostReport(result *model.EstimateResult) *ci.Report {
 		Status:  status,
 		Summary: buildCostReportSummary(result, len(visible)),
 		Sections: []ci.ReportSection{{
-			Kind:           ci.ReportSectionKindCostChanges,
+			Kind:           ci.ReportSectionKindEstimateChanges,
 			Title:          "Cost Estimation",
 			Status:         status,
 			SectionSummary: buildCostReportSummary(result, len(visible)),
-			CostChanges: &ci.CostChangesSection{
-				Totals: ci.CostTotals{
+			EstimateChanges: &ci.EstimateChangesSection{
+				Totals: ci.EstimateTotals{
 					Currency:       result.Currency,
 					Before:         result.TotalBefore,
 					After:          result.TotalAfter,

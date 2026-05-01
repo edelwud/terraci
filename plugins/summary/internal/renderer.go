@@ -165,15 +165,15 @@ func buildTerraformPlanSections(plans []ci.ModulePlan, includeDetails bool) []ci
 				status = ci.ReportStatusFail
 			}
 			rows = append(rows, ci.ModuleTableRow{
-				ModuleID:   plan.ModuleID,
-				ModulePath: plan.ModulePath,
-				Status:     plan.Status,
-				Summary:    plan.Summary,
-				Error:      plan.Error,
-				CostBefore: plan.CostBefore,
-				CostAfter:  plan.CostAfter,
-				CostDiff:   plan.CostDiff,
-				HasCost:    plan.HasCost,
+				ModuleID:       plan.ModuleID,
+				ModulePath:     plan.ModulePath,
+				Status:         plan.Status,
+				Summary:        plan.Summary,
+				Error:          plan.Error,
+				EstimateBefore: plan.EstimateBefore,
+				EstimateAfter:  plan.EstimateAfter,
+				EstimateDiff:   plan.EstimateDiff,
+				HasEstimate:    plan.HasEstimate,
 			})
 			if includeDetails {
 				rows[len(rows)-1].StructuredDetails = plan.StructuredDetails
@@ -244,12 +244,12 @@ func firstSectionKind(sections []ci.ReportSection) ci.ReportSectionKind {
 
 func filterReportSection(section ci.ReportSection) (ci.ReportSection, bool) {
 	switch section.Kind {
-	case ci.ReportSectionKindCostChanges:
-		if section.CostChanges == nil {
+	case ci.ReportSectionKindEstimateChanges:
+		if section.EstimateChanges == nil {
 			return ci.ReportSection{}, false
 		}
-		rows := make([]ci.CostChangeRow, 0, len(section.CostChanges.Rows))
-		for _, row := range section.CostChanges.Rows {
+		rows := make([]ci.EstimateChangeRow, 0, len(section.EstimateChanges.Rows))
+		for _, row := range section.EstimateChanges.Rows {
 			if row.Diff > 0 {
 				rows = append(rows, row)
 			}
@@ -257,7 +257,7 @@ func filterReportSection(section ci.ReportSection) (ci.ReportSection, bool) {
 		if len(rows) == 0 {
 			return ci.ReportSection{}, false
 		}
-		section.CostChanges = &ci.CostChangesSection{Totals: section.CostChanges.Totals, Rows: rows}
+		section.EstimateChanges = &ci.EstimateChangesSection{Totals: section.EstimateChanges.Totals, Rows: rows}
 		return section, true
 	case ci.ReportSectionKindFindings:
 		if section.Findings == nil {
@@ -305,8 +305,8 @@ func renderMarkdownSection(section ci.ReportSection) string {
 		return renderMarkdownOverviewSection(section)
 	case ci.ReportSectionKindModuleTable:
 		return renderMarkdownModuleTableSection(section)
-	case ci.ReportSectionKindCostChanges:
-		return renderMarkdownCostChangesSection(section)
+	case ci.ReportSectionKindEstimateChanges:
+		return renderMarkdownEstimateChangesSection(section)
 	case ci.ReportSectionKindFindings:
 		return renderMarkdownFindingsSection(section)
 	case ci.ReportSectionKindDependencyUpdates:
@@ -354,7 +354,7 @@ func renderMarkdownModuleTableSection(section ci.ReportSection) string {
 
 	hasCostData := false
 	for i := range section.ModuleTable.Rows {
-		if section.ModuleTable.Rows[i].HasCost {
+		if section.ModuleTable.Rows[i].HasEstimate {
 			hasCostData = true
 			break
 		}
@@ -383,8 +383,8 @@ func renderMarkdownModuleTableSection(section ci.ReportSection) string {
 	return strings.TrimSpace(sb.String())
 }
 
-func renderMarkdownCostChangesSection(section ci.ReportSection) string {
-	if section.CostChanges == nil {
+func renderMarkdownEstimateChangesSection(section ci.ReportSection) string {
+	if section.EstimateChanges == nil {
 		return ""
 	}
 
@@ -392,15 +392,15 @@ func renderMarkdownCostChangesSection(section ci.ReportSection) string {
 	sb.WriteString(renderSectionHeader(section))
 	sb.WriteString("| Module | Before | After | Diff | Notes |\n")
 	sb.WriteString("|--------|--------|-------|------|-------|\n")
-	for _, row := range section.CostChanges.Rows {
+	for _, row := range section.EstimateChanges.Rows {
 		before := "-"
 		after := "-"
 		diff := "-"
 		notes := row.Notes
-		if row.HasCost {
+		if row.HasEstimate {
 			before = FormatMonthlyCost(row.Before)
 			after = FormatMonthlyCost(row.After)
-			diff = FormatCostDiff(row.Diff)
+			diff = FormatEstimateDiff(row.Diff)
 		}
 		if row.Error != "" {
 			notes = row.Error
@@ -483,7 +483,7 @@ func sectionTitle(section ci.ReportSection) string {
 		return section.Title
 	}
 	switch section.Kind {
-	case ci.ReportSectionKindCostChanges:
+	case ci.ReportSectionKindEstimateChanges:
 		return "Cost Estimation"
 	case ci.ReportSectionKindFindings:
 		return "Policy Check"
@@ -605,10 +605,10 @@ func moduleTableRowAsModulePlan(row ci.ModuleTableRow) *ci.ModulePlan {
 		Error:             row.Error,
 		StructuredDetails: row.StructuredDetails,
 		RawPlanOutput:     row.RawPlanOutput,
-		CostBefore:        row.CostBefore,
-		CostAfter:         row.CostAfter,
-		CostDiff:          row.CostDiff,
-		HasCost:           row.HasCost,
+		EstimateBefore:    row.EstimateBefore,
+		EstimateAfter:     row.EstimateAfter,
+		EstimateDiff:      row.EstimateDiff,
+		HasEstimate:       row.HasEstimate,
 	}
 }
 
@@ -629,13 +629,13 @@ func renderPlanRow(p *ci.ModulePlan, includeCost bool) string {
 }
 
 func FormatCostCell(p *ci.ModulePlan) string {
-	if !p.HasCost {
+	if !p.HasEstimate {
 		return "-"
 	}
-	if p.CostDiff == 0 {
-		return FormatMonthlyCost(p.CostAfter)
+	if p.EstimateDiff == 0 {
+		return FormatMonthlyCost(p.EstimateAfter)
 	}
-	return fmt.Sprintf("%s %s -> %s", FormatMonthlyCost(p.CostBefore), FormatCostDiff(p.CostDiff), FormatMonthlyCost(p.CostAfter))
+	return fmt.Sprintf("%s %s -> %s", FormatMonthlyCost(p.EstimateBefore), FormatEstimateDiff(p.EstimateDiff), FormatMonthlyCost(p.EstimateAfter))
 }
 
 func FormatMonthlyCost(cost float64) string {
@@ -654,7 +654,7 @@ func FormatMonthlyCost(cost float64) string {
 	return fmt.Sprintf("$%.4f", cost)
 }
 
-func FormatCostDiff(diff float64) string {
+func FormatEstimateDiff(diff float64) string {
 	if diff == 0 {
 		return "$0"
 	}

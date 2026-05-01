@@ -102,10 +102,10 @@ func cloneReportSection(section ci.ReportSection) ci.ReportSection {
 		updates.Rows = append([]ci.DependencyUpdateRow(nil), section.DependencyUpdates.Rows...)
 		cloned.DependencyUpdates = &updates
 	}
-	if section.CostChanges != nil {
-		costChanges := *section.CostChanges
-		costChanges.Rows = append([]ci.CostChangeRow(nil), section.CostChanges.Rows...)
-		cloned.CostChanges = &costChanges
+	if section.EstimateChanges != nil {
+		estimateChanges := *section.EstimateChanges
+		estimateChanges.Rows = append([]ci.EstimateChangeRow(nil), section.EstimateChanges.Rows...)
+		cloned.EstimateChanges = &estimateChanges
 	}
 	return cloned
 }

@@ -8,16 +8,16 @@ func EnrichPlansFromReports(plans []ci.ModulePlan, reports []*ci.Report) {
 		return
 	}
 
-	byPath := make(map[string]ci.CostChangeRow)
+	byPath := make(map[string]ci.EstimateChangeRow)
 	for _, report := range reports {
 		if report == nil {
 			continue
 		}
 		for _, section := range report.Sections {
-			if section.Kind != ci.ReportSectionKindCostChanges || section.CostChanges == nil {
+			if section.Kind != ci.ReportSectionKindEstimateChanges || section.EstimateChanges == nil {
 				continue
 			}
-			for _, row := range section.CostChanges.Rows {
+			for _, row := range section.EstimateChanges.Rows {
 				byPath[row.ModulePath] = row
 			}
 		}
@@ -25,12 +25,12 @@ func EnrichPlansFromReports(plans []ci.ModulePlan, reports []*ci.Report) {
 
 	for i := range plans {
 		row, ok := byPath[plans[i].ModulePath]
-		if !ok || !row.HasCost {
+		if !ok || !row.HasEstimate {
 			continue
 		}
-		plans[i].CostBefore = row.Before
-		plans[i].CostAfter = row.After
-		plans[i].CostDiff = row.Diff
-		plans[i].HasCost = row.HasCost
+		plans[i].EstimateBefore = row.Before
+		plans[i].EstimateAfter = row.After
+		plans[i].EstimateDiff = row.Diff
+		plans[i].HasEstimate = row.HasEstimate
 	}
 }
