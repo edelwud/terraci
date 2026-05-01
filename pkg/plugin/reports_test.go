@@ -9,15 +9,15 @@ import (
 func TestReportRegistry_PublishAndGet(t *testing.T) {
 	r := NewReportRegistry()
 
-	report := &ci.Report{Plugin: "cost", Title: "Cost Estimation", Status: ci.ReportStatusPass}
+	report := &ci.Report{Plugin: "feature_a", Title: "Feature Estimation", Status: ci.ReportStatusPass}
 	r.Publish(report)
 
-	got, ok := r.Get("cost")
+	got, ok := r.Get("feature_a")
 	if !ok {
 		t.Fatal("expected to find report")
 	}
-	if got.Title != "Cost Estimation" {
-		t.Errorf("Title = %q, want Cost Estimation", got.Title)
+	if got.Title != "Feature Estimation" {
+		t.Errorf("Title = %q, want Feature Estimation", got.Title)
 	}
 }
 
@@ -33,10 +33,10 @@ func TestReportRegistry_GetMissing(t *testing.T) {
 func TestReportRegistry_PublishOverwrite(t *testing.T) {
 	r := NewReportRegistry()
 
-	r.Publish(&ci.Report{Plugin: "cost", Title: "v1"})
-	r.Publish(&ci.Report{Plugin: "cost", Title: "v2"})
+	r.Publish(&ci.Report{Plugin: "feature_a", Title: "v1"})
+	r.Publish(&ci.Report{Plugin: "feature_a", Title: "v2"})
 
-	got, _ := r.Get("cost")
+	got, _ := r.Get("feature_a")
 	if got.Title != "v2" {
 		t.Errorf("expected overwrite, got Title = %q", got.Title)
 	}
@@ -45,8 +45,8 @@ func TestReportRegistry_PublishOverwrite(t *testing.T) {
 func TestReportRegistry_All(t *testing.T) {
 	r := NewReportRegistry()
 
-	r.Publish(&ci.Report{Plugin: "cost", Title: "Cost"})
-	r.Publish(&ci.Report{Plugin: "policy", Title: "Policy"})
+	r.Publish(&ci.Report{Plugin: "report_a", Title: "Report A"})
+	r.Publish(&ci.Report{Plugin: "report_b", Title: "Report B"})
 
 	all := r.All()
 	if len(all) != 2 {
@@ -57,8 +57,8 @@ func TestReportRegistry_All(t *testing.T) {
 	for _, rep := range all {
 		titles[rep.Title] = true
 	}
-	if !titles["Cost"] || !titles["Policy"] {
-		t.Error("expected both Cost and Policy reports")
+	if !titles["Report A"] || !titles["Report B"] {
+		t.Error("expected both reports")
 	}
 }
 
@@ -75,8 +75,8 @@ func TestReportRegistry_DefensiveCopies(t *testing.T) {
 	r := NewReportRegistry()
 
 	report := &ci.Report{
-		Plugin: "policy",
-		Title:  "Policy",
+		Plugin: "report_b",
+		Title:  "Report B",
 		Sections: []ci.ReportSection{{
 			Kind:  ci.ReportSectionKindFindings,
 			Title: "Findings",
@@ -97,19 +97,19 @@ func TestReportRegistry_DefensiveCopies(t *testing.T) {
 	report.Title = "mutated"
 	report.Sections[0].Findings.Rows[0].Findings[0].Message = "mutated"
 
-	got, ok := r.Get("policy")
+	got, ok := r.Get("report_b")
 	if !ok {
 		t.Fatal("expected to find report")
 	}
-	if got.Title != "Policy" {
-		t.Fatalf("stored report title = %q, want Policy", got.Title)
+	if got.Title != "Report B" {
+		t.Fatalf("stored report title = %q, want Report B", got.Title)
 	}
 	if got.Sections[0].Findings.Rows[0].Findings[0].Message != "original" {
 		t.Fatalf("stored finding was mutated: %q", got.Sections[0].Findings.Rows[0].Findings[0].Message)
 	}
 
 	got.Sections[0].Findings.Rows[0].Findings[0].Message = "mutated after get"
-	gotAgain, _ := r.Get("policy")
+	gotAgain, _ := r.Get("report_b")
 	if gotAgain.Sections[0].Findings.Rows[0].Findings[0].Message != "original" {
 		t.Fatalf("Get returned shared report state: %q", gotAgain.Sections[0].Findings.Rows[0].Findings[0].Message)
 	}

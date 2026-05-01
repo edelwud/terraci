@@ -98,7 +98,7 @@ func TestSaveJSON_CreatesDirectory(t *testing.T) {
 func TestSaveReport_SectionsField(t *testing.T) {
 	dir := t.TempDir()
 	report := &Report{
-		Plugin: "cost",
+		Plugin: "report_a",
 		Title:  "Cost Report",
 		Status: ReportStatusWarn,
 		Sections: []ReportSection{{
@@ -119,7 +119,7 @@ func TestSaveReport_SectionsField(t *testing.T) {
 		t.Fatalf("SaveReport: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, ReportFilename("cost")))
+	data, err := os.ReadFile(filepath.Join(dir, ReportFilename("report_a")))
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
@@ -150,9 +150,9 @@ func TestSaveReport_RejectsInvalidReport(t *testing.T) {
 	}{
 		{name: "nil report", report: nil, wantErr: "ci report is nil"},
 		{name: "missing plugin", report: &Report{Title: "Missing Plugin", Status: ReportStatusPass}, wantErr: "plugin is required"},
-		{name: "unsafe plugin name", report: &Report{Plugin: "../cost", Title: "Cost", Status: ReportStatusPass}, wantErr: "not a safe artifact name"},
-		{name: "missing title", report: &Report{Plugin: "cost", Status: ReportStatusPass}, wantErr: "title is required"},
-		{name: "invalid status", report: &Report{Plugin: "cost", Title: "Cost", Status: "unknown"}, wantErr: `status "unknown" is invalid`},
+		{name: "unsafe plugin name", report: &Report{Plugin: "../report_a", Title: "Cost", Status: ReportStatusPass}, wantErr: "not a safe artifact name"},
+		{name: "missing title", report: &Report{Plugin: "report_a", Status: ReportStatusPass}, wantErr: "title is required"},
+		{name: "invalid status", report: &Report{Plugin: "report_a", Title: "Cost", Status: "unknown"}, wantErr: `status "unknown" is invalid`},
 	}
 
 	for _, tt := range tests {
@@ -171,16 +171,16 @@ func TestSaveReport_RejectsInvalidReport(t *testing.T) {
 }
 
 func TestReportFilename(t *testing.T) {
-	if got := ReportFilename("cost"); got != "cost-report.json" {
-		t.Fatalf("ReportFilename(cost) = %q, want cost-report.json", got)
+	if got := ReportFilename("report_a"); got != "report_a-report.json" {
+		t.Fatalf("ReportFilename(report_a) = %q, want report_a-report.json", got)
 	}
 }
 
 func TestLoadReport(t *testing.T) {
 	dir := t.TempDir()
 	report := &Report{
-		Plugin:  "policy",
-		Title:   "Policy Check",
+		Plugin:  "report_b",
+		Title:   "Report B",
 		Status:  ReportStatusWarn,
 		Summary: "warned",
 	}
@@ -189,13 +189,13 @@ func TestLoadReport(t *testing.T) {
 		t.Fatalf("SaveReport: %v", err)
 	}
 
-	loaded, err := LoadReport(filepath.Join(dir, ReportFilename("policy")))
+	loaded, err := LoadReport(filepath.Join(dir, ReportFilename("report_b")))
 	if err != nil {
 		t.Fatalf("LoadReport: %v", err)
 	}
 
-	if loaded.Plugin != "policy" {
-		t.Fatalf("plugin = %q, want policy", loaded.Plugin)
+	if loaded.Plugin != "report_b" {
+		t.Fatalf("plugin = %q, want report_b", loaded.Plugin)
 	}
 	if loaded.Status != ReportStatusWarn {
 		t.Fatalf("status = %q, want warn", loaded.Status)
@@ -205,8 +205,8 @@ func TestLoadReport(t *testing.T) {
 func TestLoadReports(t *testing.T) {
 	dir := t.TempDir()
 	reports := []*Report{
-		{Plugin: "update", Title: "Update", Status: ReportStatusPass},
-		{Plugin: "cost", Title: "Cost", Status: ReportStatusWarn},
+		{Plugin: "report_c", Title: "Update", Status: ReportStatusPass},
+		{Plugin: "report_a", Title: "Cost", Status: ReportStatusWarn},
 	}
 
 	for _, report := range reports {
@@ -223,8 +223,8 @@ func TestLoadReports(t *testing.T) {
 	if len(loaded) != 2 {
 		t.Fatalf("loaded report count = %d, want 2", len(loaded))
 	}
-	if loaded[0].Plugin != "cost" || loaded[1].Plugin != "update" {
-		t.Fatalf("loaded report order = [%s %s], want [cost update]", loaded[0].Plugin, loaded[1].Plugin)
+	if loaded[0].Plugin != "report_a" || loaded[1].Plugin != "report_c" {
+		t.Fatalf("loaded report order = [%s %s], want [report_a report_c]", loaded[0].Plugin, loaded[1].Plugin)
 	}
 }
 
@@ -273,12 +273,12 @@ func TestLoadReport_InvalidRootFails(t *testing.T) {
 func TestSaveReport_PreservesProvenance(t *testing.T) {
 	dir := t.TempDir()
 	report := &Report{
-		Plugin:  "summary",
+		Plugin:  "report_c",
 		Title:   "Terraform Plan Summary",
 		Status:  ReportStatusWarn,
-		Summary: "summary",
+		Summary: "report_c",
 		Provenance: &ReportProvenance{
-			Producer:               "summary",
+			Producer:               "report_c",
 			GeneratedAt:            time.Date(2026, 4, 23, 10, 0, 0, 0, time.UTC),
 			CommitSHA:              "abcdef1234567890",
 			PipelineID:             "123",
@@ -290,15 +290,15 @@ func TestSaveReport_PreservesProvenance(t *testing.T) {
 		t.Fatalf("SaveReport: %v", err)
 	}
 
-	loaded, err := LoadReport(filepath.Join(dir, ReportFilename("summary")))
+	loaded, err := LoadReport(filepath.Join(dir, ReportFilename("report_c")))
 	if err != nil {
 		t.Fatalf("LoadReport: %v", err)
 	}
 	if loaded.Provenance == nil {
 		t.Fatal("Provenance = nil, want value")
 	}
-	if loaded.Provenance.Producer != "summary" {
-		t.Fatalf("Producer = %q, want summary", loaded.Provenance.Producer)
+	if loaded.Provenance.Producer != "report_c" {
+		t.Fatalf("Producer = %q, want report_c", loaded.Provenance.Producer)
 	}
 	if loaded.Provenance.PlanResultsFingerprint != "fingerprint" {
 		t.Fatalf("PlanResultsFingerprint = %q, want fingerprint", loaded.Provenance.PlanResultsFingerprint)

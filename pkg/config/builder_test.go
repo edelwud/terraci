@@ -32,11 +32,11 @@ func TestBuildConfigFromPlugins_EmptyPattern(t *testing.T) {
 	}
 }
 
-func TestBuildConfigFromPlugins_GitLab(t *testing.T) {
+func TestBuildConfigFromPlugins_ProviderA(t *testing.T) {
 	t.Parallel()
 
 	pluginConfigs := map[string]map[string]any{
-		"gitlab": {
+		"provider_a": {
 			"image":        map[string]any{"name": "hashicorp/terraform:1.6"},
 			"auto_approve": false,
 			"mr": map[string]any{
@@ -54,30 +54,30 @@ func TestBuildConfigFromPlugins_GitLab(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, ok := cfg.Plugins["gitlab"]; !ok {
-		t.Fatal("expected gitlab in plugins")
+	if _, ok := cfg.Plugins["provider_a"]; !ok {
+		t.Fatal("expected provider_a in plugins")
 	}
-	if _, ok := cfg.Plugins["github"]; ok {
-		t.Error("expected github to be absent")
+	if _, ok := cfg.Plugins["provider_b"]; ok {
+		t.Error("expected provider_b to be absent")
 	}
 
-	var glCfg map[string]any
-	if err := cfg.PluginConfig("gitlab", &glCfg); err != nil {
+	var providerACfg map[string]any
+	if err := cfg.PluginConfig("provider_a", &providerACfg); err != nil {
 		t.Fatal(err)
 	}
 	if cfg.Execution.PlanEnabled != true {
 		t.Error("execution.plan_enabled should be true")
 	}
-	if glCfg["mr"] == nil {
+	if providerACfg["mr"] == nil {
 		t.Error("mr config should be present")
 	}
 }
 
-func TestBuildConfigFromPlugins_GitHub(t *testing.T) {
+func TestBuildConfigFromPlugins_ProviderB(t *testing.T) {
 	t.Parallel()
 
 	pluginConfigs := map[string]map[string]any{
-		"github": {
+		"provider_b": {
 			"runs_on":      "ubuntu-latest",
 			"auto_approve": true,
 			"pr": map[string]any{
@@ -95,33 +95,33 @@ func TestBuildConfigFromPlugins_GitHub(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, ok := cfg.Plugins["github"]; !ok {
-		t.Fatal("expected github in plugins")
+	if _, ok := cfg.Plugins["provider_b"]; !ok {
+		t.Fatal("expected provider_b in plugins")
 	}
-	if _, ok := cfg.Plugins["gitlab"]; ok {
-		t.Error("expected gitlab to be absent")
+	if _, ok := cfg.Plugins["provider_a"]; ok {
+		t.Error("expected provider_a to be absent")
 	}
 
-	var ghCfg map[string]any
-	if err := cfg.PluginConfig("github", &ghCfg); err != nil {
+	var providerBCfg map[string]any
+	if err := cfg.PluginConfig("provider_b", &providerBCfg); err != nil {
 		t.Fatal(err)
 	}
 	if cfg.Execution.Binary != "tofu" {
 		t.Errorf("binary = %v, want tofu", cfg.Execution.Binary)
 	}
-	if ghCfg["auto_approve"] != true {
+	if providerBCfg["auto_approve"] != true {
 		t.Error("auto_approve should be true")
 	}
-	if ghCfg["pr"] == nil {
+	if providerBCfg["pr"] == nil {
 		t.Error("pr config should be present")
 	}
 }
 
-func TestBuildConfigFromPlugins_WithCost(t *testing.T) {
+func TestBuildConfigFromPlugins_WithFeature(t *testing.T) {
 	t.Parallel()
 
 	pluginConfigs := map[string]map[string]any{
-		"cost": {
+		"feature_a": {
 			"enabled": true,
 		},
 	}
@@ -131,16 +131,16 @@ func TestBuildConfigFromPlugins_WithCost(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, ok := cfg.Plugins["cost"]; !ok {
-		t.Error("expected cost in plugins")
+	if _, ok := cfg.Plugins["feature_a"]; !ok {
+		t.Error("expected feature_a in plugins")
 	}
 
-	var costCfg map[string]any
-	if err := cfg.PluginConfig("cost", &costCfg); err != nil {
+	var featureCfg map[string]any
+	if err := cfg.PluginConfig("feature_a", &featureCfg); err != nil {
 		t.Fatal(err)
 	}
-	if costCfg["enabled"] != true {
-		t.Error("cost should be enabled")
+	if featureCfg["enabled"] != true {
+		t.Error("feature_a should be enabled")
 	}
 }
 
