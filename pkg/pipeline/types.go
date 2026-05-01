@@ -11,23 +11,30 @@ const (
 	PhasePreApply               // before terraform apply
 	PhasePostApply              // after terraform apply
 	PhaseFinalize               // after everything — reports, notifications
+)
 
-	phaseFinalizeName = "finalize"
+// Stage names for each phase. The IR's CI generators use these as stage labels.
+const (
+	StagePrePlan   = "pre-plan"
+	StagePostPlan  = "post-plan"
+	StagePreApply  = "pre-apply"
+	StagePostApply = "post-apply"
+	StageFinalize  = "finalize"
 )
 
 // String returns the stage name for this phase (e.g., "pre-plan", "post-apply").
 func (p Phase) String() string {
 	switch p {
 	case PhasePrePlan:
-		return "pre-plan"
+		return StagePrePlan
 	case PhasePostPlan:
-		return "post-plan"
+		return StagePostPlan
 	case PhasePreApply:
-		return "pre-apply"
+		return StagePreApply
 	case PhasePostApply:
-		return "post-apply"
+		return StagePostApply
 	case PhaseFinalize:
-		return phaseFinalizeName
+		return StageFinalize
 	default:
 		return "unknown"
 	}

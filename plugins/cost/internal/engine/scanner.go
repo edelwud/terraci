@@ -14,7 +14,7 @@ const maxModuleConcurrency = 4
 
 // ModulePlanAdapter converts external plan sources into the cost engine input model.
 type ModulePlanAdapter interface {
-	LoadModule(modulePath, region string) (*ModulePlan, error)
+	LoadModule(modulePath, region string) (*PlanResult, error)
 }
 
 // ModuleScanner loads module plans through a source-specific adapter.
@@ -63,8 +63,8 @@ func (r PlannedResource) RequiresBeforeCost() bool {
 	return (r.Action == model.ActionUpdate || r.Action == model.ActionReplace) && r.BeforeAttrs != nil
 }
 
-// ModulePlan is the provider-neutral input model consumed by the cost engine.
-type ModulePlan struct {
+// PlanResult is the provider-neutral input model consumed by the cost engine.
+type PlanResult struct {
 	ModuleID   string
 	ModulePath string
 	Region     string
@@ -73,7 +73,7 @@ type ModulePlan struct {
 }
 
 // Scan loads a module plan through the configured adapter.
-func (s *ModuleScanner) Scan(modulePath, region string) (*ModulePlan, error) {
+func (s *ModuleScanner) Scan(modulePath, region string) (*PlanResult, error) {
 	return s.adapter.LoadModule(modulePath, region)
 }
 
@@ -82,7 +82,7 @@ type ScannedModulePlan struct {
 	Index      int
 	ModulePath string
 	Region     string
-	Plan       *ModulePlan
+	Plan       *PlanResult
 	Err        error
 }
 

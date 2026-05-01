@@ -26,7 +26,7 @@ func NewModuleExecutor(resolver moduleResolver) *ModuleExecutor {
 }
 
 // Execute resolves all resources in a module plan and aggregates the result.
-func (e *ModuleExecutor) Execute(ctx context.Context, modulePlan *ModulePlan) *model.ModuleCost {
+func (e *ModuleExecutor) Execute(ctx context.Context, modulePlan *PlanResult) *model.ModuleCost {
 	assembler := results.NewModuleAssembler(results.ModuleIdentity{
 		ModuleID:   modulePlan.ModuleID,
 		ModulePath: modulePlan.ModulePath,

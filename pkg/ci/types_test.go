@@ -2,7 +2,7 @@ package ci
 
 import "testing"
 
-func TestPlanResultCollection_ToModulePlans(t *testing.T) {
+func TestPlanResultCollection_Results(t *testing.T) {
 	collection := &PlanResultCollection{
 		Results: []PlanResult{
 			{
@@ -14,24 +14,22 @@ func TestPlanResultCollection_ToModulePlans(t *testing.T) {
 		},
 	}
 
-	plans := collection.ToModulePlans()
-	if len(plans) != 1 {
-		t.Fatalf("expected 1 plan, got %d", len(plans))
+	if len(collection.Results) != 1 {
+		t.Fatalf("expected 1 plan, got %d", len(collection.Results))
 	}
-	if plans[0].Status != PlanStatusChanges {
-		t.Errorf("expected status changes, got %s", plans[0].Status)
+	if collection.Results[0].Status != PlanStatusChanges {
+		t.Errorf("expected status changes, got %s", collection.Results[0].Status)
 	}
-	if plans[0].ModuleID != "svc/prod/eu/vpc" {
-		t.Errorf("expected module ID svc/prod/eu/vpc, got %s", plans[0].ModuleID)
+	if collection.Results[0].ModuleID != "svc/prod/eu/vpc" {
+		t.Errorf("expected module ID svc/prod/eu/vpc, got %s", collection.Results[0].ModuleID)
 	}
 }
 
-func TestPlanResultCollection_ToModulePlans_Empty(t *testing.T) {
+func TestPlanResultCollection_Results_Empty(t *testing.T) {
 	collection := &PlanResultCollection{}
 
-	plans := collection.ToModulePlans()
-	if len(plans) != 0 {
-		t.Fatalf("expected 0 plans, got %d", len(plans))
+	if len(collection.Results) != 0 {
+		t.Fatalf("expected 0 plans, got %d", len(collection.Results))
 	}
 }
 
@@ -63,33 +61,11 @@ func TestPlanResultCollection_FingerprintStableAcrossOrder(t *testing.T) {
 	}
 }
 
-func TestModulePlan_Get(t *testing.T) {
-	plan := &ModulePlan{
-		Components: map[string]string{
-			"service":     "payments",
-			"environment": "prod",
-		},
-	}
-
-	if got := plan.Get("service"); got != "payments" {
-		t.Errorf("Get(service) = %q, want payments", got)
-	}
-	if got := plan.Get("missing"); got != "" {
-		t.Errorf("Get(missing) = %q, want empty", got)
-	}
-}
-
-func TestModulePlan_Get_NilComponents(t *testing.T) {
-	plan := &ModulePlan{}
-	if got := plan.Get("anything"); got != "" {
-		t.Errorf("Get on nil components = %q, want empty", got)
-	}
-}
-
 func TestPlanResult_Get(t *testing.T) {
 	result := &PlanResult{
 		Components: map[string]string{
-			"region": "eu-west-1",
+			"region":      "eu-west-1",
+			"environment": "prod",
 		},
 	}
 

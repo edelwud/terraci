@@ -9,7 +9,7 @@ import (
 	"github.com/edelwud/terraci/pkg/ci"
 )
 
-func TestPlanResultCollection_ToModulePlans(t *testing.T) {
+func TestPlanResultCollection_Results(t *testing.T) {
 	collection := &ci.PlanResultCollection{
 		Results: []ci.PlanResult{
 			{
@@ -27,7 +27,7 @@ func TestPlanResultCollection_ToModulePlans(t *testing.T) {
 		},
 	}
 
-	plans := collection.ToModulePlans()
+	plans := collection.Results
 
 	if len(plans) != 1 {
 		t.Fatalf("expected 1 plan, got %d", len(plans))

@@ -11,7 +11,7 @@ import (
 func TestComposeComment_BasicPlans(t *testing.T) {
 	t.Parallel()
 
-	plans := []ci.ModulePlan{
+	plans := []ci.PlanResult{
 		{
 			ModuleID:   "svc/prod/us-east-1/vpc",
 			Components: map[string]string{"environment": "prod"},
@@ -55,7 +55,7 @@ func TestComposeComment_BasicPlans(t *testing.T) {
 func TestComposeComment_EmptyPlans(t *testing.T) {
 	t.Parallel()
 
-	result := ComposeComment([]ci.ModulePlan{}, nil, "", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
+	result := ComposeComment([]ci.PlanResult{}, nil, "", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
 
 	if !strings.Contains(result, "**0** modules analyzed") {
 		t.Errorf("expected '**0** modules analyzed', got: %s", result)
@@ -65,7 +65,7 @@ func TestComposeComment_EmptyPlans(t *testing.T) {
 func TestComposeComment_WithReport(t *testing.T) {
 	t.Parallel()
 
-	plans := []ci.ModulePlan{
+	plans := []ci.PlanResult{
 		{
 			ModuleID:   "svc/prod/us-east-1/vpc",
 			Components: map[string]string{"environment": "prod"},
@@ -116,7 +116,7 @@ func TestComposeComment_WithReport(t *testing.T) {
 func TestComposeCommentWithOptions_WithoutDetailsOmitsPlanBody(t *testing.T) {
 	t.Parallel()
 
-	plans := []ci.ModulePlan{{
+	plans := []ci.PlanResult{{
 		ModuleID:          "svc/prod/us-east-1/vpc",
 		Components:        map[string]string{"environment": "prod"},
 		Status:            ci.PlanStatusChanges,
@@ -138,7 +138,7 @@ func TestComposeCommentWithOptions_WithoutDetailsOmitsPlanBody(t *testing.T) {
 func TestBuildSummarySectionsWithOptions_WithoutDetailsClearsRowDetails(t *testing.T) {
 	t.Parallel()
 
-	plans := []ci.ModulePlan{{
+	plans := []ci.PlanResult{{
 		ModuleID:          "svc/prod/us-east-1/vpc",
 		Components:        map[string]string{"environment": "prod"},
 		Status:            ci.PlanStatusChanges,
@@ -203,7 +203,7 @@ func TestComposeComment_WithCostReport(t *testing.T) {
 func TestComposeComment_FiltersEnvironmentPlansToChangedAndFailed(t *testing.T) {
 	t.Parallel()
 
-	plans := []ci.ModulePlan{
+	plans := []ci.PlanResult{
 		{
 			ModuleID:   "svc/prod/us-east-1/vpc",
 			Components: map[string]string{"environment": "prod"},
@@ -317,7 +317,7 @@ func TestComposeComment_FiltersTfupdateReportToUpdatableModules(t *testing.T) {
 func TestComposeComment_CommitSHA(t *testing.T) {
 	t.Parallel()
 
-	result := ComposeComment([]ci.ModulePlan{}, nil, "abcdef1234567890abcdef1234567890abcdef12", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
+	result := ComposeComment([]ci.PlanResult{}, nil, "abcdef1234567890abcdef1234567890abcdef12", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
 
 	if !strings.Contains(result, "`abcdef12`") {
 		t.Errorf("expected truncated SHA 'abcdef12', got: %s", result)
@@ -332,7 +332,7 @@ func TestCalculateStats(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		plans []ci.ModulePlan
+		plans []ci.PlanResult
 		want  planStats
 	}{
 		{
@@ -342,7 +342,7 @@ func TestCalculateStats(t *testing.T) {
 		},
 		{
 			name: "all statuses",
-			plans: []ci.ModulePlan{
+			plans: []ci.PlanResult{
 				{Status: ci.PlanStatusSuccess},
 				{Status: ci.PlanStatusNoChanges},
 				{Status: ci.PlanStatusChanges},
@@ -362,7 +362,7 @@ func TestCalculateStats(t *testing.T) {
 		},
 		{
 			name: "all no changes",
-			plans: []ci.ModulePlan{
+			plans: []ci.PlanResult{
 				{Status: ci.PlanStatusNoChanges},
 				{Status: ci.PlanStatusNoChanges},
 			},
@@ -435,7 +435,7 @@ func TestGroupByEnvironment(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		plans    []ci.ModulePlan
+		plans    []ci.PlanResult
 		wantKeys []string
 		wantLen  map[string]int
 	}{
@@ -447,7 +447,7 @@ func TestGroupByEnvironment(t *testing.T) {
 		},
 		{
 			name: "multiple envs",
-			plans: []ci.ModulePlan{
+			plans: []ci.PlanResult{
 				{Components: map[string]string{"environment": "prod"}},
 				{Components: map[string]string{"environment": "prod"}},
 				{Components: map[string]string{"environment": "staging"}},
@@ -457,7 +457,7 @@ func TestGroupByEnvironment(t *testing.T) {
 		},
 		{
 			name: "empty env becomes default",
-			plans: []ci.ModulePlan{
+			plans: []ci.PlanResult{
 				{Components: map[string]string{}},
 				{Components: map[string]string{"environment": "prod"}},
 			},
@@ -624,7 +624,7 @@ func TestRenderExpandableDetails(t *testing.T) {
 	t.Run("with structured details", func(t *testing.T) {
 		t.Parallel()
 
-		p := &ci.ModulePlan{
+		p := &ci.PlanResult{
 			ModuleID:          "svc/prod/us-east-1/vpc",
 			Status:            ci.PlanStatusChanges,
 			Summary:           "+2 ~1 -0",
@@ -647,7 +647,7 @@ func TestRenderExpandableDetails(t *testing.T) {
 	t.Run("with raw plan output", func(t *testing.T) {
 		t.Parallel()
 
-		p := &ci.ModulePlan{
+		p := &ci.PlanResult{
 			ModuleID:      "svc/prod/us-east-1/rds",
 			Status:        ci.PlanStatusChanges,
 			Summary:       "No changes",
@@ -671,7 +671,7 @@ func TestRenderExpandableDetails(t *testing.T) {
 	t.Run("failed status", func(t *testing.T) {
 		t.Parallel()
 
-		p := &ci.ModulePlan{
+		p := &ci.PlanResult{
 			ModuleID: "svc/prod/us-east-1/eks",
 			Status:   ci.PlanStatusFailed,
 			Error:    "terraform init failed",
@@ -687,7 +687,7 @@ func TestRenderExpandableDetails(t *testing.T) {
 	t.Run("no summary uses plain title", func(t *testing.T) {
 		t.Parallel()
 
-		p := &ci.ModulePlan{
+		p := &ci.PlanResult{
 			ModuleID:          "svc/prod/us-east-1/vpc",
 			Status:            ci.PlanStatusChanges,
 			Summary:           "",
@@ -807,7 +807,7 @@ func TestRenderPlanRow(t *testing.T) {
 	t.Run("without cost", func(t *testing.T) {
 		t.Parallel()
 
-		p := &ci.ModulePlan{
+		p := &ci.PlanResult{
 			ModuleID: "svc/prod/us-east-1/vpc",
 			Status:   ci.PlanStatusChanges,
 			Summary:  "+2 ~1 -0",
@@ -833,7 +833,7 @@ func TestRenderPlanRow(t *testing.T) {
 	t.Run("with error", func(t *testing.T) {
 		t.Parallel()
 
-		p := &ci.ModulePlan{
+		p := &ci.PlanResult{
 			ModuleID: "svc/prod/us-east-1/vpc",
 			Status:   ci.PlanStatusFailed,
 			Error:    "init failed: something went wrong",
@@ -849,7 +849,7 @@ func TestRenderPlanRow(t *testing.T) {
 	t.Run("empty summary becomes dash", func(t *testing.T) {
 		t.Parallel()
 
-		p := &ci.ModulePlan{
+		p := &ci.PlanResult{
 			ModuleID: "svc/prod/us-east-1/vpc",
 			Status:   ci.PlanStatusPending,
 		}

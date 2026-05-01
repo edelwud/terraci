@@ -45,7 +45,7 @@ func (b *estimateCoordinator) Estimate(ctx context.Context, modulePaths []string
 	scannedPlans := b.scanner.ScanManyBestEffort(modulePaths, regions)
 
 	executablePlans := make([]ScannedModulePlan, 0, len(scannedPlans))
-	modulePlans := make([]*ModulePlan, 0, len(scannedPlans))
+	modulePlans := make([]*PlanResult, 0, len(scannedPlans))
 	for _, scanned := range scannedPlans {
 		if scanned.Err != nil {
 			moduleResults[scanned.Index] = results.NewErroredModule(scanned.ModulePath, scanned.Region, scanned.Err)
@@ -86,7 +86,7 @@ func (b *estimateCoordinator) Estimate(ctx context.Context, modulePaths []string
 
 // buildPrefetchPlan analyses scanned module plans and returns the pricing requirements
 // that should be warmed before execution together with non-fatal diagnostics.
-func buildPrefetchPlan(runtime *costruntime.EstimationRuntime, modulePlans []*ModulePlan) prefetchPlan {
+func buildPrefetchPlan(runtime *costruntime.EstimationRuntime, modulePlans []*PlanResult) prefetchPlan {
 	regionSet := make(map[pricing.ServiceID]map[string]struct{})
 	diagnostics := make([]model.PrefetchDiagnostic, 0)
 

@@ -21,7 +21,7 @@ type summaryProvider interface {
 
 type summaryInputs struct {
 	collection *ci.PlanResultCollection
-	plans      []ci.ModulePlan
+	plans      []ci.PlanResult
 	reports    []*ci.Report
 }
 
@@ -43,7 +43,7 @@ func loadSummaryInputs(appCtx *plugin.AppContext) (*summaryInputs, error) {
 
 	log.WithField("count", len(collection.Results)).Info("found plan results")
 
-	plans := collection.ToModulePlans()
+	plans := collection.Results
 	reports, err := ci.LoadReports(serviceDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load plugin reports: %w", err)
@@ -134,7 +134,7 @@ func (p *Plugin) runSummary(ctx context.Context, appCtx *plugin.AppContext) erro
 	return runSummaryUseCase(ctx, appCtx, p.Config(), resolveSummaryProvider(appCtx))
 }
 
-func hasReportableChanges(plans []ci.ModulePlan, reports []*ci.Report) bool {
+func hasReportableChanges(plans []ci.PlanResult, reports []*ci.Report) bool {
 	for i := range plans {
 		if plans[i].Status == ci.PlanStatusChanges || plans[i].Status == ci.PlanStatusFailed {
 			return true
@@ -182,7 +182,7 @@ func summaryIncludeDetails(cfg *summaryengine.Config) bool {
 	return *cfg.IncludeDetails
 }
 
-func summaryReportStatus(plans []ci.ModulePlan, reports []*ci.Report) ci.ReportStatus {
+func summaryReportStatus(plans []ci.PlanResult, reports []*ci.Report) ci.ReportStatus {
 	for i := range plans {
 		if plans[i].Status == ci.PlanStatusFailed {
 			return ci.ReportStatusFail

@@ -36,7 +36,7 @@ type stubAdapter struct {
 }
 
 type stubAdapterResult struct {
-	plan *ModulePlan
+	plan *PlanResult
 	err  error
 }
 
@@ -53,7 +53,7 @@ func (h stubStandardDefinition) Definition(resourceType resourcedef.ResourceType
 	}
 }
 
-func (a stubAdapter) LoadModule(modulePath, _ string) (*ModulePlan, error) {
+func (a stubAdapter) LoadModule(modulePath, _ string) (*PlanResult, error) {
 	result, ok := a.results[modulePath]
 	if !ok {
 		return nil, fmt.Errorf("unexpected module %s", modulePath)
@@ -64,7 +64,7 @@ func (a stubAdapter) LoadModule(modulePath, _ string) (*ModulePlan, error) {
 func TestBuildPrefetchPlan_CollectsDiagnosticsAndRequirements(t *testing.T) {
 	t.Parallel()
 
-	plan := &ModulePlan{
+	plan := &PlanResult{
 		ModuleID: "svc/prod/us-east-1/app",
 		Region:   "us-east-1",
 		Resources: []PlannedResource{
@@ -92,7 +92,7 @@ func TestBuildPrefetchPlan_CollectsDiagnosticsAndRequirements(t *testing.T) {
 	}
 
 	runtime := newStubEstimationRuntime(t, catalog)
-	prefetch := buildPrefetchPlan(runtime, []*ModulePlan{plan})
+	prefetch := buildPrefetchPlan(runtime, []*PlanResult{plan})
 
 	if got := prefetch.services[pricing.ServiceID{Provider: "aws", Name: "AmazonEC2"}]; len(got) != 1 || got[0] != "us-east-1" {
 		t.Fatalf("prefetch.services = %#v, want EC2 us-east-1 warm requirement", prefetch.services)
@@ -109,7 +109,7 @@ func TestEstimate_AssignsPrefetchWarningsToResult(t *testing.T) {
 		scanner: NewModuleScanner(stubAdapter{
 			results: map[string]stubAdapterResult{
 				"mod-a": {
-					plan: &ModulePlan{
+					plan: &PlanResult{
 						ModuleID: "mod-a",
 						Region:   "us-east-1",
 						Resources: []PlannedResource{

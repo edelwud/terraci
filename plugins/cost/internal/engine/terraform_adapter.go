@@ -19,7 +19,7 @@ func NewTerraformPlanAdapter() *TerraformPlanAdapter {
 }
 
 // LoadModule reads a Terraform plan and maps it into the provider-neutral input model.
-func (a *TerraformPlanAdapter) LoadModule(modulePath, region string) (*ModulePlan, error) {
+func (a *TerraformPlanAdapter) LoadModule(modulePath, region string) (*PlanResult, error) {
 	planJSONPath := filepath.Join(modulePath, "plan.json")
 
 	parsedPlan, err := tfplan.ParseJSON(planJSONPath)
@@ -27,7 +27,7 @@ func (a *TerraformPlanAdapter) LoadModule(modulePath, region string) (*ModulePla
 		return nil, fmt.Errorf("parse plan.json: %w", err)
 	}
 
-	modulePlan := &ModulePlan{
+	modulePlan := &PlanResult{
 		ModuleID:   strings.ReplaceAll(modulePath, string(filepath.Separator), "/"),
 		ModulePath: modulePath,
 		Region:     region,

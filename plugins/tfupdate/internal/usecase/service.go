@@ -127,7 +127,7 @@ func (s *Service) planModules(
 	return results, nil
 }
 
-func mapPlanToResult(plan *domain.ModulePlan) *tfupdateengine.UpdateResult {
+func mapPlanToResult(plan *domain.PlanResult) *tfupdateengine.UpdateResult {
 	result := tfupdateengine.NewUpdateResult()
 	if plan == nil {
 		return result

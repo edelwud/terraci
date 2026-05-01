@@ -65,7 +65,7 @@ type LockProviderSync struct {
 	TerraformFile  string
 }
 
-type ModulePlan struct {
+type PlanResult struct {
 	ModulePath string
 	Modules    []ModuleResolution
 	Providers  []ProviderResolution

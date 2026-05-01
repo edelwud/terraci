@@ -35,23 +35,27 @@ func (DefaultScheduler) Schedule(plan *Plan) []JobGroup {
 		}
 	}
 
-	appendPhaseGroup("pre-plan", pipeline.PhasePrePlan)
+	appendPhaseGroup(pipeline.StagePrePlan, pipeline.PhasePrePlan)
 	for levelIdx := range plan.IR.Levels {
 		if jobs := plan.PlanJobsForLevel(levelIdx); len(jobs) > 0 {
 			groups = append(groups, JobGroup{Name: levelGroupName("plan", levelIdx), Jobs: jobs})
 		}
 	}
-	appendPhaseGroup("post-plan", pipeline.PhasePostPlan)
-	appendPhaseGroup("pre-apply", pipeline.PhasePreApply)
+	appendPhaseGroup(pipeline.StagePostPlan, pipeline.PhasePostPlan)
+	appendPhaseGroup(pipeline.StagePreApply, pipeline.PhasePreApply)
 	for levelIdx := range plan.IR.Levels {
 		if jobs := plan.ApplyJobsForLevel(levelIdx); len(jobs) > 0 {
 			groups = append(groups, JobGroup{Name: levelGroupName("apply", levelIdx), Jobs: jobs})
 		}
 	}
-	appendPhaseGroup("post-apply", pipeline.PhasePostApply)
-	appendPhaseGroup("finalize", pipeline.PhaseFinalize)
+	appendPhaseGroup(pipeline.StagePostApply, pipeline.PhasePostApply)
+	appendPhaseGroup(pipeline.StageFinalize, pipeline.PhaseFinalize)
+
+	// A finalize group is always recorded, even when empty, so that progress
+	// reporters and event sinks can render a "finalize: no contributions"
+	// stage marker rather than silently skipping the phase boundary.
 	if len(plan.JobsByPhase(pipeline.PhaseFinalize)) == 0 {
-		groups = append(groups, JobGroup{Name: "finalize"})
+		groups = append(groups, JobGroup{Name: pipeline.StageFinalize})
 	}
 
 	return groups

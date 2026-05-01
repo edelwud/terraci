@@ -15,7 +15,7 @@ func TestModuleScanner_ScanManyBestEffort_PreservesIndicesAndDefaultRegion(t *te
 
 	adapter := &countingAdapter{
 		results: map[string]adapterResult{
-			"mod-a": {plan: &engine.ModulePlan{ModulePath: "mod-a"}},
+			"mod-a": {plan: &engine.PlanResult{ModulePath: "mod-a"}},
 			"mod-b": {err: fmt.Errorf("boom")},
 		},
 	}
@@ -38,10 +38,10 @@ func TestModuleScanner_ScanManyBestEffort_RunsConcurrently(t *testing.T) {
 
 	adapter := &countingAdapter{
 		results: map[string]adapterResult{
-			"mod-a": {plan: &engine.ModulePlan{ModulePath: "mod-a"}},
-			"mod-b": {plan: &engine.ModulePlan{ModulePath: "mod-b"}},
-			"mod-c": {plan: &engine.ModulePlan{ModulePath: "mod-c"}},
-			"mod-d": {plan: &engine.ModulePlan{ModulePath: "mod-d"}},
+			"mod-a": {plan: &engine.PlanResult{ModulePath: "mod-a"}},
+			"mod-b": {plan: &engine.PlanResult{ModulePath: "mod-b"}},
+			"mod-c": {plan: &engine.PlanResult{ModulePath: "mod-c"}},
+			"mod-d": {plan: &engine.PlanResult{ModulePath: "mod-d"}},
 		},
 		delay: 20 * time.Millisecond,
 	}
@@ -63,7 +63,7 @@ func TestModuleScanner_ScanManyBestEffort_RespectsConcurrencyLimit(t *testing.T)
 	for i := range moduleCount {
 		path := fmt.Sprintf("mod-%02d", i)
 		paths = append(paths, path)
-		results[path] = adapterResult{plan: &engine.ModulePlan{ModulePath: path}}
+		results[path] = adapterResult{plan: &engine.PlanResult{ModulePath: path}}
 	}
 
 	adapter := &countingAdapter{
@@ -79,7 +79,7 @@ func TestModuleScanner_ScanManyBestEffort_RespectsConcurrencyLimit(t *testing.T)
 }
 
 type adapterResult struct {
-	plan *engine.ModulePlan
+	plan *engine.PlanResult
 	err  error
 }
 
@@ -91,7 +91,7 @@ type countingAdapter struct {
 	maxConcurrent atomic.Int32
 }
 
-func (a *countingAdapter) LoadModule(modulePath, region string) (*engine.ModulePlan, error) {
+func (a *countingAdapter) LoadModule(modulePath, region string) (*engine.PlanResult, error) {
 	current := a.active.Add(1)
 	defer a.active.Add(-1)
 

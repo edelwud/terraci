@@ -21,12 +21,12 @@ const (
 const CommentMarker = ci.CommentMarker
 
 // ComposeComment builds the final markdown comment from plans and typed plugin reports.
-func ComposeComment(plans []ci.ModulePlan, reports []*ci.Report, commitSHA, pipelineID string, generatedAt time.Time) string {
+func ComposeComment(plans []ci.PlanResult, reports []*ci.Report, commitSHA, pipelineID string, generatedAt time.Time) string {
 	return ComposeCommentWithOptions(plans, reports, commitSHA, pipelineID, generatedAt, true)
 }
 
 // ComposeCommentWithOptions builds the final markdown comment with explicit rendering options.
-func ComposeCommentWithOptions(plans []ci.ModulePlan, reports []*ci.Report, commitSHA, pipelineID string, generatedAt time.Time, includeDetails bool) string {
+func ComposeCommentWithOptions(plans []ci.PlanResult, reports []*ci.Report, commitSHA, pipelineID string, generatedAt time.Time, includeDetails bool) string {
 	sections := BuildSummarySectionsWithOptions(plans, reports, includeDetails)
 
 	var sb strings.Builder
@@ -61,12 +61,12 @@ func ComposeCommentWithOptions(plans []ci.ModulePlan, reports []*ci.Report, comm
 }
 
 // BuildSummarySections builds the filtered summary view from plan results and typed plugin reports.
-func BuildSummarySections(plans []ci.ModulePlan, reports []*ci.Report) []ci.ReportSection {
+func BuildSummarySections(plans []ci.PlanResult, reports []*ci.Report) []ci.ReportSection {
 	return BuildSummarySectionsWithOptions(plans, reports, true)
 }
 
 // BuildSummarySectionsWithOptions builds the filtered summary view with explicit rendering options.
-func BuildSummarySectionsWithOptions(plans []ci.ModulePlan, reports []*ci.Report, includeDetails bool) []ci.ReportSection {
+func BuildSummarySectionsWithOptions(plans []ci.PlanResult, reports []*ci.Report, includeDetails bool) []ci.ReportSection {
 	sections := make([]ci.ReportSection, 0, 1+len(plans)+len(reports))
 	sections = append(sections, buildSummaryOverviewSection(plans, reports))
 	sections = append(sections, buildTerraformPlanSections(plans, includeDetails)...)
@@ -76,7 +76,7 @@ func BuildSummarySectionsWithOptions(plans []ci.ModulePlan, reports []*ci.Report
 	return sections
 }
 
-func buildSummaryOverviewSection(plans []ci.ModulePlan, reports []*ci.Report) ci.ReportSection {
+func buildSummaryOverviewSection(plans []ci.PlanResult, reports []*ci.Report) ci.ReportSection {
 	stats := calculateStats(plans)
 	overviews := make([]ci.SummaryReportOverview, 0, len(reports))
 	for _, report := range reports {
@@ -113,7 +113,7 @@ func buildSummaryOverviewSection(plans []ci.ModulePlan, reports []*ci.Report) ci
 	)
 }
 
-func overallSummaryStatus(plans []ci.ModulePlan, reports []*ci.Report) ci.ReportStatus {
+func overallSummaryStatus(plans []ci.PlanResult, reports []*ci.Report) ci.ReportStatus {
 	for i := range plans {
 		if plans[i].Status == ci.PlanStatusFailed {
 			return ci.ReportStatusFail
@@ -143,7 +143,7 @@ func overallSummaryStatus(plans []ci.ModulePlan, reports []*ci.Report) ci.Report
 	return ci.ReportStatusPass
 }
 
-func buildTerraformPlanSections(plans []ci.ModulePlan, includeDetails bool) []ci.ReportSection {
+func buildTerraformPlanSections(plans []ci.PlanResult, includeDetails bool) []ci.ReportSection {
 	byEnv := groupByEnvironment(plans)
 	envOrder := sortedKeys(byEnv)
 	sections := make([]ci.ReportSection, 0, len(envOrder))
@@ -513,7 +513,7 @@ type planStats struct {
 	Running   int
 }
 
-func calculateStats(plans []ci.ModulePlan) planStats {
+func calculateStats(plans []ci.PlanResult) planStats {
 	var stats planStats
 	stats.Total = len(plans)
 	for i := range plans {
@@ -557,8 +557,8 @@ func renderStats(stats planStats) string {
 	return fmt.Sprintf("**%d** modules: %s", stats.Total, strings.Join(parts, " | "))
 }
 
-func groupByEnvironment(plans []ci.ModulePlan) map[string][]ci.ModulePlan {
-	result := make(map[string][]ci.ModulePlan)
+func groupByEnvironment(plans []ci.PlanResult) map[string][]ci.PlanResult {
+	result := make(map[string][]ci.PlanResult)
 	for i := range plans {
 		env := plans[i].Get("environment")
 		if env == "" {
@@ -569,7 +569,7 @@ func groupByEnvironment(plans []ci.ModulePlan) map[string][]ci.ModulePlan {
 	return result
 }
 
-func sortedKeys(m map[string][]ci.ModulePlan) []string {
+func sortedKeys(m map[string][]ci.PlanResult) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
@@ -578,8 +578,8 @@ func sortedKeys(m map[string][]ci.ModulePlan) []string {
 	return keys
 }
 
-func visibleEnvironmentPlans(plans []ci.ModulePlan) []ci.ModulePlan {
-	visible := make([]ci.ModulePlan, 0, len(plans))
+func visibleEnvironmentPlans(plans []ci.PlanResult) []ci.PlanResult {
+	visible := make([]ci.PlanResult, 0, len(plans))
 	for i := range plans {
 		if plans[i].Status == ci.PlanStatusChanges || plans[i].Status == ci.PlanStatusFailed {
 			visible = append(visible, plans[i])
@@ -588,8 +588,8 @@ func visibleEnvironmentPlans(plans []ci.ModulePlan) []ci.ModulePlan {
 	return visible
 }
 
-func moduleTableRowAsModulePlan(row ci.ModuleTableRow) *ci.ModulePlan {
-	return &ci.ModulePlan{
+func moduleTableRowAsModulePlan(row ci.ModuleTableRow) *ci.PlanResult {
+	return &ci.PlanResult{
 		ModuleID:          row.ModuleID,
 		ModulePath:        row.ModulePath,
 		Status:            row.Status,
@@ -600,7 +600,7 @@ func moduleTableRowAsModulePlan(row ci.ModuleTableRow) *ci.ModulePlan {
 	}
 }
 
-func renderPlanRow(p *ci.ModulePlan) string {
+func renderPlanRow(p *ci.PlanResult) string {
 	status := statusIcon(p.Status)
 	module := fmt.Sprintf("`%s`", p.ModuleID)
 	summary := p.Summary
@@ -669,7 +669,7 @@ func statusIcon(status ci.PlanStatus) string {
 	}
 }
 
-func renderExpandableDetails(p *ci.ModulePlan) string {
+func renderExpandableDetails(p *ci.PlanResult) string {
 	var sb strings.Builder
 	title := p.ModuleID
 	if p.Summary != "" && p.Summary != "No changes" {
