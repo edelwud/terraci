@@ -6,6 +6,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 
 	"github.com/edelwud/terraci/pkg/parser/internal/testutil"
+	parsermodel "github.com/edelwud/terraci/pkg/parser/model"
 )
 
 // setupTempModule creates a temporary module directory with the given files.
@@ -36,7 +37,7 @@ func TestParserSegmentsReturnsCopy(t *testing.T) {
 }
 
 func TestParsedModuleTopLevelBlocksReturnsCopy(t *testing.T) {
-	module := NewParsedModule("")
+	module := parsermodel.NewParsedModule("")
 	module.SetTopLevelBlocks(map[string][]*hcl.Block{
 		"locals": {{}},
 	})

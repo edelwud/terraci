@@ -42,15 +42,6 @@ func (e *ParseError) Error() string {
 
 func (e *ParseError) Unwrap() error { return e.Err }
 
-// GraphError represents a dependency graph error (e.g., cycles).
-type GraphError struct {
-	Cycles [][]string
-}
-
-func (e *GraphError) Error() string {
-	return fmt.Sprintf("dependency graph has %d cycle(s)", len(e.Cycles))
-}
-
 // NoModulesError indicates no modules were found.
 type NoModulesError struct {
 	Dir string

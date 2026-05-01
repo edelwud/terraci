@@ -68,16 +68,6 @@ func TestParseError(t *testing.T) {
 	}
 }
 
-func TestGraphError(t *testing.T) {
-	t.Parallel()
-
-	e := &GraphError{Cycles: [][]string{{"a", "b", "a"}}}
-	want := "dependency graph has 1 cycle(s)"
-	if e.Error() != want {
-		t.Errorf("Error() = %q, want %q", e.Error(), want)
-	}
-}
-
 func TestNoModulesError(t *testing.T) {
 	t.Parallel()
 
