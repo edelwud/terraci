@@ -2,7 +2,7 @@ package ci
 
 import "time"
 
-// Report is a plugin-produced CI enrichment artifact consumed by summary flows.
+// Report is a plugin-produced CI enrichment artifact consumed by report aggregation flows.
 // Plugins write reports as {serviceDir}/{plugin}-report.json.
 type Report struct {
 	Plugin     string            `json:"plugin"`

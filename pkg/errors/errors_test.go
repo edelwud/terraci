@@ -68,30 +68,6 @@ func TestParseError(t *testing.T) {
 	}
 }
 
-func TestPolicyError(t *testing.T) {
-	t.Parallel()
-
-	e := &PolicyError{Module: "rds", Violations: []string{"no tags", "no encryption"}}
-	want := "policy check failed for rds: 2 violation(s)"
-	if e.Error() != want {
-		t.Errorf("Error() = %q, want %q", e.Error(), want)
-	}
-}
-
-func TestCostError(t *testing.T) {
-	t.Parallel()
-
-	inner := errors.New("API timeout")
-	e := &CostError{Module: "ec2", Err: inner}
-
-	if e.Error() != "cost estimation ec2: API timeout" {
-		t.Errorf("Error() = %q", e.Error())
-	}
-	if !errors.Is(e, inner) {
-		t.Error("Unwrap should return inner error")
-	}
-}
-
 func TestGraphError(t *testing.T) {
 	t.Parallel()
 
@@ -124,7 +100,6 @@ func TestErrorsAs(t *testing.T) {
 		{"ConfigError", &ConfigError{Err: inner}},
 		{"ScanError", &ScanError{Err: inner}},
 		{"ParseError", &ParseError{Err: inner}},
-		{"CostError", &CostError{Err: inner}},
 	}
 
 	for _, tt := range tests {

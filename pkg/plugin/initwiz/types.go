@@ -12,7 +12,7 @@ const (
 	CategoryPipeline InitCategory = "pipeline"
 	// CategoryFeature groups contain optional feature toggles.
 	CategoryFeature InitCategory = "feature"
-	// CategoryDetail groups contain detail settings for enabled features (policy settings).
+	// CategoryDetail groups contain detail settings for enabled features.
 	CategoryDetail InitCategory = "detail"
 )
 

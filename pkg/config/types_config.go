@@ -37,7 +37,7 @@ type ExecutionConfig struct {
 	Binary      string            `yaml:"binary,omitempty" json:"binary,omitempty" jsonschema:"description=Terraform/OpenTofu binary to use,enum=terraform,enum=tofu,default=terraform"`
 	InitEnabled bool              `yaml:"init_enabled,omitempty" json:"init_enabled,omitempty" jsonschema:"description=Automatically run terraform init before terraform operations,default=true"`
 	PlanEnabled bool              `yaml:"plan_enabled,omitempty" json:"plan_enabled,omitempty" jsonschema:"description=Enable terraform plan jobs,default=true"`
-	PlanMode    string            `yaml:"plan_mode,omitempty" json:"plan_mode,omitempty" jsonschema:"description=Controls plan artifact verbosity. standard writes only plan.tfplan; detailed also writes plan.txt and plan.json for summary, policy, cost, and PR/MR comment flows,enum=standard,enum=detailed,default=standard"`
+	PlanMode    string            `yaml:"plan_mode,omitempty" json:"plan_mode,omitempty" jsonschema:"description=Controls plan artifact verbosity. standard writes only plan.tfplan; detailed also writes plan.txt and plan.json for report and comment flows,enum=standard,enum=detailed,default=standard"`
 	Parallelism int               `yaml:"parallelism,omitempty" json:"parallelism,omitempty" jsonschema:"description=Maximum parallel jobs for local execution,minimum=1,default=4"`
 	Env         map[string]string `yaml:"env,omitempty" json:"env,omitempty" jsonschema:"description=Execution-wide environment variables"`
 }

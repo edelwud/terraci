@@ -34,7 +34,7 @@
             "standard",
             "detailed"
           ],
-          "description": "Controls plan artifact verbosity. standard writes only plan.tfplan; detailed also writes plan.txt and plan.json for summary",
+          "description": "Controls plan artifact verbosity. standard writes only plan.tfplan; detailed also writes plan.txt and plan.json for report and comment flows",
           "default": "standard"
         },
         "parallelism": {

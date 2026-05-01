@@ -42,28 +42,6 @@ func (e *ParseError) Error() string {
 
 func (e *ParseError) Unwrap() error { return e.Err }
 
-// PolicyError represents a policy check failure.
-type PolicyError struct {
-	Module     string
-	Violations []string
-}
-
-func (e *PolicyError) Error() string {
-	return fmt.Sprintf("policy check failed for %s: %d violation(s)", e.Module, len(e.Violations))
-}
-
-// CostError represents a cost estimation error.
-type CostError struct {
-	Module string
-	Err    error
-}
-
-func (e *CostError) Error() string {
-	return fmt.Sprintf("cost estimation %s: %s", e.Module, e.Err)
-}
-
-func (e *CostError) Unwrap() error { return e.Err }
-
 // GraphError represents a dependency graph error (e.g., cycles).
 type GraphError struct {
 	Cycles [][]string
