@@ -26,7 +26,17 @@ func OptionsFromConfig(workDir string, cfg *config.Config, ff *filter.Flags) Opt
 		Excludes:       opts.Excludes,
 		Includes:       opts.Includes,
 		SegmentFilters: opts.Segments,
+		LibraryPaths:   libraryPathsFromConfig(cfg),
 	}
+}
+
+// libraryPathsFromConfig returns the configured library_modules.paths slice or
+// nil when unset. Returning the slice as-is is intentional: scanner cleans it.
+func libraryPathsFromConfig(cfg *config.Config) []string {
+	if cfg == nil || cfg.LibraryModules == nil {
+		return nil
+	}
+	return cfg.LibraryModules.Paths
 }
 
 // ApplyFilters applies config and CLI filters to a module list.

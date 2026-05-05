@@ -88,41 +88,23 @@ library_modules:
     - "_modules"
 ```
 
+Listing a directory under `library_modules.paths` is enough — TerraCi automatically excludes everything inside it from execution targets, so there is no need for an `exclude: ["_modules/*"]` workaround. Library modules are still discovered and available to `terraci validate` and `terraci graph` for diagnostics; they just never become root modules in the pipeline.
+
 ## Running the Example
 
 ```bash
 cd examples/library-modules
 
-# Validate the configuration
-terraci validate -v
+# Validate the configuration — surfaces a library-modules summary and warns
+# about any orphan libraries (no executable consumers).
+terraci validate
 
-# Output:
-# Scanning: /path/to/examples/library-modules
-#   Found 3 modules
-# Parsing dependencies...
-#   Total dependency links: 1
-# Validation PASSED
+# Show the dependency graph with library modules rendered as a separate
+# dashed cluster and dashed edges to their consumers.
+terraci graph --format dot | dot -Tpng -o deps.png
 
-# Show the dependency graph (execution order)
-terraci graph --format levels
-
-# Output:
-# Execution Levels:
-# Level 0:
-#   - platform/prod/eu-north-1/vpc
-#   - platform/prod/eu-west-1/msk
-# Level 1:
-#   - platform/prod/eu-north-1/msk
-
-# Generate pipeline (dry run)
+# Generate pipeline (dry run) — library modules are not executable jobs.
 terraci generate --dry-run
-
-# Output:
-# Dry Run Results:
-#   Total modules discovered: 3
-#   Modules to process: 3
-#   Pipeline stages: 4
-#   Pipeline jobs: 6
 ```
 
 ## Change Detection Flow

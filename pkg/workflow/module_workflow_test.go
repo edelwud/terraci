@@ -8,8 +8,16 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/edelwud/terraci/pkg/config"
 	terrierrors "github.com/edelwud/terraci/pkg/errors"
 )
+
+func configForLibraryTest() *config.Config {
+	cfg := config.DefaultConfig()
+	cfg.Structure.Segments = defaultSegments
+	cfg.LibraryModules = &config.LibraryModulesConfig{Paths: []string{"_modules"}}
+	return cfg
+}
 
 var defaultSegments = []string{"service", "environment", "region", "module"}
 
@@ -109,6 +117,77 @@ func TestRun_InvalidDir(t *testing.T) {
 	var scanErr *terrierrors.ScanError
 	if !errors.As(err, &scanErr) {
 		t.Errorf("expected ScanError, got %T: %v", err, err)
+	}
+}
+
+func TestRun_LibraryModulesPartitioned(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	createModuleTree(t, tmpDir, []string{
+		"platform/stage/eu-central-1/vpc",
+		"platform/prod/eu-central-1/vpc",
+		"_modules/kafka",
+		"_modules/kafka/acl",
+	})
+
+	opts := defaultOptions(tmpDir)
+	opts.LibraryPaths = []string{"_modules"}
+
+	result, err := Run(context.Background(), opts)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if len(result.All.Modules) != 4 {
+		t.Errorf("All = %d, want 4 (executable + library)", len(result.All.Modules))
+	}
+	if len(result.Filtered.Modules) != 2 {
+		t.Errorf("Filtered = %d, want 2 (only executable)", len(result.Filtered.Modules))
+	}
+	if len(result.Libraries.Modules) != 2 {
+		t.Errorf("Libraries = %d, want 2", len(result.Libraries.Modules))
+	}
+	for _, m := range result.Filtered.Modules {
+		if m.IsLibrary {
+			t.Errorf("library %q leaked into Filtered", m.ID())
+		}
+	}
+	for _, m := range result.Libraries.Modules {
+		if !m.IsLibrary {
+			t.Errorf("module %q in Libraries lacks IsLibrary flag", m.ID())
+		}
+	}
+}
+
+func TestResolveTargets_ExcludesLibraryEvenWithoutExclude(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	createModuleTree(t, tmpDir, []string{
+		"platform/stage/eu-central-1/vpc",
+		"_modules/kafka",
+	})
+
+	opts := defaultOptions(tmpDir)
+	opts.LibraryPaths = []string{"_modules"}
+
+	result, err := Run(context.Background(), opts)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	cfg := configForLibraryTest()
+	targets, err := ResolveTargets(context.Background(), tmpDir, cfg, result, TargetSelectionOptions{})
+	if err != nil {
+		t.Fatalf("ResolveTargets: %v", err)
+	}
+	if len(targets) != 1 {
+		t.Fatalf("targets = %d, want 1", len(targets))
+	}
+	if targets[0].IsLibrary {
+		t.Errorf("library module leaked into targets: %q", targets[0].ID())
+	}
+	if !slices.Contains(moduleIDs(targets), "platform/stage/eu-central-1/vpc") {
+		t.Errorf("expected vpc in targets, got %v", moduleIDs(targets))
 	}
 }
 

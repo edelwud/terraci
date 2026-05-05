@@ -281,10 +281,22 @@ library_modules:
 
 When you configure `library_modules.paths`, TerraCi:
 
-1. **Parses module blocks** in executable modules to find local module calls (`source = "../_modules/kafka"`)
-2. **Tracks library dependencies** in the dependency graph
-3. **Detects library changes** when using `--changed-only` mode
-4. **Includes affected modules** when a library module is modified
+1. **Marks discovered modules under those roots as library modules** (`Module.IsLibrary=true`) and excludes them from execution targets — `terraci generate`, `terraci local-exec`, `terraci cost`, `terraci policy`, `terraci tfupdate` will never operate on them as if they were root modules.
+2. **Parses module blocks** in executable modules to find local module calls (`source = "../_modules/kafka"`).
+3. **Tracks library dependencies** in the dependency graph.
+4. **Detects library changes** when using `--changed-only` mode.
+5. **Includes affected executable modules** (and their transitive dependencies) when a library module is modified.
+
+::: tip No need for `exclude` workarounds
+You no longer have to add `exclude: ["_modules/*"]` to keep library modules out of the pipeline — that filtering is built in once you list the directories under `library_modules.paths`. They are still discovered (so `terraci validate` and `terraci graph` can show them), just never selected as execution targets.
+:::
+
+### Diagnostics
+
+Both `terraci validate` and `terraci graph` surface library modules:
+
+- `terraci validate` prints how many library roots are configured, how many library modules were discovered, how many executable modules reference at least one library, and warns about **orphan** library modules — those discovered under a configured root but never imported by any executable module.
+- `terraci graph --format dot` renders library modules in a separate dashed cluster (`library_modules`) with dashed edges to their consumers. The `list` format adds a trailing `[library_modules]` group with the same identifiers.
 
 ### Example Structure
 

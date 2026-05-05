@@ -88,12 +88,7 @@ func discoverUpdateModules(
 ) ([]*discovery.Module, error) {
 	baseCfg := appCtx.Config()
 
-	wfResult, err := workflow.Run(ctx, workflow.Options{
-		WorkDir:  appCtx.WorkDir(),
-		Segments: baseCfg.Structure.Segments,
-		Excludes: baseCfg.Exclude,
-		Includes: baseCfg.Include,
-	})
+	wfResult, err := workflow.Run(ctx, workflow.OptionsFromConfig(appCtx.WorkDir(), baseCfg, nil))
 	if err != nil {
 		return nil, fmt.Errorf("discover modules: %w", err)
 	}

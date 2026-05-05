@@ -111,7 +111,7 @@ extensions:
 | [structure](./structure) | Directory structure and module discovery |
 | [gitlab](./gitlab) | GitLab CI pipeline settings |
 | [github](./github) | GitHub Actions pipeline settings |
-| [filters](./filters) | Include/exclude patterns |
+| [filters](./filters) | Include/exclude patterns and `library_modules` |
 | [policy](./policy) | OPA policy checks configuration |
 | [cost](./cost) | AWS cost estimation configuration |
 | [summary](./summary) | Summary plugin |

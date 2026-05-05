@@ -16,6 +16,13 @@ type Module struct {
 	RelativePath string  // Relative path from the root directory
 	Parent       *Module // Parent module reference (for submodules)
 	Children     []*Module
+
+	// IsLibrary marks the module as a non-executable shared/library module.
+	// Set when the module's relative path lies under any configured
+	// library_modules.paths root. Library modules are excluded from
+	// executable target selection but tracked separately for reporting and
+	// change-detection.
+	IsLibrary bool
 }
 
 // NewModule creates a Module from ordered segment names and values.

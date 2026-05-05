@@ -48,7 +48,7 @@ func resolveTargets(
 		return nil, errors.New("workflow result is required")
 	}
 
-	targets := result.Filtered.Modules
+	targets := excludeLibraryModules(result.Filtered.Modules)
 	if opts.ModulePath != "" {
 		targets = filterModulesByPath(targets, opts.ModulePath)
 	}
@@ -119,6 +119,9 @@ func resolveAffectedModules(
 
 	for _, module := range filteredModules {
 		id := module.ID()
+		if module.IsLibrary {
+			continue
+		}
 		if idSet[id] {
 			targets = append(targets, module)
 			seen[id] = true
@@ -136,6 +139,9 @@ func resolveAffectedModules(
 		if !idSet[id] || seen[id] {
 			continue
 		}
+		if module.IsLibrary {
+			continue
+		}
 		if filteredSet.ByID(id) != nil {
 			continue
 		}
@@ -146,6 +152,20 @@ func resolveAffectedModules(
 	}
 
 	return targets
+}
+
+// excludeLibraryModules drops library modules that may have leaked into a
+// caller-supplied slice. Result.Filtered already excludes them, but external
+// callers (and in-memory test fixtures) can still hand us mixed slices.
+func excludeLibraryModules(modules []*discovery.Module) []*discovery.Module {
+	out := make([]*discovery.Module, 0, len(modules))
+	for _, m := range modules {
+		if m == nil || m.IsLibrary {
+			continue
+		}
+		out = append(out, m)
+	}
+	return out
 }
 
 func filterModulesByPath(modules []*discovery.Module, modulePath string) []*discovery.Module {

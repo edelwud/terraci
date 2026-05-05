@@ -9,11 +9,12 @@ import (
 
 // moduleCollector accumulates discovered modules during directory walk.
 type moduleCollector struct {
-	ctx      context.Context
-	absRoot  string
-	segments []string
-	modules  []*Module
-	byID     map[string]*Module
+	ctx          context.Context
+	absRoot      string
+	segments     []string
+	libraryPaths []string // already cleaned project-relative roots (forward-slash)
+	modules      []*Module
+	byID         map[string]*Module
 }
 
 func (c *moduleCollector) visit(path string, info os.FileInfo, walkErr error) error {
@@ -38,12 +39,35 @@ func (c *moduleCollector) visit(path string, info os.FileInfo, walkErr error) er
 		return nil
 	}
 
+	relPath := filepath.Join(parts...)
+	if c.matchesLibraryPath(relPath) {
+		// Library modules live outside the structure pattern (e.g. _modules/foo),
+		// so they bypass segment-depth filtering. They are still recorded so
+		// validate/graph can report them and Result.Libraries is populated.
+		c.registerLibraryModule(parts, path, relPath)
+		return nil
+	}
+
 	if len(parts) < len(c.segments) {
 		return nil
 	}
 
 	c.registerModule(parts, path)
 	return nil
+}
+
+// registerLibraryModule registers a module that lies under a configured
+// library root. It is recorded with the cleaned segment list but without
+// segment-derived components — library modules are tracked by path, not by
+// service/environment/region/module, and are excluded from execution targets.
+func (c *moduleCollector) registerLibraryModule(parts []string, absPath, relPath string) {
+	mod := NewModule(c.segments, nil, absPath, relPath)
+	mod.IsLibrary = true
+	if len(parts) > 1 {
+		c.linkParent(mod, parts)
+	}
+	c.byID[mod.ID()] = mod
+	c.modules = append(c.modules, mod)
 }
 
 func (c *moduleCollector) parseRelPath(path string) ([]string, bool) {
@@ -59,6 +83,22 @@ func (c *moduleCollector) registerModule(parts []string, absPath string) {
 	mod := c.buildModule(parts, absPath, relPath)
 	c.byID[mod.ID()] = mod
 	c.modules = append(c.modules, mod)
+}
+
+// matchesLibraryPath returns true if relPath is under any configured library
+// root. relPath is the OS-specific path joined from the walk segments;
+// libraryPaths are forward-slash normalized in NewScanner.
+func (c *moduleCollector) matchesLibraryPath(relPath string) bool {
+	if len(c.libraryPaths) == 0 {
+		return false
+	}
+	rel := filepath.ToSlash(relPath)
+	for _, root := range c.libraryPaths {
+		if rel == root || strings.HasPrefix(rel, root+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *moduleCollector) buildModule(parts []string, absPath, relPath string) *Module {

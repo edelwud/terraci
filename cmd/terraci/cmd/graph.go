@@ -3,12 +3,14 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	log "github.com/caarlos0/log"
 
+	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/filter"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/workflow"
@@ -53,18 +55,22 @@ Examples:
 			log.WithField("count", len(result.Filtered.Modules)).Debug("modules after filtering")
 			depGraph := result.Graph
 
+			libraries := result.Libraries.Modules
 			if moduleID != "" {
 				depGraph, err = depGraph.ScopeToModule(moduleID, showDependents)
 				if err != nil {
 					return err
 				}
+				// Scoped graphs are about a specific executable subtree, so
+				// hide library nodes to keep the visualization focused.
+				libraries = nil
 			}
 
 			if showStats {
 				return printStats(depGraph, moduleID)
 			}
 
-			return renderGraph(depGraph, graphFormat, graphOutput)
+			return renderGraph(depGraph, libraries, graphFormat, graphOutput)
 		},
 	}
 
@@ -78,8 +84,8 @@ Examples:
 	return cmd
 }
 
-func renderGraph(g *graph.DependencyGraph, format, outputFile string) error {
-	output, err := formatGraph(g, format)
+func renderGraph(g *graph.DependencyGraph, libraries []*discovery.Module, format, outputFile string) error {
+	output, err := formatGraph(g, libraries, format)
 	if err != nil {
 		return err
 	}
@@ -96,14 +102,14 @@ func renderGraph(g *graph.DependencyGraph, format, outputFile string) error {
 	return nil
 }
 
-func formatGraph(g *graph.DependencyGraph, format string) (string, error) {
+func formatGraph(g *graph.DependencyGraph, libraries []*discovery.Module, format string) (string, error) {
 	switch format {
 	case "dot":
-		return g.ToDOT(), nil
+		return g.ToDOTWithLibraries(libraries), nil
 	case "plantuml":
 		return g.ToPlantUML(), nil
 	case "list":
-		return formatList(g)
+		return formatList(g, libraries)
 	case "levels":
 		return formatLevels(g)
 	default:
@@ -111,7 +117,7 @@ func formatGraph(g *graph.DependencyGraph, format string) (string, error) {
 	}
 }
 
-func formatList(g *graph.DependencyGraph) (string, error) {
+func formatList(g *graph.DependencyGraph, libraries []*discovery.Module) (string, error) {
 	sorted, err := g.TopologicalSort()
 	if err != nil {
 		return "", err
@@ -153,6 +159,21 @@ func formatList(g *graph.DependencyGraph) (string, error) {
 				}
 			}
 			fmt.Fprintf(&sb, "  %s → %s\n", shortName, strings.Join(shortDeps, ", "))
+		}
+	}
+
+	if len(libraries) > 0 {
+		if sb.Len() > 0 {
+			sb.WriteString("\n")
+		}
+		sb.WriteString("[library_modules]\n")
+		ids := make([]string, 0, len(libraries))
+		for _, m := range libraries {
+			ids = append(ids, m.RelativePath)
+		}
+		sort.Strings(ids)
+		for _, id := range ids {
+			fmt.Fprintf(&sb, "  %s\n", id)
 		}
 	}
 

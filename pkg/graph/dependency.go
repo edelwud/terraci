@@ -147,6 +147,39 @@ func (g *DependencyGraph) GetAllLibraryPaths() []string {
 	return paths
 }
 
+// HasLibraryConsumers reports whether any tracked module references the given
+// library path or any path nested under it. Used by validate to surface
+// orphan library modules — those discovered under library_modules.paths but
+// never imported by an executable module.
+func (g *DependencyGraph) HasLibraryConsumers(libraryPath string) bool {
+	target := normalizeLibraryPath(libraryPath)
+	if len(g.libraryUsage[target]) > 0 {
+		return true
+	}
+	prefix := target + "/"
+	for tracked, consumers := range g.libraryUsage {
+		if len(consumers) == 0 {
+			continue
+		}
+		if strings.HasPrefix(tracked, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// LibraryConsumerCount returns the count of unique executable modules that
+// reference any library tracked under the given path or its descendants.
+func (g *DependencyGraph) LibraryConsumerCount() int {
+	consumers := make(map[string]struct{})
+	for _, ids := range g.libraryUsage {
+		for _, id := range ids {
+			consumers[id] = struct{}{}
+		}
+	}
+	return len(consumers)
+}
+
 func normalizeLibraryPath(path string) string {
 	return strings.TrimSuffix(path, "/")
 }

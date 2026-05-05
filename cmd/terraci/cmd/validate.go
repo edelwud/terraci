@@ -8,6 +8,7 @@ import (
 
 	log "github.com/caarlos0/log"
 
+	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/filter"
 	"github.com/edelwud/terraci/pkg/workflow"
 )
@@ -101,6 +102,8 @@ This command will:
 				}
 			}
 
+			reportLibraryModules(app, result)
+
 			// 7. Summary
 			if hasErrors {
 				log.Error("validation FAILED - please fix the issues above")
@@ -115,4 +118,59 @@ This command will:
 	registerFilterFlags(cmd, ff)
 
 	return cmd
+}
+
+// libraryModulesSummary captures the diagnostic data validate prints about
+// library modules. It is computed in a pure function so tests can verify
+// orphan detection without poking at logger output.
+type libraryModulesSummary struct {
+	ConfiguredPaths int
+	Discovered      int
+	Consumers       int
+	Orphans         []string
+}
+
+// computeLibraryModulesSummary derives a libraryModulesSummary from the
+// validated workflow result. Returns nil when no library paths are configured.
+func computeLibraryModulesSummary(cfg *config.Config, result *workflow.Result) *libraryModulesSummary {
+	if cfg == nil || cfg.LibraryModules == nil || len(cfg.LibraryModules.Paths) == 0 {
+		return nil
+	}
+	libraries := result.Libraries.Modules
+	orphans := make([]string, 0)
+	for _, m := range libraries {
+		if !result.Graph.HasLibraryConsumers(m.Path) {
+			orphans = append(orphans, m.RelativePath)
+		}
+	}
+	return &libraryModulesSummary{
+		ConfiguredPaths: len(cfg.LibraryModules.Paths),
+		Discovered:      len(libraries),
+		Consumers:       result.Graph.LibraryConsumerCount(),
+		Orphans:         orphans,
+	}
+}
+
+// reportLibraryModules logs a summary of configured library_modules using
+// computeLibraryModulesSummary. No-op when the feature is not configured.
+func reportLibraryModules(app *App, result *workflow.Result) {
+	summary := computeLibraryModulesSummary(app.Config, result)
+	if summary == nil {
+		return
+	}
+
+	log.Info("library modules")
+	log.IncreasePadding()
+	log.WithField("paths", summary.ConfiguredPaths).Info("configured library roots")
+	log.WithField("count", summary.Discovered).Info("discovered library modules")
+	log.WithField("count", summary.Consumers).Info("executable modules using libraries")
+	if len(summary.Orphans) > 0 {
+		log.WithField("count", len(summary.Orphans)).Warn("orphan library modules (no executable consumers)")
+		log.IncreasePadding()
+		for _, id := range summary.Orphans {
+			log.WithField("module", id).Warn("orphan library")
+		}
+		log.DecreasePadding()
+	}
+	log.DecreasePadding()
 }
