@@ -100,8 +100,8 @@ func TestUpdateConfig_IsIgnored(t *testing.T) {
 func TestUpdateConfig_CacheDefaults(t *testing.T) {
 	cfg := &UpdateConfig{}
 
-	if got := cfg.CacheBackend(); got != DefaultCacheBackend {
-		t.Fatalf("CacheBackend() = %q, want %q", got, DefaultCacheBackend)
+	if got := cfg.CacheBackend(); got != "" {
+		t.Fatalf("CacheBackend() = %q, want empty auto-select backend", got)
 	}
 	if got := cfg.CacheNamespace(); got != DefaultCacheNamespace {
 		t.Fatalf("CacheNamespace() = %q, want %q", got, DefaultCacheNamespace)

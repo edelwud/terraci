@@ -2,6 +2,7 @@ package tfupdate
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -146,7 +147,7 @@ func TestPlugin_Runtime_CreatesRegistryLazily(t *testing.T) {
 	}
 }
 
-func TestPlugin_Runtime_DefaultsToInmemcache(t *testing.T) {
+func TestPlugin_Runtime_ResolvesSingleActiveDefaultCache(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &tfupdateengine.UpdateConfig{Enabled: true})
 	useMockRegistry(p, &mockRegistry{})
@@ -180,7 +181,7 @@ func TestPlugin_Runtime_UnknownCacheBackend(t *testing.T) {
 	}
 }
 
-func TestPlugin_Runtime_DefaultBackendStableWithAdditionalProvider(t *testing.T) {
+func TestPlugin_Runtime_DefaultBackendRequiresExplicitNameWithAdditionalProvider(t *testing.T) {
 	alt := &testKVCacheProvider{
 		testPlugin: testPlugin{
 			name: "alt-cache-provider",
@@ -222,16 +223,15 @@ func TestPlugin_Runtime_DefaultBackendStableWithAdditionalProvider(t *testing.T)
 		},
 	})
 
-	runtime := plugintest.MustRuntime[*updateRuntime](t, p, newTestAppContextWithResolver(t, t.TempDir(), plugins))
-	got, err := runtime.registry.ModuleVersions(context.Background(), sourceaddr.ModuleAddress{Hostname: "registry.terraform.io", Namespace: "hashicorp", Name: "consul", Provider: "aws"})
-	if err != nil {
-		t.Fatalf("ModuleVersions() error = %v", err)
+	_, err := p.Runtime(context.Background(), newTestAppContextWithResolver(t, t.TempDir(), plugins))
+	if err == nil {
+		t.Fatal("Runtime() error = nil, want ambiguous cache backend error")
 	}
-	if len(got) != 1 || got[0] != "1.0.0" {
-		t.Fatalf("ModuleVersions() = %v, want [1.0.0]", got)
+	if !strings.Contains(err.Error(), "multiple active cache backends") {
+		t.Fatalf("Runtime() error = %v, want multiple active cache backends", err)
 	}
-	if alt.calls != 0 {
-		t.Fatalf("alt cache provider should not be used by default, got %d calls", alt.calls)
+	if !strings.Contains(err.Error(), "extensions.tfupdate.cache.metadata.backend") {
+		t.Fatalf("Runtime() error = %v, want metadata backend config path", err)
 	}
 }
 

@@ -334,6 +334,32 @@ func TestResolveKVCacheProvider_WrongCapability(t *testing.T) {
 	}
 }
 
+func TestResolveKVCacheProvider_AmbiguousUsesConfigPathHint(t *testing.T) {
+	t.Cleanup(func() { Reset() })
+	Reset()
+
+	RegisterFactory(func() plugin.Plugin {
+		return &testKVCacheProvider{
+			testPlugin: testPlugin{name: "cache-a", desc: "cache backend A"},
+			cache:      testKVCache{},
+		}
+	})
+	RegisterFactory(func() plugin.Plugin {
+		return &testKVCacheProvider{
+			testPlugin: testPlugin{name: "cache-b", desc: "cache backend B"},
+			cache:      testKVCache{},
+		}
+	})
+
+	_, err := New().ResolveKVCacheProvider("", "set extensions.feature.cache.backend explicitly")
+	if err == nil {
+		t.Fatal("expected ambiguous backend error")
+	}
+	if !strings.Contains(err.Error(), "set extensions.feature.cache.backend explicitly") {
+		t.Fatalf("ResolveKVCacheProvider() error = %v, want config path hint", err)
+	}
+}
+
 func TestResolveBlobStoreProvider(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()

@@ -16,9 +16,9 @@ import (
 // summary package files so that goconst sees a single source of truth.
 const pluginName = "summary"
 
-// summaryPluginName is the historical name of pluginName, kept as an alias
-// so existing reference points still compile.
-const summaryPluginName = pluginName
+// summaryReportProducer is the shared report producer id for the aggregate
+// Terraform plan summary artifact.
+const summaryReportProducer = ci.AggregateReportProducer
 
 type summaryProvider interface {
 	CommitSHA() string
@@ -57,7 +57,7 @@ func loadSummaryInputs(appCtx *plugin.AppContext) (*summaryInputs, error) {
 	}
 	filteredReports := reports[:0]
 	for _, r := range reports {
-		if r == nil || r.Producer == summaryPluginName {
+		if r == nil || r.Producer == summaryReportProducer {
 			continue
 		}
 		filteredReports = append(filteredReports, r)
@@ -169,7 +169,7 @@ func saveSummaryReport(appCtx *plugin.AppContext, inputs *summaryInputs, cfg *su
 
 func buildSummaryReport(inputs *summaryInputs, cfg *summaryengine.Config) *ci.Report {
 	return &ci.Report{
-		Producer: summaryPluginName,
+		Producer: summaryReportProducer,
 		Title:    "Terraform Plan Summary",
 		Status:   summaryReportStatus(inputs.plans, inputs.reports),
 		Summary:  summaryReportSummary(inputs.collection),

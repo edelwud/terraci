@@ -1,7 +1,7 @@
 // Package registry provides TerraCi's plugin catalog and per-run plugin sets.
 // Plugin packages register factories via init(); commands instantiate a fresh
-// Registry from those factories for each app run. The Registry implements the
-// plugin.Resolver contract and is what plugins receive through AppContext.
+// Registry from those factories for each app run. AppContext exposes only the
+// registry's capability resolver surface to plugins.
 package registry
 
 import (
@@ -62,10 +62,9 @@ func (c *Catalog) RegisterFactory(factory Factory) {
 	c.order = append(c.order, prototype.Name())
 }
 
-// Registry is an isolated plugin instance set for one app run. It implements
-// plugin.Resolver — both as the lookup surface for capability discovery and as
-// the policy resolver for canonical capabilities (CI provider, change detector,
-// cache backends, pipeline contributions, preflights).
+// Registry is an isolated plugin instance set for one app run. It is the
+// framework-owned catalog for capability discovery, lifecycle hooks, command
+// lookup, and plugin-visible capability resolution.
 type Registry struct {
 	plugins map[string]plugin.Plugin
 	order   []string
@@ -145,14 +144,18 @@ func (r *Registry) GetPlugin(name string) (plugin.Plugin, bool) {
 	return p, ok
 }
 
-// ByCapabilityFrom returns all plugins from resolver that implement the given
+type pluginSource interface {
+	All() []plugin.Plugin
+}
+
+// ByCapabilityFrom returns all plugins from source that implement the given
 // capability interface.
-func ByCapabilityFrom[T plugin.Plugin](resolver plugin.Resolver) []T {
-	if resolver == nil {
+func ByCapabilityFrom[T plugin.Plugin](source pluginSource) []T {
+	if source == nil {
 		return nil
 	}
 	var result []T
-	for _, p := range resolver.All() {
+	for _, p := range source.All() {
 		if t, ok := p.(T); ok {
 			result = append(result, t)
 		}

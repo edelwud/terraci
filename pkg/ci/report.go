@@ -9,9 +9,19 @@ import (
 	"sort"
 )
 
+// AggregateReportProducer is the canonical producer name for the aggregated
+// Terraform plan summary report consumed by local renderers.
+const AggregateReportProducer = "summary"
+
 // ReportFilename returns the canonical artifact name for a producer's report.
 func ReportFilename(producer string) string {
 	return producer + "-report.json"
+}
+
+// AggregateReportFilename returns the canonical artifact name for the
+// aggregated Terraform plan summary report.
+func AggregateReportFilename() string {
+	return ReportFilename(AggregateReportProducer)
 }
 
 // BuildReport assembles a producer Report with the standard provenance shell.

@@ -137,22 +137,31 @@ func (r *Registry) ResolveChangeDetector() (plugin.ChangeDetectionProvider, erro
 // ResolveKVCacheProvider returns a named KV cache backend provider. When
 // name is empty, falls back to the single enabled KV cache provider —
 // otherwise returns an error pointing at the available backends.
-func (r *Registry) ResolveKVCacheProvider(name string) (plugin.KVCacheProvider, error) {
+func (r *Registry) ResolveKVCacheProvider(name string, configPathHint ...string) (plugin.KVCacheProvider, error) {
 	return resolveNamedBackend[plugin.KVCacheProvider](
 		r, name,
 		"cache backend",
-		"set extensions.<feature>.cache.backend explicitly",
+		firstHint(configPathHint, "set the feature cache backend explicitly"),
 	)
 }
 
 // ResolveBlobStoreProvider returns a named blob store backend provider.
 // When name is empty, falls back to the single enabled blob store provider.
-func (r *Registry) ResolveBlobStoreProvider(name string) (plugin.BlobStoreProvider, error) {
+func (r *Registry) ResolveBlobStoreProvider(name string, configPathHint ...string) (plugin.BlobStoreProvider, error) {
 	return resolveNamedBackend[plugin.BlobStoreProvider](
 		r, name,
 		"blob backend",
-		"set extensions.<feature>.blob_cache.backend explicitly",
+		firstHint(configPathHint, "set the feature blob backend explicitly"),
 	)
+}
+
+func firstHint(hints []string, fallback string) string {
+	for _, hint := range hints {
+		if hint != "" {
+			return hint
+		}
+	}
+	return fallback
 }
 
 // pluginNames returns a comma-separated list of plugin names from any

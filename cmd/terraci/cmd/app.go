@@ -57,12 +57,13 @@ func (a *App) BuildContext() *plugin.AppContext {
 		a.reports = plugin.NewReportRegistry()
 	}
 	return plugin.NewAppContext(plugin.AppContextOptions{
-		Config:     a.Config,
-		WorkDir:    a.WorkDir,
-		ServiceDir: a.serviceDir(),
-		Version:    a.Version,
-		Reports:    a.reports,
-		Resolver:   a.Plugins,
+		Config:        a.Config,
+		WorkDir:       a.WorkDir,
+		ServiceDir:    a.serviceDir(),
+		Version:       a.Version,
+		Reports:       a.reports,
+		Resolver:      a.Plugins,
+		CommandLookup: a.Plugins,
 	})
 }
 

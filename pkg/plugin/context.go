@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/edelwud/terraci/pkg/config"
+	"github.com/edelwud/terraci/pkg/pipeline"
 )
 
 // AppContext is the public API available to plugins. It is immutable —
@@ -26,6 +27,8 @@ type AppContext struct {
 	version    string
 	reports    *ReportRegistry
 	resolver   Resolver
+	commands   CommandLookup
+	contribs   []*pipeline.Contribution
 }
 
 // AppContextOptions describes how to construct an AppContext.
@@ -44,6 +47,12 @@ type AppContextOptions struct {
 	// Resolver is the per-run plugin resolver. Defaults to NoopResolver{}
 	// when nil — plugins may always call ctx.Resolver() without nil-checks.
 	Resolver Resolver
+	// CommandLookup is the framework-side lookup used by CommandInstance to
+	// bind cobra callbacks to command-scoped plugin instances.
+	CommandLookup CommandLookup
+	// PipelineContributions is a command-scoped snapshot of enabled pipeline
+	// contributions collected by the framework after config/preflight.
+	PipelineContributions []*pipeline.Contribution
 }
 
 // NewAppContext creates a framework-managed plugin context.
@@ -56,6 +65,12 @@ func NewAppContext(opts AppContextOptions) *AppContext {
 	if resolver == nil {
 		resolver = NoopResolver{}
 	}
+	commands := opts.CommandLookup
+	if commands == nil {
+		if lookup, ok := opts.Resolver.(CommandLookup); ok {
+			commands = lookup
+		}
+	}
 	return &AppContext{
 		config:     opts.Config,
 		workDir:    opts.WorkDir,
@@ -63,6 +78,8 @@ func NewAppContext(opts AppContextOptions) *AppContext {
 		version:    opts.Version,
 		reports:    reports,
 		resolver:   resolver,
+		commands:   commands,
+		contribs:   append([]*pipeline.Contribution(nil), opts.PipelineContributions...),
 	}
 }
 
@@ -84,6 +101,26 @@ func (ctx *AppContext) Reports() *ReportRegistry { return ctx.reports }
 
 // Resolver returns the per-run plugin resolver. Always non-nil.
 func (ctx *AppContext) Resolver() Resolver { return ctx.resolver }
+
+// PipelineContributions returns the command-scoped pipeline contribution
+// snapshot collected by the framework.
+func (ctx *AppContext) PipelineContributions() []*pipeline.Contribution {
+	if ctx == nil || len(ctx.contribs) == 0 {
+		return nil
+	}
+	return append([]*pipeline.Contribution(nil), ctx.contribs...)
+}
+
+// WithPipelineContributions returns a copy of ctx bound to a contribution
+// snapshot. The receiver is left untouched.
+func (ctx *AppContext) WithPipelineContributions(contribs []*pipeline.Contribution) *AppContext {
+	if ctx == nil {
+		return nil
+	}
+	next := *ctx
+	next.contribs = append([]*pipeline.Contribution(nil), contribs...)
+	return &next
+}
 
 // appContextKey is the unexported key under which AppContext is carried in
 // context.Context. Plugins access the value via FromContext.

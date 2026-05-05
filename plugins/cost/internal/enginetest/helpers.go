@@ -12,13 +12,13 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/cache/blobcache"
+	"github.com/edelwud/terraci/pkg/cache/blobcache/blobtest"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
 	"github.com/edelwud/terraci/plugins/cost/internal/engine"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	costruntime "github.com/edelwud/terraci/plugins/cost/internal/runtime"
-	"github.com/edelwud/terraci/plugins/diskblob"
 )
 
 // MultiServicePricingServer routes pricing requests by service code.
@@ -61,7 +61,7 @@ func NewTestEstimator(tb testing.TB) *engine.Estimator {
 	cfg := &model.CostConfig{
 		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	}
-	cache := blobcache.New(diskblob.NewStore(cacheDir), model.DefaultBlobCacheNamespace, cfg.CacheTTLDuration())
+	cache := blobcache.New(blobtest.NewMemoryStore(cacheDir), model.DefaultBlobCacheNamespace, cfg.CacheTTLDuration())
 	awsProvider, ok := cloud.Get(awskit.ProviderID)
 	if !ok {
 		tb.Fatal("aws provider not registered")

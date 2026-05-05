@@ -8,11 +8,10 @@ func CommandInstance[T Plugin](ctx *AppContext, name string) (T, error) {
 	if ctx == nil {
 		return zero, fmt.Errorf("command plugin %q: plugin context resolver is not bound", name)
 	}
-	resolver := ctx.Resolver()
-	if resolver == nil {
-		return zero, fmt.Errorf("command plugin %q: plugin context resolver is not bound", name)
+	if ctx.commands == nil {
+		return zero, fmt.Errorf("command plugin %q: command lookup is not bound", name)
 	}
-	current, ok := resolver.GetPlugin(name)
+	current, ok := ctx.commands.GetPlugin(name)
 	if !ok {
 		return zero, fmt.Errorf("command plugin %q: command-scoped instance not found", name)
 	}

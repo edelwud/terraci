@@ -65,6 +65,22 @@ func TestAppContext_NoReportsCreatesDefaultRegistry(t *testing.T) {
 	}
 }
 
+func TestAppContext_PipelineContributionsAreSnapshot(t *testing.T) {
+	contrib := &pipeline.Contribution{Jobs: []pipeline.ContributedJob{{Name: "summary"}}}
+	ctx := NewAppContext(AppContextOptions{
+		PipelineContributions: []*pipeline.Contribution{contrib},
+	})
+
+	got := ctx.PipelineContributions()
+	if len(got) != 1 || got[0] != contrib {
+		t.Fatalf("PipelineContributions() = %#v, want original contribution pointer", got)
+	}
+	got[0] = nil
+	if again := ctx.PipelineContributions(); len(again) != 1 || again[0] != contrib {
+		t.Fatalf("PipelineContributions() was mutated through returned slice: %#v", again)
+	}
+}
+
 type contextTestPlugin struct {
 	name string
 }
@@ -75,13 +91,6 @@ func (p *contextTestPlugin) Description() string { return p.name }
 type contextTestResolver struct {
 	NoopResolver
 	plugin Plugin
-}
-
-func (r contextTestResolver) All() []Plugin {
-	if r.plugin == nil {
-		return nil
-	}
-	return []Plugin{r.plugin}
 }
 
 func (r contextTestResolver) GetPlugin(string) (Plugin, bool) {
@@ -132,20 +141,4 @@ func TestWithFromContext_RoundTrips(t *testing.T) {
 		// attached.
 		t.Fatal("FromContext(empty context) should be nil")
 	}
-}
-
-// Sanity: NoopResolver's CollectContributions and PreflightsForStartup
-// return nil so callers don't need nil-checks before iterating.
-func TestNoopResolver_LifecycleHooks(t *testing.T) {
-	var r NoopResolver
-	if got := r.CollectContributions(nil); got != nil {
-		t.Errorf("CollectContributions = %v, want nil", got)
-	}
-	if got := r.PreflightsForStartup(); got != nil {
-		t.Errorf("PreflightsForStartup = %v, want nil", got)
-	}
-
-	// Use pipeline import to keep it referenced — guards against future
-	// drift where the resolver no longer exposes pipeline types.
-	_ = []*pipeline.Contribution(nil)
 }

@@ -120,12 +120,12 @@ func (r commandTestResolver) GetPlugin(name string) (plugin.Plugin, bool) {
 	return r.backends.GetPlugin(name)
 }
 
-func (r commandTestResolver) ResolveKVCacheProvider(name string) (plugin.KVCacheProvider, error) {
-	return r.backends.ResolveKVCacheProvider(name)
+func (r commandTestResolver) ResolveKVCacheProvider(name string, configPathHint ...string) (plugin.KVCacheProvider, error) {
+	return r.backends.ResolveKVCacheProvider(name, configPathHint...)
 }
 
-func (r commandTestResolver) ResolveBlobStoreProvider(name string) (plugin.BlobStoreProvider, error) {
-	return r.backends.ResolveBlobStoreProvider(name)
+func (r commandTestResolver) ResolveBlobStoreProvider(name string, configPathHint ...string) (plugin.BlobStoreProvider, error) {
+	return r.backends.ResolveBlobStoreProvider(name, configPathHint...)
 }
 
 // newTestAppContext creates a minimal AppContext suitable for plugin testing.

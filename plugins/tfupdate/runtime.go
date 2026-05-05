@@ -68,7 +68,10 @@ func newRuntime(
 			return registryclient.New()
 		}
 	}
-	cacheProvider, err := appCtx.Resolver().ResolveKVCacheProvider(runtimeConfig.MetadataCacheBackend())
+	cacheProvider, err := appCtx.Resolver().ResolveKVCacheProvider(
+		runtimeConfig.MetadataCacheBackend(),
+		"set extensions.tfupdate.cache.metadata.backend explicitly",
+	)
 	if err != nil {
 		return nil, fmt.Errorf("resolve cache backend: %w", err)
 	}
@@ -88,7 +91,10 @@ func newRuntime(
 		return nil, errors.New("failed to create cached registry client")
 	}
 
-	blobProvider, err := appCtx.Resolver().ResolveBlobStoreProvider(runtimeConfig.ArtifactCacheBackend())
+	blobProvider, err := appCtx.Resolver().ResolveBlobStoreProvider(
+		runtimeConfig.ArtifactCacheBackend(),
+		"set extensions.tfupdate.cache.artifacts.backend explicitly",
+	)
 	if err != nil {
 		return nil, fmt.Errorf("resolve artifact cache backend: %w", err)
 	}

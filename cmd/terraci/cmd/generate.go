@@ -205,7 +205,7 @@ func newPipelineGenerator(cmd *cobra.Command, app *App, depGraph *graph.Dependen
 	if err != nil {
 		return nil, fmt.Errorf("resolve CI provider: %w", err)
 	}
-	contributions := appCtx.Resolver().CollectContributions(appCtx)
+	contributions := appCtx.PipelineContributions()
 
 	exec := app.Config.Execution
 	ir, err := pipeline.Build(pipeline.BuildOptions{

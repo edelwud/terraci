@@ -122,7 +122,7 @@ func TestLogOutputCompleted_NilSummaryReportSkipsCLISection(t *testing.T) {
 
 func TestLogOutputCompleted_WithSummaryReport(t *testing.T) {
 	report := &ci.Report{
-		Producer: "summary",
+		Producer: ci.AggregateReportProducer,
 		Title:    "Terraform Plan Summary",
 		Summary:  "1 modules: 1 with changes, 0 no changes, 0 failed",
 		Sections: []ci.ReportSection{citest.MustEncodeSection(

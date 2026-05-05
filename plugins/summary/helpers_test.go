@@ -102,7 +102,7 @@ func writeReportJSON(t *testing.T, serviceDir, pluginName string, report *ci.Rep
 func readSummaryReportJSON(t *testing.T, serviceDir string) *ci.Report {
 	t.Helper()
 
-	report, err := ci.LoadReport(filepath.Join(serviceDir, ci.ReportFilename("summary")))
+	report, err := ci.LoadReport(filepath.Join(serviceDir, ci.AggregateReportFilename()))
 	if err != nil {
 		t.Fatal(err)
 	}

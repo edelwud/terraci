@@ -7,7 +7,7 @@ import (
 )
 
 type CostConfig struct {
-	CacheDir      string              `yaml:"cache_dir,omitempty" json:"cache_dir,omitempty" jsonschema:"description=Deprecated and unsupported; use extensions.diskblob.root_dir instead"`
+	CacheDir      string              `yaml:"cache_dir,omitempty" json:"cache_dir,omitempty" jsonschema:"description=Deprecated and unsupported; configure the selected blob backend instead"`
 	BlobCache     *BlobCacheConfig    `yaml:"blob_cache,omitempty" json:"blob_cache,omitempty" jsonschema:"description=Blob cache backend selection for pricing data"`
 	Providers     CostProvidersConfig `yaml:"providers" json:"providers"`
 	LegacyEnabled *bool               `yaml:"enabled,omitempty" json:"-"`
@@ -15,13 +15,12 @@ type CostConfig struct {
 
 // BlobCacheConfig selects a blob backend for pricing data.
 type BlobCacheConfig struct {
-	Backend   string `yaml:"backend,omitempty" json:"backend,omitempty" jsonschema:"description=Blob cache backend plugin name,default=diskblob"`
+	Backend   string `yaml:"backend,omitempty" json:"backend,omitempty" jsonschema:"description=Blob cache backend plugin name; empty selects the single active blob store provider"`
 	Namespace string `yaml:"namespace,omitempty" json:"namespace,omitempty" jsonschema:"description=Blob cache namespace for pricing data,default=cost/pricing"`
 	TTL       string `yaml:"ttl,omitempty" json:"ttl,omitempty" jsonschema:"description=How long cached pricing is valid (e.g. 24h),default=24h"`
 }
 
 const (
-	DefaultBlobCacheBackend   = "diskblob"
 	DefaultBlobCacheNamespace = "cost/pricing"
 )
 
@@ -53,7 +52,7 @@ func (c *CostConfig) Validate() error {
 		return errors.New("extensions.cost.enabled is no longer supported; use extensions.cost.providers.aws.enabled")
 	}
 	if c.CacheDir != "" {
-		return errors.New("extensions.cost.cache_dir is no longer supported; use extensions.diskblob.root_dir")
+		return errors.New("extensions.cost.cache_dir is no longer supported; configure the selected blob backend instead")
 	}
 	if c.BlobCache != nil && c.BlobCache.TTL != "" {
 		if _, err := time.ParseDuration(c.BlobCache.TTL); err != nil {
@@ -63,10 +62,11 @@ func (c *CostConfig) Validate() error {
 	return nil
 }
 
-// BlobCacheBackend returns the configured blob backend or the built-in default.
+// BlobCacheBackend returns the configured blob backend, or empty to request
+// resolver auto-selection of the single active blob store provider.
 func (c *CostConfig) BlobCacheBackend() string {
 	if c == nil || c.BlobCache == nil || c.BlobCache.Backend == "" {
-		return DefaultBlobCacheBackend
+		return ""
 	}
 	return c.BlobCache.Backend
 }

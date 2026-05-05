@@ -27,7 +27,7 @@ func TestSummaryReportLoader_LoadSummaryReport(t *testing.T) {
 
 	serviceDir := t.TempDir()
 	summary := &ci.Report{
-		Producer: "summary",
+		Producer: ci.AggregateReportProducer,
 		Title:    "Terraform Plan Summary",
 		Status:   ci.ReportStatusWarn,
 		Summary:  "1 module: 1 with changes",
@@ -43,8 +43,8 @@ func TestSummaryReportLoader_LoadSummaryReport(t *testing.T) {
 	if report == nil {
 		t.Fatal("Load() report = nil, want summary report")
 	}
-	if report.Producer != "summary" {
-		t.Fatalf("Load() plugin = %q, want summary", report.Producer)
+	if report.Producer != ci.AggregateReportProducer {
+		t.Fatalf("Load() plugin = %q, want aggregate report producer", report.Producer)
 	}
 	if report.Title != summary.Title {
 		t.Fatalf("Load() title = %q, want %q", report.Title, summary.Title)
@@ -56,7 +56,7 @@ func TestSummaryReportLoader_ResetRemovesStaleSummaryReport(t *testing.T) {
 
 	serviceDir := t.TempDir()
 	summary := &ci.Report{
-		Producer: "summary",
+		Producer: ci.AggregateReportProducer,
 		Title:    "Terraform Plan Summary",
 		Status:   ci.ReportStatusWarn,
 		Summary:  "old",
@@ -103,7 +103,7 @@ func TestSummaryReportLoader_LoadInvalidReportReturnsError(t *testing.T) {
 	t.Parallel()
 
 	serviceDir := t.TempDir()
-	reportPath := filepath.Join(serviceDir, ci.ReportFilename("summary"))
+	reportPath := filepath.Join(serviceDir, ci.AggregateReportFilename())
 	if err := os.WriteFile(reportPath, []byte("{broken"), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
@@ -138,7 +138,7 @@ func TestSummaryReportLoader_LoadSummaryReportWithMatchingProvenance(t *testing.
 		t.Fatalf("Scan() error = %v", err)
 	}
 	summary := &ci.Report{
-		Producer: "summary",
+		Producer: ci.AggregateReportProducer,
 		Title:    "Terraform Plan Summary",
 		Status:   ci.ReportStatusPass,
 		Summary:  "1 module",
@@ -173,7 +173,7 @@ func TestSummaryReportLoader_LoadSummaryReportWithMismatchedProvenanceReturnsErr
 	}
 
 	summary := &ci.Report{
-		Producer: "summary",
+		Producer: ci.AggregateReportProducer,
 		Title:    "Terraform Plan Summary",
 		Status:   ci.ReportStatusPass,
 		Summary:  "1 module",

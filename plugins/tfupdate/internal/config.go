@@ -24,15 +24,12 @@ const (
 
 const (
 	DefaultRegistryHost           = "registry.terraform.io"
-	DefaultMetadataCacheBackend   = "inmemcache"
 	DefaultMetadataCacheNamespace = "tfupdate/registry"
-	DefaultArtifactCacheBackend   = "diskblob"
 	DefaultArtifactCacheNamespace = "tfupdate/providers"
 	DefaultMetadataCacheTTL       = 6 * time.Hour
 	DefaultReadTimeout            = 5 * time.Minute
 	DefaultWriteTimeout           = 20 * time.Minute
 
-	DefaultCacheBackend   = DefaultMetadataCacheBackend
 	DefaultCacheNamespace = DefaultMetadataCacheNamespace
 	DefaultCacheTTL       = DefaultMetadataCacheTTL
 )
@@ -77,13 +74,13 @@ type CacheConfig struct {
 }
 
 type MetadataCacheConfig struct {
-	Backend   string `yaml:"backend,omitempty" json:"backend,omitempty" jsonschema:"description=KV cache backend plugin name,default=inmemcache"`
+	Backend   string `yaml:"backend,omitempty" json:"backend,omitempty" jsonschema:"description=KV cache backend plugin name; empty selects the single active KV cache provider"`
 	TTL       string `yaml:"ttl,omitempty" json:"ttl,omitempty" jsonschema:"description=How long registry metadata stays cached,default=6h"`
 	Namespace string `yaml:"namespace,omitempty" json:"namespace,omitempty" jsonschema:"description=Namespace for tfupdate registry metadata cache,default=tfupdate/registry"`
 }
 
 type ArtifactCacheConfig struct {
-	Backend   string `yaml:"backend,omitempty" json:"backend,omitempty" jsonschema:"description=Blob store backend plugin name,default=diskblob"`
+	Backend   string `yaml:"backend,omitempty" json:"backend,omitempty" jsonschema:"description=Blob store backend plugin name; empty selects the single active blob store provider"`
 	Namespace string `yaml:"namespace,omitempty" json:"namespace,omitempty" jsonschema:"description=Namespace for cached provider archives and hashes,default=tfupdate/providers"`
 }
 
@@ -95,12 +92,10 @@ func DefaultConfig() *UpdateConfig {
 		},
 		Cache: &CacheConfig{
 			Metadata: MetadataCacheConfig{
-				Backend:   DefaultMetadataCacheBackend,
 				Namespace: DefaultMetadataCacheNamespace,
 				TTL:       DefaultMetadataCacheTTL.String(),
 			},
 			Artifacts: ArtifactCacheConfig{
-				Backend:   DefaultArtifactCacheBackend,
 				Namespace: DefaultArtifactCacheNamespace,
 			},
 		},
@@ -215,9 +210,11 @@ func (c *UpdateConfig) LockPlatforms() []string {
 	return nil
 }
 
+// MetadataCacheBackend returns the configured KV cache backend, or empty to
+// request resolver auto-selection of the single active KV cache provider.
 func (c *UpdateConfig) MetadataCacheBackend() string {
 	if c == nil || c.Cache == nil {
-		return DefaultMetadataCacheBackend
+		return ""
 	}
 	if c.Cache.Metadata.Backend != "" {
 		return c.Cache.Metadata.Backend
@@ -225,7 +222,7 @@ func (c *UpdateConfig) MetadataCacheBackend() string {
 	if c.Cache.Backend != "" {
 		return c.Cache.Backend
 	}
-	return DefaultMetadataCacheBackend
+	return ""
 }
 
 func (c *UpdateConfig) MetadataCacheNamespace() string {
@@ -252,9 +249,11 @@ func (c *UpdateConfig) MetadataCacheTTL() time.Duration {
 	return ttl
 }
 
+// ArtifactCacheBackend returns the configured blob backend, or empty to
+// request resolver auto-selection of the single active blob store provider.
 func (c *UpdateConfig) ArtifactCacheBackend() string {
 	if c == nil || c.Cache == nil || c.Cache.Artifacts.Backend == "" {
-		return DefaultArtifactCacheBackend
+		return ""
 	}
 	return c.Cache.Artifacts.Backend
 }

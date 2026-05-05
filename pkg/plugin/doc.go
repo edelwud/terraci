@@ -59,8 +59,8 @@
 // AppContext is constructed once per command run by the framework and
 // attached to cmd.Context() so plugin RunE callbacks can retrieve it via
 // plugin.FromContext. It is immutable — plugins receive a snapshot of
-// Config / WorkDir / ServiceDir / Resolver that does not change for the
-// duration of the command.
+// Config / WorkDir / ServiceDir / Resolver / pipeline contributions that does
+// not change for the duration of the command.
 //
 // # Thread-safety contract
 //
@@ -83,12 +83,10 @@
 //
 // # Capability discovery
 //
-// Use registry.ByCapabilityFrom[T](resolver) to enumerate plugins
-// implementing a capability interface inside a plugin's own logic. The
-// canonical capabilities (CI provider, change detector, KV/blob caches,
-// pipeline contributions, preflights) are pre-resolved by the Resolver
-// interface — plugins should call those typed methods rather than
-// type-asserting from raw plugin lists.
+// AppContext exposes typed capability resolution only. Plugins should call
+// ctx.Resolver().Resolve* methods instead of enumerating or looking up
+// concrete plugin names. Framework code owns raw plugin enumeration through
+// registry.ByCapabilityFrom and lifecycle hooks.
 //
 // # Cross-plugin communication
 //

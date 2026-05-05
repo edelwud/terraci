@@ -12,7 +12,7 @@ func TestRenderSummaryReportCLI_RendersStructuredSections(t *testing.T) {
 	t.Parallel()
 
 	report := &ci.Report{
-		Producer: "summary",
+		Producer: ci.AggregateReportProducer,
 		Title:    "Terraform Plan Summary",
 		Summary:  "2 modules: 1 with changes, 1 no changes, 0 failed",
 		Sections: []ci.ReportSection{
