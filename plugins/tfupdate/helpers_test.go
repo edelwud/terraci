@@ -100,7 +100,7 @@ func useMockRegistry(p *Plugin, reg tfregistry.Client) {
 }
 
 type commandTestResolver struct {
-	plugintest.NoopResolver
+	plugin.NoopResolver
 	plugin   plugin.Plugin
 	backends *registry.Registry
 }

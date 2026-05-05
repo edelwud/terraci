@@ -1,8 +1,9 @@
 package summary
 
 import (
+	log "github.com/caarlos0/log"
+
 	"github.com/edelwud/terraci/pkg/ci"
-	"github.com/edelwud/terraci/pkg/log"
 )
 
 func printSummary(collection *ci.PlanResultCollection) {

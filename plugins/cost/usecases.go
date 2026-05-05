@@ -8,7 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/edelwud/terraci/pkg/log"
+	log "github.com/caarlos0/log"
+
 	"github.com/edelwud/terraci/pkg/planresults"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"

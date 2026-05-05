@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"time"
 
+	log "github.com/caarlos0/log"
+
 	"github.com/edelwud/terraci/pkg/cache/blobcache"
-	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/plugins/cost/internal/engine"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"

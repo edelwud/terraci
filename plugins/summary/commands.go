@@ -7,7 +7,7 @@ import (
 )
 
 // Commands returns the `terraci summary` command.
-func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
+func (p *Plugin) Commands() []*cobra.Command {
 	return []*cobra.Command{{
 		Use:   "summary",
 		Short: "Create MR/PR comment from plan results",
@@ -21,11 +21,12 @@ and posts a formatted comment to the MR/PR.
 Example:
   terraci summary`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			current, err := plugin.CommandInstance[*Plugin](ctx, p.Name())
+			appCtx := plugin.FromContext(cmd.Context())
+			current, err := plugin.CommandInstance[*Plugin](appCtx, p.Name())
 			if err != nil {
 				return err
 			}
-			return current.runSummary(cmd.Context(), ctx)
+			return current.runSummary(cmd.Context(), appCtx)
 		},
 	}}
 }

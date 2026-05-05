@@ -3,7 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/edelwud/terraci/pkg/log"
+	log "github.com/caarlos0/log"
 )
 
 func newBuildCmd(app *App) *cobra.Command {

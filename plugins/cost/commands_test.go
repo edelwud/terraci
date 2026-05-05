@@ -9,14 +9,14 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
 
 func TestPlugin_Commands_Registration(t *testing.T) {
 	p := newTestPlugin(t)
-	appCtx := newTestAppContext(t, t.TempDir())
 
-	cmds := p.Commands(appCtx)
+	cmds := p.Commands()
 	if len(cmds) != 1 {
 		t.Fatalf("Commands() returned %d commands, want 1", len(cmds))
 	}
@@ -56,9 +56,9 @@ func TestPlugin_Commands_RunE_NotConfigured(t *testing.T) {
 	p := newTestPlugin(t)
 	appCtx := newTestAppContext(t, t.TempDir())
 
-	cmds := p.Commands(appCtx)
+	cmds := p.Commands()
 	cmd := cmds[0]
-	cmd.SetContext(context.Background())
+	cmd.SetContext(plugin.WithContext(context.Background(), appCtx))
 
 	err := cmd.RunE(cmd, nil)
 	if err == nil {

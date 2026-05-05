@@ -7,7 +7,8 @@ import (
 	"slices"
 	"time"
 
-	"github.com/edelwud/terraci/pkg/log"
+	log "github.com/caarlos0/log"
+
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/plugins/tfupdate/internal/registrymeta"
 	"github.com/edelwud/terraci/plugins/tfupdate/internal/sourceaddr"

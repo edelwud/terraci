@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,10 +9,11 @@ import (
 
 	"github.com/spf13/cobra"
 
+	log "github.com/caarlos0/log"
+
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/filter"
 	"github.com/edelwud/terraci/pkg/graph"
-	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/workflow"
@@ -49,7 +49,7 @@ Examples:
 		// in PreRunE makes the "construction → execution" boundary explicit:
 		// once RunE starts, plugin configs are stable for the entire run.
 		PreRunE: func(cmd *cobra.Command, _ []string) error {
-			applyProviderFlags(app, planOnly, cmd)
+			applyProviderFlags(cmd, planOnly)
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -66,7 +66,7 @@ Examples:
 			logLibraryModuleUsage(result.Graph, app.WorkDir)
 			logCycles(result.Graph)
 
-			targets, err := resolveGenerateTargets(cmd.Context(), app, result, changedOnly, baseRef, ff)
+			targets, err := resolveGenerateTargets(cmd, app, result, changedOnly, baseRef, ff)
 			if err != nil {
 				return err
 			}
@@ -77,7 +77,7 @@ Examples:
 			}
 
 			log.WithField("modules", len(targets)).Info("generating pipeline")
-			generator, genErr := newPipelineGenerator(app, result.Graph, result.Filtered.Modules, targets, planOnly)
+			generator, genErr := newPipelineGenerator(cmd, app, result.Graph, result.Filtered.Modules, targets, planOnly)
 			if genErr != nil {
 				return genErr
 			}
@@ -108,29 +108,31 @@ Examples:
 }
 
 func resolveGenerateTargets(
-	ctx context.Context,
+	cmd *cobra.Command,
 	app *App,
 	result *workflow.Result,
 	changedOnly bool,
 	baseRef string,
 	ff *filter.Flags,
 ) ([]*discovery.Module, error) {
-	return workflow.ResolveTargets(ctx, app.WorkDir, app.Config, result, workflow.TargetSelectionOptions{
+	appCtx := plugin.FromContext(cmd.Context())
+	return workflow.ResolveTargets(cmd.Context(), app.WorkDir, app.Config, result, workflow.TargetSelectionOptions{
 		ChangedOnly: changedOnly,
 		BaseRef:     baseRef,
 		Filters:     ff,
 		ChangeDetectorResolver: func() (workflow.ChangeDetector, error) {
-			return app.Plugins.ResolveChangeDetector()
+			return appCtx.Resolver().ResolveChangeDetector()
 		},
 	})
 }
 
 // applyProviderFlags applies CLI override flags (--plan-only, --auto-approve) to the provider config.
-func applyProviderFlags(app *App, planOnly bool, cmd *cobra.Command) {
+func applyProviderFlags(cmd *cobra.Command, planOnly bool) {
 	if !planOnly && !cmd.Flags().Changed("auto-approve") && !cmd.Flags().Changed("no-auto-approve") {
 		return
 	}
-	resolved, err := app.Plugins.ResolveCIProvider()
+	appCtx := plugin.FromContext(cmd.Context())
+	resolved, err := appCtx.Resolver().ResolveCIProvider()
 	if err != nil {
 		log.WithError(err).Debug("cannot apply CLI flags: provider not resolved")
 		return
@@ -197,13 +199,13 @@ func logCycles(depGraph *graph.DependencyGraph) {
 
 // --- Pipeline generation ---
 
-func newPipelineGenerator(app *App, depGraph *graph.DependencyGraph, modules, targets []*discovery.Module, planOnly bool) (pipeline.Generator, error) {
-	provider, err := app.Plugins.ResolveCIProvider()
+func newPipelineGenerator(cmd *cobra.Command, app *App, depGraph *graph.DependencyGraph, modules, targets []*discovery.Module, planOnly bool) (pipeline.Generator, error) {
+	appCtx := plugin.FromContext(cmd.Context())
+	provider, err := appCtx.Resolver().ResolveCIProvider()
 	if err != nil {
 		return nil, fmt.Errorf("resolve CI provider: %w", err)
 	}
-	appCtx := app.PluginContext()
-	contributions := app.Plugins.CollectContributions(appCtx)
+	contributions := appCtx.Resolver().CollectContributions(appCtx)
 
 	exec := app.Config.Execution
 	ir, err := pipeline.Build(pipeline.BuildOptions{

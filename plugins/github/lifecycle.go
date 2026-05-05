@@ -3,7 +3,8 @@ package github
 import (
 	"context"
 
-	"github.com/edelwud/terraci/pkg/log"
+	log "github.com/caarlos0/log"
+
 	"github.com/edelwud/terraci/pkg/plugin"
 	prpkg "github.com/edelwud/terraci/plugins/github/internal/pr"
 )

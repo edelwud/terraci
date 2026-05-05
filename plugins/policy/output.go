@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/edelwud/terraci/pkg/log"
+	log "github.com/caarlos0/log"
+
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
 

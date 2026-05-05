@@ -14,7 +14,7 @@ func GenerateMainGo(builtinImports, externalImports []string) string {
 
 import (
 	"github.com/edelwud/terraci/cmd/terraci/cmd"
-	"github.com/edelwud/terraci/pkg/log"
+	log "github.com/caarlos0/log"
 `)
 
 	// Built-in plugins

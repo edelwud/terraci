@@ -1,7 +1,8 @@
 package lockfile
 
 import (
-	"github.com/edelwud/terraci/pkg/log"
+	log "github.com/caarlos0/log"
+
 	"github.com/edelwud/terraci/plugins/tfupdate/internal/sourceaddr"
 )
 

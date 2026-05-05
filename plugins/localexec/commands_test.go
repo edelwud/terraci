@@ -3,15 +3,12 @@ package localexec
 import (
 	"strings"
 	"testing"
-
-	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 )
 
 func TestPlugin_Commands_Registration(t *testing.T) {
 	t.Parallel()
 
-	appCtx := plugintest.NewAppContext(t, t.TempDir())
-	cmds := (&Plugin{}).Commands(appCtx)
+	cmds := (&Plugin{}).Commands()
 	if len(cmds) != 1 {
 		t.Fatalf("Commands() returned %d commands, want 1", len(cmds))
 	}

@@ -9,8 +9,9 @@ import (
 	"charm.land/lipgloss/v2"
 	"go.yaml.in/yaml/v4"
 
+	log "github.com/caarlos0/log"
+
 	"github.com/edelwud/terraci/pkg/config"
-	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/initwiz"
 	"github.com/edelwud/terraci/pkg/plugin/registry"

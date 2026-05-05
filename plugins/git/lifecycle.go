@@ -3,7 +3,8 @@ package git
 import (
 	"context"
 
-	"github.com/edelwud/terraci/pkg/log"
+	log "github.com/caarlos0/log"
+
 	"github.com/edelwud/terraci/pkg/plugin"
 	gitclient "github.com/edelwud/terraci/plugins/git/internal"
 )

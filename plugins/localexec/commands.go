@@ -26,7 +26,7 @@ func (sf *sharedFlags) toRequest(mode ExecutionMode) ExecuteRequest {
 	}
 }
 
-func (p *Plugin) Commands(appCtx *plugin.AppContext) []*cobra.Command {
+func (p *Plugin) Commands() []*cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "local-exec",
 		Short: "Execute the generated terraci flow locally",
@@ -50,14 +50,14 @@ match, the command exits cleanly after logging "no modules to process".`,
 	}
 
 	cmd.AddCommand(
-		newPlanCmd(appCtx),
-		newRunCmd(appCtx),
+		newPlanCmd(),
+		newRunCmd(),
 	)
 
 	return []*cobra.Command{cmd}
 }
 
-func newPlanCmd(appCtx *plugin.AppContext) *cobra.Command {
+func newPlanCmd() *cobra.Command {
 	var sf sharedFlags
 	cmd := &cobra.Command{
 		Use:   "plan",
@@ -73,6 +73,7 @@ without error after logging "no modules to process".`,
   terraci local-exec plan --filter environment=stage
   terraci local-exec plan --include 'platform/*' --exclude '*/test/*'`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			appCtx := plugin.FromContext(cmd.Context())
 			return NewExecutor(appCtx).Run(cmd.Context(), sf.toRequest(ExecutionModePlan))
 		},
 	}
@@ -80,7 +81,7 @@ without error after logging "no modules to process".`,
 	return cmd
 }
 
-func newRunCmd(appCtx *plugin.AppContext) *cobra.Command {
+func newRunCmd() *cobra.Command {
 	var sf sharedFlags
 	cmd := &cobra.Command{
 		Use:   "run",
@@ -95,6 +96,7 @@ error after logging "no modules to process".`,
   terraci local-exec run --module platform/stage/eu-central-1/vpc
   terraci local-exec run --filter environment=stage --parallelism 2`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			appCtx := plugin.FromContext(cmd.Context())
 			return NewExecutor(appCtx).Run(cmd.Context(), sf.toRequest(ExecutionModeRun))
 		},
 	}

@@ -7,12 +7,13 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/edelwud/terraci/pkg/log"
+	log "github.com/caarlos0/log"
+
 	"github.com/edelwud/terraci/pkg/plugin"
 )
 
 // Commands returns the CLI commands provided by the policy plugin.
-func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
+func (p *Plugin) Commands() []*cobra.Command {
 	var (
 		policyOutput     string
 		policyModulePath string
@@ -22,7 +23,8 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 		Use:   "pull",
 		Short: "Pull policies from configured sources",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			current, err := plugin.CommandInstance[*Plugin](ctx, p.Name())
+			appCtx := plugin.FromContext(cmd.Context())
+			current, err := plugin.CommandInstance[*Plugin](appCtx, p.Name())
 			if err != nil {
 				return err
 			}
@@ -33,7 +35,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 			log.Info("pulling policies from configured sources")
 			c, cancel := context.WithTimeout(cmd.Context(), 5*time.Minute)
 			defer cancel()
-			return current.runPull(c, ctx, policyOutput)
+			return current.runPull(c, appCtx, policyOutput)
 		},
 	}
 
@@ -41,7 +43,8 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 		Use:   "check",
 		Short: "Check Terraform plans against policies",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			current, err := plugin.CommandInstance[*Plugin](ctx, p.Name())
+			appCtx := plugin.FromContext(cmd.Context())
+			current, err := plugin.CommandInstance[*Plugin](appCtx, p.Name())
 			if err != nil {
 				return err
 			}
@@ -53,7 +56,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 
 			c, cancel := context.WithTimeout(cmd.Context(), 5*time.Minute)
 			defer cancel()
-			return current.runCheck(c, ctx, policyModulePath, policyOutput)
+			return current.runCheck(c, appCtx, policyModulePath, policyOutput)
 		},
 	}
 

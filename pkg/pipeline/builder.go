@@ -101,7 +101,7 @@ func Build(opts BuildOptions) (*IR, error) {
 	}
 
 	// Contributed jobs.
-	planNames := ir.AllPlanNames()
+	planNames := ir.planNames()
 
 	// First pass: create all jobs so we know their names
 	irJobs := make([]Job, 0, len(allContributedJobs))

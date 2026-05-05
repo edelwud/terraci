@@ -3,8 +3,9 @@
 package main
 
 import (
+	log "github.com/caarlos0/log"
+
 	"github.com/edelwud/terraci/cmd/xterraci/cmd"
-	"github.com/edelwud/terraci/pkg/log"
 )
 
 var (
@@ -14,7 +15,7 @@ var (
 )
 
 func main() {
-	log.Init()
+	cmd.InitLogger()
 
 	if err := cmd.NewRootCmd(version, commit, date).Execute(); err != nil {
 		log.WithError(err).Fatal("command failed")

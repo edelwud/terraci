@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"time"
 
+	log "github.com/caarlos0/log"
+
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/execution"
-	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/pipeline"
 )
 

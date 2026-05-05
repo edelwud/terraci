@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/edelwud/terraci/pkg/log"
+	log "github.com/caarlos0/log"
 )
 
 // Builder configures and executes a custom TerraCi build.
@@ -218,7 +218,7 @@ func (b *Builder) runCmd(ctx context.Context, dir, name string, args ...string) 
 
 	log.WithField("cmd", name+" "+strings.Join(args, " ")).Debug("executing")
 
-	if log.IsDebug() {
+	if IsDebug() {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		return cmd.Run()

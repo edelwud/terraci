@@ -7,7 +7,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/edelwud/terraci/pkg/log"
+	log "github.com/caarlos0/log"
 )
 
 func (s *Service) collectAllHashes(

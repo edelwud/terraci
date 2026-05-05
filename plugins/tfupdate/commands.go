@@ -7,7 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/edelwud/terraci/pkg/log"
+	log "github.com/caarlos0/log"
+
 	"github.com/edelwud/terraci/pkg/plugin"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
 )
@@ -18,7 +19,7 @@ const (
 )
 
 // Commands returns the CLI commands provided by the tfupdate plugin.
-func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
+func (p *Plugin) Commands() []*cobra.Command {
 	var (
 		target        string
 		bump          string
@@ -51,7 +52,8 @@ Examples:
   terraci tfupdate --module platform/prod/eu-central-1/vpc
 		terraci tfupdate --output json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			current, err := plugin.CommandInstance[*Plugin](ctx, p.Name())
+			appCtx := plugin.FromContext(cmd.Context())
+			current, err := plugin.CommandInstance[*Plugin](appCtx, p.Name())
 			if err != nil {
 				return err
 			}
@@ -69,7 +71,7 @@ Examples:
 			c, cancel := context.WithTimeout(cmd.Context(), timeout)
 			defer cancel()
 
-			return current.runCheck(c, ctx, cmd)
+			return current.runCheck(c, appCtx, cmd)
 		},
 	}
 

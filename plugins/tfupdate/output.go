@@ -4,7 +4,8 @@ import (
 	"encoding/json"
 	"io"
 
-	"github.com/edelwud/terraci/pkg/log"
+	log "github.com/caarlos0/log"
+
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
 	"github.com/edelwud/terraci/plugins/tfupdate/internal/domain"
 )

@@ -3,7 +3,8 @@ package gitlab
 import (
 	"context"
 
-	"github.com/edelwud/terraci/pkg/log"
+	log "github.com/caarlos0/log"
+
 	"github.com/edelwud/terraci/pkg/plugin"
 	mrpkg "github.com/edelwud/terraci/plugins/gitlab/internal/mr"
 )

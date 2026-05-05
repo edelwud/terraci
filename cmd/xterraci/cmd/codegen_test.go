@@ -32,7 +32,7 @@ func TestGenerateMainGo(t *testing.T) {
 	if strings.Contains(src, "os.Exit") {
 		t.Error("should not contain os.Exit")
 	}
-	if !strings.Contains(src, `"github.com/edelwud/terraci/pkg/log"`) {
+	if !strings.Contains(src, `log "github.com/caarlos0/log"`) {
 		t.Error("missing log import")
 	}
 	if strings.Contains(src, `"os"`) {

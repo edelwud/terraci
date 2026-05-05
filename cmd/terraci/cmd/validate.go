@@ -6,8 +6,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	log "github.com/caarlos0/log"
+
 	"github.com/edelwud/terraci/pkg/filter"
-	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/workflow"
 )
 
@@ -91,7 +92,7 @@ This command will:
 				log.WithError(err).Error("cannot determine execution order")
 			} else {
 				log.WithField("levels", len(levels)).Info("execution levels determined")
-				if log.IsDebug() {
+				if isDebug() {
 					log.IncreasePadding()
 					for i, level := range levels {
 						log.WithField("level", i).WithField("modules", len(level)).Debug("level")

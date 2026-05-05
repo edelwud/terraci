@@ -12,9 +12,8 @@ import (
 
 func TestPlugin_Commands_Registration(t *testing.T) {
 	p := newTestPlugin()
-	appCtx := newTestAppContext(t, t.TempDir())
 
-	cmds := p.Commands(appCtx)
+	cmds := p.Commands()
 	if len(cmds) != 1 {
 		t.Fatalf("Commands() returned %d commands, want 1", len(cmds))
 	}

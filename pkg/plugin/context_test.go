@@ -1,61 +1,42 @@
 package plugin
 
 import (
+	"context"
 	"errors"
-	"sync"
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/pipeline"
 )
 
-func TestAppContext_Freeze(t *testing.T) {
-	ctx := NewAppContext(AppContextOptions{
-		WorkDir:    "/tmp",
-		ServiceDir: "/tmp/.terraci",
-		Version:    "1.0",
-	})
-
-	if ctx.IsFrozen() {
-		t.Error("should not be frozen initially")
-	}
-
-	ctx.Freeze()
-
-	if !ctx.IsFrozen() {
-		t.Error("should be frozen after Freeze()")
-	}
-
-	ctx.Update(nil, "/other", "/other/.terraci", "2.0")
-	if ctx.WorkDir() != "/tmp" {
-		t.Error("frozen context should ignore framework updates")
-	}
-}
-
-func TestAppContext_ReportRegistry(t *testing.T) {
-	r := NewReportRegistry()
-	ctx := NewAppContext(AppContextOptions{Reports: r})
-
-	if ctx.Reports() == nil {
-		t.Fatal("Reports should not be nil")
-	}
-
-	if ctx.Reports() != r {
-		t.Error("Reports should be the same registry instance")
-	}
-}
-
-func TestAppContext_ConfigReturnsBoundPointer(t *testing.T) {
+func TestAppContext_Accessors(t *testing.T) {
 	cfg := config.DefaultConfig()
+	r := NewReportRegistry()
 	ctx := NewAppContext(AppContextOptions{
 		Config:     cfg,
 		WorkDir:    "/tmp",
 		ServiceDir: "/tmp/.terraci",
 		Version:    "1.0",
+		Reports:    r,
 	})
 
 	if ctx.Config() != cfg {
 		t.Error("Config() should return the bound configuration pointer")
+	}
+	if ctx.WorkDir() != "/tmp" {
+		t.Errorf("WorkDir() = %q, want /tmp", ctx.WorkDir())
+	}
+	if ctx.ServiceDir() != "/tmp/.terraci" {
+		t.Errorf("ServiceDir() = %q, want /tmp/.terraci", ctx.ServiceDir())
+	}
+	if ctx.Version() != "1.0" {
+		t.Errorf("Version() = %q, want 1.0", ctx.Version())
+	}
+	if ctx.Reports() != r {
+		t.Error("Reports() should be the same registry instance")
+	}
+	if ctx.Resolver() == nil {
+		t.Error("Resolver() should never return nil")
 	}
 }
 
@@ -67,6 +48,21 @@ func TestAppContext_NoResolverFallsBackToNoop(t *testing.T) {
 	if _, err := ctx.Resolver().ResolveCIProvider(); err == nil {
 		t.Error("noop resolver should reject ResolveCIProvider")
 	}
+	if !errors.Is(errFromCallSite(ctx.Resolver().ResolveCIProvider), ErrNoResolver) {
+		t.Error("noop resolver should return ErrNoResolver")
+	}
+}
+
+func errFromCallSite[T any](fn func() (T, error)) error {
+	_, err := fn()
+	return err
+}
+
+func TestAppContext_NoReportsCreatesDefaultRegistry(t *testing.T) {
+	ctx := NewAppContext(AppContextOptions{})
+	if ctx.Reports() == nil {
+		t.Fatal("Reports() should not be nil for empty options")
+	}
 }
 
 type contextTestPlugin struct {
@@ -77,6 +73,7 @@ func (p *contextTestPlugin) Name() string        { return p.name }
 func (p *contextTestPlugin) Description() string { return p.name }
 
 type contextTestResolver struct {
+	NoopResolver
 	plugin Plugin
 }
 
@@ -91,123 +88,64 @@ func (r contextTestResolver) GetPlugin(string) (Plugin, bool) {
 	return r.plugin, r.plugin != nil
 }
 
-func (contextTestResolver) ResolveCIProvider() (*ResolvedCIProvider, error) {
-	return nil, errors.New("not configured")
-}
-
-func (contextTestResolver) ResolveChangeDetector() (ChangeDetectionProvider, error) {
-	return nil, errors.New("not configured")
-}
-
-func (contextTestResolver) ResolveKVCacheProvider(string) (KVCacheProvider, error) {
-	return nil, errors.New("not configured")
-}
-
-func (contextTestResolver) ResolveBlobStoreProvider(string) (BlobStoreProvider, error) {
-	return nil, errors.New("not configured")
-}
-
-func (contextTestResolver) CollectContributions(*AppContext) []*pipeline.Contribution {
-	return nil
-}
-
-func (contextTestResolver) PreflightsForStartup() []Preflightable { return nil }
-
-func TestAppContext_BeginCommandRebindsResolver(t *testing.T) {
-	first := &contextTestPlugin{name: "cmd"}
-	second := &contextTestPlugin{name: "cmd"}
+func TestCommandInstance_LooksUpFromResolver(t *testing.T) {
+	target := &contextTestPlugin{name: "cmd"}
 	ctx := NewAppContext(AppContextOptions{
-		WorkDir:    "/tmp",
-		ServiceDir: "/tmp/.terraci",
-		Version:    "1.0",
-		Resolver:   contextTestResolver{plugin: first},
+		Resolver: contextTestResolver{plugin: target},
 	})
 
 	got, err := CommandInstance[*contextTestPlugin](ctx, "cmd")
 	if err != nil {
 		t.Fatalf("CommandInstance() error = %v", err)
 	}
-	if got != first {
-		t.Fatalf("CommandInstance() = %p, want first %p", got, first)
-	}
-
-	ctx.Freeze()
-	ctx.BeginCommand(contextTestResolver{plugin: second})
-	if ctx.IsFrozen() {
-		t.Fatal("BeginCommand should reopen frozen context")
-	}
-	got, err = CommandInstance[*contextTestPlugin](ctx, "cmd")
-	if err != nil {
-		t.Fatalf("CommandInstance() error = %v", err)
-	}
-	if got != second {
-		t.Fatalf("CommandInstance() = %p, want second %p", got, second)
-	}
-
-	ctx.Update(nil, "/next", "/next/.terraci", "2.0")
-	if ctx.WorkDir() != "/next" {
-		t.Fatalf("WorkDir() = %q, want /next", ctx.WorkDir())
+	if got != target {
+		t.Fatalf("CommandInstance() = %p, want %p", got, target)
 	}
 }
 
-// TestAppContext_ConcurrentReadWrite exercises -race: framework rebinds state
-// (BeginCommand/Update/Freeze) while plugin-side goroutines read accessors.
-// Without the RWMutex these would be flagged as data races.
-func TestAppContext_ConcurrentReadWrite(t *testing.T) {
-	t.Parallel()
-
-	ctx := NewAppContext(AppContextOptions{
-		Config:     config.DefaultConfig(),
-		WorkDir:    "/tmp/0",
-		ServiceDir: "/tmp/0/.terraci",
-		Version:    "0",
-		Resolver:   contextTestResolver{plugin: &contextTestPlugin{name: "cmd"}},
-	})
-
-	const writers = 4
-	const readers = 16
-	const iterations = 200
-
-	var wg sync.WaitGroup
-
-	for i := range writers {
-		wg.Go(func() {
-			for j := range iterations {
-				ctx.BeginCommand(contextTestResolver{plugin: &contextTestPlugin{name: "cmd"}})
-				ctx.Update(config.DefaultConfig(), "/tmp/wd", "/tmp/wd/.terraci", "v")
-				if (i+j)%2 == 0 {
-					ctx.Freeze()
-				}
-			}
-		})
+func TestCommandInstance_RejectsNilContext(t *testing.T) {
+	if _, err := CommandInstance[*contextTestPlugin](nil, "cmd"); err == nil {
+		t.Fatal("CommandInstance(nil) error = nil, want missing context error")
 	}
-
-	for range readers {
-		wg.Go(func() {
-			for range iterations {
-				_ = ctx.Config()
-				_ = ctx.WorkDir()
-				_ = ctx.ServiceDir()
-				_ = ctx.Version()
-				_ = ctx.Reports()
-				_ = ctx.Resolver()
-				_ = ctx.IsFrozen()
-			}
-		})
-	}
-
-	wg.Wait()
 }
 
-func TestCommandInstanceRejectsMissingResolver(t *testing.T) {
-	ctx := NewAppContext(AppContextOptions{
-		WorkDir:    "/tmp",
-		ServiceDir: "/tmp/.terraci",
-		Version:    "1.0",
-	})
-	ctx.resolver = nil
-
+func TestCommandInstance_RejectsNilResolver(t *testing.T) {
+	ctx := &AppContext{}
 	if _, err := CommandInstance[*contextTestPlugin](ctx, "cmd"); err == nil {
 		t.Fatal("CommandInstance() error = nil, want missing resolver error")
 	}
+}
+
+func TestWithFromContext_RoundTrips(t *testing.T) {
+	appCtx := NewAppContext(AppContextOptions{Version: "v"})
+	carrier := WithContext(context.Background(), appCtx)
+	got := FromContext(carrier)
+	if got != appCtx {
+		t.Fatalf("FromContext() = %p, want %p", got, appCtx)
+	}
+	if FromContext(context.Background()) != nil {
+		t.Fatal("FromContext on empty context should be nil")
+	}
+	if FromContext(context.TODO()) != nil {
+		// context.TODO is the canonical "no-value" Context; FromContext
+		// must still return nil for a context that has no AppContext key
+		// attached.
+		t.Fatal("FromContext(empty context) should be nil")
+	}
+}
+
+// Sanity: NoopResolver's CollectContributions and PreflightsForStartup
+// return nil so callers don't need nil-checks before iterating.
+func TestNoopResolver_LifecycleHooks(t *testing.T) {
+	var r NoopResolver
+	if got := r.CollectContributions(nil); got != nil {
+		t.Errorf("CollectContributions = %v, want nil", got)
+	}
+	if got := r.PreflightsForStartup(); got != nil {
+		t.Errorf("PreflightsForStartup = %v, want nil", got)
+	}
+
+	// Use pipeline import to keep it referenced — guards against future
+	// drift where the resolver no longer exposes pipeline types.
+	_ = []*pipeline.Contribution(nil)
 }

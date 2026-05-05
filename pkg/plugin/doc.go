@@ -32,7 +32,7 @@
 //
 // # Lifecycle
 //
-// The framework drives every plugin through five stages:
+// The framework drives every plugin through four stages per command run:
 //
 //	┌─────────────┐
 //	│  Register   │  init() → registry.RegisterFactory(factory)
@@ -52,30 +52,26 @@
 //	└──────┬──────┘
 //	       │
 //	┌──────▼──────┐
-//	│   Freeze    │  AppContext.Freeze() — core fields read-only.
-//	│             │  Plugin-local config remains mutable for FlagOverridable.
-//	└──────┬──────┘
-//	       │
-//	┌──────▼──────┐
 //	│  Execute    │  RunE in command — RuntimeProvider builds heavy
 //	│             │  state lazily; use-cases consume the typed runtime.
 //	└─────────────┘
 //
-// On every fresh command invocation in long-lived process scenarios (REPL,
-// daemon), AppContext.BeginCommand re-binds the resolver and unfreezes the
-// context for a new pass; the registry is rebuilt from scratch so plugin
-// instances do not leak state between command runs.
+// AppContext is constructed once per command run by the framework and
+// attached to cmd.Context() so plugin RunE callbacks can retrieve it via
+// plugin.FromContext. It is immutable — plugins receive a snapshot of
+// Config / WorkDir / ServiceDir / Resolver that does not change for the
+// duration of the command.
 //
 // # Thread-safety contract
 //
-// AppContext is safe for concurrent reads and writes. Accessors take an
-// internal RWMutex; the framework owns mutators (Update, SetResolver,
-// BeginCommand, Freeze) and exposes them only to its own startup path.
-// Plugins should:
+// AppContext fields are written exactly once at construction, so concurrent
+// reads from any goroutine are safe without synchronization. Plugins
+// should:
 //
 //   - Treat ctx.Config() and any field returned by accessors as read-only;
-//     mutating returned pointers may race with framework rebinds.
-//   - Treat ctx.Resolver() as never-nil (returns a no-op resolver when no
+//     mutating returned pointers may surprise other plugins sharing the
+//     same context.
+//   - Treat ctx.Resolver() as never-nil (returns NoopResolver{} when no
 //     real one is bound) and idempotent; capability lookups can run from
 //     any goroutine.
 //   - Treat plugin-local Config (BasePlugin[C].cfg) as mutable only via

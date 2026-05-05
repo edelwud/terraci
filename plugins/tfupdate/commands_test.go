@@ -10,15 +10,15 @@ import (
 
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/discovery"
+	"github.com/edelwud/terraci/pkg/plugin"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
 	"github.com/edelwud/terraci/plugins/tfupdate/internal/domain"
 )
 
 func TestPlugin_Commands_Registration(t *testing.T) {
 	p := newTestPlugin(t)
-	appCtx := newTestAppContext(t, t.TempDir())
 
-	cmds := p.Commands(appCtx)
+	cmds := p.Commands()
 	if len(cmds) != 1 {
 		t.Fatalf("Commands() returned %d commands, want 1", len(cmds))
 	}
@@ -92,9 +92,9 @@ func TestPlugin_Commands_RunE_NotConfigured(t *testing.T) {
 	p := newTestPlugin(t)
 	appCtx := newTestAppContext(t, t.TempDir())
 
-	cmds := p.Commands(appCtx)
+	cmds := p.Commands()
 	cmd := cmds[0]
-	cmd.SetContext(context.Background())
+	cmd.SetContext(plugin.WithContext(context.Background(), appCtx))
 
 	err := cmd.RunE(cmd, nil)
 	if err == nil {
@@ -285,9 +285,9 @@ func TestPlugin_RunCheck_NoModules(t *testing.T) {
 	workDir := t.TempDir()
 	appCtx := newTestCommandAppContext(t, workDir, p)
 
-	cmds := p.Commands(appCtx)
+	cmds := p.Commands()
 	cmd := cmds[0]
-	cmd.SetContext(context.Background())
+	cmd.SetContext(plugin.WithContext(context.Background(), appCtx))
 
 	err := cmd.RunE(cmd, nil)
 	if err == nil {
@@ -309,9 +309,9 @@ func TestPlugin_RunCheck_InvalidOptions(t *testing.T) {
 	workDir := t.TempDir()
 	appCtx := newTestCommandAppContext(t, workDir, p)
 
-	cmds := p.Commands(appCtx)
+	cmds := p.Commands()
 	cmd := cmds[0]
-	cmd.SetContext(context.Background())
+	cmd.SetContext(plugin.WithContext(context.Background(), appCtx))
 
 	err := cmd.RunE(cmd, nil)
 	if err == nil {
@@ -351,9 +351,9 @@ terraform {
 	}
 
 	appCtx := newTestCommandAppContext(t, workDir, p)
-	cmds := p.Commands(appCtx)
+	cmds := p.Commands()
 	cmd := cmds[0]
-	cmd.SetContext(context.Background())
+	cmd.SetContext(plugin.WithContext(context.Background(), appCtx))
 
 	err := cmd.RunE(cmd, nil)
 	if err != nil {
@@ -398,12 +398,19 @@ terraform {
 	}
 
 	// Create AppContext with empty ServiceDir to skip artifact saving
-	appCtx := newTestCommandAppContext(t, workDir, p)
-	appCtx.Update(appCtx.Config(), appCtx.WorkDir(), "", appCtx.Version())
+	base := newTestCommandAppContext(t, workDir, p)
+	appCtx := plugin.NewAppContext(plugin.AppContextOptions{
+		Config:     base.Config(),
+		WorkDir:    base.WorkDir(),
+		ServiceDir: "",
+		Version:    base.Version(),
+		Reports:    base.Reports(),
+		Resolver:   base.Resolver(),
+	})
 
-	cmds := p.Commands(appCtx)
+	cmds := p.Commands()
 	cmd := cmds[0]
-	cmd.SetContext(context.Background())
+	cmd.SetContext(plugin.WithContext(context.Background(), appCtx))
 
 	err := cmd.RunE(cmd, nil)
 	if err != nil {
@@ -439,9 +446,9 @@ terraform {
 	}
 
 	appCtx := newTestCommandAppContext(t, workDir, p)
-	cmds := p.Commands(appCtx)
+	cmds := p.Commands()
 	cmd := cmds[0]
-	cmd.SetContext(context.Background())
+	cmd.SetContext(plugin.WithContext(context.Background(), appCtx))
 
 	// Set flag overrides
 	cmd.Flags().Set("target", "providers")
@@ -465,12 +472,19 @@ func TestPlugin_RunCheck_DiscoverError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	appCtx := newTestCommandAppContext(t, workDir, p)
-	appCtx.Update(appCtx.Config(), filePath, appCtx.ServiceDir(), appCtx.Version())
+	base := newTestCommandAppContext(t, workDir, p)
+	appCtx := plugin.NewAppContext(plugin.AppContextOptions{
+		Config:     base.Config(),
+		WorkDir:    filePath,
+		ServiceDir: base.ServiceDir(),
+		Version:    base.Version(),
+		Reports:    base.Reports(),
+		Resolver:   base.Resolver(),
+	})
 
-	cmds := p.Commands(appCtx)
+	cmds := p.Commands()
 	cmd := cmds[0]
-	cmd.SetContext(context.Background())
+	cmd.SetContext(plugin.WithContext(context.Background(), appCtx))
 
 	err := cmd.RunE(cmd, nil)
 	if err == nil {
@@ -510,9 +524,9 @@ terraform {
 	}
 
 	appCtx := newTestCommandAppContext(t, workDir, p)
-	cmds := p.Commands(appCtx)
+	cmds := p.Commands()
 	cmd := cmds[0]
-	cmd.SetContext(context.Background())
+	cmd.SetContext(plugin.WithContext(context.Background(), appCtx))
 	cmd.Flags().Set("module", "vpc")
 
 	err := cmd.RunE(cmd, nil)

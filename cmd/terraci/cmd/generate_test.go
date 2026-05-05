@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/filter"
@@ -68,7 +70,16 @@ func TestResolveGenerateTargetsUsesWorkflowResolveTargets(t *testing.T) {
 	}
 	ff := &filter.Flags{SegmentArgs: []string{"environment=stage"}}
 
-	got, err := resolveGenerateTargets(context.Background(), app, result, true, "main", ff)
+	cmd := &cobra.Command{}
+	appCtx := plugin.NewAppContext(plugin.AppContextOptions{
+		Config:   app.Config,
+		WorkDir:  app.WorkDir,
+		Version:  app.Version,
+		Resolver: plugins,
+	})
+	cmd.SetContext(plugin.WithContext(context.Background(), appCtx))
+
+	got, err := resolveGenerateTargets(cmd, app, result, true, "main", ff)
 	if err != nil {
 		t.Fatalf("resolveGenerateTargets() error = %v", err)
 	}

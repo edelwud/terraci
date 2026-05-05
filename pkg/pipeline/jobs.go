@@ -4,8 +4,6 @@ import "github.com/edelwud/terraci/pkg/discovery"
 
 // ModuleCount returns the total number of module slots across all levels.
 // Counts both plan and apply slots as one — i.e. modules, not jobs.
-// Convenience method to replace the duplicated countModules helpers in
-// provider plugins (gitlab, github).
 func (ir *IR) ModuleCount() int {
 	if ir == nil {
 		return 0
@@ -42,6 +40,8 @@ func (k JobKind) NamePrefix() string {
 }
 
 // JobRef is a stable traversal view over every executable job in an IR.
+// JobRefs is the canonical IR enumeration entry point; per-phase / per-level
+// helpers below are scheduler-facing convenience wrappers.
 type JobRef struct {
 	Kind   JobKind
 	Job    *Job
@@ -88,45 +88,8 @@ func (ir *IR) JobRefs() []JobRef {
 	return refs
 }
 
-// JobNames returns names for every executable job in deterministic IR order.
-func (ir *IR) JobNames() []string {
-	refs := ir.JobRefs()
-	names := make([]string, 0, len(refs))
-	for i := range refs {
-		if refs[i].Job != nil {
-			names = append(names, refs[i].Job.Name)
-		}
-	}
-	return names
-}
-
-// AllPlanNames returns names of all plan jobs across all levels.
-func (ir *IR) AllPlanNames() []string {
-	refs := ir.JobRefs()
-	names := make([]string, 0, len(refs))
-	for i := range refs {
-		if refs[i].Kind == JobKindPlan && refs[i].Job != nil {
-			names = append(names, refs[i].Job.Name)
-		}
-	}
-	return names
-}
-
-// ContributedJobNames returns names of all contributed jobs.
-func (ir *IR) ContributedJobNames() []string {
-	if ir == nil {
-		return nil
-	}
-
-	names := make([]string, 0, len(ir.Jobs))
-	for i := range ir.Jobs {
-		names = append(names, ir.Jobs[i].Name)
-	}
-	return names
-}
-
 // JobsByPhase returns standalone contributed jobs whose Phase matches.
-// The result slice is freshly allocated and safe to mutate.
+// Used by the scheduler to compose pre/post-phase groups.
 func (ir *IR) JobsByPhase(phase Phase) []*Job {
 	if ir == nil {
 		return nil
@@ -171,4 +134,42 @@ func (ir *IR) moduleJobsForLevel(levelIdx int, plan bool) []*Job {
 		return jobs
 	}
 	return nil
+}
+
+// jobNames returns names for every executable job in deterministic IR order.
+// Internal helper backing builder dependency wiring and tests.
+func (ir *IR) jobNames() []string {
+	refs := ir.JobRefs()
+	names := make([]string, 0, len(refs))
+	for i := range refs {
+		if refs[i].Job != nil {
+			names = append(names, refs[i].Job.Name)
+		}
+	}
+	return names
+}
+
+// planNames returns names of all plan jobs across all levels.
+func (ir *IR) planNames() []string {
+	refs := ir.JobRefs()
+	names := make([]string, 0, len(refs))
+	for i := range refs {
+		if refs[i].Kind == JobKindPlan && refs[i].Job != nil {
+			names = append(names, refs[i].Job.Name)
+		}
+	}
+	return names
+}
+
+// contributedJobNames returns names of all contributed jobs.
+func (ir *IR) contributedJobNames() []string {
+	if ir == nil {
+		return nil
+	}
+
+	names := make([]string, 0, len(ir.Jobs))
+	for i := range ir.Jobs {
+		names = append(names, ir.Jobs[i].Name)
+	}
+	return names
 }

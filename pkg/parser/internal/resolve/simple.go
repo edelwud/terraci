@@ -3,7 +3,8 @@ package resolve
 import (
 	"github.com/hashicorp/hcl/v2"
 
-	"github.com/edelwud/terraci/pkg/log"
+	log "github.com/caarlos0/log"
+
 	"github.com/edelwud/terraci/pkg/parser/internal/exprfast"
 )
 

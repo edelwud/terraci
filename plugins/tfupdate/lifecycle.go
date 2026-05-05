@@ -3,7 +3,8 @@ package tfupdate
 import (
 	"context"
 
-	"github.com/edelwud/terraci/pkg/log"
+	log "github.com/caarlos0/log"
+
 	"github.com/edelwud/terraci/pkg/plugin"
 )
 

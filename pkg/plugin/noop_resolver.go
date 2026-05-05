@@ -6,26 +6,44 @@ import (
 	"github.com/edelwud/terraci/pkg/pipeline"
 )
 
-// noopResolver is the default Resolver bound to AppContext when none is
-// supplied. Lookups return nothing and resolution methods return a sentinel
-// error so plugins can always call ctx.Resolver() without nil-checks.
-type noopResolver struct{}
+// NoopResolver is the default-deny Resolver. It is bound to AppContext when
+// no real resolver is supplied (so plugins may always call ctx.Resolver()
+// without nil-checks) and is also intended for tests: embed it and override
+// only the methods relevant to the case at hand.
+type NoopResolver struct{}
 
-var errNoResolver = errors.New("plugin resolver is not configured")
+// ErrNoResolver is returned by NoopResolver capability lookups. Tests can
+// match it via errors.Is to assert the no-resolver path.
+var ErrNoResolver = errors.New("plugin resolver is not configured")
 
-func (noopResolver) All() []Plugin                   { return nil }
-func (noopResolver) GetPlugin(string) (Plugin, bool) { return nil, false }
-func (noopResolver) ResolveCIProvider() (*ResolvedCIProvider, error) {
-	return nil, errNoResolver
+// All returns no plugins.
+func (NoopResolver) All() []Plugin { return nil }
+
+// GetPlugin returns nothing.
+func (NoopResolver) GetPlugin(string) (Plugin, bool) { return nil, false }
+
+// ResolveCIProvider rejects with ErrNoResolver.
+func (NoopResolver) ResolveCIProvider() (*ResolvedCIProvider, error) {
+	return nil, ErrNoResolver
 }
-func (noopResolver) ResolveChangeDetector() (ChangeDetectionProvider, error) {
-	return nil, errNoResolver
+
+// ResolveChangeDetector rejects with ErrNoResolver.
+func (NoopResolver) ResolveChangeDetector() (ChangeDetectionProvider, error) {
+	return nil, ErrNoResolver
 }
-func (noopResolver) ResolveKVCacheProvider(string) (KVCacheProvider, error) {
-	return nil, errNoResolver
+
+// ResolveKVCacheProvider rejects with ErrNoResolver.
+func (NoopResolver) ResolveKVCacheProvider(string) (KVCacheProvider, error) {
+	return nil, ErrNoResolver
 }
-func (noopResolver) ResolveBlobStoreProvider(string) (BlobStoreProvider, error) {
-	return nil, errNoResolver
+
+// ResolveBlobStoreProvider rejects with ErrNoResolver.
+func (NoopResolver) ResolveBlobStoreProvider(string) (BlobStoreProvider, error) {
+	return nil, ErrNoResolver
 }
-func (noopResolver) CollectContributions(*AppContext) []*pipeline.Contribution { return nil }
-func (noopResolver) PreflightsForStartup() []Preflightable                     { return nil }
+
+// CollectContributions returns no contributions.
+func (NoopResolver) CollectContributions(*AppContext) []*pipeline.Contribution { return nil }
+
+// PreflightsForStartup returns no preflightables.
+func (NoopResolver) PreflightsForStartup() []Preflightable { return nil }

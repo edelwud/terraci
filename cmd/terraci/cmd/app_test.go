@@ -6,26 +6,24 @@ import (
 	"github.com/edelwud/terraci/pkg/plugin/registry"
 )
 
-func TestAppBeginCommandReplacesPluginRegistryAndReusesContextPointer(t *testing.T) {
-	app := &App{}
+func TestAppBuildContextReturnsFreshContextEachTime(t *testing.T) {
+	app := newApp("test", "abc", "today")
 
-	firstCtx := app.PluginContext()
-	firstPlugins := app.Plugins
-	firstCtx.Freeze()
+	first := app.BuildContext()
+	if first.Resolver() == nil {
+		t.Fatal("BuildContext should bind a resolver")
+	}
 
-	app.BeginCommand()
-	secondCtx := app.PluginContext()
+	app.ResetPluginsForCommand()
+	second := app.BuildContext()
 
-	if secondCtx != firstCtx {
-		t.Fatal("BeginCommand should keep the stable AppContext pointer used by registered commands")
+	if second == first {
+		t.Fatal("BuildContext should return a fresh AppContext per call")
 	}
-	if app.Plugins == firstPlugins {
-		t.Fatal("BeginCommand should install a fresh plugin registry")
+	if second.Reports() != first.Reports() {
+		t.Fatal("BuildContext should keep the long-lived reports registry across runs")
 	}
-	if secondCtx.IsFrozen() {
-		t.Fatal("BeginCommand should reopen AppContext for the next command")
-	}
-	if _, ok := secondCtx.Resolver().(*registry.Registry); !ok {
-		t.Fatalf("AppContext resolver = %T, want *registry.Registry", secondCtx.Resolver())
+	if _, ok := second.Resolver().(*registry.Registry); !ok {
+		t.Fatalf("AppContext resolver = %T, want *registry.Registry", second.Resolver())
 	}
 }

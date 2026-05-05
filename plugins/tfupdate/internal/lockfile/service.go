@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/edelwud/terraci/pkg/log"
+	log "github.com/caarlos0/log"
 )
 
 // Service materializes provider lock entries from registry metadata.

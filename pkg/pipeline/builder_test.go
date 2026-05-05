@@ -396,8 +396,8 @@ func TestBuild_MultipleModulesWithDependencies(t *testing.T) {
 		t.Fatalf("expected 2 levels, got %d", len(ir.Levels))
 	}
 
-	// Check AllPlanNames
-	planNames := ir.AllPlanNames()
+	// Check planNames
+	planNames := ir.planNames()
 	if len(planNames) != 2 {
 		t.Fatalf("expected 2 plan names, got %d", len(planNames))
 	}
@@ -428,11 +428,11 @@ func TestBuild_NoContributions(t *testing.T) {
 	}
 }
 
-func TestIR_AllPlanNames_Empty(t *testing.T) {
+func TestIR_PlanNames_Empty(t *testing.T) {
 	t.Parallel()
 
 	ir := &IR{}
-	names := ir.AllPlanNames()
+	names := ir.planNames()
 	if len(names) != 0 {
 		t.Errorf("expected 0 plan names, got %d", len(names))
 	}
@@ -447,7 +447,7 @@ func TestIR_ContributedJobNames(t *testing.T) {
 			{Name: "summary"},
 		},
 	}
-	names := ir.ContributedJobNames()
+	names := ir.contributedJobNames()
 	if len(names) != 2 {
 		t.Fatalf("expected 2 names, got %d", len(names))
 	}
@@ -489,11 +489,11 @@ func TestIR_JobRefs(t *testing.T) {
 		t.Fatalf("refs[2] = %#v, want level 2 apply module ref", refs[2])
 	}
 
-	names := ir.JobNames()
+	names := ir.jobNames()
 	wantNames := []string{"summary", "plan-svc-prod-eu-vpc", "apply-svc-prod-eu-vpc"}
 	for i := range wantNames {
 		if names[i] != wantNames[i] {
-			t.Fatalf("JobNames()[%d] = %q, want %q", i, names[i], wantNames[i])
+			t.Fatalf("jobNames()[%d] = %q, want %q", i, names[i], wantNames[i])
 		}
 	}
 }

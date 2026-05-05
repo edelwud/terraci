@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
@@ -138,9 +139,8 @@ func TestOutputText_UsesLogger(t *testing.T) {
 
 func TestPlugin_Commands_Registration(t *testing.T) {
 	p := newTestPlugin()
-	appCtx := plugintest.NewAppContext(t, t.TempDir())
 
-	cmds := p.Commands(appCtx)
+	cmds := p.Commands()
 	if len(cmds) != 1 {
 		t.Fatalf("Commands() returned %d commands, want 1", len(cmds))
 	}
@@ -163,13 +163,13 @@ func TestPlugin_Commands_RunE_NotConfigured(t *testing.T) {
 	p := newTestPlugin()
 	appCtx := plugintest.NewAppContext(t, t.TempDir())
 
-	cmds := p.Commands(appCtx)
+	cmds := p.Commands()
 	cmd := cmds[0]
 	checkCmd, _, err := cmd.Find([]string{"check"})
 	if err != nil {
 		t.Fatalf("Find(check) error = %v", err)
 	}
-	checkCmd.SetContext(context.Background())
+	checkCmd.SetContext(plugin.WithContext(context.Background(), appCtx))
 
 	err = checkCmd.RunE(checkCmd, nil)
 	if err == nil {

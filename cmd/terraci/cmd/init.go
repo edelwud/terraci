@@ -11,8 +11,9 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
+	log "github.com/caarlos0/log"
+
 	"github.com/edelwud/terraci/pkg/config"
-	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/initwiz"
 	"github.com/edelwud/terraci/pkg/plugin/registry"

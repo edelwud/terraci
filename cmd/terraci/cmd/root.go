@@ -6,20 +6,16 @@ import (
 
 	"github.com/spf13/cobra"
 
+	log "github.com/caarlos0/log"
+
 	"github.com/edelwud/terraci/pkg/config"
-	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/registry"
 )
 
 // NewRootCmd creates and returns the root cobra command with all subcommands.
 func NewRootCmd(version, commit, date string) *cobra.Command {
-	app := &App{
-		Version: version,
-		Commit:  commit,
-		Date:    date,
-		Plugins: registry.New(),
-	}
+	app := newApp(version, commit, date)
 
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -43,8 +39,8 @@ Features:
   - Git integration for changed-only pipelines
   - Parallel execution where possible`,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-			log.Init()
-			app.BeginCommand()
+			initLogger()
+			app.ResetPluginsForCommand()
 
 			verbose, verboseErr := cmd.Flags().GetBool("verbose")
 			if verboseErr == nil && verbose {
@@ -52,7 +48,7 @@ Features:
 			}
 
 			if app.logLevel != "" {
-				if levelErr := log.SetLevelFromString(app.logLevel); levelErr != nil {
+				if levelErr := setLogLevelFromString(app.logLevel); levelErr != nil {
 					return fmt.Errorf("invalid log level %q: %w", app.logLevel, levelErr)
 				}
 			}
@@ -63,6 +59,7 @@ Features:
 
 			// Skip config loading for commands that don't need it (marked with annotation)
 			if cmd.Annotations[annotationSkipConfig] == annotationTrue {
+				cmd.SetContext(plugin.WithContext(cmd.Context(), app.BuildContext()))
 				return nil
 			}
 
@@ -91,12 +88,14 @@ Features:
 				return err
 			}
 
+			appCtx := app.BuildContext()
+			cmd.SetContext(plugin.WithContext(cmd.Context(), appCtx))
+
 			// Run plugin preflight hooks (lifecycle stage 3) unless the
 			// command opts out via Annotations["skipPreflight"]="true".
 			// Read-only/utility commands (validate, schema, version, man,
 			// completion) opt out so plugins like `git` don't fail when the
 			// workdir isn't a checkout, etc.
-			appCtx := app.PluginContext()
 			if cmd.Annotations[annotationSkipPreflight] != annotationTrue {
 				log.Debug("running plugin preflight")
 				for _, p := range app.Plugins.PreflightsForStartup() {
@@ -107,13 +106,6 @@ Features:
 			} else {
 				log.Debug("skipping plugin preflight per command annotation")
 			}
-
-			// Freeze context after initialization. Freeze locks AppContext fields
-			// (Config / WorkDir / ServiceDir / Version / Resolver) — plugin
-			// instances retain their own mutable state for the duration of the
-			// command run. Provider plugins implementing FlagOverridable accept
-			// CLI overrides in their command's PreRunE, after this Freeze.
-			appCtx.Freeze()
 
 			return nil
 		},
@@ -136,10 +128,11 @@ Features:
 	rootCmd.AddCommand(newCompletionCmd(rootCmd))
 	rootCmd.AddCommand(newManCmd(rootCmd))
 
-	// Register plugin-provided commands
-	pluginCtx := app.PluginContext()
+	// Register plugin-provided commands. Commands() runs at registration
+	// time and must not capture state — plugins retrieve the per-run
+	// AppContext from cmd.Context() inside RunE via plugin.FromContext.
 	for _, cp := range registry.ByCapabilityFrom[plugin.CommandProvider](app.Plugins) {
-		for _, cmd := range cp.Commands(pluginCtx) {
+		for _, cmd := range cp.Commands() {
 			rootCmd.AddCommand(cmd)
 		}
 	}

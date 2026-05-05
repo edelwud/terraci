@@ -7,9 +7,10 @@ import (
 
 	"github.com/spf13/cobra"
 
+	log "github.com/caarlos0/log"
+
 	"github.com/edelwud/terraci/pkg/filter"
 	"github.com/edelwud/terraci/pkg/graph"
-	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/workflow"
 )
 

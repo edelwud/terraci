@@ -7,7 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/edelwud/terraci/pkg/log"
+	log "github.com/caarlos0/log"
+
 	"github.com/edelwud/terraci/pkg/plugin"
 )
 
@@ -17,7 +18,7 @@ const (
 )
 
 // Commands returns the CLI commands provided by the cost plugin.
-func (p *Plugin) Commands(appCtx *plugin.AppContext) []*cobra.Command {
+func (p *Plugin) Commands() []*cobra.Command {
 	var (
 		costModulePath string
 		costOutputFmt  string
@@ -33,6 +34,7 @@ Examples:
   terraci cost --module platform/prod/eu-central-1/rds
   terraci cost --output json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			appCtx := plugin.FromContext(cmd.Context())
 			current, err := plugin.CommandInstance[*Plugin](appCtx, p.Name())
 			if err != nil {
 				return err

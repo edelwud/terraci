@@ -6,8 +6,9 @@ import (
 	"io"
 	"os"
 
+	log "github.com/caarlos0/log"
+
 	"github.com/edelwud/terraci/pkg/ci"
-	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/plugin"
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )

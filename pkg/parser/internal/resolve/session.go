@@ -6,7 +6,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/edelwud/terraci/pkg/log"
+	log "github.com/caarlos0/log"
 )
 
 type resolveSession struct {

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/pipeline"
+	"github.com/edelwud/terraci/pkg/plugin"
 )
 
 func TestPlugin_PipelineContribution(t *testing.T) {
@@ -46,10 +47,17 @@ func TestPlugin_PipelineContribution(t *testing.T) {
 
 func TestPlugin_PipelineContribution_EmptyServiceDir(t *testing.T) {
 	p := newTestPlugin(t)
-	appCtx := newTestAppContext(t, t.TempDir())
-	cfg := appCtx.Config()
+	base := newTestAppContext(t, t.TempDir())
+	cfg := base.Config()
 	cfg.ServiceDir = ""
-	appCtx.Update(cfg, appCtx.WorkDir(), appCtx.ServiceDir(), appCtx.Version())
+	appCtx := plugin.NewAppContext(plugin.AppContextOptions{
+		Config:     cfg,
+		WorkDir:    base.WorkDir(),
+		ServiceDir: base.ServiceDir(),
+		Version:    base.Version(),
+		Reports:    base.Reports(),
+		Resolver:   base.Resolver(),
+	})
 
 	contrib := p.PipelineContribution(appCtx)
 	job := contrib.Jobs[0]

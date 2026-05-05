@@ -3,7 +3,8 @@ package policy
 import (
 	"context"
 
-	"github.com/edelwud/terraci/pkg/log"
+	log "github.com/caarlos0/log"
+
 	"github.com/edelwud/terraci/pkg/plugin"
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )

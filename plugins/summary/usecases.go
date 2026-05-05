@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	log "github.com/caarlos0/log"
+
 	"github.com/edelwud/terraci/pkg/ci"
-	"github.com/edelwud/terraci/pkg/log"
 	"github.com/edelwud/terraci/pkg/planresults"
 	"github.com/edelwud/terraci/pkg/plugin"
 	summaryengine "github.com/edelwud/terraci/plugins/summary/internal"

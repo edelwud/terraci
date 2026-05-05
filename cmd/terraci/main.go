@@ -1,8 +1,9 @@
 package main
 
 import (
+	log "github.com/caarlos0/log"
+
 	"github.com/edelwud/terraci/cmd/terraci/cmd"
-	"github.com/edelwud/terraci/pkg/log"
 
 	// Built-in plugins (blank imports trigger init() registration)
 	_ "github.com/edelwud/terraci/plugins/cost"
