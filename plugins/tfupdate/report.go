@@ -62,14 +62,7 @@ func buildUpdateReport(result *tfupdateengine.UpdateResult) (*ci.Report, error) 
 		return nil, fmt.Errorf("build tfupdate report: %w", err)
 	}
 
-	return &ci.Report{
-		Producer:   "tfupdate",
-		Title:      "Dependency Update Check",
-		Status:     status,
-		Summary:    summaryText,
-		Provenance: ci.NewProvenance("", "", ""),
-		Sections:   []ci.ReportSection{section},
-	}, nil
+	return ci.BuildReport("tfupdate", "Dependency Update Check", status, summaryText, section), nil
 }
 
 func mapUpdateStatus(status domain.UpdateStatus) ci.DependencyUpdateStatus {

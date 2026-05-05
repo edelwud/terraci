@@ -2,10 +2,10 @@ package dependency
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/edelwud/terraci/pkg/discovery"
-	terrierrors "github.com/edelwud/terraci/pkg/errors"
 	"github.com/edelwud/terraci/pkg/parser/model"
 )
 
@@ -34,7 +34,7 @@ func (c *parsedModuleCache) Get(ctx context.Context, module *discovery.Module) (
 
 	parsed, err := c.parser.ParseModule(ctx, module.Path)
 	if err != nil {
-		return nil, &terrierrors.ParseError{Module: module.ID(), Err: err}
+		return nil, fmt.Errorf("parse %s: %w", module.ID(), err)
 	}
 
 	c.mu.Lock()

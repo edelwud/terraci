@@ -1,6 +1,9 @@
 package github
 
-import "github.com/edelwud/terraci/pkg/plugin/initwiz"
+import (
+	"github.com/edelwud/terraci/pkg/plugin/initwiz"
+	"github.com/edelwud/terraci/plugins/internal/ciplugin"
+)
 
 // InitContributor — contributes GitHub Actions fields to the init wizard.
 
@@ -29,28 +32,7 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 				},
 			},
 		},
-		{
-			Title:    "Pipeline",
-			Category: initwiz.CategoryPipeline,
-			Order:    100,
-			ShowWhen: showGitHub,
-			Fields: []initwiz.InitField{
-				{
-					Key:         "plan_enabled",
-					Title:       "Enable plan stage?",
-					Description: "Generate separate plan + apply jobs",
-					Type:        initwiz.FieldBool,
-					Default:     true,
-				},
-				{
-					Key:         "auto_approve",
-					Title:       "Auto-approve applies?",
-					Description: "Skip manual approval for terraform apply",
-					Type:        initwiz.FieldBool,
-					Default:     false,
-				},
-			},
-		},
+		ciplugin.PipelineGroup("github"),
 	}
 }
 

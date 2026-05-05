@@ -87,14 +87,7 @@ func buildCostReport(result *model.EstimateResult) (*ci.Report, error) {
 		return nil, fmt.Errorf("build cost report: %w", err)
 	}
 
-	return &ci.Report{
-		Producer:   pluginName,
-		Title:      "Cost Estimation",
-		Status:     status,
-		Summary:    summary,
-		Provenance: ci.NewProvenance("", "", ""),
-		Sections:   []ci.ReportSection{section},
-	}, nil
+	return ci.BuildReport(pluginName, "Cost Estimation", status, summary, section), nil
 }
 
 func buildCostReportSummary(result *model.EstimateResult, moduleCount int) string {

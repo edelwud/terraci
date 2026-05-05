@@ -9,22 +9,20 @@ import (
 	"path/filepath"
 
 	"go.yaml.in/yaml/v4"
-
-	terrierrors "github.com/edelwud/terraci/pkg/errors"
 )
 
 // Load reads configuration from a file
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, &terrierrors.ConfigError{Path: path, Err: fmt.Errorf("read: %w", err)}
+		return nil, fmt.Errorf("config %s: read: %w", path, err)
 	}
 
 	cfg := DefaultConfig()
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
 	if unmarshalErr := dec.Decode(cfg); unmarshalErr != nil && !errors.Is(unmarshalErr, io.EOF) {
-		return nil, &terrierrors.ConfigError{Path: path, Err: fmt.Errorf("parse: %w", unmarshalErr)}
+		return nil, fmt.Errorf("config %s: parse: %w", path, unmarshalErr)
 	}
 
 	segments, parseErr := ParsePattern(cfg.Structure.Pattern)
@@ -33,7 +31,7 @@ func Load(path string) (*Config, error) {
 	}
 
 	if err := cfg.Validate(); err != nil {
-		return nil, &terrierrors.ConfigError{Path: path, Err: err}
+		return nil, fmt.Errorf("config %s: %w", path, err)
 	}
 
 	return cfg, nil

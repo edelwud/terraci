@@ -8,12 +8,7 @@ import (
 )
 
 func buildPolicyReport(summary *policyengine.Summary) (*ci.Report, error) {
-	status := ci.ReportStatusPass
-	if summary.FailedModules > 0 {
-		status = ci.ReportStatusFail
-	} else if summary.WarnedModules > 0 {
-		status = ci.ReportStatusWarn
-	}
+	status := ci.StatusFromCounts(summary.FailedModules, summary.WarnedModules)
 
 	rows := make([]ci.FindingRow, 0, len(summary.Results))
 	for i := range summary.Results {
@@ -58,12 +53,5 @@ func buildPolicyReport(summary *policyengine.Summary) (*ci.Report, error) {
 		return nil, fmt.Errorf("build policy report: %w", err)
 	}
 
-	return &ci.Report{
-		Producer:   "policy",
-		Title:      "Policy Check",
-		Status:     status,
-		Summary:    summaryText,
-		Provenance: ci.NewProvenance("", "", ""),
-		Sections:   []ci.ReportSection{section},
-	}, nil
+	return ci.BuildReport("policy", "Policy Check", status, summaryText, section), nil
 }
