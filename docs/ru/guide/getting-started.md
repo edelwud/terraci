@@ -129,7 +129,13 @@ terraci generate --changed-only --base-ref main -o .gitlab-ci.yml
 ```
 
 ::: tip CI окружения
-TerraCi автоматически получает remote-ссылки при необходимости, поэтому `--changed-only` работает из коробки в GitLab CI и GitHub Actions даже с shallow clone.
+TerraCi разрешает merge-base через go-git, поэтому `--changed-only` работает против любой push-ref'и. CI-раннеры, клонирующие с `--depth 1` (по умолчанию в GitLab и GitHub), нуждаются в полной истории для точного диффа — либо увеличьте `GIT_DEPTH` (или `fetch-depth: 0` в actions/checkout), либо включите авто-unshallow:
+
+```yaml
+extensions:
+  git:
+    auto_unshallow: true   # выполнит fetch с depth=0 и очистит .git/shallow при необходимости
+```
 :::
 
 ## Структура проекта

@@ -31,6 +31,34 @@ func (c *Client) IsGitRepo() bool {
 	return err == nil
 }
 
+// Unshallow deepens a shallow clone via go-git: fetches the full origin
+// history with no depth limit, then clears the .git/shallow list so future
+// IsShallow checks return false. Equivalent to `git fetch --unshallow`.
+func (c *Client) Unshallow() error {
+	repo, err := c.openRepo()
+	if err != nil {
+		return fmt.Errorf("open repository: %w", err)
+	}
+
+	err = repo.Fetch(&gogit.FetchOptions{
+		RemoteName: "origin",
+		RefSpecs:   []config.RefSpec{"+refs/heads/*:refs/remotes/origin/*"},
+		Tags:       gogit.AllTags,
+		Depth:      0,
+		Force:      true,
+	})
+	if err != nil && !errors.Is(err, gogit.NoErrAlreadyUpToDate) {
+		return fmt.Errorf("deep fetch: %w", err)
+	}
+
+	if err := repo.Storer.SetShallow(nil); err != nil {
+		return fmt.Errorf("clear shallow list: %w", err)
+	}
+
+	c.fetched = true
+	return nil
+}
+
 // Fetch fetches all refs from the origin remote.
 func (c *Client) Fetch() error {
 	if c.fetched {

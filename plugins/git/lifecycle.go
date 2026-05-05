@@ -19,6 +19,13 @@ func (p *Plugin) Preflight(_ context.Context, appCtx *plugin.AppContext) error {
 
 	log.WithField("branch", client.GetDefaultBranch()).Debug("git: repository detected")
 
+	if shallow, err := client.IsShallow(); err == nil && shallow {
+		cfg := p.Config()
+		if cfg == nil || !cfg.AutoUnshallow {
+			log.Warn("git: shallow clone detected; --changed-only will fail with ErrShallowRepository. Enable extensions.git.auto_unshallow or run `git fetch --unshallow` before invoking change detection.")
+		}
+	}
+
 	return nil
 }
 func (p *Plugin) resolveRef(baseRef string, client *gitclient.Client) string {

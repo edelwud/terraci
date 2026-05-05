@@ -9,11 +9,17 @@ import (
 const pluginName = "git"
 
 func init() {
-	registry.RegisterFactory(func() plugin.Plugin { return &Plugin{} })
+	registry.RegisterFactory(func() plugin.Plugin {
+		return &Plugin{BasePlugin: plugin.BasePlugin[*Config]{
+			PluginName: pluginName,
+			PluginDesc: "Git change detection for incremental pipelines",
+			EnableMode: plugin.EnabledAlways,
+			DefaultCfg: func() *Config { return &Config{} },
+		}}
+	})
 }
 
 // Plugin is the Git change detection plugin.
-type Plugin struct{}
-
-func (p *Plugin) Name() string        { return pluginName }
-func (p *Plugin) Description() string { return "Git change detection for incremental pipelines" }
+type Plugin struct {
+	plugin.BasePlugin[*Config]
+}

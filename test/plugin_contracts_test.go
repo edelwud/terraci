@@ -31,7 +31,8 @@ func TestBuiltInPluginContractMatrix(t *testing.T) {
 			configLoader: true,
 		},
 		"git": {
-			preflight: true,
+			configLoader: true,
+			preflight:    true,
 		},
 		"github": {
 			configLoader: true,
