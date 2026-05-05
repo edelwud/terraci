@@ -14,8 +14,8 @@ func DefaultConfig() *Config {
 			Parallelism: 4,
 		},
 		Structure: StructureConfig{
-			Pattern:  "{service}/{environment}/{region}/{module}",
-			Segments: PatternSegments{"service", "environment", "region", "module"},
+			Pattern:  DefaultPattern,
+			Segments: DefaultSegments(),
 		},
 		Extensions: make(map[string]yaml.Node),
 	}

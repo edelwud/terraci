@@ -72,7 +72,11 @@ linters:
       check-blank: true
     goconst:
       min-len: 3
-      min-occurrences: 3
+      # 5 occurrences (raised from 3) keeps the lint actionable: AWS region
+      # codes / common attribute keys ("type", "size", "key") naturally
+      # repeat across hundreds of files without buying anything by being
+      # extracted into named constants.
+      min-occurrences: 5
     gocritic:
       disabled-checks:
         - whyNoLint

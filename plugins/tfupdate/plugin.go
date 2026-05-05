@@ -8,10 +8,13 @@ import (
 	tfregistry "github.com/edelwud/terraci/plugins/tfupdate/internal/registry"
 )
 
+// pluginName is the canonical name of the tfupdate plugin.
+const pluginName = "tfupdate"
+
 func init() {
 	pluginregistry.RegisterFactory(func() plugin.Plugin {
 		return &Plugin{BasePlugin: plugin.BasePlugin[*tfupdateengine.UpdateConfig]{
-			PluginName: "tfupdate",
+			PluginName: pluginName,
 			PluginDesc: "Terraform dependency resolver and lock synchronizer",
 			EnableMode: plugin.EnabledExplicitly,
 			DefaultCfg: tfupdateengine.DefaultConfig,

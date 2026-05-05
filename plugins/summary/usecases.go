@@ -12,7 +12,13 @@ import (
 	summaryengine "github.com/edelwud/terraci/plugins/summary/internal"
 )
 
-const summaryPluginName = "summary"
+// pluginName is the canonical name of the summary plugin. Exported across
+// summary package files so that goconst sees a single source of truth.
+const pluginName = "summary"
+
+// summaryPluginName is the historical name of pluginName, kept as an alias
+// so existing reference points still compile.
+const summaryPluginName = pluginName
 
 type summaryProvider interface {
 	CommitSHA() string

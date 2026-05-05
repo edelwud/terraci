@@ -98,7 +98,7 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribut
 	}
 
 	return &initwiz.InitContribution{
-		PluginKey: "tfupdate",
+		PluginKey: pluginName,
 		Config:    cfg,
 	}
 }

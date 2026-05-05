@@ -15,8 +15,12 @@ import (
 )
 
 const (
-	DefaultBaseURL     = "https://registry.terraform.io/v1"
-	DefaultHTTPTimeout = 30 * time.Second
+	// DefaultRegistryHost is the canonical hostname for the public Terraform
+	// Registry, used as the fallback when a module/provider source omits a
+	// host component.
+	DefaultRegistryHost = "registry.terraform.io"
+	DefaultBaseURL      = "https://" + DefaultRegistryHost + "/v1"
+	DefaultHTTPTimeout  = 30 * time.Second
 )
 
 // Client implements the Terraform Registry HTTP API.
@@ -213,7 +217,7 @@ func (c *Client) providerBaseURL(hostname string) string {
 		return c.baseURL
 	}
 	if hostname == "" {
-		hostname = "registry.terraform.io"
+		hostname = DefaultRegistryHost
 	}
 	return "https://" + hostname + "/v1"
 }
@@ -223,7 +227,7 @@ func (c *Client) moduleBaseURL(hostname string) string {
 		return c.baseURL
 	}
 	if hostname == "" {
-		hostname = "registry.terraform.io"
+		hostname = DefaultRegistryHost
 	}
 	return "https://" + hostname + "/v1"
 }

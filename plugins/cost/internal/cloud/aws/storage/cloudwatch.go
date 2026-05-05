@@ -13,6 +13,11 @@ const (
 	CloudWatchStandardAlarmCost    = 0.10
 	CloudWatchHighResAlarmCost     = 0.30
 	HighResolutionThresholdSeconds = 60
+
+	// alarmResolutionHigh / alarmResolutionStandard are the resolution
+	// labels surfaced in the Describe payload and asserted in tests.
+	alarmResolutionHigh     = "high"
+	alarmResolutionStandard = "standard"
 )
 
 // LogGroupSpec declares aws_cloudwatch_log_group cost estimation.
@@ -39,7 +44,7 @@ func AlarmSpec() resourcespec.TypedSpec[alarmAttrs] {
 		Describe: &resourcespec.TypedDescribeSpec[alarmAttrs]{
 			BuildFunc: func(_ *pricing.Price, p alarmAttrs) map[string]string {
 				return awskit.NewDescribeBuilder().
-					String("resolution", map[bool]string{true: "high", false: "standard"}[p.Period > 0 && p.Period < HighResolutionThresholdSeconds]).
+					String("resolution", map[bool]string{true: alarmResolutionHigh, false: alarmResolutionStandard}[p.Period > 0 && p.Period < HighResolutionThresholdSeconds]).
 					Map()
 			},
 		},

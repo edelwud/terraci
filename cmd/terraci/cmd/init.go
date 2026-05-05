@@ -69,7 +69,7 @@ Examples:
 
 				newCfg = buildConfigFromState(app.Plugins, state)
 			} else {
-				if !term.IsTerminal(int(os.Stdin.Fd())) { //nolint:gosec // file descriptors fit in int
+				if !term.IsTerminal(int(os.Stdin.Fd())) {
 					return errors.New(
 						"terraci init: stdin is not a TTY — pass --ci to accept defaults, " +
 							"or supply --provider / --binary / --pattern to drive non-interactive setup",

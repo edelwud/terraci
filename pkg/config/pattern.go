@@ -7,6 +7,24 @@ import (
 	"strings"
 )
 
+// Canonical segment names used by the default 4-segment pattern. Centralized
+// here so other packages can reference them by name rather than repeating
+// string literals.
+const (
+	SegmentService     = "service"
+	SegmentEnvironment = "environment"
+	SegmentRegion      = "region"
+	SegmentModule      = "module"
+)
+
+// DefaultPattern is the canonical 4-segment structure pattern.
+const DefaultPattern = "{" + SegmentService + "}/{" + SegmentEnvironment + "}/{" + SegmentRegion + "}/{" + SegmentModule + "}"
+
+// DefaultSegments returns the segment names matching DefaultPattern.
+func DefaultSegments() PatternSegments {
+	return PatternSegments{SegmentService, SegmentEnvironment, SegmentRegion, SegmentModule}
+}
+
 // PatternSegments represents the ordered list of placeholder names from a structure pattern.
 // For example, "{service}/{environment}/{region}/{module}" yields ["service", "environment", "region", "module"].
 type PatternSegments []string

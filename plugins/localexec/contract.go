@@ -19,12 +19,19 @@ const (
 	ExecutionModePlan
 )
 
+// CLI subcommand names exposed by local-exec. Centralized so cobra
+// definitions, mode strings, and tests share one source of truth.
+const (
+	cmdRun  = "run"
+	cmdPlan = "plan"
+)
+
 func (m ExecutionMode) String() string {
 	switch m {
 	case ExecutionModeRun:
-		return "run"
+		return cmdRun
 	case ExecutionModePlan:
-		return "plan"
+		return cmdPlan
 	default:
 		return fmt.Sprintf("ExecutionMode(%d)", m)
 	}

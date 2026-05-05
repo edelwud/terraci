@@ -8,16 +8,23 @@ import (
 	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
 )
 
+// pluginName is the canonical provider name of the GitLab plugin.
+const pluginName = "gitlab"
+
+// defaultStagesPrefix is the default GitLab CI stages-prefix used by both
+// the plugin defaults and the init wizard.
+const defaultStagesPrefix = "deploy"
+
 func init() {
 	registry.RegisterFactory(func() plugin.Plugin {
 		return &Plugin{BasePlugin: plugin.BasePlugin[*configpkg.Config]{
-			PluginName: "gitlab",
+			PluginName: pluginName,
 			PluginDesc: "GitLab CI pipeline generation and MR comments",
 			EnableMode: plugin.EnabledWhenConfigured,
 			DefaultCfg: func() *configpkg.Config {
 				return &configpkg.Config{
 					Image:        configpkg.Image{Name: "hashicorp/terraform:1.6"},
-					StagesPrefix: "deploy",
+					StagesPrefix: defaultStagesPrefix,
 					Parallelism:  5,
 					CacheEnabled: true,
 				}

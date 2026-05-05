@@ -60,7 +60,7 @@ match, the command exits cleanly after logging "no modules to process".`,
 func newPlanCmd() *cobra.Command {
 	var sf sharedFlags
 	cmd := &cobra.Command{
-		Use:   "plan",
+		Use:   cmdPlan,
 		Short: "Run plan flow locally and finish with summary jobs",
 		Long: `Run local planning for the selected modules and then execute finalize jobs
 such as summary reporting. local-exec always prints the execution summary and,
@@ -84,7 +84,7 @@ without error after logging "no modules to process".`,
 func newRunCmd() *cobra.Command {
 	var sf sharedFlags
 	cmd := &cobra.Command{
-		Use:   "run",
+		Use:   cmdRun,
 		Short: "Run the full flow locally (plan, apply, finalize)",
 		Long: `Run the full local execution flow for the selected modules: plan, apply,
 and finalize jobs. local-exec always prints the execution summary and, when the

@@ -9,7 +9,7 @@ import (
 // Commands returns the `terraci summary` command.
 func (p *Plugin) Commands() []*cobra.Command {
 	return []*cobra.Command{{
-		Use:   "summary",
+		Use:   pluginName,
 		Short: "Create MR/PR comment from plan results",
 		Long: `Collects terraform plan results from artifacts and creates/updates
 a summary comment on the merge/pull request.

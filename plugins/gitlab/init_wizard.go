@@ -25,7 +25,7 @@ const (
 // InitGroups returns the init wizard group specs for GitLab CI.
 func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 	showGitLab := func(s *initwiz.StateMap) bool {
-		return s.Provider() == "gitlab"
+		return s.Provider() == pluginName
 	}
 
 	return []*initwiz.InitGroupSpec{
@@ -48,8 +48,8 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 					Title:       "Stages Prefix",
 					Description: "Prefix for pipeline stage names (e.g. deploy-plan-0)",
 					Type:        initwiz.FieldString,
-					Default:     "deploy",
-					Placeholder: "deploy",
+					Default:     defaultStagesPrefix,
+					Placeholder: defaultStagesPrefix,
 				},
 				{
 					Key:         keyGitlabCacheEnabled,
@@ -60,13 +60,13 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 				},
 			},
 		},
-		ciplugin.PipelineGroup("gitlab"),
+		ciplugin.PipelineGroup(pluginName),
 	}
 }
 
 // BuildInitConfig builds the GitLab CI init contribution.
 func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribution {
-	if state.Provider() != "gitlab" {
+	if state.Provider() != pluginName {
 		return nil
 	}
 	binary := state.Binary()
@@ -85,7 +85,7 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribut
 
 	stagesPrefix := state.String(keyGitlabStagesPrefix)
 	if stagesPrefix == "" {
-		stagesPrefix = "deploy"
+		stagesPrefix = defaultStagesPrefix
 	}
 
 	cacheEnabled := true
@@ -110,7 +110,7 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribut
 	}
 
 	return &initwiz.InitContribution{
-		PluginKey: "gitlab",
+		PluginKey: pluginName,
 		Config:    cfg,
 	}
 }

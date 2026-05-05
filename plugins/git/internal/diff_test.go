@@ -23,6 +23,7 @@ func TestGetChangedFiles_RejectsShallowRepository(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlainInit: %v", err)
 	}
+	disableCommitSigning(t, repo)
 	addCommit(t, dir, repo, "main.tf", "# initial", "init")
 	addCommit(t, dir, repo, "main.tf", "# updated", "update")
 

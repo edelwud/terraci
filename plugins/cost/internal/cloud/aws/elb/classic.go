@@ -9,6 +9,9 @@ import (
 
 const (
 	DefaultClassicLBHourlyCost = 0.025
+
+	// describeKeyType is the Describe payload key for load-balancer type.
+	describeKeyType = "type"
 )
 
 // ClassicSpec declares aws_elb cost estimation.
@@ -28,7 +31,7 @@ func ClassicSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[resourcespec.No
 		},
 		Describe: &resourcespec.TypedDescribeSpec[resourcespec.NoAttrs]{
 			BuildFunc: func(_ *pricing.Price, _ resourcespec.NoAttrs) map[string]string {
-				return map[string]string{"type": "classic"}
+				return map[string]string{describeKeyType: "classic"}
 			},
 		},
 		Standard: &resourcespec.TypedStandardPricingSpec[resourcespec.NoAttrs]{

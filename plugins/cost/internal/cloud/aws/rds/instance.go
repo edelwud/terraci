@@ -29,8 +29,12 @@ const (
 	AuroraIOOptStorageCostPerGB = 0.225
 
 	// Default engine
-	DefaultEngine       = "mysql"
+	DefaultEngine       = engineMySQL
 	DefaultAuroraEngine = "aurora-mysql"
+
+	// Lowercase engine names used in mapRDSEngine and tests.
+	engineMySQL    = "mysql"
+	enginePostgres = "postgres"
 
 	// Deployment options
 	DeploymentSingleAZ = "Single-AZ"
@@ -132,9 +136,9 @@ func mapRDSEngine(engine string) string {
 		return EngineAuroraPostgreSQL
 	case strings.HasPrefix(engine, "aurora"):
 		return EngineAuroraMySQL
-	case engine == "mysql":
+	case engine == engineMySQL:
 		return EngineMySQL
-	case engine == "postgres", engine == "postgresql":
+	case engine == enginePostgres, engine == "postgresql":
 		return EnginePostgreSQL
 	case engine == "mariadb":
 		return EngineMariaDB

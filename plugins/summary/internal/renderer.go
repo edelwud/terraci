@@ -29,6 +29,11 @@ const (
 	minCostThreshold      = 0.01
 	thousandCostThreshold = 1000
 	shortSHALength        = 8
+
+	// Section titles surfaced to humans; matched against producer kinds in
+	// sectionTitle and reused by tests so the strings cannot drift.
+	sectionTitleCost   = "Cost Estimation"
+	sectionTitlePolicy = "Policy Check"
 )
 
 // CommentMarker is used to identify terraci comments for updates
@@ -490,9 +495,9 @@ func sectionTitle(section ci.ReportSection) string {
 	}
 	switch section.Kind {
 	case costChangesSectionKind:
-		return "Cost Estimation"
+		return sectionTitleCost
 	case ci.ReportSectionKindFindings:
-		return "Policy Check"
+		return sectionTitlePolicy
 	case ci.ReportSectionKindDependencyUpdates:
 		return "Dependency Update Check"
 	case ci.ReportSectionKindOverview:

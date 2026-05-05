@@ -11,7 +11,7 @@ import (
 func init() {
 	registry.RegisterFactory(func() plugin.Plugin {
 		return &Plugin{BasePlugin: plugin.BasePlugin[*summaryengine.Config]{
-			PluginName: "summary",
+			PluginName: pluginName,
 			PluginDesc: "MR/PR comment posting from plan results",
 			EnableMode: plugin.EnabledByDefault,
 			DefaultCfg: func() *summaryengine.Config {

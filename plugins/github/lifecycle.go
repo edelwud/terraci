@@ -17,7 +17,7 @@ func (p *Plugin) Preflight(_ context.Context, _ *plugin.AppContext) error {
 		cfg = c
 	}
 	return ciplugin.Preflight(cfg, p.DetectEnv, ciplugin.PreflightLog{
-		ProviderName: "github",
+		ProviderName: pluginName,
 		ContextLabel: "PR",
 		DetectInContext: func() (any, bool) {
 			ctx := prpkg.DetectContext()

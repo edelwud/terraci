@@ -13,6 +13,11 @@ import (
 	"github.com/edelwud/terraci/pkg/parser/model"
 )
 
+// DependencyTypeRemoteState marks a dependency derived from a
+// terraform_remote_state data source. Reused by tests so the literal stays
+// in one place.
+const DependencyTypeRemoteState = "remote_state"
+
 type dependencySession struct {
 	ctx       context.Context
 	deps      sessionDependencies
@@ -121,7 +126,7 @@ func (s *dependencySession) resolveRemoteStateDependency(remoteState *model.Remo
 		resolution.AddDependency(&Dependency{
 			From:            s.module,
 			To:              target,
-			Type:            "remote_state",
+			Type:            DependencyTypeRemoteState,
 			RemoteStateName: remoteState.Name,
 		})
 	}

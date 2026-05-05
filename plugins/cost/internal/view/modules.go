@@ -1,6 +1,7 @@
 package view
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
@@ -55,8 +56,7 @@ func GroupByModule(resources []model.ResourceCost) []SubmoduleCost {
 	}
 
 	attached := make(map[string]struct{})
-	for i := len(order) - 1; i >= 0; i-- {
-		addr := order[i]
+	for _, addr := range slices.Backward(order) {
 		parent := FindParentAddr(addr, nodes)
 		if parent != "" {
 			nodes[parent].Children = append(nodes[parent].Children, *nodes[addr])

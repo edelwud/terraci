@@ -13,6 +13,19 @@ import (
 // defaultRootVolumeGB is the default root volume size for EC2 instances.
 const defaultRootVolumeGB = 8
 
+// EBS attribute keys repeated across this package and tests.
+const (
+	attrType = "type"
+	attrSize = "size"
+)
+
+// EC2 tenancy attribute values.
+const (
+	tenancyShared    = "Shared"
+	tenancyDefault   = "default"
+	tenancyDedicated = "dedicated"
+)
+
 type instanceAttrs struct {
 	InstanceType string
 	Tenancy      string
@@ -70,10 +83,10 @@ func InstanceSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[instanceAttrs]
 					Attr("preInstalledSw", "NA").
 					Attr("capacitystatus", "Used").
 					AttrMatch("tenancy", p.Tenancy, p.Tenancy, map[string]string{
-						"":          "Shared",
-						"default":   "Shared",
-						"dedicated": "Dedicated",
-						"host":      "Host",
+						"":               tenancyShared,
+						tenancyDefault:   tenancyShared,
+						tenancyDedicated: "Dedicated",
+						"host":           "Host",
 					}).
 					Build(region), nil
 			},
@@ -82,7 +95,7 @@ func InstanceSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[instanceAttrs]
 			BuildFunc: func(_ *pricing.Price, p instanceAttrs) map[string]string {
 				return awskit.NewDescribeBuilder().
 					String("instance_type", p.InstanceType).
-					StringIf(p.Tenancy != "" && p.Tenancy != "default", "tenancy", p.Tenancy).
+					StringIf(p.Tenancy != "" && p.Tenancy != tenancyDefault, "tenancy", p.Tenancy).
 					Map()
 			},
 		},
@@ -95,8 +108,8 @@ func InstanceSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[instanceAttrs]
 			BuildFunc: func(p instanceAttrs) []resourcedef.SubResource {
 				root := p.RootVolume
 				ebsAttrs := map[string]any{
-					"type": root.VolumeType,
-					"size": root.SizeGB,
+					attrType: root.VolumeType,
+					attrSize: root.SizeGB,
 				}
 				if root.IOPS > 0 {
 					ebsAttrs["iops"] = root.IOPS

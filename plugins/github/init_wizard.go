@@ -12,7 +12,7 @@ const defaultGitHubRunner = "ubuntu-latest"
 // InitGroups returns the init wizard group specs for GitHub Actions.
 func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 	showGitHub := func(s *initwiz.StateMap) bool {
-		return s.Provider() == "github"
+		return s.Provider() == pluginName
 	}
 
 	return []*initwiz.InitGroupSpec{
@@ -32,13 +32,13 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 				},
 			},
 		},
-		ciplugin.PipelineGroup("github"),
+		ciplugin.PipelineGroup(pluginName),
 	}
 }
 
 // BuildInitConfig builds the GitHub Actions init contribution.
 func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribution {
-	if state.Provider() != "github" {
+	if state.Provider() != pluginName {
 		return nil
 	}
 	binary := state.Binary()
@@ -79,7 +79,7 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribut
 	}
 
 	return &initwiz.InitContribution{
-		PluginKey: "github",
+		PluginKey: pluginName,
 		Config:    cfg,
 	}
 }

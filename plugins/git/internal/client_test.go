@@ -11,6 +11,23 @@ import (
 	"github.com/go-git/go-git/v6/plumbing/object"
 )
 
+// disableCommitSigning installs a repository-local config that disables
+// commit signing. Without it, go-git/v6 inherits the user's global
+// commit.gpgSign=true and refuses every test commit with
+// "cannot auto-sign commit" — making the suite environment-dependent.
+func disableCommitSigning(t *testing.T, repo *gogit.Repository) {
+	t.Helper()
+	cfg, err := repo.Config()
+	if err != nil {
+		t.Fatalf("repo.Config: %v", err)
+	}
+	cfg.Raw.SetOption("commit", "", "gpgsign", "false")
+	cfg.Raw.SetOption("tag", "", "gpgsign", "false")
+	if err := repo.SetConfig(cfg); err != nil {
+		t.Fatalf("repo.SetConfig: %v", err)
+	}
+}
+
 func initTestRepo(t *testing.T) (string, *gogit.Repository) {
 	t.Helper()
 	dir := t.TempDir()
@@ -18,6 +35,7 @@ func initTestRepo(t *testing.T) (string, *gogit.Repository) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	disableCommitSigning(t, repo)
 	w, err := repo.Worktree()
 	if err != nil {
 		t.Fatal(err)

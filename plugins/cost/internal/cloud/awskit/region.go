@@ -1,86 +1,132 @@
 package awskit
 
+// AWS region code constants. Used as keys in the mapping tables below and
+// recommended for callers that need region literals — keeps spelling
+// uniform and quiets goconst about repeated string literals.
+const (
+	RegionUSEast1      = "us-east-1"
+	RegionUSEast2      = "us-east-2"
+	RegionUSWest1      = "us-west-1"
+	RegionUSWest2      = "us-west-2"
+	RegionEUWest1      = "eu-west-1"
+	RegionEUWest2      = "eu-west-2"
+	RegionEUWest3      = "eu-west-3"
+	RegionEUCentral1   = "eu-central-1"
+	RegionEUCentral2   = "eu-central-2"
+	RegionEUNorth1     = "eu-north-1"
+	RegionEUSouth1     = "eu-south-1"
+	RegionEUSouth2     = "eu-south-2"
+	RegionAPNortheast1 = "ap-northeast-1"
+	RegionAPNortheast2 = "ap-northeast-2"
+	RegionAPNortheast3 = "ap-northeast-3"
+	RegionAPSoutheast1 = "ap-southeast-1"
+	RegionAPSoutheast2 = "ap-southeast-2"
+	RegionAPSoutheast3 = "ap-southeast-3"
+	RegionAPSoutheast4 = "ap-southeast-4"
+	RegionAPSouth1     = "ap-south-1"
+	RegionAPSouth2     = "ap-south-2"
+	RegionAPEast1      = "ap-east-1"
+	RegionSAEast1      = "sa-east-1"
+	RegionCACentral1   = "ca-central-1"
+	RegionCAWest1      = "ca-west-1"
+	RegionMESouth1     = "me-south-1"
+	RegionMECentral1   = "me-central-1"
+	RegionILCentral1   = "il-central-1"
+	RegionAFSouth1     = "af-south-1"
+)
+
+// AWS pricing-API region display names that recur across the codebase
+// (mostly in mapping tables and tests). Promoted to constants to satisfy
+// goconst — values are unchanged.
+const (
+	regionNameEUWest1 = "EU (Ireland)"
+)
+
+// AWS pricing-API region usagetype prefixes that recur across the codebase.
+const (
+	// DefaultUsagePrefix is the fallback usagetype prefix (us-east-1).
+	DefaultUsagePrefix = "USE1"
+	usagePrefixEUWest1 = "EUW1"
+)
+
 // awsRegionMapping maps AWS region codes to pricing API region names.
 var awsRegionMapping = map[string]string{
 	// US
-	"us-east-1": "US East (N. Virginia)",
-	"us-east-2": "US East (Ohio)",
-	"us-west-1": "US West (N. California)",
-	"us-west-2": "US West (Oregon)",
+	RegionUSEast1: "US East (N. Virginia)",
+	RegionUSEast2: "US East (Ohio)",
+	RegionUSWest1: "US West (N. California)",
+	RegionUSWest2: "US West (Oregon)",
 	// Europe
-	"eu-west-1":    "EU (Ireland)",
-	"eu-west-2":    "EU (London)",
-	"eu-west-3":    "EU (Paris)",
-	"eu-central-1": "EU (Frankfurt)",
-	"eu-central-2": "EU (Zurich)",
-	"eu-north-1":   "EU (Stockholm)",
-	"eu-south-1":   "EU (Milan)",
-	"eu-south-2":   "EU (Spain)",
+	RegionEUWest1:    regionNameEUWest1,
+	RegionEUWest2:    "EU (London)",
+	RegionEUWest3:    "EU (Paris)",
+	RegionEUCentral1: "EU (Frankfurt)",
+	RegionEUCentral2: "EU (Zurich)",
+	RegionEUNorth1:   "EU (Stockholm)",
+	RegionEUSouth1:   "EU (Milan)",
+	RegionEUSouth2:   "EU (Spain)",
 	// Asia Pacific
-	"ap-northeast-1": "Asia Pacific (Tokyo)",
-	"ap-northeast-2": "Asia Pacific (Seoul)",
-	"ap-northeast-3": "Asia Pacific (Osaka)",
-	"ap-southeast-1": "Asia Pacific (Singapore)",
-	"ap-southeast-2": "Asia Pacific (Sydney)",
-	"ap-southeast-3": "Asia Pacific (Jakarta)",
-	"ap-southeast-4": "Asia Pacific (Melbourne)",
-	"ap-south-1":     "Asia Pacific (Mumbai)",
-	"ap-south-2":     "Asia Pacific (Hyderabad)",
-	"ap-east-1":      "Asia Pacific (Hong Kong)",
+	RegionAPNortheast1: "Asia Pacific (Tokyo)",
+	RegionAPNortheast2: "Asia Pacific (Seoul)",
+	RegionAPNortheast3: "Asia Pacific (Osaka)",
+	RegionAPSoutheast1: "Asia Pacific (Singapore)",
+	RegionAPSoutheast2: "Asia Pacific (Sydney)",
+	RegionAPSoutheast3: "Asia Pacific (Jakarta)",
+	RegionAPSoutheast4: "Asia Pacific (Melbourne)",
+	RegionAPSouth1:     "Asia Pacific (Mumbai)",
+	RegionAPSouth2:     "Asia Pacific (Hyderabad)",
+	RegionAPEast1:      "Asia Pacific (Hong Kong)",
 	// South America
-	"sa-east-1": "South America (Sao Paulo)",
+	RegionSAEast1: "South America (Sao Paulo)",
 	// Canada
-	"ca-central-1": "Canada (Central)",
-	"ca-west-1":    "Canada West (Calgary)",
+	RegionCACentral1: "Canada (Central)",
+	RegionCAWest1:    "Canada West (Calgary)",
 	// Middle East
-	"me-south-1":   "Middle East (Bahrain)",
-	"me-central-1": "Middle East (UAE)",
-	"il-central-1": "Israel (Tel Aviv)",
+	RegionMESouth1:   "Middle East (Bahrain)",
+	RegionMECentral1: "Middle East (UAE)",
+	RegionILCentral1: "Israel (Tel Aviv)",
 	// Africa
-	"af-south-1": "Africa (Cape Town)",
+	RegionAFSouth1: "Africa (Cape Town)",
 }
 
-// RegionUsagePrefix maps AWS region codes to the pricing API usagetype prefix
-// (e.g., "us-east-1" → "USE1"). Used for services like EKS and VPC that
-// use region-prefixed usagetypes.
+// awsRegionUsagePrefix maps AWS region codes to the pricing API usagetype
+// prefix (e.g., "us-east-1" → "USE1"). Used for services like EKS and VPC
+// that use region-prefixed usagetypes.
 var awsRegionUsagePrefix = map[string]string{
 	// US
-	"us-east-1": "USE1",
-	"us-east-2": "USE2",
-	"us-west-1": "USW1",
-	"us-west-2": "USW2",
+	RegionUSEast1: DefaultUsagePrefix,
+	RegionUSEast2: "USE2",
+	RegionUSWest1: "USW1",
+	RegionUSWest2: "USW2",
 	// Europe
-	"eu-west-1":    "EUW1",
-	"eu-west-2":    "EUW2",
-	"eu-west-3":    "EUW3",
-	"eu-central-1": "EUC1",
-	"eu-central-2": "EUC2",
-	"eu-north-1":   "EUN1",
-	"eu-south-1":   "EUS1",
-	"eu-south-2":   "EUS2",
+	RegionEUWest1:    usagePrefixEUWest1,
+	RegionEUWest2:    "EUW2",
+	RegionEUWest3:    "EUW3",
+	RegionEUCentral1: "EUC1",
+	RegionEUCentral2: "EUC2",
+	RegionEUNorth1:   "EUN1",
+	RegionEUSouth1:   "EUS1",
+	RegionEUSouth2:   "EUS2",
 	// Asia Pacific
-	"ap-northeast-1": "APN1",
-	"ap-northeast-2": "APN2",
-	"ap-northeast-3": "APN3",
-	"ap-southeast-1": "APS1",
-	"ap-southeast-2": "APS2",
-	"ap-southeast-3": "APS3",
-	"ap-southeast-4": "APS4",
-	"ap-south-1":     "APS5",
-	"ap-south-2":     "APS6",
-	"ap-east-1":      "APE1",
+	RegionAPNortheast1: "APN1",
+	RegionAPNortheast2: "APN2",
+	RegionAPNortheast3: "APN3",
+	RegionAPSoutheast1: "APS1",
+	RegionAPSoutheast2: "APS2",
+	RegionAPSoutheast3: "APS3",
+	RegionAPSoutheast4: "APS4",
+	RegionAPSouth1:     "APS5",
+	RegionAPSouth2:     "APS6",
+	RegionAPEast1:      "APE1",
 	// South America
-	"sa-east-1": "SAE1",
+	RegionSAEast1: "SAE1",
 	// Canada
-	"ca-central-1": "CAN1",
-	"ca-west-1":    "CAW1",
+	RegionCACentral1: "CAN1",
+	RegionCAWest1:    "CAW1",
 	// Middle East
-	"me-south-1":   "MES1",
-	"me-central-1": "MEC1",
-	"il-central-1": "ILC1",
+	RegionMESouth1:   "MES1",
+	RegionMECentral1: "MEC1",
+	RegionILCentral1: "ILC1",
 	// Africa
-	"af-south-1": "AFS1",
+	RegionAFSouth1: "AFS1",
 }
-
-// DefaultUsagePrefix is the fallback usagetype prefix (us-east-1).
-const DefaultUsagePrefix = "USE1"

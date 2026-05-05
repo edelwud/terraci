@@ -14,6 +14,9 @@ const (
 	DynamoDBRCUCostPerHour  = 0.00013
 	DynamoDBWCUCostPerHour  = 0.00065
 	DynamoDBDefaultCapacity = 5
+
+	// DynamoDB billing modes (terraform attribute values).
+	billingModePayPerRequest = "PAY_PER_REQUEST"
 )
 
 type dynamoDBAttrs struct {
@@ -39,7 +42,7 @@ func DynamoDBSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[dynamoDBAttrs]
 		Lookup: &resourcespec.TypedLookupSpec[dynamoDBAttrs]{
 			BuildFunc: func(region string, p dynamoDBAttrs) (*pricing.PriceLookup, error) {
 				runtime := deps.RuntimeOrDefault()
-				if p.BillingMode == "PAY_PER_REQUEST" {
+				if p.BillingMode == billingModePayPerRequest {
 					return runtime.
 						NewLookupBuilder(awskit.ServiceKeyDynamoDB, "Amazon DynamoDB PayPerRequest Throughput").
 						Build(region), nil
@@ -61,7 +64,7 @@ func DynamoDBSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[dynamoDBAttrs]
 		},
 		Usage: &resourcespec.TypedUsagePricingSpec[dynamoDBAttrs]{
 			EstimateFunc: func(_ string, p dynamoDBAttrs) model.UsageCostEstimate {
-				if p.BillingMode == "PAY_PER_REQUEST" {
+				if p.BillingMode == billingModePayPerRequest {
 					return model.UsageCostEstimate{Status: model.ResourceEstimateStatusUsageUnknown}
 				}
 

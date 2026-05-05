@@ -1,11 +1,14 @@
 package discovery
 
-import "path/filepath"
+import (
+	"path/filepath"
+
+	"github.com/edelwud/terraci/pkg/config"
+)
 
 // TestModule creates a Module with the default 4-segment pattern for testing.
 func TestModule(service, env, region, module string) *Module {
-	segments := []string{"service", "environment", "region", "module"}
 	values := []string{service, env, region, module}
 	relPath := filepath.Join(service, env, region, module)
-	return NewModule(segments, values, relPath, relPath)
+	return NewModule(config.DefaultSegments(), values, relPath, relPath)
 }

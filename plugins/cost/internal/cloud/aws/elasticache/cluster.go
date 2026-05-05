@@ -40,8 +40,8 @@ func ClusterSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[clusterAttrs] {
 					NewLookupBuilder(awskit.ServiceKeyElastiCache, "Cache Instance").
 					Attr("instanceType", p.NodeType).
 					AttrMatch("cacheEngine", strings.ToLower(engine), awsEngineRedis, map[string]string{
-						"memcached": awsEngineMemcached,
-						"redis":     awsEngineRedis,
+						"memcached":   awsEngineMemcached,
+						defaultEngine: awsEngineRedis,
 					}).
 					UsageType(region, "NodeUsage:"+p.NodeType).
 					Build(region), nil

@@ -10,6 +10,11 @@ import (
 	"github.com/edelwud/terraci/pkg/planresults"
 )
 
+// summaryProducerName is the canonical Producer field of summary plugin
+// reports. Centralized so file paths and the validate guard use the same
+// literal.
+const summaryProducerName = "summary"
+
 type SummaryReportLoader interface {
 	Reset() error
 	Load() (*ci.Report, error)
@@ -30,7 +35,7 @@ func (l summaryReportLoader) Reset() error {
 		return nil
 	}
 
-	err := os.Remove(filepath.Join(l.serviceDir, ci.ReportFilename("summary")))
+	err := os.Remove(filepath.Join(l.serviceDir, ci.ReportFilename(summaryProducerName)))
 	if err == nil || errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
@@ -42,7 +47,7 @@ func (l summaryReportLoader) Load() (*ci.Report, error) {
 		return nil, nil
 	}
 
-	report, err := ci.LoadReport(filepath.Join(l.serviceDir, ci.ReportFilename("summary")))
+	report, err := ci.LoadReport(filepath.Join(l.serviceDir, ci.ReportFilename(summaryProducerName)))
 	if err == nil {
 		if validateErr := l.validate(report); validateErr != nil {
 			return nil, validateErr
@@ -59,7 +64,7 @@ func (l summaryReportLoader) validate(report *ci.Report) error {
 	if report == nil {
 		return nil
 	}
-	if report.Producer != "" && report.Producer != "summary" {
+	if report.Producer != "" && report.Producer != summaryProducerName {
 		return fmt.Errorf("summary report producer mismatch: %q", report.Producer)
 	}
 	if report.Provenance == nil {

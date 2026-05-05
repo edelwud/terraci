@@ -12,6 +12,12 @@ import (
 
 const deploymentMultiAZReadableStandbys = "Multi-AZ (readable standbys)"
 
+// RDS cluster storage types repeated across this package and tests.
+const (
+	storageTypeAurora      = "aurora"
+	storageTypeAuroraIOOpt = "aurora-iopt1"
+)
+
 type clusterAttrs struct {
 	Engine           string
 	StorageType      string
@@ -26,8 +32,8 @@ func parseClusterAttrs(attrs map[string]any) clusterAttrs {
 	multiAZ := costutil.GetStringAttr(attrs, "db_cluster_instance_class") != ""
 
 	if storageType == "" {
-		if strings.HasPrefix(strings.ToLower(engine), "aurora") || engine == "" {
-			storageType = "aurora"
+		if strings.HasPrefix(strings.ToLower(engine), storageTypeAurora) || engine == "" {
+			storageType = storageTypeAurora
 		} else {
 			storageType = awskit.VolumeTypeGP3
 		}
@@ -42,9 +48,9 @@ func parseClusterAttrs(attrs map[string]any) clusterAttrs {
 
 func clusterStorageFallback(storageType string) float64 {
 	switch storageType {
-	case "aurora":
+	case storageTypeAurora:
 		return AuroraStorageCostPerGB
-	case "aurora-iopt1":
+	case storageTypeAuroraIOOpt:
 		return AuroraIOOptStorageCostPerGB
 	default:
 		return getStorageCostPerGB(storageType)
@@ -64,18 +70,18 @@ func ClusterSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[clusterAttrs] {
 					AttrIf(p.MultiAZ, "databaseEngine", mapRDSEngine(p.Engine)).
 					AttrIf(p.MultiAZ, "deploymentOption", deploymentMultiAZReadableStandbys).
 					AttrMatch("volumeType", p.StorageType, "", map[string]string{
-						"aurora":             "Aurora:StorageUsage",
-						"aurora-iopt1":       "Aurora:StorageIOUsage",
-						awskit.VolumeTypeGP3: "General Purpose-GP3",
-						awskit.VolumeTypeIO1: "Provisioned IOPS",
-						awskit.VolumeTypeIO2: "Provisioned IOPS",
+						storageTypeAurora:      "Aurora:StorageUsage",
+						storageTypeAuroraIOOpt: "Aurora:StorageIOUsage",
+						awskit.VolumeTypeGP3:   "General Purpose-GP3",
+						awskit.VolumeTypeIO1:   "Provisioned IOPS",
+						awskit.VolumeTypeIO2:   "Provisioned IOPS",
 					}).
 					UsageType(region, awskit.MatchString(p.StorageType, "", map[string]string{
-						"aurora":             "Aurora:StorageUsage",
-						"aurora-iopt1":       "Aurora:StorageIOUsage",
-						awskit.VolumeTypeGP3: "RDS:Multi-AZCluster-GP3-Storage",
-						awskit.VolumeTypeIO1: "RDS:Multi-AZCluster-PIOPS-Storage",
-						awskit.VolumeTypeIO2: "RDS:Multi-AZCluster-PIOPS-Storage",
+						storageTypeAurora:      "Aurora:StorageUsage",
+						storageTypeAuroraIOOpt: "Aurora:StorageIOUsage",
+						awskit.VolumeTypeGP3:   "RDS:Multi-AZCluster-GP3-Storage",
+						awskit.VolumeTypeIO1:   "RDS:Multi-AZCluster-PIOPS-Storage",
+						awskit.VolumeTypeIO2:   "RDS:Multi-AZCluster-PIOPS-Storage",
 					})).
 					Build(region), nil
 			},

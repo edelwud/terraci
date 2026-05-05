@@ -8,6 +8,9 @@ import (
 	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
 )
 
+// pluginName is the canonical provider name of the GitHub Actions plugin.
+const pluginName = "github"
+
 func init() {
 	registry.RegisterFactory(func() plugin.Plugin {
 		return &Plugin{
@@ -18,7 +21,7 @@ func init() {
 
 func newBasePlugin() plugin.BasePlugin[*configpkg.Config] {
 	return plugin.BasePlugin[*configpkg.Config]{
-		PluginName: "github",
+		PluginName: pluginName,
 		PluginDesc: "GitHub Actions pipeline generation and PR comments",
 		EnableMode: plugin.EnabledWhenConfigured,
 		DefaultCfg: func() *configpkg.Config {

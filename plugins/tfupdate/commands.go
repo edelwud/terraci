@@ -32,7 +32,7 @@ func (p *Plugin) Commands() []*cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "tfupdate",
+		Use:   pluginName,
 		Short: "Check or apply Terraform dependency version updates",
 		Long: `Check Terraform provider and module versions for available updates.
 

@@ -61,20 +61,17 @@ func ParseJSONData(data []byte) (*ParsedPlan, error) {
 	return parsed, nil
 }
 
-const (
-	actionReplace  = "replace"
-	sensitiveValue = "(sensitive)"
-)
+const sensitiveValue = "(sensitive)"
 
 func countAction(p *ParsedPlan, action string, change *tfjson.Change) {
 	switch action {
-	case "create":
+	case ActionCreate:
 		p.ToAdd++
-	case "update":
+	case ActionUpdate:
 		p.ToChange++
-	case "delete":
+	case ActionDelete:
 		p.ToDestroy++
-	case actionReplace:
+	case ActionReplace:
 		p.ToAdd++
 		p.ToDestroy++
 	}
@@ -86,15 +83,15 @@ func countAction(p *ParsedPlan, action string, change *tfjson.Change) {
 func determineAction(actions tfjson.Actions) string {
 	switch {
 	case actions.Create():
-		return "create"
+		return ActionCreate
 	case actions.Update():
-		return "update"
+		return ActionUpdate
 	case actions.Delete():
-		return "delete"
+		return ActionDelete
 	case actions.Replace():
-		return actionReplace
+		return ActionReplace
 	case actions.Read():
-		return "read"
+		return ActionRead
 	default:
 		return ActionNoOp
 	}

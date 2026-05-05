@@ -31,7 +31,7 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribution {
 	enabled := state.Bool("summary.enabled")
 	return &initwiz.InitContribution{
-		PluginKey: "summary",
+		PluginKey: pluginName,
 		Config: map[string]any{
 			"enabled": enabled,
 		},

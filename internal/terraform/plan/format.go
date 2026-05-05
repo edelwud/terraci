@@ -51,11 +51,11 @@ func (p *ParsedPlan) Details() string {
 		action string
 		label  string
 	}{
-		{"create", "Create"},
-		{"update", "Update"},
-		{"replace", "Replace"},
-		{"delete", "Delete"},
-		{"read", "Read"},
+		{ActionCreate, "Create"},
+		{ActionUpdate, "Update"},
+		{ActionReplace, "Replace"},
+		{ActionDelete, "Delete"},
+		{ActionRead, "Read"},
 	}
 
 	for _, a := range actionOrder {

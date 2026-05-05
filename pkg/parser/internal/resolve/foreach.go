@@ -26,8 +26,8 @@ func (r Resolver) resolveForEach(forEachExpr, pathExpr hcl.Expression, evalCtx *
 		iterCtx := evalCtx.NewChild()
 		iterCtx.Variables = map[string]cty.Value{
 			"each": cty.ObjectVal(map[string]cty.Value{
-				"key":   eachKey,
-				"value": eachValue,
+				configKeyKey:   eachKey,
+				configKeyValue: eachValue,
 			}),
 		}
 

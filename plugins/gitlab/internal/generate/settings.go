@@ -8,6 +8,10 @@ import (
 	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
 )
 
+// DefaultBinary is the terraform binary name used when execution.Binary is
+// empty. Exported so wizard / tests can refer to a single source of truth.
+const DefaultBinary = "terraform"
+
 type settings struct {
 	config    *configpkg.Config
 	execution execution.Config
@@ -24,7 +28,7 @@ func (s settings) terraformBinary() string {
 	if s.execution.Binary != "" {
 		return s.execution.Binary
 	}
-	return "terraform"
+	return DefaultBinary
 }
 
 func (s settings) variables() map[string]string {

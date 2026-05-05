@@ -7,6 +7,10 @@ import (
 	"path/filepath"
 )
 
+// DefaultNamespace is the OPA package namespace evaluated when a policy
+// configuration does not list any namespaces explicitly.
+const DefaultNamespace = "terraform"
+
 // Checker runs policy checks against Terraform plans
 type Checker struct {
 	config     *Config
@@ -46,7 +50,7 @@ func (c *Checker) CheckModule(ctx context.Context, modulePath string) (*Result, 
 	namespaces := effectiveCfg.Namespaces
 	if len(namespaces) == 0 {
 		// Default namespace
-		namespaces = []string{"terraform"}
+		namespaces = []string{DefaultNamespace}
 	}
 
 	// Create and run engine
