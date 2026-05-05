@@ -9,6 +9,16 @@ const (
 	defaultTofuImage      = "ghcr.io/opentofu/opentofu:1.6"
 )
 
+// Wizard StateMap keys. Centralized so InitGroups field definitions and
+// BuildInitConfig consumers can never drift apart on a typo. The "auto_approve"
+// and "summary.enabled" keys are owned by other groups (pipeline category and
+// summary plugin); we reference them but don't define them here.
+const (
+	keyGitlabImage        = "gitlab.image"
+	keyGitlabStagesPrefix = "gitlab.stages_prefix"
+	keyGitlabCacheEnabled = "gitlab.cache_enabled"
+)
+
 // InitGroups returns the init wizard group specs for GitLab CI.
 func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 	showGitLab := func(s *initwiz.StateMap) bool {
@@ -23,7 +33,7 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 			ShowWhen: showGitLab,
 			Fields: []initwiz.InitField{
 				{
-					Key:         "gitlab.image",
+					Key:         keyGitlabImage,
 					Title:       "Docker Image",
 					Description: "Base Docker image for terraform jobs",
 					Type:        initwiz.FieldString,
@@ -31,7 +41,7 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 					Placeholder: defaultTerraformImage,
 				},
 				{
-					Key:         "gitlab.stages_prefix",
+					Key:         keyGitlabStagesPrefix,
 					Title:       "Stages Prefix",
 					Description: "Prefix for pipeline stage names (e.g. deploy-plan-0)",
 					Type:        initwiz.FieldString,
@@ -39,7 +49,7 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 					Placeholder: "deploy",
 				},
 				{
-					Key:         "gitlab.cache_enabled",
+					Key:         keyGitlabCacheEnabled,
 					Title:       "Enable .terraform caching?",
 					Description: "Cache .terraform directory between pipeline runs",
 					Type:        initwiz.FieldBool,
@@ -82,7 +92,7 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribut
 		binary = "terraform"
 	}
 
-	image := state.String("gitlab.image")
+	image := state.String(keyGitlabImage)
 	if image == "" || image == defaultTerraformImage || image == defaultTofuImage {
 		if binary == "tofu" {
 			image = defaultTofuImage
@@ -91,14 +101,14 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribut
 		}
 	}
 
-	stagesPrefix := state.String("gitlab.stages_prefix")
+	stagesPrefix := state.String(keyGitlabStagesPrefix)
 	if stagesPrefix == "" {
 		stagesPrefix = "deploy"
 	}
 
 	cacheEnabled := true
-	if state.Get("gitlab.cache_enabled") != nil {
-		cacheEnabled = state.Bool("gitlab.cache_enabled")
+	if state.Get(keyGitlabCacheEnabled) != nil {
+		cacheEnabled = state.Bool(keyGitlabCacheEnabled)
 	}
 
 	autoApprove := state.Bool("auto_approve")

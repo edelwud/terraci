@@ -6,6 +6,17 @@ import "github.com/edelwud/terraci/pkg/plugin/initwiz"
 
 const initGroupOrder = 202
 
+// Wizard StateMap keys. Centralized so InitGroups field definitions and
+// BuildInitConfig consumers can never drift apart on a typo. Note that the
+// keys keep the historical "update." prefix for state compatibility — the
+// plugin name is "tfupdate" but its wizard fields shipped under "update.*".
+const (
+	keyUpdateEnabled  = "update.enabled"
+	keyUpdateTarget   = "update.target"
+	keyUpdateBump     = "update.bump"
+	keyUpdatePipeline = "update.pipeline"
+)
+
 // InitGroups returns the init wizard group specs for the update initwiz.
 func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 	return []*initwiz.InitGroupSpec{
@@ -15,7 +26,7 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 			Order:    initGroupOrder,
 			Fields: []initwiz.InitField{
 				{
-					Key:         "update.enabled",
+					Key:         keyUpdateEnabled,
 					Title:       "Enable dependency update checks?",
 					Description: "Check Terraform providers and modules for newer versions",
 					Type:        initwiz.FieldBool,
@@ -28,11 +39,11 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 			Category: initwiz.CategoryDetail,
 			Order:    initGroupOrder,
 			ShowWhen: func(s *initwiz.StateMap) bool {
-				return s.Bool("update.enabled")
+				return s.Bool(keyUpdateEnabled)
 			},
 			Fields: []initwiz.InitField{
 				{
-					Key:     "update.target",
+					Key:     keyUpdateTarget,
 					Title:   "What to check",
 					Type:    initwiz.FieldSelect,
 					Default: "all",
@@ -43,7 +54,7 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 					},
 				},
 				{
-					Key:     "update.bump",
+					Key:     keyUpdateBump,
 					Title:   "Maximum bump level",
 					Type:    initwiz.FieldSelect,
 					Default: "minor",
@@ -54,7 +65,7 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 					},
 				},
 				{
-					Key:         "update.pipeline",
+					Key:         keyUpdatePipeline,
 					Title:       "Add update check to CI pipeline?",
 					Description: "Add a tfupdate-check job to generated pipelines",
 					Type:        initwiz.FieldBool,
@@ -67,7 +78,7 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 
 // BuildInitConfig builds the update init contribution.
 func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribution {
-	enabled := state.Bool("update.enabled")
+	enabled := state.Bool(keyUpdateEnabled)
 	if !enabled {
 		return nil
 	}
@@ -76,13 +87,13 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribut
 		"enabled": true,
 	}
 
-	if target := state.String("update.target"); target != "" && target != "all" {
+	if target := state.String(keyUpdateTarget); target != "" && target != "all" {
 		cfg["target"] = target
 	}
-	if bump := state.String("update.bump"); bump != "" && bump != "minor" {
+	if bump := state.String(keyUpdateBump); bump != "" && bump != "minor" {
 		cfg["bump"] = bump
 	}
-	if state.Bool("update.pipeline") {
+	if state.Bool(keyUpdatePipeline) {
 		cfg["pipeline"] = true
 	}
 

@@ -10,6 +10,17 @@ import (
 //
 // Consumers own key layout, serialization, TTL policy, and stale fallback
 // semantics. Backends only persist bytes and metadata.
+//
+// Thread-safety: implementations MUST be safe for concurrent use across
+// goroutines, including Put + Get + Delete on the same (namespace, key)
+// from multiple goroutines simultaneously. The contract test suite at
+// pkg/cache/blobcache/contracttest exercises this guarantee — register a
+// new backend against it before merging.
+//
+// Cross-process safety is best-effort and backend-specific. The bundled
+// diskblob backend serializes per-key writes via an in-process keyed
+// mutex; multi-process protection requires either separate root_dir
+// values or external coordination (advisory file locks, etc.).
 type Store interface {
 	Get(ctx context.Context, namespace, key string) ([]byte, bool, Meta, error)
 	Put(ctx context.Context, namespace, key string, value []byte, opts PutOptions) (Meta, error)

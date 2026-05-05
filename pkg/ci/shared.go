@@ -28,6 +28,18 @@ func (img *Image) UnmarshalYAML(unmarshal func(any) error) error {
 	return nil
 }
 
+// MarshalYAML emits the short string form ("image:1.0") when only Name is set,
+// preserving round-trip symmetry with UnmarshalYAML. Configs that started as
+// shorthand stay shorthand after `terraci init` writes them back; only configs
+// with an Entrypoint override expand to the full mapping.
+func (img Image) MarshalYAML() (any, error) {
+	if len(img.Entrypoint) == 0 {
+		return img.Name, nil
+	}
+	type imageAlias Image
+	return imageAlias(img), nil
+}
+
 // String returns the image name.
 func (img *Image) String() string {
 	return img.Name

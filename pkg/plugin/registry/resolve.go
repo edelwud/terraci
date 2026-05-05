@@ -37,7 +37,7 @@ func (r *Registry) activeCIProviders() []ciProviderPlugin {
 func (r *Registry) ResolveCIProvider() (*plugin.ResolvedCIProvider, error) {
 	candidates := r.activeCIProviders()
 	if len(candidates) == 0 {
-		return nil, errors.New("no active CI provider plugins registered")
+		return nil, errors.New("no active CI provider plugins — configure extensions.gitlab or extensions.github in .terraci.yaml")
 	}
 
 	// Explicit selection wins over auto-detection. This is important for local
@@ -56,7 +56,16 @@ func (r *Registry) ResolveCIProvider() (*plugin.ResolvedCIProvider, error) {
 		return buildResolvedCIProvider(candidates[0]), nil
 	}
 
-	return nil, fmt.Errorf("cannot determine CI provider: multiple plugins registered (%s), set TERRACI_PROVIDER", providerNames(candidates))
+	// Multiple providers configured but none auto-detected — emit an
+	// actionable error that lists the candidates and the resolution
+	// priority so the user knows which knob to turn.
+	names := providerNames(candidates)
+	return nil, fmt.Errorf(
+		"cannot determine CI provider: %d providers configured (%s) but none auto-detected from CI environment. "+
+			"Resolution priority: 1) TERRACI_PROVIDER env, 2) DetectEnv() match, 3) single configured provider. "+
+			"Set TERRACI_PROVIDER=<name> or configure only one of [%s] in .terraci.yaml",
+		len(candidates), names, names,
+	)
 }
 
 func buildResolvedCIProvider(p ciProviderPlugin) *plugin.ResolvedCIProvider {

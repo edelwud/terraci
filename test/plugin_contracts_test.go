@@ -44,6 +44,9 @@ func TestBuiltInPluginContractMatrix(t *testing.T) {
 		"inmemcache": {
 			configLoader: true,
 		},
+		"local-exec": {
+			command: true,
+		},
 		"policy": {
 			configLoader: true,
 			command:      true,

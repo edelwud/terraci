@@ -10,7 +10,10 @@ import (
 )
 
 func TestSummary_WithReports(t *testing.T) {
-	dir := fixtureDir(t, "with-reports")
+	// Copy fixture to temp dir: `terraci summary` writes a fresh
+	// summary-report.json, which used to mutate the committed fixture every
+	// test run. Tests that only read fixture files keep using fixtureDir.
+	dir := copyFixtureToTemp(t, "with-reports")
 
 	// Summary without CI provider should print to log (no error)
 	err := runTerraCi(t, dir, "summary")
@@ -33,7 +36,9 @@ func TestSummary_NoResults(t *testing.T) {
 }
 
 func TestSummary_LoadsReports(t *testing.T) {
-	dir := fixtureDir(t, "with-reports")
+	// captureTerraCi will run `terraci summary` which writes a report file —
+	// use a temp copy so the committed fixture is never mutated.
+	dir := copyFixtureToTemp(t, "with-reports")
 
 	// Summary output goes to log (stderr), not stdout.
 	// We verify it runs without error and report files are accessible.
