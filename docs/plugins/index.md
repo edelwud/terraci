@@ -139,8 +139,8 @@ extensions:
 |--------|----------|---------|
 | `EnabledAlways` | Always active, no config needed | git |
 | `EnabledWhenConfigured` | Active when config section exists | gitlab, github |
-| `EnabledByDefault` | Active unless `enabled: false` | summary |
-| `EnabledExplicitly` | Requires explicit opt-in | cost, policy, update |
+| `EnabledByDefault` | Active unless `enabled: false` | summary, diskblob, inmemcache |
+| `EnabledExplicitly` | Requires explicit opt-in | cost, policy, tfupdate |
 
 ### Lifecycle
 
@@ -161,10 +161,28 @@ Every capability receives `*plugin.AppContext` with:
 ```go
 ctx.WorkDir()    // project root directory
 ctx.ServiceDir() // resolved .terraci directory (absolute path)
-ctx.Config()     // full TerraCi configuration (defensive copy)
+ctx.Config()     // shared *config.Config — read-only, do not mutate
 ctx.Version()    // TerraCi version string
 ctx.Reports()    // shared report registry for plugin communication
+ctx.Resolver()   // capability resolver — never nil; use to look up CI provider, change detector, caches
 ```
+
+The framework constructs the context once via `plugin.NewAppContext(plugin.AppContextOptions{...})` and binds it for the duration of a command run. Plugins receive a fully built context — no construction needed.
+
+### Resolver
+
+`ctx.Resolver()` is the single entry point for cross-plugin capability lookups. It exposes:
+
+```go
+ResolveCIProvider() (*plugin.ResolvedCIProvider, error)
+ResolveChangeDetector() (plugin.ChangeDetectionProvider, error)
+ResolveKVCacheProvider(name string) (plugin.KVCacheProvider, error)
+ResolveBlobStoreProvider(name string) (plugin.BlobStoreProvider, error)
+CollectContributions(ctx *plugin.AppContext) []pipeline.Contribution
+PreflightsForStartup() []plugin.Preflightable
+```
+
+The resolver is never nil — when no resolver is bound (test contexts) a no-op resolver returns sentinel errors instead of nil dereferences.
 
 ### Building
 

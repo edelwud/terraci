@@ -22,14 +22,14 @@ A CI provider must implement at minimum:
 | Interface | Purpose |
 |-----------|---------|
 | `EnvDetector` | Detect if running in your CI environment |
-| `CIMetadata` | Return provider name, pipeline ID, commit SHA |
-| `GeneratorFactory` | Create a pipeline generator that transforms IR → YAML |
+| `CIInfoProvider` | Return provider name, pipeline ID, commit SHA |
+| `PipelineGeneratorFactory` | Create a pipeline generator that transforms IR → YAML |
 
 Optional:
 
 | Interface | Purpose |
 |-----------|---------|
-| `CommentFactory` | Create MR/PR comment service (for plan summaries) |
+| `CommentServiceFactory` | Create MR/PR comment service (for plan summaries) |
 | `FlagOverridable` | Support `--plan-only` and `--auto-approve` CLI flags |
 
 ## Environment Detection
@@ -44,7 +44,7 @@ func (p *Plugin) DetectEnv() bool {
 
 TerraCi checks all registered providers. The first one returning `true` is selected.
 
-## CI Metadata
+## CI Info
 
 Provide pipeline context for logging and comment content:
 
@@ -145,9 +145,6 @@ Implement `FlagOverridable` to support `--plan-only` and `--auto-approve` CLI fl
 func (p *Plugin) SetPlanOnly(v bool) {
     if cfg := p.Config(); cfg != nil {
         cfg.PlanOnly = v
-        if v {
-            cfg.PlanEnabled = true
-        }
     }
 }
 
@@ -190,10 +187,9 @@ func init() {
 type Plugin struct{ plugin.BasePlugin[*Config] }
 
 type Config struct {
-    Image           string `yaml:"image"`
-    TerraformBinary string `yaml:"terraform_binary"`
-    PlanEnabled     bool   `yaml:"plan_enabled"`
-    AutoApprove     bool   `yaml:"auto_approve"`
+    Image       string `yaml:"image"`
+    PlanOnly    bool   `yaml:"plan_only"`
+    AutoApprove bool   `yaml:"auto_approve"`
 }
 
 // --- EnvDetector ---
@@ -202,13 +198,13 @@ func (p *Plugin) DetectEnv() bool {
     return os.Getenv("BITBUCKET_PIPELINE_UUID") != ""
 }
 
-// --- CIMetadata ---
+// --- CIInfoProvider ---
 
 func (p *Plugin) ProviderName() string { return "bitbucket" }
 func (p *Plugin) PipelineID() string   { return os.Getenv("BITBUCKET_BUILD_NUMBER") }
 func (p *Plugin) CommitSHA() string    { return os.Getenv("BITBUCKET_COMMIT") }
 
-// --- GeneratorFactory ---
+// --- PipelineGeneratorFactory ---
 
 func (p *Plugin) NewGenerator(ctx *plugin.AppContext, ir *pipeline.IR) pipeline.Generator {
     return &generator{config: p.Config(), ir: ir}
@@ -228,7 +224,7 @@ func (g *generator) DryRun() (*pipeline.DryRunResult, error) {
     return g.ir.DryRun(countModules(g.ir)), nil
 }
 
-// --- CommentFactory (optional) ---
+// --- CommentServiceFactory (optional) ---
 
 func (p *Plugin) NewCommentService(_ *plugin.AppContext) ci.CommentService {
     // Implement Bitbucket PR comment service

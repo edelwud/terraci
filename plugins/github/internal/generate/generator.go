@@ -34,7 +34,7 @@ func (g *Generator) DryRun() (*pipeline.DryRunResult, error) {
 	if g.ir == nil {
 		return &pipeline.DryRunResult{}, nil
 	}
-	return g.ir.DryRun(countModules(g.ir)), nil
+	return g.ir.DryRun(g.ir.ModuleCount()), nil
 }
 
 func (g *Generator) IsPREnabled() bool {
@@ -62,15 +62,4 @@ func (g *Generator) transform(ir *pipeline.IR) *domainpkg.Workflow {
 	}
 
 	return workflow
-}
-
-func countModules(ir *pipeline.IR) int {
-	if ir == nil {
-		return 0
-	}
-	count := 0
-	for _, level := range ir.Levels {
-		count += len(level.Modules)
-	}
-	return count
 }

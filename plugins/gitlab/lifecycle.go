@@ -8,8 +8,16 @@ import (
 	mrpkg "github.com/edelwud/terraci/plugins/gitlab/internal/mr"
 )
 
-// Preflight detects MR context when running inside GitLab CI.
+// Preflight validates the loaded plugin config and detects MR context when
+// running inside GitLab CI. Validation runs before the env-detection branch
+// so misshapen configs fail fast even on local generate runs.
 func (p *Plugin) Preflight(_ context.Context, _ *plugin.AppContext) error {
+	if cfg := p.Config(); cfg != nil {
+		if err := cfg.Validate(); err != nil {
+			return err
+		}
+	}
+
 	if !p.DetectEnv() {
 		return nil
 	}

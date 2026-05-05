@@ -135,6 +135,45 @@ func TestRegisterDuplicatePanics(t *testing.T) {
 	RegisterFactory(func() plugin.Plugin { return &testPlugin{name: "dup"} })
 }
 
+// invalidPlugin embeds BasePlugin in the misconfigured EnabledExplicitly +
+// nil-IsEnabledFn shape that previously silently disabled the plugin at
+// runtime. RegisterFactory must now reject it loudly.
+type invalidPlugin struct {
+	plugin.BasePlugin[*struct{}]
+}
+
+func TestRegisterFactory_RejectsExplicitWithoutIsEnabledFn(t *testing.T) {
+	t.Cleanup(func() { Reset() })
+	Reset()
+
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("expected panic for EnabledExplicitly without IsEnabledFn")
+		}
+		msg, _ := r.(string)
+		if msg == "" || !contains(msg, "EnabledExplicitly") {
+			t.Fatalf("panic message = %v, want mention of EnabledExplicitly", r)
+		}
+	}()
+
+	RegisterFactory(func() plugin.Plugin {
+		return &invalidPlugin{
+			BasePlugin: plugin.BasePlugin[*struct{}]{
+				PluginName: "broken",
+				PluginDesc: "broken plugin",
+				EnableMode: plugin.EnabledExplicitly,
+				DefaultCfg: func() *struct{} { return &struct{}{} },
+				// IsEnabledFn intentionally nil
+			},
+		}
+	})
+}
+
+func contains(haystack, needle string) bool {
+	return strings.Contains(haystack, needle)
+}
+
 func TestAll_Order(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()

@@ -179,14 +179,14 @@ terraci validate -v
 
 ### Неправильные ID модулей
 
-Если ID модулей не совпадают с путями state-файлов, настройте паттерн:
+Если ID модулей не совпадают с путями state-файлов, настройте `structure.pattern` так, чтобы он отражал, как модули размещаются на диске:
 
 ```yaml
-backend:
-  key_pattern: "{service}/{environment}/{region}/{module}/terraform.tfstate"
+structure:
+  pattern: "{service}/{environment}/{region}/{module}"
 ```
 
-Этот паттерн используется для сопоставления ключей `terraform_remote_state` с модулями.
+Тот же паттерн используется для сопоставления ключей `terraform_remote_state` с модулями — выводите ключи state из пути файловой системы (например, через `abspath(path.module)`), чтобы они совпадали с обнаруженными ID модулей. Подробнее см. [Разрешение зависимостей](/ru/guide/dependencies).
 
 ## Следующие шаги
 

@@ -47,6 +47,11 @@ func (c *Catalog) RegisterFactory(factory Factory) {
 	if prototype == nil {
 		panic("terraci: nil plugin from factory")
 	}
+	if v, ok := prototype.(plugin.Validator); ok {
+		if err := v.Validate(); err != nil {
+			panic("terraci: invalid plugin: " + err.Error())
+		}
+	}
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -103,6 +108,11 @@ func NewFromFactories(factories ...Factory) *Registry {
 		p := factory()
 		if p == nil {
 			panic("terraci: nil plugin from factory")
+		}
+		if v, ok := p.(plugin.Validator); ok {
+			if err := v.Validate(); err != nil {
+				panic("terraci: invalid plugin: " + err.Error())
+			}
 		}
 		name := p.Name()
 		if _, exists := r.plugins[name]; exists {

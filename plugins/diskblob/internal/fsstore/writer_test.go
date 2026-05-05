@@ -2,10 +2,14 @@ package fsstore
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -183,6 +187,57 @@ func TestFileObjectWriterOpenRoundTrip(t *testing.T) {
 	}
 	if string(data) != "streamed" {
 		t.Fatalf("Open() data = %q, want streamed", string(data))
+	}
+}
+
+// TestStoreConcurrentPutSameKey verifies the keyed mutex prevents data/meta
+// rename interleaving when many goroutines write to the same (namespace, key)
+// pair simultaneously. Run under `go test -race` to catch regressions.
+func TestStoreConcurrentPutSameKey(t *testing.T) {
+	t.Parallel()
+
+	rootDir := t.TempDir()
+	store := New(rootDir)
+
+	const writers = 16
+	const iterations = 32
+
+	var wg sync.WaitGroup
+	for i := range writers {
+		wg.Go(func() {
+			for j := range iterations {
+				payload := fmt.Sprintf("writer-%d-iter-%d-payload", i, j)
+				_, err := store.Put(
+					context.Background(),
+					"cost/pricing",
+					"shared-key",
+					[]byte(payload),
+					blobcache.PutOptions{},
+				)
+				if err != nil {
+					t.Errorf("Put() error = %v", err)
+					return
+				}
+			}
+		})
+	}
+	wg.Wait()
+
+	// Final state: meta.ETag must equal sha256(data). If interleaved renames
+	// could occur, we'd observe meta describing a different writer's payload.
+	data, ok, meta, err := store.Get(context.Background(), "cost/pricing", "shared-key")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if !ok {
+		t.Fatal("Get() ok = false, want true")
+	}
+	got := sha256.Sum256(data)
+	if hex.EncodeToString(got[:]) != meta.ETag {
+		t.Fatalf("meta.ETag = %q does not match sha256(data) = %q", meta.ETag, hex.EncodeToString(got[:]))
+	}
+	if int64(len(data)) != meta.Size {
+		t.Fatalf("meta.Size = %d, len(data) = %d", meta.Size, len(data))
 	}
 }
 

@@ -92,10 +92,13 @@ func (r *Registry) activeChangeDetectors() []plugin.ChangeDetectionProvider {
 	return active
 }
 
-// ResolveKVCacheProvider returns a named KV cache backend provider.
+// ResolveKVCacheProvider returns a named KV cache backend provider. When name
+// is empty, falls back to the single enabled KV cache provider (mirrors the
+// "single active provider" path in ResolveCIProvider) — otherwise returns an
+// error listing the available backends so the caller can disambiguate.
 func (r *Registry) ResolveKVCacheProvider(name string) (plugin.KVCacheProvider, error) {
 	if name == "" {
-		return nil, errors.New("cache backend name is required")
+		return r.singleActiveKVCacheProvider()
 	}
 
 	resolved, ok := r.GetPlugin(name)
@@ -114,10 +117,12 @@ func (r *Registry) ResolveKVCacheProvider(name string) (plugin.KVCacheProvider, 
 	return provider, nil
 }
 
-// ResolveBlobStoreProvider returns a named blob store backend provider.
+// ResolveBlobStoreProvider returns a named blob store backend provider. When
+// name is empty, falls back to the single enabled blob store provider —
+// otherwise returns an error listing the available backends.
 func (r *Registry) ResolveBlobStoreProvider(name string) (plugin.BlobStoreProvider, error) {
 	if name == "" {
-		return nil, errors.New("blob backend name is required")
+		return r.singleActiveBlobStoreProvider()
 	}
 
 	resolved, ok := r.GetPlugin(name)
@@ -134,6 +139,57 @@ func (r *Registry) ResolveBlobStoreProvider(name string) (plugin.BlobStoreProvid
 	}
 
 	return provider, nil
+}
+
+func (r *Registry) singleActiveKVCacheProvider() (plugin.KVCacheProvider, error) {
+	candidates := ByCapabilityFrom[plugin.KVCacheProvider](r)
+	active := make([]plugin.KVCacheProvider, 0, len(candidates))
+	for _, c := range candidates {
+		if isPluginEnabled(c) {
+			active = append(active, c)
+		}
+	}
+	switch len(active) {
+	case 0:
+		return nil, errors.New("no active KV cache provider — set extensions.<feature>.cache.backend explicitly")
+	case 1:
+		return active[0], nil
+	default:
+		return nil, fmt.Errorf("multiple active KV cache providers (%s) — set extensions.<feature>.cache.backend explicitly",
+			pluginNames(active))
+	}
+}
+
+func (r *Registry) singleActiveBlobStoreProvider() (plugin.BlobStoreProvider, error) {
+	candidates := ByCapabilityFrom[plugin.BlobStoreProvider](r)
+	active := make([]plugin.BlobStoreProvider, 0, len(candidates))
+	for _, c := range candidates {
+		if isPluginEnabled(c) {
+			active = append(active, c)
+		}
+	}
+	switch len(active) {
+	case 0:
+		return nil, errors.New("no active blob store provider — set extensions.<feature>.blob_cache.backend explicitly")
+	case 1:
+		return active[0], nil
+	default:
+		return nil, fmt.Errorf("multiple active blob store providers (%s) — set extensions.<feature>.blob_cache.backend explicitly",
+			pluginNames(active))
+	}
+}
+
+// pluginNames returns a comma-separated list of plugin names from any slice
+// whose elements satisfy the Plugin interface.
+func pluginNames[T plugin.Plugin](items []T) string {
+	var sb strings.Builder
+	for i, item := range items {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteString(item.Name())
+	}
+	return sb.String()
 }
 
 // PreflightsForStartup returns enabled plugins that participate in framework

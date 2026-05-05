@@ -89,11 +89,23 @@ func isTerraformDir(info os.FileInfo, path string) bool {
 	return info.IsDir() && containsTerraformFiles(path)
 }
 
-// containsTerraformFiles checks if a directory contains .tf files.
+// containsTerraformFiles checks if a directory contains .tf files. Reads the
+// directory entries directly instead of going through filepath.Glob: the
+// scanner is invoked once per directory in the walk, so on a 10K-directory
+// repo the difference is ~10K syscalls (Glob does Lstat-of-parent +
+// pattern parse + ReadDir; this path is only ReadDir).
 func containsTerraformFiles(dir string) bool {
-	matches, err := filepath.Glob(filepath.Join(dir, "*.tf"))
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return false
 	}
-	return len(matches) > 0
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if strings.HasSuffix(entry.Name(), ".tf") {
+			return true
+		}
+	}
+	return false
 }

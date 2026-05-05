@@ -10,23 +10,25 @@ TerraCi has first-class support for [OpenTofu](https://opentofu.org/), the open-
 
 ## Configuration
 
-Switch to OpenTofu by updating `.terraci.yaml`:
+Switch to OpenTofu by setting the binary in the top-level `execution:` section:
 
 ```yaml
+execution:
+  binary: tofu
+
 extensions:
   # For GitLab CI
   gitlab:
-    terraform_binary: "tofu"
     image: "ghcr.io/opentofu/opentofu:1.6"
 
-  # For GitHub Actions
+  # For GitHub Actions (no provider-side binary setting; image comes from the workflow steps)
   github:
-    terraform_binary: "tofu"
+    runs_on: ubuntu-latest
 ```
 
 ## How It Works
 
-When you set `terraform_binary: "tofu"`, TerraCi:
+When you set `execution.binary: tofu`, TerraCi:
 
 1. Sets `TERRAFORM_BINARY=tofu` in the pipeline variables
 2. Uses `${TERRAFORM_BINARY}` in all generated scripts
@@ -99,17 +101,19 @@ TerraCi's dependency resolution works identically for both.
 
 ### From Terraform to OpenTofu
 
-1. Update `.terraci.yaml` (for your provider):
+1. Update `.terraci.yaml`:
    ```yaml
+   execution:
+     binary: tofu
+
    extensions:
      # GitLab CI
      gitlab:
-       terraform_binary: "tofu"
        image: "ghcr.io/opentofu/opentofu:1.6"
 
      # GitHub Actions
      github:
-       terraform_binary: "tofu"
+       runs_on: ubuntu-latest
    ```
 
 2. Regenerate pipelines:
@@ -147,40 +151,34 @@ The HCL parsing is compatible with both.
 
 ## Custom Binary Path
 
-If your binary has a custom name or path:
+If your binary has a custom name or path, point `execution.binary` at it. TerraCi exports the value as `TERRAFORM_BINARY` and uses it everywhere it generates a Terraform command:
 
 ```yaml
-extensions:
-  # GitLab
-  gitlab:
-    terraform_binary: "/usr/local/bin/tofu-1.6"
-    before_script:
-      - ${TERRAFORM_BINARY} init
-
-  # GitHub Actions
-  github:
-    terraform_binary: "/usr/local/bin/tofu-1.6"
+execution:
+  binary: "/usr/local/bin/tofu-1.6"
 ```
 
 ## Environment Variables
 
-Set OpenTofu-specific environment variables:
+`TERRAFORM_BINARY` is exported automatically from `execution.binary`. Add other OpenTofu-specific environment variables via `execution.env` (workflow-wide) or per-provider:
 
 ```yaml
+execution:
+  binary: tofu
+  env:
+    TF_CLI_CONFIG_FILE: "/etc/tofu/config.tfrc"
+    TOFU_LOG: "INFO"
+
 extensions:
   # GitLab
   gitlab:
     variables:
-      TERRAFORM_BINARY: "tofu"
       TF_CLI_CONFIG_FILE: "/etc/tofu/config.tfrc"
-      TOFU_LOG: "INFO"
 
   # GitHub Actions
   github:
-    variables:
-      TERRAFORM_BINARY: "tofu"
+    env:
       TF_CLI_CONFIG_FILE: "/etc/tofu/config.tfrc"
-      TOFU_LOG: "INFO"
 ```
 
 ## Next Steps

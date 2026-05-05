@@ -28,7 +28,10 @@ func TestBuildPolicyReport_WithFailures(t *testing.T) {
 		},
 	}
 
-	report := buildPolicyReport(summary)
+	report, buildErr := buildPolicyReport(summary)
+	if buildErr != nil {
+		t.Fatalf("buildPolicyReport() error = %v", buildErr)
+	}
 	if report.Status != ci.ReportStatusFail {
 		t.Fatalf("Status = %q, want %q", report.Status, ci.ReportStatusFail)
 	}
@@ -61,7 +64,10 @@ func TestBuildPolicyReport_WithWarnings(t *testing.T) {
 		},
 	}
 
-	report := buildPolicyReport(summary)
+	report, buildErr := buildPolicyReport(summary)
+	if buildErr != nil {
+		t.Fatalf("buildPolicyReport() error = %v", buildErr)
+	}
 	if report.Status != ci.ReportStatusWarn {
 		t.Fatalf("Status = %q, want %q", report.Status, ci.ReportStatusWarn)
 	}

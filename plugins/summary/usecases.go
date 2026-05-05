@@ -166,11 +166,11 @@ func buildSummaryReport(inputs *summaryInputs, cfg *summaryengine.Config) *ci.Re
 		Title:    "Terraform Plan Summary",
 		Status:   summaryReportStatus(inputs.plans, inputs.reports),
 		Summary:  summaryReportSummary(inputs.collection),
-		Provenance: &ci.ReportProvenance{
-			CommitSHA:              inputs.collection.CommitSHA,
-			PipelineID:             inputs.collection.PipelineID,
-			PlanResultsFingerprint: inputs.collection.Fingerprint(),
-		},
+		Provenance: ci.NewProvenance(
+			inputs.collection.CommitSHA,
+			inputs.collection.PipelineID,
+			inputs.collection.Fingerprint(),
+		),
 		Sections: summaryengine.BuildSummarySectionsWithOptions(inputs.plans, inputs.reports, summaryIncludeDetails(cfg)),
 	}
 }

@@ -52,19 +52,18 @@ func Build(opts BuildOptions) (*IR, error) {
 			// Plan job
 			if opts.PlanEnabled {
 				planOperation, artifactPaths := opts.Script.NewPlanOperation(mod.RelativePath)
-				planName := JobName("plan", mod)
+				planName := JobName(JobKindPlan, mod)
 
 				// Resolve plan dependencies
 				var planDeps []string
 				if opts.PlanOnly {
-					planDeps = ResolveDependencyNames(mod, "plan", plan.Subgraph, plan.ModuleIndex)
+					planDeps = ResolveDependencyNames(mod, JobKindPlan, plan.Subgraph, plan.ModuleIndex)
 				} else {
-					planDeps = ResolveDependencyNames(mod, "apply", plan.Subgraph, plan.ModuleIndex)
+					planDeps = ResolveDependencyNames(mod, JobKindApply, plan.Subgraph, plan.ModuleIndex)
 				}
 
 				mj.Plan = &Job{
 					Name:          planName,
-					Type:          JobTypePlan,
 					Module:        mod,
 					Env:           env,
 					Dependencies:  planDeps,
@@ -77,9 +76,9 @@ func Build(opts BuildOptions) (*IR, error) {
 			// Apply job
 			if !opts.PlanOnly {
 				applyOperation := opts.Script.NewApplyOperation(mod.RelativePath)
-				applyName := JobName("apply", mod)
+				applyName := JobName(JobKindApply, mod)
 
-				applyDeps := ResolveDependencyNames(mod, "apply", plan.Subgraph, plan.ModuleIndex)
+				applyDeps := ResolveDependencyNames(mod, JobKindApply, plan.Subgraph, plan.ModuleIndex)
 
 				// Apply depends on its own plan job
 				if mj.Plan != nil {
@@ -88,7 +87,6 @@ func Build(opts BuildOptions) (*IR, error) {
 
 				mj.Apply = &Job{
 					Name:         applyName,
-					Type:         JobTypeApply,
 					Module:       mod,
 					Env:          env,
 					Dependencies: applyDeps,

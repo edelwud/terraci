@@ -56,16 +56,18 @@ func persistPolicyArtifacts(serviceDir string, summary *policyengine.Summary) {
 		return
 	}
 
-	if saveErr := ci.SaveJSON(serviceDir, resultsFile, summary); saveErr != nil {
-		log.WithError(saveErr).Warn("failed to save policy results")
+	report, buildErr := buildPolicyReport(summary)
+	if buildErr != nil {
+		log.WithError(buildErr).Warn("failed to build policy report")
+		report = nil
 	}
-	if saveErr := ci.SaveReport(serviceDir, buildPolicyReport(summary)); saveErr != nil {
-		log.WithError(saveErr).Warn("failed to save policy report")
+	if saveErr := ci.SaveResultsAndReport(serviceDir, resultsFile, summary, report); saveErr != nil {
+		log.WithError(saveErr).Warn("failed to persist policy artifacts")
 	}
 }
 
 func (p *Plugin) runPull(ctx context.Context, appCtx *plugin.AppContext, outputDir string) error {
-	runtime, err := p.runtime(ctx, appCtx, runtimeOptions{outputDir: outputDir})
+	runtime, err := p.runtime(ctx, appCtx, &runtimeOptions{outputDir: outputDir})
 	if err != nil {
 		return err
 	}
@@ -74,7 +76,7 @@ func (p *Plugin) runPull(ctx context.Context, appCtx *plugin.AppContext, outputD
 }
 
 func (p *Plugin) runCheck(ctx context.Context, appCtx *plugin.AppContext, modulePath, outputFmt string) error {
-	runtime, err := p.runtime(ctx, appCtx, runtimeOptions{
+	runtime, err := p.runtime(ctx, appCtx, &runtimeOptions{
 		modulePath: modulePath,
 		outputFmt:  outputFmt,
 	})

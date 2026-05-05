@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/ci/citest"
 )
 
 func TestComposeComment_BasicPlans(t *testing.T) {
@@ -80,7 +81,7 @@ func TestComposeComment_WithReport(t *testing.T) {
 			Title:    "Policy Check",
 			Status:   ci.ReportStatusFail,
 			Summary:  "2 modules: 1 passed, 0 warned, 1 failed",
-			Sections: []ci.ReportSection{ci.MustEncodeSection(
+			Sections: []ci.ReportSection{citest.MustEncodeSection(
 				ci.ReportSectionKindFindings,
 				"Policy Check",
 				"2 modules: 1 passed, 0 warned, 1 failed",
@@ -282,7 +283,7 @@ func TestComposeComment_FiltersTfupdateReportToUpdatableModules(t *testing.T) {
 		Title:    "Dependency Update Check",
 		Status:   ci.ReportStatusWarn,
 		Summary:  "4 checked, 2 updates available, 0 applied, 0 errors",
-		Sections: []ci.ReportSection{ci.MustEncodeSection(
+		Sections: []ci.ReportSection{citest.MustEncodeSection(
 			ci.ReportSectionKindDependencyUpdates,
 			"Dependency Update Check",
 			"4 checked, 2 updates available, 0 applied, 0 errors",
@@ -714,7 +715,7 @@ func TestRenderReportSection(t *testing.T) {
 			Title:    "Policy Check",
 			Status:   ci.ReportStatusFail,
 			Summary:  "3 modules: 1 passed, 0 warned, 2 failed",
-			Sections: []ci.ReportSection{ci.MustEncodeSection(
+			Sections: []ci.ReportSection{citest.MustEncodeSection(
 				ci.ReportSectionKindFindings,
 				"Policy Check",
 				"3 modules: 1 passed, 0 warned, 2 failed",
@@ -754,7 +755,7 @@ func TestRenderReportSection(t *testing.T) {
 			Title:    "Policy Check",
 			Status:   ci.ReportStatusWarn,
 			Summary:  "1 modules: 0 passed, 1 warned, 0 failed",
-			Sections: []ci.ReportSection{ci.MustEncodeSection(
+			Sections: []ci.ReportSection{citest.MustEncodeSection(
 				ci.ReportSectionKindFindings,
 				"Policy Check",
 				"1 modules: 0 passed, 1 warned, 0 failed",

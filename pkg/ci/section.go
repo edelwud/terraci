@@ -22,16 +22,6 @@ func EncodeSection[T any](kind ReportSectionKind, title, sectionSummary string, 
 	}, nil
 }
 
-// MustEncodeSection is the panic-on-error variant of EncodeSection. Use only
-// for payloads that cannot fail to encode (no maps, no chans, no functions).
-func MustEncodeSection[T any](kind ReportSectionKind, title, sectionSummary string, status ReportStatus, body T) ReportSection {
-	section, err := EncodeSection(kind, title, sectionSummary, status, body)
-	if err != nil {
-		panic(err)
-	}
-	return section
-}
-
 // DecodeSection JSON-decodes the section payload into T. Consumers select the
 // expected payload type based on Section.Kind.
 func DecodeSection[T any](section ReportSection) (T, error) {

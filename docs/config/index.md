@@ -36,6 +36,9 @@ This launches an interactive TUI wizard that guides you through provider selecti
 ## Full Example
 
 ```yaml
+# Optional service directory (default: .terraci) — used for runtime artifacts and reports
+service_dir: .terraci
+
 # Directory structure configuration
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
@@ -48,16 +51,22 @@ exclude:
 
 include: []  # Empty means all (after excludes)
 
+# Shared Terraform/OpenTofu execution settings
+execution:
+  binary: terraform        # or "tofu"
+  init_enabled: true       # automatically run terraform init
+  plan_enabled: true       # generate plan jobs
+  plan_mode: standard      # "standard" or "detailed"
+  parallelism: 4           # local-exec worker pool size
+
 extensions:
   # GitLab CI pipeline settings (used when GITLAB_CI is detected)
   gitlab:
-    terraform_binary: "terraform"
-    image: "hashicorp/terraform:1.6"
+    image:
+      name: hashicorp/terraform:1.6
     stages_prefix: "deploy"
     parallelism: 5
-    plan_enabled: true
     auto_approve: false
-    init_enabled: true
 
     variables:
       TF_IN_AUTOMATION: "true"
@@ -77,11 +86,8 @@ extensions:
 
   # GitHub Actions pipeline settings (used when GITHUB_ACTIONS is detected)
   # github:
-  #   terraform_binary: "terraform"
   #   runs_on: "ubuntu-latest"
-  #   plan_enabled: true
   #   auto_approve: false
-  #   init_enabled: true
   #   permissions:
   #     contents: read
   #     pull-requests: write
@@ -117,24 +123,26 @@ extensions:
 If a configuration file is not found, these defaults are used:
 
 ```yaml
-# provider selection:
-#   TERRACI_PROVIDER env var
-#   CI environment detection
-#   single active provider
+service_dir: .terraci
 
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
-extensions:
-  gitlab:
-    terraform_binary: "terraform"
-    image: "hashicorp/terraform:1.6"
-    stages_prefix: "deploy"
-    parallelism: 5
-    plan_enabled: true
-    auto_approve: false
-    init_enabled: true
+execution:
+  binary: terraform
+  init_enabled: true
+  plan_enabled: true
+  plan_mode: standard
+  parallelism: 4
 ```
+
+Provider selection at runtime:
+
+1. `TERRACI_PROVIDER` env var — explicit override
+2. CI environment detection (e.g. `GITLAB_CI`, `GITHUB_ACTIONS`)
+3. Single active provider (only one configured)
+
+GitLab/GitHub plugin defaults (when configured) come from the plugin's struct tags — see [`gitlab`](./gitlab) and [`github`](./github).
 
 ## Validation
 
@@ -181,12 +189,14 @@ extensions:
 
 ## OpenTofu with Minimal Images
 
-For OpenTofu minimal images that have a non-shell entrypoint, use the object format:
+For OpenTofu minimal images that have a non-shell entrypoint, use the object format and switch the execution binary:
 
 ```yaml
+execution:
+  binary: tofu
+
 extensions:
   gitlab:
-    terraform_binary: "tofu"
     image:
       name: "ghcr.io/opentofu/opentofu:1.9-minimal"
       entrypoint: [""]

@@ -53,10 +53,16 @@ func buildJobPlan(
 	}, nil
 }
 
-// JobName generates a safe job name from module path and job type.
-func JobName(jobType string, module *discovery.Module) string {
+// JobName generates a safe job name from module path and job kind.
+// Only Plan/Apply kinds are supported here; contributed jobs carry their
+// own name (assigned by the contributor).
+func JobName(kind JobKind, module *discovery.Module) string {
+	prefix := kind.NamePrefix()
+	if prefix == "" {
+		return strings.ReplaceAll(module.ID(), "/", "-")
+	}
 	name := strings.ReplaceAll(module.ID(), "/", "-")
-	return fmt.Sprintf("%s-%s", jobType, name)
+	return fmt.Sprintf("%s-%s", prefix, name)
 }
 
 // ResolveDependencyNames returns job names for a module's dependencies in the
@@ -64,7 +70,7 @@ func JobName(jobType string, module *discovery.Module) string {
 // target module set; only modules present in moduleIndex are emitted.
 func ResolveDependencyNames(
 	module *discovery.Module,
-	jobType string,
+	kind JobKind,
 	subgraph *graph.DependencyGraph,
 	moduleIndex *discovery.ModuleIndex,
 ) []string {
@@ -75,7 +81,7 @@ func ResolveDependencyNames(
 		if depModule == nil {
 			continue
 		}
-		names = append(names, JobName(jobType, depModule))
+		names = append(names, JobName(kind, depModule))
 	}
 	return names
 }

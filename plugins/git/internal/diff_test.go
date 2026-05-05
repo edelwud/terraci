@@ -1,9 +1,11 @@
 package gitclient
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +13,46 @@ import (
 	"github.com/go-git/go-git/v6/plumbing"
 	"github.com/go-git/go-git/v6/plumbing/object"
 )
+
+// TestGetChangedFiles_RejectsShallowRepository asserts that shallow clones are
+// surfaced as an explicit error rather than silently producing the truncated
+// diff (which historically reported every file as changed).
+func TestGetChangedFiles_RejectsShallowRepository(t *testing.T) {
+	dir := t.TempDir()
+	repo, err := gogit.PlainInit(dir, false)
+	if err != nil {
+		t.Fatalf("PlainInit: %v", err)
+	}
+	addCommit(t, dir, repo, "main.tf", "# initial", "init")
+	addCommit(t, dir, repo, "main.tf", "# updated", "update")
+
+	// Mark the repo as shallow by writing a synthetic `.git/shallow` file —
+	// this is the same on-disk signal `git clone --depth N` produces.
+	shallowPath := filepath.Join(dir, ".git", "shallow")
+	if writeErr := os.WriteFile(shallowPath, []byte("0000000000000000000000000000000000000000\n"), 0o644); writeErr != nil {
+		t.Fatalf("write .git/shallow: %v", writeErr)
+	}
+
+	client := NewClient(dir)
+	shallow, shallowErr := client.IsShallow()
+	if shallowErr != nil {
+		t.Fatalf("IsShallow() error = %v", shallowErr)
+	}
+	if !shallow {
+		t.Fatal("IsShallow() = false, want true")
+	}
+
+	_, err = client.GetChangedFiles("HEAD~1")
+	if err == nil {
+		t.Fatal("GetChangedFiles() error = nil, want shallow-repository error")
+	}
+	if !errors.Is(err, ErrShallowRepository) {
+		t.Fatalf("GetChangedFiles() error = %v, want ErrShallowRepository", err)
+	}
+	if !strings.Contains(err.Error(), "shallow") {
+		t.Fatalf("error message must mention 'shallow' for user-facing diagnostics, got: %v", err)
+	}
+}
 
 func addCommit(t *testing.T, dir string, repo *gogit.Repository, filename, content, msg string) plumbing.Hash {
 	t.Helper()

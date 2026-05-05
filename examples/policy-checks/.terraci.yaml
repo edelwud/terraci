@@ -12,6 +12,10 @@ exclude:
   - "*/test/*"
   - "modules/**"
 
+execution:
+  binary: terraform
+  plan_enabled: true
+
 # Policy configuration
 extensions:
   policy:
@@ -28,14 +32,12 @@ extensions:
       - compliance
 
     # What to do when policy check fails
-    # Options: block, warn, ignore
+    # Options: block, warn
     on_failure: block
 
     # What to do when policy check has warnings
+    # Options: warn, ignore
     on_warning: warn
-
-    # Show policy results in MR comment
-    show_in_comment: true
 
     # Module-specific overwrites
     overwrites:
@@ -51,7 +53,6 @@ extensions:
   gitlab:
     image:
       name: hashicorp/terraform:1.6
-    plan_enabled: true
     auto_approve: false
 
     # MR integration

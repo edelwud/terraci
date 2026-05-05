@@ -10,18 +10,9 @@ The `github` section configures the generated GitHub Actions workflow. This sect
 
 ## Options
 
-### terraform_binary
-
-**Type:** `string`
-**Default:** `"terraform"`
-
-The Terraform/OpenTofu binary to use.
-
-```yaml
-extensions:
-  github:
-    terraform_binary: "terraform"  # or "tofu"
-```
+::: info Execution settings
+`binary`, `init_enabled`, `plan_enabled` and related execution semantics live under the top-level `execution:` section, **not** under `extensions.github`. See [Configuration Overview](./index.md#full-example).
+:::
 
 ### runs_on
 
@@ -68,20 +59,6 @@ extensions:
       AWS_DEFAULT_REGION: "us-east-1"
 ```
 
-### plan_enabled
-
-**Type:** `boolean`
-**Default:** `true`
-
-Generate separate plan jobs.
-
-```yaml
-extensions:
-  github:
-    plan_enabled: true   # plan + apply jobs
-    # plan_enabled: false  # apply only
-```
-
 ### plan_only
 
 **Type:** `boolean`
@@ -107,19 +84,6 @@ extensions:
   github:
     auto_approve: false  # Apply uses environment protection
     # auto_approve: true   # Apply runs automatically
-```
-
-### init_enabled
-
-**Type:** `boolean`
-**Default:** `true`
-
-Automatically run `terraform init` before terraform commands.
-
-```yaml
-extensions:
-  github:
-    init_enabled: true
 ```
 
 ### permissions
@@ -248,16 +212,17 @@ Controls PR comment behavior:
 ## Full Example
 
 ```yaml
+execution:
+  binary: terraform
+  init_enabled: true
+  plan_enabled: true
+
 extensions:
   github:
-    # Binary configuration
-    terraform_binary: "terraform"
     runs_on: "ubuntu-latest"
 
     # Workflow settings
-    plan_enabled: true
     auto_approve: false
-    init_enabled: true
 
     # Workflow-level environment variables
     env:

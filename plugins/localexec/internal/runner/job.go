@@ -138,7 +138,10 @@ func (r *jobRunner) runStandaloneJob(ctx context.Context, job *pipeline.Job) err
 }
 
 func phasesForJob(job *pipeline.Job) (pre, post pipeline.Phase) {
-	if job != nil && job.Type == pipeline.JobTypeApply {
+	// Branch on the operation payload, not on a parallel "JobType" field —
+	// the latter defaulted to "plan" for contributed jobs and silently
+	// captured them in plan-phase logic.
+	if job != nil && job.Operation.Type == pipeline.OperationTypeTerraformApply {
 		return pipeline.PhasePreApply, pipeline.PhasePostApply
 	}
 	return pipeline.PhasePrePlan, pipeline.PhasePostPlan

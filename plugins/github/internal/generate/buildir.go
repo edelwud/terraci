@@ -5,14 +5,15 @@ import (
 	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
+	"github.com/edelwud/terraci/pkg/pipeline/pipelinetest"
 	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
 )
 
 // BuildPipelineIR builds the canonical pipeline IR for the GitHub generator
-// from raw inputs. Production callers normally build the IR via core
-// (cmd/terraci) and pass it to NewGenerator directly; this helper lets tests
-// construct an IR with the same script-config / plan-only / detailed-plan
-// semantics that the GitHub plugin would derive from its own settings.
+// from raw inputs. Provider-specific knobs (DetailedPlan inferred from PR
+// comment toggle) come from GitHub settings; the actual IR construction
+// goes through pipelinetest.BuildIR so it stays aligned with the GitLab
+// equivalent.
 func BuildPipelineIR(
 	cfg *configpkg.Config,
 	execCfg execution.Config,
@@ -21,11 +22,7 @@ func BuildPipelineIR(
 	allModules, targetModules []*discovery.Module,
 ) (*pipeline.IR, error) {
 	s := newSettings(cfg, execCfg)
-	return pipeline.Build(pipeline.BuildOptions{
-		DepGraph:      depGraph,
-		TargetModules: targetModules,
-		AllModules:    allModules,
-		ModuleIndex:   discovery.NewModuleIndex(allModules),
+	return pipelinetest.BuildIR(pipelinetest.IROptions{
 		Script: pipeline.ScriptConfig{
 			InitEnabled:  s.initEnabled(),
 			PlanEnabled:  s.planEnabled(),
@@ -33,6 +30,9 @@ func BuildPipelineIR(
 			DetailedPlan: s.prEnabled(),
 		},
 		Contributions: contributions,
+		DepGraph:      depGraph,
+		AllModules:    allModules,
+		TargetModules: targetModules,
 		PlanEnabled:   s.planEnabled(),
 		PlanOnly:      s.planOnly(),
 	})

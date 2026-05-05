@@ -75,24 +75,29 @@ type Options struct {
 	Segments map[string][]string // segment name → allowed values (e.g. "service" → ["platform"])
 }
 
-// Apply applies all configured filters to modules. Returns the input slice
-// unchanged when no filter criteria are set.
-func Apply(modules []*discovery.Module, opts Options) []*discovery.Module {
-	filters := opts.filters()
-	if len(filters) == 0 {
-		return modules
-	}
-
-	result := make([]*discovery.Module, 0, len(modules))
-	for _, m := range modules {
-		if matchAll(filters, m) {
-			result = append(result, m)
-		}
-	}
-	return result
+// Matcher is a precompiled filter predicate. Build one with Options.Compile()
+// to amortize filter construction across many module checks — callers that
+// invoke Apply on slice-of-1 inside a loop can hoist Compile() out and reuse
+// the Matcher in the inner loop.
+type Matcher struct {
+	filters []moduleFilter
 }
 
-func (o Options) filters() []moduleFilter {
+// Empty reports whether the matcher has no active filters; callers can
+// short-circuit and accept every module.
+func (m Matcher) Empty() bool { return len(m.filters) == 0 }
+
+// Matches reports whether a module passes all configured filters.
+func (m Matcher) Matches(module *discovery.Module) bool {
+	if len(m.filters) == 0 {
+		return true
+	}
+	return matchAll(m.filters, module)
+}
+
+// Compile builds a reusable Matcher from Options. Equivalent to extracting
+// the internal filter list once instead of rebuilding it per Apply call.
+func (o Options) Compile() Matcher {
 	var filters []moduleFilter
 	if len(o.Excludes) > 0 || len(o.Includes) > 0 {
 		filters = append(filters, globFilter{excludes: o.Excludes, includes: o.Includes})
@@ -102,7 +107,24 @@ func (o Options) filters() []moduleFilter {
 			filters = append(filters, segmentFilter{segment: segment, values: values})
 		}
 	}
-	return filters
+	return Matcher{filters: filters}
+}
+
+// Apply applies all configured filters to modules. Returns the input slice
+// unchanged when no filter criteria are set.
+func Apply(modules []*discovery.Module, opts Options) []*discovery.Module {
+	matcher := opts.Compile()
+	if matcher.Empty() {
+		return modules
+	}
+
+	result := make([]*discovery.Module, 0, len(modules))
+	for _, m := range modules {
+		if matcher.Matches(m) {
+			result = append(result, m)
+		}
+	}
+	return result
 }
 
 func matchAll(filters []moduleFilter, module *discovery.Module) bool {

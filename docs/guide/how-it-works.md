@@ -218,22 +218,24 @@ apply-eks:
 ```mermaid
 flowchart TD
   A["terraci generate"] --> B
-  B["Scanner.Scan()"] --> C
-  C["Parser.ParseModule()"] --> D
-  D["DependencyGraph.Build()"] --> E
+  B["workflow.Run() — scan, filter, parse, graph"] --> C
+  C["resolver.CollectContributions(appCtx)"] --> D
+  D["pipeline.Build(opts) → *pipeline.IR"] --> E
   E{"Provider?"}
-  E -->|GitLab| F["gitlab.Generator"] --> G[".gitlab-ci.yml"]
-  E -->|GitHub| H["github.Generator"] --> I["workflow.yml"]
+  E -->|GitLab| F["gitlab.NewGenerator(ctx, ir)"] --> G[".gitlab-ci.yml"]
+  E -->|GitHub| H["github.NewGenerator(ctx, ir)"] --> I["workflow.yml"]
 ```
 
 Each stage:
 
 | Step | Function | What it does |
 |------|----------|-------------|
-| 1 | `Scanner.Scan()` | Walk directory tree, find `.tf` files at configured depth, create Module structs with component maps |
-| 2 | `Parser.ParseModule()` | Parse HCL, extract locals, find `terraform_remote_state`, resolve variables |
-| 3 | `DependencyGraph.Build()` | Add nodes/edges, detect cycles, topological sort → execution levels |
-| 4 | `Generator.Generate()` | Create stages, generate plan/apply jobs, apply overwrites, output YAML (GitLab or GitHub Actions) |
+| 1 | `workflow.Run()` | Scan filesystem, apply filters, parse HCL, build dependency graph |
+| 2 | `resolver.CollectContributions(appCtx)` | Gather plugin-contributed steps and standalone jobs (cost, policy, summary, tfupdate) |
+| 3 | `pipeline.Build(opts)` | Construct provider-agnostic IR (`*pipeline.IR{Levels, Jobs}`) — single execution input |
+| 4 | `provider.NewGenerator(ctx, ir)` + `Generate()` | Bind IR to provider; transform IR into GitLab CI YAML or GitHub Actions workflow |
+
+The IR is the **single source** for both pipeline generation and `terraci local-exec`: providers don't reach for the dependency graph or contribution list separately — the IR already encodes them.
 
 ## Key Types
 

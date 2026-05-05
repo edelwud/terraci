@@ -18,7 +18,7 @@ terraci summary [flags]
 
 The `summary` command collects terraform plan results from artifacts and creates or updates a summary comment on the merge request (GitLab) or pull request (GitHub).
 
-This command is designed to run as a final job in the CI pipeline after all plan jobs have completed. It scans for `plan.txt` files in module directories and posts a formatted comment.
+This command is designed to run as a final job in the CI pipeline after all plan jobs have completed. It loads plan results from each module's plan artifacts, enriches them with `{producer}-report.json` files (cost, policy, tfupdate) discovered in the service directory, writes a canonical `summary-report.json`, and posts a formatted MR/PR comment.
 
 The command automatically detects the CI provider and whether it is running in an MR/PR pipeline, and only creates comments when appropriate.
 

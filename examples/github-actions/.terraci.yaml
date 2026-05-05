@@ -2,13 +2,15 @@
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
+execution:
+  binary: terraform
+  init_enabled: true
+  plan_enabled: true
+
 extensions:
   github:
-    terraform_binary: terraform
     runs_on: ubuntu-latest
-    plan_enabled: true
     auto_approve: false
-    init_enabled: true
 
     permissions:
       contents: read

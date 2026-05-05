@@ -17,6 +17,11 @@ func newValidateCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "validate",
 		Short: "Validate module structure and dependencies",
+		// validate is a read-only command — it doesn't drive any plugin runtime
+		// (cost engines, policy clients, change detectors). Skip preflight so a
+		// missing .git directory or a misconfigured cache backend doesn't
+		// derail what is fundamentally a graph-correctness check.
+		Annotations: map[string]string{annotationSkipPreflight: annotationTrue},
 		Long: `Validate the Terraform module structure and check for dependency issues.
 
 This command will:

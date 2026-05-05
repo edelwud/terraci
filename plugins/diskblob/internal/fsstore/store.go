@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/edelwud/terraci/pkg/cache/blobcache"
 )
@@ -21,10 +22,24 @@ type StoreDeps struct {
 }
 
 // Store is a filesystem-backed blob store implementation.
+//
+// Concurrency: Store serializes write/delete operations on the same
+// (namespace, key) pair via an in-process keyed mutex. This protects callers
+// using a single Store within one process — the typical TerraCi scenario.
+//
+// Cross-process protection (multiple TerraCi processes sharing the same root
+// directory) is best-effort: the underlying temp+rename sequence preserves
+// per-file atomicity, but data and metadata are committed in two separate
+// rename calls that can interleave with another process. Run separate
+// TerraCi instances against distinct root_dir paths if strict cross-process
+// isolation is required.
 type Store struct {
 	layout   PathLayout
 	metadata MetadataCodec
 	writer   ObjectWriter
+
+	keyMu sync.Mutex
+	locks map[string]*sync.Mutex
 }
 
 // New constructs a filesystem-backed blob store rooted at rootDir.
@@ -44,7 +59,27 @@ func NewWithDeps(deps StoreDeps) *Store {
 		layout:   deps.Layout,
 		metadata: deps.Metadata,
 		writer:   deps.Writer,
+		locks:    make(map[string]*sync.Mutex),
 	}
+}
+
+// objectLock returns the keyed mutex for a (namespace, key) pair. Locks are
+// allocated lazily and retained for the life of the Store to keep concurrent
+// operations on the same key serialized.
+func (s *Store) objectLock(namespace, key string) *sync.Mutex {
+	s.keyMu.Lock()
+	defer s.keyMu.Unlock()
+
+	if s.locks == nil {
+		s.locks = make(map[string]*sync.Mutex)
+	}
+	id := namespace + "\x00" + key
+	mu, ok := s.locks[id]
+	if !ok {
+		mu = &sync.Mutex{}
+		s.locks[id] = mu
+	}
+	return mu
 }
 
 // BlobStoreRootDir returns the root directory used for blob storage.
@@ -142,6 +177,10 @@ func (s *Store) PutStream(ctx context.Context, namespace, key string, r io.Reade
 		return blobcache.Meta{}, fmt.Errorf("diskblob: resolve blob path: %w", err)
 	}
 
+	mu := s.objectLock(namespace, key)
+	mu.Lock()
+	defer mu.Unlock()
+
 	meta, err := s.writer.Write(ctx, paths, r, opts)
 	if err != nil {
 		return blobcache.Meta{}, fmt.Errorf("diskblob: write blob data: %w", err)
@@ -156,6 +195,10 @@ func (s *Store) Delete(_ context.Context, namespace, key string) error {
 	if err != nil {
 		return fmt.Errorf("diskblob: resolve blob path: %w", err)
 	}
+
+	mu := s.objectLock(namespace, key)
+	mu.Lock()
+	defer mu.Unlock()
 
 	if err := os.Remove(paths.DataPath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("diskblob: delete blob data: %w", err)

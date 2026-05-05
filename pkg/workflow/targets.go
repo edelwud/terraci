@@ -125,6 +125,12 @@ func resolveAffectedModules(
 		}
 	}
 
+	// Pre-compile the filter matcher once: each call to ApplyFilters parsed
+	// the same exclude/include glob patterns from scratch, which became
+	// O(N×M) on repos with many changed-but-excluded modules. The Matcher
+	// holds the compiled predicates and is reused inside the loop.
+	matcher := MergedFilterOptions(cfg, ff).Compile()
+
 	for _, module := range allModules {
 		id := module.ID()
 		if !idSet[id] || seen[id] {
@@ -133,7 +139,7 @@ func resolveAffectedModules(
 		if filteredSet.ByID(id) != nil {
 			continue
 		}
-		if allSet.ByID(id) != nil && len(ApplyFilters(cfg, ff, []*discovery.Module{module})) > 0 {
+		if allSet.ByID(id) != nil && matcher.Matches(module) {
 			targets = append(targets, module)
 			seen[id] = true
 		}

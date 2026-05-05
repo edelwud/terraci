@@ -46,6 +46,15 @@ type MRConfig struct {
 	SummaryJob *SummaryJobConfig `yaml:"summary_job,omitempty" json:"summary_job,omitempty" jsonschema:"description=Summary job configuration"`
 }
 
+// CommentBlock implements ciplugin.CommentBlockSource so the shared
+// CommentEnabled helper can be used by gitlab's MR service.
+func (m *MRConfig) CommentBlock() *MRCommentConfig {
+	if m == nil {
+		return nil
+	}
+	return m.Comment
+}
+
 // SummaryJobConfig contains settings for the summary job.
 type SummaryJobConfig struct {
 	Image *Image   `yaml:"image,omitempty" json:"image,omitempty" jsonschema:"description=Docker image for summary job (must contain terraci)"`

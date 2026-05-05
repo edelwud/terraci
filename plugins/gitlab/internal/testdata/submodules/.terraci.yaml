@@ -2,12 +2,12 @@
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
-gitlab:
-  image: "hashicorp/terraform:1.6"
-  stages_prefix: "deploy"
+execution:
+  binary: terraform
   plan_enabled: true
 
-backend:
-  type: s3
-  bucket: terraform-state
-  region: eu-central-1
+extensions:
+  gitlab:
+    image:
+      name: "hashicorp/terraform:1.6"
+    stages_prefix: "deploy"

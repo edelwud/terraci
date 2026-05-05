@@ -114,6 +114,7 @@ func TestRemoteStateTargetResolverResolve(t *testing.T) {
 	}, legacy.RelativePath)] = legacy
 
 	resolver := newRemoteStateTargetResolver(
+		context.Background(),
 		engine,
 		app,
 		map[string]cty.Value{},

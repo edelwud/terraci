@@ -49,6 +49,15 @@ type PRConfig struct {
 	SummaryJob *SummaryJobConfig `yaml:"summary_job,omitempty" json:"summary_job,omitempty" jsonschema:"description=Summary job configuration"`
 }
 
+// CommentBlock implements ciplugin.CommentBlockSource so the shared
+// CommentEnabled helper can be used by github's PR service.
+func (p *PRConfig) CommentBlock() *MRCommentConfig {
+	if p == nil {
+		return nil
+	}
+	return p.Comment
+}
+
 type SummaryJobConfig struct {
 	RunsOn string `yaml:"runs_on,omitempty" json:"runs_on,omitempty" jsonschema:"description=Runner label for summary job"`
 }

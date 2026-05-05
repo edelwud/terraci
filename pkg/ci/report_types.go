@@ -18,11 +18,28 @@ type Report struct {
 }
 
 // ReportProvenance captures the source run identity for a persisted report.
+//
+// Producers should populate provenance for every persisted report so local
+// consumers (e.g. localexec/render) can decide whether the artifact still
+// matches the current workspace. Use NewProvenance to fill GeneratedAt
+// consistently and let producer-specific fields stay omitempty.
 type ReportProvenance struct {
 	GeneratedAt            time.Time `json:"generated_at"`
 	CommitSHA              string    `json:"commit_sha,omitempty"`
 	PipelineID             string    `json:"pipeline_id,omitempty"`
 	PlanResultsFingerprint string    `json:"plan_results_fingerprint,omitempty"`
+}
+
+// NewProvenance returns a ReportProvenance with GeneratedAt = time.Now().UTC().
+// Pass empty strings for fields the producer does not have — they remain
+// omitempty in the resulting JSON.
+func NewProvenance(commitSHA, pipelineID, planResultsFingerprint string) *ReportProvenance {
+	return &ReportProvenance{
+		GeneratedAt:            time.Now().UTC(),
+		CommitSHA:              commitSHA,
+		PipelineID:             pipelineID,
+		PlanResultsFingerprint: planResultsFingerprint,
+	}
 }
 
 // ReportSectionKind identifies an application-owned report section payload.

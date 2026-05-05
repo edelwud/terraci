@@ -352,7 +352,10 @@ func TestBuildCostReport(t *testing.T) {
 		Currency:    "USD",
 	}
 
-	report := buildCostReport(result)
+	report, buildErr := buildCostReport(result)
+	if buildErr != nil {
+		t.Fatalf("buildCostReport() error = %v", buildErr)
+	}
 
 	if report.Producer != "cost" {
 		t.Errorf("Plugin = %q, want %q", report.Producer, "cost")
@@ -423,7 +426,10 @@ func TestBuildCostReport_IncludesPrefetchWarnings(t *testing.T) {
 		},
 	}
 
-	report := buildCostReport(result)
+	report, buildErr := buildCostReport(result)
+	if buildErr != nil {
+		t.Fatalf("buildCostReport() error = %v", buildErr)
+	}
 	if report.Status != ci.ReportStatusWarn {
 		t.Fatalf("Status = %q, want %q", report.Status, ci.ReportStatusWarn)
 	}
@@ -445,7 +451,10 @@ func TestBuildCostReport_Empty(t *testing.T) {
 		Currency: "USD",
 	}
 
-	report := buildCostReport(result)
+	report, buildErr := buildCostReport(result)
+	if buildErr != nil {
+		t.Fatalf("buildCostReport() error = %v", buildErr)
+	}
 
 	if report.Producer != "cost" {
 		t.Errorf("Plugin = %q, want %q", report.Producer, "cost")
@@ -468,7 +477,10 @@ func TestBuildCostReport_AllErrors(t *testing.T) {
 		Currency: "USD",
 	}
 
-	report := buildCostReport(result)
+	report, buildErr := buildCostReport(result)
+	if buildErr != nil {
+		t.Fatalf("buildCostReport() error = %v", buildErr)
+	}
 
 	section := decodeCostSection(t, report)
 	if len(section.Rows) != 2 {
@@ -496,7 +508,10 @@ func TestBuildCostReport_EscapesMarkdownTableCells(t *testing.T) {
 		Currency: "USD",
 	}
 
-	report := buildCostReport(result)
+	report, buildErr := buildCostReport(result)
+	if buildErr != nil {
+		t.Fatalf("buildCostReport() error = %v", buildErr)
+	}
 	section := decodeCostSection(t, report)
 	if section.Rows[0].ModulePath != "/tmp/with|pipe\\slash" {
 		t.Fatalf("module path = %q, want raw path preserved", section.Rows[0].ModulePath)

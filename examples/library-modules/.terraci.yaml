@@ -6,14 +6,16 @@ library_modules:
   paths:
     - "_modules"
 
+execution:
+  binary: terraform
+  init_enabled: true
+  plan_enabled: true
+
 extensions:
   gitlab:
-    terraform_binary: "terraform"
     image:
       name: hashicorp/terraform:1.6
     stages_prefix: "deploy"
     parallelism: 5
-    plan_enabled: true
     auto_approve: false
     cache_enabled: true
-    init_enabled: true

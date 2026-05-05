@@ -51,7 +51,7 @@ func (g *Generator) DryRun() (*pipeline.DryRunResult, error) {
 	if g.ir == nil {
 		return &pipeline.DryRunResult{}, nil
 	}
-	result := g.ir.DryRun(countModules(g.ir))
+	result := g.ir.DryRun(g.ir.ModuleCount())
 	result.Stages = len(g.stagePlanner.stages(g.ir))
 	return result, nil
 }
@@ -105,15 +105,4 @@ func (g *Generator) IsMREnabled() bool {
 
 func (g *Generator) stagesPrefix() string {
 	return g.settings.stagesPrefix()
-}
-
-func countModules(ir *pipeline.IR) int {
-	if ir == nil {
-		return 0
-	}
-	count := 0
-	for _, level := range ir.Levels {
-		count += len(level.Modules)
-	}
-	return count
 }

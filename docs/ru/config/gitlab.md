@@ -10,45 +10,23 @@ outline: deep
 
 ## Параметры
 
+::: info Настройки выполнения
+`binary`, `init_enabled`, `plan_enabled` и связанные с ними поля живут в верхнеуровневой секции `execution:`, а **не** под `extensions.gitlab`. См. [Обзор конфигурации](./index.md#полный-пример).
+:::
+
 | Параметр | Тип | По умолчанию | Описание |
 |----------|-----|--------------|----------|
-| `terraform_binary` | string | `terraform` | Бинарный файл Terraform/OpenTofu |
 | `image` | string/object | `hashicorp/terraform:1.6` | Docker-образ (строка или объект с name/entrypoint) |
 | `stages_prefix` | string | `deploy` | Префикс названий стейджей |
 | `parallelism` | int | `5` | Макс. параллельных джобов |
-| `plan_enabled` | bool | `true` | Генерировать plan-джобы |
+| `plan_only` | bool | `false` | Генерировать только plan-джобы (без apply) |
 | `auto_approve` | bool | `false` | Автоматический apply |
 | `cache_enabled` | bool | `true` | Кеширование .terraform |
-| `init_enabled` | bool | `true` | Авто-инициализация terraform после cd |
 | `variables` | map | `{}` | Переменные пайплайна |
 | `rules` | []object | `[]` | Правила workflow пайплайна |
 | `job_defaults` | object | `null` | Настройки по умолчанию для всех джобов |
 | `overwrites` | []object | `[]` | Переопределения для plan/apply джобов |
-
-## terraform_binary
-
-Указывает исполняемый файл для Terraform-команд:
-
-```yaml
-extensions:
-  gitlab:
-    terraform_binary: "terraform"  # Стандартный Terraform
-```
-
-Для OpenTofu:
-```yaml
-extensions:
-  gitlab:
-    terraform_binary: "tofu"
-```
-
-Значение экспортируется как переменная `TERRAFORM_BINARY` и используется в скриптах:
-```yaml
-before_script:
-  - ${TERRAFORM_BINARY} init
-script:
-  - ${TERRAFORM_BINARY} plan
-```
+| `mr` | object | `null` | Интеграция с Merge Request (см. [gitlab-mr](./gitlab-mr)) |
 
 ## image
 
@@ -80,9 +58,6 @@ extensions:
 Минимальные образы OpenTofu (например, `opentofu:1.9-minimal`) имеют не-shell entrypoint. Используйте объектный формат с `entrypoint: [""]` для совместимости с GitLab CI.
 :::
 
-::: warning Устаревшее
-Поле `terraform_image` устарело. Используйте `image`.
-:::
 
 ## stages_prefix
 
@@ -117,25 +92,22 @@ extensions:
 
 При 10 модулях без зависимостей и `parallelism: 5` — выполняются по 5 джобов одновременно.
 
-## plan_enabled
+## plan_only
 
-Включает отдельный стейдж для `terraform plan`:
+Генерирует только plan-джобы, без apply. Полезно для read-only пайплайнов на ветках/MR-ах.
 
 ```yaml
 extensions:
   gitlab:
-    plan_enabled: true
+    plan_only: false   # plan + apply джобы
+    # plan_only: true  # только plan, apply-джобов нет
 ```
 
-С `plan_enabled: true`:
-```
-deploy-plan-0 → deploy-apply-0 → deploy-plan-1 → deploy-apply-1
-```
+CLI-флаг `--plan-only` команды `terraci generate` переопределяет это значение.
 
-С `plan_enabled: false`:
-```
-deploy-apply-0 → deploy-apply-1
-```
+::: tip Plan-стейдж в целом
+Включение/выключение самого plan-стейджа задаётся в верхнеуровневой `execution.plan_enabled` (по умолчанию `true`). При `plan_enabled: false` генерируются только `apply-*` джобы (запускают `terraform apply` напрямую без сохранённого плана). `plan_only` здесь — про сохранение plan-джобов и пропуск apply.
+:::
 
 ## auto_approve
 
@@ -217,24 +189,6 @@ cache:
     - "{module_path}/.terraform/"
 ```
 
-## init_enabled
-
-Автоматический запуск `terraform init` после перехода в директорию модуля:
-
-```yaml
-extensions:
-  gitlab:
-    init_enabled: true   # По умолчанию
-```
-
-Генерируемый скрипт:
-```yaml
-script:
-  - cd platform/prod/eu-central-1/vpc
-  - ${TERRAFORM_BINARY} init      # Добавляется автоматически
-  - ${TERRAFORM_BINARY} plan ...
-```
-
 ## variables
 
 Переменные окружения для пайплайна:
@@ -249,7 +203,7 @@ extensions:
 ```
 
 Автоматически добавляемые переменные:
-- `TERRAFORM_BINARY` — значение из `terraform_binary`
+- `TERRAFORM_BINARY` — значение из верхнеуровневой `execution.binary`
 
 ## rules
 
@@ -405,19 +359,20 @@ extensions:
 ## Полный пример
 
 ```yaml
+execution:
+  binary: terraform
+  init_enabled: true
+  plan_enabled: true
+
 extensions:
   gitlab:
-    # Terraform/OpenTofu
-    terraform_binary: "terraform"
     image: "hashicorp/terraform:1.6"
 
     # Структура пайплайна
     stages_prefix: "deploy"
     parallelism: 5
-    plan_enabled: true
     auto_approve: false
     cache_enabled: true
-    init_enabled: true
 
     # Переменные пайплайна
     variables:
@@ -567,10 +522,12 @@ apply-platform-prod-eu-central-1-vpc:
 ### Development
 
 ```yaml
+execution:
+  plan_enabled: false   # выполнять только apply, без отдельного plan-стейджа
+
 extensions:
   gitlab:
     image: "hashicorp/terraform:1.6"
-    plan_enabled: false
     auto_approve: true
 
     job_defaults:
@@ -581,10 +538,12 @@ extensions:
 ### Production
 
 ```yaml
+execution:
+  plan_enabled: true
+
 extensions:
   gitlab:
     image: "hashicorp/terraform:1.6"
-    plan_enabled: true
     auto_approve: false
     parallelism: 3
 

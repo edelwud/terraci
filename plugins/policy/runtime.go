@@ -54,9 +54,14 @@ func (p *Plugin) Runtime(_ context.Context, appCtx *plugin.AppContext) (any, err
 	return newRuntime(appCtx, p.Config(), runtimeOptions{})
 }
 
-func (p *Plugin) runtime(ctx context.Context, appCtx *plugin.AppContext, opts runtimeOptions) (*policyRuntime, error) {
-	if opts == (runtimeOptions{}) {
+// runtime returns the typed plugin runtime. Pass opts == nil to reuse the
+// framework-cached runtime created from p.Runtime; pass a non-nil pointer to
+// build a fresh runtime with command-specific overrides. Using a pointer
+// discriminator avoids the option-by-option zero-check predicate that
+// previously needed to be updated whenever a new option was introduced.
+func (p *Plugin) runtime(ctx context.Context, appCtx *plugin.AppContext, opts *runtimeOptions) (*policyRuntime, error) {
+	if opts == nil {
 		return plugin.BuildRuntime[*policyRuntime](ctx, p, appCtx)
 	}
-	return newRuntime(appCtx, p.Config(), opts)
+	return newRuntime(appCtx, p.Config(), *opts)
 }

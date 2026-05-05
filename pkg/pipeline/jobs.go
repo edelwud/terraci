@@ -2,6 +2,21 @@ package pipeline
 
 import "github.com/edelwud/terraci/pkg/discovery"
 
+// ModuleCount returns the total number of module slots across all levels.
+// Counts both plan and apply slots as one — i.e. modules, not jobs.
+// Convenience method to replace the duplicated countModules helpers in
+// provider plugins (gitlab, github).
+func (ir *IR) ModuleCount() int {
+	if ir == nil {
+		return 0
+	}
+	count := 0
+	for _, level := range ir.Levels {
+		count += len(level.Modules)
+	}
+	return count
+}
+
 // JobKind identifies where a job came from inside the pipeline IR.
 type JobKind int
 
@@ -10,6 +25,21 @@ const (
 	JobKindPlan
 	JobKindApply
 )
+
+// NamePrefix returns the canonical prefix used in JobName for module jobs of
+// this kind. Contributed jobs carry their own name and return "".
+func (k JobKind) NamePrefix() string {
+	switch k {
+	case JobKindContributed:
+		return ""
+	case JobKindPlan:
+		return "plan"
+	case JobKindApply:
+		return "apply"
+	default:
+		return ""
+	}
+}
 
 // JobRef is a stable traversal view over every executable job in an IR.
 type JobRef struct {

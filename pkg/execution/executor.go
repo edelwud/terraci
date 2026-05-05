@@ -22,8 +22,12 @@ type EventSink interface {
 }
 
 // Scheduler builds execution groups from a pipeline IR.
+//
+// Returns an error if the IR is structurally invalid (cycles or duplicate
+// job names) — preventing silent fallback that would run dependent jobs in
+// the wrong order.
 type Scheduler interface {
-	Schedule(ir *pipeline.IR) []JobGroup
+	Schedule(ir *pipeline.IR) ([]JobGroup, error)
 }
 
 // WorkerPool runs a group of jobs with bounded concurrency.
@@ -118,7 +122,11 @@ func (e *Executor) Execute(ctx context.Context, ir *pipeline.IR) (*Result, error
 		return jobResult
 	}
 
-	for _, group := range e.scheduler.Schedule(ir) {
+	groups, err := e.scheduler.Schedule(ir)
+	if err != nil {
+		return nil, fmt.Errorf("schedule pipeline: %w", err)
+	}
+	for _, group := range groups {
 		result.Groups = append(result.Groups, GroupResult{
 			Name:     group.Name,
 			JobCount: len(group.Jobs),

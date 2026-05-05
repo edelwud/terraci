@@ -62,7 +62,7 @@ Features:
 			}
 
 			// Skip config loading for commands that don't need it (marked with annotation)
-			if cmd.Annotations["skipConfig"] == "true" {
+			if cmd.Annotations[annotationSkipConfig] == annotationTrue {
 				return nil
 			}
 
@@ -91,16 +91,28 @@ Features:
 				return err
 			}
 
-			// Run plugin preflight hooks (lifecycle stage 3)
-			log.Debug("running plugin preflight")
+			// Run plugin preflight hooks (lifecycle stage 3) unless the
+			// command opts out via Annotations["skipPreflight"]="true".
+			// Read-only/utility commands (validate, schema, version, man,
+			// completion) opt out so plugins like `git` don't fail when the
+			// workdir isn't a checkout, etc.
 			appCtx := app.PluginContext()
-			for _, p := range app.Plugins.PreflightsForStartup() {
-				if err := p.Preflight(cmd.Context(), appCtx); err != nil {
-					return fmt.Errorf("preflight plugin %s: %w", p.Name(), err)
+			if cmd.Annotations[annotationSkipPreflight] != annotationTrue {
+				log.Debug("running plugin preflight")
+				for _, p := range app.Plugins.PreflightsForStartup() {
+					if err := p.Preflight(cmd.Context(), appCtx); err != nil {
+						return fmt.Errorf("preflight plugin %s: %w", p.Name(), err)
+					}
 				}
+			} else {
+				log.Debug("skipping plugin preflight per command annotation")
 			}
 
-			// Freeze context after initialization — no further mutations allowed
+			// Freeze context after initialization. Freeze locks AppContext fields
+			// (Config / WorkDir / ServiceDir / Version / Resolver) — plugin
+			// instances retain their own mutable state for the duration of the
+			// command run. Provider plugins implementing FlagOverridable accept
+			// CLI overrides in their command's PreRunE, after this Freeze.
 			appCtx.Freeze()
 
 			return nil

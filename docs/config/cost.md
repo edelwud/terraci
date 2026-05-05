@@ -13,18 +13,18 @@ TerraCi can estimate the monthly cost impact of infrastructure changes by analyz
 ```yaml
 extensions:
   cost:
-    cache_dir: "~/.terraci/pricing"
-    cache_ttl: "24h"
     providers:
       aws:
         enabled: true
 ```
+
+This is the minimum needed to opt in. Pricing data is cached automatically via the `diskblob` backend under the project's service directory.
 
 ## Configuration Options
 
 ### providers.aws.enabled
 
-Enable AWS cost estimation.
+Enable AWS cost estimation. The plugin uses `EnabledExplicitly` activation, so cost runs only when at least one provider's `enabled` flag is `true`.
 
 ```yaml
 extensions:
@@ -34,37 +34,34 @@ extensions:
         enabled: true
 ```
 
-### cache_dir
+### blob_cache
 
-Directory to cache AWS pricing data fetched from the Bulk Pricing API. Caching avoids repeated API calls and speeds up subsequent runs.
-
-```yaml
-extensions:
-  cost:
-    cache_dir: ~/.terraci/pricing  # default
-```
-
-### cache_ttl
-
-How long cached pricing data remains valid before being re-fetched.
+Pricing data is cached via a blob store backend (`diskblob` by default). Override the backend, namespace, or TTL when needed:
 
 ```yaml
 extensions:
   cost:
-    cache_ttl: "24h"  # default
+    blob_cache:
+      backend: diskblob       # default; any registered BlobStoreProvider
+      namespace: cost/pricing # default
+      ttl: "24h"              # default
 ```
 
-Accepts Go duration strings: `"1h"`, `"30m"`, `"72h"`, etc.
+`ttl` accepts Go duration strings: `"1h"`, `"30m"`, `"72h"`, etc. The `diskblob` backend stores objects under `~/.terraci/blobs/` by default — see the diskblob plugin config to override.
+
+::: warning Removed fields
+Earlier versions accepted top-level `cost.cache_dir` and `cost.cache_ttl`. Both are gone — `cache_dir` is rejected at validation, and `cache_ttl` has moved to `blob_cache.ttl`.
+:::
 
 ## How It Works
 
 1. After `terraform plan` completes, TerraCi reads the `plan.json` file from each module directory.
 2. Resource changes are extracted and matched against registered AWS resource definitions.
-3. Pricing is fetched from the AWS Bulk Pricing API and cached locally according to `cache_ttl`.
+3. Pricing is fetched from the AWS Bulk Pricing API and cached via the configured `blob_cache` backend.
 4. Per-resource hourly and monthly costs are calculated for both the before and after states.
 5. Results are aggregated into a per-module cost summary with before/after/diff values.
 
-Cost estimation requires `plan.json` (produced by `terraform show -json`) to be present in module directories. This is generated automatically when `plan_enabled: true` in the pipeline configuration (GitLab or GitHub).
+Cost estimation requires `plan.json` (produced by `terraform show -json`) to be present in module directories. This is generated automatically when `execution.plan_enabled: true` (the default).
 
 ## Supported AWS Resources
 
@@ -97,24 +94,27 @@ When cost estimation is enabled, cost estimates appear in the MR/PR comment tabl
 ## Full Example
 
 ```yaml
+execution:
+  plan_enabled: true   # required: cost reads plan.json artifacts
+
 extensions:
   cost:
-    cache_dir: ~/.terraci/pricing
-    cache_ttl: "24h"
+    blob_cache:
+      backend: diskblob
+      namespace: cost/pricing
+      ttl: "24h"
     providers:
       aws:
         enabled: true
 
   # Works with either provider:
   gitlab:
-    plan_enabled: true
     mr:
       comment:
         enabled: true
 
   # Or with GitHub:
   # github:
-  #   plan_enabled: true
   #   pr:
   #     comment:
   #       enabled: true

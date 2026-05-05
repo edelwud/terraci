@@ -33,7 +33,7 @@ type workspaceResolver interface {
 
 type targetMatcher interface {
 	MatchPathToModule(statePath string, from *discovery.Module) *discovery.Module
-	MatchBackend(backendType, bucket, statePath string) *discovery.Module
+	MatchBackend(ctx context.Context, backendType, bucket, statePath string) *discovery.Module
 }
 
 type sessionDependencies struct {
@@ -98,7 +98,7 @@ func (s *dependencySession) collectLibraryDependencies() {
 
 func (s *dependencySession) resolveRemoteStateDependency(remoteState *model.RemoteStateRef) *remoteStateResolution {
 	resolution := newRemoteStateResolution()
-	targetResolver := newRemoteStateTargetResolver(s.deps.targets, s.module, s.locals, s.variables)
+	targetResolver := newRemoteStateTargetResolver(s.ctx, s.deps.targets, s.module, s.locals, s.variables)
 
 	paths, err := s.deps.resolver.ResolveWorkspacePath(remoteState, s.module.RelativePath, s.locals, s.variables)
 	if err != nil {
@@ -130,6 +130,7 @@ func (s *dependencySession) resolveRemoteStateDependency(remoteState *model.Remo
 }
 
 type remoteStateTargetResolver struct {
+	ctx       context.Context
 	targets   targetMatcher
 	module    *discovery.Module
 	locals    map[string]cty.Value
@@ -137,11 +138,13 @@ type remoteStateTargetResolver struct {
 }
 
 func newRemoteStateTargetResolver(
+	ctx context.Context,
 	targets targetMatcher,
 	module *discovery.Module,
 	locals, variables map[string]cty.Value,
 ) *remoteStateTargetResolver {
 	return &remoteStateTargetResolver{
+		ctx:       ctx,
 		targets:   targets,
 		module:    module,
 		locals:    locals,
@@ -174,7 +177,7 @@ func (r *remoteStateTargetResolver) matchByBackend(remoteState *model.RemoteStat
 		return nil
 	}
 
-	return r.targets.MatchBackend(remoteState.Backend, bucket, statePath)
+	return r.targets.MatchBackend(r.ctx, remoteState.Backend, bucket, statePath)
 }
 
 func evalStringExpr(expr hcl.Expression, ctx *hcl.EvalContext) (string, bool) {

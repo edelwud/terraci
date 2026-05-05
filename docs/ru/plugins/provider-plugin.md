@@ -20,14 +20,14 @@ outline: deep
 | Интерфейс | Назначение |
 |-----------|-----------|
 | `EnvDetector` | Определение CI-окружения |
-| `CIMetadata` | Имя провайдера, ID пайплайна, SHA коммита |
-| `GeneratorFactory` | Создание генератора: pipeline IR → YAML |
+| `CIInfoProvider` | Имя провайдера, ID пайплайна, SHA коммита |
+| `PipelineGeneratorFactory` | Создание генератора: pipeline IR → YAML |
 
 Опционально:
 
 | Интерфейс | Назначение |
 |-----------|-----------|
-| `CommentFactory` | Сервис MR/PR комментариев |
+| `CommentServiceFactory` | Сервис MR/PR комментариев |
 | `FlagOverridable` | Поддержка `--plan-only` и `--auto-approve` |
 
 ## Работа с Pipeline IR
@@ -67,7 +67,6 @@ func (g *generator) Generate() (pipeline.GeneratedPipeline, error) {
 func (p *Plugin) SetPlanOnly(v bool) {
     if cfg := p.Config(); cfg != nil {
         cfg.PlanOnly = v
-        if v { cfg.PlanEnabled = true }
     }
 }
 
@@ -107,9 +106,9 @@ func init() {
 type Plugin struct{ plugin.BasePlugin[*Config] }
 
 type Config struct {
-    Image           string `yaml:"image"`
-    TerraformBinary string `yaml:"terraform_binary"`
-    PlanEnabled     bool   `yaml:"plan_enabled"`
+    Image       string `yaml:"image"`
+    PlanOnly    bool   `yaml:"plan_only"`
+    AutoApprove bool   `yaml:"auto_approve"`
 }
 
 // EnvDetector
@@ -117,12 +116,12 @@ func (p *Plugin) DetectEnv() bool {
     return os.Getenv("BITBUCKET_PIPELINE_UUID") != ""
 }
 
-// CIMetadata
+// CIInfoProvider
 func (p *Plugin) ProviderName() string { return "bitbucket" }
 func (p *Plugin) PipelineID() string   { return os.Getenv("BITBUCKET_BUILD_NUMBER") }
 func (p *Plugin) CommitSHA() string    { return os.Getenv("BITBUCKET_COMMIT") }
 
-// GeneratorFactory
+// PipelineGeneratorFactory
 func (p *Plugin) NewGenerator(ctx *plugin.AppContext, ir *pipeline.IR) pipeline.Generator {
     return &generator{config: p.Config(), ir: ir}
 }

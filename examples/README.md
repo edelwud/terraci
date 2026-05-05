@@ -12,7 +12,8 @@ Example configurations demonstrating TerraCi features.
 | [library-modules/](library-modules/) | Shared library modules with change detection |
 | [cost-estimation/](cost-estimation/) | AWS cost estimation in MR/PR comments |
 | [policy-checks/](policy-checks/) | OPA policy enforcement with Rego rules |
-| [external-plugin/](external-plugin/) | Custom plugin built with xterraci |
+| [external-plugin/](external-plugin/) | Minimal CLI-only custom plugin built with xterraci |
+| [plugin-skeleton/](plugin-skeleton/) | Reference plugin showing producer + consumer report patterns |
 
 ## Quick Start
 

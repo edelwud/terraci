@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -24,6 +25,7 @@ func newGenerateCmd(app *App) *cobra.Command {
 		changedOnly bool
 		baseRef     string
 		dryRun      bool
+		dryRunFmt   string
 		planOnly    bool
 	)
 	ff := &filter.Flags{}
@@ -42,9 +44,15 @@ Examples:
   terraci generate --dry-run
   terraci generate --auto-approve
   terraci generate --plan-only`,
-		RunE: func(cmd *cobra.Command, _ []string) error {
+		// PreRunE applies CLI overrides to plugin config (FlagOverridable)
+		// before any pipeline construction kicks off in RunE. Keeping mutation
+		// in PreRunE makes the "construction → execution" boundary explicit:
+		// once RunE starts, plugin configs are stable for the entire run.
+		PreRunE: func(cmd *cobra.Command, _ []string) error {
 			applyProviderFlags(app, planOnly, cmd)
-
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			result, err := workflow.Run(cmd.Context(), workflowOptions(app, ff))
 			if err != nil {
 				return err
@@ -75,7 +83,7 @@ Examples:
 			}
 
 			if dryRun {
-				return runDryRun(generator)
+				return runDryRun(generator, dryRunFmt)
 			}
 
 			p, err := generator.Generate()
@@ -90,6 +98,7 @@ Examples:
 	cmd.Flags().BoolVar(&changedOnly, "changed-only", false, "only include changed modules and their dependents")
 	cmd.Flags().StringVar(&baseRef, "base-ref", "", "base git ref for change detection (default: auto-detect)")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "show what would be generated without creating output")
+	cmd.Flags().StringVar(&dryRunFmt, "format", "text", "dry-run output format: text or json")
 	cmd.Flags().BoolVar(&planOnly, "plan-only", false, "generate only plan jobs (no apply jobs)")
 	cmd.Flags().Bool("auto-approve", false, "auto-approve apply jobs (skip manual trigger)")
 	cmd.Flags().Bool("no-auto-approve", false, "require manual trigger for apply jobs")
@@ -216,27 +225,38 @@ func newPipelineGenerator(app *App, depGraph *graph.DependencyGraph, modules, ta
 	return provider.NewGenerator(appCtx, ir), nil
 }
 
-func runDryRun(gen pipeline.Generator) error {
+func runDryRun(gen pipeline.Generator, format string) error {
 	result, err := gen.DryRun()
 	if err != nil {
 		return fmt.Errorf("dry run: %w", err)
 	}
 
-	log.Info("dry run results")
-	log.IncreasePadding()
-	log.WithField("total", result.TotalModules).Info("modules discovered")
-	log.WithField("affected", result.AffectedModules).Info("modules to process")
-	log.WithField("stages", result.Stages).Info("pipeline stages")
-	log.WithField("jobs", result.Jobs).Info("pipeline jobs")
-	log.DecreasePadding()
+	switch format {
+	case "json":
+		// Machine-readable shape for CI gating: scripts can consume this via
+		// `terraci generate --dry-run --format json | jq '.affected_modules > 5'`.
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(result)
+	case "", "text":
+		log.Info("dry run results")
+		log.IncreasePadding()
+		log.WithField("total", result.TotalModules).Info("modules discovered")
+		log.WithField("affected", result.AffectedModules).Info("modules to process")
+		log.WithField("stages", result.Stages).Info("pipeline stages")
+		log.WithField("jobs", result.Jobs).Info("pipeline jobs")
+		log.DecreasePadding()
 
-	log.Info("execution order")
-	log.IncreasePadding()
-	for i, level := range result.ExecutionOrder {
-		log.WithField("level", i).WithField("modules", fmt.Sprintf("%v", level)).Debug("level")
+		log.Info("execution order")
+		log.IncreasePadding()
+		for i, level := range result.ExecutionOrder {
+			log.WithField("level", i).WithField("modules", fmt.Sprintf("%v", level)).Debug("level")
+		}
+		log.DecreasePadding()
+		return nil
+	default:
+		return fmt.Errorf("unsupported dry-run format %q (want text or json)", format)
 	}
-	log.DecreasePadding()
-	return nil
 }
 
 func writePipelineOutput(p pipeline.GeneratedPipeline, outputFile string) error {

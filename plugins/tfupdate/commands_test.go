@@ -113,7 +113,10 @@ func TestBuildUpdateReport_NoUpdates(t *testing.T) {
 		},
 	}
 
-	report := buildUpdateReport(result)
+	report, buildErr := buildUpdateReport(result)
+	if buildErr != nil {
+		t.Fatalf("buildUpdateReport() error = %v", buildErr)
+	}
 	if report.Producer != "tfupdate" {
 		t.Errorf("Plugin = %q, want %q", report.Producer, "tfupdate")
 	}
@@ -136,7 +139,10 @@ func TestBuildUpdateReport_WithUpdates(t *testing.T) {
 		},
 	}
 
-	report := buildUpdateReport(result)
+	report, buildErr := buildUpdateReport(result)
+	if buildErr != nil {
+		t.Fatalf("buildUpdateReport() error = %v", buildErr)
+	}
 	if report.Status != ci.ReportStatusWarn {
 		t.Errorf("Status = %q, want %q", report.Status, ci.ReportStatusWarn)
 	}

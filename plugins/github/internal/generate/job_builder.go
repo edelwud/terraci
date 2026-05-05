@@ -53,7 +53,7 @@ func (b jobBuilder) applyJob(irJob *pipeline.Job, module *discovery.Module) *dom
 	runScript := strings.Join(cishell.RenderOperation(irJob.Operation), "\n")
 	steps := []domainpkg.Step{checkoutStep()}
 	if b.settings.planEnabled() {
-		steps = append(steps, downloadArtifactStep("Download plan artifacts", pipeline.JobName("plan", module)))
+		steps = append(steps, downloadArtifactStep("Download plan artifacts", pipeline.JobName(pipeline.JobKindPlan, module)))
 	}
 	steps = append(steps, b.settings.stepsBefore(configpkg.OverwriteTypeApply)...)
 	steps = append(steps, phaseSteps(irJob.Steps, pipeline.PhasePreApply)...)

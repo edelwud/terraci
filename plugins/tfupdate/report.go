@@ -9,7 +9,7 @@ import (
 	"github.com/edelwud/terraci/plugins/tfupdate/internal/domain"
 )
 
-func buildUpdateReport(result *tfupdateengine.UpdateResult) *ci.Report {
+func buildUpdateReport(result *tfupdateengine.UpdateResult) (*ci.Report, error) {
 	status := ci.ReportStatusPass
 	if result.Summary.Errors > 0 || result.Summary.UpdatesAvailable > 0 {
 		status = ci.ReportStatusWarn
@@ -51,21 +51,25 @@ func buildUpdateReport(result *tfupdateengine.UpdateResult) *ci.Report {
 		result.Summary.UpdatesApplied,
 		result.Summary.Errors,
 	)
-	section := ci.MustEncodeSection(
+	section, err := ci.EncodeSection(
 		ci.ReportSectionKindDependencyUpdates,
 		"Dependency Update Check",
 		summaryText,
 		status,
 		ci.DependencyUpdatesSection{Rows: rows},
 	)
+	if err != nil {
+		return nil, fmt.Errorf("build tfupdate report: %w", err)
+	}
 
 	return &ci.Report{
-		Producer: "tfupdate",
-		Title:    "Dependency Update Check",
-		Status:   status,
-		Summary:  summaryText,
-		Sections: []ci.ReportSection{section},
-	}
+		Producer:   "tfupdate",
+		Title:      "Dependency Update Check",
+		Status:     status,
+		Summary:    summaryText,
+		Provenance: ci.NewProvenance("", "", ""),
+		Sections:   []ci.ReportSection{section},
+	}, nil
 }
 
 func mapUpdateStatus(status domain.UpdateStatus) ci.DependencyUpdateStatus {

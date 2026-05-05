@@ -8,6 +8,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/ci"
 	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
+	"github.com/edelwud/terraci/plugins/internal/ciplugin"
 )
 
 type issueCommentClient interface {
@@ -42,7 +43,7 @@ func (s *Service) IsEnabled() bool {
 	if !s.client.HasToken() {
 		return false
 	}
-	return newCommentPolicy(s.config).enabled()
+	return ciplugin.CommentEnabled(s.config)
 }
 
 func (s *Service) UpsertComment(ctx context.Context, body string) error {

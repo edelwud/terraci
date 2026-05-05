@@ -107,27 +107,27 @@ func TestJobName(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		jobType  string
+		jobKind  JobKind
 		module   *discovery.Module
 		expected string
 	}{
 		{
-			name:     "simple path",
-			jobType:  "plan",
+			name:     "plan kind",
+			jobKind:  JobKindPlan,
 			module:   discovery.TestModule("svc", "prod", "us-east-1", "vpc"),
 			expected: "plan-svc-prod-us-east-1-vpc",
 		},
 		{
-			name:     "different job type",
-			jobType:  "apply",
+			name:     "apply kind",
+			jobKind:  JobKindApply,
 			module:   discovery.TestModule("svc", "prod", "us-east-1", "vpc"),
 			expected: "apply-svc-prod-us-east-1-vpc",
 		},
 		{
-			name:     "path with many segments",
-			jobType:  "validate",
+			name:     "contributed kind has no prefix",
+			jobKind:  JobKindContributed,
 			module:   discovery.TestModule("payments", "staging", "eu-west-1", "rds"),
-			expected: "validate-payments-staging-eu-west-1-rds",
+			expected: "payments-staging-eu-west-1-rds",
 		},
 	}
 
@@ -135,7 +135,7 @@ func TestJobName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := JobName(tt.jobType, tt.module)
+			got := JobName(tt.jobKind, tt.module)
 			if got != tt.expected {
 				t.Errorf("JobName() = %q, want %q", got, tt.expected)
 			}
@@ -158,7 +158,7 @@ func TestResolveDependencyNames(t *testing.T) {
 	tests := []struct {
 		name        string
 		module      *discovery.Module
-		jobType     string
+		jobKind     JobKind
 		targets     []*discovery.Module
 		wantNames   []string
 		wantNoNames bool
@@ -166,21 +166,21 @@ func TestResolveDependencyNames(t *testing.T) {
 		{
 			name:      "dep in target set returns job name",
 			module:    modB,
-			jobType:   "plan",
+			jobKind:   JobKindPlan,
 			targets:   []*discovery.Module{modA, modB},
 			wantNames: []string{"plan-svc-prod-us-east-1-vpc"},
 		},
 		{
 			name:        "dep not in target set is excluded",
 			module:      modB,
-			jobType:     "plan",
+			jobKind:     JobKindPlan,
 			targets:     []*discovery.Module{modB},
 			wantNoNames: true,
 		},
 		{
 			name:        "module with no dependencies returns empty",
 			module:      modA,
-			jobType:     "plan",
+			jobKind:     JobKindPlan,
 			targets:     []*discovery.Module{modA, modB},
 			wantNoNames: true,
 		},
@@ -195,7 +195,7 @@ func TestResolveDependencyNames(t *testing.T) {
 				ids[i] = m.ID()
 			}
 			subgraph := depGraph.Subgraph(ids)
-			got := ResolveDependencyNames(tt.module, tt.jobType, subgraph, idx)
+			got := ResolveDependencyNames(tt.module, tt.jobKind, subgraph, idx)
 			if tt.wantNoNames {
 				if len(got) != 0 {
 					t.Errorf("expected no names, got %v", got)
@@ -227,7 +227,7 @@ func TestResolveDependencyNames_DepNotInIndex(t *testing.T) {
 	idx := discovery.NewModuleIndex([]*discovery.Module{modB})
 
 	subgraph := depGraph.Subgraph([]string{modA.ID(), modB.ID()})
-	got := ResolveDependencyNames(modB, "plan", subgraph, idx)
+	got := ResolveDependencyNames(modB, JobKindPlan, subgraph, idx)
 	// modA is in target set but not in index, so it should be skipped
 	if len(got) != 0 {
 		t.Errorf("expected no names when dep not in index, got %v", got)

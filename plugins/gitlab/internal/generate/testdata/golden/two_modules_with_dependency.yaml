@@ -1,0 +1,80 @@
+apply-platform-stage-eu-central-1-eks:
+    stage: deploy-apply-1
+    script:
+        - cd platform/stage/eu-central-1/eks
+        - ${TERRAFORM_BINARY} init
+        - ${TERRAFORM_BINARY} apply plan.tfplan
+    variables:
+        TF_ENVIRONMENT: stage
+        TF_MODULE: eks
+        TF_MODULE_PATH: platform/stage/eu-central-1/eks
+        TF_REGION: eu-central-1
+        TF_SERVICE: platform
+    needs:
+        - job: plan-platform-stage-eu-central-1-eks
+        - job: apply-platform-stage-eu-central-1-vpc
+    when: manual
+    resource_group: platform/stage/eu-central-1/eks
+apply-platform-stage-eu-central-1-vpc:
+    stage: deploy-apply-0
+    script:
+        - cd platform/stage/eu-central-1/vpc
+        - ${TERRAFORM_BINARY} init
+        - ${TERRAFORM_BINARY} apply plan.tfplan
+    variables:
+        TF_ENVIRONMENT: stage
+        TF_MODULE: vpc
+        TF_MODULE_PATH: platform/stage/eu-central-1/vpc
+        TF_REGION: eu-central-1
+        TF_SERVICE: platform
+    needs:
+        - job: plan-platform-stage-eu-central-1-vpc
+    when: manual
+    resource_group: platform/stage/eu-central-1/vpc
+default:
+    image: hashicorp/terraform:1.6
+plan-platform-stage-eu-central-1-eks:
+    stage: deploy-plan-1
+    script:
+        - cd platform/stage/eu-central-1/eks
+        - ${TERRAFORM_BINARY} init
+        - ${TERRAFORM_BINARY} plan -out=plan.tfplan
+    variables:
+        TF_ENVIRONMENT: stage
+        TF_MODULE: eks
+        TF_MODULE_PATH: platform/stage/eu-central-1/eks
+        TF_REGION: eu-central-1
+        TF_SERVICE: platform
+    needs:
+        - job: apply-platform-stage-eu-central-1-vpc
+    artifacts:
+        paths:
+            - platform/stage/eu-central-1/eks/plan.tfplan
+        expire_in: 1 day
+        when: always
+    resource_group: platform/stage/eu-central-1/eks
+plan-platform-stage-eu-central-1-vpc:
+    stage: deploy-plan-0
+    script:
+        - cd platform/stage/eu-central-1/vpc
+        - ${TERRAFORM_BINARY} init
+        - ${TERRAFORM_BINARY} plan -out=plan.tfplan
+    variables:
+        TF_ENVIRONMENT: stage
+        TF_MODULE: vpc
+        TF_MODULE_PATH: platform/stage/eu-central-1/vpc
+        TF_REGION: eu-central-1
+        TF_SERVICE: platform
+    artifacts:
+        paths:
+            - platform/stage/eu-central-1/vpc/plan.tfplan
+        expire_in: 1 day
+        when: always
+    resource_group: platform/stage/eu-central-1/vpc
+stages:
+    - deploy-plan-0
+    - deploy-apply-0
+    - deploy-plan-1
+    - deploy-apply-1
+variables:
+    TERRAFORM_BINARY: terraform

@@ -9,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/log"
@@ -67,6 +68,12 @@ Examples:
 
 				newCfg = buildConfigFromState(app.Plugins, state)
 			} else {
+				if !term.IsTerminal(int(os.Stdin.Fd())) { //nolint:gosec // file descriptors fit in int
+					return errors.New(
+						"terraci init: stdin is not a TTY — pass --ci to accept defaults, " +
+							"or supply --provider / --binary / --pattern to drive non-interactive setup",
+					)
+				}
 				newCfg, err = runInteractiveInit(app)
 				if err != nil {
 					return err

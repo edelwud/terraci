@@ -112,16 +112,16 @@ terraci cost --output json
 
 ## Необходимые условия
 
-- `cost.enabled: true` в `.terraci.yaml`
-- Файлы `plan.json` в директориях модулей (`terraform show -json plan.tfplan`)
+- Хотя бы один провайдер включён (например, `extensions.cost.providers.aws.enabled: true`) в `.terraci.yaml`
+- Файлы `plan.json` в директориях модулей (генерируются командой `terraform show -json plan.tfplan`; `execution.plan_enabled: true` — значение по умолчанию)
 
 ## Кеш цен
 
-Данные о ценах AWS кешируются локально:
+Данные о ценах AWS кешируются через blob-store бэкенд `diskblob`, чтобы избежать повторных вызовов API:
 
-- Расположение: `~/.terraci/pricing` (или `cost.cache_dir` в конфиге)
-- TTL: 24 часа (или `cost.cache_ttl`)
-- Статус кеша показывается в выводе: `expires_in=23h49m` или `status=expired`
+- Расположение по умолчанию: служебная директория проекта (`.terraci/blobs/cost/pricing/`) — настройка `root_dir` в `diskblob` переопределяет её (по умолчанию `~/.terraci/blobs`)
+- TTL по умолчанию: 24 часа — переопределяется через `extensions.cost.blob_cache.ttl`
+- Статус кеша показывается в выводе `terraci cost`: `expires_in=23h49m` или `status=expired`
 
 ## Смотрите также
 

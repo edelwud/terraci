@@ -9,6 +9,20 @@ import (
 	"github.com/edelwud/terraci/pkg/ci"
 )
 
+// mustEncodeSection wraps ci.EncodeSection for payloads whose types are
+// statically known to be marshalable (only primitive struct fields).
+// Encoding cannot fail in practice; we panic to keep the renderer callsites
+// readable. ci.EncodeSection (with explicit error propagation) is the right
+// choice for any new section whose payload may include user-supplied maps
+// or other non-trivial JSON shapes.
+func mustEncodeSection[T any](kind ci.ReportSectionKind, title, sectionSummary string, status ci.ReportStatus, body T) ci.ReportSection {
+	section, err := ci.EncodeSection(kind, title, sectionSummary, status, body)
+	if err != nil {
+		panic(fmt.Sprintf("summaryengine: encode %s section: %v", kind, err))
+	}
+	return section
+}
+
 const (
 	maxErrorLength        = 50
 	maxDetailsLength      = 10000
@@ -93,7 +107,7 @@ func buildSummaryOverviewSection(plans []ci.PlanResult, reports []*ci.Report) ci
 		}
 	}
 
-	return ci.MustEncodeSection(
+	return mustEncodeSection(
 		ci.ReportSectionKindOverview,
 		"Summary",
 		renderStats(stats),
@@ -177,7 +191,7 @@ func buildTerraformPlanSections(plans []ci.PlanResult, includeDetails bool) []ci
 			}
 		}
 
-		sections = append(sections, ci.MustEncodeSection(
+		sections = append(sections, mustEncodeSection(
 			ci.ReportSectionKindModuleTable,
 			fmt.Sprintf("Environment: `%s`", env),
 			fmt.Sprintf("%d actionable modules", len(rows)),
@@ -272,7 +286,7 @@ func filterReportSection(section ci.ReportSection) (ci.ReportSection, bool) {
 			return ci.ReportSection{}, false
 		}
 		findings.Rows = rows
-		return ci.MustEncodeSection(section.Kind, section.Title, section.SectionSummary, section.Status, findings), true
+		return mustEncodeSection(section.Kind, section.Title, section.SectionSummary, section.Status, findings), true
 	case ci.ReportSectionKindDependencyUpdates:
 		updates, err := ci.DecodeSection[ci.DependencyUpdatesSection](section)
 		if err != nil {
@@ -289,7 +303,7 @@ func filterReportSection(section ci.ReportSection) (ci.ReportSection, bool) {
 			return ci.ReportSection{}, false
 		}
 		updates.Rows = rows
-		return ci.MustEncodeSection(section.Kind, section.Title, section.SectionSummary, section.Status, updates), true
+		return mustEncodeSection(section.Kind, section.Title, section.SectionSummary, section.Status, updates), true
 	case ci.ReportSectionKindOverview:
 		return ci.ReportSection{}, false
 	case ci.ReportSectionKindModuleTable:

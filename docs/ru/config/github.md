@@ -10,18 +10,9 @@ outline: deep
 
 ## Параметры
 
-### terraform_binary
-
-**Тип:** `string`
-**По умолчанию:** `"terraform"`
-
-Бинарный файл Terraform/OpenTofu.
-
-```yaml
-extensions:
-  github:
-    terraform_binary: "terraform"  # или "tofu"
-```
+::: info Настройки выполнения
+`binary`, `init_enabled`, `plan_enabled` и связанные с ними поля живут в верхнеуровневой секции `execution:`, а **не** под `extensions.github`. См. [Обзор конфигурации](./index.md#полный-пример).
+:::
 
 ### runs_on
 
@@ -68,20 +59,6 @@ extensions:
       AWS_DEFAULT_REGION: "us-east-1"
 ```
 
-### plan_enabled
-
-**Тип:** `boolean`
-**По умолчанию:** `true`
-
-Генерировать отдельные план-джобы.
-
-```yaml
-extensions:
-  github:
-    plan_enabled: true   # plan + apply джобы
-    # plan_enabled: false  # только apply
-```
-
 ### plan_only
 
 **Тип:** `boolean`
@@ -107,19 +84,6 @@ extensions:
   github:
     auto_approve: false  # Apply использует environment protection
     # auto_approve: true   # Apply выполняется автоматически
-```
-
-### init_enabled
-
-**Тип:** `boolean`
-**По умолчанию:** `true`
-
-Автоматический запуск `terraform init` перед командами terraform.
-
-```yaml
-extensions:
-  github:
-    init_enabled: true
 ```
 
 ### permissions
@@ -248,16 +212,17 @@ extensions:
 ## Полный пример
 
 ```yaml
+execution:
+  binary: terraform
+  init_enabled: true
+  plan_enabled: true
+
 extensions:
   github:
-    # Конфигурация бинарного файла
-    terraform_binary: "terraform"
     runs_on: "ubuntu-latest"
 
     # Настройки workflow
-    plan_enabled: true
     auto_approve: false
-    init_enabled: true
 
     # Переменные окружения на уровне workflow
     env:

@@ -10,20 +10,9 @@ The `gitlab` section configures the generated GitLab CI pipeline. This section i
 
 ## Options
 
-### terraform_binary
-
-**Type:** `string`
-**Default:** `"terraform"`
-
-The Terraform/OpenTofu binary to use.
-
-```yaml
-extensions:
-  gitlab:
-    terraform_binary: "terraform"  # or "tofu"
-```
-
-This sets the `TERRAFORM_BINARY` variable in the pipeline.
+::: info Execution settings
+`binary`, `init_enabled`, `plan_enabled` and related execution semantics live under the top-level `execution:` section, **not** under `extensions.gitlab`. See [Configuration Overview](./index.md#full-example).
+:::
 
 ### image
 
@@ -66,9 +55,6 @@ extensions:
 OpenTofu minimal images (e.g., `opentofu:1.9-minimal`) have a non-shell entrypoint. Use the object format with `entrypoint: [""]` to override it for GitLab CI compatibility.
 :::
 
-::: warning Deprecation Notice
-The `terraform_image` field is deprecated. Use `image` instead.
-:::
 
 ### stages_prefix
 
@@ -97,25 +83,25 @@ extensions:
     parallelism: 5
 ```
 
-### plan_enabled
+### plan_only
 
 **Type:** `boolean`
-**Default:** `true`
+**Default:** `false`
 
-Generate separate plan jobs.
+Generate only plan jobs (no apply). Useful for read-only pipelines on branches/MRs.
 
 ```yaml
 extensions:
   gitlab:
-    plan_enabled: true   # plan + apply jobs
-    # plan_enabled: false  # apply only
+    plan_only: false   # plan + apply jobs
+    # plan_only: true  # plan only, no apply jobs
 ```
 
-When enabled, generates:
-- `plan-*` jobs that run `terraform plan`
-- `apply-*` jobs that apply the saved plan
+The CLI flag `--plan-only` on `terraci generate` overrides this value.
 
-When disabled, generates only `apply-*` jobs that run `terraform apply`.
+::: tip Plan vs apply jobs
+The on/off switch for the *plan stage* itself lives at the top level under `execution.plan_enabled` (default `true`). When `plan_enabled: false`, only `apply-*` jobs are emitted (running `terraform apply` directly without a saved plan). Use `plan_only` here to keep plan jobs and skip apply.
+:::
 
 ### auto_approve
 
@@ -189,28 +175,6 @@ If `cache.paths` is omitted, TerraCi keeps the default module-local cache path:
 cache:
   paths:
     - "{module_path}/.terraform/"
-```
-
-### init_enabled
-
-**Type:** `boolean`
-**Default:** `true`
-
-Automatically run `terraform init` after changing to the module directory. This ensures initialization happens in the correct context.
-
-```yaml
-extensions:
-  gitlab:
-    init_enabled: true   # Adds ${TERRAFORM_BINARY} init after cd
-    # init_enabled: false  # Skip automatic init (use job_defaults.before_script instead)
-```
-
-The generated script will be:
-```yaml
-script:
-  - cd platform/prod/us-east-1/vpc     # Change to module directory
-  - ${TERRAFORM_BINARY} init            # Auto-added when init_enabled: true
-  - ${TERRAFORM_BINARY} plan -out=...   # Main command
 ```
 
 ### variables
@@ -392,19 +356,20 @@ extensions:
 ## Full Example
 
 ```yaml
+execution:
+  binary: terraform
+  init_enabled: true
+  plan_enabled: true
+
 extensions:
   gitlab:
-    # Binary configuration
-    terraform_binary: "terraform"
     image: "hashicorp/terraform:1.6"
 
     # Pipeline structure
     stages_prefix: "deploy"
     parallelism: 5
-    plan_enabled: true
     auto_approve: false
     cache_enabled: true
-    init_enabled: true
 
     # Pipeline variables
     variables:

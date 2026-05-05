@@ -89,16 +89,20 @@ TerraCi автоматически определяет активный CI-пр
 
 | Возможность | Назначение | Плагины |
 |------------|---------|---------|
-| `CommandProvider` | CLI-субкоманды (`terraci cost` и т.д.) | cost, policy, summary, tfupdate |
-| `PipelineContributor` | Добавление шагов/джобов в pipeline IR | cost, policy, summary |
+| `CommandProvider` | CLI-субкоманды (`terraci cost`, `terraci local-exec` и т.д.) | cost, policy, summary, tfupdate, localexec |
+| `PipelineContributor` | Добавление шагов/джобов в pipeline IR | cost, policy, summary, tfupdate |
 | `InitContributor` | Поля формы для `terraci init` | gitlab, github, cost, policy, summary, tfupdate |
-| `GeneratorFactory` | Создание генератора пайплайна для CI-провайдера | gitlab, github |
-| `CommentFactory` | Создание сервиса MR/PR комментариев | gitlab, github |
+| `PipelineGeneratorFactory` | Создание генератора пайплайна (`NewGenerator(ctx, *pipeline.IR)`) | gitlab, github |
+| `CommentServiceFactory` | Создание сервиса MR/PR комментариев | gitlab, github |
 | `EnvDetector` | Определение CI-окружения по переменным среды | gitlab, github |
+| `CIInfoProvider` | Имя провайдера, ID пайплайна, SHA коммита | gitlab, github |
 | `ChangeDetectionProvider` | Определение изменённых модулей через VCS | git |
 | `RuntimeProvider` | Ленивая инициализация тяжёлых зависимостей | cost, policy, tfupdate |
 | `Preflightable` | Дешёвая валидация при старте | gitlab, github, git, cost, policy, tfupdate |
 | `VersionProvider` | Информация о версии для `terraci version` | policy |
+| `KVCacheProvider` | KV-кэш бэкенд по имени | inmemcache |
+| `BlobStoreProvider` | Бэкенд blob/object store (`NewBlobStore(ctx, appCtx, opts)`) | diskblob |
+| `FlagOverridable` | Прямые CLI-override-ы (`--plan-only`, `--auto-approve`) | gitlab, github |
 
 Один плагин может реализовывать несколько возможностей. Например, `cost` реализует `CommandProvider` (команда `terraci cost`), `PipelineContributor` (шаг оценки стоимости в пайплайне), `InitContributor` (переключатель в мастере init), `RuntimeProvider` (ленивая инициализация estimator) и `Preflightable` (валидация конфига).
 

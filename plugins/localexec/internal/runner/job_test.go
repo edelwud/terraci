@@ -60,7 +60,6 @@ func TestPhaseRunnerOrdersPreMainPost(t *testing.T) {
 
 	job := &pipeline.Job{
 		Name:   "plan-platform-stage-eu-central-1-vpc",
-		Type:   pipeline.JobTypePlan,
 		Module: discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
 		Env:    map[string]string{"TF_WORKSPACE": "stage"},
 		Steps: []pipeline.Step{
@@ -99,9 +98,9 @@ func TestPhaseRunnerUsesApplyPhasesForApplyJobs(t *testing.T) {
 	}
 
 	job := &pipeline.Job{
-		Name:   "apply-platform-stage-eu-central-1-vpc",
-		Type:   pipeline.JobTypeApply,
-		Module: discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
+		Name:      "apply-platform-stage-eu-central-1-vpc",
+		Module:    discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
+		Operation: pipeline.Operation{Type: pipeline.OperationTypeTerraformApply},
 		Steps: []pipeline.Step{
 			{Phase: pipeline.PhasePrePlan, Command: "echo wrong-pre"},
 			{Phase: pipeline.PhasePreApply, Command: "echo pre-apply"},
@@ -134,7 +133,6 @@ func TestPhaseRunnerStopsWhenPreStepFails(t *testing.T) {
 
 	err := runner.Run(context.Background(), &pipeline.Job{
 		Name:   "plan-platform-stage-eu-central-1-vpc",
-		Type:   pipeline.JobTypePlan,
 		Module: discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
 		Steps: []pipeline.Step{
 			{Phase: pipeline.PhasePrePlan, Command: "echo pre"},
@@ -157,7 +155,6 @@ func TestPhaseRunnerRejectsMissingCollaborators(t *testing.T) {
 
 	job := &pipeline.Job{
 		Name:   "plan-platform-stage-eu-central-1-vpc",
-		Type:   pipeline.JobTypePlan,
 		Module: discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
 	}
 

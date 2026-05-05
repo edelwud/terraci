@@ -7,7 +7,7 @@ import (
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
 
-func buildPolicyReport(summary *policyengine.Summary) *ci.Report {
+func buildPolicyReport(summary *policyengine.Summary) (*ci.Report, error) {
 	status := ci.ReportStatusPass
 	if summary.FailedModules > 0 {
 		status = ci.ReportStatusFail
@@ -47,19 +47,23 @@ func buildPolicyReport(summary *policyengine.Summary) *ci.Report {
 
 	summaryText := fmt.Sprintf("%d modules: %d passed, %d warned, %d failed",
 		summary.TotalModules, summary.PassedModules, summary.WarnedModules, summary.FailedModules)
-	section := ci.MustEncodeSection(
+	section, err := ci.EncodeSection(
 		ci.ReportSectionKindFindings,
 		"Policy Check",
 		summaryText,
 		status,
 		ci.FindingsSection{Rows: rows},
 	)
+	if err != nil {
+		return nil, fmt.Errorf("build policy report: %w", err)
+	}
 
 	return &ci.Report{
-		Producer: "policy",
-		Title:    "Policy Check",
-		Status:   status,
-		Summary:  summaryText,
-		Sections: []ci.ReportSection{section},
-	}
+		Producer:   "policy",
+		Title:      "Policy Check",
+		Status:     status,
+		Summary:    summaryText,
+		Provenance: ci.NewProvenance("", "", ""),
+		Sections:   []ci.ReportSection{section},
+	}, nil
 }

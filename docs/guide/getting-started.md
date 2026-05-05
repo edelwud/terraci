@@ -56,7 +56,7 @@ By default, this launches an interactive TUI wizard that guides you through proj
 ```bash
 terraci init --ci
 terraci init --ci --provider github
-terraci init --ci --provider gitlab --binary tofu --image ghcr.io/opentofu/opentofu:1.6
+terraci init --ci --provider gitlab --binary tofu
 ```
 
 This creates a `.terraci.yaml` configuration file:
@@ -65,11 +65,14 @@ This creates a `.terraci.yaml` configuration file:
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
+execution:
+  binary: terraform
+  plan_enabled: true
+
 extensions:
   gitlab:
-    terraform_binary: "terraform"
-    image: "hashicorp/terraform:1.6"
-    plan_enabled: true
+    image:
+      name: hashicorp/terraform:1.6
     auto_approve: false
 ```
 

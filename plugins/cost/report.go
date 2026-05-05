@@ -36,7 +36,7 @@ type costChangeRow struct {
 	Notes      string  `json:"notes,omitempty"`
 }
 
-func buildCostReport(result *model.EstimateResult) *ci.Report {
+func buildCostReport(result *model.EstimateResult) (*ci.Report, error) {
 	visible := visibleReportModules(result.Modules)
 	rows := make([]costChangeRow, 0, len(visible))
 	status := ci.ReportStatusPass
@@ -65,7 +65,7 @@ func buildCostReport(result *model.EstimateResult) *ci.Report {
 	}
 
 	summary := buildCostReportSummary(result, len(visible))
-	section := ci.MustEncodeSection(
+	section, err := ci.EncodeSection(
 		costChangesSectionKind,
 		"Cost Estimation",
 		summary,
@@ -83,14 +83,18 @@ func buildCostReport(result *model.EstimateResult) *ci.Report {
 			Rows: rows,
 		},
 	)
+	if err != nil {
+		return nil, fmt.Errorf("build cost report: %w", err)
+	}
 
 	return &ci.Report{
-		Producer: pluginName,
-		Title:    "Cost Estimation",
-		Status:   status,
-		Summary:  summary,
-		Sections: []ci.ReportSection{section},
-	}
+		Producer:   pluginName,
+		Title:      "Cost Estimation",
+		Status:     status,
+		Summary:    summary,
+		Provenance: ci.NewProvenance("", "", ""),
+		Sections:   []ci.ReportSection{section},
+	}, nil
 }
 
 func buildCostReportSummary(result *model.EstimateResult, moduleCount int) string {
@@ -129,17 +133,10 @@ func shouldShowReportModule(module *model.ModuleCost) bool {
 // saveArtifacts persists the estimation result and CI report to the service directory.
 // Returns a joined error if one or both saves fail.
 func saveArtifacts(serviceDir string, result *model.EstimateResult) error {
-	if serviceDir == "" {
-		return nil
+	report, err := buildCostReport(result)
+	if err != nil {
+		// Still attempt to save the raw results so the user can inspect them.
+		return errors.Join(err, ci.SaveResultsAndReport(serviceDir, resultsFile, result, nil))
 	}
-
-	var errs []error
-	if err := ci.SaveJSON(serviceDir, resultsFile, result); err != nil {
-		errs = append(errs, fmt.Errorf("save results: %w", err))
-	}
-	report := buildCostReport(result)
-	if err := ci.SaveReport(serviceDir, report); err != nil {
-		errs = append(errs, fmt.Errorf("save report: %w", err))
-	}
-	return errors.Join(errs...)
+	return ci.SaveResultsAndReport(serviceDir, resultsFile, result, report)
 }

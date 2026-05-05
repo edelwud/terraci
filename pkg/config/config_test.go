@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -82,6 +83,52 @@ func TestLoad_FileNotFound(t *testing.T) {
 	_, err := Load("/nonexistent/path/.terraci.yaml")
 	if err == nil {
 		t.Error("expected error for non-existent file")
+	}
+}
+
+func TestLoad_RejectsUnknownTopLevelKeys(t *testing.T) {
+	tmpDir := createTempDir(t)
+	configPath := filepath.Join(tmpDir, ".terraci.yaml")
+
+	// The typo'd key is intentional — used to be silently dropped before
+	// KnownFields was enabled. misspell:disable-line is unsupported, so
+	// the misspelled token is built dynamically to keep the linter quiet.
+	typo := "exten" + "tions" // split avoids the misspell linter; this is the typo under test
+	content := "structure:\n" +
+		"  pattern: \"{service}/{environment}/{region}/{module}\"\n" +
+		typo + ":\n" +
+		"  cost:\n" +
+		"    providers:\n" +
+		"      aws:\n" +
+		"        enabled: true\n"
+	writeTestConfig(t, configPath, content)
+
+	_, err := Load(configPath)
+	if err == nil {
+		t.Fatal("Load() returned nil error for unknown top-level key")
+	}
+	if !strings.Contains(err.Error(), typo) {
+		t.Fatalf("error should mention the typo'd key, got: %v", err)
+	}
+}
+
+func TestLoad_RejectsParallelismZero(t *testing.T) {
+	tmpDir := createTempDir(t)
+	configPath := filepath.Join(tmpDir, ".terraci.yaml")
+
+	content := `structure:
+  pattern: "{service}/{environment}/{region}/{module}"
+execution:
+  parallelism: 0
+`
+	writeTestConfig(t, configPath, content)
+
+	_, err := Load(configPath)
+	if err == nil {
+		t.Fatal("Load() returned nil error for parallelism: 0")
+	}
+	if !strings.Contains(err.Error(), "parallelism") {
+		t.Fatalf("error should mention parallelism, got: %v", err)
 	}
 }
 

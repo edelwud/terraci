@@ -213,22 +213,24 @@ apply-eks:
 ```mermaid
 flowchart TD
   A["terraci generate"] --> B
-  B["Scanner.Scan()"] --> C
-  C["Parser.ParseModule()"] --> D
-  D["DependencyGraph.Build()"] --> E
+  B["workflow.Run() — scan, filter, parse, graph"] --> C
+  C["resolver.CollectContributions(appCtx)"] --> D
+  D["pipeline.Build(opts) → *pipeline.IR"] --> E
   E{"Провайдер?"}
-  E -->|GitLab| F["gitlab.Generator"] --> G[".gitlab-ci.yml"]
-  E -->|GitHub| H["github.Generator"] --> I["workflow.yml"]
+  E -->|GitLab| F["gitlab.NewGenerator(ctx, ir)"] --> G[".gitlab-ci.yml"]
+  E -->|GitHub| H["github.NewGenerator(ctx, ir)"] --> I["workflow.yml"]
 ```
 
 Описание каждого этапа:
 
 | Шаг | Функция | Что делает |
 |-----|---------|-----------|
-| 1 | `Scanner.Scan()` | Обход дерева директорий, поиск `.tf` файлов на настроенной глубине, создание Module с картой компонентов |
-| 2 | `Parser.ParseModule()` | Парсинг HCL, извлечение locals, поиск `terraform_remote_state`, разрешение переменных |
-| 3 | `DependencyGraph.Build()` | Добавление узлов/рёбер, детекция циклов, топологическая сортировка → уровни |
-| 4 | `Generator.Generate()` | Создание стадий, генерация plan/apply джобов, применение overwrites, вывод YAML (GitLab или GitHub Actions) |
+| 1 | `workflow.Run()` | Сканирование файловой системы, применение фильтров, парсинг HCL, построение графа зависимостей |
+| 2 | `resolver.CollectContributions(appCtx)` | Сбор шагов и отдельных джобов, контрибьютнутых плагинами (cost, policy, summary, tfupdate) |
+| 3 | `pipeline.Build(opts)` | Построение провайдер-агностичного IR (`*pipeline.IR{Levels, Jobs}`) — единый вход для исполнения |
+| 4 | `provider.NewGenerator(ctx, ir)` + `Generate()` | Привязка IR к провайдеру; преобразование IR в YAML GitLab CI или воркфлоу GitHub Actions |
+
+IR — **единый источник** как для генерации пайплайнов, так и для `terraci local-exec`: провайдеры не обращаются отдельно к графу зависимостей или списку контрибуций — IR уже их в себе содержит.
 
 ## Ключевые типы
 

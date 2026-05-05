@@ -1,6 +1,7 @@
 package gitclient
 
 import (
+	"errors"
 	"fmt"
 
 	gogit "github.com/go-git/go-git/v6"
@@ -8,11 +9,41 @@ import (
 	"github.com/go-git/go-git/v6/plumbing/object"
 )
 
+// ErrShallowRepository signals that change detection cannot produce a reliable
+// diff because the repository is a shallow clone. Callers should surface this
+// to the user and either deepen the clone (e.g. CI `git fetch --unshallow`)
+// or disable change-detection-based filtering for this run.
+var ErrShallowRepository = errors.New("git repository is a shallow clone — change detection cannot resolve merge-base reliably; deepen the clone (e.g. `git fetch --unshallow`) or rerun without --changed-only")
+
+// IsShallow reports whether the underlying git repository was cloned with
+// --depth (shallow). Resolving merge-base against a base branch in a shallow
+// clone typically truncates history and produces an empty/incorrect diff.
+func (c *Client) IsShallow() (bool, error) {
+	repo, err := c.openRepo()
+	if err != nil {
+		return false, fmt.Errorf("open repository: %w", err)
+	}
+	hashes, err := repo.Storer.Shallow()
+	if err != nil {
+		return false, fmt.Errorf("inspect shallow list: %w", err)
+	}
+	return len(hashes) > 0, nil
+}
+
 // GetChangedFiles returns files changed between base ref and HEAD.
 func (c *Client) GetChangedFiles(baseRef string) ([]string, error) {
 	repo, err := c.openRepo()
 	if err != nil {
 		return nil, fmt.Errorf("open repository: %w", err)
+	}
+
+	// Refuse early on shallow clones: merge-base is unreliable, the fallback
+	// to resolveRef would diff against the truncated commit, and the result
+	// silently lists the wrong "changed" modules.
+	if shallow, shallowErr := c.IsShallow(); shallowErr != nil {
+		return nil, shallowErr
+	} else if shallow {
+		return nil, ErrShallowRepository
 	}
 
 	if baseRef == "" {

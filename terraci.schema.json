@@ -94,6 +94,69 @@
     },
     "extensions": {
       "properties": {
+        "summary": {
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "on_changes_only": {
+              "type": "boolean"
+            },
+            "include_details": {
+              "type": "boolean"
+            },
+            "labels": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "cost": {
+          "properties": {
+            "cache_dir": {
+              "type": "string",
+              "description": "Deprecated and unsupported; use extensions.diskblob.root_dir instead"
+            },
+            "blob_cache": {
+              "properties": {
+                "backend": {
+                  "type": "string",
+                  "description": "Blob cache backend plugin name",
+                  "default": "diskblob"
+                },
+                "namespace": {
+                  "type": "string",
+                  "description": "Blob cache namespace for pricing data",
+                  "default": "cost/pricing"
+                },
+                "ttl": {
+                  "type": "string",
+                  "description": "How long cached pricing is valid (e.g. 24h)",
+                  "default": "24h"
+                }
+              },
+              "type": "object",
+              "description": "Blob cache backend selection for pricing data"
+            },
+            "providers": {
+              "additionalProperties": {
+                "properties": {
+                  "enabled": {
+                    "type": "boolean",
+                    "description": "Enable this cloud provider",
+                    "default": false
+                  }
+                },
+                "type": "object"
+              },
+              "type": "object"
+            }
+          },
+          "type": "object"
+        },
         "tfupdate": {
           "properties": {
             "enabled": {
@@ -1211,69 +1274,6 @@
               "type": "boolean",
               "description": "Enable the built-in in-memory KV cache backend",
               "default": true
-            }
-          },
-          "type": "object"
-        },
-        "summary": {
-          "properties": {
-            "enabled": {
-              "type": "boolean"
-            },
-            "on_changes_only": {
-              "type": "boolean"
-            },
-            "include_details": {
-              "type": "boolean"
-            },
-            "labels": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            }
-          },
-          "type": "object"
-        },
-        "cost": {
-          "properties": {
-            "cache_dir": {
-              "type": "string",
-              "description": "Deprecated and unsupported; use extensions.diskblob.root_dir instead"
-            },
-            "blob_cache": {
-              "properties": {
-                "backend": {
-                  "type": "string",
-                  "description": "Blob cache backend plugin name",
-                  "default": "diskblob"
-                },
-                "namespace": {
-                  "type": "string",
-                  "description": "Blob cache namespace for pricing data",
-                  "default": "cost/pricing"
-                },
-                "ttl": {
-                  "type": "string",
-                  "description": "How long cached pricing is valid (e.g. 24h)",
-                  "default": "24h"
-                }
-              },
-              "type": "object",
-              "description": "Blob cache backend selection for pricing data"
-            },
-            "providers": {
-              "additionalProperties": {
-                "properties": {
-                  "enabled": {
-                    "type": "boolean",
-                    "description": "Enable this cloud provider",
-                    "default": false
-                  }
-                },
-                "type": "object"
-              },
-              "type": "object"
             }
           },
           "type": "object"

@@ -230,13 +230,16 @@ This ensures only one apply job runs per module at a time.
 
 ### Plan Stage
 
-Enable or disable the plan stage:
+Enable or disable the plan stage globally via the top-level `execution:` section (it applies to both providers):
 
 ```yaml
+execution:
+  plan_enabled: true  # Generate plan jobs (default)
+  # plan_enabled: false  # Skip straight to apply
+
 extensions:
   gitlab:
-    plan_enabled: true  # Generate plan jobs
-    # plan_enabled: false  # Skip straight to apply
+    plan_only: false  # When true: keep plan jobs, drop apply jobs (CLI: --plan-only)
 ```
 
 ### Auto-Approve

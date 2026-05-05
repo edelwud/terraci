@@ -127,11 +127,13 @@ func emitUpdateArtifacts(serviceDir string, result *tfupdateengine.UpdateResult)
 		return
 	}
 
-	if saveErr := ci.SaveJSON(serviceDir, resultsFile, result); saveErr != nil {
-		log.WithError(saveErr).Warn("failed to save tfupdate results")
+	report, buildErr := buildUpdateReport(result)
+	if buildErr != nil {
+		log.WithError(buildErr).Warn("failed to build tfupdate report")
+		report = nil
 	}
-	if saveErr := ci.SaveReport(serviceDir, buildUpdateReport(result)); saveErr != nil {
-		log.WithError(saveErr).Warn("failed to save tfupdate report")
+	if saveErr := ci.SaveResultsAndReport(serviceDir, resultsFile, result, report); saveErr != nil {
+		log.WithError(saveErr).Warn("failed to persist tfupdate artifacts")
 	}
 }
 
@@ -146,7 +148,8 @@ func finalizeUpdateCheck(w io.Writer, outputFmt string, result *tfupdateengine.U
 }
 
 func (p *Plugin) runCheck(ctx context.Context, appCtx *plugin.AppContext, cmd *cobra.Command) error {
-	runtime, err := p.runtime(ctx, appCtx, parseRuntimeOptions(cmd))
+	opts := parseRuntimeOptions(cmd)
+	runtime, err := p.runtime(ctx, appCtx, &opts)
 	if err != nil {
 		return err
 	}

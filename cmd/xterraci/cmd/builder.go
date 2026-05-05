@@ -19,6 +19,7 @@ type Builder struct {
 	WithoutPlugins []string // built-in plugin names to exclude
 	Output         string
 	SkipCleanup    bool
+	SkipSmoke      bool // skip post-build `<output> version` invocation
 }
 
 // pluginSpec represents a parsed --with value.
@@ -155,6 +156,30 @@ func (b *Builder) Build(ctx context.Context) error {
 	}
 
 	log.WithField("path", output).Info("build successful")
+
+	if !b.SkipSmoke {
+		if err := b.smokeTest(ctx, output); err != nil {
+			return fmt.Errorf("smoke test: %w", err)
+		}
+	}
+	return nil
+}
+
+// smokeTest runs `<output> version` and confirms the binary starts. Catches
+// the silent-failure case where a misconfigured --with module compiled fine
+// but its init() didn't call registry.RegisterFactory — the resulting binary
+// would just be missing the plugin without any compile-time signal.
+func (b *Builder) smokeTest(ctx context.Context, output string) error {
+	log.WithField("path", output).Debug("smoke test: running `version`")
+	cmd := exec.CommandContext(ctx, output, "version")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("`%s version` failed: %w\noutput:\n%s", output, err, string(out))
+	}
+	if len(out) == 0 {
+		return fmt.Errorf("`%s version` returned empty output — binary may be broken", output)
+	}
+	log.WithField("path", output).Info("smoke test passed")
 	return nil
 }
 

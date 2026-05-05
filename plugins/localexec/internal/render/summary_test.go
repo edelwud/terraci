@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/ci/citest"
 )
 
 func TestRenderSummaryReportCLI_RendersStructuredSections(t *testing.T) {
@@ -15,7 +16,7 @@ func TestRenderSummaryReportCLI_RendersStructuredSections(t *testing.T) {
 		Title:    "Terraform Plan Summary",
 		Summary:  "2 modules: 1 with changes, 1 no changes, 0 failed",
 		Sections: []ci.ReportSection{
-			ci.MustEncodeSection(
+			citest.MustEncodeSection(
 				ci.ReportSectionKindOverview,
 				"Summary",
 				"2 modules: 1 with changes, 1 no changes, 0 failed",
@@ -27,7 +28,7 @@ func TestRenderSummaryReportCLI_RendersStructuredSections(t *testing.T) {
 					},
 				},
 			),
-			ci.MustEncodeSection(
+			citest.MustEncodeSection(
 				ci.ReportSectionKindModuleTable,
 				"Environment: `prod`",
 				"1 actionable modules",

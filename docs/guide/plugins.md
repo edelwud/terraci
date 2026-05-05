@@ -89,16 +89,20 @@ Plugins implement one or more capability interfaces. The framework discovers the
 
 | Capability | Purpose | Plugins |
 |------------|---------|---------|
-| `CommandProvider` | CLI subcommands (`terraci cost`, etc.) | cost, policy, summary, tfupdate |
-| `PipelineContributor` | Inject steps/jobs into pipeline IR | cost, policy, summary |
+| `CommandProvider` | CLI subcommands (`terraci cost`, `terraci local-exec`, etc.) | cost, policy, summary, tfupdate, localexec |
+| `PipelineContributor` | Inject steps/jobs into pipeline IR | cost, policy, summary, tfupdate |
 | `InitContributor` | Form fields for `terraci init` wizard | gitlab, github, cost, policy, summary, tfupdate |
-| `GeneratorFactory` | Create provider-specific pipeline generator | gitlab, github |
-| `CommentFactory` | Create MR/PR comment service | gitlab, github |
+| `PipelineGeneratorFactory` | Create provider-specific pipeline generator (`NewGenerator(ctx, *pipeline.IR)`) | gitlab, github |
+| `CommentServiceFactory` | Create MR/PR comment service | gitlab, github |
 | `EnvDetector` | Detect CI environment from env vars | gitlab, github |
+| `CIInfoProvider` | Provider name, pipeline ID, commit SHA | gitlab, github |
 | `ChangeDetectionProvider` | Detect changed modules via VCS diff | git |
 | `RuntimeProvider` | Lazy construction of heavy runtime state | cost, policy, tfupdate |
 | `Preflightable` | Cheap startup validation before commands run | gitlab, github, git, cost, policy, tfupdate |
 | `VersionProvider` | Contribute version info to `terraci version` | policy |
+| `KVCacheProvider` | Named key/value cache backend resolution | inmemcache |
+| `BlobStoreProvider` | Named blob/object store backend (`NewBlobStore(ctx, appCtx, opts)`) | diskblob |
+| `FlagOverridable` | Direct CLI flag overrides (`--plan-only`, `--auto-approve`) | gitlab, github |
 
 A single plugin can implement multiple capabilities. For example, `cost` implements `CommandProvider` (the `terraci cost` command), `PipelineContributor` (adds cost estimation step to pipeline), `InitContributor` (adds toggle to init wizard), `RuntimeProvider` (lazy estimator setup), and `Preflightable` (config validation).
 

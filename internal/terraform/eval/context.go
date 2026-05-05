@@ -3,6 +3,7 @@ package eval
 
 import (
 	"path/filepath"
+	"sync"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
@@ -30,9 +31,16 @@ func NewContext(locals, variables map[string]cty.Value, modulePath string) *hcl.
 	}
 }
 
-// Functions returns Terraform functions for HCL evaluation.
+// builtinFunctionsOnce caches the immutable Terraform-function table. The
+// dependency-extraction hot path used to allocate this map per remote_state
+// expression — modules with N remote_state blocks did N×alloc; with this
+// memoization it's exactly one allocation for the lifetime of the process.
+var builtinFunctionsOnce = sync.OnceValue(builtinFunctions)
+
+// Functions returns Terraform functions for HCL evaluation. The returned map
+// is shared and must not be mutated by callers.
 func Functions() map[string]function.Function {
-	return builtinFunctions()
+	return builtinFunctionsOnce()
 }
 
 // SafeObjectVal creates a cty.ObjectVal, returning an empty object for nil/empty maps.

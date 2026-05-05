@@ -27,8 +27,11 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("execution.plan_mode: unsupported value %q", c.Execution.PlanMode)
 	}
 
-	if c.Execution.Parallelism < 0 {
-		return errors.New("execution.parallelism: must be >= 0")
+	// parallelism == 0 used to silently make the executor stall instead of using
+	// a worker. Treat <1 as an explicit user error; callers that want the
+	// default should leave the field unset and rely on DefaultConfig().
+	if c.Execution.Parallelism < 1 {
+		return errors.New("execution.parallelism: must be >= 1 (omit to use default)")
 	}
 
 	return nil

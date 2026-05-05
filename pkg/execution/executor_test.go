@@ -111,7 +111,10 @@ func TestDefaultSchedulerAlwaysIncludesFinalizeStage(t *testing.T) {
 		},
 	}
 
-	groups := DefaultScheduler{}.Schedule(ir)
+	groups, err := DefaultScheduler{}.Schedule(ir)
+	if err != nil {
+		t.Fatalf("Schedule() error = %v", err)
+	}
 	if len(groups) == 0 {
 		t.Fatal("expected scheduled groups")
 	}

@@ -36,6 +36,9 @@ terraci init
 ## Полный пример
 
 ```yaml
+# Опциональная сервисная директория (по умолчанию .terraci) для рантайм-артефактов и отчётов
+service_dir: .terraci
+
 # Структура директорий
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
@@ -48,17 +51,23 @@ exclude:
 
 include: []  # Пустой означает все (после исключений)
 
+# Общие настройки выполнения Terraform/OpenTofu
+execution:
+  binary: terraform        # или "tofu"
+  init_enabled: true       # автоматически вызывать terraform init
+  plan_enabled: true       # генерировать plan-джобы
+  plan_mode: standard      # "standard" или "detailed"
+  parallelism: 4           # размер пула воркеров для local-exec
+
 # Настройки расширений
 extensions:
   # Настройки GitLab CI
   gitlab:
-    terraform_binary: "terraform"
-    image: "hashicorp/terraform:1.6"
+    image:
+      name: hashicorp/terraform:1.6
     stages_prefix: "deploy"
     parallelism: 5
-    plan_enabled: true
     auto_approve: false
-    init_enabled: true
 
     variables:
       TF_IN_AUTOMATION: "true"
@@ -78,11 +87,8 @@ extensions:
 
   # Настройки GitHub Actions
   # github:
-  #   terraform_binary: "terraform"
   #   runs_on: "ubuntu-latest"
-  #   plan_enabled: true
   #   auto_approve: false
-  #   init_enabled: true
   #   permissions:
   #     contents: read
   #     pull-requests: write
@@ -107,24 +113,26 @@ extensions:
 Если файл конфигурации не найден, используются эти значения:
 
 ```yaml
-# выбор provider:
-#   переменная окружения TERRACI_PROVIDER
-#   автоопределение CI-окружения
-#   единственный активный провайдер
+service_dir: .terraci
 
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
-extensions:
-  gitlab:
-    terraform_binary: "terraform"
-    image: "hashicorp/terraform:1.6"
-    stages_prefix: "deploy"
-    parallelism: 5
-    plan_enabled: true
-    auto_approve: false
-    init_enabled: true
+execution:
+  binary: terraform
+  init_enabled: true
+  plan_enabled: true
+  plan_mode: standard
+  parallelism: 4
 ```
+
+Выбор провайдера в рантайме:
+
+1. Переменная `TERRACI_PROVIDER` — явный override
+2. Автоопределение CI (`GITLAB_CI`, `GITHUB_ACTIONS`)
+3. Единственный сконфигурированный провайдер
+
+Дефолты плагинов GitLab/GitHub (если они активированы) приходят из struct-тегов — см. [`gitlab`](./gitlab) и [`github`](./github).
 
 ## Валидация
 
@@ -171,12 +179,14 @@ extensions:
 
 ## OpenTofu с минимальными образами
 
-Для минимальных образов OpenTofu с не-shell entrypoint используйте объектный формат:
+Для минимальных образов OpenTofu с не-shell entrypoint используйте объектный формат и переключите бинарь выполнения:
 
 ```yaml
+execution:
+  binary: tofu
+
 extensions:
   gitlab:
-    terraform_binary: "tofu"
     image:
       name: "ghcr.io/opentofu/opentofu:1.9-minimal"
       entrypoint: [""]

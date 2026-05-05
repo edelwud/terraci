@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/ci/citest"
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/pipeline"
@@ -124,7 +125,7 @@ func TestLogOutputCompleted_WithSummaryReport(t *testing.T) {
 		Producer: "summary",
 		Title:    "Terraform Plan Summary",
 		Summary:  "1 modules: 1 with changes, 0 no changes, 0 failed",
-		Sections: []ci.ReportSection{ci.MustEncodeSection(
+		Sections: []ci.ReportSection{citest.MustEncodeSection(
 			ci.ReportSectionKindOverview,
 			"Summary",
 			"",

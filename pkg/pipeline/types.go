@@ -3,50 +3,24 @@ package pipeline
 import "github.com/edelwud/terraci/pkg/discovery"
 
 // Phase defines when something runs in the pipeline lifecycle.
-type Phase int
+//
+// Values are the canonical stage names: providers can use them directly as
+// YAML stage labels, schedulers can use them as group identifiers, and
+// switch-statements can rely on string equality. There is intentionally no
+// parallel `Stage*` string-constant table — that produced two sources of
+// truth for the same lifecycle marker.
+type Phase string
 
 const (
-	PhasePrePlan   Phase = iota // before terraform plan
-	PhasePostPlan               // after terraform plan
-	PhasePreApply               // before terraform apply
-	PhasePostApply              // after terraform apply
-	PhaseFinalize               // after everything — reports, notifications
+	PhasePrePlan   Phase = "pre-plan"   // before terraform plan
+	PhasePostPlan  Phase = "post-plan"  // after terraform plan
+	PhasePreApply  Phase = "pre-apply"  // before terraform apply
+	PhasePostApply Phase = "post-apply" // after terraform apply
+	PhaseFinalize  Phase = "finalize"   // after everything — reports, notifications
 )
 
-// Stage names for each phase. The IR's CI generators use these as stage labels.
-const (
-	StagePrePlan   = "pre-plan"
-	StagePostPlan  = "post-plan"
-	StagePreApply  = "pre-apply"
-	StagePostApply = "post-apply"
-	StageFinalize  = "finalize"
-)
-
-// String returns the stage name for this phase (e.g., "pre-plan", "post-apply").
-func (p Phase) String() string {
-	switch p {
-	case PhasePrePlan:
-		return StagePrePlan
-	case PhasePostPlan:
-		return StagePostPlan
-	case PhasePreApply:
-		return StagePreApply
-	case PhasePostApply:
-		return StagePostApply
-	case PhaseFinalize:
-		return StageFinalize
-	default:
-		return "unknown"
-	}
-}
-
-// JobType distinguishes plan from apply jobs.
-type JobType int
-
-const (
-	JobTypePlan JobType = iota
-	JobTypeApply
-)
+// String returns the stage name for this phase.
+func (p Phase) String() string { return string(p) }
 
 // IR is the provider-agnostic intermediate representation of a CI pipeline.
 type IR struct {
@@ -68,9 +42,14 @@ type ModuleJobs struct {
 }
 
 // Job is a single CI job in the IR.
+//
+// To distinguish plan / apply / contributed jobs, callers should branch on
+// Operation.Type for runtime dispatch and on `Module == nil` to detect
+// contributed jobs. There used to be a separate JobType field with iota
+// values that defaulted to "plan" for contributed jobs — that zero-value
+// trap is the reason it was removed.
 type Job struct {
 	Name          string
-	Type          JobType
 	Phase         Phase             // for contributed jobs: when they run
 	Module        *discovery.Module // nil for contributed jobs
 	Env           map[string]string

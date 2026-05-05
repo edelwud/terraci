@@ -13,25 +13,25 @@ import (
 func TestGenerator_jobName(t *testing.T) {
 	tests := []struct {
 		module   *discovery.Module
-		jobType  string
+		jobKind  pipeline.JobKind
 		expected string
 	}{
 		{
 			module:   discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
-			jobType:  "plan",
+			jobKind:  pipeline.JobKindPlan,
 			expected: "plan-platform-stage-eu-central-1-vpc",
 		},
 		{
 			module:   discovery.TestModule("platform", "prod", "us-west-2", "eks"),
-			jobType:  "apply",
+			jobKind:  pipeline.JobKindApply,
 			expected: "apply-platform-prod-us-west-2-eks",
 		},
 	}
 
 	for _, tt := range tests {
-		result := pipeline.JobName(tt.jobType, tt.module)
+		result := pipeline.JobName(tt.jobKind, tt.module)
 		if result != tt.expected {
-			t.Errorf("jobName(%s, %s) = %s, expected %s", tt.module.ID(), tt.jobType, result, tt.expected)
+			t.Errorf("jobName(%s, %v) = %s, expected %s", tt.module.ID(), tt.jobKind, result, tt.expected)
 		}
 	}
 }

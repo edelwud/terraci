@@ -206,7 +206,7 @@ Summary job использует эти CI/CD переменные:
 
 Summary job появляется только когда:
 1. MR-интеграция включена (секция `extensions.gitlab.mr` существует)
-2. Планы включены (`extensions.gitlab.plan_enabled: true`)
+2. Планы включены (`execution.plan_enabled: true` на верхнем уровне конфига — это default)
 
 ## Смотрите также
 

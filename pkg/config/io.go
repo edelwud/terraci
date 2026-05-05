@@ -1,7 +1,10 @@
 package config
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -18,7 +21,9 @@ func Load(path string) (*Config, error) {
 	}
 
 	cfg := DefaultConfig()
-	if unmarshalErr := yaml.Unmarshal(data, cfg); unmarshalErr != nil {
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	dec.KnownFields(true)
+	if unmarshalErr := dec.Decode(cfg); unmarshalErr != nil && !errors.Is(unmarshalErr, io.EOF) {
 		return nil, &terrierrors.ConfigError{Path: path, Err: fmt.Errorf("parse: %w", unmarshalErr)}
 	}
 

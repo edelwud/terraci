@@ -179,14 +179,14 @@ Check:
 
 ### Wrong Module IDs
 
-If module IDs don't match your state file paths, adjust the pattern:
+If module IDs don't match your state file paths, adjust `structure.pattern` to mirror how your modules lay out on disk:
 
 ```yaml
-backend:
-  key_pattern: "{service}/{environment}/{region}/{module}/terraform.tfstate"
+structure:
+  pattern: "{service}/{environment}/{region}/{module}"
 ```
 
-This pattern is used to match `terraform_remote_state` keys to modules.
+The same pattern is used to match `terraform_remote_state` keys to modules — derive your state keys from the filesystem path (e.g. `abspath(path.module)`) so they line up with the discovered module IDs. See [Dependency Resolution](/guide/dependencies) for the full mechanism.
 
 ## Next Steps
 

@@ -41,11 +41,11 @@ func TestBuild_SingleModule(t *testing.T) {
 	if mj.Apply == nil {
 		t.Error("missing apply job")
 	}
-	if mj.Plan.Name != JobName("plan", mod) {
-		t.Errorf("plan name = %q, want %q", mj.Plan.Name, JobName("plan", mod))
+	if mj.Plan.Name != JobName(JobKindPlan, mod) {
+		t.Errorf("plan name = %q, want %q", mj.Plan.Name, JobName(JobKindPlan, mod))
 	}
-	if mj.Apply.Name != JobName("apply", mod) {
-		t.Errorf("apply name = %q, want %q", mj.Apply.Name, JobName("apply", mod))
+	if mj.Apply.Name != JobName(JobKindApply, mod) {
+		t.Errorf("apply name = %q, want %q", mj.Apply.Name, JobName(JobKindApply, mod))
 	}
 }
 
@@ -200,7 +200,7 @@ func TestBuild_ContributedJobDeps(t *testing.T) {
 	}
 
 	// Job should depend on plan job
-	planName := JobName("plan", mod)
+	planName := JobName(JobKindPlan, mod)
 	hasDep := false
 	for _, d := range ir.Jobs[0].Dependencies {
 		if d == planName {
@@ -341,9 +341,9 @@ func TestBuild_RejectsInvalidContributedJobGraph(t *testing.T) {
 		{
 			name: "contributed job collides with module job",
 			contribution: &Contribution{Jobs: []ContributedJob{{
-				Name: JobName("plan", mod), Phase: PhasePostPlan, Commands: []string{"check"},
+				Name: JobName(JobKindPlan, mod), Phase: PhasePostPlan, Commands: []string{"check"},
 			}}},
-			wantErrSubstr: `duplicate job name "` + JobName("plan", mod) + `"`,
+			wantErrSubstr: `duplicate job name "` + JobName(JobKindPlan, mod) + `"`,
 		},
 	}
 
@@ -510,12 +510,13 @@ func TestPhase_String(t *testing.T) {
 		{PhasePreApply, "pre-apply"},
 		{PhasePostApply, "post-apply"},
 		{PhaseFinalize, "finalize"},
-		{Phase(99), "unknown"},
+		// Phase is a string type; ad-hoc values pass through verbatim.
+		{Phase("custom"), "custom"},
 	}
 
 	for _, tt := range tests {
 		if got := tt.phase.String(); got != tt.want {
-			t.Errorf("Phase(%d).String() = %q, want %q", tt.phase, got, tt.want)
+			t.Errorf("Phase(%q).String() = %q, want %q", string(tt.phase), got, tt.want)
 		}
 	}
 }

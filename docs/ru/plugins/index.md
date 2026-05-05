@@ -135,8 +135,8 @@ extensions:
 |----------|----------|-----------|
 | `EnabledAlways` | Всегда активен, конфиг не нужен | git |
 | `EnabledWhenConfigured` | Активен при наличии секции конфига | gitlab, github |
-| `EnabledByDefault` | Активен пока не `enabled: false` | summary |
-| `EnabledExplicitly` | Требует явного opt-in | cost, policy, update |
+| `EnabledByDefault` | Активен пока не `enabled: false` | summary, diskblob, inmemcache |
+| `EnabledExplicitly` | Требует явного opt-in | cost, policy, tfupdate |
 
 ### Жизненный цикл
 
@@ -151,10 +151,28 @@ Register → Configure → Preflight → Freeze → Execute
 ```go
 ctx.WorkDir()    // корневая директория проекта
 ctx.ServiceDir() // абсолютный путь к .terraci
-ctx.Config()     // полная конфигурация TerraCi (defensive copy)
+ctx.Config()     // shared *config.Config — read-only, не мутировать
 ctx.Version()    // строка версии TerraCi
 ctx.Reports()    // реестр отчётов для обмена между плагинами
+ctx.Resolver()   // capability-резолвер — никогда не nil; через него ищутся CI-провайдер, ChangeDetector, кэши
 ```
+
+Контекст конструируется фреймворком один раз через `plugin.NewAppContext(plugin.AppContextOptions{...})` и привязывается на время выполнения команды. Плагины получают уже готовый контекст.
+
+### Resolver
+
+`ctx.Resolver()` — единая точка кросс-плагинных capability-lookup'ов:
+
+```go
+ResolveCIProvider() (*plugin.ResolvedCIProvider, error)
+ResolveChangeDetector() (plugin.ChangeDetectionProvider, error)
+ResolveKVCacheProvider(name string) (plugin.KVCacheProvider, error)
+ResolveBlobStoreProvider(name string) (plugin.BlobStoreProvider, error)
+CollectContributions(ctx *plugin.AppContext) []pipeline.Contribution
+PreflightsForStartup() []plugin.Preflightable
+```
+
+Резолвер никогда не nil — если контекст не привязан к реестру (тестовое окружение), возвращается no-op-резолвер с sentinel-ошибками вместо nil-разыменования.
 
 ### Сборка
 

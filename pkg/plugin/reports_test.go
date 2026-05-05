@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/ci/citest"
 )
 
 func TestReportRegistry_PublishAndGet(t *testing.T) {
@@ -77,7 +78,7 @@ func TestReportRegistry_DefensiveCopies(t *testing.T) {
 	report := &ci.Report{
 		Producer: "report_b",
 		Title:    "Report B",
-		Sections: []ci.ReportSection{ci.MustEncodeSection(
+		Sections: []ci.ReportSection{citest.MustEncodeSection(
 			ci.ReportSectionKindFindings,
 			"Findings",
 			"",

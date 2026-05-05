@@ -26,10 +26,9 @@ terraci init [flags]
 | `--ci` | | bool | false | Неинтерактивный режим (пропустить TUI-мастер) |
 | `--provider` | | string | | CI-провайдер: `gitlab` или `github` |
 | `--binary` | | string | | Бинарный файл: `terraform` или `tofu` |
-| `--image` | | string | | Docker-образ для CI джобов |
 | `--pattern` | | string | | Паттерн структуры директорий |
 
-При указании любого из флагов `--provider`, `--binary`, `--image` или `--pattern` мастер автоматически пропускается и используется неинтерактивный режим.
+При указании любого из флагов `--provider`, `--binary` или `--pattern` мастер автоматически пропускается и используется неинтерактивный режим.
 
 ## Примеры
 
@@ -39,13 +38,11 @@ terraci init [flags]
 terraci init
 ```
 
-Запускает TUI-мастер, который предлагает выбрать:
-1. CI-провайдер (GitLab CI или GitHub Actions)
-2. Бинарный файл Terraform (Terraform или OpenTofu)
-3. Паттерн структуры директорий
-4. Включить ли сабмодули
-5. Включить ли комментарии в MR/PR
-6. Включить ли оценку стоимости
+Запускает TUI-мастер со следующими группами:
+1. **Основное** — CI-провайдер (GitLab CI или GitHub Actions), бинарный файл Terraform (Terraform или OpenTofu)
+2. **Структура** — паттерн структуры директорий
+3. **Опции пайплайна** — включение стадии plan и auto-approve
+4. **Группы плагинов** — динамические группы от включённых плагинов (gitlab/github image, summary, cost, policy, tfupdate и т.д.)
 
 ### Неинтерактивный режим
 
@@ -74,12 +71,6 @@ terraci init --provider gitlab --binary tofu
 ```
 
 Автоматически выбирается соответствующий образ (`ghcr.io/opentofu/opentofu:1.6`), а для GitHub Actions используется `opentofu/setup-opentofu@v1` вместо `hashicorp/setup-terraform@v3`.
-
-### Пользовательский образ
-
-```bash
-terraci init --binary terraform --image registry.example.com/terraform:1.6
-```
 
 ### Пользовательский паттерн
 
@@ -113,43 +104,44 @@ terraci -d /path/to/project init
 
 ### Провайдер GitLab
 
-При выборе GitLab (или по умолчанию) создаётся:
+При `--provider gitlab` (или по умолчанию) создаётся:
 
 ```yaml
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
+execution:
+  binary: terraform
+  plan_enabled: true
+
 extensions:
   gitlab:
-    terraform_binary: "terraform"
-    image: "hashicorp/terraform:1.6"
-    plan_enabled: true
+    image:
+      name: hashicorp/terraform:1.6
+    stages_prefix: deploy
+    cache_enabled: true
     auto_approve: false
-    init_enabled: true
     mr:
       comment:
         enabled: true
-
-backend:
-  type: s3
-  key_pattern: "{service}/{environment}/{region}/{module}/terraform.tfstate"
 ```
 
 ### Провайдер GitHub
 
-При выборе GitHub создаётся:
+При `--provider github` создаётся:
 
 ```yaml
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
+execution:
+  binary: terraform
+  plan_enabled: true
+
 extensions:
   github:
-    terraform_binary: "terraform"
-    runs_on: "ubuntu-latest"
-    plan_enabled: true
+    runs_on: ubuntu-latest
     auto_approve: false
-    init_enabled: true
     permissions:
       contents: read
       pull-requests: write
@@ -159,11 +151,9 @@ extensions:
         - uses: hashicorp/setup-terraform@v3
     pr:
       comment: {}
-
-backend:
-  type: s3
-  key_pattern: "{service}/{environment}/{region}/{module}/terraform.tfstate"
 ```
+
+> Конфигурация backend (S3, GCS и т.д.) не генерируется командой `terraci init` — TerraCi читает существующие блоки `terraform { backend "..." }` из ваших модулей для разрешения путей state-файлов; ничего не добавляется в `.terraci.yaml`.
 
 ## Что создаётся
 

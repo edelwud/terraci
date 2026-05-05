@@ -10,7 +10,7 @@ func newCompletionCmd(rootCmd *cobra.Command) *cobra.Command {
 	return &cobra.Command{
 		Use:         "completion [bash|zsh|fish|powershell]",
 		Short:       "Generate shell completion scripts",
-		Annotations: map[string]string{"skipConfig": "true"},
+		Annotations: map[string]string{annotationSkipConfig: annotationTrue},
 		Long: `Generate shell completion scripts for terraci.
 
 To load completions:

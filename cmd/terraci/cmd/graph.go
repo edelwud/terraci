@@ -26,6 +26,8 @@ func newGraphCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "graph",
 		Short: "Display dependency graph",
+		// graph is a visualization command — no plugin runtime is invoked.
+		Annotations: map[string]string{annotationSkipPreflight: annotationTrue},
 		Long: `Display the module dependency graph in various formats.
 
 Formats:

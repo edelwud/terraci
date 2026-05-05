@@ -2,18 +2,22 @@
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
+execution:
+  binary: terraform
+  plan_enabled: true
+
 extensions:
   gitlab:
     image: { name: hashicorp/terraform:1.6 }
-    terraform_binary: terraform
-    plan_enabled: true
     auto_approve: false
     mr:
       comment: { enabled: true }
 
   cost:
-    cache_dir: .terraci/pricing
-    cache_ttl: "24h"
+    blob_cache:
+      backend: diskblob
+      namespace: cost/pricing
+      ttl: "24h"
     providers:
       aws:
         enabled: true

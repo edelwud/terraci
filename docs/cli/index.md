@@ -17,6 +17,7 @@ These options are available for all commands:
 | `--config` | `-c` | Path to configuration file |
 | `--dir` | `-d` | Working directory |
 | `--verbose` | `-v` | Enable verbose output |
+| `--log-level` | `-l` | Log level (`debug`, `info`, `warn`, `error`) |
 | `--help` | `-h` | Show help |
 
 ## Commands
@@ -31,6 +32,8 @@ These options are available for all commands:
 | [summary](./summary) | Post plan results to MR/PR |
 | [policy](./policy) | Pull and check OPA policies |
 | [tfupdate](./tfupdate) | Resolve Terraform dependency versions and sync lock files |
+| `local-exec plan` / `run` | Run plan/apply locally over the same dependency-aware IR (provided by the localexec plugin) |
+| `schema` | Generate the JSON schema for `.terraci.yaml` (with all enabled plugin extensions) |
 | `version` | Show version information |
 
 ## Usage
@@ -66,9 +69,7 @@ terraci generate --filter environment=production --filter region=us-east-1
 | Code | Description |
 |------|-------------|
 | 0 | Success |
-| 1 | General error |
-| 2 | Configuration error |
-| 3 | Validation error (circular dependencies, etc.) |
+| 1 | Any error (configuration, validation, generation, runtime) |
 
 ## Environment Variables
 

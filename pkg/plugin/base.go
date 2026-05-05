@@ -1,11 +1,22 @@
 package plugin
 
+import "fmt"
+
+// Validator is implemented by plugins that want the registry to perform a
+// startup sanity check. The framework calls Validate() once after the plugin
+// is constructed by its factory; a non-nil error panics in RegisterFactory
+// with a clear message identifying the misconfigured plugin.
+type Validator interface {
+	Validate() error
+}
+
 // BasePlugin provides shared implementation for all plugins that have configuration.
 // C is the plugin's concrete config type. Embedding this gives you:
 //   - Name(), Description()
 //   - ConfigKey(), NewConfig(), DecodeAndSet(), IsConfigured(), IsEnabled()
 //   - Config() (typed access to config)
 //   - Reset() (resets config state; override to reset custom fields)
+//   - Validate() (registration-time sanity check; see Validator)
 type BasePlugin[C any] struct {
 	PluginName string
 	PluginDesc string
@@ -96,4 +107,21 @@ func (b *BasePlugin[C]) Reset() {
 	var zero C
 	b.cfg = zero
 	b.configured = false
+}
+
+// Validate performs registration-time sanity checks on the BasePlugin
+// embedding. It is invoked by registry.RegisterFactory; a non-nil error
+// panics there with a message identifying the misconfigured plugin.
+//
+// Currently catches the most common silent-disable bug: a plugin that opts
+// into EnabledExplicitly but forgets to set IsEnabledFn — IsEnabled() would
+// always return false, so the plugin appears registered but never runs.
+func (b *BasePlugin[C]) Validate() error {
+	if b.EnableMode == EnabledExplicitly && b.IsEnabledFn == nil {
+		return fmt.Errorf(
+			"plugin %q uses EnabledExplicitly without IsEnabledFn — IsEnabled() would always return false",
+			b.PluginName,
+		)
+	}
+	return nil
 }

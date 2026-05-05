@@ -17,7 +17,7 @@ func newManCmd(rootCmd *cobra.Command) *cobra.Command {
 		Use:         "man",
 		Short:       "Generate man pages",
 		Hidden:      true,
-		Annotations: map[string]string{"skipConfig": "true"},
+		Annotations: map[string]string{annotationSkipConfig: annotationTrue},
 		Long: `Generate man pages for terraci.
 
 This command generates man pages in roff format that can be installed

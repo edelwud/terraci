@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/config"
@@ -147,6 +148,55 @@ func TestAppContext_BeginCommandRebindsResolver(t *testing.T) {
 	if ctx.WorkDir() != "/next" {
 		t.Fatalf("WorkDir() = %q, want /next", ctx.WorkDir())
 	}
+}
+
+// TestAppContext_ConcurrentReadWrite exercises -race: framework rebinds state
+// (BeginCommand/Update/Freeze) while plugin-side goroutines read accessors.
+// Without the RWMutex these would be flagged as data races.
+func TestAppContext_ConcurrentReadWrite(t *testing.T) {
+	t.Parallel()
+
+	ctx := NewAppContext(AppContextOptions{
+		Config:     config.DefaultConfig(),
+		WorkDir:    "/tmp/0",
+		ServiceDir: "/tmp/0/.terraci",
+		Version:    "0",
+		Resolver:   contextTestResolver{plugin: &contextTestPlugin{name: "cmd"}},
+	})
+
+	const writers = 4
+	const readers = 16
+	const iterations = 200
+
+	var wg sync.WaitGroup
+
+	for i := range writers {
+		wg.Go(func() {
+			for j := range iterations {
+				ctx.BeginCommand(contextTestResolver{plugin: &contextTestPlugin{name: "cmd"}})
+				ctx.Update(config.DefaultConfig(), "/tmp/wd", "/tmp/wd/.terraci", "v")
+				if (i+j)%2 == 0 {
+					ctx.Freeze()
+				}
+			}
+		})
+	}
+
+	for range readers {
+		wg.Go(func() {
+			for range iterations {
+				_ = ctx.Config()
+				_ = ctx.WorkDir()
+				_ = ctx.ServiceDir()
+				_ = ctx.Version()
+				_ = ctx.Reports()
+				_ = ctx.Resolver()
+				_ = ctx.IsFrozen()
+			}
+		})
+	}
+
+	wg.Wait()
 }
 
 func TestCommandInstanceRejectsMissingResolver(t *testing.T) {

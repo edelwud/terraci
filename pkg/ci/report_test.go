@@ -11,30 +11,34 @@ import (
 
 func TestSaveReport(t *testing.T) {
 	dir := t.TempDir()
+	overviewSection, err := EncodeSection(
+		ReportSectionKindOverview,
+		"Summary",
+		"all good",
+		ReportStatusPass,
+		OverviewSection{
+			PlanStats: SummaryPlanStats{Total: 1, NoChanges: 1, Success: 1},
+		},
+	)
+	if err != nil {
+		t.Fatalf("EncodeSection: %v", err)
+	}
 	report := &Report{
 		Producer: "test",
 		Title:    "Test Report",
 		Status:   ReportStatusPass,
 		Summary:  "all good",
-		Sections: []ReportSection{MustEncodeSection(
-			ReportSectionKindOverview,
-			"Summary",
-			"all good",
-			ReportStatusPass,
-			OverviewSection{
-				PlanStats: SummaryPlanStats{Total: 1, NoChanges: 1, Success: 1},
-			},
-		)},
+		Sections: []ReportSection{overviewSection},
 	}
 
-	if err := SaveReport(dir, report); err != nil {
-		t.Fatalf("SaveReport: %v", err)
+	if saveErr := SaveReport(dir, report); saveErr != nil {
+		t.Fatalf("SaveReport: %v", saveErr)
 	}
 
 	path := filepath.Join(dir, ReportFilename("test"))
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read: %v", err)
+	data, readErr := os.ReadFile(path)
+	if readErr != nil {
+		t.Fatalf("read: %v", readErr)
 	}
 
 	var loaded Report

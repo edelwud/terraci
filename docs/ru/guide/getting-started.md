@@ -56,7 +56,7 @@ terraci init
 ```bash
 terraci init --ci
 terraci init --ci --provider github
-terraci init --ci --provider gitlab --binary tofu --image ghcr.io/opentofu/opentofu:1.6
+terraci init --ci --provider gitlab --binary tofu
 ```
 
 Это создаст файл `.terraci.yaml`:
@@ -65,11 +65,14 @@ terraci init --ci --provider gitlab --binary tofu --image ghcr.io/opentofu/opent
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 
+execution:
+  binary: terraform
+  plan_enabled: true
+
 extensions:
   gitlab:
-    terraform_binary: "terraform"
-    image: "hashicorp/terraform:1.6"
-    plan_enabled: true
+    image:
+      name: hashicorp/terraform:1.6
     auto_approve: false
 ```
 

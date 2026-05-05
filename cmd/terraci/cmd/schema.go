@@ -17,7 +17,7 @@ func newSchemaCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "schema",
 		Short:       "Generate JSON Schema for .terraci.yaml",
-		Annotations: map[string]string{"skipConfig": "true"},
+		Annotations: map[string]string{annotationSkipConfig: annotationTrue},
 		Long: `Generate a JSON Schema file for .terraci.yaml configuration.
 
 The schema can be used for IDE autocompletion and validation.

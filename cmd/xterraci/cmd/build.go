@@ -12,6 +12,7 @@ func newBuildCmd(app *App) *cobra.Command {
 		withoutPlugins []string
 		output         string
 		skipCleanup    bool
+		skipSmoke      bool
 		verbose        bool
 	)
 
@@ -45,6 +46,7 @@ Examples:
 				WithoutPlugins: withoutPlugins,
 				Output:         output,
 				SkipCleanup:    skipCleanup,
+				SkipSmoke:      skipSmoke,
 			}
 
 			return b.Build(cmd.Context())
@@ -55,6 +57,7 @@ Examples:
 	cmd.Flags().StringArrayVar(&withoutPlugins, "without", nil, "exclude built-in plugin by name")
 	cmd.Flags().StringVarP(&output, "output", "o", "./terraci", "output binary path")
 	cmd.Flags().BoolVar(&skipCleanup, "skip-cleanup", false, "keep temporary build directory")
+	cmd.Flags().BoolVar(&skipSmoke, "skip-smoke", false, "skip post-build smoke test (`<output> version`)")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "show detailed output including command output")
 
 	return cmd

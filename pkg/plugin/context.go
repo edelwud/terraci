@@ -1,6 +1,10 @@
 package plugin
 
-import "github.com/edelwud/terraci/pkg/config"
+import (
+	"sync"
+
+	"github.com/edelwud/terraci/pkg/config"
+)
 
 // AppContext is the public API available to plugins.
 //
@@ -13,7 +17,13 @@ import "github.com/edelwud/terraci/pkg/config"
 //
 // The Config returned by Config() is shared and should be treated as read-only
 // by plugins. Mutate a deep copy if a plugin needs to derive a configuration.
+//
+// AppContext is safe for concurrent use: all accessors take an RWMutex,
+// allowing background goroutines (cost engine, registry clients, runners)
+// to read state while the framework rebinds it across command runs.
 type AppContext struct {
+	mu sync.RWMutex // protects all fields below
+
 	config     *config.Config
 	workDir    string
 	serviceDir string // resolved absolute path to project service directory
@@ -64,26 +74,36 @@ func NewAppContext(opts AppContextOptions) *AppContext {
 // Config returns the loaded TerraCi configuration. The returned pointer is
 // shared with the framework and must not be mutated by plugins.
 func (ctx *AppContext) Config() *config.Config {
+	ctx.mu.RLock()
+	defer ctx.mu.RUnlock()
 	return ctx.config
 }
 
 // WorkDir returns the working directory for the current command.
 func (ctx *AppContext) WorkDir() string {
+	ctx.mu.RLock()
+	defer ctx.mu.RUnlock()
 	return ctx.workDir
 }
 
 // ServiceDir returns the resolved absolute service directory path.
 func (ctx *AppContext) ServiceDir() string {
+	ctx.mu.RLock()
+	defer ctx.mu.RUnlock()
 	return ctx.serviceDir
 }
 
 // Version returns the current TerraCi version string.
 func (ctx *AppContext) Version() string {
+	ctx.mu.RLock()
+	defer ctx.mu.RUnlock()
 	return ctx.version
 }
 
 // Reports returns the shared in-process report registry.
 func (ctx *AppContext) Reports() *ReportRegistry {
+	ctx.mu.RLock()
+	defer ctx.mu.RUnlock()
 	return ctx.reports
 }
 
@@ -91,5 +111,7 @@ func (ctx *AppContext) Reports() *ReportRegistry {
 // Always non-nil — when no resolver is configured, returns a no-op resolver
 // whose Resolve* methods return errors and whose lookups return nothing.
 func (ctx *AppContext) Resolver() Resolver {
+	ctx.mu.RLock()
+	defer ctx.mu.RUnlock()
 	return ctx.resolver
 }

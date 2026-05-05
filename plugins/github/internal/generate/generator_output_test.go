@@ -13,19 +13,19 @@ func TestJobName(t *testing.T) {
 	tests := []struct {
 		name     string
 		module   *discovery.Module
-		jobType  string
+		jobKind  pipeline.JobKind
 		expected string
 	}{
-		{name: "plan job for vpc", module: createTestModule("platform", "stage", "eu-central-1", "vpc"), jobType: "plan", expected: "plan-platform-stage-eu-central-1-vpc"},
-		{name: "apply job for eks", module: createTestModule("platform", "prod", "us-west-2", "eks"), jobType: "apply", expected: "apply-platform-prod-us-west-2-eks"},
-		{name: "plan job with different service", module: createTestModule("data", "dev", "ap-southeast-1", "rds"), jobType: "plan", expected: "plan-data-dev-ap-southeast-1-rds"},
+		{name: "plan job for vpc", module: createTestModule("platform", "stage", "eu-central-1", "vpc"), jobKind: pipeline.JobKindPlan, expected: "plan-platform-stage-eu-central-1-vpc"},
+		{name: "apply job for eks", module: createTestModule("platform", "prod", "us-west-2", "eks"), jobKind: pipeline.JobKindApply, expected: "apply-platform-prod-us-west-2-eks"},
+		{name: "plan job with different service", module: createTestModule("data", "dev", "ap-southeast-1", "rds"), jobKind: pipeline.JobKindPlan, expected: "plan-data-dev-ap-southeast-1-rds"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := pipeline.JobName(tt.jobType, tt.module)
+			result := pipeline.JobName(tt.jobKind, tt.module)
 			if result != tt.expected {
-				t.Errorf("jobName(%s, %s) = %s, expected %s", tt.module.ID(), tt.jobType, result, tt.expected)
+				t.Errorf("jobName(%s, %v) = %s, expected %s", tt.module.ID(), tt.jobKind, result, tt.expected)
 			}
 		})
 	}

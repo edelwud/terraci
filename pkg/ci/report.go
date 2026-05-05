@@ -2,6 +2,7 @@ package ci
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -19,6 +20,32 @@ func SaveReport(serviceDir string, report *Report) error {
 		return fmt.Errorf("validate report: %w", err)
 	}
 	return SaveJSON(serviceDir, ReportFilename(report.Producer), report)
+}
+
+// SaveResultsAndReport persists a producer's raw result payload alongside its
+// canonical Report. Both writes are attempted independently — failures are
+// joined into a single error so callers always know which side broke.
+//
+// Replaces the recurring 6-line "save results, build report, save report"
+// pattern in cost / policy / tfupdate. Producers must build their report up
+// front (since report construction returns its own error) and pass it in.
+func SaveResultsAndReport(serviceDir, resultsFilename string, results any, report *Report) error {
+	if serviceDir == "" {
+		return nil
+	}
+
+	var errs []error
+	if resultsFilename != "" {
+		if err := SaveJSON(serviceDir, resultsFilename, results); err != nil {
+			errs = append(errs, fmt.Errorf("save results: %w", err))
+		}
+	}
+	if report != nil {
+		if err := SaveReport(serviceDir, report); err != nil {
+			errs = append(errs, fmt.Errorf("save report: %w", err))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // SaveJSON writes any value as indented JSON to {serviceDir}/{filename}.
