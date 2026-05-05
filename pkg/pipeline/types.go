@@ -103,6 +103,24 @@ type Contribution struct {
 	Steps []Step
 	// Jobs are standalone jobs added to the pipeline.
 	Jobs []ContributedJob
+	// RequiresDetailedPlan tells the IR builder that this contributor reads
+	// the JSON plan artifact (plan.json) — provider generators must enable
+	// detailed plan output even when MR/PR commenting is disabled. cost,
+	// policy and summary set this to true.
+	RequiresDetailedPlan bool
+}
+
+// AnyRequiresDetailedPlan reports whether any contribution declares that it
+// reads plan.json. Provider IR builders OR this with their native
+// "detailed plan" trigger (e.g. MR/PR comments) so plan.json is generated
+// whenever a downstream consumer needs it.
+func AnyRequiresDetailedPlan(contributions []*Contribution) bool {
+	for _, c := range contributions {
+		if c != nil && c.RequiresDetailedPlan {
+			return true
+		}
+	}
+	return false
 }
 
 // ContributedJob is a standalone job contributed to the pipeline.

@@ -21,6 +21,10 @@ func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribu
 	}
 	serviceDir := cfg.ServiceDir
 	return &pipeline.Contribution{
+		// `terraci cost` reads plan.json from each module directory, so the
+		// generator must enable detailed plan output regardless of MR/PR
+		// comment configuration.
+		RequiresDetailedPlan: true,
 		Jobs: []pipeline.ContributedJob{{
 			Name:          "cost-estimation",
 			Phase:         pipeline.PhasePostPlan,

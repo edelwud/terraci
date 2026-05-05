@@ -22,6 +22,10 @@ func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribu
 	}
 	allowFailure := p.Config().OnFailure == policyengine.ActionWarn
 	return &pipeline.Contribution{
+		// `terraci policy check` reads plan.json from each module directory,
+		// so detailed plan output must be on regardless of MR/PR comment
+		// configuration.
+		RequiresDetailedPlan: true,
 		Jobs: []pipeline.ContributedJob{{
 			Name:          "policy-check",
 			Phase:         pipeline.PhasePostPlan,

@@ -18,6 +18,30 @@ func buildGraph(modules []*discovery.Module, edges [][2]int) *graph.DependencyGr
 	return g
 }
 
+func TestAnyRequiresDetailedPlan(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		in   []*Contribution
+		want bool
+	}{
+		{"nil slice", nil, false},
+		{"all nil entries", []*Contribution{nil, nil}, false},
+		{"none requires", []*Contribution{{}, {}}, false},
+		{"one requires", []*Contribution{{}, {RequiresDetailedPlan: true}, nil}, true},
+		{"all require", []*Contribution{{RequiresDetailedPlan: true}, {RequiresDetailedPlan: true}}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := AnyRequiresDetailedPlan(tc.in); got != tc.want {
+				t.Errorf("AnyRequiresDetailedPlan = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestBuildJobPlan(t *testing.T) {
 	t.Parallel()
 

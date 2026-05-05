@@ -24,10 +24,17 @@ func BuildPipelineIR(
 	s := newSettings(cfg, execCfg)
 	return pipelinetest.BuildIR(pipelinetest.IROptions{
 		Script: pipeline.ScriptConfig{
-			InitEnabled:  s.initEnabled(),
-			PlanEnabled:  s.planEnabled(),
-			AutoApprove:  s.autoApprove(),
-			DetailedPlan: s.mrCommentEnabled(),
+			InitEnabled: s.initEnabled(),
+			PlanEnabled: s.planEnabled(),
+			AutoApprove: s.autoApprove(),
+			// MR comments need plan.txt + plan.json for the diff body, but
+			// the user can also opt in via execution.plan_mode=detailed and
+			// downstream contributors (cost/policy/summary) read plan.json
+			// directly. ORing all three sources keeps plan.json available
+			// whenever any consumer needs it.
+			DetailedPlan: s.mrCommentEnabled() ||
+				execCfg.PlanMode == execution.PlanModeDetailed ||
+				pipeline.AnyRequiresDetailedPlan(contributions),
 		},
 		Contributions: contributions,
 		DepGraph:      depGraph,

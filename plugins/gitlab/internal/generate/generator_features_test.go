@@ -147,6 +147,48 @@ func TestGenerator_Generate_WithSecrets(t *testing.T) {
 	}
 }
 
+func TestGenerator_DetailedPlanForcedByContribution(t *testing.T) {
+	// Regression: when MR comments are disabled and execution.plan_mode is
+	// "standard", a contributor that reads plan.json (e.g. cost) used to be
+	// silently broken because the plan job did not emit plan.json. The
+	// RequiresDetailedPlan flag on Contribution must lift DetailedPlan to
+	// true regardless of provider-specific toggles.
+	cfg := createTestConfig()
+	disabled := false
+	cfg.GitLab.MR = &MRConfig{Comment: &MRCommentConfig{Enabled: &disabled}}
+	cfg.Contributions = []*pipeline.Contribution{{RequiresDetailedPlan: true}}
+
+	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
+	depGraph := citest.DependencyGraph([]*discovery.Module{module}, map[string][]string{
+		module.ID(): {},
+	})
+
+	gen := newTestGenerator(t, cfg.GitLab, cfg.Execution, cfg.Contributions, depGraph, []*discovery.Module{module})
+	out, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	p, ok := out.(*Pipeline)
+	if !ok {
+		t.Fatal("expected *Pipeline type")
+	}
+
+	planJob := p.Jobs["plan-platform-stage-eu-central-1-vpc"]
+	if planJob == nil || planJob.Artifacts == nil {
+		t.Fatal("plan job artifacts missing")
+	}
+	hasPlanJSON := false
+	for _, p := range planJob.Artifacts.Paths {
+		if strings.HasSuffix(p, "plan.json") {
+			hasPlanJSON = true
+			break
+		}
+	}
+	if !hasPlanJSON {
+		t.Errorf("RequiresDetailedPlan did not emit plan.json; artifacts=%v", planJob.Artifacts.Paths)
+	}
+}
+
 func TestGenerator_Generate_WithArtifacts(t *testing.T) {
 	cfg := createTestConfig()
 	cfg.Execution.PlanMode = execution.PlanModeDetailed
