@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 
 	rawlog "github.com/caarlos0/log"
@@ -16,6 +17,13 @@ import (
 	"github.com/edelwud/terraci/pkg/plugin/registry"
 )
 
+// ansiEscapeRE matches CSI escape sequences emitted by caarlos0/log when
+// CLICOLOR_FORCE is on (notably under CI=1, where the logger force-enables
+// ANSI). Stripping them keeps strings.Contains assertions deterministic
+// across CI and developer machines without leaking environment overrides
+// into the rest of the test process.
+var ansiEscapeRE = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
+
 func CaptureLogOutput(t *testing.T, fn func()) string {
 	t.Helper()
 	oldLogger := rawlog.Log
@@ -23,7 +31,7 @@ func CaptureLogOutput(t *testing.T, fn func()) string {
 	rawlog.Log = rawlog.New(&buf)
 	defer func() { rawlog.Log = oldLogger }()
 	fn()
-	return buf.String()
+	return ansiEscapeRE.ReplaceAllString(buf.String(), "")
 }
 
 func LoadJSONFile[T any](t *testing.T, dir, filename string) T {
