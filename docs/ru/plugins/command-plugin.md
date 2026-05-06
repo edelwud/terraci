@@ -139,11 +139,13 @@ func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contributi
     return &pipeline.Contribution{
         Jobs: []pipeline.ContributedJob{
             {
-                Name:          "slack-notify",
-                Phase:         pipeline.PhasePostPlan,
-                DependsOnPlan: true,
-                Commands:      []string{"terraci slack --channel " + cfg.Channel},
-                AllowFailure:  true,
+                Name:     "slack-notify",
+                Phase:    pipeline.PhasePostPlan,
+                Consumes: []pipeline.ResourceRequest{
+                    pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+                },
+                Commands:     []string{"terraci slack --channel " + cfg.Channel},
+                AllowFailure: true,
             },
         },
     }

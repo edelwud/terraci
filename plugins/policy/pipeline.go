@@ -9,6 +9,7 @@ import (
 )
 
 const (
+	pluginName  = "policy"
 	jobName     = "policy-check"
 	resultsFile = "policy-results.json"
 	reportFile  = "policy-report.json"
@@ -23,17 +24,18 @@ func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribu
 	}
 	allowFailure := p.Config().OnFailure == policyengine.ActionWarn
 	return &pipeline.Contribution{
-		// `terraci policy check` reads plan.json from each module directory,
-		// so detailed plan output must be on regardless of MR/PR comment
-		// configuration.
-		RequiresDetailedPlan: true,
 		Jobs: []pipeline.ContributedJob{{
-			Name:          jobName,
-			Phase:         pipeline.PhasePostPlan,
-			Commands:      []string{"terraci policy pull", "terraci policy check"},
-			Artifact:      pipeline.ResultArtifact(jobName, filepath.Join(serviceDir, resultsFile), filepath.Join(serviceDir, reportFile)),
-			DependsOnPlan: true,
-			AllowFailure:  allowFailure,
+			Name:     jobName,
+			Phase:    pipeline.PhasePostPlan,
+			Commands: []string{"terraci policy pull", "terraci policy check"},
+			Consumes: []pipeline.ResourceRequest{
+				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+			},
+			Produces: []pipeline.ResourceSpec{
+				pipeline.PluginResource(pipeline.ResourceKindPluginResult, pluginName, filepath.Join(serviceDir, resultsFile)),
+				pipeline.PluginResource(pipeline.ResourceKindPluginReport, pluginName, filepath.Join(serviceDir, reportFile)),
+			},
+			AllowFailure: allowFailure,
 		}},
 	}
 }

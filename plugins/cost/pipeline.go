@@ -22,16 +22,17 @@ func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribu
 	}
 	serviceDir := cfg.ServiceDir
 	return &pipeline.Contribution{
-		// `terraci cost` reads plan.json from each module directory, so the
-		// generator must enable detailed plan output regardless of MR/PR
-		// comment configuration.
-		RequiresDetailedPlan: true,
 		Jobs: []pipeline.ContributedJob{{
-			Name:          jobName,
-			Phase:         pipeline.PhasePostPlan,
-			Commands:      []string{"terraci cost"},
-			Artifact:      pipeline.ResultArtifact(jobName, filepath.Join(serviceDir, resultsFile), filepath.Join(serviceDir, reportFile)),
-			DependsOnPlan: true,
+			Name:     jobName,
+			Phase:    pipeline.PhasePostPlan,
+			Commands: []string{"terraci cost"},
+			Consumes: []pipeline.ResourceRequest{
+				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+			},
+			Produces: []pipeline.ResourceSpec{
+				pipeline.PluginResource(pipeline.ResourceKindPluginResult, pluginName, filepath.Join(serviceDir, resultsFile)),
+				pipeline.PluginResource(pipeline.ResourceKindPluginReport, pluginName, filepath.Join(serviceDir, reportFile)),
+			},
 			// AllowFailure lets the pipeline proceed even when cost estimation fails
 			// (e.g., missing AWS credentials or unsupported resource types).
 			AllowFailure: true,

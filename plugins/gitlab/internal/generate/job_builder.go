@@ -30,10 +30,10 @@ func (b jobBuilder) planJob(irJob *pipeline.Job, module *discovery.Module, level
 		Stage:         fmt.Sprintf("%s-plan-%d", prefix, levelIdx),
 		Script:        b.scriptWithSteps(cishell.RenderOperation(irJob.Operation), irJob.Steps, pipeline.PhasePrePlan, pipeline.PhasePostPlan),
 		Variables:     irJob.Env,
-		Artifacts:     defaultArtifacts(irJob.Artifact),
+		Artifacts:     defaultArtifacts(irJob.OutputArtifact),
 		Cache:         b.cache(module),
 		ResourceGroup: module.ID(),
-		Needs:         requiredNeeds(irJob.Dependencies),
+		Needs:         jobNeeds(irJob.Dependencies),
 	}
 
 	if err := b.applyConfig(job, configpkg.OverwriteTypePlan); err != nil {
@@ -49,7 +49,7 @@ func (b jobBuilder) applyJob(irJob *pipeline.Job, module *discovery.Module, leve
 		Variables:     irJob.Env,
 		Cache:         b.cache(module),
 		ResourceGroup: module.ID(),
-		Needs:         requiredNeeds(irJob.Dependencies),
+		Needs:         jobNeeds(irJob.Dependencies),
 	}
 
 	if !b.settings.autoApprove() {
@@ -66,10 +66,10 @@ func (b jobBuilder) contributedJob(irJob *pipeline.Job) (*domain.Job, error) {
 	job := &domain.Job{
 		Stage:  b.contributions.stageFor(irJob.Name),
 		Script: contributedScript(cishell.RenderOperation(irJob.Operation), irJob.AllowFailure),
-		Needs:  optionalNeeds(irJob.Dependencies),
+		Needs:  jobNeeds(irJob.Dependencies),
 	}
 
-	if artifacts := defaultArtifacts(irJob.Artifact); artifacts != nil {
+	if artifacts := defaultArtifacts(irJob.OutputArtifact); artifacts != nil {
 		job.Artifacts = artifacts
 	}
 
@@ -168,26 +168,18 @@ func renderCacheTemplate(template string, module *discovery.Module, fallback str
 	return replacer.Replace(template)
 }
 
-func requiredNeeds(deps []string) []domain.JobNeed {
+func jobNeeds(deps []pipeline.JobDependency) []domain.JobNeed {
 	if len(deps) == 0 {
 		return nil
 	}
 
 	needs := make([]domain.JobNeed, len(deps))
-	for i, name := range deps {
-		needs[i] = domain.JobNeed{Job: name, Artifacts: artifactNeedPtr(true)}
-	}
-	return needs
-}
-
-func optionalNeeds(deps []string) []domain.JobNeed {
-	if len(deps) == 0 {
-		return nil
-	}
-
-	needs := make([]domain.JobNeed, len(deps))
-	for i, name := range deps {
-		needs[i] = domain.JobNeed{Job: name, Optional: true, Artifacts: artifactNeedPtr(true)}
+	for i, dep := range deps {
+		needs[i] = domain.JobNeed{
+			Job:       dep.Job,
+			Optional:  dep.Optional,
+			Artifacts: artifactNeedPtr(dep.Artifacts),
+		}
 	}
 	return needs
 }

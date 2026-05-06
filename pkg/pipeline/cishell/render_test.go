@@ -65,7 +65,7 @@ func TestScriptConfig_PlanScript(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			op, artifact := tt.config.NewPlanOperation("plan-svc-prod-us-east-1-vpc", modulePath)
+			op, _, artifact := tt.config.NewPlanOperation("plan-svc-prod-us-east-1-vpc", modulePath)
 			script := RenderOperation(op)
 
 			// First command is always cd

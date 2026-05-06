@@ -38,10 +38,10 @@ func (b jobBuilder) planJob(irJob *pipeline.Job, module *discovery.Module) (*dom
 	steps = append(steps, runStep("Plan "+module.ID(), runScript))
 	steps = append(steps, phaseSteps(irJob.Steps, pipeline.PhasePostPlan)...)
 	steps = append(steps, profile.stepsAfter...)
-	if irJob.Artifact.Configured() {
+	if irJob.OutputArtifact.Configured() {
 		steps = append(steps,
-			stageArtifactStep("Stage plan artifacts", irJob.Artifact, true),
-			uploadArtifactStep("Upload plan artifacts", irJob.Artifact),
+			stageArtifactStep("Stage plan artifacts", irJob.OutputArtifact, true),
+			uploadArtifactStep("Upload plan artifacts", irJob.OutputArtifact),
 		)
 	}
 
@@ -58,7 +58,7 @@ func (b jobBuilder) planJob(irJob *pipeline.Job, module *discovery.Module) (*dom
 		job.Container = profile.container
 	}
 
-	job.Needs = irJob.Dependencies
+	job.Needs = pipeline.DependencyNames(irJob.Dependencies)
 	return job, nil
 }
 
@@ -70,9 +70,8 @@ func (b jobBuilder) applyJob(irJob *pipeline.Job, module *discovery.Module) (*do
 
 	runScript := strings.Join(cishell.RenderOperation(irJob.Operation), "\n")
 	steps := []domainpkg.Step{checkoutStep()}
-	if b.settings.planEnabled() {
-		planName := pipeline.JobName(pipeline.JobKindPlan, module)
-		steps = append(steps, downloadArtifactStep("Download plan artifacts", pipeline.PlanArtifactName(planName)))
+	for _, artifact := range irJob.InputArtifacts {
+		steps = append(steps, downloadArtifactStep("Download "+artifact.Name, artifact.Name))
 	}
 	steps = append(steps, profile.stepsBefore...)
 	steps = append(steps, phaseSteps(irJob.Steps, pipeline.PhasePreApply)...)
@@ -88,7 +87,7 @@ func (b jobBuilder) applyJob(irJob *pipeline.Job, module *discovery.Module) (*do
 			CancelInProgress: false,
 		},
 		Steps: steps,
-		Needs: irJob.Dependencies,
+		Needs: pipeline.DependencyNames(irJob.Dependencies),
 	}
 	if profile.container != nil {
 		job.Container = profile.container
@@ -113,23 +112,23 @@ func (b jobBuilder) contributedJob(irJob *pipeline.Job) (*domainpkg.Job, error) 
 		}
 	}
 
-	steps := []domainpkg.Step{
-		checkoutStep(),
-		downloadAllArtifactsStep(),
+	steps := []domainpkg.Step{checkoutStep()}
+	for _, artifact := range irJob.InputArtifacts {
+		steps = append(steps, downloadArtifactStep("Download "+artifact.Name, artifact.Name))
 	}
 	steps = append(steps, profile.stepsBefore...)
 	steps = append(steps, runStep("Run "+irJob.Name, strings.Join(scriptLines, "\n")))
 	steps = append(steps, profile.stepsAfter...)
-	if irJob.Artifact.Configured() {
+	if irJob.OutputArtifact.Configured() {
 		steps = append(steps,
-			stageArtifactStep(fmt.Sprintf("Stage %s results", irJob.Name), irJob.Artifact, false),
-			uploadArtifactStep(fmt.Sprintf("Upload %s results", irJob.Name), irJob.Artifact),
+			stageArtifactStep(fmt.Sprintf("Stage %s results", irJob.Name), irJob.OutputArtifact, false),
+			uploadArtifactStep(fmt.Sprintf("Upload %s results", irJob.Name), irJob.OutputArtifact),
 		)
 	}
 
 	job := &domainpkg.Job{
 		RunsOn: profile.runsOn,
-		Needs:  irJob.Dependencies,
+		Needs:  pipeline.DependencyNames(irJob.Dependencies),
 		Env:    mergeJobEnv(irJob.Env, profile.env),
 		Steps:  steps,
 	}
@@ -160,18 +159,6 @@ func downloadArtifactStep(name, artifact string) domainpkg.Step {
 		With: map[string]string{
 			"name": artifact,
 			"path": ".",
-		},
-	}
-}
-
-func downloadAllArtifactsStep() domainpkg.Step {
-	return domainpkg.Step{
-		Name: "Download all plan artifacts",
-		Uses: "actions/download-artifact@v4",
-		With: map[string]string{
-			"pattern":        pipeline.ArtifactNamePattern(),
-			"path":           ".",
-			"merge-multiple": actionTrue,
 		},
 	}
 }

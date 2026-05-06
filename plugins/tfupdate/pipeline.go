@@ -21,12 +21,14 @@ func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribu
 	}
 	return &pipeline.Contribution{
 		Jobs: []pipeline.ContributedJob{{
-			Name:          jobName,
-			Phase:         pipeline.PhasePrePlan,
-			Commands:      []string{"terraci tfupdate"},
-			Artifact:      pipeline.ResultArtifact(jobName, filepath.Join(serviceDir, resultsFile), filepath.Join(serviceDir, reportFile)),
-			DependsOnPlan: false,
-			AllowFailure:  true,
+			Name:     jobName,
+			Phase:    pipeline.PhasePrePlan,
+			Commands: []string{"terraci tfupdate"},
+			Produces: []pipeline.ResourceSpec{
+				pipeline.PluginResource(pipeline.ResourceKindPluginResult, pluginName, filepath.Join(serviceDir, resultsFile)),
+				pipeline.PluginResource(pipeline.ResourceKindPluginReport, pluginName, filepath.Join(serviceDir, reportFile)),
+			},
+			AllowFailure: true,
 		}},
 	}
 }

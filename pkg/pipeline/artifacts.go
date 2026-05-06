@@ -2,12 +2,6 @@ package pipeline
 
 const artifactNamePrefix = "terraci-"
 
-// ArtifactNamePattern matches all Terraci artifacts in providers that support
-// pattern-based downloads.
-func ArtifactNamePattern() string {
-	return artifactNamePrefix + "*"
-}
-
 // PlanArtifactName returns the artifact name used by a plan job.
 func PlanArtifactName(jobName string) string {
 	return artifactNamePrefix + jobName

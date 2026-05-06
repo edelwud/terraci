@@ -35,7 +35,7 @@ func (defaultBuilder) Build(targets []*discovery.Module, result *workflow.Result
 		Script: pipeline.ScriptConfig{
 			InitEnabled:  execCfg.InitEnabled,
 			PlanEnabled:  execCfg.PlanEnabled,
-			DetailedPlan: execCfg.PlanMode == execution.PlanModeDetailed || pipeline.AnyRequiresDetailedPlan(contributions),
+			DetailedPlan: execCfg.PlanMode == execution.PlanModeDetailed,
 		},
 		Contributions: contributions,
 		PlanEnabled:   execCfg.PlanEnabled,
@@ -63,6 +63,8 @@ func planModeContributions(contributions []*pipeline.Contribution) []*pipeline.C
 		}
 		for _, job := range contribution.Jobs {
 			if isPlanModeJobPhase(job.Phase) {
+				job.Consumes = append([]pipeline.ResourceRequest(nil), job.Consumes...)
+				job.Produces = append([]pipeline.ResourceSpec(nil), job.Produces...)
 				next.Jobs = append(next.Jobs, job)
 			}
 		}

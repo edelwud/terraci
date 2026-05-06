@@ -16,11 +16,13 @@ func TestGenerator_Generate_WithMRIntegration(t *testing.T) {
 	cfg.GitLab.MR = &MRConfig{}
 	cfg.Contributions = []*pipeline.Contribution{{
 		Jobs: []pipeline.ContributedJob{{
-			Name:          "terraci-summary",
-			Phase:         pipeline.PhaseFinalize,
-			Commands:      []string{"terraci summary"},
-			DependsOnPlan: true,
-			AllowFailure:  false,
+			Name:     "terraci-summary",
+			Phase:    pipeline.PhaseFinalize,
+			Commands: []string{"terraci summary"},
+			Consumes: []pipeline.ResourceRequest{
+				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+			},
+			AllowFailure: false,
 		}},
 	}}
 
@@ -147,16 +149,25 @@ func TestGenerator_Generate_WithSecrets(t *testing.T) {
 	}
 }
 
-func TestGenerator_DetailedPlanForcedByContribution(t *testing.T) {
+func TestGenerator_DetailedPlanForcedByResourceConsumer(t *testing.T) {
 	// Regression: when MR comments are disabled and execution.plan_mode is
 	// "standard", a contributor that reads plan.json (e.g. cost) used to be
 	// silently broken because the plan job did not emit plan.json. The
-	// RequiresDetailedPlan flag on Contribution must lift DetailedPlan to
-	// true regardless of provider-specific toggles.
+	// resource request must lift DetailedPlan to true regardless of
+	// provider-specific toggles.
 	cfg := createTestConfig()
 	disabled := false
 	cfg.GitLab.MR = &MRConfig{Comment: &MRCommentConfig{Enabled: &disabled}}
-	cfg.Contributions = []*pipeline.Contribution{{RequiresDetailedPlan: true}}
+	cfg.Contributions = []*pipeline.Contribution{{
+		Jobs: []pipeline.ContributedJob{{
+			Name:     "cost-estimation",
+			Phase:    pipeline.PhasePostPlan,
+			Commands: []string{"terraci cost"},
+			Consumes: []pipeline.ResourceRequest{
+				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+			},
+		}},
+	}}
 
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	depGraph := citest.DependencyGraph([]*discovery.Module{module}, map[string][]string{
@@ -185,7 +196,7 @@ func TestGenerator_DetailedPlanForcedByContribution(t *testing.T) {
 		}
 	}
 	if !hasPlanJSON {
-		t.Errorf("RequiresDetailedPlan did not emit plan.json; artifacts=%v", planJob.Artifacts.Paths)
+		t.Errorf("PlanJSON consumer did not emit plan.json; artifacts=%v", planJob.Artifacts.Paths)
 	}
 	planName := "plan-platform-stage-eu-central-1-vpc"
 	if planJob.Artifacts.Name != pipeline.PlanArtifactName(planName) {
@@ -250,12 +261,17 @@ func TestGenerator_Generate_WithPolicyCheck(t *testing.T) {
 	cfg := createTestConfig()
 	cfg.Contributions = []*pipeline.Contribution{{
 		Jobs: []pipeline.ContributedJob{{
-			Name:          "policy-check",
-			Phase:         pipeline.PhasePostPlan,
-			Commands:      []string{"terraci policy pull", "terraci policy check"},
-			Artifact:      pipeline.ResultArtifact("policy-check", ".terraci/policy-results.json", ".terraci/policy-report.json"),
-			DependsOnPlan: true,
-			AllowFailure:  false,
+			Name:     "policy-check",
+			Phase:    pipeline.PhasePostPlan,
+			Commands: []string{"terraci policy pull", "terraci policy check"},
+			Consumes: []pipeline.ResourceRequest{
+				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+			},
+			Produces: []pipeline.ResourceSpec{
+				pipeline.PluginResource(pipeline.ResourceKindPluginResult, "policy", ".terraci/policy-results.json"),
+				pipeline.PluginResource(pipeline.ResourceKindPluginReport, "policy", ".terraci/policy-report.json"),
+			},
+			AllowFailure: false,
 		}},
 	}}
 

@@ -132,7 +132,7 @@ func dependencyLayers(jobs []*pipeline.Job) ([][]*pipeline.Job, error) {
 
 func hasPendingDependency(job *pipeline.Job, pending map[string]*pipeline.Job) bool {
 	for _, dep := range job.Dependencies {
-		if pending[dep] != nil {
+		if pending[dep.Job] != nil {
 			return true
 		}
 	}

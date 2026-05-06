@@ -14,11 +14,13 @@ func TestGenerate_WithPR(t *testing.T) {
 		withConfig(func(cfg *configpkg.Config) { cfg.PR = &configpkg.PRConfig{} }).
 		withContributions([]*pipeline.Contribution{{
 			Jobs: []pipeline.ContributedJob{{
-				Name:          "terraci-summary",
-				Phase:         pipeline.PhaseFinalize,
-				Commands:      []string{"terraci summary"},
-				DependsOnPlan: true,
-				AllowFailure:  false,
+				Name:     "terraci-summary",
+				Phase:    pipeline.PhaseFinalize,
+				Commands: []string{"terraci summary"},
+				Consumes: []pipeline.ResourceRequest{
+					pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+				},
+				AllowFailure: false,
 			}},
 		}}).
 		withModules(vpc, eks).
@@ -47,11 +49,13 @@ func TestGenerate_ContributedJobInheritsJobDefaults(t *testing.T) {
 		}).
 		withContributions([]*pipeline.Contribution{{
 			Jobs: []pipeline.ContributedJob{{
-				Name:          "cost-estimation",
-				Phase:         pipeline.PhasePostPlan,
-				Commands:      []string{"terraci cost"},
-				DependsOnPlan: true,
-				AllowFailure:  true,
+				Name:     "cost-estimation",
+				Phase:    pipeline.PhasePostPlan,
+				Commands: []string{"terraci cost"},
+				Consumes: []pipeline.ResourceRequest{
+					pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+				},
+				AllowFailure: true,
 			}},
 		}}).
 		withModules(module).
@@ -81,11 +85,13 @@ func TestGenerate_ContributedJobOverwriteByName(t *testing.T) {
 		}).
 		withContributions([]*pipeline.Contribution{{
 			Jobs: []pipeline.ContributedJob{{
-				Name:          "cost-estimation",
-				Phase:         pipeline.PhasePostPlan,
-				Commands:      []string{"terraci cost"},
-				DependsOnPlan: true,
-				AllowFailure:  true,
+				Name:     "cost-estimation",
+				Phase:    pipeline.PhasePostPlan,
+				Commands: []string{"terraci cost"},
+				Consumes: []pipeline.ResourceRequest{
+					pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+				},
+				AllowFailure: true,
 			}},
 		}}).
 		withModules(module).
@@ -189,11 +195,13 @@ func TestGenerate_ContributedJobAppliesAllMatchingOverwritesInOrder(t *testing.T
 		}).
 		withContributions([]*pipeline.Contribution{{
 			Jobs: []pipeline.ContributedJob{{
-				Name:          "cost-estimation",
-				Phase:         pipeline.PhasePostPlan,
-				Commands:      []string{"terraci cost"},
-				DependsOnPlan: true,
-				AllowFailure:  true,
+				Name:     "cost-estimation",
+				Phase:    pipeline.PhasePostPlan,
+				Commands: []string{"terraci cost"},
+				Consumes: []pipeline.ResourceRequest{
+					pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+				},
+				AllowFailure: true,
 			}},
 		}}).
 		withModules(module).
@@ -218,12 +226,17 @@ func TestGenerate_WithPolicy(t *testing.T) {
 	workflow := newGeneratorScenario(t).
 		withContributions([]*pipeline.Contribution{{
 			Jobs: []pipeline.ContributedJob{{
-				Name:          "policy-check",
-				Phase:         pipeline.PhasePostPlan,
-				Commands:      []string{"terraci policy pull", "terraci policy check"},
-				Artifact:      pipeline.ResultArtifact("policy-check", ".terraci/policy-results.json", ".terraci/policy-report.json"),
-				DependsOnPlan: true,
-				AllowFailure:  false,
+				Name:     "policy-check",
+				Phase:    pipeline.PhasePostPlan,
+				Commands: []string{"terraci policy pull", "terraci policy check"},
+				Consumes: []pipeline.ResourceRequest{
+					pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+				},
+				Produces: []pipeline.ResourceSpec{
+					pipeline.PluginResource(pipeline.ResourceKindPluginResult, "policy", ".terraci/policy-results.json"),
+					pipeline.PluginResource(pipeline.ResourceKindPluginReport, "policy", ".terraci/policy-report.json"),
+				},
+				AllowFailure: false,
 			}},
 		}}).
 		withModules(module).
@@ -244,14 +257,18 @@ func TestGenerate_ArtifactRestoreContract(t *testing.T) {
 
 	workflow := newGeneratorScenario(t).
 		withContributions([]*pipeline.Contribution{{
-			RequiresDetailedPlan: true,
 			Jobs: []pipeline.ContributedJob{{
-				Name:          "cost-estimation",
-				Phase:         pipeline.PhasePostPlan,
-				Commands:      []string{"terraci cost"},
-				Artifact:      resultArtifact,
-				DependsOnPlan: true,
-				AllowFailure:  true,
+				Name:     "cost-estimation",
+				Phase:    pipeline.PhasePostPlan,
+				Commands: []string{"terraci cost"},
+				Consumes: []pipeline.ResourceRequest{
+					pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+				},
+				Produces: []pipeline.ResourceSpec{
+					pipeline.PluginResource(pipeline.ResourceKindPluginResult, "cost", ".terraci/cost-results.json"),
+					pipeline.PluginResource(pipeline.ResourceKindPluginReport, "cost", ".terraci/cost-report.json"),
+				},
+				AllowFailure: true,
 			}},
 		}}).
 		withModules(module).
@@ -269,14 +286,13 @@ func TestGenerate_ArtifactRestoreContract(t *testing.T) {
 
 	assertWorkflow(t, workflow).
 		job("apply-platform-stage-eu-central-1-vpc").
-		stepWith("Download plan artifacts", "name", planArtifact).
-		stepWith("Download plan artifacts", "path", ".")
+		stepWith("Download "+planArtifact, "name", planArtifact).
+		stepWith("Download "+planArtifact, "path", ".")
 
 	assertWorkflow(t, workflow).
 		job("cost-estimation").
-		stepWith("Download all plan artifacts", "pattern", pipeline.ArtifactNamePattern()).
-		stepWith("Download all plan artifacts", "path", ".").
-		stepWith("Download all plan artifacts", "merge-multiple", "true").
+		stepWith("Download "+planArtifact, "name", planArtifact).
+		stepWith("Download "+planArtifact, "path", ".").
 		stepWith("Upload cost-estimation results", "name", resultArtifact.Name).
 		stepWith("Upload cost-estimation results", "include-hidden-files", "true")
 }

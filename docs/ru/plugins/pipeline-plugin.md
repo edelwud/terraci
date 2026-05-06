@@ -75,9 +75,18 @@ func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contributi
     return &pipeline.Contribution{
         Jobs: []pipeline.ContributedJob{
             {
-                Name:          "security-scan",
-                Phase:         pipeline.PhasePostPlan,
-                DependsOnPlan: true,
+                Name:     "security-scan",
+                Phase:    pipeline.PhasePostPlan,
+                Consumes: []pipeline.ResourceRequest{
+                    pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+                },
+                Produces: []pipeline.ResourceSpec{
+                    pipeline.PluginResource(
+                        pipeline.ResourceKindPluginReport,
+                        "security",
+                        ".terraci/security-report.json",
+                    ),
+                },
                 Commands: []string{
                     "checkov -d . --output json > checkov-report.json",
                 },
@@ -94,8 +103,8 @@ func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contributi
 | `Name` | `string` | Имя джоба в генерируемом пайплайне |
 | `Phase` | `Phase` | Определяет имя стадии (`Phase.String()`) |
 | `Commands` | `[]string` | Shell-команды для выполнения |
-| `DependsOnPlan` | `bool` | Если `true` — зависит от всех plan-джобов |
-| `ArtifactPaths` | `[]string` | Пути для сбора CI-артефактов |
+| `Consumes` | `[]ResourceRequest` | Типизированные ресурсы, которые нужно восстановить перед запуском |
+| `Produces` | `[]ResourceSpec` | Типизированные ресурсы, публикуемые джобом как named artifact |
 | `AllowFailure` | `bool` | Если `true` — провал джоба не фейлит пайплайн |
 
 ### Finalize-джобы
@@ -107,10 +116,13 @@ func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contributi
     return &pipeline.Contribution{
         Jobs: []pipeline.ContributedJob{
             {
-                Name:          "my-summary",
-                Phase:         pipeline.PhaseFinalize,
-                DependsOnPlan: true,
-                Commands:      []string{"terraci my-summary"},
+                Name:     "my-summary",
+                Phase:    pipeline.PhaseFinalize,
+                Consumes: []pipeline.ResourceRequest{
+                    pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+                    pipeline.AllPluginResources(pipeline.ResourceKindPluginReport, true),
+                },
+                Commands: []string{"terraci my-summary"},
             },
         },
     }
@@ -133,7 +145,7 @@ plan-vpc:
 
 security-scan:
   stage: post-plan
-  needs: [plan-vpc, plan-eks, plan-rds]               # ← DependsOnPlan: true
+  needs: [plan-vpc, plan-eks, plan-rds]               # ← consumes PlanJSON
   script:
     - checkov -d . --output json > checkov-report.json
 ```

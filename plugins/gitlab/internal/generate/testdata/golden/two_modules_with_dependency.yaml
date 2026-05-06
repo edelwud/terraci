@@ -14,7 +14,7 @@ apply-platform-stage-eu-central-1-eks:
         - job: plan-platform-stage-eu-central-1-eks
           artifacts: true
         - job: apply-platform-stage-eu-central-1-vpc
-          artifacts: true
+          artifacts: false
     when: manual
     resource_group: platform/stage/eu-central-1/eks
 apply-platform-stage-eu-central-1-vpc:
@@ -50,7 +50,7 @@ plan-platform-stage-eu-central-1-eks:
         TF_SERVICE: platform
     needs:
         - job: apply-platform-stage-eu-central-1-vpc
-          artifacts: true
+          artifacts: false
     artifacts:
         paths:
             - platform/stage/eu-central-1/eks/plan.tfplan

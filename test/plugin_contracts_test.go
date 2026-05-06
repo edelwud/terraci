@@ -209,15 +209,15 @@ extensions:
 			if job.Name != "tfupdate-check" {
 				continue
 			}
-			if job.Artifact.Name != pipeline.ResultArtifactName("tfupdate-check") {
-				t.Fatalf("tfupdate-check artifact name = %q", job.Artifact.Name)
+			if len(job.Produces) != 2 {
+				t.Fatalf("tfupdate-check produces = %#v, want result and report", job.Produces)
 			}
 			wantPaths := []string{
 				filepath.Join("custom-artifacts", "tfupdate-results.json"),
 				filepath.Join("custom-artifacts", "tfupdate-report.json"),
 			}
-			if !slices.Equal(job.Artifact.Paths, wantPaths) {
-				t.Fatalf("tfupdate-check artifact paths = %v, want %v", job.Artifact.Paths, wantPaths)
+			if !slices.Equal(producedPaths(job.Produces), wantPaths) {
+				t.Fatalf("tfupdate-check produced paths = %v, want %v", producedPaths(job.Produces), wantPaths)
 			}
 			foundUpdateArtifactPath = true
 		}
@@ -226,6 +226,14 @@ extensions:
 	if !foundUpdateArtifactPath {
 		t.Fatal("CollectContributions() did not include dependency-update-check job")
 	}
+}
+
+func producedPaths(resources []pipeline.ResourceSpec) []string {
+	paths := make([]string, 0, len(resources))
+	for _, resource := range resources {
+		paths = append(paths, resource.Path)
+	}
+	return paths
 }
 
 func loadPluginContractConfig(t *testing.T, rawConfig string) *plugin.AppContext {

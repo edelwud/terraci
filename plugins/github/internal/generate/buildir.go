@@ -22,24 +22,32 @@ func BuildPipelineIR(
 	allModules, targetModules []*discovery.Module,
 ) (*pipeline.IR, error) {
 	s := newSettings(cfg, execCfg)
+	requiredResources := providerCommentResources(s.prEnabled())
 	return pipelinetest.BuildIR(pipelinetest.IROptions{
 		Script: pipeline.ScriptConfig{
 			InitEnabled: s.initEnabled(),
 			PlanEnabled: s.planEnabled(),
 			AutoApprove: s.autoApprove(),
-			// PR comments need plan.txt + plan.json, but the user can also
-			// opt in via execution.plan_mode=detailed and contributors
-			// (cost/policy/summary) read plan.json directly. OR ensures
-			// plan.json is emitted whenever any consumer needs it.
-			DetailedPlan: s.prEnabled() ||
-				execCfg.PlanMode == execution.PlanModeDetailed ||
-				pipeline.AnyRequiresDetailedPlan(contributions),
+			// execution.plan_mode=detailed is an explicit user/runtime request.
+			// PR comments declare plan.txt + plan.json via RequiredResources.
+			DetailedPlan: execCfg.PlanMode == execution.PlanModeDetailed,
 		},
-		Contributions: contributions,
-		DepGraph:      depGraph,
-		AllModules:    allModules,
-		TargetModules: targetModules,
-		PlanEnabled:   s.planEnabled(),
-		PlanOnly:      s.planOnly(),
+		Contributions:     contributions,
+		RequiredResources: requiredResources,
+		DepGraph:          depGraph,
+		AllModules:        allModules,
+		TargetModules:     targetModules,
+		PlanEnabled:       s.planEnabled(),
+		PlanOnly:          s.planOnly(),
 	})
+}
+
+func providerCommentResources(enabled bool) []pipeline.ResourceRequest {
+	if !enabled {
+		return nil
+	}
+	return []pipeline.ResourceRequest{
+		pipeline.AllPlanResources(pipeline.ResourceKindPlanText),
+		pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+	}
 }

@@ -10,10 +10,11 @@ type ScriptConfig struct {
 	DetailedPlan bool // true when MR/PR integration needs plan.txt + plan.json
 }
 
-// NewPlanOperation creates a typed terraform plan operation plus the artifact
-// that must restore plan files at their original workspace-relative paths.
-func (sc ScriptConfig) NewPlanOperation(jobName, modulePath string) (op Operation, artifact Artifact) {
-	op = Operation{
+// NewPlanOperation creates a typed terraform plan operation plus the resources
+// and artifact that must restore plan files at their original
+// workspace-relative paths.
+func (sc ScriptConfig) NewPlanOperation(jobName, modulePath string) (Operation, []ResourceSpec, Artifact) {
+	op := Operation{
 		Type: OperationTypeTerraformPlan,
 		Terraform: &TerraformOperation{
 			ModulePath:   modulePath,
@@ -23,14 +24,19 @@ func (sc ScriptConfig) NewPlanOperation(jobName, modulePath string) (op Operatio
 		},
 	}
 
-	artifactPaths := []string{op.Terraform.PlanFile}
+	resources := []ResourceSpec{
+		PlanResource(ResourceKindPlanBinary, modulePath, op.Terraform.PlanFile),
+	}
 	if sc.DetailedPlan {
 		op.Terraform.PlanTextFile = modulePath + "/plan.txt"
 		op.Terraform.PlanJSONFile = modulePath + "/plan.json"
-		artifactPaths = append(artifactPaths, op.Terraform.PlanTextFile, op.Terraform.PlanJSONFile)
+		resources = append(resources,
+			PlanResource(ResourceKindPlanText, modulePath, op.Terraform.PlanTextFile),
+			PlanResource(ResourceKindPlanJSON, modulePath, op.Terraform.PlanJSONFile),
+		)
 	}
 
-	return op, PlanArtifact(jobName, artifactPaths)
+	return op, resources, PlanArtifact(jobName, resourcePaths(resources))
 }
 
 // NewApplyOperation creates a typed terraform apply operation.
@@ -45,4 +51,16 @@ func (sc ScriptConfig) NewApplyOperation(modulePath string) Operation {
 			AutoApprove: sc.AutoApprove,
 		},
 	}
+}
+
+func resourcePaths(resources []ResourceSpec) []string {
+	if len(resources) == 0 {
+		return nil
+	}
+
+	paths := make([]string, 0, len(resources))
+	for _, resource := range resources {
+		paths = append(paths, resource.Path)
+	}
+	return paths
 }

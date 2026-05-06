@@ -83,9 +83,18 @@ func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contributi
     return &pipeline.Contribution{
         Jobs: []pipeline.ContributedJob{
             {
-                Name:          "security-scan",
-                Phase:         pipeline.PhasePostPlan,
-                DependsOnPlan: true,
+                Name:     "security-scan",
+                Phase:    pipeline.PhasePostPlan,
+                Consumes: []pipeline.ResourceRequest{
+                    pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+                },
+                Produces: []pipeline.ResourceSpec{
+                    pipeline.PluginResource(
+                        pipeline.ResourceKindPluginReport,
+                        "security",
+                        ".terraci/security-report.json",
+                    ),
+                },
                 Commands: []string{
                     "checkov -d . --output json > checkov-report.json",
                 },
@@ -102,8 +111,8 @@ func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contributi
 | `Name` | `string` | Job name in generated pipeline |
 | `Phase` | `Phase` | Determines stage name (`Phase.String()`) |
 | `Commands` | `[]string` | Shell commands to run |
-| `DependsOnPlan` | `bool` | If `true`, depends on all plan jobs |
-| `ArtifactPaths` | `[]string` | Paths to collect as CI artifacts |
+| `Consumes` | `[]ResourceRequest` | Typed resources to restore before the job runs |
+| `Produces` | `[]ResourceSpec` | Typed resources published by the job as a named artifact |
 | `AllowFailure` | `bool` | If `true`, job failure doesn't fail the pipeline |
 
 ### Finalize Jobs
@@ -115,10 +124,13 @@ func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contributi
     return &pipeline.Contribution{
         Jobs: []pipeline.ContributedJob{
             {
-                Name:          "my-summary",
-                Phase:         pipeline.PhaseFinalize,
-                DependsOnPlan: true,
-                Commands:      []string{"terraci my-summary"},
+                Name:     "my-summary",
+                Phase:    pipeline.PhaseFinalize,
+                Consumes: []pipeline.ResourceRequest{
+                    pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+                    pipeline.AllPluginResources(pipeline.ResourceKindPluginReport, true),
+                },
+                Commands: []string{"terraci my-summary"},
             },
         },
     }
@@ -142,10 +154,12 @@ func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contributi
         },
         Jobs: []pipeline.ContributedJob{
             {
-                Name:          "security-report",
-                Phase:         pipeline.PhasePostPlan,
-                DependsOnPlan: true,
-                Commands:      []string{"aggregate-reports.sh"},
+                Name:     "security-report",
+                Phase:    pipeline.PhasePostPlan,
+                Consumes: []pipeline.ResourceRequest{
+                    pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+                },
+                Commands: []string{"aggregate-reports.sh"},
             },
         },
     }
@@ -181,7 +195,7 @@ plan-vpc:
 
 security-scan:
   stage: post-plan
-  needs: [plan-vpc, plan-eks, plan-rds]               # ← DependsOnPlan: true
+  needs: [plan-vpc, plan-eks, plan-rds]               # ← consumes PlanJSON
   script:
     - checkov -d . --output json > checkov-report.json
 ```

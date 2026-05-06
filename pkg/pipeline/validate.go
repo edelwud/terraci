@@ -25,8 +25,23 @@ func (ir *IR) Validate() error {
 		if _, exists := byName[job.Name]; exists {
 			return fmt.Errorf("pipeline IR contains duplicate job name %q", job.Name)
 		}
-		if err := validateArtifact(job); err != nil {
+		if err := validateArtifact(job, job.OutputArtifact); err != nil {
 			return err
+		}
+		for _, artifact := range job.InputArtifacts {
+			if err := validateArtifact(job, artifact); err != nil {
+				return err
+			}
+		}
+		for _, resource := range job.Produces {
+			if err := validateResource(job, resource, "produces"); err != nil {
+				return err
+			}
+		}
+		for _, resource := range job.Consumes {
+			if err := validateResource(job, resource, "consumes"); err != nil {
+				return err
+			}
 		}
 		byName[job.Name] = job
 	}
@@ -34,11 +49,11 @@ func (ir *IR) Validate() error {
 	for _, ref := range refs {
 		job := ref.Job
 		for _, dep := range job.Dependencies {
-			if dep == "" {
+			if dep.Job == "" {
 				return fmt.Errorf("pipeline job %q has empty dependency", job.Name)
 			}
-			if byName[dep] == nil {
-				return fmt.Errorf("pipeline job %q depends on unknown job %q", job.Name, dep)
+			if byName[dep.Job] == nil {
+				return fmt.Errorf("pipeline job %q depends on unknown job %q", job.Name, dep.Job)
 			}
 		}
 	}
@@ -46,18 +61,28 @@ func (ir *IR) Validate() error {
 	return validateAcyclicJobs(refs, byName)
 }
 
-func validateArtifact(job *Job) error {
-	if job.Artifact.Name == "" && len(job.Artifact.Paths) == 0 {
+func validateArtifact(job *Job, artifact Artifact) error {
+	if artifact.Name == "" && len(artifact.Paths) == 0 {
 		return nil
 	}
-	if job.Artifact.Name == "" {
+	if artifact.Name == "" {
 		return fmt.Errorf("pipeline job %q has artifact paths without artifact name", job.Name)
 	}
-	if len(job.Artifact.Paths) == 0 {
-		return fmt.Errorf("pipeline job %q has artifact %q without paths", job.Name, job.Artifact.Name)
+	if len(artifact.Paths) == 0 {
+		return fmt.Errorf("pipeline job %q has artifact %q without paths", job.Name, artifact.Name)
 	}
-	if slices.Contains(job.Artifact.Paths, "") {
-		return fmt.Errorf("pipeline job %q has artifact %q with empty path", job.Name, job.Artifact.Name)
+	if slices.Contains(artifact.Paths, "") {
+		return fmt.Errorf("pipeline job %q has artifact %q with empty path", job.Name, artifact.Name)
+	}
+	return nil
+}
+
+func validateResource(job *Job, resource ResourceSpec, direction string) error {
+	if resource.Ref.Kind == "" {
+		return fmt.Errorf("pipeline job %q %s resource without kind", job.Name, direction)
+	}
+	if resource.Path == "" {
+		return fmt.Errorf("pipeline job %q %s %s without path", job.Name, direction, resource.Ref.Kind)
 	}
 	return nil
 }
@@ -80,7 +105,7 @@ func validateAcyclicJobs(refs []JobRef, byName map[string]*Job) error {
 
 		state[job.Name] = visiting
 		for _, dep := range job.Dependencies {
-			if err := visit(byName[dep]); err != nil {
+			if err := visit(byName[dep.Job]); err != nil {
 				return err
 			}
 		}

@@ -104,20 +104,20 @@ func TestBuild_PlanArtifactContract(t *testing.T) {
 	}
 
 	planJob := ir.Levels[0].Modules[0].Plan
-	if planJob.Artifact.Name != PlanArtifactName(planJob.Name) {
-		t.Fatalf("plan artifact name = %q, want %q", planJob.Artifact.Name, PlanArtifactName(planJob.Name))
+	if planJob.OutputArtifact.Name != PlanArtifactName(planJob.Name) {
+		t.Fatalf("plan artifact name = %q, want %q", planJob.OutputArtifact.Name, PlanArtifactName(planJob.Name))
 	}
 	wantPaths := []string{
 		"svc/prod/eu/vpc/plan.tfplan",
 		"svc/prod/eu/vpc/plan.txt",
 		"svc/prod/eu/vpc/plan.json",
 	}
-	if len(planJob.Artifact.Paths) != len(wantPaths) {
-		t.Fatalf("plan artifact paths = %v, want %v", planJob.Artifact.Paths, wantPaths)
+	if len(planJob.OutputArtifact.Paths) != len(wantPaths) {
+		t.Fatalf("plan artifact paths = %v, want %v", planJob.OutputArtifact.Paths, wantPaths)
 	}
 	for i := range wantPaths {
-		if planJob.Artifact.Paths[i] != wantPaths[i] {
-			t.Fatalf("plan artifact path %d = %q, want %q", i, planJob.Artifact.Paths[i], wantPaths[i])
+		if planJob.OutputArtifact.Paths[i] != wantPaths[i] {
+			t.Fatalf("plan artifact path %d = %q, want %q", i, planJob.OutputArtifact.Paths[i], wantPaths[i])
 		}
 	}
 }
@@ -218,7 +218,8 @@ func TestBuild_ContributedJobDeps(t *testing.T) {
 	contributions := []*Contribution{{
 		Jobs: []ContributedJob{{
 			Name: "check", Phase: PhasePostPlan,
-			Commands: []string{"check"}, DependsOnPlan: true,
+			Commands: []string{"check"},
+			Consumes: []ResourceRequest{AllPlanResources(ResourceKindPlanJSON)},
 		}},
 	}}
 
@@ -241,14 +242,161 @@ func TestBuild_ContributedJobDeps(t *testing.T) {
 
 	// Job should depend on plan job
 	planName := JobName(JobKindPlan, mod)
-	hasDep := false
-	for _, d := range ir.Jobs[0].Dependencies {
-		if d == planName {
-			hasDep = true
+	hasArtifactDep := false
+	for _, dep := range ir.Jobs[0].Dependencies {
+		if dep.Job == planName && dep.Artifacts {
+			hasArtifactDep = true
 		}
 	}
-	if !hasDep {
-		t.Errorf("contributed job should depend on %s", planName)
+	if !hasArtifactDep {
+		t.Errorf("contributed job should depend on %s with artifacts", planName)
+	}
+	if len(ir.Jobs[0].InputArtifacts) != 1 || ir.Jobs[0].InputArtifacts[0].Name != PlanArtifactName(planName) {
+		t.Fatalf("input artifacts = %#v, want plan artifact", ir.Jobs[0].InputArtifacts)
+	}
+	if got := ir.Levels[0].Modules[0].Plan.Operation.Terraform.DetailedPlan; !got {
+		t.Fatal("PlanJSON consumer should force detailed plan")
+	}
+}
+
+func TestBuild_RequiredPlanResourceWithPlanDisabledReturnsError(t *testing.T) {
+	t.Parallel()
+
+	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
+	modules := []*discovery.Module{mod}
+	depGraph := buildGraph(modules, nil)
+	index := discovery.NewModuleIndex(modules)
+
+	_, err := Build(BuildOptions{
+		DepGraph:      depGraph,
+		TargetModules: modules,
+		AllModules:    modules,
+		ModuleIndex:   index,
+		Script:        ScriptConfig{},
+		RequiredResources: []ResourceRequest{
+			AllPlanResources(ResourceKindPlanJSON),
+		},
+		PlanEnabled: false,
+	})
+	if err == nil {
+		t.Fatal("Build() error = nil, want missing resource error")
+	}
+	if !strings.Contains(err.Error(), "pipeline required resources requires unavailable plan_json for all modules") {
+		t.Fatalf("Build() error = %q", err)
+	}
+}
+
+func TestBuild_ApplyConsumesOnlyOwnPlanBinary(t *testing.T) {
+	t.Parallel()
+
+	modA := discovery.TestModule("svc", "prod", "eu", "vpc")
+	modB := discovery.TestModule("svc", "prod", "eu", "app")
+	modules := []*discovery.Module{modA, modB}
+	depGraph := buildGraph(modules, [][2]int{{1, 0}})
+	index := discovery.NewModuleIndex(modules)
+
+	ir, err := Build(BuildOptions{
+		DepGraph:      depGraph,
+		TargetModules: modules,
+		AllModules:    modules,
+		ModuleIndex:   index,
+		Script:        ScriptConfig{PlanEnabled: true},
+		PlanEnabled:   true,
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+
+	appApply := ir.Levels[1].Modules[0].Apply
+	if appApply == nil {
+		t.Fatal("missing app apply job")
+	}
+	var ownPlanDep, upstreamApplyDep bool
+	for _, dep := range appApply.Dependencies {
+		switch dep.Job {
+		case JobName(JobKindPlan, modB):
+			ownPlanDep = dep.Artifacts
+		case JobName(JobKindApply, modA):
+			upstreamApplyDep = !dep.Artifacts
+		}
+	}
+	if !ownPlanDep {
+		t.Fatal("apply should depend on its own plan with artifacts")
+	}
+	if !upstreamApplyDep {
+		t.Fatal("apply should keep upstream apply dependency as control-only")
+	}
+	if len(appApply.InputArtifacts) != 1 || appApply.InputArtifacts[0].Name != PlanArtifactName(JobName(JobKindPlan, modB)) {
+		t.Fatalf("apply input artifacts = %#v, want own plan artifact only", appApply.InputArtifacts)
+	}
+}
+
+func TestBuild_SummaryConsumesProducedReportsOnly(t *testing.T) {
+	t.Parallel()
+
+	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
+	modules := []*discovery.Module{mod}
+	depGraph := buildGraph(modules, nil)
+	index := discovery.NewModuleIndex(modules)
+
+	contributions := []*Contribution{{
+		Jobs: []ContributedJob{
+			{
+				Name:     "policy-check",
+				Phase:    PhasePostPlan,
+				Commands: []string{"policy"},
+				Produces: []ResourceSpec{
+					PluginResource(ResourceKindPluginReport, "policy", ".terraci/policy-report.json"),
+				},
+			},
+			{
+				Name:     "summary",
+				Phase:    PhaseFinalize,
+				Commands: []string{"summary"},
+				Consumes: []ResourceRequest{
+					AllPluginResources(ResourceKindPluginReport, true),
+				},
+			},
+		},
+	}}
+
+	ir, err := Build(BuildOptions{
+		DepGraph:      depGraph,
+		TargetModules: modules,
+		AllModules:    modules,
+		ModuleIndex:   index,
+		Script:        ScriptConfig{PlanEnabled: true},
+		Contributions: contributions,
+		PlanEnabled:   true,
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+
+	var summary *Job
+	for i := range ir.Jobs {
+		if ir.Jobs[i].Name == "summary" {
+			summary = &ir.Jobs[i]
+			break
+		}
+	}
+	if summary == nil {
+		t.Fatal("summary job not found")
+	}
+	if len(summary.Consumes) != 1 || summary.Consumes[0].Ref.Producer != "policy" {
+		t.Fatalf("summary consumes = %#v, want policy report only", summary.Consumes)
+	}
+	if len(summary.InputArtifacts) != 1 || summary.InputArtifacts[0].Name != ResultArtifactName("policy-check") {
+		t.Fatalf("summary input artifacts = %#v, want policy result artifact", summary.InputArtifacts)
+	}
+	hasArtifactDep := false
+	for _, dep := range summary.Dependencies {
+		if dep.Job == "policy-check" && dep.Artifacts {
+			hasArtifactDep = true
+		}
+	}
+	if !hasArtifactDep {
+		t.Fatal("summary should depend on policy-check with artifacts")
 	}
 }
 
@@ -260,7 +408,10 @@ func TestBuild_ContributedJobPreservesResultArtifact(t *testing.T) {
 	depGraph := buildGraph(modules, nil)
 	index := discovery.NewModuleIndex(modules)
 
-	artifact := ResultArtifact("policy-check", ".terraci/policy-results.json", ".terraci/policy-report.json")
+	produces := []ResourceSpec{
+		PluginResource(ResourceKindPluginResult, "policy", ".terraci/policy-results.json"),
+		PluginResource(ResourceKindPluginReport, "policy", ".terraci/policy-report.json"),
+	}
 	ir, err := Build(BuildOptions{
 		DepGraph:      depGraph,
 		TargetModules: modules,
@@ -272,7 +423,7 @@ func TestBuild_ContributedJobPreservesResultArtifact(t *testing.T) {
 				Name:     "policy-check",
 				Phase:    PhasePostPlan,
 				Commands: []string{"terraci policy check"},
-				Artifact: artifact,
+				Produces: produces,
 			}},
 		}},
 		PlanEnabled: true,
@@ -284,15 +435,16 @@ func TestBuild_ContributedJobPreservesResultArtifact(t *testing.T) {
 	if len(ir.Jobs) != 1 {
 		t.Fatalf("contributed jobs = %d, want 1", len(ir.Jobs))
 	}
-	if ir.Jobs[0].Artifact.Name != artifact.Name {
-		t.Fatalf("artifact name = %q, want %q", ir.Jobs[0].Artifact.Name, artifact.Name)
+	artifact := ResultArtifact("policy-check", ".terraci/policy-results.json", ".terraci/policy-report.json")
+	if ir.Jobs[0].OutputArtifact.Name != artifact.Name {
+		t.Fatalf("artifact name = %q, want %q", ir.Jobs[0].OutputArtifact.Name, artifact.Name)
 	}
-	if len(ir.Jobs[0].Artifact.Paths) != len(artifact.Paths) {
-		t.Fatalf("artifact paths = %v, want %v", ir.Jobs[0].Artifact.Paths, artifact.Paths)
+	if len(ir.Jobs[0].OutputArtifact.Paths) != len(artifact.Paths) {
+		t.Fatalf("artifact paths = %v, want %v", ir.Jobs[0].OutputArtifact.Paths, artifact.Paths)
 	}
 	for i := range artifact.Paths {
-		if ir.Jobs[0].Artifact.Paths[i] != artifact.Paths[i] {
-			t.Fatalf("artifact path %d = %q, want %q", i, ir.Jobs[0].Artifact.Paths[i], artifact.Paths[i])
+		if ir.Jobs[0].OutputArtifact.Paths[i] != artifact.Paths[i] {
+			t.Fatalf("artifact path %d = %q, want %q", i, ir.Jobs[0].OutputArtifact.Paths[i], artifact.Paths[i])
 		}
 	}
 }
@@ -307,8 +459,8 @@ func TestBuild_FinalizeJobDependsOnOtherContributed(t *testing.T) {
 
 	contributions := []*Contribution{{
 		Jobs: []ContributedJob{
-			{Name: "policy-check", Phase: PhasePostPlan, Commands: []string{"check"}, DependsOnPlan: true},
-			{Name: "summary", Phase: PhaseFinalize, Commands: []string{"summarize"}, DependsOnPlan: true},
+			{Name: "policy-check", Phase: PhasePostPlan, Commands: []string{"check"}},
+			{Name: "summary", Phase: PhaseFinalize, Commands: []string{"summarize"}},
 		},
 	}}
 
@@ -344,7 +496,7 @@ func TestBuild_FinalizeJobDependsOnOtherContributed(t *testing.T) {
 	// Finalize should depend on policy-check
 	hasPolicyDep := false
 	for _, d := range finalizeJob.Dependencies {
-		if d == "policy-check" {
+		if d.Job == "policy-check" && !d.Artifacts {
 			hasPolicyDep = true
 		}
 	}
@@ -363,9 +515,9 @@ func TestBuild_MultipleFinalizeJobsDoNotImplicitlyCycle(t *testing.T) {
 
 	contributions := []*Contribution{{
 		Jobs: []ContributedJob{
-			{Name: "policy-check", Phase: PhasePostPlan, Commands: []string{"check"}, DependsOnPlan: true},
-			{Name: "summary", Phase: PhaseFinalize, Commands: []string{"summarize"}, DependsOnPlan: true},
-			{Name: "notify", Phase: PhaseFinalize, Commands: []string{"notify"}, DependsOnPlan: true},
+			{Name: "policy-check", Phase: PhasePostPlan, Commands: []string{"check"}},
+			{Name: "summary", Phase: PhaseFinalize, Commands: []string{"summarize"}},
+			{Name: "notify", Phase: PhaseFinalize, Commands: []string{"notify"}},
 		},
 	}}
 
@@ -388,8 +540,8 @@ func TestBuild_MultipleFinalizeJobsDoNotImplicitlyCycle(t *testing.T) {
 			continue
 		}
 		for _, dep := range job.Dependencies {
-			if dep == "summary" || dep == "notify" {
-				t.Fatalf("finalize job %q has implicit finalize dependency %q", job.Name, dep)
+			if dep.Job == "summary" || dep.Job == "notify" {
+				t.Fatalf("finalize job %q has implicit finalize dependency %q", job.Name, dep.Job)
 			}
 		}
 	}

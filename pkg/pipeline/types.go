@@ -49,15 +49,18 @@ type ModuleJobs struct {
 // values that defaulted to "plan" for contributed jobs — that zero-value
 // trap is the reason it was removed.
 type Job struct {
-	Name         string
-	Phase        Phase             // for contributed jobs: when they run
-	Module       *discovery.Module // nil for contributed jobs
-	Env          map[string]string
-	Dependencies []string // job names this depends on
-	Artifact     Artifact
-	AllowFailure bool
-	Steps        []Step // pre/post steps from contributors
-	Operation    Operation
+	Name           string
+	Phase          Phase             // for contributed jobs: when they run
+	Module         *discovery.Module // nil for contributed jobs
+	Env            map[string]string
+	Dependencies   []JobDependency // job edges this depends on
+	InputArtifacts []Artifact      // artifacts restored before this job runs
+	OutputArtifact Artifact
+	Consumes       []ResourceSpec
+	Produces       []ResourceSpec
+	AllowFailure   bool
+	Steps          []Step // pre/post steps from contributors
+	Operation      Operation
 }
 
 // Artifact is a named CI artifact whose paths must be restored relative to
@@ -71,6 +74,14 @@ type Artifact struct {
 // Configured reports whether the artifact has enough data to be published.
 func (a Artifact) Configured() bool {
 	return a.Name != "" && len(a.Paths) > 0
+}
+
+// JobDependency is a directed job edge. Artifacts marks dependencies whose
+// output artifact must be restored into the downstream workspace.
+type JobDependency struct {
+	Job       string
+	Artifacts bool
+	Optional  bool
 }
 
 // Step is an injected command at a specific phase.
@@ -116,32 +127,14 @@ type Contribution struct {
 	Steps []Step
 	// Jobs are standalone jobs added to the pipeline.
 	Jobs []ContributedJob
-	// RequiresDetailedPlan tells the IR builder that this contributor reads
-	// the JSON plan artifact (plan.json) — provider generators must enable
-	// detailed plan output even when MR/PR commenting is disabled. cost,
-	// policy and summary set this to true.
-	RequiresDetailedPlan bool
-}
-
-// AnyRequiresDetailedPlan reports whether any contribution declares that it
-// reads plan.json. Provider IR builders OR this with their native
-// "detailed plan" trigger (e.g. MR/PR comments) so plan.json is generated
-// whenever a downstream consumer needs it.
-func AnyRequiresDetailedPlan(contributions []*Contribution) bool {
-	for _, c := range contributions {
-		if c != nil && c.RequiresDetailedPlan {
-			return true
-		}
-	}
-	return false
 }
 
 // ContributedJob is a standalone job contributed to the pipeline.
 type ContributedJob struct {
-	Name          string
-	Phase         Phase // when it runs; Phase.String() gives the stage name
-	Commands      []string
-	Artifact      Artifact
-	DependsOnPlan bool
-	AllowFailure  bool
+	Name         string
+	Phase        Phase // when it runs; Phase.String() gives the stage name
+	Commands     []string
+	Consumes     []ResourceRequest
+	Produces     []ResourceSpec
+	AllowFailure bool
 }

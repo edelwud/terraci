@@ -31,6 +31,10 @@ type IROptions struct {
 	// PlanEnabled / PlanOnly mirror the BuildOptions fields one-to-one.
 	PlanEnabled bool
 	PlanOnly    bool
+
+	// RequiredResources are build-wide resource requirements, such as
+	// provider-native MR/PR comments needing plan.txt and plan.json.
+	RequiredResources []pipeline.ResourceRequest
 }
 
 // BuildIR constructs a pipeline.IR for tests using the supplied IROptions.
@@ -38,13 +42,14 @@ type IROptions struct {
 // each provider plugin's internal/generate package.
 func BuildIR(opts IROptions) (*pipeline.IR, error) {
 	return pipeline.Build(pipeline.BuildOptions{
-		DepGraph:      opts.DepGraph,
-		TargetModules: opts.TargetModules,
-		AllModules:    opts.AllModules,
-		ModuleIndex:   discovery.NewModuleIndex(opts.AllModules),
-		Script:        opts.Script,
-		Contributions: opts.Contributions,
-		PlanEnabled:   opts.PlanEnabled,
-		PlanOnly:      opts.PlanOnly,
+		DepGraph:          opts.DepGraph,
+		TargetModules:     opts.TargetModules,
+		AllModules:        opts.AllModules,
+		ModuleIndex:       discovery.NewModuleIndex(opts.AllModules),
+		Script:            opts.Script,
+		Contributions:     opts.Contributions,
+		RequiredResources: opts.RequiredResources,
+		PlanEnabled:       opts.PlanEnabled,
+		PlanOnly:          opts.PlanOnly,
 	})
 }

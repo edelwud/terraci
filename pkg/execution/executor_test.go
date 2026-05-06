@@ -178,7 +178,7 @@ func TestExecutorRejectsInvalidPlanGraph(t *testing.T) {
 			name: "unknown dependency",
 			ir: &pipeline.IR{
 				Jobs: []pipeline.Job{
-					{Name: "summary", Phase: pipeline.PhaseFinalize, Dependencies: []string{"policy-check"}},
+					{Name: "summary", Phase: pipeline.PhaseFinalize, Dependencies: testDependencies("policy-check")},
 				},
 			},
 			wantErr: `depends on unknown job "policy-check"`,
@@ -187,8 +187,8 @@ func TestExecutorRejectsInvalidPlanGraph(t *testing.T) {
 			name: "dependency cycle",
 			ir: &pipeline.IR{
 				Jobs: []pipeline.Job{
-					{Name: "summary", Phase: pipeline.PhaseFinalize, Dependencies: []string{"policy-check"}},
-					{Name: "policy-check", Phase: pipeline.PhaseFinalize, Dependencies: []string{"summary"}},
+					{Name: "summary", Phase: pipeline.PhaseFinalize, Dependencies: testDependencies("policy-check")},
+					{Name: "policy-check", Phase: pipeline.PhaseFinalize, Dependencies: testDependencies("summary")},
 				},
 			},
 			wantErr: "dependency cycle",
@@ -232,9 +232,9 @@ func TestDefaultSchedulerHonorsSamePhaseDependencies(t *testing.T) {
 
 	ir := &pipeline.IR{
 		Jobs: []pipeline.Job{
-			{Name: "summary", Phase: pipeline.PhaseFinalize, Dependencies: []string{"policy-check"}},
+			{Name: "summary", Phase: pipeline.PhaseFinalize, Dependencies: testDependencies("policy-check")},
 			{Name: "policy-check", Phase: pipeline.PhaseFinalize},
-			{Name: "notify", Phase: pipeline.PhaseFinalize, Dependencies: []string{"summary"}},
+			{Name: "notify", Phase: pipeline.PhaseFinalize, Dependencies: testDependencies("summary")},
 		},
 	}
 
@@ -268,7 +268,7 @@ func TestDefaultSchedulerIgnoresDependenciesAlreadySatisfiedByPreviousGroups(t *
 		Jobs: []pipeline.Job{{
 			Name:         "policy-check",
 			Phase:        pipeline.PhasePostPlan,
-			Dependencies: []string{"plan-vpc"},
+			Dependencies: testDependencies("plan-vpc"),
 		}},
 	}
 
@@ -284,4 +284,12 @@ func TestDefaultSchedulerIgnoresDependenciesAlreadySatisfiedByPreviousGroups(t *
 			t.Fatalf("order[%d] = %q, want %q (%v)", i, runner.order[i], want[i], runner.order)
 		}
 	}
+}
+
+func testDependencies(names ...string) []pipeline.JobDependency {
+	deps := make([]pipeline.JobDependency, 0, len(names))
+	for _, name := range names {
+		deps = append(deps, pipeline.JobDependency{Job: name})
+	}
+	return deps
 }

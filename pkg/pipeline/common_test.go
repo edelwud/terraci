@@ -18,27 +18,23 @@ func buildGraph(modules []*discovery.Module, edges [][2]int) *graph.DependencyGr
 	return g
 }
 
-func TestAnyRequiresDetailedPlan(t *testing.T) {
+func TestDependencyNames(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name string
-		in   []*Contribution
-		want bool
-	}{
-		{"nil slice", nil, false},
-		{"all nil entries", []*Contribution{nil, nil}, false},
-		{"none requires", []*Contribution{{}, {}}, false},
-		{"one requires", []*Contribution{{}, {RequiresDetailedPlan: true}, nil}, true},
-		{"all require", []*Contribution{{RequiresDetailedPlan: true}, {RequiresDetailedPlan: true}}, true},
+	deps := []JobDependency{
+		{Job: "plan-a"},
+		{Job: ""},
+		{Job: "plan-b", Artifacts: true},
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			if got := AnyRequiresDetailedPlan(tc.in); got != tc.want {
-				t.Errorf("AnyRequiresDetailedPlan = %v, want %v", got, tc.want)
-			}
-		})
+	got := DependencyNames(deps)
+	want := []string{"plan-a", "plan-b"}
+	if len(got) != len(want) {
+		t.Fatalf("DependencyNames() = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("DependencyNames()[%d] = %q, want %q", i, got[i], want[i])
+		}
 	}
 }
 

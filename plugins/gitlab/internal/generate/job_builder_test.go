@@ -35,9 +35,9 @@ func TestJobBuilderPlanJobBuildsExpectedDefaults(t *testing.T) {
 			Type:     pipeline.OperationTypeCommands,
 			Commands: []string{"terraform plan"},
 		},
-		Dependencies: []string{"apply-platform-stage-eu-central-1-base"},
-		Artifact:     pipeline.PlanArtifact("plan-platform-stage-eu-central-1-vpc", []string{"plan.json"}),
-		Env:          map[string]string{"TF_VAR_env": "stage"},
+		Dependencies:   []pipeline.JobDependency{{Job: "apply-platform-stage-eu-central-1-base"}},
+		OutputArtifact: pipeline.PlanArtifact("plan-platform-stage-eu-central-1-vpc", []string{"plan.json"}),
+		Env:            map[string]string{"TF_VAR_env": "stage"},
 		Steps: []pipeline.Step{
 			{Phase: pipeline.PhasePrePlan, Command: "echo before"},
 			{Phase: pipeline.PhasePostPlan, Command: "echo after"},
@@ -66,8 +66,8 @@ func TestJobBuilderPlanJobBuildsExpectedDefaults(t *testing.T) {
 	if len(job.Needs) != 1 || job.Needs[0].Optional {
 		t.Fatalf("Needs = %#v", job.Needs)
 	}
-	if job.Needs[0].Artifacts == nil || !*job.Needs[0].Artifacts {
-		t.Fatalf("Needs[0].Artifacts = %#v, want true", job.Needs[0].Artifacts)
+	if job.Needs[0].Artifacts == nil || *job.Needs[0].Artifacts {
+		t.Fatalf("Needs[0].Artifacts = %#v, want false", job.Needs[0].Artifacts)
 	}
 }
 
@@ -308,7 +308,7 @@ func TestJobBuilderContributedJobUsesOptionalNeedsAndSummaryOverrides(t *testing
 
 	job, err := builder.contributedJob(&pipeline.Job{
 		Name:         "summary",
-		Dependencies: []string{"apply-a"},
+		Dependencies: []pipeline.JobDependency{{Job: "apply-a", Artifacts: true, Optional: true}},
 		AllowFailure: true,
 		Operation: pipeline.Operation{
 			Type:     pipeline.OperationTypeCommands,

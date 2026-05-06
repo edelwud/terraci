@@ -7,14 +7,15 @@ import (
 
 // BuildOptions configures the IR builder.
 type BuildOptions struct {
-	DepGraph      *graph.DependencyGraph
-	TargetModules []*discovery.Module
-	AllModules    []*discovery.Module
-	ModuleIndex   *discovery.ModuleIndex
-	Script        ScriptConfig
-	Contributions []*Contribution
-	PlanEnabled   bool
-	PlanOnly      bool
+	DepGraph          *graph.DependencyGraph
+	TargetModules     []*discovery.Module
+	AllModules        []*discovery.Module
+	ModuleIndex       *discovery.ModuleIndex
+	Script            ScriptConfig
+	Contributions     []*Contribution
+	RequiredResources []ResourceRequest
+	PlanEnabled       bool
+	PlanOnly          bool
 }
 
 // Build constructs a provider-agnostic IR from the given options.
@@ -27,17 +28,45 @@ func Build(opts BuildOptions) (*IR, error) {
 		return nil, err
 	}
 
-	// Collect all steps and jobs from contributions
+	allSteps, allContributedJobs := collectContributionParts(opts.Contributions)
+	script := effectiveScript(opts.Script, opts.RequiredResources, allContributedJobs)
+
+	ir := &IR{
+		Levels: buildModuleLevels(plan, opts.PlanEnabled, opts.PlanOnly, script, allSteps),
+		Jobs:   buildContributedJobs(allContributedJobs),
+	}
+
+	if err := resolvePipelineResources(ir, plan, opts.RequiredResources, allContributedJobs); err != nil {
+		return nil, err
+	}
+	if err := ir.Validate(); err != nil {
+		return nil, err
+	}
+	return ir, nil
+}
+
+func collectContributionParts(contributions []*Contribution) ([]Step, []ContributedJob) {
 	var allSteps []Step
 	var allContributedJobs []ContributedJob
-	for _, c := range opts.Contributions {
+	for _, c := range contributions {
+		if c == nil {
+			continue
+		}
 		allSteps = append(allSteps, c.Steps...)
 		allContributedJobs = append(allContributedJobs, c.Jobs...)
 	}
+	return allSteps, allContributedJobs
+}
 
-	ir := &IR{}
+func effectiveScript(script ScriptConfig, required []ResourceRequest, jobs []ContributedJob) ScriptConfig {
+	if requestsRequireDetailedPlan(required, jobs) {
+		script.DetailedPlan = true
+	}
+	return script
+}
 
-	// Build levels with module jobs
+func buildModuleLevels(plan *JobPlan, planEnabled, planOnly bool, script ScriptConfig, steps []Step) []Level {
+	levels := make([]Level, 0, len(plan.ExecutionLevels))
 	for levelIdx, moduleIDs := range plan.ExecutionLevels {
 		level := Level{Index: levelIdx}
 		for _, moduleID := range moduleIDs {
@@ -49,96 +78,131 @@ func Build(opts BuildOptions) (*IR, error) {
 			env := ModuleEnvVars(mod)
 			mj := ModuleJobs{Module: mod}
 
-			// Plan job
-			if opts.PlanEnabled {
-				planName := JobName(JobKindPlan, mod)
-				planOperation, artifact := opts.Script.NewPlanOperation(planName, mod.RelativePath)
-
-				// Resolve plan dependencies
-				var planDeps []string
-				if opts.PlanOnly {
-					planDeps = ResolveDependencyNames(mod, JobKindPlan, plan.Subgraph, plan.ModuleIndex)
-				} else {
-					planDeps = ResolveDependencyNames(mod, JobKindApply, plan.Subgraph, plan.ModuleIndex)
-				}
-
-				mj.Plan = &Job{
-					Name:         planName,
-					Module:       mod,
-					Env:          env,
-					Dependencies: planDeps,
-					Artifact:     artifact,
-					Steps:        filterSteps(allSteps, PhasePrePlan, PhasePostPlan),
-					Operation:    planOperation,
-				}
+			if planEnabled {
+				mj.Plan = buildPlanJob(plan, mod, env, planOnly, script, steps)
 			}
 
-			// Apply job
-			if !opts.PlanOnly {
-				applyOperation := opts.Script.NewApplyOperation(mod.RelativePath)
-				applyName := JobName(JobKindApply, mod)
-
-				applyDeps := ResolveDependencyNames(mod, JobKindApply, plan.Subgraph, plan.ModuleIndex)
-
-				// Apply depends on its own plan job
-				if mj.Plan != nil {
-					applyDeps = append([]string{mj.Plan.Name}, applyDeps...)
-				}
-
-				mj.Apply = &Job{
-					Name:         applyName,
-					Module:       mod,
-					Env:          env,
-					Dependencies: applyDeps,
-					Steps:        filterSteps(allSteps, PhasePreApply, PhasePostApply),
-					Operation:    applyOperation,
-				}
+			if !planOnly {
+				mj.Apply = buildApplyJob(plan, mod, env, mj.Plan, script, steps)
 			}
 
 			level.Modules = append(level.Modules, mj)
 		}
-		ir.Levels = append(ir.Levels, level)
+		levels = append(levels, level)
 	}
 
-	// Contributed jobs.
-	planNames := ir.planNames()
+	return levels
+}
 
-	// First pass: create all jobs so we know their names
-	irJobs := make([]Job, 0, len(allContributedJobs))
-	for _, cj := range allContributedJobs {
+func buildPlanJob(plan *JobPlan, mod *discovery.Module, env map[string]string, planOnly bool, script ScriptConfig, steps []Step) *Job {
+	planName := JobName(JobKindPlan, mod)
+	planOperation, produces, artifact := script.NewPlanOperation(planName, mod.RelativePath)
+
+	var deps []JobDependency
+	if planOnly {
+		deps = controlDependencies(ResolveDependencyNames(mod, JobKindPlan, plan.Subgraph, plan.ModuleIndex))
+	} else {
+		deps = controlDependencies(ResolveDependencyNames(mod, JobKindApply, plan.Subgraph, plan.ModuleIndex))
+	}
+
+	return &Job{
+		Name:           planName,
+		Module:         mod,
+		Env:            env,
+		Dependencies:   deps,
+		OutputArtifact: artifact,
+		Produces:       produces,
+		Steps:          filterSteps(steps, PhasePrePlan, PhasePostPlan),
+		Operation:      planOperation,
+	}
+}
+
+func buildApplyJob(plan *JobPlan, mod *discovery.Module, env map[string]string, planJob *Job, script ScriptConfig, steps []Step) *Job {
+	applyOperation := script.NewApplyOperation(mod.RelativePath)
+	applyDeps := controlDependencies(ResolveDependencyNames(mod, JobKindApply, plan.Subgraph, plan.ModuleIndex))
+	var consumes []ResourceSpec
+	var inputArtifacts []Artifact
+
+	if planJob != nil {
+		applyDeps = append([]JobDependency{{
+			Job:       planJob.Name,
+			Artifacts: true,
+		}}, applyDeps...)
+		consumes = append(consumes,
+			PlanResource(ResourceKindPlanBinary, mod.RelativePath, applyOperation.Terraform.PlanFile),
+		)
+		inputArtifacts = append(inputArtifacts, planJob.OutputArtifact)
+	}
+
+	return &Job{
+		Name:           JobName(JobKindApply, mod),
+		Module:         mod,
+		Env:            env,
+		Dependencies:   applyDeps,
+		InputArtifacts: inputArtifacts,
+		Consumes:       consumes,
+		Steps:          filterSteps(steps, PhasePreApply, PhasePostApply),
+		Operation:      applyOperation,
+	}
+}
+
+func buildContributedJobs(contributedJobs []ContributedJob) []Job {
+	jobs := make([]Job, 0, len(contributedJobs))
+	for _, contributedJob := range contributedJobs {
 		job := Job{
-			Name:         cj.Name,
-			Phase:        cj.Phase,
-			Artifact:     cj.Artifact,
-			AllowFailure: cj.AllowFailure,
+			Name:           contributedJob.Name,
+			Phase:          contributedJob.Phase,
+			Dependencies:   contributedJobDependencies(contributedJob, contributedJobs),
+			OutputArtifact: resultArtifactFromResources(contributedJob.Name, contributedJob.Produces),
+			Produces:       append([]ResourceSpec(nil), contributedJob.Produces...),
+			AllowFailure:   contributedJob.AllowFailure,
 			Operation: Operation{
 				Type:     OperationTypeCommands,
-				Commands: append([]string(nil), cj.Commands...),
+				Commands: append([]string(nil), contributedJob.Commands...),
 			},
 		}
-
-		deps := make([]string, 0)
-		if cj.DependsOnPlan {
-			deps = append(deps, planNames...)
-		}
-		if cj.Phase == PhaseFinalize {
-			// Finalize jobs run after the earlier contribution phases. Multiple
-			// finalize jobs may run together unless a contributor adds an explicit edge.
-			for _, other := range allContributedJobs {
-				if other.Name != cj.Name && other.Phase != PhaseFinalize {
-					deps = append(deps, other.Name)
-				}
-			}
-		}
-		job.Dependencies = deps
-		irJobs = append(irJobs, job)
+		jobs = append(jobs, job)
 	}
-	ir.Jobs = irJobs
+	return jobs
+}
 
-	if err := ir.Validate(); err != nil {
-		return nil, err
+func contributedJobDependencies(job ContributedJob, allJobs []ContributedJob) []JobDependency {
+	if job.Phase != PhaseFinalize {
+		return nil
 	}
-	return ir, nil
+
+	deps := make([]JobDependency, 0)
+	for _, other := range allJobs {
+		if other.Name != job.Name && other.Phase != PhaseFinalize {
+			deps = mergeJobDependency(deps, JobDependency{Job: other.Name})
+		}
+	}
+	return deps
+}
+
+func resolvePipelineResources(ir *IR, plan *JobPlan, required []ResourceRequest, contributedJobs []ContributedJob) error {
+	resources, err := buildResourceIndex(ir)
+	if err != nil {
+		return err
+	}
+
+	allowEmptyModuleResources := len(plan.TargetModules) == 0
+	if _, _, err := resolveResourceRequests(required, resources, "pipeline required resources", allowEmptyModuleResources); err != nil {
+		return err
+	}
+
+	for i := range ir.Jobs {
+		consumes, artifacts, deps, err := resolveResourceRequestsForJob(contributedJobs[i].Consumes, resources, ir.Jobs[i].Name, allowEmptyModuleResources)
+		if err != nil {
+			return err
+		}
+		ir.Jobs[i].Consumes = consumes
+		ir.Jobs[i].InputArtifacts = artifacts
+		for _, dep := range deps {
+			ir.Jobs[i].Dependencies = mergeJobDependency(ir.Jobs[i].Dependencies, dep)
+		}
+	}
+	return nil
 }
 
 // filterSteps returns steps matching any of the given phases.
@@ -159,6 +223,9 @@ func filterSteps(steps []Step, phases ...Phase) []Step {
 // hasContributedJobs checks if any contributions contain jobs.
 func hasContributedJobs(contributions []*Contribution) bool {
 	for _, c := range contributions {
+		if c == nil {
+			continue
+		}
 		if len(c.Jobs) > 0 {
 			return true
 		}

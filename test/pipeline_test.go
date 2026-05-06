@@ -112,10 +112,12 @@ func TestPipelineBuild_WithContributions(t *testing.T) {
 
 	contributions := []*pipeline.Contribution{{
 		Jobs: []pipeline.ContributedJob{{
-			Name:          "policy-check",
-			Phase:         pipeline.PhasePostPlan,
-			Commands:      []string{"terraci policy check"},
-			DependsOnPlan: true,
+			Name:     "policy-check",
+			Phase:    pipeline.PhasePostPlan,
+			Commands: []string{"terraci policy check"},
+			Consumes: []pipeline.ResourceRequest{
+				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+			},
 		}},
 	}}
 
@@ -144,7 +146,7 @@ func TestPipelineBuild_WithContributions(t *testing.T) {
 	// policy-check should depend on the plan job
 	hasPlanDep := false
 	for _, dep := range ir.Jobs[0].Dependencies {
-		if dep == ir.Levels[0].Modules[0].Plan.Name {
+		if dep.Job == ir.Levels[0].Modules[0].Plan.Name && dep.Artifacts {
 			hasPlanDep = true
 		}
 	}
@@ -164,11 +166,14 @@ func TestPipelineBuild_PhaseFinalize(t *testing.T) {
 	contributions := []*pipeline.Contribution{
 		{Jobs: []pipeline.ContributedJob{{
 			Name: "policy-check", Phase: pipeline.PhasePostPlan,
-			Commands: []string{"check"}, DependsOnPlan: true,
+			Commands: []string{"check"},
 		}}},
 		{Jobs: []pipeline.ContributedJob{{
 			Name: "terraci-summary", Phase: pipeline.PhaseFinalize,
-			Commands: []string{"summary"}, DependsOnPlan: true,
+			Commands: []string{"summary"},
+			Consumes: []pipeline.ResourceRequest{
+				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+			},
 		}}},
 	}
 
@@ -198,10 +203,10 @@ func TestPipelineBuild_PhaseFinalize(t *testing.T) {
 	hasPolicyDep := false
 	hasPlanDep := false
 	for _, dep := range finalizeJob.Dependencies {
-		if dep == "policy-check" {
+		if dep.Job == "policy-check" {
 			hasPolicyDep = true
 		}
-		if dep == ir.Levels[0].Modules[0].Plan.Name {
+		if dep.Job == ir.Levels[0].Modules[0].Plan.Name && dep.Artifacts {
 			hasPlanDep = true
 		}
 	}
