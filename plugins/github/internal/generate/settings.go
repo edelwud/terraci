@@ -5,7 +5,6 @@ import (
 
 	"github.com/edelwud/terraci/pkg/execution"
 	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
-	domainpkg "github.com/edelwud/terraci/plugins/github/internal/domain"
 )
 
 type settings struct {
@@ -31,28 +30,6 @@ func (s settings) terraformBinary() string {
 		return s.execution.Binary
 	}
 	return "terraform"
-}
-
-func (s settings) runsOn() string {
-	cfg := s.configOrDefault()
-	if cfg.JobDefaults != nil && cfg.JobDefaults.RunsOn != "" {
-		return cfg.JobDefaults.RunsOn
-	}
-	if cfg.RunsOn != "" {
-		return cfg.RunsOn
-	}
-	return "ubuntu-latest"
-}
-
-func (s settings) container() *domainpkg.Container {
-	cfg := s.configOrDefault()
-	if cfg.JobDefaults != nil && cfg.JobDefaults.Container != nil {
-		return &domainpkg.Container{Image: cfg.JobDefaults.Container.Name}
-	}
-	if cfg.Container != nil {
-		return &domainpkg.Container{Image: cfg.Container.Name}
-	}
-	return nil
 }
 
 func (s settings) env() map[string]string {
@@ -106,91 +83,4 @@ func (s settings) summaryRunsOn() string {
 		return ""
 	}
 	return cfg.PR.SummaryJob.RunsOn
-}
-
-func (s settings) stepsBefore(jobType configpkg.JobOverwriteType) []domainpkg.Step {
-	return stepsBefore(s.config, jobType)
-}
-
-func (s settings) stepsAfter(jobType configpkg.JobOverwriteType) []domainpkg.Step {
-	return stepsAfter(s.config, jobType)
-}
-
-func (s settings) defaultStepsBefore() []domainpkg.Step {
-	if s.config == nil || s.config.JobDefaults == nil {
-		return nil
-	}
-	steps := make([]domainpkg.Step, 0, len(s.config.JobDefaults.StepsBefore))
-	for _, step := range s.config.JobDefaults.StepsBefore {
-		steps = append(steps, convertConfigStep(step))
-	}
-	return steps
-}
-
-func (s settings) defaultStepsAfter() []domainpkg.Step {
-	if s.config == nil || s.config.JobDefaults == nil {
-		return nil
-	}
-	steps := make([]domainpkg.Step, 0, len(s.config.JobDefaults.StepsAfter))
-	for _, step := range s.config.JobDefaults.StepsAfter {
-		steps = append(steps, convertConfigStep(step))
-	}
-	return steps
-}
-
-func (s settings) overwriteFor(jobName string) *configpkg.JobOverwrite {
-	if s.config == nil {
-		return nil
-	}
-	for i := range s.config.Overwrites {
-		if s.config.Overwrites[i].Type == configpkg.JobOverwriteType(jobName) {
-			return &s.config.Overwrites[i]
-		}
-	}
-	return nil
-}
-
-func (s settings) overwriteRunsOn(jobName string) string {
-	if ow := s.overwriteFor(jobName); ow != nil && ow.RunsOn != "" {
-		return ow.RunsOn
-	}
-	return ""
-}
-
-func (s settings) overwriteContainer(jobName string) *domainpkg.Container {
-	if ow := s.overwriteFor(jobName); ow != nil && ow.Container != nil {
-		return &domainpkg.Container{Image: ow.Container.Name}
-	}
-	return nil
-}
-
-func (s settings) overwriteStepsBefore(jobName string) []domainpkg.Step {
-	ow := s.overwriteFor(jobName)
-	if ow == nil {
-		return nil
-	}
-	steps := make([]domainpkg.Step, 0, len(ow.StepsBefore))
-	for _, step := range ow.StepsBefore {
-		steps = append(steps, convertConfigStep(step))
-	}
-	return steps
-}
-
-func (s settings) overwriteStepsAfter(jobName string) []domainpkg.Step {
-	ow := s.overwriteFor(jobName)
-	if ow == nil {
-		return nil
-	}
-	steps := make([]domainpkg.Step, 0, len(ow.StepsAfter))
-	for _, step := range ow.StepsAfter {
-		steps = append(steps, convertConfigStep(step))
-	}
-	return steps
-}
-
-func (s settings) overwriteEnv(jobName string) map[string]string {
-	if ow := s.overwriteFor(jobName); ow != nil {
-		return ow.Env
-	}
-	return nil
 }

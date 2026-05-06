@@ -14,10 +14,10 @@ import (
 type jobBuilder struct {
 	settings      settings
 	contributions contributionIndex
-	applyConfig   func(job *domain.Job, jobType configpkg.JobOverwriteType)
+	applyConfig   func(job *domain.Job, jobType configpkg.JobOverwriteType) error
 }
 
-func newJobBuilder(settings settings, contributions contributionIndex, applyConfig func(job *domain.Job, jobType configpkg.JobOverwriteType)) jobBuilder {
+func newJobBuilder(settings settings, contributions contributionIndex, applyConfig func(job *domain.Job, jobType configpkg.JobOverwriteType) error) jobBuilder {
 	return jobBuilder{
 		settings:      settings,
 		contributions: contributions,
@@ -25,22 +25,24 @@ func newJobBuilder(settings settings, contributions contributionIndex, applyConf
 	}
 }
 
-func (b jobBuilder) planJob(irJob *pipeline.Job, module *discovery.Module, levelIdx int, prefix string) *domain.Job {
+func (b jobBuilder) planJob(irJob *pipeline.Job, module *discovery.Module, levelIdx int, prefix string) (*domain.Job, error) {
 	job := &domain.Job{
 		Stage:         fmt.Sprintf("%s-plan-%d", prefix, levelIdx),
 		Script:        b.scriptWithSteps(cishell.RenderOperation(irJob.Operation), irJob.Steps, pipeline.PhasePrePlan, pipeline.PhasePostPlan),
 		Variables:     irJob.Env,
-		Artifacts:     defaultArtifacts(irJob.ArtifactPaths),
+		Artifacts:     defaultArtifacts(irJob.Artifact),
 		Cache:         b.cache(module),
 		ResourceGroup: module.ID(),
 		Needs:         requiredNeeds(irJob.Dependencies),
 	}
 
-	b.applyConfig(job, configpkg.OverwriteTypePlan)
-	return job
+	if err := b.applyConfig(job, configpkg.OverwriteTypePlan); err != nil {
+		return nil, err
+	}
+	return job, nil
 }
 
-func (b jobBuilder) applyJob(irJob *pipeline.Job, module *discovery.Module, levelIdx int, prefix string) *domain.Job {
+func (b jobBuilder) applyJob(irJob *pipeline.Job, module *discovery.Module, levelIdx int, prefix string) (*domain.Job, error) {
 	job := &domain.Job{
 		Stage:         fmt.Sprintf("%s-apply-%d", prefix, levelIdx),
 		Script:        b.scriptWithSteps(cishell.RenderOperation(irJob.Operation), irJob.Steps, pipeline.PhasePreApply, pipeline.PhasePostApply),
@@ -54,24 +56,28 @@ func (b jobBuilder) applyJob(irJob *pipeline.Job, module *discovery.Module, leve
 		job.When = WhenManual
 	}
 
-	b.applyConfig(job, configpkg.OverwriteTypeApply)
-	return job
+	if err := b.applyConfig(job, configpkg.OverwriteTypeApply); err != nil {
+		return nil, err
+	}
+	return job, nil
 }
 
-func (b jobBuilder) contributedJob(irJob *pipeline.Job) *domain.Job {
+func (b jobBuilder) contributedJob(irJob *pipeline.Job) (*domain.Job, error) {
 	job := &domain.Job{
 		Stage:  b.contributions.stageFor(irJob.Name),
 		Script: contributedScript(cishell.RenderOperation(irJob.Operation), irJob.AllowFailure),
 		Needs:  optionalNeeds(irJob.Dependencies),
 	}
 
-	if artifacts := defaultArtifacts(irJob.ArtifactPaths); artifacts != nil {
+	if artifacts := defaultArtifacts(irJob.Artifact); artifacts != nil {
 		job.Artifacts = artifacts
 	}
 
-	b.applyConfig(job, configpkg.JobOverwriteType(irJob.Name))
+	if err := b.applyConfig(job, configpkg.JobOverwriteType(irJob.Name)); err != nil {
+		return nil, err
+	}
 
-	return job
+	return job, nil
 }
 
 func (b jobBuilder) applySummaryOverrides(job *domain.Job) {
@@ -169,7 +175,7 @@ func requiredNeeds(deps []string) []domain.JobNeed {
 
 	needs := make([]domain.JobNeed, len(deps))
 	for i, name := range deps {
-		needs[i] = domain.JobNeed{Job: name}
+		needs[i] = domain.JobNeed{Job: name, Artifacts: artifactNeedPtr(true)}
 	}
 	return needs
 }
@@ -181,21 +187,26 @@ func optionalNeeds(deps []string) []domain.JobNeed {
 
 	needs := make([]domain.JobNeed, len(deps))
 	for i, name := range deps {
-		needs[i] = domain.JobNeed{Job: name, Optional: true}
+		needs[i] = domain.JobNeed{Job: name, Optional: true, Artifacts: artifactNeedPtr(true)}
 	}
 	return needs
 }
 
-func defaultArtifacts(paths []string) *domain.Artifacts {
-	if len(paths) == 0 {
+func defaultArtifacts(artifact pipeline.Artifact) *domain.Artifacts {
+	if !artifact.Configured() {
 		return nil
 	}
 
 	return &domain.Artifacts{
-		Paths:    paths,
+		Name:     artifact.Name,
+		Paths:    artifact.Paths,
 		ExpireIn: "1 day",
 		When:     "always",
 	}
+}
+
+func artifactNeedPtr(value bool) *bool {
+	return &value
 }
 
 func contributedScript(script []string, allowFailure bool) []string {

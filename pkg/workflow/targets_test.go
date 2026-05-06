@@ -170,7 +170,10 @@ func TestResolveTargets_ChangedOnlyAppliesModuleAfterFiltersAndAffectedModules(t
 		depGraph.AddNode(module)
 	}
 	depGraph.AddEdge(eks.ID(), vpc.ID())
-	filteredModules := ApplyFilters(cfg, flags, []*discovery.Module{vpc, eks, prodVPC})
+	filteredModules, err := ApplyFilters(cfg, flags, []*discovery.Module{vpc, eks, prodVPC})
+	if err != nil {
+		t.Fatalf("ApplyFilters() error = %v", err)
+	}
 
 	result := &Result{
 		All:      NewModuleSet([]*discovery.Module{vpc, eks, prodVPC}),
@@ -304,7 +307,10 @@ func TestResolveTargets_ChangedLibrariesIntersectModuleAndFilters(t *testing.T) 
 			depGraph.AddEdge(stageEKS.ID(), stageVPC.ID())
 			depGraph.AddLibraryUsage(tt.libraryUsagePath, stageEKS.ID())
 			depGraph.AddLibraryUsage(tt.libraryUsagePath, prodVPC.ID())
-			filteredModules := ApplyFilters(cfg, flags, []*discovery.Module{stageVPC, stageEKS, prodVPC})
+			filteredModules, err := ApplyFilters(cfg, flags, []*discovery.Module{stageVPC, stageEKS, prodVPC})
+			if err != nil {
+				t.Fatalf("ApplyFilters() error = %v", err)
+			}
 			result := &Result{
 				All:      NewModuleSet([]*discovery.Module{stageVPC, stageEKS, prodVPC}),
 				Filtered: NewModuleSet(filteredModules),

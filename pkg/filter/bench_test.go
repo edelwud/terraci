@@ -67,7 +67,9 @@ func BenchmarkApply(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
-		Apply(modules, opts)
+		if _, err := Apply(modules, opts); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
@@ -92,7 +94,9 @@ func BenchmarkApply_LargeModuleSet(b *testing.B) {
 
 		b.Run(fmt.Sprintf("n=%d", size), func(b *testing.B) {
 			for b.Loop() {
-				Apply(modules, opts)
+				if _, err := Apply(modules, opts); err != nil {
+					b.Fatal(err)
+				}
 			}
 		})
 	}

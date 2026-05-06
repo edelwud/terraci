@@ -94,106 +94,6 @@
     },
     "extensions": {
       "properties": {
-        "policy": {
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "description": "Enable policy checks",
-              "default": false
-            },
-            "sources": {
-              "items": {
-                "properties": {
-                  "path": {
-                    "type": "string",
-                    "description": "Local path to policies directory"
-                  },
-                  "git": {
-                    "type": "string",
-                    "description": "Git repository URL for policies"
-                  },
-                  "ref": {
-                    "type": "string",
-                    "description": "Git reference (branch"
-                  },
-                  "oci": {
-                    "type": "string",
-                    "description": "OCI bundle URL for policies"
-                  }
-                },
-                "type": "object"
-              },
-              "type": "array",
-              "description": "Policy sources (local path"
-            },
-            "namespaces": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array",
-              "description": "Rego package namespaces to evaluate"
-            },
-            "on_failure": {
-              "type": "string",
-              "enum": [
-                "block",
-                "warn"
-              ],
-              "description": "Behavior on policy failure",
-              "default": "block"
-            },
-            "on_warning": {
-              "type": "string",
-              "enum": [
-                "warn",
-                "ignore"
-              ],
-              "description": "Behavior on policy warnings",
-              "default": "warn"
-            },
-            "overwrites": {
-              "items": {
-                "properties": {
-                  "match": {
-                    "type": "string",
-                    "description": "Glob pattern to match module paths"
-                  },
-                  "enabled": {
-                    "type": "boolean",
-                    "description": "Override enabled state for matching modules"
-                  },
-                  "namespaces": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array",
-                    "description": "Override namespaces for matching modules"
-                  },
-                  "on_failure": {
-                    "type": "string",
-                    "description": "Override failure behavior for matching modules"
-                  },
-                  "on_warning": {
-                    "type": "string",
-                    "description": "Override warning behavior for matching modules"
-                  }
-                },
-                "type": "object",
-                "required": [
-                  "match"
-                ]
-              },
-              "type": "array",
-              "description": "Per-module policy configuration overrides"
-            },
-            "cache_dir": {
-              "type": "string",
-              "description": "Directory to cache pulled policies",
-              "default": ".terraci/policies"
-            }
-          },
-          "type": "object"
-        },
         "diskblob": {
           "properties": {
             "enabled": {
@@ -243,14 +143,13 @@
           "properties": {
             "cache_dir": {
               "type": "string",
-              "description": "Deprecated and unsupported; use extensions.diskblob.root_dir instead"
+              "description": "Deprecated and unsupported; configure the selected blob backend instead"
             },
             "blob_cache": {
               "properties": {
                 "backend": {
                   "type": "string",
-                  "description": "Blob cache backend plugin name",
-                  "default": "diskblob"
+                  "description": "Blob cache backend plugin name; empty selects the single active blob store provider"
                 },
                 "namespace": {
                   "type": "string",
@@ -282,138 +181,12 @@
           },
           "type": "object"
         },
-        "tfupdate": {
+        "git": {
           "properties": {
-            "enabled": {
+            "auto_unshallow": {
               "type": "boolean",
-              "description": "Enable terraform dependency resolution",
+              "description": "Automatically run 'git fetch --unshallow' when a shallow clone is detected during change detection",
               "default": false
-            },
-            "target": {
-              "type": "string",
-              "enum": [
-                "modules",
-                "providers",
-                "all"
-              ],
-              "description": "What to inspect: modules providers or all",
-              "default": "all"
-            },
-            "ignore": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array",
-              "description": "Provider or module sources to ignore"
-            },
-            "pipeline": {
-              "type": "boolean",
-              "description": "Add tfupdate check job to CI pipeline",
-              "default": false
-            },
-            "timeout": {
-              "type": "string",
-              "description": "Overall timeout for a tfupdate run (e.g. 15m)"
-            },
-            "policy": {
-              "properties": {
-                "bump": {
-                  "type": "string",
-                  "enum": [
-                    "patch",
-                    "minor",
-                    "major"
-                  ],
-                  "description": "Version bump level: patch minor or major"
-                },
-                "pin": {
-                  "type": "boolean",
-                  "description": "Pin applied dependency constraints to an exact version",
-                  "default": false
-                }
-              },
-              "type": "object"
-            },
-            "registries": {
-              "properties": {
-                "default": {
-                  "type": "string",
-                  "description": "Default registry hostname for modules/providers without lock-based host information",
-                  "default": "registry.terraform.io"
-                },
-                "providers": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "type": "object",
-                  "description": "Registry hostname overrides keyed by normalized short provider source"
-                }
-              },
-              "type": "object"
-            },
-            "lock": {
-              "properties": {
-                "platforms": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array",
-                  "description": "Required platform set for provider h1 hashes"
-                }
-              },
-              "type": "object"
-            },
-            "cache": {
-              "properties": {
-                "backend": {
-                  "type": "string",
-                  "description": "Legacy metadata cache backend plugin name"
-                },
-                "ttl": {
-                  "type": "string",
-                  "description": "Legacy metadata cache ttl"
-                },
-                "namespace": {
-                  "type": "string",
-                  "description": "Legacy metadata cache namespace"
-                },
-                "metadata": {
-                  "properties": {
-                    "backend": {
-                      "type": "string",
-                      "description": "KV cache backend plugin name",
-                      "default": "inmemcache"
-                    },
-                    "ttl": {
-                      "type": "string",
-                      "description": "How long registry metadata stays cached",
-                      "default": "6h"
-                    },
-                    "namespace": {
-                      "type": "string",
-                      "description": "Namespace for tfupdate registry metadata cache",
-                      "default": "tfupdate/registry"
-                    }
-                  },
-                  "type": "object"
-                },
-                "artifacts": {
-                  "properties": {
-                    "backend": {
-                      "type": "string",
-                      "description": "Blob store backend plugin name",
-                      "default": "diskblob"
-                    },
-                    "namespace": {
-                      "type": "string",
-                      "description": "Namespace for cached provider archives and hashes",
-                      "default": "tfupdate/providers"
-                    }
-                  },
-                  "type": "object"
-                }
-              },
-              "type": "object"
             }
           },
           "type": "object"
@@ -719,6 +492,140 @@
               },
               "type": "object",
               "description": "Pull request integration settings"
+            }
+          },
+          "type": "object"
+        },
+        "tfupdate": {
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable terraform dependency resolution",
+              "default": false
+            },
+            "target": {
+              "type": "string",
+              "enum": [
+                "modules",
+                "providers",
+                "all"
+              ],
+              "description": "What to inspect: modules providers or all",
+              "default": "all"
+            },
+            "ignore": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array",
+              "description": "Provider or module sources to ignore"
+            },
+            "pipeline": {
+              "type": "boolean",
+              "description": "Add tfupdate check job to CI pipeline",
+              "default": false
+            },
+            "timeout": {
+              "type": "string",
+              "description": "Overall timeout for a tfupdate run (e.g. 15m)"
+            },
+            "policy": {
+              "properties": {
+                "bump": {
+                  "type": "string",
+                  "enum": [
+                    "patch",
+                    "minor",
+                    "major"
+                  ],
+                  "description": "Version bump level: patch minor or major"
+                },
+                "pin": {
+                  "type": "boolean",
+                  "description": "Pin applied dependency constraints to an exact version",
+                  "default": false
+                }
+              },
+              "type": "object"
+            },
+            "registries": {
+              "properties": {
+                "default": {
+                  "type": "string",
+                  "description": "Default registry hostname for modules/providers without lock-based host information",
+                  "default": "registry.terraform.io"
+                },
+                "providers": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "description": "Registry hostname overrides keyed by normalized short provider source"
+                }
+              },
+              "type": "object"
+            },
+            "lock": {
+              "properties": {
+                "platforms": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "description": "Required platform set for provider h1 hashes"
+                }
+              },
+              "type": "object"
+            },
+            "cache": {
+              "properties": {
+                "backend": {
+                  "type": "string",
+                  "description": "Legacy metadata cache backend plugin name"
+                },
+                "ttl": {
+                  "type": "string",
+                  "description": "Legacy metadata cache ttl"
+                },
+                "namespace": {
+                  "type": "string",
+                  "description": "Legacy metadata cache namespace"
+                },
+                "metadata": {
+                  "properties": {
+                    "backend": {
+                      "type": "string",
+                      "description": "KV cache backend plugin name; empty selects the single active KV cache provider"
+                    },
+                    "ttl": {
+                      "type": "string",
+                      "description": "How long registry metadata stays cached",
+                      "default": "6h"
+                    },
+                    "namespace": {
+                      "type": "string",
+                      "description": "Namespace for tfupdate registry metadata cache",
+                      "default": "tfupdate/registry"
+                    }
+                  },
+                  "type": "object"
+                },
+                "artifacts": {
+                  "properties": {
+                    "backend": {
+                      "type": "string",
+                      "description": "Blob store backend plugin name; empty selects the single active blob store provider"
+                    },
+                    "namespace": {
+                      "type": "string",
+                      "description": "Namespace for cached provider archives and hashes",
+                      "default": "tfupdate/providers"
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              "type": "object"
             }
           },
           "type": "object"
@@ -1274,6 +1181,106 @@
               },
               "type": "object",
               "description": "Merge request integration settings"
+            }
+          },
+          "type": "object"
+        },
+        "policy": {
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable policy checks",
+              "default": false
+            },
+            "sources": {
+              "items": {
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Local path to policies directory"
+                  },
+                  "git": {
+                    "type": "string",
+                    "description": "Git repository URL for policies"
+                  },
+                  "ref": {
+                    "type": "string",
+                    "description": "Git reference (branch"
+                  },
+                  "oci": {
+                    "type": "string",
+                    "description": "OCI bundle URL for policies"
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array",
+              "description": "Policy sources (local path"
+            },
+            "namespaces": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array",
+              "description": "Rego package namespaces to evaluate"
+            },
+            "on_failure": {
+              "type": "string",
+              "enum": [
+                "block",
+                "warn"
+              ],
+              "description": "Behavior on policy failure",
+              "default": "block"
+            },
+            "on_warning": {
+              "type": "string",
+              "enum": [
+                "warn",
+                "ignore"
+              ],
+              "description": "Behavior on policy warnings",
+              "default": "warn"
+            },
+            "overwrites": {
+              "items": {
+                "properties": {
+                  "match": {
+                    "type": "string",
+                    "description": "Glob pattern to match module paths"
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "description": "Override enabled state for matching modules"
+                  },
+                  "namespaces": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Override namespaces for matching modules"
+                  },
+                  "on_failure": {
+                    "type": "string",
+                    "description": "Override failure behavior for matching modules"
+                  },
+                  "on_warning": {
+                    "type": "string",
+                    "description": "Override warning behavior for matching modules"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "match"
+                ]
+              },
+              "type": "array",
+              "description": "Per-module policy configuration overrides"
+            },
+            "cache_dir": {
+              "type": "string",
+              "description": "Directory to cache pulled policies",
+              "default": ".terraci/policies"
             }
           },
           "type": "object"

@@ -11,7 +11,10 @@ import (
 	domainpkg "github.com/edelwud/terraci/plugins/github/internal/domain"
 )
 
-const stepsInitialCap = 8
+const (
+	stepsInitialCap = 8
+	actionTrue      = "true"
+)
 
 type jobBuilder struct {
 	settings settings
@@ -21,49 +24,65 @@ func newJobBuilder(settings settings) jobBuilder {
 	return jobBuilder{settings: settings}
 }
 
-func (b jobBuilder) planJob(irJob *pipeline.Job, module *discovery.Module) *domainpkg.Job {
+func (b jobBuilder) planJob(irJob *pipeline.Job, module *discovery.Module) (*domainpkg.Job, error) {
+	profile, err := b.settings.jobProfile(configpkg.OverwriteTypePlan)
+	if err != nil {
+		return nil, err
+	}
+
 	runScript := strings.Join(cishell.RenderOperation(irJob.Operation), "\n")
 	steps := make([]domainpkg.Step, 0, stepsInitialCap)
 	steps = append(steps, checkoutStep())
-	steps = append(steps, b.settings.stepsBefore(configpkg.OverwriteTypePlan)...)
+	steps = append(steps, profile.stepsBefore...)
 	steps = append(steps, phaseSteps(irJob.Steps, pipeline.PhasePrePlan)...)
 	steps = append(steps, runStep("Plan "+module.ID(), runScript))
 	steps = append(steps, phaseSteps(irJob.Steps, pipeline.PhasePostPlan)...)
-	steps = append(steps, b.settings.stepsAfter(configpkg.OverwriteTypePlan)...)
-	steps = append(steps, uploadArtifactStep("Upload plan artifacts", irJob.Name, irJob.ArtifactPaths))
+	steps = append(steps, profile.stepsAfter...)
+	if irJob.Artifact.Configured() {
+		steps = append(steps,
+			stageArtifactStep("Stage plan artifacts", irJob.Artifact, true),
+			uploadArtifactStep("Upload plan artifacts", irJob.Artifact),
+		)
+	}
 
 	job := &domainpkg.Job{
-		RunsOn: b.settings.runsOn(),
-		Env:    irJob.Env,
+		RunsOn: profile.runsOn,
+		Env:    mergeJobEnv(irJob.Env, profile.env),
 		Concurrency: &domainpkg.Concurrency{
 			Group:            module.ID(),
 			CancelInProgress: false,
 		},
 		Steps: steps,
 	}
-	if container := b.settings.container(); container != nil {
-		job.Container = container
+	if profile.container != nil {
+		job.Container = profile.container
 	}
 
 	job.Needs = irJob.Dependencies
-	return job
+	return job, nil
 }
 
-func (b jobBuilder) applyJob(irJob *pipeline.Job, module *discovery.Module) *domainpkg.Job {
+func (b jobBuilder) applyJob(irJob *pipeline.Job, module *discovery.Module) (*domainpkg.Job, error) {
+	profile, err := b.settings.jobProfile(configpkg.OverwriteTypeApply)
+	if err != nil {
+		return nil, err
+	}
+
 	runScript := strings.Join(cishell.RenderOperation(irJob.Operation), "\n")
 	steps := []domainpkg.Step{checkoutStep()}
 	if b.settings.planEnabled() {
-		steps = append(steps, downloadArtifactStep("Download plan artifacts", pipeline.JobName(pipeline.JobKindPlan, module)))
+		planName := pipeline.JobName(pipeline.JobKindPlan, module)
+		steps = append(steps, downloadArtifactStep("Download plan artifacts", pipeline.PlanArtifactName(planName)))
 	}
-	steps = append(steps, b.settings.stepsBefore(configpkg.OverwriteTypeApply)...)
+	steps = append(steps, profile.stepsBefore...)
 	steps = append(steps, phaseSteps(irJob.Steps, pipeline.PhasePreApply)...)
 	steps = append(steps, runStep("Apply "+module.ID(), runScript))
 	steps = append(steps, phaseSteps(irJob.Steps, pipeline.PhasePostApply)...)
-	steps = append(steps, b.settings.stepsAfter(configpkg.OverwriteTypeApply)...)
+	steps = append(steps, profile.stepsAfter...)
 
 	job := &domainpkg.Job{
-		RunsOn: b.settings.runsOn(),
-		Env:    irJob.Env,
+		RunsOn: profile.runsOn,
+		Env:    mergeJobEnv(irJob.Env, profile.env),
 		Concurrency: &domainpkg.Concurrency{
 			Group:            module.ID(),
 			CancelInProgress: false,
@@ -71,16 +90,21 @@ func (b jobBuilder) applyJob(irJob *pipeline.Job, module *discovery.Module) *dom
 		Steps: steps,
 		Needs: irJob.Dependencies,
 	}
-	if container := b.settings.container(); container != nil {
-		job.Container = container
+	if profile.container != nil {
+		job.Container = profile.container
 	}
 	if !b.settings.autoApprove() {
 		job.Environment = "production"
 	}
-	return job
+	return job, nil
 }
 
-func (b jobBuilder) contributedJob(irJob *pipeline.Job) *domainpkg.Job {
+func (b jobBuilder) contributedJob(irJob *pipeline.Job) (*domainpkg.Job, error) {
+	profile, err := b.settings.jobProfile(configpkg.JobOverwriteType(irJob.Name))
+	if err != nil {
+		return nil, err
+	}
+
 	scriptLines := cishell.RenderOperation(irJob.Operation)
 	if irJob.AllowFailure {
 		scriptLines = nil
@@ -93,32 +117,24 @@ func (b jobBuilder) contributedJob(irJob *pipeline.Job) *domainpkg.Job {
 		checkoutStep(),
 		downloadAllArtifactsStep(),
 	}
-	steps = append(steps, b.settings.defaultStepsBefore()...)
-	steps = append(steps, b.settings.overwriteStepsBefore(irJob.Name)...)
+	steps = append(steps, profile.stepsBefore...)
 	steps = append(steps, runStep("Run "+irJob.Name, strings.Join(scriptLines, "\n")))
-	steps = append(steps, b.settings.defaultStepsAfter()...)
-	steps = append(steps, b.settings.overwriteStepsAfter(irJob.Name)...)
-	if len(irJob.ArtifactPaths) > 0 {
-		steps = append(steps, uploadArtifactStep(fmt.Sprintf("Upload %s results", irJob.Name), irJob.Name+"-results", irJob.ArtifactPaths))
-	}
-
-	runsOn := b.settings.runsOn()
-	if ow := b.settings.overwriteRunsOn(irJob.Name); ow != "" {
-		runsOn = ow
+	steps = append(steps, profile.stepsAfter...)
+	if irJob.Artifact.Configured() {
+		steps = append(steps,
+			stageArtifactStep(fmt.Sprintf("Stage %s results", irJob.Name), irJob.Artifact, false),
+			uploadArtifactStep(fmt.Sprintf("Upload %s results", irJob.Name), irJob.Artifact),
+		)
 	}
 
 	job := &domainpkg.Job{
-		RunsOn: runsOn,
+		RunsOn: profile.runsOn,
 		Needs:  irJob.Dependencies,
+		Env:    mergeJobEnv(irJob.Env, profile.env),
 		Steps:  steps,
 	}
-	if container := b.settings.overwriteContainer(irJob.Name); container != nil {
-		job.Container = container
-	} else if container := b.settings.container(); container != nil {
-		job.Container = container
-	}
-	if env := b.settings.overwriteEnv(irJob.Name); len(env) > 0 {
-		job.Env = env
+	if profile.container != nil {
+		job.Container = profile.container
 	}
 	if summaryRunsOn := b.settings.summaryRunsOn(); irJob.Phase == pipeline.PhaseFinalize && summaryRunsOn != "" {
 		job.RunsOn = summaryRunsOn
@@ -126,7 +142,7 @@ func (b jobBuilder) contributedJob(irJob *pipeline.Job) *domainpkg.Job {
 	if irJob.Phase == pipeline.PhaseFinalize {
 		job.If = "github.event_name == 'pull_request'"
 	}
-	return job
+	return job, nil
 }
 
 func checkoutStep() domainpkg.Step {
@@ -143,6 +159,7 @@ func downloadArtifactStep(name, artifact string) domainpkg.Step {
 		Uses: "actions/download-artifact@v4",
 		With: map[string]string{
 			"name": artifact,
+			"path": ".",
 		},
 	}
 }
@@ -151,20 +168,69 @@ func downloadAllArtifactsStep() domainpkg.Step {
 	return domainpkg.Step{
 		Name: "Download all plan artifacts",
 		Uses: "actions/download-artifact@v4",
+		With: map[string]string{
+			"pattern":        pipeline.ArtifactNamePattern(),
+			"path":           ".",
+			"merge-multiple": actionTrue,
+		},
 	}
 }
 
-func uploadArtifactStep(name, artifact string, paths []string) domainpkg.Step {
+func uploadArtifactStep(name string, artifact pipeline.Artifact) domainpkg.Step {
 	return domainpkg.Step{
 		Name: name,
 		Uses: "actions/upload-artifact@v4",
 		With: map[string]string{
-			"name":           artifact,
-			"path":           strings.Join(paths, "\n"),
-			"retention-days": "1",
+			"name":                 artifact.Name,
+			"path":                 artifactStageDir(artifact),
+			"retention-days":       "1",
+			"include-hidden-files": actionTrue,
+			"if-no-files-found":    "warn",
 		},
 		If: "always()",
 	}
+}
+
+func stageArtifactStep(name string, artifact pipeline.Artifact, required bool) domainpkg.Step {
+	stageDir := artifactStageDir(artifact)
+	lines := []string{
+		"set -eu",
+		"stage_dir=" + shellQuote(stageDir),
+		`rm -rf "$stage_dir"`,
+		`mkdir -p "$stage_dir"`,
+	}
+	for _, path := range artifact.Paths {
+		lines = append(lines,
+			"artifact_path="+shellQuote(path),
+			`if [ -e "$artifact_path" ]; then`,
+			`  artifact_dest="$stage_dir/$artifact_path"`,
+			`  mkdir -p "$(dirname "$artifact_dest")"`,
+			`  if [ -d "$artifact_path" ]; then cp -R "$artifact_path" "$artifact_dest"; else cp "$artifact_path" "$artifact_dest"; fi`,
+			`fi`,
+		)
+	}
+	if required {
+		lines = append(lines,
+			`if ! find "$stage_dir" -type f | grep -q .; then`,
+			"  echo "+shellQuote("No artifact files staged for "+artifact.Name),
+			"  exit 1",
+			`fi`,
+		)
+	}
+
+	return domainpkg.Step{
+		Name: name,
+		Run:  strings.Join(lines, "\n"),
+		If:   "always()",
+	}
+}
+
+func artifactStageDir(artifact pipeline.Artifact) string {
+	return ".terraci/artifacts/" + artifact.Name + "/"
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }
 
 func phaseSteps(steps []pipeline.Step, phase pipeline.Phase) []domainpkg.Step {

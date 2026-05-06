@@ -2,6 +2,7 @@ package policy
 
 import (
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/pipeline"
@@ -36,8 +37,14 @@ func TestPlugin_PipelineContribution_UsesAppContextServiceDir(t *testing.T) {
 		t.Error("job.AllowFailure should be true when on_failure=warn")
 	}
 
-	wantArtifact := filepath.Join(appCtx.Config().ServiceDir, resultsFile)
-	if len(job.ArtifactPaths) != 1 || job.ArtifactPaths[0] != wantArtifact {
-		t.Errorf("job.ArtifactPaths = %v, want [%s]", job.ArtifactPaths, wantArtifact)
+	if job.Artifact.Name != pipeline.ResultArtifactName(jobName) {
+		t.Errorf("job.Artifact.Name = %q, want %q", job.Artifact.Name, pipeline.ResultArtifactName(jobName))
+	}
+	wantPaths := []string{
+		filepath.Join(appCtx.Config().ServiceDir, resultsFile),
+		filepath.Join(appCtx.Config().ServiceDir, reportFile),
+	}
+	if !slices.Equal(job.Artifact.Paths, wantPaths) {
+		t.Errorf("job.Artifact.Paths = %v, want %v", job.Artifact.Paths, wantPaths)
 	}
 }

@@ -33,7 +33,8 @@ jobs:
             - name: Download plan artifacts
               uses: actions/download-artifact@v4
               with:
-                name: plan-platform-stage-eu-central-1-vpc
+                name: terraci-plan-platform-stage-eu-central-1-vpc
+                path: .
             - name: Apply platform/stage/eu-central-1/vpc
               run: |-
                 cd platform/stage/eu-central-1/vpc
@@ -58,10 +59,29 @@ jobs:
                 cd platform/stage/eu-central-1/vpc
                 ${TERRAFORM_BINARY} init
                 ${TERRAFORM_BINARY} plan -out=plan.tfplan
+            - name: Stage plan artifacts
+              run: |-
+                set -eu
+                stage_dir='.terraci/artifacts/terraci-plan-platform-stage-eu-central-1-vpc/'
+                rm -rf "$stage_dir"
+                mkdir -p "$stage_dir"
+                artifact_path='platform/stage/eu-central-1/vpc/plan.tfplan'
+                if [ -e "$artifact_path" ]; then
+                  artifact_dest="$stage_dir/$artifact_path"
+                  mkdir -p "$(dirname "$artifact_dest")"
+                  if [ -d "$artifact_path" ]; then cp -R "$artifact_path" "$artifact_dest"; else cp "$artifact_path" "$artifact_dest"; fi
+                fi
+                if ! find "$stage_dir" -type f | grep -q .; then
+                  echo 'No artifact files staged for terraci-plan-platform-stage-eu-central-1-vpc'
+                  exit 1
+                fi
+              if: always()
             - name: Upload plan artifacts
               uses: actions/upload-artifact@v4
               with:
-                name: plan-platform-stage-eu-central-1-vpc
-                path: platform/stage/eu-central-1/vpc/plan.tfplan
+                if-no-files-found: warn
+                include-hidden-files: "true"
+                name: terraci-plan-platform-stage-eu-central-1-vpc
+                path: .terraci/artifacts/terraci-plan-platform-stage-eu-central-1-vpc/
                 retention-days: "1"
               if: always()

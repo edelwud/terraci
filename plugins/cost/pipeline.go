@@ -8,6 +8,7 @@ import (
 )
 
 const (
+	jobName     = "cost-estimation"
 	resultsFile = "cost-results.json"
 	reportFile  = "cost-report.json"
 )
@@ -26,10 +27,10 @@ func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribu
 		// comment configuration.
 		RequiresDetailedPlan: true,
 		Jobs: []pipeline.ContributedJob{{
-			Name:          "cost-estimation",
+			Name:          jobName,
 			Phase:         pipeline.PhasePostPlan,
 			Commands:      []string{"terraci cost"},
-			ArtifactPaths: []string{filepath.Join(serviceDir, resultsFile)},
+			Artifact:      pipeline.ResultArtifact(jobName, filepath.Join(serviceDir, resultsFile), filepath.Join(serviceDir, reportFile)),
 			DependsOnPlan: true,
 			// AllowFailure lets the pipeline proceed even when cost estimation fails
 			// (e.g., missing AWS credentials or unsupported resource types).

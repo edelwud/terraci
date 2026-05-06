@@ -30,7 +30,10 @@ func NewChecker(cfg *Config, policyDirs []string, rootDir string) *Checker {
 // CheckModule runs policy checks for a single module
 func (c *Checker) CheckModule(ctx context.Context, modulePath string) (*Result, error) {
 	// Get effective config for this module (with overwrites applied)
-	effectiveCfg := c.config.GetEffectiveConfig(modulePath)
+	effectiveCfg, err := c.config.GetEffectiveConfig(modulePath)
+	if err != nil {
+		return nil, fmt.Errorf("resolve effective policy config: %w", err)
+	}
 
 	// Skip if disabled for this module
 	if effectiveCfg == nil || !effectiveCfg.Enabled {
@@ -42,7 +45,7 @@ func (c *Checker) CheckModule(ctx context.Context, modulePath string) (*Result, 
 
 	// Find plan.json in module directory
 	planJSONPath := filepath.Join(c.rootDir, modulePath, "plan.json")
-	if _, err := os.Stat(planJSONPath); os.IsNotExist(err) {
+	if _, statErr := os.Stat(planJSONPath); os.IsNotExist(statErr) {
 		return nil, fmt.Errorf("plan.json not found in %s", modulePath)
 	}
 

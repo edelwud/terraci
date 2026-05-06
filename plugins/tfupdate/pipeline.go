@@ -14,16 +14,17 @@ func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribu
 		return nil
 	}
 
+	const jobName = "tfupdate-check"
 	serviceDir := ""
 	if cfg := ctx.Config(); cfg != nil {
 		serviceDir = cfg.ServiceDir
 	}
 	return &pipeline.Contribution{
 		Jobs: []pipeline.ContributedJob{{
-			Name:          "tfupdate-check",
+			Name:          jobName,
 			Phase:         pipeline.PhasePrePlan,
 			Commands:      []string{"terraci tfupdate"},
-			ArtifactPaths: []string{filepath.Join(serviceDir, resultsFile)},
+			Artifact:      pipeline.ResultArtifact(jobName, filepath.Join(serviceDir, resultsFile), filepath.Join(serviceDir, reportFile)),
 			DependsOnPlan: false,
 			AllowFailure:  true,
 		}},

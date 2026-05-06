@@ -3,6 +3,7 @@ package generate
 import (
 	"maps"
 
+	"github.com/edelwud/terraci/pkg/config/overwrite"
 	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
 	"github.com/edelwud/terraci/plugins/gitlab/internal/domain"
 )
@@ -60,9 +61,9 @@ func applyJobConfig(job *domain.Job, cfg configpkg.JobConfig) {
 	}
 }
 
-func applyResolvedJobConfig(settings settings, job *domain.Job, jobType configpkg.JobOverwriteType) {
+func applyResolvedJobConfig(settings settings, job *domain.Job, jobType configpkg.JobOverwriteType) error {
 	applyJobDefaults(settings, job)
-	applyOverwrites(settings, job, jobType)
+	return applyOverwrites(settings, job, jobType)
 }
 
 func applyJobDefaults(settings settings, job *domain.Job) {
@@ -73,15 +74,16 @@ func applyJobDefaults(settings settings, job *domain.Job) {
 	applyJobConfig(job, defaults)
 }
 
-func applyOverwrites(settings settings, job *domain.Job, jobType configpkg.JobOverwriteType) {
-	overwrites := settings.overwrites()
-	for i := range overwrites {
-		ow := &overwrites[i]
-		if ow.Type != jobType {
-			continue
-		}
-		applyJobConfig(job, ow)
-	}
+func applyOverwrites(settings settings, job *domain.Job, jobType configpkg.JobOverwriteType) error {
+	return overwrite.ApplyMatching(
+		job,
+		jobType,
+		settings.overwrites(),
+		overwrite.ByKey(func(ow *configpkg.JobOverwrite) configpkg.JobOverwriteType { return ow.Type }),
+		func(job *domain.Job, ow *configpkg.JobOverwrite) {
+			applyJobConfig(job, ow)
+		},
+	)
 }
 
 func convertSecrets(secrets map[string]configpkg.CfgSecret) map[string]*domain.Secret {

@@ -89,7 +89,10 @@ func resolveTargets(
 		affectedIDs = result.Graph.GetAffectedModules(changedIDs)
 	}
 
-	targets = resolveAffectedModules(cfg, opts.Filters, affectedIDs, changedIDs, result.All, result.Filtered)
+	targets, err = resolveAffectedModules(cfg, opts.Filters, affectedIDs, changedIDs, result.All, result.Filtered)
+	if err != nil {
+		return nil, err
+	}
 	if opts.ModulePath != "" {
 		targets = filterModulesByPath(targets, opts.ModulePath)
 	}
@@ -102,7 +105,7 @@ func resolveAffectedModules(
 	ff *filter.Flags,
 	affectedIDs, changedIDs []string,
 	allSet, filteredSet ModuleSet,
-) []*discovery.Module {
+) ([]*discovery.Module, error) {
 	allModules := allSet.All()
 	filteredModules := filteredSet.All()
 
@@ -132,7 +135,10 @@ func resolveAffectedModules(
 	// the same exclude/include glob patterns from scratch, which became
 	// O(N×M) on repos with many changed-but-excluded modules. The Matcher
 	// holds the compiled predicates and is reused inside the loop.
-	matcher := MergedFilterOptions(cfg, ff).Compile()
+	matcher, err := MergedFilterOptions(cfg, ff).Compile()
+	if err != nil {
+		return nil, err
+	}
 
 	for _, module := range allModules {
 		id := module.ID()
@@ -151,7 +157,7 @@ func resolveAffectedModules(
 		}
 	}
 
-	return targets
+	return targets, nil
 }
 
 // excludeLibraryModules drops library modules that may have leaked into a

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/config"
+	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/registry"
 )
@@ -208,11 +209,15 @@ extensions:
 			if job.Name != "tfupdate-check" {
 				continue
 			}
-			if len(job.ArtifactPaths) != 1 {
-				t.Fatalf("tfupdate-check artifact paths = %v, want one path", job.ArtifactPaths)
+			if job.Artifact.Name != pipeline.ResultArtifactName("tfupdate-check") {
+				t.Fatalf("tfupdate-check artifact name = %q", job.Artifact.Name)
 			}
-			if job.ArtifactPaths[0] != filepath.Join("custom-artifacts", "tfupdate-results.json") {
-				t.Fatalf("dtfupdate-check artifact path = %q, want %q", job.ArtifactPaths[0], filepath.Join("custom-artifacts", "tfupdate-results.json"))
+			wantPaths := []string{
+				filepath.Join("custom-artifacts", "tfupdate-results.json"),
+				filepath.Join("custom-artifacts", "tfupdate-report.json"),
+			}
+			if !slices.Equal(job.Artifact.Paths, wantPaths) {
+				t.Fatalf("tfupdate-check artifact paths = %v, want %v", job.Artifact.Paths, wantPaths)
 			}
 			foundUpdateArtifactPath = true
 		}

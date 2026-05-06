@@ -49,15 +49,28 @@ type ModuleJobs struct {
 // values that defaulted to "plan" for contributed jobs — that zero-value
 // trap is the reason it was removed.
 type Job struct {
-	Name          string
-	Phase         Phase             // for contributed jobs: when they run
-	Module        *discovery.Module // nil for contributed jobs
-	Env           map[string]string
-	Dependencies  []string // job names this depends on
-	ArtifactPaths []string
-	AllowFailure  bool
-	Steps         []Step // pre/post steps from contributors
-	Operation     Operation
+	Name         string
+	Phase        Phase             // for contributed jobs: when they run
+	Module       *discovery.Module // nil for contributed jobs
+	Env          map[string]string
+	Dependencies []string // job names this depends on
+	Artifact     Artifact
+	AllowFailure bool
+	Steps        []Step // pre/post steps from contributors
+	Operation    Operation
+}
+
+// Artifact is a named CI artifact whose paths must be restored relative to
+// the downstream job workspace. Providers may stage files internally, but
+// consumers should see each path exactly as listed here.
+type Artifact struct {
+	Name  string
+	Paths []string
+}
+
+// Configured reports whether the artifact has enough data to be published.
+func (a Artifact) Configured() bool {
+	return a.Name != "" && len(a.Paths) > 0
 }
 
 // Step is an injected command at a specific phase.
@@ -128,7 +141,7 @@ type ContributedJob struct {
 	Name          string
 	Phase         Phase // when it runs; Phase.String() gives the stage name
 	Commands      []string
-	ArtifactPaths []string
+	Artifact      Artifact
 	DependsOnPlan bool
 	AllowFailure  bool
 }

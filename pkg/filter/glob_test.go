@@ -111,7 +111,10 @@ func TestApply_GlobFilters(t *testing.T) {
 				modules[i] = discovery.TestModule(parts[0], parts[1], parts[2], parts[3])
 			}
 
-			got := Apply(modules, Options{Excludes: tt.exclude, Includes: tt.include})
+			got, err := Apply(modules, Options{Excludes: tt.exclude, Includes: tt.include})
+			if err != nil {
+				t.Fatalf("Apply() error = %v", err)
+			}
 			if len(got) != tt.wantLen {
 				t.Errorf("Apply() returned %d, want %d", len(got), tt.wantLen)
 			}
@@ -164,12 +167,15 @@ func TestApply_CompositeFilters(t *testing.T) {
 		discovery.TestModule("platform", "stage", "us-east-1", "vpc"),
 	}
 
-	filtered := Apply(modules, Options{
+	filtered, err := Apply(modules, Options{
 		Segments: map[string][]string{
 			"service":     {"platform"},
 			"environment": {"stage"},
 		},
 	})
+	if err != nil {
+		t.Fatalf("Apply() error = %v", err)
+	}
 	if len(filtered) != 2 {
 		t.Errorf("Expected 2 modules, got %d", len(filtered))
 	}
@@ -206,6 +212,19 @@ func TestGlobFilter_MatchModule(t *testing.T) {
 				t.Errorf("match() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestApply_InvalidGlobReturnsError(t *testing.T) {
+	t.Parallel()
+
+	modules := []*discovery.Module{
+		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
+	}
+
+	_, err := Apply(modules, Options{Excludes: []string{"platform/[bad/**"}})
+	if err == nil {
+		t.Fatal("Apply() error = nil, want error")
 	}
 }
 

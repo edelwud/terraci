@@ -35,7 +35,7 @@ func (defaultBuilder) Build(targets []*discovery.Module, result *workflow.Result
 		Script: pipeline.ScriptConfig{
 			InitEnabled:  execCfg.InitEnabled,
 			PlanEnabled:  execCfg.PlanEnabled,
-			DetailedPlan: execCfg.PlanMode == execution.PlanModeDetailed,
+			DetailedPlan: execCfg.PlanMode == execution.PlanModeDetailed || pipeline.AnyRequiresDetailedPlan(contributions),
 		},
 		Contributions: contributions,
 		PlanEnabled:   execCfg.PlanEnabled,

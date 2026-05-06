@@ -1,58 +1,104 @@
 package generate
 
 import (
+	"maps"
+
+	"github.com/edelwud/terraci/pkg/config/overwrite"
 	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
 	domainpkg "github.com/edelwud/terraci/plugins/github/internal/domain"
 )
 
-func stepsBefore(cfg *configpkg.Config, jobType configpkg.JobOverwriteType) []domainpkg.Step {
-	var steps []domainpkg.Step
+type jobProfile struct {
+	runsOn      string
+	container   *domainpkg.Container
+	env         map[string]string
+	stepsBefore []domainpkg.Step
+	stepsAfter  []domainpkg.Step
+}
 
-	if cfg != nil && cfg.JobDefaults != nil {
-		for _, step := range cfg.JobDefaults.StepsBefore {
-			steps = append(steps, convertConfigStep(step))
-		}
+func (s settings) jobProfile(jobType configpkg.JobOverwriteType) (jobProfile, error) {
+	cfg := s.configOrDefault()
+	profile := jobProfile{
+		runsOn:    cfg.RunsOn,
+		container: convertContainer(cfg.Container),
+	}
+	if profile.runsOn == "" {
+		profile.runsOn = "ubuntu-latest"
 	}
 
-	if cfg == nil {
-		return steps
+	if cfg.JobDefaults != nil {
+		applyJobDefaults(&profile, cfg.JobDefaults)
 	}
 
-	for _, overwrite := range cfg.Overwrites {
-		if overwrite.Type != jobType {
-			continue
-		}
-		for _, step := range overwrite.StepsBefore {
-			steps = append(steps, convertConfigStep(step))
-		}
+	err := overwrite.ApplyMatching(
+		&profile,
+		jobType,
+		cfg.Overwrites,
+		overwrite.ByKey(func(ow *configpkg.JobOverwrite) configpkg.JobOverwriteType { return ow.Type }),
+		applyJobOverwrite,
+	)
+	if err != nil {
+		return jobProfile{}, err
 	}
+	return profile, nil
+}
 
+func applyJobDefaults(profile *jobProfile, defaults *configpkg.JobDefaults) {
+	if defaults.RunsOn != "" {
+		profile.runsOn = defaults.RunsOn
+	}
+	if defaults.Container != nil {
+		profile.container = convertContainer(defaults.Container)
+	}
+	mergeProfileEnv(profile, defaults.Env)
+	profile.stepsBefore = appendConfigSteps(profile.stepsBefore, defaults.StepsBefore)
+	profile.stepsAfter = appendConfigSteps(profile.stepsAfter, defaults.StepsAfter)
+}
+
+func applyJobOverwrite(profile *jobProfile, ow *configpkg.JobOverwrite) {
+	if ow.RunsOn != "" {
+		profile.runsOn = ow.RunsOn
+	}
+	if ow.Container != nil {
+		profile.container = convertContainer(ow.Container)
+	}
+	mergeProfileEnv(profile, ow.Env)
+	profile.stepsBefore = appendConfigSteps(profile.stepsBefore, ow.StepsBefore)
+	profile.stepsAfter = appendConfigSteps(profile.stepsAfter, ow.StepsAfter)
+}
+
+func mergeProfileEnv(profile *jobProfile, env map[string]string) {
+	if len(env) == 0 {
+		return
+	}
+	if profile.env == nil {
+		profile.env = make(map[string]string, len(env))
+	}
+	maps.Copy(profile.env, env)
+}
+
+func appendConfigSteps(steps []domainpkg.Step, configs []configpkg.ConfigStep) []domainpkg.Step {
+	for _, step := range configs {
+		steps = append(steps, convertConfigStep(step))
+	}
 	return steps
 }
 
-func stepsAfter(cfg *configpkg.Config, jobType configpkg.JobOverwriteType) []domainpkg.Step {
-	var steps []domainpkg.Step
-
-	if cfg != nil && cfg.JobDefaults != nil {
-		for _, step := range cfg.JobDefaults.StepsAfter {
-			steps = append(steps, convertConfigStep(step))
-		}
+func convertContainer(image *configpkg.Image) *domainpkg.Container {
+	if image == nil {
+		return nil
 	}
+	return &domainpkg.Container{Image: image.Name}
+}
 
-	if cfg == nil {
-		return steps
+func mergeJobEnv(base, overrides map[string]string) map[string]string {
+	if len(base) == 0 && len(overrides) == 0 {
+		return nil
 	}
-
-	for _, overwrite := range cfg.Overwrites {
-		if overwrite.Type != jobType {
-			continue
-		}
-		for _, step := range overwrite.StepsAfter {
-			steps = append(steps, convertConfigStep(step))
-		}
-	}
-
-	return steps
+	result := make(map[string]string, len(base)+len(overrides))
+	maps.Copy(result, base)
+	maps.Copy(result, overrides)
+	return result
 }
 
 func convertConfigStep(step configpkg.ConfigStep) domainpkg.Step {

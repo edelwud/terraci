@@ -9,6 +9,7 @@ import (
 )
 
 const (
+	jobName     = "policy-check"
 	resultsFile = "policy-results.json"
 	reportFile  = "policy-report.json"
 )
@@ -27,10 +28,10 @@ func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribu
 		// configuration.
 		RequiresDetailedPlan: true,
 		Jobs: []pipeline.ContributedJob{{
-			Name:          "policy-check",
+			Name:          jobName,
 			Phase:         pipeline.PhasePostPlan,
 			Commands:      []string{"terraci policy pull", "terraci policy check"},
-			ArtifactPaths: []string{filepath.Join(serviceDir, resultsFile)},
+			Artifact:      pipeline.ResultArtifact(jobName, filepath.Join(serviceDir, resultsFile), filepath.Join(serviceDir, reportFile)),
 			DependsOnPlan: true,
 			AllowFailure:  allowFailure,
 		}},

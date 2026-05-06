@@ -10,8 +10,9 @@ type ScriptConfig struct {
 	DetailedPlan bool // true when MR/PR integration needs plan.txt + plan.json
 }
 
-// NewPlanOperation creates a typed terraform plan operation plus artifact paths.
-func (sc ScriptConfig) NewPlanOperation(modulePath string) (op Operation, artifactPaths []string) {
+// NewPlanOperation creates a typed terraform plan operation plus the artifact
+// that must restore plan files at their original workspace-relative paths.
+func (sc ScriptConfig) NewPlanOperation(jobName, modulePath string) (op Operation, artifact Artifact) {
 	op = Operation{
 		Type: OperationTypeTerraformPlan,
 		Terraform: &TerraformOperation{
@@ -22,14 +23,14 @@ func (sc ScriptConfig) NewPlanOperation(modulePath string) (op Operation, artifa
 		},
 	}
 
-	artifactPaths = []string{op.Terraform.PlanFile}
+	artifactPaths := []string{op.Terraform.PlanFile}
 	if sc.DetailedPlan {
 		op.Terraform.PlanTextFile = modulePath + "/plan.txt"
 		op.Terraform.PlanJSONFile = modulePath + "/plan.json"
 		artifactPaths = append(artifactPaths, op.Terraform.PlanTextFile, op.Terraform.PlanJSONFile)
 	}
 
-	return op, artifactPaths
+	return op, PlanArtifact(jobName, artifactPaths)
 }
 
 // NewApplyOperation creates a typed terraform apply operation.

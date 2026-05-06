@@ -65,7 +65,7 @@ func TestScriptConfig_PlanScript(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			op, artifacts := tt.config.NewPlanOperation(modulePath)
+			op, artifact := tt.config.NewPlanOperation("plan-svc-prod-us-east-1-vpc", modulePath)
 			script := RenderOperation(op)
 
 			// First command is always cd
@@ -107,19 +107,19 @@ func TestScriptConfig_PlanScript(t *testing.T) {
 				t.Error("expected simple plan command")
 			}
 
-			if len(artifacts) != tt.wantArtifactCount {
-				t.Errorf("artifact count = %d, want %d", len(artifacts), tt.wantArtifactCount)
+			if len(artifact.Paths) != tt.wantArtifactCount {
+				t.Errorf("artifact count = %d, want %d", len(artifact.Paths), tt.wantArtifactCount)
 			}
 			// First artifact is always plan.tfplan
-			if artifacts[0] != modulePath+"/plan.tfplan" {
-				t.Errorf("first artifact = %q, want %s/plan.tfplan", artifacts[0], modulePath)
+			if artifact.Paths[0] != modulePath+"/plan.tfplan" {
+				t.Errorf("first artifact = %q, want %s/plan.tfplan", artifact.Paths[0], modulePath)
 			}
 			if tt.wantDetailedCmds {
-				if artifacts[1] != modulePath+"/plan.txt" {
-					t.Errorf("second artifact = %q, want %s/plan.txt", artifacts[1], modulePath)
+				if artifact.Paths[1] != modulePath+"/plan.txt" {
+					t.Errorf("second artifact = %q, want %s/plan.txt", artifact.Paths[1], modulePath)
 				}
-				if artifacts[2] != modulePath+"/plan.json" {
-					t.Errorf("third artifact = %q, want %s/plan.json", artifacts[2], modulePath)
+				if artifact.Paths[2] != modulePath+"/plan.json" {
+					t.Errorf("third artifact = %q, want %s/plan.json", artifact.Paths[2], modulePath)
 				}
 			}
 		})

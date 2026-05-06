@@ -30,8 +30,8 @@ func NewGenerator(cfg *configpkg.Config, execCfg execution.Config, ir *pipeline.
 	return &Generator{
 		settings:     cfgSettings,
 		stagePlanner: newStagePlanner(cfgSettings, index),
-		jobBuilder: newJobBuilder(cfgSettings, index, func(job *domain.Job, jobType configpkg.JobOverwriteType) {
-			applyResolvedJobConfig(cfgSettings, job, jobType)
+		jobBuilder: newJobBuilder(cfgSettings, index, func(job *domain.Job, jobType configpkg.JobOverwriteType) error {
+			return applyResolvedJobConfig(cfgSettings, job, jobType)
 		}),
 		contributionIndex: index,
 		ir:                ir,
@@ -43,7 +43,7 @@ func (g *Generator) Generate() (pipeline.GeneratedPipeline, error) {
 	if g.ir == nil {
 		return &domain.Pipeline{Jobs: map[string]*domain.Job{}}, nil
 	}
-	return g.transform(g.ir), nil
+	return g.transform(g.ir)
 }
 
 // DryRun returns a summary of the bound IR without rendering YAML.
@@ -56,7 +56,7 @@ func (g *Generator) DryRun() (*pipeline.DryRunResult, error) {
 	return result, nil
 }
 
-func (g *Generator) transform(ir *pipeline.IR) *domain.Pipeline {
+func (g *Generator) transform(ir *pipeline.IR) (*domain.Pipeline, error) {
 	effectiveImage := g.settings.defaultImage()
 
 	result := &domain.Pipeline{
@@ -76,10 +76,18 @@ func (g *Generator) transform(ir *pipeline.IR) *domain.Pipeline {
 	for _, level := range ir.Levels {
 		for _, mj := range level.Modules {
 			if mj.Plan != nil {
-				result.Jobs[mj.Plan.Name] = g.jobBuilder.planJob(mj.Plan, mj.Module, level.Index, prefix)
+				job, err := g.jobBuilder.planJob(mj.Plan, mj.Module, level.Index, prefix)
+				if err != nil {
+					return nil, err
+				}
+				result.Jobs[mj.Plan.Name] = job
 			}
 			if mj.Apply != nil {
-				result.Jobs[mj.Apply.Name] = g.jobBuilder.applyJob(mj.Apply, mj.Module, level.Index, prefix)
+				job, err := g.jobBuilder.applyJob(mj.Apply, mj.Module, level.Index, prefix)
+				if err != nil {
+					return nil, err
+				}
+				result.Jobs[mj.Apply.Name] = job
 			}
 		}
 	}
@@ -87,7 +95,10 @@ func (g *Generator) transform(ir *pipeline.IR) *domain.Pipeline {
 	if g.contributionIndex.hasContributedJobs() {
 		for i := range ir.Jobs {
 			cj := &ir.Jobs[i]
-			job := g.jobBuilder.contributedJob(cj)
+			job, err := g.jobBuilder.contributedJob(cj)
+			if err != nil {
+				return nil, err
+			}
 			if cj.Phase == pipeline.PhaseFinalize {
 				g.jobBuilder.applySummaryOverrides(job)
 			}
@@ -95,7 +106,7 @@ func (g *Generator) transform(ir *pipeline.IR) *domain.Pipeline {
 		}
 	}
 
-	return result
+	return result, nil
 }
 
 // IsMREnabled returns true if MR integration is enabled in config.

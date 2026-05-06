@@ -40,6 +40,6 @@ func libraryPathsFromConfig(cfg *config.Config) []string {
 }
 
 // ApplyFilters applies config and CLI filters to a module list.
-func ApplyFilters(cfg *config.Config, ff *filter.Flags, modules []*discovery.Module) []*discovery.Module {
+func ApplyFilters(cfg *config.Config, ff *filter.Flags, modules []*discovery.Module) ([]*discovery.Module, error) {
 	return filter.Apply(modules, MergedFilterOptions(cfg, ff))
 }

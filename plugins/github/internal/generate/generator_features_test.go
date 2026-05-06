@@ -103,6 +103,116 @@ func TestGenerate_ContributedJobOverwriteByName(t *testing.T) {
 	}
 }
 
+func TestGenerate_PlanAndApplyJobOverwritesUseResolvedProfile(t *testing.T) {
+	module := createTestModule("platform", "stage", "eu-central-1", "vpc")
+	workflow := newGeneratorScenario(t).
+		withConfig(func(cfg *configpkg.Config) {
+			cfg.JobDefaults = &configpkg.JobDefaults{
+				RunsOn:      "default-runner",
+				Container:   &configpkg.Image{Name: "default:latest"},
+				Env:         map[string]string{"DEFAULT": "true", "SHARED": "default"},
+				StepsBefore: []configpkg.ConfigStep{{Name: "Default setup", Run: "echo default setup"}},
+				StepsAfter:  []configpkg.ConfigStep{{Name: "Default cleanup", Run: "echo default cleanup"}},
+			}
+			cfg.Overwrites = []configpkg.JobOverwrite{
+				{
+					Type:        configpkg.OverwriteTypePlan,
+					RunsOn:      "plan-runner",
+					Container:   &configpkg.Image{Name: "plan:latest"},
+					Env:         map[string]string{"PLAN": "true", "SHARED": "plan"},
+					StepsBefore: []configpkg.ConfigStep{{Name: "Plan setup", Run: "echo plan setup"}},
+					StepsAfter:  []configpkg.ConfigStep{{Name: "Plan cleanup", Run: "echo plan cleanup"}},
+				},
+				{
+					Type:        configpkg.OverwriteTypeApply,
+					RunsOn:      "apply-runner",
+					Env:         map[string]string{"APPLY": "true"},
+					StepsBefore: []configpkg.ConfigStep{{Name: "Apply setup", Run: "echo apply setup"}},
+				},
+			}
+		}).
+		withModules(module).
+		withDependencies(map[string][]string{module.ID(): {}}).
+		generate()
+
+	assertWorkflow(t, workflow).
+		job("plan-platform-stage-eu-central-1-vpc").
+		runsOn("plan-runner").
+		containerImage("plan:latest").
+		env("DEFAULT", "true").
+		env("SHARED", "plan").
+		env("PLAN", "true").
+		env("TF_MODULE", "vpc").
+		stepNamed("Default setup").
+		stepNamed("Plan setup").
+		stepNamed("Default cleanup").
+		stepNamed("Plan cleanup")
+
+	assertWorkflow(t, workflow).
+		job("apply-platform-stage-eu-central-1-vpc").
+		runsOn("apply-runner").
+		containerImage("default:latest").
+		env("DEFAULT", "true").
+		env("SHARED", "default").
+		env("APPLY", "true").
+		env("TF_MODULE", "vpc").
+		stepNamed("Default setup").
+		stepNamed("Apply setup").
+		stepNamed("Default cleanup")
+}
+
+func TestGenerate_ContributedJobAppliesAllMatchingOverwritesInOrder(t *testing.T) {
+	module := createTestModule("platform", "stage", "eu-central-1", "vpc")
+	workflow := newGeneratorScenario(t).
+		withConfig(func(cfg *configpkg.Config) {
+			cfg.JobDefaults = &configpkg.JobDefaults{
+				RunsOn:      "default-runner",
+				Container:   &configpkg.Image{Name: "default:latest"},
+				Env:         map[string]string{"DEFAULT": "true", "SHARED": "default"},
+				StepsBefore: []configpkg.ConfigStep{{Name: "Default setup", Run: "echo default setup"}},
+			}
+			cfg.Overwrites = []configpkg.JobOverwrite{
+				{
+					Type:        "cost-estimation",
+					RunsOn:      "first-runner",
+					Container:   &configpkg.Image{Name: "first:latest"},
+					Env:         map[string]string{"FIRST": "true", "SHARED": "first"},
+					StepsBefore: []configpkg.ConfigStep{{Name: "First setup", Run: "echo first setup"}},
+				},
+				{
+					Type:       "cost-estimation",
+					RunsOn:     "second-runner",
+					Env:        map[string]string{"SECOND": "true", "SHARED": "second"},
+					StepsAfter: []configpkg.ConfigStep{{Name: "Second cleanup", Run: "echo second cleanup"}},
+				},
+			}
+		}).
+		withContributions([]*pipeline.Contribution{{
+			Jobs: []pipeline.ContributedJob{{
+				Name:          "cost-estimation",
+				Phase:         pipeline.PhasePostPlan,
+				Commands:      []string{"terraci cost"},
+				DependsOnPlan: true,
+				AllowFailure:  true,
+			}},
+		}}).
+		withModules(module).
+		withDependencies(map[string][]string{module.ID(): {}}).
+		generate()
+
+	assertWorkflow(t, workflow).
+		job("cost-estimation").
+		runsOn("second-runner").
+		containerImage("first:latest").
+		env("DEFAULT", "true").
+		env("FIRST", "true").
+		env("SECOND", "true").
+		env("SHARED", "second").
+		stepNamed("Default setup").
+		stepNamed("First setup").
+		stepNamed("Second cleanup")
+}
+
 func TestGenerate_WithPolicy(t *testing.T) {
 	module := createTestModule("platform", "stage", "eu-central-1", "vpc")
 	workflow := newGeneratorScenario(t).
@@ -111,7 +221,7 @@ func TestGenerate_WithPolicy(t *testing.T) {
 				Name:          "policy-check",
 				Phase:         pipeline.PhasePostPlan,
 				Commands:      []string{"terraci policy pull", "terraci policy check"},
-				ArtifactPaths: []string{".terraci/policy-results.json"},
+				Artifact:      pipeline.ResultArtifact("policy-check", ".terraci/policy-results.json", ".terraci/policy-report.json"),
 				DependsOnPlan: true,
 				AllowFailure:  false,
 			}},
@@ -124,4 +234,49 @@ func TestGenerate_WithPolicy(t *testing.T) {
 		hasJob("policy-check").
 		job("policy-check").
 		hasNeed("plan-platform-stage-eu-central-1-vpc")
+}
+
+func TestGenerate_ArtifactRestoreContract(t *testing.T) {
+	module := createTestModule("platform", "stage", "eu-central-1", "vpc")
+	planName := "plan-platform-stage-eu-central-1-vpc"
+	planArtifact := pipeline.PlanArtifactName(planName)
+	resultArtifact := pipeline.ResultArtifact("cost-estimation", ".terraci/cost-results.json", ".terraci/cost-report.json")
+
+	workflow := newGeneratorScenario(t).
+		withContributions([]*pipeline.Contribution{{
+			RequiresDetailedPlan: true,
+			Jobs: []pipeline.ContributedJob{{
+				Name:          "cost-estimation",
+				Phase:         pipeline.PhasePostPlan,
+				Commands:      []string{"terraci cost"},
+				Artifact:      resultArtifact,
+				DependsOnPlan: true,
+				AllowFailure:  true,
+			}},
+		}}).
+		withModules(module).
+		withDependencies(map[string][]string{module.ID(): {}}).
+		generate()
+
+	assertWorkflow(t, workflow).
+		job(planName).
+		stepNamed("Stage plan artifacts").
+		stepRunContains(".terraci/artifacts/"+planArtifact+"/").
+		stepRunContains("plan.json").
+		stepWith("Upload plan artifacts", "name", planArtifact).
+		stepWith("Upload plan artifacts", "path", ".terraci/artifacts/"+planArtifact+"/").
+		stepWith("Upload plan artifacts", "include-hidden-files", "true")
+
+	assertWorkflow(t, workflow).
+		job("apply-platform-stage-eu-central-1-vpc").
+		stepWith("Download plan artifacts", "name", planArtifact).
+		stepWith("Download plan artifacts", "path", ".")
+
+	assertWorkflow(t, workflow).
+		job("cost-estimation").
+		stepWith("Download all plan artifacts", "pattern", pipeline.ArtifactNamePattern()).
+		stepWith("Download all plan artifacts", "path", ".").
+		stepWith("Download all plan artifacts", "merge-multiple", "true").
+		stepWith("Upload cost-estimation results", "name", resultArtifact.Name).
+		stepWith("Upload cost-estimation results", "include-hidden-files", "true")
 }

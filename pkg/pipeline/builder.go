@@ -51,8 +51,8 @@ func Build(opts BuildOptions) (*IR, error) {
 
 			// Plan job
 			if opts.PlanEnabled {
-				planOperation, artifactPaths := opts.Script.NewPlanOperation(mod.RelativePath)
 				planName := JobName(JobKindPlan, mod)
+				planOperation, artifact := opts.Script.NewPlanOperation(planName, mod.RelativePath)
 
 				// Resolve plan dependencies
 				var planDeps []string
@@ -63,13 +63,13 @@ func Build(opts BuildOptions) (*IR, error) {
 				}
 
 				mj.Plan = &Job{
-					Name:          planName,
-					Module:        mod,
-					Env:           env,
-					Dependencies:  planDeps,
-					ArtifactPaths: artifactPaths,
-					Steps:         filterSteps(allSteps, PhasePrePlan, PhasePostPlan),
-					Operation:     planOperation,
+					Name:         planName,
+					Module:       mod,
+					Env:          env,
+					Dependencies: planDeps,
+					Artifact:     artifact,
+					Steps:        filterSteps(allSteps, PhasePrePlan, PhasePostPlan),
+					Operation:    planOperation,
 				}
 			}
 
@@ -107,10 +107,10 @@ func Build(opts BuildOptions) (*IR, error) {
 	irJobs := make([]Job, 0, len(allContributedJobs))
 	for _, cj := range allContributedJobs {
 		job := Job{
-			Name:          cj.Name,
-			Phase:         cj.Phase,
-			ArtifactPaths: cj.ArtifactPaths,
-			AllowFailure:  cj.AllowFailure,
+			Name:         cj.Name,
+			Phase:        cj.Phase,
+			Artifact:     cj.Artifact,
+			AllowFailure: cj.AllowFailure,
 			Operation: Operation{
 				Type:     OperationTypeCommands,
 				Commands: append([]string(nil), cj.Commands...),

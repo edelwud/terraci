@@ -10,11 +10,13 @@
 package filter
 
 import (
+	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/edelwud/terraci/pkg/discovery"
+	"github.com/edelwud/terraci/pkg/pathmatch"
 )
 
 // moduleFilter is the internal predicate over modules that all concrete
@@ -75,7 +77,7 @@ type Options struct {
 	Segments map[string][]string // segment name → allowed values (e.g. "service" → ["platform"])
 }
 
-// Matcher is a precompiled filter predicate. Build one with Options.Compile()
+// Matcher is a validated filter predicate. Build one with Options.Compile()
 // to amortize filter construction across many module checks — callers that
 // invoke Apply on slice-of-1 inside a loop can hoist Compile() out and reuse
 // the Matcher in the inner loop.
@@ -95,9 +97,28 @@ func (m Matcher) Matches(module *discovery.Module) bool {
 	return matchAll(m.filters, module)
 }
 
+// Validate checks filter options before they are compiled.
+func (o Options) Validate() error {
+	for i, pattern := range o.Excludes {
+		if err := pathmatch.ValidateGlob(pattern); err != nil {
+			return fmt.Errorf("exclude[%d]: %w", i, err)
+		}
+	}
+	for i, pattern := range o.Includes {
+		if err := pathmatch.ValidateGlob(pattern); err != nil {
+			return fmt.Errorf("include[%d]: %w", i, err)
+		}
+	}
+	return nil
+}
+
 // Compile builds a reusable Matcher from Options. Equivalent to extracting
 // the internal filter list once instead of rebuilding it per Apply call.
-func (o Options) Compile() Matcher {
+func (o Options) Compile() (Matcher, error) {
+	if err := o.Validate(); err != nil {
+		return Matcher{}, err
+	}
+
 	var filters []moduleFilter
 	if len(o.Excludes) > 0 || len(o.Includes) > 0 {
 		filters = append(filters, globFilter{excludes: o.Excludes, includes: o.Includes})
@@ -107,15 +128,18 @@ func (o Options) Compile() Matcher {
 			filters = append(filters, segmentFilter{segment: segment, values: values})
 		}
 	}
-	return Matcher{filters: filters}
+	return Matcher{filters: filters}, nil
 }
 
 // Apply applies all configured filters to modules. Returns the input slice
 // unchanged when no filter criteria are set.
-func Apply(modules []*discovery.Module, opts Options) []*discovery.Module {
-	matcher := opts.Compile()
+func Apply(modules []*discovery.Module, opts Options) ([]*discovery.Module, error) {
+	matcher, err := opts.Compile()
+	if err != nil {
+		return nil, err
+	}
 	if matcher.Empty() {
-		return modules
+		return modules, nil
 	}
 
 	result := make([]*discovery.Module, 0, len(modules))
@@ -124,7 +148,7 @@ func Apply(modules []*discovery.Module, opts Options) []*discovery.Module {
 			result = append(result, m)
 		}
 	}
-	return result
+	return result, nil
 }
 
 func matchAll(filters []moduleFilter, module *discovery.Module) bool {
@@ -149,60 +173,6 @@ func ParseSegmentFilters(args []string) map[string][]string {
 
 // matchGlob provides extended glob matching with ** support.
 func matchGlob(pattern, path string) bool {
-	if strings.Contains(pattern, "**") {
-		return matchDoubleStarGlob(pattern, path)
-	}
-	matched, _ := filepath.Match(pattern, path) //nolint:errcheck
-	return matched
-}
-
-func matchDoubleStarGlob(pattern, path string) bool {
-	parts := strings.Split(pattern, "**")
-	if len(parts) == 1 {
-		matched, _ := filepath.Match(pattern, path) //nolint:errcheck
-		return matched
-	}
-
-	if prefix := strings.TrimSuffix(parts[0], "/"); prefix != "" {
-		if !strings.HasPrefix(path, prefix) && !matchSegments(prefix, path, true) {
-			return false
-		}
-		path = strings.TrimPrefix(strings.TrimPrefix(path, prefix), "/")
-	}
-
-	if suffix := strings.TrimPrefix(parts[len(parts)-1], "/"); suffix != "" {
-		if !strings.HasSuffix(path, suffix) && !matchSegments(suffix, path, false) {
-			return false
-		}
-	}
-
-	for i := 1; i < len(parts)-1; i++ {
-		if middle := strings.Trim(parts[i], "/"); middle != "" && !strings.Contains(path, middle) {
-			return false
-		}
-	}
-
-	return true
-}
-
-func matchSegments(pattern, path string, prefix bool) bool {
-	patternParts := strings.Split(pattern, "/")
-	pathParts := strings.Split(path, "/")
-
-	if len(patternParts) > len(pathParts) {
-		return false
-	}
-
-	offset := 0
-	if !prefix {
-		offset = len(pathParts) - len(patternParts)
-	}
-
-	for i, pp := range patternParts {
-		matched, _ := filepath.Match(pp, pathParts[offset+i]) //nolint:errcheck
-		if !matched {
-			return false
-		}
-	}
-	return true
+	matched, err := pathmatch.MatchGlob(pattern, path)
+	return err == nil && matched
 }

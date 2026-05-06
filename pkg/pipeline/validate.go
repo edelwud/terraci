@@ -3,6 +3,7 @@ package pipeline
 import (
 	"errors"
 	"fmt"
+	"slices"
 )
 
 // Validate verifies that the IR contains a closed, addressable job graph.
@@ -24,6 +25,9 @@ func (ir *IR) Validate() error {
 		if _, exists := byName[job.Name]; exists {
 			return fmt.Errorf("pipeline IR contains duplicate job name %q", job.Name)
 		}
+		if err := validateArtifact(job); err != nil {
+			return err
+		}
 		byName[job.Name] = job
 	}
 
@@ -40,6 +44,22 @@ func (ir *IR) Validate() error {
 	}
 
 	return validateAcyclicJobs(refs, byName)
+}
+
+func validateArtifact(job *Job) error {
+	if job.Artifact.Name == "" && len(job.Artifact.Paths) == 0 {
+		return nil
+	}
+	if job.Artifact.Name == "" {
+		return fmt.Errorf("pipeline job %q has artifact paths without artifact name", job.Name)
+	}
+	if len(job.Artifact.Paths) == 0 {
+		return fmt.Errorf("pipeline job %q has artifact %q without paths", job.Name, job.Artifact.Name)
+	}
+	if slices.Contains(job.Artifact.Paths, "") {
+		return fmt.Errorf("pipeline job %q has artifact %q with empty path", job.Name, job.Artifact.Name)
+	}
+	return nil
 }
 
 func validateAcyclicJobs(refs []JobRef, byName map[string]*Job) error {

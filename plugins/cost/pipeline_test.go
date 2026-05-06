@@ -39,9 +39,12 @@ func TestPlugin_PipelineContribution(t *testing.T) {
 		t.Errorf("job.Commands = %v, want [terraci cost]", job.Commands)
 	}
 
-	wantArtifact := filepath.Join(".terraci", resultsFile)
-	if len(job.ArtifactPaths) != 1 || job.ArtifactPaths[0] != wantArtifact {
-		t.Errorf("job.ArtifactPaths = %v, want [%s]", job.ArtifactPaths, wantArtifact)
+	if job.Artifact.Name != pipeline.ResultArtifactName(jobName) {
+		t.Errorf("job.Artifact.Name = %q, want %q", job.Artifact.Name, pipeline.ResultArtifactName(jobName))
+	}
+	wantPaths := []string{filepath.Join(".terraci", resultsFile), filepath.Join(".terraci", reportFile)}
+	if !sameStrings(job.Artifact.Paths, wantPaths) {
+		t.Errorf("job.Artifact.Paths = %v, want %v", job.Artifact.Paths, wantPaths)
 	}
 }
 
@@ -62,8 +65,9 @@ func TestPlugin_PipelineContribution_EmptyServiceDir(t *testing.T) {
 	contrib := p.PipelineContribution(appCtx)
 	job := contrib.Jobs[0]
 
-	if len(job.ArtifactPaths) != 1 || job.ArtifactPaths[0] != resultsFile {
-		t.Errorf("job.ArtifactPaths = %v, want [%s]", job.ArtifactPaths, resultsFile)
+	wantPaths := []string{resultsFile, reportFile}
+	if !sameStrings(job.Artifact.Paths, wantPaths) {
+		t.Errorf("job.Artifact.Paths = %v, want %v", job.Artifact.Paths, wantPaths)
 	}
 }
 
@@ -76,4 +80,16 @@ func TestPlugin_PipelineContribution_NoSteps(t *testing.T) {
 	if len(contrib.Steps) != 0 {
 		t.Errorf("steps count = %d, want 0 (cost plugin contributes jobs, not steps)", len(contrib.Steps))
 	}
+}
+
+func sameStrings(got, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			return false
+		}
+	}
+	return true
 }

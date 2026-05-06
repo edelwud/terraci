@@ -94,11 +94,14 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 
 	executable, libraries := splitLibraries(allModules)
 
-	filtered := filter.Apply(executable, filter.Options{
+	filtered, err := filter.Apply(executable, filter.Options{
 		Excludes: opts.Excludes,
 		Includes: opts.Includes,
 		Segments: opts.SegmentFilters,
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	if len(filtered) != len(executable) {
 		log.WithField("before", len(executable)).WithField("after", len(filtered)).Info("filtered modules")

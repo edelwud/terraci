@@ -187,6 +187,10 @@ func TestGenerator_DetailedPlanForcedByContribution(t *testing.T) {
 	if !hasPlanJSON {
 		t.Errorf("RequiresDetailedPlan did not emit plan.json; artifacts=%v", planJob.Artifacts.Paths)
 	}
+	planName := "plan-platform-stage-eu-central-1-vpc"
+	if planJob.Artifacts.Name != pipeline.PlanArtifactName(planName) {
+		t.Errorf("plan artifact name = %q, want %q", planJob.Artifacts.Name, pipeline.PlanArtifactName(planName))
+	}
 }
 
 func TestGenerator_Generate_WithArtifacts(t *testing.T) {
@@ -249,7 +253,7 @@ func TestGenerator_Generate_WithPolicyCheck(t *testing.T) {
 			Name:          "policy-check",
 			Phase:         pipeline.PhasePostPlan,
 			Commands:      []string{"terraci policy pull", "terraci policy check"},
-			ArtifactPaths: []string{".terraci/policy-results.json"},
+			Artifact:      pipeline.ResultArtifact("policy-check", ".terraci/policy-results.json", ".terraci/policy-report.json"),
 			DependsOnPlan: true,
 			AllowFailure:  false,
 		}},
@@ -295,5 +299,19 @@ func TestGenerator_Generate_WithPolicyCheck(t *testing.T) {
 	}
 	if len(policyJob.Needs) == 0 {
 		t.Error("expected policy-check job to have needs")
+	}
+	for _, need := range policyJob.Needs {
+		if need.Artifacts == nil || !*need.Artifacts {
+			t.Fatalf("need %#v does not explicitly enable artifacts", need)
+		}
+	}
+	if policyJob.Artifacts == nil {
+		t.Fatal("policy-check artifacts missing")
+	}
+	if policyJob.Artifacts.Name != pipeline.ResultArtifactName("policy-check") {
+		t.Fatalf("policy-check artifact name = %q, want %q", policyJob.Artifacts.Name, pipeline.ResultArtifactName("policy-check"))
+	}
+	if !slices.Contains(policyJob.Artifacts.Paths, ".terraci/policy-report.json") {
+		t.Fatalf("policy-check artifact paths = %v, want policy report", policyJob.Artifacts.Paths)
 	}
 }

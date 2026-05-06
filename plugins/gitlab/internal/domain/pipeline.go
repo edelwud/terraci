@@ -108,8 +108,9 @@ type Cache struct {
 
 // JobNeed represents a job dependency.
 type JobNeed struct {
-	Job      string `yaml:"job"`
-	Optional bool   `yaml:"optional,omitempty"`
+	Job       string `yaml:"job"`
+	Optional  bool   `yaml:"optional,omitempty"`
+	Artifacts *bool  `yaml:"artifacts,omitempty"`
 }
 
 // Rule represents a job or workflow rule.

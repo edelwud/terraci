@@ -82,6 +82,46 @@ func TestBuild_PlanOnly(t *testing.T) {
 	}
 }
 
+func TestBuild_PlanArtifactContract(t *testing.T) {
+	t.Parallel()
+
+	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
+	modules := []*discovery.Module{mod}
+	depGraph := buildGraph(modules, nil)
+	index := discovery.NewModuleIndex(modules)
+
+	ir, err := Build(BuildOptions{
+		DepGraph:      depGraph,
+		TargetModules: modules,
+		AllModules:    modules,
+		ModuleIndex:   index,
+		Script:        ScriptConfig{PlanEnabled: true, DetailedPlan: true},
+		PlanEnabled:   true,
+		PlanOnly:      true,
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+
+	planJob := ir.Levels[0].Modules[0].Plan
+	if planJob.Artifact.Name != PlanArtifactName(planJob.Name) {
+		t.Fatalf("plan artifact name = %q, want %q", planJob.Artifact.Name, PlanArtifactName(planJob.Name))
+	}
+	wantPaths := []string{
+		"svc/prod/eu/vpc/plan.tfplan",
+		"svc/prod/eu/vpc/plan.txt",
+		"svc/prod/eu/vpc/plan.json",
+	}
+	if len(planJob.Artifact.Paths) != len(wantPaths) {
+		t.Fatalf("plan artifact paths = %v, want %v", planJob.Artifact.Paths, wantPaths)
+	}
+	for i := range wantPaths {
+		if planJob.Artifact.Paths[i] != wantPaths[i] {
+			t.Fatalf("plan artifact path %d = %q, want %q", i, planJob.Artifact.Paths[i], wantPaths[i])
+		}
+	}
+}
+
 func TestBuild_PlanDisabled(t *testing.T) {
 	t.Parallel()
 
@@ -209,6 +249,51 @@ func TestBuild_ContributedJobDeps(t *testing.T) {
 	}
 	if !hasDep {
 		t.Errorf("contributed job should depend on %s", planName)
+	}
+}
+
+func TestBuild_ContributedJobPreservesResultArtifact(t *testing.T) {
+	t.Parallel()
+
+	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
+	modules := []*discovery.Module{mod}
+	depGraph := buildGraph(modules, nil)
+	index := discovery.NewModuleIndex(modules)
+
+	artifact := ResultArtifact("policy-check", ".terraci/policy-results.json", ".terraci/policy-report.json")
+	ir, err := Build(BuildOptions{
+		DepGraph:      depGraph,
+		TargetModules: modules,
+		AllModules:    modules,
+		ModuleIndex:   index,
+		Script:        ScriptConfig{PlanEnabled: true},
+		Contributions: []*Contribution{{
+			Jobs: []ContributedJob{{
+				Name:     "policy-check",
+				Phase:    PhasePostPlan,
+				Commands: []string{"terraci policy check"},
+				Artifact: artifact,
+			}},
+		}},
+		PlanEnabled: true,
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+
+	if len(ir.Jobs) != 1 {
+		t.Fatalf("contributed jobs = %d, want 1", len(ir.Jobs))
+	}
+	if ir.Jobs[0].Artifact.Name != artifact.Name {
+		t.Fatalf("artifact name = %q, want %q", ir.Jobs[0].Artifact.Name, artifact.Name)
+	}
+	if len(ir.Jobs[0].Artifact.Paths) != len(artifact.Paths) {
+		t.Fatalf("artifact paths = %v, want %v", ir.Jobs[0].Artifact.Paths, artifact.Paths)
+	}
+	for i := range artifact.Paths {
+		if ir.Jobs[0].Artifact.Paths[i] != artifact.Paths[i] {
+			t.Fatalf("artifact path %d = %q, want %q", i, ir.Jobs[0].Artifact.Paths[i], artifact.Paths[i])
+		}
 	}
 }
 

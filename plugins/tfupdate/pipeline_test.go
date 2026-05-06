@@ -2,6 +2,7 @@ package tfupdate
 
 import (
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/pipeline"
@@ -40,9 +41,12 @@ func TestPlugin_PipelineContribution(t *testing.T) {
 		t.Errorf("job.Commands = %v, want [terraci tfupdate]", job.Commands)
 	}
 
-	wantArtifact := filepath.Join(".terraci", resultsFile)
-	if len(job.ArtifactPaths) != 1 || job.ArtifactPaths[0] != wantArtifact {
-		t.Errorf("job.ArtifactPaths = %v, want [%s]", job.ArtifactPaths, wantArtifact)
+	if job.Artifact.Name != pipeline.ResultArtifactName("tfupdate-check") {
+		t.Errorf("job.Artifact.Name = %q, want %q", job.Artifact.Name, pipeline.ResultArtifactName("tfupdate-check"))
+	}
+	wantPaths := []string{filepath.Join(".terraci", resultsFile), filepath.Join(".terraci", reportFile)}
+	if !slices.Equal(job.Artifact.Paths, wantPaths) {
+		t.Errorf("job.Artifact.Paths = %v, want %v", job.Artifact.Paths, wantPaths)
 	}
 }
 
@@ -83,8 +87,9 @@ func TestPlugin_PipelineContribution_EmptyServiceDir(t *testing.T) {
 	contrib := p.PipelineContribution(appCtx)
 	job := contrib.Jobs[0]
 
-	if len(job.ArtifactPaths) != 1 || job.ArtifactPaths[0] != resultsFile {
-		t.Errorf("job.ArtifactPaths = %v, want [%s]", job.ArtifactPaths, resultsFile)
+	wantPaths := []string{resultsFile, reportFile}
+	if !slices.Equal(job.Artifact.Paths, wantPaths) {
+		t.Errorf("job.Artifact.Paths = %v, want %v", job.Artifact.Paths, wantPaths)
 	}
 }
 

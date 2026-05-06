@@ -93,6 +93,22 @@ func (a *jobAssert) environment(expected string) *jobAssert {
 	return a
 }
 
+func (a *jobAssert) runsOn(expected string) *jobAssert {
+	a.t.Helper()
+	if a.job.RunsOn != expected {
+		a.t.Fatalf("expected job %q runs-on=%q, got %q", a.name, expected, a.job.RunsOn)
+	}
+	return a
+}
+
+func (a *jobAssert) env(name, expected string) *jobAssert {
+	a.t.Helper()
+	if got := a.job.Env[name]; got != expected {
+		a.t.Fatalf("expected job %q env %s=%q, got %q", a.name, name, expected, got)
+	}
+	return a
+}
+
 func (a *jobAssert) containerImage(expected string) *jobAssert {
 	a.t.Helper()
 	if a.job.Container == nil {
@@ -134,5 +150,20 @@ func (a *jobAssert) stepNamed(name string) *jobAssert {
 		}
 	}
 	a.t.Fatalf("expected job %q to have step named %q", a.name, name)
+	return a
+}
+
+func (a *jobAssert) stepWith(stepName, key, expected string) *jobAssert {
+	a.t.Helper()
+	for _, step := range a.job.Steps {
+		if step.Name != stepName {
+			continue
+		}
+		if step.With[key] != expected {
+			a.t.Fatalf("expected job %q step %q with %s=%q, got %q", a.name, stepName, key, expected, step.With[key])
+		}
+		return a
+	}
+	a.t.Fatalf("expected job %q to have step named %q", a.name, stepName)
 	return a
 }

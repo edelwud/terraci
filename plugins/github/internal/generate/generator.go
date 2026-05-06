@@ -27,7 +27,7 @@ func (g *Generator) Generate() (pipeline.GeneratedPipeline, error) {
 	if g.ir == nil {
 		return &domainpkg.Workflow{Jobs: map[string]*domainpkg.Job{}}, nil
 	}
-	return g.transform(g.ir), nil
+	return g.transform(g.ir)
 }
 
 func (g *Generator) DryRun() (*pipeline.DryRunResult, error) {
@@ -41,25 +41,36 @@ func (g *Generator) IsPREnabled() bool {
 	return g.settings.prEnabled()
 }
 
-func (g *Generator) transform(ir *pipeline.IR) *domainpkg.Workflow {
+func (g *Generator) transform(ir *pipeline.IR) (*domainpkg.Workflow, error) {
 	workflow := newWorkflowBuilder(g.settings).baseWorkflow()
 	builder := newJobBuilder(g.settings)
 
 	for _, level := range ir.Levels {
 		for _, moduleJobs := range level.Modules {
 			if moduleJobs.Plan != nil {
-				workflow.Jobs[moduleJobs.Plan.Name] = builder.planJob(moduleJobs.Plan, moduleJobs.Module)
+				job, err := builder.planJob(moduleJobs.Plan, moduleJobs.Module)
+				if err != nil {
+					return nil, err
+				}
+				workflow.Jobs[moduleJobs.Plan.Name] = job
 			}
 			if moduleJobs.Apply != nil {
-				workflow.Jobs[moduleJobs.Apply.Name] = builder.applyJob(moduleJobs.Apply, moduleJobs.Module)
+				job, err := builder.applyJob(moduleJobs.Apply, moduleJobs.Module)
+				if err != nil {
+					return nil, err
+				}
+				workflow.Jobs[moduleJobs.Apply.Name] = job
 			}
 		}
 	}
 
 	for i := range ir.Jobs {
-		job := builder.contributedJob(&ir.Jobs[i])
+		job, err := builder.contributedJob(&ir.Jobs[i])
+		if err != nil {
+			return nil, err
+		}
 		workflow.Jobs[ir.Jobs[i].Name] = job
 	}
 
-	return workflow
+	return workflow, nil
 }

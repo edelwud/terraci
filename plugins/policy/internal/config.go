@@ -3,8 +3,8 @@ package policyengine
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
-	"strings"
+
+	"github.com/edelwud/terraci/pkg/config/overwrite"
 )
 
 // Config defines configuration for OPA policy checks
@@ -92,41 +92,47 @@ type Overwrite struct {
 
 // GetEffectiveConfig returns the effective policy config for a module path
 // by applying overwrites that match the path
-func (p *Config) GetEffectiveConfig(modulePath string) *Config {
+func (p *Config) GetEffectiveConfig(modulePath string) (*Config, error) {
 	if p == nil {
-		return nil
+		return nil, nil
 	}
 
 	// Start with base config
-	effective := &Config{
+	effective := Config{
 		Enabled:    p.Enabled,
 		Namespaces: p.Namespaces,
 		OnFailure:  p.OnFailure,
 		OnWarning:  p.OnWarning,
+		Sources:    p.Sources,
+		CacheDir:   p.CacheDir,
 	}
 
-	// Apply matching overwrites in order
-	for _, ow := range p.Overwrites {
-		matched, err := matchGlob(ow.Match, modulePath)
-		if err != nil || !matched {
-			continue
-		}
-
-		if ow.Enabled != nil {
-			effective.Enabled = *ow.Enabled
-		}
-		if len(ow.Namespaces) > 0 {
-			effective.Namespaces = ow.Namespaces
-		}
-		if ow.OnFailure != "" {
-			effective.OnFailure = ow.OnFailure
-		}
-		if ow.OnWarning != "" {
-			effective.OnWarning = ow.OnWarning
-		}
+	if err := overwrite.ApplyMatching(
+		&effective,
+		modulePath,
+		p.Overwrites,
+		overwrite.ByPathGlob(func(ow *Overwrite) string { return ow.Match }),
+		applyPolicyOverwrite,
+	); err != nil {
+		return nil, err
 	}
 
-	return effective
+	return &effective, nil
+}
+
+func applyPolicyOverwrite(effective *Config, ow *Overwrite) {
+	if ow.Enabled != nil {
+		effective.Enabled = *ow.Enabled
+	}
+	if len(ow.Namespaces) > 0 {
+		effective.Namespaces = ow.Namespaces
+	}
+	if ow.OnFailure != "" {
+		effective.OnFailure = ow.OnFailure
+	}
+	if ow.OnWarning != "" {
+		effective.OnWarning = ow.OnWarning
+	}
 }
 
 // Validate checks if the policy configuration is valid
@@ -146,6 +152,9 @@ func (p *Config) Validate() error {
 		if ow.Match == "" {
 			return fmt.Errorf("overwrites[%d].match is required", i)
 		}
+		if err := overwrite.ValidatePathGlob(ow.Match); err != nil {
+			return fmt.Errorf("overwrites[%d].match: %w", i, err)
+		}
 		if ow.OnFailure != "" && ow.OnFailure != ActionBlock && ow.OnFailure != ActionWarn {
 			return fmt.Errorf("overwrites[%d].on_failure must be 'block' or 'warn'", i)
 		}
@@ -155,63 +164,4 @@ func (p *Config) Validate() error {
 	}
 
 	return nil
-}
-
-// matchGlob matches a glob pattern against a path, supporting ** for multi-segment matching.
-func matchGlob(pattern, path string) (bool, error) {
-	// Handle ** pattern (matches any number of path segments)
-	if strings.Contains(pattern, "**") {
-		parts := strings.Split(pattern, "**")
-		remaining := path
-
-		for i, part := range parts {
-			part = strings.Trim(part, "/")
-			if part == "" {
-				continue
-			}
-			switch {
-			case i == 0:
-				// First part must be a prefix
-				if !strings.HasPrefix(remaining, part) {
-					return false, nil
-				}
-				remaining = strings.TrimPrefix(remaining, part)
-				remaining = strings.TrimPrefix(remaining, "/")
-			case i == len(parts)-1:
-				// Last part must be a suffix
-				if !strings.HasSuffix(remaining, part) {
-					return false, nil
-				}
-			default:
-				// Middle parts must exist somewhere
-				if !strings.Contains(remaining, part) {
-					return false, nil
-				}
-				idx := strings.Index(remaining, part)
-				remaining = remaining[idx+len(part):]
-				remaining = strings.TrimPrefix(remaining, "/")
-			}
-		}
-
-		return true, nil
-	}
-
-	// Handle * in each segment (filepath.Match only matches single segments)
-	patternParts := strings.Split(pattern, "/")
-	pathParts := strings.Split(path, "/")
-
-	if len(patternParts) != len(pathParts) {
-		return false, nil
-	}
-
-	for i, pp := range patternParts {
-		matched, err := filepath.Match(pp, pathParts[i])
-		if err != nil {
-			return false, err
-		}
-		if !matched {
-			return false, nil
-		}
-	}
-	return true, nil
 }
