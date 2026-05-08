@@ -1,7 +1,6 @@
 package cost
 
 import (
-	"encoding/json"
 	"io"
 	"slices"
 
@@ -9,11 +8,12 @@ import (
 
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/view"
+	"github.com/edelwud/terraci/plugins/internal/cliout"
 )
 
 func outputResult(w io.Writer, workDir, outputFmt string, result *model.EstimateResult) error {
 	if outputFmt == "json" {
-		return outputJSONResult(w, result)
+		return cliout.WriteJSON(w, result)
 	}
 
 	// Text output uses the structured logger (pkg/log) for rich rendering.
@@ -21,12 +21,6 @@ func outputResult(w io.Writer, workDir, outputFmt string, result *model.Estimate
 	// provide a testable seam for JSON output only.
 	outputTextResult(workDir, result)
 	return nil
-}
-
-func outputJSONResult(w io.Writer, result *model.EstimateResult) error {
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	return enc.Encode(result)
 }
 
 func outputTextResult(workDir string, result *model.EstimateResult) {

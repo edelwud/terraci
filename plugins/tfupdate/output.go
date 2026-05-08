@@ -1,20 +1,18 @@
 package tfupdate
 
 import (
-	"encoding/json"
 	"io"
 
 	log "github.com/caarlos0/log"
 
+	"github.com/edelwud/terraci/plugins/internal/cliout"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
 	"github.com/edelwud/terraci/plugins/tfupdate/internal/domain"
 )
 
 func outputResult(w io.Writer, format string, result *tfupdateengine.UpdateResult) error {
 	if format == "json" {
-		enc := json.NewEncoder(w)
-		enc.SetIndent("", "  ")
-		return enc.Encode(result)
+		return cliout.WriteJSON(w, result)
 	}
 
 	outputLog(result)

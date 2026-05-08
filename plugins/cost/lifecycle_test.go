@@ -169,19 +169,6 @@ func TestPlugin_Runtime_DefaultsToDiskblob(t *testing.T) {
 	}
 }
 
-func TestPlugin_Runtime_RejectsLegacyCacheDir(t *testing.T) {
-	p := newTestPlugin(t)
-	enablePlugin(t, p, &model.CostConfig{
-		CacheDir:  t.TempDir(),
-		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
-	})
-
-	_, err := p.Runtime(context.Background(), newTestAppContext(t, t.TempDir()))
-	if err == nil || !strings.Contains(err.Error(), "extensions.cost.cache_dir is no longer supported") {
-		t.Fatalf("Runtime() error = %v, want unsupported cache_dir error", err)
-	}
-}
-
 func TestPlugin_Runtime_UnknownBlobBackend(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &model.CostConfig{

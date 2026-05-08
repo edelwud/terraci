@@ -159,8 +159,15 @@ func TestPlugin_BuildInitConfig_NonDefaultBump(t *testing.T) {
 	if contrib == nil {
 		t.Fatal("BuildInitConfig() returned nil")
 	}
-	if contrib.Config["bump"] != "patch" {
-		t.Errorf("Config[bump] = %v, want 'patch'", contrib.Config["bump"])
+	if _, ok := contrib.Config["bump"]; ok {
+		t.Error("Config should not contain top-level 'bump' (legacy key); want nested policy.bump")
+	}
+	policy, ok := contrib.Config["policy"].(map[string]any)
+	if !ok {
+		t.Fatalf("Config[policy] = %v, want map with bump", contrib.Config["policy"])
+	}
+	if policy["bump"] != "patch" {
+		t.Errorf("Config[policy][bump] = %v, want 'patch'", policy["bump"])
 	}
 }
 
@@ -194,8 +201,11 @@ func TestPlugin_BuildInitConfig_AllDefaults(t *testing.T) {
 	if _, ok := contrib.Config["target"]; ok {
 		t.Error("Config should not contain 'target' when it's the default 'all'")
 	}
+	if _, ok := contrib.Config["policy"]; ok {
+		t.Error("Config should not contain 'policy' when bump is the default 'minor'")
+	}
 	if _, ok := contrib.Config["bump"]; ok {
-		t.Error("Config should not contain 'bump' when it's the default 'minor'")
+		t.Error("Config should never contain top-level 'bump' (legacy key)")
 	}
 	if _, ok := contrib.Config["pipeline"]; ok {
 		t.Error("Config should not contain 'pipeline' when not set to true")

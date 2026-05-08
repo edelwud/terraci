@@ -29,9 +29,6 @@ const (
 	DefaultMetadataCacheTTL       = 6 * time.Hour
 	DefaultReadTimeout            = 5 * time.Minute
 	DefaultWriteTimeout           = 20 * time.Minute
-
-	DefaultCacheNamespace = DefaultMetadataCacheNamespace
-	DefaultCacheTTL       = DefaultMetadataCacheTTL
 )
 
 // UpdateConfig defines configuration for the tfupdate plugin.
@@ -45,10 +42,6 @@ type UpdateConfig struct {
 	Registries RegistryConfig `yaml:"registries,omitempty" json:"registries,omitempty"` //nolint:modernize // omitzero unsupported by yaml/v4
 	Lock       LockConfig     `yaml:"lock,omitempty" json:"lock,omitempty"`             //nolint:modernize // omitzero unsupported by yaml/v4
 	Cache      *CacheConfig   `yaml:"cache,omitempty" json:"cache,omitempty"`
-
-	Bump                string   `yaml:"-" json:"-"`
-	Pin                 bool     `yaml:"-" json:"-"`
-	LegacyLockPlatforms []string `yaml:"-" json:"-"`
 }
 
 type UpdatePolicy struct {
@@ -66,9 +59,6 @@ type LockConfig struct {
 }
 
 type CacheConfig struct {
-	Backend   string              `yaml:"backend,omitempty" json:"backend,omitempty" jsonschema:"description=Legacy metadata cache backend plugin name"`
-	TTL       string              `yaml:"ttl,omitempty" json:"ttl,omitempty" jsonschema:"description=Legacy metadata cache ttl"`
-	Namespace string              `yaml:"namespace,omitempty" json:"namespace,omitempty" jsonschema:"description=Legacy metadata cache namespace"`
 	Metadata  MetadataCacheConfig `yaml:"metadata,omitempty" json:"metadata,omitempty"`   //nolint:modernize // omitzero unsupported by yaml/v4
 	Artifacts ArtifactCacheConfig `yaml:"artifacts,omitempty" json:"artifacts,omitempty"` //nolint:modernize // omitzero unsupported by yaml/v4
 }
@@ -168,17 +158,11 @@ func (c *UpdateConfig) BumpPolicy() string {
 	if c == nil {
 		return ""
 	}
-	if c.Policy.Bump != "" {
-		return c.Policy.Bump
-	}
-	if c.Bump != "" {
-		return c.Bump
-	}
 	return c.Policy.Bump
 }
 
 func (c *UpdateConfig) PinEnabled() bool {
-	return c != nil && (c.Policy.Pin || c.Pin)
+	return c != nil && c.Policy.Pin
 }
 
 func (c *UpdateConfig) ProviderRegistryHost(source string) string {
@@ -198,16 +182,10 @@ func (c *UpdateConfig) DefaultRegistryHost() string {
 }
 
 func (c *UpdateConfig) LockPlatforms() []string {
-	if c == nil {
+	if c == nil || len(c.Lock.Platforms) == 0 {
 		return nil
 	}
-	if len(c.Lock.Platforms) > 0 {
-		return slices.Clone(c.Lock.Platforms)
-	}
-	if len(c.LegacyLockPlatforms) > 0 {
-		return slices.Clone(c.LegacyLockPlatforms)
-	}
-	return nil
+	return slices.Clone(c.Lock.Platforms)
 }
 
 // MetadataCacheBackend returns the configured KV cache backend, or empty to
@@ -216,26 +194,14 @@ func (c *UpdateConfig) MetadataCacheBackend() string {
 	if c == nil || c.Cache == nil {
 		return ""
 	}
-	if c.Cache.Metadata.Backend != "" {
-		return c.Cache.Metadata.Backend
-	}
-	if c.Cache.Backend != "" {
-		return c.Cache.Backend
-	}
-	return ""
+	return c.Cache.Metadata.Backend
 }
 
 func (c *UpdateConfig) MetadataCacheNamespace() string {
-	if c == nil || c.Cache == nil {
+	if c == nil || c.Cache == nil || c.Cache.Metadata.Namespace == "" {
 		return DefaultMetadataCacheNamespace
 	}
-	if c.Cache.Metadata.Namespace != "" {
-		return c.Cache.Metadata.Namespace
-	}
-	if c.Cache.Namespace != "" {
-		return c.Cache.Namespace
-	}
-	return DefaultMetadataCacheNamespace
+	return c.Cache.Metadata.Namespace
 }
 
 func (c *UpdateConfig) MetadataCacheTTL() time.Duration {
@@ -269,15 +235,8 @@ func (c *UpdateConfig) CacheMetadataTTLRaw() string {
 	if c == nil || c.Cache == nil {
 		return ""
 	}
-	if c.Cache.Metadata.TTL != "" {
-		return c.Cache.Metadata.TTL
-	}
-	return c.Cache.TTL
+	return c.Cache.Metadata.TTL
 }
-
-func (c *UpdateConfig) CacheBackend() string    { return c.MetadataCacheBackend() }
-func (c *UpdateConfig) CacheNamespace() string  { return c.MetadataCacheNamespace() }
-func (c *UpdateConfig) CacheTTL() time.Duration { return c.MetadataCacheTTL() }
 
 func (c *UpdateConfig) CommandTimeout(write bool) time.Duration {
 	if c != nil && c.Timeout != "" {

@@ -68,7 +68,7 @@ provider "registry.terraform.io/hashicorp/aws" {
 
 	solver := New(context.Background(), &tfupdateengine.UpdateConfig{
 		Target: tfupdateengine.TargetAll,
-		Bump:   tfupdateengine.BumpMinor,
+		Policy: tfupdateengine.UpdatePolicy{Bump: tfupdateengine.BumpMinor},
 	}, &mockRegistry{
 		moduleVersions: map[string][]string{
 			"terraform-aws-modules/vpc/aws": {"5.0.0", "5.1.0"},
@@ -125,7 +125,7 @@ module "vpc" {
 
 	solver := New(context.Background(), &tfupdateengine.UpdateConfig{
 		Target: tfupdateengine.TargetAll,
-		Bump:   tfupdateengine.BumpMinor,
+		Policy: tfupdateengine.UpdatePolicy{Bump: tfupdateengine.BumpMinor},
 	}, &mockRegistry{
 		moduleVersions: map[string][]string{
 			"terraform-aws-modules/vpc/aws": {"5.0.0", "5.1.0"},
@@ -194,7 +194,7 @@ module "vpc" {
 
 	solver := New(context.Background(), &tfupdateengine.UpdateConfig{
 		Target: tfupdateengine.TargetModules,
-		Bump:   tfupdateengine.BumpMinor,
+		Policy: tfupdateengine.UpdatePolicy{Bump: tfupdateengine.BumpMinor},
 	}, &mockRegistry{
 		moduleVersions: map[string][]string{
 			"terraform-aws-modules/vpc/aws": {"5.0.0", "5.1.0"},
@@ -253,7 +253,7 @@ module "vpc" {
 
 	solver := New(context.Background(), &tfupdateengine.UpdateConfig{
 		Target: tfupdateengine.TargetProviders,
-		Bump:   tfupdateengine.BumpMinor,
+		Policy: tfupdateengine.UpdatePolicy{Bump: tfupdateengine.BumpMinor},
 	}, &mockRegistry{
 		moduleVersions: map[string][]string{
 			"terraform-aws-modules/vpc/aws": {"5.0.0", "5.1.0"},

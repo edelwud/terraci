@@ -13,23 +13,17 @@ const pluginName = "github"
 
 func init() {
 	registry.RegisterFactory(func() plugin.Plugin {
-		return &Plugin{
-			BasePlugin: newBasePlugin(),
-		}
+		return &Plugin{BasePlugin: plugin.BasePlugin[*configpkg.Config]{
+			PluginName: pluginName,
+			PluginDesc: "GitHub Actions pipeline generation and PR comments",
+			EnableMode: plugin.EnabledWhenConfigured,
+			DefaultCfg: func() *configpkg.Config {
+				return &configpkg.Config{
+					RunsOn: "ubuntu-latest",
+				}
+			},
+		}}
 	})
-}
-
-func newBasePlugin() plugin.BasePlugin[*configpkg.Config] {
-	return plugin.BasePlugin[*configpkg.Config]{
-		PluginName: pluginName,
-		PluginDesc: "GitHub Actions pipeline generation and PR comments",
-		EnableMode: plugin.EnabledWhenConfigured,
-		DefaultCfg: func() *configpkg.Config {
-			return &configpkg.Config{
-				RunsOn: "ubuntu-latest",
-			}
-		},
-	}
 }
 
 // Plugin is the GitHub Actions plugin.

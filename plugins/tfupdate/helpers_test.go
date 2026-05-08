@@ -74,7 +74,7 @@ func newTestPlugin(t *testing.T) *Plugin {
 			DefaultCfg: func() *tfupdateengine.UpdateConfig {
 				return &tfupdateengine.UpdateConfig{
 					Target: tfupdateengine.TargetAll,
-					Bump:   tfupdateengine.BumpMinor,
+					Policy: tfupdateengine.UpdatePolicy{Bump: tfupdateengine.BumpMinor},
 				}
 			},
 			IsEnabledFn: func(cfg *tfupdateengine.UpdateConfig) bool {

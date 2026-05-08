@@ -23,7 +23,7 @@ func TestUpdateConfig_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &UpdateConfig{Target: tt.target, Bump: tt.bump}
+			cfg := &UpdateConfig{Target: tt.target, Policy: UpdatePolicy{Bump: tt.bump}}
 			err := cfg.Validate()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
@@ -97,37 +97,39 @@ func TestUpdateConfig_IsIgnored(t *testing.T) {
 	}
 }
 
-func TestUpdateConfig_CacheDefaults(t *testing.T) {
+func TestUpdateConfig_MetadataCacheDefaults(t *testing.T) {
 	cfg := &UpdateConfig{}
 
-	if got := cfg.CacheBackend(); got != "" {
-		t.Fatalf("CacheBackend() = %q, want empty auto-select backend", got)
+	if got := cfg.MetadataCacheBackend(); got != "" {
+		t.Fatalf("MetadataCacheBackend() = %q, want empty auto-select backend", got)
 	}
-	if got := cfg.CacheNamespace(); got != DefaultCacheNamespace {
-		t.Fatalf("CacheNamespace() = %q, want %q", got, DefaultCacheNamespace)
+	if got := cfg.MetadataCacheNamespace(); got != DefaultMetadataCacheNamespace {
+		t.Fatalf("MetadataCacheNamespace() = %q, want %q", got, DefaultMetadataCacheNamespace)
 	}
-	if got := cfg.CacheTTL(); got != DefaultCacheTTL {
-		t.Fatalf("CacheTTL() = %v, want %v", got, DefaultCacheTTL)
+	if got := cfg.MetadataCacheTTL(); got != DefaultMetadataCacheTTL {
+		t.Fatalf("MetadataCacheTTL() = %v, want %v", got, DefaultMetadataCacheTTL)
 	}
 }
 
-func TestUpdateConfig_CacheOverrides(t *testing.T) {
+func TestUpdateConfig_MetadataCacheOverrides(t *testing.T) {
 	cfg := &UpdateConfig{
 		Cache: &CacheConfig{
-			Backend:   "redis",
-			Namespace: "custom/update",
-			TTL:       "2h",
+			Metadata: MetadataCacheConfig{
+				Backend:   "redis",
+				Namespace: "custom/update",
+				TTL:       "2h",
+			},
 		},
 	}
 
-	if got := cfg.CacheBackend(); got != "redis" {
-		t.Fatalf("CacheBackend() = %q, want %q", got, "redis")
+	if got := cfg.MetadataCacheBackend(); got != "redis" {
+		t.Fatalf("MetadataCacheBackend() = %q, want %q", got, "redis")
 	}
-	if got := cfg.CacheNamespace(); got != "custom/update" {
-		t.Fatalf("CacheNamespace() = %q, want %q", got, "custom/update")
+	if got := cfg.MetadataCacheNamespace(); got != "custom/update" {
+		t.Fatalf("MetadataCacheNamespace() = %q, want %q", got, "custom/update")
 	}
-	if got := cfg.CacheTTL(); got != 2*time.Hour {
-		t.Fatalf("CacheTTL() = %v, want %v", got, 2*time.Hour)
+	if got := cfg.MetadataCacheTTL(); got != 2*time.Hour {
+		t.Fatalf("MetadataCacheTTL() = %v, want %v", got, 2*time.Hour)
 	}
 }
 

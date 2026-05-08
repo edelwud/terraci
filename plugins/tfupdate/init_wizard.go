@@ -91,7 +91,7 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribut
 		cfg["target"] = target
 	}
 	if bump := state.String(keyUpdateBump); bump != "" && bump != "minor" {
-		cfg["bump"] = bump
+		cfg["policy"] = map[string]any{"bump": bump}
 	}
 	if state.Bool(keyUpdatePipeline) {
 		cfg["pipeline"] = true

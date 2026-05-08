@@ -1,20 +1,18 @@
 package policy
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 
 	log "github.com/caarlos0/log"
 
+	"github.com/edelwud/terraci/plugins/internal/cliout"
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
 
 func outputResult(w io.Writer, format string, summary *policyengine.Summary, shouldBlock bool) error {
 	if format == "json" {
-		enc := json.NewEncoder(w)
-		enc.SetIndent("", "  ")
-		return enc.Encode(summary)
+		return cliout.WriteJSON(w, summary)
 	}
 
 	return outputText(summary, shouldBlock)

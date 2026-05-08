@@ -1,16 +1,13 @@
 package model
 
 import (
-	"errors"
 	"fmt"
 	"time"
 )
 
 type CostConfig struct {
-	CacheDir      string              `yaml:"cache_dir,omitempty" json:"cache_dir,omitempty" jsonschema:"description=Deprecated and unsupported; configure the selected blob backend instead"`
-	BlobCache     *BlobCacheConfig    `yaml:"blob_cache,omitempty" json:"blob_cache,omitempty" jsonschema:"description=Blob cache backend selection for pricing data"`
-	Providers     CostProvidersConfig `yaml:"providers" json:"providers"`
-	LegacyEnabled *bool               `yaml:"enabled,omitempty" json:"-"`
+	BlobCache *BlobCacheConfig    `yaml:"blob_cache,omitempty" json:"blob_cache,omitempty" jsonschema:"description=Blob cache backend selection for pricing data"`
+	Providers CostProvidersConfig `yaml:"providers" json:"providers"`
 }
 
 // BlobCacheConfig selects a blob backend for pricing data.
@@ -48,12 +45,6 @@ func (c *CostConfig) HasEnabledProviders() bool {
 
 // Validate checks if the CostConfig values are valid.
 func (c *CostConfig) Validate() error {
-	if c.LegacyEnabled != nil {
-		return errors.New("extensions.cost.enabled is no longer supported; use extensions.cost.providers.aws.enabled")
-	}
-	if c.CacheDir != "" {
-		return errors.New("extensions.cost.cache_dir is no longer supported; configure the selected blob backend instead")
-	}
 	if c.BlobCache != nil && c.BlobCache.TTL != "" {
 		if _, err := time.ParseDuration(c.BlobCache.TTL); err != nil {
 			return fmt.Errorf("invalid blob_cache.ttl %q: %w", c.BlobCache.TTL, err)

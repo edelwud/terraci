@@ -171,7 +171,9 @@ func TestPlugin_Runtime_UnknownCacheBackend(t *testing.T) {
 	enablePlugin(t, p, &tfupdateengine.UpdateConfig{
 		Enabled: true,
 		Cache: &tfupdateengine.CacheConfig{
-			Backend: "missing-backend",
+			Metadata: tfupdateengine.MetadataCacheConfig{
+				Backend: "missing-backend",
+			},
 		},
 	})
 	useMockRegistry(p, &mockRegistry{})
