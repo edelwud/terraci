@@ -1,5 +1,5 @@
 // Package summary provides the summary plugin for TerraCi.
-// It registers a pipeline contributor (PhaseFinalize) and the `terraci summary` command.
+// It registers a pipeline contributor and the `terraci summary` command.
 package summary
 
 import (

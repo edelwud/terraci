@@ -8,7 +8,7 @@ import (
 	"github.com/edelwud/terraci/plugins/localexec/internal/spec"
 )
 
-// ExecutionMode determines which pipeline phases to execute.
+// ExecutionMode determines which local pipeline shape to execute.
 type ExecutionMode = spec.ExecutionMode
 
 const (

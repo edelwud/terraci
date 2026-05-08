@@ -16,25 +16,18 @@ const (
 // bound at construction time — the IR carries every module + contribution
 // the pipeline should render.
 type Generator struct {
-	settings          settings
-	stagePlanner      stagePlanner
-	jobBuilder        jobBuilder
-	contributionIndex contributionIndex
-	ir                *pipeline.IR
+	settings     settings
+	stagePlanner stagePlanner
+	ir           *pipeline.IR
 }
 
 // NewGenerator creates a new GitLab pipeline generator bound to the supplied IR.
 func NewGenerator(cfg *configpkg.Config, execCfg execution.Config, ir *pipeline.IR) *Generator {
 	cfgSettings := newSettings(cfg, execCfg)
-	index := newContributionIndexFromIR(ir)
 	return &Generator{
 		settings:     cfgSettings,
-		stagePlanner: newStagePlanner(cfgSettings, index),
-		jobBuilder: newJobBuilder(cfgSettings, index, func(job *domain.Job, jobType configpkg.JobOverwriteType) error {
-			return applyResolvedJobConfig(cfgSettings, job, jobType)
-		}),
-		contributionIndex: index,
-		ir:                ir,
+		stagePlanner: newStagePlanner(cfgSettings),
+		ir:           ir,
 	}
 }
 
@@ -51,16 +44,24 @@ func (g *Generator) DryRun() (*pipeline.DryRunResult, error) {
 	if g.ir == nil {
 		return &pipeline.DryRunResult{}, nil
 	}
+	plan, err := g.stagePlanner.plan(g.ir)
+	if err != nil {
+		return nil, err
+	}
 	result := g.ir.DryRun(g.ir.ModuleCount())
-	result.Stages = len(g.stagePlanner.stages(g.ir))
+	result.Stages = len(plan.stages)
 	return result, nil
 }
 
 func (g *Generator) transform(ir *pipeline.IR) (*domain.Pipeline, error) {
 	effectiveImage := g.settings.defaultImage()
+	stagePlan, err := g.stagePlanner.plan(ir)
+	if err != nil {
+		return nil, err
+	}
 
 	result := &domain.Pipeline{
-		Stages:    g.stagePlanner.stages(ir),
+		Stages:    stagePlan.stages,
 		Variables: g.settings.variables(),
 		Default: &domain.DefaultConfig{
 			Image: &domain.ImageConfig{
@@ -72,48 +73,16 @@ func (g *Generator) transform(ir *pipeline.IR) (*domain.Pipeline, error) {
 		Workflow: g.generateWorkflow(),
 	}
 
-	prefix := g.stagesPrefix()
-	for _, level := range ir.Levels {
-		for _, mj := range level.Modules {
-			if mj.Plan != nil {
-				job, err := g.jobBuilder.planJob(mj.Plan, mj.Module, level.Index, prefix)
-				if err != nil {
-					return nil, err
-				}
-				result.Jobs[mj.Plan.Name] = job
-			}
-			if mj.Apply != nil {
-				job, err := g.jobBuilder.applyJob(mj.Apply, mj.Module, level.Index, prefix)
-				if err != nil {
-					return nil, err
-				}
-				result.Jobs[mj.Apply.Name] = job
-			}
+	builder := newJobBuilder(g.settings, stagePlan.stageByJob, func(job *domain.Job, jobType configpkg.JobOverwriteType) error {
+		return applyResolvedJobConfig(g.settings, job, jobType)
+	})
+	for _, ref := range ir.JobRefs() {
+		job, err := builder.renderJob(ref.Job)
+		if err != nil {
+			return nil, err
 		}
-	}
-
-	if g.contributionIndex.hasContributedJobs() {
-		for i := range ir.Jobs {
-			cj := &ir.Jobs[i]
-			job, err := g.jobBuilder.contributedJob(cj)
-			if err != nil {
-				return nil, err
-			}
-			if cj.Phase == pipeline.PhaseFinalize {
-				g.jobBuilder.applySummaryOverrides(job)
-			}
-			result.Jobs[cj.Name] = job
-		}
+		result.Jobs[ref.Job.Name] = job
 	}
 
 	return result, nil
-}
-
-// IsMREnabled returns true if MR integration is enabled in config.
-func (g *Generator) IsMREnabled() bool {
-	return g.settings.mrCommentEnabled()
-}
-
-func (g *Generator) stagesPrefix() string {
-	return g.settings.stagesPrefix()
 }

@@ -9,87 +9,30 @@ import (
 	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
 )
 
-func TestContributionIndexBuildsStageLookup(t *testing.T) {
-	index := newContributionIndex([]*pipeline.Contribution{
-		{
-			Jobs: []pipeline.ContributedJob{
-				{Name: "policy-check", Phase: pipeline.PhasePostPlan},
-				{Name: "summary", Phase: pipeline.PhaseFinalize},
-			},
-		},
-	})
+func TestStagePlannerUsesDAGLayers(t *testing.T) {
+	t.Parallel()
 
-	if !index.hasContributedJobs() {
-		t.Fatal("expected contribution index to report jobs")
-	}
-	if got := index.stageFor("policy-check"); got != pipeline.PhasePostPlan.String() {
-		t.Fatalf("stageFor(policy-check) = %q", got)
-	}
-	if got := index.stageFor("summary"); got != pipeline.PhaseFinalize.String() {
-		t.Fatalf("stageFor(summary) = %q", got)
-	}
-}
-
-func TestStagePlannerPlacesContributedStagesAfterPlanAndFinalizeLast(t *testing.T) {
-	planner := newStagePlanner(
-		newSettings(&configpkg.Config{}, execution.Config{
-			Binary:      "terraform",
-			InitEnabled: true,
-			PlanEnabled: true,
-			PlanMode:    execution.PlanModeStandard,
-			Parallelism: 4,
-		}),
-		newContributionIndex([]*pipeline.Contribution{
-			{
-				Jobs: []pipeline.ContributedJob{
-					{Name: "policy-check", Phase: pipeline.PhasePostPlan},
-					{Name: "summary", Phase: pipeline.PhaseFinalize},
-				},
-			},
-		}),
-	)
-
+	planner := newStagePlanner(newSettings(&configpkg.Config{}, execution.Config{PlanEnabled: true}))
 	ir := &pipeline.IR{
-		Levels: []pipeline.Level{{Index: 0}, {Index: 1}},
+		Levels: []pipeline.Level{
+			{Index: 0, Modules: []pipeline.ModuleJobs{{Plan: &pipeline.Job{Name: "plan-0"}, Apply: &pipeline.Job{Name: "apply-0", Dependencies: []pipeline.JobDependency{{Job: "plan-0"}}}}}},
+			{Index: 1, Modules: []pipeline.ModuleJobs{{Plan: &pipeline.Job{Name: "plan-1", Dependencies: []pipeline.JobDependency{{Job: "apply-0"}}}, Apply: &pipeline.Job{Name: "apply-1", Dependencies: []pipeline.JobDependency{{Job: "plan-1"}}}}}},
+		},
+		Jobs: []pipeline.Job{
+			{Name: "policy-check", Dependencies: []pipeline.JobDependency{{Job: "plan-1"}}},
+			{Name: "summary", Dependencies: []pipeline.JobDependency{{Job: "policy-check"}, {Job: "apply-1"}}},
+		},
 	}
 
-	got := planner.stages(ir)
-	want := []string{
-		"deploy-plan-0",
-		"deploy-apply-0",
-		"deploy-plan-1",
-		"post-plan",
-		"deploy-apply-1",
-		"finalize",
+	got, err := planner.plan(ir)
+	if err != nil {
+		t.Fatalf("plan() error = %v", err)
 	}
-
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("stages() = %#v, want %#v", got, want)
+	wantStages := []string{"deploy-0", "deploy-1", "deploy-2", "deploy-3", "deploy-4"}
+	if !reflect.DeepEqual(got.stages, wantStages) {
+		t.Fatalf("stages = %#v, want %#v", got.stages, wantStages)
 	}
-}
-
-func TestStagePlannerAppendsContributionsWhenNoPlanStagesExist(t *testing.T) {
-	planner := newStagePlanner(
-		newSettings(&configpkg.Config{}, execution.Config{
-			Binary:      "terraform",
-			InitEnabled: true,
-			PlanEnabled: false,
-			PlanMode:    execution.PlanModeStandard,
-			Parallelism: 4,
-		}),
-		newContributionIndex([]*pipeline.Contribution{
-			{
-				Jobs: []pipeline.ContributedJob{
-					{Name: "summary", Phase: pipeline.PhaseFinalize},
-				},
-			},
-		}),
-	)
-
-	ir := &pipeline.IR{Levels: []pipeline.Level{{Index: 0}}}
-	got := planner.stages(ir)
-	want := []string{"deploy-apply-0", "finalize"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("stages() = %#v, want %#v", got, want)
+	if got.stageByJob["summary"] != "deploy-4" {
+		t.Fatalf("summary stage = %q, want deploy-4", got.stageByJob["summary"])
 	}
 }

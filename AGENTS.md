@@ -79,11 +79,11 @@ pkg/                            # Public API — importable by external plugins 
 │   │   └── types.go            # InitContributor, InitGroupSpec, InitField, FieldType
 │   └── plugintest/             # Shared plugin-facing test helpers + mock doubles + NoopResolver
 ├── pipeline/                   # Plugin-agnostic pipeline IR
-│   ├── types.go                # IR, Level, ModuleJobs, Job, Step, Phase, Operation, TerraformOperation, Contribution, ContributedJob, Stage* string constants
+│   ├── types.go                # IR, Level, ModuleJobs, Job, Operation, TerraformOperation, Contribution, ContributedJob
 │   ├── builder.go              # Build(opts) — constructs provider-agnostic pipeline IR
 │   ├── pipeline.go             # Generator interface (Generate()/DryRun() — IR bound at construction)
 │   ├── common.go               # JobPlan, JobName, ResolveDependencyNames, IR.DryRun
-│   ├── jobs.go                 # IR.JobRefs / JobsByPhase / PlanJobsForLevel / ApplyJobsForLevel
+│   ├── jobs.go                 # IR.JobRefs / PlanJobsForLevel / ApplyJobsForLevel
 │   ├── env.go                  # ModuleEnvVars
 │   ├── scripts.go              # ScriptConfig, NewPlanOperation, NewApplyOperation (IR construction only)
 │   └── cishell/                # Shell renderer — keeps shell-specific knowledge out of the IR
@@ -93,7 +93,7 @@ pkg/                            # Public API — importable by external plugins 
 │   │                           #   Report (Producer/Title/Status/Summary/Provenance/Sections), ReportSection (opaque Payload), EncodeSection/DecodeSection generics, OverviewSection/ModuleTableSection/FindingsSection/DependencyUpdatesSection payloads
 │   ├── plan.go                 # PlanResult (canonical for both in-memory + persisted), PlanResultCollection, PlanStatus
 │   ├── service.go              # CommentService
-│   └── shared.go               # Image, MRCommentConfig, CommentMarker
+│   └── shared.go               # Image, CommentMarker
 ├── cache/blobcache/            # Blob store contract + cache layer (owns Store/Meta/Object/PutOptions/Info/Inspector/Describer/HealthChecker, Describe, Check, Cache, Policy)
 ├── config/
 │   ├── types_config.go         # Config (service_dir, structure, exclude, include, library_modules, extensions map[string]yaml.Node)
@@ -167,8 +167,8 @@ plugins/                        # Built-in plugins — one file per capability
 │       ├── executor.go         # Thin adapter from public contract to internal flow
 │       ├── flow/               # Use-case orchestration: workflow → targets → IR → execute → render
 │       ├── planner/            # pipeline.Build → *pipeline.IR adapter with contribution filtering
-│       ├── render/             # Progress output, summary-report loader, local CLI summary rendering
-│       ├── runner/             # Shell/Terraform runners + phase/job orchestration
+│       ├── render/             # Progress output and local CLI rendering
+│       ├── runner/             # Shell/Terraform runners + DAG job orchestration
 │       ├── spec/               # Internal validated execute request/mode types
 │       └── targeting/          # Shared workflow target-resolution adapter
 ├── diskblob/
@@ -266,7 +266,7 @@ The single `plugin.Resolver` interface combines lookup (`All`, `GetPlugin`) with
 
 ### Shared Types
 
-`pkg/ci/` contains shared CI-domain types including provider-shared config such as `Image` (with YAML shorthand) and `MRCommentConfig`. `ci.Report` is the typed file-based report contract shared by cost/policy/tfupdate/summary; reports carry optional provenance metadata for local validation. Both gitlab and github internal packages use type aliases to these.
+`pkg/ci/` contains shared CI-domain types including provider-shared config such as `Image` (with YAML shorthand). `ci.Report` is the typed file-based report contract shared by cost/policy/tfupdate/summary; reports carry optional provenance metadata for local validation. Both gitlab and github internal packages use type aliases to these.
 
 `ci.ReportSection` is a neutral envelope with an opaque `Payload json.RawMessage`. Producers call `ci.MustEncodeSection(kind, title, summary, status, body)` with a typed body (`ci.OverviewSection`, `ci.FindingsSection`, etc.); consumers call `ci.DecodeSection[T](section)`.
 
@@ -283,15 +283,12 @@ GitLab: IR → Pipeline{Stages, Jobs} → YAML
 GitHub: IR → Workflow{Jobs, Steps} → YAML
 ```
 
-The IR is the **single source** for downstream consumers — `pipeline.Generator` is constructed with an `*IR` and `Generate() (GeneratedPipeline, error)` / `DryRun() (*DryRunResult, error)` take no further arguments. Job-level access methods live on `*IR`: `JobsByPhase(phase)`, `PlanJobsForLevel(idx)`, `ApplyJobsForLevel(idx)`, plus `JobRefs()` / `JobNames()` / `AllPlanNames()` / `ContributedJobNames()`.
+The IR is the **single source** for downstream consumers — `pipeline.Generator` is constructed with an `*IR` and `Generate() (GeneratedPipeline, error)` / `DryRun() (*DryRunResult, error)` take no further arguments. Job-level access methods live on `*IR`: `JobRefs()`, `PlanJobsForLevel(idx)`, `ApplyJobsForLevel(idx)`, plus `JobNames()` / `AllPlanNames()` / `ContributedJobNames()`.
 
 Shell rendering (`cd module && ${TERRAFORM_BINARY} init && plan -out=…`) lives in `pkg/pipeline/cishell` (`cishell.RenderOperation(op)`) — never in the IR package itself. Providers driving Terraform via tfexec instead of shell don't need cishell.
 
 Plugins contribute via `PipelineContributor.PipelineContribution(ctx)`:
-- `Contribution.Steps` — injected into plan/apply jobs (PrePlan/PostPlan/PreApply/PostApply)
-- `Contribution.Jobs` — standalone jobs (e.g., policy-check after plans)
-
-Phase string names are exported as `pipeline.StagePrePlan`/`StagePostPlan`/`StagePreApply`/`StagePostApply`/`StageFinalize`.
+- `Contribution.Jobs` — standalone DAG jobs with typed resource inputs/outputs
 
 ### Provider Resolution
 
@@ -322,13 +319,13 @@ execution:
 extensions:
   gitlab:
     image: { name: hashicorp/terraform:1.6 }
-    auto_approve: false
     cache_enabled: true
     cache:
       policy: pull-push
       paths: [ "{module_path}/.terraform/" ]
-    mr:
-      comment: { enabled: true }
+
+  summary:
+    on_changes_only: false
 
   # cost:
   #   providers:
@@ -358,7 +355,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 ### Generate pipeline
 1. `workflow.Run(ctx, opts)` — scan → filter → parse → graph
 2. `ChangeDetectionProvider.DetectChangedModules()` (if --changed-only)
-3. `app.Plugins.CollectContributions(appCtx)` — gather a command-scoped snapshot of PipelineContributor steps/jobs
+3. `app.Plugins.CollectContributions(appCtx)` — gather a command-scoped snapshot of PipelineContributor jobs
 4. `pipeline.Build(opts)` — construct provider-agnostic IR
 5. `provider.NewGenerator(appCtx, ir)` — bind IR to provider; `generator.Generate()` writes YAML
 
@@ -366,17 +363,16 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 1. `planresults.Scan()` → PlanResultCollection
 2. Load reports from `{serviceDir}/*-report.json` (file-based enrichment; filename uses `report.Producer`)
 3. `summaryengine.EnrichPlans()` merges report data into plan results
-4. `summary` writes `summary-report.json` with typed sections plus report provenance/fingerprint
-5. `summaryengine.ComposeComment()` renders markdown
-6. `appCtx.Resolver().ResolveCIProvider()` → `NewCommentService()` → `UpsertComment(ctx, body)`
+4. `summaryengine.ComposeComment()` renders markdown
+5. `appCtx.Resolver().ResolveCIProvider()` → `NewCommentService()` → `UpsertComment(ctx, body)`
 
 ### Local Execution
 1. `workflow.Run(ctx, workflow.Options)` builds the canonical filtered module/graph result
 2. `workflow.ResolveTargets(...)` applies merged filters, `--module`, `--changed-only`, and affected-library expansion
 3. `localexec/internal/planner` calls `pipeline.Build(...)` to produce an `*pipeline.IR`
-4. `pkg/execution.Executor.Execute(ctx, ir)` schedules jobs with dependency-aware phase grouping
+4. `pkg/execution.Executor.Execute(ctx, ir)` schedules jobs with dependency-aware DAG grouping
 5. `localexec/internal/runner` executes shell/tfexec jobs locally
-6. `localexec/internal/render` always prints execution stage/job summary and optionally renders `summary-report.json` if its provenance matches the current plan artifacts
+6. `localexec/internal/render` prints the execution DAG/job summary
 
 ### Init wizard
 1. `initStateDefaults()` populates shared defaults (provider, binary, pattern, plan_enabled)
@@ -395,9 +391,9 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **Shell rendering separated from IR**: `pkg/pipeline/cishell.RenderOperation(op)` for shell-driven CI; the IR carries `pipeline.TerraformOperation` data only.
 - **Canonical dry-run source**: dry-run stage/job counts derive from `*IR.DryRun(totalModules)`.
 - **Preflight, then lazy runtime**: framework performs cheap startup validation; heavy plugin state is built lazily inside RuntimeProvider/use-cases
-- **PipelineContributor(ctx)**: plugins inject steps/jobs without cross-plugin imports or cached service-dir state
+- **PipelineContributor(ctx)**: plugins add standalone DAG jobs without cross-plugin imports or cached service-dir state
 - **ServiceDir**: configurable project directory; `AppContext.ServiceDir` (absolute) for runtime, `Config.ServiceDir` (relative) for pipeline templates
-- **File-based reports**: producers write `{serviceDir}/{producer}-report.json` (e.g. `cost-report.json`); summary is the canonical producer of `summary-report.json`, and localexec is only its local consumer/renderer
+- **File-based reports**: producers write `{serviceDir}/{producer}-report.json` (e.g. `cost-report.json`); summary consumes plan/report files and posts comments but does not publish a pipeline resource
 - **Report sections via opaque payload**: `ci.ReportSection.Payload` is `json.RawMessage`; producers use `ci.MustEncodeSection`, consumers use `ci.DecodeSection[T]`. Adding a new section kind requires no `pkg/ci` change.
 - **Report provenance**: persisted reports may carry producer/run provenance; local consumers should validate provenance/fingerprint when correctness depends on current workspace artifacts
 - **Zero cross-plugin imports**: plugins communicate only via `pkg/plugin` capability helpers + shared types + file-based reports
@@ -420,7 +416,7 @@ terraci init                                # Interactive wizard
 terraci init --ci --provider gitlab         # Non-interactive
 terraci cost                                # Cloud cost estimation
 terraci summary                             # Post MR/PR comment
-terraci local-exec plan                     # Local plan flow + finalize summary jobs
+terraci local-exec plan                     # Local plan DAG
 terraci local-exec run --changed-only       # Full local execution flow for changed modules
 terraci policy pull && terraci policy check # Policy checks
 terraci tfupdate                            # Terraform dependency resolution and lock synchronization

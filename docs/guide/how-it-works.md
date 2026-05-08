@@ -180,36 +180,37 @@ For each module, TerraCi generates:
 2. **Apply job**
    - Depends on plan job (`needs`)
    - Runs `terraform apply plan.tfplan`
-   - Manual trigger (if `auto_approve: false`)
+   - Can be made manual or conditional with provider overwrites
 
-### Stage Mapping
+### DAG Stage Mapping
 
-Execution levels map to GitLab stages:
+Job dependencies are topologically layered. GitLab renders those layers as
+stages:
 
 ```yaml
 stages:
-  - deploy-plan-0   # Level 0 plans
-  - deploy-apply-0  # Level 0 applies
-  - deploy-plan-1   # Level 1 plans
-  - deploy-apply-1  # Level 1 applies
+  - deploy-0
+  - deploy-1
+  - deploy-2
+  - deploy-3
 ```
 
 ### Dependency Chain
 
 ```yaml
 plan-vpc:
-  stage: deploy-plan-0
+  stage: deploy-0
 
 apply-vpc:
-  stage: deploy-apply-0
+  stage: deploy-1
   needs: [plan-vpc]
 
 plan-eks:
-  stage: deploy-plan-1
+  stage: deploy-2
   needs: [apply-vpc]  # Waits for vpc to be applied
 
 apply-eks:
-  stage: deploy-apply-1
+  stage: deploy-3
   needs: [plan-eks]
 ```
 
@@ -219,7 +220,7 @@ apply-eks:
 flowchart TD
   A["terraci generate"] --> B
   B["workflow.Run() — scan, filter, parse, graph"] --> C
-  C["resolver.CollectContributions(appCtx)"] --> D
+  C["provider.PipelineRequirements(ctx) + resolver.CollectContributions(appCtx)"] --> D
   D["pipeline.Build(opts) → *pipeline.IR"] --> E
   E{"Provider?"}
   E -->|GitLab| F["gitlab.NewGenerator(ctx, ir)"] --> G[".gitlab-ci.yml"]
@@ -231,7 +232,7 @@ Each stage:
 | Step | Function | What it does |
 |------|----------|-------------|
 | 1 | `workflow.Run()` | Scan filesystem, apply filters, parse HCL, build dependency graph |
-| 2 | `resolver.CollectContributions(appCtx)` | Gather plugin-contributed steps and standalone jobs (cost, policy, summary, tfupdate) |
+| 2 | `provider.PipelineRequirements(ctx)` + `resolver.CollectContributions(appCtx)` | Gather provider resource requirements and plugin-contributed steps/jobs |
 | 3 | `pipeline.Build(opts)` | Construct provider-agnostic IR (`*pipeline.IR{Levels, Jobs}`) — single execution input |
 | 4 | `provider.NewGenerator(ctx, ir)` + `Generate()` | Bind IR to provider; transform IR into GitLab CI YAML or GitHub Actions workflow |
 

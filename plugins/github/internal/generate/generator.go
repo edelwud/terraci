@@ -37,39 +37,16 @@ func (g *Generator) DryRun() (*pipeline.DryRunResult, error) {
 	return g.ir.DryRun(g.ir.ModuleCount()), nil
 }
 
-func (g *Generator) IsPREnabled() bool {
-	return g.settings.prEnabled()
-}
-
 func (g *Generator) transform(ir *pipeline.IR) (*domainpkg.Workflow, error) {
 	workflow := newWorkflowBuilder(g.settings).baseWorkflow()
 	builder := newJobBuilder(g.settings)
 
-	for _, level := range ir.Levels {
-		for _, moduleJobs := range level.Modules {
-			if moduleJobs.Plan != nil {
-				job, err := builder.planJob(moduleJobs.Plan, moduleJobs.Module)
-				if err != nil {
-					return nil, err
-				}
-				workflow.Jobs[moduleJobs.Plan.Name] = job
-			}
-			if moduleJobs.Apply != nil {
-				job, err := builder.applyJob(moduleJobs.Apply, moduleJobs.Module)
-				if err != nil {
-					return nil, err
-				}
-				workflow.Jobs[moduleJobs.Apply.Name] = job
-			}
-		}
-	}
-
-	for i := range ir.Jobs {
-		job, err := builder.contributedJob(&ir.Jobs[i])
+	for _, ref := range ir.JobRefs() {
+		job, err := builder.renderJob(ref.Job)
 		if err != nil {
 			return nil, err
 		}
-		workflow.Jobs[ir.Jobs[i].Name] = job
+		workflow.Jobs[ref.Job.Name] = job
 	}
 
 	return workflow, nil

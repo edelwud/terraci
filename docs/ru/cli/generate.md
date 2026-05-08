@@ -146,14 +146,14 @@ default:
 
 # Стейджи для каждого уровня выполнения
 stages:
-  - deploy-plan-0
-  - deploy-apply-0
-  - deploy-plan-1
-  - deploy-apply-1
+  - deploy-0
+  - deploy-1
+  - deploy-2
+  - deploy-3
 
 # План-джобы
 plan-service-env-region-module:
-  stage: deploy-plan-0
+  stage: deploy-0
   script:
     - cd service/env/region/module
     - ${TERRAFORM_BINARY} init
@@ -161,7 +161,7 @@ plan-service-env-region-module:
 
 # Apply-джобы
 apply-service-env-region-module:
-  stage: deploy-apply-0
+  stage: deploy-1
   needs:
     - plan-service-env-region-module
   script:

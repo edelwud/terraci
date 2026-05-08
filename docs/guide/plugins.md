@@ -92,7 +92,7 @@ Plugins implement one or more capability interfaces. The framework discovers the
 | `CommandProvider` | CLI subcommands (`terraci cost`, `terraci local-exec`, etc.) | cost, policy, summary, tfupdate, localexec |
 | `PipelineContributor` | Inject steps/jobs into pipeline IR | cost, policy, summary, tfupdate |
 | `InitContributor` | Form fields for `terraci init` wizard | gitlab, github, cost, policy, summary, tfupdate |
-| `PipelineGeneratorFactory` | Create provider-specific pipeline generator (`NewGenerator(ctx, *pipeline.IR)`) | gitlab, github |
+| `PipelineGeneratorFactory` | Declare provider build requirements and create provider-specific generator (`NewGenerator(ctx, *pipeline.IR)`) | gitlab, github |
 | `CommentServiceFactory` | Create MR/PR comment service | gitlab, github |
 | `EnvDetector` | Detect CI environment from env vars | gitlab, github |
 | `CIInfoProvider` | Provider name, pipeline ID, commit SHA | gitlab, github |
@@ -245,8 +245,8 @@ See [examples/external-plugin](https://github.com/edelwud/terraci/tree/main/exam
 | Plugin | Config page |
 |--------|-------------|
 | GitLab CI | [config/gitlab](/config/gitlab) |
-| GitLab MR | [config/gitlab-mr](/config/gitlab-mr) |
 | GitHub Actions | [config/github](/config/github) |
+| Summary Comments | [config/summary](/config/summary) |
 | Cost Estimation | [config/cost](/config/cost) |
 | Policy Checks | [config/policy](/config/policy) |
 | Dependency Updates | [config/tfupdate](/config/tfupdate) |

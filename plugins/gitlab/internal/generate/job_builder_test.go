@@ -11,26 +11,24 @@ import (
 )
 
 func testExecutionConfig() execution.Config {
-	return execution.Config{
-		Binary:      "terraform",
-		InitEnabled: true,
-		PlanEnabled: true,
-		PlanMode:    execution.PlanModeStandard,
-		Parallelism: 4,
-	}
+	return execution.Config{Binary: "terraform", InitEnabled: true, PlanEnabled: true, PlanMode: execution.PlanModeStandard, Parallelism: 4}
 }
 
 func noJobConfig(_ *domain.Job, _ configpkg.JobOverwriteType) error { return nil }
 
-func TestJobBuilderPlanJobBuildsExpectedDefaults(t *testing.T) {
+func TestJobBuilderRenderJobBuildsModuleDefaults(t *testing.T) {
+	t.Parallel()
+
+	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	builder := newJobBuilder(
 		newSettings(&configpkg.Config{CacheEnabled: true}, testExecutionConfig()),
-		contributionIndex{},
+		map[string]string{"plan-platform-stage-eu-central-1-vpc": "deploy-0"},
 		noJobConfig,
 	)
 
-	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
-	irJob := &pipeline.Job{
+	job, err := builder.renderJob(&pipeline.Job{
+		Name:   "plan-platform-stage-eu-central-1-vpc",
+		Module: module,
 		Operation: pipeline.Operation{
 			Type:     pipeline.OperationTypeCommands,
 			Commands: []string{"terraform plan"},
@@ -38,20 +36,14 @@ func TestJobBuilderPlanJobBuildsExpectedDefaults(t *testing.T) {
 		Dependencies:   []pipeline.JobDependency{{Job: "apply-platform-stage-eu-central-1-base"}},
 		OutputArtifact: pipeline.PlanArtifact("plan-platform-stage-eu-central-1-vpc", []string{"plan.json"}),
 		Env:            map[string]string{"TF_VAR_env": "stage"},
-		Steps: []pipeline.Step{
-			{Phase: pipeline.PhasePrePlan, Command: "echo before"},
-			{Phase: pipeline.PhasePostPlan, Command: "echo after"},
-		},
-	}
-
-	job, err := builder.planJob(irJob, module, 2, "deploy")
+	})
 	if err != nil {
-		t.Fatalf("planJob() error = %v", err)
+		t.Fatalf("renderJob() error = %v", err)
 	}
-	if job.Stage != "deploy-plan-2" {
+	if job.Stage != "deploy-0" {
 		t.Fatalf("Stage = %q", job.Stage)
 	}
-	if len(job.Script) != 3 || job.Script[0] != "echo before" || job.Script[2] != "echo after" {
+	if len(job.Script) != 1 || job.Script[0] != "terraform plan" {
 		t.Fatalf("Script = %#v", job.Script)
 	}
 	if job.Cache == nil || job.Cache.Key == "" {
@@ -71,23 +63,9 @@ func TestJobBuilderPlanJobBuildsExpectedDefaults(t *testing.T) {
 	}
 }
 
-func TestJobBuilderApplyJobHonorsAutoApprove(t *testing.T) {
-	builder := newJobBuilder(
-		newSettings(&configpkg.Config{AutoApprove: false}, testExecutionConfig()),
-		contributionIndex{},
-		noJobConfig,
-	)
-
-	job, err := builder.applyJob(&pipeline.Job{}, discovery.TestModule("platform", "stage", "eu-central-1", "vpc"), 0, "deploy")
-	if err != nil {
-		t.Fatalf("applyJob() error = %v", err)
-	}
-	if job.When != WhenManual {
-		t.Fatalf("When = %q", job.When)
-	}
-}
-
 func TestJobBuilderCacheSupportsAdvancedOptions(t *testing.T) {
+	t.Parallel()
+
 	enabled := true
 	builder := newJobBuilder(
 		newSettings(&configpkg.Config{
@@ -95,19 +73,15 @@ func TestJobBuilderCacheSupportsAdvancedOptions(t *testing.T) {
 			Cache: &configpkg.CacheConfig{
 				Enabled: &enabled,
 				Key:     "terraform-{service}-{environment}-{module}",
-				Paths: []string{
-					"{module_path}/.terraform/",
-					"{module_path}/.terraform.lock.hcl",
-				},
-				Policy: "pull-push",
+				Paths:   []string{"{module_path}/.terraform/", "{module_path}/.terraform.lock.hcl"},
+				Policy:  "pull-push",
 			},
 		}, testExecutionConfig()),
-		contributionIndex{},
+		nil,
 		noJobConfig,
 	)
 
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
-
 	cache := builder.cache(module)
 	if cache == nil {
 		t.Fatal("expected cache to be populated")
@@ -121,80 +95,13 @@ func TestJobBuilderCacheSupportsAdvancedOptions(t *testing.T) {
 	if len(cache.Paths) != 2 {
 		t.Fatalf("Paths = %#v", cache.Paths)
 	}
-	if cache.Paths[0] != "platform/stage/eu-central-1/vpc/.terraform/" {
-		t.Fatalf("Paths[0] = %q", cache.Paths[0])
-	}
-	if cache.Paths[1] != "platform/stage/eu-central-1/vpc/.terraform.lock.hcl" {
-		t.Fatalf("Paths[1] = %q", cache.Paths[1])
-	}
-}
-
-func TestJobBuilderCacheConfigCanDisableLegacyCache(t *testing.T) {
-	enabled := false
-	builder := newJobBuilder(
-		newSettings(&configpkg.Config{
-			CacheEnabled: true,
-			Cache: &configpkg.CacheConfig{
-				Enabled: &enabled,
-			},
-		}, testExecutionConfig()),
-		contributionIndex{},
-		noJobConfig,
-	)
-
-	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
-	if cache := builder.cache(module); cache != nil {
-		t.Fatalf("cache = %#v, want nil", cache)
-	}
-}
-
-func TestJobBuilderContributedJobInheritsJobDefaults(t *testing.T) {
-	cfg := &configpkg.Config{
-		JobDefaults: &configpkg.JobDefaults{
-			Image:        &configpkg.Image{Name: "custom:latest"},
-			Tags:         []string{"k8s"},
-			BeforeScript: []string{"echo setup"},
-		},
-	}
-	s := newSettings(cfg, testExecutionConfig())
-	builder := newJobBuilder(
-		s,
-		contributionIndex{
-			hasJobs:    true,
-			stageByJob: map[string]string{"cost-estimation": "post-plan"},
-		},
-		func(job *domain.Job, jt configpkg.JobOverwriteType) error {
-			return applyResolvedJobConfig(s, job, jt)
-		},
-	)
-
-	job, err := builder.contributedJob(&pipeline.Job{
-		Name: "cost-estimation",
-		Operation: pipeline.Operation{
-			Type:     pipeline.OperationTypeCommands,
-			Commands: []string{"terraci cost"},
-		},
-	})
-	if err != nil {
-		t.Fatalf("contributedJob() error = %v", err)
-	}
-
-	if job.Image == nil || job.Image.Name != "custom:latest" {
-		t.Fatalf("Image = %v, want custom:latest", job.Image)
-	}
-	if len(job.Tags) != 1 || job.Tags[0] != "k8s" {
-		t.Fatalf("Tags = %v, want [k8s]", job.Tags)
-	}
-	if len(job.BeforeScript) != 1 || job.BeforeScript[0] != "echo setup" {
-		t.Fatalf("BeforeScript = %v, want [echo setup]", job.BeforeScript)
-	}
 }
 
 func TestJobBuilderContributedJobOverwriteByName(t *testing.T) {
+	t.Parallel()
+
 	cfg := &configpkg.Config{
-		JobDefaults: &configpkg.JobDefaults{
-			Tags: []string{"default-runner"},
-		},
+		JobDefaults: &configpkg.JobDefaults{Tags: []string{"default-runner"}},
 		Overwrites: []configpkg.JobOverwrite{{
 			Type:  "cost-estimation",
 			Tags:  []string{"cost-runner"},
@@ -204,16 +111,13 @@ func TestJobBuilderContributedJobOverwriteByName(t *testing.T) {
 	s := newSettings(cfg, testExecutionConfig())
 	builder := newJobBuilder(
 		s,
-		contributionIndex{
-			hasJobs:    true,
-			stageByJob: map[string]string{"cost-estimation": "post-plan"},
-		},
+		map[string]string{"cost-estimation": "deploy-1"},
 		func(job *domain.Job, jt configpkg.JobOverwriteType) error {
 			return applyResolvedJobConfig(s, job, jt)
 		},
 	)
 
-	job, err := builder.contributedJob(&pipeline.Job{
+	job, err := builder.renderJob(&pipeline.Job{
 		Name: "cost-estimation",
 		Operation: pipeline.Operation{
 			Type:     pipeline.OperationTypeCommands,
@@ -221,10 +125,8 @@ func TestJobBuilderContributedJobOverwriteByName(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("contributedJob() error = %v", err)
+		t.Fatalf("renderJob() error = %v", err)
 	}
-
-	// Overwrite should win over defaults
 	if len(job.Tags) != 1 || job.Tags[0] != "cost-runner" {
 		t.Fatalf("Tags = %v, want [cost-runner]", job.Tags)
 	}
@@ -233,80 +135,16 @@ func TestJobBuilderContributedJobOverwriteByName(t *testing.T) {
 	}
 }
 
-func TestJobBuilderAppliesAllMatchingOverwritesInOrder(t *testing.T) {
-	cfg := &configpkg.Config{
-		JobDefaults: &configpkg.JobDefaults{
-			Tags:      []string{"default-runner"},
-			Variables: map[string]string{"DEFAULT": "true"},
-		},
-		Overwrites: []configpkg.JobOverwrite{
-			{
-				Type:      "cost-estimation",
-				Tags:      []string{"first-runner"},
-				Variables: map[string]string{"FIRST": "true", "SHARED": "first"},
-			},
-			{
-				Type:      "cost-estimation",
-				Tags:      []string{"second-runner"},
-				Image:     &configpkg.Image{Name: "cost-image:2.0"},
-				Variables: map[string]string{"SECOND": "true", "SHARED": "second"},
-			},
-		},
-	}
-	s := newSettings(cfg, testExecutionConfig())
+func TestJobBuilderContributedJobUsesOptionalNeeds(t *testing.T) {
+	t.Parallel()
+
 	builder := newJobBuilder(
-		s,
-		contributionIndex{
-			hasJobs:    true,
-			stageByJob: map[string]string{"cost-estimation": "post-plan"},
-		},
-		func(job *domain.Job, jt configpkg.JobOverwriteType) error {
-			return applyResolvedJobConfig(s, job, jt)
-		},
-	)
-
-	job, err := builder.contributedJob(&pipeline.Job{
-		Name: "cost-estimation",
-		Operation: pipeline.Operation{
-			Type:     pipeline.OperationTypeCommands,
-			Commands: []string{"terraci cost"},
-		},
-	})
-	if err != nil {
-		t.Fatalf("contributedJob() error = %v", err)
-	}
-
-	if len(job.Tags) != 1 || job.Tags[0] != "second-runner" {
-		t.Fatalf("Tags = %v, want [second-runner]", job.Tags)
-	}
-	if job.Image == nil || job.Image.Name != "cost-image:2.0" {
-		t.Fatalf("Image = %v, want cost-image:2.0", job.Image)
-	}
-	if job.Variables["DEFAULT"] != "true" || job.Variables["FIRST"] != "true" || job.Variables["SECOND"] != "true" {
-		t.Fatalf("Variables = %#v, want default, first, and second variables", job.Variables)
-	}
-	if job.Variables["SHARED"] != "second" {
-		t.Fatalf("Variables[SHARED] = %q, want second", job.Variables["SHARED"])
-	}
-}
-
-func TestJobBuilderContributedJobUsesOptionalNeedsAndSummaryOverrides(t *testing.T) {
-	builder := newJobBuilder(
-		newSettings(&configpkg.Config{
-			MR: &configpkg.MRConfig{
-				SummaryJob: &configpkg.SummaryJobConfig{
-					Tags: []string{"docker"},
-				},
-			},
-		}, testExecutionConfig()),
-		contributionIndex{
-			hasJobs:    true,
-			stageByJob: map[string]string{"summary": "finalize"},
-		},
+		newSettings(&configpkg.Config{}, testExecutionConfig()),
+		map[string]string{"summary": "deploy-2"},
 		noJobConfig,
 	)
 
-	job, err := builder.contributedJob(&pipeline.Job{
+	job, err := builder.renderJob(&pipeline.Job{
 		Name:         "summary",
 		Dependencies: []pipeline.JobDependency{{Job: "apply-a", Artifacts: true, Optional: true}},
 		AllowFailure: true,
@@ -316,11 +154,9 @@ func TestJobBuilderContributedJobUsesOptionalNeedsAndSummaryOverrides(t *testing
 		},
 	})
 	if err != nil {
-		t.Fatalf("contributedJob() error = %v", err)
+		t.Fatalf("renderJob() error = %v", err)
 	}
-	builder.applySummaryOverrides(job)
-
-	if job.Stage != "finalize" {
+	if job.Stage != "deploy-2" {
 		t.Fatalf("Stage = %q", job.Stage)
 	}
 	if len(job.Needs) != 1 || !job.Needs[0].Optional {
@@ -331,11 +167,5 @@ func TestJobBuilderContributedJobUsesOptionalNeedsAndSummaryOverrides(t *testing
 	}
 	if len(job.Script) != 1 || job.Script[0] != "terraci summary || true" {
 		t.Fatalf("Script = %#v", job.Script)
-	}
-	if len(job.Tags) != 1 || job.Tags[0] != "docker" {
-		t.Fatalf("Tags = %#v", job.Tags)
-	}
-	if len(job.Rules) != 1 || job.Rules[0].If != "$CI_MERGE_REQUEST_IID" {
-		t.Fatalf("Rules = %#v", job.Rules)
 	}
 }

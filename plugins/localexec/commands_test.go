@@ -23,8 +23,8 @@ func TestPlugin_Commands_Registration(t *testing.T) {
 	if !strings.Contains(root.Long, `logging "no modules to process"`) {
 		t.Fatalf("root command long help should describe empty target behavior:\n%s", root.Long)
 	}
-	if !strings.Contains(root.Long, "summary plugin produced summary-report.json") {
-		t.Fatalf("root command long help should describe summary report contract:\n%s", root.Long)
+	if !strings.Contains(root.Long, "local DAG/job summary") {
+		t.Fatalf("root command long help should describe DAG summary output:\n%s", root.Long)
 	}
 	if !strings.Contains(root.Long, `available on the "plan" and "run" subcommands`) {
 		t.Fatalf("root command long help should scope target flags to subcommands:\n%s", root.Long)
@@ -48,8 +48,8 @@ func TestPlugin_Commands_Registration(t *testing.T) {
 	if !strings.Contains(planCmd.Long, `logging "no modules to process"`) {
 		t.Fatalf("plan command long help should describe empty target behavior:\n%s", planCmd.Long)
 	}
-	if !strings.Contains(planCmd.Long, "summary-report.json") {
-		t.Fatalf("plan command long help should describe summary report rendering:\n%s", planCmd.Long)
+	if !strings.Contains(planCmd.Long, "resource inputs are available in plan mode") {
+		t.Fatalf("plan command long help should describe plan-mode resource jobs:\n%s", planCmd.Long)
 	}
 	for _, wanted := range []string{"local-exec plan --changed-only", "--include 'platform/*' --exclude '*/test/*'"} {
 		if !strings.Contains(planCmd.Example, wanted) {
@@ -70,8 +70,8 @@ func TestPlugin_Commands_Registration(t *testing.T) {
 	if !strings.Contains(runCmd.Long, `logging "no modules to process"`) {
 		t.Fatalf("run command long help should describe empty target behavior:\n%s", runCmd.Long)
 	}
-	if !strings.Contains(runCmd.Long, "summary-report.json") {
-		t.Fatalf("run command long help should describe summary report rendering:\n%s", runCmd.Long)
+	if !strings.Contains(runCmd.Long, "standalone resource-dependent jobs") {
+		t.Fatalf("run command long help should describe standalone resource jobs:\n%s", runCmd.Long)
 	}
 	for _, wanted := range []string{"local-exec run --module platform/stage/eu-central-1/vpc", "local-exec run --filter environment=stage --parallelism 2"} {
 		if !strings.Contains(runCmd.Example, wanted) {

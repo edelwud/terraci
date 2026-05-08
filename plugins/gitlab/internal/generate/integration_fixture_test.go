@@ -207,8 +207,8 @@ func TestFixture_CyclicDependencies(t *testing.T) {
 	}
 }
 
-// TestFixture_ApplyDependsOnPlan tests that apply jobs depend on their plan jobs
-func TestFixture_ApplyDependsOnPlan(t *testing.T) {
+// TestFixture_ApplyConsumesPlan tests that apply jobs consume their plan artifacts.
+func TestFixture_ApplyConsumesPlan(t *testing.T) {
 	scenario := newFixtureScenario(t, "basic")
 	pipeline := scenario.generate()
 

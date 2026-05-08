@@ -1,5 +1,5 @@
 apply-platform-stage-eu-central-1-vpc:
-    stage: deploy-apply-0
+    stage: deploy-1
     script:
         - cd platform/stage/eu-central-1/vpc
         - ${TERRAFORM_BINARY} init
@@ -13,12 +13,11 @@ apply-platform-stage-eu-central-1-vpc:
     needs:
         - job: plan-platform-stage-eu-central-1-vpc
           artifacts: true
-    when: manual
     resource_group: platform/stage/eu-central-1/vpc
 default:
     image: hashicorp/terraform:1.6
 plan-platform-stage-eu-central-1-vpc:
-    stage: deploy-plan-0
+    stage: deploy-0
     script:
         - cd platform/stage/eu-central-1/vpc
         - ${TERRAFORM_BINARY} init
@@ -37,7 +36,7 @@ plan-platform-stage-eu-central-1-vpc:
         when: always
     resource_group: platform/stage/eu-central-1/vpc
 stages:
-    - deploy-plan-0
-    - deploy-apply-0
+    - deploy-0
+    - deploy-1
 variables:
     TERRAFORM_BINARY: terraform

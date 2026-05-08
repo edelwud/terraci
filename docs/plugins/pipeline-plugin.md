@@ -1,90 +1,50 @@
 ---
-title: "Pipeline Step Plugin"
-description: "Inject custom jobs and steps into generated CI pipelines: security scans, approval gates, post-deploy hooks"
+title: "Pipeline Job Plugin"
+description: "Add standalone resource-aware jobs to generated CI pipelines: policy, cost, summaries, update checks"
 outline: deep
 ---
 
-# Pipeline Step Plugin
+# Pipeline Job Plugin
 
-Inject custom jobs or steps into the generated CI pipeline. Your plugin's contributions are merged with the built-in pipeline IR and appear in the final GitLab CI / GitHub Actions output.
+Pipeline plugins add standalone DAG jobs to the provider-agnostic pipeline IR.
+Jobs declare the resources they read and write; TerraCi derives dependencies,
+artifact restore, and detailed plan output from those typed resource requests.
 
 ## Use Cases
 
-- **Security scans** — run tfsec, checkov, or Snyk after plan
-- **Approval gates** — require external approval before apply
-- **Post-deploy hooks** — trigger smoke tests after apply
-- **Notifications** — Slack/Teams messages at specific pipeline phases
-- **Summary/cleanup** — aggregate results after all jobs complete
+- **Policy checks** — consume `plan.json`, publish a policy report
+- **Cost estimation** — consume `plan.json`, publish a cost report
+- **Dependency updates** — publish result and report artifacts
+- **Summaries** — consume plan JSON and optional plugin reports, then post a PR/MR comment
 
 ## How It Works
 
-The pipeline is built in phases:
+There are no pipeline phases and no injected plan/apply steps. The pipeline is
+a DAG:
 
-```
-PrePlan → Plan → PostPlan → PreApply → Apply → PostApply → Finalize
-```
-
-Your plugin can contribute:
-- **Steps** — injected into existing plan/apply jobs at a specific phase
-- **Jobs** — standalone jobs that run independently
-
-## Pipeline Phases
-
-| Phase | Constant | When | Typical Use |
-|-------|----------|------|-------------|
-| Pre-Plan | `pipeline.PhasePrePlan` | Before `terraform plan` | Setup, auth, cache warm |
-| Post-Plan | `pipeline.PhasePostPlan` | After `terraform plan` | Security scans, policy checks, cost |
-| Pre-Apply | `pipeline.PhasePreApply` | Before `terraform apply` | Approval checks, lock acquisition |
-| Post-Apply | `pipeline.PhasePostApply` | After `terraform apply` | Smoke tests, notifications, cleanup |
-| Finalize | `pipeline.PhaseFinalize` | After all other jobs | Summary comments, aggregated reports |
-
-::: tip Finalize Phase
-Jobs in `PhaseFinalize` automatically depend on all other contributed jobs. They always run last. The built-in `summary` plugin uses this phase to post MR/PR comments after all plan and policy jobs complete.
-:::
-
-## Contributing Steps
-
-Steps are injected into every plan or apply job. Each step has a single command:
-
-```go
-import "github.com/edelwud/terraci/pkg/pipeline"
-
-func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contribution {
-    cfg := p.Config()
-    if cfg == nil || !cfg.Pipeline {
-        return nil
-    }
-
-    return &pipeline.Contribution{
-        Steps: []pipeline.Step{
-            {
-                Phase:   pipeline.PhasePostPlan,
-                Name:    "tfsec",
-                Command: "tfsec --format json --out tfsec-report.json .",
-            },
-        },
-    }
-}
-```
-
-### How Steps Are Filtered
-
-The framework filters steps by phase when building jobs:
-- **Plan jobs** receive `PhasePrePlan` + `PhasePostPlan` steps
-- **Apply jobs** receive `PhasePreApply` + `PhasePostApply` steps
-- `PhaseFinalize` steps are **not injected** into module jobs — use contributed jobs instead
+1. Core creates Terraform plan/apply jobs for target modules.
+2. Plugins contribute standalone jobs.
+3. Each job declares `Consumes` and `Produces` resources.
+4. `pipeline.Build` resolves concrete resources, artifact transfer, and job dependencies.
+5. Providers render the finished IR without knowing plugin semantics.
 
 ## Contributing Jobs
 
-Standalone jobs run as separate CI jobs:
-
 ```go
-func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contribution {
+import (
+    "github.com/edelwud/terraci/pkg/ci"
+    "github.com/edelwud/terraci/pkg/pipeline"
+    "github.com/edelwud/terraci/pkg/plugin"
+)
+
+func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribution {
+    serviceDir := ctx.Config().ServiceDir
+
     return &pipeline.Contribution{
         Jobs: []pipeline.ContributedJob{
             {
                 Name:     "security-scan",
-                Phase:    pipeline.PhasePostPlan,
+                Commands: []string{"terraci security check"},
                 Consumes: []pipeline.ResourceRequest{
                     pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
                 },
@@ -92,11 +52,8 @@ func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contributi
                     pipeline.PluginResource(
                         pipeline.ResourceKindPluginReport,
                         "security",
-                        ".terraci/security-report.json",
+                        pipeline.WorkspacePath(serviceDir, ci.ReportFilename("security")),
                     ),
-                },
-                Commands: []string{
-                    "checkov -d . --output json > checkov-report.json",
                 },
             },
         },
@@ -109,180 +66,86 @@ func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contributi
 | Field | Type | Description |
 |-------|------|-------------|
 | `Name` | `string` | Job name in generated pipeline |
-| `Phase` | `Phase` | Determines stage name (`Phase.String()`) |
 | `Commands` | `[]string` | Shell commands to run |
+| `Dependencies` | `[]JobDependency` | Optional explicit control dependencies |
 | `Consumes` | `[]ResourceRequest` | Typed resources to restore before the job runs |
-| `Produces` | `[]ResourceSpec` | Typed resources published by the job as a named artifact |
-| `AllowFailure` | `bool` | If `true`, job failure doesn't fail the pipeline |
+| `Produces` | `[]ResourceSpec` | Typed resources published by the job |
+| `AllowFailure` | `bool` | If `true`, job failure does not fail the pipeline |
 
-### Finalize Jobs
+## Resource Requests
 
-For jobs that must run after everything else (summaries, cleanup), use `PhaseFinalize`:
+Plan resources are module-scoped:
+
+```go
+pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON)
+pipeline.ModulePlanResource(pipeline.ResourceKindPlanText, "platform/prod/eu-central-1/vpc")
+```
+
+Plugin resources are producer-scoped:
+
+```go
+pipeline.AllPluginResources(pipeline.ResourceKindPluginReport, true) // optional
+pipeline.PluginProducerResource(pipeline.ResourceKindPluginResult, "policy", false)
+```
+
+Requesting `PlanJSON` or `PlanText` automatically makes only the matching
+module plan jobs detailed. A job that consumes `PlanJSON` depends on the plan
+jobs that produce it and receives their artifacts restored to workspace-relative
+paths.
+
+## Summary-Style Jobs
+
+A summary job does not need a special phase. It lands at the end of the DAG
+because it consumes resources produced by earlier jobs:
 
 ```go
 func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contribution {
     return &pipeline.Contribution{
         Jobs: []pipeline.ContributedJob{
             {
-                Name:     "my-summary",
-                Phase:    pipeline.PhaseFinalize,
+                Name:     "terraci-summary",
+                Commands: []string{"terraci summary"},
                 Consumes: []pipeline.ResourceRequest{
                     pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
                     pipeline.AllPluginResources(pipeline.ResourceKindPluginReport, true),
                 },
-                Commands: []string{"terraci my-summary"},
             },
         },
     }
 }
 ```
 
-`PhaseFinalize` jobs automatically depend on all other contributed jobs (cost, policy, etc.). You don't need to specify these dependencies manually.
+## Activation
 
-## Combining Steps and Jobs
-
-A single plugin can contribute both:
-
-```go
-func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contribution {
-    return &pipeline.Contribution{
-        Steps: []pipeline.Step{
-            {
-                Phase:   pipeline.PhasePostPlan,
-                Command: "echo 'Plan complete for $TF_MODULE_PATH'",
-            },
-        },
-        Jobs: []pipeline.ContributedJob{
-            {
-                Name:     "security-report",
-                Phase:    pipeline.PhasePostPlan,
-                Consumes: []pipeline.ResourceRequest{
-                    pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
-                },
-                Commands: []string{"aggregate-reports.sh"},
-            },
-        },
-    }
-}
-```
-
-## Framework Filtering
-
-You don't need to check `IsEnabled()` in `PipelineContribution` — the framework only calls it for enabled extensions. Return `nil` if your plugin has nothing to contribute:
+The registry calls `PipelineContribution` only for enabled plugin configs. If
+your plugin has an extra pipeline toggle, implement `plugin.PipelineContributionGate`:
 
 ```go
-func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contribution {
-    if cfg := p.Config(); cfg == nil || !cfg.Pipeline {
-        return nil
-    }
-    // ...
+func (p *Plugin) PipelineContributionEnabled(_ *plugin.AppContext) bool {
+    cfg := p.Config()
+    return cfg != nil && cfg.Pipeline
 }
 ```
 
 ## Generated Output
 
-Your contributed steps appear in the generated YAML:
+Providers render DAG layers using their native mechanics. For example, GitLab
+uses stages derived from `pipeline.Schedule`, while GitHub renders job `needs`.
 
-**GitLab CI:**
 ```yaml
-plan-vpc:
-  stage: deploy-plan-0
-  script:
-    - cd platform/prod/eu-central-1/vpc
-    - terraform init
-    - terraform plan -out=plan.tfplan
-    - tfsec --format json --out tfsec-report.json .  # ← PostPlan step
-
 security-scan:
-  stage: post-plan
-  needs: [plan-vpc, plan-eks, plan-rds]               # ← consumes PlanJSON
+  stage: deploy-2
+  needs:
+    - job: plan-platform-prod-eu-central-1-vpc
+      artifacts: true
   script:
-    - checkov -d . --output json > checkov-report.json
-```
-
-**GitHub Actions:**
-```yaml
-plan-vpc:
-  steps:
-    - run: terraform init
-    - run: terraform plan -out=plan.tfplan
-    - run: tfsec --format json --out tfsec-report.json .  # ← PostPlan step
-```
-
-## Configuration
-
-Add a `pipeline` toggle so users can opt out of pipeline contributions:
-
-```go
-type Config struct {
-    Enabled  bool `yaml:"enabled"`
-    Pipeline bool `yaml:"pipeline"`
-}
-```
-
-```yaml
-extensions:
-  security:
-    enabled: true
-    pipeline: true   # inject steps into CI pipeline
-```
-
-## Full Example
-
-```go
-package security
-
-import (
-    "github.com/edelwud/terraci/pkg/pipeline"
-    "github.com/edelwud/terraci/pkg/plugin"
-    "github.com/edelwud/terraci/pkg/plugin/registry"
-)
-
-func init() {
-    registry.RegisterFactory(func() plugin.Plugin {
-        return &Plugin{
-            BasePlugin: plugin.BasePlugin[*Config]{
-                PluginName:  "security",
-                PluginDesc:  "Security scanning for Terraform plans",
-                EnableMode:  plugin.EnabledExplicitly,
-                DefaultCfg:  func() *Config { return &Config{} },
-                IsEnabledFn: func(cfg *Config) bool { return cfg != nil && cfg.Enabled },
-            },
-        }
-    })
-}
-
-type Plugin struct{ plugin.BasePlugin[*Config] }
-
-type Config struct {
-    Enabled  bool   `yaml:"enabled"`
-    Pipeline bool   `yaml:"pipeline"`
-    Tool     string `yaml:"tool"` // tfsec, checkov, snyk
-}
-
-func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contribution {
-    cfg := p.Config()
-    if cfg == nil || !cfg.Pipeline {
-        return nil
-    }
-
-    tool := cfg.Tool
-    if tool == "" {
-        tool = "tfsec"
-    }
-
-    return &pipeline.Contribution{
-        Steps: []pipeline.Step{
-            {
-                Phase:   pipeline.PhasePostPlan,
-                Command: tool + " --format json .",
-            },
-        },
-    }
-}
+    - terraci security check
+  artifacts:
+    paths:
+      - .terraci/security-report.json
 ```
 
 ## See Also
 
-- [CLI Command Plugin](/plugins/command-plugin) — add CLI commands
-- [Pipeline Generation Guide](/guide/pipeline-generation) — how the pipeline IR works
+- [CI Provider Plugin](/plugins/provider-plugin) — render the IR for a new CI system
+- [Pipeline Generation Guide](/guide/pipeline-generation) — how generated pipelines are built

@@ -58,29 +58,6 @@ func (s settings) planOnly() bool {
 	return s.configOrDefault().PlanOnly
 }
 
-func (s settings) autoApprove() bool {
-	return s.configOrDefault().AutoApprove
-}
-
 func (s settings) initEnabled() bool {
 	return s.execution.InitEnabled
-}
-
-func (s settings) prEnabled() bool {
-	cfg := s.config
-	if cfg == nil || cfg.PR == nil {
-		return false
-	}
-	if cfg.PR.Comment == nil || cfg.PR.Comment.Enabled == nil {
-		return true
-	}
-	return *cfg.PR.Comment.Enabled
-}
-
-func (s settings) summaryRunsOn() string {
-	cfg := s.config
-	if cfg == nil || cfg.PR == nil || cfg.PR.SummaryJob == nil {
-		return ""
-	}
-	return cfg.PR.SummaryJob.RunsOn
 }

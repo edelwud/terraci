@@ -73,7 +73,6 @@ extensions:
   gitlab:
     image:
       name: hashicorp/terraform:1.6
-    auto_approve: false
 ```
 
 ### 2. Validate Your Project

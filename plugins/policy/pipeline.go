@@ -1,18 +1,20 @@
 package policy
 
 import (
-	"path/filepath"
-
+	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
 
 const (
-	pluginName  = "policy"
-	jobName     = "policy-check"
-	resultsFile = "policy-results.json"
-	reportFile  = "policy-report.json"
+	pluginName = "policy"
+	jobName    = "policy-check"
+)
+
+var (
+	resultsFile = ci.ResultFilename(pluginName)
+	reportFile  = ci.ReportFilename(pluginName)
 )
 
 // PipelineContribution adds a policy-check job to the CI pipeline.
@@ -26,15 +28,11 @@ func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribu
 	return &pipeline.Contribution{
 		Jobs: []pipeline.ContributedJob{{
 			Name:     jobName,
-			Phase:    pipeline.PhasePostPlan,
 			Commands: []string{"terraci policy pull", "terraci policy check"},
 			Consumes: []pipeline.ResourceRequest{
 				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
 			},
-			Produces: []pipeline.ResourceSpec{
-				pipeline.PluginResource(pipeline.ResourceKindPluginResult, pluginName, filepath.Join(serviceDir, resultsFile)),
-				pipeline.PluginResource(pipeline.ResourceKindPluginReport, pluginName, filepath.Join(serviceDir, reportFile)),
-			},
+			Produces:     pipeline.PluginResultAndReportResources(serviceDir, pluginName),
 			AllowFailure: allowFailure,
 		}},
 	}

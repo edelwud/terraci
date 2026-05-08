@@ -81,8 +81,8 @@ func TestPipelineBuild_PlanOnly(t *testing.T) {
 		Script: pipeline.ScriptConfig{
 			PlanEnabled: true,
 		},
-		PlanEnabled: true,
-		PlanOnly:    true,
+		PlanEnabled:  true,
+		Requirements: pipeline.BuildRequirements{PlanOnly: true},
 	})
 	if err != nil {
 		t.Fatalf("Build failed: %v", err)
@@ -113,7 +113,6 @@ func TestPipelineBuild_WithContributions(t *testing.T) {
 	contributions := []*pipeline.Contribution{{
 		Jobs: []pipeline.ContributedJob{{
 			Name:     "policy-check",
-			Phase:    pipeline.PhasePostPlan,
 			Commands: []string{"terraci policy check"},
 			Consumes: []pipeline.ResourceRequest{
 				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
@@ -155,7 +154,7 @@ func TestPipelineBuild_WithContributions(t *testing.T) {
 	}
 }
 
-func TestPipelineBuild_PhaseFinalize(t *testing.T) {
+func TestPipelineBuild_SummaryDependsThroughResources(t *testing.T) {
 	modules := []*discovery.Module{
 		discovery.TestModule("svc", "prod", "eu", "app"),
 	}
@@ -165,14 +164,18 @@ func TestPipelineBuild_PhaseFinalize(t *testing.T) {
 
 	contributions := []*pipeline.Contribution{
 		{Jobs: []pipeline.ContributedJob{{
-			Name: "policy-check", Phase: pipeline.PhasePostPlan,
+			Name:     "policy-check",
 			Commands: []string{"check"},
+			Produces: []pipeline.ResourceSpec{
+				pipeline.PluginResource(pipeline.ResourceKindPluginReport, "policy", ".terraci/policy-report.json"),
+			},
 		}}},
 		{Jobs: []pipeline.ContributedJob{{
-			Name: "terraci-summary", Phase: pipeline.PhaseFinalize,
+			Name:     "terraci-summary",
 			Commands: []string{"summary"},
 			Consumes: []pipeline.ResourceRequest{
 				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+				pipeline.AllPluginResources(pipeline.ResourceKindPluginReport, true),
 			},
 		}}},
 	}
@@ -187,23 +190,21 @@ func TestPipelineBuild_PhaseFinalize(t *testing.T) {
 		t.Fatalf("Build failed: %v", err)
 	}
 
-	// Find finalize job
-	var finalizeJob *pipeline.Job
+	var summaryJob *pipeline.Job
 	for i := range ir.Jobs {
-		if ir.Jobs[i].Phase == pipeline.PhaseFinalize {
-			finalizeJob = &ir.Jobs[i]
+		if ir.Jobs[i].Name == "terraci-summary" {
+			summaryJob = &ir.Jobs[i]
 			break
 		}
 	}
-	if finalizeJob == nil {
-		t.Fatal("missing finalize job")
+	if summaryJob == nil {
+		t.Fatal("missing summary job")
 	}
 
-	// Should depend on plan job(s) AND policy-check
 	hasPolicyDep := false
 	hasPlanDep := false
-	for _, dep := range finalizeJob.Dependencies {
-		if dep.Job == "policy-check" {
+	for _, dep := range summaryJob.Dependencies {
+		if dep.Job == "policy-check" && dep.Artifacts {
 			hasPolicyDep = true
 		}
 		if dep.Job == ir.Levels[0].Modules[0].Plan.Name && dep.Artifacts {
@@ -211,10 +212,10 @@ func TestPipelineBuild_PhaseFinalize(t *testing.T) {
 		}
 	}
 	if !hasPolicyDep {
-		t.Error("finalize job should depend on policy-check")
+		t.Error("summary job should depend on policy-check report")
 	}
 	if !hasPlanDep {
-		t.Error("finalize job should depend on plan jobs")
+		t.Error("summary job should depend on plan jobs")
 	}
 }
 

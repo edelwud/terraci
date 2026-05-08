@@ -66,7 +66,6 @@ extensions:
       name: hashicorp/terraform:1.6
     stages_prefix: "deploy"
     parallelism: 5
-    auto_approve: false
 
     variables:
       TF_IN_AUTOMATION: "true"
@@ -87,7 +86,6 @@ extensions:
   # GitHub Actions pipeline settings (used when GITHUB_ACTIONS is detected)
   # github:
   #   runs_on: "ubuntu-latest"
-  #   auto_approve: false
   #   permissions:
   #     contents: read
   #     pull-requests: write
@@ -116,7 +114,6 @@ extensions:
 | [cost](./cost) | AWS cost estimation configuration |
 | [summary](./summary) | Summary plugin |
 | [tfupdate](./tfupdate) | Terraform dependency resolution and lock sync |
-| [gitlab-mr](./gitlab-mr) | Merge request integration |
 
 ## Default Values
 

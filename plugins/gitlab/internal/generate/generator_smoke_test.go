@@ -129,10 +129,9 @@ func TestGenerator_Generate_PlanOnlyWithDependencies(t *testing.T) {
 		noNeedWithPrefix("apply-")
 }
 
-func TestGenerator_Generate_AutoApprove(t *testing.T) {
+func TestGenerator_Generate_ApplyIsAutomaticByDefault(t *testing.T) {
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	p := newGeneratorScenario(t).
-		withConfig(func(cfg *Config) { cfg.AutoApprove = true }).
 		withModules(module).
 		withDependencies(map[string][]string{module.ID(): {}}).
 		generate()
@@ -142,10 +141,12 @@ func TestGenerator_Generate_AutoApprove(t *testing.T) {
 		notManual()
 }
 
-func TestGenerator_Generate_ManualApprove(t *testing.T) {
+func TestGenerator_Generate_ManualApplyFromOverwrite(t *testing.T) {
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	p := newGeneratorScenario(t).
-		withConfig(func(cfg *Config) { cfg.AutoApprove = false }).
+		withConfig(func(cfg *Config) {
+			cfg.Overwrites = []JobOverwrite{{Type: JobOverwriteType("apply"), When: "manual"}}
+		}).
 		withModules(module).
 		withDependencies(map[string][]string{module.ID(): {}}).
 		generate()

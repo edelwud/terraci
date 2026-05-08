@@ -32,10 +32,10 @@ Stages are created for each execution level:
 
 ```yaml
 stages:
-  - deploy-plan-0    # Plan for level 0 modules
-  - deploy-apply-0   # Apply for level 0 modules
-  - deploy-plan-1    # Plan for level 1 modules
-  - deploy-apply-1   # Apply for level 1 modules
+  - deploy-0    # Plan for level 0 modules
+  - deploy-1   # Apply for level 0 modules
+  - deploy-2    # Plan for level 1 modules
+  - deploy-3   # Apply for level 1 modules
 ```
 
 ### Variables
@@ -69,7 +69,7 @@ Two jobs per module (if `plan_enabled: true`):
 
 ```yaml
 plan-platform-prod-us-east-1-vpc:
-  stage: deploy-plan-0
+  stage: deploy-0
   script:
     - cd platform/prod/us-east-1/vpc
     - ${TERRAFORM_BINARY} plan -out=plan.tfplan
@@ -86,7 +86,7 @@ plan-platform-prod-us-east-1-vpc:
   resource_group: platform/prod/us-east-1/vpc
 
 apply-platform-prod-us-east-1-vpc:
-  stage: deploy-apply-0
+  stage: deploy-1
   script:
     - cd platform/prod/us-east-1/vpc
     - ${TERRAFORM_BINARY} apply plan.tfplan
@@ -106,13 +106,13 @@ Jobs use GitLab's `needs` keyword to express dependencies:
 
 ```yaml
 plan-platform-prod-us-east-1-eks:
-  stage: deploy-plan-1
+  stage: deploy-2
   needs:
     - job: apply-platform-prod-us-east-1-vpc  # Wait for VPC
   # ...
 
 apply-platform-prod-us-east-1-eks:
-  stage: deploy-apply-1
+  stage: deploy-3
   needs:
     - job: plan-platform-prod-us-east-1-eks   # Wait for own plan
     - job: apply-platform-prod-us-east-1-vpc  # Wait for VPC
@@ -228,9 +228,9 @@ This ensures only one apply job runs per module at a time.
 
 ## Configuration Options
 
-### Plan Stage
+### Plan Jobs
 
-Enable or disable the plan stage globally via the top-level `execution:` section (it applies to both providers):
+Enable or disable plan jobs globally via the top-level `execution:` section (it applies to both providers):
 
 ```yaml
 execution:
@@ -242,28 +242,18 @@ extensions:
     plan_only: false  # When true: keep plan jobs, drop apply jobs (CLI: --plan-only)
 ```
 
-### Auto-Approve
+### Apply Scheduling
 
-Skip manual approval for apply jobs:
+Use provider overwrites to control apply scheduling. For example, make GitLab
+apply jobs manual:
 
 ```yaml
 extensions:
   gitlab:
-    auto_approve: false  # Require manual trigger (default)
-    # auto_approve: true  # Run apply automatically
+    overwrites:
+      - type: apply
+        when: manual
 ```
-
-You can also override this via CLI:
-
-```bash
-# Enable auto-approve (skip manual trigger)
-terraci generate --auto-approve -o .gitlab-ci.yml
-
-# Disable auto-approve (require manual trigger)
-terraci generate --no-auto-approve -o .gitlab-ci.yml
-```
-
-CLI flags override the configuration file setting.
 
 ### Stage Prefix
 
@@ -272,7 +262,7 @@ Customize stage names:
 ```yaml
 extensions:
   gitlab:
-    stages_prefix: "terraform"  # terraform-plan-0, terraform-apply-0
+    stages_prefix: "terraform"  # terraform-0, terraform-1, ...
 ```
 
 ### Custom Scripts

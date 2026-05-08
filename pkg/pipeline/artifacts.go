@@ -38,7 +38,7 @@ func compactArtifactPaths(paths []string) []string {
 		if path == "" {
 			continue
 		}
-		result = append(result, path)
+		result = append(result, WorkspacePath(path))
 	}
 	return result
 }

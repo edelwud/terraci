@@ -199,7 +199,10 @@ func (r *Registry) CollectContributions(ctx *plugin.AppContext) []*pipeline.Cont
 	contributors := ByCapabilityFrom[plugin.PipelineContributor](r)
 	contributions := make([]*pipeline.Contribution, 0, len(contributors))
 	for _, c := range contributors {
-		if cl, ok := c.(plugin.ConfigLoader); ok && !cl.IsEnabled() {
+		if !isPluginEnabled(c) {
+			continue
+		}
+		if gate, ok := c.(plugin.PipelineContributionGate); ok && !gate.PipelineContributionEnabled(ctx) {
 			continue
 		}
 		if contrib := c.PipelineContribution(ctx); contrib != nil {

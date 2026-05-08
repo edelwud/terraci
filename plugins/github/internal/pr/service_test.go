@@ -8,25 +8,15 @@ import (
 
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/ci/citest"
-	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
 )
 
 func TestService_IsEnabled(t *testing.T) {
-	citest.RunEnabledCases(t, []citest.EnabledCase[*Context, *configpkg.PRConfig]{
+	citest.RunEnabledCases(t, []citest.EnabledCase[*Context, struct{}]{
 		{Name: "not in PR", Context: &Context{InPR: false}, HasToken: true, Expected: false},
 		{Name: "in PR without token", Context: &Context{InPR: true}, HasToken: false, Expected: false},
-		{Name: "in PR with token, default config", Context: &Context{InPR: true}, HasToken: true, Expected: true},
-		{
-			Name:     "explicitly disabled",
-			Context:  &Context{InPR: true},
-			HasToken: true,
-			Config: &configpkg.PRConfig{
-				Comment: &configpkg.MRCommentConfig{Enabled: citest.BoolPtr(false)},
-			},
-			Expected: false,
-		},
-	}, func(t *testing.T, ctx *Context, cfg *configpkg.PRConfig, hasToken bool) bool {
-		return newServiceScenario(t).withContext(ctx).withConfig(cfg).withToken(hasToken).service.IsEnabled()
+		{Name: "in PR with token", Context: &Context{InPR: true}, HasToken: true, Expected: true},
+	}, func(t *testing.T, ctx *Context, _ struct{}, hasToken bool) bool {
+		return newServiceScenario(t).withContext(ctx).withToken(hasToken).service.IsEnabled()
 	})
 }
 
@@ -81,20 +71,5 @@ func TestService_UpsertComment_UpdateError(t *testing.T) {
 		withUpdateError(fmt.Errorf("boom")).
 		upsert("test body"); err == nil {
 		t.Error("expected error when UpdateIssueComment fails")
-	}
-}
-
-func TestService_UpsertComment_OnChangesOnly_NoChanges(t *testing.T) {
-	scenario := newServiceScenario(t).withConfig(&configpkg.PRConfig{
-		Comment: &configpkg.MRCommentConfig{
-			OnChangesOnly: true,
-		},
-	})
-
-	if err := scenario.upsert("test body"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if scenario.client.createdBody == "" {
-		t.Error("expected CreateIssueComment to be called")
 	}
 }

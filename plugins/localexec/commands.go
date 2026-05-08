@@ -32,11 +32,9 @@ func (p *Plugin) Commands() []*cobra.Command {
 		Short: "Execute the generated terraci flow locally",
 		Long: `Execute the terraci pipeline IR locally against the current Terraform project.
 
-Use "plan" to run the local plan flow and finalize jobs such as summary.
-Use "run" to run the full local flow: plan, apply, and finalize.
-After execution, local-exec always prints a local stage/job summary. If the
-summary plugin produced summary-report.json in the service directory,
-local-exec also renders that structured summary report in the terminal.
+Use "plan" to run plan jobs and standalone jobs whose resource inputs are available.
+Use "run" to run the full local flow: plan, apply, and resource-dependent jobs.
+After execution, local-exec always prints a local DAG/job summary.
 
 Target selection flags such as --module, --filter, --include, --exclude, and
 --changed-only are available on the "plan" and "run" subcommands. If no modules
@@ -61,12 +59,11 @@ func newPlanCmd() *cobra.Command {
 	var sf sharedFlags
 	cmd := &cobra.Command{
 		Use:   cmdPlan,
-		Short: "Run plan flow locally and finish with summary jobs",
-		Long: `Run local planning for the selected modules and then execute finalize jobs
-such as summary reporting. local-exec always prints the execution summary and,
-when the summary plugin wrote summary-report.json, renders that structured
-report locally. If target selection resolves to no modules, the command exits
-without error after logging "no modules to process".`,
+		Short: "Run the plan DAG locally",
+		Long: `Run local planning for the selected modules and then execute standalone
+jobs whose resource inputs are available in plan mode. local-exec always prints
+the execution summary. If target selection resolves to no modules, the command
+exits without error after logging "no modules to process".`,
 		Example: `  terraci local-exec plan
   terraci local-exec plan --changed-only
   terraci local-exec plan --module platform/stage/eu-central-1/vpc
@@ -85,11 +82,10 @@ func newRunCmd() *cobra.Command {
 	var sf sharedFlags
 	cmd := &cobra.Command{
 		Use:   cmdRun,
-		Short: "Run the full flow locally (plan, apply, finalize)",
+		Short: "Run the full DAG locally",
 		Long: `Run the full local execution flow for the selected modules: plan, apply,
-and finalize jobs. local-exec always prints the execution summary and, when the
-summary plugin wrote summary-report.json, renders that structured report
-locally. If target selection resolves to no modules, the command exits without
+and standalone resource-dependent jobs. local-exec always prints the execution
+summary. If target selection resolves to no modules, the command exits without
 error after logging "no modules to process".`,
 		Example: `  terraci local-exec run
   terraci local-exec run --changed-only

@@ -95,17 +95,98 @@ func TestGenerate_PlanOnly(t *testing.T) {
 		t.Fatal("plan-only output missing stages")
 	}
 
-	// Verify plan stages exist
-	hasPlanStage := false
+	// Verify DAG stages exist.
 	for _, s := range stages {
-		if str, ok := s.(string); ok && strings.Contains(str, "plan") {
-			hasPlanStage = true
-			break
+		if str, ok := s.(string); ok && !strings.HasPrefix(str, "deploy-") {
+			t.Fatalf("unexpected DAG stage %q in plan-only output", str)
 		}
 	}
-	if !hasPlanStage {
-		t.Error("plan-only output should have plan stages")
+}
+
+func TestGenerate_GitHubSummaryForcesPlanJSON(t *testing.T) {
+	dir := copyFixtureToTemp(t, "basic")
+	writeProjectConfig(t, dir, `structure:
+  pattern: "{service}/{environment}/{region}/{module}"
+extensions:
+  github:
+    runs_on: ubuntu-latest
+`)
+	t.Setenv("TERRACI_PROVIDER", "github")
+
+	output, err := captureTerraCi(t, dir, "generate")
+	if err != nil {
+		t.Fatalf("generate failed: %v", err)
 	}
+
+	assertContains(t, output, "terraci-summary")
+	assertContains(t, output, "plan.json")
+	assertNotContains(t, output, "plan.txt")
+}
+
+func TestGenerate_GitLabSummaryForcesPlanJSON(t *testing.T) {
+	dir := copyFixtureToTemp(t, "basic")
+	writeProjectConfig(t, dir, `structure:
+  pattern: "{service}/{environment}/{region}/{module}"
+extensions:
+  gitlab:
+    image:
+      name: hashicorp/terraform:1.6
+`)
+	t.Setenv("TERRACI_PROVIDER", "gitlab")
+
+	output, err := captureTerraCi(t, dir, "generate")
+	if err != nil {
+		t.Fatalf("generate failed: %v", err)
+	}
+
+	assertContains(t, output, "terraci-summary")
+	assertContains(t, output, "plan.json")
+	assertNotContains(t, output, "plan.txt")
+}
+
+func TestGenerate_SummaryDisabledAvoidsPlanJSON(t *testing.T) {
+	dir := copyFixtureToTemp(t, "basic")
+	writeProjectConfig(t, dir, `structure:
+  pattern: "{service}/{environment}/{region}/{module}"
+extensions:
+  gitlab:
+    image:
+      name: hashicorp/terraform:1.6
+  summary:
+    enabled: false
+`)
+	t.Setenv("TERRACI_PROVIDER", "gitlab")
+
+	output, err := captureTerraCi(t, dir, "generate")
+	if err != nil {
+		t.Fatalf("generate failed: %v", err)
+	}
+
+	assertNotContains(t, output, "terraci-summary")
+	assertNotContains(t, output, "plan.json")
+	assertNotContains(t, output, "plan.txt")
+}
+
+func TestGenerate_PlanModeDetailedForcesDetailedPlanWithoutComments(t *testing.T) {
+	dir := copyFixtureToTemp(t, "basic")
+	writeProjectConfig(t, dir, `structure:
+  pattern: "{service}/{environment}/{region}/{module}"
+execution:
+  plan_mode: detailed
+extensions:
+  gitlab:
+    image:
+      name: hashicorp/terraform:1.6
+`)
+	t.Setenv("TERRACI_PROVIDER", "gitlab")
+
+	output, err := captureTerraCi(t, dir, "generate")
+	if err != nil {
+		t.Fatalf("generate failed: %v", err)
+	}
+
+	assertContains(t, output, "plan.txt")
+	assertContains(t, output, "plan.json")
 }
 
 func TestGenerate_DryRun(t *testing.T) {
@@ -197,45 +278,6 @@ func TestGenerate_FilterExcludesAll(t *testing.T) {
 	if !strings.Contains(err.Error(), "no modules") {
 		t.Errorf("expected 'no modules' error, got: %v", err)
 	}
-}
-
-func TestGenerate_AutoApprove(t *testing.T) {
-	dir := fixtureDir(t, "basic")
-
-	output, err := captureTerraCi(t, dir, "generate", "--auto-approve")
-	if err != nil {
-		t.Fatalf("generate --auto-approve failed: %v", err)
-	}
-
-	// Apply jobs should NOT have "when: manual"
-	lines := strings.Split(output, "\n")
-	for i, line := range lines {
-		if strings.Contains(line, "apply-") && strings.Contains(line, ":") && !strings.HasPrefix(strings.TrimSpace(line), "#") {
-			// Look ahead for "when: manual" within the job block
-			for j := i + 1; j < len(lines) && j < i+20; j++ {
-				trimmed := strings.TrimSpace(lines[j])
-				// New job starts — stop looking
-				if !strings.HasPrefix(trimmed, "-") && !strings.HasPrefix(trimmed, " ") && strings.HasSuffix(trimmed, ":") && !strings.HasPrefix(trimmed, "#") {
-					break
-				}
-				if trimmed == "when: manual" {
-					t.Errorf("apply job should not have 'when: manual' with --auto-approve, found at line %d", j+1)
-				}
-			}
-		}
-	}
-}
-
-func TestGenerate_NoAutoApprove(t *testing.T) {
-	dir := fixtureDir(t, "basic")
-
-	output, err := captureTerraCi(t, dir, "generate", "--no-auto-approve")
-	if err != nil {
-		t.Fatalf("generate --no-auto-approve failed: %v", err)
-	}
-
-	// Apply jobs should have "when: manual"
-	assertContains(t, output, "when: manual")
 }
 
 func TestGenerate_PlanOnly_NoApplyJobs(t *testing.T) {

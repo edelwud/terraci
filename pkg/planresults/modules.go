@@ -3,6 +3,8 @@ package planresults
 import (
 	"os"
 	"path/filepath"
+
+	"github.com/edelwud/terraci/pkg/pipeline"
 )
 
 // FindModulesWithPlan finds all directories containing plan.json files.
@@ -15,7 +17,7 @@ func FindModulesWithPlan(rootDir string) ([]string, error) {
 		if walkErr != nil {
 			return nil //nolint:nilerr // skip inaccessible paths
 		}
-		if info.IsDir() || info.Name() != "plan.json" {
+		if info.IsDir() || info.Name() != pipeline.PlanJSONFilename {
 			return nil
 		}
 		dir := filepath.Dir(path)

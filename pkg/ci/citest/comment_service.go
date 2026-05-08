@@ -2,10 +2,6 @@ package citest
 
 import "testing"
 
-func BoolPtr(v bool) *bool {
-	return &v
-}
-
 type EnabledCase[Ctx any, Cfg any] struct {
 	Name     string
 	Context  Ctx

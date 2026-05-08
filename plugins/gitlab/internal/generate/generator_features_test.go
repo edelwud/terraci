@@ -11,13 +11,11 @@ import (
 	"github.com/edelwud/terraci/pkg/pipeline"
 )
 
-func TestGenerator_Generate_WithMRIntegration(t *testing.T) {
+func TestGenerator_Generate_WithSummaryContribution(t *testing.T) {
 	cfg := createTestConfig()
-	cfg.GitLab.MR = &MRConfig{}
 	cfg.Contributions = []*pipeline.Contribution{{
 		Jobs: []pipeline.ContributedJob{{
 			Name:     "terraci-summary",
-			Phase:    pipeline.PhaseFinalize,
 			Commands: []string{"terraci summary"},
 			Consumes: []pipeline.ResourceRequest{
 				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
@@ -48,18 +46,17 @@ func TestGenerator_Generate_WithMRIntegration(t *testing.T) {
 	}
 
 	assertPipeline(t, p).
-		hasJob("terraci-summary").
-		hasStage("finalize")
+		hasJob("terraci-summary")
 	summaryJob := mustJob(t, p, "terraci-summary")
-	if summaryJob.Stage != "finalize" {
-		t.Errorf("summary job stage: expected finalize, got %s", summaryJob.Stage)
+	if summaryJob.Stage != p.Stages[len(p.Stages)-1] {
+		t.Errorf("summary job stage: expected last DAG stage, got %s in %v", summaryJob.Stage, p.Stages)
 	}
 	if len(summaryJob.Needs) != 2 {
 		t.Errorf("summary job should have 2 needs, got %d", len(summaryJob.Needs))
 	}
 	assertPipeline(t, p).
 		job("plan-platform-stage-eu-central-1-vpc").
-		artifactPathContains("plan.txt")
+		artifactPathContains("plan.json")
 }
 
 func TestGenerator_Generate_WithMRIntegration_Disabled(t *testing.T) {
@@ -83,9 +80,7 @@ func TestGenerator_Generate_WithMRIntegration_Disabled(t *testing.T) {
 		t.Fatal("expected *Pipeline type")
 	}
 
-	assertPipeline(t, p).
-		noJob("terraci-summary").
-		noStage("finalize")
+	assertPipeline(t, p).noJob("terraci-summary")
 }
 
 func TestGenerator_Generate_WithSecrets(t *testing.T) {
@@ -150,18 +145,13 @@ func TestGenerator_Generate_WithSecrets(t *testing.T) {
 }
 
 func TestGenerator_DetailedPlanForcedByResourceConsumer(t *testing.T) {
-	// Regression: when MR comments are disabled and execution.plan_mode is
-	// "standard", a contributor that reads plan.json (e.g. cost) used to be
-	// silently broken because the plan job did not emit plan.json. The
-	// resource request must lift DetailedPlan to true regardless of
-	// provider-specific toggles.
+	// Regression: when execution.plan_mode is "standard", a contributor that
+	// reads plan.json (e.g. cost) used to be silently broken because the plan
+	// job did not emit plan.json. The resource request must lift DetailedPlan.
 	cfg := createTestConfig()
-	disabled := false
-	cfg.GitLab.MR = &MRConfig{Comment: &MRCommentConfig{Enabled: &disabled}}
 	cfg.Contributions = []*pipeline.Contribution{{
 		Jobs: []pipeline.ContributedJob{{
 			Name:     "cost-estimation",
-			Phase:    pipeline.PhasePostPlan,
 			Commands: []string{"terraci cost"},
 			Consumes: []pipeline.ResourceRequest{
 				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
@@ -262,7 +252,6 @@ func TestGenerator_Generate_WithPolicyCheck(t *testing.T) {
 	cfg.Contributions = []*pipeline.Contribution{{
 		Jobs: []pipeline.ContributedJob{{
 			Name:     "policy-check",
-			Phase:    pipeline.PhasePostPlan,
 			Commands: []string{"terraci policy pull", "terraci policy check"},
 			Consumes: []pipeline.ResourceRequest{
 				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
@@ -293,16 +282,12 @@ func TestGenerator_Generate_WithPolicyCheck(t *testing.T) {
 		t.Fatal("expected *Pipeline type")
 	}
 
-	if !slices.Contains(p.Stages, "post-plan") {
-		t.Errorf("expected post-plan stage in stages: %v", p.Stages)
-	}
-
 	policyJob := p.Jobs["policy-check"]
 	if policyJob == nil {
 		t.Fatal("policy-check job not found")
 	}
-	if policyJob.Stage != "post-plan" {
-		t.Errorf("expected policy-check job stage=post-plan, got %s", policyJob.Stage)
+	if policyJob.Stage != p.Stages[len(p.Stages)-1] {
+		t.Errorf("policy-check job stage: expected last DAG stage, got %s in %v", policyJob.Stage, p.Stages)
 	}
 	hasCheck := false
 	for _, line := range policyJob.Script {

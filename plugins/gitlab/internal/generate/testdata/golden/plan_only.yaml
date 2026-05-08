@@ -1,7 +1,7 @@
 default:
     image: hashicorp/terraform:1.6
 plan-platform-stage-eu-central-1-vpc:
-    stage: deploy-plan-0
+    stage: deploy-0
     script:
         - cd platform/stage/eu-central-1/vpc
         - ${TERRAFORM_BINARY} init
@@ -20,6 +20,6 @@ plan-platform-stage-eu-central-1-vpc:
         when: always
     resource_group: platform/stage/eu-central-1/vpc
 stages:
-    - deploy-plan-0
+    - deploy-0
 variables:
     TERRAFORM_BINARY: terraform

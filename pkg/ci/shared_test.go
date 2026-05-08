@@ -7,34 +7,6 @@ import (
 	"go.yaml.in/yaml/v4"
 )
 
-func TestCommentEnabled(t *testing.T) {
-	t.Run("nil config defaults true", func(t *testing.T) {
-		if !CommentEnabled(nil) {
-			t.Fatal("expected nil config to default to true")
-		}
-	})
-
-	t.Run("nil enabled defaults true", func(t *testing.T) {
-		if !CommentEnabled(&MRCommentConfig{}) {
-			t.Fatal("expected nil enabled to default to true")
-		}
-	})
-
-	t.Run("explicit true", func(t *testing.T) {
-		enabled := true
-		if !CommentEnabled(&MRCommentConfig{Enabled: &enabled}) {
-			t.Fatal("expected explicit true")
-		}
-	})
-
-	t.Run("explicit false", func(t *testing.T) {
-		enabled := false
-		if CommentEnabled(&MRCommentConfig{Enabled: &enabled}) {
-			t.Fatal("expected explicit false")
-		}
-	})
-}
-
 func TestImage_YAMLRoundTrip_Shorthand(t *testing.T) {
 	// Shorthand input should remain shorthand on output (no entrypoint).
 	const yamlIn = "hashicorp/terraform:1.6\n"

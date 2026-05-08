@@ -1,7 +1,6 @@
 package cost
 
 import (
-	"path/filepath"
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/pipeline"
@@ -26,9 +25,6 @@ func TestPlugin_PipelineContribution(t *testing.T) {
 	if job.Name != "cost-estimation" {
 		t.Errorf("job.Name = %q, want %q", job.Name, "cost-estimation")
 	}
-	if job.Phase != pipeline.PhasePostPlan {
-		t.Errorf("job.Phase = %v, want PhasePostPlan", job.Phase)
-	}
 	if len(job.Consumes) != 1 || job.Consumes[0].Kind != pipeline.ResourceKindPlanJSON || !job.Consumes[0].AllModules {
 		t.Fatalf("job.Consumes = %#v, want all plan JSON", job.Consumes)
 	}
@@ -42,7 +38,7 @@ func TestPlugin_PipelineContribution(t *testing.T) {
 	if len(job.Produces) != 2 {
 		t.Fatalf("job.Produces = %#v, want result and report", job.Produces)
 	}
-	wantPaths := []string{filepath.Join(".terraci", resultsFile), filepath.Join(".terraci", reportFile)}
+	wantPaths := []string{pipeline.WorkspacePath(".terraci", resultsFile), pipeline.WorkspacePath(".terraci", reportFile)}
 	if !sameStrings(producedPaths(job.Produces), wantPaths) {
 		t.Errorf("produced paths = %v, want %v", producedPaths(job.Produces), wantPaths)
 	}
@@ -74,17 +70,6 @@ func TestPlugin_PipelineContribution_EmptyServiceDir(t *testing.T) {
 	wantPaths := []string{resultsFile, reportFile}
 	if !sameStrings(producedPaths(job.Produces), wantPaths) {
 		t.Errorf("produced paths = %v, want %v", producedPaths(job.Produces), wantPaths)
-	}
-}
-
-func TestPlugin_PipelineContribution_NoSteps(t *testing.T) {
-	p := newTestPlugin(t)
-	appCtx := newTestAppContext(t, t.TempDir())
-
-	contrib := p.PipelineContribution(appCtx)
-
-	if len(contrib.Steps) != 0 {
-		t.Errorf("steps count = %d, want 0 (cost plugin contributes jobs, not steps)", len(contrib.Steps))
 	}
 }
 

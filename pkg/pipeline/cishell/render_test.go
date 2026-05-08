@@ -14,6 +14,7 @@ func TestScriptConfig_PlanScript(t *testing.T) {
 	tests := []struct {
 		name              string
 		config            pipeline.ScriptConfig
+		outputs           pipeline.PlanOutputs
 		wantInitCmd       bool
 		wantDetailedCmds  bool
 		wantSimplePlan    bool
@@ -22,8 +23,7 @@ func TestScriptConfig_PlanScript(t *testing.T) {
 		{
 			name: "InitEnabled adds init command",
 			config: pipeline.ScriptConfig{
-				InitEnabled:  true,
-				DetailedPlan: false,
+				InitEnabled: true,
 			},
 			wantInitCmd:       true,
 			wantSimplePlan:    true,
@@ -32,8 +32,7 @@ func TestScriptConfig_PlanScript(t *testing.T) {
 		{
 			name: "InitEnabled false skips init",
 			config: pipeline.ScriptConfig{
-				InitEnabled:  false,
-				DetailedPlan: false,
+				InitEnabled: false,
 			},
 			wantInitCmd:       false,
 			wantSimplePlan:    true,
@@ -42,9 +41,9 @@ func TestScriptConfig_PlanScript(t *testing.T) {
 		{
 			name: "DetailedPlan adds tee show json commands",
 			config: pipeline.ScriptConfig{
-				InitEnabled:  false,
-				DetailedPlan: true,
+				InitEnabled: false,
 			},
+			outputs:           pipeline.PlanOutputs{Text: true, JSON: true},
 			wantInitCmd:       false,
 			wantDetailedCmds:  true,
 			wantArtifactCount: 3,
@@ -52,9 +51,9 @@ func TestScriptConfig_PlanScript(t *testing.T) {
 		{
 			name: "DetailedPlan with init",
 			config: pipeline.ScriptConfig{
-				InitEnabled:  true,
-				DetailedPlan: true,
+				InitEnabled: true,
 			},
+			outputs:           pipeline.PlanOutputs{Text: true, JSON: true},
 			wantInitCmd:       true,
 			wantDetailedCmds:  true,
 			wantArtifactCount: 3,
@@ -65,7 +64,7 @@ func TestScriptConfig_PlanScript(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			op, _, artifact := tt.config.NewPlanOperation("plan-svc-prod-us-east-1-vpc", modulePath)
+			op, _, artifact := tt.config.NewPlanOperation("plan-svc-prod-us-east-1-vpc", modulePath, tt.outputs)
 			script := RenderOperation(op)
 
 			// First command is always cd
@@ -141,27 +140,15 @@ func TestScriptConfig_ApplyScript(t *testing.T) {
 			name: "PlanEnabled applies plan.tfplan",
 			config: pipeline.ScriptConfig{
 				PlanEnabled: true,
-				AutoApprove: false,
 				InitEnabled: false,
 			},
 			wantInitCmd:  false,
 			wantApplyCmd: "${TERRAFORM_BINARY} apply plan.tfplan",
 		},
 		{
-			name: "AutoApprove without plan uses -auto-approve",
-			config: pipeline.ScriptConfig{
-				PlanEnabled: false,
-				AutoApprove: true,
-				InitEnabled: false,
-			},
-			wantInitCmd:  false,
-			wantApplyCmd: "${TERRAFORM_BINARY} apply -auto-approve",
-		},
-		{
 			name: "default is plain apply",
 			config: pipeline.ScriptConfig{
 				PlanEnabled: false,
-				AutoApprove: false,
 				InitEnabled: false,
 			},
 			wantInitCmd:  false,
@@ -174,16 +161,6 @@ func TestScriptConfig_ApplyScript(t *testing.T) {
 				InitEnabled: true,
 			},
 			wantInitCmd:  true,
-			wantApplyCmd: "${TERRAFORM_BINARY} apply plan.tfplan",
-		},
-		{
-			name: "PlanEnabled takes priority over AutoApprove",
-			config: pipeline.ScriptConfig{
-				PlanEnabled: true,
-				AutoApprove: true,
-				InitEnabled: false,
-			},
-			wantInitCmd:  false,
 			wantApplyCmd: "${TERRAFORM_BINARY} apply plan.tfplan",
 		},
 	}

@@ -38,13 +38,17 @@ func renderTerraformPlan(op *pipeline.TerraformOperation) []string {
 	}
 
 	if op.DetailedPlan {
-		planText := filepath.Base(op.PlanTextFile)
-		planJSON := filepath.Base(op.PlanJSONFile)
-		script = append(script,
-			fmt.Sprintf("(${TERRAFORM_BINARY} plan -out=%s -detailed-exitcode 2>&1 || echo $? > .tf_exit) | tee %s", planFile, planText),
-			fmt.Sprintf("${TERRAFORM_BINARY} show -json %s > %s", planFile, planJSON),
-			`TF_EXIT=$(cat .tf_exit 2>/dev/null || echo 0); rm -f .tf_exit; if [ "$TF_EXIT" -eq 2 ]; then exit 0; else exit "$TF_EXIT"; fi`,
-		)
+		if op.PlanTextFile != "" {
+			planText := filepath.Base(op.PlanTextFile)
+			script = append(script, fmt.Sprintf("(${TERRAFORM_BINARY} plan -out=%s -detailed-exitcode 2>&1 || echo $? > .tf_exit) | tee %s", planFile, planText))
+		} else {
+			script = append(script, fmt.Sprintf("(${TERRAFORM_BINARY} plan -out=%s -detailed-exitcode || echo $? > .tf_exit)", planFile))
+		}
+		if op.PlanJSONFile != "" {
+			planJSON := filepath.Base(op.PlanJSONFile)
+			script = append(script, fmt.Sprintf("${TERRAFORM_BINARY} show -json %s > %s", planFile, planJSON))
+		}
+		script = append(script, `TF_EXIT=$(cat .tf_exit 2>/dev/null || echo 0); rm -f .tf_exit; if [ "$TF_EXIT" -eq 2 ]; then exit 0; else exit "$TF_EXIT"; fi`)
 		return script
 	}
 
@@ -61,12 +65,9 @@ func renderTerraformApply(op *pipeline.TerraformOperation) []string {
 		script = append(script, "${TERRAFORM_BINARY} init")
 	}
 
-	switch {
-	case op.UsePlanFile:
+	if op.UsePlanFile {
 		script = append(script, "${TERRAFORM_BINARY} apply "+filepath.Base(op.PlanFile))
-	case op.AutoApprove:
-		script = append(script, "${TERRAFORM_BINARY} apply -auto-approve")
-	default:
+	} else {
 		script = append(script, "${TERRAFORM_BINARY} apply")
 	}
 

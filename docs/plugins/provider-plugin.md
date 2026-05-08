@@ -23,14 +23,14 @@ A CI provider must implement at minimum:
 |-----------|---------|
 | `EnvDetector` | Detect if running in your CI environment |
 | `CIInfoProvider` | Return provider name, pipeline ID, commit SHA |
-| `PipelineGeneratorFactory` | Create a pipeline generator that transforms IR → YAML |
+| `PipelineGeneratorFactory` | Declare provider build requirements and create an IR-bound generator |
 
 Optional:
 
 | Interface | Purpose |
 |-----------|---------|
 | `CommentServiceFactory` | Create MR/PR comment service (for plan summaries) |
-| `FlagOverridable` | Support `--plan-only` and `--auto-approve` CLI flags |
+| `FlagOverridable` | Support `--plan-only` CLI flag |
 
 ## Environment Detection
 
@@ -56,11 +56,17 @@ func (p *Plugin) CommitSHA() string    { return os.Getenv("BITBUCKET_COMMIT") }
 
 ## Pipeline Generator
 
-Core builds the IR once via `pipeline.Build(opts)` and passes it to your factory.
-Your generator just renders the IR — it does not need depGraph, modules, or
+Core asks the provider for `PipelineRequirements(ctx)`, builds the IR once via
+`pipeline.Build(opts)`, then passes the finished IR to your factory. Your
+generator only renders the IR — it does not need depGraph, modules, or
 contributions because the IR already encodes all of them.
 
 ```go
+func (p *Plugin) PipelineRequirements(ctx *plugin.AppContext) pipeline.BuildRequirements {
+    cfg := p.Config()
+    return pipeline.BuildRequirements{PlanOnly: cfg != nil && cfg.PlanOnly}
+}
+
 func (p *Plugin) NewGenerator(ctx *plugin.AppContext, ir *pipeline.IR) pipeline.Generator {
     return &BitbucketGenerator{
         config: p.Config(),
@@ -94,14 +100,13 @@ func (g *BitbucketGenerator) Generate() (pipeline.GeneratedPipeline, error) {
             // mj.Module.Path — "platform/prod/eu-central-1/vpc"
             // mj.Plan — *Job (nil if plan disabled)
             // mj.Apply — *Job (nil if plan-only mode)
-            // Each Job has: Name, Operation, Dependencies, Steps, Env
+            // Each Job has: Name, Operation, Dependencies, Env, resources, artifacts
         }
     }
 
     // g.ir.Jobs — contributed jobs from plugins (cost, policy, summary, etc.)
     for _, job := range g.ir.Jobs {
         // job.Name — "cost-estimation", "policy-check", etc.
-        // job.Phase — determines stage name
         // job.Dependencies — job names this depends on
         // job.Operation — typed payload; render via cishell.RenderOperation for shell-driven CI
     }
@@ -139,7 +144,7 @@ type CommentService interface {
 
 ## Flag Overrides (Optional)
 
-Implement `FlagOverridable` to support `--plan-only` and `--auto-approve` CLI flags on `terraci generate`:
+Implement `FlagOverridable` to support `--plan-only` on `terraci generate`:
 
 ```go
 func (p *Plugin) SetPlanOnly(v bool) {
@@ -148,14 +153,11 @@ func (p *Plugin) SetPlanOnly(v bool) {
     }
 }
 
-func (p *Plugin) SetAutoApprove(v bool) {
-    if cfg := p.Config(); cfg != nil {
-        cfg.AutoApprove = v
-    }
-}
 ```
 
-These methods are called directly by the framework when the user passes `--plan-only` or `--auto-approve` to `terraci generate`. The config struct is mutated before pipeline generation begins.
+This method is called directly by the framework when the user passes
+`--plan-only` to `terraci generate`. The config struct is mutated before
+pipeline generation begins.
 
 ## Full Skeleton
 
@@ -187,9 +189,8 @@ func init() {
 type Plugin struct{ plugin.BasePlugin[*Config] }
 
 type Config struct {
-    Image       string `yaml:"image"`
-    PlanOnly    bool   `yaml:"plan_only"`
-    AutoApprove bool   `yaml:"auto_approve"`
+    Image    string `yaml:"image"`
+    PlanOnly bool   `yaml:"plan_only"`
 }
 
 // --- EnvDetector ---
@@ -205,6 +206,10 @@ func (p *Plugin) PipelineID() string   { return os.Getenv("BITBUCKET_BUILD_NUMBE
 func (p *Plugin) CommitSHA() string    { return os.Getenv("BITBUCKET_COMMIT") }
 
 // --- PipelineGeneratorFactory ---
+
+func (p *Plugin) PipelineRequirements(ctx *plugin.AppContext) pipeline.BuildRequirements {
+    return pipeline.BuildRequirements{}
+}
 
 func (p *Plugin) NewGenerator(ctx *plugin.AppContext, ir *pipeline.IR) pipeline.Generator {
     return &generator{config: p.Config(), ir: ir}

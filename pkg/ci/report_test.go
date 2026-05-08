@@ -178,6 +178,9 @@ func TestReportFilename(t *testing.T) {
 	if got := ReportFilename("report_a"); got != "report_a-report.json" {
 		t.Fatalf("ReportFilename(report_a) = %q, want report_a-report.json", got)
 	}
+	if got := ResultFilename("report_a"); got != "report_a-results.json" {
+		t.Fatalf("ResultFilename(report_a) = %q, want report_a-results.json", got)
+	}
 }
 
 func TestLoadReport(t *testing.T) {

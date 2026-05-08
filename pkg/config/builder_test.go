@@ -37,8 +37,7 @@ func TestBuildConfig_ProviderA(t *testing.T) {
 
 	extensionConfigs := map[string]map[string]any{
 		"provider_a": {
-			"image":        map[string]any{"name": "hashicorp/terraform:1.6"},
-			"auto_approve": false,
+			"image": map[string]any{"name": "hashicorp/terraform:1.6"},
 			"mr": map[string]any{
 				"comment": map[string]any{"enabled": true},
 			},
@@ -78,8 +77,7 @@ func TestBuildConfig_ProviderB(t *testing.T) {
 
 	extensionConfigs := map[string]map[string]any{
 		"provider_b": {
-			"runs_on":      "ubuntu-latest",
-			"auto_approve": true,
+			"runs_on": "ubuntu-latest",
 			"pr": map[string]any{
 				"comment": map[string]any{},
 			},
@@ -108,9 +106,6 @@ func TestBuildConfig_ProviderB(t *testing.T) {
 	}
 	if cfg.Execution.Binary != "tofu" {
 		t.Errorf("binary = %v, want tofu", cfg.Execution.Binary)
-	}
-	if providerBCfg["auto_approve"] != true {
-		t.Error("auto_approve should be true")
 	}
 	if providerBCfg["pr"] == nil {
 		t.Error("pr config should be present")

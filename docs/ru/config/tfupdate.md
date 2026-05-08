@@ -222,8 +222,8 @@ extensions:
 ```yaml
 stages:
   - dependency-check
-  - deploy-plan-0
-  - deploy-apply-0
+  - deploy-0
+  - deploy-1
 
 tfupdate-check:
   stage: dependency-check

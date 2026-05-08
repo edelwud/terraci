@@ -21,7 +21,7 @@ outline: deep
 |-----------|-----------|
 | `EnvDetector` | Определение CI-окружения |
 | `CIInfoProvider` | Имя провайдера, ID пайплайна, SHA коммита |
-| `PipelineGeneratorFactory` | Создание генератора: pipeline IR → YAML |
+| `PipelineGeneratorFactory` | Декларация требований к IR и создание IR-bound генератора |
 
 Опционально:
 
@@ -32,10 +32,18 @@ outline: deep
 
 ## Работа с Pipeline IR
 
-Ядро строит IR один раз через `pipeline.Build(opts)` и передаёт его в фабрику —
-генератор только рендерит. IR уже содержит модули, contributions и зависимости.
+Ядро сначала спрашивает у провайдера `PipelineRequirements(ctx)`, затем строит
+IR один раз через `pipeline.Build(opts)` и передаёт его в фабрику. Генератор
+только рендерит. IR уже содержит модули, contributions и зависимости.
 
 ```go
+func (p *Plugin) PipelineRequirements(ctx *plugin.AppContext) pipeline.BuildRequirements {
+    return pipeline.RequirementsForResources(
+        pipeline.AllPlanResources(pipeline.ResourceKindPlanText),
+        pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+    )
+}
+
 func (p *Plugin) NewGenerator(ctx *plugin.AppContext, ir *pipeline.IR) pipeline.Generator {
     return &generator{config: p.Config(), ir: ir}
 }
@@ -52,7 +60,7 @@ func (g *generator) Generate() (pipeline.GeneratedPipeline, error) {
 
     // g.ir.Jobs — contributed-джобы от плагинов (cost, policy, summary)
     for _, job := range g.ir.Jobs {
-        // job.Name, job.Phase, job.Dependencies, job.Operation
+        // job.Name, job.Dependencies, job.Operation, resources/artifacts
     }
 
     return renderYAML(g.ir), nil
@@ -61,7 +69,7 @@ func (g *generator) Generate() (pipeline.GeneratedPipeline, error) {
 
 ## Flag Overrides (опционально)
 
-Реализуйте `FlagOverridable` для поддержки `--plan-only` и `--auto-approve`:
+Реализуйте `FlagOverridable` для поддержки `--plan-only`:
 
 ```go
 func (p *Plugin) SetPlanOnly(v bool) {
@@ -70,11 +78,6 @@ func (p *Plugin) SetPlanOnly(v bool) {
     }
 }
 
-func (p *Plugin) SetAutoApprove(v bool) {
-    if cfg := p.Config(); cfg != nil {
-        cfg.AutoApprove = v
-    }
-}
 ```
 
 ## Реализация
@@ -106,9 +109,8 @@ func init() {
 type Plugin struct{ plugin.BasePlugin[*Config] }
 
 type Config struct {
-    Image       string `yaml:"image"`
-    PlanOnly    bool   `yaml:"plan_only"`
-    AutoApprove bool   `yaml:"auto_approve"`
+    Image    string `yaml:"image"`
+    PlanOnly bool   `yaml:"plan_only"`
 }
 
 // EnvDetector
@@ -122,6 +124,10 @@ func (p *Plugin) PipelineID() string   { return os.Getenv("BITBUCKET_BUILD_NUMBE
 func (p *Plugin) CommitSHA() string    { return os.Getenv("BITBUCKET_COMMIT") }
 
 // PipelineGeneratorFactory
+func (p *Plugin) PipelineRequirements(ctx *plugin.AppContext) pipeline.BuildRequirements {
+    return pipeline.BuildRequirements{}
+}
+
 func (p *Plugin) NewGenerator(ctx *plugin.AppContext, ir *pipeline.IR) pipeline.Generator {
     return &generator{config: p.Config(), ir: ir}
 }

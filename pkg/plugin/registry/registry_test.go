@@ -596,6 +596,9 @@ func (p *testProviderPlugin) ProviderName() string {
 }
 func (p *testProviderPlugin) PipelineID() string { return "1" }
 func (p *testProviderPlugin) CommitSHA() string  { return "abc" }
+func (p *testProviderPlugin) PipelineRequirements(_ *plugin.AppContext) pipeline.BuildRequirements {
+	return pipeline.BuildRequirements{}
+}
 func (p *testProviderPlugin) NewGenerator(_ *plugin.AppContext, _ *pipeline.IR) pipeline.Generator {
 	return nil
 }

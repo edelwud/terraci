@@ -59,55 +59,9 @@ func (r operationDispatcher) Run(ctx context.Context, job *pipeline.Job) error {
 	}
 }
 
-type phaseRunner struct {
-	commands commandRunner
-	main     operationRunner
-}
-
-func (r phaseRunner) Run(ctx context.Context, job *pipeline.Job) error {
-	if r.commands == nil {
-		return errors.New("command runner is not configured")
-	}
-	if r.main == nil {
-		return errors.New("operation runner is not configured")
-	}
-
-	prePhase, postPhase := phasesForJob(job)
-	for _, step := range job.Steps {
-		if step.Phase != prePhase {
-			continue
-		}
-		if err := r.commands.Run(ctx, commandSpec{
-			JobName:    job.Name,
-			ModulePath: modulePath(job),
-			Command:    step.Command,
-			Env:        job.Env,
-		}); err != nil {
-			return err
-		}
-	}
-	if err := r.main.Run(ctx, job); err != nil {
-		return err
-	}
-	for _, step := range job.Steps {
-		if step.Phase != postPhase {
-			continue
-		}
-		if err := r.commands.Run(ctx, commandSpec{
-			JobName:    job.Name,
-			ModulePath: modulePath(job),
-			Command:    step.Command,
-			Env:        job.Env,
-		}); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 type jobRunner struct {
-	phaseRunner phaseRunner
-	commands    commandRunner
+	main     operationRunner
+	commands commandRunner
 }
 
 func (r *jobRunner) Run(ctx context.Context, job *pipeline.Job) error {
@@ -117,7 +71,10 @@ func (r *jobRunner) Run(ctx context.Context, job *pipeline.Job) error {
 	if job.Module == nil {
 		return r.runStandaloneJob(ctx, job)
 	}
-	return r.phaseRunner.Run(ctx, job)
+	if r.main == nil {
+		return errors.New("operation runner is not configured")
+	}
+	return r.main.Run(ctx, job)
 }
 
 func (r *jobRunner) runStandaloneJob(ctx context.Context, job *pipeline.Job) error {
@@ -135,21 +92,4 @@ func (r *jobRunner) runStandaloneJob(ctx context.Context, job *pipeline.Job) err
 		}
 	}
 	return nil
-}
-
-func phasesForJob(job *pipeline.Job) (pre, post pipeline.Phase) {
-	// Branch on the operation payload, not on a parallel "JobType" field —
-	// the latter defaulted to "plan" for contributed jobs and silently
-	// captured them in plan-phase logic.
-	if job != nil && job.Operation.Type == pipeline.OperationTypeTerraformApply {
-		return pipeline.PhasePreApply, pipeline.PhasePostApply
-	}
-	return pipeline.PhasePrePlan, pipeline.PhasePostPlan
-}
-
-func modulePath(job *pipeline.Job) string {
-	if job == nil || job.Module == nil {
-		return ""
-	}
-	return job.Module.RelativePath
 }

@@ -25,9 +25,6 @@ func createTestModules() []*discovery.Module {
 func TestPipelineGeneration_Basic(t *testing.T) {
 	modules := createTestModules()
 	pipeline := newGeneratorScenario(t).
-		withConfig(func(cfg *Config) {
-			cfg.AutoApprove = false
-		}).
 		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
 		withModules(modules...).
 		withDependencies(map[string][]string{
@@ -43,22 +40,10 @@ func TestPipelineGeneration_Basic(t *testing.T) {
 		}).
 		generate()
 
-	hasplanStage := false
-	hasApplyStage := false
 	for _, stage := range pipeline.Stages {
-		if strings.HasPrefix(stage, "deploy-plan-") {
-			hasplanStage = true
+		if !strings.HasPrefix(stage, "deploy-") {
+			t.Fatalf("expected DAG stage %q to use deploy- prefix; stages=%v", stage, pipeline.Stages)
 		}
-		if strings.HasPrefix(stage, "deploy-apply-") {
-			hasApplyStage = true
-		}
-	}
-
-	if !hasplanStage {
-		t.Error("Expected plan stages in pipeline")
-	}
-	if !hasApplyStage {
-		t.Error("Expected apply stages in pipeline")
 	}
 
 	for _, jobName := range []string{
@@ -238,7 +223,7 @@ func TestPipelineGeneration_ChangedOnlyPlanOnly(t *testing.T) {
 		noNeedWithPrefix("apply-")
 }
 
-func TestPipelineGeneration_ApplyDependsOnPlan(t *testing.T) {
+func TestPipelineGeneration_ApplyConsumesPlan(t *testing.T) {
 	modules := createTestModules()
 	pipeline := newGeneratorScenario(t).
 		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).

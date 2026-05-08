@@ -71,12 +71,9 @@ func (f defaultFactory) Build(appCtx *plugin.AppContext, opts Options) (*Runtime
 		ExecConfig: execCfg,
 		Workspace:  workspace,
 		JobRunner: &jobRunner{
-			phaseRunner: phaseRunner{
-				commands: commandRunner,
-				main: operationDispatcher{
-					terraform: terraformRunner,
-					commands:  commandRunner,
-				},
+			main: operationDispatcher{
+				terraform: terraformRunner,
+				commands:  commandRunner,
 			},
 			commands: commandRunner,
 		},

@@ -216,15 +216,14 @@ extensions:
   # GitLab CI (omit for GitHub Actions)
   gitlab:
     image: { name: "hashicorp/terraform:1.6" }
-    auto_approve: false
-    mr:
-      comment: { enabled: true }
 
   # GitHub Actions (omit for GitLab CI)
   # github:
   #   runs_on: "ubuntu-latest"
-  #   pr:
-  #     comment: { enabled: true }
+
+  # MR/PR summary comments (enabled by default)
+  summary:
+    on_changes_only: false
 
   # AWS cost estimation
   # cost:
@@ -380,7 +379,7 @@ Full documentation is available at **[edelwud.github.io/terraci](https://edelwud
 | Dependencies | [guide/dependencies](https://edelwud.github.io/terraci/guide/dependencies) |
 | Pipeline Generation | [guide/pipeline-generation](https://edelwud.github.io/terraci/guide/pipeline-generation) |
 | Configuration Reference | [config/](https://edelwud.github.io/terraci/config/) |
-| GitLab MR Integration | [config/gitlab-mr](https://edelwud.github.io/terraci/config/gitlab-mr) |
+| Summary Comments | [config/summary](https://edelwud.github.io/terraci/config/summary) |
 | Cost Estimation | [config/cost](https://edelwud.github.io/terraci/config/cost) |
 | Policy Checks | [config/policy](https://edelwud.github.io/terraci/config/policy) |
 | CLI Reference | [cli/](https://edelwud.github.io/terraci/cli/) |

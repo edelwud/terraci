@@ -69,7 +69,6 @@ func TestBuilderBuildUsesContributionSnapshot(t *testing.T) {
 	contributions := []*pipeline.Contribution{{
 		Jobs: []pipeline.ContributedJob{{
 			Name:     "summary",
-			Phase:    pipeline.PhaseFinalize,
 			Commands: []string{"terraci summary"},
 		}},
 	}}
@@ -85,23 +84,23 @@ func TestBuilderBuildUsesContributionSnapshot(t *testing.T) {
 		t.Fatalf("Build() error = %v", err)
 	}
 
-	if jobs := plan.JobsByPhase(pipeline.PhaseFinalize); len(jobs) != 1 || jobs[0].Name != "summary" {
-		t.Fatalf("finalize jobs = %#v, want summary job", jobs)
+	if len(plan.Jobs) != 1 || plan.Jobs[0].Name != "summary" {
+		t.Fatalf("contributed jobs = %#v, want summary job", plan.Jobs)
 	}
 }
 
-func TestBuilderBuildPlanModeExcludesApplyPhaseContributedJobs(t *testing.T) {
+func TestBuilderBuildPlanModeKeepsAllContributedJobs(t *testing.T) {
 	t.Parallel()
 
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	result := workflowResultForModules(module)
 	contributions := []*pipeline.Contribution{{
 		Jobs: []pipeline.ContributedJob{
-			{Name: "pre-plan", Phase: pipeline.PhasePrePlan, Commands: []string{"pre-plan"}},
-			{Name: "post-plan", Phase: pipeline.PhasePostPlan, Commands: []string{"post-plan"}},
-			{Name: "pre-apply", Phase: pipeline.PhasePreApply, Commands: []string{"pre-apply"}},
-			{Name: "post-apply", Phase: pipeline.PhasePostApply, Commands: []string{"post-apply"}},
-			{Name: "summary", Phase: pipeline.PhaseFinalize, Commands: []string{"summary"}},
+			{Name: "lint", Commands: []string{"terraci lint"}},
+			{Name: "cost", Commands: []string{"terraci cost"}},
+			{Name: "policy", Commands: []string{"terraci policy check"}},
+			{Name: "tfupdate", Commands: []string{"terraci tfupdate"}},
+			{Name: "summary", Commands: []string{"summary"}},
 		},
 	}}
 
@@ -116,49 +115,31 @@ func TestBuilderBuildPlanModeExcludesApplyPhaseContributedJobs(t *testing.T) {
 		t.Fatalf("Build() error = %v", err)
 	}
 
-	if jobs := plan.JobsByPhase(pipeline.PhasePrePlan); len(jobs) != 1 || jobs[0].Name != "pre-plan" {
-		t.Fatalf("pre-plan jobs = %#v, want pre-plan job", jobs)
-	}
-	if jobs := plan.JobsByPhase(pipeline.PhasePostPlan); len(jobs) != 1 || jobs[0].Name != "post-plan" {
-		t.Fatalf("post-plan jobs = %#v, want post-plan job", jobs)
-	}
-	if jobs := plan.JobsByPhase(pipeline.PhasePreApply); len(jobs) != 0 {
-		t.Fatalf("pre-apply jobs = %#v, want none", jobs)
-	}
-	if jobs := plan.JobsByPhase(pipeline.PhasePostApply); len(jobs) != 0 {
-		t.Fatalf("post-apply jobs = %#v, want none", jobs)
-	}
-	if jobs := plan.JobsByPhase(pipeline.PhaseFinalize); len(jobs) != 1 || jobs[0].Name != "summary" {
-		t.Fatalf("finalize jobs = %#v, want summary job", jobs)
+	if len(plan.Jobs) != 5 {
+		t.Fatalf("contributed jobs = %#v, want all jobs in plan mode", plan.Jobs)
 	}
 }
 
-func TestBuilderBuildRunModeKeepsApplyPhaseContributedJobs(t *testing.T) {
+func TestBuilderBuildDetailedPlanModeRequestsDetailedResources(t *testing.T) {
 	t.Parallel()
 
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	result := workflowResultForModules(module)
-	contributions := []*pipeline.Contribution{{
-		Jobs: []pipeline.ContributedJob{{
-			Name:     "pre-apply",
-			Phase:    pipeline.PhasePreApply,
-			Commands: []string{"pre-apply"},
-		}},
-	}}
 
 	plan, err := New().Build(
 		[]*discovery.Module{module},
 		result,
-		execution.Config{PlanEnabled: true},
+		execution.Config{PlanEnabled: true, PlanMode: execution.PlanModeDetailed},
 		spec.ExecutionModeRun,
-		contributions,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("Build() error = %v", err)
 	}
 
-	if jobs := plan.JobsByPhase(pipeline.PhasePreApply); len(jobs) != 1 || jobs[0].Name != "pre-apply" {
-		t.Fatalf("pre-apply jobs = %#v, want pre-apply job", jobs)
+	planJob := plan.Levels[0].Modules[0].Plan
+	if !planJob.Operation.Terraform.DetailedPlan {
+		t.Fatal("detailed plan mode should request detailed plan resources")
 	}
 }
 

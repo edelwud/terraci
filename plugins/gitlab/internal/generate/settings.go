@@ -54,10 +54,6 @@ func (s settings) planOnly() bool {
 	return s.config.PlanOnly
 }
 
-func (s settings) autoApprove() bool {
-	return s.config.AutoApprove
-}
-
 func (s settings) stagesPrefix() string {
 	if s.config.StagesPrefix != "" {
 		return s.config.StagesPrefix
@@ -103,35 +99,4 @@ func (s settings) cachePathTemplates() []string {
 		return nil
 	}
 	return s.config.Cache.Paths
-}
-
-func (s settings) mrCommentEnabled() bool {
-	if s.config.MR == nil {
-		return false
-	}
-	if s.config.MR.Comment == nil || s.config.MR.Comment.Enabled == nil {
-		return true
-	}
-	return *s.config.MR.Comment.Enabled
-}
-
-func (s settings) summaryJob() summaryJobSettings {
-	if s.config.MR == nil || s.config.MR.SummaryJob == nil {
-		return summaryJobSettings{}
-	}
-
-	cfg := s.config.MR.SummaryJob
-	return summaryJobSettings{
-		image: cfg.Image,
-		tags:  cfg.Tags,
-	}
-}
-
-type summaryJobSettings struct {
-	image *configpkg.Image
-	tags  []string
-}
-
-func (s summaryJobSettings) configured() bool {
-	return s.image != nil || len(s.tags) > 0
 }

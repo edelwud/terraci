@@ -7,8 +7,6 @@ import (
 	gh "github.com/google/go-github/v68/github"
 
 	"github.com/edelwud/terraci/pkg/ci"
-	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
-	"github.com/edelwud/terraci/plugins/internal/ciplugin"
 )
 
 type issueCommentClient interface {
@@ -20,20 +18,18 @@ type issueCommentClient interface {
 
 type Service struct {
 	client  issueCommentClient
-	config  *configpkg.PRConfig
 	context *Context
 }
 
-func NewService(cfg *configpkg.PRConfig, client issueCommentClient, ctx *Context) *Service {
+func NewService(client issueCommentClient, ctx *Context) *Service {
 	return &Service{
 		client:  client,
-		config:  cfg,
 		context: ctx,
 	}
 }
 
-func NewServiceFromEnv(cfg *configpkg.PRConfig) *Service {
-	return NewService(cfg, NewClientFromEnv(), DetectContext())
+func NewServiceFromEnv() *Service {
+	return NewService(NewClientFromEnv(), DetectContext())
 }
 
 func (s *Service) IsEnabled() bool {
@@ -43,7 +39,7 @@ func (s *Service) IsEnabled() bool {
 	if !s.client.HasToken() {
 		return false
 	}
-	return ciplugin.CommentEnabled(s.config)
+	return true
 }
 
 func (s *Service) UpsertComment(ctx context.Context, body string) error {

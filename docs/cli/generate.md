@@ -153,14 +153,14 @@ default:
 
 # Stages for each execution level
 stages:
-  - deploy-plan-0
-  - deploy-apply-0
-  - deploy-plan-1
-  - deploy-apply-1
+  - deploy-0
+  - deploy-1
+  - deploy-2
+  - deploy-3
 
 # Plan jobs
 plan-service-env-region-module:
-  stage: deploy-plan-0
+  stage: deploy-0
   script:
     - cd service/env/region/module
     - ${TERRAFORM_BINARY} init
@@ -168,7 +168,7 @@ plan-service-env-region-module:
 
 # Apply jobs
 apply-service-env-region-module:
-  stage: deploy-apply-0
+  stage: deploy-1
   needs:
     - plan-service-env-region-module
   script:

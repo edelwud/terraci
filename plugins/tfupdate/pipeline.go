@@ -1,19 +1,18 @@
 package tfupdate
 
 import (
-	"path/filepath"
-
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
 )
 
+func (p *Plugin) PipelineContributionEnabled(_ *plugin.AppContext) bool {
+	cfg := p.Config()
+	return cfg != nil && cfg.Pipeline
+}
+
 // PipelineContribution adds a dependency update check job to the CI pipeline.
 // Only contributes when pipeline: true is set in config.
 func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribution {
-	if cfg := p.Config(); cfg == nil || !cfg.Pipeline {
-		return nil
-	}
-
 	const jobName = "tfupdate-check"
 	serviceDir := ""
 	if cfg := ctx.Config(); cfg != nil {
@@ -21,13 +20,9 @@ func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribu
 	}
 	return &pipeline.Contribution{
 		Jobs: []pipeline.ContributedJob{{
-			Name:     jobName,
-			Phase:    pipeline.PhasePrePlan,
-			Commands: []string{"terraci tfupdate"},
-			Produces: []pipeline.ResourceSpec{
-				pipeline.PluginResource(pipeline.ResourceKindPluginResult, pluginName, filepath.Join(serviceDir, resultsFile)),
-				pipeline.PluginResource(pipeline.ResourceKindPluginReport, pluginName, filepath.Join(serviceDir, reportFile)),
-			},
+			Name:         jobName,
+			Commands:     []string{"terraci tfupdate"},
+			Produces:     pipeline.PluginResultAndReportResources(serviceDir, pluginName),
 			AllowFailure: true,
 		}},
 	}

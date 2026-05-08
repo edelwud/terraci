@@ -144,7 +144,7 @@ func TestUseCase_RunUsesInjectedDependencies(t *testing.T) {
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	jobRunner := &fakeJobRunner{}
 	output := &fakeOutput{}
-	report := &ci.Report{Producer: ci.AggregateReportProducer, Title: "Terraform Plan Summary"}
+	report := &ci.Report{Producer: "summary", Title: "Terraform Plan Summary"}
 	loader := &fakeSummaryReportLoader{report: report}
 	runtimeFactory := &fakeRuntimeFactory{runtime: &runner.Runtime{
 		ExecConfig: execution.Config{PlanEnabled: true, Parallelism: 1},
@@ -195,7 +195,7 @@ func TestUseCase_RunUsesInjectedPlanner(t *testing.T) {
 	appCtx := plugintest.NewAppContext(t, workDir)
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	ir := &pipeline.IR{
-		Jobs: []pipeline.Job{{Name: "summary", Phase: pipeline.PhaseFinalize}},
+		Jobs: []pipeline.Job{{Name: "summary"}},
 	}
 	plannerStub := &fakePlanner{plan: ir}
 	contributionCollector := &fakeContributionCollector{
@@ -373,7 +373,7 @@ func TestUseCase_RunJobFailureGoesThroughOutputFailure(t *testing.T) {
 		appCtx,
 		WithTargetResolver(fakeTargetResolver{targets: []*discovery.Module{module}}),
 		WithPlanner(&fakePlanner{plan: &pipeline.IR{
-			Jobs: []pipeline.Job{{Name: "summary", Phase: pipeline.PhaseFinalize}},
+			Jobs: []pipeline.Job{{Name: "summary"}},
 		}}),
 		WithRuntimeFactory(&fakeRuntimeFactory{runtime: &runner.Runtime{
 			ExecConfig: execution.Config{PlanEnabled: true, Parallelism: 1},

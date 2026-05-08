@@ -178,7 +178,7 @@ ResolveCIProvider() (*plugin.ResolvedCIProvider, error)
 ResolveChangeDetector() (plugin.ChangeDetectionProvider, error)
 ResolveKVCacheProvider(name string) (plugin.KVCacheProvider, error)
 ResolveBlobStoreProvider(name string) (plugin.BlobStoreProvider, error)
-CollectContributions(ctx *plugin.AppContext) []pipeline.Contribution
+CollectContributions(ctx *plugin.AppContext) []*pipeline.Contribution
 PreflightsForStartup() []plugin.Preflightable
 ```
 

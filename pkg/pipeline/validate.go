@@ -74,6 +74,11 @@ func validateArtifact(job *Job, artifact Artifact) error {
 	if slices.Contains(artifact.Paths, "") {
 		return fmt.Errorf("pipeline job %q has artifact %q with empty path", job.Name, artifact.Name)
 	}
+	for _, path := range artifact.Paths {
+		if err := ValidateWorkspacePath(path); err != nil {
+			return fmt.Errorf("pipeline job %q has artifact %q with invalid path: %w", job.Name, artifact.Name, err)
+		}
+	}
 	return nil
 }
 
@@ -83,6 +88,9 @@ func validateResource(job *Job, resource ResourceSpec, direction string) error {
 	}
 	if resource.Path == "" {
 		return fmt.Errorf("pipeline job %q %s %s without path", job.Name, direction, resource.Ref.Kind)
+	}
+	if err := ValidateWorkspacePath(resource.Path); err != nil {
+		return fmt.Errorf("pipeline job %q %s %s with invalid path: %w", job.Name, direction, resource.Ref.Kind, err)
 	}
 	return nil
 }

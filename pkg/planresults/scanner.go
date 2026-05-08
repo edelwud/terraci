@@ -9,6 +9,7 @@ import (
 
 	"github.com/edelwud/terraci/internal/terraform/plan"
 	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/pipeline"
 )
 
 // defaultPlanSegments is the default pattern segments when none are provided.
@@ -33,7 +34,7 @@ func Scan(rootDir string, segments []string) (*ci.PlanResultCollection, error) {
 	}
 
 	for _, dir := range moduleDirs {
-		jsonPath := filepath.Join(dir, "plan.json")
+		jsonPath := filepath.Join(dir, pipeline.PlanJSONFilename)
 
 		modulePath := dir
 		if rootDir != "." {

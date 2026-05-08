@@ -1,16 +1,18 @@
 package cost
 
 import (
-	"path/filepath"
-
+	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
 )
 
 const (
-	jobName     = "cost-estimation"
-	resultsFile = "cost-results.json"
-	reportFile  = "cost-report.json"
+	jobName = "cost-estimation"
+)
+
+var (
+	resultsFile = ci.ResultFilename(pluginName)
+	reportFile  = ci.ReportFilename(pluginName)
 )
 
 // PipelineContribution adds a cost estimation job to the CI pipeline.
@@ -24,15 +26,11 @@ func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribu
 	return &pipeline.Contribution{
 		Jobs: []pipeline.ContributedJob{{
 			Name:     jobName,
-			Phase:    pipeline.PhasePostPlan,
 			Commands: []string{"terraci cost"},
 			Consumes: []pipeline.ResourceRequest{
 				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
 			},
-			Produces: []pipeline.ResourceSpec{
-				pipeline.PluginResource(pipeline.ResourceKindPluginResult, pluginName, filepath.Join(serviceDir, resultsFile)),
-				pipeline.PluginResource(pipeline.ResourceKindPluginReport, pluginName, filepath.Join(serviceDir, reportFile)),
-			},
+			Produces: pipeline.PluginResultAndReportResources(serviceDir, pluginName),
 			// AllowFailure lets the pipeline proceed even when cost estimation fails
 			// (e.g., missing AWS credentials or unsupported resource types).
 			AllowFailure: true,

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/edelwud/terraci/pkg/pipeline"
 )
 
 // DefaultNamespace is the OPA package namespace evaluated when a policy
@@ -44,7 +46,7 @@ func (c *Checker) CheckModule(ctx context.Context, modulePath string) (*Result, 
 	}
 
 	// Find plan.json in module directory
-	planJSONPath := filepath.Join(c.rootDir, modulePath, "plan.json")
+	planJSONPath := filepath.Join(c.rootDir, modulePath, pipeline.PlanJSONFilename)
 	if _, statErr := os.Stat(planJSONPath); os.IsNotExist(statErr) {
 		return nil, fmt.Errorf("plan.json not found in %s", modulePath)
 	}
@@ -84,7 +86,7 @@ func (c *Checker) CheckAll(ctx context.Context) (*Summary, error) {
 			return err
 		}
 
-		if info.Name() == "plan.json" && !info.IsDir() {
+		if info.Name() == pipeline.PlanJSONFilename && !info.IsDir() {
 			// Get module path relative to root
 			modulePath, err := filepath.Rel(c.rootDir, filepath.Dir(path))
 			if err != nil {

@@ -12,6 +12,8 @@ type jobProfile struct {
 	runsOn      string
 	container   *domainpkg.Container
 	env         map[string]string
+	ifExpr      string
+	environment string
 	stepsBefore []domainpkg.Step
 	stepsAfter  []domainpkg.Step
 }
@@ -51,6 +53,12 @@ func applyJobDefaults(profile *jobProfile, defaults *configpkg.JobDefaults) {
 		profile.container = convertContainer(defaults.Container)
 	}
 	mergeProfileEnv(profile, defaults.Env)
+	if defaults.If != "" {
+		profile.ifExpr = defaults.If
+	}
+	if defaults.Environment != "" {
+		profile.environment = defaults.Environment
+	}
 	profile.stepsBefore = appendConfigSteps(profile.stepsBefore, defaults.StepsBefore)
 	profile.stepsAfter = appendConfigSteps(profile.stepsAfter, defaults.StepsAfter)
 }
@@ -63,6 +71,12 @@ func applyJobOverwrite(profile *jobProfile, ow *configpkg.JobOverwrite) {
 		profile.container = convertContainer(ow.Container)
 	}
 	mergeProfileEnv(profile, ow.Env)
+	if ow.If != "" {
+		profile.ifExpr = ow.If
+	}
+	if ow.Environment != "" {
+		profile.environment = ow.Environment
+	}
 	profile.stepsBefore = appendConfigSteps(profile.stepsBefore, ow.StepsBefore)
 	profile.stepsAfter = appendConfigSteps(profile.stepsAfter, ow.StepsAfter)
 }

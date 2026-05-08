@@ -2,11 +2,9 @@ package runner
 
 import (
 	"context"
-	"errors"
 	"reflect"
 	"testing"
 
-	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/pipeline"
 )
 
@@ -19,16 +17,6 @@ type recordCommandRunner struct {
 func (r *recordCommandRunner) Run(_ context.Context, spec commandSpec) error {
 	r.commands = append(r.commands, spec.Command)
 	r.specs = append(r.specs, spec)
-	return r.err
-}
-
-type recordOperationRunner struct {
-	operations []string
-	err        error
-}
-
-func (r *recordOperationRunner) Run(_ context.Context, job *pipeline.Job) error {
-	r.operations = append(r.operations, job.Name)
 	return r.err
 }
 
@@ -46,135 +34,6 @@ func (r *recordTerraformRunner) RunPlan(_ context.Context, job *pipeline.Job, _ 
 func (r *recordTerraformRunner) RunApply(_ context.Context, job *pipeline.Job, _ *pipeline.TerraformOperation) error {
 	r.applies = append(r.applies, job.Name)
 	return r.err
-}
-
-func TestPhaseRunnerOrdersPreMainPost(t *testing.T) {
-	t.Parallel()
-
-	commands := &recordCommandRunner{}
-	operations := &recordOperationRunner{}
-	runner := phaseRunner{
-		commands: commands,
-		main:     operations,
-	}
-
-	job := &pipeline.Job{
-		Name:   "plan-platform-stage-eu-central-1-vpc",
-		Module: discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
-		Env:    map[string]string{"TF_WORKSPACE": "stage"},
-		Steps: []pipeline.Step{
-			{Phase: pipeline.PhasePrePlan, Command: "echo pre"},
-			{Phase: pipeline.PhasePostPlan, Command: "echo post"},
-		},
-	}
-
-	if err := runner.Run(context.Background(), job); err != nil {
-		t.Fatalf("Run() error = %v", err)
-	}
-
-	got := []string{commands.commands[0], operations.operations[0], commands.commands[1]}
-	want := []string{"echo pre", job.Name, "echo post"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("execution order = %v, want %v", got, want)
-	}
-	for _, spec := range commands.specs {
-		if spec.ModulePath != job.Module.RelativePath {
-			t.Fatalf("module path = %q, want %q", spec.ModulePath, job.Module.RelativePath)
-		}
-		if !reflect.DeepEqual(spec.Env, job.Env) {
-			t.Fatalf("env = %#v, want %#v", spec.Env, job.Env)
-		}
-	}
-}
-
-func TestPhaseRunnerUsesApplyPhasesForApplyJobs(t *testing.T) {
-	t.Parallel()
-
-	commands := &recordCommandRunner{}
-	operations := &recordOperationRunner{}
-	runner := phaseRunner{
-		commands: commands,
-		main:     operations,
-	}
-
-	job := &pipeline.Job{
-		Name:      "apply-platform-stage-eu-central-1-vpc",
-		Module:    discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
-		Operation: pipeline.Operation{Type: pipeline.OperationTypeTerraformApply},
-		Steps: []pipeline.Step{
-			{Phase: pipeline.PhasePrePlan, Command: "echo wrong-pre"},
-			{Phase: pipeline.PhasePreApply, Command: "echo pre-apply"},
-			{Phase: pipeline.PhasePostApply, Command: "echo post-apply"},
-			{Phase: pipeline.PhasePostPlan, Command: "echo wrong-post"},
-		},
-	}
-
-	if err := runner.Run(context.Background(), job); err != nil {
-		t.Fatalf("Run() error = %v", err)
-	}
-
-	got := []string{commands.commands[0], operations.operations[0], commands.commands[1]}
-	want := []string{"echo pre-apply", job.Name, "echo post-apply"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("execution order = %v, want %v", got, want)
-	}
-}
-
-func TestPhaseRunnerStopsWhenPreStepFails(t *testing.T) {
-	t.Parallel()
-
-	wantErr := errors.New("pre failed")
-	commands := &recordCommandRunner{err: wantErr}
-	operations := &recordOperationRunner{}
-	runner := phaseRunner{
-		commands: commands,
-		main:     operations,
-	}
-
-	err := runner.Run(context.Background(), &pipeline.Job{
-		Name:   "plan-platform-stage-eu-central-1-vpc",
-		Module: discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
-		Steps: []pipeline.Step{
-			{Phase: pipeline.PhasePrePlan, Command: "echo pre"},
-			{Phase: pipeline.PhasePostPlan, Command: "echo post"},
-		},
-	})
-	if !errors.Is(err, wantErr) {
-		t.Fatalf("Run() error = %v, want %v", err, wantErr)
-	}
-	if len(operations.operations) != 0 {
-		t.Fatalf("operations = %v, want none", operations.operations)
-	}
-	if got := commands.commands; !reflect.DeepEqual(got, []string{"echo pre"}) {
-		t.Fatalf("commands = %v, want pre only", got)
-	}
-}
-
-func TestPhaseRunnerRejectsMissingCollaborators(t *testing.T) {
-	t.Parallel()
-
-	job := &pipeline.Job{
-		Name:   "plan-platform-stage-eu-central-1-vpc",
-		Module: discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
-	}
-
-	tests := []struct {
-		name   string
-		runner phaseRunner
-	}{
-		{name: "missing commands", runner: phaseRunner{main: &recordOperationRunner{}}},
-		{name: "missing main", runner: phaseRunner{commands: &recordCommandRunner{}}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			if err := tt.runner.Run(context.Background(), job); err == nil {
-				t.Fatal("Run() error = nil, want missing collaborator error")
-			}
-		})
-	}
 }
 
 func TestOperationDispatcherRoutesTerraformOperations(t *testing.T) {

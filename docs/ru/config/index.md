@@ -67,7 +67,6 @@ extensions:
       name: hashicorp/terraform:1.6
     stages_prefix: "deploy"
     parallelism: 5
-    auto_approve: false
 
     variables:
       TF_IN_AUTOMATION: "true"
@@ -88,7 +87,6 @@ extensions:
   # Настройки GitHub Actions
   # github:
   #   runs_on: "ubuntu-latest"
-  #   auto_approve: false
   #   permissions:
   #     contents: read
   #     pull-requests: write
@@ -104,7 +102,6 @@ extensions:
 | [filters](./filters) | Паттерны include/exclude |
 | [policy](./policy) | Конфигурация OPA-политик |
 | [cost](./cost) | Оценка стоимости AWS-инфраструктуры |
-| [gitlab-mr](./gitlab-mr) | Интеграция с Merge Request |
 | [summary](./summary) | Настройки сводного комментария MR/PR |
 | [tfupdate](./tfupdate) | Разрешение зависимостей Terraform и синхронизация lock-файлов |
 

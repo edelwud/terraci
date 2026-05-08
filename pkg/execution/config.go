@@ -4,6 +4,7 @@ import (
 	"maps"
 
 	"github.com/edelwud/terraci/pkg/config"
+	"github.com/edelwud/terraci/pkg/pipeline"
 )
 
 // PlanMode controls which plan artifacts TerraCi produces.
@@ -53,4 +54,14 @@ func ConfigFromProject(cfg *config.Config) Config {
 	}
 
 	return result
+}
+
+// BuildRequirements converts execution-mode choices into pipeline IR
+// requirements. Provider plugins should only add provider/config requirements;
+// runtime execution requirements are derived here.
+func (c Config) BuildRequirements() pipeline.BuildRequirements {
+	if c.PlanMode != PlanModeDetailed {
+		return pipeline.BuildRequirements{}
+	}
+	return pipeline.RequirementsForDetailedPlans()
 }

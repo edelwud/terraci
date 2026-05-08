@@ -270,9 +270,9 @@ When policy checks are enabled, TerraCi adds a `policy-check` stage between plan
 **GitLab CI:**
 ```yaml
 stages:
-  - deploy-plan-0
+  - deploy-0
   - policy-check
-  - deploy-apply-0
+  - deploy-1
 
 policy-check:
   stage: policy-check

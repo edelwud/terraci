@@ -9,13 +9,14 @@ import (
 
 	log "github.com/caarlos0/log"
 
+	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/plugin"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
 )
 
-const (
-	resultsFile = "tfupdate-results.json"
-	reportFile  = "tfupdate-report.json"
+var (
+	resultsFile = ci.ResultFilename(pluginName)
+	reportFile  = ci.ReportFilename(pluginName)
 )
 
 // Commands returns the CLI commands provided by the tfupdate plugin.

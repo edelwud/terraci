@@ -51,8 +51,6 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribut
 		runsOn = defaultGitHubRunner
 	}
 
-	autoApprove := state.Bool("auto_approve")
-
 	setupAction := "hashicorp/setup-terraform@v3"
 	if binary == "tofu" {
 		setupAction = "opentofu/setup-opentofu@v1"
@@ -64,18 +62,10 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribut
 	}
 
 	cfg := map[string]any{
-		"runs_on":      runsOn,
-		"auto_approve": autoApprove,
+		"runs_on": runsOn,
 		"job_defaults": map[string]any{
 			"steps_before": setupSteps,
 		},
-	}
-
-	// Enable PR comments when summary is enabled
-	if state.Bool("summary.enabled") {
-		cfg["pr"] = map[string]any{
-			"comment": map[string]any{"enabled": true},
-		}
 	}
 
 	return &initwiz.InitContribution{

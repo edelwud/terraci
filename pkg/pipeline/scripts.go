@@ -4,36 +4,43 @@ package pipeline
 // TerraformOperation. The struct does not render shell — see
 // pkg/pipeline/cishell for the default shell renderer.
 type ScriptConfig struct {
-	InitEnabled  bool
-	PlanEnabled  bool
-	AutoApprove  bool
-	DetailedPlan bool // true when MR/PR integration needs plan.txt + plan.json
+	InitEnabled bool
+	PlanEnabled bool
+}
+
+type PlanOutputs struct {
+	Text bool
+	JSON bool
+}
+
+func (o PlanOutputs) Detailed() bool {
+	return o.Text || o.JSON
 }
 
 // NewPlanOperation creates a typed terraform plan operation plus the resources
 // and artifact that must restore plan files at their original
 // workspace-relative paths.
-func (sc ScriptConfig) NewPlanOperation(jobName, modulePath string) (Operation, []ResourceSpec, Artifact) {
+func (sc ScriptConfig) NewPlanOperation(jobName, modulePath string, outputs PlanOutputs) (Operation, []ResourceSpec, Artifact) {
 	op := Operation{
 		Type: OperationTypeTerraformPlan,
 		Terraform: &TerraformOperation{
 			ModulePath:   modulePath,
 			InitEnabled:  sc.InitEnabled,
-			PlanFile:     modulePath + "/plan.tfplan",
-			DetailedPlan: sc.DetailedPlan,
+			PlanFile:     PlanBinaryPath(modulePath),
+			DetailedPlan: outputs.Detailed(),
 		},
 	}
 
 	resources := []ResourceSpec{
 		PlanResource(ResourceKindPlanBinary, modulePath, op.Terraform.PlanFile),
 	}
-	if sc.DetailedPlan {
-		op.Terraform.PlanTextFile = modulePath + "/plan.txt"
-		op.Terraform.PlanJSONFile = modulePath + "/plan.json"
-		resources = append(resources,
-			PlanResource(ResourceKindPlanText, modulePath, op.Terraform.PlanTextFile),
-			PlanResource(ResourceKindPlanJSON, modulePath, op.Terraform.PlanJSONFile),
-		)
+	if outputs.Text {
+		op.Terraform.PlanTextFile = PlanTextPath(modulePath)
+		resources = append(resources, PlanResource(ResourceKindPlanText, modulePath, op.Terraform.PlanTextFile))
+	}
+	if outputs.JSON {
+		op.Terraform.PlanJSONFile = PlanJSONPath(modulePath)
+		resources = append(resources, PlanResource(ResourceKindPlanJSON, modulePath, op.Terraform.PlanJSONFile))
 	}
 
 	return op, resources, PlanArtifact(jobName, resourcePaths(resources))
@@ -46,9 +53,8 @@ func (sc ScriptConfig) NewApplyOperation(modulePath string) Operation {
 		Terraform: &TerraformOperation{
 			ModulePath:  modulePath,
 			InitEnabled: sc.InitEnabled,
-			PlanFile:    modulePath + "/plan.tfplan",
+			PlanFile:    PlanBinaryPath(modulePath),
 			UsePlanFile: sc.PlanEnabled,
-			AutoApprove: sc.AutoApprove,
 		},
 	}
 }

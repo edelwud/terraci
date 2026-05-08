@@ -7,7 +7,6 @@ import (
 	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
-	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
 	generatepkg "github.com/edelwud/terraci/plugins/github/internal/generate"
 	prpkg "github.com/edelwud/terraci/plugins/github/internal/pr"
 )
@@ -26,6 +25,11 @@ func (p *Plugin) PipelineID() string { return os.Getenv("GITHUB_RUN_ID") }
 // CommitSHA returns the GitHub Actions commit SHA.
 func (p *Plugin) CommitSHA() string { return os.Getenv("GITHUB_SHA") }
 
+// PipelineRequirements returns GitHub-specific IR build requirements.
+func (p *Plugin) PipelineRequirements(_ *plugin.AppContext) pipeline.BuildRequirements {
+	return generatepkg.PipelineRequirements(p.Config())
+}
+
 // NewGenerator creates a new GitHub Actions pipeline generator bound to the
 // pre-built IR.
 func (p *Plugin) NewGenerator(ctx *plugin.AppContext, ir *pipeline.IR) pipeline.Generator {
@@ -34,9 +38,5 @@ func (p *Plugin) NewGenerator(ctx *plugin.AppContext, ir *pipeline.IR) pipeline.
 
 // NewCommentService creates a new PR comment service.
 func (p *Plugin) NewCommentService(_ *plugin.AppContext) ci.CommentService {
-	var prCfg *configpkg.PRConfig
-	if p.Config() != nil {
-		prCfg = p.Config().PR
-	}
-	return prpkg.NewServiceFromEnv(prCfg)
+	return prpkg.NewServiceFromEnv()
 }

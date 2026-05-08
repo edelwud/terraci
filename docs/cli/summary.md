@@ -18,7 +18,7 @@ terraci summary [flags]
 
 The `summary` command collects terraform plan results from artifacts and creates or updates a summary comment on the merge request (GitLab) or pull request (GitHub).
 
-This command is designed to run as a final job in the CI pipeline after all plan jobs have completed. It loads plan results from each module's plan artifacts, enriches them with `{producer}-report.json` files (cost, policy, tfupdate) discovered in the service directory, writes a canonical `summary-report.json`, and posts a formatted MR/PR comment.
+This command is designed to run as a resource-dependent DAG job after the plan and report artifacts it consumes are available. It loads plan results from each module's plan artifacts, enriches them with `{producer}-report.json` files (cost, policy, tfupdate) discovered in the service directory, and posts a formatted MR/PR comment.
 
 The command automatically detects the CI provider and whether it is running in an MR/PR pipeline, and only creates comments when appropriate.
 
@@ -30,7 +30,7 @@ This command is typically used in the generated pipeline's summary job.
 
 ```yaml
 terraci-summary:
-  stage: summary
+  stage: deploy-3
   image: ghcr.io/edelwud/terraci:latest
   script:
     - terraci summary
@@ -110,34 +110,17 @@ extensions:
     enabled: false  # disable the summary plugin
 ```
 
-Configure the MR/PR comment behavior via the CI provider config in `.terraci.yaml`:
-
-### GitLab
+Configure MR/PR comment behavior through the `summary` plugin in `.terraci.yaml`:
 
 ```yaml
 extensions:
-  gitlab:
-    mr:
-      comment:
-        enabled: true
-        on_changes_only: false
-        include_details: true
+  summary:
+    enabled: true
+    on_changes_only: false
+    include_details: true
 ```
 
-See [GitLab MR Configuration](/config/gitlab-mr) for full options.
-
-### GitHub
-
-```yaml
-extensions:
-  github:
-    pr:
-      comment:
-        enabled: true
-        on_changes_only: false
-```
-
-See [GitHub Actions Configuration](/config/github) for full options.
+GitLab/GitHub providers only supply the comment transport and CI context; they do not own summary rendering options.
 
 ## Exit Codes
 
@@ -167,6 +150,6 @@ terraci summary -v
 
 ## See Also
 
-- [GitLab MR Integration](/config/gitlab-mr)
+- [Summary Configuration](/config/summary)
 - [GitHub Actions Configuration](/config/github)
 - [terraci generate](/cli/generate)

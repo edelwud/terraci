@@ -24,8 +24,8 @@ func (defaultBuilder) Build(targets []*discovery.Module, result *workflow.Result
 	planOnly := mode == spec.ExecutionModePlan
 	if planOnly {
 		execCfg.PlanEnabled = true
-		contributions = planModeContributions(contributions)
 	}
+	requirements := execCfg.BuildRequirements().Merge(pipeline.BuildRequirements{PlanOnly: planOnly})
 
 	ir, err := pipeline.Build(pipeline.BuildOptions{
 		DepGraph:      result.Graph,
@@ -33,56 +33,16 @@ func (defaultBuilder) Build(targets []*discovery.Module, result *workflow.Result
 		AllModules:    result.Filtered.Modules,
 		ModuleIndex:   result.Filtered.Index,
 		Script: pipeline.ScriptConfig{
-			InitEnabled:  execCfg.InitEnabled,
-			PlanEnabled:  execCfg.PlanEnabled,
-			DetailedPlan: execCfg.PlanMode == execution.PlanModeDetailed,
+			InitEnabled: execCfg.InitEnabled,
+			PlanEnabled: execCfg.PlanEnabled,
 		},
 		Contributions: contributions,
+		Requirements:  requirements,
 		PlanEnabled:   execCfg.PlanEnabled,
-		PlanOnly:      planOnly,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("build local execution plan: %w", err)
 	}
 
 	return ir, nil
-}
-
-func planModeContributions(contributions []*pipeline.Contribution) []*pipeline.Contribution {
-	if len(contributions) == 0 {
-		return nil
-	}
-
-	filtered := make([]*pipeline.Contribution, 0, len(contributions))
-	for _, contribution := range contributions {
-		if contribution == nil {
-			continue
-		}
-		next := &pipeline.Contribution{
-			Steps: append([]pipeline.Step(nil), contribution.Steps...),
-		}
-		for _, job := range contribution.Jobs {
-			if isPlanModeJobPhase(job.Phase) {
-				job.Consumes = append([]pipeline.ResourceRequest(nil), job.Consumes...)
-				job.Produces = append([]pipeline.ResourceSpec(nil), job.Produces...)
-				next.Jobs = append(next.Jobs, job)
-			}
-		}
-		if len(next.Steps) > 0 || len(next.Jobs) > 0 {
-			filtered = append(filtered, next)
-		}
-	}
-
-	return filtered
-}
-
-func isPlanModeJobPhase(phase pipeline.Phase) bool {
-	switch phase {
-	case pipeline.PhasePrePlan, pipeline.PhasePostPlan, pipeline.PhaseFinalize:
-		return true
-	case pipeline.PhasePreApply, pipeline.PhasePostApply:
-		return false
-	default:
-		return false
-	}
 }

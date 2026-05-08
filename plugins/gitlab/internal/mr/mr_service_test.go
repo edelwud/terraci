@@ -8,25 +8,15 @@ import (
 
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/ci/citest"
-	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
 )
 
 func TestMRService_IsEnabled(t *testing.T) {
-	citest.RunEnabledCases(t, []citest.EnabledCase[*Context, *configpkg.MRConfig]{
+	citest.RunEnabledCases(t, []citest.EnabledCase[*Context, struct{}]{
 		{Name: "not in MR", Context: &Context{InMR: false}, HasToken: true, Expected: false},
 		{Name: "in MR without token", Context: &Context{InMR: true}, HasToken: false, Expected: false},
-		{Name: "in MR with token, default config", Context: &Context{InMR: true}, HasToken: true, Expected: true},
-		{
-			Name:     "explicitly disabled",
-			Context:  &Context{InMR: true},
-			HasToken: true,
-			Config: &configpkg.MRConfig{
-				Comment: &configpkg.MRCommentConfig{Enabled: citest.BoolPtr(false)},
-			},
-			Expected: false,
-		},
-	}, func(t *testing.T, ctx *Context, cfg *configpkg.MRConfig, hasToken bool) bool {
-		return newServiceScenario(t).withContext(ctx).withConfig(cfg).withToken(hasToken).service.IsEnabled()
+		{Name: "in MR with token", Context: &Context{InMR: true}, HasToken: true, Expected: true},
+	}, func(t *testing.T, ctx *Context, _ struct{}, hasToken bool) bool {
+		return newServiceScenario(t).withContext(ctx).withToken(hasToken).service.IsEnabled()
 	})
 }
 
@@ -87,21 +77,5 @@ func TestMRService_UpsertComment_UpdateError(t *testing.T) {
 		upsert("test body")
 	if err == nil {
 		t.Error("expected error when UpdateMRNote fails")
-	}
-}
-
-func TestMRService_UpsertComment_OnChangesOnly_NoChanges(t *testing.T) {
-	scenario := newServiceScenario(t).withConfig(&configpkg.MRConfig{
-		Comment: &configpkg.MRCommentConfig{
-			OnChangesOnly: true,
-		},
-	})
-
-	err := scenario.upsert("test body")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if scenario.client.createdBody == "" {
-		t.Error("expected CreateMRNote to be called")
 	}
 }

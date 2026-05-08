@@ -1,7 +1,6 @@
 package policy
 
 import (
-	"path/filepath"
 	"slices"
 	"testing"
 
@@ -27,9 +26,6 @@ func TestPlugin_PipelineContribution_UsesAppContextServiceDir(t *testing.T) {
 	if job.Name != "policy-check" {
 		t.Errorf("job.Name = %q, want %q", job.Name, "policy-check")
 	}
-	if job.Phase != pipeline.PhasePostPlan {
-		t.Errorf("job.Phase = %v, want PhasePostPlan", job.Phase)
-	}
 	if len(job.Consumes) != 1 || job.Consumes[0].Kind != pipeline.ResourceKindPlanJSON || !job.Consumes[0].AllModules {
 		t.Fatalf("job.Consumes = %#v, want all plan JSON", job.Consumes)
 	}
@@ -41,8 +37,8 @@ func TestPlugin_PipelineContribution_UsesAppContextServiceDir(t *testing.T) {
 		t.Fatalf("job.Produces = %#v, want result and report", job.Produces)
 	}
 	wantPaths := []string{
-		filepath.Join(appCtx.Config().ServiceDir, resultsFile),
-		filepath.Join(appCtx.Config().ServiceDir, reportFile),
+		pipeline.WorkspacePath(appCtx.Config().ServiceDir, resultsFile),
+		pipeline.WorkspacePath(appCtx.Config().ServiceDir, reportFile),
 	}
 	if !slices.Equal(producedPaths(job.Produces), wantPaths) {
 		t.Errorf("produced paths = %v, want %v", producedPaths(job.Produces), wantPaths)

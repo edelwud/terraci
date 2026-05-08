@@ -5,8 +5,6 @@ import (
 	"testing"
 
 	gh "github.com/google/go-github/v68/github"
-
-	"github.com/edelwud/terraci/plugins/github/internal/config"
 )
 
 type fakeIssueCommentClient struct {
@@ -60,7 +58,7 @@ type serviceScenario struct {
 func newServiceScenario(t *testing.T) *serviceScenario {
 	t.Helper()
 	client := &fakeIssueCommentClient{hasToken: true}
-	service := NewService(nil, client, &Context{
+	service := NewService(client, &Context{
 		InPR:     true,
 		PRNumber: 1,
 	})
@@ -74,12 +72,6 @@ func newServiceScenario(t *testing.T) *serviceScenario {
 func (s *serviceScenario) withContext(ctx *Context) *serviceScenario {
 	s.t.Helper()
 	s.service.context = ctx
-	return s
-}
-
-func (s *serviceScenario) withConfig(cfg *config.PRConfig) *serviceScenario {
-	s.t.Helper()
-	s.service.config = cfg
 	return s
 }
 

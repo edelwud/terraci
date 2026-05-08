@@ -6,13 +6,13 @@ import (
 	"github.com/edelwud/terraci/pkg/filter"
 )
 
-// ExecutionMode determines which pipeline phases to execute.
+// ExecutionMode determines which local pipeline shape to execute.
 type ExecutionMode int
 
 const (
-	// ExecutionModeRun runs all phases (plan + apply).
+	// ExecutionModeRun runs the full DAG, including apply jobs.
 	ExecutionModeRun ExecutionMode = iota
-	// ExecutionModePlan runs pre-plan, plan, post-plan, and summary finalization.
+	// ExecutionModePlan runs the plan-only DAG.
 	ExecutionModePlan
 )
 

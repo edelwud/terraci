@@ -66,8 +66,8 @@ Prefix for generated stage names.
 ```yaml
 extensions:
   gitlab:
-    stages_prefix: "deploy"  # Produces: deploy-plan-0, deploy-apply-0
-    # stages_prefix: "terraform"  # Produces: terraform-plan-0, terraform-apply-0
+    stages_prefix: "deploy"  # Produces: deploy-0, deploy-1
+    # stages_prefix: "terraform"  # Produces: terraform-0, terraform-1
 ```
 
 ### parallelism
@@ -103,18 +103,15 @@ The CLI flag `--plan-only` on `terraci generate` overrides this value.
 The on/off switch for the *plan stage* itself lives at the top level under `execution.plan_enabled` (default `true`). When `plan_enabled: false`, only `apply-*` jobs are emitted (running `terraform apply` directly without a saved plan). Use `plan_only` here to keep plan jobs and skip apply.
 :::
 
-### auto_approve
-
-**Type:** `boolean`
-**Default:** `false`
-
-Auto-approve apply jobs without manual trigger.
+Apply scheduling is controlled through `job_defaults` or `overwrites`. For
+example, make apply jobs manual:
 
 ```yaml
 extensions:
   gitlab:
-    auto_approve: false  # Apply requires manual trigger (when: manual)
-    # auto_approve: true   # Apply runs automatically
+    overwrites:
+      - type: apply
+        when: manual
 ```
 
 ### cache_enabled
@@ -368,7 +365,6 @@ extensions:
     # Pipeline structure
     stages_prefix: "deploy"
     parallelism: 5
-    auto_approve: false
     cache_enabled: true
 
     # Pipeline variables
@@ -434,11 +430,11 @@ workflow:
       when: always
 
 stages:
-  - deploy-plan-0
-  - deploy-apply-0
+  - deploy-0
+  - deploy-1
 
 plan-platform-prod-vpc:
-  stage: deploy-plan-0
+  stage: deploy-0
   script:
     - cd platform/prod/us-east-1/vpc
     - ${TERRAFORM_BINARY} init
@@ -472,7 +468,7 @@ plan-platform-prod-vpc:
       - platform/prod/us-east-1/vpc/.terraform/
 
 apply-platform-prod-vpc:
-  stage: deploy-apply-0
+  stage: deploy-1
   script:
     - cd platform/prod/us-east-1/vpc
     - ${TERRAFORM_BINARY} init
@@ -513,6 +509,6 @@ If you use a custom pattern like `{team}/{stack}/{datacenter}/{component}`, the 
 
 ## See Also
 
-- [Merge Request Integration](/config/gitlab-mr) — MR comments with plan summaries and policy results
+- [Summary Configuration](/config/summary) — MR/PR comments with plan summaries and plugin reports
 - [GitHub Actions Configuration](/config/github) — the equivalent configuration for GitHub Actions
 - [Pipeline Generation Guide](/guide/pipeline-generation) — end-to-end guide for generating CI pipelines

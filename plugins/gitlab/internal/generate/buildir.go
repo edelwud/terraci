@@ -10,10 +10,10 @@ import (
 )
 
 // BuildPipelineIR builds the canonical pipeline IR for the GitLab generator
-// from raw inputs. Provider-specific knobs (e.g. DetailedPlan inferred from
-// "MR comments enabled?") are derived from the GitLab settings; the actual
-// IR construction goes through pipelinetest.BuildIR so the gitlab and
-// github helpers stay in lockstep.
+// from raw inputs. Runtime requirements come from execution config and
+// provider-specific requirements come from GitLab settings; the actual IR
+// construction goes through pipelinetest.BuildIR so the gitlab and github
+// helpers stay in lockstep.
 func BuildPipelineIR(
 	cfg *configpkg.Config,
 	execCfg execution.Config,
@@ -22,32 +22,21 @@ func BuildPipelineIR(
 	allModules, targetModules []*discovery.Module,
 ) (*pipeline.IR, error) {
 	s := newSettings(cfg, execCfg)
-	requiredResources := providerCommentResources(s.mrCommentEnabled())
+	requirements := execCfg.BuildRequirements().Merge(PipelineRequirements(cfg))
 	return pipelinetest.BuildIR(pipelinetest.IROptions{
 		Script: pipeline.ScriptConfig{
 			InitEnabled: s.initEnabled(),
 			PlanEnabled: s.planEnabled(),
-			AutoApprove: s.autoApprove(),
-			// execution.plan_mode=detailed is an explicit user/runtime request.
-			// MR comments declare plan.txt + plan.json via RequiredResources.
-			DetailedPlan: execCfg.PlanMode == execution.PlanModeDetailed,
 		},
-		Contributions:     contributions,
-		RequiredResources: requiredResources,
-		DepGraph:          depGraph,
-		AllModules:        allModules,
-		TargetModules:     targetModules,
-		PlanEnabled:       s.planEnabled(),
-		PlanOnly:          s.planOnly(),
+		Contributions: contributions,
+		Requirements:  requirements,
+		DepGraph:      depGraph,
+		AllModules:    allModules,
+		TargetModules: targetModules,
+		PlanEnabled:   s.planEnabled(),
 	})
 }
 
-func providerCommentResources(enabled bool) []pipeline.ResourceRequest {
-	if !enabled {
-		return nil
-	}
-	return []pipeline.ResourceRequest{
-		pipeline.AllPlanResources(pipeline.ResourceKindPlanText),
-		pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
-	}
+func PipelineRequirements(cfg *configpkg.Config) pipeline.BuildRequirements {
+	return pipeline.BuildRequirements{PlanOnly: newSettings(cfg, execution.Config{}).planOnly()}
 }

@@ -175,36 +175,37 @@ TerraCi генерирует конфигурацию CI пайплайна из
 2. **Apply джоб**
    - Зависит от plan джоба (`needs`)
    - Выполняет `terraform apply plan.tfplan`
-   - Ручной запуск (если `auto_approve: false`)
+   - Может быть ручным или условным через provider overwrites
 
-### Маппинг стейджей
+### Маппинг DAG-стейджей
 
-Уровни выполнения отображаются на GitLab стейджи:
+Зависимости джобов раскладываются в топологические DAG-слои. GitLab рендерит
+эти слои как стейджи:
 
 ```yaml
 stages:
-  - deploy-plan-0   # Планы уровня 0
-  - deploy-apply-0  # Применение уровня 0
-  - deploy-plan-1   # Планы уровня 1
-  - deploy-apply-1  # Применение уровня 1
+  - deploy-0   # Планы уровня 0
+  - deploy-1  # Применение уровня 0
+  - deploy-2   # Планы уровня 1
+  - deploy-3  # Применение уровня 1
 ```
 
 ### Цепочка зависимостей
 
 ```yaml
 plan-vpc:
-  stage: deploy-plan-0
+  stage: deploy-0
 
 apply-vpc:
-  stage: deploy-apply-0
+  stage: deploy-1
   needs: [plan-vpc]
 
 plan-eks:
-  stage: deploy-plan-1
+  stage: deploy-2
   needs: [apply-vpc]  # Ждёт применения vpc
 
 apply-eks:
-  stage: deploy-apply-1
+  stage: deploy-3
   needs: [plan-eks]
 ```
 
@@ -214,7 +215,7 @@ apply-eks:
 flowchart TD
   A["terraci generate"] --> B
   B["workflow.Run() — scan, filter, parse, graph"] --> C
-  C["resolver.CollectContributions(appCtx)"] --> D
+  C["provider.PipelineRequirements(ctx) + resolver.CollectContributions(appCtx)"] --> D
   D["pipeline.Build(opts) → *pipeline.IR"] --> E
   E{"Провайдер?"}
   E -->|GitLab| F["gitlab.NewGenerator(ctx, ir)"] --> G[".gitlab-ci.yml"]
@@ -226,7 +227,7 @@ flowchart TD
 | Шаг | Функция | Что делает |
 |-----|---------|-----------|
 | 1 | `workflow.Run()` | Сканирование файловой системы, применение фильтров, парсинг HCL, построение графа зависимостей |
-| 2 | `resolver.CollectContributions(appCtx)` | Сбор шагов и отдельных джобов, контрибьютнутых плагинами (cost, policy, summary, tfupdate) |
+| 2 | `provider.PipelineRequirements(ctx)` + `resolver.CollectContributions(appCtx)` | Сбор требований провайдера к ресурсам и contributed-шагов/джобов |
 | 3 | `pipeline.Build(opts)` | Построение провайдер-агностичного IR (`*pipeline.IR{Levels, Jobs}`) — единый вход для исполнения |
 | 4 | `provider.NewGenerator(ctx, ir)` + `Generate()` | Привязка IR к провайдеру; преобразование IR в YAML GitLab CI или воркфлоу GitHub Actions |
 

@@ -88,10 +88,9 @@ func TestGenerate_PlanOnlyWithDeps(t *testing.T) {
 		noNeedWithPrefix("apply-")
 }
 
-func TestGenerate_AutoApprove(t *testing.T) {
+func TestGenerate_ApplyHasNoEnvironmentByDefault(t *testing.T) {
 	module := createTestModule("platform", "stage", "eu-central-1", "vpc")
 	workflow := newGeneratorScenario(t).
-		withConfig(func(cfg *configpkg.Config) { cfg.AutoApprove = true }).
 		withModules(module).
 		withDependencies(map[string][]string{module.ID(): {}}).
 		generate()
@@ -101,10 +100,12 @@ func TestGenerate_AutoApprove(t *testing.T) {
 		noEnvironment()
 }
 
-func TestGenerate_ManualApprove(t *testing.T) {
+func TestGenerate_ApplyEnvironmentFromOverwrite(t *testing.T) {
 	module := createTestModule("platform", "stage", "eu-central-1", "vpc")
 	workflow := newGeneratorScenario(t).
-		withConfig(func(cfg *configpkg.Config) { cfg.AutoApprove = false }).
+		withConfig(func(cfg *configpkg.Config) {
+			cfg.Overwrites = []configpkg.JobOverwrite{{Type: configpkg.OverwriteTypeApply, Environment: "production"}}
+		}).
 		withModules(module).
 		withDependencies(map[string][]string{module.ID(): {}}).
 		generate()
@@ -195,7 +196,7 @@ func TestDryRun(t *testing.T) {
 		TotalModules:    2,
 		AffectedModules: 2,
 		Jobs:            4,
-		Stages:          2,
+		Stages:          4,
 		ExecutionLevels: 2,
 	})
 }

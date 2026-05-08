@@ -11,7 +11,6 @@ func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contributi
 	return &pipeline.Contribution{
 		Jobs: []pipeline.ContributedJob{{
 			Name:     "terraci-summary",
-			Phase:    pipeline.PhaseFinalize,
 			Commands: []string{"terraci summary"},
 			Consumes: []pipeline.ResourceRequest{
 				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),

@@ -49,6 +49,13 @@ func fixtureDir(t *testing.T, name string) string {
 	return filepath.Join(testdataDir(t), name)
 }
 
+func writeProjectConfig(t *testing.T, dir, raw string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, ".terraci.yaml"), []byte(raw), 0o600); err != nil {
+		t.Fatalf("failed to write project config: %v", err)
+	}
+}
+
 // runTerraCi executes a terraci command in the given directory and returns any error.
 // For commands that write to stdout (generate, graph, schema, version), use
 // the -o flag or captureTerraCi instead.

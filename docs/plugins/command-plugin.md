@@ -228,12 +228,12 @@ func (p *Plugin) Preflight(_ context.Context, _ *plugin.AppContext) error {
 
 ## Adding to CI Pipelines
 
-To run your command as a step in generated pipelines, implement `PipelineContributor` alongside `CommandProvider`:
+To run your command as a standalone generated pipeline job, implement `PipelineContributor` alongside `CommandProvider`:
 
 ```go
 import "github.com/edelwud/terraci/pkg/pipeline"
 
-// PipelineContribution injects `terraci slack` into the PostPlan phase.
+// PipelineContribution adds a DAG job that runs after plan JSON is available.
 func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contribution {
     cfg := p.Config()
     if cfg == nil || !cfg.Pipeline {
@@ -244,7 +244,6 @@ func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contributi
         Jobs: []pipeline.ContributedJob{
             {
                 Name:     "slack-notify",
-                Phase:    pipeline.PhasePostPlan,
                 Consumes: []pipeline.ResourceRequest{
                     pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
                 },

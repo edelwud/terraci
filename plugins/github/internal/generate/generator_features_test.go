@@ -7,15 +7,13 @@ import (
 	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
 )
 
-func TestGenerate_WithPR(t *testing.T) {
+func TestGenerate_WithSummaryContribution(t *testing.T) {
 	vpc := createTestModule("platform", "stage", "eu-central-1", "vpc")
 	eks := createTestModule("platform", "stage", "eu-central-1", "eks")
 	workflow := newGeneratorScenario(t).
-		withConfig(func(cfg *configpkg.Config) { cfg.PR = &configpkg.PRConfig{} }).
 		withContributions([]*pipeline.Contribution{{
 			Jobs: []pipeline.ContributedJob{{
 				Name:     "terraci-summary",
-				Phase:    pipeline.PhaseFinalize,
 				Commands: []string{"terraci summary"},
 				Consumes: []pipeline.ResourceRequest{
 					pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
@@ -50,7 +48,6 @@ func TestGenerate_ContributedJobInheritsJobDefaults(t *testing.T) {
 		withContributions([]*pipeline.Contribution{{
 			Jobs: []pipeline.ContributedJob{{
 				Name:     "cost-estimation",
-				Phase:    pipeline.PhasePostPlan,
 				Commands: []string{"terraci cost"},
 				Consumes: []pipeline.ResourceRequest{
 					pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
@@ -86,7 +83,6 @@ func TestGenerate_ContributedJobOverwriteByName(t *testing.T) {
 		withContributions([]*pipeline.Contribution{{
 			Jobs: []pipeline.ContributedJob{{
 				Name:     "cost-estimation",
-				Phase:    pipeline.PhasePostPlan,
 				Commands: []string{"terraci cost"},
 				Consumes: []pipeline.ResourceRequest{
 					pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
@@ -196,7 +192,6 @@ func TestGenerate_ContributedJobAppliesAllMatchingOverwritesInOrder(t *testing.T
 		withContributions([]*pipeline.Contribution{{
 			Jobs: []pipeline.ContributedJob{{
 				Name:     "cost-estimation",
-				Phase:    pipeline.PhasePostPlan,
 				Commands: []string{"terraci cost"},
 				Consumes: []pipeline.ResourceRequest{
 					pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
@@ -227,7 +222,6 @@ func TestGenerate_WithPolicy(t *testing.T) {
 		withContributions([]*pipeline.Contribution{{
 			Jobs: []pipeline.ContributedJob{{
 				Name:     "policy-check",
-				Phase:    pipeline.PhasePostPlan,
 				Commands: []string{"terraci policy pull", "terraci policy check"},
 				Consumes: []pipeline.ResourceRequest{
 					pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
@@ -259,7 +253,6 @@ func TestGenerate_ArtifactRestoreContract(t *testing.T) {
 		withContributions([]*pipeline.Contribution{{
 			Jobs: []pipeline.ContributedJob{{
 				Name:     "cost-estimation",
-				Phase:    pipeline.PhasePostPlan,
 				Commands: []string{"terraci cost"},
 				Consumes: []pipeline.ResourceRequest{
 					pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),

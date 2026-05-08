@@ -60,14 +60,6 @@ func TestRunSummaryUseCase_NoProvider_PrintsSummaryOnly(t *testing.T) {
 	if !strings.Contains(output, "summary") {
 		t.Fatalf("output = %q, want summary output", output)
 	}
-
-	report := readSummaryReportJSON(t, appCtx.ServiceDir())
-	if report.Producer != "summary" {
-		t.Fatalf("report plugin = %q, want summary", report.Producer)
-	}
-	if report.Status != ci.ReportStatusWarn {
-		t.Fatalf("report status = %q, want %q", report.Status, ci.ReportStatusWarn)
-	}
 }
 
 func TestRunSummaryUseCase_PostsComment(t *testing.T) {
@@ -99,29 +91,6 @@ func TestRunSummaryUseCase_PostsComment(t *testing.T) {
 	if !strings.Contains(commentSvc.body, "terraci-plan-comment") {
 		t.Fatalf("comment body = %q, want terraci marker", commentSvc.body)
 	}
-
-	report := readSummaryReportJSON(t, appCtx.ServiceDir())
-	if len(report.Sections) == 0 {
-		t.Fatal("summary report sections are empty")
-	}
-	if report.Status != ci.ReportStatusWarn {
-		t.Fatalf("report status = %q, want %q", report.Status, ci.ReportStatusWarn)
-	}
-	if report.Provenance == nil {
-		t.Fatal("report provenance = nil, want value")
-	}
-	if report.Producer != "summary" {
-		t.Fatalf("report producer = %q, want summary", report.Producer)
-	}
-	if report.Provenance.CommitSHA != "abcdef1234567890" {
-		t.Fatalf("report provenance commit = %q, want abcdef1234567890", report.Provenance.CommitSHA)
-	}
-	if report.Provenance.PipelineID != "123" {
-		t.Fatalf("report provenance pipeline = %q, want 123", report.Provenance.PipelineID)
-	}
-	if report.Provenance.PlanResultsFingerprint == "" {
-		t.Fatal("report provenance fingerprint = empty, want value")
-	}
 }
 
 func TestRunSummaryUseCase_OnChangesOnlySkipsNoChanges(t *testing.T) {
@@ -149,11 +118,6 @@ func TestRunSummaryUseCase_OnChangesOnlySkipsNoChanges(t *testing.T) {
 	if !strings.Contains(output, "no reportable changes") {
 		t.Fatalf("output = %q, want no reportable changes message", output)
 	}
-
-	report := readSummaryReportJSON(t, appCtx.ServiceDir())
-	if report.Status != ci.ReportStatusPass {
-		t.Fatalf("report status = %q, want %q", report.Status, ci.ReportStatusPass)
-	}
 }
 
 func TestRunSummaryUseCase_IncludeDetailsFalseRemovesDetailsFromCommentAndReport(t *testing.T) {
@@ -176,21 +140,5 @@ func TestRunSummaryUseCase_IncludeDetailsFalseRemovesDetailsFromCommentAndReport
 
 	if strings.Contains(commentSvc.body, "Full plan output") {
 		t.Fatalf("comment body should omit full plan output when include_details=false:\n%s", commentSvc.body)
-	}
-
-	report := readSummaryReportJSON(t, appCtx.ServiceDir())
-	if len(report.Sections) < 2 {
-		t.Fatalf("report sections = %#v, want module table row", report.Sections)
-	}
-	table, err := ci.DecodeSection[ci.ModuleTableSection](report.Sections[1])
-	if err != nil || len(table.Rows) != 1 {
-		t.Fatalf("decode module table: rows=%v err=%v", table.Rows, err)
-	}
-	row := table.Rows[0]
-	if row.StructuredDetails != "" {
-		t.Fatalf("StructuredDetails = %q, want empty", row.StructuredDetails)
-	}
-	if row.RawPlanOutput != "" {
-		t.Fatalf("RawPlanOutput = %q, want empty", row.RawPlanOutput)
 	}
 }

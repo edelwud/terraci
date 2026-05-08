@@ -120,10 +120,6 @@ extensions:
       name: hashicorp/terraform:1.6
     stages_prefix: deploy
     cache_enabled: true
-    auto_approve: false
-    mr:
-      comment:
-        enabled: true
 ```
 
 ### Провайдер GitHub
@@ -141,7 +137,6 @@ execution:
 extensions:
   github:
     runs_on: ubuntu-latest
-    auto_approve: false
     permissions:
       contents: read
       pull-requests: write
@@ -149,8 +144,6 @@ extensions:
       steps_before:
         - uses: actions/checkout@v4
         - uses: hashicorp/setup-terraform@v3
-    pr:
-      comment: {}
 ```
 
 > Конфигурация backend (S3, GCS и т.д.) не генерируется командой `terraci init` — TerraCi читает существующие блоки `terraform { backend "..." }` из ваших модулей для разрешения путей state-файлов; ничего не добавляется в `.terraci.yaml`.

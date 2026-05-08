@@ -44,10 +44,3 @@ func (p *Plugin) SetPlanOnly(v bool) {
 		cfg.PlanOnly = v
 	}
 }
-
-// SetAutoApprove sets auto-approve mode directly on the typed config.
-func (p *Plugin) SetAutoApprove(v bool) {
-	if cfg := p.Config(); cfg != nil {
-		cfg.AutoApprove = v
-	}
-}

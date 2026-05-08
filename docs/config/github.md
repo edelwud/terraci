@@ -72,20 +72,6 @@ extensions:
     plan_only: true
 ```
 
-### auto_approve
-
-**Type:** `boolean`
-**Default:** `false`
-
-Auto-approve apply jobs without environment protection.
-
-```yaml
-extensions:
-  github:
-    auto_approve: false  # Apply uses environment protection
-    # auto_approve: true   # Apply runs automatically
-```
-
 ### permissions
 
 **Type:** `map[string]string`
@@ -113,6 +99,8 @@ Available fields:
 - `runs_on` - Override runner label for all jobs
 - `container` - Container image for all jobs
 - `env` - Additional environment variables
+- `if` - Job condition
+- `environment` - GitHub Actions environment
 - `steps_before` - Extra steps to run before terraform commands
 - `steps_after` - Extra steps to run after terraform commands
 
@@ -149,10 +137,12 @@ Each step in `steps_before` / `steps_after` supports:
 Job-level overrides for plan or apply jobs. Applied after `job_defaults`.
 
 Each overwrite has:
-- `type` - Which jobs to override: `plan` or `apply`
+- `type` - Which jobs to override: `plan`, `apply`, or an exact contributed job name
 - `runs_on` - Override runner label
 - `container` - Override container image
 - `env` - Override/add environment variables
+- `if` - Job condition
+- `environment` - GitHub Actions environment
 - `steps_before` - Override steps before terraform commands
 - `steps_after` - Override steps after terraform commands
 
@@ -166,6 +156,7 @@ extensions:
 
       - type: apply
         runs_on: self-hosted
+        environment: production
         env:
           DEPLOY_ENV: "production"
 ```
@@ -183,32 +174,6 @@ extensions:
             run: echo "Deploying..."
 ```
 
-### pr
-
-**Type:** `object`
-**Default:** `null`
-
-Pull request integration settings. Equivalent to GitLab's `mr` section.
-
-```yaml
-extensions:
-  github:
-    pr:
-      comment:
-        enabled: true
-        on_changes_only: false
-```
-
-#### pr.comment
-
-Controls PR comment behavior:
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `enabled` | bool | true | Enable PR comments |
-| `on_changes_only` | bool | false | Only comment when there are changes |
-| `include_details` | bool | true | Include full plan output in expandable sections |
-
 ## Full Example
 
 ```yaml
@@ -220,9 +185,6 @@ execution:
 extensions:
   github:
     runs_on: "ubuntu-latest"
-
-    # Workflow settings
-    auto_approve: false
 
     # Workflow-level environment variables
     env:
@@ -250,12 +212,6 @@ extensions:
     overwrites:
       - type: apply
         runs_on: self-hosted
-
-    # Pull request integration
-    pr:
-      comment:
-        enabled: true
-        on_changes_only: false
 ```
 
 ## Per-Job Environment Variables
@@ -291,5 +247,5 @@ Variable names are derived by uppercasing the segment name and prefixing with `T
 ## See Also
 
 - [GitLab CI Configuration](/config/gitlab) — the equivalent configuration for GitLab CI
-- [Merge Request Integration](/config/gitlab-mr) — MR comments with plan summaries and policy results
+- [Summary Configuration](/config/summary) — MR/PR comments with plan summaries and plugin reports
 - [Pipeline Generation Guide](/guide/pipeline-generation) — end-to-end guide for generating CI pipelines

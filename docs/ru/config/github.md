@@ -72,20 +72,6 @@ extensions:
     plan_only: true
 ```
 
-### auto_approve
-
-**Тип:** `boolean`
-**По умолчанию:** `false`
-
-Автоматический apply без защиты через environment.
-
-```yaml
-extensions:
-  github:
-    auto_approve: false  # Apply использует environment protection
-    # auto_approve: true   # Apply выполняется автоматически
-```
-
 ### permissions
 
 **Тип:** `map[string]string`
@@ -183,32 +169,6 @@ extensions:
             run: echo "Deploying..."
 ```
 
-### pr
-
-**Тип:** `object`
-**По умолчанию:** `null`
-
-Настройки интеграции с Pull Request. Эквивалент секции `mr` в GitLab.
-
-```yaml
-extensions:
-  github:
-    pr:
-      comment:
-        enabled: true
-        on_changes_only: false
-```
-
-#### pr.comment
-
-Управление поведением комментариев в PR:
-
-| Поле | Тип | По умолчанию | Описание |
-|------|-----|--------------|----------|
-| `enabled` | bool | true | Включить комментарии в PR |
-| `on_changes_only` | bool | false | Комментировать только при наличии изменений |
-| `include_details` | bool | true | Включить полный вывод плана в раскрывающихся секциях |
-
 ## Полный пример
 
 ```yaml
@@ -220,9 +180,6 @@ execution:
 extensions:
   github:
     runs_on: "ubuntu-latest"
-
-    # Настройки workflow
-    auto_approve: false
 
     # Переменные окружения на уровне workflow
     env:
@@ -250,12 +207,6 @@ extensions:
     overwrites:
       - type: apply
         runs_on: self-hosted
-
-    # Интеграция с Pull Request
-    pr:
-      comment:
-        enabled: true
-        on_changes_only: false
 ```
 
 ## Переменные джобов
@@ -282,7 +233,7 @@ extensions:
 | Команды после джоба | `job_defaults.after_script` | `job_defaults.steps_after` |
 | Переменные пайплайна | `variables` | `env` |
 | Контроль доступа | `rules` | `permissions` |
-| Интеграция MR/PR | секция `mr` | секция `pr` |
+| Интеграция MR/PR | `summary` + comment service | `summary` + comment service |
 | Секреты | `secrets` (Vault) | Через шаги GitHub Action |
 | OIDC токены | `id_tokens` | `permissions.id-token: write` |
 | Кеширование | `cache_enabled` | Через `actions/cache` в шагах |
@@ -291,5 +242,5 @@ extensions:
 ## Смотрите также
 
 - [Конфигурация GitLab CI](/ru/config/gitlab) — эквивалентная конфигурация для GitLab CI
-- [Интеграция с Merge Request](/ru/config/gitlab-mr) — комментарии в MR с результатами plan и политик
+- [Конфигурация summary](/ru/config/summary) — комментарии MR/PR с результатами plan и политик
 - [Генерация пайплайнов](/ru/guide/pipeline-generation) — руководство по генерации CI пайплайнов

@@ -5,8 +5,6 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/discovery"
-	"github.com/edelwud/terraci/pkg/execution"
-	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
 )
 
@@ -70,62 +68,4 @@ func TestPipeline_ToYAML(t *testing.T) {
 	if !strings.Contains(yaml, "plan-test:") {
 		t.Error("YAML should contain plan-test job")
 	}
-}
-
-func TestGenerator_isMREnabled(t *testing.T) {
-	tests := []struct {
-		name     string
-		glCfg    *Config
-		expected bool
-	}{
-		{
-			name:     "nil MR config",
-			glCfg:    &Config{},
-			expected: false,
-		},
-		{
-			name:     "MR config present, no comment config",
-			glCfg:    &Config{MR: &MRConfig{}},
-			expected: true,
-		},
-		{
-			name:     "MR config present, comment enabled nil",
-			glCfg:    &Config{MR: &MRConfig{Comment: &MRCommentConfig{}}},
-			expected: true,
-		},
-		{
-			name: "MR config present, comment explicitly enabled",
-			glCfg: &Config{MR: &MRConfig{Comment: &MRCommentConfig{
-				Enabled: boolPtr(true),
-			}}},
-			expected: true,
-		},
-		{
-			name: "MR config present, comment explicitly disabled",
-			glCfg: &Config{MR: &MRConfig{Comment: &MRCommentConfig{
-				Enabled: boolPtr(false),
-			}}},
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			gen := newTestGenerator(t, tt.glCfg, execution.Config{
-				Binary:      "terraform",
-				InitEnabled: true,
-				PlanEnabled: true,
-				PlanMode:    execution.PlanModeStandard,
-				Parallelism: 4,
-			}, nil, graph.NewDependencyGraph(), nil)
-			result := gen.IsMREnabled()
-			if result != tt.expected {
-				t.Errorf("isMREnabled() = %v, expected %v", result, tt.expected)
-			}
-		})
-	}
-}
-
-func boolPtr(b bool) *bool {
-	return &b
 }

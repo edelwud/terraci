@@ -109,36 +109,6 @@
           },
           "type": "object"
         },
-        "inmemcache": {
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "description": "Enable the built-in in-memory KV cache backend",
-              "default": true
-            }
-          },
-          "type": "object"
-        },
-        "summary": {
-          "properties": {
-            "enabled": {
-              "type": "boolean"
-            },
-            "on_changes_only": {
-              "type": "boolean"
-            },
-            "include_details": {
-              "type": "boolean"
-            },
-            "labels": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            }
-          },
-          "type": "object"
-        },
         "cost": {
           "properties": {
             "cache_dir": {
@@ -181,16 +151,6 @@
           },
           "type": "object"
         },
-        "git": {
-          "properties": {
-            "auto_unshallow": {
-              "type": "boolean",
-              "description": "Automatically run 'git fetch --unshallow' when a shallow clone is detected during change detection",
-              "default": false
-            }
-          },
-          "type": "object"
-        },
         "github": {
           "properties": {
             "runs_on": {
@@ -225,11 +185,6 @@
             "plan_only": {
               "type": "boolean",
               "description": "Generate only plan jobs (no apply jobs)",
-              "default": false
-            },
-            "auto_approve": {
-              "type": "boolean",
-              "description": "Auto-approve applies (skip environment protection)",
               "default": false
             },
             "permissions": {
@@ -268,6 +223,14 @@
                   },
                   "type": "object",
                   "description": "Additional environment variables"
+                },
+                "if": {
+                  "type": "string",
+                  "description": "GitHub Actions job condition"
+                },
+                "environment": {
+                  "type": "string",
+                  "description": "GitHub Actions environment name"
                 },
                 "steps_before": {
                   "items": {
@@ -378,6 +341,14 @@
                     "type": "object",
                     "description": "Additional environment variables"
                   },
+                  "if": {
+                    "type": "string",
+                    "description": "GitHub Actions job condition"
+                  },
+                  "environment": {
+                    "type": "string",
+                    "description": "GitHub Actions environment name"
+                  },
                   "steps_before": {
                     "items": {
                       "properties": {
@@ -456,176 +427,6 @@
               },
               "type": "array",
               "description": "Job-level overrides for plan or apply jobs"
-            },
-            "pr": {
-              "properties": {
-                "comment": {
-                  "properties": {
-                    "enabled": {
-                      "type": "boolean",
-                      "description": "Enable MR comments",
-                      "default": true
-                    },
-                    "on_changes_only": {
-                      "type": "boolean",
-                      "description": "Only comment when there are changes"
-                    },
-                    "include_details": {
-                      "type": "boolean",
-                      "description": "Include full plan output in expandable sections",
-                      "default": true
-                    }
-                  },
-                  "type": "object",
-                  "description": "PR comment configuration"
-                },
-                "summary_job": {
-                  "properties": {
-                    "runs_on": {
-                      "type": "string",
-                      "description": "Runner label for summary job"
-                    }
-                  },
-                  "type": "object",
-                  "description": "Summary job configuration"
-                }
-              },
-              "type": "object",
-              "description": "Pull request integration settings"
-            }
-          },
-          "type": "object"
-        },
-        "tfupdate": {
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "description": "Enable terraform dependency resolution",
-              "default": false
-            },
-            "target": {
-              "type": "string",
-              "enum": [
-                "modules",
-                "providers",
-                "all"
-              ],
-              "description": "What to inspect: modules providers or all",
-              "default": "all"
-            },
-            "ignore": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array",
-              "description": "Provider or module sources to ignore"
-            },
-            "pipeline": {
-              "type": "boolean",
-              "description": "Add tfupdate check job to CI pipeline",
-              "default": false
-            },
-            "timeout": {
-              "type": "string",
-              "description": "Overall timeout for a tfupdate run (e.g. 15m)"
-            },
-            "policy": {
-              "properties": {
-                "bump": {
-                  "type": "string",
-                  "enum": [
-                    "patch",
-                    "minor",
-                    "major"
-                  ],
-                  "description": "Version bump level: patch minor or major"
-                },
-                "pin": {
-                  "type": "boolean",
-                  "description": "Pin applied dependency constraints to an exact version",
-                  "default": false
-                }
-              },
-              "type": "object"
-            },
-            "registries": {
-              "properties": {
-                "default": {
-                  "type": "string",
-                  "description": "Default registry hostname for modules/providers without lock-based host information",
-                  "default": "registry.terraform.io"
-                },
-                "providers": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "type": "object",
-                  "description": "Registry hostname overrides keyed by normalized short provider source"
-                }
-              },
-              "type": "object"
-            },
-            "lock": {
-              "properties": {
-                "platforms": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array",
-                  "description": "Required platform set for provider h1 hashes"
-                }
-              },
-              "type": "object"
-            },
-            "cache": {
-              "properties": {
-                "backend": {
-                  "type": "string",
-                  "description": "Legacy metadata cache backend plugin name"
-                },
-                "ttl": {
-                  "type": "string",
-                  "description": "Legacy metadata cache ttl"
-                },
-                "namespace": {
-                  "type": "string",
-                  "description": "Legacy metadata cache namespace"
-                },
-                "metadata": {
-                  "properties": {
-                    "backend": {
-                      "type": "string",
-                      "description": "KV cache backend plugin name; empty selects the single active KV cache provider"
-                    },
-                    "ttl": {
-                      "type": "string",
-                      "description": "How long registry metadata stays cached",
-                      "default": "6h"
-                    },
-                    "namespace": {
-                      "type": "string",
-                      "description": "Namespace for tfupdate registry metadata cache",
-                      "default": "tfupdate/registry"
-                    }
-                  },
-                  "type": "object"
-                },
-                "artifacts": {
-                  "properties": {
-                    "backend": {
-                      "type": "string",
-                      "description": "Blob store backend plugin name; empty selects the single active blob store provider"
-                    },
-                    "namespace": {
-                      "type": "string",
-                      "description": "Namespace for cached provider archives and hashes",
-                      "default": "tfupdate/providers"
-                    }
-                  },
-                  "type": "object"
-                }
-              },
-              "type": "object"
             }
           },
           "type": "object"
@@ -651,7 +452,7 @@
             },
             "stages_prefix": {
               "type": "string",
-              "description": "Prefix for stage names (produces: {prefix}-plan-0, {prefix}-apply-0, etc.)",
+              "description": "Prefix for DAG stage names (produces: {prefix}-0, {prefix}-1, etc.)",
               "default": "deploy"
             },
             "parallelism": {
@@ -670,11 +471,6 @@
             "plan_only": {
               "type": "boolean",
               "description": "Generate only plan jobs (no apply jobs)",
-              "default": false
-            },
-            "auto_approve": {
-              "type": "boolean",
-              "description": "Auto-approve applies (skip manual confirmation)",
               "default": false
             },
             "cache_enabled": {
@@ -910,6 +706,16 @@
                   "type": "array",
                   "description": "Job-level rules"
                 },
+                "when": {
+                  "type": "string",
+                  "enum": [
+                    "on_success",
+                    "manual",
+                    "always",
+                    "delayed"
+                  ],
+                  "description": "When to run matching jobs"
+                },
                 "variables": {
                   "additionalProperties": {
                     "type": "string"
@@ -1103,6 +909,16 @@
                     "type": "array",
                     "description": "Job-level rules for matching jobs"
                   },
+                  "when": {
+                    "type": "string",
+                    "enum": [
+                      "on_success",
+                      "manual",
+                      "always",
+                      "delayed"
+                    ],
+                    "description": "When to run matching jobs"
+                  },
                   "variables": {
                     "additionalProperties": {
                       "type": "string"
@@ -1118,69 +934,180 @@
               },
               "type": "array",
               "description": "Job-level overrides for plan or apply jobs"
+            }
+          },
+          "type": "object"
+        },
+        "inmemcache": {
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable the built-in in-memory KV cache backend",
+              "default": true
+            }
+          },
+          "type": "object"
+        },
+        "summary": {
+          "properties": {
+            "enabled": {
+              "type": "boolean"
             },
-            "mr": {
+            "on_changes_only": {
+              "type": "boolean"
+            },
+            "include_details": {
+              "type": "boolean"
+            },
+            "labels": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "tfupdate": {
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable terraform dependency resolution",
+              "default": false
+            },
+            "target": {
+              "type": "string",
+              "enum": [
+                "modules",
+                "providers",
+                "all"
+              ],
+              "description": "What to inspect: modules providers or all",
+              "default": "all"
+            },
+            "ignore": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array",
+              "description": "Provider or module sources to ignore"
+            },
+            "pipeline": {
+              "type": "boolean",
+              "description": "Add tfupdate check job to CI pipeline",
+              "default": false
+            },
+            "timeout": {
+              "type": "string",
+              "description": "Overall timeout for a tfupdate run (e.g. 15m)"
+            },
+            "policy": {
               "properties": {
-                "comment": {
-                  "properties": {
-                    "enabled": {
-                      "type": "boolean",
-                      "description": "Enable MR comments",
-                      "default": true
-                    },
-                    "on_changes_only": {
-                      "type": "boolean",
-                      "description": "Only comment when there are changes"
-                    },
-                    "include_details": {
-                      "type": "boolean",
-                      "description": "Include full plan output in expandable sections",
-                      "default": true
-                    }
+                "bump": {
+                  "type": "string",
+                  "enum": [
+                    "patch",
+                    "minor",
+                    "major"
+                  ],
+                  "description": "Version bump level: patch minor or major"
+                },
+                "pin": {
+                  "type": "boolean",
+                  "description": "Pin applied dependency constraints to an exact version",
+                  "default": false
+                }
+              },
+              "type": "object"
+            },
+            "registries": {
+              "properties": {
+                "default": {
+                  "type": "string",
+                  "description": "Default registry hostname for modules/providers without lock-based host information",
+                  "default": "registry.terraform.io"
+                },
+                "providers": {
+                  "additionalProperties": {
+                    "type": "string"
                   },
                   "type": "object",
-                  "description": "MR comment configuration"
-                },
-                "labels": {
+                  "description": "Registry hostname overrides keyed by normalized short provider source"
+                }
+              },
+              "type": "object"
+            },
+            "lock": {
+              "properties": {
+                "platforms": {
                   "items": {
                     "type": "string"
                   },
                   "type": "array",
-                  "description": "Labels to add to MR (supports placeholders: {service}, {environment}, {region}, {module})"
-                },
-                "summary_job": {
-                  "properties": {
-                    "image": {
-                      "properties": {
-                        "name": {
-                          "type": "string",
-                          "description": "Docker image name"
-                        },
-                        "entrypoint": {
-                          "items": {
-                            "type": "string"
-                          },
-                          "type": "array",
-                          "description": "Override default entrypoint"
-                        }
-                      },
-                      "type": "object",
-                      "description": "Docker image for summary job (must contain terraci)"
-                    },
-                    "tags": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "type": "array",
-                      "description": "Runner tags for summary job"
-                    }
-                  },
-                  "type": "object",
-                  "description": "Summary job configuration"
+                  "description": "Required platform set for provider h1 hashes"
                 }
               },
-              "type": "object",
-              "description": "Merge request integration settings"
+              "type": "object"
+            },
+            "cache": {
+              "properties": {
+                "backend": {
+                  "type": "string",
+                  "description": "Legacy metadata cache backend plugin name"
+                },
+                "ttl": {
+                  "type": "string",
+                  "description": "Legacy metadata cache ttl"
+                },
+                "namespace": {
+                  "type": "string",
+                  "description": "Legacy metadata cache namespace"
+                },
+                "metadata": {
+                  "properties": {
+                    "backend": {
+                      "type": "string",
+                      "description": "KV cache backend plugin name; empty selects the single active KV cache provider"
+                    },
+                    "ttl": {
+                      "type": "string",
+                      "description": "How long registry metadata stays cached",
+                      "default": "6h"
+                    },
+                    "namespace": {
+                      "type": "string",
+                      "description": "Namespace for tfupdate registry metadata cache",
+                      "default": "tfupdate/registry"
+                    }
+                  },
+                  "type": "object"
+                },
+                "artifacts": {
+                  "properties": {
+                    "backend": {
+                      "type": "string",
+                      "description": "Blob store backend plugin name; empty selects the single active blob store provider"
+                    },
+                    "namespace": {
+                      "type": "string",
+                      "description": "Namespace for cached provider archives and hashes",
+                      "default": "tfupdate/providers"
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "type": "object"
+        },
+        "git": {
+          "properties": {
+            "auto_unshallow": {
+              "type": "boolean",
+              "description": "Automatically run 'git fetch --unshallow' when a shallow clone is detected during change detection",
+              "default": false
             }
           },
           "type": "object"

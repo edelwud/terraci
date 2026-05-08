@@ -16,10 +16,6 @@ import (
 // summary package files so that goconst sees a single source of truth.
 const pluginName = "summary"
 
-// summaryReportProducer is the shared report producer id for the aggregate
-// Terraform plan summary artifact.
-const summaryReportProducer = ci.AggregateReportProducer
-
 type summaryProvider interface {
 	CommitSHA() string
 	PipelineID() string
@@ -57,7 +53,7 @@ func loadSummaryInputs(appCtx *plugin.AppContext) (*summaryInputs, error) {
 	}
 	filteredReports := reports[:0]
 	for _, r := range reports {
-		if r == nil || r.Producer == summaryReportProducer {
+		if r == nil || r.Producer == pluginName {
 			continue
 		}
 		filteredReports = append(filteredReports, r)
@@ -90,15 +86,6 @@ func runSummaryUseCase(ctx context.Context, appCtx *plugin.AppContext, cfg *summ
 	}
 
 	provider, resolveErr := resolveProvider()
-	commitSHA, pipelineID := "", ""
-	if resolveErr == nil && provider != nil {
-		commitSHA = provider.CommitSHA()
-		pipelineID = provider.PipelineID()
-	}
-	if err := saveSummaryReport(appCtx, inputs, cfg, commitSHA, pipelineID); err != nil {
-		return err
-	}
-
 	if cfg.OnChangesOnly && !hasReportableChanges(inputs.plans, inputs.reports) {
 		log.Info("no reportable changes, skipping comment")
 		printSummary(inputs.collection)
@@ -155,93 +142,9 @@ func hasReportableChanges(plans []ci.PlanResult, reports []*ci.Report) bool {
 	return false
 }
 
-func saveSummaryReport(appCtx *plugin.AppContext, inputs *summaryInputs, cfg *summaryengine.Config, commitSHA, pipelineID string) error {
-	if inputs != nil && inputs.collection != nil {
-		inputs.collection.CommitSHA = commitSHA
-		inputs.collection.PipelineID = pipelineID
-	}
-	report := buildSummaryReport(inputs, cfg)
-	if err := ci.SaveReport(appCtx.ServiceDir(), report); err != nil {
-		return fmt.Errorf("save summary report: %w", err)
-	}
-	return nil
-}
-
-func buildSummaryReport(inputs *summaryInputs, cfg *summaryengine.Config) *ci.Report {
-	return &ci.Report{
-		Producer: summaryReportProducer,
-		Title:    "Terraform Plan Summary",
-		Status:   summaryReportStatus(inputs.plans, inputs.reports),
-		Summary:  summaryReportSummary(inputs.collection),
-		Provenance: ci.NewProvenance(
-			inputs.collection.CommitSHA,
-			inputs.collection.PipelineID,
-			inputs.collection.Fingerprint(),
-		),
-		Sections: summaryengine.BuildSummarySectionsWithOptions(inputs.plans, inputs.reports, summaryIncludeDetails(cfg)),
-	}
-}
-
 func summaryIncludeDetails(cfg *summaryengine.Config) bool {
 	if cfg == nil || cfg.IncludeDetails == nil {
 		return true
 	}
 	return *cfg.IncludeDetails
-}
-
-func summaryReportStatus(plans []ci.PlanResult, reports []*ci.Report) ci.ReportStatus {
-	for i := range plans {
-		if plans[i].Status == ci.PlanStatusFailed {
-			return ci.ReportStatusFail
-		}
-	}
-	for _, report := range reports {
-		if report.Status == ci.ReportStatusFail {
-			return ci.ReportStatusFail
-		}
-	}
-	for i := range plans {
-		if plans[i].Status == ci.PlanStatusChanges {
-			return ci.ReportStatusWarn
-		}
-	}
-	for _, report := range reports {
-		if report.Status == ci.ReportStatusWarn {
-			return ci.ReportStatusWarn
-		}
-	}
-	return ci.ReportStatusPass
-}
-
-func summaryReportSummary(collection *ci.PlanResultCollection) string {
-	var changes, noChanges, failed, pending, running int
-	for i := range collection.Results {
-		switch collection.Results[i].Status {
-		case ci.PlanStatusChanges:
-			changes++
-		case ci.PlanStatusNoChanges, ci.PlanStatusSuccess:
-			noChanges++
-		case ci.PlanStatusFailed:
-			failed++
-		case ci.PlanStatusPending:
-			pending++
-		case ci.PlanStatusRunning:
-			running++
-		}
-	}
-
-	summary := fmt.Sprintf(
-		"%d modules: %d with changes, %d no changes, %d failed",
-		len(collection.Results),
-		changes,
-		noChanges,
-		failed,
-	)
-	if pending > 0 {
-		summary += fmt.Sprintf(", %d pending", pending)
-	}
-	if running > 0 {
-		summary += fmt.Sprintf(", %d running", running)
-	}
-	return summary
 }

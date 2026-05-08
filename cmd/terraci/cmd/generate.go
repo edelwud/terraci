@@ -12,6 +12,7 @@ import (
 	log "github.com/caarlos0/log"
 
 	"github.com/edelwud/terraci/pkg/discovery"
+	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/filter"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
@@ -42,7 +43,6 @@ Examples:
   terraci generate --exclude "*/test/*"
   terraci generate --filter environment=stage --filter environment=prod
   terraci generate --dry-run
-  terraci generate --auto-approve
   terraci generate --plan-only`,
 		// PreRunE applies CLI overrides to plugin config (FlagOverridable)
 		// before any pipeline construction kicks off in RunE. Keeping mutation
@@ -100,8 +100,6 @@ Examples:
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "show what would be generated without creating output")
 	cmd.Flags().StringVar(&dryRunFmt, "format", "text", "dry-run output format: text or json")
 	cmd.Flags().BoolVar(&planOnly, "plan-only", false, "generate only plan jobs (no apply jobs)")
-	cmd.Flags().Bool("auto-approve", false, "auto-approve apply jobs (skip manual trigger)")
-	cmd.Flags().Bool("no-auto-approve", false, "require manual trigger for apply jobs")
 	registerFilterFlags(cmd, ff)
 
 	return cmd
@@ -126,9 +124,9 @@ func resolveGenerateTargets(
 	})
 }
 
-// applyProviderFlags applies CLI override flags (--plan-only, --auto-approve) to the provider config.
+// applyProviderFlags applies CLI override flags to the provider config.
 func applyProviderFlags(cmd *cobra.Command, planOnly bool) {
-	if !planOnly && !cmd.Flags().Changed("auto-approve") && !cmd.Flags().Changed("no-auto-approve") {
+	if !planOnly {
 		return
 	}
 	appCtx := plugin.FromContext(cmd.Context())
@@ -146,11 +144,6 @@ func applyProviderFlags(cmd *cobra.Command, planOnly bool) {
 
 	if planOnly {
 		fo.SetPlanOnly(true)
-	}
-	if cmd.Flags().Changed("auto-approve") {
-		fo.SetAutoApprove(true)
-	} else if cmd.Flags().Changed("no-auto-approve") {
-		fo.SetAutoApprove(false)
 	}
 }
 
@@ -207,15 +200,19 @@ func newPipelineGenerator(cmd *cobra.Command, app *App, depGraph *graph.Dependen
 	}
 	contributions := appCtx.PipelineContributions()
 
-	exec := app.Config.Execution
+	exec := execution.ConfigFromProject(app.Config)
+	requirements := exec.BuildRequirements().Merge(provider.PipelineRequirements(appCtx))
+	if planOnly {
+		requirements = requirements.Merge(pipeline.BuildRequirements{PlanOnly: true})
+	}
 	ir, err := pipeline.Build(pipeline.BuildOptions{
 		DepGraph:      depGraph,
 		TargetModules: targets,
 		AllModules:    modules,
 		ModuleIndex:   discovery.NewModuleIndex(modules),
 		Contributions: contributions,
+		Requirements:  requirements,
 		PlanEnabled:   exec.PlanEnabled,
-		PlanOnly:      planOnly,
 		Script: pipeline.ScriptConfig{
 			InitEnabled: exec.InitEnabled,
 			PlanEnabled: exec.PlanEnabled,

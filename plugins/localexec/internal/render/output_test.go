@@ -16,12 +16,12 @@ import (
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 )
 
-func TestLogOutputCompleted_LogsStageNames(t *testing.T) {
+func TestLogOutputCompleted_LogsDAGGroupNames(t *testing.T) {
 	output := LogOutput{}
 	result := &execution.Result{
 		Groups: []execution.GroupResult{
-			{Name: "plan-level-0", JobCount: 1},
-			{Name: "finalize", JobCount: 1},
+			{Name: "dag-level-0", JobCount: 1},
+			{Name: "dag-level-1", JobCount: 1},
 		},
 		Jobs: []*execution.JobResult{{
 			Name:       "plan-platform-stage-eu-central-1-vpc",
@@ -35,7 +35,7 @@ func TestLogOutputCompleted_LogsStageNames(t *testing.T) {
 		output.Completed(result, nil)
 	})
 
-	for _, wanted := range []string{"plan-level-0", "finalize"} {
+	for _, wanted := range []string{"dag-level-0", "dag-level-1"} {
 		if !strings.Contains(logs, wanted) {
 			t.Fatalf("logs missing %q:\n%s", wanted, logs)
 		}
@@ -46,7 +46,7 @@ func TestLogOutputCompleted_EmptyResultUsesConsistentSummary(t *testing.T) {
 	output := LogOutput{}
 	result := &execution.Result{
 		Groups: []execution.GroupResult{
-			{Name: "finalize", JobCount: 0},
+			{Name: "dag-level-0", JobCount: 0},
 		},
 	}
 
@@ -59,7 +59,7 @@ func TestLogOutputCompleted_EmptyResultUsesConsistentSummary(t *testing.T) {
 			t.Fatalf("logs unexpectedly contain %q:\n%s", unwanted, logs)
 		}
 	}
-	for _, wanted := range []string{"── stages ───────────────────────────", "finalize", "jobs=0", "stages=1", "local execution completed"} {
+	for _, wanted := range []string{"── stages ───────────────────────────", "dag-level-0", "jobs=0", "stages=1", "local execution completed"} {
 		if !strings.Contains(logs, wanted) {
 			t.Fatalf("logs missing %q:\n%s", wanted, logs)
 		}
@@ -122,7 +122,7 @@ func TestLogOutputCompleted_NilSummaryReportSkipsCLISection(t *testing.T) {
 
 func TestLogOutputCompleted_WithSummaryReport(t *testing.T) {
 	report := &ci.Report{
-		Producer: ci.AggregateReportProducer,
+		Producer: "summary",
 		Title:    "Terraform Plan Summary",
 		Summary:  "1 modules: 1 with changes, 0 no changes, 0 failed",
 		Sections: []ci.ReportSection{citest.MustEncodeSection(
@@ -166,9 +166,9 @@ func TestProgressReporter_LogsStageAndModule(t *testing.T) {
 	reporter := ProgressReporter{}
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	job := &pipeline.Job{
-		Name:   "plan-platform-stage-eu-central-1-vpc",
-		Phase:  pipeline.PhasePrePlan,
-		Module: module,
+		Name:      "plan-platform-stage-eu-central-1-vpc",
+		Module:    module,
+		Operation: pipeline.Operation{Type: pipeline.OperationTypeTerraformPlan},
 	}
 	result := &execution.JobResult{
 		Name:   job.Name,
@@ -180,7 +180,7 @@ func TestProgressReporter_LogsStageAndModule(t *testing.T) {
 		reporter.JobFinished(job, result)
 	})
 
-	for _, wanted := range []string{"job=plan-platform-stage-eu-central-1-vpc", "stage=pre-plan", "module=platform/stage/eu-central-1/vpc", "job started", "job finished"} {
+	for _, wanted := range []string{"job=plan-platform-stage-eu-central-1-vpc", "operation=terraform_plan", "module=platform/stage/eu-central-1/vpc", "job started", "job finished"} {
 		if !strings.Contains(logs, wanted) {
 			t.Fatalf("logs missing %q:\n%s", wanted, logs)
 		}
@@ -190,8 +190,8 @@ func TestProgressReporter_LogsStageAndModule(t *testing.T) {
 func TestProgressReporter_LogsFailureStatus(t *testing.T) {
 	reporter := ProgressReporter{}
 	job := &pipeline.Job{
-		Name:  "summary",
-		Phase: pipeline.PhaseFinalize,
+		Name:      "summary",
+		Operation: pipeline.Operation{Type: pipeline.OperationTypeCommands},
 	}
 	result := &execution.JobResult{
 		Name:   job.Name,
@@ -203,7 +203,7 @@ func TestProgressReporter_LogsFailureStatus(t *testing.T) {
 		reporter.JobFinished(job, result)
 	})
 
-	for _, wanted := range []string{"job=summary", "stage=finalize", "status=failed", "error=boom", "job finished"} {
+	for _, wanted := range []string{"job=summary", "operation=commands", "status=failed", "error=boom", "job finished"} {
 		if !strings.Contains(logs, wanted) {
 			t.Fatalf("logs missing %q:\n%s", wanted, logs)
 		}

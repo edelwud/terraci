@@ -3,7 +3,6 @@ package config
 import "github.com/edelwud/terraci/pkg/ci"
 
 type Image = ci.Image
-type MRCommentConfig = ci.MRCommentConfig
 
 // Config contains GitHub Actions specific settings.
 type Config struct {
@@ -11,17 +10,17 @@ type Config struct {
 	Container   *Image            `yaml:"container,omitempty" json:"container,omitempty" jsonschema:"description=Container image to run jobs in (optional)"`
 	Env         map[string]string `yaml:"env,omitempty" json:"env,omitempty" jsonschema:"description=Workflow-level environment variables"`
 	PlanOnly    bool              `yaml:"plan_only" json:"plan_only" jsonschema:"description=Generate only plan jobs (no apply jobs),default=false"`
-	AutoApprove bool              `yaml:"auto_approve" json:"auto_approve" jsonschema:"description=Auto-approve applies (skip environment protection),default=false"`
 	Permissions map[string]string `yaml:"permissions,omitempty" json:"permissions,omitempty" jsonschema:"description=Workflow-level permissions (e.g. id-token: write for OIDC)"`
 	JobDefaults *JobDefaults      `yaml:"job_defaults,omitempty" json:"job_defaults,omitempty" jsonschema:"description=Default settings applied to all jobs"`
 	Overwrites  []JobOverwrite    `yaml:"overwrites,omitempty" json:"overwrites,omitempty" jsonschema:"description=Job-level overrides for plan or apply jobs"`
-	PR          *PRConfig         `yaml:"pr,omitempty" json:"pr,omitempty" jsonschema:"description=Pull request integration settings"`
 }
 
 type JobDefaults struct {
 	RunsOn      string            `yaml:"runs_on,omitempty" json:"runs_on,omitempty" jsonschema:"description=Override runner label"`
 	Container   *Image            `yaml:"container,omitempty" json:"container,omitempty" jsonschema:"description=Container image for all jobs"`
 	Env         map[string]string `yaml:"env,omitempty" json:"env,omitempty" jsonschema:"description=Additional environment variables"`
+	If          string            `yaml:"if,omitempty" json:"if,omitempty" jsonschema:"description=GitHub Actions job condition"`
+	Environment string            `yaml:"environment,omitempty" json:"environment,omitempty" jsonschema:"description=GitHub Actions environment name"`
 	StepsBefore []ConfigStep      `yaml:"steps_before,omitempty" json:"steps_before,omitempty" jsonschema:"description=Extra steps before terraform commands"`
 	StepsAfter  []ConfigStep      `yaml:"steps_after,omitempty" json:"steps_after,omitempty" jsonschema:"description=Extra steps after terraform commands"`
 }
@@ -31,6 +30,8 @@ type JobOverwrite struct {
 	RunsOn      string            `yaml:"runs_on,omitempty" json:"runs_on,omitempty" jsonschema:"description=Override runner label"`
 	Container   *Image            `yaml:"container,omitempty" json:"container,omitempty" jsonschema:"description=Container image override"`
 	Env         map[string]string `yaml:"env,omitempty" json:"env,omitempty" jsonschema:"description=Additional environment variables"`
+	If          string            `yaml:"if,omitempty" json:"if,omitempty" jsonschema:"description=GitHub Actions job condition"`
+	Environment string            `yaml:"environment,omitempty" json:"environment,omitempty" jsonschema:"description=GitHub Actions environment name"`
 	StepsBefore []ConfigStep      `yaml:"steps_before,omitempty" json:"steps_before,omitempty" jsonschema:"description=Extra steps before terraform commands"`
 	StepsAfter  []ConfigStep      `yaml:"steps_after,omitempty" json:"steps_after,omitempty" jsonschema:"description=Extra steps after terraform commands"`
 }
@@ -42,24 +43,6 @@ type ConfigStep struct {
 	With map[string]string `yaml:"with,omitempty" json:"with,omitempty" jsonschema:"description=Action inputs"`
 	Run  string            `yaml:"run,omitempty" json:"run,omitempty" jsonschema:"description=Shell command to run"`
 	Env  map[string]string `yaml:"env,omitempty" json:"env,omitempty" jsonschema:"description=Step environment variables"`
-}
-
-type PRConfig struct {
-	Comment    *MRCommentConfig  `yaml:"comment,omitempty" json:"comment,omitempty" jsonschema:"description=PR comment configuration"`
-	SummaryJob *SummaryJobConfig `yaml:"summary_job,omitempty" json:"summary_job,omitempty" jsonschema:"description=Summary job configuration"`
-}
-
-// CommentBlock implements ciplugin.CommentBlockSource so the shared
-// CommentEnabled helper can be used by github's PR service.
-func (p *PRConfig) CommentBlock() *MRCommentConfig {
-	if p == nil {
-		return nil
-	}
-	return p.Comment
-}
-
-type SummaryJobConfig struct {
-	RunsOn string `yaml:"runs_on,omitempty" json:"runs_on,omitempty" jsonschema:"description=Runner label for summary job"`
 }
 
 type JobOverwriteType string

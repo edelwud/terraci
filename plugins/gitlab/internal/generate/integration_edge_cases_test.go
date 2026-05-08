@@ -192,31 +192,30 @@ func TestEdgeCase_PlanOnlyWithNoPlanEnabled(t *testing.T) {
 	}
 }
 
-// TestEdgeCase_AutoApproveMode tests auto_approve flag
-func TestEdgeCase_AutoApproveMode(t *testing.T) {
+func TestEdgeCase_ApplyAutomaticByDefault(t *testing.T) {
 	pipeline := newFixtureScenario(t, "basic").
-		withConfig(func(cfg *Config) { cfg.AutoApprove = true }).
 		generate()
 
 	for jobName, job := range pipeline.Jobs {
 		if strings.HasPrefix(jobName, "apply-") {
 			if job.When == "manual" {
-				t.Errorf("Apply job %s should not be manual when auto_approve=true", jobName)
+				t.Errorf("Apply job %s should not be manual by default", jobName)
 			}
 		}
 	}
 }
 
-// TestEdgeCase_ManualApproveMode tests manual approval (default)
-func TestEdgeCase_ManualApproveMode(t *testing.T) {
+func TestEdgeCase_ManualApplyViaOverwrite(t *testing.T) {
 	pipeline := newFixtureScenario(t, "basic").
-		withConfig(func(cfg *Config) { cfg.AutoApprove = false }).
+		withConfig(func(cfg *Config) {
+			cfg.Overwrites = []JobOverwrite{{Type: JobOverwriteType("apply"), When: "manual"}}
+		}).
 		generate()
 
 	for jobName, job := range pipeline.Jobs {
 		if strings.HasPrefix(jobName, "apply-") {
 			if job.When != "manual" {
-				t.Errorf("Apply job %s should be manual when auto_approve=false, got %q", jobName, job.When)
+				t.Errorf("Apply job %s should be manual when configured by overwrite, got %q", jobName, job.When)
 			}
 		}
 	}

@@ -13,9 +13,7 @@ const (
 )
 
 // Wizard StateMap keys. Centralized so InitGroups field definitions and
-// BuildInitConfig consumers can never drift apart on a typo. The "auto_approve"
-// and "summary.enabled" keys are owned by other groups (pipeline category and
-// summary plugin); we reference them but don't define them here.
+// BuildInitConfig consumers can never drift apart on a typo.
 const (
 	keyGitlabImage        = "gitlab.image"
 	keyGitlabStagesPrefix = "gitlab.stages_prefix"
@@ -46,7 +44,7 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 				{
 					Key:         keyGitlabStagesPrefix,
 					Title:       "Stages Prefix",
-					Description: "Prefix for pipeline stage names (e.g. deploy-plan-0)",
+					Description: "Prefix for DAG stage names (e.g. deploy-0)",
 					Type:        initwiz.FieldString,
 					Default:     defaultStagesPrefix,
 					Placeholder: defaultStagesPrefix,
@@ -93,20 +91,10 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribut
 		cacheEnabled = state.Bool(keyGitlabCacheEnabled)
 	}
 
-	autoApprove := state.Bool("auto_approve")
-
 	cfg := map[string]any{
 		"image":         map[string]any{"name": image},
 		"stages_prefix": stagesPrefix,
-		"auto_approve":  autoApprove,
 		"cache_enabled": cacheEnabled,
-	}
-
-	// Enable MR comments when summary is enabled
-	if state.Bool("summary.enabled") {
-		cfg["mr"] = map[string]any{
-			"comment": map[string]any{"enabled": true},
-		}
 	}
 
 	return &initwiz.InitContribution{

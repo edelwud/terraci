@@ -550,10 +550,10 @@ func TestFilterModules(t *testing.T) {
 	}
 }
 
-func TestFinalizeUpdateCheck(t *testing.T) {
+func TestFinishUpdateCheck(t *testing.T) {
 	t.Run("returns summary error after output", func(t *testing.T) {
 		var out strings.Builder
-		err := finalizeUpdateCheck(&out, "json", &tfupdateengine.UpdateResult{
+		err := finishUpdateCheck(&out, "json", &tfupdateengine.UpdateResult{
 			Summary: tfupdateengine.UpdateSummary{Errors: 2},
 		})
 		if err == nil {
@@ -568,7 +568,7 @@ func TestFinalizeUpdateCheck(t *testing.T) {
 	})
 
 	t.Run("returns output error directly", func(t *testing.T) {
-		err := finalizeUpdateCheck(failingWriter{}, "json", &tfupdateengine.UpdateResult{})
+		err := finishUpdateCheck(failingWriter{}, "json", &tfupdateengine.UpdateResult{})
 		if err == nil {
 			t.Fatal("expected output error")
 		}

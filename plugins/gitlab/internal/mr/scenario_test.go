@@ -5,8 +5,6 @@ import (
 	"testing"
 
 	gitlab "gitlab.com/gitlab-org/api/client-go"
-
-	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
 )
 
 type fakeNoteClient struct {
@@ -69,7 +67,7 @@ type serviceScenario struct {
 func newServiceScenario(t *testing.T) *serviceScenario {
 	t.Helper()
 	client := &fakeNoteClient{hasToken: true}
-	svc := NewService(nil, client, &Context{
+	svc := NewService(client, &Context{
 		InMR:      true,
 		ProjectID: "123",
 		MRIID:     1,
@@ -84,12 +82,6 @@ func newServiceScenario(t *testing.T) *serviceScenario {
 func (s *serviceScenario) withContext(ctx *Context) *serviceScenario {
 	s.t.Helper()
 	s.service.context = ctx
-	return s
-}
-
-func (s *serviceScenario) withConfig(cfg *configpkg.MRConfig) *serviceScenario {
-	s.t.Helper()
-	s.service.config = cfg
 	return s
 }
 

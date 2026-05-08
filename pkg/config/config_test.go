@@ -48,7 +48,6 @@ extensions:
     image: hashicorp/terraform:1.7
     stages_prefix: infra
     parallelism: 10
-    auto_approve: true
 
 `
 	configPath := filepath.Join(tmpDir, ".terraci.yaml")
@@ -129,6 +128,29 @@ execution:
 	}
 	if !strings.Contains(err.Error(), "parallelism") {
 		t.Fatalf("error should mention parallelism, got: %v", err)
+	}
+}
+
+func TestLoad_RejectsInvalidServiceDir(t *testing.T) {
+	for _, serviceDir := range []string{"/tmp/terraci", "../.terraci", "artifacts/../.terraci"} {
+		t.Run(serviceDir, func(t *testing.T) {
+			tmpDir := createTempDir(t)
+			configPath := filepath.Join(tmpDir, ".terraci.yaml")
+
+			content := `service_dir: "` + serviceDir + `"
+structure:
+  pattern: "{service}/{environment}/{region}/{module}"
+`
+			writeTestConfig(t, configPath, content)
+
+			_, err := Load(configPath)
+			if err == nil {
+				t.Fatal("Load() returned nil error for invalid service_dir")
+			}
+			if !strings.Contains(err.Error(), "service_dir") {
+				t.Fatalf("error should mention service_dir, got: %v", err)
+			}
+		})
 	}
 }
 

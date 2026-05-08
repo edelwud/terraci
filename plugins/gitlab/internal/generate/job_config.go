@@ -52,6 +52,9 @@ func applyJobConfig(job *domain.Job, cfg configpkg.JobConfig) {
 			}
 		}
 	}
+	if when := cfg.GetWhen(); when != "" {
+		job.When = when
+	}
 
 	if vars := cfg.GetVariables(); len(vars) > 0 {
 		if job.Variables == nil {

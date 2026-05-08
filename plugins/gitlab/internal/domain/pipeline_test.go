@@ -22,10 +22,10 @@ func TestImageConfigMarshalYAML(t *testing.T) {
 
 func TestPipelineToYAMLSortsJobs(t *testing.T) {
 	pipeline := &Pipeline{
-		Stages: []string{"deploy-plan-0"},
+		Stages: []string{"deploy-0"},
 		Jobs: map[string]*Job{
-			"z-job": {Stage: "deploy-plan-0", Script: []string{"echo z"}},
-			"a-job": {Stage: "deploy-plan-0", Script: []string{"echo a"}},
+			"z-job": {Stage: "deploy-0", Script: []string{"echo z"}},
+			"a-job": {Stage: "deploy-0", Script: []string{"echo a"}},
 		},
 	}
 

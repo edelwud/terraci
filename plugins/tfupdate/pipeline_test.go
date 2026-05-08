@@ -1,7 +1,6 @@
 package tfupdate
 
 import (
-	"path/filepath"
 	"slices"
 	"testing"
 
@@ -28,9 +27,6 @@ func TestPlugin_PipelineContribution(t *testing.T) {
 	if job.Name != "tfupdate-check" {
 		t.Errorf("job.Name = %q, want %q", job.Name, "tfupdate-check")
 	}
-	if job.Phase != pipeline.PhasePrePlan {
-		t.Errorf("job.Phase = %v, want PhasePrePlan", job.Phase)
-	}
 	if len(job.Consumes) != 0 {
 		t.Fatalf("job.Consumes = %#v, want none", job.Consumes)
 	}
@@ -44,7 +40,7 @@ func TestPlugin_PipelineContribution(t *testing.T) {
 	if len(job.Produces) != 2 {
 		t.Fatalf("job.Produces = %#v, want result and report", job.Produces)
 	}
-	wantPaths := []string{filepath.Join(".terraci", resultsFile), filepath.Join(".terraci", reportFile)}
+	wantPaths := []string{pipeline.WorkspacePath(".terraci", resultsFile), pipeline.WorkspacePath(".terraci", reportFile)}
 	if !slices.Equal(producedPaths(job.Produces), wantPaths) {
 		t.Errorf("produced paths = %v, want %v", producedPaths(job.Produces), wantPaths)
 	}
@@ -58,10 +54,10 @@ func TestPlugin_PipelineContribution(t *testing.T) {
 
 func TestPlugin_PipelineContribution_NotConfigured(t *testing.T) {
 	p := newTestPlugin(t)
-	// No config set — Config() returns nil.
-	contrib := p.PipelineContribution(newTestAppContext(t, t.TempDir()))
-	if contrib != nil {
-		t.Errorf("PipelineContribution() = %v, want nil for unconfigured plugin", contrib)
+	appCtx := newTestAppContext(t, t.TempDir())
+
+	if p.PipelineContributionEnabled(appCtx) {
+		t.Error("PipelineContributionEnabled() = true, want false for unconfigured plugin")
 	}
 }
 
@@ -69,9 +65,10 @@ func TestPlugin_PipelineContribution_PipelineFalse(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &tfupdateengine.UpdateConfig{Enabled: true, Pipeline: false})
 
-	contrib := p.PipelineContribution(newTestAppContext(t, t.TempDir()))
-	if contrib != nil {
-		t.Errorf("PipelineContribution() = %v, want nil when Pipeline=false", contrib)
+	appCtx := newTestAppContext(t, t.TempDir())
+
+	if p.PipelineContributionEnabled(appCtx) {
+		t.Error("PipelineContributionEnabled() = true, want false when Pipeline=false")
 	}
 }
 
@@ -96,17 +93,6 @@ func TestPlugin_PipelineContribution_EmptyServiceDir(t *testing.T) {
 	wantPaths := []string{resultsFile, reportFile}
 	if !slices.Equal(producedPaths(job.Produces), wantPaths) {
 		t.Errorf("produced paths = %v, want %v", producedPaths(job.Produces), wantPaths)
-	}
-}
-
-func TestPlugin_PipelineContribution_NoSteps(t *testing.T) {
-	p := newTestPlugin(t)
-	enablePlugin(t, p, &tfupdateengine.UpdateConfig{Enabled: true, Pipeline: true})
-	appCtx := newTestAppContext(t, t.TempDir())
-
-	contrib := p.PipelineContribution(appCtx)
-	if len(contrib.Steps) != 0 {
-		t.Errorf("steps count = %d, want 0 (tfupdate plugin contributes jobs, not steps)", len(contrib.Steps))
 	}
 }
 

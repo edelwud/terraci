@@ -30,10 +30,10 @@ terraci generate -o .github/workflows/terraform.yml
 
 ```yaml
 stages:
-  - deploy-plan-0    # Plan для модулей уровня 0
-  - deploy-apply-0   # Apply для модулей уровня 0
-  - deploy-plan-1    # Plan для модулей уровня 1
-  - deploy-apply-1   # Apply для модулей уровня 1
+  - deploy-0    # Plan для модулей уровня 0
+  - deploy-1   # Apply для модулей уровня 0
+  - deploy-2    # Plan для модулей уровня 1
+  - deploy-3   # Apply для модулей уровня 1
 ```
 
 ### Переменные
@@ -67,7 +67,7 @@ default:
 
 ```yaml
 plan-platform-prod-us-east-1-vpc:
-  stage: deploy-plan-0
+  stage: deploy-0
   script:
     - cd platform/prod/us-east-1/vpc
     - ${TERRAFORM_BINARY} plan -out=plan.tfplan
@@ -84,7 +84,7 @@ plan-platform-prod-us-east-1-vpc:
   resource_group: platform/prod/us-east-1/vpc
 
 apply-platform-prod-us-east-1-vpc:
-  stage: deploy-apply-0
+  stage: deploy-1
   script:
     - cd platform/prod/us-east-1/vpc
     - ${TERRAFORM_BINARY} apply plan.tfplan
@@ -104,13 +104,13 @@ apply-platform-prod-us-east-1-vpc:
 
 ```yaml
 plan-platform-prod-us-east-1-eks:
-  stage: deploy-plan-1
+  stage: deploy-2
   needs:
     - job: apply-platform-prod-us-east-1-vpc  # Ждёт VPC
   # ...
 
 apply-platform-prod-us-east-1-eks:
-  stage: deploy-apply-1
+  stage: deploy-3
   needs:
     - job: plan-platform-prod-us-east-1-eks   # Ждёт собственный plan
     - job: apply-platform-prod-us-east-1-vpc  # Ждёт VPC
@@ -226,7 +226,7 @@ apply-platform-prod-us-east-1-vpc:
 
 ### Стадия plan
 
-Включение или отключение стадии plan глобально через верхнеуровневую секцию `execution:` (применяется к обоим провайдерам):
+Включение или отключение plan-джобов глобально через верхнеуровневую секцию `execution:` (применяется к обоим провайдерам):
 
 ```yaml
 execution:
@@ -238,28 +238,18 @@ extensions:
     plan_only: false  # Если true: оставить plan-джобы, удалить apply-джобы (CLI: --plan-only)
 ```
 
-### Auto-approve
+### Запуск apply
 
-Пропуск ручного подтверждения для apply-джобов:
+Поведение apply-джобов настраивается через provider overwrites. Например,
+сделать GitLab apply ручным:
 
 ```yaml
 extensions:
   gitlab:
-    auto_approve: false  # Требовать ручной запуск (по умолчанию)
-    # auto_approve: true   # Автоматический apply
+    overwrites:
+      - type: apply
+        when: manual
 ```
-
-Можно переопределить через CLI:
-
-```bash
-# Включить auto-approve (пропустить ручной запуск)
-terraci generate --auto-approve -o .gitlab-ci.yml
-
-# Отключить auto-approve (требовать ручной запуск)
-terraci generate --no-auto-approve -o .gitlab-ci.yml
-```
-
-Флаги CLI имеют приоритет над конфигурационным файлом.
 
 ### Префикс стадий
 
@@ -268,7 +258,7 @@ terraci generate --no-auto-approve -o .gitlab-ci.yml
 ```yaml
 extensions:
   gitlab:
-    stages_prefix: "terraform"  # terraform-plan-0, terraform-apply-0
+    stages_prefix: "terraform"  # terraform-0, terraform-1
 ```
 
 ### Пользовательские скрипты

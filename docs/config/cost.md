@@ -107,17 +107,9 @@ extensions:
       aws:
         enabled: true
 
-  # Works with either provider:
-  gitlab:
-    mr:
-      comment:
-        enabled: true
-
-  # Or with GitHub:
-  # github:
-  #   pr:
-  #     comment:
-  #       enabled: true
+  # MR/PR comments are rendered by summary.
+  summary:
+    enabled: true
 ```
 
 This configuration enables cost estimation with default caching, and displays the results in MR/PR comments alongside plan output.
@@ -159,5 +151,5 @@ See [examples/cost-estimation](https://github.com/edelwud/terraci/tree/main/exam
 
 ## See Also
 
-- [Merge Request Integration](/config/gitlab-mr) — MR comments with plan summaries and cost estimates
+- [Summary Configuration](/config/summary) — MR/PR comments with plan summaries and cost estimates
 - [Pipeline Generation Guide](/guide/pipeline-generation) — end-to-end guide for generating CI pipelines

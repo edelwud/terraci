@@ -133,11 +133,11 @@ Submodules appear as regular jobs:
 
 ```yaml
 plan-platform-prod-us-east-1-ec2:
-  stage: deploy-plan-0
+  stage: deploy-0
   # ...
 
 plan-platform-prod-us-east-1-ec2-rabbitmq:
-  stage: deploy-plan-1
+  stage: deploy-2
   needs:
     - apply-platform-prod-us-east-1-ec2
   # ...

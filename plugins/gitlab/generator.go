@@ -7,7 +7,6 @@ import (
 	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
-	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
 	generatepkg "github.com/edelwud/terraci/plugins/gitlab/internal/generate"
 	mrpkg "github.com/edelwud/terraci/plugins/gitlab/internal/mr"
 )
@@ -26,6 +25,11 @@ func (p *Plugin) PipelineID() string { return os.Getenv("CI_PIPELINE_ID") }
 // CommitSHA returns the GitLab CI commit SHA.
 func (p *Plugin) CommitSHA() string { return os.Getenv("CI_COMMIT_SHA") }
 
+// PipelineRequirements returns GitLab-specific IR build requirements.
+func (p *Plugin) PipelineRequirements(_ *plugin.AppContext) pipeline.BuildRequirements {
+	return generatepkg.PipelineRequirements(p.Config())
+}
+
 // NewGenerator creates a new GitLab CI pipeline generator bound to the
 // pre-built IR.
 func (p *Plugin) NewGenerator(ctx *plugin.AppContext, ir *pipeline.IR) pipeline.Generator {
@@ -34,9 +38,5 @@ func (p *Plugin) NewGenerator(ctx *plugin.AppContext, ir *pipeline.IR) pipeline.
 
 // NewCommentService creates a new MR comment service.
 func (p *Plugin) NewCommentService(_ *plugin.AppContext) ci.CommentService {
-	var mrCfg *configpkg.MRConfig
-	if p.Config() != nil {
-		mrCfg = p.Config().MR
-	}
-	return mrpkg.NewServiceFromEnv(mrCfg)
+	return mrpkg.NewServiceFromEnv()
 }

@@ -7,8 +7,6 @@ import (
 	gitlab "gitlab.com/gitlab-org/api/client-go"
 
 	"github.com/edelwud/terraci/pkg/ci"
-	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
-	"github.com/edelwud/terraci/plugins/internal/ciplugin"
 )
 
 type noteClient interface {
@@ -21,22 +19,20 @@ type noteClient interface {
 // Service handles MR-related comment operations.
 type Service struct {
 	client  noteClient
-	config  *configpkg.MRConfig
 	context *Context
 }
 
 // NewService creates a new MR service with injected dependencies.
-func NewService(cfg *configpkg.MRConfig, client noteClient, ctx *Context) *Service {
+func NewService(client noteClient, ctx *Context) *Service {
 	return &Service{
 		client:  client,
-		config:  cfg,
 		context: ctx,
 	}
 }
 
 // NewServiceFromEnv creates a new MR service with dependencies from environment.
-func NewServiceFromEnv(cfg *configpkg.MRConfig) *Service {
-	return NewService(cfg, NewClientFromEnv(), DetectContext())
+func NewServiceFromEnv() *Service {
+	return NewService(NewClientFromEnv(), DetectContext())
 }
 
 // IsEnabled returns true if MR integration is enabled.
@@ -47,7 +43,7 @@ func (s *Service) IsEnabled() bool {
 	if !s.client.HasToken() {
 		return false
 	}
-	return ciplugin.CommentEnabled(s.config)
+	return true
 }
 
 // UpsertComment creates or updates the terraci comment on the MR.

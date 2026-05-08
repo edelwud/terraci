@@ -92,7 +92,7 @@ TerraCi автоматически определяет активный CI-пр
 | `CommandProvider` | CLI-субкоманды (`terraci cost`, `terraci local-exec` и т.д.) | cost, policy, summary, tfupdate, localexec |
 | `PipelineContributor` | Добавление шагов/джобов в pipeline IR | cost, policy, summary, tfupdate |
 | `InitContributor` | Поля формы для `terraci init` | gitlab, github, cost, policy, summary, tfupdate |
-| `PipelineGeneratorFactory` | Создание генератора пайплайна (`NewGenerator(ctx, *pipeline.IR)`) | gitlab, github |
+| `PipelineGeneratorFactory` | Декларация требований к IR и создание генератора пайплайна (`NewGenerator(ctx, *pipeline.IR)`) | gitlab, github |
 | `CommentServiceFactory` | Создание сервиса MR/PR комментариев | gitlab, github |
 | `EnvDetector` | Определение CI-окружения по переменным среды | gitlab, github |
 | `CIInfoProvider` | Имя провайдера, ID пайплайна, SHA коммита | gitlab, github |
@@ -245,8 +245,8 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 | Плагин | Страница конфигурации |
 |--------|----------------------|
 | GitLab CI | [config/gitlab](/ru/config/gitlab) |
-| GitLab MR | [config/gitlab-mr](/ru/config/gitlab-mr) |
 | GitHub Actions | [config/github](/ru/config/github) |
+| Summary-комментарии | [config/summary](/ru/config/summary) |
 | Оценка стоимости | [config/cost](/ru/config/cost) |
 | Проверка политик | [config/policy](/ru/config/policy) |
 | Обновление зависимостей | [config/tfupdate](/ru/config/tfupdate) |

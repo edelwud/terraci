@@ -1,82 +1,43 @@
 ---
-title: "Плагин шагов пайплайна"
-description: "Внедрение кастомных джобов и шагов в генерируемые CI-пайплайны"
+title: "Pipeline Job Plugin"
+description: "Добавление standalone DAG-джобов в CI пайплайны: policy, cost, summary, update checks"
 outline: deep
 ---
 
-# Плагин шагов пайплайна
+# Pipeline Job Plugin
 
-Внедряйте кастомные джобы или шаги в генерируемый CI-пайплайн. Вклад вашего плагина объединяется с pipeline IR и появляется в финальном GitLab CI / GitHub Actions YAML.
+Pipeline-плагины добавляют standalone DAG-джобы в provider-agnostic IR.
+Джобы объявляют, какие typed resources они читают и пишут; TerraCi сам выводит
+зависимости, восстановление артефактов и необходимость детального plan.
 
-## Сценарии использования
+## Сценарии
 
-- **Сканирование безопасности** — tfsec, checkov, Snyk после plan
-- **Гейты согласования** — внешнее подтверждение перед apply
-- **Post-deploy хуки** — smoke-тесты после apply
-- **Уведомления** — сообщения на определённых фазах
-- **Итоговые отчёты** — агрегация результатов после завершения всех джобов
+- **Policy checks** — читают `plan.json`, публикуют policy report
+- **Cost estimation** — читают `plan.json`, публикуют cost report
+- **Dependency updates** — публикуют result/report артефакты
+- **Summary** — читает `plan.json` и optional plugin reports, затем публикует MR/PR комментарий
 
-## Фазы пайплайна
+## Как Это Работает
 
-```
-PrePlan → Plan → PostPlan → PreApply → Apply → PostApply → Finalize
-```
+Фаз и injected plan/apply steps больше нет. Пайплайн строится как DAG:
 
-| Фаза | Константа | Когда | Типичное использование |
-|------|-----------|-------|----------------------|
-| Pre-Plan | `pipeline.PhasePrePlan` | До `terraform plan` | Настройка, авторизация |
-| Post-Plan | `pipeline.PhasePostPlan` | После `terraform plan` | Сканирование, проверки, стоимость |
-| Pre-Apply | `pipeline.PhasePreApply` | До `terraform apply` | Проверки согласования |
-| Post-Apply | `pipeline.PhasePostApply` | После `terraform apply` | Smoke-тесты, уведомления |
-| Finalize | `pipeline.PhaseFinalize` | После всех остальных джобов | Summary-комментарии, итоговые отчёты |
+1. Core создает Terraform plan/apply jobs для target modules.
+2. Плагины добавляют standalone jobs.
+3. Каждая job объявляет `Consumes` и `Produces`.
+4. `pipeline.Build` резолвит concrete resources, artifacts и dependencies.
+5. Providers только рендерят готовый IR.
 
-::: tip Фаза Finalize
-Джобы в `PhaseFinalize` автоматически зависят от всех остальных contributed-джобов. Они всегда выполняются последними. Встроенный плагин `summary` использует эту фазу для публикации MR/PR-комментариев после завершения всех plan и policy джобов.
-:::
-
-## Добавление шагов
-
-Шаги внедряются в каждый plan/apply джоб. Каждый шаг содержит одну команду:
+## Пример Job
 
 ```go
-import "github.com/edelwud/terraci/pkg/pipeline"
+func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribution {
+    serviceDir := ctx.Config().ServiceDir
 
-func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contribution {
-    cfg := p.Config()
-    if cfg == nil || !cfg.Pipeline {
-        return nil
-    }
-
-    return &pipeline.Contribution{
-        Steps: []pipeline.Step{
-            {
-                Phase:   pipeline.PhasePostPlan,
-                Name:    "tfsec",
-                Command: "tfsec --format json --out tfsec-report.json .",
-            },
-        },
-    }
-}
-```
-
-### Фильтрация шагов по фазе
-
-Фреймворк фильтрует шаги при формировании джобов:
-- **Plan-джобы** получают шаги `PhasePrePlan` + `PhasePostPlan`
-- **Apply-джобы** получают шаги `PhasePreApply` + `PhasePostApply`
-- Шаги `PhaseFinalize` **не внедряются** в модульные джобы — используйте contributed-джобы
-
-## Добавление джобов
-
-Отдельные джобы выполняются как самостоятельные CI-джобы:
-
-```go
-func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contribution {
     return &pipeline.Contribution{
         Jobs: []pipeline.ContributedJob{
             {
                 Name:     "security-scan",
-                Phase:    pipeline.PhasePostPlan,
+                Commands: []string{"terraci security check"},
                 Consumes: []pipeline.ResourceRequest{
                     pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
                 },
@@ -84,11 +45,8 @@ func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contributi
                     pipeline.PluginResource(
                         pipeline.ResourceKindPluginReport,
                         "security",
-                        ".terraci/security-report.json",
+                        pipeline.WorkspacePath(serviceDir, ci.ReportFilename("security")),
                     ),
-                },
-                Commands: []string{
-                    "checkov -d . --output json > checkov-report.json",
                 },
             },
         },
@@ -96,112 +54,65 @@ func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contributi
 }
 ```
 
-### Поля ContributedJob
+## Поля ContributedJob
 
 | Поле | Тип | Описание |
-|------|-----|---------|
-| `Name` | `string` | Имя джоба в генерируемом пайплайне |
-| `Phase` | `Phase` | Определяет имя стадии (`Phase.String()`) |
-| `Commands` | `[]string` | Shell-команды для выполнения |
-| `Consumes` | `[]ResourceRequest` | Типизированные ресурсы, которые нужно восстановить перед запуском |
-| `Produces` | `[]ResourceSpec` | Типизированные ресурсы, публикуемые джобом как named artifact |
-| `AllowFailure` | `bool` | Если `true` — провал джоба не фейлит пайплайн |
+|------|-----|----------|
+| `Name` | `string` | Имя job в generated pipeline |
+| `Commands` | `[]string` | Shell-команды |
+| `Dependencies` | `[]JobDependency` | Явные control dependencies, если нужны |
+| `Consumes` | `[]ResourceRequest` | Typed resources, которые надо восстановить |
+| `Produces` | `[]ResourceSpec` | Typed resources, которые job публикует |
+| `AllowFailure` | `bool` | Ошибка job не валит pipeline |
 
-### Finalize-джобы
+## Resources
 
-Для джобов, которые должны выполняться после всего остального:
+```go
+pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON)
+pipeline.ModulePlanResource(pipeline.ResourceKindPlanText, "platform/prod/eu-central-1/vpc")
+
+pipeline.AllPluginResources(pipeline.ResourceKindPluginReport, true)
+pipeline.PluginProducerResource(pipeline.ResourceKindPluginResult, "policy", false)
+```
+
+Запрос `PlanJSON` или `PlanText` автоматически включает detailed plan только
+для подходящих модулей.
+
+## Summary Job
+
+Summary не требует специальной фазы. Она оказывается в конце DAG, потому что
+читает ресурсы, которые производят предыдущие jobs:
 
 ```go
 func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contribution {
     return &pipeline.Contribution{
         Jobs: []pipeline.ContributedJob{
             {
-                Name:     "my-summary",
-                Phase:    pipeline.PhaseFinalize,
+                Name:     "terraci-summary",
+                Commands: []string{"terraci summary"},
                 Consumes: []pipeline.ResourceRequest{
                     pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
                     pipeline.AllPluginResources(pipeline.ResourceKindPluginReport, true),
                 },
-                Commands: []string{"terraci my-summary"},
             },
         },
     }
 }
 ```
 
-`PhaseFinalize`-джобы автоматически зависят от всех других contributed-джобов (cost, policy и т.д.). Указывать эти зависимости вручную не нужно.
+## Activation
 
-## Результат в генерируемом YAML
-
-**GitLab CI:**
-```yaml
-plan-vpc:
-  stage: deploy-plan-0
-  script:
-    - cd platform/prod/eu-central-1/vpc
-    - terraform init
-    - terraform plan -out=plan.tfplan
-    - tfsec --format json --out tfsec-report.json .  # ← PostPlan шаг
-
-security-scan:
-  stage: post-plan
-  needs: [plan-vpc, plan-eks, plan-rds]               # ← consumes PlanJSON
-  script:
-    - checkov -d . --output json > checkov-report.json
-```
-
-## Полный пример
+Registry вызывает `PipelineContribution` только для enabled plugin configs. Если
+есть отдельный `pipeline` toggle, реализуйте `plugin.PipelineContributionGate`:
 
 ```go
-package security
-
-import (
-    "github.com/edelwud/terraci/pkg/pipeline"
-    "github.com/edelwud/terraci/pkg/plugin"
-    "github.com/edelwud/terraci/pkg/plugin/registry"
-)
-
-func init() {
-    registry.RegisterFactory(func() plugin.Plugin {
-        return &Plugin{
-            BasePlugin: plugin.BasePlugin[*Config]{
-                PluginName:  "security",
-                PluginDesc:  "Security scanning for Terraform plans",
-                EnableMode:  plugin.EnabledExplicitly,
-                DefaultCfg:  func() *Config { return &Config{} },
-                IsEnabledFn: func(cfg *Config) bool { return cfg != nil && cfg.Enabled },
-            },
-        }
-    })
-}
-
-type Plugin struct{ plugin.BasePlugin[*Config] }
-
-type Config struct {
-    Enabled  bool   `yaml:"enabled"`
-    Pipeline bool   `yaml:"pipeline"`
-    Tool     string `yaml:"tool"`
-}
-
-func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contribution {
+func (p *Plugin) PipelineContributionEnabled(_ *plugin.AppContext) bool {
     cfg := p.Config()
-    if cfg == nil || !cfg.Pipeline {
-        return nil
-    }
-    tool := cfg.Tool
-    if tool == "" {
-        tool = "tfsec"
-    }
-    return &pipeline.Contribution{
-        Steps: []pipeline.Step{{
-            Phase:   pipeline.PhasePostPlan,
-            Command: tool + " --format json .",
-        }},
-    }
+    return cfg != nil && cfg.Pipeline
 }
 ```
 
-## См. также
+## См. Также
 
-- [CLI-команда](/ru/plugins/command-plugin) — добавление CLI-команд
-- [Генерация пайплайнов](/ru/guide/pipeline-generation) — как работает pipeline IR
+- [CI Provider Plugin](/ru/plugins/provider-plugin) — рендер IR для нового CI
+- [Генерация Pipeline](/ru/guide/pipeline-generation) — как строятся generated pipelines

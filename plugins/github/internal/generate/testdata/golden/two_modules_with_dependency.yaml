@@ -18,7 +18,6 @@ jobs:
         needs:
             - plan-platform-stage-eu-central-1-eks
             - apply-platform-stage-eu-central-1-vpc
-        environment: production
         concurrency:
             group: platform/stage/eu-central-1/eks
             cancel-in-progress: false
@@ -45,7 +44,6 @@ jobs:
         runs-on: ubuntu-latest
         needs:
             - plan-platform-stage-eu-central-1-vpc
-        environment: production
         concurrency:
             group: platform/stage/eu-central-1/vpc
             cancel-in-progress: false

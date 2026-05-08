@@ -13,11 +13,10 @@ import (
 // "in target" IDs separately — Subgraph.GetDependencies returns only
 // target-included dependencies.
 type JobPlan struct {
-	TargetModules      []*discovery.Module
-	ExecutionLevels    [][]string
-	Subgraph           *graph.DependencyGraph
-	ModuleIndex        *discovery.ModuleIndex
-	HasContributedJobs bool
+	TargetModules   []*discovery.Module
+	ExecutionLevels [][]string
+	Subgraph        *graph.DependencyGraph
+	ModuleIndex     *discovery.ModuleIndex
 }
 
 // buildJobPlan prepares the execution plan from target modules. It is an
@@ -26,7 +25,6 @@ func buildJobPlan(
 	depGraph *graph.DependencyGraph,
 	targetModules, allModules []*discovery.Module,
 	moduleIndex *discovery.ModuleIndex,
-	hasContributedJobs, planEnabled bool,
 ) (*JobPlan, error) {
 	if len(targetModules) == 0 {
 		targetModules = allModules
@@ -45,11 +43,10 @@ func buildJobPlan(
 	}
 
 	return &JobPlan{
-		TargetModules:      targetModules,
-		ExecutionLevels:    levels,
-		Subgraph:           subgraph,
-		ModuleIndex:        moduleIndex,
-		HasContributedJobs: hasContributedJobs && planEnabled,
+		TargetModules:   targetModules,
+		ExecutionLevels: levels,
+		Subgraph:        subgraph,
+		ModuleIndex:     moduleIndex,
 	}, nil
 }
 
@@ -114,17 +111,15 @@ func (ir *IR) DryRun(totalModules int) *DryRunResult {
 		executionOrder = append(executionOrder, levelOrder)
 	}
 
-	contributedPhases := make(map[Phase]struct{}, len(ir.Jobs))
-	for _, ref := range ir.JobRefs() {
-		if ref.Kind == JobKindContributed && ref.Job != nil {
-			contributedPhases[ref.Job.Phase] = struct{}{}
-		}
+	stages := 0
+	if groups, err := Schedule(ir); err == nil {
+		stages = len(groups)
 	}
 
 	return &DryRunResult{
 		TotalModules:    totalModules,
 		AffectedModules: affectedModules,
-		Stages:          len(ir.Levels) + len(contributedPhases),
+		Stages:          stages,
 		Jobs:            jobCount,
 		ExecutionOrder:  executionOrder,
 	}

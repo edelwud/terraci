@@ -119,7 +119,7 @@ Fields are grouped into categories that determine where they appear:
 | Category | Rendering | Use For |
 |----------|-----------|---------|
 | `CategoryProvider` | Separate group, shown per-provider | CI-specific settings (image, runner) |
-| `CategoryPipeline` | Merged into "Pipeline" group | Pipeline behavior (plan_enabled, auto_approve) |
+| `CategoryPipeline` | Merged into "Pipeline" group | Pipeline behavior (plan_enabled, plan_only) |
 | `CategoryFeature` | Merged into "Features" group | On/off toggles for optional features |
 | `CategoryDetail` | Separate group with `ShowWhen` | Detail settings for enabled features |
 

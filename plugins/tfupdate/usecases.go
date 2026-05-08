@@ -64,7 +64,7 @@ func runUpdateCheck(ctx context.Context, appCtx *plugin.AppContext, runtime *upd
 	}
 
 	emitUpdateArtifacts(appCtx.ServiceDir(), result)
-	return finalizeUpdateCheck(w, runtime.options.outputFmt, result)
+	return finishUpdateCheck(w, runtime.options.outputFmt, result)
 }
 
 func filterModules(modules []*discovery.Module, modulePath string) []*discovery.Module {
@@ -133,7 +133,7 @@ func emitUpdateArtifacts(serviceDir string, result *tfupdateengine.UpdateResult)
 	}
 }
 
-func finalizeUpdateCheck(w io.Writer, outputFmt string, result *tfupdateengine.UpdateResult) error {
+func finishUpdateCheck(w io.Writer, outputFmt string, result *tfupdateengine.UpdateResult) error {
 	if outputErr := outputResult(w, outputFmt, result); outputErr != nil {
 		return outputErr
 	}

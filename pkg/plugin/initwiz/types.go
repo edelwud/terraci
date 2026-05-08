@@ -8,7 +8,7 @@ type InitCategory string
 const (
 	// CategoryProvider groups contain CI-specific infrastructure settings (image, runner).
 	CategoryProvider InitCategory = "provider"
-	// CategoryPipeline groups contain pipeline behavior settings (plan_enabled, auto_approve).
+	// CategoryPipeline groups contain pipeline behavior settings.
 	CategoryPipeline InitCategory = "pipeline"
 	// CategoryFeature groups contain optional feature toggles.
 	CategoryFeature InitCategory = "feature"

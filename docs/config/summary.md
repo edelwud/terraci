@@ -61,5 +61,5 @@ The `terraci summary` command scans for plan results in the service directory, l
 ## See Also
 
 - [terraci summary CLI](/cli/summary)
-- [GitLab MR Integration](/config/gitlab-mr)
+- [GitLab CI Configuration](/config/gitlab)
 - [Plugin System](/plugins/)

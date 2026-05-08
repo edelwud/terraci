@@ -14,7 +14,6 @@ type CommandProvider interface {
 type FlagOverridable interface {
 	Plugin
 	SetPlanOnly(bool)
-	SetAutoApprove(bool)
 }
 
 // VersionProvider plugins contribute version info to `terraci version`.

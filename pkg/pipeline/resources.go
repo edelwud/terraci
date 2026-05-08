@@ -1,5 +1,7 @@
 package pipeline
 
+import "github.com/edelwud/terraci/pkg/ci"
+
 // ResourceKind identifies a data product exchanged between pipeline jobs.
 type ResourceKind string
 
@@ -41,7 +43,7 @@ func PlanResource(kind ResourceKind, modulePath, path string) ResourceSpec {
 			Kind:       kind,
 			ModulePath: modulePath,
 		},
-		Path: path,
+		Path: WorkspacePath(path),
 	}
 }
 
@@ -52,7 +54,7 @@ func PluginResource(kind ResourceKind, producer, path string) ResourceSpec {
 			Kind:     kind,
 			Producer: producer,
 		},
-		Path: path,
+		Path: WorkspacePath(path),
 	}
 }
 
@@ -74,6 +76,13 @@ func AllPluginResources(kind ResourceKind, optional bool) ResourceRequest {
 // PluginProducerResource requests one plugin resource by producer.
 func PluginProducerResource(kind ResourceKind, producer string, optional bool) ResourceRequest {
 	return ResourceRequest{Kind: kind, Producer: producer, Optional: optional}
+}
+
+func PluginResultAndReportResources(serviceDir, producer string) []ResourceSpec {
+	return []ResourceSpec{
+		PluginResource(ResourceKindPluginResult, producer, WorkspacePath(serviceDir, ci.ResultFilename(producer))),
+		PluginResource(ResourceKindPluginReport, producer, WorkspacePath(serviceDir, ci.ReportFilename(producer))),
+	}
 }
 
 // DependencyNames returns dependency job names in declaration order.

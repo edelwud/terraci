@@ -20,14 +20,12 @@ type recordingRunner struct {
 func (r *recordingRunner) Run(ctx context.Context, _ *pipeline.Job) error {
 	current := r.active.Add(1)
 	defer r.active.Add(-1)
-
 	for {
 		maxVal := r.maxActive.Load()
 		if current <= maxVal || r.maxActive.CompareAndSwap(maxVal, current) {
 			break
 		}
 	}
-
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -39,20 +37,12 @@ func (r *recordingRunner) Run(ctx context.Context, _ *pipeline.Job) error {
 func TestExecutorHonorsParallelism(t *testing.T) {
 	t.Parallel()
 
-	ir := &pipeline.IR{
-		Jobs: []pipeline.Job{
-			{Name: "pre-a", Phase: pipeline.PhasePrePlan},
-			{Name: "pre-b", Phase: pipeline.PhasePrePlan},
-			{Name: "pre-c", Phase: pipeline.PhasePrePlan},
-		},
-	}
-
+	ir := &pipeline.IR{Jobs: []pipeline.Job{{Name: "a"}, {Name: "b"}, {Name: "c"}}}
 	runner := &recordingRunner{delay: 20 * time.Millisecond}
 	_, err := NewExecutor(runner, WithParallelism(1)).Execute(context.Background(), ir)
 	if err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
-
 	if got := runner.maxActive.Load(); got != 1 {
 		t.Fatalf("max concurrency = %d, want 1", got)
 	}
@@ -70,20 +60,15 @@ func (r *orderRunner) Run(_ context.Context, job *pipeline.Job) error {
 	return nil
 }
 
-func TestDefaultSchedulerPreservesGroupOrder(t *testing.T) {
+func TestDefaultSchedulerPreservesDAGOrder(t *testing.T) {
 	t.Parallel()
 
-	ir := &pipeline.IR{
-		Levels: []pipeline.Level{
-			{Index: 0, Modules: []pipeline.ModuleJobs{{Plan: &pipeline.Job{Name: "plan-0"}, Apply: &pipeline.Job{Name: "apply-0"}}}},
-			{Index: 1, Modules: []pipeline.ModuleJobs{{Plan: &pipeline.Job{Name: "plan-1"}, Apply: &pipeline.Job{Name: "apply-1"}}}},
-		},
-		Jobs: []pipeline.Job{
-			{Name: "pre", Phase: pipeline.PhasePrePlan},
-			{Name: "post", Phase: pipeline.PhasePostPlan},
-			{Name: "final", Phase: pipeline.PhaseFinalize},
-		},
-	}
+	ir := &pipeline.IR{Jobs: []pipeline.Job{
+		{Name: "summary", Dependencies: testDependencies("policy", "apply")},
+		{Name: "plan"},
+		{Name: "policy", Dependencies: testDependencies("plan")},
+		{Name: "apply", Dependencies: testDependencies("plan")},
+	}}
 
 	runner := &orderRunner{}
 	_, err := NewExecutor(runner, WithParallelism(1)).Execute(context.Background(), ir)
@@ -91,68 +76,14 @@ func TestDefaultSchedulerPreservesGroupOrder(t *testing.T) {
 		t.Fatalf("Execute() error = %v", err)
 	}
 
-	want := []string{"pre", "plan-0", "plan-1", "post", "apply-0", "apply-1", "final"}
-	if len(runner.order) != len(want) {
-		t.Fatalf("order len = %d, want %d (%v)", len(runner.order), len(want), runner.order)
+	if len(runner.order) != 4 {
+		t.Fatalf("order len = %d, want 4 (%v)", len(runner.order), runner.order)
 	}
-	for i := range want {
-		if runner.order[i] != want[i] {
-			t.Fatalf("order[%d] = %q, want %q (%v)", i, runner.order[i], want[i], runner.order)
-		}
+	if runner.order[0] != "plan" {
+		t.Fatalf("first job = %q, want plan (%v)", runner.order[0], runner.order)
 	}
-}
-
-func TestDefaultSchedulerAlwaysIncludesFinalizeStage(t *testing.T) {
-	t.Parallel()
-
-	ir := &pipeline.IR{
-		Levels: []pipeline.Level{
-			{Index: 0, Modules: []pipeline.ModuleJobs{{Plan: &pipeline.Job{Name: "plan-0"}}}},
-		},
-	}
-
-	groups, err := DefaultScheduler{}.Schedule(ir)
-	if err != nil {
-		t.Fatalf("Schedule() error = %v", err)
-	}
-	if len(groups) == 0 {
-		t.Fatal("expected scheduled groups")
-	}
-
-	last := groups[len(groups)-1]
-	if last.Name != "finalize" {
-		t.Fatalf("last group = %q, want finalize", last.Name)
-	}
-	if len(last.Jobs) != 0 {
-		t.Fatalf("finalize jobs = %d, want 0", len(last.Jobs))
-	}
-}
-
-func TestExecutorRecordsEmptyFinalizeStage(t *testing.T) {
-	t.Parallel()
-
-	ir := &pipeline.IR{
-		Levels: []pipeline.Level{
-			{Index: 0, Modules: []pipeline.ModuleJobs{{Plan: &pipeline.Job{Name: "plan-0"}}}},
-		},
-	}
-
-	runner := &orderRunner{}
-	result, err := NewExecutor(runner, WithParallelism(1)).Execute(context.Background(), ir)
-	if err != nil {
-		t.Fatalf("Execute() error = %v", err)
-	}
-
-	if len(result.Groups) == 0 {
-		t.Fatal("expected execution groups to be recorded")
-	}
-
-	last := result.Groups[len(result.Groups)-1]
-	if last.Name != "finalize" {
-		t.Fatalf("last recorded group = %q, want finalize", last.Name)
-	}
-	if last.JobCount != 0 {
-		t.Fatalf("finalize job count = %d, want 0", last.JobCount)
+	if runner.order[len(runner.order)-1] != "summary" {
+		t.Fatalf("last job = %q, want summary (%v)", runner.order[len(runner.order)-1], runner.order)
 	}
 }
 
@@ -165,53 +96,28 @@ func TestExecutorRejectsInvalidPlanGraph(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name: "duplicate names",
-			ir: &pipeline.IR{
-				Jobs: []pipeline.Job{
-					{Name: "policy-check", Phase: pipeline.PhasePostPlan},
-					{Name: "policy-check", Phase: pipeline.PhaseFinalize},
-				},
-			},
+			name:    "duplicate names",
+			ir:      &pipeline.IR{Jobs: []pipeline.Job{{Name: "policy-check"}, {Name: "policy-check"}}},
 			wantErr: `duplicate job name "policy-check"`,
 		},
 		{
-			name: "unknown dependency",
-			ir: &pipeline.IR{
-				Jobs: []pipeline.Job{
-					{Name: "summary", Phase: pipeline.PhaseFinalize, Dependencies: testDependencies("policy-check")},
-				},
-			},
+			name:    "unknown dependency",
+			ir:      &pipeline.IR{Jobs: []pipeline.Job{{Name: "summary", Dependencies: testDependencies("policy-check")}}},
 			wantErr: `depends on unknown job "policy-check"`,
 		},
 		{
 			name: "dependency cycle",
-			ir: &pipeline.IR{
-				Jobs: []pipeline.Job{
-					{Name: "summary", Phase: pipeline.PhaseFinalize, Dependencies: testDependencies("policy-check")},
-					{Name: "policy-check", Phase: pipeline.PhaseFinalize, Dependencies: testDependencies("summary")},
-				},
-			},
+			ir: &pipeline.IR{Jobs: []pipeline.Job{
+				{Name: "summary", Dependencies: testDependencies("policy-check")},
+				{Name: "policy-check", Dependencies: testDependencies("summary")},
+			}},
 			wantErr: "dependency cycle",
-		},
-		{
-			name: "duplicate module and contributed job",
-			ir: &pipeline.IR{
-				Levels: []pipeline.Level{{
-					Index: 0,
-					Modules: []pipeline.ModuleJobs{{
-						Plan: &pipeline.Job{Name: "plan-vpc"},
-					}},
-				}},
-				Jobs: []pipeline.Job{{Name: "plan-vpc", Phase: pipeline.PhasePostPlan}},
-			},
-			wantErr: `duplicate job name "plan-vpc"`,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-
 			runner := &orderRunner{}
 			_, err := NewExecutor(runner).Execute(context.Background(), tt.ir)
 			if err == nil {
@@ -224,65 +130,6 @@ func TestExecutorRejectsInvalidPlanGraph(t *testing.T) {
 				t.Fatalf("runner executed %v, want no jobs", runner.order)
 			}
 		})
-	}
-}
-
-func TestDefaultSchedulerHonorsSamePhaseDependencies(t *testing.T) {
-	t.Parallel()
-
-	ir := &pipeline.IR{
-		Jobs: []pipeline.Job{
-			{Name: "summary", Phase: pipeline.PhaseFinalize, Dependencies: testDependencies("policy-check")},
-			{Name: "policy-check", Phase: pipeline.PhaseFinalize},
-			{Name: "notify", Phase: pipeline.PhaseFinalize, Dependencies: testDependencies("summary")},
-		},
-	}
-
-	runner := &orderRunner{}
-	_, err := NewExecutor(runner, WithParallelism(10)).Execute(context.Background(), ir)
-	if err != nil {
-		t.Fatalf("Execute() error = %v", err)
-	}
-
-	want := []string{"policy-check", "summary", "notify"}
-	if len(runner.order) != len(want) {
-		t.Fatalf("order len = %d, want %d (%v)", len(runner.order), len(want), runner.order)
-	}
-	for i := range want {
-		if runner.order[i] != want[i] {
-			t.Fatalf("order[%d] = %q, want %q (%v)", i, runner.order[i], want[i], runner.order)
-		}
-	}
-}
-
-func TestDefaultSchedulerIgnoresDependenciesAlreadySatisfiedByPreviousGroups(t *testing.T) {
-	t.Parallel()
-
-	ir := &pipeline.IR{
-		Levels: []pipeline.Level{{
-			Index: 0,
-			Modules: []pipeline.ModuleJobs{{
-				Plan: &pipeline.Job{Name: "plan-vpc"},
-			}},
-		}},
-		Jobs: []pipeline.Job{{
-			Name:         "policy-check",
-			Phase:        pipeline.PhasePostPlan,
-			Dependencies: testDependencies("plan-vpc"),
-		}},
-	}
-
-	runner := &orderRunner{}
-	_, err := NewExecutor(runner, WithParallelism(10)).Execute(context.Background(), ir)
-	if err != nil {
-		t.Fatalf("Execute() error = %v", err)
-	}
-
-	want := []string{"plan-vpc", "policy-check"}
-	for i := range want {
-		if runner.order[i] != want[i] {
-			t.Fatalf("order[%d] = %q, want %q (%v)", i, runner.order[i], want[i], runner.order)
-		}
 	}
 }
 

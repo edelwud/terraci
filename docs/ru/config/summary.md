@@ -61,5 +61,5 @@ terraci summary
 ## См. также
 
 - [terraci summary CLI](/ru/cli/summary)
-- [GitLab MR интеграция](/ru/config/gitlab-mr)
+- [Конфигурация GitLab CI](/ru/config/gitlab)
 - [Система плагинов](/ru/plugins/)

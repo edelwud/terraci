@@ -1,6 +1,10 @@
 package execution
 
-import "path/filepath"
+import (
+	"path/filepath"
+
+	"github.com/edelwud/terraci/pkg/pipeline"
+)
 
 // Workspace centralizes canonical execution-domain paths.
 type Workspace struct {
@@ -23,17 +27,17 @@ func (w Workspace) ModuleDir(rel string) string {
 
 // PlanFile returns the absolute plan.tfplan path for a module.
 func (w Workspace) PlanFile(rel string) string {
-	return filepath.Join(w.ModuleDir(rel), "plan.tfplan")
+	return filepath.Join(w.ModuleDir(rel), pipeline.PlanBinaryFilename)
 }
 
 // PlanJSONFile returns the absolute plan.json path for a module.
 func (w Workspace) PlanJSONFile(rel string) string {
-	return filepath.Join(w.ModuleDir(rel), "plan.json")
+	return filepath.Join(w.ModuleDir(rel), pipeline.PlanJSONFilename)
 }
 
 // PlanTextFile returns the absolute plan.txt path for a module.
 func (w Workspace) PlanTextFile(rel string) string {
-	return filepath.Join(w.ModuleDir(rel), "plan.txt")
+	return filepath.Join(w.ModuleDir(rel), pipeline.PlanTextFilename)
 }
 
 // ServiceFile returns the absolute path to a file under the service directory.

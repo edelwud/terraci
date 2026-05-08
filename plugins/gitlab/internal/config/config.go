@@ -4,22 +4,19 @@ import "github.com/edelwud/terraci/pkg/ci"
 
 // Type aliases for shared types keep the public config surface stable.
 type Image = ci.Image
-type MRCommentConfig = ci.MRCommentConfig
 
 // Config contains GitLab CI specific settings.
 type Config struct {
 	Image        Image             `yaml:"image" json:"image" jsonschema:"description=Docker image for terraform jobs,default=hashicorp/terraform:1.6"`
-	StagesPrefix string            `yaml:"stages_prefix" json:"stages_prefix" jsonschema:"description=Prefix for stage names (produces: {prefix}-plan-0\\, {prefix}-apply-0\\, etc.),default=deploy"`
+	StagesPrefix string            `yaml:"stages_prefix" json:"stages_prefix" jsonschema:"description=Prefix for DAG stage names (produces: {prefix}-0\\, {prefix}-1\\, etc.),default=deploy"`
 	Parallelism  int               `yaml:"parallelism" json:"parallelism" jsonschema:"description=Maximum parallel jobs per stage,minimum=1,default=5"`
 	Variables    map[string]string `yaml:"variables,omitempty" json:"variables,omitempty" jsonschema:"description=Global pipeline variables"`
 	PlanOnly     bool              `yaml:"plan_only" json:"plan_only" jsonschema:"description=Generate only plan jobs (no apply jobs),default=false"`
-	AutoApprove  bool              `yaml:"auto_approve" json:"auto_approve" jsonschema:"description=Auto-approve applies (skip manual confirmation),default=false"`
 	CacheEnabled bool              `yaml:"cache_enabled" json:"cache_enabled" jsonschema:"description=Enable caching of .terraform directory,default=true"`
 	Cache        *CacheConfig      `yaml:"cache,omitempty" json:"cache,omitempty" jsonschema:"description=Advanced GitLab cache configuration for terraform jobs"`
 	Rules        []Rule            `yaml:"rules,omitempty" json:"rules,omitempty" jsonschema:"description=Workflow rules for conditional pipeline execution"`
 	JobDefaults  *JobDefaults      `yaml:"job_defaults,omitempty" json:"job_defaults,omitempty" jsonschema:"description=Default settings applied to all jobs"`
 	Overwrites   []JobOverwrite    `yaml:"overwrites,omitempty" json:"overwrites,omitempty" jsonschema:"description=Job-level overrides for plan or apply jobs"`
-	MR           *MRConfig         `yaml:"mr,omitempty" json:"mr,omitempty" jsonschema:"description=Merge request integration settings"`
 }
 
 // CacheConfig defines advanced GitLab CI cache configuration.
@@ -37,28 +34,6 @@ func (g *Config) GetImage() Image {
 	}
 
 	return g.Image
-}
-
-// MRConfig contains settings for MR integration.
-type MRConfig struct {
-	Comment    *MRCommentConfig  `yaml:"comment,omitempty" json:"comment,omitempty" jsonschema:"description=MR comment configuration"`
-	Labels     []string          `yaml:"labels,omitempty" json:"labels,omitempty" jsonschema:"description=Labels to add to MR (supports placeholders: {service}\\, {environment}\\, {region}\\, {module})"`
-	SummaryJob *SummaryJobConfig `yaml:"summary_job,omitempty" json:"summary_job,omitempty" jsonschema:"description=Summary job configuration"`
-}
-
-// CommentBlock implements ciplugin.CommentBlockSource so the shared
-// CommentEnabled helper can be used by gitlab's MR service.
-func (m *MRConfig) CommentBlock() *MRCommentConfig {
-	if m == nil {
-		return nil
-	}
-	return m.Comment
-}
-
-// SummaryJobConfig contains settings for the summary job.
-type SummaryJobConfig struct {
-	Image *Image   `yaml:"image,omitempty" json:"image,omitempty" jsonschema:"description=Docker image for summary job (must contain terraci)"`
-	Tags  []string `yaml:"tags,omitempty" json:"tags,omitempty" jsonschema:"description=Runner tags for summary job"`
 }
 
 // Rule represents workflow or job rules from config input.
@@ -89,6 +64,7 @@ type JobConfig interface {
 	GetArtifacts() *ArtifactsConfig
 	GetTags() []string
 	GetRules() []Rule
+	GetWhen() string
 	GetVariables() map[string]string
 }
 
@@ -102,6 +78,7 @@ type JobDefaults struct {
 	Artifacts    *ArtifactsConfig     `yaml:"artifacts,omitempty" json:"artifacts,omitempty" jsonschema:"description=GitLab CI artifacts configuration"`
 	Tags         []string             `yaml:"tags,omitempty" json:"tags,omitempty" jsonschema:"description=GitLab runner tags"`
 	Rules        []Rule               `yaml:"rules,omitempty" json:"rules,omitempty" jsonschema:"description=Job-level rules"`
+	When         string               `yaml:"when,omitempty" json:"when,omitempty" jsonschema:"description=When to run matching jobs,enum=on_success,enum=manual,enum=always,enum=delayed"`
 	Variables    map[string]string    `yaml:"variables,omitempty" json:"variables,omitempty" jsonschema:"description=Additional variables"`
 }
 
@@ -113,6 +90,7 @@ func (j *JobDefaults) GetAfterScript() []string         { return j.AfterScript }
 func (j *JobDefaults) GetArtifacts() *ArtifactsConfig   { return j.Artifacts }
 func (j *JobDefaults) GetTags() []string                { return j.Tags }
 func (j *JobDefaults) GetRules() []Rule                 { return j.Rules }
+func (j *JobDefaults) GetWhen() string                  { return j.When }
 func (j *JobDefaults) GetVariables() map[string]string  { return j.Variables }
 
 // JobOverwriteType defines the type of jobs to override.
@@ -134,6 +112,7 @@ type JobOverwrite struct {
 	Artifacts    *ArtifactsConfig     `yaml:"artifacts,omitempty" json:"artifacts,omitempty" jsonschema:"description=Artifacts configuration for matching jobs"`
 	Tags         []string             `yaml:"tags,omitempty" json:"tags,omitempty" jsonschema:"description=Runner tags for matching jobs"`
 	Rules        []Rule               `yaml:"rules,omitempty" json:"rules,omitempty" jsonschema:"description=Job-level rules for matching jobs"`
+	When         string               `yaml:"when,omitempty" json:"when,omitempty" jsonschema:"description=When to run matching jobs,enum=on_success,enum=manual,enum=always,enum=delayed"`
 	Variables    map[string]string    `yaml:"variables,omitempty" json:"variables,omitempty" jsonschema:"description=Variables for matching jobs"`
 }
 
@@ -145,6 +124,7 @@ func (j *JobOverwrite) GetAfterScript() []string         { return j.AfterScript 
 func (j *JobOverwrite) GetArtifacts() *ArtifactsConfig   { return j.Artifacts }
 func (j *JobOverwrite) GetTags() []string                { return j.Tags }
 func (j *JobOverwrite) GetRules() []Rule                 { return j.Rules }
+func (j *JobOverwrite) GetWhen() string                  { return j.When }
 func (j *JobOverwrite) GetVariables() map[string]string  { return j.Variables }
 
 // ArtifactsConfig defines GitLab CI artifacts configuration.

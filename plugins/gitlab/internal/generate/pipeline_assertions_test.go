@@ -1,7 +1,6 @@
 package generate
 
 import (
-	"slices"
 	"strings"
 	"testing"
 
@@ -46,22 +45,6 @@ func (a *pipelineAssert) stageCount(expected int) *pipelineAssert {
 	a.t.Helper()
 	if got := len(a.pipeline.Stages); got != expected {
 		a.t.Fatalf("expected %d stages, got %d: %v", expected, got, a.pipeline.Stages)
-	}
-	return a
-}
-
-func (a *pipelineAssert) hasStage(name string) *pipelineAssert {
-	a.t.Helper()
-	if !slices.Contains(a.pipeline.Stages, name) {
-		a.t.Fatalf("expected stage %q to exist in %v", name, a.pipeline.Stages)
-	}
-	return a
-}
-
-func (a *pipelineAssert) noStage(name string) *pipelineAssert {
-	a.t.Helper()
-	if slices.Contains(a.pipeline.Stages, name) {
-		a.t.Fatalf("expected stage %q to not exist in %v", name, a.pipeline.Stages)
 	}
 	return a
 }

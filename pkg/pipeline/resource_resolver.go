@@ -2,22 +2,6 @@ package pipeline
 
 import "fmt"
 
-func requestsRequireDetailedPlan(required []ResourceRequest, jobs []ContributedJob) bool {
-	for _, request := range required {
-		if isDetailedPlanResource(request.Kind) {
-			return true
-		}
-	}
-	for _, job := range jobs {
-		for _, request := range job.Consumes {
-			if isDetailedPlanResource(request.Kind) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func isDetailedPlanResource(kind ResourceKind) bool {
 	return kind == ResourceKindPlanText || kind == ResourceKindPlanJSON
 }

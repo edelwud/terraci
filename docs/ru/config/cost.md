@@ -173,17 +173,9 @@ extensions:
       aws:
         enabled: true
 
-  # Работает с любым провайдером:
-  gitlab:
-    mr:
-      comment:
-        enabled: true
-
-  # Или с GitHub:
-  # github:
-  #   pr:
-  #     comment:
-  #       enabled: true
+  # MR/PR комментарии формирует summary.
+  summary:
+    enabled: true
 ```
 
 Эта конфигурация включает оценку стоимости с кешированием по умолчанию и отображает результаты в комментариях MR/PR рядом с выводом plan.
@@ -225,5 +217,5 @@ terraci cost -v
 
 ## Смотрите также
 
-- [Merge Request](/ru/config/gitlab-mr) — комментарии в MR с результатами plan и стоимостью
+- [Конфигурация summary](/ru/config/summary) — комментарии MR/PR с результатами plan и стоимостью
 - [Генерация пайплайнов](/ru/guide/pipeline-generation) — руководство по генерации CI пайплайнов

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	tfplan "github.com/edelwud/terraci/internal/terraform/plan"
+	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 )
@@ -20,7 +21,7 @@ func NewTerraformPlanAdapter() *TerraformPlanAdapter {
 
 // LoadModule reads a Terraform plan and maps it into the provider-neutral input model.
 func (a *TerraformPlanAdapter) LoadModule(modulePath, region string) (*PlanResult, error) {
-	planJSONPath := filepath.Join(modulePath, "plan.json")
+	planJSONPath := filepath.Join(modulePath, pipeline.PlanJSONFilename)
 
 	parsedPlan, err := tfplan.ParseJSON(planJSONPath)
 	if err != nil {

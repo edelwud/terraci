@@ -9,13 +9,13 @@ import (
 	localexecinternal "github.com/edelwud/terraci/plugins/localexec/internal"
 )
 
-// ExecutionMode determines which pipeline phases to execute.
+// ExecutionMode determines which local pipeline shape to execute.
 type ExecutionMode int
 
 const (
 	// ExecutionModeRun executes the full local flow, including apply jobs.
 	ExecutionModeRun ExecutionMode = iota
-	// ExecutionModePlan executes plan and finalize phases only.
+	// ExecutionModePlan executes plan jobs and resource-dependent standalone jobs.
 	ExecutionModePlan
 )
 

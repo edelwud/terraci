@@ -7,6 +7,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
@@ -213,8 +214,8 @@ extensions:
 				t.Fatalf("tfupdate-check produces = %#v, want result and report", job.Produces)
 			}
 			wantPaths := []string{
-				filepath.Join("custom-artifacts", "tfupdate-results.json"),
-				filepath.Join("custom-artifacts", "tfupdate-report.json"),
+				pipeline.WorkspacePath("custom-artifacts", ci.ResultFilename("tfupdate")),
+				pipeline.WorkspacePath("custom-artifacts", ci.ReportFilename("tfupdate")),
 			}
 			if !slices.Equal(producedPaths(job.Produces), wantPaths) {
 				t.Fatalf("tfupdate-check produced paths = %v, want %v", producedPaths(job.Produces), wantPaths)
@@ -225,6 +226,26 @@ extensions:
 
 	if !foundUpdateArtifactPath {
 		t.Fatal("CollectContributions() did not include dependency-update-check job")
+	}
+}
+
+func TestCollectContributions_TfupdatePipelineGate(t *testing.T) {
+	appCtx := loadPluginContractConfig(t, `structure:
+  pattern: "{service}/{environment}/{region}/{module}"
+extensions:
+  tfupdate:
+    enabled: true
+    pipeline: false
+`)
+
+	plugins := appCtx.Resolver().(*registry.Registry)
+	contributions := plugins.CollectContributions(appCtx)
+	for _, contrib := range contributions {
+		for _, job := range contrib.Jobs {
+			if job.Name == "tfupdate-check" {
+				t.Fatal("CollectContributions() included tfupdate-check when pipeline=false")
+			}
+		}
 	}
 }
 

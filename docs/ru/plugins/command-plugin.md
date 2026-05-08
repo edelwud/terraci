@@ -140,7 +140,6 @@ func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contributi
         Jobs: []pipeline.ContributedJob{
             {
                 Name:     "slack-notify",
-                Phase:    pipeline.PhasePostPlan,
                 Consumes: []pipeline.ResourceRequest{
                     pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
                 },

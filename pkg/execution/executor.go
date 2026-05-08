@@ -27,7 +27,7 @@ type EventSink interface {
 // job names) — preventing silent fallback that would run dependent jobs in
 // the wrong order.
 type Scheduler interface {
-	Schedule(ir *pipeline.IR) ([]JobGroup, error)
+	Schedule(ir *pipeline.IR) ([]pipeline.JobGroup, error)
 }
 
 // WorkerPool runs a group of jobs with bounded concurrency.

@@ -18,7 +18,7 @@ terraci summary [flags]
 
 Команда `summary` собирает результаты terraform plan из артефактов и создаёт или обновляет комментарий с обзором в merge request (GitLab) или pull request (GitHub).
 
-Эта команда предназначена для запуска как финальный джоб в CI пайплайне после завершения всех plan-джобов. Она загружает plan-результаты из артефактов каждого модуля, обогащает их файлами `{producer}-report.json` (cost, policy, tfupdate), найденными в служебной директории, пишет канонический `summary-report.json` и публикует форматированный комментарий MR/PR.
+Эта команда предназначена для запуска как DAG-джоб, зависящий от нужных plan/report артефактов. Она загружает plan-результаты из артефактов каждого модуля, обогащает их файлами `{producer}-report.json` (cost, policy, tfupdate), найденными в служебной директории, и публикует форматированный комментарий MR/PR.
 
 Команда автоматически определяет CI-провайдер и контекст MR/PR пайплайна и создаёт комментарии только когда это уместно.
 
@@ -30,7 +30,7 @@ terraci summary [flags]
 
 ```yaml
 terraci-summary:
-  stage: summary
+  stage: deploy-3
   image: ghcr.io/edelwud/terraci:latest
   script:
     - terraci summary
@@ -110,34 +110,17 @@ extensions:
     enabled: false  # отключить плагин summary
 ```
 
-Настройте поведение комментария MR/PR через секцию провайдера в `.terraci.yaml`:
-
-### GitLab
+Настройте поведение комментария MR/PR через плагин `summary` в `.terraci.yaml`:
 
 ```yaml
 extensions:
-  gitlab:
-    mr:
-      comment:
-        enabled: true
-        on_changes_only: false
-        include_details: true
+  summary:
+    enabled: true
+    on_changes_only: false
+    include_details: true
 ```
 
-Полные опции смотрите в [Конфигурация GitLab MR](/ru/config/gitlab-mr).
-
-### GitHub
-
-```yaml
-extensions:
-  github:
-    pr:
-      comment:
-        enabled: true
-        on_changes_only: false
-```
-
-Полные опции смотрите в [Конфигурация GitHub Actions](/ru/config/github).
+GitLab/GitHub провайдеры отвечают только за транспорт комментария и CI-контекст; настройки рендера принадлежат `summary`.
 
 ## Коды завершения
 
@@ -167,6 +150,6 @@ terraci summary -v
 
 ## Смотрите также
 
-- [Интеграция с GitLab MR](/ru/config/gitlab-mr)
+- [Конфигурация summary](/ru/config/summary)
 - [Конфигурация GitHub Actions](/ru/config/github)
 - [terraci generate](/ru/cli/generate)

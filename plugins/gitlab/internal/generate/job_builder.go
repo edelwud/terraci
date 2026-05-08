@@ -1,7 +1,7 @@
 package generate
 
 import (
-	"fmt"
+	"maps"
 	"strings"
 
 	"github.com/edelwud/terraci/pkg/discovery"
@@ -12,107 +12,59 @@ import (
 )
 
 type jobBuilder struct {
-	settings      settings
-	contributions contributionIndex
-	applyConfig   func(job *domain.Job, jobType configpkg.JobOverwriteType) error
+	settings    settings
+	stageByJob  map[string]string
+	applyConfig func(job *domain.Job, jobType configpkg.JobOverwriteType) error
 }
 
-func newJobBuilder(settings settings, contributions contributionIndex, applyConfig func(job *domain.Job, jobType configpkg.JobOverwriteType) error) jobBuilder {
+func newJobBuilder(settings settings, stageByJob map[string]string, applyConfig func(job *domain.Job, jobType configpkg.JobOverwriteType) error) jobBuilder {
 	return jobBuilder{
-		settings:      settings,
-		contributions: contributions,
-		applyConfig:   applyConfig,
+		settings:    settings,
+		stageByJob:  stageByJob,
+		applyConfig: applyConfig,
 	}
 }
 
-func (b jobBuilder) planJob(irJob *pipeline.Job, module *discovery.Module, levelIdx int, prefix string) (*domain.Job, error) {
-	job := &domain.Job{
-		Stage:         fmt.Sprintf("%s-plan-%d", prefix, levelIdx),
-		Script:        b.scriptWithSteps(cishell.RenderOperation(irJob.Operation), irJob.Steps, pipeline.PhasePrePlan, pipeline.PhasePostPlan),
-		Variables:     irJob.Env,
-		Artifacts:     defaultArtifacts(irJob.OutputArtifact),
-		Cache:         b.cache(module),
-		ResourceGroup: module.ID(),
-		Needs:         jobNeeds(irJob.Dependencies),
+func (b jobBuilder) renderJob(irJob *pipeline.Job) (*domain.Job, error) {
+	script := cishell.RenderOperation(irJob.Operation)
+	if irJob.AllowFailure {
+		script = allowFailureScript(script)
 	}
 
-	if err := b.applyConfig(job, configpkg.OverwriteTypePlan); err != nil {
+	job := &domain.Job{
+		Stage:        b.stageByJob[irJob.Name],
+		Script:       script,
+		Variables:    copyStringMap(irJob.Env),
+		Artifacts:    defaultArtifacts(irJob.OutputArtifact),
+		Needs:        jobNeeds(irJob.Dependencies),
+		AllowFailure: irJob.AllowFailure,
+	}
+
+	if irJob.Module != nil {
+		job.Cache = b.cache(irJob.Module)
+		job.ResourceGroup = irJob.Module.ID()
+	}
+
+	if err := b.applyConfig(job, jobOverwriteType(irJob)); err != nil {
 		return nil, err
 	}
 	return job, nil
 }
 
-func (b jobBuilder) applyJob(irJob *pipeline.Job, module *discovery.Module, levelIdx int, prefix string) (*domain.Job, error) {
-	job := &domain.Job{
-		Stage:         fmt.Sprintf("%s-apply-%d", prefix, levelIdx),
-		Script:        b.scriptWithSteps(cishell.RenderOperation(irJob.Operation), irJob.Steps, pipeline.PhasePreApply, pipeline.PhasePostApply),
-		Variables:     irJob.Env,
-		Cache:         b.cache(module),
-		ResourceGroup: module.ID(),
-		Needs:         jobNeeds(irJob.Dependencies),
+func jobOverwriteType(irJob *pipeline.Job) configpkg.JobOverwriteType {
+	if irJob == nil {
+		return ""
 	}
-
-	if !b.settings.autoApprove() {
-		job.When = WhenManual
+	switch irJob.Operation.Type {
+	case pipeline.OperationTypeTerraformPlan:
+		return configpkg.OverwriteTypePlan
+	case pipeline.OperationTypeTerraformApply:
+		return configpkg.OverwriteTypeApply
+	case pipeline.OperationTypeCommands:
+		return configpkg.JobOverwriteType(irJob.Name)
+	default:
+		return ""
 	}
-
-	if err := b.applyConfig(job, configpkg.OverwriteTypeApply); err != nil {
-		return nil, err
-	}
-	return job, nil
-}
-
-func (b jobBuilder) contributedJob(irJob *pipeline.Job) (*domain.Job, error) {
-	job := &domain.Job{
-		Stage:  b.contributions.stageFor(irJob.Name),
-		Script: contributedScript(cishell.RenderOperation(irJob.Operation), irJob.AllowFailure),
-		Needs:  jobNeeds(irJob.Dependencies),
-	}
-
-	if artifacts := defaultArtifacts(irJob.OutputArtifact); artifacts != nil {
-		job.Artifacts = artifacts
-	}
-
-	if err := b.applyConfig(job, configpkg.JobOverwriteType(irJob.Name)); err != nil {
-		return nil, err
-	}
-
-	return job, nil
-}
-
-func (b jobBuilder) applySummaryOverrides(job *domain.Job) {
-	job.Rules = []domain.Rule{{If: "$CI_MERGE_REQUEST_IID", When: "always"}}
-
-	summary := b.settings.summaryJob()
-	if !summary.configured() {
-		return
-	}
-
-	if summary.image != nil && summary.image.Name != "" {
-		job.Image = &domain.ImageConfig{
-			Name:       summary.image.Name,
-			Entrypoint: summary.image.Entrypoint,
-		}
-	}
-	if len(summary.tags) > 0 {
-		job.Tags = summary.tags
-	}
-}
-
-func (b jobBuilder) scriptWithSteps(coreScript []string, steps []pipeline.Step, prePh, postPh pipeline.Phase) []string {
-	var script []string
-	for _, step := range steps {
-		if step.Phase == prePh {
-			script = append(script, step.Command)
-		}
-	}
-	script = append(script, coreScript...)
-	for _, step := range steps {
-		if step.Phase == postPh {
-			script = append(script, step.Command)
-		}
-	}
-	return script
 }
 
 func (b jobBuilder) cache(module *discovery.Module) *domain.Cache {
@@ -201,14 +153,17 @@ func artifactNeedPtr(value bool) *bool {
 	return &value
 }
 
-func contributedScript(script []string, allowFailure bool) []string {
-	if !allowFailure {
-		return script
-	}
-
+func allowFailureScript(script []string) []string {
 	result := make([]string, 0, len(script))
 	for _, cmd := range script {
 		result = append(result, cmd+" || true")
 	}
 	return result
+}
+
+func copyStringMap(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return nil
+	}
+	return maps.Clone(in)
 }

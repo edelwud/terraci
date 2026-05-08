@@ -2,26 +2,6 @@ package pipeline
 
 import "github.com/edelwud/terraci/pkg/discovery"
 
-// Phase defines when something runs in the pipeline lifecycle.
-//
-// Values are the canonical stage names: providers can use them directly as
-// YAML stage labels, schedulers can use them as group identifiers, and
-// switch-statements can rely on string equality. There is intentionally no
-// parallel `Stage*` string-constant table — that produced two sources of
-// truth for the same lifecycle marker.
-type Phase string
-
-const (
-	PhasePrePlan   Phase = "pre-plan"   // before terraform plan
-	PhasePostPlan  Phase = "post-plan"  // after terraform plan
-	PhasePreApply  Phase = "pre-apply"  // before terraform apply
-	PhasePostApply Phase = "post-apply" // after terraform apply
-	PhaseFinalize  Phase = "finalize"   // after everything — reports, notifications
-)
-
-// String returns the stage name for this phase.
-func (p Phase) String() string { return string(p) }
-
 // IR is the provider-agnostic intermediate representation of a CI pipeline.
 type IR struct {
 	Levels []Level
@@ -50,7 +30,6 @@ type ModuleJobs struct {
 // trap is the reason it was removed.
 type Job struct {
 	Name           string
-	Phase          Phase             // for contributed jobs: when they run
 	Module         *discovery.Module // nil for contributed jobs
 	Env            map[string]string
 	Dependencies   []JobDependency // job edges this depends on
@@ -59,7 +38,6 @@ type Job struct {
 	Consumes       []ResourceSpec
 	Produces       []ResourceSpec
 	AllowFailure   bool
-	Steps          []Step // pre/post steps from contributors
 	Operation      Operation
 }
 
@@ -82,13 +60,6 @@ type JobDependency struct {
 	Job       string
 	Artifacts bool
 	Optional  bool
-}
-
-// Step is an injected command at a specific phase.
-type Step struct {
-	Phase   Phase
-	Name    string
-	Command string
 }
 
 // OperationType identifies the executable job payload.
@@ -117,14 +88,11 @@ type TerraformOperation struct {
 	PlanJSONFile string
 	DetailedPlan bool
 	UsePlanFile  bool
-	AutoApprove  bool
 }
 
-// Contribution describes additional steps and standalone jobs that an
-// external contributor wants to splice into the generated pipeline.
+// Contribution describes standalone jobs that an external contributor wants to
+// add to the generated pipeline.
 type Contribution struct {
-	// Steps are injected into each module's plan/apply jobs.
-	Steps []Step
 	// Jobs are standalone jobs added to the pipeline.
 	Jobs []ContributedJob
 }
@@ -132,8 +100,8 @@ type Contribution struct {
 // ContributedJob is a standalone job contributed to the pipeline.
 type ContributedJob struct {
 	Name         string
-	Phase        Phase // when it runs; Phase.String() gives the stage name
 	Commands     []string
+	Dependencies []JobDependency
 	Consumes     []ResourceRequest
 	Produces     []ResourceSpec
 	AllowFailure bool

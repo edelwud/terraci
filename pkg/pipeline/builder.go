@@ -7,36 +7,36 @@ import (
 
 // BuildOptions configures the IR builder.
 type BuildOptions struct {
-	DepGraph          *graph.DependencyGraph
-	TargetModules     []*discovery.Module
-	AllModules        []*discovery.Module
-	ModuleIndex       *discovery.ModuleIndex
-	Script            ScriptConfig
-	Contributions     []*Contribution
-	RequiredResources []ResourceRequest
-	PlanEnabled       bool
-	PlanOnly          bool
+	DepGraph      *graph.DependencyGraph
+	TargetModules []*discovery.Module
+	AllModules    []*discovery.Module
+	ModuleIndex   *discovery.ModuleIndex
+	Script        ScriptConfig
+	Contributions []*Contribution
+	Requirements  BuildRequirements
+	PlanEnabled   bool
 }
 
 // Build constructs a provider-agnostic IR from the given options.
 func Build(opts BuildOptions) (*IR, error) {
+	planOnly := opts.Requirements.PlanOnly
+	allContributedJobs := collectContributedJobs(opts.Contributions)
 	plan, err := buildJobPlan(
 		opts.DepGraph, opts.TargetModules, opts.AllModules, opts.ModuleIndex,
-		hasContributedJobs(opts.Contributions), opts.PlanEnabled,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	allSteps, allContributedJobs := collectContributionParts(opts.Contributions)
-	script := effectiveScript(opts.Script, opts.RequiredResources, allContributedJobs)
+	requests := allResourceRequests(opts.Requirements.Resources, allContributedJobs)
+	planOutputs := requestedPlanOutputs(plan, requests)
 
 	ir := &IR{
-		Levels: buildModuleLevels(plan, opts.PlanEnabled, opts.PlanOnly, script, allSteps),
+		Levels: buildModuleLevels(plan, opts.PlanEnabled, planOnly, opts.Script, planOutputs),
 		Jobs:   buildContributedJobs(allContributedJobs),
 	}
 
-	if err := resolvePipelineResources(ir, plan, opts.RequiredResources, allContributedJobs); err != nil {
+	if err := resolvePipelineResources(ir, plan, opts.Requirements.Resources, allContributedJobs); err != nil {
 		return nil, err
 	}
 	if err := ir.Validate(); err != nil {
@@ -45,27 +45,73 @@ func Build(opts BuildOptions) (*IR, error) {
 	return ir, nil
 }
 
-func collectContributionParts(contributions []*Contribution) ([]Step, []ContributedJob) {
-	var allSteps []Step
+func collectContributedJobs(contributions []*Contribution) []ContributedJob {
 	var allContributedJobs []ContributedJob
 	for _, c := range contributions {
 		if c == nil {
 			continue
 		}
-		allSteps = append(allSteps, c.Steps...)
 		allContributedJobs = append(allContributedJobs, c.Jobs...)
 	}
-	return allSteps, allContributedJobs
+	return allContributedJobs
 }
 
-func effectiveScript(script ScriptConfig, required []ResourceRequest, jobs []ContributedJob) ScriptConfig {
-	if requestsRequireDetailedPlan(required, jobs) {
-		script.DetailedPlan = true
+func allResourceRequests(required []ResourceRequest, jobs []ContributedJob) []ResourceRequest {
+	requests := append([]ResourceRequest(nil), required...)
+	for _, job := range jobs {
+		requests = append(requests, job.Consumes...)
 	}
-	return script
+	return requests
 }
 
-func buildModuleLevels(plan *JobPlan, planEnabled, planOnly bool, script ScriptConfig, steps []Step) []Level {
+func requestedPlanOutputs(plan *JobPlan, requests []ResourceRequest) map[string]PlanOutputs {
+	outputs := make(map[string]PlanOutputs, len(plan.TargetModules))
+	targets := make(map[string]struct{}, len(plan.TargetModules))
+	for _, mod := range plan.TargetModules {
+		if mod == nil {
+			continue
+		}
+		targets[mod.RelativePath] = struct{}{}
+	}
+
+	for _, request := range requests {
+		if !isDetailedPlanResource(request.Kind) {
+			continue
+		}
+		for _, modulePath := range matchingRequestedModulePaths(request, plan.TargetModules, targets) {
+			current := outputs[modulePath]
+			if request.Kind == ResourceKindPlanText {
+				current.Text = true
+			}
+			if request.Kind == ResourceKindPlanJSON {
+				current.JSON = true
+			}
+			outputs[modulePath] = current
+		}
+	}
+	return outputs
+}
+
+func matchingRequestedModulePaths(request ResourceRequest, modules []*discovery.Module, targets map[string]struct{}) []string {
+	if request.ModulePath != "" {
+		if _, ok := targets[request.ModulePath]; ok {
+			return []string{request.ModulePath}
+		}
+		return nil
+	}
+	if request.AllModules || (!request.AllProducers && request.Producer == "") {
+		paths := make([]string, 0, len(modules))
+		for _, mod := range modules {
+			if mod != nil {
+				paths = append(paths, mod.RelativePath)
+			}
+		}
+		return paths
+	}
+	return nil
+}
+
+func buildModuleLevels(plan *JobPlan, planEnabled, planOnly bool, script ScriptConfig, planOutputs map[string]PlanOutputs) []Level {
 	levels := make([]Level, 0, len(plan.ExecutionLevels))
 	for levelIdx, moduleIDs := range plan.ExecutionLevels {
 		level := Level{Index: levelIdx}
@@ -79,11 +125,11 @@ func buildModuleLevels(plan *JobPlan, planEnabled, planOnly bool, script ScriptC
 			mj := ModuleJobs{Module: mod}
 
 			if planEnabled {
-				mj.Plan = buildPlanJob(plan, mod, env, planOnly, script, steps)
+				mj.Plan = buildPlanJob(plan, mod, env, planOnly, script, planOutputs[mod.RelativePath])
 			}
 
 			if !planOnly {
-				mj.Apply = buildApplyJob(plan, mod, env, mj.Plan, script, steps)
+				mj.Apply = buildApplyJob(plan, mod, env, mj.Plan, script)
 			}
 
 			level.Modules = append(level.Modules, mj)
@@ -94,9 +140,9 @@ func buildModuleLevels(plan *JobPlan, planEnabled, planOnly bool, script ScriptC
 	return levels
 }
 
-func buildPlanJob(plan *JobPlan, mod *discovery.Module, env map[string]string, planOnly bool, script ScriptConfig, steps []Step) *Job {
+func buildPlanJob(plan *JobPlan, mod *discovery.Module, env map[string]string, planOnly bool, script ScriptConfig, outputs PlanOutputs) *Job {
 	planName := JobName(JobKindPlan, mod)
-	planOperation, produces, artifact := script.NewPlanOperation(planName, mod.RelativePath)
+	planOperation, produces, artifact := script.NewPlanOperation(planName, mod.RelativePath, outputs)
 
 	var deps []JobDependency
 	if planOnly {
@@ -112,12 +158,11 @@ func buildPlanJob(plan *JobPlan, mod *discovery.Module, env map[string]string, p
 		Dependencies:   deps,
 		OutputArtifact: artifact,
 		Produces:       produces,
-		Steps:          filterSteps(steps, PhasePrePlan, PhasePostPlan),
 		Operation:      planOperation,
 	}
 }
 
-func buildApplyJob(plan *JobPlan, mod *discovery.Module, env map[string]string, planJob *Job, script ScriptConfig, steps []Step) *Job {
+func buildApplyJob(plan *JobPlan, mod *discovery.Module, env map[string]string, planJob *Job, script ScriptConfig) *Job {
 	applyOperation := script.NewApplyOperation(mod.RelativePath)
 	applyDeps := controlDependencies(ResolveDependencyNames(mod, JobKindApply, plan.Subgraph, plan.ModuleIndex))
 	var consumes []ResourceSpec
@@ -141,7 +186,6 @@ func buildApplyJob(plan *JobPlan, mod *discovery.Module, env map[string]string, 
 		Dependencies:   applyDeps,
 		InputArtifacts: inputArtifacts,
 		Consumes:       consumes,
-		Steps:          filterSteps(steps, PhasePreApply, PhasePostApply),
 		Operation:      applyOperation,
 	}
 }
@@ -151,8 +195,7 @@ func buildContributedJobs(contributedJobs []ContributedJob) []Job {
 	for _, contributedJob := range contributedJobs {
 		job := Job{
 			Name:           contributedJob.Name,
-			Phase:          contributedJob.Phase,
-			Dependencies:   contributedJobDependencies(contributedJob, contributedJobs),
+			Dependencies:   append([]JobDependency(nil), contributedJob.Dependencies...),
 			OutputArtifact: resultArtifactFromResources(contributedJob.Name, contributedJob.Produces),
 			Produces:       append([]ResourceSpec(nil), contributedJob.Produces...),
 			AllowFailure:   contributedJob.AllowFailure,
@@ -164,20 +207,6 @@ func buildContributedJobs(contributedJobs []ContributedJob) []Job {
 		jobs = append(jobs, job)
 	}
 	return jobs
-}
-
-func contributedJobDependencies(job ContributedJob, allJobs []ContributedJob) []JobDependency {
-	if job.Phase != PhaseFinalize {
-		return nil
-	}
-
-	deps := make([]JobDependency, 0)
-	for _, other := range allJobs {
-		if other.Name != job.Name && other.Phase != PhaseFinalize {
-			deps = mergeJobDependency(deps, JobDependency{Job: other.Name})
-		}
-	}
-	return deps
 }
 
 func resolvePipelineResources(ir *IR, plan *JobPlan, required []ResourceRequest, contributedJobs []ContributedJob) error {
@@ -203,32 +232,4 @@ func resolvePipelineResources(ir *IR, plan *JobPlan, required []ResourceRequest,
 		}
 	}
 	return nil
-}
-
-// filterSteps returns steps matching any of the given phases.
-func filterSteps(steps []Step, phases ...Phase) []Step {
-	phaseSet := make(map[Phase]bool, len(phases))
-	for _, p := range phases {
-		phaseSet[p] = true
-	}
-	var result []Step
-	for _, s := range steps {
-		if phaseSet[s.Phase] {
-			result = append(result, s)
-		}
-	}
-	return result
-}
-
-// hasContributedJobs checks if any contributions contain jobs.
-func hasContributedJobs(contributions []*Contribution) bool {
-	for _, c := range contributions {
-		if c == nil {
-			continue
-		}
-		if len(c.Jobs) > 0 {
-			return true
-		}
-	}
-	return false
 }
