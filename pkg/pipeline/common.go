@@ -8,24 +8,24 @@ import (
 	"github.com/edelwud/terraci/pkg/graph"
 )
 
-// JobPlan contains prepared data for pipeline generation. The Subgraph is
+// jobPlan contains prepared data for pipeline generation. The Subgraph is
 // already filtered to the target module set, so callers do not need to track
 // "in target" IDs separately — Subgraph.GetDependencies returns only
 // target-included dependencies.
-type JobPlan struct {
-	TargetModules   []*discovery.Module
-	ExecutionLevels [][]string
-	Subgraph        *graph.DependencyGraph
-	ModuleIndex     *discovery.ModuleIndex
+type jobPlan struct {
+	targetModules []*discovery.Module
+	moduleOrder   []string
+	subgraph      *graph.DependencyGraph
+	moduleIndex   *discovery.ModuleIndex
 }
 
-// buildJobPlan prepares the execution plan from target modules. It is an
+// prepareModuleGraph prepares the module graph from target modules. It is an
 // internal step of Build() and is not part of the public package API.
-func buildJobPlan(
+func prepareModuleGraph(
 	depGraph *graph.DependencyGraph,
 	targetModules, allModules []*discovery.Module,
 	moduleIndex *discovery.ModuleIndex,
-) (*JobPlan, error) {
+) (*jobPlan, error) {
 	if len(targetModules) == 0 {
 		targetModules = allModules
 	}
@@ -37,16 +37,16 @@ func buildJobPlan(
 
 	subgraph := depGraph.Subgraph(moduleIDs)
 
-	levels, err := subgraph.ExecutionLevels()
+	moduleOrder, err := subgraph.TopologicalSort()
 	if err != nil {
-		return nil, fmt.Errorf("failed to calculate execution levels: %w", err)
+		return nil, fmt.Errorf("failed to calculate module order: %w", err)
 	}
 
-	return &JobPlan{
-		TargetModules:   targetModules,
-		ExecutionLevels: levels,
-		Subgraph:        subgraph,
-		ModuleIndex:     moduleIndex,
+	return &jobPlan{
+		targetModules: targetModules,
+		moduleOrder:   moduleOrder,
+		subgraph:      subgraph,
+		moduleIndex:   moduleIndex,
 	}, nil
 }
 
@@ -91,36 +91,27 @@ func (ir *IR) DryRun(totalModules int) *DryRunResult {
 		return &DryRunResult{TotalModules: totalModules}
 	}
 
-	executionOrder := make([][]string, 0, len(ir.Levels))
-	jobCount := len(ir.Jobs)
-	affectedModules := 0
-	for _, level := range ir.Levels {
-		levelOrder := make([]string, 0, len(level.Modules))
-		for _, moduleJobs := range level.Modules {
-			if moduleJobs.Module != nil {
-				levelOrder = append(levelOrder, moduleJobs.Module.ID())
-				affectedModules++
-			}
-			if moduleJobs.Plan != nil {
-				jobCount++
-			}
-			if moduleJobs.Apply != nil {
-				jobCount++
-			}
-		}
-		executionOrder = append(executionOrder, levelOrder)
-	}
-
+	jobGroups := make([][]string, 0)
 	stages := 0
 	if groups, err := Schedule(ir); err == nil {
 		stages = len(groups)
+		jobGroups = make([][]string, 0, len(groups))
+		for _, group := range groups {
+			names := make([]string, 0, len(group.Jobs))
+			for _, job := range group.Jobs {
+				if job != nil {
+					names = append(names, job.Name)
+				}
+			}
+			jobGroups = append(jobGroups, names)
+		}
 	}
 
 	return &DryRunResult{
 		TotalModules:    totalModules,
-		AffectedModules: affectedModules,
+		AffectedModules: ir.ModuleCount(),
 		Stages:          stages,
-		Jobs:            jobCount,
-		ExecutionOrder:  executionOrder,
+		Jobs:            len(ir.Jobs),
+		JobGroups:       jobGroups,
 	}
 }

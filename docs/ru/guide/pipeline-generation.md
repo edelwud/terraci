@@ -1,6 +1,6 @@
 ---
 title: "Генерация пайплайнов"
-description: "Структура пайплайна, параллельное выполнение и режим только изменённых модулей"
+description: "DAG пайплайна, параллельное выполнение и режим только изменённых модулей"
 outline: deep
 ---
 
@@ -26,14 +26,14 @@ terraci generate -o .github/workflows/terraform.yml
 
 ### Стадии
 
-Стадии создаются для каждого уровня выполнения:
+GitLab-стадии строятся из топологических DAG-слоёв:
 
 ```yaml
 stages:
-  - deploy-0    # Plan для модулей уровня 0
-  - deploy-1   # Apply для модулей уровня 0
-  - deploy-2    # Plan для модулей уровня 1
-  - deploy-3   # Apply для модулей уровня 1
+  - deploy-0
+  - deploy-1
+  - deploy-2
+  - deploy-3
 ```
 
 ### Переменные
@@ -119,28 +119,29 @@ apply-platform-prod-us-east-1-eks:
 
 ## Параллельное выполнение
 
-Независимые модули одного уровня выполняются параллельно:
+Независимые DAG-джобы в одной топологической группе могут выполняться параллельно:
 
 ```mermaid
 flowchart LR
-  subgraph l0["Уровень 0"]
-    vpc
-    iam
+  subgraph g0["DAG-группа 0"]
+    plan_vpc["plan-vpc"]
+    plan_iam["plan-iam"]
   end
-  subgraph l1["Уровень 1"]
-    eks
-    rds
-    cache
+  subgraph g1["DAG-группа 1"]
+    apply_vpc["apply-vpc"]
+    apply_iam["apply-iam"]
   end
-  subgraph l2["Уровень 2"]
-    app
+  subgraph g2["DAG-группа 2"]
+    plan_eks["plan-eks"]
+    plan_rds["plan-rds"]
+    plan_cache["plan-cache"]
   end
-  l0 --> l1 --> l2
+  g0 --> g1 --> g2
 ```
 
 ## Структура GitHub Actions workflow
 
-При использовании провайдера GitHub Actions TerraCi генерирует workflow-файл с джобами, организованными по уровням выполнения:
+При использовании провайдера GitHub Actions TerraCi генерирует workflow-файл с джобами, связанными DAG-зависимостями:
 
 ```yaml
 name: Terraform
@@ -306,10 +307,10 @@ Dry Run Summary:
   Stages: 6
   Jobs: 10
 
-Execution Order:
-  Level 0: [vpc]
-  Level 1: [eks, rds]
-  Level 2: [app-backend, app-frontend]
+Job Groups:
+  dag-level-0: [plan-vpc]
+  dag-level-1: [apply-vpc]
+  dag-level-2: [plan-eks plan-rds]
 ```
 
 ## Форматы вывода

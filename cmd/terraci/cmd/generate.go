@@ -40,18 +40,10 @@ module structure and dependencies.
 Examples:
   terraci generate -o .gitlab-ci.yml
   terraci generate --changed-only --base-ref main
-  terraci generate --exclude "*/test/*"
-  terraci generate --filter environment=stage --filter environment=prod
-  terraci generate --dry-run
-  terraci generate --plan-only`,
-		// PreRunE applies CLI overrides to plugin config (FlagOverridable)
-		// before any pipeline construction kicks off in RunE. Keeping mutation
-		// in PreRunE makes the "construction → execution" boundary explicit:
-		// once RunE starts, plugin configs are stable for the entire run.
-		PreRunE: func(cmd *cobra.Command, _ []string) error {
-			applyProviderFlags(cmd, planOnly)
-			return nil
-		},
+	  terraci generate --exclude "*/test/*"
+	  terraci generate --filter environment=stage --filter environment=prod
+	  terraci generate --dry-run
+	  terraci generate --plan-only`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			result, err := workflow.Run(cmd.Context(), workflowOptions(app, ff))
 			if err != nil {
@@ -122,29 +114,6 @@ func resolveGenerateTargets(
 			return appCtx.Resolver().ResolveChangeDetector()
 		},
 	})
-}
-
-// applyProviderFlags applies CLI override flags to the provider config.
-func applyProviderFlags(cmd *cobra.Command, planOnly bool) {
-	if !planOnly {
-		return
-	}
-	appCtx := plugin.FromContext(cmd.Context())
-	resolved, err := appCtx.Resolver().ResolveCIProvider()
-	if err != nil {
-		log.WithError(err).Debug("cannot apply CLI flags: provider not resolved")
-		return
-	}
-
-	fo, ok := resolved.Plugin().(plugin.FlagOverridable)
-	if !ok {
-		log.Debug("CI provider does not support flag overrides")
-		return
-	}
-
-	if planOnly {
-		fo.SetPlanOnly(true)
-	}
 }
 
 // --- Logging helpers ---
@@ -248,8 +217,8 @@ func runDryRun(gen pipeline.Generator, format string) error {
 
 		log.Info("execution order")
 		log.IncreasePadding()
-		for i, level := range result.ExecutionOrder {
-			log.WithField("level", i).WithField("modules", fmt.Sprintf("%v", level)).Debug("level")
+		for i, group := range result.JobGroups {
+			log.WithField("group", i).WithField("jobs", fmt.Sprintf("%v", group)).Debug("job group")
 		}
 		log.DecreasePadding()
 		return nil

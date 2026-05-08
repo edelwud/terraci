@@ -6,17 +6,11 @@ func TestScheduleUsesTopologicalLayers(t *testing.T) {
 	t.Parallel()
 
 	ir := &IR{
-		Levels: []Level{
-			{Index: 0, Modules: []ModuleJobs{{
-				Plan:  &Job{Name: "plan-0"},
-				Apply: &Job{Name: "apply-0", Dependencies: []JobDependency{{Job: "plan-0"}}},
-			}}},
-			{Index: 1, Modules: []ModuleJobs{{
-				Plan:  &Job{Name: "plan-1", Dependencies: []JobDependency{{Job: "apply-0"}}},
-				Apply: &Job{Name: "apply-1", Dependencies: []JobDependency{{Job: "plan-1"}}},
-			}}},
-		},
 		Jobs: []Job{
+			{Name: "plan-0"},
+			{Name: "apply-0", Dependencies: []JobDependency{{Job: "plan-0"}}},
+			{Name: "plan-1", Dependencies: []JobDependency{{Job: "apply-0"}}},
+			{Name: "apply-1", Dependencies: []JobDependency{{Job: "plan-1"}}},
 			{Name: "tfupdate"},
 			{Name: "policy", Dependencies: []JobDependency{{Job: "plan-1"}}},
 			{Name: "summary", Dependencies: []JobDependency{{Job: "policy"}, {Job: "apply-1"}}},

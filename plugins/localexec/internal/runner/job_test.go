@@ -121,11 +121,12 @@ func TestJobRunnerStandaloneCommandsPropagateAllowFailure(t *testing.T) {
 	t.Parallel()
 
 	commands := &recordCommandRunner{}
-	runner := &jobRunner{commands: commands}
+	runner := &jobRunner{main: operationDispatcher{commands: commands}}
 	job := &pipeline.Job{
 		Name:         "summary",
 		AllowFailure: true,
 		Operation: pipeline.Operation{
+			Type:     pipeline.OperationTypeCommands,
 			Commands: []string{"terraci summary"},
 		},
 	}

@@ -102,7 +102,6 @@ TerraCi автоматически определяет активный CI-пр
 | `VersionProvider` | Информация о версии для `terraci version` | policy |
 | `KVCacheProvider` | KV-кэш бэкенд по имени | inmemcache |
 | `BlobStoreProvider` | Бэкенд blob/object store (`NewBlobStore(ctx, appCtx, opts)`) | diskblob |
-| `FlagOverridable` | Прямые CLI-override-ы (`--plan-only`, `--auto-approve`) | gitlab, github |
 
 Один плагин может реализовывать несколько возможностей. Например, `cost` реализует `CommandProvider` (команда `terraci cost`), `PipelineContributor` (шаг оценки стоимости в пайплайне), `InitContributor` (переключатель в мастере init), `RuntimeProvider` (ленивая инициализация estimator) и `Preflightable` (валидация конфига).
 

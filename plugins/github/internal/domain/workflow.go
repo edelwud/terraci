@@ -52,12 +52,13 @@ type Container struct {
 }
 
 type Step struct {
-	Name string            `yaml:"name,omitempty"`
-	Uses string            `yaml:"uses,omitempty"`
-	With map[string]string `yaml:"with,omitempty"`
-	Run  string            `yaml:"run,omitempty"`
-	Env  map[string]string `yaml:"env,omitempty"`
-	If   string            `yaml:"if,omitempty"`
+	Name            string            `yaml:"name,omitempty"`
+	Uses            string            `yaml:"uses,omitempty"`
+	With            map[string]string `yaml:"with,omitempty"`
+	Run             string            `yaml:"run,omitempty"`
+	Env             map[string]string `yaml:"env,omitempty"`
+	If              string            `yaml:"if,omitempty"`
+	ContinueOnError bool              `yaml:"continue-on-error,omitempty"`
 }
 
 func (w *Workflow) ToYAML() ([]byte, error) {

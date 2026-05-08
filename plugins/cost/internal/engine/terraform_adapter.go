@@ -3,7 +3,6 @@ package engine
 import (
 	"fmt"
 	"path/filepath"
-	"strings"
 
 	tfplan "github.com/edelwud/terraci/internal/terraform/plan"
 	"github.com/edelwud/terraci/pkg/pipeline"
@@ -29,7 +28,7 @@ func (a *TerraformPlanAdapter) LoadModule(modulePath, region string) (*PlanResul
 	}
 
 	modulePlan := &PlanResult{
-		ModuleID:   strings.ReplaceAll(modulePath, string(filepath.Separator), "/"),
+		ModuleID:   filepath.ToSlash(modulePath),
 		ModulePath: modulePath,
 		Region:     region,
 		HasChanges: parsedPlan.HasChanges(),

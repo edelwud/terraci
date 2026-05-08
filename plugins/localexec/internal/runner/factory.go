@@ -75,7 +75,6 @@ func (f defaultFactory) Build(appCtx *plugin.AppContext, opts Options) (*Runtime
 				terraform: terraformRunner,
 				commands:  commandRunner,
 			},
-			commands: commandRunner,
 		},
 	}, nil
 }

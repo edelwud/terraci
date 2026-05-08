@@ -113,9 +113,9 @@ func (d *ChangedModulesDetector) findOwningModule(dir string) *discovery.Module 
 }
 
 func (d *ChangedModulesDetector) findByRelativePath(path string) *discovery.Module {
-	normalized := filepath.Clean(path)
+	normalized := filepath.ToSlash(filepath.Clean(path))
 	for _, m := range d.index.All() {
-		if m.RelativePath == normalized {
+		if m.ID() == normalized {
 			return m
 		}
 	}

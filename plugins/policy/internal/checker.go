@@ -46,7 +46,7 @@ func (c *Checker) CheckModule(ctx context.Context, modulePath string) (*Result, 
 	}
 
 	// Find plan.json in module directory
-	planJSONPath := filepath.Join(c.rootDir, modulePath, pipeline.PlanJSONFilename)
+	planJSONPath := filepath.Join(c.rootDir, filepath.FromSlash(modulePath), pipeline.PlanJSONFilename)
 	if _, statErr := os.Stat(planJSONPath); os.IsNotExist(statErr) {
 		return nil, fmt.Errorf("plan.json not found in %s", modulePath)
 	}
@@ -92,6 +92,7 @@ func (c *Checker) CheckAll(ctx context.Context) (*Summary, error) {
 			if err != nil {
 				return err
 			}
+			modulePath = filepath.ToSlash(modulePath)
 
 			result, err := c.CheckModule(ctx, modulePath)
 			if err != nil {

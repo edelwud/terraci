@@ -302,5 +302,5 @@ xterraci build \
 
 ## See Also
 
-- [Pipeline Step Plugin](/plugins/pipeline-plugin) — inject steps into CI pipelines
+- [Pipeline Job Plugin](/plugins/pipeline-plugin) — add DAG jobs to CI pipelines
 - [Working Example](https://github.com/edelwud/terraci/tree/main/examples/external-plugin)

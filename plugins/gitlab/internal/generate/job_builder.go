@@ -36,7 +36,7 @@ func (b jobBuilder) renderJob(irJob *pipeline.Job) (*domain.Job, error) {
 		Script:       script,
 		Variables:    copyStringMap(irJob.Env),
 		Artifacts:    defaultArtifacts(irJob.OutputArtifact),
-		Needs:        jobNeeds(irJob.Dependencies),
+		Needs:        jobNeeds(irJob.Dependencies, irJob.InputArtifacts),
 		AllowFailure: irJob.AllowFailure,
 	}
 
@@ -80,12 +80,12 @@ func (b jobBuilder) cache(module *discovery.Module) *domain.Cache {
 }
 
 func cacheKey(module *discovery.Module) string {
-	return strings.ReplaceAll(module.RelativePath, "/", "-")
+	return strings.ReplaceAll(module.ID(), "/", "-")
 }
 
 func cachePaths(module *discovery.Module, templates []string) []string {
 	if len(templates) == 0 {
-		return []string{module.RelativePath + "/.terraform/"}
+		return []string{module.ID() + "/.terraform/"}
 	}
 
 	paths := make([]string, 0, len(templates))
@@ -98,7 +98,7 @@ func cachePaths(module *discovery.Module, templates []string) []string {
 	}
 
 	if len(paths) == 0 {
-		return []string{module.RelativePath + "/.terraform/"}
+		return []string{module.ID() + "/.terraform/"}
 	}
 
 	return paths
@@ -110,7 +110,7 @@ func renderCacheTemplate(template string, module *discovery.Module, fallback str
 	}
 
 	replacer := strings.NewReplacer(
-		"{module_path}", module.RelativePath,
+		"{module_path}", module.ID(),
 		"{service}", module.Get("service"),
 		"{environment}", module.Get("environment"),
 		"{region}", module.Get("region"),
@@ -120,18 +120,44 @@ func renderCacheTemplate(template string, module *discovery.Module, fallback str
 	return replacer.Replace(template)
 }
 
-func jobNeeds(deps []pipeline.JobDependency) []domain.JobNeed {
-	if len(deps) == 0 {
+func jobNeeds(deps []pipeline.JobDependency, inputs []pipeline.InputArtifact) []domain.JobNeed {
+	if len(deps) == 0 && len(inputs) == 0 {
 		return nil
 	}
 
-	needs := make([]domain.JobNeed, len(deps))
-	for i, dep := range deps {
-		needs[i] = domain.JobNeed{
-			Job:       dep.Job,
-			Optional:  dep.Optional,
-			Artifacts: artifactNeedPtr(dep.Artifacts),
+	artifactInputs := make(map[string]pipeline.InputArtifact, len(inputs))
+	for _, input := range inputs {
+		if !input.Configured() {
+			continue
 		}
+		artifactInputs[input.ProducerJob] = input
+	}
+
+	needs := make([]domain.JobNeed, 0, len(deps)+len(artifactInputs))
+	seen := make(map[string]struct{}, len(deps)+len(artifactInputs))
+	for _, dep := range deps {
+		if dep.Job == "" {
+			continue
+		}
+		need := domain.JobNeed{Job: dep.Job}
+		if input, ok := artifactInputs[dep.Job]; ok {
+			need.Artifacts = artifactNeedPtr(true)
+			need.Optional = input.Optional
+		} else {
+			need.Artifacts = artifactNeedPtr(false)
+		}
+		needs = append(needs, need)
+		seen[dep.Job] = struct{}{}
+	}
+	for producerJob, input := range artifactInputs {
+		if _, ok := seen[producerJob]; ok {
+			continue
+		}
+		needs = append(needs, domain.JobNeed{
+			Job:       producerJob,
+			Optional:  input.Optional,
+			Artifacts: artifactNeedPtr(true),
+		})
 	}
 	return needs
 }

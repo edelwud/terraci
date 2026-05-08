@@ -36,6 +36,9 @@ func (g *Generator) Generate() (pipeline.GeneratedPipeline, error) {
 	if g.ir == nil {
 		return &domain.Pipeline{Jobs: map[string]*domain.Job{}}, nil
 	}
+	if err := g.ir.Validate(); err != nil {
+		return nil, err
+	}
 	return g.transform(g.ir)
 }
 
@@ -43,6 +46,9 @@ func (g *Generator) Generate() (pipeline.GeneratedPipeline, error) {
 func (g *Generator) DryRun() (*pipeline.DryRunResult, error) {
 	if g.ir == nil {
 		return &pipeline.DryRunResult{}, nil
+	}
+	if err := g.ir.Validate(); err != nil {
+		return nil, err
 	}
 	plan, err := g.stagePlanner.plan(g.ir)
 	if err != nil {
@@ -76,12 +82,13 @@ func (g *Generator) transform(ir *pipeline.IR) (*domain.Pipeline, error) {
 	builder := newJobBuilder(g.settings, stagePlan.stageByJob, func(job *domain.Job, jobType configpkg.JobOverwriteType) error {
 		return applyResolvedJobConfig(g.settings, job, jobType)
 	})
-	for _, ref := range ir.JobRefs() {
-		job, err := builder.renderJob(ref.Job)
+	for i := range ir.Jobs {
+		irJob := &ir.Jobs[i]
+		job, err := builder.renderJob(irJob)
 		if err != nil {
 			return nil, err
 		}
-		result.Jobs[ref.Job.Name] = job
+		result.Jobs[irJob.Name] = job
 	}
 
 	return result, nil

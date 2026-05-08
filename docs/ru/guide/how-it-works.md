@@ -184,10 +184,10 @@ TerraCi генерирует конфигурацию CI пайплайна из
 
 ```yaml
 stages:
-  - deploy-0   # Планы уровня 0
-  - deploy-1  # Применение уровня 0
-  - deploy-2   # Планы уровня 1
-  - deploy-3  # Применение уровня 1
+  - deploy-0   # первый DAG-слой
+  - deploy-1   # второй DAG-слой
+  - deploy-2   # третий DAG-слой
+  - deploy-3   # четвёртый DAG-слой
 ```
 
 ### Цепочка зависимостей
@@ -227,8 +227,8 @@ flowchart TD
 | Шаг | Функция | Что делает |
 |-----|---------|-----------|
 | 1 | `workflow.Run()` | Сканирование файловой системы, применение фильтров, парсинг HCL, построение графа зависимостей |
-| 2 | `provider.PipelineRequirements(ctx)` + `resolver.CollectContributions(appCtx)` | Сбор требований провайдера к ресурсам и contributed-шагов/джобов |
-| 3 | `pipeline.Build(opts)` | Построение провайдер-агностичного IR (`*pipeline.IR{Levels, Jobs}`) — единый вход для исполнения |
+| 2 | `provider.PipelineRequirements(ctx)` + `resolver.CollectContributions(appCtx)` | Сбор требований провайдера к ресурсам и contributed DAG jobs |
+| 3 | `pipeline.Build(opts)` | Построение провайдер-агностичного flat job DAG (`*pipeline.IR{Jobs}`) — единый вход для исполнения |
 | 4 | `provider.NewGenerator(ctx, ir)` + `Generate()` | Привязка IR к провайдеру; преобразование IR в YAML GitLab CI или воркфлоу GitHub Actions |
 
 IR — **единый источник** как для генерации пайплайнов, так и для `terraci local-exec`: провайдеры не обращаются отдельно к графу зависимостей или списку контрибуций — IR уже их в себе содержит.

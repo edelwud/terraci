@@ -18,7 +18,6 @@ outline: deep
 |----------|-----|--------------|----------|
 | `image` | string/object | `hashicorp/terraform:1.6` | Docker-образ (строка или объект с name/entrypoint) |
 | `stages_prefix` | string | `deploy` | Префикс названий стейджей |
-| `parallelism` | int | `5` | Макс. параллельных джобов |
 | `plan_only` | bool | `false` | Генерировать только plan-джобы (без apply) |
 | `cache_enabled` | bool | `true` | Кеширование .terraform |
 | `variables` | map | `{}` | Переменные пайплайна |
@@ -77,18 +76,6 @@ extensions:
 stages_prefix: "terraform"  # terraform-0, terraform-1
 stages_prefix: "infra"      # infra-0, infra-1
 ```
-
-## parallelism
-
-Максимальное количество параллельных джобов на стейдж:
-
-```yaml
-extensions:
-  gitlab:
-    parallelism: 5
-```
-
-При 10 модулях без зависимостей и `parallelism: 5` — выполняются по 5 джобов одновременно.
 
 ## plan_only
 
@@ -361,7 +348,6 @@ extensions:
 
     # Структура пайплайна
     stages_prefix: "deploy"
-    parallelism: 5
     cache_enabled: true
 
     # Переменные пайплайна
@@ -533,7 +519,6 @@ execution:
 extensions:
   gitlab:
     image: "hashicorp/terraform:1.6"
-    parallelism: 3
 
     job_defaults:
       when: manual

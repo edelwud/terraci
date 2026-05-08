@@ -10,9 +10,8 @@ import (
 	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
 )
 
-// newTestGenerator builds the IR via the public BuildPipelineIR helper and
-// constructs the Generator. Tests use this so they don't have to thread the
-// IR through scenario builders.
+// newTestGenerator builds a canonical IR and constructs the Generator. Tests
+// use this so they don't have to thread the IR through scenario builders.
 func newTestGenerator(
 	tb testing.TB,
 	cfg *configpkg.Config,
@@ -48,9 +47,9 @@ func mustBuildIR(
 	allModules, targetModules []*discovery.Module,
 ) *pipeline.IR {
 	tb.Helper()
-	ir, err := BuildPipelineIR(cfg, execCfg, contributions, depGraph, allModules, targetModules)
+	ir, err := buildTestIR(cfg, execCfg, contributions, depGraph, allModules, targetModules)
 	if err != nil {
-		tb.Fatalf("BuildPipelineIR() error = %v", err)
+		tb.Fatalf("buildTestIR() error = %v", err)
 	}
 	return ir
 }

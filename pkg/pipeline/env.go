@@ -11,7 +11,7 @@ import (
 // the variable surface consistent.
 func ModuleEnvVars(module *discovery.Module) map[string]string {
 	env := map[string]string{
-		"TF_MODULE_PATH": module.RelativePath,
+		"TF_MODULE_PATH": module.ID(),
 		"TF_MODULE":      module.Name(),
 	}
 	for _, seg := range module.Segments() {

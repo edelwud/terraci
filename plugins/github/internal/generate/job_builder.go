@@ -30,8 +30,11 @@ func (b jobBuilder) renderJob(irJob *pipeline.Job) (*domainpkg.Job, error) {
 	}
 
 	steps := []domainpkg.Step{checkoutStep()}
-	for _, artifact := range irJob.InputArtifacts {
-		steps = append(steps, downloadArtifactStep("Download "+artifact.Name, artifact.Name))
+	for _, input := range irJob.InputArtifacts {
+		if !input.Configured() {
+			continue
+		}
+		steps = append(steps, downloadArtifactStep("Download "+input.Artifact.Name, input.Artifact.Name, input.Optional))
 	}
 	steps = append(steps, profile.stepsBefore...)
 	scriptLines := cishell.RenderOperation(irJob.Operation)
@@ -130,8 +133,8 @@ func runStep(name, script string) domainpkg.Step {
 	return domainpkg.Step{Name: name, Run: script}
 }
 
-func downloadArtifactStep(name, artifact string) domainpkg.Step {
-	return domainpkg.Step{
+func downloadArtifactStep(name, artifact string, optional bool) domainpkg.Step {
+	step := domainpkg.Step{
 		Name: name,
 		Uses: "actions/download-artifact@v4",
 		With: map[string]string{
@@ -139,6 +142,11 @@ func downloadArtifactStep(name, artifact string) domainpkg.Step {
 			"path": ".",
 		},
 	}
+	if optional {
+		step.If = "always()"
+		step.ContinueOnError = true
+	}
+	return step
 }
 
 func uploadArtifactStep(name string, artifact pipeline.Artifact) domainpkg.Step {

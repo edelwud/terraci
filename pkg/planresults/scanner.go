@@ -39,14 +39,14 @@ func Scan(rootDir string, segments []string) (*ci.PlanResultCollection, error) {
 		modulePath := dir
 		if rootDir != "." {
 			if relPath, relErr := filepath.Rel(rootDir, dir); relErr == nil {
-				modulePath = relPath
+				modulePath = filepath.ToSlash(relPath)
 			}
 		}
 
 		result, parseErr := parsePlanJSON(jsonPath, modulePath, segments)
 		if parseErr != nil {
 			result = ci.PlanResult{
-				ModuleID:   strings.ReplaceAll(modulePath, string(filepath.Separator), "/"),
+				ModuleID:   filepath.ToSlash(modulePath),
 				ModulePath: modulePath,
 				Status:     ci.PlanStatusFailed,
 				Summary:    "Failed to parse plan",
@@ -64,7 +64,7 @@ func Scan(rootDir string, segments []string) (*ci.PlanResultCollection, error) {
 // and returns a map of component name to value. Extra path parts beyond the
 // defined segments are joined as "submodule".
 func ParseModulePathComponents(modulePath string, segments []string) map[string]string {
-	parts := strings.Split(modulePath, string(filepath.Separator))
+	parts := strings.Split(filepath.ToSlash(modulePath), "/")
 	components := make(map[string]string, len(segments)+1)
 
 	if len(parts) >= len(segments) {
@@ -95,7 +95,7 @@ func parsePlanJSON(jsonPath, modulePath string, segments []string) (ci.PlanResul
 	}
 
 	return ci.PlanResult{
-		ModuleID:          strings.ReplaceAll(modulePath, string(filepath.Separator), "/"),
+		ModuleID:          filepath.ToSlash(modulePath),
 		ModulePath:        modulePath,
 		Components:        components,
 		Status:            ci.PlanStatusFromPlan(parsed.HasChanges()),

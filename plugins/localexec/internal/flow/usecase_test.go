@@ -195,7 +195,7 @@ func TestUseCase_RunUsesInjectedPlanner(t *testing.T) {
 	appCtx := plugintest.NewAppContext(t, workDir)
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	ir := &pipeline.IR{
-		Jobs: []pipeline.Job{{Name: "summary"}},
+		Jobs: []pipeline.Job{testCommandJob("summary")},
 	}
 	plannerStub := &fakePlanner{plan: ir}
 	contributionCollector := &fakeContributionCollector{
@@ -373,7 +373,7 @@ func TestUseCase_RunJobFailureGoesThroughOutputFailure(t *testing.T) {
 		appCtx,
 		WithTargetResolver(fakeTargetResolver{targets: []*discovery.Module{module}}),
 		WithPlanner(&fakePlanner{plan: &pipeline.IR{
-			Jobs: []pipeline.Job{{Name: "summary"}},
+			Jobs: []pipeline.Job{testCommandJob("summary")},
 		}}),
 		WithRuntimeFactory(&fakeRuntimeFactory{runtime: &runner.Runtime{
 			ExecConfig: execution.Config{PlanEnabled: true, Parallelism: 1},
@@ -536,4 +536,15 @@ func testWorkDirWithModule(t *testing.T) (string, *discovery.Module) {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 	return workDir, module
+}
+
+func testCommandJob(name string) pipeline.Job {
+	return pipeline.Job{
+		Name: name,
+		Kind: pipeline.JobKindCommand,
+		Operation: pipeline.Operation{
+			Type:     pipeline.OperationTypeCommands,
+			Commands: []string{"true"},
+		},
+	}
 }

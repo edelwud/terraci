@@ -189,10 +189,10 @@ stages:
 
 ```yaml
 stages:
-  - deploy-0
-  - deploy-1
-  - deploy-2
-  - deploy-3
+  - deploy-0   # first DAG layer
+  - deploy-1   # second DAG layer
+  - deploy-2   # third DAG layer
+  - deploy-3   # fourth DAG layer
 ```
 
 ### Dependency Chain
@@ -232,8 +232,8 @@ Each stage:
 | Step | Function | What it does |
 |------|----------|-------------|
 | 1 | `workflow.Run()` | Scan filesystem, apply filters, parse HCL, build dependency graph |
-| 2 | `provider.PipelineRequirements(ctx)` + `resolver.CollectContributions(appCtx)` | Gather provider resource requirements and plugin-contributed steps/jobs |
-| 3 | `pipeline.Build(opts)` | Construct provider-agnostic IR (`*pipeline.IR{Levels, Jobs}`) — single execution input |
+| 2 | `provider.PipelineRequirements(ctx)` + `resolver.CollectContributions(appCtx)` | Gather provider resource requirements and plugin-contributed DAG jobs |
+| 3 | `pipeline.Build(opts)` | Construct provider-agnostic flat job DAG (`*pipeline.IR{Jobs}`) — single execution input |
 | 4 | `provider.NewGenerator(ctx, ir)` + `Generate()` | Bind IR to provider; transform IR into GitLab CI YAML or GitHub Actions workflow |
 
 The IR is the **single source** for both pipeline generation and `terraci local-exec`: providers don't reach for the dependency graph or contribution list separately — the IR already encodes them.

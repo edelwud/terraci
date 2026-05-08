@@ -54,9 +54,10 @@ data "terraform_remote_state" "vpc" {
 
 TerraCi detects that `eks` depends on `vpc`.
 
-### 3. Topological Sorting
+### 3. DAG Construction
 
-Using Kahn's algorithm, TerraCi sorts modules into execution levels:
+Using Kahn's algorithm, TerraCi builds a dependency DAG where independent
+modules can run in parallel:
 
 ```mermaid
 flowchart TD
@@ -69,9 +70,9 @@ flowchart TD
 ### 4. Pipeline Generation
 
 Finally, it generates a CI pipeline (GitLab CI or GitHub Actions) where:
-- Modules at the same level run in parallel
-- Modules wait for their dependencies to complete
-- Plan and apply stages are separated (optional)
+- Independent modules can run in parallel
+- Modules wait for the jobs that produce their inputs
+- Plan/apply behavior is represented as job dependencies and artifacts
 
 ## Key Features
 

@@ -1,6 +1,6 @@
 ---
 title: Plugins
-description: "Extend TerraCi with custom plugins: CLI commands, pipeline steps, cost providers, policy engines, and more"
+description: "Extend TerraCi with custom plugins: CLI commands, pipeline jobs, cost providers, policy engines, and more"
 outline: deep
 ---
 
@@ -13,7 +13,7 @@ TerraCi is built as a plugin-first system. Every feature — pipeline generation
 | Plugin Type | What It Adds | Example Use Cases |
 |-------------|-------------|-------------------|
 | [CLI Command](/plugins/command-plugin) | New `terraci <command>` subcommand | Slack notifications, custom reports, infra audits |
-| [Pipeline Step](/plugins/pipeline-plugin) | Jobs/steps injected into generated CI pipelines | Security scans, compliance checks, deployment gates |
+| [Pipeline Job](/plugins/pipeline-plugin) | Standalone DAG jobs added to generated CI pipelines | Security scans, compliance checks, deployment gates |
 | [CI Provider](/plugins/provider-plugin) | Support for a new CI system (beyond GitLab/GitHub) | Bitbucket Pipelines, Jenkins, CircleCI |
 | [Init Wizard Field](/plugins/init-plugin) | Configuration fields in `terraci init` TUI | Custom plugin settings, team-specific defaults |
 
@@ -63,8 +63,8 @@ Plugins are compiled into the binary. There is no runtime plugin loading — thi
 ### [CLI Command Plugin](/plugins/command-plugin)
 Add a new `terraci <command>`. The most common plugin type — perfect for notifications, reports, integrations.
 
-### [Pipeline Step Plugin](/plugins/pipeline-plugin)
-Inject custom jobs or steps into generated CI pipelines. Use for security scans, approval gates, or post-deploy hooks.
+### [Pipeline Job Plugin](/plugins/pipeline-plugin)
+Add standalone resource-aware jobs to generated CI pipelines. Use for security scans, approval gates, or post-deploy checks.
 
 ### [CI Provider Plugin](/plugins/provider-plugin)
 Add support for a new CI system. Implement pipeline generation, environment detection, and MR/PR comments.

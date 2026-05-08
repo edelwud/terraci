@@ -30,7 +30,6 @@ Optional:
 | Interface | Purpose |
 |-----------|---------|
 | `CommentServiceFactory` | Create MR/PR comment service (for plan summaries) |
-| `FlagOverridable` | Support `--plan-only` CLI flag |
 
 ## Environment Detection
 
@@ -90,24 +89,18 @@ type GeneratedPipeline interface {
 
 ### Working with the Pipeline IR
 
-The IR contains execution levels with module jobs and contributed plugin jobs:
+The IR is a flat DAG. Every executable item is a `pipeline.Job`; providers
+render jobs in declaration order and use `pipeline.Schedule` only when their CI
+needs barrier groups, such as GitLab stages:
 
 ```go
 func (g *BitbucketGenerator) Generate() (pipeline.GeneratedPipeline, error) {
-    // g.ir.Levels — ordered groups of parallel module jobs
-    for _, level := range g.ir.Levels {
-        for _, mj := range level.Modules {
-            // mj.Module.Path — "platform/prod/eu-central-1/vpc"
-            // mj.Plan — *Job (nil if plan disabled)
-            // mj.Apply — *Job (nil if plan-only mode)
-            // Each Job has: Name, Operation, Dependencies, Env, resources, artifacts
-        }
-    }
-
-    // g.ir.Jobs — contributed jobs from plugins (cost, policy, summary, etc.)
-    for _, job := range g.ir.Jobs {
-        // job.Name — "cost-estimation", "policy-check", etc.
-        // job.Dependencies — job names this depends on
+    for i := range g.ir.Jobs {
+        job := &g.ir.Jobs[i]
+        // job.Kind — plan, apply, or command
+        // job.Module — module metadata for plan/apply jobs
+        // job.Dependencies — required control edges
+        // job.InputArtifacts — artifacts to restore from producer jobs
         // job.Operation — typed payload; render via cishell.RenderOperation for shell-driven CI
     }
 
@@ -141,23 +134,6 @@ type CommentService interface {
     UpsertComment(ctx context.Context, body string) error
 }
 ```
-
-## Flag Overrides (Optional)
-
-Implement `FlagOverridable` to support `--plan-only` on `terraci generate`:
-
-```go
-func (p *Plugin) SetPlanOnly(v bool) {
-    if cfg := p.Config(); cfg != nil {
-        cfg.PlanOnly = v
-    }
-}
-
-```
-
-This method is called directly by the framework when the user passes
-`--plan-only` to `terraci generate`. The config struct is mutated before
-pipeline generation begins.
 
 ## Full Skeleton
 
@@ -249,6 +225,6 @@ Your provider is automatically discovered. No core code changes needed.
 
 ## See Also
 
-- [Pipeline Step Plugin](/plugins/pipeline-plugin) — inject steps without building a full provider
+- [Pipeline Job Plugin](/plugins/pipeline-plugin) — add DAG jobs without building a full provider
 - [Pipeline Generation Guide](/guide/pipeline-generation) — how the IR works
 - Built-in [GitLab](/config/gitlab) and [GitHub](/config/github) providers as reference

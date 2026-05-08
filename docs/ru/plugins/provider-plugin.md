@@ -28,7 +28,6 @@ outline: deep
 | Интерфейс | Назначение |
 |-----------|-----------|
 | `CommentServiceFactory` | Сервис MR/PR комментариев |
-| `FlagOverridable` | Поддержка `--plan-only` и `--auto-approve` |
 
 ## Работа с Pipeline IR
 
@@ -49,35 +48,18 @@ func (p *Plugin) NewGenerator(ctx *plugin.AppContext, ir *pipeline.IR) pipeline.
 }
 
 func (g *generator) Generate() (pipeline.GeneratedPipeline, error) {
-    // g.ir.Levels — уровни параллельного выполнения модулей
-    for _, level := range g.ir.Levels {
-        for _, mj := range level.Modules {
-            // mj.Module.Path — "platform/prod/eu-central-1/vpc"
-            // mj.Plan — *Job (nil если plan отключён)
-            // mj.Apply — *Job (nil в plan-only режиме)
-        }
-    }
-
-    // g.ir.Jobs — contributed-джобы от плагинов (cost, policy, summary)
-    for _, job := range g.ir.Jobs {
-        // job.Name, job.Dependencies, job.Operation, resources/artifacts
+    // IR — это flat DAG из pipeline.Job.
+    for i := range g.ir.Jobs {
+        job := &g.ir.Jobs[i]
+        // job.Kind — plan, apply или command
+        // job.Module — module metadata для plan/apply
+        // job.Dependencies — обязательные control edges
+        // job.InputArtifacts — артефакты для восстановления из producer jobs
+        // job.Operation — typed payload; для shell-driven CI используйте cishell.RenderOperation
     }
 
     return renderYAML(g.ir), nil
 }
-```
-
-## Flag Overrides (опционально)
-
-Реализуйте `FlagOverridable` для поддержки `--plan-only`:
-
-```go
-func (p *Plugin) SetPlanOnly(v bool) {
-    if cfg := p.Config(); cfg != nil {
-        cfg.PlanOnly = v
-    }
-}
-
 ```
 
 ## Реализация

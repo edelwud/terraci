@@ -1,6 +1,9 @@
 package pipeline
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 func isDetailedPlanResource(kind ResourceKind) bool {
 	return kind == ResourceKindPlanText || kind == ResourceKindPlanJSON
@@ -34,8 +37,6 @@ func mergeJobDependency(deps []JobDependency, dep JobDependency) []JobDependency
 		if deps[i].Job != dep.Job {
 			continue
 		}
-		deps[i].Artifacts = deps[i].Artifacts || dep.Artifacts
-		deps[i].Optional = deps[i].Optional && dep.Optional
 		return deps
 	}
 
@@ -48,6 +49,11 @@ type producedResource struct {
 	artifact Artifact
 }
 
+type resolvedResource struct {
+	resource producedResource
+	optional bool
+}
+
 type resourceIndex struct {
 	byRef map[ResourceRef]producedResource
 	all   []producedResource
@@ -55,28 +61,29 @@ type resourceIndex struct {
 
 func buildResourceIndex(ir *IR) (*resourceIndex, error) {
 	index := &resourceIndex{byRef: make(map[ResourceRef]producedResource)}
-	for _, ref := range ir.JobRefs() {
-		if ref.Job == nil {
-			continue
-		}
-		for _, spec := range ref.Job.Produces {
+	if ir == nil {
+		return index, nil
+	}
+	for i := range ir.Jobs {
+		job := &ir.Jobs[i]
+		for _, spec := range job.Produces {
 			if spec.Ref.Kind == "" {
-				return nil, fmt.Errorf("pipeline job %q produces resource without kind", ref.Job.Name)
+				return nil, fmt.Errorf("pipeline job %q produces resource without kind", job.Name)
 			}
 			if spec.Path == "" {
-				return nil, fmt.Errorf("pipeline job %q produces %s without path", ref.Job.Name, spec.Ref.Kind)
+				return nil, fmt.Errorf("pipeline job %q produces %s without path", job.Name, spec.Ref.Kind)
 			}
-			if !ref.Job.OutputArtifact.Configured() {
-				return nil, fmt.Errorf("pipeline job %q produces %s without output artifact", ref.Job.Name, spec.Ref.Kind)
+			if !job.OutputArtifact.Configured() {
+				return nil, fmt.Errorf("pipeline job %q produces %s without output artifact", job.Name, spec.Ref.Kind)
 			}
 			if existing, exists := index.byRef[spec.Ref]; exists {
-				return nil, fmt.Errorf("pipeline resource %s produced by both %q and %q", resourceRefLabel(spec.Ref), existing.jobName, ref.Job.Name)
+				return nil, fmt.Errorf("pipeline resource %s produced by both %q and %q", resourceRefLabel(spec.Ref), existing.jobName, job.Name)
 			}
 
 			resource := producedResource{
 				spec:     spec,
-				jobName:  ref.Job.Name,
-				artifact: ref.Job.OutputArtifact,
+				jobName:  job.Name,
+				artifact: job.OutputArtifact,
 			}
 			index.byRef[spec.Ref] = resource
 			index.all = append(index.all, resource)
@@ -85,44 +92,53 @@ func buildResourceIndex(ir *IR) (*resourceIndex, error) {
 	return index, nil
 }
 
-func resolveResourceRequestsForJob(requests []ResourceRequest, index *resourceIndex, jobName string, allowEmptyModuleResources bool) ([]ResourceSpec, []Artifact, []JobDependency, error) {
+func resolveResourceRequestsForJob(requests []ResourceRequest, index *resourceIndex, jobName string, allowEmptyModuleResources bool) ([]ResourceSpec, []InputArtifact, []JobDependency, error) {
 	consumes, produced, err := resolveResourceRequests(requests, index, jobName, allowEmptyModuleResources)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	artifacts := make([]Artifact, 0, len(produced))
+	artifacts := make([]InputArtifact, 0, len(produced))
 	deps := make([]JobDependency, 0, len(produced))
-	seenArtifacts := make(map[string]struct{}, len(produced))
-	for _, resource := range produced {
+	seenArtifacts := make(map[string]int, len(produced))
+	for i := range produced {
+		resolved := &produced[i]
+		resource := resolved.resource
 		if resource.jobName == jobName {
 			continue
 		}
 		if resource.artifact.Configured() {
-			if _, seen := seenArtifacts[resource.artifact.Name]; !seen {
-				artifacts = append(artifacts, resource.artifact)
-				seenArtifacts[resource.artifact.Name] = struct{}{}
+			if idx, seen := seenArtifacts[resource.artifact.Name]; seen {
+				artifacts[idx].Optional = artifacts[idx].Optional && resolved.optional
+			} else {
+				artifacts = append(artifacts, InputArtifact{
+					Artifact:    resource.artifact,
+					ProducerJob: resource.jobName,
+					Optional:    resolved.optional,
+				})
+				seenArtifacts[resource.artifact.Name] = len(artifacts) - 1
 			}
 		}
 		deps = mergeJobDependency(deps, JobDependency{
-			Job:       resource.jobName,
-			Artifacts: resource.artifact.Configured(),
-			Optional:  requestOptionalForResource(requests, resource.spec.Ref),
+			Job: resource.jobName,
 		})
 	}
 
 	return consumes, artifacts, deps, nil
 }
 
-func resolveResourceRequests(requests []ResourceRequest, index *resourceIndex, consumer string, allowEmptyModuleResources bool) ([]ResourceSpec, []producedResource, error) {
+func resolveResourceRequests(requests []ResourceRequest, index *resourceIndex, consumer string, allowEmptyModuleResources bool) ([]ResourceSpec, []resolvedResource, error) {
 	if len(requests) == 0 {
 		return nil, nil, nil
 	}
 
 	var specs []ResourceSpec
-	var resources []producedResource
-	seen := make(map[ResourceRef]struct{})
+	var resources []resolvedResource
+	seen := make(map[ResourceRef]int)
 	for _, request := range requests {
+		if err := validateResourceRequest(request); err != nil {
+			return nil, nil, err
+		}
 		matches := matchingResources(request, index, consumer)
 		if len(matches) == 0 {
 			if request.Optional || emptyResourceRequestAllowed(request, allowEmptyModuleResources) {
@@ -131,19 +147,23 @@ func resolveResourceRequests(requests []ResourceRequest, index *resourceIndex, c
 			return nil, nil, fmt.Errorf("%s requires unavailable %s", consumer, resourceRequestLabel(request))
 		}
 		for _, match := range matches {
-			if _, exists := seen[match.spec.Ref]; exists {
+			if idx, exists := seen[match.spec.Ref]; exists {
+				resources[idx].optional = resources[idx].optional && request.Optional
 				continue
 			}
-			seen[match.spec.Ref] = struct{}{}
+			seen[match.spec.Ref] = len(resources)
 			specs = append(specs, match.spec)
-			resources = append(resources, match)
+			resources = append(resources, resolvedResource{
+				resource: match,
+				optional: request.Optional,
+			})
 		}
 	}
 	return specs, resources, nil
 }
 
 func emptyResourceRequestAllowed(request ResourceRequest, allowEmptyModuleResources bool) bool {
-	if !allowEmptyModuleResources || !request.AllModules {
+	if !allowEmptyModuleResources || request.Selector.Scope != ResourceScopeAllModules {
 		return false
 	}
 	return request.Kind == ResourceKindPlanBinary || isDetailedPlanResource(request.Kind)
@@ -170,33 +190,18 @@ func resourceMatches(request ResourceRequest, ref ResourceRef) bool {
 	if request.Kind != ref.Kind {
 		return false
 	}
-	if request.ModulePath != "" {
-		return ref.ModulePath == request.ModulePath
-	}
-	if request.Producer != "" {
-		return ref.Producer == request.Producer
-	}
-	if request.AllModules {
+	switch request.Selector.Scope {
+	case ResourceScopeModule:
+		return ref.ModulePath == request.Selector.ModulePath
+	case ResourceScopeProducer:
+		return ref.Producer == request.Selector.Producer
+	case ResourceScopeAllModules:
 		return ref.ModulePath != ""
-	}
-	if request.AllProducers {
+	case ResourceScopeAllProducers:
 		return ref.Producer != ""
+	default:
+		return false
 	}
-	return true
-}
-
-func requestOptionalForResource(requests []ResourceRequest, ref ResourceRef) bool {
-	optional := false
-	for _, request := range requests {
-		if !resourceMatches(request, ref) {
-			continue
-		}
-		if !request.Optional {
-			return false
-		}
-		optional = true
-	}
-	return optional
 }
 
 func resourceRefLabel(ref ResourceRef) string {
@@ -211,16 +216,79 @@ func resourceRefLabel(ref ResourceRef) string {
 }
 
 func resourceRequestLabel(request ResourceRequest) string {
-	switch {
-	case request.ModulePath != "":
-		return fmt.Sprintf("%s for module %q", request.Kind, request.ModulePath)
-	case request.Producer != "":
-		return fmt.Sprintf("%s from producer %q", request.Kind, request.Producer)
-	case request.AllModules:
+	switch request.Selector.Scope {
+	case ResourceScopeModule:
+		return fmt.Sprintf("%s for module %q", request.Kind, request.Selector.ModulePath)
+	case ResourceScopeProducer:
+		return fmt.Sprintf("%s from producer %q", request.Kind, request.Selector.Producer)
+	case ResourceScopeAllModules:
 		return fmt.Sprintf("%s for all modules", request.Kind)
-	case request.AllProducers:
+	case ResourceScopeAllProducers:
 		return fmt.Sprintf("%s from all producers", request.Kind)
 	default:
 		return string(request.Kind)
 	}
+}
+
+func validateResourceRequest(request ResourceRequest) error {
+	if request.Kind == "" {
+		return errors.New("resource request kind is required")
+	}
+	return validateResourceKindScope(request.Kind, request.Selector)
+}
+
+func validateResourceKindScope(kind ResourceKind, selector ResourceSelector) error {
+	switch selector.Scope {
+	case ResourceScopeAllModules:
+		if selector.ModulePath != "" || selector.Producer != "" {
+			return fmt.Errorf("%s selector %q must not set module_path or producer", kind, selector.Scope)
+		}
+		if !isPlanResourceKind(kind) {
+			return fmt.Errorf("%s cannot use module-scoped selector %q", kind, selector.Scope)
+		}
+	case ResourceScopeModule:
+		if selector.ModulePath == "" {
+			return fmt.Errorf("%s selector %q requires module_path", kind, selector.Scope)
+		}
+		if err := ValidateWorkspacePath(selector.ModulePath); err != nil {
+			return fmt.Errorf("%s selector %q module_path invalid: %w", kind, selector.Scope, err)
+		}
+		if selector.Producer != "" {
+			return fmt.Errorf("%s selector %q must not set producer", kind, selector.Scope)
+		}
+		if !isPlanResourceKind(kind) {
+			return fmt.Errorf("%s cannot use module-scoped selector %q", kind, selector.Scope)
+		}
+	case ResourceScopeAllProducers:
+		if selector.ModulePath != "" || selector.Producer != "" {
+			return fmt.Errorf("%s selector %q must not set module_path or producer", kind, selector.Scope)
+		}
+		if !isPluginResourceKind(kind) {
+			return fmt.Errorf("%s cannot use producer-scoped selector %q", kind, selector.Scope)
+		}
+	case ResourceScopeProducer:
+		if selector.Producer == "" {
+			return fmt.Errorf("%s selector %q requires producer", kind, selector.Scope)
+		}
+		if err := validateProducerName(selector.Producer); err != nil {
+			return fmt.Errorf("%s selector %q producer invalid: %w", kind, selector.Scope, err)
+		}
+		if selector.ModulePath != "" {
+			return fmt.Errorf("%s selector %q must not set module_path", kind, selector.Scope)
+		}
+		if !isPluginResourceKind(kind) {
+			return fmt.Errorf("%s cannot use producer-scoped selector %q", kind, selector.Scope)
+		}
+	default:
+		return fmt.Errorf("%s selector scope is required", kind)
+	}
+	return nil
+}
+
+func isPlanResourceKind(kind ResourceKind) bool {
+	return kind == ResourceKindPlanBinary || kind == ResourceKindPlanText || kind == ResourceKindPlanJSON
+}
+
+func isPluginResourceKind(kind ResourceKind) bool {
+	return kind == ResourceKindPluginResult || kind == ResourceKindPluginReport
 }

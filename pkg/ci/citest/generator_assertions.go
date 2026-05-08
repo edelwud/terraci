@@ -39,7 +39,7 @@ type DryRunExpectation struct {
 	AffectedModules int
 	Jobs            int
 	Stages          int
-	ExecutionLevels int
+	JobGroups       int
 }
 
 func AssertDryRun(tb testing.TB, result *pipeline.DryRunResult, expected DryRunExpectation) {
@@ -56,7 +56,7 @@ func AssertDryRun(tb testing.TB, result *pipeline.DryRunResult, expected DryRunE
 	if result.Stages != expected.Stages {
 		tb.Fatalf("expected Stages=%d, got %d", expected.Stages, result.Stages)
 	}
-	if len(result.ExecutionOrder) != expected.ExecutionLevels {
-		tb.Fatalf("expected %d execution levels, got %d", expected.ExecutionLevels, len(result.ExecutionOrder))
+	if len(result.JobGroups) != expected.JobGroups {
+		tb.Fatalf("expected %d job groups, got %d", expected.JobGroups, len(result.JobGroups))
 	}
 }

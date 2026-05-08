@@ -14,11 +14,11 @@ func TestStagePlannerUsesDAGLayers(t *testing.T) {
 
 	planner := newStagePlanner(newSettings(&configpkg.Config{}, execution.Config{PlanEnabled: true}))
 	ir := &pipeline.IR{
-		Levels: []pipeline.Level{
-			{Index: 0, Modules: []pipeline.ModuleJobs{{Plan: &pipeline.Job{Name: "plan-0"}, Apply: &pipeline.Job{Name: "apply-0", Dependencies: []pipeline.JobDependency{{Job: "plan-0"}}}}}},
-			{Index: 1, Modules: []pipeline.ModuleJobs{{Plan: &pipeline.Job{Name: "plan-1", Dependencies: []pipeline.JobDependency{{Job: "apply-0"}}}, Apply: &pipeline.Job{Name: "apply-1", Dependencies: []pipeline.JobDependency{{Job: "plan-1"}}}}}},
-		},
 		Jobs: []pipeline.Job{
+			{Name: "plan-0"},
+			{Name: "apply-0", Dependencies: []pipeline.JobDependency{{Job: "plan-0"}}},
+			{Name: "plan-1", Dependencies: []pipeline.JobDependency{{Job: "apply-0"}}},
+			{Name: "apply-1", Dependencies: []pipeline.JobDependency{{Job: "plan-1"}}},
 			{Name: "policy-check", Dependencies: []pipeline.JobDependency{{Job: "plan-1"}}},
 			{Name: "summary", Dependencies: []pipeline.JobDependency{{Job: "policy-check"}, {Job: "apply-1"}}},
 		},

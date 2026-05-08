@@ -65,7 +65,6 @@ extensions:
     image:
       name: hashicorp/terraform:1.6
     stages_prefix: "deploy"
-    parallelism: 5
 
     variables:
       TF_IN_AUTOMATION: "true"

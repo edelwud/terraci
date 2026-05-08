@@ -75,7 +75,7 @@ func filterModulePaths(workDir string, modulePaths []string, modulePath string) 
 		return modulePaths
 	}
 
-	target := filepath.Join(workDir, modulePath)
+	target := filepath.Join(workDir, filepath.FromSlash(modulePath))
 	var filtered []string
 	for _, path := range modulePaths {
 		if path == target || matchesModulePath(path, modulePath) {

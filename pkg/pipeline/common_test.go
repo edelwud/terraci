@@ -24,7 +24,7 @@ func TestDependencyNames(t *testing.T) {
 	deps := []JobDependency{
 		{Job: "plan-a"},
 		{Job: ""},
-		{Job: "plan-b", Artifacts: true},
+		{Job: "plan-b"},
 	}
 	got := DependencyNames(deps)
 	want := []string{"plan-a", "plan-b"}
@@ -38,7 +38,7 @@ func TestDependencyNames(t *testing.T) {
 	}
 }
 
-func TestBuildJobPlan(t *testing.T) {
+func TestPrepareModuleGraph(t *testing.T) {
 	t.Parallel()
 
 	modA := discovery.TestModule("svc", "prod", "us-east-1", "vpc")
@@ -48,22 +48,22 @@ func TestBuildJobPlan(t *testing.T) {
 	depGraph := buildGraph(allModules, [][2]int{{1, 0}}) // B depends on A
 
 	tests := []struct {
-		name           string
-		targets        []*discovery.Module
-		wantCount      int
-		wantLevelCount int
+		name          string
+		targets       []*discovery.Module
+		wantCount     int
+		wantOrderSize int
 	}{
 		{
-			name:           "empty targets falls back to allModules",
-			targets:        nil,
-			wantCount:      2,
-			wantLevelCount: 2,
+			name:          "empty targets falls back to allModules",
+			targets:       nil,
+			wantCount:     2,
+			wantOrderSize: 2,
 		},
 		{
-			name:           "non-empty targets used directly",
-			targets:        []*discovery.Module{modA},
-			wantCount:      1,
-			wantLevelCount: 1,
+			name:          "non-empty targets used directly",
+			targets:       []*discovery.Module{modA},
+			wantCount:     1,
+			wantOrderSize: 1,
 		},
 	}
 
@@ -71,23 +71,23 @@ func TestBuildJobPlan(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			plan, err := buildJobPlan(depGraph, tt.targets, allModules, idx)
+			plan, err := prepareModuleGraph(depGraph, tt.targets, allModules, idx)
 			if err != nil {
-				t.Fatalf("buildJobPlan() error = %v", err)
+				t.Fatalf("prepareModuleGraph() error = %v", err)
 			}
 
-			if got := len(plan.TargetModules); got != tt.wantCount {
-				t.Errorf("TargetModules count = %d, want %d", got, tt.wantCount)
+			if got := len(plan.targetModules); got != tt.wantCount {
+				t.Errorf("target module count = %d, want %d", got, tt.wantCount)
 			}
-			if tt.wantLevelCount > 0 && len(plan.ExecutionLevels) != tt.wantLevelCount {
-				t.Errorf("ExecutionLevels count = %d, want %d", len(plan.ExecutionLevels), tt.wantLevelCount)
+			if got := len(plan.moduleOrder); got != tt.wantOrderSize {
+				t.Errorf("module order count = %d, want %d", got, tt.wantOrderSize)
 			}
-			if plan.Subgraph == nil {
-				t.Error("Subgraph should not be nil")
+			if plan.subgraph == nil {
+				t.Error("subgraph should not be nil")
 			}
-			for _, m := range plan.TargetModules {
-				if plan.Subgraph.GetNode(m.ID()) == nil {
-					t.Errorf("Subgraph missing target module %s", m.ID())
+			for _, m := range plan.targetModules {
+				if plan.subgraph.GetNode(m.ID()) == nil {
+					t.Errorf("subgraph missing target module %s", m.ID())
 				}
 			}
 		})
@@ -116,8 +116,8 @@ func TestJobName(t *testing.T) {
 			expected: "apply-svc-prod-us-east-1-vpc",
 		},
 		{
-			name:     "contributed kind has no prefix",
-			jobKind:  JobKindContributed,
+			name:     "command kind has no prefix",
+			jobKind:  JobKindCommand,
 			module:   discovery.TestModule("payments", "staging", "eu-west-1", "rds"),
 			expected: "payments-staging-eu-west-1-rds",
 		},
@@ -252,7 +252,7 @@ func TestIRDryRun(t *testing.T) {
 			name:         "planEnabled doubles job count per level",
 			totalModules: 5,
 			wantJobs:     4, // 2 levels * 1 module * 2 (plan+apply)
-			wantStages:   3,
+			wantStages:   4,
 			wantAffected: 2,
 			wantTotal:    5,
 		},
@@ -290,44 +290,42 @@ func TestIRDryRun(t *testing.T) {
 			switch tt.name {
 			case "basic without contributed jobs":
 				ir = &IR{
-					Levels: []Level{
-						{Index: 0, Modules: []ModuleJobs{{Module: modA, Apply: &Job{Name: "apply-a"}}}},
-						{Index: 1, Modules: []ModuleJobs{{Module: modB, Apply: &Job{Name: "apply-b", Dependencies: []JobDependency{{Job: "apply-a"}}}}}},
+					Jobs: []Job{
+						{Name: "apply-a", Module: modA},
+						{Name: "apply-b", Module: modB, Dependencies: []JobDependency{{Job: "apply-a"}}},
 					},
 				}
 			case "planEnabled doubles job count per level":
 				ir = &IR{
-					Levels: []Level{
-						{Index: 0, Modules: []ModuleJobs{{Module: modA, Plan: &Job{Name: "plan-a"}, Apply: &Job{Name: "apply-a"}}}},
-						{Index: 1, Modules: []ModuleJobs{{Module: modB, Plan: &Job{Name: "plan-b", Dependencies: []JobDependency{{Job: "apply-a"}}}, Apply: &Job{Name: "apply-b", Dependencies: []JobDependency{{Job: "plan-b"}}}}}},
+					Jobs: []Job{
+						{Name: "plan-a", Module: modA},
+						{Name: "apply-a", Module: modA, Dependencies: []JobDependency{{Job: "plan-a"}}},
+						{Name: "plan-b", Module: modB, Dependencies: []JobDependency{{Job: "apply-a"}}},
+						{Name: "apply-b", Module: modB, Dependencies: []JobDependency{{Job: "plan-b"}}},
 					},
 				}
 			case "contributed jobs add 1 job and 1 stage":
 				ir = &IR{
-					Levels: []Level{
-						{Index: 0, Modules: []ModuleJobs{{Module: modA, Apply: &Job{Name: "apply-a"}}}},
+					Jobs: []Job{
+						{Name: "apply-a", Module: modA},
+						{Name: "summary", Dependencies: []JobDependency{{Job: "apply-a"}}},
 					},
-					Jobs: []Job{{Name: "summary", Dependencies: []JobDependency{{Job: "apply-a"}}}},
 				}
 			case "independent contributed jobs share one DAG layer":
 				ir = &IR{
-					Levels: []Level{
-						{Index: 0, Modules: []ModuleJobs{
-							{Module: modA, Plan: &Job{Name: "plan-a"}, Apply: &Job{Name: "apply-a"}},
-							{Module: modB, Plan: &Job{Name: "plan-b"}, Apply: &Job{Name: "apply-b"}},
-						}},
-					},
 					Jobs: []Job{
+						{Name: "plan-a", Module: modA},
+						{Name: "apply-a", Module: modA},
+						{Name: "plan-b", Module: modB},
+						{Name: "apply-b", Module: modB},
 						{Name: "policy"},
 						{Name: "cost"},
 					},
 				}
 			case "contributed dependencies increase stage count":
 				ir = &IR{
-					Levels: []Level{
-						{Index: 0, Modules: []ModuleJobs{{Module: modA, Apply: &Job{Name: "apply-a"}}}},
-					},
 					Jobs: []Job{
+						{Name: "apply-a", Module: modA},
 						{Name: "policy"},
 						{Name: "summary", Dependencies: []JobDependency{{Job: "policy"}}},
 					},
@@ -349,8 +347,8 @@ func TestIRDryRun(t *testing.T) {
 			if result.TotalModules != tt.wantTotal {
 				t.Errorf("TotalModules = %d, want %d", result.TotalModules, tt.wantTotal)
 			}
-			if result.ExecutionOrder == nil {
-				t.Error("ExecutionOrder should not be nil")
+			if result.JobGroups == nil {
+				t.Error("JobGroups should not be nil")
 			}
 		})
 	}

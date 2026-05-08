@@ -1,6 +1,6 @@
 ---
 title: Pipeline Generation
-description: "Generated pipeline structure, parallel execution stages, and changed-only mode"
+description: "Generated pipeline DAG, parallel execution, and changed-only mode"
 outline: deep
 ---
 
@@ -28,14 +28,14 @@ The generated GitLab CI pipeline includes:
 
 ### Stages
 
-Stages are created for each execution level:
+GitLab stages are derived from topological DAG layers:
 
 ```yaml
 stages:
-  - deploy-0    # Plan for level 0 modules
-  - deploy-1   # Apply for level 0 modules
-  - deploy-2    # Plan for level 1 modules
-  - deploy-3   # Apply for level 1 modules
+  - deploy-0
+  - deploy-1
+  - deploy-2
+  - deploy-3
 ```
 
 ### Variables
@@ -121,28 +121,29 @@ apply-platform-prod-us-east-1-eks:
 
 ## Parallel Execution
 
-Independent modules at the same level run in parallel:
+Independent DAG jobs in the same topological group can run in parallel:
 
 ```mermaid
 flowchart LR
-  subgraph l0["Level 0"]
-    vpc
-    iam
+  subgraph g0["DAG group 0"]
+    plan_vpc["plan-vpc"]
+    plan_iam["plan-iam"]
   end
-  subgraph l1["Level 1"]
-    eks
-    rds
-    cache
+  subgraph g1["DAG group 1"]
+    apply_vpc["apply-vpc"]
+    apply_iam["apply-iam"]
   end
-  subgraph l2["Level 2"]
-    app
+  subgraph g2["DAG group 2"]
+    plan_eks["plan-eks"]
+    plan_rds["plan-rds"]
+    plan_cache["plan-cache"]
   end
-  l0 --> l1 --> l2
+  g0 --> g1 --> g2
 ```
 
 ## GitHub Actions Workflow Structure
 
-When using the GitHub Actions provider, TerraCi generates a workflow file with jobs organized by execution levels:
+When using the GitHub Actions provider, TerraCi generates a workflow file with jobs connected by DAG dependencies:
 
 ```yaml
 name: Terraform
@@ -310,10 +311,10 @@ Dry Run Summary:
   Stages: 6
   Jobs: 10
 
-Execution Order:
-  Level 0: [vpc]
-  Level 1: [eks, rds]
-  Level 2: [app-backend, app-frontend]
+Job Groups:
+  dag-level-0: [plan-vpc]
+  dag-level-1: [apply-vpc]
+  dag-level-2: [plan-eks plan-rds]
 ```
 
 ## Output Formats

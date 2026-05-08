@@ -37,7 +37,7 @@ func (r *recordingRunner) Run(ctx context.Context, _ *pipeline.Job) error {
 func TestExecutorHonorsParallelism(t *testing.T) {
 	t.Parallel()
 
-	ir := &pipeline.IR{Jobs: []pipeline.Job{{Name: "a"}, {Name: "b"}, {Name: "c"}}}
+	ir := &pipeline.IR{Jobs: []pipeline.Job{testJob("a"), testJob("b"), testJob("c")}}
 	runner := &recordingRunner{delay: 20 * time.Millisecond}
 	_, err := NewExecutor(runner, WithParallelism(1)).Execute(context.Background(), ir)
 	if err != nil {
@@ -64,10 +64,10 @@ func TestDefaultSchedulerPreservesDAGOrder(t *testing.T) {
 	t.Parallel()
 
 	ir := &pipeline.IR{Jobs: []pipeline.Job{
-		{Name: "summary", Dependencies: testDependencies("policy", "apply")},
-		{Name: "plan"},
-		{Name: "policy", Dependencies: testDependencies("plan")},
-		{Name: "apply", Dependencies: testDependencies("plan")},
+		testJob("summary", "policy", "apply"),
+		testJob("plan"),
+		testJob("policy", "plan"),
+		testJob("apply", "plan"),
 	}}
 
 	runner := &orderRunner{}
@@ -97,19 +97,19 @@ func TestExecutorRejectsInvalidPlanGraph(t *testing.T) {
 	}{
 		{
 			name:    "duplicate names",
-			ir:      &pipeline.IR{Jobs: []pipeline.Job{{Name: "policy-check"}, {Name: "policy-check"}}},
+			ir:      &pipeline.IR{Jobs: []pipeline.Job{testJob("policy-check"), testJob("policy-check")}},
 			wantErr: `duplicate job name "policy-check"`,
 		},
 		{
 			name:    "unknown dependency",
-			ir:      &pipeline.IR{Jobs: []pipeline.Job{{Name: "summary", Dependencies: testDependencies("policy-check")}}},
+			ir:      &pipeline.IR{Jobs: []pipeline.Job{testJob("summary", "policy-check")}},
 			wantErr: `depends on unknown job "policy-check"`,
 		},
 		{
 			name: "dependency cycle",
 			ir: &pipeline.IR{Jobs: []pipeline.Job{
-				{Name: "summary", Dependencies: testDependencies("policy-check")},
-				{Name: "policy-check", Dependencies: testDependencies("summary")},
+				testJob("summary", "policy-check"),
+				testJob("policy-check", "summary"),
 			}},
 			wantErr: "dependency cycle",
 		},
@@ -130,6 +130,18 @@ func TestExecutorRejectsInvalidPlanGraph(t *testing.T) {
 				t.Fatalf("runner executed %v, want no jobs", runner.order)
 			}
 		})
+	}
+}
+
+func testJob(name string, deps ...string) pipeline.Job {
+	return pipeline.Job{
+		Name:         name,
+		Kind:         pipeline.JobKindCommand,
+		Dependencies: testDependencies(deps...),
+		Operation: pipeline.Operation{
+			Type:     pipeline.OperationTypeCommands,
+			Commands: []string{"true"},
+		},
 	}
 }
 

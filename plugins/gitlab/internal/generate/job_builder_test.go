@@ -146,7 +146,12 @@ func TestJobBuilderContributedJobUsesOptionalNeeds(t *testing.T) {
 
 	job, err := builder.renderJob(&pipeline.Job{
 		Name:         "summary",
-		Dependencies: []pipeline.JobDependency{{Job: "apply-a", Artifacts: true, Optional: true}},
+		Dependencies: []pipeline.JobDependency{{Job: "apply-a"}},
+		InputArtifacts: []pipeline.InputArtifact{{
+			Artifact:    pipeline.ResultArtifact("apply-a", ".terraci/apply-a.json"),
+			ProducerJob: "apply-a",
+			Optional:    true,
+		}},
 		AllowFailure: true,
 		Operation: pipeline.Operation{
 			Type:     pipeline.OperationTypeCommands,

@@ -22,7 +22,7 @@ func (w Workspace) ServiceDir() string { return w.serviceDir }
 
 // ModuleDir returns the absolute module directory for a relative module path.
 func (w Workspace) ModuleDir(rel string) string {
-	return filepath.Join(w.workDir, filepath.Clean(rel))
+	return filepath.Join(w.workDir, filepath.FromSlash(rel))
 }
 
 // PlanFile returns the absolute plan.tfplan path for a module.
@@ -42,5 +42,5 @@ func (w Workspace) PlanTextFile(rel string) string {
 
 // ServiceFile returns the absolute path to a file under the service directory.
 func (w Workspace) ServiceFile(name string) string {
-	return filepath.Join(w.serviceDir, filepath.Clean(name))
+	return filepath.Join(w.serviceDir, filepath.FromSlash(name))
 }

@@ -6,7 +6,7 @@ type DryRunResult struct {
 	AffectedModules int
 	Stages          int
 	Jobs            int
-	ExecutionOrder  [][]string
+	JobGroups       [][]string
 }
 
 // GeneratedPipeline represents a generated CI pipeline.

@@ -9,7 +9,6 @@ type Image = ci.Image
 type Config struct {
 	Image        Image             `yaml:"image" json:"image" jsonschema:"description=Docker image for terraform jobs,default=hashicorp/terraform:1.6"`
 	StagesPrefix string            `yaml:"stages_prefix" json:"stages_prefix" jsonschema:"description=Prefix for DAG stage names (produces: {prefix}-0\\, {prefix}-1\\, etc.),default=deploy"`
-	Parallelism  int               `yaml:"parallelism" json:"parallelism" jsonschema:"description=Maximum parallel jobs per stage,minimum=1,default=5"`
 	Variables    map[string]string `yaml:"variables,omitempty" json:"variables,omitempty" jsonschema:"description=Global pipeline variables"`
 	PlanOnly     bool              `yaml:"plan_only" json:"plan_only" jsonschema:"description=Generate only plan jobs (no apply jobs),default=false"`
 	CacheEnabled bool              `yaml:"cache_enabled" json:"cache_enabled" jsonschema:"description=Enable caching of .terraform directory,default=true"`

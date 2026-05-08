@@ -3,6 +3,7 @@ package discovery
 import (
 	"context"
 	"os"
+	pathpkg "path"
 	"path/filepath"
 	"strings"
 )
@@ -39,7 +40,7 @@ func (c *moduleCollector) visit(path string, info os.FileInfo, walkErr error) er
 		return nil
 	}
 
-	relPath := filepath.Join(parts...)
+	relPath := pathpkg.Join(parts...)
 	if c.matchesLibraryPath(relPath) {
 		// Library modules live outside the structure pattern (e.g. _modules/foo),
 		// so they bypass segment-depth filtering. They are still recorded so
@@ -79,7 +80,7 @@ func (c *moduleCollector) parseRelPath(path string) ([]string, bool) {
 }
 
 func (c *moduleCollector) registerModule(parts []string, absPath string) {
-	relPath := filepath.Join(parts...)
+	relPath := pathpkg.Join(parts...)
 	mod := c.buildModule(parts, absPath, relPath)
 	c.byID[mod.ID()] = mod
 	c.modules = append(c.modules, mod)
@@ -108,13 +109,13 @@ func (c *moduleCollector) buildModule(parts []string, absPath, relPath string) *
 	}
 
 	mod := NewModule(c.segments, parts[:segCount], absPath, relPath)
-	mod.SetComponent("submodule", filepath.Join(parts[segCount:]...))
+	mod.SetComponent("submodule", pathpkg.Join(parts[segCount:]...))
 	c.linkParent(mod, parts)
 	return mod
 }
 
 func (c *moduleCollector) linkParent(mod *Module, parts []string) {
-	parentRelPath := filepath.Join(parts[:len(parts)-1]...)
+	parentRelPath := pathpkg.Join(parts[:len(parts)-1]...)
 	if parent, ok := c.byID[parentRelPath]; ok {
 		mod.Parent = parent
 		parent.Children = append(parent.Children, mod)

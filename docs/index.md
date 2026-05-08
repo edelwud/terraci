@@ -26,7 +26,7 @@ features:
   - icon:
       src: /icons/zap.svg
     title: Parallel Execution
-    details: Groups modules into execution levels. Independent modules run in parallel — only dependent modules wait.
+    details: Builds a job DAG. Independent jobs run in parallel — only dependent jobs wait.
     link: /guide/pipeline-generation
     linkText: See pipeline structure
   - icon:

@@ -45,7 +45,7 @@ TerraCi solves all of this. Point it at your repo, and it generates correct, dep
 - GitLab CI & GitHub Actions support
 - Dependency-aware topological ordering
 - Parallel execution of independent modules
-- Plan + apply stages with manual approval gates
+- Plan/apply jobs with configurable provider gates
 - Changed-only mode via git diff
 
 </td><td>
@@ -187,15 +187,17 @@ data "terraform_remote_state" "vpc" {
 
 ### 3. Pipeline Generation
 
-Modules are topologically sorted and grouped into parallel execution levels:
+Pipeline jobs are built as a dependency DAG. Independent modules can run in
+parallel, while dependent modules wait for the jobs that produce their inputs:
 
 ```
-Level 0: vpc                    (no dependencies)
-Level 1: eks, rds               (depend on vpc — run in parallel)
-Level 2: app                    (depends on eks)
+plan-vpc  -> apply-vpc
+apply-vpc -> plan-eks  -> apply-eks
+apply-vpc -> plan-rds  -> apply-rds
 ```
 
-Each level gets plan + apply stages. Apply requires the previous level to complete.
+CI providers render the same DAG with their native mechanics: GitHub uses
+`needs`, while GitLab derives stages from topological job groups.
 
 ## Configuration
 

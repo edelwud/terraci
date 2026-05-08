@@ -19,18 +19,19 @@ func TestBuild_SingleModule(t *testing.T) {
 		t.Fatalf("Build: %v", err)
 	}
 
-	mj := ir.Levels[0].Modules[0]
-	if mj.Plan == nil {
+	planJob := findJob(ir.Jobs, JobName(JobKindPlan, mod))
+	if planJob == nil {
 		t.Fatal("missing plan job")
 	}
-	if mj.Apply == nil {
+	applyJob := findJob(ir.Jobs, JobName(JobKindApply, mod))
+	if applyJob == nil {
 		t.Fatal("missing apply job")
 	}
-	if mj.Plan.Name != JobName(JobKindPlan, mod) {
-		t.Fatalf("plan name = %q", mj.Plan.Name)
+	if planJob.Kind != JobKindPlan {
+		t.Fatalf("plan kind = %q", planJob.Kind)
 	}
-	if mj.Apply.Name != JobName(JobKindApply, mod) {
-		t.Fatalf("apply name = %q", mj.Apply.Name)
+	if applyJob.Kind != JobKindApply {
+		t.Fatalf("apply kind = %q", applyJob.Kind)
 	}
 }
 
@@ -44,7 +45,7 @@ func TestBuild_RequirementsPlanOnlySuppressesApply(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if ir.Levels[0].Modules[0].Apply != nil {
+	if findJob(ir.Jobs, JobName(JobKindApply, mod)) != nil {
 		t.Fatal("PlanOnly requirement should suppress apply jobs")
 	}
 }
@@ -63,8 +64,8 @@ func TestBuild_RequiredPlanJSONMakesOnlyMatchingModuleDetailed(t *testing.T) {
 		t.Fatalf("Build: %v", err)
 	}
 
-	vpcPlan := ir.Levels[0].Modules[0].Plan
-	appPlan := ir.Levels[1].Modules[0].Plan
+	vpcPlan := findJob(ir.Jobs, JobName(JobKindPlan, vpc))
+	appPlan := findJob(ir.Jobs, JobName(JobKindPlan, app))
 	if vpcPlan.Operation.Terraform.DetailedPlan {
 		t.Fatal("unrequested module plan should not be detailed")
 	}
@@ -95,15 +96,18 @@ func TestBuild_ContributedPlanConsumerAddsArtifactDependency(t *testing.T) {
 		t.Fatalf("Build: %v", err)
 	}
 
-	job := ir.Jobs[0]
+	job := findJob(ir.Jobs, "cost-estimation")
+	if job == nil {
+		t.Fatal("cost-estimation job not found")
+	}
 	planName := JobName(JobKindPlan, mod)
-	if len(job.InputArtifacts) != 1 || job.InputArtifacts[0].Name != PlanArtifactName(planName) {
+	if !hasInputArtifact(job.InputArtifacts, PlanArtifactName(planName), planName, false) {
 		t.Fatalf("input artifacts = %#v, want plan artifact", job.InputArtifacts)
 	}
-	if !hasDependency(job.Dependencies, planName, true) {
+	if !hasDependency(job.Dependencies, planName) {
 		t.Fatalf("dependencies = %#v, want artifact dependency on %s", job.Dependencies, planName)
 	}
-	if !ir.Levels[0].Modules[0].Plan.Operation.Terraform.DetailedPlan {
+	if !findJob(ir.Jobs, planName).Operation.Terraform.DetailedPlan {
 		t.Fatal("PlanJSON consumer should make plan detailed")
 	}
 }
@@ -120,14 +124,17 @@ func TestBuild_ApplyConsumesOnlyOwnPlanBinary(t *testing.T) {
 		t.Fatalf("Build: %v", err)
 	}
 
-	appApply := ir.Levels[1].Modules[0].Apply
-	if !hasDependency(appApply.Dependencies, JobName(JobKindPlan, app), true) {
+	appApply := findJob(ir.Jobs, JobName(JobKindApply, app))
+	if appApply == nil {
+		t.Fatal("app apply job not found")
+	}
+	if !hasDependency(appApply.Dependencies, JobName(JobKindPlan, app)) {
 		t.Fatalf("app apply dependencies = %#v, want own plan artifact", appApply.Dependencies)
 	}
-	if !hasDependency(appApply.Dependencies, JobName(JobKindApply, vpc), false) {
+	if !hasDependency(appApply.Dependencies, JobName(JobKindApply, vpc)) {
 		t.Fatalf("app apply dependencies = %#v, want upstream apply control dep", appApply.Dependencies)
 	}
-	if len(appApply.InputArtifacts) != 1 || appApply.InputArtifacts[0].Name != PlanArtifactName(JobName(JobKindPlan, app)) {
+	if !hasInputArtifact(appApply.InputArtifacts, PlanArtifactName(JobName(JobKindPlan, app)), JobName(JobKindPlan, app), false) {
 		t.Fatalf("apply input artifacts = %#v, want own plan artifact only", appApply.InputArtifacts)
 	}
 }
@@ -167,11 +174,14 @@ func TestBuild_SummaryConsumesProducedReportsOnly(t *testing.T) {
 	if summary == nil {
 		t.Fatal("summary job not found")
 	}
-	if !hasDependency(summary.Dependencies, "policy-check", true) {
+	if !hasDependency(summary.Dependencies, "policy-check") {
 		t.Fatalf("summary dependencies = %#v, want policy artifact dependency", summary.Dependencies)
 	}
-	if !hasDependency(summary.Dependencies, JobName(JobKindPlan, mod), true) {
+	if !hasDependency(summary.Dependencies, JobName(JobKindPlan, mod)) {
 		t.Fatalf("summary dependencies = %#v, want plan artifact dependency", summary.Dependencies)
+	}
+	if !hasInputArtifact(summary.InputArtifacts, ResultArtifactName("policy-check"), "policy-check", true) {
+		t.Fatalf("summary input artifacts = %#v, want optional policy artifact", summary.InputArtifacts)
 	}
 }
 
@@ -190,6 +200,100 @@ func TestBuild_RequiredPlanResourceWithPlanDisabledReturnsError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "pipeline required resources requires unavailable plan_json for all modules") {
 		t.Fatalf("Build() error = %q", err)
+	}
+}
+
+func TestBuild_ValidatesResourceRequestsWithContext(t *testing.T) {
+	t.Parallel()
+
+	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
+	modules := []*discovery.Module{mod}
+
+	tests := []struct {
+		name          string
+		requirements  BuildRequirements
+		contributions []*Contribution
+		wantErrSubstr string
+	}{
+		{
+			name: "missing selector scope in requirements",
+			requirements: RequirementsForResources(ResourceRequest{
+				Kind: ResourceKindPlanJSON,
+			}),
+			wantErrSubstr: "requirements.resources[0]: plan_json selector scope is required",
+		},
+		{
+			name: "plan resource cannot use producer selector",
+			requirements: RequirementsForResources(ResourceRequest{
+				Kind: ResourceKindPlanJSON,
+				Selector: ResourceSelector{
+					Scope:    ResourceScopeProducer,
+					Producer: "cost",
+				},
+			}),
+			wantErrSubstr: `requirements.resources[0]: plan_json cannot use producer-scoped selector "producer"`,
+		},
+		{
+			name: "plugin resource cannot use module selector",
+			contributions: []*Contribution{{Jobs: []ContributedJob{{
+				Name:     "summary",
+				Commands: []string{"summary"},
+				Consumes: []ResourceRequest{{
+					Kind: ResourceKindPluginReport,
+					Selector: ResourceSelector{
+						Scope:      ResourceScopeModule,
+						ModulePath: mod.RelativePath,
+					},
+				}},
+			}}}},
+			wantErrSubstr: `contributions[0].jobs[0].consumes[0]: plugin_report cannot use module-scoped selector "module"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts := testBuildOptions(modules, nil, tt.requirements)
+			opts.Contributions = tt.contributions
+			_, err := Build(opts)
+			if err == nil {
+				t.Fatal("Build() error = nil, want validation error")
+			}
+			if !strings.Contains(err.Error(), tt.wantErrSubstr) {
+				t.Fatalf("Build() error = %q, want substring %q", err.Error(), tt.wantErrSubstr)
+			}
+		})
+	}
+}
+
+func TestBuild_OptionalMissingPluginResourceDoesNotCreateDependency(t *testing.T) {
+	t.Parallel()
+
+	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
+	modules := []*discovery.Module{mod}
+	opts := testBuildOptions(modules, nil, BuildRequirements{PlanOnly: true})
+	opts.Contributions = []*Contribution{{Jobs: []ContributedJob{{
+		Name:     "summary",
+		Commands: []string{"summary"},
+		Consumes: []ResourceRequest{
+			AllPluginResources(ResourceKindPluginReport, true),
+		},
+	}}}}
+
+	ir, err := Build(opts)
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	summary := findJob(ir.Jobs, "summary")
+	if summary == nil {
+		t.Fatal("summary job not found")
+	}
+	if len(summary.Dependencies) != 0 {
+		t.Fatalf("summary dependencies = %#v, want none", summary.Dependencies)
+	}
+	if len(summary.InputArtifacts) != 0 {
+		t.Fatalf("summary input artifacts = %#v, want none", summary.InputArtifacts)
 	}
 }
 
@@ -243,34 +347,20 @@ func TestBuild_RejectsInvalidContributedJobGraph(t *testing.T) {
 	}
 }
 
-func TestIR_JobRefs(t *testing.T) {
+func TestIR_ModuleCountCountsDistinctModules(t *testing.T) {
 	t.Parallel()
 
 	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
 	ir := &IR{
-		Levels: []Level{{
-			Index: 2,
-			Modules: []ModuleJobs{{
-				Module: mod,
-				Plan:   &Job{Name: "plan-svc-prod-eu-vpc"},
-				Apply:  &Job{Name: "apply-svc-prod-eu-vpc"},
-			}},
-		}},
-		Jobs: []Job{{Name: "summary"}},
+		Jobs: []Job{
+			{Name: "plan-svc-prod-eu-vpc", Kind: JobKindPlan, Module: mod},
+			{Name: "apply-svc-prod-eu-vpc", Kind: JobKindApply, Module: mod},
+			{Name: "summary", Kind: JobKindCommand},
+		},
 	}
 
-	refs := ir.JobRefs()
-	if len(refs) != 3 {
-		t.Fatalf("JobRefs() len = %d, want 3", len(refs))
-	}
-	if refs[0].Kind != JobKindPlan || refs[0].Level != 2 || refs[0].Module != mod {
-		t.Fatalf("refs[0] = %#v, want level 2 plan module ref", refs[0])
-	}
-	if refs[1].Kind != JobKindApply || refs[1].Level != 2 || refs[1].Module != mod {
-		t.Fatalf("refs[1] = %#v, want level 2 apply module ref", refs[1])
-	}
-	if refs[2].Kind != JobKindContributed || refs[2].Job.Name != "summary" {
-		t.Fatalf("refs[2] = %#v, want contributed summary", refs[2])
+	if got := ir.ModuleCount(); got != 1 {
+		t.Fatalf("ModuleCount() = %d, want 1", got)
 	}
 }
 
@@ -286,9 +376,18 @@ func testBuildOptions(modules []*discovery.Module, edges [][2]int, requirements 
 	}
 }
 
-func hasDependency(deps []JobDependency, name string, artifacts bool) bool {
+func hasDependency(deps []JobDependency, name string) bool {
 	for _, dep := range deps {
-		if dep.Job == name && dep.Artifacts == artifacts {
+		if dep.Job == name {
+			return true
+		}
+	}
+	return false
+}
+
+func hasInputArtifact(inputs []InputArtifact, name, producer string, optional bool) bool {
+	for _, input := range inputs {
+		if input.Artifact.Name == name && input.ProducerJob == producer && input.Optional == optional {
 			return true
 		}
 	}

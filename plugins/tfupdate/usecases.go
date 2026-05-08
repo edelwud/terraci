@@ -17,6 +17,7 @@ import (
 	"github.com/edelwud/terraci/pkg/parser"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/workflow"
+	"github.com/edelwud/terraci/pkg/workspacepath"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
 	tfupdateusecase "github.com/edelwud/terraci/plugins/tfupdate/internal/usecase"
 )
@@ -71,10 +72,12 @@ func filterModules(modules []*discovery.Module, modulePath string) []*discovery.
 	if modulePath == "" {
 		return modules
 	}
+	modulePath = workspacepath.Join(modulePath)
 
 	filtered := modules[:0]
 	for _, module := range modules {
-		if module.RelativePath == modulePath || strings.HasSuffix(module.RelativePath, modulePath) {
+		moduleID := module.ID()
+		if moduleID == modulePath || strings.HasSuffix(moduleID, modulePath) {
 			filtered = append(filtered, module)
 		}
 	}

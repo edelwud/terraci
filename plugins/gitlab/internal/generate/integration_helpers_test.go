@@ -97,7 +97,7 @@ func LoadFixture(t *testing.T, name string) *Fixture {
 	// fail at IR construction; tests that load such fixtures inspect the
 	// dep graph directly and never call Generate, so we leave the generator
 	// nil rather than aborting.
-	ir, _ := BuildPipelineIR(glCfg, execCfg, nil, depGraph, modules, nil)
+	ir, _ := buildTestIR(glCfg, execCfg, nil, depGraph, modules, nil)
 	var generator *Generator
 	if ir != nil {
 		generator = NewGenerator(glCfg, execCfg, ir)

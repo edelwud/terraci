@@ -1,6 +1,7 @@
 package generate
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/ci/citest"
@@ -50,8 +51,32 @@ func TestNewGenerator(t *testing.T) {
 	if gen.settings.config != cfg.GitLab {
 		t.Error("config not set correctly")
 	}
-	if gen.ir == nil || len(gen.ir.Levels) != 1 || len(gen.ir.Levels[0].Modules) != 1 {
+	if gen.ir == nil || gen.ir.ModuleCount() != 1 || len(gen.ir.Jobs) != 2 {
 		t.Errorf("expected 1 module in IR, got ir=%v", gen.ir)
+	}
+}
+
+func TestGenerator_GenerateRejectsInvalidIR(t *testing.T) {
+	t.Parallel()
+
+	ir := &pipeline.IR{Jobs: []pipeline.Job{{
+		Name: "summary",
+		Kind: pipeline.JobKindCommand,
+		Operation: pipeline.Operation{
+			Type:     pipeline.OperationTypeCommands,
+			Commands: []string{"terraci summary"},
+		},
+		Consumes: []pipeline.ResourceSpec{
+			pipeline.PluginResource(pipeline.ResourceKindPluginReport, "policy", ".terraci/policy-report.json"),
+		},
+	}}}
+
+	_, err := NewGenerator(nil, execution.Config{}, ir).Generate()
+	if err == nil {
+		t.Fatal("Generate() error = nil, want invalid IR error")
+	}
+	if !strings.Contains(err.Error(), "consumes unavailable") {
+		t.Fatalf("Generate() error = %q", err)
 	}
 }
 
@@ -225,6 +250,6 @@ func TestGenerator_DryRun(t *testing.T) {
 		AffectedModules: 2,
 		Jobs:            4,
 		Stages:          4,
-		ExecutionLevels: 2,
+		JobGroups:       4,
 	})
 }

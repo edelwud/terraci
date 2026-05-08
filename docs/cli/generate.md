@@ -29,8 +29,6 @@ The `generate` command scans your project, builds a dependency graph, and output
 | `--include` | `-i` | string[] | | Include patterns |
 | `--filter` | `-f` | string[] | | Filter by segment (`key=value`, e.g. `environment=prod`) |
 | `--plan-only` | | bool | false | Generate only plan jobs (no apply) |
-| `--auto-approve` | | bool | false | Auto-approve apply jobs |
-| `--no-auto-approve` | | bool | false | Require manual trigger for apply |
 | `--dry-run` | | bool | false | Preview without output |
 
 ## Examples

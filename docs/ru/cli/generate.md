@@ -29,8 +29,6 @@ terraci generate [flags]
 | `--include` | `-i` | []string | | Паттерны включения |
 | `--filter` | `-f` | []string | | Фильтр по сегменту (`key=value`, напр. `environment=prod`) |
 | `--plan-only` | | bool | false | Генерировать только план-джобы (без apply) |
-| `--auto-approve` | | bool | false | Автоматический apply |
-| `--no-auto-approve` | | bool | false | Требовать ручного подтверждения |
 | `--dry-run` | | bool | false | Просмотр без генерации |
 
 ## Примеры

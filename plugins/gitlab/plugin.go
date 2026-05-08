@@ -25,7 +25,6 @@ func init() {
 				return &configpkg.Config{
 					Image:        configpkg.Image{Name: "hashicorp/terraform:1.6"},
 					StagesPrefix: defaultStagesPrefix,
-					Parallelism:  5,
 					CacheEnabled: true,
 				}
 			},
@@ -36,11 +35,4 @@ func init() {
 // Plugin is the GitLab CI plugin.
 type Plugin struct {
 	plugin.BasePlugin[*configpkg.Config]
-}
-
-// SetPlanOnly sets plan-only mode directly on the typed config.
-func (p *Plugin) SetPlanOnly(v bool) {
-	if cfg := p.Config(); cfg != nil {
-		cfg.PlanOnly = v
-	}
 }

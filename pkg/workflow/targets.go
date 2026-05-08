@@ -9,6 +9,7 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/filter"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/workspacepath"
 )
 
 // TargetSelectionOptions controls how executable targets are selected from a workflow result.
@@ -178,9 +179,10 @@ func filterModulesByPath(modules []*discovery.Module, modulePath string) []*disc
 	if modulePath == "" {
 		return modules
 	}
+	modulePath = workspacepath.Join(modulePath)
 	filtered := make([]*discovery.Module, 0, len(modules))
 	for _, module := range modules {
-		if module.RelativePath == modulePath {
+		if module.ID() == modulePath {
 			filtered = append(filtered, module)
 		}
 	}

@@ -32,9 +32,9 @@ func mustBuildIR(
 	allModules, targetModules []*discovery.Module,
 ) *pipeline.IR {
 	tb.Helper()
-	ir, err := BuildPipelineIR(cfg, execCfg, contributions, depGraph, allModules, targetModules)
+	ir, err := buildTestIR(cfg, execCfg, contributions, depGraph, allModules, targetModules)
 	if err != nil {
-		tb.Fatalf("BuildPipelineIR() error = %v", err)
+		tb.Fatalf("buildTestIR() error = %v", err)
 	}
 	return ir
 }

@@ -28,10 +28,10 @@ func TestBuilderBuildRunModeIncludesPlanAndApplyJobs(t *testing.T) {
 		t.Fatalf("Build() error = %v", err)
 	}
 
-	if got := len(plan.PlanJobsForLevel(0)); got != 1 {
+	if got := countJobsByKind(plan, pipeline.JobKindPlan); got != 1 {
 		t.Fatalf("plan jobs = %d, want 1", got)
 	}
-	if got := len(plan.ApplyJobsForLevel(0)); got != 1 {
+	if got := countJobsByKind(plan, pipeline.JobKindApply); got != 1 {
 		t.Fatalf("apply jobs = %d, want 1", got)
 	}
 }
@@ -53,10 +53,10 @@ func TestBuilderBuildPlanModeForcesPlanOnly(t *testing.T) {
 		t.Fatalf("Build() error = %v", err)
 	}
 
-	if got := len(plan.PlanJobsForLevel(0)); got != 1 {
+	if got := countJobsByKind(plan, pipeline.JobKindPlan); got != 1 {
 		t.Fatalf("plan jobs = %d, want 1", got)
 	}
-	if got := len(plan.ApplyJobsForLevel(0)); got != 0 {
+	if got := countJobsByKind(plan, pipeline.JobKindApply); got != 0 {
 		t.Fatalf("apply jobs = %d, want 0", got)
 	}
 }
@@ -84,7 +84,7 @@ func TestBuilderBuildUsesContributionSnapshot(t *testing.T) {
 		t.Fatalf("Build() error = %v", err)
 	}
 
-	if len(plan.Jobs) != 1 || plan.Jobs[0].Name != "summary" {
+	if got := countJobsByKind(plan, pipeline.JobKindCommand); got != 1 || findJob(plan, "summary") == nil {
 		t.Fatalf("contributed jobs = %#v, want summary job", plan.Jobs)
 	}
 }
@@ -115,7 +115,7 @@ func TestBuilderBuildPlanModeKeepsAllContributedJobs(t *testing.T) {
 		t.Fatalf("Build() error = %v", err)
 	}
 
-	if len(plan.Jobs) != 5 {
+	if got := countJobsByKind(plan, pipeline.JobKindCommand); got != 5 {
 		t.Fatalf("contributed jobs = %#v, want all jobs in plan mode", plan.Jobs)
 	}
 }
@@ -137,10 +137,32 @@ func TestBuilderBuildDetailedPlanModeRequestsDetailedResources(t *testing.T) {
 		t.Fatalf("Build() error = %v", err)
 	}
 
-	planJob := plan.Levels[0].Modules[0].Plan
+	planJob := findJob(plan, pipeline.JobName(pipeline.JobKindPlan, module))
+	if planJob == nil {
+		t.Fatal("plan job not found")
+	}
 	if !planJob.Operation.Terraform.DetailedPlan {
 		t.Fatal("detailed plan mode should request detailed plan resources")
 	}
+}
+
+func countJobsByKind(ir *pipeline.IR, kind pipeline.JobKind) int {
+	count := 0
+	for i := range ir.Jobs {
+		if ir.Jobs[i].Kind == kind {
+			count++
+		}
+	}
+	return count
+}
+
+func findJob(ir *pipeline.IR, name string) *pipeline.Job {
+	for i := range ir.Jobs {
+		if ir.Jobs[i].Name == name {
+			return &ir.Jobs[i]
+		}
+	}
+	return nil
 }
 
 func workflowResultForModules(modules ...*discovery.Module) *workflow.Result {

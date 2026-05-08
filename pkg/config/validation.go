@@ -3,9 +3,8 @@ package config
 import (
 	"errors"
 	"fmt"
-	"path"
-	"slices"
-	"strings"
+
+	"github.com/edelwud/terraci/pkg/workspacepath"
 )
 
 // Validate checks if the configuration is valid
@@ -18,7 +17,7 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("structure.pattern: %w", err)
 	}
 
-	if err := validateWorkspaceRelativePath(c.ServiceDir); err != nil {
+	if err := workspacepath.ValidateOptional(c.ServiceDir); err != nil {
 		return fmt.Errorf("service_dir: %w", err)
 	}
 
@@ -42,25 +41,4 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
-}
-
-func validateWorkspaceRelativePath(value string) error {
-	normalized := strings.ReplaceAll(value, "\\", "/")
-	if normalized == "" {
-		return nil
-	}
-	if path.IsAbs(normalized) || hasWindowsDrivePrefix(normalized) {
-		return errors.New("must be workspace-relative")
-	}
-	if slices.Contains(strings.Split(normalized, "/"), "..") {
-		return errors.New("must not contain parent directory segments")
-	}
-	return nil
-}
-
-func hasWindowsDrivePrefix(value string) bool {
-	if len(value) < 2 || value[1] != ':' {
-		return false
-	}
-	return (value[0] >= 'A' && value[0] <= 'Z') || (value[0] >= 'a' && value[0] <= 'z')
 }

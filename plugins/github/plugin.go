@@ -36,10 +36,3 @@ func newBasePlugin() plugin.BasePlugin[*configpkg.Config] {
 type Plugin struct {
 	plugin.BasePlugin[*configpkg.Config]
 }
-
-// SetPlanOnly sets plan-only mode directly on the typed config.
-func (p *Plugin) SetPlanOnly(v bool) {
-	if cfg := p.Config(); cfg != nil {
-		cfg.PlanOnly = v
-	}
-}

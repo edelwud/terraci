@@ -39,26 +39,16 @@ func TestPipelineBuild_BasicModules(t *testing.T) {
 		t.Fatalf("Build failed: %v", err)
 	}
 
-	if len(ir.Levels) == 0 {
-		t.Fatal("expected at least 1 level")
+	if got := ir.ModuleCount(); got != 2 {
+		t.Errorf("expected 2 modules, got %d", got)
 	}
 
-	totalModules := 0
-	for _, level := range ir.Levels {
-		totalModules += len(level.Modules)
-	}
-	if totalModules != 2 {
-		t.Errorf("expected 2 modules, got %d", totalModules)
-	}
-
-	for _, level := range ir.Levels {
-		for _, mj := range level.Modules {
-			if mj.Plan == nil {
-				t.Errorf("module %s missing plan job", mj.Module.ID())
-			}
-			if mj.Apply == nil {
-				t.Errorf("module %s missing apply job", mj.Module.ID())
-			}
+	for _, mod := range modules {
+		if findPipelineJob(ir, pipeline.JobName(pipeline.JobKindPlan, mod)) == nil {
+			t.Errorf("module %s missing plan job", mod.ID())
+		}
+		if findPipelineJob(ir, pipeline.JobName(pipeline.JobKindApply, mod)) == nil {
+			t.Errorf("module %s missing apply job", mod.ID())
 		}
 	}
 }
@@ -88,15 +78,11 @@ func TestPipelineBuild_PlanOnly(t *testing.T) {
 		t.Fatalf("Build failed: %v", err)
 	}
 
-	for _, level := range ir.Levels {
-		for _, mj := range level.Modules {
-			if mj.Plan == nil {
-				t.Error("plan job should exist in plan-only mode")
-			}
-			if mj.Apply != nil {
-				t.Error("apply job should not exist in plan-only mode")
-			}
-		}
+	if findPipelineJob(ir, pipeline.JobName(pipeline.JobKindPlan, modules[0])) == nil {
+		t.Error("plan job should exist in plan-only mode")
+	}
+	if findPipelineJob(ir, pipeline.JobName(pipeline.JobKindApply, modules[0])) != nil {
+		t.Error("apply job should not exist in plan-only mode")
 	}
 }
 
@@ -135,22 +121,18 @@ func TestPipelineBuild_WithContributions(t *testing.T) {
 		t.Fatalf("Build failed: %v", err)
 	}
 
-	if len(ir.Jobs) != 1 {
-		t.Fatalf("expected 1 contributed job, got %d", len(ir.Jobs))
-	}
-	if ir.Jobs[0].Name != "policy-check" {
-		t.Errorf("expected policy-check, got %s", ir.Jobs[0].Name)
+	policyJob := findPipelineJob(ir, "policy-check")
+	if policyJob == nil {
+		t.Fatal("expected policy-check job")
 	}
 
 	// policy-check should depend on the plan job
-	hasPlanDep := false
-	for _, dep := range ir.Jobs[0].Dependencies {
-		if dep.Job == ir.Levels[0].Modules[0].Plan.Name && dep.Artifacts {
-			hasPlanDep = true
-		}
-	}
-	if !hasPlanDep {
+	planName := pipeline.JobName(pipeline.JobKindPlan, modules[0])
+	if !hasPipelineDependency(policyJob.Dependencies, planName) {
 		t.Error("policy-check should depend on the plan job")
+	}
+	if !hasPipelineInputArtifact(policyJob.InputArtifacts, pipeline.PlanArtifactName(planName), planName) {
+		t.Error("policy-check should restore the plan artifact")
 	}
 }
 
@@ -201,21 +183,18 @@ func TestPipelineBuild_SummaryDependsThroughResources(t *testing.T) {
 		t.Fatal("missing summary job")
 	}
 
-	hasPolicyDep := false
-	hasPlanDep := false
-	for _, dep := range summaryJob.Dependencies {
-		if dep.Job == "policy-check" && dep.Artifacts {
-			hasPolicyDep = true
-		}
-		if dep.Job == ir.Levels[0].Modules[0].Plan.Name && dep.Artifacts {
-			hasPlanDep = true
-		}
-	}
-	if !hasPolicyDep {
+	planName := pipeline.JobName(pipeline.JobKindPlan, modules[0])
+	if !hasPipelineDependency(summaryJob.Dependencies, "policy-check") {
 		t.Error("summary job should depend on policy-check report")
 	}
-	if !hasPlanDep {
+	if !hasPipelineDependency(summaryJob.Dependencies, planName) {
 		t.Error("summary job should depend on plan jobs")
+	}
+	if !hasPipelineInputArtifact(summaryJob.InputArtifacts, pipeline.ResultArtifactName("policy-check"), "policy-check") {
+		t.Error("summary job should restore policy report artifact")
+	}
+	if !hasPipelineInputArtifact(summaryJob.InputArtifacts, pipeline.PlanArtifactName(planName), planName) {
+		t.Error("summary job should restore plan artifact")
 	}
 }
 
@@ -250,8 +229,46 @@ func TestPipelineBuild_DependencyOrdering(t *testing.T) {
 		t.Fatalf("Build failed: %v", err)
 	}
 
-	// With a chain of 3, we expect multiple levels
-	if len(ir.Levels) < 2 {
-		t.Errorf("expected at least 2 levels for a dependency chain, got %d", len(ir.Levels))
+	groups, err := pipeline.Schedule(ir)
+	if err != nil {
+		t.Fatalf("Schedule failed: %v", err)
 	}
+	if len(groups) < 2 {
+		t.Errorf("expected multiple DAG groups for a dependency chain, got %d", len(groups))
+	}
+
+	eksPlan := findPipelineJob(ir, pipeline.JobName(pipeline.JobKindPlan, modules[1]))
+	if eksPlan == nil {
+		t.Fatal("missing eks plan job")
+	}
+	if !hasPipelineDependency(eksPlan.Dependencies, pipeline.JobName(pipeline.JobKindApply, modules[0])) {
+		t.Error("dependent module plan should depend on upstream apply in full run mode")
+	}
+}
+
+func findPipelineJob(ir *pipeline.IR, name string) *pipeline.Job {
+	for i := range ir.Jobs {
+		if ir.Jobs[i].Name == name {
+			return &ir.Jobs[i]
+		}
+	}
+	return nil
+}
+
+func hasPipelineDependency(deps []pipeline.JobDependency, name string) bool {
+	for _, dep := range deps {
+		if dep.Job == name {
+			return true
+		}
+	}
+	return false
+}
+
+func hasPipelineInputArtifact(inputs []pipeline.InputArtifact, name, producer string) bool {
+	for _, input := range inputs {
+		if input.Artifact.Name == name && input.ProducerJob == producer {
+			return true
+		}
+	}
+	return false
 }

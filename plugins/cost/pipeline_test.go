@@ -25,7 +25,9 @@ func TestPlugin_PipelineContribution(t *testing.T) {
 	if job.Name != "cost-estimation" {
 		t.Errorf("job.Name = %q, want %q", job.Name, "cost-estimation")
 	}
-	if len(job.Consumes) != 1 || job.Consumes[0].Kind != pipeline.ResourceKindPlanJSON || !job.Consumes[0].AllModules {
+	if len(job.Consumes) != 1 ||
+		job.Consumes[0].Kind != pipeline.ResourceKindPlanJSON ||
+		job.Consumes[0].Selector.Scope != pipeline.ResourceScopeAllModules {
 		t.Fatalf("job.Consumes = %#v, want all plan JSON", job.Consumes)
 	}
 	if !job.AllowFailure {

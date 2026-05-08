@@ -22,7 +22,7 @@
 //   - runtime.go      — lazy RuntimeProvider implementation
 //   - usecases.go     — command orchestration over typed runtime
 //   - commands.go     — CommandProvider with cobra definitions
-//   - pipeline.go     — PipelineContributor (steps + standalone jobs)
+//   - pipeline.go     — PipelineContributor (standalone DAG jobs)
 //   - init_wizard.go  — initwiz.InitContributor (TUI form fields)
 //   - output.go       — CLI rendering helpers
 //   - report.go       — typed CI report assembly via ci.EncodeSection
@@ -74,8 +74,8 @@
 //   - Treat ctx.Resolver() as never-nil (returns NoopResolver{} when no
 //     real one is bound) and idempotent; capability lookups can run from
 //     any goroutine.
-//   - Treat plugin-local Config (BasePlugin[C].cfg) as mutable only via
-//     FlagOverridable, ideally before RunE consumes it.
+//   - Treat plugin-local Config (BasePlugin[C].cfg) as command-local state
+//     owned by the plugin instance.
 //
 // Plugin factories (the function passed to registry.RegisterFactory) MUST
 // be pure: the catalog calls them once at startup for the prototype and

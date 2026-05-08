@@ -10,12 +10,6 @@ type CommandProvider interface {
 	Commands() []*cobra.Command
 }
 
-// FlagOverridable plugins support direct CLI flag overrides on their config.
-type FlagOverridable interface {
-	Plugin
-	SetPlanOnly(bool)
-}
-
 // VersionProvider plugins contribute version info to `terraci version`.
 type VersionProvider interface {
 	Plugin

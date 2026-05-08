@@ -4,36 +4,17 @@ import "github.com/edelwud/terraci/pkg/discovery"
 
 // IR is the provider-agnostic intermediate representation of a CI pipeline.
 type IR struct {
-	Levels []Level
-	Jobs   []Job // jobs contributed by feature contributors
-}
-
-// Level groups modules that can execute in parallel.
-type Level struct {
-	Index   int
-	Modules []ModuleJobs
-}
-
-// ModuleJobs holds the plan and apply jobs for a single module.
-type ModuleJobs struct {
-	Module *discovery.Module
-	Plan   *Job // nil if plan disabled
-	Apply  *Job // nil if plan-only mode
+	Jobs []Job
 }
 
 // Job is a single CI job in the IR.
-//
-// To distinguish plan / apply / contributed jobs, callers should branch on
-// Operation.Type for runtime dispatch and on `Module == nil` to detect
-// contributed jobs. There used to be a separate JobType field with iota
-// values that defaulted to "plan" for contributed jobs — that zero-value
-// trap is the reason it was removed.
 type Job struct {
 	Name           string
-	Module         *discovery.Module // nil for contributed jobs
+	Kind           JobKind
+	Module         *discovery.Module // nil for command jobs
 	Env            map[string]string
 	Dependencies   []JobDependency // job edges this depends on
-	InputArtifacts []Artifact      // artifacts restored before this job runs
+	InputArtifacts []InputArtifact // artifacts restored before this job runs
 	OutputArtifact Artifact
 	Consumes       []ResourceSpec
 	Produces       []ResourceSpec
@@ -49,17 +30,26 @@ type Artifact struct {
 	Paths []string
 }
 
+// InputArtifact is an artifact restored from another job before this job runs.
+type InputArtifact struct {
+	Artifact    Artifact
+	ProducerJob string
+	Optional    bool
+}
+
 // Configured reports whether the artifact has enough data to be published.
 func (a Artifact) Configured() bool {
 	return a.Name != "" && len(a.Paths) > 0
 }
 
-// JobDependency is a directed job edge. Artifacts marks dependencies whose
-// output artifact must be restored into the downstream workspace.
+// Configured reports whether the input artifact can be restored.
+func (a InputArtifact) Configured() bool {
+	return a.ProducerJob != "" && a.Artifact.Configured()
+}
+
+// JobDependency is a directed control edge.
 type JobDependency struct {
-	Job       string
-	Artifacts bool
-	Optional  bool
+	Job string
 }
 
 // OperationType identifies the executable job payload.

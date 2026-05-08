@@ -60,36 +60,15 @@ func (r operationDispatcher) Run(ctx context.Context, job *pipeline.Job) error {
 }
 
 type jobRunner struct {
-	main     operationRunner
-	commands commandRunner
+	main operationRunner
 }
 
 func (r *jobRunner) Run(ctx context.Context, job *pipeline.Job) error {
 	if job == nil {
 		return errors.New("job is nil")
 	}
-	if job.Module == nil {
-		return r.runStandaloneJob(ctx, job)
-	}
 	if r.main == nil {
 		return errors.New("operation runner is not configured")
 	}
 	return r.main.Run(ctx, job)
-}
-
-func (r *jobRunner) runStandaloneJob(ctx context.Context, job *pipeline.Job) error {
-	if r.commands == nil {
-		return errors.New("command runner is not configured")
-	}
-	for _, command := range job.Operation.Commands {
-		if err := r.commands.Run(ctx, commandSpec{
-			JobName:      job.Name,
-			Command:      command,
-			Env:          job.Env,
-			AllowFailure: job.AllowFailure,
-		}); err != nil {
-			return err
-		}
-	}
-	return nil
 }

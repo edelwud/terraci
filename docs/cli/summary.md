@@ -36,7 +36,7 @@ terraci-summary:
     - terraci summary
   needs:
     - job: plan-platform-stage-eu-central-1-vpc
-      optional: true
+      artifacts: true
   rules:
     - if: $CI_MERGE_REQUEST_IID
       when: always

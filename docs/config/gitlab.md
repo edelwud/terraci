@@ -70,19 +70,6 @@ extensions:
     # stages_prefix: "terraform"  # Produces: terraform-0, terraform-1
 ```
 
-### parallelism
-
-**Type:** `integer`
-**Default:** `5`
-
-Maximum number of parallel jobs per stage (reserved for future use).
-
-```yaml
-extensions:
-  gitlab:
-    parallelism: 5
-```
-
 ### plan_only
 
 **Type:** `boolean`
@@ -364,7 +351,6 @@ extensions:
 
     # Pipeline structure
     stages_prefix: "deploy"
-    parallelism: 5
     cache_enabled: true
 
     # Pipeline variables

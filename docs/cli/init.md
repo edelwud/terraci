@@ -41,7 +41,7 @@ terraci init
 This launches a TUI wizard with the following groups:
 1. **Basics** — CI provider (GitLab CI or GitHub Actions), Terraform binary (Terraform or OpenTofu)
 2. **Structure** — directory structure pattern
-3. **Pipeline Options** — toggle plan stage and auto-approve
+3. **Pipeline Options** — configure plan jobs
 4. **Plugin groups** — dynamic groups contributed by enabled plugins (gitlab/github image, summary, cost, policy, tfupdate, etc.)
 
 ### Non-Interactive Mode

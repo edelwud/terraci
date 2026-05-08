@@ -27,12 +27,18 @@ func (g *Generator) Generate() (pipeline.GeneratedPipeline, error) {
 	if g.ir == nil {
 		return &domainpkg.Workflow{Jobs: map[string]*domainpkg.Job{}}, nil
 	}
+	if err := g.ir.Validate(); err != nil {
+		return nil, err
+	}
 	return g.transform(g.ir)
 }
 
 func (g *Generator) DryRun() (*pipeline.DryRunResult, error) {
 	if g.ir == nil {
 		return &pipeline.DryRunResult{}, nil
+	}
+	if err := g.ir.Validate(); err != nil {
+		return nil, err
 	}
 	return g.ir.DryRun(g.ir.ModuleCount()), nil
 }
@@ -41,12 +47,13 @@ func (g *Generator) transform(ir *pipeline.IR) (*domainpkg.Workflow, error) {
 	workflow := newWorkflowBuilder(g.settings).baseWorkflow()
 	builder := newJobBuilder(g.settings)
 
-	for _, ref := range ir.JobRefs() {
-		job, err := builder.renderJob(ref.Job)
+	for i := range ir.Jobs {
+		irJob := &ir.Jobs[i]
+		job, err := builder.renderJob(irJob)
 		if err != nil {
 			return nil, err
 		}
-		workflow.Jobs[ref.Job.Name] = job
+		workflow.Jobs[irJob.Name] = job
 	}
 
 	return workflow, nil

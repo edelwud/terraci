@@ -4,7 +4,8 @@ package discovery
 
 import (
 	"maps"
-	"path/filepath"
+	pathpkg "path"
+	"strings"
 )
 
 // Module represents a discovered Terraform module with its path components.
@@ -37,7 +38,7 @@ func NewModule(segments, values []string, path, relPath string) *Module {
 		components:   components,
 		segments:     segments,
 		Path:         path,
-		RelativePath: relPath,
+		RelativePath: normalizeRelativePath(relPath),
 	}
 }
 
@@ -55,8 +56,8 @@ func (m *Module) Components() map[string]string {
 	return maps.Clone(m.components)
 }
 
-// ID returns a unique identifier for the module (its relative path).
-func (m *Module) ID() string { return m.RelativePath }
+// ID returns a unique slash-separated identifier for the module.
+func (m *Module) ID() string { return normalizeRelativePath(m.RelativePath) }
 
 // String returns the module ID.
 func (m *Module) String() string { return m.ID() }
@@ -91,5 +92,12 @@ func (m *Module) ContextPrefix() string {
 	for _, seg := range m.segments[:len(m.segments)-1] {
 		parts = append(parts, m.components[seg])
 	}
-	return filepath.Join(parts...)
+	return pathpkg.Join(parts...)
+}
+
+func normalizeRelativePath(relPath string) string {
+	if relPath == "" {
+		return ""
+	}
+	return pathpkg.Clean(strings.ReplaceAll(relPath, "\\", "/"))
 }

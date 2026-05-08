@@ -1,9 +1,6 @@
 package discovery
 
-import (
-	"path/filepath"
-	"testing"
-)
+import "testing"
 
 func TestModule_ID(t *testing.T) {
 	t.Parallel()
@@ -15,9 +12,18 @@ func TestModule_ID(t *testing.T) {
 
 	sub := TestModule("platform", "stage", "eu-central-1", "ec2")
 	sub.SetComponent("submodule", "rabbitmq")
-	sub.RelativePath = filepath.Join("platform", "stage", "eu-central-1", "ec2", "rabbitmq")
+	sub.RelativePath = `platform\stage\eu-central-1\ec2\rabbitmq`
 	if got := sub.ID(); got != "platform/stage/eu-central-1/ec2/rabbitmq" {
 		t.Errorf("submodule ID() = %q", got)
+	}
+
+	constructed := NewModule(
+		[]string{"service", "environment", "region", "module"},
+		[]string{"platform", "stage", "eu-central-1", "vpc"},
+		"", `platform\stage\eu-central-1\vpc`,
+	)
+	if got := constructed.RelativePath; got != "platform/stage/eu-central-1/vpc" {
+		t.Errorf("RelativePath = %q, want slash-separated path", got)
 	}
 }
 

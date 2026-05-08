@@ -90,7 +90,7 @@ Plugins implement one or more capability interfaces. The framework discovers the
 | Capability | Purpose | Plugins |
 |------------|---------|---------|
 | `CommandProvider` | CLI subcommands (`terraci cost`, `terraci local-exec`, etc.) | cost, policy, summary, tfupdate, localexec |
-| `PipelineContributor` | Inject steps/jobs into pipeline IR | cost, policy, summary, tfupdate |
+| `PipelineContributor` | Add standalone DAG jobs to pipeline IR | cost, policy, summary, tfupdate |
 | `InitContributor` | Form fields for `terraci init` wizard | gitlab, github, cost, policy, summary, tfupdate |
 | `PipelineGeneratorFactory` | Declare provider build requirements and create provider-specific generator (`NewGenerator(ctx, *pipeline.IR)`) | gitlab, github |
 | `CommentServiceFactory` | Create MR/PR comment service | gitlab, github |
@@ -102,7 +102,6 @@ Plugins implement one or more capability interfaces. The framework discovers the
 | `VersionProvider` | Contribute version info to `terraci version` | policy |
 | `KVCacheProvider` | Named key/value cache backend resolution | inmemcache |
 | `BlobStoreProvider` | Named blob/object store backend (`NewBlobStore(ctx, appCtx, opts)`) | diskblob |
-| `FlagOverridable` | Direct CLI flag overrides (`--plan-only`, `--auto-approve`) | gitlab, github |
 
 A single plugin can implement multiple capabilities. For example, `cost` implements `CommandProvider` (the `terraci cost` command), `PipelineContributor` (adds cost estimation step to pipeline), `InitContributor` (adds toggle to init wizard), `RuntimeProvider` (lazy estimator setup), and `Preflightable` (config validation).
 
@@ -231,7 +230,7 @@ For larger plugins, follow the one-file-per-capability convention used by built-
 | `commands.go` | `CommandProvider` with cobra commands |
 | `runtime.go` | `RuntimeProvider` for lazy heavy state |
 | `usecases.go` | Command orchestration over typed runtime |
-| `pipeline.go` | `PipelineContributor` steps/jobs |
+| `pipeline.go` | `PipelineContributor` jobs |
 | `init_wizard.go` | `InitContributor` form fields |
 | `output.go` | CLI rendering helpers |
 | `report.go` | CI report assembly |

@@ -1,6 +1,8 @@
 package pipeline
 
 import (
+	"fmt"
+
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/graph"
 )
@@ -21,7 +23,7 @@ type BuildOptions struct {
 func Build(opts BuildOptions) (*IR, error) {
 	planOnly := opts.Requirements.PlanOnly
 	allContributedJobs := collectContributedJobs(opts.Contributions)
-	plan, err := buildJobPlan(
+	plan, err := prepareModuleGraph(
 		opts.DepGraph, opts.TargetModules, opts.AllModules, opts.ModuleIndex,
 	)
 	if err != nil {
@@ -29,11 +31,13 @@ func Build(opts BuildOptions) (*IR, error) {
 	}
 
 	requests := allResourceRequests(opts.Requirements.Resources, allContributedJobs)
+	if err := validateBuildResourceRequests(opts.Requirements.Resources, opts.Contributions); err != nil {
+		return nil, err
+	}
 	planOutputs := requestedPlanOutputs(plan, requests)
 
 	ir := &IR{
-		Levels: buildModuleLevels(plan, opts.PlanEnabled, planOnly, opts.Script, planOutputs),
-		Jobs:   buildContributedJobs(allContributedJobs),
+		Jobs: buildJobs(plan, opts.PlanEnabled, planOnly, opts.Script, planOutputs, allContributedJobs),
 	}
 
 	if err := resolvePipelineResources(ir, plan, opts.Requirements.Resources, allContributedJobs); err != nil {
@@ -64,21 +68,42 @@ func allResourceRequests(required []ResourceRequest, jobs []ContributedJob) []Re
 	return requests
 }
 
-func requestedPlanOutputs(plan *JobPlan, requests []ResourceRequest) map[string]PlanOutputs {
-	outputs := make(map[string]PlanOutputs, len(plan.TargetModules))
-	targets := make(map[string]struct{}, len(plan.TargetModules))
-	for _, mod := range plan.TargetModules {
+func validateBuildResourceRequests(required []ResourceRequest, contributions []*Contribution) error {
+	for i, request := range required {
+		if err := validateResourceRequest(request); err != nil {
+			return fmt.Errorf("requirements.resources[%d]: %w", i, err)
+		}
+	}
+	for contributionIdx, contribution := range contributions {
+		if contribution == nil {
+			continue
+		}
+		for jobIdx, job := range contribution.Jobs {
+			for reqIdx, request := range job.Consumes {
+				if err := validateResourceRequest(request); err != nil {
+					return fmt.Errorf("contributions[%d].jobs[%d].consumes[%d]: %w", contributionIdx, jobIdx, reqIdx, err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func requestedPlanOutputs(plan *jobPlan, requests []ResourceRequest) map[string]PlanOutputs {
+	outputs := make(map[string]PlanOutputs, len(plan.targetModules))
+	targets := make(map[string]struct{}, len(plan.targetModules))
+	for _, mod := range plan.targetModules {
 		if mod == nil {
 			continue
 		}
-		targets[mod.RelativePath] = struct{}{}
+		targets[mod.ID()] = struct{}{}
 	}
 
 	for _, request := range requests {
 		if !isDetailedPlanResource(request.Kind) {
 			continue
 		}
-		for _, modulePath := range matchingRequestedModulePaths(request, plan.TargetModules, targets) {
+		for _, modulePath := range matchingRequestedModulePaths(request, plan.targetModules, targets) {
 			current := outputs[modulePath]
 			if request.Kind == ResourceKindPlanText {
 				current.Text = true
@@ -93,66 +118,74 @@ func requestedPlanOutputs(plan *JobPlan, requests []ResourceRequest) map[string]
 }
 
 func matchingRequestedModulePaths(request ResourceRequest, modules []*discovery.Module, targets map[string]struct{}) []string {
-	if request.ModulePath != "" {
-		if _, ok := targets[request.ModulePath]; ok {
-			return []string{request.ModulePath}
+	switch request.Selector.Scope {
+	case ResourceScopeModule:
+		if _, ok := targets[request.Selector.ModulePath]; ok {
+			return []string{request.Selector.ModulePath}
 		}
 		return nil
-	}
-	if request.AllModules || (!request.AllProducers && request.Producer == "") {
+	case ResourceScopeAllModules:
 		paths := make([]string, 0, len(modules))
 		for _, mod := range modules {
 			if mod != nil {
-				paths = append(paths, mod.RelativePath)
+				paths = append(paths, mod.ID())
 			}
 		}
 		return paths
+	case ResourceScopeAllProducers, ResourceScopeProducer:
+		return nil
+	default:
+		return nil
 	}
-	return nil
 }
 
-func buildModuleLevels(plan *JobPlan, planEnabled, planOnly bool, script ScriptConfig, planOutputs map[string]PlanOutputs) []Level {
-	levels := make([]Level, 0, len(plan.ExecutionLevels))
-	for levelIdx, moduleIDs := range plan.ExecutionLevels {
-		level := Level{Index: levelIdx}
-		for _, moduleID := range moduleIDs {
-			mod := plan.ModuleIndex.ByID(moduleID)
-			if mod == nil {
-				continue
-			}
+func buildJobs(plan *jobPlan, planEnabled, planOnly bool, script ScriptConfig, planOutputs map[string]PlanOutputs, contributedJobs []ContributedJob) []Job {
+	jobs := buildModuleJobs(plan, planEnabled, planOnly, script, planOutputs)
+	jobs = append(jobs, buildContributedJobs(contributedJobs)...)
+	return jobs
+}
 
-			env := ModuleEnvVars(mod)
-			mj := ModuleJobs{Module: mod}
-
-			if planEnabled {
-				mj.Plan = buildPlanJob(plan, mod, env, planOnly, script, planOutputs[mod.RelativePath])
-			}
-
-			if !planOnly {
-				mj.Apply = buildApplyJob(plan, mod, env, mj.Plan, script)
-			}
-
-			level.Modules = append(level.Modules, mj)
+func buildModuleJobs(plan *jobPlan, planEnabled, planOnly bool, script ScriptConfig, planOutputs map[string]PlanOutputs) []Job {
+	jobs := make([]Job, 0, len(plan.targetModules)*2)
+	for _, moduleID := range plan.moduleOrder {
+		mod := plan.moduleIndex.ByID(moduleID)
+		if mod == nil {
+			continue
 		}
-		levels = append(levels, level)
+		modulePath := mod.ID()
+
+		env := ModuleEnvVars(mod)
+		var planJob *Job
+
+		if planEnabled {
+			job := buildPlanJob(plan, mod, env, planOnly, script, planOutputs[modulePath])
+			planJob = &job
+			jobs = append(jobs, job)
+		}
+
+		if !planOnly {
+			jobs = append(jobs, buildApplyJob(plan, mod, env, planJob, script))
+		}
 	}
 
-	return levels
+	return jobs
 }
 
-func buildPlanJob(plan *JobPlan, mod *discovery.Module, env map[string]string, planOnly bool, script ScriptConfig, outputs PlanOutputs) *Job {
+func buildPlanJob(plan *jobPlan, mod *discovery.Module, env map[string]string, planOnly bool, script ScriptConfig, outputs PlanOutputs) Job {
 	planName := JobName(JobKindPlan, mod)
-	planOperation, produces, artifact := script.NewPlanOperation(planName, mod.RelativePath, outputs)
+	modulePath := mod.ID()
+	planOperation, produces, artifact := script.NewPlanOperation(planName, modulePath, outputs)
 
 	var deps []JobDependency
 	if planOnly {
-		deps = controlDependencies(ResolveDependencyNames(mod, JobKindPlan, plan.Subgraph, plan.ModuleIndex))
+		deps = controlDependencies(ResolveDependencyNames(mod, JobKindPlan, plan.subgraph, plan.moduleIndex))
 	} else {
-		deps = controlDependencies(ResolveDependencyNames(mod, JobKindApply, plan.Subgraph, plan.ModuleIndex))
+		deps = controlDependencies(ResolveDependencyNames(mod, JobKindApply, plan.subgraph, plan.moduleIndex))
 	}
 
-	return &Job{
+	return Job{
 		Name:           planName,
+		Kind:           JobKindPlan,
 		Module:         mod,
 		Env:            env,
 		Dependencies:   deps,
@@ -162,25 +195,29 @@ func buildPlanJob(plan *JobPlan, mod *discovery.Module, env map[string]string, p
 	}
 }
 
-func buildApplyJob(plan *JobPlan, mod *discovery.Module, env map[string]string, planJob *Job, script ScriptConfig) *Job {
-	applyOperation := script.NewApplyOperation(mod.RelativePath)
-	applyDeps := controlDependencies(ResolveDependencyNames(mod, JobKindApply, plan.Subgraph, plan.ModuleIndex))
+func buildApplyJob(plan *jobPlan, mod *discovery.Module, env map[string]string, planJob *Job, script ScriptConfig) Job {
+	modulePath := mod.ID()
+	applyOperation := script.NewApplyOperation(modulePath)
+	applyDeps := controlDependencies(ResolveDependencyNames(mod, JobKindApply, plan.subgraph, plan.moduleIndex))
 	var consumes []ResourceSpec
-	var inputArtifacts []Artifact
+	var inputArtifacts []InputArtifact
 
 	if planJob != nil {
 		applyDeps = append([]JobDependency{{
-			Job:       planJob.Name,
-			Artifacts: true,
+			Job: planJob.Name,
 		}}, applyDeps...)
 		consumes = append(consumes,
-			PlanResource(ResourceKindPlanBinary, mod.RelativePath, applyOperation.Terraform.PlanFile),
+			PlanResource(ResourceKindPlanBinary, modulePath, applyOperation.Terraform.PlanFile),
 		)
-		inputArtifacts = append(inputArtifacts, planJob.OutputArtifact)
+		inputArtifacts = append(inputArtifacts, InputArtifact{
+			Artifact:    planJob.OutputArtifact,
+			ProducerJob: planJob.Name,
+		})
 	}
 
-	return &Job{
+	return Job{
 		Name:           JobName(JobKindApply, mod),
+		Kind:           JobKindApply,
 		Module:         mod,
 		Env:            env,
 		Dependencies:   applyDeps,
@@ -195,6 +232,7 @@ func buildContributedJobs(contributedJobs []ContributedJob) []Job {
 	for _, contributedJob := range contributedJobs {
 		job := Job{
 			Name:           contributedJob.Name,
+			Kind:           JobKindCommand,
 			Dependencies:   append([]JobDependency(nil), contributedJob.Dependencies...),
 			OutputArtifact: resultArtifactFromResources(contributedJob.Name, contributedJob.Produces),
 			Produces:       append([]ResourceSpec(nil), contributedJob.Produces...),
@@ -209,26 +247,28 @@ func buildContributedJobs(contributedJobs []ContributedJob) []Job {
 	return jobs
 }
 
-func resolvePipelineResources(ir *IR, plan *JobPlan, required []ResourceRequest, contributedJobs []ContributedJob) error {
+func resolvePipelineResources(ir *IR, plan *jobPlan, required []ResourceRequest, contributedJobs []ContributedJob) error {
 	resources, err := buildResourceIndex(ir)
 	if err != nil {
 		return err
 	}
 
-	allowEmptyModuleResources := len(plan.TargetModules) == 0
+	allowEmptyModuleResources := len(plan.targetModules) == 0
 	if _, _, err := resolveResourceRequests(required, resources, "pipeline required resources", allowEmptyModuleResources); err != nil {
 		return err
 	}
 
-	for i := range ir.Jobs {
-		consumes, artifacts, deps, err := resolveResourceRequestsForJob(contributedJobs[i].Consumes, resources, ir.Jobs[i].Name, allowEmptyModuleResources)
+	contributedStart := len(ir.Jobs) - len(contributedJobs)
+	for i := range contributedJobs {
+		job := &ir.Jobs[contributedStart+i]
+		consumes, artifacts, deps, err := resolveResourceRequestsForJob(contributedJobs[i].Consumes, resources, job.Name, allowEmptyModuleResources)
 		if err != nil {
 			return err
 		}
-		ir.Jobs[i].Consumes = consumes
-		ir.Jobs[i].InputArtifacts = artifacts
+		job.Consumes = consumes
+		job.InputArtifacts = artifacts
 		for _, dep := range deps {
-			ir.Jobs[i].Dependencies = mergeJobDependency(ir.Jobs[i].Dependencies, dep)
+			job.Dependencies = mergeJobDependency(job.Dependencies, dep)
 		}
 	}
 	return nil

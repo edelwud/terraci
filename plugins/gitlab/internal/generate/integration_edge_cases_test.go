@@ -254,7 +254,7 @@ func TestEdgeCase_ModuleWithSelfReference(t *testing.T) {
 		Parallelism: 4,
 	}
 
-	ir, buildErr := BuildPipelineIR(glCfg, execCfg, nil, depGraph, modules, nil)
+	ir, buildErr := buildTestIR(glCfg, execCfg, nil, depGraph, modules, nil)
 	if buildErr != nil {
 		t.Logf("Self-reference caused error (expected): %v", buildErr)
 		return
