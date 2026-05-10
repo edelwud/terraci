@@ -10,49 +10,37 @@ import (
 
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/plugin"
-	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
+	"github.com/edelwud/terraci/plugins/policy/internal/domain"
+	policyusecase "github.com/edelwud/terraci/plugins/policy/internal/usecase"
 )
 
 func runPullPoliciesUseCase(ctx context.Context, runtime *policyRuntime) error {
-	dirs, err := runtime.puller.Pull(ctx)
+	result, err := policyusecase.Pull(ctx, runtime.sources, policyusecase.PullRequest{})
 	if err != nil {
-		return fmt.Errorf("failed to pull policies: %w", err)
+		return fmt.Errorf("failed to materialize policies: %w", err)
 	}
 
-	log.WithField("count", len(dirs)).Info("policy sources pulled")
-	log.WithField("cache", runtime.puller.CacheDir()).Info("policies cached")
+	log.WithField("count", len(result.PolicyDirs)).Info("policy sources materialized")
+	log.WithField("cache", result.CacheDir).Info("policies cached")
 	return nil
 }
 
 func runPolicyCheckUseCase(ctx context.Context, runtime *policyRuntime, w io.Writer) error {
-	policyDirs, err := runtime.puller.Pull(ctx)
+	summary, err := policyusecase.Check(ctx, policyusecase.CheckRuntime{
+		Config:       runtime.config,
+		Sources:      runtime.sources,
+		WorkDir:      runtime.workDir,
+		PlanSegments: runtime.planSegments,
+	}, policyusecase.CheckRequest{ModulePath: runtime.options.modulePath})
 	if err != nil {
-		return fmt.Errorf("failed to pull policies: %w", err)
-	}
-
-	checker := policyengine.NewChecker(runtime.config, policyDirs, runtime.workDir)
-	summary, err := buildPolicySummary(ctx, checker, runtime.options.modulePath)
-	if err != nil {
-		return fmt.Errorf("policy check failed: %w", err)
+		return fmt.Errorf("run policy check: %w", err)
 	}
 
 	persistPolicyArtifacts(runtime.serviceDir, summary)
-	return outputResult(w, runtime.options.outputFmt, summary, checker.ShouldBlock(summary))
+	return outputResult(w, runtime.options.outputFmt, summary, summary.HasFailures())
 }
 
-func buildPolicySummary(ctx context.Context, checker *policyengine.Checker, modulePath string) (*policyengine.Summary, error) {
-	if modulePath != "" {
-		result, err := checker.CheckModule(ctx, modulePath)
-		if err != nil {
-			return nil, err
-		}
-		return policyengine.NewSummary([]policyengine.Result{*result}), nil
-	}
-
-	return checker.CheckAll(ctx)
-}
-
-func persistPolicyArtifacts(serviceDir string, summary *policyengine.Summary) {
+func persistPolicyArtifacts(serviceDir string, summary *domain.Summary) {
 	if serviceDir == "" {
 		return
 	}

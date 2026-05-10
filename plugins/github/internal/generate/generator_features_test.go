@@ -222,7 +222,7 @@ func TestGenerate_WithPolicy(t *testing.T) {
 		withContributions([]*pipeline.Contribution{{
 			Jobs: []pipeline.ContributedJob{{
 				Name:     "policy-check",
-				Commands: []string{"terraci policy pull", "terraci policy check"},
+				Commands: []string{"terraci policy check"},
 				Consumes: []pipeline.ResourceRequest{
 					pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
 				},

@@ -12,7 +12,7 @@ Commands for managing and running OPA policy checks against Terraform plans.
 
 ### terraci policy pull
 
-Download policies from configured sources.
+Materialize policies from configured sources. This command is useful for local debugging or cache prewarming; generated CI jobs run `terraci policy check` directly.
 
 ```bash
 terraci policy pull
@@ -20,7 +20,7 @@ terraci policy pull
 
 This command:
 1. Reads policy sources from `.terraci.yaml`
-2. Downloads policies to the cache directory
+2. Materializes policies to the cache directory when needed
 3. Prepares policies for evaluation
 
 **Example output:**
@@ -33,7 +33,7 @@ pulling policies
 
 ### terraci policy check
 
-Run policy checks against Terraform plan JSON files.
+Run policy checks against Terraform plan JSON files. The command materializes configured policy sources before evaluation.
 
 ```bash
 terraci policy check [flags]
@@ -118,8 +118,8 @@ policy check FAILED
 
 | Code | Description |
 |------|-------------|
-| 0 | All checks passed (or `on_failure: warn/ignore`) |
-| 1 | Policy violations found (when `on_failure: block`) |
+| 0 | All checks passed, or blocking findings were downgraded/ignored |
+| 1 | Blocking policy findings found |
 | 2 | Configuration or runtime error |
 
 ## Requirements
@@ -155,10 +155,12 @@ extensions:
   policy:
     enabled: true
     sources:
-      - path: policies
+      - type: path
+        path: policies
     namespaces:
       - terraform
-    on_failure: block
+    failure_action: block
+    warning_action: warn
 ```
 
 ## See Also

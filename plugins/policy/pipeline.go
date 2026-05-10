@@ -4,7 +4,6 @@ import (
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
-	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
 
 const (
@@ -23,11 +22,11 @@ func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribu
 	if cfg := ctx.Config(); cfg != nil {
 		serviceDir = cfg.ServiceDir
 	}
-	allowFailure := p.Config().OnFailure == policyengine.ActionWarn
+	allowFailure := !p.Config().CanBlock()
 	return &pipeline.Contribution{
 		Jobs: []pipeline.ContributedJob{{
 			Name:     jobName,
-			Commands: []string{"terraci policy pull", "terraci policy check"},
+			Commands: []string{"terraci policy check"},
 			Consumes: []pipeline.ResourceRequest{
 				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
 			},

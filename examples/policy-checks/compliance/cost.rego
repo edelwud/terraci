@@ -11,7 +11,7 @@ import rego.v1
 # description: Deny expensive instance types without explicit approval tag
 # entrypoint: true
 deny contains msg if {
-	some resource in input.resource_changes
+	some resource in input.plan.resource_changes
 	resource.type == "aws_instance"
 	"create" in resource.change.actions
 	is_expensive_type(resource.change.after.instance_type)
@@ -24,7 +24,7 @@ deny contains msg if {
 
 # Warn about any RDS multi-AZ deployment
 warn contains msg if {
-	some resource in input.resource_changes
+	some resource in input.plan.resource_changes
 	resource.type == "aws_db_instance"
 	not "delete" in resource.change.actions
 	resource.change.after.multi_az == true
@@ -36,7 +36,7 @@ warn contains msg if {
 
 # Warn about large EBS volumes
 warn contains msg if {
-	some resource in input.resource_changes
+	some resource in input.plan.resource_changes
 	resource.type == "aws_ebs_volume"
 	not "delete" in resource.change.actions
 	resource.change.after.size > 500

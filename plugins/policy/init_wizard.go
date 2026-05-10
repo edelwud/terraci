@@ -9,9 +9,9 @@ const initGroupOrder = 201
 // Wizard StateMap keys. Centralized so InitGroups field definitions and
 // BuildInitConfig consumers can never drift apart on a typo.
 const (
-	keyPolicyEnabled    = "policy.enabled"
-	keyPolicySourcePath = "policy.source_path"
-	keyPolicyOnFailure  = "policy.on_failure"
+	keyPolicyEnabled       = "policy.enabled"
+	keyPolicySourcePath    = "policy.source_path"
+	keyPolicyFailureAction = "policy.failure_action"
 )
 
 // InitGroups returns the init wizard group specs for policy checks.
@@ -49,7 +49,7 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 					Placeholder: "policies",
 				},
 				{
-					Key:         keyPolicyOnFailure,
+					Key:         keyPolicyFailureAction,
 					Title:       "On policy failure",
 					Description: "Action when policy check fails",
 					Type:        initwiz.FieldSelect,
@@ -57,6 +57,7 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 					Options: []initwiz.InitOption{
 						{Label: "Block pipeline", Value: "block"},
 						{Label: "Warn only", Value: "warn"},
+						{Label: "Ignore", Value: "ignore"},
 					},
 				},
 			},
@@ -76,17 +77,17 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribut
 		sourcePath = "policies"
 	}
 
-	onFailure := state.String(keyPolicyOnFailure)
+	onFailure := state.String(keyPolicyFailureAction)
 	if onFailure == "" {
 		onFailure = "block"
 	}
 
 	return &initwiz.InitContribution{
-		PluginKey: "policy",
+		PluginKey: pluginName,
 		Config: map[string]any{
-			"enabled":    true,
-			"sources":    []map[string]any{{"path": sourcePath}},
-			"on_failure": onFailure,
+			"enabled":        true,
+			"sources":        []map[string]any{{"type": "path", "path": sourcePath}},
+			"failure_action": onFailure,
 		},
 	}
 }

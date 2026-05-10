@@ -62,7 +62,8 @@ extensions:
   policy:
     enabled: true
     sources:
-      - path: policies
+      - type: path
+        path: policies
 
   tfupdate:
     enabled: true

@@ -10,19 +10,19 @@ import (
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
-	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
+	"github.com/edelwud/terraci/plugins/policy/internal/domain"
 )
 
 func TestBuildPolicyReport_WithFailures(t *testing.T) {
-	summary := &policyengine.Summary{
+	summary := &domain.Summary{
 		TotalModules:  2,
 		PassedModules: 1,
 		FailedModules: 1,
-		Results: []policyengine.Result{
+		Results: []domain.Result{
 			{Module: "platform/prod/vpc"},
 			{
 				Module: "platform/prod/eks",
-				Failures: []policyengine.Violation{
+				Failures: []domain.Finding{
 					{Namespace: "terraform", Message: "public endpoint forbidden"},
 				},
 			},
@@ -52,13 +52,13 @@ func TestBuildPolicyReport_WithFailures(t *testing.T) {
 }
 
 func TestBuildPolicyReport_WithWarnings(t *testing.T) {
-	summary := &policyengine.Summary{
+	summary := &domain.Summary{
 		TotalModules:  1,
 		WarnedModules: 1,
-		Results: []policyengine.Result{
+		Results: []domain.Result{
 			{
 				Module: "platform/prod/app",
-				Warnings: []policyengine.Violation{
+				Warnings: []domain.Finding{
 					{Namespace: "compliance", Message: "tag missing"},
 				},
 			},
@@ -85,9 +85,9 @@ func TestBuildPolicyReport_WithWarnings(t *testing.T) {
 }
 
 func TestOutputResult_JSON(t *testing.T) {
-	summary := &policyengine.Summary{
+	summary := &domain.Summary{
 		TotalModules: 1,
-		Results: []policyengine.Result{
+		Results: []domain.Result{
 			{Module: "platform/prod/app"},
 		},
 	}
@@ -98,7 +98,7 @@ func TestOutputResult_JSON(t *testing.T) {
 		t.Fatalf("outputResult(json) error = %v", err)
 	}
 
-	var parsed policyengine.Summary
+	var parsed domain.Summary
 	if err := json.Unmarshal(buf.Bytes(), &parsed); err != nil {
 		t.Fatalf("output is not valid json: %v", err)
 	}
@@ -107,14 +107,37 @@ func TestOutputResult_JSON(t *testing.T) {
 	}
 }
 
+func TestOutputResult_JSONBlocks(t *testing.T) {
+	summary := &domain.Summary{
+		TotalModules:  1,
+		FailedModules: 1,
+		TotalFailures: 1,
+		Results: []domain.Result{
+			{Module: "platform/prod/app", Failures: []domain.Finding{{Message: "denied"}}},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := outputResult(&buf, "json", summary, true)
+	if err == nil {
+		t.Fatal("outputResult(json) error = nil, want blocking error")
+	}
+	if !strings.Contains(err.Error(), "policy check failed with 1 failures") {
+		t.Fatalf("error = %q, want blocking failure count", err.Error())
+	}
+	if !json.Valid(buf.Bytes()) {
+		t.Fatalf("output is not valid json: %s", buf.String())
+	}
+}
+
 func TestOutputText_UsesLogger(t *testing.T) {
-	summary := &policyengine.Summary{
+	summary := &domain.Summary{
 		TotalModules:  1,
 		WarnedModules: 1,
-		Results: []policyengine.Result{
+		Results: []domain.Result{
 			{
 				Module: "platform/prod/app",
-				Warnings: []policyengine.Violation{
+				Warnings: []domain.Finding{
 					{Namespace: "compliance", Message: "tag missing"},
 				},
 			},
@@ -154,8 +177,8 @@ func TestPlugin_Commands_Registration(t *testing.T) {
 	if outputFlag == nil {
 		t.Fatal("missing --output flag on policy check")
 	}
-	if outputFlag.DefValue != "" {
-		t.Fatalf("check --output default = %q, want empty default for shared policy output flag", outputFlag.DefValue)
+	if outputFlag.DefValue != "text" {
+		t.Fatalf("check --output default = %q, want text", outputFlag.DefValue)
 	}
 }
 

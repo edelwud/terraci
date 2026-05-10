@@ -4,10 +4,10 @@ import (
 	"fmt"
 
 	"github.com/edelwud/terraci/pkg/ci"
-	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
+	"github.com/edelwud/terraci/plugins/policy/internal/domain"
 )
 
-func buildPolicyReport(summary *policyengine.Summary) (*ci.Report, error) {
+func buildPolicyReport(summary *domain.Summary) (*ci.Report, error) {
 	status := ci.StatusFromCounts(summary.FailedModules, summary.WarnedModules)
 
 	rows := make([]ci.FindingRow, 0, len(summary.Results))
@@ -53,5 +53,5 @@ func buildPolicyReport(summary *policyengine.Summary) (*ci.Report, error) {
 		return nil, fmt.Errorf("build policy report: %w", err)
 	}
 
-	return ci.BuildReport("policy", "Policy Check", status, summaryText, section), nil
+	return ci.BuildReport(pluginName, "Policy Check", status, summaryText, section), nil
 }

@@ -236,8 +236,10 @@ extensions:
   # policy:
   #   enabled: true
   #   sources:
-  #     - path: policies
-  #   on_failure: block                  # block, warn
+  #     - type: path
+  #       path: policies
+  #   failure_action: block              # block, warn, ignore
+  #   warning_action: warn               # block, warn, ignore
 
   # Dependency update checks
   # tfupdate:
@@ -259,7 +261,7 @@ extensions:
 | `terraci graph` | Visualize dependency graph (DOT, PlantUML, levels) |
 | `terraci cost` | Estimate AWS costs from Terraform plan files |
 | `terraci summary` | Post plan/cost/policy summary to MR/PR (CI) |
-| `terraci policy pull` | Download policies from configured sources |
+| `terraci policy pull` | Materialize policies from configured sources |
 | `terraci policy check` | Evaluate plans against OPA policies |
 | `terraci schema` | Generate JSON schema for config validation |
 | `terraci tfupdate` | Resolve Terraform dependency versions and sync lock files |

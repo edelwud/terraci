@@ -7,18 +7,28 @@ import (
 	log "github.com/caarlos0/log"
 
 	"github.com/edelwud/terraci/plugins/internal/cliout"
-	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
+	"github.com/edelwud/terraci/plugins/policy/internal/domain"
 )
 
-func outputResult(w io.Writer, format string, summary *policyengine.Summary, shouldBlock bool) error {
+func outputResult(w io.Writer, format string, summary *domain.Summary, shouldBlock bool) error {
 	if format == "json" {
-		return cliout.WriteJSON(w, summary)
+		if err := cliout.WriteJSON(w, summary); err != nil {
+			return err
+		}
+		return blockingError(summary, shouldBlock)
 	}
 
 	return outputText(summary, shouldBlock)
 }
 
-func outputText(summary *policyengine.Summary, shouldBlock bool) error {
+func blockingError(summary *domain.Summary, shouldBlock bool) error {
+	if !shouldBlock {
+		return nil
+	}
+	return fmt.Errorf("policy check failed with %d failures", summary.TotalFailures)
+}
+
+func outputText(summary *domain.Summary, shouldBlock bool) error {
 	log.Info("summary")
 	log.IncreasePadding()
 	log.WithField("total", summary.TotalModules).Info("modules")
@@ -50,7 +60,7 @@ func outputText(summary *policyengine.Summary, shouldBlock bool) error {
 
 	if shouldBlock {
 		log.Error("policy check FAILED")
-		return fmt.Errorf("policy check failed with %d failures", summary.TotalFailures)
+		return blockingError(summary, shouldBlock)
 	}
 
 	if summary.HasWarnings() {

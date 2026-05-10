@@ -32,7 +32,7 @@ taggable_types := [
 # METADATA
 # entrypoint: true
 deny contains msg if {
-	some resource in input.resource_changes
+	some resource in input.plan.resource_changes
 	"create" in resource.change.actions
 	resource.type in taggable_types
 	some tag in required_tags
@@ -45,7 +45,7 @@ deny contains msg if {
 
 # Warn about resources with empty tag values
 warn contains msg if {
-	some resource in input.resource_changes
+	some resource in input.plan.resource_changes
 	not "delete" in resource.change.actions
 	resource.type in taggable_types
 	some tag in required_tags

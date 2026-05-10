@@ -1,6 +1,6 @@
 ---
 title: "Проверка политик"
-description: "Конфигурация OPA-политик: источники, пространства имён, правила, overwrites и интеграция с MR/PR"
+description: "Конфигурация OPA-политик: источники, пространства имён, enforcement actions, overrides и интеграция с MR/PR"
 outline: deep
 ---
 
@@ -15,10 +15,12 @@ extensions:
   policy:
     enabled: true
     sources:
-      - path: terraform           # имя директории = имя Rego package
+      - type: path
+        path: terraform           # имя директории = имя Rego package
     namespaces:
       - terraform
-    on_failure: block
+    failure_action: block
+    warning_action: warn
 ```
 
 ## Параметры конфигурации
@@ -43,8 +45,10 @@ extensions:
 extensions:
   policy:
     sources:
-      - path: terraform           # package terraform → data.terraform.deny/warn
-      - path: compliance          # package compliance → data.compliance.deny/warn
+      - type: path
+        path: terraform           # package terraform → data.terraform.deny/warn
+      - type: path
+        path: compliance          # package compliance → data.compliance.deny/warn
 ```
 
 #### Git репозиторий
@@ -53,7 +57,8 @@ extensions:
 extensions:
   policy:
     sources:
-      - git: https://github.com/org/terraform-policies.git
+      - type: git
+        url: https://github.com/org/terraform-policies.git
         ref: main
 ```
 
@@ -63,7 +68,8 @@ extensions:
 extensions:
   policy:
     sources:
-      - oci: oci://ghcr.io/org/policies:v1.0
+      - type: oci
+        url: oci://ghcr.io/org/policies:v1.0
 ```
 
 ### namespaces
@@ -82,7 +88,7 @@ extensions:
 
 Несколько namespace позволяют разделять ответственность — правила безопасности в `terraform`, контроль расходов в `compliance` и т.д.
 
-### on_failure
+### failure_action
 
 Действие при срабатывании `deny` правил:
 
@@ -92,14 +98,14 @@ extensions:
 | `warn` | Переклассифицировать нарушения в предупреждения (код возврата 0) |
 | `ignore` | Молча игнорировать |
 
-### on_warning
+### warning_action
 
 Действие при срабатывании `warn` правил:
 
 ```yaml
 extensions:
   policy:
-    on_warning: warn  # по умолчанию
+    warning_action: warn  # по умолчанию
 ```
 
 ### cache_dir
@@ -112,7 +118,7 @@ extensions:
     cache_dir: .terraci/policies  # по умолчанию
 ```
 
-### overwrites
+### overrides
 
 Переопределение настроек для конкретных модулей через `**` glob-паттерны:
 
@@ -120,12 +126,12 @@ extensions:
 extensions:
   policy:
     enabled: true
-    on_failure: block
+    failure_action: block
 
-    overwrites:
+    overrides:
       # Sandbox: переклассифицировать ошибки в предупреждения
       - match: "**/sandbox/**"
-        on_failure: warn
+        failure_action: warn
 
       # Legacy: полностью отключить проверки
       - match: "legacy/**"
@@ -149,12 +155,12 @@ extensions:
 - `**` — любое количество сегментов пути (включая ноль)
 - `*` — один сегмент пути
 
-#### Поведение overwrites
+#### Поведение overrides
 
-- **`on_failure: warn`** — deny нарушения переклассифицируются в предупреждения (отображаются, но не блокируют)
+- **`failure_action: warn`** — deny нарушения переклассифицируются в предупреждения (отображаются, но не блокируют)
 - **`enabled: false`** — модуль полностью пропускается, без evaluation
 - **`namespaces: [...]`** — заменяет список namespace для совпадающих модулей
-- Несколько overwrites могут совпасть — применяются по порядку
+- Несколько overrides могут совпасть — применяются по порядку
 
 ## Написание политик
 
@@ -171,7 +177,7 @@ import rego.v1
 # description: Запрет публичных S3 бакетов
 # entrypoint: true
 deny contains msg if {
-    some resource in input.resource_changes
+    some resource in input.plan.resource_changes
     resource.type == "aws_s3_bucket"
     not "delete" in resource.change.actions
     resource.change.after.acl == "public-read"
@@ -183,7 +189,7 @@ deny contains msg if {
 
 ```rego
 warn contains msg if {
-    some resource in input.resource_changes
+    some resource in input.plan.resource_changes
     resource.type == "aws_s3_bucket"
     not "delete" in resource.change.actions
     not has_versioning(resource)
@@ -200,7 +206,7 @@ has_versioning(resource) if {
 
 | Паттерн | Назначение |
 |---------|-----------|
-| `some resource in input.resource_changes` | Итерация ресурсов (не `[_]`) |
+| `some resource in input.plan.resource_changes` | Итерация ресурсов (не `[_]`) |
 | `"create" in resource.change.actions` | Проверка членства |
 | `not "delete" in resource.change.actions` | Отрицание членства |
 | `resource.type in taggable_types` | Проверка значения в списке |
@@ -227,8 +233,10 @@ compliance/         → package compliance   (контроль расходов)
 extensions:
   policy:
     sources:
-      - path: terraform
-      - path: compliance
+      - type: path
+        path: terraform
+      - type: path
+        path: compliance
     namespaces:
       - terraform
       - compliance
@@ -236,26 +244,41 @@ extensions:
 
 ### Структура Input
 
-Политики получают JSON плана Terraform (`terraform show -json plan.tfplan`):
+Политики получают envelope с контекстом TerraCi и raw Terraform plan JSON в `input.plan`:
 
 ```json
 {
-  "format_version": "1.2",
-  "resource_changes": [
-    {
-      "type": "aws_s3_bucket",
-      "name": "example",
-      "change": {
-        "actions": ["create"],
-        "before": null,
-        "after": {
-          "bucket": "my-bucket",
-          "acl": "private",
-          "tags": { "Environment": "stage" }
+  "terraci": {
+    "module": {
+      "path": "platform/prod/eu-central-1/vpc",
+      "components": {
+        "service": "platform",
+        "environment": "prod",
+        "region": "eu-central-1",
+        "module": "vpc"
+      }
+    },
+    "policy": { "namespaces": ["terraform"] },
+    "plan": { "path": "platform/prod/eu-central-1/vpc/plan.json" }
+  },
+  "plan": {
+    "format_version": "1.2",
+    "resource_changes": [
+      {
+        "type": "aws_s3_bucket",
+        "name": "example",
+        "change": {
+          "actions": ["create"],
+          "before": null,
+          "after": {
+            "bucket": "my-bucket",
+            "acl": "private",
+            "tags": { "Environment": "stage" }
+          }
         }
       }
-    }
-  ]
+    ]
+  }
 }
 ```
 
@@ -273,7 +296,6 @@ stages:
 policy-check:
   stage: policy-check
   script:
-    - terraci policy pull
     - terraci policy check
   needs: [plan-vpc, plan-eks]
 ```
@@ -286,13 +308,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
-      - run: terraci policy pull && terraci policy check
+      - run: terraci policy check
 ```
 
 ## Команды
 
 ```bash
-terraci policy pull                                    # Загрузить политики
+terraci policy pull                                    # Материализовать политики вручную
 terraci policy check                                   # Проверить все модули
 terraci policy check --module platform/prod/.../vpc    # Один модуль
 terraci policy check --output json                     # JSON вывод
@@ -324,7 +346,7 @@ terraci policy check -v                                # Подробный вы
 
 - Двумя namespace (`terraform` + `compliance`)
 - Пятью модулями (pass, warn, fail, skip)
-- Overwrites для sandbox и legacy
+- Overrides для sandbox и legacy
 - Rego-политиками, проходящими Regal lint
 
 ## Смотрите также

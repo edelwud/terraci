@@ -6,12 +6,13 @@ import (
 
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
-	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
+	policyconfig "github.com/edelwud/terraci/plugins/policy/internal/config"
+	"github.com/edelwud/terraci/plugins/policy/internal/domain"
 )
 
 func TestPlugin_PipelineContribution_UsesAppContextServiceDir(t *testing.T) {
 	p := newTestPlugin()
-	p.SetTypedConfig(&policyengine.Config{Enabled: true, OnFailure: policyengine.ActionWarn})
+	p.SetTypedConfig(&policyconfig.Config{Enabled: true, FailureAction: domain.ActionWarn})
 	appCtx := plugintest.NewAppContext(t, t.TempDir())
 
 	contrib := p.PipelineContribution(appCtx)
@@ -32,7 +33,10 @@ func TestPlugin_PipelineContribution_UsesAppContextServiceDir(t *testing.T) {
 		t.Fatalf("job.Consumes = %#v, want all plan JSON", job.Consumes)
 	}
 	if !job.AllowFailure {
-		t.Error("job.AllowFailure should be true when on_failure=warn")
+		t.Error("job.AllowFailure should be true when no global policy action can block")
+	}
+	if len(job.Commands) != 1 || job.Commands[0] != "terraci policy check" {
+		t.Fatalf("job.Commands = %#v, want only policy check", job.Commands)
 	}
 
 	if len(job.Produces) != 2 {

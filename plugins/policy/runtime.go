@@ -6,7 +6,8 @@ import (
 	"fmt"
 
 	"github.com/edelwud/terraci/pkg/plugin"
-	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
+	policyconfig "github.com/edelwud/terraci/plugins/policy/internal/config"
+	"github.com/edelwud/terraci/plugins/policy/internal/source"
 )
 
 type runtimeOptions struct {
@@ -16,14 +17,15 @@ type runtimeOptions struct {
 }
 
 type policyRuntime struct {
-	config     *policyengine.Config
-	puller     *policyengine.Puller
-	workDir    string
-	serviceDir string
-	options    runtimeOptions
+	config       *policyconfig.Config
+	sources      *source.Materializer
+	workDir      string
+	serviceDir   string
+	planSegments []string
+	options      runtimeOptions
 }
 
-func newRuntime(appCtx *plugin.AppContext, cfg *policyengine.Config, opts runtimeOptions) (*policyRuntime, error) {
+func newRuntime(appCtx *plugin.AppContext, cfg *policyconfig.Config, opts runtimeOptions) (*policyRuntime, error) {
 	if cfg == nil {
 		return nil, errors.New("policy checks are not configured")
 	}
@@ -35,18 +37,27 @@ func newRuntime(appCtx *plugin.AppContext, cfg *policyengine.Config, opts runtim
 	if opts.outputDir != "" {
 		runtimeConfig.CacheDir = opts.outputDir
 	}
+	if err := runtimeConfig.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid policy configuration: %w", err)
+	}
 
-	puller, err := policyengine.NewPuller(&runtimeConfig, appCtx.WorkDir(), appCtx.ServiceDir())
+	materializer, err := source.NewMaterializer(&runtimeConfig, appCtx.WorkDir(), appCtx.ServiceDir())
 	if err != nil {
-		return nil, fmt.Errorf("failed to create puller: %w", err)
+		return nil, fmt.Errorf("create policy source materializer: %w", err)
+	}
+
+	var segments []string
+	if baseCfg := appCtx.Config(); baseCfg != nil {
+		segments = append([]string(nil), baseCfg.Structure.Segments...)
 	}
 
 	return &policyRuntime{
-		config:     &runtimeConfig,
-		puller:     puller,
-		workDir:    appCtx.WorkDir(),
-		serviceDir: appCtx.ServiceDir(),
-		options:    opts,
+		config:       &runtimeConfig,
+		sources:      materializer,
+		workDir:      appCtx.WorkDir(),
+		serviceDir:   appCtx.ServiceDir(),
+		planSegments: segments,
+		options:      opts,
 	}, nil
 }
 

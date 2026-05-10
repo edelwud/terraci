@@ -116,8 +116,8 @@ terraci policy check --output json
 
 | Код | Описание |
 |-----|----------|
-| 0 | Все проверки пройдены (или `on_failure: warn/ignore`) |
-| 1 | Найдены нарушения политик (при `on_failure: block`) |
+| 0 | Все проверки пройдены или блокирующие результаты были понижены/проигнорированы |
+| 1 | Найдены блокирующие результаты политик |
 | 2 | Ошибка конфигурации или выполнения |
 
 ## Требования
@@ -153,10 +153,12 @@ extensions:
   policy:
     enabled: true
     sources:
-      - path: policies
+      - type: path
+        path: policies
     namespaces:
       - terraform
-    on_failure: block
+    failure_action: block
+    warning_action: warn
 ```
 
 ## См. также

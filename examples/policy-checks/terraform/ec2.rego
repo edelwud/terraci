@@ -9,11 +9,11 @@ import rego.v1
 
 # Deny instances with public IP in production
 deny contains msg if {
-	some resource in input.resource_changes
+	some resource in input.plan.resource_changes
 	resource.type == "aws_instance"
 	not "delete" in resource.change.actions
 	resource.change.after.associate_public_ip_address == true
-	some call in input.configuration.root_module.module_calls
+	some call in input.plan.configuration.root_module.module_calls
 	contains(call.source, "prod")
 	msg := sprintf(
 		"EC2 instance '%s' must not have public IP in production",
@@ -23,7 +23,7 @@ deny contains msg if {
 
 # Deny instances without IMDSv2
 deny contains msg if {
-	some resource in input.resource_changes
+	some resource in input.plan.resource_changes
 	resource.type == "aws_instance"
 	"create" in resource.change.actions
 	not uses_imdsv2(resource)
@@ -35,7 +35,7 @@ deny contains msg if {
 
 # Warn about instances using default VPC
 warn contains msg if {
-	some resource in input.resource_changes
+	some resource in input.plan.resource_changes
 	resource.type == "aws_instance"
 	not "delete" in resource.change.actions
 	not resource.change.after.subnet_id
@@ -47,7 +47,7 @@ warn contains msg if {
 
 # Warn about large instance types
 warn contains msg if {
-	some resource in input.resource_changes
+	some resource in input.plan.resource_changes
 	resource.type == "aws_instance"
 	not "delete" in resource.change.actions
 	is_large_instance(resource.change.after.instance_type)

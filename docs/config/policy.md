@@ -1,6 +1,6 @@
 ---
 title: Policy Checks
-description: "OPA policy configuration: sources, namespaces, enforcement rules, overwrites, and MR/PR integration"
+description: "OPA policy configuration: sources, namespaces, enforcement actions, overrides, and MR/PR integration"
 outline: deep
 ---
 
@@ -15,10 +15,12 @@ extensions:
   policy:
     enabled: true
     sources:
-      - path: terraform           # directory name = Rego package name
+      - type: path
+        path: terraform           # directory name = Rego package name
     namespaces:
       - terraform
-    on_failure: block
+    failure_action: block
+    warning_action: warn
 ```
 
 ## Configuration Options
@@ -43,8 +45,10 @@ List of policy sources. Each source is a directory of `.rego` files. The directo
 extensions:
   policy:
     sources:
-      - path: terraform           # package terraform → data.terraform.deny/warn
-      - path: compliance          # package compliance → data.compliance.deny/warn
+      - type: path
+        path: terraform           # package terraform → data.terraform.deny/warn
+      - type: path
+        path: compliance          # package compliance → data.compliance.deny/warn
 ```
 
 #### Git Repository
@@ -53,7 +57,8 @@ extensions:
 extensions:
   policy:
     sources:
-      - git: https://github.com/org/terraform-policies.git
+      - type: git
+        url: https://github.com/org/terraform-policies.git
         ref: main                # Branch, tag, or commit SHA
 ```
 
@@ -63,7 +68,8 @@ extensions:
 extensions:
   policy:
     sources:
-      - oci: oci://ghcr.io/org/policies:v1.0
+      - type: oci
+        url: oci://ghcr.io/org/policies:v1.0
 ```
 
 ### namespaces
@@ -82,9 +88,9 @@ Default: `["terraform"]`
 
 Multiple namespaces allow separating concerns — security rules in `terraform`, cost rules in `compliance`, etc.
 
-### on_failure
+### failure_action
 
-Action when `deny` rules fire:
+Action when Rego `deny` rules fire:
 
 | Value | Description |
 |-------|-------------|
@@ -92,15 +98,17 @@ Action when `deny` rules fire:
 | `warn` | Reclassify failures as warnings, continue (exit code 0) |
 | `ignore` | Silently ignore failures |
 
-### on_warning
+### warning_action
 
-Action when `warn` rules fire:
+Action when Rego `warn` rules fire:
 
 ```yaml
 extensions:
   policy:
-    on_warning: warn  # default
+    warning_action: warn  # default
 ```
+
+Allowed values: `block`, `warn`, `ignore`.
 
 ### cache_dir
 
@@ -112,7 +120,7 @@ extensions:
     cache_dir: .terraci/policies  # default
 ```
 
-### overwrites
+### overrides
 
 Override policy settings for specific modules using `**` glob patterns:
 
@@ -120,12 +128,12 @@ Override policy settings for specific modules using `**` glob patterns:
 extensions:
   policy:
     enabled: true
-    on_failure: block
+    failure_action: block
 
-    overwrites:
+    overrides:
       # Sandbox: reclassify failures as warnings (don't block)
       - match: "**/sandbox/**"
-        on_failure: warn
+        failure_action: warn
 
       # Legacy: skip policy checks entirely
       - match: "legacy/**"
@@ -150,12 +158,12 @@ extensions:
 - `**` matches any number of path segments (including zero)
 - `*` matches a single path segment
 
-#### Overwrite behavior
+#### Override behavior
 
-- **`on_failure: warn`** — deny rule violations are reclassified as warnings (appear in output but don't block)
+- **`failure_action: warn`** — deny rule violations are reclassified as warnings (appear in output but don't block)
 - **`enabled: false`** — module is skipped entirely, no evaluation
 - **`namespaces: [...]`** — replaces the namespace list for matching modules
-- Multiple overwrites can match the same module — applied in order
+- Multiple overrides can match the same module — applied in order
 
 ## Writing Policies
 
@@ -172,7 +180,7 @@ import rego.v1
 # description: Deny public S3 buckets
 # entrypoint: true
 deny contains msg if {
-    some resource in input.resource_changes
+    some resource in input.plan.resource_changes
     resource.type == "aws_s3_bucket"
     not "delete" in resource.change.actions
     resource.change.after.acl == "public-read"
@@ -184,7 +192,7 @@ deny contains msg if {
 
 ```rego
 warn contains msg if {
-    some resource in input.resource_changes
+    some resource in input.plan.resource_changes
     resource.type == "aws_s3_bucket"
     not "delete" in resource.change.actions
     not has_versioning(resource)
@@ -201,7 +209,7 @@ has_versioning(resource) if {
 
 | Pattern | Use |
 |---------|-----|
-| `some resource in input.resource_changes` | Iterate resources (not `[_]`) |
+| `some resource in input.plan.resource_changes` | Iterate resources (not `[_]`) |
 | `"create" in resource.change.actions` | Check action membership |
 | `not "delete" in resource.change.actions` | Negated membership |
 | `resource.type in taggable_types` | Check if value in list |
@@ -229,8 +237,10 @@ compliance/         → package compliance   (cost controls)
 extensions:
   policy:
     sources:
-      - path: terraform
-      - path: compliance
+      - type: path
+        path: terraform
+      - type: path
+        path: compliance
     namespaces:
       - terraform
       - compliance
@@ -238,26 +248,41 @@ extensions:
 
 ### Input Structure
 
-Policies receive Terraform plan JSON (`terraform show -json plan.tfplan`) as input:
+Policies receive an envelope with TerraCi context and the raw Terraform plan JSON under `input.plan`:
 
 ```json
 {
-  "format_version": "1.2",
-  "resource_changes": [
-    {
-      "type": "aws_s3_bucket",
-      "name": "example",
-      "change": {
-        "actions": ["create"],
-        "before": null,
-        "after": {
-          "bucket": "my-bucket",
-          "acl": "private",
-          "tags": { "Environment": "stage" }
+  "terraci": {
+    "module": {
+      "path": "platform/prod/eu-central-1/vpc",
+      "components": {
+        "service": "platform",
+        "environment": "prod",
+        "region": "eu-central-1",
+        "module": "vpc"
+      }
+    },
+    "policy": { "namespaces": ["terraform"] },
+    "plan": { "path": "platform/prod/eu-central-1/vpc/plan.json" }
+  },
+  "plan": {
+    "format_version": "1.2",
+    "resource_changes": [
+      {
+        "type": "aws_s3_bucket",
+        "name": "example",
+        "change": {
+          "actions": ["create"],
+          "before": null,
+          "after": {
+            "bucket": "my-bucket",
+            "acl": "private",
+            "tags": { "Environment": "stage" }
+          }
         }
       }
-    }
-  ]
+    ]
+  }
 }
 ```
 
@@ -277,7 +302,6 @@ stages:
 policy-check:
   stage: policy-check
   script:
-    - terraci policy pull
     - terraci policy check
   needs: [plan-vpc, plan-eks]
   artifacts:
@@ -292,15 +316,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
-      - run: |
-          terraci policy pull
-          terraci policy check
+      - run: terraci policy check
 ```
 
 ## Commands
 
 ```bash
-# Pull policies from configured sources
+# Prewarm/debug policy sources manually
 terraci policy pull
 
 # Check all modules with plan.json

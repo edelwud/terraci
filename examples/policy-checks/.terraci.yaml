@@ -23,8 +23,10 @@ extensions:
 
     # Policy sources (local, git, or OCI)
     sources:
-      - path: terraform
-      - path: compliance
+      - type: path
+        path: terraform
+      - type: path
+        path: compliance
 
     # Namespaces to evaluate in Rego policies
     namespaces:
@@ -32,18 +34,18 @@ extensions:
       - compliance
 
     # What to do when policy check fails
-    # Options: block, warn
-    on_failure: block
+    # Options: block, warn, ignore
+    failure_action: block
 
     # What to do when policy check has warnings
-    # Options: warn, ignore
-    on_warning: warn
+    # Options: block, warn, ignore
+    warning_action: warn
 
-    # Module-specific overwrites
-    overwrites:
+    # Module-specific overrides
+    overrides:
       # Allow sandbox deployments with warnings only
       - match: "**/sandbox/**"
-        on_failure: warn
+        failure_action: warn
 
       # Skip policy checks for legacy modules
       - match: "legacy/**"

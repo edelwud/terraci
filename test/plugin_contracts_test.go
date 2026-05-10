@@ -119,7 +119,8 @@ extensions:
   policy:
     enabled: true
     sources:
-      - path: terraform
+      - type: path
+        path: terraform
   summary: {}
   tfupdate:
     enabled: true
@@ -154,7 +155,8 @@ extensions:
   policy:
     enabled: true
     sources:
-      - path: terraform
+      - type: path
+        path: terraform
   tfupdate:
     enabled: true
     policy:
@@ -192,7 +194,8 @@ extensions:
   policy:
     enabled: true
     sources:
-      - path: terraform
+      - type: path
+        path: terraform
   summary: {}
   tfupdate:
     enabled: true

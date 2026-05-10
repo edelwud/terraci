@@ -15,7 +15,8 @@ import (
 // Commands returns the CLI commands provided by the policy plugin.
 func (p *Plugin) Commands() []*cobra.Command {
 	var (
-		policyOutput     string
+		pullOutputDir    string
+		checkOutputFmt   string
 		policyModulePath string
 	)
 
@@ -35,7 +36,7 @@ func (p *Plugin) Commands() []*cobra.Command {
 			log.Info("pulling policies from configured sources")
 			c, cancel := context.WithTimeout(cmd.Context(), 5*time.Minute)
 			defer cancel()
-			return current.runPull(c, appCtx, policyOutput)
+			return current.runPull(c, appCtx, pullOutputDir)
 		},
 	}
 
@@ -56,13 +57,13 @@ func (p *Plugin) Commands() []*cobra.Command {
 
 			c, cancel := context.WithTimeout(cmd.Context(), 5*time.Minute)
 			defer cancel()
-			return current.runCheck(c, appCtx, policyModulePath, policyOutput)
+			return current.runCheck(c, appCtx, policyModulePath, checkOutputFmt)
 		},
 	}
 
-	pullCmd.Flags().StringVarP(&policyOutput, "output", "o", "", "output directory for policies")
+	pullCmd.Flags().StringVarP(&pullOutputDir, "output", "o", "", "output directory for materialized policies")
 	checkCmd.Flags().StringVarP(&policyModulePath, "module", "m", "", "check specific module only")
-	checkCmd.Flags().StringVarP(&policyOutput, "output", "o", "", "output format: text, json")
+	checkCmd.Flags().StringVarP(&checkOutputFmt, "output", "o", "text", "output format: text, json")
 
 	cmd := &cobra.Command{
 		Use:   "policy",

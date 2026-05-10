@@ -6,7 +6,7 @@ OPA-based policy enforcement for Terraform plans — block violations, warn abou
 
 ```
 policy-checks/
-├── .terraci.yaml                           # Config with two policy sources + overwrites
+├── .terraci.yaml                           # Config with two policy sources + overrides
 ├── terraform/                              # "terraform" namespace policies
 │   ├── tags.rego                           #   Required tags on all taggable resources
 │   ├── s3.rego                             #   S3 encryption, ACL, versioning
@@ -47,7 +47,7 @@ Expected output:
 ```
 policy check summary   total=5 passed=2 warned=1 failed=2
 
-module: platform/sandbox/eu-central-1/test   status=warn     ← on_failure: warn overwrite
+module: platform/sandbox/eu-central-1/test   status=warn     ← failure_action: warn override
 module: platform/stage/eu-central-1/bad      status=fail     ← 10 failures from terraform + compliance
 module: platform/stage/eu-central-1/vpc      status=fail     ← S3 encryption missing
                                                               ← app passed, legacy skipped
@@ -62,27 +62,29 @@ extensions:
 
     # Multiple policy sources — each directory is a Rego package
     sources:
-      - path: terraform       # package terraform → deny/warn rules
-      - path: compliance      # package compliance → cost rules
+      - type: path
+        path: terraform       # package terraform → deny/warn rules
+      - type: path
+        path: compliance      # package compliance → cost rules
 
     # Evaluate both namespaces
     namespaces:
       - terraform
       - compliance
 
-    on_failure: block         # Default: block pipeline on deny violations
-    on_warning: warn          # Default: continue with warnings
+    failure_action: block     # Default: block pipeline on deny violations
+    warning_action: warn      # Default: continue with warnings
 
-    # Per-module overwrites using ** glob patterns
-    overwrites:
+    # Per-module overrides using ** glob patterns
+    overrides:
       - match: "**/sandbox/**"
-        on_failure: warn      # Sandbox: reclassify failures → warnings
+        failure_action: warn  # Sandbox: reclassify failures → warnings
 
       - match: "legacy/**"
         enabled: false        # Legacy: skip policy checks entirely
 ```
 
-### Overwrites
+### Overrides
 
 `**` matches any number of path segments:
 
@@ -92,7 +94,7 @@ extensions:
 | `legacy/**` | `legacy/old/eu-central-1/db` | `platform/legacy/something` |
 | `**/prod/**` | `platform/prod/eu-central-1/vpc` | `platform/stage/eu-central-1/vpc` |
 
-When `on_failure: warn` is set via overwrite, deny rule violations are **reclassified as warnings** — they appear in the output but don't block the pipeline.
+When `failure_action: warn` is set via override, deny rule violations are **reclassified as warnings** — they appear in the output but don't block the pipeline.
 
 When `enabled: false` is set, the module is **skipped entirely** — no evaluation happens.
 
@@ -144,7 +146,7 @@ import rego.v1
 # description: Deny public S3 buckets
 # entrypoint: true
 deny contains msg if {
-    some resource in input.resource_changes
+    some resource in input.plan.resource_changes
     resource.type == "aws_s3_bucket"
     not "delete" in resource.change.actions
     resource.change.after.acl == "public-read"
@@ -153,7 +155,7 @@ deny contains msg if {
 ```
 
 Key patterns:
-- `some resource in input.resource_changes` — iterate resources (not `[_]`)
+- `some resource in input.plan.resource_changes` — iterate resources (not `[_]`)
 - `"create" in resource.change.actions` — check membership (not `== "create"`)
 - `not "delete" in resource.change.actions` — negated membership
 - `deny contains msg if` — deny rules block; `warn contains msg if` — warn rules don't
@@ -181,7 +183,7 @@ deploy:
         job: generate
 ```
 
-The generated pipeline includes a `policy-check` stage between plan and apply. If `on_failure: block` and any deny rules fire, the pipeline stops.
+The generated pipeline includes a `policy-check` stage between plan and apply. If `failure_action: block` and any deny rules fire, the pipeline stops.
 
 ## Policy Sources
 
@@ -190,12 +192,15 @@ extensions:
   policy:
     sources:
       # Local directory
-      - path: terraform
+      - type: path
+        path: terraform
 
       # Git repository
-      - git: https://github.com/org/terraform-policies.git
+      - type: git
+        url: https://github.com/org/terraform-policies.git
         ref: main
 
       # OCI registry
-      - oci: oci://ghcr.io/org/policies:v1.0
+      - type: oci
+        url: oci://ghcr.io/org/policies:v1.0
 ```

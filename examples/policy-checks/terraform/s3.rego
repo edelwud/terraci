@@ -9,7 +9,7 @@ import rego.v1
 
 # Deny public S3 buckets
 deny contains msg if {
-	some resource in input.resource_changes
+	some resource in input.plan.resource_changes
 	resource.type == "aws_s3_bucket"
 	not "delete" in resource.change.actions
 	resource.change.after.acl == "public-read"
@@ -20,7 +20,7 @@ deny contains msg if {
 }
 
 deny contains msg if {
-	some resource in input.resource_changes
+	some resource in input.plan.resource_changes
 	resource.type == "aws_s3_bucket"
 	not "delete" in resource.change.actions
 	resource.change.after.acl == "public-read-write"
@@ -32,7 +32,7 @@ deny contains msg if {
 
 # Deny S3 buckets without encryption
 deny contains msg if {
-	some resource in input.resource_changes
+	some resource in input.plan.resource_changes
 	resource.type == "aws_s3_bucket"
 	"create" in resource.change.actions
 	not has_encryption(resource)
@@ -44,7 +44,7 @@ deny contains msg if {
 
 # Warn about buckets without versioning
 warn contains msg if {
-	some resource in input.resource_changes
+	some resource in input.plan.resource_changes
 	resource.type == "aws_s3_bucket"
 	not "delete" in resource.change.actions
 	not has_versioning(resource)
