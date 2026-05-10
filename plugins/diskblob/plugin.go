@@ -2,13 +2,8 @@
 package diskblob
 
 import (
-	"context"
-	"fmt"
-
-	"github.com/edelwud/terraci/pkg/cache/blobcache"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/registry"
-	"github.com/edelwud/terraci/plugins/diskblob/internal/fsstore"
 )
 
 func init() {
@@ -28,14 +23,4 @@ func init() {
 // Plugin is the filesystem-backed blob store backend.
 type Plugin struct {
 	plugin.BasePlugin[*Config]
-}
-
-// NewBlobStore returns a new filesystem-backed blob store. Pass
-// plugin.BlobStoreOptions{} to use defaults from configuration.
-func (p *Plugin) NewBlobStore(_ context.Context, appCtx *plugin.AppContext, opts plugin.BlobStoreOptions) (blobcache.Store, error) {
-	rootDir := resolveRootDir(appCtx, p.Config(), opts)
-	if err := fsstore.ValidateRootDir(rootDir); err != nil {
-		return nil, fmt.Errorf("diskblob: invalid root_dir: %w", err)
-	}
-	return NewStore(rootDir), nil
 }

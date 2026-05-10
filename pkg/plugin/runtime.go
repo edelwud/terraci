@@ -19,15 +19,11 @@ import (
 //		return newRuntime(appCtx, p.Config(), runtimeOptions{})
 //	}
 //
-//	func (p *Plugin) runtime(ctx context.Context, appCtx *AppContext, opts runtimeOptions) (*myRuntime, error) {
-//		if opts == (runtimeOptions{}) {
-//			rawRuntime, err := p.Runtime(ctx, appCtx)
-//			if err != nil {
-//				return nil, err
-//			}
-//			return RuntimeAs[*myRuntime](rawRuntime)
+//	func (p *Plugin) runtime(ctx context.Context, appCtx *AppContext, opts *runtimeOptions) (*myRuntime, error) {
+//		if opts == nil {
+//			return BuildRuntime[*myRuntime](ctx, p, appCtx)
 //		}
-//		return newRuntime(appCtx, p.Config(), opts)
+//		return newRuntime(appCtx, p.Config(), *opts)
 //	}
 type RuntimeProvider interface {
 	Plugin
@@ -46,8 +42,8 @@ func RuntimeAs[T any](runtime any) (T, error) {
 	return typed, nil
 }
 
-// BuildRuntime calls p.Runtime and type-asserts the result to T in one step.
-// It combines the Runtime() call and RuntimeAs[T]() assertion — the recommended
+// BuildRuntime calls p.Runtime and type-asserts the result to T in one call.
+// It combines the Runtime() call and RuntimeAs[T]() assertion: the recommended
 // shorthand for plugin use-cases:
 //
 //	func (p *Plugin) runtime(ctx context.Context, appCtx *AppContext) (*myRuntime, error) {

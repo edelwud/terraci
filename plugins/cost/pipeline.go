@@ -15,7 +15,7 @@ var (
 	reportFile  = ci.ReportFilename(pluginName)
 )
 
-// PipelineContribution adds a cost estimation job to the CI pipeline.
+// PipelineContribution adds a cost estimation job to the pipeline DAG.
 // Framework guarantees this is only called when IsEnabled() == true.
 func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribution {
 	cfg := ctx.Config()

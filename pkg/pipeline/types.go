@@ -80,14 +80,13 @@ type TerraformOperation struct {
 	UsePlanFile  bool
 }
 
-// Contribution describes standalone jobs that an external contributor wants to
-// add to the generated pipeline.
+// Contribution describes provider-independent DAG jobs added by a plugin.
 type Contribution struct {
-	// Jobs are standalone jobs added to the pipeline.
+	// Jobs are command jobs added to the pipeline DAG.
 	Jobs []ContributedJob
 }
 
-// ContributedJob is a standalone job contributed to the pipeline.
+// ContributedJob is a command job contributed to the pipeline DAG.
 type ContributedJob struct {
 	Name         string
 	Commands     []string

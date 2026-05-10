@@ -14,25 +14,27 @@
 //
 // # Plugin file convention
 //
-// Each runtime-heavy plugin (cost, policy, tfupdate) keeps one file per
-// capability so the file list reads as a capability index:
+// Each command-oriented plugin with a typed runtime boundary (cost, policy,
+// summary, tfupdate) keeps one file per capability so the file list reads as a
+// capability index:
 //
 //   - plugin.go       — registration shell + typed BasePlugin[C] config
 //   - lifecycle.go    — cheap Preflight checks only (no network, no FS scan)
 //   - runtime.go      — lazy RuntimeProvider implementation
 //   - usecases.go     — command orchestration over typed runtime
 //   - commands.go     — CommandProvider with cobra definitions
-//   - pipeline.go     — PipelineContributor (standalone DAG jobs)
+//   - pipeline.go     — PipelineContributor (pipeline DAG jobs)
 //   - init_wizard.go  — initwiz.InitContributor (TUI form fields)
 //   - output.go       — CLI rendering helpers
 //   - report.go       — typed CI report assembly via ci.EncodeSection
 //
-// Smaller plugins (git, diskblob, inmemcache, summary, localexec) only
-// implement the capabilities they need — there is no minimum surface.
+// Smaller plugins (git, diskblob, inmemcache, localexec) only implement the
+// capabilities they need — there is no minimum surface.
 //
 // # Lifecycle
 //
-// The framework drives every plugin through four stages per command run:
+// The framework drives every plugin through four lifecycle checkpoints per
+// command run:
 //
 //	┌─────────────┐
 //	│  Register   │  init() → registry.RegisterFactory(factory)

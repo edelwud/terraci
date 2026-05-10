@@ -123,10 +123,7 @@ func (p *Plugin) Runtime(ctx context.Context, appCtx *plugin.AppContext) (any, e
 }
 
 // runtime returns the typed plugin runtime. Pass opts == nil to reuse the
-// framework-cached runtime created from p.Runtime; pass a non-nil pointer to
-// build a fresh runtime with command-specific overrides. The previous
-// isZero() predicate had to enumerate every option field — a new flag could
-// be added without updating it and silently fall through to the cached path.
+// RuntimeProvider path; pass opts to build a command-specific runtime.
 func (p *Plugin) runtime(ctx context.Context, appCtx *plugin.AppContext, opts *runtimeOptions) (*updateRuntime, error) {
 	if opts == nil {
 		return plugin.BuildRuntime[*updateRuntime](ctx, p, appCtx)

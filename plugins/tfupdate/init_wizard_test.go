@@ -29,8 +29,8 @@ func TestPlugin_InitGroups(t *testing.T) {
 		t.Fatalf("group[0] fields count = %d, want 1", len(g0.Fields))
 	}
 	f := g0.Fields[0]
-	if f.Key != "update.enabled" {
-		t.Errorf("field.Key = %q, want %q", f.Key, "update.enabled")
+	if f.Key != "tfupdate.enabled" {
+		t.Errorf("field.Key = %q, want %q", f.Key, "tfupdate.enabled")
 	}
 	if f.Type != initwiz.FieldBool {
 		t.Errorf("field.Type = %q, want %q", f.Type, initwiz.FieldBool)
@@ -53,7 +53,7 @@ func TestPlugin_InitGroups(t *testing.T) {
 
 	// Verify field keys
 	keys := []string{g1.Fields[0].Key, g1.Fields[1].Key, g1.Fields[2].Key}
-	wantKeys := []string{"update.target", "update.bump", "update.pipeline"}
+	wantKeys := []string{"tfupdate.target", "tfupdate.bump", "tfupdate.pipeline"}
 	for i, want := range wantKeys {
 		if keys[i] != want {
 			t.Errorf("field[%d].Key = %q, want %q", i, keys[i], want)
@@ -80,22 +80,22 @@ func TestPlugin_InitGroups_ShowWhen(t *testing.T) {
 	}
 
 	stateEnabled := initwiz.NewStateMap()
-	stateEnabled.Set("update.enabled", true)
+	stateEnabled.Set("tfupdate.enabled", true)
 	if !showWhen(stateEnabled) {
-		t.Error("ShowWhen should return true when update.enabled=true")
+		t.Error("ShowWhen should return true when tfupdate.enabled=true")
 	}
 
 	stateDisabled := initwiz.NewStateMap()
-	stateDisabled.Set("update.enabled", false)
+	stateDisabled.Set("tfupdate.enabled", false)
 	if showWhen(stateDisabled) {
-		t.Error("ShowWhen should return false when update.enabled=false")
+		t.Error("ShowWhen should return false when tfupdate.enabled=false")
 	}
 }
 
 func TestPlugin_BuildInitConfig_Enabled(t *testing.T) {
 	p := newTestPlugin(t)
 	state := initwiz.NewStateMap()
-	state.Set("update.enabled", true)
+	state.Set("tfupdate.enabled", true)
 
 	contrib := p.BuildInitConfig(state)
 	if contrib == nil {
@@ -116,7 +116,7 @@ func TestPlugin_BuildInitConfig_Enabled(t *testing.T) {
 func TestPlugin_BuildInitConfig_Disabled(t *testing.T) {
 	p := newTestPlugin(t)
 	state := initwiz.NewStateMap()
-	state.Set("update.enabled", false)
+	state.Set("tfupdate.enabled", false)
 
 	contrib := p.BuildInitConfig(state)
 	if contrib != nil {
@@ -137,8 +137,8 @@ func TestPlugin_BuildInitConfig_NotSet(t *testing.T) {
 func TestPlugin_BuildInitConfig_NonDefaultTarget(t *testing.T) {
 	p := newTestPlugin(t)
 	state := initwiz.NewStateMap()
-	state.Set("update.enabled", true)
-	state.Set("update.target", "modules")
+	state.Set("tfupdate.enabled", true)
+	state.Set("tfupdate.target", "modules")
 
 	contrib := p.BuildInitConfig(state)
 	if contrib == nil {
@@ -152,15 +152,15 @@ func TestPlugin_BuildInitConfig_NonDefaultTarget(t *testing.T) {
 func TestPlugin_BuildInitConfig_NonDefaultBump(t *testing.T) {
 	p := newTestPlugin(t)
 	state := initwiz.NewStateMap()
-	state.Set("update.enabled", true)
-	state.Set("update.bump", "patch")
+	state.Set("tfupdate.enabled", true)
+	state.Set("tfupdate.bump", "patch")
 
 	contrib := p.BuildInitConfig(state)
 	if contrib == nil {
 		t.Fatal("BuildInitConfig() returned nil")
 	}
 	if _, ok := contrib.Config["bump"]; ok {
-		t.Error("Config should not contain top-level 'bump' (legacy key); want nested policy.bump")
+		t.Error("Config should not contain top-level 'bump'; want nested policy.bump")
 	}
 	policy, ok := contrib.Config["policy"].(map[string]any)
 	if !ok {
@@ -174,8 +174,8 @@ func TestPlugin_BuildInitConfig_NonDefaultBump(t *testing.T) {
 func TestPlugin_BuildInitConfig_Pipeline(t *testing.T) {
 	p := newTestPlugin(t)
 	state := initwiz.NewStateMap()
-	state.Set("update.enabled", true)
-	state.Set("update.pipeline", true)
+	state.Set("tfupdate.enabled", true)
+	state.Set("tfupdate.pipeline", true)
 
 	contrib := p.BuildInitConfig(state)
 	if contrib == nil {
@@ -189,9 +189,9 @@ func TestPlugin_BuildInitConfig_Pipeline(t *testing.T) {
 func TestPlugin_BuildInitConfig_AllDefaults(t *testing.T) {
 	p := newTestPlugin(t)
 	state := initwiz.NewStateMap()
-	state.Set("update.enabled", true)
-	state.Set("update.target", "all")
-	state.Set("update.bump", "minor")
+	state.Set("tfupdate.enabled", true)
+	state.Set("tfupdate.target", "all")
+	state.Set("tfupdate.bump", "minor")
 
 	contrib := p.BuildInitConfig(state)
 	if contrib == nil {
@@ -205,7 +205,7 @@ func TestPlugin_BuildInitConfig_AllDefaults(t *testing.T) {
 		t.Error("Config should not contain 'policy' when bump is the default 'minor'")
 	}
 	if _, ok := contrib.Config["bump"]; ok {
-		t.Error("Config should never contain top-level 'bump' (legacy key)")
+		t.Error("Config should never contain top-level 'bump'")
 	}
 	if _, ok := contrib.Config["pipeline"]; ok {
 		t.Error("Config should not contain 'pipeline' when not set to true")

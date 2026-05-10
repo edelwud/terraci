@@ -160,7 +160,7 @@ func (m *initModel) basicsGroup() *huh.Group {
 
 // buildMergedGroup combines fields from multiple specs into a single group.
 // Used for CategoryPipeline and CategoryFeature — merges toggle fields
-// from different plugins into one cohesive step.
+// from different plugins into one cohesive section.
 // Fields with duplicate keys are deduplicated (first occurrence wins).
 func buildMergedGroup(title string, specs []*initwiz.InitGroupSpec, state *initwiz.StateMap) *huh.Group {
 	var fields []huh.Field

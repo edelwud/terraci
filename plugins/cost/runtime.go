@@ -14,16 +14,11 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
 
-// runtimeOptions hold command-time runtime overrides. Empty today; kept for
-// shape parity with policy/tfupdate so future cost CLI flags slot in without
-// touching the plugin runtime API.
-type runtimeOptions struct{}
-
 type costRuntime struct {
 	estimator *engine.Estimator
 }
 
-func newRuntime(ctx context.Context, appCtx *plugin.AppContext, cfg *model.CostConfig, _ runtimeOptions) (*costRuntime, error) {
+func newRuntime(ctx context.Context, appCtx *plugin.AppContext, cfg *model.CostConfig) (*costRuntime, error) {
 	if err := validateRuntimeConfig(cfg); err != nil {
 		return nil, err
 	}
@@ -47,17 +42,12 @@ func newRuntime(ctx context.Context, appCtx *plugin.AppContext, cfg *model.CostC
 // Runtime implements plugin.RuntimeProvider and serves as the reference lazy
 // runtime pattern for runtime-heavy plugins in TerraCi.
 func (p *Plugin) Runtime(ctx context.Context, appCtx *plugin.AppContext) (any, error) {
-	return newRuntime(ctx, appCtx, p.Config(), runtimeOptions{})
+	return newRuntime(ctx, appCtx, p.Config())
 }
 
-// runtime returns the typed plugin runtime. Pass opts == nil to reuse the
-// framework-cached runtime created from p.Runtime; pass a non-nil pointer to
-// build a fresh runtime with command-specific overrides.
-func (p *Plugin) runtime(ctx context.Context, appCtx *plugin.AppContext, opts *runtimeOptions) (*costRuntime, error) {
-	if opts == nil {
-		return plugin.BuildRuntime[*costRuntime](ctx, p, appCtx)
-	}
-	return newRuntime(ctx, appCtx, p.Config(), *opts)
+// runtime returns the typed plugin runtime used by cost use-cases.
+func (p *Plugin) runtime(ctx context.Context, appCtx *plugin.AppContext) (*costRuntime, error) {
+	return plugin.BuildRuntime[*costRuntime](ctx, p, appCtx)
 }
 
 func validateRuntimeConfig(cfg *model.CostConfig) error {

@@ -32,8 +32,8 @@ func (p *Plugin) Commands() []*cobra.Command {
 		Short: "Execute the generated terraci flow locally",
 		Long: `Execute the terraci pipeline IR locally against the current Terraform project.
 
-Use "plan" to run plan jobs and standalone jobs whose resource inputs are available.
-Use "run" to run the full local flow: plan, apply, and resource-dependent jobs.
+Use "plan" to run plan jobs and contributed DAG jobs whose resource inputs are available.
+Use "run" to run the full local flow: plan, apply, and resource-dependent DAG jobs.
 After execution, local-exec always prints a local DAG/job summary.
 
 Target selection flags such as --module, --filter, --include, --exclude, and
@@ -60,8 +60,8 @@ func newPlanCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   cmdPlan,
 		Short: "Run the plan DAG locally",
-		Long: `Run local planning for the selected modules and then execute standalone
-jobs whose resource inputs are available in plan mode. local-exec always prints
+		Long: `Run local planning for the selected modules and then execute contributed
+DAG jobs whose resource inputs are available in plan mode. local-exec always prints
 the execution summary. If target selection resolves to no modules, the command
 exits without error after logging "no modules to process".`,
 		Example: `  terraci local-exec plan
@@ -84,7 +84,7 @@ func newRunCmd() *cobra.Command {
 		Use:   cmdRun,
 		Short: "Run the full DAG locally",
 		Long: `Run the full local execution flow for the selected modules: plan, apply,
-and standalone resource-dependent jobs. local-exec always prints the execution
+and resource-dependent DAG jobs. local-exec always prints the execution
 summary. If target selection resolves to no modules, the command exits without
 error after logging "no modules to process".`,
 		Example: `  terraci local-exec run

@@ -8,8 +8,7 @@ import (
 )
 
 const (
-	pluginName = "policy"
-	jobName    = "policy-check"
+	jobName = "policy-check"
 )
 
 var (
@@ -17,7 +16,7 @@ var (
 	reportFile  = ci.ReportFilename(pluginName)
 )
 
-// PipelineContribution adds a policy-check job to the CI pipeline.
+// PipelineContribution adds a policy-check job to the pipeline DAG.
 // Framework guarantees this is only called when IsEnabled() == true.
 func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribution {
 	serviceDir := ""

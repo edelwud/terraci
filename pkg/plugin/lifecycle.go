@@ -2,8 +2,6 @@ package plugin
 
 import "context"
 
-// --- Lifecycle interfaces ---
-//
 // Preferred plugin flow:
 //   - register via init() + registry.RegisterFactory()
 //   - configure via ConfigLoader

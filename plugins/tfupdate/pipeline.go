@@ -10,7 +10,7 @@ func (p *Plugin) PipelineContributionEnabled(_ *plugin.AppContext) bool {
 	return cfg != nil && cfg.Pipeline
 }
 
-// PipelineContribution adds a dependency update check job to the CI pipeline.
+// PipelineContribution adds a dependency update check job to the pipeline DAG.
 // Only contributes when pipeline: true is set in config.
 func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribution {
 	const jobName = "tfupdate-check"

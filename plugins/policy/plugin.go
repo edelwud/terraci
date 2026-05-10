@@ -7,10 +7,13 @@ import (
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
 
+// pluginName is the canonical plugin identifier used in commands, reports and config.
+const pluginName = "policy"
+
 func init() {
 	registry.RegisterFactory(func() plugin.Plugin {
 		return &Plugin{BasePlugin: plugin.BasePlugin[*policyengine.Config]{
-			PluginName: "policy",
+			PluginName: pluginName,
 			PluginDesc: "OPA policy checks for Terraform plans",
 			EnableMode: plugin.EnabledExplicitly,
 			DefaultCfg: func() *policyengine.Config {

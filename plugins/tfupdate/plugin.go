@@ -30,9 +30,3 @@ type Plugin struct {
 	plugin.BasePlugin[*tfupdateengine.UpdateConfig]
 	registryFactory func() tfregistry.Client
 }
-
-// Reset resets all plugin state.
-func (p *Plugin) Reset() {
-	p.BasePlugin.Reset()
-	p.registryFactory = nil
-}

@@ -8,8 +8,8 @@ import (
 	costruntime "github.com/edelwud/terraci/plugins/cost/internal/runtime"
 )
 
-// maxModuleConcurrency caps the number of modules processed simultaneously
-// within each phase (scanning and estimation use separate semaphores of this size).
+// maxModuleConcurrency caps the number of modules processed simultaneously.
+// Scanning and estimation use separate semaphores with this size.
 const maxModuleConcurrency = 4
 
 // ModulePlanAdapter converts external plan sources into the cost engine input model.

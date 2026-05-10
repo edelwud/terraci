@@ -15,7 +15,7 @@ type ExecutionMode int
 const (
 	// ExecutionModeRun executes the full local flow, including apply jobs.
 	ExecutionModeRun ExecutionMode = iota
-	// ExecutionModePlan executes plan jobs and resource-dependent standalone jobs.
+	// ExecutionModePlan executes plan jobs and resource-dependent DAG jobs.
 	ExecutionModePlan
 )
 

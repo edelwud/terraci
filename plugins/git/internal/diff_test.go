@@ -36,7 +36,7 @@ func TestUnshallow_ClearsShallowList(t *testing.T) {
 
 	client := NewClient(dir)
 
-	// Without remote, the deep-fetch step fails — we surface it verbatim so
+	// Without remote, the deep-fetch operation fails — we surface it verbatim so
 	// CI logs explain the underlying transport error. The shallow file stays
 	// in place for the next attempt; this is the documented contract.
 	if err := client.Unshallow(); err == nil {
@@ -67,8 +67,7 @@ func TestUnshallow_ClearsShallowList(t *testing.T) {
 }
 
 // TestGetChangedFiles_RejectsShallowRepository asserts that shallow clones are
-// surfaced as an explicit error rather than silently producing the truncated
-// diff (which historically reported every file as changed).
+// surfaced as an explicit error rather than silently producing a truncated diff.
 func TestGetChangedFiles_RejectsShallowRepository(t *testing.T) {
 	dir := t.TempDir()
 	repo, err := gogit.PlainInit(dir, false)

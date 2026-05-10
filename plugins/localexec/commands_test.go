@@ -70,8 +70,8 @@ func TestPlugin_Commands_Registration(t *testing.T) {
 	if !strings.Contains(runCmd.Long, `logging "no modules to process"`) {
 		t.Fatalf("run command long help should describe empty target behavior:\n%s", runCmd.Long)
 	}
-	if !strings.Contains(runCmd.Long, "standalone resource-dependent jobs") {
-		t.Fatalf("run command long help should describe standalone resource jobs:\n%s", runCmd.Long)
+	if !strings.Contains(runCmd.Long, "resource-dependent DAG jobs") {
+		t.Fatalf("run command long help should describe resource-dependent DAG jobs:\n%s", runCmd.Long)
 	}
 	for _, wanted := range []string{"local-exec run --module platform/stage/eu-central-1/vpc", "local-exec run --filter environment=stage --parallelism 2"} {
 		if !strings.Contains(runCmd.Example, wanted) {

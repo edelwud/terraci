@@ -26,10 +26,10 @@ func TestRunSummaryUseCase_NoPlanResults(t *testing.T) {
 	appCtx := newTestAppContext(t, t.TempDir())
 
 	output := plugSummaryOutput(t, func() {
-		err := runSummaryUseCase(context.Background(), appCtx, &summaryengine.Config{}, func() (summaryProvider, error) {
+		err := runSummaryUseCase(context.Background(), appCtx, testSummaryRuntime(&summaryengine.Config{}, func() (summaryProvider, error) {
 			t.Fatal("provider resolver should not be called when no plan results exist")
 			return nil, nil
-		})
+		}))
 		if err != nil {
 			t.Fatalf("runSummaryUseCase() error = %v", err)
 		}
@@ -46,9 +46,9 @@ func TestRunSummaryUseCase_NoProvider_PrintsSummaryOnly(t *testing.T) {
 	writePlanJSON(t, workDir, testPlanWithChanges)
 
 	output := plugSummaryOutput(t, func() {
-		err := runSummaryUseCase(context.Background(), appCtx, &summaryengine.Config{}, func() (summaryProvider, error) {
+		err := runSummaryUseCase(context.Background(), appCtx, testSummaryRuntime(&summaryengine.Config{}, func() (summaryProvider, error) {
 			return nil, errors.New("no provider")
-		})
+		}))
 		if err != nil {
 			t.Fatalf("runSummaryUseCase() error = %v", err)
 		}
@@ -76,9 +76,9 @@ func TestRunSummaryUseCase_PostsComment(t *testing.T) {
 		service:    commentSvc,
 	}
 
-	err := runSummaryUseCase(context.Background(), appCtx, &summaryengine.Config{}, func() (summaryProvider, error) {
+	err := runSummaryUseCase(context.Background(), appCtx, testSummaryRuntime(&summaryengine.Config{}, func() (summaryProvider, error) {
 		return provider, nil
-	})
+	}))
 	if err != nil {
 		t.Fatalf("runSummaryUseCase() error = %v", err)
 	}
@@ -100,13 +100,13 @@ func TestRunSummaryUseCase_OnChangesOnlySkipsNoChanges(t *testing.T) {
 
 	commentSvc := &fakeCommentService{enabled: true}
 	output := plugSummaryOutput(t, func() {
-		err := runSummaryUseCase(context.Background(), appCtx, &summaryengine.Config{OnChangesOnly: true}, func() (summaryProvider, error) {
+		err := runSummaryUseCase(context.Background(), appCtx, testSummaryRuntime(&summaryengine.Config{OnChangesOnly: true}, func() (summaryProvider, error) {
 			return &fakeSummaryProvider{
 				commitSHA:  "abcdef1234567890",
 				pipelineID: "123",
 				service:    commentSvc,
 			}, nil
-		})
+		}))
 		if err != nil {
 			t.Fatalf("runSummaryUseCase() error = %v", err)
 		}
@@ -127,18 +127,25 @@ func TestRunSummaryUseCase_IncludeDetailsFalseRemovesDetailsFromCommentAndReport
 
 	commentSvc := &fakeCommentService{enabled: true}
 	includeDetails := false
-	err := runSummaryUseCase(context.Background(), appCtx, &summaryengine.Config{IncludeDetails: &includeDetails}, func() (summaryProvider, error) {
+	err := runSummaryUseCase(context.Background(), appCtx, testSummaryRuntime(&summaryengine.Config{IncludeDetails: &includeDetails}, func() (summaryProvider, error) {
 		return &fakeSummaryProvider{
 			commitSHA:  "abcdef1234567890",
 			pipelineID: "123",
 			service:    commentSvc,
 		}, nil
-	})
+	}))
 	if err != nil {
 		t.Fatalf("runSummaryUseCase() error = %v", err)
 	}
 
 	if strings.Contains(commentSvc.body, "Full plan output") {
 		t.Fatalf("comment body should omit full plan output when include_details=false:\n%s", commentSvc.body)
+	}
+}
+
+func testSummaryRuntime(cfg *summaryengine.Config, resolveProvider func() (summaryProvider, error)) *summaryRuntime {
+	return &summaryRuntime{
+		config:          cfg,
+		resolveProvider: resolveProvider,
 	}
 }

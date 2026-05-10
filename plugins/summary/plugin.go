@@ -8,6 +8,9 @@ import (
 	summaryengine "github.com/edelwud/terraci/plugins/summary/internal"
 )
 
+// pluginName is the canonical plugin identifier used in commands, reports and config.
+const pluginName = "summary"
+
 func init() {
 	registry.RegisterFactory(func() plugin.Plugin {
 		return &Plugin{BasePlugin: plugin.BasePlugin[*summaryengine.Config]{

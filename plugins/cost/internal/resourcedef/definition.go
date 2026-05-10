@@ -1,6 +1,6 @@
 // Package resourcedef defines the canonical runtime contract for resource cost estimation.
 // It owns the core value types (ResourceType, CostCategory, SubResource) and the
-// Definition struct that replaces the legacy handler interface hierarchy.
+// Definition struct used by provider resource implementations.
 package resourcedef
 
 import (

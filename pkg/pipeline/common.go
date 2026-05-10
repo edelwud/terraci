@@ -20,7 +20,7 @@ type jobPlan struct {
 }
 
 // prepareModuleGraph prepares the module graph from target modules. It is an
-// internal step of Build() and is not part of the public package API.
+// internal detail of Build() and is not part of the public package API.
 func prepareModuleGraph(
 	depGraph *graph.DependencyGraph,
 	targetModules, allModules []*discovery.Module,

@@ -5,7 +5,7 @@ import (
 	"github.com/edelwud/terraci/pkg/plugin"
 )
 
-// PipelineContribution returns the summary job contribution.
+// PipelineContribution returns the summary job contribution for the pipeline DAG.
 // Framework guarantees this is only called when IsEnabled() == true.
 func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contribution {
 	return &pipeline.Contribution{

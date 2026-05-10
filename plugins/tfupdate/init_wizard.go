@@ -7,14 +7,12 @@ import "github.com/edelwud/terraci/pkg/plugin/initwiz"
 const initGroupOrder = 202
 
 // Wizard StateMap keys. Centralized so InitGroups field definitions and
-// BuildInitConfig consumers can never drift apart on a typo. Note that the
-// keys keep the historical "update." prefix for state compatibility — the
-// plugin name is "tfupdate" but its wizard fields shipped under "update.*".
+// BuildInitConfig consumers can never drift apart on a typo.
 const (
-	keyUpdateEnabled  = "update.enabled"
-	keyUpdateTarget   = "update.target"
-	keyUpdateBump     = "update.bump"
-	keyUpdatePipeline = "update.pipeline"
+	keyUpdateEnabled  = "tfupdate.enabled"
+	keyUpdateTarget   = "tfupdate.target"
+	keyUpdateBump     = "tfupdate.bump"
+	keyUpdatePipeline = "tfupdate.pipeline"
 )
 
 // InitGroups returns the init wizard group specs for the update initwiz.

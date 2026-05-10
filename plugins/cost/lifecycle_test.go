@@ -216,11 +216,11 @@ func TestPlugin_Runtime_UsesBlobStoreDiagnostics(t *testing.T) {
 }
 
 func TestPlugin_Runtime_UsesBlobStoreFallbackDiagnostics(t *testing.T) {
-	providerName := "blob-legacy-root-cost"
+	providerName := "blob-fallback-root-cost"
 	plugins := registerTestBlobStoreProvider(t, &testBlobStoreProvider{
 		name: providerName,
 		store: testBlobStoreWithInspector{
-			root: "/tmp/legacy-cache",
+			root: "/tmp/fallback-cache",
 		},
 	})
 
@@ -233,13 +233,13 @@ func TestPlugin_Runtime_UsesBlobStoreFallbackDiagnostics(t *testing.T) {
 	})
 
 	runtime := plugintest.MustRuntime[*costRuntime](t, p, newTestAppContextWithResolver(t, t.TempDir(), plugins))
-	if runtime.estimator.Cache().Dir() != "/tmp/legacy-cache" {
-		t.Fatalf("CacheDir() = %q, want %q", runtime.estimator.Cache().Dir(), "/tmp/legacy-cache")
+	if runtime.estimator.Cache().Dir() != "/tmp/fallback-cache" {
+		t.Fatalf("CacheDir() = %q, want %q", runtime.estimator.Cache().Dir(), "/tmp/fallback-cache")
 	}
 }
 
 func TestPlugin_Runtime_BlobStoreFallbackWithoutDiagnostics(t *testing.T) {
-	providerName := "blob-legacy-cost"
+	providerName := "blob-fallback-cost"
 	plugins := registerTestBlobStoreProvider(t, &testBlobStoreProvider{
 		name:  providerName,
 		store: plainTestBlobStore{},

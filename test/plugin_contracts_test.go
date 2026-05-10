@@ -60,6 +60,7 @@ func TestBuiltInPluginContractMatrix(t *testing.T) {
 		"summary": {
 			configLoader: true,
 			command:      true,
+			runtime:      true,
 			pipeline:     true,
 		},
 		"tfupdate": {
@@ -160,7 +161,7 @@ extensions:
       bump: minor
 `)
 
-	expectedRuntimeProviders := []string{"cost", "policy", "tfupdate"}
+	expectedRuntimeProviders := []string{"cost", "policy", "summary", "tfupdate"}
 	got := make([]string, 0, len(expectedRuntimeProviders))
 	plugins := appCtx.Resolver().(*registry.Registry)
 	for _, p := range registry.ByCapabilityFrom[plugin.RuntimeProvider](plugins) {

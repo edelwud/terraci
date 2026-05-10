@@ -12,10 +12,6 @@ import (
 	summaryengine "github.com/edelwud/terraci/plugins/summary/internal"
 )
 
-// pluginName is the canonical name of the summary plugin. Exported across
-// summary package files so that goconst sees a single source of truth.
-const pluginName = "summary"
-
 type summaryProvider interface {
 	CommitSHA() string
 	PipelineID() string
@@ -71,9 +67,17 @@ func resolveSummaryProvider(appCtx *plugin.AppContext) func() (summaryProvider, 
 	}
 }
 
-func runSummaryUseCase(ctx context.Context, appCtx *plugin.AppContext, cfg *summaryengine.Config, resolveProvider func() (summaryProvider, error)) error {
+func runSummaryUseCase(ctx context.Context, appCtx *plugin.AppContext, runtime *summaryRuntime) error {
+	if runtime == nil {
+		runtime = newRuntime(appCtx, nil)
+	}
+	cfg := runtime.config
 	if cfg == nil {
 		cfg = &summaryengine.Config{}
+	}
+	resolveProvider := runtime.resolveProvider
+	if resolveProvider == nil {
+		resolveProvider = resolveSummaryProvider(appCtx)
 	}
 
 	inputs, err := loadSummaryInputs(appCtx)
@@ -125,7 +129,11 @@ func runSummaryUseCase(ctx context.Context, appCtx *plugin.AppContext, cfg *summ
 }
 
 func (p *Plugin) runSummary(ctx context.Context, appCtx *plugin.AppContext) error {
-	return runSummaryUseCase(ctx, appCtx, p.Config(), resolveSummaryProvider(appCtx))
+	runtime, err := p.runtime(ctx, appCtx)
+	if err != nil {
+		return err
+	}
+	return runSummaryUseCase(ctx, appCtx, runtime)
 }
 
 func hasReportableChanges(plans []ci.PlanResult, reports []*ci.Report) bool {

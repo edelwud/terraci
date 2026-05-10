@@ -2,7 +2,7 @@ package plugin
 
 import "github.com/edelwud/terraci/pkg/pipeline"
 
-// PipelineContributor plugins add standalone DAG jobs to the generated CI pipeline.
+// PipelineContributor plugins add provider-independent jobs to the pipeline DAG.
 type PipelineContributor interface {
 	Plugin
 	PipelineContribution(ctx *AppContext) *pipeline.Contribution
