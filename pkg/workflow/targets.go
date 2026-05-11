@@ -69,22 +69,29 @@ func resolveTargets(
 		return nil, fmt.Errorf("change detection: %w", err)
 	}
 
-	changedModules, _, err := detector.DetectChangedModules(ctx, workDir, opts.BaseRef, result.All.Index)
-	if err != nil {
-		return nil, fmt.Errorf("detect changed modules: %w", err)
+	var libraryRoots []string
+	if cfg.LibraryModules != nil {
+		libraryRoots = cfg.LibraryModules.Paths
 	}
 
-	changedIDs := moduleIDs(changedModules)
+	changes, err := detector.DetectChanges(ctx, plugin.ChangeDetectionRequest{
+		WorkDir:      workDir,
+		BaseRef:      opts.BaseRef,
+		ModuleIndex:  result.All.Index,
+		LibraryPaths: libraryRoots,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("detect changes: %w", err)
+	}
+	if changes == nil {
+		changes = &plugin.ChangeDetectionResult{}
+	}
+
+	changedIDs := moduleIDs(changes.Modules)
 	var affectedIDs []string
 
-	if cfg.LibraryModules != nil && len(cfg.LibraryModules.Paths) > 0 {
-		libraryPaths, libraryErr := detector.DetectChangedLibraries(ctx, workDir, opts.BaseRef, cfg.LibraryModules.Paths)
-		if libraryErr != nil {
-			return nil, fmt.Errorf("detect changed libraries: %w", libraryErr)
-		}
-		if len(libraryPaths) > 0 {
-			affectedIDs = result.Graph.GetAffectedModulesWithLibraries(changedIDs, libraryPaths)
-		}
+	if len(changes.LibraryPaths) > 0 {
+		affectedIDs = result.Graph.GetAffectedModulesWithLibraries(changedIDs, changes.LibraryPaths)
 	}
 	if len(affectedIDs) == 0 {
 		affectedIDs = result.Graph.GetAffectedModules(changedIDs)

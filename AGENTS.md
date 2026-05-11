@@ -185,7 +185,7 @@ plugins/                        # Built-in plugins — one file per capability
     ├── plugin.go               # init, Plugin struct (no config, no BasePlugin)
     ├── lifecycle.go            # Preflightable (cheap repo detection)
     ├── detect.go               # ChangeDetectionProvider
-    └── internal/               # (package gitclient) client, detector, diff
+    └── internal/gitclient/     # client, detector, diff
 
 internal/                       # Private — only terraform eval
 └── terraform/
@@ -252,7 +252,7 @@ Each feature/plugin follows one-file-per-capability where it applies, with runti
 
 Plugins with config embed `BasePlugin[C]` which auto-implements:
 - `Name()`, `Description()`, `ConfigKey()`, `NewConfig()`, `DecodeAndSet()`, `IsConfigured()`, `IsEnabled()`, `Config()`, `Reset()`
-- `EnablePolicy` controls enabled semantics: `EnabledWhenConfigured` (gitlab/github), `EnabledExplicitly` (cost/policy/tfupdate), `EnabledByDefault` (summary/diskblob/inmemcache), `EnabledAlways` (git)
+- `EnablePolicy` controls enabled semantics: `EnabledWhenConfigured` (gitlab/github), `EnabledExplicitly` (cost/policy/tfupdate), `EnabledByDefault` (summary/diskblob/inmemcache). Bare plugins such as `git` are active by registration and do not implement `ConfigLoader`.
 
 ### AppContext
 
@@ -354,7 +354,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 
 ### Generate pipeline
 1. `workflow.Run(ctx, opts)` — scan → filter → parse → graph
-2. `ChangeDetectionProvider.DetectChangedModules()` (if --changed-only)
+2. `ChangeDetectionProvider.DetectChanges()` (if --changed-only) — one VCS diff returns changed files, modules, and library paths
 3. `app.Plugins.CollectContributions(appCtx)` — gather a command-scoped snapshot of PipelineContributor jobs
 4. `pipeline.Build(opts)` — construct provider-agnostic IR
 5. `provider.NewGenerator(appCtx, ir)` — bind IR to provider; `generator.Generate()` writes YAML

@@ -13,7 +13,6 @@ import (
 	"github.com/edelwud/terraci/pkg/cache/blobcache"
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/config"
-	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
 )
@@ -769,12 +768,8 @@ type testDetectorPlugin struct {
 	plugin.BasePlugin[*testConfig]
 }
 
-func (d *testDetectorPlugin) DetectChangedModules(_ context.Context, _, _ string, _ *discovery.ModuleIndex) ([]*discovery.Module, []string, error) {
-	return nil, nil, nil
-}
-
-func (d *testDetectorPlugin) DetectChangedLibraries(_ context.Context, _, _ string, _ []string) ([]string, error) {
-	return nil, nil
+func (d *testDetectorPlugin) DetectChanges(_ context.Context, _ plugin.ChangeDetectionRequest) (*plugin.ChangeDetectionResult, error) {
+	return &plugin.ChangeDetectionResult{}, nil
 }
 
 func TestResolveChangeDetector_Single(t *testing.T) {
@@ -863,11 +858,8 @@ type bareDetector struct {
 
 func (d *bareDetector) Name() string        { return d.name }
 func (d *bareDetector) Description() string { return d.name }
-func (d *bareDetector) DetectChangedModules(_ context.Context, _, _ string, _ *discovery.ModuleIndex) ([]*discovery.Module, []string, error) {
-	return nil, nil, nil
-}
-func (d *bareDetector) DetectChangedLibraries(_ context.Context, _, _ string, _ []string) ([]string, error) {
-	return nil, nil
+func (d *bareDetector) DetectChanges(_ context.Context, _ plugin.ChangeDetectionRequest) (*plugin.ChangeDetectionResult, error) {
+	return &plugin.ChangeDetectionResult{}, nil
 }
 
 func TestResolveChangeDetector_MultipleNoneConfigured(t *testing.T) {

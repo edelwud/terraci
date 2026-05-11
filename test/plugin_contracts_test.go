@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/ci"
@@ -33,8 +34,7 @@ func TestBuiltInPluginContractMatrix(t *testing.T) {
 			configLoader: true,
 		},
 		"git": {
-			configLoader: true,
-			preflight:    true,
+			preflight: true,
 		},
 		"github": {
 			configLoader: true,
@@ -99,6 +99,19 @@ func TestBuiltInPluginContractMatrix(t *testing.T) {
 		if hasPipeline != want.pipeline {
 			t.Errorf("%s PipelineContributor = %v, want %v", p.Name(), hasPipeline, want.pipeline)
 		}
+	}
+}
+
+func TestGeneratedSchemaExcludesGitExtension(t *testing.T) {
+	plugins := registry.New()
+	pluginSchemas := make(map[string]any)
+	for _, cl := range registry.ByCapabilityFrom[plugin.ConfigLoader](plugins) {
+		pluginSchemas[cl.ConfigKey()] = cl.NewConfig()
+	}
+
+	schema := config.GenerateJSONSchema(pluginSchemas)
+	if strings.Contains(schema, `"git":`) {
+		t.Fatalf("generated schema unexpectedly contains extensions.git: %s", schema)
 	}
 }
 

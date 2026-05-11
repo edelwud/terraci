@@ -3,6 +3,7 @@ package gitclient
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"testing"
 
@@ -180,7 +181,7 @@ func TestFilesToLibraryPaths(t *testing.T) {
 			name:         "file directly in library root",
 			files:        []string{"_modules/main.tf"},
 			libraryPaths: []string{"_modules"},
-			want:         []string{"/root/_modules/main.tf"},
+			want:         []string{"/root/_modules"},
 		},
 	}
 
@@ -269,7 +270,7 @@ func TestNewChangedModulesDetector(t *testing.T) {
 	}
 }
 
-func TestDetectChangedModules_Integration(t *testing.T) {
+func TestDetectChanges_Integration(t *testing.T) {
 	dir, repo := initTestRepo(t)
 
 	// Create module structure and add terraform files
@@ -288,9 +289,9 @@ func TestDetectChangedModules_Integration(t *testing.T) {
 	client := NewClient(dir)
 	detector := NewChangedModulesDetector(client, index, "")
 
-	modules, err := detector.DetectChangedModules("HEAD~1")
+	modules, files, libraries, err := detector.DetectChanges("HEAD~1", nil)
 	if err != nil {
-		t.Fatalf("DetectChangedModules error: %v", err)
+		t.Fatalf("DetectChanges error: %v", err)
 	}
 	if len(modules) != 1 {
 		t.Fatalf("got %d modules, want 1", len(modules))
@@ -298,37 +299,14 @@ func TestDetectChangedModules_Integration(t *testing.T) {
 	if modules[0].ID() != modPath {
 		t.Errorf("module ID = %q, want %q", modules[0].ID(), modPath)
 	}
-}
-
-func TestDetectChangedModulesVerbose_Integration(t *testing.T) {
-	dir, repo := initTestRepo(t)
-
-	modPath := "myapp/prod/us-east-1/vpc"
-	mod := discovery.NewModule(
-		[]string{"service", "environment", "region", "module"},
-		[]string{"myapp", "prod", "us-east-1", "vpc"},
-		filepath.Join(dir, modPath),
-		modPath,
-	)
-	index := discovery.NewModuleIndex([]*discovery.Module{mod})
-
-	addCommit(t, dir, repo, filepath.Join(modPath, "main.tf"), "resource {}", "add vpc module")
-
-	client := NewClient(dir)
-	detector := NewChangedModulesDetector(client, index, "")
-
-	modules, files, err := detector.DetectChangedModulesVerbose("HEAD~1")
-	if err != nil {
-		t.Fatalf("DetectChangedModulesVerbose error: %v", err)
-	}
-	if len(modules) != 1 {
-		t.Fatalf("got %d modules, want 1", len(modules))
-	}
 	if len(files) != 1 {
 		t.Fatalf("got %d files, want 1", len(files))
 	}
 	if files[0] != filepath.Join(modPath, "main.tf") {
 		t.Errorf("files[0] = %q, want %q", files[0], filepath.Join(modPath, "main.tf"))
+	}
+	if len(libraries) != 0 {
+		t.Fatalf("got libraries %v, want none", libraries)
 	}
 }
 
@@ -368,36 +346,26 @@ func TestDetectUncommittedModules_Integration(t *testing.T) {
 	}
 }
 
-func TestGetChangedModuleIDs_Integration(t *testing.T) {
-	dir, repo := initTestRepo(t)
-
-	modPath := "myapp/prod/us-east-1/vpc"
-	mod := discovery.NewModule(
-		[]string{"service", "environment", "region", "module"},
-		[]string{"myapp", "prod", "us-east-1", "vpc"},
-		filepath.Join(dir, modPath),
-		modPath,
-	)
-	index := discovery.NewModuleIndex([]*discovery.Module{mod})
-
-	addCommit(t, dir, repo, filepath.Join(modPath, "main.tf"), "resource {}", "add vpc module")
-
-	client := NewClient(dir)
+func TestFilesToModules_PreservesIndexOrder(t *testing.T) {
+	mod1 := makeModule("myapp/prod/us-east-1/vpc")
+	mod2 := makeModule("myapp/prod/us-east-1/eks")
+	index := discovery.NewModuleIndex([]*discovery.Module{mod1, mod2})
+	client := NewClient(t.TempDir())
 	detector := NewChangedModulesDetector(client, index, "")
 
-	ids, err := detector.GetChangedModuleIDs("HEAD~1")
-	if err != nil {
-		t.Fatalf("GetChangedModuleIDs error: %v", err)
+	modules := detector.filesToModules([]string{
+		"myapp/prod/us-east-1/eks/main.tf",
+		"myapp/prod/us-east-1/vpc/main.tf",
+	})
+	if len(modules) != 2 {
+		t.Fatalf("module count = %d, want 2", len(modules))
 	}
-	if len(ids) != 1 {
-		t.Fatalf("got %d IDs, want 1", len(ids))
-	}
-	if ids[0] != modPath {
-		t.Errorf("id = %q, want %q", ids[0], modPath)
+	if got := []string{modules[0].ID(), modules[1].ID()}; !reflect.DeepEqual(got, []string{mod1.ID(), mod2.ID()}) {
+		t.Fatalf("module ids = %v, want index order [%s %s]", got, mod1.ID(), mod2.ID())
 	}
 }
 
-func TestDetectChangedLibraryModules_Integration(t *testing.T) {
+func TestDetectChanges_LibraryModulesIntegration(t *testing.T) {
 	dir, repo := initTestRepo(t)
 
 	index := discovery.NewModuleIndex(nil)
@@ -407,14 +375,14 @@ func TestDetectChangedLibraryModules_Integration(t *testing.T) {
 	client := NewClient(dir)
 	detector := NewChangedModulesDetector(client, index, dir)
 
-	paths, err := detector.DetectChangedLibraryModules("HEAD~1", []string{"_modules"})
+	_, _, paths, err := detector.DetectChanges("HEAD~1", []string{"_modules"})
 	if err != nil {
-		t.Fatalf("DetectChangedLibraryModules error: %v", err)
+		t.Fatalf("DetectChanges error: %v", err)
 	}
 	if len(paths) != 1 {
 		t.Fatalf("got %d paths, want 1: %v", len(paths), paths)
 	}
-	want := filepath.Join(dir, "_modules", "kafka")
+	want := filepath.ToSlash(filepath.Join(dir, "_modules", "kafka"))
 	if paths[0] != want {
 		t.Errorf("path = %q, want %q", paths[0], want)
 	}

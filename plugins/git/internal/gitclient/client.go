@@ -1,4 +1,4 @@
-// Package git provides Git integration for detecting changed files.
+// Package gitclient provides Git integration for detecting changed files.
 package gitclient
 
 import (
@@ -7,17 +7,15 @@ import (
 	"strings"
 
 	gogit "github.com/go-git/go-git/v6"
-	"github.com/go-git/go-git/v6/config"
 	"github.com/go-git/go-git/v6/plumbing"
 )
 
-const defaultRemoteBranch = "origin/main"
+const defaultBaseRef = "HEAD~1"
 
 // Client provides Git operations using go-git.
 type Client struct {
 	WorkDir string
 	repo    *gogit.Repository
-	fetched bool
 }
 
 // NewClient creates a new Git client.
@@ -31,64 +29,23 @@ func (c *Client) IsGitRepo() bool {
 	return err == nil
 }
 
-// Unshallow deepens a shallow clone via go-git: fetches the full origin
-// history with no depth limit, then clears the .git/shallow list so future
-// IsShallow checks return false. Equivalent to `git fetch --unshallow`.
-func (c *Client) Unshallow() error {
+// ResolveBaseRef returns baseRef when non-empty. Without an explicit ref it
+// uses only refs already present in the local checkout, in this order:
+// origin/HEAD, origin/main, origin/master, HEAD~1.
+func (c *Client) ResolveBaseRef(baseRef string) string {
+	if baseRef != "" {
+		return baseRef
+	}
 	repo, err := c.openRepo()
 	if err != nil {
-		return fmt.Errorf("open repository: %w", err)
+		return defaultBaseRef
 	}
 
-	err = repo.Fetch(&gogit.FetchOptions{
-		RemoteName: "origin",
-		RefSpecs:   []config.RefSpec{"+refs/heads/*:refs/remotes/origin/*"},
-		Tags:       gogit.AllTags,
-		Depth:      0,
-		Force:      true,
-	})
-	if err != nil && !errors.Is(err, gogit.NoErrAlreadyUpToDate) {
-		return fmt.Errorf("deep fetch: %w", err)
-	}
-
-	if err := repo.Storer.SetShallow(nil); err != nil {
-		return fmt.Errorf("clear shallow list: %w", err)
-	}
-
-	c.fetched = true
-	return nil
-}
-
-// Fetch fetches all refs from the origin remote.
-func (c *Client) Fetch() error {
-	if c.fetched {
-		return nil
-	}
-
-	repo, err := c.openRepo()
-	if err != nil {
-		return fmt.Errorf("open repository: %w", err)
-	}
-
-	err = repo.Fetch(&gogit.FetchOptions{
-		RemoteName: "origin",
-		RefSpecs:   []config.RefSpec{"+refs/heads/*:refs/remotes/origin/*"},
-		Tags:       gogit.AllTags,
-		Force:      true,
-	})
-	if err != nil && !errors.Is(err, gogit.NoErrAlreadyUpToDate) {
-		return fmt.Errorf("fetch: %w", err)
-	}
-
-	c.fetched = true
-	return nil
-}
-
-// GetDefaultBranch attempts to determine the default branch.
-func (c *Client) GetDefaultBranch() string {
-	repo, err := c.openRepo()
-	if err != nil {
-		return defaultRemoteBranch
+	if ref, err := repo.Reference(plumbing.ReferenceName("refs/remotes/origin/HEAD"), false); err == nil && ref != nil {
+		if target := ref.Target(); target != "" {
+			return target.Short()
+		}
+		return "origin/HEAD"
 	}
 
 	for _, branch := range []string{"main", "master"} {
@@ -98,12 +55,7 @@ func (c *Client) GetDefaultBranch() string {
 		}
 	}
 
-	ref, err := repo.Reference("refs/remotes/origin/HEAD", false)
-	if err == nil && ref != nil {
-		return ref.Target().Short()
-	}
-
-	return defaultRemoteBranch
+	return defaultBaseRef
 }
 
 func (c *Client) openRepo() (*gogit.Repository, error) {
@@ -120,21 +72,12 @@ func (c *Client) openRepo() (*gogit.Repository, error) {
 	return repo, nil
 }
 
-// resolveRef resolves a ref string to a commit hash, fetching if needed.
+// resolveRef resolves a ref string to a commit hash using only local refs.
 func (c *Client) resolveRef(refStr string) (plumbing.Hash, error) {
 	hash, err := c.resolveRefDirect(refStr)
 	if err == nil {
 		return hash, nil
 	}
-
-	if !c.fetched {
-		if fetchErr := c.Fetch(); fetchErr == nil {
-			if hash, err = c.resolveRefDirect(refStr); err == nil {
-				return hash, nil
-			}
-		}
-	}
-
 	return plumbing.ZeroHash, fmt.Errorf("cannot resolve reference: %s", refStr)
 }
 

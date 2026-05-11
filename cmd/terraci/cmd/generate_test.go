@@ -26,22 +26,8 @@ func (d generateTargetTestChangeDetector) Description() string {
 	return "generate target test change detector"
 }
 
-func (d generateTargetTestChangeDetector) DetectChangedModules(
-	context.Context,
-	string,
-	string,
-	*discovery.ModuleIndex,
-) ([]*discovery.Module, []string, error) {
-	return nil, nil, nil
-}
-
-func (d generateTargetTestChangeDetector) DetectChangedLibraries(
-	context.Context,
-	string,
-	string,
-	[]string,
-) ([]string, error) {
-	return d.changedLibraries, nil
+func (d generateTargetTestChangeDetector) DetectChanges(context.Context, plugin.ChangeDetectionRequest) (*plugin.ChangeDetectionResult, error) {
+	return &plugin.ChangeDetectionResult{LibraryPaths: d.changedLibraries}, nil
 }
 
 func TestResolveGenerateTargetsUsesWorkflowResolveTargets(t *testing.T) {

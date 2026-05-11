@@ -3,6 +3,8 @@ package gitclient
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
+	"sort"
 
 	gogit "github.com/go-git/go-git/v6"
 	"github.com/go-git/go-git/v6/plumbing"
@@ -11,9 +13,8 @@ import (
 
 // ErrShallowRepository signals that change detection cannot produce a reliable
 // diff because the repository is a shallow clone. Callers should surface this
-// to the user and either deepen the clone (e.g. CI `git fetch --unshallow`)
-// or disable change-detection-based filtering for this run.
-var ErrShallowRepository = errors.New("git repository is a shallow clone — change detection cannot resolve merge-base reliably; deepen the clone (e.g. `git fetch --unshallow`) or rerun without --changed-only")
+// to the user and fetch full history before rerunning changed-only mode.
+var ErrShallowRepository = errors.New("git repository is a shallow clone — change detection cannot resolve merge-base reliably; fetch full history before rerunning --changed-only")
 
 // IsShallow reports whether the underlying git repository was cloned with
 // --depth (shallow). Resolving merge-base against a base branch in a shallow
@@ -47,14 +48,14 @@ func (c *Client) GetChangedFiles(baseRef string) ([]string, error) {
 	}
 
 	if baseRef == "" {
-		baseRef = "HEAD~1"
+		baseRef = defaultBaseRef
 	}
 
 	baseHash, err := c.getMergeBase(baseRef, "HEAD")
 	if err != nil {
 		baseHash, err = c.resolveRef(baseRef)
 		if err != nil {
-			return nil, fmt.Errorf("resolve base ref %s: %w", baseRef, err)
+			return nil, fmt.Errorf("resolve base ref %q: %w; fetch the base branch/history before running --changed-only or pass --base-ref to an available ref", baseRef, err)
 		}
 	}
 
@@ -151,6 +152,7 @@ func commitTree(repo *gogit.Repository, hash plumbing.Hash) (*object.Tree, error
 
 // extractPaths collects file paths from a set of changes.
 func extractPaths(changes object.Changes) []string {
+	seen := make(map[string]struct{}, len(changes))
 	var files []string
 	for _, change := range changes {
 		path := change.To.Name
@@ -158,8 +160,14 @@ func extractPaths(changes object.Changes) []string {
 			path = change.From.Name
 		}
 		if path != "" {
+			path = filepath.ToSlash(path)
+			if _, ok := seen[path]; ok {
+				continue
+			}
+			seen[path] = struct{}{}
 			files = append(files, path)
 		}
 	}
+	sort.Strings(files)
 	return files
 }

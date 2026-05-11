@@ -10,22 +10,32 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/filter"
 	"github.com/edelwud/terraci/pkg/graph"
+	"github.com/edelwud/terraci/pkg/plugin"
 )
 
 type stubChangeDetector struct {
 	changedModules   []*discovery.Module
+	changedFiles     []string
 	changedLibraries []string
+	calls            *int
+	requests         *[]plugin.ChangeDetectionRequest
 }
 
 func (d stubChangeDetector) Name() string        { return "stub-detector" }
 func (d stubChangeDetector) Description() string { return "stub detector" }
 
-func (d stubChangeDetector) DetectChangedModules(context.Context, string, string, *discovery.ModuleIndex) ([]*discovery.Module, []string, error) {
-	return d.changedModules, nil, nil
-}
-
-func (d stubChangeDetector) DetectChangedLibraries(context.Context, string, string, []string) ([]string, error) {
-	return d.changedLibraries, nil
+func (d stubChangeDetector) DetectChanges(_ context.Context, req plugin.ChangeDetectionRequest) (*plugin.ChangeDetectionResult, error) {
+	if d.calls != nil {
+		(*d.calls)++
+	}
+	if d.requests != nil {
+		*d.requests = append(*d.requests, req)
+	}
+	return &plugin.ChangeDetectionResult{
+		Modules:      d.changedModules,
+		Files:        d.changedFiles,
+		LibraryPaths: d.changedLibraries,
+	}, nil
 }
 
 func TestResolveTargets_ModulePathIntersectedWithChangedModules(t *testing.T) {
@@ -96,6 +106,59 @@ func TestResolveTargets_ChangedLibrariesRespectFilters(t *testing.T) {
 
 	if got := moduleIDs(targets); !reflect.DeepEqual(got, []string{stage.ID()}) {
 		t.Fatalf("module ids = %v, want [%s]", got, stage.ID())
+	}
+}
+
+func TestResolveTargets_ChangedOnlyDetectsOnce(t *testing.T) {
+	t.Parallel()
+
+	app := discovery.TestModule("svc", "stage", "eu", "app")
+	cfg := config.DefaultConfig()
+	cfg.LibraryModules = &config.LibraryModulesConfig{Paths: []string{"_modules"}}
+	workDir := t.TempDir()
+	result := &Result{
+		All:      NewModuleSet([]*discovery.Module{app}),
+		Filtered: NewModuleSet([]*discovery.Module{app}),
+		Graph:    graph.BuildFromDependencies([]*discovery.Module{app}, nil),
+	}
+	var calls int
+	var requests []plugin.ChangeDetectionRequest
+
+	targets, err := resolveTargets(context.Background(), workDir, cfg, result, TargetSelectionOptions{
+		ChangedOnly: true,
+		BaseRef:     "origin/main",
+		ChangeDetectorResolver: func() (ChangeDetector, error) {
+			return stubChangeDetector{
+				changedModules: []*discovery.Module{app},
+				calls:          &calls,
+				requests:       &requests,
+			}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("resolveTargets() error = %v", err)
+	}
+	if len(targets) != 1 {
+		t.Fatalf("target count = %d, want 1", len(targets))
+	}
+	if calls != 1 {
+		t.Fatalf("DetectChanges calls = %d, want 1", calls)
+	}
+	if len(requests) != 1 {
+		t.Fatalf("request count = %d, want 1", len(requests))
+	}
+	req := requests[0]
+	if req.WorkDir != workDir {
+		t.Fatalf("WorkDir = %q, want %q", req.WorkDir, workDir)
+	}
+	if req.BaseRef != "origin/main" {
+		t.Fatalf("BaseRef = %q, want origin/main", req.BaseRef)
+	}
+	if req.ModuleIndex != result.All.Index {
+		t.Fatalf("ModuleIndex was not forwarded")
+	}
+	if !reflect.DeepEqual(req.LibraryPaths, []string{"_modules"}) {
+		t.Fatalf("LibraryPaths = %v, want [_modules]", req.LibraryPaths)
 	}
 }
 

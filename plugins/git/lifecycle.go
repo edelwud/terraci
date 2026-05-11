@@ -6,7 +6,7 @@ import (
 	log "github.com/caarlos0/log"
 
 	"github.com/edelwud/terraci/pkg/plugin"
-	gitclient "github.com/edelwud/terraci/plugins/git/internal"
+	"github.com/edelwud/terraci/plugins/git/internal/gitclient"
 )
 
 // Preflight verifies whether the workdir is a git repository.
@@ -17,23 +17,11 @@ func (p *Plugin) Preflight(_ context.Context, appCtx *plugin.AppContext) error {
 		return nil
 	}
 
-	log.WithField("branch", client.GetDefaultBranch()).Debug("git: repository detected")
+	log.WithField("base_ref", client.ResolveBaseRef("")).Debug("git: repository detected")
 
 	if shallow, err := client.IsShallow(); err == nil && shallow {
-		cfg := p.Config()
-		if cfg == nil || !cfg.AutoUnshallow {
-			log.Warn("git: shallow clone detected; --changed-only will fail with ErrShallowRepository. Enable extensions.git.auto_unshallow or run `git fetch --unshallow` before invoking change detection.")
-		}
+		log.Warn("git: shallow clone detected; --changed-only requires full history. Configure the CI checkout with full fetch depth or fetch the base branch/history before invoking change detection.")
 	}
 
 	return nil
-}
-func (p *Plugin) resolveRef(baseRef string, client *gitclient.Client) string {
-	if baseRef != "" {
-		return baseRef
-	}
-	if defaultRef := client.GetDefaultBranch(); defaultRef != "" {
-		return defaultRef
-	}
-	return "main"
 }

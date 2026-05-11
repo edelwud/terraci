@@ -25,12 +25,12 @@ type StubChangeDetector struct {
 	Err              error
 }
 
-func (d *StubChangeDetector) DetectChangedModules(_ context.Context, _, _ string, _ *discovery.ModuleIndex) ([]*discovery.Module, []string, error) {
-	return d.ChangedModules, d.ChangedFiles, d.Err
-}
-
-func (d *StubChangeDetector) DetectChangedLibraries(_ context.Context, _, _ string, _ []string) ([]string, error) {
-	return d.ChangedLibraries, d.Err
+func (d *StubChangeDetector) DetectChanges(_ context.Context, _ plugin.ChangeDetectionRequest) (*plugin.ChangeDetectionResult, error) {
+	return &plugin.ChangeDetectionResult{
+		Modules:      d.ChangedModules,
+		Files:        d.ChangedFiles,
+		LibraryPaths: d.ChangedLibraries,
+	}, d.Err
 }
 
 // StubConfigPlugin embeds BasePlugin for testing config-aware scenarios.

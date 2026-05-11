@@ -65,9 +65,6 @@ func TestNewClient(t *testing.T) {
 	if client.repo != nil {
 		t.Error("repo should be nil initially")
 	}
-	if client.fetched {
-		t.Error("fetched should be false initially")
-	}
 }
 
 func TestIsGitRepo(t *testing.T) {
@@ -95,21 +92,76 @@ func TestIsGitRepo(t *testing.T) {
 	})
 }
 
-func TestGetDefaultBranch(t *testing.T) {
-	t.Run("no remotes returns origin/main", func(t *testing.T) {
+func TestResolveBaseRef(t *testing.T) {
+	t.Run("explicit ref wins", func(t *testing.T) {
 		dir, _ := initTestRepo(t)
 		client := NewClient(dir)
-		got := client.GetDefaultBranch()
-		if got != "origin/main" {
-			t.Errorf("GetDefaultBranch() = %q, want %q", got, "origin/main")
+		got := client.ResolveBaseRef("feature")
+		if got != "feature" {
+			t.Errorf("ResolveBaseRef() = %q, want feature", got)
 		}
 	})
 
-	t.Run("non-git directory returns origin/main", func(t *testing.T) {
-		client := NewClient(t.TempDir())
-		got := client.GetDefaultBranch()
+	t.Run("origin head wins over branch refs", func(t *testing.T) {
+		dir, repo := initTestRepo(t)
+		headRef, err := repo.Head()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := repo.Storer.SetReference(plumbing.NewHashReference(plumbing.NewRemoteReferenceName("origin", "main"), headRef.Hash())); err != nil {
+			t.Fatal(err)
+		}
+		if err := repo.Storer.SetReference(plumbing.NewHashReference(plumbing.NewRemoteReferenceName("origin", "master"), headRef.Hash())); err != nil {
+			t.Fatal(err)
+		}
+		if err := repo.Storer.SetReference(plumbing.NewSymbolicReference(
+			plumbing.ReferenceName("refs/remotes/origin/HEAD"),
+			plumbing.NewRemoteReferenceName("origin", "master"),
+		)); err != nil {
+			t.Fatal(err)
+		}
+
+		client := NewClient(dir)
+		got := client.ResolveBaseRef("")
+		if got != "origin/master" {
+			t.Errorf("ResolveBaseRef() = %q, want origin/master", got)
+		}
+	})
+
+	t.Run("origin main before origin master", func(t *testing.T) {
+		dir, repo := initTestRepo(t)
+		headRef, err := repo.Head()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := repo.Storer.SetReference(plumbing.NewHashReference(plumbing.NewRemoteReferenceName("origin", "main"), headRef.Hash())); err != nil {
+			t.Fatal(err)
+		}
+		if err := repo.Storer.SetReference(plumbing.NewHashReference(plumbing.NewRemoteReferenceName("origin", "master"), headRef.Hash())); err != nil {
+			t.Fatal(err)
+		}
+
+		client := NewClient(dir)
+		got := client.ResolveBaseRef("")
 		if got != "origin/main" {
-			t.Errorf("GetDefaultBranch() = %q, want %q", got, "origin/main")
+			t.Errorf("ResolveBaseRef() = %q, want origin/main", got)
+		}
+	})
+
+	t.Run("no remotes returns HEAD relative fallback", func(t *testing.T) {
+		dir, _ := initTestRepo(t)
+		client := NewClient(dir)
+		got := client.ResolveBaseRef("")
+		if got != "HEAD~1" {
+			t.Errorf("ResolveBaseRef() = %q, want HEAD~1", got)
+		}
+	})
+
+	t.Run("non-git directory returns HEAD relative fallback", func(t *testing.T) {
+		client := NewClient(t.TempDir())
+		got := client.ResolveBaseRef("")
+		if got != "HEAD~1" {
+			t.Errorf("ResolveBaseRef() = %q, want HEAD~1", got)
 		}
 	})
 }
@@ -214,13 +266,11 @@ func TestResolveRef_Invalid(t *testing.T) {
 	}
 }
 
-func TestResolveRef_WithFetch(t *testing.T) {
+func TestResolveRef_MissingLocalRef(t *testing.T) {
 	dir, repo := initTestRepo(t)
 	client := NewClient(dir)
 	client.repo = repo
 
-	// resolveRef on a nonexistent ref should fail even after trying to fetch
-	// (no remote configured, so fetch will fail silently)
 	_, err := client.resolveRef("nonexistent-ref-xyz")
 	if err == nil {
 		t.Error("expected error for nonexistent ref")
@@ -290,28 +340,6 @@ func TestGetMergeBase(t *testing.T) {
 	}
 	if got != parent.Hash {
 		t.Errorf("getMergeBase = %v, want %v", got, parent.Hash)
-	}
-}
-
-func TestFetch_NoRemote(t *testing.T) {
-	dir, _ := initTestRepo(t)
-	client := NewClient(dir)
-
-	// Fetch should return an error when there's no remote
-	err := client.Fetch()
-	if err == nil {
-		t.Error("expected error when fetching without remote")
-	}
-}
-
-func TestFetch_AlreadyFetched(t *testing.T) {
-	client := NewClient(t.TempDir())
-	client.fetched = true
-
-	// Should return nil immediately without trying to open repo
-	err := client.Fetch()
-	if err != nil {
-		t.Errorf("Fetch() with fetched=true error: %v", err)
 	}
 }
 

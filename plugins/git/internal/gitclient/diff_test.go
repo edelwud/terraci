@@ -10,61 +10,9 @@ import (
 	"time"
 
 	gogit "github.com/go-git/go-git/v6"
-	"github.com/go-git/go-git/v6/config"
 	"github.com/go-git/go-git/v6/plumbing"
 	"github.com/go-git/go-git/v6/plumbing/object"
 )
-
-// TestUnshallow_ClearsShallowList asserts that Unshallow clears .git/shallow
-// when no fetchable remote is configured: even without network the post-fetch
-// Storer.SetShallow(nil) is the bit that flips IsShallow back to false. We
-// fake a shallow state with a synthetic .git/shallow file so the test is
-// hermetic.
-func TestUnshallow_ClearsShallowList(t *testing.T) {
-	dir := t.TempDir()
-	repo, err := gogit.PlainInit(dir, false)
-	if err != nil {
-		t.Fatalf("PlainInit: %v", err)
-	}
-	disableCommitSigning(t, repo)
-	addCommit(t, dir, repo, "main.tf", "# initial", "init")
-
-	shallowPath := filepath.Join(dir, ".git", "shallow")
-	if writeErr := os.WriteFile(shallowPath, []byte("0000000000000000000000000000000000000000\n"), 0o644); writeErr != nil {
-		t.Fatalf("write .git/shallow: %v", writeErr)
-	}
-
-	client := NewClient(dir)
-
-	// Without remote, the deep-fetch operation fails — we surface it verbatim so
-	// CI logs explain the underlying transport error. The shallow file stays
-	// in place for the next attempt; this is the documented contract.
-	if err := client.Unshallow(); err == nil {
-		t.Fatal("Unshallow with no remote: expected error, got nil")
-	}
-
-	// Wire up an in-place "remote" pointing at the same repo. With Depth: 0
-	// fetch is a no-op (NoErrAlreadyUpToDate), and SetShallow(nil) clears the
-	// shallow list so subsequent IsShallow checks return false.
-	if _, err := repo.CreateRemote(&config.RemoteConfig{
-		Name: "origin",
-		URLs: []string{dir},
-	}); err != nil {
-		t.Fatalf("CreateRemote: %v", err)
-	}
-
-	if err := client.Unshallow(); err != nil {
-		t.Fatalf("Unshallow: %v", err)
-	}
-
-	shallow, shallowErr := client.IsShallow()
-	if shallowErr != nil {
-		t.Fatalf("IsShallow after Unshallow: %v", shallowErr)
-	}
-	if shallow {
-		t.Error("IsShallow() = true after Unshallow, want false")
-	}
-}
 
 // TestGetChangedFiles_RejectsShallowRepository asserts that shallow clones are
 // surfaced as an explicit error rather than silently producing a truncated diff.
@@ -173,6 +121,23 @@ func TestGetChangedFiles_EmptyBaseRef(t *testing.T) {
 	}
 	if files[0] != "second.txt" {
 		t.Errorf("files[0] = %q, want %q", files[0], "second.txt")
+	}
+}
+
+func TestGetChangedFiles_MissingBaseRefIsActionable(t *testing.T) {
+	dir, repo := initTestRepo(t)
+	addCommit(t, dir, repo, "main.tf", "resource {}", "add terraform file")
+
+	client := NewClient(dir)
+	_, err := client.GetChangedFiles("origin/missing")
+	if err == nil {
+		t.Fatal("GetChangedFiles() error = nil, want missing base ref error")
+	}
+	if !strings.Contains(err.Error(), `resolve base ref "origin/missing"`) {
+		t.Fatalf("error should name missing base ref, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "fetch the base branch/history") {
+		t.Fatalf("error should explain how to fix missing history, got: %v", err)
 	}
 }
 

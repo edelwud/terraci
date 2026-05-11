@@ -3,6 +3,7 @@ package graph
 
 import (
 	"fmt"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -181,7 +182,7 @@ func (g *DependencyGraph) LibraryConsumerCount() int {
 }
 
 func normalizeLibraryPath(path string) string {
-	return strings.TrimSuffix(path, "/")
+	return strings.TrimSuffix(filepath.ToSlash(path), "/")
 }
 
 // --- Subgraph ---

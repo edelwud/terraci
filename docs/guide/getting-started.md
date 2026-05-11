@@ -128,13 +128,7 @@ terraci generate --changed-only --base-ref main -o .gitlab-ci.yml
 ```
 
 ::: tip CI Environments
-TerraCi resolves the merge-base via go-git, so `--changed-only` works against any pushable base ref. CI runners that clone with `--depth 1` (GitLab and GitHub default) need a deep history to compute a reliable diff — either set the runner's `GIT_DEPTH` (or actions/checkout `fetch-depth: 0`) high enough, or enable auto-unshallow:
-
-```yaml
-extensions:
-  git:
-    auto_unshallow: true   # runs `git fetch` with depth=0 and clears .git/shallow when needed
-```
+TerraCi resolves the merge-base from refs already present in the checkout. CI runners that clone with `--depth 1` (GitLab and GitHub default) need full enough history to compute a reliable diff. Set GitLab `GIT_DEPTH: 0`, use `actions/checkout` with `fetch-depth: 0`, or fetch the required base branch/history before running `--changed-only`.
 :::
 
 ## Project Structure
