@@ -22,11 +22,14 @@ func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribu
 	if cfg := ctx.Config(); cfg != nil {
 		serviceDir = cfg.ServiceDir
 	}
-	allowFailure := !p.Config().CanBlock()
+	allowFailure := true
+	if cfg := p.Config(); cfg != nil {
+		allowFailure = !cfg.CanBlock()
+	}
 	return &pipeline.Contribution{
 		Jobs: []pipeline.ContributedJob{{
 			Name:     jobName,
-			Commands: []string{"terraci policy check"},
+			Commands: []string{"terraci policy check --format text"},
 			Consumes: []pipeline.ResourceRequest{
 				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
 			},

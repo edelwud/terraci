@@ -99,7 +99,7 @@ func TestPipelineBuild_WithContributions(t *testing.T) {
 	contributions := []*pipeline.Contribution{{
 		Jobs: []pipeline.ContributedJob{{
 			Name:     "policy-check",
-			Commands: []string{"terraci policy check"},
+			Commands: []string{"terraci policy check --format text"},
 			Consumes: []pipeline.ResourceRequest{
 				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
 			},

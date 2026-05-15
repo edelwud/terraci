@@ -226,6 +226,12 @@ extensions:
   # MR/PR summary comments (enabled by default)
   summary:
     on_changes_only: false
+    include_details: true
+    labels:
+      - terraform
+      - "{environment}"
+      - "{module}"
+      - "resource:{resource_type}"
 
   # AWS cost estimation
   # cost:
@@ -238,8 +244,9 @@ extensions:
   #   sources:
   #     - type: path
   #       path: policies
-  #   failure_action: block              # block, warn, ignore
-  #   warning_action: warn               # block, warn, ignore
+  #   decisions:
+  #     deny: block                      # block, warn, ignore
+  #     warn: warn                       # block, warn, ignore
 
   # Dependency update checks
   # tfupdate:
@@ -326,7 +333,7 @@ terraci graph --format levels
 terraci graph --module platform/prod/eu-central-1/vpc --dependents
 
 # Policy check a specific module
-terraci policy check --module platform/prod/eu-central-1/vpc --output json
+terraci policy check --module platform/prod/eu-central-1/vpc --format json
 
 # Dry run
 terraci generate --dry-run

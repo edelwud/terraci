@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	policyconfig "github.com/edelwud/terraci/plugins/policy/internal/config"
-	"github.com/edelwud/terraci/plugins/policy/internal/domain"
+	"github.com/edelwud/terraci/pkg/ci"
+	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 	"github.com/edelwud/terraci/plugins/policy/internal/source"
 )
 
@@ -21,14 +21,13 @@ func TestCheck_CIEnforcementFlow(t *testing.T) {
 	writePlanFixture(t, root, "legacy/old/eu-central-1/db")
 
 	disabled := false
-	cfg := &policyconfig.Config{
-		Enabled:       true,
-		Sources:       []policyconfig.SourceConfig{{Type: policyconfig.SourceTypePath, Path: "policies"}},
-		Namespaces:    []string{"terraform"},
-		FailureAction: domain.ActionBlock,
-		WarningAction: domain.ActionIgnore,
-		Overrides: []policyconfig.Override{
-			{Match: "**/sandbox/**", FailureAction: domain.ActionWarn},
+	cfg := &policyengine.Config{
+		Enabled:    true,
+		Sources:    []policyengine.SourceConfig{{Type: policyengine.SourceTypePath, Path: "policies"}},
+		Namespaces: []string{"terraform"},
+		Decisions:  policyengine.Decisions{Deny: policyengine.ActionBlock, Warn: policyengine.ActionIgnore},
+		Overrides: []policyengine.Override{
+			{Match: "**/sandbox/**", Decisions: policyengine.Decisions{Deny: policyengine.ActionWarn}},
 			{Match: "legacy/**", Enabled: &disabled},
 		},
 	}
@@ -42,7 +41,7 @@ func TestCheck_CIEnforcementFlow(t *testing.T) {
 		Sources:      materializer,
 		WorkDir:      root,
 		PlanSegments: []string{"service", "environment", "region", "module"},
-	}, CheckRequest{})
+	}, policyengine.CheckRequest{})
 	if err != nil {
 		t.Fatalf("Check() error = %v", err)
 	}
@@ -66,12 +65,11 @@ func TestCheck_ModuleFilter(t *testing.T) {
 	writePlanFixture(t, root, "platform/prod/eu-central-1/app")
 	writePlanFixture(t, root, "platform/sandbox/eu-central-1/app")
 
-	cfg := &policyconfig.Config{
-		Enabled:       true,
-		Sources:       []policyconfig.SourceConfig{{Type: policyconfig.SourceTypePath, Path: "policies"}},
-		Namespaces:    []string{"terraform"},
-		FailureAction: domain.ActionWarn,
-		WarningAction: domain.ActionIgnore,
+	cfg := &policyengine.Config{
+		Enabled:    true,
+		Sources:    []policyengine.SourceConfig{{Type: policyengine.SourceTypePath, Path: "policies"}},
+		Namespaces: []string{"terraform"},
+		Decisions:  policyengine.Decisions{Deny: policyengine.ActionWarn, Warn: policyengine.ActionIgnore},
 	}
 	materializer, err := source.NewMaterializer(cfg, root, filepath.Join(root, ".terraci"))
 	if err != nil {
@@ -83,13 +81,114 @@ func TestCheck_ModuleFilter(t *testing.T) {
 		Sources:      materializer,
 		WorkDir:      root,
 		PlanSegments: []string{"service", "environment", "region", "module"},
-	}, CheckRequest{ModulePath: "sandbox/eu-central-1/app"})
+	}, policyengine.CheckRequest{ModulePath: "sandbox/eu-central-1/app"})
 	if err != nil {
 		t.Fatalf("Check() error = %v", err)
 	}
 	if summary.TotalModules != 1 || summary.Results[0].Module != "platform/sandbox/eu-central-1/app" {
 		t.Fatalf("summary = %#v", summary)
 	}
+}
+
+func TestCheck_UsesInjectedDependenciesOnce(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writePlanFixture(t, root, "platform/prod/eu-central-1/app")
+
+	materializer := &fakeMaterializer{dirs: []string{filepath.Join(root, "policies")}}
+	scanner := fakePlanScanner{collection: &ci.PlanResultCollection{Results: []ci.PlanResult{
+		{
+			ModulePath: "platform/prod/eu-central-1/app",
+			Components: map[string]string{
+				"environment": "prod",
+			},
+		},
+	}}}
+	evaluator := &fakeEvaluator{
+		evaluation: &policyengine.Evaluation{
+			Denies: []policyengine.Finding{{Message: "deny"}},
+		},
+	}
+	factory := &fakeEvaluatorFactory{evaluator: evaluator}
+
+	cfg := &policyengine.Config{
+		Enabled:    true,
+		Sources:    []policyengine.SourceConfig{{Type: policyengine.SourceTypePath, Path: "policies"}},
+		Namespaces: []string{"terraform"},
+		Decisions:  policyengine.Decisions{Deny: policyengine.ActionWarn},
+	}
+
+	summary, err := Check(context.Background(), CheckRuntime{
+		Config:           cfg,
+		Sources:          materializer,
+		PlanScanner:      scanner,
+		EvaluatorFactory: factory,
+		WorkDir:          root,
+		PlanSegments:     []string{"service", "environment", "region", "module"},
+	}, policyengine.CheckRequest{})
+	if err != nil {
+		t.Fatalf("Check() error = %v", err)
+	}
+	if materializer.calls != 1 {
+		t.Fatalf("materializer calls = %d, want 1", materializer.calls)
+	}
+	if factory.calls != 1 {
+		t.Fatalf("evaluator factory calls = %d, want 1", factory.calls)
+	}
+	if evaluator.calls != 1 {
+		t.Fatalf("evaluator calls = %d, want 1", evaluator.calls)
+	}
+	if evaluator.namespaces[0] != "terraform" {
+		t.Fatalf("namespaces = %v, want [terraform]", evaluator.namespaces)
+	}
+	if summary.WarnedModules != 1 || summary.FailedModules != 0 {
+		t.Fatalf("warned/failed = %d/%d, want 1/0", summary.WarnedModules, summary.FailedModules)
+	}
+}
+
+type fakeMaterializer struct {
+	dirs  []string
+	calls int
+}
+
+func (f *fakeMaterializer) Materialize(_ context.Context, _ string) ([]string, error) {
+	f.calls++
+	return append([]string(nil), f.dirs...), nil
+}
+
+func (f *fakeMaterializer) CacheDir(string) string {
+	return ""
+}
+
+type fakePlanScanner struct {
+	collection *ci.PlanResultCollection
+}
+
+func (f fakePlanScanner) Scan(string, []string) (*ci.PlanResultCollection, error) {
+	return f.collection, nil
+}
+
+type fakeEvaluatorFactory struct {
+	evaluator *fakeEvaluator
+	calls     int
+}
+
+func (f *fakeEvaluatorFactory) NewEvaluator([]string) Evaluator {
+	f.calls++
+	return f.evaluator
+}
+
+type fakeEvaluator struct {
+	evaluation *policyengine.Evaluation
+	namespaces []string
+	calls      int
+}
+
+func (f *fakeEvaluator) Evaluate(_ context.Context, _ any, namespaces []string) (*policyengine.Evaluation, error) {
+	f.calls++
+	f.namespaces = append([]string(nil), namespaces...)
+	return f.evaluation, nil
 }
 
 func writePolicyFixture(t *testing.T, root string) {

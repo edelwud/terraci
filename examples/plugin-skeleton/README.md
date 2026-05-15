@@ -14,7 +14,7 @@ Copy whichever file matches your use case; the rest exists so the example builds
 ```
 plugin.go    # init() + BasePlugin[*Config] registration; plugin.Validator runs at startup
 commands.go  # plugin.CommandProvider — registers `terraci skeleton`
-report.go    # producer pattern: ci.EncodeSection + ci.SaveResultsAndReport
+report.go    # producer pattern: ci.EncodeRenderSection + ci.SaveResultsAndReport
 consumer.go  # consumer pattern: ci.LoadReports + ci.DecodeSection[T]
 ```
 
@@ -46,10 +46,10 @@ YAML
 
 ## What you should copy
 
-### For a producer plugin (writes a typed report)
+### For a producer plugin (writes a render-ready report)
 
 1. `plugin.go` — registration shell, `BasePlugin[*Config]`.
-2. `report.go` — define `Kind`, payload struct, then call `ci.EncodeSection` + `ci.SaveResultsAndReport`.
+2. `report.go` — convert your result into `ci.RenderBlock` values, then call `ci.EncodeRenderSection` + `ci.SaveResultsAndReport`.
 3. `commands.go` — at minimum register a CLI command (`CommandProvider`).
 
 Skip the `--consume` branch if you don't need to read other reports.
@@ -57,7 +57,7 @@ Skip the `--consume` branch if you don't need to read other reports.
 ### For a consumer plugin (reads other reports)
 
 1. `plugin.go` — same shell.
-2. `consumer.go` — call `ci.LoadReports(serviceDir)`, filter by `report.Producer`, decode sections via `ci.DecodeSection[T]`.
+2. `consumer.go` — call `ci.LoadReports(serviceDir)`, filter by `report.Producer`, decode `ci.RenderSection` payloads.
 
 ## Capability extension points
 
@@ -78,7 +78,7 @@ Framework discovery is purely type-assertion-based: `registry.ByCapabilityFrom[T
 ## Anti-patterns to avoid
 
 - **Don't** import another plugin directly. Cross-plugin communication goes through `pkg/plugin` capability interfaces, `pkg/ci` shared types, or file-based reports.
-- **Don't** use `ci.MustEncodeSection` in production code paths — it lives in `pkg/ci/citest` for tests only. Use `ci.EncodeSection` and propagate errors.
+- **Don't** panic while building reports in production code paths. Use `ci.EncodeRenderSection` and propagate errors.
 - **Don't** skip `Provenance: ci.NewProvenance(...)` on persisted reports. Local consumers compare the fingerprint to detect stale artifacts.
 - **Don't** mutate `ctx.Config()` (`*config.Config`) — it's a shared pointer behind an `RWMutex`. Treat it as read-only; mutate plugin-local config via `FlagOverridable` if needed.
 

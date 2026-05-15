@@ -48,29 +48,20 @@ func runConsumer(_ context.Context, appCtx *plugin.AppContext) error {
 		}
 		fmt.Printf("- %s [%s] %s\n", r.Producer, r.Status, r.Summary)
 
-		// Optional: type-safe decode of well-known section kinds.
+		// Optional: decode render-ready section payloads.
 		for _, section := range r.Sections {
-			switch section.Kind {
-			case ci.ReportSectionKindFindings:
-				findings, err := ci.DecodeSection[ci.FindingsSection](section)
+			if section.Kind == ci.ReportSectionKindRendered {
+				rendered, err := ci.DecodeSection[ci.RenderSection](section)
 				if err != nil {
-					fmt.Printf("    findings: decode error: %v\n", err)
+					fmt.Printf("    rendered: decode error: %v\n", err)
 					continue
 				}
-				fmt.Printf("    findings: %d row(s)\n", len(findings.Rows))
-
-			case ci.ReportSectionKindDependencyUpdates:
-				updates, err := ci.DecodeSection[ci.DependencyUpdatesSection](section)
-				if err != nil {
-					fmt.Printf("    updates: decode error: %v\n", err)
-					continue
-				}
-				fmt.Printf("    updates: %d row(s)\n", len(updates.Rows))
-
-			default:
-				// Opaque payload — display only the producer-supplied title.
-				fmt.Printf("    %s: %s\n", section.Kind, section.Title)
+				fmt.Printf("    %s: %d block(s)\n", section.Title, len(rendered.Blocks))
+				continue
 			}
+
+			// Opaque payload — display only the producer-supplied title.
+			fmt.Printf("    %s: %s\n", section.Kind, section.Title)
 		}
 	}
 

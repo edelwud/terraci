@@ -78,21 +78,11 @@ func TestReportRegistry_DefensiveCopies(t *testing.T) {
 	report := &ci.Report{
 		Producer: "report_b",
 		Title:    "Report B",
-		Sections: []ci.ReportSection{citest.MustEncodeSection(
-			ci.ReportSectionKindFindings,
+		Sections: []ci.ReportSection{citest.MustEncodeRenderSection(
 			"Findings",
 			"",
 			ci.ReportStatusWarn,
-			ci.FindingsSection{
-				Rows: []ci.FindingRow{{
-					ModulePath: "app",
-					Status:     ci.FindingRowStatusWarn,
-					Findings: []ci.Finding{{
-						Severity: ci.FindingSeverityWarn,
-						Message:  "original",
-					}},
-				}},
-			},
+			ci.RenderTableBlock("", []string{"Module", "Severity", "Message"}, [][]string{{"app", "warn", "original"}}),
 		)},
 	}
 	r.Publish(report)
@@ -107,21 +97,21 @@ func TestReportRegistry_DefensiveCopies(t *testing.T) {
 	if got.Title != "Report B" {
 		t.Fatalf("stored report title = %q, want Report B", got.Title)
 	}
-	findings, err := ci.DecodeSection[ci.FindingsSection](got.Sections[0])
+	rendered, err := ci.DecodeSection[ci.RenderSection](got.Sections[0])
 	if err != nil {
-		t.Fatalf("decode original findings: %v", err)
+		t.Fatalf("decode original render section: %v", err)
 	}
-	if findings.Rows[0].Findings[0].Message != "original" {
-		t.Fatalf("stored finding was mutated: %q", findings.Rows[0].Findings[0].Message)
+	if rendered.Blocks[0].Table.Rows[0][2] != "original" {
+		t.Fatalf("stored row was mutated: %q", rendered.Blocks[0].Table.Rows[0][2])
 	}
 
 	got.Sections[0].Payload[0] = '{'
 	gotAgain, _ := r.Get("report_b")
-	findingsAgain, err := ci.DecodeSection[ci.FindingsSection](gotAgain.Sections[0])
+	renderedAgain, err := ci.DecodeSection[ci.RenderSection](gotAgain.Sections[0])
 	if err != nil {
 		t.Fatalf("decode again: %v", err)
 	}
-	if findingsAgain.Rows[0].Findings[0].Message != "original" {
-		t.Fatalf("Get returned shared report state: %q", findingsAgain.Rows[0].Findings[0].Message)
+	if renderedAgain.Blocks[0].Table.Rows[0][2] != "original" {
+		t.Fatalf("Get returned shared report state: %q", renderedAgain.Blocks[0].Table.Rows[0][2])
 	}
 }

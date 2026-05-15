@@ -16,6 +16,7 @@ outline: deep
 
 ```bash
 terraci policy pull
+terraci policy pull --cache-dir .terraci/policies
 ```
 
 Эта команда:
@@ -44,7 +45,7 @@ terraci policy check [флаги]
 | Флаг | Сокр. | Описание |
 |------|-------|----------|
 | `--module` | `-m` | Проверить конкретный путь модуля |
-| `--output` | `-o` | Формат вывода: `text` (по умолчанию) или `json` |
+| `--format` |  | Формат вывода: `text` (по умолчанию) или `json` |
 
 **Примеры:**
 
@@ -56,7 +57,7 @@ terraci policy check
 terraci policy check --module platform/prod/eu-central-1/vpc
 
 # Вывод в формате JSON
-terraci policy check --output json
+terraci policy check --format json
 ```
 
 **Текстовый вывод:**
@@ -157,8 +158,9 @@ extensions:
         path: policies
     namespaces:
       - terraform
-    failure_action: block
-    warning_action: warn
+    decisions:
+      deny: block
+      warn: warn
 ```
 
 ## См. также

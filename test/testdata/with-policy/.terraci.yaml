@@ -12,4 +12,5 @@ extensions:
         path: policies
     namespaces:
       - terraform
-    failure_action: warn
+    decisions:
+      deny: warn

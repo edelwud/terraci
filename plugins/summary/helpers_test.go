@@ -38,10 +38,18 @@ const testPlanNoChanges = `{
 const testModulePath = "platform/prod/us-east-1/vpc"
 
 type fakeCommentService struct {
-	enabled bool
-	body    string
-	calls   int
-	err     error
+	enabled          bool
+	body             string
+	currentBody      string
+	currentFound     bool
+	currentErr       error
+	syncedPrevious   []string
+	syncedCurrent    []string
+	syncCalls        int
+	syncErr          error
+	calls            int
+	err              error
+	managedSupported bool
 }
 
 func (s *fakeCommentService) IsEnabled() bool { return s.enabled }
@@ -52,6 +60,23 @@ func (s *fakeCommentService) UpsertComment(_ context.Context, body string) error
 	return s.err
 }
 
+func (s *fakeCommentService) CurrentCommentBody(_ context.Context) (body string, found bool, err error) {
+	if !s.managedSupported {
+		return "", false, nil
+	}
+	return s.currentBody, s.currentFound, s.currentErr
+}
+
+func (s *fakeCommentService) SyncLabels(_ context.Context, previous, current []string) error {
+	if !s.managedSupported {
+		return nil
+	}
+	s.syncCalls++
+	s.syncedPrevious = append([]string(nil), previous...)
+	s.syncedCurrent = append([]string(nil), current...)
+	return s.syncErr
+}
+
 type fakeSummaryProvider struct {
 	commitSHA  string
 	pipelineID string
@@ -60,7 +85,7 @@ type fakeSummaryProvider struct {
 
 func (p *fakeSummaryProvider) CommitSHA() string  { return p.commitSHA }
 func (p *fakeSummaryProvider) PipelineID() string { return p.pipelineID }
-func (p *fakeSummaryProvider) NewCommentService(_ *plugin.AppContext) (ci.CommentService, bool) {
+func (p *fakeSummaryProvider) CommentService() (ci.CommentService, bool) {
 	return p.service, p.service != nil
 }
 
@@ -100,16 +125,12 @@ func writeReportJSON(t *testing.T, serviceDir, pluginName string, report *ci.Rep
 }
 
 func newPlanReport(modulePath string, status ci.ReportStatus) *ci.Report {
-	payload, err := json.Marshal(map[string]any{
-		"totals": map[string]any{"after": 2, "diff": 1},
-		"rows": []map[string]any{{
-			"module_path": modulePath,
-			"before":      1,
-			"after":       2,
-			"diff":        1,
-			"has_cost":    true,
-		}},
-	})
+	section, err := ci.EncodeRenderSection(
+		"Cost Estimation",
+		"summary",
+		status,
+		ci.RenderTableBlock("", []string{"Module", "Before", "After", "Diff"}, [][]string{{modulePath, "$1.00", "$2.00", "+$1.00"}}),
+	)
 	if err != nil {
 		panic(err)
 	}
@@ -119,12 +140,6 @@ func newPlanReport(modulePath string, status ci.ReportStatus) *ci.Report {
 		Title:    "Cost Estimation",
 		Status:   status,
 		Summary:  "summary",
-		Sections: []ci.ReportSection{{
-			Kind:           "cost_changes",
-			Title:          "Cost Estimation",
-			Status:         status,
-			SectionSummary: "summary",
-			Payload:        payload,
-		}},
+		Sections: []ci.ReportSection{section},
 	}
 }

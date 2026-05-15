@@ -2,6 +2,7 @@ package mr
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	gitlab "gitlab.com/gitlab-org/api/client-go"
@@ -77,5 +78,37 @@ func TestMRService_UpsertComment_UpdateError(t *testing.T) {
 		upsert("test body")
 	if err == nil {
 		t.Error("expected error when UpdateMRNote fails")
+	}
+}
+
+func TestMRService_CurrentCommentBody(t *testing.T) {
+	body := ci.EmbedManagedLabels(ci.CommentMarker+"\n\n## Test", []string{"terraform"})
+	got, found, err := newServiceScenario(t).
+		withNotes(&gitlab.Note{ID: 7, Body: body}).
+		service.CurrentCommentBody(t.Context())
+	if err != nil {
+		t.Fatalf("CurrentCommentBody() error = %v", err)
+	}
+	if !found {
+		t.Fatal("CurrentCommentBody() found = false, want true")
+	}
+	if got != body {
+		t.Fatalf("CurrentCommentBody() body = %q, want %q", got, body)
+	}
+}
+
+func TestMRService_SyncLabels_AddsAndRemovesManagedDiff(t *testing.T) {
+	scenario := newServiceScenario(t)
+
+	err := scenario.service.SyncLabels(t.Context(), []string{"keep", "stale"}, []string{"keep", "terraform"})
+	if err != nil {
+		t.Fatalf("SyncLabels() error = %v", err)
+	}
+
+	if got := strings.Join(scenario.client.removedLabels, ","); got != "stale" {
+		t.Fatalf("removed labels = %v, want [stale]", scenario.client.removedLabels)
+	}
+	if got := strings.Join(scenario.client.addedLabels, ","); got != "terraform" {
+		t.Fatalf("added labels = %v, want [terraform]", scenario.client.addedLabels)
 	}
 }

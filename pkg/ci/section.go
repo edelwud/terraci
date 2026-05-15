@@ -5,10 +5,8 @@ import (
 	"fmt"
 )
 
-// EncodeSection builds a ReportSection by JSON-encoding the body. Producers
-// pass a typed payload (e.g. OverviewSection, FindingsSection) plus the
-// section's neutral metadata.
-func EncodeSection[T any](kind ReportSectionKind, title, sectionSummary string, status ReportStatus, body T) (ReportSection, error) {
+// encodeSection builds a ReportSection by JSON-encoding the body.
+func encodeSection[T any](kind ReportSectionKind, title, sectionSummary string, status ReportStatus, body T) (ReportSection, error) {
 	data, err := json.Marshal(body)
 	if err != nil {
 		return ReportSection{}, fmt.Errorf("encode %s section payload: %w", kind, err)

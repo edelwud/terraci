@@ -15,32 +15,33 @@ func buildUpdateReport(result *tfupdateengine.UpdateResult) (*ci.Report, error) 
 		status = ci.ReportStatusWarn
 	}
 
-	rows := make([]ci.DependencyUpdateRow, 0, len(result.Providers)+len(result.Modules))
+	providerRows := make([][]string, 0, len(result.Providers))
 	for i := range result.Providers {
 		update := &result.Providers[i]
-		rows = append(rows, ci.DependencyUpdateRow{
-			ModulePath: update.ModulePath(),
-			Kind:       ci.DependencyKindProvider,
-			Name:       update.ProviderSource(),
-			Current:    update.DisplayCurrent(),
-			Latest:     update.DisplayLatest(),
-			Bumped:     update.DisplayAvailable(),
-			Status:     mapUpdateStatus(update.Status),
-			Issue:      update.Issue,
+		if update.Status == domain.StatusUpToDate {
+			continue
+		}
+		providerRows = append(providerRows, []string{
+			update.ModulePath(),
+			update.ProviderSource(),
+			displayValue(update.DisplayCurrent()),
+			displayValue(update.DisplayLatest()),
+			update.StatusLabel(),
 		})
 	}
 
+	moduleRows := make([][]string, 0, len(result.Modules))
 	for i := range result.Modules {
 		update := &result.Modules[i]
-		rows = append(rows, ci.DependencyUpdateRow{
-			ModulePath: update.ModulePath(),
-			Kind:       ci.DependencyKindModule,
-			Name:       update.Source(),
-			Current:    update.DisplayCurrent(),
-			Latest:     update.DisplayLatest(),
-			Bumped:     update.DisplayAvailable(),
-			Status:     mapUpdateStatus(update.Status),
-			Issue:      update.Issue,
+		if update.Status == domain.StatusUpToDate {
+			continue
+		}
+		moduleRows = append(moduleRows, []string{
+			update.ModulePath(),
+			update.Source(),
+			displayValue(update.DisplayCurrent()),
+			displayValue(update.DisplayLatest()),
+			update.StatusLabel(),
 		})
 	}
 
@@ -51,35 +52,24 @@ func buildUpdateReport(result *tfupdateengine.UpdateResult) (*ci.Report, error) 
 		result.Summary.UpdatesApplied,
 		result.Summary.Errors,
 	)
-	section, err := ci.EncodeSection(
-		ci.ReportSectionKindDependencyUpdates,
+	blocks := make([]ci.RenderBlock, 0, 2)
+	if len(providerRows) > 0 {
+		blocks = append(blocks, ci.RenderTableBlock("Providers", []string{"Module", "Provider", "Current", "Latest", "Status"}, providerRows))
+	}
+	if len(moduleRows) > 0 {
+		blocks = append(blocks, ci.RenderTableBlock("Modules", []string{"Module", "Source", "Current", "Latest", "Status"}, moduleRows))
+	}
+	section, err := ci.EncodeRenderSection(
 		"Dependency Update Check",
 		summaryText,
 		status,
-		ci.DependencyUpdatesSection{Rows: rows},
+		blocks...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("build tfupdate report: %w", err)
 	}
 
 	return ci.BuildReport("tfupdate", "Dependency Update Check", status, summaryText, section), nil
-}
-
-func mapUpdateStatus(status domain.UpdateStatus) ci.DependencyUpdateStatus {
-	switch status {
-	case domain.StatusUpdateAvailable:
-		return ci.DependencyUpdateStatusUpdateAvailable
-	case domain.StatusApplied:
-		return ci.DependencyUpdateStatusApplied
-	case domain.StatusSkipped:
-		return ci.DependencyUpdateStatusSkipped
-	case domain.StatusError:
-		return ci.DependencyUpdateStatusError
-	case domain.StatusUpToDate:
-		return ci.DependencyUpdateStatusUpToDate
-	default:
-		return ci.DependencyUpdateStatusUpToDate
-	}
 }
 
 func renderReportBody(result *tfupdateengine.UpdateResult) string {
@@ -109,4 +99,11 @@ func renderReportBody(result *tfupdateengine.UpdateResult) string {
 	}
 
 	return b.String()
+}
+
+func displayValue(v string) string {
+	if v == "" {
+		return "-"
+	}
+	return v
 }

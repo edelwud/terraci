@@ -15,11 +15,10 @@ import (
 //
 // Steps:
 //
-//  1. Define a typed payload struct (here: skeletonPayload). Producers own
-//     the JSON shape; consumers decode it via ci.DecodeSection[T].
+//  1. Convert your domain result into ci.RenderBlock values. Producer plugins
+//     own their analysis model; reports expose only render-ready JSON.
 //
-//  2. Build a ci.ReportSection via ci.EncodeSection (NOT MustEncodeSection,
-//     which lives in pkg/ci/citest and is for tests only).
+//  2. Build a ci.ReportSection via ci.EncodeRenderSection.
 //
 //  3. Compose the final ci.Report and persist it via ci.SaveResultsAndReport
 //     — that helper also handles the "save results JSON alongside" case if
@@ -29,29 +28,16 @@ import (
 //     (localexec/render) compare the fingerprint against the live workspace
 //     to decide whether the on-disk report is still trustworthy.
 
-// skeletonPayload is the typed body inside skeleton-report.json. The kind
-// constant is producer-owned — pkg/ci doesn't need to know about it.
-const skeletonSectionKind ci.ReportSectionKind = "skeleton_message"
-
-type skeletonPayload struct {
-	Greeting   string `json:"greeting"`
-	WorkDir    string `json:"work_dir"`
-	ServiceDir string `json:"service_dir"`
-}
-
 func runProducer(_ context.Context, appCtx *plugin.AppContext, cfg *Config) error {
-	payload := skeletonPayload{
-		Greeting:   cfg.Greeting,
-		WorkDir:    appCtx.WorkDir(),
-		ServiceDir: appCtx.ServiceDir(),
-	}
-
-	section, err := ci.EncodeSection(
-		skeletonSectionKind,
+	section, err := ci.EncodeRenderSection(
 		"Skeleton payload",
 		"one demo section",
 		ci.ReportStatusPass,
-		payload,
+		ci.RenderTableBlock("", []string{"Field", "Value"}, [][]string{
+			{"Greeting", cfg.Greeting},
+			{"Work dir", appCtx.WorkDir()},
+			{"Service dir", appCtx.ServiceDir()},
+		}),
 	)
 	if err != nil {
 		return fmt.Errorf("encode section: %w", err)

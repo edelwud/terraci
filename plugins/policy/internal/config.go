@@ -1,4 +1,4 @@
-package config
+package policyengine
 
 import (
 	"errors"
@@ -7,7 +7,6 @@ import (
 	"go.yaml.in/yaml/v4"
 
 	"github.com/edelwud/terraci/pkg/config/overwrite"
-	"github.com/edelwud/terraci/plugins/policy/internal/domain"
 )
 
 const DefaultNamespace = "terraform"
@@ -22,13 +21,12 @@ const (
 
 // Config defines configuration for OPA policy checks.
 type Config struct {
-	Enabled       bool           `yaml:"enabled" json:"enabled" jsonschema:"description=Enable policy checks,default=false"`
-	Sources       []SourceConfig `yaml:"sources,omitempty" json:"sources,omitempty" jsonschema:"description=Policy sources"`
-	Namespaces    []string       `yaml:"namespaces,omitempty" json:"namespaces,omitempty" jsonschema:"description=Rego package namespaces to evaluate"`
-	FailureAction domain.Action  `yaml:"failure_action,omitempty" json:"failure_action,omitempty" jsonschema:"description=Action for Rego deny decisions,enum=block,enum=warn,enum=ignore,default=block"`
-	WarningAction domain.Action  `yaml:"warning_action,omitempty" json:"warning_action,omitempty" jsonschema:"description=Action for Rego warn decisions,enum=block,enum=warn,enum=ignore,default=warn"`
-	Overrides     []Override     `yaml:"overrides,omitempty" json:"overrides,omitempty" jsonschema:"description=Per-module policy configuration overrides"`
-	CacheDir      string         `yaml:"cache_dir,omitempty" json:"cache_dir,omitempty" jsonschema:"description=Directory to cache materialized policies,default=.terraci/policies"`
+	Enabled        bool           `yaml:"enabled" json:"enabled" jsonschema:"description=Enable policy checks,default=false"`
+	Sources        []SourceConfig `yaml:"sources,omitempty" json:"sources,omitempty" jsonschema:"description=Policy sources"`
+	Namespaces     []string       `yaml:"namespaces,omitempty" json:"namespaces,omitempty" jsonschema:"description=Rego package namespaces to evaluate"`
+	Decisions      Decisions      `yaml:"decisions" json:"decisions" jsonschema:"description=Actions for OPA decisions"`
+	Overrides      []Override     `yaml:"overrides,omitempty" json:"overrides,omitempty" jsonschema:"description=Per-module policy configuration overrides"`
+	SourceCacheDir string         `yaml:"source_cache_dir,omitempty" json:"source_cache_dir,omitempty" jsonschema:"description=Directory to cache materialized policies,default=.terraci/policies"`
 }
 
 // SourceConfig defines one policy source.
@@ -41,18 +39,20 @@ type SourceConfig struct {
 
 // Override defines per-module policy overrides.
 type Override struct {
-	Match         string        `yaml:"match" json:"match" jsonschema:"description=Glob pattern to match module paths,required"`
-	Enabled       *bool         `yaml:"enabled,omitempty" json:"enabled,omitempty" jsonschema:"description=Override enabled state for matching modules"`
-	Namespaces    []string      `yaml:"namespaces,omitempty" json:"namespaces,omitempty" jsonschema:"description=Override namespaces for matching modules"`
-	FailureAction domain.Action `yaml:"failure_action,omitempty" json:"failure_action,omitempty" jsonschema:"description=Override action for Rego deny decisions"`
-	WarningAction domain.Action `yaml:"warning_action,omitempty" json:"warning_action,omitempty" jsonschema:"description=Override action for Rego warn decisions"`
+	Match      string    `yaml:"match" json:"match" jsonschema:"description=Glob pattern to match module paths,required"`
+	Enabled    *bool     `yaml:"enabled,omitempty" json:"enabled,omitempty" jsonschema:"description=Override enabled state for matching modules"`
+	Namespaces []string  `yaml:"namespaces,omitempty" json:"namespaces,omitempty" jsonschema:"description=Override namespaces for matching modules"`
+	Decisions  Decisions `yaml:"decisions" json:"decisions" jsonschema:"description=Override OPA decision actions"`
 }
 
 func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := rejectKeys(unmarshal, map[string]string{
-		"on_failure": "failure_action",
-		"on_warning": "warning_action",
-		"overwrites": "overrides",
+		"failure_action": "decisions.deny",
+		"warning_action": "decisions.warn",
+		"cache_dir":      "source_cache_dir",
+		"on_failure":     "decisions.deny",
+		"on_warning":     "decisions.warn",
+		"overwrites":     "overrides",
 	}); err != nil {
 		return err
 	}
@@ -103,10 +103,7 @@ func (c *Config) Validate() error {
 	if len(c.Sources) == 0 {
 		return errors.New("at least one source is required when policy is enabled")
 	}
-	if err := domain.ValidateAction("failure_action", c.FailureAction); err != nil {
-		return err
-	}
-	if err := domain.ValidateAction("warning_action", c.WarningAction); err != nil {
+	if err := c.Decisions.Validate(); err != nil {
 		return err
 	}
 
@@ -125,6 +122,9 @@ func (c *Config) Validate() error {
 }
 
 func (s *SourceConfig) Validate() error {
+	if s == nil {
+		return errors.New("source config is nil")
+	}
 	switch s.Type {
 	case SourceTypePath:
 		if s.Path == "" {
@@ -166,10 +166,7 @@ func (o Override) Validate() error {
 	if err := overwrite.ValidatePathGlob(o.Match); err != nil {
 		return fmt.Errorf("match: %w", err)
 	}
-	if err := domain.ValidateAction("failure_action", o.FailureAction); err != nil {
-		return err
-	}
-	return domain.ValidateAction("warning_action", o.WarningAction)
+	return o.Decisions.Validate()
 }
 
 func (c *Config) EffectiveConfig(modulePath string) (*Config, error) {
@@ -177,7 +174,7 @@ func (c *Config) EffectiveConfig(modulePath string) (*Config, error) {
 		return nil, nil
 	}
 
-	effective := c.normalized()
+	effective := c.Normalized()
 	effective.Overrides = nil
 	if err := overwrite.ApplyMatching(
 		&effective,
@@ -192,41 +189,28 @@ func (c *Config) EffectiveConfig(modulePath string) (*Config, error) {
 }
 
 func (c *Config) NamespacesOrDefault() []string {
-	if len(c.Namespaces) > 0 {
+	if c != nil && len(c.Namespaces) > 0 {
 		return append([]string(nil), c.Namespaces...)
 	}
 	return []string{DefaultNamespace}
 }
 
-func (c *Config) ActionPolicy() domain.ActionPolicy {
-	normalized := c.normalized()
-	return domain.ActionPolicy{
-		FailureAction: normalized.FailureAction,
-		WarningAction: normalized.WarningAction,
-	}
-}
-
 func (c *Config) CanBlock() bool {
-	return c.ActionPolicy().CanBlock()
+	if c == nil {
+		return false
+	}
+	return c.Decisions.CanBlock()
 }
 
-func (c *Config) normalized() Config {
+func (c *Config) Normalized() Config {
 	if c == nil {
-		return Config{
-			FailureAction: domain.ActionBlock,
-			WarningAction: domain.ActionWarn,
-		}
+		return Config{Decisions: DefaultDecisions()}
 	}
 	out := *c
 	out.Sources = append([]SourceConfig(nil), c.Sources...)
 	out.Namespaces = append([]string(nil), c.Namespaces...)
 	out.Overrides = append([]Override(nil), c.Overrides...)
-	if out.FailureAction == "" {
-		out.FailureAction = domain.ActionBlock
-	}
-	if out.WarningAction == "" {
-		out.WarningAction = domain.ActionWarn
-	}
+	out.Decisions = c.Decisions.Normalize()
 	return out
 }
 
@@ -237,10 +221,10 @@ func applyOverride(effective *Config, override *Override) {
 	if len(override.Namespaces) > 0 {
 		effective.Namespaces = append([]string(nil), override.Namespaces...)
 	}
-	if override.FailureAction != "" {
-		effective.FailureAction = override.FailureAction
+	if override.Decisions.Deny != "" {
+		effective.Decisions.Deny = override.Decisions.Deny
 	}
-	if override.WarningAction != "" {
-		effective.WarningAction = override.WarningAction
+	if override.Decisions.Warn != "" {
+		effective.Decisions.Warn = override.Decisions.Warn
 	}
 }

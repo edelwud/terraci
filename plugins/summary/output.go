@@ -7,6 +7,10 @@ import (
 )
 
 func printSummary(collection *ci.PlanResultCollection) {
+	if collection == nil || len(collection.Results) == 0 {
+		return
+	}
+
 	var changes, noChanges, failed int
 	for i := range collection.Results {
 		switch collection.Results[i].Status {

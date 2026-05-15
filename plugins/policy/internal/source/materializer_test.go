@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	policyconfig "github.com/edelwud/terraci/plugins/policy/internal/config"
+	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
 
 func TestMaterializer_PathSourceUsesOriginalDirectoryAndCreatesCache(t *testing.T) {
@@ -18,14 +18,14 @@ func TestMaterializer_PathSourceUsesOriginalDirectoryAndCreatesCache(t *testing.
 		t.Fatal(err)
 	}
 
-	materializer, err := NewMaterializer(&policyconfig.Config{
-		Sources: []policyconfig.SourceConfig{{Type: policyconfig.SourceTypePath, Path: "policies"}},
+	materializer, err := NewMaterializer(&policyengine.Config{
+		Sources: []policyengine.SourceConfig{{Type: policyengine.SourceTypePath, Path: "policies"}},
 	}, root, filepath.Join(root, ".terraci"))
 	if err != nil {
 		t.Fatalf("NewMaterializer() error = %v", err)
 	}
 
-	dirs, err := materializer.Materialize(context.Background())
+	dirs, err := materializer.Materialize(context.Background(), "")
 	if err != nil {
 		t.Fatalf("Materialize() error = %v", err)
 	}
@@ -43,12 +43,12 @@ func TestNewSource_TypedSpecs(t *testing.T) {
 	root := t.TempDir()
 	tests := []struct {
 		name string
-		cfg  policyconfig.SourceConfig
+		cfg  policyengine.SourceConfig
 		want string
 	}{
-		{name: "path", cfg: policyconfig.SourceConfig{Type: policyconfig.SourceTypePath, Path: "policies"}, want: "path:" + filepath.Join(root, "policies")},
-		{name: "git", cfg: policyconfig.SourceConfig{Type: policyconfig.SourceTypeGit, URL: "https://github.com/org/policies.git", Ref: "main"}, want: "git:https://github.com/org/policies.git@main"},
-		{name: "oci", cfg: policyconfig.SourceConfig{Type: policyconfig.SourceTypeOCI, URL: "oci://ghcr.io/org/policies:v1"}, want: "oci:oci://ghcr.io/org/policies:v1"},
+		{name: "path", cfg: policyengine.SourceConfig{Type: policyengine.SourceTypePath, Path: "policies"}, want: "path:" + filepath.Join(root, "policies")},
+		{name: "git", cfg: policyengine.SourceConfig{Type: policyengine.SourceTypeGit, URL: "https://github.com/org/policies.git", Ref: "main"}, want: "git:https://github.com/org/policies.git@main"},
+		{name: "oci", cfg: policyengine.SourceConfig{Type: policyengine.SourceTypeOCI, URL: "oci://ghcr.io/org/policies:v1"}, want: "oci:oci://ghcr.io/org/policies:v1"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -62,5 +62,22 @@ func TestNewSource_TypedSpecs(t *testing.T) {
 				t.Fatalf("String() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestMaterializer_CacheDirOverrideIsWorkDirRelative(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	materializer, err := NewMaterializer(&policyengine.Config{
+		Sources: []policyengine.SourceConfig{{Type: policyengine.SourceTypePath, Path: "policies"}},
+	}, root, filepath.Join(root, ".terraci"))
+	if err != nil {
+		t.Fatalf("NewMaterializer() error = %v", err)
+	}
+
+	want := filepath.Join(root, "custom-cache")
+	if got := materializer.CacheDir("custom-cache"); got != want {
+		t.Fatalf("CacheDir() = %q, want %q", got, want)
 	}
 }

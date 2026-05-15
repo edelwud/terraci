@@ -252,7 +252,7 @@ func TestGenerator_Generate_WithPolicyCheck(t *testing.T) {
 	cfg.Contributions = []*pipeline.Contribution{{
 		Jobs: []pipeline.ContributedJob{{
 			Name:     "policy-check",
-			Commands: []string{"terraci policy check"},
+			Commands: []string{"terraci policy check --format text"},
 			Consumes: []pipeline.ResourceRequest{
 				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
 			},

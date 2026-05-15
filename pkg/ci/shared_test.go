@@ -56,3 +56,37 @@ func TestHasCommentMarker(t *testing.T) {
 		t.Fatal("expected plain body to not match marker")
 	}
 }
+
+func TestManagedLabelsMetadataRoundTrip(t *testing.T) {
+	body := CommentMarker + "\n\n## Terraform Plan"
+	withMetadata := EmbedManagedLabels(body, []string{" beta ", "alpha", "alpha"})
+
+	if got := ExtractManagedLabels(withMetadata); strings.Join(got, ",") != "alpha,beta" {
+		t.Fatalf("ExtractManagedLabels = %v, want [alpha beta]", got)
+	}
+	if strings.Count(withMetadata, managedLabelsPrefix) != 1 {
+		t.Fatalf("expected one metadata comment, got body:\n%s", withMetadata)
+	}
+
+	updated := EmbedManagedLabels(withMetadata, []string{"gamma"})
+	if got := ExtractManagedLabels(updated); strings.Join(got, ",") != "gamma" {
+		t.Fatalf("ExtractManagedLabels after update = %v, want [gamma]", got)
+	}
+	if strings.Count(updated, managedLabelsPrefix) != 1 {
+		t.Fatalf("expected metadata replacement, got body:\n%s", updated)
+	}
+}
+
+func TestDiffManagedLabels(t *testing.T) {
+	add, remove := DiffManagedLabels(
+		[]string{"stale", "keep", " dup ", "dup"},
+		[]string{"keep", "new"},
+	)
+
+	if strings.Join(add, ",") != "new" {
+		t.Fatalf("add = %v, want [new]", add)
+	}
+	if strings.Join(remove, ",") != "dup,stale" {
+		t.Fatalf("remove = %v, want [dup stale]", remove)
+	}
+}

@@ -9,9 +9,9 @@ const initGroupOrder = 201
 // Wizard StateMap keys. Centralized so InitGroups field definitions and
 // BuildInitConfig consumers can never drift apart on a typo.
 const (
-	keyPolicyEnabled       = "policy.enabled"
-	keyPolicySourcePath    = "policy.source_path"
-	keyPolicyFailureAction = "policy.failure_action"
+	keyPolicyEnabled      = "policy.enabled"
+	keyPolicySourcePath   = "policy.source_path"
+	keyPolicyDenyDecision = "policy.decisions.deny"
 )
 
 // InitGroups returns the init wizard group specs for policy checks.
@@ -49,9 +49,9 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 					Placeholder: "policies",
 				},
 				{
-					Key:         keyPolicyFailureAction,
-					Title:       "On policy failure",
-					Description: "Action when policy check fails",
+					Key:         keyPolicyDenyDecision,
+					Title:       "On deny decisions",
+					Description: "Action when OPA deny rules match",
 					Type:        initwiz.FieldSelect,
 					Default:     "block",
 					Options: []initwiz.InitOption{
@@ -77,17 +77,17 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribut
 		sourcePath = "policies"
 	}
 
-	onFailure := state.String(keyPolicyFailureAction)
-	if onFailure == "" {
-		onFailure = "block"
+	denyAction := state.String(keyPolicyDenyDecision)
+	if denyAction == "" {
+		denyAction = "block"
 	}
 
 	return &initwiz.InitContribution{
 		PluginKey: pluginName,
 		Config: map[string]any{
-			"enabled":        true,
-			"sources":        []map[string]any{{"type": "path", "path": sourcePath}},
-			"failure_action": onFailure,
+			"enabled":   true,
+			"sources":   []map[string]any{{"type": "path", "path": sourcePath}},
+			"decisions": map[string]any{"deny": denyAction},
 		},
 	}
 }

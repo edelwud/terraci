@@ -18,6 +18,12 @@ type fakeIssueCommentClient struct {
 	createdBody      string
 	updatedCommentID int64
 	updatedBody      string
+	addedPRNumber    int
+	addedLabels      []string
+	removedPRNumber  int
+	removedLabels    []string
+	addLabelsErr     error
+	removeLabelErr   error
 }
 
 func (f *fakeIssueCommentClient) HasToken() bool {
@@ -47,6 +53,24 @@ func (f *fakeIssueCommentClient) UpdateIssueComment(_ context.Context, commentID
 	f.updatedCommentID = commentID
 	f.updatedBody = body
 	return &gh.IssueComment{ID: gh.Ptr(commentID), Body: gh.Ptr(body)}, nil
+}
+
+func (f *fakeIssueCommentClient) AddIssueLabels(_ context.Context, prNumber int, labels []string) error {
+	if f.addLabelsErr != nil {
+		return f.addLabelsErr
+	}
+	f.addedPRNumber = prNumber
+	f.addedLabels = append([]string(nil), labels...)
+	return nil
+}
+
+func (f *fakeIssueCommentClient) RemoveIssueLabel(_ context.Context, prNumber int, label string) error {
+	if f.removeLabelErr != nil {
+		return f.removeLabelErr
+	}
+	f.removedPRNumber = prNumber
+	f.removedLabels = append(f.removedLabels, label)
+	return nil
 }
 
 type serviceScenario struct {

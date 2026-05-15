@@ -75,6 +75,16 @@ func (c *Client) UpdateIssueComment(ctx context.Context, commentID int64, body s
 	return updated, err
 }
 
+func (c *Client) AddIssueLabels(ctx context.Context, prNumber int, labels []string) error {
+	_, _, err := c.client.Issues.AddLabelsToIssue(ctx, c.owner, c.repo, prNumber, labels)
+	return err
+}
+
+func (c *Client) RemoveIssueLabel(ctx context.Context, prNumber int, label string) error {
+	_, err := c.client.Issues.RemoveLabelForIssue(ctx, c.owner, c.repo, prNumber, label)
+	return err
+}
+
 func ParseRepository(repository string) (owner, repo string) {
 	parts := strings.SplitN(repository, "/", 2)
 	if len(parts) != 2 {

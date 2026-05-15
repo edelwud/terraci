@@ -19,8 +19,9 @@ extensions:
         path: terraform           # имя директории = имя Rego package
     namespaces:
       - terraform
-    failure_action: block
-    warning_action: warn
+    decisions:
+      deny: block
+      warn: warn
 ```
 
 ## Параметры конфигурации
@@ -88,9 +89,9 @@ extensions:
 
 Несколько namespace позволяют разделять ответственность — правила безопасности в `terraform`, контроль расходов в `compliance` и т.д.
 
-### failure_action
+### decisions
 
-Действие при срабатывании `deny` правил:
+Действия для OPA решений:
 
 | Значение | Описание |
 |----------|----------|
@@ -98,24 +99,24 @@ extensions:
 | `warn` | Переклассифицировать нарушения в предупреждения (код возврата 0) |
 | `ignore` | Молча игнорировать |
 
-### warning_action
-
-Действие при срабатывании `warn` правил:
-
 ```yaml
 extensions:
   policy:
-    warning_action: warn  # по умолчанию
+    decisions:
+      deny: block  # по умолчанию
+      warn: warn   # по умолчанию
 ```
 
-### cache_dir
+`decisions.deny` применяется к правилам Rego `deny`. `decisions.warn` применяется к правилам Rego `warn`.
+
+### source_cache_dir
 
 Директория для кэширования загруженных политик (git/OCI источники).
 
 ```yaml
 extensions:
   policy:
-    cache_dir: .terraci/policies  # по умолчанию
+    source_cache_dir: .terraci/policies  # по умолчанию
 ```
 
 ### overrides
@@ -126,12 +127,14 @@ extensions:
 extensions:
   policy:
     enabled: true
-    failure_action: block
+    decisions:
+      deny: block
 
     overrides:
       # Sandbox: переклассифицировать ошибки в предупреждения
       - match: "**/sandbox/**"
-        failure_action: warn
+        decisions:
+          deny: warn
 
       # Legacy: полностью отключить проверки
       - match: "legacy/**"
@@ -157,7 +160,7 @@ extensions:
 
 #### Поведение overrides
 
-- **`failure_action: warn`** — deny нарушения переклассифицируются в предупреждения (отображаются, но не блокируют)
+- **`decisions.deny: warn`** — deny нарушения переклассифицируются в предупреждения (отображаются, но не блокируют)
 - **`enabled: false`** — модуль полностью пропускается, без evaluation
 - **`namespaces: [...]`** — заменяет список namespace для совпадающих модулей
 - Несколько overrides могут совпасть — применяются по порядку
@@ -296,7 +299,7 @@ stages:
 policy-check:
   stage: policy-check
   script:
-    - terraci policy check
+    - terraci policy check --format text
   needs: [plan-vpc, plan-eks]
 ```
 
@@ -308,7 +311,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
-      - run: terraci policy check
+      - run: terraci policy check --format text
 ```
 
 ## Команды
@@ -317,7 +320,7 @@ jobs:
 terraci policy pull                                    # Материализовать политики вручную
 terraci policy check                                   # Проверить все модули
 terraci policy check --module platform/prod/.../vpc    # Один модуль
-terraci policy check --output json                     # JSON вывод
+terraci policy check --format json                     # JSON вывод
 terraci policy check -v                                # Подробный вывод
 ```
 

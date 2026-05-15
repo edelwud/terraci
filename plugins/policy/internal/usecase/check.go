@@ -11,25 +11,38 @@ import (
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/planresults"
-	policyconfig "github.com/edelwud/terraci/plugins/policy/internal/config"
-	"github.com/edelwud/terraci/plugins/policy/internal/domain"
+	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 	"github.com/edelwud/terraci/plugins/policy/internal/engine"
 	policyinput "github.com/edelwud/terraci/plugins/policy/internal/input"
-	"github.com/edelwud/terraci/plugins/policy/internal/source"
 )
 
-type CheckRequest struct {
-	ModulePath string
+type SourceMaterializer interface {
+	Materialize(ctx context.Context, cacheDirOverride string) ([]string, error)
+	CacheDir(cacheDirOverride string) string
+}
+
+type PlanScanner interface {
+	Scan(rootDir string, segments []string) (*ci.PlanResultCollection, error)
+}
+
+type Evaluator interface {
+	Evaluate(ctx context.Context, input any, namespaces []string) (*policyengine.Evaluation, error)
+}
+
+type EvaluatorFactory interface {
+	NewEvaluator(policyDirs []string) Evaluator
 }
 
 type CheckRuntime struct {
-	Config       *policyconfig.Config
-	Sources      *source.Materializer
-	WorkDir      string
-	PlanSegments []string
+	Config           *policyengine.Config
+	Sources          SourceMaterializer
+	PlanScanner      PlanScanner
+	EvaluatorFactory EvaluatorFactory
+	WorkDir          string
+	PlanSegments     []string
 }
 
-func Check(ctx context.Context, runtime CheckRuntime, req CheckRequest) (*domain.Summary, error) {
+func Check(ctx context.Context, runtime CheckRuntime, req policyengine.CheckRequest) (*policyengine.Summary, error) {
 	if runtime.Config == nil {
 		return nil, errors.New("policy config is nil")
 	}
@@ -37,26 +50,36 @@ func Check(ctx context.Context, runtime CheckRuntime, req CheckRequest) (*domain
 		return nil, errors.New("policy source materializer is nil")
 	}
 
-	policyDirs, err := runtime.Sources.Materialize(ctx)
+	policyDirs, err := runtime.Sources.Materialize(ctx, "")
 	if err != nil {
 		return nil, fmt.Errorf("materialize policy sources: %w", err)
 	}
 
-	plans, err := discoverPlans(runtime.WorkDir, runtime.PlanSegments, req.ModulePath)
+	plans, err := discoverPlans(runtime.PlanScanner, runtime.WorkDir, runtime.PlanSegments, req.ModulePath)
 	if err != nil {
 		return nil, err
 	}
 
-	results := make([]domain.Result, 0, len(plans))
+	evaluatorFactory := runtime.EvaluatorFactory
+	if evaluatorFactory == nil {
+		evaluatorFactory = engineFactory{}
+	}
+	evaluator := evaluatorFactory.NewEvaluator(policyDirs)
+
+	results := make([]policyengine.Result, 0, len(plans))
 	for i := range plans {
-		results = append(results, checkPlan(ctx, runtime, policyDirs, plans[i]))
+		results = append(results, checkPlan(ctx, runtime, evaluator, plans[i]))
 	}
 
-	return domain.NewSummary(results), nil
+	return policyengine.NewSummary(results), nil
 }
 
-func discoverPlans(workDir string, segments []string, modulePath string) ([]ci.PlanResult, error) {
-	collection, err := planresults.Scan(workDir, segments)
+func discoverPlans(scanner PlanScanner, workDir string, segments []string, modulePath string) ([]ci.PlanResult, error) {
+	if scanner == nil {
+		scanner = defaultPlanScanner{}
+	}
+
+	collection, err := scanner.Scan(workDir, segments)
 	if err != nil {
 		return nil, fmt.Errorf("scan plan results: %w", err)
 	}
@@ -93,14 +116,14 @@ func filterPlans(plans []ci.PlanResult, modulePath string) []ci.PlanResult {
 	return filtered
 }
 
-func checkPlan(ctx context.Context, runtime CheckRuntime, policyDirs []string, plan ci.PlanResult) domain.Result {
+func checkPlan(ctx context.Context, runtime CheckRuntime, evaluator Evaluator, plan ci.PlanResult) policyengine.Result {
 	modulePath := filepath.ToSlash(plan.ModulePath)
 	effective, err := runtime.Config.EffectiveConfig(modulePath)
 	if err != nil {
-		return domain.NewErrorResult(modulePath, err)
+		return policyengine.NewErrorResult(modulePath, err)
 	}
 	if effective == nil || !effective.Enabled {
-		return domain.NewSkippedResult(modulePath)
+		return policyengine.NewSkippedResult(modulePath)
 	}
 
 	namespaces := effective.NamespacesOrDefault()
@@ -113,13 +136,28 @@ func checkPlan(ctx context.Context, runtime CheckRuntime, policyDirs []string, p
 		Namespaces:      namespaces,
 	})
 	if err != nil {
-		return domain.NewErrorResult(modulePath, err)
+		return policyengine.NewErrorResult(modulePath, err)
 	}
 
-	evaluation, err := engine.New(policyDirs, namespaces).Evaluate(ctx, envelope)
+	if evaluator == nil {
+		return policyengine.NewErrorResult(modulePath, errors.New("policy evaluator is nil"))
+	}
+	evaluation, err := evaluator.Evaluate(ctx, envelope, namespaces)
 	if err != nil {
-		return domain.NewErrorResult(modulePath, err)
+		return policyengine.NewErrorResult(modulePath, err)
 	}
 
-	return domain.ApplyEvaluation(modulePath, evaluation, effective.ActionPolicy())
+	return policyengine.ApplyEvaluation(modulePath, evaluation, effective.Decisions)
+}
+
+type defaultPlanScanner struct{}
+
+func (defaultPlanScanner) Scan(rootDir string, segments []string) (*ci.PlanResultCollection, error) {
+	return planresults.Scan(rootDir, segments)
+}
+
+type engineFactory struct{}
+
+func (engineFactory) NewEvaluator(policyDirs []string) Evaluator {
+	return engine.New(policyDirs)
 }

@@ -16,34 +16,18 @@ func TestRenderSummaryReportCLI_RendersStructuredSections(t *testing.T) {
 		Title:    "Terraform Plan Summary",
 		Summary:  "2 modules: 1 with changes, 1 no changes, 0 failed",
 		Sections: []ci.ReportSection{
-			citest.MustEncodeSection(
-				ci.ReportSectionKindOverview,
+			citest.MustEncodeRenderSection(
 				"Summary",
 				"2 modules: 1 with changes, 1 no changes, 0 failed",
 				ci.ReportStatusWarn,
-				ci.OverviewSection{
-					PlanStats: ci.SummaryPlanStats{Total: 2, Changes: 1, NoChanges: 1, Success: 2},
-					Reports: []ci.SummaryReportOverview{
-						{Kind: "cost_changes", Title: "Cost Estimation", Status: ci.ReportStatusWarn, Summary: "1 module added cost"},
-					},
-				},
+				ci.RenderListBlock("", []string{"warn Cost Estimation: 1 module added cost"}),
 			),
-			citest.MustEncodeSection(
-				ci.ReportSectionKindModuleTable,
+			citest.MustEncodeRenderSection(
 				"Environment: `prod`",
 				"1 actionable modules",
 				ci.ReportStatusWarn,
-				ci.ModuleTableSection{
-					Environment: "prod",
-					Rows: []ci.ModuleTableRow{{
-						ModuleID:          "svc/prod/eu/vpc",
-						ModulePath:        "svc/prod/eu/vpc",
-						Status:            ci.PlanStatusChanges,
-						Summary:           "+1",
-						StructuredDetails: "### Resources\n- aws_vpc.main (create)",
-						RawPlanOutput:     "+ resource \"aws_vpc\" \"main\"",
-					}},
-				},
+				ci.RenderTableBlock("", []string{"Status", "Module", "Summary"}, [][]string{{"changes", "svc/prod/eu/vpc", "+1"}}),
+				ci.RenderDetailsBlock("svc/prod/eu/vpc (+1)", "### Resources\n- aws_vpc.main (create)\n\n#### Full plan output\n\n```diff\n+ resource \"aws_vpc\" \"main\"\n```", ""),
 			),
 		},
 	}
@@ -57,7 +41,7 @@ func TestRenderSummaryReportCLI_RendersStructuredSections(t *testing.T) {
 		"Environment: `prod`",
 		"svc/prod/eu/vpc (+1)",
 		"Resources",
-		`    + resource "aws_vpc" "main"`,
+		`+ resource "aws_vpc" "main"`,
 		"┌",
 	} {
 		if !strings.Contains(rendered, wanted) {

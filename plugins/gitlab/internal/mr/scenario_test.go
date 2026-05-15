@@ -24,6 +24,15 @@ type fakeNoteClient struct {
 	updatedMRIID     int64
 	updatedNoteID    int64
 	updatedBody      string
+
+	addedProjectID   string
+	addedMRIID       int64
+	addedLabels      []string
+	removedProjectID string
+	removedMRIID     int64
+	removedLabels    []string
+	addLabelsErr     error
+	removeLabelsErr  error
 }
 
 func (f *fakeNoteClient) HasToken() bool {
@@ -56,6 +65,26 @@ func (f *fakeNoteClient) UpdateMRNote(projectID string, mrIID, noteID int64, bod
 	f.updatedNoteID = noteID
 	f.updatedBody = body
 	return &gitlab.Note{ID: noteID, Body: body}, nil
+}
+
+func (f *fakeNoteClient) AddMRLabels(projectID string, mrIID int64, labels []string) error {
+	if f.addLabelsErr != nil {
+		return f.addLabelsErr
+	}
+	f.addedProjectID = projectID
+	f.addedMRIID = mrIID
+	f.addedLabels = append([]string(nil), labels...)
+	return nil
+}
+
+func (f *fakeNoteClient) RemoveMRLabels(projectID string, mrIID int64, labels []string) error {
+	if f.removeLabelsErr != nil {
+		return f.removeLabelsErr
+	}
+	f.removedProjectID = projectID
+	f.removedMRIID = mrIID
+	f.removedLabels = append([]string(nil), labels...)
+	return nil
 }
 
 type serviceScenario struct {

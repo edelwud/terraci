@@ -7,12 +7,13 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/open-policy-agent/opa/v1/rego"
 	"github.com/open-policy-agent/opa/v1/version"
 
-	"github.com/edelwud/terraci/plugins/policy/internal/domain"
+	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
 
 func OPAVersion() string {
@@ -21,28 +22,26 @@ func OPAVersion() string {
 
 type Engine struct {
 	policyDirs  []string
-	namespaces  []string
 	policyFiles []string
 }
 
-func New(policyDirs, namespaces []string) *Engine {
+func New(policyDirs []string) *Engine {
 	return &Engine{
 		policyDirs: append([]string(nil), policyDirs...),
-		namespaces: append([]string(nil), namespaces...),
 	}
 }
 
-func (e *Engine) Evaluate(ctx context.Context, input any) (*domain.Evaluation, error) {
+func (e *Engine) Evaluate(ctx context.Context, input any, namespaces []string) (*policyengine.Evaluation, error) {
 	policyFiles, err := e.regoFiles()
 	if err != nil {
 		return nil, err
 	}
 	if len(policyFiles) == 0 {
-		return &domain.Evaluation{}, nil
+		return &policyengine.Evaluation{}, nil
 	}
 
-	eval := &domain.Evaluation{}
-	for _, namespace := range e.namespaces {
+	eval := &policyengine.Evaluation{}
+	for _, namespace := range namespaces {
 		denies, err := e.runQuery(ctx, input, policyFiles, fmt.Sprintf("data.%s.deny", namespace), namespace)
 		if err != nil {
 			return nil, fmt.Errorf("evaluate %s deny rules: %w", namespace, err)
@@ -55,6 +54,8 @@ func (e *Engine) Evaluate(ctx context.Context, input any) (*domain.Evaluation, e
 		eval.Warns = append(eval.Warns, warns...)
 	}
 
+	sortFindings(eval.Denies)
+	sortFindings(eval.Warns)
 	return eval, nil
 }
 
@@ -83,11 +84,12 @@ func (e *Engine) regoFiles() ([]string, error) {
 		}
 	}
 
+	sort.Strings(files)
 	e.policyFiles = files
 	return files, nil
 }
 
-func (e *Engine) runQuery(ctx context.Context, input any, policyFiles []string, query, namespace string) ([]domain.Finding, error) {
+func (e *Engine) runQuery(ctx context.Context, input any, policyFiles []string, query, namespace string) ([]policyengine.Finding, error) {
 	r := rego.New(
 		rego.Query(query),
 		rego.Input(input),
@@ -102,7 +104,7 @@ func (e *Engine) runQuery(ctx context.Context, input any, policyFiles []string, 
 		return nil, err
 	}
 
-	var findings []domain.Finding
+	var findings []policyengine.Finding
 	for _, result := range rs {
 		for _, expr := range result.Expressions {
 			findings = append(findings, parseExpression(expr.Value, namespace)...)
@@ -111,10 +113,10 @@ func (e *Engine) runQuery(ctx context.Context, input any, policyFiles []string, 
 	return findings, nil
 }
 
-func parseExpression(value any, namespace string) []domain.Finding {
+func parseExpression(value any, namespace string) []policyengine.Finding {
 	switch v := value.(type) {
 	case []any:
-		findings := make([]domain.Finding, 0, len(v))
+		findings := make([]policyengine.Finding, 0, len(v))
 		for _, item := range v {
 			if finding, ok := parseFinding(item, namespace); ok {
 				findings = append(findings, finding)
@@ -123,18 +125,18 @@ func parseExpression(value any, namespace string) []domain.Finding {
 		return findings
 	case map[string]any, string:
 		if finding, ok := parseFinding(v, namespace); ok {
-			return []domain.Finding{finding}
+			return []policyengine.Finding{finding}
 		}
 	}
 	return nil
 }
 
-func parseFinding(value any, namespace string) (domain.Finding, bool) {
+func parseFinding(value any, namespace string) (policyengine.Finding, bool) {
 	switch v := value.(type) {
 	case string:
-		return domain.Finding{Message: v, Namespace: namespace}, true
+		return policyengine.Finding{Message: v, Namespace: namespace}, true
 	case map[string]any:
-		finding := domain.Finding{Namespace: namespace, Metadata: make(map[string]any)}
+		finding := policyengine.Finding{Namespace: namespace, Metadata: make(map[string]any)}
 		if msg, ok := v["msg"].(string); ok {
 			finding.Message = msg
 		} else if msg, ok := v["message"].(string); ok {
@@ -148,12 +150,21 @@ func parseFinding(value any, namespace string) (domain.Finding, bool) {
 		if finding.Message == "" {
 			data, err := json.Marshal(v)
 			if err != nil {
-				return domain.Finding{}, false
+				return policyengine.Finding{}, false
 			}
 			finding.Message = string(data)
 		}
 		return finding, true
 	default:
-		return domain.Finding{}, false
+		return policyengine.Finding{}, false
 	}
+}
+
+func sortFindings(findings []policyengine.Finding) {
+	sort.SliceStable(findings, func(i, j int) bool {
+		if findings[i].Namespace == findings[j].Namespace {
+			return findings[i].Message < findings[j].Message
+		}
+		return findings[i].Namespace < findings[j].Namespace
+	})
 }

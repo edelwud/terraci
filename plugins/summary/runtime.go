@@ -7,18 +7,21 @@ import (
 	summaryengine "github.com/edelwud/terraci/plugins/summary/internal"
 )
 
-type summaryRuntime struct {
-	config          *summaryengine.Config
-	resolveProvider func() (summaryProvider, error)
-}
+type summaryRuntime = summaryengine.Runtime
 
 func newRuntime(appCtx *plugin.AppContext, cfg *summaryengine.Config) *summaryRuntime {
-	if cfg == nil {
-		cfg = &summaryengine.Config{}
+	normalized := cfg.Normalized()
+	appCfg := appCtx.Config()
+	var segments []string
+	if appCfg != nil {
+		segments = []string(appCfg.Structure.Segments)
 	}
-	return &summaryRuntime{
-		config:          cfg,
-		resolveProvider: resolveSummaryProvider(appCtx),
+	return &summaryengine.Runtime{
+		Config:           normalized,
+		WorkDir:          appCtx.WorkDir(),
+		ServiceDir:       appCtx.ServiceDir(),
+		Segments:         segments,
+		ProviderResolver: resolveSummaryProvider(appCtx),
 	}
 }
 

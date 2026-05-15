@@ -1,53 +1,42 @@
 package policy
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/edelwud/terraci/pkg/ci"
-	"github.com/edelwud/terraci/plugins/policy/internal/domain"
+	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
 
-func buildPolicyReport(summary *domain.Summary) (*ci.Report, error) {
+func buildPolicyReport(summary *policyengine.Summary) (*ci.Report, error) {
+	if summary == nil {
+		return nil, errors.New("policy summary is nil")
+	}
+
 	status := ci.StatusFromCounts(summary.FailedModules, summary.WarnedModules)
 
-	rows := make([]ci.FindingRow, 0, len(summary.Results))
+	rows := make([][]string, 0, len(summary.Results))
 	for i := range summary.Results {
 		result := &summary.Results[i]
-		row := ci.FindingRow{
-			ModulePath: result.Module,
-			Status:     ci.FindingRowStatusPass,
-		}
 		for _, failure := range result.Failures {
-			row.Status = ci.FindingRowStatusFail
-			row.Findings = append(row.Findings, ci.Finding{
-				Severity:  ci.FindingSeverityFail,
-				Message:   failure.Message,
-				Namespace: failure.Namespace,
-			})
+			rows = append(rows, []string{result.Module, "fail", failure.Namespace, failure.Message})
 		}
 		for _, warning := range result.Warnings {
-			if row.Status != ci.FindingRowStatusFail {
-				row.Status = ci.FindingRowStatusWarn
-			}
-			row.Findings = append(row.Findings, ci.Finding{
-				Severity:  ci.FindingSeverityWarn,
-				Message:   warning.Message,
-				Namespace: warning.Namespace,
-			})
-		}
-		if len(row.Findings) > 0 {
-			rows = append(rows, row)
+			rows = append(rows, []string{result.Module, "warn", warning.Namespace, warning.Message})
 		}
 	}
 
 	summaryText := fmt.Sprintf("%d modules: %d passed, %d warned, %d failed",
 		summary.TotalModules, summary.PassedModules, summary.WarnedModules, summary.FailedModules)
-	section, err := ci.EncodeSection(
-		ci.ReportSectionKindFindings,
+	blocks := make([]ci.RenderBlock, 0, 1)
+	if len(rows) > 0 {
+		blocks = append(blocks, ci.RenderTableBlock("", []string{"Module", "Severity", "Namespace", "Message"}, rows))
+	}
+	section, err := ci.EncodeRenderSection(
 		"Policy Check",
 		summaryText,
 		status,
-		ci.FindingsSection{Rows: rows},
+		blocks...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("build policy report: %w", err)

@@ -19,8 +19,9 @@ extensions:
         path: terraform           # directory name = Rego package name
     namespaces:
       - terraform
-    failure_action: block
-    warning_action: warn
+    decisions:
+      deny: block
+      warn: warn
 ```
 
 ## Configuration Options
@@ -88,9 +89,9 @@ Default: `["terraform"]`
 
 Multiple namespaces allow separating concerns — security rules in `terraform`, cost rules in `compliance`, etc.
 
-### failure_action
+### decisions
 
-Action when Rego `deny` rules fire:
+Actions for OPA decisions:
 
 | Value | Description |
 |-------|-------------|
@@ -98,26 +99,24 @@ Action when Rego `deny` rules fire:
 | `warn` | Reclassify failures as warnings, continue (exit code 0) |
 | `ignore` | Silently ignore failures |
 
-### warning_action
-
-Action when Rego `warn` rules fire:
-
 ```yaml
 extensions:
   policy:
-    warning_action: warn  # default
+    decisions:
+      deny: block  # default
+      warn: warn   # default
 ```
 
-Allowed values: `block`, `warn`, `ignore`.
+`decisions.deny` applies to Rego `deny` rules. `decisions.warn` applies to Rego `warn` rules.
 
-### cache_dir
+### source_cache_dir
 
 Directory for caching downloaded policies (git/OCI sources).
 
 ```yaml
 extensions:
   policy:
-    cache_dir: .terraci/policies  # default
+    source_cache_dir: .terraci/policies  # default
 ```
 
 ### overrides
@@ -128,12 +127,14 @@ Override policy settings for specific modules using `**` glob patterns:
 extensions:
   policy:
     enabled: true
-    failure_action: block
+    decisions:
+      deny: block
 
     overrides:
       # Sandbox: reclassify failures as warnings (don't block)
       - match: "**/sandbox/**"
-        failure_action: warn
+        decisions:
+          deny: warn
 
       # Legacy: skip policy checks entirely
       - match: "legacy/**"
@@ -160,7 +161,7 @@ extensions:
 
 #### Override behavior
 
-- **`failure_action: warn`** — deny rule violations are reclassified as warnings (appear in output but don't block)
+- **`decisions.deny: warn`** — deny rule violations are reclassified as warnings (appear in output but don't block)
 - **`enabled: false`** — module is skipped entirely, no evaluation
 - **`namespaces: [...]`** — replaces the namespace list for matching modules
 - Multiple overrides can match the same module — applied in order
@@ -302,7 +303,7 @@ stages:
 policy-check:
   stage: policy-check
   script:
-    - terraci policy check
+    - terraci policy check --format text
   needs: [plan-vpc, plan-eks]
   artifacts:
     paths: [.terraci/policy-results.json]
@@ -316,7 +317,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
-      - run: terraci policy check
+      - run: terraci policy check --format text
 ```
 
 ## Commands
@@ -332,7 +333,7 @@ terraci policy check
 terraci policy check --module platform/prod/eu-central-1/vpc
 
 # JSON output
-terraci policy check --output json
+terraci policy check --format json
 
 # Verbose output
 terraci policy check -v

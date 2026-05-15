@@ -1,34 +1,67 @@
 package policy
 
 import (
+	"errors"
 	"fmt"
 	"io"
 
 	log "github.com/caarlos0/log"
 
 	"github.com/edelwud/terraci/plugins/internal/cliout"
-	"github.com/edelwud/terraci/plugins/policy/internal/domain"
+	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
 
-func outputResult(w io.Writer, format string, summary *domain.Summary, shouldBlock bool) error {
-	if format == "json" {
+type outputFormat string
+
+const (
+	outputFormatText outputFormat = "text"
+	outputFormatJSON outputFormat = "json"
+)
+
+func parseOutputFormat(raw string) (outputFormat, error) {
+	switch outputFormat(raw) {
+	case "", outputFormatText:
+		return outputFormatText, nil
+	case outputFormatJSON:
+		return outputFormatJSON, nil
+	default:
+		return "", fmt.Errorf("unsupported policy output format %q: must be one of: text, json", raw)
+	}
+}
+
+func outputResult(w io.Writer, format outputFormat, summary *policyengine.Summary, shouldBlock bool) error {
+	if summary == nil {
+		return errors.New("policy summary is nil")
+	}
+
+	switch format {
+	case outputFormatJSON:
 		if err := cliout.WriteJSON(w, summary); err != nil {
 			return err
 		}
 		return blockingError(summary, shouldBlock)
+	case outputFormatText, "":
+		return outputText(summary, shouldBlock)
+	default:
+		return fmt.Errorf("unsupported policy output format %q: must be one of: text, json", format)
 	}
-
-	return outputText(summary, shouldBlock)
 }
 
-func blockingError(summary *domain.Summary, shouldBlock bool) error {
+func blockingError(summary *policyengine.Summary, shouldBlock bool) error {
+	if summary == nil {
+		return errors.New("policy summary is nil")
+	}
 	if !shouldBlock {
 		return nil
 	}
 	return fmt.Errorf("policy check failed with %d failures", summary.TotalFailures)
 }
 
-func outputText(summary *domain.Summary, shouldBlock bool) error {
+func outputText(summary *policyengine.Summary, shouldBlock bool) error {
+	if summary == nil {
+		return errors.New("policy summary is nil")
+	}
+
 	log.Info("summary")
 	log.IncreasePadding()
 	log.WithField("total", summary.TotalModules).Info("modules")
@@ -44,7 +77,7 @@ func outputText(summary *domain.Summary, shouldBlock bool) error {
 	log.DecreasePadding()
 
 	for _, result := range summary.Results {
-		if result.Status() == "pass" {
+		if result.Status() == policyengine.StatusPass {
 			continue
 		}
 		log.WithField("module", result.Module).WithField("status", result.Status()).Info("module result")

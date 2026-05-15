@@ -93,6 +93,10 @@ extensions:
   # summary:
   #   on_changes_only: false
   #   include_details: true
+  #   labels:
+  #     - terraform
+  #     - "{environment}"
+  #     - "{module}"
 
   # Dependency update checks
   # tfupdate:

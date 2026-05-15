@@ -103,3 +103,11 @@ func (c *Client) AddMRLabels(projectID string, mrIID int64, labels []string) err
 	_, _, err := c.client.MergeRequests.UpdateMergeRequest(projectID, mrIID, opts)
 	return err
 }
+
+// RemoveMRLabels removes labels from an MR.
+func (c *Client) RemoveMRLabels(projectID string, mrIID int64, labels []string) error {
+	labelsArg := gitlab.LabelOptions(labels)
+	opts := &gitlab.UpdateMergeRequestOptions{RemoveLabels: &labelsArg}
+	_, _, err := c.client.MergeRequests.UpdateMergeRequest(projectID, mrIID, opts)
+	return err
+}

@@ -36,20 +36,40 @@ func TestPlugin_Commands_Registration(t *testing.T) {
 	}
 }
 
-func decodeCostSection(t *testing.T, report *ci.Report) costChangesPayload {
+func decodeCostSection(t *testing.T, report *ci.Report) ci.RenderSection {
 	t.Helper()
 	if len(report.Sections) != 1 {
 		t.Fatalf("Sections count = %d, want 1", len(report.Sections))
 	}
 	section := report.Sections[0]
-	if section.Kind != costChangesSectionKind {
-		t.Fatalf("section kind = %q, want %q", section.Kind, costChangesSectionKind)
+	if section.Kind != ci.ReportSectionKindRendered {
+		t.Fatalf("section kind = %q, want %q", section.Kind, ci.ReportSectionKindRendered)
 	}
-	var payload costChangesPayload
-	if err := json.Unmarshal(section.Payload, &payload); err != nil {
-		t.Fatalf("decode cost section payload: %v", err)
+	var rendered ci.RenderSection
+	if err := json.Unmarshal(section.Payload, &rendered); err != nil {
+		t.Fatalf("decode rendered section payload: %v", err)
 	}
-	return payload
+	return rendered
+}
+
+func renderTableRows(t *testing.T, section ci.RenderSection) [][]string {
+	t.Helper()
+	for _, block := range section.Blocks {
+		if block.Kind == ci.RenderBlockKindTable && block.Table != nil {
+			return block.Table.Rows
+		}
+	}
+	t.Fatal("render section has no table block")
+	return nil
+}
+
+func renderTableRowsOrNil(section ci.RenderSection) [][]string {
+	for _, block := range section.Blocks {
+		if block.Kind == ci.RenderBlockKindTable && block.Table != nil {
+			return block.Table.Rows
+		}
+	}
+	return nil
 }
 
 func TestPlugin_Commands_RunE_NotConfigured(t *testing.T) {
@@ -372,22 +392,20 @@ func TestBuildCostReport(t *testing.T) {
 	}
 
 	section := decodeCostSection(t, report)
-	if len(section.Rows) != 2 {
-		t.Fatalf("Rows count = %d, want 2 (including errored module)", len(section.Rows))
+	rows := renderTableRows(t, section)
+	if len(rows) != 2 {
+		t.Fatalf("Rows count = %d, want 2 (including errored module)", len(rows))
 	}
 
-	m := section.Rows[0]
-	if !m.HasCost {
-		t.Error("Module.HasCost should be true")
+	m := rows[0]
+	if m[2] != "$10.50" {
+		t.Errorf("Module.After = %q, want $10.50", m[2])
 	}
-	if m.After != 10.50 {
-		t.Errorf("Module.After = %.2f, want 10.50", m.After)
+	if m[3] != "+$5.25" {
+		t.Errorf("Module.Diff = %q, want +$5.25", m[3])
 	}
-	if m.Diff != 5.25 {
-		t.Errorf("Module.Diff = %.2f, want 5.25", m.Diff)
-	}
-	if section.Rows[1].Error != "parse error" {
-		t.Errorf("Error module error = %q, want %q", section.Rows[1].Error, "parse error")
+	if rows[1][4] != "parse error" {
+		t.Errorf("Error module error = %q, want %q", rows[1][4], "parse error")
 	}
 }
 
@@ -440,8 +458,8 @@ func TestBuildCostReport_IncludesPrefetchWarnings(t *testing.T) {
 		t.Fatalf("summary = %q, want usage unknown count", report.Summary)
 	}
 	section := decodeCostSection(t, report)
-	if section.Totals.UsageEstimated != 1 || section.Totals.UsageUnknown != 1 {
-		t.Fatalf("unexpected usage totals: %+v", section.Totals)
+	if len(section.Blocks) == 0 {
+		t.Fatalf("expected render blocks")
 	}
 }
 
@@ -463,8 +481,8 @@ func TestBuildCostReport_Empty(t *testing.T) {
 		t.Errorf("Summary = %q, want to contain '0 modules'", report.Summary)
 	}
 	section := decodeCostSection(t, report)
-	if len(section.Rows) != 0 {
-		t.Errorf("Rows count = %d, want 0", len(section.Rows))
+	if rows := renderTableRowsOrNil(section); len(rows) != 0 {
+		t.Errorf("Rows count = %d, want 0", len(rows))
 	}
 }
 
@@ -483,13 +501,14 @@ func TestBuildCostReport_AllErrors(t *testing.T) {
 	}
 
 	section := decodeCostSection(t, report)
-	if len(section.Rows) != 2 {
-		t.Errorf("Rows count = %d, want 2 (all errors should still be visible)", len(section.Rows))
+	rows := renderTableRows(t, section)
+	if len(rows) != 2 {
+		t.Errorf("Rows count = %d, want 2 (all errors should still be visible)", len(rows))
 	}
 	if report.Status != ci.ReportStatusWarn {
 		t.Errorf("Status = %q, want %q", report.Status, ci.ReportStatusWarn)
 	}
-	if section.Rows[0].Error != "fail1" || section.Rows[1].Error != "fail2" {
+	if rows[0][4] != "fail1" || rows[1][4] != "fail2" {
 		t.Error("Rows should contain module errors")
 	}
 }
@@ -513,10 +532,11 @@ func TestBuildCostReport_EscapesMarkdownTableCells(t *testing.T) {
 		t.Fatalf("buildCostReport() error = %v", buildErr)
 	}
 	section := decodeCostSection(t, report)
-	if section.Rows[0].ModulePath != "/tmp/with|pipe\\slash" {
-		t.Fatalf("module path = %q, want raw path preserved", section.Rows[0].ModulePath)
+	rows := renderTableRows(t, section)
+	if rows[0][0] != "/tmp/with|pipe\\slash" {
+		t.Fatalf("module path = %q, want raw path preserved", rows[0][0])
 	}
-	if section.Rows[0].Error != "line1\nline2 | detail" {
-		t.Fatalf("error = %q, want raw error preserved", section.Rows[0].Error)
+	if rows[0][4] != "line1\nline2 | detail" {
+		t.Fatalf("error = %q, want raw error preserved", rows[0][4])
 	}
 }

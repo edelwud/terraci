@@ -125,14 +125,11 @@ func TestLogOutputCompleted_WithSummaryReport(t *testing.T) {
 		Producer: "summary",
 		Title:    "Terraform Plan Summary",
 		Summary:  "1 modules: 1 with changes, 0 no changes, 0 failed",
-		Sections: []ci.ReportSection{citest.MustEncodeSection(
-			ci.ReportSectionKindOverview,
+		Sections: []ci.ReportSection{citest.MustEncodeRenderSection(
 			"Summary",
 			"",
 			ci.ReportStatusWarn,
-			ci.OverviewSection{
-				PlanStats: ci.SummaryPlanStats{Total: 1, Changes: 1},
-			},
+			ci.RenderTextBlock("1 module changed"),
 		)},
 	}
 	output := LogOutput{}

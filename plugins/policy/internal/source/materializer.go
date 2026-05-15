@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	policyconfig "github.com/edelwud/terraci/plugins/policy/internal/config"
+	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
 
 type Source interface {
@@ -18,23 +18,15 @@ type Source interface {
 type Materializer struct {
 	sources  []Source
 	cacheDir string
+	rootDir  string
 }
 
-func NewMaterializer(cfg *policyconfig.Config, rootDir, serviceDir string) (*Materializer, error) {
+func NewMaterializer(cfg *policyengine.Config, rootDir, serviceDir string) (*Materializer, error) {
 	if cfg == nil {
 		return nil, errors.New("policy config is nil")
 	}
 
-	cacheDir := cfg.CacheDir
-	if cacheDir == "" {
-		if serviceDir == "" {
-			serviceDir = ".terraci"
-		}
-		cacheDir = filepath.Join(serviceDir, "policies")
-	}
-	if !filepath.IsAbs(cacheDir) {
-		cacheDir = filepath.Join(rootDir, cacheDir)
-	}
+	cacheDir := resolveCacheDir(rootDir, serviceDir, cfg.SourceCacheDir)
 
 	sources := make([]Source, 0, len(cfg.Sources))
 	for i, sourceConfig := range cfg.Sources {
@@ -45,37 +37,38 @@ func NewMaterializer(cfg *policyconfig.Config, rootDir, serviceDir string) (*Mat
 		sources = append(sources, src)
 	}
 
-	return &Materializer{sources: sources, cacheDir: cacheDir}, nil
+	return &Materializer{sources: sources, cacheDir: cacheDir, rootDir: rootDir}, nil
 }
 
-func NewSource(cfg policyconfig.SourceConfig, rootDir string) (Source, error) {
+func NewSource(cfg policyengine.SourceConfig, rootDir string) (Source, error) {
 	switch cfg.Type {
-	case policyconfig.SourceTypePath:
+	case policyengine.SourceTypePath:
 		path := cfg.Path
 		if !filepath.IsAbs(path) {
 			path = filepath.Join(rootDir, path)
 		}
 		return &PathSource{Path: path}, nil
-	case policyconfig.SourceTypeGit:
+	case policyengine.SourceTypeGit:
 		return &GitSource{URL: cfg.URL, Ref: cfg.Ref}, nil
-	case policyconfig.SourceTypeOCI:
+	case policyengine.SourceTypeOCI:
 		return &OCISource{URL: cfg.URL}, nil
 	default:
 		return nil, fmt.Errorf("unsupported policy source type %q", cfg.Type)
 	}
 }
 
-func (m *Materializer) Materialize(ctx context.Context) ([]string, error) {
+func (m *Materializer) Materialize(ctx context.Context, cacheDirOverride string) ([]string, error) {
 	if m == nil {
 		return nil, errors.New("policy source materializer is nil")
 	}
-	if err := os.MkdirAll(m.cacheDir, 0o755); err != nil {
+	cacheDir := m.CacheDir(cacheDirOverride)
+	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		return nil, fmt.Errorf("create policy cache dir: %w", err)
 	}
 
 	dirs := make([]string, 0, len(m.sources))
 	for i, src := range m.sources {
-		dest := filepath.Join(m.cacheDir, sourceDirName(i, src))
+		dest := filepath.Join(cacheDir, sourceDirName(i, src))
 		dir, err := src.Materialize(ctx, dest)
 		if err != nil {
 			return nil, fmt.Errorf("materialize %s: %w", src, err)
@@ -85,11 +78,28 @@ func (m *Materializer) Materialize(ctx context.Context) ([]string, error) {
 	return dirs, nil
 }
 
-func (m *Materializer) CacheDir() string {
+func (m *Materializer) CacheDir(cacheDirOverride string) string {
 	if m == nil {
 		return ""
 	}
+	if cacheDirOverride != "" {
+		return resolveCacheDir(m.rootDir, "", cacheDirOverride)
+	}
 	return m.cacheDir
+}
+
+func resolveCacheDir(rootDir, serviceDir, configured string) string {
+	cacheDir := configured
+	if cacheDir == "" {
+		if serviceDir == "" {
+			serviceDir = ".terraci"
+		}
+		cacheDir = filepath.Join(serviceDir, "policies")
+	}
+	if !filepath.IsAbs(cacheDir) {
+		cacheDir = filepath.Join(rootDir, cacheDir)
+	}
+	return cacheDir
 }
 
 func sourceDirName(index int, src Source) string {

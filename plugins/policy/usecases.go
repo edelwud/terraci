@@ -10,12 +10,12 @@ import (
 
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/plugin"
-	"github.com/edelwud/terraci/plugins/policy/internal/domain"
+	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 	policyusecase "github.com/edelwud/terraci/plugins/policy/internal/usecase"
 )
 
-func runPullPoliciesUseCase(ctx context.Context, runtime *policyRuntime) error {
-	result, err := policyusecase.Pull(ctx, runtime.sources, policyusecase.PullRequest{})
+func runPullPoliciesUseCase(ctx context.Context, runtime *policyRuntime, req policyengine.PullRequest) error {
+	result, err := policyusecase.Pull(ctx, runtime.sources, req)
 	if err != nil {
 		return fmt.Errorf("failed to materialize policies: %w", err)
 	}
@@ -25,22 +25,23 @@ func runPullPoliciesUseCase(ctx context.Context, runtime *policyRuntime) error {
 	return nil
 }
 
-func runPolicyCheckUseCase(ctx context.Context, runtime *policyRuntime, w io.Writer) error {
+func runPolicyCheckUseCase(ctx context.Context, runtime *policyRuntime, req policyengine.CheckRequest, format outputFormat, w io.Writer) error {
+	cfg := runtime.config
 	summary, err := policyusecase.Check(ctx, policyusecase.CheckRuntime{
-		Config:       runtime.config,
+		Config:       &cfg,
 		Sources:      runtime.sources,
 		WorkDir:      runtime.workDir,
 		PlanSegments: runtime.planSegments,
-	}, policyusecase.CheckRequest{ModulePath: runtime.options.modulePath})
+	}, req)
 	if err != nil {
 		return fmt.Errorf("run policy check: %w", err)
 	}
 
 	persistPolicyArtifacts(runtime.serviceDir, summary)
-	return outputResult(w, runtime.options.outputFmt, summary, summary.HasFailures())
+	return outputResult(w, format, summary, summary.HasFailures())
 }
 
-func persistPolicyArtifacts(serviceDir string, summary *domain.Summary) {
+func persistPolicyArtifacts(serviceDir string, summary *policyengine.Summary) {
 	if serviceDir == "" {
 		return
 	}
@@ -55,23 +56,28 @@ func persistPolicyArtifacts(serviceDir string, summary *domain.Summary) {
 	}
 }
 
-func (p *Plugin) runPull(ctx context.Context, appCtx *plugin.AppContext, outputDir string) error {
-	runtime, err := p.runtime(ctx, appCtx, &runtimeOptions{outputDir: outputDir})
+func (p *Plugin) runPull(ctx context.Context, appCtx *plugin.AppContext, cacheDir string) error {
+	runtime, err := p.runtime(ctx, appCtx)
 	if err != nil {
 		return err
 	}
 
-	return runPullPoliciesUseCase(ctx, runtime)
+	return runPullPoliciesUseCase(ctx, runtime, policyengine.PullRequest{CacheDir: cacheDir})
 }
 
-func (p *Plugin) runCheck(ctx context.Context, appCtx *plugin.AppContext, modulePath, outputFmt string) error {
-	runtime, err := p.runtime(ctx, appCtx, &runtimeOptions{
-		modulePath: modulePath,
-		outputFmt:  outputFmt,
-	})
+func (p *Plugin) runCheck(ctx context.Context, appCtx *plugin.AppContext, modulePath, format string, w io.Writer) error {
+	outputFmt, err := parseOutputFormat(format)
 	if err != nil {
 		return err
 	}
 
-	return runPolicyCheckUseCase(ctx, runtime, os.Stdout)
+	runtime, err := p.runtime(ctx, appCtx)
+	if err != nil {
+		return err
+	}
+
+	if w == nil {
+		w = os.Stdout
+	}
+	return runPolicyCheckUseCase(ctx, runtime, policyengine.CheckRequest{ModulePath: modulePath}, outputFmt, w)
 }

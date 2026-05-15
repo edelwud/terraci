@@ -1,4 +1,4 @@
-package domain
+package policyengine
 
 import "testing"
 
@@ -12,7 +12,7 @@ func TestApplyEvaluation_ActionMapping(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		policy         ActionPolicy
+		decisions      Decisions
 		wantFailures   int
 		wantWarnings   int
 		wantSuppressed int
@@ -20,21 +20,21 @@ func TestApplyEvaluation_ActionMapping(t *testing.T) {
 	}{
 		{
 			name:         "block deny warn warning",
-			policy:       ActionPolicy{FailureAction: ActionBlock, WarningAction: ActionWarn},
+			decisions:    Decisions{Deny: ActionBlock, Warn: ActionWarn},
 			wantFailures: 1,
 			wantWarnings: 1,
 			wantStatus:   StatusFail,
 		},
 		{
 			name:           "warn deny ignore warning",
-			policy:         ActionPolicy{FailureAction: ActionWarn, WarningAction: ActionIgnore},
+			decisions:      Decisions{Deny: ActionWarn, Warn: ActionIgnore},
 			wantWarnings:   1,
 			wantSuppressed: 1,
 			wantStatus:     StatusWarn,
 		},
 		{
 			name:           "ignore deny block warning",
-			policy:         ActionPolicy{FailureAction: ActionIgnore, WarningAction: ActionBlock},
+			decisions:      Decisions{Deny: ActionIgnore, Warn: ActionBlock},
 			wantFailures:   1,
 			wantSuppressed: 1,
 			wantStatus:     StatusFail,
@@ -45,7 +45,7 @@ func TestApplyEvaluation_ActionMapping(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := ApplyEvaluation("platform/prod/app", eval, tt.policy)
+			result := ApplyEvaluation("platform/prod/app", eval, tt.decisions)
 			if len(result.Failures) != tt.wantFailures {
 				t.Fatalf("failures = %d, want %d", len(result.Failures), tt.wantFailures)
 			}

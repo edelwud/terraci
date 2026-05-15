@@ -1,4 +1,6 @@
-package domain
+package policyengine
+
+import "sort"
 
 const (
 	StatusPass = "pass"
@@ -44,14 +46,17 @@ func NewErrorResult(modulePath string, err error) Result {
 	}
 }
 
-func ApplyEvaluation(modulePath string, eval *Evaluation, policy ActionPolicy) Result {
+func ApplyEvaluation(modulePath string, eval *Evaluation, decisions Decisions) Result {
 	result := Result{Module: modulePath}
 	if eval == nil {
 		return result
 	}
 
-	applyFindings(&result, eval.Denies, policy.FailureAction)
-	applyFindings(&result, eval.Warns, policy.WarningAction)
+	decisions = decisions.Normalize()
+	applyFindings(&result, eval.Denies, decisions.Deny)
+	applyFindings(&result, eval.Warns, decisions.Warn)
+	sortFindings(result.Failures)
+	sortFindings(result.Warnings)
 	return result
 }
 
@@ -66,6 +71,15 @@ func applyFindings(result *Result, findings []Finding, action Action) {
 	default:
 		result.Failures = append(result.Failures, findings...)
 	}
+}
+
+func sortFindings(findings []Finding) {
+	sort.SliceStable(findings, func(i, j int) bool {
+		if findings[i].Namespace == findings[j].Namespace {
+			return findings[i].Message < findings[j].Message
+		}
+		return findings[i].Namespace < findings[j].Namespace
+	})
 }
 
 func (r *Result) HasFailures() bool {
@@ -100,12 +114,17 @@ type Summary struct {
 }
 
 func NewSummary(results []Result) *Summary {
+	ordered := append([]Result(nil), results...)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		return ordered[i].Module < ordered[j].Module
+	})
+
 	s := &Summary{
-		TotalModules: len(results),
-		Results:      append([]Result(nil), results...),
+		TotalModules: len(ordered),
+		Results:      ordered,
 	}
 
-	for _, r := range results {
+	for _, r := range ordered {
 		s.TotalFailures += len(r.Failures)
 		s.TotalWarnings += len(r.Warnings)
 		s.TotalSuppressed += r.Suppressed

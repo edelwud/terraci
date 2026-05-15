@@ -4,7 +4,7 @@ package policy
 import (
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/registry"
-	policyconfig "github.com/edelwud/terraci/plugins/policy/internal/config"
+	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
 
 // pluginName is the canonical plugin identifier used in commands, reports and config.
@@ -12,14 +12,14 @@ const pluginName = "policy"
 
 func init() {
 	registry.RegisterFactory(func() plugin.Plugin {
-		return &Plugin{BasePlugin: plugin.BasePlugin[*policyconfig.Config]{
+		return &Plugin{BasePlugin: plugin.BasePlugin[*policyengine.Config]{
 			PluginName: pluginName,
 			PluginDesc: "OPA policy checks for Terraform plans",
 			EnableMode: plugin.EnabledExplicitly,
-			DefaultCfg: func() *policyconfig.Config {
-				return &policyconfig.Config{}
+			DefaultCfg: func() *policyengine.Config {
+				return &policyengine.Config{}
 			},
-			IsEnabledFn: func(cfg *policyconfig.Config) bool {
+			IsEnabledFn: func(cfg *policyengine.Config) bool {
 				return cfg != nil && cfg.Enabled
 			},
 		}}
@@ -28,5 +28,5 @@ func init() {
 
 // Plugin is the OPA policy check plugin.
 type Plugin struct {
-	plugin.BasePlugin[*policyconfig.Config]
+	plugin.BasePlugin[*policyengine.Config]
 }

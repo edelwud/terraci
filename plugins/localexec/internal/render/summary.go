@@ -34,208 +34,100 @@ func SummaryReportCLI(report *ci.Report) string {
 }
 
 func renderCLISection(section ci.ReportSection) string {
-	switch section.Kind {
-	case ci.ReportSectionKindOverview:
-		return renderCLIOverviewSection(section)
-	case ci.ReportSectionKindModuleTable:
-		return renderCLIModuleTableSection(section)
-	case costChangesSectionKind:
-		return renderCLICostChangesSection(section)
-	case ci.ReportSectionKindFindings:
-		return renderCLIFindingsSection(section)
-	case ci.ReportSectionKindDependencyUpdates:
-		return renderCLIDependencyUpdatesSection(section)
+	if section.Kind != ci.ReportSectionKindRendered {
+		return ""
+	}
+	rendered, err := ci.DecodeSection[ci.RenderSection](section)
+	if err != nil {
+		return ""
+	}
+	return renderCLIRenderSection(section, rendered)
+}
+
+func renderCLIRenderSection(section ci.ReportSection, rendered ci.RenderSection) string {
+	var sb strings.Builder
+	sb.WriteString(renderSectionHeader(section))
+	for _, block := range rendered.Blocks {
+		part := renderCLIBlock(block)
+		if part == "" {
+			continue
+		}
+		sb.WriteString("\n\n")
+		sb.WriteString(part)
+	}
+	return strings.TrimSpace(sb.String())
+}
+
+func renderCLIBlock(block ci.RenderBlock) string {
+	switch block.Kind {
+	case ci.RenderBlockKindText:
+		return renderCLITextBlock(block)
+	case ci.RenderBlockKindList:
+		return renderCLIListBlock(block)
+	case ci.RenderBlockKindTable:
+		return renderCLITableBlock(block)
+	case ci.RenderBlockKindDetails:
+		return renderCLIDetailsBlock(block)
 	default:
 		return ""
 	}
 }
 
-func renderCLIOverviewSection(section ci.ReportSection) string {
-	overview, err := ci.DecodeSection[ci.OverviewSection](section)
-	if err != nil {
+func renderCLITextBlock(block ci.RenderBlock) string {
+	if block.Text == "" {
 		return ""
 	}
-
-	stats := overview.PlanStats
-	var parts []string
-	if stats.Changes > 0 {
-		parts = append(parts, fmt.Sprintf("%d with changes", stats.Changes))
-	}
-	if stats.NoChanges > 0 {
-		parts = append(parts, fmt.Sprintf("%d no changes", stats.NoChanges))
-	}
-	if stats.Failed > 0 {
-		parts = append(parts, fmt.Sprintf("%d failed", stats.Failed))
-	}
-	if stats.Pending > 0 {
-		parts = append(parts, fmt.Sprintf("%d pending", stats.Pending))
-	}
-	if stats.Running > 0 {
-		parts = append(parts, fmt.Sprintf("%d running", stats.Running))
-	}
-
 	var sb strings.Builder
-	sb.WriteString(renderSubsectionTitle(section.Title))
-	sb.WriteString("\n")
-	if len(parts) == 0 {
-		fmt.Fprintf(&sb, "%d modules analyzed", stats.Total)
-	} else {
-		fmt.Fprintf(&sb, "%d modules: %s", stats.Total, strings.Join(parts, " | "))
-	}
-
-	for _, item := range overview.Reports {
+	if block.Title != "" {
+		sb.WriteString(renderSubsectionTitle(block.Title))
 		sb.WriteString("\n")
-		fmt.Fprintf(&sb, "• %s %s", reportStatusLabel(item.Status), item.Title)
-		if item.Summary != "" {
-			sb.WriteString(": ")
-			sb.WriteString(item.Summary)
-		}
 	}
-
+	sb.WriteString(block.Text)
 	return sb.String()
 }
 
-func renderCLIModuleTableSection(section ci.ReportSection) string {
-	table, err := ci.DecodeSection[ci.ModuleTableSection](section)
-	if err != nil {
+func renderCLIListBlock(block ci.RenderBlock) string {
+	if len(block.Items) == 0 {
 		return ""
 	}
-
-	rows := make([][]string, 0, len(table.Rows)+1)
-	rows = append(rows, []string{"Status", "Module", "Summary"})
-	for i := range table.Rows {
-		row := table.Rows[i]
-		record := []string{
-			planStatusLabel(row.Status),
-			displayValue(row.ModuleID),
-			displayPlanSummary(row),
-		}
-		rows = append(rows, record)
-	}
-
 	var sb strings.Builder
-	sb.WriteString(renderSubsectionTitle(section.Title))
-	sb.WriteString("\n")
-	sb.WriteString(renderTable(rows))
-
-	for i := range table.Rows {
-		row := table.Rows[i]
-		if row.StructuredDetails == "" && row.RawPlanOutput == "" && row.Error == "" {
-			continue
-		}
-		sb.WriteString("\n\n")
-		title := row.ModuleID
-		if row.Status == ci.PlanStatusFailed {
-			title = "FAILED " + row.ModuleID
-		} else if row.Summary != "" {
-			title = row.ModuleID + " (" + row.Summary + ")"
-		}
-		sb.WriteString(renderSubsectionTitle(title))
-		if row.StructuredDetails != "" {
-			sb.WriteString("\n")
-			sb.WriteString(indentBlock(cleanMarkdown(row.StructuredDetails), "  "))
-		}
-		if row.RawPlanOutput != "" {
-			sb.WriteString("\n")
-			sb.WriteString(renderSubsectionTitle("Full plan output"))
-			sb.WriteString("\n")
-			sb.WriteString(indentBlock(row.RawPlanOutput, "    "))
-		}
-	}
-
-	return sb.String()
-}
-
-func renderCLICostChangesSection(section ci.ReportSection) string {
-	payload, ok := decodeCostChangesPayload(section)
-	if !ok {
-		return ""
-	}
-
-	rows := [][]string{{"Module", "Before", "After", "Diff", "Notes"}}
-	for _, row := range payload.Rows {
-		rows = append(rows, []string{
-			row.ModulePath,
-			formatMonthlyCost(row.Before),
-			formatMonthlyCost(row.After),
-			formatCostDiff(row.Diff),
-			firstNonEmpty(row.Error, row.Notes, "-"),
-		})
-	}
-
-	var sb strings.Builder
-	sb.WriteString(renderSectionHeader(section))
-	sb.WriteString("\n")
-	sb.WriteString(renderTable(rows))
-	sb.WriteString("\n")
-	fmt.Fprintf(&sb, "Totals: %s %s -> %s", formatMonthlyCost(payload.Totals.Before), formatCostDiff(payload.Totals.Diff), formatMonthlyCost(payload.Totals.After))
-	return sb.String()
-}
-
-func renderCLIFindingsSection(section ci.ReportSection) string {
-	findings, err := ci.DecodeSection[ci.FindingsSection](section)
-	if err != nil {
-		return ""
-	}
-
-	var sb strings.Builder
-	sb.WriteString(renderSectionHeader(section))
-	for _, row := range findings.Rows {
-		sb.WriteString("\n")
-		sb.WriteString(renderSubsectionTitle(fmt.Sprintf("%s (%s)", row.ModulePath, row.Status)))
-		for _, finding := range row.Findings {
-			sb.WriteString("\n")
-			sb.WriteString("• ")
-			sb.WriteString(string(finding.Severity))
-			sb.WriteString(": ")
-			sb.WriteString(finding.Message)
-			if finding.Namespace != "" {
-				sb.WriteString(" (")
-				sb.WriteString(finding.Namespace)
-				sb.WriteString(")")
-			}
-		}
+	if block.Title != "" {
+		sb.WriteString(renderSubsectionTitle(block.Title))
 		sb.WriteString("\n")
 	}
-
+	for _, item := range block.Items {
+		fmt.Fprintf(&sb, "• %s\n", item)
+	}
 	return strings.TrimSpace(sb.String())
 }
 
-func renderCLIDependencyUpdatesSection(section ci.ReportSection) string {
-	updates, err := ci.DecodeSection[ci.DependencyUpdatesSection](section)
-	if err != nil {
+func renderCLITableBlock(block ci.RenderBlock) string {
+	if block.Table == nil || len(block.Table.Columns) == 0 {
 		return ""
 	}
-
+	rows := make([][]string, 0, len(block.Table.Rows)+1)
+	rows = append(rows, block.Table.Columns)
+	rows = append(rows, block.Table.Rows...)
 	var sb strings.Builder
-	sb.WriteString(renderSectionHeader(section))
-
-	providers, modules := splitDependencyUpdateRows(updates.Rows)
-	if len(providers) > 0 {
+	if block.Title != "" {
+		sb.WriteString(renderSubsectionTitle(block.Title))
 		sb.WriteString("\n")
-		sb.WriteString(renderSubsectionTitle("Providers"))
-		sb.WriteString("\n")
-		rows := [][]string{{"Module", "Provider", "Current", "Latest", "Status"}}
-		for i := range providers {
-			row := providers[i]
-			rows = append(rows, []string{row.ModulePath, row.Name, displayValue(row.Current), displayValue(row.Latest), dependencyUpdateStatusLabel(row.Status, row.Issue)})
-		}
-		sb.WriteString(renderTable(rows))
 	}
+	sb.WriteString(renderTable(rows))
+	return sb.String()
+}
 
-	if len(modules) > 0 {
-		sb.WriteString("\n")
-		sb.WriteString(renderSubsectionTitle("Modules"))
-		sb.WriteString("\n")
-		rows := [][]string{{"Module", "Source", "Current", "Latest", "Status"}}
-		for i := range modules {
-			row := modules[i]
-			rows = append(rows, []string{row.ModulePath, row.Name, displayValue(row.Current), displayValue(row.Latest), dependencyUpdateStatusLabel(row.Status, row.Issue)})
-		}
-		sb.WriteString(renderTable(rows))
+func renderCLIDetailsBlock(block ci.RenderBlock) string {
+	if block.Details == nil || block.Details.Summary == "" {
+		return ""
 	}
-
-	return strings.TrimSpace(sb.String())
+	var sb strings.Builder
+	sb.WriteString(renderSubsectionTitle(block.Details.Summary))
+	if block.Details.Body != "" {
+		sb.WriteString("\n")
+		sb.WriteString(indentBlock(cleanMarkdown(block.Details.Body), "  "))
+	}
+	return sb.String()
 }
 
 func renderSectionHeader(section ci.ReportSection) string {
@@ -344,106 +236,8 @@ func cleanMarkdown(s string) string {
 	return strings.TrimSpace(s)
 }
 
-func displayPlanSummary(row ci.ModuleTableRow) string {
-	if row.Error != "" {
-		return "err: " + row.Error
-	}
-	return firstNonEmpty(row.Summary, "-")
-}
-
-func formatMonthlyCost(cost float64) string {
-	if cost == 0 {
-		return "$0"
-	}
-	if cost < 0.01 {
-		return "<$0.01"
-	}
-	if cost >= 1000 {
-		return fmt.Sprintf("$%.0f", cost)
-	}
-	if cost >= 1 {
-		return fmt.Sprintf("$%.2f", cost)
-	}
-	return fmt.Sprintf("$%.4f", cost)
-}
-
-func formatCostDiff(diff float64) string {
-	if diff == 0 {
-		return "$0"
-	}
-	if diff > 0 {
-		if diff >= 1000 {
-			return fmt.Sprintf("+$%.0f", diff)
-		}
-		if diff >= 1 {
-			return fmt.Sprintf("+$%.2f", diff)
-		}
-		return fmt.Sprintf("+$%.4f", diff)
-	}
-	diff = -diff
-	if diff >= 1000 {
-		return fmt.Sprintf("-$%.0f", diff)
-	}
-	if diff >= 1 {
-		return fmt.Sprintf("-$%.2f", diff)
-	}
-	return fmt.Sprintf("-$%.4f", diff)
-}
-
-func planStatusLabel(status ci.PlanStatus) string {
-	return string(status)
-}
-
 func reportStatusLabel(status ci.ReportStatus) string {
 	return string(status)
-}
-
-func splitDependencyUpdateRows(rows []ci.DependencyUpdateRow) (providers, modules []ci.DependencyUpdateRow) {
-	providers = make([]ci.DependencyUpdateRow, 0, len(rows))
-	modules = make([]ci.DependencyUpdateRow, 0, len(rows))
-	for i := range rows {
-		row := rows[i]
-		switch row.Kind {
-		case ci.DependencyKindProvider:
-			providers = append(providers, row)
-		case ci.DependencyKindModule:
-			modules = append(modules, row)
-		}
-	}
-	return providers, modules
-}
-
-func dependencyUpdateStatusLabel(status ci.DependencyUpdateStatus, issue string) string {
-	switch status {
-	case ci.DependencyUpdateStatusUpdateAvailable:
-		return "update available"
-	case ci.DependencyUpdateStatusApplied:
-		return "applied"
-	case ci.DependencyUpdateStatusSkipped:
-		return "skipped: " + issue
-	case ci.DependencyUpdateStatusError:
-		return "error: " + issue
-	case ci.DependencyUpdateStatusUpToDate:
-		return "up to date"
-	default:
-		return "up to date"
-	}
-}
-
-func displayValue(v string) string {
-	if v == "" {
-		return "-"
-	}
-	return v
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return value
-		}
-	}
-	return ""
 }
 
 func maxInt(a, b int) int {

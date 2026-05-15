@@ -1,17 +1,15 @@
-package config
+package policyengine
 
 import (
 	"strings"
 	"testing"
 
 	"go.yaml.in/yaml/v4"
-
-	"github.com/edelwud/terraci/plugins/policy/internal/domain"
 )
 
 func boolPtr(v bool) *bool { return &v }
 
-func TestConfig_ValidateNewSourceShape(t *testing.T) {
+func TestConfig_ValidateSourceAndDecisionShape(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
@@ -20,8 +18,7 @@ func TestConfig_ValidateNewSourceShape(t *testing.T) {
 			{Type: SourceTypeGit, URL: "https://github.com/org/policies.git", Ref: "main"},
 			{Type: SourceTypeOCI, URL: "oci://ghcr.io/org/policies:v1"},
 		},
-		FailureAction: domain.ActionBlock,
-		WarningAction: domain.ActionWarn,
+		Decisions: Decisions{Deny: ActionBlock, Warn: ActionWarn},
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -33,6 +30,9 @@ func TestConfig_RejectsLegacyFields(t *testing.T) {
 	t.Parallel()
 
 	tests := []string{
+		"enabled: true\nfailure_action: warn\nsources: [{type: path, path: policies}]\n",
+		"enabled: true\nwarning_action: ignore\nsources: [{type: path, path: policies}]\n",
+		"enabled: true\ncache_dir: .terraci/policies\nsources: [{type: path, path: policies}]\n",
 		"enabled: true\non_failure: warn\nsources: [{type: path, path: policies}]\n",
 		"enabled: true\non_warning: ignore\nsources: [{type: path, path: policies}]\n",
 		"enabled: true\noverwrites: []\nsources: [{type: path, path: policies}]\n",
@@ -59,22 +59,21 @@ func TestConfig_EffectiveConfigAppliesOverridesInOrder(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		Enabled:       true,
-		Sources:       []SourceConfig{{Type: SourceTypePath, Path: "policies"}},
-		Namespaces:    []string{"terraform"},
-		FailureAction: domain.ActionBlock,
-		WarningAction: domain.ActionWarn,
+		Enabled:    true,
+		Sources:    []SourceConfig{{Type: SourceTypePath, Path: "policies"}},
+		Namespaces: []string{"terraform"},
+		Decisions:  Decisions{Deny: ActionBlock, Warn: ActionWarn},
 		Overrides: []Override{
 			{
-				Match:         "**/prod/**",
-				Enabled:       boolPtr(false),
-				Namespaces:    []string{"terraform", "audit"},
-				FailureAction: domain.ActionWarn,
+				Match:      "**/prod/**",
+				Enabled:    boolPtr(false),
+				Namespaces: []string{"terraform", "audit"},
+				Decisions:  Decisions{Deny: ActionWarn},
 			},
 			{
-				Match:         "platform/**",
-				Enabled:       boolPtr(true),
-				WarningAction: domain.ActionIgnore,
+				Match:     "platform/**",
+				Enabled:   boolPtr(true),
+				Decisions: Decisions{Warn: ActionIgnore},
 			},
 		},
 	}
@@ -86,11 +85,11 @@ func TestConfig_EffectiveConfigAppliesOverridesInOrder(t *testing.T) {
 	if !effective.Enabled {
 		t.Fatal("Enabled = false, want later override to re-enable")
 	}
-	if effective.FailureAction != domain.ActionWarn {
-		t.Fatalf("FailureAction = %q, want warn", effective.FailureAction)
+	if effective.Decisions.Deny != ActionWarn {
+		t.Fatalf("Decisions.Deny = %q, want warn", effective.Decisions.Deny)
 	}
-	if effective.WarningAction != domain.ActionIgnore {
-		t.Fatalf("WarningAction = %q, want ignore", effective.WarningAction)
+	if effective.Decisions.Warn != ActionIgnore {
+		t.Fatalf("Decisions.Warn = %q, want ignore", effective.Decisions.Warn)
 	}
 	if got := strings.Join(effective.Namespaces, ","); got != "terraform,audit" {
 		t.Fatalf("Namespaces = %q, want terraform,audit", got)

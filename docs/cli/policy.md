@@ -16,6 +16,7 @@ Materialize policies from configured sources. This command is useful for local d
 
 ```bash
 terraci policy pull
+terraci policy pull --cache-dir .terraci/policies
 ```
 
 This command:
@@ -44,7 +45,7 @@ terraci policy check [flags]
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--module` | `-m` | Check specific module path |
-| `--output` | `-o` | Output format: `text` (default) or `json` |
+| `--format` |  | Output format: `text` (default) or `json` |
 
 **Examples:**
 
@@ -56,7 +57,7 @@ terraci policy check
 terraci policy check --module platform/prod/eu-central-1/vpc
 
 # Output as JSON
-terraci policy check --output json
+terraci policy check --format json
 ```
 
 **Text output:**
@@ -159,8 +160,9 @@ extensions:
         path: policies
     namespaces:
       - terraform
-    failure_action: block
-    warning_action: warn
+    decisions:
+      deny: block
+      warn: warn
 ```
 
 ## See Also

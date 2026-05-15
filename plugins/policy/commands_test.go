@@ -10,19 +10,19 @@ import (
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
-	"github.com/edelwud/terraci/plugins/policy/internal/domain"
+	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
 
 func TestBuildPolicyReport_WithFailures(t *testing.T) {
-	summary := &domain.Summary{
+	summary := &policyengine.Summary{
 		TotalModules:  2,
 		PassedModules: 1,
 		FailedModules: 1,
-		Results: []domain.Result{
+		Results: []policyengine.Result{
 			{Module: "platform/prod/vpc"},
 			{
 				Module: "platform/prod/eks",
-				Failures: []domain.Finding{
+				Failures: []policyengine.Finding{
 					{Namespace: "terraform", Message: "public endpoint forbidden"},
 				},
 			},
@@ -42,23 +42,23 @@ func TestBuildPolicyReport_WithFailures(t *testing.T) {
 	if len(report.Sections) != 1 {
 		t.Fatalf("expected one findings section")
 	}
-	findings, err := ci.DecodeSection[ci.FindingsSection](report.Sections[0])
+	rendered, err := ci.DecodeSection[ci.RenderSection](report.Sections[0])
 	if err != nil {
-		t.Fatalf("decode findings: %v", err)
+		t.Fatalf("decode rendered section: %v", err)
 	}
-	if findings.Rows[0].Findings[0].Message != "public endpoint forbidden" {
-		t.Fatalf("unexpected finding: %+v", findings.Rows[0].Findings[0])
+	if rendered.Blocks[0].Table.Rows[0][3] != "public endpoint forbidden" {
+		t.Fatalf("unexpected finding row: %+v", rendered.Blocks[0].Table.Rows[0])
 	}
 }
 
 func TestBuildPolicyReport_WithWarnings(t *testing.T) {
-	summary := &domain.Summary{
+	summary := &policyengine.Summary{
 		TotalModules:  1,
 		WarnedModules: 1,
-		Results: []domain.Result{
+		Results: []policyengine.Result{
 			{
 				Module: "platform/prod/app",
-				Warnings: []domain.Finding{
+				Warnings: []policyengine.Finding{
 					{Namespace: "compliance", Message: "tag missing"},
 				},
 			},
@@ -75,30 +75,30 @@ func TestBuildPolicyReport_WithWarnings(t *testing.T) {
 	if len(report.Sections) != 1 {
 		t.Fatalf("expected one findings section")
 	}
-	findings, err := ci.DecodeSection[ci.FindingsSection](report.Sections[0])
+	rendered, err := ci.DecodeSection[ci.RenderSection](report.Sections[0])
 	if err != nil {
-		t.Fatalf("decode findings: %v", err)
+		t.Fatalf("decode rendered section: %v", err)
 	}
-	if findings.Rows[0].Findings[0].Message != "tag missing" {
-		t.Fatalf("unexpected finding: %+v", findings.Rows[0].Findings[0])
+	if rendered.Blocks[0].Table.Rows[0][3] != "tag missing" {
+		t.Fatalf("unexpected finding row: %+v", rendered.Blocks[0].Table.Rows[0])
 	}
 }
 
 func TestOutputResult_JSON(t *testing.T) {
-	summary := &domain.Summary{
+	summary := &policyengine.Summary{
 		TotalModules: 1,
-		Results: []domain.Result{
+		Results: []policyengine.Result{
 			{Module: "platform/prod/app"},
 		},
 	}
 
 	var buf bytes.Buffer
-	err := outputResult(&buf, "json", summary, false)
+	err := outputResult(&buf, outputFormatJSON, summary, false)
 	if err != nil {
 		t.Fatalf("outputResult(json) error = %v", err)
 	}
 
-	var parsed domain.Summary
+	var parsed policyengine.Summary
 	if err := json.Unmarshal(buf.Bytes(), &parsed); err != nil {
 		t.Fatalf("output is not valid json: %v", err)
 	}
@@ -108,17 +108,17 @@ func TestOutputResult_JSON(t *testing.T) {
 }
 
 func TestOutputResult_JSONBlocks(t *testing.T) {
-	summary := &domain.Summary{
+	summary := &policyengine.Summary{
 		TotalModules:  1,
 		FailedModules: 1,
 		TotalFailures: 1,
-		Results: []domain.Result{
-			{Module: "platform/prod/app", Failures: []domain.Finding{{Message: "denied"}}},
+		Results: []policyengine.Result{
+			{Module: "platform/prod/app", Failures: []policyengine.Finding{{Message: "denied"}}},
 		},
 	}
 
 	var buf bytes.Buffer
-	err := outputResult(&buf, "json", summary, true)
+	err := outputResult(&buf, outputFormatJSON, summary, true)
 	if err == nil {
 		t.Fatal("outputResult(json) error = nil, want blocking error")
 	}
@@ -130,14 +130,34 @@ func TestOutputResult_JSONBlocks(t *testing.T) {
 	}
 }
 
+func TestOutputResult_NilSummary(t *testing.T) {
+	err := outputResult(&bytes.Buffer{}, outputFormatText, nil, false)
+	if err == nil {
+		t.Fatal("outputResult() error = nil, want nil summary error")
+	}
+	if !strings.Contains(err.Error(), "policy summary is nil") {
+		t.Fatalf("error = %q, want nil summary message", err.Error())
+	}
+}
+
+func TestBuildPolicyReport_NilSummary(t *testing.T) {
+	_, err := buildPolicyReport(nil)
+	if err == nil {
+		t.Fatal("buildPolicyReport() error = nil, want nil summary error")
+	}
+	if !strings.Contains(err.Error(), "policy summary is nil") {
+		t.Fatalf("error = %q, want nil summary message", err.Error())
+	}
+}
+
 func TestOutputText_UsesLogger(t *testing.T) {
-	summary := &domain.Summary{
+	summary := &policyengine.Summary{
 		TotalModules:  1,
 		WarnedModules: 1,
-		Results: []domain.Result{
+		Results: []policyengine.Result{
 			{
 				Module: "platform/prod/app",
-				Warnings: []domain.Finding{
+				Warnings: []policyengine.Finding{
 					{Namespace: "compliance", Message: "tag missing"},
 				},
 			},
@@ -173,12 +193,35 @@ func TestPlugin_Commands_Registration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Find(check) error = %v", err)
 	}
-	outputFlag := checkCmd.Flags().Lookup("output")
-	if outputFlag == nil {
-		t.Fatal("missing --output flag on policy check")
+	formatFlag := checkCmd.Flags().Lookup("format")
+	if formatFlag == nil {
+		t.Fatal("missing --format flag on policy check")
 	}
-	if outputFlag.DefValue != "text" {
-		t.Fatalf("check --output default = %q, want text", outputFlag.DefValue)
+	if formatFlag.DefValue != "text" {
+		t.Fatalf("check --format default = %q, want text", formatFlag.DefValue)
+	}
+	if checkCmd.Flags().Lookup("output") != nil {
+		t.Fatal("policy check should not expose legacy --output flag")
+	}
+	pullCmd, _, err := cmd.Find([]string{"pull"})
+	if err != nil {
+		t.Fatalf("Find(pull) error = %v", err)
+	}
+	if pullCmd.Flags().Lookup("cache-dir") == nil {
+		t.Fatal("missing --cache-dir flag on policy pull")
+	}
+	if pullCmd.Flags().Lookup("output") != nil {
+		t.Fatal("policy pull should not expose legacy --output flag")
+	}
+}
+
+func TestParseOutputFormat_RejectsUnknown(t *testing.T) {
+	_, err := parseOutputFormat("yaml")
+	if err == nil {
+		t.Fatal("parseOutputFormat() error = nil, want invalid format error")
+	}
+	if !strings.Contains(err.Error(), "unsupported policy output format") {
+		t.Fatalf("error = %q, want unsupported format message", err.Error())
 	}
 }
 

@@ -45,7 +45,7 @@ warn contains msg if {
 		Plan: map[string]any{"resource_changes": []any{map[string]any{"type": "aws_s3_bucket"}}},
 	}
 
-	evaluation, err := New([]string{policyDir}, []string{"terraform"}).Evaluate(context.Background(), envelope)
+	evaluation, err := New([]string{policyDir}).Evaluate(context.Background(), envelope, []string{"terraform"})
 	if err != nil {
 		t.Fatalf("Evaluate() error = %v", err)
 	}

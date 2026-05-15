@@ -26,7 +26,7 @@
 //   - pipeline.go     — PipelineContributor (pipeline DAG jobs)
 //   - init_wizard.go  — initwiz.InitContributor (TUI form fields)
 //   - output.go       — CLI rendering helpers
-//   - report.go       — typed CI report assembly via ci.EncodeSection
+//   - report.go       — render-ready CI report assembly via ci.EncodeRenderSection
 //
 // Smaller plugins (git, diskblob, inmemcache, localexec) only implement the
 // capabilities they need — there is no minimum surface.

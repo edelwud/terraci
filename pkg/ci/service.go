@@ -9,3 +9,10 @@ type CommentService interface {
 	IsEnabled() bool
 	UpsertComment(ctx context.Context, body string) error
 }
+
+// ManagedLabelService is an optional extension for comment services that can
+// synchronize labels owned by the TerraCI summary comment.
+type ManagedLabelService interface {
+	CurrentCommentBody(ctx context.Context) (body string, found bool, err error)
+	SyncLabels(ctx context.Context, previous, current []string) error
+}

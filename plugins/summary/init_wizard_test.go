@@ -31,11 +31,8 @@ func TestPlugin_BuildInitConfig_Enabled(t *testing.T) {
 	state.Set("summary.enabled", true)
 
 	contrib := p.BuildInitConfig(state)
-	if contrib == nil {
-		t.Fatal("BuildInitConfig() returned nil")
-	}
-	if got := contrib.Config["enabled"]; got != true {
-		t.Fatalf("Config[enabled] = %v, want true", got)
+	if contrib != nil {
+		t.Fatalf("BuildInitConfig() = %#v, want nil for default-enabled summary", contrib)
 	}
 }
 

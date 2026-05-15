@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/plugin"
 	summaryengine "github.com/edelwud/terraci/plugins/summary/internal"
 )
 
@@ -26,7 +27,7 @@ func TestRunSummaryUseCase_NoPlanResults(t *testing.T) {
 	appCtx := newTestAppContext(t, t.TempDir())
 
 	output := plugSummaryOutput(t, func() {
-		err := runSummaryUseCase(context.Background(), appCtx, testSummaryRuntime(&summaryengine.Config{}, func() (summaryProvider, error) {
+		err := runSummaryUseCase(context.Background(), appCtx, testSummaryRuntime(appCtx, &summaryengine.Config{}, func() (summaryengine.Provider, error) {
 			t.Fatal("provider resolver should not be called when no plan results exist")
 			return nil, nil
 		}))
@@ -46,7 +47,7 @@ func TestRunSummaryUseCase_NoProvider_PrintsSummaryOnly(t *testing.T) {
 	writePlanJSON(t, workDir, testPlanWithChanges)
 
 	output := plugSummaryOutput(t, func() {
-		err := runSummaryUseCase(context.Background(), appCtx, testSummaryRuntime(&summaryengine.Config{}, func() (summaryProvider, error) {
+		err := runSummaryUseCase(context.Background(), appCtx, testSummaryRuntime(appCtx, &summaryengine.Config{}, func() (summaryengine.Provider, error) {
 			return nil, errors.New("no provider")
 		}))
 		if err != nil {
@@ -76,7 +77,7 @@ func TestRunSummaryUseCase_PostsComment(t *testing.T) {
 		service:    commentSvc,
 	}
 
-	err := runSummaryUseCase(context.Background(), appCtx, testSummaryRuntime(&summaryengine.Config{}, func() (summaryProvider, error) {
+	err := runSummaryUseCase(context.Background(), appCtx, testSummaryRuntime(appCtx, &summaryengine.Config{}, func() (summaryengine.Provider, error) {
 		return provider, nil
 	}))
 	if err != nil {
@@ -100,7 +101,7 @@ func TestRunSummaryUseCase_OnChangesOnlySkipsNoChanges(t *testing.T) {
 
 	commentSvc := &fakeCommentService{enabled: true}
 	output := plugSummaryOutput(t, func() {
-		err := runSummaryUseCase(context.Background(), appCtx, testSummaryRuntime(&summaryengine.Config{OnChangesOnly: true}, func() (summaryProvider, error) {
+		err := runSummaryUseCase(context.Background(), appCtx, testSummaryRuntime(appCtx, &summaryengine.Config{OnChangesOnly: true}, func() (summaryengine.Provider, error) {
 			return &fakeSummaryProvider{
 				commitSHA:  "abcdef1234567890",
 				pipelineID: "123",
@@ -127,7 +128,7 @@ func TestRunSummaryUseCase_IncludeDetailsFalseRemovesDetailsFromCommentAndReport
 
 	commentSvc := &fakeCommentService{enabled: true}
 	includeDetails := false
-	err := runSummaryUseCase(context.Background(), appCtx, testSummaryRuntime(&summaryengine.Config{IncludeDetails: &includeDetails}, func() (summaryProvider, error) {
+	err := runSummaryUseCase(context.Background(), appCtx, testSummaryRuntime(appCtx, &summaryengine.Config{IncludeDetails: &includeDetails}, func() (summaryengine.Provider, error) {
 		return &fakeSummaryProvider{
 			commitSHA:  "abcdef1234567890",
 			pipelineID: "123",
@@ -143,9 +144,71 @@ func TestRunSummaryUseCase_IncludeDetailsFalseRemovesDetailsFromCommentAndReport
 	}
 }
 
-func testSummaryRuntime(cfg *summaryengine.Config, resolveProvider func() (summaryProvider, error)) *summaryRuntime {
-	return &summaryRuntime{
-		config:          cfg,
-		resolveProvider: resolveProvider,
+func TestRunSummaryUseCase_EmbedsAndSyncsManagedLabels(t *testing.T) {
+	workDir := t.TempDir()
+	appCtx := newTestAppContext(t, workDir)
+	writePlanJSON(t, workDir, testPlanWithChanges)
+
+	commentSvc := &fakeCommentService{
+		enabled:          true,
+		managedSupported: true,
+		currentFound:     true,
+		currentBody:      ci.EmbedManagedLabels(ci.CommentMarker+"\n\nold", []string{"stale", "terraform"}),
 	}
+	cfg := &summaryengine.Config{Labels: []string{"terraform", "{environment}", "{module}", "resource:{resource_type}"}}
+	err := runSummaryUseCase(context.Background(), appCtx, testSummaryRuntime(appCtx, cfg, func() (summaryengine.Provider, error) {
+		return &fakeSummaryProvider{
+			commitSHA:  "abcdef1234567890",
+			pipelineID: "123",
+			service:    commentSvc,
+		}, nil
+	}))
+	if err != nil {
+		t.Fatalf("runSummaryUseCase() error = %v", err)
+	}
+
+	wantLabels := []string{"prod", "resource:aws_instance", "terraform", "vpc"}
+	if got := ci.ExtractManagedLabels(commentSvc.body); strings.Join(got, ",") != strings.Join(wantLabels, ",") {
+		t.Fatalf("embedded labels = %v, want %v", got, wantLabels)
+	}
+	if commentSvc.syncCalls != 1 {
+		t.Fatalf("label sync calls = %d, want 1", commentSvc.syncCalls)
+	}
+	if got := strings.Join(commentSvc.syncedPrevious, ","); got != "stale,terraform" {
+		t.Fatalf("previous labels = %v, want [stale terraform]", commentSvc.syncedPrevious)
+	}
+	if got := strings.Join(commentSvc.syncedCurrent, ","); got != strings.Join(wantLabels, ",") {
+		t.Fatalf("current labels = %v, want %v", commentSvc.syncedCurrent, wantLabels)
+	}
+}
+
+func TestRunSummaryUseCase_LabelSyncErrorIsWarningOnly(t *testing.T) {
+	workDir := t.TempDir()
+	appCtx := newTestAppContext(t, workDir)
+	writePlanJSON(t, workDir, testPlanWithChanges)
+
+	commentSvc := &fakeCommentService{
+		enabled:          true,
+		managedSupported: true,
+		syncErr:          errors.New("label api failed"),
+	}
+	err := runSummaryUseCase(context.Background(), appCtx, testSummaryRuntime(appCtx, &summaryengine.Config{Labels: []string{"terraform"}}, func() (summaryengine.Provider, error) {
+		return &fakeSummaryProvider{
+			commitSHA:  "abcdef1234567890",
+			pipelineID: "123",
+			service:    commentSvc,
+		}, nil
+	}))
+	if err != nil {
+		t.Fatalf("runSummaryUseCase() error = %v", err)
+	}
+	if commentSvc.calls != 1 {
+		t.Fatalf("comment upsert calls = %d, want 1", commentSvc.calls)
+	}
+}
+
+func testSummaryRuntime(appCtx *plugin.AppContext, cfg *summaryengine.Config, resolveProvider func() (summaryengine.Provider, error)) *summaryRuntime {
+	runtime := newRuntime(appCtx, cfg)
+	runtime.ProviderResolver = resolveProvider
+	return runtime
 }

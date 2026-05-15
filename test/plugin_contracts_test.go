@@ -115,6 +115,41 @@ func TestGeneratedSchemaExcludesGitExtension(t *testing.T) {
 	}
 }
 
+func TestGeneratedSchemaUsesCanonicalPolicyFields(t *testing.T) {
+	plugins := registry.New()
+	pluginSchemas := make(map[string]any)
+	for _, cl := range registry.ByCapabilityFrom[plugin.ConfigLoader](plugins) {
+		pluginSchemas[cl.ConfigKey()] = cl.NewConfig()
+	}
+
+	schema := config.GenerateJSONSchema(pluginSchemas)
+	for _, removed := range []string{"failure_action", "warning_action", "cache_dir"} {
+		if strings.Contains(schema, `"`+removed+`"`) {
+			t.Fatalf("generated schema contains legacy policy field %q: %s", removed, schema)
+		}
+	}
+	for _, want := range []string{"decisions", "source_cache_dir"} {
+		if !strings.Contains(schema, want) {
+			t.Fatalf("generated schema missing policy field %q: %s", want, schema)
+		}
+	}
+}
+
+func TestGeneratedSchemaIncludesSummaryFields(t *testing.T) {
+	plugins := registry.New()
+	pluginSchemas := make(map[string]any)
+	for _, cl := range registry.ByCapabilityFrom[plugin.ConfigLoader](plugins) {
+		pluginSchemas[cl.ConfigKey()] = cl.NewConfig()
+	}
+
+	schema := config.GenerateJSONSchema(pluginSchemas)
+	for _, want := range []string{"enabled", "on_changes_only", "include_details", "labels"} {
+		if !strings.Contains(schema, want) {
+			t.Fatalf("generated schema missing summary field %q: %s", want, schema)
+		}
+	}
+}
+
 func TestPreflightsForStartup_UsesEnabledPlugins(t *testing.T) {
 	appCtx := loadPluginContractConfig(t, `service_dir: .terraci
 structure:

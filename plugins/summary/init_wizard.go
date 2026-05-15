@@ -30,6 +30,9 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 // BuildInitConfig builds the summary plugin config from wizard state.
 func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribution {
 	enabled := state.Bool("summary.enabled")
+	if enabled {
+		return nil
+	}
 	return &initwiz.InitContribution{
 		PluginKey: pluginName,
 		Config: map[string]any{

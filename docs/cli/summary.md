@@ -18,7 +18,7 @@ terraci summary [flags]
 
 The `summary` command collects terraform plan results from artifacts and creates or updates a summary comment on the merge request (GitLab) or pull request (GitHub).
 
-This command is designed to run as a resource-dependent DAG job after the plan and report artifacts it consumes are available. It loads plan results from each module's plan artifacts, enriches them with `{producer}-report.json` files (cost, policy, tfupdate) discovered in the service directory, and posts a formatted MR/PR comment.
+This command is designed to run as a resource-dependent DAG job after the plan and report artifacts it consumes are available. It loads plan results from each module's plan artifacts, enriches them with `{producer}-report.json` files (cost, policy, tfupdate) discovered in the service directory, posts a formatted MR/PR comment, and synchronizes configured TerraCI-managed labels.
 
 The command automatically detects the CI provider and whether it is running in an MR/PR pipeline, and only creates comments when appropriate.
 
@@ -79,6 +79,8 @@ summary:
 | `GITHUB_REPOSITORY` | Repository in `owner/repo` format (auto-set) | Yes |
 | `GITHUB_EVENT_PATH` | Path to event payload JSON (auto-set) | Yes |
 
+For managed labels, the token must also be allowed to add and remove labels on the MR/PR.
+
 ## Output
 
 The command posts a comment like this to the MR/PR:
@@ -118,9 +120,16 @@ extensions:
     enabled: true
     on_changes_only: false
     include_details: true
+    labels:
+      - terraform
+      - "{environment}"
+      - "{module}"
+      - "resource:{resource_type}"
 ```
 
 GitLab/GitHub providers only supply the comment transport and CI context; they do not own summary rendering options.
+
+`labels` accepts static values and templates. Module templates can use `{module_id}`, `{module_path}`, `{status}`, and any `structure.pattern` component such as `{environment}` or `{module}`. Resource templates can also use `{resource_address}`, `{resource_type}`, `{resource_name}`, and `{resource_action}` and expand only for changed resources in changed modules. TerraCI removes only labels recorded in the previous TerraCI summary metadata, so user-owned labels are not touched.
 
 ## Exit Codes
 

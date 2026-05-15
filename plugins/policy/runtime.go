@@ -6,26 +6,19 @@ import (
 	"fmt"
 
 	"github.com/edelwud/terraci/pkg/plugin"
-	policyconfig "github.com/edelwud/terraci/plugins/policy/internal/config"
+	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 	"github.com/edelwud/terraci/plugins/policy/internal/source"
 )
 
-type runtimeOptions struct {
-	modulePath string
-	outputDir  string
-	outputFmt  string
-}
-
 type policyRuntime struct {
-	config       *policyconfig.Config
+	config       policyengine.Config
 	sources      *source.Materializer
 	workDir      string
 	serviceDir   string
 	planSegments []string
-	options      runtimeOptions
 }
 
-func newRuntime(appCtx *plugin.AppContext, cfg *policyconfig.Config, opts runtimeOptions) (*policyRuntime, error) {
+func newRuntime(appCtx *plugin.AppContext, cfg *policyengine.Config) (*policyRuntime, error) {
 	if cfg == nil {
 		return nil, errors.New("policy checks are not configured")
 	}
@@ -33,10 +26,7 @@ func newRuntime(appCtx *plugin.AppContext, cfg *policyconfig.Config, opts runtim
 		return nil, errors.New("policy runtime requires app context")
 	}
 
-	runtimeConfig := *cfg
-	if opts.outputDir != "" {
-		runtimeConfig.CacheDir = opts.outputDir
-	}
+	runtimeConfig := cfg.Normalized()
 	if err := runtimeConfig.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid policy configuration: %w", err)
 	}
@@ -52,24 +42,19 @@ func newRuntime(appCtx *plugin.AppContext, cfg *policyconfig.Config, opts runtim
 	}
 
 	return &policyRuntime{
-		config:       &runtimeConfig,
+		config:       runtimeConfig,
 		sources:      materializer,
 		workDir:      appCtx.WorkDir(),
 		serviceDir:   appCtx.ServiceDir(),
 		planSegments: segments,
-		options:      opts,
 	}, nil
 }
 
 func (p *Plugin) Runtime(_ context.Context, appCtx *plugin.AppContext) (any, error) {
-	return newRuntime(appCtx, p.Config(), runtimeOptions{})
+	return newRuntime(appCtx, p.Config())
 }
 
-// runtime returns the typed plugin runtime. Pass opts == nil to reuse the
-// RuntimeProvider path; pass opts to build a command-specific runtime.
-func (p *Plugin) runtime(ctx context.Context, appCtx *plugin.AppContext, opts *runtimeOptions) (*policyRuntime, error) {
-	if opts == nil {
-		return plugin.BuildRuntime[*policyRuntime](ctx, p, appCtx)
-	}
-	return newRuntime(appCtx, p.Config(), *opts)
+// runtime returns the typed plugin runtime used by policy use-cases.
+func (p *Plugin) runtime(ctx context.Context, appCtx *plugin.AppContext) (*policyRuntime, error) {
+	return plugin.BuildRuntime[*policyRuntime](ctx, p, appCtx)
 }

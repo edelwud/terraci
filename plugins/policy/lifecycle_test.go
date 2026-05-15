@@ -6,19 +6,19 @@ import (
 
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
-	policyconfig "github.com/edelwud/terraci/plugins/policy/internal/config"
+	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
 
 func newTestPlugin() *Plugin {
 	return &Plugin{
-		BasePlugin: plugin.BasePlugin[*policyconfig.Config]{
+		BasePlugin: plugin.BasePlugin[*policyengine.Config]{
 			PluginName: "policy",
 			PluginDesc: "OPA policy checks for Terraform plans",
 			EnableMode: plugin.EnabledExplicitly,
-			DefaultCfg: func() *policyconfig.Config {
-				return &policyconfig.Config{}
+			DefaultCfg: func() *policyengine.Config {
+				return &policyengine.Config{}
 			},
-			IsEnabledFn: func(cfg *policyconfig.Config) bool {
+			IsEnabledFn: func(cfg *policyengine.Config) bool {
 				return cfg != nil && cfg.Enabled
 			},
 		},
@@ -27,7 +27,7 @@ func newTestPlugin() *Plugin {
 
 func TestPlugin_Preflight_ConfiguredButDisabled(t *testing.T) {
 	p := newTestPlugin()
-	p.SetTypedConfig(&policyconfig.Config{Enabled: false})
+	p.SetTypedConfig(&policyengine.Config{Enabled: false})
 	appCtx := plugintest.NewAppContext(t, t.TempDir())
 
 	if err := p.Preflight(context.Background(), appCtx); err != nil {
@@ -37,9 +37,9 @@ func TestPlugin_Preflight_ConfiguredButDisabled(t *testing.T) {
 
 func TestPlugin_Runtime_CreatesPuller(t *testing.T) {
 	p := newTestPlugin()
-	p.SetTypedConfig(&policyconfig.Config{
+	p.SetTypedConfig(&policyengine.Config{
 		Enabled: true,
-		Sources: []policyconfig.SourceConfig{{Type: policyconfig.SourceTypePath, Path: "terraform"}},
+		Sources: []policyengine.SourceConfig{{Type: policyengine.SourceTypePath, Path: "terraform"}},
 	})
 
 	runtime := plugintest.MustRuntime[*policyRuntime](t, p, plugintest.NewAppContext(t, t.TempDir()))

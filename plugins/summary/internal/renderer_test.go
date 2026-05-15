@@ -9,6 +9,24 @@ import (
 	"github.com/edelwud/terraci/pkg/ci/citest"
 )
 
+func mustComposeComment(t *testing.T, plans []ci.PlanResult, reports []*ci.Report, commitSHA string, generatedAt time.Time) string {
+	t.Helper()
+	result, err := ComposeComment(plans, reports, commitSHA, "", generatedAt)
+	if err != nil {
+		t.Fatalf("ComposeComment() error = %v", err)
+	}
+	return result
+}
+
+func mustComposeCommentWithOptions(t *testing.T, plans []ci.PlanResult, reports []*ci.Report, commitSHA, pipelineID string, generatedAt time.Time, includeDetails bool) string {
+	t.Helper()
+	result, err := ComposeCommentWithOptions(plans, reports, commitSHA, pipelineID, generatedAt, includeDetails)
+	if err != nil {
+		t.Fatalf("ComposeCommentWithOptions() error = %v", err)
+	}
+	return result
+}
+
 func TestComposeComment_BasicPlans(t *testing.T) {
 	t.Parallel()
 
@@ -33,7 +51,7 @@ func TestComposeComment_BasicPlans(t *testing.T) {
 		},
 	}
 
-	result := ComposeComment(plans, nil, "", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
+	result := mustComposeComment(t, plans, nil, "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
 
 	if !strings.Contains(result, ci.CommentMarker) {
 		t.Error("expected CommentMarker in output")
@@ -56,7 +74,7 @@ func TestComposeComment_BasicPlans(t *testing.T) {
 func TestComposeComment_EmptyPlans(t *testing.T) {
 	t.Parallel()
 
-	result := ComposeComment([]ci.PlanResult{}, nil, "", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
+	result := mustComposeComment(t, []ci.PlanResult{}, nil, "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
 
 	if !strings.Contains(result, "**0** modules analyzed") {
 		t.Errorf("expected '**0** modules analyzed', got: %s", result)
@@ -81,27 +99,21 @@ func TestComposeComment_WithReport(t *testing.T) {
 			Title:    "Policy Check",
 			Status:   ci.ReportStatusFail,
 			Summary:  "2 modules: 1 passed, 0 warned, 1 failed",
-			Sections: []ci.ReportSection{citest.MustEncodeSection(
-				ci.ReportSectionKindFindings,
+			Sections: []ci.ReportSection{citest.MustEncodeRenderSection(
 				"Policy Check",
 				"2 modules: 1 passed, 0 warned, 1 failed",
 				ci.ReportStatusFail,
-				ci.FindingsSection{
-					Rows: []ci.FindingRow{{
-						ModulePath: "svc/prod/us-east-1/vpc",
-						Status:     ci.FindingRowStatusFail,
-						Findings: []ci.Finding{{
-							Severity:  ci.FindingSeverityFail,
-							Message:   "too expensive",
-							Namespace: "terraform.cost",
-						}},
-					}},
-				},
+				ci.RenderTableBlock("", []string{"Module", "Severity", "Namespace", "Message"}, [][]string{{
+					"svc/prod/us-east-1/vpc",
+					"fail",
+					"terraform.cost",
+					"too expensive",
+				}}),
 			)},
 		},
 	}
 
-	result := ComposeComment(plans, reports, "", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
+	result := mustComposeComment(t, plans, reports, "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
 
 	if !strings.Contains(result, "Policy Check") {
 		t.Error("expected 'Policy Check' section")
@@ -126,7 +138,7 @@ func TestComposeCommentWithOptions_WithoutDetailsOmitsPlanBody(t *testing.T) {
 		RawPlanOutput:     "+ resource \"aws_vpc\" \"main\"",
 	}}
 
-	result := ComposeCommentWithOptions(plans, nil, "", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC), false)
+	result := mustComposeCommentWithOptions(t, plans, nil, "", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC), false)
 
 	if strings.Contains(result, "### Resources") {
 		t.Fatalf("comment should omit structured details when includeDetails=false:\n%s", result)
@@ -148,21 +160,22 @@ func TestBuildSummarySectionsWithOptions_WithoutDetailsClearsRowDetails(t *testi
 		RawPlanOutput:     "+ resource \"aws_vpc\" \"main\"",
 	}}
 
-	sections := BuildSummarySectionsWithOptions(plans, nil, false)
+	sections, err := BuildSummarySectionsWithOptions(plans, nil, false)
+	if err != nil {
+		t.Fatalf("BuildSummarySectionsWithOptions() error = %v", err)
+	}
 	if len(sections) < 2 {
 		t.Fatalf("sections = %#v, want module table row", sections)
 	}
-	table, err := ci.DecodeSection[ci.ModuleTableSection](sections[1])
-	if err != nil || len(table.Rows) != 1 {
-		t.Fatalf("ModuleTableSection rows = %v, err = %v", table.Rows, err)
+	rendered, err := ci.DecodeSection[ci.RenderSection](sections[1])
+	if err != nil || len(rendered.Blocks) == 0 {
+		t.Fatalf("RenderSection blocks = %v, err = %v", rendered.Blocks, err)
 	}
 
-	row := table.Rows[0]
-	if row.StructuredDetails != "" {
-		t.Fatalf("StructuredDetails = %q, want empty", row.StructuredDetails)
-	}
-	if row.RawPlanOutput != "" {
-		t.Fatalf("RawPlanOutput = %q, want empty", row.RawPlanOutput)
+	for _, block := range rendered.Blocks {
+		if block.Kind == ci.RenderBlockKindDetails {
+			t.Fatalf("unexpected details block when includeDetails=false: %+v", block)
+		}
 	}
 }
 
@@ -173,31 +186,67 @@ func TestComposeComment_WithCostReport(t *testing.T) {
 		Producer: "cost",
 		Title:    "Cost Estimation",
 		Status:   ci.ReportStatusWarn,
-		Sections: []ci.ReportSection{{
-			Kind:           costChangesSectionKind,
-			Title:          "Cost Estimation",
-			Status:         ci.ReportStatusWarn,
-			SectionSummary: "1 module, total: $15.00/mo (diff: +$5.00)",
-			Payload: encodeCostChangesPayload(costChangesPayload{
-				Totals: costTotals{After: 15, Diff: 5},
-				Rows: []costChangeRow{{
-					ModulePath: "svc/prod/us-east-1/vpc",
-					Before:     10,
-					After:      15,
-					Diff:       5,
-					HasCost:    true,
-				}},
-			}),
-		}},
+		Sections: []ci.ReportSection{citest.MustEncodeRenderSection(
+			"Cost Estimation",
+			"1 module, total: $15.00/mo (diff: +$5.00)",
+			ci.ReportStatusWarn,
+			ci.RenderTableBlock("", []string{"Module", "Before", "After", "Diff", "Notes"}, [][]string{{
+				"svc/prod/us-east-1/vpc",
+				"$10.00",
+				"$15.00",
+				"+$5.00",
+				"-",
+			}}),
+		)},
 	}}
 
-	result := ComposeComment(nil, reports, "", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
+	result := mustComposeComment(t, nil, reports, "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
 
 	if !strings.Contains(result, "Cost Estimation") {
 		t.Error("expected cost section")
 	}
 	if !strings.Contains(result, "$10.00") {
 		t.Errorf("expected cost before in output, got: %s", result)
+	}
+}
+
+func TestComposeCommentWithOptions_MalformedReportPayloadReturnsError(t *testing.T) {
+	t.Parallel()
+
+	_, err := ComposeCommentWithOptions(nil, []*ci.Report{{
+		Producer: "policy",
+		Title:    "Policy Check",
+		Status:   ci.ReportStatusFail,
+		Sections: []ci.ReportSection{{
+			Kind:    ci.ReportSectionKindRendered,
+			Title:   "Policy Check",
+			Status:  ci.ReportStatusFail,
+			Payload: []byte(`{"blocks":`),
+		}},
+	}}, "", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC), true)
+	if err == nil {
+		t.Fatal("ComposeCommentWithOptions() error = nil, want malformed payload error")
+	}
+}
+
+func TestComposeComment_EscapesMarkdownTableCells(t *testing.T) {
+	t.Parallel()
+
+	result := mustComposeComment(t, []ci.PlanResult{{
+		ModuleID:   "svc/prod/us-east-1/vpc|main",
+		Components: map[string]string{"environment": "prod"},
+		Status:     ci.PlanStatusFailed,
+		Error:      "bad | value\nnext line",
+	}}, nil, "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
+
+	if !strings.Contains(result, "vpc\\|main") {
+		t.Fatalf("module path was not table-escaped:\n%s", result)
+	}
+	if !strings.Contains(result, "bad \\| value") {
+		t.Fatalf("error text was not table-escaped:\n%s", result)
+	}
+	if !strings.Contains(result, "<br>") {
+		t.Fatalf("newline was not converted in table cell:\n%s", result)
 	}
 }
 
@@ -225,7 +274,7 @@ func TestComposeComment_FiltersEnvironmentPlansToChangedAndFailed(t *testing.T) 
 		},
 	}
 
-	result := ComposeComment(plans, nil, "", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
+	result := mustComposeComment(t, plans, nil, "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
 
 	if !strings.Contains(result, "svc/prod/us-east-1/vpc") {
 		t.Fatalf("expected changed module in output: %s", result)
@@ -246,32 +295,24 @@ func TestComposeComment_FiltersCostReportToAddedCosts(t *testing.T) {
 		Title:    "Cost Estimation",
 		Status:   ci.ReportStatusWarn,
 		Summary:  "3 modules, total: $27.00/mo (diff: +5.00)",
-		Sections: []ci.ReportSection{{
-			Kind:           costChangesSectionKind,
-			Title:          "Cost Estimation",
-			Status:         ci.ReportStatusWarn,
-			SectionSummary: "3 modules, total: $27.00/mo (diff: +5.00)",
-			Payload: encodeCostChangesPayload(costChangesPayload{
-				Totals: costTotals{After: 37, Diff: -5},
-				Rows: []costChangeRow{
-					{ModulePath: "svc/prod/us-east-1/vpc", Before: 10, After: 15, Diff: 5, HasCost: true},
-					{ModulePath: "svc/prod/us-east-1/rds", Before: 12, After: 12, Diff: 0, HasCost: true},
-					{ModulePath: "svc/prod/us-east-1/redis", Before: 20, After: 10, Diff: -10, HasCost: true},
-				},
+		Sections: []ci.ReportSection{citest.MustEncodeRenderSection(
+			"Cost Estimation",
+			"3 modules, total: $27.00/mo (diff: +5.00)",
+			ci.ReportStatusWarn,
+			ci.RenderTableBlock("", []string{"Module", "Before", "After", "Diff", "Notes"}, [][]string{
+				{"svc/prod/us-east-1/vpc", "$10.00", "$15.00", "+$5.00", "-"},
+				{"svc/prod/us-east-1/redis", "$20.00", "$10.00", "-$10.00", "-"},
 			}),
-		}},
+		)},
 	}}
 
-	result := ComposeComment(nil, reports, "", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
+	result := mustComposeComment(t, nil, reports, "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
 
 	if !strings.Contains(result, "svc/prod/us-east-1/vpc") {
 		t.Fatalf("expected positive diff row in output: %s", result)
 	}
-	if strings.Contains(result, "svc/prod/us-east-1/rds") {
-		t.Fatalf("unexpected zero diff row in output: %s", result)
-	}
-	if strings.Contains(result, "svc/prod/us-east-1/redis") {
-		t.Fatalf("unexpected negative diff row in output: %s", result)
+	if !strings.Contains(result, "svc/prod/us-east-1/redis") {
+		t.Fatalf("expected producer-rendered negative diff row in output: %s", result)
 	}
 }
 
@@ -283,23 +324,28 @@ func TestComposeComment_FiltersTfupdateReportToUpdatableModules(t *testing.T) {
 		Title:    "Dependency Update Check",
 		Status:   ci.ReportStatusWarn,
 		Summary:  "4 checked, 2 updates available, 0 applied, 0 errors",
-		Sections: []ci.ReportSection{citest.MustEncodeSection(
-			ci.ReportSectionKindDependencyUpdates,
+		Sections: []ci.ReportSection{citest.MustEncodeRenderSection(
 			"Dependency Update Check",
 			"4 checked, 2 updates available, 0 applied, 0 errors",
 			ci.ReportStatusWarn,
-			ci.DependencyUpdatesSection{
-				Rows: []ci.DependencyUpdateRow{
-					{ModulePath: "svc/prod/us-east-1/vpc", Kind: ci.DependencyKindProvider, Name: "hashicorp/aws", Current: "~> 5.0", Latest: "5.4.0", Status: ci.DependencyUpdateStatusUpdateAvailable},
-					{ModulePath: "svc/prod/us-east-1/rds", Kind: ci.DependencyKindProvider, Name: "hashicorp/random", Current: "3.0.0", Latest: "3.0.0", Status: ci.DependencyUpdateStatusUpToDate},
-					{ModulePath: "svc/prod/us-east-1/eks", Kind: ci.DependencyKindModule, Name: "terraform-aws-modules/eks/aws", Current: "20.0.0", Latest: "21.0.0", Status: ci.DependencyUpdateStatusApplied},
-					{ModulePath: "svc/prod/us-east-1/iam", Kind: ci.DependencyKindModule, Name: "terraform-aws-modules/iam/aws", Current: "1.0.0", Latest: "1.0.0", Status: ci.DependencyUpdateStatusUpToDate},
-				},
-			},
+			ci.RenderTableBlock("Providers", []string{"Module", "Provider", "Current", "Latest", "Status"}, [][]string{{
+				"svc/prod/us-east-1/vpc",
+				"hashicorp/aws",
+				"~> 5.0",
+				"5.4.0",
+				"update available",
+			}}),
+			ci.RenderTableBlock("Modules", []string{"Module", "Source", "Current", "Latest", "Status"}, [][]string{{
+				"svc/prod/us-east-1/eks",
+				"terraform-aws-modules/eks/aws",
+				"20.0.0",
+				"21.0.0",
+				"applied",
+			}}),
 		)},
 	}}
 
-	result := ComposeComment(nil, reports, "", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
+	result := mustComposeComment(t, nil, reports, "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
 
 	if !strings.Contains(result, "svc/prod/us-east-1/vpc") {
 		t.Fatalf("expected update available provider row in output: %s", result)
@@ -318,7 +364,7 @@ func TestComposeComment_FiltersTfupdateReportToUpdatableModules(t *testing.T) {
 func TestComposeComment_CommitSHA(t *testing.T) {
 	t.Parallel()
 
-	result := ComposeComment([]ci.PlanResult{}, nil, "abcdef1234567890abcdef1234567890abcdef12", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
+	result := mustComposeComment(t, []ci.PlanResult{}, nil, "abcdef1234567890abcdef1234567890abcdef12", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
 
 	if !strings.Contains(result, "`abcdef12`") {
 		t.Errorf("expected truncated SHA 'abcdef12', got: %s", result)
@@ -715,22 +761,16 @@ func TestRenderReportSection(t *testing.T) {
 			Title:    "Policy Check",
 			Status:   ci.ReportStatusFail,
 			Summary:  "3 modules: 1 passed, 0 warned, 2 failed",
-			Sections: []ci.ReportSection{citest.MustEncodeSection(
-				ci.ReportSectionKindFindings,
+			Sections: []ci.ReportSection{citest.MustEncodeRenderSection(
 				"Policy Check",
 				"3 modules: 1 passed, 0 warned, 2 failed",
 				ci.ReportStatusFail,
-				ci.FindingsSection{
-					Rows: []ci.FindingRow{{
-						ModulePath: "svc/prod/us-east-1/vpc",
-						Status:     ci.FindingRowStatusFail,
-						Findings: []ci.Finding{{
-							Severity:  ci.FindingSeverityFail,
-							Message:   "no public access",
-							Namespace: "terraform.security",
-						}},
-					}},
-				},
+				ci.RenderTableBlock("", []string{"Module", "Severity", "Namespace", "Message"}, [][]string{{
+					"svc/prod/us-east-1/vpc",
+					"fail",
+					"terraform.security",
+					"no public access",
+				}}),
 			)},
 		}
 
@@ -755,22 +795,16 @@ func TestRenderReportSection(t *testing.T) {
 			Title:    "Policy Check",
 			Status:   ci.ReportStatusWarn,
 			Summary:  "1 modules: 0 passed, 1 warned, 0 failed",
-			Sections: []ci.ReportSection{citest.MustEncodeSection(
-				ci.ReportSectionKindFindings,
+			Sections: []ci.ReportSection{citest.MustEncodeRenderSection(
 				"Policy Check",
 				"1 modules: 0 passed, 1 warned, 0 failed",
 				ci.ReportStatusWarn,
-				ci.FindingsSection{
-					Rows: []ci.FindingRow{{
-						ModulePath: "svc/staging/us-east-1/vpc",
-						Status:     ci.FindingRowStatusWarn,
-						Findings: []ci.Finding{{
-							Severity:  ci.FindingSeverityWarn,
-							Message:   "non-standard naming",
-							Namespace: "terraform.naming",
-						}},
-					}},
-				},
+				ci.RenderTableBlock("", []string{"Module", "Severity", "Namespace", "Message"}, [][]string{{
+					"svc/staging/us-east-1/vpc",
+					"warn",
+					"terraform.naming",
+					"non-standard naming",
+				}}),
 			)},
 		}
 

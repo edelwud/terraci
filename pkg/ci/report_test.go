@@ -11,17 +11,14 @@ import (
 
 func TestSaveReport(t *testing.T) {
 	dir := t.TempDir()
-	overviewSection, err := EncodeSection(
-		ReportSectionKindOverview,
+	overviewSection, err := EncodeRenderSection(
 		"Summary",
 		"all good",
 		ReportStatusPass,
-		OverviewSection{
-			PlanStats: SummaryPlanStats{Total: 1, NoChanges: 1, Success: 1},
-		},
+		RenderTextBlock("1 module analyzed"),
 	)
 	if err != nil {
-		t.Fatalf("EncodeSection: %v", err)
+		t.Fatalf("EncodeRenderSection: %v", err)
 	}
 	report := &Report{
 		Producer: "test",

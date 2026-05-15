@@ -9,53 +9,26 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
 
-const costChangesSectionKind ci.ReportSectionKind = "cost_changes"
-
-type costChangesPayload struct {
-	Totals costTotals      `json:"totals"`
-	Rows   []costChangeRow `json:"rows,omitempty"`
-}
-
-type costTotals struct {
-	Currency       string  `json:"currency,omitempty"`
-	Before         float64 `json:"before,omitempty"`
-	After          float64 `json:"after,omitempty"`
-	Diff           float64 `json:"diff,omitempty"`
-	UsageEstimated int     `json:"usage_estimated,omitempty"`
-	UsageUnknown   int     `json:"usage_unknown,omitempty"`
-	Unsupported    int     `json:"unsupported,omitempty"`
-}
-
-type costChangeRow struct {
-	ModulePath string  `json:"module_path"`
-	Before     float64 `json:"before,omitempty"`
-	After      float64 `json:"after,omitempty"`
-	Diff       float64 `json:"diff,omitempty"`
-	HasCost    bool    `json:"has_cost,omitempty"`
-	Error      string  `json:"error,omitempty"`
-	Notes      string  `json:"notes,omitempty"`
-}
-
 func buildCostReport(result *model.EstimateResult) (*ci.Report, error) {
 	visible := visibleReportModules(result.Modules)
-	rows := make([]costChangeRow, 0, len(visible))
+	rows := make([][]string, 0, len(visible))
 	status := ci.ReportStatusPass
 
 	for i := range visible {
 		module := visible[i]
-		row := costChangeRow{
-			ModulePath: module.ModulePath,
-			Error:      module.Error,
-		}
+		before := "-"
+		after := "-"
+		diff := "-"
+		notes := "-"
 		if module.Error == "" {
-			row.Before = module.BeforeCost
-			row.After = module.AfterCost
-			row.Diff = module.DiffCost
-			row.HasCost = true
+			before = reportMonthlyCost(module.BeforeCost)
+			after = reportMonthlyCost(module.AfterCost)
+			diff = reportCostDiff(module.DiffCost)
 		} else {
+			notes = module.Error
 			status = ci.ReportStatusWarn
 		}
-		rows = append(rows, row)
+		rows = append(rows, []string{module.ModulePath, before, after, diff, notes})
 	}
 	if len(result.PrefetchWarnings) > 0 {
 		status = ci.ReportStatusWarn
@@ -65,23 +38,21 @@ func buildCostReport(result *model.EstimateResult) (*ci.Report, error) {
 	}
 
 	summary := buildCostReportSummary(result, len(visible))
-	section, err := ci.EncodeSection(
-		costChangesSectionKind,
+	blocks := make([]ci.RenderBlock, 0, 2)
+	if len(rows) > 0 {
+		blocks = append(blocks, ci.RenderTableBlock("", []string{"Module", "Before", "After", "Diff", "Notes"}, rows))
+	}
+	blocks = append(blocks, ci.RenderTextBlock(fmt.Sprintf(
+		"Totals: %s %s -> %s",
+		reportMonthlyCost(result.TotalBefore),
+		reportCostDiff(result.TotalDiff),
+		reportMonthlyCost(result.TotalAfter),
+	)))
+	section, err := ci.EncodeRenderSection(
 		"Cost Estimation",
 		summary,
 		status,
-		costChangesPayload{
-			Totals: costTotals{
-				Currency:       result.Currency,
-				Before:         result.TotalBefore,
-				After:          result.TotalAfter,
-				Diff:           result.TotalDiff,
-				UsageEstimated: result.UsageEstimated,
-				UsageUnknown:   result.UsageUnknown,
-				Unsupported:    result.Unsupported,
-			},
-			Rows: rows,
-		},
+		blocks...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("build cost report: %w", err)
@@ -121,6 +92,45 @@ func shouldShowReportModule(module *model.ModuleCost) bool {
 		return false
 	}
 	return module.Error != "" || !model.CostIsZero(module.BeforeCost) || !model.CostIsZero(module.AfterCost) || !model.CostIsZero(module.DiffCost)
+}
+
+func reportMonthlyCost(cost float64) string {
+	if cost == 0 {
+		return "$0"
+	}
+	if cost < 0.01 {
+		return "<$0.01"
+	}
+	if cost >= 1000 {
+		return fmt.Sprintf("$%.0f", cost)
+	}
+	if cost >= 1 {
+		return fmt.Sprintf("$%.2f", cost)
+	}
+	return fmt.Sprintf("$%.4f", cost)
+}
+
+func reportCostDiff(diff float64) string {
+	if diff == 0 {
+		return "$0"
+	}
+	if diff > 0 {
+		if diff >= 1000 {
+			return fmt.Sprintf("+$%.0f", diff)
+		}
+		if diff >= 1 {
+			return fmt.Sprintf("+$%.2f", diff)
+		}
+		return fmt.Sprintf("+$%.4f", diff)
+	}
+	diff = -diff
+	if diff >= 1000 {
+		return fmt.Sprintf("-$%.0f", diff)
+	}
+	if diff >= 1 {
+		return fmt.Sprintf("-$%.2f", diff)
+	}
+	return fmt.Sprintf("-$%.4f", diff)
 }
 
 // saveArtifacts persists the estimation result and CI report to the service directory.
