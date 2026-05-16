@@ -3,14 +3,27 @@
   "title": "Cost Estimation",
   "status": "pass",
   "summary": "1 module, total: $50.00/mo",
-  "body": "| Module | Cost |\n|--------|------|\n| vpc | $50.00 |\n",
-  "modules": [
+  "sections": [
     {
-      "module_path": "platform/prod/eu-central-1/vpc",
-      "cost_before": 0,
-      "cost_after": 50.0,
-      "cost_diff": 50.0,
-      "has_cost": true
+      "kind": "rendered",
+      "title": "Cost Estimation",
+      "status": "pass",
+      "section_summary": "1 module, total: $50.00/mo",
+      "payload": {
+        "blocks": [
+          {
+            "kind": "table",
+            "table": {
+              "columns": ["Module", "Before", "After", "Diff", "Notes"],
+              "rows": [["platform/prod/eu-central-1/vpc", "$0", "$50.00", "+$50.00", "-"]]
+            }
+          },
+          {
+            "kind": "text",
+            "text": "Totals: $0 +$50.00 -> $50.00"
+          }
+        ]
+      }
     }
   ]
 }

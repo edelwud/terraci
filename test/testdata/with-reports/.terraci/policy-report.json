@@ -3,5 +3,13 @@
   "title": "Policy Check",
   "status": "pass",
   "summary": "1 module: 1 passed, 0 warned, 0 failed",
-  "body": ""
+  "sections": [
+    {
+      "kind": "rendered",
+      "title": "Policy Check",
+      "status": "pass",
+      "section_summary": "1 module: 1 passed, 0 warned, 0 failed",
+      "payload": {}
+    }
+  ]
 }

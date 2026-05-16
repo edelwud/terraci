@@ -42,7 +42,7 @@ func TestBuildPolicyReport_WithFailures(t *testing.T) {
 	if len(report.Sections) != 1 {
 		t.Fatalf("expected one findings section")
 	}
-	rendered, err := ci.DecodeSection[ci.RenderSection](report.Sections[0])
+	rendered, err := ci.DecodeRenderSection(report.Sections[0])
 	if err != nil {
 		t.Fatalf("decode rendered section: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestBuildPolicyReport_WithWarnings(t *testing.T) {
 	if len(report.Sections) != 1 {
 		t.Fatalf("expected one findings section")
 	}
-	rendered, err := ci.DecodeSection[ci.RenderSection](report.Sections[0])
+	rendered, err := ci.DecodeRenderSection(report.Sections[0])
 	if err != nil {
 		t.Fatalf("decode rendered section: %v", err)
 	}

@@ -59,17 +59,22 @@ func buildUpdateReport(result *tfupdateengine.UpdateResult) (*ci.Report, error) 
 	if len(moduleRows) > 0 {
 		blocks = append(blocks, ci.RenderTableBlock("Modules", []string{"Module", "Source", "Current", "Latest", "Status"}, moduleRows))
 	}
-	section, err := ci.EncodeRenderSection(
-		"Dependency Update Check",
-		summaryText,
-		status,
-		blocks...,
-	)
+	report, err := ci.NewRenderedReport(ci.RenderedReportOptions{
+		Producer: pluginName,
+		Title:    "Dependency Update Check",
+		Status:   status,
+		Summary:  summaryText,
+		Sections: []ci.RenderedSectionOptions{{
+			Title:   "Dependency Update Check",
+			Summary: summaryText,
+			Blocks:  blocks,
+		}},
+	})
 	if err != nil {
 		return nil, fmt.Errorf("build tfupdate report: %w", err)
 	}
 
-	return ci.BuildReport("tfupdate", "Dependency Update Check", status, summaryText, section), nil
+	return report, nil
 }
 
 func renderReportBody(result *tfupdateengine.UpdateResult) string {

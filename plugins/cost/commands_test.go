@@ -45,8 +45,8 @@ func decodeCostSection(t *testing.T, report *ci.Report) ci.RenderSection {
 	if section.Kind != ci.ReportSectionKindRendered {
 		t.Fatalf("section kind = %q, want %q", section.Kind, ci.ReportSectionKindRendered)
 	}
-	var rendered ci.RenderSection
-	if err := json.Unmarshal(section.Payload, &rendered); err != nil {
+	rendered, err := ci.DecodeRenderSection(section)
+	if err != nil {
 		t.Fatalf("decode rendered section payload: %v", err)
 	}
 	return rendered
@@ -380,8 +380,8 @@ func TestBuildCostReport(t *testing.T) {
 	if report.Producer != "cost" {
 		t.Errorf("Plugin = %q, want %q", report.Producer, "cost")
 	}
-	if report.Title != "Cost Estimation" {
-		t.Errorf("Title = %q, want %q", report.Title, "Cost Estimation")
+	if report.Title != costReportTitle {
+		t.Errorf("Title = %q, want %q", report.Title, costReportTitle)
 	}
 	if !strings.Contains(report.Summary, "2 modules") {
 		t.Errorf("Summary = %q, want to contain '2 modules'", report.Summary)

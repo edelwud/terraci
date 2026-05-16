@@ -90,7 +90,7 @@ pkg/                            # Public API — importable by external plugins 
 │       └── render.go           # RenderOperation: pipeline.Operation → POSIX shell command lines
 ├── ci/                         # Plugin-agnostic CI types
 │   ├── report.go, report_types.go, report_validation.go, section.go
-│   │                           #   Report envelope, ReportSection, render-ready RenderSection/RenderBlock payloads, EncodeRenderSection helpers
+│   │                           #   Report envelope, ReportSection, render-ready RenderSection/RenderBlock payloads, NewRenderedReport/NewRenderedSection + validation
 │   ├── plan.go                 # PlanResult (canonical for both in-memory + persisted), PlanResultCollection, PlanStatus
 │   ├── service.go              # CommentService
 │   └── shared.go               # Image, CommentMarker
@@ -147,7 +147,7 @@ plugins/                        # Built-in plugins — one file per capability
 │   ├── pipeline.go             # PipelineContributor
 │   ├── init_wizard.go          # InitContributor
 │   ├── output.go               # CLI rendering helpers
-│   ├── report.go               # CI report assembly via ci.EncodeRenderSection
+│   ├── report.go               # CI report assembly via ci.NewRenderedReport
 │   └── internal/               # (package costengine) — layered cost estimation engine
 │       ├── engine/, runtime/, model/, results/, cloud/{aws,awskit}, resourcedef/, resourcespec/, costutil/, pricing/, contracttest/, enginetest/
 ├── policy/
@@ -158,7 +158,7 @@ plugins/                        # Built-in plugins — one file per capability
 │   └── internal/               # (package tfupdateengine) planner, lockfile, sourceaddr, registrymeta, usecase, registryclient, tffile, tfwrite
 ├── summary/
 │   ├── plugin.go, commands.go, usecases.go, pipeline.go, init_wizard.go, output.go
-│   └── internal/               # (package summaryengine) config, renderer, report_loader
+│   └── internal/summaryengine/ # config, renderer, report_loader, labels, usecase orchestration
 ├── localexec/
 │   ├── plugin.go               # init, Plugin struct
 │   ├── commands.go             # CommandProvider (terraci local-exec with plan/run only)
@@ -181,11 +181,15 @@ plugins/                        # Built-in plugins — one file per capability
 │   ├── plugin.go               # init, BasePlugin[*Config] embed, KVCacheProvider
 │   ├── cache.go                # Process-local in-memory cache implementation
 │   └── *_test.go
-└── git/
+├── git/
     ├── plugin.go               # init, Plugin struct (no config, no BasePlugin)
     ├── lifecycle.go            # Preflightable (cheap repo detection)
     ├── detect.go               # ChangeDetectionProvider
     └── internal/gitclient/     # client, detector, diff
+└── internal/
+    ├── cliout/                 # Shared plugin CLI output helpers
+    ├── ciplugin/               # Shared CI-provider helpers
+    └── reportrender/           # Shared markdown/CLI renderer for ci.Report render-ready payloads
 
 internal/                       # Private — only terraform eval
 └── terraform/
@@ -268,7 +272,7 @@ The single `plugin.Resolver` interface combines lookup (`All`, `GetPlugin`) with
 
 `pkg/ci/` contains shared CI-domain types including provider-shared config such as `Image` (with YAML shorthand). `ci.Report` is the typed file-based report contract shared by cost/policy/tfupdate/summary; reports carry optional provenance metadata for local validation. Both gitlab and github internal packages use type aliases to these.
 
-`ci.ReportSection` is a neutral envelope with an opaque `Payload json.RawMessage`. Producer plugins convert domain results into render-ready `ci.RenderBlock` values and call `ci.EncodeRenderSection(title, summary, status, blocks...)`; consumers decode `ci.RenderSection` and do not import producer/plugin domain packages.
+`ci.ReportSection` is a neutral envelope with an opaque `Payload json.RawMessage`. Producer plugins convert domain results into render-ready `ci.RenderBlock` values and call `ci.NewRenderedReport(...)`; consumers use `ci.DecodeRenderSection` and do not import producer/plugin domain packages. Markdown/CLI rendering of these generic sections lives in `plugins/internal/reportrender`, not in producer plugins.
 
 `ci.PlanResult` is the canonical representation of one module's plan outcome — used both in-memory and on disk; `ci.PlanResultCollection` aggregates them with a stable fingerprint.
 
@@ -401,7 +405,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **PipelineContributor(ctx)**: plugins add standalone DAG jobs without cross-plugin imports or cached service-dir state
 - **ServiceDir**: configurable project directory; `AppContext.ServiceDir` (absolute) for runtime, `Config.ServiceDir` (relative) for pipeline templates
 - **File-based reports**: producers write `{serviceDir}/{producer}-report.json` (e.g. `cost-report.json`); summary consumes plan/report files and posts comments but does not publish a pipeline resource
-- **Report sections via render-ready payloads**: `ci.ReportSection.Payload` is `json.RawMessage`; producer plugins publish `ci.ReportSectionKindRendered` sections with `ci.RenderSection` payloads. Summary/local renderers consume the generic render model and stay unaware of cost/policy/tfupdate domain structs.
+- **Report sections via render-ready payloads**: producer plugins call `ci.NewRenderedReport(...)` and publish only validated `ci.ReportSectionKindRendered` sections with `ci.RenderSection` payloads. Summary/local renderers consume the generic render model through `plugins/internal/reportrender` and stay unaware of cost/policy/tfupdate domain structs.
 - **Report provenance**: persisted reports may carry producer/run provenance; local consumers should validate provenance/fingerprint when correctness depends on current workspace artifacts
 - **Zero cross-plugin imports**: plugins communicate only via `pkg/plugin` capability helpers + shared types + file-based reports
 - **Shared workflow**: `workflow.Run()` — scan, filter, parse, graph building. `workflow.ChangeDetector` is an alias of `plugin.ChangeDetectionProvider`.

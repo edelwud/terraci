@@ -1,23 +1,53 @@
-package summaryengine
+package reportrender
 
 import (
 	"fmt"
+	"html"
 	"strings"
 
 	"github.com/edelwud/terraci/pkg/ci"
 )
 
-func renderMarkdownSection(section ci.ReportSection) string {
-	if section.Kind != ci.ReportSectionKindRendered {
-		return ""
+// MarkdownReport renders a report using the shared markdown renderer.
+func MarkdownReport(report *ci.Report) (string, error) {
+	if report == nil {
+		return "", nil
 	}
-	rendered, err := ci.DecodeSection[ci.RenderSection](section)
-	if err != nil {
-		return ""
+	if len(report.Sections) == 0 {
+		return renderMarkdownSectionHeader(ci.ReportSection{
+			Kind:           ci.ReportSectionKindRendered,
+			Title:          report.Title,
+			Status:         report.Status,
+			SectionSummary: report.Summary,
+		}), nil
 	}
 
 	var sb strings.Builder
-	sb.WriteString(renderSectionHeader(section))
+	for i, section := range report.Sections {
+		rendered, err := MarkdownSection(section)
+		if err != nil {
+			return "", fmt.Errorf("render report section %d: %w", i, err)
+		}
+		if rendered == "" {
+			continue
+		}
+		if sb.Len() > 0 {
+			sb.WriteString("\n\n")
+		}
+		sb.WriteString(rendered)
+	}
+	return strings.TrimSpace(sb.String()), nil
+}
+
+// MarkdownSection renders one render-ready section as markdown.
+func MarkdownSection(section ci.ReportSection) (string, error) {
+	rendered, err := ci.DecodeRenderSection(section)
+	if err != nil {
+		return "", err
+	}
+
+	var sb strings.Builder
+	sb.WriteString(renderMarkdownSectionHeader(section))
 	for _, block := range rendered.Blocks {
 		part := renderMarkdownBlock(block)
 		if part == "" {
@@ -26,7 +56,7 @@ func renderMarkdownSection(section ci.ReportSection) string {
 		sb.WriteString(part)
 		sb.WriteString("\n\n")
 	}
-	return strings.TrimSpace(sb.String())
+	return strings.TrimSpace(sb.String()), nil
 }
 
 func renderMarkdownBlock(block ci.RenderBlock) string {
@@ -45,9 +75,6 @@ func renderMarkdownBlock(block ci.RenderBlock) string {
 }
 
 func renderMarkdownTextBlock(block ci.RenderBlock) string {
-	if block.Text == "" {
-		return ""
-	}
 	var sb strings.Builder
 	if block.Title != "" {
 		fmt.Fprintf(&sb, "#### %s\n\n", escapeMarkdownText(block.Title))
@@ -57,9 +84,6 @@ func renderMarkdownTextBlock(block ci.RenderBlock) string {
 }
 
 func renderMarkdownListBlock(block ci.RenderBlock) string {
-	if len(block.Items) == 0 {
-		return ""
-	}
 	var sb strings.Builder
 	if block.Title != "" {
 		fmt.Fprintf(&sb, "#### %s\n\n", escapeMarkdownText(block.Title))
@@ -71,10 +95,6 @@ func renderMarkdownListBlock(block ci.RenderBlock) string {
 }
 
 func renderMarkdownTableBlock(block ci.RenderBlock) string {
-	if block.Table == nil || len(block.Table.Columns) == 0 {
-		return ""
-	}
-
 	var sb strings.Builder
 	if block.Title != "" {
 		fmt.Fprintf(&sb, "#### %s\n\n", escapeMarkdownText(block.Title))
@@ -104,9 +124,6 @@ func renderMarkdownTableBlock(block ci.RenderBlock) string {
 }
 
 func renderMarkdownDetailsBlock(block ci.RenderBlock) string {
-	if block.Details == nil || block.Details.Summary == "" {
-		return ""
-	}
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "<details>\n<summary>%s</summary>\n\n", escapeHTMLText(block.Details.Summary))
 	if block.Details.Body != "" {
@@ -123,26 +140,31 @@ func renderMarkdownDetailsBlock(block ci.RenderBlock) string {
 	return sb.String()
 }
 
-func renderSectionHeader(section ci.ReportSection) string {
+func renderMarkdownSectionHeader(section ci.ReportSection) string {
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "### %s %s\n\n", reportStatusIcon(section.Status), sectionTitle(section))
+	fmt.Fprintf(&sb, "### %s %s\n\n", StatusLabel(section.Status), escapeMarkdownText(sectionTitle(section)))
 	fmt.Fprintf(&sb, "**Status:** %s", section.Status)
 	if section.SectionSummary != "" {
-		fmt.Fprintf(&sb, " — %s", escapeMarkdownText(section.SectionSummary))
+		fmt.Fprintf(&sb, " - %s", escapeMarkdownText(section.SectionSummary))
 	}
 	sb.WriteString("\n\n")
 	return sb.String()
 }
 
-func reportStatusIcon(status ci.ReportStatus) string {
-	switch status {
-	case ci.ReportStatusPass:
-		return "pass"
-	case ci.ReportStatusWarn:
-		return "warn"
-	case ci.ReportStatusFail:
-		return "fail"
-	default:
-		return string(status)
-	}
+func escapeMarkdownTableCell(s string) string {
+	s = strings.ReplaceAll(s, "\\", "\\\\")
+	s = strings.ReplaceAll(s, "|", "\\|")
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r", "\n")
+	return strings.ReplaceAll(s, "\n", "<br>")
+}
+
+func escapeMarkdownText(s string) string {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r", "\n")
+	return strings.ReplaceAll(s, "\n", " ")
+}
+
+func escapeHTMLText(s string) string {
+	return html.EscapeString(escapeMarkdownText(s))
 }

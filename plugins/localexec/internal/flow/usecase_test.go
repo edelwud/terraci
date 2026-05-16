@@ -93,13 +93,15 @@ type fakeOutput struct {
 	failureResult  *execution.Result
 	failureErr     error
 	failureReturn  error
+	completedErr   error
 	summaryReport  *ci.Report
 }
 
-func (o *fakeOutput) Completed(result *execution.Result, summaryReport *ci.Report) {
+func (o *fakeOutput) Completed(result *execution.Result, summaryReport *ci.Report) error {
 	o.completedCalls++
 	o.result = result
 	o.summaryReport = summaryReport
+	return o.completedErr
 }
 
 func (o *fakeOutput) Failure(result *execution.Result, err error) error {
@@ -446,6 +448,31 @@ func TestUseCase_RunIgnoresSummaryLoaderError(t *testing.T) {
 	}
 	if output.summaryReport != nil {
 		t.Fatalf("summary report = %#v, want nil after loader error", output.summaryReport)
+	}
+}
+
+func TestUseCase_RunReturnsCompletedOutputError(t *testing.T) {
+	workDir, module := testWorkDirWithModule(t)
+	appCtx := plugintest.NewAppContext(t, workDir)
+	wantErr := errors.New("render summary")
+	output := &fakeOutput{completedErr: wantErr}
+
+	useCase := New(
+		appCtx,
+		WithTargetResolver(fakeTargetResolver{targets: []*discovery.Module{module}}),
+		WithRuntimeFactory(&fakeRuntimeFactory{runtime: &runner.Runtime{
+			ExecConfig: execution.Config{PlanEnabled: true, Parallelism: 1},
+			JobRunner:  &fakeJobRunner{},
+		}}),
+		WithSummaryReports(&fakeSummaryReportLoader{}),
+		WithOutput(output),
+	)
+
+	if err := useCase.Run(context.Background(), spec.ExecuteRequest{}); !errors.Is(err, wantErr) {
+		t.Fatalf("Run() error = %v, want completed output error %v", err, wantErr)
+	}
+	if output.completedCalls != 1 {
+		t.Fatalf("completed calls = %d, want 1", output.completedCalls)
 	}
 }
 

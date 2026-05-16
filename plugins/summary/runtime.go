@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/edelwud/terraci/pkg/plugin"
-	summaryengine "github.com/edelwud/terraci/plugins/summary/internal"
+	summaryengine "github.com/edelwud/terraci/plugins/summary/internal/summaryengine"
 )
 
 type summaryRuntime = summaryengine.Runtime

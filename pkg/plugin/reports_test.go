@@ -78,7 +78,7 @@ func TestReportRegistry_DefensiveCopies(t *testing.T) {
 	report := &ci.Report{
 		Producer: "report_b",
 		Title:    "Report B",
-		Sections: []ci.ReportSection{citest.MustEncodeRenderSection(
+		Sections: []ci.ReportSection{citest.MustRenderedSection(
 			"Findings",
 			"",
 			ci.ReportStatusWarn,
@@ -97,7 +97,7 @@ func TestReportRegistry_DefensiveCopies(t *testing.T) {
 	if got.Title != "Report B" {
 		t.Fatalf("stored report title = %q, want Report B", got.Title)
 	}
-	rendered, err := ci.DecodeSection[ci.RenderSection](got.Sections[0])
+	rendered, err := ci.DecodeRenderSection(got.Sections[0])
 	if err != nil {
 		t.Fatalf("decode original render section: %v", err)
 	}
@@ -107,7 +107,7 @@ func TestReportRegistry_DefensiveCopies(t *testing.T) {
 
 	got.Sections[0].Payload[0] = '{'
 	gotAgain, _ := r.Get("report_b")
-	renderedAgain, err := ci.DecodeSection[ci.RenderSection](gotAgain.Sections[0])
+	renderedAgain, err := ci.DecodeRenderSection(gotAgain.Sections[0])
 	if err != nil {
 		t.Fatalf("decode again: %v", err)
 	}

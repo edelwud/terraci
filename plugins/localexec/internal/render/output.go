@@ -12,7 +12,7 @@ import (
 )
 
 type Output interface {
-	Completed(result *execution.Result, summaryReport *ci.Report)
+	Completed(result *execution.Result, summaryReport *ci.Report) error
 	Failure(result *execution.Result, execErr error) error
 }
 
@@ -22,7 +22,7 @@ func NewLogOutput() Output {
 	return LogOutput{}
 }
 
-func (o LogOutput) Completed(result *execution.Result, summaryReport *ci.Report) {
+func (o LogOutput) Completed(result *execution.Result, summaryReport *ci.Report) error {
 	var succeeded, failed int
 	var totalDuration time.Duration
 	if result == nil {
@@ -72,14 +72,18 @@ func (o LogOutput) Completed(result *execution.Result, summaryReport *ci.Report)
 	entry.Info("local execution completed")
 
 	if summaryReport == nil {
-		return
+		return nil
 	}
 
 	log.Info("")
-	rendered := SummaryReportCLI(summaryReport)
+	rendered, err := SummaryReportCLI(summaryReport)
+	if err != nil {
+		return fmt.Errorf("render summary report: %w", err)
+	}
 	if rendered != "" {
 		fmt.Println(rendered)
 	}
+	return nil
 }
 
 func (LogOutput) Failure(result *execution.Result, execErr error) error {

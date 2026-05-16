@@ -32,7 +32,9 @@ func TestLogOutputCompleted_LogsDAGGroupNames(t *testing.T) {
 	}
 
 	logs := plugintest.CaptureLogOutput(t, func() {
-		output.Completed(result, nil)
+		if err := output.Completed(result, nil); err != nil {
+			t.Fatalf("Completed() error = %v", err)
+		}
 	})
 
 	for _, wanted := range []string{"dag-level-0", "dag-level-1"} {
@@ -51,7 +53,9 @@ func TestLogOutputCompleted_EmptyResultUsesConsistentSummary(t *testing.T) {
 	}
 
 	logs := plugintest.CaptureLogOutput(t, func() {
-		output.Completed(result, nil)
+		if err := output.Completed(result, nil); err != nil {
+			t.Fatalf("Completed() error = %v", err)
+		}
 	})
 
 	for _, unwanted := range []string{"local execution completed (no jobs)", "── summary ──────────────────────────"} {
@@ -75,7 +79,9 @@ func TestLogOutputCompleted_NilResultUsesConsistentSummary(t *testing.T) {
 	output := LogOutput{}
 
 	logs := plugintest.CaptureLogOutput(t, func() {
-		output.Completed(nil, nil)
+		if err := output.Completed(nil, nil); err != nil {
+			t.Fatalf("Completed() error = %v", err)
+		}
 	})
 
 	for _, unwanted := range []string{"local execution completed (no jobs)", "── stages ───────────────────────────", "── summary ──────────────────────────"} {
@@ -106,7 +112,9 @@ func TestLogOutputCompleted_NilSummaryReportSkipsCLISection(t *testing.T) {
 	os.Stdout = writer
 	defer func() { os.Stdout = originalStdout }()
 
-	output.Completed(&execution.Result{}, nil)
+	if err := output.Completed(&execution.Result{}, nil); err != nil {
+		t.Fatalf("Completed() error = %v", err)
+	}
 
 	if err := writer.Close(); err != nil {
 		t.Fatalf("writer.Close() error = %v", err)
@@ -125,7 +133,7 @@ func TestLogOutputCompleted_WithSummaryReport(t *testing.T) {
 		Producer: "summary",
 		Title:    "Terraform Plan Summary",
 		Summary:  "1 modules: 1 with changes, 0 no changes, 0 failed",
-		Sections: []ci.ReportSection{citest.MustEncodeRenderSection(
+		Sections: []ci.ReportSection{citest.MustRenderedSection(
 			"Summary",
 			"",
 			ci.ReportStatusWarn,
@@ -143,7 +151,9 @@ func TestLogOutputCompleted_WithSummaryReport(t *testing.T) {
 	os.Stdout = writer
 	defer func() { os.Stdout = originalStdout }()
 
-	output.Completed(result, report)
+	if err := output.Completed(result, report); err != nil {
+		t.Fatalf("Completed() error = %v", err)
+	}
 
 	if err := writer.Close(); err != nil {
 		t.Fatalf("writer.Close() error = %v", err)
@@ -156,6 +166,26 @@ func TestLogOutputCompleted_WithSummaryReport(t *testing.T) {
 	rendered := string(renderedBytes)
 	if !strings.Contains(rendered, "Terraform Plan Summary") {
 		t.Fatalf("rendered summary missing report title:\n%s", rendered)
+	}
+}
+
+func TestLogOutputCompleted_InvalidSummaryReportReturnsError(t *testing.T) {
+	output := LogOutput{}
+	report := &ci.Report{
+		Producer: "summary",
+		Title:    "Terraform Plan Summary",
+		Sections: []ci.ReportSection{{
+			Kind:    "legacy",
+			Payload: []byte(`{}`),
+		}},
+	}
+
+	err := output.Completed(&execution.Result{}, report)
+	if err == nil {
+		t.Fatal("Completed() error = nil, want renderer error")
+	}
+	if !strings.Contains(err.Error(), `is not "rendered"`) {
+		t.Fatalf("Completed() error = %q, want render-ready contract message", err.Error())
 	}
 }
 

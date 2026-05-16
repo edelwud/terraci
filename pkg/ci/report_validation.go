@@ -35,8 +35,17 @@ func validateReportSection(s ReportSection) error {
 	if strings.TrimSpace(string(s.Kind)) == "" {
 		return errors.New("report section kind is required")
 	}
+	if s.Kind != ReportSectionKindRendered {
+		return fmt.Errorf("report section %q is not render-ready; producer reports must use %q sections", s.Kind, ReportSectionKindRendered)
+	}
+	if !s.Status.Valid() {
+		return fmt.Errorf("report section %q status %q is invalid", s.Kind, s.Status)
+	}
 	if len(s.Payload) == 0 {
 		return fmt.Errorf("report section %q has empty payload", s.Kind)
+	}
+	if _, err := DecodeRenderSection(s); err != nil {
+		return err
 	}
 	return nil
 }

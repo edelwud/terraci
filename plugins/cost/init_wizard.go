@@ -56,7 +56,7 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 
 	return []*initwiz.InitGroupSpec{
 		{
-			Title:    "Cost Estimation",
+			Title:    costReportTitle,
 			Category: initwiz.CategoryFeature,
 			Order:    initGroupOrder,
 			Fields:   fields,

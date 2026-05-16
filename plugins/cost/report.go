@@ -48,17 +48,22 @@ func buildCostReport(result *model.EstimateResult) (*ci.Report, error) {
 		reportCostDiff(result.TotalDiff),
 		reportMonthlyCost(result.TotalAfter),
 	)))
-	section, err := ci.EncodeRenderSection(
-		"Cost Estimation",
-		summary,
-		status,
-		blocks...,
-	)
+	report, err := ci.NewRenderedReport(ci.RenderedReportOptions{
+		Producer: pluginName,
+		Title:    costReportTitle,
+		Status:   status,
+		Summary:  summary,
+		Sections: []ci.RenderedSectionOptions{{
+			Title:   costReportTitle,
+			Summary: summary,
+			Blocks:  blocks,
+		}},
+	})
 	if err != nil {
 		return nil, fmt.Errorf("build cost report: %w", err)
 	}
 
-	return ci.BuildReport(pluginName, "Cost Estimation", status, summary, section), nil
+	return report, nil
 }
 
 func buildCostReportSummary(result *model.EstimateResult, moduleCount int) string {

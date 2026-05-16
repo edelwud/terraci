@@ -11,21 +11,19 @@ import (
 
 func TestSaveReport(t *testing.T) {
 	dir := t.TempDir()
-	overviewSection, err := EncodeRenderSection(
-		"Summary",
-		"all good",
-		ReportStatusPass,
-		RenderTextBlock("1 module analyzed"),
-	)
-	if err != nil {
-		t.Fatalf("EncodeRenderSection: %v", err)
-	}
-	report := &Report{
+	report, err := NewRenderedReport(RenderedReportOptions{
 		Producer: "test",
 		Title:    "Test Report",
 		Status:   ReportStatusPass,
 		Summary:  "all good",
-		Sections: []ReportSection{overviewSection},
+		Sections: []RenderedSectionOptions{{
+			Title:   "Summary",
+			Summary: "all good",
+			Blocks:  []RenderBlock{RenderTextBlock("1 module analyzed")},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("NewRenderedReport: %v", err)
 	}
 
 	if saveErr := SaveReport(dir, report); saveErr != nil {
@@ -39,8 +37,8 @@ func TestSaveReport(t *testing.T) {
 	}
 
 	var loaded Report
-	if err := json.Unmarshal(data, &loaded); err != nil {
-		t.Fatalf("unmarshal: %v", err)
+	if decodeErr := json.Unmarshal(data, &loaded); decodeErr != nil {
+		t.Fatalf("unmarshal: %v", decodeErr)
 	}
 
 	if loaded.Producer != "test" {
@@ -103,11 +101,11 @@ func TestSaveReport_SectionsField(t *testing.T) {
 		Title:    "Section Report",
 		Status:   ReportStatusWarn,
 		Sections: []ReportSection{{
-			Kind:           "sample_section",
+			Kind:           ReportSectionKindRendered,
 			Title:          "Sample Section",
 			Status:         ReportStatusWarn,
 			SectionSummary: "1 module",
-			Payload:        json.RawMessage(`{"rows":[{"module_path":"svc/prod/eu/vpc"}]}`),
+			Payload:        json.RawMessage(`{"blocks":[{"kind":"table","table":{"columns":["Module"],"rows":[["svc/prod/eu/vpc"]]}}]}`),
 		}},
 	}
 
@@ -121,23 +119,19 @@ func TestSaveReport_SectionsField(t *testing.T) {
 	}
 
 	var loaded Report
-	if err := json.Unmarshal(data, &loaded); err != nil {
-		t.Fatalf("unmarshal: %v", err)
+	if decodeErr := json.Unmarshal(data, &loaded); decodeErr != nil {
+		t.Fatalf("unmarshal: %v", decodeErr)
 	}
 
 	if len(loaded.Sections) != 1 {
 		t.Fatalf("expected 1 section, got %d", len(loaded.Sections))
 	}
-	var payload struct {
-		Rows []struct {
-			ModulePath string `json:"module_path"`
-		} `json:"rows"`
+	payload, err := DecodeRenderSection(loaded.Sections[0])
+	if err != nil {
+		t.Fatalf("DecodeRenderSection: %v", err)
 	}
-	if err := json.Unmarshal(loaded.Sections[0].Payload, &payload); err != nil {
-		t.Fatalf("payload decode: %v", err)
-	}
-	if len(payload.Rows) != 1 || payload.Rows[0].ModulePath != "svc/prod/eu/vpc" {
-		t.Fatalf("payload = %+v", payload)
+	if got := payload.Blocks[0].Table.Rows[0][0]; got != "svc/prod/eu/vpc" {
+		t.Fatalf("payload module = %q, want svc/prod/eu/vpc", got)
 	}
 }
 
@@ -252,6 +246,8 @@ func TestLoadReport_UnknownSectionKindFails(t *testing.T) {
 
 	if _, err := LoadReport(path); err == nil {
 		t.Fatal("expected LoadReport to fail for unknown section kind")
+	} else if !strings.Contains(err.Error(), "producer reports must use") {
+		t.Fatalf("LoadReport() error = %q, want render-ready contract message", err.Error())
 	}
 }
 

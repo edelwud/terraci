@@ -16,13 +16,13 @@ func TestRenderSummaryReportCLI_RendersStructuredSections(t *testing.T) {
 		Title:    "Terraform Plan Summary",
 		Summary:  "2 modules: 1 with changes, 1 no changes, 0 failed",
 		Sections: []ci.ReportSection{
-			citest.MustEncodeRenderSection(
+			citest.MustRenderedSection(
 				"Summary",
 				"2 modules: 1 with changes, 1 no changes, 0 failed",
 				ci.ReportStatusWarn,
 				ci.RenderListBlock("", []string{"warn Cost Estimation: 1 module added cost"}),
 			),
-			citest.MustEncodeRenderSection(
+			citest.MustRenderedSection(
 				"Environment: `prod`",
 				"1 actionable modules",
 				ci.ReportStatusWarn,
@@ -32,7 +32,10 @@ func TestRenderSummaryReportCLI_RendersStructuredSections(t *testing.T) {
 		},
 	}
 
-	rendered := SummaryReportCLI(report)
+	rendered, err := SummaryReportCLI(report)
+	if err != nil {
+		t.Fatalf("SummaryReportCLI() error = %v", err)
+	}
 	for _, wanted := range []string{
 		"Terraform Plan Summary",
 		"2 modules: 1 with changes, 1 no changes, 0 failed",

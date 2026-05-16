@@ -179,8 +179,7 @@ func (u *UseCase) Run(ctx context.Context, req spec.ExecuteRequest) error {
 	if err != nil {
 		log.WithError(err).Warn("skip summary report rendering")
 	}
-	u.output.Completed(resultExec, summaryReport)
-	return nil
+	return u.output.Completed(resultExec, summaryReport)
 }
 
 func workflowOptionsFromContext(appCtx *plugin.AppContext, ff *filter.Flags) workflow.Options {

@@ -15,8 +15,8 @@ func TestPlugin_InitGroups(t *testing.T) {
 	}
 
 	g := groups[0]
-	if g.Title != "Cost Estimation" {
-		t.Errorf("group.Title = %q, want %q", g.Title, "Cost Estimation")
+	if g.Title != costReportTitle {
+		t.Errorf("group.Title = %q, want %q", g.Title, costReportTitle)
 	}
 	if g.Category != initwiz.CategoryFeature {
 		t.Errorf("group.Category = %v, want CategoryFeature", g.Category)

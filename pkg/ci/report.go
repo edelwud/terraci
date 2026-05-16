@@ -19,21 +19,6 @@ func ResultFilename(producer string) string {
 	return producer + "-results.json"
 }
 
-// BuildReport assembles a producer Report with the standard provenance shell.
-// Producers (cost / policy / tfupdate) call this instead of constructing
-// the &Report{...} literal by hand — drives uniform field ordering and a
-// single point to update when the Report shape grows.
-func BuildReport(producer, title string, status ReportStatus, summary string, sections ...ReportSection) *Report {
-	return &Report{
-		Producer:   producer,
-		Title:      title,
-		Status:     status,
-		Summary:    summary,
-		Provenance: NewProvenance("", "", ""),
-		Sections:   sections,
-	}
-}
-
 // StatusFromCounts returns the strictest status implied by the given fail /
 // warn counts: any failure → Fail; any warning → Warn; otherwise Pass.
 // Producers can still override (e.g. tfupdate treats "updates available" as

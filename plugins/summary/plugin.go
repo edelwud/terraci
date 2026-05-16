@@ -5,7 +5,7 @@ package summary
 import (
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/registry"
-	summaryengine "github.com/edelwud/terraci/plugins/summary/internal"
+	summaryengine "github.com/edelwud/terraci/plugins/summary/internal/summaryengine"
 )
 
 // pluginName is the canonical plugin identifier used in commands, reports and config.

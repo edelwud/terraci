@@ -8,7 +8,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/plugin"
-	summaryengine "github.com/edelwud/terraci/plugins/summary/internal"
+	summaryengine "github.com/edelwud/terraci/plugins/summary/internal/summaryengine"
 )
 
 func TestPlugin_Commands_Registration(t *testing.T) {

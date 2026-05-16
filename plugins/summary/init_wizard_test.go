@@ -6,7 +6,7 @@ import (
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/initwiz"
-	summaryengine "github.com/edelwud/terraci/plugins/summary/internal"
+	summaryengine "github.com/edelwud/terraci/plugins/summary/internal/summaryengine"
 )
 
 func newTestPlugin() *Plugin {

@@ -125,21 +125,21 @@ func writeReportJSON(t *testing.T, serviceDir, pluginName string, report *ci.Rep
 }
 
 func newPlanReport(modulePath string, status ci.ReportStatus) *ci.Report {
-	section, err := ci.EncodeRenderSection(
-		"Cost Estimation",
-		"summary",
-		status,
-		ci.RenderTableBlock("", []string{"Module", "Before", "After", "Diff"}, [][]string{{modulePath, "$1.00", "$2.00", "+$1.00"}}),
-	)
-	if err != nil {
-		panic(err)
-	}
-
-	return &ci.Report{
+	report, err := ci.NewRenderedReport(ci.RenderedReportOptions{
 		Producer: "cost",
 		Title:    "Cost Estimation",
 		Status:   status,
 		Summary:  "summary",
-		Sections: []ci.ReportSection{section},
+		Sections: []ci.RenderedSectionOptions{{
+			Title:   "Cost Estimation",
+			Summary: "summary",
+			Blocks: []ci.RenderBlock{
+				ci.RenderTableBlock("", []string{"Module", "Before", "After", "Diff"}, [][]string{{modulePath, "$1.00", "$2.00", "+$1.00"}}),
+			},
+		}},
+	})
+	if err != nil {
+		panic(err)
 	}
+	return report
 }

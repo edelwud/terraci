@@ -11,7 +11,10 @@ import (
 )
 
 // pluginName is the canonical plugin identifier used in commands, reports and config.
-const pluginName = "cost"
+const (
+	pluginName      = "cost"
+	costReportTitle = "Cost Estimation"
+)
 
 func init() {
 	registry.RegisterFactory(func() plugin.Plugin {

@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/plugins/internal/reportrender"
 )
 
 // BuildSummarySections builds the filtered summary view from plan results and render-ready plugin reports.
@@ -99,6 +100,10 @@ func overallSummaryStatus(plans []ci.PlanResult, reports []*ci.Report) ci.Report
 		}
 	}
 	return ci.ReportStatusPass
+}
+
+func reportStatusIcon(status ci.ReportStatus) string {
+	return reportrender.StatusLabel(status)
 }
 
 func buildTerraformPlanSections(plans []ci.PlanResult, includeDetails bool) ([]ci.ReportSection, error) {

@@ -10,7 +10,9 @@
 //
 // Test helpers live in pkg/plugin/plugintest. Helpers shared between CI
 // provider plugins (gitlab, github, future Bitbucket/Jenkins/Azure DevOps)
-// live in plugins/internal/ciplugin and are not part of the public API.
+// live in plugins/internal/ciplugin. Shared report rendering for plugin-owned
+// ci.Report payloads lives in plugins/internal/reportrender. These packages are
+// not part of the public API.
 //
 // # Plugin file convention
 //
@@ -26,7 +28,7 @@
 //   - pipeline.go     — PipelineContributor (pipeline DAG jobs)
 //   - init_wizard.go  — initwiz.InitContributor (TUI form fields)
 //   - output.go       — CLI rendering helpers
-//   - report.go       — render-ready CI report assembly via ci.EncodeRenderSection
+//   - report.go       — render-ready CI report assembly via ci.NewRenderedReport
 //
 // Smaller plugins (git, diskblob, inmemcache, localexec) only implement the
 // capabilities they need — there is no minimum surface.
@@ -101,6 +103,9 @@
 //     within a single command run is enough)
 //
 // summary is the canonical consumer of file-based reports; cost/policy/
-// tfupdate are the canonical producers. The contract test suite for blob
-// backends lives at pkg/cache/blobcache/contracttest.
+// tfupdate are the canonical producers. Producers should publish render-ready
+// ci.ReportSectionKindRendered sections via ci.NewRenderedReport; consumers
+// should use ci.DecodeRenderSection or plugins/internal/reportrender instead of
+// constructing JSON payloads or importing producer-specific domain structs. The
+// contract test suite for blob backends lives at pkg/cache/blobcache/contracttest.
 package plugin

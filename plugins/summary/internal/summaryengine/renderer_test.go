@@ -99,7 +99,7 @@ func TestComposeComment_WithReport(t *testing.T) {
 			Title:    "Policy Check",
 			Status:   ci.ReportStatusFail,
 			Summary:  "2 modules: 1 passed, 0 warned, 1 failed",
-			Sections: []ci.ReportSection{citest.MustEncodeRenderSection(
+			Sections: []ci.ReportSection{citest.MustRenderedSection(
 				"Policy Check",
 				"2 modules: 1 passed, 0 warned, 1 failed",
 				ci.ReportStatusFail,
@@ -167,7 +167,7 @@ func TestBuildSummarySectionsWithOptions_WithoutDetailsClearsRowDetails(t *testi
 	if len(sections) < 2 {
 		t.Fatalf("sections = %#v, want module table row", sections)
 	}
-	rendered, err := ci.DecodeSection[ci.RenderSection](sections[1])
+	rendered, err := ci.DecodeRenderSection(sections[1])
 	if err != nil || len(rendered.Blocks) == 0 {
 		t.Fatalf("RenderSection blocks = %v, err = %v", rendered.Blocks, err)
 	}
@@ -186,7 +186,7 @@ func TestComposeComment_WithCostReport(t *testing.T) {
 		Producer: "cost",
 		Title:    "Cost Estimation",
 		Status:   ci.ReportStatusWarn,
-		Sections: []ci.ReportSection{citest.MustEncodeRenderSection(
+		Sections: []ci.ReportSection{citest.MustRenderedSection(
 			"Cost Estimation",
 			"1 module, total: $15.00/mo (diff: +$5.00)",
 			ci.ReportStatusWarn,
@@ -295,7 +295,7 @@ func TestComposeComment_FiltersCostReportToAddedCosts(t *testing.T) {
 		Title:    "Cost Estimation",
 		Status:   ci.ReportStatusWarn,
 		Summary:  "3 modules, total: $27.00/mo (diff: +5.00)",
-		Sections: []ci.ReportSection{citest.MustEncodeRenderSection(
+		Sections: []ci.ReportSection{citest.MustRenderedSection(
 			"Cost Estimation",
 			"3 modules, total: $27.00/mo (diff: +5.00)",
 			ci.ReportStatusWarn,
@@ -324,7 +324,7 @@ func TestComposeComment_FiltersTfupdateReportToUpdatableModules(t *testing.T) {
 		Title:    "Dependency Update Check",
 		Status:   ci.ReportStatusWarn,
 		Summary:  "4 checked, 2 updates available, 0 applied, 0 errors",
-		Sections: []ci.ReportSection{citest.MustEncodeRenderSection(
+		Sections: []ci.ReportSection{citest.MustRenderedSection(
 			"Dependency Update Check",
 			"4 checked, 2 updates available, 0 applied, 0 errors",
 			ci.ReportStatusWarn,
@@ -532,64 +532,6 @@ func TestGroupByEnvironment(t *testing.T) {
 	}
 }
 
-func TestFormatMonthlyCost(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		cost float64
-		want string
-	}{
-		{"zero", 0, "$0"},
-		{"below threshold", 0.005, "<$0.01"},
-		{"sub-dollar", 0.5, "$0.5000"},
-		{"normal", 10.5, "$10.50"},
-		{"thousand plus", 1500, "$1500"},
-		{"exactly one", 1.0, "$1.00"},
-		{"just under thousand", 999.99, "$999.99"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := FormatMonthlyCost(tt.cost)
-			if got != tt.want {
-				t.Errorf("FormatMonthlyCost(%v) = %q, want %q", tt.cost, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestFormatCostDiff(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		diff float64
-		want string
-	}{
-		{"zero", 0, "$0"},
-		{"positive normal", 5.0, "+$5.00"},
-		{"negative normal", -5.0, "-$5.00"},
-		{"positive sub-dollar", 0.5, "+$0.5000"},
-		{"negative sub-dollar", -0.5, "-$0.5000"},
-		{"positive thousand", 1500, "+$1500"},
-		{"negative thousand", -1500, "-$1500"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := FormatCostDiff(tt.diff)
-			if got != tt.want {
-				t.Errorf("FormatCostDiff(%v) = %q, want %q", tt.diff, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestTruncate(t *testing.T) {
 	t.Parallel()
 
@@ -663,236 +605,4 @@ func TestStatusIcon(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestRenderExpandableDetails(t *testing.T) {
-	t.Parallel()
-
-	t.Run("with structured details", func(t *testing.T) {
-		t.Parallel()
-
-		p := &ci.PlanResult{
-			ModuleID:          "svc/prod/us-east-1/vpc",
-			Status:            ci.PlanStatusChanges,
-			Summary:           "+2 ~1 -0",
-			StructuredDetails: "### Resources\n- aws_vpc.main (create)",
-		}
-
-		got := renderExpandableDetails(p)
-
-		if !strings.Contains(got, "<details>") {
-			t.Error("expected <details> tag")
-		}
-		if !strings.Contains(got, "svc/prod/us-east-1/vpc (+2 ~1 -0)") {
-			t.Errorf("expected module ID with summary in title, got: %s", got)
-		}
-		if !strings.Contains(got, "### Resources") {
-			t.Error("expected structured details content")
-		}
-	})
-
-	t.Run("with raw plan output", func(t *testing.T) {
-		t.Parallel()
-
-		p := &ci.PlanResult{
-			ModuleID:      "svc/prod/us-east-1/rds",
-			Status:        ci.PlanStatusChanges,
-			Summary:       "No changes",
-			RawPlanOutput: "+ resource \"aws_db_instance\" \"main\"",
-		}
-
-		got := renderExpandableDetails(p)
-
-		if !strings.Contains(got, "Full plan output") {
-			t.Error("expected 'Full plan output' section")
-		}
-		if !strings.Contains(got, "```diff") {
-			t.Error("expected diff code block")
-		}
-		// Summary is "No changes" which equals the special case check
-		if !strings.Contains(got, "svc/prod/us-east-1/rds") {
-			t.Error("expected module ID in title")
-		}
-	})
-
-	t.Run("failed status", func(t *testing.T) {
-		t.Parallel()
-
-		p := &ci.PlanResult{
-			ModuleID: "svc/prod/us-east-1/eks",
-			Status:   ci.PlanStatusFailed,
-			Error:    "terraform init failed",
-		}
-
-		got := renderExpandableDetails(p)
-
-		if !strings.Contains(got, "FAILED svc/prod/us-east-1/eks") {
-			t.Errorf("expected failed prefix with module ID, got: %s", got)
-		}
-	})
-
-	t.Run("no summary uses plain title", func(t *testing.T) {
-		t.Parallel()
-
-		p := &ci.PlanResult{
-			ModuleID:          "svc/prod/us-east-1/vpc",
-			Status:            ci.PlanStatusChanges,
-			Summary:           "",
-			StructuredDetails: "some details",
-		}
-
-		got := renderExpandableDetails(p)
-
-		// With empty summary, title should just be the module ID
-		if !strings.Contains(got, "svc/prod/us-east-1/vpc</summary>") {
-			t.Errorf("expected plain title without summary parens, got: %s", got)
-		}
-	})
-}
-
-func TestRenderReportSection(t *testing.T) {
-	t.Parallel()
-
-	t.Run("with fail status", func(t *testing.T) {
-		t.Parallel()
-
-		report := &ci.Report{
-			Producer: "policy",
-			Title:    "Policy Check",
-			Status:   ci.ReportStatusFail,
-			Summary:  "3 modules: 1 passed, 0 warned, 2 failed",
-			Sections: []ci.ReportSection{citest.MustEncodeRenderSection(
-				"Policy Check",
-				"3 modules: 1 passed, 0 warned, 2 failed",
-				ci.ReportStatusFail,
-				ci.RenderTableBlock("", []string{"Module", "Severity", "Namespace", "Message"}, [][]string{{
-					"svc/prod/us-east-1/vpc",
-					"fail",
-					"terraform.security",
-					"no public access",
-				}}),
-			)},
-		}
-
-		got := renderReportSection(report)
-
-		if !strings.Contains(got, "Policy Check") {
-			t.Error("expected policy check header")
-		}
-		if !strings.Contains(got, "no public access") {
-			t.Error("expected failure message")
-		}
-		if !strings.Contains(got, "2 failed") {
-			t.Error("expected failure count")
-		}
-	})
-
-	t.Run("with warn status", func(t *testing.T) {
-		t.Parallel()
-
-		report := &ci.Report{
-			Producer: "policy",
-			Title:    "Policy Check",
-			Status:   ci.ReportStatusWarn,
-			Summary:  "1 modules: 0 passed, 1 warned, 0 failed",
-			Sections: []ci.ReportSection{citest.MustEncodeRenderSection(
-				"Policy Check",
-				"1 modules: 0 passed, 1 warned, 0 failed",
-				ci.ReportStatusWarn,
-				ci.RenderTableBlock("", []string{"Module", "Severity", "Namespace", "Message"}, [][]string{{
-					"svc/staging/us-east-1/vpc",
-					"warn",
-					"terraform.naming",
-					"non-standard naming",
-				}}),
-			)},
-		}
-
-		got := renderReportSection(report)
-
-		if !strings.Contains(got, "warn") {
-			t.Error("expected warning status")
-		}
-		if !strings.Contains(got, "non-standard naming") {
-			t.Error("expected warning message")
-		}
-	})
-
-	t.Run("pass status", func(t *testing.T) {
-		t.Parallel()
-
-		report := &ci.Report{
-			Producer: "policy",
-			Title:    "Policy Check",
-			Status:   ci.ReportStatusPass,
-			Summary:  "2 modules: 2 passed, 0 warned, 0 failed",
-		}
-
-		got := renderReportSection(report)
-
-		if !strings.Contains(got, "pass") {
-			t.Error("expected pass status")
-		}
-	})
-}
-
-func TestRenderPlanRow(t *testing.T) {
-	t.Parallel()
-
-	t.Run("without cost", func(t *testing.T) {
-		t.Parallel()
-
-		p := &ci.PlanResult{
-			ModuleID: "svc/prod/us-east-1/vpc",
-			Status:   ci.PlanStatusChanges,
-			Summary:  "+2 ~1 -0",
-		}
-
-		got := renderPlanRow(p)
-
-		if !strings.Contains(got, "changes") {
-			t.Error("expected changes icon")
-		}
-		if !strings.Contains(got, "`svc/prod/us-east-1/vpc`") {
-			t.Error("expected module ID in backticks")
-		}
-		if !strings.Contains(got, "+2 ~1 -0") {
-			t.Error("expected summary")
-		}
-		// Should have 3 columns (no cost)
-		if strings.Count(got, "|") != 4 { // |status|module|summary|
-			t.Errorf("expected 4 pipe chars for 3-column row, got %d in %q", strings.Count(got, "|"), got)
-		}
-	})
-
-	t.Run("with error", func(t *testing.T) {
-		t.Parallel()
-
-		p := &ci.PlanResult{
-			ModuleID: "svc/prod/us-east-1/vpc",
-			Status:   ci.PlanStatusFailed,
-			Error:    "init failed: something went wrong",
-		}
-
-		got := renderPlanRow(p)
-
-		if !strings.Contains(got, "init failed: something went wrong") {
-			t.Error("expected error message in summary")
-		}
-	})
-
-	t.Run("empty summary becomes dash", func(t *testing.T) {
-		t.Parallel()
-
-		p := &ci.PlanResult{
-			ModuleID: "svc/prod/us-east-1/vpc",
-			Status:   ci.PlanStatusPending,
-		}
-
-		got := renderPlanRow(p)
-
-		if !strings.Contains(got, "| - |") {
-			t.Errorf("expected dash for empty summary, got: %s", got)
-		}
-	})
 }

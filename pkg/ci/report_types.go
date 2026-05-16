@@ -48,8 +48,9 @@ func NewProvenance(commitSHA, pipelineID, planResultsFingerprint string) *Report
 type ReportSectionKind string
 
 // ReportSection is a neutral envelope describing one slice of a CI report. The
-// Payload is opaque JSON owned by the producer — consumers decode it according
-// to Kind. Use EncodeRenderSection for summary-facing reports.
+// Payload is opaque JSON owned by the producer; persisted producer reports must
+// publish ReportSectionKindRendered payloads. Use NewRenderedSection or
+// NewRenderedReport for summary-facing reports.
 type ReportSection struct {
 	Kind           ReportSectionKind `json:"kind"`
 	Title          string            `json:"title,omitempty"`

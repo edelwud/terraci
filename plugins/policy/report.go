@@ -32,15 +32,20 @@ func buildPolicyReport(summary *policyengine.Summary) (*ci.Report, error) {
 	if len(rows) > 0 {
 		blocks = append(blocks, ci.RenderTableBlock("", []string{"Module", "Severity", "Namespace", "Message"}, rows))
 	}
-	section, err := ci.EncodeRenderSection(
-		"Policy Check",
-		summaryText,
-		status,
-		blocks...,
-	)
+	report, err := ci.NewRenderedReport(ci.RenderedReportOptions{
+		Producer: pluginName,
+		Title:    "Policy Check",
+		Status:   status,
+		Summary:  summaryText,
+		Sections: []ci.RenderedSectionOptions{{
+			Title:   "Policy Check",
+			Summary: summaryText,
+			Blocks:  blocks,
+		}},
+	})
 	if err != nil {
 		return nil, fmt.Errorf("build policy report: %w", err)
 	}
 
-	return ci.BuildReport(pluginName, "Policy Check", status, summaryText, section), nil
+	return report, nil
 }

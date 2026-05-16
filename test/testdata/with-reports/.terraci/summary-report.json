@@ -9,32 +9,34 @@
   },
   "sections": [
     {
-      "kind": "overview",
+      "kind": "rendered",
       "title": "Summary",
       "status": "warn",
-      "section_summary": "**1** modules: **1** with changes",
+      "section_summary": "1 modules: 1 with changes, 0 no changes, 0 failed",
       "payload": {
-        "plan_stats": {
-          "total": 1,
-          "success": 1,
-          "changes": 1
-        }
+        "blocks": []
       }
     },
     {
-      "kind": "module_table",
+      "kind": "rendered",
       "title": "Environment: `prod`",
       "status": "warn",
       "section_summary": "1 actionable modules",
       "payload": {
-        "environment": "prod",
-        "rows": [
+        "blocks": [
           {
-            "module_id": "platform/prod/eu-central-1/vpc",
-            "module_path": "platform/prod/eu-central-1/vpc",
-            "status": "changes",
-            "summary": "+1",
-            "structured_details": "**Create:**\n- `aws_vpc.main`\n"
+            "kind": "table",
+            "table": {
+              "columns": ["Status", "Module", "Summary"],
+              "rows": [["changes", "platform/prod/eu-central-1/vpc", "+1"]]
+            }
+          },
+          {
+            "kind": "details",
+            "details": {
+              "summary": "platform/prod/eu-central-1/vpc (+1)",
+              "body": "**Create:**\n- `aws_vpc.main`\n"
+            }
           }
         ]
       }

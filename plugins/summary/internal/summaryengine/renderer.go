@@ -6,23 +6,27 @@ import (
 	"time"
 
 	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/plugins/internal/reportrender"
 )
 
 const (
-	maxErrorLength        = 50
-	maxDetailsLength      = 10000
-	minCostThreshold      = 0.01
-	thousandCostThreshold = 1000
-	shortSHALength        = 8
-	noChangesSummary      = "No changes"
-	columnModule          = "Module"
+	maxErrorLength   = 50
+	maxDetailsLength = 10000
+	shortSHALength   = 8
+	noChangesSummary = "No changes"
+	columnModule     = "Module"
 )
 
 // CommentMarker is used to identify terraci comments for updates.
 const CommentMarker = ci.CommentMarker
 
 func encodeRenderSection(title, sectionSummary string, status ci.ReportStatus, blocks ...ci.RenderBlock) (ci.ReportSection, error) {
-	section, err := ci.EncodeRenderSection(title, sectionSummary, status, blocks...)
+	section, err := ci.NewRenderedSection(ci.RenderedSectionOptions{
+		Title:   title,
+		Summary: sectionSummary,
+		Status:  status,
+		Blocks:  blocks,
+	})
 	if err != nil {
 		return ci.ReportSection{}, fmt.Errorf("encode rendered section: %w", err)
 	}
@@ -47,7 +51,10 @@ func ComposeCommentWithOptions(plans []ci.PlanResult, reports []*ci.Report, comm
 	sb.WriteString("## Terraform Plan Summary\n\n")
 
 	for _, section := range sections {
-		rendered := renderMarkdownSection(section)
+		rendered, err := reportrender.MarkdownSection(section)
+		if err != nil {
+			return "", fmt.Errorf("render summary section %q: %w", sectionTitle(section), err)
+		}
 		if rendered == "" {
 			continue
 		}
