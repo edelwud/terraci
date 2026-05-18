@@ -20,16 +20,16 @@ func filteredReportSectionsE(report *ci.Report) ([]ci.ReportSection, error) {
 
 	sections := make([]ci.ReportSection, 0, len(report.Sections))
 	for _, section := range report.Sections {
-		if section.Kind != ci.ReportSectionKindRendered {
+		if section.Kind() != ci.ReportSectionKindRendered {
 			return nil, fmt.Errorf(
 				"%s report section %q is not render-ready; plugins must publish %q sections",
 				report.Producer,
-				section.Kind,
+				section.Kind(),
 				ci.ReportSectionKindRendered,
 			)
 		}
 		if _, err := ci.DecodeRenderSection(section); err != nil {
-			return nil, fmt.Errorf("decode %s report section %s: %w", report.Producer, section.Kind, err)
+			return nil, fmt.Errorf("decode %s report section %s: %w", report.Producer, section.Kind(), err)
 		}
 		sections = append(sections, section)
 	}
@@ -37,11 +37,11 @@ func filteredReportSectionsE(report *ci.Report) ([]ci.ReportSection, error) {
 }
 
 func sectionTitle(section ci.ReportSection) string {
-	if section.Title != "" {
-		return section.Title
+	if section.Title() != "" {
+		return section.Title()
 	}
-	if section.Kind == ci.ReportSectionKindRendered {
+	if section.Kind() == ci.ReportSectionKindRendered {
 		return "Report"
 	}
-	return string(section.Kind)
+	return string(section.Kind())
 }

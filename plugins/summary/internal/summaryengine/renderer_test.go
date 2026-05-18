@@ -217,12 +217,20 @@ func TestComposeCommentWithOptions_MalformedReportPayloadReturnsError(t *testing
 		Producer: "policy",
 		Title:    "Policy Check",
 		Status:   ci.ReportStatusFail,
-		Sections: []ci.ReportSection{{
-			Kind:    ci.ReportSectionKindRendered,
-			Title:   "Policy Check",
-			Status:  ci.ReportStatusFail,
-			Payload: []byte(`{"blocks":`),
-		}},
+		Sections: []ci.ReportSection{citest.MustReportSectionJSON(`{
+			"kind": "rendered",
+			"title": "Policy Check",
+			"status": "fail",
+			"payload": {
+				"blocks": [{
+					"kind": "table",
+					"table": {
+						"columns": ["Module"],
+						"rows": [["app", "extra"]]
+					}
+				}]
+			}
+		}`)},
 	}}, "", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC), true)
 	if err == nil {
 		t.Fatal("ComposeCommentWithOptions() error = nil, want malformed payload error")

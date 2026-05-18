@@ -88,7 +88,12 @@ func TestReportRegistry_DefensiveCopies(t *testing.T) {
 	r.Publish(report)
 
 	report.Title = "mutated"
-	report.Sections[0].Payload[0] = '{'
+	report.Sections[0] = citest.MustRenderedSection(
+		"Findings",
+		"",
+		ci.ReportStatusWarn,
+		ci.RenderTextBlock("mutated"),
+	)
 
 	got, ok := r.Get("report_b")
 	if !ok {
@@ -105,7 +110,12 @@ func TestReportRegistry_DefensiveCopies(t *testing.T) {
 		t.Fatalf("stored row was mutated: %q", rendered.Blocks[0].Table.Rows[0][2])
 	}
 
-	got.Sections[0].Payload[0] = '{'
+	got.Sections[0] = citest.MustRenderedSection(
+		"Findings",
+		"",
+		ci.ReportStatusWarn,
+		ci.RenderTextBlock("mutated"),
+	)
 	gotAgain, _ := r.Get("report_b")
 	renderedAgain, err := ci.DecodeRenderSection(gotAgain.Sections[0])
 	if err != nil {

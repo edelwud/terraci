@@ -14,12 +14,15 @@ func MarkdownReport(report *ci.Report) (string, error) {
 		return "", nil
 	}
 	if len(report.Sections) == 0 {
-		return renderMarkdownSectionHeader(ci.ReportSection{
-			Kind:           ci.ReportSectionKindRendered,
-			Title:          report.Title,
-			Status:         report.Status,
-			SectionSummary: report.Summary,
-		}), nil
+		section, err := ci.NewRenderedSection(ci.RenderedSectionOptions{
+			Title:   report.Title,
+			Summary: report.Summary,
+			Status:  report.Status,
+		})
+		if err != nil {
+			return "", fmt.Errorf("build fallback report section: %w", err)
+		}
+		return renderMarkdownSectionHeader(section), nil
 	}
 
 	var sb strings.Builder
@@ -142,10 +145,10 @@ func renderMarkdownDetailsBlock(block ci.RenderBlock) string {
 
 func renderMarkdownSectionHeader(section ci.ReportSection) string {
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "### %s %s\n\n", StatusLabel(section.Status), escapeMarkdownText(sectionTitle(section)))
-	fmt.Fprintf(&sb, "**Status:** %s", section.Status)
-	if section.SectionSummary != "" {
-		fmt.Fprintf(&sb, " - %s", escapeMarkdownText(section.SectionSummary))
+	fmt.Fprintf(&sb, "### %s %s\n\n", StatusLabel(section.Status()), escapeMarkdownText(sectionTitle(section)))
+	fmt.Fprintf(&sb, "**Status:** %s", section.Status())
+	if section.Summary() != "" {
+		fmt.Fprintf(&sb, " - %s", escapeMarkdownText(section.Summary()))
 	}
 	sb.WriteString("\n\n")
 	return sb.String()

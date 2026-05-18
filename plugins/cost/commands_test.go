@@ -9,8 +9,10 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/ci/citest"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
+	"github.com/edelwud/terraci/plugins/internal/reportrender"
 )
 
 func TestPlugin_Commands_Registration(t *testing.T) {
@@ -38,12 +40,13 @@ func TestPlugin_Commands_Registration(t *testing.T) {
 
 func decodeCostSection(t *testing.T, report *ci.Report) ci.RenderSection {
 	t.Helper()
+	citest.AssertRenderedReportContract(t, report, reportrender.MarkdownReport, reportrender.CLIReport)
 	if len(report.Sections) != 1 {
 		t.Fatalf("Sections count = %d, want 1", len(report.Sections))
 	}
 	section := report.Sections[0]
-	if section.Kind != ci.ReportSectionKindRendered {
-		t.Fatalf("section kind = %q, want %q", section.Kind, ci.ReportSectionKindRendered)
+	if section.Kind() != ci.ReportSectionKindRendered {
+		t.Fatalf("section kind = %q, want %q", section.Kind(), ci.ReportSectionKindRendered)
 	}
 	rendered, err := ci.DecodeRenderSection(section)
 	if err != nil {

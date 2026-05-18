@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/ci/citest"
 )
 
 func TestMarkdownSection_RendersEscapedRenderBlocks(t *testing.T) {
@@ -54,10 +55,7 @@ func TestMarkdownReport_RejectsNonRenderedSections(t *testing.T) {
 		Producer: "custom",
 		Title:    "Custom",
 		Status:   ci.ReportStatusWarn,
-		Sections: []ci.ReportSection{{
-			Kind:    "domain_specific",
-			Payload: []byte(`{}`),
-		}},
+		Sections: []ci.ReportSection{citest.MustReportSectionJSON(`{"kind":"domain_specific","payload":{}}`)},
 	}
 
 	_, err := MarkdownReport(report)
@@ -66,5 +64,26 @@ func TestMarkdownReport_RejectsNonRenderedSections(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), `is not "rendered"`) {
 		t.Fatalf("MarkdownReport() error = %q, want render-ready contract message", err.Error())
+	}
+}
+
+func TestMarkdownReport_EmptyReportFallback(t *testing.T) {
+	t.Parallel()
+
+	report := &ci.Report{
+		Producer: "empty",
+		Title:    "Empty Report",
+		Status:   ci.ReportStatusPass,
+		Summary:  "nothing to show",
+	}
+
+	rendered, err := MarkdownReport(report)
+	if err != nil {
+		t.Fatalf("MarkdownReport() error = %v", err)
+	}
+	for _, want := range []string{"### pass Empty Report", "**Status:** pass - nothing to show"} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("rendered markdown missing %q:\n%s", want, rendered)
+		}
 	}
 }

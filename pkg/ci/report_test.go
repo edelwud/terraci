@@ -96,21 +96,24 @@ func TestSaveJSON_CreatesDirectory(t *testing.T) {
 
 func TestSaveReport_SectionsField(t *testing.T) {
 	dir := t.TempDir()
-	report := &Report{
+	report, err := NewRenderedReport(RenderedReportOptions{
 		Producer: "report_a",
 		Title:    "Section Report",
 		Status:   ReportStatusWarn,
-		Sections: []ReportSection{{
-			Kind:           ReportSectionKindRendered,
-			Title:          "Sample Section",
-			Status:         ReportStatusWarn,
-			SectionSummary: "1 module",
-			Payload:        json.RawMessage(`{"blocks":[{"kind":"table","table":{"columns":["Module"],"rows":[["svc/prod/eu/vpc"]]}}]}`),
+		Sections: []RenderedSectionOptions{{
+			Title:   "Sample Section",
+			Summary: "1 module",
+			Blocks: []RenderBlock{
+				RenderTableBlock("", []string{"Module"}, [][]string{{"svc/prod/eu/vpc"}}),
+			},
 		}},
+	})
+	if err != nil {
+		t.Fatalf("NewRenderedReport: %v", err)
 	}
 
-	if err := SaveReport(dir, report); err != nil {
-		t.Fatalf("SaveReport: %v", err)
+	if saveErr := SaveReport(dir, report); saveErr != nil {
+		t.Fatalf("SaveReport: %v", saveErr)
 	}
 
 	data, err := os.ReadFile(filepath.Join(dir, ReportFilename("report_a")))

@@ -114,10 +114,10 @@ func NewRenderedSection(opts RenderedSectionOptions) (ReportSection, error) {
 
 // DecodeRenderSection decodes and validates a render-ready report section.
 func DecodeRenderSection(section ReportSection) (RenderSection, error) {
-	if section.Kind != ReportSectionKindRendered {
-		return RenderSection{}, fmt.Errorf("report section %q is not %q", section.Kind, ReportSectionKindRendered)
+	if section.kind != ReportSectionKindRendered {
+		return RenderSection{}, fmt.Errorf("report section %q is not %q", section.kind, ReportSectionKindRendered)
 	}
-	rendered, err := DecodeSection[RenderSection](section)
+	rendered, err := decodeSection[RenderSection](section)
 	if err != nil {
 		return RenderSection{}, err
 	}

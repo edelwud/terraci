@@ -174,10 +174,7 @@ func TestLogOutputCompleted_InvalidSummaryReportReturnsError(t *testing.T) {
 	report := &ci.Report{
 		Producer: "summary",
 		Title:    "Terraform Plan Summary",
-		Sections: []ci.ReportSection{{
-			Kind:    "legacy",
-			Payload: []byte(`{}`),
-		}},
+		Sections: []ci.ReportSection{citest.MustReportSectionJSON(`{"kind":"legacy","payload":{}}`)},
 	}
 
 	err := output.Completed(&execution.Result{}, report)

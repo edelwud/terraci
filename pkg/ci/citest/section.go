@@ -1,7 +1,16 @@
 // Package citest hosts test-only helpers for pkg/ci consumers and producers.
 package citest
 
-import "github.com/edelwud/terraci/pkg/ci"
+import (
+	"encoding/json"
+	"testing"
+
+	"github.com/edelwud/terraci/pkg/ci"
+)
+
+// ReportRenderer renders a report in tests. It lets plugin-side tests pass
+// internal renderer functions without pkg/ci depending on plugin internals.
+type ReportRenderer func(*ci.Report) (string, error)
 
 // MustRenderedSection is the panic-on-error variant of ci.NewRenderedSection,
 // intended only for tests where the body is statically valid.
@@ -26,4 +35,39 @@ func MustRenderedReport(opts ci.RenderedReportOptions) *ci.Report {
 		panic(err)
 	}
 	return report
+}
+
+// MustReportSectionJSON decodes a persisted-section JSON fixture. It is useful
+// for malformed artifact tests now that ReportSection is a value object.
+func MustReportSectionJSON(raw string) ci.ReportSection {
+	var section ci.ReportSection
+	if err := json.Unmarshal([]byte(raw), &section); err != nil {
+		panic(err)
+	}
+	return section
+}
+
+// AssertRenderedReportContract verifies the canonical producer report contract.
+func AssertRenderedReportContract(tb testing.TB, report *ci.Report, renderers ...ReportRenderer) {
+	tb.Helper()
+	if report == nil {
+		tb.Fatal("report = nil")
+		return
+	}
+	if err := report.Validate(); err != nil {
+		tb.Fatalf("report.Validate() error = %v", err)
+	}
+	for i, section := range report.Sections {
+		if section.Kind() != ci.ReportSectionKindRendered {
+			tb.Fatalf("section %d kind = %q, want %q", i, section.Kind(), ci.ReportSectionKindRendered)
+		}
+		if _, err := ci.DecodeRenderSection(section); err != nil {
+			tb.Fatalf("DecodeRenderSection(%d) error = %v", i, err)
+		}
+	}
+	for i, render := range renderers {
+		if _, err := render(report); err != nil {
+			tb.Fatalf("renderer %d error = %v", i, err)
+		}
+	}
 }

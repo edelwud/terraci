@@ -12,23 +12,23 @@ func encodeSection[T any](kind ReportSectionKind, title, sectionSummary string, 
 		return ReportSection{}, fmt.Errorf("encode %s section payload: %w", kind, err)
 	}
 	return ReportSection{
-		Kind:           kind,
-		Title:          title,
-		Status:         status,
-		SectionSummary: sectionSummary,
-		Payload:        data,
+		kind:           kind,
+		title:          title,
+		status:         status,
+		sectionSummary: sectionSummary,
+		payload:        data,
 	}, nil
 }
 
-// DecodeSection JSON-decodes the section payload into T. Consumers select the
-// expected payload type based on Section.Kind.
-func DecodeSection[T any](section ReportSection) (T, error) {
+// decodeSection JSON-decodes the section payload into T. Consumers select the
+// expected payload type through typed public helpers such as DecodeRenderSection.
+func decodeSection[T any](section ReportSection) (T, error) {
 	var out T
-	if len(section.Payload) == 0 {
-		return out, fmt.Errorf("section %q has empty payload", section.Kind)
+	if len(section.payload) == 0 {
+		return out, fmt.Errorf("section %q has empty payload", section.kind)
 	}
-	if err := json.Unmarshal(section.Payload, &out); err != nil {
-		return out, fmt.Errorf("decode %s section payload: %w", section.Kind, err)
+	if err := json.Unmarshal(section.payload, &out); err != nil {
+		return out, fmt.Errorf("decode %s section payload: %w", section.kind, err)
 	}
 	return out, nil
 }

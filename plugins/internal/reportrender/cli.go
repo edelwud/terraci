@@ -123,9 +123,9 @@ func renderCLIDetailsBlock(block ci.RenderBlock) string {
 func renderCLISectionHeader(section ci.ReportSection) string {
 	var sb strings.Builder
 	sb.WriteString(renderSubsectionTitle(sectionTitle(section)))
-	if section.SectionSummary != "" {
+	if section.Summary() != "" {
 		sb.WriteString("\n")
-		fmt.Fprintf(&sb, "%s - %s", StatusLabel(section.Status), section.SectionSummary)
+		fmt.Fprintf(&sb, "%s - %s", StatusLabel(section.Status()), section.Summary())
 	}
 	return sb.String()
 }

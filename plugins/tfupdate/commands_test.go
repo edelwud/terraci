@@ -9,8 +9,10 @@ import (
 	"time"
 
 	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/ci/citest"
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/plugins/internal/reportrender"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
 	"github.com/edelwud/terraci/plugins/tfupdate/internal/domain"
 )
@@ -117,6 +119,7 @@ func TestBuildUpdateReport_NoUpdates(t *testing.T) {
 	if buildErr != nil {
 		t.Fatalf("buildUpdateReport() error = %v", buildErr)
 	}
+	citest.AssertRenderedReportContract(t, report, reportrender.MarkdownReport, reportrender.CLIReport)
 	if report.Producer != "tfupdate" {
 		t.Errorf("Plugin = %q, want %q", report.Producer, "tfupdate")
 	}
@@ -143,6 +146,7 @@ func TestBuildUpdateReport_WithUpdates(t *testing.T) {
 	if buildErr != nil {
 		t.Fatalf("buildUpdateReport() error = %v", buildErr)
 	}
+	citest.AssertRenderedReportContract(t, report, reportrender.MarkdownReport, reportrender.CLIReport)
 	if report.Status != ci.ReportStatusWarn {
 		t.Errorf("Status = %q, want %q", report.Status, ci.ReportStatusWarn)
 	}

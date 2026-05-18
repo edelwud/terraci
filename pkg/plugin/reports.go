@@ -55,35 +55,5 @@ func (r *ReportRegistry) All() []*ci.Report {
 }
 
 func cloneReport(report *ci.Report) *ci.Report {
-	if report == nil {
-		return nil
-	}
-
-	cloned := *report
-	if report.Provenance != nil {
-		provenance := *report.Provenance
-		cloned.Provenance = &provenance
-	}
-	cloned.Sections = cloneReportSections(report.Sections)
-	return &cloned
-}
-
-func cloneReportSections(sections []ci.ReportSection) []ci.ReportSection {
-	if len(sections) == 0 {
-		return nil
-	}
-
-	cloned := make([]ci.ReportSection, len(sections))
-	for i := range sections {
-		cloned[i] = cloneReportSection(sections[i])
-	}
-	return cloned
-}
-
-func cloneReportSection(section ci.ReportSection) ci.ReportSection {
-	cloned := section
-	if len(section.Payload) > 0 {
-		cloned.Payload = append([]byte(nil), section.Payload...)
-	}
-	return cloned
+	return report.Clone()
 }

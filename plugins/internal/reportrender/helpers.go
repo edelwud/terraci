@@ -17,11 +17,11 @@ func StatusLabel(status ci.ReportStatus) string {
 }
 
 func sectionTitle(section ci.ReportSection) string {
-	if section.Title != "" {
-		return section.Title
+	if section.Title() != "" {
+		return section.Title()
 	}
-	if section.Kind == ci.ReportSectionKindRendered {
+	if section.Kind() == ci.ReportSectionKindRendered {
 		return "Report"
 	}
-	return string(section.Kind)
+	return string(section.Kind())
 }

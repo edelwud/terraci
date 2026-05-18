@@ -103,9 +103,12 @@
 //     within a single command run is enough)
 //
 // summary is the canonical consumer of file-based reports; cost/policy/
-// tfupdate are the canonical producers. Producers should publish render-ready
-// ci.ReportSectionKindRendered sections via ci.NewRenderedReport; consumers
-// should use ci.DecodeRenderSection or plugins/internal/reportrender instead of
-// constructing JSON payloads or importing producer-specific domain structs. The
-// contract test suite for blob backends lives at pkg/cache/blobcache/contracttest.
+// tfupdate are the canonical producers. Producers must convert domain results
+// into ci.RenderBlock values and publish reports with ci.NewRenderedReport.
+// ReportSection is a value object: external plugins should not construct
+// section JSON or payloads manually, and direct field access is intentionally
+// unavailable. Consumers should use ci.DecodeRenderSection or
+// plugins/internal/reportrender instead of importing producer-specific domain
+// structs. The contract test suite for blob backends lives at
+// pkg/cache/blobcache/contracttest.
 package plugin

@@ -52,9 +52,9 @@ func buildSummaryHeaderSection(plans []ci.PlanResult, reports []*ci.Report) (ci.
 			continue
 		}
 		for _, section := range report.Sections {
-			item := fmt.Sprintf("%s %s", reportStatusIcon(section.Status), sectionTitle(section))
-			if section.SectionSummary != "" {
-				item += ": " + section.SectionSummary
+			item := fmt.Sprintf("%s %s", reportStatusIcon(section.Status()), sectionTitle(section))
+			if section.Summary() != "" {
+				item += ": " + section.Summary()
 			}
 			items = append(items, item)
 		}

@@ -2,36 +2,14 @@ package summaryengine
 
 import (
 	"context"
-	"fmt"
 
 	log "github.com/caarlos0/log"
 
 	"github.com/edelwud/terraci/pkg/ci"
-	"github.com/edelwud/terraci/pkg/planresults"
 )
 
 // ReportProducer is the producer name used by summary's own reports/comments.
 const ReportProducer = "summary"
-
-// Provider is the CI-provider surface needed by the summary use case.
-type Provider interface {
-	CommitSHA() string
-	PipelineID() string
-	CommentService() (ci.CommentService, bool)
-}
-
-// ProviderResolver resolves the active CI provider for the current command.
-type ProviderResolver func() (Provider, error)
-
-// PlanScanner loads plan result artifacts.
-type PlanScanner interface {
-	ScanPlanResults(rootDir string, segments []string) (*ci.PlanResultCollection, error)
-}
-
-// ReportLoader loads producer reports from the service directory.
-type ReportLoader interface {
-	LoadReports(serviceDir string) ([]*ci.Report, error)
-}
 
 // Runtime holds normalized summary configuration and command-independent dependencies.
 type Runtime struct {
@@ -57,31 +35,20 @@ type Result struct {
 	Body             string
 	Labels           []string
 	LabelWarnings    []string
+	ReportWarnings   []string
 	PostedComment    bool
 	SyncedLabels     bool
 	SkippedReason    string
 	ProviderDetected bool
 }
 
-type defaultPlanScanner struct{}
-
-func (defaultPlanScanner) ScanPlanResults(rootDir string, segments []string) (*ci.PlanResultCollection, error) {
-	return planresults.Scan(rootDir, segments)
-}
-
-type defaultReportLoader struct{}
-
-func (defaultReportLoader) LoadReports(serviceDir string) ([]*ci.Report, error) {
-	return ci.LoadReports(serviceDir)
-}
-
 // Run scans plans, loads reports, renders a summary comment, posts it, and
 // optionally synchronizes TerraCI-managed PR/MR labels.
 func Run(ctx context.Context, runtime Runtime, _ Request) (*Result, error) {
 	log.Info("scanning for plan results")
-	collection, err := planScanner(runtime).ScanPlanResults(runtime.WorkDir, runtime.Segments)
+	collection, err := loadPlanResults(runtime)
 	if err != nil {
-		return nil, fmt.Errorf("failed to scan plan results: %w", err)
+		return nil, err
 	}
 
 	result := &Result{Collection: collection}
@@ -94,11 +61,13 @@ func Run(ctx context.Context, runtime Runtime, _ Request) (*Result, error) {
 	log.WithField("count", len(collection.Results)).Info("found plan results")
 	result.Plans = append([]ci.PlanResult(nil), collection.Results...)
 
-	reports, err := reportLoader(runtime).LoadReports(runtime.ServiceDir)
+	selection, err := loadReportSelection(runtime, collection)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load plugin reports: %w", err)
+		return nil, err
 	}
-	result.Reports = filterSummaryReports(reports)
+	result.Reports = selection.reports
+	result.ReportWarnings = selection.warnings
+	logWarnings(result.ReportWarnings)
 
 	if runtime.Config.OnChangesOnly && !HasReportableChanges(result.Plans, result.Reports) {
 		result.SkippedReason = "no_reportable_changes"
@@ -117,20 +86,12 @@ func Run(ctx context.Context, runtime Runtime, _ Request) (*Result, error) {
 	labelResult := resolveSummaryLabels(runtime, result.Plans)
 	result.Labels = labelResult.Labels
 	result.LabelWarnings = labelResult.Warnings
-	logLabelWarnings(labelResult.Warnings)
+	logWarnings(labelResult.Warnings)
 
-	body, err := ComposeCommentWithOptions(
-		result.Plans,
-		result.Reports,
-		provider.CommitSHA(),
-		provider.PipelineID(),
-		collection.GeneratedAt,
-		runtime.Config.IncludeDetailsEnabled(),
-	)
+	body, err := composeSummaryBody(runtime, collection, result.Plans, result.Reports, provider, result.Labels)
 	if err != nil {
-		return result, fmt.Errorf("compose summary comment: %w", err)
+		return result, err
 	}
-	body = ci.EmbedManagedLabels(body, result.Labels)
 	result.Body = body
 
 	commentSvc, ok := provider.CommentService()
@@ -140,48 +101,11 @@ func Run(ctx context.Context, runtime Runtime, _ Request) (*Result, error) {
 		return result, nil
 	}
 
-	var previousLabels []string
-	var managedSvc ci.ManagedLabelService
-	if svc, ok := commentSvc.(ci.ManagedLabelService); ok {
-		managedSvc = svc
-		currentBody, found, err := svc.CurrentCommentBody(ctx)
-		if err != nil {
-			log.Warnf("failed to read current TerraCI comment for managed labels: %v", err)
-		} else if found {
-			previousLabels = ci.ExtractManagedLabels(currentBody)
-		}
-	}
-
-	log.Info("updating PR/MR comment")
-	if err := commentSvc.UpsertComment(ctx, body); err != nil {
-		return result, fmt.Errorf("failed to update comment: %w", err)
-	}
-	result.PostedComment = true
-	log.Info("comment updated successfully")
-
-	if managedSvc != nil && (len(previousLabels) > 0 || len(result.Labels) > 0) {
-		if err := managedSvc.SyncLabels(ctx, previousLabels, result.Labels); err != nil {
-			log.Warnf("failed to synchronize summary labels: %v", err)
-		} else {
-			result.SyncedLabels = true
-		}
+	if err := postSummary(ctx, summaryPostRequest{body: body, labels: result.Labels, commentSvc: commentSvc}, result); err != nil {
+		return result, err
 	}
 
 	return result, nil
-}
-
-func planScanner(runtime Runtime) PlanScanner {
-	if runtime.PlanScanner != nil {
-		return runtime.PlanScanner
-	}
-	return defaultPlanScanner{}
-}
-
-func reportLoader(runtime Runtime) ReportLoader {
-	if runtime.ReportLoader != nil {
-		return runtime.ReportLoader
-	}
-	return defaultReportLoader{}
 }
 
 func resolveSummaryLabels(runtime Runtime, plans []ci.PlanResult) LabelResult {
@@ -192,12 +116,6 @@ func resolveSummaryLabels(runtime Runtime, plans []ci.PlanResult) LabelResult {
 		Templates: runtime.Config.Labels,
 		Parser:    runtime.LabelParser,
 	})
-}
-
-func logLabelWarnings(warnings []string) {
-	for _, warning := range warnings {
-		log.Warn(warning)
-	}
 }
 
 // HasReportableChanges reports whether the run has any module or report signal worth posting.
@@ -213,13 +131,6 @@ func HasReportableChanges(plans []ci.PlanResult, reports []*ci.Report) bool {
 		}
 	}
 	return false
-}
-
-func resolveProvider(resolve ProviderResolver) (Provider, error) {
-	if resolve == nil {
-		return nil, nil
-	}
-	return resolve()
 }
 
 func filterSummaryReports(reports []*ci.Report) []*ci.Report {
