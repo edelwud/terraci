@@ -10,8 +10,8 @@ import (
 )
 
 type updateReportRequest struct {
-	Result   *tfupdateengine.UpdateResult
-	Artifact ci.ArtifactContext
+	Result *tfupdateengine.UpdateResult
+	Run    ci.ArtifactRun
 }
 
 func buildUpdateReport(req updateReportRequest) (*ci.Report, error) {
@@ -70,7 +70,7 @@ func buildUpdateReport(req updateReportRequest) (*ci.Report, error) {
 		Title:    "Dependency Update Check",
 		Status:   status,
 		Summary:  summaryText,
-		Artifact: req.Artifact,
+		Artifact: req.Run.Artifact,
 		Sections: []ci.RenderedSectionOptions{{
 			Title:   "Dependency Update Check",
 			Summary: summaryText,

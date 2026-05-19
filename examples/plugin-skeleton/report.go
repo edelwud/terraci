@@ -20,23 +20,31 @@ import (
 //
 //  2. Compose the final ci.Report via ci.NewRenderedReport.
 //
-//  3. Persist it via appCtx.Reports().SaveReport, or SaveResultsAndReport
-//     when you also have raw analysis output.
+//  3. Persist it via appCtx.Reports().SaveReport, or
+//     ReplaceResultsAndReport when you also have raw analysis output.
 //
-//  4. Always pass ci.ArtifactContext into ci.NewRenderedReport. Local
+//  4. Always pass ci.ArtifactRun.Artifact into ci.NewRenderedReport. Local
 //     consumers compare the fingerprint against the live workspace to decide
 //     whether the on-disk report is still trustworthy.
 
 func runProducer(ctx context.Context, appCtx *plugin.AppContext, cfg *Config) error {
+	run, err := ci.NewArtifactRun(ci.ArtifactRunOptions{
+		Producer: pluginName,
+		Artifact: ci.NewArtifactContext(ci.ArtifactContextOptions{
+			ServiceDir: appCtx.ServiceDir(),
+			WorkDir:    appCtx.WorkDir(),
+		}),
+	})
+	if err != nil {
+		return fmt.Errorf("build artifact run: %w", err)
+	}
+
 	report, err := ci.NewRenderedReport(ci.RenderedReportOptions{
 		Producer: pluginName,
 		Title:    "Skeleton Report",
 		Status:   ci.ReportStatusPass,
 		Summary:  "skeleton payload generated",
-		Artifact: ci.NewArtifactContext(ci.ArtifactContextOptions{
-			ServiceDir: appCtx.ServiceDir(),
-			WorkDir:    appCtx.WorkDir(),
-		}),
+		Artifact: run.Artifact,
 		Sections: []ci.RenderedSectionOptions{{
 			Title:   "Skeleton payload",
 			Summary: "one demo section",

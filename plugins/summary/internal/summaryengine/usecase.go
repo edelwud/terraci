@@ -65,8 +65,8 @@ func Run(ctx context.Context, runtime Runtime, _ Request) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	result.Reports = selection.reports
-	result.ReportWarnings = selection.warnings
+	result.Reports = selection.Reports
+	result.ReportWarnings = selection.Warnings
 	logWarnings(result.ReportWarnings)
 
 	if runtime.Config.OnChangesOnly && !HasReportableChanges(result.Plans, result.Reports) {

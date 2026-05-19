@@ -49,7 +49,7 @@ YAML
 ### For a producer plugin (writes a render-ready report)
 
 1. `plugin.go` — registration shell, `BasePlugin[*Config]`.
-2. `report.go` — convert your result into `ci.RenderBlock` values, then call `ci.NewRenderedReport` and `appCtx.Reports().SaveReport`.
+2. `report.go` — convert your result into `ci.RenderBlock` values, build an `ci.ArtifactRun`, then call `ci.NewRenderedReport` and `appCtx.Reports().SaveReport` or `ReplaceResultsAndReport`.
 3. `commands.go` — at minimum register a CLI command (`CommandProvider`).
 
 Skip the `--consume` branch if you don't need to read other reports.
@@ -57,7 +57,7 @@ Skip the `--consume` branch if you don't need to read other reports.
 ### For a consumer plugin (reads other reports)
 
 1. `plugin.go` — same shell.
-2. `consumer.go` — call `appCtx.Reports().LoadReports(ctx)`, filter by `report.Producer`, decode render-ready sections with `ci.DecodeRenderSection`.
+2. `consumer.go` — call `appCtx.Reports().LoadReports(ctx)`, select current artifacts with `ci.SelectCurrentReports`, filter by `report.Producer`, and decode render-ready sections with `ci.DecodeRenderSection`.
 
 ## Capability extension points
 
@@ -79,7 +79,7 @@ Framework discovery is purely type-assertion-based: `registry.ByCapabilityFrom[T
 
 - **Don't** import another plugin directly. Cross-plugin communication goes through `pkg/plugin` capability interfaces, `pkg/ci` shared types, or `ci.ReportStore` artifacts.
 - **Don't** panic while building reports in production code paths. Use `ci.NewRenderedReport` and propagate errors.
-- **Don't** assemble provenance by hand. Pass `ci.ArtifactContext` to `ci.NewRenderedReport`; local consumers compare the fingerprint to detect stale artifacts.
+- **Don't** assemble provenance by hand. Build a `ci.ArtifactRun` and pass `run.Artifact` to `ci.NewRenderedReport`; local consumers compare the fingerprint through `ci.SelectCurrentReports`.
 - **Don't** mutate `ctx.Config()` (`*config.Config`) — it's a shared pointer behind an `RWMutex`. Treat it as read-only; mutate plugin-local config via `FlagOverridable` if needed.
 
 ## See also

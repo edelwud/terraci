@@ -88,8 +88,8 @@ pkg/                            # Public API — importable by external plugins 
 │   └── cishell/                # Shell renderer — keeps shell-specific knowledge out of the IR
 │       └── render.go           # RenderOperation: pipeline.Operation → POSIX shell command lines
 ├── ci/                         # Plugin-agnostic CI types
-│   ├── report.go, report_store.go, report_types.go, report_validation.go, section.go
-│   │                           #   Report envelope, ReportStore, ArtifactContext, ReportSection, render-ready RenderSection/RenderBlock payloads, NewRenderedReport/NewRenderedSection + validation
+│   ├── report.go, report_store.go, report_types.go, report_freshness.go, report_validation.go, section.go
+│   │                           #   Report envelope, ReportStore, ArtifactContext/ArtifactRun, ReportSection, render-ready RenderSection/RenderBlock payloads, NewRenderedReport/NewRenderedSection, SelectCurrentReports + validation
 │   ├── plan.go                 # PlanResult (canonical for both in-memory + persisted), PlanResultCollection, PlanStatus
 │   ├── service.go              # CommentService
 │   └── shared.go               # Image, CommentMarker
@@ -269,7 +269,7 @@ The single `plugin.Resolver` interface combines lookup (`All`, `GetPlugin`) with
 
 ### Shared Types
 
-`pkg/ci/` contains shared CI-domain types including provider-shared config such as `Image` (with YAML shorthand). `ci.Report` is the typed report contract shared by cost/policy/tfupdate/summary; `ci.ReportStore` owns in-memory and file-backed report persistence. Reports carry provenance derived from `ci.ArtifactContext` so local consumers can validate current artifacts. Both gitlab and github internal packages use type aliases to these.
+`pkg/ci/` contains shared CI-domain types including provider-shared config such as `Image` (with YAML shorthand). `ci.Report` is the typed report contract shared by cost/policy/tfupdate/summary; `ci.ReportStore` owns in-memory and file-backed report persistence. Plan-aware producers carry one `PlanResultCollection` into `ci.ArtifactRun`; reports carry provenance derived from `ArtifactRun.Artifact` so local consumers can validate current artifacts. Both gitlab and github internal packages use type aliases to these.
 
 `ci.ReportSection` is a value object for render-ready report sections. Producer plugins convert domain results into `ci.RenderBlock` values and call `ci.NewRenderedReport(...)`; external plugin authors should not construct section JSON or payloads manually. Consumers use `ci.DecodeRenderSection` or `plugins/internal/reportrender` and do not import producer/plugin domain packages. Markdown/CLI rendering of these generic sections lives in `plugins/internal/reportrender`, not in producer plugins.
 
@@ -370,7 +370,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 
 ### Summary
 1. `planresults.Scan()` → PlanResultCollection
-2. Load reports through `ci.ReportStore` (`{serviceDir}/*-report.json` plus any in-process published reports)
+2. Load reports through `ci.ReportStore` (`{serviceDir}/*-report.json` plus any in-process published reports) and select current/degraded reports with `ci.SelectCurrentReports`
 3. `summaryengine.ResolveLabels()` expands static/module/resource labels from changed or failed plan results
 4. `summaryengine.ComposeCommentWithOptions()` renders markdown and embeds managed-label metadata
 5. `appCtx.Resolver().ResolveCIProvider()` → `NewCommentService()` → `UpsertComment(ctx, body)`
@@ -382,7 +382,8 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 3. `localexec/internal/planner` calls `pipeline.Build(...)` to produce an `*pipeline.IR`
 4. `pkg/execution.Executor.Execute(ctx, ir)` schedules jobs with dependency-aware DAG grouping
 5. `localexec/internal/runner` executes shell/tfexec jobs locally
-6. `localexec/internal/render` prints the execution DAG/job summary
+6. `localexec/internal/reports` loads current plugin reports through `ci.ReportStore`, applies `ci.SelectCurrentReports`, and aggregates them into a render-ready summary report
+7. `localexec/internal/render` prints the execution DAG/job summary
 
 ### Init wizard
 1. `initStateDefaults()` populates shared defaults (provider, binary, pattern, plan_enabled)
@@ -403,9 +404,9 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **Preflight, then lazy runtime**: framework performs cheap startup validation; heavy plugin state is built lazily inside RuntimeProvider/use-cases
 - **PipelineContributor(ctx)**: plugins add standalone DAG jobs without cross-plugin imports or cached service-dir state
 - **ServiceDir**: configurable project directory; `AppContext.ServiceDir` (absolute) for runtime, `Config.ServiceDir` (relative) for pipeline templates
-- **Report store**: producers call `appCtx.Reports().SaveResultsAndReport(...)` or `SaveReport(...)`; the `ci.ReportStore` writes `{serviceDir}/{producer}-report.json` / `{producer}-results.json` and also supports in-process `Publish/Get/All`
+- **Report artifact lifecycle**: plan-aware producers use `PlanResultCollection -> ci.ArtifactRun -> ci.NewRenderedReport -> appCtx.Reports().ReplaceResultsAndReport(...)`. `ReplaceResultsAndReport` always updates `{producer}-results.json`; with a nil report it removes stale `{producer}-report.json`. Report-only producers may use `SaveReport`.
 - **Report sections via render-ready payloads**: producer plugins call `ci.NewRenderedReport(...)` and publish only validated `ci.ReportSectionKindRendered` sections with `ci.RenderSection` payloads. `ReportSection` internals are private; use getters plus `ci.DecodeRenderSection`, not raw payload access. Summary/local renderers consume the generic render model through `plugins/internal/reportrender` and stay unaware of cost/policy/tfupdate domain structs.
-- **Report provenance**: producers derive provenance from `ci.ArtifactContext`. Summary and localexec skip reports whose non-empty `plan_results_fingerprint` does not match the current plan collection. Missing provenance is accepted as degraded mode.
+- **Report freshness**: `pkg/ci.SelectCurrentReports` owns current/stale/degraded policy. Summary and localexec skip reports whose non-empty `plan_results_fingerprint` does not match the current plan collection. Missing provenance is accepted as degraded mode.
 - **Zero cross-plugin imports**: plugins communicate only via `pkg/plugin` capability helpers, shared `pkg/ci` types, and `ci.ReportStore` artifacts
 - **Shared workflow**: `workflow.Run()` — scan, filter, parse, graph building. `workflow.ChangeDetector` is an alias of `plugin.ChangeDetectionProvider`.
 - **Localexec boundary**: keep shell/tfexec details inside `plugins/localexec`; `pkg/execution` stays provider-agnostic scheduler/executor infrastructure that consumes a raw `*pipeline.IR`.

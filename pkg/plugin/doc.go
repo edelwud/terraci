@@ -102,9 +102,14 @@
 //     ({producer}-report.json) and in-process report exchange
 //
 // summary is the canonical consumer of report artifacts; cost/policy/
-// tfupdate are the canonical producers. Producers must convert domain results
-// into ci.RenderBlock values, derive provenance from ci.ArtifactContext, and
-// publish reports with ci.NewRenderedReport through appCtx.Reports().
+// tfupdate are the canonical producers. Plan-aware producers should carry the
+// scanned ci.PlanResultCollection into ci.NewArtifactRun, convert domain
+// results into ci.RenderBlock values, build reports with ci.NewRenderedReport,
+// and persist raw results plus the report through
+// appCtx.Reports().ReplaceResultsAndReport. Non-plan producers may create an
+// ArtifactRun without PlanResults; that is explicit degraded mode. Consumers
+// should load through ci.ReportReader/ReportStore and call
+// ci.SelectCurrentReports before rendering.
 // ReportSection is a value object: external plugins should not construct
 // section JSON or payloads manually, and direct field access is intentionally
 // unavailable. Consumers should use ci.DecodeRenderSection or

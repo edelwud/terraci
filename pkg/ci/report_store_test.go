@@ -98,20 +98,79 @@ func TestFileReportStore_LoadReportsMergesMemoryOverlay(t *testing.T) {
 	}
 }
 
-func TestFileReportStore_SaveResultsAndReportAttemptsBothWrites(t *testing.T) {
+func TestFileReportStore_ReplaceResultsAndReportAttemptsBothWrites(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
 	store := NewFileReportStore(dir)
 	report := &Report{Producer: "cost", Status: ReportStatusPass}
 
-	err := store.SaveResultsAndReport(ctx, "cost", map[string]string{"ok": "true"}, report)
+	err := store.ReplaceResultsAndReport(ctx, "cost", map[string]string{"ok": "true"}, report)
 	if err == nil {
-		t.Fatal("SaveResultsAndReport() error = nil, want invalid report error")
+		t.Fatal("ReplaceResultsAndReport() error = nil, want invalid report error")
 	}
 	if !strings.Contains(err.Error(), "title is required") {
-		t.Fatalf("SaveResultsAndReport() error = %q, want report validation error", err.Error())
+		t.Fatalf("ReplaceResultsAndReport() error = %q, want report validation error", err.Error())
 	}
 	if _, statErr := os.Stat(filepath.Join(dir, ResultFilename("cost"))); statErr != nil {
 		t.Fatalf("results file was not written: %v", statErr)
+	}
+}
+
+func TestFileReportStore_ReplaceResultsAndReportOverwritesReport(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	store := NewFileReportStore(dir)
+
+	oldReport := &Report{Producer: "cost", Title: "Old", Status: ReportStatusPass}
+	newReport := &Report{Producer: "cost", Title: "New", Status: ReportStatusWarn}
+	if err := store.ReplaceResultsAndReport(ctx, "cost", map[string]string{"version": "old"}, oldReport); err != nil {
+		t.Fatalf("ReplaceResultsAndReport(old) error = %v", err)
+	}
+	if err := store.ReplaceResultsAndReport(ctx, "cost", map[string]string{"version": "new"}, newReport); err != nil {
+		t.Fatalf("ReplaceResultsAndReport(new) error = %v", err)
+	}
+
+	reports, err := store.LoadReports(ctx)
+	if err != nil {
+		t.Fatalf("LoadReports() error = %v", err)
+	}
+	if len(reports) != 1 || reports[0].Title != "New" || reports[0].Status != ReportStatusWarn {
+		t.Fatalf("reports = %#v, want overwritten report", reports)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, ResultFilename("cost")))
+	if err != nil {
+		t.Fatalf("ReadFile(results) error = %v", err)
+	}
+	if !strings.Contains(string(data), "new") {
+		t.Fatalf("results = %s, want overwritten raw results", data)
+	}
+}
+
+func TestFileReportStore_ReplaceResultsAndReportDeletesStaleReport(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	store := NewFileReportStore(dir)
+	report := &Report{Producer: "cost", Title: "Cost", Status: ReportStatusPass}
+
+	if err := store.SaveReport(ctx, report); err != nil {
+		t.Fatalf("SaveReport() error = %v", err)
+	}
+	if err := store.ReplaceResultsAndReport(ctx, "cost", map[string]string{"ok": "true"}, nil); err != nil {
+		t.Fatalf("ReplaceResultsAndReport(nil report) error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ReportFilename("cost"))); !os.IsNotExist(err) {
+		t.Fatalf("report file exists after nil replacement: %v", err)
+	}
+	if _, ok := store.Get("cost"); ok {
+		t.Fatal("Get(cost) ok = true after nil replacement, want false")
+	}
+}
+
+func TestFileReportStore_ReplaceResultsAndReportMissingReportDeleteIsNoop(t *testing.T) {
+	ctx := context.Background()
+	store := NewFileReportStore(t.TempDir())
+
+	if err := store.ReplaceResultsAndReport(ctx, "cost", map[string]string{"ok": "true"}, nil); err != nil {
+		t.Fatalf("ReplaceResultsAndReport(nil report) error = %v", err)
 	}
 }

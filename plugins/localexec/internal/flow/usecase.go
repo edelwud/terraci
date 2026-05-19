@@ -2,6 +2,7 @@ package flow
 
 import (
 	"context"
+	"fmt"
 
 	log "github.com/caarlos0/log"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/edelwud/terraci/pkg/workflow"
 	"github.com/edelwud/terraci/plugins/localexec/internal/planner"
 	"github.com/edelwud/terraci/plugins/localexec/internal/render"
+	"github.com/edelwud/terraci/plugins/localexec/internal/reports"
 	"github.com/edelwud/terraci/plugins/localexec/internal/runner"
 	"github.com/edelwud/terraci/plugins/localexec/internal/spec"
 	"github.com/edelwud/terraci/plugins/localexec/internal/targeting"
@@ -23,7 +25,7 @@ type UseCase struct {
 	planner        planner.Builder
 	contributions  ContributionCollector
 	runtimeFactory runner.Factory
-	summaryReports render.SummaryReportLoader
+	summaryReports reports.Loader
 	output         render.Output
 }
 
@@ -36,7 +38,7 @@ type Dependencies struct {
 	Planner        planner.Builder
 	Contributions  ContributionCollector
 	RuntimeFactory runner.Factory
-	SummaryReports render.SummaryReportLoader
+	SummaryReports reports.Loader
 	Output         render.Output
 }
 
@@ -72,7 +74,7 @@ func WithOutput(output render.Output) Option {
 	}
 }
 
-func WithSummaryReports(loader render.SummaryReportLoader) Option {
+func WithSummaryReports(loader reports.Loader) Option {
 	return func(deps *Dependencies) {
 		deps.SummaryReports = loader
 	}
@@ -88,7 +90,7 @@ func DefaultDependencies(appCtx *plugin.AppContext) Dependencies {
 		Planner:        planner.New(),
 		Contributions:  contextContributionCollector{},
 		RuntimeFactory: runner.NewFactory(),
-		SummaryReports: render.NewSummaryReportLoader(appCtx.Reports(), appCtx.WorkDir(), segments),
+		SummaryReports: reports.NewLoader(appCtx.Reports(), appCtx.WorkDir(), segments),
 		Output:         render.NewLogOutput(),
 	}
 }
@@ -161,10 +163,6 @@ func (u *UseCase) Run(ctx context.Context, req spec.ExecuteRequest) error {
 	if err != nil {
 		return err
 	}
-	if resetErr := u.summaryReports.Reset(ctx); resetErr != nil {
-		return resetErr
-	}
-
 	reporter := render.NewProgressReporter()
 	resultExec, err := execution.NewExecutor(
 		execRuntime.JobRunner,
@@ -177,7 +175,7 @@ func (u *UseCase) Run(ctx context.Context, req spec.ExecuteRequest) error {
 
 	summaryReport, err := u.summaryReports.Load(ctx)
 	if err != nil {
-		log.WithError(err).Warn("skip summary report rendering")
+		return fmt.Errorf("load summary report: %w", err)
 	}
 	return u.output.Completed(resultExec, summaryReport)
 }

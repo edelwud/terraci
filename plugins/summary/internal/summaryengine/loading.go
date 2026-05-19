@@ -15,11 +15,6 @@ type PlanScanner interface {
 	ScanPlanResults(rootDir string, segments []string) (*ci.PlanResultCollection, error)
 }
 
-type reportSelection struct {
-	reports  []*ci.Report
-	warnings []string
-}
-
 type defaultPlanScanner struct{}
 
 func (defaultPlanScanner) ScanPlanResults(rootDir string, segments []string) (*ci.PlanResultCollection, error) {
@@ -34,48 +29,14 @@ func loadPlanResults(runtime Runtime) (*ci.PlanResultCollection, error) {
 	return collection, nil
 }
 
-func loadReportSelection(ctx context.Context, runtime Runtime, collection *ci.PlanResultCollection) (reportSelection, error) {
+func loadReportSelection(ctx context.Context, runtime Runtime, collection *ci.PlanResultCollection) (ci.ReportSelection, error) {
 	reports, err := reportStore(runtime).LoadReports(ctx)
 	if err != nil {
-		return reportSelection{}, fmt.Errorf("failed to load plugin reports: %w", err)
+		return ci.ReportSelection{}, fmt.Errorf("failed to load plugin reports: %w", err)
 	}
-	return selectCurrentReports(collection, filterSummaryReports(reports)), nil
-}
-
-func selectCurrentReports(collection *ci.PlanResultCollection, reports []*ci.Report) reportSelection {
-	fingerprint := collection.Fingerprint()
-	selected := reportSelection{reports: make([]*ci.Report, 0, len(reports))}
-	for _, report := range reports {
-		skip, warning := reportProvenanceWarning(report, fingerprint)
-		if warning != "" {
-			selected.warnings = append(selected.warnings, warning)
-		}
-		if skip {
-			continue
-		}
-		selected.reports = append(selected.reports, report)
-	}
-	return selected
-}
-
-func reportProvenanceWarning(report *ci.Report, currentFingerprint string) (skip bool, warning string) {
-	if report == nil {
-		return false, ""
-	}
-	if report.Provenance == nil {
-		return false, ""
-	}
-	reportFingerprint := report.Provenance.PlanResultsFingerprint
-	if reportFingerprint == "" {
-		return false, ""
-	}
-	if currentFingerprint == "" {
-		return false, ""
-	}
-	if reportFingerprint != currentFingerprint {
-		return true, fmt.Sprintf("summary report %q skipped: plan_results_fingerprint %q does not match current %q", report.Producer, reportFingerprint, currentFingerprint)
-	}
-	return false, ""
+	return ci.SelectCurrentReports(collection, filterSummaryReports(reports), ci.ReportSelectionOptions{
+		Consumer: "summary",
+	}), nil
 }
 
 func planScanner(runtime Runtime) PlanScanner {

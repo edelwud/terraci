@@ -16,6 +16,7 @@ import (
 	"github.com/edelwud/terraci/pkg/workflow"
 	"github.com/edelwud/terraci/plugins/localexec/internal/planner"
 	"github.com/edelwud/terraci/plugins/localexec/internal/render"
+	"github.com/edelwud/terraci/plugins/localexec/internal/reports"
 	"github.com/edelwud/terraci/plugins/localexec/internal/runner"
 	"github.com/edelwud/terraci/plugins/localexec/internal/spec"
 	"github.com/edelwud/terraci/plugins/localexec/internal/targeting"
@@ -115,16 +116,9 @@ func (o *fakeOutput) Failure(result *execution.Result, err error) error {
 }
 
 type fakeSummaryReportLoader struct {
-	report     *ci.Report
-	err        error
-	resetErr   error
-	calls      int
-	resetCalls int
-}
-
-func (l *fakeSummaryReportLoader) Reset(context.Context) error {
-	l.resetCalls++
-	return l.resetErr
+	report *ci.Report
+	err    error
+	calls  int
 }
 
 func (l *fakeSummaryReportLoader) Load(context.Context) (*ci.Report, error) {
@@ -169,9 +163,6 @@ func TestUseCase_RunUsesInjectedDependencies(t *testing.T) {
 	}
 	if loader.calls != 1 {
 		t.Fatalf("summary loader calls = %d, want 1", loader.calls)
-	}
-	if loader.resetCalls != 1 {
-		t.Fatalf("summary reset calls = %d, want 1", loader.resetCalls)
 	}
 	if runtimeFactory.calls != 1 {
 		t.Fatalf("runtime factory calls = %d, want 1", runtimeFactory.calls)
@@ -251,9 +242,6 @@ func TestUseCase_RunUsesInjectedPlanner(t *testing.T) {
 	if loader.calls != 1 {
 		t.Fatalf("summary loader calls = %d, want 1", loader.calls)
 	}
-	if loader.resetCalls != 1 {
-		t.Fatalf("summary reset calls = %d, want 1", loader.resetCalls)
-	}
 }
 
 func TestUseCase_RunNoTargetsSkipsExecutionDependencies(t *testing.T) {
@@ -285,9 +273,6 @@ func TestUseCase_RunNoTargetsSkipsExecutionDependencies(t *testing.T) {
 	}
 	if loader.calls != 0 {
 		t.Fatalf("summary loader calls = %d, want 0", loader.calls)
-	}
-	if loader.resetCalls != 0 {
-		t.Fatalf("summary reset calls = %d, want 0", loader.resetCalls)
 	}
 	if output.completedCalls != 0 || output.failureCalls != 0 {
 		t.Fatalf("output calls completed=%d failure=%d, want none", output.completedCalls, output.failureCalls)
@@ -355,9 +340,6 @@ func TestUseCase_RunReturnsPlannerError(t *testing.T) {
 	if loader.calls != 0 {
 		t.Fatalf("summary loader calls = %d, want 0", loader.calls)
 	}
-	if loader.resetCalls != 0 {
-		t.Fatalf("summary reset calls = %d, want 0", loader.resetCalls)
-	}
 	if output.completedCalls != 0 || output.failureCalls != 0 {
 		t.Fatalf("output calls completed=%d failure=%d, want none", output.completedCalls, output.failureCalls)
 	}
@@ -402,12 +384,9 @@ func TestUseCase_RunJobFailureGoesThroughOutputFailure(t *testing.T) {
 	if loader.calls != 0 {
 		t.Fatalf("summary loader calls = %d, want 0", loader.calls)
 	}
-	if loader.resetCalls != 1 {
-		t.Fatalf("summary reset calls = %d, want 1", loader.resetCalls)
-	}
 }
 
-func TestUseCase_RunIgnoresSummaryLoaderError(t *testing.T) {
+func TestUseCase_RunReturnsSummaryLoaderError(t *testing.T) {
 	workDir := t.TempDir()
 	modulePath := filepath.Join(workDir, "platform", "stage", "eu-central-1", "vpc")
 	if err := os.MkdirAll(modulePath, 0o755); err != nil {
@@ -420,7 +399,8 @@ func TestUseCase_RunIgnoresSummaryLoaderError(t *testing.T) {
 	appCtx := plugintest.NewAppContext(t, workDir)
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	output := &fakeOutput{}
-	loader := &fakeSummaryReportLoader{err: errors.New("broken report")}
+	wantErr := errors.New("broken report")
+	loader := &fakeSummaryReportLoader{err: wantErr}
 
 	useCase := New(
 		appCtx,
@@ -433,21 +413,16 @@ func TestUseCase_RunIgnoresSummaryLoaderError(t *testing.T) {
 		WithOutput(output),
 	)
 
-	if err := useCase.Run(context.Background(), spec.ExecuteRequest{}); err != nil {
-		t.Fatalf("Run() error = %v, want nil", err)
+	err := useCase.Run(context.Background(), spec.ExecuteRequest{})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("Run() error = %v, want %v", err, wantErr)
 	}
 
 	if loader.calls != 1 {
 		t.Fatalf("summary loader calls = %d, want 1", loader.calls)
 	}
-	if loader.resetCalls != 1 {
-		t.Fatalf("summary reset calls = %d, want 1", loader.resetCalls)
-	}
-	if output.completedCalls != 1 {
-		t.Fatalf("completed calls = %d, want 1", output.completedCalls)
-	}
-	if output.summaryReport != nil {
-		t.Fatalf("summary report = %#v, want nil after loader error", output.summaryReport)
+	if output.completedCalls != 0 {
+		t.Fatalf("completed calls = %d, want 0", output.completedCalls)
 	}
 }
 
@@ -473,41 +448,6 @@ func TestUseCase_RunReturnsCompletedOutputError(t *testing.T) {
 	}
 	if output.completedCalls != 1 {
 		t.Fatalf("completed calls = %d, want 1", output.completedCalls)
-	}
-}
-
-func TestUseCase_RunReturnsSummaryResetErrorBeforeExecution(t *testing.T) {
-	workDir, module := testWorkDirWithModule(t)
-	appCtx := plugintest.NewAppContext(t, workDir)
-	wantErr := errors.New("reset summary")
-	loader := &fakeSummaryReportLoader{resetErr: wantErr}
-	output := &fakeOutput{}
-	jobRunner := &fakeJobRunner{}
-
-	err := New(
-		appCtx,
-		WithTargetResolver(fakeTargetResolver{targets: []*discovery.Module{module}}),
-		WithRuntimeFactory(&fakeRuntimeFactory{runtime: &runner.Runtime{
-			ExecConfig: execution.Config{PlanEnabled: true, Parallelism: 1},
-			JobRunner:  jobRunner,
-		}}),
-		WithSummaryReports(loader),
-		WithOutput(output),
-	).Run(context.Background(), spec.ExecuteRequest{})
-	if !errors.Is(err, wantErr) {
-		t.Fatalf("Run() error = %v, want %v", err, wantErr)
-	}
-	if len(jobRunner.jobs) != 0 {
-		t.Fatalf("executed jobs = %v, want none", jobRunner.jobs)
-	}
-	if loader.calls != 0 {
-		t.Fatalf("summary loader calls = %d, want 0", loader.calls)
-	}
-	if loader.resetCalls != 1 {
-		t.Fatalf("summary reset calls = %d, want 1", loader.resetCalls)
-	}
-	if output.completedCalls != 0 || output.failureCalls != 0 {
-		t.Fatalf("output calls completed=%d failure=%d, want none", output.completedCalls, output.failureCalls)
 	}
 }
 
@@ -547,7 +487,7 @@ func TestNewRestoresDefaultsAfterNilOverrides(t *testing.T) {
 var _ targeting.Resolver = fakeTargetResolver{}
 var _ planner.Builder = (*fakePlanner)(nil)
 var _ runner.Factory = (*fakeRuntimeFactory)(nil)
-var _ render.SummaryReportLoader = (*fakeSummaryReportLoader)(nil)
+var _ reports.Loader = (*fakeSummaryReportLoader)(nil)
 var _ render.Output = (*fakeOutput)(nil)
 
 func testWorkDirWithModule(t *testing.T) (string, *discovery.Module) {

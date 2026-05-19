@@ -9,8 +9,8 @@ import (
 )
 
 type policyReportRequest struct {
-	Summary  *policyengine.Summary
-	Artifact ci.ArtifactContext
+	Summary *policyengine.Summary
+	Run     ci.ArtifactRun
 }
 
 func buildPolicyReport(req policyReportRequest) (*ci.Report, error) {
@@ -43,7 +43,7 @@ func buildPolicyReport(req policyReportRequest) (*ci.Report, error) {
 		Title:    "Policy Check",
 		Status:   status,
 		Summary:  summaryText,
-		Artifact: req.Artifact,
+		Artifact: req.Run.Artifact,
 		Sections: []ci.RenderedSectionOptions{{
 			Title:   "Policy Check",
 			Summary: summaryText,

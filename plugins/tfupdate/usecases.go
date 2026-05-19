@@ -126,13 +126,19 @@ func emitUpdateArtifacts(ctx context.Context, appCtx *plugin.AppContext, result 
 		return
 	}
 
-	artifact := reportctx.FromApp(appCtx, reportctx.Options{})
-	report, buildErr := buildUpdateReport(updateReportRequest{Result: result, Artifact: artifact})
+	run, runErr := reportctx.NewRun(appCtx, reportctx.Options{Producer: pluginName})
+	if runErr != nil {
+		log.WithError(runErr).Warn("failed to build tfupdate artifact context")
+	}
+	report, buildErr := buildUpdateReport(updateReportRequest{Result: result, Run: run})
 	if buildErr != nil {
 		log.WithError(buildErr).Warn("failed to build tfupdate report")
 		report = nil
 	}
-	if saveErr := appCtx.Reports().SaveResultsAndReport(ctx, pluginName, result, report); saveErr != nil {
+	if runErr != nil {
+		report = nil
+	}
+	if saveErr := appCtx.Reports().ReplaceResultsAndReport(ctx, pluginName, result, report); saveErr != nil {
 		log.WithError(saveErr).Warn("failed to persist tfupdate artifacts")
 	}
 }

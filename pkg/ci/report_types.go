@@ -89,6 +89,41 @@ func NewArtifactContext(opts ArtifactContextOptions) ArtifactContext {
 	}
 }
 
+// ArtifactRun describes one producer's report/result artifact write.
+type ArtifactRun struct {
+	Producer    string
+	Artifact    ArtifactContext
+	PlanResults *PlanResultCollection
+}
+
+// ArtifactRunOptions describes how to construct an ArtifactRun.
+type ArtifactRunOptions struct {
+	Producer    string
+	Artifact    ArtifactContext
+	PlanResults *PlanResultCollection
+}
+
+// NewArtifactRun normalizes producer run metadata. When PlanResults is present
+// and the artifact context has no explicit fingerprint, the plan collection
+// fingerprint is used. Empty fingerprints remain valid for non-plan producers.
+func NewArtifactRun(opts ArtifactRunOptions) (ArtifactRun, error) {
+	if err := validateArtifactProducer(opts.Producer); err != nil {
+		return ArtifactRun{}, err
+	}
+
+	artifact := opts.Artifact
+	if opts.PlanResults != nil && artifact.PlanResultsFingerprint == "" {
+		artifact.PlanResultsFingerprint = opts.PlanResults.Fingerprint()
+	}
+	artifact = NewArtifactContext(ArtifactContextOptions(artifact))
+
+	return ArtifactRun{
+		Producer:    opts.Producer,
+		Artifact:    artifact,
+		PlanResults: opts.PlanResults,
+	}, nil
+}
+
 // Provenance converts the artifact context into persisted report provenance.
 func (c ArtifactContext) Provenance() *ReportProvenance {
 	generatedAt := c.GeneratedAt

@@ -42,7 +42,12 @@ type CheckRuntime struct {
 	PlanSegments     []string
 }
 
-func Check(ctx context.Context, runtime CheckRuntime, req policyengine.CheckRequest) (*policyengine.Summary, error) {
+type CheckResult struct {
+	Summary     *policyengine.Summary
+	PlanResults *ci.PlanResultCollection
+}
+
+func Check(ctx context.Context, runtime CheckRuntime, req policyengine.CheckRequest) (*CheckResult, error) {
 	if runtime.Config == nil {
 		return nil, errors.New("policy config is nil")
 	}
@@ -55,7 +60,7 @@ func Check(ctx context.Context, runtime CheckRuntime, req policyengine.CheckRequ
 		return nil, fmt.Errorf("materialize policy sources: %w", err)
 	}
 
-	plans, err := discoverPlans(runtime.PlanScanner, runtime.WorkDir, runtime.PlanSegments, req.ModulePath)
+	collection, plans, err := discoverPlans(runtime.PlanScanner, runtime.WorkDir, runtime.PlanSegments, req.ModulePath)
 	if err != nil {
 		return nil, err
 	}
@@ -71,17 +76,23 @@ func Check(ctx context.Context, runtime CheckRuntime, req policyengine.CheckRequ
 		results = append(results, checkPlan(ctx, runtime, evaluator, plans[i]))
 	}
 
-	return policyengine.NewSummary(results), nil
+	return &CheckResult{
+		Summary:     policyengine.NewSummary(results),
+		PlanResults: collection,
+	}, nil
 }
 
-func discoverPlans(scanner PlanScanner, workDir string, segments []string, modulePath string) ([]ci.PlanResult, error) {
+func discoverPlans(scanner PlanScanner, workDir string, segments []string, modulePath string) (*ci.PlanResultCollection, []ci.PlanResult, error) {
 	if scanner == nil {
 		scanner = defaultPlanScanner{}
 	}
 
 	collection, err := scanner.Scan(workDir, segments)
 	if err != nil {
-		return nil, fmt.Errorf("scan plan results: %w", err)
+		return nil, nil, fmt.Errorf("scan plan results: %w", err)
+	}
+	if collection == nil {
+		return nil, nil, errors.New("scan plan results: nil collection")
 	}
 
 	plans := collection.Results
@@ -92,11 +103,11 @@ func discoverPlans(scanner PlanScanner, workDir string, segments []string, modul
 	filtered := filterPlans(plans, modulePath)
 	if len(filtered) == 0 {
 		if modulePath != "" {
-			return nil, fmt.Errorf("no plan.json found for module %q", modulePath)
+			return nil, nil, fmt.Errorf("no plan.json found for module %q", modulePath)
 		}
-		return nil, fmt.Errorf("no plan.json files found in %s", workDir)
+		return nil, nil, fmt.Errorf("no plan.json files found in %s", workDir)
 	}
-	return filtered, nil
+	return collection, filtered, nil
 }
 
 func filterPlans(plans []ci.PlanResult, modulePath string) []ci.PlanResult {

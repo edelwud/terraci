@@ -10,12 +10,14 @@ import (
 
 	log "github.com/caarlos0/log"
 
+	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/planresults"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
 
 type planDiscovery struct {
+	collection  *ci.PlanResultCollection
 	modulePaths []string
 	regions     map[string]string
 }
@@ -31,7 +33,7 @@ func runEstimationUseCase(ctx context.Context, appCtx *plugin.AppContext, runtim
 		return fmt.Errorf("cost: estimate costs: %w", err)
 	}
 
-	if err := saveArtifacts(ctx, appCtx, result); err != nil {
+	if err := saveArtifacts(ctx, appCtx, result, plans.collection); err != nil {
 		log.WithError(err).Warn("cost: failed to save artifacts")
 	}
 
@@ -44,11 +46,12 @@ func discoverModulePlans(appCtx *plugin.AppContext, modulePath string) (*planDis
 
 	log.WithField("dir", workDir).Info("cost: scanning for plan.json files")
 
-	paths, err := planresults.FindModulesWithPlan(workDir)
+	collection, err := planresults.Scan(workDir, cfg.Structure.Segments)
 	if err != nil {
 		return nil, fmt.Errorf("cost: scan for plan.json: %w", err)
 	}
 
+	paths := planModulePaths(workDir, collection)
 	paths = filterModulePaths(workDir, paths, modulePath)
 	if len(paths) == 0 {
 		return nil, fmt.Errorf("cost: no plan.json files found in %s", workDir)
@@ -57,17 +60,48 @@ func discoverModulePlans(appCtx *plugin.AppContext, modulePath string) (*planDis
 	log.WithField("count", len(paths)).Info("cost: modules with plan.json found")
 
 	regions := make(map[string]string, len(paths))
+	plansByPath := planResultsByFullPath(workDir, collection)
 	for _, fullPath := range paths {
-		relDir, relErr := filepath.Rel(workDir, fullPath)
-		if relErr == nil {
-			regions[fullPath] = model.DetectRegion(cfg.Structure.Segments, relDir)
+		if plan, ok := plansByPath[fullPath]; ok {
+			if region := plan.Get("region"); region != "" {
+				regions[fullPath] = region
+				continue
+			}
+		}
+		if relDir, relErr := filepath.Rel(workDir, fullPath); relErr == nil {
+			regions[fullPath] = model.DetectRegion(cfg.Structure.Segments, filepath.ToSlash(relDir))
 		}
 	}
 
 	return &planDiscovery{
+		collection:  collection,
 		modulePaths: paths,
 		regions:     regions,
 	}, nil
+}
+
+func planModulePaths(workDir string, collection *ci.PlanResultCollection) []string {
+	if collection == nil {
+		return nil
+	}
+	paths := make([]string, 0, len(collection.Results))
+	for i := range collection.Results {
+		modulePath := filepath.FromSlash(collection.Results[i].ModulePath)
+		paths = append(paths, filepath.Join(workDir, modulePath))
+	}
+	return paths
+}
+
+func planResultsByFullPath(workDir string, collection *ci.PlanResultCollection) map[string]*ci.PlanResult {
+	results := make(map[string]*ci.PlanResult)
+	if collection == nil {
+		return results
+	}
+	for i := range collection.Results {
+		fullPath := filepath.Join(workDir, filepath.FromSlash(collection.Results[i].ModulePath))
+		results[fullPath] = &collection.Results[i]
+	}
+	return results
 }
 
 func filterModulePaths(workDir string, modulePaths []string, modulePath string) []string {

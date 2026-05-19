@@ -7,15 +7,14 @@ import (
 	"strings"
 
 	"github.com/edelwud/terraci/pkg/ci"
-	"github.com/edelwud/terraci/pkg/planresults"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/internal/reportctx"
 )
 
 type costReportRequest struct {
-	Result   *model.EstimateResult
-	Artifact ci.ArtifactContext
+	Result *model.EstimateResult
+	Run    ci.ArtifactRun
 }
 
 func buildCostReport(req costReportRequest) (*ci.Report, error) {
@@ -63,7 +62,7 @@ func buildCostReport(req costReportRequest) (*ci.Report, error) {
 		Title:    costReportTitle,
 		Status:   status,
 		Summary:  summary,
-		Artifact: req.Artifact,
+		Artifact: req.Run.Artifact,
 		Sections: []ci.RenderedSectionOptions{{
 			Title:   costReportTitle,
 			Summary: summary,
@@ -151,25 +150,21 @@ func reportCostDiff(diff float64) string {
 
 // saveArtifacts persists the estimation result and CI report to the service directory.
 // Returns a joined error if one or both saves fail.
-func saveArtifacts(ctx context.Context, appCtx *plugin.AppContext, result *model.EstimateResult) error {
+func saveArtifacts(ctx context.Context, appCtx *plugin.AppContext, result *model.EstimateResult, collection *ci.PlanResultCollection) error {
 	if appCtx == nil || appCtx.Reports() == nil {
 		return nil
 	}
-	artifact := costArtifactContext(appCtx)
-	report, err := buildCostReport(costReportRequest{Result: result, Artifact: artifact})
+	run, runErr := reportctx.NewRun(appCtx, reportctx.Options{
+		Producer:   pluginName,
+		Collection: collection,
+	})
+	report, err := buildCostReport(costReportRequest{Result: result, Run: run})
 	if err != nil {
 		// Still attempt to save the raw results so the user can inspect them.
-		return errors.Join(err, appCtx.Reports().SaveResultsAndReport(ctx, pluginName, result, nil))
+		return errors.Join(runErr, err, appCtx.Reports().ReplaceResultsAndReport(ctx, pluginName, result, nil))
 	}
-	return appCtx.Reports().SaveResultsAndReport(ctx, pluginName, result, report)
-}
-
-func costArtifactContext(appCtx *plugin.AppContext) ci.ArtifactContext {
-	opts := reportctx.Options{}
-	if appCtx != nil && appCtx.Config() != nil {
-		if collection, err := planresults.Scan(appCtx.WorkDir(), appCtx.Config().Structure.Segments); err == nil {
-			opts.Collection = collection
-		}
+	if runErr != nil {
+		return errors.Join(runErr, appCtx.Reports().ReplaceResultsAndReport(ctx, pluginName, result, nil))
 	}
-	return reportctx.FromApp(appCtx, opts)
+	return appCtx.Reports().ReplaceResultsAndReport(ctx, pluginName, result, report)
 }

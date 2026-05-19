@@ -36,7 +36,7 @@ func TestCheck_CIEnforcementFlow(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	summary, err := Check(context.Background(), CheckRuntime{
+	result, err := Check(context.Background(), CheckRuntime{
 		Config:       cfg,
 		Sources:      materializer,
 		WorkDir:      root,
@@ -45,6 +45,7 @@ func TestCheck_CIEnforcementFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Check() error = %v", err)
 	}
+	summary := result.Summary
 
 	if summary.TotalModules != 3 {
 		t.Fatalf("TotalModules = %d, want 3", summary.TotalModules)
@@ -76,7 +77,7 @@ func TestCheck_ModuleFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	summary, err := Check(context.Background(), CheckRuntime{
+	result, err := Check(context.Background(), CheckRuntime{
 		Config:       cfg,
 		Sources:      materializer,
 		WorkDir:      root,
@@ -85,6 +86,7 @@ func TestCheck_ModuleFilter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Check() error = %v", err)
 	}
+	summary := result.Summary
 	if summary.TotalModules != 1 || summary.Results[0].Module != "platform/sandbox/eu-central-1/app" {
 		t.Fatalf("summary = %#v", summary)
 	}
@@ -119,7 +121,7 @@ func TestCheck_UsesInjectedDependenciesOnce(t *testing.T) {
 		Decisions:  policyengine.Decisions{Deny: policyengine.ActionWarn},
 	}
 
-	summary, err := Check(context.Background(), CheckRuntime{
+	result, err := Check(context.Background(), CheckRuntime{
 		Config:           cfg,
 		Sources:          materializer,
 		PlanScanner:      scanner,
@@ -130,6 +132,7 @@ func TestCheck_UsesInjectedDependenciesOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Check() error = %v", err)
 	}
+	summary := result.Summary
 	if materializer.calls != 1 {
 		t.Fatalf("materializer calls = %d, want 1", materializer.calls)
 	}
@@ -144,6 +147,9 @@ func TestCheck_UsesInjectedDependenciesOnce(t *testing.T) {
 	}
 	if summary.WarnedModules != 1 || summary.FailedModules != 0 {
 		t.Fatalf("warned/failed = %d/%d, want 1/0", summary.WarnedModules, summary.FailedModules)
+	}
+	if result.PlanResults != scanner.collection {
+		t.Fatal("PlanResults did not preserve scanner collection")
 	}
 }
 

@@ -8,6 +8,8 @@ import (
 	"github.com/edelwud/terraci/pkg/ci/citest"
 )
 
+const summaryReportProducer = "summary"
+
 func TestRenderSummaryReportCLI_RendersStructuredSections(t *testing.T) {
 	t.Parallel()
 
