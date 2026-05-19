@@ -504,7 +504,7 @@ func TestCollectContributions_FiltersDisabledPlugins(t *testing.T) {
 		WorkDir:    "/work",
 		ServiceDir: "/service",
 		Version:    "test",
-		Reports:    plugin.NewReportRegistry(),
+		Reports:    ci.NewFileReportStore("/service"),
 	})
 	contribs := plugins.CollectContributions(appCtx)
 	if len(contribs) != 1 {

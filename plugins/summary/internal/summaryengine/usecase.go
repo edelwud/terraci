@@ -19,7 +19,7 @@ type Runtime struct {
 	Segments         []string
 	ProviderResolver ProviderResolver
 	PlanScanner      PlanScanner
-	ReportLoader     ReportLoader
+	ReportStore      ci.ReportStore
 	LabelParser      PlanParser
 }
 
@@ -61,7 +61,7 @@ func Run(ctx context.Context, runtime Runtime, _ Request) (*Result, error) {
 	log.WithField("count", len(collection.Results)).Info("found plan results")
 	result.Plans = append([]ci.PlanResult(nil), collection.Results...)
 
-	selection, err := loadReportSelection(runtime, collection)
+	selection, err := loadReportSelection(ctx, runtime, collection)
 	if err != nil {
 		return nil, err
 	}

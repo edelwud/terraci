@@ -12,12 +12,12 @@ import (
 
 	log "github.com/caarlos0/log"
 
-	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/parser"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/workflow"
 	"github.com/edelwud/terraci/pkg/workspacepath"
+	"github.com/edelwud/terraci/plugins/internal/reportctx"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
 	tfupdateusecase "github.com/edelwud/terraci/plugins/tfupdate/internal/usecase"
 )
@@ -64,7 +64,7 @@ func runUpdateCheck(ctx context.Context, appCtx *plugin.AppContext, runtime *upd
 		return err
 	}
 
-	emitUpdateArtifacts(appCtx.ServiceDir(), result)
+	emitUpdateArtifacts(ctx, appCtx, result)
 	return finishUpdateCheck(w, runtime.options.outputFmt, result)
 }
 
@@ -121,17 +121,18 @@ func executeUpdateCheck(
 	return result, nil
 }
 
-func emitUpdateArtifacts(serviceDir string, result *tfupdateengine.UpdateResult) {
-	if serviceDir == "" {
+func emitUpdateArtifacts(ctx context.Context, appCtx *plugin.AppContext, result *tfupdateengine.UpdateResult) {
+	if appCtx == nil || appCtx.Reports() == nil {
 		return
 	}
 
-	report, buildErr := buildUpdateReport(result)
+	artifact := reportctx.FromApp(appCtx, reportctx.Options{})
+	report, buildErr := buildUpdateReport(updateReportRequest{Result: result, Artifact: artifact})
 	if buildErr != nil {
 		log.WithError(buildErr).Warn("failed to build tfupdate report")
 		report = nil
 	}
-	if saveErr := ci.SaveResultsAndReport(serviceDir, resultsFile, result, report); saveErr != nil {
+	if saveErr := appCtx.Reports().SaveResultsAndReport(ctx, pluginName, result, report); saveErr != nil {
 		log.WithError(saveErr).Warn("failed to persist tfupdate artifacts")
 	}
 }

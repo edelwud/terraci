@@ -29,9 +29,7 @@ func TestRun_SkipsReportWithMismatchedFingerprint(t *testing.T) {
 		PlanScanner: fakePlanScanner{
 			collection: collection,
 		},
-		ReportLoader: fakeReportLoader{
-			reports: []*ci.Report{stale, fresh},
-		},
+		ReportStore: testReportStore(stale, fresh),
 		ProviderResolver: func() (Provider, error) {
 			return fakeProvider{service: fakeCommentService{enabled: false}}, nil
 		},
@@ -64,8 +62,8 @@ func TestRun_ReportWithoutFingerprintRendersWithoutWarning(t *testing.T) {
 	report := mustRenderedReport(t, "legacy", "Legacy Report", "")
 
 	result, err := Run(context.Background(), Runtime{
-		PlanScanner:  fakePlanScanner{collection: collection},
-		ReportLoader: fakeReportLoader{reports: []*ci.Report{report}},
+		PlanScanner: fakePlanScanner{collection: collection},
+		ReportStore: testReportStore(report),
 		ProviderResolver: func() (Provider, error) {
 			return fakeProvider{service: fakeCommentService{enabled: false}}, nil
 		},
@@ -85,11 +83,13 @@ func TestRun_ReportWithoutFingerprintRendersWithoutWarning(t *testing.T) {
 func mustRenderedReport(t *testing.T, producer, title, fingerprint string) *ci.Report {
 	t.Helper()
 	report, err := ci.NewRenderedReport(ci.RenderedReportOptions{
-		Producer:   producer,
-		Title:      title,
-		Status:     ci.ReportStatusWarn,
-		Summary:    "summary",
-		Provenance: ci.NewProvenance("", "", fingerprint),
+		Producer: producer,
+		Title:    title,
+		Status:   ci.ReportStatusWarn,
+		Summary:  "summary",
+		Artifact: ci.NewArtifactContext(ci.ArtifactContextOptions{
+			PlanResultsFingerprint: fingerprint,
+		}),
 		Sections: []ci.RenderedSectionOptions{{
 			Title:   title,
 			Summary: "summary",
@@ -102,6 +102,14 @@ func mustRenderedReport(t *testing.T, producer, title, fingerprint string) *ci.R
 	return report
 }
 
+func testReportStore(reports ...*ci.Report) ci.ReportStore {
+	store := ci.NewMemoryReportStore()
+	for _, report := range reports {
+		store.Publish(report)
+	}
+	return store
+}
+
 type fakePlanScanner struct {
 	collection *ci.PlanResultCollection
 	err        error
@@ -109,15 +117,6 @@ type fakePlanScanner struct {
 
 func (s fakePlanScanner) ScanPlanResults(string, []string) (*ci.PlanResultCollection, error) {
 	return s.collection, s.err
-}
-
-type fakeReportLoader struct {
-	reports []*ci.Report
-	err     error
-}
-
-func (l fakeReportLoader) LoadReports(string) ([]*ci.Report, error) {
-	return l.reports, l.err
 }
 
 type fakeProvider struct {

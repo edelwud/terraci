@@ -130,7 +130,7 @@ func TestLogOutputCompleted_NilSummaryReportSkipsCLISection(t *testing.T) {
 
 func TestLogOutputCompleted_WithSummaryReport(t *testing.T) {
 	report := &ci.Report{
-		Producer: "summary",
+		Producer: summaryReportProducer,
 		Title:    "Terraform Plan Summary",
 		Summary:  "1 modules: 1 with changes, 0 no changes, 0 failed",
 		Sections: []ci.ReportSection{citest.MustRenderedSection(
@@ -172,7 +172,7 @@ func TestLogOutputCompleted_WithSummaryReport(t *testing.T) {
 func TestLogOutputCompleted_InvalidSummaryReportReturnsError(t *testing.T) {
 	output := LogOutput{}
 	report := &ci.Report{
-		Producer: "summary",
+		Producer: summaryReportProducer,
 		Title:    "Terraform Plan Summary",
 		Sections: []ci.ReportSection{citest.MustReportSectionJSON(`{"kind":"legacy","payload":{}}`)},
 	}
@@ -214,7 +214,7 @@ func TestProgressReporter_LogsStageAndModule(t *testing.T) {
 func TestProgressReporter_LogsFailureStatus(t *testing.T) {
 	reporter := ProgressReporter{}
 	job := &pipeline.Job{
-		Name:      "summary",
+		Name:      summaryReportProducer,
 		Operation: pipeline.Operation{Type: pipeline.OperationTypeCommands},
 	}
 	result := &execution.JobResult{

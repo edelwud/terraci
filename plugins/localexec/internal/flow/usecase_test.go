@@ -122,12 +122,12 @@ type fakeSummaryReportLoader struct {
 	resetCalls int
 }
 
-func (l *fakeSummaryReportLoader) Reset() error {
+func (l *fakeSummaryReportLoader) Reset(context.Context) error {
 	l.resetCalls++
 	return l.resetErr
 }
 
-func (l *fakeSummaryReportLoader) Load() (*ci.Report, error) {
+func (l *fakeSummaryReportLoader) Load(context.Context) (*ci.Report, error) {
 	l.calls++
 	return l.report, l.err
 }

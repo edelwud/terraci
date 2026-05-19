@@ -8,8 +8,9 @@ import (
 
 	log "github.com/caarlos0/log"
 
-	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/planresults"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/plugins/internal/reportctx"
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 	policyusecase "github.com/edelwud/terraci/plugins/policy/internal/usecase"
 )
@@ -25,7 +26,7 @@ func runPullPoliciesUseCase(ctx context.Context, runtime *policyRuntime, req pol
 	return nil
 }
 
-func runPolicyCheckUseCase(ctx context.Context, runtime *policyRuntime, req policyengine.CheckRequest, format outputFormat, w io.Writer) error {
+func runPolicyCheckUseCase(ctx context.Context, appCtx *plugin.AppContext, runtime *policyRuntime, req policyengine.CheckRequest, format outputFormat, w io.Writer) error {
 	cfg := runtime.config
 	summary, err := policyusecase.Check(ctx, policyusecase.CheckRuntime{
 		Config:       &cfg,
@@ -37,23 +38,36 @@ func runPolicyCheckUseCase(ctx context.Context, runtime *policyRuntime, req poli
 		return fmt.Errorf("run policy check: %w", err)
 	}
 
-	persistPolicyArtifacts(runtime.serviceDir, summary)
+	persistPolicyArtifacts(ctx, appCtx, runtime, summary)
 	return outputResult(w, format, summary, summary.HasFailures())
 }
 
-func persistPolicyArtifacts(serviceDir string, summary *policyengine.Summary) {
-	if serviceDir == "" {
+func persistPolicyArtifacts(ctx context.Context, appCtx *plugin.AppContext, runtime *policyRuntime, summary *policyengine.Summary) {
+	if appCtx == nil || appCtx.Reports() == nil {
 		return
 	}
 
-	report, buildErr := buildPolicyReport(summary)
+	artifact := reportctx.FromApp(appCtx, policyArtifactOptions(runtime))
+	report, buildErr := buildPolicyReport(policyReportRequest{Summary: summary, Artifact: artifact})
 	if buildErr != nil {
 		log.WithError(buildErr).Warn("failed to build policy report")
 		report = nil
 	}
-	if saveErr := ci.SaveResultsAndReport(serviceDir, resultsFile, summary, report); saveErr != nil {
+	if saveErr := appCtx.Reports().SaveResultsAndReport(ctx, pluginName, summary, report); saveErr != nil {
 		log.WithError(saveErr).Warn("failed to persist policy artifacts")
 	}
+}
+
+func policyArtifactOptions(runtime *policyRuntime) reportctx.Options {
+	if runtime == nil {
+		return reportctx.Options{}
+	}
+	collection, err := planresults.Scan(runtime.workDir, runtime.planSegments)
+	if err != nil {
+		log.WithError(err).Warn("policy: failed to fingerprint plan results")
+		return reportctx.Options{}
+	}
+	return reportctx.Options{Collection: collection}
 }
 
 func (p *Plugin) runPull(ctx context.Context, appCtx *plugin.AppContext, cacheDir string) error {
@@ -79,5 +93,5 @@ func (p *Plugin) runCheck(ctx context.Context, appCtx *plugin.AppContext, module
 	if w == nil {
 		w = os.Stdout
 	}
-	return runPolicyCheckUseCase(ctx, runtime, policyengine.CheckRequest{ModulePath: modulePath}, outputFmt, w)
+	return runPolicyCheckUseCase(ctx, appCtx, runtime, policyengine.CheckRequest{ModulePath: modulePath}, outputFmt, w)
 }

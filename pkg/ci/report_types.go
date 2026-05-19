@@ -42,8 +42,8 @@ func (r *Report) Clone() *Report {
 //
 // Producers should populate provenance for every persisted report so local
 // consumers (e.g. localexec/render) can decide whether the artifact still
-// matches the current workspace. Use NewProvenance to fill GeneratedAt
-// consistently and let producer-specific fields stay omitempty.
+// matches the current workspace. Producers should derive it from
+// ArtifactContext instead of assembling it by hand.
 type ReportProvenance struct {
 	GeneratedAt            time.Time `json:"generated_at"`
 	CommitSHA              string    `json:"commit_sha,omitempty"`
@@ -51,15 +51,55 @@ type ReportProvenance struct {
 	PlanResultsFingerprint string    `json:"plan_results_fingerprint,omitempty"`
 }
 
-// NewProvenance returns a ReportProvenance with GeneratedAt = time.Now().UTC().
-// Pass empty strings for fields the producer does not have — they remain
-// omitempty in the resulting JSON.
-func NewProvenance(commitSHA, pipelineID, planResultsFingerprint string) *ReportProvenance {
+// ArtifactContext describes the current artifact-producing run. Producers pass
+// it to NewRenderedReport so provenance is derived consistently for every
+// persisted report.
+type ArtifactContext struct {
+	ServiceDir             string
+	WorkDir                string
+	CommitSHA              string
+	PipelineID             string
+	PlanResultsFingerprint string
+	GeneratedAt            time.Time
+}
+
+// ArtifactContextOptions describes how to construct an ArtifactContext.
+type ArtifactContextOptions struct {
+	ServiceDir             string
+	WorkDir                string
+	CommitSHA              string
+	PipelineID             string
+	PlanResultsFingerprint string
+	GeneratedAt            time.Time
+}
+
+// NewArtifactContext normalizes run metadata used by report producers.
+func NewArtifactContext(opts ArtifactContextOptions) ArtifactContext {
+	generatedAt := opts.GeneratedAt
+	if generatedAt.IsZero() {
+		generatedAt = time.Now().UTC()
+	}
+	return ArtifactContext{
+		ServiceDir:             opts.ServiceDir,
+		WorkDir:                opts.WorkDir,
+		CommitSHA:              opts.CommitSHA,
+		PipelineID:             opts.PipelineID,
+		PlanResultsFingerprint: opts.PlanResultsFingerprint,
+		GeneratedAt:            generatedAt.UTC(),
+	}
+}
+
+// Provenance converts the artifact context into persisted report provenance.
+func (c ArtifactContext) Provenance() *ReportProvenance {
+	generatedAt := c.GeneratedAt
+	if generatedAt.IsZero() {
+		generatedAt = time.Now().UTC()
+	}
 	return &ReportProvenance{
-		GeneratedAt:            time.Now().UTC(),
-		CommitSHA:              commitSHA,
-		PipelineID:             pipelineID,
-		PlanResultsFingerprint: planResultsFingerprint,
+		GeneratedAt:            generatedAt.UTC(),
+		CommitSHA:              c.CommitSHA,
+		PipelineID:             c.PipelineID,
+		PlanResultsFingerprint: c.PlanResultsFingerprint,
 	}
 }
 

@@ -5,13 +5,14 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/pipeline"
 )
 
 func TestAppContext_Accessors(t *testing.T) {
 	cfg := config.DefaultConfig()
-	r := NewReportRegistry()
+	r := ci.NewMemoryReportStore()
 	ctx := NewAppContext(AppContextOptions{
 		Config:     cfg,
 		WorkDir:    "/tmp",
@@ -58,7 +59,7 @@ func errFromCallSite[T any](fn func() (T, error)) error {
 	return err
 }
 
-func TestAppContext_NoReportsCreatesDefaultRegistry(t *testing.T) {
+func TestAppContext_NoReportsCreatesDefaultStore(t *testing.T) {
 	ctx := NewAppContext(AppContextOptions{})
 	if ctx.Reports() == nil {
 		t.Fatal("Reports() should not be nil for empty options")

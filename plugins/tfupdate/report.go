@@ -9,7 +9,13 @@ import (
 	"github.com/edelwud/terraci/plugins/tfupdate/internal/domain"
 )
 
-func buildUpdateReport(result *tfupdateengine.UpdateResult) (*ci.Report, error) {
+type updateReportRequest struct {
+	Result   *tfupdateengine.UpdateResult
+	Artifact ci.ArtifactContext
+}
+
+func buildUpdateReport(req updateReportRequest) (*ci.Report, error) {
+	result := req.Result
 	status := ci.ReportStatusPass
 	if result.Summary.Errors > 0 || result.Summary.UpdatesAvailable > 0 {
 		status = ci.ReportStatusWarn
@@ -64,6 +70,7 @@ func buildUpdateReport(result *tfupdateengine.UpdateResult) (*ci.Report, error) 
 		Title:    "Dependency Update Check",
 		Status:   status,
 		Summary:  summaryText,
+		Artifact: req.Artifact,
 		Sections: []ci.RenderedSectionOptions{{
 			Title:   "Dependency Update Check",
 			Summary: summaryText,

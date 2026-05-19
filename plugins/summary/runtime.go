@@ -22,6 +22,7 @@ func newRuntime(appCtx *plugin.AppContext, cfg *summaryengine.Config) *summaryRu
 		ServiceDir:       appCtx.ServiceDir(),
 		Segments:         segments,
 		ProviderResolver: resolveSummaryProvider(appCtx),
+		ReportStore:      appCtx.Reports(),
 	}
 }
 

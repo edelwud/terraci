@@ -8,7 +8,13 @@ import (
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
 
-func buildPolicyReport(summary *policyengine.Summary) (*ci.Report, error) {
+type policyReportRequest struct {
+	Summary  *policyengine.Summary
+	Artifact ci.ArtifactContext
+}
+
+func buildPolicyReport(req policyReportRequest) (*ci.Report, error) {
+	summary := req.Summary
 	if summary == nil {
 		return nil, errors.New("policy summary is nil")
 	}
@@ -37,6 +43,7 @@ func buildPolicyReport(summary *policyengine.Summary) (*ci.Report, error) {
 		Title:    "Policy Check",
 		Status:   status,
 		Summary:  summaryText,
+		Artifact: req.Artifact,
 		Sections: []ci.RenderedSectionOptions{{
 			Title:   "Policy Check",
 			Summary: summaryText,

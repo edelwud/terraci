@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 
+	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/pipeline"
 )
@@ -25,7 +26,7 @@ type AppContext struct {
 	workDir    string
 	serviceDir string
 	version    string
-	reports    *ReportRegistry
+	reports    ci.ReportStore
 	resolver   Resolver
 	commands   CommandLookup
 	contribs   []*pipeline.Contribution
@@ -41,9 +42,9 @@ type AppContextOptions struct {
 	ServiceDir string
 	// Version is the current TerraCi version string.
 	Version string
-	// Reports is the shared in-process report registry. Defaults to a fresh
-	// empty registry if nil.
-	Reports *ReportRegistry
+	// Reports is the shared report store. Defaults to a file-backed store when
+	// ServiceDir is set, otherwise to an in-process memory store.
+	Reports ci.ReportStore
 	// Resolver is the per-run plugin resolver. Defaults to NoopResolver{}
 	// when nil — plugins may always call ctx.Resolver() without nil-checks.
 	Resolver Resolver
@@ -59,7 +60,11 @@ type AppContextOptions struct {
 func NewAppContext(opts AppContextOptions) *AppContext {
 	reports := opts.Reports
 	if reports == nil {
-		reports = NewReportRegistry()
+		if opts.ServiceDir != "" {
+			reports = ci.NewFileReportStore(opts.ServiceDir)
+		} else {
+			reports = ci.NewMemoryReportStore()
+		}
 	}
 	resolver := opts.Resolver
 	if resolver == nil {
@@ -96,8 +101,8 @@ func (ctx *AppContext) ServiceDir() string { return ctx.serviceDir }
 // Version returns the current TerraCi version string.
 func (ctx *AppContext) Version() string { return ctx.version }
 
-// Reports returns the shared in-process report registry.
-func (ctx *AppContext) Reports() *ReportRegistry { return ctx.reports }
+// Reports returns the shared report store.
+func (ctx *AppContext) Reports() ci.ReportStore { return ctx.reports }
 
 // Resolver returns the per-run plugin resolver. Always non-nil.
 func (ctx *AppContext) Resolver() Resolver { return ctx.resolver }

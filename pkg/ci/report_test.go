@@ -1,6 +1,7 @@
 package ci
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -9,8 +10,9 @@ import (
 	"time"
 )
 
-func TestSaveReport(t *testing.T) {
+func TestFileReportStore_SaveReport(t *testing.T) {
 	dir := t.TempDir()
+	store := NewFileReportStore(dir)
 	report, err := NewRenderedReport(RenderedReportOptions{
 		Producer: "test",
 		Title:    "Test Report",
@@ -26,7 +28,7 @@ func TestSaveReport(t *testing.T) {
 		t.Fatalf("NewRenderedReport: %v", err)
 	}
 
-	if saveErr := SaveReport(dir, report); saveErr != nil {
+	if saveErr := store.SaveReport(context.Background(), report); saveErr != nil {
 		t.Fatalf("SaveReport: %v", saveErr)
 	}
 
@@ -49,15 +51,16 @@ func TestSaveReport(t *testing.T) {
 	}
 }
 
-func TestSaveJSON(t *testing.T) {
+func TestFileReportStore_SaveResults(t *testing.T) {
 	dir := t.TempDir()
+	store := NewFileReportStore(dir)
 	data := map[string]string{"key": "value"}
 
-	if err := SaveJSON(dir, "test.json", data); err != nil {
-		t.Fatalf("SaveJSON: %v", err)
+	if err := store.SaveResults(context.Background(), "test", data); err != nil {
+		t.Fatalf("SaveResults: %v", err)
 	}
 
-	content, err := os.ReadFile(filepath.Join(dir, "test.json"))
+	content, err := os.ReadFile(filepath.Join(dir, ResultFilename("test")))
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
@@ -72,15 +75,16 @@ func TestSaveJSON(t *testing.T) {
 	}
 }
 
-func TestSaveJSON_CreatesDirectory(t *testing.T) {
+func TestFileReportStore_SaveResultsCreatesDirectory(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "nested", "dir")
+	store := NewFileReportStore(dir)
 	data := map[string]string{"a": "b"}
 
-	if err := SaveJSON(dir, "test.json", data); err != nil {
-		t.Fatalf("SaveJSON with nested dir: %v", err)
+	if err := store.SaveResults(context.Background(), "test", data); err != nil {
+		t.Fatalf("SaveResults with nested dir: %v", err)
 	}
 
-	content, err := os.ReadFile(filepath.Join(dir, "test.json"))
+	content, err := os.ReadFile(filepath.Join(dir, ResultFilename("test")))
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
@@ -96,6 +100,7 @@ func TestSaveJSON_CreatesDirectory(t *testing.T) {
 
 func TestSaveReport_SectionsField(t *testing.T) {
 	dir := t.TempDir()
+	store := NewFileReportStore(dir)
 	report, err := NewRenderedReport(RenderedReportOptions{
 		Producer: "report_a",
 		Title:    "Section Report",
@@ -112,7 +117,7 @@ func TestSaveReport_SectionsField(t *testing.T) {
 		t.Fatalf("NewRenderedReport: %v", err)
 	}
 
-	if saveErr := SaveReport(dir, report); saveErr != nil {
+	if saveErr := store.SaveReport(context.Background(), report); saveErr != nil {
 		t.Fatalf("SaveReport: %v", saveErr)
 	}
 
@@ -156,8 +161,9 @@ func TestSaveReport_RejectsInvalidReport(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			store := NewFileReportStore(t.TempDir())
 
-			err := SaveReport(t.TempDir(), tt.report)
+			err := store.SaveReport(context.Background(), tt.report)
 			if err == nil {
 				t.Fatal("SaveReport() error = nil, want error")
 			}
@@ -179,6 +185,7 @@ func TestReportFilename(t *testing.T) {
 
 func TestLoadReport(t *testing.T) {
 	dir := t.TempDir()
+	store := NewFileReportStore(dir)
 	report := &Report{
 		Producer: "report_b",
 		Title:    "Report B",
@@ -186,7 +193,7 @@ func TestLoadReport(t *testing.T) {
 		Summary:  "warned",
 	}
 
-	if err := SaveReport(dir, report); err != nil {
+	if err := store.SaveReport(context.Background(), report); err != nil {
 		t.Fatalf("SaveReport: %v", err)
 	}
 
@@ -205,18 +212,19 @@ func TestLoadReport(t *testing.T) {
 
 func TestLoadReports(t *testing.T) {
 	dir := t.TempDir()
+	store := NewFileReportStore(dir)
 	reports := []*Report{
 		{Producer: "report_c", Title: "Update", Status: ReportStatusPass},
 		{Producer: "report_a", Title: "Cost", Status: ReportStatusWarn},
 	}
 
 	for _, report := range reports {
-		if err := SaveReport(dir, report); err != nil {
+		if err := store.SaveReport(context.Background(), report); err != nil {
 			t.Fatalf("SaveReport(%s): %v", report.Producer, err)
 		}
 	}
 
-	loaded, err := LoadReports(dir)
+	loaded, err := store.LoadReports(context.Background())
 	if err != nil {
 		t.Fatalf("LoadReports: %v", err)
 	}
@@ -275,6 +283,7 @@ func TestLoadReport_InvalidRootFails(t *testing.T) {
 
 func TestSaveReport_PreservesProvenance(t *testing.T) {
 	dir := t.TempDir()
+	store := NewFileReportStore(dir)
 	report := &Report{
 		Producer: "report_c",
 		Title:    "Terraform Plan Summary",
@@ -288,7 +297,7 @@ func TestSaveReport_PreservesProvenance(t *testing.T) {
 		},
 	}
 
-	if err := SaveReport(dir, report); err != nil {
+	if err := store.SaveReport(context.Background(), report); err != nil {
 		t.Fatalf("SaveReport: %v", err)
 	}
 

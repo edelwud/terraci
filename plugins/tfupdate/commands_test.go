@@ -115,7 +115,7 @@ func TestBuildUpdateReport_NoUpdates(t *testing.T) {
 		},
 	}
 
-	report, buildErr := buildUpdateReport(result)
+	report, buildErr := buildUpdateReport(updateReportRequest{Result: result})
 	if buildErr != nil {
 		t.Fatalf("buildUpdateReport() error = %v", buildErr)
 	}
@@ -142,7 +142,7 @@ func TestBuildUpdateReport_WithUpdates(t *testing.T) {
 		},
 	}
 
-	report, buildErr := buildUpdateReport(result)
+	report, buildErr := buildUpdateReport(updateReportRequest{Result: result})
 	if buildErr != nil {
 		t.Fatalf("buildUpdateReport() error = %v", buildErr)
 	}

@@ -375,7 +375,7 @@ func TestBuildCostReport(t *testing.T) {
 		Currency:    "USD",
 	}
 
-	report, buildErr := buildCostReport(result)
+	report, buildErr := buildCostReport(costReportRequest{Result: result})
 	if buildErr != nil {
 		t.Fatalf("buildCostReport() error = %v", buildErr)
 	}
@@ -447,7 +447,7 @@ func TestBuildCostReport_IncludesPrefetchWarnings(t *testing.T) {
 		},
 	}
 
-	report, buildErr := buildCostReport(result)
+	report, buildErr := buildCostReport(costReportRequest{Result: result})
 	if buildErr != nil {
 		t.Fatalf("buildCostReport() error = %v", buildErr)
 	}
@@ -472,7 +472,7 @@ func TestBuildCostReport_Empty(t *testing.T) {
 		Currency: "USD",
 	}
 
-	report, buildErr := buildCostReport(result)
+	report, buildErr := buildCostReport(costReportRequest{Result: result})
 	if buildErr != nil {
 		t.Fatalf("buildCostReport() error = %v", buildErr)
 	}
@@ -498,7 +498,7 @@ func TestBuildCostReport_AllErrors(t *testing.T) {
 		Currency: "USD",
 	}
 
-	report, buildErr := buildCostReport(result)
+	report, buildErr := buildCostReport(costReportRequest{Result: result})
 	if buildErr != nil {
 		t.Fatalf("buildCostReport() error = %v", buildErr)
 	}
@@ -530,7 +530,7 @@ func TestBuildCostReport_EscapesMarkdownTableCells(t *testing.T) {
 		Currency: "USD",
 	}
 
-	report, buildErr := buildCostReport(result)
+	report, buildErr := buildCostReport(costReportRequest{Result: result})
 	if buildErr != nil {
 		t.Fatalf("buildCostReport() error = %v", buildErr)
 	}

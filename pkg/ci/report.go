@@ -1,12 +1,10 @@
 package ci
 
 import (
+	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
-	"sort"
 )
 
 // ReportFilename returns the canonical artifact name for a producer's report.
@@ -34,58 +32,16 @@ func StatusFromCounts(fail, warn int) ReportStatus {
 	}
 }
 
-// SaveReport writes a report as {serviceDir}/{producer}-report.json.
-func SaveReport(serviceDir string, report *Report) error {
-	if err := report.Validate(); err != nil {
-		return fmt.Errorf("validate report: %w", err)
-	}
-	return SaveJSON(serviceDir, ReportFilename(report.Producer), report)
-}
-
-// SaveResultsAndReport persists a producer's raw result payload alongside its
-// canonical Report. Both writes are attempted independently — failures are
-// joined into a single error so callers always know which side broke.
-//
-// Replaces the recurring 6-line "save results, build report, save report"
-// pattern in cost / policy / tfupdate. Producers must build their report up
-// front (since report construction returns its own error) and pass it in.
-func SaveResultsAndReport(serviceDir, resultsFilename string, results any, report *Report) error {
-	if serviceDir == "" {
-		return nil
-	}
-
-	var errs []error
-	if resultsFilename != "" {
-		if err := SaveJSON(serviceDir, resultsFilename, results); err != nil {
-			errs = append(errs, fmt.Errorf("save results: %w", err))
-		}
-	}
-	if report != nil {
-		if err := SaveReport(serviceDir, report); err != nil {
-			errs = append(errs, fmt.Errorf("save report: %w", err))
-		}
-	}
-	return errors.Join(errs...)
-}
-
-// SaveJSON writes any value as indented JSON to {serviceDir}/{filename}.
-func SaveJSON(serviceDir, filename string, v any) error {
-	if err := os.MkdirAll(serviceDir, 0o755); err != nil {
-		return fmt.Errorf("create directory: %w", err)
-	}
-	path := filepath.Join(serviceDir, filename)
-	file, err := os.Create(path)
-	if err != nil {
-		return fmt.Errorf("create file: %w", err)
-	}
-	defer file.Close()
-	enc := json.NewEncoder(file)
-	enc.SetIndent("", "  ")
-	return enc.Encode(v)
-}
-
-// LoadReport reads a single report file from disk.
+// LoadReport reads and validates a single report file from disk. It is intended
+// for low-level tests and store internals; producers should use ReportStore.
 func LoadReport(path string) (*Report, error) {
+	return loadReport(context.Background(), path)
+}
+
+func loadReport(ctx context.Context, path string) (*Report, error) {
+	if err := contextError(ctx); err != nil {
+		return nil, err
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read report: %w", err)
@@ -100,29 +56,4 @@ func LoadReport(path string) (*Report, error) {
 	}
 
 	return &report, nil
-}
-
-// LoadReports reads all *-report.json files from the service directory in
-// deterministic filename order.
-func LoadReports(serviceDir string) ([]*Report, error) {
-	pattern := filepath.Join(serviceDir, "*-report.json")
-	files, err := filepath.Glob(pattern)
-	if err != nil {
-		return nil, fmt.Errorf("glob reports: %w", err)
-	}
-	if len(files) == 0 {
-		return nil, nil
-	}
-
-	sort.Strings(files)
-	reports := make([]*Report, 0, len(files))
-	for _, file := range files {
-		report, err := LoadReport(file)
-		if err != nil {
-			return nil, fmt.Errorf("load report %s: %w", filepath.Base(file), err)
-		}
-		reports = append(reports, report)
-	}
-
-	return reports, nil
 }

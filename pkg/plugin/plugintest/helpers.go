@@ -81,7 +81,7 @@ func NewAppContextWithResolver(t *testing.T, workDir string, resolver plugin.Res
 		WorkDir:    workDir,
 		ServiceDir: serviceDir,
 		Version:    "test",
-		Reports:    plugin.NewReportRegistry(),
+		Reports:    ci.NewFileReportStore(serviceDir),
 		Resolver:   resolver,
 	})
 }

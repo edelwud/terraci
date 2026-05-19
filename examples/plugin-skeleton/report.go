@@ -18,46 +18,43 @@ import (
 //  1. Convert your domain result into ci.RenderBlock values. Producer plugins
 //     own their analysis model; reports expose only render-ready JSON.
 //
-//  2. Build a ci.ReportSection via ci.EncodeRenderSection.
+//  2. Compose the final ci.Report via ci.NewRenderedReport.
 //
-//  3. Compose the final ci.Report and persist it via ci.SaveResultsAndReport
-//     — that helper also handles the "save results JSON alongside" case if
-//     you have raw analysis output.
+//  3. Persist it via appCtx.Reports().SaveReport, or SaveResultsAndReport
+//     when you also have raw analysis output.
 //
-//  4. Always populate Provenance via ci.NewProvenance(). Local consumers
-//     (localexec/render) compare the fingerprint against the live workspace
-//     to decide whether the on-disk report is still trustworthy.
+//  4. Always pass ci.ArtifactContext into ci.NewRenderedReport. Local
+//     consumers compare the fingerprint against the live workspace to decide
+//     whether the on-disk report is still trustworthy.
 
-func runProducer(_ context.Context, appCtx *plugin.AppContext, cfg *Config) error {
-	section, err := ci.EncodeRenderSection(
-		"Skeleton payload",
-		"one demo section",
-		ci.ReportStatusPass,
-		ci.RenderTableBlock("", []string{"Field", "Value"}, [][]string{
-			{"Greeting", cfg.Greeting},
-			{"Work dir", appCtx.WorkDir()},
-			{"Service dir", appCtx.ServiceDir()},
-		}),
-	)
-	if err != nil {
-		return fmt.Errorf("encode section: %w", err)
-	}
-
-	report := &ci.Report{
+func runProducer(ctx context.Context, appCtx *plugin.AppContext, cfg *Config) error {
+	report, err := ci.NewRenderedReport(ci.RenderedReportOptions{
 		Producer: pluginName,
 		Title:    "Skeleton Report",
 		Status:   ci.ReportStatusPass,
 		Summary:  "skeleton payload generated",
-		// CommitSHA / PipelineID can be sourced from a CI provider when
-		// available — see plugins/summary for the canonical pattern.
-		Provenance: ci.NewProvenance("", "", ""),
-		Sections:   []ci.ReportSection{section},
+		Artifact: ci.NewArtifactContext(ci.ArtifactContextOptions{
+			ServiceDir: appCtx.ServiceDir(),
+			WorkDir:    appCtx.WorkDir(),
+		}),
+		Sections: []ci.RenderedSectionOptions{{
+			Title:   "Skeleton payload",
+			Summary: "one demo section",
+			Blocks: []ci.RenderBlock{
+				ci.RenderTableBlock("", []string{"Field", "Value"}, [][]string{
+					{"Greeting", cfg.Greeting},
+					{"Work dir", appCtx.WorkDir()},
+					{"Service dir", appCtx.ServiceDir()},
+				}),
+			},
+		}},
+	})
+	if err != nil {
+		return fmt.Errorf("build report: %w", err)
 	}
 
-	// SaveResultsAndReport handles directory creation and atomic JSON write.
-	// Pass nil for the results filename if you don't have a separate raw
-	// payload to persist — only the report goes to disk.
-	if err := ci.SaveResultsAndReport(appCtx.ServiceDir(), "", nil, report); err != nil {
+	// SaveReport handles directory creation and canonical artifact filenames.
+	if err := appCtx.Reports().SaveReport(ctx, report); err != nil {
 		return fmt.Errorf("save report: %w", err)
 	}
 

@@ -98,13 +98,13 @@
 //
 //   - capability interfaces in pkg/plugin (CI provider, change detection, …)
 //   - shared types in pkg/ci (Report, ReportSection, PlanResult, …)
-//   - file-based reports under appCtx.ServiceDir() ({producer}-report.json)
-//   - the in-process ReportRegistry on AppContext (when transient sharing
-//     within a single command run is enough)
+//   - the ci.ReportStore on AppContext, which owns both file-backed artifacts
+//     ({producer}-report.json) and in-process report exchange
 //
-// summary is the canonical consumer of file-based reports; cost/policy/
+// summary is the canonical consumer of report artifacts; cost/policy/
 // tfupdate are the canonical producers. Producers must convert domain results
-// into ci.RenderBlock values and publish reports with ci.NewRenderedReport.
+// into ci.RenderBlock values, derive provenance from ci.ArtifactContext, and
+// publish reports with ci.NewRenderedReport through appCtx.Reports().
 // ReportSection is a value object: external plugins should not construct
 // section JSON or payloads manually, and direct field access is intentionally
 // unavailable. Consumers should use ci.DecodeRenderSection or

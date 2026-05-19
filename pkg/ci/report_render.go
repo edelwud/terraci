@@ -51,12 +51,12 @@ type RenderDetails struct {
 // RenderedReportOptions describes a complete producer report assembled from
 // render-ready sections.
 type RenderedReportOptions struct {
-	Producer   string
-	Title      string
-	Status     ReportStatus
-	Summary    string
-	Provenance *ReportProvenance
-	Sections   []RenderedSectionOptions
+	Producer string
+	Title    string
+	Status   ReportStatus
+	Summary  string
+	Artifact ArtifactContext
+	Sections []RenderedSectionOptions
 }
 
 // RenderedSectionOptions describes one render-ready report section.
@@ -82,16 +82,12 @@ func NewRenderedReport(opts RenderedReportOptions) (*Report, error) {
 		sections = append(sections, section)
 	}
 
-	provenance := opts.Provenance
-	if provenance == nil {
-		provenance = NewProvenance("", "", "")
-	}
 	report := &Report{
 		Producer:   opts.Producer,
 		Title:      opts.Title,
 		Status:     opts.Status,
 		Summary:    opts.Summary,
-		Provenance: provenance,
+		Provenance: opts.Artifact.Provenance(),
 		Sections:   sections,
 	}
 	if err := report.Validate(); err != nil {

@@ -1,6 +1,7 @@
 package summaryengine
 
 import (
+	"context"
 	"fmt"
 
 	log "github.com/caarlos0/log"
@@ -14,11 +15,6 @@ type PlanScanner interface {
 	ScanPlanResults(rootDir string, segments []string) (*ci.PlanResultCollection, error)
 }
 
-// ReportLoader loads producer reports from the service directory.
-type ReportLoader interface {
-	LoadReports(serviceDir string) ([]*ci.Report, error)
-}
-
 type reportSelection struct {
 	reports  []*ci.Report
 	warnings []string
@@ -30,12 +26,6 @@ func (defaultPlanScanner) ScanPlanResults(rootDir string, segments []string) (*c
 	return planresults.Scan(rootDir, segments)
 }
 
-type defaultReportLoader struct{}
-
-func (defaultReportLoader) LoadReports(serviceDir string) ([]*ci.Report, error) {
-	return ci.LoadReports(serviceDir)
-}
-
 func loadPlanResults(runtime Runtime) (*ci.PlanResultCollection, error) {
 	collection, err := planScanner(runtime).ScanPlanResults(runtime.WorkDir, runtime.Segments)
 	if err != nil {
@@ -44,8 +34,8 @@ func loadPlanResults(runtime Runtime) (*ci.PlanResultCollection, error) {
 	return collection, nil
 }
 
-func loadReportSelection(runtime Runtime, collection *ci.PlanResultCollection) (reportSelection, error) {
-	reports, err := reportLoader(runtime).LoadReports(runtime.ServiceDir)
+func loadReportSelection(ctx context.Context, runtime Runtime, collection *ci.PlanResultCollection) (reportSelection, error) {
+	reports, err := reportStore(runtime).LoadReports(ctx)
 	if err != nil {
 		return reportSelection{}, fmt.Errorf("failed to load plugin reports: %w", err)
 	}
@@ -95,11 +85,14 @@ func planScanner(runtime Runtime) PlanScanner {
 	return defaultPlanScanner{}
 }
 
-func reportLoader(runtime Runtime) ReportLoader {
-	if runtime.ReportLoader != nil {
-		return runtime.ReportLoader
+func reportStore(runtime Runtime) ci.ReportStore {
+	if runtime.ReportStore != nil {
+		return runtime.ReportStore
 	}
-	return defaultReportLoader{}
+	if runtime.ServiceDir != "" {
+		return ci.NewFileReportStore(runtime.ServiceDir)
+	}
+	return ci.NewMemoryReportStore()
 }
 
 func logWarnings(warnings []string) {

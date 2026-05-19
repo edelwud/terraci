@@ -3,6 +3,7 @@ package cmd
 import (
 	"path/filepath"
 
+	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/registry"
@@ -29,10 +30,10 @@ type App struct {
 	Commit  string
 	Date    string
 
-	// reports is the long-lived in-process registry. AppContexts created
-	// for each command share this registry so mid-command report exchange
-	// keeps working across cobra command boundaries.
-	reports *plugin.ReportRegistry
+	// reports is the command report store. AppContexts created for each command
+	// share this store so file-backed artifacts and mid-command report exchange
+	// use the same boundary.
+	reports ci.ReportStore
 }
 
 func newApp(version, commit, date string) *App {
@@ -41,7 +42,6 @@ func newApp(version, commit, date string) *App {
 		Commit:  commit,
 		Date:    date,
 		Plugins: registry.New(),
-		reports: plugin.NewReportRegistry(),
 	}
 }
 
@@ -54,7 +54,7 @@ func (a *App) BuildContext() *plugin.AppContext {
 		a.Plugins = registry.New()
 	}
 	if a.reports == nil {
-		a.reports = plugin.NewReportRegistry()
+		a.reports = ci.NewFileReportStore(a.serviceDir())
 	}
 	return plugin.NewAppContext(plugin.AppContextOptions{
 		Config:        a.Config,

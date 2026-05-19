@@ -6,7 +6,31 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestArtifactContext_ProvenanceDefaultsGeneratedAt(t *testing.T) {
+	t.Parallel()
+
+	artifact := NewArtifactContext(ArtifactContextOptions{
+		ServiceDir:             "/service",
+		WorkDir:                "/work",
+		CommitSHA:              "commit",
+		PipelineID:             "pipeline",
+		PlanResultsFingerprint: "fingerprint",
+	})
+	provenance := artifact.Provenance()
+
+	if provenance.GeneratedAt.IsZero() {
+		t.Fatal("GeneratedAt is zero, want default timestamp")
+	}
+	if provenance.GeneratedAt.Location() != time.UTC {
+		t.Fatalf("GeneratedAt location = %v, want UTC", provenance.GeneratedAt.Location())
+	}
+	if provenance.CommitSHA != "commit" || provenance.PipelineID != "pipeline" || provenance.PlanResultsFingerprint != "fingerprint" {
+		t.Fatalf("Provenance = %#v, want artifact metadata", provenance)
+	}
+}
 
 func TestNewRenderedSection_RejectsMalformedBlocks(t *testing.T) {
 	t.Parallel()
@@ -164,10 +188,14 @@ func TestReportClone_DefensivelyCopiesSectionsAndProvenance(t *testing.T) {
 	t.Parallel()
 
 	report, err := NewRenderedReport(RenderedReportOptions{
-		Producer:   "producer",
-		Title:      "Producer Report",
-		Status:     ReportStatusWarn,
-		Provenance: NewProvenance("commit", "pipeline", "fingerprint"),
+		Producer: "producer",
+		Title:    "Producer Report",
+		Status:   ReportStatusWarn,
+		Artifact: NewArtifactContext(ArtifactContextOptions{
+			CommitSHA:              "commit",
+			PipelineID:             "pipeline",
+			PlanResultsFingerprint: "fingerprint",
+		}),
 		Sections: []RenderedSectionOptions{{
 			Title:  "Findings",
 			Blocks: []RenderBlock{RenderTextBlock("original")},

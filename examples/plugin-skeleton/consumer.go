@@ -15,14 +15,13 @@ import (
 //
 // Steps:
 //
-//  1. ci.LoadReports(serviceDir) returns every *-report.json in
-//     deterministic order. Filter out your own producer to avoid an
-//     accidental self-loop.
+//  1. appCtx.Reports().LoadReports(ctx) returns every available report in
+//     deterministic order. Filter out your own producer to avoid an accidental
+//     self-loop.
 //
-//  2. Branch on report.Producer or section.Kind to decide what to render.
-//     Decode opaque payloads via ci.DecodeSection[T] when you actually
-//     need the typed data — falling back to the section's pre-rendered
-//     Title/SectionSummary is fine for at-a-glance views.
+//  2. Branch on report.Producer when needed. Decode render-ready sections via
+//     ci.DecodeRenderSection; external plugins should not parse payload JSON
+//     by hand.
 //
 //  3. Validate report.Provenance against the live workspace if your
 //     consumer's correctness depends on the report being current. The
@@ -30,8 +29,8 @@ import (
 //     PlanResultCollection; localexec uses the same idea before
 //     re-rendering a stale comment locally.
 
-func runConsumer(_ context.Context, appCtx *plugin.AppContext) error {
-	reports, err := ci.LoadReports(appCtx.ServiceDir())
+func runConsumer(ctx context.Context, appCtx *plugin.AppContext) error {
+	reports, err := appCtx.Reports().LoadReports(ctx)
 	if err != nil {
 		return fmt.Errorf("load reports: %w", err)
 	}
@@ -50,18 +49,12 @@ func runConsumer(_ context.Context, appCtx *plugin.AppContext) error {
 
 		// Optional: decode render-ready section payloads.
 		for _, section := range r.Sections {
-			if section.Kind == ci.ReportSectionKindRendered {
-				rendered, err := ci.DecodeSection[ci.RenderSection](section)
-				if err != nil {
-					fmt.Printf("    rendered: decode error: %v\n", err)
-					continue
-				}
-				fmt.Printf("    %s: %d block(s)\n", section.Title, len(rendered.Blocks))
+			rendered, err := ci.DecodeRenderSection(section)
+			if err != nil {
+				fmt.Printf("    %s: decode error: %v\n", section.Title(), err)
 				continue
 			}
-
-			// Opaque payload — display only the producer-supplied title.
-			fmt.Printf("    %s: %s\n", section.Kind, section.Title)
+			fmt.Printf("    %s: %d block(s)\n", section.Title(), len(rendered.Blocks))
 		}
 	}
 

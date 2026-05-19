@@ -88,7 +88,7 @@ func DefaultDependencies(appCtx *plugin.AppContext) Dependencies {
 		Planner:        planner.New(),
 		Contributions:  contextContributionCollector{},
 		RuntimeFactory: runner.NewFactory(),
-		SummaryReports: render.NewSummaryReportLoader(appCtx.ServiceDir(), appCtx.WorkDir(), segments),
+		SummaryReports: render.NewSummaryReportLoader(appCtx.Reports(), appCtx.WorkDir(), segments),
 		Output:         render.NewLogOutput(),
 	}
 }
@@ -161,7 +161,7 @@ func (u *UseCase) Run(ctx context.Context, req spec.ExecuteRequest) error {
 	if err != nil {
 		return err
 	}
-	if resetErr := u.summaryReports.Reset(); resetErr != nil {
+	if resetErr := u.summaryReports.Reset(ctx); resetErr != nil {
 		return resetErr
 	}
 
@@ -175,7 +175,7 @@ func (u *UseCase) Run(ctx context.Context, req spec.ExecuteRequest) error {
 		return u.output.Failure(resultExec, err)
 	}
 
-	summaryReport, err := u.summaryReports.Load()
+	summaryReport, err := u.summaryReports.Load(ctx)
 	if err != nil {
 		log.WithError(err).Warn("skip summary report rendering")
 	}

@@ -31,7 +31,7 @@ func runEstimationUseCase(ctx context.Context, appCtx *plugin.AppContext, runtim
 		return fmt.Errorf("cost: estimate costs: %w", err)
 	}
 
-	if err := saveArtifacts(appCtx.ServiceDir(), result); err != nil {
+	if err := saveArtifacts(ctx, appCtx, result); err != nil {
 		log.WithError(err).Warn("cost: failed to save artifacts")
 	}
 

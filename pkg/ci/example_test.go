@@ -12,6 +12,10 @@ func ExampleNewRenderedReport() {
 		Title:    "Policy Check",
 		Status:   ci.ReportStatusWarn,
 		Summary:  "1 warning",
+		Artifact: ci.NewArtifactContext(ci.ArtifactContextOptions{
+			CommitSHA:              "abc123",
+			PlanResultsFingerprint: "fingerprint",
+		}),
 		Sections: []ci.RenderedSectionOptions{{
 			Title:   "Findings",
 			Summary: "1 warning",

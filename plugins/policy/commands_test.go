@@ -31,7 +31,7 @@ func TestBuildPolicyReport_WithFailures(t *testing.T) {
 		},
 	}
 
-	report, buildErr := buildPolicyReport(summary)
+	report, buildErr := buildPolicyReport(policyReportRequest{Summary: summary})
 	if buildErr != nil {
 		t.Fatalf("buildPolicyReport() error = %v", buildErr)
 	}
@@ -68,7 +68,7 @@ func TestBuildPolicyReport_WithWarnings(t *testing.T) {
 		},
 	}
 
-	report, buildErr := buildPolicyReport(summary)
+	report, buildErr := buildPolicyReport(policyReportRequest{Summary: summary})
 	if buildErr != nil {
 		t.Fatalf("buildPolicyReport() error = %v", buildErr)
 	}
@@ -145,7 +145,7 @@ func TestOutputResult_NilSummary(t *testing.T) {
 }
 
 func TestBuildPolicyReport_NilSummary(t *testing.T) {
-	_, err := buildPolicyReport(nil)
+	_, err := buildPolicyReport(policyReportRequest{})
 	if err == nil {
 		t.Fatal("buildPolicyReport() error = nil, want nil summary error")
 	}
