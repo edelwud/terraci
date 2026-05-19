@@ -14,6 +14,7 @@ import (
 	"github.com/edelwud/terraci/pkg/planresults"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
+	"github.com/edelwud/terraci/plugins/internal/cliout"
 )
 
 type planDiscovery struct {
@@ -22,22 +23,30 @@ type planDiscovery struct {
 	regions     map[string]string
 }
 
-func runEstimationUseCase(ctx context.Context, appCtx *plugin.AppContext, runtime *costRuntime, modulePath, outputFmt string, w io.Writer) error {
-	plans, err := discoverModulePlans(appCtx, modulePath)
+type estimateRequest struct {
+	ModulePath string
+}
+
+type estimateResult struct {
+	Result      *model.EstimateResult
+	PlanResults *ci.PlanResultCollection
+}
+
+func runEstimationUseCase(ctx context.Context, appCtx *plugin.AppContext, runtime *costRuntime, req estimateRequest) (*estimateResult, error) {
+	plans, err := discoverModulePlans(appCtx, req.ModulePath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	result, err := runtime.estimator.EstimateModules(ctx, plans.modulePaths, plans.regions)
 	if err != nil {
-		return fmt.Errorf("cost: estimate costs: %w", err)
+		return nil, fmt.Errorf("cost: estimate costs: %w", err)
 	}
 
-	if err := saveArtifacts(ctx, appCtx, result, plans.collection); err != nil {
-		log.WithError(err).Warn("cost: failed to save artifacts")
-	}
-
-	return outputResult(w, appCtx.WorkDir(), outputFmt, result)
+	return &estimateResult{
+		Result:      result,
+		PlanResults: plans.collection,
+	}, nil
 }
 
 func discoverModulePlans(appCtx *plugin.AppContext, modulePath string) (*planDiscovery, error) {
@@ -135,10 +144,21 @@ func (p *Plugin) runEstimation(ctx context.Context, appCtx *plugin.AppContext, m
 }
 
 func (p *Plugin) runEstimationWithWriter(ctx context.Context, appCtx *plugin.AppContext, modulePath, outputFmt string, w io.Writer) error {
+	format, err := cliout.ParseFormat(outputFmt)
+	if err != nil {
+		return err
+	}
 	runtime, err := p.runtime(ctx, appCtx)
 	if err != nil {
 		return err
 	}
 
-	return runEstimationUseCase(ctx, appCtx, runtime, modulePath, outputFmt, w)
+	result, err := runEstimationUseCase(ctx, appCtx, runtime, estimateRequest{ModulePath: modulePath})
+	if err != nil {
+		return err
+	}
+	if err := saveArtifacts(ctx, appCtx, result.Result, result.PlanResults); err != nil {
+		log.WithError(err).Warn("cost: failed to save artifacts")
+	}
+	return outputResult(w, appCtx.WorkDir(), format, result.Result)
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/edelwud/terraci/pkg/ci/citest"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
+	"github.com/edelwud/terraci/plugins/internal/cliout"
 	"github.com/edelwud/terraci/plugins/internal/reportrender"
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
@@ -97,7 +98,7 @@ func TestOutputResult_JSON(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := outputResult(&buf, outputFormatJSON, summary, false)
+	err := outputResult(&buf, cliout.FormatJSON, summary, false)
 	if err != nil {
 		t.Fatalf("outputResult(json) error = %v", err)
 	}
@@ -122,7 +123,7 @@ func TestOutputResult_JSONBlocks(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := outputResult(&buf, outputFormatJSON, summary, true)
+	err := outputResult(&buf, cliout.FormatJSON, summary, true)
 	if err == nil {
 		t.Fatal("outputResult(json) error = nil, want blocking error")
 	}
@@ -135,7 +136,7 @@ func TestOutputResult_JSONBlocks(t *testing.T) {
 }
 
 func TestOutputResult_NilSummary(t *testing.T) {
-	err := outputResult(&bytes.Buffer{}, outputFormatText, nil, false)
+	err := outputResult(&bytes.Buffer{}, cliout.FormatText, nil, false)
 	if err == nil {
 		t.Fatal("outputResult() error = nil, want nil summary error")
 	}
@@ -220,11 +221,11 @@ func TestPlugin_Commands_Registration(t *testing.T) {
 }
 
 func TestParseOutputFormat_RejectsUnknown(t *testing.T) {
-	_, err := parseOutputFormat("yaml")
+	_, err := cliout.ParseFormat("yaml")
 	if err == nil {
-		t.Fatal("parseOutputFormat() error = nil, want invalid format error")
+		t.Fatal("ParseFormat() error = nil, want invalid format error")
 	}
-	if !strings.Contains(err.Error(), "unsupported policy output format") {
+	if !strings.Contains(err.Error(), "unsupported output format") {
 		t.Fatalf("error = %q, want unsupported format message", err.Error())
 	}
 }

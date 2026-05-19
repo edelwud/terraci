@@ -2,7 +2,6 @@ package policy
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -24,13 +23,12 @@ func (p *Plugin) Commands() []*cobra.Command {
 		Use:   "pull",
 		Short: "Pull policies from configured sources",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			appCtx := plugin.FromContext(cmd.Context())
-			current, err := plugin.CommandInstance[*Plugin](appCtx, p.Name())
+			appCtx, current, err := plugin.CommandPlugin[*Plugin](cmd, p.Name())
 			if err != nil {
 				return err
 			}
-			if !current.IsEnabled() {
-				return errors.New("policy checks are not enabled (set extensions.policy.enabled: true)")
+			if err := plugin.RequireEnabled(current, "policy checks are not enabled (set extensions.policy.enabled: true)"); err != nil {
+				return err
 			}
 
 			log.Info("pulling policies from configured sources")
@@ -44,13 +42,12 @@ func (p *Plugin) Commands() []*cobra.Command {
 		Use:   "check",
 		Short: "Check Terraform plans against policies",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			appCtx := plugin.FromContext(cmd.Context())
-			current, err := plugin.CommandInstance[*Plugin](appCtx, p.Name())
+			appCtx, current, err := plugin.CommandPlugin[*Plugin](cmd, p.Name())
 			if err != nil {
 				return err
 			}
-			if !current.IsEnabled() {
-				return errors.New("policy checks are not enabled (set extensions.policy.enabled: true)")
+			if err := plugin.RequireEnabled(current, "policy checks are not enabled (set extensions.policy.enabled: true)"); err != nil {
+				return err
 			}
 
 			log.Info("running policy checks")

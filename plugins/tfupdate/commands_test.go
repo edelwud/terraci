@@ -12,6 +12,7 @@ import (
 	"github.com/edelwud/terraci/pkg/ci/citest"
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/plugins/internal/cliout"
 	"github.com/edelwud/terraci/plugins/internal/reportrender"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
 	"github.com/edelwud/terraci/plugins/tfupdate/internal/domain"
@@ -41,45 +42,45 @@ func TestResolveCommandTimeout(t *testing.T) {
 	tests := []struct {
 		name    string
 		cfg     *tfupdateengine.UpdateConfig
-		opts    runtimeOptions
+		req     CheckRequest
 		want    time.Duration
 		wantErr bool
 	}{
 		{
 			name: "read default",
 			cfg:  &tfupdateengine.UpdateConfig{},
-			opts: runtimeOptions{},
+			req:  CheckRequest{},
 			want: tfupdateengine.DefaultReadTimeout,
 		},
 		{
 			name: "write default",
 			cfg:  &tfupdateengine.UpdateConfig{},
-			opts: runtimeOptions{write: true},
+			req:  CheckRequest{Write: true},
 			want: tfupdateengine.DefaultWriteTimeout,
 		},
 		{
 			name: "config override",
 			cfg:  &tfupdateengine.UpdateConfig{Timeout: "30m"},
-			opts: runtimeOptions{write: true},
+			req:  CheckRequest{Write: true},
 			want: 30 * time.Minute,
 		},
 		{
 			name: "flag override",
 			cfg:  &tfupdateengine.UpdateConfig{Timeout: "30m"},
-			opts: runtimeOptions{write: true, timeout: "45m"},
+			req:  CheckRequest{Write: true, Timeout: "45m"},
 			want: 45 * time.Minute,
 		},
 		{
 			name:    "invalid override",
 			cfg:     &tfupdateengine.UpdateConfig{},
-			opts:    runtimeOptions{timeout: "later"},
+			req:     CheckRequest{Timeout: "later"},
 			wantErr: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := resolveCommandTimeout(tt.cfg, tt.opts)
+			got, err := resolveCommandTimeout(tt.cfg, tt.req)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("resolveCommandTimeout() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -87,6 +88,34 @@ func TestResolveCommandTimeout(t *testing.T) {
 				t.Fatalf("resolveCommandTimeout() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestParseCheckRequest(t *testing.T) {
+	t.Parallel()
+
+	cmd := newTestPlugin(t).Commands()[0]
+	if err := cmd.Flags().Parse([]string{
+		"--write",
+		"--module", "platform/prod/vpc",
+		"--output", "json",
+		"--target", "providers",
+		"--bump", "patch",
+		"--pin",
+		"--timeout", "15m",
+		"--lock-platforms", "linux_amd64,darwin_arm64",
+	}); err != nil {
+		t.Fatalf("ParseFlags() error = %v", err)
+	}
+
+	req, err := parseCheckRequest(cmd)
+	if err != nil {
+		t.Fatalf("parseCheckRequest() error = %v", err)
+	}
+	if !req.Write || req.ModulePath != "platform/prod/vpc" || req.OutputFormat != cliout.FormatJSON ||
+		req.Target != "providers" || req.Bump != "patch" || !req.Pin || req.Timeout != "15m" ||
+		strings.Join(req.LockPlatforms, ",") != "linux_amd64,darwin_arm64" {
+		t.Fatalf("parseCheckRequest() = %#v, want parsed flags", req)
 	}
 }
 

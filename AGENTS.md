@@ -66,7 +66,7 @@ pkg/                            # Public API — importable by external plugins 
 │   ├── enable.go               # EnablePolicy enum
 │   ├── context.go              # AppContext + AppContextOptions constructor
 │   ├── context_binding.go      # AppContext.Update / SetResolver / BeginCommand / Freeze
-│   ├── command_binding.go      # CommandInstance[T] — typed command-scoped lookup
+│   ├── command_binding.go      # CommandPlugin[T], CommandInstance[T], RequireEnabled
 │   ├── runtime.go              # RuntimeProvider + RuntimeAs() + BuildRuntime[T]()
 │   ├── resolver.go             # Resolver interface (extended with capability resolution methods)
 │   ├── noop_resolver.go        # default no-op Resolver (never nil)
@@ -142,7 +142,7 @@ plugins/                        # Built-in plugins — one file per capability
 │   ├── lifecycle.go            # Preflightable (cheap config/cache validation)
 │   ├── commands.go             # CommandProvider (terraci cost)
 │   ├── runtime.go              # RuntimeProvider (lazy estimator construction)
-│   ├── usecases.go             # Discovery/estimate/artifact orchestration
+│   ├── usecases.go             # Request/result usecase orchestration
 │   ├── pipeline.go             # PipelineContributor
 │   ├── init_wizard.go          # InitContributor
 │   ├── output.go               # CLI rendering helpers
@@ -186,7 +186,8 @@ plugins/                        # Built-in plugins — one file per capability
     ├── detect.go               # ChangeDetectionProvider
     └── internal/gitclient/     # client, detector, diff
 └── internal/
-    ├── cliout/                 # Shared plugin CLI output helpers
+    ├── artifacts/              # Shared producer artifact persistence helper
+    ├── cliout/                 # Shared plugin CLI output helpers and Format parser
     ├── ciplugin/               # Shared CI-provider helpers
     └── reportrender/           # Shared markdown/CLI renderer for ci.Report render-ready payloads
 
@@ -209,9 +210,9 @@ The core `pkg/` tree is **plugin-agnostic** — no package outside `pkg/plugin` 
 Each feature/plugin follows one-file-per-capability where it applies, with runtime-heavy plugins also using a lazy runtime layer. Backend plugins such as `diskblob` and `inmemcache` are intentionally smaller and only implement their relevant provider interfaces:
 - `plugin.go` — init(), Plugin struct with BasePlugin[C] embedding, FlagOverridable
 - `lifecycle.go` — Preflightable
-- `runtime.go` — RuntimeProvider for lazy runtime construction
-- `usecases.go` — command orchestration over typed runtime
-- `commands.go` — CommandProvider with cobra definitions
+- `commands.go` — CommandProvider with cobra definitions; parse flags into typed requests and resolve via `plugin.CommandPlugin`
+- `runtime.go` — RuntimeProvider for lazy immutable dependency construction
+- `usecases.go` — typed Request/Result orchestration over runtime
 - `generator.go` — EnvDetector + CIInfoProvider + PipelineGeneratorFactory + CommentServiceFactory
 - `pipeline.go` — PipelineContributor(ctx) (no self-check, framework filters)
 - `init_wizard.go` — initwiz.InitContributor (uses typed *initwiz.StateMap)
@@ -227,7 +228,7 @@ Each feature/plugin follows one-file-per-capability where it applies, with runti
 2. Configure   — ConfigLoader.DecodeAndSet() for plugins with a config section under extensions:
 3. Preflight   — Preflightable.Preflight() performs cheap validation/env detection
 4. Freeze      — AppContext.Freeze() prevents further mutations
-5. Execute     — Commands/use-cases lazily build RuntimeProvider runtimes as needed
+5. Execute     — Commands parse flags into typed requests; use-cases lazily build RuntimeProvider runtimes as needed
 ```
 
 ### Capability Interfaces
@@ -262,6 +263,16 @@ Plugins with config embed `BasePlugin[C]` which auto-implements:
 Construction goes through an options struct — `plugin.NewAppContext(plugin.AppContextOptions{Config, WorkDir, ServiceDir, Version, Reports, Resolver})` — every field is optional. `Reports` is a `ci.ReportStore`; it defaults to a file-backed store when `ServiceDir` is set, otherwise an in-memory store. `ctx.Resolver()` is **never nil**: when no resolver is bound, a no-op resolver returns sentinel errors so plugins can call `ctx.Resolver().ResolveCIProvider()` etc. without nil-checks.
 
 `AppContext.Config()` returns the bound `*config.Config` pointer directly; plugins must treat it as read-only.
+
+### Command Boundary
+
+Command handlers should stay as a thin boundary: resolve `appCtx` and the command-scoped plugin with `plugin.CommandPlugin[T]`, gate configured plugins with `plugin.RequireEnabled`, parse cobra flags into a typed request, then call a usecase method. The canonical shape is:
+
+```
+cobra flags → typed Request → immutable Runtime → usecase Result → artifact persistence → output
+```
+
+RuntimeProvider implementations should hold normalized config and constructed dependencies only. Command-specific values such as `--module`, `--output`, `--write`, timeouts, and override flags belong in request structs, not mutable runtime fields.
 
 ### Resolver
 
@@ -383,7 +394,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 4. `pkg/execution.Executor.Execute(ctx, ir)` schedules jobs with dependency-aware DAG grouping
 5. `localexec/internal/runner` executes shell/tfexec jobs locally
 6. `localexec/internal/reports` loads current plugin reports through `ci.ReportStore`, applies `ci.SelectCurrentReports`, and aggregates them into a render-ready summary report
-7. `localexec/internal/render` prints the execution DAG/job summary
+7. `localexec/internal/flow` returns a typed execution result; `localexec/internal/render` prints the DAG/job summary and report sections
 
 ### Init wizard
 1. `initStateDefaults()` populates shared defaults (provider, binary, pattern, plan_enabled)
@@ -401,15 +412,16 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **IR-bound generators**: `PipelineGeneratorFactory.NewGenerator(ctx, *pipeline.IR)` — providers don't reach for depGraph/modules/contributions; the IR already encodes them.
 - **Shell rendering separated from IR**: `pkg/pipeline/cishell.RenderOperation(op)` for shell-driven CI; the IR carries `pipeline.TerraformOperation` data only.
 - **Canonical dry-run source**: dry-run stage/job counts derive from `*IR.DryRun(totalModules)`.
-- **Preflight, then lazy runtime**: framework performs cheap startup validation; heavy plugin state is built lazily inside RuntimeProvider/use-cases
+- **Preflight, then lazy runtime**: framework performs cheap startup validation; heavy plugin state is built lazily inside RuntimeProvider/use-cases. Runtime must be command-agnostic; CLI overrides live in typed request structs.
+- **Command/usecase boundary**: command callbacks use `plugin.CommandPlugin[T]` and `plugin.RequireEnabled`, parse flags into request structs, call a usecase, then handle artifact persistence and output explicitly.
 - **PipelineContributor(ctx)**: plugins add standalone DAG jobs without cross-plugin imports or cached service-dir state
 - **ServiceDir**: configurable project directory; `AppContext.ServiceDir` (absolute) for runtime, `Config.ServiceDir` (relative) for pipeline templates
-- **Report artifact lifecycle**: plan-aware producers use `PlanResultCollection -> ci.ArtifactRun -> ci.NewRenderedReport -> appCtx.Reports().ReplaceResultsAndReport(...)`. `ReplaceResultsAndReport` always updates `{producer}-results.json`; with a nil report it removes stale `{producer}-report.json`. Report-only producers may use `SaveReport`.
+- **Report artifact lifecycle**: plan-aware producers use `PlanResultCollection -> ci.ArtifactRun -> ci.NewRenderedReport -> appCtx.Reports().ReplaceResultsAndReport(...)`. Built-in producer plugins should go through `plugins/internal/artifacts.ReplaceResultsAndReport` so raw results are always persisted and stale reports are removed on nil/build errors. Report-only producers may use `SaveReport`.
 - **Report sections via render-ready payloads**: producer plugins call `ci.NewRenderedReport(...)` and publish only validated `ci.ReportSectionKindRendered` sections with `ci.RenderSection` payloads. `ReportSection` internals are private; use getters plus `ci.DecodeRenderSection`, not raw payload access. Summary/local renderers consume the generic render model through `plugins/internal/reportrender` and stay unaware of cost/policy/tfupdate domain structs.
 - **Report freshness**: `pkg/ci.SelectCurrentReports` owns current/stale/degraded policy. Summary and localexec skip reports whose non-empty `plan_results_fingerprint` does not match the current plan collection. Missing provenance is accepted as degraded mode.
 - **Zero cross-plugin imports**: plugins communicate only via `pkg/plugin` capability helpers, shared `pkg/ci` types, and `ci.ReportStore` artifacts
 - **Shared workflow**: `workflow.Run()` — scan, filter, parse, graph building. `workflow.ChangeDetector` is an alias of `plugin.ChangeDetectionProvider`.
-- **Localexec boundary**: keep shell/tfexec details inside `plugins/localexec`; `pkg/execution` stays provider-agnostic scheduler/executor infrastructure that consumes a raw `*pipeline.IR`.
+- **Localexec boundary**: keep shell/tfexec details inside `plugins/localexec`; `pkg/execution` stays provider-agnostic scheduler/executor infrastructure that consumes a raw `*pipeline.IR`. `localexec/internal/flow` returns a typed result and leaves final rendering to the executor/output layer.
 - **Reference runtime-heavy plugins**: `cost`, `policy`, `tfupdate`
 - **Parser architecture**: keep `pkg/parser` as a thin public facade; put orchestration, extraction, resolution, and source mechanics in `pkg/parser/internal/*` around the shared `pkg/parser/model`
 - **Tfupdate architecture**: keep `plugins/tfupdate` command/runtime surfaces thin; engine internals live under `planner`, `lockfile`, `sourceaddr`, `registrymeta`, `usecase`, `registryclient`, `tffile`, and `tfwrite`

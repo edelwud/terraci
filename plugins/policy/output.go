@@ -11,39 +11,21 @@ import (
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
 
-type outputFormat string
-
-const (
-	outputFormatText outputFormat = "text"
-	outputFormatJSON outputFormat = "json"
-)
-
-func parseOutputFormat(raw string) (outputFormat, error) {
-	switch outputFormat(raw) {
-	case "", outputFormatText:
-		return outputFormatText, nil
-	case outputFormatJSON:
-		return outputFormatJSON, nil
-	default:
-		return "", fmt.Errorf("unsupported policy output format %q: must be one of: text, json", raw)
-	}
-}
-
-func outputResult(w io.Writer, format outputFormat, summary *policyengine.Summary, shouldBlock bool) error {
+func outputResult(w io.Writer, format cliout.Format, summary *policyengine.Summary, shouldBlock bool) error {
 	if summary == nil {
 		return errors.New("policy summary is nil")
 	}
 
 	switch format {
-	case outputFormatJSON:
+	case cliout.FormatJSON:
 		if err := cliout.WriteJSON(w, summary); err != nil {
 			return err
 		}
 		return blockingError(summary, shouldBlock)
-	case outputFormatText, "":
+	case cliout.FormatText, "":
 		return outputText(summary, shouldBlock)
 	default:
-		return fmt.Errorf("unsupported policy output format %q: must be one of: text, json", format)
+		return fmt.Errorf("unsupported output format %q: must be one of: text, json", format)
 	}
 }
 

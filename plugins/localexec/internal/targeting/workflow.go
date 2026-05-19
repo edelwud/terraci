@@ -10,7 +10,7 @@ import (
 )
 
 type Resolver interface {
-	Resolve(ctx context.Context, req spec.ExecuteRequest, result *workflow.Result) ([]*discovery.Module, error)
+	Resolve(ctx context.Context, req spec.Request, result *workflow.Result) ([]*discovery.Module, error)
 }
 
 type WorkflowResolver struct {
@@ -27,7 +27,7 @@ func NewWorkflowResolver(appCtx *plugin.AppContext, changeDetectorResolver workf
 	return WorkflowResolver{appCtx: appCtx, changeDetectorResolver: changeDetectorResolver}
 }
 
-func (r WorkflowResolver) Resolve(ctx context.Context, req spec.ExecuteRequest, result *workflow.Result) ([]*discovery.Module, error) {
+func (r WorkflowResolver) Resolve(ctx context.Context, req spec.Request, result *workflow.Result) ([]*discovery.Module, error) {
 	return workflow.ResolveTargets(ctx, r.appCtx.WorkDir(), r.appCtx.Config(), result, workflow.TargetSelectionOptions{
 		ModulePath:             req.ModulePath,
 		ChangedOnly:            req.ChangedOnly,

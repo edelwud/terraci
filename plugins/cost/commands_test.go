@@ -12,6 +12,7 @@ import (
 	"github.com/edelwud/terraci/pkg/ci/citest"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
+	"github.com/edelwud/terraci/plugins/internal/cliout"
 	"github.com/edelwud/terraci/plugins/internal/reportrender"
 )
 
@@ -148,9 +149,12 @@ func TestPlugin_RunEstimation_Success(t *testing.T) {
 	appCtx := newTestAppContext(t, workDir)
 	runtime := newRuntimeWithEstimator(newTestEstimator(t))
 
-	err := runEstimationUseCase(context.Background(), appCtx, runtime, "", "text", io.Discard)
+	estimation, err := runEstimationUseCase(context.Background(), appCtx, runtime, estimateRequest{})
 	if err != nil {
 		t.Fatalf("runEstimation() error = %v", err)
+	}
+	if err := saveArtifacts(context.Background(), appCtx, estimation.Result, estimation.PlanResults); err != nil {
+		t.Fatalf("saveArtifacts() error = %v", err)
 	}
 
 	result := loadEstimateResult(t, appCtx.ServiceDir())
@@ -191,15 +195,14 @@ func TestPlugin_RunEstimation_ModuleFilter(t *testing.T) {
 	runtime := newRuntimeWithEstimator(newTestEstimator(t))
 
 	// Filter to only VPC module
-	err := runEstimationUseCase(context.Background(), appCtx, runtime, "platform/prod/us-east-1/vpc", "text", io.Discard)
+	estimation, err := runEstimationUseCase(context.Background(), appCtx, runtime, estimateRequest{ModulePath: "platform/prod/us-east-1/vpc"})
 	if err != nil {
 		t.Fatalf("runEstimation() error = %v", err)
 	}
 
 	// Verify only one module was estimated
-	result := loadEstimateResult(t, appCtx.ServiceDir())
-	if len(result.Modules) != 1 {
-		t.Errorf("modules count = %d, want 1 (filter should select only vpc)", len(result.Modules))
+	if len(estimation.Result.Modules) != 1 {
+		t.Errorf("modules count = %d, want 1 (filter should select only vpc)", len(estimation.Result.Modules))
 	}
 }
 
@@ -208,7 +211,7 @@ func TestPlugin_RunEstimation_JSONOutput(t *testing.T) {
 
 	// Capture JSON output via the io.Writer parameter
 	var buf strings.Builder
-	err := outputResult(&buf, appCtx.WorkDir(), "json", &model.EstimateResult{
+	err := outputResult(&buf, appCtx.WorkDir(), cliout.FormatJSON, &model.EstimateResult{
 		Modules: []model.ModuleCost{
 			{
 				ModuleID:   "test/module",
@@ -241,7 +244,7 @@ func TestPlugin_RunEstimation_TextOutput(t *testing.T) {
 	appCtx := newTestAppContext(t, t.TempDir())
 
 	output := captureTextOutput(t, func() {
-		err := outputResult(io.Discard, appCtx.WorkDir(), "text", &model.EstimateResult{
+		err := outputResult(io.Discard, appCtx.WorkDir(), cliout.FormatText, &model.EstimateResult{
 			Modules: []model.ModuleCost{
 				{
 					ModuleID:   "platform/prod/us-east-1/vpc",
@@ -273,7 +276,7 @@ func TestPlugin_OutputResult_TextOutput_UsesLoggerNotWriter(t *testing.T) {
 
 	var buf strings.Builder
 	output := captureTextOutput(t, func() {
-		err := outputResult(&buf, appCtx.WorkDir(), "text", &model.EstimateResult{
+		err := outputResult(&buf, appCtx.WorkDir(), cliout.FormatText, &model.EstimateResult{
 			Modules: []model.ModuleCost{
 				{
 					ModuleID:   "platform/prod/us-east-1/vpc",
@@ -301,7 +304,7 @@ func TestPlugin_OutputResult_TextOutput_SkipsZeroCostModule(t *testing.T) {
 	appCtx := newTestAppContext(t, t.TempDir())
 
 	output := captureTextOutput(t, func() {
-		err := outputResult(io.Discard, appCtx.WorkDir(), "text", &model.EstimateResult{
+		err := outputResult(io.Discard, appCtx.WorkDir(), cliout.FormatText, &model.EstimateResult{
 			Modules: []model.ModuleCost{
 				{
 					ModuleID:   "cdp/infra/eu-central-1/eks",
@@ -324,7 +327,7 @@ func TestPlugin_OutputResult_TextOutput_SkipsZeroCostSubmoduleHeader(t *testing.
 	appCtx := newTestAppContext(t, t.TempDir())
 
 	output := captureTextOutput(t, func() {
-		err := outputResult(io.Discard, appCtx.WorkDir(), "text", &model.EstimateResult{
+		err := outputResult(io.Discard, appCtx.WorkDir(), cliout.FormatText, &model.EstimateResult{
 			Modules: []model.ModuleCost{
 				{
 					ModuleID:   "cdp/infra/eu-central-1/eks",

@@ -11,8 +11,8 @@ import (
 	"github.com/edelwud/terraci/plugins/internal/cliout"
 )
 
-func outputResult(w io.Writer, workDir, outputFmt string, result *model.EstimateResult) error {
-	if outputFmt == "json" {
+func outputResult(w io.Writer, workDir string, format cliout.Format, result *model.EstimateResult) error {
+	if format == cliout.FormatJSON {
 		return cliout.WriteJSON(w, result)
 	}
 

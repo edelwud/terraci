@@ -16,15 +16,15 @@ import (
 // Typical shape:
 //
 //	func (p *Plugin) Runtime(_ context.Context, appCtx *AppContext) (any, error) {
-//		return newRuntime(appCtx, p.Config(), runtimeOptions{})
+//		return newRuntime(appCtx, p.Config())
 //	}
 //
-//	func (p *Plugin) runtime(ctx context.Context, appCtx *AppContext, opts *runtimeOptions) (*myRuntime, error) {
-//		if opts == nil {
-//			return BuildRuntime[*myRuntime](ctx, p, appCtx)
-//		}
-//		return newRuntime(appCtx, p.Config(), *opts)
+//	func (p *Plugin) runtime(ctx context.Context, appCtx *AppContext) (*myRuntime, error) {
+//		return plugin.BuildRuntime[*myRuntime](ctx, p, appCtx)
 //	}
+//
+// Command flags belong in a typed use-case request, not in the runtime. The
+// runtime should hold immutable dependencies and normalized config only.
 type RuntimeProvider interface {
 	Plugin
 	Runtime(ctx context.Context, appCtx *AppContext) (any, error)

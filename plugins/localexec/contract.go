@@ -75,14 +75,14 @@ func (e executorAdapter) Run(ctx context.Context, req ExecuteRequest) error {
 	return e.executor.Run(ctx, mapped)
 }
 
-func mapExecuteRequest(req ExecuteRequest) (localexecinternal.ExecuteRequest, error) {
+func mapExecuteRequest(req ExecuteRequest) (localexecinternal.Request, error) {
 	switch req.Mode {
 	case ExecutionModeRun, ExecutionModePlan:
 	default:
-		return localexecinternal.ExecuteRequest{}, fmt.Errorf("invalid local-exec mode %q", req.Mode.String())
+		return localexecinternal.Request{}, fmt.Errorf("invalid local-exec mode %q", req.Mode.String())
 	}
 
-	mapped := localexecinternal.ExecuteRequest{
+	mapped := localexecinternal.Request{
 		ChangedOnly: req.ChangedOnly,
 		BaseRef:     req.BaseRef,
 		ModulePath:  req.ModulePath,

@@ -22,9 +22,9 @@
 //
 //   - plugin.go       — registration shell + typed BasePlugin[C] config
 //   - lifecycle.go    — cheap Preflight checks only (no network, no FS scan)
-//   - runtime.go      — lazy RuntimeProvider implementation
-//   - usecases.go     — command orchestration over typed runtime
-//   - commands.go     — CommandProvider with cobra definitions
+//   - commands.go     — CommandProvider with thin cobra/request parsing
+//   - runtime.go      — lazy immutable RuntimeProvider implementation
+//   - usecases.go     — typed Request/Result orchestration over runtime
 //   - pipeline.go     — PipelineContributor (pipeline DAG jobs)
 //   - init_wizard.go  — initwiz.InitContributor (TUI form fields)
 //   - output.go       — CLI rendering helpers
@@ -61,10 +61,24 @@
 //	└─────────────┘
 //
 // AppContext is constructed once per command run by the framework and
-// attached to cmd.Context() so plugin RunE callbacks can retrieve it via
-// plugin.FromContext. It is immutable — plugins receive a snapshot of
-// Config / WorkDir / ServiceDir / Resolver / pipeline contributions that does
-// not change for the duration of the command.
+// attached to cmd.Context() so plugin RunE callbacks can retrieve it through
+// CommandPlugin[T]. It is immutable — plugins receive a snapshot of Config /
+// WorkDir / ServiceDir / Resolver / pipeline contributions that does not
+// change for the duration of the command.
+//
+// # Command boundary
+//
+// Command handlers should stay thin: parse cobra flags into a typed request,
+// resolve the command-scoped plugin with CommandPlugin[T], call RequireEnabled
+// for ConfigLoader-backed plugins, then hand the request to the plugin
+// use-case. The canonical flow is:
+//
+//	cobra flags -> typed Request -> immutable Runtime -> use-case Result
+//	    -> artifact persistence -> output renderer
+//
+// RuntimeProvider implementations should build immutable dependencies and
+// normalized config only. Command-specific overrides belong in the request, so
+// repeated command invocations cannot leak mutable runtime state.
 //
 // # Thread-safety contract
 //
@@ -106,10 +120,12 @@
 // scanned ci.PlanResultCollection into ci.NewArtifactRun, convert domain
 // results into ci.RenderBlock values, build reports with ci.NewRenderedReport,
 // and persist raw results plus the report through
-// appCtx.Reports().ReplaceResultsAndReport. Non-plan producers may create an
-// ArtifactRun without PlanResults; that is explicit degraded mode. Consumers
-// should load through ci.ReportReader/ReportStore and call
-// ci.SelectCurrentReports before rendering.
+// appCtx.Reports().ReplaceResultsAndReport. Built-in producer plugins use
+// plugins/internal/artifacts to keep raw-result persistence and stale-report
+// deletion consistent. Non-plan producers may create an ArtifactRun without
+// PlanResults; that is explicit degraded mode. Consumers should load through
+// ci.ReportReader/ReportStore and call ci.SelectCurrentReports before
+// rendering.
 // ReportSection is a value object: external plugins should not construct
 // section JSON or payloads manually, and direct field access is intentionally
 // unavailable. Consumers should use ci.DecodeRenderSection or

@@ -2,7 +2,7 @@ package tfupdate
 
 import (
 	"context"
-	"errors"
+	"os"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -11,6 +11,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/plugins/internal/cliout"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
 )
 
@@ -51,20 +52,22 @@ Examples:
   terraci tfupdate --write
   terraci tfupdate --write --pin
   terraci tfupdate --module platform/prod/eu-central-1/vpc
-		terraci tfupdate --output json`,
+  terraci tfupdate --output json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			appCtx := plugin.FromContext(cmd.Context())
-			current, err := plugin.CommandInstance[*Plugin](appCtx, p.Name())
+			appCtx, current, err := plugin.CommandPlugin[*Plugin](cmd, p.Name())
 			if err != nil {
 				return err
 			}
-			if !current.IsEnabled() {
-				return errors.New("tfupdate plugin is not enabled (set extensions.tfupdate.enabled: true)")
+			if enabledErr := plugin.RequireEnabled(current, "tfupdate plugin is not enabled (set extensions.tfupdate.enabled: true)"); enabledErr != nil {
+				return enabledErr
 			}
 
 			log.Info("checking terraform dependency state")
-			opts := parseRuntimeOptions(cmd)
-			timeout, err := resolveCommandTimeout(current.Config(), opts)
+			req, err := parseCheckRequest(cmd)
+			if err != nil {
+				return err
+			}
+			timeout, err := resolveCommandTimeout(current.Config(), req)
 			if err != nil {
 				return err
 			}
@@ -72,7 +75,7 @@ Examples:
 			c, cancel := context.WithTimeout(cmd.Context(), timeout)
 			defer cancel()
 
-			return current.runCheck(c, appCtx, cmd)
+			return current.runCheck(c, appCtx, req, os.Stdout)
 		},
 	}
 
@@ -88,19 +91,52 @@ Examples:
 	return []*cobra.Command{cmd}
 }
 
-func resolveCommandTimeout(cfg *tfupdateengine.UpdateConfig, opts runtimeOptions) (time.Duration, error) {
+func parseCheckRequest(cmd *cobra.Command) (CheckRequest, error) {
+	req := CheckRequest{OutputFormat: cliout.FormatText}
+	if flag := cmd.Flags().Lookup("write"); flag != nil {
+		req.Write = flag.Value.String() == "true"
+	}
+	if flag := cmd.Flags().Lookup("module"); flag != nil {
+		req.ModulePath = flag.Value.String()
+	}
+	if flag := cmd.Flags().Lookup("output"); flag != nil {
+		format, err := cliout.ParseFormat(flag.Value.String())
+		if err != nil {
+			return CheckRequest{}, err
+		}
+		req.OutputFormat = format
+	}
+	if flag := cmd.Flags().Lookup("target"); flag != nil {
+		req.Target = flag.Value.String()
+	}
+	if flag := cmd.Flags().Lookup("bump"); flag != nil {
+		req.Bump = flag.Value.String()
+	}
+	if flag := cmd.Flags().Lookup("pin"); flag != nil {
+		req.Pin = flag.Value.String() == "true"
+	}
+	if flag := cmd.Flags().Lookup("timeout"); flag != nil {
+		req.Timeout = flag.Value.String()
+	}
+	if vals, err := cmd.Flags().GetStringSlice("lock-platforms"); err == nil && len(vals) > 0 {
+		req.LockPlatforms = vals
+	}
+	return req, nil
+}
+
+func resolveCommandTimeout(cfg *tfupdateengine.UpdateConfig, req CheckRequest) (time.Duration, error) {
 	effective := &tfupdateengine.UpdateConfig{}
 	if cfg != nil {
 		copyCfg := *cfg
 		effective = &copyCfg
 	}
-	if opts.timeout != "" {
-		effective.Timeout = opts.timeout
+	if req.Timeout != "" {
+		effective.Timeout = req.Timeout
 	}
 	if effective.Timeout != "" {
 		if _, err := time.ParseDuration(effective.Timeout); err != nil {
 			return 0, err
 		}
 	}
-	return effective.CommandTimeout(opts.write), nil
+	return effective.CommandTimeout(req.Write), nil
 }

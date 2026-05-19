@@ -10,8 +10,8 @@ import (
 	"github.com/edelwud/terraci/plugins/tfupdate/internal/domain"
 )
 
-func outputResult(w io.Writer, format string, result *tfupdateengine.UpdateResult) error {
-	if format == "json" {
+func outputResult(w io.Writer, format cliout.Format, result *tfupdateengine.UpdateResult) error {
+	if format == cliout.FormatJSON {
 		return cliout.WriteJSON(w, result)
 	}
 

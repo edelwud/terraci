@@ -4,7 +4,8 @@ import "github.com/spf13/cobra"
 
 // CommandProvider adds CLI subcommands to TerraCi. The framework calls
 // Commands() once during root command registration. Inside RunE, plugins
-// retrieve the per-run AppContext via plugin.FromContext(cmd.Context()).
+// should use CommandPlugin[T] to resolve the per-run AppContext plus the
+// command-scoped plugin instance in one typed call.
 type CommandProvider interface {
 	Plugin
 	Commands() []*cobra.Command

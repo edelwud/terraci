@@ -2,7 +2,6 @@ package cost
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -34,13 +33,12 @@ Examples:
   terraci cost --module platform/prod/eu-central-1/rds
   terraci cost --output json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			appCtx := plugin.FromContext(cmd.Context())
-			current, err := plugin.CommandInstance[*Plugin](appCtx, p.Name())
+			appCtx, current, err := plugin.CommandPlugin[*Plugin](cmd, p.Name())
 			if err != nil {
 				return err
 			}
-			if !current.IsEnabled() {
-				return errors.New("cost estimation is not enabled (enable at least one provider under extensions.cost.providers)")
+			if err := plugin.RequireEnabled(current, "cost estimation is not enabled (enable at least one provider under extensions.cost.providers)"); err != nil {
+				return err
 			}
 
 			log.Info("cost: running cost estimation")

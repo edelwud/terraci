@@ -50,7 +50,7 @@ YAML
 
 1. `plugin.go` — registration shell, `BasePlugin[*Config]`.
 2. `report.go` — convert your result into `ci.RenderBlock` values, build an `ci.ArtifactRun`, then call `ci.NewRenderedReport` and `appCtx.Reports().SaveReport` or `ReplaceResultsAndReport`.
-3. `commands.go` — at minimum register a CLI command (`CommandProvider`).
+3. `commands.go` — at minimum register a CLI command (`CommandProvider`) and use `plugin.CommandPlugin[T]` / `plugin.RequireEnabled` in callbacks.
 
 Skip the `--consume` branch if you don't need to read other reports.
 
@@ -78,6 +78,7 @@ Framework discovery is purely type-assertion-based: `registry.ByCapabilityFrom[T
 ## Anti-patterns to avoid
 
 - **Don't** import another plugin directly. Cross-plugin communication goes through `pkg/plugin` capability interfaces, `pkg/ci` shared types, or `ci.ReportStore` artifacts.
+- **Don't** capture plugin state at command-registration time. Resolve the command-scoped plugin inside `RunE` with `plugin.CommandPlugin[T]`.
 - **Don't** panic while building reports in production code paths. Use `ci.NewRenderedReport` and propagate errors.
 - **Don't** assemble provenance by hand. Build a `ci.ArtifactRun` and pass `run.Artifact` to `ci.NewRenderedReport`; local consumers compare the fingerprint through `ci.SelectCurrentReports`.
 - **Don't** mutate `ctx.Config()` (`*config.Config`) — it's a shared pointer behind an `RWMutex`. Treat it as read-only; mutate plugin-local config via `FlagOverridable` if needed.

@@ -6,7 +6,7 @@ Minimal external plugin that adds `terraci hello` command. Demonstrates the plug
 
 - Registers a `hello` plugin with optional `greeting` config
 - Adds `terraci hello` command that scans and lists Terraform modules
-- Shows how to use `AppContext`, `discovery.Scanner`, and `config.ParsePattern`
+- Shows how to use `plugin.CommandPlugin`, `AppContext`, `discovery.Scanner`, and `config.ParsePattern`
 
 ## Build
 
@@ -43,5 +43,6 @@ external-plugin/
 
 1. **Registration**: `registry.RegisterFactory()` in `init()` — blank import triggers factory registration
 2. **BasePlugin[C]**: Generic embedding gives each command-run plugin instance config loading and enable/disable behavior
-3. **CommandProvider**: Return `[]*cobra.Command` from `Commands(ctx)` — framework adds them to CLI
-4. **AppContext**: Access config, working directory, service directory at command time
+3. **CommandProvider**: Return `[]*cobra.Command` from `Commands()` — framework adds them to CLI
+4. **CommandPlugin**: Resolve the per-run `AppContext` and command-scoped plugin inside `RunE`
+5. **AppContext**: Access config, working directory, service directory at command time

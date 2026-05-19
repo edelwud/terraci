@@ -10,6 +10,8 @@ import (
 
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/plugins/internal/artifacts"
+	"github.com/edelwud/terraci/plugins/internal/cliout"
 	"github.com/edelwud/terraci/plugins/internal/reportctx"
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 	policyusecase "github.com/edelwud/terraci/plugins/policy/internal/usecase"
@@ -26,7 +28,12 @@ func runPullPoliciesUseCase(ctx context.Context, runtime *policyRuntime, req pol
 	return nil
 }
 
-func runPolicyCheckUseCase(ctx context.Context, appCtx *plugin.AppContext, runtime *policyRuntime, req policyengine.CheckRequest, format outputFormat, w io.Writer) error {
+type policyCheckResult struct {
+	Summary     *policyengine.Summary
+	PlanResults *ci.PlanResultCollection
+}
+
+func runPolicyCheckUseCase(ctx context.Context, runtime *policyRuntime, req policyengine.CheckRequest) (*policyCheckResult, error) {
 	cfg := runtime.config
 	checkResult, err := policyusecase.Check(ctx, policyusecase.CheckRuntime{
 		Config:       &cfg,
@@ -35,12 +42,13 @@ func runPolicyCheckUseCase(ctx context.Context, appCtx *plugin.AppContext, runti
 		PlanSegments: runtime.planSegments,
 	}, req)
 	if err != nil {
-		return fmt.Errorf("run policy check: %w", err)
+		return nil, fmt.Errorf("run policy check: %w", err)
 	}
 
-	summary := checkResult.Summary
-	persistPolicyArtifacts(ctx, appCtx, summary, checkResult.PlanResults)
-	return outputResult(w, format, summary, summary.HasFailures())
+	return &policyCheckResult{
+		Summary:     checkResult.Summary,
+		PlanResults: checkResult.PlanResults,
+	}, nil
 }
 
 func persistPolicyArtifacts(ctx context.Context, appCtx *plugin.AppContext, summary *policyengine.Summary, collection *ci.PlanResultCollection) {
@@ -55,15 +63,16 @@ func persistPolicyArtifacts(ctx context.Context, appCtx *plugin.AppContext, summ
 	if runErr != nil {
 		log.WithError(runErr).Warn("failed to build policy artifact context")
 	}
-	report, buildErr := buildPolicyReport(policyReportRequest{Summary: summary, Run: run})
-	if buildErr != nil {
-		log.WithError(buildErr).Warn("failed to build policy report")
-		report = nil
-	}
-	if runErr != nil {
-		report = nil
-	}
-	if saveErr := appCtx.Reports().ReplaceResultsAndReport(ctx, pluginName, summary, report); saveErr != nil {
+	if saveErr := artifacts.ReplaceResultsAndReport(ctx, artifacts.ReplaceRequest{
+		Producer: pluginName,
+		Writer:   appCtx.Reports(),
+		Results:  summary,
+		Run:      run,
+		RunError: runErr,
+		BuildReport: func(run ci.ArtifactRun) (*ci.Report, error) {
+			return buildPolicyReport(policyReportRequest{Summary: summary, Run: run})
+		},
+	}); saveErr != nil {
 		log.WithError(saveErr).Warn("failed to persist policy artifacts")
 	}
 }
@@ -78,7 +87,7 @@ func (p *Plugin) runPull(ctx context.Context, appCtx *plugin.AppContext, cacheDi
 }
 
 func (p *Plugin) runCheck(ctx context.Context, appCtx *plugin.AppContext, modulePath, format string, w io.Writer) error {
-	outputFmt, err := parseOutputFormat(format)
+	outputFmt, err := cliout.ParseFormat(format)
 	if err != nil {
 		return err
 	}
@@ -91,5 +100,10 @@ func (p *Plugin) runCheck(ctx context.Context, appCtx *plugin.AppContext, module
 	if w == nil {
 		w = os.Stdout
 	}
-	return runPolicyCheckUseCase(ctx, appCtx, runtime, policyengine.CheckRequest{ModulePath: modulePath}, outputFmt, w)
+	result, err := runPolicyCheckUseCase(ctx, runtime, policyengine.CheckRequest{ModulePath: modulePath})
+	if err != nil {
+		return err
+	}
+	persistPolicyArtifacts(ctx, appCtx, result.Summary, result.PlanResults)
+	return outputResult(w, outputFmt, result.Summary, result.Summary.HasFailures())
 }

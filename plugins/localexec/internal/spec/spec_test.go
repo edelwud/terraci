@@ -6,30 +6,30 @@ import (
 	"github.com/edelwud/terraci/pkg/filter"
 )
 
-func TestNormalizeExecuteRequest(t *testing.T) {
+func TestNormalizeRequest(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name    string
-		req     ExecuteRequest
+		req     Request
 		wantErr bool
 	}{
 		{
 			name: "run mode with nil filters",
-			req: ExecuteRequest{
+			req: Request{
 				Mode: ExecutionModeRun,
 			},
 		},
 		{
 			name: "plan mode with explicit filters",
-			req: ExecuteRequest{
+			req: Request{
 				Mode:    ExecutionModePlan,
 				Filters: &filter.Flags{Excludes: []string{"*/test/*"}},
 			},
 		},
 		{
 			name: "invalid mode",
-			req: ExecuteRequest{
+			req: Request{
 				Mode: ExecutionMode(99),
 			},
 			wantErr: true,
@@ -40,18 +40,18 @@ func TestNormalizeExecuteRequest(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := NormalizeExecuteRequest(tt.req)
+			got, err := NormalizeRequest(tt.req)
 			if tt.wantErr {
 				if err == nil {
-					t.Fatal("NormalizeExecuteRequest() error = nil, want error")
+					t.Fatal("NormalizeRequest() error = nil, want error")
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("NormalizeExecuteRequest() error = %v", err)
+				t.Fatalf("NormalizeRequest() error = %v", err)
 			}
 			if got.Filters == nil {
-				t.Fatal("NormalizeExecuteRequest() filters = nil, want empty filter set")
+				t.Fatal("NormalizeRequest() filters = nil, want empty filter set")
 			}
 		})
 	}

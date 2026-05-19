@@ -12,22 +12,10 @@ import (
 	"github.com/edelwud/terraci/plugins/tfupdate/internal/registryclient"
 )
 
-type runtimeOptions struct {
-	write         bool
-	modulePath    string
-	outputFmt     string
-	target        string
-	bump          string
-	pin           bool
-	timeout       string
-	lockPlatforms []string
-}
-
 type updateRuntime struct {
 	config     *tfupdateengine.UpdateConfig
 	registry   tfregistry.Client
 	downloader lockfile.Downloader
-	options    runtimeOptions
 }
 
 func newRuntime(
@@ -35,32 +23,16 @@ func newRuntime(
 	appCtx *plugin.AppContext,
 	cfg *tfupdateengine.UpdateConfig,
 	registryFactory func() tfregistry.Client,
-	opts runtimeOptions,
 ) (*updateRuntime, error) {
 	if cfg == nil {
 		return nil, errors.New("update configuration is not set")
 	}
 
 	runtimeConfig := *cfg
-	if opts.target != "" {
-		runtimeConfig.Target = opts.target
-	}
-	if opts.bump != "" {
-		runtimeConfig.Policy.Bump = opts.bump
-	}
-	if opts.pin {
-		runtimeConfig.Policy.Pin = true
-	}
-	if opts.timeout != "" {
-		runtimeConfig.Timeout = opts.timeout
-	}
-	if len(opts.lockPlatforms) > 0 {
-		runtimeConfig.Lock.Platforms = opts.lockPlatforms
-	}
 	if runtimeConfig.Target == "" {
 		runtimeConfig.Target = tfupdateengine.TargetAll
 	}
-	if err := runtimeConfig.ValidateRuntime(); err != nil {
+	if err := runtimeConfig.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid options: %w", err)
 	}
 	if registryFactory == nil {
@@ -114,19 +86,14 @@ func newRuntime(
 		config:     &runtimeConfig,
 		registry:   cachedRegistry,
 		downloader: downloader,
-		options:    opts,
 	}, nil
 }
 
 func (p *Plugin) Runtime(ctx context.Context, appCtx *plugin.AppContext) (any, error) {
-	return newRuntime(ctx, appCtx, p.Config(), p.registryFactory, runtimeOptions{})
+	return newRuntime(ctx, appCtx, p.Config(), p.registryFactory)
 }
 
-// runtime returns the typed plugin runtime. Pass opts == nil to reuse the
-// RuntimeProvider path; pass opts to build a command-specific runtime.
-func (p *Plugin) runtime(ctx context.Context, appCtx *plugin.AppContext, opts *runtimeOptions) (*updateRuntime, error) {
-	if opts == nil {
-		return plugin.BuildRuntime[*updateRuntime](ctx, p, appCtx)
-	}
-	return newRuntime(ctx, appCtx, p.Config(), p.registryFactory, *opts)
+// runtime returns the typed plugin runtime used by tfupdate use-cases.
+func (p *Plugin) runtime(ctx context.Context, appCtx *plugin.AppContext) (*updateRuntime, error) {
+	return plugin.BuildRuntime[*updateRuntime](ctx, p, appCtx)
 }

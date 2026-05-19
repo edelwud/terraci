@@ -27,8 +27,8 @@ func (m ExecutionMode) String() string {
 	}
 }
 
-// ExecuteRequest describes one local-exec invocation.
-type ExecuteRequest struct {
+// Request describes one local-exec invocation.
+type Request struct {
 	ChangedOnly bool
 	BaseRef     string
 	Mode        ExecutionMode
@@ -37,11 +37,11 @@ type ExecuteRequest struct {
 	Filters     *filter.Flags
 }
 
-// NormalizeExecuteRequest validates boundary semantics and fills safe defaults.
+// NormalizeRequest validates boundary semantics and fills safe defaults.
 //
 // Filters defaults to an empty filter set. Parallelism <= 0 keeps the project
 // execution config default and is intentionally not rewritten here.
-func NormalizeExecuteRequest(req ExecuteRequest) (ExecuteRequest, error) {
+func NormalizeRequest(req Request) (Request, error) {
 	if req.Filters == nil {
 		req.Filters = &filter.Flags{}
 	}
@@ -50,6 +50,6 @@ func NormalizeExecuteRequest(req ExecuteRequest) (ExecuteRequest, error) {
 	case ExecutionModeRun, ExecutionModePlan:
 		return req, nil
 	default:
-		return ExecuteRequest{}, fmt.Errorf("invalid local-exec mode %q", req.Mode.String())
+		return Request{}, fmt.Errorf("invalid local-exec mode %q", req.Mode.String())
 	}
 }

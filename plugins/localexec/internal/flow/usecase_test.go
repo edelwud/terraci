@@ -15,7 +15,6 @@ import (
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	"github.com/edelwud/terraci/pkg/workflow"
 	"github.com/edelwud/terraci/plugins/localexec/internal/planner"
-	"github.com/edelwud/terraci/plugins/localexec/internal/render"
 	"github.com/edelwud/terraci/plugins/localexec/internal/reports"
 	"github.com/edelwud/terraci/plugins/localexec/internal/runner"
 	"github.com/edelwud/terraci/plugins/localexec/internal/spec"
@@ -27,7 +26,7 @@ type fakeTargetResolver struct {
 	err     error
 }
 
-func (r fakeTargetResolver) Resolve(context.Context, spec.ExecuteRequest, *workflow.Result) ([]*discovery.Module, error) {
+func (r fakeTargetResolver) Resolve(context.Context, spec.Request, *workflow.Result) ([]*discovery.Module, error) {
 	return r.targets, r.err
 }
 
@@ -87,34 +86,6 @@ func (c *fakeContributionCollector) Collect(*plugin.AppContext) []*pipeline.Cont
 	return c.contributions
 }
 
-type fakeOutput struct {
-	completedCalls int
-	failureCalls   int
-	result         *execution.Result
-	failureResult  *execution.Result
-	failureErr     error
-	failureReturn  error
-	completedErr   error
-	summaryReport  *ci.Report
-}
-
-func (o *fakeOutput) Completed(result *execution.Result, summaryReport *ci.Report) error {
-	o.completedCalls++
-	o.result = result
-	o.summaryReport = summaryReport
-	return o.completedErr
-}
-
-func (o *fakeOutput) Failure(result *execution.Result, err error) error {
-	o.failureCalls++
-	o.failureResult = result
-	o.failureErr = err
-	if o.failureReturn != nil {
-		return o.failureReturn
-	}
-	return err
-}
-
 type fakeSummaryReportLoader struct {
 	report *ci.Report
 	err    error
@@ -139,7 +110,6 @@ func TestUseCase_RunUsesInjectedDependencies(t *testing.T) {
 	appCtx := plugintest.NewAppContext(t, workDir)
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	jobRunner := &fakeJobRunner{}
-	output := &fakeOutput{}
 	report := &ci.Report{Producer: "summary", Title: "Terraform Plan Summary"}
 	loader := &fakeSummaryReportLoader{report: report}
 	runtimeFactory := &fakeRuntimeFactory{runtime: &runner.Runtime{
@@ -151,26 +121,23 @@ func TestUseCase_RunUsesInjectedDependencies(t *testing.T) {
 		WithTargetResolver(fakeTargetResolver{targets: []*discovery.Module{module}}),
 		WithRuntimeFactory(runtimeFactory),
 		WithSummaryReports(loader),
-		WithOutput(output),
 	)
 
-	if err := useCase.Run(context.Background(), spec.ExecuteRequest{}); err != nil {
+	result, err := useCase.Run(context.Background(), spec.Request{})
+	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
 
-	if output.completedCalls != 1 {
-		t.Fatalf("completed calls = %d, want 1", output.completedCalls)
-	}
 	if loader.calls != 1 {
 		t.Fatalf("summary loader calls = %d, want 1", loader.calls)
 	}
 	if runtimeFactory.calls != 1 {
 		t.Fatalf("runtime factory calls = %d, want 1", runtimeFactory.calls)
 	}
-	if output.summaryReport != report {
-		t.Fatalf("summary report = %#v, want %#v", output.summaryReport, report)
+	if result.SummaryReport != report {
+		t.Fatalf("summary report = %#v, want %#v", result.SummaryReport, report)
 	}
-	if len(output.result.Groups) == 0 {
+	if result.Execution == nil || len(result.Execution.Groups) == 0 {
 		t.Fatal("expected execution groups to be recorded")
 	}
 }
@@ -194,7 +161,6 @@ func TestUseCase_RunUsesInjectedPlanner(t *testing.T) {
 	contributionCollector := &fakeContributionCollector{
 		contributions: []*pipeline.Contribution{{Jobs: []pipeline.ContributedJob{{Name: "contributed"}}}},
 	}
-	output := &fakeOutput{}
 	loader := &fakeSummaryReportLoader{}
 
 	runtimeFactory := &fakeRuntimeFactory{runtime: &runner.Runtime{
@@ -208,10 +174,9 @@ func TestUseCase_RunUsesInjectedPlanner(t *testing.T) {
 		WithContributionCollector(contributionCollector),
 		WithRuntimeFactory(runtimeFactory),
 		WithSummaryReports(loader),
-		WithOutput(output),
 	)
 
-	if err := useCase.Run(context.Background(), spec.ExecuteRequest{Mode: spec.ExecutionModePlan}); err != nil {
+	if _, err := useCase.Run(context.Background(), spec.Request{Mode: spec.ExecutionModePlan}); err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
 
@@ -250,7 +215,6 @@ func TestUseCase_RunNoTargetsSkipsExecutionDependencies(t *testing.T) {
 	runtimeFactory := &fakeRuntimeFactory{err: errors.New("runtime should not be built")}
 	plannerStub := &fakePlanner{err: errors.New("planner should not be called")}
 	loader := &fakeSummaryReportLoader{err: errors.New("summary should not be loaded")}
-	output := &fakeOutput{}
 
 	useCase := New(
 		appCtx,
@@ -258,11 +222,14 @@ func TestUseCase_RunNoTargetsSkipsExecutionDependencies(t *testing.T) {
 		WithPlanner(plannerStub),
 		WithRuntimeFactory(runtimeFactory),
 		WithSummaryReports(loader),
-		WithOutput(output),
 	)
 
-	if err := useCase.Run(context.Background(), spec.ExecuteRequest{ModulePath: module.RelativePath}); err != nil {
+	result, err := useCase.Run(context.Background(), spec.Request{ModulePath: module.RelativePath})
+	if err != nil {
 		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if result == nil || !result.Skipped {
+		t.Fatalf("Run() result = %#v, want skipped result", result)
 	}
 
 	if runtimeFactory.calls != 0 {
@@ -274,9 +241,6 @@ func TestUseCase_RunNoTargetsSkipsExecutionDependencies(t *testing.T) {
 	if loader.calls != 0 {
 		t.Fatalf("summary loader calls = %d, want 0", loader.calls)
 	}
-	if output.completedCalls != 0 || output.failureCalls != 0 {
-		t.Fatalf("output calls completed=%d failure=%d, want none", output.completedCalls, output.failureCalls)
-	}
 }
 
 func TestUseCase_RunReturnsTargetResolverError(t *testing.T) {
@@ -284,12 +248,11 @@ func TestUseCase_RunReturnsTargetResolverError(t *testing.T) {
 	appCtx := plugintest.NewAppContext(t, workDir)
 	wantErr := errors.New("resolve targets")
 
-	err := New(
+	_, err := New(
 		appCtx,
 		WithTargetResolver(fakeTargetResolver{err: wantErr}),
 		WithRuntimeFactory(&fakeRuntimeFactory{err: errors.New("runtime should not be built")}),
-		WithOutput(&fakeOutput{}),
-	).Run(context.Background(), spec.ExecuteRequest{})
+	).Run(context.Background(), spec.Request{})
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("Run() error = %v, want %v", err, wantErr)
 	}
@@ -301,13 +264,12 @@ func TestUseCase_RunReturnsRuntimeFactoryError(t *testing.T) {
 	wantErr := errors.New("build runtime")
 	plannerStub := &fakePlanner{err: errors.New("planner should not be called")}
 
-	err := New(
+	_, err := New(
 		appCtx,
 		WithTargetResolver(fakeTargetResolver{targets: []*discovery.Module{module}}),
 		WithPlanner(plannerStub),
 		WithRuntimeFactory(&fakeRuntimeFactory{err: wantErr}),
-		WithOutput(&fakeOutput{}),
-	).Run(context.Background(), spec.ExecuteRequest{})
+	).Run(context.Background(), spec.Request{})
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("Run() error = %v, want %v", err, wantErr)
 	}
@@ -321,9 +283,8 @@ func TestUseCase_RunReturnsPlannerError(t *testing.T) {
 	appCtx := plugintest.NewAppContext(t, workDir)
 	wantErr := errors.New("build plan")
 	loader := &fakeSummaryReportLoader{}
-	output := &fakeOutput{}
 
-	err := New(
+	_, err := New(
 		appCtx,
 		WithTargetResolver(fakeTargetResolver{targets: []*discovery.Module{module}}),
 		WithPlanner(&fakePlanner{err: wantErr}),
@@ -332,28 +293,22 @@ func TestUseCase_RunReturnsPlannerError(t *testing.T) {
 			JobRunner:  &fakeJobRunner{},
 		}}),
 		WithSummaryReports(loader),
-		WithOutput(output),
-	).Run(context.Background(), spec.ExecuteRequest{})
+	).Run(context.Background(), spec.Request{})
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("Run() error = %v, want %v", err, wantErr)
 	}
 	if loader.calls != 0 {
 		t.Fatalf("summary loader calls = %d, want 0", loader.calls)
 	}
-	if output.completedCalls != 0 || output.failureCalls != 0 {
-		t.Fatalf("output calls completed=%d failure=%d, want none", output.completedCalls, output.failureCalls)
-	}
 }
 
-func TestUseCase_RunJobFailureGoesThroughOutputFailure(t *testing.T) {
+func TestUseCase_RunReturnsExecutionResultOnJobFailure(t *testing.T) {
 	workDir, module := testWorkDirWithModule(t)
 	appCtx := plugintest.NewAppContext(t, workDir)
 	jobErr := errors.New("job failed")
-	outputErr := errors.New("render failure")
-	output := &fakeOutput{failureReturn: outputErr}
 	loader := &fakeSummaryReportLoader{err: errors.New("summary should not be loaded")}
 
-	err := New(
+	result, err := New(
 		appCtx,
 		WithTargetResolver(fakeTargetResolver{targets: []*discovery.Module{module}}),
 		WithPlanner(&fakePlanner{plan: &pipeline.IR{
@@ -364,22 +319,12 @@ func TestUseCase_RunJobFailureGoesThroughOutputFailure(t *testing.T) {
 			JobRunner:  &fakeJobRunner{err: jobErr},
 		}}),
 		WithSummaryReports(loader),
-		WithOutput(output),
-	).Run(context.Background(), spec.ExecuteRequest{})
-	if !errors.Is(err, outputErr) {
-		t.Fatalf("Run() error = %v, want output failure %v", err, outputErr)
+	).Run(context.Background(), spec.Request{})
+	if !errors.Is(err, jobErr) {
+		t.Fatalf("Run() error = %v, want job failure %v", err, jobErr)
 	}
-	if output.failureCalls != 1 {
-		t.Fatalf("failure calls = %d, want 1", output.failureCalls)
-	}
-	if !errors.Is(output.failureErr, jobErr) {
-		t.Fatalf("output failure err = %v, want %v", output.failureErr, jobErr)
-	}
-	if output.failureResult == nil || output.failureResult.Failed() == nil {
-		t.Fatalf("failure result = %#v, want failed job result", output.failureResult)
-	}
-	if output.completedCalls != 0 {
-		t.Fatalf("completed calls = %d, want 0", output.completedCalls)
+	if result == nil || result.Execution == nil || result.Execution.Failed() == nil {
+		t.Fatalf("failure result = %#v, want failed job result", result)
 	}
 	if loader.calls != 0 {
 		t.Fatalf("summary loader calls = %d, want 0", loader.calls)
@@ -398,7 +343,6 @@ func TestUseCase_RunReturnsSummaryLoaderError(t *testing.T) {
 
 	appCtx := plugintest.NewAppContext(t, workDir)
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
-	output := &fakeOutput{}
 	wantErr := errors.New("broken report")
 	loader := &fakeSummaryReportLoader{err: wantErr}
 
@@ -410,44 +354,15 @@ func TestUseCase_RunReturnsSummaryLoaderError(t *testing.T) {
 			JobRunner:  &fakeJobRunner{},
 		}}),
 		WithSummaryReports(loader),
-		WithOutput(output),
 	)
 
-	err := useCase.Run(context.Background(), spec.ExecuteRequest{})
+	_, err := useCase.Run(context.Background(), spec.Request{})
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("Run() error = %v, want %v", err, wantErr)
 	}
 
 	if loader.calls != 1 {
 		t.Fatalf("summary loader calls = %d, want 1", loader.calls)
-	}
-	if output.completedCalls != 0 {
-		t.Fatalf("completed calls = %d, want 0", output.completedCalls)
-	}
-}
-
-func TestUseCase_RunReturnsCompletedOutputError(t *testing.T) {
-	workDir, module := testWorkDirWithModule(t)
-	appCtx := plugintest.NewAppContext(t, workDir)
-	wantErr := errors.New("render summary")
-	output := &fakeOutput{completedErr: wantErr}
-
-	useCase := New(
-		appCtx,
-		WithTargetResolver(fakeTargetResolver{targets: []*discovery.Module{module}}),
-		WithRuntimeFactory(&fakeRuntimeFactory{runtime: &runner.Runtime{
-			ExecConfig: execution.Config{PlanEnabled: true, Parallelism: 1},
-			JobRunner:  &fakeJobRunner{},
-		}}),
-		WithSummaryReports(&fakeSummaryReportLoader{}),
-		WithOutput(output),
-	)
-
-	if err := useCase.Run(context.Background(), spec.ExecuteRequest{}); !errors.Is(err, wantErr) {
-		t.Fatalf("Run() error = %v, want completed output error %v", err, wantErr)
-	}
-	if output.completedCalls != 1 {
-		t.Fatalf("completed calls = %d, want 1", output.completedCalls)
 	}
 }
 
@@ -461,7 +376,6 @@ func TestNewRestoresDefaultsAfterNilOverrides(t *testing.T) {
 		WithContributionCollector(nil),
 		WithRuntimeFactory(nil),
 		WithSummaryReports(nil),
-		WithOutput(nil),
 	)
 
 	if useCase.targets == nil {
@@ -479,16 +393,12 @@ func TestNewRestoresDefaultsAfterNilOverrides(t *testing.T) {
 	if useCase.summaryReports == nil {
 		t.Fatal("summaryReports = nil, want default loader")
 	}
-	if useCase.output == nil {
-		t.Fatal("output = nil, want default output")
-	}
 }
 
 var _ targeting.Resolver = fakeTargetResolver{}
 var _ planner.Builder = (*fakePlanner)(nil)
 var _ runner.Factory = (*fakeRuntimeFactory)(nil)
 var _ reports.Loader = (*fakeSummaryReportLoader)(nil)
-var _ render.Output = (*fakeOutput)(nil)
 
 func testWorkDirWithModule(t *testing.T) (string, *discovery.Module) {
 	t.Helper()

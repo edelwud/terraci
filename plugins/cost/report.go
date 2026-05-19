@@ -2,13 +2,13 @@ package cost
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
+	"github.com/edelwud/terraci/plugins/internal/artifacts"
 	"github.com/edelwud/terraci/plugins/internal/reportctx"
 )
 
@@ -158,13 +158,14 @@ func saveArtifacts(ctx context.Context, appCtx *plugin.AppContext, result *model
 		Producer:   pluginName,
 		Collection: collection,
 	})
-	report, err := buildCostReport(costReportRequest{Result: result, Run: run})
-	if err != nil {
-		// Still attempt to save the raw results so the user can inspect them.
-		return errors.Join(runErr, err, appCtx.Reports().ReplaceResultsAndReport(ctx, pluginName, result, nil))
-	}
-	if runErr != nil {
-		return errors.Join(runErr, appCtx.Reports().ReplaceResultsAndReport(ctx, pluginName, result, nil))
-	}
-	return appCtx.Reports().ReplaceResultsAndReport(ctx, pluginName, result, report)
+	return artifacts.ReplaceResultsAndReport(ctx, artifacts.ReplaceRequest{
+		Producer: pluginName,
+		Writer:   appCtx.Reports(),
+		Results:  result,
+		Run:      run,
+		RunError: runErr,
+		BuildReport: func(run ci.ArtifactRun) (*ci.Report, error) {
+			return buildCostReport(costReportRequest{Result: result, Run: run})
+		},
+	})
 }

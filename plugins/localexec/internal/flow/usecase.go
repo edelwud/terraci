@@ -6,6 +6,7 @@ import (
 
 	log "github.com/caarlos0/log"
 
+	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/filter"
 	"github.com/edelwud/terraci/pkg/pipeline"
@@ -19,6 +20,14 @@ import (
 	"github.com/edelwud/terraci/plugins/localexec/internal/targeting"
 )
 
+type Request = spec.Request
+
+type Result struct {
+	Execution     *execution.Result
+	SummaryReport *ci.Report
+	Skipped       bool
+}
+
 type UseCase struct {
 	appCtx         *plugin.AppContext
 	targets        targeting.Resolver
@@ -26,7 +35,6 @@ type UseCase struct {
 	contributions  ContributionCollector
 	runtimeFactory runner.Factory
 	summaryReports reports.Loader
-	output         render.Output
 }
 
 type ContributionCollector interface {
@@ -39,7 +47,6 @@ type Dependencies struct {
 	Contributions  ContributionCollector
 	RuntimeFactory runner.Factory
 	SummaryReports reports.Loader
-	Output         render.Output
 }
 
 type Option func(*Dependencies)
@@ -68,12 +75,6 @@ func WithContributionCollector(collector ContributionCollector) Option {
 	}
 }
 
-func WithOutput(output render.Output) Option {
-	return func(deps *Dependencies) {
-		deps.Output = output
-	}
-}
-
 func WithSummaryReports(loader reports.Loader) Option {
 	return func(deps *Dependencies) {
 		deps.SummaryReports = loader
@@ -91,7 +92,6 @@ func DefaultDependencies(appCtx *plugin.AppContext) Dependencies {
 		Contributions:  contextContributionCollector{},
 		RuntimeFactory: runner.NewFactory(),
 		SummaryReports: reports.NewLoader(appCtx.Reports(), appCtx.WorkDir(), segments),
-		Output:         render.NewLogOutput(),
 	}
 }
 
@@ -112,7 +112,6 @@ func New(appCtx *plugin.AppContext, opts ...Option) *UseCase {
 		contributions:  deps.Contributions,
 		runtimeFactory: deps.RuntimeFactory,
 		summaryReports: deps.SummaryReports,
-		output:         deps.Output,
 	}
 }
 
@@ -132,36 +131,33 @@ func withDefaults(deps, defaults Dependencies) Dependencies {
 	if deps.SummaryReports == nil {
 		deps.SummaryReports = defaults.SummaryReports
 	}
-	if deps.Output == nil {
-		deps.Output = defaults.Output
-	}
 	return deps
 }
 
-func (u *UseCase) Run(ctx context.Context, req spec.ExecuteRequest) error {
+func (u *UseCase) Run(ctx context.Context, req Request) (*Result, error) {
 	result, err := workflow.Run(ctx, workflowOptionsFromContext(u.appCtx, req.Filters))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	targets, err := u.targets.Resolve(ctx, req, result)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if len(targets) == 0 {
 		log.Info("no modules to process")
-		return nil
+		return &Result{Skipped: true}, nil
 	}
 
 	execRuntime, err := u.runtimeFactory.Build(u.appCtx, runner.Options{Parallelism: req.Parallelism})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	contributions := u.contributions.Collect(u.appCtx)
 	plan, err := u.planner.Build(targets, result, execRuntime.ExecConfig, req.Mode, contributions)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	reporter := render.NewProgressReporter()
 	resultExec, err := execution.NewExecutor(
@@ -170,14 +166,14 @@ func (u *UseCase) Run(ctx context.Context, req spec.ExecuteRequest) error {
 		execution.WithEventSink(reporter),
 	).Execute(ctx, plan)
 	if err != nil {
-		return u.output.Failure(resultExec, err)
+		return &Result{Execution: resultExec}, err
 	}
 
 	summaryReport, err := u.summaryReports.Load(ctx)
 	if err != nil {
-		return fmt.Errorf("load summary report: %w", err)
+		return nil, fmt.Errorf("load summary report: %w", err)
 	}
-	return u.output.Completed(resultExec, summaryReport)
+	return &Result{Execution: resultExec, SummaryReport: summaryReport}, nil
 }
 
 func workflowOptionsFromContext(appCtx *plugin.AppContext, ff *filter.Flags) workflow.Options {

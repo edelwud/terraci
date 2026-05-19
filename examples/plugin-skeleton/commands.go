@@ -1,8 +1,6 @@
 package skeleton
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 
 	"github.com/edelwud/terraci/pkg/plugin"
@@ -10,9 +8,10 @@ import (
 
 // Commands implements plugin.CommandProvider — registers `terraci skeleton`.
 //
-// CommandInstance is the canonical way to fetch the per-command plugin
-// instance: the framework rebuilds the registry for every command run, so
-// any state captured at command-registration time would be stale.
+// CommandPlugin is the canonical callback boundary: it returns both the
+// per-run AppContext and the command-scoped plugin instance. The framework
+// rebuilds the registry for every command run, so state captured at command
+// registration time would be stale.
 func (p *Plugin) Commands() []*cobra.Command {
 	var consumeMode bool
 
@@ -24,13 +23,12 @@ collects a tiny report payload and writes skeleton-report.json into the
 service directory. With --consume, runs the consumer flow: loads every
 *-report.json (except its own) and prints a brief summary.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			appCtx := plugin.FromContext(cmd.Context())
-			current, err := plugin.CommandInstance[*Plugin](appCtx, pluginName)
+			appCtx, current, err := plugin.CommandPlugin[*Plugin](cmd, pluginName)
 			if err != nil {
 				return err
 			}
-			if !current.IsEnabled() {
-				return fmt.Errorf("skeleton plugin is not enabled — set extensions.skeleton.enabled: true")
+			if err := plugin.RequireEnabled(current, "skeleton plugin is not enabled — set extensions.skeleton.enabled: true"); err != nil {
+				return err
 			}
 
 			if consumeMode {

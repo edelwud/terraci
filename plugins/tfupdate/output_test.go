@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/edelwud/terraci/plugins/internal/cliout"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
 	"github.com/edelwud/terraci/plugins/tfupdate/internal/domain"
 )
@@ -26,7 +27,7 @@ func TestOutputResult_JSON(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := outputResult(&buf, "json", result)
+	err := outputResult(&buf, cliout.FormatJSON, result)
 	if err != nil {
 		t.Fatalf("outputResult(json) error = %v", err)
 	}
@@ -60,7 +61,7 @@ func TestOutputResult_Text(t *testing.T) {
 	}
 
 	output := captureUpdateTextOutput(t, func() {
-		if err := outputResult(&bytes.Buffer{}, "text", result); err != nil {
+		if err := outputResult(&bytes.Buffer{}, cliout.FormatText, result); err != nil {
 			t.Fatalf("outputResult(text) error = %v", err)
 		}
 	})
@@ -78,7 +79,7 @@ func TestOutputResult_TextNoUpdates(t *testing.T) {
 	}
 
 	output := captureUpdateTextOutput(t, func() {
-		if err := outputResult(&bytes.Buffer{}, "text", result); err != nil {
+		if err := outputResult(&bytes.Buffer{}, cliout.FormatText, result); err != nil {
 			t.Fatalf("outputResult(text) error = %v", err)
 		}
 	})
@@ -135,7 +136,7 @@ func TestOutputResult_TextWithModuleUpdates(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := outputResult(&buf, "text", result)
+	err := outputResult(&buf, cliout.FormatText, result)
 	if err != nil {
 		t.Fatalf("outputResult(text) error = %v", err)
 	}
@@ -154,7 +155,7 @@ func TestOutputResult_TextSkippedOnly(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := outputResult(&buf, "text", result)
+	err := outputResult(&buf, cliout.FormatText, result)
 	if err != nil {
 		t.Fatalf("outputResult(text) error = %v", err)
 	}
@@ -181,7 +182,7 @@ func TestOutputResult_TextModuleWithSameBumpedLatest(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := outputResult(&buf, "text", result)
+	err := outputResult(&buf, cliout.FormatText, result)
 	if err != nil {
 		t.Fatalf("outputResult(text) error = %v", err)
 	}
@@ -207,7 +208,7 @@ func TestOutputResult_TextProviderWithSameBumpedLatest(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := outputResult(&buf, "text", result)
+	err := outputResult(&buf, cliout.FormatText, result)
 	if err != nil {
 		t.Fatalf("outputResult(text) error = %v", err)
 	}
