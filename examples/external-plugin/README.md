@@ -35,6 +35,7 @@ extensions:
 external-plugin/
 ├── plugin.go      # Plugin struct, Config, init() registration
 ├── commands.go    # CommandProvider — terraci hello
+├── plugin_test.go # plugintest contracts for config + command binding
 ├── go.mod         # Separate Go module
 └── README.md
 ```
@@ -46,3 +47,4 @@ external-plugin/
 3. **CommandProvider**: Return `[]*cobra.Command` from `Commands()` — framework adds them to CLI
 4. **CommandPlugin**: Resolve the per-run `AppContext` and command-scoped plugin inside `RunE`
 5. **AppContext**: Access config, working directory, service directory at command time
+6. **Contract tests**: Copy `plugintest.AssertBaseConfigPlugin` and `plugintest.AssertCommandBinding` to verify SDK behavior without re-testing framework internals

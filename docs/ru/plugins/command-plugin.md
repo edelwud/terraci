@@ -60,12 +60,27 @@ type Config struct {
     Channel    string `yaml:"channel"`
 }
 
-func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
+func (c *Config) Clone() *Config {
+    if c == nil {
+        return nil
+    }
+    out := *c
+    return &out
+}
+
+func (p *Plugin) Commands() []*cobra.Command {
     cmd := &cobra.Command{
         Use:   "slack",
         Short: "Post plan summary to Slack",
         RunE: func(cmd *cobra.Command, _ []string) error {
-            cfg := p.Config()
+            _, current, err := plugin.CommandPlugin[*Plugin](cmd, "slack")
+            if err != nil {
+                return err
+            }
+            if err := plugin.RequireEnabled(current, "slack plugin is not enabled"); err != nil {
+                return err
+            }
+            cfg := current.Config()
             fmt.Printf("Posting to %s\n", cfg.Channel)
             return nil
         },

@@ -42,8 +42,14 @@ func TestPlugin_Runtime_CreatesPuller(t *testing.T) {
 		Sources: []policyengine.SourceConfig{{Type: policyengine.SourceTypePath, Path: "terraform"}},
 	})
 
-	runtime := plugintest.MustRuntime[*policyRuntime](t, p, plugintest.NewAppContext(t, t.TempDir()))
-	if runtime.sources == nil {
-		t.Fatal("runtime.sources should not be nil")
-	}
+	plugintest.AssertRuntimeProvider[*policyRuntime](t, plugintest.RuntimeProviderContract[*policyRuntime]{
+		Provider:   p,
+		AppContext: plugintest.NewAppContext(t, t.TempDir()),
+		AssertRuntime: func(tb testing.TB, runtime *policyRuntime) {
+			tb.Helper()
+			if runtime.sources == nil {
+				tb.Fatal("runtime.sources should not be nil")
+			}
+		},
+	})
 }

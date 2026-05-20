@@ -2,18 +2,19 @@
 //
 // # Package layout
 //
-// The plugin system is organized into three packages:
+// The plugin system is organized into a small set of public packages:
 //
 //   - pkg/plugin           — core interfaces, BasePlugin[C], AppContext, EnablePolicy, RuntimeProvider
 //   - pkg/plugin/cliout    — public command output helpers (Format, ParseFormat, WriteJSON)
 //   - pkg/plugin/registry  — factory catalog and per-command Registry capability resolution
 //   - pkg/plugin/initwiz   — init wizard types (StateMap, InitContributor, InitGroupSpec)
 //
-// Test helpers live in pkg/plugin/plugintest. Helpers shared between CI
-// provider plugins (gitlab, github, future Bitbucket/Jenkins/Azure DevOps)
-// live in plugins/internal/ciplugin. Shared report rendering for plugin-owned
-// ci.Report payloads lives in plugins/internal/reportrender. These packages are
-// not part of the public API.
+// Plugin-author contract tests live in pkg/plugin/plugintest. Helpers shared
+// between built-in CI provider plugins (gitlab, github, future
+// Bitbucket/Jenkins/Azure DevOps) live in plugins/internal/ciplugin. Shared
+// report rendering for plugin-owned ci.Report payloads lives in
+// plugins/internal/reportrender. The plugins/internal packages are not part of
+// the public API.
 //
 // # Plugin file convention
 //
@@ -82,6 +83,26 @@
 // RuntimeProvider implementations should build immutable dependencies and
 // normalized config only. Command-specific overrides belong in the request, so
 // repeated command invocations cannot leak mutable runtime state.
+//
+// # SDK contract tests
+//
+// External plugin authors should copy the contract-style tests from
+// pkg/plugin/plugintest and pkg/ci/citest instead of writing ad-hoc tests for
+// SDK behavior. The canonical helpers are:
+//
+//   - plugintest.AssertBaseConfigPlugin[C] — verifies Clone() C and
+//     BasePlugin defensive copies.
+//   - plugintest.AssertCommandBinding[T] — verifies CommandPlugin[T] command
+//     lookup and stable CommandBindingError reasons.
+//   - plugintest.AssertRequireEnabled — verifies DisabledPluginError behavior.
+//   - plugintest.AssertRuntimeProvider[T] — verifies lazy RuntimeProvider
+//     construction and RuntimeAs[T].
+//   - plugintest.AssertPipelineContributor — verifies deterministic generic
+//     contribution shape.
+//   - citest.AssertRenderedReportContract — verifies ci.NewRenderedReport
+//     output validates, decodes through ci.DecodeRenderSection, and renders.
+//   - citest.AssertPublishArtifactsContract — verifies ci.PublishArtifacts
+//     replacement semantics with a recording ArtifactWriter.
 //
 // # Thread-safety contract
 //

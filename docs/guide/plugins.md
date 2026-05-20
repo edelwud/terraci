@@ -200,13 +200,21 @@ type Config struct {
     Enabled bool   `yaml:"enabled"`
     APIKey  string `yaml:"api_key"`
 }
+
+func (c *Config) Clone() *Config {
+    if c == nil {
+        return nil
+    }
+    out := *c
+    return &out
+}
 ```
 
 **2. Capabilities** -- implement the interfaces you need:
 
 ```go
 // CommandProvider -- adds `terraci myplugin` command
-func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
+func (p *Plugin) Commands() []*cobra.Command {
     return []*cobra.Command{{
         Use:   "myplugin",
         Short: "Run my custom plugin",

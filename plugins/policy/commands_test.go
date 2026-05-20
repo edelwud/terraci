@@ -36,7 +36,14 @@ func TestBuildPolicyReport_WithFailures(t *testing.T) {
 	if buildErr != nil {
 		t.Fatalf("buildPolicyReport() error = %v", buildErr)
 	}
-	citest.AssertRenderedReportContract(t, report, reportrender.MarkdownReport, reportrender.CLIReport)
+	citest.AssertRenderedReportContract(t, report, citest.RenderedReportContract{
+		Producer: pluginName,
+		Status:   ci.ReportStatusFail,
+		Renderers: []citest.ReportRenderer{
+			reportrender.MarkdownReport,
+			reportrender.CLIReport,
+		},
+	})
 	if report.Status != ci.ReportStatusFail {
 		t.Fatalf("Status = %q, want %q", report.Status, ci.ReportStatusFail)
 	}
@@ -73,7 +80,14 @@ func TestBuildPolicyReport_WithWarnings(t *testing.T) {
 	if buildErr != nil {
 		t.Fatalf("buildPolicyReport() error = %v", buildErr)
 	}
-	citest.AssertRenderedReportContract(t, report, reportrender.MarkdownReport, reportrender.CLIReport)
+	citest.AssertRenderedReportContract(t, report, citest.RenderedReportContract{
+		Producer: pluginName,
+		Status:   ci.ReportStatusWarn,
+		Renderers: []citest.ReportRenderer{
+			reportrender.MarkdownReport,
+			reportrender.CLIReport,
+		},
+	})
 	if report.Status != ci.ReportStatusWarn {
 		t.Fatalf("Status = %q, want %q", report.Status, ci.ReportStatusWarn)
 	}

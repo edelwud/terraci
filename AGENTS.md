@@ -77,7 +77,7 @@ pkg/                            # Public API — importable by external plugins 
 │   ├── initwiz/                # Init wizard state + types
 │   │   ├── state.go            # StateMap — typed form state with pointer getters for huh
 │   │   └── types.go            # InitContributor, InitGroupSpec, InitField, FieldType
-│   └── plugintest/             # Shared plugin-facing test helpers + mock doubles + NoopResolver
+│   └── plugintest/             # Plugin-author SDK contract tests + mock doubles + NoopResolver
 ├── pipeline/                   # Plugin-agnostic pipeline IR
 │   ├── types.go                # IR, Level, ModuleJobs, Job, Operation, TerraformOperation, Contribution, ContributedJob
 │   ├── builder.go              # Build(opts) — constructs provider-agnostic pipeline IR
@@ -275,9 +275,17 @@ cobra flags → typed Request → immutable Runtime → usecase Result → artif
 
 RuntimeProvider implementations should hold normalized config and constructed dependencies only. Command-specific values such as `--module`, `--output`, `--write`, timeouts, and override flags belong in request structs, not mutable runtime fields.
 
+### SDK Contract Tests
+
+Plugin-author tests should reuse the public contract kit instead of duplicating SDK behavior:
+- `pkg/plugin/plugintest`: `AssertBaseConfigPlugin`, `AssertCommandBinding`, `AssertRequireEnabled`, `AssertRuntimeProvider`, `AssertPipelineContributor`.
+- `pkg/ci/citest`: `AssertRenderedReportContract`, `AssertPublishArtifactsContract`, `RecordingArtifactWriter`, and rendered-section/report builders.
+
+Built-in plugins and examples keep domain-specific tests local, but SDK boundary behavior is asserted through these helpers so third-party authors can copy the same patterns.
+
 ### Resolver
 
-The single `plugin.Resolver` interface combines lookup (`All`, `GetPlugin`) with capability resolution (`ResolveCIProvider`, `ResolveChangeDetector`, `ResolveKVCacheProvider`, `ResolveBlobStoreProvider`, `CollectContributions`, `PreflightsForStartup`). `*registry.Registry` is the production implementation; `plugintest.NoopResolver` is the test default-deny.
+The single `plugin.Resolver` interface combines lookup (`All`, `GetPlugin`) with capability resolution (`ResolveCIProvider`, `ResolveChangeDetector`, `ResolveKVCacheProvider`, `ResolveBlobStoreProvider`, `CollectContributions`, `PreflightsForStartup`). `*registry.Registry` is the production implementation; `plugin.NoopResolver` is the default-deny fallback.
 
 ### Shared Types
 
@@ -418,6 +426,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **PipelineContributor(ctx)**: plugins add standalone DAG jobs without cross-plugin imports or cached service-dir state
 - **ServiceDir**: configurable project directory; `AppContext.ServiceDir` (absolute) for runtime, `Config.ServiceDir` (relative) for pipeline templates
 - **Command boundary**: plugin command callbacks use `plugin.CommandPlugin[T](cmd, name)` and `plugin.RequireEnabled(...)`; low-level cobra context binding is framework-owned. Command binding and disabled-plugin failures are typed errors.
+- **SDK contract kit**: plugin SDK behavior is tested through `pkg/plugin/plugintest`; CI/report behavior is tested through `pkg/ci/citest`. New plugins should copy these contract helpers for config immutability, command binding, runtime creation, contributions, rendered reports, and artifact lifecycle.
 - **Report artifact lifecycle**: plan-aware producers use `PlanResultCollection -> ci.ArtifactRun -> ci.NewRenderedReport -> ci.PublishArtifacts(...)`. `PublishArtifacts` always persists raw results and removes stale reports on nil/build errors. Report-only producers may use `SaveReport`.
 - **Report sections via render-ready payloads**: producer plugins call `ci.NewRenderedReport(...)` and publish only validated `ci.ReportSectionKindRendered` sections with `ci.RenderSection` payloads. `ReportSection` internals are private; use getters plus `ci.DecodeRenderSection`, not raw payload access. Summary/local renderers consume the generic render model through `plugins/internal/reportrender` and stay unaware of cost/policy/tfupdate domain structs.
 - **Report freshness**: `pkg/ci.SelectCurrentReports` owns current/stale/degraded policy. Summary and localexec skip reports whose non-empty `plan_results_fingerprint` does not match the current plan collection. Missing provenance is accepted as degraded mode.

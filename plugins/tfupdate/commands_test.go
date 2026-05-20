@@ -148,7 +148,14 @@ func TestBuildUpdateReport_NoUpdates(t *testing.T) {
 	if buildErr != nil {
 		t.Fatalf("buildUpdateReport() error = %v", buildErr)
 	}
-	citest.AssertRenderedReportContract(t, report, reportrender.MarkdownReport, reportrender.CLIReport)
+	citest.AssertRenderedReportContract(t, report, citest.RenderedReportContract{
+		Producer: pluginName,
+		Status:   ci.ReportStatusPass,
+		Renderers: []citest.ReportRenderer{
+			reportrender.MarkdownReport,
+			reportrender.CLIReport,
+		},
+	})
 	if report.Producer != "tfupdate" {
 		t.Errorf("Plugin = %q, want %q", report.Producer, "tfupdate")
 	}
@@ -175,7 +182,14 @@ func TestBuildUpdateReport_WithUpdates(t *testing.T) {
 	if buildErr != nil {
 		t.Fatalf("buildUpdateReport() error = %v", buildErr)
 	}
-	citest.AssertRenderedReportContract(t, report, reportrender.MarkdownReport, reportrender.CLIReport)
+	citest.AssertRenderedReportContract(t, report, citest.RenderedReportContract{
+		Producer: pluginName,
+		Status:   ci.ReportStatusWarn,
+		Renderers: []citest.ReportRenderer{
+			reportrender.MarkdownReport,
+			reportrender.CLIReport,
+		},
+	})
 	if report.Status != ci.ReportStatusWarn {
 		t.Errorf("Status = %q, want %q", report.Status, ci.ReportStatusWarn)
 	}

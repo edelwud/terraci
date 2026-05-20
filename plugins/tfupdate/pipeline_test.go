@@ -6,6 +6,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
 )
 
@@ -13,6 +14,12 @@ func TestPlugin_PipelineContribution(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &tfupdateengine.UpdateConfig{Enabled: true, Pipeline: true})
 	appCtx := newTestAppContext(t, t.TempDir())
+
+	plugintest.AssertPipelineContributor(t, plugintest.PipelineContributorContract{
+		Contributor:      p,
+		AppContext:       appCtx,
+		ExpectedJobNames: []string{"tfupdate-check"},
+	})
 
 	contrib := p.PipelineContribution(appCtx)
 	if contrib == nil {

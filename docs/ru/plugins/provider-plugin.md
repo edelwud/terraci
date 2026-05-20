@@ -95,6 +95,14 @@ type Config struct {
     PlanOnly bool   `yaml:"plan_only"`
 }
 
+func (c *Config) Clone() *Config {
+    if c == nil {
+        return nil
+    }
+    out := *c
+    return &out
+}
+
 // EnvDetector
 func (p *Plugin) DetectEnv() bool {
     return os.Getenv("BITBUCKET_PIPELINE_UUID") != ""

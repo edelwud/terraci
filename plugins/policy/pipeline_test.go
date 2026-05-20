@@ -14,6 +14,12 @@ func TestPlugin_PipelineContribution_UsesAppContextServiceDir(t *testing.T) {
 	p.SetTypedConfig(&policyengine.Config{Enabled: true, Decisions: policyengine.Decisions{Deny: policyengine.ActionWarn}})
 	appCtx := plugintest.NewAppContext(t, t.TempDir())
 
+	plugintest.AssertPipelineContributor(t, plugintest.PipelineContributorContract{
+		Contributor:      p,
+		AppContext:       appCtx,
+		ExpectedJobNames: []string{"policy-check"},
+	})
+
 	contrib := p.PipelineContribution(appCtx)
 	if contrib == nil {
 		t.Fatal("PipelineContribution() returned nil")

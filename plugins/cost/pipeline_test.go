@@ -5,11 +5,18 @@ import (
 
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 )
 
 func TestPlugin_PipelineContribution(t *testing.T) {
 	p := newTestPlugin(t)
 	appCtx := newTestAppContext(t, t.TempDir())
+
+	plugintest.AssertPipelineContributor(t, plugintest.PipelineContributorContract{
+		Contributor:      p,
+		AppContext:       appCtx,
+		ExpectedJobNames: []string{"cost-estimation"},
+	})
 
 	contrib := p.PipelineContribution(appCtx)
 

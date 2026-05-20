@@ -41,7 +41,13 @@ func TestPlugin_Commands_Registration(t *testing.T) {
 
 func decodeCostSection(t *testing.T, report *ci.Report) ci.RenderSection {
 	t.Helper()
-	citest.AssertRenderedReportContract(t, report, reportrender.MarkdownReport, reportrender.CLIReport)
+	citest.AssertRenderedReportContract(t, report, citest.RenderedReportContract{
+		Producer: pluginName,
+		Renderers: []citest.ReportRenderer{
+			reportrender.MarkdownReport,
+			reportrender.CLIReport,
+		},
+	})
 	if len(report.Sections) != 1 {
 		t.Fatalf("Sections count = %d, want 1", len(report.Sections))
 	}

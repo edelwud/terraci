@@ -123,6 +123,14 @@ type Plugin struct {
 type Config struct {
     Enabled bool   `yaml:"enabled"`
 }
+
+func (c *Config) Clone() *Config {
+    if c == nil {
+        return nil
+    }
+    out := *c
+    return &out
+}
 ```
 
 Users configure your plugin in `.terraci.yaml`:
@@ -147,6 +155,15 @@ extensions:
 ```
 Register → Configure → Preflight → Freeze → Execute
 ```
+
+### SDK contract tests
+
+Use the public test kits for SDK behavior instead of re-testing framework internals by hand:
+
+- `pkg/plugin/plugintest`: `AssertBaseConfigPlugin`, `AssertCommandBinding`, `AssertRequireEnabled`, `AssertRuntimeProvider`, `AssertPipelineContributor`.
+- `pkg/ci/citest`: `AssertRenderedReportContract`, `AssertPublishArtifactsContract`, and rendered report builders.
+
+Keep plugin-specific tests focused on your domain logic, APIs, and rendering decisions. The contract helpers verify that your plugin follows the same config immutability, command binding, report, and artifact lifecycle rules as the built-in plugins.
 
 1. **Register** — `init()` runs at import time
 2. **Configure** — framework decodes `extensions.<key>` from YAML

@@ -19,6 +19,7 @@ usecases.go  # Request -> Runtime -> Result orchestration + ci.PublishArtifacts
 output.go    # writer-based command output
 report.go    # producer pattern: ci.NewRenderedReport
 consumer.go  # consumer pattern: ci.ReportStore + ci.DecodeRenderSection
+plugin_test.go # plugintest + citest contracts for config, commands, reports, artifacts
 ```
 
 ## Build & run
@@ -55,6 +56,7 @@ YAML
 2. `commands.go` — register a CLI command (`CommandProvider`) and use `plugin.CommandPlugin[T]` / `plugin.RequireEnabled` in callbacks.
 3. `runtime.go`, `usecases.go`, `output.go` — keep `cobra flags -> Request -> Runtime -> Result -> output`.
 4. `report.go` — convert your result into `ci.RenderBlock` values, build an `ci.ArtifactRun`, then publish raw results plus report through `ci.PublishArtifacts`.
+5. `plugin_test.go` — copy `plugintest`/`citest` contracts so config immutability, command binding, report validation, and artifact lifecycle stay covered.
 
 Skip the `--consume` branch if you don't need to read other reports.
 

@@ -10,6 +10,8 @@ import (
 	"github.com/edelwud/terraci/pkg/cache/blobcache"
 )
 
+const blobStoreContractKind = "contract"
+
 // BlobStoreFactory creates a store instance bound to the provided backing id.
 // Backends may interpret the backing id as a root directory, prefix, or another
 // stable locator that allows creating another instance over the same storage.
@@ -93,7 +95,7 @@ func runBlobStorePutGet(t *testing.T, suite BlobStoreContractSuite, d blobStoreC
 		ContentType: "application/octet-stream",
 		ExpiresAt:   &expiresAt,
 		Metadata: map[string]string{
-			"kind": "contract",
+			"kind": blobStoreContractKind,
 		},
 	})
 	if err != nil {
@@ -119,8 +121,8 @@ func runBlobStorePutGet(t *testing.T, suite BlobStoreContractSuite, d blobStoreC
 	if readMeta.ExpiresAt == nil || !readMeta.ExpiresAt.Equal(expiresAt) {
 		t.Fatalf("Get().ExpiresAt = %v, want %v", readMeta.ExpiresAt, expiresAt)
 	}
-	if readMeta.Metadata["kind"] != "contract" {
-		t.Fatalf("Get().Metadata = %+v, want contract marker", readMeta.Metadata)
+	if readMeta.Metadata["kind"] != blobStoreContractKind {
+		t.Fatalf("Get().Metadata = %+v, want %s marker", readMeta.Metadata, blobStoreContractKind)
 	}
 }
 

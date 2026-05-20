@@ -60,15 +60,30 @@ type Config struct {
     Channel    string `yaml:"channel"`
 }
 
+func (c *Config) Clone() *Config {
+    if c == nil {
+        return nil
+    }
+    out := *c
+    return &out
+}
+
 // Commands implements plugin.CommandProvider.
-func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
+func (p *Plugin) Commands() []*cobra.Command {
     var channel string
 
     cmd := &cobra.Command{
         Use:   "slack",
         Short: "Post plan summary to Slack",
         RunE: func(cmd *cobra.Command, _ []string) error {
-            cfg := p.Config()
+            _, current, err := plugin.CommandPlugin[*Plugin](cmd, "slack")
+            if err != nil {
+                return err
+            }
+            if err := plugin.RequireEnabled(current, "slack plugin is not enabled"); err != nil {
+                return err
+            }
+            cfg := current.Config()
             if channel == "" {
                 channel = cfg.Channel
             }
@@ -101,7 +116,7 @@ extensions:
 Use cobra's flag system. Flags are automatically shown in `terraci slack --help`:
 
 ```go
-func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
+func (p *Plugin) Commands() []*cobra.Command {
     var (
         channel string
         dryRun  bool
@@ -130,7 +145,7 @@ func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
 Return multiple commands to add a command group:
 
 ```go
-func (p *Plugin) Commands(ctx *plugin.AppContext) []*cobra.Command {
+func (p *Plugin) Commands() []*cobra.Command {
     return []*cobra.Command{
         {
             Use:   "notify send",

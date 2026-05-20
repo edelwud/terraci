@@ -146,10 +146,16 @@ func TestPlugin_Runtime_CreatesEstimator(t *testing.T) {
 		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	})
 
-	runtime := plugintest.MustRuntime[*costRuntime](t, p, newTestAppContext(t, t.TempDir()))
-	if runtime.estimator == nil {
-		t.Fatal("runtime.estimator should not be nil")
-	}
+	plugintest.AssertRuntimeProvider[*costRuntime](t, plugintest.RuntimeProviderContract[*costRuntime]{
+		Provider:   p,
+		AppContext: newTestAppContext(t, t.TempDir()),
+		AssertRuntime: func(tb testing.TB, runtime *costRuntime) {
+			tb.Helper()
+			if runtime.estimator == nil {
+				tb.Fatal("runtime.estimator should not be nil")
+			}
+		},
+	})
 }
 
 func TestPlugin_Runtime_DefaultsToDiskblob(t *testing.T) {

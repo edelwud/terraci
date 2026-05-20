@@ -141,10 +141,16 @@ func TestPlugin_Runtime_CreatesRegistryLazily(t *testing.T) {
 	enablePlugin(t, p, &tfupdateengine.UpdateConfig{Enabled: true})
 	useMockRegistry(p, &mockRegistry{})
 
-	runtime := plugintest.MustRuntime[*updateRuntime](t, p, newTestAppContext(t, t.TempDir()))
-	if runtime.registry == nil {
-		t.Fatal("runtime.registry should not be nil")
-	}
+	plugintest.AssertRuntimeProvider[*updateRuntime](t, plugintest.RuntimeProviderContract[*updateRuntime]{
+		Provider:   p,
+		AppContext: newTestAppContext(t, t.TempDir()),
+		AssertRuntime: func(tb testing.TB, runtime *updateRuntime) {
+			tb.Helper()
+			if runtime.registry == nil {
+				tb.Fatal("runtime.registry should not be nil")
+			}
+		},
+	})
 }
 
 func TestPlugin_Runtime_ResolvesSingleActiveDefaultCache(t *testing.T) {

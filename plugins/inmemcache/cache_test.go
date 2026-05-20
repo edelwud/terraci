@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 )
 
 func TestCache_SetGet(t *testing.T) {
@@ -122,4 +123,36 @@ func TestPlugin_EnableByDefaultAndConfigOverride(t *testing.T) {
 	if p.IsEnabled() {
 		t.Fatal("IsEnabled() = true after explicit disable, want false")
 	}
+}
+
+func TestPlugin_BaseConfigContract(t *testing.T) {
+	p := &Plugin{
+		BasePlugin: plugin.BasePlugin[*Config]{
+			PluginName: "inmemcache",
+			PluginDesc: "Built-in process-local KV cache backend",
+			EnableMode: plugin.EnabledByDefault,
+			DefaultCfg: func() *Config { return &Config{Enabled: true} },
+			IsEnabledFn: func(cfg *Config) bool {
+				return cfg == nil || cfg.Enabled
+			},
+		},
+	}
+
+	plugintest.AssertBaseConfigPlugin[*Config](t, plugintest.BaseConfigPluginContract[*Config]{
+		Plugin:     p,
+		Default:    &Config{Enabled: true},
+		Configured: &Config{Enabled: false},
+		Decoded:    &Config{Enabled: true},
+		Mutate: func(c *Config) {
+			if c != nil {
+				c.Enabled = !c.Enabled
+			}
+		},
+		Equal: func(got, want *Config) bool {
+			if got == nil || want == nil {
+				return got == want
+			}
+			return got.Enabled == want.Enabled
+		},
+	})
 }
