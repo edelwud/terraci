@@ -10,7 +10,6 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/filter"
 	"github.com/edelwud/terraci/pkg/graph"
-	"github.com/edelwud/terraci/pkg/plugin"
 )
 
 type stubChangeDetector struct {
@@ -18,20 +17,20 @@ type stubChangeDetector struct {
 	changedFiles     []string
 	changedLibraries []string
 	calls            *int
-	requests         *[]plugin.ChangeDetectionRequest
+	requests         *[]ChangeDetectionRequest
 }
 
 func (d stubChangeDetector) Name() string        { return "stub-detector" }
 func (d stubChangeDetector) Description() string { return "stub detector" }
 
-func (d stubChangeDetector) DetectChanges(_ context.Context, req plugin.ChangeDetectionRequest) (*plugin.ChangeDetectionResult, error) {
+func (d stubChangeDetector) DetectChanges(_ context.Context, req ChangeDetectionRequest) (*ChangeDetectionResult, error) {
 	if d.calls != nil {
 		(*d.calls)++
 	}
 	if d.requests != nil {
 		*d.requests = append(*d.requests, req)
 	}
-	return &plugin.ChangeDetectionResult{
+	return &ChangeDetectionResult{
 		Modules:      d.changedModules,
 		Files:        d.changedFiles,
 		LibraryPaths: d.changedLibraries,
@@ -122,7 +121,7 @@ func TestResolveTargets_ChangedOnlyDetectsOnce(t *testing.T) {
 		Graph:    graph.BuildFromDependencies([]*discovery.Module{app}, nil),
 	}
 	var calls int
-	var requests []plugin.ChangeDetectionRequest
+	var requests []ChangeDetectionRequest
 
 	targets, err := resolveTargets(context.Background(), workDir, cfg, result, TargetSelectionOptions{
 		ChangedOnly: true,

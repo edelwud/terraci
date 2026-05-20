@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/edelwud/terraci/pkg/plugin/initwiz"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
@@ -59,6 +60,37 @@ func TestPlugin_SDKContracts(t *testing.T) {
 			Enabled:  enabled,
 			Disabled: disabled,
 			Message:  "policy disabled",
+		})
+	})
+
+	t.Run("preflight", func(t *testing.T) {
+		p := newTestPlugin()
+		p.SetTypedConfig(&policyengine.Config{
+			Enabled:   true,
+			Sources:   []policyengine.SourceConfig{{Type: policyengine.SourceTypePath, Path: "policies"}},
+			Decisions: policyengine.Decisions{Deny: policyengine.ActionWarn},
+		})
+		plugintest.AssertPreflightable(t, plugintest.PreflightableContract{
+			Plugin:     p,
+			AppContext: plugintest.NewAppContext(t, t.TempDir()),
+		})
+	})
+
+	t.Run("init contributor", func(t *testing.T) {
+		state := initwiz.NewStateMap()
+		state.Set("policy.enabled", true)
+		plugintest.AssertInitContributor(t, plugintest.InitContributorContract{
+			Contributor:        newTestPlugin(),
+			State:              state,
+			ExpectedPluginKey:  pluginName,
+			ExpectContribution: true,
+		})
+	})
+
+	t.Run("version provider", func(t *testing.T) {
+		plugintest.AssertVersionProvider(t, plugintest.VersionProviderContract{
+			Provider:     newTestPlugin(),
+			ExpectedKeys: []string{"opa"},
 		})
 	})
 }

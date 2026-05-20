@@ -26,8 +26,8 @@ func (d workflowResolverTestChangeDetector) Description() string {
 	return "localexec target test change detector"
 }
 
-func (d workflowResolverTestChangeDetector) DetectChanges(context.Context, plugin.ChangeDetectionRequest) (*plugin.ChangeDetectionResult, error) {
-	return &plugin.ChangeDetectionResult{LibraryPaths: d.changedLibraries}, nil
+func (d workflowResolverTestChangeDetector) DetectChanges(context.Context, workflow.ChangeDetectionRequest) (*workflow.ChangeDetectionResult, error) {
+	return &workflow.ChangeDetectionResult{LibraryPaths: d.changedLibraries}, nil
 }
 
 func TestWorkflowResolverUsesWorkflowResolveTargets(t *testing.T) {

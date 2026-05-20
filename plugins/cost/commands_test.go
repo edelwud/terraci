@@ -12,6 +12,7 @@ import (
 	"github.com/edelwud/terraci/pkg/ci/citest"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/cliout"
+	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/internal/reportrender"
 )
@@ -84,7 +85,16 @@ func renderTableRowsOrNil(section ci.RenderSection) [][]string {
 
 func TestPlugin_Commands_RunE_NotConfigured(t *testing.T) {
 	p := newTestPlugin(t)
-	appCtx := newTestAppContext(t, t.TempDir())
+	base := newTestAppContext(t, t.TempDir())
+	appCtx := plugin.NewAppContext(plugin.AppContextOptions{
+		Config:        base.Config(),
+		WorkDir:       base.WorkDir(),
+		ServiceDir:    base.ServiceDir(),
+		Version:       base.Version(),
+		Reports:       base.Reports(),
+		Resolver:      base.Resolver(),
+		CommandLookup: plugintest.StaticCommandLookup{pluginName: p},
+	})
 
 	cmds := p.Commands()
 	cmd := cmds[0]

@@ -97,7 +97,7 @@ Plugins implement one or more capability interfaces. The framework discovers the
 | `CommentServiceFactory` | Create MR/PR comment service | gitlab, github |
 | `EnvDetector` | Detect CI environment from env vars | gitlab, github |
 | `CIInfoProvider` | Provider name, pipeline ID, commit SHA | gitlab, github |
-| `ChangeDetectionProvider` | Detect changed modules via VCS diff | git |
+| `ChangeDetectionProvider` | SDK capability that embeds plugin-agnostic `workflow.ChangeDetector` for VCS diffs | git |
 | `RuntimeProvider` | Lazy construction of heavy runtime state | cost, policy, tfupdate |
 | `Preflightable` | Cheap startup validation before commands run | gitlab, github, git, cost, policy, tfupdate |
 | `VersionProvider` | Contribute version info to `terraci version` | policy |

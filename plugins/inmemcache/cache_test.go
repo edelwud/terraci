@@ -156,3 +156,21 @@ func TestPlugin_BaseConfigContract(t *testing.T) {
 		},
 	})
 }
+
+func TestPlugin_KVCacheProviderContract(t *testing.T) {
+	p := &Plugin{
+		BasePlugin: plugin.BasePlugin[*Config]{
+			PluginName: "inmemcache",
+			PluginDesc: "Built-in process-local KV cache backend",
+			EnableMode: plugin.EnabledByDefault,
+			DefaultCfg: func() *Config { return &Config{Enabled: true} },
+			IsEnabledFn: func(cfg *Config) bool {
+				return cfg == nil || cfg.Enabled
+			},
+		},
+	}
+
+	plugintest.AssertKVCacheProvider(t, plugintest.KVCacheProviderContract{
+		Provider: p,
+	})
+}

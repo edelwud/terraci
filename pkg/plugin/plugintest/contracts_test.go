@@ -4,9 +4,15 @@ import (
 	"context"
 	"slices"
 	"testing"
+	"time"
 
+	"github.com/edelwud/terraci/pkg/cache/blobcache"
+	"github.com/edelwud/terraci/pkg/cache/blobcache/blobtest"
+	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/initwiz"
+	"github.com/edelwud/terraci/pkg/workflow"
 )
 
 func TestAssertBaseConfigPlugin(t *testing.T) {
@@ -100,6 +106,83 @@ func TestAssertPipelineContributor(t *testing.T) {
 	})
 }
 
+func TestAssertPreflightable(t *testing.T) {
+	AssertPreflightable(t, PreflightableContract{
+		Plugin: contractPreflightPlugin{},
+	})
+}
+
+func TestAssertInitContributor(t *testing.T) {
+	AssertInitContributor(t, InitContributorContract{
+		Contributor:        contractInitContributor{},
+		ExpectedPluginKey:  "contract",
+		ExpectContribution: true,
+	})
+}
+
+func TestAssertVersionProvider(t *testing.T) {
+	AssertVersionProvider(t, VersionProviderContract{
+		Provider:     contractVersionProvider{},
+		ExpectedKeys: []string{"engine"},
+	})
+}
+
+func TestAssertKVCacheProvider(t *testing.T) {
+	AssertKVCacheProvider(t, KVCacheProviderContract{
+		Provider: contractKVCacheProvider{},
+		Value:    []byte("cached"),
+	})
+}
+
+func TestAssertBlobStoreProvider(t *testing.T) {
+	AssertBlobStoreProvider(t, BlobStoreProviderContract{
+		Provider: contractBlobStoreProvider{},
+		Value:    []byte("blobbed"),
+	})
+}
+
+func TestAssertChangeDetector(t *testing.T) {
+	AssertChangeDetector(t, ChangeDetectorContract{
+		Detector: contractChangeDetector{},
+		AssertResult: func(tb testing.TB, got *workflow.ChangeDetectionResult) {
+			tb.Helper()
+			if !slices.Equal(got.Files, []string{"changed.tf"}) {
+				tb.Fatalf("changed files = %v, want [changed.tf]", got.Files)
+			}
+		},
+	})
+}
+
+func TestAssertCIProvider(t *testing.T) {
+	provider := contractCIProvider{}
+	AssertCIProvider(t, CIProviderContract{
+		EnvDetector:    provider,
+		InfoProvider:   provider,
+		Generator:      provider,
+		CommentFactory: provider,
+		IR:             &pipeline.IR{},
+		ExpectedName:   "contract-ci",
+		AssertEnv: func(tb testing.TB, detected bool) {
+			tb.Helper()
+			if !detected {
+				tb.Fatal("DetectEnv() = false, want true")
+			}
+		},
+		AssertReqs: func(tb testing.TB, reqs pipeline.BuildRequirements) {
+			tb.Helper()
+			if !reqs.PlanOnly {
+				tb.Fatal("PipelineRequirements().PlanOnly = false, want true")
+			}
+		},
+		AssertComment: func(tb testing.TB, service ci.CommentService, ok bool) {
+			tb.Helper()
+			if !ok || service == nil {
+				tb.Fatal("NewCommentService() did not return service")
+			}
+		},
+	})
+}
+
 type contractPlugin struct {
 	plugin.BasePlugin[*contractConfig]
 }
@@ -180,4 +263,136 @@ func (contractContributor) PipelineContribution(*plugin.AppContext) *pipeline.Co
 		{Name: "first"},
 		{Name: "second"},
 	}}
+}
+
+type contractPreflightPlugin struct{}
+
+func (contractPreflightPlugin) Name() string        { return "contract-preflight" }
+func (contractPreflightPlugin) Description() string { return "contract preflight" }
+func (contractPreflightPlugin) Preflight(context.Context, *plugin.AppContext) error {
+	return nil
+}
+
+type contractInitContributor struct{}
+
+func (contractInitContributor) Name() string        { return "contract-init" }
+func (contractInitContributor) Description() string { return "contract init" }
+
+func (contractInitContributor) InitGroups() []*initwiz.InitGroupSpec {
+	return []*initwiz.InitGroupSpec{{
+		Title:    "Contract",
+		Category: initwiz.CategoryFeature,
+		Order:    10,
+		Fields: []initwiz.InitField{{
+			Key:   "contract_enabled",
+			Title: "Enable contract",
+			Type:  initwiz.FieldBool,
+		}},
+	}}
+}
+
+func (contractInitContributor) BuildInitConfig(*initwiz.StateMap) *initwiz.InitContribution {
+	return &initwiz.InitContribution{
+		PluginKey: "contract",
+		Config:    map[string]any{"enabled": true},
+	}
+}
+
+type contractVersionProvider struct{}
+
+func (contractVersionProvider) Name() string        { return "contract-version" }
+func (contractVersionProvider) Description() string { return "contract version" }
+
+func (contractVersionProvider) VersionInfo() map[string]string {
+	return map[string]string{"engine": "test"}
+}
+
+type contractKVCacheProvider struct{}
+
+func (contractKVCacheProvider) Name() string        { return "contract-kv" }
+func (contractKVCacheProvider) Description() string { return "contract kv" }
+
+func (contractKVCacheProvider) NewKVCache(context.Context, *plugin.AppContext) (plugin.KVCache, error) {
+	return &contractKVCache{values: map[string][]byte{}}, nil
+}
+
+type contractKVCache struct {
+	values map[string][]byte
+}
+
+func (c *contractKVCache) Get(_ context.Context, namespace, key string) (value []byte, found bool, err error) {
+	value, ok := c.values[namespace+"/"+key]
+	return slices.Clone(value), ok, nil
+}
+
+func (c *contractKVCache) Set(_ context.Context, namespace, key string, value []byte, _ time.Duration) error {
+	c.values[namespace+"/"+key] = slices.Clone(value)
+	return nil
+}
+
+func (c *contractKVCache) Delete(_ context.Context, namespace, key string) error {
+	delete(c.values, namespace+"/"+key)
+	return nil
+}
+
+func (c *contractKVCache) DeleteNamespace(_ context.Context, namespace string) error {
+	prefix := namespace + "/"
+	for key := range c.values {
+		if len(key) >= len(prefix) && key[:len(prefix)] == prefix {
+			delete(c.values, key)
+		}
+	}
+	return nil
+}
+
+type contractBlobStoreProvider struct{}
+
+func (contractBlobStoreProvider) Name() string        { return "contract-blob" }
+func (contractBlobStoreProvider) Description() string { return "contract blob" }
+
+func (contractBlobStoreProvider) NewBlobStore(context.Context, *plugin.AppContext, plugin.BlobStoreOptions) (blobcache.Store, error) {
+	return blobtest.NewMemoryStore("contract"), nil
+}
+
+type contractChangeDetector struct{}
+
+func (contractChangeDetector) DetectChanges(context.Context, workflow.ChangeDetectionRequest) (*workflow.ChangeDetectionResult, error) {
+	return &workflow.ChangeDetectionResult{Files: []string{"changed.tf"}}, nil
+}
+
+type contractCIProvider struct{}
+
+func (contractCIProvider) Name() string        { return "contract-ci" }
+func (contractCIProvider) Description() string { return "contract ci" }
+func (contractCIProvider) DetectEnv() bool     { return true }
+func (contractCIProvider) ProviderName() string {
+	return "contract-ci"
+}
+func (contractCIProvider) PipelineID() string { return "pipeline" }
+func (contractCIProvider) CommitSHA() string  { return "commit" }
+
+func (contractCIProvider) PipelineRequirements(*plugin.AppContext) pipeline.BuildRequirements {
+	return pipeline.BuildRequirements{PlanOnly: true}
+}
+
+func (contractCIProvider) NewGenerator(*plugin.AppContext, *pipeline.IR) pipeline.Generator {
+	return contractGenerator{}
+}
+
+func (contractCIProvider) NewCommentService(*plugin.AppContext) ci.CommentService {
+	return contractCommentService{}
+}
+
+type contractGenerator struct{}
+
+func (contractGenerator) Generate() (pipeline.GeneratedPipeline, error) { return nil, nil }
+func (contractGenerator) DryRun() (*pipeline.DryRunResult, error) {
+	return &pipeline.DryRunResult{}, nil
+}
+
+type contractCommentService struct{}
+
+func (contractCommentService) IsEnabled() bool { return true }
+func (contractCommentService) UpsertComment(context.Context, string) error {
+	return nil
 }

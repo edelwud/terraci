@@ -15,6 +15,7 @@ import (
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/workflow"
 )
 
 type testPlugin struct {
@@ -786,8 +787,8 @@ type testDetectorPlugin struct {
 	plugin.BasePlugin[*testConfig]
 }
 
-func (d *testDetectorPlugin) DetectChanges(_ context.Context, _ plugin.ChangeDetectionRequest) (*plugin.ChangeDetectionResult, error) {
-	return &plugin.ChangeDetectionResult{}, nil
+func (d *testDetectorPlugin) DetectChanges(_ context.Context, _ workflow.ChangeDetectionRequest) (*workflow.ChangeDetectionResult, error) {
+	return &workflow.ChangeDetectionResult{}, nil
 }
 
 func TestResolveChangeDetector_Single(t *testing.T) {
@@ -876,8 +877,8 @@ type bareDetector struct {
 
 func (d *bareDetector) Name() string        { return d.name }
 func (d *bareDetector) Description() string { return d.name }
-func (d *bareDetector) DetectChanges(_ context.Context, _ plugin.ChangeDetectionRequest) (*plugin.ChangeDetectionResult, error) {
-	return &plugin.ChangeDetectionResult{}, nil
+func (d *bareDetector) DetectChanges(_ context.Context, _ workflow.ChangeDetectionRequest) (*workflow.ChangeDetectionResult, error) {
+	return &workflow.ChangeDetectionResult{}, nil
 }
 
 func TestResolveChangeDetector_MultipleNoneConfigured(t *testing.T) {

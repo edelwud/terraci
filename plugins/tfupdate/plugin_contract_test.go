@@ -5,6 +5,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/edelwud/terraci/pkg/plugin/initwiz"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
 )
@@ -71,6 +72,26 @@ func TestPlugin_SDKContracts(t *testing.T) {
 			Enabled:  enabled,
 			Disabled: disabled,
 			Message:  "tfupdate disabled",
+		})
+	})
+
+	t.Run("preflight", func(t *testing.T) {
+		p := newTestPlugin(t)
+		enablePlugin(t, p, &tfupdateengine.UpdateConfig{Enabled: true})
+		plugintest.AssertPreflightable(t, plugintest.PreflightableContract{
+			Plugin:     p,
+			AppContext: newTestAppContext(t, t.TempDir()),
+		})
+	})
+
+	t.Run("init contributor", func(t *testing.T) {
+		state := initwiz.NewStateMap()
+		state.Set("tfupdate.enabled", true)
+		plugintest.AssertInitContributor(t, plugintest.InitContributorContract{
+			Contributor:        newTestPlugin(t),
+			State:              state,
+			ExpectedPluginKey:  pluginName,
+			ExpectContribution: true,
 		})
 	})
 }

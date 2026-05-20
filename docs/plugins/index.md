@@ -160,7 +160,7 @@ Register → Configure → Preflight → Freeze → Execute
 
 Use the public test kits for SDK behavior instead of re-testing framework internals by hand:
 
-- `pkg/plugin/plugintest`: `AssertBaseConfigPlugin`, `AssertCommandBinding`, `AssertRequireEnabled`, `AssertRuntimeProvider`, `AssertPipelineContributor`.
+- `pkg/plugin/plugintest`: `AssertBaseConfigPlugin`, `AssertCommandBinding`, `AssertRequireEnabled`, `AssertRuntimeProvider`, `AssertPipelineContributor`, `AssertPreflightable`, `AssertInitContributor`, `AssertVersionProvider`, `AssertKVCacheProvider`, `AssertBlobStoreProvider`, `AssertChangeDetector`, `AssertCIProvider`.
 - `pkg/ci/citest`: `AssertRenderedReportContract`, `AssertPublishArtifactsContract`, and rendered report builders.
 
 Keep plugin-specific tests focused on your domain logic, APIs, and rendering decisions. The contract helpers verify that your plugin follows the same config immutability, command binding, report, and artifact lifecycle rules as the built-in plugins.
@@ -180,7 +180,7 @@ ctx.WorkDir()    // project root directory
 ctx.ServiceDir() // resolved .terraci directory (absolute path)
 ctx.Config()     // shared *config.Config — read-only, do not mutate
 ctx.Version()    // TerraCi version string
-ctx.Reports()    // shared report registry for plugin communication
+ctx.Reports()    // shared ci.ReportStore for plugin artifacts and reports
 ctx.Resolver()   // capability resolver — never nil; use to look up CI provider, change detector, caches
 ```
 
@@ -192,7 +192,7 @@ The framework constructs the context once via `plugin.NewAppContext(plugin.AppCo
 
 ```go
 ResolveCIProvider() (*plugin.ResolvedCIProvider, error)
-ResolveChangeDetector() (plugin.ChangeDetectionProvider, error)
+ResolveChangeDetector() (plugin.ChangeDetectionProvider, error) // embeds workflow.ChangeDetector
 ResolveKVCacheProvider(name string) (plugin.KVCacheProvider, error)
 ResolveBlobStoreProvider(name string) (plugin.BlobStoreProvider, error)
 CollectContributions(ctx *plugin.AppContext) []*pipeline.Contribution

@@ -26,8 +26,8 @@ func (d generateTargetTestChangeDetector) Description() string {
 	return "generate target test change detector"
 }
 
-func (d generateTargetTestChangeDetector) DetectChanges(context.Context, plugin.ChangeDetectionRequest) (*plugin.ChangeDetectionResult, error) {
-	return &plugin.ChangeDetectionResult{LibraryPaths: d.changedLibraries}, nil
+func (d generateTargetTestChangeDetector) DetectChanges(context.Context, workflow.ChangeDetectionRequest) (*workflow.ChangeDetectionResult, error) {
+	return &workflow.ChangeDetectionResult{LibraryPaths: d.changedLibraries}, nil
 }
 
 func TestResolveGenerateTargetsUsesWorkflowResolveTargets(t *testing.T) {

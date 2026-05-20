@@ -4,6 +4,7 @@ import (
 	"maps"
 	"testing"
 
+	"github.com/edelwud/terraci/pkg/plugin/initwiz"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
@@ -57,6 +58,26 @@ func TestPlugin_SDKContracts(t *testing.T) {
 			Enabled:  enabled,
 			Disabled: disabled,
 			Message:  "cost disabled",
+		})
+	})
+
+	t.Run("preflight", func(t *testing.T) {
+		p := newTestPlugin(t)
+		enablePlugin(t, p, &model.CostConfig{Providers: model.CostProvidersConfig{"aws": {Enabled: true}}})
+		plugintest.AssertPreflightable(t, plugintest.PreflightableContract{
+			Plugin:     p,
+			AppContext: newTestAppContext(t, t.TempDir()),
+		})
+	})
+
+	t.Run("init contributor", func(t *testing.T) {
+		state := initwiz.NewStateMap()
+		state.Set("cost.providers.aws.enabled", true)
+		plugintest.AssertInitContributor(t, plugintest.InitContributorContract{
+			Contributor:        newTestPlugin(t),
+			State:              state,
+			ExpectedPluginKey:  pluginName,
+			ExpectContribution: true,
 		})
 	})
 }

@@ -4,12 +4,9 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
-	"github.com/edelwud/terraci/plugins/diskblob"
-	"github.com/edelwud/terraci/plugins/inmemcache"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
 	"github.com/edelwud/terraci/plugins/tfupdate/internal/sourceaddr"
 )
@@ -197,29 +194,7 @@ func TestPlugin_Runtime_DefaultBackendRequiresExplicitNameWithAdditionalProvider
 		},
 		cache: stubKVCache{},
 	}
-	plugins := plugintest.NewRegistry(t,
-		func() plugin.Plugin {
-			return &inmemcache.Plugin{BasePlugin: plugin.BasePlugin[*inmemcache.Config]{
-				PluginName: "inmemcache",
-				PluginDesc: "Built-in process-local KV cache backend",
-				EnableMode: plugin.EnabledByDefault,
-				DefaultCfg: func() *inmemcache.Config { return &inmemcache.Config{Enabled: true} },
-				IsEnabledFn: func(cfg *inmemcache.Config) bool {
-					return cfg == nil || cfg.Enabled
-				},
-			}}
-		},
-		func() plugin.Plugin {
-			return &diskblob.Plugin{BasePlugin: plugin.BasePlugin[*diskblob.Config]{
-				PluginName: "diskblob",
-				PluginDesc: "Filesystem-backed blob store backend",
-				EnableMode: plugin.EnabledByDefault,
-				DefaultCfg: func() *diskblob.Config { return &diskblob.Config{Enabled: true} },
-				IsEnabledFn: func(cfg *diskblob.Config) bool {
-					return cfg == nil || cfg.Enabled
-				},
-			}}
-		},
+	plugins := newTestBackendRegistry(t,
 		func() plugin.Plugin { return alt },
 	)
 
@@ -242,33 +217,3 @@ func TestPlugin_Runtime_DefaultBackendRequiresExplicitNameWithAdditionalProvider
 		t.Fatalf("Runtime() error = %v, want metadata backend config path", err)
 	}
 }
-
-type testPlugin struct {
-	name string
-	desc string
-}
-
-func (p testPlugin) Name() string        { return p.name }
-func (p testPlugin) Description() string { return p.desc }
-
-type testKVCacheProvider struct {
-	testPlugin
-	cache plugin.KVCache
-	calls int
-}
-
-func (p *testKVCacheProvider) NewKVCache(context.Context, *plugin.AppContext) (plugin.KVCache, error) {
-	p.calls++
-	return p.cache, nil
-}
-
-type stubKVCache struct{}
-
-func (stubKVCache) Get(context.Context, string, string) (value []byte, found bool, err error) {
-	return nil, false, nil
-}
-func (stubKVCache) Set(context.Context, string, string, []byte, time.Duration) error {
-	return nil
-}
-func (stubKVCache) Delete(context.Context, string, string) error  { return nil }
-func (stubKVCache) DeleteNamespace(context.Context, string) error { return nil }

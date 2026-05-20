@@ -5,13 +5,92 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/initwiz"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
 )
 
-func TestPlugin_BaseConfigContract(t *testing.T) {
-	p := &Plugin{BasePlugin: plugin.BasePlugin[*configpkg.Config]{
+func TestPlugin_SDKContracts(t *testing.T) {
+	p := newContractPlugin()
+
+	t.Run("config", func(t *testing.T) {
+		plugintest.AssertBaseConfigPlugin[*configpkg.Config](t, plugintest.BaseConfigPluginContract[*configpkg.Config]{
+			Plugin: p,
+			Default: &configpkg.Config{
+				Image:        configpkg.Image{Name: "hashicorp/terraform:1.6"},
+				StagesPrefix: defaultStagesPrefix,
+				CacheEnabled: true,
+			},
+			Configured: &configpkg.Config{
+				Image:        configpkg.Image{Name: "hashicorp/terraform:1.7", Entrypoint: []string{"/bin/sh"}},
+				StagesPrefix: "deploy",
+				Variables:    map[string]string{"TF_INPUT": "false"},
+				CacheEnabled: true,
+				Cache:        &configpkg.CacheConfig{Paths: []string{".terraform"}, Policy: "pull-push"},
+				Rules:        []configpkg.Rule{{If: "$CI_PIPELINE_SOURCE", Changes: []string{"**/*.tf"}}},
+			},
+			Decoded: &configpkg.Config{
+				Image:        configpkg.Image{Name: "custom/terraform:latest"},
+				StagesPrefix: "decoded",
+				Variables:    map[string]string{"DECODED": "true"},
+				Cache:        &configpkg.CacheConfig{Paths: []string{"decoded"}, Policy: "pull"},
+				Rules:        []configpkg.Rule{{If: "$CI_COMMIT_BRANCH", Changes: []string{"decoded/**"}}},
+			},
+			Mutate: mutateGitLabConfig,
+			Equal:  equalGitLabConfig,
+		})
+	})
+
+	t.Run("preflight", func(t *testing.T) {
+		plugintest.AssertPreflightable(t, plugintest.PreflightableContract{
+			Plugin:     newContractPlugin(),
+			AppContext: plugintest.NewAppContext(t, t.TempDir()),
+		})
+	})
+
+	t.Run("init contributor", func(t *testing.T) {
+		state := initwiz.NewStateMap()
+		state.Set("provider", pluginName)
+		plugintest.AssertInitContributor(t, plugintest.InitContributorContract{
+			Contributor:        newContractPlugin(),
+			State:              state,
+			ExpectedPluginKey:  pluginName,
+			ExpectContribution: true,
+		})
+	})
+
+	t.Run("ci provider", func(t *testing.T) {
+		t.Setenv("GITLAB_CI", "true")
+		p := newContractPlugin()
+		plugintest.AssertCIProvider(t, plugintest.CIProviderContract{
+			EnvDetector:    p,
+			InfoProvider:   p,
+			Generator:      p,
+			CommentFactory: p,
+			AppContext:     plugintest.NewAppContext(t, t.TempDir()),
+			IR:             &pipeline.IR{},
+			ExpectedName:   pluginName,
+			AssertEnv: func(tb testing.TB, detected bool) {
+				tb.Helper()
+				if !detected {
+					tb.Fatal("DetectEnv() = false, want true")
+				}
+			},
+			AssertComment: func(tb testing.TB, service ci.CommentService, ok bool) {
+				tb.Helper()
+				if !ok || service == nil {
+					tb.Fatal("NewCommentService() did not return a service")
+				}
+			},
+		})
+	})
+}
+
+func newContractPlugin() *Plugin {
+	return &Plugin{BasePlugin: plugin.BasePlugin[*configpkg.Config]{
 		PluginName: pluginName,
 		PluginDesc: "GitLab CI pipeline generation and MR comments",
 		EnableMode: plugin.EnabledWhenConfigured,
@@ -23,32 +102,6 @@ func TestPlugin_BaseConfigContract(t *testing.T) {
 			}
 		},
 	}}
-
-	plugintest.AssertBaseConfigPlugin[*configpkg.Config](t, plugintest.BaseConfigPluginContract[*configpkg.Config]{
-		Plugin: p,
-		Default: &configpkg.Config{
-			Image:        configpkg.Image{Name: "hashicorp/terraform:1.6"},
-			StagesPrefix: defaultStagesPrefix,
-			CacheEnabled: true,
-		},
-		Configured: &configpkg.Config{
-			Image:        configpkg.Image{Name: "hashicorp/terraform:1.7", Entrypoint: []string{"/bin/sh"}},
-			StagesPrefix: "deploy",
-			Variables:    map[string]string{"TF_INPUT": "false"},
-			CacheEnabled: true,
-			Cache:        &configpkg.CacheConfig{Paths: []string{".terraform"}, Policy: "pull-push"},
-			Rules:        []configpkg.Rule{{If: "$CI_PIPELINE_SOURCE", Changes: []string{"**/*.tf"}}},
-		},
-		Decoded: &configpkg.Config{
-			Image:        configpkg.Image{Name: "custom/terraform:latest"},
-			StagesPrefix: "decoded",
-			Variables:    map[string]string{"DECODED": "true"},
-			Cache:        &configpkg.CacheConfig{Paths: []string{"decoded"}, Policy: "pull"},
-			Rules:        []configpkg.Rule{{If: "$CI_COMMIT_BRANCH", Changes: []string{"decoded/**"}}},
-		},
-		Mutate: mutateGitLabConfig,
-		Equal:  equalGitLabConfig,
-	})
 }
 
 func mutateGitLabConfig(c *configpkg.Config) {

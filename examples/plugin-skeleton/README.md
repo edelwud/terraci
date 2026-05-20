@@ -77,7 +77,7 @@ The skeleton implements only `CommandProvider` and `ConfigLoader` (via `BasePlug
 | Init wizard fields       | `initwiz.InitContributor`       | `plugins/cost/init_wizard.go`     |
 | CI provider              | `plugin.PipelineGeneratorFactory` (+ EnvDetector, CIInfoProvider, …) | `plugins/gitlab/generator.go` |
 | Blob/KV cache backend    | `plugin.BlobStoreProvider` / `plugin.KVCacheProvider` | `plugins/diskblob/store.go`, `plugins/inmemcache/cache.go` |
-| Change detection         | `plugin.ChangeDetectionProvider` | `plugins/git/detect.go`           |
+| Change detection         | `plugin.ChangeDetectionProvider` over `workflow.ChangeDetector` | `plugins/git/detect.go`           |
 
 Framework discovery is purely type-assertion-based: `registry.ByCapabilityFrom[T]` walks the registered plugins and returns those that implement `T`. No manual registration of capabilities is needed.
 

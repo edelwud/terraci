@@ -97,7 +97,7 @@ TerraCi автоматически определяет активный CI-пр
 | `CommentServiceFactory` | Создание сервиса MR/PR комментариев | gitlab, github |
 | `EnvDetector` | Определение CI-окружения по переменным среды | gitlab, github |
 | `CIInfoProvider` | Имя провайдера, ID пайплайна, SHA коммита | gitlab, github |
-| `ChangeDetectionProvider` | Определение изменённых модулей через VCS | git |
+| `ChangeDetectionProvider` | SDK-возможность, встраивающая plugin-agnostic `workflow.ChangeDetector` для VCS diff | git |
 | `RuntimeProvider` | Ленивая инициализация тяжёлых зависимостей | cost, policy, tfupdate |
 | `Preflightable` | Дешёвая валидация при старте | gitlab, github, git, cost, policy, tfupdate |
 | `VersionProvider` | Информация о версии для `terraci version` | policy |

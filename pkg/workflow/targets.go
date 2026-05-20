@@ -8,7 +8,6 @@ import (
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/filter"
-	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/workspacepath"
 )
 
@@ -24,11 +23,6 @@ type TargetSelectionOptions struct {
 
 // ChangeDetectorResolver resolves the change detection provider for changed-only target selection.
 type ChangeDetectorResolver func() (ChangeDetector, error)
-
-// ChangeDetector aliases plugin.ChangeDetectionProvider so target selection
-// accepts any plugin implementing the change-detection capability without
-// re-declaring the interface here.
-type ChangeDetector = plugin.ChangeDetectionProvider
 
 // ResolveTargets applies module/path filters and optional change detection to a workflow result.
 func ResolveTargets(ctx context.Context, workDir string, cfg *config.Config, result *Result, opts TargetSelectionOptions) ([]*discovery.Module, error) {
@@ -74,7 +68,7 @@ func resolveTargets(
 		libraryRoots = cfg.LibraryModules.Paths
 	}
 
-	changes, err := detector.DetectChanges(ctx, plugin.ChangeDetectionRequest{
+	changes, err := detector.DetectChanges(ctx, ChangeDetectionRequest{
 		WorkDir:      workDir,
 		BaseRef:      opts.BaseRef,
 		ModuleIndex:  result.All.Index,
@@ -84,7 +78,7 @@ func resolveTargets(
 		return nil, fmt.Errorf("detect changes: %w", err)
 	}
 	if changes == nil {
-		changes = &plugin.ChangeDetectionResult{}
+		changes = &ChangeDetectionResult{}
 	}
 
 	changedIDs := moduleIDs(changes.Modules)

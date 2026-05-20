@@ -118,7 +118,7 @@ pkg/                            # Public API — importable by external plugins 
 │   ├── results.go, worker_pool.go, workspace.go, config.go
 ├── graph/                      # DependencyGraph, algorithms, visualization
 ├── filter/                     # Public surface: Options + Apply + Flags + ParseSegmentFilters (concrete filter types unexported)
-├── workflow/                   # Module discovery, filtering, graph building, target resolution. workflow.ChangeDetector = plugin.ChangeDetectionProvider alias
+├── workflow/                   # Module discovery, filtering, graph building, target resolution, plugin-agnostic ChangeDetector request/result contract
 ├── errors/                     # Typed errors (ConfigError, ScanError, ParseError, NoModulesError)
 └── log/                        # Thin wrapper over caarlos0/log
 
@@ -278,7 +278,7 @@ RuntimeProvider implementations should hold normalized config and constructed de
 ### SDK Contract Tests
 
 Plugin-author tests should reuse the public contract kit instead of duplicating SDK behavior:
-- `pkg/plugin/plugintest`: `AssertBaseConfigPlugin`, `AssertCommandBinding`, `AssertRequireEnabled`, `AssertRuntimeProvider`, `AssertPipelineContributor`.
+- `pkg/plugin/plugintest`: `AssertBaseConfigPlugin`, `AssertCommandBinding`, `AssertRequireEnabled`, `AssertRuntimeProvider`, `AssertPipelineContributor`, plus capability contracts for preflight, init wizard, version info, KV/blob providers, change detection, and CI providers.
 - `pkg/ci/citest`: `AssertRenderedReportContract`, `AssertPublishArtifactsContract`, `RecordingArtifactWriter`, and rendered-section/report builders.
 
 Built-in plugins and examples keep domain-specific tests local, but SDK boundary behavior is asserted through these helpers so third-party authors can copy the same patterns.
@@ -383,7 +383,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 
 ### Generate pipeline
 1. `workflow.Run(ctx, opts)` — scan → filter → parse → graph
-2. `ChangeDetectionProvider.DetectChanges()` (if --changed-only) — one VCS diff returns changed files, modules, and library paths
+2. `workflow.ChangeDetector.DetectChanges()` via `plugin.ChangeDetectionProvider` (if --changed-only) — one VCS diff returns changed files, modules, and library paths
 3. `app.Plugins.CollectContributions(appCtx)` — gather a command-scoped snapshot of PipelineContributor jobs
 4. `pipeline.Build(opts)` — construct provider-agnostic IR
 5. `provider.NewGenerator(appCtx, ir)` — bind IR to provider; `generator.Generate()` writes YAML
@@ -426,12 +426,12 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **PipelineContributor(ctx)**: plugins add standalone DAG jobs without cross-plugin imports or cached service-dir state
 - **ServiceDir**: configurable project directory; `AppContext.ServiceDir` (absolute) for runtime, `Config.ServiceDir` (relative) for pipeline templates
 - **Command boundary**: plugin command callbacks use `plugin.CommandPlugin[T](cmd, name)` and `plugin.RequireEnabled(...)`; low-level cobra context binding is framework-owned. Command binding and disabled-plugin failures are typed errors.
-- **SDK contract kit**: plugin SDK behavior is tested through `pkg/plugin/plugintest`; CI/report behavior is tested through `pkg/ci/citest`. New plugins should copy these contract helpers for config immutability, command binding, runtime creation, contributions, rendered reports, and artifact lifecycle.
+- **SDK contract kit**: plugin SDK behavior is tested through `pkg/plugin/plugintest`; CI/report behavior is tested through `pkg/ci/citest`. New plugins should copy these contract helpers for config immutability, command binding, runtime creation, contributions, lifecycle, init wizard, providers, change detection, rendered reports, and artifact lifecycle.
 - **Report artifact lifecycle**: plan-aware producers use `PlanResultCollection -> ci.ArtifactRun -> ci.NewRenderedReport -> ci.PublishArtifacts(...)`. `PublishArtifacts` always persists raw results and removes stale reports on nil/build errors. Report-only producers may use `SaveReport`.
 - **Report sections via render-ready payloads**: producer plugins call `ci.NewRenderedReport(...)` and publish only validated `ci.ReportSectionKindRendered` sections with `ci.RenderSection` payloads. `ReportSection` internals are private; use getters plus `ci.DecodeRenderSection`, not raw payload access. Summary/local renderers consume the generic render model through `plugins/internal/reportrender` and stay unaware of cost/policy/tfupdate domain structs.
 - **Report freshness**: `pkg/ci.SelectCurrentReports` owns current/stale/degraded policy. Summary and localexec skip reports whose non-empty `plan_results_fingerprint` does not match the current plan collection. Missing provenance is accepted as degraded mode.
 - **Zero cross-plugin imports**: plugins communicate only via `pkg/plugin` capability helpers, shared `pkg/ci` types, and `ci.ReportStore` artifacts
-- **Shared workflow**: `workflow.Run()` — scan, filter, parse, graph building. `workflow.ChangeDetector` is an alias of `plugin.ChangeDetectionProvider`.
+- **Shared workflow**: `workflow.Run()` — scan, filter, parse, graph building. `workflow.ChangeDetector`, `workflow.ChangeDetectionRequest`, and `workflow.ChangeDetectionResult` are plugin-agnostic; `plugin.ChangeDetectionProvider` embeds that workflow contract plus `plugin.Plugin`.
 - **Localexec boundary**: keep shell/tfexec details inside `plugins/localexec`; `pkg/execution` stays provider-agnostic scheduler/executor infrastructure that consumes a raw `*pipeline.IR`. `localexec/internal/flow` returns a typed result and leaves final rendering to the executor/output layer.
 - **Reference runtime-heavy plugins**: `cost`, `policy`, `tfupdate`
 - **Parser architecture**: keep `pkg/parser` as a thin public facade; put orchestration, extraction, resolution, and source mechanics in `pkg/parser/internal/*` around the shared `pkg/parser/model`

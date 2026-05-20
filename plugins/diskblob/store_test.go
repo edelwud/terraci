@@ -60,6 +60,25 @@ func TestPlugin_BaseConfigContract(t *testing.T) {
 	})
 }
 
+func TestPlugin_BlobStoreProviderContract(t *testing.T) {
+	p := &Plugin{
+		BasePlugin: plugin.BasePlugin[*Config]{
+			PluginName: "diskblob",
+			PluginDesc: "Filesystem-backed blob/object cache backend",
+			EnableMode: plugin.EnabledByDefault,
+			DefaultCfg: func() *Config { return &Config{Enabled: true} },
+			IsEnabledFn: func(cfg *Config) bool {
+				return cfg == nil || cfg.Enabled
+			},
+		},
+	}
+
+	plugintest.AssertBlobStoreProvider(t, plugintest.BlobStoreProviderContract{
+		Provider: p,
+		Options:  plugin.BlobStoreOptions{RootDir: t.TempDir()},
+	})
+}
+
 func TestStore_DescribeBlobStore(t *testing.T) {
 	store := NewStore(t.TempDir())
 	info := store.DescribeBlobStore()

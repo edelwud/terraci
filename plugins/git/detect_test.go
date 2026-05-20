@@ -12,7 +12,8 @@ import (
 	"github.com/go-git/go-git/v6/plumbing/object"
 
 	"github.com/edelwud/terraci/pkg/discovery"
-	pluginpkg "github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/plugintest"
+	"github.com/edelwud/terraci/pkg/workflow"
 )
 
 func TestDetectChanges_RelativeWorkDirAndLibraryPaths(t *testing.T) {
@@ -49,12 +50,17 @@ func TestDetectChanges_RelativeWorkDirAndLibraryPaths(t *testing.T) {
 		modPath,
 	)
 
-	result, err := (&Plugin{}).DetectChanges(context.Background(), pluginpkg.ChangeDetectionRequest{
+	req := workflow.ChangeDetectionRequest{
 		WorkDir:      relWorkDir,
 		BaseRef:      "HEAD~1",
 		ModuleIndex:  discovery.NewModuleIndex([]*discovery.Module{mod}),
 		LibraryPaths: []string{"_modules"},
+	}
+	plugintest.AssertChangeDetector(t, plugintest.ChangeDetectorContract{
+		Detector: (&Plugin{}),
+		Request:  req,
 	})
+	result, err := (&Plugin{}).DetectChanges(context.Background(), req)
 	if err != nil {
 		t.Fatalf("DetectChanges() error = %v", err)
 	}

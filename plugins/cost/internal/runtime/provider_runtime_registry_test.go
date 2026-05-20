@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/edelwud/terraci/pkg/cache/blobcache"
+	"github.com/edelwud/terraci/pkg/cache/blobcache/blobtest"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
 	_ "github.com/edelwud/terraci/plugins/cost/internal/cloud/aws"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
@@ -14,7 +15,6 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
-	"github.com/edelwud/terraci/plugins/diskblob"
 )
 
 func TestProviderCatalog_ResolveProviderAndDefinition(t *testing.T) {
@@ -73,7 +73,7 @@ func TestProviderRuntimeRegistry_GetIndexAndSourceName(t *testing.T) {
 		},
 	}
 
-	cache1, err := pricing.NewCacheFromBlobCache(blobcache.New(diskblob.NewStore(t.TempDir()), "", time.Hour), contracttest.StubFetcher{
+	cache1, err := pricing.NewCacheFromBlobCache(blobcache.New(blobtest.NewMemoryStore(t.TempDir()), "", time.Hour), contracttest.StubFetcher{
 		FetchRegionIndexFunc: func(_ context.Context, _ pricing.ServiceID, _ string) (*pricing.PriceIndex, error) {
 			return expected, nil
 		},
@@ -128,7 +128,7 @@ func TestProviderRuntimeRegistry_WarmIndexes(t *testing.T) {
 
 	serviceID := awskit.MustService(awskit.ServiceKeyEC2)
 	fetchCount := 0
-	cache2, err := pricing.NewCacheFromBlobCache(blobcache.New(diskblob.NewStore(t.TempDir()), "", time.Hour), contracttest.StubFetcher{
+	cache2, err := pricing.NewCacheFromBlobCache(blobcache.New(blobtest.NewMemoryStore(t.TempDir()), "", time.Hour), contracttest.StubFetcher{
 		FetchRegionIndexFunc: func(_ context.Context, _ pricing.ServiceID, _ string) (*pricing.PriceIndex, error) {
 			fetchCount++
 			return &pricing.PriceIndex{
@@ -189,7 +189,7 @@ func TestProviderRuntimeRegistry_SharedFetcherOverrideDoesNotPanicForMultiplePro
 	}()
 	if _, err := NewProviderRuntimeRegistryFromProviders(
 		providers,
-		blobcache.New(diskblob.NewStore(t.TempDir()), "", time.Hour),
+		blobcache.New(blobtest.NewMemoryStore(t.TempDir()), "", time.Hour),
 		nil,
 	); err != nil {
 		t.Fatalf("NewProviderRuntimeRegistryFromProviders() error = %v", err)
@@ -208,7 +208,7 @@ func TestProviderRuntimeRegistry_ProviderScopedFetcherOverrides(t *testing.T) {
 
 	runtimeRegistry, err := NewProviderRuntimeRegistryFromProviders(
 		providers,
-		blobcache.New(diskblob.NewStore(t.TempDir()), "", time.Hour),
+		blobcache.New(blobtest.NewMemoryStore(t.TempDir()), "", time.Hour),
 		map[string]pricing.PriceFetcher{
 			"one": contracttest.StubFetcher{
 				FetchRegionIndexFunc: func(_ context.Context, service pricing.ServiceID, region string) (*pricing.PriceIndex, error) {

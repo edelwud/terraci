@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/edelwud/terraci/pkg/cache/blobcache"
-	"github.com/edelwud/terraci/plugins/diskblob"
+	"github.com/edelwud/terraci/pkg/cache/blobcache/blobtest"
 )
 
 func TestCacheInspector_EntriesAndOldestAge(t *testing.T) {
-	store := diskblob.NewStore(t.TempDir())
+	store := blobtest.NewMemoryStore(t.TempDir())
 	cache := blobcache.New(store, "", time.Hour)
 	inspector := NewCacheInspector(cache)
 
@@ -45,7 +45,7 @@ func TestCacheInspector_EntriesAndOldestAge(t *testing.T) {
 
 func TestCacheInspector_DirAndTTL(t *testing.T) {
 	root := t.TempDir()
-	cache := blobcache.New(diskblob.NewStore(root), "", 2*time.Hour)
+	cache := blobcache.New(blobtest.NewMemoryStore(root), "", 2*time.Hour)
 	inspector := NewCacheInspector(cache)
 
 	if inspector.Dir() != root {

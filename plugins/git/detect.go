@@ -6,12 +6,12 @@ import (
 	"path/filepath"
 
 	"github.com/edelwud/terraci/pkg/discovery"
-	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/workflow"
 	"github.com/edelwud/terraci/plugins/git/internal/gitclient"
 )
 
 // DetectChanges returns changed files plus module/library projections.
-func (p *Plugin) DetectChanges(ctx context.Context, req plugin.ChangeDetectionRequest) (*plugin.ChangeDetectionResult, error) {
+func (p *Plugin) DetectChanges(ctx context.Context, req workflow.ChangeDetectionRequest) (*workflow.ChangeDetectionResult, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -42,7 +42,7 @@ func (p *Plugin) DetectChanges(ctx context.Context, req plugin.ChangeDetectionRe
 		return nil, fmt.Errorf("git diff against %q: %w", ref, err)
 	}
 
-	return &plugin.ChangeDetectionResult{
+	return &workflow.ChangeDetectionResult{
 		Modules:      modules,
 		Files:        files,
 		LibraryPaths: libraries,

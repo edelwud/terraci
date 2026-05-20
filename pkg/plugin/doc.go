@@ -99,6 +99,10 @@
 //     construction and RuntimeAs[T].
 //   - plugintest.AssertPipelineContributor — verifies deterministic generic
 //     contribution shape.
+//   - plugintest.AssertPreflightable, AssertInitContributor,
+//     AssertVersionProvider, AssertKVCacheProvider, AssertBlobStoreProvider,
+//     AssertChangeDetector, and AssertCIProvider — verify the remaining
+//     capability contracts through focused, closure-based test fixtures.
 //   - citest.AssertRenderedReportContract — verifies ci.NewRenderedReport
 //     output validates, decodes through ci.DecodeRenderSection, and renders.
 //   - citest.AssertPublishArtifactsContract — verifies ci.PublishArtifacts
@@ -137,6 +141,8 @@
 // Plugins must never import each other directly. The contract surfaces are:
 //
 //   - capability interfaces in pkg/plugin (CI provider, change detection, …)
+//     with plugin-agnostic domain contracts, such as workflow.ChangeDetector,
+//     owned by their core package.
 //   - shared types in pkg/ci (Report, ReportSection, PlanResult, …)
 //   - the ci.ReportStore on AppContext, which owns both file-backed artifacts
 //     ({producer}-report.json) and in-process report exchange

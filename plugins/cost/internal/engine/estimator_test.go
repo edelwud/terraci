@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/edelwud/terraci/pkg/cache/blobcache"
+	"github.com/edelwud/terraci/pkg/cache/blobcache/blobtest"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
 	_ "github.com/edelwud/terraci/plugins/cost/internal/cloud/aws"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud/awskit"
@@ -18,7 +19,6 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 	"github.com/edelwud/terraci/plugins/cost/internal/results"
 	costruntime "github.com/edelwud/terraci/plugins/cost/internal/runtime"
-	"github.com/edelwud/terraci/plugins/diskblob"
 )
 
 // planReplaceEC2 replaces a t3.micro instance.
@@ -187,7 +187,7 @@ func TestEstimateModule_KnownProviderMissingHandler(t *testing.T) {
 	}
 
 	def := awsProvider.Definition()
-	cache, err := pricing.NewCacheFromBlobCache(blobcache.New(diskblob.NewStore(cacheDir), "", 0), fetcher)
+	cache, err := pricing.NewCacheFromBlobCache(blobcache.New(blobtest.NewMemoryStore(cacheDir), "", 0), fetcher)
 	if err != nil {
 		t.Fatalf("NewCacheFromBlobCache: %v", err)
 	}
@@ -540,7 +540,7 @@ func TestNewEstimator(t *testing.T) {
 	cfg := &model.CostConfig{
 		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	}
-	cache := blobcache.New(diskblob.NewStore(t.TempDir()), model.DefaultBlobCacheNamespace, cfg.CacheTTLDuration())
+	cache := blobcache.New(blobtest.NewMemoryStore(t.TempDir()), model.DefaultBlobCacheNamespace, cfg.CacheTTLDuration())
 	e, err := engine.NewEstimatorFromConfig(cfg, cache)
 	if err != nil {
 		t.Fatalf("NewEstimatorFromConfig() error = %v", err)
@@ -552,7 +552,7 @@ func TestNewEstimator(t *testing.T) {
 
 func TestNewEstimatorFromConfig(t *testing.T) {
 	t.Run("nil config", func(t *testing.T) {
-		cache := blobcache.New(diskblob.NewStore(t.TempDir()), model.DefaultBlobCacheNamespace, (*model.CostConfig)(nil).CacheTTLDuration())
+		cache := blobcache.New(blobtest.NewMemoryStore(t.TempDir()), model.DefaultBlobCacheNamespace, (*model.CostConfig)(nil).CacheTTLDuration())
 		e, err := engine.NewEstimatorFromConfig(nil, cache)
 		if err != nil {
 			t.Fatalf("NewEstimatorFromConfig() error = %v", err)
@@ -570,7 +570,7 @@ func TestNewEstimatorFromConfig(t *testing.T) {
 			},
 			Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 		}
-		cache := blobcache.New(diskblob.NewStore(tmpDir), model.DefaultBlobCacheNamespace, cfg.CacheTTLDuration())
+		cache := blobcache.New(blobtest.NewMemoryStore(tmpDir), model.DefaultBlobCacheNamespace, cfg.CacheTTLDuration())
 		e, err := engine.NewEstimatorFromConfig(cfg, cache)
 		if err != nil {
 			t.Fatalf("NewEstimatorFromConfig() error = %v", err)
@@ -590,7 +590,7 @@ func TestNewEstimatorFromConfig(t *testing.T) {
 			},
 			Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 		}
-		cache := blobcache.New(diskblob.NewStore(t.TempDir()), model.DefaultBlobCacheNamespace, cfg.CacheTTLDuration())
+		cache := blobcache.New(blobtest.NewMemoryStore(t.TempDir()), model.DefaultBlobCacheNamespace, cfg.CacheTTLDuration())
 		e, err := engine.NewEstimatorFromConfig(cfg, cache)
 		if err != nil {
 			t.Fatalf("NewEstimatorFromConfig() error = %v", err)
@@ -606,7 +606,7 @@ func TestEstimator_CacheAccessors(t *testing.T) {
 	cfg := &model.CostConfig{
 		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	}
-	cache := blobcache.New(diskblob.NewStore(cacheDir), model.DefaultBlobCacheNamespace, cfg.CacheTTLDuration())
+	cache := blobcache.New(blobtest.NewMemoryStore(cacheDir), model.DefaultBlobCacheNamespace, cfg.CacheTTLDuration())
 	e, err := engine.NewEstimatorFromConfig(cfg, cache)
 	if err != nil {
 		t.Fatalf("NewEstimatorFromConfig() error = %v", err)

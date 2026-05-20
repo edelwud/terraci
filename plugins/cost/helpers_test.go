@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/cache/blobcache"
+	"github.com/edelwud/terraci/pkg/cache/blobcache/blobtest"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
@@ -17,7 +18,6 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/pricing"
 	costruntime "github.com/edelwud/terraci/plugins/cost/internal/runtime"
-	"github.com/edelwud/terraci/plugins/diskblob"
 )
 
 // newRuntimeWithEstimator wraps an estimator in a costRuntime for tests that
@@ -149,7 +149,7 @@ func newTestEstimator(t *testing.T) *engine.Estimator {
 	cfg := &model.CostConfig{
 		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	}
-	cache := blobcache.New(diskblob.NewStore(cacheDir), model.DefaultBlobCacheNamespace, cfg.CacheTTLDuration())
+	cache := blobcache.New(blobtest.NewMemoryStore(cacheDir), model.DefaultBlobCacheNamespace, cfg.CacheTTLDuration())
 	awsProvider, ok := cloud.Get(awskit.ProviderID)
 	if !ok {
 		t.Fatal("aws provider not registered")
@@ -187,7 +187,10 @@ func writePlanJSON(t *testing.T, moduleDir, planJSON string) {
 // newTestAppContext creates a minimal AppContext suitable for plugin testing.
 // workDir should contain the module directories with plan.json files.
 func newTestAppContext(t *testing.T, workDir string) *plugin.AppContext {
-	return plugintest.NewAppContext(t, workDir)
+	t.Helper()
+	return plugintest.NewAppContextWithResolver(t, workDir, plugintest.NewRegistry(t, func() plugin.Plugin {
+		return &testBlobStoreProvider{name: "diskblob"}
+	}))
 }
 
 func newTestAppContextWithResolver(t *testing.T, workDir string, resolver plugin.Resolver) *plugin.AppContext {

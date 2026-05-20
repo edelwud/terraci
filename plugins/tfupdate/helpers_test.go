@@ -3,12 +3,13 @@ package tfupdate
 import (
 	"context"
 	"testing"
+	"time"
 
+	"github.com/edelwud/terraci/pkg/cache/blobcache"
+	"github.com/edelwud/terraci/pkg/cache/blobcache/blobtest"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	"github.com/edelwud/terraci/pkg/plugin/registry"
-	_ "github.com/edelwud/terraci/plugins/diskblob"
-	_ "github.com/edelwud/terraci/plugins/inmemcache"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
 	tfregistry "github.com/edelwud/terraci/plugins/tfupdate/internal/registry"
 	"github.com/edelwud/terraci/plugins/tfupdate/internal/registrymeta"
@@ -99,6 +100,73 @@ func useMockRegistry(p *Plugin, reg tfregistry.Client) {
 	p.registryFactory = func() tfregistry.Client { return reg }
 }
 
+type testPlugin struct {
+	name string
+	desc string
+}
+
+func (p testPlugin) Name() string        { return p.name }
+func (p testPlugin) Description() string { return p.desc }
+
+type testKVCacheProvider struct {
+	testPlugin
+	cache plugin.KVCache
+	calls int
+}
+
+func (p *testKVCacheProvider) NewKVCache(context.Context, *plugin.AppContext) (plugin.KVCache, error) {
+	p.calls++
+	if p.cache == nil {
+		p.cache = stubKVCache{}
+	}
+	return p.cache, nil
+}
+
+type testBlobStoreProvider struct {
+	testPlugin
+	store blobcache.Store
+}
+
+func (p *testBlobStoreProvider) NewBlobStore(context.Context, *plugin.AppContext, plugin.BlobStoreOptions) (blobcache.Store, error) {
+	if p.store == nil {
+		p.store = blobtest.NewMemoryStore("tfupdate-test")
+	}
+	return p.store, nil
+}
+
+type stubKVCache struct{}
+
+func (stubKVCache) Get(context.Context, string, string) (value []byte, found bool, err error) {
+	return nil, false, nil
+}
+func (stubKVCache) Set(context.Context, string, string, []byte, time.Duration) error {
+	return nil
+}
+func (stubKVCache) Delete(context.Context, string, string) error  { return nil }
+func (stubKVCache) DeleteNamespace(context.Context, string) error { return nil }
+
+func defaultKVCacheProvider() plugin.Plugin {
+	return &testKVCacheProvider{
+		testPlugin: testPlugin{name: "inmemcache", desc: "test in-memory KV cache backend"},
+		cache:      stubKVCache{},
+	}
+}
+
+func defaultBlobStoreProvider() plugin.Plugin {
+	return &testBlobStoreProvider{
+		testPlugin: testPlugin{name: "diskblob", desc: "test blob store backend"},
+		store:      blobtest.NewMemoryStore("tfupdate-test"),
+	}
+}
+
+func newTestBackendRegistry(t *testing.T, factories ...registry.Factory) *registry.Registry {
+	t.Helper()
+	all := make([]registry.Factory, 0, 2+len(factories))
+	all = append(all, defaultKVCacheProvider, defaultBlobStoreProvider)
+	all = append(all, factories...)
+	return plugintest.NewRegistry(t, all...)
+}
+
 type commandTestResolver struct {
 	plugin.NoopResolver
 	plugin   plugin.Plugin
@@ -130,14 +198,15 @@ func (r commandTestResolver) ResolveBlobStoreProvider(name string, configPathHin
 
 // newTestAppContext creates a minimal AppContext suitable for plugin testing.
 func newTestAppContext(t *testing.T, workDir string) *plugin.AppContext {
-	return plugintest.NewAppContext(t, workDir)
+	t.Helper()
+	return plugintest.NewAppContextWithResolver(t, workDir, newTestBackendRegistry(t))
 }
 
 func newTestCommandAppContext(t *testing.T, workDir string, p *Plugin) *plugin.AppContext {
 	t.Helper()
 	return plugintest.NewAppContextWithResolver(t, workDir, commandTestResolver{
 		plugin:   p,
-		backends: registry.New(),
+		backends: newTestBackendRegistry(t),
 	})
 }
 

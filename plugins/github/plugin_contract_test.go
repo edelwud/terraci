@@ -5,13 +5,93 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/initwiz"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
 )
 
-func TestPlugin_BaseConfigContract(t *testing.T) {
-	p := &Plugin{BasePlugin: plugin.BasePlugin[*configpkg.Config]{
+func TestPlugin_SDKContracts(t *testing.T) {
+	p := newContractPlugin()
+
+	t.Run("config", func(t *testing.T) {
+		plugintest.AssertBaseConfigPlugin[*configpkg.Config](t, plugintest.BaseConfigPluginContract[*configpkg.Config]{
+			Plugin:  p,
+			Default: &configpkg.Config{RunsOn: "ubuntu-latest"},
+			Configured: &configpkg.Config{
+				RunsOn:      "ubuntu-latest",
+				Container:   &configpkg.Image{Name: "hashicorp/terraform:1.6", Entrypoint: []string{"/bin/sh"}},
+				Env:         map[string]string{"TF_INPUT": "false"},
+				Permissions: map[string]string{"id-token": "write"},
+				JobDefaults: &configpkg.JobDefaults{
+					RunsOn:      "ubuntu-24.04",
+					Env:         map[string]string{"DEFAULT": "true"},
+					StepsBefore: []configpkg.ConfigStep{{Name: "setup", With: map[string]string{"terraform": "true"}}},
+				},
+			},
+			Decoded: &configpkg.Config{
+				RunsOn:      "self-hosted",
+				Env:         map[string]string{"DECODED": "true"},
+				Permissions: map[string]string{"contents": "read"},
+				JobDefaults: &configpkg.JobDefaults{
+					RunsOn:     "linux",
+					StepsAfter: []configpkg.ConfigStep{{Name: "cleanup", Env: map[string]string{"DONE": "true"}}},
+				},
+			},
+			Mutate: mutateGitHubConfig,
+			Equal:  equalGitHubConfig,
+		})
+	})
+
+	t.Run("preflight", func(t *testing.T) {
+		plugintest.AssertPreflightable(t, plugintest.PreflightableContract{
+			Plugin:     newContractPlugin(),
+			AppContext: plugintest.NewAppContext(t, t.TempDir()),
+		})
+	})
+
+	t.Run("init contributor", func(t *testing.T) {
+		state := initwiz.NewStateMap()
+		state.Set("provider", pluginName)
+		plugintest.AssertInitContributor(t, plugintest.InitContributorContract{
+			Contributor:        newContractPlugin(),
+			State:              state,
+			ExpectedPluginKey:  pluginName,
+			ExpectContribution: true,
+		})
+	})
+
+	t.Run("ci provider", func(t *testing.T) {
+		t.Setenv("GITHUB_ACTIONS", "true")
+		p := newContractPlugin()
+		plugintest.AssertCIProvider(t, plugintest.CIProviderContract{
+			EnvDetector:    p,
+			InfoProvider:   p,
+			Generator:      p,
+			CommentFactory: p,
+			AppContext:     plugintest.NewAppContext(t, t.TempDir()),
+			IR:             &pipeline.IR{},
+			ExpectedName:   pluginName,
+			AssertEnv: func(tb testing.TB, detected bool) {
+				tb.Helper()
+				if !detected {
+					tb.Fatal("DetectEnv() = false, want true")
+				}
+			},
+			AssertComment: func(tb testing.TB, service ci.CommentService, ok bool) {
+				tb.Helper()
+				if !ok || service == nil {
+					tb.Fatal("NewCommentService() did not return a service")
+				}
+			},
+		})
+	})
+}
+
+func newContractPlugin() *Plugin {
+	return &Plugin{BasePlugin: plugin.BasePlugin[*configpkg.Config]{
 		PluginName: pluginName,
 		PluginDesc: "GitHub Actions pipeline generation and PR comments",
 		EnableMode: plugin.EnabledWhenConfigured,
@@ -19,33 +99,6 @@ func TestPlugin_BaseConfigContract(t *testing.T) {
 			return &configpkg.Config{RunsOn: "ubuntu-latest"}
 		},
 	}}
-
-	plugintest.AssertBaseConfigPlugin[*configpkg.Config](t, plugintest.BaseConfigPluginContract[*configpkg.Config]{
-		Plugin:  p,
-		Default: &configpkg.Config{RunsOn: "ubuntu-latest"},
-		Configured: &configpkg.Config{
-			RunsOn:      "ubuntu-latest",
-			Container:   &configpkg.Image{Name: "hashicorp/terraform:1.6", Entrypoint: []string{"/bin/sh"}},
-			Env:         map[string]string{"TF_INPUT": "false"},
-			Permissions: map[string]string{"id-token": "write"},
-			JobDefaults: &configpkg.JobDefaults{
-				RunsOn:      "ubuntu-24.04",
-				Env:         map[string]string{"DEFAULT": "true"},
-				StepsBefore: []configpkg.ConfigStep{{Name: "setup", With: map[string]string{"terraform": "true"}}},
-			},
-		},
-		Decoded: &configpkg.Config{
-			RunsOn:      "self-hosted",
-			Env:         map[string]string{"DECODED": "true"},
-			Permissions: map[string]string{"contents": "read"},
-			JobDefaults: &configpkg.JobDefaults{
-				RunsOn:     "linux",
-				StepsAfter: []configpkg.ConfigStep{{Name: "cleanup", Env: map[string]string{"DONE": "true"}}},
-			},
-		},
-		Mutate: mutateGitHubConfig,
-		Equal:  equalGitHubConfig,
-	})
 }
 
 func mutateGitHubConfig(c *configpkg.Config) {

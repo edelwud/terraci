@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"io"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/cache/blobcache"
+	"github.com/edelwud/terraci/pkg/cache/blobcache/blobtest"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	"github.com/edelwud/terraci/pkg/plugin/registry"
@@ -301,7 +303,14 @@ type testBlobStoreProvider struct {
 
 func (p *testBlobStoreProvider) Name() string        { return p.name }
 func (p *testBlobStoreProvider) Description() string { return "test blob store provider" }
-func (p *testBlobStoreProvider) NewBlobStore(context.Context, *plugin.AppContext, plugin.BlobStoreOptions) (blobcache.Store, error) {
+func (p *testBlobStoreProvider) NewBlobStore(_ context.Context, appCtx *plugin.AppContext, _ plugin.BlobStoreOptions) (blobcache.Store, error) {
+	if p.store == nil {
+		root := ""
+		if appCtx != nil {
+			root = filepath.Join(appCtx.ServiceDir(), "blobs")
+		}
+		return blobtest.NewMemoryStore(root), nil
+	}
 	return p.store, nil
 }
 

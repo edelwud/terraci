@@ -121,7 +121,7 @@ func TestParseCheckRequest(t *testing.T) {
 
 func TestPlugin_Commands_RunE_NotConfigured(t *testing.T) {
 	p := newTestPlugin(t)
-	appCtx := newTestAppContext(t, t.TempDir())
+	appCtx := newTestCommandAppContext(t, t.TempDir(), p)
 
 	cmds := p.Commands()
 	cmd := cmds[0]

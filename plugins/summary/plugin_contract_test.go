@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/edelwud/terraci/pkg/plugin/initwiz"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	summaryengine "github.com/edelwud/terraci/plugins/summary/internal/summaryengine"
 )
@@ -56,6 +57,17 @@ func TestPlugin_SDKContracts(t *testing.T) {
 			Contributor:      newTestPlugin(),
 			AppContext:       plugintest.NewAppContext(t, t.TempDir()),
 			ExpectedJobNames: []string{"terraci-summary"},
+		})
+	})
+
+	t.Run("init contributor", func(t *testing.T) {
+		state := initwiz.NewStateMap()
+		state.Set("summary.enabled", false)
+		plugintest.AssertInitContributor(t, plugintest.InitContributorContract{
+			Contributor:        newTestPlugin(),
+			State:              state,
+			ExpectedPluginKey:  pluginName,
+			ExpectContribution: true,
 		})
 	})
 }

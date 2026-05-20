@@ -5,6 +5,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/workflow"
 )
 
 // StubPlugin is a minimal Plugin implementation for testing.
@@ -25,8 +26,8 @@ type StubChangeDetector struct {
 	Err              error
 }
 
-func (d *StubChangeDetector) DetectChanges(_ context.Context, _ plugin.ChangeDetectionRequest) (*plugin.ChangeDetectionResult, error) {
-	return &plugin.ChangeDetectionResult{
+func (d *StubChangeDetector) DetectChanges(_ context.Context, _ workflow.ChangeDetectionRequest) (*workflow.ChangeDetectionResult, error) {
+	return &workflow.ChangeDetectionResult{
 		Modules:      d.ChangedModules,
 		Files:        d.ChangedFiles,
 		LibraryPaths: d.ChangedLibraries,
