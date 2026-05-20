@@ -259,10 +259,19 @@ func (contractContributor) Name() string        { return "contract" }
 func (contractContributor) Description() string { return "contract contributor" }
 
 func (contractContributor) PipelineContribution(*plugin.AppContext) *pipeline.Contribution {
-	return &pipeline.Contribution{Jobs: []pipeline.ContributedJob{
-		{Name: "first"},
-		{Name: "second"},
-	}}
+	first, err := pipeline.NewContributedJob(pipeline.ContributedJobOptions{Name: "first", Commands: []string{"first"}})
+	if err != nil {
+		return nil
+	}
+	second, err := pipeline.NewContributedJob(pipeline.ContributedJobOptions{Name: "second", Commands: []string{"second"}})
+	if err != nil {
+		return nil
+	}
+	contribution, err := pipeline.NewContribution(first, second)
+	if err != nil {
+		return nil
+	}
+	return contribution
 }
 
 type contractPreflightPlugin struct{}

@@ -12,17 +12,16 @@ import (
 // constructed once per command run by the framework, then read-only.
 //
 // ServiceDir is the resolved absolute path; use it for runtime file I/O.
-// For pipeline artifact paths (CI templates), use Config.ServiceDir which
+// For pipeline artifact paths (CI templates), use Config().ServiceDir() which
 // preserves the original relative value from .terraci.yaml.
 //
-// The Config returned by Config() is shared and must be treated as
-// read-only by plugins. Mutate a deep copy if a plugin needs to derive a
-// configuration.
+// Config returns an immutable snapshot. Use Config().MutableCopy() only when
+// a legacy pointer-shaped API must receive a derived mutable configuration.
 //
 // AppContext is safe for concurrent reads from any goroutine because all
 // fields are written exactly once at construction.
 type AppContext struct {
-	config     *config.Config
+	config     config.Snapshot
 	workDir    string
 	serviceDir string
 	version    string
@@ -77,20 +76,19 @@ func NewAppContext(opts AppContextOptions) *AppContext {
 		}
 	}
 	return &AppContext{
-		config:     opts.Config,
+		config:     config.NewSnapshot(opts.Config),
 		workDir:    opts.WorkDir,
 		serviceDir: opts.ServiceDir,
 		version:    opts.Version,
 		reports:    reports,
 		resolver:   resolver,
 		commands:   commands,
-		contribs:   append([]*pipeline.Contribution(nil), opts.PipelineContributions...),
+		contribs:   cloneContributions(opts.PipelineContributions),
 	}
 }
 
-// Config returns the loaded TerraCi configuration. The returned pointer is
-// shared with the framework and must not be mutated by plugins.
-func (ctx *AppContext) Config() *config.Config { return ctx.config }
+// Config returns the loaded TerraCi configuration snapshot.
+func (ctx *AppContext) Config() config.Snapshot { return ctx.config }
 
 // WorkDir returns the working directory for the current command.
 func (ctx *AppContext) WorkDir() string { return ctx.workDir }
@@ -113,7 +111,7 @@ func (ctx *AppContext) PipelineContributions() []*pipeline.Contribution {
 	if ctx == nil || len(ctx.contribs) == 0 {
 		return nil
 	}
-	return append([]*pipeline.Contribution(nil), ctx.contribs...)
+	return cloneContributions(ctx.contribs)
 }
 
 // WithPipelineContributions returns a copy of ctx bound to a contribution
@@ -123,8 +121,19 @@ func (ctx *AppContext) WithPipelineContributions(contribs []*pipeline.Contributi
 		return nil
 	}
 	next := *ctx
-	next.contribs = append([]*pipeline.Contribution(nil), contribs...)
+	next.contribs = cloneContributions(contribs)
 	return &next
+}
+
+func cloneContributions(contribs []*pipeline.Contribution) []*pipeline.Contribution {
+	if len(contribs) == 0 {
+		return nil
+	}
+	clone := make([]*pipeline.Contribution, len(contribs))
+	for i, contribution := range contribs {
+		clone[i] = contribution.Clone()
+	}
+	return clone
 }
 
 // appContextKey is the unexported key under which AppContext is carried in

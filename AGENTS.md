@@ -57,7 +57,7 @@ pkg/                            # Public API — importable by external plugins 
 ├── plugin/                     # Core plugin SDK — interfaces, BasePlugin, AppContext
 │   ├── plugin.go               # Plugin
 │   ├── lifecycle.go            # ConfigLoader, Preflightable
-│   ├── commands.go             # CommandProvider, FlagOverridable, VersionProvider
+│   ├── commands.go             # CommandProvider, VersionProvider
 │   ├── ci_provider.go          # EnvDetector, CIInfoProvider, PipelineGeneratorFactory, CommentServiceFactory, ResolvedCIProvider
 │   ├── cache.go                # KVCacheProvider, BlobStoreProvider (single NewBlobStore with options)
 │   ├── change.go               # ChangeDetectionProvider
@@ -79,7 +79,8 @@ pkg/                            # Public API — importable by external plugins 
 │   │   └── types.go            # InitContributor, InitGroupSpec, InitField, FieldType
 │   └── plugintest/             # Plugin-author SDK contract tests + mock doubles + NoopResolver
 ├── pipeline/                   # Plugin-agnostic pipeline IR
-│   ├── types.go                # IR, Level, ModuleJobs, Job, Operation, TerraformOperation, Contribution, ContributedJob
+│   ├── types.go                # IR, Job, Operation, TerraformOperation, Contribution, ContributedJob
+│   ├── contribution.go         # Contribution/ContributedJob value-object builders + getters
 │   ├── builder.go              # Build(opts) — constructs provider-agnostic pipeline IR
 │   ├── pipeline.go             # Generator interface (Generate()/DryRun() — IR bound at construction)
 │   ├── common.go               # JobPlan, JobName, ResolveDependencyNames, IR.DryRun
@@ -97,6 +98,7 @@ pkg/                            # Public API — importable by external plugins 
 ├── cache/blobcache/            # Blob store contract + cache layer (owns Store/Meta/Object/PutOptions/Info/Inspector/Describer/HealthChecker, Describe, Check, Cache, Policy)
 ├── config/
 │   ├── types_config.go         # Config (service_dir, structure, exclude, include, library_modules, extensions map[string]yaml.Node)
+│   ├── clone.go, snapshot.go   # Deep-copy API and immutable Snapshot read model
 │   ├── builder.go              # BuildConfig() — assembles Config from pattern/execution/extensions
 │   ├── extension.go            # (*Config).Extension(key, target) — opaque section decoder
 │   ├── pattern.go              # ParsePattern, PatternSegments
@@ -124,7 +126,7 @@ pkg/                            # Public API — importable by external plugins 
 
 plugins/                        # Built-in plugins — one file per capability
 ├── gitlab/
-│   ├── plugin.go               # init, BasePlugin[*Config] embed, FlagOverridable
+│   ├── plugin.go               # init, BasePlugin[*Config] embed
 │   ├── lifecycle.go            # Preflightable (cheap MR context detection)
 │   ├── generator.go            # EnvDetector + CIInfoProvider + PipelineGeneratorFactory(ctx, *pipeline.IR) + CommentServiceFactory
 │   ├── init_wizard.go          # InitContributor
@@ -133,7 +135,7 @@ plugins/                        # Built-in plugins — one file per capability
 │           ├── buildir.go      # BuildPipelineIR helper for tests (IR construction with plugin settings)
 │           └── generator.go    # Generator stores *pipeline.IR; Generate()/DryRun() with no args
 ├── github/
-│   ├── plugin.go               # init, BasePlugin[*Config] embed, FlagOverridable
+│   ├── plugin.go               # init, BasePlugin[*Config] embed
 │   ├── lifecycle.go            # Preflightable (cheap PR context detection)
 │   ├── generator.go            # EnvDetector + CIInfoProvider + PipelineGeneratorFactory(ctx, *pipeline.IR) + CommentServiceFactory
 │   ├── init_wizard.go          # InitContributor
@@ -207,7 +209,7 @@ The core `pkg/` tree is **plugin-agnostic** — no package outside `pkg/plugin` 
 ### Plugin File Convention
 
 Each feature/plugin follows one-file-per-capability where it applies, with runtime-heavy plugins also using a lazy runtime layer. Backend plugins such as `diskblob` and `inmemcache` are intentionally smaller and only implement their relevant provider interfaces:
-- `plugin.go` — init(), Plugin struct with BasePlugin[C] embedding, FlagOverridable
+- `plugin.go` — init(), Plugin struct with BasePlugin[C] embedding
 - `lifecycle.go` — Preflightable
 - `commands.go` — CommandProvider with cobra definitions; parse flags into typed requests and resolve via `plugin.CommandPlugin`
 - `runtime.go` — RuntimeProvider for lazy immutable dependency construction
@@ -243,7 +245,6 @@ Each feature/plugin follows one-file-per-capability where it applies, with runti
 | `CIInfoProvider` | Provider name, pipeline ID, commit SHA | gitlab, github |
 | `PipelineGeneratorFactory` | Pipeline generator creation — `NewGenerator(ctx, *pipeline.IR)` | gitlab, github |
 | `CommentServiceFactory` | MR/PR comment service creation | gitlab, github |
-| `FlagOverridable` | Direct CLI flag overrides (--plan-only, --auto-approve) | gitlab, github |
 | `VersionProvider` | Version info contributions | policy |
 | `ChangeDetectionProvider` | VCS change detection | git |
 | `KVCacheProvider` | Named key/value cache backend resolution | inmemcache |
@@ -263,7 +264,10 @@ never changes plugin state. It auto-implements:
 
 Construction goes through an options struct — `plugin.NewAppContext(plugin.AppContextOptions{Config, WorkDir, ServiceDir, Version, Reports, Resolver})` — every field is optional. `Reports` is a `ci.ReportStore`; it defaults to a file-backed store when `ServiceDir` is set, otherwise an in-memory store. `ctx.Resolver()` is **never nil**: when no resolver is bound, a no-op resolver returns sentinel errors so plugins can call `ctx.Resolver().ResolveCIProvider()` etc. without nil-checks.
 
-`AppContext.Config()` returns the bound `*config.Config` pointer directly; plugins must treat it as read-only.
+`AppContext.Config()` returns an immutable `config.Snapshot`. Access config through
+snapshot accessors (`ServiceDir()`, `Structure()`, `Execution()`, etc.). If a
+legacy pointer-shaped API needs a derived config, call `MutableCopy()` and
+mutate only that copy.
 
 ### Command Boundary
 
@@ -311,15 +315,16 @@ The IR is the **single source** for downstream consumers — `pipeline.Generator
 Shell rendering (`cd module && ${TERRAFORM_BINARY} init && plan -out=…`) lives in `pkg/pipeline/cishell` (`cishell.RenderOperation(op)`) — never in the IR package itself. Providers driving Terraform via tfexec instead of shell don't need cishell.
 
 Plugins contribute via `PipelineContributor.PipelineContribution(ctx)`:
-- `Contribution.Jobs` — standalone DAG jobs with typed resource inputs/outputs
+- `pipeline.NewPluginCommandJob(...)` / `pipeline.NewContributedJob(...)` build validated standalone DAG jobs with typed resource inputs/outputs.
+- `pipeline.NewContribution(jobs...)` builds the immutable contribution value; consumers use `Contribution.Jobs()` and job getters.
 
 ### Provider Resolution
 
-`Registry.ResolveCIProvider()` returns `*plugin.ResolvedCIProvider` (struct wrapping EnvDetector + CIInfoProvider + PipelineGeneratorFactory + CommentServiceFactory): `TERRACI_PROVIDER` env → CI env detection → single active provider → error. Core has zero knowledge of specific providers. Commands that don't need config use `Annotations["skipConfig"]` to skip config loading in `PersistentPreRunE`. CLI flag overrides use `FlagOverridable` for direct struct mutation (no encode-decode cycle).
+`Registry.ResolveCIProvider()` returns `*plugin.ResolvedCIProvider` (struct wrapping EnvDetector + CIInfoProvider + PipelineGeneratorFactory + CommentServiceFactory): `TERRACI_PROVIDER` env → CI env detection → single active provider → error. Core has zero knowledge of specific providers. Commands that don't need config use `Annotations["skipConfig"]` to skip config loading in `PersistentPreRunE`.
 
 ### Service Directory
 
-`AppContext.ServiceDir` — resolved absolute path to project service directory for runtime file I/O. Configurable via `service_dir` in config (default `.terraci`). For pipeline artifact paths (CI templates), use `Config.ServiceDir` which preserves the original relative value.
+`AppContext.ServiceDir` — resolved absolute path to project service directory for runtime file I/O. Configurable via `service_dir` in config (default `.terraci`). For pipeline artifact paths (CI templates), use `AppContext.Config().ServiceDir()` which preserves the original relative value.
 
 ## Configuration (.terraci.yaml)
 
@@ -423,8 +428,9 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **Canonical dry-run source**: dry-run stage/job counts derive from `*IR.DryRun(totalModules)`.
 - **Preflight, then lazy runtime**: framework performs cheap startup validation; heavy plugin state is built lazily inside RuntimeProvider/use-cases. Runtime must be command-agnostic; CLI overrides live in typed request structs.
 - **Command/usecase boundary**: command callbacks use `plugin.CommandPlugin[T]` and `plugin.RequireEnabled`, parse flags into request structs, call a usecase, then handle artifact persistence and output explicitly.
-- **PipelineContributor(ctx)**: plugins add standalone DAG jobs without cross-plugin imports or cached service-dir state
-- **ServiceDir**: configurable project directory; `AppContext.ServiceDir` (absolute) for runtime, `Config.ServiceDir` (relative) for pipeline templates
+- **PipelineContributor(ctx)**: plugins add standalone DAG jobs through `pipeline.NewPluginCommandJob` + `pipeline.NewContribution`, without cross-plugin imports or cached service-dir state
+- **ServiceDir**: configurable project directory; `AppContext.ServiceDir` (absolute) for runtime, `AppContext.Config().ServiceDir()` (relative) for pipeline templates
+- **Immutable config boundary**: `Config.Clone()` and `config.Snapshot` own deep-copy semantics. `AppContext` stores a snapshot; plugin code reads through accessors and only uses `MutableCopy()` for legacy pointer-shaped APIs.
 - **Command boundary**: plugin command callbacks use `plugin.CommandPlugin[T](cmd, name)` and `plugin.RequireEnabled(...)`; low-level cobra context binding is framework-owned. Command binding and disabled-plugin failures are typed errors.
 - **SDK contract kit**: plugin SDK behavior is tested through `pkg/plugin/plugintest`; CI/report behavior is tested through `pkg/ci/citest`. New plugins should copy these contract helpers for config immutability, command binding, runtime creation, contributions, lifecycle, init wizard, providers, change detection, rendered reports, and artifact lifecycle.
 - **Report artifact lifecycle**: plan-aware producers use `PlanResultCollection -> ci.ArtifactRun -> ci.NewRenderedReport -> ci.PublishArtifacts(...)`. `PublishArtifacts` always persists raw results and removes stale reports on nil/build errors. Report-only producers may use `SaveReport`.

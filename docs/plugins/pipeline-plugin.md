@@ -38,30 +38,34 @@ import (
 )
 
 func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribution {
-    serviceDir := ctx.Config().ServiceDir
+    serviceDir := ctx.Config().ServiceDir()
 
-    return &pipeline.Contribution{
-        Jobs: []pipeline.ContributedJob{
-            {
-                Name:     "security-scan",
-                Commands: []string{"terraci security check"},
-                Consumes: []pipeline.ResourceRequest{
-                    pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
-                },
-                Produces: []pipeline.ResourceSpec{
-                    pipeline.PluginResource(
-                        pipeline.ResourceKindPluginReport,
-                        "security",
-                        pipeline.WorkspacePath(serviceDir, ci.ReportFilename("security")),
-                    ),
-                },
-            },
+    job, err := pipeline.NewPluginCommandJob(pipeline.PluginCommandJobOptions{
+        Name:     "security-scan",
+        Commands: []string{"terraci security check"},
+        Consumes: []pipeline.ResourceRequest{
+            pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
         },
+        Produces: []pipeline.ResourceSpec{
+            pipeline.PluginResource(
+                pipeline.ResourceKindPluginReport,
+                "security",
+                pipeline.WorkspacePath(serviceDir, ci.ReportFilename("security")),
+            ),
+        },
+    })
+    if err != nil {
+        return nil
     }
+    contribution, err := pipeline.NewContribution(job)
+    if err != nil {
+        return nil
+    }
+    return contribution
 }
 ```
 
-### ContributedJob Fields
+### ContributedJob Options And Getters
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -71,6 +75,10 @@ func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribu
 | `Consumes` | `[]ResourceRequest` | Typed resources to restore before the job runs |
 | `Produces` | `[]ResourceSpec` | Typed resources published by the job |
 | `AllowFailure` | `bool` | If `true`, job failure does not fail the pipeline |
+
+Use `pipeline.NewPluginCommandJob` or `pipeline.NewContributedJob` to build the
+job, then `pipeline.NewContribution(job)` to return it. Consumers inspect jobs
+through `Contribution.Jobs()` and `ContributedJob` getters.
 
 ## Resource Requests
 
@@ -100,18 +108,22 @@ because it consumes resources produced by earlier jobs:
 
 ```go
 func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contribution {
-    return &pipeline.Contribution{
-        Jobs: []pipeline.ContributedJob{
-            {
-                Name:     "terraci-summary",
-                Commands: []string{"terraci summary"},
-                Consumes: []pipeline.ResourceRequest{
-                    pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
-                    pipeline.AllPluginResources(pipeline.ResourceKindPluginReport, true),
-                },
-            },
+    job, err := pipeline.NewPluginCommandJob(pipeline.PluginCommandJobOptions{
+        Name:     "terraci-summary",
+        Commands: []string{"terraci summary"},
+        Consumes: []pipeline.ResourceRequest{
+            pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+            pipeline.AllPluginResources(pipeline.ResourceKindPluginReport, true),
         },
+    })
+    if err != nil {
+        return nil
     }
+    contribution, err := pipeline.NewContribution(job)
+    if err != nil {
+        return nil
+    }
+    return contribution
 }
 ```
 

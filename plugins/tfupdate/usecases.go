@@ -101,7 +101,8 @@ func executeUpdateCheck(
 	write bool,
 	modules []*discovery.Module,
 ) (*tfupdateengine.UpdateResult, error) {
-	tfParser := parser.NewParser(appCtx.Config().Structure.Segments)
+	structure := appCtx.Config().Structure()
+	tfParser := parser.NewParser(structure.Segments)
 	service := tfupdateusecase.New(config, tfParser, runtime.registry, runtime.downloader, write)
 
 	result, err := service.Run(ctx, modules)

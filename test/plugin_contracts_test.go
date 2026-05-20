@@ -258,19 +258,20 @@ extensions:
 
 	foundUpdateArtifactPath := false
 	for _, contrib := range contributions {
-		for _, job := range contrib.Jobs {
-			if job.Name != "tfupdate-check" {
+		for _, job := range contrib.Jobs() {
+			if job.Name() != "tfupdate-check" {
 				continue
 			}
-			if len(job.Produces) != 2 {
-				t.Fatalf("tfupdate-check produces = %#v, want result and report", job.Produces)
+			produces := job.Produces()
+			if len(produces) != 2 {
+				t.Fatalf("tfupdate-check produces = %#v, want result and report", produces)
 			}
 			wantPaths := []string{
 				pipeline.WorkspacePath("custom-artifacts", ci.ResultFilename("tfupdate")),
 				pipeline.WorkspacePath("custom-artifacts", ci.ReportFilename("tfupdate")),
 			}
-			if !slices.Equal(producedPaths(job.Produces), wantPaths) {
-				t.Fatalf("tfupdate-check produced paths = %v, want %v", producedPaths(job.Produces), wantPaths)
+			if !slices.Equal(producedPaths(produces), wantPaths) {
+				t.Fatalf("tfupdate-check produced paths = %v, want %v", producedPaths(produces), wantPaths)
 			}
 			foundUpdateArtifactPath = true
 		}
@@ -293,8 +294,8 @@ extensions:
 	plugins := appCtx.Resolver().(*registry.Registry)
 	contributions := plugins.CollectContributions(appCtx)
 	for _, contrib := range contributions {
-		for _, job := range contrib.Jobs {
-			if job.Name == "tfupdate-check" {
+		for _, job := range contrib.Jobs() {
+			if job.Name() == "tfupdate-check" {
 				t.Fatal("CollectContributions() included tfupdate-check when pipeline=false")
 			}
 		}

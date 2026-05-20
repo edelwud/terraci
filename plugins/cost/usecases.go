@@ -52,10 +52,11 @@ func runEstimationUseCase(ctx context.Context, appCtx *plugin.AppContext, runtim
 func discoverModulePlans(appCtx *plugin.AppContext, modulePath string) (*planDiscovery, error) {
 	cfg := appCtx.Config()
 	workDir := appCtx.WorkDir()
+	structure := cfg.Structure()
 
 	log.WithField("dir", workDir).Info("cost: scanning for plan.json files")
 
-	collection, err := planresults.Scan(workDir, cfg.Structure.Segments)
+	collection, err := planresults.Scan(workDir, structure.Segments)
 	if err != nil {
 		return nil, fmt.Errorf("cost: scan for plan.json: %w", err)
 	}
@@ -78,7 +79,7 @@ func discoverModulePlans(appCtx *plugin.AppContext, modulePath string) (*planDis
 			}
 		}
 		if relDir, relErr := filepath.Rel(workDir, fullPath); relErr == nil {
-			regions[fullPath] = model.DetectRegion(cfg.Structure.Segments, filepath.ToSlash(relDir))
+			regions[fullPath] = model.DetectRegion(structure.Segments, filepath.ToSlash(relDir))
 		}
 	}
 

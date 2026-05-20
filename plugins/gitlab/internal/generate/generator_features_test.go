@@ -11,18 +11,33 @@ import (
 	"github.com/edelwud/terraci/pkg/pipeline"
 )
 
+func testContribution(tb testing.TB, opts ...pipeline.ContributedJobOptions) *pipeline.Contribution {
+	tb.Helper()
+	jobs := make([]pipeline.ContributedJob, 0, len(opts))
+	for _, opt := range opts {
+		job, err := pipeline.NewContributedJob(opt)
+		if err != nil {
+			tb.Fatalf("NewContributedJob() error = %v", err)
+		}
+		jobs = append(jobs, job)
+	}
+	contribution, err := pipeline.NewContribution(jobs...)
+	if err != nil {
+		tb.Fatalf("NewContribution() error = %v", err)
+	}
+	return contribution
+}
+
 func TestGenerator_Generate_WithSummaryContribution(t *testing.T) {
 	cfg := createTestConfig()
-	cfg.Contributions = []*pipeline.Contribution{{
-		Jobs: []pipeline.ContributedJob{{
-			Name:     "terraci-summary",
-			Commands: []string{"terraci summary"},
-			Consumes: []pipeline.ResourceRequest{
-				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
-			},
-			AllowFailure: false,
-		}},
-	}}
+	cfg.Contributions = []*pipeline.Contribution{testContribution(t, pipeline.ContributedJobOptions{
+		Name:     "terraci-summary",
+		Commands: []string{"terraci summary"},
+		Consumes: []pipeline.ResourceRequest{
+			pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+		},
+		AllowFailure: false,
+	})}
 
 	modules := []*discovery.Module{
 		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
@@ -149,15 +164,13 @@ func TestGenerator_DetailedPlanForcedByResourceConsumer(t *testing.T) {
 	// reads plan.json (e.g. cost) used to be silently broken because the plan
 	// job did not emit plan.json. The resource request must lift DetailedPlan.
 	cfg := createTestConfig()
-	cfg.Contributions = []*pipeline.Contribution{{
-		Jobs: []pipeline.ContributedJob{{
-			Name:     "cost-estimation",
-			Commands: []string{"terraci cost"},
-			Consumes: []pipeline.ResourceRequest{
-				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
-			},
-		}},
-	}}
+	cfg.Contributions = []*pipeline.Contribution{testContribution(t, pipeline.ContributedJobOptions{
+		Name:     "cost-estimation",
+		Commands: []string{"terraci cost"},
+		Consumes: []pipeline.ResourceRequest{
+			pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+		},
+	})}
 
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	depGraph := citest.DependencyGraph([]*discovery.Module{module}, map[string][]string{
@@ -249,20 +262,18 @@ func TestGenerator_Generate_WithArtifacts(t *testing.T) {
 
 func TestGenerator_Generate_WithPolicyCheck(t *testing.T) {
 	cfg := createTestConfig()
-	cfg.Contributions = []*pipeline.Contribution{{
-		Jobs: []pipeline.ContributedJob{{
-			Name:     "policy-check",
-			Commands: []string{"terraci policy check --format text"},
-			Consumes: []pipeline.ResourceRequest{
-				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
-			},
-			Produces: []pipeline.ResourceSpec{
-				pipeline.PluginResource(pipeline.ResourceKindPluginResult, "policy", ".terraci/policy-results.json"),
-				pipeline.PluginResource(pipeline.ResourceKindPluginReport, "policy", ".terraci/policy-report.json"),
-			},
-			AllowFailure: false,
-		}},
-	}}
+	cfg.Contributions = []*pipeline.Contribution{testContribution(t, pipeline.ContributedJobOptions{
+		Name:     "policy-check",
+		Commands: []string{"terraci policy check --format text"},
+		Consumes: []pipeline.ResourceRequest{
+			pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+		},
+		Produces: []pipeline.ResourceSpec{
+			pipeline.PluginResource(pipeline.ResourceKindPluginResult, "policy", ".terraci/policy-results.json"),
+			pipeline.PluginResource(pipeline.ResourceKindPluginReport, "policy", ".terraci/policy-report.json"),
+		},
+		AllowFailure: false,
+	})}
 
 	modules := []*discovery.Module{
 		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),

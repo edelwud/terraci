@@ -26,18 +26,19 @@ type Config struct {
 	Env         map[string]string
 }
 
-// ConfigFromProject normalizes execution config from project config.
-func ConfigFromProject(cfg *config.Config) Config {
-	if cfg == nil {
-		cfg = config.DefaultConfig()
+// ConfigFromProject normalizes execution config from a project config snapshot.
+func ConfigFromProject(cfg config.Snapshot) Config {
+	if !cfg.Present() {
+		cfg = config.DefaultConfig().Snapshot()
 	}
+	execution := cfg.Execution()
 
 	result := Config{
-		Binary:      cfg.Execution.Binary,
-		InitEnabled: cfg.Execution.InitEnabled,
-		PlanEnabled: cfg.Execution.PlanEnabled,
-		PlanMode:    PlanMode(cfg.Execution.PlanMode),
-		Parallelism: cfg.Execution.Parallelism,
+		Binary:      execution.Binary,
+		InitEnabled: execution.InitEnabled,
+		PlanEnabled: execution.PlanEnabled,
+		PlanMode:    PlanMode(execution.PlanMode),
+		Parallelism: execution.Parallelism,
 	}
 	if result.Binary == "" {
 		result.Binary = "terraform"
@@ -48,9 +49,9 @@ func ConfigFromProject(cfg *config.Config) Config {
 	if result.Parallelism <= 0 {
 		result.Parallelism = 4
 	}
-	if len(cfg.Execution.Env) != 0 {
-		result.Env = make(map[string]string, len(cfg.Execution.Env))
-		maps.Copy(result.Env, cfg.Execution.Env)
+	if len(execution.Env) != 0 {
+		result.Env = make(map[string]string, len(execution.Env))
+		maps.Copy(result.Env, execution.Env)
 	}
 
 	return result

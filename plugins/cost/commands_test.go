@@ -87,7 +87,7 @@ func TestPlugin_Commands_RunE_NotConfigured(t *testing.T) {
 	p := newTestPlugin(t)
 	base := newTestAppContext(t, t.TempDir())
 	appCtx := plugin.NewAppContext(plugin.AppContextOptions{
-		Config:        base.Config(),
+		Config:        base.Config().MutableCopy(),
 		WorkDir:       base.WorkDir(),
 		ServiceDir:    base.ServiceDir(),
 		Version:       base.Version(),

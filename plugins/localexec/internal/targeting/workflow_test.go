@@ -46,10 +46,17 @@ func TestWorkflowResolverUsesWorkflowResolveTargets(t *testing.T) {
 		Filtered: workflow.NewModuleSet([]*discovery.Module{stage}),
 		Graph:    depGraph,
 	}
-	appCtx := plugintest.NewAppContext(t, t.TempDir())
-	cfg := appCtx.Config()
+	baseAppCtx := plugintest.NewAppContext(t, t.TempDir())
+	cfg := baseAppCtx.Config().MutableCopy()
 	cfg.LibraryModules = &config.LibraryModulesConfig{Paths: []string{"_modules"}}
-	appCtx = plugin.NewAppContext(plugin.AppContextOptions{Config: cfg, WorkDir: appCtx.WorkDir(), ServiceDir: appCtx.ServiceDir(), Version: appCtx.Version(), Reports: appCtx.Reports(), Resolver: plugins})
+	appCtx := plugin.NewAppContext(plugin.AppContextOptions{
+		Config:     cfg,
+		WorkDir:    baseAppCtx.WorkDir(),
+		ServiceDir: baseAppCtx.ServiceDir(),
+		Version:    baseAppCtx.Version(),
+		Reports:    baseAppCtx.Reports(),
+		Resolver:   plugins,
+	})
 	filters := &filter.Flags{SegmentArgs: []string{"environment=stage"}}
 	req := spec.Request{
 		ChangedOnly: true,

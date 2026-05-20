@@ -25,18 +25,18 @@ type TargetSelectionOptions struct {
 type ChangeDetectorResolver func() (ChangeDetector, error)
 
 // ResolveTargets applies module/path filters and optional change detection to a workflow result.
-func ResolveTargets(ctx context.Context, workDir string, cfg *config.Config, result *Result, opts TargetSelectionOptions) ([]*discovery.Module, error) {
+func ResolveTargets(ctx context.Context, workDir string, cfg config.Snapshot, result *Result, opts TargetSelectionOptions) ([]*discovery.Module, error) {
 	return resolveTargets(ctx, workDir, cfg, result, opts)
 }
 
 func resolveTargets(
 	ctx context.Context,
 	workDir string,
-	cfg *config.Config,
+	cfg config.Snapshot,
 	result *Result,
 	opts TargetSelectionOptions,
 ) ([]*discovery.Module, error) {
-	if cfg == nil {
+	if !cfg.Present() {
 		return nil, errors.New("config is required")
 	}
 	if result == nil {
@@ -64,8 +64,8 @@ func resolveTargets(
 	}
 
 	var libraryRoots []string
-	if cfg.LibraryModules != nil {
-		libraryRoots = cfg.LibraryModules.Paths
+	if libraryModules := cfg.LibraryModules(); libraryModules != nil {
+		libraryRoots = libraryModules.Paths
 	}
 
 	changes, err := detector.DetectChanges(ctx, ChangeDetectionRequest{
@@ -103,7 +103,7 @@ func resolveTargets(
 }
 
 func resolveAffectedModules(
-	cfg *config.Config,
+	cfg config.Snapshot,
 	ff *filter.Flags,
 	affectedIDs, changedIDs []string,
 	allSet, filteredSet ModuleSet,

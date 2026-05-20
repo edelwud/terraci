@@ -82,16 +82,15 @@ type TerraformOperation struct {
 
 // Contribution describes provider-independent DAG jobs added by a plugin.
 type Contribution struct {
-	// Jobs are command jobs added to the pipeline DAG.
-	Jobs []ContributedJob
+	jobs []ContributedJob
 }
 
 // ContributedJob is a command job contributed to the pipeline DAG.
 type ContributedJob struct {
-	Name         string
-	Commands     []string
-	Dependencies []JobDependency
-	Consumes     []ResourceRequest
-	Produces     []ResourceSpec
-	AllowFailure bool
+	name         string
+	commands     []string
+	dependencies []JobDependency
+	consumes     []ResourceRequest
+	produces     []ResourceSpec
+	allowFailure bool
 }

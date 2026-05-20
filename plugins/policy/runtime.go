@@ -36,10 +36,8 @@ func newRuntime(appCtx *plugin.AppContext, cfg *policyengine.Config) (*policyRun
 		return nil, fmt.Errorf("create policy source materializer: %w", err)
 	}
 
-	var segments []string
-	if baseCfg := appCtx.Config(); baseCfg != nil {
-		segments = append([]string(nil), baseCfg.Structure.Segments...)
-	}
+	structure := appCtx.Config().Structure()
+	segments := append([]string(nil), structure.Segments...)
 
 	return &policyRuntime{
 		config:       runtimeConfig,

@@ -23,6 +23,22 @@ type testPlugin struct {
 	desc string
 }
 
+func mustContribution(tb testing.TB, name string) *pipeline.Contribution {
+	tb.Helper()
+	job, err := pipeline.NewContributedJob(pipeline.ContributedJobOptions{
+		Name:     name,
+		Commands: []string{"terraci " + name},
+	})
+	if err != nil {
+		tb.Fatalf("NewContributedJob() error = %v", err)
+	}
+	contribution, err := pipeline.NewContribution(job)
+	if err != nil {
+		tb.Fatalf("NewContribution() error = %v", err)
+	}
+	return contribution
+}
+
 func (p *testPlugin) Name() string        { return p.name }
 func (p *testPlugin) Description() string { return p.desc }
 
@@ -491,9 +507,7 @@ func TestCollectContributions_FiltersDisabledPlugins(t *testing.T) {
 				return cfg != nil && cfg.Enabled
 			},
 		},
-		contribution: &pipeline.Contribution{
-			Jobs: []pipeline.ContributedJob{{Name: "enabled-job"}},
-		},
+		contribution: mustContribution(t, "enabled-job"),
 	}
 	enabled.SetTypedConfig(&testConfig{Enabled: true})
 
@@ -508,9 +522,7 @@ func TestCollectContributions_FiltersDisabledPlugins(t *testing.T) {
 				return cfg != nil && cfg.Enabled
 			},
 		},
-		contribution: &pipeline.Contribution{
-			Jobs: []pipeline.ContributedJob{{Name: "disabled-job"}},
-		},
+		contribution: mustContribution(t, "disabled-job"),
 	}
 	disabled.SetTypedConfig(&testConfig{Enabled: false})
 	plugins := NewFromFactories(
@@ -529,8 +541,9 @@ func TestCollectContributions_FiltersDisabledPlugins(t *testing.T) {
 	if len(contribs) != 1 {
 		t.Fatalf("expected 1 contribution, got %d", len(contribs))
 	}
-	if contribs[0].Jobs[0].Name != "enabled-job" {
-		t.Errorf("expected enabled-job, got %s", contribs[0].Jobs[0].Name)
+	jobs := contribs[0].Jobs()
+	if len(jobs) != 1 || jobs[0].Name() != "enabled-job" {
+		t.Errorf("expected enabled-job, got %#v", jobs)
 	}
 	if enabled.seenCtx != appCtx {
 		t.Fatal("enabled contributor did not receive app context")
@@ -548,7 +561,7 @@ func TestCollectContributions_IncludesPluginWithoutConfigLoader(t *testing.T) {
 	}
 	p := &bareContributor{
 		testPlugin:   testPlugin{name: "bare", desc: "bare contributor"},
-		contribution: &pipeline.Contribution{Jobs: []pipeline.ContributedJob{{Name: "bare-job"}}},
+		contribution: mustContribution(t, "bare-job"),
 	}
 
 	// bareContributor doesn't satisfy PipelineContributor since it doesn't have PipelineContribution()

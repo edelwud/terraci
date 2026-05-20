@@ -176,7 +176,7 @@ func TestResolveTargets_ExcludesLibraryEvenWithoutExclude(t *testing.T) {
 	}
 
 	cfg := configForLibraryTest()
-	targets, err := ResolveTargets(context.Background(), tmpDir, cfg, result, TargetSelectionOptions{})
+	targets, err := ResolveTargets(context.Background(), tmpDir, cfg.Snapshot(), result, TargetSelectionOptions{})
 	if err != nil {
 		t.Fatalf("ResolveTargets: %v", err)
 	}

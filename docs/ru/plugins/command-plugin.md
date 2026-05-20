@@ -151,18 +151,22 @@ func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contributi
         return nil
     }
 
-    return &pipeline.Contribution{
-        Jobs: []pipeline.ContributedJob{
-            {
-                Name:     "slack-notify",
-                Consumes: []pipeline.ResourceRequest{
-                    pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
-                },
-                Commands:     []string{"terraci slack --channel " + cfg.Channel},
-                AllowFailure: true,
-            },
+    job, err := pipeline.NewPluginCommandJob(pipeline.PluginCommandJobOptions{
+        Name: "slack-notify",
+        Consumes: []pipeline.ResourceRequest{
+            pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
         },
+        Commands:     []string{"terraci slack --channel " + cfg.Channel},
+        AllowFailure: true,
+    })
+    if err != nil {
+        return nil
     }
+    contribution, err := pipeline.NewContribution(job)
+    if err != nil {
+        return nil
+    }
+    return contribution
 }
 ```
 

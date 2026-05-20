@@ -26,6 +26,19 @@ type fakeTargetResolver struct {
 	err     error
 }
 
+func mustContribution(tb testing.TB, opts pipeline.ContributedJobOptions) *pipeline.Contribution {
+	tb.Helper()
+	job, err := pipeline.NewContributedJob(opts)
+	if err != nil {
+		tb.Fatalf("NewContributedJob() error = %v", err)
+	}
+	contribution, err := pipeline.NewContribution(job)
+	if err != nil {
+		tb.Fatalf("NewContribution() error = %v", err)
+	}
+	return contribution
+}
+
 func (r fakeTargetResolver) Resolve(context.Context, spec.Request, *workflow.Result) ([]*discovery.Module, error) {
 	return r.targets, r.err
 }
@@ -159,7 +172,10 @@ func TestUseCase_RunUsesInjectedPlanner(t *testing.T) {
 	}
 	plannerStub := &fakePlanner{plan: ir}
 	contributionCollector := &fakeContributionCollector{
-		contributions: []*pipeline.Contribution{{Jobs: []pipeline.ContributedJob{{Name: "contributed"}}}},
+		contributions: []*pipeline.Contribution{mustContribution(t, pipeline.ContributedJobOptions{
+			Name:     "contributed",
+			Commands: []string{"terraci contributed"},
+		})},
 	}
 	loader := &fakeSummaryReportLoader{}
 
@@ -201,7 +217,11 @@ func TestUseCase_RunUsesInjectedPlanner(t *testing.T) {
 	if contributionCollector.calls != 1 {
 		t.Fatalf("contribution collector calls = %d, want 1", contributionCollector.calls)
 	}
-	if len(plannerStub.contributions) != 1 || plannerStub.contributions[0].Jobs[0].Name != "contributed" {
+	if len(plannerStub.contributions) != 1 {
+		t.Fatalf("planner contributions = %#v, want one contribution", plannerStub.contributions)
+	}
+	jobs := plannerStub.contributions[0].Jobs()
+	if len(jobs) != 1 || jobs[0].Name() != "contributed" {
 		t.Fatalf("planner contributions = %#v, want contributed job", plannerStub.contributions)
 	}
 	if loader.calls != 1 {

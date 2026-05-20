@@ -5,7 +5,7 @@ import "go.yaml.in/yaml/v4"
 // DefaultConfig returns a config with sensible defaults
 func DefaultConfig() *Config {
 	return &Config{
-		ServiceDir: ".terraci",
+		ServiceDir: DefaultServiceDir,
 		Execution: ExecutionConfig{
 			Binary:      ExecutionBinaryTerraform,
 			InitEnabled: true,

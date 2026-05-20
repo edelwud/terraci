@@ -114,9 +114,9 @@
 // reads from any goroutine are safe without synchronization. Plugins
 // should:
 //
-//   - Treat ctx.Config() and any field returned by accessors as read-only;
-//     mutating returned pointers may surprise other plugins sharing the
-//     same context.
+//   - Read project config through the immutable config.Snapshot returned by
+//     ctx.Config(). Snapshot accessors return defensive copies; use
+//     MutableCopy only for legacy pointer-shaped APIs.
 //   - Treat ctx.Resolver() as never-nil (returns NoopResolver{} when no
 //     real one is bound) and idempotent; capability lookups can run from
 //     any goroutine.
@@ -163,4 +163,9 @@
 // plugins/internal/reportrender instead of importing producer-specific domain
 // structs. The contract test suite for blob backends lives at
 // pkg/cache/blobcache/contracttest.
+//
+// Pipeline contributions are value objects too. Producers should build jobs
+// with pipeline.NewPluginCommandJob or pipeline.NewContributedJob and wrap
+// them with pipeline.NewContribution. Consumers use Contribution.Jobs() and
+// ContributedJob getters; direct struct literals are not part of the SDK.
 package plugin

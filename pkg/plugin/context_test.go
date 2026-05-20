@@ -23,8 +23,11 @@ func TestAppContext_Accessors(t *testing.T) {
 		Reports:    r,
 	})
 
-	if ctx.Config() != cfg {
-		t.Error("Config() should return the bound configuration pointer")
+	if !ctx.Config().Present() {
+		t.Error("Config() should return a present configuration snapshot")
+	}
+	if ctx.Config().ServiceDir() != cfg.ServiceDir {
+		t.Errorf("Config().ServiceDir() = %q, want %q", ctx.Config().ServiceDir(), cfg.ServiceDir)
 	}
 	if ctx.WorkDir() != "/tmp" {
 		t.Errorf("WorkDir() = %q, want /tmp", ctx.WorkDir())
@@ -69,18 +72,57 @@ func TestAppContext_NoReportsCreatesDefaultStore(t *testing.T) {
 }
 
 func TestAppContext_PipelineContributionsAreSnapshot(t *testing.T) {
-	contrib := &pipeline.Contribution{Jobs: []pipeline.ContributedJob{{Name: "summary"}}}
+	job, err := pipeline.NewContributedJob(pipeline.ContributedJobOptions{
+		Name:     "summary",
+		Commands: []string{"terraci summary"},
+	})
+	if err != nil {
+		t.Fatalf("NewContributedJob() error = %v", err)
+	}
+	contrib, err := pipeline.NewContribution(job)
+	if err != nil {
+		t.Fatalf("NewContribution() error = %v", err)
+	}
 	ctx := NewAppContext(AppContextOptions{
 		PipelineContributions: []*pipeline.Contribution{contrib},
 	})
 
 	got := ctx.PipelineContributions()
-	if len(got) != 1 || got[0] != contrib {
-		t.Fatalf("PipelineContributions() = %#v, want original contribution pointer", got)
+	if len(got) != 1 || got[0] == contrib {
+		t.Fatalf("PipelineContributions() = %#v, want defensive contribution copy", got)
+	}
+	if jobs := got[0].Jobs(); len(jobs) != 1 || jobs[0].Name() != "summary" {
+		t.Fatalf("PipelineContributions()[0].Jobs() = %#v, want summary", jobs)
 	}
 	got[0] = nil
-	if again := ctx.PipelineContributions(); len(again) != 1 || again[0] != contrib {
+	if again := ctx.PipelineContributions(); len(again) != 1 || again[0] == nil || again[0] == contrib {
 		t.Fatalf("PipelineContributions() was mutated through returned slice: %#v", again)
+	}
+}
+
+func TestAppContext_ConfigIsImmutableSnapshot(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.ServiceDir = ".terraci"
+	cfg.Exclude = []string{"old"}
+	ctx := NewAppContext(AppContextOptions{Config: cfg})
+
+	cfg.ServiceDir = ".changed"
+	cfg.Exclude[0] = "changed"
+	if got := ctx.Config().ServiceDir(); got != ".terraci" {
+		t.Fatalf("Config().ServiceDir() = %q, want original snapshot", got)
+	}
+	if got := ctx.Config().Exclude(); len(got) != 1 || got[0] != "old" {
+		t.Fatalf("Config().Exclude() = %#v, want original snapshot", got)
+	}
+
+	mutable := ctx.Config().MutableCopy()
+	mutable.ServiceDir = ".copy"
+	mutable.Exclude[0] = "copy"
+	if got := ctx.Config().ServiceDir(); got != ".terraci" {
+		t.Fatalf("mutable copy changed snapshot ServiceDir to %q", got)
+	}
+	if got := ctx.Config().Exclude(); len(got) != 1 || got[0] != "old" {
+		t.Fatalf("mutable copy changed snapshot Exclude to %#v", got)
 	}
 }
 

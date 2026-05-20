@@ -3,6 +3,7 @@ package config
 import "go.yaml.in/yaml/v4"
 
 const (
+	DefaultServiceDir        = ".terraci"
 	ExecutionBinaryTerraform = "terraform"
 	ExecutionBinaryTofu      = "tofu"
 )

@@ -68,7 +68,7 @@ func LoadFixture(t *testing.T, name string) *Fixture {
 	}
 
 	glCfg := decodeGLConfig(cfg)
-	execCfg := execution.ConfigFromProject(cfg)
+	execCfg := execution.ConfigFromProject(cfg.Snapshot())
 
 	// Scan modules
 	scanner := discovery.NewScanner(dir, cfg.Structure.Segments)

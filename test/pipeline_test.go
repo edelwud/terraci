@@ -9,6 +9,23 @@ import (
 	"github.com/edelwud/terraci/pkg/pipeline"
 )
 
+func mustPipelineContribution(tb testing.TB, opts ...pipeline.ContributedJobOptions) *pipeline.Contribution {
+	tb.Helper()
+	jobs := make([]pipeline.ContributedJob, 0, len(opts))
+	for _, opt := range opts {
+		job, err := pipeline.NewContributedJob(opt)
+		if err != nil {
+			tb.Fatalf("NewContributedJob() error = %v", err)
+		}
+		jobs = append(jobs, job)
+	}
+	contribution, err := pipeline.NewContribution(jobs...)
+	if err != nil {
+		tb.Fatalf("NewContribution() error = %v", err)
+	}
+	return contribution
+}
+
 func TestPipelineBuild_BasicModules(t *testing.T) {
 	modules := []*discovery.Module{
 		discovery.TestModule("platform", "prod", "eu-central-1", "vpc"),
@@ -96,15 +113,13 @@ func TestPipelineBuild_WithContributions(t *testing.T) {
 	depGraph := graph.BuildFromDependencies(modules, deps)
 	index := discovery.NewModuleIndex(modules)
 
-	contributions := []*pipeline.Contribution{{
-		Jobs: []pipeline.ContributedJob{{
-			Name:     "policy-check",
-			Commands: []string{"terraci policy check --format text"},
-			Consumes: []pipeline.ResourceRequest{
-				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
-			},
-		}},
-	}}
+	contributions := []*pipeline.Contribution{mustPipelineContribution(t, pipeline.ContributedJobOptions{
+		Name:     "policy-check",
+		Commands: []string{"terraci policy check --format text"},
+		Consumes: []pipeline.ResourceRequest{
+			pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+		},
+	})}
 
 	ir, err := pipeline.Build(pipeline.BuildOptions{
 		DepGraph:      depGraph,
@@ -145,21 +160,21 @@ func TestPipelineBuild_SummaryDependsThroughResources(t *testing.T) {
 	index := discovery.NewModuleIndex(modules)
 
 	contributions := []*pipeline.Contribution{
-		{Jobs: []pipeline.ContributedJob{{
+		mustPipelineContribution(t, pipeline.ContributedJobOptions{
 			Name:     "policy-check",
 			Commands: []string{"check"},
 			Produces: []pipeline.ResourceSpec{
 				pipeline.PluginResource(pipeline.ResourceKindPluginReport, "policy", ".terraci/policy-report.json"),
 			},
-		}}},
-		{Jobs: []pipeline.ContributedJob{{
+		}),
+		mustPipelineContribution(t, pipeline.ContributedJobOptions{
 			Name:     "terraci-summary",
 			Commands: []string{"summary"},
 			Consumes: []pipeline.ResourceRequest{
 				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
 				pipeline.AllPluginResources(pipeline.ResourceKindPluginReport, true),
 			},
-		}}},
+		}),
 	}
 
 	ir, err := pipeline.Build(pipeline.BuildOptions{

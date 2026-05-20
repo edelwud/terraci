@@ -7,20 +7,35 @@ import (
 	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
 )
 
+func testContribution(tb testing.TB, opts ...pipeline.ContributedJobOptions) *pipeline.Contribution {
+	tb.Helper()
+	jobs := make([]pipeline.ContributedJob, 0, len(opts))
+	for _, opt := range opts {
+		job, err := pipeline.NewContributedJob(opt)
+		if err != nil {
+			tb.Fatalf("NewContributedJob() error = %v", err)
+		}
+		jobs = append(jobs, job)
+	}
+	contribution, err := pipeline.NewContribution(jobs...)
+	if err != nil {
+		tb.Fatalf("NewContribution() error = %v", err)
+	}
+	return contribution
+}
+
 func TestGenerate_WithSummaryContribution(t *testing.T) {
 	vpc := createTestModule("platform", "stage", "eu-central-1", "vpc")
 	eks := createTestModule("platform", "stage", "eu-central-1", "eks")
 	workflow := newGeneratorScenario(t).
-		withContributions([]*pipeline.Contribution{{
-			Jobs: []pipeline.ContributedJob{{
-				Name:     "terraci-summary",
-				Commands: []string{"terraci summary"},
-				Consumes: []pipeline.ResourceRequest{
-					pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
-				},
-				AllowFailure: false,
-			}},
-		}}).
+		withContributions([]*pipeline.Contribution{testContribution(t, pipeline.ContributedJobOptions{
+			Name:     "terraci-summary",
+			Commands: []string{"terraci summary"},
+			Consumes: []pipeline.ResourceRequest{
+				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+			},
+			AllowFailure: false,
+		})}).
 		withModules(vpc, eks).
 		withDependencies(map[string][]string{
 			vpc.ID(): {},
@@ -45,16 +60,14 @@ func TestGenerate_ContributedJobInheritsJobDefaults(t *testing.T) {
 				StepsAfter:  []configpkg.ConfigStep{{Name: "Cleanup", Run: "echo cleanup"}},
 			}
 		}).
-		withContributions([]*pipeline.Contribution{{
-			Jobs: []pipeline.ContributedJob{{
-				Name:     "cost-estimation",
-				Commands: []string{"terraci cost"},
-				Consumes: []pipeline.ResourceRequest{
-					pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
-				},
-				AllowFailure: true,
-			}},
-		}}).
+		withContributions([]*pipeline.Contribution{testContribution(t, pipeline.ContributedJobOptions{
+			Name:     "cost-estimation",
+			Commands: []string{"terraci cost"},
+			Consumes: []pipeline.ResourceRequest{
+				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+			},
+			AllowFailure: true,
+		})}).
 		withModules(module).
 		withDependencies(map[string][]string{module.ID(): {}}).
 		generate()
@@ -80,16 +93,14 @@ func TestGenerate_ContributedJobOverwriteByName(t *testing.T) {
 				RunsOn:    "cost-runner",
 			}}
 		}).
-		withContributions([]*pipeline.Contribution{{
-			Jobs: []pipeline.ContributedJob{{
-				Name:     "cost-estimation",
-				Commands: []string{"terraci cost"},
-				Consumes: []pipeline.ResourceRequest{
-					pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
-				},
-				AllowFailure: true,
-			}},
-		}}).
+		withContributions([]*pipeline.Contribution{testContribution(t, pipeline.ContributedJobOptions{
+			Name:     "cost-estimation",
+			Commands: []string{"terraci cost"},
+			Consumes: []pipeline.ResourceRequest{
+				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+			},
+			AllowFailure: true,
+		})}).
 		withModules(module).
 		withDependencies(map[string][]string{module.ID(): {}}).
 		generate()
@@ -189,16 +200,14 @@ func TestGenerate_ContributedJobAppliesAllMatchingOverwritesInOrder(t *testing.T
 				},
 			}
 		}).
-		withContributions([]*pipeline.Contribution{{
-			Jobs: []pipeline.ContributedJob{{
-				Name:     "cost-estimation",
-				Commands: []string{"terraci cost"},
-				Consumes: []pipeline.ResourceRequest{
-					pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
-				},
-				AllowFailure: true,
-			}},
-		}}).
+		withContributions([]*pipeline.Contribution{testContribution(t, pipeline.ContributedJobOptions{
+			Name:     "cost-estimation",
+			Commands: []string{"terraci cost"},
+			Consumes: []pipeline.ResourceRequest{
+				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+			},
+			AllowFailure: true,
+		})}).
 		withModules(module).
 		withDependencies(map[string][]string{module.ID(): {}}).
 		generate()
@@ -219,20 +228,18 @@ func TestGenerate_ContributedJobAppliesAllMatchingOverwritesInOrder(t *testing.T
 func TestGenerate_WithPolicy(t *testing.T) {
 	module := createTestModule("platform", "stage", "eu-central-1", "vpc")
 	workflow := newGeneratorScenario(t).
-		withContributions([]*pipeline.Contribution{{
-			Jobs: []pipeline.ContributedJob{{
-				Name:     "policy-check",
-				Commands: []string{"terraci policy check --format text"},
-				Consumes: []pipeline.ResourceRequest{
-					pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
-				},
-				Produces: []pipeline.ResourceSpec{
-					pipeline.PluginResource(pipeline.ResourceKindPluginResult, "policy", ".terraci/policy-results.json"),
-					pipeline.PluginResource(pipeline.ResourceKindPluginReport, "policy", ".terraci/policy-report.json"),
-				},
-				AllowFailure: false,
-			}},
-		}}).
+		withContributions([]*pipeline.Contribution{testContribution(t, pipeline.ContributedJobOptions{
+			Name:     "policy-check",
+			Commands: []string{"terraci policy check --format text"},
+			Consumes: []pipeline.ResourceRequest{
+				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+			},
+			Produces: []pipeline.ResourceSpec{
+				pipeline.PluginResource(pipeline.ResourceKindPluginResult, "policy", ".terraci/policy-results.json"),
+				pipeline.PluginResource(pipeline.ResourceKindPluginReport, "policy", ".terraci/policy-report.json"),
+			},
+			AllowFailure: false,
+		})}).
 		withModules(module).
 		withDependencies(map[string][]string{module.ID(): {}}).
 		generate()
@@ -250,20 +257,18 @@ func TestGenerate_ArtifactRestoreContract(t *testing.T) {
 	resultArtifact := pipeline.ResultArtifact("cost-estimation", ".terraci/cost-results.json", ".terraci/cost-report.json")
 
 	workflow := newGeneratorScenario(t).
-		withContributions([]*pipeline.Contribution{{
-			Jobs: []pipeline.ContributedJob{{
-				Name:     "cost-estimation",
-				Commands: []string{"terraci cost"},
-				Consumes: []pipeline.ResourceRequest{
-					pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
-				},
-				Produces: []pipeline.ResourceSpec{
-					pipeline.PluginResource(pipeline.ResourceKindPluginResult, "cost", ".terraci/cost-results.json"),
-					pipeline.PluginResource(pipeline.ResourceKindPluginReport, "cost", ".terraci/cost-report.json"),
-				},
-				AllowFailure: true,
-			}},
-		}}).
+		withContributions([]*pipeline.Contribution{testContribution(t, pipeline.ContributedJobOptions{
+			Name:     "cost-estimation",
+			Commands: []string{"terraci cost"},
+			Consumes: []pipeline.ResourceRequest{
+				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+			},
+			Produces: []pipeline.ResourceSpec{
+				pipeline.PluginResource(pipeline.ResourceKindPluginResult, "cost", ".terraci/cost-results.json"),
+				pipeline.PluginResource(pipeline.ResourceKindPluginReport, "cost", ".terraci/cost-report.json"),
+			},
+			AllowFailure: true,
+		})}).
 		withModules(module).
 		withDependencies(map[string][]string{module.ID(): {}}).
 		generate()

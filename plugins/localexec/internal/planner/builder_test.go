@@ -11,6 +11,23 @@ import (
 	"github.com/edelwud/terraci/plugins/localexec/internal/spec"
 )
 
+func mustContribution(tb testing.TB, opts ...pipeline.ContributedJobOptions) *pipeline.Contribution {
+	tb.Helper()
+	jobs := make([]pipeline.ContributedJob, 0, len(opts))
+	for _, opt := range opts {
+		job, err := pipeline.NewContributedJob(opt)
+		if err != nil {
+			tb.Fatalf("NewContributedJob() error = %v", err)
+		}
+		jobs = append(jobs, job)
+	}
+	contribution, err := pipeline.NewContribution(jobs...)
+	if err != nil {
+		tb.Fatalf("NewContribution() error = %v", err)
+	}
+	return contribution
+}
+
 func TestBuilderBuildRunModeIncludesPlanAndApplyJobs(t *testing.T) {
 	t.Parallel()
 
@@ -66,12 +83,10 @@ func TestBuilderBuildUsesContributionSnapshot(t *testing.T) {
 
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	result := workflowResultForModules(module)
-	contributions := []*pipeline.Contribution{{
-		Jobs: []pipeline.ContributedJob{{
-			Name:     "summary",
-			Commands: []string{"terraci summary"},
-		}},
-	}}
+	contributions := []*pipeline.Contribution{mustContribution(t, pipeline.ContributedJobOptions{
+		Name:     "summary",
+		Commands: []string{"terraci summary"},
+	})}
 
 	plan, err := New().Build(
 		[]*discovery.Module{module},
@@ -94,15 +109,13 @@ func TestBuilderBuildPlanModeKeepsAllContributedJobs(t *testing.T) {
 
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	result := workflowResultForModules(module)
-	contributions := []*pipeline.Contribution{{
-		Jobs: []pipeline.ContributedJob{
-			{Name: "lint", Commands: []string{"terraci lint"}},
-			{Name: "cost", Commands: []string{"terraci cost"}},
-			{Name: "policy", Commands: []string{"terraci policy check"}},
-			{Name: "tfupdate", Commands: []string{"terraci tfupdate"}},
-			{Name: "summary", Commands: []string{"summary"}},
-		},
-	}}
+	contributions := []*pipeline.Contribution{mustContribution(t,
+		pipeline.ContributedJobOptions{Name: "lint", Commands: []string{"terraci lint"}},
+		pipeline.ContributedJobOptions{Name: "cost", Commands: []string{"terraci cost"}},
+		pipeline.ContributedJobOptions{Name: "policy", Commands: []string{"terraci policy check"}},
+		pipeline.ContributedJobOptions{Name: "tfupdate", Commands: []string{"terraci tfupdate"}},
+		pipeline.ContributedJobOptions{Name: "summary", Commands: []string{"summary"}},
+	)}
 
 	plan, err := New().Build(
 		[]*discovery.Module{module},

@@ -168,7 +168,7 @@ Register → Configure → Preflight → Freeze → Execute
 ```go
 ctx.WorkDir()    // корневая директория проекта
 ctx.ServiceDir() // абсолютный путь к .terraci
-ctx.Config()     // shared *config.Config — read-only, не мутировать
+ctx.Config()     // immutable config.Snapshot; используйте accessors вроде ServiceDir()
 ctx.Version()    // строка версии TerraCi
 ctx.Reports()    // shared ci.ReportStore для plugin artifacts и отчётов
 ctx.Resolver()   // capability-резолвер — никогда не nil; через него ищутся CI-провайдер, ChangeDetector, кэши

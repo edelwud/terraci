@@ -55,7 +55,7 @@ func collectContributedJobs(contributions []*Contribution) []ContributedJob {
 		if c == nil {
 			continue
 		}
-		allContributedJobs = append(allContributedJobs, c.Jobs...)
+		allContributedJobs = append(allContributedJobs, c.Jobs()...)
 	}
 	return allContributedJobs
 }
@@ -63,7 +63,7 @@ func collectContributedJobs(contributions []*Contribution) []ContributedJob {
 func allResourceRequests(required []ResourceRequest, jobs []ContributedJob) []ResourceRequest {
 	requests := append([]ResourceRequest(nil), required...)
 	for _, job := range jobs {
-		requests = append(requests, job.Consumes...)
+		requests = append(requests, job.Consumes()...)
 	}
 	return requests
 }
@@ -78,8 +78,8 @@ func validateBuildResourceRequests(required []ResourceRequest, contributions []*
 		if contribution == nil {
 			continue
 		}
-		for jobIdx, job := range contribution.Jobs {
-			for reqIdx, request := range job.Consumes {
+		for jobIdx, job := range contribution.Jobs() {
+			for reqIdx, request := range job.Consumes() {
 				if err := validateResourceRequest(request); err != nil {
 					return fmt.Errorf("contributions[%d].jobs[%d].consumes[%d]: %w", contributionIdx, jobIdx, reqIdx, err)
 				}
@@ -230,16 +230,17 @@ func buildApplyJob(plan *jobPlan, mod *discovery.Module, env map[string]string, 
 func buildContributedJobs(contributedJobs []ContributedJob) []Job {
 	jobs := make([]Job, 0, len(contributedJobs))
 	for _, contributedJob := range contributedJobs {
+		produces := contributedJob.Produces()
 		job := Job{
-			Name:           contributedJob.Name,
+			Name:           contributedJob.Name(),
 			Kind:           JobKindCommand,
-			Dependencies:   append([]JobDependency(nil), contributedJob.Dependencies...),
-			OutputArtifact: resultArtifactFromResources(contributedJob.Name, contributedJob.Produces),
-			Produces:       append([]ResourceSpec(nil), contributedJob.Produces...),
-			AllowFailure:   contributedJob.AllowFailure,
+			Dependencies:   contributedJob.Dependencies(),
+			OutputArtifact: resultArtifactFromResources(contributedJob.Name(), produces),
+			Produces:       produces,
+			AllowFailure:   contributedJob.AllowFailure(),
 			Operation: Operation{
 				Type:     OperationTypeCommands,
-				Commands: append([]string(nil), contributedJob.Commands...),
+				Commands: contributedJob.Commands(),
 			},
 		}
 		jobs = append(jobs, job)
@@ -261,7 +262,7 @@ func resolvePipelineResources(ir *IR, plan *jobPlan, required []ResourceRequest,
 	contributedStart := len(ir.Jobs) - len(contributedJobs)
 	for i := range contributedJobs {
 		job := &ir.Jobs[contributedStart+i]
-		consumes, artifacts, deps, err := resolveResourceRequestsForJob(contributedJobs[i].Consumes, resources, job.Name, allowEmptyModuleResources)
+		consumes, artifacts, deps, err := resolveResourceRequestsForJob(contributedJobs[i].Consumes(), resources, job.Name, allowEmptyModuleResources)
 		if err != nil {
 			return err
 		}

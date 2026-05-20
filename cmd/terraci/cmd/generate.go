@@ -109,7 +109,7 @@ func resolveGenerateTargets(
 	if err != nil {
 		return nil, err
 	}
-	return workflow.ResolveTargets(cmd.Context(), app.WorkDir, app.Config, result, workflow.TargetSelectionOptions{
+	return workflow.ResolveTargets(cmd.Context(), app.WorkDir, app.Config.Snapshot(), result, workflow.TargetSelectionOptions{
 		ChangedOnly: changedOnly,
 		BaseRef:     baseRef,
 		Filters:     ff,
@@ -175,7 +175,7 @@ func newPipelineGenerator(cmd *cobra.Command, app *App, depGraph *graph.Dependen
 	}
 	contributions := appCtx.PipelineContributions()
 
-	exec := execution.ConfigFromProject(app.Config)
+	exec := execution.ConfigFromProject(app.Config.Snapshot())
 	requirements := exec.BuildRequirements().Merge(provider.PipelineRequirements(appCtx))
 	if planOnly {
 		requirements = requirements.Merge(pipeline.BuildRequirements{PlanOnly: true})

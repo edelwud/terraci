@@ -42,8 +42,8 @@ func runHello(ctx context.Context, appCtx *plugin.AppContext, greeting string) e
 	fmt.Println(greeting)
 	fmt.Println()
 
-	cfg := appCtx.Config()
-	segments, err := config.ParsePattern(cfg.Structure.Pattern)
+	structure := appCtx.Config().Structure()
+	segments, err := config.ParsePattern(structure.Pattern)
 	if err != nil {
 		return fmt.Errorf("parse pattern: %w", err)
 	}

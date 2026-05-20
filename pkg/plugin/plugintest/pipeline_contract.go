@@ -51,12 +51,13 @@ func AssertPipelineContributor(tb testing.TB, c PipelineContributorContract) {
 }
 
 func contributedJobNames(contribution *pipeline.Contribution) []string {
-	if contribution == nil || len(contribution.Jobs) == 0 {
+	jobs := contribution.Jobs()
+	if len(jobs) == 0 {
 		return nil
 	}
-	names := make([]string, 0, len(contribution.Jobs))
-	for _, job := range contribution.Jobs {
-		names = append(names, job.Name)
+	names := make([]string, 0, len(jobs))
+	for _, job := range jobs {
+		names = append(names, job.Name())
 	}
 	return names
 }

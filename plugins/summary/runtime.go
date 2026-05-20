@@ -11,11 +11,8 @@ type summaryRuntime = summaryengine.Runtime
 
 func newRuntime(appCtx *plugin.AppContext, cfg *summaryengine.Config) *summaryRuntime {
 	normalized := cfg.Normalized()
-	appCfg := appCtx.Config()
-	var segments []string
-	if appCfg != nil {
-		segments = []string(appCfg.Structure.Segments)
-	}
+	structure := appCtx.Config().Structure()
+	segments := append([]string(nil), structure.Segments...)
 	return &summaryengine.Runtime{
 		Config:           normalized,
 		WorkDir:          appCtx.WorkDir(),

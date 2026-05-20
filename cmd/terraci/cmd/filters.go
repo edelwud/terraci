@@ -16,5 +16,5 @@ func registerFilterFlags(cmd *cobra.Command, f *filter.Flags) {
 
 // workflowOptions builds workflow.Options from app config and filter flags.
 func workflowOptions(app *App, ff *filter.Flags) workflow.Options {
-	return workflow.OptionsFromConfig(app.WorkDir, app.Config, ff)
+	return workflow.OptionsFromConfig(app.WorkDir, app.Config.Snapshot(), ff)
 }

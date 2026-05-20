@@ -94,6 +94,89 @@
     },
     "extensions": {
       "properties": {
+        "diskblob": {
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable the built-in filesystem blob store backend",
+              "default": true
+            },
+            "root_dir": {
+              "type": "string",
+              "description": "Directory where blob objects are stored",
+              "default": "~/.terraci/blobs"
+            }
+          },
+          "type": "object"
+        },
+        "inmemcache": {
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable the built-in in-memory KV cache backend",
+              "default": true
+            }
+          },
+          "type": "object"
+        },
+        "summary": {
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "on_changes_only": {
+              "type": "boolean"
+            },
+            "include_details": {
+              "type": "boolean"
+            },
+            "labels": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "cost": {
+          "properties": {
+            "blob_cache": {
+              "properties": {
+                "backend": {
+                  "type": "string",
+                  "description": "Blob cache backend plugin name; empty selects the single active blob store provider"
+                },
+                "namespace": {
+                  "type": "string",
+                  "description": "Blob cache namespace for pricing data",
+                  "default": "cost/pricing"
+                },
+                "ttl": {
+                  "type": "string",
+                  "description": "How long cached pricing is valid (e.g. 24h)",
+                  "default": "24h"
+                }
+              },
+              "type": "object",
+              "description": "Blob cache backend selection for pricing data"
+            },
+            "providers": {
+              "additionalProperties": {
+                "properties": {
+                  "enabled": {
+                    "type": "boolean",
+                    "description": "Enable this cloud provider",
+                    "default": false
+                  }
+                },
+                "type": "object"
+              },
+              "type": "object"
+            }
+          },
+          "type": "object"
+        },
         "tfupdate": {
           "properties": {
             "enabled": {
@@ -212,174 +295,6 @@
                 }
               },
               "type": "object"
-            }
-          },
-          "type": "object"
-        },
-        "policy": {
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "description": "Enable policy checks",
-              "default": false
-            },
-            "sources": {
-              "items": {
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "path",
-                      "git",
-                      "oci"
-                    ],
-                    "description": "Policy source type"
-                  },
-                  "path": {
-                    "type": "string",
-                    "description": "Local policy directory path"
-                  },
-                  "url": {
-                    "type": "string",
-                    "description": "Git repository or OCI artifact URL"
-                  },
-                  "ref": {
-                    "type": "string",
-                    "description": "Git branch, tag, or commit SHA"
-                  }
-                },
-                "type": "object",
-                "required": [
-                  "type"
-                ]
-              },
-              "type": "array",
-              "description": "Policy sources"
-            },
-            "namespaces": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array",
-              "description": "Rego package namespaces to evaluate"
-            },
-            "failure_action": {
-              "type": "string",
-              "enum": [
-                "block",
-                "warn",
-                "ignore"
-              ],
-              "description": "Action for Rego deny decisions",
-              "default": "block"
-            },
-            "warning_action": {
-              "type": "string",
-              "enum": [
-                "block",
-                "warn",
-                "ignore"
-              ],
-              "description": "Action for Rego warn decisions",
-              "default": "warn"
-            },
-            "overrides": {
-              "items": {
-                "properties": {
-                  "match": {
-                    "type": "string",
-                    "description": "Glob pattern to match module paths"
-                  },
-                  "enabled": {
-                    "type": "boolean",
-                    "description": "Override enabled state for matching modules"
-                  },
-                  "namespaces": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array",
-                    "description": "Override namespaces for matching modules"
-                  },
-                  "failure_action": {
-                    "type": "string",
-                    "description": "Override action for Rego deny decisions"
-                  },
-                  "warning_action": {
-                    "type": "string",
-                    "description": "Override action for Rego warn decisions"
-                  }
-                },
-                "type": "object",
-                "required": [
-                  "match"
-                ]
-              },
-              "type": "array",
-              "description": "Per-module policy configuration overrides"
-            },
-            "cache_dir": {
-              "type": "string",
-              "description": "Directory to cache materialized policies",
-              "default": ".terraci/policies"
-            }
-          },
-          "type": "object"
-        },
-        "inmemcache": {
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "description": "Enable the built-in in-memory KV cache backend",
-              "default": true
-            }
-          },
-          "type": "object"
-        },
-        "cost": {
-          "properties": {
-            "blob_cache": {
-              "properties": {
-                "backend": {
-                  "type": "string",
-                  "description": "Blob cache backend plugin name; empty selects the single active blob store provider"
-                },
-                "namespace": {
-                  "type": "string",
-                  "description": "Blob cache namespace for pricing data",
-                  "default": "cost/pricing"
-                },
-                "ttl": {
-                  "type": "string",
-                  "description": "How long cached pricing is valid (e.g. 24h)",
-                  "default": "24h"
-                }
-              },
-              "type": "object",
-              "description": "Blob cache backend selection for pricing data"
-            },
-            "providers": {
-              "additionalProperties": {
-                "properties": {
-                  "enabled": {
-                    "type": "boolean",
-                    "description": "Enable this cloud provider",
-                    "default": false
-                  }
-                },
-                "type": "object"
-              },
-              "type": "object"
-            }
-          },
-          "type": "object"
-        },
-        "git": {
-          "properties": {
-            "auto_unshallow": {
-              "type": "boolean",
-              "description": "Automatically run 'git fetch --unshallow' when a shallow clone is detected during change detection",
-              "default": false
             }
           },
           "type": "object"
@@ -1165,37 +1080,136 @@
           },
           "type": "object"
         },
-        "diskblob": {
+        "policy": {
           "properties": {
             "enabled": {
               "type": "boolean",
-              "description": "Enable the built-in filesystem blob store backend",
-              "default": true
+              "description": "Enable policy checks",
+              "default": false
             },
-            "root_dir": {
-              "type": "string",
-              "description": "Directory where blob objects are stored",
-              "default": "~/.terraci/blobs"
-            }
-          },
-          "type": "object"
-        },
-        "summary": {
-          "properties": {
-            "enabled": {
-              "type": "boolean"
+            "sources": {
+              "items": {
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "path",
+                      "git",
+                      "oci"
+                    ],
+                    "description": "Policy source type"
+                  },
+                  "path": {
+                    "type": "string",
+                    "description": "Local policy directory path"
+                  },
+                  "url": {
+                    "type": "string",
+                    "description": "Git repository or OCI artifact URL"
+                  },
+                  "ref": {
+                    "type": "string",
+                    "description": "Git branch, tag, or commit SHA"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "type"
+                ]
+              },
+              "type": "array",
+              "description": "Policy sources"
             },
-            "on_changes_only": {
-              "type": "boolean"
-            },
-            "include_details": {
-              "type": "boolean"
-            },
-            "labels": {
+            "namespaces": {
               "items": {
                 "type": "string"
               },
-              "type": "array"
+              "type": "array",
+              "description": "Rego package namespaces to evaluate"
+            },
+            "decisions": {
+              "properties": {
+                "deny": {
+                  "type": "string",
+                  "enum": [
+                    "block",
+                    "warn",
+                    "ignore"
+                  ],
+                  "description": "Action for OPA deny decisions",
+                  "default": "block"
+                },
+                "warn": {
+                  "type": "string",
+                  "enum": [
+                    "block",
+                    "warn",
+                    "ignore"
+                  ],
+                  "description": "Action for OPA warn decisions",
+                  "default": "warn"
+                }
+              },
+              "type": "object",
+              "description": "Actions for OPA decisions"
+            },
+            "overrides": {
+              "items": {
+                "properties": {
+                  "match": {
+                    "type": "string",
+                    "description": "Glob pattern to match module paths"
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "description": "Override enabled state for matching modules"
+                  },
+                  "namespaces": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Override namespaces for matching modules"
+                  },
+                  "decisions": {
+                    "properties": {
+                      "deny": {
+                        "type": "string",
+                        "enum": [
+                          "block",
+                          "warn",
+                          "ignore"
+                        ],
+                        "description": "Action for OPA deny decisions",
+                        "default": "block"
+                      },
+                      "warn": {
+                        "type": "string",
+                        "enum": [
+                          "block",
+                          "warn",
+                          "ignore"
+                        ],
+                        "description": "Action for OPA warn decisions",
+                        "default": "warn"
+                      }
+                    },
+                    "type": "object",
+                    "description": "Override OPA decision actions"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "match"
+                ]
+              },
+              "type": "array",
+              "description": "Per-module policy configuration overrides"
+            },
+            "source_cache_dir": {
+              "type": "string",
+              "description": "Directory to cache materialized policies",
+              "default": ".terraci/policies"
             }
           },
           "type": "object"

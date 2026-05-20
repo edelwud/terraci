@@ -24,41 +24,45 @@ func TestPlugin_PipelineContribution_UsesAppContextServiceDir(t *testing.T) {
 	if contrib == nil {
 		t.Fatal("PipelineContribution() returned nil")
 	}
-	if len(contrib.Jobs) != 1 {
-		t.Fatalf("jobs count = %d, want 1", len(contrib.Jobs))
+	jobs := contrib.Jobs()
+	if len(jobs) != 1 {
+		t.Fatalf("jobs count = %d, want 1", len(jobs))
 	}
 
-	job := contrib.Jobs[0]
-	if job.Name != "policy-check" {
-		t.Errorf("job.Name = %q, want %q", job.Name, "policy-check")
+	job := jobs[0]
+	if job.Name() != "policy-check" {
+		t.Errorf("job.Name() = %q, want %q", job.Name(), "policy-check")
 	}
-	if len(job.Consumes) != 1 ||
-		job.Consumes[0].Kind != pipeline.ResourceKindPlanJSON ||
-		job.Consumes[0].Selector.Scope != pipeline.ResourceScopeAllModules {
-		t.Fatalf("job.Consumes = %#v, want all plan JSON", job.Consumes)
+	consumes := job.Consumes()
+	if len(consumes) != 1 ||
+		consumes[0].Kind != pipeline.ResourceKindPlanJSON ||
+		consumes[0].Selector.Scope != pipeline.ResourceScopeAllModules {
+		t.Fatalf("job.Consumes() = %#v, want all plan JSON", consumes)
 	}
-	if !job.AllowFailure {
+	if !job.AllowFailure() {
 		t.Error("job.AllowFailure should be true when no global policy action can block")
 	}
-	if len(job.Commands) != 1 || job.Commands[0] != "terraci policy check --format text" {
-		t.Fatalf("job.Commands = %#v, want only policy check", job.Commands)
+	commands := job.Commands()
+	if len(commands) != 1 || commands[0] != "terraci policy check --format text" {
+		t.Fatalf("job.Commands() = %#v, want only policy check", commands)
 	}
 
-	if len(job.Produces) != 2 {
-		t.Fatalf("job.Produces = %#v, want result and report", job.Produces)
+	produces := job.Produces()
+	if len(produces) != 2 {
+		t.Fatalf("job.Produces() = %#v, want result and report", produces)
 	}
 	wantPaths := []string{
-		pipeline.WorkspacePath(appCtx.Config().ServiceDir, resultsFile),
-		pipeline.WorkspacePath(appCtx.Config().ServiceDir, reportFile),
+		pipeline.WorkspacePath(appCtx.Config().ServiceDir(), resultsFile),
+		pipeline.WorkspacePath(appCtx.Config().ServiceDir(), reportFile),
 	}
-	if !slices.Equal(producedPaths(job.Produces), wantPaths) {
-		t.Errorf("produced paths = %v, want %v", producedPaths(job.Produces), wantPaths)
+	if !slices.Equal(producedPaths(produces), wantPaths) {
+		t.Errorf("produced paths = %v, want %v", producedPaths(produces), wantPaths)
 	}
-	if job.Produces[0].Ref.Kind != pipeline.ResourceKindPluginResult || job.Produces[0].Ref.Producer != pluginName {
-		t.Fatalf("result resource = %#v", job.Produces[0])
+	if produces[0].Ref.Kind != pipeline.ResourceKindPluginResult || produces[0].Ref.Producer != pluginName {
+		t.Fatalf("result resource = %#v", produces[0])
 	}
-	if job.Produces[1].Ref.Kind != pipeline.ResourceKindPluginReport || job.Produces[1].Ref.Producer != pluginName {
-		t.Fatalf("report resource = %#v", job.Produces[1])
+	if produces[1].Ref.Kind != pipeline.ResourceKindPluginReport || produces[1].Ref.Producer != pluginName {
+		t.Fatalf("report resource = %#v", produces[1])
 	}
 }
 

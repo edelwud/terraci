@@ -31,30 +31,34 @@ Pipeline-плагины добавляют standalone DAG-джобы в provider
 
 ```go
 func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribution {
-    serviceDir := ctx.Config().ServiceDir
+    serviceDir := ctx.Config().ServiceDir()
 
-    return &pipeline.Contribution{
-        Jobs: []pipeline.ContributedJob{
-            {
-                Name:     "security-scan",
-                Commands: []string{"terraci security check"},
-                Consumes: []pipeline.ResourceRequest{
-                    pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
-                },
-                Produces: []pipeline.ResourceSpec{
-                    pipeline.PluginResource(
-                        pipeline.ResourceKindPluginReport,
-                        "security",
-                        pipeline.WorkspacePath(serviceDir, ci.ReportFilename("security")),
-                    ),
-                },
-            },
+    job, err := pipeline.NewPluginCommandJob(pipeline.PluginCommandJobOptions{
+        Name:     "security-scan",
+        Commands: []string{"terraci security check"},
+        Consumes: []pipeline.ResourceRequest{
+            pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
         },
+        Produces: []pipeline.ResourceSpec{
+            pipeline.PluginResource(
+                pipeline.ResourceKindPluginReport,
+                "security",
+                pipeline.WorkspacePath(serviceDir, ci.ReportFilename("security")),
+            ),
+        },
+    })
+    if err != nil {
+        return nil
     }
+    contribution, err := pipeline.NewContribution(job)
+    if err != nil {
+        return nil
+    }
+    return contribution
 }
 ```
 
-## Поля ContributedJob
+## Options и getters для ContributedJob
 
 | Поле | Тип | Описание |
 |------|-----|----------|
@@ -64,6 +68,10 @@ func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribu
 | `Consumes` | `[]ResourceRequest` | Typed resources, которые надо восстановить |
 | `Produces` | `[]ResourceSpec` | Typed resources, которые job публикует |
 | `AllowFailure` | `bool` | Ошибка job не валит pipeline |
+
+Job создаётся через `pipeline.NewPluginCommandJob` или
+`pipeline.NewContributedJob`, затем оборачивается в `pipeline.NewContribution`.
+Consumers читают через `Contribution.Jobs()` и getters.
 
 ## Resources
 
@@ -85,18 +93,22 @@ Summary не требует специальной фазы. Она оказыв
 
 ```go
 func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contribution {
-    return &pipeline.Contribution{
-        Jobs: []pipeline.ContributedJob{
-            {
-                Name:     "terraci-summary",
-                Commands: []string{"terraci summary"},
-                Consumes: []pipeline.ResourceRequest{
-                    pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
-                    pipeline.AllPluginResources(pipeline.ResourceKindPluginReport, true),
-                },
-            },
+    job, err := pipeline.NewPluginCommandJob(pipeline.PluginCommandJobOptions{
+        Name:     "terraci-summary",
+        Commands: []string{"terraci summary"},
+        Consumes: []pipeline.ResourceRequest{
+            pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
+            pipeline.AllPluginResources(pipeline.ResourceKindPluginReport, true),
         },
+    })
+    if err != nil {
+        return nil
     }
+    contribution, err := pipeline.NewContribution(job)
+    if err != nil {
+        return nil
+    }
+    return contribution
 }
 ```
 

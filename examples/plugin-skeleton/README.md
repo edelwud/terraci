@@ -87,7 +87,7 @@ Framework discovery is purely type-assertion-based: `registry.ByCapabilityFrom[T
 - **Don't** capture plugin state at command-registration time. Resolve the command-scoped plugin inside `RunE` with `plugin.CommandPlugin[T]`.
 - **Don't** panic while building reports in production code paths. Use `ci.NewRenderedReport` and propagate errors.
 - **Don't** assemble provenance by hand. Build a `ci.ArtifactRun` and pass `run.Artifact` to `ci.NewRenderedReport`; local consumers compare the fingerprint through `ci.SelectCurrentReports`.
-- **Don't** mutate `ctx.Config()` (`*config.Config`) — it's a shared pointer behind an `RWMutex`. Treat it as read-only; mutate plugin-local config via `FlagOverridable` if needed.
+- **Don't** mutate project config through `ctx.Config()`. It returns an immutable `config.Snapshot`; use accessors or `MutableCopy()` only for legacy pointer-shaped APIs.
 - **Don't** mutate the value returned by `BasePlugin.Config()` expecting plugin state to change. Config types must implement `Clone() C`; `Config()` returns a defensive copy.
 
 ## See also

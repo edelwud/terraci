@@ -23,46 +23,50 @@ func TestPlugin_PipelineContribution(t *testing.T) {
 	if contrib == nil {
 		t.Fatal("PipelineContribution() returned nil")
 	}
-	if len(contrib.Jobs) != 1 {
-		t.Fatalf("jobs count = %d, want 1", len(contrib.Jobs))
+	jobs := contrib.Jobs()
+	if len(jobs) != 1 {
+		t.Fatalf("jobs count = %d, want 1", len(jobs))
 	}
 
-	job := contrib.Jobs[0]
+	job := jobs[0]
 
-	if job.Name != "cost-estimation" {
-		t.Errorf("job.Name = %q, want %q", job.Name, "cost-estimation")
+	if job.Name() != "cost-estimation" {
+		t.Errorf("job.Name() = %q, want %q", job.Name(), "cost-estimation")
 	}
-	if len(job.Consumes) != 1 ||
-		job.Consumes[0].Kind != pipeline.ResourceKindPlanJSON ||
-		job.Consumes[0].Selector.Scope != pipeline.ResourceScopeAllModules {
-		t.Fatalf("job.Consumes = %#v, want all plan JSON", job.Consumes)
+	consumes := job.Consumes()
+	if len(consumes) != 1 ||
+		consumes[0].Kind != pipeline.ResourceKindPlanJSON ||
+		consumes[0].Selector.Scope != pipeline.ResourceScopeAllModules {
+		t.Fatalf("job.Consumes() = %#v, want all plan JSON", consumes)
 	}
-	if !job.AllowFailure {
+	if !job.AllowFailure() {
 		t.Error("job.AllowFailure should be true")
 	}
-	if len(job.Commands) != 1 || job.Commands[0] != "terraci cost" {
-		t.Errorf("job.Commands = %v, want [terraci cost]", job.Commands)
+	commands := job.Commands()
+	if len(commands) != 1 || commands[0] != "terraci cost" {
+		t.Errorf("job.Commands() = %v, want [terraci cost]", commands)
 	}
 
-	if len(job.Produces) != 2 {
-		t.Fatalf("job.Produces = %#v, want result and report", job.Produces)
+	produces := job.Produces()
+	if len(produces) != 2 {
+		t.Fatalf("job.Produces() = %#v, want result and report", produces)
 	}
 	wantPaths := []string{pipeline.WorkspacePath(".terraci", resultsFile), pipeline.WorkspacePath(".terraci", reportFile)}
-	if !sameStrings(producedPaths(job.Produces), wantPaths) {
-		t.Errorf("produced paths = %v, want %v", producedPaths(job.Produces), wantPaths)
+	if !sameStrings(producedPaths(produces), wantPaths) {
+		t.Errorf("produced paths = %v, want %v", producedPaths(produces), wantPaths)
 	}
-	if job.Produces[0].Ref.Kind != pipeline.ResourceKindPluginResult || job.Produces[0].Ref.Producer != pluginName {
-		t.Fatalf("result resource = %#v", job.Produces[0])
+	if produces[0].Ref.Kind != pipeline.ResourceKindPluginResult || produces[0].Ref.Producer != pluginName {
+		t.Fatalf("result resource = %#v", produces[0])
 	}
-	if job.Produces[1].Ref.Kind != pipeline.ResourceKindPluginReport || job.Produces[1].Ref.Producer != pluginName {
-		t.Fatalf("report resource = %#v", job.Produces[1])
+	if produces[1].Ref.Kind != pipeline.ResourceKindPluginReport || produces[1].Ref.Producer != pluginName {
+		t.Fatalf("report resource = %#v", produces[1])
 	}
 }
 
 func TestPlugin_PipelineContribution_EmptyServiceDir(t *testing.T) {
 	p := newTestPlugin(t)
 	base := newTestAppContext(t, t.TempDir())
-	cfg := base.Config()
+	cfg := base.Config().MutableCopy()
 	cfg.ServiceDir = ""
 	appCtx := plugin.NewAppContext(plugin.AppContextOptions{
 		Config:     cfg,
@@ -74,11 +78,11 @@ func TestPlugin_PipelineContribution_EmptyServiceDir(t *testing.T) {
 	})
 
 	contrib := p.PipelineContribution(appCtx)
-	job := contrib.Jobs[0]
+	job := contrib.Jobs()[0]
 
 	wantPaths := []string{resultsFile, reportFile}
-	if !sameStrings(producedPaths(job.Produces), wantPaths) {
-		t.Errorf("produced paths = %v, want %v", producedPaths(job.Produces), wantPaths)
+	if !sameStrings(producedPaths(job.Produces()), wantPaths) {
+		t.Errorf("produced paths = %v, want %v", producedPaths(job.Produces()), wantPaths)
 	}
 }
 

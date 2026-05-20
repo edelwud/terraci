@@ -8,6 +8,24 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 )
 
+func mustContribution(tb testing.TB, jobs ...ContributedJob) *Contribution {
+	tb.Helper()
+	contribution, err := NewContribution(jobs...)
+	if err != nil {
+		tb.Fatalf("NewContribution() error = %v", err)
+	}
+	return contribution
+}
+
+func mustContributedJob(tb testing.TB, opts ContributedJobOptions) ContributedJob {
+	tb.Helper()
+	job, err := NewContributedJob(opts)
+	if err != nil {
+		tb.Fatalf("NewContributedJob() error = %v", err)
+	}
+	return job
+}
+
 func TestBuild_SingleModule(t *testing.T) {
 	t.Parallel()
 
@@ -83,13 +101,11 @@ func TestBuild_ContributedPlanConsumerAddsArtifactDependency(t *testing.T) {
 	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
 	modules := []*discovery.Module{mod}
 	opts := testBuildOptions(modules, nil, BuildRequirements{})
-	opts.Contributions = []*Contribution{{
-		Jobs: []ContributedJob{{
-			Name:     "cost-estimation",
-			Commands: []string{"terraci cost"},
-			Consumes: []ResourceRequest{AllPlanResources(ResourceKindPlanJSON)},
-		}},
-	}}
+	opts.Contributions = []*Contribution{mustContribution(t, mustContributedJob(t, ContributedJobOptions{
+		Name:     "cost-estimation",
+		Commands: []string{"terraci cost"},
+		Consumes: []ResourceRequest{AllPlanResources(ResourceKindPlanJSON)},
+	}))}
 
 	ir, err := Build(opts)
 	if err != nil {
@@ -145,25 +161,23 @@ func TestBuild_SummaryConsumesProducedReportsOnly(t *testing.T) {
 	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
 	modules := []*discovery.Module{mod}
 	opts := testBuildOptions(modules, nil, BuildRequirements{})
-	opts.Contributions = []*Contribution{{
-		Jobs: []ContributedJob{
-			{
-				Name:     "policy-check",
-				Commands: []string{"policy"},
-				Produces: []ResourceSpec{
-					PluginResource(ResourceKindPluginReport, "policy", ".terraci/policy-report.json"),
-				},
+	opts.Contributions = []*Contribution{mustContribution(t,
+		mustContributedJob(t, ContributedJobOptions{
+			Name:     "policy-check",
+			Commands: []string{"policy"},
+			Produces: []ResourceSpec{
+				PluginResource(ResourceKindPluginReport, "policy", ".terraci/policy-report.json"),
 			},
-			{
-				Name:     "summary",
-				Commands: []string{"summary"},
-				Consumes: []ResourceRequest{
-					AllPlanResources(ResourceKindPlanJSON),
-					AllPluginResources(ResourceKindPluginReport, true),
-				},
+		}),
+		mustContributedJob(t, ContributedJobOptions{
+			Name:     "summary",
+			Commands: []string{"summary"},
+			Consumes: []ResourceRequest{
+				AllPlanResources(ResourceKindPlanJSON),
+				AllPluginResources(ResourceKindPluginReport, true),
 			},
-		},
-	}}
+		}),
+	)}
 
 	ir, err := Build(opts)
 	if err != nil {
@@ -235,17 +249,19 @@ func TestBuild_ValidatesResourceRequestsWithContext(t *testing.T) {
 		},
 		{
 			name: "plugin resource cannot use module selector",
-			contributions: []*Contribution{{Jobs: []ContributedJob{{
-				Name:     "summary",
-				Commands: []string{"summary"},
-				Consumes: []ResourceRequest{{
-					Kind: ResourceKindPluginReport,
-					Selector: ResourceSelector{
-						Scope:      ResourceScopeModule,
-						ModulePath: mod.RelativePath,
-					},
+			contributions: []*Contribution{{
+				jobs: []ContributedJob{{
+					name:     "summary",
+					commands: []string{"summary"},
+					consumes: []ResourceRequest{{
+						Kind: ResourceKindPluginReport,
+						Selector: ResourceSelector{
+							Scope:      ResourceScopeModule,
+							ModulePath: mod.RelativePath,
+						},
+					}},
 				}},
-			}}}},
+			}},
 			wantErrSubstr: `contributions[0].jobs[0].consumes[0]: plugin_report cannot use module-scoped selector "module"`,
 		},
 	}
@@ -273,13 +289,13 @@ func TestBuild_OptionalMissingPluginResourceDoesNotCreateDependency(t *testing.T
 	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
 	modules := []*discovery.Module{mod}
 	opts := testBuildOptions(modules, nil, BuildRequirements{PlanOnly: true})
-	opts.Contributions = []*Contribution{{Jobs: []ContributedJob{{
+	opts.Contributions = []*Contribution{mustContribution(t, mustContributedJob(t, ContributedJobOptions{
 		Name:     "summary",
 		Commands: []string{"summary"},
 		Consumes: []ResourceRequest{
 			AllPluginResources(ResourceKindPluginReport, true),
 		},
-	}}}}
+	}))}
 
 	ir, err := Build(opts)
 	if err != nil {
@@ -305,27 +321,15 @@ func TestBuild_RejectsInvalidContributedJobGraph(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		jobs          []ContributedJob
+		contribution  *Contribution
 		wantErrSubstr string
 	}{
 		{
-			name:          "unnamed contributed job",
-			jobs:          []ContributedJob{{Commands: []string{"check"}}},
-			wantErrSubstr: "unnamed job",
-		},
-		{
-			name: "duplicate contributed job",
-			jobs: []ContributedJob{
-				{Name: "check", Commands: []string{"check"}},
-				{Name: "check", Commands: []string{"check"}},
-			},
-			wantErrSubstr: `duplicate job name "check"`,
-		},
-		{
 			name: "contributed job collides with module job",
-			jobs: []ContributedJob{{
-				Name: JobName(JobKindPlan, mod), Commands: []string{"check"},
-			}},
+			contribution: mustContribution(t, mustContributedJob(t, ContributedJobOptions{
+				Name:     JobName(JobKindPlan, mod),
+				Commands: []string{"check"},
+			})),
 			wantErrSubstr: `duplicate job name "` + JobName(JobKindPlan, mod) + `"`,
 		},
 	}
@@ -335,7 +339,7 @@ func TestBuild_RejectsInvalidContributedJobGraph(t *testing.T) {
 			t.Parallel()
 
 			opts := testBuildOptions(modules, nil, BuildRequirements{})
-			opts.Contributions = []*Contribution{{Jobs: tt.jobs}}
+			opts.Contributions = []*Contribution{tt.contribution}
 			_, err := Build(opts)
 			if err == nil {
 				t.Fatal("Build() error = nil, want error")

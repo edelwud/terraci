@@ -82,10 +82,8 @@ func WithSummaryReports(loader reports.Loader) Option {
 }
 
 func DefaultDependencies(appCtx *plugin.AppContext) Dependencies {
-	segments := []string(nil)
-	if cfg := appCtx.Config(); cfg != nil {
-		segments = append(segments, cfg.Structure.Segments...)
-	}
+	structure := appCtx.Config().Structure()
+	segments := append([]string(nil), structure.Segments...)
 	return Dependencies{
 		Targets:        targeting.NewWorkflowResolver(appCtx, nil),
 		Planner:        planner.New(),
