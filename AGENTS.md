@@ -66,7 +66,8 @@ pkg/                            # Public API — importable by external plugins 
 │   ├── enable.go               # EnablePolicy enum
 │   ├── context.go              # AppContext + AppContextOptions constructor
 │   ├── context_binding.go      # AppContext.Update / SetResolver / BeginCommand / Freeze
-│   ├── command_binding.go      # CommandPlugin[T], CommandInstance[T], RequireEnabled
+│   ├── command_binding.go      # CommandPlugin[T], AppContextFromCommand, RequireEnabled + typed command errors
+│   ├── cliout/                 # Public plugin command output helpers (Format, ParseFormat, WriteJSON)
 │   ├── runtime.go              # RuntimeProvider + RuntimeAs() + BuildRuntime[T]()
 │   ├── resolver.go             # Resolver interface (extended with capability resolution methods)
 │   ├── noop_resolver.go        # default no-op Resolver (never nil)
@@ -186,8 +187,6 @@ plugins/                        # Built-in plugins — one file per capability
     ├── detect.go               # ChangeDetectionProvider
     └── internal/gitclient/     # client, detector, diff
 └── internal/
-    ├── artifacts/              # Shared producer artifact persistence helper
-    ├── cliout/                 # Shared plugin CLI output helpers and Format parser
     ├── ciplugin/               # Shared CI-provider helpers
     └── reportrender/           # Shared markdown/CLI renderer for ci.Report render-ready payloads
 
@@ -254,7 +253,9 @@ Each feature/plugin follows one-file-per-capability where it applies, with runti
 
 ### BasePlugin[C] Generic Embedding
 
-Plugins with config embed `BasePlugin[C]` which auto-implements:
+Plugins with config embed `BasePlugin[C]`; `C` must implement `Clone() C`.
+`BasePlugin` stores and returns defensive copies, so mutating `Config()` output
+never changes plugin state. It auto-implements:
 - `Name()`, `Description()`, `ConfigKey()`, `NewConfig()`, `DecodeAndSet()`, `IsConfigured()`, `IsEnabled()`, `Config()`, `Reset()`
 - `EnablePolicy` controls enabled semantics: `EnabledWhenConfigured` (gitlab/github), `EnabledExplicitly` (cost/policy/tfupdate), `EnabledByDefault` (summary/diskblob/inmemcache). Bare plugins such as `git` are active by registration and do not implement `ConfigLoader`.
 
@@ -416,7 +417,8 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **Command/usecase boundary**: command callbacks use `plugin.CommandPlugin[T]` and `plugin.RequireEnabled`, parse flags into request structs, call a usecase, then handle artifact persistence and output explicitly.
 - **PipelineContributor(ctx)**: plugins add standalone DAG jobs without cross-plugin imports or cached service-dir state
 - **ServiceDir**: configurable project directory; `AppContext.ServiceDir` (absolute) for runtime, `Config.ServiceDir` (relative) for pipeline templates
-- **Report artifact lifecycle**: plan-aware producers use `PlanResultCollection -> ci.ArtifactRun -> ci.NewRenderedReport -> appCtx.Reports().ReplaceResultsAndReport(...)`. Built-in producer plugins should go through `plugins/internal/artifacts.ReplaceResultsAndReport` so raw results are always persisted and stale reports are removed on nil/build errors. Report-only producers may use `SaveReport`.
+- **Command boundary**: plugin command callbacks use `plugin.CommandPlugin[T](cmd, name)` and `plugin.RequireEnabled(...)`; low-level cobra context binding is framework-owned. Command binding and disabled-plugin failures are typed errors.
+- **Report artifact lifecycle**: plan-aware producers use `PlanResultCollection -> ci.ArtifactRun -> ci.NewRenderedReport -> ci.PublishArtifacts(...)`. `PublishArtifacts` always persists raw results and removes stale reports on nil/build errors. Report-only producers may use `SaveReport`.
 - **Report sections via render-ready payloads**: producer plugins call `ci.NewRenderedReport(...)` and publish only validated `ci.ReportSectionKindRendered` sections with `ci.RenderSection` payloads. `ReportSection` internals are private; use getters plus `ci.DecodeRenderSection`, not raw payload access. Summary/local renderers consume the generic render model through `plugins/internal/reportrender` and stay unaware of cost/policy/tfupdate domain structs.
 - **Report freshness**: `pkg/ci.SelectCurrentReports` owns current/stale/degraded policy. Summary and localexec skip reports whose non-empty `plan_results_fingerprint` does not match the current plan collection. Missing provenance is accepted as degraded mode.
 - **Zero cross-plugin imports**: plugins communicate only via `pkg/plugin` capability helpers, shared `pkg/ci` types, and `ci.ReportStore` artifacts

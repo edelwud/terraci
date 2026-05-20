@@ -105,6 +105,14 @@ type testConfig struct {
 	Enabled bool
 }
 
+func (c *testConfig) Clone() *testConfig {
+	if c == nil {
+		return nil
+	}
+	out := *c
+	return &out
+}
+
 func TestRegisterAndGet(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
@@ -138,7 +146,17 @@ func TestRegisterDuplicatePanics(t *testing.T) {
 // nil-IsEnabledFn shape that previously silently disabled the plugin at
 // runtime. RegisterFactory must now reject it loudly.
 type invalidPlugin struct {
-	plugin.BasePlugin[*struct{}]
+	plugin.BasePlugin[*invalidConfig]
+}
+
+type invalidConfig struct{}
+
+func (c *invalidConfig) Clone() *invalidConfig {
+	if c == nil {
+		return nil
+	}
+	out := *c
+	return &out
 }
 
 func TestRegisterFactory_RejectsExplicitWithoutIsEnabledFn(t *testing.T) {
@@ -158,11 +176,11 @@ func TestRegisterFactory_RejectsExplicitWithoutIsEnabledFn(t *testing.T) {
 
 	RegisterFactory(func() plugin.Plugin {
 		return &invalidPlugin{
-			BasePlugin: plugin.BasePlugin[*struct{}]{
+			BasePlugin: plugin.BasePlugin[*invalidConfig]{
 				PluginName: "broken",
 				PluginDesc: "broken plugin",
 				EnableMode: plugin.EnabledExplicitly,
-				DefaultCfg: func() *struct{} { return &struct{}{} },
+				DefaultCfg: func() *invalidConfig { return &invalidConfig{} },
 				// IsEnabledFn intentionally nil
 			},
 		}

@@ -102,35 +102,39 @@ func (r contextTestResolver) GetPlugin(string) (Plugin, bool) {
 	return r.plugin, r.plugin != nil
 }
 
-func TestCommandInstance_LooksUpFromResolver(t *testing.T) {
+func TestCommandPluginLookup_LooksUpFromResolver(t *testing.T) {
 	target := &contextTestPlugin{name: "cmd"}
 	ctx := NewAppContext(AppContextOptions{
 		Resolver: contextTestResolver{plugin: target},
 	})
 
-	got, err := CommandInstance[*contextTestPlugin](ctx, "cmd")
+	got, err := commandInstance[*contextTestPlugin](ctx, "cmd")
 	if err != nil {
-		t.Fatalf("CommandInstance() error = %v", err)
+		t.Fatalf("commandInstance() error = %v", err)
 	}
 	if got != target {
-		t.Fatalf("CommandInstance() = %p, want %p", got, target)
+		t.Fatalf("commandInstance() = %p, want %p", got, target)
 	}
 }
 
-func TestCommandInstance_RejectsNilContext(t *testing.T) {
-	if _, err := CommandInstance[*contextTestPlugin](nil, "cmd"); err == nil {
-		t.Fatal("CommandInstance(nil) error = nil, want missing context error")
+func TestCommandPluginLookup_RejectsNilContext(t *testing.T) {
+	if _, err := commandInstance[*contextTestPlugin](nil, "cmd"); err == nil {
+		t.Fatal("commandInstance(nil) error = nil, want missing context error")
+	} else {
+		assertCommandBindingReason(t, err, CommandBindingMissingContext)
 	}
 }
 
-func TestCommandInstance_RejectsMissingCommandLookup(t *testing.T) {
+func TestCommandPluginLookup_RejectsMissingCommandLookup(t *testing.T) {
 	ctx := &AppContext{}
-	if _, err := CommandInstance[*contextTestPlugin](ctx, "cmd"); err == nil {
-		t.Fatal("CommandInstance() error = nil, want missing command lookup error")
+	if _, err := commandInstance[*contextTestPlugin](ctx, "cmd"); err == nil {
+		t.Fatal("commandInstance() error = nil, want missing command lookup error")
+	} else {
+		assertCommandBindingReason(t, err, CommandBindingMissingLookup)
 	}
 }
 
-func TestCommandPlugin_ReturnsContextAndCommandInstance(t *testing.T) {
+func TestCommandPlugin_ReturnsContextAndPlugin(t *testing.T) {
 	target := &contextTestPlugin{name: "cmd", enabled: true}
 	appCtx := NewAppContext(AppContextOptions{
 		Resolver: contextTestResolver{plugin: target},
@@ -153,6 +157,8 @@ func TestCommandPlugin_ReturnsContextAndCommandInstance(t *testing.T) {
 func TestCommandPlugin_RejectsNilCommand(t *testing.T) {
 	if _, _, err := CommandPlugin[*contextTestPlugin](nil, "cmd"); err == nil {
 		t.Fatal("CommandPlugin(nil) error = nil, want error")
+	} else {
+		assertCommandBindingReason(t, err, CommandBindingNilCommand)
 	}
 }
 
@@ -160,6 +166,8 @@ func TestCommandPlugin_RejectsMissingAppContext(t *testing.T) {
 	cmd := &cobra.Command{}
 	if _, _, err := CommandPlugin[*contextTestPlugin](cmd, "cmd"); err == nil {
 		t.Fatal("CommandPlugin() error = nil, want missing app context error")
+	} else {
+		assertCommandBindingReason(t, err, CommandBindingMissingContext)
 	}
 }
 
@@ -169,6 +177,8 @@ func TestCommandPlugin_RejectsMissingCommandLookup(t *testing.T) {
 
 	if _, _, err := CommandPlugin[*contextTestPlugin](cmd, "cmd"); err == nil {
 		t.Fatal("CommandPlugin() error = nil, want missing command lookup error")
+	} else {
+		assertCommandBindingReason(t, err, CommandBindingMissingLookup)
 	}
 }
 
@@ -181,6 +191,8 @@ func TestCommandPlugin_RejectsWrongPluginType(t *testing.T) {
 
 	if _, _, err := CommandPlugin[*otherContextTestPlugin](cmd, "cmd"); err == nil {
 		t.Fatal("CommandPlugin() error = nil, want wrong type error")
+	} else {
+		assertCommandBindingReason(t, err, CommandBindingWrongType)
 	}
 }
 
@@ -190,6 +202,11 @@ func TestRequireEnabled(t *testing.T) {
 	}
 	if err := RequireEnabled(&contextTestPlugin{}, "disabled"); err == nil || err.Error() != "disabled" {
 		t.Fatalf("RequireEnabled(disabled) error = %v, want disabled", err)
+	} else {
+		var disabled *DisabledPluginError
+		if !errors.As(err, &disabled) {
+			t.Fatalf("RequireEnabled(disabled) error type = %T, want DisabledPluginError", err)
+		}
 	}
 	if err := RequireEnabled(nil, "missing"); err == nil || err.Error() != "missing" {
 		t.Fatalf("RequireEnabled(nil) error = %v, want missing", err)
@@ -201,20 +218,46 @@ type otherContextTestPlugin struct{}
 func (p *otherContextTestPlugin) Name() string        { return "other" }
 func (p *otherContextTestPlugin) Description() string { return "other" }
 
-func TestWithFromContext_RoundTrips(t *testing.T) {
+func TestCommandContextBinding_RoundTrips(t *testing.T) {
 	appCtx := NewAppContext(AppContextOptions{Version: "v"})
 	carrier := WithContext(context.Background(), appCtx)
-	got := FromContext(carrier)
+	got := fromContext(carrier)
 	if got != appCtx {
-		t.Fatalf("FromContext() = %p, want %p", got, appCtx)
+		t.Fatalf("fromContext() = %p, want %p", got, appCtx)
 	}
-	if FromContext(context.Background()) != nil {
-		t.Fatal("FromContext on empty context should be nil")
+	if fromContext(context.Background()) != nil {
+		t.Fatal("fromContext on empty context should be nil")
 	}
-	if FromContext(context.TODO()) != nil {
-		// context.TODO is the canonical "no-value" Context; FromContext
+	if fromContext(context.TODO()) != nil {
+		// context.TODO is the canonical "no-value" Context; fromContext
 		// must still return nil for a context that has no AppContext key
 		// attached.
-		t.Fatal("FromContext(empty context) should be nil")
+		t.Fatal("fromContext(empty context) should be nil")
+	}
+}
+
+func TestAppContextFromCommand(t *testing.T) {
+	appCtx := NewAppContext(AppContextOptions{Version: "v"})
+	cmd := &cobra.Command{}
+	cmd.SetContext(WithContext(context.Background(), appCtx))
+
+	got, err := AppContextFromCommand(cmd)
+	if err != nil {
+		t.Fatalf("AppContextFromCommand() error = %v", err)
+	}
+	if got != appCtx {
+		t.Fatalf("AppContextFromCommand() = %p, want %p", got, appCtx)
+	}
+}
+
+func assertCommandBindingReason(t *testing.T, err error, reason CommandBindingReason) {
+	t.Helper()
+
+	var bindingErr *CommandBindingError
+	if !errors.As(err, &bindingErr) {
+		t.Fatalf("error type = %T, want CommandBindingError", err)
+	}
+	if bindingErr.Reason != reason {
+		t.Fatalf("CommandBindingError.Reason = %q, want %q", bindingErr.Reason, reason)
 	}
 }

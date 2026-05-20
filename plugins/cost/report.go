@@ -8,7 +8,6 @@ import (
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
-	"github.com/edelwud/terraci/plugins/internal/artifacts"
 	"github.com/edelwud/terraci/plugins/internal/reportctx"
 )
 
@@ -154,17 +153,18 @@ func saveArtifacts(ctx context.Context, appCtx *plugin.AppContext, result *model
 	if appCtx == nil || appCtx.Reports() == nil {
 		return nil
 	}
-	run, runErr := reportctx.NewRun(appCtx, reportctx.Options{
-		Producer:   pluginName,
-		Collection: collection,
-	})
-	return artifacts.ReplaceResultsAndReport(ctx, artifacts.ReplaceRequest{
+	return ci.PublishArtifacts(ctx, ci.PublishArtifactsRequest{
 		Producer: pluginName,
 		Writer:   appCtx.Reports(),
 		Results:  result,
-		Run:      run,
-		RunError: runErr,
-		BuildReport: func(run ci.ArtifactRun) (*ci.Report, error) {
+		BuildReport: func() (*ci.Report, error) {
+			run, err := reportctx.NewRun(appCtx, reportctx.Options{
+				Producer:   pluginName,
+				Collection: collection,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("artifact run: %w", err)
+			}
 			return buildCostReport(costReportRequest{Result: result, Run: run})
 		},
 	})

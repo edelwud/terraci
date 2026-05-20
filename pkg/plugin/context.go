@@ -48,7 +48,7 @@ type AppContextOptions struct {
 	// Resolver is the per-run plugin resolver. Defaults to NoopResolver{}
 	// when nil — plugins may always call ctx.Resolver() without nil-checks.
 	Resolver Resolver
-	// CommandLookup is the framework-side lookup used by CommandInstance to
+	// CommandLookup is the framework-side lookup used by CommandPlugin to
 	// bind cobra callbacks to command-scoped plugin instances.
 	CommandLookup CommandLookup
 	// PipelineContributions is a command-scoped snapshot of enabled pipeline
@@ -128,7 +128,7 @@ func (ctx *AppContext) WithPipelineContributions(contribs []*pipeline.Contributi
 }
 
 // appContextKey is the unexported key under which AppContext is carried in
-// context.Context. Plugins access the value via FromContext.
+// context.Context. Plugin command handlers should access it via CommandPlugin.
 type appContextKey struct{}
 
 // WithContext returns a child context.Context carrying appCtx. Used by the
@@ -141,11 +141,7 @@ func WithContext(parent context.Context, appCtx *AppContext) context.Context {
 	return context.WithValue(parent, appContextKey{}, appCtx)
 }
 
-// FromContext retrieves the AppContext attached to ctx, or nil if none is
-// bound. Plugins use this inside cobra RunE callbacks:
-//
-//	appCtx := plugin.FromContext(cmd.Context())
-func FromContext(ctx context.Context) *AppContext {
+func fromContext(ctx context.Context) *AppContext {
 	if ctx == nil {
 		return nil
 	}

@@ -13,10 +13,9 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/parser"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/cliout"
 	"github.com/edelwud/terraci/pkg/workflow"
 	"github.com/edelwud/terraci/pkg/workspacepath"
-	"github.com/edelwud/terraci/plugins/internal/artifacts"
-	"github.com/edelwud/terraci/plugins/internal/cliout"
 	"github.com/edelwud/terraci/plugins/internal/reportctx"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
 	tfupdateusecase "github.com/edelwud/terraci/plugins/tfupdate/internal/usecase"
@@ -118,7 +117,7 @@ func effectiveUpdateConfig(base *tfupdateengine.UpdateConfig, req CheckRequest) 
 		return nil, errors.New("update configuration is not set")
 	}
 
-	config := *base
+	config := base.Clone()
 	if req.Target != "" {
 		config.Target = req.Target
 	}
@@ -140,7 +139,7 @@ func effectiveUpdateConfig(base *tfupdateengine.UpdateConfig, req CheckRequest) 
 	if err := config.ValidateRuntime(); err != nil {
 		return nil, fmt.Errorf("invalid options: %w", err)
 	}
-	return &config, nil
+	return config, nil
 }
 
 func emitUpdateArtifacts(ctx context.Context, appCtx *plugin.AppContext, result *tfupdateengine.UpdateResult) {
@@ -148,17 +147,15 @@ func emitUpdateArtifacts(ctx context.Context, appCtx *plugin.AppContext, result 
 		return
 	}
 
-	run, runErr := reportctx.NewRun(appCtx, reportctx.Options{Producer: pluginName})
-	if runErr != nil {
-		log.WithError(runErr).Warn("failed to build tfupdate artifact context")
-	}
-	if saveErr := artifacts.ReplaceResultsAndReport(ctx, artifacts.ReplaceRequest{
+	if saveErr := ci.PublishArtifacts(ctx, ci.PublishArtifactsRequest{
 		Producer: pluginName,
 		Writer:   appCtx.Reports(),
 		Results:  result,
-		Run:      run,
-		RunError: runErr,
-		BuildReport: func(run ci.ArtifactRun) (*ci.Report, error) {
+		BuildReport: func() (*ci.Report, error) {
+			run, err := reportctx.NewRun(appCtx, reportctx.Options{Producer: pluginName})
+			if err != nil {
+				return nil, fmt.Errorf("artifact run: %w", err)
+			}
 			return buildUpdateReport(updateReportRequest{Result: result, Run: run})
 		},
 	}); saveErr != nil {

@@ -12,7 +12,7 @@ import (
 	"github.com/edelwud/terraci/pkg/ci/citest"
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/plugin"
-	"github.com/edelwud/terraci/plugins/internal/cliout"
+	"github.com/edelwud/terraci/pkg/plugin/cliout"
 	"github.com/edelwud/terraci/plugins/internal/reportrender"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
 	"github.com/edelwud/terraci/plugins/tfupdate/internal/domain"

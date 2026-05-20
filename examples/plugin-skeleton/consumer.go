@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/edelwud/terraci/pkg/ci"
-	"github.com/edelwud/terraci/pkg/plugin"
 )
 
 // --- Consumer pattern -------------------------------------------------------
@@ -26,34 +25,44 @@ import (
 //  3. When your consumer has the current PlanResultCollection, pass it to
 //     ci.SelectCurrentReports so stale reports are skipped consistently.
 
-func runConsumer(ctx context.Context, appCtx *plugin.AppContext) error {
-	reports, err := appCtx.Reports().LoadReports(ctx)
+func consumeReports(ctx context.Context, runtime Runtime) (*ConsumerResult, error) {
+	if runtime.Reports == nil {
+		return &ConsumerResult{}, nil
+	}
+	reports, err := runtime.Reports.LoadReports(ctx)
 	if err != nil {
-		return fmt.Errorf("load reports: %w", err)
+		return nil, fmt.Errorf("load reports: %w", err)
 	}
 
 	selection := ci.SelectCurrentReports(nil, reports, ci.ReportSelectionOptions{
 		Consumer:         pluginName,
 		ExcludeProducers: []string{pluginName},
 	})
+	result := &ConsumerResult{Reports: make([]ConsumedReport, 0, len(selection.Reports))}
 	if len(selection.Reports) == 0 {
-		fmt.Println("no reports found in service directory")
-		return nil
+		return result, nil
 	}
 
 	for _, r := range selection.Reports {
-		fmt.Printf("- %s [%s] %s\n", r.Producer, r.Status, r.Summary)
-
-		// Optional: decode render-ready section payloads.
+		consumed := ConsumedReport{
+			Producer: r.Producer,
+			Status:   r.Status,
+			Summary:  r.Summary,
+			Sections: make([]ConsumedSection, 0, len(r.Sections)),
+		}
 		for _, section := range r.Sections {
+			entry := ConsumedSection{Title: section.Title()}
 			rendered, err := ci.DecodeRenderSection(section)
 			if err != nil {
-				fmt.Printf("    %s: decode error: %v\n", section.Title(), err)
+				entry.Error = err.Error()
+				consumed.Sections = append(consumed.Sections, entry)
 				continue
 			}
-			fmt.Printf("    %s: %d block(s)\n", section.Title(), len(rendered.Blocks))
+			entry.Blocks = len(rendered.Blocks)
+			consumed.Sections = append(consumed.Sections, entry)
 		}
+		result.Reports = append(result.Reports, consumed)
 	}
 
-	return nil
+	return result, nil
 }

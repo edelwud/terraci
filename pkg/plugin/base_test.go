@@ -5,6 +5,16 @@ import "testing"
 type testConfig struct {
 	Name    string
 	Enabled bool
+	Labels  []string
+}
+
+func (c *testConfig) Clone() *testConfig {
+	if c == nil {
+		return nil
+	}
+	out := *c
+	out.Labels = append([]string(nil), c.Labels...)
+	return &out
 }
 
 func newTestBasePlugin(mode EnablePolicy, enabledFn func(*testConfig) bool) *BasePlugin[*testConfig] {
@@ -57,6 +67,12 @@ func TestBasePlugin_NewConfig(t *testing.T) {
 	if tc.Name != "default" {
 		t.Errorf("NewConfig().Name = %q, want default", tc.Name)
 	}
+
+	tc.Name = "mutated"
+	again := b.NewConfig().(*testConfig)
+	if again.Name != "default" {
+		t.Errorf("NewConfig() leaked mutation: Name = %q, want default", again.Name)
+	}
 }
 
 func TestBasePlugin_DecodeAndSet(t *testing.T) {
@@ -84,17 +100,29 @@ func TestBasePlugin_DecodeAndSet(t *testing.T) {
 	if b.Config().Name != "decoded" {
 		t.Errorf("Config().Name = %q, want decoded", b.Config().Name)
 	}
+
+	cfg := b.Config()
+	cfg.Name = "mutated"
+	if b.Config().Name != "decoded" {
+		t.Errorf("Config() leaked mutation: Name = %q, want decoded", b.Config().Name)
+	}
 }
 
 func TestBasePlugin_SetTypedConfig(t *testing.T) {
 	b := newTestBasePlugin(EnabledWhenConfigured, nil)
-	b.SetTypedConfig(&testConfig{Name: "direct"})
+	cfg := &testConfig{Name: "direct", Labels: []string{"a"}}
+	b.SetTypedConfig(cfg)
+	cfg.Name = "mutated"
+	cfg.Labels[0] = "mutated"
 
 	if !b.IsConfigured() {
 		t.Error("should be configured after SetTypedConfig")
 	}
 	if b.Config().Name != "direct" {
 		t.Errorf("Config().Name = %q, want direct", b.Config().Name)
+	}
+	if got := b.Config().Labels[0]; got != "a" {
+		t.Errorf("Config().Labels[0] = %q, want a", got)
 	}
 }
 

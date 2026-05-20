@@ -1,6 +1,10 @@
 package config
 
-import "github.com/edelwud/terraci/pkg/ci"
+import (
+	"maps"
+
+	"github.com/edelwud/terraci/pkg/ci"
+)
 
 // Type aliases for shared types keep the public config surface stable.
 type Image = ci.Image
@@ -18,12 +22,40 @@ type Config struct {
 	Overwrites   []JobOverwrite    `yaml:"overwrites,omitempty" json:"overwrites,omitempty" jsonschema:"description=Job-level overrides for plan or apply jobs"`
 }
 
+// Clone returns a deep copy of the GitLab CI configuration.
+func (g *Config) Clone() *Config {
+	if g == nil {
+		return nil
+	}
+	out := *g
+	out.Image = cloneImage(g.Image)
+	out.Variables = maps.Clone(g.Variables)
+	out.Cache = cloneCacheConfig(g.Cache)
+	out.Rules = cloneRules(g.Rules)
+	out.JobDefaults = cloneJobDefaults(g.JobDefaults)
+	out.Overwrites = cloneJobOverwrites(g.Overwrites)
+	return &out
+}
+
 // CacheConfig defines advanced GitLab CI cache configuration.
 type CacheConfig struct {
 	Enabled *bool    `yaml:"enabled,omitempty" json:"enabled,omitempty" jsonschema:"description=Enable GitLab cache for terraform jobs"`
 	Key     string   `yaml:"key,omitempty" json:"key,omitempty" jsonschema:"description=Cache key template. Supports placeholders: {module_path}\\, {service}\\, {environment}\\, {region}\\, {module}"`
 	Paths   []string `yaml:"paths,omitempty" json:"paths,omitempty" jsonschema:"description=Cache path templates. Supports placeholders: {module_path}\\, {service}\\, {environment}\\, {region}\\, {module}"`
 	Policy  string   `yaml:"policy,omitempty" json:"policy,omitempty" jsonschema:"description=GitLab cache policy,enum=pull,enum=push,enum=pull-push"`
+}
+
+func cloneCacheConfig(in *CacheConfig) *CacheConfig {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	if in.Enabled != nil {
+		enabled := *in.Enabled
+		out.Enabled = &enabled
+	}
+	out.Paths = append([]string(nil), in.Paths...)
+	return &out
 }
 
 // GetImage returns the configured image.
@@ -40,6 +72,18 @@ type Rule struct {
 	If      string   `yaml:"if,omitempty" json:"if,omitempty"`
 	When    string   `yaml:"when,omitempty" json:"when,omitempty"`
 	Changes []string `yaml:"changes,omitempty" json:"changes,omitempty"`
+}
+
+func cloneRules(in []Rule) []Rule {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]Rule, len(in))
+	for i := range in {
+		out[i] = in[i]
+		out[i].Changes = append([]string(nil), in[i].Changes...)
+	}
+	return out
 }
 
 // IDToken represents configured OIDC token settings.
@@ -81,6 +125,23 @@ type JobDefaults struct {
 	Variables    map[string]string    `yaml:"variables,omitempty" json:"variables,omitempty" jsonschema:"description=Additional variables"`
 }
 
+func cloneJobDefaults(in *JobDefaults) *JobDefaults {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	out.Image = cloneImagePointer(in.Image)
+	out.IDTokens = maps.Clone(in.IDTokens)
+	out.Secrets = cloneSecrets(in.Secrets)
+	out.BeforeScript = append([]string(nil), in.BeforeScript...)
+	out.AfterScript = append([]string(nil), in.AfterScript...)
+	out.Artifacts = cloneArtifactsConfig(in.Artifacts)
+	out.Tags = append([]string(nil), in.Tags...)
+	out.Rules = cloneRules(in.Rules)
+	out.Variables = maps.Clone(in.Variables)
+	return &out
+}
+
 func (j *JobDefaults) GetImage() *Image                 { return j.Image }
 func (j *JobDefaults) GetIDTokens() map[string]IDToken  { return j.IDTokens }
 func (j *JobDefaults) GetSecrets() map[string]CfgSecret { return j.Secrets }
@@ -115,6 +176,26 @@ type JobOverwrite struct {
 	Variables    map[string]string    `yaml:"variables,omitempty" json:"variables,omitempty" jsonschema:"description=Variables for matching jobs"`
 }
 
+func cloneJobOverwrites(in []JobOverwrite) []JobOverwrite {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]JobOverwrite, len(in))
+	for i := range in {
+		out[i] = in[i]
+		out[i].Image = cloneImagePointer(in[i].Image)
+		out[i].IDTokens = maps.Clone(in[i].IDTokens)
+		out[i].Secrets = cloneSecrets(in[i].Secrets)
+		out[i].BeforeScript = append([]string(nil), in[i].BeforeScript...)
+		out[i].AfterScript = append([]string(nil), in[i].AfterScript...)
+		out[i].Artifacts = cloneArtifactsConfig(in[i].Artifacts)
+		out[i].Tags = append([]string(nil), in[i].Tags...)
+		out[i].Rules = cloneRules(in[i].Rules)
+		out[i].Variables = maps.Clone(in[i].Variables)
+	}
+	return out
+}
+
 func (j *JobOverwrite) GetImage() *Image                 { return j.Image }
 func (j *JobOverwrite) GetIDTokens() map[string]IDToken  { return j.IDTokens }
 func (j *JobOverwrite) GetSecrets() map[string]CfgSecret { return j.Secrets }
@@ -144,6 +225,22 @@ type ArtifactReports struct {
 	Cobertura []string `yaml:"cobertura,omitempty" json:"cobertura,omitempty" jsonschema:"description=Cobertura coverage report paths"`
 }
 
+func cloneArtifactsConfig(in *ArtifactsConfig) *ArtifactsConfig {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	out.Paths = append([]string(nil), in.Paths...)
+	if in.Reports != nil {
+		reports := *in.Reports
+		reports.Terraform = append([]string(nil), in.Reports.Terraform...)
+		reports.JUnit = append([]string(nil), in.Reports.JUnit...)
+		reports.Cobertura = append([]string(nil), in.Reports.Cobertura...)
+		out.Reports = &reports
+	}
+	return &out
+}
+
 // CfgSecret defines a CI/CD secret in the config file.
 type CfgSecret struct {
 	Vault *CfgVaultSecret `yaml:"vault,omitempty" json:"vault,omitempty" jsonschema:"description=HashiCorp Vault secret configuration"`
@@ -156,6 +253,44 @@ type CfgVaultSecret struct {
 	Path      string       `yaml:"path,omitempty" json:"path,omitempty" jsonschema:"description=Path to the secret in Vault"`
 	Field     string       `yaml:"field,omitempty" json:"field,omitempty" jsonschema:"description=Field to extract from the secret"`
 	Shorthand string       `yaml:"-" jsonschema:"-"`
+}
+
+func cloneSecrets(in map[string]CfgSecret) map[string]CfgSecret {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]CfgSecret, len(in))
+	for name, secret := range in {
+		out[name] = cloneSecret(secret)
+	}
+	return out
+}
+
+func cloneSecret(in CfgSecret) CfgSecret {
+	out := in
+	if in.Vault != nil {
+		vault := *in.Vault
+		if in.Vault.Engine != nil {
+			engine := *in.Vault.Engine
+			vault.Engine = &engine
+		}
+		out.Vault = &vault
+	}
+	return out
+}
+
+func cloneImage(in Image) Image {
+	out := in
+	out.Entrypoint = append([]string(nil), in.Entrypoint...)
+	return out
+}
+
+func cloneImagePointer(in *Image) *Image {
+	if in == nil {
+		return nil
+	}
+	out := cloneImage(*in)
+	return &out
 }
 
 // UnmarshalYAML supports both shorthand and full object syntax.

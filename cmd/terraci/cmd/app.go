@@ -48,7 +48,7 @@ func newApp(version, commit, date string) *App {
 // BuildContext constructs a fresh immutable AppContext bound to the current
 // App state. Called once per command run from PersistentPreRunE; the
 // returned context is attached to cmd.Context() so plugins can retrieve it
-// via plugin.FromContext.
+// via plugin.CommandPlugin or AppContextFromCommand.
 func (a *App) BuildContext() *plugin.AppContext {
 	if a.Plugins == nil {
 		a.Plugins = registry.New()

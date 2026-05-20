@@ -42,3 +42,12 @@ type StubConfigPlugin struct {
 type StubConfig struct {
 	Enabled bool
 }
+
+// Clone returns a defensive copy of the stub config.
+func (c *StubConfig) Clone() *StubConfig {
+	if c == nil {
+		return nil
+	}
+	out := *c
+	return &out
+}

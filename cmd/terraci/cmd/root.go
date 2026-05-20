@@ -136,7 +136,7 @@ Features:
 
 	// Register plugin-provided commands. Commands() runs at registration
 	// time and must not capture state — plugins retrieve the per-run
-	// AppContext from cmd.Context() inside RunE via plugin.FromContext.
+	// AppContext and command-scoped plugin inside RunE via plugin.CommandPlugin.
 	for _, cp := range registry.ByCapabilityFrom[plugin.CommandProvider](app.Plugins) {
 		for _, cmd := range cp.Commands() {
 			rootCmd.AddCommand(cmd)

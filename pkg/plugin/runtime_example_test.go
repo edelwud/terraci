@@ -19,6 +19,14 @@ type exampleRuntimeConfig struct {
 	Enabled bool
 }
 
+func (c *exampleRuntimeConfig) Clone() *exampleRuntimeConfig {
+	if c == nil {
+		return nil
+	}
+	out := *c
+	return &out
+}
+
 func (p *exampleRuntimePlugin) Runtime(_ context.Context, appCtx *plugin.AppContext) (any, error) {
 	if p.Config() == nil || !p.Config().Enabled {
 		return nil, fmt.Errorf("example runtime is not enabled")

@@ -7,22 +7,96 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// CommandInstance returns the command-scoped plugin instance matching name.
-func CommandInstance[T Plugin](ctx *AppContext, name string) (T, error) {
+// CommandBindingReason identifies a command binding failure class.
+type CommandBindingReason string
+
+const (
+	CommandBindingNilCommand     CommandBindingReason = "nil_command"
+	CommandBindingMissingContext CommandBindingReason = "missing_context"
+	CommandBindingMissingLookup  CommandBindingReason = "missing_lookup"
+	CommandBindingNotFound       CommandBindingReason = "not_found"
+	CommandBindingWrongType      CommandBindingReason = "wrong_type"
+)
+
+// CommandBindingError is returned when a cobra callback cannot be bound to the
+// current command-scoped AppContext or plugin instance.
+type CommandBindingError struct {
+	Plugin       string
+	Reason       CommandBindingReason
+	ActualType   string
+	ExpectedType string
+}
+
+func (e *CommandBindingError) Error() string {
+	if e == nil {
+		return "command binding error"
+	}
+	subject := "command context"
+	if e.Plugin != "" {
+		subject = fmt.Sprintf("command plugin %q", e.Plugin)
+	}
+	switch e.Reason {
+	case CommandBindingNilCommand:
+		return subject + ": cobra command is nil"
+	case CommandBindingMissingContext:
+		return subject + ": plugin context is not bound"
+	case CommandBindingMissingLookup:
+		return subject + ": command lookup is not bound"
+	case CommandBindingNotFound:
+		return subject + ": command-scoped instance not found"
+	case CommandBindingWrongType:
+		return fmt.Sprintf("%s: command-scoped instance has type %s (want %s)", subject, e.ActualType, e.ExpectedType)
+	default:
+		return subject + ": command binding failed"
+	}
+}
+
+// DisabledPluginError is returned when a command targets a disabled plugin.
+type DisabledPluginError struct {
+	Message string
+}
+
+func (e *DisabledPluginError) Error() string {
+	if e == nil || e.Message == "" {
+		return "plugin is not enabled"
+	}
+	return e.Message
+}
+
+// AppContextFromCommand returns the framework-bound AppContext for a cobra
+// callback. Plugin command handlers usually call CommandPlugin instead.
+func AppContextFromCommand(cmd *cobra.Command) (*AppContext, error) {
+	if cmd == nil {
+		return nil, &CommandBindingError{Reason: CommandBindingNilCommand}
+	}
+	appCtx := fromContext(cmd.Context())
+	if appCtx == nil {
+		return nil, &CommandBindingError{Reason: CommandBindingMissingContext}
+	}
+	return appCtx, nil
+}
+
+// commandInstance returns the command-scoped plugin instance matching name.
+func commandInstance[T Plugin](ctx *AppContext, name string) (T, error) {
 	var zero T
 	if ctx == nil {
-		return zero, fmt.Errorf("command plugin %q: plugin context is not bound", name)
+		return zero, &CommandBindingError{Plugin: name, Reason: CommandBindingMissingContext}
 	}
 	if ctx.commands == nil {
-		return zero, fmt.Errorf("command plugin %q: command lookup is not bound", name)
+		return zero, &CommandBindingError{Plugin: name, Reason: CommandBindingMissingLookup}
 	}
 	current, ok := ctx.commands.GetPlugin(name)
 	if !ok {
-		return zero, fmt.Errorf("command plugin %q: command-scoped instance not found", name)
+		return zero, &CommandBindingError{Plugin: name, Reason: CommandBindingNotFound}
 	}
 	typed, ok := current.(T)
 	if !ok {
-		return zero, fmt.Errorf("command plugin %q: command-scoped instance has type %T (want %T)", name, current, zero)
+		return zero, &CommandBindingError{
+			Plugin:       name,
+			Reason:       CommandBindingWrongType,
+			ActualType:   fmt.Sprintf("%T", current),
+			ExpectedType: fmt.Sprintf("%T", zero),
+		}
 	}
 	return typed, nil
 }
@@ -32,11 +106,15 @@ func CommandInstance[T Plugin](ctx *AppContext, name string) (T, error) {
 // external plugins.
 func CommandPlugin[T Plugin](cmd *cobra.Command, name string) (*AppContext, T, error) {
 	var zero T
-	if cmd == nil {
-		return nil, zero, fmt.Errorf("command plugin %q: cobra command is nil", name)
+	appCtx, err := AppContextFromCommand(cmd)
+	if err != nil {
+		var bindingErr *CommandBindingError
+		if errors.As(err, &bindingErr) {
+			bindingErr.Plugin = name
+		}
+		return nil, zero, err
 	}
-	appCtx := FromContext(cmd.Context())
-	current, err := CommandInstance[T](appCtx, name)
+	current, err := commandInstance[T](appCtx, name)
 	if err != nil {
 		return appCtx, zero, err
 	}
@@ -49,10 +127,10 @@ func RequireEnabled(p interface{ IsEnabled() bool }, message string) error {
 		message = "plugin is not enabled"
 	}
 	if p == nil {
-		return errors.New(message)
+		return &DisabledPluginError{Message: message}
 	}
 	if !p.IsEnabled() {
-		return errors.New(message)
+		return &DisabledPluginError{Message: message}
 	}
 	return nil
 }

@@ -4,6 +4,7 @@ package tfupdateengine
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"time"
 )
@@ -72,6 +73,22 @@ type MetadataCacheConfig struct {
 type ArtifactCacheConfig struct {
 	Backend   string `yaml:"backend,omitempty" json:"backend,omitempty" jsonschema:"description=Blob store backend plugin name; empty selects the single active blob store provider"`
 	Namespace string `yaml:"namespace,omitempty" json:"namespace,omitempty" jsonschema:"description=Namespace for cached provider archives and hashes,default=tfupdate/providers"`
+}
+
+// Clone returns a deep copy of the tfupdate configuration.
+func (c *UpdateConfig) Clone() *UpdateConfig {
+	if c == nil {
+		return nil
+	}
+	out := *c
+	out.Ignore = slices.Clone(c.Ignore)
+	out.Registries.Providers = maps.Clone(c.Registries.Providers)
+	out.Lock.Platforms = slices.Clone(c.Lock.Platforms)
+	if c.Cache != nil {
+		cache := *c.Cache
+		out.Cache = &cache
+	}
+	return &out
 }
 
 func DefaultConfig() *UpdateConfig {

@@ -25,7 +25,8 @@ type Preflightable interface {
 // --- Configuration ---
 
 // ConfigLoader declares a config section under "extensions:" in .terraci.yaml.
-// Implemented automatically by embedding BasePlugin[C].
+// Implemented automatically by embedding BasePlugin[C] with a config type that
+// implements Clone() C.
 type ConfigLoader interface {
 	Plugin
 	ConfigKey() string

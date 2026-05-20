@@ -14,7 +14,10 @@ Copy whichever file matches your use case; the rest exists so the example builds
 ```
 plugin.go    # init() + BasePlugin[*Config] registration; plugin.Validator runs at startup
 commands.go  # plugin.CommandProvider — registers `terraci skeleton`
-report.go    # producer pattern: ci.NewRenderedReport + ci.ReportStore
+runtime.go   # immutable command dependencies
+usecases.go  # Request -> Runtime -> Result orchestration + ci.PublishArtifacts
+output.go    # writer-based command output
+report.go    # producer pattern: ci.NewRenderedReport
 consumer.go  # consumer pattern: ci.ReportStore + ci.DecodeRenderSection
 ```
 
@@ -49,8 +52,9 @@ YAML
 ### For a producer plugin (writes a render-ready report)
 
 1. `plugin.go` — registration shell, `BasePlugin[*Config]`.
-2. `report.go` — convert your result into `ci.RenderBlock` values, build an `ci.ArtifactRun`, then call `ci.NewRenderedReport` and `appCtx.Reports().SaveReport` or `ReplaceResultsAndReport`.
-3. `commands.go` — at minimum register a CLI command (`CommandProvider`) and use `plugin.CommandPlugin[T]` / `plugin.RequireEnabled` in callbacks.
+2. `commands.go` — register a CLI command (`CommandProvider`) and use `plugin.CommandPlugin[T]` / `plugin.RequireEnabled` in callbacks.
+3. `runtime.go`, `usecases.go`, `output.go` — keep `cobra flags -> Request -> Runtime -> Result -> output`.
+4. `report.go` — convert your result into `ci.RenderBlock` values, build an `ci.ArtifactRun`, then publish raw results plus report through `ci.PublishArtifacts`.
 
 Skip the `--consume` branch if you don't need to read other reports.
 
@@ -82,6 +86,7 @@ Framework discovery is purely type-assertion-based: `registry.ByCapabilityFrom[T
 - **Don't** panic while building reports in production code paths. Use `ci.NewRenderedReport` and propagate errors.
 - **Don't** assemble provenance by hand. Build a `ci.ArtifactRun` and pass `run.Artifact` to `ci.NewRenderedReport`; local consumers compare the fingerprint through `ci.SelectCurrentReports`.
 - **Don't** mutate `ctx.Config()` (`*config.Config`) — it's a shared pointer behind an `RWMutex`. Treat it as read-only; mutate plugin-local config via `FlagOverridable` if needed.
+- **Don't** mutate the value returned by `BasePlugin.Config()` expecting plugin state to change. Config types must implement `Clone() C`; `Config()` returns a defensive copy.
 
 ## See also
 

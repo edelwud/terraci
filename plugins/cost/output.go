@@ -6,9 +6,9 @@ import (
 
 	log "github.com/caarlos0/log"
 
+	"github.com/edelwud/terraci/pkg/plugin/cliout"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
 	"github.com/edelwud/terraci/plugins/cost/internal/view"
-	"github.com/edelwud/terraci/plugins/internal/cliout"
 )
 
 func outputResult(w io.Writer, workDir string, format cliout.Format, result *model.EstimateResult) error {

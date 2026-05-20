@@ -12,6 +12,15 @@ type Config struct {
 	RootDir string `yaml:"root_dir,omitempty" json:"root_dir,omitempty" jsonschema:"description=Directory where blob objects are stored,default=~/.terraci/blobs"`
 }
 
+// Clone returns a copy of the diskblob configuration.
+func (c *Config) Clone() *Config {
+	if c == nil {
+		return nil
+	}
+	out := *c
+	return &out
+}
+
 func resolveRootDir(appCtx *plugin.AppContext, cfg *Config, opts plugin.BlobStoreOptions) string {
 	if opts.RootDir != "" {
 		return opts.RootDir

@@ -45,6 +45,34 @@ type Override struct {
 	Decisions  Decisions `yaml:"decisions" json:"decisions" jsonschema:"description=Override OPA decision actions"`
 }
 
+// Clone returns a deep copy of the policy configuration.
+func (c *Config) Clone() *Config {
+	if c == nil {
+		return nil
+	}
+	out := *c
+	out.Sources = append([]SourceConfig(nil), c.Sources...)
+	out.Namespaces = append([]string(nil), c.Namespaces...)
+	out.Overrides = cloneOverrides(c.Overrides)
+	return &out
+}
+
+func cloneOverrides(overrides []Override) []Override {
+	if len(overrides) == 0 {
+		return nil
+	}
+	out := make([]Override, len(overrides))
+	for i, override := range overrides {
+		out[i] = override
+		if override.Enabled != nil {
+			enabled := *override.Enabled
+			out[i].Enabled = &enabled
+		}
+		out[i].Namespaces = append([]string(nil), override.Namespaces...)
+	}
+	return out
+}
+
 func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := rejectKeys(unmarshal, map[string]string{
 		"failure_action": "decisions.deny",

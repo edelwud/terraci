@@ -28,6 +28,15 @@ func (c *Config) Normalized() Config {
 	return out
 }
 
+// Clone returns a deep copy of the summary configuration.
+func (c *Config) Clone() *Config {
+	if c == nil {
+		return nil
+	}
+	out := c.Normalized()
+	return &out
+}
+
 // IncludeDetailsEnabled reports whether detailed report sections should be rendered.
 func (c *Config) IncludeDetailsEnabled() bool {
 	return c.IncludeDetails == nil || *c.IncludeDetails

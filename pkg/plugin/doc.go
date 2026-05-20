@@ -5,6 +5,7 @@
 // The plugin system is organized into three packages:
 //
 //   - pkg/plugin           — core interfaces, BasePlugin[C], AppContext, EnablePolicy, RuntimeProvider
+//   - pkg/plugin/cliout    — public command output helpers (Format, ParseFormat, WriteJSON)
 //   - pkg/plugin/registry  — factory catalog and per-command Registry capability resolution
 //   - pkg/plugin/initwiz   — init wizard types (StateMap, InitContributor, InitGroupSpec)
 //
@@ -46,7 +47,7 @@
 //	       │
 //	┌──────▼──────┐
 //	│  Configure  │  ConfigLoader.DecodeAndSet — extensions.<key>
-//	│             │  YAML node decoded into BasePlugin[C].cfg.
+//	│             │  YAML node decoded into BasePlugin[C]'s private config copy.
 //	└──────┬──────┘
 //	       │
 //	┌──────▼──────┐
@@ -68,10 +69,12 @@
 //
 // # Command boundary
 //
-// Command handlers should stay thin: parse cobra flags into a typed request,
-// resolve the command-scoped plugin with CommandPlugin[T], call RequireEnabled
-// for ConfigLoader-backed plugins, then hand the request to the plugin
-// use-case. The canonical flow is:
+// Command handlers should stay thin: resolve the command-scoped plugin with
+// CommandPlugin[T], call RequireEnabled for ConfigLoader-backed plugins, parse
+// cobra flags into a typed request, then hand the request to the plugin
+// use-case. CommandPlugin and RequireEnabled return typed errors
+// (CommandBindingError and DisabledPluginError) so tests can use errors.As.
+// The canonical flow is:
 //
 //	cobra flags -> typed Request -> immutable Runtime -> use-case Result
 //	    -> artifact persistence -> output renderer
@@ -92,8 +95,10 @@
 //   - Treat ctx.Resolver() as never-nil (returns NoopResolver{} when no
 //     real one is bound) and idempotent; capability lookups can run from
 //     any goroutine.
-//   - Treat plugin-local Config (BasePlugin[C].cfg) as command-local state
-//     owned by the plugin instance.
+//   - Implement Clone() C on plugin config types embedded in BasePlugin[C].
+//     BasePlugin.Config(), NewConfig(), DecodeAndSet(), and SetTypedConfig()
+//     all use defensive copies; mutating Config() output never changes plugin
+//     state.
 //
 // Plugin factories (the function passed to registry.RegisterFactory) MUST
 // be pure: the catalog calls them once at startup for the prototype and
@@ -119,13 +124,12 @@
 // tfupdate are the canonical producers. Plan-aware producers should carry the
 // scanned ci.PlanResultCollection into ci.NewArtifactRun, convert domain
 // results into ci.RenderBlock values, build reports with ci.NewRenderedReport,
-// and persist raw results plus the report through
-// appCtx.Reports().ReplaceResultsAndReport. Built-in producer plugins use
-// plugins/internal/artifacts to keep raw-result persistence and stale-report
-// deletion consistent. Non-plan producers may create an ArtifactRun without
-// PlanResults; that is explicit degraded mode. Consumers should load through
-// ci.ReportReader/ReportStore and call ci.SelectCurrentReports before
-// rendering.
+// and persist raw results plus the report through ci.PublishArtifacts. That
+// helper always preserves raw results and removes stale reports when report
+// construction fails or intentionally returns nil. Non-plan producers may
+// create an ArtifactRun without PlanResults; that is explicit degraded mode.
+// Consumers should load through ci.ReportReader/ReportStore and call
+// ci.SelectCurrentReports before rendering.
 // ReportSection is a value object: external plugins should not construct
 // section JSON or payloads manually, and direct field access is intentionally
 // unavailable. Consumers should use ci.DecodeRenderSection or

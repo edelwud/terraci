@@ -11,8 +11,19 @@ import (
 	"github.com/edelwud/terraci/pkg/plugin/registry"
 )
 
+const pluginName = "hello"
+
 func init() {
-	registry.RegisterFactory(func() plugin.Plugin { return &Plugin{} })
+	registry.RegisterFactory(func() plugin.Plugin {
+		return &Plugin{
+			BasePlugin: plugin.BasePlugin[*Config]{
+				PluginName: pluginName,
+				PluginDesc: "Example external command plugin",
+				EnableMode: plugin.EnabledAlways,
+				DefaultCfg: func() *Config { return &Config{} },
+			},
+		}
+	})
 }
 
 // Plugin is the example "hello" plugin.
@@ -23,4 +34,13 @@ type Plugin struct {
 // Config holds optional plugin configuration under extensions.hello in .terraci.yaml.
 type Config struct {
 	Greeting string `yaml:"greeting"`
+}
+
+// Clone returns a defensive copy of the plugin configuration.
+func (c *Config) Clone() *Config {
+	if c == nil {
+		return nil
+	}
+	out := *c
+	return &out
 }

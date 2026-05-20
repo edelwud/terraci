@@ -11,7 +11,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/plugin"
-	"github.com/edelwud/terraci/plugins/internal/cliout"
+	"github.com/edelwud/terraci/pkg/plugin/cliout"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
 )
 

@@ -13,8 +13,8 @@ import (
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/planresults"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/cliout"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
-	"github.com/edelwud/terraci/plugins/internal/cliout"
 )
 
 type planDiscovery struct {

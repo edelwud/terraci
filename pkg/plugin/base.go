@@ -10,14 +10,21 @@ type Validator interface {
 	Validate() error
 }
 
+// ConfigCloner is the config contract required by BasePlugin. Clone must
+// return a deep copy of the concrete plugin config. Pointer config types should
+// handle a nil receiver and return nil.
+type ConfigCloner[C any] interface {
+	Clone() C
+}
+
 // BasePlugin provides shared implementation for all plugins that have configuration.
 // C is the plugin's concrete config type. Embedding this gives you:
 //   - Name(), Description()
 //   - ConfigKey(), NewConfig(), DecodeAndSet(), IsConfigured(), IsEnabled()
-//   - Config() (typed access to config)
+//   - Config() (typed defensive-copy access to config)
 //   - Reset() (resets config state; override to reset custom fields)
 //   - Validate() (registration-time sanity check; see Validator)
-type BasePlugin[C any] struct {
+type BasePlugin[C ConfigCloner[C]] struct {
 	PluginName string
 	PluginDesc string
 	PluginKey  string       // config key; defaults to PluginName if empty
@@ -49,7 +56,7 @@ func (b *BasePlugin[C]) ConfigKey() string {
 
 // NewConfig returns a new instance of the default config for schema generation.
 func (b *BasePlugin[C]) NewConfig() any {
-	return b.DefaultCfg()
+	return b.DefaultCfg().Clone()
 }
 
 // DecodeAndSet decodes plugin config via the provided decoder and stores it.
@@ -58,17 +65,18 @@ func (b *BasePlugin[C]) DecodeAndSet(decode func(target any) error) error {
 	if err := decode(&cfg); err != nil {
 		return err
 	}
-	b.cfg = cfg
+	b.cfg = cfg.Clone()
 	b.configured = true
 	return nil
 }
 
-// Config returns the typed plugin configuration.
-func (b *BasePlugin[C]) Config() C { return b.cfg }
+// Config returns a defensive copy of the typed plugin configuration. Mutating
+// the returned value never changes plugin state.
+func (b *BasePlugin[C]) Config() C { return b.cfg.Clone() }
 
 // SetTypedConfig sets the typed config directly (used by tests and flag overrides).
 func (b *BasePlugin[C]) SetTypedConfig(cfg C) {
-	b.cfg = cfg
+	b.cfg = cfg.Clone()
 	b.configured = true
 }
 

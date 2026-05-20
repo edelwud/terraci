@@ -1,6 +1,8 @@
 package skeleton
 
 import (
+	"os"
+
 	"github.com/spf13/cobra"
 
 	"github.com/edelwud/terraci/pkg/plugin"
@@ -31,10 +33,12 @@ service directory. With --consume, runs the consumer flow: loads every
 				return err
 			}
 
-			if consumeMode {
-				return runConsumer(cmd.Context(), appCtx)
+			runtime := NewRuntime(appCtx, current.Config())
+			result, err := Run(cmd.Context(), runtime, Request{Consume: consumeMode})
+			if err != nil {
+				return err
 			}
-			return runProducer(cmd.Context(), appCtx, current.Config())
+			return WriteOutput(os.Stdout, result)
 		},
 	}
 

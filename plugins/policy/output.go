@@ -7,7 +7,7 @@ import (
 
 	log "github.com/caarlos0/log"
 
-	"github.com/edelwud/terraci/plugins/internal/cliout"
+	"github.com/edelwud/terraci/pkg/plugin/cliout"
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
 

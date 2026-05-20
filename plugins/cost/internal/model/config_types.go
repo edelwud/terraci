@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"maps"
 	"time"
 )
 
@@ -28,6 +29,20 @@ type CostProvidersConfig map[string]ProviderConfig
 // ProviderConfig contains provider activation state.
 type ProviderConfig struct {
 	Enabled bool `yaml:"enabled,omitempty" json:"enabled,omitempty" jsonschema:"description=Enable this cloud provider,default=false"`
+}
+
+// Clone returns a deep copy of the cost configuration.
+func (c *CostConfig) Clone() *CostConfig {
+	if c == nil {
+		return nil
+	}
+	out := *c
+	if c.BlobCache != nil {
+		blobCache := *c.BlobCache
+		out.BlobCache = &blobCache
+	}
+	out.Providers = maps.Clone(c.Providers)
+	return &out
 }
 
 // HasEnabledProviders returns true when at least one provider is enabled.

@@ -105,7 +105,10 @@ func resolveGenerateTargets(
 	baseRef string,
 	ff *filter.Flags,
 ) ([]*discovery.Module, error) {
-	appCtx := plugin.FromContext(cmd.Context())
+	appCtx, err := plugin.AppContextFromCommand(cmd)
+	if err != nil {
+		return nil, err
+	}
 	return workflow.ResolveTargets(cmd.Context(), app.WorkDir, app.Config, result, workflow.TargetSelectionOptions{
 		ChangedOnly: changedOnly,
 		BaseRef:     baseRef,
@@ -162,7 +165,10 @@ func logCycles(depGraph *graph.DependencyGraph) {
 // --- Pipeline generation ---
 
 func newPipelineGenerator(cmd *cobra.Command, app *App, depGraph *graph.DependencyGraph, modules, targets []*discovery.Module, planOnly bool) (pipeline.Generator, error) {
-	appCtx := plugin.FromContext(cmd.Context())
+	appCtx, err := plugin.AppContextFromCommand(cmd)
+	if err != nil {
+		return nil, err
+	}
 	provider, err := appCtx.Resolver().ResolveCIProvider()
 	if err != nil {
 		return nil, fmt.Errorf("resolve CI provider: %w", err)

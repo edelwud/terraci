@@ -1,11 +1,9 @@
 package skeleton
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/edelwud/terraci/pkg/ci"
-	"github.com/edelwud/terraci/pkg/plugin"
 )
 
 // --- Producer pattern -------------------------------------------------------
@@ -20,25 +18,12 @@ import (
 //
 //  2. Compose the final ci.Report via ci.NewRenderedReport.
 //
-//  3. Persist it via appCtx.Reports().SaveReport, or
-//     ReplaceResultsAndReport when you also have raw analysis output.
+//  3. Persist raw results and the report via ci.PublishArtifacts.
 //
 //  4. Always pass ci.ArtifactRun.Artifact into ci.NewRenderedReport. Local
 //     consumers compare the fingerprint against the live workspace to decide
 //     whether the on-disk report is still trustworthy.
-
-func runProducer(ctx context.Context, appCtx *plugin.AppContext, cfg *Config) error {
-	run, err := ci.NewArtifactRun(ci.ArtifactRunOptions{
-		Producer: pluginName,
-		Artifact: ci.NewArtifactContext(ci.ArtifactContextOptions{
-			ServiceDir: appCtx.ServiceDir(),
-			WorkDir:    appCtx.WorkDir(),
-		}),
-	})
-	if err != nil {
-		return fmt.Errorf("build artifact run: %w", err)
-	}
-
+func buildReport(result *ProducerResult, run ci.ArtifactRun) (*ci.Report, error) {
 	report, err := ci.NewRenderedReport(ci.RenderedReportOptions{
 		Producer: pluginName,
 		Title:    "Skeleton Report",
@@ -50,23 +35,16 @@ func runProducer(ctx context.Context, appCtx *plugin.AppContext, cfg *Config) er
 			Summary: "one demo section",
 			Blocks: []ci.RenderBlock{
 				ci.RenderTableBlock("", []string{"Field", "Value"}, [][]string{
-					{"Greeting", cfg.Greeting},
-					{"Work dir", appCtx.WorkDir()},
-					{"Service dir", appCtx.ServiceDir()},
+					{"Greeting", result.Greeting},
+					{"Work dir", result.WorkDir},
+					{"Service dir", result.ServiceDir},
 				}),
 			},
 		}},
 	})
 	if err != nil {
-		return fmt.Errorf("build report: %w", err)
+		return nil, fmt.Errorf("build report: %w", err)
 	}
 
-	// SaveReport handles directory creation and canonical artifact filenames.
-	if err := appCtx.Reports().SaveReport(ctx, report); err != nil {
-		return fmt.Errorf("save report: %w", err)
-	}
-
-	fmt.Printf("%s\n", cfg.Greeting)
-	fmt.Printf("wrote %s/%s\n", appCtx.ServiceDir(), ci.ReportFilename(pluginName))
-	return nil
+	return report, nil
 }

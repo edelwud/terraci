@@ -89,3 +89,12 @@ type Config struct {
 	// jsonschema tags surface in `terraci schema` output for IDE auto-complete.
 	Greeting string `yaml:"greeting,omitempty" json:"greeting,omitempty" jsonschema:"description=Greeting message printed by the command"`
 }
+
+// Clone returns a defensive copy of the plugin configuration.
+func (c *Config) Clone() *Config {
+	if c == nil {
+		return nil
+	}
+	out := *c
+	return &out
+}

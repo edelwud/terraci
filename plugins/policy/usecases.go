@@ -10,8 +10,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/plugin"
-	"github.com/edelwud/terraci/plugins/internal/artifacts"
-	"github.com/edelwud/terraci/plugins/internal/cliout"
+	"github.com/edelwud/terraci/pkg/plugin/cliout"
 	"github.com/edelwud/terraci/plugins/internal/reportctx"
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 	policyusecase "github.com/edelwud/terraci/plugins/policy/internal/usecase"
@@ -56,20 +55,18 @@ func persistPolicyArtifacts(ctx context.Context, appCtx *plugin.AppContext, summ
 		return
 	}
 
-	run, runErr := reportctx.NewRun(appCtx, reportctx.Options{
-		Producer:   pluginName,
-		Collection: collection,
-	})
-	if runErr != nil {
-		log.WithError(runErr).Warn("failed to build policy artifact context")
-	}
-	if saveErr := artifacts.ReplaceResultsAndReport(ctx, artifacts.ReplaceRequest{
+	if saveErr := ci.PublishArtifacts(ctx, ci.PublishArtifactsRequest{
 		Producer: pluginName,
 		Writer:   appCtx.Reports(),
 		Results:  summary,
-		Run:      run,
-		RunError: runErr,
-		BuildReport: func(run ci.ArtifactRun) (*ci.Report, error) {
+		BuildReport: func() (*ci.Report, error) {
+			run, err := reportctx.NewRun(appCtx, reportctx.Options{
+				Producer:   pluginName,
+				Collection: collection,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("artifact run: %w", err)
+			}
 			return buildPolicyReport(policyReportRequest{Summary: summary, Run: run})
 		},
 	}); saveErr != nil {
