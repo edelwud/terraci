@@ -1,7 +1,10 @@
 // Package summary provides the summary plugin for TerraCi.
 package summary
 
-import "github.com/edelwud/terraci/pkg/plugin/initwiz"
+import (
+	"github.com/edelwud/terraci/pkg/plugin/initwiz"
+	summaryengine "github.com/edelwud/terraci/plugins/summary/internal/summaryengine"
+)
 
 // InitContributor — contributes summary field to the init wizard.
 
@@ -28,15 +31,10 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 }
 
 // BuildInitConfig builds the summary plugin config from wizard state.
-func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribution {
+func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribution, error) {
 	enabled := state.Bool("summary.enabled")
 	if enabled {
-		return nil
+		return nil, nil
 	}
-	return &initwiz.InitContribution{
-		PluginKey: pluginName,
-		Config: map[string]any{
-			"enabled": enabled,
-		},
-	}
+	return initwiz.NewInitContribution(pluginName, &summaryengine.Config{Enabled: &enabled})
 }

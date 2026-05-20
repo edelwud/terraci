@@ -50,24 +50,12 @@ Examples:
 			hasFlags := initProvider != "" || initBinary != "" || initPattern != ""
 
 			var newCfg *config.Config
-			var err error
-
 			if ciMode || hasFlags {
-				state := initwiz.NewStateMap()
-				initStateDefaults(app.Plugins, state)
-
-				// Override defaults with CLI flags
-				if initProvider != "" {
-					state.Set("provider", initProvider)
+				cfg, err := buildNonInteractiveInitConfig(app, initProvider, initBinary, initPattern)
+				if err != nil {
+					return err
 				}
-				if initBinary != "" {
-					state.Set("binary", initBinary)
-				}
-				if initPattern != "" {
-					state.Set("pattern", initPattern)
-				}
-
-				newCfg = buildConfigFromState(app.Plugins, state)
+				newCfg = cfg
 			} else {
 				if !term.IsTerminal(int(os.Stdin.Fd())) {
 					return errors.New(
@@ -75,10 +63,11 @@ Examples:
 							"or supply --provider / --binary / --pattern to drive non-interactive setup",
 					)
 				}
-				newCfg, err = runInteractiveInit(app)
+				cfg, err := runInteractiveInit(app)
 				if err != nil {
 					return err
 				}
+				newCfg = cfg
 			}
 
 			if err := newCfg.Save(configPath); err != nil {
@@ -99,6 +88,23 @@ Examples:
 	cmd.Flags().StringVar(&initPattern, "pattern", "", "directory pattern")
 
 	return cmd
+}
+
+func buildNonInteractiveInitConfig(app *App, provider, binary, pattern string) (*config.Config, error) {
+	state := initwiz.NewStateMap()
+	initStateDefaults(app.Plugins, state)
+
+	if provider != "" {
+		state.Set("provider", provider)
+	}
+	if binary != "" {
+		state.Set("binary", binary)
+	}
+	if pattern != "" {
+		state.Set("pattern", pattern)
+	}
+
+	return buildConfigFromState(app.Plugins, state)
 }
 
 // initStateDefaults populates a StateMap with default values for the init wizard.
@@ -173,6 +179,9 @@ func runInteractiveInit(app *App) (*config.Config, error) {
 	im, ok := finalModel.(*initModel)
 	if !ok {
 		return nil, errors.New("unexpected model type")
+	}
+	if im.err != nil {
+		return nil, im.err
 	}
 	if im.result == nil {
 		return nil, errors.New("init canceled")

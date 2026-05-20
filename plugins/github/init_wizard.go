@@ -2,12 +2,18 @@ package github
 
 import (
 	"github.com/edelwud/terraci/pkg/plugin/initwiz"
+	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
 	"github.com/edelwud/terraci/plugins/internal/ciplugin"
 )
 
 // InitContributor — contributes GitHub Actions fields to the init wizard.
 
 const defaultGitHubRunner = "ubuntu-latest"
+
+type initConfig struct {
+	RunsOn      string                 `yaml:"runs_on"`
+	JobDefaults *configpkg.JobDefaults `yaml:"job_defaults,omitempty"`
+}
 
 // InitGroups returns the init wizard group specs for GitHub Actions.
 func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
@@ -37,9 +43,9 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 }
 
 // BuildInitConfig builds the GitHub Actions init contribution.
-func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribution {
+func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribution, error) {
 	if state.Provider() != pluginName {
-		return nil
+		return nil, nil
 	}
 	binary := state.Binary()
 	if binary == "" {
@@ -56,20 +62,17 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribut
 		setupAction = "opentofu/setup-opentofu@v1"
 	}
 
-	setupSteps := []map[string]any{
-		{"uses": "actions/checkout@v4"},
-		{"uses": setupAction},
+	setupSteps := []configpkg.ConfigStep{
+		{Uses: "actions/checkout@v4"},
+		{Uses: setupAction},
 	}
 
-	cfg := map[string]any{
-		"runs_on": runsOn,
-		"job_defaults": map[string]any{
-			"steps_before": setupSteps,
+	cfg := initConfig{
+		RunsOn: runsOn,
+		JobDefaults: &configpkg.JobDefaults{
+			StepsBefore: setupSteps,
 		},
 	}
 
-	return &initwiz.InitContribution{
-		PluginKey: pluginName,
-		Config:    cfg,
-	}
+	return initwiz.NewInitContribution(pluginName, cfg)
 }

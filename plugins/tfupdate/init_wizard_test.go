@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/plugin/initwiz"
+	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
 )
 
 func TestPlugin_InitGroups(t *testing.T) {
@@ -97,19 +98,19 @@ func TestPlugin_BuildInitConfig_Enabled(t *testing.T) {
 	state := initwiz.NewStateMap()
 	state.Set("tfupdate.enabled", true)
 
-	contrib := p.BuildInitConfig(state)
+	contrib, err := p.BuildInitConfig(state)
+	if err != nil {
+		t.Fatalf("BuildInitConfig() error = %v", err)
+	}
 	if contrib == nil {
 		t.Fatal("BuildInitConfig() returned nil, want non-nil for enabled state")
 	}
-	if contrib.PluginKey != "tfupdate" {
-		t.Errorf("PluginKey = %q, want %q", contrib.PluginKey, "tfupdate")
+	if contrib.PluginKey() != "tfupdate" {
+		t.Errorf("PluginKey() = %q, want %q", contrib.PluginKey(), "tfupdate")
 	}
-	enabled, ok := contrib.Config["enabled"]
-	if !ok {
-		t.Fatal("Config missing 'enabled' key")
-	}
-	if enabled != true {
-		t.Errorf("Config[enabled] = %v, want true", enabled)
+	cfg := decodeInitConfig(t, contrib)
+	if !cfg.Enabled {
+		t.Errorf("Config.Enabled = false, want true")
 	}
 }
 
@@ -118,7 +119,10 @@ func TestPlugin_BuildInitConfig_Disabled(t *testing.T) {
 	state := initwiz.NewStateMap()
 	state.Set("tfupdate.enabled", false)
 
-	contrib := p.BuildInitConfig(state)
+	contrib, err := p.BuildInitConfig(state)
+	if err != nil {
+		t.Fatalf("BuildInitConfig() error = %v", err)
+	}
 	if contrib != nil {
 		t.Errorf("BuildInitConfig() = %v, want nil for disabled state", contrib)
 	}
@@ -128,7 +132,10 @@ func TestPlugin_BuildInitConfig_NotSet(t *testing.T) {
 	p := newTestPlugin(t)
 	state := initwiz.NewStateMap()
 
-	contrib := p.BuildInitConfig(state)
+	contrib, err := p.BuildInitConfig(state)
+	if err != nil {
+		t.Fatalf("BuildInitConfig() error = %v", err)
+	}
 	if contrib != nil {
 		t.Errorf("BuildInitConfig() = %v, want nil for unset state", contrib)
 	}
@@ -140,12 +147,16 @@ func TestPlugin_BuildInitConfig_NonDefaultTarget(t *testing.T) {
 	state.Set("tfupdate.enabled", true)
 	state.Set("tfupdate.target", "modules")
 
-	contrib := p.BuildInitConfig(state)
+	contrib, err := p.BuildInitConfig(state)
+	if err != nil {
+		t.Fatalf("BuildInitConfig() error = %v", err)
+	}
 	if contrib == nil {
 		t.Fatal("BuildInitConfig() returned nil")
 	}
-	if contrib.Config["target"] != "modules" {
-		t.Errorf("Config[target] = %v, want 'modules'", contrib.Config["target"])
+	cfg := decodeInitConfig(t, contrib)
+	if cfg.Target != "modules" {
+		t.Errorf("Config.Target = %v, want 'modules'", cfg.Target)
 	}
 }
 
@@ -155,19 +166,16 @@ func TestPlugin_BuildInitConfig_NonDefaultBump(t *testing.T) {
 	state.Set("tfupdate.enabled", true)
 	state.Set("tfupdate.bump", "patch")
 
-	contrib := p.BuildInitConfig(state)
+	contrib, err := p.BuildInitConfig(state)
+	if err != nil {
+		t.Fatalf("BuildInitConfig() error = %v", err)
+	}
 	if contrib == nil {
 		t.Fatal("BuildInitConfig() returned nil")
 	}
-	if _, ok := contrib.Config["bump"]; ok {
-		t.Error("Config should not contain top-level 'bump'; want nested policy.bump")
-	}
-	policy, ok := contrib.Config["policy"].(map[string]any)
-	if !ok {
-		t.Fatalf("Config[policy] = %v, want map with bump", contrib.Config["policy"])
-	}
-	if policy["bump"] != "patch" {
-		t.Errorf("Config[policy][bump] = %v, want 'patch'", policy["bump"])
+	cfg := decodeInitConfig(t, contrib)
+	if cfg.Policy.Bump != "patch" {
+		t.Errorf("Config.Policy.Bump = %v, want 'patch'", cfg.Policy.Bump)
 	}
 }
 
@@ -177,12 +185,16 @@ func TestPlugin_BuildInitConfig_Pipeline(t *testing.T) {
 	state.Set("tfupdate.enabled", true)
 	state.Set("tfupdate.pipeline", true)
 
-	contrib := p.BuildInitConfig(state)
+	contrib, err := p.BuildInitConfig(state)
+	if err != nil {
+		t.Fatalf("BuildInitConfig() error = %v", err)
+	}
 	if contrib == nil {
 		t.Fatal("BuildInitConfig() returned nil")
 	}
-	if contrib.Config["pipeline"] != true {
-		t.Errorf("Config[pipeline] = %v, want true", contrib.Config["pipeline"])
+	cfg := decodeInitConfig(t, contrib)
+	if !cfg.Pipeline {
+		t.Errorf("Config.Pipeline = false, want true")
 	}
 }
 
@@ -193,21 +205,31 @@ func TestPlugin_BuildInitConfig_AllDefaults(t *testing.T) {
 	state.Set("tfupdate.target", "all")
 	state.Set("tfupdate.bump", "minor")
 
-	contrib := p.BuildInitConfig(state)
+	contrib, err := p.BuildInitConfig(state)
+	if err != nil {
+		t.Fatalf("BuildInitConfig() error = %v", err)
+	}
 	if contrib == nil {
 		t.Fatal("BuildInitConfig() returned nil")
 	}
 	// Default values should be omitted
-	if _, ok := contrib.Config["target"]; ok {
-		t.Error("Config should not contain 'target' when it's the default 'all'")
+	cfg := decodeInitConfig(t, contrib)
+	if cfg.Target != "" {
+		t.Error("Config should not contain target when it's the default 'all'")
 	}
-	if _, ok := contrib.Config["policy"]; ok {
-		t.Error("Config should not contain 'policy' when bump is the default 'minor'")
+	if cfg.Policy.Bump != "" {
+		t.Error("Config should not contain policy.bump when bump is the default 'minor'")
 	}
-	if _, ok := contrib.Config["bump"]; ok {
-		t.Error("Config should never contain top-level 'bump'")
+	if cfg.Pipeline {
+		t.Error("Config should not contain pipeline when not set to true")
 	}
-	if _, ok := contrib.Config["pipeline"]; ok {
-		t.Error("Config should not contain 'pipeline' when not set to true")
+}
+
+func decodeInitConfig(tb testing.TB, contribution *initwiz.InitContribution) tfupdateengine.UpdateConfig {
+	tb.Helper()
+	var cfg tfupdateengine.UpdateConfig
+	if err := contribution.DecodeConfig(&cfg); err != nil {
+		tb.Fatalf("DecodeConfig() error = %v", err)
 	}
+	return cfg
 }

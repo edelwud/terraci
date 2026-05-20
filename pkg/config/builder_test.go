@@ -2,10 +2,10 @@ package config
 
 import "testing"
 
-func TestBuildConfig_WithPattern(t *testing.T) {
+func TestBuild_WithPattern(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := BuildConfig("{service}/{environment}/{module}", nil, nil)
+	cfg, err := Build(BuildOptions{Pattern: "{service}/{environment}/{module}"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -18,10 +18,10 @@ func TestBuildConfig_WithPattern(t *testing.T) {
 	}
 }
 
-func TestBuildConfig_EmptyPattern(t *testing.T) {
+func TestBuild_EmptyPattern(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := BuildConfig("", nil, nil)
+	cfg, err := Build(BuildOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,23 +32,25 @@ func TestBuildConfig_EmptyPattern(t *testing.T) {
 	}
 }
 
-func TestBuildConfig_ProviderA(t *testing.T) {
+func TestBuild_ProviderA(t *testing.T) {
 	t.Parallel()
 
-	extensionConfigs := map[string]map[string]any{
-		"provider_a": {
-			"image": map[string]any{"name": "hashicorp/terraform:1.6"},
-			"mr": map[string]any{
-				"comment": map[string]any{"enabled": true},
-			},
+	extensions := mustExtensionSet(t, "provider_a", map[string]any{
+		"image": map[string]any{"name": "hashicorp/terraform:1.6"},
+		"mr": map[string]any{
+			"comment": map[string]any{"enabled": true},
 		},
-	}
+	})
+	execution := DefaultConfig().Execution
+	execution.Binary = "terraform"
+	execution.PlanEnabled = true
+	execution.InitEnabled = true
 
-	cfg, err := BuildConfig("{service}/{environment}/{module}", map[string]any{
-		"binary":       "terraform",
-		"plan_enabled": true,
-		"init_enabled": true,
-	}, extensionConfigs)
+	cfg, err := Build(BuildOptions{
+		Pattern:    "{service}/{environment}/{module}",
+		Execution:  &execution,
+		Extensions: extensions,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,23 +74,21 @@ func TestBuildConfig_ProviderA(t *testing.T) {
 	}
 }
 
-func TestBuildConfig_ProviderB(t *testing.T) {
+func TestBuild_ProviderB(t *testing.T) {
 	t.Parallel()
 
-	extensionConfigs := map[string]map[string]any{
-		"provider_b": {
-			"runs_on": "ubuntu-latest",
-			"pr": map[string]any{
-				"comment": map[string]any{},
-			},
+	extensions := mustExtensionSet(t, "provider_b", map[string]any{
+		"runs_on": "ubuntu-latest",
+		"pr": map[string]any{
+			"comment": map[string]any{},
 		},
-	}
+	})
+	execution := DefaultConfig().Execution
+	execution.Binary = "tofu"
+	execution.PlanEnabled = true
+	execution.InitEnabled = true
 
-	cfg, err := BuildConfig("", map[string]any{
-		"binary":       "tofu",
-		"plan_enabled": true,
-		"init_enabled": true,
-	}, extensionConfigs)
+	cfg, err := Build(BuildOptions{Execution: &execution, Extensions: extensions})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,16 +112,14 @@ func TestBuildConfig_ProviderB(t *testing.T) {
 	}
 }
 
-func TestBuildConfig_WithFeature(t *testing.T) {
+func TestBuild_WithFeature(t *testing.T) {
 	t.Parallel()
 
-	extensionConfigs := map[string]map[string]any{
-		"feature_a": {
-			"enabled": true,
-		},
-	}
+	extensions := mustExtensionSet(t, "feature_a", map[string]any{"enabled": true})
+	execution := DefaultConfig().Execution
+	execution.Binary = "terraform"
 
-	cfg, err := BuildConfig("", map[string]any{"binary": "terraform"}, extensionConfigs)
+	cfg, err := Build(BuildOptions{Execution: &execution, Extensions: extensions})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,20 +137,111 @@ func TestBuildConfig_WithFeature(t *testing.T) {
 	}
 }
 
-func TestBuildConfig_InvalidPattern(t *testing.T) {
+func TestBuild_InvalidPattern(t *testing.T) {
 	t.Parallel()
 
-	_, err := BuildConfig("{service}/{service}", nil, nil)
+	_, err := Build(BuildOptions{Pattern: "{service}/{service}"})
 	if err == nil {
 		t.Fatal("expected validation error for invalid pattern")
 	}
 }
 
-func TestBuildConfig_InvalidExecution(t *testing.T) {
+func TestBuild_InvalidExecution(t *testing.T) {
 	t.Parallel()
 
-	_, err := BuildConfig("", map[string]any{"binary": "terragrunt"}, nil)
+	execution := DefaultConfig().Execution
+	execution.Binary = "terragrunt"
+	_, err := Build(BuildOptions{Execution: &execution})
 	if err == nil {
 		t.Fatal("expected validation error for invalid execution.binary")
 	}
+}
+
+func TestNewExtensionSet_DuplicateKey(t *testing.T) {
+	t.Parallel()
+
+	first := mustExtensionValue(t, "feature", map[string]any{"enabled": true})
+	second := mustExtensionValue(t, "feature", map[string]any{"enabled": false})
+	if _, err := NewExtensionSet(first, second); err == nil {
+		t.Fatal("NewExtensionSet() error = nil, want duplicate key error")
+	}
+}
+
+func TestNewExtensionValue_InvalidInput(t *testing.T) {
+	t.Parallel()
+
+	if _, err := NewExtensionValue("", map[string]any{"enabled": true}); err == nil {
+		t.Fatal("NewExtensionValue() error = nil, want key error")
+	}
+	if _, err := NewExtensionValue("bad.key", map[string]any{"enabled": true}); err == nil {
+		t.Fatal("NewExtensionValue() error = nil, want invalid key error")
+	}
+	if _, err := NewExtensionValue("feature", nil); err == nil {
+		t.Fatal("NewExtensionValue() error = nil, want nil config error")
+	}
+}
+
+func TestExtensionValue_DefensiveNodeCopy(t *testing.T) {
+	t.Parallel()
+
+	value := mustExtensionValue(t, "feature", map[string]any{"enabled": true})
+	node := value.Node()
+	node.Content = nil
+	if len(node.Content) != 0 {
+		t.Fatal("mutated defensive node copy still has content")
+	}
+
+	var decoded map[string]any
+	if err := value.Decode(&decoded); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if decoded["enabled"] != true {
+		t.Fatalf("decoded = %#v, want enabled true", decoded)
+	}
+}
+
+func TestExtensionSet_ValuesAreDefensive(t *testing.T) {
+	t.Parallel()
+
+	set := mustExtensionSet(t, "feature", map[string]any{"enabled": true})
+	values := set.Values()
+	if len(values) != 1 {
+		t.Fatalf("Values() len = %d, want 1", len(values))
+	}
+	node := values[0].Node()
+	node.Content = nil
+	if len(node.Content) != 0 {
+		t.Fatal("mutated defensive node copy still has content")
+	}
+
+	cfg, err := Build(BuildOptions{Extensions: set})
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	var decoded map[string]any
+	if err := cfg.Extension("feature", &decoded); err != nil {
+		t.Fatalf("Extension() error = %v", err)
+	}
+	if decoded["enabled"] != true {
+		t.Fatalf("decoded = %#v, want enabled true", decoded)
+	}
+}
+
+func mustExtensionSet(tb testing.TB, key string, value any) ExtensionSet {
+	tb.Helper()
+	extension := mustExtensionValue(tb, key, value)
+	set, err := NewExtensionSet(extension)
+	if err != nil {
+		tb.Fatalf("NewExtensionSet() error = %v", err)
+	}
+	return set
+}
+
+func mustExtensionValue(tb testing.TB, key string, value any) ExtensionValue {
+	tb.Helper()
+	extension, err := NewExtensionValue(key, value)
+	if err != nil {
+		tb.Fatalf("NewExtensionValue() error = %v", err)
+	}
+	return extension
 }

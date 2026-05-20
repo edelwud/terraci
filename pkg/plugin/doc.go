@@ -93,6 +93,19 @@
 // PipelineContributionGate so the framework can distinguish "not enabled for
 // this run" from "broken contribution".
 //
+// # Init wizard boundary
+//
+// InitContributor implementations return typed config through
+// initwiz.NewInitContribution. The canonical flow is:
+//
+//	StateMap -> typed config struct -> initwiz.NewInitContribution
+//	    -> config.ExtensionValue -> config.Build
+//
+// Returning nil, nil is the only normal way to skip an optional init
+// contribution. Do not build extension config with loose maps or construct
+// InitContribution directly; config.NewExtensionValue owns YAML node encoding,
+// key validation, and defensive copies.
+//
 // # SDK contract tests
 //
 // External plugin authors should copy the contract-style tests from

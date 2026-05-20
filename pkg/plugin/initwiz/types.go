@@ -1,6 +1,13 @@
 package initwiz
 
-import "github.com/edelwud/terraci/pkg/plugin"
+import (
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/edelwud/terraci/pkg/config"
+	"github.com/edelwud/terraci/pkg/plugin"
+)
 
 // InitCategory determines how an InitGroupSpec is rendered in the wizard.
 type InitCategory string
@@ -20,7 +27,7 @@ const (
 type InitContributor interface {
 	plugin.Plugin
 	InitGroups() []*InitGroupSpec
-	BuildInitConfig(state *StateMap) *InitContribution
+	BuildInitConfig(state *StateMap) (*InitContribution, error)
 }
 
 // InitGroupSpec describes a group of form fields contributed by a plugin.
@@ -58,8 +65,46 @@ type InitOption struct {
 	Value string
 }
 
-// InitContribution holds the config produced by a plugin's init logic.
+// InitContribution holds a validated extension config produced by a plugin's
+// init logic.
 type InitContribution struct {
-	PluginKey string
-	Config    map[string]any
+	pluginKey string
+	config    config.ExtensionValue
+}
+
+// NewInitContribution builds a validated init contribution from typed config.
+func NewInitContribution(pluginKey string, typedConfig any) (*InitContribution, error) {
+	pluginKey = strings.TrimSpace(pluginKey)
+	if pluginKey == "" {
+		return nil, errors.New("init contribution plugin key is required")
+	}
+	value, err := config.NewExtensionValue(pluginKey, typedConfig)
+	if err != nil {
+		return nil, fmt.Errorf("init contribution %q: %w", pluginKey, err)
+	}
+	return &InitContribution{pluginKey: pluginKey, config: value}, nil
+}
+
+// PluginKey returns the extension config key.
+func (c *InitContribution) PluginKey() string {
+	if c == nil {
+		return ""
+	}
+	return c.pluginKey
+}
+
+// ExtensionValue returns a defensive copy of the encoded extension config.
+func (c *InitContribution) ExtensionValue() config.ExtensionValue {
+	if c == nil {
+		return config.ExtensionValue{}
+	}
+	return c.config.Clone()
+}
+
+// DecodeConfig decodes the contribution config into target.
+func (c *InitContribution) DecodeConfig(target any) error {
+	if c == nil {
+		return nil
+	}
+	return c.config.Decode(target)
 }

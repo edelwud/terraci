@@ -15,6 +15,17 @@ const (
 	keyUpdatePipeline = "tfupdate.pipeline"
 )
 
+type initConfig struct {
+	Enabled  bool              `yaml:"enabled"`
+	Target   string            `yaml:"target,omitempty"`
+	Policy   *initPolicyConfig `yaml:"policy,omitempty"`
+	Pipeline bool              `yaml:"pipeline,omitempty"`
+}
+
+type initPolicyConfig struct {
+	Bump string `yaml:"bump,omitempty"`
+}
+
 // InitGroups returns the init wizard group specs for the update initwiz.
 func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 	return []*initwiz.InitGroupSpec{
@@ -75,28 +86,25 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 }
 
 // BuildInitConfig builds the update init contribution.
-func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribution {
+func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribution, error) {
 	enabled := state.Bool(keyUpdateEnabled)
 	if !enabled {
-		return nil
+		return nil, nil
 	}
 
-	cfg := map[string]any{
-		"enabled": true,
+	cfg := initConfig{
+		Enabled: true,
 	}
 
 	if target := state.String(keyUpdateTarget); target != "" && target != "all" {
-		cfg["target"] = target
+		cfg.Target = target
 	}
 	if bump := state.String(keyUpdateBump); bump != "" && bump != "minor" {
-		cfg["policy"] = map[string]any{"bump": bump}
+		cfg.Policy = &initPolicyConfig{Bump: bump}
 	}
 	if state.Bool(keyUpdatePipeline) {
-		cfg["pipeline"] = true
+		cfg.Pipeline = true
 	}
 
-	return &initwiz.InitContribution{
-		PluginKey: pluginName,
-		Config:    cfg,
-	}
+	return initwiz.NewInitContribution(pluginName, cfg)
 }

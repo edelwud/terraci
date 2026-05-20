@@ -117,6 +117,7 @@ func TestAssertInitContributor(t *testing.T) {
 		Contributor:        contractInitContributor{},
 		ExpectedPluginKey:  "contract",
 		ExpectContribution: true,
+		DecodeTarget:       &contractInitConfig{},
 	})
 }
 
@@ -300,11 +301,12 @@ func (contractInitContributor) InitGroups() []*initwiz.InitGroupSpec {
 	}}
 }
 
-func (contractInitContributor) BuildInitConfig(*initwiz.StateMap) *initwiz.InitContribution {
-	return &initwiz.InitContribution{
-		PluginKey: "contract",
-		Config:    map[string]any{"enabled": true},
-	}
+func (contractInitContributor) BuildInitConfig(*initwiz.StateMap) (*initwiz.InitContribution, error) {
+	return initwiz.NewInitContribution("contract", contractInitConfig{Enabled: true})
+}
+
+type contractInitConfig struct {
+	Enabled bool `yaml:"enabled"`
 }
 
 type contractVersionProvider struct{}

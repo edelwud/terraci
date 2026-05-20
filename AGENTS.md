@@ -99,7 +99,7 @@ pkg/                            # Public API — importable by external plugins 
 ├── config/
 │   ├── types_config.go         # Config (service_dir, structure, exclude, include, library_modules, extensions map[string]yaml.Node)
 │   ├── clone.go, snapshot.go   # Deep-copy API and immutable Snapshot read model
-│   ├── builder.go              # BuildConfig() — assembles Config from pattern/execution/extensions
+│   ├── builder.go              # Build(BuildOptions) + typed ExtensionValue/ExtensionSet
 │   ├── extension.go            # (*Config).Extension(key, target) — opaque section decoder
 │   ├── pattern.go              # ParsePattern, PatternSegments
 │   ├── schema.go               # GenerateJSONSchema(extensionSchemas)
@@ -415,7 +415,8 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 1. `initStateDefaults()` populates shared defaults (provider, binary, pattern, plan_enabled)
 2. Core groups: Basics, Structure, Pipeline Options
 3. `initwiz.InitContributor` plugins add dynamic form groups
-4. `config.BuildConfig(pattern, execution, extensionConfigs)` assembles config (returns `(*Config, error)`)
+4. `BuildInitConfig` returns typed `initwiz.InitContribution` values
+5. Core converts contributions into `config.ExtensionSet` and calls `config.Build(BuildOptions)` to assemble config
 
 ## Key Patterns
 
@@ -434,6 +435,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **Immutable config boundary**: `Config.Clone()` and `config.Snapshot` own deep-copy semantics. `AppContext` stores a snapshot; plugin code reads through accessors and only uses `MutableCopy()` for legacy pointer-shaped APIs.
 - **Command boundary**: plugin command callbacks use `plugin.CommandPlugin[T](cmd, name)` and `plugin.RequireEnabled(...)`; low-level cobra context binding is framework-owned. Command binding and disabled-plugin failures are typed errors.
 - **SDK contract kit**: plugin SDK behavior is tested through `pkg/plugin/plugintest`; CI/report behavior is tested through `pkg/ci/citest`. New plugins should copy these contract helpers for config immutability, command binding, runtime creation, contributions, lifecycle, init wizard, providers, change detection, rendered reports, and artifact lifecycle.
+- **Init extension contracts**: init wizard plugins return typed config structs/maps through `initwiz.NewInitContribution`. Core owns YAML node encoding via `config.NewExtensionValue`, duplicate detection through `config.NewExtensionSet`, and final assembly via `config.Build`. Do not return loose extension maps from plugin init code.
 - **Report artifact lifecycle**: plan-aware producers use `PlanResultCollection -> ci.ArtifactRun -> ci.NewRenderedReport -> ci.PublishArtifacts(...)`. `PublishArtifacts` always persists raw results and removes stale reports on nil/build errors. Report-only producers may use `SaveReport`.
 - **Report sections via render-ready payloads**: producer plugins call `ci.NewRenderedReport(...)` and publish only validated `ci.ReportSectionKindRendered` sections with `ci.RenderSection` payloads. `ReportSection` internals are private; use getters plus `ci.DecodeRenderSection`, not raw payload access. Summary/local renderers consume the generic render model through `plugins/internal/reportrender` and stay unaware of cost/policy/tfupdate domain structs.
 - **Report freshness**: `pkg/ci.SelectCurrentReports` owns current/stale/degraded policy. Summary and localexec skip reports whose non-empty `plan_results_fingerprint` does not match the current plan collection. Missing provenance is accepted as degraded mode.

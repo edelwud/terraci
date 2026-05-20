@@ -5,6 +5,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/plugin/initwiz"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
+	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
 
 // InitContributor — contributes cost estimation field to the init wizard.
@@ -68,23 +69,18 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 // same set of registered cloud providers and emits config for every one the
 // user enabled in the wizard. Skips contribution entirely when no provider
 // is enabled — keeps `.terraci.yaml` clean of an empty `extensions.cost`.
-func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribution {
-	providers := map[string]any{}
+func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribution, error) {
+	providers := model.CostProvidersConfig{}
 	for _, c := range cloud.Providers() {
 		def := c.Definition()
 		if state.Bool(providerEnabledKey(def.Manifest.ID)) {
-			providers[def.Manifest.ID] = map[string]any{"enabled": true}
+			providers[def.Manifest.ID] = model.ProviderConfig{Enabled: true}
 		}
 	}
 
 	if len(providers) == 0 {
-		return nil
+		return nil, nil
 	}
 
-	return &initwiz.InitContribution{
-		PluginKey: pluginName,
-		Config: map[string]any{
-			"providers": providers,
-		},
-	}
+	return initwiz.NewInitContribution(pluginName, &model.CostConfig{Providers: providers})
 }

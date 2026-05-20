@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 
@@ -8,8 +9,6 @@ import (
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
 	"go.yaml.in/yaml/v4"
-
-	log "github.com/caarlos0/log"
 
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/plugin"
@@ -57,6 +56,7 @@ type initModel struct {
 	width   int
 	height  int
 	result  *config.Config
+	err     error
 	state   *initwiz.StateMap
 	plugins *registry.Registry
 }
@@ -257,35 +257,47 @@ func buildPluginField(f initwiz.InitField, state *initwiz.StateMap) huh.Field {
 }
 
 // buildConfigFromState collects InitContributor results and builds a Config.
-func buildConfigFromState(plugins *registry.Registry, state *initwiz.StateMap) *config.Config {
+func buildConfigFromState(plugins *registry.Registry, state *initwiz.StateMap) (*config.Config, error) {
 	pattern := state.String("pattern")
 	planEnabled := config.DefaultConfig().Execution.PlanEnabled
 	if state.Get("plan_enabled") != nil {
 		planEnabled = state.Bool("plan_enabled")
 	}
-	execution := map[string]any{
-		"binary":       state.String("binary"),
-		"init_enabled": true,
-		"plan_enabled": planEnabled,
+	execution := config.DefaultConfig().Execution
+	execution.Binary = state.String("binary")
+	execution.InitEnabled = true
+	execution.PlanEnabled = planEnabled
+	if execution.Binary == "" {
+		execution.Binary = config.ExecutionBinaryTerraform
 	}
 	if planEnabled && state.Bool("summary.enabled") {
-		execution["plan_mode"] = "detailed"
+		execution.PlanMode = "detailed"
 	}
-	pluginConfigs := make(map[string]map[string]any)
+	extensions := make([]config.ExtensionValue, 0)
 
 	for _, c := range registry.ByCapabilityFrom[initwiz.InitContributor](plugins) {
-		contrib := c.BuildInitConfig(state)
+		contrib, err := c.BuildInitConfig(state)
+		if err != nil {
+			return nil, fmt.Errorf("build init config for %s: %w", c.Name(), err)
+		}
 		if contrib != nil {
-			pluginConfigs[contrib.PluginKey] = contrib.Config
+			extensions = append(extensions, contrib.ExtensionValue())
 		}
 	}
 
-	cfg, err := config.BuildConfig(pattern, execution, pluginConfigs)
+	extensionSet, err := config.NewExtensionSet(extensions...)
 	if err != nil {
-		log.WithError(err).Warn("failed to build config from init state")
-		return config.DefaultConfig()
+		return nil, fmt.Errorf("build init extension set: %w", err)
 	}
-	return cfg
+	cfg, err := config.Build(config.BuildOptions{
+		Pattern:    pattern,
+		Execution:  &execution,
+		Extensions: extensionSet,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("build init config: %w", err)
+	}
+	return cfg, nil
 }
 
 // --- Tea interface ---
@@ -306,7 +318,7 @@ func (m *initModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	_, cmd := m.form.Update(msg)
 
 	if m.form.State == huh.StateCompleted {
-		m.result = buildConfigFromState(m.plugins, m.state)
+		m.result, m.err = buildConfigFromState(m.plugins, m.state)
 		return m, tea.Quit
 	}
 
@@ -333,7 +345,11 @@ func (m *initModel) View() tea.View {
 // --- YAML preview ---
 
 func (m *initModel) renderYAMLPreview() string {
-	data, err := yaml.Marshal(buildConfigFromState(m.plugins, m.state))
+	cfg, err := buildConfigFromState(m.plugins, m.state)
+	if err != nil {
+		return previewBorder.Render(previewTitle.Render("  .terraci.yaml") + "\n\n" + previewYAML.Render("# error generating preview: "+err.Error()))
+	}
+	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		data = []byte("# error generating preview")
 	}

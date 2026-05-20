@@ -37,6 +37,7 @@ func TestInit_CI_GitLab(t *testing.T) {
 	// Should have specific default values
 	assertContains(t, content, "hashicorp/terraform:1.6")
 	assertContains(t, content, "plan_mode: detailed")
+	assertNotContains(t, content, "plan_only:")
 }
 
 func TestInit_CI_GitHub(t *testing.T) {
@@ -56,6 +57,7 @@ func TestInit_CI_GitHub(t *testing.T) {
 	assertContains(t, content, "github:")
 	assertContains(t, content, "runs_on:")
 	assertContains(t, content, "ubuntu-latest")
+	assertNotContains(t, content, "plan_only:")
 }
 
 func TestInit_ExistingConfig_NoForce(t *testing.T) {

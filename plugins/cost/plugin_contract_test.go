@@ -78,6 +78,7 @@ func TestPlugin_SDKContracts(t *testing.T) {
 			State:              state,
 			ExpectedPluginKey:  pluginName,
 			ExpectContribution: true,
+			DecodeTarget:       &model.CostConfig{},
 		})
 	})
 }

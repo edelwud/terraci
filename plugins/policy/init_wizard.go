@@ -1,6 +1,9 @@
 package policy
 
-import "github.com/edelwud/terraci/pkg/plugin/initwiz"
+import (
+	"github.com/edelwud/terraci/pkg/plugin/initwiz"
+	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
+)
 
 // InitContributor — contributes policy check fields to the init wizard.
 
@@ -66,10 +69,10 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 }
 
 // BuildInitConfig builds the policy checks init contribution.
-func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribution {
+func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribution, error) {
 	enabled := state.Bool(keyPolicyEnabled)
 	if !enabled {
-		return nil
+		return nil, nil
 	}
 
 	sourcePath := state.String(keyPolicySourcePath)
@@ -82,12 +85,11 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribut
 		denyAction = "block"
 	}
 
-	return &initwiz.InitContribution{
-		PluginKey: pluginName,
-		Config: map[string]any{
-			"enabled":   true,
-			"sources":   []map[string]any{{"type": "path", "path": sourcePath}},
-			"decisions": map[string]any{"deny": denyAction},
+	return initwiz.NewInitContribution(pluginName, &policyengine.Config{
+		Enabled: true,
+		Sources: []policyengine.SourceConfig{
+			{Type: policyengine.SourceTypePath, Path: sourcePath},
 		},
-	}
+		Decisions: policyengine.Decisions{Deny: policyengine.Action(denyAction)},
+	})
 }

@@ -65,6 +65,7 @@ type InitContributorContract struct {
 	ExpectContribution bool
 	AssertGroups       func(testing.TB, []*initwiz.InitGroupSpec)
 	AssertContribution func(testing.TB, *initwiz.InitContribution)
+	DecodeTarget       any
 }
 
 // AssertInitContributor verifies that init groups have stable, usable shape
@@ -80,7 +81,30 @@ func AssertInitContributor(tb testing.TB, c InitContributorContract) {
 	if !sameInitGroupShape(firstGroups, secondGroups) {
 		tb.Fatalf("InitGroups() is not deterministic: first %#v, second %#v", initGroupShapes(firstGroups), initGroupShapes(secondGroups))
 	}
-	for _, group := range firstGroups {
+	assertInitGroupsUsable(tb, firstGroups)
+	if c.AssertGroups != nil {
+		c.AssertGroups(tb, firstGroups)
+	}
+
+	contribution, err := c.Contributor.BuildInitConfig(c.State)
+	if err != nil {
+		tb.Fatalf("BuildInitConfig() error = %v", err)
+	}
+	if !c.ExpectContribution {
+		if contribution != nil && c.AssertContribution == nil {
+			tb.Fatalf("BuildInitConfig() = %#v, want nil", contribution)
+		}
+		if c.AssertContribution != nil {
+			c.AssertContribution(tb, contribution)
+		}
+		return
+	}
+	assertInitContribution(tb, contribution, c)
+}
+
+func assertInitGroupsUsable(tb testing.TB, groups []*initwiz.InitGroupSpec) {
+	tb.Helper()
+	for _, group := range groups {
 		if group == nil {
 			tb.Fatal("InitGroups() contains nil group")
 			continue
@@ -97,28 +121,23 @@ func AssertInitContributor(tb testing.TB, c InitContributorContract) {
 			}
 		}
 	}
-	if c.AssertGroups != nil {
-		c.AssertGroups(tb, firstGroups)
-	}
+}
 
-	contribution := c.Contributor.BuildInitConfig(c.State)
-	if !c.ExpectContribution {
-		if contribution != nil && c.AssertContribution == nil {
-			tb.Fatalf("BuildInitConfig() = %#v, want nil", contribution)
-		}
-		if c.AssertContribution != nil {
-			c.AssertContribution(tb, contribution)
-		}
-		return
-	}
+func assertInitContribution(tb testing.TB, contribution *initwiz.InitContribution, c InitContributorContract) {
+	tb.Helper()
 	if contribution == nil {
 		tb.Fatal("BuildInitConfig() = nil")
 	}
-	if c.ExpectedPluginKey != "" && contribution.PluginKey != c.ExpectedPluginKey {
-		tb.Fatalf("BuildInitConfig().PluginKey = %q, want %q", contribution.PluginKey, c.ExpectedPluginKey)
+	if c.ExpectedPluginKey != "" && contribution.PluginKey() != c.ExpectedPluginKey {
+		tb.Fatalf("BuildInitConfig().PluginKey() = %q, want %q", contribution.PluginKey(), c.ExpectedPluginKey)
 	}
-	if contribution.Config == nil {
-		tb.Fatal("BuildInitConfig().Config = nil")
+	if contribution.ExtensionValue().Key() == "" {
+		tb.Fatal("BuildInitConfig().ExtensionValue().Key() is empty")
+	}
+	if c.DecodeTarget != nil {
+		if err := contribution.DecodeConfig(c.DecodeTarget); err != nil {
+			tb.Fatalf("BuildInitConfig().DecodeConfig() error = %v", err)
+		}
 	}
 	if c.AssertContribution != nil {
 		c.AssertContribution(tb, contribution)

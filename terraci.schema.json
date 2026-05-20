@@ -94,211 +94,6 @@
     },
     "extensions": {
       "properties": {
-        "diskblob": {
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "description": "Enable the built-in filesystem blob store backend",
-              "default": true
-            },
-            "root_dir": {
-              "type": "string",
-              "description": "Directory where blob objects are stored",
-              "default": "~/.terraci/blobs"
-            }
-          },
-          "type": "object"
-        },
-        "inmemcache": {
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "description": "Enable the built-in in-memory KV cache backend",
-              "default": true
-            }
-          },
-          "type": "object"
-        },
-        "summary": {
-          "properties": {
-            "enabled": {
-              "type": "boolean"
-            },
-            "on_changes_only": {
-              "type": "boolean"
-            },
-            "include_details": {
-              "type": "boolean"
-            },
-            "labels": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            }
-          },
-          "type": "object"
-        },
-        "cost": {
-          "properties": {
-            "blob_cache": {
-              "properties": {
-                "backend": {
-                  "type": "string",
-                  "description": "Blob cache backend plugin name; empty selects the single active blob store provider"
-                },
-                "namespace": {
-                  "type": "string",
-                  "description": "Blob cache namespace for pricing data",
-                  "default": "cost/pricing"
-                },
-                "ttl": {
-                  "type": "string",
-                  "description": "How long cached pricing is valid (e.g. 24h)",
-                  "default": "24h"
-                }
-              },
-              "type": "object",
-              "description": "Blob cache backend selection for pricing data"
-            },
-            "providers": {
-              "additionalProperties": {
-                "properties": {
-                  "enabled": {
-                    "type": "boolean",
-                    "description": "Enable this cloud provider",
-                    "default": false
-                  }
-                },
-                "type": "object"
-              },
-              "type": "object"
-            }
-          },
-          "type": "object"
-        },
-        "tfupdate": {
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "description": "Enable terraform dependency resolution",
-              "default": false
-            },
-            "target": {
-              "type": "string",
-              "enum": [
-                "modules",
-                "providers",
-                "all"
-              ],
-              "description": "What to inspect: modules providers or all",
-              "default": "all"
-            },
-            "ignore": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array",
-              "description": "Provider or module sources to ignore"
-            },
-            "pipeline": {
-              "type": "boolean",
-              "description": "Add tfupdate check job to CI pipeline",
-              "default": false
-            },
-            "timeout": {
-              "type": "string",
-              "description": "Overall timeout for a tfupdate run (e.g. 15m)"
-            },
-            "policy": {
-              "properties": {
-                "bump": {
-                  "type": "string",
-                  "enum": [
-                    "patch",
-                    "minor",
-                    "major"
-                  ],
-                  "description": "Version bump level: patch minor or major"
-                },
-                "pin": {
-                  "type": "boolean",
-                  "description": "Pin applied dependency constraints to an exact version",
-                  "default": false
-                }
-              },
-              "type": "object"
-            },
-            "registries": {
-              "properties": {
-                "default": {
-                  "type": "string",
-                  "description": "Default registry hostname for modules/providers without lock-based host information",
-                  "default": "registry.terraform.io"
-                },
-                "providers": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "type": "object",
-                  "description": "Registry hostname overrides keyed by normalized short provider source"
-                }
-              },
-              "type": "object"
-            },
-            "lock": {
-              "properties": {
-                "platforms": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array",
-                  "description": "Required platform set for provider h1 hashes"
-                }
-              },
-              "type": "object"
-            },
-            "cache": {
-              "properties": {
-                "metadata": {
-                  "properties": {
-                    "backend": {
-                      "type": "string",
-                      "description": "KV cache backend plugin name; empty selects the single active KV cache provider"
-                    },
-                    "ttl": {
-                      "type": "string",
-                      "description": "How long registry metadata stays cached",
-                      "default": "6h"
-                    },
-                    "namespace": {
-                      "type": "string",
-                      "description": "Namespace for tfupdate registry metadata cache",
-                      "default": "tfupdate/registry"
-                    }
-                  },
-                  "type": "object"
-                },
-                "artifacts": {
-                  "properties": {
-                    "backend": {
-                      "type": "string",
-                      "description": "Blob store backend plugin name; empty selects the single active blob store provider"
-                    },
-                    "namespace": {
-                      "type": "string",
-                      "description": "Namespace for cached provider archives and hashes",
-                      "default": "tfupdate/providers"
-                    }
-                  },
-                  "type": "object"
-                }
-              },
-              "type": "object"
-            }
-          },
-          "type": "object"
-        },
         "github": {
           "properties": {
             "runs_on": {
@@ -1210,6 +1005,211 @@
               "type": "string",
               "description": "Directory to cache materialized policies",
               "default": ".terraci/policies"
+            }
+          },
+          "type": "object"
+        },
+        "diskblob": {
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable the built-in filesystem blob store backend",
+              "default": true
+            },
+            "root_dir": {
+              "type": "string",
+              "description": "Directory where blob objects are stored",
+              "default": "~/.terraci/blobs"
+            }
+          },
+          "type": "object"
+        },
+        "inmemcache": {
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable the built-in in-memory KV cache backend",
+              "default": true
+            }
+          },
+          "type": "object"
+        },
+        "summary": {
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "on_changes_only": {
+              "type": "boolean"
+            },
+            "include_details": {
+              "type": "boolean"
+            },
+            "labels": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "cost": {
+          "properties": {
+            "blob_cache": {
+              "properties": {
+                "backend": {
+                  "type": "string",
+                  "description": "Blob cache backend plugin name; empty selects the single active blob store provider"
+                },
+                "namespace": {
+                  "type": "string",
+                  "description": "Blob cache namespace for pricing data",
+                  "default": "cost/pricing"
+                },
+                "ttl": {
+                  "type": "string",
+                  "description": "How long cached pricing is valid (e.g. 24h)",
+                  "default": "24h"
+                }
+              },
+              "type": "object",
+              "description": "Blob cache backend selection for pricing data"
+            },
+            "providers": {
+              "additionalProperties": {
+                "properties": {
+                  "enabled": {
+                    "type": "boolean",
+                    "description": "Enable this cloud provider",
+                    "default": false
+                  }
+                },
+                "type": "object"
+              },
+              "type": "object"
+            }
+          },
+          "type": "object"
+        },
+        "tfupdate": {
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable terraform dependency resolution",
+              "default": false
+            },
+            "target": {
+              "type": "string",
+              "enum": [
+                "modules",
+                "providers",
+                "all"
+              ],
+              "description": "What to inspect: modules providers or all",
+              "default": "all"
+            },
+            "ignore": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array",
+              "description": "Provider or module sources to ignore"
+            },
+            "pipeline": {
+              "type": "boolean",
+              "description": "Add tfupdate check job to CI pipeline",
+              "default": false
+            },
+            "timeout": {
+              "type": "string",
+              "description": "Overall timeout for a tfupdate run (e.g. 15m)"
+            },
+            "policy": {
+              "properties": {
+                "bump": {
+                  "type": "string",
+                  "enum": [
+                    "patch",
+                    "minor",
+                    "major"
+                  ],
+                  "description": "Version bump level: patch minor or major"
+                },
+                "pin": {
+                  "type": "boolean",
+                  "description": "Pin applied dependency constraints to an exact version",
+                  "default": false
+                }
+              },
+              "type": "object"
+            },
+            "registries": {
+              "properties": {
+                "default": {
+                  "type": "string",
+                  "description": "Default registry hostname for modules/providers without lock-based host information",
+                  "default": "registry.terraform.io"
+                },
+                "providers": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "description": "Registry hostname overrides keyed by normalized short provider source"
+                }
+              },
+              "type": "object"
+            },
+            "lock": {
+              "properties": {
+                "platforms": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "description": "Required platform set for provider h1 hashes"
+                }
+              },
+              "type": "object"
+            },
+            "cache": {
+              "properties": {
+                "metadata": {
+                  "properties": {
+                    "backend": {
+                      "type": "string",
+                      "description": "KV cache backend plugin name; empty selects the single active KV cache provider"
+                    },
+                    "ttl": {
+                      "type": "string",
+                      "description": "How long registry metadata stays cached",
+                      "default": "6h"
+                    },
+                    "namespace": {
+                      "type": "string",
+                      "description": "Namespace for tfupdate registry metadata cache",
+                      "default": "tfupdate/registry"
+                    }
+                  },
+                  "type": "object"
+                },
+                "artifacts": {
+                  "properties": {
+                    "backend": {
+                      "type": "string",
+                      "description": "Blob store backend plugin name; empty selects the single active blob store provider"
+                    },
+                    "namespace": {
+                      "type": "string",
+                      "description": "Namespace for cached provider archives and hashes",
+                      "default": "tfupdate/providers"
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              "type": "object"
             }
           },
           "type": "object"

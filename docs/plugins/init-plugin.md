@@ -95,22 +95,33 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
     }
 }
 
-// BuildInitConfig constructs the plugin's config from wizard state.
-func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribution {
+type SlackConfig struct {
+    Enabled   bool   `yaml:"enabled,omitempty"`
+    Channel   string `yaml:"channel,omitempty"`
+    OnFailure string `yaml:"on_failure,omitempty"`
+}
+
+func (c SlackConfig) Clone() SlackConfig { return c }
+
+// BuildInitConfig constructs the plugin's typed config from wizard state.
+func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribution, error) {
     if !state.Bool("slack.enabled") {
-        return nil
+        return nil, nil
     }
 
-    return &initwiz.InitContribution{
-        PluginKey: "slack",
-        Config: map[string]any{
-            "enabled":    true,
-            "channel":    state.String("slack.channel"),
-            "on_failure": state.String("slack.on_failure"),
-        },
-    }
+    return initwiz.NewInitContribution("slack", SlackConfig{
+        Enabled:   true,
+        Channel:   state.String("slack.channel"),
+        OnFailure: state.String("slack.on_failure"),
+    })
 }
 ```
+
+The contribution contract is typed end to end: plugin code returns a typed
+config struct, `initwiz.NewInitContribution` encodes it into a validated
+extension value, and core assembles the final file through `config.Build`.
+Skip optional config by returning `nil, nil`; return an error when the wizard
+state cannot produce a valid config.
 
 ## Form Categories
 
@@ -190,7 +201,8 @@ state.BoolPtr("key")    // stable *bool pointer for huh form
 
 ## Generated Config
 
-When the wizard completes, `BuildInitConfig` results are assembled into `.terraci.yaml`:
+When the wizard completes, typed `BuildInitConfig` contributions are assembled
+into `.terraci.yaml`:
 
 ```yaml
 structure:

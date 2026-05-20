@@ -30,7 +30,10 @@ func TestPlugin_BuildInitConfig_Enabled(t *testing.T) {
 	state := initwiz.NewStateMap()
 	state.Set("summary.enabled", true)
 
-	contrib := p.BuildInitConfig(state)
+	contrib, err := p.BuildInitConfig(state)
+	if err != nil {
+		t.Fatalf("BuildInitConfig() error = %v", err)
+	}
 	if contrib != nil {
 		t.Fatalf("BuildInitConfig() = %#v, want nil for default-enabled summary", contrib)
 	}
@@ -41,12 +44,19 @@ func TestPlugin_BuildInitConfig_Disabled(t *testing.T) {
 	state := initwiz.NewStateMap()
 	state.Set("summary.enabled", false)
 
-	contrib := p.BuildInitConfig(state)
+	contrib, err := p.BuildInitConfig(state)
+	if err != nil {
+		t.Fatalf("BuildInitConfig() error = %v", err)
+	}
 	if contrib == nil {
 		t.Fatal("BuildInitConfig() returned nil")
 	}
-	if got := contrib.Config["enabled"]; got != false {
-		t.Fatalf("Config[enabled] = %v, want false", got)
+	var summaryCfg summaryengine.Config
+	if err := contrib.DecodeConfig(&summaryCfg); err != nil {
+		t.Fatalf("DecodeConfig() error = %v", err)
+	}
+	if summaryCfg.Enabled == nil || *summaryCfg.Enabled {
+		t.Fatalf("Config.Enabled = %#v, want false", summaryCfg.Enabled)
 	}
 }
 
@@ -55,16 +65,25 @@ func TestPlugin_BuildInitConfig_DisabledRoundTripDisablesPlugin(t *testing.T) {
 	state := initwiz.NewStateMap()
 	state.Set("summary.enabled", false)
 
-	contrib := p.BuildInitConfig(state)
-	cfg, err := config.BuildConfig("{service}/{environment}/{region}/{module}", map[string]any{
-		"binary":       "terraform",
-		"plan_enabled": true,
-		"init_enabled": true,
-	}, map[string]map[string]any{
-		contrib.PluginKey: contrib.Config,
+	contrib, err := p.BuildInitConfig(state)
+	if err != nil {
+		t.Fatalf("BuildInitConfig() error = %v", err)
+	}
+	execution := config.DefaultConfig().Execution
+	execution.Binary = "terraform"
+	execution.PlanEnabled = true
+	execution.InitEnabled = true
+	extensions, err := config.NewExtensionSet(contrib.ExtensionValue())
+	if err != nil {
+		t.Fatalf("NewExtensionSet() error = %v", err)
+	}
+	cfg, err := config.Build(config.BuildOptions{
+		Pattern:    "{service}/{environment}/{region}/{module}",
+		Execution:  &execution,
+		Extensions: extensions,
 	})
 	if err != nil {
-		t.Fatalf("BuildConfig() error = %v", err)
+		t.Fatalf("Build() error = %v", err)
 	}
 	if err := p.DecodeAndSet(func(target any) error {
 		return cfg.Extension("summary", target)

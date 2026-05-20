@@ -59,19 +59,28 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
     }
 }
 
-func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribution {
+type SlackConfig struct {
+    Enabled bool   `yaml:"enabled,omitempty"`
+    Channel string `yaml:"channel,omitempty"`
+}
+
+func (c SlackConfig) Clone() SlackConfig { return c }
+
+func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribution, error) {
     if !state.Bool("slack.enabled") {
-        return nil
+        return nil, nil
     }
-    return &initwiz.InitContribution{
-        PluginKey: "slack",
-        Config: map[string]any{
-            "enabled": true,
-            "channel": state.String("slack.channel"),
-        },
-    }
+    return initwiz.NewInitContribution("slack", SlackConfig{
+        Enabled: true,
+        Channel: state.String("slack.channel"),
+    })
 }
 ```
+
+Контракт типизирован от начала до конца: плагин собирает typed config struct,
+`initwiz.NewInitContribution` кодирует его в валидированное extension value, а
+core собирает итоговый файл через `config.Build`. Чтобы пропустить опциональную
+секцию, верните `nil, nil`; если состояние wizard невалидно, верните ошибку.
 
 ## Категории форм
 

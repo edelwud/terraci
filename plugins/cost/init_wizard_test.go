@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/plugin/initwiz"
+	"github.com/edelwud/terraci/plugins/cost/internal/model"
 )
 
 func TestPlugin_InitGroups(t *testing.T) {
@@ -45,24 +46,27 @@ func TestPlugin_BuildInitConfig_Enabled(t *testing.T) {
 	state := initwiz.NewStateMap()
 	state.Set("cost.providers.aws.enabled", true)
 
-	contrib := p.BuildInitConfig(state)
+	contrib, err := p.BuildInitConfig(state)
+	if err != nil {
+		t.Fatalf("BuildInitConfig() error = %v", err)
+	}
 
 	if contrib == nil {
 		t.Fatal("BuildInitConfig() returned nil, want non-nil for enabled state")
 	}
-	if contrib.PluginKey != "cost" {
-		t.Errorf("PluginKey = %q, want %q", contrib.PluginKey, "cost")
+	if contrib.PluginKey() != "cost" {
+		t.Errorf("PluginKey() = %q, want %q", contrib.PluginKey(), "cost")
 	}
-	providers, ok := contrib.Config["providers"].(map[string]any)
-	if !ok {
-		t.Fatal("Config missing 'providers' key")
+	var cfg model.CostConfig
+	if err := contrib.DecodeConfig(&cfg); err != nil {
+		t.Fatalf("DecodeConfig() error = %v", err)
 	}
-	awsCfg, ok := providers["aws"].(map[string]any)
+	awsCfg, ok := cfg.Providers["aws"]
 	if !ok {
 		t.Fatal("Config missing providers.aws")
 	}
-	if awsCfg["enabled"] != true {
-		t.Errorf("Config[providers][aws][enabled] = %v, want true", awsCfg["enabled"])
+	if !awsCfg.Enabled {
+		t.Errorf("Config providers.aws.enabled = false, want true")
 	}
 }
 
@@ -71,7 +75,10 @@ func TestPlugin_BuildInitConfig_Disabled(t *testing.T) {
 	state := initwiz.NewStateMap()
 	state.Set("cost.providers.aws.enabled", false)
 
-	contrib := p.BuildInitConfig(state)
+	contrib, err := p.BuildInitConfig(state)
+	if err != nil {
+		t.Fatalf("BuildInitConfig() error = %v", err)
+	}
 
 	if contrib != nil {
 		t.Errorf("BuildInitConfig() = %v, want nil for disabled state", contrib)
@@ -83,7 +90,10 @@ func TestPlugin_BuildInitConfig_NotSet(t *testing.T) {
 	state := initwiz.NewStateMap()
 	// No key set — Bool("cost.providers.aws.enabled") returns false
 
-	contrib := p.BuildInitConfig(state)
+	contrib, err := p.BuildInitConfig(state)
+	if err != nil {
+		t.Fatalf("BuildInitConfig() error = %v", err)
+	}
 
 	if contrib != nil {
 		t.Errorf("BuildInitConfig() = %v, want nil for unset state", contrib)

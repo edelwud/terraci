@@ -107,6 +107,13 @@ func TestArchitecture_ConfigSnapshotAndDocs(t *testing.T) {
 		"FlagOverridable",
 		"shared *config.Config",
 		"ctx.Config() (`*config.Config`",
+		"BuildConfig(",
+		"BuildConfig(pattern",
+		"BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribution",
+		"BuildInitConfig(state *initwiz.StateMap) *InitContribution",
+		"&initwiz.InitContribution",
+		"Config: map[string]any",
+		"map[string]map[string]any",
 		"return &pipeline.Contribution",
 		"Jobs: []pipeline.ContributedJob",
 		"PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribution",
@@ -133,6 +140,40 @@ func TestArchitecture_ConfigSnapshotAndDocs(t *testing.T) {
 
 	if len(violations) > 0 {
 		t.Fatalf("config snapshot/documentation violations:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
+func TestArchitecture_InitExtensionContracts(t *testing.T) {
+	root := repoRoot(t)
+	var violations []string
+
+	for _, rel := range goFiles(t, root, "pkg", "plugins", "cmd") {
+		if !isProductionFile(rel) || !isInitWizardProductionFile(rel) {
+			continue
+		}
+		file := parseGoFile(t, filepath.Join(root, rel), 0)
+		initwizAliases := importAliases(file, moduleImportPath+"/pkg/plugin/initwiz")
+		ast.Inspect(file, func(node ast.Node) bool {
+			switch n := node.(type) {
+			case *ast.CallExpr:
+				if isBuildConfigCall(n) {
+					violations = append(violations, rel+" calls config.BuildConfig; use config.NewExtensionValue/NewExtensionSet and config.Build")
+				}
+			case *ast.CompositeLit:
+				if isMapStringAny(n.Type) || isMapStringMapStringAny(n.Type) {
+					violations = append(violations, rel+" constructs untyped init extension config map; use a typed config struct or typed map values")
+					return true
+				}
+				if isInitContributionLiteral(n.Type, initwizAliases) {
+					violations = append(violations, rel+" manually constructs initwiz.InitContribution; use initwiz.NewInitContribution")
+				}
+			}
+			return true
+		})
+	}
+
+	if len(violations) > 0 {
+		t.Fatalf("init extension contract violations:\n%s", strings.Join(violations, "\n"))
 	}
 }
 
@@ -249,6 +290,59 @@ func containsConfigCall(expr ast.Expr) bool {
 		return !found
 	})
 	return found
+}
+
+func isInitWizardProductionFile(rel string) bool {
+	return strings.HasSuffix(rel, "/init_wizard.go") ||
+		rel == "cmd/terraci/cmd/init.go" ||
+		rel == "cmd/terraci/cmd/init_tui.go" ||
+		strings.HasPrefix(rel, "pkg/plugin/initwiz/")
+}
+
+func isBuildConfigCall(call *ast.CallExpr) bool {
+	switch fun := call.Fun.(type) {
+	case *ast.Ident:
+		return fun.Name == "BuildConfig"
+	case *ast.SelectorExpr:
+		return fun.Sel.Name == "BuildConfig"
+	default:
+		return false
+	}
+}
+
+func isMapStringMapStringAny(expr ast.Expr) bool {
+	mapType, ok := expr.(*ast.MapType)
+	if !ok || !isStringIdent(mapType.Key) {
+		return false
+	}
+	return isMapStringAny(mapType.Value)
+}
+
+func isMapStringAny(expr ast.Expr) bool {
+	mapType, ok := expr.(*ast.MapType)
+	if !ok {
+		return false
+	}
+	return isStringIdent(mapType.Key) && isAnyIdent(mapType.Value)
+}
+
+func isStringIdent(expr ast.Expr) bool {
+	ident, ok := expr.(*ast.Ident)
+	return ok && ident.Name == "string"
+}
+
+func isAnyIdent(expr ast.Expr) bool {
+	ident, ok := expr.(*ast.Ident)
+	return ok && ident.Name == "any"
+}
+
+func isInitContributionLiteral(expr ast.Expr, initwizAliases map[string]bool) bool {
+	selector, ok := expr.(*ast.SelectorExpr)
+	if !ok || selector.Sel.Name != "InitContribution" {
+		return false
+	}
+	ident, ok := selector.X.(*ast.Ident)
+	return ok && initwizAliases[ident.Name]
 }
 
 func importPath(tb testing.TB, spec *ast.ImportSpec) string {
