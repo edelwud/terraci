@@ -251,7 +251,10 @@ extensions:
 `)
 
 	plugins := appCtx.Resolver().(*registry.Registry)
-	contributions := plugins.CollectContributions(appCtx)
+	contributions, err := plugins.CollectContributions(appCtx)
+	if err != nil {
+		t.Fatalf("CollectContributions() error = %v", err)
+	}
 	if len(contributions) != 4 {
 		t.Fatalf("CollectContributions() returned %d contributions, want 4", len(contributions))
 	}
@@ -292,7 +295,10 @@ extensions:
 `)
 
 	plugins := appCtx.Resolver().(*registry.Registry)
-	contributions := plugins.CollectContributions(appCtx)
+	contributions, err := plugins.CollectContributions(appCtx)
+	if err != nil {
+		t.Fatalf("CollectContributions() error = %v", err)
+	}
 	for _, contrib := range contributions {
 		for _, job := range contrib.Jobs() {
 			if job.Name() == "tfupdate-check" {

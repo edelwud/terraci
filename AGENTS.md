@@ -289,7 +289,7 @@ Built-in plugins and examples keep domain-specific tests local, but SDK boundary
 
 ### Resolver
 
-The single `plugin.Resolver` interface combines lookup (`All`, `GetPlugin`) with capability resolution (`ResolveCIProvider`, `ResolveChangeDetector`, `ResolveKVCacheProvider`, `ResolveBlobStoreProvider`, `CollectContributions`, `PreflightsForStartup`). `*registry.Registry` is the production implementation; `plugin.NoopResolver` is the default-deny fallback.
+The `plugin.Resolver` interface exposes plugin-visible capability resolution (`ResolveCIProvider`, `ResolveChangeDetector`, `ResolveKVCacheProvider`, `ResolveBlobStoreProvider`). `*registry.Registry` is the production resolver and also owns framework-only catalog operations such as `CollectContributions(ctx) ([]*pipeline.Contribution, error)` and `PreflightsForStartup()`. `plugin.NoopResolver` is the default-deny fallback.
 
 ### Shared Types
 
@@ -314,9 +314,10 @@ The IR is the **single source** for downstream consumers — `pipeline.Generator
 
 Shell rendering (`cd module && ${TERRAFORM_BINARY} init && plan -out=…`) lives in `pkg/pipeline/cishell` (`cishell.RenderOperation(op)`) — never in the IR package itself. Providers driving Terraform via tfexec instead of shell don't need cishell.
 
-Plugins contribute via `PipelineContributor.PipelineContribution(ctx)`:
+Plugins contribute via `PipelineContributor.PipelineContribution(ctx) (*pipeline.Contribution, error)`:
 - `pipeline.NewPluginCommandJob(...)` / `pipeline.NewContributedJob(...)` build validated standalone DAG jobs with typed resource inputs/outputs.
 - `pipeline.NewContribution(jobs...)` builds the immutable contribution value; consumers use `Contribution.Jobs()` and job getters.
+- returning `nil, nil` is invalid; use `PipelineContributionGate` for optional contribution and return real builder errors for diagnostics.
 
 ### Provider Resolution
 
@@ -389,7 +390,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 ### Generate pipeline
 1. `workflow.Run(ctx, opts)` — scan → filter → parse → graph
 2. `workflow.ChangeDetector.DetectChanges()` via `plugin.ChangeDetectionProvider` (if --changed-only) — one VCS diff returns changed files, modules, and library paths
-3. `app.Plugins.CollectContributions(appCtx)` — gather a command-scoped snapshot of PipelineContributor jobs
+3. `app.Plugins.CollectContributions(appCtx)` — gather a command-scoped snapshot of PipelineContributor jobs or fail on invalid contributions
 4. `pipeline.Build(opts)` — construct provider-agnostic IR
 5. `provider.NewGenerator(appCtx, ir)` — bind IR to provider; `generator.Generate()` writes YAML
 
@@ -428,7 +429,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **Canonical dry-run source**: dry-run stage/job counts derive from `*IR.DryRun(totalModules)`.
 - **Preflight, then lazy runtime**: framework performs cheap startup validation; heavy plugin state is built lazily inside RuntimeProvider/use-cases. Runtime must be command-agnostic; CLI overrides live in typed request structs.
 - **Command/usecase boundary**: command callbacks use `plugin.CommandPlugin[T]` and `plugin.RequireEnabled`, parse flags into request structs, call a usecase, then handle artifact persistence and output explicitly.
-- **PipelineContributor(ctx)**: plugins add standalone DAG jobs through `pipeline.NewPluginCommandJob` + `pipeline.NewContribution`, without cross-plugin imports or cached service-dir state
+- **PipelineContributor(ctx)**: plugins add standalone DAG jobs through `pipeline.NewPluginCommandJob` + `pipeline.NewContribution`, return builder errors, and use `PipelineContributionGate` for optional jobs; `nil, nil` is invalid
 - **ServiceDir**: configurable project directory; `AppContext.ServiceDir` (absolute) for runtime, `AppContext.Config().ServiceDir()` (relative) for pipeline templates
 - **Immutable config boundary**: `Config.Clone()` and `config.Snapshot` own deep-copy semantics. `AppContext` stores a snapshot; plugin code reads through accessors and only uses `MutableCopy()` for legacy pointer-shaped APIs.
 - **Command boundary**: plugin command callbacks use `plugin.CommandPlugin[T](cmd, name)` and `plugin.RequireEnabled(...)`; low-level cobra context binding is framework-owned. Command binding and disabled-plugin failures are typed errors.

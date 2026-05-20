@@ -27,9 +27,12 @@ func AssertPipelineContributor(tb testing.TB, c PipelineContributorContract) {
 		appCtx = plugin.NewAppContext(plugin.AppContextOptions{})
 	}
 
-	first := c.Contributor.PipelineContribution(appCtx)
+	first, err := c.Contributor.PipelineContribution(appCtx)
+	if err != nil {
+		tb.Fatalf("PipelineContribution() error = %v", err)
+	}
 	if first == nil {
-		tb.Fatal("PipelineContribution() = nil")
+		tb.Fatal("PipelineContribution() = nil contribution")
 	}
 	gotNames := contributedJobNames(first)
 	if len(c.ExpectedJobNames) > 0 && !slices.Equal(gotNames, c.ExpectedJobNames) {
@@ -41,9 +44,12 @@ func AssertPipelineContributor(tb testing.TB, c PipelineContributorContract) {
 		}
 	}
 
-	second := c.Contributor.PipelineContribution(appCtx)
+	second, err := c.Contributor.PipelineContribution(appCtx)
+	if err != nil {
+		tb.Fatalf("second PipelineContribution() error = %v", err)
+	}
 	if second == nil {
-		tb.Fatal("second PipelineContribution() = nil")
+		tb.Fatal("second PipelineContribution() = nil contribution")
 	}
 	if gotAgain := contributedJobNames(second); !slices.Equal(gotAgain, gotNames) {
 		tb.Fatalf("PipelineContribution() job names are not deterministic: first %v, second %v", gotNames, gotAgain)

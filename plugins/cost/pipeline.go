@@ -1,6 +1,9 @@
 package cost
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
@@ -17,9 +20,9 @@ var (
 
 // PipelineContribution adds a cost estimation job to the pipeline DAG.
 // Framework guarantees this is only called when IsEnabled() == true.
-func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribution {
+func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) (*pipeline.Contribution, error) {
 	if ctx == nil || !ctx.Config().Present() {
-		return nil
+		return nil, errors.New("app config is required")
 	}
 	serviceDir := ctx.Config().ServiceDir()
 	job, err := pipeline.NewPluginCommandJob(pipeline.PluginCommandJobOptions{
@@ -34,11 +37,11 @@ func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribu
 		AllowFailure: true,
 	})
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("build cost pipeline job: %w", err)
 	}
 	contribution, err := pipeline.NewContribution(job)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("build cost pipeline contribution: %w", err)
 	}
-	return contribution
+	return contribution, nil
 }

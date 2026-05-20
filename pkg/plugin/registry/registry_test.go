@@ -2,6 +2,7 @@ package registry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -61,13 +62,26 @@ func (p *testPreflightPlugin) Preflight(_ context.Context, _ *plugin.AppContext)
 // testContributorPlugin implements PipelineContributor + ConfigLoader for testing.
 type testContributorPlugin struct {
 	plugin.BasePlugin[*testConfig]
-	contribution *pipeline.Contribution
-	seenCtx      *plugin.AppContext
+	contribution    *pipeline.Contribution
+	contributionErr error
+	gateEnabled     *bool
+	gateErr         error
+	seenCtx         *plugin.AppContext
 }
 
-func (p *testContributorPlugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribution {
+func (p *testContributorPlugin) PipelineContribution(ctx *plugin.AppContext) (*pipeline.Contribution, error) {
 	p.seenCtx = ctx
-	return p.contribution
+	return p.contribution, p.contributionErr
+}
+
+func (p *testContributorPlugin) PipelineContributionEnabled(*plugin.AppContext) (bool, error) {
+	if p.gateErr != nil {
+		return false, p.gateErr
+	}
+	if p.gateEnabled == nil {
+		return true, nil
+	}
+	return *p.gateEnabled, nil
 }
 
 type testKVCacheProvider struct {
@@ -448,7 +462,10 @@ func TestCollectContributions_Empty(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
 
-	contribs := New().CollectContributions(nil)
+	contribs, err := New().CollectContributions(nil)
+	if err != nil {
+		t.Fatalf("CollectContributions() error = %v", err)
+	}
 	if len(contribs) != 0 {
 		t.Errorf("expected 0 contributions, got %d", len(contribs))
 	}
@@ -537,7 +554,10 @@ func TestCollectContributions_FiltersDisabledPlugins(t *testing.T) {
 		Version:    "test",
 		Reports:    ci.NewFileReportStore("/service"),
 	})
-	contribs := plugins.CollectContributions(appCtx)
+	contribs, err := plugins.CollectContributions(appCtx)
+	if err != nil {
+		t.Fatalf("CollectContributions() error = %v", err)
+	}
 	if len(contribs) != 1 {
 		t.Fatalf("expected 1 contribution, got %d", len(contribs))
 	}
@@ -548,6 +568,66 @@ func TestCollectContributions_FiltersDisabledPlugins(t *testing.T) {
 	if enabled.seenCtx != appCtx {
 		t.Fatal("enabled contributor did not receive app context")
 	}
+}
+
+func TestCollectContributions_GateFalseSkipsContributor(t *testing.T) {
+	t.Cleanup(func() { Reset() })
+	Reset()
+
+	gateEnabled := false
+	contributor := newEnabledContributor(t, "gated", mustContribution(t, "gated-job"))
+	contributor.gateEnabled = &gateEnabled
+
+	contribs, err := NewFromFactories(func() plugin.Plugin { return contributor }).CollectContributions(nil)
+	if err != nil {
+		t.Fatalf("CollectContributions() error = %v", err)
+	}
+	if len(contribs) != 0 {
+		t.Fatalf("CollectContributions() returned %d contributions, want 0", len(contribs))
+	}
+	if contributor.seenCtx != nil {
+		t.Fatal("PipelineContribution() was called even though gate returned false")
+	}
+}
+
+func TestCollectContributions_GateErrorIsTyped(t *testing.T) {
+	t.Cleanup(func() { Reset() })
+	Reset()
+
+	gateErr := errors.New("gate failed")
+	contributor := newEnabledContributor(t, "broken-gate", mustContribution(t, "job"))
+	contributor.gateErr = gateErr
+
+	_, err := NewFromFactories(func() plugin.Plugin { return contributor }).CollectContributions(nil)
+	assertPipelineContributionError(t, err, "broken-gate", plugin.PipelineContributionPhaseGate, gateErr)
+}
+
+func TestCollectContributions_ContributorErrorIsTyped(t *testing.T) {
+	t.Cleanup(func() { Reset() })
+	Reset()
+
+	contributionErr := errors.New("job build failed")
+	contributor := newEnabledContributor(t, "broken-contribution", nil)
+	contributor.contributionErr = contributionErr
+
+	_, err := NewFromFactories(func() plugin.Plugin { return contributor }).CollectContributions(nil)
+	assertPipelineContributionError(t, err, "broken-contribution", plugin.PipelineContributionPhaseContribution, contributionErr)
+}
+
+func TestCollectContributions_NilContributionIsError(t *testing.T) {
+	t.Cleanup(func() { Reset() })
+	Reset()
+
+	contributor := newEnabledContributor(t, "nil-contribution", nil)
+
+	_, err := NewFromFactories(func() plugin.Plugin { return contributor }).CollectContributions(nil)
+	assertPipelineContributionError(
+		t,
+		err,
+		"nil-contribution",
+		plugin.PipelineContributionPhaseContribution,
+		plugin.ErrNilPipelineContribution,
+	)
 }
 
 func TestCollectContributions_IncludesPluginWithoutConfigLoader(t *testing.T) {
@@ -566,9 +646,56 @@ func TestCollectContributions_IncludesPluginWithoutConfigLoader(t *testing.T) {
 
 	// bareContributor doesn't satisfy PipelineContributor since it doesn't have PipelineContribution()
 	// So CollectContributions won't find it — this is expected behavior
-	contribs := NewFromFactories(func() plugin.Plugin { return p }).CollectContributions(nil)
+	contribs, err := NewFromFactories(func() plugin.Plugin { return p }).CollectContributions(nil)
+	if err != nil {
+		t.Fatalf("CollectContributions() error = %v", err)
+	}
 	if len(contribs) != 0 {
 		t.Errorf("expected 0 contributions from bare plugin, got %d", len(contribs))
+	}
+}
+
+func newEnabledContributor(tb testing.TB, name string, contribution *pipeline.Contribution) *testContributorPlugin {
+	tb.Helper()
+	contributor := &testContributorPlugin{
+		BasePlugin: plugin.BasePlugin[*testConfig]{
+			PluginName: name,
+			PluginDesc: name + " plugin",
+			EnableMode: plugin.EnabledExplicitly,
+			DefaultCfg: func() *testConfig { return &testConfig{} },
+			IsEnabledFn: func(cfg *testConfig) bool {
+				return cfg != nil && cfg.Enabled
+			},
+		},
+		contribution: contribution,
+	}
+	contributor.SetTypedConfig(&testConfig{Enabled: true})
+	return contributor
+}
+
+func assertPipelineContributionError(
+	tb testing.TB,
+	err error,
+	wantPlugin string,
+	wantPhase plugin.PipelineContributionPhase,
+	wantWrapped error,
+) {
+	tb.Helper()
+	if err == nil {
+		tb.Fatal("CollectContributions() error = nil")
+	}
+	var contributionErr *plugin.PipelineContributionError
+	if !errors.As(err, &contributionErr) {
+		tb.Fatalf("CollectContributions() error type = %T, want *plugin.PipelineContributionError", err)
+	}
+	if contributionErr.Plugin != wantPlugin {
+		tb.Fatalf("PipelineContributionError.Plugin = %q, want %q", contributionErr.Plugin, wantPlugin)
+	}
+	if contributionErr.Phase != wantPhase {
+		tb.Fatalf("PipelineContributionError.Phase = %q, want %q", contributionErr.Phase, wantPhase)
+	}
+	if !errors.Is(err, wantWrapped) {
+		tb.Fatalf("CollectContributions() error = %v, want wrapping %v", err, wantWrapped)
 	}
 }
 

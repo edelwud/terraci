@@ -37,7 +37,7 @@ import (
     "github.com/edelwud/terraci/pkg/plugin"
 )
 
-func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribution {
+func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) (*pipeline.Contribution, error) {
     serviceDir := ctx.Config().ServiceDir()
 
     job, err := pipeline.NewPluginCommandJob(pipeline.PluginCommandJobOptions{
@@ -55,13 +55,13 @@ func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribu
         },
     })
     if err != nil {
-        return nil
+        return nil, err
     }
     contribution, err := pipeline.NewContribution(job)
     if err != nil {
-        return nil
+        return nil, err
     }
-    return contribution
+    return contribution, nil
 }
 ```
 
@@ -79,6 +79,8 @@ func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribu
 Use `pipeline.NewPluginCommandJob` or `pipeline.NewContributedJob` to build the
 job, then `pipeline.NewContribution(job)` to return it. Consumers inspect jobs
 through `Contribution.Jobs()` and `ContributedJob` getters.
+Return builder errors directly; returning `nil, nil` is invalid. Optional jobs
+should opt out through `plugin.PipelineContributionGate`.
 
 ## Resource Requests
 
@@ -107,7 +109,7 @@ A summary job does not need a special phase. It lands at the end of the DAG
 because it consumes resources produced by earlier jobs:
 
 ```go
-func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contribution {
+func (p *Plugin) PipelineContribution(_ *plugin.AppContext) (*pipeline.Contribution, error) {
     job, err := pipeline.NewPluginCommandJob(pipeline.PluginCommandJobOptions{
         Name:     "terraci-summary",
         Commands: []string{"terraci summary"},
@@ -117,13 +119,13 @@ func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contributi
         },
     })
     if err != nil {
-        return nil
+        return nil, err
     }
     contribution, err := pipeline.NewContribution(job)
     if err != nil {
-        return nil
+        return nil, err
     }
-    return contribution
+    return contribution, nil
 }
 ```
 
@@ -133,9 +135,9 @@ The registry calls `PipelineContribution` only for enabled plugin configs. If
 your plugin has an extra pipeline toggle, implement `plugin.PipelineContributionGate`:
 
 ```go
-func (p *Plugin) PipelineContributionEnabled(_ *plugin.AppContext) bool {
+func (p *Plugin) PipelineContributionEnabled(_ *plugin.AppContext) (bool, error) {
     cfg := p.Config()
-    return cfg != nil && cfg.Pipeline
+    return cfg != nil && cfg.Pipeline, nil
 }
 ```
 

@@ -18,8 +18,10 @@ func TestPlugin_PipelineContribution(t *testing.T) {
 		ExpectedJobNames: []string{"cost-estimation"},
 	})
 
-	contrib := p.PipelineContribution(appCtx)
-
+	contrib, err := p.PipelineContribution(appCtx)
+	if err != nil {
+		t.Fatalf("PipelineContribution() error = %v", err)
+	}
 	if contrib == nil {
 		t.Fatal("PipelineContribution() returned nil")
 	}
@@ -77,7 +79,10 @@ func TestPlugin_PipelineContribution_EmptyServiceDir(t *testing.T) {
 		Resolver:   base.Resolver(),
 	})
 
-	contrib := p.PipelineContribution(appCtx)
+	contrib, err := p.PipelineContribution(appCtx)
+	if err != nil {
+		t.Fatalf("PipelineContribution() error = %v", err)
+	}
 	job := contrib.Jobs()[0]
 
 	wantPaths := []string{resultsFile, reportFile}

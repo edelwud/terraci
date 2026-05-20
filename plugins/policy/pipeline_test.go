@@ -20,7 +20,10 @@ func TestPlugin_PipelineContribution_UsesAppContextServiceDir(t *testing.T) {
 		ExpectedJobNames: []string{"policy-check"},
 	})
 
-	contrib := p.PipelineContribution(appCtx)
+	contrib, err := p.PipelineContribution(appCtx)
+	if err != nil {
+		t.Fatalf("PipelineContribution() error = %v", err)
+	}
 	if contrib == nil {
 		t.Fatal("PipelineContribution() returned nil")
 	}

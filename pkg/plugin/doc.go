@@ -27,7 +27,7 @@
 //   - commands.go     — CommandProvider with thin cobra/request parsing
 //   - runtime.go      — lazy immutable RuntimeProvider implementation
 //   - usecases.go     — typed Request/Result orchestration over runtime
-//   - pipeline.go     — PipelineContributor (pipeline DAG jobs)
+//   - pipeline.go     — PipelineContributor (pipeline DAG jobs; return builder errors)
 //   - init_wizard.go  — initwiz.InitContributor (TUI form fields)
 //   - output.go       — CLI rendering helpers
 //   - report.go       — render-ready CI report assembly via ci.NewRenderedReport
@@ -83,6 +83,15 @@
 // RuntimeProvider implementations should build immutable dependencies and
 // normalized config only. Command-specific overrides belong in the request, so
 // repeated command invocations cannot leak mutable runtime state.
+//
+// # Pipeline contribution boundary
+//
+// PipelineContributor implementations return (*pipeline.Contribution, error).
+// Build jobs with pipeline.NewPluginCommandJob or pipeline.NewContributedJob,
+// wrap them with pipeline.NewContribution, and return any builder error. A
+// nil contribution with nil error is invalid; optional jobs belong behind
+// PipelineContributionGate so the framework can distinguish "not enabled for
+// this run" from "broken contribution".
 //
 // # SDK contract tests
 //

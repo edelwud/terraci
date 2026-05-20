@@ -109,6 +109,11 @@ func TestArchitecture_ConfigSnapshotAndDocs(t *testing.T) {
 		"ctx.Config() (`*config.Config`",
 		"return &pipeline.Contribution",
 		"Jobs: []pipeline.ContributedJob",
+		"PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribution",
+		"PipelineContribution(_ *plugin.AppContext) *pipeline.Contribution",
+		"PipelineContributionEnabled(_ *plugin.AppContext) bool",
+		"CollectContributions(ctx *plugin.AppContext) []*pipeline.Contribution",
+		"resolver.CollectContributions",
 	}
 	for _, rel := range textFiles(t, root, "AGENTS.md", "docs", "examples", "pkg/plugin/doc.go") {
 		if strings.HasPrefix(rel, "docs/.vitepress/dist/") {

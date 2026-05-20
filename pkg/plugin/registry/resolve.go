@@ -195,21 +195,44 @@ func (r *Registry) PreflightsForStartup() []plugin.Preflightable {
 
 // CollectContributions gathers pipeline contributions from all enabled
 // PipelineContributor plugins in this registry.
-func (r *Registry) CollectContributions(ctx *plugin.AppContext) []*pipeline.Contribution {
+func (r *Registry) CollectContributions(ctx *plugin.AppContext) ([]*pipeline.Contribution, error) {
 	contributors := ByCapabilityFrom[plugin.PipelineContributor](r)
 	contributions := make([]*pipeline.Contribution, 0, len(contributors))
 	for _, c := range contributors {
 		if !isPluginEnabled(c) {
 			continue
 		}
-		if gate, ok := c.(plugin.PipelineContributionGate); ok && !gate.PipelineContributionEnabled(ctx) {
-			continue
+		if gate, ok := c.(plugin.PipelineContributionGate); ok {
+			enabled, err := gate.PipelineContributionEnabled(ctx)
+			if err != nil {
+				return nil, &plugin.PipelineContributionError{
+					Plugin: c.Name(),
+					Phase:  plugin.PipelineContributionPhaseGate,
+					Err:    err,
+				}
+			}
+			if !enabled {
+				continue
+			}
 		}
-		if contrib := c.PipelineContribution(ctx); contrib != nil {
-			contributions = append(contributions, contrib)
+		contrib, err := c.PipelineContribution(ctx)
+		if err != nil {
+			return nil, &plugin.PipelineContributionError{
+				Plugin: c.Name(),
+				Phase:  plugin.PipelineContributionPhaseContribution,
+				Err:    err,
+			}
 		}
+		if contrib == nil {
+			return nil, &plugin.PipelineContributionError{
+				Plugin: c.Name(),
+				Phase:  plugin.PipelineContributionPhaseContribution,
+				Err:    plugin.ErrNilPipelineContribution,
+			}
+		}
+		contributions = append(contributions, contrib)
 	}
-	return contributions
+	return contributions, nil
 }
 
 func findProvider(candidates []ciProviderPlugin, name string) (*plugin.ResolvedCIProvider, error) {

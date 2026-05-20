@@ -107,7 +107,10 @@ Features:
 				log.Debug("skipping plugin preflight per command annotation")
 			}
 
-			contributions := app.Plugins.CollectContributions(appCtx)
+			contributions, err := app.Plugins.CollectContributions(appCtx)
+			if err != nil {
+				return err
+			}
 			if len(contributions) > 0 {
 				appCtx = appCtx.WithPipelineContributions(contributions)
 				cmd.SetContext(plugin.WithContext(cmd.Context(), appCtx))

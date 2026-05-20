@@ -195,7 +195,6 @@ ResolveCIProvider() (*plugin.ResolvedCIProvider, error)
 ResolveChangeDetector() (plugin.ChangeDetectionProvider, error) // embeds workflow.ChangeDetector
 ResolveKVCacheProvider(name string) (plugin.KVCacheProvider, error)
 ResolveBlobStoreProvider(name string) (plugin.BlobStoreProvider, error)
-CollectContributions(ctx *plugin.AppContext) []*pipeline.Contribution
 PreflightsForStartup() []plugin.Preflightable
 ```
 

@@ -1,6 +1,8 @@
 package policy
 
 import (
+	"fmt"
+
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
@@ -17,7 +19,7 @@ var (
 
 // PipelineContribution adds a policy-check job to the pipeline DAG.
 // Framework guarantees this is only called when IsEnabled() == true.
-func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribution {
+func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) (*pipeline.Contribution, error) {
 	serviceDir := ""
 	if ctx != nil && ctx.Config().Present() {
 		serviceDir = ctx.Config().ServiceDir()
@@ -36,11 +38,11 @@ func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribu
 		AllowFailure: allowFailure,
 	})
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("build policy pipeline job: %w", err)
 	}
 	contribution, err := pipeline.NewContribution(job)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("build policy pipeline contribution: %w", err)
 	}
-	return contribution
+	return contribution, nil
 }

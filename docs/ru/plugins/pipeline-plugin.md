@@ -30,7 +30,7 @@ Pipeline-плагины добавляют standalone DAG-джобы в provider
 ## Пример Job
 
 ```go
-func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribution {
+func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) (*pipeline.Contribution, error) {
     serviceDir := ctx.Config().ServiceDir()
 
     job, err := pipeline.NewPluginCommandJob(pipeline.PluginCommandJobOptions{
@@ -48,13 +48,13 @@ func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribu
         },
     })
     if err != nil {
-        return nil
+        return nil, err
     }
     contribution, err := pipeline.NewContribution(job)
     if err != nil {
-        return nil
+        return nil, err
     }
-    return contribution
+    return contribution, nil
 }
 ```
 
@@ -72,6 +72,8 @@ func (p *Plugin) PipelineContribution(ctx *plugin.AppContext) *pipeline.Contribu
 Job создаётся через `pipeline.NewPluginCommandJob` или
 `pipeline.NewContributedJob`, затем оборачивается в `pipeline.NewContribution`.
 Consumers читают через `Contribution.Jobs()` и getters.
+Ошибки builder'ов возвращаются наружу; `nil, nil` запрещён. Optional jobs
+отключаются через `plugin.PipelineContributionGate`.
 
 ## Resources
 
@@ -92,7 +94,7 @@ Summary не требует специальной фазы. Она оказыв
 читает ресурсы, которые производят предыдущие jobs:
 
 ```go
-func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contribution {
+func (p *Plugin) PipelineContribution(_ *plugin.AppContext) (*pipeline.Contribution, error) {
     job, err := pipeline.NewPluginCommandJob(pipeline.PluginCommandJobOptions{
         Name:     "terraci-summary",
         Commands: []string{"terraci summary"},
@@ -102,13 +104,13 @@ func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contributi
         },
     })
     if err != nil {
-        return nil
+        return nil, err
     }
     contribution, err := pipeline.NewContribution(job)
     if err != nil {
-        return nil
+        return nil, err
     }
-    return contribution
+    return contribution, nil
 }
 ```
 
@@ -118,9 +120,9 @@ Registry вызывает `PipelineContribution` только для enabled plu
 есть отдельный `pipeline` toggle, реализуйте `plugin.PipelineContributionGate`:
 
 ```go
-func (p *Plugin) PipelineContributionEnabled(_ *plugin.AppContext) bool {
+func (p *Plugin) PipelineContributionEnabled(_ *plugin.AppContext) (bool, error) {
     cfg := p.Config()
-    return cfg != nil && cfg.Pipeline
+    return cfg != nil && cfg.Pipeline, nil
 }
 ```
 

@@ -143,12 +143,17 @@ func (p *Plugin) Preflight(_ context.Context, _ *plugin.AppContext) error {
 Чтобы ваша команда выполнялась как шаг в генерируемых пайплайнах, реализуйте `PipelineContributor` вместе с `CommandProvider`:
 
 ```go
-import "github.com/edelwud/terraci/pkg/pipeline"
+import (
+    "fmt"
 
-func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contribution {
+    "github.com/edelwud/terraci/pkg/pipeline"
+    "github.com/edelwud/terraci/pkg/plugin"
+)
+
+func (p *Plugin) PipelineContribution(_ *plugin.AppContext) (*pipeline.Contribution, error) {
     cfg := p.Config()
-    if cfg == nil || !cfg.Pipeline {
-        return nil
+    if cfg == nil {
+        return nil, fmt.Errorf("slack config is required")
     }
 
     job, err := pipeline.NewPluginCommandJob(pipeline.PluginCommandJobOptions{
@@ -160,13 +165,18 @@ func (p *Plugin) PipelineContribution(_ *plugin.AppContext) *pipeline.Contributi
         AllowFailure: true,
     })
     if err != nil {
-        return nil
+        return nil, err
     }
     contribution, err := pipeline.NewContribution(job)
     if err != nil {
-        return nil
+        return nil, err
     }
-    return contribution
+    return contribution, nil
+}
+
+func (p *Plugin) PipelineContributionEnabled(_ *plugin.AppContext) (bool, error) {
+    cfg := p.Config()
+    return cfg != nil && cfg.Pipeline, nil
 }
 ```
 
