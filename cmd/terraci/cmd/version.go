@@ -1,35 +1,30 @@
 package cmd
 
 import (
-	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
+
+	"github.com/edelwud/terraci/cmd/terraci/internal/runflow"
+	"github.com/edelwud/terraci/cmd/terraci/internal/versionflow"
 )
 
 func newVersionCmd(app *App) *cobra.Command {
-	return &cobra.Command{
-		Use:         "version",
-		Short:       "Print version information",
-		Annotations: map[string]string{annotationSkipConfig: annotationTrue},
-		Run: func(_ *cobra.Command, _ []string) {
-			fmt.Printf("terraci %s\n", app.Version)
-			fmt.Printf("  commit: %s\n", app.Commit)
-			fmt.Printf("  built:  %s\n", app.Date)
-
-			// Version info from plugins (e.g., OPA version from policy plugin)
-			for _, vp := range app.Plugins.VersionProviders() {
-				for k, v := range vp.VersionInfo() {
-					fmt.Printf("  %s: %s\n", k, v)
-				}
+	cmd := &cobra.Command{
+		Use:   "version",
+		Short: "Print version information",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			prepared, err := runflow.FromContext(cmd.Context())
+			if err != nil {
+				return err
 			}
-
-			plugins := app.Plugins.All()
-			if len(plugins) > 0 {
-				fmt.Printf("  plugins:\n")
-				for _, p := range plugins {
-					fmt.Printf("    - %s: %s\n", p.Name(), p.Description())
-				}
-			}
+			return versionflow.Write(os.Stdout, versionflow.Build(versionflow.Metadata{
+				Version: app.Version,
+				Commit:  app.Commit,
+				Date:    app.Date,
+			}, prepared.Registry()))
 		},
 	}
+	runflow.MarkCommand(cmd, runflow.CommandPolicy{SkipConfig: true})
+	return cmd
 }

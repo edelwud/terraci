@@ -65,7 +65,7 @@ func validateRuntimeConfig(cfg *model.CostConfig) error {
 // resolveBlobCache resolves the underlying blob store and wraps it in a blobcache.Cache
 // configured with the plugin's namespace and TTL settings.
 func resolveBlobCache(ctx context.Context, appCtx *plugin.AppContext, cfg *model.CostConfig) (*blobcache.Cache, error) {
-	blobProvider, err := appCtx.Resolver().ResolveBlobStoreProvider(
+	blobProvider, err := appCtx.BlobStoreResolver().ResolveBlobStoreProvider(
 		cfg.BlobCacheBackend(),
 		"set extensions.cost.blob_cache.backend explicitly",
 	)

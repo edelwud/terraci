@@ -55,7 +55,9 @@ cmd/xterraci/
 
 cmd/terraci/internal/
 ├── initflow/                   # Typed init wizard orchestration: defaults, plugin groups, config build
-└── runflow/                    # Typed command lifecycle: config load, plugin decode, preflight, contributions
+├── runflow/                    # Typed command lifecycle: config load, plugin decode, preflight, contributions
+├── schemaflow/                 # Schema command orchestration
+└── versionflow/                # Version command orchestration
 
 pkg/                            # Public API — importable by external plugins (plugin-agnostic core + plugin SDK)
 ├── plugin/                     # Core plugin SDK — interfaces, BasePlugin, AppContext
@@ -69,14 +71,13 @@ pkg/                            # Public API — importable by external plugins 
 │   ├── base.go                 # BasePlugin[C] generic embedding
 │   ├── enable.go               # EnablePolicy enum
 │   ├── context.go              # AppContext + AppContextOptions constructor
-│   ├── context_binding.go      # AppContext.Update / SetResolver / BeginCommand / Freeze
 │   ├── command_binding.go      # CommandPlugin[T], AppContextFromCommand, RequireEnabled + typed command errors
 │   ├── cliout/                 # Public plugin command output helpers (Format, ParseFormat, WriteJSON)
 │   ├── runtime.go              # RuntimeProvider + RuntimeAs() + BuildRuntime[T]()
-│   ├── resolver.go             # Resolver interface (extended with capability resolution methods)
-│   ├── noop_resolver.go        # default no-op Resolver (never nil)
+│   ├── resolver.go             # Narrow resolver interfaces + aggregate implementation contract
+│   ├── noop_resolver.go        # default no-op resolver behavior
 │   ├── registry/               # Plugin factory catalog + per-command Registry
-│   │   ├── registry.go         # RegisterFactory(), New(), Catalog, Registry implements plugin.Resolver
+│   │   ├── registry.go         # RegisterFactory(), New(), Catalog, Registry + typed framework views
 │   │   └── resolve.go          # Registry.ResolveCIProvider/ResolveChangeDetector/Resolve*Provider/CollectContributions/PreflightsForStartup
 │   ├── initwiz/                # Init wizard state + types
 │   │   ├── state.go            # StateMap — typed form state with pointer getters for huh
@@ -206,7 +207,7 @@ internal/                       # Private — only terraform eval
 
 ### Architecture
 
-Compile-time plugins via `init()` + blank import (Caddy/database-sql pattern). Plugins register factories via `registry.RegisterFactory()`, core creates a fresh `*registry.Registry` for each command run; that `*Registry` directly implements `plugin.Resolver`. Framework capability discovery uses typed registry views such as `CommandProviders()` and `ConfigLoaders()`; raw generic discovery stays inside `pkg/plugin/registry`. Core types (interfaces, BasePlugin, AppContext) live in `pkg/plugin`; plugin catalog and per-command registries live in `pkg/plugin/registry`; init wizard types in `pkg/plugin/initwiz`.
+Compile-time plugins via `init()` + blank import (Caddy/database-sql pattern). Plugins register factories via `registry.RegisterFactory()`, and `cmd/terraci/internal/runflow` creates a fresh `*registry.Registry` for each command run. `*Registry` implements the narrow plugin resolver interfaces, while framework capability discovery stays inside runflow/schemaflow/versionflow or registry tests. Core types (interfaces, BasePlugin, AppContext) live in `pkg/plugin`; plugin catalog and per-command registries live in `pkg/plugin/registry`; init wizard types in `pkg/plugin/initwiz`.
 
 The core `pkg/` tree is **plugin-agnostic** — no package outside `pkg/plugin` imports the plugin SDK. Plugin extensibility hangs entirely off `pkg/plugin`'s capability interfaces.
 
@@ -232,7 +233,7 @@ Each feature/plugin follows one-file-per-capability where it applies, with runti
 1. Register    — init() calls registry.RegisterFactory() with a Plugin factory
 2. Configure   — ConfigLoader.DecodeAndSet() for plugins with a config section under extensions:
 3. Preflight   — Preflightable.Preflight() performs cheap validation/env detection
-4. Freeze      — AppContext.Freeze() prevents further mutations
+4. Bind        — runflow builds immutable AppContext/Prepared and attaches it to command context
 5. Execute     — Commands parse flags into typed requests; use-cases lazily build RuntimeProvider runtimes as needed
 ```
 
@@ -266,7 +267,7 @@ never changes plugin state. It auto-implements:
 
 ### AppContext
 
-Construction goes through an options struct — `plugin.NewAppContext(plugin.AppContextOptions{Config, WorkDir, ServiceDir, Version, Reports, Resolver})` — every field is optional. `Reports` is a `ci.ReportStore`; it defaults to a file-backed store when `ServiceDir` is set, otherwise an in-memory store. `ctx.Resolver()` is **never nil**: when no resolver is bound, a no-op resolver returns sentinel errors so plugins can call `ctx.Resolver().ResolveCIProvider()` etc. without nil-checks.
+Construction goes through an options struct — `plugin.NewAppContext(plugin.AppContextOptions{Config, WorkDir, ServiceDir, Version, Reports, Resolver})` — every field is optional. `Reports` is a `ci.ReportStore`; it defaults to a file-backed store when `ServiceDir` is set, otherwise an in-memory store. Resolver access is narrow and **never nil** through `ctx.CIResolver()`, `ctx.ChangeDetectorResolver()`, `ctx.KVCacheResolver()`, and `ctx.BlobStoreResolver()`; when no resolver is bound, no-op resolvers return sentinel errors.
 
 `AppContext.Config()` returns an immutable `config.Snapshot`. Access config through
 snapshot accessors (`ServiceDir()`, `Structure()`, `Execution()`, etc.). If a
@@ -293,7 +294,7 @@ Built-in plugins and examples keep domain-specific tests local, but SDK boundary
 
 ### Resolver
 
-The `plugin.Resolver` interface exposes plugin-visible capability resolution (`ResolveCIProvider`, `ResolveChangeDetector`, `ResolveKVCacheProvider`, `ResolveBlobStoreProvider`). `*registry.Registry` is the production resolver and also owns framework-only catalog operations such as `CollectContributions(ctx) ([]*pipeline.Contribution, error)` and `PreflightsForStartup()`. `plugin.NoopResolver` is the default-deny fallback.
+The plugin SDK exposes narrow resolver interfaces: `CIResolver`, `ChangeDetectorResolver`, `KVCacheResolver`, and `BlobStoreResolver`. `plugin.Resolver` is only the aggregate implementation contract used by framework wiring; plugin code should consume the specific AppContext resolver accessor it needs. `*registry.Registry` is the production resolver and also owns framework-only catalog operations such as contribution collection and startup preflights, which are invoked by `runflow`.
 
 ### Shared Types
 
@@ -325,7 +326,7 @@ Plugins contribute via `PipelineContributor.PipelineContribution(ctx) (*pipeline
 
 ### Provider Resolution
 
-`Registry.ResolveCIProvider()` returns `*plugin.ResolvedCIProvider` (struct wrapping EnvDetector + CIInfoProvider + PipelineGeneratorFactory + CommentServiceFactory): `TERRACI_PROVIDER` env → CI env detection → single active provider → error. Core has zero knowledge of specific providers. Commands that don't need config use `Annotations["skipConfig"]`; `cmd/terraci/internal/runflow` interprets command setup policies.
+`Registry.ResolveCIProvider()` returns `*plugin.ResolvedCIProvider` (struct wrapping EnvDetector + CIInfoProvider + PipelineGeneratorFactory + CommentServiceFactory): `TERRACI_PROVIDER` env → CI env detection → single active provider → error. Core has zero knowledge of specific providers. Commands that don't need config/preflight are marked with typed `runflow.CommandPolicy`; raw cobra annotations are a private runflow storage detail.
 
 ### Service Directory
 
@@ -394,7 +395,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 ### Generate pipeline
 1. `workflow.Run(ctx, opts)` — scan → filter → parse → graph
 2. `workflow.ChangeDetector.DetectChanges()` via `plugin.ChangeDetectionProvider` (if --changed-only) — one VCS diff returns changed files, modules, and library paths
-3. `app.Plugins.CollectContributions(appCtx)` — gather a command-scoped snapshot of PipelineContributor jobs or fail on invalid contributions
+3. `runflow.Prepare(...)` gathers a command-scoped snapshot of PipelineContributor jobs or fails on invalid contributions
 4. `pipeline.Build(opts)` — construct provider-agnostic IR
 5. `provider.NewGenerator(appCtx, ir)` — bind IR to provider; `generator.Generate()` writes YAML
 
@@ -403,7 +404,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 2. Load reports through `ci.ReportStore` (`{serviceDir}/*-report.json` plus any in-process published reports) and select current/degraded reports with `ci.SelectCurrentReports`
 3. `summaryengine.ResolveLabels()` expands static/module/resource labels from changed or failed plan results
 4. `summaryengine.ComposeCommentWithOptions()` renders markdown and embeds managed-label metadata
-5. `appCtx.Resolver().ResolveCIProvider()` → `NewCommentService()` → `UpsertComment(ctx, body)`
+5. `appCtx.CIResolver().ResolveCIProvider()` → `NewCommentService()` → `UpsertComment(ctx, body)`
 6. If the comment service implements `ci.ManagedLabelService`, sync labels by removing only prior TerraCI-managed labels absent from the current run and adding current labels
 
 ### Local Execution

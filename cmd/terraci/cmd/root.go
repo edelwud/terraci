@@ -39,21 +39,18 @@ Features:
 				verbose = false
 			}
 			result, err := app.newRunFlow().Prepare(cmd.Context(), runflow.Request{
-				CommandName:   cmd.Name(),
-				ConfigPath:    app.cfgFile,
-				WorkDir:       app.WorkDir,
-				LogLevel:      app.logLevel,
-				Verbose:       verbose,
-				SkipConfig:    cmd.Annotations[annotationSkipConfig] == annotationTrue,
-				SkipPreflight: cmd.Annotations[annotationSkipPreflight] == annotationTrue,
+				CommandName: cmd.Name(),
+				ConfigPath:  app.cfgFile,
+				WorkDir:     app.WorkDir,
+				LogLevel:    app.logLevel,
+				Verbose:     verbose,
+				Policy:      runflow.PolicyFromCommand(cmd),
 			})
 			if err != nil {
 				return err
 			}
-			app.Config = result.Loaded
-			app.Plugins = result.Registry
-			app.reports = result.Reports
-			cmd.SetContext(result.Context)
+			app.reports = result.Reports()
+			cmd.SetContext(result.Context())
 			return nil
 		},
 	}
@@ -65,23 +62,21 @@ Features:
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "enable verbose output (shorthand for --log-level=debug)")
 
 	// Register core subcommands
-	rootCmd.AddCommand(newGenerateCmd(app))
-	rootCmd.AddCommand(newGraphCmd(app))
-	rootCmd.AddCommand(newValidateCmd(app))
+	rootCmd.AddCommand(newGenerateCmd())
+	rootCmd.AddCommand(newGraphCmd())
+	rootCmd.AddCommand(newValidateCmd())
 	// Note: summary and policy commands are now provided by plugins
-	rootCmd.AddCommand(newInitCmd(app))
+	rootCmd.AddCommand(newInitCmd())
 	rootCmd.AddCommand(newVersionCmd(app))
-	rootCmd.AddCommand(newSchemaCmd(app))
+	rootCmd.AddCommand(newSchemaCmd())
 	rootCmd.AddCommand(newCompletionCmd(rootCmd))
 	rootCmd.AddCommand(newManCmd(rootCmd))
 
 	// Register plugin-provided commands. Commands() runs at registration
 	// time and must not capture state — plugins retrieve the per-run
 	// AppContext and command-scoped plugin inside RunE via plugin.CommandPlugin.
-	for _, cp := range app.Plugins.CommandProviders() {
-		for _, cmd := range cp.Commands() {
-			rootCmd.AddCommand(cmd)
-		}
+	for _, cmd := range runflow.PluginCommands(nil) {
+		rootCmd.AddCommand(cmd)
 	}
 
 	return rootCmd

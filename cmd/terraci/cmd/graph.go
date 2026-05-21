@@ -10,13 +10,14 @@ import (
 
 	log "github.com/caarlos0/log"
 
+	"github.com/edelwud/terraci/cmd/terraci/internal/runflow"
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/filter"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/workflow"
 )
 
-func newGraphCmd(app *App) *cobra.Command {
+func newGraphCmd() *cobra.Command {
 	var (
 		graphFormat    string
 		graphOutput    string
@@ -29,8 +30,6 @@ func newGraphCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "graph",
 		Short: "Display dependency graph",
-		// graph is a visualization command — no plugin runtime is invoked.
-		Annotations: map[string]string{annotationSkipPreflight: annotationTrue},
 		Long: `Display the module dependency graph in various formats.
 
 Formats:
@@ -45,9 +44,13 @@ Examples:
   terraci graph --format plantuml -o deps.puml
   terraci graph --format levels
   terraci graph --stats
-  terraci graph --module platform/stage/eu-central-1/vpc --dependents`,
+	  terraci graph --module platform/stage/eu-central-1/vpc --dependents`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			result, err := workflow.Run(cmd.Context(), workflowOptions(app, ff))
+			prepared, err := runflow.FromContext(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := workflow.Run(cmd.Context(), workflowOptions(prepared, ff))
 			if err != nil {
 				return err
 			}
@@ -73,6 +76,7 @@ Examples:
 			return renderGraph(depGraph, libraries, graphFormat, graphOutput)
 		},
 	}
+	runflow.MarkCommand(cmd, runflow.CommandPolicy{SkipPreflight: true})
 
 	cmd.Flags().StringVarP(&graphFormat, "format", "F", "dot", "output format: dot, plantuml, list, levels")
 	cmd.Flags().StringVarP(&graphOutput, "output", "o", "", "output file (default: stdout)")

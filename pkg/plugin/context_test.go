@@ -41,20 +41,20 @@ func TestAppContext_Accessors(t *testing.T) {
 	if ctx.Reports() != r {
 		t.Error("Reports() should be the same registry instance")
 	}
-	if ctx.Resolver() == nil {
-		t.Error("Resolver() should never return nil")
+	if ctx.CIResolver() == nil || ctx.ChangeDetectorResolver() == nil || ctx.KVCacheResolver() == nil || ctx.BlobStoreResolver() == nil {
+		t.Error("resolver accessors should never return nil")
 	}
 }
 
 func TestAppContext_NoResolverFallsBackToNoop(t *testing.T) {
 	ctx := NewAppContext(AppContextOptions{})
-	if ctx.Resolver() == nil {
-		t.Fatal("Resolver() should never return nil")
+	if ctx.CIResolver() == nil {
+		t.Fatal("CIResolver() should never return nil")
 	}
-	if _, err := ctx.Resolver().ResolveCIProvider(); err == nil {
+	if _, err := ctx.CIResolver().ResolveCIProvider(); err == nil {
 		t.Error("noop resolver should reject ResolveCIProvider")
 	}
-	if !errors.Is(errFromCallSite(ctx.Resolver().ResolveCIProvider), ErrNoResolver) {
+	if !errors.Is(errFromCallSite(ctx.CIResolver().ResolveCIProvider), ErrNoResolver) {
 		t.Error("noop resolver should return ErrNoResolver")
 	}
 }

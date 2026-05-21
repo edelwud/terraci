@@ -33,15 +33,13 @@ func NewRun(appCtx *plugin.AppContext, opts Options) (ci.ArtifactRun, error) {
 	}
 
 	commitSHA, pipelineID := collectionMetadata(opts.Collection)
-	if resolver := appCtx.Resolver(); resolver != nil {
-		provider, err := resolver.ResolveCIProvider()
-		if err == nil && provider != nil {
-			if value := provider.CommitSHA(); value != "" {
-				commitSHA = value
-			}
-			if value := provider.PipelineID(); value != "" {
-				pipelineID = value
-			}
+	provider, err := appCtx.CIResolver().ResolveCIProvider()
+	if err == nil && provider != nil {
+		if value := provider.CommitSHA(); value != "" {
+			commitSHA = value
+		}
+		if value := provider.PipelineID(); value != "" {
+			pipelineID = value
 		}
 	}
 

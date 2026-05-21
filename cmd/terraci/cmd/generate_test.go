@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/edelwud/terraci/cmd/terraci/internal/runflow"
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/filter"
@@ -48,33 +49,34 @@ func TestResolveGenerateTargetsUsesWorkflowResolveTargets(t *testing.T) {
 	}
 	cfg := config.DefaultConfig()
 	cfg.LibraryModules = &config.LibraryModulesConfig{Paths: []string{"_modules"}}
-	app := &App{
-		Config:  cfg,
-		WorkDir: t.TempDir(),
-		Version: "test",
-		Plugins: plugins,
+	workDir := t.TempDir()
+	if err := cfg.Save(workDir + "/.terraci.yaml"); err != nil {
+		t.Fatalf("Save config: %v", err)
 	}
 	ff := &filter.Flags{SegmentArgs: []string{"environment=stage"}}
 
 	cmd := &cobra.Command{}
-	appCtx := plugin.NewAppContext(plugin.AppContextOptions{
-		Config:   app.Config,
-		WorkDir:  app.WorkDir,
-		Version:  app.Version,
-		Resolver: plugins,
+	prepared, err := runflow.New(runflow.Options{
+		RegistryFactory: func() *registry.Registry { return plugins },
+	}).Prepare(context.Background(), runflow.Request{
+		CommandName: "generate-test",
+		WorkDir:     workDir,
 	})
-	cmd.SetContext(plugin.WithContext(context.Background(), appCtx))
+	if err != nil {
+		t.Fatalf("Prepare() error = %v", err)
+	}
+	cmd.SetContext(prepared.Context())
 
-	got, err := resolveGenerateTargets(cmd, app, result, true, "main", ff)
+	got, err := resolveGenerateTargets(cmd.Context(), prepared, result, true, "main", ff)
 	if err != nil {
 		t.Fatalf("resolveGenerateTargets() error = %v", err)
 	}
-	want, err := workflow.ResolveTargets(context.Background(), app.WorkDir, app.Config.Snapshot(), result, workflow.TargetSelectionOptions{
+	want, err := workflow.ResolveTargets(context.Background(), workDir, prepared.Config(), result, workflow.TargetSelectionOptions{
 		ChangedOnly: true,
 		BaseRef:     "main",
 		Filters:     ff,
 		ChangeDetectorResolver: func() (workflow.ChangeDetector, error) {
-			return app.Plugins.ResolveChangeDetector()
+			return plugins.ResolveChangeDetector()
 		},
 	})
 	if err != nil {

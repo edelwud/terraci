@@ -114,7 +114,7 @@ TerraCi автоматически определяет активный CI-пр
 1. Register    -- init() регистрирует плагин через registry.RegisterFactory()
 2. Configure   -- фреймворк декодирует секцию extensions.<key> из YAML
 3. Preflight   -- дешёвая валидация (определение окружения, проверка конфига)
-4. Freeze      -- AppContext замораживается, мутации запрещены
+4. Bind        -- runflow строит immutable Prepared/AppContext state
 5. Execute     -- команды лениво создают RuntimeProvider рантаймы по необходимости
 ```
 

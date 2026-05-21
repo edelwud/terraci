@@ -4,13 +4,14 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+
+	"github.com/edelwud/terraci/cmd/terraci/internal/runflow"
 )
 
 func newCompletionCmd(rootCmd *cobra.Command) *cobra.Command {
-	return &cobra.Command{
-		Use:         "completion [bash|zsh|fish|powershell]",
-		Short:       "Generate shell completion scripts",
-		Annotations: map[string]string{annotationSkipConfig: annotationTrue},
+	cmd := &cobra.Command{
+		Use:   "completion [bash|zsh|fish|powershell]",
+		Short: "Generate shell completion scripts",
 		Long: `Generate shell completion scripts for terraci.
 
 To load completions:
@@ -64,4 +65,6 @@ PowerShell:
 			return nil
 		},
 	}
+	runflow.MarkCommand(cmd, runflow.CommandPolicy{SkipConfig: true})
+	return cmd
 }

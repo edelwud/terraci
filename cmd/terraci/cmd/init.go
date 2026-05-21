@@ -13,10 +13,12 @@ import (
 	log "github.com/caarlos0/log"
 
 	"github.com/edelwud/terraci/cmd/terraci/internal/initflow"
+	"github.com/edelwud/terraci/cmd/terraci/internal/runflow"
 	"github.com/edelwud/terraci/pkg/config"
+	"github.com/edelwud/terraci/pkg/plugin/registry"
 )
 
-func newInitCmd(app *App) *cobra.Command {
+func newInitCmd() *cobra.Command {
 	var (
 		forceInit    bool
 		initProvider string
@@ -36,9 +38,13 @@ Examples:
   terraci init
   terraci init --ci
   terraci init --ci --provider github
-  terraci init --ci --provider gitlab --binary tofu`,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			configPath := filepath.Join(app.WorkDir, ".terraci.yaml")
+	  terraci init --ci --provider gitlab --binary tofu`,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			prepared, err := runflow.FromContext(cmd.Context())
+			if err != nil {
+				return err
+			}
+			configPath := filepath.Join(prepared.WorkDir(), ".terraci.yaml")
 
 			if _, err := os.Stat(configPath); err == nil && !forceInit {
 				return fmt.Errorf("config file already exists: %s (use --force to overwrite)", configPath)
@@ -48,7 +54,7 @@ Examples:
 
 			var newCfg *config.Config
 			if ciMode || hasFlags {
-				cfg, err := buildNonInteractiveInitConfig(app, initProvider, initBinary, initPattern)
+				cfg, err := buildNonInteractiveInitConfig(prepared.Registry(), initProvider, initBinary, initPattern)
 				if err != nil {
 					return err
 				}
@@ -60,7 +66,7 @@ Examples:
 							"or supply --provider / --binary / --pattern to drive non-interactive setup",
 					)
 				}
-				cfg, err := runInteractiveInit(app)
+				cfg, err := runInteractiveInit(prepared.Registry())
 				if err != nil {
 					return err
 				}
@@ -72,7 +78,7 @@ Examples:
 			}
 
 			log.WithField("file", configPath).Info("configuration created")
-			logGenerateHint(app, newCfg)
+			logGenerateHint(prepared.Registry(), newCfg)
 
 			return nil
 		},
@@ -87,8 +93,8 @@ Examples:
 	return cmd
 }
 
-func buildNonInteractiveInitConfig(app *App, provider, binary, pattern string) (*config.Config, error) {
-	flow := initflow.New(app.Plugins)
+func buildNonInteractiveInitConfig(plugins *registry.Registry, provider, binary, pattern string) (*config.Config, error) {
+	flow := initflow.New(plugins)
 	state := flow.DefaultState()
 	flow.ApplyOverrides(state, initflow.Overrides{
 		Provider: provider,
@@ -102,7 +108,7 @@ func buildNonInteractiveInitConfig(app *App, provider, binary, pattern string) (
 	return result.Config, nil
 }
 
-func logGenerateHint(app *App, cfg *config.Config) {
+func logGenerateHint(plugins *registry.Registry, cfg *config.Config) {
 	log.Info("generate your pipeline with:")
 	log.IncreasePadding()
 	if cfg != nil {
@@ -118,7 +124,7 @@ func logGenerateHint(app *App, cfg *config.Config) {
 		}
 	}
 
-	resolved, _ := app.Plugins.ResolveCIProvider() //nolint:errcheck // best-effort fallback, non-critical
+	resolved, _ := plugins.ResolveCIProvider() //nolint:errcheck // best-effort fallback, non-critical
 	if resolved != nil && resolved.ProviderName() == "github" {
 		log.Info("terraci generate -o .github/workflows/terraform.yml")
 	} else {
@@ -127,8 +133,8 @@ func logGenerateHint(app *App, cfg *config.Config) {
 	log.DecreasePadding()
 }
 
-func runInteractiveInit(app *App) (*config.Config, error) {
-	m := newInitModel(initflow.New(app.Plugins))
+func runInteractiveInit(plugins *registry.Registry) (*config.Config, error) {
+	m := newInitModel(initflow.New(plugins))
 	finalModel, err := tea.NewProgram(m).Run()
 	if err != nil {
 		return nil, fmt.Errorf("interactive init: %w", err)

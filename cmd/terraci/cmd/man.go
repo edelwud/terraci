@@ -8,16 +8,17 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/cobra/doc"
+
+	"github.com/edelwud/terraci/cmd/terraci/internal/runflow"
 )
 
 func newManCmd(rootCmd *cobra.Command) *cobra.Command {
 	var manDir string
 
 	cmd := &cobra.Command{
-		Use:         "man",
-		Short:       "Generate man pages",
-		Hidden:      true,
-		Annotations: map[string]string{annotationSkipConfig: annotationTrue},
+		Use:    "man",
+		Short:  "Generate man pages",
+		Hidden: true,
 		Long: `Generate man pages for terraci.
 
 This command generates man pages in roff format that can be installed
@@ -72,6 +73,7 @@ Example:
 			return nil
 		},
 	}
+	runflow.MarkCommand(cmd, runflow.CommandPolicy{SkipConfig: true})
 
 	cmd.Flags().StringVarP(&manDir, "dir", "d", "man", "output directory for man pages")
 

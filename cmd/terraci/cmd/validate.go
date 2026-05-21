@@ -8,12 +8,13 @@ import (
 
 	log "github.com/caarlos0/log"
 
+	"github.com/edelwud/terraci/cmd/terraci/internal/runflow"
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/filter"
 	"github.com/edelwud/terraci/pkg/workflow"
 )
 
-func newValidateCmd(app *App) *cobra.Command {
+func newValidateCmd() *cobra.Command {
 	ff := &filter.Flags{}
 
 	cmd := &cobra.Command{
@@ -23,7 +24,6 @@ func newValidateCmd(app *App) *cobra.Command {
 		// (cost engines, policy clients, change detectors). Skip preflight so a
 		// missing .git directory or a misconfigured cache backend doesn't
 		// derail what is fundamentally a graph-correctness check.
-		Annotations: map[string]string{annotationSkipPreflight: annotationTrue},
 		Long: `Validate the Terraform module structure and check for dependency issues.
 
 This command will:
@@ -33,11 +33,15 @@ This command will:
   - Check for circular dependencies
   - Report any issues found`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			prepared, err := runflow.FromContext(cmd.Context())
+			if err != nil {
+				return err
+			}
 			hasErrors := false
 
 			log.Info("validating terraform project structure")
 
-			result, err := workflow.Run(cmd.Context(), workflowOptions(app, ff))
+			result, err := workflow.Run(cmd.Context(), workflowOptions(prepared, ff))
 			if err != nil {
 				return err
 			}
@@ -102,7 +106,7 @@ This command will:
 				}
 			}
 
-			reportLibraryModules(app, result)
+			reportLibraryModules(prepared.Config(), result)
 
 			// 7. Summary
 			if hasErrors {
@@ -114,6 +118,7 @@ This command will:
 			return nil
 		},
 	}
+	runflow.MarkCommand(cmd, runflow.CommandPolicy{SkipPreflight: true})
 
 	registerFilterFlags(cmd, ff)
 
@@ -132,8 +137,9 @@ type libraryModulesSummary struct {
 
 // computeLibraryModulesSummary derives a libraryModulesSummary from the
 // validated workflow result. Returns nil when no library paths are configured.
-func computeLibraryModulesSummary(cfg *config.Config, result *workflow.Result) *libraryModulesSummary {
-	if cfg == nil || cfg.LibraryModules == nil || len(cfg.LibraryModules.Paths) == 0 {
+func computeLibraryModulesSummary(cfg config.Snapshot, result *workflow.Result) *libraryModulesSummary {
+	libraryModules := cfg.LibraryModules()
+	if !cfg.Present() || libraryModules == nil || len(libraryModules.Paths) == 0 {
 		return nil
 	}
 	libraries := result.Libraries.Modules
@@ -144,7 +150,7 @@ func computeLibraryModulesSummary(cfg *config.Config, result *workflow.Result) *
 		}
 	}
 	return &libraryModulesSummary{
-		ConfiguredPaths: len(cfg.LibraryModules.Paths),
+		ConfiguredPaths: len(libraryModules.Paths),
 		Discovered:      len(libraries),
 		Consumers:       result.Graph.LibraryConsumerCount(),
 		Orphans:         orphans,
@@ -153,8 +159,8 @@ func computeLibraryModulesSummary(cfg *config.Config, result *workflow.Result) *
 
 // reportLibraryModules logs a summary of configured library_modules using
 // computeLibraryModulesSummary. No-op when the feature is not configured.
-func reportLibraryModules(app *App, result *workflow.Result) {
-	summary := computeLibraryModulesSummary(app.Config, result)
+func reportLibraryModules(cfg config.Snapshot, result *workflow.Result) {
+	summary := computeLibraryModulesSummary(cfg, result)
 	if summary == nil {
 		return
 	}

@@ -45,7 +45,8 @@ type AppContextOptions struct {
 	// ServiceDir is set, otherwise to an in-process memory store.
 	Reports ci.ReportStore
 	// Resolver is the per-run plugin resolver. Defaults to NoopResolver{}
-	// when nil — plugins may always call ctx.Resolver() without nil-checks.
+	// when nil. Plugins should consume it through AppContext's narrow resolver
+	// accessors.
 	Resolver Resolver
 	// CommandLookup is the framework-side lookup used by CommandPlugin to
 	// bind cobra callbacks to command-scoped plugin instances.
@@ -102,8 +103,17 @@ func (ctx *AppContext) Version() string { return ctx.version }
 // Reports returns the shared report store.
 func (ctx *AppContext) Reports() ci.ReportStore { return ctx.reports }
 
-// Resolver returns the per-run plugin resolver. Always non-nil.
-func (ctx *AppContext) Resolver() Resolver { return ctx.resolver }
+// CIResolver returns the active CI provider resolver. Always non-nil.
+func (ctx *AppContext) CIResolver() CIResolver { return ctx.resolver }
+
+// ChangeDetectorResolver returns the active change detector resolver. Always non-nil.
+func (ctx *AppContext) ChangeDetectorResolver() ChangeDetectorResolver { return ctx.resolver }
+
+// KVCacheResolver returns the named KV cache backend resolver. Always non-nil.
+func (ctx *AppContext) KVCacheResolver() KVCacheResolver { return ctx.resolver }
+
+// BlobStoreResolver returns the named blob store backend resolver. Always non-nil.
+func (ctx *AppContext) BlobStoreResolver() BlobStoreResolver { return ctx.resolver }
 
 // PipelineContributions returns the command-scoped pipeline contribution
 // snapshot collected by the framework.

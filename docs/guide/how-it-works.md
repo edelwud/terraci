@@ -220,7 +220,7 @@ apply-eks:
 flowchart TD
   A["terraci generate"] --> B
   B["workflow.Run() — scan, filter, parse, graph"] --> C
-  C["provider.PipelineRequirements(ctx) + app.Plugins.CollectContributions(appCtx)"] --> D
+  C["provider.PipelineRequirements(ctx) + runflow prepared contributions"] --> D
   D["pipeline.Build(opts) → *pipeline.IR"] --> E
   E{"Provider?"}
   E -->|GitLab| F["gitlab.NewGenerator(ctx, ir)"] --> G[".gitlab-ci.yml"]
@@ -232,7 +232,7 @@ Each stage:
 | Step | Function | What it does |
 |------|----------|-------------|
 | 1 | `workflow.Run()` | Scan filesystem, apply filters, parse HCL, build dependency graph |
-| 2 | `provider.PipelineRequirements(ctx)` + `app.Plugins.CollectContributions(appCtx)` | Gather provider resource requirements and plugin-contributed DAG jobs; invalid contributions fail before IR build |
+| 2 | `provider.PipelineRequirements(ctx)` + `runflow.Prepare(...)` contributions | Gather provider resource requirements and plugin-contributed DAG jobs; invalid contributions fail before IR build |
 | 3 | `pipeline.Build(opts)` | Construct provider-agnostic flat job DAG (`*pipeline.IR{Jobs}`) — single execution input |
 | 4 | `provider.NewGenerator(ctx, ir)` + `Generate()` | Bind IR to provider; transform IR into GitLab CI YAML or GitHub Actions workflow |
 

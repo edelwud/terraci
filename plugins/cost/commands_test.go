@@ -92,7 +92,6 @@ func TestPlugin_Commands_RunE_NotConfigured(t *testing.T) {
 		ServiceDir:    base.ServiceDir(),
 		Version:       base.Version(),
 		Reports:       base.Reports(),
-		Resolver:      base.Resolver(),
 		CommandLookup: plugintest.StaticCommandLookup{pluginName: p},
 	})
 

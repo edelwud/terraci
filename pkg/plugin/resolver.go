@@ -7,23 +7,36 @@ type CommandLookup interface {
 	GetPlugin(name string) (Plugin, bool)
 }
 
-// Resolver is the plugin-visible capability resolver. It deliberately does not
-// expose raw plugin enumeration or name lookup; plugins communicate through
-// typed capabilities instead of concrete plugin names.
-type Resolver interface {
-	// ResolveCIProvider returns the active CI provider in the current set.
+// CIResolver resolves the active CI provider in the current plugin set.
+type CIResolver interface {
 	ResolveCIProvider() (*ResolvedCIProvider, error)
+}
 
-	// ResolveChangeDetector returns the active change-detection provider.
+// ChangeDetectorResolver resolves the active change-detection provider.
+type ChangeDetectorResolver interface {
 	ResolveChangeDetector() (ChangeDetectionProvider, error)
+}
 
-	// ResolveKVCacheProvider returns the named KV cache backend provider.
-	// Pass an optional configPathHint to make ambiguous-backend errors point at
-	// the calling feature's exact config field.
+// KVCacheResolver resolves named KV cache backend providers. Pass an optional
+// configPathHint to make ambiguous-backend errors point at the calling
+// feature's exact config field.
+type KVCacheResolver interface {
 	ResolveKVCacheProvider(name string, configPathHint ...string) (KVCacheProvider, error)
+}
 
-	// ResolveBlobStoreProvider returns the named blob store backend provider.
-	// Pass an optional configPathHint to make ambiguous-backend errors point at
-	// the calling feature's exact config field.
+// BlobStoreResolver resolves named blob store backend providers. Pass an
+// optional configPathHint to make ambiguous-backend errors point at the calling
+// feature's exact config field.
+type BlobStoreResolver interface {
 	ResolveBlobStoreProvider(name string, configPathHint ...string) (BlobStoreProvider, error)
+}
+
+// Resolver is the framework resolver implementation contract. Plugin code
+// should prefer AppContext's narrow resolver accessors instead of depending on
+// this aggregate interface directly.
+type Resolver interface {
+	CIResolver
+	ChangeDetectorResolver
+	KVCacheResolver
+	BlobStoreResolver
 }

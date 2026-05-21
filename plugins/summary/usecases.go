@@ -10,7 +10,7 @@ import (
 
 func resolveSummaryProvider(appCtx *plugin.AppContext) summaryengine.ProviderResolver {
 	return func() (summaryengine.Provider, error) {
-		provider, err := appCtx.Resolver().ResolveCIProvider()
+		provider, err := appCtx.CIResolver().ResolveCIProvider()
 		if err != nil {
 			return nil, err
 		}

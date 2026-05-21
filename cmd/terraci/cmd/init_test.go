@@ -15,7 +15,7 @@ func TestLogGenerateHint_GitHubConfig(t *testing.T) {
 	cfg := loadInitTestConfig(t, "extensions:\n  github: {}\n")
 
 	output := plugintest.CaptureLogOutput(t, func() {
-		logGenerateHint(&App{Plugins: registry.New()}, cfg)
+		logGenerateHint(registry.New(), cfg)
 	})
 
 	if !strings.Contains(output, ".github/workflows/terraform.yml") {
@@ -27,7 +27,7 @@ func TestLogGenerateHint_GitLabConfig(t *testing.T) {
 	cfg := loadInitTestConfig(t, "extensions:\n  gitlab: {}\n")
 
 	output := plugintest.CaptureLogOutput(t, func() {
-		logGenerateHint(&App{Plugins: registry.New()}, cfg)
+		logGenerateHint(registry.New(), cfg)
 	})
 
 	if !strings.Contains(output, ".gitlab-ci.yml") {

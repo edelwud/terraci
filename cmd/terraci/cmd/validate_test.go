@@ -16,7 +16,7 @@ func TestComputeLibraryModulesSummary_NoConfig(t *testing.T) {
 	cfg := config.DefaultConfig()
 	result := &workflow.Result{Graph: graph.NewDependencyGraph()}
 
-	if got := computeLibraryModulesSummary(cfg, result); got != nil {
+	if got := computeLibraryModulesSummary(cfg.Snapshot(), result); got != nil {
 		t.Errorf("expected nil summary when library_modules is unset, got %+v", got)
 	}
 }
@@ -41,7 +41,7 @@ func TestComputeLibraryModulesSummary_OrphanDetection(t *testing.T) {
 		Graph:     g,
 	}
 
-	summary := computeLibraryModulesSummary(cfg, result)
+	summary := computeLibraryModulesSummary(cfg.Snapshot(), result)
 	if summary == nil {
 		t.Fatal("expected non-nil summary")
 	}

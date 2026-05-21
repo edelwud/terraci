@@ -121,6 +121,10 @@ func TestArchitecture_ConfigSnapshotAndDocs(t *testing.T) {
 		"CollectContributions(ctx *plugin.AppContext) []*pipeline.Contribution",
 		"resolver.CollectContributions",
 		"registry.ByCapabilityFrom",
+		"ctx.Resolver()",
+		"app.Plugins",
+		"app.Config",
+		`Annotations["skipConfig"]`,
 	}
 	for _, rel := range textFiles(t, root, "AGENTS.md", "docs", "examples", "pkg/plugin/doc.go") {
 		if strings.HasPrefix(rel, "docs/.vitepress/dist/") {
@@ -234,6 +238,25 @@ func TestArchitecture_CommandRunFlowBoundaries(t *testing.T) {
 		configAliases := importAliases(file, moduleImportPath+"/pkg/config")
 
 		ast.Inspect(file, func(node ast.Node) bool {
+			if strings.HasPrefix(rel, "cmd/terraci/cmd/") {
+				switch n := node.(type) {
+				case *ast.SelectorExpr:
+					if ident, ok := n.X.(*ast.Ident); ok && ident.Name == "app" {
+						switch n.Sel.Name {
+						case "Config", "Plugins":
+							violations = append(violations, rel+" reads mutable app."+n.Sel.Name+"; use runflow.Prepared from command context")
+						}
+					}
+					if n.Sel.Name == "Annotations" {
+						violations = append(violations, rel+" touches cobra annotations directly; use runflow.MarkCommand/PolicyFromCommand")
+					}
+				case *ast.KeyValueExpr:
+					if ident, ok := n.Key.(*ast.Ident); ok && ident.Name == "Annotations" {
+						violations = append(violations, rel+" sets cobra annotations directly; use runflow.MarkCommand")
+					}
+				}
+			}
+
 			call, ok := node.(*ast.CallExpr)
 			if !ok {
 				return true
@@ -255,8 +278,12 @@ func TestArchitecture_CommandRunFlowBoundaries(t *testing.T) {
 				case selector.Sel.Name == "DecodeAndSet",
 					selector.Sel.Name == "Preflight",
 					selector.Sel.Name == "PreflightsForStartup",
-					selector.Sel.Name == "CollectContributions":
-					violations = append(violations, rel+" runs command lifecycle directly; delegate command setup to runflow.Prepare")
+					selector.Sel.Name == "CollectContributions",
+					selector.Sel.Name == "ConfigLoaders",
+					selector.Sel.Name == "CommandProviders",
+					selector.Sel.Name == "VersionProviders",
+					selector.Sel.Name == "RuntimeProviders":
+					violations = append(violations, rel+" runs command lifecycle or capability discovery directly; delegate to runflow/schemaflow/versionflow")
 				}
 			}
 			return true

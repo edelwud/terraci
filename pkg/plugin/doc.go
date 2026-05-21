@@ -54,7 +54,7 @@
 //	┌──────▼──────┐
 //	│  Preflight  │  Preflightable.Preflight(ctx, appCtx)
 //	│             │  Cheap validation only. No network, no heavy state.
-//	│             │  Skipped on commands with skipPreflight annotation.
+//	│             │  Skipped only through typed runflow.CommandPolicy.
 //	└──────┬──────┘
 //	       │
 //	┌──────▼──────┐
@@ -65,8 +65,8 @@
 // AppContext is constructed once per command run by the CLI runflow and
 // attached to cmd.Context() so plugin RunE callbacks can retrieve it through
 // CommandPlugin[T]. It is immutable — plugins receive a snapshot of Config /
-// WorkDir / ServiceDir / Resolver / pipeline contributions that does not
-// change for the duration of the command.
+// WorkDir / ServiceDir / narrow resolver accessors / pipeline contributions
+// that do not change for the duration of the command.
 //
 // # Command boundary
 //
@@ -143,9 +143,10 @@
 //   - Read project config through the immutable config.Snapshot returned by
 //     ctx.Config(). Snapshot accessors return defensive copies; use
 //     MutableCopy only for legacy pointer-shaped APIs.
-//   - Treat ctx.Resolver() as never-nil (returns NoopResolver{} when no
-//     real one is bound) and idempotent; capability lookups can run from
-//     any goroutine.
+//   - Treat ctx.CIResolver(), ctx.ChangeDetectorResolver(),
+//     ctx.KVCacheResolver(), and ctx.BlobStoreResolver() as never-nil. They
+//     return NoopResolver{} behavior when no real resolver is bound and are
+//     safe to call from any goroutine.
 //   - Implement Clone() C on plugin config types embedded in BasePlugin[C].
 //     BasePlugin.Config(), NewConfig(), DecodeAndSet(), and SetTypedConfig()
 //     all use defensive copies; mutating Config() output never changes plugin
@@ -157,12 +158,11 @@
 //
 // # Capability discovery
 //
-// AppContext exposes typed capability resolution only. Plugins should call
-// ctx.Resolver().Resolve* methods instead of enumerating or looking up
-// concrete plugin names. Framework code owns raw plugin enumeration inside
-// pkg/plugin/registry and exposes named registry views such as
-// ConfigLoaders(), CommandProviders(), and VersionProviders() where command
-// framework code needs lists.
+// AppContext exposes narrow typed capability resolvers only. Plugins should
+// call the resolver accessor for the capability they need instead of depending
+// on the aggregate Resolver or looking up concrete plugin names. Framework code
+// owns raw plugin enumeration inside pkg/plugin/registry and the CLI runflow /
+// schemaflow / versionflow packages.
 //
 // # Cross-plugin communication
 //

@@ -215,7 +215,7 @@ apply-eks:
 flowchart TD
   A["terraci generate"] --> B
   B["workflow.Run() — scan, filter, parse, graph"] --> C
-  C["provider.PipelineRequirements(ctx) + app.Plugins.CollectContributions(appCtx)"] --> D
+  C["provider.PipelineRequirements(ctx) + runflow prepared contributions"] --> D
   D["pipeline.Build(opts) → *pipeline.IR"] --> E
   E{"Провайдер?"}
   E -->|GitLab| F["gitlab.NewGenerator(ctx, ir)"] --> G[".gitlab-ci.yml"]
@@ -227,7 +227,7 @@ flowchart TD
 | Шаг | Функция | Что делает |
 |-----|---------|-----------|
 | 1 | `workflow.Run()` | Сканирование файловой системы, применение фильтров, парсинг HCL, построение графа зависимостей |
-| 2 | `provider.PipelineRequirements(ctx)` + `app.Plugins.CollectContributions(appCtx)` | Сбор требований провайдера к ресурсам и contributed DAG jobs; invalid contributions останавливают сборку до IR |
+| 2 | `provider.PipelineRequirements(ctx)` + contributions из `runflow.Prepare(...)` | Сбор требований провайдера к ресурсам и contributed DAG jobs; invalid contributions останавливают сборку до IR |
 | 3 | `pipeline.Build(opts)` | Построение провайдер-агностичного flat job DAG (`*pipeline.IR{Jobs}`) — единый вход для исполнения |
 | 4 | `provider.NewGenerator(ctx, ir)` + `Generate()` | Привязка IR к провайдеру; преобразование IR в YAML GitLab CI или воркфлоу GitHub Actions |
 

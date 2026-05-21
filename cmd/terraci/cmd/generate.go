@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,16 +12,16 @@ import (
 
 	log "github.com/caarlos0/log"
 
+	"github.com/edelwud/terraci/cmd/terraci/internal/runflow"
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/filter"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
-	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/workflow"
 )
 
-func newGenerateCmd(app *App) *cobra.Command {
+func newGenerateCmd() *cobra.Command {
 	var (
 		outputFile  string
 		changedOnly bool
@@ -45,7 +46,11 @@ Examples:
 	  terraci generate --dry-run
 	  terraci generate --plan-only`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			result, err := workflow.Run(cmd.Context(), workflowOptions(app, ff))
+			prepared, err := runflow.FromContext(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := workflow.Run(cmd.Context(), workflowOptions(prepared, ff))
 			if err != nil {
 				return err
 			}
@@ -55,10 +60,10 @@ Examples:
 			}
 
 			logExtractionWarnings(result.Warnings)
-			logLibraryModuleUsage(result.Graph, app.WorkDir)
+			logLibraryModuleUsage(result.Graph, prepared.WorkDir())
 			logCycles(result.Graph)
 
-			targets, err := resolveGenerateTargets(cmd, app, result, changedOnly, baseRef, ff)
+			targets, err := resolveGenerateTargets(cmd.Context(), prepared, result, changedOnly, baseRef, ff)
 			if err != nil {
 				return err
 			}
@@ -69,7 +74,7 @@ Examples:
 			}
 
 			log.WithField("modules", len(targets)).Info("generating pipeline")
-			generator, genErr := newPipelineGenerator(cmd, app, result.Graph, result.Filtered.Modules, targets, planOnly)
+			generator, genErr := newPipelineGenerator(prepared, result.Graph, result.Filtered.Modules, targets, planOnly)
 			if genErr != nil {
 				return genErr
 			}
@@ -98,23 +103,20 @@ Examples:
 }
 
 func resolveGenerateTargets(
-	cmd *cobra.Command,
-	app *App,
+	ctx context.Context,
+	prepared *runflow.Prepared,
 	result *workflow.Result,
 	changedOnly bool,
 	baseRef string,
 	ff *filter.Flags,
 ) ([]*discovery.Module, error) {
-	appCtx, err := plugin.AppContextFromCommand(cmd)
-	if err != nil {
-		return nil, err
-	}
-	return workflow.ResolveTargets(cmd.Context(), app.WorkDir, app.Config.Snapshot(), result, workflow.TargetSelectionOptions{
+	appCtx := prepared.AppContext()
+	return workflow.ResolveTargets(ctx, prepared.WorkDir(), prepared.Config(), result, workflow.TargetSelectionOptions{
 		ChangedOnly: changedOnly,
 		BaseRef:     baseRef,
 		Filters:     ff,
 		ChangeDetectorResolver: func() (workflow.ChangeDetector, error) {
-			return appCtx.Resolver().ResolveChangeDetector()
+			return appCtx.ChangeDetectorResolver().ResolveChangeDetector()
 		},
 	})
 }
@@ -164,18 +166,15 @@ func logCycles(depGraph *graph.DependencyGraph) {
 
 // --- Pipeline generation ---
 
-func newPipelineGenerator(cmd *cobra.Command, app *App, depGraph *graph.DependencyGraph, modules, targets []*discovery.Module, planOnly bool) (pipeline.Generator, error) {
-	appCtx, err := plugin.AppContextFromCommand(cmd)
-	if err != nil {
-		return nil, err
-	}
-	provider, err := appCtx.Resolver().ResolveCIProvider()
+func newPipelineGenerator(prepared *runflow.Prepared, depGraph *graph.DependencyGraph, modules, targets []*discovery.Module, planOnly bool) (pipeline.Generator, error) {
+	appCtx := prepared.AppContext()
+	provider, err := appCtx.CIResolver().ResolveCIProvider()
 	if err != nil {
 		return nil, fmt.Errorf("resolve CI provider: %w", err)
 	}
 	contributions := appCtx.PipelineContributions()
 
-	exec := execution.ConfigFromProject(app.Config.Snapshot())
+	exec := execution.ConfigFromProject(prepared.Config())
 	requirements := exec.BuildRequirements().Merge(provider.PipelineRequirements(appCtx))
 	if planOnly {
 		requirements = requirements.Merge(pipeline.BuildRequirements{PlanOnly: true})

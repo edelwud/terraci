@@ -149,7 +149,7 @@ extensions:
 ### Жизненный цикл
 
 ```
-Register → Configure → Preflight → Freeze → Execute
+Register → Configure → Preflight → Bind → Execute
 ```
 
 ### Контрактные тесты SDK
@@ -171,24 +171,26 @@ ctx.ServiceDir() // абсолютный путь к .terraci
 ctx.Config()     // immutable config.Snapshot; используйте accessors вроде ServiceDir()
 ctx.Version()    // строка версии TerraCi
 ctx.Reports()    // shared ci.ReportStore для plugin artifacts и отчётов
-ctx.Resolver()   // capability-резолвер — никогда не nil; через него ищутся CI-провайдер, ChangeDetector, кэши
+ctx.CIResolver()             // резолвер CI-провайдера — никогда не nil
+ctx.ChangeDetectorResolver() // резолвер ChangeDetector — никогда не nil
+ctx.KVCacheResolver()        // резолвер KV cache backend — никогда не nil
+ctx.BlobStoreResolver()      // резолвер blob backend — никогда не nil
 ```
 
 Контекст конструируется фреймворком один раз через `plugin.NewAppContext(plugin.AppContextOptions{...})` и привязывается на время выполнения команды. Плагины получают уже готовый контекст.
 
-### Resolver
+### Capability resolvers
 
-`ctx.Resolver()` — единая точка кросс-плагинных capability-lookup'ов:
+Используйте узкий accessor для той capability, которая нужна плагину:
 
 ```go
-ResolveCIProvider() (*plugin.ResolvedCIProvider, error)
-ResolveChangeDetector() (plugin.ChangeDetectionProvider, error) // embeds workflow.ChangeDetector
-ResolveKVCacheProvider(name string) (plugin.KVCacheProvider, error)
-ResolveBlobStoreProvider(name string) (plugin.BlobStoreProvider, error)
-PreflightsForStartup() []plugin.Preflightable
+ctx.CIResolver().ResolveCIProvider()
+ctx.ChangeDetectorResolver().ResolveChangeDetector()
+ctx.KVCacheResolver().ResolveKVCacheProvider(name)
+ctx.BlobStoreResolver().ResolveBlobStoreProvider(name)
 ```
 
-Резолвер никогда не nil — если контекст не привязан к реестру (тестовое окружение), возвращается no-op-резолвер с sentinel-ошибками вместо nil-разыменования.
+Resolver accessors никогда не nil — если контекст не привязан к реестру (тестовое окружение), возвращается no-op-резолвер с sentinel-ошибками вместо nil-разыменования. Framework lifecycle enumeration вроде preflight и pipeline contribution collection принадлежит CLI runflow, не plugin-коду.
 
 ### Сборка
 

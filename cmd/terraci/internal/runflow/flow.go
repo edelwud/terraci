@@ -39,24 +39,12 @@ type Options struct {
 
 // Request describes one command pre-run lifecycle request.
 type Request struct {
-	CommandName   string
-	ConfigPath    string
-	WorkDir       string
-	LogLevel      string
-	Verbose       bool
-	SkipConfig    bool
-	SkipPreflight bool
-}
-
-// Result is the prepared command runtime state.
-type Result struct {
-	Context    context.Context
-	AppContext *plugin.AppContext
-	Registry   *registry.Registry
-	Config     config.Snapshot
-	Loaded     *config.Config
-	Reports    ci.ReportStore
-	Warnings   []string
+	CommandName string
+	ConfigPath  string
+	WorkDir     string
+	LogLevel    string
+	Verbose     bool
+	Policy      CommandPolicy
 }
 
 // Flow owns command lifecycle orchestration.
@@ -85,7 +73,7 @@ func New(opts Options) *Flow {
 
 // Prepare executes the command pre-run lifecycle and returns the immutable
 // AppContext plus the command-scoped registry/config snapshots.
-func (f *Flow) Prepare(ctx context.Context, req Request) (*Result, error) {
+func (f *Flow) Prepare(ctx context.Context, req Request) (*Prepared, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -105,7 +93,7 @@ func (f *Flow) Prepare(ctx context.Context, req Request) (*Result, error) {
 	}
 
 	var cfg *config.Config
-	if !req.SkipConfig {
+	if !req.Policy.SkipConfig {
 		loaded, err := loadConfig(req)
 		if err != nil {
 			return nil, err
@@ -121,8 +109,8 @@ func (f *Flow) Prepare(ctx context.Context, req Request) (*Result, error) {
 	}
 
 	appCtx := f.buildContext(plugins, cfg, req.WorkDir)
-	if !req.SkipConfig {
-		if err := runPreflight(ctx, plugins, appCtx, req.SkipPreflight); err != nil {
+	if !req.Policy.SkipConfig {
+		if err := runPreflight(ctx, plugins, appCtx, req.Policy.SkipPreflight); err != nil {
 			return nil, err
 		}
 		var err error
@@ -132,14 +120,7 @@ func (f *Flow) Prepare(ctx context.Context, req Request) (*Result, error) {
 		}
 	}
 
-	return &Result{
-		Context:    plugin.WithContext(ctx, appCtx),
-		AppContext: appCtx,
-		Registry:   plugins,
-		Config:     config.NewSnapshot(cfg),
-		Loaded:     cfg.Clone(),
-		Reports:    f.reports,
-	}, nil
+	return newPrepared(ctx, appCtx, plugins, cfg, req.WorkDir, f.reports), nil
 }
 
 func (f *Flow) applyLogLevel(req Request) error {
@@ -183,7 +164,7 @@ func decodePluginConfigs(plugins *registry.Registry, cfg *config.Config) error {
 
 func runPreflight(ctx context.Context, plugins *registry.Registry, appCtx *plugin.AppContext, skip bool) error {
 	if skip {
-		log.Debug("skipping plugin preflight per command annotation")
+		log.Debug("skipping plugin preflight per command policy")
 		return nil
 	}
 	log.Debug("running plugin preflight")

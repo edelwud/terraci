@@ -151,7 +151,7 @@ func TestGeneratedSchemaIncludesSummaryFields(t *testing.T) {
 }
 
 func TestPreflightsForStartup_UsesEnabledPlugins(t *testing.T) {
-	appCtx := loadPluginContractConfig(t, `service_dir: .terraci
+	appCtx, plugins := loadPluginContractConfig(t, `service_dir: .terraci
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 execution:
@@ -174,7 +174,6 @@ extensions:
     enabled: true
 `)
 
-	plugins := appCtx.Resolver().(*registry.Registry)
 	preflightables := plugins.PreflightsForStartup()
 	got := make([]string, 0, len(preflightables))
 	for _, p := range preflightables {
@@ -192,7 +191,7 @@ extensions:
 }
 
 func TestRuntimeProviders_CreateRuntimeWithoutPreflight(t *testing.T) {
-	appCtx := loadPluginContractConfig(t, `service_dir: .terraci
+	appCtx, plugins := loadPluginContractConfig(t, `service_dir: .terraci
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 extensions:
@@ -213,7 +212,6 @@ extensions:
 
 	expectedRuntimeProviders := []string{"cost", "policy", "summary", "tfupdate"}
 	got := make([]string, 0, len(expectedRuntimeProviders))
-	plugins := appCtx.Resolver().(*registry.Registry)
 	for _, p := range plugins.RuntimeProviders() {
 		rawRuntime, err := p.Runtime(context.Background(), appCtx)
 		if err != nil {
@@ -231,7 +229,7 @@ extensions:
 }
 
 func TestCollectContributions_UsesContextualStateWithoutPreflight(t *testing.T) {
-	appCtx := loadPluginContractConfig(t, `service_dir: custom-artifacts
+	appCtx, plugins := loadPluginContractConfig(t, `service_dir: custom-artifacts
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
 extensions:
@@ -250,7 +248,6 @@ extensions:
     pipeline: true
 `)
 
-	plugins := appCtx.Resolver().(*registry.Registry)
 	contributions, err := plugins.CollectContributions(appCtx)
 	if err != nil {
 		t.Fatalf("CollectContributions() error = %v", err)
@@ -286,7 +283,7 @@ extensions:
 }
 
 func TestCollectContributions_TfupdatePipelineGate(t *testing.T) {
-	appCtx := loadPluginContractConfig(t, `structure:
+	appCtx, plugins := loadPluginContractConfig(t, `structure:
   pattern: "{service}/{environment}/{region}/{module}"
 extensions:
   tfupdate:
@@ -294,7 +291,6 @@ extensions:
     pipeline: false
 `)
 
-	plugins := appCtx.Resolver().(*registry.Registry)
 	contributions, err := plugins.CollectContributions(appCtx)
 	if err != nil {
 		t.Fatalf("CollectContributions() error = %v", err)
@@ -316,7 +312,7 @@ func producedPaths(resources []pipeline.ResourceSpec) []string {
 	return paths
 }
 
-func loadPluginContractConfig(t *testing.T, rawConfig string) *plugin.AppContext {
+func loadPluginContractConfig(t *testing.T, rawConfig string) (*plugin.AppContext, *registry.Registry) {
 	t.Helper()
 
 	clearCIEnv(t)
@@ -345,11 +341,12 @@ func loadPluginContractConfig(t *testing.T, rawConfig string) *plugin.AppContext
 	}
 
 	serviceDir := filepath.Join(dir, cfg.ServiceDir)
-	return plugin.NewAppContext(plugin.AppContextOptions{
+	appCtx := plugin.NewAppContext(plugin.AppContextOptions{
 		Config:     cfg,
 		WorkDir:    dir,
 		ServiceDir: serviceDir,
 		Version:    "test",
 		Resolver:   plugins,
 	})
+	return appCtx, plugins
 }

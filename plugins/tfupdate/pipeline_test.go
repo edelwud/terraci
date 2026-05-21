@@ -105,7 +105,6 @@ func TestPlugin_PipelineContribution_EmptyServiceDir(t *testing.T) {
 		ServiceDir: base.ServiceDir(),
 		Version:    base.Version(),
 		Reports:    base.Reports(),
-		Resolver:   base.Resolver(),
 	})
 
 	contrib, err := p.PipelineContribution(appCtx)

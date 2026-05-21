@@ -6,16 +6,16 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/edelwud/terraci/pkg/config"
+	"github.com/edelwud/terraci/cmd/terraci/internal/runflow"
+	"github.com/edelwud/terraci/cmd/terraci/internal/schemaflow"
 )
 
-func newSchemaCmd(app *App) *cobra.Command {
+func newSchemaCmd() *cobra.Command {
 	var schemaOutputFile string
 
 	cmd := &cobra.Command{
-		Use:         "schema",
-		Short:       "Generate JSON Schema for .terraci.yaml",
-		Annotations: map[string]string{annotationSkipConfig: annotationTrue},
+		Use:   "schema",
+		Short: "Generate JSON Schema for .terraci.yaml",
 		Long: `Generate a JSON Schema file for .terraci.yaml configuration.
 
 The schema can be used for IDE autocompletion and validation.
@@ -30,12 +30,12 @@ Examples:
   # Use in VS Code with YAML extension
   # Add to .terraci.yaml:
   # yaml-language-server: $schema=./terraci.schema.json`,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			pluginSchemas := make(map[string]any)
-			for _, cl := range app.Plugins.ConfigLoaders() {
-				pluginSchemas[cl.ConfigKey()] = cl.NewConfig()
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			prepared, err := runflow.FromContext(cmd.Context())
+			if err != nil {
+				return err
 			}
-			schema := config.GenerateJSONSchema(pluginSchemas)
+			schema := schemaflow.Generate(prepared.Registry())
 
 			if schemaOutputFile != "" {
 				if err := os.WriteFile(schemaOutputFile, []byte(schema), 0o600); err != nil {
@@ -49,6 +49,7 @@ Examples:
 			return nil
 		},
 	}
+	runflow.MarkCommand(cmd, runflow.CommandPolicy{SkipConfig: true})
 
 	cmd.Flags().StringVarP(&schemaOutputFile, "output", "o", "", "output file (default: stdout)")
 

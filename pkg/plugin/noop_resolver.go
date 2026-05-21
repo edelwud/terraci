@@ -5,9 +5,9 @@ import (
 )
 
 // NoopResolver is the default-deny Resolver. It is bound to AppContext when
-// no real resolver is supplied (so plugins may always call ctx.Resolver()
-// without nil-checks) and is also intended for tests: embed it and override
-// only the methods relevant to the case at hand.
+// no real resolver is supplied, so plugins may always call the narrow
+// AppContext resolver accessors without nil-checks. Tests can embed it and
+// override only the methods relevant to the case at hand.
 type NoopResolver struct{}
 
 // ErrNoResolver is returned by NoopResolver capability lookups. Tests can

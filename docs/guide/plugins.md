@@ -114,7 +114,7 @@ Every plugin goes through the same lifecycle:
 1. Register    -- init() registers the plugin via registry.RegisterFactory()
 2. Configure   -- framework decodes the matching extensions.<key> YAML section
 3. Preflight   -- cheap validation (env detection, config checks)
-4. Freeze      -- AppContext is frozen, no further config mutations
+4. Bind        -- runflow builds immutable Prepared/AppContext state
 5. Execute     -- commands lazily build RuntimeProvider runtimes as needed
 ```
 

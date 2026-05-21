@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/registry"
@@ -75,6 +77,14 @@ func (p *contributorPlugin) PipelineContribution(*plugin.AppContext) (*pipeline.
 	return pipeline.NewContribution(job)
 }
 
+type commandPlugin struct {
+	testPlugin
+}
+
+func (p commandPlugin) Commands() []*cobra.Command {
+	return []*cobra.Command{{Use: p.name}}
+}
+
 func TestPrepareSkipConfigBindsContextWithoutConfigLoad(t *testing.T) {
 	t.Parallel()
 
@@ -89,19 +99,22 @@ func TestPrepareSkipConfigBindsContextWithoutConfigLoad(t *testing.T) {
 		CommandName: "version",
 		WorkDir:     filepath.Join(t.TempDir(), "missing"),
 		LogLevel:    "info",
-		SkipConfig:  true,
+		Policy:      CommandPolicy{SkipConfig: true},
 	})
 	if err != nil {
 		t.Fatalf("Prepare() error = %v", err)
 	}
-	if result.AppContext == nil {
+	if result.AppContext() == nil {
 		t.Fatal("AppContext is nil")
 	}
-	if result.Config.Present() {
+	if result.Config().Present() {
 		t.Fatal("Config snapshot should be empty for skip-config command")
 	}
-	if result.AppContext.Resolver() == nil {
-		t.Fatal("Resolver is nil")
+	if result.AppContext().CIResolver() == nil {
+		t.Fatal("CIResolver is nil")
+	}
+	if got, err := FromContext(result.Context()); err != nil || got != result {
+		t.Fatalf("FromContext() = %p, %v; want prepared", got, err)
 	}
 }
 
@@ -133,10 +146,10 @@ extensions:
 	if !cfgPlugin.configured {
 		t.Fatal("plugin config was not decoded")
 	}
-	if !result.Config.Present() || result.Loaded == nil {
+	if !result.Config().Present() || result.LoadedConfig() == nil {
 		t.Fatal("loaded config not captured")
 	}
-	if result.AppContext.Config().Structure().Pattern == "" {
+	if result.AppContext().Config().Structure().Pattern == "" {
 		t.Fatal("AppContext config snapshot is empty")
 	}
 }
@@ -166,11 +179,11 @@ extensions:
 		},
 		Version: "test",
 	}).Prepare(context.Background(), Request{
-		CommandName:   "validate",
-		ConfigPath:    filepath.Join(dir, ".terraci.yaml"),
-		WorkDir:       dir,
-		LogLevel:      "info",
-		SkipPreflight: true,
+		CommandName: "validate",
+		ConfigPath:  filepath.Join(dir, ".terraci.yaml"),
+		WorkDir:     dir,
+		LogLevel:    "info",
+		Policy:      CommandPolicy{SkipPreflight: true},
 	})
 	if err != nil {
 		t.Fatalf("Prepare() error = %v", err)
@@ -181,8 +194,8 @@ extensions:
 	if !contributor.called {
 		t.Fatal("pipeline contribution was not collected")
 	}
-	if len(result.AppContext.PipelineContributions()) != 1 {
-		t.Fatalf("PipelineContributions len = %d, want 1", len(result.AppContext.PipelineContributions()))
+	if len(result.AppContext().PipelineContributions()) != 1 {
+		t.Fatalf("PipelineContributions len = %d, want 1", len(result.AppContext().PipelineContributions()))
 	}
 }
 
@@ -254,7 +267,7 @@ func TestPrepareKeepsReportStoreAndRefreshesRegistry(t *testing.T) {
 			})
 		},
 	})
-	req := Request{CommandName: "version", WorkDir: t.TempDir(), SkipConfig: true}
+	req := Request{CommandName: "version", WorkDir: t.TempDir(), Policy: CommandPolicy{SkipConfig: true}}
 
 	first, err := flow.Prepare(context.Background(), req)
 	if err != nil {
@@ -264,11 +277,34 @@ func TestPrepareKeepsReportStoreAndRefreshesRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Prepare() second error = %v", err)
 	}
-	if first.Registry == second.Registry {
+	if first.Registry() == second.Registry() {
 		t.Fatal("registry should be fresh for each command run")
 	}
-	if first.Reports != second.Reports {
+	if first.Reports() != second.Reports() {
 		t.Fatal("report store should persist across command runs")
+	}
+}
+
+func TestCommandPolicyRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	policy := CommandPolicy{SkipConfig: true, SkipPreflight: true}
+	cmd := MarkCommand(&cobra.Command{}, policy)
+	if got := PolicyFromCommand(cmd); got != policy {
+		t.Fatalf("PolicyFromCommand() = %#v, want %#v", got, policy)
+	}
+}
+
+func TestPluginCommandsUsesFreshRegistry(t *testing.T) {
+	t.Parallel()
+
+	commands := PluginCommands(func() *registry.Registry {
+		return registry.NewFromFactories(func() plugin.Plugin {
+			return commandPlugin{testPlugin: testPlugin{name: "hello"}}
+		})
+	})
+	if len(commands) != 1 || commands[0].Use != "hello" {
+		t.Fatalf("PluginCommands() = %#v, want hello command", commands)
 	}
 }
 

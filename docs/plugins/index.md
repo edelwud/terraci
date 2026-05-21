@@ -153,7 +153,7 @@ extensions:
 ### Lifecycle
 
 ```
-Register → Configure → Preflight → Freeze → Execute
+Register → Configure → Preflight → Bind → Execute
 ```
 
 ### SDK contract tests
@@ -168,7 +168,7 @@ Keep plugin-specific tests focused on your domain logic, APIs, and rendering dec
 1. **Register** — `init()` runs at import time
 2. **Configure** — framework decodes `extensions.<key>` from YAML
 3. **Preflight** — cheap validation (no network, no heavy state)
-4. **Freeze** — context becomes immutable
+4. **Bind** — runflow builds immutable prepared command state and AppContext
 5. **Execute** — commands lazily build runtime as needed
 
 ### AppContext
@@ -181,24 +181,26 @@ ctx.ServiceDir() // resolved .terraci directory (absolute path)
 ctx.Config()     // immutable config.Snapshot; use accessors such as ServiceDir()
 ctx.Version()    // TerraCi version string
 ctx.Reports()    // shared ci.ReportStore for plugin artifacts and reports
-ctx.Resolver()   // capability resolver — never nil; use to look up CI provider, change detector, caches
+ctx.CIResolver()             // CI provider resolver — never nil
+ctx.ChangeDetectorResolver() // change detector resolver — never nil
+ctx.KVCacheResolver()        // KV cache backend resolver — never nil
+ctx.BlobStoreResolver()      // blob backend resolver — never nil
 ```
 
 The framework constructs the context once via `plugin.NewAppContext(plugin.AppContextOptions{...})` and binds it for the duration of a command run. Plugins receive a fully built context — no construction needed.
 
-### Resolver
+### Capability Resolvers
 
-`ctx.Resolver()` is the single entry point for cross-plugin capability lookups. It exposes:
+Use the narrow resolver accessor for the capability your plugin needs:
 
 ```go
-ResolveCIProvider() (*plugin.ResolvedCIProvider, error)
-ResolveChangeDetector() (plugin.ChangeDetectionProvider, error) // embeds workflow.ChangeDetector
-ResolveKVCacheProvider(name string) (plugin.KVCacheProvider, error)
-ResolveBlobStoreProvider(name string) (plugin.BlobStoreProvider, error)
-PreflightsForStartup() []plugin.Preflightable
+ctx.CIResolver().ResolveCIProvider()
+ctx.ChangeDetectorResolver().ResolveChangeDetector()
+ctx.KVCacheResolver().ResolveKVCacheProvider(name)
+ctx.BlobStoreResolver().ResolveBlobStoreProvider(name)
 ```
 
-The resolver is never nil — when no resolver is bound (test contexts) a no-op resolver returns sentinel errors instead of nil dereferences.
+Resolver accessors are never nil — when no resolver is bound (test contexts) a no-op resolver returns sentinel errors instead of nil dereferences. Framework lifecycle enumeration such as preflight and pipeline contribution collection is owned by the CLI runflow, not plugin code.
 
 ### Building
 

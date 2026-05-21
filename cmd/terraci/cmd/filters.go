@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/edelwud/terraci/cmd/terraci/internal/runflow"
 	"github.com/edelwud/terraci/pkg/filter"
 	"github.com/edelwud/terraci/pkg/workflow"
 )
@@ -14,7 +15,7 @@ func registerFilterFlags(cmd *cobra.Command, f *filter.Flags) {
 	cmd.Flags().StringArrayVarP(&f.SegmentArgs, "filter", "f", nil, "filter by segment (e.g. -f environment=stage)")
 }
 
-// workflowOptions builds workflow.Options from app config and filter flags.
-func workflowOptions(app *App, ff *filter.Flags) workflow.Options {
-	return workflow.OptionsFromConfig(app.WorkDir, app.Config.Snapshot(), ff)
+// workflowOptions builds workflow.Options from prepared command config and filter flags.
+func workflowOptions(prepared *runflow.Prepared, ff *filter.Flags) workflow.Options {
+	return workflow.OptionsFromConfig(prepared.WorkDir(), prepared.Config(), ff)
 }
