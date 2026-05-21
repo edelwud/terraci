@@ -10,6 +10,7 @@ import (
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/execution"
+	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
@@ -18,11 +19,10 @@ import (
 	"github.com/edelwud/terraci/plugins/localexec/internal/reports"
 	"github.com/edelwud/terraci/plugins/localexec/internal/runner"
 	"github.com/edelwud/terraci/plugins/localexec/internal/spec"
-	"github.com/edelwud/terraci/plugins/localexec/internal/targeting"
 )
 
-type fakeTargetResolver struct {
-	targets []*discovery.Module
+type fakeProjectPlanner struct {
+	project *workflow.ProjectResult
 	err     error
 }
 
@@ -39,8 +39,8 @@ func mustContribution(tb testing.TB, opts pipeline.ContributedJobOptions) *pipel
 	return contribution
 }
 
-func (r fakeTargetResolver) Resolve(context.Context, spec.Request, *workflow.Result) ([]*discovery.Module, error) {
-	return r.targets, r.err
+func (p fakeProjectPlanner) Plan(context.Context, spec.Request) (*workflow.ProjectResult, error) {
+	return p.project, p.err
 }
 
 type fakeRuntimeFactory struct {
@@ -131,7 +131,7 @@ func TestUseCase_RunUsesInjectedDependencies(t *testing.T) {
 	}}
 	useCase := New(
 		appCtx,
-		WithTargetResolver(fakeTargetResolver{targets: []*discovery.Module{module}}),
+		WithProjectPlanner(fakeProjectWithTargets(module)),
 		WithRuntimeFactory(runtimeFactory),
 		WithSummaryReports(loader),
 	)
@@ -185,7 +185,7 @@ func TestUseCase_RunUsesInjectedPlanner(t *testing.T) {
 	}}
 	useCase := New(
 		appCtx,
-		WithTargetResolver(fakeTargetResolver{targets: []*discovery.Module{module}}),
+		WithProjectPlanner(fakeProjectWithTargets(module)),
 		WithPlanner(plannerStub),
 		WithContributionCollector(contributionCollector),
 		WithRuntimeFactory(runtimeFactory),
@@ -238,7 +238,7 @@ func TestUseCase_RunNoTargetsSkipsExecutionDependencies(t *testing.T) {
 
 	useCase := New(
 		appCtx,
-		WithTargetResolver(fakeTargetResolver{targets: nil}),
+		WithProjectPlanner(fakeProjectPlanner{project: &workflow.ProjectResult{Workflow: fakeWorkflowResult(module)}}),
 		WithPlanner(plannerStub),
 		WithRuntimeFactory(runtimeFactory),
 		WithSummaryReports(loader),
@@ -270,7 +270,7 @@ func TestUseCase_RunReturnsTargetResolverError(t *testing.T) {
 
 	_, err := New(
 		appCtx,
-		WithTargetResolver(fakeTargetResolver{err: wantErr}),
+		WithProjectPlanner(fakeProjectPlanner{err: wantErr}),
 		WithRuntimeFactory(&fakeRuntimeFactory{err: errors.New("runtime should not be built")}),
 	).Run(context.Background(), spec.Request{})
 	if !errors.Is(err, wantErr) {
@@ -286,7 +286,7 @@ func TestUseCase_RunReturnsRuntimeFactoryError(t *testing.T) {
 
 	_, err := New(
 		appCtx,
-		WithTargetResolver(fakeTargetResolver{targets: []*discovery.Module{module}}),
+		WithProjectPlanner(fakeProjectWithTargets(module)),
 		WithPlanner(plannerStub),
 		WithRuntimeFactory(&fakeRuntimeFactory{err: wantErr}),
 	).Run(context.Background(), spec.Request{})
@@ -306,7 +306,7 @@ func TestUseCase_RunReturnsPlannerError(t *testing.T) {
 
 	_, err := New(
 		appCtx,
-		WithTargetResolver(fakeTargetResolver{targets: []*discovery.Module{module}}),
+		WithProjectPlanner(fakeProjectWithTargets(module)),
 		WithPlanner(&fakePlanner{err: wantErr}),
 		WithRuntimeFactory(&fakeRuntimeFactory{runtime: &runner.Runtime{
 			ExecConfig: execution.Config{PlanEnabled: true, Parallelism: 1},
@@ -330,7 +330,7 @@ func TestUseCase_RunReturnsExecutionResultOnJobFailure(t *testing.T) {
 
 	result, err := New(
 		appCtx,
-		WithTargetResolver(fakeTargetResolver{targets: []*discovery.Module{module}}),
+		WithProjectPlanner(fakeProjectWithTargets(module)),
 		WithPlanner(&fakePlanner{plan: &pipeline.IR{
 			Jobs: []pipeline.Job{testCommandJob("summary")},
 		}}),
@@ -368,7 +368,7 @@ func TestUseCase_RunReturnsSummaryLoaderError(t *testing.T) {
 
 	useCase := New(
 		appCtx,
-		WithTargetResolver(fakeTargetResolver{targets: []*discovery.Module{module}}),
+		WithProjectPlanner(fakeProjectWithTargets(module)),
 		WithRuntimeFactory(&fakeRuntimeFactory{runtime: &runner.Runtime{
 			ExecConfig: execution.Config{PlanEnabled: true, Parallelism: 1},
 			JobRunner:  &fakeJobRunner{},
@@ -391,15 +391,15 @@ func TestNewRestoresDefaultsAfterNilOverrides(t *testing.T) {
 
 	useCase := New(
 		appCtx,
-		WithTargetResolver(nil),
+		WithProjectPlanner(nil),
 		WithPlanner(nil),
 		WithContributionCollector(nil),
 		WithRuntimeFactory(nil),
 		WithSummaryReports(nil),
 	)
 
-	if useCase.targets == nil {
-		t.Fatal("targets = nil, want default resolver")
+	if useCase.projects == nil {
+		t.Fatal("projects = nil, want default planner")
 	}
 	if useCase.planner == nil {
 		t.Fatal("planner = nil, want default builder")
@@ -415,7 +415,7 @@ func TestNewRestoresDefaultsAfterNilOverrides(t *testing.T) {
 	}
 }
 
-var _ targeting.Resolver = fakeTargetResolver{}
+var _ ProjectPlanner = fakeProjectPlanner{}
 var _ planner.Builder = (*fakePlanner)(nil)
 var _ runner.Factory = (*fakeRuntimeFactory)(nil)
 var _ reports.Loader = (*fakeSummaryReportLoader)(nil)
@@ -433,6 +433,21 @@ func testWorkDirWithModule(t *testing.T) (string, *discovery.Module) {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 	return workDir, module
+}
+
+func fakeProjectWithTargets(targets ...*discovery.Module) ProjectPlanner {
+	return fakeProjectPlanner{project: &workflow.ProjectResult{
+		Workflow: fakeWorkflowResult(targets...),
+		Targets:  targets,
+	}}
+}
+
+func fakeWorkflowResult(modules ...*discovery.Module) *workflow.Result {
+	return &workflow.Result{
+		All:      workflow.NewModuleSet(modules),
+		Filtered: workflow.NewModuleSet(modules),
+		Graph:    graph.BuildFromDependencies(modules, nil),
+	}
 }
 
 func testCommandJob(name string) pipeline.Job {

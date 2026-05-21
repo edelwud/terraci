@@ -317,6 +317,46 @@ func TestArchitecture_CommandRunFlowBoundaries(t *testing.T) {
 	}
 }
 
+func TestArchitecture_WorkflowProjectPlanningBoundaries(t *testing.T) {
+	root := repoRoot(t)
+	var violations []string
+
+	for _, rel := range goFiles(t, root, "cmd", "pkg", "plugins", "examples") {
+		if !isProductionFile(rel) || strings.HasPrefix(rel, "pkg/workflow/") {
+			continue
+		}
+		file := parseGoFile(t, filepath.Join(root, rel), 0)
+		workflowAliases := importAliases(file, moduleImportPath+"/pkg/workflow")
+		if len(workflowAliases) == 0 {
+			continue
+		}
+
+		ast.Inspect(file, func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			selector, ok := callSelector(call)
+			if !ok {
+				return true
+			}
+			switch {
+			case selectorCallMatches(selector, workflowAliases, "Run"):
+				violations = append(violations, rel+" calls workflow.Run directly; use workflow.PlanProject")
+			case selectorCallMatches(selector, workflowAliases, "ResolveTargets"):
+				violations = append(violations, rel+" calls workflow.ResolveTargets directly; use workflow.PlanProject")
+			case selectorCallMatches(selector, workflowAliases, "OptionsFromConfig"):
+				violations = append(violations, rel+" calls workflow.OptionsFromConfig directly; use workflow.PlanProject")
+			}
+			return true
+		})
+	}
+
+	if len(violations) > 0 {
+		t.Fatalf("workflow project planning boundary violations:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
 func repoRoot(tb testing.TB) string {
 	tb.Helper()
 

@@ -80,12 +80,15 @@ func discoverUpdateModules(
 ) ([]*discovery.Module, error) {
 	baseCfg := appCtx.Config()
 
-	wfResult, err := workflow.Run(ctx, workflow.OptionsFromConfig(appCtx.WorkDir(), baseCfg, nil))
+	project, err := workflow.PlanProject(ctx, workflow.ProjectRequest{
+		WorkDir: appCtx.WorkDir(),
+		Config:  baseCfg,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("discover modules: %w", err)
 	}
 
-	modules := filterModules(wfResult.Filtered.Modules, modulePath)
+	modules := filterModules(project.Workflow.Filtered.Modules, modulePath)
 	if len(modules) == 0 {
 		return nil, errors.New("no modules found")
 	}

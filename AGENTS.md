@@ -412,13 +412,12 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 6. If the comment service implements `ci.ManagedLabelService`, sync labels by removing only prior TerraCI-managed labels absent from the current run and adding current labels
 
 ### Local Execution
-1. `workflow.Run(ctx, workflow.Options)` builds the canonical filtered module/graph result
-2. `workflow.ResolveTargets(...)` applies merged filters, `--module`, `--changed-only`, and affected-library expansion
-3. `localexec/internal/planner` calls `pipeline.Build(...)` to produce an `*pipeline.IR`
-4. `pkg/execution.Executor.Execute(ctx, ir)` schedules jobs with dependency-aware DAG grouping
-5. `localexec/internal/runner` executes shell/tfexec jobs locally
-6. `localexec/internal/reports` loads current plugin reports through `ci.ReportStore`, applies `ci.SelectCurrentReports`, and aggregates them into a render-ready summary report
-7. `localexec/internal/flow` returns a typed execution result; `localexec/internal/render` prints the DAG/job summary and report sections
+1. `workflow.PlanProject(...)` builds the canonical filtered module/graph result and selected targets
+2. `localexec/internal/planner` calls `pipeline.Build(...)` to produce an `*pipeline.IR`
+3. `pkg/execution.Executor.Execute(ctx, ir)` schedules jobs with dependency-aware DAG grouping
+4. `localexec/internal/runner` executes shell/tfexec jobs locally
+5. `localexec/internal/reports` loads current plugin reports through `ci.ReportStore`, applies `ci.SelectCurrentReports`, and aggregates them into a render-ready summary report
+6. `localexec/internal/flow` returns a typed execution result; `localexec/internal/render` prints the DAG/job summary and report sections
 
 ### Init wizard
 1. `initflow.New(registry)` snapshots init contributors, provider options, and deterministic display groups
@@ -451,7 +450,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **Report sections via render-ready payloads**: producer plugins call `ci.NewRenderedReport(...)` and publish only validated `ci.ReportSectionKindRendered` sections with `ci.RenderSection` payloads. `ReportSection` internals are private; use getters plus `ci.DecodeRenderSection`, not raw payload access. Summary/local renderers consume the generic render model through `plugins/internal/reportrender` and stay unaware of cost/policy/tfupdate domain structs.
 - **Report freshness**: `pkg/ci.SelectCurrentReports` owns current/stale/degraded policy. Summary and localexec skip reports whose non-empty `plan_results_fingerprint` does not match the current plan collection. Missing provenance is accepted as degraded mode.
 - **Zero cross-plugin imports**: plugins communicate only via `pkg/plugin` capability helpers, shared `pkg/ci` types, and `ci.ReportStore` artifacts
-- **Shared workflow**: `workflow.Run()` — scan, filter, parse, graph building. `workflow.ChangeDetector`, `workflow.ChangeDetectionRequest`, and `workflow.ChangeDetectionResult` are plugin-agnostic; `plugin.ChangeDetectionProvider` embeds that workflow contract plus `plugin.Plugin`.
+- **Shared workflow**: `workflow.PlanProject()` is the high-level canonical project planning API for built-in production code: scan, filter, parse, graph building, optional target selection, changed-only, and library diagnostics. `workflow.Run()`, `workflow.ResolveTargets()`, and `workflow.OptionsFromConfig()` remain low-level package primitives inside `pkg/workflow`. `workflow.ChangeDetector`, `workflow.ChangeDetectionRequest`, and `workflow.ChangeDetectionResult` are plugin-agnostic; `plugin.ChangeDetectionProvider` embeds that workflow contract plus `plugin.Plugin`.
 - **Localexec boundary**: keep shell/tfexec details inside `plugins/localexec`; `pkg/execution` stays provider-agnostic scheduler/executor infrastructure that consumes a raw `*pipeline.IR`. `localexec/internal/flow` returns a typed result and leaves final rendering to the executor/output layer.
 - **Reference runtime-heavy plugins**: `cost`, `policy`, `tfupdate`
 - **Parser architecture**: keep `pkg/parser` as a thin public facade; put orchestration, extraction, resolution, and source mechanics in `pkg/parser/internal/*` around the shared `pkg/parser/model`

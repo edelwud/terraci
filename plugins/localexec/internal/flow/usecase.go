@@ -17,7 +17,6 @@ import (
 	"github.com/edelwud/terraci/plugins/localexec/internal/reports"
 	"github.com/edelwud/terraci/plugins/localexec/internal/runner"
 	"github.com/edelwud/terraci/plugins/localexec/internal/spec"
-	"github.com/edelwud/terraci/plugins/localexec/internal/targeting"
 )
 
 type Request = spec.Request
@@ -30,11 +29,15 @@ type Result struct {
 
 type UseCase struct {
 	appCtx         *plugin.AppContext
-	targets        targeting.Resolver
+	projects       ProjectPlanner
 	planner        planner.Builder
 	contributions  ContributionCollector
 	runtimeFactory runner.Factory
 	summaryReports reports.Loader
+}
+
+type ProjectPlanner interface {
+	Plan(ctx context.Context, req spec.Request) (*workflow.ProjectResult, error)
 }
 
 type ContributionCollector interface {
@@ -42,7 +45,7 @@ type ContributionCollector interface {
 }
 
 type Dependencies struct {
-	Targets        targeting.Resolver
+	Projects       ProjectPlanner
 	Planner        planner.Builder
 	Contributions  ContributionCollector
 	RuntimeFactory runner.Factory
@@ -51,9 +54,9 @@ type Dependencies struct {
 
 type Option func(*Dependencies)
 
-func WithTargetResolver(resolver targeting.Resolver) Option {
+func WithProjectPlanner(projects ProjectPlanner) Option {
 	return func(deps *Dependencies) {
-		deps.Targets = resolver
+		deps.Projects = projects
 	}
 }
 
@@ -85,7 +88,7 @@ func DefaultDependencies(appCtx *plugin.AppContext) Dependencies {
 	structure := appCtx.Config().Structure()
 	segments := append([]string(nil), structure.Segments...)
 	return Dependencies{
-		Targets:        targeting.NewWorkflowResolver(appCtx, nil),
+		Projects:       newWorkflowProjectPlanner(appCtx),
 		Planner:        planner.New(),
 		Contributions:  contextContributionCollector{},
 		RuntimeFactory: runner.NewFactory(),
@@ -105,7 +108,7 @@ func New(appCtx *plugin.AppContext, opts ...Option) *UseCase {
 
 	return &UseCase{
 		appCtx:         appCtx,
-		targets:        deps.Targets,
+		projects:       deps.Projects,
 		planner:        deps.Planner,
 		contributions:  deps.Contributions,
 		runtimeFactory: deps.RuntimeFactory,
@@ -114,8 +117,8 @@ func New(appCtx *plugin.AppContext, opts ...Option) *UseCase {
 }
 
 func withDefaults(deps, defaults Dependencies) Dependencies {
-	if deps.Targets == nil {
-		deps.Targets = defaults.Targets
+	if deps.Projects == nil {
+		deps.Projects = defaults.Projects
 	}
 	if deps.Planner == nil {
 		deps.Planner = defaults.Planner
@@ -133,16 +136,12 @@ func withDefaults(deps, defaults Dependencies) Dependencies {
 }
 
 func (u *UseCase) Run(ctx context.Context, req Request) (*Result, error) {
-	result, err := workflow.Run(ctx, workflowOptionsFromContext(u.appCtx, req.Filters))
+	project, err := u.projects.Plan(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
-	targets, err := u.targets.Resolve(ctx, req, result)
-	if err != nil {
-		return nil, err
-	}
-	if len(targets) == 0 {
+	if len(project.Targets) == 0 {
 		log.Info("no modules to process")
 		return &Result{Skipped: true}, nil
 	}
@@ -153,7 +152,7 @@ func (u *UseCase) Run(ctx context.Context, req Request) (*Result, error) {
 	}
 
 	contributions := u.contributions.Collect(u.appCtx)
-	plan, err := u.planner.Build(targets, result, execRuntime.ExecConfig, req.Mode, contributions)
+	plan, err := u.planner.Build(project.Targets, project.Workflow, execRuntime.ExecConfig, req.Mode, contributions)
 	if err != nil {
 		return nil, err
 	}
@@ -174,8 +173,36 @@ func (u *UseCase) Run(ctx context.Context, req Request) (*Result, error) {
 	return &Result{Execution: resultExec, SummaryReport: summaryReport}, nil
 }
 
-func workflowOptionsFromContext(appCtx *plugin.AppContext, ff *filter.Flags) workflow.Options {
-	return workflow.OptionsFromConfig(appCtx.WorkDir(), appCtx.Config(), ff)
+type workflowProjectPlanner struct {
+	appCtx *plugin.AppContext
+}
+
+func newWorkflowProjectPlanner(appCtx *plugin.AppContext) ProjectPlanner {
+	return workflowProjectPlanner{appCtx: appCtx}
+}
+
+func (p workflowProjectPlanner) Plan(ctx context.Context, req spec.Request) (*workflow.ProjectResult, error) {
+	return workflow.PlanProject(ctx, workflow.ProjectRequest{
+		WorkDir: p.appCtx.WorkDir(),
+		Config:  p.appCtx.Config(),
+		Filters: derefFilters(req.Filters),
+		Targeting: workflow.TargetRequest{
+			Enabled:     true,
+			ModulePath:  req.ModulePath,
+			ChangedOnly: req.ChangedOnly,
+			BaseRef:     req.BaseRef,
+			ChangeDetectorResolver: func() (workflow.ChangeDetector, error) {
+				return p.appCtx.ChangeDetectorResolver().ResolveChangeDetector()
+			},
+		},
+	})
+}
+
+func derefFilters(filters *filter.Flags) filter.Flags {
+	if filters == nil {
+		return filter.Flags{}
+	}
+	return *filters
 }
 
 type contextContributionCollector struct{}
