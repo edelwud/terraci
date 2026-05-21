@@ -79,7 +79,7 @@ The skeleton implements only `CommandProvider` and `ConfigLoader` (via `BasePlug
 | Blob/KV cache backend    | `plugin.BlobStoreProvider` / `plugin.KVCacheProvider` | `plugins/diskblob/store.go`, `plugins/inmemcache/cache.go` |
 | Change detection         | `plugin.ChangeDetectionProvider` over `workflow.ChangeDetector` | `plugins/git/detect.go`           |
 
-Framework discovery is purely type-assertion-based: `registry.ByCapabilityFrom[T]` walks the registered plugins and returns those that implement `T`. No manual registration of capabilities is needed.
+Framework discovery is type-assertion-based inside TerraCi's registry, but plugin authors normally do not enumerate capabilities directly. Implement the interface on `*Plugin`; the framework exposes named registry views and resolver methods where it needs them. No manual registration of capabilities is needed.
 
 ## Anti-patterns to avoid
 

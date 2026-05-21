@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/edelwud/terraci/pkg/cache/blobcache"
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/config"
@@ -46,6 +48,32 @@ func (p *testPlugin) Description() string { return p.desc }
 type testCommandPlugin struct {
 	testPlugin
 }
+
+func (p *testCommandPlugin) Commands() []*cobra.Command { return nil }
+
+type testVersionPlugin struct {
+	testPlugin
+}
+
+func (p *testVersionPlugin) VersionInfo() map[string]string {
+	return map[string]string{"test": p.name}
+}
+
+type testRuntimePlugin struct {
+	testPlugin
+}
+
+func (p *testRuntimePlugin) Runtime(context.Context, *plugin.AppContext) (any, error) {
+	return p.name, nil
+}
+
+type testCIInfoPlugin struct {
+	testPlugin
+}
+
+func (p *testCIInfoPlugin) ProviderName() string { return p.name }
+func (p *testCIInfoPlugin) PipelineID() string   { return "" }
+func (p *testCIInfoPlugin) CommitSHA() string    { return "" }
 
 type testPreflightPlugin struct {
 	plugin.BasePlugin[*testConfig]
@@ -252,15 +280,54 @@ func TestByCapability(t *testing.T) {
 		t.Fatalf("got %d plugins, want 2", len(all))
 	}
 
-	// Only command plugins — testCommandPlugin doesn't actually implement CommandProvider,
-	// but we can test that ByCapability filters correctly with our test interface
+	// The package-private generic helper still powers typed capability views.
 	type hasName interface {
 		plugin.Plugin
 		Name() string
 	}
-	named := ByCapabilityFrom[hasName](New())
+	named := byCapabilityFrom[hasName](New())
 	if len(named) != 2 {
 		t.Fatalf("got %d named plugins, want 2", len(named))
+	}
+}
+
+func TestTypedCapabilityViewsPreserveOrder(t *testing.T) {
+	t.Cleanup(func() { Reset() })
+	Reset()
+
+	RegisterFactory(func() plugin.Plugin {
+		return &testPreflightPlugin{
+			BasePlugin: plugin.BasePlugin[*testConfig]{
+				PluginName: "config",
+				PluginDesc: "config plugin",
+				EnableMode: plugin.EnabledByDefault,
+				DefaultCfg: func() *testConfig { return &testConfig{} },
+			},
+		}
+	})
+	RegisterFactory(func() plugin.Plugin { return &testCommandPlugin{testPlugin: testPlugin{name: "command"}} })
+	RegisterFactory(func() plugin.Plugin { return &testVersionPlugin{testPlugin: testPlugin{name: "version"}} })
+	RegisterFactory(func() plugin.Plugin { return &testRuntimePlugin{testPlugin: testPlugin{name: "runtime"}} })
+	RegisterFactory(func() plugin.Plugin { return &testCIInfoPlugin{testPlugin: testPlugin{name: "ci"}} })
+
+	plugins := New()
+	if got := pluginNames(plugins.ConfigLoaders()); got != "config" {
+		t.Fatalf("ConfigLoaders() = %s", got)
+	}
+	if got := pluginNames(plugins.CommandProviders()); got != "command" {
+		t.Fatalf("CommandProviders() = %s", got)
+	}
+	if got := pluginNames(plugins.VersionProviders()); got != "version" {
+		t.Fatalf("VersionProviders() = %s", got)
+	}
+	if got := pluginNames(plugins.RuntimeProviders()); got != "runtime" {
+		t.Fatalf("RuntimeProviders() = %s", got)
+	}
+	if got := pluginNames(plugins.CIInfoProviders()); got != "ci" {
+		t.Fatalf("CIInfoProviders() = %s", got)
+	}
+	if got := pluginNames(plugins.Preflightables()); got != "config" {
+		t.Fatalf("Preflightables() = %s", got)
 	}
 }
 
@@ -285,8 +352,8 @@ func TestNewCreatesIsolatedPluginInstances(t *testing.T) {
 	first := New()
 	second := New()
 
-	firstPlugin := ByCapabilityFrom[plugin.ConfigLoader](first)[0]
-	secondPlugin := ByCapabilityFrom[plugin.ConfigLoader](second)[0]
+	firstPlugin := byCapabilityFrom[plugin.ConfigLoader](first)[0]
+	secondPlugin := byCapabilityFrom[plugin.ConfigLoader](second)[0]
 	if firstPlugin == secondPlugin {
 		t.Fatal("New() returned shared plugin instances")
 	}
@@ -488,7 +555,7 @@ func TestByCapability_NoMatch(t *testing.T) {
 	RegisterFactory(func() plugin.Plugin { return &testPlugin{name: "basic"} })
 
 	// VersionProvider is not implemented by testPlugin
-	vp := ByCapabilityFrom[plugin.VersionProvider](New())
+	vp := byCapabilityFrom[plugin.VersionProvider](New())
 	if len(vp) != 0 {
 		t.Errorf("expected 0 VersionProviders, got %d", len(vp))
 	}
@@ -714,13 +781,13 @@ func TestNewDoesNotReuseConfiguredRegisteredPluginState(t *testing.T) {
 		}
 	})
 
-	first := ByCapabilityFrom[plugin.ConfigLoader](New())[0]
+	first := byCapabilityFrom[plugin.ConfigLoader](New())[0]
 	first.(*testContributorPlugin).SetTypedConfig(&testConfig{Name: "configured"})
 	if !first.IsConfigured() {
 		t.Fatal("first plugin should be configured")
 	}
 
-	second := ByCapabilityFrom[plugin.ConfigLoader](New())[0]
+	second := byCapabilityFrom[plugin.ConfigLoader](New())[0]
 	if second.IsConfigured() {
 		t.Error("second plugin should start unconfigured")
 	}
@@ -1055,7 +1122,7 @@ func TestConcurrentRegistryAccess(t *testing.T) {
 		wg.Go(func() {
 			_ = New().All()
 			_, _ = New().GetPlugin("plugin-0")
-			_ = ByCapabilityFrom[plugin.Plugin](New())
+			_ = byCapabilityFrom[plugin.Plugin](New())
 		})
 	}
 	wg.Wait()

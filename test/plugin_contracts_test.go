@@ -105,7 +105,7 @@ func TestBuiltInPluginContractMatrix(t *testing.T) {
 func TestGeneratedSchemaExcludesGitExtension(t *testing.T) {
 	plugins := registry.New()
 	pluginSchemas := make(map[string]any)
-	for _, cl := range registry.ByCapabilityFrom[plugin.ConfigLoader](plugins) {
+	for _, cl := range plugins.ConfigLoaders() {
 		pluginSchemas[cl.ConfigKey()] = cl.NewConfig()
 	}
 
@@ -118,7 +118,7 @@ func TestGeneratedSchemaExcludesGitExtension(t *testing.T) {
 func TestGeneratedSchemaUsesCanonicalPolicyFields(t *testing.T) {
 	plugins := registry.New()
 	pluginSchemas := make(map[string]any)
-	for _, cl := range registry.ByCapabilityFrom[plugin.ConfigLoader](plugins) {
+	for _, cl := range plugins.ConfigLoaders() {
 		pluginSchemas[cl.ConfigKey()] = cl.NewConfig()
 	}
 
@@ -138,7 +138,7 @@ func TestGeneratedSchemaUsesCanonicalPolicyFields(t *testing.T) {
 func TestGeneratedSchemaIncludesSummaryFields(t *testing.T) {
 	plugins := registry.New()
 	pluginSchemas := make(map[string]any)
-	for _, cl := range registry.ByCapabilityFrom[plugin.ConfigLoader](plugins) {
+	for _, cl := range plugins.ConfigLoaders() {
 		pluginSchemas[cl.ConfigKey()] = cl.NewConfig()
 	}
 
@@ -214,7 +214,7 @@ extensions:
 	expectedRuntimeProviders := []string{"cost", "policy", "summary", "tfupdate"}
 	got := make([]string, 0, len(expectedRuntimeProviders))
 	plugins := appCtx.Resolver().(*registry.Registry)
-	for _, p := range registry.ByCapabilityFrom[plugin.RuntimeProvider](plugins) {
+	for _, p := range plugins.RuntimeProviders() {
 		rawRuntime, err := p.Runtime(context.Background(), appCtx)
 		if err != nil {
 			t.Fatalf("Runtime(%s) error = %v", p.Name(), err)
@@ -333,7 +333,7 @@ func loadPluginContractConfig(t *testing.T, rawConfig string) *plugin.AppContext
 		t.Fatalf("failed to load config fixture: %v", err)
 	}
 
-	for _, cl := range registry.ByCapabilityFrom[plugin.ConfigLoader](plugins) {
+	for _, cl := range plugins.ConfigLoaders() {
 		if _, exists := cfg.Extensions[cl.ConfigKey()]; !exists {
 			continue
 		}

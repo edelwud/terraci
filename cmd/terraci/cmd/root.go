@@ -1,16 +1,11 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
 
-	log "github.com/caarlos0/log"
-
-	"github.com/edelwud/terraci/pkg/config"
-	"github.com/edelwud/terraci/pkg/plugin"
-	"github.com/edelwud/terraci/pkg/plugin/registry"
+	"github.com/edelwud/terraci/cmd/terraci/internal/runflow"
 )
 
 // NewRootCmd creates and returns the root cobra command with all subcommands.
@@ -39,83 +34,26 @@ Features:
   - Git integration for changed-only pipelines
   - Parallel execution where possible`,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-			initLogger()
-			app.ResetPluginsForCommand()
-
 			verbose, verboseErr := cmd.Flags().GetBool("verbose")
-			if verboseErr == nil && verbose {
-				app.logLevel = "debug"
+			if verboseErr != nil {
+				verbose = false
 			}
-
-			if app.logLevel != "" {
-				if levelErr := setLogLevelFromString(app.logLevel); levelErr != nil {
-					return fmt.Errorf("invalid log level %q: %w", app.logLevel, levelErr)
-				}
-			}
-
-			if cmd.Name() != "version" && app.Version != "" {
-				log.WithField("version", app.Version).Debug("terraci")
-			}
-
-			// Skip config loading for commands that don't need it (marked with annotation)
-			if cmd.Annotations[annotationSkipConfig] == annotationTrue {
-				cmd.SetContext(plugin.WithContext(cmd.Context(), app.BuildContext()))
-				return nil
-			}
-
-			log.Debug("loading configuration")
-			var loadErr error
-			if app.cfgFile != "" {
-				log.WithField("file", app.cfgFile).Debug("loading config from file")
-				app.Config, loadErr = config.Load(app.cfgFile)
-			} else {
-				log.WithField("dir", app.WorkDir).Debug("loading config from directory")
-				app.Config, loadErr = config.LoadOrDefault(app.WorkDir)
-			}
-
-			if loadErr != nil {
-				return loadErr
-			}
-
-			log.Debug("validating configuration")
-			if err := app.Config.Validate(); err != nil {
-				return err
-			}
-
-			// Initialize plugin configs
-			log.Debug("initializing plugin configurations")
-			if err := app.InitPluginConfigs(); err != nil {
-				return err
-			}
-
-			appCtx := app.BuildContext()
-			cmd.SetContext(plugin.WithContext(cmd.Context(), appCtx))
-
-			// Run plugin preflight hooks (lifecycle stage 3) unless the
-			// command opts out via Annotations["skipPreflight"]="true".
-			// Read-only/utility commands (validate, schema, version, man,
-			// completion) opt out so plugins like `git` don't fail when the
-			// workdir isn't a checkout, etc.
-			if cmd.Annotations[annotationSkipPreflight] != annotationTrue {
-				log.Debug("running plugin preflight")
-				for _, p := range app.Plugins.PreflightsForStartup() {
-					if err := p.Preflight(cmd.Context(), appCtx); err != nil {
-						return fmt.Errorf("preflight plugin %s: %w", p.Name(), err)
-					}
-				}
-			} else {
-				log.Debug("skipping plugin preflight per command annotation")
-			}
-
-			contributions, err := app.Plugins.CollectContributions(appCtx)
+			result, err := app.newRunFlow().Prepare(cmd.Context(), runflow.Request{
+				CommandName:   cmd.Name(),
+				ConfigPath:    app.cfgFile,
+				WorkDir:       app.WorkDir,
+				LogLevel:      app.logLevel,
+				Verbose:       verbose,
+				SkipConfig:    cmd.Annotations[annotationSkipConfig] == annotationTrue,
+				SkipPreflight: cmd.Annotations[annotationSkipPreflight] == annotationTrue,
+			})
 			if err != nil {
 				return err
 			}
-			if len(contributions) > 0 {
-				appCtx = appCtx.WithPipelineContributions(contributions)
-				cmd.SetContext(plugin.WithContext(cmd.Context(), appCtx))
-			}
-
+			app.Config = result.Loaded
+			app.Plugins = result.Registry
+			app.reports = result.Reports
+			cmd.SetContext(result.Context)
 			return nil
 		},
 	}
@@ -140,7 +78,7 @@ Features:
 	// Register plugin-provided commands. Commands() runs at registration
 	// time and must not capture state — plugins retrieve the per-run
 	// AppContext and command-scoped plugin inside RunE via plugin.CommandPlugin.
-	for _, cp := range registry.ByCapabilityFrom[plugin.CommandProvider](app.Plugins) {
+	for _, cp := range app.Plugins.CommandProviders() {
 		for _, cmd := range cp.Commands() {
 			rootCmd.AddCommand(cmd)
 		}

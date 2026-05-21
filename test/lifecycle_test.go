@@ -39,7 +39,7 @@ func TestPluginRegistration(t *testing.T) {
 func TestPluginCapabilities(t *testing.T) {
 	plugins := registry.New()
 	// ConfigLoader plugins
-	configLoaders := registry.ByCapabilityFrom[plugin.ConfigLoader](plugins)
+	configLoaders := plugins.ConfigLoaders()
 	if len(configLoaders) == 0 {
 		t.Fatal("expected at least one ConfigLoader")
 	}
@@ -64,19 +64,19 @@ func TestPluginCapabilities(t *testing.T) {
 	}
 
 	// CI provider plugins (gitlab + github) — must implement all CI interfaces
-	ciProviders := registry.ByCapabilityFrom[plugin.CIInfoProvider](plugins)
+	ciProviders := plugins.CIInfoProviders()
 	if len(ciProviders) < 2 {
 		t.Errorf("expected at least 2 CIInfoProvider plugins (gitlab, github), got %d", len(ciProviders))
 	}
 
 	// Preflightable plugins
-	preflightables := registry.ByCapabilityFrom[plugin.Preflightable](plugins)
+	preflightables := plugins.Preflightables()
 	if len(preflightables) == 0 {
 		t.Fatal("expected at least one Preflightable plugin")
 	}
 
 	// CommandProvider plugins
-	commandProviders := registry.ByCapabilityFrom[plugin.CommandProvider](plugins)
+	commandProviders := plugins.CommandProviders()
 	if len(commandProviders) == 0 {
 		t.Fatal("expected at least one CommandProvider plugin")
 	}
@@ -90,7 +90,7 @@ func TestPluginConfigLoading(t *testing.T) {
 	}
 
 	// Configure plugins from the fixture config
-	for _, cl := range registry.ByCapabilityFrom[plugin.ConfigLoader](plugins) {
+	for _, cl := range plugins.ConfigLoaders() {
 		if _, exists := cfg.Extensions[cl.ConfigKey()]; !exists {
 			continue
 		}
@@ -102,7 +102,7 @@ func TestPluginConfigLoading(t *testing.T) {
 	}
 
 	// gitlab should be configured (it's in the fixture)
-	for _, cl := range registry.ByCapabilityFrom[plugin.ConfigLoader](plugins) {
+	for _, cl := range plugins.ConfigLoaders() {
 		if cl.ConfigKey() == "gitlab" && !cl.IsConfigured() {
 			t.Error("gitlab should be configured after loading basic fixture")
 		}
@@ -120,7 +120,7 @@ func TestProviderResolution(t *testing.T) {
 		t.Fatalf("load config: %v", err)
 	}
 
-	for _, cl := range registry.ByCapabilityFrom[plugin.ConfigLoader](plugins) {
+	for _, cl := range plugins.ConfigLoaders() {
 		if _, exists := cfg.Extensions[cl.ConfigKey()]; !exists {
 			continue
 		}
@@ -149,7 +149,7 @@ func TestPluginInitialization(t *testing.T) {
 		t.Fatalf("failed to load config: %v", err)
 	}
 
-	for _, cl := range registry.ByCapabilityFrom[plugin.ConfigLoader](plugins) {
+	for _, cl := range plugins.ConfigLoaders() {
 		if _, exists := cfg.Extensions[cl.ConfigKey()]; !exists {
 			continue
 		}

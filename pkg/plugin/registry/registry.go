@@ -148,9 +148,10 @@ type pluginSource interface {
 	All() []plugin.Plugin
 }
 
-// ByCapabilityFrom returns all plugins from source that implement the given
-// capability interface.
-func ByCapabilityFrom[T plugin.Plugin](source pluginSource) []T {
+// byCapabilityFrom returns all plugins from source that implement the given
+// capability interface. Keep this generic helper package-private so framework
+// callers use named capability views instead of raw type discovery.
+func byCapabilityFrom[T plugin.Plugin](source pluginSource) []T {
 	if source == nil {
 		return nil
 	}
@@ -161,6 +162,36 @@ func ByCapabilityFrom[T plugin.Plugin](source pluginSource) []T {
 		}
 	}
 	return result
+}
+
+// ConfigLoaders returns config-capable plugins in registration order.
+func (r *Registry) ConfigLoaders() []plugin.ConfigLoader {
+	return byCapabilityFrom[plugin.ConfigLoader](r)
+}
+
+// CommandProviders returns command-capable plugins in registration order.
+func (r *Registry) CommandProviders() []plugin.CommandProvider {
+	return byCapabilityFrom[plugin.CommandProvider](r)
+}
+
+// VersionProviders returns version-capable plugins in registration order.
+func (r *Registry) VersionProviders() []plugin.VersionProvider {
+	return byCapabilityFrom[plugin.VersionProvider](r)
+}
+
+// RuntimeProviders returns runtime-capable plugins in registration order.
+func (r *Registry) RuntimeProviders() []plugin.RuntimeProvider {
+	return byCapabilityFrom[plugin.RuntimeProvider](r)
+}
+
+// CIInfoProviders returns CI metadata providers in registration order.
+func (r *Registry) CIInfoProviders() []plugin.CIInfoProvider {
+	return byCapabilityFrom[plugin.CIInfoProvider](r)
+}
+
+// Preflightables returns preflight-capable plugins in registration order.
+func (r *Registry) Preflightables() []plugin.Preflightable {
+	return byCapabilityFrom[plugin.Preflightable](r)
 }
 
 // Reset clears the global catalog. Only for testing.

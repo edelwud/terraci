@@ -62,7 +62,7 @@
 //	│             │  state lazily; use-cases consume the typed runtime.
 //	└─────────────┘
 //
-// AppContext is constructed once per command run by the framework and
+// AppContext is constructed once per command run by the CLI runflow and
 // attached to cmd.Context() so plugin RunE callbacks can retrieve it through
 // CommandPlugin[T]. It is immutable — plugins receive a snapshot of Config /
 // WorkDir / ServiceDir / Resolver / pipeline contributions that does not
@@ -70,12 +70,14 @@
 //
 // # Command boundary
 //
-// Command handlers should stay thin: resolve the command-scoped plugin with
-// CommandPlugin[T], call RequireEnabled for ConfigLoader-backed plugins, parse
-// cobra flags into a typed request, then hand the request to the plugin
-// use-case. CommandPlugin and RequireEnabled return typed errors
-// (CommandBindingError and DisabledPluginError) so tests can use errors.As.
-// The canonical flow is:
+// Command setup is framework-owned: cobra flags feed the CLI runflow, which
+// loads config, decodes plugin config, runs preflight, collects contributions,
+// and binds AppContext. Plugin command handlers should stay thin: resolve the
+// command-scoped plugin with CommandPlugin[T], call RequireEnabled for
+// ConfigLoader-backed plugins, parse cobra flags into a typed request, then
+// hand the request to the plugin use-case. CommandPlugin and RequireEnabled
+// return typed errors (CommandBindingError and DisabledPluginError) so tests
+// can use errors.As. The canonical plugin command flow is:
 //
 //	cobra flags -> typed Request -> immutable Runtime -> use-case Result
 //	    -> artifact persistence -> output renderer
@@ -157,8 +159,10 @@
 //
 // AppContext exposes typed capability resolution only. Plugins should call
 // ctx.Resolver().Resolve* methods instead of enumerating or looking up
-// concrete plugin names. Framework code owns raw plugin enumeration through
-// registry.ByCapabilityFrom and lifecycle hooks.
+// concrete plugin names. Framework code owns raw plugin enumeration inside
+// pkg/plugin/registry and exposes named registry views such as
+// ConfigLoaders(), CommandProviders(), and VersionProviders() where command
+// framework code needs lists.
 //
 // # Cross-plugin communication
 //

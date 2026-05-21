@@ -120,6 +120,7 @@ func TestArchitecture_ConfigSnapshotAndDocs(t *testing.T) {
 		"PipelineContributionEnabled(_ *plugin.AppContext) bool",
 		"CollectContributions(ctx *plugin.AppContext) []*pipeline.Contribution",
 		"resolver.CollectContributions",
+		"registry.ByCapabilityFrom",
 	}
 	for _, rel := range textFiles(t, root, "AGENTS.md", "docs", "examples", "pkg/plugin/doc.go") {
 		if strings.HasPrefix(rel, "docs/.vitepress/dist/") {
@@ -217,6 +218,53 @@ func TestArchitecture_InitFlowBoundaries(t *testing.T) {
 
 	if len(violations) > 0 {
 		t.Fatalf("init flow boundary violations:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
+func TestArchitecture_CommandRunFlowBoundaries(t *testing.T) {
+	root := repoRoot(t)
+	var violations []string
+
+	for _, rel := range goFiles(t, root, "cmd", "pkg", "plugins", "test", "examples") {
+		if !isProductionFile(rel) {
+			continue
+		}
+		file := parseGoFile(t, filepath.Join(root, rel), 0)
+		registryAliases := importAliases(file, moduleImportPath+"/pkg/plugin/registry")
+		configAliases := importAliases(file, moduleImportPath+"/pkg/config")
+
+		ast.Inspect(file, func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			selector, ok := callSelector(call)
+			if !ok {
+				return true
+			}
+
+			if selectorCallMatches(selector, registryAliases, "ByCapabilityFrom") && !isRegistryPackageFile(rel) {
+				violations = append(violations, rel+" uses raw registry.ByCapabilityFrom; use a typed registry view or resolver method")
+			}
+
+			if strings.HasPrefix(rel, "cmd/terraci/cmd/") {
+				switch {
+				case selectorCallMatches(selector, configAliases, "Load"),
+					selectorCallMatches(selector, configAliases, "LoadOrDefault"):
+					violations = append(violations, rel+" loads command config directly; delegate command setup to runflow.Prepare")
+				case selector.Sel.Name == "DecodeAndSet",
+					selector.Sel.Name == "Preflight",
+					selector.Sel.Name == "PreflightsForStartup",
+					selector.Sel.Name == "CollectContributions":
+					violations = append(violations, rel+" runs command lifecycle directly; delegate command setup to runflow.Prepare")
+				}
+			}
+			return true
+		})
+	}
+
+	if len(violations) > 0 {
+		t.Fatalf("command run flow boundary violations:\n%s", strings.Join(violations, "\n"))
 	}
 }
 
@@ -356,6 +404,10 @@ func isBuildConfigCall(call *ast.CallExpr) bool {
 
 func isInitCommandFile(rel string) bool {
 	return rel == "cmd/terraci/cmd/init.go" || rel == "cmd/terraci/cmd/init_tui.go"
+}
+
+func isRegistryPackageFile(rel string) bool {
+	return strings.HasPrefix(rel, "pkg/plugin/registry/")
 }
 
 func callSelector(call *ast.CallExpr) (*ast.SelectorExpr, bool) {

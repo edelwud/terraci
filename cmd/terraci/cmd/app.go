@@ -1,11 +1,9 @@
 package cmd
 
 import (
-	"path/filepath"
-
+	"github.com/edelwud/terraci/cmd/terraci/internal/runflow"
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/config"
-	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/registry"
 )
 
@@ -45,57 +43,12 @@ func newApp(version, commit, date string) *App {
 	}
 }
 
-// BuildContext constructs a fresh immutable AppContext bound to the current
-// App state. Called once per command run from PersistentPreRunE; the
-// returned context is attached to cmd.Context() so plugins can retrieve it
-// via plugin.CommandPlugin or AppContextFromCommand.
-func (a *App) BuildContext() *plugin.AppContext {
-	if a.Plugins == nil {
-		a.Plugins = registry.New()
-	}
-	if a.reports == nil {
-		a.reports = ci.NewFileReportStore(a.serviceDir())
-	}
-	return plugin.NewAppContext(plugin.AppContextOptions{
-		Config:        a.Config,
-		WorkDir:       a.WorkDir,
-		ServiceDir:    a.serviceDir(),
-		Version:       a.Version,
-		Reports:       a.reports,
-		Resolver:      a.Plugins,
-		CommandLookup: a.Plugins,
+func (a *App) newRunFlow() *runflow.Flow {
+	return runflow.New(runflow.Options{
+		RegistryFactory: registry.New,
+		InitLogger:      initLogger,
+		SetLogLevel:     setLogLevelFromString,
+		Version:         a.Version,
+		Reports:         a.reports,
 	})
-}
-
-// ResetPluginsForCommand swaps in a fresh per-command plugin registry. Use
-// from PersistentPreRunE before BuildContext.
-func (a *App) ResetPluginsForCommand() {
-	a.Plugins = registry.New()
-}
-
-func (a *App) serviceDir() string {
-	dir := ".terraci"
-	if a.Config != nil && a.Config.ServiceDir != "" {
-		dir = a.Config.ServiceDir
-	}
-	if !filepath.IsAbs(dir) {
-		dir = filepath.Join(a.WorkDir, dir)
-	}
-	return dir
-}
-
-// InitPluginConfigs decodes plugin-specific configurations from the Plugins
-// registry and passes them to each ConfigLoader plugin.
-func (a *App) InitPluginConfigs() error {
-	for _, p := range registry.ByCapabilityFrom[plugin.ConfigLoader](a.Plugins) {
-		if _, exists := a.Config.Extensions[p.ConfigKey()]; !exists {
-			continue
-		}
-		if err := p.DecodeAndSet(func(target any) error {
-			return a.Config.Extension(p.ConfigKey(), target)
-		}); err != nil {
-			return err
-		}
-	}
-	return nil
 }

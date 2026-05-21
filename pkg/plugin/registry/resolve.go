@@ -14,7 +14,7 @@ import (
 // currently enabled. It replaces what used to be four near-identical
 // "fetch-and-filter" helpers (one per capability).
 func activeByCapability[T plugin.Plugin](r *Registry) []T {
-	candidates := ByCapabilityFrom[T](r)
+	candidates := byCapabilityFrom[T](r)
 	active := candidates[:0]
 	for _, c := range candidates {
 		if isPluginEnabled(c) {
@@ -196,7 +196,7 @@ func (r *Registry) PreflightsForStartup() []plugin.Preflightable {
 // CollectContributions gathers pipeline contributions from all enabled
 // PipelineContributor plugins in this registry.
 func (r *Registry) CollectContributions(ctx *plugin.AppContext) ([]*pipeline.Contribution, error) {
-	contributors := ByCapabilityFrom[plugin.PipelineContributor](r)
+	contributors := byCapabilityFrom[plugin.PipelineContributor](r)
 	contributions := make([]*pipeline.Contribution, 0, len(contributors))
 	for _, c := range contributors {
 		if !isPluginEnabled(c) {

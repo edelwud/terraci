@@ -26,8 +26,8 @@ task ci:pr          # Full PR validation (lint + test + integration)
 cmd/terraci/
 ├── main.go                     # Entry point — blank-imports all built-in plugins
 └── cmd/
-    ├── app.go                  # App struct, PluginContext() with ServiceDir, InitPluginConfigs()
-    ├── root.go                 # NewRootCmd(), plugin lifecycle (Init), dynamic commands
+    ├── app.go                  # Thin CLI state holder for flags/version/current registry
+    ├── root.go                 # NewRootCmd(), runflow.Prepare binding, dynamic commands
     ├── generate.go             # Pipeline generation (builds IR, calls provider.NewGenerator(ctx, ir))
     ├── graph.go                # Dependency graph visualization
     ├── validate.go             # Config/project validation
@@ -54,7 +54,8 @@ cmd/xterraci/
     └── *_test.go
 
 cmd/terraci/internal/
-└── initflow/                   # Typed init wizard orchestration: defaults, plugin groups, config build
+├── initflow/                   # Typed init wizard orchestration: defaults, plugin groups, config build
+└── runflow/                    # Typed command lifecycle: config load, plugin decode, preflight, contributions
 
 pkg/                            # Public API — importable by external plugins (plugin-agnostic core + plugin SDK)
 ├── plugin/                     # Core plugin SDK — interfaces, BasePlugin, AppContext
@@ -205,7 +206,7 @@ internal/                       # Private — only terraform eval
 
 ### Architecture
 
-Compile-time plugins via `init()` + blank import (Caddy/database-sql pattern). Plugins register factories via `registry.RegisterFactory()`, core creates a fresh `*registry.Registry` for each command run; that `*Registry` directly implements `plugin.Resolver`. Capability discovery uses `registry.ByCapabilityFrom[T](resolver)`. Core types (interfaces, BasePlugin, AppContext) live in `pkg/plugin`; plugin catalog and per-command registries live in `pkg/plugin/registry`; init wizard types in `pkg/plugin/initwiz`.
+Compile-time plugins via `init()` + blank import (Caddy/database-sql pattern). Plugins register factories via `registry.RegisterFactory()`, core creates a fresh `*registry.Registry` for each command run; that `*Registry` directly implements `plugin.Resolver`. Framework capability discovery uses typed registry views such as `CommandProviders()` and `ConfigLoaders()`; raw generic discovery stays inside `pkg/plugin/registry`. Core types (interfaces, BasePlugin, AppContext) live in `pkg/plugin`; plugin catalog and per-command registries live in `pkg/plugin/registry`; init wizard types in `pkg/plugin/initwiz`.
 
 The core `pkg/` tree is **plugin-agnostic** — no package outside `pkg/plugin` imports the plugin SDK. Plugin extensibility hangs entirely off `pkg/plugin`'s capability interfaces.
 
@@ -324,7 +325,7 @@ Plugins contribute via `PipelineContributor.PipelineContribution(ctx) (*pipeline
 
 ### Provider Resolution
 
-`Registry.ResolveCIProvider()` returns `*plugin.ResolvedCIProvider` (struct wrapping EnvDetector + CIInfoProvider + PipelineGeneratorFactory + CommentServiceFactory): `TERRACI_PROVIDER` env → CI env detection → single active provider → error. Core has zero knowledge of specific providers. Commands that don't need config use `Annotations["skipConfig"]` to skip config loading in `PersistentPreRunE`.
+`Registry.ResolveCIProvider()` returns `*plugin.ResolvedCIProvider` (struct wrapping EnvDetector + CIInfoProvider + PipelineGeneratorFactory + CommentServiceFactory): `TERRACI_PROVIDER` env → CI env detection → single active provider → error. Core has zero knowledge of specific providers. Commands that don't need config use `Annotations["skipConfig"]`; `cmd/terraci/internal/runflow` interprets command setup policies.
 
 ### Service Directory
 
@@ -432,6 +433,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **Shell rendering separated from IR**: `pkg/pipeline/cishell.RenderOperation(op)` for shell-driven CI; the IR carries `pipeline.TerraformOperation` data only.
 - **Canonical dry-run source**: dry-run stage/job counts derive from `*IR.DryRun(totalModules)`.
 - **Preflight, then lazy runtime**: framework performs cheap startup validation; heavy plugin state is built lazily inside RuntimeProvider/use-cases. Runtime must be command-agnostic; CLI overrides live in typed request structs.
+- **Command run flow**: `cmd/terraci/cmd` parses cobra flags and calls `runflow.Prepare`; `cmd/terraci/internal/runflow` owns config loading, plugin config decode, AppContext construction, preflight, and contribution collection.
 - **Command/usecase boundary**: command callbacks use `plugin.CommandPlugin[T]` and `plugin.RequireEnabled`, parse flags into request structs, call a usecase, then handle artifact persistence and output explicitly.
 - **PipelineContributor(ctx)**: plugins add standalone DAG jobs through `pipeline.NewPluginCommandJob` + `pipeline.NewContribution`, return builder errors, and use `PipelineContributionGate` for optional jobs; `nil, nil` is invalid
 - **ServiceDir**: configurable project directory; `AppContext.ServiceDir` (absolute) for runtime, `AppContext.Config().ServiceDir()` (relative) for pipeline templates
