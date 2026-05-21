@@ -236,6 +236,8 @@ func TestArchitecture_CommandRunFlowBoundaries(t *testing.T) {
 		file := parseGoFile(t, filepath.Join(root, rel), 0)
 		registryAliases := importAliases(file, moduleImportPath+"/pkg/plugin/registry")
 		configAliases := importAliases(file, moduleImportPath+"/pkg/config")
+		workflowAliases := importAliases(file, moduleImportPath+"/pkg/workflow")
+		pipelineAliases := importAliases(file, moduleImportPath+"/pkg/pipeline")
 
 		ast.Inspect(file, func(node ast.Node) bool {
 			if strings.HasPrefix(rel, "cmd/terraci/cmd/") {
@@ -261,6 +263,21 @@ func TestArchitecture_CommandRunFlowBoundaries(t *testing.T) {
 			if !ok {
 				return true
 			}
+			if strings.HasPrefix(rel, "cmd/terraci/cmd/") {
+				if ident, identOK := call.Fun.(*ast.Ident); identOK {
+					switch ident.Name {
+					case "workflowOptions",
+						"resolveGenerateTargets",
+						"newPipelineGenerator",
+						"formatGraph",
+						"formatList",
+						"formatLevels",
+						"printStats",
+						"computeLibraryModulesSummary":
+						violations = append(violations, rel+" calls command-local orchestration helper "+ident.Name+"; delegate to cmd/terraci/internal/*flow")
+					}
+				}
+			}
 			selector, ok := callSelector(call)
 			if !ok {
 				return true
@@ -275,6 +292,11 @@ func TestArchitecture_CommandRunFlowBoundaries(t *testing.T) {
 				case selectorCallMatches(selector, configAliases, "Load"),
 					selectorCallMatches(selector, configAliases, "LoadOrDefault"):
 					violations = append(violations, rel+" loads command config directly; delegate command setup to runflow.Prepare")
+				case selectorCallMatches(selector, workflowAliases, "Run"),
+					selectorCallMatches(selector, workflowAliases, "ResolveTargets"):
+					violations = append(violations, rel+" runs workflow orchestration directly; delegate to cmd/terraci/internal/projectflow")
+				case selectorCallMatches(selector, pipelineAliases, "Build"):
+					violations = append(violations, rel+" builds pipeline IR directly; delegate to cmd/terraci/internal/generateflow")
 				case selector.Sel.Name == "DecodeAndSet",
 					selector.Sel.Name == "Preflight",
 					selector.Sel.Name == "PreflightsForStartup",

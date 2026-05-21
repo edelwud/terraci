@@ -28,9 +28,9 @@ cmd/terraci/
 └── cmd/
     ├── app.go                  # Thin CLI state holder for flags/version/current registry
     ├── root.go                 # NewRootCmd(), runflow.Prepare binding, dynamic commands
-    ├── generate.go             # Pipeline generation (builds IR, calls provider.NewGenerator(ctx, ir))
-    ├── graph.go                # Dependency graph visualization
-    ├── validate.go             # Config/project validation
+    ├── generate.go             # Pipeline generation command presentation over generateflow
+    ├── graph.go                # Dependency graph command presentation over graphflow
+    ├── validate.go             # Config/project validation presentation over validateflow
     ├── filters.go              # filterFlags struct — shared filter flags, mergedFilterOpts()
     ├── init.go                 # Config initialization CLI/file I/O (--ci mode delegates to initflow)
     ├── init_tui.go             # Interactive TUI presentation over initflow display groups
@@ -54,9 +54,13 @@ cmd/xterraci/
     └── *_test.go
 
 cmd/terraci/internal/
+├── generateflow/               # Generate command orchestration: projectflow → IR → provider generator
+├── graphflow/                  # Graph command orchestration and graph render formats
 ├── initflow/                   # Typed init wizard orchestration: defaults, plugin groups, config build
+├── projectflow/                # Shared command project discovery: workflow.Run, target selection, library diagnostics
 ├── runflow/                    # Typed command lifecycle: config load, plugin decode, preflight, contributions
 ├── schemaflow/                 # Schema command orchestration
+├── validateflow/               # Validate command graph diagnostics and pass/fail decision
 └── versionflow/                # Version command orchestration
 
 pkg/                            # Public API — importable by external plugins (plugin-agnostic core + plugin SDK)
@@ -393,11 +397,11 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 ## Data Flow
 
 ### Generate pipeline
-1. `workflow.Run(ctx, opts)` — scan → filter → parse → graph
-2. `workflow.ChangeDetector.DetectChanges()` via `plugin.ChangeDetectionProvider` (if --changed-only) — one VCS diff returns changed files, modules, and library paths
-3. `runflow.Prepare(...)` gathers a command-scoped snapshot of PipelineContributor jobs or fails on invalid contributions
-4. `pipeline.Build(opts)` — construct provider-agnostic IR
-5. `provider.NewGenerator(appCtx, ir)` — bind IR to provider; `generator.Generate()` writes YAML
+1. `runflow.Prepare(...)` loads config, decodes plugins, preflights, and gathers PipelineContributor jobs
+2. `generateflow.Run(...)` delegates project discovery/targeting to `projectflow`
+3. `projectflow.Run(...)` calls `workflow.Run`, and `workflow.ChangeDetector.DetectChanges()` when `--changed-only`
+4. `generateflow` calls `pipeline.Build(opts)` and binds the IR to `provider.NewGenerator(appCtx, ir)`
+5. `cmd/terraci/cmd` renders dry-run output or writes generated YAML
 
 ### Summary
 1. `planresults.Scan()` → PlanResultCollection
@@ -434,7 +438,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **Shell rendering separated from IR**: `pkg/pipeline/cishell.RenderOperation(op)` for shell-driven CI; the IR carries `pipeline.TerraformOperation` data only.
 - **Canonical dry-run source**: dry-run stage/job counts derive from `*IR.DryRun(totalModules)`.
 - **Preflight, then lazy runtime**: framework performs cheap startup validation; heavy plugin state is built lazily inside RuntimeProvider/use-cases. Runtime must be command-agnostic; CLI overrides live in typed request structs.
-- **Command run flow**: `cmd/terraci/cmd` parses cobra flags and calls `runflow.Prepare`; `cmd/terraci/internal/runflow` owns config loading, plugin config decode, AppContext construction, preflight, and contribution collection.
+- **Command run flow**: `cmd/terraci/cmd` parses cobra flags, calls `runflow.Prepare`, then passes `runflow.Prepared` into a typed command flow under `cmd/terraci/internal/*flow`; command files own only output/log presentation and file/stdout writes.
 - **Command/usecase boundary**: command callbacks use `plugin.CommandPlugin[T]` and `plugin.RequireEnabled`, parse flags into request structs, call a usecase, then handle artifact persistence and output explicitly.
 - **PipelineContributor(ctx)**: plugins add standalone DAG jobs through `pipeline.NewPluginCommandJob` + `pipeline.NewContribution`, return builder errors, and use `PipelineContributionGate` for optional jobs; `nil, nil` is invalid
 - **ServiceDir**: configurable project directory; `AppContext.ServiceDir` (absolute) for runtime, `AppContext.Config().ServiceDir()` (relative) for pipeline templates

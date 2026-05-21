@@ -3,18 +3,15 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	log "github.com/caarlos0/log"
 
+	"github.com/edelwud/terraci/cmd/terraci/internal/graphflow"
 	"github.com/edelwud/terraci/cmd/terraci/internal/runflow"
-	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/filter"
-	"github.com/edelwud/terraci/pkg/graph"
-	"github.com/edelwud/terraci/pkg/workflow"
 )
 
 func newGraphCmd() *cobra.Command {
@@ -50,30 +47,24 @@ Examples:
 			if err != nil {
 				return err
 			}
-			result, err := workflow.Run(cmd.Context(), workflowOptions(prepared, ff))
+			result, err := graphflow.Run(cmd.Context(), graphflow.NewRuntime(prepared), graphflow.Request{
+				Filters:        *ff,
+				Format:         graphFormat,
+				ModuleID:       moduleID,
+				ShowDependents: showDependents,
+				ShowStats:      showStats,
+			})
 			if err != nil {
 				return err
 			}
 
-			log.WithField("count", len(result.Filtered.Modules)).Debug("modules after filtering")
-			depGraph := result.Graph
-
-			libraries := result.Libraries.Modules
-			if moduleID != "" {
-				depGraph, err = depGraph.ScopeToModule(moduleID, showDependents)
-				if err != nil {
-					return err
-				}
-				// Scoped graphs are about a specific executable subtree, so
-				// hide library nodes to keep the visualization focused.
-				libraries = nil
-			}
-
+			log.WithField("count", result.ModuleCount).Debug("modules after filtering")
 			if showStats {
-				return printStats(depGraph, moduleID)
+				logGraphStats(result.Stats)
+				return nil
 			}
 
-			return renderGraph(depGraph, libraries, graphFormat, graphOutput)
+			return writeGraphOutput(result.Output, graphOutput)
 		},
 	}
 	runflow.MarkCommand(cmd, runflow.CommandPolicy{SkipPreflight: true})
@@ -88,12 +79,7 @@ Examples:
 	return cmd
 }
 
-func renderGraph(g *graph.DependencyGraph, libraries []*discovery.Module, format, outputFile string) error {
-	output, err := formatGraph(g, libraries, format)
-	if err != nil {
-		return err
-	}
-
+func writeGraphOutput(output, outputFile string) error {
 	if outputFile != "" {
 		if err := os.WriteFile(outputFile, []byte(output), 0o600); err != nil {
 			return fmt.Errorf("write output: %w", err)
@@ -106,116 +92,13 @@ func renderGraph(g *graph.DependencyGraph, libraries []*discovery.Module, format
 	return nil
 }
 
-func formatGraph(g *graph.DependencyGraph, libraries []*discovery.Module, format string) (string, error) {
-	switch format {
-	case "dot":
-		return g.ToDOTWithLibraries(libraries), nil
-	case "plantuml":
-		return g.ToPlantUML(), nil
-	case "list":
-		return formatList(g, libraries)
-	case "levels":
-		return formatLevels(g)
-	default:
-		return "", fmt.Errorf("unknown format: %s", format)
+func logGraphStats(result *graphflow.StatsResult) {
+	if result == nil {
+		return
 	}
-}
-
-func formatList(g *graph.DependencyGraph, libraries []*discovery.Module) (string, error) {
-	sorted, err := g.TopologicalSort()
-	if err != nil {
-		return "", err
-	}
-
-	var sb strings.Builder
-	currentGroup := ""
-	for _, id := range sorted {
-		parts := strings.Split(id, "/")
-		group := ""
-		if len(parts) >= 2 {
-			group = parts[0] + "/" + parts[1]
-		}
-
-		if group != currentGroup {
-			if currentGroup != "" {
-				sb.WriteString("\n")
-			}
-			fmt.Fprintf(&sb, "[%s]\n", group)
-			currentGroup = group
-		}
-
-		shortName := id
-		if len(parts) > 2 {
-			shortName = strings.Join(parts[2:], "/")
-		}
-
-		deps := g.GetDependencies(id)
-		if len(deps) == 0 {
-			fmt.Fprintf(&sb, "  %s\n", shortName)
-		} else {
-			shortDeps := make([]string, len(deps))
-			for i, dep := range deps {
-				depParts := strings.Split(dep, "/")
-				if len(depParts) > 2 {
-					shortDeps[i] = strings.Join(depParts[2:], "/")
-				} else {
-					shortDeps[i] = dep
-				}
-			}
-			fmt.Fprintf(&sb, "  %s → %s\n", shortName, strings.Join(shortDeps, ", "))
-		}
-	}
-
-	if len(libraries) > 0 {
-		if sb.Len() > 0 {
-			sb.WriteString("\n")
-		}
-		sb.WriteString("[library_modules]\n")
-		ids := make([]string, 0, len(libraries))
-		for _, m := range libraries {
-			ids = append(ids, m.RelativePath)
-		}
-		sort.Strings(ids)
-		for _, id := range ids {
-			fmt.Fprintf(&sb, "  %s\n", id)
-		}
-	}
-
-	return sb.String(), nil
-}
-
-func formatLevels(g *graph.DependencyGraph) (string, error) {
-	levels, err := g.ExecutionLevels()
-	if err != nil {
-		return "", err
-	}
-
-	var sb strings.Builder
-	for i, level := range levels {
-		fmt.Fprintf(&sb, "Level %d (%d modules):\n", i, len(level))
-		for _, id := range level {
-			deps := g.GetDependencies(id)
-			if len(deps) == 0 {
-				fmt.Fprintf(&sb, "  %s\n", id)
-			} else {
-				depNames := make([]string, len(deps))
-				for j, dep := range deps {
-					parts := strings.Split(dep, "/")
-					depNames[j] = parts[len(parts)-1]
-				}
-				fmt.Fprintf(&sb, "  %s  (← %s)\n", id, strings.Join(depNames, ", "))
-			}
-		}
-		sb.WriteString("\n")
-	}
-	return sb.String(), nil
-}
-
-func printStats(g *graph.DependencyGraph, moduleID string) error {
-	stats := g.GetStats()
-
-	if moduleID != "" {
-		log.WithField("scope", moduleID).Info("dependency graph statistics")
+	stats := result.Stats
+	if result.Scope != "" {
+		log.WithField("scope", result.Scope).Info("dependency graph statistics")
 	} else {
 		log.Info("dependency graph statistics")
 	}
@@ -258,7 +141,7 @@ func printStats(g *graph.DependencyGraph, moduleID string) error {
 	if stats.HasCycles {
 		log.WithField("count", stats.CycleCount).Warn("cycles detected")
 		log.IncreasePadding()
-		for i, cycle := range g.DetectCycles() {
+		for i, cycle := range result.Cycles {
 			log.WithField("cycle", i+1).WithField("path", strings.Join(cycle, " → ")).Warn("cycle")
 		}
 		log.DecreasePadding()
@@ -267,5 +150,4 @@ func printStats(g *graph.DependencyGraph, moduleID string) error {
 	}
 
 	log.DecreasePadding()
-	return nil
 }

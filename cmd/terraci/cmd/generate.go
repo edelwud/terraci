@@ -1,24 +1,19 @@
 package cmd
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
 	log "github.com/caarlos0/log"
 
+	"github.com/edelwud/terraci/cmd/terraci/internal/generateflow"
+	"github.com/edelwud/terraci/cmd/terraci/internal/projectflow"
 	"github.com/edelwud/terraci/cmd/terraci/internal/runflow"
-	"github.com/edelwud/terraci/pkg/discovery"
-	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/filter"
-	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
-	"github.com/edelwud/terraci/pkg/workflow"
 )
 
 func newGenerateCmd() *cobra.Command {
@@ -50,44 +45,29 @@ Examples:
 			if err != nil {
 				return err
 			}
-			result, err := workflow.Run(cmd.Context(), workflowOptions(prepared, ff))
+			result, err := generateflow.Run(cmd.Context(), generateflow.NewRuntime(prepared), generateflow.Request{
+				Filters:     *ff,
+				ChangedOnly: changedOnly,
+				BaseRef:     baseRef,
+				PlanOnly:    planOnly,
+				DryRun:      dryRun,
+			})
 			if err != nil {
 				return err
 			}
 
-			if len(result.Filtered.Modules) == 0 && !changedOnly {
-				return errors.New("no modules remaining after filtering")
-			}
-
-			logExtractionWarnings(result.Warnings)
-			logLibraryModuleUsage(result.Graph, prepared.WorkDir())
-			logCycles(result.Graph)
-
-			targets, err := resolveGenerateTargets(cmd.Context(), prepared, result, changedOnly, baseRef, ff)
-			if err != nil {
-				return err
-			}
-
-			if len(targets) == 0 {
+			logGenerateProjectDiagnostics(result.Project)
+			if result.Skipped {
 				log.Info("no modules to process")
 				return nil
 			}
 
-			log.WithField("modules", len(targets)).Info("generating pipeline")
-			generator, genErr := newPipelineGenerator(prepared, result.Graph, result.Filtered.Modules, targets, planOnly)
-			if genErr != nil {
-				return genErr
-			}
-
+			log.WithField("modules", len(result.Project.Targets)).Info("generating pipeline")
 			if dryRun {
-				return runDryRun(generator, dryRunFmt)
+				return renderDryRun(result.DryRun, dryRunFmt)
 			}
 
-			p, err := generator.Generate()
-			if err != nil {
-				return fmt.Errorf("generate pipeline: %w", err)
-			}
-			return writePipelineOutput(p, outputFile)
+			return writePipelineOutput(result.Pipeline, outputFile)
 		},
 	}
 
@@ -102,26 +82,14 @@ Examples:
 	return cmd
 }
 
-func resolveGenerateTargets(
-	ctx context.Context,
-	prepared *runflow.Prepared,
-	result *workflow.Result,
-	changedOnly bool,
-	baseRef string,
-	ff *filter.Flags,
-) ([]*discovery.Module, error) {
-	appCtx := prepared.AppContext()
-	return workflow.ResolveTargets(ctx, prepared.WorkDir(), prepared.Config(), result, workflow.TargetSelectionOptions{
-		ChangedOnly: changedOnly,
-		BaseRef:     baseRef,
-		Filters:     ff,
-		ChangeDetectorResolver: func() (workflow.ChangeDetector, error) {
-			return appCtx.ChangeDetectorResolver().ResolveChangeDetector()
-		},
-	})
+func logGenerateProjectDiagnostics(result *projectflow.Result) {
+	if result == nil || result.Workflow == nil {
+		return
+	}
+	logExtractionWarnings(result.Workflow.Warnings)
+	logLibraryModuleUsage(result.LibraryUsages)
+	logCycles(result.Workflow.Graph.DetectCycles())
 }
-
-// --- Logging helpers ---
 
 func logExtractionWarnings(errs []error) {
 	if len(errs) == 0 {
@@ -135,24 +103,20 @@ func logExtractionWarnings(errs []error) {
 	log.DecreasePadding()
 }
 
-func logLibraryModuleUsage(depGraph *graph.DependencyGraph, workDir string) {
-	paths := depGraph.GetAllLibraryPaths()
-	if len(paths) == 0 {
+func logLibraryModuleUsage(usages []projectflow.LibraryUsage) {
+	if len(usages) == 0 {
 		return
 	}
 
-	log.WithField("count", len(paths)).Info("library modules detected")
+	log.WithField("count", len(usages)).Info("library modules detected")
 	log.IncreasePadding()
-	for _, libPath := range paths {
-		users := depGraph.GetModulesUsingLibrary(libPath)
-		relPath := makeRelative(libPath, workDir)
-		log.WithField("path", relPath).WithField("used_by", len(users)).Debug("library module")
+	for _, usage := range usages {
+		log.WithField("path", usage.RelativePath).WithField("used_by", usage.UsedBy).Debug("library module")
 	}
 	log.DecreasePadding()
 }
 
-func logCycles(depGraph *graph.DependencyGraph) {
-	cycles := depGraph.DetectCycles()
+func logCycles(cycles [][]string) {
 	if len(cycles) == 0 {
 		return
 	}
@@ -164,46 +128,7 @@ func logCycles(depGraph *graph.DependencyGraph) {
 	log.DecreasePadding()
 }
 
-// --- Pipeline generation ---
-
-func newPipelineGenerator(prepared *runflow.Prepared, depGraph *graph.DependencyGraph, modules, targets []*discovery.Module, planOnly bool) (pipeline.Generator, error) {
-	appCtx := prepared.AppContext()
-	provider, err := appCtx.CIResolver().ResolveCIProvider()
-	if err != nil {
-		return nil, fmt.Errorf("resolve CI provider: %w", err)
-	}
-	contributions := appCtx.PipelineContributions()
-
-	exec := execution.ConfigFromProject(prepared.Config())
-	requirements := exec.BuildRequirements().Merge(provider.PipelineRequirements(appCtx))
-	if planOnly {
-		requirements = requirements.Merge(pipeline.BuildRequirements{PlanOnly: true})
-	}
-	ir, err := pipeline.Build(pipeline.BuildOptions{
-		DepGraph:      depGraph,
-		TargetModules: targets,
-		AllModules:    modules,
-		ModuleIndex:   discovery.NewModuleIndex(modules),
-		Contributions: contributions,
-		Requirements:  requirements,
-		PlanEnabled:   exec.PlanEnabled,
-		Script: pipeline.ScriptConfig{
-			InitEnabled: exec.InitEnabled,
-			PlanEnabled: exec.PlanEnabled,
-		},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("build pipeline IR: %w", err)
-	}
-	return provider.NewGenerator(appCtx, ir), nil
-}
-
-func runDryRun(gen pipeline.Generator, format string) error {
-	result, err := gen.DryRun()
-	if err != nil {
-		return fmt.Errorf("dry run: %w", err)
-	}
-
+func renderDryRun(result *pipeline.DryRunResult, format string) error {
 	switch format {
 	case "json":
 		// Machine-readable shape for CI gating: scripts can consume this via
@@ -250,12 +175,4 @@ func writePipelineOutput(p pipeline.GeneratedPipeline, outputFile string) error 
 	}
 
 	return nil
-}
-func makeRelative(path, base string) string {
-	if absBase, err := filepath.Abs(base); err == nil {
-		if rel, err := filepath.Rel(absBase, path); err == nil {
-			return rel
-		}
-	}
-	return path
 }

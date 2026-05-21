@@ -8,10 +8,10 @@ import (
 
 	log "github.com/caarlos0/log"
 
+	"github.com/edelwud/terraci/cmd/terraci/internal/projectflow"
 	"github.com/edelwud/terraci/cmd/terraci/internal/runflow"
-	"github.com/edelwud/terraci/pkg/config"
+	"github.com/edelwud/terraci/cmd/terraci/internal/validateflow"
 	"github.com/edelwud/terraci/pkg/filter"
-	"github.com/edelwud/terraci/pkg/workflow"
 )
 
 func newValidateCmd() *cobra.Command {
@@ -37,79 +37,23 @@ This command will:
 			if err != nil {
 				return err
 			}
-			hasErrors := false
 
 			log.Info("validating terraform project structure")
 
-			result, err := workflow.Run(cmd.Context(), workflowOptions(prepared, ff))
+			result, err := validateflow.Run(cmd.Context(), validateflow.NewRuntime(prepared), validateflow.Request{
+				Filters: *ff,
+			})
 			if err != nil {
 				return err
 			}
 
-			if len(result.Warnings) > 0 {
-				log.WithField("count", len(result.Warnings)).Warn("warnings during parsing")
-				log.IncreasePadding()
-				for _, e := range result.Warnings {
-					log.WithField("warning", e.Error()).Debug("parser warning")
-				}
-				log.DecreasePadding()
-			}
-
-			// Count dependencies
-			totalDeps := 0
-			for _, d := range result.Dependencies {
-				totalDeps += len(d.DependsOn)
-			}
-			log.WithField("count", totalDeps).Info("dependency links found")
-
+			logValidationResult(result)
 			log.Info("validating dependency graph")
+			logGraphValidation(result)
+			logExecutionOrder(result)
+			reportLibraryModules(result.Project.LibrarySummary)
 
-			depGraph := result.Graph
-
-			// Check for cycles
-			cycles := depGraph.DetectCycles()
-			if len(cycles) > 0 {
-				hasErrors = true
-				log.WithField("count", len(cycles)).Error("circular dependencies detected")
-				log.IncreasePadding()
-				for i, cycle := range cycles {
-					log.WithField("cycle", i+1).WithField("path", fmt.Sprintf("%v", cycle)).Error("cycle")
-				}
-				log.DecreasePadding()
-			} else {
-				log.Info("no circular dependencies")
-			}
-
-			// Get stats
-			stats := depGraph.GetStats()
-			log.IncreasePadding()
-			log.WithField("count", stats.RootModules).Debug("root modules (no deps)")
-			log.WithField("count", stats.LeafModules).Debug("leaf modules (no dependents)")
-			log.WithField("depth", stats.MaxDepth).Debug("max dependency depth")
-			log.DecreasePadding()
-
-			// 6. Verify execution order
-			log.Info("checking execution order")
-
-			levels, err := depGraph.ExecutionLevels()
-			if err != nil {
-				hasErrors = true
-				log.WithError(err).Error("cannot determine execution order")
-			} else {
-				log.WithField("levels", len(levels)).Info("execution levels determined")
-				if isDebug() {
-					log.IncreasePadding()
-					for i, level := range levels {
-						log.WithField("level", i).WithField("modules", len(level)).Debug("level")
-					}
-					log.DecreasePadding()
-				}
-			}
-
-			reportLibraryModules(prepared.Config(), result)
-
-			// 7. Summary
-			if hasErrors {
+			if !result.Passed {
 				log.Error("validation FAILED - please fix the issues above")
 				return errors.New("validation failed")
 			}
@@ -125,42 +69,55 @@ This command will:
 	return cmd
 }
 
-// libraryModulesSummary captures the diagnostic data validate prints about
-// library modules. It is computed in a pure function so tests can verify
-// orphan detection without poking at logger output.
-type libraryModulesSummary struct {
-	ConfiguredPaths int
-	Discovered      int
-	Consumers       int
-	Orphans         []string
-}
-
-// computeLibraryModulesSummary derives a libraryModulesSummary from the
-// validated workflow result. Returns nil when no library paths are configured.
-func computeLibraryModulesSummary(cfg config.Snapshot, result *workflow.Result) *libraryModulesSummary {
-	libraryModules := cfg.LibraryModules()
-	if !cfg.Present() || libraryModules == nil || len(libraryModules.Paths) == 0 {
-		return nil
-	}
-	libraries := result.Libraries.Modules
-	orphans := make([]string, 0)
-	for _, m := range libraries {
-		if !result.Graph.HasLibraryConsumers(m.Path) {
-			orphans = append(orphans, m.RelativePath)
+func logValidationResult(result *validateflow.Result) {
+	warnings := result.Project.Workflow.Warnings
+	if len(warnings) > 0 {
+		log.WithField("count", len(warnings)).Warn("warnings during parsing")
+		log.IncreasePadding()
+		for _, e := range warnings {
+			log.WithField("warning", e.Error()).Debug("parser warning")
 		}
+		log.DecreasePadding()
 	}
-	return &libraryModulesSummary{
-		ConfiguredPaths: len(libraryModules.Paths),
-		Discovered:      len(libraries),
-		Consumers:       result.Graph.LibraryConsumerCount(),
-		Orphans:         orphans,
+	log.WithField("count", result.DependencyLinks).Info("dependency links found")
+}
+
+func logGraphValidation(result *validateflow.Result) {
+	if len(result.Cycles) > 0 {
+		log.WithField("count", len(result.Cycles)).Error("circular dependencies detected")
+		log.IncreasePadding()
+		for i, cycle := range result.Cycles {
+			log.WithField("cycle", i+1).WithField("path", fmt.Sprintf("%v", cycle)).Error("cycle")
+		}
+		log.DecreasePadding()
+	} else {
+		log.Info("no circular dependencies")
+	}
+
+	log.IncreasePadding()
+	log.WithField("count", result.Stats.RootModules).Debug("root modules (no deps)")
+	log.WithField("count", result.Stats.LeafModules).Debug("leaf modules (no dependents)")
+	log.WithField("depth", result.Stats.MaxDepth).Debug("max dependency depth")
+	log.DecreasePadding()
+}
+
+func logExecutionOrder(result *validateflow.Result) {
+	log.Info("checking execution order")
+	if result.ExecutionLevelsError != nil {
+		log.WithError(result.ExecutionLevelsError).Error("cannot determine execution order")
+		return
+	}
+	log.WithField("levels", len(result.ExecutionLevels)).Info("execution levels determined")
+	if isDebug() {
+		log.IncreasePadding()
+		for i, level := range result.ExecutionLevels {
+			log.WithField("level", i).WithField("modules", len(level)).Debug("level")
+		}
+		log.DecreasePadding()
 	}
 }
 
-// reportLibraryModules logs a summary of configured library_modules using
-// computeLibraryModulesSummary. No-op when the feature is not configured.
-func reportLibraryModules(cfg config.Snapshot, result *workflow.Result) {
-	summary := computeLibraryModulesSummary(cfg, result)
+func reportLibraryModules(summary *projectflow.LibrarySummary) {
 	if summary == nil {
 		return
 	}
