@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-	"sort"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -10,10 +8,9 @@ import (
 	"charm.land/lipgloss/v2"
 	"go.yaml.in/yaml/v4"
 
+	"github.com/edelwud/terraci/cmd/terraci/internal/initflow"
 	"github.com/edelwud/terraci/pkg/config"
-	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/initwiz"
-	"github.com/edelwud/terraci/pkg/plugin/registry"
 )
 
 // --- TUI styles ---
@@ -52,74 +49,30 @@ var (
 // --- Model ---
 
 type initModel struct {
-	form    *huh.Form
-	width   int
-	height  int
-	result  *config.Config
-	err     error
-	state   *initwiz.StateMap
-	plugins *registry.Registry
+	form        *huh.Form
+	width       int
+	height      int
+	result      *config.Config
+	err         error
+	state       *initwiz.StateMap
+	flow        initflow.Flow
+	buildConfig func(*initwiz.StateMap) (*initflow.BuildResult, error)
 }
 
-func newInitModel(plugins *registry.Registry) *initModel {
-	state := initwiz.NewStateMap()
-	initStateDefaults(plugins, state)
+func newInitModel(flow initflow.Flow) *initModel {
+	state := flow.DefaultState()
 
-	m := &initModel{state: state, plugins: plugins}
-
-	// Collect all plugin group specs
-	contributors := registry.ByCapabilityFrom[initwiz.InitContributor](plugins)
-	var allSpecs []*initwiz.InitGroupSpec
-	for _, c := range contributors {
-		allSpecs = append(allSpecs, c.InitGroups()...)
+	m := &initModel{
+		state:       state,
+		flow:        flow,
+		buildConfig: flow.BuildConfig,
 	}
 
-	// Sort specs by Order
-	sort.Slice(allSpecs, func(i, j int) bool {
-		return allSpecs[i].Order < allSpecs[j].Order
-	})
-
-	// Categorize specs
-	var providerSpecs, pipelineSpecs, featureSpecs, detailSpecs []*initwiz.InitGroupSpec
-	for _, spec := range allSpecs {
-		switch spec.Category {
-		case initwiz.CategoryProvider:
-			providerSpecs = append(providerSpecs, spec)
-		case initwiz.CategoryPipeline:
-			pipelineSpecs = append(pipelineSpecs, spec)
-		case initwiz.CategoryFeature:
-			featureSpecs = append(featureSpecs, spec)
-		case initwiz.CategoryDetail:
-			detailSpecs = append(detailSpecs, spec)
-		}
-	}
-
-	// Assemble groups in logical order:
-	// Basics (hardcoded) → Provider → Pipeline (merged) → Features (merged) → Detail
 	const initialGroupCap = 8
 	groups := make([]*huh.Group, 0, initialGroupCap)
-
-	// 1. Basics — the only hardcoded group
-	groups = append(groups, m.basicsGroup())
-
-	// 2. Provider groups — separate, with ShowWhen
-	for _, spec := range providerSpecs {
-		groups = append(groups, buildPluginGroup(spec, state))
-	}
-
-	// 3. Pipeline — merge all CategoryPipeline fields into one group
-	if len(pipelineSpecs) > 0 {
-		groups = append(groups, buildMergedGroup("Pipeline", pipelineSpecs, state))
-	}
-
-	// 4. Features — merge all CategoryFeature fields into one group
-	if len(featureSpecs) > 0 {
-		groups = append(groups, buildMergedGroup("Features", featureSpecs, state))
-	}
-
-	// 5. Detail groups — separate, with ShowWhen (gated by feature toggles)
-	for _, spec := range detailSpecs {
-		groups = append(groups, buildPluginGroup(spec, state))
+	groups = append(groups, m.basicsGroup(flow.ProviderOptions()))
+	for _, group := range flow.DisplayGroups() {
+		groups = append(groups, buildDisplayGroup(group, state))
 	}
 
 	m.form = huh.NewForm(groups...).WithWidth(formWidth).WithShowHelp(true)
@@ -127,12 +80,10 @@ func newInitModel(plugins *registry.Registry) *initModel {
 	return m
 }
 
-func (m *initModel) basicsGroup() *huh.Group {
-	// Build provider options dynamically from registered plugins
-	providerPlugins := registry.ByCapabilityFrom[plugin.CIInfoProvider](m.plugins)
-	providerOpts := make([]huh.Option[string], 0, len(providerPlugins))
-	for _, pp := range providerPlugins {
-		providerOpts = append(providerOpts, huh.NewOption(pp.Description(), pp.ProviderName()))
+func (m *initModel) basicsGroup(providers []initflow.ProviderOption) *huh.Group {
+	providerOpts := make([]huh.Option[string], 0, len(providers))
+	for _, provider := range providers {
+		providerOpts = append(providerOpts, huh.NewOption(provider.Description, provider.Name))
 	}
 
 	return huh.NewGroup(
@@ -158,55 +109,16 @@ func (m *initModel) basicsGroup() *huh.Group {
 	).Title("Basics")
 }
 
-// buildMergedGroup combines fields from multiple specs into a single group.
-// Used for CategoryPipeline and CategoryFeature — merges toggle fields
-// from different plugins into one cohesive section.
-// Fields with duplicate keys are deduplicated (first occurrence wins).
-func buildMergedGroup(title string, specs []*initwiz.InitGroupSpec, state *initwiz.StateMap) *huh.Group {
-	var fields []huh.Field
-	var showFns []func(*initwiz.StateMap) bool
-	seen := make(map[string]bool)
-
-	for _, spec := range specs {
-		for _, f := range spec.Fields {
-			if seen[f.Key] {
-				continue
-			}
-			seen[f.Key] = true
-			fields = append(fields, buildPluginField(f, state))
-		}
-		if spec.ShowWhen != nil {
-			showFns = append(showFns, spec.ShowWhen)
-		}
+// buildDisplayGroup converts a typed initflow display group into a huh group.
+func buildDisplayGroup(group initflow.DisplayGroup, state *initwiz.StateMap) *huh.Group {
+	fields := make([]huh.Field, 0, len(group.Fields))
+	for _, field := range group.Fields {
+		fields = append(fields, buildPluginField(field, state))
 	}
 
-	g := huh.NewGroup(fields...).Title(title)
-
-	// If any spec has ShowWhen, hide the merged group when ALL ShowWhen return false
-	if len(showFns) > 0 {
-		g = g.WithHideFunc(func() bool {
-			for _, fn := range showFns {
-				if fn(state) {
-					return false // at least one wants to show
-				}
-			}
-			return true // all hidden
-		})
-	}
-
-	return g
-}
-
-// buildPluginGroup converts an InitGroupSpec into a huh.Group.
-func buildPluginGroup(spec *initwiz.InitGroupSpec, state *initwiz.StateMap) *huh.Group {
-	fields := make([]huh.Field, 0, len(spec.Fields))
-	for _, f := range spec.Fields {
-		fields = append(fields, buildPluginField(f, state))
-	}
-
-	g := huh.NewGroup(fields...).Title(spec.Title)
-	if spec.ShowWhen != nil {
-		showWhen := spec.ShowWhen
+	g := huh.NewGroup(fields...).Title(group.Title)
+	if group.ShowWhen != nil {
+		showWhen := group.ShowWhen
 		g = g.WithHideFunc(func() bool {
 			return !showWhen(state)
 		})
@@ -256,50 +168,6 @@ func buildPluginField(f initwiz.InitField, state *initwiz.StateMap) huh.Field {
 	}
 }
 
-// buildConfigFromState collects InitContributor results and builds a Config.
-func buildConfigFromState(plugins *registry.Registry, state *initwiz.StateMap) (*config.Config, error) {
-	pattern := state.String("pattern")
-	planEnabled := config.DefaultConfig().Execution.PlanEnabled
-	if state.Get("plan_enabled") != nil {
-		planEnabled = state.Bool("plan_enabled")
-	}
-	execution := config.DefaultConfig().Execution
-	execution.Binary = state.String("binary")
-	execution.InitEnabled = true
-	execution.PlanEnabled = planEnabled
-	if execution.Binary == "" {
-		execution.Binary = config.ExecutionBinaryTerraform
-	}
-	if planEnabled && state.Bool("summary.enabled") {
-		execution.PlanMode = "detailed"
-	}
-	extensions := make([]config.ExtensionValue, 0)
-
-	for _, c := range registry.ByCapabilityFrom[initwiz.InitContributor](plugins) {
-		contrib, err := c.BuildInitConfig(state)
-		if err != nil {
-			return nil, fmt.Errorf("build init config for %s: %w", c.Name(), err)
-		}
-		if contrib != nil {
-			extensions = append(extensions, contrib.ExtensionValue())
-		}
-	}
-
-	extensionSet, err := config.NewExtensionSet(extensions...)
-	if err != nil {
-		return nil, fmt.Errorf("build init extension set: %w", err)
-	}
-	cfg, err := config.Build(config.BuildOptions{
-		Pattern:    pattern,
-		Execution:  &execution,
-		Extensions: extensionSet,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("build init config: %w", err)
-	}
-	return cfg, nil
-}
-
 // --- Tea interface ---
 
 func (m *initModel) Init() tea.Cmd { return m.form.Init() }
@@ -318,7 +186,11 @@ func (m *initModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	_, cmd := m.form.Update(msg)
 
 	if m.form.State == huh.StateCompleted {
-		m.result, m.err = buildConfigFromState(m.plugins, m.state)
+		var result *initflow.BuildResult
+		result, m.err = m.build(m.state)
+		if result != nil {
+			m.result = result.Config
+		}
 		return m, tea.Quit
 	}
 
@@ -345,11 +217,14 @@ func (m *initModel) View() tea.View {
 // --- YAML preview ---
 
 func (m *initModel) renderYAMLPreview() string {
-	cfg, err := buildConfigFromState(m.plugins, m.state)
+	result, err := m.build(m.state)
 	if err != nil {
 		return previewBorder.Render(previewTitle.Render("  .terraci.yaml") + "\n\n" + previewYAML.Render("# error generating preview: "+err.Error()))
 	}
-	data, err := yaml.Marshal(cfg)
+	if result == nil || result.Config == nil {
+		return previewBorder.Render(previewTitle.Render("  .terraci.yaml") + "\n\n" + previewYAML.Render("# error generating preview: empty init config"))
+	}
+	data, err := yaml.Marshal(result.Config)
 	if err != nil {
 		data = []byte("# error generating preview")
 	}
@@ -369,6 +244,13 @@ func (m *initModel) renderYAMLPreview() string {
 
 	title := previewTitle.Render("  .terraci.yaml")
 	return previewBorder.Render(title + "\n\n" + strings.Join(lines, "\n"))
+}
+
+func (m *initModel) build(state *initwiz.StateMap) (*initflow.BuildResult, error) {
+	if m.buildConfig != nil {
+		return m.buildConfig(state)
+	}
+	return m.flow.BuildConfig(state)
 }
 
 func highlightYAML(input string) string {

@@ -107,7 +107,6 @@ func TestArchitecture_ConfigSnapshotAndDocs(t *testing.T) {
 		"FlagOverridable",
 		"shared *config.Config",
 		"ctx.Config() (`*config.Config`",
-		"BuildConfig(",
 		"BuildConfig(pattern",
 		"BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribution",
 		"BuildInitConfig(state *initwiz.StateMap) *InitContribution",
@@ -174,6 +173,50 @@ func TestArchitecture_InitExtensionContracts(t *testing.T) {
 
 	if len(violations) > 0 {
 		t.Fatalf("init extension contract violations:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
+func TestArchitecture_InitFlowBoundaries(t *testing.T) {
+	root := repoRoot(t)
+	var violations []string
+
+	for _, rel := range goFiles(t, root, "cmd/terraci/cmd") {
+		if !isProductionFile(rel) || !isInitCommandFile(rel) {
+			continue
+		}
+		file := parseGoFile(t, filepath.Join(root, rel), 0)
+		configAliases := importAliases(file, moduleImportPath+"/pkg/config")
+		registryAliases := importAliases(file, moduleImportPath+"/pkg/plugin/registry")
+
+		ast.Inspect(file, func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			if selector, ok := callSelector(call); ok {
+				switch {
+				case selectorCallMatches(selector, registryAliases, "ByCapabilityFrom"):
+					violations = append(violations, rel+" discovers init contributors directly; use cmd/terraci/internal/initflow")
+				case selectorCallMatches(selector, configAliases, "Build"),
+					selectorCallMatches(selector, configAliases, "NewExtensionSet"):
+					violations = append(violations, rel+" builds init config directly; delegate to initflow.BuildConfig")
+				case selector.Sel.Name == "BuildInitConfig":
+					violations = append(violations, rel+" calls plugin BuildInitConfig directly; delegate to initflow.BuildConfig")
+				}
+				return true
+			}
+			if ident, ok := call.Fun.(*ast.Ident); ok {
+				switch ident.Name {
+				case "BuildInitConfig", "initStateDefaults", "buildConfigFromState":
+					violations = append(violations, rel+" uses command-level init orchestration helper "+ident.Name+"; delegate to initflow")
+				}
+			}
+			return true
+		})
+	}
+
+	if len(violations) > 0 {
+		t.Fatalf("init flow boundary violations:\n%s", strings.Join(violations, "\n"))
 	}
 }
 
@@ -304,10 +347,35 @@ func isBuildConfigCall(call *ast.CallExpr) bool {
 	case *ast.Ident:
 		return fun.Name == "BuildConfig"
 	case *ast.SelectorExpr:
-		return fun.Sel.Name == "BuildConfig"
+		ident, ok := fun.X.(*ast.Ident)
+		return ok && ident.Name == "config" && fun.Sel.Name == "BuildConfig"
 	default:
 		return false
 	}
+}
+
+func isInitCommandFile(rel string) bool {
+	return rel == "cmd/terraci/cmd/init.go" || rel == "cmd/terraci/cmd/init_tui.go"
+}
+
+func callSelector(call *ast.CallExpr) (*ast.SelectorExpr, bool) {
+	fun := call.Fun
+	switch typed := fun.(type) {
+	case *ast.IndexExpr:
+		fun = typed.X
+	case *ast.IndexListExpr:
+		fun = typed.X
+	}
+	selector, ok := fun.(*ast.SelectorExpr)
+	return selector, ok
+}
+
+func selectorCallMatches(selector *ast.SelectorExpr, aliases map[string]bool, name string) bool {
+	if selector == nil || selector.Sel.Name != name {
+		return false
+	}
+	ident, ok := selector.X.(*ast.Ident)
+	return ok && aliases[ident.Name]
 }
 
 func isMapStringMapStringAny(expr ast.Expr) bool {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/spf13/cobra"
@@ -13,10 +12,8 @@ import (
 
 	log "github.com/caarlos0/log"
 
+	"github.com/edelwud/terraci/cmd/terraci/internal/initflow"
 	"github.com/edelwud/terraci/pkg/config"
-	"github.com/edelwud/terraci/pkg/plugin"
-	"github.com/edelwud/terraci/pkg/plugin/initwiz"
-	"github.com/edelwud/terraci/pkg/plugin/registry"
 )
 
 func newInitCmd(app *App) *cobra.Command {
@@ -91,58 +88,18 @@ Examples:
 }
 
 func buildNonInteractiveInitConfig(app *App, provider, binary, pattern string) (*config.Config, error) {
-	state := initwiz.NewStateMap()
-	initStateDefaults(app.Plugins, state)
-
-	if provider != "" {
-		state.Set("provider", provider)
+	flow := initflow.New(app.Plugins)
+	state := flow.DefaultState()
+	flow.ApplyOverrides(state, initflow.Overrides{
+		Provider: provider,
+		Binary:   binary,
+		Pattern:  pattern,
+	})
+	result, err := flow.BuildConfig(state)
+	if err != nil {
+		return nil, err
 	}
-	if binary != "" {
-		state.Set("binary", binary)
-	}
-	if pattern != "" {
-		state.Set("pattern", pattern)
-	}
-
-	return buildConfigFromState(app.Plugins, state)
-}
-
-// initStateDefaults populates a StateMap with default values for the init wizard.
-// Shared between interactive (TUI) and non-interactive (--ci) paths.
-func initStateDefaults(plugins *registry.Registry, state *initwiz.StateMap) {
-	if provider := defaultInitProvider(plugins); provider != "" {
-		state.Set("provider", provider)
-	}
-	state.Set("binary", "terraform")
-	state.Set("plan_enabled", true)
-	state.Set("pattern", config.DefaultConfig().Structure.Pattern)
-	// summary (MR/PR comments) enabled by default
-	state.Set("summary.enabled", true)
-}
-
-func defaultInitProvider(plugins *registry.Registry) string {
-	providerPlugins := registry.ByCapabilityFrom[plugin.CIInfoProvider](plugins)
-	if len(providerPlugins) == 0 {
-		return ""
-	}
-
-	available := make(map[string]struct{}, len(providerPlugins))
-	for _, provider := range providerPlugins {
-		available[provider.ProviderName()] = struct{}{}
-	}
-
-	for _, preferred := range []string{"gitlab", "github"} {
-		if _, ok := available[preferred]; ok {
-			return preferred
-		}
-	}
-
-	names := make([]string, 0, len(available))
-	for name := range available {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	return names[0]
+	return result.Config, nil
 }
 
 func logGenerateHint(app *App, cfg *config.Config) {
@@ -171,7 +128,7 @@ func logGenerateHint(app *App, cfg *config.Config) {
 }
 
 func runInteractiveInit(app *App) (*config.Config, error) {
-	m := newInitModel(app.Plugins)
+	m := newInitModel(initflow.New(app.Plugins))
 	finalModel, err := tea.NewProgram(m).Run()
 	if err != nil {
 		return nil, fmt.Errorf("interactive init: %w", err)

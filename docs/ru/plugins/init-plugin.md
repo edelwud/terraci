@@ -79,8 +79,9 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribu
 
 Контракт типизирован от начала до конца: плагин собирает typed config struct,
 `initwiz.NewInitContribution` кодирует его в валидированное extension value, а
-core собирает итоговый файл через `config.Build`. Чтобы пропустить опциональную
-секцию, верните `nil, nil`; если состояние wizard невалидно, верните ошибку.
+`cmd/terraci/internal/initflow` собирает итоговый файл. Командный слой только
+рендерит TUI, preview и записывает файл. Чтобы пропустить опциональную секцию,
+верните `nil, nil`; если состояние wizard невалидно, верните ошибку.
 
 ## Категории форм
 

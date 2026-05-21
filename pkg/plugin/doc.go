@@ -98,13 +98,15 @@
 // InitContributor implementations return typed config through
 // initwiz.NewInitContribution. The canonical flow is:
 //
-//	StateMap -> typed config struct -> initwiz.NewInitContribution
-//	    -> config.ExtensionValue -> config.Build
+//	registry -> initflow.New -> DefaultState/ApplyOverrides
+//	    -> StateMap -> typed config struct -> initwiz.NewInitContribution
+//	    -> config.ExtensionValue -> initflow.BuildConfig
 //
 // Returning nil, nil is the only normal way to skip an optional init
 // contribution. Do not build extension config with loose maps or construct
 // InitContribution directly; config.NewExtensionValue owns YAML node encoding,
-// key validation, and defensive copies.
+// key validation, and defensive copies. The terraci command package owns only
+// cobra flags, TUI rendering, preview rendering, and file writes.
 //
 // # SDK contract tests
 //

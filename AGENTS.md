@@ -32,8 +32,8 @@ cmd/terraci/
     ├── graph.go                # Dependency graph visualization
     ├── validate.go             # Config/project validation
     ├── filters.go              # filterFlags struct — shared filter flags, mergedFilterOpts()
-    ├── init.go                 # Config initialization (--ci mode), initStateDefaults()
-    ├── init_tui.go             # Interactive TUI wizard, dynamic plugin groups
+    ├── init.go                 # Config initialization CLI/file I/O (--ci mode delegates to initflow)
+    ├── init_tui.go             # Interactive TUI presentation over initflow display groups
     ├── schema.go               # JSON schema (includes extension schemas)
     ├── version.go              # Version info via VersionProvider plugins
     ├── completion.go           # Shell completion
@@ -52,6 +52,9 @@ cmd/xterraci/
     ├── codegen.go              # Generates main.go with plugin imports
     ├── plugins.go              # Built-in plugin import paths + validation
     └── *_test.go
+
+cmd/terraci/internal/
+└── initflow/                   # Typed init wizard orchestration: defaults, plugin groups, config build
 
 pkg/                            # Public API — importable by external plugins (plugin-agnostic core + plugin SDK)
 ├── plugin/                     # Core plugin SDK — interfaces, BasePlugin, AppContext
@@ -412,11 +415,11 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 7. `localexec/internal/flow` returns a typed execution result; `localexec/internal/render` prints the DAG/job summary and report sections
 
 ### Init wizard
-1. `initStateDefaults()` populates shared defaults (provider, binary, pattern, plan_enabled)
-2. Core groups: Basics, Structure, Pipeline Options
-3. `initwiz.InitContributor` plugins add dynamic form groups
-4. `BuildInitConfig` returns typed `initwiz.InitContribution` values
-5. Core converts contributions into `config.ExtensionSet` and calls `config.Build(BuildOptions)` to assemble config
+1. `initflow.New(registry)` snapshots init contributors, provider options, and deterministic display groups
+2. `Flow.DefaultState()` plus `Flow.ApplyOverrides(...)` populate provider, binary, pattern, plan jobs, and summary defaults
+3. `cmd/terraci/cmd` renders Basics plus `Flow.DisplayGroups()` through huh; it does not discover contributors or assemble YAML
+4. `BuildInitConfig` returns typed `initwiz.InitContribution` values from plugins
+5. `Flow.BuildConfig(state)` converts contributions into a config extension set and assembles the final config
 
 ## Key Patterns
 
@@ -435,7 +438,8 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **Immutable config boundary**: `Config.Clone()` and `config.Snapshot` own deep-copy semantics. `AppContext` stores a snapshot; plugin code reads through accessors and only uses `MutableCopy()` for legacy pointer-shaped APIs.
 - **Command boundary**: plugin command callbacks use `plugin.CommandPlugin[T](cmd, name)` and `plugin.RequireEnabled(...)`; low-level cobra context binding is framework-owned. Command binding and disabled-plugin failures are typed errors.
 - **SDK contract kit**: plugin SDK behavior is tested through `pkg/plugin/plugintest`; CI/report behavior is tested through `pkg/ci/citest`. New plugins should copy these contract helpers for config immutability, command binding, runtime creation, contributions, lifecycle, init wizard, providers, change detection, rendered reports, and artifact lifecycle.
-- **Init extension contracts**: init wizard plugins return typed config structs/maps through `initwiz.NewInitContribution`. Core owns YAML node encoding via `config.NewExtensionValue`, duplicate detection through `config.NewExtensionSet`, and final assembly via `config.Build`. Do not return loose extension maps from plugin init code.
+- **Init wizard flow**: command code owns cobra, TTY checks, huh rendering, YAML preview, and file writes. `cmd/terraci/internal/initflow` owns defaults, contributor collection, display group ordering/merge rules, duplicate extension detection, and final config assembly.
+- **Init extension contracts**: init wizard plugins return typed config structs/maps through `initwiz.NewInitContribution`. Core owns YAML node encoding and defensive copies; initflow owns duplicate detection and final assembly. Do not return loose extension maps from plugin init code.
 - **Report artifact lifecycle**: plan-aware producers use `PlanResultCollection -> ci.ArtifactRun -> ci.NewRenderedReport -> ci.PublishArtifacts(...)`. `PublishArtifacts` always persists raw results and removes stale reports on nil/build errors. Report-only producers may use `SaveReport`.
 - **Report sections via render-ready payloads**: producer plugins call `ci.NewRenderedReport(...)` and publish only validated `ci.ReportSectionKindRendered` sections with `ci.RenderSection` payloads. `ReportSection` internals are private; use getters plus `ci.DecodeRenderSection`, not raw payload access. Summary/local renderers consume the generic render model through `plugins/internal/reportrender` and stay unaware of cost/policy/tfupdate domain structs.
 - **Report freshness**: `pkg/ci.SelectCurrentReports` owns current/stale/degraded policy. Summary and localexec skip reports whose non-empty `plan_results_fingerprint` does not match the current plan collection. Missing provenance is accepted as degraded mode.

@@ -119,9 +119,10 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribu
 
 The contribution contract is typed end to end: plugin code returns a typed
 config struct, `initwiz.NewInitContribution` encodes it into a validated
-extension value, and core assembles the final file through `config.Build`.
+extension value, and `cmd/terraci/internal/initflow` assembles the final file.
 Skip optional config by returning `nil, nil`; return an error when the wizard
-state cannot produce a valid config.
+state cannot produce a valid config. The command package only renders the TUI,
+preview, and output file.
 
 ## Form Categories
 
@@ -130,7 +131,7 @@ Fields are grouped into categories that determine where they appear:
 | Category | Rendering | Use For |
 |----------|-----------|---------|
 | `CategoryProvider` | Separate group, shown per-provider | CI-specific settings (image, runner) |
-| `CategoryPipeline` | Merged into "Pipeline" group | Pipeline behavior (plan_enabled, plan_only) |
+| `CategoryPipeline` | Merged into "Pipeline" group | Pipeline behavior (plan_enabled) |
 | `CategoryFeature` | Merged into "Features" group | On/off toggles for optional features |
 | `CategoryDetail` | Separate group with `ShowWhen` | Detail settings for enabled features |
 
@@ -201,8 +202,8 @@ state.BoolPtr("key")    // stable *bool pointer for huh form
 
 ## Generated Config
 
-When the wizard completes, typed `BuildInitConfig` contributions are assembled
-into `.terraci.yaml`:
+When the wizard completes, initflow calls typed `BuildInitConfig`
+contributions and assembles `.terraci.yaml`:
 
 ```yaml
 structure:
