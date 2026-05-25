@@ -7,8 +7,7 @@ import (
 	"github.com/edelwud/terraci/pkg/graph"
 )
 
-// BuildOptions configures the IR builder.
-type BuildOptions struct {
+type buildOptions struct {
 	DepGraph      *graph.DependencyGraph
 	TargetModules []*discovery.Module
 	AllModules    []*discovery.Module
@@ -19,8 +18,7 @@ type BuildOptions struct {
 	PlanEnabled   bool
 }
 
-// Build constructs a provider-agnostic IR from the given options.
-func Build(opts BuildOptions) (*IR, error) {
+func build(opts buildOptions) (*IR, error) {
 	planOnly := opts.Requirements.PlanOnly
 	allContributedJobs := collectContributedJobs(opts.Contributions)
 	plan, err := prepareModuleGraph(
@@ -37,7 +35,7 @@ func Build(opts BuildOptions) (*IR, error) {
 	planOutputs := requestedPlanOutputs(plan, requests)
 
 	ir := &IR{
-		Jobs: buildJobs(plan, opts.PlanEnabled, planOnly, opts.Script, planOutputs, allContributedJobs),
+		jobs: buildJobs(plan, opts.PlanEnabled, planOnly, opts.Script, planOutputs, allContributedJobs),
 	}
 
 	if err := resolvePipelineResources(ir, plan, opts.Requirements.Resources, allContributedJobs); err != nil {
@@ -184,14 +182,14 @@ func buildPlanJob(plan *jobPlan, mod *discovery.Module, env map[string]string, p
 	}
 
 	return Job{
-		Name:           planName,
-		Kind:           JobKindPlan,
-		Module:         mod,
-		Env:            env,
-		Dependencies:   deps,
-		OutputArtifact: artifact,
-		Produces:       produces,
-		Operation:      planOperation,
+		name:           planName,
+		kind:           JobKindPlan,
+		module:         mod,
+		env:            env,
+		dependencies:   deps,
+		outputArtifact: artifact,
+		produces:       produces,
+		operation:      planOperation,
 	}
 }
 
@@ -204,45 +202,33 @@ func buildApplyJob(plan *jobPlan, mod *discovery.Module, env map[string]string, 
 
 	if planJob != nil {
 		applyDeps = append([]JobDependency{{
-			Job: planJob.Name,
+			Job: planJob.name,
 		}}, applyDeps...)
 		consumes = append(consumes,
-			PlanResource(ResourceKindPlanBinary, modulePath, applyOperation.Terraform.PlanFile),
+			PlanResource(ResourceKindPlanBinary, modulePath, applyOperation.terraform.planFile),
 		)
 		inputArtifacts = append(inputArtifacts, InputArtifact{
-			Artifact:    planJob.OutputArtifact,
-			ProducerJob: planJob.Name,
+			Artifact:    planJob.outputArtifact,
+			ProducerJob: planJob.name,
 		})
 	}
 
 	return Job{
-		Name:           JobName(JobKindApply, mod),
-		Kind:           JobKindApply,
-		Module:         mod,
-		Env:            env,
-		Dependencies:   applyDeps,
-		InputArtifacts: inputArtifacts,
-		Consumes:       consumes,
-		Operation:      applyOperation,
+		name:           JobName(JobKindApply, mod),
+		kind:           JobKindApply,
+		module:         mod,
+		env:            env,
+		dependencies:   applyDeps,
+		inputArtifacts: inputArtifacts,
+		consumes:       consumes,
+		operation:      applyOperation,
 	}
 }
 
 func buildContributedJobs(contributedJobs []ContributedJob) []Job {
 	jobs := make([]Job, 0, len(contributedJobs))
 	for _, contributedJob := range contributedJobs {
-		produces := contributedJob.Produces()
-		job := Job{
-			Name:           contributedJob.Name(),
-			Kind:           JobKindCommand,
-			Dependencies:   contributedJob.Dependencies(),
-			OutputArtifact: resultArtifactFromResources(contributedJob.Name(), produces),
-			Produces:       produces,
-			AllowFailure:   contributedJob.AllowFailure(),
-			Operation: Operation{
-				Type:     OperationTypeCommands,
-				Commands: contributedJob.Commands(),
-			},
-		}
+		job := NewCommandJob(contributedJob)
 		jobs = append(jobs, job)
 	}
 	return jobs
@@ -259,17 +245,17 @@ func resolvePipelineResources(ir *IR, plan *jobPlan, required []ResourceRequest,
 		return err
 	}
 
-	contributedStart := len(ir.Jobs) - len(contributedJobs)
+	contributedStart := len(ir.jobs) - len(contributedJobs)
 	for i := range contributedJobs {
-		job := &ir.Jobs[contributedStart+i]
-		consumes, artifacts, deps, err := resolveResourceRequestsForJob(contributedJobs[i].Consumes(), resources, job.Name, allowEmptyModuleResources)
+		job := &ir.jobs[contributedStart+i]
+		consumes, artifacts, deps, err := resolveResourceRequestsForJob(contributedJobs[i].Consumes(), resources, job.name, allowEmptyModuleResources)
 		if err != nil {
 			return err
 		}
-		job.Consumes = consumes
-		job.InputArtifacts = artifacts
+		job.consumes = consumes
+		job.inputArtifacts = artifacts
 		for _, dep := range deps {
-			job.Dependencies = mergeJobDependency(job.Dependencies, dep)
+			job.dependencies = mergeJobDependency(job.dependencies, dep)
 		}
 	}
 	return nil

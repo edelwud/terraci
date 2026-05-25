@@ -30,36 +30,36 @@ func (r *terraformOperationRunner) RunPlan(ctx context.Context, job *pipeline.Jo
 		return err
 	}
 
-	opts := []tfexec.PlanOption{tfexec.Out(filepath.Base(op.PlanFile))}
+	opts := []tfexec.PlanOption{tfexec.Out(filepath.Base(op.PlanFile()))}
 	if r.execConfig.Parallelism > 0 {
 		opts = append(opts, tfexec.Parallelism(r.execConfig.Parallelism))
 	}
 	if _, err = tf.Plan(ctx, opts...); err != nil {
-		return fmt.Errorf("%s: plan: %w", job.Name, err)
+		return fmt.Errorf("%s: plan: %w", job.Name(), err)
 	}
 
-	if !op.DetailedPlan {
+	if !op.DetailedPlan() {
 		return nil
 	}
 
-	raw, err := tf.ShowPlanFileRaw(ctx, filepath.Base(op.PlanFile))
+	raw, err := tf.ShowPlanFileRaw(ctx, filepath.Base(op.PlanFile()))
 	if err != nil {
-		return fmt.Errorf("%s: show plan text: %w", job.Name, err)
+		return fmt.Errorf("%s: show plan text: %w", job.Name(), err)
 	}
-	if err = os.WriteFile(r.workspace.PlanTextFile(op.ModulePath), []byte(raw), 0o600); err != nil {
-		return fmt.Errorf("%s: write plan.txt: %w", job.Name, err)
+	if err = os.WriteFile(r.workspace.PlanTextFile(op.ModulePath()), []byte(raw), 0o600); err != nil {
+		return fmt.Errorf("%s: write plan.txt: %w", job.Name(), err)
 	}
 
-	planJSON, err := tf.ShowPlanFile(ctx, filepath.Base(op.PlanFile))
+	planJSON, err := tf.ShowPlanFile(ctx, filepath.Base(op.PlanFile()))
 	if err != nil {
-		return fmt.Errorf("%s: show plan json: %w", job.Name, err)
+		return fmt.Errorf("%s: show plan json: %w", job.Name(), err)
 	}
 	data, err := json.MarshalIndent(planJSON, "", "  ")
 	if err != nil {
-		return fmt.Errorf("%s: marshal plan.json: %w", job.Name, err)
+		return fmt.Errorf("%s: marshal plan.json: %w", job.Name(), err)
 	}
-	if err = os.WriteFile(r.workspace.PlanJSONFile(op.ModulePath), data, 0o600); err != nil {
-		return fmt.Errorf("%s: write plan.json: %w", job.Name, err)
+	if err = os.WriteFile(r.workspace.PlanJSONFile(op.ModulePath()), data, 0o600); err != nil {
+		return fmt.Errorf("%s: write plan.json: %w", job.Name(), err)
 	}
 
 	return nil
@@ -72,27 +72,27 @@ func (r *terraformOperationRunner) RunApply(ctx context.Context, job *pipeline.J
 	}
 
 	var opts []tfexec.ApplyOption
-	if op.UsePlanFile {
-		opts = append(opts, tfexec.DirOrPlan(filepath.Base(op.PlanFile)))
+	if op.UsePlanFile() {
+		opts = append(opts, tfexec.DirOrPlan(filepath.Base(op.PlanFile())))
 	}
 	if err := tf.Apply(ctx, opts...); err != nil {
-		return fmt.Errorf("%s: apply: %w", job.Name, err)
+		return fmt.Errorf("%s: apply: %w", job.Name(), err)
 	}
 	return nil
 }
 
 func (r *terraformOperationRunner) prepare(ctx context.Context, job *pipeline.Job, op *pipeline.TerraformOperation) (*tfexec.Terraform, error) {
-	tf, err := tfexec.NewTerraform(r.workspace.ModuleDir(op.ModulePath), r.binaryPath)
+	tf, err := tfexec.NewTerraform(r.workspace.ModuleDir(op.ModulePath()), r.binaryPath)
 	if err != nil {
-		return nil, fmt.Errorf("%s: create terraform runner: %w", job.Name, err)
+		return nil, fmt.Errorf("%s: create terraform runner: %w", job.Name(), err)
 	}
-	if err = tf.SetEnv(mergeEnv(environMap(), r.execConfig.Env, job.Env)); err != nil {
-		return nil, fmt.Errorf("%s: set env: %w", job.Name, err)
+	if err = tf.SetEnv(mergeEnv(environMap(), r.execConfig.Env, job.Env())); err != nil {
+		return nil, fmt.Errorf("%s: set env: %w", job.Name(), err)
 	}
 
-	if op.InitEnabled {
+	if op.InitEnabled() {
 		if err = tf.Init(ctx); err != nil {
-			return nil, fmt.Errorf("%s: init: %w", job.Name, err)
+			return nil, fmt.Errorf("%s: init: %w", job.Name(), err)
 		}
 	}
 

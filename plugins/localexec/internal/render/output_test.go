@@ -13,6 +13,7 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/pipeline"
+	"github.com/edelwud/terraci/pkg/pipeline/pipelinetest"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 )
 
@@ -189,13 +190,10 @@ func TestLogOutputCompleted_InvalidSummaryReportReturnsError(t *testing.T) {
 func TestProgressReporter_LogsStageAndModule(t *testing.T) {
 	reporter := ProgressReporter{}
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
-	job := &pipeline.Job{
-		Name:      "plan-platform-stage-eu-central-1-vpc",
-		Module:    module,
-		Operation: pipeline.Operation{Type: pipeline.OperationTypeTerraformPlan},
-	}
+	planJob := pipelinetest.MustJobByKind(t, pipelinetest.MustSingleModuleIR(t, module), pipeline.JobKindPlan)
+	job := &planJob
 	result := &execution.JobResult{
-		Name:   job.Name,
+		Name:   job.Name(),
 		Status: execution.JobStatusSucceeded,
 	}
 
@@ -213,12 +211,10 @@ func TestProgressReporter_LogsStageAndModule(t *testing.T) {
 
 func TestProgressReporter_LogsFailureStatus(t *testing.T) {
 	reporter := ProgressReporter{}
-	job := &pipeline.Job{
-		Name:      summaryReportProducer,
-		Operation: pipeline.Operation{Type: pipeline.OperationTypeCommands},
-	}
+	commandJob := pipelinetest.MustCommandJob(t, pipeline.ContributedJobOptions{Name: summaryReportProducer, Commands: []string{"summary"}})
+	job := &commandJob
 	result := &execution.JobResult{
-		Name:   job.Name,
+		Name:   job.Name(),
 		Status: execution.JobStatusFailed,
 		Err:    errors.New("boom"),
 	}

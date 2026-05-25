@@ -56,9 +56,9 @@ func (p *Plugin) CommitSHA() string    { return os.Getenv("BITBUCKET_COMMIT") }
 ## Pipeline Generator
 
 Core asks the provider for `PipelineRequirements(ctx)`, builds the IR once via
-`pipeline.Build(opts)`, then passes the finished IR to your factory. Your
-generator only renders the IR — it does not need depGraph, modules, or
-contributions because the IR already encodes all of them.
+`pipeline.BuildProjectIR(req)`, then passes the finished IR to your factory.
+Your generator only renders the immutable IR through getters — it does not need
+depGraph, modules, or contributions because the IR already encodes all of them.
 
 ```go
 func (p *Plugin) PipelineRequirements(ctx *plugin.AppContext) pipeline.BuildRequirements {
@@ -89,19 +89,18 @@ type GeneratedPipeline interface {
 
 ### Working with the Pipeline IR
 
-The IR is a flat DAG. Every executable item is a `pipeline.Job`; providers
-render jobs in declaration order and use `pipeline.Schedule` only when their CI
-needs barrier groups, such as GitLab stages:
+The IR is a flat DAG value object. Every executable item is a `pipeline.Job`;
+providers render jobs in declaration order and use `pipeline.Schedule` only
+when their CI needs barrier groups, such as GitLab stages:
 
 ```go
 func (g *BitbucketGenerator) Generate() (pipeline.GeneratedPipeline, error) {
-    for i := range g.ir.Jobs {
-        job := &g.ir.Jobs[i]
-        // job.Kind — plan, apply, or command
-        // job.Module — module metadata for plan/apply jobs
-        // job.Dependencies — required control edges
-        // job.InputArtifacts — artifacts to restore from producer jobs
-        // job.Operation — typed payload; render via cishell.RenderOperation for shell-driven CI
+    for _, job := range g.ir.Jobs() {
+        // job.Kind() — plan, apply, or command
+        // job.Module() — module metadata for plan/apply jobs
+        // job.Dependencies() — required control edges
+        // job.InputArtifacts() — artifacts to restore from producer jobs
+        // job.Operation() — typed payload; render via cishell.RenderOperation for shell-driven CI
     }
 
     return renderBitbucketYAML(g.ir), nil

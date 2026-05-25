@@ -12,10 +12,10 @@ import (
 	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
+	"github.com/edelwud/terraci/pkg/pipeline/pipelinetest"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	"github.com/edelwud/terraci/pkg/workflow"
-	"github.com/edelwud/terraci/plugins/localexec/internal/planner"
 	"github.com/edelwud/terraci/plugins/localexec/internal/reports"
 	"github.com/edelwud/terraci/plugins/localexec/internal/runner"
 	"github.com/edelwud/terraci/plugins/localexec/internal/spec"
@@ -60,7 +60,7 @@ type fakeJobRunner struct {
 }
 
 func (r *fakeJobRunner) Run(_ context.Context, job *pipeline.Job) error {
-	r.jobs = append(r.jobs, job.Name)
+	r.jobs = append(r.jobs, job.Name())
 	return r.err
 }
 
@@ -68,7 +68,7 @@ type fakePlanner struct {
 	plan          *pipeline.IR
 	err           error
 	calls         int
-	targets       []*discovery.Module
+	project       *workflow.ProjectResult
 	mode          spec.ExecutionMode
 	parallelism   int
 	planEnabled   bool
@@ -76,15 +76,15 @@ type fakePlanner struct {
 	contributions []*pipeline.Contribution
 }
 
-func (p *fakePlanner) Build(targets []*discovery.Module, result *workflow.Result, execCfg execution.Config, mode spec.ExecutionMode, contributions []*pipeline.Contribution) (*pipeline.IR, error) {
+func (p *fakePlanner) Build(project *workflow.ProjectResult, execCfg execution.Config, mode spec.ExecutionMode, contributions []*pipeline.Contribution) (*pipeline.IR, error) {
 	p.calls++
-	p.targets = targets
+	p.project = project
 	p.mode = mode
 	p.parallelism = execCfg.Parallelism
 	p.planEnabled = execCfg.PlanEnabled
 	p.contributions = contributions
-	if result != nil {
-		p.filteredCount = len(result.Filtered.Modules)
+	if project != nil && project.Workflow != nil {
+		p.filteredCount = len(project.Workflow.Filtered.Modules)
 	}
 	return p.plan, p.err
 }
@@ -167,9 +167,7 @@ func TestUseCase_RunUsesInjectedPlanner(t *testing.T) {
 
 	appCtx := plugintest.NewAppContext(t, workDir)
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
-	ir := &pipeline.IR{
-		Jobs: []pipeline.Job{testCommandJob("summary")},
-	}
+	ir := pipelinetest.MustCommandIR(t, testCommandJob("summary"))
 	plannerStub := &fakePlanner{plan: ir}
 	contributionCollector := &fakeContributionCollector{
 		contributions: []*pipeline.Contribution{mustContribution(t, pipeline.ContributedJobOptions{
@@ -186,7 +184,7 @@ func TestUseCase_RunUsesInjectedPlanner(t *testing.T) {
 	useCase := New(
 		appCtx,
 		WithProjectPlanner(fakeProjectWithTargets(module)),
-		WithPlanner(plannerStub),
+		WithIRPlanner(plannerStub),
 		WithContributionCollector(contributionCollector),
 		WithRuntimeFactory(runtimeFactory),
 		WithSummaryReports(loader),
@@ -208,8 +206,8 @@ func TestUseCase_RunUsesInjectedPlanner(t *testing.T) {
 	if !plannerStub.planEnabled {
 		t.Fatal("planner exec config should preserve plan_enabled")
 	}
-	if len(plannerStub.targets) != 1 || plannerStub.targets[0].ID() != module.ID() {
-		t.Fatalf("planner targets = %#v, want module %q", plannerStub.targets, module.ID())
+	if plannerStub.project == nil || len(plannerStub.project.Targets) != 1 || plannerStub.project.Targets[0].ID() != module.ID() {
+		t.Fatalf("planner project targets = %#v, want module %q", plannerStub.project, module.ID())
 	}
 	if plannerStub.filteredCount != 1 {
 		t.Fatalf("planner filtered count = %d, want 1", plannerStub.filteredCount)
@@ -239,7 +237,7 @@ func TestUseCase_RunNoTargetsSkipsExecutionDependencies(t *testing.T) {
 	useCase := New(
 		appCtx,
 		WithProjectPlanner(fakeProjectPlanner{project: &workflow.ProjectResult{Workflow: fakeWorkflowResult(module)}}),
-		WithPlanner(plannerStub),
+		WithIRPlanner(plannerStub),
 		WithRuntimeFactory(runtimeFactory),
 		WithSummaryReports(loader),
 	)
@@ -287,7 +285,7 @@ func TestUseCase_RunReturnsRuntimeFactoryError(t *testing.T) {
 	_, err := New(
 		appCtx,
 		WithProjectPlanner(fakeProjectWithTargets(module)),
-		WithPlanner(plannerStub),
+		WithIRPlanner(plannerStub),
 		WithRuntimeFactory(&fakeRuntimeFactory{err: wantErr}),
 	).Run(context.Background(), spec.Request{})
 	if !errors.Is(err, wantErr) {
@@ -307,7 +305,7 @@ func TestUseCase_RunReturnsPlannerError(t *testing.T) {
 	_, err := New(
 		appCtx,
 		WithProjectPlanner(fakeProjectWithTargets(module)),
-		WithPlanner(&fakePlanner{err: wantErr}),
+		WithIRPlanner(&fakePlanner{err: wantErr}),
 		WithRuntimeFactory(&fakeRuntimeFactory{runtime: &runner.Runtime{
 			ExecConfig: execution.Config{PlanEnabled: true, Parallelism: 1},
 			JobRunner:  &fakeJobRunner{},
@@ -331,9 +329,7 @@ func TestUseCase_RunReturnsExecutionResultOnJobFailure(t *testing.T) {
 	result, err := New(
 		appCtx,
 		WithProjectPlanner(fakeProjectWithTargets(module)),
-		WithPlanner(&fakePlanner{plan: &pipeline.IR{
-			Jobs: []pipeline.Job{testCommandJob("summary")},
-		}}),
+		WithIRPlanner(&fakePlanner{plan: pipelinetest.MustCommandIR(t, testCommandJob("summary"))}),
 		WithRuntimeFactory(&fakeRuntimeFactory{runtime: &runner.Runtime{
 			ExecConfig: execution.Config{PlanEnabled: true, Parallelism: 1},
 			JobRunner:  &fakeJobRunner{err: jobErr},
@@ -392,7 +388,7 @@ func TestNewRestoresDefaultsAfterNilOverrides(t *testing.T) {
 	useCase := New(
 		appCtx,
 		WithProjectPlanner(nil),
-		WithPlanner(nil),
+		WithIRPlanner(nil),
 		WithContributionCollector(nil),
 		WithRuntimeFactory(nil),
 		WithSummaryReports(nil),
@@ -401,7 +397,7 @@ func TestNewRestoresDefaultsAfterNilOverrides(t *testing.T) {
 	if useCase.projects == nil {
 		t.Fatal("projects = nil, want default planner")
 	}
-	if useCase.planner == nil {
+	if useCase.irPlanner == nil {
 		t.Fatal("planner = nil, want default builder")
 	}
 	if useCase.contributions == nil {
@@ -416,7 +412,7 @@ func TestNewRestoresDefaultsAfterNilOverrides(t *testing.T) {
 }
 
 var _ ProjectPlanner = fakeProjectPlanner{}
-var _ planner.Builder = (*fakePlanner)(nil)
+var _ IRPlanner = (*fakePlanner)(nil)
 var _ runner.Factory = (*fakeRuntimeFactory)(nil)
 var _ reports.Loader = (*fakeSummaryReportLoader)(nil)
 
@@ -450,13 +446,6 @@ func fakeWorkflowResult(modules ...*discovery.Module) *workflow.Result {
 	}
 }
 
-func testCommandJob(name string) pipeline.Job {
-	return pipeline.Job{
-		Name: name,
-		Kind: pipeline.JobKindCommand,
-		Operation: pipeline.Operation{
-			Type:     pipeline.OperationTypeCommands,
-			Commands: []string{"true"},
-		},
-	}
+func testCommandJob(name string) pipeline.ContributedJobOptions {
+	return pipeline.ContributedJobOptions{Name: name, Commands: []string{"true"}}
 }

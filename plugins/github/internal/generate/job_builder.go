@@ -30,46 +30,48 @@ func (b jobBuilder) renderJob(irJob *pipeline.Job) (*domainpkg.Job, error) {
 	}
 
 	steps := []domainpkg.Step{checkoutStep()}
-	for _, input := range irJob.InputArtifacts {
+	for _, input := range irJob.InputArtifacts() {
 		if !input.Configured() {
 			continue
 		}
 		steps = append(steps, downloadArtifactStep("Download "+input.Artifact.Name, input.Artifact.Name, input.Optional))
 	}
 	steps = append(steps, profile.stepsBefore...)
-	scriptLines := cishell.RenderOperation(irJob.Operation)
-	if irJob.AllowFailure {
+	operation := irJob.Operation()
+	scriptLines := cishell.RenderOperation(operation)
+	if irJob.AllowFailure() {
 		scriptLines = nil
-		for _, command := range cishell.RenderOperation(irJob.Operation) {
+		for _, command := range cishell.RenderOperation(operation) {
 			scriptLines = append(scriptLines, command+" || true")
 		}
 	}
 
 	steps = append(steps, runStep(runStepName(irJob), strings.Join(scriptLines, "\n")))
 	steps = append(steps, profile.stepsAfter...)
-	if irJob.OutputArtifact.Configured() {
+	outputArtifact := irJob.OutputArtifact()
+	if outputArtifact.Configured() {
 		var stageName, uploadName string
-		switch irJob.Operation.Type {
+		switch operation.Type() {
 		case pipeline.OperationTypeTerraformPlan:
 			stageName = "Stage plan artifacts"
 			uploadName = "Upload plan artifacts"
 		case pipeline.OperationTypeCommands:
-			stageName = fmt.Sprintf("Stage %s results", irJob.Name)
-			uploadName = fmt.Sprintf("Upload %s results", irJob.Name)
+			stageName = fmt.Sprintf("Stage %s results", irJob.Name())
+			uploadName = fmt.Sprintf("Upload %s results", irJob.Name())
 		case pipeline.OperationTypeTerraformApply:
-			stageName = fmt.Sprintf("Stage %s artifacts", irJob.Name)
-			uploadName = fmt.Sprintf("Upload %s artifacts", irJob.Name)
+			stageName = fmt.Sprintf("Stage %s artifacts", irJob.Name())
+			uploadName = fmt.Sprintf("Upload %s artifacts", irJob.Name())
 		}
 		steps = append(steps,
-			stageArtifactStep(stageName, irJob.OutputArtifact, artifactRequired(irJob)),
-			uploadArtifactStep(uploadName, irJob.OutputArtifact),
+			stageArtifactStep(stageName, outputArtifact, artifactRequired(irJob)),
+			uploadArtifactStep(uploadName, outputArtifact),
 		)
 	}
 
 	job := &domainpkg.Job{
 		RunsOn:      profile.runsOn,
-		Needs:       pipeline.DependencyNames(irJob.Dependencies),
-		Env:         mergeJobEnv(irJob.Env, profile.env),
+		Needs:       pipeline.DependencyNames(irJob.Dependencies()),
+		Env:         mergeJobEnv(irJob.Env(), profile.env),
 		Steps:       steps,
 		If:          profile.ifExpr,
 		Environment: profile.environment,
@@ -77,9 +79,9 @@ func (b jobBuilder) renderJob(irJob *pipeline.Job) (*domainpkg.Job, error) {
 	if profile.container != nil {
 		job.Container = profile.container
 	}
-	if irJob.Module != nil {
+	if module := irJob.Module(); module != nil {
 		job.Concurrency = &domainpkg.Concurrency{
-			Group:            irJob.Module.ID(),
+			Group:            module.ID(),
 			CancelInProgress: false,
 		}
 	}
@@ -90,13 +92,13 @@ func jobOverwriteType(irJob *pipeline.Job) configpkg.JobOverwriteType {
 	if irJob == nil {
 		return ""
 	}
-	switch irJob.Operation.Type {
+	switch irJob.Operation().Type() {
 	case pipeline.OperationTypeTerraformPlan:
 		return configpkg.OverwriteTypePlan
 	case pipeline.OperationTypeTerraformApply:
 		return configpkg.OverwriteTypeApply
 	case pipeline.OperationTypeCommands:
-		return configpkg.JobOverwriteType(irJob.Name)
+		return configpkg.JobOverwriteType(irJob.Name())
 	default:
 		return ""
 	}
@@ -106,23 +108,24 @@ func runStepName(irJob *pipeline.Job) string {
 	if irJob == nil {
 		return "Run"
 	}
-	if irJob.Module == nil {
-		return "Run " + irJob.Name
+	module := irJob.Module()
+	if module == nil {
+		return "Run " + irJob.Name()
 	}
-	switch irJob.Operation.Type {
+	switch irJob.Operation().Type() {
 	case pipeline.OperationTypeTerraformPlan:
-		return "Plan " + irJob.Module.ID()
+		return "Plan " + module.ID()
 	case pipeline.OperationTypeTerraformApply:
-		return "Apply " + irJob.Module.ID()
+		return "Apply " + module.ID()
 	case pipeline.OperationTypeCommands:
-		return "Run " + irJob.Name
+		return "Run " + irJob.Name()
 	default:
 		return "Run"
 	}
 }
 
 func artifactRequired(irJob *pipeline.Job) bool {
-	return irJob != nil && irJob.Operation.Type == pipeline.OperationTypeTerraformPlan
+	return irJob != nil && irJob.Operation().Type() == pipeline.OperationTypeTerraformPlan
 }
 
 func checkoutStep() domainpkg.Step {

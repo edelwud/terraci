@@ -2,6 +2,7 @@ package execution
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/edelwud/terraci/pkg/pipeline"
+	"github.com/edelwud/terraci/pkg/pipeline/pipelinetest"
 )
 
 type recordingRunner struct {
@@ -37,7 +39,11 @@ func (r *recordingRunner) Run(ctx context.Context, _ *pipeline.Job) error {
 func TestExecutorHonorsParallelism(t *testing.T) {
 	t.Parallel()
 
-	ir := &pipeline.IR{Jobs: []pipeline.Job{testJob("a"), testJob("b"), testJob("c")}}
+	ir := pipelinetest.MustCommandIR(t,
+		testJob("a"),
+		testJob("b"),
+		testJob("c"),
+	)
 	runner := &recordingRunner{delay: 20 * time.Millisecond}
 	_, err := NewExecutor(runner, WithParallelism(1)).Execute(context.Background(), ir)
 	if err != nil {
@@ -56,19 +62,19 @@ type orderRunner struct {
 func (r *orderRunner) Run(_ context.Context, job *pipeline.Job) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.order = append(r.order, job.Name)
+	r.order = append(r.order, job.Name())
 	return nil
 }
 
 func TestDefaultSchedulerPreservesDAGOrder(t *testing.T) {
 	t.Parallel()
 
-	ir := &pipeline.IR{Jobs: []pipeline.Job{
+	ir := pipelinetest.MustCommandIR(t,
 		testJob("summary", "policy", "apply"),
 		testJob("plan"),
 		testJob("policy", "plan"),
 		testJob("apply", "plan"),
-	}}
+	)
 
 	runner := &orderRunner{}
 	_, err := NewExecutor(runner, WithParallelism(1)).Execute(context.Background(), ir)
@@ -87,7 +93,7 @@ func TestDefaultSchedulerPreservesDAGOrder(t *testing.T) {
 	}
 }
 
-func TestExecutorRejectsInvalidPlanGraph(t *testing.T) {
+func TestExecutorRejectsInvalidIR(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -96,22 +102,9 @@ func TestExecutorRejectsInvalidPlanGraph(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name:    "duplicate names",
-			ir:      &pipeline.IR{Jobs: []pipeline.Job{testJob("policy-check"), testJob("policy-check")}},
-			wantErr: `duplicate job name "policy-check"`,
-		},
-		{
-			name:    "unknown dependency",
-			ir:      &pipeline.IR{Jobs: []pipeline.Job{testJob("summary", "policy-check")}},
-			wantErr: `depends on unknown job "policy-check"`,
-		},
-		{
-			name: "dependency cycle",
-			ir: &pipeline.IR{Jobs: []pipeline.Job{
-				testJob("summary", "policy-check"),
-				testJob("policy-check", "summary"),
-			}},
-			wantErr: "dependency cycle",
+			name:    "nil",
+			ir:      nil,
+			wantErr: "execution IR is nil",
 		},
 	}
 
@@ -133,15 +126,22 @@ func TestExecutorRejectsInvalidPlanGraph(t *testing.T) {
 	}
 }
 
-func testJob(name string, deps ...string) pipeline.Job {
-	return pipeline.Job{
+func TestExecutorPropagatesSchedulerError(t *testing.T) {
+	t.Parallel()
+
+	want := errors.New("scheduler failed")
+	ir := pipelinetest.MustCommandIR(t, testJob("plan"))
+	_, err := NewExecutor(&orderRunner{}, WithScheduler(errorScheduler{err: want})).Execute(context.Background(), ir)
+	if !errors.Is(err, want) {
+		t.Fatalf("Execute() error = %v, want scheduler error", err)
+	}
+}
+
+func testJob(name string, deps ...string) pipeline.ContributedJobOptions {
+	return pipeline.ContributedJobOptions{
 		Name:         name,
-		Kind:         pipeline.JobKindCommand,
 		Dependencies: testDependencies(deps...),
-		Operation: pipeline.Operation{
-			Type:     pipeline.OperationTypeCommands,
-			Commands: []string{"true"},
-		},
+		Commands:     []string{"true"},
 	}
 }
 
@@ -151,4 +151,12 @@ func testDependencies(names ...string) []pipeline.JobDependency {
 		deps = append(deps, pipeline.JobDependency{Job: name})
 	}
 	return deps
+}
+
+type errorScheduler struct {
+	err error
+}
+
+func (s errorScheduler) Schedule(*pipeline.IR) ([]pipeline.JobGroup, error) {
+	return nil, s.err
 }

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/ci"
-	"github.com/edelwud/terraci/pkg/pipeline"
+	"github.com/edelwud/terraci/pkg/pipeline/pipelinetest"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/initwiz"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
@@ -72,7 +72,7 @@ func TestPlugin_SDKContracts(t *testing.T) {
 			Generator:      p,
 			CommentFactory: p,
 			AppContext:     plugintest.NewAppContext(t, t.TempDir()),
-			IR:             &pipeline.IR{},
+			IR:             pipelinetest.MustCommandIR(t),
 			ExpectedName:   pluginName,
 			AssertEnv: func(tb testing.TB, detected bool) {
 				tb.Helper()

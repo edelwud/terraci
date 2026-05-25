@@ -6,8 +6,8 @@ func (ir *IR) ModuleCount() int {
 		return 0
 	}
 	seen := make(map[string]struct{})
-	for i := range ir.Jobs {
-		mod := ir.Jobs[i].Module
+	for i := range ir.jobs {
+		mod := ir.jobs[i].module
 		if mod == nil {
 			continue
 		}

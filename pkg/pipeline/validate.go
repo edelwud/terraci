@@ -13,52 +13,52 @@ func (ir *IR) Validate() error {
 		return errors.New("pipeline IR is nil")
 	}
 
-	byName := make(map[string]*Job, len(ir.Jobs))
-	for i := range ir.Jobs {
-		job := &ir.Jobs[i]
-		if _, exists := byName[job.Name]; exists {
-			return fmt.Errorf("pipeline IR contains duplicate job name %q", job.Name)
+	byName := make(map[string]*Job, len(ir.jobs))
+	for i := range ir.jobs {
+		job := &ir.jobs[i]
+		if _, exists := byName[job.name]; exists {
+			return fmt.Errorf("pipeline IR contains duplicate job name %q", job.name)
 		}
 		if err := validateJob(job); err != nil {
 			return err
 		}
-		byName[job.Name] = job
+		byName[job.name] = job
 	}
 
-	if err := validateJobEdges(ir.Jobs, byName); err != nil {
+	if err := validateJobEdges(ir.jobs, byName); err != nil {
 		return err
 	}
 	if err := validateResourceClosure(ir, byName); err != nil {
 		return err
 	}
 
-	return validateAcyclicJobs(ir.Jobs, byName)
+	return validateAcyclicJobs(ir.jobs, byName)
 }
 
 func validateJob(job *Job) error {
-	if job.Name == "" {
+	if job.name == "" {
 		return errors.New("pipeline IR contains unnamed job")
 	}
-	if !job.Kind.valid() {
-		return fmt.Errorf("pipeline job %q has invalid kind %q", job.Name, job.Kind)
+	if !job.kind.valid() {
+		return fmt.Errorf("pipeline job %q has invalid kind %q", job.name, job.kind)
 	}
 	if err := validateOperation(job); err != nil {
 		return err
 	}
-	if err := validateArtifact(job, job.OutputArtifact); err != nil {
+	if err := validateArtifact(job, job.outputArtifact); err != nil {
 		return err
 	}
-	for _, input := range job.InputArtifacts {
+	for _, input := range job.inputArtifacts {
 		if err := validateInputArtifact(job, input); err != nil {
 			return err
 		}
 	}
-	for _, resource := range job.Produces {
+	for _, resource := range job.produces {
 		if err := validateResource(job, resource, "produces"); err != nil {
 			return err
 		}
 	}
-	for _, resource := range job.Consumes {
+	for _, resource := range job.consumes {
 		if err := validateResource(job, resource, "consumes"); err != nil {
 			return err
 		}
@@ -69,29 +69,29 @@ func validateJob(job *Job) error {
 func validateJobEdges(jobs []Job, byName map[string]*Job) error {
 	for i := range jobs {
 		job := &jobs[i]
-		dependencies := make(map[string]struct{}, len(job.Dependencies))
-		for _, dep := range job.Dependencies {
+		dependencies := make(map[string]struct{}, len(job.dependencies))
+		for _, dep := range job.dependencies {
 			if dep.Job == "" {
-				return fmt.Errorf("pipeline job %q has empty dependency", job.Name)
+				return fmt.Errorf("pipeline job %q has empty dependency", job.name)
 			}
 			if byName[dep.Job] == nil {
-				return fmt.Errorf("pipeline job %q depends on unknown job %q", job.Name, dep.Job)
+				return fmt.Errorf("pipeline job %q depends on unknown job %q", job.name, dep.Job)
 			}
 			dependencies[dep.Job] = struct{}{}
 		}
-		for _, input := range job.InputArtifacts {
+		for _, input := range job.inputArtifacts {
 			if !input.Configured() {
 				continue
 			}
 			if byName[input.ProducerJob] == nil {
-				return fmt.Errorf("pipeline job %q restores artifact %q from unknown job %q", job.Name, input.Artifact.Name, input.ProducerJob)
+				return fmt.Errorf("pipeline job %q restores artifact %q from unknown job %q", job.name, input.Artifact.Name, input.ProducerJob)
 			}
 			if _, ok := dependencies[input.ProducerJob]; !ok {
-				return fmt.Errorf("pipeline job %q restores artifact %q from job %q without dependency", job.Name, input.Artifact.Name, input.ProducerJob)
+				return fmt.Errorf("pipeline job %q restores artifact %q from job %q without dependency", job.name, input.Artifact.Name, input.ProducerJob)
 			}
 			producer := byName[input.ProducerJob]
-			if producer != nil && !sameArtifact(input.Artifact, producer.OutputArtifact) {
-				return fmt.Errorf("pipeline job %q restores artifact %q from job %q, want exact producer artifact %q", job.Name, input.Artifact.Name, input.ProducerJob, producer.OutputArtifact.Name)
+			if producer != nil && !sameArtifact(input.Artifact, producer.outputArtifact) {
+				return fmt.Errorf("pipeline job %q restores artifact %q from job %q, want exact producer artifact %q", job.name, input.Artifact.Name, input.ProducerJob, producer.outputArtifact.Name)
 			}
 		}
 	}
@@ -99,24 +99,24 @@ func validateJobEdges(jobs []Job, byName map[string]*Job) error {
 }
 
 func validateOperation(job *Job) error {
-	switch job.Kind {
+	switch job.kind {
 	case JobKindPlan:
-		if job.Module == nil {
-			return fmt.Errorf("pipeline plan job %q has no module", job.Name)
+		if job.module == nil {
+			return fmt.Errorf("pipeline plan job %q has no module", job.name)
 		}
-		if job.Operation.Type != OperationTypeTerraformPlan || job.Operation.Terraform == nil {
-			return fmt.Errorf("pipeline plan job %q must carry terraform plan operation", job.Name)
+		if job.operation.typ != OperationTypeTerraformPlan || job.operation.terraform == nil {
+			return fmt.Errorf("pipeline plan job %q must carry terraform plan operation", job.name)
 		}
 	case JobKindApply:
-		if job.Module == nil {
-			return fmt.Errorf("pipeline apply job %q has no module", job.Name)
+		if job.module == nil {
+			return fmt.Errorf("pipeline apply job %q has no module", job.name)
 		}
-		if job.Operation.Type != OperationTypeTerraformApply || job.Operation.Terraform == nil {
-			return fmt.Errorf("pipeline apply job %q must carry terraform apply operation", job.Name)
+		if job.operation.typ != OperationTypeTerraformApply || job.operation.terraform == nil {
+			return fmt.Errorf("pipeline apply job %q must carry terraform apply operation", job.name)
 		}
 	case JobKindCommand:
-		if job.Operation.Type != OperationTypeCommands {
-			return fmt.Errorf("pipeline command job %q must carry command operation", job.Name)
+		if job.operation.typ != OperationTypeCommands {
+			return fmt.Errorf("pipeline command job %q must carry command operation", job.name)
 		}
 	}
 	return nil
@@ -127,17 +127,17 @@ func validateArtifact(job *Job, artifact Artifact) error {
 		return nil
 	}
 	if artifact.Name == "" {
-		return fmt.Errorf("pipeline job %q has artifact paths without artifact name", job.Name)
+		return fmt.Errorf("pipeline job %q has artifact paths without artifact name", job.name)
 	}
 	if len(artifact.Paths) == 0 {
-		return fmt.Errorf("pipeline job %q has artifact %q without paths", job.Name, artifact.Name)
+		return fmt.Errorf("pipeline job %q has artifact %q without paths", job.name, artifact.Name)
 	}
 	if slices.Contains(artifact.Paths, "") {
-		return fmt.Errorf("pipeline job %q has artifact %q with empty path", job.Name, artifact.Name)
+		return fmt.Errorf("pipeline job %q has artifact %q with empty path", job.name, artifact.Name)
 	}
 	for _, path := range artifact.Paths {
 		if err := ValidateWorkspacePath(path); err != nil {
-			return fmt.Errorf("pipeline job %q has artifact %q with invalid path: %w", job.Name, artifact.Name, err)
+			return fmt.Errorf("pipeline job %q has artifact %q with invalid path: %w", job.name, artifact.Name, err)
 		}
 	}
 	return nil
@@ -148,23 +148,23 @@ func validateInputArtifact(job *Job, input InputArtifact) error {
 		return nil
 	}
 	if input.ProducerJob == "" {
-		return fmt.Errorf("pipeline job %q has input artifact without producer job", job.Name)
+		return fmt.Errorf("pipeline job %q has input artifact without producer job", job.name)
 	}
 	return validateArtifact(job, input.Artifact)
 }
 
 func validateResource(job *Job, resource ResourceSpec, direction string) error {
 	if resource.Ref.Kind == "" {
-		return fmt.Errorf("pipeline job %q %s resource without kind", job.Name, direction)
+		return fmt.Errorf("pipeline job %q %s resource without kind", job.name, direction)
 	}
 	if err := validateResourceRef(resource.Ref); err != nil {
-		return fmt.Errorf("pipeline job %q %s invalid resource: %w", job.Name, direction, err)
+		return fmt.Errorf("pipeline job %q %s invalid resource: %w", job.name, direction, err)
 	}
 	if resource.Path == "" {
-		return fmt.Errorf("pipeline job %q %s %s without path", job.Name, direction, resource.Ref.Kind)
+		return fmt.Errorf("pipeline job %q %s %s without path", job.name, direction, resource.Ref.Kind)
 	}
 	if err := ValidateWorkspacePath(resource.Path); err != nil {
-		return fmt.Errorf("pipeline job %q %s %s with invalid path: %w", job.Name, direction, resource.Ref.Kind, err)
+		return fmt.Errorf("pipeline job %q %s %s with invalid path: %w", job.name, direction, resource.Ref.Kind, err)
 	}
 	return nil
 }
@@ -213,8 +213,8 @@ func validateResourceClosure(ir *IR, byName map[string]*Job) error {
 		return err
 	}
 
-	for i := range ir.Jobs {
-		job := &ir.Jobs[i]
+	for i := range ir.jobs {
+		job := &ir.jobs[i]
 		if err := validateProducedResourceArtifacts(job); err != nil {
 			return err
 		}
@@ -226,61 +226,61 @@ func validateResourceClosure(ir *IR, byName map[string]*Job) error {
 }
 
 func validateProducedResourceArtifacts(job *Job) error {
-	if len(job.Produces) == 0 {
+	if len(job.produces) == 0 {
 		return nil
 	}
-	artifactPaths := make(map[string]struct{}, len(job.OutputArtifact.Paths))
-	for _, path := range job.OutputArtifact.Paths {
+	artifactPaths := make(map[string]struct{}, len(job.outputArtifact.Paths))
+	for _, path := range job.outputArtifact.Paths {
 		artifactPaths[path] = struct{}{}
 	}
-	for _, resource := range job.Produces {
+	for _, resource := range job.produces {
 		if _, ok := artifactPaths[resource.Path]; !ok {
-			return fmt.Errorf("pipeline job %q produces %s at %q missing from output artifact %q", job.Name, resource.Ref.Kind, resource.Path, job.OutputArtifact.Name)
+			return fmt.Errorf("pipeline job %q produces %s at %q missing from output artifact %q", job.name, resource.Ref.Kind, resource.Path, job.outputArtifact.Name)
 		}
 	}
 	return nil
 }
 
 func validateConsumedResources(job *Job, byName map[string]*Job, resources *resourceIndex) error {
-	if len(job.Consumes) == 0 {
+	if len(job.consumes) == 0 {
 		return nil
 	}
 
-	dependencies := make(map[string]struct{}, len(job.Dependencies))
-	for _, dep := range job.Dependencies {
+	dependencies := make(map[string]struct{}, len(job.dependencies))
+	for _, dep := range job.dependencies {
 		dependencies[dep.Job] = struct{}{}
 	}
-	inputsByProducer := make(map[string]InputArtifact, len(job.InputArtifacts))
-	for _, input := range job.InputArtifacts {
+	inputsByProducer := make(map[string]InputArtifact, len(job.inputArtifacts))
+	for _, input := range job.inputArtifacts {
 		if input.Configured() {
 			inputsByProducer[input.ProducerJob] = input
 		}
 	}
 
-	for _, consume := range job.Consumes {
+	for _, consume := range job.consumes {
 		produced, ok := resources.byRef[consume.Ref]
 		if !ok {
-			return fmt.Errorf("pipeline job %q consumes unavailable %s", job.Name, resourceRefLabel(consume.Ref))
+			return fmt.Errorf("pipeline job %q consumes unavailable %s", job.name, resourceRefLabel(consume.Ref))
 		}
 		if produced.spec.Path != consume.Path {
-			return fmt.Errorf("pipeline job %q consumes %s at %q, producer %q writes %q", job.Name, resourceRefLabel(consume.Ref), consume.Path, produced.jobName, produced.spec.Path)
+			return fmt.Errorf("pipeline job %q consumes %s at %q, producer %q writes %q", job.name, resourceRefLabel(consume.Ref), consume.Path, produced.jobName, produced.spec.Path)
 		}
-		if produced.jobName == job.Name {
+		if produced.jobName == job.name {
 			continue
 		}
 		producer := byName[produced.jobName]
 		if producer == nil {
-			return fmt.Errorf("pipeline job %q consumes %s from unknown job %q", job.Name, resourceRefLabel(consume.Ref), produced.jobName)
+			return fmt.Errorf("pipeline job %q consumes %s from unknown job %q", job.name, resourceRefLabel(consume.Ref), produced.jobName)
 		}
 		if _, depOK := dependencies[produced.jobName]; !depOK {
-			return fmt.Errorf("pipeline job %q consumes %s from job %q without dependency", job.Name, resourceRefLabel(consume.Ref), produced.jobName)
+			return fmt.Errorf("pipeline job %q consumes %s from job %q without dependency", job.name, resourceRefLabel(consume.Ref), produced.jobName)
 		}
 		input, ok := inputsByProducer[produced.jobName]
 		if !ok {
-			return fmt.Errorf("pipeline job %q consumes %s from job %q without input artifact", job.Name, resourceRefLabel(consume.Ref), produced.jobName)
+			return fmt.Errorf("pipeline job %q consumes %s from job %q without input artifact", job.name, resourceRefLabel(consume.Ref), produced.jobName)
 		}
-		if !sameArtifact(input.Artifact, producer.OutputArtifact) {
-			return fmt.Errorf("pipeline job %q consumes %s from job %q with input artifact %q, want %q", job.Name, resourceRefLabel(consume.Ref), produced.jobName, input.Artifact.Name, producer.OutputArtifact.Name)
+		if !sameArtifact(input.Artifact, producer.outputArtifact) {
+			return fmt.Errorf("pipeline job %q consumes %s from job %q with input artifact %q, want %q", job.name, resourceRefLabel(consume.Ref), produced.jobName, input.Artifact.Name, producer.outputArtifact.Name)
 		}
 	}
 	return nil
@@ -299,20 +299,20 @@ func validateAcyclicJobs(jobs []Job, byName map[string]*Job) error {
 	state := make(map[string]int, len(jobs))
 	var visit func(*Job) error
 	visit = func(job *Job) error {
-		switch state[job.Name] {
+		switch state[job.name] {
 		case visiting:
-			return fmt.Errorf("pipeline IR contains dependency cycle at job %q", job.Name)
+			return fmt.Errorf("pipeline IR contains dependency cycle at job %q", job.name)
 		case visited:
 			return nil
 		}
 
-		state[job.Name] = visiting
-		for _, dep := range job.Dependencies {
+		state[job.name] = visiting
+		for _, dep := range job.dependencies {
 			if err := visit(byName[dep.Job]); err != nil {
 				return err
 			}
 		}
-		state[job.Name] = visited
+		state[job.name] = visited
 		return nil
 	}
 

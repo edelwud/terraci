@@ -102,9 +102,9 @@ func NewProgressReporter() execution.EventSink {
 }
 
 func (ProgressReporter) JobStarted(job *pipeline.Job) {
-	entry := log.WithField("job", job.Name).WithField("operation", job.Operation.Type)
-	if job.Module != nil {
-		entry = entry.WithField("module", job.Module.ID())
+	entry := log.WithField("job", job.Name()).WithField("operation", job.Operation().Type())
+	if module := job.Module(); module != nil {
+		entry = entry.WithField("module", module.ID())
 	}
 	entry.Info("job started")
 }
@@ -113,11 +113,11 @@ func (ProgressReporter) JobFinished(job *pipeline.Job, result *execution.JobResu
 	if result == nil {
 		return
 	}
-	entry := log.WithField("job", job.Name).
-		WithField("operation", job.Operation.Type).
+	entry := log.WithField("job", job.Name()).
+		WithField("operation", job.Operation().Type()).
 		WithField("status", result.Status)
-	if job.Module != nil {
-		entry = entry.WithField("module", job.Module.ID())
+	if module := job.Module(); module != nil {
+		entry = entry.WithField("module", module.ID())
 	}
 	if result.Err != nil {
 		entry.WithError(result.Err).Warn("job finished")

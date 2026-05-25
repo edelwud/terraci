@@ -23,9 +23,9 @@ type CIInfoProvider interface {
 
 // PipelineGeneratorFactory declares provider IR requirements and creates
 // pipeline generators bound to a pre-built IR. Core asks for requirements,
-// builds the IR once via pipeline.Build(opts), then passes it here, so
+// builds the IR once via pipeline.BuildProjectIR, then passes it here, so
 // providers do not need depGraph, target modules, or contributions — they only
-// render the IR.
+// render the immutable IR through getters.
 type PipelineGeneratorFactory interface {
 	Plugin
 	PipelineRequirements(ctx *AppContext) pipeline.BuildRequirements

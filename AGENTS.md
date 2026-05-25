@@ -54,10 +54,10 @@ cmd/xterraci/
     └── *_test.go
 
 cmd/terraci/internal/
-├── generateflow/               # Generate command orchestration: projectflow → IR → provider generator
+├── generateflow/               # Generate command orchestration: projectflow → BuildProjectIR → provider generator
 ├── graphflow/                  # Graph command orchestration and graph render formats
 ├── initflow/                   # Typed init wizard orchestration: defaults, plugin groups, config build
-├── projectflow/                # Shared command project discovery: workflow.Run, target selection, library diagnostics
+├── projectflow/                # Thin runflow adapter over workflow.PlanProject
 ├── runflow/                    # Typed command lifecycle: config load, plugin decode, preflight, contributions
 ├── schemaflow/                 # Schema command orchestration
 ├── validateflow/               # Validate command graph diagnostics and pass/fail decision
@@ -310,16 +310,25 @@ The plugin SDK exposes narrow resolver interfaces: `CIResolver`, `ChangeDetector
 
 ### Pipeline IR
 
-`pkg/pipeline.Build(opts)` creates a provider-agnostic IR. Generators transform it to YAML:
+`workflow.PlanProject(...)` produces the canonical project/target snapshot and
+`pipeline.BuildProjectIR(...)` turns it into an immutable provider-agnostic IR.
+Generators transform that IR to YAML:
 
 ```
-pipeline.Build(opts) → IR{Levels, Jobs}
+workflow.PlanProject(...) → pipeline.BuildProjectIR(...) → *pipeline.IR
   ↓
 GitLab: IR → Pipeline{Stages, Jobs} → YAML
 GitHub: IR → Workflow{Jobs, Steps} → YAML
 ```
 
-The IR is the **single source** for downstream consumers — `pipeline.Generator` is constructed with an `*IR` and `Generate() (GeneratedPipeline, error)` / `DryRun() (*DryRunResult, error)` take no further arguments. Job-level access methods live on `*IR`: `JobRefs()`, `PlanJobsForLevel(idx)`, `ApplyJobsForLevel(idx)`, plus `JobNames()` / `AllPlanNames()` / `ContributedJobNames()`.
+The IR is the **single source** for downstream consumers and a value object:
+production code does not construct `IR`, `Job`, `Operation`, or
+`TerraformOperation` literals. `pipeline.Generator` is constructed with an
+`*IR` and `Generate() (GeneratedPipeline, error)` / `DryRun()
+(*DryRunResult, error)` take no further arguments. Job-level access methods
+live on `*IR`: `Jobs()`, `JobRefs()`, `PlanJobsForLevel(idx)`,
+`ApplyJobsForLevel(idx)`, plus `JobNames()` / `AllPlanNames()` /
+`ContributedJobNames()`.
 
 Shell rendering (`cd module && ${TERRAFORM_BINARY} init && plan -out=…`) lives in `pkg/pipeline/cishell` (`cishell.RenderOperation(op)`) — never in the IR package itself. Providers driving Terraform via tfexec instead of shell don't need cishell.
 
@@ -399,8 +408,8 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 ### Generate pipeline
 1. `runflow.Prepare(...)` loads config, decodes plugins, preflights, and gathers PipelineContributor jobs
 2. `generateflow.Run(...)` delegates project discovery/targeting to `projectflow`
-3. `projectflow.Run(...)` calls `workflow.Run`, and `workflow.ChangeDetector.DetectChanges()` when `--changed-only`
-4. `generateflow` calls `pipeline.Build(opts)` and binds the IR to `provider.NewGenerator(appCtx, ir)`
+3. `projectflow.Run(...)` adapts `runflow.Prepared` into `workflow.PlanProject(...)`; changed-only detection runs inside workflow targeting
+4. `generateflow` calls `pipeline.BuildProjectIR(...)` and binds the IR to `provider.NewGenerator(appCtx, ir)`
 5. `cmd/terraci/cmd` renders dry-run output or writes generated YAML
 
 ### Summary
@@ -413,7 +422,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 
 ### Local Execution
 1. `workflow.PlanProject(...)` builds the canonical filtered module/graph result and selected targets
-2. `localexec/internal/planner` calls `pipeline.Build(...)` to produce an `*pipeline.IR`
+2. `localexec/internal/flow` builds the execution IR through `pipeline.BuildProjectIR(...)`
 3. `pkg/execution.Executor.Execute(ctx, ir)` schedules jobs with dependency-aware DAG grouping
 4. `localexec/internal/runner` executes shell/tfexec jobs locally
 5. `localexec/internal/reports` loads current plugin reports through `ci.ReportStore`, applies `ci.SelectCurrentReports`, and aggregates them into a render-ready summary report
@@ -432,7 +441,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **Plugin-first feature surfaces**: every CI provider, cost backend, policy engine, etc. lives in `plugins/`.
 - **One file per capability**: plugin.go < 30 lines; each interface in its own file
 - **Compile-time extensibility**: `xterraci build --with/--without` for custom binaries
-- **Pipeline IR**: `pkg/pipeline.Build()` → provider transforms to YAML. The IR is the single execution input — generators and the local executor both consume `*pipeline.IR` directly.
+- **Pipeline IR**: `workflow.PlanProject(...)` → `pipeline.BuildProjectIR(...)` → immutable `*pipeline.IR`. The IR is the single execution input — generators and the local executor both consume it through getters, not direct field mutation or manual literals.
 - **IR-bound generators**: `PipelineGeneratorFactory.NewGenerator(ctx, *pipeline.IR)` — providers don't reach for depGraph/modules/contributions; the IR already encodes them.
 - **Shell rendering separated from IR**: `pkg/pipeline/cishell.RenderOperation(op)` for shell-driven CI; the IR carries `pipeline.TerraformOperation` data only.
 - **Canonical dry-run source**: dry-run stage/job counts derive from `*IR.DryRun(totalModules)`.

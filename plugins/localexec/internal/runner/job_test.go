@@ -5,7 +5,9 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/pipeline"
+	"github.com/edelwud/terraci/pkg/pipeline/pipelinetest"
 )
 
 type recordCommandRunner struct {
@@ -27,12 +29,12 @@ type recordTerraformRunner struct {
 }
 
 func (r *recordTerraformRunner) RunPlan(_ context.Context, job *pipeline.Job, _ *pipeline.TerraformOperation) error {
-	r.plans = append(r.plans, job.Name)
+	r.plans = append(r.plans, job.Name())
 	return r.err
 }
 
 func (r *recordTerraformRunner) RunApply(_ context.Context, job *pipeline.Job, _ *pipeline.TerraformOperation) error {
-	r.applies = append(r.applies, job.Name)
+	r.applies = append(r.applies, job.Name())
 	return r.err
 }
 
@@ -46,20 +48,11 @@ func TestOperationDispatcherRoutesTerraformOperations(t *testing.T) {
 		commands:  commands,
 	}
 
-	planJob := &pipeline.Job{
-		Name: "plan-platform-stage-eu-central-1-vpc",
-		Operation: pipeline.Operation{
-			Type:      pipeline.OperationTypeTerraformPlan,
-			Terraform: &pipeline.TerraformOperation{ModulePath: "platform/stage/eu-central-1/vpc"},
-		},
-	}
-	applyJob := &pipeline.Job{
-		Name: "apply-platform-stage-eu-central-1-vpc",
-		Operation: pipeline.Operation{
-			Type:      pipeline.OperationTypeTerraformApply,
-			Terraform: &pipeline.TerraformOperation{ModulePath: "platform/stage/eu-central-1/vpc"},
-		},
-	}
+	ir := pipelinetest.MustSingleModuleIR(t, discovery.TestModule("platform", "stage", "eu-central-1", "vpc"))
+	plan := pipelinetest.MustJobByKind(t, ir, pipeline.JobKindPlan)
+	apply := pipelinetest.MustJobByKind(t, ir, pipeline.JobKindApply)
+	planJob := &plan
+	applyJob := &apply
 
 	if err := dispatcher.Run(context.Background(), planJob); err != nil {
 		t.Fatalf("Run(plan) error = %v", err)
@@ -68,11 +61,11 @@ func TestOperationDispatcherRoutesTerraformOperations(t *testing.T) {
 		t.Fatalf("Run(apply) error = %v", err)
 	}
 
-	if !reflect.DeepEqual(terraform.plans, []string{planJob.Name}) {
-		t.Fatalf("plans = %v, want [%s]", terraform.plans, planJob.Name)
+	if !reflect.DeepEqual(terraform.plans, []string{planJob.Name()}) {
+		t.Fatalf("plans = %v, want [%s]", terraform.plans, planJob.Name())
 	}
-	if !reflect.DeepEqual(terraform.applies, []string{applyJob.Name}) {
-		t.Fatalf("applies = %v, want [%s]", terraform.applies, applyJob.Name)
+	if !reflect.DeepEqual(terraform.applies, []string{applyJob.Name()}) {
+		t.Fatalf("applies = %v, want [%s]", terraform.applies, applyJob.Name())
 	}
 	if len(commands.commands) != 0 {
 		t.Fatalf("commands = %v, want none", commands.commands)
@@ -88,31 +81,28 @@ func TestOperationDispatcherRunsCommandOperationsWithJobMetadata(t *testing.T) {
 		commands:  commands,
 	}
 
-	job := &pipeline.Job{
+	commandJob := pipelinetest.MustCommandJob(t, pipeline.ContributedJobOptions{
 		Name:         "policy-check",
-		Env:          map[string]string{"A": "B"},
+		Commands:     []string{"terraci policy check", "terraci summary"},
 		AllowFailure: true,
-		Operation: pipeline.Operation{
-			Type:     pipeline.OperationTypeCommands,
-			Commands: []string{"terraci policy check", "terraci summary"},
-		},
-	}
+	})
+	job := &commandJob
 	if err := dispatcher.Run(context.Background(), job); err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
 
-	if got := commands.commands; !reflect.DeepEqual(got, job.Operation.Commands) {
-		t.Fatalf("commands = %v, want %v", got, job.Operation.Commands)
+	if got, want := commands.commands, job.Operation().Commands(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("commands = %v, want %v", got, want)
 	}
 	for _, spec := range commands.specs {
-		if spec.JobName != job.Name {
-			t.Fatalf("job name = %q, want %q", spec.JobName, job.Name)
+		if spec.JobName != job.Name() {
+			t.Fatalf("job name = %q, want %q", spec.JobName, job.Name())
 		}
 		if !spec.AllowFailure {
 			t.Fatal("allow failure = false, want true")
 		}
-		if !reflect.DeepEqual(spec.Env, job.Env) {
-			t.Fatalf("env = %#v, want %#v", spec.Env, job.Env)
+		if len(spec.Env) != 0 {
+			t.Fatalf("env = %#v, want empty", spec.Env)
 		}
 	}
 }
@@ -122,14 +112,8 @@ func TestJobRunnerStandaloneCommandsPropagateAllowFailure(t *testing.T) {
 
 	commands := &recordCommandRunner{}
 	runner := &jobRunner{main: operationDispatcher{commands: commands}}
-	job := &pipeline.Job{
-		Name:         "summary",
-		AllowFailure: true,
-		Operation: pipeline.Operation{
-			Type:     pipeline.OperationTypeCommands,
-			Commands: []string{"terraci summary"},
-		},
-	}
+	commandJob := pipelinetest.MustCommandJob(t, pipeline.ContributedJobOptions{Name: "summary", Commands: []string{"terraci summary"}, AllowFailure: true})
+	job := &commandJob
 
 	if err := runner.Run(context.Background(), job); err != nil {
 		t.Fatalf("Run() error = %v", err)
@@ -138,30 +122,19 @@ func TestJobRunnerStandaloneCommandsPropagateAllowFailure(t *testing.T) {
 	if len(commands.specs) != 1 {
 		t.Fatalf("command specs = %d, want 1", len(commands.specs))
 	}
-	if commands.specs[0].JobName != job.Name {
-		t.Fatalf("job name = %q, want %q", commands.specs[0].JobName, job.Name)
+	if commands.specs[0].JobName != job.Name() {
+		t.Fatalf("job name = %q, want %q", commands.specs[0].JobName, job.Name())
 	}
 	if !commands.specs[0].AllowFailure {
 		t.Fatal("allow failure = false, want true")
 	}
 }
 
-func TestOperationDispatcherRejectsUnsupportedOperation(t *testing.T) {
-	t.Parallel()
-
-	err := operationDispatcher{}.Run(context.Background(), &pipeline.Job{
-		Name: "unsupported",
-		Operation: pipeline.Operation{
-			Type: pipeline.OperationType("unsupported"),
-		},
-	})
-	if err == nil {
-		t.Fatal("Run() error = nil, want unsupported operation error")
-	}
-}
-
 func TestOperationDispatcherRejectsMissingCollaborators(t *testing.T) {
 	t.Parallel()
+	ir := pipelinetest.MustSingleModuleIR(t, discovery.TestModule("platform", "stage", "eu-central-1", "vpc"))
+	plan := pipelinetest.MustJobByKind(t, ir, pipeline.JobKindPlan)
+	command := pipelinetest.MustCommandJob(t, pipeline.ContributedJobOptions{Name: "summary", Commands: []string{"terraci summary"}})
 
 	tests := []struct {
 		name string
@@ -169,23 +142,11 @@ func TestOperationDispatcherRejectsMissingCollaborators(t *testing.T) {
 	}{
 		{
 			name: "missing terraform runner",
-			job: &pipeline.Job{
-				Name: "plan-platform-stage-eu-central-1-vpc",
-				Operation: pipeline.Operation{
-					Type:      pipeline.OperationTypeTerraformPlan,
-					Terraform: &pipeline.TerraformOperation{ModulePath: "platform/stage/eu-central-1/vpc"},
-				},
-			},
+			job:  &plan,
 		},
 		{
 			name: "missing command runner",
-			job: &pipeline.Job{
-				Name: "summary",
-				Operation: pipeline.Operation{
-					Type:     pipeline.OperationTypeCommands,
-					Commands: []string{"terraci summary"},
-				},
-			},
+			job:  &command,
 		},
 	}
 
@@ -206,33 +167,5 @@ func TestOperationDispatcherRejectsNilJob(t *testing.T) {
 	err := (operationDispatcher{}).Run(context.Background(), nil)
 	if err == nil {
 		t.Fatal("Run() error = nil, want nil job error")
-	}
-}
-
-func TestOperationDispatcherRejectsNilTerraformOperation(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		typ  pipeline.OperationType
-	}{
-		{name: "plan", typ: pipeline.OperationTypeTerraformPlan},
-		{name: "apply", typ: pipeline.OperationTypeTerraformApply},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			err := (operationDispatcher{}).Run(context.Background(), &pipeline.Job{
-				Name: "terraform-" + tt.name,
-				Operation: pipeline.Operation{
-					Type: tt.typ,
-				},
-			})
-			if err == nil {
-				t.Fatal("Run() error = nil, want nil terraform operation error")
-			}
-		})
 	}
 }

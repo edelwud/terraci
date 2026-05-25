@@ -95,6 +95,17 @@
 // PipelineContributionGate so the framework can distinguish "not enabled for
 // this run" from "broken contribution".
 //
+// # Pipeline IR boundary
+//
+// Framework code plans projects through workflow.PlanProject and converts that
+// result into a provider-agnostic immutable IR with pipeline.BuildProjectIR.
+// CI providers and local execution are IR consumers only: they receive *IR
+// values and read them through getters such as IR.Jobs, Job.Operation, and
+// Operation.Terraform. External plugin authors should not construct IR, Job,
+// Operation, or TerraformOperation literals. Tests and advanced in-process
+// tooling can use pkg/pipeline/pipelinetest or pipeline.NewIR for validated
+// synthetic fixtures.
+//
 // # Init wizard boundary
 //
 // InitContributor implementations return typed config through

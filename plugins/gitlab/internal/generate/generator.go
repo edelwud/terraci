@@ -82,13 +82,14 @@ func (g *Generator) transform(ir *pipeline.IR) (*domain.Pipeline, error) {
 	builder := newJobBuilder(g.settings, stagePlan.stageByJob, func(job *domain.Job, jobType configpkg.JobOverwriteType) error {
 		return applyResolvedJobConfig(g.settings, job, jobType)
 	})
-	for i := range ir.Jobs {
-		irJob := &ir.Jobs[i]
+	jobs := ir.Jobs()
+	for i := range jobs {
+		irJob := &jobs[i]
 		job, err := builder.renderJob(irJob)
 		if err != nil {
 			return nil, err
 		}
-		result.Jobs[irJob.Name] = job
+		result.Jobs[irJob.Name()] = job
 	}
 
 	return result, nil

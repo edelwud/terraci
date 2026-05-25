@@ -32,8 +32,9 @@ outline: deep
 ## Работа с Pipeline IR
 
 Ядро сначала спрашивает у провайдера `PipelineRequirements(ctx)`, затем строит
-IR один раз через `pipeline.Build(opts)` и передаёт его в фабрику. Генератор
-только рендерит. IR уже содержит модули, contributions и зависимости.
+IR один раз через `pipeline.BuildProjectIR(req)` и передаёт его в фабрику.
+Генератор только рендерит immutable IR через getters. IR уже содержит модули,
+contributions и зависимости.
 
 ```go
 func (p *Plugin) PipelineRequirements(ctx *plugin.AppContext) pipeline.BuildRequirements {
@@ -48,14 +49,13 @@ func (p *Plugin) NewGenerator(ctx *plugin.AppContext, ir *pipeline.IR) pipeline.
 }
 
 func (g *generator) Generate() (pipeline.GeneratedPipeline, error) {
-    // IR — это flat DAG из pipeline.Job.
-    for i := range g.ir.Jobs {
-        job := &g.ir.Jobs[i]
-        // job.Kind — plan, apply или command
-        // job.Module — module metadata для plan/apply
-        // job.Dependencies — обязательные control edges
-        // job.InputArtifacts — артефакты для восстановления из producer jobs
-        // job.Operation — typed payload; для shell-driven CI используйте cishell.RenderOperation
+    // IR — это flat DAG из pipeline.Job value objects.
+    for _, job := range g.ir.Jobs() {
+        // job.Kind() — plan, apply или command
+        // job.Module() — module metadata для plan/apply
+        // job.Dependencies() — обязательные control edges
+        // job.InputArtifacts() — артефакты для восстановления из producer jobs
+        // job.Operation() — typed payload; для shell-driven CI используйте cishell.RenderOperation
     }
 
     return renderYAML(g.ir), nil

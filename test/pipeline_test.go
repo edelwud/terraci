@@ -7,6 +7,7 @@ import (
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/parser"
 	"github.com/edelwud/terraci/pkg/pipeline"
+	"github.com/edelwud/terraci/pkg/workflow"
 )
 
 func mustPipelineContribution(tb testing.TB, opts ...pipeline.ContributedJobOptions) *pipeline.Contribution {
@@ -39,13 +40,7 @@ func TestPipelineBuild_BasicModules(t *testing.T) {
 	}
 
 	depGraph := graph.BuildFromDependencies(modules, deps)
-	index := discovery.NewModuleIndex(modules)
-
-	ir, err := pipeline.Build(pipeline.BuildOptions{
-		DepGraph:      depGraph,
-		TargetModules: modules,
-		AllModules:    modules,
-		ModuleIndex:   index,
+	ir, err := buildPipelineIR(modules, depGraph, modules, pipeline.ProjectIRRequest{
 		Script: pipeline.ScriptConfig{
 			InitEnabled: true,
 			PlanEnabled: true,
@@ -78,13 +73,7 @@ func TestPipelineBuild_PlanOnly(t *testing.T) {
 		modules[0].ID(): {},
 	}
 	depGraph := graph.BuildFromDependencies(modules, deps)
-	index := discovery.NewModuleIndex(modules)
-
-	ir, err := pipeline.Build(pipeline.BuildOptions{
-		DepGraph:      depGraph,
-		TargetModules: modules,
-		AllModules:    modules,
-		ModuleIndex:   index,
+	ir, err := buildPipelineIR(modules, depGraph, modules, pipeline.ProjectIRRequest{
 		Script: pipeline.ScriptConfig{
 			PlanEnabled: true,
 		},
@@ -111,8 +100,6 @@ func TestPipelineBuild_WithContributions(t *testing.T) {
 		modules[0].ID(): {},
 	}
 	depGraph := graph.BuildFromDependencies(modules, deps)
-	index := discovery.NewModuleIndex(modules)
-
 	contributions := []*pipeline.Contribution{mustPipelineContribution(t, pipeline.ContributedJobOptions{
 		Name:     "policy-check",
 		Commands: []string{"terraci policy check --format text"},
@@ -121,11 +108,7 @@ func TestPipelineBuild_WithContributions(t *testing.T) {
 		},
 	})}
 
-	ir, err := pipeline.Build(pipeline.BuildOptions{
-		DepGraph:      depGraph,
-		TargetModules: modules,
-		AllModules:    modules,
-		ModuleIndex:   index,
+	ir, err := buildPipelineIR(modules, depGraph, modules, pipeline.ProjectIRRequest{
 		Script: pipeline.ScriptConfig{
 			PlanEnabled: true,
 		},
@@ -143,10 +126,10 @@ func TestPipelineBuild_WithContributions(t *testing.T) {
 
 	// policy-check should depend on the plan job
 	planName := pipeline.JobName(pipeline.JobKindPlan, modules[0])
-	if !hasPipelineDependency(policyJob.Dependencies, planName) {
+	if !hasPipelineDependency(policyJob.Dependencies(), planName) {
 		t.Error("policy-check should depend on the plan job")
 	}
-	if !hasPipelineInputArtifact(policyJob.InputArtifacts, pipeline.PlanArtifactName(planName), planName) {
+	if !hasPipelineInputArtifact(policyJob.InputArtifacts(), pipeline.PlanArtifactName(planName), planName) {
 		t.Error("policy-check should restore the plan artifact")
 	}
 }
@@ -157,7 +140,6 @@ func TestPipelineBuild_SummaryDependsThroughResources(t *testing.T) {
 	}
 	deps := map[string]*parser.ModuleDependencies{modules[0].ID(): {}}
 	depGraph := graph.BuildFromDependencies(modules, deps)
-	index := discovery.NewModuleIndex(modules)
 
 	contributions := []*pipeline.Contribution{
 		mustPipelineContribution(t, pipeline.ContributedJobOptions{
@@ -177,9 +159,7 @@ func TestPipelineBuild_SummaryDependsThroughResources(t *testing.T) {
 		}),
 	}
 
-	ir, err := pipeline.Build(pipeline.BuildOptions{
-		DepGraph: depGraph, TargetModules: modules, AllModules: modules,
-		ModuleIndex:   index,
+	ir, err := buildPipelineIR(modules, depGraph, modules, pipeline.ProjectIRRequest{
 		Script:        pipeline.ScriptConfig{PlanEnabled: true},
 		Contributions: contributions, PlanEnabled: true,
 	})
@@ -187,28 +167,22 @@ func TestPipelineBuild_SummaryDependsThroughResources(t *testing.T) {
 		t.Fatalf("Build failed: %v", err)
 	}
 
-	var summaryJob *pipeline.Job
-	for i := range ir.Jobs {
-		if ir.Jobs[i].Name == "terraci-summary" {
-			summaryJob = &ir.Jobs[i]
-			break
-		}
-	}
+	summaryJob := findPipelineJob(ir, "terraci-summary")
 	if summaryJob == nil {
 		t.Fatal("missing summary job")
 	}
 
 	planName := pipeline.JobName(pipeline.JobKindPlan, modules[0])
-	if !hasPipelineDependency(summaryJob.Dependencies, "policy-check") {
+	if !hasPipelineDependency(summaryJob.Dependencies(), "policy-check") {
 		t.Error("summary job should depend on policy-check report")
 	}
-	if !hasPipelineDependency(summaryJob.Dependencies, planName) {
+	if !hasPipelineDependency(summaryJob.Dependencies(), planName) {
 		t.Error("summary job should depend on plan jobs")
 	}
-	if !hasPipelineInputArtifact(summaryJob.InputArtifacts, pipeline.ResultArtifactName("policy-check"), "policy-check") {
+	if !hasPipelineInputArtifact(summaryJob.InputArtifacts(), pipeline.ResultArtifactName("policy-check"), "policy-check") {
 		t.Error("summary job should restore policy report artifact")
 	}
-	if !hasPipelineInputArtifact(summaryJob.InputArtifacts, pipeline.PlanArtifactName(planName), planName) {
+	if !hasPipelineInputArtifact(summaryJob.InputArtifacts(), pipeline.PlanArtifactName(planName), planName) {
 		t.Error("summary job should restore plan artifact")
 	}
 }
@@ -228,13 +202,7 @@ func TestPipelineBuild_DependencyOrdering(t *testing.T) {
 	}
 
 	depGraph := graph.BuildFromDependencies(modules, deps)
-	index := discovery.NewModuleIndex(modules)
-
-	ir, err := pipeline.Build(pipeline.BuildOptions{
-		DepGraph:      depGraph,
-		TargetModules: modules,
-		AllModules:    modules,
-		ModuleIndex:   index,
+	ir, err := buildPipelineIR(modules, depGraph, modules, pipeline.ProjectIRRequest{
 		Script: pipeline.ScriptConfig{
 			PlanEnabled: true,
 		},
@@ -256,18 +224,30 @@ func TestPipelineBuild_DependencyOrdering(t *testing.T) {
 	if eksPlan == nil {
 		t.Fatal("missing eks plan job")
 	}
-	if !hasPipelineDependency(eksPlan.Dependencies, pipeline.JobName(pipeline.JobKindApply, modules[0])) {
+	if !hasPipelineDependency(eksPlan.Dependencies(), pipeline.JobName(pipeline.JobKindApply, modules[0])) {
 		t.Error("dependent module plan should depend on upstream apply in full run mode")
 	}
 }
 
 func findPipelineJob(ir *pipeline.IR, name string) *pipeline.Job {
-	for i := range ir.Jobs {
-		if ir.Jobs[i].Name == name {
-			return &ir.Jobs[i]
+	jobs := ir.Jobs()
+	for i := range jobs {
+		if jobs[i].Name() == name {
+			return &jobs[i]
 		}
 	}
 	return nil
+}
+
+func buildPipelineIR(allModules []*discovery.Module, depGraph *graph.DependencyGraph, targets []*discovery.Module, req pipeline.ProjectIRRequest) (*pipeline.IR, error) {
+	req.Project = &workflow.ProjectResult{
+		Workflow: &workflow.Result{
+			Filtered: workflow.NewModuleSet(allModules),
+			Graph:    depGraph,
+		},
+		Targets: targets,
+	}
+	return pipeline.BuildProjectIR(req)
 }
 
 func hasPipelineDependency(deps []pipeline.JobDependency, name string) bool {

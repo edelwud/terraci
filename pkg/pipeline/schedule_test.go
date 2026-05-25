@@ -6,14 +6,14 @@ func TestScheduleUsesTopologicalLayers(t *testing.T) {
 	t.Parallel()
 
 	ir := &IR{
-		Jobs: []Job{
-			{Name: "plan-0"},
-			{Name: "apply-0", Dependencies: []JobDependency{{Job: "plan-0"}}},
-			{Name: "plan-1", Dependencies: []JobDependency{{Job: "apply-0"}}},
-			{Name: "apply-1", Dependencies: []JobDependency{{Job: "plan-1"}}},
-			{Name: "tfupdate"},
-			{Name: "policy", Dependencies: []JobDependency{{Job: "plan-1"}}},
-			{Name: "summary", Dependencies: []JobDependency{{Job: "policy"}, {Job: "apply-1"}}},
+		jobs: []Job{
+			{name: "plan-0"},
+			{name: "apply-0", dependencies: []JobDependency{{Job: "plan-0"}}},
+			{name: "plan-1", dependencies: []JobDependency{{Job: "apply-0"}}},
+			{name: "apply-1", dependencies: []JobDependency{{Job: "plan-1"}}},
+			{name: "tfupdate"},
+			{name: "policy", dependencies: []JobDependency{{Job: "plan-1"}}},
+			{name: "summary", dependencies: []JobDependency{{Job: "policy"}, {Job: "apply-1"}}},
 		},
 	}
 
@@ -48,7 +48,7 @@ func TestScheduleUsesTopologicalLayers(t *testing.T) {
 func TestScheduleRejectsUnknownDependency(t *testing.T) {
 	t.Parallel()
 
-	_, err := Schedule(&IR{Jobs: []Job{{Name: "summary", Dependencies: []JobDependency{{Job: "missing"}}}}})
+	_, err := Schedule(&IR{jobs: []Job{{name: "summary", dependencies: []JobDependency{{Job: "missing"}}}}})
 	if err == nil {
 		t.Fatal("Schedule() error = nil, want unknown dependency error")
 	}
@@ -57,9 +57,9 @@ func TestScheduleRejectsUnknownDependency(t *testing.T) {
 func TestScheduleRejectsCycle(t *testing.T) {
 	t.Parallel()
 
-	_, err := Schedule(&IR{Jobs: []Job{
-		{Name: "a", Dependencies: []JobDependency{{Job: "b"}}},
-		{Name: "b", Dependencies: []JobDependency{{Job: "a"}}},
+	_, err := Schedule(&IR{jobs: []Job{
+		{name: "a", dependencies: []JobDependency{{Job: "b"}}},
+		{name: "b", dependencies: []JobDependency{{Job: "a"}}},
 	}})
 	if err == nil {
 		t.Fatal("Schedule() error = nil, want cycle error")
@@ -77,7 +77,7 @@ func groupNames(groups []JobGroup) []string {
 func jobNamesInGroup(group JobGroup) []string {
 	names := make([]string, 0, len(group.Jobs))
 	for _, job := range group.Jobs {
-		names = append(names, job.Name)
+		names = append(names, job.name)
 	}
 	return names
 }

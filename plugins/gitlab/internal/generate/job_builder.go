@@ -26,23 +26,23 @@ func newJobBuilder(settings settings, stageByJob map[string]string, applyConfig 
 }
 
 func (b jobBuilder) renderJob(irJob *pipeline.Job) (*domain.Job, error) {
-	script := cishell.RenderOperation(irJob.Operation)
-	if irJob.AllowFailure {
+	script := cishell.RenderOperation(irJob.Operation())
+	if irJob.AllowFailure() {
 		script = allowFailureScript(script)
 	}
 
 	job := &domain.Job{
-		Stage:        b.stageByJob[irJob.Name],
+		Stage:        b.stageByJob[irJob.Name()],
 		Script:       script,
-		Variables:    copyStringMap(irJob.Env),
-		Artifacts:    defaultArtifacts(irJob.OutputArtifact),
-		Needs:        jobNeeds(irJob.Dependencies, irJob.InputArtifacts),
-		AllowFailure: irJob.AllowFailure,
+		Variables:    copyStringMap(irJob.Env()),
+		Artifacts:    defaultArtifacts(irJob.OutputArtifact()),
+		Needs:        jobNeeds(irJob.Dependencies(), irJob.InputArtifacts()),
+		AllowFailure: irJob.AllowFailure(),
 	}
 
-	if irJob.Module != nil {
-		job.Cache = b.cache(irJob.Module)
-		job.ResourceGroup = irJob.Module.ID()
+	if module := irJob.Module(); module != nil {
+		job.Cache = b.cache(module)
+		job.ResourceGroup = module.ID()
 	}
 
 	if err := b.applyConfig(job, jobOverwriteType(irJob)); err != nil {
@@ -55,13 +55,13 @@ func jobOverwriteType(irJob *pipeline.Job) configpkg.JobOverwriteType {
 	if irJob == nil {
 		return ""
 	}
-	switch irJob.Operation.Type {
+	switch irJob.Operation().Type() {
 	case pipeline.OperationTypeTerraformPlan:
 		return configpkg.OverwriteTypePlan
 	case pipeline.OperationTypeTerraformApply:
 		return configpkg.OverwriteTypeApply
 	case pipeline.OperationTypeCommands:
-		return configpkg.JobOverwriteType(irJob.Name)
+		return configpkg.JobOverwriteType(irJob.Name())
 	default:
 		return ""
 	}

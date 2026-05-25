@@ -64,26 +64,26 @@ func buildResourceIndex(ir *IR) (*resourceIndex, error) {
 	if ir == nil {
 		return index, nil
 	}
-	for i := range ir.Jobs {
-		job := &ir.Jobs[i]
-		for _, spec := range job.Produces {
+	for i := range ir.jobs {
+		job := &ir.jobs[i]
+		for _, spec := range job.produces {
 			if spec.Ref.Kind == "" {
-				return nil, fmt.Errorf("pipeline job %q produces resource without kind", job.Name)
+				return nil, fmt.Errorf("pipeline job %q produces resource without kind", job.name)
 			}
 			if spec.Path == "" {
-				return nil, fmt.Errorf("pipeline job %q produces %s without path", job.Name, spec.Ref.Kind)
+				return nil, fmt.Errorf("pipeline job %q produces %s without path", job.name, spec.Ref.Kind)
 			}
-			if !job.OutputArtifact.Configured() {
-				return nil, fmt.Errorf("pipeline job %q produces %s without output artifact", job.Name, spec.Ref.Kind)
+			if !job.outputArtifact.Configured() {
+				return nil, fmt.Errorf("pipeline job %q produces %s without output artifact", job.name, spec.Ref.Kind)
 			}
 			if existing, exists := index.byRef[spec.Ref]; exists {
-				return nil, fmt.Errorf("pipeline resource %s produced by both %q and %q", resourceRefLabel(spec.Ref), existing.jobName, job.Name)
+				return nil, fmt.Errorf("pipeline resource %s produced by both %q and %q", resourceRefLabel(spec.Ref), existing.jobName, job.name)
 			}
 
 			resource := producedResource{
 				spec:     spec,
-				jobName:  job.Name,
-				artifact: job.OutputArtifact,
+				jobName:  job.name,
+				artifact: job.outputArtifact,
 			}
 			index.byRef[spec.Ref] = resource
 			index.all = append(index.all, resource)

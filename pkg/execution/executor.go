@@ -110,7 +110,7 @@ func (e *Executor) Execute(ctx context.Context, ir *pipeline.IR) (*Result, error
 
 	record := func(job *pipeline.Job, status JobStatus, started time.Time, err error) *JobResult {
 		jobResult := &JobResult{
-			Name:       job.Name,
+			Name:       job.Name(),
 			Status:     status,
 			StartedAt:  started,
 			FinishedAt: time.Now(),

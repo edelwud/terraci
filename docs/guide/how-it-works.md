@@ -219,9 +219,9 @@ apply-eks:
 ```mermaid
 flowchart TD
   A["terraci generate"] --> B
-  B["workflow.Run() — scan, filter, parse, graph"] --> C
+  B["workflow.PlanProject() — scan, filter, parse, graph, targets"] --> C
   C["provider.PipelineRequirements(ctx) + runflow prepared contributions"] --> D
-  D["pipeline.Build(opts) → *pipeline.IR"] --> E
+  D["pipeline.BuildProjectIR(req) → *pipeline.IR"] --> E
   E{"Provider?"}
   E -->|GitLab| F["gitlab.NewGenerator(ctx, ir)"] --> G[".gitlab-ci.yml"]
   E -->|GitHub| H["github.NewGenerator(ctx, ir)"] --> I["workflow.yml"]
@@ -231,12 +231,12 @@ Each stage:
 
 | Step | Function | What it does |
 |------|----------|-------------|
-| 1 | `workflow.Run()` | Scan filesystem, apply filters, parse HCL, build dependency graph |
+| 1 | `workflow.PlanProject()` | Scan filesystem, apply filters, parse HCL, build dependency graph, resolve optional targets |
 | 2 | `provider.PipelineRequirements(ctx)` + `runflow.Prepare(...)` contributions | Gather provider resource requirements and plugin-contributed DAG jobs; invalid contributions fail before IR build |
-| 3 | `pipeline.Build(opts)` | Construct provider-agnostic flat job DAG (`*pipeline.IR{Jobs}`) — single execution input |
+| 3 | `pipeline.BuildProjectIR(req)` | Construct provider-agnostic immutable job DAG (`*pipeline.IR`) — single execution input |
 | 4 | `provider.NewGenerator(ctx, ir)` + `Generate()` | Bind IR to provider; transform IR into GitLab CI YAML or GitHub Actions workflow |
 
-The IR is the **single source** for both pipeline generation and `terraci local-exec`: providers don't reach for the dependency graph or contribution list separately — the IR already encodes them.
+The IR is the **single source** for both pipeline generation and `terraci local-exec`: providers don't reach for the dependency graph or contribution list separately — the IR already encodes them and is consumed through getters.
 
 ## Key Types
 

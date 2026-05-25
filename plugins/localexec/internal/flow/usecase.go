@@ -12,7 +12,6 @@ import (
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/workflow"
-	"github.com/edelwud/terraci/plugins/localexec/internal/planner"
 	"github.com/edelwud/terraci/plugins/localexec/internal/render"
 	"github.com/edelwud/terraci/plugins/localexec/internal/reports"
 	"github.com/edelwud/terraci/plugins/localexec/internal/runner"
@@ -30,7 +29,7 @@ type Result struct {
 type UseCase struct {
 	appCtx         *plugin.AppContext
 	projects       ProjectPlanner
-	planner        planner.Builder
+	irPlanner      IRPlanner
 	contributions  ContributionCollector
 	runtimeFactory runner.Factory
 	summaryReports reports.Loader
@@ -40,13 +39,17 @@ type ProjectPlanner interface {
 	Plan(ctx context.Context, req spec.Request) (*workflow.ProjectResult, error)
 }
 
+type IRPlanner interface {
+	Build(project *workflow.ProjectResult, execCfg execution.Config, mode spec.ExecutionMode, contributions []*pipeline.Contribution) (*pipeline.IR, error)
+}
+
 type ContributionCollector interface {
 	Collect(appCtx *plugin.AppContext) []*pipeline.Contribution
 }
 
 type Dependencies struct {
 	Projects       ProjectPlanner
-	Planner        planner.Builder
+	IRPlanner      IRPlanner
 	Contributions  ContributionCollector
 	RuntimeFactory runner.Factory
 	SummaryReports reports.Loader
@@ -66,9 +69,9 @@ func WithRuntimeFactory(factory runner.Factory) Option {
 	}
 }
 
-func WithPlanner(builder planner.Builder) Option {
+func WithIRPlanner(builder IRPlanner) Option {
 	return func(deps *Dependencies) {
-		deps.Planner = builder
+		deps.IRPlanner = builder
 	}
 }
 
@@ -89,7 +92,7 @@ func DefaultDependencies(appCtx *plugin.AppContext) Dependencies {
 	segments := append([]string(nil), structure.Segments...)
 	return Dependencies{
 		Projects:       newWorkflowProjectPlanner(appCtx),
-		Planner:        planner.New(),
+		IRPlanner:      defaultIRPlanner{},
 		Contributions:  contextContributionCollector{},
 		RuntimeFactory: runner.NewFactory(),
 		SummaryReports: reports.NewLoader(appCtx.Reports(), appCtx.WorkDir(), segments),
@@ -109,7 +112,7 @@ func New(appCtx *plugin.AppContext, opts ...Option) *UseCase {
 	return &UseCase{
 		appCtx:         appCtx,
 		projects:       deps.Projects,
-		planner:        deps.Planner,
+		irPlanner:      deps.IRPlanner,
 		contributions:  deps.Contributions,
 		runtimeFactory: deps.RuntimeFactory,
 		summaryReports: deps.SummaryReports,
@@ -120,8 +123,8 @@ func withDefaults(deps, defaults Dependencies) Dependencies {
 	if deps.Projects == nil {
 		deps.Projects = defaults.Projects
 	}
-	if deps.Planner == nil {
-		deps.Planner = defaults.Planner
+	if deps.IRPlanner == nil {
+		deps.IRPlanner = defaults.IRPlanner
 	}
 	if deps.Contributions == nil {
 		deps.Contributions = defaults.Contributions
@@ -152,7 +155,7 @@ func (u *UseCase) Run(ctx context.Context, req Request) (*Result, error) {
 	}
 
 	contributions := u.contributions.Collect(u.appCtx)
-	plan, err := u.planner.Build(project.Targets, project.Workflow, execRuntime.ExecConfig, req.Mode, contributions)
+	plan, err := u.irPlanner.Build(project, execRuntime.ExecConfig, req.Mode, contributions)
 	if err != nil {
 		return nil, err
 	}
@@ -209,4 +212,26 @@ type contextContributionCollector struct{}
 
 func (contextContributionCollector) Collect(appCtx *plugin.AppContext) []*pipeline.Contribution {
 	return appCtx.PipelineContributions()
+}
+
+type defaultIRPlanner struct{}
+
+func (defaultIRPlanner) Build(project *workflow.ProjectResult, execCfg execution.Config, mode spec.ExecutionMode, contributions []*pipeline.Contribution) (*pipeline.IR, error) {
+	planOnly := mode == spec.ExecutionModePlan
+	if planOnly {
+		execCfg.PlanEnabled = true
+	}
+	requirements := execCfg.BuildRequirements().Merge(pipeline.BuildRequirements{PlanOnly: planOnly})
+
+	ir, err := pipeline.BuildProjectIR(pipeline.ProjectIRRequest{
+		Project:       project,
+		Script:        pipeline.ScriptConfig{InitEnabled: execCfg.InitEnabled, PlanEnabled: execCfg.PlanEnabled},
+		Contributions: contributions,
+		Requirements:  requirements,
+		PlanEnabled:   execCfg.PlanEnabled,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("build local execution plan: %w", err)
+	}
+	return ir, nil
 }

@@ -290,44 +290,44 @@ func TestIRDryRun(t *testing.T) {
 			switch tt.name {
 			case "basic without contributed jobs":
 				ir = &IR{
-					Jobs: []Job{
-						{Name: "apply-a", Module: modA},
-						{Name: "apply-b", Module: modB, Dependencies: []JobDependency{{Job: "apply-a"}}},
+					jobs: []Job{
+						{name: "apply-a", module: modA},
+						{name: "apply-b", module: modB, dependencies: []JobDependency{{Job: "apply-a"}}},
 					},
 				}
 			case "planEnabled doubles job count per level":
 				ir = &IR{
-					Jobs: []Job{
-						{Name: "plan-a", Module: modA},
-						{Name: "apply-a", Module: modA, Dependencies: []JobDependency{{Job: "plan-a"}}},
-						{Name: "plan-b", Module: modB, Dependencies: []JobDependency{{Job: "apply-a"}}},
-						{Name: "apply-b", Module: modB, Dependencies: []JobDependency{{Job: "plan-b"}}},
+					jobs: []Job{
+						{name: "plan-a", module: modA},
+						{name: "apply-a", module: modA, dependencies: []JobDependency{{Job: "plan-a"}}},
+						{name: "plan-b", module: modB, dependencies: []JobDependency{{Job: "apply-a"}}},
+						{name: "apply-b", module: modB, dependencies: []JobDependency{{Job: "plan-b"}}},
 					},
 				}
 			case "contributed jobs add 1 job and 1 stage":
 				ir = &IR{
-					Jobs: []Job{
-						{Name: "apply-a", Module: modA},
-						{Name: "summary", Dependencies: []JobDependency{{Job: "apply-a"}}},
+					jobs: []Job{
+						{name: "apply-a", module: modA},
+						{name: "summary", dependencies: []JobDependency{{Job: "apply-a"}}},
 					},
 				}
 			case "independent contributed jobs share one DAG layer":
 				ir = &IR{
-					Jobs: []Job{
-						{Name: "plan-a", Module: modA},
-						{Name: "apply-a", Module: modA},
-						{Name: "plan-b", Module: modB},
-						{Name: "apply-b", Module: modB},
-						{Name: "policy"},
-						{Name: "cost"},
+					jobs: []Job{
+						{name: "plan-a", module: modA},
+						{name: "apply-a", module: modA},
+						{name: "plan-b", module: modB},
+						{name: "apply-b", module: modB},
+						{name: "policy"},
+						{name: "cost"},
 					},
 				}
 			case "contributed dependencies increase stage count":
 				ir = &IR{
-					Jobs: []Job{
-						{Name: "apply-a", Module: modA},
-						{Name: "policy"},
-						{Name: "summary", Dependencies: []JobDependency{{Job: "policy"}}},
+					jobs: []Job{
+						{name: "apply-a", module: modA},
+						{name: "policy"},
+						{name: "summary", dependencies: []JobDependency{{Job: "policy"}}},
 					},
 				}
 			default:

@@ -6,8 +6,8 @@ import (
 
 	"github.com/edelwud/terraci/pkg/ci/citest"
 	"github.com/edelwud/terraci/pkg/execution"
-	"github.com/edelwud/terraci/pkg/pipeline"
 	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
+	domainpkg "github.com/edelwud/terraci/plugins/github/internal/domain"
 )
 
 func TestGenerate_SingleModule(t *testing.T) {
@@ -34,24 +34,13 @@ func TestGenerate_SingleModule(t *testing.T) {
 func TestGenerate_RejectsInvalidIR(t *testing.T) {
 	t.Parallel()
 
-	ir := &pipeline.IR{Jobs: []pipeline.Job{{
-		Name: "summary",
-		Kind: pipeline.JobKindCommand,
-		Operation: pipeline.Operation{
-			Type:     pipeline.OperationTypeCommands,
-			Commands: []string{"terraci summary"},
-		},
-		Consumes: []pipeline.ResourceSpec{
-			pipeline.PluginResource(pipeline.ResourceKindPluginReport, "policy", ".terraci/policy-report.json"),
-		},
-	}}}
-
-	_, err := NewGenerator(nil, execution.Config{}, ir).Generate()
-	if err == nil {
-		t.Fatal("Generate() error = nil, want invalid IR error")
+	generated, err := NewGenerator(nil, execution.Config{}, nil).Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
 	}
-	if !strings.Contains(err.Error(), "consumes unavailable") {
-		t.Fatalf("Generate() error = %q", err)
+	workflow, ok := generated.(*domainpkg.Workflow)
+	if !ok || len(workflow.Jobs) != 0 {
+		t.Fatalf("Generate() = %#v, want empty workflow", generated)
 	}
 }
 

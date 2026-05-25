@@ -38,7 +38,7 @@ func (p stagePlanner) plan(ir *pipeline.IR) (stagePlan, error) {
 		}
 		for _, job := range group.Jobs {
 			if job != nil {
-				result.stageByJob[job.Name] = stage
+				result.stageByJob[job.Name()] = stage
 			}
 		}
 	}

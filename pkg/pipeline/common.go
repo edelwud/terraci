@@ -20,13 +20,13 @@ type jobPlan struct {
 }
 
 // prepareModuleGraph prepares the module graph from target modules. It is an
-// internal detail of Build() and is not part of the public package API.
+// internal detail of BuildProjectIR and is not part of the public package API.
 func prepareModuleGraph(
 	depGraph *graph.DependencyGraph,
 	targetModules, allModules []*discovery.Module,
 	moduleIndex *discovery.ModuleIndex,
 ) (*jobPlan, error) {
-	if len(targetModules) == 0 {
+	if targetModules == nil {
 		targetModules = allModules
 	}
 
@@ -100,7 +100,7 @@ func (ir *IR) DryRun(totalModules int) *DryRunResult {
 			names := make([]string, 0, len(group.Jobs))
 			for _, job := range group.Jobs {
 				if job != nil {
-					names = append(names, job.Name)
+					names = append(names, job.name)
 				}
 			}
 			jobGroups = append(jobGroups, names)
@@ -111,7 +111,7 @@ func (ir *IR) DryRun(totalModules int) *DryRunResult {
 		TotalModules:    totalModules,
 		AffectedModules: ir.ModuleCount(),
 		Stages:          stages,
-		Jobs:            len(ir.Jobs),
+		Jobs:            len(ir.jobs),
 		JobGroups:       jobGroups,
 	}
 }

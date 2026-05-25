@@ -47,13 +47,14 @@ func (g *Generator) transform(ir *pipeline.IR) (*domainpkg.Workflow, error) {
 	workflow := newWorkflowBuilder(g.settings).baseWorkflow()
 	builder := newJobBuilder(g.settings)
 
-	for i := range ir.Jobs {
-		irJob := &ir.Jobs[i]
+	jobs := ir.Jobs()
+	for i := range jobs {
+		irJob := &jobs[i]
 		job, err := builder.renderJob(irJob)
 		if err != nil {
 			return nil, err
 		}
-		workflow.Jobs[irJob.Name] = job
+		workflow.Jobs[irJob.Name()] = job
 	}
 
 	return workflow, nil

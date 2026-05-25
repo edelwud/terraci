@@ -357,6 +357,52 @@ func TestArchitecture_WorkflowProjectPlanningBoundaries(t *testing.T) {
 	}
 }
 
+func TestArchitecture_PipelineIRValueBoundaries(t *testing.T) {
+	root := repoRoot(t)
+	var violations []string
+
+	for _, rel := range goFiles(t, root, "cmd", "pkg", "plugins", "test", "examples") {
+		if strings.HasPrefix(rel, "pkg/pipeline/") {
+			continue
+		}
+		file := parseGoFile(t, filepath.Join(root, rel), 0)
+		pipelineAliases := importAliases(file, moduleImportPath+"/pkg/pipeline")
+		if len(pipelineAliases) == 0 {
+			continue
+		}
+
+		ast.Inspect(file, func(node ast.Node) bool {
+			switch typed := node.(type) {
+			case *ast.CallExpr:
+				selector, ok := callSelector(typed)
+				if ok && selectorCallMatches(selector, pipelineAliases, "Build") {
+					violations = append(violations, rel+" calls pipeline.Build directly; use pipeline.BuildProjectIR")
+				}
+			case *ast.CompositeLit:
+				selector, ok := typed.Type.(*ast.SelectorExpr)
+				if !ok {
+					return true
+				}
+				ident, ok := selector.X.(*ast.Ident)
+				if !ok || !pipelineAliases[ident.Name] {
+					return true
+				}
+				switch selector.Sel.Name {
+				case "BuildOptions":
+					violations = append(violations, rel+" manually constructs pipeline.BuildOptions; use pipeline.ProjectIRRequest")
+				case "IR", "Job", "Operation", "TerraformOperation":
+					violations = append(violations, rel+" manually constructs pipeline."+selector.Sel.Name+"; use pipeline.BuildProjectIR or pkg/pipeline/pipelinetest")
+				}
+			}
+			return true
+		})
+	}
+
+	if len(violations) > 0 {
+		t.Fatalf("pipeline IR value boundary violations:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
 func repoRoot(tb testing.TB) string {
 	tb.Helper()
 

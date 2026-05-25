@@ -14,14 +14,14 @@ func Schedule(ir *IR) ([]JobGroup, error) {
 		return nil, nil
 	}
 
-	pending := make(map[string]*Job, len(ir.Jobs))
-	dependents := make(map[string][]string, len(ir.Jobs))
-	indegree := make(map[string]int, len(ir.Jobs))
-	order := make([]string, 0, len(ir.Jobs))
+	pending := make(map[string]*Job, len(ir.jobs))
+	dependents := make(map[string][]string, len(ir.jobs))
+	indegree := make(map[string]int, len(ir.jobs))
+	order := make([]string, 0, len(ir.jobs))
 
-	for i := range ir.Jobs {
-		job := &ir.Jobs[i]
-		name := job.Name
+	for i := range ir.jobs {
+		job := &ir.jobs[i]
+		name := job.name
 		if _, exists := pending[name]; exists {
 			return nil, fmt.Errorf("duplicate job name %q in schedule", name)
 		}
@@ -30,14 +30,14 @@ func Schedule(ir *IR) ([]JobGroup, error) {
 		order = append(order, name)
 	}
 
-	for i := range ir.Jobs {
-		job := &ir.Jobs[i]
-		for _, dep := range job.Dependencies {
+	for i := range ir.jobs {
+		job := &ir.jobs[i]
+		for _, dep := range job.dependencies {
 			if pending[dep.Job] == nil {
-				return nil, fmt.Errorf("job %q depends on unknown job %q", job.Name, dep.Job)
+				return nil, fmt.Errorf("job %q depends on unknown job %q", job.name, dep.Job)
 			}
-			dependents[dep.Job] = append(dependents[dep.Job], job.Name)
-			indegree[job.Name]++
+			dependents[dep.Job] = append(dependents[dep.Job], job.name)
+			indegree[job.name]++
 		}
 	}
 
@@ -61,9 +61,9 @@ func Schedule(ir *IR) ([]JobGroup, error) {
 			Jobs: layer,
 		})
 		for _, job := range layer {
-			delete(pending, job.Name)
+			delete(pending, job.name)
 			scheduled++
-			for _, dependent := range dependents[job.Name] {
+			for _, dependent := range dependents[job.name] {
 				indegree[dependent]--
 			}
 		}

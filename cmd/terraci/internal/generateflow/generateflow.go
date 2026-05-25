@@ -7,11 +7,9 @@ import (
 
 	"github.com/edelwud/terraci/cmd/terraci/internal/projectflow"
 	"github.com/edelwud/terraci/cmd/terraci/internal/runflow"
-	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/filter"
 	"github.com/edelwud/terraci/pkg/pipeline"
-	"github.com/edelwud/terraci/pkg/workflow"
 )
 
 // Runtime contains immutable dependencies needed to generate a pipeline.
@@ -63,7 +61,7 @@ func Run(ctx context.Context, runtime Runtime, req Request) (*Result, error) {
 		return result, nil
 	}
 
-	generator, err := newPipelineGenerator(runtime, project.Workflow, project.Targets, req.PlanOnly)
+	generator, err := newPipelineGenerator(runtime, project, req.PlanOnly)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +82,7 @@ func Run(ctx context.Context, runtime Runtime, req Request) (*Result, error) {
 	return result, nil
 }
 
-func newPipelineGenerator(runtime Runtime, result *workflow.Result, targets []*discovery.Module, planOnly bool) (pipeline.Generator, error) {
+func newPipelineGenerator(runtime Runtime, project *projectflow.Result, planOnly bool) (pipeline.Generator, error) {
 	appCtx := runtime.prepared.AppContext()
 	provider, err := appCtx.CIResolver().ResolveCIProvider()
 	if err != nil {
@@ -96,11 +94,8 @@ func newPipelineGenerator(runtime Runtime, result *workflow.Result, targets []*d
 	if planOnly {
 		requirements = requirements.Merge(pipeline.BuildRequirements{PlanOnly: true})
 	}
-	ir, err := pipeline.Build(pipeline.BuildOptions{
-		DepGraph:      result.Graph,
-		TargetModules: targets,
-		AllModules:    result.Filtered.Modules,
-		ModuleIndex:   discovery.NewModuleIndex(result.Filtered.Modules),
+	ir, err := pipeline.BuildProjectIR(pipeline.ProjectIRRequest{
+		Project:       project,
 		Contributions: appCtx.PipelineContributions(),
 		Requirements:  requirements,
 		PlanEnabled:   exec.PlanEnabled,

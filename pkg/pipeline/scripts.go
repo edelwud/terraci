@@ -1,6 +1,6 @@
 package pipeline
 
-// ScriptConfig captures the knobs that influence how Build() populates each
+// ScriptConfig captures the knobs that influence how BuildProjectIR populates each
 // TerraformOperation. The struct does not render shell — see
 // pkg/pipeline/cishell for the default shell renderer.
 type ScriptConfig struct {
@@ -22,25 +22,26 @@ func (o PlanOutputs) Detailed() bool {
 // workspace-relative paths.
 func (sc ScriptConfig) NewPlanOperation(jobName, modulePath string, outputs PlanOutputs) (Operation, []ResourceSpec, Artifact) {
 	op := Operation{
-		Type: OperationTypeTerraformPlan,
-		Terraform: &TerraformOperation{
-			ModulePath:   modulePath,
-			InitEnabled:  sc.InitEnabled,
-			PlanFile:     PlanBinaryPath(modulePath),
-			DetailedPlan: outputs.Detailed(),
+		typ: OperationTypeTerraformPlan,
+		terraform: &TerraformOperation{
+			kind:         OperationTypeTerraformPlan,
+			modulePath:   modulePath,
+			initEnabled:  sc.InitEnabled,
+			planFile:     PlanBinaryPath(modulePath),
+			detailedPlan: outputs.Detailed(),
 		},
 	}
 
 	resources := []ResourceSpec{
-		PlanResource(ResourceKindPlanBinary, modulePath, op.Terraform.PlanFile),
+		PlanResource(ResourceKindPlanBinary, modulePath, op.terraform.planFile),
 	}
 	if outputs.Text {
-		op.Terraform.PlanTextFile = PlanTextPath(modulePath)
-		resources = append(resources, PlanResource(ResourceKindPlanText, modulePath, op.Terraform.PlanTextFile))
+		op.terraform.planTextFile = PlanTextPath(modulePath)
+		resources = append(resources, PlanResource(ResourceKindPlanText, modulePath, op.terraform.planTextFile))
 	}
 	if outputs.JSON {
-		op.Terraform.PlanJSONFile = PlanJSONPath(modulePath)
-		resources = append(resources, PlanResource(ResourceKindPlanJSON, modulePath, op.Terraform.PlanJSONFile))
+		op.terraform.planJSONFile = PlanJSONPath(modulePath)
+		resources = append(resources, PlanResource(ResourceKindPlanJSON, modulePath, op.terraform.planJSONFile))
 	}
 
 	return op, resources, PlanArtifact(jobName, resourcePaths(resources))
@@ -49,12 +50,13 @@ func (sc ScriptConfig) NewPlanOperation(jobName, modulePath string, outputs Plan
 // NewApplyOperation creates a typed terraform apply operation.
 func (sc ScriptConfig) NewApplyOperation(modulePath string) Operation {
 	return Operation{
-		Type: OperationTypeTerraformApply,
-		Terraform: &TerraformOperation{
-			ModulePath:  modulePath,
-			InitEnabled: sc.InitEnabled,
-			PlanFile:    PlanBinaryPath(modulePath),
-			UsePlanFile: sc.PlanEnabled,
+		typ: OperationTypeTerraformApply,
+		terraform: &TerraformOperation{
+			kind:        OperationTypeTerraformApply,
+			modulePath:  modulePath,
+			initEnabled: sc.InitEnabled,
+			planFile:    PlanBinaryPath(modulePath),
+			usePlanFile: sc.PlanEnabled,
 		},
 	}
 }

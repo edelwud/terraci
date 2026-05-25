@@ -14,13 +14,13 @@ import (
 
 // RenderOperation converts a typed operation into shell command lines.
 func RenderOperation(op pipeline.Operation) []string {
-	switch op.Type {
+	switch op.Type() {
 	case pipeline.OperationTypeCommands:
-		return append([]string(nil), op.Commands...)
+		return op.Commands()
 	case pipeline.OperationTypeTerraformPlan:
-		return renderTerraformPlan(op.Terraform)
+		return renderTerraformPlan(op.Terraform())
 	case pipeline.OperationTypeTerraformApply:
-		return renderTerraformApply(op.Terraform)
+		return renderTerraformApply(op.Terraform())
 	default:
 		return nil
 	}
@@ -31,21 +31,21 @@ func renderTerraformPlan(op *pipeline.TerraformOperation) []string {
 		return nil
 	}
 
-	planFile := filepath.Base(op.PlanFile)
-	script := []string{"cd " + op.ModulePath}
-	if op.InitEnabled {
+	planFile := filepath.Base(op.PlanFile())
+	script := []string{"cd " + op.ModulePath()}
+	if op.InitEnabled() {
 		script = append(script, "${TERRAFORM_BINARY} init")
 	}
 
-	if op.DetailedPlan {
-		if op.PlanTextFile != "" {
-			planText := filepath.Base(op.PlanTextFile)
+	if op.DetailedPlan() {
+		if op.PlanTextFile() != "" {
+			planText := filepath.Base(op.PlanTextFile())
 			script = append(script, fmt.Sprintf("(${TERRAFORM_BINARY} plan -out=%s -detailed-exitcode 2>&1 || echo $? > .tf_exit) | tee %s", planFile, planText))
 		} else {
 			script = append(script, fmt.Sprintf("(${TERRAFORM_BINARY} plan -out=%s -detailed-exitcode || echo $? > .tf_exit)", planFile))
 		}
-		if op.PlanJSONFile != "" {
-			planJSON := filepath.Base(op.PlanJSONFile)
+		if op.PlanJSONFile() != "" {
+			planJSON := filepath.Base(op.PlanJSONFile())
 			script = append(script, fmt.Sprintf("${TERRAFORM_BINARY} show -json %s > %s", planFile, planJSON))
 		}
 		script = append(script, `TF_EXIT=$(cat .tf_exit 2>/dev/null || echo 0); rm -f .tf_exit; if [ "$TF_EXIT" -eq 2 ]; then exit 0; else exit "$TF_EXIT"; fi`)
@@ -60,13 +60,13 @@ func renderTerraformApply(op *pipeline.TerraformOperation) []string {
 		return nil
 	}
 
-	script := []string{"cd " + op.ModulePath}
-	if op.InitEnabled {
+	script := []string{"cd " + op.ModulePath()}
+	if op.InitEnabled() {
 		script = append(script, "${TERRAFORM_BINARY} init")
 	}
 
-	if op.UsePlanFile {
-		script = append(script, "${TERRAFORM_BINARY} apply "+filepath.Base(op.PlanFile))
+	if op.UsePlanFile() {
+		script = append(script, "${TERRAFORM_BINARY} apply "+filepath.Base(op.PlanFile()))
 	} else {
 		script = append(script, "${TERRAFORM_BINARY} apply")
 	}

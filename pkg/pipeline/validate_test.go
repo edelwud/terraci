@@ -8,7 +8,7 @@ import (
 func TestIRValidateRejectsInvalidJobKind(t *testing.T) {
 	t.Parallel()
 
-	err := (&IR{Jobs: []Job{{Name: "job"}}}).Validate()
+	err := (&IR{jobs: []Job{{name: "job"}}}).Validate()
 	if err == nil {
 		t.Fatal("Validate() error = nil, want invalid kind")
 	}
@@ -20,15 +20,15 @@ func TestIRValidateRejectsInvalidJobKind(t *testing.T) {
 func TestIRValidateRejectsInvalidResourceRefScope(t *testing.T) {
 	t.Parallel()
 
-	ir := &IR{Jobs: []Job{{
-		Name: "summary",
-		Kind: JobKindCommand,
-		Operation: Operation{
-			Type:     OperationTypeCommands,
-			Commands: []string{"summary"},
+	ir := &IR{jobs: []Job{{
+		name: "summary",
+		kind: JobKindCommand,
+		operation: Operation{
+			typ:      OperationTypeCommands,
+			commands: []string{"summary"},
 		},
-		OutputArtifact: ResultArtifact("summary", ".terraci/summary-report.json"),
-		Produces: []ResourceSpec{{
+		outputArtifact: ResultArtifact("summary", ".terraci/summary-report.json"),
+		produces: []ResourceSpec{{
 			Ref:  ResourceRef{Kind: ResourceKindPluginReport, ModulePath: "svc/prod/eu/vpc"},
 			Path: ".terraci/summary-report.json",
 		}},
@@ -46,26 +46,26 @@ func TestIRValidateRejectsInvalidResourceRefScope(t *testing.T) {
 func TestIRValidateRejectsInputArtifactWithoutDependency(t *testing.T) {
 	t.Parallel()
 
-	ir := &IR{Jobs: []Job{
+	ir := &IR{jobs: []Job{
 		{
-			Name:           "producer",
-			Kind:           JobKindCommand,
-			OutputArtifact: ResultArtifact("producer", ".terraci/report.json"),
-			Operation: Operation{
-				Type:     OperationTypeCommands,
-				Commands: []string{"producer"},
+			name:           "producer",
+			kind:           JobKindCommand,
+			outputArtifact: ResultArtifact("producer", ".terraci/report.json"),
+			operation: Operation{
+				typ:      OperationTypeCommands,
+				commands: []string{"producer"},
 			},
 		},
 		{
-			Name: "consumer",
-			Kind: JobKindCommand,
-			InputArtifacts: []InputArtifact{{
+			name: "consumer",
+			kind: JobKindCommand,
+			inputArtifacts: []InputArtifact{{
 				Artifact:    ResultArtifact("producer", ".terraci/report.json"),
 				ProducerJob: "producer",
 			}},
-			Operation: Operation{
-				Type:     OperationTypeCommands,
-				Commands: []string{"consumer"},
+			operation: Operation{
+				typ:      OperationTypeCommands,
+				commands: []string{"consumer"},
 			},
 		},
 	}}
@@ -83,7 +83,7 @@ func TestIRValidateRejectsDuplicateProducedResource(t *testing.T) {
 	t.Parallel()
 
 	resource := PluginResource(ResourceKindPluginReport, "policy", ".terraci/policy-report.json")
-	ir := &IR{Jobs: []Job{
+	ir := &IR{jobs: []Job{
 		testCommandJobWithResources("policy-a", []ResourceSpec{resource}),
 		testCommandJobWithResources("policy-b", []ResourceSpec{resource}),
 	}}
@@ -100,14 +100,14 @@ func TestIRValidateRejectsDuplicateProducedResource(t *testing.T) {
 func TestIRValidateRejectsProducedResourceWithoutOutputArtifact(t *testing.T) {
 	t.Parallel()
 
-	ir := &IR{Jobs: []Job{{
-		Name: "policy",
-		Kind: JobKindCommand,
-		Operation: Operation{
-			Type:     OperationTypeCommands,
-			Commands: []string{"policy"},
+	ir := &IR{jobs: []Job{{
+		name: "policy",
+		kind: JobKindCommand,
+		operation: Operation{
+			typ:      OperationTypeCommands,
+			commands: []string{"policy"},
 		},
-		Produces: []ResourceSpec{
+		produces: []ResourceSpec{
 			PluginResource(ResourceKindPluginReport, "policy", ".terraci/policy-report.json"),
 		},
 	}}}
@@ -124,15 +124,15 @@ func TestIRValidateRejectsProducedResourceWithoutOutputArtifact(t *testing.T) {
 func TestIRValidateRejectsProducedResourceMissingFromArtifact(t *testing.T) {
 	t.Parallel()
 
-	ir := &IR{Jobs: []Job{{
-		Name:           "policy",
-		Kind:           JobKindCommand,
-		OutputArtifact: ResultArtifact("policy", ".terraci/other.json"),
-		Operation: Operation{
-			Type:     OperationTypeCommands,
-			Commands: []string{"policy"},
+	ir := &IR{jobs: []Job{{
+		name:           "policy",
+		kind:           JobKindCommand,
+		outputArtifact: ResultArtifact("policy", ".terraci/other.json"),
+		operation: Operation{
+			typ:      OperationTypeCommands,
+			commands: []string{"policy"},
 		},
-		Produces: []ResourceSpec{
+		produces: []ResourceSpec{
 			PluginResource(ResourceKindPluginReport, "policy", ".terraci/policy-report.json"),
 		},
 	}}}
@@ -149,14 +149,14 @@ func TestIRValidateRejectsProducedResourceMissingFromArtifact(t *testing.T) {
 func TestIRValidateRejectsConsumedResourceWithoutProducer(t *testing.T) {
 	t.Parallel()
 
-	ir := &IR{Jobs: []Job{{
-		Name: "summary",
-		Kind: JobKindCommand,
-		Operation: Operation{
-			Type:     OperationTypeCommands,
-			Commands: []string{"summary"},
+	ir := &IR{jobs: []Job{{
+		name: "summary",
+		kind: JobKindCommand,
+		operation: Operation{
+			typ:      OperationTypeCommands,
+			commands: []string{"summary"},
 		},
-		Consumes: []ResourceSpec{
+		consumes: []ResourceSpec{
 			PluginResource(ResourceKindPluginReport, "policy", ".terraci/policy-report.json"),
 		},
 	}}}
@@ -174,17 +174,17 @@ func TestIRValidateRejectsConsumedResourceWithoutInputArtifact(t *testing.T) {
 	t.Parallel()
 
 	resource := PluginResource(ResourceKindPluginReport, "policy", ".terraci/policy-report.json")
-	ir := &IR{Jobs: []Job{
+	ir := &IR{jobs: []Job{
 		testCommandJobWithResources("policy", []ResourceSpec{resource}),
 		{
-			Name:         "summary",
-			Kind:         JobKindCommand,
-			Dependencies: []JobDependency{{Job: "policy"}},
-			Operation: Operation{
-				Type:     OperationTypeCommands,
-				Commands: []string{"summary"},
+			name:         "summary",
+			kind:         JobKindCommand,
+			dependencies: []JobDependency{{Job: "policy"}},
+			operation: Operation{
+				typ:      OperationTypeCommands,
+				commands: []string{"summary"},
 			},
-			Consumes: []ResourceSpec{resource},
+			consumes: []ResourceSpec{resource},
 		},
 	}}
 
@@ -201,21 +201,21 @@ func TestIRValidateRejectsInputArtifactMismatch(t *testing.T) {
 	t.Parallel()
 
 	resource := PluginResource(ResourceKindPluginReport, "policy", ".terraci/policy-report.json")
-	ir := &IR{Jobs: []Job{
+	ir := &IR{jobs: []Job{
 		testCommandJobWithResources("policy", []ResourceSpec{resource}),
 		{
-			Name:         "summary",
-			Kind:         JobKindCommand,
-			Dependencies: []JobDependency{{Job: "policy"}},
-			InputArtifacts: []InputArtifact{{
+			name:         "summary",
+			kind:         JobKindCommand,
+			dependencies: []JobDependency{{Job: "policy"}},
+			inputArtifacts: []InputArtifact{{
 				Artifact:    ResultArtifact("other", ".terraci/policy-report.json"),
 				ProducerJob: "policy",
 			}},
-			Operation: Operation{
-				Type:     OperationTypeCommands,
-				Commands: []string{"summary"},
+			operation: Operation{
+				typ:      OperationTypeCommands,
+				commands: []string{"summary"},
 			},
-			Consumes: []ResourceSpec{resource},
+			consumes: []ResourceSpec{resource},
 		},
 	}}
 
@@ -230,13 +230,13 @@ func TestIRValidateRejectsInputArtifactMismatch(t *testing.T) {
 
 func testCommandJobWithResources(name string, produces []ResourceSpec) Job {
 	return Job{
-		Name:           name,
-		Kind:           JobKindCommand,
-		OutputArtifact: resultArtifactFromResources(name, produces),
-		Produces:       produces,
-		Operation: Operation{
-			Type:     OperationTypeCommands,
-			Commands: []string{name},
+		name:           name,
+		kind:           JobKindCommand,
+		outputArtifact: resultArtifactFromResources(name, produces),
+		produces:       produces,
+		operation: Operation{
+			typ:      OperationTypeCommands,
+			commands: []string{name},
 		},
 	}
 }

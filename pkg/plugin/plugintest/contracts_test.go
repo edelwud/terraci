@@ -10,6 +10,7 @@ import (
 	"github.com/edelwud/terraci/pkg/cache/blobcache/blobtest"
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/pipeline"
+	"github.com/edelwud/terraci/pkg/pipeline/pipelinetest"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/initwiz"
 	"github.com/edelwud/terraci/pkg/workflow"
@@ -161,7 +162,7 @@ func TestAssertCIProvider(t *testing.T) {
 		InfoProvider:   provider,
 		Generator:      provider,
 		CommentFactory: provider,
-		IR:             &pipeline.IR{},
+		IR:             pipelinetest.MustCommandIR(t),
 		ExpectedName:   "contract-ci",
 		AssertEnv: func(tb testing.TB, detected bool) {
 			tb.Helper()

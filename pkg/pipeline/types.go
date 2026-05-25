@@ -1,25 +1,29 @@
 package pipeline
 
-import "github.com/edelwud/terraci/pkg/discovery"
+import (
+	"maps"
+
+	"github.com/edelwud/terraci/pkg/discovery"
+)
 
 // IR is the provider-agnostic intermediate representation of a CI pipeline.
 type IR struct {
-	Jobs []Job
+	jobs []Job
 }
 
 // Job is a single CI job in the IR.
 type Job struct {
-	Name           string
-	Kind           JobKind
-	Module         *discovery.Module // nil for command jobs
-	Env            map[string]string
-	Dependencies   []JobDependency // job edges this depends on
-	InputArtifacts []InputArtifact // artifacts restored before this job runs
-	OutputArtifact Artifact
-	Consumes       []ResourceSpec
-	Produces       []ResourceSpec
-	AllowFailure   bool
-	Operation      Operation
+	name           string
+	kind           JobKind
+	module         *discovery.Module // nil for command jobs
+	env            map[string]string
+	dependencies   []JobDependency // job edges this depends on
+	inputArtifacts []InputArtifact // artifacts restored before this job runs
+	outputArtifact Artifact
+	consumes       []ResourceSpec
+	produces       []ResourceSpec
+	allowFailure   bool
+	operation      Operation
 }
 
 // Artifact is a named CI artifact whose paths must be restored relative to
@@ -63,21 +67,21 @@ const (
 
 // Operation describes an executable payload for a pipeline job.
 type Operation struct {
-	Type      OperationType
-	Terraform *TerraformOperation
-	Commands  []string
+	typ       OperationType
+	terraform *TerraformOperation
+	commands  []string
 }
 
 // TerraformOperation describes a terraform/tofu operation in a module.
 type TerraformOperation struct {
-	Kind         OperationType
-	ModulePath   string
-	InitEnabled  bool
-	PlanFile     string
-	PlanTextFile string
-	PlanJSONFile string
-	DetailedPlan bool
-	UsePlanFile  bool
+	kind         OperationType
+	modulePath   string
+	initEnabled  bool
+	planFile     string
+	planTextFile string
+	planJSONFile string
+	detailedPlan bool
+	usePlanFile  bool
 }
 
 // Contribution describes provider-independent DAG jobs added by a plugin.
@@ -93,4 +97,168 @@ type ContributedJob struct {
 	consumes     []ResourceRequest
 	produces     []ResourceSpec
 	allowFailure bool
+}
+
+// NewIR builds a validated IR from already-constructed jobs. It exists for
+// advanced in-process callers and tests that need command-only pipelines; normal
+// project pipelines should be built through BuildProjectIR.
+func NewIR(jobs ...Job) (*IR, error) {
+	clone := cloneJobs(jobs)
+	ir := &IR{jobs: clone}
+	if err := ir.Validate(); err != nil {
+		return nil, err
+	}
+	return ir, nil
+}
+
+// Jobs returns the IR jobs in deterministic execution-plan order.
+func (ir *IR) Jobs() []Job {
+	if ir == nil {
+		return nil
+	}
+	return cloneJobs(ir.jobs)
+}
+
+func cloneJobs(jobs []Job) []Job {
+	if len(jobs) == 0 {
+		return nil
+	}
+	clone := make([]Job, len(jobs))
+	for i := range jobs {
+		clone[i] = jobs[i].clone()
+	}
+	return clone
+}
+
+// NewCommandJob builds a validated command job that can be wrapped in NewIR.
+func NewCommandJob(job ContributedJob) Job {
+	produces := job.Produces()
+	return Job{
+		name:           job.Name(),
+		kind:           JobKindCommand,
+		dependencies:   job.Dependencies(),
+		outputArtifact: resultArtifactFromResources(job.Name(), produces),
+		produces:       produces,
+		allowFailure:   job.AllowFailure(),
+		operation:      newCommandOperation(job.Commands()),
+	}
+}
+
+// Name returns the job name.
+func (j Job) Name() string { return j.name }
+
+// Kind returns the canonical job role.
+func (j Job) Kind() JobKind { return j.kind }
+
+// Module returns the module associated with Terraform jobs, or nil for command jobs.
+func (j Job) Module() *discovery.Module { return j.module }
+
+// Env returns a defensive copy of job environment variables.
+func (j Job) Env() map[string]string {
+	if len(j.env) == 0 {
+		return nil
+	}
+	return maps.Clone(j.env)
+}
+
+// Dependencies returns a defensive copy of control dependencies.
+func (j Job) Dependencies() []JobDependency {
+	return append([]JobDependency(nil), j.dependencies...)
+}
+
+// InputArtifacts returns a defensive copy of artifacts restored for this job.
+func (j Job) InputArtifacts() []InputArtifact {
+	return append([]InputArtifact(nil), j.inputArtifacts...)
+}
+
+// OutputArtifact returns the artifact produced by this job, if any.
+func (j Job) OutputArtifact() Artifact { return cloneArtifact(j.outputArtifact) }
+
+// Consumes returns a defensive copy of consumed resources.
+func (j Job) Consumes() []ResourceSpec {
+	return append([]ResourceSpec(nil), j.consumes...)
+}
+
+// Produces returns a defensive copy of produced resources.
+func (j Job) Produces() []ResourceSpec {
+	return append([]ResourceSpec(nil), j.produces...)
+}
+
+// AllowFailure reports whether the job may fail without failing the pipeline.
+func (j Job) AllowFailure() bool { return j.allowFailure }
+
+// Operation returns the executable job payload.
+func (j Job) Operation() Operation { return j.operation.clone() }
+
+func (j Job) clone() Job {
+	j.env = maps.Clone(j.env)
+	j.dependencies = append([]JobDependency(nil), j.dependencies...)
+	j.inputArtifacts = append([]InputArtifact(nil), j.inputArtifacts...)
+	j.outputArtifact = cloneArtifact(j.outputArtifact)
+	j.consumes = append([]ResourceSpec(nil), j.consumes...)
+	j.produces = append([]ResourceSpec(nil), j.produces...)
+	j.operation = j.operation.clone()
+	return j
+}
+
+// Type returns the operation type.
+func (o Operation) Type() OperationType { return o.typ }
+
+// Terraform returns a defensive copy of the terraform operation, if present.
+func (o Operation) Terraform() *TerraformOperation {
+	if o.terraform == nil {
+		return nil
+	}
+	clone := *o.terraform
+	return &clone
+}
+
+// Commands returns a defensive copy of command operation lines.
+func (o Operation) Commands() []string {
+	return append([]string(nil), o.commands...)
+}
+
+func newCommandOperation(commands []string) Operation {
+	return Operation{
+		typ:      OperationTypeCommands,
+		commands: append([]string(nil), commands...),
+	}
+}
+
+func (o Operation) clone() Operation {
+	o.commands = append([]string(nil), o.commands...)
+	if o.terraform != nil {
+		terraform := *o.terraform
+		o.terraform = &terraform
+	}
+	return o
+}
+
+// Kind returns the terraform operation kind.
+func (o TerraformOperation) Kind() OperationType { return o.kind }
+
+// ModulePath returns the workspace-relative module path.
+func (o TerraformOperation) ModulePath() string { return o.modulePath }
+
+// InitEnabled reports whether terraform init should run before this operation.
+func (o TerraformOperation) InitEnabled() bool { return o.initEnabled }
+
+// PlanFile returns the workspace-relative binary plan path.
+func (o TerraformOperation) PlanFile() string { return o.planFile }
+
+// PlanTextFile returns the workspace-relative text plan path.
+func (o TerraformOperation) PlanTextFile() string { return o.planTextFile }
+
+// PlanJSONFile returns the workspace-relative JSON plan path.
+func (o TerraformOperation) PlanJSONFile() string { return o.planJSONFile }
+
+// DetailedPlan reports whether the plan job emits detailed plan artifacts.
+func (o TerraformOperation) DetailedPlan() bool { return o.detailedPlan }
+
+// UsePlanFile reports whether apply should consume the binary plan file.
+func (o TerraformOperation) UsePlanFile() bool { return o.usePlanFile }
+
+func cloneArtifact(artifact Artifact) Artifact {
+	artifact.Paths = append([]string(nil), artifact.Paths...)
+	return artifact
 }
