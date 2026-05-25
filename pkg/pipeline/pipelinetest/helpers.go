@@ -14,23 +14,43 @@ import (
 // MustCommandJob builds a valid command job for tests.
 func MustCommandJob(tb testing.TB, opts pipeline.ContributedJobOptions) pipeline.Job {
 	tb.Helper()
-	job, err := pipeline.NewContributedJob(opts)
-	if err != nil {
-		tb.Fatalf("NewContributedJob() error = %v", err)
+	ir := MustCommandIR(tb, opts)
+	jobs := ir.Jobs()
+	for i := range jobs {
+		if jobs[i].Name() == opts.Name {
+			return jobs[i]
+		}
 	}
-	return pipeline.NewCommandJob(job)
+	tb.Fatalf("command job %q not found", opts.Name)
+	var zero pipeline.Job
+	return zero
 }
 
 // MustCommandIR builds a valid command-only IR for tests.
 func MustCommandIR(tb testing.TB, opts ...pipeline.ContributedJobOptions) *pipeline.IR {
 	tb.Helper()
-	jobs := make([]pipeline.Job, 0, len(opts))
+	jobs := make([]pipeline.ContributedJob, 0, len(opts))
 	for _, opt := range opts {
-		jobs = append(jobs, MustCommandJob(tb, opt))
+		job, err := pipeline.NewContributedJob(opt)
+		if err != nil {
+			tb.Fatalf("NewContributedJob() error = %v", err)
+		}
+		jobs = append(jobs, job)
 	}
-	ir, err := pipeline.NewIR(jobs...)
+	var contributions []*pipeline.Contribution
+	if len(jobs) > 0 {
+		contribution, err := pipeline.NewContribution(jobs...)
+		if err != nil {
+			tb.Fatalf("NewContribution() error = %v", err)
+		}
+		contributions = []*pipeline.Contribution{contribution}
+	}
+	ir, err := pipeline.BuildProjectIR(pipeline.ProjectIRRequest{
+		Project:       emptyProject(),
+		Contributions: contributions,
+	})
 	if err != nil {
-		tb.Fatalf("NewIR() error = %v", err)
+		tb.Fatalf("BuildProjectIR() error = %v", err)
 	}
 	return ir
 }
@@ -66,5 +86,16 @@ func MustJobByKind(tb testing.TB, ir *pipeline.IR, kind pipeline.JobKind) pipeli
 		}
 	}
 	tb.Fatalf("job kind %q not found", kind)
-	return pipeline.Job{}
+	var zero pipeline.Job
+	return zero
+}
+
+func emptyProject() *workflow.ProjectResult {
+	return &workflow.ProjectResult{
+		Workflow: &workflow.Result{
+			Filtered: workflow.NewModuleSet(nil),
+			Graph:    graph.NewDependencyGraph(),
+		},
+		Targets: []*discovery.Module{},
+	}
 }

@@ -515,7 +515,7 @@ func TestPlugin_RunCheck_DiscoverError(t *testing.T) {
 	enablePlugin(t, p, &tfupdateengine.UpdateConfig{Enabled: true})
 	useMockRegistry(p, &mockRegistry{})
 
-	// Point to a file instead of directory to trigger workflow.Run error
+	// Point to a file instead of directory to trigger workflow.PlanProject error
 	workDir := t.TempDir()
 	filePath := workDir + "/not-a-dir"
 	if err := os.WriteFile(filePath, []byte("test"), 0o600); err != nil {
@@ -541,9 +541,9 @@ func TestPlugin_RunCheck_DiscoverError(t *testing.T) {
 
 	err := cmd.RunE(cmd, nil)
 	if err == nil {
-		// If workflow.Run doesn't error on a file path, it just returns no modules
+		// If workflow.PlanProject doesn't error on a file path, it just returns no modules
 		// which triggers "no modules found" error
-		t.Log("workflow.Run handled file path gracefully")
+		t.Log("workflow.PlanProject handled file path gracefully")
 	}
 }
 

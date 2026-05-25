@@ -7,7 +7,7 @@ import (
 	"github.com/edelwud/terraci/pkg/graph"
 )
 
-type buildOptions struct {
+type projectIRBuildInput struct {
 	DepGraph      *graph.DependencyGraph
 	TargetModules []*discovery.Module
 	AllModules    []*discovery.Module
@@ -18,7 +18,7 @@ type buildOptions struct {
 	PlanEnabled   bool
 }
 
-func build(opts buildOptions) (*IR, error) {
+func buildProjectIR(opts projectIRBuildInput) (*IR, error) {
 	planOnly := opts.Requirements.PlanOnly
 	allContributedJobs := collectContributedJobs(opts.Contributions)
 	plan, err := prepareModuleGraph(
@@ -228,7 +228,7 @@ func buildApplyJob(plan *jobPlan, mod *discovery.Module, env map[string]string, 
 func buildContributedJobs(contributedJobs []ContributedJob) []Job {
 	jobs := make([]Job, 0, len(contributedJobs))
 	for _, contributedJob := range contributedJobs {
-		job := NewCommandJob(contributedJob)
+		job := newCommandJob(contributedJob)
 		jobs = append(jobs, job)
 	}
 	return jobs

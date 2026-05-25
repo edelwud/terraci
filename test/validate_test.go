@@ -22,7 +22,7 @@ func TestValidate_InvalidDir(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for empty directory with no modules")
 	}
-	// workflow.Run returns NoModulesError for empty directories
+	// workflow.PlanProject returns NoModulesError for empty directories
 	if !strings.Contains(err.Error(), "no modules found") {
 		t.Errorf("expected 'no modules found' error, got: %v", err)
 	}

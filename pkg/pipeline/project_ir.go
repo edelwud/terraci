@@ -37,7 +37,7 @@ func BuildProjectIR(req ProjectIRRequest) (*IR, error) {
 		targets = result.Filtered.Modules
 	}
 
-	ir, err := build(buildOptions{
+	ir, err := buildProjectIR(projectIRBuildInput{
 		DepGraph:      result.Graph,
 		TargetModules: targets,
 		AllModules:    result.Filtered.Modules,

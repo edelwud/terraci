@@ -29,7 +29,6 @@ type Result struct {
 type UseCase struct {
 	appCtx         *plugin.AppContext
 	projects       ProjectPlanner
-	irPlanner      IRPlanner
 	contributions  ContributionCollector
 	runtimeFactory runner.Factory
 	summaryReports reports.Loader
@@ -39,17 +38,12 @@ type ProjectPlanner interface {
 	Plan(ctx context.Context, req spec.Request) (*workflow.ProjectResult, error)
 }
 
-type IRPlanner interface {
-	Build(project *workflow.ProjectResult, execCfg execution.Config, mode spec.ExecutionMode, contributions []*pipeline.Contribution) (*pipeline.IR, error)
-}
-
 type ContributionCollector interface {
 	Collect(appCtx *plugin.AppContext) []*pipeline.Contribution
 }
 
 type Dependencies struct {
 	Projects       ProjectPlanner
-	IRPlanner      IRPlanner
 	Contributions  ContributionCollector
 	RuntimeFactory runner.Factory
 	SummaryReports reports.Loader
@@ -66,12 +60,6 @@ func WithProjectPlanner(projects ProjectPlanner) Option {
 func WithRuntimeFactory(factory runner.Factory) Option {
 	return func(deps *Dependencies) {
 		deps.RuntimeFactory = factory
-	}
-}
-
-func WithIRPlanner(builder IRPlanner) Option {
-	return func(deps *Dependencies) {
-		deps.IRPlanner = builder
 	}
 }
 
@@ -92,7 +80,6 @@ func DefaultDependencies(appCtx *plugin.AppContext) Dependencies {
 	segments := append([]string(nil), structure.Segments...)
 	return Dependencies{
 		Projects:       newWorkflowProjectPlanner(appCtx),
-		IRPlanner:      defaultIRPlanner{},
 		Contributions:  contextContributionCollector{},
 		RuntimeFactory: runner.NewFactory(),
 		SummaryReports: reports.NewLoader(appCtx.Reports(), appCtx.WorkDir(), segments),
@@ -112,7 +99,6 @@ func New(appCtx *plugin.AppContext, opts ...Option) *UseCase {
 	return &UseCase{
 		appCtx:         appCtx,
 		projects:       deps.Projects,
-		irPlanner:      deps.IRPlanner,
 		contributions:  deps.Contributions,
 		runtimeFactory: deps.RuntimeFactory,
 		summaryReports: deps.SummaryReports,
@@ -122,9 +108,6 @@ func New(appCtx *plugin.AppContext, opts ...Option) *UseCase {
 func withDefaults(deps, defaults Dependencies) Dependencies {
 	if deps.Projects == nil {
 		deps.Projects = defaults.Projects
-	}
-	if deps.IRPlanner == nil {
-		deps.IRPlanner = defaults.IRPlanner
 	}
 	if deps.Contributions == nil {
 		deps.Contributions = defaults.Contributions
@@ -155,7 +138,7 @@ func (u *UseCase) Run(ctx context.Context, req Request) (*Result, error) {
 	}
 
 	contributions := u.contributions.Collect(u.appCtx)
-	plan, err := u.irPlanner.Build(project, execRuntime.ExecConfig, req.Mode, contributions)
+	plan, err := buildExecutionIR(project, execRuntime.ExecConfig, req.Mode, contributions)
 	if err != nil {
 		return nil, err
 	}
@@ -214,9 +197,7 @@ func (contextContributionCollector) Collect(appCtx *plugin.AppContext) []*pipeli
 	return appCtx.PipelineContributions()
 }
 
-type defaultIRPlanner struct{}
-
-func (defaultIRPlanner) Build(project *workflow.ProjectResult, execCfg execution.Config, mode spec.ExecutionMode, contributions []*pipeline.Contribution) (*pipeline.IR, error) {
+func buildExecutionIR(project *workflow.ProjectResult, execCfg execution.Config, mode spec.ExecutionMode, contributions []*pipeline.Contribution) (*pipeline.IR, error) {
 	planOnly := mode == spec.ExecutionModePlan
 	if planOnly {
 		execCfg.PlanEnabled = true

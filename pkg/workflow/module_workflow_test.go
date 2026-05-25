@@ -63,9 +63,9 @@ func TestRun_Basic(t *testing.T) {
 		"platform/prod/eu-central-1/vpc",
 	})
 
-	result, err := Run(context.Background(), defaultOptions(tmpDir))
+	result, err := run(context.Background(), defaultOptions(tmpDir))
 	if err != nil {
-		t.Fatalf("Run: %v", err)
+		t.Fatalf("run: %v", err)
 	}
 
 	if len(result.All.Modules) != 3 {
@@ -91,7 +91,7 @@ func TestRun_Basic(t *testing.T) {
 func TestRun_NoModules(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	_, err := Run(context.Background(), defaultOptions(tmpDir))
+	_, err := run(context.Background(), defaultOptions(tmpDir))
 	if err == nil {
 		t.Fatal("expected error for empty directory")
 	}
@@ -106,7 +106,7 @@ func TestRun_NoModules(t *testing.T) {
 }
 
 func TestRun_InvalidDir(t *testing.T) {
-	_, err := Run(context.Background(), Options{
+	_, err := run(context.Background(), Options{
 		WorkDir:  "/nonexistent/path/that/does/not/exist",
 		Segments: defaultSegments,
 	})
@@ -133,9 +133,9 @@ func TestRun_LibraryModulesPartitioned(t *testing.T) {
 	opts := defaultOptions(tmpDir)
 	opts.LibraryPaths = []string{"_modules"}
 
-	result, err := Run(context.Background(), opts)
+	result, err := run(context.Background(), opts)
 	if err != nil {
-		t.Fatalf("Run: %v", err)
+		t.Fatalf("run: %v", err)
 	}
 
 	if len(result.All.Modules) != 4 {
@@ -170,15 +170,15 @@ func TestResolveTargets_ExcludesLibraryEvenWithoutExclude(t *testing.T) {
 	opts := defaultOptions(tmpDir)
 	opts.LibraryPaths = []string{"_modules"}
 
-	result, err := Run(context.Background(), opts)
+	result, err := run(context.Background(), opts)
 	if err != nil {
-		t.Fatalf("Run: %v", err)
+		t.Fatalf("run: %v", err)
 	}
 
 	cfg := configForLibraryTest()
-	targets, err := ResolveTargets(context.Background(), tmpDir, cfg.Snapshot(), result, TargetSelectionOptions{})
+	targets, err := resolveTargets(context.Background(), tmpDir, cfg.Snapshot(), result, targetSelectionOptions{})
 	if err != nil {
-		t.Fatalf("ResolveTargets: %v", err)
+		t.Fatalf("resolveTargets: %v", err)
 	}
 	if len(targets) != 1 {
 		t.Fatalf("targets = %d, want 1", len(targets))
@@ -203,9 +203,9 @@ func TestRun_ExcludeFilter(t *testing.T) {
 	opts := defaultOptions(tmpDir)
 	opts.Excludes = []string{"**/prod/**"}
 
-	result, err := Run(context.Background(), opts)
+	result, err := run(context.Background(), opts)
 	if err != nil {
-		t.Fatalf("Run: %v", err)
+		t.Fatalf("run: %v", err)
 	}
 
 	if len(result.All.Modules) != 3 {
@@ -228,9 +228,9 @@ func TestRun_IncludeFilter(t *testing.T) {
 	opts := defaultOptions(tmpDir)
 	opts.Includes = []string{"**/prod/**"}
 
-	result, err := Run(context.Background(), opts)
+	result, err := run(context.Background(), opts)
 	if err != nil {
-		t.Fatalf("Run: %v", err)
+		t.Fatalf("run: %v", err)
 	}
 
 	if len(result.Filtered.Modules) != 1 {
@@ -252,9 +252,9 @@ func TestRun_SegmentFilter(t *testing.T) {
 		"service": {"platform"},
 	}
 
-	result, err := Run(context.Background(), opts)
+	result, err := run(context.Background(), opts)
 	if err != nil {
-		t.Fatalf("Run: %v", err)
+		t.Fatalf("run: %v", err)
 	}
 
 	if len(result.All.Modules) != 3 {
@@ -298,9 +298,9 @@ resource "aws_eks_cluster" "main" {
 }
 `)
 
-	result, err := Run(context.Background(), defaultOptions(tmpDir))
+	result, err := run(context.Background(), defaultOptions(tmpDir))
 	if err != nil {
-		t.Fatalf("Run: %v", err)
+		t.Fatalf("run: %v", err)
 	}
 
 	if len(result.Filtered.Modules) != 2 {
@@ -332,9 +332,9 @@ func TestRun_Indexes(t *testing.T) {
 	opts := defaultOptions(tmpDir)
 	opts.Excludes = []string{"**/prod/**"}
 
-	result, err := Run(context.Background(), opts)
+	result, err := run(context.Background(), opts)
 	if err != nil {
-		t.Fatalf("Run: %v", err)
+		t.Fatalf("run: %v", err)
 	}
 
 	// FullIndex should contain all modules
@@ -361,7 +361,7 @@ func TestRun_ContextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // cancel immediately
 
-	_, err := Run(ctx, defaultOptions(tmpDir))
+	_, err := run(ctx, defaultOptions(tmpDir))
 	if err == nil {
 		t.Fatal("expected error for canceled context")
 	}
@@ -383,9 +383,9 @@ func TestRun_CustomSegments(t *testing.T) {
 		Segments: []string{"team", "project", "component"},
 	}
 
-	result, err := Run(context.Background(), opts)
+	result, err := run(context.Background(), opts)
 	if err != nil {
-		t.Fatalf("Run: %v", err)
+		t.Fatalf("run: %v", err)
 	}
 
 	if len(result.All.Modules) != 2 {
@@ -419,9 +419,9 @@ func TestRun_Submodules(t *testing.T) {
 		Segments: defaultSegments,
 	}
 
-	result, err := Run(context.Background(), opts)
+	result, err := run(context.Background(), opts)
 	if err != nil {
-		t.Fatalf("Run: %v", err)
+		t.Fatalf("run: %v", err)
 	}
 
 	if len(result.All.Modules) != 2 {
@@ -455,9 +455,9 @@ func TestRun_CombinedFilters(t *testing.T) {
 		"service": {"platform"},
 	}
 
-	result, err := Run(context.Background(), opts)
+	result, err := run(context.Background(), opts)
 	if err != nil {
-		t.Fatalf("Run: %v", err)
+		t.Fatalf("run: %v", err)
 	}
 
 	// Should exclude prod AND filter to platform only
@@ -484,9 +484,9 @@ data "terraform_remote_state" "missing" {
 }
 `)
 
-	result, err := Run(context.Background(), defaultOptions(tmpDir))
+	result, err := run(context.Background(), defaultOptions(tmpDir))
 	if err != nil {
-		t.Fatalf("Run: %v", err)
+		t.Fatalf("run: %v", err)
 	}
 
 	// Unresolvable remote state should produce a warning, not an error
@@ -508,9 +508,9 @@ func TestRun_GraphBuilt(t *testing.T) {
 		"platform/stage/eu-central-1/rds",
 	})
 
-	result, err := Run(context.Background(), defaultOptions(tmpDir))
+	result, err := run(context.Background(), defaultOptions(tmpDir))
 	if err != nil {
-		t.Fatalf("Run: %v", err)
+		t.Fatalf("run: %v", err)
 	}
 
 	// Graph should have all modules as nodes

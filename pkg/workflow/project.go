@@ -60,7 +60,7 @@ func PlanProject(ctx context.Context, req ProjectRequest) (*ProjectResult, error
 	}
 	flags := cloneFilterFlags(req.Filters)
 
-	result, err := Run(ctx, OptionsFromConfig(req.WorkDir, cfg, flags))
+	result, err := run(ctx, optionsFromConfig(req.WorkDir, cfg, flags))
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +71,7 @@ func PlanProject(ctx context.Context, req ProjectRequest) (*ProjectResult, error
 		LibrarySummary: SummarizeLibraries(cfg, result),
 	}
 	if req.Targeting.Enabled {
-		targets, err := ResolveTargets(ctx, req.WorkDir, cfg, result, TargetSelectionOptions{
+		targets, err := resolveTargets(ctx, req.WorkDir, cfg, result, targetSelectionOptions{
 			ModulePath:             req.Targeting.ModulePath,
 			ChangedOnly:            req.Targeting.ChangedOnly,
 			BaseRef:                req.Targeting.BaseRef,

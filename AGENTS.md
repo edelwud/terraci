@@ -176,12 +176,11 @@ plugins/                        # Built-in plugins — one file per capability
 │   ├── contract.go             # Public stable NewExecutor(...) boundary for in-process callers
 │   └── internal/
 │       ├── executor.go         # Thin adapter from public contract to internal flow
-│       ├── flow/               # Use-case orchestration: workflow → targets → IR → execute → render
-│       ├── planner/            # pipeline.Build → *pipeline.IR adapter with contribution filtering
+│       ├── flow/               # Use-case orchestration: PlanProject → BuildProjectIR → execute → render
 │       ├── render/             # Progress output and local CLI rendering
 │       ├── runner/             # Shell/Terraform runners + DAG job orchestration
 │       ├── spec/               # Internal validated execute request/mode types
-│       └── targeting/          # Shared workflow target-resolution adapter
+│       └── reports/            # Current report loading/selection for local summaries
 ├── diskblob/
 │   ├── plugin.go               # init, BasePlugin[*Config] embed, BlobStoreProvider (single NewBlobStore with options)
 │   ├── config.go               # Backend config (enabled, root_dir)
@@ -459,7 +458,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **Report sections via render-ready payloads**: producer plugins call `ci.NewRenderedReport(...)` and publish only validated `ci.ReportSectionKindRendered` sections with `ci.RenderSection` payloads. `ReportSection` internals are private; use getters plus `ci.DecodeRenderSection`, not raw payload access. Summary/local renderers consume the generic render model through `plugins/internal/reportrender` and stay unaware of cost/policy/tfupdate domain structs.
 - **Report freshness**: `pkg/ci.SelectCurrentReports` owns current/stale/degraded policy. Summary and localexec skip reports whose non-empty `plan_results_fingerprint` does not match the current plan collection. Missing provenance is accepted as degraded mode.
 - **Zero cross-plugin imports**: plugins communicate only via `pkg/plugin` capability helpers, shared `pkg/ci` types, and `ci.ReportStore` artifacts
-- **Shared workflow**: `workflow.PlanProject()` is the high-level canonical project planning API for built-in production code: scan, filter, parse, graph building, optional target selection, changed-only, and library diagnostics. `workflow.Run()`, `workflow.ResolveTargets()`, and `workflow.OptionsFromConfig()` remain low-level package primitives inside `pkg/workflow`. `workflow.ChangeDetector`, `workflow.ChangeDetectionRequest`, and `workflow.ChangeDetectionResult` are plugin-agnostic; `plugin.ChangeDetectionProvider` embeds that workflow contract plus `plugin.Plugin`.
+- **Shared workflow**: `workflow.PlanProject()` is the high-level canonical project planning API for built-in production code: scan, filter, parse, graph building, optional target selection, changed-only, and library diagnostics. Lower-level scan/filter/target helpers are package-private internals inside `pkg/workflow`. `workflow.ChangeDetector`, `workflow.ChangeDetectionRequest`, and `workflow.ChangeDetectionResult` are plugin-agnostic; `plugin.ChangeDetectionProvider` embeds that workflow contract plus `plugin.Plugin`.
 - **Localexec boundary**: keep shell/tfexec details inside `plugins/localexec`; `pkg/execution` stays provider-agnostic scheduler/executor infrastructure that consumes a raw `*pipeline.IR`. `localexec/internal/flow` returns a typed result and leaves final rendering to the executor/output layer.
 - **Reference runtime-heavy plugins**: `cost`, `policy`, `tfupdate`
 - **Parser architecture**: keep `pkg/parser` as a thin public facade; put orchestration, extraction, resolution, and source mechanics in `pkg/parser/internal/*` around the shared `pkg/parser/model`

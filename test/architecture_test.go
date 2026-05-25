@@ -125,6 +125,13 @@ func TestArchitecture_ConfigSnapshotAndDocs(t *testing.T) {
 		"app.Plugins",
 		"app.Config",
 		`Annotations["skipConfig"]`,
+		"workflow.Run()",
+		"workflow.ResolveTargets()",
+		"workflow.OptionsFromConfig()",
+		"pipeline.NewIR",
+		"pipeline.NewCommandJob",
+		"pipeline.BuildOptions",
+		"localexec/internal/planner",
 	}
 	for _, rel := range textFiles(t, root, "AGENTS.md", "docs", "examples", "pkg/plugin/doc.go") {
 		if strings.HasPrefix(rel, "docs/.vitepress/dist/") {
@@ -375,8 +382,16 @@ func TestArchitecture_PipelineIRValueBoundaries(t *testing.T) {
 			switch typed := node.(type) {
 			case *ast.CallExpr:
 				selector, ok := callSelector(typed)
-				if ok && selectorCallMatches(selector, pipelineAliases, "Build") {
+				if !ok {
+					return true
+				}
+				switch {
+				case selectorCallMatches(selector, pipelineAliases, "Build"):
 					violations = append(violations, rel+" calls pipeline.Build directly; use pipeline.BuildProjectIR")
+				case selectorCallMatches(selector, pipelineAliases, "NewIR"):
+					violations = append(violations, rel+" calls pipeline.NewIR directly; use pipeline.BuildProjectIR or pkg/pipeline/pipelinetest")
+				case selectorCallMatches(selector, pipelineAliases, "NewCommandJob"):
+					violations = append(violations, rel+" calls pipeline.NewCommandJob directly; use pipeline.BuildProjectIR or pkg/pipeline/pipelinetest")
 				}
 			case *ast.CompositeLit:
 				selector, ok := typed.Type.(*ast.SelectorExpr)

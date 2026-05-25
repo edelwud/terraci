@@ -57,7 +57,7 @@ func TestResolveTargets_ModulePathIntersectedWithChangedModules(t *testing.T) {
 		}(),
 	}
 
-	targets, err := resolveTargets(context.Background(), workDir, cfg.Snapshot(), result, TargetSelectionOptions{
+	targets, err := resolveTargets(context.Background(), workDir, cfg.Snapshot(), result, targetSelectionOptions{
 		ChangedOnly: true,
 		ModulePath:  vpc.RelativePath,
 		ChangeDetectorResolver: func() (ChangeDetector, error) {
@@ -92,7 +92,7 @@ func TestResolveTargets_ChangedLibrariesRespectFilters(t *testing.T) {
 		Graph:    depGraph,
 	}
 
-	targets, err := resolveTargets(context.Background(), workDir, cfg.Snapshot(), result, TargetSelectionOptions{
+	targets, err := resolveTargets(context.Background(), workDir, cfg.Snapshot(), result, targetSelectionOptions{
 		ChangedOnly: true,
 		Filters:     &filter.Flags{SegmentArgs: []string{"environment=stage"}},
 		ChangeDetectorResolver: func() (ChangeDetector, error) {
@@ -123,7 +123,7 @@ func TestResolveTargets_ChangedOnlyDetectsOnce(t *testing.T) {
 	var calls int
 	var requests []ChangeDetectionRequest
 
-	targets, err := resolveTargets(context.Background(), workDir, cfg.Snapshot(), result, TargetSelectionOptions{
+	targets, err := resolveTargets(context.Background(), workDir, cfg.Snapshot(), result, targetSelectionOptions{
 		ChangedOnly: true,
 		BaseRef:     "origin/main",
 		ChangeDetectorResolver: func() (ChangeDetector, error) {
@@ -173,7 +173,7 @@ func TestResolveTargets_ChangedOnlyNoTargetsReturnsEmpty(t *testing.T) {
 		Graph:    graph.BuildFromDependencies([]*discovery.Module{app}, nil),
 	}
 
-	targets, err := resolveTargets(context.Background(), workDir, cfg.Snapshot(), result, TargetSelectionOptions{
+	targets, err := resolveTargets(context.Background(), workDir, cfg.Snapshot(), result, targetSelectionOptions{
 		ChangedOnly: true,
 		ModulePath:  "missing/path",
 		ChangeDetectorResolver: func() (ChangeDetector, error) {
@@ -201,7 +201,7 @@ func TestResolveTargets_ModulePathDoesNotMutateFilteredModules(t *testing.T) {
 		Graph:    graph.BuildFromDependencies([]*discovery.Module{vpc, eks}, nil),
 	}
 
-	targets, err := resolveTargets(context.Background(), workDir, cfg.Snapshot(), result, TargetSelectionOptions{
+	targets, err := resolveTargets(context.Background(), workDir, cfg.Snapshot(), result, targetSelectionOptions{
 		ModulePath: vpc.RelativePath,
 	})
 	if err != nil {
@@ -232,9 +232,9 @@ func TestResolveTargets_ChangedOnlyAppliesModuleAfterFiltersAndAffectedModules(t
 		depGraph.AddNode(module)
 	}
 	depGraph.AddEdge(eks.ID(), vpc.ID())
-	filteredModules, err := ApplyFilters(cfg.Snapshot(), flags, []*discovery.Module{vpc, eks, prodVPC})
+	filteredModules, err := applyFilters(cfg.Snapshot(), flags, []*discovery.Module{vpc, eks, prodVPC})
 	if err != nil {
-		t.Fatalf("ApplyFilters() error = %v", err)
+		t.Fatalf("applyFilters() error = %v", err)
 	}
 
 	result := &Result{
@@ -268,7 +268,7 @@ func TestResolveTargets_ChangedOnlyAppliesModuleAfterFiltersAndAffectedModules(t
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			targets, err := resolveTargets(context.Background(), workDir, cfg.Snapshot(), result, TargetSelectionOptions{
+			targets, err := resolveTargets(context.Background(), workDir, cfg.Snapshot(), result, targetSelectionOptions{
 				ChangedOnly: true,
 				ModulePath:  tt.modulePath,
 				Filters:     flags,
@@ -307,7 +307,7 @@ func TestResolveTargets_ChangedOnlyPreservesFilteredModuleOrder(t *testing.T) {
 		Graph:    depGraph,
 	}
 
-	targets, err := resolveTargets(context.Background(), workDir, cfg.Snapshot(), result, TargetSelectionOptions{
+	targets, err := resolveTargets(context.Background(), workDir, cfg.Snapshot(), result, targetSelectionOptions{
 		ChangedOnly: true,
 		ChangeDetectorResolver: func() (ChangeDetector, error) {
 			return stubChangeDetector{changedModules: []*discovery.Module{app, vpc}}, nil
@@ -369,9 +369,9 @@ func TestResolveTargets_ChangedLibrariesIntersectModuleAndFilters(t *testing.T) 
 			depGraph.AddEdge(stageEKS.ID(), stageVPC.ID())
 			depGraph.AddLibraryUsage(tt.libraryUsagePath, stageEKS.ID())
 			depGraph.AddLibraryUsage(tt.libraryUsagePath, prodVPC.ID())
-			filteredModules, err := ApplyFilters(cfg.Snapshot(), flags, []*discovery.Module{stageVPC, stageEKS, prodVPC})
+			filteredModules, err := applyFilters(cfg.Snapshot(), flags, []*discovery.Module{stageVPC, stageEKS, prodVPC})
 			if err != nil {
-				t.Fatalf("ApplyFilters() error = %v", err)
+				t.Fatalf("applyFilters() error = %v", err)
 			}
 			result := &Result{
 				All:      NewModuleSet([]*discovery.Module{stageVPC, stageEKS, prodVPC}),
@@ -379,7 +379,7 @@ func TestResolveTargets_ChangedLibrariesIntersectModuleAndFilters(t *testing.T) 
 				Graph:    depGraph,
 			}
 
-			targets, err := resolveTargets(context.Background(), workDir, cfg.Snapshot(), result, TargetSelectionOptions{
+			targets, err := resolveTargets(context.Background(), workDir, cfg.Snapshot(), result, targetSelectionOptions{
 				ChangedOnly: true,
 				ModulePath:  tt.modulePath,
 				Filters:     flags,

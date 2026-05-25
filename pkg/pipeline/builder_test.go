@@ -32,7 +32,7 @@ func TestBuild_SingleModule(t *testing.T) {
 	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
 	modules := []*discovery.Module{mod}
 
-	ir, err := build(testBuildOptions(modules, nil, BuildRequirements{}))
+	ir, err := buildProjectIR(testProjectIRBuildInput(modules, nil, BuildRequirements{}))
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestBuild_RequirementsPlanOnlySuppressesApply(t *testing.T) {
 	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
 	modules := []*discovery.Module{mod}
 
-	ir, err := build(testBuildOptions(modules, nil, BuildRequirements{PlanOnly: true}))
+	ir, err := buildProjectIR(testProjectIRBuildInput(modules, nil, BuildRequirements{PlanOnly: true}))
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestBuild_RequiredPlanJSONMakesOnlyMatchingModuleDetailed(t *testing.T) {
 	app := discovery.TestModule("svc", "prod", "eu", "app")
 	modules := []*discovery.Module{vpc, app}
 
-	ir, err := build(testBuildOptions(modules, [][2]int{{1, 0}}, RequirementsForResources(
+	ir, err := buildProjectIR(testProjectIRBuildInput(modules, [][2]int{{1, 0}}, RequirementsForResources(
 		ModulePlanResource(ResourceKindPlanJSON, app.RelativePath),
 	)))
 	if err != nil {
@@ -100,14 +100,14 @@ func TestBuild_ContributedPlanConsumerAddsArtifactDependency(t *testing.T) {
 
 	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
 	modules := []*discovery.Module{mod}
-	opts := testBuildOptions(modules, nil, BuildRequirements{})
+	opts := testProjectIRBuildInput(modules, nil, BuildRequirements{})
 	opts.Contributions = []*Contribution{mustContribution(t, mustContributedJob(t, ContributedJobOptions{
 		Name:     "cost-estimation",
 		Commands: []string{"terraci cost"},
 		Consumes: []ResourceRequest{AllPlanResources(ResourceKindPlanJSON)},
 	}))}
 
-	ir, err := build(opts)
+	ir, err := buildProjectIR(opts)
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
@@ -135,7 +135,7 @@ func TestBuild_ApplyConsumesOnlyOwnPlanBinary(t *testing.T) {
 	app := discovery.TestModule("svc", "prod", "eu", "app")
 	modules := []*discovery.Module{vpc, app}
 
-	ir, err := build(testBuildOptions(modules, [][2]int{{1, 0}}, BuildRequirements{}))
+	ir, err := buildProjectIR(testProjectIRBuildInput(modules, [][2]int{{1, 0}}, BuildRequirements{}))
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestBuild_SummaryConsumesProducedReportsOnly(t *testing.T) {
 
 	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
 	modules := []*discovery.Module{mod}
-	opts := testBuildOptions(modules, nil, BuildRequirements{})
+	opts := testProjectIRBuildInput(modules, nil, BuildRequirements{})
 	opts.Contributions = []*Contribution{mustContribution(t,
 		mustContributedJob(t, ContributedJobOptions{
 			Name:     "policy-check",
@@ -179,7 +179,7 @@ func TestBuild_SummaryConsumesProducedReportsOnly(t *testing.T) {
 		}),
 	)}
 
-	ir, err := build(opts)
+	ir, err := buildProjectIR(opts)
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
@@ -204,16 +204,16 @@ func TestBuild_RequiredPlanResourceWithPlanDisabledReturnsError(t *testing.T) {
 
 	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
 	modules := []*discovery.Module{mod}
-	opts := testBuildOptions(modules, nil, RequirementsForResources(AllPlanResources(ResourceKindPlanJSON)))
+	opts := testProjectIRBuildInput(modules, nil, RequirementsForResources(AllPlanResources(ResourceKindPlanJSON)))
 	opts.PlanEnabled = false
 	opts.Script.PlanEnabled = false
 
-	_, err := build(opts)
+	_, err := buildProjectIR(opts)
 	if err == nil {
-		t.Fatal("build() error = nil, want missing resource error")
+		t.Fatal("buildProjectIR() error = nil, want missing resource error")
 	}
 	if !strings.Contains(err.Error(), "pipeline required resources requires unavailable plan_json for all modules") {
-		t.Fatalf("build() error = %q", err)
+		t.Fatalf("buildProjectIR() error = %q", err)
 	}
 }
 
@@ -270,14 +270,14 @@ func TestBuild_ValidatesResourceRequestsWithContext(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := testBuildOptions(modules, nil, tt.requirements)
+			opts := testProjectIRBuildInput(modules, nil, tt.requirements)
 			opts.Contributions = tt.contributions
-			_, err := build(opts)
+			_, err := buildProjectIR(opts)
 			if err == nil {
-				t.Fatal("build() error = nil, want validation error")
+				t.Fatal("buildProjectIR() error = nil, want validation error")
 			}
 			if !strings.Contains(err.Error(), tt.wantErrSubstr) {
-				t.Fatalf("build() error = %q, want substring %q", err.Error(), tt.wantErrSubstr)
+				t.Fatalf("buildProjectIR() error = %q, want substring %q", err.Error(), tt.wantErrSubstr)
 			}
 		})
 	}
@@ -288,7 +288,7 @@ func TestBuild_OptionalMissingPluginResourceDoesNotCreateDependency(t *testing.T
 
 	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
 	modules := []*discovery.Module{mod}
-	opts := testBuildOptions(modules, nil, BuildRequirements{PlanOnly: true})
+	opts := testProjectIRBuildInput(modules, nil, BuildRequirements{PlanOnly: true})
 	opts.Contributions = []*Contribution{mustContribution(t, mustContributedJob(t, ContributedJobOptions{
 		Name:     "summary",
 		Commands: []string{"summary"},
@@ -297,9 +297,9 @@ func TestBuild_OptionalMissingPluginResourceDoesNotCreateDependency(t *testing.T
 		},
 	}))}
 
-	ir, err := build(opts)
+	ir, err := buildProjectIR(opts)
 	if err != nil {
-		t.Fatalf("build() error = %v", err)
+		t.Fatalf("buildProjectIR() error = %v", err)
 	}
 	summary := findJob(ir.jobs, "summary")
 	if summary == nil {
@@ -338,14 +338,14 @@ func TestBuild_RejectsInvalidContributedJobGraph(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := testBuildOptions(modules, nil, BuildRequirements{})
+			opts := testProjectIRBuildInput(modules, nil, BuildRequirements{})
 			opts.Contributions = []*Contribution{tt.contribution}
-			_, err := build(opts)
+			_, err := buildProjectIR(opts)
 			if err == nil {
-				t.Fatal("build() error = nil, want error")
+				t.Fatal("buildProjectIR() error = nil, want error")
 			}
 			if !strings.Contains(err.Error(), tt.wantErrSubstr) {
-				t.Fatalf("build() error = %q, want substring %q", err.Error(), tt.wantErrSubstr)
+				t.Fatalf("buildProjectIR() error = %q, want substring %q", err.Error(), tt.wantErrSubstr)
 			}
 		})
 	}
@@ -368,8 +368,8 @@ func TestIR_ModuleCountCountsDistinctModules(t *testing.T) {
 	}
 }
 
-func testBuildOptions(modules []*discovery.Module, edges [][2]int, requirements BuildRequirements) buildOptions {
-	return buildOptions{
+func testProjectIRBuildInput(modules []*discovery.Module, edges [][2]int, requirements BuildRequirements) projectIRBuildInput {
+	return projectIRBuildInput{
 		DepGraph:      buildGraph(modules, edges),
 		TargetModules: modules,
 		AllModules:    modules,

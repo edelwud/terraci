@@ -5,6 +5,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
+	"sync"
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/ci"
@@ -12,7 +14,6 @@ import (
 	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
-	"github.com/edelwud/terraci/pkg/pipeline/pipelinetest"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	"github.com/edelwud/terraci/pkg/workflow"
@@ -55,38 +56,22 @@ func (f *fakeRuntimeFactory) Build(*plugin.AppContext, runner.Options) (*runner.
 }
 
 type fakeJobRunner struct {
+	mu   sync.Mutex
 	jobs []string
 	err  error
 }
 
 func (r *fakeJobRunner) Run(_ context.Context, job *pipeline.Job) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.jobs = append(r.jobs, job.Name())
 	return r.err
 }
 
-type fakePlanner struct {
-	plan          *pipeline.IR
-	err           error
-	calls         int
-	project       *workflow.ProjectResult
-	mode          spec.ExecutionMode
-	parallelism   int
-	planEnabled   bool
-	filteredCount int
-	contributions []*pipeline.Contribution
-}
-
-func (p *fakePlanner) Build(project *workflow.ProjectResult, execCfg execution.Config, mode spec.ExecutionMode, contributions []*pipeline.Contribution) (*pipeline.IR, error) {
-	p.calls++
-	p.project = project
-	p.mode = mode
-	p.parallelism = execCfg.Parallelism
-	p.planEnabled = execCfg.PlanEnabled
-	p.contributions = contributions
-	if project != nil && project.Workflow != nil {
-		p.filteredCount = len(project.Workflow.Filtered.Modules)
-	}
-	return p.plan, p.err
+func (r *fakeJobRunner) Jobs() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.jobs...)
 }
 
 type fakeContributionCollector struct {
@@ -155,7 +140,7 @@ func TestUseCase_RunUsesInjectedDependencies(t *testing.T) {
 	}
 }
 
-func TestUseCase_RunUsesInjectedPlanner(t *testing.T) {
+func TestUseCase_RunBuildsIRFromProjectAndContributions(t *testing.T) {
 	workDir := t.TempDir()
 	modulePath := filepath.Join(workDir, "platform", "stage", "eu-central-1", "vpc")
 	if err := os.MkdirAll(modulePath, 0o755); err != nil {
@@ -167,8 +152,6 @@ func TestUseCase_RunUsesInjectedPlanner(t *testing.T) {
 
 	appCtx := plugintest.NewAppContext(t, workDir)
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
-	ir := pipelinetest.MustCommandIR(t, testCommandJob("summary"))
-	plannerStub := &fakePlanner{plan: ir}
 	contributionCollector := &fakeContributionCollector{
 		contributions: []*pipeline.Contribution{mustContribution(t, pipeline.ContributedJobOptions{
 			Name:     "contributed",
@@ -176,15 +159,15 @@ func TestUseCase_RunUsesInjectedPlanner(t *testing.T) {
 		})},
 	}
 	loader := &fakeSummaryReportLoader{}
+	jobRunner := &fakeJobRunner{}
 
 	runtimeFactory := &fakeRuntimeFactory{runtime: &runner.Runtime{
 		ExecConfig: execution.Config{PlanEnabled: true, Parallelism: 3},
-		JobRunner:  &fakeJobRunner{},
+		JobRunner:  jobRunner,
 	}}
 	useCase := New(
 		appCtx,
 		WithProjectPlanner(fakeProjectWithTargets(module)),
-		WithIRPlanner(plannerStub),
 		WithContributionCollector(contributionCollector),
 		WithRuntimeFactory(runtimeFactory),
 		WithSummaryReports(loader),
@@ -194,33 +177,15 @@ func TestUseCase_RunUsesInjectedPlanner(t *testing.T) {
 		t.Fatalf("Run() error = %v", err)
 	}
 
-	if plannerStub.calls != 1 {
-		t.Fatalf("planner calls = %d, want 1", plannerStub.calls)
-	}
-	if plannerStub.mode != spec.ExecutionModePlan {
-		t.Fatalf("planner mode = %v, want %v", plannerStub.mode, spec.ExecutionModePlan)
-	}
-	if plannerStub.parallelism != 3 {
-		t.Fatalf("planner parallelism = %d, want 3", plannerStub.parallelism)
-	}
-	if !plannerStub.planEnabled {
-		t.Fatal("planner exec config should preserve plan_enabled")
-	}
-	if plannerStub.project == nil || len(plannerStub.project.Targets) != 1 || plannerStub.project.Targets[0].ID() != module.ID() {
-		t.Fatalf("planner project targets = %#v, want module %q", plannerStub.project, module.ID())
-	}
-	if plannerStub.filteredCount != 1 {
-		t.Fatalf("planner filtered count = %d, want 1", plannerStub.filteredCount)
-	}
 	if contributionCollector.calls != 1 {
 		t.Fatalf("contribution collector calls = %d, want 1", contributionCollector.calls)
 	}
-	if len(plannerStub.contributions) != 1 {
-		t.Fatalf("planner contributions = %#v, want one contribution", plannerStub.contributions)
+	executedJobs := jobRunner.Jobs()
+	if !containsJob(executedJobs, pipeline.JobName(pipeline.JobKindPlan, module)) {
+		t.Fatalf("executed jobs = %#v, want module plan job", executedJobs)
 	}
-	jobs := plannerStub.contributions[0].Jobs()
-	if len(jobs) != 1 || jobs[0].Name() != "contributed" {
-		t.Fatalf("planner contributions = %#v, want contributed job", plannerStub.contributions)
+	if !containsJob(executedJobs, "contributed") {
+		t.Fatalf("executed jobs = %#v, want contributed job", executedJobs)
 	}
 	if loader.calls != 1 {
 		t.Fatalf("summary loader calls = %d, want 1", loader.calls)
@@ -231,13 +196,11 @@ func TestUseCase_RunNoTargetsSkipsExecutionDependencies(t *testing.T) {
 	workDir, module := testWorkDirWithModule(t)
 	appCtx := plugintest.NewAppContext(t, workDir)
 	runtimeFactory := &fakeRuntimeFactory{err: errors.New("runtime should not be built")}
-	plannerStub := &fakePlanner{err: errors.New("planner should not be called")}
 	loader := &fakeSummaryReportLoader{err: errors.New("summary should not be loaded")}
 
 	useCase := New(
 		appCtx,
 		WithProjectPlanner(fakeProjectPlanner{project: &workflow.ProjectResult{Workflow: fakeWorkflowResult(module)}}),
-		WithIRPlanner(plannerStub),
 		WithRuntimeFactory(runtimeFactory),
 		WithSummaryReports(loader),
 	)
@@ -252,9 +215,6 @@ func TestUseCase_RunNoTargetsSkipsExecutionDependencies(t *testing.T) {
 
 	if runtimeFactory.calls != 0 {
 		t.Fatalf("runtime factory calls = %d, want 0", runtimeFactory.calls)
-	}
-	if plannerStub.calls != 0 {
-		t.Fatalf("planner calls = %d, want 0", plannerStub.calls)
 	}
 	if loader.calls != 0 {
 		t.Fatalf("summary loader calls = %d, want 0", loader.calls)
@@ -280,40 +240,33 @@ func TestUseCase_RunReturnsRuntimeFactoryError(t *testing.T) {
 	workDir, module := testWorkDirWithModule(t)
 	appCtx := plugintest.NewAppContext(t, workDir)
 	wantErr := errors.New("build runtime")
-	plannerStub := &fakePlanner{err: errors.New("planner should not be called")}
 
 	_, err := New(
 		appCtx,
 		WithProjectPlanner(fakeProjectWithTargets(module)),
-		WithIRPlanner(plannerStub),
 		WithRuntimeFactory(&fakeRuntimeFactory{err: wantErr}),
 	).Run(context.Background(), spec.Request{})
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("Run() error = %v, want %v", err, wantErr)
 	}
-	if plannerStub.calls != 0 {
-		t.Fatalf("planner calls = %d, want 0", plannerStub.calls)
-	}
 }
 
-func TestUseCase_RunReturnsPlannerError(t *testing.T) {
+func TestUseCase_RunReturnsBuildProjectIRError(t *testing.T) {
 	workDir, module := testWorkDirWithModule(t)
 	appCtx := plugintest.NewAppContext(t, workDir)
-	wantErr := errors.New("build plan")
 	loader := &fakeSummaryReportLoader{}
 
 	_, err := New(
 		appCtx,
-		WithProjectPlanner(fakeProjectWithTargets(module)),
-		WithIRPlanner(&fakePlanner{err: wantErr}),
+		WithProjectPlanner(fakeProjectPlanner{project: invalidProjectWithTargets(module)}),
 		WithRuntimeFactory(&fakeRuntimeFactory{runtime: &runner.Runtime{
 			ExecConfig: execution.Config{PlanEnabled: true, Parallelism: 1},
 			JobRunner:  &fakeJobRunner{},
 		}}),
 		WithSummaryReports(loader),
 	).Run(context.Background(), spec.Request{})
-	if !errors.Is(err, wantErr) {
-		t.Fatalf("Run() error = %v, want %v", err, wantErr)
+	if err == nil || err.Error() != "build local execution plan: project workflow graph is required" {
+		t.Fatalf("Run() error = %v, want invalid project graph", err)
 	}
 	if loader.calls != 0 {
 		t.Fatalf("summary loader calls = %d, want 0", loader.calls)
@@ -329,7 +282,9 @@ func TestUseCase_RunReturnsExecutionResultOnJobFailure(t *testing.T) {
 	result, err := New(
 		appCtx,
 		WithProjectPlanner(fakeProjectWithTargets(module)),
-		WithIRPlanner(&fakePlanner{plan: pipelinetest.MustCommandIR(t, testCommandJob("summary"))}),
+		WithContributionCollector(&fakeContributionCollector{contributions: []*pipeline.Contribution{
+			mustContribution(t, testCommandJob("summary")),
+		}}),
 		WithRuntimeFactory(&fakeRuntimeFactory{runtime: &runner.Runtime{
 			ExecConfig: execution.Config{PlanEnabled: true, Parallelism: 1},
 			JobRunner:  &fakeJobRunner{err: jobErr},
@@ -388,7 +343,6 @@ func TestNewRestoresDefaultsAfterNilOverrides(t *testing.T) {
 	useCase := New(
 		appCtx,
 		WithProjectPlanner(nil),
-		WithIRPlanner(nil),
 		WithContributionCollector(nil),
 		WithRuntimeFactory(nil),
 		WithSummaryReports(nil),
@@ -396,9 +350,6 @@ func TestNewRestoresDefaultsAfterNilOverrides(t *testing.T) {
 
 	if useCase.projects == nil {
 		t.Fatal("projects = nil, want default planner")
-	}
-	if useCase.irPlanner == nil {
-		t.Fatal("planner = nil, want default builder")
 	}
 	if useCase.contributions == nil {
 		t.Fatal("contributions = nil, want default collector")
@@ -412,7 +363,6 @@ func TestNewRestoresDefaultsAfterNilOverrides(t *testing.T) {
 }
 
 var _ ProjectPlanner = fakeProjectPlanner{}
-var _ IRPlanner = (*fakePlanner)(nil)
 var _ runner.Factory = (*fakeRuntimeFactory)(nil)
 var _ reports.Loader = (*fakeSummaryReportLoader)(nil)
 
@@ -438,6 +388,15 @@ func fakeProjectWithTargets(targets ...*discovery.Module) ProjectPlanner {
 	}}
 }
 
+func invalidProjectWithTargets(targets ...*discovery.Module) *workflow.ProjectResult {
+	return &workflow.ProjectResult{
+		Workflow: &workflow.Result{
+			Filtered: workflow.NewModuleSet(targets),
+		},
+		Targets: targets,
+	}
+}
+
 func fakeWorkflowResult(modules ...*discovery.Module) *workflow.Result {
 	return &workflow.Result{
 		All:      workflow.NewModuleSet(modules),
@@ -448,4 +407,8 @@ func fakeWorkflowResult(modules ...*discovery.Module) *workflow.Result {
 
 func testCommandJob(name string) pipeline.ContributedJobOptions {
 	return pipeline.ContributedJobOptions{Name: name, Commands: []string{"true"}}
+}
+
+func containsJob(jobs []string, name string) bool {
+	return slices.Contains(jobs, name)
 }

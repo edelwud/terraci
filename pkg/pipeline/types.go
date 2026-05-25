@@ -99,18 +99,6 @@ type ContributedJob struct {
 	allowFailure bool
 }
 
-// NewIR builds a validated IR from already-constructed jobs. It exists for
-// advanced in-process callers and tests that need command-only pipelines; normal
-// project pipelines should be built through BuildProjectIR.
-func NewIR(jobs ...Job) (*IR, error) {
-	clone := cloneJobs(jobs)
-	ir := &IR{jobs: clone}
-	if err := ir.Validate(); err != nil {
-		return nil, err
-	}
-	return ir, nil
-}
-
 // Jobs returns the IR jobs in deterministic execution-plan order.
 func (ir *IR) Jobs() []Job {
 	if ir == nil {
@@ -130,8 +118,7 @@ func cloneJobs(jobs []Job) []Job {
 	return clone
 }
 
-// NewCommandJob builds a validated command job that can be wrapped in NewIR.
-func NewCommandJob(job ContributedJob) Job {
+func newCommandJob(job ContributedJob) Job {
 	produces := job.Produces()
 	return Job{
 		name:           job.Name(),

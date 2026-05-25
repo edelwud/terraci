@@ -11,8 +11,7 @@ import (
 	"github.com/edelwud/terraci/pkg/workspacepath"
 )
 
-// TargetSelectionOptions controls how executable targets are selected from a workflow result.
-type TargetSelectionOptions struct {
+type targetSelectionOptions struct {
 	ModulePath  string
 	ChangedOnly bool
 	BaseRef     string
@@ -24,17 +23,12 @@ type TargetSelectionOptions struct {
 // ChangeDetectorResolver resolves the change detection provider for changed-only target selection.
 type ChangeDetectorResolver func() (ChangeDetector, error)
 
-// ResolveTargets applies module/path filters and optional change detection to a workflow result.
-func ResolveTargets(ctx context.Context, workDir string, cfg config.Snapshot, result *Result, opts TargetSelectionOptions) ([]*discovery.Module, error) {
-	return resolveTargets(ctx, workDir, cfg, result, opts)
-}
-
 func resolveTargets(
 	ctx context.Context,
 	workDir string,
 	cfg config.Snapshot,
 	result *Result,
-	opts TargetSelectionOptions,
+	opts targetSelectionOptions,
 ) ([]*discovery.Module, error) {
 	if !cfg.Present() {
 		return nil, errors.New("config is required")
@@ -133,11 +127,11 @@ func resolveAffectedModules(
 		}
 	}
 
-	// Pre-compile the filter matcher once: each call to ApplyFilters parsed
+	// Pre-compile the filter matcher once: each call to applyFilters parsed
 	// the same exclude/include glob patterns from scratch, which became
 	// O(N×M) on repos with many changed-but-excluded modules. The Matcher
 	// holds the compiled predicates and is reused inside the loop.
-	matcher, err := MergedFilterOptions(cfg, ff).Compile()
+	matcher, err := mergedFilterOptions(cfg, ff).Compile()
 	if err != nil {
 		return nil, err
 	}

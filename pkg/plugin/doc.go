@@ -103,8 +103,7 @@
 // values and read them through getters such as IR.Jobs, Job.Operation, and
 // Operation.Terraform. External plugin authors should not construct IR, Job,
 // Operation, or TerraformOperation literals. Tests and advanced in-process
-// tooling can use pkg/pipeline/pipelinetest or pipeline.NewIR for validated
-// synthetic fixtures.
+// tooling can use pkg/pipeline/pipelinetest for validated synthetic fixtures.
 //
 // # Init wizard boundary
 //

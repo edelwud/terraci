@@ -77,8 +77,7 @@ type Result struct {
 	Warnings     []error
 }
 
-// Run executes the full module workflow: scan → filter → parse → build graph.
-func Run(ctx context.Context, opts Options) (*Result, error) {
+func run(ctx context.Context, opts Options) (*Result, error) {
 	scanner := discovery.NewScanner(opts.WorkDir, opts.Segments, opts.LibraryPaths...)
 
 	allModules, err := scanner.Scan(ctx)

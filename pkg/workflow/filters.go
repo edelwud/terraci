@@ -6,20 +6,18 @@ import (
 	"github.com/edelwud/terraci/pkg/filter"
 )
 
-// MergedFilterOptions merges config defaults with CLI filter flags.
-func MergedFilterOptions(cfg config.Snapshot, ff *filter.Flags) filter.Options {
+func mergedFilterOptions(cfg config.Snapshot, ff *filter.Flags) filter.Options {
 	if !cfg.Present() {
 		cfg = config.DefaultConfig().Snapshot()
 	}
 	return ff.Merge(cfg.Exclude(), cfg.Include())
 }
 
-// OptionsFromConfig builds workflow options from configuration and CLI filters.
-func OptionsFromConfig(workDir string, cfg config.Snapshot, ff *filter.Flags) Options {
+func optionsFromConfig(workDir string, cfg config.Snapshot, ff *filter.Flags) Options {
 	if !cfg.Present() {
 		cfg = config.DefaultConfig().Snapshot()
 	}
-	opts := MergedFilterOptions(cfg, ff)
+	opts := mergedFilterOptions(cfg, ff)
 	structure := cfg.Structure()
 	return Options{
 		WorkDir:        workDir,
@@ -41,7 +39,6 @@ func libraryPathsFromConfig(cfg config.Snapshot) []string {
 	return libraryModules.Paths
 }
 
-// ApplyFilters applies config and CLI filters to a module list.
-func ApplyFilters(cfg config.Snapshot, ff *filter.Flags, modules []*discovery.Module) ([]*discovery.Module, error) {
-	return filter.Apply(modules, MergedFilterOptions(cfg, ff))
+func applyFilters(cfg config.Snapshot, ff *filter.Flags, modules []*discovery.Module) ([]*discovery.Module, error) {
+	return filter.Apply(modules, mergedFilterOptions(cfg, ff))
 }
