@@ -31,15 +31,14 @@ func (p stagePlanner) plan(ir *pipeline.IR) (stagePlan, error) {
 	}
 	seen := make(map[string]struct{}, len(groups))
 	for _, group := range groups {
-		stage := p.gitlabStageName(group.Name)
+		stage := p.gitlabStageName(group.Name())
 		if _, ok := seen[stage]; !ok {
 			seen[stage] = struct{}{}
 			result.stages = append(result.stages, stage)
 		}
-		for _, job := range group.Jobs {
-			if job != nil {
-				result.stageByJob[job.Name()] = stage
-			}
+		jobs := group.Jobs()
+		for i := range jobs {
+			result.stageByJob[jobs[i].Name()] = stage
 		}
 	}
 	return result, nil

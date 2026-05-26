@@ -14,6 +14,7 @@ import (
 	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
+	"github.com/edelwud/terraci/pkg/pipeline/pipelinetest"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	"github.com/edelwud/terraci/pkg/workflow"
@@ -181,7 +182,8 @@ func TestUseCase_RunBuildsIRFromProjectAndContributions(t *testing.T) {
 		t.Fatalf("contribution collector calls = %d, want 1", contributionCollector.calls)
 	}
 	executedJobs := jobRunner.Jobs()
-	if !containsJob(executedJobs, pipeline.JobName(pipeline.JobKindPlan, module)) {
+	planJob := pipelinetest.MustJobByKind(t, pipelinetest.MustSingleModuleIR(t, module), pipeline.JobKindPlan)
+	if !containsJob(executedJobs, planJob.Name()) {
 		t.Fatalf("executed jobs = %#v, want module plan job", executedJobs)
 	}
 	if !containsJob(executedJobs, "contributed") {

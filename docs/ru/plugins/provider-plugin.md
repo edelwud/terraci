@@ -50,6 +50,8 @@ func (p *Plugin) NewGenerator(ctx *plugin.AppContext, ir *pipeline.IR) pipeline.
 
 func (g *generator) Generate() (pipeline.GeneratedPipeline, error) {
     // IR — это flat DAG из pipeline.Job value objects.
+    // Если провайдеру нужны barrier groups, pipeline.Schedule возвращает
+    // read-only группы с group.Name(), group.Jobs() и group.JobCount().
     for _, job := range g.ir.Jobs() {
         // job.Kind() — plan, apply или command
         // job.Module() — module metadata для plan/apply

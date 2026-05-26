@@ -11,7 +11,7 @@ import (
 )
 
 func TestGenerate_SingleModule(t *testing.T) {
-	module := createTestModule("platform", "stage", "eu-central-1", "vpc")
+	module := createTestModule("vpc")
 	workflow := newGeneratorScenario(t).
 		withModules(module).
 		withDependencies(map[string][]string{module.ID(): {}}).
@@ -45,8 +45,8 @@ func TestGenerate_RejectsInvalidIR(t *testing.T) {
 }
 
 func TestGenerate_WithDependencies(t *testing.T) {
-	vpc := createTestModule("platform", "stage", "eu-central-1", "vpc")
-	eks := createTestModule("platform", "stage", "eu-central-1", "eks")
+	vpc := createTestModule("vpc")
+	eks := createTestModule("eks")
 	workflow := newGeneratorScenario(t).
 		withModules(vpc, eks).
 		withDependencies(map[string][]string{
@@ -61,7 +61,7 @@ func TestGenerate_WithDependencies(t *testing.T) {
 }
 
 func TestGenerate_PlanOnly(t *testing.T) {
-	module := createTestModule("platform", "stage", "eu-central-1", "vpc")
+	module := createTestModule("vpc")
 	workflow := newGeneratorScenario(t).
 		withConfig(func(cfg *configpkg.Config) {
 			cfg.PlanOnly = true
@@ -80,8 +80,8 @@ func TestGenerate_PlanOnly(t *testing.T) {
 }
 
 func TestGenerate_PlanOnlyWithDeps(t *testing.T) {
-	vpc := createTestModule("platform", "stage", "eu-central-1", "vpc")
-	eks := createTestModule("platform", "stage", "eu-central-1", "eks")
+	vpc := createTestModule("vpc")
+	eks := createTestModule("eks")
 	workflow := newGeneratorScenario(t).
 		withConfig(func(cfg *configpkg.Config) {
 			cfg.PlanOnly = true
@@ -103,7 +103,7 @@ func TestGenerate_PlanOnlyWithDeps(t *testing.T) {
 }
 
 func TestGenerate_ApplyHasNoEnvironmentByDefault(t *testing.T) {
-	module := createTestModule("platform", "stage", "eu-central-1", "vpc")
+	module := createTestModule("vpc")
 	workflow := newGeneratorScenario(t).
 		withModules(module).
 		withDependencies(map[string][]string{module.ID(): {}}).
@@ -115,7 +115,7 @@ func TestGenerate_ApplyHasNoEnvironmentByDefault(t *testing.T) {
 }
 
 func TestGenerate_ApplyEnvironmentFromOverwrite(t *testing.T) {
-	module := createTestModule("platform", "stage", "eu-central-1", "vpc")
+	module := createTestModule("vpc")
 	workflow := newGeneratorScenario(t).
 		withConfig(func(cfg *configpkg.Config) {
 			cfg.Overwrites = []configpkg.JobOverwrite{{Type: configpkg.OverwriteTypeApply, Environment: "production"}}
@@ -130,7 +130,7 @@ func TestGenerate_ApplyEnvironmentFromOverwrite(t *testing.T) {
 }
 
 func TestGenerate_CustomBinary(t *testing.T) {
-	module := createTestModule("platform", "stage", "eu-central-1", "vpc")
+	module := createTestModule("vpc")
 	workflow := newGeneratorScenario(t).
 		withExecution(func(cfg *execution.Config) { cfg.Binary = "tofu" }).
 		withModules(module).
@@ -141,7 +141,7 @@ func TestGenerate_CustomBinary(t *testing.T) {
 }
 
 func TestGenerate_WithContainer(t *testing.T) {
-	module := createTestModule("platform", "stage", "eu-central-1", "vpc")
+	module := createTestModule("vpc")
 	workflow := newGeneratorScenario(t).
 		withConfig(func(cfg *configpkg.Config) {
 			cfg.Container = &configpkg.Image{Name: "hashicorp/terraform:1.6"}
@@ -156,7 +156,7 @@ func TestGenerate_WithContainer(t *testing.T) {
 }
 
 func TestGenerate_StepsBefore(t *testing.T) {
-	module := createTestModule("platform", "stage", "eu-central-1", "vpc")
+	module := createTestModule("vpc")
 	workflow := newGeneratorScenario(t).
 		withConfig(func(cfg *configpkg.Config) {
 			cfg.JobDefaults = &configpkg.JobDefaults{
@@ -196,8 +196,8 @@ func TestGenerate_StepsBefore(t *testing.T) {
 }
 
 func TestDryRun(t *testing.T) {
-	vpc := createTestModule("platform", "stage", "eu-central-1", "vpc")
-	eks := createTestModule("platform", "stage", "eu-central-1", "eks")
+	vpc := createTestModule("vpc")
+	eks := createTestModule("eks")
 	result := newGeneratorScenario(t).
 		withModules(vpc, eks).
 		withDependencies(map[string][]string{

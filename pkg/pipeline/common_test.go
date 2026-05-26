@@ -94,7 +94,7 @@ func TestPrepareModuleGraph(t *testing.T) {
 	}
 }
 
-func TestJobName(t *testing.T) {
+func TestJobNameInternal(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -127,15 +127,15 @@ func TestJobName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := JobName(tt.jobKind, tt.module)
+			got := jobName(tt.jobKind, tt.module)
 			if got != tt.expected {
-				t.Errorf("JobName() = %q, want %q", got, tt.expected)
+				t.Errorf("jobName() = %q, want %q", got, tt.expected)
 			}
 		})
 	}
 }
 
-func TestResolveDependencyNames(t *testing.T) {
+func TestResolveDependencyNamesInternal(t *testing.T) {
 	t.Parallel()
 
 	modA := discovery.TestModule("svc", "prod", "us-east-1", "vpc")
@@ -187,7 +187,7 @@ func TestResolveDependencyNames(t *testing.T) {
 				ids[i] = m.ID()
 			}
 			subgraph := depGraph.Subgraph(ids)
-			got := ResolveDependencyNames(tt.module, tt.jobKind, subgraph, idx)
+			got := resolveDependencyNames(tt.module, tt.jobKind, subgraph, idx)
 			if tt.wantNoNames {
 				if len(got) != 0 {
 					t.Errorf("expected no names, got %v", got)
@@ -206,7 +206,7 @@ func TestResolveDependencyNames(t *testing.T) {
 	}
 }
 
-func TestResolveDependencyNames_DepNotInIndex(t *testing.T) {
+func TestResolveDependencyNamesInternal_DepNotInIndex(t *testing.T) {
 	t.Parallel()
 
 	modA := discovery.TestModule("svc", "prod", "us-east-1", "vpc")
@@ -219,7 +219,7 @@ func TestResolveDependencyNames_DepNotInIndex(t *testing.T) {
 	idx := discovery.NewModuleIndex([]*discovery.Module{modB})
 
 	subgraph := depGraph.Subgraph([]string{modA.ID(), modB.ID()})
-	got := ResolveDependencyNames(modB, JobKindPlan, subgraph, idx)
+	got := resolveDependencyNames(modB, JobKindPlan, subgraph, idx)
 	// modA is in target set but not in index, so it should be skipped
 	if len(got) != 0 {
 		t.Errorf("expected no names when dep not in index, got %v", got)

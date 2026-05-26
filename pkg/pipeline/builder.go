@@ -170,15 +170,15 @@ func buildModuleJobs(plan *jobPlan, planEnabled, planOnly bool, script ScriptCon
 }
 
 func buildPlanJob(plan *jobPlan, mod *discovery.Module, env map[string]string, planOnly bool, script ScriptConfig, outputs PlanOutputs) Job {
-	planName := JobName(JobKindPlan, mod)
+	planName := jobName(JobKindPlan, mod)
 	modulePath := mod.ID()
 	planOperation, produces, artifact := script.NewPlanOperation(planName, modulePath, outputs)
 
 	var deps []JobDependency
 	if planOnly {
-		deps = controlDependencies(ResolveDependencyNames(mod, JobKindPlan, plan.subgraph, plan.moduleIndex))
+		deps = controlDependencies(resolveDependencyNames(mod, JobKindPlan, plan.subgraph, plan.moduleIndex))
 	} else {
-		deps = controlDependencies(ResolveDependencyNames(mod, JobKindApply, plan.subgraph, plan.moduleIndex))
+		deps = controlDependencies(resolveDependencyNames(mod, JobKindApply, plan.subgraph, plan.moduleIndex))
 	}
 
 	return Job{
@@ -196,7 +196,7 @@ func buildPlanJob(plan *jobPlan, mod *discovery.Module, env map[string]string, p
 func buildApplyJob(plan *jobPlan, mod *discovery.Module, env map[string]string, planJob *Job, script ScriptConfig) Job {
 	modulePath := mod.ID()
 	applyOperation := script.NewApplyOperation(modulePath)
-	applyDeps := controlDependencies(ResolveDependencyNames(mod, JobKindApply, plan.subgraph, plan.moduleIndex))
+	applyDeps := controlDependencies(resolveDependencyNames(mod, JobKindApply, plan.subgraph, plan.moduleIndex))
 	var consumes []ResourceSpec
 	var inputArtifacts []InputArtifact
 
@@ -214,7 +214,7 @@ func buildApplyJob(plan *jobPlan, mod *discovery.Module, env map[string]string, 
 	}
 
 	return Job{
-		name:           JobName(JobKindApply, mod),
+		name:           jobName(JobKindApply, mod),
 		kind:           JobKindApply,
 		module:         mod,
 		env:            env,

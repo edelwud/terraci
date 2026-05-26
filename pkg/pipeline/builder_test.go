@@ -37,11 +37,11 @@ func TestBuild_SingleModule(t *testing.T) {
 		t.Fatalf("Build: %v", err)
 	}
 
-	planJob := findJob(ir.jobs, JobName(JobKindPlan, mod))
+	planJob := findJob(ir.jobs, jobName(JobKindPlan, mod))
 	if planJob == nil {
 		t.Fatal("missing plan job")
 	}
-	applyJob := findJob(ir.jobs, JobName(JobKindApply, mod))
+	applyJob := findJob(ir.jobs, jobName(JobKindApply, mod))
 	if applyJob == nil {
 		t.Fatal("missing apply job")
 	}
@@ -63,7 +63,7 @@ func TestBuild_RequirementsPlanOnlySuppressesApply(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if findJob(ir.jobs, JobName(JobKindApply, mod)) != nil {
+	if findJob(ir.jobs, jobName(JobKindApply, mod)) != nil {
 		t.Fatal("PlanOnly requirement should suppress apply jobs")
 	}
 }
@@ -82,8 +82,8 @@ func TestBuild_RequiredPlanJSONMakesOnlyMatchingModuleDetailed(t *testing.T) {
 		t.Fatalf("Build: %v", err)
 	}
 
-	vpcPlan := findJob(ir.jobs, JobName(JobKindPlan, vpc))
-	appPlan := findJob(ir.jobs, JobName(JobKindPlan, app))
+	vpcPlan := findJob(ir.jobs, jobName(JobKindPlan, vpc))
+	appPlan := findJob(ir.jobs, jobName(JobKindPlan, app))
 	if vpcPlan.operation.terraform.detailedPlan {
 		t.Fatal("unrequested module plan should not be detailed")
 	}
@@ -116,7 +116,7 @@ func TestBuild_ContributedPlanConsumerAddsArtifactDependency(t *testing.T) {
 	if job == nil {
 		t.Fatal("cost-estimation job not found")
 	}
-	planName := JobName(JobKindPlan, mod)
+	planName := jobName(JobKindPlan, mod)
 	if !hasInputArtifact(job.inputArtifacts, PlanArtifactName(planName), planName, false) {
 		t.Fatalf("input artifacts = %#v, want plan artifact", job.inputArtifacts)
 	}
@@ -140,17 +140,17 @@ func TestBuild_ApplyConsumesOnlyOwnPlanBinary(t *testing.T) {
 		t.Fatalf("Build: %v", err)
 	}
 
-	appApply := findJob(ir.jobs, JobName(JobKindApply, app))
+	appApply := findJob(ir.jobs, jobName(JobKindApply, app))
 	if appApply == nil {
 		t.Fatal("app apply job not found")
 	}
-	if !hasDependency(appApply.dependencies, JobName(JobKindPlan, app)) {
+	if !hasDependency(appApply.dependencies, jobName(JobKindPlan, app)) {
 		t.Fatalf("app apply dependencies = %#v, want own plan artifact", appApply.dependencies)
 	}
-	if !hasDependency(appApply.dependencies, JobName(JobKindApply, vpc)) {
+	if !hasDependency(appApply.dependencies, jobName(JobKindApply, vpc)) {
 		t.Fatalf("app apply dependencies = %#v, want upstream apply control dep", appApply.dependencies)
 	}
-	if !hasInputArtifact(appApply.inputArtifacts, PlanArtifactName(JobName(JobKindPlan, app)), JobName(JobKindPlan, app), false) {
+	if !hasInputArtifact(appApply.inputArtifacts, PlanArtifactName(jobName(JobKindPlan, app)), jobName(JobKindPlan, app), false) {
 		t.Fatalf("apply input artifacts = %#v, want own plan artifact only", appApply.inputArtifacts)
 	}
 }
@@ -191,7 +191,7 @@ func TestBuild_SummaryConsumesProducedReportsOnly(t *testing.T) {
 	if !hasDependency(summary.dependencies, "policy-check") {
 		t.Fatalf("summary dependencies = %#v, want policy artifact dependency", summary.dependencies)
 	}
-	if !hasDependency(summary.dependencies, JobName(JobKindPlan, mod)) {
+	if !hasDependency(summary.dependencies, jobName(JobKindPlan, mod)) {
 		t.Fatalf("summary dependencies = %#v, want plan artifact dependency", summary.dependencies)
 	}
 	if !hasInputArtifact(summary.inputArtifacts, ResultArtifactName("policy-check"), "policy-check", true) {
@@ -327,10 +327,10 @@ func TestBuild_RejectsInvalidContributedJobGraph(t *testing.T) {
 		{
 			name: "contributed job collides with module job",
 			contribution: mustContribution(t, mustContributedJob(t, ContributedJobOptions{
-				Name:     JobName(JobKindPlan, mod),
+				Name:     jobName(JobKindPlan, mod),
 				Commands: []string{"check"},
 			})),
-			wantErrSubstr: `duplicate job name "` + JobName(JobKindPlan, mod) + `"`,
+			wantErrSubstr: `duplicate job name "` + jobName(JobKindPlan, mod) + `"`,
 		},
 	}
 

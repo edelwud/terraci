@@ -79,15 +79,34 @@ func MustSingleModuleIR(tb testing.TB, module *discovery.Module) *pipeline.IR {
 // MustJobByKind returns the first job with kind.
 func MustJobByKind(tb testing.TB, ir *pipeline.IR, kind pipeline.JobKind) pipeline.Job {
 	tb.Helper()
-	jobs := ir.Jobs()
-	for i := range jobs {
-		if jobs[i].Kind() == kind {
-			return jobs[i]
-		}
+	jobs := ir.JobsByKind(kind)
+	if len(jobs) > 0 {
+		return jobs[0]
 	}
 	tb.Fatalf("job kind %q not found", kind)
 	var zero pipeline.Job
 	return zero
+}
+
+// MustJobForModule returns the job for module and kind without relying on
+// pipeline's internal module-job naming rules.
+func MustJobForModule(tb testing.TB, ir *pipeline.IR, kind pipeline.JobKind, module *discovery.Module) pipeline.Job {
+	tb.Helper()
+	job, ok := ir.JobForModule(kind, module)
+	if !ok {
+		tb.Fatalf("%s job for module %q not found", kind, module.ID())
+	}
+	return job
+}
+
+// MustFindJob returns a named job from a valid IR.
+func MustFindJob(tb testing.TB, ir *pipeline.IR, name string) pipeline.Job {
+	tb.Helper()
+	job, ok := ir.FindJob(name)
+	if !ok {
+		tb.Fatalf("job %q not found", name)
+	}
+	return job
 }
 
 func emptyProject() *workflow.ProjectResult {

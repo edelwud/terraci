@@ -25,8 +25,8 @@ func testContribution(tb testing.TB, opts ...pipeline.ContributedJobOptions) *pi
 }
 
 func TestGenerate_WithSummaryContribution(t *testing.T) {
-	vpc := createTestModule("platform", "stage", "eu-central-1", "vpc")
-	eks := createTestModule("platform", "stage", "eu-central-1", "eks")
+	vpc := createTestModule("vpc")
+	eks := createTestModule("eks")
 	workflow := newGeneratorScenario(t).
 		withContributions([]*pipeline.Contribution{testContribution(t, pipeline.ContributedJobOptions{
 			Name:     "terraci-summary",
@@ -51,7 +51,7 @@ func TestGenerate_WithSummaryContribution(t *testing.T) {
 }
 
 func TestGenerate_ContributedJobInheritsJobDefaults(t *testing.T) {
-	module := createTestModule("platform", "stage", "eu-central-1", "vpc")
+	module := createTestModule("vpc")
 	workflow := newGeneratorScenario(t).
 		withConfig(func(cfg *configpkg.Config) {
 			cfg.JobDefaults = &configpkg.JobDefaults{
@@ -81,7 +81,7 @@ func TestGenerate_ContributedJobInheritsJobDefaults(t *testing.T) {
 }
 
 func TestGenerate_ContributedJobOverwriteByName(t *testing.T) {
-	module := createTestModule("platform", "stage", "eu-central-1", "vpc")
+	module := createTestModule("vpc")
 	workflow := newGeneratorScenario(t).
 		withConfig(func(cfg *configpkg.Config) {
 			cfg.JobDefaults = &configpkg.JobDefaults{
@@ -117,7 +117,7 @@ func TestGenerate_ContributedJobOverwriteByName(t *testing.T) {
 }
 
 func TestGenerate_PlanAndApplyJobOverwritesUseResolvedProfile(t *testing.T) {
-	module := createTestModule("platform", "stage", "eu-central-1", "vpc")
+	module := createTestModule("vpc")
 	workflow := newGeneratorScenario(t).
 		withConfig(func(cfg *configpkg.Config) {
 			cfg.JobDefaults = &configpkg.JobDefaults{
@@ -175,7 +175,7 @@ func TestGenerate_PlanAndApplyJobOverwritesUseResolvedProfile(t *testing.T) {
 }
 
 func TestGenerate_ContributedJobAppliesAllMatchingOverwritesInOrder(t *testing.T) {
-	module := createTestModule("platform", "stage", "eu-central-1", "vpc")
+	module := createTestModule("vpc")
 	workflow := newGeneratorScenario(t).
 		withConfig(func(cfg *configpkg.Config) {
 			cfg.JobDefaults = &configpkg.JobDefaults{
@@ -226,7 +226,7 @@ func TestGenerate_ContributedJobAppliesAllMatchingOverwritesInOrder(t *testing.T
 }
 
 func TestGenerate_WithPolicy(t *testing.T) {
-	module := createTestModule("platform", "stage", "eu-central-1", "vpc")
+	module := createTestModule("vpc")
 	workflow := newGeneratorScenario(t).
 		withContributions([]*pipeline.Contribution{testContribution(t, pipeline.ContributedJobOptions{
 			Name:     "policy-check",
@@ -251,7 +251,7 @@ func TestGenerate_WithPolicy(t *testing.T) {
 }
 
 func TestGenerate_ArtifactRestoreContract(t *testing.T) {
-	module := createTestModule("platform", "stage", "eu-central-1", "vpc")
+	module := createTestModule("vpc")
 	planName := "plan-platform-stage-eu-central-1-vpc"
 	planArtifact := pipeline.PlanArtifactName(planName)
 	resultArtifact := pipeline.ResultArtifact("cost-estimation", ".terraci/cost-results.json", ".terraci/cost-report.json")

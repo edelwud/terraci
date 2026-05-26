@@ -66,18 +66,50 @@ func TestScheduleRejectsCycle(t *testing.T) {
 	}
 }
 
+func TestScheduleReturnsValueGroups(t *testing.T) {
+	t.Parallel()
+
+	ir := &IR{jobs: []Job{{name: "plan-0", env: map[string]string{"A": "B"}}}}
+	groups, err := Schedule(ir)
+	if err != nil {
+		t.Fatalf("Schedule() error = %v", err)
+	}
+	if len(groups) != 1 {
+		t.Fatalf("groups = %d, want 1", len(groups))
+	}
+
+	jobs := groups[0].Jobs()
+	if len(jobs) != 1 {
+		t.Fatalf("jobs = %d, want 1", len(jobs))
+	}
+	jobs[0].name = "mutated"
+	jobs[0].env["A"] = "changed"
+
+	fresh := groups[0].Jobs()
+	if got := fresh[0].Name(); got != "plan-0" {
+		t.Fatalf("group job mutation leaked: got %q", got)
+	}
+	if got := fresh[0].Env()["A"]; got != "B" {
+		t.Fatalf("group job env mutation leaked: got %q", got)
+	}
+	if got := ir.jobs[0].name; got != "plan-0" {
+		t.Fatalf("IR job mutation leaked: got %q", got)
+	}
+}
+
 func groupNames(groups []JobGroup) []string {
 	names := make([]string, 0, len(groups))
 	for _, group := range groups {
-		names = append(names, group.Name)
+		names = append(names, group.Name())
 	}
 	return names
 }
 
 func jobNamesInGroup(group JobGroup) []string {
-	names := make([]string, 0, len(group.Jobs))
-	for _, job := range group.Jobs {
-		names = append(names, job.name)
+	jobs := group.Jobs()
+	names := make([]string, 0, len(jobs))
+	for i := range jobs {
+		names = append(names, jobs[i].Name())
 	}
 	return names
 }

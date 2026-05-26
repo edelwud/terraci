@@ -90,6 +90,13 @@ func TestArchitecture_ConfigSnapshotAndDocs(t *testing.T) {
 	for _, rel := range goFiles(t, root, "pkg", "plugins", "cmd", "test", "examples") {
 		file := parseGoFile(t, filepath.Join(root, rel), 0)
 		ast.Inspect(file, func(node ast.Node) bool {
+			if isProductionFile(rel) {
+				if call, ok := node.(*ast.CallExpr); ok {
+					if selector, ok := callSelector(call); ok && selector.Sel.Name == "MutableCopy" {
+						violations = append(violations, rel+" calls MutableCopy in production code; consume config.Snapshot accessors or isolate compatibility adapters")
+					}
+				}
+			}
 			assign, ok := node.(*ast.AssignStmt)
 			if !ok {
 				return true
@@ -130,11 +137,15 @@ func TestArchitecture_ConfigSnapshotAndDocs(t *testing.T) {
 		"workflow.OptionsFromConfig()",
 		"pipeline.NewIR",
 		"pipeline.NewCommandJob",
+		"pipeline.JobName",
+		"discovery.NewScanner(appCtx.WorkDir()",
+		"Use `discovery.Scanner`",
+		"legacy pointer-shaped",
 		"pipeline.BuildOptions",
 		"localexec/internal/planner",
 	}
 	for _, rel := range textFiles(t, root, "AGENTS.md", "docs", "examples", "pkg/plugin/doc.go") {
-		if strings.HasPrefix(rel, "docs/.vitepress/dist/") {
+		if allowUnder(rel, "docs/.vitepress/dist/") {
 			continue
 		}
 		data, err := os.ReadFile(filepath.Join(root, rel))
@@ -143,9 +154,7 @@ func TestArchitecture_ConfigSnapshotAndDocs(t *testing.T) {
 		}
 		text := string(data)
 		for _, pattern := range stalePatterns {
-			if strings.Contains(text, pattern) {
-				violations = append(violations, rel+" contains stale mutable-config/manual-contribution reference "+strconv.Quote(pattern))
-			}
+			banTextPattern(&violations, rel, text, pattern, "stale mutable-config/manual-contribution reference")
 		}
 	}
 
@@ -369,7 +378,7 @@ func TestArchitecture_PipelineIRValueBoundaries(t *testing.T) {
 	var violations []string
 
 	for _, rel := range goFiles(t, root, "cmd", "pkg", "plugins", "test", "examples") {
-		if strings.HasPrefix(rel, "pkg/pipeline/") {
+		if allowUnder(rel, "pkg/pipeline/") {
 			continue
 		}
 		file := parseGoFile(t, filepath.Join(root, rel), 0)
@@ -392,6 +401,8 @@ func TestArchitecture_PipelineIRValueBoundaries(t *testing.T) {
 					violations = append(violations, rel+" calls pipeline.NewIR directly; use pipeline.BuildProjectIR or pkg/pipeline/pipelinetest")
 				case selectorCallMatches(selector, pipelineAliases, "NewCommandJob"):
 					violations = append(violations, rel+" calls pipeline.NewCommandJob directly; use pipeline.BuildProjectIR or pkg/pipeline/pipelinetest")
+				case selectorCallMatches(selector, pipelineAliases, "JobName"):
+					violations = append(violations, rel+" calls pipeline.JobName directly; use IR.JobForModule, IR.FindJob, or pkg/pipeline/pipelinetest")
 				}
 			case *ast.CompositeLit:
 				selector, ok := typed.Type.(*ast.SelectorExpr)
@@ -405,7 +416,7 @@ func TestArchitecture_PipelineIRValueBoundaries(t *testing.T) {
 				switch selector.Sel.Name {
 				case "BuildOptions":
 					violations = append(violations, rel+" manually constructs pipeline.BuildOptions; use pipeline.ProjectIRRequest")
-				case "IR", "Job", "Operation", "TerraformOperation":
+				case "IR", "Job", "Operation", "TerraformOperation", "JobGroup":
 					violations = append(violations, rel+" manually constructs pipeline."+selector.Sel.Name+"; use pipeline.BuildProjectIR or pkg/pipeline/pipelinetest")
 				}
 			}
@@ -578,6 +589,21 @@ func selectorCallMatches(selector *ast.SelectorExpr, aliases map[string]bool, na
 	}
 	ident, ok := selector.X.(*ast.Ident)
 	return ok && aliases[ident.Name]
+}
+
+func banTextPattern(violations *[]string, rel, text, pattern, reason string) {
+	if strings.Contains(text, pattern) {
+		*violations = append(*violations, rel+" contains "+reason+" "+strconv.Quote(pattern))
+	}
+}
+
+func allowUnder(rel string, prefixes ...string) bool {
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(rel, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func isMapStringMapStringAny(expr ast.Expr) bool {

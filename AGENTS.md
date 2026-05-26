@@ -90,10 +90,10 @@ pkg/                            # Public API — importable by external plugins 
 ├── pipeline/                   # Plugin-agnostic pipeline IR
 │   ├── types.go                # IR, Job, Operation, TerraformOperation, Contribution, ContributedJob
 │   ├── contribution.go         # Contribution/ContributedJob value-object builders + getters
-│   ├── builder.go              # Build(opts) — constructs provider-agnostic pipeline IR
+│   ├── builder.go              # BuildProjectIR(...) — constructs provider-agnostic pipeline IR
 │   ├── pipeline.go             # Generator interface (Generate()/DryRun() — IR bound at construction)
-│   ├── common.go               # JobPlan, JobName, ResolveDependencyNames, IR.DryRun
-│   ├── jobs.go                 # IR.JobRefs / PlanJobsForLevel / ApplyJobsForLevel
+│   ├── common.go               # Internal job planning helpers + IR.DryRun
+│   ├── jobs.go                 # JobKind + IR module counts
 │   ├── env.go                  # ModuleEnvVars
 │   ├── scripts.go              # ScriptConfig, NewPlanOperation, NewApplyOperation (IR construction only)
 │   └── cishell/                # Shell renderer — keeps shell-specific knowledge out of the IR
@@ -273,9 +273,9 @@ never changes plugin state. It auto-implements:
 Construction goes through an options struct — `plugin.NewAppContext(plugin.AppContextOptions{Config, WorkDir, ServiceDir, Version, Reports, Resolver})` — every field is optional. `Reports` is a `ci.ReportStore`; it defaults to a file-backed store when `ServiceDir` is set, otherwise an in-memory store. Resolver access is narrow and **never nil** through `ctx.CIResolver()`, `ctx.ChangeDetectorResolver()`, `ctx.KVCacheResolver()`, and `ctx.BlobStoreResolver()`; when no resolver is bound, no-op resolvers return sentinel errors.
 
 `AppContext.Config()` returns an immutable `config.Snapshot`. Access config through
-snapshot accessors (`ServiceDir()`, `Structure()`, `Execution()`, etc.). If a
-legacy pointer-shaped API needs a derived config, call `MutableCopy()` and
-mutate only that copy.
+snapshot accessors (`ServiceDir()`, `Structure()`, `Execution()`, etc.).
+Production plugin code should not call `MutableCopy()`; keep it for tests or
+explicit compatibility adapters that need an isolated mutable config.
 
 ### Command Boundary
 
@@ -325,9 +325,10 @@ production code does not construct `IR`, `Job`, `Operation`, or
 `TerraformOperation` literals. `pipeline.Generator` is constructed with an
 `*IR` and `Generate() (GeneratedPipeline, error)` / `DryRun()
 (*DryRunResult, error)` take no further arguments. Job-level access methods
-live on `*IR`: `Jobs()`, `JobRefs()`, `PlanJobsForLevel(idx)`,
-`ApplyJobsForLevel(idx)`, plus `JobNames()` / `AllPlanNames()` /
-`ContributedJobNames()`.
+live on `*IR`: `Jobs()`, `FindJob(name)`, `JobsByKind(kind)`,
+`JobNamesByKind(kind)`, `JobForModule(kind, module)`, and
+`HasDependency(job, dep)`. `pipeline.Schedule(ir)` returns immutable
+barrier-group value objects with `Name()`, `Jobs()`, and `JobCount()`.
 
 Shell rendering (`cd module && ${TERRAFORM_BINARY} init && plan -out=…`) lives in `pkg/pipeline/cishell` (`cishell.RenderOperation(op)`) — never in the IR package itself. Providers driving Terraform via tfexec instead of shell don't need cishell.
 
@@ -449,7 +450,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **Command/usecase boundary**: command callbacks use `plugin.CommandPlugin[T]` and `plugin.RequireEnabled`, parse flags into request structs, call a usecase, then handle artifact persistence and output explicitly.
 - **PipelineContributor(ctx)**: plugins add standalone DAG jobs through `pipeline.NewPluginCommandJob` + `pipeline.NewContribution`, return builder errors, and use `PipelineContributionGate` for optional jobs; `nil, nil` is invalid
 - **ServiceDir**: configurable project directory; `AppContext.ServiceDir` (absolute) for runtime, `AppContext.Config().ServiceDir()` (relative) for pipeline templates
-- **Immutable config boundary**: `Config.Clone()` and `config.Snapshot` own deep-copy semantics. `AppContext` stores a snapshot; plugin code reads through accessors and only uses `MutableCopy()` for legacy pointer-shaped APIs.
+- **Immutable config boundary**: `Config.Clone()` and `config.Snapshot` own deep-copy semantics. `AppContext` stores a snapshot; production plugin code reads through accessors and leaves `MutableCopy()` to tests or explicit compatibility adapters.
 - **Command boundary**: plugin command callbacks use `plugin.CommandPlugin[T](cmd, name)` and `plugin.RequireEnabled(...)`; low-level cobra context binding is framework-owned. Command binding and disabled-plugin failures are typed errors.
 - **SDK contract kit**: plugin SDK behavior is tested through `pkg/plugin/plugintest`; CI/report behavior is tested through `pkg/ci/citest`. New plugins should copy these contract helpers for config immutability, command binding, runtime creation, contributions, lifecycle, init wizard, providers, change detection, rendered reports, and artifact lifecycle.
 - **Init wizard flow**: command code owns cobra, TTY checks, huh rendering, YAML preview, and file writes. `cmd/terraci/internal/initflow` owns defaults, contributor collection, display group ordering/merge rules, duplicate extension detection, and final config assembly.

@@ -163,22 +163,20 @@ func (p *Plugin) Commands() []*cobra.Command {
 
 ## Accessing Module Data
 
-Use `discovery.Scanner` to find Terraform modules:
+Use the canonical project planner to find Terraform modules with the active
+config, filters, library handling, and parser behavior:
 
 ```go
 func runMyCommand(ctx context.Context, appCtx *plugin.AppContext) error {
-    cfg := appCtx.Config()
-    segments, err := config.ParsePattern(cfg.Structure.Pattern)
+    project, err := workflow.PlanProject(ctx, workflow.ProjectRequest{
+        WorkDir: appCtx.WorkDir(),
+        Config:  appCtx.Config(),
+    })
     if err != nil {
         return err
     }
 
-    scanner := discovery.NewScanner(appCtx.WorkDir(), segments)
-    modules, err := scanner.Scan(ctx)
-    if err != nil {
-        return err
-    }
-
+    modules := project.Workflow.Filtered.All()
     for _, m := range modules {
         fmt.Printf("Module: %s (%d .tf files)\n", m.Path, len(m.Files))
     }

@@ -6,7 +6,7 @@ Minimal external plugin that adds `terraci hello` command. Demonstrates the plug
 
 - Registers a `hello` plugin with optional `greeting` config
 - Adds `terraci hello` command that scans and lists Terraform modules
-- Shows how to use `plugin.CommandPlugin`, `AppContext`, `discovery.Scanner`, and `config.ParsePattern`
+- Shows how to use `plugin.CommandPlugin`, `AppContext`, and `workflow.PlanProject`
 
 ## Build
 

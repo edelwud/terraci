@@ -111,8 +111,14 @@ cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview without posting")
 ### Доступ к модулям
 
 ```go
-scanner := discovery.NewScanner(appCtx.WorkDir(), segments)
-modules, err := scanner.Scan(ctx)
+project, err := workflow.PlanProject(ctx, workflow.ProjectRequest{
+    WorkDir: appCtx.WorkDir(),
+    Config:  appCtx.Config(),
+})
+if err != nil {
+    return err
+}
+modules := project.Workflow.Filtered.All()
 ```
 
 ### Ленивая инициализация тяжёлых зависимостей

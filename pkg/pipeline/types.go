@@ -107,6 +107,82 @@ func (ir *IR) Jobs() []Job {
 	return cloneJobs(ir.jobs)
 }
 
+// FindJob returns a defensive copy of the job with name.
+func (ir *IR) FindJob(name string) (Job, bool) {
+	if ir == nil || name == "" {
+		var zero Job
+		return zero, false
+	}
+	for i := range ir.jobs {
+		if ir.jobs[i].name == name {
+			return ir.jobs[i].clone(), true
+		}
+	}
+	var zero Job
+	return zero, false
+}
+
+// JobsByKind returns defensive copies of jobs with the requested kind.
+func (ir *IR) JobsByKind(kind JobKind) []Job {
+	if ir == nil {
+		return nil
+	}
+	jobs := make([]Job, 0)
+	for i := range ir.jobs {
+		if ir.jobs[i].kind == kind {
+			jobs = append(jobs, ir.jobs[i].clone())
+		}
+	}
+	if len(jobs) == 0 {
+		return nil
+	}
+	return jobs
+}
+
+// JobNamesByKind returns names of jobs with the requested kind.
+func (ir *IR) JobNamesByKind(kind JobKind) []string {
+	if ir == nil {
+		return nil
+	}
+	names := make([]string, 0)
+	for i := range ir.jobs {
+		if ir.jobs[i].kind == kind {
+			names = append(names, ir.jobs[i].name)
+		}
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	return names
+}
+
+// JobForModule returns the job for a module and kind without exposing
+// module-job naming rules to callers.
+func (ir *IR) JobForModule(kind JobKind, module *discovery.Module) (Job, bool) {
+	if ir == nil || module == nil {
+		var zero Job
+		return zero, false
+	}
+	moduleID := module.ID()
+	for i := range ir.jobs {
+		job := ir.jobs[i]
+		if job.kind == kind && job.module != nil && job.module.ID() == moduleID {
+			return job.clone(), true
+		}
+	}
+	var zero Job
+	return zero, false
+}
+
+// HasDependency reports whether jobName depends on dependencyName.
+func (ir *IR) HasDependency(jobName, dependencyName string) bool {
+	job, ok := ir.FindJob(jobName)
+	if !ok {
+		return false
+	}
+	return job.DependsOnName(dependencyName)
+}
+
 func cloneJobs(jobs []Job) []Job {
 	if len(jobs) == 0 {
 		return nil
@@ -151,6 +227,27 @@ func (j Job) Env() map[string]string {
 // Dependencies returns a defensive copy of control dependencies.
 func (j Job) Dependencies() []JobDependency {
 	return append([]JobDependency(nil), j.dependencies...)
+}
+
+// DependsOn reports whether this job depends on the supplied job.
+func (j Job) DependsOn(dep Job) bool {
+	if dep.name == "" {
+		return false
+	}
+	return j.DependsOnName(dep.name)
+}
+
+// DependsOnName reports whether this job depends on the supplied job name.
+func (j Job) DependsOnName(dep string) bool {
+	if dep == "" {
+		return false
+	}
+	for _, dependency := range j.dependencies {
+		if dependency.Job == dep {
+			return true
+		}
+	}
+	return false
 }
 
 // InputArtifacts returns a defensive copy of artifacts restored for this job.

@@ -15,8 +15,9 @@ import (
 // For pipeline artifact paths (CI templates), use Config().ServiceDir() which
 // preserves the original relative value from .terraci.yaml.
 //
-// Config returns an immutable snapshot. Use Config().MutableCopy() only when
-// a legacy pointer-shaped API must receive a derived mutable configuration.
+// Config returns an immutable snapshot. Production code should consume snapshot
+// accessors; MutableCopy is reserved for tests or explicit compatibility
+// adapters that need an isolated mutable configuration.
 //
 // AppContext is safe for concurrent reads from any goroutine because all
 // fields are written exactly once at construction.

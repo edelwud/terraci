@@ -127,14 +127,16 @@ func (e *Executor) Execute(ctx context.Context, ir *pipeline.IR) (*Result, error
 		return nil, fmt.Errorf("schedule pipeline: %w", err)
 	}
 	for _, group := range groups {
+		groupJobs := group.Jobs()
 		result.Groups = append(result.Groups, GroupResult{
-			Name:     group.Name,
-			JobCount: len(group.Jobs),
+			Name:     group.Name(),
+			JobCount: len(groupJobs),
 		})
-		if len(group.Jobs) == 0 {
+		if len(groupJobs) == 0 {
 			continue
 		}
-		err := e.workers.Run(ctx, group.Jobs, func(runCtx context.Context, job *pipeline.Job) error {
+		jobs := jobPointers(groupJobs)
+		err := e.workers.Run(ctx, jobs, func(runCtx context.Context, job *pipeline.Job) error {
 			started := time.Now()
 			e.sink.JobStarted(job)
 			err := e.runner.Run(runCtx, job)
@@ -153,6 +155,17 @@ func (e *Executor) Execute(ctx context.Context, ir *pipeline.IR) (*Result, error
 	}
 
 	return result, nil
+}
+
+func jobPointers(jobs []pipeline.Job) []*pipeline.Job {
+	if len(jobs) == 0 {
+		return nil
+	}
+	ptrs := make([]*pipeline.Job, len(jobs))
+	for i := range jobs {
+		ptrs[i] = &jobs[i]
+	}
+	return ptrs
 }
 
 type noopEventSink struct{}

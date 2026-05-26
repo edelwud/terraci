@@ -101,9 +101,12 @@
 // result into a provider-agnostic immutable IR with pipeline.BuildProjectIR.
 // CI providers and local execution are IR consumers only: they receive *IR
 // values and read them through getters such as IR.Jobs, Job.Operation, and
-// Operation.Terraform. External plugin authors should not construct IR, Job,
-// Operation, or TerraformOperation literals. Tests and advanced in-process
-// tooling can use pkg/pipeline/pipelinetest for validated synthetic fixtures.
+// Operation.Terraform. Providers that need barrier groups use
+// pipeline.Schedule, whose JobGroup values expose read-only Name, Jobs, and
+// JobCount accessors. External plugin authors should not construct IR, Job,
+// Operation, or TerraformOperation literals or depend on module job naming.
+// Tests and advanced in-process tooling can use pkg/pipeline/pipelinetest for
+// validated synthetic fixtures.
 //
 // # Init wizard boundary
 //
@@ -151,8 +154,9 @@
 // should:
 //
 //   - Read project config through the immutable config.Snapshot returned by
-//     ctx.Config(). Snapshot accessors return defensive copies; use
-//     MutableCopy only for legacy pointer-shaped APIs.
+//     ctx.Config(). Snapshot accessors return defensive copies; production
+//     code should not call MutableCopy except in explicit compatibility
+//     adapters that need an isolated mutable configuration.
 //   - Treat ctx.CIResolver(), ctx.ChangeDetectorResolver(),
 //     ctx.KVCacheResolver(), and ctx.BlobStoreResolver() as never-nil. They
 //     return NoopResolver{} behavior when no real resolver is bound and are

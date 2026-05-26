@@ -4,32 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/edelwud/terraci/pkg/discovery"
-	"github.com/edelwud/terraci/pkg/pipeline"
 	domainpkg "github.com/edelwud/terraci/plugins/github/internal/domain"
 )
-
-func TestJobName(t *testing.T) {
-	tests := []struct {
-		name     string
-		module   *discovery.Module
-		jobKind  pipeline.JobKind
-		expected string
-	}{
-		{name: "plan job for vpc", module: createTestModule("platform", "stage", "eu-central-1", "vpc"), jobKind: pipeline.JobKindPlan, expected: "plan-platform-stage-eu-central-1-vpc"},
-		{name: "apply job for eks", module: createTestModule("platform", "prod", "us-west-2", "eks"), jobKind: pipeline.JobKindApply, expected: "apply-platform-prod-us-west-2-eks"},
-		{name: "plan job with different service", module: createTestModule("data", "dev", "ap-southeast-1", "rds"), jobKind: pipeline.JobKindPlan, expected: "plan-data-dev-ap-southeast-1-rds"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := pipeline.JobName(tt.jobKind, tt.module)
-			if result != tt.expected {
-				t.Errorf("jobName(%s, %v) = %s, expected %s", tt.module.ID(), tt.jobKind, result, tt.expected)
-			}
-		})
-	}
-}
 
 func TestToYAML(t *testing.T) {
 	workflow := &domainpkg.Workflow{

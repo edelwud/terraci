@@ -56,10 +56,10 @@ func TestPipelineBuild_BasicModules(t *testing.T) {
 	}
 
 	for _, mod := range modules {
-		if findPipelineJob(ir, pipeline.JobName(pipeline.JobKindPlan, mod)) == nil {
+		if _, ok := ir.JobForModule(pipeline.JobKindPlan, mod); !ok {
 			t.Errorf("module %s missing plan job", mod.ID())
 		}
-		if findPipelineJob(ir, pipeline.JobName(pipeline.JobKindApply, mod)) == nil {
+		if _, ok := ir.JobForModule(pipeline.JobKindApply, mod); !ok {
 			t.Errorf("module %s missing apply job", mod.ID())
 		}
 	}
@@ -84,10 +84,10 @@ func TestPipelineBuild_PlanOnly(t *testing.T) {
 		t.Fatalf("Build failed: %v", err)
 	}
 
-	if findPipelineJob(ir, pipeline.JobName(pipeline.JobKindPlan, modules[0])) == nil {
+	if _, ok := ir.JobForModule(pipeline.JobKindPlan, modules[0]); !ok {
 		t.Error("plan job should exist in plan-only mode")
 	}
-	if findPipelineJob(ir, pipeline.JobName(pipeline.JobKindApply, modules[0])) != nil {
+	if _, ok := ir.JobForModule(pipeline.JobKindApply, modules[0]); ok {
 		t.Error("apply job should not exist in plan-only mode")
 	}
 }
@@ -119,14 +119,18 @@ func TestPipelineBuild_WithContributions(t *testing.T) {
 		t.Fatalf("Build failed: %v", err)
 	}
 
-	policyJob := findPipelineJob(ir, "policy-check")
-	if policyJob == nil {
+	policyJob, ok := ir.FindJob("policy-check")
+	if !ok {
 		t.Fatal("expected policy-check job")
 	}
 
 	// policy-check should depend on the plan job
-	planName := pipeline.JobName(pipeline.JobKindPlan, modules[0])
-	if !hasPipelineDependency(policyJob.Dependencies(), planName) {
+	planJob, ok := ir.JobForModule(pipeline.JobKindPlan, modules[0])
+	if !ok {
+		t.Fatal("missing plan job")
+	}
+	planName := planJob.Name()
+	if !policyJob.DependsOn(planJob) {
 		t.Error("policy-check should depend on the plan job")
 	}
 	if !hasPipelineInputArtifact(policyJob.InputArtifacts(), pipeline.PlanArtifactName(planName), planName) {
@@ -167,16 +171,20 @@ func TestPipelineBuild_SummaryDependsThroughResources(t *testing.T) {
 		t.Fatalf("Build failed: %v", err)
 	}
 
-	summaryJob := findPipelineJob(ir, "terraci-summary")
-	if summaryJob == nil {
+	summaryJob, ok := ir.FindJob("terraci-summary")
+	if !ok {
 		t.Fatal("missing summary job")
 	}
 
-	planName := pipeline.JobName(pipeline.JobKindPlan, modules[0])
-	if !hasPipelineDependency(summaryJob.Dependencies(), "policy-check") {
+	planJob, ok := ir.JobForModule(pipeline.JobKindPlan, modules[0])
+	if !ok {
+		t.Fatal("missing plan job")
+	}
+	planName := planJob.Name()
+	if !summaryJob.DependsOnName("policy-check") {
 		t.Error("summary job should depend on policy-check report")
 	}
-	if !hasPipelineDependency(summaryJob.Dependencies(), planName) {
+	if !summaryJob.DependsOn(planJob) {
 		t.Error("summary job should depend on plan jobs")
 	}
 	if !hasPipelineInputArtifact(summaryJob.InputArtifacts(), pipeline.ResultArtifactName("policy-check"), "policy-check") {
@@ -220,23 +228,17 @@ func TestPipelineBuild_DependencyOrdering(t *testing.T) {
 		t.Errorf("expected multiple DAG groups for a dependency chain, got %d", len(groups))
 	}
 
-	eksPlan := findPipelineJob(ir, pipeline.JobName(pipeline.JobKindPlan, modules[1]))
-	if eksPlan == nil {
+	eksPlan, ok := ir.JobForModule(pipeline.JobKindPlan, modules[1])
+	if !ok {
 		t.Fatal("missing eks plan job")
 	}
-	if !hasPipelineDependency(eksPlan.Dependencies(), pipeline.JobName(pipeline.JobKindApply, modules[0])) {
+	vpcApply, ok := ir.JobForModule(pipeline.JobKindApply, modules[0])
+	if !ok {
+		t.Fatal("missing vpc apply job")
+	}
+	if !eksPlan.DependsOn(vpcApply) {
 		t.Error("dependent module plan should depend on upstream apply in full run mode")
 	}
-}
-
-func findPipelineJob(ir *pipeline.IR, name string) *pipeline.Job {
-	jobs := ir.Jobs()
-	for i := range jobs {
-		if jobs[i].Name() == name {
-			return &jobs[i]
-		}
-	}
-	return nil
 }
 
 func buildPipelineIR(allModules []*discovery.Module, depGraph *graph.DependencyGraph, targets []*discovery.Module, req pipeline.ProjectIRRequest) (*pipeline.IR, error) {
@@ -248,15 +250,6 @@ func buildPipelineIR(allModules []*discovery.Module, depGraph *graph.DependencyG
 		Targets: targets,
 	}
 	return pipeline.BuildProjectIR(req)
-}
-
-func hasPipelineDependency(deps []pipeline.JobDependency, name string) bool {
-	for _, dep := range deps {
-		if dep.Job == name {
-			return true
-		}
-	}
-	return false
 }
 
 func hasPipelineInputArtifact(inputs []pipeline.InputArtifact, name, producer string) bool {

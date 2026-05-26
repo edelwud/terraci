@@ -91,7 +91,9 @@ type GeneratedPipeline interface {
 
 The IR is a flat DAG value object. Every executable item is a `pipeline.Job`;
 providers render jobs in declaration order and use `pipeline.Schedule` only
-when their CI needs barrier groups, such as GitLab stages:
+when their CI needs barrier groups, such as GitLab stages. `Schedule` returns
+read-only value groups, so providers should use `group.Name()` and
+`group.Jobs()` instead of storing mutable job pointers:
 
 ```go
 func (g *BitbucketGenerator) Generate() (pipeline.GeneratedPipeline, error) {

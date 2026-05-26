@@ -6,9 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/edelwud/terraci/pkg/config"
-	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/workflow"
 )
 
 // Commands returns the `terraci hello` command.
@@ -42,18 +41,14 @@ func runHello(ctx context.Context, appCtx *plugin.AppContext, greeting string) e
 	fmt.Println(greeting)
 	fmt.Println()
 
-	structure := appCtx.Config().Structure()
-	segments, err := config.ParsePattern(structure.Pattern)
+	project, err := workflow.PlanProject(ctx, workflow.ProjectRequest{
+		WorkDir: appCtx.WorkDir(),
+		Config:  appCtx.Config(),
+	})
 	if err != nil {
-		return fmt.Errorf("parse pattern: %w", err)
+		return fmt.Errorf("plan project: %w", err)
 	}
-
-	scanner := discovery.NewScanner(appCtx.WorkDir(), segments)
-	modules, err := scanner.Scan(ctx)
-	if err != nil {
-		return fmt.Errorf("scan modules: %w", err)
-	}
-
+	modules := project.Workflow.Filtered.All()
 	if len(modules) == 0 {
 		fmt.Println("No Terraform modules found.")
 		return nil

@@ -3,36 +3,7 @@ package generate
 import (
 	"strings"
 	"testing"
-
-	"github.com/edelwud/terraci/pkg/discovery"
-	"github.com/edelwud/terraci/pkg/pipeline"
 )
-
-func TestGenerator_jobName(t *testing.T) {
-	tests := []struct {
-		module   *discovery.Module
-		jobKind  pipeline.JobKind
-		expected string
-	}{
-		{
-			module:   discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
-			jobKind:  pipeline.JobKindPlan,
-			expected: "plan-platform-stage-eu-central-1-vpc",
-		},
-		{
-			module:   discovery.TestModule("platform", "prod", "us-west-2", "eks"),
-			jobKind:  pipeline.JobKindApply,
-			expected: "apply-platform-prod-us-west-2-eks",
-		},
-	}
-
-	for _, tt := range tests {
-		result := pipeline.JobName(tt.jobKind, tt.module)
-		if result != tt.expected {
-			t.Errorf("jobName(%s, %v) = %s, expected %s", tt.module.ID(), tt.jobKind, result, tt.expected)
-		}
-	}
-}
 
 func TestPipeline_ToYAML(t *testing.T) {
 	p := &Pipeline{

@@ -11,8 +11,8 @@ import (
 	domainpkg "github.com/edelwud/terraci/plugins/github/internal/domain"
 )
 
-func createTestModule(service, env, region, module string) *discovery.Module {
-	return citest.TestModule(service, env, region, module)
+func createTestModule(module string) *discovery.Module {
+	return citest.TestModule("platform", "stage", "eu-central-1", module)
 }
 
 type testCfg struct {

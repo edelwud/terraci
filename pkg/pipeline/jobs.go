@@ -25,7 +25,7 @@ const (
 	JobKindCommand JobKind = "command"
 )
 
-// NamePrefix returns the canonical prefix used in JobName for module jobs of
+// NamePrefix returns the canonical prefix used in module job names for jobs of
 // this kind. Contributed jobs carry their own name and return "".
 func (k JobKind) NamePrefix() string {
 	switch k {

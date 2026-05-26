@@ -50,10 +50,10 @@ func prepareModuleGraph(
 	}, nil
 }
 
-// JobName generates a safe job name from module path and job kind.
+// jobName generates a safe job name from module path and job kind.
 // Only Plan/Apply kinds are supported here; contributed jobs carry their
 // own name (assigned by the contributor).
-func JobName(kind JobKind, module *discovery.Module) string {
+func jobName(kind JobKind, module *discovery.Module) string {
 	prefix := kind.NamePrefix()
 	if prefix == "" {
 		return strings.ReplaceAll(module.ID(), "/", "-")
@@ -62,10 +62,10 @@ func JobName(kind JobKind, module *discovery.Module) string {
 	return fmt.Sprintf("%s-%s", prefix, name)
 }
 
-// ResolveDependencyNames returns job names for a module's dependencies in the
+// resolveDependencyNames returns job names for a module's dependencies in the
 // supplied subgraph. The subgraph is expected to already be scoped to the
 // target module set; only modules present in moduleIndex are emitted.
-func ResolveDependencyNames(
+func resolveDependencyNames(
 	module *discovery.Module,
 	kind JobKind,
 	subgraph *graph.DependencyGraph,
@@ -78,7 +78,7 @@ func ResolveDependencyNames(
 		if depModule == nil {
 			continue
 		}
-		names = append(names, JobName(kind, depModule))
+		names = append(names, jobName(kind, depModule))
 	}
 	return names
 }
@@ -97,11 +97,10 @@ func (ir *IR) DryRun(totalModules int) *DryRunResult {
 		stages = len(groups)
 		jobGroups = make([][]string, 0, len(groups))
 		for _, group := range groups {
-			names := make([]string, 0, len(group.Jobs))
-			for _, job := range group.Jobs {
-				if job != nil {
-					names = append(names, job.name)
-				}
+			jobs := group.Jobs()
+			names := make([]string, 0, len(jobs))
+			for i := range jobs {
+				names = append(names, jobs[i].Name())
 			}
 			jobGroups = append(jobGroups, names)
 		}
