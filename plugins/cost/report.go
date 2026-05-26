@@ -20,23 +20,29 @@ func buildCostReport(req costReportRequest) (*ci.Report, error) {
 	result := req.Result
 	visible := visibleReportModules(result.Modules)
 	rows := make([][]string, 0, len(visible))
+	errorItems := make([]string, 0)
 	status := ci.ReportStatusPass
 
 	for i := range visible {
 		module := visible[i]
-		before := "-"
-		after := "-"
-		diff := "-"
-		notes := "-"
-		if module.Error == "" {
-			before = reportMonthlyCost(module.BeforeCost)
-			after = reportMonthlyCost(module.AfterCost)
-			diff = reportCostDiff(module.DiffCost)
-		} else {
-			notes = module.Error
+		if module.Error != "" {
+			errorItems = append(errorItems, formatModuleError(costReportModuleLabel(module), module.Error))
 			status = ci.ReportStatusWarn
+			continue
 		}
-		rows = append(rows, []string{module.ModulePath, before, after, diff, notes})
+		rows = append(rows, []string{
+			costReportModuleLabel(module),
+			reportMonthlyCost(module.BeforeCost),
+			reportMonthlyCost(module.AfterCost),
+			reportCostDiff(module.DiffCost),
+		})
+	}
+	for _, moduleError := range result.Errors {
+		if moduleError.Error == "" {
+			continue
+		}
+		errorItems = append(errorItems, formatModuleError(moduleError.ModuleID, moduleError.Error))
+		status = ci.ReportStatusWarn
 	}
 	if len(result.PrefetchWarnings) > 0 {
 		status = ci.ReportStatusWarn
@@ -46,16 +52,17 @@ func buildCostReport(req costReportRequest) (*ci.Report, error) {
 	}
 
 	summary := buildCostReportSummary(result, len(visible))
-	blocks := make([]ci.RenderBlock, 0, 2)
+	blocks := make([]ci.RenderBlock, 0, 4)
 	if len(rows) > 0 {
-		blocks = append(blocks, ci.RenderTableBlock("", []string{"Module", "Before", "After", "Diff", "Notes"}, rows))
+		blocks = append(blocks, ci.RenderTableBlock("", []string{"Module", "Before", "After", "Diff"}, rows))
 	}
-	blocks = append(blocks, ci.RenderTextBlock(fmt.Sprintf(
-		"Totals: %s %s -> %s",
-		reportMonthlyCost(result.TotalBefore),
-		reportCostDiff(result.TotalDiff),
-		reportMonthlyCost(result.TotalAfter),
-	)))
+	if len(errorItems) > 0 {
+		blocks = append(blocks, ci.RenderListBlock("Estimation errors", errorItems))
+	}
+	if limitations := buildCostLimitations(result); len(limitations) > 0 {
+		blocks = append(blocks, ci.RenderListBlock("Limitations", limitations))
+	}
+	blocks = append(blocks, ci.RenderTextBlock(formatCostReportTotal(result)))
 	report, err := ci.NewRenderedReport(ci.RenderedReportOptions{
 		Producer: pluginName,
 		Title:    costReportTitle,
@@ -77,7 +84,7 @@ func buildCostReport(req costReportRequest) (*ci.Report, error) {
 
 func buildCostReportSummary(result *model.EstimateResult, moduleCount int) string {
 	parts := []string{
-		fmt.Sprintf("%d modules, total: $%.2f/mo (diff: %+.2f)", moduleCount, result.TotalAfter, result.TotalDiff),
+		fmt.Sprintf("%d modules, %s", moduleCount, formatCostSummaryTotal(result)),
 	}
 	if result.UsageEstimated > 0 {
 		parts = append(parts, fmt.Sprintf("usage estimated: %d", result.UsageEstimated))
@@ -89,6 +96,87 @@ func buildCostReportSummary(result *model.EstimateResult, moduleCount int) strin
 		parts = append(parts, fmt.Sprintf("unsupported: %d", result.Unsupported))
 	}
 	return strings.Join(parts, "; ")
+}
+
+func costReportModuleLabel(module model.ModuleCost) string {
+	if strings.TrimSpace(module.ModulePath) != "" {
+		return module.ModulePath
+	}
+	return module.ModuleID
+}
+
+func formatModuleError(module, err string) string {
+	if strings.TrimSpace(module) == "" {
+		return err
+	}
+	return fmt.Sprintf("%s: %s", module, err)
+}
+
+func buildCostLimitations(result *model.EstimateResult) []string {
+	if result == nil {
+		return nil
+	}
+	items := make([]string, 0)
+	if result.UsageEstimated > 0 {
+		items = append(items, fmt.Sprintf("%d usage-based resources estimated from plan-time assumptions", result.UsageEstimated))
+	}
+	if result.UsageUnknown > 0 {
+		items = append(items, fmt.Sprintf("%d usage-based resources missing usage inputs", result.UsageUnknown))
+	}
+	if result.Unsupported > 0 {
+		items = append(items, fmt.Sprintf("%d unsupported resources omitted from totals", result.Unsupported))
+	}
+	for i := range result.PrefetchWarnings {
+		items = append(items, formatPrefetchWarning(result.PrefetchWarnings[i]))
+	}
+	return items
+}
+
+func formatPrefetchWarning(w model.PrefetchDiagnostic) string {
+	parts := make([]string, 0, 4)
+	if w.ModuleID != "" {
+		parts = append(parts, w.ModuleID)
+	}
+	if w.ResourceType != "" {
+		parts = append(parts, w.ResourceType)
+	}
+	if w.Address != "" {
+		parts = append(parts, w.Address)
+	}
+	if w.Detail != "" {
+		parts = append(parts, w.Detail)
+	}
+	if len(parts) == 0 {
+		return w.Kind
+	}
+	if w.Kind == "" {
+		return strings.Join(parts, ": ")
+	}
+	return fmt.Sprintf("%s: %s", w.Kind, strings.Join(parts, ": "))
+}
+
+func formatCostSummaryTotal(result *model.EstimateResult) string {
+	if result == nil {
+		return "total: $0/mo"
+	}
+	total := fmt.Sprintf("total: %s/mo", reportMonthlyCost(result.TotalAfter))
+	if model.CostIsZero(result.TotalDiff) {
+		return total
+	}
+	return fmt.Sprintf("%s (diff: %s/mo)", total, reportCostDiff(result.TotalDiff))
+}
+
+func formatCostReportTotal(result *model.EstimateResult) string {
+	if result == nil {
+		return "Total: $0/mo"
+	}
+	after := reportMonthlyCost(result.TotalAfter) + "/mo"
+	if model.CostIsZero(result.TotalDiff) {
+		return "Total: " + after
+	}
+	before := reportMonthlyCost(result.TotalBefore) + "/mo"
+	diff := reportCostDiff(result.TotalDiff) + "/mo"
+	return fmt.Sprintf("Total: %s -> %s (%s)", before, after, diff)
 }
 
 func visibleReportModules(modules []model.ModuleCost) []model.ModuleCost {
@@ -109,7 +197,7 @@ func shouldShowReportModule(module *model.ModuleCost) bool {
 }
 
 func reportMonthlyCost(cost float64) string {
-	if cost == 0 {
+	if model.CostIsZero(cost) {
 		return "$0"
 	}
 	if cost < 0.01 {
@@ -125,7 +213,7 @@ func reportMonthlyCost(cost float64) string {
 }
 
 func reportCostDiff(diff float64) string {
-	if diff == 0 {
+	if model.CostIsZero(diff) {
 		return "$0"
 	}
 	if diff > 0 {

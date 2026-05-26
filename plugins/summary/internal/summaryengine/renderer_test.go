@@ -190,13 +190,13 @@ func TestComposeComment_WithCostReport(t *testing.T) {
 			"Cost Estimation",
 			"1 module, total: $15.00/mo (diff: +$5.00)",
 			ci.ReportStatusWarn,
-			ci.RenderTableBlock("", []string{"Module", "Before", "After", "Diff", "Notes"}, [][]string{{
+			ci.RenderTableBlock("", []string{"Module", "Before", "After", "Diff"}, [][]string{{
 				"svc/prod/us-east-1/vpc",
 				"$10.00",
 				"$15.00",
 				"+$5.00",
-				"-",
 			}}),
+			ci.RenderTextBlock("Total: $10.00/mo -> $15.00/mo (+$5.00/mo)"),
 		)},
 	}}
 
@@ -207,6 +207,15 @@ func TestComposeComment_WithCostReport(t *testing.T) {
 	}
 	if !strings.Contains(result, "$10.00") {
 		t.Errorf("expected cost before in output, got: %s", result)
+	}
+	if strings.Contains(result, "Notes") {
+		t.Errorf("cost output contains removed Notes column: %s", result)
+	}
+	if strings.Contains(result, "### warn ") || strings.Contains(result, "**Status:** warn") {
+		t.Errorf("summary output contains raw warn status: %s", result)
+	}
+	if !strings.Contains(result, "Warning Cost Estimation") {
+		t.Errorf("summary output missing human warning label: %s", result)
 	}
 }
 
@@ -307,9 +316,9 @@ func TestComposeComment_FiltersCostReportToAddedCosts(t *testing.T) {
 			"Cost Estimation",
 			"3 modules, total: $27.00/mo (diff: +5.00)",
 			ci.ReportStatusWarn,
-			ci.RenderTableBlock("", []string{"Module", "Before", "After", "Diff", "Notes"}, [][]string{
-				{"svc/prod/us-east-1/vpc", "$10.00", "$15.00", "+$5.00", "-"},
-				{"svc/prod/us-east-1/redis", "$20.00", "$10.00", "-$10.00", "-"},
+			ci.RenderTableBlock("", []string{"Module", "Before", "After", "Diff"}, [][]string{
+				{"svc/prod/us-east-1/vpc", "$10.00", "$15.00", "+$5.00"},
+				{"svc/prod/us-east-1/redis", "$20.00", "$10.00", "-$10.00"},
 			}),
 		)},
 	}}

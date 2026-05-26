@@ -74,6 +74,17 @@ func renderTableRows(t *testing.T, section ci.RenderSection) [][]string {
 	return nil
 }
 
+func renderTableColumns(t *testing.T, section ci.RenderSection) []string {
+	t.Helper()
+	for _, block := range section.Blocks {
+		if block.Kind == ci.RenderBlockKindTable && block.Table != nil {
+			return block.Table.Columns
+		}
+	}
+	t.Fatal("render section has no table block")
+	return nil
+}
+
 func renderTableRowsOrNil(section ci.RenderSection) [][]string {
 	for _, block := range section.Blocks {
 		if block.Kind == ci.RenderBlockKindTable && block.Table != nil {
@@ -81,6 +92,25 @@ func renderTableRowsOrNil(section ci.RenderSection) [][]string {
 		}
 	}
 	return nil
+}
+
+func renderListItems(section ci.RenderSection, title string) []string {
+	for _, block := range section.Blocks {
+		if block.Kind == ci.RenderBlockKindList && block.Title == title {
+			return block.Items
+		}
+	}
+	return nil
+}
+
+func renderTextBlocks(section ci.RenderSection) []string {
+	var texts []string
+	for _, block := range section.Blocks {
+		if block.Kind == ci.RenderBlockKindText {
+			texts = append(texts, block.Text)
+		}
+	}
+	return texts
 }
 
 func TestPlugin_Commands_RunE_NotConfigured(t *testing.T) {
@@ -413,9 +443,13 @@ func TestBuildCostReport(t *testing.T) {
 	}
 
 	section := decodeCostSection(t, report)
+	columns := renderTableColumns(t, section)
+	if strings.Join(columns, ",") != "Module,Before,After,Diff" {
+		t.Fatalf("columns = %v, want cost columns without Notes", columns)
+	}
 	rows := renderTableRows(t, section)
-	if len(rows) != 2 {
-		t.Fatalf("Rows count = %d, want 2 (including errored module)", len(rows))
+	if len(rows) != 1 {
+		t.Fatalf("Rows count = %d, want 1 cost row", len(rows))
 	}
 
 	m := rows[0]
@@ -425,8 +459,13 @@ func TestBuildCostReport(t *testing.T) {
 	if m[3] != "+$5.25" {
 		t.Errorf("Module.Diff = %q, want +$5.25", m[3])
 	}
-	if rows[1][4] != "parse error" {
-		t.Errorf("Error module error = %q, want %q", rows[1][4], "parse error")
+	errors := renderListItems(section, "Estimation errors")
+	if len(errors) != 1 || errors[0] != "/tmp/broken: parse error" {
+		t.Fatalf("Estimation errors = %v, want broken module error", errors)
+	}
+	texts := renderTextBlocks(section)
+	if len(texts) == 0 || texts[len(texts)-1] != "Total: $5.25/mo -> $10.50/mo (+$5.25/mo)" {
+		t.Fatalf("total blocks = %v, want positive diff total", texts)
 	}
 }
 
@@ -482,6 +521,16 @@ func TestBuildCostReport_IncludesPrefetchWarnings(t *testing.T) {
 	if len(section.Blocks) == 0 {
 		t.Fatalf("expected render blocks")
 	}
+	limitations := renderListItems(section, "Limitations")
+	if len(limitations) < 3 {
+		t.Fatalf("Limitations = %v, want usage and prefetch limitations", limitations)
+	}
+	if !strings.Contains(strings.Join(limitations, "\n"), "usage-based resources estimated") {
+		t.Fatalf("Limitations = %v, want usage estimated item", limitations)
+	}
+	if !strings.Contains(strings.Join(limitations, "\n"), "lookup-failed") {
+		t.Fatalf("Limitations = %v, want prefetch warning item", limitations)
+	}
 }
 
 func TestBuildCostReport_Empty(t *testing.T) {
@@ -505,6 +554,10 @@ func TestBuildCostReport_Empty(t *testing.T) {
 	if rows := renderTableRowsOrNil(section); len(rows) != 0 {
 		t.Errorf("Rows count = %d, want 0", len(rows))
 	}
+	texts := renderTextBlocks(section)
+	if len(texts) == 0 || texts[len(texts)-1] != "Total: $0/mo" {
+		t.Fatalf("total blocks = %v, want zero total without arrow", texts)
+	}
 }
 
 func TestBuildCostReport_AllErrors(t *testing.T) {
@@ -522,15 +575,15 @@ func TestBuildCostReport_AllErrors(t *testing.T) {
 	}
 
 	section := decodeCostSection(t, report)
-	rows := renderTableRows(t, section)
-	if len(rows) != 2 {
-		t.Errorf("Rows count = %d, want 2 (all errors should still be visible)", len(rows))
+	if rows := renderTableRowsOrNil(section); len(rows) != 0 {
+		t.Errorf("Rows count = %d, want 0 cost rows for all-error report", len(rows))
 	}
 	if report.Status != ci.ReportStatusWarn {
 		t.Errorf("Status = %q, want %q", report.Status, ci.ReportStatusWarn)
 	}
-	if rows[0][4] != "fail1" || rows[1][4] != "fail2" {
-		t.Error("Rows should contain module errors")
+	errors := renderListItems(section, "Estimation errors")
+	if len(errors) != 2 || errors[0] != "a: fail1" || errors[1] != "b: fail2" {
+		t.Fatalf("Estimation errors = %v, want all module errors", errors)
 	}
 }
 
@@ -553,11 +606,55 @@ func TestBuildCostReport_EscapesMarkdownTableCells(t *testing.T) {
 		t.Fatalf("buildCostReport() error = %v", buildErr)
 	}
 	section := decodeCostSection(t, report)
-	rows := renderTableRows(t, section)
-	if rows[0][0] != "/tmp/with|pipe\\slash" {
-		t.Fatalf("module path = %q, want raw path preserved", rows[0][0])
+	errors := renderListItems(section, "Estimation errors")
+	if len(errors) != 1 {
+		t.Fatalf("Estimation errors = %v, want one escaped module error", errors)
 	}
-	if rows[0][4] != "line1\nline2 | detail" {
-		t.Fatalf("error = %q, want raw error preserved", rows[0][4])
+	if !strings.Contains(errors[0], "/tmp/with|pipe\\slash") {
+		t.Fatalf("error item = %q, want raw module path preserved", errors[0])
+	}
+	if !strings.Contains(errors[0], "line1\nline2 | detail") {
+		t.Fatalf("error item = %q, want raw error preserved", errors[0])
+	}
+}
+
+func TestFormatCostReportTotal(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		result *model.EstimateResult
+		want   string
+	}{
+		{
+			name:   "all zero",
+			result: &model.EstimateResult{},
+			want:   "Total: $0/mo",
+		},
+		{
+			name:   "zero diff",
+			result: &model.EstimateResult{TotalBefore: 10, TotalAfter: 10},
+			want:   "Total: $10.00/mo",
+		},
+		{
+			name:   "positive diff",
+			result: &model.EstimateResult{TotalBefore: 5, TotalAfter: 10.5, TotalDiff: 5.5},
+			want:   "Total: $5.00/mo -> $10.50/mo (+$5.50/mo)",
+		},
+		{
+			name:   "negative diff",
+			result: &model.EstimateResult{TotalBefore: 20, TotalAfter: 7.5, TotalDiff: -12.5},
+			want:   "Total: $20.00/mo -> $7.50/mo (-$12.50/mo)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := formatCostReportTotal(tt.result); got != tt.want {
+				t.Fatalf("formatCostReportTotal() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }

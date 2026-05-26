@@ -21,7 +21,7 @@ func TestCLIReport_Golden(t *testing.T) {
 			"1 finding",
 			ci.ReportStatusWarn,
 			ci.RenderTextBlock("Review these changes"),
-			ci.RenderTableBlock("Modules", []string{"Module", "Status"}, [][]string{{"svc/prod/vpc", "warn"}}),
+			ci.RenderTableBlock("Modules", []string{"Module", "Status"}, [][]string{{"svc/prod/vpc", "needs review"}}),
 		)},
 	}
 
@@ -37,20 +37,23 @@ Policy Check
 
 Findings
 ────────
-warn - 1 finding
+Warning - 1 finding
 
 Review these changes
 
 Modules
 ───────
-┌──────────────┬────────┐
-│ Module       │ Status │
-├──────────────┼────────┤
-│ svc/prod/vpc │ warn   │
-└──────────────┴────────┘
+┌──────────────┬──────────────┐
+│ Module       │ Status       │
+├──────────────┼──────────────┤
+│ svc/prod/vpc │ needs review │
+└──────────────┴──────────────┘
 `)
 	if rendered != want {
 		t.Fatalf("CLIReport() mismatch\nwant:\n%s\n\ngot:\n%s", want, rendered)
+	}
+	if strings.Contains(rendered, "warn") {
+		t.Fatalf("CLIReport() contains raw warn label:\n%s", rendered)
 	}
 }
 

@@ -146,11 +146,10 @@ func renderMarkdownDetailsBlock(block ci.RenderBlock) string {
 func renderMarkdownSectionHeader(section ci.ReportSection) string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "### %s %s\n\n", StatusLabel(section.Status()), escapeMarkdownText(sectionTitle(section)))
-	fmt.Fprintf(&sb, "**Status:** %s", section.Status())
 	if section.Summary() != "" {
-		fmt.Fprintf(&sb, " - %s", escapeMarkdownText(section.Summary()))
+		sb.WriteString(escapeMarkdownText(section.Summary()))
+		sb.WriteString("\n\n")
 	}
-	sb.WriteString("\n\n")
 	return sb.String()
 }
 

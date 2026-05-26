@@ -34,7 +34,7 @@ func TestMarkdownSection_RendersEscapedRenderBlocks(t *testing.T) {
 	}
 
 	for _, want := range []string{
-		"### warn Policy|Check",
+		"### Warning Policy|Check",
 		"line one line two",
 		"Module\\|Path",
 		"svc\\|prod<br>vpc",
@@ -45,6 +45,12 @@ func TestMarkdownSection_RendersEscapedRenderBlocks(t *testing.T) {
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("rendered markdown missing %q:\n%s", want, rendered)
 		}
+	}
+	if strings.Contains(rendered, "**Status:**") {
+		t.Fatalf("rendered markdown duplicated status line:\n%s", rendered)
+	}
+	if strings.Contains(rendered, "### warn ") {
+		t.Fatalf("rendered markdown contains raw warn label:\n%s", rendered)
 	}
 }
 
@@ -81,9 +87,12 @@ func TestMarkdownReport_EmptyReportFallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MarkdownReport() error = %v", err)
 	}
-	for _, want := range []string{"### pass Empty Report", "**Status:** pass - nothing to show"} {
+	for _, want := range []string{"### Passed Empty Report", "nothing to show"} {
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("rendered markdown missing %q:\n%s", want, rendered)
 		}
+	}
+	if strings.Contains(rendered, "**Status:**") {
+		t.Fatalf("rendered markdown duplicated status line:\n%s", rendered)
 	}
 }

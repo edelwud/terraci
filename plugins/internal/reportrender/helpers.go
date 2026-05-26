@@ -6,11 +6,11 @@ import "github.com/edelwud/terraci/pkg/ci"
 func StatusLabel(status ci.ReportStatus) string {
 	switch status {
 	case ci.ReportStatusPass:
-		return "pass"
+		return "Passed"
 	case ci.ReportStatusWarn:
-		return "warn"
+		return "Warning"
 	case ci.ReportStatusFail:
-		return "fail"
+		return "Failed"
 	default:
 		return string(status)
 	}

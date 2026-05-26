@@ -26,7 +26,7 @@ func ExampleMarkdownReport() {
 
 	fmt.Println(strings.TrimSpace(rendered))
 	// Output:
-	// ### warn Policy Check
+	// ### Warning Policy Check
 	//
-	// **Status:** warn - 1 warning
+	// 1 warning
 }
