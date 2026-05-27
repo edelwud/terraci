@@ -9,7 +9,10 @@
       "title": "Policy Check",
       "status": "pass",
       "section_summary": "1 module: 1 passed, 0 warned, 0 failed",
-      "payload": {}
+      "payload": {
+        "schema_version": 2,
+        "blocks": []
+      }
     }
   ]
 }

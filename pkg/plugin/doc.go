@@ -203,10 +203,11 @@
 // ReportSection is a value object: external plugins should not construct
 // section JSON, RenderBlock, RenderTable, or RenderValue payloads manually.
 // Use constructors such as ci.NewTableBlock, ci.RenderStatus, ci.RenderMoney,
-// and ci.RenderModulePath so Markdown/CLI presentation remains centralized in
-// plugins/internal/reportrender. Consumers should use ci.DecodeRenderSection or
-// plugins/internal/reportrender instead of importing producer-specific domain
-// structs. The contract test suite for blob backends lives at
+// and ci.RenderModulePath so ci.NewRenderedReport can publish the current
+// versioned rendered payload schema. Consumers should use ci.DecodeRenderSection
+// or plugins/internal/reportrender instead of importing producer-specific
+// domain structs. Markdown/CLI presentation remains centralized in
+// plugins/internal/reportrender. The contract test suite for blob backends lives at
 // pkg/cache/blobcache/contracttest.
 //
 // Pipeline contributions are value objects too. Producers should build jobs

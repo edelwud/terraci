@@ -167,21 +167,67 @@ func TestReportSection_JSONRoundTripAndGetters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("json.Marshal() error = %v", err)
 	}
-	for _, want := range []string{`"kind":"rendered"`, `"title":"Findings"`, `"status":"warn"`, `"section_summary":"1 finding"`, `"payload":`} {
+	for _, want := range []string{`"kind":"rendered"`, `"title":"Findings"`, `"status":"warn"`, `"section_summary":"1 finding"`, `"schema_version":2`, `"payload":`} {
 		if !strings.Contains(string(data), want) {
 			t.Fatalf("marshaled section missing %s: %s", want, data)
 		}
 	}
 
 	var decoded ReportSection
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		t.Fatalf("json.Unmarshal() error = %v", err)
+	if unmarshalErr := json.Unmarshal(data, &decoded); unmarshalErr != nil {
+		t.Fatalf("json.Unmarshal() error = %v", unmarshalErr)
 	}
 	if decoded.Kind() != ReportSectionKindRendered || decoded.Title() != "Findings" || decoded.Status() != ReportStatusWarn || decoded.Summary() != "1 finding" {
 		t.Fatalf("decoded getters = kind:%q title:%q status:%q summary:%q", decoded.Kind(), decoded.Title(), decoded.Status(), decoded.Summary())
 	}
-	if _, err := DecodeRenderSection(decoded); err != nil {
+	rendered, err := DecodeRenderSection(decoded)
+	if err != nil {
 		t.Fatalf("DecodeRenderSection() error = %v", err)
+	}
+	if got := rendered.SchemaVersion(); got != RenderPayloadSchemaVersion {
+		t.Fatalf("rendered schema version = %d, want %d", got, RenderPayloadSchemaVersion)
+	}
+}
+
+func TestDecodeRenderSection_RejectsMissingSchemaVersion(t *testing.T) {
+	t.Parallel()
+
+	var section ReportSection
+	if err := json.Unmarshal([]byte(`{
+		"kind": "rendered",
+		"title": "Legacy",
+		"status": "warn",
+		"payload": {"blocks": []}
+	}`), &section); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	_, err := DecodeRenderSection(section)
+	if err == nil {
+		t.Fatal("DecodeRenderSection() error = nil, want missing schema version error")
+	}
+	if !strings.Contains(err.Error(), missingRenderPayloadVersionError) {
+		t.Fatalf("DecodeRenderSection() error = %q, want missing schema version message", err.Error())
+	}
+}
+
+func TestDecodeRenderSection_RejectsUnsupportedSchemaVersion(t *testing.T) {
+	t.Parallel()
+
+	var section ReportSection
+	if err := json.Unmarshal([]byte(`{
+		"kind": "rendered",
+		"title": "Future",
+		"status": "warn",
+		"payload": {"schema_version": 99, "blocks": []}
+	}`), &section); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	_, err := DecodeRenderSection(section)
+	if err == nil {
+		t.Fatal("DecodeRenderSection() error = nil, want unsupported schema version error")
+	}
+	if !strings.Contains(err.Error(), "unsupported rendered report payload schema_version 99") {
+		t.Fatalf("DecodeRenderSection() error = %q, want unsupported schema version message", err.Error())
 	}
 }
 
@@ -298,6 +344,7 @@ func TestLoadReport_RejectsInvalidRenderedPayload(t *testing.T) {
       "title": "Broken Section",
       "status": "warn",
       "payload": {
+        "schema_version": 2,
         "blocks": [
           {
             "kind": "table",

@@ -78,6 +78,53 @@ func TestMarkdownReport_RejectsNonRenderedSections(t *testing.T) {
 	}
 }
 
+func TestMarkdownReport_RejectsMalformedRenderedPayloadVersions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		payload string
+		wantErr string
+	}{
+		{
+			name:    "missing schema version",
+			payload: `{"blocks":[]}`,
+			wantErr: "missing schema_version",
+		},
+		{
+			name:    "unsupported schema version",
+			payload: `{"schema_version":99,"blocks":[]}`,
+			wantErr: "unsupported rendered report payload schema_version 99",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			report := &ci.Report{
+				Producer: "custom",
+				Title:    "Custom",
+				Status:   ci.ReportStatusWarn,
+				Sections: []ci.ReportSection{citest.MustReportSectionJSON(`{
+					"kind":"rendered",
+					"title":"Custom",
+					"status":"warn",
+					"payload":` + tt.payload + `
+				}`)},
+			}
+
+			_, err := MarkdownReport(report)
+			if err == nil {
+				t.Fatal("MarkdownReport() error = nil, want malformed payload error")
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("MarkdownReport() error = %q, want %q", err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestMarkdownReport_EmptyReportFallback(t *testing.T) {
 	t.Parallel()
 

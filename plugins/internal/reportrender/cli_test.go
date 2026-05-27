@@ -74,6 +74,7 @@ func TestCLIReport_RejectsInvalidRenderedPayload(t *testing.T) {
 			"title": "Findings",
 			"status": "warn",
 			"payload": {
+				"schema_version": 2,
 				"blocks": [{
 					"kind": "table",
 					"table": {

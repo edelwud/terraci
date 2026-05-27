@@ -469,6 +469,37 @@ func TestArchitecture_CIRenderValueBoundaries(t *testing.T) {
 	}
 }
 
+func TestArchitecture_CIRenderDocs(t *testing.T) {
+	root := repoRoot(t)
+	var violations []string
+
+	stalePatterns := []string{
+		"RenderTextBlock",
+		"RenderListBlock",
+		"RenderTableBlock",
+		"RenderDetailsBlock",
+		`"payload": {"blocks"`,
+		`"payload":{"blocks"`,
+	}
+	for _, rel := range textFiles(t, root, "AGENTS.md", "docs", "examples", "pkg/plugin/doc.go") {
+		if allowUnder(rel, "docs/.vitepress/dist/") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			t.Fatalf("read %s: %v", rel, err)
+		}
+		text := string(data)
+		for _, pattern := range stalePatterns {
+			banTextPattern(&violations, rel, text, pattern, "stale unversioned render-payload reference")
+		}
+	}
+
+	if len(violations) > 0 {
+		t.Fatalf("ci render documentation violations:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
 func repoRoot(tb testing.TB) string {
 	tb.Helper()
 

@@ -10,6 +10,7 @@
       "status": "pass",
       "section_summary": "1 module",
       "payload": {
+        "schema_version": 2,
         "blocks": [
           {
             "kind": "table",

@@ -14,6 +14,7 @@
       "status": "warn",
       "section_summary": "1 modules: 1 with changes, 0 no changes, 0 failed",
       "payload": {
+        "schema_version": 2,
         "blocks": []
       }
     },
@@ -23,6 +24,7 @@
       "status": "warn",
       "section_summary": "1 actionable modules",
       "payload": {
+        "schema_version": 2,
         "blocks": [
           {
             "kind": "table",

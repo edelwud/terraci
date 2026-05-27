@@ -244,6 +244,7 @@ func TestComposeCommentWithOptions_MalformedReportPayloadReturnsError(t *testing
 			"title": "Policy Check",
 			"status": "fail",
 			"payload": {
+				"schema_version": 2,
 				"blocks": [{
 					"kind": "table",
 					"table": {
