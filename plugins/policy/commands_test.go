@@ -57,8 +57,13 @@ func TestBuildPolicyReport_WithFailures(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode rendered section: %v", err)
 	}
-	if rendered.Blocks[0].Table.Rows[0][3] != "public endpoint forbidden" {
-		t.Fatalf("unexpected finding row: %+v", rendered.Blocks[0].Table.Rows[0])
+	blocks := rendered.Blocks()
+	row := blocks[0].Table().Rows()[0].Cells()
+	if row[3].Text() != "public endpoint forbidden" {
+		t.Fatalf("unexpected finding row: %+v", row)
+	}
+	if row[1].Status() != ci.ReportStatusFail {
+		t.Fatalf("finding severity = %q, want fail", row[1].Status())
 	}
 }
 
@@ -98,8 +103,13 @@ func TestBuildPolicyReport_WithWarnings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode rendered section: %v", err)
 	}
-	if rendered.Blocks[0].Table.Rows[0][3] != "tag missing" {
-		t.Fatalf("unexpected finding row: %+v", rendered.Blocks[0].Table.Rows[0])
+	blocks := rendered.Blocks()
+	row := blocks[0].Table().Rows()[0].Cells()
+	if row[3].Text() != "tag missing" {
+		t.Fatalf("unexpected finding row: %+v", row)
+	}
+	if row[1].Status() != ci.ReportStatusWarn {
+		t.Fatalf("finding severity = %q, want warn", row[1].Status())
 	}
 }
 

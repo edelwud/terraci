@@ -27,8 +27,20 @@
           {
             "kind": "table",
             "table": {
-              "columns": ["Status", "Module", "Summary"],
-              "rows": [["changes", "platform/prod/eu-central-1/vpc", "+1"]]
+              "columns": [
+                {"title": {"kind": "text", "text": "Status"}},
+                {"title": {"kind": "text", "text": "Module"}},
+                {"title": {"kind": "text", "text": "Summary"}}
+              ],
+              "rows": [
+                {
+                  "cells": [
+                    {"kind": "label", "text": "changes", "tone": "warning"},
+                    {"kind": "module_path", "text": "platform/prod/eu-central-1/vpc"},
+                    {"kind": "text", "text": "+1"}
+                  ]
+                }
+              ]
             }
           },
           {

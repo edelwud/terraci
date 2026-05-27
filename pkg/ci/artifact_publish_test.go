@@ -164,7 +164,7 @@ func testPublishReport(t *testing.T, producer string, artifact ArtifactContext) 
 		Artifact: artifact,
 		Sections: []RenderedSectionOptions{{
 			Title:  "Report",
-			Blocks: []RenderBlock{RenderTextBlock("ok")},
+			Blocks: []RenderBlock{NewTextBlock(RenderText("ok"))},
 		}},
 	})
 	if err != nil {

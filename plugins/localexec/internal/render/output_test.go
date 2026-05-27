@@ -138,7 +138,7 @@ func TestLogOutputCompleted_WithSummaryReport(t *testing.T) {
 			"Summary",
 			"",
 			ci.ReportStatusWarn,
-			ci.RenderTextBlock("1 module changed"),
+			ci.NewTextBlock(ci.RenderText("1 module changed")),
 		)},
 	}
 	output := LogOutput{}

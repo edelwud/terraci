@@ -192,16 +192,19 @@
 // summary is the canonical consumer of report artifacts; cost/policy/
 // tfupdate are the canonical producers. Plan-aware producers should carry the
 // scanned ci.PlanResultCollection into ci.NewArtifactRun, convert domain
-// results into ci.RenderBlock values, build reports with ci.NewRenderedReport,
-// and persist raw results plus the report through ci.PublishArtifacts. That
-// helper always preserves raw results and removes stale reports when report
-// construction fails or intentionally returns nil. Non-plan producers may
-// create an ArtifactRun without PlanResults; that is explicit degraded mode.
-// Consumers should load through ci.ReportReader/ReportStore and call
-// ci.SelectCurrentReports before rendering.
+// results into typed ci.RenderBlock/ci.RenderValue values, build reports with
+// ci.NewRenderedReport, and persist raw results plus the report through
+// ci.PublishArtifacts. That helper always preserves raw results and removes
+// stale reports when report construction fails or intentionally returns nil.
+// Non-plan producers may create an ArtifactRun without PlanResults; that is
+// explicit degraded mode. Consumers should load through
+// ci.ReportReader/ReportStore and call ci.SelectCurrentReports before
+// rendering.
 // ReportSection is a value object: external plugins should not construct
-// section JSON or payloads manually, and direct field access is intentionally
-// unavailable. Consumers should use ci.DecodeRenderSection or
+// section JSON, RenderBlock, RenderTable, or RenderValue payloads manually.
+// Use constructors such as ci.NewTableBlock, ci.RenderStatus, ci.RenderMoney,
+// and ci.RenderModulePath so Markdown/CLI presentation remains centralized in
+// plugins/internal/reportrender. Consumers should use ci.DecodeRenderSection or
 // plugins/internal/reportrender instead of importing producer-specific domain
 // structs. The contract test suite for blob backends lives at
 // pkg/cache/blobcache/contracttest.

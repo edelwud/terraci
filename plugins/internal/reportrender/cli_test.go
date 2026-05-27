@@ -20,8 +20,13 @@ func TestCLIReport_Golden(t *testing.T) {
 			"Findings",
 			"1 finding",
 			ci.ReportStatusWarn,
-			ci.RenderTextBlock("Review these changes"),
-			ci.RenderTableBlock("Modules", []string{"Module", "Status"}, [][]string{{"svc/prod/vpc", "needs review"}}),
+			ci.NewTextBlock(ci.RenderText("Review these changes")),
+			ci.NewTableBlock("Modules", []ci.RenderColumn{
+				ci.NewRenderColumn("Module"),
+				ci.NewRenderColumn("Status"),
+			}, []ci.RenderRow{
+				ci.NewRenderRow(ci.RenderModulePath("svc/prod/vpc"), ci.RenderLabel("needs review", ci.RenderToneWarning)),
+			}),
 		)},
 	}
 
@@ -84,7 +89,7 @@ func TestCLIReport_RejectsInvalidRenderedPayload(t *testing.T) {
 	if err == nil {
 		t.Fatal("CLIReport() error = nil, want invalid rendered payload error")
 	}
-	if !strings.Contains(err.Error(), "table row 0 has 2 cells for 1 columns") {
-		t.Fatalf("CLIReport() error = %q, want invalid table shape", err.Error())
+	if !strings.Contains(err.Error(), "legacy rendered report payload") {
+		t.Fatalf("CLIReport() error = %q, want legacy payload message", err.Error())
 	}
 }

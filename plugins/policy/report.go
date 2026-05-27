@@ -21,14 +21,24 @@ func buildPolicyReport(req policyReportRequest) (*ci.Report, error) {
 
 	status := ci.StatusFromCounts(summary.FailedModules, summary.WarnedModules)
 
-	rows := make([][]string, 0, len(summary.Results))
+	rows := make([]ci.RenderRow, 0, len(summary.Results))
 	for i := range summary.Results {
 		result := &summary.Results[i]
 		for _, failure := range result.Failures {
-			rows = append(rows, []string{result.Module, "fail", failure.Namespace, failure.Message})
+			rows = append(rows, ci.NewRenderRow(
+				ci.RenderModulePath(result.Module),
+				ci.RenderStatus(ci.ReportStatusFail),
+				ci.RenderCode(failure.Namespace),
+				ci.RenderText(failure.Message),
+			))
 		}
 		for _, warning := range result.Warnings {
-			rows = append(rows, []string{result.Module, "warn", warning.Namespace, warning.Message})
+			rows = append(rows, ci.NewRenderRow(
+				ci.RenderModulePath(result.Module),
+				ci.RenderStatus(ci.ReportStatusWarn),
+				ci.RenderCode(warning.Namespace),
+				ci.RenderText(warning.Message),
+			))
 		}
 	}
 
@@ -36,7 +46,12 @@ func buildPolicyReport(req policyReportRequest) (*ci.Report, error) {
 		summary.TotalModules, summary.PassedModules, summary.WarnedModules, summary.FailedModules)
 	blocks := make([]ci.RenderBlock, 0, 1)
 	if len(rows) > 0 {
-		blocks = append(blocks, ci.RenderTableBlock("", []string{"Module", "Severity", "Namespace", "Message"}, rows))
+		blocks = append(blocks, ci.NewTableBlock("", []ci.RenderColumn{
+			ci.NewRenderColumn("Module"),
+			ci.NewRenderColumn("Severity"),
+			ci.NewRenderColumn("Namespace"),
+			ci.NewRenderColumn("Message"),
+		}, rows))
 	}
 	report, err := ci.NewRenderedReport(ci.RenderedReportOptions{
 		Producer: pluginName,

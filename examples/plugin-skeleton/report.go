@@ -13,8 +13,9 @@ import (
 //
 // Steps:
 //
-//  1. Convert your domain result into ci.RenderBlock values. Producer plugins
-//     own their analysis model; reports expose only render-ready JSON.
+//  1. Convert your domain result into constructor-built ci.RenderBlock and
+//     ci.RenderValue values. Producer plugins own their analysis model; reports
+//     expose only typed render-ready JSON.
 //
 //  2. Compose the final ci.Report via ci.NewRenderedReport.
 //
@@ -34,10 +35,13 @@ func buildReport(result *ProducerResult, run ci.ArtifactRun) (*ci.Report, error)
 			Title:   "Skeleton payload",
 			Summary: "one demo section",
 			Blocks: []ci.RenderBlock{
-				ci.RenderTableBlock("", []string{"Field", "Value"}, [][]string{
-					{"Greeting", result.Greeting},
-					{"Work dir", result.WorkDir},
-					{"Service dir", result.ServiceDir},
+				ci.NewTableBlock("", []ci.RenderColumn{
+					ci.NewRenderColumn("Field"),
+					ci.NewRenderColumn("Value"),
+				}, []ci.RenderRow{
+					ci.NewRenderRow(ci.RenderText("Greeting"), ci.RenderText(result.Greeting)),
+					ci.NewRenderRow(ci.RenderText("Work dir"), ci.RenderCode(result.WorkDir)),
+					ci.NewRenderRow(ci.RenderText("Service dir"), ci.RenderCode(result.ServiceDir)),
 				}),
 			},
 		}},

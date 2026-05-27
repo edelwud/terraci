@@ -18,7 +18,7 @@ func TestAssertRenderedReportContract(t *testing.T) {
 		}),
 		Sections: []ci.RenderedSectionOptions{{
 			Title:  "Details",
-			Blocks: []ci.RenderBlock{ci.RenderTextBlock("ok")},
+			Blocks: []ci.RenderBlock{ci.NewTextBlock(ci.RenderText("ok"))},
 		}},
 	})
 
@@ -42,7 +42,7 @@ func TestAssertPublishArtifactsContract(t *testing.T) {
 		Status:   ci.ReportStatusPass,
 		Sections: []ci.RenderedSectionOptions{{
 			Title:  "Details",
-			Blocks: []ci.RenderBlock{ci.RenderTextBlock("ok")},
+			Blocks: []ci.RenderBlock{ci.NewTextBlock(ci.RenderText("ok"))},
 		}},
 	})
 

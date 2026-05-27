@@ -93,7 +93,7 @@ func mustRenderedReport(t *testing.T, producer, title, fingerprint string) *ci.R
 		Sections: []ci.RenderedSectionOptions{{
 			Title:   title,
 			Summary: "summary",
-			Blocks:  []ci.RenderBlock{ci.RenderTextBlock("body")},
+			Blocks:  []ci.RenderBlock{ci.NewTextBlock(ci.RenderText("body"))},
 		}},
 	})
 	if err != nil {

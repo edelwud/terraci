@@ -21,34 +21,34 @@ func buildUpdateReport(req updateReportRequest) (*ci.Report, error) {
 		status = ci.ReportStatusWarn
 	}
 
-	providerRows := make([][]string, 0, len(result.Providers))
+	providerRows := make([]ci.RenderRow, 0, len(result.Providers))
 	for i := range result.Providers {
 		update := &result.Providers[i]
 		if update.Status == domain.StatusUpToDate {
 			continue
 		}
-		providerRows = append(providerRows, []string{
-			update.ModulePath(),
-			update.ProviderSource(),
-			displayValue(update.DisplayCurrent()),
-			displayValue(update.DisplayLatest()),
-			update.StatusLabel(),
-		})
+		providerRows = append(providerRows, ci.NewRenderRow(
+			ci.RenderModulePath(update.ModulePath()),
+			ci.RenderCode(update.ProviderSource()),
+			renderDisplayValue(update.DisplayCurrent()),
+			renderDisplayValue(update.DisplayLatest()),
+			ci.RenderLabel(update.StatusLabel(), renderUpdateStatusTone(update.Status)),
+		))
 	}
 
-	moduleRows := make([][]string, 0, len(result.Modules))
+	moduleRows := make([]ci.RenderRow, 0, len(result.Modules))
 	for i := range result.Modules {
 		update := &result.Modules[i]
 		if update.Status == domain.StatusUpToDate {
 			continue
 		}
-		moduleRows = append(moduleRows, []string{
-			update.ModulePath(),
-			update.Source(),
-			displayValue(update.DisplayCurrent()),
-			displayValue(update.DisplayLatest()),
-			update.StatusLabel(),
-		})
+		moduleRows = append(moduleRows, ci.NewRenderRow(
+			ci.RenderModulePath(update.ModulePath()),
+			ci.RenderCode(update.Source()),
+			renderDisplayValue(update.DisplayCurrent()),
+			renderDisplayValue(update.DisplayLatest()),
+			ci.RenderLabel(update.StatusLabel(), renderUpdateStatusTone(update.Status)),
+		))
 	}
 
 	summaryText := fmt.Sprintf(
@@ -60,10 +60,10 @@ func buildUpdateReport(req updateReportRequest) (*ci.Report, error) {
 	)
 	blocks := make([]ci.RenderBlock, 0, 2)
 	if len(providerRows) > 0 {
-		blocks = append(blocks, ci.RenderTableBlock("Providers", []string{"Module", "Provider", "Current", "Latest", "Status"}, providerRows))
+		blocks = append(blocks, ci.NewTableBlock("Providers", updateReportProviderColumns(), providerRows))
 	}
 	if len(moduleRows) > 0 {
-		blocks = append(blocks, ci.RenderTableBlock("Modules", []string{"Module", "Source", "Current", "Latest", "Status"}, moduleRows))
+		blocks = append(blocks, ci.NewTableBlock("Modules", updateReportModuleColumns(), moduleRows))
 	}
 	report, err := ci.NewRenderedReport(ci.RenderedReportOptions{
 		Producer: pluginName,
@@ -113,9 +113,44 @@ func renderReportBody(result *tfupdateengine.UpdateResult) string {
 	return b.String()
 }
 
-func displayValue(v string) string {
+func renderDisplayValue(v string) ci.RenderValue {
 	if v == "" {
-		return "-"
+		return ci.RenderText("-")
 	}
-	return v
+	return ci.RenderText(v)
+}
+
+func renderUpdateStatusTone(status domain.UpdateStatus) ci.RenderTone {
+	switch status {
+	case domain.StatusApplied:
+		return ci.RenderToneSuccess
+	case domain.StatusUpdateAvailable, domain.StatusSkipped:
+		return ci.RenderToneWarning
+	case domain.StatusError:
+		return ci.RenderToneFailure
+	case domain.StatusUpToDate:
+		return ci.RenderToneSuccess
+	default:
+		return ci.RenderToneNeutral
+	}
+}
+
+func updateReportProviderColumns() []ci.RenderColumn {
+	return []ci.RenderColumn{
+		ci.NewRenderColumn("Module"),
+		ci.NewRenderColumn("Provider"),
+		ci.NewRenderColumn("Current"),
+		ci.NewRenderColumn("Latest"),
+		ci.NewRenderColumn("Status"),
+	}
+}
+
+func updateReportModuleColumns() []ci.RenderColumn {
+	return []ci.RenderColumn{
+		ci.NewRenderColumn("Module"),
+		ci.NewRenderColumn("Source"),
+		ci.NewRenderColumn("Current"),
+		ci.NewRenderColumn("Latest"),
+		ci.NewRenderColumn("Status"),
+	}
 }

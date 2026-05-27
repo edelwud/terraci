@@ -429,6 +429,46 @@ func TestArchitecture_PipelineIRValueBoundaries(t *testing.T) {
 	}
 }
 
+func TestArchitecture_CIRenderValueBoundaries(t *testing.T) {
+	root := repoRoot(t)
+	var violations []string
+
+	for _, rel := range goFiles(t, root, "cmd", "pkg", "plugins", "test", "examples") {
+		if allowUnder(rel, "pkg/ci/") || allowUnder(rel, "pkg/ci/citest/") {
+			continue
+		}
+		file := parseGoFile(t, filepath.Join(root, rel), 0)
+		ciAliases := importAliases(file, moduleImportPath+"/pkg/ci")
+		if len(ciAliases) == 0 {
+			continue
+		}
+
+		ast.Inspect(file, func(node ast.Node) bool {
+			lit, ok := node.(*ast.CompositeLit)
+			if !ok {
+				return true
+			}
+			selector, ok := lit.Type.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			ident, ok := selector.X.(*ast.Ident)
+			if !ok || !ciAliases[ident.Name] {
+				return true
+			}
+			switch selector.Sel.Name {
+			case "RenderBlock", "RenderTable", "RenderValue":
+				violations = append(violations, rel+" manually constructs ci."+selector.Sel.Name+"; use typed ci render constructors")
+			}
+			return true
+		})
+	}
+
+	if len(violations) > 0 {
+		t.Fatalf("ci render value boundary violations:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
 func repoRoot(tb testing.TB) string {
 	tb.Helper()
 

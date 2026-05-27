@@ -103,12 +103,14 @@ func TestComposeComment_WithReport(t *testing.T) {
 				"Policy Check",
 				"2 modules: 1 passed, 0 warned, 1 failed",
 				ci.ReportStatusFail,
-				ci.RenderTableBlock("", []string{"Module", "Severity", "Namespace", "Message"}, [][]string{{
-					"svc/prod/us-east-1/vpc",
-					"fail",
-					"terraform.cost",
-					"too expensive",
-				}}),
+				ci.NewTableBlock("", testColumns("Module", "Severity", "Namespace", "Message"), []ci.RenderRow{
+					ci.NewRenderRow(
+						ci.RenderModulePath("svc/prod/us-east-1/vpc"),
+						ci.RenderStatus(ci.ReportStatusFail),
+						ci.RenderCode("terraform.cost"),
+						ci.RenderText("too expensive"),
+					),
+				}),
 			)},
 		},
 	}
@@ -168,12 +170,13 @@ func TestBuildSummarySectionsWithOptions_WithoutDetailsClearsRowDetails(t *testi
 		t.Fatalf("sections = %#v, want module table row", sections)
 	}
 	rendered, err := ci.DecodeRenderSection(sections[1])
-	if err != nil || len(rendered.Blocks) == 0 {
-		t.Fatalf("RenderSection blocks = %v, err = %v", rendered.Blocks, err)
+	blocks := rendered.Blocks()
+	if err != nil || len(blocks) == 0 {
+		t.Fatalf("RenderSection blocks = %v, err = %v", blocks, err)
 	}
 
-	for _, block := range rendered.Blocks {
-		if block.Kind == ci.RenderBlockKindDetails {
+	for _, block := range blocks {
+		if block.Kind() == ci.RenderBlockKindDetails {
 			t.Fatalf("unexpected details block when includeDetails=false: %+v", block)
 		}
 	}
@@ -190,13 +193,23 @@ func TestComposeComment_WithCostReport(t *testing.T) {
 			"Cost Estimation",
 			"1 module, total: $15.00/mo (diff: +$5.00)",
 			ci.ReportStatusWarn,
-			ci.RenderTableBlock("", []string{"Module", "Before", "After", "Diff"}, [][]string{{
-				"svc/prod/us-east-1/vpc",
-				"$10.00",
-				"$15.00",
-				"+$5.00",
-			}}),
-			ci.RenderTextBlock("Total: $10.00/mo -> $15.00/mo (+$5.00/mo)"),
+			ci.NewTableBlock("", testColumns("Module", "Before", "After", "Diff"), []ci.RenderRow{
+				ci.NewRenderRow(
+					ci.RenderModulePath("svc/prod/us-east-1/vpc"),
+					ci.RenderMoney(10, monthlyMoneyTest()),
+					ci.RenderMoney(15, monthlyMoneyTest()),
+					ci.RenderMoneyDelta(5, monthlyMoneyTest()),
+				),
+			}),
+			ci.NewTextBlock(
+				ci.RenderText("Total: "),
+				ci.RenderMoney(10, monthlyMoneyTest()),
+				ci.RenderText(" -> "),
+				ci.RenderMoney(15, monthlyMoneyTest()),
+				ci.RenderText(" ("),
+				ci.RenderMoneyDelta(5, monthlyMoneyTest()),
+				ci.RenderText(")"),
+			),
 		)},
 	}}
 
@@ -316,9 +329,19 @@ func TestComposeComment_FiltersCostReportToAddedCosts(t *testing.T) {
 			"Cost Estimation",
 			"3 modules, total: $27.00/mo (diff: +5.00)",
 			ci.ReportStatusWarn,
-			ci.RenderTableBlock("", []string{"Module", "Before", "After", "Diff"}, [][]string{
-				{"svc/prod/us-east-1/vpc", "$10.00", "$15.00", "+$5.00"},
-				{"svc/prod/us-east-1/redis", "$20.00", "$10.00", "-$10.00"},
+			ci.NewTableBlock("", testColumns("Module", "Before", "After", "Diff"), []ci.RenderRow{
+				ci.NewRenderRow(
+					ci.RenderModulePath("svc/prod/us-east-1/vpc"),
+					ci.RenderMoney(10, monthlyMoneyTest()),
+					ci.RenderMoney(15, monthlyMoneyTest()),
+					ci.RenderMoneyDelta(5, monthlyMoneyTest()),
+				),
+				ci.NewRenderRow(
+					ci.RenderModulePath("svc/prod/us-east-1/redis"),
+					ci.RenderMoney(20, monthlyMoneyTest()),
+					ci.RenderMoney(10, monthlyMoneyTest()),
+					ci.RenderMoneyDelta(-10, monthlyMoneyTest()),
+				),
 			}),
 		)},
 	}}
@@ -345,20 +368,24 @@ func TestComposeComment_FiltersTfupdateReportToUpdatableModules(t *testing.T) {
 			"Dependency Update Check",
 			"4 checked, 2 updates available, 0 applied, 0 errors",
 			ci.ReportStatusWarn,
-			ci.RenderTableBlock("Providers", []string{"Module", "Provider", "Current", "Latest", "Status"}, [][]string{{
-				"svc/prod/us-east-1/vpc",
-				"hashicorp/aws",
-				"~> 5.0",
-				"5.4.0",
-				"update available",
-			}}),
-			ci.RenderTableBlock("Modules", []string{"Module", "Source", "Current", "Latest", "Status"}, [][]string{{
-				"svc/prod/us-east-1/eks",
-				"terraform-aws-modules/eks/aws",
-				"20.0.0",
-				"21.0.0",
-				"applied",
-			}}),
+			ci.NewTableBlock("Providers", testColumns("Module", "Provider", "Current", "Latest", "Status"), []ci.RenderRow{
+				ci.NewRenderRow(
+					ci.RenderModulePath("svc/prod/us-east-1/vpc"),
+					ci.RenderCode("hashicorp/aws"),
+					ci.RenderText("~> 5.0"),
+					ci.RenderText("5.4.0"),
+					ci.RenderLabel("update available", ci.RenderToneWarning),
+				),
+			}),
+			ci.NewTableBlock("Modules", testColumns("Module", "Source", "Current", "Latest", "Status"), []ci.RenderRow{
+				ci.NewRenderRow(
+					ci.RenderModulePath("svc/prod/us-east-1/eks"),
+					ci.RenderCode("terraform-aws-modules/eks/aws"),
+					ci.RenderText("20.0.0"),
+					ci.RenderText("21.0.0"),
+					ci.RenderLabel("applied", ci.RenderToneSuccess),
+				),
+			}),
 		)},
 	}}
 
@@ -622,4 +649,16 @@ func TestStatusIcon(t *testing.T) {
 			}
 		})
 	}
+}
+
+func testColumns(names ...string) []ci.RenderColumn {
+	columns := make([]ci.RenderColumn, 0, len(names))
+	for _, name := range names {
+		columns = append(columns, ci.NewRenderColumn(name))
+	}
+	return columns
+}
+
+func monthlyMoneyTest() ci.RenderMoneyOptions {
+	return ci.RenderMoneyOptions{Unit: ci.RenderMoneyUnitMonth}
 }

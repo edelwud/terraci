@@ -76,7 +76,7 @@ func BuildSummaryReport(collection *ci.PlanResultCollection, reports []*ci.Repor
 				Title:   sectionTitle,
 				Summary: sectionSummary,
 				Status:  section.Status(),
-				Blocks:  rendered.Blocks,
+				Blocks:  rendered.Blocks(),
 			})
 		}
 	}

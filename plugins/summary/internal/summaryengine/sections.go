@@ -5,7 +5,6 @@ import (
 	"sort"
 
 	"github.com/edelwud/terraci/pkg/ci"
-	"github.com/edelwud/terraci/plugins/internal/reportrender"
 )
 
 // BuildSummarySections builds the filtered summary view from plan results and render-ready plugin reports.
@@ -38,31 +37,31 @@ func BuildSummarySectionsWithOptions(plans []ci.PlanResult, reports []*ci.Report
 
 func buildSummaryHeaderSection(plans []ci.PlanResult, reports []*ci.Report) (ci.ReportSection, error) {
 	stats := calculateStats(plans)
-	items := make([]string, 0, len(reports))
+	items := make([]ci.RenderValue, 0, len(reports))
 	for _, report := range reports {
 		if report == nil {
 			continue
 		}
 		if len(report.Sections) == 0 {
-			item := fmt.Sprintf("%s %s", reportStatusIcon(report.Status), report.Title)
+			item := []ci.RenderValue{ci.RenderStatus(report.Status), ci.RenderText(" " + report.Title)}
 			if report.Summary != "" {
-				item += ": " + report.Summary
+				item = append(item, ci.RenderText(": "+report.Summary))
 			}
-			items = append(items, item)
+			items = append(items, ci.RenderInline(item...))
 			continue
 		}
 		for _, section := range report.Sections {
-			item := fmt.Sprintf("%s %s", reportStatusIcon(section.Status()), sectionTitle(section))
+			item := []ci.RenderValue{ci.RenderStatus(section.Status()), ci.RenderText(" " + sectionTitle(section))}
 			if section.Summary() != "" {
-				item += ": " + section.Summary()
+				item = append(item, ci.RenderText(": "+section.Summary()))
 			}
-			items = append(items, item)
+			items = append(items, ci.RenderInline(item...))
 		}
 	}
 
 	blocks := make([]ci.RenderBlock, 0, 1)
 	if len(items) > 0 {
-		blocks = append(blocks, ci.RenderListBlock("", items))
+		blocks = append(blocks, ci.NewListBlock("", items))
 	}
 	return encodeRenderSection(
 		"Summary",
@@ -102,10 +101,6 @@ func overallSummaryStatus(plans []ci.PlanResult, reports []*ci.Report) ci.Report
 	return ci.ReportStatusPass
 }
 
-func reportStatusIcon(status ci.ReportStatus) string {
-	return reportrender.StatusLabel(status)
-}
-
 func buildTerraformPlanSections(plans []ci.PlanResult, includeDetails bool) ([]ci.ReportSection, error) {
 	byEnv := groupByEnvironment(plans)
 	envOrder := sortedKeys(byEnv)
@@ -120,7 +115,7 @@ func buildTerraformPlanSections(plans []ci.PlanResult, includeDetails bool) ([]c
 			return envPlans[i].ModuleID < envPlans[j].ModuleID
 		})
 
-		rows := make([][]string, 0, len(envPlans))
+		rows := make([]ci.RenderRow, 0, len(envPlans))
 		blocks := make([]ci.RenderBlock, 0, 1+len(envPlans))
 		status := ci.ReportStatusWarn
 		for i := range envPlans {
@@ -128,14 +123,22 @@ func buildTerraformPlanSections(plans []ci.PlanResult, includeDetails bool) ([]c
 			if plan.Status == ci.PlanStatusFailed {
 				status = ci.ReportStatusFail
 			}
-			rows = append(rows, []string{statusIcon(plan.Status), plan.ModuleID, planSummary(plan)})
+			rows = append(rows, ci.NewRenderRow(
+				ci.RenderLabel(statusIcon(plan.Status), planStatusTone(plan.Status)),
+				ci.RenderModulePath(plan.ModuleID),
+				ci.RenderText(planSummary(plan)),
+			))
 			if includeDetails {
 				if details := planDetailsBody(plan); details != "" {
-					blocks = append(blocks, ci.RenderDetailsBlock(planDetailsTitle(plan), details, ""))
+					blocks = append(blocks, ci.NewDetailsBlock(planDetailsTitle(plan), details, ""))
 				}
 			}
 		}
-		blocks = append([]ci.RenderBlock{ci.RenderTableBlock("", []string{"Status", columnModule, "Summary"}, rows)}, blocks...)
+		blocks = append([]ci.RenderBlock{ci.NewTableBlock("", []ci.RenderColumn{
+			ci.NewRenderColumn("Status"),
+			ci.NewRenderColumn(columnModule),
+			ci.NewRenderColumn("Summary"),
+		}, rows)}, blocks...)
 
 		section, err := encodeRenderSection(
 			fmt.Sprintf("Environment: `%s`", env),

@@ -36,7 +36,7 @@ func TestLoaderBuildsReportFromStore(t *testing.T) {
 		Sections: []ci.RenderedSectionOptions{{
 			Title:   "Cost",
 			Summary: "cost changed",
-			Blocks:  []ci.RenderBlock{ci.RenderTextBlock("cost body")},
+			Blocks:  []ci.RenderBlock{ci.NewTextBlock(ci.RenderText("cost body"))},
 		}},
 	}))
 
@@ -76,7 +76,7 @@ func TestLoaderSkipsStaleFingerprint(t *testing.T) {
 		}),
 		Sections: []ci.RenderedSectionOptions{{
 			Title:  "Stale",
-			Blocks: []ci.RenderBlock{ci.RenderTextBlock("stale")},
+			Blocks: []ci.RenderBlock{ci.NewTextBlock(ci.RenderText("stale"))},
 		}},
 	}))
 	store.Publish(citest.MustRenderedReport(ci.RenderedReportOptions{
@@ -88,7 +88,7 @@ func TestLoaderSkipsStaleFingerprint(t *testing.T) {
 		}),
 		Sections: []ci.RenderedSectionOptions{{
 			Title:  "Fresh",
-			Blocks: []ci.RenderBlock{ci.RenderTextBlock("fresh")},
+			Blocks: []ci.RenderBlock{ci.NewTextBlock(ci.RenderText("fresh"))},
 		}},
 	}))
 

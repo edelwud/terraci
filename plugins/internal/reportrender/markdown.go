@@ -51,8 +51,9 @@ func MarkdownSection(section ci.ReportSection) (string, error) {
 
 	var sb strings.Builder
 	sb.WriteString(renderMarkdownSectionHeader(section))
-	for _, block := range rendered.Blocks {
-		part := renderMarkdownBlock(block)
+	blocks := rendered.Blocks()
+	for i := range blocks {
+		part := renderMarkdownBlock(blocks[i])
 		if part == "" {
 			continue
 		}
@@ -63,7 +64,7 @@ func MarkdownSection(section ci.ReportSection) (string, error) {
 }
 
 func renderMarkdownBlock(block ci.RenderBlock) string {
-	switch block.Kind {
+	switch block.Kind() {
 	case ci.RenderBlockKindText:
 		return renderMarkdownTextBlock(block)
 	case ci.RenderBlockKindList:
@@ -79,47 +80,51 @@ func renderMarkdownBlock(block ci.RenderBlock) string {
 
 func renderMarkdownTextBlock(block ci.RenderBlock) string {
 	var sb strings.Builder
-	if block.Title != "" {
-		fmt.Fprintf(&sb, "#### %s\n\n", escapeMarkdownText(block.Title))
+	if block.Title() != "" {
+		fmt.Fprintf(&sb, "#### %s\n\n", escapeMarkdownText(block.Title()))
 	}
-	sb.WriteString(escapeMarkdownText(block.Text))
+	sb.WriteString(formatMarkdownValue(block.Text(), false))
 	return strings.TrimSpace(sb.String())
 }
 
 func renderMarkdownListBlock(block ci.RenderBlock) string {
 	var sb strings.Builder
-	if block.Title != "" {
-		fmt.Fprintf(&sb, "#### %s\n\n", escapeMarkdownText(block.Title))
+	if block.Title() != "" {
+		fmt.Fprintf(&sb, "#### %s\n\n", escapeMarkdownText(block.Title()))
 	}
-	for _, item := range block.Items {
-		fmt.Fprintf(&sb, "- %s\n", escapeMarkdownText(item))
+	for _, item := range block.Items() {
+		fmt.Fprintf(&sb, "- %s\n", formatMarkdownValue(item, false))
 	}
 	return strings.TrimSpace(sb.String())
 }
 
 func renderMarkdownTableBlock(block ci.RenderBlock) string {
 	var sb strings.Builder
-	if block.Title != "" {
-		fmt.Fprintf(&sb, "#### %s\n\n", escapeMarkdownText(block.Title))
+	if block.Title() != "" {
+		fmt.Fprintf(&sb, "#### %s\n\n", escapeMarkdownText(block.Title()))
 	}
 
+	table := block.Table()
+	columns := table.Columns()
+	rows := table.Rows()
 	sb.WriteString("|")
-	for _, column := range block.Table.Columns {
-		fmt.Fprintf(&sb, " %s |", escapeMarkdownTableCell(column))
+	for _, column := range columns {
+		fmt.Fprintf(&sb, " %s |", formatMarkdownValue(column.Title(), true))
 	}
 	sb.WriteString("\n|")
-	for range block.Table.Columns {
+	for range columns {
 		sb.WriteString("--------|")
 	}
 	sb.WriteString("\n")
-	for _, row := range block.Table.Rows {
+	for _, row := range rows {
+		cells := row.Cells()
 		sb.WriteString("|")
-		for idx := range block.Table.Columns {
+		for idx := range columns {
 			cell := ""
-			if idx < len(row) {
-				cell = row[idx]
+			if idx < len(cells) {
+				cell = formatMarkdownValue(cells[idx], true)
 			}
-			fmt.Fprintf(&sb, " %s |", escapeMarkdownTableCell(cell))
+			fmt.Fprintf(&sb, " %s |", cell)
 		}
 		sb.WriteString("\n")
 	}
@@ -127,15 +132,16 @@ func renderMarkdownTableBlock(block ci.RenderBlock) string {
 }
 
 func renderMarkdownDetailsBlock(block ci.RenderBlock) string {
+	details := block.Details()
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "<details>\n<summary>%s</summary>\n\n", escapeHTMLText(block.Details.Summary))
-	if block.Details.Body != "" {
-		if block.Details.Language != "" {
-			fmt.Fprintf(&sb, "```%s\n", block.Details.Language)
-			sb.WriteString(block.Details.Body)
+	fmt.Fprintf(&sb, "<details>\n<summary>%s</summary>\n\n", escapeHTMLText(details.Summary()))
+	if details.Body() != "" {
+		if details.Language() != "" {
+			fmt.Fprintf(&sb, "```%s\n", details.Language())
+			sb.WriteString(details.Body())
 			sb.WriteString("\n```\n")
 		} else {
-			sb.WriteString(block.Details.Body)
+			sb.WriteString(details.Body())
 			sb.WriteString("\n")
 		}
 	}

@@ -16,12 +16,16 @@ func TestMarkdownSection_RendersEscapedRenderBlocks(t *testing.T) {
 		Summary: "line one\nline two",
 		Status:  ci.ReportStatusWarn,
 		Blocks: []ci.RenderBlock{
-			ci.RenderTableBlock(
+			ci.NewTableBlock(
 				"",
-				[]string{"Module|Path", "Summary"},
-				[][]string{{"svc|prod\nvpc", "+1 | update"}},
+				[]ci.RenderColumn{ci.NewRenderColumn("Module|Path"), ci.NewRenderColumn("Summary"), ci.NewRenderColumn("Delta")},
+				[]ci.RenderRow{ci.NewRenderRow(
+					ci.RenderModulePath("svc|prod\nvpc"),
+					ci.RenderText("+1 | update"),
+					ci.RenderMoneyDelta(1.25, ci.RenderMoneyOptions{Unit: ci.RenderMoneyUnitMonth}),
+				)},
 			),
-			ci.RenderDetailsBlock("prod <vpc>", "raw | markdown\nsecond line", ""),
+			ci.NewDetailsBlock("prod <vpc>", "raw | markdown\nsecond line", ""),
 		},
 	})
 	if err != nil {
@@ -39,6 +43,7 @@ func TestMarkdownSection_RendersEscapedRenderBlocks(t *testing.T) {
 		"Module\\|Path",
 		"svc\\|prod<br>vpc",
 		"+1 \\| update",
+		"+$1.25/mo",
 		"<summary>prod &lt;vpc&gt;</summary>",
 		"raw | markdown\nsecond line",
 	} {

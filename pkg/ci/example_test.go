@@ -20,7 +20,12 @@ func ExampleNewRenderedReport() {
 			Title:   "Findings",
 			Summary: "1 warning",
 			Blocks: []ci.RenderBlock{
-				ci.RenderTableBlock("Warnings", []string{"Module", "Message"}, [][]string{{"svc/prod/vpc", "tag missing"}}),
+				ci.NewTableBlock("Warnings", []ci.RenderColumn{
+					ci.NewRenderColumn("Module"),
+					ci.NewRenderColumn("Message"),
+				}, []ci.RenderRow{
+					ci.NewRenderRow(ci.RenderModulePath("svc/prod/vpc"), ci.RenderText("tag missing")),
+				}),
 			},
 		}},
 	})

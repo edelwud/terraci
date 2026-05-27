@@ -105,7 +105,7 @@ func TestRun_ConsumerReadsReportContract(t *testing.T) {
 		Summary:  "cost summary",
 		Sections: []ci.RenderedSectionOptions{{
 			Title:  "Cost details",
-			Blocks: []ci.RenderBlock{ci.RenderTextBlock("ok")},
+			Blocks: []ci.RenderBlock{ci.NewTextBlock(ci.RenderText("ok"))},
 		}},
 	}))
 

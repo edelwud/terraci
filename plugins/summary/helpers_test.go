@@ -134,7 +134,19 @@ func newPlanReport(modulePath string, status ci.ReportStatus) *ci.Report {
 			Title:   "Cost Estimation",
 			Summary: "summary",
 			Blocks: []ci.RenderBlock{
-				ci.RenderTableBlock("", []string{"Module", "Before", "After", "Diff"}, [][]string{{modulePath, "$1.00", "$2.00", "+$1.00"}}),
+				ci.NewTableBlock("", []ci.RenderColumn{
+					ci.NewRenderColumn("Module"),
+					ci.NewRenderColumn("Before"),
+					ci.NewRenderColumn("After"),
+					ci.NewRenderColumn("Diff"),
+				}, []ci.RenderRow{
+					ci.NewRenderRow(
+						ci.RenderModulePath(modulePath),
+						ci.RenderMoney(1, ci.RenderMoneyOptions{Unit: ci.RenderMoneyUnitMonth}),
+						ci.RenderMoney(2, ci.RenderMoneyOptions{Unit: ci.RenderMoneyUnitMonth}),
+						ci.RenderMoneyDelta(1, ci.RenderMoneyOptions{Unit: ci.RenderMoneyUnitMonth}),
+					),
+				}),
 			},
 		}},
 	})

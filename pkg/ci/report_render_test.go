@@ -2,6 +2,7 @@ package ci
 
 import (
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,32 +43,32 @@ func TestNewRenderedSection_RejectsMalformedBlocks(t *testing.T) {
 	}{
 		{
 			name:    "empty text",
-			block:   RenderBlock{Kind: RenderBlockKindText},
-			wantErr: "text block requires text",
+			block:   RenderBlock{kind: RenderBlockKindText},
+			wantErr: "text block requires valid text value",
 		},
 		{
 			name:    "empty list",
-			block:   RenderBlock{Kind: RenderBlockKindList},
+			block:   RenderBlock{kind: RenderBlockKindList},
 			wantErr: "list block requires at least one item",
 		},
 		{
 			name:    "missing table",
-			block:   RenderBlock{Kind: RenderBlockKindTable},
+			block:   RenderBlock{kind: RenderBlockKindTable},
 			wantErr: "table block requires table payload",
 		},
 		{
 			name:    "wide table row",
-			block:   RenderTableBlock("", []string{"Module"}, [][]string{{"app", "extra"}}),
+			block:   NewTableBlock("", []RenderColumn{NewRenderColumn("Module")}, []RenderRow{NewRenderRow(RenderText("app"), RenderText("extra"))}),
 			wantErr: "table row 0 has 2 cells for 1 columns",
 		},
 		{
 			name:    "missing details",
-			block:   RenderBlock{Kind: RenderBlockKindDetails},
+			block:   RenderBlock{kind: RenderBlockKindDetails},
 			wantErr: "details block requires details payload",
 		},
 		{
 			name:    "unsupported block kind",
-			block:   RenderBlock{Kind: "custom"},
+			block:   RenderBlock{kind: "custom"},
 			wantErr: `unsupported render block kind "custom"`,
 		},
 	}
@@ -96,7 +97,7 @@ func TestNewRenderedSection_RejectsInvalidStatus(t *testing.T) {
 
 	_, err := NewRenderedSection(RenderedSectionOptions{
 		Title:  "Broken",
-		Blocks: []RenderBlock{RenderTextBlock("body")},
+		Blocks: []RenderBlock{NewTextBlock(RenderText("body"))},
 	})
 	if err == nil {
 		t.Fatal("NewRenderedSection() error = nil, want invalid status error")
@@ -116,7 +117,7 @@ func TestNewRenderedReport_DefaultsSectionStatus(t *testing.T) {
 		Summary:  "summary",
 		Sections: []RenderedSectionOptions{{
 			Title:  "Findings",
-			Blocks: []RenderBlock{RenderTextBlock("warning")},
+			Blocks: []RenderBlock{NewTextBlock(RenderText("warning"))},
 		}},
 	})
 	if err != nil {
@@ -156,7 +157,7 @@ func TestReportSection_JSONRoundTripAndGetters(t *testing.T) {
 		Title:   "Findings",
 		Summary: "1 finding",
 		Status:  ReportStatusWarn,
-		Blocks:  []RenderBlock{RenderTextBlock("body")},
+		Blocks:  []RenderBlock{NewTextBlock(RenderText("body"))},
 	})
 	if err != nil {
 		t.Fatalf("NewRenderedSection() error = %v", err)
@@ -184,6 +185,59 @@ func TestReportSection_JSONRoundTripAndGetters(t *testing.T) {
 	}
 }
 
+func TestRenderValue_JSONRoundTripAndValidation(t *testing.T) {
+	t.Parallel()
+
+	value := RenderInline(
+		RenderStatus(ReportStatusWarn),
+		RenderText(" total "),
+		RenderMoneyDelta(12.5, RenderMoneyOptions{Unit: RenderMoneyUnitMonth}),
+	)
+	data, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+
+	var decoded RenderValue
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if err := decoded.Validate(); err != nil {
+		t.Fatalf("decoded Validate() error = %v", err)
+	}
+	parts := decoded.Parts()
+	if len(parts) != 3 || parts[0].Status() != ReportStatusWarn || parts[2].Amount() != 12.5 || parts[2].Unit() != RenderMoneyUnitMonth {
+		t.Fatalf("decoded parts = %#v, want status/text/monthly delta", parts)
+	}
+}
+
+func TestRenderValue_RejectsInvalidMoney(t *testing.T) {
+	t.Parallel()
+
+	value := RenderMoney(math.NaN(), RenderMoneyOptions{Unit: RenderMoneyUnitMonth})
+	if err := value.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want finite amount error")
+	}
+
+	invalidUnit := RenderMoney(1, RenderMoneyOptions{Unit: RenderMoneyUnit("year")})
+	if err := invalidUnit.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want invalid unit error")
+	}
+}
+
+func TestRenderValue_RejectsLegacyStringJSON(t *testing.T) {
+	t.Parallel()
+
+	var value RenderValue
+	err := json.Unmarshal([]byte(`"legacy"`), &value)
+	if err == nil {
+		t.Fatal("json.Unmarshal() error = nil, want legacy payload error")
+	}
+	if !strings.Contains(err.Error(), legacyRenderPayloadError) {
+		t.Fatalf("json.Unmarshal() error = %q, want legacy payload message", err.Error())
+	}
+}
+
 func TestReportClone_DefensivelyCopiesSectionsAndProvenance(t *testing.T) {
 	t.Parallel()
 
@@ -198,7 +252,7 @@ func TestReportClone_DefensivelyCopiesSectionsAndProvenance(t *testing.T) {
 		}),
 		Sections: []RenderedSectionOptions{{
 			Title:  "Findings",
-			Blocks: []RenderBlock{RenderTextBlock("original")},
+			Blocks: []RenderBlock{NewTextBlock(RenderText("original"))},
 		}},
 	})
 	if err != nil {
@@ -210,7 +264,7 @@ func TestReportClone_DefensivelyCopiesSectionsAndProvenance(t *testing.T) {
 	report.Sections[0], err = NewRenderedSection(RenderedSectionOptions{
 		Title:  "Findings",
 		Status: ReportStatusWarn,
-		Blocks: []RenderBlock{RenderTextBlock("mutated")},
+		Blocks: []RenderBlock{NewTextBlock(RenderText("mutated"))},
 	})
 	if err != nil {
 		t.Fatalf("NewRenderedSection() error = %v", err)
@@ -223,8 +277,9 @@ func TestReportClone_DefensivelyCopiesSectionsAndProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DecodeRenderSection(clone) error = %v", err)
 	}
-	if rendered.Blocks[0].Text != "original" {
-		t.Fatalf("clone section text = %q, want original", rendered.Blocks[0].Text)
+	blocks := rendered.Blocks()
+	if got := blocks[0].Text().Text(); got != "original" {
+		t.Fatalf("clone section text = %q, want original", got)
 	}
 }
 
@@ -264,7 +319,7 @@ func TestLoadReport_RejectsInvalidRenderedPayload(t *testing.T) {
 	if err == nil {
 		t.Fatal("LoadReport() error = nil, want invalid rendered payload error")
 	}
-	if !strings.Contains(err.Error(), "table row 0 has 2 cells for 1 columns") {
-		t.Fatalf("LoadReport() error = %q, want invalid table shape", err.Error())
+	if !strings.Contains(err.Error(), legacyRenderPayloadError) {
+		t.Fatalf("LoadReport() error = %q, want legacy payload message", err.Error())
 	}
 }

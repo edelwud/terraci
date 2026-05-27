@@ -62,6 +62,19 @@ func statusIcon(status ci.PlanStatus) string {
 	}
 }
 
+func planStatusTone(status ci.PlanStatus) ci.RenderTone {
+	switch status {
+	case ci.PlanStatusSuccess, ci.PlanStatusNoChanges:
+		return ci.RenderToneSuccess
+	case ci.PlanStatusChanges, ci.PlanStatusPending, ci.PlanStatusRunning:
+		return ci.RenderToneWarning
+	case ci.PlanStatusFailed:
+		return ci.RenderToneFailure
+	default:
+		return ci.RenderToneNeutral
+	}
+}
+
 func Truncate(s string, maxLen int) string {
 	if len(s) <= maxLen {
 		return s

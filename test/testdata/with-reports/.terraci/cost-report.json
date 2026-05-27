@@ -2,25 +2,50 @@
   "producer": "cost",
   "title": "Cost Estimation",
   "status": "pass",
-  "summary": "1 module, total: $50.00/mo",
+  "summary": "1 module",
   "sections": [
     {
       "kind": "rendered",
       "title": "Cost Estimation",
       "status": "pass",
-      "section_summary": "1 module, total: $50.00/mo",
+      "section_summary": "1 module",
       "payload": {
         "blocks": [
           {
             "kind": "table",
             "table": {
-              "columns": ["Module", "Before", "After", "Diff", "Notes"],
-              "rows": [["platform/prod/eu-central-1/vpc", "$0", "$50.00", "+$50.00", "-"]]
+              "columns": [
+                {"title": {"kind": "text", "text": "Module"}},
+                {"title": {"kind": "text", "text": "Before"}},
+                {"title": {"kind": "text", "text": "After"}},
+                {"title": {"kind": "text", "text": "Diff"}}
+              ],
+              "rows": [
+                {
+                  "cells": [
+                    {"kind": "module_path", "text": "platform/prod/eu-central-1/vpc"},
+                    {"kind": "money", "amount": 0, "unit": "mo"},
+                    {"kind": "money", "amount": 50, "unit": "mo"},
+                    {"kind": "money_delta", "amount": 50, "unit": "mo"}
+                  ]
+                }
+              ]
             }
           },
           {
             "kind": "text",
-            "text": "Totals: $0 +$50.00 -> $50.00"
+            "text": {
+              "kind": "inline",
+              "parts": [
+                {"kind": "text", "text": "Total: "},
+                {"kind": "money", "amount": 0, "unit": "mo"},
+                {"kind": "text", "text": " -> "},
+                {"kind": "money", "amount": 50, "unit": "mo"},
+                {"kind": "text", "text": " ("},
+                {"kind": "money_delta", "amount": 50, "unit": "mo"},
+                {"kind": "text", "text": ")"}
+              ]
+            }
           }
         ]
       }

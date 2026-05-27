@@ -58,7 +58,7 @@ func consumeReports(ctx context.Context, runtime Runtime) (*ConsumerResult, erro
 				consumed.Sections = append(consumed.Sections, entry)
 				continue
 			}
-			entry.Blocks = len(rendered.Blocks)
+			entry.Blocks = len(rendered.Blocks())
 			consumed.Sections = append(consumed.Sections, entry)
 		}
 		result.Reports = append(result.Reports, consumed)

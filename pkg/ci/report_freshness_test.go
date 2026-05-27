@@ -105,7 +105,7 @@ func renderedFreshnessReport(t *testing.T, producer, fingerprint string) *Report
 		}),
 		Sections: []RenderedSectionOptions{{
 			Title:  producer,
-			Blocks: []RenderBlock{RenderTextBlock("body")},
+			Blocks: []RenderBlock{NewTextBlock(RenderText("body"))},
 		}},
 	})
 	if err != nil {

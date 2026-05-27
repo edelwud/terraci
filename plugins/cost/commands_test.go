@@ -3,7 +3,9 @@ package cost
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
+	"math"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -65,9 +67,10 @@ func decodeCostSection(t *testing.T, report *ci.Report) ci.RenderSection {
 
 func renderTableRows(t *testing.T, section ci.RenderSection) [][]string {
 	t.Helper()
-	for _, block := range section.Blocks {
-		if block.Kind == ci.RenderBlockKindTable && block.Table != nil {
-			return block.Table.Rows
+	blocks := section.Blocks()
+	for i := range blocks {
+		if blocks[i].Kind() == ci.RenderBlockKindTable && blocks[i].Table() != nil {
+			return renderRows(blocks[i].Table().Rows())
 		}
 	}
 	t.Fatal("render section has no table block")
@@ -76,9 +79,15 @@ func renderTableRows(t *testing.T, section ci.RenderSection) [][]string {
 
 func renderTableColumns(t *testing.T, section ci.RenderSection) []string {
 	t.Helper()
-	for _, block := range section.Blocks {
-		if block.Kind == ci.RenderBlockKindTable && block.Table != nil {
-			return block.Table.Columns
+	blocks := section.Blocks()
+	for i := range blocks {
+		if blocks[i].Kind() == ci.RenderBlockKindTable && blocks[i].Table() != nil {
+			columns := blocks[i].Table().Columns()
+			result := make([]string, 0, len(columns))
+			for _, column := range columns {
+				result = append(result, renderValueString(column.Title()))
+			}
+			return result
 		}
 	}
 	t.Fatal("render section has no table block")
@@ -86,18 +95,25 @@ func renderTableColumns(t *testing.T, section ci.RenderSection) []string {
 }
 
 func renderTableRowsOrNil(section ci.RenderSection) [][]string {
-	for _, block := range section.Blocks {
-		if block.Kind == ci.RenderBlockKindTable && block.Table != nil {
-			return block.Table.Rows
+	blocks := section.Blocks()
+	for i := range blocks {
+		if blocks[i].Kind() == ci.RenderBlockKindTable && blocks[i].Table() != nil {
+			return renderRows(blocks[i].Table().Rows())
 		}
 	}
 	return nil
 }
 
 func renderListItems(section ci.RenderSection, title string) []string {
-	for _, block := range section.Blocks {
-		if block.Kind == ci.RenderBlockKindList && block.Title == title {
-			return block.Items
+	blocks := section.Blocks()
+	for i := range blocks {
+		if blocks[i].Kind() == ci.RenderBlockKindList && blocks[i].Title() == title {
+			items := blocks[i].Items()
+			result := make([]string, 0, len(items))
+			for _, item := range items {
+				result = append(result, renderValueString(item))
+			}
+			return result
 		}
 	}
 	return nil
@@ -105,12 +121,87 @@ func renderListItems(section ci.RenderSection, title string) []string {
 
 func renderTextBlocks(section ci.RenderSection) []string {
 	var texts []string
-	for _, block := range section.Blocks {
-		if block.Kind == ci.RenderBlockKindText {
-			texts = append(texts, block.Text)
+	blocks := section.Blocks()
+	for i := range blocks {
+		if blocks[i].Kind() == ci.RenderBlockKindText {
+			texts = append(texts, renderValueString(blocks[i].Text()))
 		}
 	}
 	return texts
+}
+
+func renderRows(rows []ci.RenderRow) [][]string {
+	result := make([][]string, 0, len(rows))
+	for _, row := range rows {
+		cells := row.Cells()
+		rendered := make([]string, 0, len(cells))
+		for _, cell := range cells {
+			rendered = append(rendered, renderValueString(cell))
+		}
+		result = append(result, rendered)
+	}
+	return result
+}
+
+func renderValueString(value ci.RenderValue) string {
+	switch value.Kind() {
+	case ci.RenderValueKindText, ci.RenderValueKindCode, ci.RenderValueKindLabel, ci.RenderValueKindModulePath, ci.RenderValueKindResourceAddress:
+		return value.Text()
+	case ci.RenderValueKindStatus:
+		return reportrender.StatusLabel(value.Status())
+	case ci.RenderValueKindMoney:
+		return renderMoneyString(value.Amount(), value.Unit(), false)
+	case ci.RenderValueKindMoneyDelta:
+		return renderMoneyString(value.Amount(), value.Unit(), true)
+	case ci.RenderValueKindInline:
+		var sb strings.Builder
+		for _, part := range value.Parts() {
+			sb.WriteString(renderValueString(part))
+		}
+		return sb.String()
+	default:
+		return ""
+	}
+}
+
+func renderMoneyString(amount float64, unit ci.RenderMoneyUnit, signed bool) string {
+	prefix := ""
+	value := amount
+	if signed {
+		switch {
+		case math.Abs(amount) < 0.0000001:
+			value = 0
+		case amount > 0:
+			prefix = "+"
+		default:
+			prefix = "-"
+			value = -amount
+		}
+	}
+	rendered := prefix + renderMoneyAmountString(value)
+	if unit != "" {
+		rendered += "/" + string(unit)
+	}
+	return rendered
+}
+
+func renderMoneyAmountString(amount float64) string {
+	if math.Abs(amount) < 0.0000001 {
+		return "$0"
+	}
+	if amount < 0 {
+		return "-" + renderMoneyAmountString(-amount)
+	}
+	if amount < 0.01 {
+		return "<$0.01"
+	}
+	if amount >= 1000 {
+		return fmt.Sprintf("$%.0f", amount)
+	}
+	if amount >= 1 {
+		return fmt.Sprintf("$%.2f", amount)
+	}
+	return fmt.Sprintf("$%.4f", amount)
 }
 
 func TestPlugin_Commands_RunE_NotConfigured(t *testing.T) {
@@ -453,11 +544,11 @@ func TestBuildCostReport(t *testing.T) {
 	}
 
 	m := rows[0]
-	if m[2] != "$10.50" {
-		t.Errorf("Module.After = %q, want $10.50", m[2])
+	if m[2] != "$10.50/mo" {
+		t.Errorf("Module.After = %q, want $10.50/mo", m[2])
 	}
-	if m[3] != "+$5.25" {
-		t.Errorf("Module.Diff = %q, want +$5.25", m[3])
+	if m[3] != "+$5.25/mo" {
+		t.Errorf("Module.Diff = %q, want +$5.25/mo", m[3])
 	}
 	errors := renderListItems(section, "Estimation errors")
 	if len(errors) != 1 || errors[0] != "/tmp/broken: parse error" {
@@ -518,7 +609,7 @@ func TestBuildCostReport_IncludesPrefetchWarnings(t *testing.T) {
 		t.Fatalf("summary = %q, want usage unknown count", report.Summary)
 	}
 	section := decodeCostSection(t, report)
-	if len(section.Blocks) == 0 {
+	if len(section.Blocks()) == 0 {
 		t.Fatalf("expected render blocks")
 	}
 	limitations := renderListItems(section, "Limitations")
@@ -618,7 +709,7 @@ func TestBuildCostReport_EscapesMarkdownTableCells(t *testing.T) {
 	}
 }
 
-func TestFormatCostReportTotal(t *testing.T) {
+func TestBuildCostTotalBlock(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -652,8 +743,8 @@ func TestFormatCostReportTotal(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := formatCostReportTotal(tt.result); got != tt.want {
-				t.Fatalf("formatCostReportTotal() = %q, want %q", got, tt.want)
+			if got := renderValueString(buildCostTotalBlock(tt.result).Text()); got != tt.want {
+				t.Fatalf("buildCostTotalBlock() = %q, want %q", got, tt.want)
 			}
 		})
 	}

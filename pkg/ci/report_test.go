@@ -21,7 +21,7 @@ func TestFileReportStore_SaveReport(t *testing.T) {
 		Sections: []RenderedSectionOptions{{
 			Title:   "Summary",
 			Summary: "all good",
-			Blocks:  []RenderBlock{RenderTextBlock("1 module analyzed")},
+			Blocks:  []RenderBlock{NewTextBlock(RenderText("1 module analyzed"))},
 		}},
 	})
 	if err != nil {
@@ -109,7 +109,9 @@ func TestSaveReport_SectionsField(t *testing.T) {
 			Title:   "Sample Section",
 			Summary: "1 module",
 			Blocks: []RenderBlock{
-				RenderTableBlock("", []string{"Module"}, [][]string{{"svc/prod/eu/vpc"}}),
+				NewTableBlock("", []RenderColumn{NewRenderColumn("Module")}, []RenderRow{
+					NewRenderRow(RenderModulePath("svc/prod/eu/vpc")),
+				}),
 			},
 		}},
 	})
@@ -138,7 +140,9 @@ func TestSaveReport_SectionsField(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DecodeRenderSection: %v", err)
 	}
-	if got := payload.Blocks[0].Table.Rows[0][0]; got != "svc/prod/eu/vpc" {
+	blocks := payload.Blocks()
+	rows := blocks[0].Table().Rows()
+	if got := rows[0].Cells()[0].Text(); got != "svc/prod/eu/vpc" {
 		t.Fatalf("payload module = %q, want svc/prod/eu/vpc", got)
 	}
 }

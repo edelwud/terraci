@@ -49,8 +49,9 @@ func CLISection(section ci.ReportSection) (string, error) {
 func renderCLIRenderSection(section ci.ReportSection, rendered ci.RenderSection) string {
 	var sb strings.Builder
 	sb.WriteString(renderCLISectionHeader(section))
-	for _, block := range rendered.Blocks {
-		part := renderCLIBlock(block)
+	blocks := rendered.Blocks()
+	for i := range blocks {
+		part := renderCLIBlock(blocks[i])
 		if part == "" {
 			continue
 		}
@@ -61,7 +62,7 @@ func renderCLIRenderSection(section ci.ReportSection, rendered ci.RenderSection)
 }
 
 func renderCLIBlock(block ci.RenderBlock) string {
-	switch block.Kind {
+	switch block.Kind() {
 	case ci.RenderBlockKindText:
 		return renderCLITextBlock(block)
 	case ci.RenderBlockKindList:
@@ -77,33 +78,49 @@ func renderCLIBlock(block ci.RenderBlock) string {
 
 func renderCLITextBlock(block ci.RenderBlock) string {
 	var sb strings.Builder
-	if block.Title != "" {
-		sb.WriteString(renderSubsectionTitle(block.Title))
+	if block.Title() != "" {
+		sb.WriteString(renderSubsectionTitle(block.Title()))
 		sb.WriteString("\n")
 	}
-	sb.WriteString(block.Text)
+	sb.WriteString(formatPlainValue(block.Text()))
 	return sb.String()
 }
 
 func renderCLIListBlock(block ci.RenderBlock) string {
 	var sb strings.Builder
-	if block.Title != "" {
-		sb.WriteString(renderSubsectionTitle(block.Title))
+	if block.Title() != "" {
+		sb.WriteString(renderSubsectionTitle(block.Title()))
 		sb.WriteString("\n")
 	}
-	for _, item := range block.Items {
-		fmt.Fprintf(&sb, "• %s\n", item)
+	for _, item := range block.Items() {
+		fmt.Fprintf(&sb, "• %s\n", formatPlainValue(item))
 	}
 	return strings.TrimSpace(sb.String())
 }
 
 func renderCLITableBlock(block ci.RenderBlock) string {
-	rows := make([][]string, 0, len(block.Table.Rows)+1)
-	rows = append(rows, block.Table.Columns)
-	rows = append(rows, block.Table.Rows...)
+	table := block.Table()
+	columns := table.Columns()
+	tableRows := table.Rows()
+	rows := make([][]string, 0, len(tableRows)+1)
+	header := make([]string, 0, len(columns))
+	for _, column := range columns {
+		header = append(header, formatPlainValue(column.Title()))
+	}
+	rows = append(rows, header)
+	for _, row := range tableRows {
+		cells := row.Cells()
+		rendered := make([]string, len(columns))
+		for idx := range columns {
+			if idx < len(cells) {
+				rendered[idx] = formatPlainValue(cells[idx])
+			}
+		}
+		rows = append(rows, rendered)
+	}
 	var sb strings.Builder
-	if block.Title != "" {
-		sb.WriteString(renderSubsectionTitle(block.Title))
+	if block.Title() != "" {
+		sb.WriteString(renderSubsectionTitle(block.Title()))
 		sb.WriteString("\n")
 	}
 	sb.WriteString(renderTable(rows))
@@ -111,11 +128,12 @@ func renderCLITableBlock(block ci.RenderBlock) string {
 }
 
 func renderCLIDetailsBlock(block ci.RenderBlock) string {
+	details := block.Details()
 	var sb strings.Builder
-	sb.WriteString(renderSubsectionTitle(block.Details.Summary))
-	if block.Details.Body != "" {
+	sb.WriteString(renderSubsectionTitle(details.Summary()))
+	if details.Body() != "" {
 		sb.WriteString("\n")
-		sb.WriteString(indentBlock(cleanMarkdown(block.Details.Body), "  "))
+		sb.WriteString(indentBlock(cleanMarkdown(details.Body()), "  "))
 	}
 	return sb.String()
 }
