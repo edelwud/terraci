@@ -22,7 +22,7 @@ func TestSQSHandler_CalculateUsageCost(t *testing.T) {
 	t.Parallel()
 
 	def := resourcespec.MustCompileTyped(SQSSpec())
-	got, ok := def.CalculateUsageCost("", nil)
+	got, ok := def.CalculateUsageCost("", parsedAttrs(t, def, nil))
 	if !ok {
 		t.Fatal("CalculateUsageCost should be available")
 	}

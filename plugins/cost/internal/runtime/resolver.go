@@ -33,7 +33,7 @@ type ResolveRequest struct {
 	Name         string
 	ModuleAddr   string
 	Region       string
-	Attrs        map[string]any
+	Attrs        resourcedef.RawAttrs
 }
 
 // CostResolver handles the cost resolution logic.
@@ -74,10 +74,23 @@ func (r *CostResolver) Resolve(ctx context.Context, req ResolveRequest) model.Re
 
 // ResolveWithState calculates cost for a single resource using an optional per-resource cache.
 func (r *CostResolver) ResolveWithState(ctx context.Context, req ResolveRequest, state *ResolutionState) model.ResourceCost {
-	return r.coreResolve(ctx, req, state)
+	prepared := r.prepareResolution(req)
+	if !prepared.ok {
+		return prepared.result
+	}
+	return r.resolvePrepared(ctx, prepared, state)
 }
 
-func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest, state *ResolutionState) model.ResourceCost {
+type preparedResolution struct {
+	ok         bool
+	req        ResolveRequest
+	providerID string
+	definition resourcedef.Definition
+	attrs      resourcedef.Attributes
+	result     model.ResourceCost
+}
+
+func (r *CostResolver) prepareResolution(req ResolveRequest) preparedResolution {
 	result := model.ResourceCost{
 		Provider:   "",
 		Address:    req.Address,
@@ -94,7 +107,7 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest, stat
 		result.FailureKind = model.FailureKindNoProvider
 		result.StatusDetail = "no provider"
 		logUnsupportedResource(req.ResourceType.String(), req.Address)
-		return result
+		return preparedResolution{result: result}
 	}
 	result.Provider = providerID
 
@@ -104,13 +117,32 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest, stat
 		result.FailureKind = model.FailureKindNoDefinition
 		result.StatusDetail = "no definition"
 		logUnsupportedResource(req.ResourceType.String(), req.Address)
-		return result
+		return preparedResolution{result: result}
 	}
 
-	attrs := req.Attrs
-	if attrs == nil {
-		attrs = make(map[string]any)
+	attrs, err := def.ParseAttrs(req.Attrs)
+	if err != nil {
+		result.Status = model.ResourceEstimateStatusFailed
+		result.FailureKind = model.FailureKindParseFailed
+		result.StatusDetail = err.Error()
+		return preparedResolution{result: result}
 	}
+
+	return preparedResolution{
+		ok:         true,
+		req:        req,
+		providerID: providerID,
+		definition: def,
+		attrs:      attrs,
+		result:     result,
+	}
+}
+
+func (r *CostResolver) resolvePrepared(ctx context.Context, prepared preparedResolution, state *ResolutionState) model.ResourceCost {
+	result := prepared.result
+	def := prepared.definition
+	attrs := prepared.attrs
+	req := prepared.req
 
 	result.Details = def.DescribeResource(nil, attrs)
 
@@ -144,7 +176,7 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest, stat
 		return result
 	case resourcedef.CostCategoryStandard:
 		return r.resolveStandardCost(ctx, standardResolutionCtx{
-			providerID: providerID,
+			providerID: prepared.providerID,
 			definition: def,
 			attrs:      attrs,
 			region:     req.Region,
@@ -160,12 +192,12 @@ func (r *CostResolver) coreResolve(ctx context.Context, req ResolveRequest, stat
 }
 
 // ResolveBeforeCost calculates the before-state cost for update/replace resources.
-func (r *CostResolver) ResolveBeforeCost(ctx context.Context, rc *model.ResourceCost, resourceType resourcedef.ResourceType, beforeAttrs map[string]any, region string) {
+func (r *CostResolver) ResolveBeforeCost(ctx context.Context, rc *model.ResourceCost, resourceType resourcedef.ResourceType, beforeAttrs resourcedef.RawAttrs, region string) {
 	r.ResolveBeforeCostWithState(ctx, rc, resourceType, beforeAttrs, region, nil)
 }
 
 // ResolveBeforeCostWithState calculates the before-state cost using an optional per-resource cache.
-func (r *CostResolver) ResolveBeforeCostWithState(ctx context.Context, rc *model.ResourceCost, resourceType resourcedef.ResourceType, beforeAttrs map[string]any, region string, state *ResolutionState) {
+func (r *CostResolver) ResolveBeforeCostWithState(ctx context.Context, rc *model.ResourceCost, resourceType resourcedef.ResourceType, beforeAttrs resourcedef.RawAttrs, region string, state *ResolutionState) {
 	providerID, ok := r.catalog.ResolveProvider(resourceType)
 	if !ok {
 		return
@@ -175,12 +207,20 @@ func (r *CostResolver) ResolveBeforeCostWithState(ctx context.Context, rc *model
 		return
 	}
 
+	attrs, err := def.ParseAttrs(beforeAttrs)
+	if err != nil {
+		rc.Status = model.ResourceEstimateStatusFailed
+		rc.FailureKind = model.FailureKindParseFailed
+		rc.StatusDetail = err.Error()
+		return
+	}
+
 	switch def.Category {
 	case resourcedef.CostCategoryStandard:
 		before := r.resolveStandardCost(ctx, standardResolutionCtx{
 			providerID: providerID,
 			definition: def,
-			attrs:      beforeAttrs,
+			attrs:      attrs,
 			region:     region,
 			result:     model.ResourceCost{Provider: providerID},
 			state:      state,
@@ -188,7 +228,7 @@ func (r *CostResolver) ResolveBeforeCostWithState(ctx context.Context, rc *model
 		rc.BeforeHourlyCost = before.HourlyCost
 		rc.BeforeMonthlyCost = before.MonthlyCost
 	case resourcedef.CostCategoryFixed:
-		hourly, monthly, ok := def.CalculateFixedCost(region, beforeAttrs)
+		hourly, monthly, ok := def.CalculateFixedCost(region, attrs)
 		if !ok {
 			rc.Status = model.ResourceEstimateStatusFailed
 			rc.FailureKind = model.FailureKindInternal
@@ -214,20 +254,15 @@ func (r *CostResolver) ResolveWithSubResources(ctx context.Context, req ResolveR
 
 // ResolveWithSubResourcesState resolves a resource and any sub-resources using an optional per-resource cache.
 func (r *CostResolver) ResolveWithSubResourcesState(ctx context.Context, req ResolveRequest, state *ResolutionState) []model.ResourceCost {
-	primary := r.ResolveWithState(ctx, req, state)
+	prepared := r.prepareResolution(req)
+	if !prepared.ok {
+		return []model.ResourceCost{prepared.result}
+	}
+
+	primary := r.resolvePrepared(ctx, prepared, state)
 	results := []model.ResourceCost{primary}
 
-	providerID, ok := r.catalog.ResolveProvider(req.ResourceType)
-	if !ok {
-		return results
-	}
-
-	def, ok := r.catalog.ResolveDefinition(providerID, req.ResourceType)
-	if !ok {
-		return results
-	}
-
-	subresources := def.BuildSubresources(req.Attrs)
+	subresources := prepared.definition.BuildSubresources(prepared.attrs)
 	if len(subresources) == 0 {
 		return results
 	}
@@ -252,7 +287,7 @@ func (r *CostResolver) ResolveWithSubResourcesState(ctx context.Context, req Res
 type standardResolutionCtx struct {
 	providerID string
 	definition resourcedef.Definition
-	attrs      map[string]any
+	attrs      resourcedef.Attributes
 	region     string
 	result     model.ResourceCost
 	state      *ResolutionState

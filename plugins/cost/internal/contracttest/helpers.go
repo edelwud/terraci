@@ -35,7 +35,8 @@ func AssertNoDescribeCapability(tb testing.TB, def resourcedef.Definition) {
 func RequireLookup(tb testing.TB, def resourcedef.Definition, region string, attrs map[string]any) *pricing.PriceLookup {
 	tb.Helper()
 
-	lookup, err := def.BuildLookup(region, attrs)
+	parsed := RequireParsedAttrs(tb, def, attrs)
+	lookup, err := def.BuildLookup(region, parsed)
 	if err != nil {
 		tb.Fatalf("BuildLookup() error = %v", err)
 	}
@@ -44,4 +45,15 @@ func RequireLookup(tb testing.TB, def resourcedef.Definition, region string, att
 	}
 
 	return lookup
+}
+
+// RequireParsedAttrs parses raw test attributes and fails the test on parser errors.
+func RequireParsedAttrs(tb testing.TB, def resourcedef.Definition, attrs map[string]any) resourcedef.Attributes {
+	tb.Helper()
+
+	parsed, err := def.ParseAttrs(resourcedef.NewRawAttrs(attrs))
+	if err != nil {
+		tb.Fatalf("ParseAttrs() error = %v", err)
+	}
+	return parsed
 }

@@ -27,7 +27,7 @@ func TestS3Handler_CalculateUsageCost(t *testing.T) {
 	t.Parallel()
 
 	def := resourcespec.MustCompileTyped(S3Spec())
-	got, ok := def.CalculateUsageCost("", nil)
+	got, ok := def.CalculateUsageCost("", parsedAttrs(t, def, nil))
 	if !ok {
 		t.Fatal("CalculateUsageCost should be available")
 	}
@@ -46,7 +46,7 @@ func TestS3Handler_DescribeReturnsNil(t *testing.T) {
 	t.Parallel()
 
 	def := resourcespec.MustCompileTyped(S3Spec())
-	if got := def.DescribeResource(nil, nil); got != nil {
+	if got := def.DescribeResource(nil, parsedAttrs(t, def, nil)); got != nil {
 		t.Fatalf("DescribeResource() = %#v, want nil", got)
 	}
 }

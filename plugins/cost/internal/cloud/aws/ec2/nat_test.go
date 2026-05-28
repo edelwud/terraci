@@ -78,7 +78,7 @@ func TestNATHandler_CalculateCost(t *testing.T) {
 		OnDemandUSD: 0.045,
 	}
 
-	hourly, monthly, ok := def.CalculateStandardCost(price, nil, "", nil)
+	hourly, monthly, ok := def.CalculateStandardCost(price, nil, "", parsedAttrs(t, def, nil))
 	if !ok {
 		t.Fatal("CalculateStandardCost should return ok=true")
 	}
@@ -93,7 +93,7 @@ func TestNATHandler_CalculateCost(t *testing.T) {
 	}
 
 	// Without price (fallback)
-	hourly, _, ok = def.CalculateStandardCost(&pricing.Price{OnDemandUSD: 0}, nil, "", nil)
+	hourly, _, ok = def.CalculateStandardCost(&pricing.Price{OnDemandUSD: 0}, nil, "", parsedAttrs(t, def, nil))
 	if !ok {
 		t.Fatal("CalculateStandardCost should return ok=true")
 	}

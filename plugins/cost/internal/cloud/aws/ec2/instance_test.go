@@ -56,7 +56,7 @@ func TestInstanceHandler_BuildLookup(t *testing.T) {
 			t.Parallel()
 
 			if tt.wantErr {
-				_, err := def.BuildLookup(tt.region, tt.attrs)
+				_, err := def.BuildLookup(tt.region, parsedAttrs(t, def, tt.attrs))
 				if err == nil {
 					t.Error("BuildLookup should return error")
 				}
@@ -84,7 +84,7 @@ func TestInstanceHandler_CalculateCost_ComputeOnly(t *testing.T) {
 	price := &pricing.Price{OnDemandUSD: 0.10}
 
 	// CalculateCost now returns compute cost only (no root volume)
-	hourly, monthly, ok := def.CalculateStandardCost(price, nil, "", map[string]any{})
+	hourly, monthly, ok := def.CalculateStandardCost(price, nil, "", parsedAttrs(t, def, map[string]any{}))
 	if !ok {
 		t.Fatal("CalculateStandardCost should return ok=true")
 	}
@@ -104,7 +104,7 @@ func TestInstanceHandler_SubResources_Default(t *testing.T) {
 	def := resourcespec.MustCompileTyped(InstanceSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	// No root_block_device → default 8 GB gp2
-	subs := def.BuildSubresources(map[string]any{})
+	subs := def.BuildSubresources(parsedAttrs(t, def, map[string]any{}))
 
 	if len(subs) != 1 {
 		t.Fatalf("BuildSubresources() returned %d, want 1", len(subs))
@@ -141,7 +141,7 @@ func TestInstanceHandler_SubResources_Custom(t *testing.T) {
 		},
 	}
 
-	subs := def.BuildSubresources(attrs)
+	subs := def.BuildSubresources(parsedAttrs(t, def, attrs))
 
 	if len(subs) != 1 {
 		t.Fatalf("BuildSubresources() returned %d, want 1", len(subs))
@@ -218,7 +218,7 @@ func TestInstanceHandler_Describe(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := def.DescribeResource(nil, tt.attrs)
+			result := def.DescribeResource(nil, parsedAttrs(t, def, tt.attrs))
 
 			for k, v := range tt.wantKeys {
 				if result[k] != v {
@@ -252,8 +252,8 @@ func TestGetRootBlockDevice(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := getRootBlockDevice(tt.attrs)
-			if (got != nil) != tt.want {
+			got := getRootBlockDevice(rawAttrs(tt.attrs))
+			if !got.IsZero() != tt.want {
 				t.Errorf("getRootBlockDevice() returned %v, want non-nil=%v", got, tt.want)
 			}
 		})

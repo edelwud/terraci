@@ -10,13 +10,12 @@ import (
 	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
 )
 
-// TypedSpec is a resource spec where all callbacks receive pre-parsed typed attributes.
-// A is the resource's own attrs struct (e.g., instanceAttrs, ebsVolumeAttrs).
-// It compiles down to the same resourcedef.Definition via CompileTyped.
+// TypedSpec is the canonical declaration for one resource's pricing behavior.
+// A is the resource's own parsed attrs struct (for example, instanceAttrs).
 type TypedSpec[A any] struct {
 	Type     resourcedef.ResourceType
 	Category resourcedef.CostCategory
-	Parse    func(attrs map[string]any) A
+	Parse    func(attrs resourcedef.RawAttrs) (A, error)
 
 	Lookup       *TypedLookupSpec[A]
 	Describe     *TypedDescribeSpec[A]
@@ -60,8 +59,8 @@ type TypedSubresourceSpec[A any] struct {
 type NoAttrs struct{}
 
 // ParseNoAttrs ignores raw attributes and returns an empty typed payload.
-func ParseNoAttrs(map[string]any) NoAttrs {
-	return NoAttrs{}
+func ParseNoAttrs(resourcedef.RawAttrs) (NoAttrs, error) {
+	return NoAttrs{}, nil
 }
 
 // NoAttrsSpec creates a typed spec for resources that do not need parsed attributes.
@@ -135,68 +134,91 @@ func (s TypedSpec[A]) Validate() error {
 }
 
 // CompileTyped turns a typed resource spec into the canonical runtime definition.
-// The Parse function wraps each callback so resource logic receives pre-parsed attributes.
 func CompileTyped[A any](spec TypedSpec[A]) (resourcedef.Definition, error) {
 	if err := spec.Validate(); err != nil {
 		return resourcedef.Definition{}, err
 	}
 
-	parse := spec.Parse
-	untyped := ResourceSpec{
+	def := resourcedef.Definition{
 		Type:     spec.Type,
 		Category: spec.Category,
+		Parse: func(attrs resourcedef.RawAttrs) (resourcedef.Attributes, error) {
+			parsed, err := spec.Parse(attrs)
+			if err != nil {
+				return resourcedef.Attributes{}, err
+			}
+			return resourcedef.NewAttributes(parsed), nil
+		},
 	}
 
 	if spec.Lookup != nil {
 		fn := spec.Lookup.BuildFunc
-		untyped.Lookup = &LookupSpec{
-			BuildFunc: func(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
-				return fn(region, parse(attrs))
-			},
+		def.Lookup = func(region string, attrs resourcedef.Attributes) (*pricing.PriceLookup, error) {
+			parsed, err := typedAttrs[A](attrs)
+			if err != nil {
+				return nil, err
+			}
+			return fn(region, parsed)
 		}
 	}
 	if spec.Describe != nil {
 		fn := spec.Describe.BuildFunc
-		untyped.Describe = &DescribeSpec{
-			BuildFunc: func(price *pricing.Price, attrs map[string]any) map[string]string {
-				return fn(price, parse(attrs))
-			},
+		def.Describe = func(price *pricing.Price, attrs resourcedef.Attributes) map[string]string {
+			parsed, err := typedAttrs[A](attrs)
+			if err != nil {
+				return nil
+			}
+			return fn(price, parsed)
 		}
 	}
 	if spec.Standard != nil {
 		fn := spec.Standard.CostFunc
-		untyped.Standard = &StandardPricingSpec{
-			CostFunc: func(price *pricing.Price, index *pricing.PriceIndex, region string, attrs map[string]any) (hourly, monthly float64) {
-				return fn(price, index, region, parse(attrs))
-			},
+		def.StandardCost = func(price *pricing.Price, index *pricing.PriceIndex, region string, attrs resourcedef.Attributes) (hourly, monthly float64) {
+			parsed, err := typedAttrs[A](attrs)
+			if err != nil {
+				return 0, 0
+			}
+			return fn(price, index, region, parsed)
 		}
 	}
 	if spec.Fixed != nil {
 		fn := spec.Fixed.CostFunc
-		untyped.Fixed = &FixedPricingSpec{
-			CostFunc: func(region string, attrs map[string]any) (hourly, monthly float64) {
-				return fn(region, parse(attrs))
-			},
+		def.FixedCost = func(region string, attrs resourcedef.Attributes) (hourly, monthly float64) {
+			parsed, err := typedAttrs[A](attrs)
+			if err != nil {
+				return 0, 0
+			}
+			return fn(region, parsed)
 		}
 	}
 	if spec.Usage != nil {
 		fn := spec.Usage.EstimateFunc
-		untyped.Usage = &UsagePricingSpec{
-			EstimateFunc: func(region string, attrs map[string]any) model.UsageCostEstimate {
-				return fn(region, parse(attrs))
-			},
+		def.UsageCost = func(region string, attrs resourcedef.Attributes) model.UsageCostEstimate {
+			parsed, err := typedAttrs[A](attrs)
+			if err != nil {
+				return model.UsageCostEstimate{
+					Status: model.ResourceEstimateStatusFailed,
+					Detail: err.Error(),
+				}
+			}
+			return fn(region, parsed)
 		}
 	}
 	if spec.Subresources != nil {
 		fn := spec.Subresources.BuildFunc
-		untyped.Subresources = &SubresourceSpec{
-			BuildFunc: func(attrs map[string]any) []resourcedef.SubResource {
-				return fn(parse(attrs))
-			},
+		def.Subresources = func(attrs resourcedef.Attributes) []resourcedef.SubResource {
+			parsed, err := typedAttrs[A](attrs)
+			if err != nil {
+				return nil
+			}
+			return fn(parsed)
 		}
 	}
 
-	return Compile(untyped)
+	if err := def.Validate(); err != nil {
+		return resourcedef.Definition{}, err
+	}
+	return def, nil
 }
 
 // MustCompileTyped turns a typed spec into a runtime definition and panics on invalid configuration.
@@ -206,4 +228,12 @@ func MustCompileTyped[A any](spec TypedSpec[A]) resourcedef.Definition {
 		panic(err)
 	}
 	return def
+}
+
+func typedAttrs[A any](attrs resourcedef.Attributes) (A, error) {
+	parsed, err := resourcedef.AttributesAs[A](attrs)
+	if err != nil {
+		return parsed, fmt.Errorf("typed resource spec: %w", err)
+	}
+	return parsed, nil
 }

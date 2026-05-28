@@ -119,7 +119,19 @@ func buildPrefetchPlan(runtime *costruntime.EstimationRuntime, modulePlans []*Pl
 				continue
 			}
 
-			lookup, err := def.BuildLookup(modulePlan.Region, resource.ActiveAttrs())
+			attrs, err := def.ParseAttrs(resource.ActiveAttrs())
+			if err != nil {
+				diagnostics = append(diagnostics, model.PrefetchDiagnostic{
+					Kind:         "parse-failed",
+					ModuleID:     modulePlan.ModuleID,
+					ResourceType: resource.ResourceType.String(),
+					Address:      resource.Address,
+					Detail:       err.Error(),
+				})
+				continue
+			}
+
+			lookup, err := def.BuildLookup(modulePlan.Region, attrs)
 			if err != nil {
 				diagnostics = append(diagnostics, model.PrefetchDiagnostic{
 					Kind:         "lookup-failed",

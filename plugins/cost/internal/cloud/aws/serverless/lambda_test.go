@@ -87,7 +87,7 @@ func TestLambdaHandler_CalculateUsageCost(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, ok := def.CalculateUsageCost("", tt.attrs)
+			got, ok := def.CalculateUsageCost("", parsedAttrs(t, def, tt.attrs))
 			if !ok {
 				t.Fatal("CalculateUsageCost should be available")
 			}
@@ -172,7 +172,7 @@ func TestLambdaHandler_Describe(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := def.DescribeResource(nil, tt.attrs)
+			result := def.DescribeResource(nil, parsedAttrs(t, def, tt.attrs))
 
 			for k, v := range tt.wantKeys {
 				if result[k] != v {

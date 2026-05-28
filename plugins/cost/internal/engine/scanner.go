@@ -34,8 +34,10 @@ type PlannedResource struct {
 	Name         string
 	ModuleAddr   string
 	Action       model.EstimateAction
-	BeforeAttrs  map[string]any
-	AfterAttrs   map[string]any
+	BeforeAttrs  resourcedef.RawAttrs
+	AfterAttrs   resourcedef.RawAttrs
+	HasBefore    bool
+	HasAfter     bool
 }
 
 // ResolveRequest returns the primary resolution request for this planned resource.
@@ -51,8 +53,8 @@ func (r PlannedResource) ResolveRequest(region string) costruntime.ResolveReques
 }
 
 // ActiveAttrs returns the attrs that represent the resource's current target state.
-func (r PlannedResource) ActiveAttrs() map[string]any {
-	if r.AfterAttrs != nil {
+func (r PlannedResource) ActiveAttrs() resourcedef.RawAttrs {
+	if r.HasAfter {
 		return r.AfterAttrs
 	}
 	return r.BeforeAttrs
@@ -60,7 +62,7 @@ func (r PlannedResource) ActiveAttrs() map[string]any {
 
 // RequiresBeforeCost reports whether the before-state should be priced separately.
 func (r PlannedResource) RequiresBeforeCost() bool {
-	return (r.Action == model.ActionUpdate || r.Action == model.ActionReplace) && r.BeforeAttrs != nil
+	return (r.Action == model.ActionUpdate || r.Action == model.ActionReplace) && r.HasBefore
 }
 
 // PlanResult is the provider-neutral input model consumed by the cost engine.

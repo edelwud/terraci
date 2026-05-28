@@ -1,6 +1,9 @@
 package elasticache
 
-import "github.com/edelwud/terraci/plugins/cost/internal/costutil"
+import (
+	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
+	"github.com/edelwud/terraci/plugins/cost/internal/resourcedef"
+)
 
 type clusterAttrs struct {
 	NodeType              string
@@ -9,13 +12,13 @@ type clusterAttrs struct {
 	SnapshotRetentionDays int
 }
 
-func parseClusterAttrs(attrs map[string]any) clusterAttrs {
+func parseClusterAttrs(attrs resourcedef.RawAttrs) (clusterAttrs, error) {
 	return clusterAttrs{
 		NodeType:              costutil.GetStringAttr(attrs, "node_type"),
 		Engine:                costutil.GetStringAttr(attrs, "engine"),
 		NumCacheNodes:         costutil.GetIntAttr(attrs, "num_cache_nodes"),
 		SnapshotRetentionDays: costutil.GetIntAttr(attrs, "snapshot_retention_limit"),
-	}
+	}, nil
 }
 
 type replicationGroupAttrs struct {
@@ -27,7 +30,7 @@ type replicationGroupAttrs struct {
 	SnapshotRetentionDays int
 }
 
-func parseReplicationGroupAttrs(attrs map[string]any) replicationGroupAttrs {
+func parseReplicationGroupAttrs(attrs resourcedef.RawAttrs) (replicationGroupAttrs, error) {
 	numNodeGroups := costutil.GetIntAttr(attrs, "num_node_groups")
 	parsed := replicationGroupAttrs{
 		NodeType:              costutil.GetStringAttr(attrs, "node_type"),
@@ -40,7 +43,7 @@ func parseReplicationGroupAttrs(attrs map[string]any) replicationGroupAttrs {
 	if parsed.NumNodeGroups == 0 {
 		parsed.NumNodeGroups = 1
 	}
-	return parsed
+	return parsed, nil
 }
 
 func (a replicationGroupAttrs) totalNodes() int {
@@ -56,11 +59,11 @@ type serverlessAttrs struct {
 	StorageMaxGB float64
 }
 
-func parseServerlessAttrs(attrs map[string]any) serverlessAttrs {
+func parseServerlessAttrs(attrs resourcedef.RawAttrs) (serverlessAttrs, error) {
 	limits := costutil.GetFirstObjectAttr(attrs, "cache_usage_limits")
 	storage := costutil.GetFirstObjectAttr(limits, "data_storage")
 	return serverlessAttrs{
 		Engine:       costutil.GetStringAttr(attrs, "engine"),
 		StorageMaxGB: costutil.GetFloatAttr(storage, "maximum"),
-	}
+	}, nil
 }

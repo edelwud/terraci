@@ -124,7 +124,7 @@ func TestClusterHandler_CalculateCost(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			hourly, _, ok := def.CalculateStandardCost(price, nil, "", tt.attrs)
+			hourly, _, ok := def.CalculateStandardCost(price, nil, "", parsedAttrs(t, def, tt.attrs))
 			if !ok {
 				t.Fatal("CalculateStandardCost returned ok=false")
 			}
@@ -172,7 +172,7 @@ func TestClusterHandler_CalculateCost_BackupStorage(t *testing.T) {
 		},
 	}
 
-	_, monthly, ok := def.CalculateStandardCost(price, index, "us-east-1", attrs)
+	_, monthly, ok := def.CalculateStandardCost(price, index, "us-east-1", parsedAttrs(t, def, attrs))
 	if !ok {
 		t.Fatal("CalculateStandardCost returned ok=false")
 	}
@@ -220,7 +220,7 @@ func TestClusterHandler_CalculateCost_DataTiering(t *testing.T) {
 		},
 	}
 
-	_, monthly, ok := def.CalculateStandardCost(price, index, "us-east-1", attrs)
+	_, monthly, ok := def.CalculateStandardCost(price, index, "us-east-1", parsedAttrs(t, def, attrs))
 	if !ok {
 		t.Fatal("CalculateStandardCost returned ok=false")
 	}
@@ -259,7 +259,7 @@ func TestClusterHandler_CalculateCost_Fallback(t *testing.T) {
 		Products: map[string]pricing.Price{},
 	}
 
-	_, monthly, ok := def.CalculateStandardCost(price, index, "us-east-1", attrs)
+	_, monthly, ok := def.CalculateStandardCost(price, index, "us-east-1", parsedAttrs(t, def, attrs))
 	if !ok {
 		t.Fatal("CalculateStandardCost returned ok=false")
 	}
@@ -295,7 +295,7 @@ func TestClusterHandler_NoBackupCostWithRetention1(t *testing.T) {
 		"snapshot_retention_limit": 1,
 	}
 
-	_, monthly, ok := def.CalculateStandardCost(price, nil, "", attrs)
+	_, monthly, ok := def.CalculateStandardCost(price, nil, "", parsedAttrs(t, def, attrs))
 	if !ok {
 		t.Fatal("CalculateStandardCost returned ok=false")
 	}
@@ -326,7 +326,7 @@ func TestClusterHandler_NoStorageCostWithoutSSD(t *testing.T) {
 		"num_cache_nodes": 1,
 	}
 
-	_, monthly, ok := def.CalculateStandardCost(price, nil, "", attrs)
+	_, monthly, ok := def.CalculateStandardCost(price, nil, "", parsedAttrs(t, def, attrs))
 	if !ok {
 		t.Fatal("CalculateStandardCost returned ok=false")
 	}

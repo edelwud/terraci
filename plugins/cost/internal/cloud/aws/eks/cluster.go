@@ -17,10 +17,10 @@ type clusterAttrs struct {
 	Version string
 }
 
-func parseClusterAttrs(attrs map[string]any) clusterAttrs {
+func parseClusterAttrs(attrs resourcedef.RawAttrs) (clusterAttrs, error) {
 	return clusterAttrs{
 		Version: costutil.GetStringAttr(attrs, "version"),
-	}
+	}, nil
 }
 
 // ClusterSpec declares aws_eks_cluster cost estimation.

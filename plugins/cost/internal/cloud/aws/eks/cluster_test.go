@@ -66,7 +66,7 @@ func TestClusterHandler_CalculateCost_FromAPI(t *testing.T) {
 	def := resourcespec.MustCompileTyped(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	price := &pricing.Price{OnDemandUSD: 0.10}
-	hourly, monthly, ok := def.CalculateStandardCost(price, nil, "", nil)
+	hourly, monthly, ok := def.CalculateStandardCost(price, nil, "", parsedAttrs(t, def, nil))
 	if !ok {
 		t.Fatal("CalculateStandardCost() ok = false, want true")
 	}
@@ -84,7 +84,7 @@ func TestClusterHandler_CalculateCost_Fallback(t *testing.T) {
 	def := resourcespec.MustCompileTyped(ClusterSpec(awskit.NewRuntimeDeps(awskit.NewRuntime(awskit.Manifest))))
 
 	// nil price -> fallback to default
-	hourly, monthly, ok := def.CalculateStandardCost(nil, nil, "", nil)
+	hourly, monthly, ok := def.CalculateStandardCost(nil, nil, "", parsedAttrs(t, def, nil))
 	if !ok {
 		t.Fatal("CalculateStandardCost() ok = false, want true")
 	}
@@ -96,7 +96,7 @@ func TestClusterHandler_CalculateCost_Fallback(t *testing.T) {
 	}
 
 	// zero price -> fallback
-	hourly2, _, ok2 := def.CalculateStandardCost(&pricing.Price{OnDemandUSD: 0}, nil, "", nil)
+	hourly2, _, ok2 := def.CalculateStandardCost(&pricing.Price{OnDemandUSD: 0}, nil, "", parsedAttrs(t, def, nil))
 	if !ok2 {
 		t.Fatal("CalculateStandardCost() ok = false, want true")
 	}
@@ -134,7 +134,10 @@ func TestClusterHandler_Describe(t *testing.T) {
 func TestParseClusterAttrs(t *testing.T) {
 	t.Parallel()
 
-	got := parseClusterAttrs(map[string]any{"version": "1.29"})
+	got, err := parseClusterAttrs(rawAttrs(map[string]any{"version": "1.29"}))
+	if err != nil {
+		t.Fatalf("parseClusterAttrs() error = %v", err)
+	}
 	if got.Version != "1.29" {
 		t.Fatalf("parseClusterAttrs().Version = %q, want 1.29", got.Version)
 	}

@@ -25,12 +25,12 @@ type dynamoDBAttrs struct {
 	WriteCapacity int
 }
 
-func parseDynamoDBAttrs(attrs map[string]any) dynamoDBAttrs {
+func parseDynamoDBAttrs(attrs resourcedef.RawAttrs) (dynamoDBAttrs, error) {
 	return dynamoDBAttrs{
 		BillingMode:   costutil.GetStringAttr(attrs, "billing_mode"),
 		ReadCapacity:  costutil.GetIntAttr(attrs, "read_capacity"),
 		WriteCapacity: costutil.GetIntAttr(attrs, "write_capacity"),
-	}
+	}, nil
 }
 
 // DynamoDBSpec declares aws_dynamodb_table cost estimation.

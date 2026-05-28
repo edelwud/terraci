@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -44,10 +45,13 @@ func (h stubStandardDefinition) Definition(resourceType resourcedef.ResourceType
 	return resourcedef.Definition{
 		Type:     resourceType,
 		Category: resourcedef.CostCategoryStandard,
-		Lookup: func(string, map[string]any) (*pricing.PriceLookup, error) {
+		Parse: func(attrs resourcedef.RawAttrs) (resourcedef.Attributes, error) {
+			return resourcedef.NewAttributes(attrs), nil
+		},
+		Lookup: func(string, resourcedef.Attributes) (*pricing.PriceLookup, error) {
 			return h.lookup, h.err
 		},
-		StandardCost: func(*pricing.Price, *pricing.PriceIndex, string, map[string]any) (hourly, monthly float64) {
+		StandardCost: func(*pricing.Price, *pricing.PriceIndex, string, resourcedef.Attributes) (hourly, monthly float64) {
 			return 0, 0
 		},
 	}
@@ -102,6 +106,47 @@ func TestBuildPrefetchPlan_CollectsDiagnosticsAndRequirements(t *testing.T) {
 	}
 }
 
+func TestBuildPrefetchPlan_ReportsParseDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	resourceType := resourcedef.ResourceType("aws_broken_resource")
+	plan := &PlanResult{
+		ModuleID: "svc/prod/us-east-1/app",
+		Region:   "us-east-1",
+		Resources: []PlannedResource{
+			{ResourceType: resourceType, Address: "aws_broken_resource.main"},
+		},
+	}
+	def := resourcedef.Definition{
+		Type:     resourceType,
+		Category: resourcedef.CostCategoryStandard,
+		Parse: func(resourcedef.RawAttrs) (resourcedef.Attributes, error) {
+			return resourcedef.Attributes{}, errors.New("bad attrs")
+		},
+		Lookup: func(string, resourcedef.Attributes) (*pricing.PriceLookup, error) {
+			return &pricing.PriceLookup{ServiceID: pricing.ServiceID{Provider: "aws", Name: "AmazonEC2"}}, nil
+		},
+		StandardCost: func(*pricing.Price, *pricing.PriceIndex, string, resourcedef.Attributes) (hourly, monthly float64) {
+			return 0, 0
+		},
+	}
+	runtime := newStubEstimationRuntime(t, stubCatalog{
+		providers: map[resourcedef.ResourceType]string{resourceType: "aws"},
+		defs:      map[resourcedef.ResourceType]resourcedef.Definition{resourceType: def},
+	})
+
+	prefetch := buildPrefetchPlan(runtime, []*PlanResult{plan})
+	if len(prefetch.services) != 0 {
+		t.Fatalf("prefetch.services = %#v, want none", prefetch.services)
+	}
+	if len(prefetch.diagnostics) != 1 {
+		t.Fatalf("len(prefetch.diagnostics) = %d, want 1", len(prefetch.diagnostics))
+	}
+	if got := prefetch.diagnostics[0].Kind; got != "parse-failed" {
+		t.Fatalf("diagnostic kind = %q, want parse-failed", got)
+	}
+}
+
 func TestEstimate_AssignsPrefetchWarningsToResult(t *testing.T) {
 	t.Parallel()
 
@@ -138,7 +183,7 @@ func (noopResolver) ResolveWithSubResourcesState(context.Context, costruntime.Re
 	return nil
 }
 
-func (noopResolver) ResolveBeforeCostWithState(context.Context, *model.ResourceCost, resourcedef.ResourceType, map[string]any, string, *costruntime.ResolutionState) {
+func (noopResolver) ResolveBeforeCostWithState(context.Context, *model.ResourceCost, resourcedef.ResourceType, resourcedef.RawAttrs, string, *costruntime.ResolutionState) {
 }
 
 func newStubEstimationRuntime(t testing.TB, stub stubCatalog) *costruntime.EstimationRuntime {

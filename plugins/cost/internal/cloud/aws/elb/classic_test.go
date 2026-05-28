@@ -44,7 +44,7 @@ func TestClassicHandler_CalculateCost(t *testing.T) {
 
 	// With price
 	price := &pricing.Price{OnDemandUSD: 0.03}
-	hourly, monthly, ok := def.CalculateStandardCost(price, nil, "", nil)
+	hourly, monthly, ok := def.CalculateStandardCost(price, nil, "", parsedAttrs(t, def, nil))
 	if !ok {
 		t.Fatal("CalculateStandardCost() ok = false, want true")
 	}
@@ -56,7 +56,7 @@ func TestClassicHandler_CalculateCost(t *testing.T) {
 	}
 
 	// Fallback
-	hourly, _, ok = def.CalculateStandardCost(&pricing.Price{OnDemandUSD: 0}, nil, "", nil)
+	hourly, _, ok = def.CalculateStandardCost(&pricing.Price{OnDemandUSD: 0}, nil, "", parsedAttrs(t, def, nil))
 	if !ok {
 		t.Fatal("CalculateStandardCost() ok = false, want true")
 	}

@@ -28,7 +28,7 @@ func TestLogGroupHandler_CalculateUsageCost(t *testing.T) {
 	t.Parallel()
 
 	def := resourcespec.MustCompileTyped(LogGroupSpec())
-	got, ok := def.CalculateUsageCost("", nil)
+	got, ok := def.CalculateUsageCost("", parsedAttrs(t, def, nil))
 	if !ok {
 		t.Fatal("CalculateUsageCost should be available")
 	}
@@ -92,7 +92,7 @@ func TestAlarmHandler_CalculateFixedCost(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			hourly, monthly, ok := def.CalculateFixedCost("", tt.attrs)
+			hourly, monthly, ok := def.CalculateFixedCost("", parsedAttrs(t, def, tt.attrs))
 			if !ok {
 				t.Fatal("CalculateFixedCost should be available")
 			}
@@ -156,7 +156,7 @@ func TestAlarmHandler_Describe(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := def.DescribeResource(nil, tt.attrs)
+			result := def.DescribeResource(nil, parsedAttrs(t, def, tt.attrs))
 
 			if result["resolution"] != tt.wantResolution {
 				t.Errorf("DescribeResource()[resolution] = %q, want %q", result["resolution"], tt.wantResolution)
@@ -168,7 +168,10 @@ func TestAlarmHandler_Describe(t *testing.T) {
 func TestParseAlarmAttrs_ParsesStringPeriod(t *testing.T) {
 	t.Parallel()
 
-	got := parseAlarmAttrs(map[string]any{"period": "30"})
+	got, err := parseAlarmAttrs(rawAttrs(map[string]any{"period": "30"}))
+	if err != nil {
+		t.Fatalf("parseAlarmAttrs() error = %v", err)
+	}
 	if got.Period != 30 {
 		t.Fatalf("parseAlarmAttrs().Period = %d, want 30", got.Period)
 	}

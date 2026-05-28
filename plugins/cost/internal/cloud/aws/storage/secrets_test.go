@@ -19,7 +19,7 @@ func TestSecretsManagerHandler_CalculateFixedCost(t *testing.T) {
 	t.Parallel()
 
 	def := resourcespec.MustCompileTyped(SecretsManagerSpec())
-	_, monthly, ok := def.CalculateFixedCost("", nil)
+	_, monthly, ok := def.CalculateFixedCost("", parsedAttrs(t, def, nil))
 	if !ok {
 		t.Fatal("CalculateFixedCost should be available")
 	}
@@ -40,12 +40,12 @@ func TestSecretsManagerHandler_Describe(t *testing.T) {
 	t.Parallel()
 
 	def := resourcespec.MustCompileTyped(SecretsManagerSpec())
-	result := def.DescribeResource(nil, nil)
+	result := def.DescribeResource(nil, parsedAttrs(t, def, nil))
 	if result != nil {
 		t.Errorf("DescribeResource() = %v, want nil", result)
 	}
 
-	result = def.DescribeResource(nil, map[string]any{"name": "my-secret"})
+	result = def.DescribeResource(nil, parsedAttrs(t, def, map[string]any{"name": "my-secret"}))
 	if result != nil {
 		t.Errorf("DescribeResource() with attrs = %v, want nil", result)
 	}

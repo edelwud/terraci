@@ -15,10 +15,10 @@ type eipAttrs struct {
 	Instance string
 }
 
-func parseEIPAttrs(attrs map[string]any) eipAttrs {
+func parseEIPAttrs(attrs resourcedef.RawAttrs) (eipAttrs, error) {
 	return eipAttrs{
 		Instance: costutil.GetStringAttr(attrs, "instance"),
-	}
+	}, nil
 }
 
 // EIPSpec declares aws_eip cost estimation.

@@ -69,16 +69,68 @@ type StubDefinition struct {
 }
 
 func (d StubDefinition) Definition(resourceType resourcedef.ResourceType) resourcedef.Definition {
-	return resourcedef.Definition{
-		Type:         resourceType,
-		Category:     d.CategoryValue,
-		Lookup:       d.LookupFunc,
-		Describe:     d.DescribeFunc,
-		StandardCost: d.CalculateFunc,
-		FixedCost:    d.CalculateFixedFunc,
-		UsageCost:    d.CalculateUsageFunc,
-		Subresources: d.SubresourcesFunc,
+	def := resourcedef.Definition{
+		Type:     resourceType,
+		Category: d.CategoryValue,
+		Parse: func(attrs resourcedef.RawAttrs) (resourcedef.Attributes, error) {
+			return resourcedef.NewAttributes(attrs), nil
+		},
 	}
+	if d.LookupFunc != nil {
+		def.Lookup = func(region string, attrs resourcedef.Attributes) (*pricing.PriceLookup, error) {
+			raw, err := resourcedef.AttributesAs[resourcedef.RawAttrs](attrs)
+			if err != nil {
+				return nil, err
+			}
+			return d.LookupFunc(region, raw.Map())
+		}
+	}
+	if d.DescribeFunc != nil {
+		def.Describe = func(price *pricing.Price, attrs resourcedef.Attributes) map[string]string {
+			raw, err := resourcedef.AttributesAs[resourcedef.RawAttrs](attrs)
+			if err != nil {
+				return nil
+			}
+			return d.DescribeFunc(price, raw.Map())
+		}
+	}
+	if d.CalculateFunc != nil {
+		def.StandardCost = func(price *pricing.Price, index *pricing.PriceIndex, region string, attrs resourcedef.Attributes) (hourly, monthly float64) {
+			raw, err := resourcedef.AttributesAs[resourcedef.RawAttrs](attrs)
+			if err != nil {
+				return 0, 0
+			}
+			return d.CalculateFunc(price, index, region, raw.Map())
+		}
+	}
+	if d.CalculateFixedFunc != nil {
+		def.FixedCost = func(region string, attrs resourcedef.Attributes) (hourly, monthly float64) {
+			raw, err := resourcedef.AttributesAs[resourcedef.RawAttrs](attrs)
+			if err != nil {
+				return 0, 0
+			}
+			return d.CalculateFixedFunc(region, raw.Map())
+		}
+	}
+	if d.CalculateUsageFunc != nil {
+		def.UsageCost = func(region string, attrs resourcedef.Attributes) model.UsageCostEstimate {
+			raw, err := resourcedef.AttributesAs[resourcedef.RawAttrs](attrs)
+			if err != nil {
+				return model.UsageCostEstimate{Status: model.ResourceEstimateStatusFailed, Detail: err.Error()}
+			}
+			return d.CalculateUsageFunc(region, raw.Map())
+		}
+	}
+	if d.SubresourcesFunc != nil {
+		def.Subresources = func(attrs resourcedef.Attributes) []resourcedef.SubResource {
+			raw, err := resourcedef.AttributesAs[resourcedef.RawAttrs](attrs)
+			if err != nil {
+				return nil
+			}
+			return d.SubresourcesFunc(raw.Map())
+		}
+	}
+	return def
 }
 
 // ProviderCase defines one contract test case for provider resolution.

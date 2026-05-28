@@ -129,7 +129,7 @@ func TestClusterHandler_CalculateCost(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			hourly, monthly, ok := def.CalculateStandardCost(nil, nil, "", tt.attrs)
+			hourly, monthly, ok := def.CalculateStandardCost(nil, nil, "", parsedAttrs(t, def, tt.attrs))
 			if !ok {
 				t.Fatal("CalculateStandardCost returned ok=false")
 			}

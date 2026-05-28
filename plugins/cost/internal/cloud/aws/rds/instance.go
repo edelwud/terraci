@@ -59,7 +59,7 @@ type instanceAttrs struct {
 	MultiAZ          bool
 }
 
-func parseInstanceAttrs(attrs map[string]any) instanceAttrs {
+func parseInstanceAttrs(attrs resourcedef.RawAttrs) (instanceAttrs, error) {
 	return instanceAttrs{
 		InstanceClass:    costutil.GetStringAttr(attrs, "instance_class"),
 		Engine:           costutil.GetStringAttr(attrs, "engine"),
@@ -67,7 +67,7 @@ func parseInstanceAttrs(attrs map[string]any) instanceAttrs {
 		AllocatedStorage: costutil.GetFloatAttr(attrs, "allocated_storage"),
 		IOPS:             costutil.GetFloatAttr(attrs, "iops"),
 		MultiAZ:          costutil.GetBoolAttr(attrs, "multi_az"),
-	}
+	}, nil
 }
 
 // InstanceSpec declares aws_db_instance cost estimation.

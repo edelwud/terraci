@@ -19,7 +19,7 @@ func TestClusterInstanceHandler_CalculateCost(t *testing.T) {
 	t.Run("standard hourly", func(t *testing.T) {
 		t.Parallel()
 		p := &pricing.Price{OnDemandUSD: 0.29}
-		hourly, monthly, ok := def.CalculateStandardCost(p, nil, "", nil)
+		hourly, monthly, ok := def.CalculateStandardCost(p, nil, "", parsedAttrs(t, def, nil))
 		if !ok {
 			t.Fatal("CalculateStandardCost returned ok=false")
 		}
@@ -33,7 +33,7 @@ func TestClusterInstanceHandler_CalculateCost(t *testing.T) {
 
 	t.Run("nil price returns zero", func(t *testing.T) {
 		t.Parallel()
-		hourly, monthly, ok := def.CalculateStandardCost(nil, nil, "", nil)
+		hourly, monthly, ok := def.CalculateStandardCost(nil, nil, "", parsedAttrs(t, def, nil))
 		if !ok {
 			t.Fatal("CalculateStandardCost returned ok=false")
 		}

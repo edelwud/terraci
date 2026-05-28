@@ -32,7 +32,7 @@ type instanceAttrs struct {
 	RootVolume   ebsVolumeAttrs
 }
 
-func parseInstanceAttrs(attrs map[string]any) instanceAttrs {
+func parseInstanceAttrs(attrs resourcedef.RawAttrs) (instanceAttrs, error) {
 	parsed := instanceAttrs{
 		InstanceType: costutil.GetStringAttr(attrs, "instance_type"),
 		Tenancy:      costutil.GetStringAttr(attrs, "tenancy"),
@@ -41,13 +41,13 @@ func parseInstanceAttrs(attrs map[string]any) instanceAttrs {
 			SizeGB:     defaultRootVolumeGB,
 		},
 	}
-	if root := getRootBlockDevice(attrs); root != nil {
+	if root := getRootBlockDevice(attrs); !root.IsZero() {
 		parsed.RootVolume = parseRootVolumeAttrs(root)
 	}
-	return parsed
+	return parsed, nil
 }
 
-func parseRootVolumeAttrs(attrs map[string]any) ebsVolumeAttrs {
+func parseRootVolumeAttrs(attrs resourcedef.RawAttrs) ebsVolumeAttrs {
 	parsed := ebsVolumeAttrs{
 		VolumeType: costutil.GetStringAttr(attrs, "volume_type"),
 		SizeGB:     costutil.GetFloatAttr(attrs, "volume_size"),
@@ -107,21 +107,21 @@ func InstanceSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[instanceAttrs]
 		Subresources: &resourcespec.TypedSubresourceSpec[instanceAttrs]{
 			BuildFunc: func(p instanceAttrs) []resourcedef.SubResource {
 				root := p.RootVolume
-				ebsAttrs := map[string]any{
-					attrType: root.VolumeType,
-					attrSize: root.SizeGB,
+				ebsAttrs := []resourcedef.RawAttr{
+					resourcedef.NewRawAttr(attrType, root.VolumeType),
+					resourcedef.NewRawAttr(attrSize, root.SizeGB),
 				}
 				if root.IOPS > 0 {
-					ebsAttrs["iops"] = root.IOPS
+					ebsAttrs = append(ebsAttrs, resourcedef.NewRawAttr("iops", root.IOPS))
 				}
 				if root.Throughput > 0 {
-					ebsAttrs["throughput"] = root.Throughput
+					ebsAttrs = append(ebsAttrs, resourcedef.NewRawAttr("throughput", root.Throughput))
 				}
 
 				return []resourcedef.SubResource{{
 					Suffix: "/root_volume",
 					Type:   resourcedef.ResourceType(awskit.ResourceEBSVolume),
-					Attrs:  ebsAttrs,
+					Attrs:  resourcedef.NewRawAttrsFromPairs(ebsAttrs...),
 				}}
 			},
 		},
@@ -129,6 +129,6 @@ func InstanceSpec(deps awskit.RuntimeDeps) resourcespec.TypedSpec[instanceAttrs]
 }
 
 // getRootBlockDevice extracts root_block_device from instance attributes.
-func getRootBlockDevice(attrs map[string]any) map[string]any {
+func getRootBlockDevice(attrs resourcedef.RawAttrs) resourcedef.RawAttrs {
 	return costutil.GetFirstObjectAttr(attrs, "root_block_device")
 }

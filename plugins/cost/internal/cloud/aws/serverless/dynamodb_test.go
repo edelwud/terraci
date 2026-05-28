@@ -51,7 +51,7 @@ func TestDynamoDBHandler_CalculateUsageCost(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, ok := def.CalculateUsageCost("", tt.attrs)
+			got, ok := def.CalculateUsageCost("", parsedAttrs(t, def, tt.attrs))
 			if !ok {
 				t.Fatal("CalculateUsageCost should be available")
 			}
@@ -144,11 +144,14 @@ func TestDynamoDBHandler_Contract(t *testing.T) {
 func TestParseDynamoDBAttrs_ParsesStringNumbers(t *testing.T) {
 	t.Parallel()
 
-	got := parseDynamoDBAttrs(map[string]any{
+	got, err := parseDynamoDBAttrs(rawAttrs(map[string]any{
 		"billing_mode":   "PROVISIONED",
 		"read_capacity":  "10",
 		"write_capacity": float64(20),
-	})
+	}))
+	if err != nil {
+		t.Fatalf("parseDynamoDBAttrs() error = %v", err)
+	}
 
 	if got.BillingMode != "PROVISIONED" || got.ReadCapacity != 10 || got.WriteCapacity != 20 {
 		t.Fatalf("parseDynamoDBAttrs() = %+v, want PROVISIONED/10/20", got)

@@ -26,14 +26,14 @@ type lbAttrs struct {
 	LoadBalancerType string
 }
 
-func parseLBAttrs(attrs map[string]any) lbAttrs {
+func parseLBAttrs(attrs resourcedef.RawAttrs) (lbAttrs, error) {
 	parsed := lbAttrs{
 		LoadBalancerType: costutil.GetStringAttr(attrs, "load_balancer_type"),
 	}
 	if parsed.LoadBalancerType == "" {
 		parsed.LoadBalancerType = typeApplication
 	}
-	return parsed
+	return parsed, nil
 }
 
 // ALBSpec declares aws_lb/aws_alb cost estimation.

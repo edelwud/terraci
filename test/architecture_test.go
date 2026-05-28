@@ -500,6 +500,50 @@ func TestArchitecture_CIRenderDocs(t *testing.T) {
 	}
 }
 
+func TestArchitecture_CostAttributeBoundaries(t *testing.T) {
+	root := repoRoot(t)
+	var violations []string
+
+	for _, rel := range goFiles(t, root, "plugins/cost/internal") {
+		if !isProductionFile(rel) {
+			continue
+		}
+		file := parseGoFile(t, filepath.Join(root, rel), 0)
+		resourcespecAliases := importAliases(file, moduleImportPath+"/plugins/cost/internal/resourcespec")
+
+		ast.Inspect(file, func(node ast.Node) bool {
+			if len(resourcespecAliases) > 0 {
+				if selector, ok := node.(*ast.SelectorExpr); ok {
+					ident, identOK := selector.X.(*ast.Ident)
+					if identOK && resourcespecAliases[ident.Name] {
+						switch selector.Sel.Name {
+						case "ResourceSpec", "LookupSpec", "DescribeSpec", "StandardPricingSpec",
+							"FixedPricingSpec", "UsagePricingSpec", "SubresourceSpec", "Compile", "MustCompile":
+							violations = append(violations, rel+" uses removed map-based resourcespec."+selector.Sel.Name+"; use resourcespec.TypedSpec")
+						}
+					}
+				}
+			}
+
+			if !isCostAttrContractPackage(rel) {
+				return true
+			}
+			if rel == "plugins/cost/internal/resourcedef/attrs.go" ||
+				rel == "plugins/cost/internal/engine/terraform_adapter.go" {
+				return true
+			}
+			if isMapStringAnyNode(node) {
+				violations = append(violations, rel+" uses map[string]any in cost attribute contract code; use resourcedef.RawAttrs or typed attributes")
+			}
+			return true
+		})
+	}
+
+	if len(violations) > 0 {
+		t.Fatalf("cost attribute boundary violations:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
 func repoRoot(tb testing.TB) string {
 	tb.Helper()
 
@@ -516,6 +560,26 @@ func repoRoot(tb testing.TB) string {
 			tb.Fatal("repository root with go.mod not found")
 		}
 		dir = parent
+	}
+}
+
+func isCostAttrContractPackage(rel string) bool {
+	return strings.HasPrefix(rel, "plugins/cost/internal/resourcedef/") ||
+		strings.HasPrefix(rel, "plugins/cost/internal/resourcespec/") ||
+		strings.HasPrefix(rel, "plugins/cost/internal/runtime/") ||
+		strings.HasPrefix(rel, "plugins/cost/internal/engine/") ||
+		strings.HasPrefix(rel, "plugins/cost/internal/cloud/aws/") ||
+		strings.HasPrefix(rel, "plugins/cost/internal/cloud/awskit/")
+}
+
+func isMapStringAnyNode(node ast.Node) bool {
+	switch typed := node.(type) {
+	case *ast.MapType:
+		return isStringIdent(typed.Key) && isAnyIdent(typed.Value)
+	case *ast.CompositeLit:
+		return isMapStringAny(typed.Type)
+	default:
+		return false
 	}
 }
 

@@ -29,10 +29,10 @@ type alarmAttrs struct {
 	Period int
 }
 
-func parseAlarmAttrs(attrs map[string]any) alarmAttrs {
+func parseAlarmAttrs(attrs resourcedef.RawAttrs) (alarmAttrs, error) {
 	return alarmAttrs{
 		Period: costutil.GetIntAttr(attrs, "period"),
-	}
+	}, nil
 }
 
 // AlarmSpec declares aws_cloudwatch_metric_alarm cost estimation.

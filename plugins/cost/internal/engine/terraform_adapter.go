@@ -53,8 +53,10 @@ func (a *TerraformPlanAdapter) LoadModule(modulePath, region string) (*PlanResul
 			Name:         rc.Name,
 			ModuleAddr:   rc.ModuleAddr,
 			Action:       action,
-			BeforeAttrs:  rc.BeforeValues,
-			AfterAttrs:   rc.AfterValues,
+			BeforeAttrs:  resourcedef.NewRawAttrs(rc.BeforeValues),
+			AfterAttrs:   resourcedef.NewRawAttrs(rc.AfterValues),
+			HasBefore:    rc.BeforeValues != nil,
+			HasAfter:     rc.AfterValues != nil,
 		})
 	}
 

@@ -113,7 +113,8 @@ type LookupInput struct {
 func AssertNilLookup(tb testing.TB, def resourcedef.Definition, region string, attrs map[string]any) {
 	tb.Helper()
 
-	lookup, err := def.BuildLookup(region, attrs)
+	parsed := RequireParsedAttrs(tb, def, attrs)
+	lookup, err := def.BuildLookup(region, parsed)
 	if err != nil {
 		tb.Fatalf("BuildLookup() error = %v", err)
 	}
@@ -131,7 +132,8 @@ func RunLookupCases(t *testing.T, def resourcedef.Definition, cases []LookupCase
 			t.Parallel()
 
 			if tc.WantErr {
-				if _, err := def.BuildLookup(tc.Region, tc.Attrs); err == nil {
+				parsed := RequireParsedAttrs(t, def, tc.Attrs)
+				if _, err := def.BuildLookup(tc.Region, parsed); err == nil {
 					t.Fatal("BuildLookup() should return error")
 				}
 				return
@@ -153,7 +155,8 @@ func RunDescribeCases(t *testing.T, def resourcedef.Definition, cases []Describe
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 
-			result := def.DescribeResource(nil, tc.Attrs)
+			parsed := RequireParsedAttrs(t, def, tc.Attrs)
+			result := def.DescribeResource(nil, parsed)
 
 			for k, want := range tc.WantKeys {
 				if got := result[k]; got != want {

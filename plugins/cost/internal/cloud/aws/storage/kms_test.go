@@ -18,7 +18,7 @@ func TestKMSHandler_CalculateFixedCost(t *testing.T) {
 	t.Parallel()
 
 	def := resourcespec.MustCompileTyped(KMSSpec())
-	hourly, monthly, ok := def.CalculateFixedCost("", nil)
+	hourly, monthly, ok := def.CalculateFixedCost("", parsedAttrs(t, def, nil))
 	if !ok {
 		t.Fatal("CalculateFixedCost should be available")
 	}
@@ -44,7 +44,7 @@ func TestKMSHandler_DescribeReturnsNil(t *testing.T) {
 	t.Parallel()
 
 	def := resourcespec.MustCompileTyped(KMSSpec())
-	if got := def.DescribeResource(nil, nil); got != nil {
+	if got := def.DescribeResource(nil, parsedAttrs(t, def, nil)); got != nil {
 		t.Fatalf("DescribeResource() = %#v, want nil", got)
 	}
 }

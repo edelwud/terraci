@@ -43,7 +43,7 @@ func TestTerraformPlanAdapter_LoadModule_MapsPlanToInputModel(t *testing.T) {
 	if resource.Name != "web" {
 		t.Fatalf("Name = %q, want web", resource.Name)
 	}
-	if resource.AfterAttrs == nil || resource.BeforeAttrs == nil {
+	if !resource.HasAfter || !resource.HasBefore {
 		t.Fatal("expected both before and after attrs to be populated")
 	}
 	if resource.ModuleAddr != "" {

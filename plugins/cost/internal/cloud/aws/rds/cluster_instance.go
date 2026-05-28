@@ -15,11 +15,11 @@ type clusterInstanceAttrs struct {
 	Engine        string
 }
 
-func parseClusterInstanceAttrs(attrs map[string]any) clusterInstanceAttrs {
+func parseClusterInstanceAttrs(attrs resourcedef.RawAttrs) (clusterInstanceAttrs, error) {
 	return clusterInstanceAttrs{
 		InstanceClass: costutil.GetStringAttr(attrs, "instance_class"),
 		Engine:        costutil.GetStringAttr(attrs, "engine"),
-	}
+	}, nil
 }
 
 // ClusterInstanceSpec declares aws_rds_cluster_instance cost estimation.

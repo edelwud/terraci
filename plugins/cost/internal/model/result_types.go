@@ -71,6 +71,7 @@ const (
 	FailureKindNoProvider   FailureKind = "no_provider"
 	FailureKindNoDefinition FailureKind = "no_definition"
 	FailureKindLookupFailed FailureKind = "lookup_failed"
+	FailureKindParseFailed  FailureKind = "parse_failed"
 	FailureKindAPIFailure   FailureKind = "api_failure"
 	FailureKindNoPrice      FailureKind = "no_price"
 	FailureKindInternal     FailureKind = "internal"

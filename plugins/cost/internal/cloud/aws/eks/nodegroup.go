@@ -19,7 +19,7 @@ type nodeGroupAttrs struct {
 	DesiredSizeSet  bool
 }
 
-func parseNodeGroupAttrs(attrs map[string]any) nodeGroupAttrs {
+func parseNodeGroupAttrs(attrs resourcedef.RawAttrs) (nodeGroupAttrs, error) {
 	instanceType := ""
 	if instanceTypes := costutil.GetStringSliceAttr(attrs, "instance_types"); len(instanceTypes) > 0 {
 		instanceType = instanceTypes[0]
@@ -31,7 +31,7 @@ func parseNodeGroupAttrs(attrs map[string]any) nodeGroupAttrs {
 
 	desiredSize := 1
 	desiredSizeSet := false
-	if cfg := costutil.GetFirstObjectAttr(attrs, "scaling_config"); cfg != nil {
+	if cfg := costutil.GetFirstObjectAttr(attrs, "scaling_config"); !cfg.IsZero() {
 		if d := costutil.GetIntAttr(cfg, "desired_size"); d > 0 {
 			desiredSize = d
 			desiredSizeSet = true
@@ -43,7 +43,7 @@ func parseNodeGroupAttrs(attrs map[string]any) nodeGroupAttrs {
 		InstanceTypeSet: instanceTypeSet,
 		DesiredSize:     desiredSize,
 		DesiredSizeSet:  desiredSizeSet,
-	}
+	}, nil
 }
 
 // NodeGroupSpec declares aws_eks_node_group cost estimation.

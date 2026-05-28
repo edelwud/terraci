@@ -98,7 +98,7 @@ func TestReplicationGroupHandler_CalculateCost(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			hourly, _, ok := def.CalculateStandardCost(price, nil, "", tt.attrs)
+			hourly, _, ok := def.CalculateStandardCost(price, nil, "", parsedAttrs(t, def, tt.attrs))
 			if !ok {
 				t.Fatal("CalculateStandardCost returned ok=false")
 			}
@@ -155,7 +155,7 @@ func TestReplicationGroupHandler_CalculateCost_BackupAndDataTiering(t *testing.T
 		},
 	}
 
-	_, monthly, ok := def.CalculateStandardCost(price, index, "us-east-1", attrs)
+	_, monthly, ok := def.CalculateStandardCost(price, index, "us-east-1", parsedAttrs(t, def, attrs))
 	if !ok {
 		t.Fatal("CalculateStandardCost returned ok=false")
 	}

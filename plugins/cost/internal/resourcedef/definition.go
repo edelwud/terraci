@@ -34,31 +34,35 @@ const (
 type SubResource struct {
 	Suffix string       // Address suffix, e.g., "/root_volume"
 	Type   ResourceType // Resource type for definition lookup, e.g., "aws_ebs_volume"
-	Attrs  map[string]any
+	Attrs  RawAttrs
 }
 
+// ParseFunc parses raw Terraform attributes into a resource-specific typed payload.
+type ParseFunc func(attrs RawAttrs) (Attributes, error)
+
 // LookupFunc builds a pricing lookup for one resource instance.
-type LookupFunc func(region string, attrs map[string]any) (*pricing.PriceLookup, error)
+type LookupFunc func(region string, attrs Attributes) (*pricing.PriceLookup, error)
 
 // DescribeFunc builds human-readable resource detail fields.
-type DescribeFunc func(price *pricing.Price, attrs map[string]any) map[string]string
+type DescribeFunc func(price *pricing.Price, attrs Attributes) map[string]string
 
 // StandardCostFunc calculates cost from resolved pricing data.
-type StandardCostFunc func(price *pricing.Price, index *pricing.PriceIndex, region string, attrs map[string]any) (hourly, monthly float64)
+type StandardCostFunc func(price *pricing.Price, index *pricing.PriceIndex, region string, attrs Attributes) (hourly, monthly float64)
 
 // FixedCostFunc calculates cost without external pricing data.
-type FixedCostFunc func(region string, attrs map[string]any) (hourly, monthly float64)
+type FixedCostFunc func(region string, attrs Attributes) (hourly, monthly float64)
 
 // UsageCostFunc calculates a usage-based estimate.
-type UsageCostFunc func(region string, attrs map[string]any) model.UsageCostEstimate
+type UsageCostFunc func(region string, attrs Attributes) model.UsageCostEstimate
 
 // SubresourceFunc synthesizes subresources from resource attributes.
-type SubresourceFunc func(attrs map[string]any) []SubResource
+type SubresourceFunc func(attrs Attributes) []SubResource
 
 // Definition is the canonical runtime execution contract for one resource type.
 type Definition struct {
 	Type         ResourceType
 	Category     CostCategory
+	Parse        ParseFunc
 	Lookup       LookupFunc
 	Describe     DescribeFunc
 	StandardCost StandardCostFunc
@@ -71,6 +75,9 @@ type Definition struct {
 func (d Definition) Validate() error {
 	if d.Type == "" {
 		return errors.New("resource definition: type is required")
+	}
+	if d.Parse == nil {
+		return fmt.Errorf("resource definition %q: parse function is required", d.Type)
 	}
 
 	switch d.Category {
@@ -93,8 +100,20 @@ func (d Definition) Validate() error {
 	return nil
 }
 
+// ParseAttrs parses raw Terraform attributes into the definition's typed payload.
+func (d Definition) ParseAttrs(attrs RawAttrs) (Attributes, error) {
+	if d.Parse == nil {
+		return Attributes{}, fmt.Errorf("resource definition %q: parse function is required", d.Type)
+	}
+	parsed, err := d.Parse(attrs)
+	if err != nil {
+		return Attributes{}, fmt.Errorf("parse attributes for %q: %w", d.Type, err)
+	}
+	return parsed, nil
+}
+
 // BuildLookup builds a pricing lookup when the resource needs one.
-func (d Definition) BuildLookup(region string, attrs map[string]any) (*pricing.PriceLookup, error) {
+func (d Definition) BuildLookup(region string, attrs Attributes) (*pricing.PriceLookup, error) {
 	if d.Lookup == nil {
 		return nil, nil
 	}
@@ -102,7 +121,7 @@ func (d Definition) BuildLookup(region string, attrs map[string]any) (*pricing.P
 }
 
 // DescribeResource returns human-readable detail fields for a resource.
-func (d Definition) DescribeResource(price *pricing.Price, attrs map[string]any) map[string]string {
+func (d Definition) DescribeResource(price *pricing.Price, attrs Attributes) map[string]string {
 	if d.Describe == nil {
 		return nil
 	}
@@ -110,7 +129,7 @@ func (d Definition) DescribeResource(price *pricing.Price, attrs map[string]any)
 }
 
 // CalculateStandardCost evaluates standard pricing when available.
-func (d Definition) CalculateStandardCost(price *pricing.Price, index *pricing.PriceIndex, region string, attrs map[string]any) (hourly, monthly float64, ok bool) {
+func (d Definition) CalculateStandardCost(price *pricing.Price, index *pricing.PriceIndex, region string, attrs Attributes) (hourly, monthly float64, ok bool) {
 	if d.StandardCost == nil {
 		return 0, 0, false
 	}
@@ -119,7 +138,7 @@ func (d Definition) CalculateStandardCost(price *pricing.Price, index *pricing.P
 }
 
 // CalculateFixedCost evaluates fixed pricing when available.
-func (d Definition) CalculateFixedCost(region string, attrs map[string]any) (hourly, monthly float64, ok bool) {
+func (d Definition) CalculateFixedCost(region string, attrs Attributes) (hourly, monthly float64, ok bool) {
 	if d.FixedCost == nil {
 		return 0, 0, false
 	}
@@ -128,7 +147,7 @@ func (d Definition) CalculateFixedCost(region string, attrs map[string]any) (hou
 }
 
 // CalculateUsageCost evaluates usage-based pricing when available.
-func (d Definition) CalculateUsageCost(region string, attrs map[string]any) (model.UsageCostEstimate, bool) {
+func (d Definition) CalculateUsageCost(region string, attrs Attributes) (model.UsageCostEstimate, bool) {
 	if d.UsageCost == nil {
 		return model.UsageCostEstimate{}, false
 	}
@@ -136,7 +155,7 @@ func (d Definition) CalculateUsageCost(region string, attrs map[string]any) (mod
 }
 
 // BuildSubresources returns synthesized subresources when configured.
-func (d Definition) BuildSubresources(attrs map[string]any) []SubResource {
+func (d Definition) BuildSubresources(attrs Attributes) []SubResource {
 	if d.Subresources == nil {
 		return nil
 	}

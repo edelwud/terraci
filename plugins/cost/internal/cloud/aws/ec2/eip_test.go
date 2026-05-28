@@ -62,7 +62,7 @@ func TestEIPHandler_CalculateCost(t *testing.T) {
 
 	// With price from lookup
 	price := &pricing.Price{OnDemandUSD: 0.005}
-	hourly, monthly, ok := def.CalculateStandardCost(price, nil, "", nil)
+	hourly, monthly, ok := def.CalculateStandardCost(price, nil, "", parsedAttrs(t, def, nil))
 	if !ok {
 		t.Fatal("CalculateStandardCost should return ok=true")
 	}
@@ -75,7 +75,7 @@ func TestEIPHandler_CalculateCost(t *testing.T) {
 	}
 
 	// Fallback when price is zero
-	hourly, _, ok = def.CalculateStandardCost(&pricing.Price{OnDemandUSD: 0}, nil, "", nil)
+	hourly, _, ok = def.CalculateStandardCost(&pricing.Price{OnDemandUSD: 0}, nil, "", parsedAttrs(t, def, nil))
 	if !ok {
 		t.Fatal("CalculateStandardCost should return ok=true")
 	}
@@ -84,7 +84,7 @@ func TestEIPHandler_CalculateCost(t *testing.T) {
 	}
 
 	// Fallback when price is nil
-	hourly, _, ok = def.CalculateStandardCost(nil, nil, "", nil)
+	hourly, _, ok = def.CalculateStandardCost(nil, nil, "", parsedAttrs(t, def, nil))
 	if !ok {
 		t.Fatal("CalculateStandardCost should return ok=true")
 	}
@@ -96,7 +96,10 @@ func TestEIPHandler_CalculateCost(t *testing.T) {
 func TestParseEIPAttrs(t *testing.T) {
 	t.Parallel()
 
-	got := parseEIPAttrs(map[string]any{"instance": "i-12345"})
+	got, err := parseEIPAttrs(rawAttrs(map[string]any{"instance": "i-12345"}))
+	if err != nil {
+		t.Fatalf("parseEIPAttrs() error = %v", err)
+	}
 	if got.Instance != "i-12345" {
 		t.Fatalf("parseEIPAttrs().Instance = %q, want i-12345", got.Instance)
 	}

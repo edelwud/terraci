@@ -1,6 +1,7 @@
 package resourcespec_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/edelwud/terraci/plugins/cost/internal/costutil"
@@ -15,11 +16,11 @@ type testAttrs struct {
 	IOPS int
 }
 
-func parseTestAttrs(attrs map[string]any) testAttrs {
+func parseTestAttrs(attrs resourcedef.RawAttrs) (testAttrs, error) {
 	return testAttrs{
 		Size: costutil.GetStringAttr(attrs, "size"),
 		IOPS: costutil.GetIntAttr(attrs, "iops"),
-	}
+	}, nil
 }
 
 func TestCompileTyped_StandardSpec(t *testing.T) {
@@ -52,7 +53,8 @@ func TestCompileTyped_StandardSpec(t *testing.T) {
 
 	def := mustCompileTyped(t, spec)
 
-	lookup, err := def.BuildLookup("us-east-1", map[string]any{"size": "large"})
+	attrs := mustParseAttrs(t, def, map[string]any{"size": "large"})
+	lookup, err := def.BuildLookup("us-east-1", attrs)
 	if err != nil {
 		t.Fatalf("BuildLookup() error = %v", err)
 	}
@@ -60,12 +62,12 @@ func TestCompileTyped_StandardSpec(t *testing.T) {
 		t.Fatalf("size = %q, want %q", lookup.Attributes["size"], "large")
 	}
 
-	details := def.DescribeResource(nil, map[string]any{"size": "large"})
+	details := def.DescribeResource(nil, attrs)
 	if details["size"] != "large" {
 		t.Fatalf("Describe()[size] = %q, want %q", details["size"], "large")
 	}
 
-	_, monthly, ok := def.CalculateStandardCost(&pricing.Price{OnDemandUSD: 0.10}, nil, "us-east-1", nil)
+	_, monthly, ok := def.CalculateStandardCost(&pricing.Price{OnDemandUSD: 0.10}, nil, "us-east-1", attrs)
 	if !ok {
 		t.Fatal("standard cost should be available")
 	}
@@ -93,7 +95,7 @@ func TestCompileTyped_FixedSpec(t *testing.T) {
 
 	def := mustCompileTyped(t, spec)
 
-	_, monthly, ok := def.CalculateFixedCost("", map[string]any{"size": "large"})
+	_, monthly, ok := def.CalculateFixedCost("", mustParseAttrs(t, def, map[string]any{"size": "large"}))
 	if !ok {
 		t.Fatal("fixed cost should be available")
 	}
@@ -124,7 +126,7 @@ func TestCompileTyped_UsageSpec(t *testing.T) {
 
 	def := mustCompileTyped(t, spec)
 
-	estimate, ok := def.CalculateUsageCost("", map[string]any{"iops": 1000})
+	estimate, ok := def.CalculateUsageCost("", mustParseAttrs(t, def, map[string]any{"iops": 1000}))
 	if !ok {
 		t.Fatal("usage cost should be available")
 	}
@@ -138,7 +140,8 @@ func TestFixedMonthlyNoAttrsSpec(t *testing.T) {
 
 	def := resourcespec.MustCompileTyped(resourcespec.FixedMonthlyNoAttrsSpec("aws_test_fixed_noattrs", 12.0))
 
-	_, monthly, ok := def.CalculateFixedCost("", nil)
+	noAttrs := mustParseAttrs(t, def, nil)
+	_, monthly, ok := def.CalculateFixedCost("", noAttrs)
 	if !ok {
 		t.Fatal("fixed cost should be available")
 	}
@@ -146,7 +149,7 @@ func TestFixedMonthlyNoAttrsSpec(t *testing.T) {
 		t.Fatalf("monthly = %.2f, want 12.0", monthly)
 	}
 
-	lookup, err := def.BuildLookup("us-east-1", nil)
+	lookup, err := def.BuildLookup("us-east-1", noAttrs)
 	if err != nil {
 		t.Fatalf("BuildLookup() error = %v", err)
 	}
@@ -160,7 +163,8 @@ func TestUsageUnknownNoAttrsSpec(t *testing.T) {
 
 	def := resourcespec.MustCompileTyped(resourcespec.UsageUnknownNoAttrsSpec("aws_test_usage_noattrs"))
 
-	estimate, ok := def.CalculateUsageCost("", nil)
+	noAttrs := mustParseAttrs(t, def, nil)
+	estimate, ok := def.CalculateUsageCost("", noAttrs)
 	if !ok {
 		t.Fatal("usage cost should be available")
 	}
@@ -168,7 +172,7 @@ func TestUsageUnknownNoAttrsSpec(t *testing.T) {
 		t.Fatalf("status = %q, want %q", estimate.Status, model.ResourceEstimateStatusUsageUnknown)
 	}
 
-	if got := def.DescribeResource(nil, nil); got != nil {
+	if got := def.DescribeResource(nil, noAttrs); got != nil {
 		t.Fatalf("DescribeResource() = %#v, want nil", got)
 	}
 }
@@ -188,7 +192,7 @@ func TestCompileTyped_Subresources(t *testing.T) {
 				return []resourcedef.SubResource{{
 					Suffix: "/disk",
 					Type:   "aws_ebs_volume",
-					Attrs:  map[string]any{"size": p.Size},
+					Attrs:  resourcedef.NewRawAttrs(map[string]any{"size": p.Size}),
 				}}
 			},
 		},
@@ -196,12 +200,32 @@ func TestCompileTyped_Subresources(t *testing.T) {
 
 	def := mustCompileTyped(t, spec)
 
-	subs := def.BuildSubresources(map[string]any{"size": "100"})
+	subs := def.BuildSubresources(mustParseAttrs(t, def, map[string]any{"size": "100"}))
 	if len(subs) != 1 {
 		t.Fatalf("subresources = %d, want 1", len(subs))
 	}
-	if subs[0].Attrs["size"] != "100" {
-		t.Fatalf("sub attrs[size] = %v, want %q", subs[0].Attrs["size"], "100")
+	if subs[0].Attrs.String("size") != "100" {
+		t.Fatalf("sub attrs[size] = %v, want %q", subs[0].Attrs.String("size"), "100")
+	}
+}
+
+func TestCompileTyped_ParseErrorPropagatesFromDefinition(t *testing.T) {
+	t.Parallel()
+
+	parseErr := errors.New("bad attrs")
+	def := mustCompileTyped(t, resourcespec.TypedSpec[testAttrs]{
+		Type:     "aws_test_parse_error",
+		Category: resourcedef.CostCategoryFixed,
+		Parse: func(resourcedef.RawAttrs) (testAttrs, error) {
+			return testAttrs{}, parseErr
+		},
+		Fixed: &resourcespec.TypedFixedPricingSpec[testAttrs]{
+			CostFunc: func(_ string, _ testAttrs) (hourly, monthly float64) { return 0, 0 },
+		},
+	})
+
+	if _, err := def.ParseAttrs(resourcedef.EmptyRawAttrs()); err == nil {
+		t.Fatal("ParseAttrs() error = nil, want parse error")
 	}
 }
 
@@ -305,4 +329,14 @@ func mustCompileTyped[A any](t *testing.T, spec resourcespec.TypedSpec[A]) resou
 		t.Fatalf("CompileTyped() error = %v", err)
 	}
 	return def
+}
+
+func mustParseAttrs(t *testing.T, def resourcedef.Definition, attrs map[string]any) resourcedef.Attributes {
+	t.Helper()
+
+	parsed, err := def.ParseAttrs(resourcedef.NewRawAttrs(attrs))
+	if err != nil {
+		t.Fatalf("ParseAttrs() error = %v", err)
+	}
+	return parsed
 }

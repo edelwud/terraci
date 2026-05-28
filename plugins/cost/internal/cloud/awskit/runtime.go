@@ -46,12 +46,3 @@ func (r *Runtime) ResolveRegionName(region string) string {
 func (r *Runtime) ResolveUsagePrefix(region string) string {
 	return r.Manifest.Regions.ResolveUsagePrefix(region)
 }
-
-// StandardLookupSpec creates a standard lookup spec bound to this runtime's service catalog.
-func (r *Runtime) StandardLookupSpec(serviceKey ServiceKey, productFamily string, buildAttrs func(region string, attrs map[string]any) (map[string]string, error)) StandardLookupSpec {
-	return StandardLookupSpec{
-		Service:       r.MustService(serviceKey),
-		ProductFamily: productFamily,
-		BuildAttrs:    buildAttrs,
-	}
-}

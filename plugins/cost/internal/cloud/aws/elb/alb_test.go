@@ -130,7 +130,7 @@ func TestALBHandler_CalculateCost(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			hourly, _, ok := def.CalculateStandardCost(tt.price, nil, "", tt.attrs)
+			hourly, _, ok := def.CalculateStandardCost(tt.price, nil, "", parsedAttrs(t, def, tt.attrs))
 			if !ok {
 				t.Fatal("CalculateStandardCost() ok = false, want true")
 			}
@@ -145,12 +145,18 @@ func TestALBHandler_CalculateCost(t *testing.T) {
 func TestParseLBAttrs_DefaultsToApplication(t *testing.T) {
 	t.Parallel()
 
-	got := parseLBAttrs(map[string]any{})
+	got, err := parseLBAttrs(rawAttrs(map[string]any{}))
+	if err != nil {
+		t.Fatalf("parseLBAttrs(default) error = %v", err)
+	}
 	if got.LoadBalancerType != typeApplication {
 		t.Fatalf("parseLBAttrs(default).LoadBalancerType = %q, want %q", got.LoadBalancerType, typeApplication)
 	}
 
-	got = parseLBAttrs(map[string]any{"load_balancer_type": typeNetwork})
+	got, err = parseLBAttrs(rawAttrs(map[string]any{"load_balancer_type": typeNetwork}))
+	if err != nil {
+		t.Fatalf("parseLBAttrs(network) error = %v", err)
+	}
 	if got.LoadBalancerType != typeNetwork {
 		t.Fatalf("parseLBAttrs(network).LoadBalancerType = %q, want %q", got.LoadBalancerType, typeNetwork)
 	}

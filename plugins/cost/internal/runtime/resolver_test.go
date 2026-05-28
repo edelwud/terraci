@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -65,6 +66,50 @@ func TestCostResolver_ResolveKnownProviderMissingHandler(t *testing.T) {
 	}
 	if got.FailureKind != model.FailureKindNoDefinition {
 		t.Fatalf("FailureKind = %q, want %q", got.FailureKind, model.FailureKindNoDefinition)
+	}
+}
+
+func TestCostResolver_ResolveParseFailure(t *testing.T) {
+	t.Parallel()
+
+	parseErr := errors.New("invalid test attrs")
+	resolver := mustNewResolver(t, contracttest.StubRuntime{
+		ResolveProviderFunc: func(resourceType resourcedef.ResourceType) (string, bool) {
+			if resourceType == resourcedef.ResourceType("broken_resource") {
+				return "aws", true
+			}
+			return "", false
+		},
+		ResolveDefinitionFunc: func(_ string, resourceType resourcedef.ResourceType) (resourcedef.Definition, bool) {
+			if resourceType != resourcedef.ResourceType("broken_resource") {
+				return resourcedef.Definition{}, false
+			}
+			return resourcedef.Definition{
+				Type:     resourceType,
+				Category: resourcedef.CostCategoryFixed,
+				Parse: func(resourcedef.RawAttrs) (resourcedef.Attributes, error) {
+					return resourcedef.Attributes{}, parseErr
+				},
+				FixedCost: func(string, resourcedef.Attributes) (float64, float64) {
+					return 0, 0
+				},
+			}, true
+		},
+	})
+
+	got := resolver.Resolve(context.Background(), ResolveRequest{
+		ResourceType: resourcedef.ResourceType("broken_resource"),
+		Address:      "broken_resource.example",
+		Attrs:        resourcedef.NewRawAttrs(map[string]any{"bad": true}),
+	})
+	if got.Status != model.ResourceEstimateStatusFailed {
+		t.Fatalf("Status = %q, want %q", got.Status, model.ResourceEstimateStatusFailed)
+	}
+	if got.FailureKind != model.FailureKindParseFailed {
+		t.Fatalf("FailureKind = %q, want %q", got.FailureKind, model.FailureKindParseFailed)
+	}
+	if got.StatusDetail == "" {
+		t.Fatal("StatusDetail should explain parse failure")
 	}
 }
 
@@ -201,7 +246,7 @@ func TestCostResolver_ResolveBeforeCostUnknownCategory(t *testing.T) {
 	})
 
 	rc := model.ResourceCost{}
-	resolver.ResolveBeforeCost(context.Background(), &rc, resourcedef.ResourceType("weird_resource"), nil, "us-east-1")
+	resolver.ResolveBeforeCost(context.Background(), &rc, resourcedef.ResourceType("weird_resource"), resourcedef.EmptyRawAttrs(), "us-east-1")
 	if rc.Status != model.ResourceEstimateStatusFailed {
 		t.Fatalf("Status = %q, want %q", rc.Status, model.ResourceEstimateStatusFailed)
 	}
@@ -268,14 +313,14 @@ func TestCostResolver_ResolveBeforeCostWithState_ReusesPricingIndex(t *testing.T
 		ResourceType: resourcedef.ResourceType("aws_instance"),
 		Address:      "aws_instance.web",
 		Region:       "us-east-1",
-		Attrs:        map[string]any{"instance_type": "after"},
+		Attrs:        resourcedef.NewRawAttrs(map[string]any{"instance_type": "after"}),
 	}, state)
 
 	resolver.ResolveBeforeCostWithState(
 		context.Background(),
 		&after,
 		resourcedef.ResourceType("aws_instance"),
-		map[string]any{"instance_type": "before"},
+		resourcedef.NewRawAttrs(map[string]any{"instance_type": "before"}),
 		"us-east-1",
 		state,
 	)

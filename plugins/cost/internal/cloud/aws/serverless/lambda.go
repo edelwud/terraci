@@ -23,12 +23,12 @@ type lambdaAttrs struct {
 	ProvisionedConcurrency int
 }
 
-func parseLambdaAttrs(attrs map[string]any) lambdaAttrs {
+func parseLambdaAttrs(attrs resourcedef.RawAttrs) (lambdaAttrs, error) {
 	return lambdaAttrs{
 		MemoryMB:               costutil.GetIntAttr(attrs, "memory_size"),
 		Runtime:                costutil.GetStringAttr(attrs, "runtime"),
 		ProvisionedConcurrency: costutil.GetIntAttr(attrs, "provisioned_concurrent_executions"),
-	}
+	}, nil
 }
 
 // LambdaSpec declares aws_lambda_function cost estimation.

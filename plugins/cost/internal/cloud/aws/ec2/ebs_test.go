@@ -101,17 +101,23 @@ func TestEBSHandler_Contract(t *testing.T) {
 func TestParseEBSVolumeAttrs_ParsesStringNumbersAndDefaults(t *testing.T) {
 	t.Parallel()
 
-	got := parseEBSVolumeAttrs(map[string]any{
+	got, err := parseEBSVolumeAttrs(rawAttrs(map[string]any{
 		"type":       "gp3",
 		"size":       "100",
 		"iops":       "4000",
 		"throughput": "250",
-	})
+	}))
+	if err != nil {
+		t.Fatalf("parseEBSVolumeAttrs() error = %v", err)
+	}
 	if got.VolumeType != "gp3" || got.SizeGB != 100 || got.IOPS != 4000 || got.Throughput != 250 {
 		t.Fatalf("parseEBSVolumeAttrs() = %+v, want parsed gp3/100/4000/250", got)
 	}
 
-	defaulted := parseEBSVolumeAttrs(map[string]any{})
+	defaulted, err := parseEBSVolumeAttrs(rawAttrs(map[string]any{}))
+	if err != nil {
+		t.Fatalf("parseEBSVolumeAttrs(default) error = %v", err)
+	}
 	if defaulted.VolumeType != awskit.VolumeTypeGP2 || defaulted.SizeGB != defaultRootVolumeGB {
 		t.Fatalf("parseEBSVolumeAttrs(default) = %+v, want gp2/%d", defaulted, defaultRootVolumeGB)
 	}
@@ -155,7 +161,7 @@ func TestEBSHandler_CalculateCost(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, monthly, ok := def.CalculateStandardCost(price, nil, "", tt.attrs)
+			_, monthly, ok := def.CalculateStandardCost(price, nil, "", parsedAttrs(t, def, tt.attrs))
 			if !ok {
 				t.Fatal("CalculateStandardCost should return ok=true")
 			}
@@ -182,7 +188,7 @@ func TestEBSHandler_CalculateCost_IO1(t *testing.T) {
 		"iops": float64(3000),
 	}
 
-	_, monthly, ok := def.CalculateStandardCost(price, nil, "", attrs)
+	_, monthly, ok := def.CalculateStandardCost(price, nil, "", parsedAttrs(t, def, attrs))
 	if !ok {
 		t.Fatal("CalculateStandardCost should return ok=true")
 	}
@@ -208,7 +214,7 @@ func TestEBSHandler_CalculateCost_GP3Throughput(t *testing.T) {
 		"throughput": float64(250),
 	}
 
-	_, monthly, ok := def.CalculateStandardCost(price, nil, "", attrs)
+	_, monthly, ok := def.CalculateStandardCost(price, nil, "", parsedAttrs(t, def, attrs))
 	if !ok {
 		t.Fatal("CalculateStandardCost should return ok=true")
 	}
@@ -245,7 +251,7 @@ func TestEBSHandler_CalculateCost_IO1_WithIndex(t *testing.T) {
 		"iops": float64(3000),
 	}
 
-	_, monthly, ok := def.CalculateStandardCost(storagePrice, index, "us-east-1", attrs)
+	_, monthly, ok := def.CalculateStandardCost(storagePrice, index, "us-east-1", parsedAttrs(t, def, attrs))
 	if !ok {
 		t.Fatal("CalculateStandardCost should return ok=true")
 	}
@@ -282,7 +288,7 @@ func TestEBSHandler_CalculateCost_IO2(t *testing.T) {
 		"iops": float64(5000),
 	}
 
-	_, monthly, ok := def.CalculateStandardCost(storagePrice, index, "us-east-1", attrs)
+	_, monthly, ok := def.CalculateStandardCost(storagePrice, index, "us-east-1", parsedAttrs(t, def, attrs))
 	if !ok {
 		t.Fatal("CalculateStandardCost should return ok=true")
 	}
@@ -328,7 +334,7 @@ func TestEBSHandler_CalculateCost_GP3(t *testing.T) {
 		"throughput": float64(250),
 	}
 
-	_, monthly, ok := def.CalculateStandardCost(storagePrice, index, "us-east-1", attrs)
+	_, monthly, ok := def.CalculateStandardCost(storagePrice, index, "us-east-1", parsedAttrs(t, def, attrs))
 	if !ok {
 		t.Fatal("CalculateStandardCost should return ok=true")
 	}
@@ -359,7 +365,7 @@ func TestEBSHandler_CalculateCost_FallbackOnMissingProduct(t *testing.T) {
 		"iops": float64(3000),
 	}
 
-	_, monthly, ok := def.CalculateStandardCost(storagePrice, index, "us-east-1", attrs)
+	_, monthly, ok := def.CalculateStandardCost(storagePrice, index, "us-east-1", parsedAttrs(t, def, attrs))
 	if !ok {
 		t.Fatal("CalculateStandardCost should return ok=true")
 	}
@@ -386,7 +392,7 @@ func TestEBSHandler_CalculateCost_NilIndex(t *testing.T) {
 	}
 
 	// nil index — same as CalculateStandardCost path
-	_, monthly, ok := def.CalculateStandardCost(storagePrice, nil, "", attrs)
+	_, monthly, ok := def.CalculateStandardCost(storagePrice, nil, "", parsedAttrs(t, def, attrs))
 	if !ok {
 		t.Fatal("CalculateStandardCost should return ok=true")
 	}

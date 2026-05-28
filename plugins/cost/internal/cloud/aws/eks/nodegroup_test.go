@@ -31,7 +31,7 @@ func TestNodeGroupHandler_CalculateCost(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			hourly, _, ok := def.CalculateStandardCost(price, nil, "", tt.attrs)
+			hourly, _, ok := def.CalculateStandardCost(price, nil, "", parsedAttrs(t, def, tt.attrs))
 			if !ok {
 				t.Fatal("CalculateStandardCost() ok = false, want true")
 			}

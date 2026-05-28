@@ -65,7 +65,7 @@ func TestServerlessHandler_CalculateCost(t *testing.T) {
 	const epsilon = 0.01
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, monthly, ok := def.CalculateStandardCost(price, nil, "", tt.attrs)
+			_, monthly, ok := def.CalculateStandardCost(price, nil, "", parsedAttrs(t, def, tt.attrs))
 			if !ok {
 				t.Fatal("CalculateStandardCost returned ok=false")
 			}
@@ -95,7 +95,7 @@ func TestServerlessHandler_CalculateCost_FallbackPrice(t *testing.T) {
 		},
 	}
 
-	_, monthly, ok := def.CalculateStandardCost(price, nil, "", attrs)
+	_, monthly, ok := def.CalculateStandardCost(price, nil, "", parsedAttrs(t, def, attrs))
 	if !ok {
 		t.Fatal("CalculateStandardCost returned ok=false")
 	}
@@ -125,7 +125,7 @@ func TestServerlessHandler_Describe(t *testing.T) {
 		},
 	}
 
-	desc := def.DescribeResource(nil, attrs)
+	desc := def.DescribeResource(nil, parsedAttrs(t, def, attrs))
 	if desc["type"] != "serverless" {
 		t.Errorf("type = %q, want %q", desc["type"], "serverless")
 	}

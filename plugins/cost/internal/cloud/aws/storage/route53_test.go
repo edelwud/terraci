@@ -23,7 +23,7 @@ func TestRoute53Handler_Describe(t *testing.T) {
 	t.Parallel()
 
 	def := resourcespec.MustCompileTyped(Route53Spec())
-	result := def.DescribeResource(nil, nil)
+	result := def.DescribeResource(nil, parsedAttrs(t, def, nil))
 	if result != nil {
 		t.Errorf("DescribeResource() = %v, want nil", result)
 	}
@@ -40,7 +40,7 @@ func TestRoute53Handler_CalculateFixedCost(t *testing.T) {
 	t.Parallel()
 
 	def := resourcespec.MustCompileTyped(Route53Spec())
-	hourly, monthly, ok := def.CalculateFixedCost("", nil)
+	hourly, monthly, ok := def.CalculateFixedCost("", parsedAttrs(t, def, nil))
 	if !ok {
 		t.Fatal("CalculateFixedCost should be available")
 	}

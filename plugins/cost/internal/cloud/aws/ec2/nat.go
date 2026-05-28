@@ -20,7 +20,7 @@ type natAttrs struct {
 	ConnectivityType string
 }
 
-func parseNATAttrs(attrs map[string]any) natAttrs {
+func parseNATAttrs(attrs resourcedef.RawAttrs) (natAttrs, error) {
 	ct := costutil.GetStringAttr(attrs, "connectivity_type")
 	if ct == "" {
 		ct = DefaultNATConnectivityType
@@ -28,7 +28,7 @@ func parseNATAttrs(attrs map[string]any) natAttrs {
 	return natAttrs{
 		PublicIP:         costutil.GetStringAttr(attrs, "public_ip"),
 		ConnectivityType: ct,
-	}
+	}, nil
 }
 
 // NATSpec declares aws_nat_gateway cost estimation.

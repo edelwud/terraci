@@ -25,7 +25,7 @@ type clusterAttrs struct {
 	MultiAZ          bool
 }
 
-func parseClusterAttrs(attrs map[string]any) clusterAttrs {
+func parseClusterAttrs(attrs resourcedef.RawAttrs) (clusterAttrs, error) {
 	engine := costutil.GetStringAttr(attrs, "engine")
 	storageType := costutil.GetStringAttr(attrs, "storage_type")
 	// db_cluster_instance_class is set only for Multi-AZ DB clusters (non-Aurora).
@@ -43,7 +43,7 @@ func parseClusterAttrs(attrs map[string]any) clusterAttrs {
 		StorageType:      storageType,
 		AllocatedStorage: costutil.GetFloatAttr(attrs, "allocated_storage"),
 		MultiAZ:          multiAZ,
-	}
+	}, nil
 }
 
 func clusterStorageFallback(storageType string) float64 {

@@ -31,7 +31,7 @@ type ebsVolumeAttrs struct {
 	Throughput    float64
 }
 
-func parseEBSVolumeAttrs(attrs map[string]any) ebsVolumeAttrs {
+func parseEBSVolumeAttrs(attrs resourcedef.RawAttrs) (ebsVolumeAttrs, error) {
 	volumeType := costutil.GetStringAttr(attrs, "type")
 	sizeGB := costutil.GetFloatAttr(attrs, "size")
 	parsed := ebsVolumeAttrs{
@@ -48,7 +48,7 @@ func parseEBSVolumeAttrs(attrs map[string]any) ebsVolumeAttrs {
 	if parsed.SizeGB == 0 {
 		parsed.SizeGB = defaultRootVolumeGB
 	}
-	return parsed
+	return parsed, nil
 }
 
 // EBSSpec declares aws_ebs_volume cost estimation.

@@ -228,7 +228,7 @@ func TestInstanceHandler_CalculateCost(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, monthly, ok := def.CalculateStandardCost(price, nil, "", tt.attrs)
+			_, monthly, ok := def.CalculateStandardCost(price, nil, "", parsedAttrs(t, def, tt.attrs))
 			if !ok {
 				t.Fatal("CalculateStandardCost returned ok=false")
 			}
