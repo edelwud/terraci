@@ -8,6 +8,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/ci"
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
+	policyinput "github.com/edelwud/terraci/plugins/policy/internal/input"
 	"github.com/edelwud/terraci/plugins/policy/internal/source"
 )
 
@@ -108,9 +109,10 @@ func TestCheck_UsesInjectedDependenciesOnce(t *testing.T) {
 		},
 	}}}
 	evaluator := &fakeEvaluator{
-		evaluation: &policyengine.Evaluation{
-			Denies: []policyengine.Finding{{Message: "deny"}},
-		},
+		evaluation: policyengine.NewEvaluation(
+			[]policyengine.Finding{{Message: "deny"}},
+			nil,
+		),
 	}
 	factory := &fakeEvaluatorFactory{evaluator: evaluator}
 
@@ -142,8 +144,11 @@ func TestCheck_UsesInjectedDependenciesOnce(t *testing.T) {
 	if evaluator.calls != 1 {
 		t.Fatalf("evaluator calls = %d, want 1", evaluator.calls)
 	}
-	if evaluator.namespaces[0] != "terraform" {
+	if evaluator.namespaces[0] != policyengine.Namespace("terraform") {
 		t.Fatalf("namespaces = %v, want [terraform]", evaluator.namespaces)
+	}
+	if got := evaluator.inputs[0].OPAValue()["terraci"].(map[string]any)["module"].(map[string]any)["path"]; got != "platform/prod/eu-central-1/app" {
+		t.Fatalf("evaluator input module path = %v", got)
 	}
 	if summary.WarnedModules != 1 || summary.FailedModules != 0 {
 		t.Fatalf("warned/failed = %d/%d, want 1/0", summary.WarnedModules, summary.FailedModules)
@@ -187,13 +192,15 @@ func (f *fakeEvaluatorFactory) NewEvaluator([]string) Evaluator {
 
 type fakeEvaluator struct {
 	evaluation *policyengine.Evaluation
-	namespaces []string
+	inputs     []policyinput.Envelope
+	namespaces policyengine.Namespaces
 	calls      int
 }
 
-func (f *fakeEvaluator) Evaluate(_ context.Context, _ any, namespaces []string) (*policyengine.Evaluation, error) {
+func (f *fakeEvaluator) Evaluate(_ context.Context, input policyinput.Envelope, namespaces policyengine.Namespaces) (*policyengine.Evaluation, error) {
 	f.calls++
-	f.namespaces = append([]string(nil), namespaces...)
+	f.inputs = append(f.inputs, input)
+	f.namespaces = namespaces.Clone()
 	return f.evaluation, nil
 }
 

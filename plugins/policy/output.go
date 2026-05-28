@@ -62,13 +62,13 @@ func outputText(summary *policyengine.Summary, shouldBlock bool) error {
 		if result.Status() == policyengine.StatusPass {
 			continue
 		}
-		log.WithField("module", result.Module).WithField("status", result.Status()).Info("module result")
+		log.WithField("module", result.Module).WithField("status", result.Status().String()).Info("module result")
 		log.IncreasePadding()
 		for _, failure := range result.Failures {
-			log.WithField("namespace", failure.Namespace).WithField("message", failure.Message).Error("failure")
+			log.WithField("namespace", failure.Namespace.String()).WithField("message", failure.Message).Error("failure")
 		}
 		for _, warning := range result.Warnings {
-			log.WithField("namespace", warning.Namespace).WithField("message", warning.Message).Warn("warning")
+			log.WithField("namespace", warning.Namespace.String()).WithField("message", warning.Message).Warn("warning")
 		}
 		log.DecreasePadding()
 	}

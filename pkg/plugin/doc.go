@@ -209,6 +209,8 @@
 // domain structs. Markdown/CLI presentation remains centralized in
 // plugins/internal/reportrender. The contract test suite for blob backends lives at
 // pkg/cache/blobcache/contracttest.
+// Policy plugins keep raw OPA/JSON maps at the OPA adapter boundary: use-cases
+// pass typed policyinput.Envelope values and consume typed policy results.
 //
 // Pipeline contributions are value objects too. Producers should build jobs
 // with pipeline.NewPluginCommandJob or pipeline.NewContributedJob and wrap

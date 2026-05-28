@@ -14,6 +14,7 @@ import (
 	"github.com/open-policy-agent/opa/v1/version"
 
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
+	policyinput "github.com/edelwud/terraci/plugins/policy/internal/input"
 )
 
 func OPAVersion() string {
@@ -31,16 +32,17 @@ func New(policyDirs []string) *Engine {
 	}
 }
 
-func (e *Engine) Evaluate(ctx context.Context, input any, namespaces []string) (*policyengine.Evaluation, error) {
+func (e *Engine) Evaluate(ctx context.Context, input policyinput.Envelope, namespaces policyengine.Namespaces) (*policyengine.Evaluation, error) {
 	policyFiles, err := e.regoFiles()
 	if err != nil {
 		return nil, err
 	}
 	if len(policyFiles) == 0 {
-		return &policyengine.Evaluation{}, nil
+		return policyengine.EmptyEvaluation(), nil
 	}
 
-	eval := &policyengine.Evaluation{}
+	var allDenies []policyengine.Finding
+	var allWarns []policyengine.Finding
 	for _, namespace := range namespaces {
 		denies, err := e.runQuery(ctx, input, policyFiles, fmt.Sprintf("data.%s.deny", namespace), namespace)
 		if err != nil {
@@ -50,13 +52,13 @@ func (e *Engine) Evaluate(ctx context.Context, input any, namespaces []string) (
 		if err != nil {
 			return nil, fmt.Errorf("evaluate %s warn rules: %w", namespace, err)
 		}
-		eval.Denies = append(eval.Denies, denies...)
-		eval.Warns = append(eval.Warns, warns...)
+		allDenies = append(allDenies, denies...)
+		allWarns = append(allWarns, warns...)
 	}
 
-	sortFindings(eval.Denies)
-	sortFindings(eval.Warns)
-	return eval, nil
+	sortFindings(allDenies)
+	sortFindings(allWarns)
+	return policyengine.NewEvaluation(allDenies, allWarns), nil
 }
 
 func (e *Engine) regoFiles() ([]string, error) {
@@ -89,10 +91,10 @@ func (e *Engine) regoFiles() ([]string, error) {
 	return files, nil
 }
 
-func (e *Engine) runQuery(ctx context.Context, input any, policyFiles []string, query, namespace string) ([]policyengine.Finding, error) {
+func (e *Engine) runQuery(ctx context.Context, input policyinput.Envelope, policyFiles []string, query string, namespace policyengine.Namespace) ([]policyengine.Finding, error) {
 	r := rego.New(
 		rego.Query(query),
-		rego.Input(input),
+		rego.Input(input.OPAValue()),
 		rego.Load(policyFiles, nil),
 	)
 
@@ -113,7 +115,7 @@ func (e *Engine) runQuery(ctx context.Context, input any, policyFiles []string, 
 	return findings, nil
 }
 
-func parseExpression(value any, namespace string) []policyengine.Finding {
+func parseExpression(value any, namespace policyengine.Namespace) []policyengine.Finding {
 	switch v := value.(type) {
 	case []any:
 		findings := make([]policyengine.Finding, 0, len(v))
@@ -131,30 +133,31 @@ func parseExpression(value any, namespace string) []policyengine.Finding {
 	return nil
 }
 
-func parseFinding(value any, namespace string) (policyengine.Finding, bool) {
+func parseFinding(value any, namespace policyengine.Namespace) (policyengine.Finding, bool) {
 	switch v := value.(type) {
 	case string:
-		return policyengine.Finding{Message: v, Namespace: namespace}, true
+		return policyengine.NewFinding(namespace, v, policyengine.FindingMetadata{}), true
 	case map[string]any:
-		finding := policyengine.Finding{Namespace: namespace, Metadata: make(map[string]any)}
+		metadata := make(map[string]any)
+		message := ""
 		if msg, ok := v["msg"].(string); ok {
-			finding.Message = msg
+			message = msg
 		} else if msg, ok := v["message"].(string); ok {
-			finding.Message = msg
+			message = msg
 		}
 		for k, value := range v {
 			if k != "msg" && k != "message" {
-				finding.Metadata[k] = value
+				metadata[k] = value
 			}
 		}
-		if finding.Message == "" {
+		if message == "" {
 			data, err := json.Marshal(v)
 			if err != nil {
 				return policyengine.Finding{}, false
 			}
-			finding.Message = string(data)
+			message = string(data)
 		}
-		return finding, true
+		return policyengine.NewFinding(namespace, message, policyengine.NewFindingMetadata(metadata)), true
 	default:
 		return policyengine.Finding{}, false
 	}

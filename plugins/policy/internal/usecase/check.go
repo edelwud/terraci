@@ -26,7 +26,7 @@ type PlanScanner interface {
 }
 
 type Evaluator interface {
-	Evaluate(ctx context.Context, input any, namespaces []string) (*policyengine.Evaluation, error)
+	Evaluate(ctx context.Context, input policyinput.Envelope, namespaces policyengine.Namespaces) (*policyengine.Evaluation, error)
 }
 
 type EvaluatorFactory interface {

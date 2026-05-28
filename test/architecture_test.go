@@ -143,6 +143,9 @@ func TestArchitecture_ConfigSnapshotAndDocs(t *testing.T) {
 		"legacy pointer-shaped",
 		"pipeline.BuildOptions",
 		"localexec/internal/planner",
+		"Evaluate(ctx context.Context, input any",
+		"Metadata  map[string]any",
+		"policyinput.Envelope{",
 	}
 	for _, rel := range textFiles(t, root, "AGENTS.md", "docs", "examples", "pkg/plugin/doc.go") {
 		if allowUnder(rel, "docs/.vitepress/dist/") {
@@ -544,6 +547,49 @@ func TestArchitecture_CostAttributeBoundaries(t *testing.T) {
 	}
 }
 
+func TestArchitecture_PolicyOPABoundaries(t *testing.T) {
+	root := repoRoot(t)
+	var violations []string
+
+	for _, rel := range goFiles(t, root, "plugins/policy") {
+		if !isProductionFile(rel) {
+			continue
+		}
+		file := parseGoFile(t, filepath.Join(root, rel), 0)
+		inputAliases := importAliases(file, moduleImportPath+"/plugins/policy/internal/input")
+
+		ast.Inspect(file, func(node ast.Node) bool {
+			switch typed := node.(type) {
+			case *ast.CompositeLit:
+				if isPolicyEnvelopeLiteral(typed.Type, inputAliases) {
+					violations = append(violations, rel+" manually constructs policyinput.Envelope; use policyinput.NewEnvelope or policyinput.Build")
+				}
+				if !isPolicyRawBoundaryFile(rel) && isMapStringAny(typed.Type) {
+					violations = append(violations, rel+" constructs raw policy map[string]any outside OPA/JSON boundary")
+				}
+			case *ast.MapType:
+				if !isPolicyRawBoundaryFile(rel) && isStringIdent(typed.Key) && isAnyIdent(typed.Value) {
+					violations = append(violations, rel+" uses raw policy map[string]any outside OPA/JSON boundary")
+				}
+			case *ast.Field:
+				if !isPolicyRawBoundaryFile(rel) && len(typed.Names) == 1 && typed.Names[0].Name == "Metadata" && isMapStringAny(typed.Type) {
+					violations = append(violations, rel+" exposes Finding.Metadata as map[string]any; use policyengine.FindingMetadata")
+				}
+				for _, name := range typed.Names {
+					if name.Name == "input" && isAnyIdent(typed.Type) {
+						violations = append(violations, rel+" accepts untyped policy input; use policyinput.Envelope")
+					}
+				}
+			}
+			return true
+		})
+	}
+
+	if len(violations) > 0 {
+		t.Fatalf("policy OPA boundary violations:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
 func repoRoot(tb testing.TB) string {
 	tb.Helper()
 
@@ -561,6 +607,21 @@ func repoRoot(tb testing.TB) string {
 		}
 		dir = parent
 	}
+}
+
+func isPolicyRawBoundaryFile(rel string) bool {
+	return rel == "plugins/policy/internal/input/envelope.go" ||
+		rel == "plugins/policy/internal/engine/engine.go" ||
+		rel == "plugins/policy/internal/result.go"
+}
+
+func isPolicyEnvelopeLiteral(expr ast.Expr, aliases map[string]bool) bool {
+	selector, ok := expr.(*ast.SelectorExpr)
+	if !ok || selector.Sel.Name != "Envelope" {
+		return false
+	}
+	ident, ok := selector.X.(*ast.Ident)
+	return ok && aliases[ident.Name]
 }
 
 func isCostAttrContractPackage(rel string) bool {

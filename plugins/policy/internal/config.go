@@ -216,11 +216,11 @@ func (c *Config) EffectiveConfig(modulePath string) (*Config, error) {
 	return &effective, nil
 }
 
-func (c *Config) NamespacesOrDefault() []string {
+func (c *Config) NamespacesOrDefault() Namespaces {
 	if c != nil && len(c.Namespaces) > 0 {
-		return append([]string(nil), c.Namespaces...)
+		return NewNamespaces(c.Namespaces)
 	}
-	return []string{DefaultNamespace}
+	return Namespaces{Namespace(DefaultNamespace)}
 }
 
 func (c *Config) CanBlock() bool {

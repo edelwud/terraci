@@ -28,7 +28,7 @@ func buildPolicyReport(req policyReportRequest) (*ci.Report, error) {
 			rows = append(rows, ci.NewRenderRow(
 				ci.RenderModulePath(result.Module),
 				ci.RenderStatus(ci.ReportStatusFail),
-				ci.RenderCode(failure.Namespace),
+				ci.RenderCode(failure.Namespace.String()),
 				ci.RenderText(failure.Message),
 			))
 		}
@@ -36,7 +36,7 @@ func buildPolicyReport(req policyReportRequest) (*ci.Report, error) {
 			rows = append(rows, ci.NewRenderRow(
 				ci.RenderModulePath(result.Module),
 				ci.RenderStatus(ci.ReportStatusWarn),
-				ci.RenderCode(warning.Namespace),
+				ci.RenderCode(warning.Namespace.String()),
 				ci.RenderText(warning.Message),
 			))
 		}

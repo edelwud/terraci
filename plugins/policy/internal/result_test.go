@@ -1,14 +1,17 @@
 package policyengine
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 func TestApplyEvaluation_ActionMapping(t *testing.T) {
 	t.Parallel()
 
-	eval := &Evaluation{
-		Denies: []Finding{{Message: "deny"}},
-		Warns:  []Finding{{Message: "warn"}},
-	}
+	eval := NewEvaluation(
+		[]Finding{{Message: "deny"}},
+		[]Finding{{Message: "warn"}},
+	)
 
 	tests := []struct {
 		name           string
@@ -16,7 +19,7 @@ func TestApplyEvaluation_ActionMapping(t *testing.T) {
 		wantFailures   int
 		wantWarnings   int
 		wantSuppressed int
-		wantStatus     string
+		wantStatus     Status
 	}{
 		{
 			name:         "block deny warn warning",
@@ -59,6 +62,60 @@ func TestApplyEvaluation_ActionMapping(t *testing.T) {
 				t.Fatalf("status = %q, want %q", result.Status(), tt.wantStatus)
 			}
 		})
+	}
+}
+
+func TestNewEvaluation_IsDefensive(t *testing.T) {
+	t.Parallel()
+
+	denies := []Finding{NewFinding(Namespace("terraform"), "deny", NewFindingMetadata(map[string]any{"resource": "bucket"}))}
+	eval := NewEvaluation(denies, nil)
+	denies[0].Message = "mutated"
+
+	got := eval.Denies()
+	got[0].Metadata.Map()["resource"] = "mutated"
+	if got[0].Message != "deny" {
+		t.Fatalf("Denies leaked input mutation: %#v", got)
+	}
+	if eval.Denies()[0].Metadata.Map()["resource"] != "bucket" {
+		t.Fatalf("Denies leaked output mutation: %#v", eval.Denies()[0].Metadata.Map())
+	}
+}
+
+func TestFindingMetadata_JSONRoundTripAndDefensiveCopies(t *testing.T) {
+	t.Parallel()
+
+	metadata := NewFindingMetadata(map[string]any{
+		"resource": "aws_s3_bucket.logs",
+		"labels":   []any{"public", "prod"},
+	})
+	finding := NewFinding(Namespace("terraform"), "bucket denied", metadata)
+	metadata.Map()["resource"] = "mutated"
+
+	data, err := json.Marshal(finding)
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("Unmarshal map error = %v", err)
+	}
+	if got["msg"] != "bucket denied" || got["namespace"] != "terraform" {
+		t.Fatalf("finding JSON = %#v", got)
+	}
+	encodedMetadata := got["metadata"].(map[string]any)
+	if encodedMetadata["resource"] != "aws_s3_bucket.logs" {
+		t.Fatalf("metadata leaked mutation: %#v", encodedMetadata)
+	}
+
+	var decoded Finding
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("Unmarshal Finding error = %v", err)
+	}
+	decodedMap := decoded.Metadata.Map()
+	decodedMap["resource"] = "mutated"
+	if decoded.Metadata.Map()["resource"] != "aws_s3_bucket.logs" {
+		t.Fatalf("Metadata.Map leaked mutation: %#v", decoded.Metadata.Map())
 	}
 }
 
