@@ -120,7 +120,8 @@
 // ToYAML is the only place provider output should become raw YAML/maps. Tests
 // should use semantic read helpers on provider documents, such as Job(name),
 // JobNames, HasNeed, Steps, Needs, Env, and Variables, instead of indexing
-// mutable job maps.
+// mutable job maps. Provider documents should not expose one-shot constructors
+// or map-shaped Jobs accessors.
 //
 // # Init wizard boundary
 //

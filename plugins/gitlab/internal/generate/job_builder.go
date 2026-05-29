@@ -12,16 +12,14 @@ import (
 )
 
 type jobBuilder struct {
-	settings    settings
-	stageByJob  map[string]string
-	applyConfig func(job *domain.JobOptions, jobType configpkg.JobOverwriteType) error
+	settings   settings
+	stageByJob map[string]string
 }
 
-func newJobBuilder(settings settings, stageByJob map[string]string, applyConfig func(job *domain.JobOptions, jobType configpkg.JobOverwriteType) error) jobBuilder {
+func newJobBuilder(settings settings, stageByJob map[string]string) jobBuilder {
 	return jobBuilder{
-		settings:    settings,
-		stageByJob:  stageByJob,
-		applyConfig: applyConfig,
+		settings:   settings,
+		stageByJob: stageByJob,
 	}
 }
 
@@ -45,7 +43,7 @@ func (b jobBuilder) renderJob(irJob *pipeline.Job) (domain.Job, error) {
 		job.ResourceGroup = module.ID()
 	}
 
-	if err := b.applyConfig(&job, jobOverwriteType(irJob)); err != nil {
+	if err := applyResolvedJobConfig(b.settings, &job, jobOverwriteType(irJob)); err != nil {
 		var zero domain.Job
 		return zero, err
 	}

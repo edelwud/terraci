@@ -78,9 +78,7 @@ func (g *Generator) transform(ir *pipeline.IR) (*domain.Pipeline, error) {
 		Workflow: g.generateWorkflow(),
 	})
 
-	jobBuilder := newJobBuilder(g.settings, stagePlan.stageByJob, func(job *domain.JobOptions, jobType configpkg.JobOverwriteType) error {
-		return applyResolvedJobConfig(g.settings, job, jobType)
-	})
+	jobBuilder := newJobBuilder(g.settings, stagePlan.stageByJob)
 	jobs := ir.Jobs()
 	for i := range jobs {
 		irJob := &jobs[i]

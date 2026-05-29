@@ -90,7 +90,8 @@ type GeneratedPipeline interface {
 Provider output should follow the same value-object rule as `pipeline.IR`.
 Build a provider-local document through validated constructors/builders, expose
 semantic read helpers for tests, and keep `ToYAML()` as the only raw YAML/map
-boundary.
+boundary. Avoid one-shot provider document constructors and job-map read APIs;
+add jobs through the provider document builder.
 
 ### Working with the Pipeline IR
 

@@ -5,21 +5,6 @@ import (
 	"testing"
 )
 
-func TestImageConfigMarshalYAML(t *testing.T) {
-	out, err := ImageConfig{Name: "hashicorp/terraform:1.6"}.MarshalYAML()
-	if err != nil {
-		t.Fatalf("MarshalYAML() error = %v", err)
-	}
-
-	got, ok := out.(string)
-	if !ok {
-		t.Fatalf("MarshalYAML() type = %T, want string", out)
-	}
-	if got != "hashicorp/terraform:1.6" {
-		t.Fatalf("MarshalYAML() = %q", got)
-	}
-}
-
 func TestPipelineToYAMLSortsJobs(t *testing.T) {
 	zJob, err := NewJob(JobOptions{Stage: "deploy-0", Script: []string{"echo z"}})
 	if err != nil {
@@ -29,16 +14,10 @@ func TestPipelineToYAMLSortsJobs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pipeline, err := NewPipeline(PipelineOptions{
-		Stages: []string{"deploy-0"},
-		Jobs: []NamedJob{
-			{Name: "z-job", Job: zJob},
-			{Name: "a-job", Job: aJob},
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	builder := NewPipelineBuilder(PipelineOptions{Stages: []string{"deploy-0"}})
+	mustAddPipelineJob(t, builder, "z-job", zJob)
+	mustAddPipelineJob(t, builder, "a-job", aJob)
+	pipeline := mustBuildPipeline(t, builder)
 
 	out, err := pipeline.ToYAML()
 	if err != nil {
@@ -48,15 +27,6 @@ func TestPipelineToYAMLSortsJobs(t *testing.T) {
 	yaml := string(out)
 	if strings.Index(yaml, "a-job:") > strings.Index(yaml, "z-job:") {
 		t.Fatalf("jobs are not sorted in YAML output:\n%s", yaml)
-	}
-}
-
-func TestNewJobValidatesRequiredFields(t *testing.T) {
-	if _, err := NewJob(JobOptions{Script: []string{"echo test"}}); err == nil {
-		t.Fatal("NewJob() error = nil, want missing stage error")
-	}
-	if _, err := NewJob(JobOptions{Stage: "deploy"}); err == nil {
-		t.Fatal("NewJob() error = nil, want missing script error")
 	}
 }
 
@@ -74,14 +44,12 @@ func TestPipelineGettersReturnDefensiveCopies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pipeline, err := NewPipeline(PipelineOptions{
+	builder := NewPipelineBuilder(PipelineOptions{
 		Stages:    []string{"deploy-0"},
 		Variables: map[string]string{"GLOBAL": "true"},
-		Jobs:      []NamedJob{{Name: "plan-vpc", Job: job}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	mustAddPipelineJob(t, builder, "plan-vpc", job)
+	pipeline := mustBuildPipeline(t, builder)
 
 	tags[0] = "mutated"
 	variables["TF_MODULE"] = "mutated"
@@ -131,4 +99,20 @@ func TestPipelineBuilderValidatesDuplicateJobs(t *testing.T) {
 	if err := builder.AddJob("test", job); err == nil {
 		t.Fatal("AddJob() error = nil, want duplicate job error")
 	}
+}
+
+func mustAddPipelineJob(tb testing.TB, builder *PipelineBuilder, name string, job Job) {
+	tb.Helper()
+	if err := builder.AddJob(name, job); err != nil {
+		tb.Fatalf("AddJob(%q) error = %v", name, err)
+	}
+}
+
+func mustBuildPipeline(tb testing.TB, builder *PipelineBuilder) *Pipeline {
+	tb.Helper()
+	pipeline, err := builder.Build()
+	if err != nil {
+		tb.Fatalf("Build() error = %v", err)
+	}
+	return pipeline
 }

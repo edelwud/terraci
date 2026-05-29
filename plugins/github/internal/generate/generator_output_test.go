@@ -18,16 +18,20 @@ func TestToYAML(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	workflow, err := domainpkg.NewWorkflow(domainpkg.WorkflowOptions{
+	builder := domainpkg.NewWorkflowBuilder(domainpkg.WorkflowOptions{
 		Name: "Terraform",
 		On: domainpkg.WorkflowTrigger{
 			Push: &domainpkg.PushTrigger{Branches: []string{"main"}},
 		},
-		Env:  map[string]string{"TERRAFORM_BINARY": "terraform"},
-		Jobs: []domainpkg.NamedJob{{Name: "plan-test", Job: job}},
+		Env: map[string]string{"TERRAFORM_BINARY": "terraform"},
 	})
+	addErr := builder.AddJob("plan-test", job)
+	if addErr != nil {
+		t.Fatalf("AddJob() error = %v", addErr)
+	}
+	workflow, err := builder.Build()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Build() error = %v", err)
 	}
 
 	yamlBytes, err := workflow.ToYAML()

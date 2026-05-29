@@ -44,7 +44,15 @@ func (g *Generator) DryRun() (*pipeline.DryRunResult, error) {
 }
 
 func (g *Generator) transform(ir *pipeline.IR) (*domainpkg.Workflow, error) {
-	workflow := newWorkflowBuilder(g.settings).baseWorkflow()
+	workflow := domainpkg.NewWorkflowBuilder(domainpkg.WorkflowOptions{
+		Name: "Terraform",
+		On: domainpkg.WorkflowTrigger{
+			Push:        &domainpkg.PushTrigger{Branches: []string{"main"}},
+			PullRequest: &domainpkg.PRTrigger{Branches: []string{"main"}},
+		},
+		Permissions: g.settings.permissions(),
+		Env:         g.settings.env(),
+	})
 	builder := newJobBuilder(g.settings)
 
 	jobs := ir.Jobs()

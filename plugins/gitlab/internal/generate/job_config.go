@@ -159,5 +159,5 @@ func (g *Generator) generateWorkflow() *domain.Workflow {
 		}
 	}
 
-	return domain.NewWorkflow(rules)
+	return domain.NewWorkflowRules(rules)
 }

@@ -508,15 +508,63 @@ func TestArchitecture_ProviderOutputValueBoundaries(t *testing.T) {
 	var violations []string
 
 	for _, rel := range goFiles(t, root, "plugins/gitlab", "plugins/github") {
-		if !isProductionFile(rel) || isProviderDomainPackageFile(rel) {
+		if !isProductionFile(rel) {
 			continue
 		}
 		file := parseGoFile(t, filepath.Join(root, rel), 0)
+		if isProviderDomainPackageFile(rel) {
+			ast.Inspect(file, func(node ast.Node) bool {
+				switch typed := node.(type) {
+				case *ast.FuncDecl:
+					switch typed.Name.Name {
+					case "NewPipeline", "NewWorkflow":
+						violations = append(violations, rel+" exposes one-shot provider document constructor "+typed.Name.Name+"; use provider document builders")
+					case "Jobs":
+						if typed.Type.Results == nil {
+							return true
+						}
+						for _, result := range typed.Type.Results.List {
+							if _, ok := result.Type.(*ast.MapType); ok {
+								violations = append(violations, rel+" exposes provider jobs as a map; use semantic Job/JobNames/HasNeed helpers")
+							}
+						}
+					}
+				case *ast.TypeSpec:
+					if typed.Name.Name == "NamedJob" {
+						violations = append(violations, rel+" exposes NamedJob provider construction helper; use builder.AddJob")
+					}
+					if typed.Name.Name == "PipelineOptions" || typed.Name.Name == "WorkflowOptions" {
+						if structType, ok := typed.Type.(*ast.StructType); ok {
+							for _, field := range structType.Fields.List {
+								for _, name := range field.Names {
+									if name.Name == "Jobs" {
+										violations = append(violations, rel+" exposes "+typed.Name.Name+".Jobs; use builder.AddJob")
+									}
+								}
+							}
+						}
+					}
+				}
+				return true
+			})
+			continue
+		}
 		gitlabDomainAliases := importAliases(file, moduleImportPath+"/plugins/gitlab/internal/domain")
 		githubDomainAliases := importAliases(file, moduleImportPath+"/plugins/github/internal/domain")
 
 		ast.Inspect(file, func(node ast.Node) bool {
 			switch typed := node.(type) {
+			case *ast.CallExpr:
+				selector, ok := callSelector(typed)
+				if !ok {
+					return true
+				}
+				switch {
+				case selectorCallMatches(selector, gitlabDomainAliases, "NewPipeline"),
+					selectorCallMatches(selector, gitlabDomainAliases, "NewWorkflow"),
+					selectorCallMatches(selector, githubDomainAliases, "NewWorkflow"):
+					violations = append(violations, rel+" calls one-shot provider document constructor; use provider document builders")
+				}
 			case *ast.CompositeLit:
 				if isProviderOutputLiteral(typed.Type, gitlabDomainAliases, githubDomainAliases) {
 					violations = append(violations, rel+" manually constructs provider output domain value; use provider output builders")
@@ -540,6 +588,9 @@ func TestArchitecture_ProviderOutputValueBoundaries(t *testing.T) {
 		"domain.Job{",
 		"domain.Step{",
 		".Jobs[",
+		"NewPipeline(",
+		"NewWorkflow(",
+		"NamedJob",
 	}
 	for _, rel := range textFiles(t, root, "AGENTS.md", "docs", "examples", "pkg/plugin/doc.go") {
 		if allowUnder(rel, "docs/.vitepress/dist/") {

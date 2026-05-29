@@ -3,23 +3,29 @@ package generate
 import (
 	"strings"
 	"testing"
+
+	"github.com/edelwud/terraci/plugins/gitlab/internal/domain"
 )
 
 func TestPipeline_ToYAML(t *testing.T) {
-	job, err := NewJob(JobOptions{Stage: "plan-0", Script: []string{"terraform plan"}})
+	job, err := domain.NewJob(domain.JobOptions{Stage: "plan-0", Script: []string{"terraform plan"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := NewPipeline(PipelineOptions{
+	builder := domain.NewPipelineBuilder(domain.PipelineOptions{
 		Stages:    []string{"plan-0", "apply-0"},
 		Variables: map[string]string{"TERRAFORM_BINARY": "terraform"},
-		Default: &DefaultConfig{
-			Image: &ImageConfig{Name: "hashicorp/terraform:1.6"},
+		Default: &domain.DefaultConfig{
+			Image: &domain.ImageConfig{Name: "hashicorp/terraform:1.6"},
 		},
-		Jobs: []NamedJob{{Name: "plan-test", Job: job}},
 	})
+	addErr := builder.AddJob("plan-test", job)
+	if addErr != nil {
+		t.Fatalf("AddJob() error = %v", addErr)
+	}
+	p, err := builder.Build()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Build() error = %v", err)
 	}
 
 	yamlBytes, err := p.ToYAML()

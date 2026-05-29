@@ -11,14 +11,11 @@ import (
 	"github.com/edelwud/terraci/pkg/pipeline/pipelinetest"
 	"github.com/edelwud/terraci/pkg/workflow"
 	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
-	"github.com/edelwud/terraci/plugins/gitlab/internal/domain"
 )
 
 func testExecutionConfig() execution.Config {
 	return execution.Config{Binary: "terraform", InitEnabled: true, PlanEnabled: true, PlanMode: execution.PlanModeStandard, Parallelism: 4}
 }
-
-func noJobConfig(_ *domain.JobOptions, _ configpkg.JobOverwriteType) error { return nil }
 
 func TestJobBuilderRenderJobBuildsModuleDefaults(t *testing.T) {
 	t.Parallel()
@@ -27,7 +24,6 @@ func TestJobBuilderRenderJobBuildsModuleDefaults(t *testing.T) {
 	builder := newJobBuilder(
 		newSettings(&configpkg.Config{CacheEnabled: true}, testExecutionConfig()),
 		map[string]string{"plan-platform-stage-eu-central-1-vpc": "deploy-0"},
-		noJobConfig,
 	)
 
 	plan := pipelinetest.MustJobByKind(t, pipelinetest.MustSingleModuleIR(t, module), pipeline.JobKindPlan)
@@ -70,7 +66,6 @@ func TestJobBuilderCacheSupportsAdvancedOptions(t *testing.T) {
 			},
 		}, testExecutionConfig()),
 		nil,
-		noJobConfig,
 	)
 
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
@@ -104,9 +99,6 @@ func TestJobBuilderContributedJobOverwriteByName(t *testing.T) {
 	builder := newJobBuilder(
 		s,
 		map[string]string{"cost-estimation": "deploy-1"},
-		func(job *domain.JobOptions, jt configpkg.JobOverwriteType) error {
-			return applyResolvedJobConfig(s, job, jt)
-		},
 	)
 
 	command := pipelinetest.MustCommandJob(t, pipeline.ContributedJobOptions{Name: "cost-estimation", Commands: []string{"terraci cost"}})
@@ -128,7 +120,6 @@ func TestJobBuilderContributedJobUsesOptionalNeeds(t *testing.T) {
 	builder := newJobBuilder(
 		newSettings(&configpkg.Config{}, testExecutionConfig()),
 		map[string]string{"summary": "deploy-2"},
-		noJobConfig,
 	)
 
 	producer, err := pipeline.NewPluginCommandJob(pipeline.PluginCommandJobOptions{

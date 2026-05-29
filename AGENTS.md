@@ -333,7 +333,8 @@ barrier-group value objects with `Name()`, `Jobs()`, and `JobCount()`.
 Provider output is also a value object: provider generators build documents
 through provider-local builders, tests read them through semantic helpers such
 as `Job(name)`, `JobNames()`, `HasNeed(job, dep)`, `Steps()`, `Needs()`, and
-`Env()`, and `ToYAML()` is the only raw YAML/map boundary.
+`Env()`, and `ToYAML()` is the only raw YAML/map boundary. Do not add
+one-shot provider document constructors or job-map read APIs.
 
 Shell rendering (`cd module && ${TERRAFORM_BINARY} init && plan -out=…`) lives in `pkg/pipeline/cishell` (`cishell.RenderOperation(op)`) — never in the IR package itself. Providers driving Terraform via tfexec instead of shell don't need cishell.
 
