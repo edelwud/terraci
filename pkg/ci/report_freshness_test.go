@@ -19,11 +19,12 @@ func TestSelectCurrentReports_SelectsCurrentAndDegradedReports(t *testing.T) {
 	if got := producers(selection.Reports); strings.Join(got, ",") != "cost,tfupdate" {
 		t.Fatalf("selected producers = %v, want [cost tfupdate]", got)
 	}
-	if len(selection.Warnings) != 1 {
-		t.Fatalf("warnings = %v, want one stale warning", selection.Warnings)
+	messages := selection.Diagnostics.Messages()
+	if len(messages) != 1 {
+		t.Fatalf("diagnostics = %v, want one stale warning", messages)
 	}
-	if !strings.Contains(selection.Warnings[0], `summary report "policy" skipped`) {
-		t.Fatalf("warning = %q, want policy stale warning", selection.Warnings[0])
+	if !strings.Contains(messages[0], `summary report "policy" skipped`) {
+		t.Fatalf("diagnostic = %q, want policy stale warning", messages[0])
 	}
 }
 

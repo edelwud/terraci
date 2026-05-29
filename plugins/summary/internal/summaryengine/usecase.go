@@ -6,6 +6,7 @@ import (
 	log "github.com/caarlos0/log"
 
 	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/diagnostic"
 )
 
 // ReportProducer is the producer name used by summary's own reports/comments.
@@ -29,17 +30,17 @@ type Request struct{}
 
 // Result reports what the summary use case did.
 type Result struct {
-	Collection       *ci.PlanResultCollection
-	Plans            []ci.PlanResult
-	Reports          []*ci.Report
-	Body             string
-	Labels           []string
-	LabelWarnings    []string
-	ReportWarnings   []string
-	PostedComment    bool
-	SyncedLabels     bool
-	SkippedReason    string
-	ProviderDetected bool
+	Collection        *ci.PlanResultCollection
+	Plans             []ci.PlanResult
+	Reports           []*ci.Report
+	Body              string
+	Labels            []string
+	LabelDiagnostics  diagnostic.List
+	ReportDiagnostics diagnostic.List
+	PostedComment     bool
+	SyncedLabels      bool
+	SkippedReason     string
+	ProviderDetected  bool
 }
 
 // Run scans plans, loads reports, renders a summary comment, posts it, and
@@ -66,8 +67,8 @@ func Run(ctx context.Context, runtime Runtime, _ Request) (*Result, error) {
 		return nil, err
 	}
 	result.Reports = selection.Reports
-	result.ReportWarnings = selection.Warnings
-	logWarnings(result.ReportWarnings)
+	result.ReportDiagnostics = selection.Diagnostics
+	logDiagnostics(result.ReportDiagnostics)
 
 	if runtime.Config.OnChangesOnly && !HasReportableChanges(result.Plans, result.Reports) {
 		result.SkippedReason = "no_reportable_changes"
@@ -85,8 +86,8 @@ func Run(ctx context.Context, runtime Runtime, _ Request) (*Result, error) {
 
 	labelResult := resolveSummaryLabels(runtime, result.Plans)
 	result.Labels = labelResult.Labels
-	result.LabelWarnings = labelResult.Warnings
-	logWarnings(labelResult.Warnings)
+	result.LabelDiagnostics = labelResult.Diagnostics
+	logDiagnostics(labelResult.Diagnostics)
 
 	body, err := composeSummaryBody(runtime, collection, result.Plans, result.Reports, provider, result.Labels)
 	if err != nil {

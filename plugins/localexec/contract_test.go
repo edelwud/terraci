@@ -70,7 +70,7 @@ func TestExecutorRun_NilFiltersDoesNotPanic(t *testing.T) {
 	appCtx := plugintest.NewAppContext(t, t.TempDir())
 	executor := NewExecutor(appCtx)
 
-	if err := executor.Run(context.Background(), ExecuteRequest{Mode: ExecutionModePlan}); err == nil {
+	if _, err := executor.Run(context.Background(), ExecuteRequest{Mode: ExecutionModePlan}); err == nil {
 		t.Fatal("Run() error = nil, want workflow error without panic")
 	}
 }

@@ -7,13 +7,37 @@ import (
 	log "github.com/caarlos0/log"
 
 	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/diagnostic"
 	"github.com/edelwud/terraci/pkg/planresults"
 )
 
 const SummaryReportProducer = "summary"
 
 type Loader interface {
-	Load(ctx context.Context) (*ci.Report, error)
+	Load(ctx context.Context) (*Result, error)
+}
+
+type Result struct {
+	report      *ci.Report
+	diagnostics diagnostic.List
+}
+
+func NewResult(report *ci.Report, diagnostics diagnostic.List) *Result {
+	return &Result{report: report.Clone(), diagnostics: diagnostics}
+}
+
+func (r *Result) Report() *ci.Report {
+	if r == nil {
+		return nil
+	}
+	return r.report.Clone()
+}
+
+func (r *Result) Diagnostics() diagnostic.List {
+	if r == nil {
+		return diagnostic.List{}
+	}
+	return r.diagnostics
 }
 
 type storeLoader struct {
@@ -33,7 +57,7 @@ func NewLoader(reader ci.ReportReader, workDir string, segments []string) Loader
 	}
 }
 
-func (l storeLoader) Load(ctx context.Context) (*ci.Report, error) {
+func (l storeLoader) Load(ctx context.Context) (*Result, error) {
 	collection, err := planresults.Scan(l.workDir, l.segments)
 	if err != nil {
 		return nil, fmt.Errorf("scan plan results: %w", err)
@@ -47,11 +71,15 @@ func (l storeLoader) Load(ctx context.Context) (*ci.Report, error) {
 		Consumer:         "local-exec summary",
 		ExcludeProducers: []string{SummaryReportProducer},
 	})
-	logWarnings(selection.Warnings)
+	logDiagnostics(selection.Diagnostics)
 	if len(selection.Reports) == 0 {
-		return nil, nil
+		return NewResult(nil, selection.Diagnostics), nil
 	}
-	return BuildSummaryReport(collection, selection.Reports)
+	report, err := BuildSummaryReport(collection, selection.Reports)
+	if err != nil {
+		return nil, err
+	}
+	return NewResult(report, selection.Diagnostics), nil
 }
 
 func BuildSummaryReport(collection *ci.PlanResultCollection, reports []*ci.Report) (*ci.Report, error) {
@@ -117,8 +145,24 @@ func strictestReportStatus(left, right ci.ReportStatus) ci.ReportStatus {
 	return ci.ReportStatusPass
 }
 
-func logWarnings(warnings []string) {
-	for _, warning := range warnings {
-		log.Warn(warning)
+func logDiagnostics(diags diagnostic.List) {
+	for _, diag := range diags.All() {
+		entry := log.WithField("severity", diag.Severity())
+		if diag.Source() != "" {
+			entry = entry.WithField("source", diag.Source())
+		}
+		if diag.Cause() != nil {
+			entry = entry.WithError(diag.Cause())
+		}
+		switch diag.Severity() {
+		case diagnostic.SeverityError:
+			entry.Error(diag.Message())
+		case diagnostic.SeverityWarning:
+			entry.Warn(diag.Message())
+		case diagnostic.SeverityInfo:
+			entry.Info(diag.Message())
+		default:
+			entry.Info(diag.Message())
+		}
 	}
 }

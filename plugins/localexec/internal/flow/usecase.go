@@ -7,6 +7,7 @@ import (
 	log "github.com/caarlos0/log"
 
 	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/diagnostic"
 	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/filter"
 	"github.com/edelwud/terraci/pkg/pipeline"
@@ -21,9 +22,47 @@ import (
 type Request = spec.Request
 
 type Result struct {
-	Execution     *execution.Result
-	SummaryReport *ci.Report
-	Skipped       bool
+	execution     *execution.Result
+	summaryReport *ci.Report
+	skipped       bool
+	diagnostics   diagnostic.List
+}
+
+func skippedResult() *Result {
+	return &Result{skipped: true}
+}
+
+func completedResult(exec *execution.Result, report *ci.Report, diagnostics diagnostic.List) *Result {
+	return &Result{
+		execution:     exec.Clone(),
+		summaryReport: report.Clone(),
+		diagnostics:   diagnostics,
+	}
+}
+
+func (r *Result) Execution() *execution.Result {
+	if r == nil {
+		return nil
+	}
+	return r.execution.Clone()
+}
+
+func (r *Result) SummaryReport() *ci.Report {
+	if r == nil {
+		return nil
+	}
+	return r.summaryReport.Clone()
+}
+
+func (r *Result) Skipped() bool {
+	return r != nil && r.skipped
+}
+
+func (r *Result) Diagnostics() diagnostic.List {
+	if r == nil {
+		return diagnostic.List{}
+	}
+	return r.diagnostics
 }
 
 type UseCase struct {
@@ -129,7 +168,7 @@ func (u *UseCase) Run(ctx context.Context, req Request) (*Result, error) {
 
 	if len(project.Targets) == 0 {
 		log.Info("no modules to process")
-		return &Result{Skipped: true}, nil
+		return skippedResult(), nil
 	}
 
 	execRuntime, err := u.runtimeFactory.Build(u.appCtx, runner.Options{Parallelism: req.Parallelism})
@@ -149,14 +188,22 @@ func (u *UseCase) Run(ctx context.Context, req Request) (*Result, error) {
 		execution.WithEventSink(reporter),
 	).Execute(ctx, plan)
 	if err != nil {
-		return &Result{Execution: resultExec}, err
+		return completedResult(resultExec, nil, diagnostic.List{}), err
 	}
 
-	summaryReport, err := u.summaryReports.Load(ctx)
+	summaryResult, err := u.summaryReports.Load(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("load summary report: %w", err)
+		return completedResult(resultExec, nil, diagnostic.List{}), fmt.Errorf("load summary report: %w", err)
 	}
-	return &Result{Execution: resultExec, SummaryReport: summaryReport}, nil
+	var (
+		summaryReport *ci.Report
+		diagnostics   diagnostic.List
+	)
+	if summaryResult != nil {
+		summaryReport = summaryResult.Report()
+		diagnostics = summaryResult.Diagnostics()
+	}
+	return completedResult(resultExec, summaryReport, diagnostics), nil
 }
 
 type workflowProjectPlanner struct {

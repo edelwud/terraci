@@ -4,9 +4,13 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/diagnostic"
+	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/filter"
 	"github.com/edelwud/terraci/pkg/plugin"
 	localexecinternal "github.com/edelwud/terraci/plugins/localexec/internal"
+	"github.com/edelwud/terraci/plugins/localexec/internal/flow"
 )
 
 // ExecutionMode determines which local pipeline shape to execute.
@@ -53,9 +57,58 @@ type ExecuteRequest struct {
 	Filters *filter.Flags
 }
 
+// Result describes one local execution invocation.
+type Result struct {
+	execution     *execution.Result
+	summaryReport *ci.Report
+	skipped       bool
+	diagnostics   diagnostic.List
+}
+
+func newResult(result *flow.Result) *Result {
+	if result == nil {
+		return nil
+	}
+	return &Result{
+		execution:     result.Execution(),
+		summaryReport: result.SummaryReport(),
+		skipped:       result.Skipped(),
+		diagnostics:   result.Diagnostics(),
+	}
+}
+
+// Execution returns the immutable execution result, if execution ran.
+func (r *Result) Execution() *execution.Result {
+	if r == nil {
+		return nil
+	}
+	return r.execution.Clone()
+}
+
+// SummaryReport returns the aggregate local summary report, if one was loaded.
+func (r *Result) SummaryReport() *ci.Report {
+	if r == nil {
+		return nil
+	}
+	return r.summaryReport.Clone()
+}
+
+// Skipped reports whether target selection resolved to no modules.
+func (r *Result) Skipped() bool {
+	return r != nil && r.skipped
+}
+
+// Diagnostics returns non-fatal diagnostics emitted during the invocation.
+func (r *Result) Diagnostics() diagnostic.List {
+	if r == nil {
+		return diagnostic.List{}
+	}
+	return r.diagnostics
+}
+
 // Executor runs the local execution flow.
 type Executor interface {
-	Run(ctx context.Context, req ExecuteRequest) error
+	Run(ctx context.Context, req ExecuteRequest) (*Result, error)
 }
 
 // NewExecutor constructs the public local-exec executor contract.
@@ -67,12 +120,13 @@ type executorAdapter struct {
 	executor *localexecinternal.Executor
 }
 
-func (e executorAdapter) Run(ctx context.Context, req ExecuteRequest) error {
+func (e executorAdapter) Run(ctx context.Context, req ExecuteRequest) (*Result, error) {
 	mapped, err := mapExecuteRequest(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return e.executor.Run(ctx, mapped)
+	result, err := e.executor.Run(ctx, mapped)
+	return newResult(result), err
 }
 
 func mapExecuteRequest(req ExecuteRequest) (localexecinternal.Request, error) {

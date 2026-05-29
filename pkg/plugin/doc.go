@@ -108,6 +108,16 @@
 // Tests and advanced in-process tooling can use pkg/pipeline/pipelinetest for
 // validated synthetic fixtures.
 //
+// # Execution result and diagnostics boundary
+//
+// pkg/execution.Result, JobResult, and GroupResult are immutable value objects.
+// Local execution consumers read them through getters, Result.Stats, and
+// Result.Failed; failed jobs are surfaced as execution.ExecutionError while the
+// partial Result remains available. Tests should use pkg/execution/executiontest
+// for result fixtures instead of struct literals. Non-fatal warnings and
+// degraded-mode notes should use pkg/diagnostic.List rather than raw []string
+// or []error warning channels.
+//
 // # CI provider output boundary
 //
 // CI provider generators should treat pipeline.IR as the only provider input,

@@ -5,6 +5,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/filter"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/plugins/localexec/internal/render"
 )
 
 type sharedFlags struct {
@@ -74,7 +75,8 @@ exits without error after logging "no modules to process".`,
 			if err != nil {
 				return err
 			}
-			return NewExecutor(appCtx).Run(cmd.Context(), sf.toRequest(ExecutionModePlan))
+			result, err := NewExecutor(appCtx).Run(cmd.Context(), sf.toRequest(ExecutionModePlan))
+			return renderLocalExecResult(result, err)
 		},
 	}
 	registerSharedFlags(cmd, &sf)
@@ -99,11 +101,26 @@ error after logging "no modules to process".`,
 			if err != nil {
 				return err
 			}
-			return NewExecutor(appCtx).Run(cmd.Context(), sf.toRequest(ExecutionModeRun))
+			result, err := NewExecutor(appCtx).Run(cmd.Context(), sf.toRequest(ExecutionModeRun))
+			return renderLocalExecResult(result, err)
 		},
 	}
 	registerSharedFlags(cmd, &sf)
 	return cmd
+}
+
+func renderLocalExecResult(result *Result, runErr error) error {
+	output := render.NewLogOutput()
+	if runErr != nil {
+		if result != nil {
+			return output.Failure(result.Execution(), runErr)
+		}
+		return output.Failure(nil, runErr)
+	}
+	if result == nil || result.Skipped() {
+		return nil
+	}
+	return output.Completed(result.Execution(), result.SummaryReport())
 }
 
 func registerSharedFlags(cmd *cobra.Command, sf *sharedFlags) {

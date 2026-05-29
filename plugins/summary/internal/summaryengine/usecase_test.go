@@ -41,8 +41,9 @@ func TestRun_SkipsReportWithMismatchedFingerprint(t *testing.T) {
 	if len(result.Reports) != 1 || result.Reports[0].Producer != "fresh" {
 		t.Fatalf("Reports = %#v, want only fresh report", result.Reports)
 	}
-	if len(result.ReportWarnings) != 1 || !strings.Contains(result.ReportWarnings[0], "stale") {
-		t.Fatalf("ReportWarnings = %v, want stale warning", result.ReportWarnings)
+	reportMessages := result.ReportDiagnostics.Messages()
+	if len(reportMessages) != 1 || !strings.Contains(reportMessages[0], "stale") {
+		t.Fatalf("ReportDiagnostics = %v, want stale warning", reportMessages)
 	}
 	if !strings.Contains(result.Body, "Fresh Report") {
 		t.Fatalf("Body missing fresh report:\n%s", result.Body)
@@ -72,8 +73,8 @@ func TestRun_ReportWithoutFingerprintRendersWithoutWarning(t *testing.T) {
 		t.Fatalf("Run() error = %v", err)
 	}
 
-	if len(result.ReportWarnings) != 0 {
-		t.Fatalf("ReportWarnings = %v, want none for degraded provenance mode", result.ReportWarnings)
+	if result.ReportDiagnostics.Len() != 0 {
+		t.Fatalf("ReportDiagnostics = %v, want none for degraded provenance mode", result.ReportDiagnostics.Messages())
 	}
 	if !strings.Contains(result.Body, "Legacy Report") {
 		t.Fatalf("Body missing legacy report:\n%s", result.Body)

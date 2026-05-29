@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/diagnostic"
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/graph"
@@ -86,14 +87,18 @@ func (c *fakeContributionCollector) Collect(*plugin.AppContext) []*pipeline.Cont
 }
 
 type fakeSummaryReportLoader struct {
+	result *reports.Result
 	report *ci.Report
 	err    error
 	calls  int
 }
 
-func (l *fakeSummaryReportLoader) Load(context.Context) (*ci.Report, error) {
+func (l *fakeSummaryReportLoader) Load(context.Context) (*reports.Result, error) {
 	l.calls++
-	return l.report, l.err
+	if l.result != nil || l.report == nil {
+		return l.result, l.err
+	}
+	return reports.NewResult(l.report, diagnostic.List{}), l.err
 }
 
 func TestUseCase_RunUsesInjectedDependencies(t *testing.T) {
@@ -133,10 +138,10 @@ func TestUseCase_RunUsesInjectedDependencies(t *testing.T) {
 	if runtimeFactory.calls != 1 {
 		t.Fatalf("runtime factory calls = %d, want 1", runtimeFactory.calls)
 	}
-	if result.SummaryReport != report {
-		t.Fatalf("summary report = %#v, want %#v", result.SummaryReport, report)
+	if got := result.SummaryReport(); got == nil || got.Producer != report.Producer {
+		t.Fatalf("summary report = %#v, want %#v", got, report)
 	}
-	if result.Execution == nil || len(result.Execution.Groups) == 0 {
+	if result.Execution() == nil || len(result.Execution().Groups()) == 0 {
 		t.Fatal("expected execution groups to be recorded")
 	}
 }
@@ -211,7 +216,7 @@ func TestUseCase_RunNoTargetsSkipsExecutionDependencies(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Run() error = %v, want nil", err)
 	}
-	if result == nil || !result.Skipped {
+	if result == nil || !result.Skipped() {
 		t.Fatalf("Run() result = %#v, want skipped result", result)
 	}
 
@@ -296,7 +301,10 @@ func TestUseCase_RunReturnsExecutionResultOnJobFailure(t *testing.T) {
 	if !errors.Is(err, jobErr) {
 		t.Fatalf("Run() error = %v, want job failure %v", err, jobErr)
 	}
-	if result == nil || result.Execution == nil || result.Execution.Failed() == nil {
+	if result == nil || result.Execution() == nil {
+		t.Fatalf("failure result = %#v, want failed job result", result)
+	}
+	if _, ok := result.Execution().Failed(); !ok {
 		t.Fatalf("failure result = %#v, want failed job result", result)
 	}
 	if loader.calls != 0 {
@@ -336,6 +344,28 @@ func TestUseCase_RunReturnsSummaryLoaderError(t *testing.T) {
 
 	if loader.calls != 1 {
 		t.Fatalf("summary loader calls = %d, want 1", loader.calls)
+	}
+}
+
+func TestUseCase_RunReturnsSummaryDiagnostics(t *testing.T) {
+	workDir, module := testWorkDirWithModule(t)
+	appCtx := plugintest.NewAppContext(t, workDir)
+	diag := diagnostic.Warning("stale report skipped")
+
+	result, err := New(
+		appCtx,
+		WithProjectPlanner(fakeProjectWithTargets(module)),
+		WithRuntimeFactory(&fakeRuntimeFactory{runtime: &runner.Runtime{
+			ExecConfig: execution.Config{PlanEnabled: true, Parallelism: 1},
+			JobRunner:  &fakeJobRunner{},
+		}}),
+		WithSummaryReports(&fakeSummaryReportLoader{result: reports.NewResult(nil, diagnostic.NewList(diag))}),
+	).Run(context.Background(), spec.Request{})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if got := result.Diagnostics().Messages(); len(got) != 1 || got[0] != "stale report skipped" {
+		t.Fatalf("Diagnostics = %v, want stale report warning", got)
 	}
 }
 

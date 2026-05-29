@@ -91,11 +91,12 @@ func TestResolveLabels(t *testing.T) {
 	if len(parser.paths) != 1 {
 		t.Fatalf("expected resource parser to run once, got %d", len(parser.paths))
 	}
-	if len(result.Warnings) != 3 {
-		t.Fatalf("Warnings = %v, want three warnings", result.Warnings)
+	warnings := result.Diagnostics.Messages()
+	if len(warnings) != 3 {
+		t.Fatalf("Diagnostics = %v, want three warnings", warnings)
 	}
-	assertWarningContains(t, result.Warnings, "unresolved placeholders {missing}")
-	assertWarningContains(t, result.Warnings, "summary label is empty")
+	assertWarningContains(t, warnings, "unresolved placeholders {missing}")
+	assertWarningContains(t, warnings, "summary label is empty")
 }
 
 func TestResolveLabels_FallsBackToSegmentsForMissingComponents(t *testing.T) {
@@ -123,7 +124,7 @@ func TestResolveLabels_ResourceParserErrorsAreWarnings(t *testing.T) {
 	if len(result.Labels) != 0 {
 		t.Fatalf("Labels = %v, want none", result.Labels)
 	}
-	assertWarningContains(t, result.Warnings, "bad json")
+	assertWarningContains(t, result.Diagnostics.Messages(), "bad json")
 }
 
 func assertWarningContains(t *testing.T, warnings []string, want string) {

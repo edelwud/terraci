@@ -123,10 +123,13 @@ pkg/                            # Public API — importable by external plugins 
 │   ├── model/                  # Stable shared parser model used by facade + internals
 │   └── internal/               # Layered parser internals (moduleparse, dependency, source, extract, resolve, evalctx, exprfast, deps, testutil)
 ├── planresults/                # PlanResultCollection scanner — reads Terraform plan.json
+├── diagnostic/                 # Plugin-agnostic non-fatal diagnostics value model
 ├── execution/                  # Plugin-agnostic local execution
 │   ├── executor.go             # Executor.Execute(ctx, *pipeline.IR) — IR is the single execution input
 │   ├── scheduler.go            # DefaultScheduler.Schedule(*pipeline.IR) — barrier-grouped JobGroups
-│   ├── results.go, worker_pool.go, workspace.go, config.go
+│   ├── results.go              # Immutable Result/JobResult/GroupResult + stats
+│   ├── errors.go               # ExecutionError wrapping failed job causes
+│   ├── worker_pool.go, workspace.go, config.go
 ├── graph/                      # DependencyGraph, algorithms, visualization
 ├── filter/                     # Public surface: Options + Apply + Flags + ParseSegmentFilters (concrete filter types unexported)
 ├── workflow/                   # Module discovery, filtering, graph building, target resolution, plugin-agnostic ChangeDetector request/result contract
@@ -307,6 +310,12 @@ The plugin SDK exposes narrow resolver interfaces: `CIResolver`, `ChangeDetector
 
 `ci.PlanResult` is the canonical representation of one module's plan outcome — used both in-memory and on disk; `ci.PlanResultCollection` aggregates them with a stable fingerprint.
 
+`pkg/diagnostic` is the shared non-fatal diagnostic model. Use it instead of
+raw `[]string` / `[]error` warning channels when a result needs warnings,
+skips, degraded-mode notes, or report freshness messages. Diagnostics carry a
+severity, stable message, optional source/module/hint, and optional wrapped
+cause.
+
 ### Pipeline IR
 
 `workflow.PlanProject(...)` produces the canonical project/target snapshot and
@@ -432,7 +441,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 3. `pkg/execution.Executor.Execute(ctx, ir)` schedules jobs with dependency-aware DAG grouping
 4. `localexec/internal/runner` executes shell/tfexec jobs locally
 5. `localexec/internal/reports` loads current plugin reports through `ci.ReportStore`, applies `ci.SelectCurrentReports`, and aggregates them into a render-ready summary report
-6. `localexec/internal/flow` returns a typed execution result; `localexec/internal/render` prints the DAG/job summary and report sections
+6. `localexec/internal/flow` returns a typed result with immutable `execution.Result`, optional summary report, and diagnostics; `localexec/internal/render` prints the DAG/job summary and report sections
 
 ### Init wizard
 1. `initflow.New(registry)` snapshots init contributors, provider options, and deterministic display groups
@@ -451,6 +460,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **IR-bound generators**: `PipelineGeneratorFactory.NewGenerator(ctx, *pipeline.IR)` — providers don't reach for depGraph/modules/contributions; the IR already encodes them.
 - **Shell rendering separated from IR**: `pkg/pipeline/cishell.RenderOperation(op)` for shell-driven CI; the IR carries `pipeline.TerraformOperation` data only.
 - **Canonical dry-run source**: dry-run stage/job counts derive from `*IR.DryRun(totalModules)`.
+- **Execution result boundary**: `pkg/execution.Result`, `JobResult`, and `GroupResult` are immutable value objects. Production code reads them through getters and `Stats()`, never through struct literals or mutable fields. Failed jobs surface as `execution.ExecutionError` while still returning the partial result.
 - **Preflight, then lazy runtime**: framework performs cheap startup validation; heavy plugin state is built lazily inside RuntimeProvider/use-cases. Runtime must be command-agnostic; CLI overrides live in typed request structs.
 - **Command run flow**: `cmd/terraci/cmd` parses cobra flags, calls `runflow.Prepare`, then passes `runflow.Prepared` into a typed command flow under `cmd/terraci/internal/*flow`; command files own only output/log presentation and file/stdout writes.
 - **Command/usecase boundary**: command callbacks use `plugin.CommandPlugin[T]` and `plugin.RequireEnabled`, parse flags into request structs, call a usecase, then handle artifact persistence and output explicitly.

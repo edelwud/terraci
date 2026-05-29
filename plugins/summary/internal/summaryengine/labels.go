@@ -10,6 +10,7 @@ import (
 
 	tfplan "github.com/edelwud/terraci/internal/terraform/plan"
 	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/diagnostic"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/planresults"
 )
@@ -30,8 +31,8 @@ type LabelRequest struct {
 
 // LabelResult is the deterministic output of label resolution.
 type LabelResult struct {
-	Labels   []string
-	Warnings []string
+	Labels      []string
+	Diagnostics diagnostic.List
 }
 
 // PlanParser parses a terraform plan JSON file for resource-level labels.
@@ -71,8 +72,8 @@ func ResolveLabels(req LabelRequest) LabelResult {
 	}
 
 	return LabelResult{
-		Labels:   builder.labels(),
-		Warnings: builder.warnings,
+		Labels:      builder.labels(),
+		Diagnostics: builder.diagnostics,
 	}
 }
 
@@ -107,8 +108,8 @@ func (t LabelTemplate) HasResourcePlaceholders() bool {
 }
 
 type labelBuilder struct {
-	set      map[string]struct{}
-	warnings []string
+	set         map[string]struct{}
+	diagnostics diagnostic.List
 }
 
 func newLabelBuilder() *labelBuilder {
@@ -139,7 +140,7 @@ func (b *labelBuilder) addRendered(tmpl LabelTemplate, values map[string]string,
 }
 
 func (b *labelBuilder) warn(msg string) {
-	b.warnings = append(b.warnings, msg)
+	b.diagnostics = b.diagnostics.Append(diagnostic.Warning(msg, diagnostic.WithSource("summary labels")))
 }
 
 func (b *labelBuilder) labels() []string {

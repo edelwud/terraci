@@ -6,6 +6,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/config"
+	"github.com/edelwud/terraci/pkg/diagnostic"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/registry"
 )
@@ -16,14 +17,14 @@ type preparedContextKey struct{}
 
 // Prepared is the immutable command-scoped state produced by Flow.Prepare.
 type Prepared struct {
-	ctx      context.Context
-	appCtx   *plugin.AppContext
-	registry *registry.Registry
-	config   config.Snapshot
-	loaded   *config.Config
-	workDir  string
-	reports  ci.ReportStore
-	warnings []string
+	ctx         context.Context
+	appCtx      *plugin.AppContext
+	registry    *registry.Registry
+	config      config.Snapshot
+	loaded      *config.Config
+	workDir     string
+	reports     ci.ReportStore
+	diagnostics diagnostic.List
 }
 
 func newPrepared(ctx context.Context, appCtx *plugin.AppContext, plugins *registry.Registry, cfg *config.Config, workDir string, reports ci.ReportStore) *Prepared {
@@ -107,10 +108,10 @@ func (p *Prepared) Reports() ci.ReportStore {
 	return p.reports
 }
 
-// Warnings returns warning messages produced while preparing the command.
-func (p *Prepared) Warnings() []string {
-	if p == nil || len(p.warnings) == 0 {
-		return nil
+// Diagnostics returns non-fatal diagnostics produced while preparing the command.
+func (p *Prepared) Diagnostics() diagnostic.List {
+	if p == nil {
+		return diagnostic.List{}
 	}
-	return append([]string(nil), p.warnings...)
+	return p.diagnostics
 }

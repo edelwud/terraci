@@ -472,6 +472,77 @@ func TestArchitecture_CIRenderValueBoundaries(t *testing.T) {
 	}
 }
 
+func TestArchitecture_ExecutionResultValueBoundaries(t *testing.T) {
+	root := repoRoot(t)
+	var violations []string
+
+	for _, rel := range goFiles(t, root, "cmd", "pkg", "plugins", "test", "examples") {
+		if allowUnder(rel, "pkg/execution/") || allowUnder(rel, "pkg/execution/executiontest/") {
+			continue
+		}
+		file := parseGoFile(t, filepath.Join(root, rel), 0)
+		executionAliases := importAliases(file, moduleImportPath+"/pkg/execution")
+		if len(executionAliases) == 0 {
+			continue
+		}
+
+		ast.Inspect(file, func(node ast.Node) bool {
+			switch typed := node.(type) {
+			case *ast.CompositeLit:
+				selector, ok := typed.Type.(*ast.SelectorExpr)
+				if !ok {
+					return true
+				}
+				ident, ok := selector.X.(*ast.Ident)
+				if !ok || !executionAliases[ident.Name] {
+					return true
+				}
+				switch selector.Sel.Name {
+				case "Result", "JobResult", "GroupResult":
+					violations = append(violations, rel+" manually constructs execution."+selector.Sel.Name+"; use execution constructors or pkg/execution/executiontest")
+				}
+			case *ast.SelectorExpr:
+				ident, ok := typed.X.(*ast.Ident)
+				if ok && executionAliases[ident.Name] && typed.Sel.Name == "JobStatusSkipped" {
+					violations = append(violations, rel+" references removed execution.JobStatusSkipped; no-target skip belongs to localexec result state")
+				}
+			}
+			return true
+		})
+	}
+
+	stalePatterns := []string{
+		"execution.Result{",
+		"execution.JobResult{",
+		"execution.GroupResult{",
+		"JobStatusSkipped",
+		"ReportSelection.Warnings",
+		".Workflow.Warnings",
+		"Prepared.Warnings()",
+		"ReportWarnings",
+		"LabelWarnings",
+		"Warnings []string",
+		"Warnings []error",
+	}
+	for _, rel := range textFiles(t, root, "AGENTS.md", "docs", "examples", "pkg/plugin/doc.go") {
+		if allowUnder(rel, "docs/.vitepress/dist/") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			t.Fatalf("read %s: %v", rel, err)
+		}
+		text := string(data)
+		for _, pattern := range stalePatterns {
+			banTextPattern(&violations, rel, text, pattern, "stale mutable execution/raw-warning reference")
+		}
+	}
+
+	if len(violations) > 0 {
+		t.Fatalf("execution result value boundary violations:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
 func TestArchitecture_CIRenderDocs(t *testing.T) {
 	root := repoRoot(t)
 	var violations []string

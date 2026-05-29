@@ -12,6 +12,7 @@ import (
 	"github.com/edelwud/terraci/cmd/terraci/internal/generateflow"
 	"github.com/edelwud/terraci/cmd/terraci/internal/projectflow"
 	"github.com/edelwud/terraci/cmd/terraci/internal/runflow"
+	"github.com/edelwud/terraci/pkg/diagnostic"
 	"github.com/edelwud/terraci/pkg/filter"
 	"github.com/edelwud/terraci/pkg/pipeline"
 )
@@ -86,19 +87,20 @@ func logGenerateProjectDiagnostics(result *projectflow.Result) {
 	if result == nil || result.Workflow == nil {
 		return
 	}
-	logExtractionWarnings(result.Workflow.Warnings)
+	logExtractionDiagnostics(result.Workflow.Diagnostics)
 	logLibraryModuleUsage(result.LibraryUsages)
 	logCycles(result.Workflow.Graph.DetectCycles())
 }
 
-func logExtractionWarnings(errs []error) {
-	if len(errs) == 0 {
+func logExtractionDiagnostics(diags diagnostic.List) {
+	warnings := diags.Filter(diagnostic.SeverityWarning)
+	if len(warnings) == 0 {
 		return
 	}
-	log.WithField("count", len(errs)).Warn("warnings during dependency extraction")
+	log.WithField("count", len(warnings)).Warn("warnings during dependency extraction")
 	log.IncreasePadding()
-	for _, e := range errs {
-		log.WithField("warning", e.Error()).Debug("extraction warning")
+	for _, diag := range warnings {
+		log.WithField("warning", diag.Message()).Debug("extraction warning")
 	}
 	log.DecreasePadding()
 }

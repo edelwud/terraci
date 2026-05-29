@@ -12,6 +12,7 @@ import (
 	"github.com/edelwud/terraci/pkg/ci/citest"
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/execution"
+	"github.com/edelwud/terraci/pkg/execution/executiontest"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/pipeline/pipelinetest"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
@@ -19,18 +20,19 @@ import (
 
 func TestLogOutputCompleted_LogsDAGGroupNames(t *testing.T) {
 	output := LogOutput{}
-	result := &execution.Result{
+	started := time.Now()
+	result := executiontest.MustResult(t, execution.ResultOptions{
 		Groups: []execution.GroupResult{
-			{Name: "dag-level-0", JobCount: 1},
-			{Name: "dag-level-1", JobCount: 1},
+			executiontest.MustGroupResult(t, execution.GroupResultOptions{Name: "dag-level-0", JobCount: 1}),
+			executiontest.MustGroupResult(t, execution.GroupResultOptions{Name: "dag-level-1", JobCount: 1}),
 		},
-		Jobs: []*execution.JobResult{{
+		Jobs: []execution.JobResult{executiontest.MustJobResult(t, execution.JobResultOptions{
 			Name:       "plan-platform-stage-eu-central-1-vpc",
 			Status:     execution.JobStatusSucceeded,
-			StartedAt:  time.Now(),
-			FinishedAt: time.Now().Add(10 * time.Millisecond),
-		}},
-	}
+			StartedAt:  started,
+			FinishedAt: started.Add(10 * time.Millisecond),
+		})},
+	})
 
 	logs := plugintest.CaptureLogOutput(t, func() {
 		if err := output.Completed(result, nil); err != nil {
@@ -47,11 +49,11 @@ func TestLogOutputCompleted_LogsDAGGroupNames(t *testing.T) {
 
 func TestLogOutputCompleted_EmptyResultUsesConsistentSummary(t *testing.T) {
 	output := LogOutput{}
-	result := &execution.Result{
+	result := executiontest.MustResult(t, execution.ResultOptions{
 		Groups: []execution.GroupResult{
-			{Name: "dag-level-0", JobCount: 0},
+			executiontest.MustGroupResult(t, execution.GroupResultOptions{Name: "dag-level-0", JobCount: 0}),
 		},
-	}
+	})
 
 	logs := plugintest.CaptureLogOutput(t, func() {
 		if err := output.Completed(result, nil); err != nil {
@@ -113,7 +115,7 @@ func TestLogOutputCompleted_NilSummaryReportSkipsCLISection(t *testing.T) {
 	os.Stdout = writer
 	defer func() { os.Stdout = originalStdout }()
 
-	if err := output.Completed(&execution.Result{}, nil); err != nil {
+	if err := output.Completed(executiontest.MustResult(t, execution.ResultOptions{}), nil); err != nil {
 		t.Fatalf("Completed() error = %v", err)
 	}
 
@@ -142,7 +144,7 @@ func TestLogOutputCompleted_WithSummaryReport(t *testing.T) {
 		)},
 	}
 	output := LogOutput{}
-	result := &execution.Result{}
+	result := executiontest.MustResult(t, execution.ResultOptions{})
 
 	originalStdout := os.Stdout
 	reader, writer, err := os.Pipe()
@@ -178,7 +180,7 @@ func TestLogOutputCompleted_InvalidSummaryReportReturnsError(t *testing.T) {
 		Sections: []ci.ReportSection{citest.MustReportSectionJSON(`{"kind":"legacy","payload":{}}`)},
 	}
 
-	err := output.Completed(&execution.Result{}, report)
+	err := output.Completed(executiontest.MustResult(t, execution.ResultOptions{}), report)
 	if err == nil {
 		t.Fatal("Completed() error = nil, want renderer error")
 	}
@@ -192,10 +194,7 @@ func TestProgressReporter_LogsStageAndModule(t *testing.T) {
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	planJob := pipelinetest.MustJobByKind(t, pipelinetest.MustSingleModuleIR(t, module), pipeline.JobKindPlan)
 	job := &planJob
-	result := &execution.JobResult{
-		Name:   job.Name(),
-		Status: execution.JobStatusSucceeded,
-	}
+	result := executiontest.MustJobResult(t, execution.JobResultOptions{Name: job.Name(), Status: execution.JobStatusSucceeded})
 
 	logs := plugintest.CaptureLogOutput(t, func() {
 		reporter.JobStarted(job)
@@ -213,11 +212,7 @@ func TestProgressReporter_LogsFailureStatus(t *testing.T) {
 	reporter := ProgressReporter{}
 	commandJob := pipelinetest.MustCommandJob(t, pipeline.ContributedJobOptions{Name: summaryReportProducer, Commands: []string{"summary"}})
 	job := &commandJob
-	result := &execution.JobResult{
-		Name:   job.Name(),
-		Status: execution.JobStatusFailed,
-		Err:    errors.New("boom"),
-	}
+	result := executiontest.MustJobResult(t, execution.JobResultOptions{Name: job.Name(), Status: execution.JobStatusFailed, Err: errors.New("boom")})
 
 	logs := plugintest.CaptureLogOutput(t, func() {
 		reporter.JobFinished(job, result)

@@ -7,6 +7,7 @@ import (
 
 	log "github.com/caarlos0/log"
 
+	"github.com/edelwud/terraci/pkg/diagnostic"
 	"github.com/edelwud/terraci/pkg/discovery"
 	terrierrors "github.com/edelwud/terraci/pkg/errors"
 	"github.com/edelwud/terraci/pkg/filter"
@@ -74,7 +75,7 @@ type Result struct {
 
 	Graph        *graph.DependencyGraph
 	Dependencies map[string]*parser.ModuleDependencies
-	Warnings     []error
+	Diagnostics  diagnostic.List
 }
 
 func run(ctx context.Context, opts Options) (*Result, error) {
@@ -125,8 +126,22 @@ func run(ctx context.Context, opts Options) (*Result, error) {
 		Libraries:    librarySet,
 		Graph:        depGraph,
 		Dependencies: deps,
-		Warnings:     warnings,
+		Diagnostics:  diagnosticsFromErrors(warnings),
 	}, nil
+}
+
+func diagnosticsFromErrors(warnings []error) diagnostic.List {
+	if len(warnings) == 0 {
+		return diagnostic.List{}
+	}
+	diags := make([]diagnostic.Diagnostic, 0, len(warnings))
+	for _, warning := range warnings {
+		if warning == nil {
+			continue
+		}
+		diags = append(diags, diagnostic.Warning(warning.Error(), diagnostic.WithCause(warning)))
+	}
+	return diagnostic.NewList(diags...)
 }
 
 // splitLibraries partitions discovered modules into executable and library

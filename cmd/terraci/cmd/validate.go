@@ -11,6 +11,7 @@ import (
 	"github.com/edelwud/terraci/cmd/terraci/internal/projectflow"
 	"github.com/edelwud/terraci/cmd/terraci/internal/runflow"
 	"github.com/edelwud/terraci/cmd/terraci/internal/validateflow"
+	"github.com/edelwud/terraci/pkg/diagnostic"
 	"github.com/edelwud/terraci/pkg/filter"
 )
 
@@ -70,12 +71,12 @@ This command will:
 }
 
 func logValidationResult(result *validateflow.Result) {
-	warnings := result.Project.Workflow.Warnings
+	warnings := result.Project.Workflow.Diagnostics.Filter(diagnostic.SeverityWarning)
 	if len(warnings) > 0 {
 		log.WithField("count", len(warnings)).Warn("warnings during parsing")
 		log.IncreasePadding()
-		for _, e := range warnings {
-			log.WithField("warning", e.Error()).Debug("parser warning")
+		for _, diag := range warnings {
+			log.WithField("warning", diag.Message()).Debug("parser warning")
 		}
 		log.DecreasePadding()
 	}

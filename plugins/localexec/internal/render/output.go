@@ -23,52 +23,39 @@ func NewLogOutput() Output {
 }
 
 func (o LogOutput) Completed(result *execution.Result, summaryReport *ci.Report) error {
-	var succeeded, failed int
-	var totalDuration time.Duration
-	if result == nil {
-		result = &execution.Result{}
-	}
+	stats := result.Stats()
+	groups := result.Groups()
+	jobs := result.Jobs()
 
-	for _, job := range result.Jobs {
-		switch job.Status {
-		case execution.JobStatusSucceeded:
-			succeeded++
-		case execution.JobStatusFailed:
-			failed++
-		case execution.JobStatusSkipped:
-		}
-		totalDuration += job.FinishedAt.Sub(job.StartedAt)
-	}
-
-	if len(result.Groups) > 0 {
+	if len(groups) > 0 {
 		log.Info("")
 		log.Info("── stages ───────────────────────────")
-		for _, group := range result.Groups {
-			log.WithField("jobs", group.JobCount).Info(group.Name)
+		for _, group := range groups {
+			log.WithField("jobs", group.JobCount()).Info(group.Name())
 		}
 		log.Info("─────────────────────────────────────")
 	}
 
-	if len(result.Jobs) > 0 {
+	if len(jobs) > 0 {
 		log.Info("")
 		log.Info("── summary ──────────────────────────")
-		for _, job := range result.Jobs {
-			duration := job.FinishedAt.Sub(job.StartedAt).Truncate(time.Millisecond)
-			entry := log.WithField("status", string(job.Status)).WithField("duration", duration)
-			if job.Err != nil {
-				entry.WithError(job.Err).Warn(job.Name)
+		for _, job := range jobs {
+			duration := job.Duration().Truncate(time.Millisecond)
+			entry := log.WithField("status", string(job.Status())).WithField("duration", duration)
+			if job.Err() != nil {
+				entry.WithError(job.Err()).Warn(job.Name())
 			} else {
-				entry.Info(job.Name)
+				entry.Info(job.Name())
 			}
 		}
 		log.Info("─────────────────────────────────────")
 	}
 
-	entry := log.WithField("stages", len(result.Groups)).
-		WithField("jobs", len(result.Jobs)).
-		WithField("succeeded", succeeded).
-		WithField("failed", failed).
-		WithField("duration", totalDuration.Truncate(time.Millisecond))
+	entry := log.WithField("stages", stats.Groups()).
+		WithField("jobs", stats.Jobs()).
+		WithField("succeeded", stats.Succeeded()).
+		WithField("failed", stats.Failed()).
+		WithField("duration", stats.Duration().Truncate(time.Millisecond))
 	entry.Info("local execution completed")
 
 	if summaryReport == nil {
@@ -88,8 +75,8 @@ func (o LogOutput) Completed(result *execution.Result, summaryReport *ci.Report)
 
 func (LogOutput) Failure(result *execution.Result, execErr error) error {
 	if result != nil {
-		if failed := result.Failed(); failed != nil {
-			return fmt.Errorf("local-exec failed in job %s: %w", failed.Name, failed.Err)
+		if failed, ok := result.Failed(); ok {
+			return fmt.Errorf("local-exec failed in job %s: %w", failed.Name(), failed.Err())
 		}
 	}
 	return execErr
@@ -109,18 +96,15 @@ func (ProgressReporter) JobStarted(job *pipeline.Job) {
 	entry.Info("job started")
 }
 
-func (ProgressReporter) JobFinished(job *pipeline.Job, result *execution.JobResult) {
-	if result == nil {
-		return
-	}
+func (ProgressReporter) JobFinished(job *pipeline.Job, result execution.JobResult) {
 	entry := log.WithField("job", job.Name()).
 		WithField("operation", job.Operation().Type()).
-		WithField("status", result.Status)
+		WithField("status", result.Status())
 	if module := job.Module(); module != nil {
 		entry = entry.WithField("module", module.ID())
 	}
-	if result.Err != nil {
-		entry.WithError(result.Err).Warn("job finished")
+	if result.Err() != nil {
+		entry.WithError(result.Err()).Warn("job finished")
 		return
 	}
 	entry.Info("job finished")

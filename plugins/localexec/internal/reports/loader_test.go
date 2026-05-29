@@ -15,10 +15,11 @@ func TestLoaderNoReports(t *testing.T) {
 	t.Parallel()
 
 	loader := NewLoader(ci.NewMemoryReportStore(), t.TempDir(), nil)
-	report, err := loader.Load(context.Background())
+	result, err := loader.Load(context.Background())
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
+	report := result.Report()
 	if report != nil {
 		t.Fatalf("Load() report = %#v, want nil", report)
 	}
@@ -41,10 +42,11 @@ func TestLoaderBuildsReportFromStore(t *testing.T) {
 	}))
 
 	loader := NewLoader(store, t.TempDir(), nil)
-	report, err := loader.Load(context.Background())
+	result, err := loader.Load(context.Background())
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
+	report := result.Report()
 	if report == nil {
 		t.Fatal("Load() report = nil, want aggregate report")
 	}
@@ -92,12 +94,16 @@ func TestLoaderSkipsStaleFingerprint(t *testing.T) {
 		}},
 	}))
 
-	report, err := NewLoader(store, workDir, nil).Load(context.Background())
+	result, err := NewLoader(store, workDir, nil).Load(context.Background())
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
+	report := result.Report()
 	if report == nil {
 		t.Fatal("Load() report = nil, want aggregate report")
+	}
+	if result.Diagnostics().Len() != 1 {
+		t.Fatalf("diagnostics = %v, want one stale report warning", result.Diagnostics().Messages())
 	}
 	if report.Summary != "1 plugin reports" {
 		t.Fatalf("Summary = %q, want one selected report", report.Summary)

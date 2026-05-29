@@ -3,6 +3,8 @@ package ci
 import (
 	"fmt"
 	"sort"
+
+	"github.com/edelwud/terraci/pkg/diagnostic"
 )
 
 // ReportFreshnessStatus describes whether a producer report belongs to the
@@ -17,14 +19,14 @@ const (
 
 // ReportFreshness is the freshness decision for one report.
 type ReportFreshness struct {
-	Status  ReportFreshnessStatus
-	Warning string
+	Status     ReportFreshnessStatus
+	Diagnostic diagnostic.Diagnostic
 }
 
 // ReportSelection is the canonical selected-report result for consumers.
 type ReportSelection struct {
-	Reports  []*Report
-	Warnings []string
+	Reports     []*Report
+	Diagnostics diagnostic.List
 }
 
 // ReportSelectionOptions controls report freshness selection.
@@ -44,7 +46,7 @@ func SelectCurrentReports(collection *PlanResultCollection, reports []*Report, o
 	}
 
 	byProducer := make(map[string]*Report)
-	warningSet := make(map[string]struct{})
+	diagnostics := diagnostic.List{}
 	for _, report := range reports {
 		if report == nil {
 			continue
@@ -53,8 +55,8 @@ func SelectCurrentReports(collection *PlanResultCollection, reports []*Report, o
 			continue
 		}
 		freshness := EvaluateReportFreshness(collection, report, opts.Consumer)
-		if freshness.Warning != "" {
-			warningSet[freshness.Warning] = struct{}{}
+		if freshness.Diagnostic.Valid() {
+			diagnostics = diagnostics.Append(freshness.Diagnostic)
 		}
 		if freshness.Status == ReportFreshnessStale {
 			continue
@@ -68,15 +70,9 @@ func SelectCurrentReports(collection *PlanResultCollection, reports []*Report, o
 	}
 	sort.Strings(producers)
 
-	warnings := make([]string, 0, len(warningSet))
-	for warning := range warningSet {
-		warnings = append(warnings, warning)
-	}
-	sort.Strings(warnings)
-
 	selected := ReportSelection{
-		Reports:  make([]*Report, 0, len(producers)),
-		Warnings: warnings,
+		Reports:     make([]*Report, 0, len(producers)),
+		Diagnostics: diagnostics,
 	}
 	for _, producer := range producers {
 		selected.Reports = append(selected.Reports, byProducer[producer].Clone())
@@ -108,12 +104,12 @@ func EvaluateReportFreshness(collection *PlanResultCollection, report *Report, c
 	}
 	return ReportFreshness{
 		Status: ReportFreshnessStale,
-		Warning: fmt.Sprintf(
+		Diagnostic: diagnostic.Warning(fmt.Sprintf(
 			"%s report %q skipped: plan_results_fingerprint %q does not match current %q",
 			consumer,
 			report.Producer,
 			reportFingerprint,
 			currentFingerprint,
-		),
+		), diagnostic.WithSource("report freshness")),
 	}
 }

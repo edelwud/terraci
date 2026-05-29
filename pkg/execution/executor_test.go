@@ -137,6 +137,31 @@ func TestExecutorPropagatesSchedulerError(t *testing.T) {
 	}
 }
 
+func TestExecutorReturnsPartialResultAndTypedExecutionError(t *testing.T) {
+	t.Parallel()
+
+	want := errors.New("terraform failed")
+	ir := pipelinetest.MustCommandIR(t, testJob("plan"))
+	result, err := NewExecutor(failingRunner{err: want}).Execute(context.Background(), ir)
+	if !errors.Is(err, want) {
+		t.Fatalf("Execute() error = %v, want %v", err, want)
+	}
+	var execErr *ExecutionError
+	if !errors.As(err, &execErr) {
+		t.Fatalf("Execute() error %T does not wrap ExecutionError", err)
+	}
+	if execErr.JobName != "plan" {
+		t.Fatalf("ExecutionError.JobName = %q, want plan", execErr.JobName)
+	}
+	if result == nil {
+		t.Fatal("Execute() result = nil, want partial result")
+	}
+	failed, ok := result.Failed()
+	if !ok || failed.Name() != "plan" || !errors.Is(failed.Err(), want) {
+		t.Fatalf("Failed() = %#v, %v; want plan failure", failed, ok)
+	}
+}
+
 func testJob(name string, deps ...string) pipeline.ContributedJobOptions {
 	return pipeline.ContributedJobOptions{
 		Name:         name,
@@ -159,4 +184,12 @@ type errorScheduler struct {
 
 func (s errorScheduler) Schedule(*pipeline.IR) ([]pipeline.JobGroup, error) {
 	return nil, s.err
+}
+
+type failingRunner struct {
+	err error
+}
+
+func (r failingRunner) Run(context.Context, *pipeline.Job) error {
+	return r.err
 }
