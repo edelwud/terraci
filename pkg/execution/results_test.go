@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/edelwud/terraci/pkg/pipeline"
 )
 
 func TestJobResultValidationAndDefensiveCopies(t *testing.T) {
@@ -17,16 +19,19 @@ func TestJobResultValidationAndDefensiveCopies(t *testing.T) {
 		t.Fatal("NewJobResult() error = nil, want invalid status")
 	}
 
-	artifacts := []string{"plan.json"}
-	result, err := NewJobResult(JobResultOptions{Name: "plan", Status: JobStatusSucceeded, ArtifactIDs: artifacts})
+	artifacts := []pipeline.Artifact{{Name: "plan", Paths: []string{"plan.json"}}}
+	result, err := NewJobResult(JobResultOptions{Name: "plan", Status: JobStatusSucceeded, ProducedArtifacts: artifacts})
 	if err != nil {
 		t.Fatalf("NewJobResult() error = %v", err)
 	}
-	artifacts[0] = "mutated"
-	got := result.ArtifactIDs()
-	got[0] = "also-mutated"
-	if want := []string{"plan.json"}; !reflect.DeepEqual(result.ArtifactIDs(), want) {
-		t.Fatalf("ArtifactIDs() = %#v, want %#v", result.ArtifactIDs(), want)
+	artifacts[0].Paths[0] = "mutated"
+	got := result.ProducedArtifacts()
+	got[0].Paths[0] = "also-mutated"
+	if want := []pipeline.Artifact{{Name: "plan", Paths: []string{"plan.json"}}}; !reflect.DeepEqual(result.ProducedArtifacts(), want) {
+		t.Fatalf("ProducedArtifacts() = %#v, want %#v", result.ProducedArtifacts(), want)
+	}
+	if got, ok := result.ProducedArtifact(); !ok || !reflect.DeepEqual(got, pipeline.Artifact{Name: "plan", Paths: []string{"plan.json"}}) {
+		t.Fatalf("ProducedArtifact() = %#v, %v; want first artifact", got, ok)
 	}
 }
 

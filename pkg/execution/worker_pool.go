@@ -12,7 +12,7 @@ type boundedWorkerPool struct {
 	parallelism int
 }
 
-func (p boundedWorkerPool) Run(ctx context.Context, jobs []*pipeline.Job, fn func(context.Context, *pipeline.Job) error) error {
+func (p boundedWorkerPool) Run(ctx context.Context, jobs []pipeline.Job, fn func(context.Context, pipeline.Job) error) error {
 	if len(jobs) == 0 {
 		return nil
 	}
@@ -27,7 +27,7 @@ func (p boundedWorkerPool) Run(ctx context.Context, jobs []*pipeline.Job, fn fun
 		sem           = make(chan struct{}, limit)
 	)
 
-	for _, job := range jobs {
+	for i := range jobs {
 		group.Go(func() error {
 			select {
 			case sem <- struct{}{}:
@@ -36,7 +36,7 @@ func (p boundedWorkerPool) Run(ctx context.Context, jobs []*pipeline.Job, fn fun
 			}
 
 			defer func() { <-sem }()
-			return fn(runCtx, job)
+			return fn(runCtx, jobs[i])
 		})
 	}
 

@@ -477,6 +477,45 @@ func TestArchitecture_ExecutionResultValueBoundaries(t *testing.T) {
 	var violations []string
 
 	for _, rel := range goFiles(t, root, "cmd", "pkg", "plugins", "test", "examples") {
+		if strings.HasPrefix(rel, "plugins/localexec/internal/flow/") {
+			imports := fileImports(t, filepath.Join(root, rel))
+			for _, imp := range imports {
+				if imp == moduleImportPath+"/plugins/localexec/internal/render" {
+					violations = append(violations, rel+" imports localexec render package; inject execution.EventSink and keep rendering in command/output layer")
+				}
+			}
+		}
+
+		if isProductionFile(rel) && (strings.HasPrefix(rel, "pkg/execution/") || strings.HasPrefix(rel, "plugins/localexec/")) {
+			file := parseGoFile(t, filepath.Join(root, rel), 0)
+			pipelineAliases := importAliases(file, moduleImportPath+"/pkg/pipeline")
+			ast.Inspect(file, func(node ast.Node) bool {
+				star, ok := node.(*ast.StarExpr)
+				if !ok {
+					return true
+				}
+				selector, ok := star.X.(*ast.SelectorExpr)
+				if !ok || selector.Sel.Name != "Job" {
+					return true
+				}
+				ident, ok := selector.X.(*ast.Ident)
+				if ok && pipelineAliases[ident.Name] {
+					violations = append(violations, rel+" uses *pipeline.Job in execution/localexec production code; use immutable pipeline.Job values")
+				}
+				return true
+			})
+		}
+
+		if rel != "test/architecture_test.go" {
+			data, err := os.ReadFile(filepath.Join(root, rel))
+			if err != nil {
+				t.Fatalf("read %s: %v", rel, err)
+			}
+			if strings.Contains(string(data), "ArtifactIDs") {
+				violations = append(violations, rel+" references stale execution ArtifactIDs; use typed ProducedArtifacts")
+			}
+		}
+
 		if allowUnder(rel, "pkg/execution/") || allowUnder(rel, "pkg/execution/executiontest/") {
 			continue
 		}
@@ -523,6 +562,7 @@ func TestArchitecture_ExecutionResultValueBoundaries(t *testing.T) {
 		"LabelWarnings",
 		"Warnings []string",
 		"Warnings []error",
+		"ArtifactIDs",
 	}
 	for _, rel := range textFiles(t, root, "AGENTS.md", "docs", "examples", "pkg/plugin/doc.go") {
 		if allowUnder(rel, "docs/.vitepress/dist/") {

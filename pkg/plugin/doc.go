@@ -110,13 +110,15 @@
 //
 // # Execution result and diagnostics boundary
 //
-// pkg/execution.Result, JobResult, and GroupResult are immutable value objects.
-// Local execution consumers read them through getters, Result.Stats, and
-// Result.Failed; failed jobs are surfaced as execution.ExecutionError while the
-// partial Result remains available. Tests should use pkg/execution/executiontest
-// for result fixtures instead of struct literals. Non-fatal warnings and
-// degraded-mode notes should use pkg/diagnostic.List rather than raw []string
-// or []error warning channels.
+// pkg/execution.Result, JobResult, GroupResult, and JobEvent are immutable value
+// objects. Local execution consumers read results through getters, Result.Stats,
+// and Result.Failed; runners and event sinks receive pipeline.Job/event values,
+// not mutable job pointers. Failed jobs are surfaced as execution.ExecutionError
+// while the partial Result remains available, and produced artifacts are exposed
+// as typed pipeline.Artifact values. Tests should use
+// pkg/execution/executiontest for result fixtures instead of struct literals.
+// Non-fatal warnings and degraded-mode notes should use pkg/diagnostic.List
+// rather than raw []string or []error warning channels.
 //
 // # CI provider output boundary
 //

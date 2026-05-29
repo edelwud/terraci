@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 
+	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/plugins/localexec/internal/flow"
 	"github.com/edelwud/terraci/plugins/localexec/internal/spec"
@@ -22,9 +23,15 @@ type Executor struct {
 	useCase *flow.UseCase
 }
 
-func NewExecutor(appCtx *plugin.AppContext) *Executor {
+type Option = flow.Option
+
+func WithEventSink(sink execution.EventSink) Option {
+	return flow.WithEventSink(sink)
+}
+
+func NewExecutor(appCtx *plugin.AppContext, opts ...Option) *Executor {
 	return &Executor{
-		useCase: flow.New(appCtx),
+		useCase: flow.New(appCtx, opts...),
 	}
 }
 

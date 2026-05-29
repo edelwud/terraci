@@ -3,12 +3,14 @@ package execution
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/pipeline/pipelinetest"
 )
@@ -19,7 +21,7 @@ type recordingRunner struct {
 	delay     time.Duration
 }
 
-func (r *recordingRunner) Run(ctx context.Context, _ *pipeline.Job) error {
+func (r *recordingRunner) Run(ctx context.Context, _ pipeline.Job) error {
 	current := r.active.Add(1)
 	defer r.active.Add(-1)
 	for {
@@ -59,7 +61,7 @@ type orderRunner struct {
 	order []string
 }
 
-func (r *orderRunner) Run(_ context.Context, job *pipeline.Job) error {
+func (r *orderRunner) Run(_ context.Context, job pipeline.Job) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.order = append(r.order, job.Name())
@@ -162,6 +164,58 @@ func TestExecutorReturnsPartialResultAndTypedExecutionError(t *testing.T) {
 	}
 }
 
+type delayedRunner struct {
+	delays map[string]time.Duration
+}
+
+func (r delayedRunner) Run(ctx context.Context, job pipeline.Job) error {
+	if delay := r.delays[job.Name()]; delay > 0 {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(delay):
+		}
+	}
+	return nil
+}
+
+func TestExecutorResultsKeepScheduleOrderUnderParallelism(t *testing.T) {
+	t.Parallel()
+
+	ir := pipelinetest.MustCommandIR(t,
+		testJob("a"),
+		testJob("b"),
+	)
+	result, err := NewExecutor(delayedRunner{delays: map[string]time.Duration{"a": 40 * time.Millisecond}}, WithParallelism(2)).Execute(context.Background(), ir)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	jobs := result.Jobs()
+	if got := []string{jobs[0].Name(), jobs[1].Name()}; !reflect.DeepEqual(got, []string{"a", "b"}) {
+		t.Fatalf("result job order = %v, want [a b]", got)
+	}
+}
+
+func TestExecutorRecordsProducedArtifacts(t *testing.T) {
+	t.Parallel()
+
+	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
+	ir := pipelinetest.MustSingleModuleIR(t, module)
+	result, err := NewExecutor(&orderRunner{}, WithParallelism(1)).Execute(context.Background(), ir)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	planJob := pipelinetest.MustJobByKind(t, ir, pipeline.JobKindPlan)
+	planResult := findJobResult(t, result, planJob.Name())
+	artifact, ok := planResult.ProducedArtifact()
+	if !ok {
+		t.Fatal("ProducedArtifact() ok = false, want plan artifact")
+	}
+	if artifact.Name != planJob.OutputArtifact().Name {
+		t.Fatalf("artifact name = %q, want %q", artifact.Name, planJob.OutputArtifact().Name)
+	}
+}
+
 func testJob(name string, deps ...string) pipeline.ContributedJobOptions {
 	return pipeline.ContributedJobOptions{
 		Name:         name,
@@ -190,6 +244,17 @@ type failingRunner struct {
 	err error
 }
 
-func (r failingRunner) Run(context.Context, *pipeline.Job) error {
+func (r failingRunner) Run(context.Context, pipeline.Job) error {
 	return r.err
+}
+
+func findJobResult(tb testing.TB, result *Result, name string) JobResult {
+	tb.Helper()
+	for _, job := range result.Jobs() {
+		if job.Name() == name {
+			return job
+		}
+	}
+	tb.Fatalf("job result %q not found", name)
+	return JobResult{}
 }

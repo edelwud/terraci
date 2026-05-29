@@ -125,9 +125,10 @@ pkg/                            # Public API — importable by external plugins 
 ├── planresults/                # PlanResultCollection scanner — reads Terraform plan.json
 ├── diagnostic/                 # Plugin-agnostic non-fatal diagnostics value model
 ├── execution/                  # Plugin-agnostic local execution
-│   ├── executor.go             # Executor.Execute(ctx, *pipeline.IR) — IR is the single execution input
+│   ├── executor.go             # Executor.Execute(ctx, *pipeline.IR) over immutable pipeline.Job values
 │   ├── scheduler.go            # DefaultScheduler.Schedule(*pipeline.IR) — barrier-grouped JobGroups
-│   ├── results.go              # Immutable Result/JobResult/GroupResult + stats
+│   ├── event.go                # JobEvent value object for progress/event sinks
+│   ├── results.go              # Immutable Result/JobResult/GroupResult + stats and produced artifacts
 │   ├── errors.go               # ExecutionError wrapping failed job causes
 │   ├── worker_pool.go, workspace.go, config.go
 ├── graph/                      # DependencyGraph, algorithms, visualization
@@ -438,8 +439,8 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 ### Local Execution
 1. `workflow.PlanProject(...)` builds the canonical filtered module/graph result and selected targets
 2. `localexec/internal/flow` builds the execution IR through `pipeline.BuildProjectIR(...)`
-3. `pkg/execution.Executor.Execute(ctx, ir)` schedules jobs with dependency-aware DAG grouping
-4. `localexec/internal/runner` executes shell/tfexec jobs locally
+3. `pkg/execution.Executor.Execute(ctx, ir)` schedules immutable job values with dependency-aware DAG grouping
+4. `localexec/internal/runner` executes shell/tfexec jobs locally and CLI injects an execution event sink for progress logs
 5. `localexec/internal/reports` loads current plugin reports through `ci.ReportStore`, applies `ci.SelectCurrentReports`, and aggregates them into a render-ready summary report
 6. `localexec/internal/flow` returns a typed result with immutable `execution.Result`, optional summary report, and diagnostics; `localexec/internal/render` prints the DAG/job summary and report sections
 
@@ -460,7 +461,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **IR-bound generators**: `PipelineGeneratorFactory.NewGenerator(ctx, *pipeline.IR)` — providers don't reach for depGraph/modules/contributions; the IR already encodes them.
 - **Shell rendering separated from IR**: `pkg/pipeline/cishell.RenderOperation(op)` for shell-driven CI; the IR carries `pipeline.TerraformOperation` data only.
 - **Canonical dry-run source**: dry-run stage/job counts derive from `*IR.DryRun(totalModules)`.
-- **Execution result boundary**: `pkg/execution.Result`, `JobResult`, and `GroupResult` are immutable value objects. Production code reads them through getters and `Stats()`, never through struct literals or mutable fields. Failed jobs surface as `execution.ExecutionError` while still returning the partial result.
+- **Execution result boundary**: `pkg/execution.Result`, `JobResult`, `GroupResult`, and `JobEvent` are immutable value objects. Production code reads them through getters and `Stats()`, never through struct literals or mutable fields. `JobRunner`, `WorkerPool`, and `EventSink` consume `pipeline.Job`/event values, not job pointers. Failed jobs surface as `execution.ExecutionError` while still returning the partial result, and produced artifacts are exposed as typed `pipeline.Artifact` values.
 - **Preflight, then lazy runtime**: framework performs cheap startup validation; heavy plugin state is built lazily inside RuntimeProvider/use-cases. Runtime must be command-agnostic; CLI overrides live in typed request structs.
 - **Command run flow**: `cmd/terraci/cmd` parses cobra flags, calls `runflow.Prepare`, then passes `runflow.Prepared` into a typed command flow under `cmd/terraci/internal/*flow`; command files own only output/log presentation and file/stdout writes.
 - **Command/usecase boundary**: command callbacks use `plugin.CommandPlugin[T]` and `plugin.RequireEnabled`, parse flags into request structs, call a usecase, then handle artifact persistence and output explicitly.
@@ -478,7 +479,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **Policy OPA boundary**: policy checks use `plan.json bytes -> policyinput.PlanDocument -> policyinput.Envelope -> OPA adapter -> typed Evaluation -> Result/Summary -> report/output`. Raw OPA/JSON maps are allowed only inside the input document, OPA adapter, typed metadata value object, and test fixtures; use-cases and reports consume typed policy values.
 - **Zero cross-plugin imports**: plugins communicate only via `pkg/plugin` capability helpers, shared `pkg/ci` types, and `ci.ReportStore` artifacts
 - **Shared workflow**: `workflow.PlanProject()` is the high-level canonical project planning API for built-in production code: scan, filter, parse, graph building, optional target selection, changed-only, and library diagnostics. Lower-level scan/filter/target helpers are package-private internals inside `pkg/workflow`. `workflow.ChangeDetector`, `workflow.ChangeDetectionRequest`, and `workflow.ChangeDetectionResult` are plugin-agnostic; `plugin.ChangeDetectionProvider` embeds that workflow contract plus `plugin.Plugin`.
-- **Localexec boundary**: keep shell/tfexec details inside `plugins/localexec`; `pkg/execution` stays provider-agnostic scheduler/executor infrastructure that consumes a raw `*pipeline.IR`. `localexec/internal/flow` returns a typed result and leaves final rendering to the executor/output layer.
+- **Localexec boundary**: keep shell/tfexec details inside `plugins/localexec`; `pkg/execution` stays provider-agnostic scheduler/executor infrastructure that consumes `*pipeline.IR` and emits value-based execution events/results. `localexec/internal/flow` returns a typed result and never imports render/output packages; CLI code injects progress event sinks and handles final rendering.
 - **Reference runtime-heavy plugins**: `cost`, `policy`, `tfupdate`
 - **Parser architecture**: keep `pkg/parser` as a thin public facade; put orchestration, extraction, resolution, and source mechanics in `pkg/parser/internal/*` around the shared `pkg/parser/model`
 - **Tfupdate architecture**: keep `plugins/tfupdate` command/runtime surfaces thin; engine internals live under `planner`, `lockfile`, `sourceaddr`, `registrymeta`, `usecase`, `registryclient`, `tffile`, and `tfwrite`

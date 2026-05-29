@@ -41,8 +41,7 @@ type Overrides struct {
 
 // BuildResult is the output of config construction.
 type BuildResult struct {
-	Config   *config.Config
-	Warnings []string
+	Config *config.Config
 }
 
 // DisplayGroup describes one init form group after plugin groups have been

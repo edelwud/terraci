@@ -8,7 +8,6 @@ import (
 
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/execution"
-	"github.com/edelwud/terraci/pkg/pipeline"
 )
 
 type Output interface {
@@ -88,20 +87,20 @@ func NewProgressReporter() execution.EventSink {
 	return ProgressReporter{}
 }
 
-func (ProgressReporter) JobStarted(job *pipeline.Job) {
-	entry := log.WithField("job", job.Name()).WithField("operation", job.Operation().Type())
-	if module := job.Module(); module != nil {
-		entry = entry.WithField("module", module.ID())
+func (ProgressReporter) JobStarted(event execution.JobEvent) {
+	entry := log.WithField("job", event.Name()).WithField("operation", event.Operation())
+	if module := event.ModuleID(); module != "" {
+		entry = entry.WithField("module", module)
 	}
 	entry.Info("job started")
 }
 
-func (ProgressReporter) JobFinished(job *pipeline.Job, result execution.JobResult) {
-	entry := log.WithField("job", job.Name()).
-		WithField("operation", job.Operation().Type()).
+func (ProgressReporter) JobFinished(event execution.JobEvent, result execution.JobResult) {
+	entry := log.WithField("job", event.Name()).
+		WithField("operation", event.Operation()).
 		WithField("status", result.Status())
-	if module := job.Module(); module != nil {
-		entry = entry.WithField("module", module.ID())
+	if module := event.ModuleID(); module != "" {
+		entry = entry.WithField("module", module)
 	}
 	if result.Err() != nil {
 		entry.WithError(result.Err()).Warn("job finished")

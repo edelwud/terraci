@@ -193,12 +193,12 @@ func TestProgressReporter_LogsStageAndModule(t *testing.T) {
 	reporter := ProgressReporter{}
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	planJob := pipelinetest.MustJobByKind(t, pipelinetest.MustSingleModuleIR(t, module), pipeline.JobKindPlan)
-	job := &planJob
-	result := executiontest.MustJobResult(t, execution.JobResultOptions{Name: job.Name(), Status: execution.JobStatusSucceeded})
+	event := execution.NewJobEvent(planJob, time.Now())
+	result := executiontest.MustJobResult(t, execution.JobResultOptions{Name: planJob.Name(), Status: execution.JobStatusSucceeded})
 
 	logs := plugintest.CaptureLogOutput(t, func() {
-		reporter.JobStarted(job)
-		reporter.JobFinished(job, result)
+		reporter.JobStarted(event)
+		reporter.JobFinished(event, result)
 	})
 
 	for _, wanted := range []string{"job=plan-platform-stage-eu-central-1-vpc", "operation=terraform_plan", "module=platform/stage/eu-central-1/vpc", "job started", "job finished"} {
@@ -211,11 +211,11 @@ func TestProgressReporter_LogsStageAndModule(t *testing.T) {
 func TestProgressReporter_LogsFailureStatus(t *testing.T) {
 	reporter := ProgressReporter{}
 	commandJob := pipelinetest.MustCommandJob(t, pipeline.ContributedJobOptions{Name: summaryReportProducer, Commands: []string{"summary"}})
-	job := &commandJob
-	result := executiontest.MustJobResult(t, execution.JobResultOptions{Name: job.Name(), Status: execution.JobStatusFailed, Err: errors.New("boom")})
+	event := execution.NewJobEvent(commandJob, time.Now())
+	result := executiontest.MustJobResult(t, execution.JobResultOptions{Name: commandJob.Name(), Status: execution.JobStatusFailed, Err: errors.New("boom")})
 
 	logs := plugintest.CaptureLogOutput(t, func() {
-		reporter.JobFinished(job, result)
+		reporter.JobFinished(event, result)
 	})
 
 	for _, wanted := range []string{"job=summary", "operation=commands", "status=failed", "error=boom", "job finished"} {

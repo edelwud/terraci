@@ -13,7 +13,6 @@ import (
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/workflow"
-	"github.com/edelwud/terraci/plugins/localexec/internal/render"
 	"github.com/edelwud/terraci/plugins/localexec/internal/reports"
 	"github.com/edelwud/terraci/plugins/localexec/internal/runner"
 	"github.com/edelwud/terraci/plugins/localexec/internal/spec"
@@ -71,6 +70,7 @@ type UseCase struct {
 	contributions  ContributionCollector
 	runtimeFactory runner.Factory
 	summaryReports reports.Loader
+	eventSink      execution.EventSink
 }
 
 type ProjectPlanner interface {
@@ -86,6 +86,7 @@ type Dependencies struct {
 	Contributions  ContributionCollector
 	RuntimeFactory runner.Factory
 	SummaryReports reports.Loader
+	EventSink      execution.EventSink
 }
 
 type Option func(*Dependencies)
@@ -114,6 +115,12 @@ func WithSummaryReports(loader reports.Loader) Option {
 	}
 }
 
+func WithEventSink(sink execution.EventSink) Option {
+	return func(deps *Dependencies) {
+		deps.EventSink = sink
+	}
+}
+
 func DefaultDependencies(appCtx *plugin.AppContext) Dependencies {
 	structure := appCtx.Config().Structure()
 	segments := append([]string(nil), structure.Segments...)
@@ -122,6 +129,7 @@ func DefaultDependencies(appCtx *plugin.AppContext) Dependencies {
 		Contributions:  contextContributionCollector{},
 		RuntimeFactory: runner.NewFactory(),
 		SummaryReports: reports.NewLoader(appCtx.Reports(), appCtx.WorkDir(), segments),
+		EventSink:      noopEventSink{},
 	}
 }
 
@@ -141,6 +149,7 @@ func New(appCtx *plugin.AppContext, opts ...Option) *UseCase {
 		contributions:  deps.Contributions,
 		runtimeFactory: deps.RuntimeFactory,
 		summaryReports: deps.SummaryReports,
+		eventSink:      deps.EventSink,
 	}
 }
 
@@ -156,6 +165,9 @@ func withDefaults(deps, defaults Dependencies) Dependencies {
 	}
 	if deps.SummaryReports == nil {
 		deps.SummaryReports = defaults.SummaryReports
+	}
+	if deps.EventSink == nil {
+		deps.EventSink = defaults.EventSink
 	}
 	return deps
 }
@@ -181,11 +193,10 @@ func (u *UseCase) Run(ctx context.Context, req Request) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	reporter := render.NewProgressReporter()
 	resultExec, err := execution.NewExecutor(
 		execRuntime.JobRunner,
 		execution.WithParallelism(execRuntime.ExecConfig.Parallelism),
-		execution.WithEventSink(reporter),
+		execution.WithEventSink(u.eventSink),
 	).Execute(ctx, plan)
 	if err != nil {
 		return completedResult(resultExec, nil, diagnostic.List{}), err
@@ -205,6 +216,12 @@ func (u *UseCase) Run(ctx context.Context, req Request) (*Result, error) {
 	}
 	return completedResult(resultExec, summaryReport, diagnostics), nil
 }
+
+type noopEventSink struct{}
+
+func (noopEventSink) JobStarted(execution.JobEvent) {}
+
+func (noopEventSink) JobFinished(execution.JobEvent, execution.JobResult) {}
 
 type workflowProjectPlanner struct {
 	appCtx *plugin.AppContext

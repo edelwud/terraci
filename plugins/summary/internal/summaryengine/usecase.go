@@ -7,6 +7,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/diagnostic"
+	"github.com/edelwud/terraci/plugins/internal/diagnosticlog"
 )
 
 // ReportProducer is the producer name used by summary's own reports/comments.
@@ -68,7 +69,7 @@ func Run(ctx context.Context, runtime Runtime, _ Request) (*Result, error) {
 	}
 	result.Reports = selection.Reports
 	result.ReportDiagnostics = selection.Diagnostics
-	logDiagnostics(result.ReportDiagnostics)
+	diagnosticlog.Log(result.ReportDiagnostics)
 
 	if runtime.Config.OnChangesOnly && !HasReportableChanges(result.Plans, result.Reports) {
 		result.SkippedReason = "no_reportable_changes"
@@ -87,7 +88,7 @@ func Run(ctx context.Context, runtime Runtime, _ Request) (*Result, error) {
 	labelResult := resolveSummaryLabels(runtime, result.Plans)
 	result.Labels = labelResult.Labels
 	result.LabelDiagnostics = labelResult.Diagnostics
-	logDiagnostics(labelResult.Diagnostics)
+	diagnosticlog.Log(labelResult.Diagnostics)
 
 	body, err := composeSummaryBody(runtime, collection, result.Plans, result.Reports, provider, result.Labels)
 	if err != nil {

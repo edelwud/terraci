@@ -111,9 +111,31 @@ type Executor interface {
 	Run(ctx context.Context, req ExecuteRequest) (*Result, error)
 }
 
+type ExecutorOption func(*executorOptions)
+
+type executorOptions struct {
+	eventSink execution.EventSink
+}
+
+func WithEventSink(sink execution.EventSink) ExecutorOption {
+	return func(opts *executorOptions) {
+		opts.eventSink = sink
+	}
+}
+
 // NewExecutor constructs the public local-exec executor contract.
-func NewExecutor(appCtx *plugin.AppContext) Executor {
-	return executorAdapter{executor: localexecinternal.NewExecutor(appCtx)}
+func NewExecutor(appCtx *plugin.AppContext, opts ...ExecutorOption) Executor {
+	options := executorOptions{}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&options)
+		}
+	}
+	internalOpts := make([]localexecinternal.Option, 0)
+	if options.eventSink != nil {
+		internalOpts = append(internalOpts, localexecinternal.WithEventSink(options.eventSink))
+	}
+	return executorAdapter{executor: localexecinternal.NewExecutor(appCtx, internalOpts...)}
 }
 
 type executorAdapter struct {

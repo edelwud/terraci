@@ -14,8 +14,8 @@ import (
 )
 
 type terraformRunner interface {
-	RunPlan(ctx context.Context, job *pipeline.Job, op *pipeline.TerraformOperation) error
-	RunApply(ctx context.Context, job *pipeline.Job, op *pipeline.TerraformOperation) error
+	RunPlan(ctx context.Context, job pipeline.Job, op *pipeline.TerraformOperation) error
+	RunApply(ctx context.Context, job pipeline.Job, op *pipeline.TerraformOperation) error
 }
 
 type terraformOperationRunner struct {
@@ -24,7 +24,7 @@ type terraformOperationRunner struct {
 	execConfig execution.Config
 }
 
-func (r *terraformOperationRunner) RunPlan(ctx context.Context, job *pipeline.Job, op *pipeline.TerraformOperation) error {
+func (r *terraformOperationRunner) RunPlan(ctx context.Context, job pipeline.Job, op *pipeline.TerraformOperation) error {
 	tf, err := r.prepare(ctx, job, op)
 	if err != nil {
 		return err
@@ -65,7 +65,7 @@ func (r *terraformOperationRunner) RunPlan(ctx context.Context, job *pipeline.Jo
 	return nil
 }
 
-func (r *terraformOperationRunner) RunApply(ctx context.Context, job *pipeline.Job, op *pipeline.TerraformOperation) error {
+func (r *terraformOperationRunner) RunApply(ctx context.Context, job pipeline.Job, op *pipeline.TerraformOperation) error {
 	tf, err := r.prepare(ctx, job, op)
 	if err != nil {
 		return err
@@ -81,7 +81,7 @@ func (r *terraformOperationRunner) RunApply(ctx context.Context, job *pipeline.J
 	return nil
 }
 
-func (r *terraformOperationRunner) prepare(ctx context.Context, job *pipeline.Job, op *pipeline.TerraformOperation) (*tfexec.Terraform, error) {
+func (r *terraformOperationRunner) prepare(ctx context.Context, job pipeline.Job, op *pipeline.TerraformOperation) (*tfexec.Terraform, error) {
 	tf, err := tfexec.NewTerraform(r.workspace.ModuleDir(op.ModulePath()), r.binaryPath)
 	if err != nil {
 		return nil, fmt.Errorf("%s: create terraform runner: %w", job.Name(), err)

@@ -9,7 +9,7 @@ import (
 )
 
 type operationRunner interface {
-	Run(ctx context.Context, job *pipeline.Job) error
+	Run(ctx context.Context, job pipeline.Job) error
 }
 
 type operationDispatcher struct {
@@ -17,11 +17,7 @@ type operationDispatcher struct {
 	commands  commandRunner
 }
 
-func (r operationDispatcher) Run(ctx context.Context, job *pipeline.Job) error {
-	if job == nil {
-		return errors.New("job is nil")
-	}
-
+func (r operationDispatcher) Run(ctx context.Context, job pipeline.Job) error {
 	operation := job.Operation()
 	switch operation.Type() {
 	case pipeline.OperationTypeTerraformPlan:
@@ -66,10 +62,7 @@ type jobRunner struct {
 	main operationRunner
 }
 
-func (r *jobRunner) Run(ctx context.Context, job *pipeline.Job) error {
-	if job == nil {
-		return errors.New("job is nil")
-	}
+func (r *jobRunner) Run(ctx context.Context, job pipeline.Job) error {
 	if r.main == nil {
 		return errors.New("operation runner is not configured")
 	}

@@ -12,13 +12,13 @@ import (
 
 // JobRunner executes one job.
 type JobRunner interface {
-	Run(ctx context.Context, job *pipeline.Job) error
+	Run(ctx context.Context, job pipeline.Job) error
 }
 
 // EventSink consumes structured execution events.
 type EventSink interface {
-	JobStarted(job *pipeline.Job)
-	JobFinished(job *pipeline.Job, result JobResult)
+	JobStarted(event JobEvent)
+	JobFinished(event JobEvent, result JobResult)
 }
 
 // Scheduler builds execution groups from a pipeline IR.
@@ -32,7 +32,7 @@ type Scheduler interface {
 
 // WorkerPool runs a group of jobs with bounded concurrency.
 type WorkerPool interface {
-	Run(ctx context.Context, jobs []*pipeline.Job, fn func(context.Context, *pipeline.Job) error) error
+	Run(ctx context.Context, jobs []pipeline.Job, fn func(context.Context, pipeline.Job) error) error
 }
 
 // ExecutorOption mutates executor behavior.
@@ -107,29 +107,40 @@ func (e *Executor) Execute(ctx context.Context, ir *pipeline.IR) (*Result, error
 
 	var (
 		groupsRecorded []GroupResult
-		jobsRecorded   []JobResult
+		jobOrder       []string
+		jobsRecorded   = make(map[string]JobResult)
 	)
 	var mu sync.Mutex
 
-	record := func(job *pipeline.Job, status JobStatus, started time.Time, err error) (JobResult, error) {
+	record := func(job pipeline.Job, status JobStatus, started, finished time.Time, err error) (JobResult, error) {
 		jobResult, buildErr := NewJobResult(JobResultOptions{
-			Name:       job.Name(),
-			Status:     status,
-			StartedAt:  started,
-			FinishedAt: time.Now(),
-			Err:        err,
+			Name:              job.Name(),
+			Status:            status,
+			StartedAt:         started,
+			FinishedAt:        finished,
+			ProducedArtifacts: producedArtifacts(job),
+			Err:               err,
 		})
 		if buildErr != nil {
 			return JobResult{}, buildErr
 		}
 		mu.Lock()
-		jobsRecorded = append(jobsRecorded, jobResult)
+		jobsRecorded[job.Name()] = jobResult
 		mu.Unlock()
 		return jobResult, nil
 	}
 
 	currentResult := func() *Result {
-		result, buildErr := NewResult(ResultOptions{Groups: groupsRecorded, Jobs: jobsRecorded})
+		mu.Lock()
+		jobs := make([]JobResult, 0, len(jobOrder))
+		for _, name := range jobOrder {
+			if jobResult, ok := jobsRecorded[name]; ok {
+				jobs = append(jobs, jobResult)
+			}
+		}
+		mu.Unlock()
+
+		result, buildErr := NewResult(ResultOptions{Groups: groupsRecorded, Jobs: jobs})
 		if buildErr != nil {
 			return &Result{}
 		}
@@ -153,21 +164,25 @@ func (e *Executor) Execute(ctx context.Context, ir *pipeline.IR) (*Result, error
 		if len(groupJobs) == 0 {
 			continue
 		}
-		jobs := jobPointers(groupJobs)
-		err = e.workers.Run(ctx, jobs, func(runCtx context.Context, job *pipeline.Job) error {
+		for i := range groupJobs {
+			jobOrder = append(jobOrder, groupJobs[i].Name())
+		}
+		err = e.workers.Run(ctx, groupJobs, func(runCtx context.Context, job pipeline.Job) error {
 			started := time.Now()
-			e.sink.JobStarted(job)
+			startEvent := NewJobEvent(job, started)
+			e.sink.JobStarted(startEvent)
 			runErr := e.runner.Run(runCtx, job)
+			finished := time.Now()
 
 			status := JobStatusSucceeded
 			if runErr != nil {
 				status = JobStatusFailed
 			}
-			jobResult, recordErr := record(job, status, started, runErr)
+			jobResult, recordErr := record(job, status, started, finished, runErr)
 			if recordErr != nil {
 				return recordErr
 			}
-			e.sink.JobFinished(job, jobResult)
+			e.sink.JobFinished(NewJobEvent(job, finished), jobResult)
 			if runErr != nil {
 				return &ExecutionError{JobName: job.Name(), Err: runErr}
 			}
@@ -181,18 +196,15 @@ func (e *Executor) Execute(ctx context.Context, ir *pipeline.IR) (*Result, error
 	return currentResult(), nil
 }
 
-func jobPointers(jobs []pipeline.Job) []*pipeline.Job {
-	if len(jobs) == 0 {
+func producedArtifacts(job pipeline.Job) []pipeline.Artifact {
+	artifact := job.OutputArtifact()
+	if !artifact.Configured() {
 		return nil
 	}
-	ptrs := make([]*pipeline.Job, len(jobs))
-	for i := range jobs {
-		ptrs[i] = &jobs[i]
-	}
-	return ptrs
+	return []pipeline.Artifact{artifact}
 }
 
 type noopEventSink struct{}
 
-func (noopEventSink) JobStarted(*pipeline.Job)             {}
-func (noopEventSink) JobFinished(*pipeline.Job, JobResult) {}
+func (noopEventSink) JobStarted(JobEvent)             {}
+func (noopEventSink) JobFinished(JobEvent, JobResult) {}

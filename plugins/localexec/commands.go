@@ -75,7 +75,7 @@ exits without error after logging "no modules to process".`,
 			if err != nil {
 				return err
 			}
-			result, err := NewExecutor(appCtx).Run(cmd.Context(), sf.toRequest(ExecutionModePlan))
+			result, err := NewExecutor(appCtx, WithEventSink(render.NewProgressReporter())).Run(cmd.Context(), sf.toRequest(ExecutionModePlan))
 			return renderLocalExecResult(result, err)
 		},
 	}
@@ -101,7 +101,7 @@ error after logging "no modules to process".`,
 			if err != nil {
 				return err
 			}
-			result, err := NewExecutor(appCtx).Run(cmd.Context(), sf.toRequest(ExecutionModeRun))
+			result, err := NewExecutor(appCtx, WithEventSink(render.NewProgressReporter())).Run(cmd.Context(), sf.toRequest(ExecutionModeRun))
 			return renderLocalExecResult(result, err)
 		},
 	}

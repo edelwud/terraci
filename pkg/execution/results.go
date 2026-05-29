@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/edelwud/terraci/pkg/pipeline"
 )
 
 // JobStatus is the status of an executed job.
@@ -25,22 +27,22 @@ func (s JobStatus) valid() bool {
 
 // JobResultOptions describes one job execution result.
 type JobResultOptions struct {
-	Name        string
-	Status      JobStatus
-	StartedAt   time.Time
-	FinishedAt  time.Time
-	ArtifactIDs []string
-	Err         error
+	Name              string
+	Status            JobStatus
+	StartedAt         time.Time
+	FinishedAt        time.Time
+	ProducedArtifacts []pipeline.Artifact
+	Err               error
 }
 
 // JobResult is the immutable execution outcome for one job.
 type JobResult struct {
-	name        string
-	status      JobStatus
-	startedAt   time.Time
-	finishedAt  time.Time
-	artifactIDs []string
-	err         error
+	name              string
+	status            JobStatus
+	startedAt         time.Time
+	finishedAt        time.Time
+	producedArtifacts []pipeline.Artifact
+	err               error
 }
 
 // NewJobResult validates and constructs a job result.
@@ -52,25 +54,36 @@ func NewJobResult(opts JobResultOptions) (JobResult, error) {
 		return JobResult{}, fmt.Errorf("invalid execution job status %q", opts.Status)
 	}
 	return JobResult{
-		name:        opts.Name,
-		status:      opts.Status,
-		startedAt:   opts.StartedAt,
-		finishedAt:  opts.FinishedAt,
-		artifactIDs: append([]string(nil), opts.ArtifactIDs...),
-		err:         opts.Err,
+		name:              opts.Name,
+		status:            opts.Status,
+		startedAt:         opts.StartedAt,
+		finishedAt:        opts.FinishedAt,
+		producedArtifacts: cloneArtifacts(opts.ProducedArtifacts),
+		err:               opts.Err,
 	}, nil
 }
 
-func (r JobResult) Name() string            { return r.name }
-func (r JobResult) Status() JobStatus       { return r.status }
-func (r JobResult) StartedAt() time.Time    { return r.startedAt }
-func (r JobResult) FinishedAt() time.Time   { return r.finishedAt }
-func (r JobResult) Err() error              { return r.err }
-func (r JobResult) Failed() bool            { return r.status == JobStatusFailed }
-func (r JobResult) ArtifactIDs() []string   { return append([]string(nil), r.artifactIDs...) }
+func (r JobResult) Name() string          { return r.name }
+func (r JobResult) Status() JobStatus     { return r.status }
+func (r JobResult) StartedAt() time.Time  { return r.startedAt }
+func (r JobResult) FinishedAt() time.Time { return r.finishedAt }
+func (r JobResult) Err() error            { return r.err }
+func (r JobResult) Failed() bool          { return r.status == JobStatusFailed }
+
+func (r JobResult) ProducedArtifacts() []pipeline.Artifact {
+	return cloneArtifacts(r.producedArtifacts)
+}
+
+func (r JobResult) ProducedArtifact() (pipeline.Artifact, bool) {
+	if len(r.producedArtifacts) == 0 {
+		return pipeline.Artifact{}, false
+	}
+	return cloneArtifact(r.producedArtifacts[0]), true
+}
+
 func (r JobResult) Duration() time.Duration { return r.finishedAt.Sub(r.startedAt) }
 func (r JobResult) clone() JobResult {
-	r.artifactIDs = append([]string(nil), r.artifactIDs...)
+	r.producedArtifacts = cloneArtifacts(r.producedArtifacts)
 	return r
 }
 
@@ -203,4 +216,22 @@ func cloneJobResults(in []JobResult) []JobResult {
 		out[i] = in[i].clone()
 	}
 	return out
+}
+
+func cloneArtifacts(in []pipeline.Artifact) []pipeline.Artifact {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]pipeline.Artifact, len(in))
+	for i := range in {
+		out[i] = cloneArtifact(in[i])
+	}
+	return out
+}
+
+func cloneArtifact(in pipeline.Artifact) pipeline.Artifact {
+	return pipeline.Artifact{
+		Name:  in.Name,
+		Paths: append([]string(nil), in.Paths...),
+	}
 }

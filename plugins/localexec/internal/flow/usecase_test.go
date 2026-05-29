@@ -63,7 +63,7 @@ type fakeJobRunner struct {
 	err  error
 }
 
-func (r *fakeJobRunner) Run(_ context.Context, job *pipeline.Job) error {
+func (r *fakeJobRunner) Run(_ context.Context, job pipeline.Job) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.jobs = append(r.jobs, job.Name())
@@ -84,6 +84,19 @@ type fakeContributionCollector struct {
 func (c *fakeContributionCollector) Collect(*plugin.AppContext) []*pipeline.Contribution {
 	c.calls++
 	return c.contributions
+}
+
+type fakeEventSink struct {
+	started  []string
+	finished []string
+}
+
+func (s *fakeEventSink) JobStarted(event execution.JobEvent) {
+	s.started = append(s.started, event.Name())
+}
+
+func (s *fakeEventSink) JobFinished(event execution.JobEvent, _ execution.JobResult) {
+	s.finished = append(s.finished, event.Name())
 }
 
 type fakeSummaryReportLoader struct {
@@ -116,6 +129,7 @@ func TestUseCase_RunUsesInjectedDependencies(t *testing.T) {
 	jobRunner := &fakeJobRunner{}
 	report := &ci.Report{Producer: "summary", Title: "Terraform Plan Summary"}
 	loader := &fakeSummaryReportLoader{report: report}
+	eventSink := &fakeEventSink{}
 	runtimeFactory := &fakeRuntimeFactory{runtime: &runner.Runtime{
 		ExecConfig: execution.Config{PlanEnabled: true, Parallelism: 1},
 		JobRunner:  jobRunner,
@@ -125,6 +139,7 @@ func TestUseCase_RunUsesInjectedDependencies(t *testing.T) {
 		WithProjectPlanner(fakeProjectWithTargets(module)),
 		WithRuntimeFactory(runtimeFactory),
 		WithSummaryReports(loader),
+		WithEventSink(eventSink),
 	)
 
 	result, err := useCase.Run(context.Background(), spec.Request{})
@@ -143,6 +158,9 @@ func TestUseCase_RunUsesInjectedDependencies(t *testing.T) {
 	}
 	if result.Execution() == nil || len(result.Execution().Groups()) == 0 {
 		t.Fatal("expected execution groups to be recorded")
+	}
+	if len(eventSink.started) == 0 || len(eventSink.finished) == 0 {
+		t.Fatalf("event sink did not receive execution events: started=%v finished=%v", eventSink.started, eventSink.finished)
 	}
 }
 
@@ -391,6 +409,9 @@ func TestNewRestoresDefaultsAfterNilOverrides(t *testing.T) {
 	}
 	if useCase.summaryReports == nil {
 		t.Fatal("summaryReports = nil, want default loader")
+	}
+	if useCase.eventSink == nil {
+		t.Fatal("eventSink = nil, want default noop sink")
 	}
 }
 

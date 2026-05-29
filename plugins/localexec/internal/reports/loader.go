@@ -4,11 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	log "github.com/caarlos0/log"
-
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/diagnostic"
 	"github.com/edelwud/terraci/pkg/planresults"
+	"github.com/edelwud/terraci/plugins/internal/diagnosticlog"
 )
 
 const SummaryReportProducer = "summary"
@@ -71,7 +70,7 @@ func (l storeLoader) Load(ctx context.Context) (*Result, error) {
 		Consumer:         "local-exec summary",
 		ExcludeProducers: []string{SummaryReportProducer},
 	})
-	logDiagnostics(selection.Diagnostics)
+	diagnosticlog.Log(selection.Diagnostics)
 	if len(selection.Reports) == 0 {
 		return NewResult(nil, selection.Diagnostics), nil
 	}
@@ -143,26 +142,4 @@ func strictestReportStatus(left, right ci.ReportStatus) ci.ReportStatus {
 		return right
 	}
 	return ci.ReportStatusPass
-}
-
-func logDiagnostics(diags diagnostic.List) {
-	for _, diag := range diags.All() {
-		entry := log.WithField("severity", diag.Severity())
-		if diag.Source() != "" {
-			entry = entry.WithField("source", diag.Source())
-		}
-		if diag.Cause() != nil {
-			entry = entry.WithError(diag.Cause())
-		}
-		switch diag.Severity() {
-		case diagnostic.SeverityError:
-			entry.Error(diag.Message())
-		case diagnostic.SeverityWarning:
-			entry.Warn(diag.Message())
-		case diagnostic.SeverityInfo:
-			entry.Info(diag.Message())
-		default:
-			entry.Info(diag.Message())
-		}
-	}
 }
