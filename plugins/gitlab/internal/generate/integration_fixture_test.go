@@ -61,14 +61,14 @@ func TestFixture_PlanOnly(t *testing.T) {
 	assertPipeline(t, pipeline).jobCount(6)
 
 	// No apply jobs should exist
-	for jobName := range pipeline.Jobs {
+	for _, jobName := range pipeline.JobNames() {
 		if strings.HasPrefix(jobName, "apply-") {
 			t.Errorf("unexpected apply job in plan-only mode: %s", jobName)
 		}
 	}
 
 	// No apply stages should exist
-	for _, stage := range pipeline.Stages {
+	for _, stage := range pipeline.Stages() {
 		if strings.Contains(stage, "-apply-") {
 			t.Errorf("unexpected apply stage in plan-only mode: %s", stage)
 		}
@@ -135,7 +135,7 @@ func TestFixture_ChangedOnlyPlanOnly(t *testing.T) {
 		hasJob("plan-platform-stage-eu-central-1-eks")
 
 	// No apply jobs
-	for jobName := range pipeline.Jobs {
+	for _, jobName := range pipeline.JobNames() {
 		if strings.HasPrefix(jobName, "apply-") {
 			t.Errorf("unexpected apply job: %s", jobName)
 		}
@@ -233,14 +233,14 @@ func TestFixture_NoPlanEnabled(t *testing.T) {
 	assertPipeline(t, pipeline).jobCount(6)
 
 	// No plan jobs
-	for jobName := range pipeline.Jobs {
+	for _, jobName := range pipeline.JobNames() {
 		if strings.HasPrefix(jobName, "plan-") {
 			t.Errorf("expected no plan jobs, got %s", jobName)
 		}
 	}
 
 	// No plan stages
-	for _, stage := range pipeline.Stages {
+	for _, stage := range pipeline.Stages() {
 		if strings.Contains(stage, "-plan-") {
 			t.Errorf("unexpected plan stage: %s", stage)
 		}

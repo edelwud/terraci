@@ -116,11 +116,11 @@ func mergeJobEnv(base, overrides map[string]string) map[string]string {
 }
 
 func convertConfigStep(step configpkg.ConfigStep) domainpkg.Step {
-	return domainpkg.Step{
+	return domainpkg.NewStep(domainpkg.StepOptions{
 		Name: step.Name,
 		Uses: step.Uses,
 		With: step.With,
 		Run:  step.Run,
 		Env:  step.Env,
-	}
+	})
 }

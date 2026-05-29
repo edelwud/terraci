@@ -34,7 +34,7 @@ func NewGenerator(cfg *configpkg.Config, execCfg execution.Config, ir *pipeline.
 // Generate creates a GitLab CI pipeline from the bound IR.
 func (g *Generator) Generate() (pipeline.GeneratedPipeline, error) {
 	if g.ir == nil {
-		return &domain.Pipeline{Jobs: map[string]*domain.Job{}}, nil
+		return domain.EmptyPipeline(), nil
 	}
 	if err := g.ir.Validate(); err != nil {
 		return nil, err
@@ -66,7 +66,7 @@ func (g *Generator) transform(ir *pipeline.IR) (*domain.Pipeline, error) {
 		return nil, err
 	}
 
-	result := &domain.Pipeline{
+	builder := domain.NewPipelineBuilder(domain.PipelineOptions{
 		Stages:    stagePlan.stages,
 		Variables: g.settings.variables(),
 		Default: &domain.DefaultConfig{
@@ -75,22 +75,23 @@ func (g *Generator) transform(ir *pipeline.IR) (*domain.Pipeline, error) {
 				Entrypoint: effectiveImage.Entrypoint,
 			},
 		},
-		Jobs:     make(map[string]*domain.Job),
 		Workflow: g.generateWorkflow(),
-	}
+	})
 
-	builder := newJobBuilder(g.settings, stagePlan.stageByJob, func(job *domain.Job, jobType configpkg.JobOverwriteType) error {
+	jobBuilder := newJobBuilder(g.settings, stagePlan.stageByJob, func(job *domain.JobOptions, jobType configpkg.JobOverwriteType) error {
 		return applyResolvedJobConfig(g.settings, job, jobType)
 	})
 	jobs := ir.Jobs()
 	for i := range jobs {
 		irJob := &jobs[i]
-		job, err := builder.renderJob(irJob)
+		job, err := jobBuilder.renderJob(irJob)
 		if err != nil {
 			return nil, err
 		}
-		result.Jobs[irJob.Name()] = job
+		if err := builder.AddJob(irJob.Name(), job); err != nil {
+			return nil, err
+		}
 	}
 
-	return result, nil
+	return builder.Build()
 }

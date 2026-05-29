@@ -92,10 +92,10 @@ func (s *generatorScenario) generateTargets() []*discovery.Module {
 	return s.modules
 }
 
-func mustJob(t *testing.T, gitlabPipeline *Pipeline, name string) *Job {
+func mustJob(t *testing.T, gitlabPipeline *Pipeline, name string) Job {
 	t.Helper()
-	job := gitlabPipeline.Jobs[name]
-	if job == nil {
+	job, ok := gitlabPipeline.Job(name)
+	if !ok {
 		t.Fatalf("job %q not found", name)
 	}
 	return job

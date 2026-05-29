@@ -63,11 +63,12 @@ func TestGenerator_Generate_WithSummaryContribution(t *testing.T) {
 	assertPipeline(t, p).
 		hasJob("terraci-summary")
 	summaryJob := mustJob(t, p, "terraci-summary")
-	if summaryJob.Stage != p.Stages[len(p.Stages)-1] {
-		t.Errorf("summary job stage: expected last DAG stage, got %s in %v", summaryJob.Stage, p.Stages)
+	stages := p.Stages()
+	if summaryJob.Stage() != stages[len(stages)-1] {
+		t.Errorf("summary job stage: expected last DAG stage, got %s in %v", summaryJob.Stage(), stages)
 	}
-	if len(summaryJob.Needs) != 2 {
-		t.Errorf("summary job should have 2 needs, got %d", len(summaryJob.Needs))
+	if len(summaryJob.Needs()) != 2 {
+		t.Errorf("summary job should have 2 needs, got %d", len(summaryJob.Needs()))
 	}
 	assertPipeline(t, p).
 		job("plan-platform-stage-eu-central-1-vpc").
@@ -129,14 +130,12 @@ func TestGenerator_Generate_WithSecrets(t *testing.T) {
 		t.Fatal("expected *Pipeline type")
 	}
 
-	planJob := p.Jobs["plan-platform-stage-eu-central-1-vpc"]
-	if planJob == nil {
-		t.Fatal("plan job not found")
-	}
-	if planJob.Secrets == nil {
+	planJob := mustJob(t, p, "plan-platform-stage-eu-central-1-vpc")
+	planSecrets := planJob.Secrets()
+	if planSecrets == nil {
 		t.Fatal("expected secrets on plan job")
 	}
-	secret, exists := planJob.Secrets["AWS_SECRET_KEY"]
+	secret, exists := planSecrets["AWS_SECRET_KEY"]
 	if !exists {
 		t.Fatal("expected AWS_SECRET_KEY in secrets")
 	}
@@ -147,14 +146,12 @@ func TestGenerator_Generate_WithSecrets(t *testing.T) {
 		t.Errorf("expected VaultPath shorthand, got %q", secret.VaultPath)
 	}
 
-	applyJob := p.Jobs["apply-platform-stage-eu-central-1-vpc"]
-	if applyJob == nil {
-		t.Fatal("apply job not found")
-	}
-	if applyJob.Secrets == nil {
+	applyJob := mustJob(t, p, "apply-platform-stage-eu-central-1-vpc")
+	applySecrets := applyJob.Secrets()
+	if applySecrets == nil {
 		t.Fatal("expected secrets on apply job")
 	}
-	if _, exists := applyJob.Secrets["AWS_SECRET_KEY"]; !exists {
+	if _, exists := applySecrets["AWS_SECRET_KEY"]; !exists {
 		t.Error("expected AWS_SECRET_KEY in apply job secrets")
 	}
 }
@@ -187,23 +184,24 @@ func TestGenerator_DetailedPlanForcedByResourceConsumer(t *testing.T) {
 		t.Fatal("expected *Pipeline type")
 	}
 
-	planJob := p.Jobs["plan-platform-stage-eu-central-1-vpc"]
-	if planJob == nil || planJob.Artifacts == nil {
+	planJob := mustJob(t, p, "plan-platform-stage-eu-central-1-vpc")
+	artifacts := planJob.Artifacts()
+	if artifacts == nil {
 		t.Fatal("plan job artifacts missing")
 	}
 	hasPlanJSON := false
-	for _, p := range planJob.Artifacts.Paths {
+	for _, p := range artifacts.Paths {
 		if strings.HasSuffix(p, "plan.json") {
 			hasPlanJSON = true
 			break
 		}
 	}
 	if !hasPlanJSON {
-		t.Errorf("PlanJSON consumer did not emit plan.json; artifacts=%v", planJob.Artifacts.Paths)
+		t.Errorf("PlanJSON consumer did not emit plan.json; artifacts=%v", artifacts.Paths)
 	}
 	planName := "plan-platform-stage-eu-central-1-vpc"
-	if planJob.Artifacts.Name != pipeline.PlanArtifactName(planName) {
-		t.Errorf("plan artifact name = %q, want %q", planJob.Artifacts.Name, pipeline.PlanArtifactName(planName))
+	if artifacts.Name != pipeline.PlanArtifactName(planName) {
+		t.Errorf("plan artifact name = %q, want %q", artifacts.Name, pipeline.PlanArtifactName(planName))
 	}
 }
 
@@ -236,21 +234,19 @@ func TestGenerator_Generate_WithArtifacts(t *testing.T) {
 		t.Fatal("expected *Pipeline type")
 	}
 
-	planJob := p.Jobs["plan-platform-stage-eu-central-1-vpc"]
-	if planJob == nil {
-		t.Fatal("plan job not found")
-	}
-	if planJob.Artifacts == nil {
+	planJob := mustJob(t, p, "plan-platform-stage-eu-central-1-vpc")
+	artifacts := planJob.Artifacts()
+	if artifacts == nil {
 		t.Fatal("expected artifacts on plan job")
 	}
-	if planJob.Artifacts.ExpireIn != "1 week" {
-		t.Errorf("expected ExpireIn '1 week', got %q", planJob.Artifacts.ExpireIn)
+	if artifacts.ExpireIn != "1 week" {
+		t.Errorf("expected ExpireIn '1 week', got %q", artifacts.ExpireIn)
 	}
-	if planJob.Artifacts.When != "always" {
-		t.Errorf("expected When 'always', got %q", planJob.Artifacts.When)
+	if artifacts.When != "always" {
+		t.Errorf("expected When 'always', got %q", artifacts.When)
 	}
 	foundJSON := false
-	for _, path := range planJob.Artifacts.Paths {
+	for _, path := range artifacts.Paths {
 		if path == "*.json" {
 			foundJSON = true
 		}
@@ -293,15 +289,13 @@ func TestGenerator_Generate_WithPolicyCheck(t *testing.T) {
 		t.Fatal("expected *Pipeline type")
 	}
 
-	policyJob := p.Jobs["policy-check"]
-	if policyJob == nil {
-		t.Fatal("policy-check job not found")
-	}
-	if policyJob.Stage != p.Stages[len(p.Stages)-1] {
-		t.Errorf("policy-check job stage: expected last DAG stage, got %s in %v", policyJob.Stage, p.Stages)
+	policyJob := mustJob(t, p, "policy-check")
+	stages := p.Stages()
+	if policyJob.Stage() != stages[len(stages)-1] {
+		t.Errorf("policy-check job stage: expected last DAG stage, got %s in %v", policyJob.Stage(), stages)
 	}
 	hasCheck := false
-	for _, line := range policyJob.Script {
+	for _, line := range policyJob.Script() {
 		if strings.Contains(line, "terraci policy check") {
 			hasCheck = true
 		}
@@ -309,21 +303,23 @@ func TestGenerator_Generate_WithPolicyCheck(t *testing.T) {
 	if !hasCheck {
 		t.Error("expected 'terraci policy check' in policy job script")
 	}
-	if len(policyJob.Needs) == 0 {
+	needs := policyJob.Needs()
+	if len(needs) == 0 {
 		t.Error("expected policy-check job to have needs")
 	}
-	for _, need := range policyJob.Needs {
+	for _, need := range needs {
 		if need.Artifacts == nil || !*need.Artifacts {
 			t.Fatalf("need %#v does not explicitly enable artifacts", need)
 		}
 	}
-	if policyJob.Artifacts == nil {
+	artifacts := policyJob.Artifacts()
+	if artifacts == nil {
 		t.Fatal("policy-check artifacts missing")
 	}
-	if policyJob.Artifacts.Name != pipeline.ResultArtifactName("policy-check") {
-		t.Fatalf("policy-check artifact name = %q, want %q", policyJob.Artifacts.Name, pipeline.ResultArtifactName("policy-check"))
+	if artifacts.Name != pipeline.ResultArtifactName("policy-check") {
+		t.Fatalf("policy-check artifact name = %q, want %q", artifacts.Name, pipeline.ResultArtifactName("policy-check"))
 	}
-	if !slices.Contains(policyJob.Artifacts.Paths, ".terraci/policy-report.json") {
-		t.Fatalf("policy-check artifact paths = %v, want policy report", policyJob.Artifacts.Paths)
+	if !slices.Contains(artifacts.Paths, ".terraci/policy-report.json") {
+		t.Fatalf("policy-check artifact paths = %v, want policy report", artifacts.Paths)
 	}
 }

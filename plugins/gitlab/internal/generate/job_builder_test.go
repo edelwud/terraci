@@ -18,7 +18,7 @@ func testExecutionConfig() execution.Config {
 	return execution.Config{Binary: "terraform", InitEnabled: true, PlanEnabled: true, PlanMode: execution.PlanModeStandard, Parallelism: 4}
 }
 
-func noJobConfig(_ *domain.Job, _ configpkg.JobOverwriteType) error { return nil }
+func noJobConfig(_ *domain.JobOptions, _ configpkg.JobOverwriteType) error { return nil }
 
 func TestJobBuilderRenderJobBuildsModuleDefaults(t *testing.T) {
 	t.Parallel()
@@ -35,23 +35,23 @@ func TestJobBuilderRenderJobBuildsModuleDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("renderJob() error = %v", err)
 	}
-	if job.Stage != "deploy-0" {
-		t.Fatalf("Stage = %q", job.Stage)
+	if job.Stage() != "deploy-0" {
+		t.Fatalf("Stage = %q", job.Stage())
 	}
-	if len(job.Script) == 0 || !strings.Contains(strings.Join(job.Script, "\n"), "plan") {
-		t.Fatalf("Script = %#v", job.Script)
+	if script := job.Script(); len(script) == 0 || !strings.Contains(strings.Join(script, "\n"), "plan") {
+		t.Fatalf("Script = %#v", script)
 	}
-	if job.Cache == nil || job.Cache.Key == "" {
+	if cache := job.Cache(); cache == nil || cache.Key == "" {
 		t.Fatal("expected cache to be populated")
 	}
-	if job.ResourceGroup != module.ID() {
-		t.Fatalf("ResourceGroup = %q", job.ResourceGroup)
+	if job.ResourceGroup() != module.ID() {
+		t.Fatalf("ResourceGroup = %q", job.ResourceGroup())
 	}
-	if job.Artifacts == nil || len(job.Artifacts.Paths) != 1 {
+	if artifacts := job.Artifacts(); artifacts == nil || len(artifacts.Paths) != 1 {
 		t.Fatal("expected default artifacts")
 	}
-	if len(job.Needs) != 0 {
-		t.Fatalf("Needs = %#v, want none", job.Needs)
+	if needs := job.Needs(); len(needs) != 0 {
+		t.Fatalf("Needs = %#v, want none", needs)
 	}
 }
 
@@ -104,7 +104,7 @@ func TestJobBuilderContributedJobOverwriteByName(t *testing.T) {
 	builder := newJobBuilder(
 		s,
 		map[string]string{"cost-estimation": "deploy-1"},
-		func(job *domain.Job, jt configpkg.JobOverwriteType) error {
+		func(job *domain.JobOptions, jt configpkg.JobOverwriteType) error {
 			return applyResolvedJobConfig(s, job, jt)
 		},
 	)
@@ -114,11 +114,11 @@ func TestJobBuilderContributedJobOverwriteByName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("renderJob() error = %v", err)
 	}
-	if len(job.Tags) != 1 || job.Tags[0] != "cost-runner" {
-		t.Fatalf("Tags = %v, want [cost-runner]", job.Tags)
+	if tags := job.Tags(); len(tags) != 1 || tags[0] != "cost-runner" {
+		t.Fatalf("Tags = %v, want [cost-runner]", tags)
 	}
-	if job.Image == nil || job.Image.Name != "cost-image:1.0" {
-		t.Fatalf("Image = %v, want cost-image:1.0", job.Image)
+	if image := job.Image(); image == nil || image.Name != "cost-image:1.0" {
+		t.Fatalf("Image = %v, want cost-image:1.0", image)
 	}
 }
 
@@ -163,17 +163,18 @@ func TestJobBuilderContributedJobUsesOptionalNeeds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("renderJob() error = %v", err)
 	}
-	if job.Stage != "deploy-2" {
-		t.Fatalf("Stage = %q", job.Stage)
+	if job.Stage() != "deploy-2" {
+		t.Fatalf("Stage = %q", job.Stage())
 	}
-	if len(job.Needs) != 1 || !job.Needs[0].Optional {
-		t.Fatalf("Needs = %#v", job.Needs)
+	needs := job.Needs()
+	if len(needs) != 1 || !needs[0].Optional {
+		t.Fatalf("Needs = %#v", needs)
 	}
-	if job.Needs[0].Artifacts == nil || !*job.Needs[0].Artifacts {
-		t.Fatalf("Needs[0].Artifacts = %#v, want true", job.Needs[0].Artifacts)
+	if needs[0].Artifacts == nil || !*needs[0].Artifacts {
+		t.Fatalf("Needs[0].Artifacts = %#v, want true", needs[0].Artifacts)
 	}
-	if len(job.Script) != 1 || job.Script[0] != "terraci summary || true" {
-		t.Fatalf("Script = %#v", job.Script)
+	if script := job.Script(); len(script) != 1 || script[0] != "terraci summary || true" {
+		t.Fatalf("Script = %#v", script)
 	}
 }
 

@@ -10,8 +10,8 @@ func newWorkflowBuilder(settings settings) workflowBuilder {
 	return workflowBuilder{settings: settings}
 }
 
-func (b workflowBuilder) baseWorkflow() *domainpkg.Workflow {
-	return &domainpkg.Workflow{
+func (b workflowBuilder) baseWorkflow() *domainpkg.WorkflowBuilder {
+	return domainpkg.NewWorkflowBuilder(domainpkg.WorkflowOptions{
 		Name: "Terraform",
 		On: domainpkg.WorkflowTrigger{
 			Push:        &domainpkg.PushTrigger{Branches: []string{"main"}},
@@ -19,6 +19,5 @@ func (b workflowBuilder) baseWorkflow() *domainpkg.Workflow {
 		},
 		Permissions: b.settings.permissions(),
 		Env:         b.settings.env(),
-		Jobs:        make(map[string]*domainpkg.Job),
-	}
+	})
 }

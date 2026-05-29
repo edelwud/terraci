@@ -503,6 +503,63 @@ func TestArchitecture_CIRenderDocs(t *testing.T) {
 	}
 }
 
+func TestArchitecture_ProviderOutputValueBoundaries(t *testing.T) {
+	root := repoRoot(t)
+	var violations []string
+
+	for _, rel := range goFiles(t, root, "plugins/gitlab", "plugins/github") {
+		if !isProductionFile(rel) || isProviderDomainPackageFile(rel) {
+			continue
+		}
+		file := parseGoFile(t, filepath.Join(root, rel), 0)
+		gitlabDomainAliases := importAliases(file, moduleImportPath+"/plugins/gitlab/internal/domain")
+		githubDomainAliases := importAliases(file, moduleImportPath+"/plugins/github/internal/domain")
+
+		ast.Inspect(file, func(node ast.Node) bool {
+			switch typed := node.(type) {
+			case *ast.CompositeLit:
+				if isProviderOutputLiteral(typed.Type, gitlabDomainAliases, githubDomainAliases) {
+					violations = append(violations, rel+" manually constructs provider output domain value; use provider output builders")
+				}
+			case *ast.AssignStmt:
+				for _, lhs := range typed.Lhs {
+					if isProviderJobsIndex(lhs) {
+						violations = append(violations, rel+" mutates provider document jobs map directly; use provider document builders")
+					}
+				}
+			}
+			return true
+		})
+	}
+
+	stalePatterns := []string{
+		"Pipeline{Stages, Jobs}",
+		"Workflow{Jobs, Steps}",
+		"domain.Pipeline{",
+		"domain.Workflow{",
+		"domain.Job{",
+		"domain.Step{",
+		".Jobs[",
+	}
+	for _, rel := range textFiles(t, root, "AGENTS.md", "docs", "examples", "pkg/plugin/doc.go") {
+		if allowUnder(rel, "docs/.vitepress/dist/") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			t.Fatalf("read %s: %v", rel, err)
+		}
+		text := string(data)
+		for _, pattern := range stalePatterns {
+			banTextPattern(&violations, rel, text, pattern, "stale mutable provider-output reference")
+		}
+	}
+
+	if len(violations) > 0 {
+		t.Fatalf("provider output value boundary violations:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
 func TestArchitecture_CostAttributeBoundaries(t *testing.T) {
 	root := repoRoot(t)
 	var violations []string
@@ -622,6 +679,42 @@ func isPolicyEnvelopeLiteral(expr ast.Expr, aliases map[string]bool) bool {
 	}
 	ident, ok := selector.X.(*ast.Ident)
 	return ok && aliases[ident.Name]
+}
+
+func isProviderDomainPackageFile(rel string) bool {
+	return strings.HasPrefix(rel, "plugins/gitlab/internal/domain/") ||
+		strings.HasPrefix(rel, "plugins/github/internal/domain/")
+}
+
+func isProviderOutputLiteral(expr ast.Expr, aliasSets ...map[string]bool) bool {
+	selector, ok := expr.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	switch selector.Sel.Name {
+	case "Pipeline", "Workflow", "Job", "Step":
+	default:
+		return false
+	}
+	ident, ok := selector.X.(*ast.Ident)
+	if !ok {
+		return false
+	}
+	for _, aliases := range aliasSets {
+		if aliases[ident.Name] {
+			return true
+		}
+	}
+	return false
+}
+
+func isProviderJobsIndex(expr ast.Expr) bool {
+	index, ok := expr.(*ast.IndexExpr)
+	if !ok {
+		return false
+	}
+	selector, ok := index.X.(*ast.SelectorExpr)
+	return ok && selector.Sel.Name == "Jobs"
 }
 
 func isCostAttrContractPackage(rel string) bool {

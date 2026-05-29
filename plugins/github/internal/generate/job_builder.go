@@ -23,10 +23,11 @@ func newJobBuilder(settings settings) jobBuilder {
 	return jobBuilder{settings: settings}
 }
 
-func (b jobBuilder) renderJob(irJob *pipeline.Job) (*domainpkg.Job, error) {
+func (b jobBuilder) renderJob(irJob *pipeline.Job) (domainpkg.Job, error) {
 	profile, err := b.settings.jobProfile(jobOverwriteType(irJob))
 	if err != nil {
-		return nil, err
+		var zero domainpkg.Job
+		return zero, err
 	}
 
 	steps := []domainpkg.Step{checkoutStep()}
@@ -68,7 +69,7 @@ func (b jobBuilder) renderJob(irJob *pipeline.Job) (*domainpkg.Job, error) {
 		)
 	}
 
-	job := &domainpkg.Job{
+	job := domainpkg.JobOptions{
 		RunsOn:      profile.runsOn,
 		Needs:       pipeline.DependencyNames(irJob.Dependencies()),
 		Env:         mergeJobEnv(irJob.Env(), profile.env),
@@ -85,7 +86,7 @@ func (b jobBuilder) renderJob(irJob *pipeline.Job) (*domainpkg.Job, error) {
 			CancelInProgress: false,
 		}
 	}
-	return job, nil
+	return domainpkg.NewJob(job)
 }
 
 func jobOverwriteType(irJob *pipeline.Job) configpkg.JobOverwriteType {
@@ -129,31 +130,28 @@ func artifactRequired(irJob *pipeline.Job) bool {
 }
 
 func checkoutStep() domainpkg.Step {
-	return domainpkg.Step{Name: "Checkout", Uses: "actions/checkout@v4"}
+	return domainpkg.NewStep(domainpkg.StepOptions{Name: "Checkout", Uses: "actions/checkout@v4"})
 }
 
 func runStep(name, script string) domainpkg.Step {
-	return domainpkg.Step{Name: name, Run: script}
+	return domainpkg.NewStep(domainpkg.StepOptions{Name: name, Run: script})
 }
 
 func downloadArtifactStep(name, artifact string, optional bool) domainpkg.Step {
-	step := domainpkg.Step{
+	return domainpkg.NewStep(domainpkg.StepOptions{
 		Name: name,
 		Uses: "actions/download-artifact@v4",
 		With: map[string]string{
 			"name": artifact,
 			"path": ".",
 		},
-	}
-	if optional {
-		step.If = "always()"
-		step.ContinueOnError = true
-	}
-	return step
+		If:              optionalIf(optional),
+		ContinueOnError: optional,
+	})
 }
 
 func uploadArtifactStep(name string, artifact pipeline.Artifact) domainpkg.Step {
-	return domainpkg.Step{
+	return domainpkg.NewStep(domainpkg.StepOptions{
 		Name: name,
 		Uses: "actions/upload-artifact@v4",
 		With: map[string]string{
@@ -164,7 +162,7 @@ func uploadArtifactStep(name string, artifact pipeline.Artifact) domainpkg.Step 
 			"if-no-files-found":    "warn",
 		},
 		If: "always()",
-	}
+	})
 }
 
 func stageArtifactStep(name string, artifact pipeline.Artifact, required bool) domainpkg.Step {
@@ -194,11 +192,18 @@ func stageArtifactStep(name string, artifact pipeline.Artifact, required bool) d
 		)
 	}
 
-	return domainpkg.Step{
+	return domainpkg.NewStep(domainpkg.StepOptions{
 		Name: name,
 		Run:  strings.Join(lines, "\n"),
 		If:   "always()",
+	})
+}
+
+func optionalIf(optional bool) string {
+	if optional {
+		return "always()"
 	}
+	return ""
 }
 
 func artifactStageDir(artifact pipeline.Artifact) string {

@@ -14,10 +14,10 @@ import (
 type jobBuilder struct {
 	settings    settings
 	stageByJob  map[string]string
-	applyConfig func(job *domain.Job, jobType configpkg.JobOverwriteType) error
+	applyConfig func(job *domain.JobOptions, jobType configpkg.JobOverwriteType) error
 }
 
-func newJobBuilder(settings settings, stageByJob map[string]string, applyConfig func(job *domain.Job, jobType configpkg.JobOverwriteType) error) jobBuilder {
+func newJobBuilder(settings settings, stageByJob map[string]string, applyConfig func(job *domain.JobOptions, jobType configpkg.JobOverwriteType) error) jobBuilder {
 	return jobBuilder{
 		settings:    settings,
 		stageByJob:  stageByJob,
@@ -25,13 +25,13 @@ func newJobBuilder(settings settings, stageByJob map[string]string, applyConfig 
 	}
 }
 
-func (b jobBuilder) renderJob(irJob *pipeline.Job) (*domain.Job, error) {
+func (b jobBuilder) renderJob(irJob *pipeline.Job) (domain.Job, error) {
 	script := cishell.RenderOperation(irJob.Operation())
 	if irJob.AllowFailure() {
 		script = allowFailureScript(script)
 	}
 
-	job := &domain.Job{
+	job := domain.JobOptions{
 		Stage:        b.stageByJob[irJob.Name()],
 		Script:       script,
 		Variables:    copyStringMap(irJob.Env()),
@@ -45,10 +45,11 @@ func (b jobBuilder) renderJob(irJob *pipeline.Job) (*domain.Job, error) {
 		job.ResourceGroup = module.ID()
 	}
 
-	if err := b.applyConfig(job, jobOverwriteType(irJob)); err != nil {
-		return nil, err
+	if err := b.applyConfig(&job, jobOverwriteType(irJob)); err != nil {
+		var zero domain.Job
+		return zero, err
 	}
-	return job, nil
+	return domain.NewJob(job)
 }
 
 func jobOverwriteType(irJob *pipeline.Job) configpkg.JobOverwriteType {

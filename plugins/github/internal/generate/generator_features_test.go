@@ -110,9 +110,12 @@ func TestGenerate_ContributedJobOverwriteByName(t *testing.T) {
 		job("cost-estimation").
 		containerImage("cost-specific:1.0")
 
-	job := workflow.Jobs["cost-estimation"]
-	if job.RunsOn != "cost-runner" {
-		t.Fatalf("RunsOn = %q, want cost-runner", job.RunsOn)
+	job, ok := workflow.Job("cost-estimation")
+	if !ok {
+		t.Fatal("cost-estimation job not found")
+	}
+	if job.RunsOn() != "cost-runner" {
+		t.Fatalf("RunsOn = %q, want cost-runner", job.RunsOn())
 	}
 }
 

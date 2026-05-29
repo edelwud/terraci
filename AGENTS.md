@@ -311,13 +311,14 @@ The plugin SDK exposes narrow resolver interfaces: `CIResolver`, `ChangeDetector
 
 `workflow.PlanProject(...)` produces the canonical project/target snapshot and
 `pipeline.BuildProjectIR(...)` turns it into an immutable provider-agnostic IR.
-Generators transform that IR to YAML:
+Generators transform that IR through provider-local output builders and then
+serialize the immutable provider document to YAML:
 
 ```
 workflow.PlanProject(...) → pipeline.BuildProjectIR(...) → *pipeline.IR
   ↓
-GitLab: IR → Pipeline{Stages, Jobs} → YAML
-GitHub: IR → Workflow{Jobs, Steps} → YAML
+GitLab: IR → PipelineBuilder → Pipeline.ToYAML()
+GitHub: IR → WorkflowBuilder → Workflow.ToYAML()
 ```
 
 The IR is the **single source** for downstream consumers and a value object:
@@ -329,6 +330,10 @@ live on `*IR`: `Jobs()`, `FindJob(name)`, `JobsByKind(kind)`,
 `JobNamesByKind(kind)`, `JobForModule(kind, module)`, and
 `HasDependency(job, dep)`. `pipeline.Schedule(ir)` returns immutable
 barrier-group value objects with `Name()`, `Jobs()`, and `JobCount()`.
+Provider output is also a value object: provider generators build documents
+through provider-local builders, tests read them through semantic helpers such
+as `Job(name)`, `JobNames()`, `HasNeed(job, dep)`, `Steps()`, `Needs()`, and
+`Env()`, and `ToYAML()` is the only raw YAML/map boundary.
 
 Shell rendering (`cd module && ${TERRAFORM_BINARY} init && plan -out=…`) lives in `pkg/pipeline/cishell` (`cishell.RenderOperation(op)`) — never in the IR package itself. Providers driving Terraform via tfexec instead of shell don't need cishell.
 

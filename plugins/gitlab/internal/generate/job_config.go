@@ -8,7 +8,7 @@ import (
 	"github.com/edelwud/terraci/plugins/gitlab/internal/domain"
 )
 
-func applyJobConfig(job *domain.Job, cfg configpkg.JobConfig) {
+func applyJobConfig(job *domain.JobOptions, cfg configpkg.JobConfig) {
 	if img := cfg.GetImage(); img != nil && img.Name != "" {
 		job.Image = &domain.ImageConfig{
 			Name:       img.Name,
@@ -64,12 +64,12 @@ func applyJobConfig(job *domain.Job, cfg configpkg.JobConfig) {
 	}
 }
 
-func applyResolvedJobConfig(settings settings, job *domain.Job, jobType configpkg.JobOverwriteType) error {
+func applyResolvedJobConfig(settings settings, job *domain.JobOptions, jobType configpkg.JobOverwriteType) error {
 	applyJobDefaults(settings, job)
 	return applyOverwrites(settings, job, jobType)
 }
 
-func applyJobDefaults(settings settings, job *domain.Job) {
+func applyJobDefaults(settings settings, job *domain.JobOptions) {
 	defaults := settings.jobDefaults()
 	if defaults == nil {
 		return
@@ -77,13 +77,13 @@ func applyJobDefaults(settings settings, job *domain.Job) {
 	applyJobConfig(job, defaults)
 }
 
-func applyOverwrites(settings settings, job *domain.Job, jobType configpkg.JobOverwriteType) error {
+func applyOverwrites(settings settings, job *domain.JobOptions, jobType configpkg.JobOverwriteType) error {
 	return overwrite.ApplyMatching(
 		job,
 		jobType,
 		settings.overwrites(),
 		overwrite.ByKey(func(ow *configpkg.JobOverwrite) configpkg.JobOverwriteType { return ow.Type }),
-		func(job *domain.Job, ow *configpkg.JobOverwrite) {
+		func(job *domain.JobOptions, ow *configpkg.JobOverwrite) {
 			applyJobConfig(job, ow)
 		},
 	)
@@ -159,5 +159,5 @@ func (g *Generator) generateWorkflow() *domain.Workflow {
 		}
 	}
 
-	return &domain.Workflow{Rules: rules}
+	return domain.NewWorkflow(rules)
 }

@@ -19,16 +19,24 @@ type (
 	IDToken          = configpkg.IDToken
 	VaultEngine      = configpkg.VaultEngine
 
-	Pipeline      = domain.Pipeline
-	DefaultConfig = domain.DefaultConfig
-	ImageConfig   = domain.ImageConfig
-	Secret        = domain.Secret
-	VaultSecret   = domain.VaultSecret
-	Job           = domain.Job
-	Cache         = domain.Cache
-	JobNeed       = domain.JobNeed
-	Rule          = domain.Rule
-	Artifacts     = domain.Artifacts
-	Reports       = domain.Reports
-	Workflow      = domain.Workflow
+	Pipeline        = domain.Pipeline
+	PipelineOptions = domain.PipelineOptions
+	NamedJob        = domain.NamedJob
+	DefaultConfig   = domain.DefaultConfig
+	ImageConfig     = domain.ImageConfig
+	Secret          = domain.Secret
+	VaultSecret     = domain.VaultSecret
+	Job             = domain.Job
+	JobOptions      = domain.JobOptions
+	Cache           = domain.Cache
+	JobNeed         = domain.JobNeed
+	Rule            = domain.Rule
+	Artifacts       = domain.Artifacts
+	Reports         = domain.Reports
+	Workflow        = domain.Workflow
+)
+
+var (
+	NewPipeline = domain.NewPipeline
+	NewJob      = domain.NewJob
 )

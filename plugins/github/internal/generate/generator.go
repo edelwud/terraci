@@ -25,7 +25,7 @@ func NewGenerator(cfg *configpkg.Config, execCfg execution.Config, ir *pipeline.
 
 func (g *Generator) Generate() (pipeline.GeneratedPipeline, error) {
 	if g.ir == nil {
-		return &domainpkg.Workflow{Jobs: map[string]*domainpkg.Job{}}, nil
+		return domainpkg.EmptyWorkflow(), nil
 	}
 	if err := g.ir.Validate(); err != nil {
 		return nil, err
@@ -54,8 +54,10 @@ func (g *Generator) transform(ir *pipeline.IR) (*domainpkg.Workflow, error) {
 		if err != nil {
 			return nil, err
 		}
-		workflow.Jobs[irJob.Name()] = job
+		if err := workflow.AddJob(irJob.Name(), job); err != nil {
+			return nil, err
+		}
 	}
 
-	return workflow, nil
+	return workflow.Build()
 }

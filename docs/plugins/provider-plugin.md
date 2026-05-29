@@ -87,6 +87,11 @@ type GeneratedPipeline interface {
 }
 ```
 
+Provider output should follow the same value-object rule as `pipeline.IR`.
+Build a provider-local document through validated constructors/builders, expose
+semantic read helpers for tests, and keep `ToYAML()` as the only raw YAML/map
+boundary.
+
 ### Working with the Pipeline IR
 
 The IR is a flat DAG value object. Every executable item is a `pipeline.Job`;

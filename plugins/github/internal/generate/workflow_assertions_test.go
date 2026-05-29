@@ -20,7 +20,7 @@ func assertWorkflow(t *testing.T, workflow *domainpkg.Workflow) *workflowAssert 
 
 func (a *workflowAssert) jobCount(expected int) *workflowAssert {
 	a.t.Helper()
-	if got := len(a.workflow.Jobs); got != expected {
+	if got := a.workflow.JobCount(); got != expected {
 		a.t.Fatalf("expected %d jobs, got %d", expected, got)
 	}
 	return a
@@ -28,7 +28,7 @@ func (a *workflowAssert) jobCount(expected int) *workflowAssert {
 
 func (a *workflowAssert) hasJob(name string) *workflowAssert {
 	a.t.Helper()
-	if _, ok := a.workflow.Jobs[name]; !ok {
+	if _, ok := a.workflow.Job(name); !ok {
 		a.t.Fatalf("expected job %q to exist", name)
 	}
 	return a
@@ -36,7 +36,7 @@ func (a *workflowAssert) hasJob(name string) *workflowAssert {
 
 func (a *workflowAssert) noJob(name string) *workflowAssert {
 	a.t.Helper()
-	if _, ok := a.workflow.Jobs[name]; ok {
+	if _, ok := a.workflow.Job(name); ok {
 		a.t.Fatalf("expected job %q to not exist", name)
 	}
 	return a
@@ -44,7 +44,7 @@ func (a *workflowAssert) noJob(name string) *workflowAssert {
 
 func (a *workflowAssert) env(name, expected string) *workflowAssert {
 	a.t.Helper()
-	if got := a.workflow.Env[name]; got != expected {
+	if got := a.workflow.Env()[name]; got != expected {
 		a.t.Fatalf("expected env %s=%q, got %q", name, expected, got)
 	}
 	return a
@@ -52,8 +52,8 @@ func (a *workflowAssert) env(name, expected string) *workflowAssert {
 
 func (a *workflowAssert) job(name string) *jobAssert {
 	a.t.Helper()
-	job := a.workflow.Jobs[name]
-	if job == nil {
+	job, ok := a.workflow.Job(name)
+	if !ok {
 		a.t.Fatalf("expected job %q to exist", name)
 	}
 	return &jobAssert{t: a.t, name: name, job: job}
@@ -62,48 +62,48 @@ func (a *workflowAssert) job(name string) *jobAssert {
 type jobAssert struct {
 	t    *testing.T
 	name string
-	job  *domainpkg.Job
+	job  domainpkg.Job
 }
 
 func (a *jobAssert) hasNeed(name string) *jobAssert {
 	a.t.Helper()
-	citest.AssertHasNeed(a.t, a.name, a.job.Needs, name)
+	citest.AssertHasNeed(a.t, a.name, a.job.Needs(), name)
 	return a
 }
 
 func (a *jobAssert) noNeedWithPrefix(prefix string) *jobAssert {
 	a.t.Helper()
-	citest.AssertNoNeedWithPrefix(a.t, a.name, a.job.Needs, prefix)
+	citest.AssertNoNeedWithPrefix(a.t, a.name, a.job.Needs(), prefix)
 	return a
 }
 
 func (a *jobAssert) noEnvironment() *jobAssert {
 	a.t.Helper()
-	if a.job.Environment != "" {
-		a.t.Fatalf("expected job %q to have no environment, got %q", a.name, a.job.Environment)
+	if a.job.Environment() != "" {
+		a.t.Fatalf("expected job %q to have no environment, got %q", a.name, a.job.Environment())
 	}
 	return a
 }
 
 func (a *jobAssert) environment(expected string) *jobAssert {
 	a.t.Helper()
-	if a.job.Environment != expected {
-		a.t.Fatalf("expected job %q environment=%q, got %q", a.name, expected, a.job.Environment)
+	if a.job.Environment() != expected {
+		a.t.Fatalf("expected job %q environment=%q, got %q", a.name, expected, a.job.Environment())
 	}
 	return a
 }
 
 func (a *jobAssert) runsOn(expected string) *jobAssert {
 	a.t.Helper()
-	if a.job.RunsOn != expected {
-		a.t.Fatalf("expected job %q runs-on=%q, got %q", a.name, expected, a.job.RunsOn)
+	if a.job.RunsOn() != expected {
+		a.t.Fatalf("expected job %q runs-on=%q, got %q", a.name, expected, a.job.RunsOn())
 	}
 	return a
 }
 
 func (a *jobAssert) env(name, expected string) *jobAssert {
 	a.t.Helper()
-	if got := a.job.Env[name]; got != expected {
+	if got := a.job.Env()[name]; got != expected {
 		a.t.Fatalf("expected job %q env %s=%q, got %q", a.name, name, expected, got)
 	}
 	return a
@@ -111,19 +111,20 @@ func (a *jobAssert) env(name, expected string) *jobAssert {
 
 func (a *jobAssert) containerImage(expected string) *jobAssert {
 	a.t.Helper()
-	if a.job.Container == nil {
+	container := a.job.Container()
+	if container == nil {
 		a.t.Fatalf("expected job %q to have container", a.name)
 	}
-	if a.job.Container.Image != expected {
-		a.t.Fatalf("expected job %q container=%q, got %q", a.name, expected, a.job.Container.Image)
+	if container.Image != expected {
+		a.t.Fatalf("expected job %q container=%q, got %q", a.name, expected, container.Image)
 	}
 	return a
 }
 
 func (a *jobAssert) stepUses(action string) *jobAssert {
 	a.t.Helper()
-	for _, step := range a.job.Steps {
-		if step.Uses == action {
+	for _, step := range a.job.Steps() {
+		if step.Uses() == action {
 			return a
 		}
 	}
@@ -133,8 +134,8 @@ func (a *jobAssert) stepUses(action string) *jobAssert {
 
 func (a *jobAssert) stepRunContains(fragment string) *jobAssert {
 	a.t.Helper()
-	for _, step := range a.job.Steps {
-		if strings.Contains(step.Run, fragment) {
+	for _, step := range a.job.Steps() {
+		if strings.Contains(step.Run(), fragment) {
 			return a
 		}
 	}
@@ -144,8 +145,8 @@ func (a *jobAssert) stepRunContains(fragment string) *jobAssert {
 
 func (a *jobAssert) stepNamed(name string) *jobAssert {
 	a.t.Helper()
-	for _, step := range a.job.Steps {
-		if step.Name == name {
+	for _, step := range a.job.Steps() {
+		if step.Name() == name {
 			return a
 		}
 	}
@@ -155,12 +156,12 @@ func (a *jobAssert) stepNamed(name string) *jobAssert {
 
 func (a *jobAssert) stepWith(stepName, key, expected string) *jobAssert {
 	a.t.Helper()
-	for _, step := range a.job.Steps {
-		if step.Name != stepName {
+	for _, step := range a.job.Steps() {
+		if step.Name() != stepName {
 			continue
 		}
-		if step.With[key] != expected {
-			a.t.Fatalf("expected job %q step %q with %s=%q, got %q", a.name, stepName, key, expected, step.With[key])
+		if step.With()[key] != expected {
+			a.t.Fatalf("expected job %q step %q with %s=%q, got %q", a.name, stepName, key, expected, step.With()[key])
 		}
 		return a
 	}

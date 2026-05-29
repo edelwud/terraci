@@ -8,21 +8,26 @@ import (
 )
 
 func TestToYAML(t *testing.T) {
-	workflow := &domainpkg.Workflow{
+	job, err := domainpkg.NewJob(domainpkg.JobOptions{
+		RunsOn: "ubuntu-latest",
+		Steps: []domainpkg.Step{
+			domainpkg.NewStep(domainpkg.StepOptions{Name: "Checkout", Uses: "actions/checkout@v4"}),
+			domainpkg.NewStep(domainpkg.StepOptions{Name: "Plan", Run: "terraform plan"}),
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow, err := domainpkg.NewWorkflow(domainpkg.WorkflowOptions{
 		Name: "Terraform",
 		On: domainpkg.WorkflowTrigger{
 			Push: &domainpkg.PushTrigger{Branches: []string{"main"}},
 		},
-		Env: map[string]string{"TERRAFORM_BINARY": "terraform"},
-		Jobs: map[string]*domainpkg.Job{
-			"plan-test": {
-				RunsOn: "ubuntu-latest",
-				Steps: []domainpkg.Step{
-					{Name: "Checkout", Uses: "actions/checkout@v4"},
-					{Name: "Plan", Run: "terraform plan"},
-				},
-			},
-		},
+		Env:  map[string]string{"TERRAFORM_BINARY": "terraform"},
+		Jobs: []domainpkg.NamedJob{{Name: "plan-test", Job: job}},
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	yamlBytes, err := workflow.ToYAML()

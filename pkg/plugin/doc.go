@@ -108,6 +108,20 @@
 // Tests and advanced in-process tooling can use pkg/pipeline/pipelinetest for
 // validated synthetic fixtures.
 //
+// # CI provider output boundary
+//
+// CI provider generators should treat pipeline.IR as the only provider input,
+// then build provider-local immutable documents through their own builders.
+// The canonical flow is:
+//
+//	workflow.PlanProject -> pipeline.BuildProjectIR -> provider document builder
+//	    -> immutable provider document -> ToYAML
+//
+// ToYAML is the only place provider output should become raw YAML/maps. Tests
+// should use semantic read helpers on provider documents, such as Job(name),
+// JobNames, HasNeed, Steps, Needs, Env, and Variables, instead of indexing
+// mutable job maps.
+//
 // # Init wizard boundary
 //
 // InitContributor implementations return typed config through

@@ -14,7 +14,7 @@ import (
 func TestEdgeCase_EmptyTargetModules(t *testing.T) {
 	pipeline := newFixtureScenario(t, "basic").withTargets([]*discovery.Module{}...).generate()
 
-	if len(pipeline.Jobs) == 0 {
+	if pipeline.JobCount() == 0 {
 		t.Log("Empty target modules generated 0 jobs - this may be correct if empty means 'no changes'")
 	}
 }
@@ -143,8 +143,8 @@ func TestEdgeCase_DiamondDependency(t *testing.T) {
 		hasNeed("apply-svc-stage-eu-central-1-c")
 	jobB := mustJob(t, pipeline, "apply-svc-stage-eu-central-1-b")
 	jobC := mustJob(t, pipeline, "apply-svc-stage-eu-central-1-c")
-	if jobB.Stage != jobC.Stage {
-		t.Errorf("B and C should be in same stage, got B=%s C=%s", jobB.Stage, jobC.Stage)
+	if jobB.Stage() != jobC.Stage() {
+		t.Errorf("B and C should be in same stage, got B=%s C=%s", jobB.Stage(), jobC.Stage())
 	}
 }
 
@@ -187,8 +187,8 @@ func TestEdgeCase_PlanOnlyWithNoPlanEnabled(t *testing.T) {
 		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = false }).
 		generate()
 
-	if len(pipeline.Jobs) != 0 {
-		t.Logf("Got %d jobs with PlanOnly=true, PlanEnabled=false", len(pipeline.Jobs))
+	if pipeline.JobCount() != 0 {
+		t.Logf("Got %d jobs with PlanOnly=true, PlanEnabled=false", pipeline.JobCount())
 	}
 }
 
@@ -196,9 +196,13 @@ func TestEdgeCase_ApplyAutomaticByDefault(t *testing.T) {
 	pipeline := newFixtureScenario(t, "basic").
 		generate()
 
-	for jobName, job := range pipeline.Jobs {
+	for _, jobName := range pipeline.JobNames() {
+		job, ok := pipeline.Job(jobName)
+		if !ok {
+			t.Fatalf("job %q not found", jobName)
+		}
 		if strings.HasPrefix(jobName, "apply-") {
-			if job.When == "manual" {
+			if job.When() == "manual" {
 				t.Errorf("Apply job %s should not be manual by default", jobName)
 			}
 		}
@@ -212,10 +216,14 @@ func TestEdgeCase_ManualApplyViaOverwrite(t *testing.T) {
 		}).
 		generate()
 
-	for jobName, job := range pipeline.Jobs {
+	for _, jobName := range pipeline.JobNames() {
+		job, ok := pipeline.Job(jobName)
+		if !ok {
+			t.Fatalf("job %q not found", jobName)
+		}
 		if strings.HasPrefix(jobName, "apply-") {
-			if job.When != "manual" {
-				t.Errorf("Apply job %s should be manual when configured by overwrite, got %q", jobName, job.When)
+			if job.When() != "manual" {
+				t.Errorf("Apply job %s should be manual when configured by overwrite, got %q", jobName, job.When())
 			}
 		}
 	}
@@ -225,10 +233,10 @@ func TestEdgeCase_ManualApplyViaOverwrite(t *testing.T) {
 func TestEdgeCase_ChangedOnlyNoChanges(t *testing.T) {
 	pipeline := newFixtureScenario(t, "basic").withTargets([]*discovery.Module{}...).generate()
 
-	if len(pipeline.Jobs) == 0 {
+	if pipeline.JobCount() == 0 {
 		t.Log("Empty changes resulted in 0 jobs - may need to handle this case in CLI")
 	} else {
-		t.Logf("Empty changes resulted in %d jobs (fallback to all)", len(pipeline.Jobs))
+		t.Logf("Empty changes resulted in %d jobs (fallback to all)", pipeline.JobCount())
 	}
 }
 

@@ -6,18 +6,20 @@ import (
 )
 
 func TestPipeline_ToYAML(t *testing.T) {
-	p := &Pipeline{
+	job, err := NewJob(JobOptions{Stage: "plan-0", Script: []string{"terraform plan"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := NewPipeline(PipelineOptions{
 		Stages:    []string{"plan-0", "apply-0"},
 		Variables: map[string]string{"TERRAFORM_BINARY": "terraform"},
 		Default: &DefaultConfig{
 			Image: &ImageConfig{Name: "hashicorp/terraform:1.6"},
 		},
-		Jobs: map[string]*Job{
-			"plan-test": {
-				Stage:  "plan-0",
-				Script: []string{"terraform plan"},
-			},
-		},
+		Jobs: []NamedJob{{Name: "plan-test", Job: job}},
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	yamlBytes, err := p.ToYAML()

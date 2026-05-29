@@ -40,9 +40,10 @@ func TestPipelineGeneration_Basic(t *testing.T) {
 		}).
 		generate()
 
-	for _, stage := range pipeline.Stages {
+	stages := pipeline.Stages()
+	for _, stage := range stages {
 		if !strings.HasPrefix(stage, "deploy-") {
-			t.Fatalf("expected DAG stage %q to use deploy- prefix; stages=%v", stage, pipeline.Stages)
+			t.Fatalf("expected DAG stage %q to use deploy- prefix; stages=%v", stage, stages)
 		}
 	}
 
@@ -85,7 +86,7 @@ func TestPipelineGeneration_PlanOnly(t *testing.T) {
 
 	assertPipeline(t, pipeline).noStageWithFragment("-apply-")
 
-	for jobName := range pipeline.Jobs {
+	for _, jobName := range pipeline.JobNames() {
 		if strings.HasPrefix(jobName, "apply-") {
 			t.Errorf("Unexpected apply job in plan-only mode: %s", jobName)
 		}
@@ -211,7 +212,7 @@ func TestPipelineGeneration_ChangedOnlyPlanOnly(t *testing.T) {
 	assertPipeline(t, pipeline).jobCount(2)
 
 	// No apply jobs
-	for jobName := range pipeline.Jobs {
+	for _, jobName := range pipeline.JobNames() {
 		if strings.HasPrefix(jobName, "apply-") {
 			t.Errorf("Unexpected apply job in plan-only mode: %s", jobName)
 		}
@@ -267,7 +268,7 @@ func TestPipelineGeneration_NoPlanEnabled(t *testing.T) {
 		}).
 		generate()
 
-	for jobName := range pipeline.Jobs {
+	for _, jobName := range pipeline.JobNames() {
 		if strings.HasPrefix(jobName, "plan-") {
 			t.Errorf("Unexpected plan job when PlanEnabled=false: %s", jobName)
 		}
@@ -275,8 +276,12 @@ func TestPipelineGeneration_NoPlanEnabled(t *testing.T) {
 
 	assertPipeline(t, pipeline).noStageWithFragment("-plan-")
 
-	for jobName, job := range pipeline.Jobs {
-		for _, need := range job.Needs {
+	for _, jobName := range pipeline.JobNames() {
+		job, ok := pipeline.Job(jobName)
+		if !ok {
+			t.Fatalf("job %q not found", jobName)
+		}
+		for _, need := range job.Needs() {
 			if strings.HasPrefix(need.Job, "plan-") {
 				t.Errorf("Apply job %s should not depend on plan job when PlanEnabled=false: %s", jobName, need.Job)
 			}

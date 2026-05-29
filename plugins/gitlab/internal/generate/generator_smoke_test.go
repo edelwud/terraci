@@ -64,7 +64,7 @@ func TestGenerator_GenerateRejectsInvalidIR(t *testing.T) {
 		t.Fatalf("Generate() error = %v", err)
 	}
 	generatedPipeline, ok := generated.(*domain.Pipeline)
-	if !ok || len(generatedPipeline.Jobs) != 0 {
+	if !ok || generatedPipeline.JobCount() != 0 {
 		t.Fatalf("Generate() = %#v, want empty pipeline", generated)
 	}
 }

@@ -39,7 +39,7 @@ func TestGenerate_RejectsInvalidIR(t *testing.T) {
 		t.Fatalf("Generate() error = %v", err)
 	}
 	workflow, ok := generated.(*domainpkg.Workflow)
-	if !ok || len(workflow.Jobs) != 0 {
+	if !ok || workflow.JobCount() != 0 {
 		t.Fatalf("Generate() = %#v, want empty workflow", generated)
 	}
 }
@@ -169,18 +169,18 @@ func TestGenerate_StepsBefore(t *testing.T) {
 		withDependencies(map[string][]string{module.ID(): {}}).
 		generate()
 
-	job := workflow.Jobs["plan-platform-stage-eu-central-1-vpc"]
-	if job == nil {
+	job, ok := workflow.Job("plan-platform-stage-eu-central-1-vpc")
+	if !ok {
 		t.Fatal("plan job not found")
 	}
 
 	setupIdx := -1
 	planIdx := -1
-	for i, step := range job.Steps {
-		if step.Name == "Setup AWS credentials" {
+	for i, step := range job.Steps() {
+		if step.Name() == "Setup AWS credentials" {
 			setupIdx = i
 		}
-		if strings.HasPrefix(step.Name, "Plan ") {
+		if strings.HasPrefix(step.Name(), "Plan ") {
 			planIdx = i
 		}
 	}
