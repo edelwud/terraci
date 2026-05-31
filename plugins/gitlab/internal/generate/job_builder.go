@@ -23,7 +23,7 @@ func newJobBuilder(settings settings, stageByJob map[string]string) jobBuilder {
 	}
 }
 
-func (b jobBuilder) renderJob(irJob *pipeline.Job) (domain.Job, error) {
+func (b jobBuilder) renderJob(irJob pipeline.Job) (domain.Job, error) {
 	script := cishell.RenderOperation(irJob.Operation())
 	if irJob.AllowFailure() {
 		script = allowFailureScript(script)
@@ -50,10 +50,7 @@ func (b jobBuilder) renderJob(irJob *pipeline.Job) (domain.Job, error) {
 	return domain.NewJob(job)
 }
 
-func jobOverwriteType(irJob *pipeline.Job) configpkg.JobOverwriteType {
-	if irJob == nil {
-		return ""
-	}
+func jobOverwriteType(irJob pipeline.Job) configpkg.JobOverwriteType {
 	switch irJob.Operation().Type() {
 	case pipeline.OperationTypeTerraformPlan:
 		return configpkg.OverwriteTypePlan

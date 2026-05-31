@@ -27,7 +27,7 @@ func TestJobBuilderRenderJobBuildsModuleDefaults(t *testing.T) {
 	)
 
 	plan := pipelinetest.MustJobByKind(t, pipelinetest.MustSingleModuleIR(t, module), pipeline.JobKindPlan)
-	job, err := builder.renderJob(&plan)
+	job, err := builder.renderJob(plan)
 	if err != nil {
 		t.Fatalf("renderJob() error = %v", err)
 	}
@@ -102,7 +102,7 @@ func TestJobBuilderContributedJobOverwriteByName(t *testing.T) {
 	)
 
 	command := pipelinetest.MustCommandJob(t, pipeline.ContributedJobOptions{Name: "cost-estimation", Commands: []string{"terraci cost"}})
-	job, err := builder.renderJob(&command)
+	job, err := builder.renderJob(command)
 	if err != nil {
 		t.Fatalf("renderJob() error = %v", err)
 	}
@@ -150,7 +150,7 @@ func TestJobBuilderContributedJobUsesOptionalNeeds(t *testing.T) {
 		t.Fatalf("BuildProjectIR() error = %v", err)
 	}
 	summary := findJobByName(t, plan, "summary")
-	job, err := builder.renderJob(&summary)
+	job, err := builder.renderJob(summary)
 	if err != nil {
 		t.Fatalf("renderJob() error = %v", err)
 	}

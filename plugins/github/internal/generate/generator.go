@@ -57,7 +57,7 @@ func (g *Generator) transform(ir *pipeline.IR) (*domainpkg.Workflow, error) {
 
 	jobs := ir.Jobs()
 	for i := range jobs {
-		irJob := &jobs[i]
+		irJob := jobs[i]
 		job, err := builder.renderJob(irJob)
 		if err != nil {
 			return nil, err

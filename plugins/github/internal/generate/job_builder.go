@@ -23,7 +23,7 @@ func newJobBuilder(settings settings) jobBuilder {
 	return jobBuilder{settings: settings}
 }
 
-func (b jobBuilder) renderJob(irJob *pipeline.Job) (domainpkg.Job, error) {
+func (b jobBuilder) renderJob(irJob pipeline.Job) (domainpkg.Job, error) {
 	profile, err := b.settings.jobProfile(jobOverwriteType(irJob))
 	if err != nil {
 		var zero domainpkg.Job
@@ -89,10 +89,7 @@ func (b jobBuilder) renderJob(irJob *pipeline.Job) (domainpkg.Job, error) {
 	return domainpkg.NewJob(job)
 }
 
-func jobOverwriteType(irJob *pipeline.Job) configpkg.JobOverwriteType {
-	if irJob == nil {
-		return ""
-	}
+func jobOverwriteType(irJob pipeline.Job) configpkg.JobOverwriteType {
 	switch irJob.Operation().Type() {
 	case pipeline.OperationTypeTerraformPlan:
 		return configpkg.OverwriteTypePlan
@@ -105,10 +102,7 @@ func jobOverwriteType(irJob *pipeline.Job) configpkg.JobOverwriteType {
 	}
 }
 
-func runStepName(irJob *pipeline.Job) string {
-	if irJob == nil {
-		return "Run"
-	}
+func runStepName(irJob pipeline.Job) string {
 	module := irJob.Module()
 	if module == nil {
 		return "Run " + irJob.Name()
@@ -125,8 +119,8 @@ func runStepName(irJob *pipeline.Job) string {
 	}
 }
 
-func artifactRequired(irJob *pipeline.Job) bool {
-	return irJob != nil && irJob.Operation().Type() == pipeline.OperationTypeTerraformPlan
+func artifactRequired(irJob pipeline.Job) bool {
+	return irJob.Operation().Type() == pipeline.OperationTypeTerraformPlan
 }
 
 func checkoutStep() domainpkg.Step {

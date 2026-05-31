@@ -457,8 +457,8 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **Plugin-first feature surfaces**: every CI provider, cost backend, policy engine, etc. lives in `plugins/`.
 - **One file per capability**: plugin.go < 30 lines; each interface in its own file
 - **Compile-time extensibility**: `xterraci build --with/--without` for custom binaries
-- **Pipeline IR**: `workflow.PlanProject(...)` → `pipeline.BuildProjectIR(...)` → immutable `*pipeline.IR`. The IR is the single execution input — generators and the local executor both consume it through getters, not direct field mutation or manual literals.
-- **IR-bound generators**: `PipelineGeneratorFactory.NewGenerator(ctx, *pipeline.IR)` — providers don't reach for depGraph/modules/contributions; the IR already encodes them.
+- **Pipeline IR**: `workflow.PlanProject(...)` → `pipeline.BuildProjectIR(...)` → immutable `*pipeline.IR`. The IR is the single execution input — generators and the local executor both consume `pipeline.Job` values through getters, not direct field mutation, job pointers, or manual literals.
+- **IR-bound generators**: `PipelineGeneratorFactory.NewGenerator(ctx, *pipeline.IR)` — providers don't reach for depGraph/modules/contributions; the IR already encodes them. Provider job builders take immutable `pipeline.Job` values from `IR.Jobs()` and produce provider document jobs through provider-local builders.
 - **Shell rendering separated from IR**: `pkg/pipeline/cishell.RenderOperation(op)` for shell-driven CI; the IR carries `pipeline.TerraformOperation` data only.
 - **Canonical dry-run source**: dry-run stage/job counts derive from `*IR.DryRun(totalModules)`.
 - **Execution result boundary**: `pkg/execution.Result`, `JobResult`, `GroupResult`, and `JobEvent` are immutable value objects. Production code reads them through getters and `Stats()`, never through struct literals or mutable fields. `JobRunner`, `WorkerPool`, and `EventSink` consume `pipeline.Job`/event values, not job pointers. Failed jobs surface as `execution.ExecutionError` while still returning the partial result, and produced artifacts are exposed as typed `pipeline.Artifact` values.

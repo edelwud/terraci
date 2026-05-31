@@ -81,7 +81,7 @@ func (g *Generator) transform(ir *pipeline.IR) (*domain.Pipeline, error) {
 	jobBuilder := newJobBuilder(g.settings, stagePlan.stageByJob)
 	jobs := ir.Jobs()
 	for i := range jobs {
-		irJob := &jobs[i]
+		irJob := jobs[i]
 		job, err := jobBuilder.renderJob(irJob)
 		if err != nil {
 			return nil, err

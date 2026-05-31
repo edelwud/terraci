@@ -392,6 +392,18 @@ func TestArchitecture_PipelineIRValueBoundaries(t *testing.T) {
 
 		ast.Inspect(file, func(node ast.Node) bool {
 			switch typed := node.(type) {
+			case *ast.StarExpr:
+				if !isProductionFile(rel) {
+					return true
+				}
+				selector, ok := typed.X.(*ast.SelectorExpr)
+				if !ok || selector.Sel.Name != "Job" {
+					return true
+				}
+				ident, ok := selector.X.(*ast.Ident)
+				if ok && pipelineAliases[ident.Name] {
+					violations = append(violations, rel+" uses *pipeline.Job outside pkg/pipeline; consume immutable pipeline.Job values")
+				}
 			case *ast.CallExpr:
 				selector, ok := callSelector(typed)
 				if !ok {

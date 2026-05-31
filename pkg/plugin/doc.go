@@ -100,10 +100,11 @@
 // Framework code plans projects through workflow.PlanProject and converts that
 // result into a provider-agnostic immutable IR with pipeline.BuildProjectIR.
 // CI providers and local execution are IR consumers only: they receive *IR
-// values and read them through getters such as IR.Jobs, Job.Operation, and
-// Operation.Terraform. Providers that need barrier groups use
+// values and read immutable pipeline.Job values through getters such as
+// IR.Jobs, Job.Operation, and Operation.Terraform. Providers that need barrier groups use
 // pipeline.Schedule, whose JobGroup values expose read-only Name, Jobs, and
-// JobCount accessors. External plugin authors should not construct IR, Job,
+// JobCount accessors. Provider job builders should take pipeline.Job values,
+// not job pointers. External plugin authors should not construct IR, Job,
 // Operation, or TerraformOperation literals or depend on module job naming.
 // Tests and advanced in-process tooling can use pkg/pipeline/pipelinetest for
 // validated synthetic fixtures.
