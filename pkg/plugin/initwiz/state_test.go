@@ -2,199 +2,146 @@ package initwiz
 
 import "testing"
 
-func TestStateMap_SetGet(t *testing.T) {
-	s := NewStateMap()
-	s.Set("key", "value")
+func TestStateKeyValidation(t *testing.T) {
+	t.Parallel()
 
-	got := s.Get("key")
-	if got != "value" {
-		t.Errorf("Get(key) = %v, want value", got)
+	if _, err := NewStateKey[string](""); err == nil {
+		t.Fatal("NewStateKey(empty) error = nil, want error")
+	}
+	if _, err := NewStateKey[string]("bad key"); err == nil {
+		t.Fatal("NewStateKey(whitespace) error = nil, want error")
+	}
+	key, err := NewStateKey[string]("feature.enabled")
+	if err != nil {
+		t.Fatalf("NewStateKey() error = %v", err)
+	}
+	if key.Name() != "feature.enabled" {
+		t.Fatalf("Name() = %q, want feature.enabled", key.Name())
 	}
 }
 
-func TestStateMap_GetMissing(t *testing.T) {
-	s := NewStateMap()
-	got := s.Get("missing")
-	if got != nil {
-		t.Errorf("Get(missing) = %v, want nil", got)
+func TestStateKeyGetSetLookup(t *testing.T) {
+	t.Parallel()
+
+	state := NewStateMap()
+	nameKey := MustStateKey[string]("name")
+	flagKey := MustStateKey[bool]("flag")
+
+	if got := nameKey.Get(state); got != "" {
+		t.Fatalf("Get(unset string) = %q, want empty", got)
+	}
+	if _, ok := flagKey.Lookup(state); ok {
+		t.Fatal("Lookup(unset bool) ok = true, want false")
+	}
+
+	nameKey.Set(state, "terraform")
+	flagKey.Set(state, true)
+
+	if got := nameKey.Get(state); got != "terraform" {
+		t.Fatalf("Get(name) = %q, want terraform", got)
+	}
+	if got, ok := flagKey.Lookup(state); !ok || !got {
+		t.Fatalf("Lookup(flag) = %v, %v; want true, true", got, ok)
 	}
 }
 
-func TestStateMap_Provider(t *testing.T) {
-	s := NewStateMap()
-	if s.Provider() != "" {
-		t.Errorf("Provider() = %q, want empty", s.Provider())
+func TestStateKeyBindIsStable(t *testing.T) {
+	t.Parallel()
+
+	state := NewStateMap()
+	key := MustStateKey[string]("name")
+	key.Set(state, "initial")
+
+	ptr := key.Bind(state)
+	if *ptr != "initial" {
+		t.Fatalf("Bind() = %q, want initial", *ptr)
+	}
+	*ptr = "from-ui"
+	if got := key.Get(state); got != "from-ui" {
+		t.Fatalf("Get() after pointer mutation = %q, want from-ui", got)
+	}
+	if ptr2 := key.Bind(state); ptr2 != ptr {
+		t.Fatal("Bind() did not return stable pointer")
 	}
 
-	s.Set("provider", "gitlab")
-	if s.Provider() != "gitlab" {
-		t.Errorf("Provider() = %q, want gitlab", s.Provider())
-	}
-}
-
-func TestStateMap_Binary(t *testing.T) {
-	s := NewStateMap()
-	if s.Binary() != "" {
-		t.Errorf("Binary() = %q, want empty", s.Binary())
-	}
-
-	s.Set("binary", "terraform")
-	if s.Binary() != "terraform" {
-		t.Errorf("Binary() = %q, want terraform", s.Binary())
-	}
-}
-
-func TestStateMap_StringPtr(t *testing.T) {
-	s := NewStateMap()
-
-	ptr := s.StringPtr("name")
-	if *ptr != "" {
-		t.Errorf("StringPtr default = %q, want empty", *ptr)
-	}
-
-	*ptr = "hello"
-	got := s.Get("name")
-	if got != "hello" {
-		t.Errorf("Get after pointer mutation = %v, want hello", got)
-	}
-
-	ptr2 := s.StringPtr("name")
-	if ptr != ptr2 {
-		t.Error("StringPtr should return stable pointer")
+	key.Set(state, "from-code")
+	if *ptr != "from-code" {
+		t.Fatalf("Set() did not update bound pointer: %q", *ptr)
 	}
 }
 
-func TestStateMap_StringPtr_WithPresetValue(t *testing.T) {
-	s := NewStateMap()
-	s.Set("name", "preset")
+func TestStateKeyWrongTypeIsolation(t *testing.T) {
+	t.Parallel()
 
-	ptr := s.StringPtr("name")
-	if *ptr != "preset" {
-		t.Errorf("StringPtr with preset = %q, want preset", *ptr)
+	state := NewStateMap()
+	stringKey := MustStateKey[string]("shared")
+	boolKey := MustStateKey[bool]("shared")
+
+	stringKey.Set(state, "yes")
+	if _, ok := boolKey.Lookup(state); ok {
+		t.Fatal("Lookup(bool over string slot) ok = true, want false")
+	}
+
+	boolPtr := boolKey.Bind(state)
+	*boolPtr = true
+	if got := boolKey.Get(state); !got {
+		t.Fatal("Get(bool) = false, want true")
+	}
+	if _, ok := stringKey.Lookup(state); ok {
+		t.Fatal("Lookup(string over bool slot) ok = true, want false")
 	}
 }
 
-func TestStateMap_BoolPtr(t *testing.T) {
-	s := NewStateMap()
+func TestInitFieldDefaultsAndDefensiveOptions(t *testing.T) {
+	t.Parallel()
 
-	ptr := s.BoolPtr("enabled")
-	if *ptr != false {
-		t.Errorf("BoolPtr default = %v, want false", *ptr)
+	state := NewStateMap()
+	key := MustStateKey[string]("mode")
+	field := NewSelectField(SelectFieldOptions{
+		Key:     key,
+		Title:   "Mode",
+		Default: "all",
+		Options: []InitOption{{Label: "All", Value: "all"}},
+	})
+
+	field.ApplyDefault(state)
+	if got := key.Get(state); got != "all" {
+		t.Fatalf("default = %q, want all", got)
 	}
 
-	*ptr = true
-	got := s.Get("enabled")
-	if got != true {
-		t.Errorf("Get after pointer mutation = %v, want true", got)
+	options := field.Options()
+	options[0].Value = "changed"
+	if got := field.Options()[0].Value; got != "all" {
+		t.Fatalf("Options leaked mutation: %q", got)
 	}
-
-	ptr2 := s.BoolPtr("enabled")
-	if ptr != ptr2 {
-		t.Error("BoolPtr should return stable pointer")
-	}
-}
-
-func TestStateMap_BoolPtr_WithPresetValue(t *testing.T) {
-	s := NewStateMap()
-	s.Set("enabled", true)
-
-	ptr := s.BoolPtr("enabled")
-	if *ptr != true {
-		t.Errorf("BoolPtr with preset = %v, want true", *ptr)
+	if field.Key() != "mode" || field.Type() != FieldSelect || field.Title() != "Mode" {
+		t.Fatalf("field getters returned unexpected values")
 	}
 }
 
-func TestStateMap_StringPtr_OverridesPlainValue(t *testing.T) {
-	s := NewStateMap()
-	s.Set("key", "plain")
+func TestInitFieldConstructorValidation(t *testing.T) {
+	t.Parallel()
 
-	ptr := s.StringPtr("key")
-	*ptr = "pointer"
-
-	if s.Get("key") != "pointer" {
-		t.Errorf("Get should return pointer value, got %v", s.Get("key"))
-	}
+	assertPanics(t, func() {
+		_ = NewStringField(StringFieldOptions{Title: "Missing key"})
+	})
+	assertPanics(t, func() {
+		_ = NewBoolField(BoolFieldOptions{Key: MustStateKey[bool]("enabled")})
+	})
+	assertPanics(t, func() {
+		_ = NewSelectField(SelectFieldOptions{
+			Key:   MustStateKey[string]("mode"),
+			Title: "Mode",
+		})
+	})
 }
 
-func TestStateMap_Provider_NonStringValue(t *testing.T) {
-	s := NewStateMap()
-	s.Set("provider", 42)
-
-	if s.Provider() != "" {
-		t.Errorf("Provider with non-string = %q, want empty", s.Provider())
-	}
-}
-
-func TestStateMap_Binary_NonStringValue(t *testing.T) {
-	s := NewStateMap()
-	s.Set("binary", true)
-
-	if s.Binary() != "" {
-		t.Errorf("Binary with non-string = %q, want empty", s.Binary())
-	}
-}
-
-func TestStateMap_String(t *testing.T) {
-	s := NewStateMap()
-
-	if s.String("missing") != "" {
-		t.Error("String(missing) should return empty string")
-	}
-
-	s.Set("key", "hello")
-	if s.String("key") != "hello" {
-		t.Errorf("String(key) = %q, want hello", s.String("key"))
-	}
-
-	s.Set("num", 42)
-	if s.String("num") != "" {
-		t.Errorf("String(num) = %q, want empty for non-string", s.String("num"))
-	}
-}
-
-func TestStateMap_Bool(t *testing.T) {
-	s := NewStateMap()
-
-	if s.Bool("missing") {
-		t.Error("Bool(missing) should return false")
-	}
-
-	s.Set("flag", true)
-	if !s.Bool("flag") {
-		t.Error("Bool(flag) should return true")
-	}
-
-	s.Set("flag", false)
-	if s.Bool("flag") {
-		t.Error("Bool(flag) should return false")
-	}
-
-	s.Set("str", "yes")
-	if s.Bool("str") {
-		t.Error("Bool(str) should return false for non-bool")
-	}
-}
-
-func TestStateMap_String_PrefersPointerValue(t *testing.T) {
-	s := NewStateMap()
-	s.Set("key", "plain")
-
-	ptr := s.StringPtr("key")
-	*ptr = "pointer"
-
-	if s.String("key") != "pointer" {
-		t.Errorf("String should prefer pointer value, got %q", s.String("key"))
-	}
-}
-
-func TestStateMap_Bool_PrefersPointerValue(t *testing.T) {
-	s := NewStateMap()
-	s.Set("flag", false)
-
-	ptr := s.BoolPtr("flag")
-	*ptr = true
-
-	if !s.Bool("flag") {
-		t.Error("Bool should prefer pointer value")
-	}
+func assertPanics(t *testing.T, fn func()) {
+	t.Helper()
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic")
+		}
+	}()
+	fn()
 }

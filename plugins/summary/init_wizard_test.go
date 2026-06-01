@@ -28,7 +28,7 @@ func newTestPlugin() *Plugin {
 func TestPlugin_BuildInitConfig_Enabled(t *testing.T) {
 	p := newTestPlugin()
 	state := initwiz.NewStateMap()
-	state.Set("summary.enabled", true)
+	initwiz.SummaryEnabledKey.Set(state, true)
 
 	contrib, err := p.BuildInitConfig(state)
 	if err != nil {
@@ -42,7 +42,7 @@ func TestPlugin_BuildInitConfig_Enabled(t *testing.T) {
 func TestPlugin_BuildInitConfig_Disabled(t *testing.T) {
 	p := newTestPlugin()
 	state := initwiz.NewStateMap()
-	state.Set("summary.enabled", false)
+	initwiz.SummaryEnabledKey.Set(state, false)
 
 	contrib, err := p.BuildInitConfig(state)
 	if err != nil {
@@ -63,7 +63,7 @@ func TestPlugin_BuildInitConfig_Disabled(t *testing.T) {
 func TestPlugin_BuildInitConfig_DisabledRoundTripDisablesPlugin(t *testing.T) {
 	p := newTestPlugin()
 	state := initwiz.NewStateMap()
-	state.Set("summary.enabled", false)
+	initwiz.SummaryEnabledKey.Set(state, false)
 
 	contrib, err := p.BuildInitConfig(state)
 	if err != nil {

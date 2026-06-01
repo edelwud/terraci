@@ -62,7 +62,7 @@ func TestPlugin_SDKContracts(t *testing.T) {
 
 	t.Run("init contributor", func(t *testing.T) {
 		state := initwiz.NewStateMap()
-		state.Set("summary.enabled", false)
+		initwiz.SummaryEnabledKey.Set(state, false)
 		plugintest.AssertInitContributor(t, plugintest.InitContributorContract{
 			Contributor:        newTestPlugin(),
 			State:              state,

@@ -86,7 +86,7 @@ func TestPlugin_SDKContracts(t *testing.T) {
 
 	t.Run("init contributor", func(t *testing.T) {
 		state := initwiz.NewStateMap()
-		state.Set("tfupdate.enabled", true)
+		keyUpdateEnabled.Set(state, true)
 		plugintest.AssertInitContributor(t, plugintest.InitContributorContract{
 			Contributor:        newTestPlugin(t),
 			State:              state,

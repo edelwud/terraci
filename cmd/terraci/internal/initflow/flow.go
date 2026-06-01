@@ -16,12 +16,6 @@ import (
 )
 
 const (
-	stateKeyProvider       = "provider"
-	stateKeyBinary         = "binary"
-	stateKeyPattern        = "pattern"
-	stateKeyPlanEnabled    = "plan_enabled"
-	stateKeySummaryEnabled = "summary.enabled"
-
 	providerGitLab = "gitlab"
 	providerGitHub = "github"
 )
@@ -144,12 +138,12 @@ func New(source PluginSource) Flow {
 func (f Flow) DefaultState() *initwiz.StateMap {
 	state := initwiz.NewStateMap()
 	if f.defaultProvider != "" {
-		state.Set(stateKeyProvider, f.defaultProvider)
+		initwiz.ProviderKey.Set(state, f.defaultProvider)
 	}
-	state.Set(stateKeyBinary, config.ExecutionBinaryTerraform)
-	state.Set(stateKeyPlanEnabled, true)
-	state.Set(stateKeyPattern, config.DefaultConfig().Structure.Pattern)
-	state.Set(stateKeySummaryEnabled, true)
+	initwiz.BinaryKey.Set(state, config.ExecutionBinaryTerraform)
+	initwiz.PlanEnabledKey.Set(state, true)
+	initwiz.PatternKey.Set(state, config.DefaultConfig().Structure.Pattern)
+	initwiz.SummaryEnabledKey.Set(state, true)
 	return state
 }
 
@@ -159,13 +153,13 @@ func (f Flow) ApplyOverrides(state *initwiz.StateMap, overrides Overrides) {
 		return
 	}
 	if overrides.Provider != "" {
-		state.Set(stateKeyProvider, overrides.Provider)
+		initwiz.ProviderKey.Set(state, overrides.Provider)
 	}
 	if overrides.Binary != "" {
-		state.Set(stateKeyBinary, overrides.Binary)
+		initwiz.BinaryKey.Set(state, overrides.Binary)
 	}
 	if overrides.Pattern != "" {
-		state.Set(stateKeyPattern, overrides.Pattern)
+		initwiz.PatternKey.Set(state, overrides.Pattern)
 	}
 }
 
@@ -192,20 +186,20 @@ func (f Flow) BuildConfig(state *initwiz.StateMap) (*BuildResult, error) {
 		state = f.DefaultState()
 	}
 
-	pattern := state.String(stateKeyPattern)
+	pattern := initwiz.PatternKey.Get(state)
 	planEnabled := config.DefaultConfig().Execution.PlanEnabled
-	if state.Get(stateKeyPlanEnabled) != nil {
-		planEnabled = state.Bool(stateKeyPlanEnabled)
+	if value, ok := initwiz.PlanEnabledKey.Lookup(state); ok {
+		planEnabled = value
 	}
 
 	execution := config.DefaultConfig().Execution
-	execution.Binary = state.String(stateKeyBinary)
+	execution.Binary = initwiz.BinaryKey.Get(state)
 	execution.InitEnabled = true
 	execution.PlanEnabled = planEnabled
 	if execution.Binary == "" {
 		execution.Binary = config.ExecutionBinaryTerraform
 	}
-	if planEnabled && state.Bool(stateKeySummaryEnabled) {
+	if planEnabled && initwiz.SummaryEnabledKey.Get(state) {
 		execution.PlanMode = "detailed"
 	}
 
@@ -352,15 +346,17 @@ func mergedDisplayGroup(title string, groups []groupBinding) DisplayGroup {
 	seen := make(map[string]struct{})
 	showFns := make([]func(*initwiz.StateMap) bool, 0)
 	for _, group := range groups {
-		for _, field := range group.spec.Fields {
-			if field.Key == "" {
+		for i := range group.spec.Fields {
+			field := &group.spec.Fields[i]
+			key := field.Key()
+			if key == "" {
 				continue
 			}
-			if _, exists := seen[field.Key]; exists {
+			if _, exists := seen[key]; exists {
 				continue
 			}
-			seen[field.Key] = struct{}{}
-			fields = append(fields, cloneField(field))
+			seen[key] = struct{}{}
+			fields = append(fields, cloneField(*field))
 		}
 		if group.spec.ShowWhen != nil {
 			showFns = append(showFns, group.spec.ShowWhen)
@@ -386,7 +382,7 @@ func firstFieldKey(spec *initwiz.InitGroupSpec) string {
 	if spec == nil || len(spec.Fields) == 0 {
 		return ""
 	}
-	return spec.Fields[0].Key
+	return spec.Fields[0].Key()
 }
 
 func cloneProviderOptions(options []ProviderOption) []ProviderOption {
@@ -416,6 +412,5 @@ func cloneFields(fields []initwiz.InitField) []initwiz.InitField {
 }
 
 func cloneField(field initwiz.InitField) initwiz.InitField {
-	field.Options = append([]initwiz.InitOption(nil), field.Options...)
-	return field
+	return field.Clone()
 }

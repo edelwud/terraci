@@ -78,7 +78,7 @@ func TestPlugin_SDKContracts(t *testing.T) {
 
 	t.Run("init contributor", func(t *testing.T) {
 		state := initwiz.NewStateMap()
-		state.Set("policy.enabled", true)
+		keyPolicyEnabled.Set(state, true)
 		plugintest.AssertInitContributor(t, plugintest.InitContributorContract{
 			Contributor:        newTestPlugin(),
 			State:              state,

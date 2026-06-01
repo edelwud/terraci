@@ -10,6 +10,8 @@ import (
 
 const defaultGitHubRunner = "ubuntu-latest"
 
+var keyGitHubRunsOn = initwiz.MustStateKey[string]("github.runs_on")
+
 type initConfig struct {
 	RunsOn      string                 `yaml:"runs_on"`
 	JobDefaults *configpkg.JobDefaults `yaml:"job_defaults,omitempty"`
@@ -18,7 +20,7 @@ type initConfig struct {
 // InitGroups returns the init wizard group specs for GitHub Actions.
 func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 	showGitHub := func(s *initwiz.StateMap) bool {
-		return s.Provider() == pluginName
+		return initwiz.ProviderKey.Get(s) == pluginName
 	}
 
 	return []*initwiz.InitGroupSpec{
@@ -28,14 +30,13 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 			Order:    100,
 			ShowWhen: showGitHub,
 			Fields: []initwiz.InitField{
-				{
-					Key:         "github.runs_on",
+				initwiz.NewStringField(initwiz.StringFieldOptions{
+					Key:         keyGitHubRunsOn,
 					Title:       "Runner Label",
 					Description: "GitHub Actions runs-on value",
-					Type:        initwiz.FieldString,
 					Default:     defaultGitHubRunner,
 					Placeholder: defaultGitHubRunner,
-				},
+				}),
 			},
 		},
 		ciplugin.PipelineGroup(pluginName),
@@ -44,15 +45,15 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 
 // BuildInitConfig builds the GitHub Actions init contribution.
 func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribution, error) {
-	if state.Provider() != pluginName {
+	if initwiz.ProviderKey.Get(state) != pluginName {
 		return nil, nil
 	}
-	binary := state.Binary()
+	binary := initwiz.BinaryKey.Get(state)
 	if binary == "" {
 		binary = "terraform"
 	}
 
-	runsOn := state.String("github.runs_on")
+	runsOn := keyGitHubRunsOn.Get(state)
 	if runsOn == "" {
 		runsOn = defaultGitHubRunner
 	}

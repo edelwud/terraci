@@ -13,12 +13,10 @@ const (
 	defaultTofuImage      = "ghcr.io/opentofu/opentofu:1.6"
 )
 
-// Wizard StateMap keys. Centralized so InitGroups field definitions and
-// BuildInitConfig consumers can never drift apart on a typo.
-const (
-	keyGitlabImage        = "gitlab.image"
-	keyGitlabStagesPrefix = "gitlab.stages_prefix"
-	keyGitlabCacheEnabled = "gitlab.cache_enabled"
+var (
+	keyGitlabImage        = initwiz.MustStateKey[string]("gitlab.image")
+	keyGitlabStagesPrefix = initwiz.MustStateKey[string]("gitlab.stages_prefix")
+	keyGitlabCacheEnabled = initwiz.MustStateKey[bool]("gitlab.cache_enabled")
 )
 
 type initConfig struct {
@@ -30,7 +28,7 @@ type initConfig struct {
 // InitGroups returns the init wizard group specs for GitLab CI.
 func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 	showGitLab := func(s *initwiz.StateMap) bool {
-		return s.Provider() == pluginName
+		return initwiz.ProviderKey.Get(s) == pluginName
 	}
 
 	return []*initwiz.InitGroupSpec{
@@ -40,29 +38,26 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 			Order:    100,
 			ShowWhen: showGitLab,
 			Fields: []initwiz.InitField{
-				{
+				initwiz.NewStringField(initwiz.StringFieldOptions{
 					Key:         keyGitlabImage,
 					Title:       "Docker Image",
 					Description: "Base Docker image for terraform jobs",
-					Type:        initwiz.FieldString,
 					Default:     defaultTerraformImage,
 					Placeholder: defaultTerraformImage,
-				},
-				{
+				}),
+				initwiz.NewStringField(initwiz.StringFieldOptions{
 					Key:         keyGitlabStagesPrefix,
 					Title:       "Stages Prefix",
 					Description: "Prefix for DAG stage names (e.g. deploy-0)",
-					Type:        initwiz.FieldString,
 					Default:     defaultStagesPrefix,
 					Placeholder: defaultStagesPrefix,
-				},
-				{
+				}),
+				initwiz.NewBoolField(initwiz.BoolFieldOptions{
 					Key:         keyGitlabCacheEnabled,
 					Title:       "Enable .terraform caching?",
 					Description: "Cache .terraform directory between pipeline runs",
-					Type:        initwiz.FieldBool,
 					Default:     true,
-				},
+				}),
 			},
 		},
 		ciplugin.PipelineGroup(pluginName),
@@ -71,15 +66,15 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 
 // BuildInitConfig builds the GitLab CI init contribution.
 func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribution, error) {
-	if state.Provider() != pluginName {
+	if initwiz.ProviderKey.Get(state) != pluginName {
 		return nil, nil
 	}
-	binary := state.Binary()
+	binary := initwiz.BinaryKey.Get(state)
 	if binary == "" {
 		binary = "terraform"
 	}
 
-	image := state.String(keyGitlabImage)
+	image := keyGitlabImage.Get(state)
 	if image == "" || image == defaultTerraformImage || image == defaultTofuImage {
 		if binary == "tofu" {
 			image = defaultTofuImage
@@ -88,14 +83,14 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribu
 		}
 	}
 
-	stagesPrefix := state.String(keyGitlabStagesPrefix)
+	stagesPrefix := keyGitlabStagesPrefix.Get(state)
 	if stagesPrefix == "" {
 		stagesPrefix = defaultStagesPrefix
 	}
 
 	cacheEnabled := true
-	if state.Get(keyGitlabCacheEnabled) != nil {
-		cacheEnabled = state.Bool(keyGitlabCacheEnabled)
+	if value, ok := keyGitlabCacheEnabled.Lookup(state); ok {
+		cacheEnabled = value
 	}
 
 	cfg := initConfig{

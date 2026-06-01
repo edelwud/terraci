@@ -9,12 +9,10 @@ import (
 
 const initGroupOrder = 201
 
-// Wizard StateMap keys. Centralized so InitGroups field definitions and
-// BuildInitConfig consumers can never drift apart on a typo.
-const (
-	keyPolicyEnabled      = "policy.enabled"
-	keyPolicySourcePath   = "policy.source_path"
-	keyPolicyDenyDecision = "policy.decisions.deny"
+var (
+	keyPolicyEnabled      = initwiz.MustStateKey[bool]("policy.enabled")
+	keyPolicySourcePath   = initwiz.MustStateKey[string]("policy.source_path")
+	keyPolicyDenyDecision = initwiz.MustStateKey[string]("policy.decisions.deny")
 )
 
 // InitGroups returns the init wizard group specs for policy checks.
@@ -26,43 +24,38 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 			Category: initwiz.CategoryFeature,
 			Order:    initGroupOrder,
 			Fields: []initwiz.InitField{
-				{
+				initwiz.NewBoolField(initwiz.BoolFieldOptions{
 					Key:         keyPolicyEnabled,
 					Title:       "Enable policy checks?",
 					Description: "Evaluate Terraform plans with OPA policies",
-					Type:        initwiz.FieldBool,
 					Default:     false,
-				},
+				}),
 			},
 		},
 		{
 			Title:    "Policy Settings",
 			Category: initwiz.CategoryDetail,
 			Order:    initGroupOrder,
-			ShowWhen: func(s *initwiz.StateMap) bool {
-				return s.Bool(keyPolicyEnabled)
-			},
+			ShowWhen: keyPolicyEnabled.Get,
 			Fields: []initwiz.InitField{
-				{
+				initwiz.NewStringField(initwiz.StringFieldOptions{
 					Key:         keyPolicySourcePath,
 					Title:       "Policy files directory",
 					Description: "Local directory containing .rego policy files",
-					Type:        initwiz.FieldString,
 					Default:     "policies",
 					Placeholder: "policies",
-				},
-				{
+				}),
+				initwiz.NewSelectField(initwiz.SelectFieldOptions{
 					Key:         keyPolicyDenyDecision,
 					Title:       "On deny decisions",
 					Description: "Action when OPA deny rules match",
-					Type:        initwiz.FieldSelect,
 					Default:     "block",
 					Options: []initwiz.InitOption{
 						{Label: "Block pipeline", Value: "block"},
 						{Label: "Warn only", Value: "warn"},
 						{Label: "Ignore", Value: "ignore"},
 					},
-				},
+				}),
 			},
 		},
 	}
@@ -70,17 +63,17 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 
 // BuildInitConfig builds the policy checks init contribution.
 func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribution, error) {
-	enabled := state.Bool(keyPolicyEnabled)
+	enabled := keyPolicyEnabled.Get(state)
 	if !enabled {
 		return nil, nil
 	}
 
-	sourcePath := state.String(keyPolicySourcePath)
+	sourcePath := keyPolicySourcePath.Get(state)
 	if sourcePath == "" {
 		sourcePath = "policies"
 	}
 
-	denyAction := state.String(keyPolicyDenyDecision)
+	denyAction := keyPolicyDenyDecision.Get(state)
 	if denyAction == "" {
 		denyAction = "block"
 	}

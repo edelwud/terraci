@@ -30,14 +30,11 @@ func TestPlugin_InitGroups(t *testing.T) {
 		t.Fatalf("group[0] fields count = %d, want 1", len(g0.Fields))
 	}
 	f := g0.Fields[0]
-	if f.Key != "tfupdate.enabled" {
-		t.Errorf("field.Key = %q, want %q", f.Key, "tfupdate.enabled")
+	if f.Key() != "tfupdate.enabled" {
+		t.Errorf("field.Key = %q, want %q", f.Key(), "tfupdate.enabled")
 	}
-	if f.Type != initwiz.FieldBool {
-		t.Errorf("field.Type = %q, want %q", f.Type, initwiz.FieldBool)
-	}
-	if f.Default != false {
-		t.Errorf("field.Default = %v, want false", f.Default)
+	if f.Type() != initwiz.FieldBool {
+		t.Errorf("field.Type = %q, want %q", f.Type(), initwiz.FieldBool)
 	}
 
 	// Group 1: Update Settings
@@ -53,7 +50,7 @@ func TestPlugin_InitGroups(t *testing.T) {
 	}
 
 	// Verify field keys
-	keys := []string{g1.Fields[0].Key, g1.Fields[1].Key, g1.Fields[2].Key}
+	keys := []string{g1.Fields[0].Key(), g1.Fields[1].Key(), g1.Fields[2].Key()}
 	wantKeys := []string{"tfupdate.target", "tfupdate.bump", "tfupdate.pipeline"}
 	for i, want := range wantKeys {
 		if keys[i] != want {
@@ -62,12 +59,12 @@ func TestPlugin_InitGroups(t *testing.T) {
 	}
 
 	// Target has 3 options
-	if len(g1.Fields[0].Options) != 3 {
-		t.Errorf("target options = %d, want 3", len(g1.Fields[0].Options))
+	if len(g1.Fields[0].Options()) != 3 {
+		t.Errorf("target options = %d, want 3", len(g1.Fields[0].Options()))
 	}
 	// Bump has 3 options
-	if len(g1.Fields[1].Options) != 3 {
-		t.Errorf("bump options = %d, want 3", len(g1.Fields[1].Options))
+	if len(g1.Fields[1].Options()) != 3 {
+		t.Errorf("bump options = %d, want 3", len(g1.Fields[1].Options()))
 	}
 }
 
@@ -81,13 +78,13 @@ func TestPlugin_InitGroups_ShowWhen(t *testing.T) {
 	}
 
 	stateEnabled := initwiz.NewStateMap()
-	stateEnabled.Set("tfupdate.enabled", true)
+	keyUpdateEnabled.Set(stateEnabled, true)
 	if !showWhen(stateEnabled) {
 		t.Error("ShowWhen should return true when tfupdate.enabled=true")
 	}
 
 	stateDisabled := initwiz.NewStateMap()
-	stateDisabled.Set("tfupdate.enabled", false)
+	keyUpdateEnabled.Set(stateDisabled, false)
 	if showWhen(stateDisabled) {
 		t.Error("ShowWhen should return false when tfupdate.enabled=false")
 	}
@@ -96,7 +93,7 @@ func TestPlugin_InitGroups_ShowWhen(t *testing.T) {
 func TestPlugin_BuildInitConfig_Enabled(t *testing.T) {
 	p := newTestPlugin(t)
 	state := initwiz.NewStateMap()
-	state.Set("tfupdate.enabled", true)
+	keyUpdateEnabled.Set(state, true)
 
 	contrib, err := p.BuildInitConfig(state)
 	if err != nil {
@@ -117,7 +114,7 @@ func TestPlugin_BuildInitConfig_Enabled(t *testing.T) {
 func TestPlugin_BuildInitConfig_Disabled(t *testing.T) {
 	p := newTestPlugin(t)
 	state := initwiz.NewStateMap()
-	state.Set("tfupdate.enabled", false)
+	keyUpdateEnabled.Set(state, false)
 
 	contrib, err := p.BuildInitConfig(state)
 	if err != nil {
@@ -144,8 +141,8 @@ func TestPlugin_BuildInitConfig_NotSet(t *testing.T) {
 func TestPlugin_BuildInitConfig_NonDefaultTarget(t *testing.T) {
 	p := newTestPlugin(t)
 	state := initwiz.NewStateMap()
-	state.Set("tfupdate.enabled", true)
-	state.Set("tfupdate.target", "modules")
+	keyUpdateEnabled.Set(state, true)
+	keyUpdateTarget.Set(state, "modules")
 
 	contrib, err := p.BuildInitConfig(state)
 	if err != nil {
@@ -163,8 +160,8 @@ func TestPlugin_BuildInitConfig_NonDefaultTarget(t *testing.T) {
 func TestPlugin_BuildInitConfig_NonDefaultBump(t *testing.T) {
 	p := newTestPlugin(t)
 	state := initwiz.NewStateMap()
-	state.Set("tfupdate.enabled", true)
-	state.Set("tfupdate.bump", "patch")
+	keyUpdateEnabled.Set(state, true)
+	keyUpdateBump.Set(state, "patch")
 
 	contrib, err := p.BuildInitConfig(state)
 	if err != nil {
@@ -182,8 +179,8 @@ func TestPlugin_BuildInitConfig_NonDefaultBump(t *testing.T) {
 func TestPlugin_BuildInitConfig_Pipeline(t *testing.T) {
 	p := newTestPlugin(t)
 	state := initwiz.NewStateMap()
-	state.Set("tfupdate.enabled", true)
-	state.Set("tfupdate.pipeline", true)
+	keyUpdateEnabled.Set(state, true)
+	keyUpdatePipeline.Set(state, true)
 
 	contrib, err := p.BuildInitConfig(state)
 	if err != nil {
@@ -201,9 +198,9 @@ func TestPlugin_BuildInitConfig_Pipeline(t *testing.T) {
 func TestPlugin_BuildInitConfig_AllDefaults(t *testing.T) {
 	p := newTestPlugin(t)
 	state := initwiz.NewStateMap()
-	state.Set("tfupdate.enabled", true)
-	state.Set("tfupdate.target", "all")
-	state.Set("tfupdate.bump", "minor")
+	keyUpdateEnabled.Set(state, true)
+	keyUpdateTarget.Set(state, "all")
+	keyUpdateBump.Set(state, "minor")
 
 	contrib, err := p.BuildInitConfig(state)
 	if err != nil {

@@ -18,13 +18,12 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 			Category: initwiz.CategoryFeature,
 			Order:    initGroupOrder,
 			Fields: []initwiz.InitField{
-				{
-					Key:         "summary.enabled",
+				initwiz.NewBoolField(initwiz.BoolFieldOptions{
+					Key:         initwiz.SummaryEnabledKey,
 					Title:       "Enable plan summaries?",
 					Description: "Post Terraform plan summaries as merge and pull request comments",
-					Type:        initwiz.FieldBool,
 					Default:     true,
-				},
+				}),
 			},
 		},
 	}
@@ -32,7 +31,7 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 
 // BuildInitConfig builds the summary plugin config from wizard state.
 func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribution, error) {
-	enabled := state.Bool("summary.enabled")
+	enabled := initwiz.SummaryEnabledKey.Get(state)
 	if enabled {
 		return nil, nil
 	}

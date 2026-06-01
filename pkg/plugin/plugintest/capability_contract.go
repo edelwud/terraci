@@ -3,7 +3,6 @@ package plugintest
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"slices"
 	"testing"
 	"time"
@@ -112,12 +111,13 @@ func assertInitGroupsUsable(tb testing.TB, groups []*initwiz.InitGroupSpec) {
 		if group.Title == "" {
 			tb.Fatalf("InitGroups() contains group with empty title: %#v", group)
 		}
-		for _, field := range group.Fields {
-			if field.Key == "" {
+		for i := range group.Fields {
+			field := &group.Fields[i]
+			if field.Key() == "" {
 				tb.Fatalf("init group %q contains field with empty key", group.Title)
 			}
-			if field.Title == "" {
-				tb.Fatalf("init group %q field %q has empty title", group.Title, field.Key)
+			if field.Title() == "" {
+				tb.Fatalf("init group %q field %q has empty title", group.Title, field.Key())
 			}
 		}
 	}
@@ -156,7 +156,6 @@ type initFieldShape struct {
 	Title       string
 	Description string
 	Type        initwiz.FieldType
-	Default     any
 	Options     []initwiz.InitOption
 	Placeholder string
 }
@@ -175,7 +174,6 @@ func sameInitFieldShape(a, b initFieldShape) bool {
 		a.Title == b.Title &&
 		a.Description == b.Description &&
 		a.Type == b.Type &&
-		fmt.Sprintf("%T:%#v", a.Default, a.Default) == fmt.Sprintf("%T:%#v", b.Default, b.Default) &&
 		slices.Equal(a.Options, b.Options) &&
 		a.Placeholder == b.Placeholder
 }
@@ -193,15 +191,15 @@ func initGroupShapes(groups []*initwiz.InitGroupSpec) []initGroupShape {
 			Order:    group.Order,
 			Fields:   make([]initFieldShape, 0, len(group.Fields)),
 		}
-		for _, field := range group.Fields {
+		for i := range group.Fields {
+			field := &group.Fields[i]
 			shape.Fields = append(shape.Fields, initFieldShape{
-				Key:         field.Key,
-				Title:       field.Title,
-				Description: field.Description,
-				Type:        field.Type,
-				Default:     field.Default,
-				Options:     slices.Clone(field.Options),
-				Placeholder: field.Placeholder,
+				Key:         field.Key(),
+				Title:       field.Title(),
+				Description: field.Description(),
+				Type:        field.Type(),
+				Options:     field.Options(),
+				Placeholder: field.Placeholder(),
 			})
 		}
 		shapes = append(shapes, shape)

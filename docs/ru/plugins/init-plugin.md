@@ -15,6 +15,12 @@ outline: deep
 ```go
 import "github.com/edelwud/terraci/pkg/plugin/initwiz"
 
+var (
+    slackEnabledKey   = initwiz.MustStateKey[bool]("slack.enabled")
+    slackChannelKey   = initwiz.MustStateKey[string]("slack.channel")
+    slackOnFailureKey = initwiz.MustStateKey[string]("slack.on_failure")
+)
+
 func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
     return []*initwiz.InitGroupSpec{
         {
@@ -22,12 +28,11 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
             Category: initwiz.CategoryFeature,
             Order:    300,
             Fields: []initwiz.InitField{
-                {
-                    Key:         "slack.enabled",
+                initwiz.NewBoolField(initwiz.BoolFieldOptions{
+                    Key:         slackEnabledKey,
                     Title:       "Enable Slack notifications?",
-                    Type:        initwiz.FieldBool,
                     Default:     false,
-                },
+                }),
             },
         },
         {
@@ -35,25 +40,23 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
             Category: initwiz.CategoryDetail,
             Order:    300,
             ShowWhen: func(s *initwiz.StateMap) bool {
-                return s.Bool("slack.enabled")
+                return slackEnabledKey.Get(s)
             },
             Fields: []initwiz.InitField{
-                {
-                    Key:     "slack.channel",
+                initwiz.NewStringField(initwiz.StringFieldOptions{
+                    Key:     slackChannelKey,
                     Title:   "Channel",
-                    Type:    initwiz.FieldString,
                     Default: "#terraform-deploys",
-                },
-                {
-                    Key:     "slack.on_failure",
+                }),
+                initwiz.NewSelectField(initwiz.SelectFieldOptions{
+                    Key:     slackOnFailureKey,
                     Title:   "Notify on failure",
-                    Type:    initwiz.FieldSelect,
                     Default: "always",
                     Options: []initwiz.InitOption{
                         {Label: "Always", Value: "always"},
                         {Label: "Only on failure", Value: "failure"},
                     },
-                },
+                }),
             },
         },
     }
@@ -67,12 +70,12 @@ type SlackConfig struct {
 func (c SlackConfig) Clone() SlackConfig { return c }
 
 func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribution, error) {
-    if !state.Bool("slack.enabled") {
+    if !slackEnabledKey.Get(state) {
         return nil, nil
     }
     return initwiz.NewInitContribution("slack", SlackConfig{
         Enabled: true,
-        Channel: state.String("slack.channel"),
+        Channel: slackChannelKey.Get(state),
     })
 }
 ```
@@ -106,12 +109,16 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribu
 
 ## StateMap
 
+`StateMap` остается mutable состоянием формы, но плагин работает с ним через
+typed `StateKey[T]`, объявленные один раз на уровне пакета:
+
 ```go
-state.String("key")     // строка или ""
-state.Bool("key")       // bool или false
-state.Get("key")        // any или nil
-state.Provider()        // state.String("provider")
-state.Binary()          // state.String("binary")
+var channelKey = initwiz.MustStateKey[string]("slack.channel")
+var enabledKey = initwiz.MustStateKey[bool]("slack.enabled")
+
+channel := channelKey.Get(state)
+enabled, explicitlySet := enabledKey.Lookup(state)
+enabledKey.Set(state, true)
 ```
 
 ## См. также

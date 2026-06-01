@@ -146,6 +146,15 @@ func TestArchitecture_ConfigSnapshotAndDocs(t *testing.T) {
 		"Evaluate(ctx context.Context, input any",
 		"Metadata  map[string]any",
 		"policyinput.Envelope{",
+		`state.Get("`,
+		`state.Set("`,
+		`state.String("`,
+		`state.Bool("`,
+		`state.StringPtr("`,
+		`state.BoolPtr("`,
+		"state.Provider()",
+		"state.Binary()",
+		"Fields: []initwiz.InitField{{",
 	}
 	for _, rel := range textFiles(t, root, "AGENTS.md", "docs", "examples", "pkg/plugin/doc.go") {
 		if allowUnder(rel, "docs/.vitepress/dist/") {
@@ -189,6 +198,9 @@ func TestArchitecture_InitExtensionContracts(t *testing.T) {
 				}
 				if isInitContributionLiteral(n.Type, initwizAliases) {
 					violations = append(violations, rel+" manually constructs initwiz.InitContribution; use initwiz.NewInitContribution")
+				}
+				if !strings.HasPrefix(rel, "pkg/plugin/initwiz/") && isInitFieldLiteral(n.Type, initwizAliases) {
+					violations = append(violations, rel+" manually constructs initwiz.InitField; use initwiz.NewStringField/NewBoolField/NewSelectField")
 				}
 			}
 			return true
@@ -1098,6 +1110,15 @@ func isAnyIdent(expr ast.Expr) bool {
 func isInitContributionLiteral(expr ast.Expr, initwizAliases map[string]bool) bool {
 	selector, ok := expr.(*ast.SelectorExpr)
 	if !ok || selector.Sel.Name != "InitContribution" {
+		return false
+	}
+	ident, ok := selector.X.(*ast.Ident)
+	return ok && initwizAliases[ident.Name]
+}
+
+func isInitFieldLiteral(expr ast.Expr, initwizAliases map[string]bool) bool {
+	selector, ok := expr.(*ast.SelectorExpr)
+	if !ok || selector.Sel.Name != "InitField" {
 		return false
 	}
 	ident, ok := selector.X.(*ast.Ident)

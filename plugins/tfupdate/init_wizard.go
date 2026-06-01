@@ -6,13 +6,11 @@ import "github.com/edelwud/terraci/pkg/plugin/initwiz"
 
 const initGroupOrder = 202
 
-// Wizard StateMap keys. Centralized so InitGroups field definitions and
-// BuildInitConfig consumers can never drift apart on a typo.
-const (
-	keyUpdateEnabled  = "tfupdate.enabled"
-	keyUpdateTarget   = "tfupdate.target"
-	keyUpdateBump     = "tfupdate.bump"
-	keyUpdatePipeline = "tfupdate.pipeline"
+var (
+	keyUpdateEnabled  = initwiz.MustStateKey[bool]("tfupdate.enabled")
+	keyUpdateTarget   = initwiz.MustStateKey[string]("tfupdate.target")
+	keyUpdateBump     = initwiz.MustStateKey[string]("tfupdate.bump")
+	keyUpdatePipeline = initwiz.MustStateKey[bool]("tfupdate.pipeline")
 )
 
 type initConfig struct {
@@ -34,52 +32,46 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 			Category: initwiz.CategoryFeature,
 			Order:    initGroupOrder,
 			Fields: []initwiz.InitField{
-				{
+				initwiz.NewBoolField(initwiz.BoolFieldOptions{
 					Key:         keyUpdateEnabled,
 					Title:       "Enable dependency update checks?",
 					Description: "Check Terraform providers and modules for newer versions",
-					Type:        initwiz.FieldBool,
 					Default:     false,
-				},
+				}),
 			},
 		},
 		{
 			Title:    "Update Settings",
 			Category: initwiz.CategoryDetail,
 			Order:    initGroupOrder,
-			ShowWhen: func(s *initwiz.StateMap) bool {
-				return s.Bool(keyUpdateEnabled)
-			},
+			ShowWhen: keyUpdateEnabled.Get,
 			Fields: []initwiz.InitField{
-				{
+				initwiz.NewSelectField(initwiz.SelectFieldOptions{
 					Key:     keyUpdateTarget,
 					Title:   "What to check",
-					Type:    initwiz.FieldSelect,
 					Default: "all",
 					Options: []initwiz.InitOption{
 						{Label: "All (modules + providers)", Value: "all"},
 						{Label: "Modules only", Value: "modules"},
 						{Label: "Providers only", Value: "providers"},
 					},
-				},
-				{
+				}),
+				initwiz.NewSelectField(initwiz.SelectFieldOptions{
 					Key:     keyUpdateBump,
 					Title:   "Maximum bump level",
-					Type:    initwiz.FieldSelect,
 					Default: "minor",
 					Options: []initwiz.InitOption{
 						{Label: "Patch only", Value: "patch"},
 						{Label: "Minor", Value: "minor"},
 						{Label: "Major", Value: "major"},
 					},
-				},
-				{
+				}),
+				initwiz.NewBoolField(initwiz.BoolFieldOptions{
 					Key:         keyUpdatePipeline,
 					Title:       "Add update check to CI pipeline?",
 					Description: "Add a tfupdate-check job to generated pipelines",
-					Type:        initwiz.FieldBool,
 					Default:     false,
-				},
+				}),
 			},
 		},
 	}
@@ -87,7 +79,7 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 
 // BuildInitConfig builds the update init contribution.
 func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribution, error) {
-	enabled := state.Bool(keyUpdateEnabled)
+	enabled := keyUpdateEnabled.Get(state)
 	if !enabled {
 		return nil, nil
 	}
@@ -96,13 +88,13 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribu
 		Enabled: true,
 	}
 
-	if target := state.String(keyUpdateTarget); target != "" && target != "all" {
+	if target := keyUpdateTarget.Get(state); target != "" && target != "all" {
 		cfg.Target = target
 	}
-	if bump := state.String(keyUpdateBump); bump != "" && bump != "minor" {
+	if bump := keyUpdateBump.Get(state); bump != "" && bump != "minor" {
 		cfg.Policy = &initPolicyConfig{Bump: bump}
 	}
-	if state.Bool(keyUpdatePipeline) {
+	if keyUpdatePipeline.Get(state) {
 		cfg.Pipeline = true
 	}
 

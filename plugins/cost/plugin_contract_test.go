@@ -72,7 +72,7 @@ func TestPlugin_SDKContracts(t *testing.T) {
 
 	t.Run("init contributor", func(t *testing.T) {
 		state := initwiz.NewStateMap()
-		state.Set("cost.providers.aws.enabled", true)
+		providerEnabledKey("aws").Set(state, true)
 		plugintest.AssertInitContributor(t, plugintest.InitContributorContract{
 			Contributor:        newTestPlugin(t),
 			State:              state,

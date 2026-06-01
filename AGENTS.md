@@ -84,8 +84,8 @@ pkg/                            # Public API — importable by external plugins 
 │   │   ├── registry.go         # RegisterFactory(), New(), Catalog, Registry + typed framework views
 │   │   └── resolve.go          # Registry.ResolveCIProvider/ResolveChangeDetector/Resolve*Provider/CollectContributions/PreflightsForStartup
 │   ├── initwiz/                # Init wizard state + types
-│   │   ├── state.go            # StateMap — typed form state with pointer getters for huh
-│   │   └── types.go            # InitContributor, InitGroupSpec, InitField, FieldType
+│   │   ├── state.go            # StateMap + typed StateKey[T] form state for huh bindings
+│   │   └── types.go            # InitContributor, InitGroupSpec, constructor-built InitField value objects
 │   └── plugintest/             # Plugin-author SDK contract tests + mock doubles + NoopResolver
 ├── pipeline/                   # Plugin-agnostic pipeline IR
 │   ├── types.go                # IR, Job, Operation, TerraformOperation, Contribution, ContributedJob
@@ -228,7 +228,7 @@ Each feature/plugin follows one-file-per-capability where it applies, with runti
 - `usecases.go` — typed Request/Result orchestration over runtime
 - `generator.go` — EnvDetector + CIInfoProvider + PipelineGeneratorFactory + CommentServiceFactory
 - `pipeline.go` — PipelineContributor(ctx) (no self-check, framework filters)
-- `init_wizard.go` — initwiz.InitContributor (uses typed *initwiz.StateMap)
+- `init_wizard.go` — initwiz.InitContributor (uses package-local initwiz.StateKey values and field constructors)
 - `version.go` — VersionProvider
 - `output.go` — Rendering/formatting helpers
 - `report.go` — CI report assembly
@@ -448,7 +448,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 1. `initflow.New(registry)` snapshots init contributors, provider options, and deterministic display groups
 2. `Flow.DefaultState()` plus `Flow.ApplyOverrides(...)` populate provider, binary, pattern, plan jobs, and summary defaults
 3. `cmd/terraci/cmd` renders Basics plus `Flow.DisplayGroups()` through huh; it does not discover contributors or assemble YAML
-4. `BuildInitConfig` returns typed `initwiz.InitContribution` values from plugins
+4. `BuildInitConfig` reads typed `initwiz.StateKey` values and returns typed `initwiz.InitContribution` values from plugins
 5. `Flow.BuildConfig(state)` converts contributions into a config extension set and assembles the final config
 
 ## Key Patterns
@@ -471,7 +471,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **Command boundary**: plugin command callbacks use `plugin.CommandPlugin[T](cmd, name)` and `plugin.RequireEnabled(...)`; low-level cobra context binding is framework-owned. Command binding and disabled-plugin failures are typed errors.
 - **SDK contract kit**: plugin SDK behavior is tested through `pkg/plugin/plugintest`; CI/report behavior is tested through `pkg/ci/citest`. New plugins should copy these contract helpers for config immutability, command binding, runtime creation, contributions, lifecycle, init wizard, providers, change detection, rendered reports, and artifact lifecycle.
 - **Init wizard flow**: command code owns cobra, TTY checks, huh rendering, YAML preview, and file writes. `cmd/terraci/internal/initflow` owns defaults, contributor collection, display group ordering/merge rules, duplicate extension detection, and final config assembly.
-- **Init extension contracts**: init wizard plugins return typed config structs/maps through `initwiz.NewInitContribution`. Core owns YAML node encoding and defensive copies; initflow owns duplicate detection and final assembly. Do not return loose extension maps from plugin init code.
+- **Init extension contracts**: init wizard plugins define package-local `initwiz.StateKey[T]` values, build fields through `initwiz.NewStringField` / `NewBoolField` / `NewSelectField`, and return typed config structs/maps through `initwiz.NewInitContribution`. Core owns YAML node encoding and defensive copies; initflow owns duplicate detection and final assembly. Do not return loose extension maps from plugin init code.
 - **Report artifact lifecycle**: plan-aware producers use `PlanResultCollection -> ci.ArtifactRun -> ci.NewRenderedReport -> ci.PublishArtifacts(...)`. `PublishArtifacts` always persists raw results and removes stale reports on nil/build errors. Report-only producers may use `SaveReport`.
 - **Report sections via typed render payloads**: producer plugins call `ci.NewRenderedReport(...)` and publish only validated `ci.ReportSectionKindRendered` sections with constructor-built `ci.RenderBlock` / `ci.RenderValue` payloads and the current rendered payload `schema_version`. `ReportSection`, `RenderBlock`, `RenderTable`, and `RenderValue` internals are private; use constructors/getters plus `ci.DecodeRenderSection`, not raw payload access. Summary/local renderers consume the generic render model through `plugins/internal/reportrender` and stay unaware of cost/policy/tfupdate domain structs.
 - **Report freshness**: `pkg/ci.SelectCurrentReports` owns current/stale/degraded policy. Summary and localexec skip reports whose non-empty `plan_results_fingerprint` does not match the current plan collection. Missing provenance is accepted as degraded mode.

@@ -116,19 +116,19 @@ func TestFlowDefaultStateProviderPreference(t *testing.T) {
 			flow := New(testSource{plugins: tt.providers})
 			state := flow.DefaultState()
 
-			if got := state.String("provider"); got != tt.want {
+			if got := initwiz.ProviderKey.Get(state); got != tt.want {
 				t.Fatalf("provider = %q, want %q", got, tt.want)
 			}
-			if got := state.String("binary"); got != config.ExecutionBinaryTerraform {
+			if got := initwiz.BinaryKey.Get(state); got != config.ExecutionBinaryTerraform {
 				t.Fatalf("binary = %q, want terraform", got)
 			}
-			if got := state.Bool("plan_enabled"); !got {
+			if got := initwiz.PlanEnabledKey.Get(state); !got {
 				t.Fatal("plan_enabled should default to true")
 			}
-			if got := state.String("pattern"); got != config.DefaultConfig().Structure.Pattern {
+			if got := initwiz.PatternKey.Get(state); got != config.DefaultConfig().Structure.Pattern {
 				t.Fatalf("pattern = %q, want default pattern", got)
 			}
-			if got := state.Bool("summary.enabled"); !got {
+			if got := initwiz.SummaryEnabledKey.Get(state); !got {
 				t.Fatal("summary.enabled should default to true")
 			}
 		})
@@ -147,13 +147,13 @@ func TestFlowApplyOverrides(t *testing.T) {
 		Pattern:  "{environment}/{module}",
 	})
 
-	if got := state.String("provider"); got != "github" {
+	if got := initwiz.ProviderKey.Get(state); got != "github" {
 		t.Fatalf("provider = %q", got)
 	}
-	if got := state.String("binary"); got != config.ExecutionBinaryTofu {
+	if got := initwiz.BinaryKey.Get(state); got != config.ExecutionBinaryTofu {
 		t.Fatalf("binary = %q", got)
 	}
-	if got := state.String("pattern"); got != "{environment}/{module}" {
+	if got := initwiz.PatternKey.Get(state); got != "{environment}/{module}" {
 		t.Fatalf("pattern = %q", got)
 	}
 }
@@ -203,8 +203,8 @@ func TestFlowMergedGroupsDedupeFirstField(t *testing.T) {
 				Category: initwiz.CategoryFeature,
 				Order:    20,
 				Fields: []initwiz.InitField{
-					{Key: "shared", Title: "second"},
-					{Key: "beta", Title: "beta"},
+					testStringField("shared", "second"),
+					testStringField("beta", "beta"),
 				},
 			},
 			{
@@ -212,8 +212,8 @@ func TestFlowMergedGroupsDedupeFirstField(t *testing.T) {
 				Category: initwiz.CategoryFeature,
 				Order:    10,
 				Fields: []initwiz.InitField{
-					{Key: "shared", Title: "first"},
-					{Key: "alpha", Title: "alpha"},
+					testStringField("shared", "first"),
+					testStringField("alpha", "alpha"),
 				},
 			},
 		},
@@ -231,7 +231,7 @@ func TestFlowMergedGroupsDedupeFirstField(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("field keys = %#v, want %#v", got, want)
 	}
-	if got := groups[0].Fields[0].Title; got != "first" {
+	if got := groups[0].Fields[0].Title(); got != "first" {
 		t.Fatalf("deduped field title = %q, want first", got)
 	}
 }
@@ -329,9 +329,16 @@ func groupSpec(title string, category initwiz.InitCategory, order int, fieldKey 
 		Category: category,
 		Order:    order,
 		Fields: []initwiz.InitField{
-			{Key: fieldKey, Title: fieldKey},
+			testStringField(fieldKey, fieldKey),
 		},
 	}
+}
+
+func testStringField(key, title string) initwiz.InitField {
+	return initwiz.NewStringField(initwiz.StringFieldOptions{
+		Key:   initwiz.MustStateKey[string](key),
+		Title: title,
+	})
 }
 
 func displayGroupSummary(groups []DisplayGroup) []string {
@@ -344,8 +351,8 @@ func displayGroupSummary(groups []DisplayGroup) []string {
 
 func fieldKeys(fields []initwiz.InitField) []string {
 	out := make([]string, 0, len(fields))
-	for _, field := range fields {
-		out = append(out, field.Key)
+	for i := range fields {
+		out = append(out, fields[i].Key())
 	}
 	return out
 }

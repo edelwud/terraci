@@ -13,16 +13,15 @@ func PipelineGroup(providerKey string) *initwiz.InitGroupSpec {
 		Category: initwiz.CategoryPipeline,
 		Order:    100,
 		ShowWhen: func(s *initwiz.StateMap) bool {
-			return s.Provider() == providerKey
+			return initwiz.ProviderKey.Get(s) == providerKey
 		},
 		Fields: []initwiz.InitField{
-			{
-				Key:         "plan_enabled",
+			initwiz.NewBoolField(initwiz.BoolFieldOptions{
+				Key:         initwiz.PlanEnabledKey,
 				Title:       "Enable plan jobs?",
 				Description: "Generate plan jobs before apply jobs",
-				Type:        initwiz.FieldBool,
 				Default:     true,
-			},
+			}),
 		},
 	}
 }

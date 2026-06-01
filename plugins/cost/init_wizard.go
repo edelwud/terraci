@@ -12,12 +12,12 @@ import (
 
 const initGroupOrder = 200
 
-// providerEnabledKey returns the StateMap key for a cloud provider's
+// providerEnabledKey returns the typed StateMap key for a cloud provider's
 // "enabled?" toggle. Centralizes the "cost.providers.<id>.enabled" string
 // so the InitGroups field definition and BuildInitConfig consumer cannot
 // drift apart on a typo.
-func providerEnabledKey(providerID string) string {
-	return fmt.Sprintf("cost.providers.%s.enabled", providerID)
+func providerEnabledKey(providerID string) initwiz.StateKey[bool] {
+	return initwiz.MustStateKey[bool](fmt.Sprintf("cost.providers.%s.enabled", providerID))
 }
 
 // InitGroups returns the init wizard group spec for cost estimation.
@@ -32,13 +32,12 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 	fields := make([]initwiz.InitField, 0, len(clouds))
 	for _, c := range clouds {
 		def := c.Definition()
-		fields = append(fields, initwiz.InitField{
+		fields = append(fields, initwiz.NewBoolField(initwiz.BoolFieldOptions{
 			Key:         providerEnabledKey(def.Manifest.ID),
 			Title:       fmt.Sprintf("Estimate %s costs?", def.Manifest.DisplayName),
 			Description: fmt.Sprintf("Run cost estimation against %s plan output", def.Manifest.DisplayName),
-			Type:        initwiz.FieldBool,
 			Default:     false,
-		})
+		}))
 	}
 
 	if len(fields) == 0 {
@@ -46,13 +45,12 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 		// the form group still renders with a clear "no clouds available"
 		// label. Users compiling a custom binary without any cloud-pricing
 		// plugins will see this immediately.
-		fields = []initwiz.InitField{{
-			Key:         "cost.no_providers",
+		fields = []initwiz.InitField{initwiz.NewBoolField(initwiz.BoolFieldOptions{
+			Key:         initwiz.MustStateKey[bool]("cost.no_providers"),
 			Title:       "Cost estimation unavailable",
 			Description: "No cloud-pricing providers compiled into this binary",
-			Type:        initwiz.FieldBool,
 			Default:     false,
-		}}
+		})}
 	}
 
 	return []*initwiz.InitGroupSpec{
@@ -73,7 +71,7 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribu
 	providers := model.CostProvidersConfig{}
 	for _, c := range cloud.Providers() {
 		def := c.Definition()
-		if state.Bool(providerEnabledKey(def.Manifest.ID)) {
+		if providerEnabledKey(def.Manifest.ID).Get(state) {
 			providers[def.Manifest.ID] = model.ProviderConfig{Enabled: true}
 		}
 	}

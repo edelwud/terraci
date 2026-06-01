@@ -30,21 +30,18 @@ func TestPlugin_InitGroups(t *testing.T) {
 	}
 
 	f := g.Fields[0]
-	if f.Key != "cost.providers.aws.enabled" {
-		t.Errorf("field.Key = %q, want %q", f.Key, "cost.providers.aws.enabled")
+	if f.Key() != "cost.providers.aws.enabled" {
+		t.Errorf("field.Key = %q, want %q", f.Key(), "cost.providers.aws.enabled")
 	}
-	if f.Type != initwiz.FieldBool {
-		t.Errorf("field.Type = %q, want %q", f.Type, initwiz.FieldBool)
-	}
-	if f.Default != false {
-		t.Errorf("field.Default = %v, want false", f.Default)
+	if f.Type() != initwiz.FieldBool {
+		t.Errorf("field.Type = %q, want %q", f.Type(), initwiz.FieldBool)
 	}
 }
 
 func TestPlugin_BuildInitConfig_Enabled(t *testing.T) {
 	p := newTestPlugin(t)
 	state := initwiz.NewStateMap()
-	state.Set("cost.providers.aws.enabled", true)
+	providerEnabledKey("aws").Set(state, true)
 
 	contrib, err := p.BuildInitConfig(state)
 	if err != nil {
@@ -73,7 +70,7 @@ func TestPlugin_BuildInitConfig_Enabled(t *testing.T) {
 func TestPlugin_BuildInitConfig_Disabled(t *testing.T) {
 	p := newTestPlugin(t)
 	state := initwiz.NewStateMap()
-	state.Set("cost.providers.aws.enabled", false)
+	providerEnabledKey("aws").Set(state, false)
 
 	contrib, err := p.BuildInitConfig(state)
 	if err != nil {
@@ -88,7 +85,7 @@ func TestPlugin_BuildInitConfig_Disabled(t *testing.T) {
 func TestPlugin_BuildInitConfig_NotSet(t *testing.T) {
 	p := newTestPlugin(t)
 	state := initwiz.NewStateMap()
-	// No key set — Bool("cost.providers.aws.enabled") returns false
+	// No key set — providerEnabledKey("aws").Get(state) returns false.
 
 	contrib, err := p.BuildInitConfig(state)
 	if err != nil {

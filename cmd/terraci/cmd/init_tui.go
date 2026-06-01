@@ -91,7 +91,7 @@ func (m *initModel) basicsGroup(providers []initflow.ProviderOption) *huh.Group 
 			Title("CI Provider").
 			Description("Which CI/CD platform do you use?").
 			Options(providerOpts...).
-			Value(m.state.StringPtr("provider")),
+			Value(initwiz.ProviderKey.Bind(m.state)),
 
 		huh.NewSelect[string]().
 			Title("IaC Tool").
@@ -99,21 +99,21 @@ func (m *initModel) basicsGroup(providers []initflow.ProviderOption) *huh.Group 
 			Options(
 				huh.NewOption("Terraform", "terraform"),
 				huh.NewOption("OpenTofu", "tofu"),
-			).Value(m.state.StringPtr("binary")),
+			).Value(initwiz.BinaryKey.Bind(m.state)),
 
 		huh.NewInput().
 			Title("Directory Pattern").
 			Description("How are your Terraform modules organized?").
 			Placeholder("{service}/{environment}/{region}/{module}").
-			Value(m.state.StringPtr("pattern")),
+			Value(initwiz.PatternKey.Bind(m.state)),
 	).Title("Basics")
 }
 
 // buildDisplayGroup converts a typed initflow display group into a huh group.
 func buildDisplayGroup(group initflow.DisplayGroup, state *initwiz.StateMap) *huh.Group {
 	fields := make([]huh.Field, 0, len(group.Fields))
-	for _, field := range group.Fields {
-		fields = append(fields, buildPluginField(field, state))
+	for i := range group.Fields {
+		fields = append(fields, buildPluginField(&group.Fields[i], state))
 	}
 
 	g := huh.NewGroup(fields...).Title(group.Title)
@@ -127,44 +127,40 @@ func buildDisplayGroup(group initflow.DisplayGroup, state *initwiz.StateMap) *hu
 }
 
 // buildPluginField converts an InitField into a huh.Field.
-func buildPluginField(f initwiz.InitField, state *initwiz.StateMap) huh.Field {
-	// Initialize default value
-	if f.Default != nil {
-		if state.Get(f.Key) == nil {
-			state.Set(f.Key, f.Default)
-		}
-	}
+func buildPluginField(f *initwiz.InitField, state *initwiz.StateMap) huh.Field {
+	f.ApplyDefault(state)
 
-	switch f.Type {
+	switch f.Type() {
 	case initwiz.FieldBool:
 		return huh.NewConfirm().
-			Title(f.Title).
-			Description(f.Description).
-			Value(state.BoolPtr(f.Key))
+			Title(f.Title()).
+			Description(f.Description()).
+			Value(f.BoolKey().Bind(state))
 	case initwiz.FieldSelect:
-		opts := make([]huh.Option[string], len(f.Options))
-		for i, o := range f.Options {
+		options := f.Options()
+		opts := make([]huh.Option[string], len(options))
+		for i, o := range options {
 			opts[i] = huh.NewOption(o.Label, o.Value)
 		}
 		return huh.NewSelect[string]().
-			Title(f.Title).
-			Description(f.Description).
+			Title(f.Title()).
+			Description(f.Description()).
 			Options(opts...).
-			Value(state.StringPtr(f.Key))
+			Value(f.StringKey().Bind(state))
 	case initwiz.FieldString:
 		input := huh.NewInput().
-			Title(f.Title).
-			Description(f.Description).
-			Value(state.StringPtr(f.Key))
-		if f.Placeholder != "" {
-			input = input.Placeholder(f.Placeholder)
+			Title(f.Title()).
+			Description(f.Description()).
+			Value(f.StringKey().Bind(state))
+		if f.Placeholder() != "" {
+			input = input.Placeholder(f.Placeholder())
 		}
 		return input
 	default:
 		return huh.NewInput().
-			Title(f.Title).
-			Description(f.Description).
-			Value(state.StringPtr(f.Key))
+			Title(f.Title()).
+			Description(f.Description()).
+			Value(f.StringKey().Bind(state))
 	}
 }
 

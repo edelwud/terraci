@@ -294,11 +294,12 @@ func (contractInitContributor) InitGroups() []*initwiz.InitGroupSpec {
 		Title:    "Contract",
 		Category: initwiz.CategoryFeature,
 		Order:    10,
-		Fields: []initwiz.InitField{{
-			Key:   "contract_enabled",
-			Title: "Enable contract",
-			Type:  initwiz.FieldBool,
-		}},
+		Fields: []initwiz.InitField{
+			initwiz.NewBoolField(initwiz.BoolFieldOptions{
+				Key:   initwiz.MustStateKey[bool]("contract_enabled"),
+				Title: "Enable contract",
+			}),
+		},
 	}}
 }
 

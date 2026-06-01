@@ -46,6 +46,12 @@ Implement `InitContributor` from `pkg/plugin/initwiz`:
 ```go
 import "github.com/edelwud/terraci/pkg/plugin/initwiz"
 
+var (
+    slackEnabledKey   = initwiz.MustStateKey[bool]("slack.enabled")
+    slackChannelKey   = initwiz.MustStateKey[string]("slack.channel")
+    slackOnFailureKey = initwiz.MustStateKey[string]("slack.on_failure")
+)
+
 // InitGroups returns form groups for the init wizard.
 func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
     return []*initwiz.InitGroupSpec{
@@ -54,13 +60,12 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
             Category: initwiz.CategoryFeature,
             Order:    300,
             Fields: []initwiz.InitField{
-                {
-                    Key:         "slack.enabled",
+                initwiz.NewBoolField(initwiz.BoolFieldOptions{
+                    Key:         slackEnabledKey,
                     Title:       "Enable Slack notifications?",
                     Description: "Post plan summaries to a Slack channel",
-                    Type:        initwiz.FieldBool,
                     Default:     false,
-                },
+                }),
             },
         },
         {
@@ -68,28 +73,26 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
             Category: initwiz.CategoryDetail,
             Order:    300,
             ShowWhen: func(s *initwiz.StateMap) bool {
-                return s.Bool("slack.enabled")
+                return slackEnabledKey.Get(s)
             },
             Fields: []initwiz.InitField{
-                {
-                    Key:         "slack.channel",
+                initwiz.NewStringField(initwiz.StringFieldOptions{
+                    Key:         slackChannelKey,
                     Title:       "Slack Channel",
                     Description: "Channel to post notifications to",
-                    Type:        initwiz.FieldString,
                     Default:     "#terraform-deploys",
                     Placeholder: "#terraform-deploys",
-                },
-                {
-                    Key:     "slack.on_failure",
+                }),
+                initwiz.NewSelectField(initwiz.SelectFieldOptions{
+                    Key:     slackOnFailureKey,
                     Title:   "Notify on failure",
-                    Type:    initwiz.FieldSelect,
                     Default: "always",
                     Options: []initwiz.InitOption{
                         {Label: "Always", Value: "always"},
                         {Label: "Only on failure", Value: "failure"},
                         {Label: "Never", Value: "never"},
                     },
-                },
+                }),
             },
         },
     }
@@ -105,14 +108,14 @@ func (c SlackConfig) Clone() SlackConfig { return c }
 
 // BuildInitConfig constructs the plugin's typed config from wizard state.
 func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribution, error) {
-    if !state.Bool("slack.enabled") {
+    if !slackEnabledKey.Get(state) {
         return nil, nil
     }
 
     return initwiz.NewInitContribution("slack", SlackConfig{
         Enabled:   true,
-        Channel:   state.String("slack.channel"),
-        OnFailure: state.String("slack.on_failure"),
+        Channel:   slackChannelKey.Get(state),
+        OnFailure: slackOnFailureKey.Get(state),
     })
 }
 ```
@@ -140,22 +143,28 @@ Fields are grouped into categories that determine where they appear:
 Most plugins use two groups: a feature toggle in `CategoryFeature` and detailed settings in `CategoryDetail` that appear only when the feature is enabled:
 
 ```go
+var myPluginEnabledKey = initwiz.MustStateKey[bool]("myplugin.enabled")
+
 // Group 1: Feature toggle (merged with other plugins' toggles)
 {
     Category: initwiz.CategoryFeature,
-    Fields: []initwiz.InitField{{
-        Key:  "myplugin.enabled",
-        Type: initwiz.FieldBool,
-    }},
+    Fields: []initwiz.InitField{
+        initwiz.NewBoolField(initwiz.BoolFieldOptions{
+            Key:   myPluginEnabledKey,
+            Title: "Enable my plugin?",
+        }),
+    },
 }
 
 // Group 2: Detail settings (shown only when enabled)
 {
     Category: initwiz.CategoryDetail,
     ShowWhen: func(s *initwiz.StateMap) bool {
-        return s.Bool("myplugin.enabled")
+        return myPluginEnabledKey.Get(s)
     },
-    Fields: []initwiz.InitField{...},
+    Fields: []initwiz.InitField{
+        // additional initwiz.NewStringField/NewSelectField entries
+    },
 }
 ```
 
@@ -183,21 +192,24 @@ Use `300+` for custom plugins to appear after built-ins.
 
 ## StateMap
 
-`StateMap` provides typed access to form values:
+`StateMap` is mutable form state, but plugin authors access it only through
+typed `StateKey[T]` values. Define keys once at package scope:
 
 ```go
-state.String("key")     // returns string or ""
-state.Bool("key")       // returns bool or false
-state.Get("key")        // returns any or nil
-state.Provider()        // shorthand for state.String("provider")
-state.Binary()          // shorthand for state.String("binary")
+var channelKey = initwiz.MustStateKey[string]("slack.channel")
+var enabledKey = initwiz.MustStateKey[bool]("slack.enabled")
+
+channel := channelKey.Get(state)
+enabled, explicitlySet := enabledKey.Lookup(state)
+enabledKey.Set(state, true)
 ```
 
-For form binding, plugins receive `*string` / `*bool` pointers that the TUI mutates directly:
+The TUI layer binds stable pointers through those same keys; plugins normally do
+not need this unless they build their own UI:
 
 ```go
-state.StringPtr("key")  // stable *string pointer for huh form
-state.BoolPtr("key")    // stable *bool pointer for huh form
+channelPtr := channelKey.Bind(state)
+enabledPtr := enabledKey.Bind(state)
 ```
 
 ## Generated Config
