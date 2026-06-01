@@ -9,8 +9,6 @@ func DefaultConfig() *Config {
 		Execution: ExecutionConfig{
 			Binary:      ExecutionBinaryTerraform,
 			InitEnabled: true,
-			PlanEnabled: true,
-			PlanMode:    "standard",
 			Parallelism: 4,
 		},
 		Structure: StructureConfig{

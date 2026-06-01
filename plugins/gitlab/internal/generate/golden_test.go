@@ -51,7 +51,7 @@ func TestGoldenYAML(t *testing.T) {
 			name: "plan_only",
 			scenario: func(t *testing.T) *generatorScenario {
 				return newGeneratorScenario(t).
-					withConfig(func(cfg *Config) { cfg.PlanOnly = true }).
+					withPlanOnly().
 					withModules(discovery.TestModule("platform", "stage", "eu-central-1", "vpc"))
 			},
 			goldenRel: "testdata/golden/plan_only.yaml",

@@ -32,7 +32,7 @@ func TestBuild_SingleModule(t *testing.T) {
 	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
 	modules := []*discovery.Module{mod}
 
-	ir, err := buildProjectIR(testProjectIRBuildInput(modules, nil, BuildRequirements{}))
+	ir, err := buildProjectIR(testProjectIRBuildInput(modules, nil, mustIntent(t, true)))
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
@@ -53,18 +53,18 @@ func TestBuild_SingleModule(t *testing.T) {
 	}
 }
 
-func TestBuild_RequirementsPlanOnlySuppressesApply(t *testing.T) {
+func TestBuild_PlanIntentSuppressesApply(t *testing.T) {
 	t.Parallel()
 
 	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
 	modules := []*discovery.Module{mod}
 
-	ir, err := buildProjectIR(testProjectIRBuildInput(modules, nil, BuildRequirements{PlanOnly: true}))
+	ir, err := buildProjectIR(testProjectIRBuildInput(modules, nil, mustIntent(t, false, AllPlanResources(ResourceKindPlanBinary))))
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
 	if findJob(ir.jobs, jobName(JobKindApply, mod)) != nil {
-		t.Fatal("PlanOnly requirement should suppress apply jobs")
+		t.Fatal("plan intent should suppress apply jobs")
 	}
 }
 
@@ -75,7 +75,7 @@ func TestBuild_RequiredPlanJSONMakesOnlyMatchingModuleDetailed(t *testing.T) {
 	app := discovery.TestModule("svc", "prod", "eu", "app")
 	modules := []*discovery.Module{vpc, app}
 
-	ir, err := buildProjectIR(testProjectIRBuildInput(modules, [][2]int{{1, 0}}, RequirementsForResources(
+	ir, err := buildProjectIR(testProjectIRBuildInput(modules, [][2]int{{1, 0}}, mustIntent(t, true,
 		ModulePlanResource(ResourceKindPlanJSON, app.RelativePath),
 	)))
 	if err != nil {
@@ -100,7 +100,7 @@ func TestBuild_ContributedPlanConsumerAddsArtifactDependency(t *testing.T) {
 
 	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
 	modules := []*discovery.Module{mod}
-	opts := testProjectIRBuildInput(modules, nil, BuildRequirements{})
+	opts := testProjectIRBuildInput(modules, nil, mustIntent(t, true))
 	opts.Contributions = []*Contribution{mustContribution(t, mustContributedJob(t, ContributedJobOptions{
 		Name:     "cost-estimation",
 		Commands: []string{"terraci cost"},
@@ -128,6 +128,39 @@ func TestBuild_ContributedPlanConsumerAddsArtifactDependency(t *testing.T) {
 	}
 }
 
+func TestBuild_TerraformJobsMergeExecutionEnv(t *testing.T) {
+	t.Parallel()
+
+	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
+	modules := []*discovery.Module{mod}
+	opts := testProjectIRBuildInput(modules, nil, mustIntent(t, true))
+	opts.Script.Env = map[string]string{
+		"TF_MODULE":        "override",
+		"TF_IN_AUTOMATION": "true",
+		"CUSTOM":           "value",
+	}
+
+	ir, err := buildProjectIR(opts)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+
+	planJob := findJob(ir.jobs, jobName(JobKindPlan, mod))
+	if planJob == nil {
+		t.Fatal("missing plan job")
+	}
+	env := planJob.Env()
+	if env["TF_MODULE"] != "vpc" {
+		t.Fatalf("TF_MODULE = %q, want module-derived value", env["TF_MODULE"])
+	}
+	if env["TF_IN_AUTOMATION"] != "true" {
+		t.Fatalf("TF_IN_AUTOMATION = %q, want execution env", env["TF_IN_AUTOMATION"])
+	}
+	if env["CUSTOM"] != "value" {
+		t.Fatalf("CUSTOM = %q, want execution env", env["CUSTOM"])
+	}
+}
+
 func TestBuild_ApplyConsumesOnlyOwnPlanBinary(t *testing.T) {
 	t.Parallel()
 
@@ -135,7 +168,7 @@ func TestBuild_ApplyConsumesOnlyOwnPlanBinary(t *testing.T) {
 	app := discovery.TestModule("svc", "prod", "eu", "app")
 	modules := []*discovery.Module{vpc, app}
 
-	ir, err := buildProjectIR(testProjectIRBuildInput(modules, [][2]int{{1, 0}}, BuildRequirements{}))
+	ir, err := buildProjectIR(testProjectIRBuildInput(modules, [][2]int{{1, 0}}, mustIntent(t, true)))
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
@@ -160,7 +193,7 @@ func TestBuild_SummaryConsumesProducedReportsOnly(t *testing.T) {
 
 	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
 	modules := []*discovery.Module{mod}
-	opts := testProjectIRBuildInput(modules, nil, BuildRequirements{})
+	opts := testProjectIRBuildInput(modules, nil, mustIntent(t, true))
 	opts.Contributions = []*Contribution{mustContribution(t,
 		mustContributedJob(t, ContributedJobOptions{
 			Name:     "policy-check",
@@ -199,21 +232,26 @@ func TestBuild_SummaryConsumesProducedReportsOnly(t *testing.T) {
 	}
 }
 
-func TestBuild_RequiredPlanResourceWithPlanDisabledReturnsError(t *testing.T) {
+func TestBuild_RequiredPlanResourceCreatesPlanJobWhenApplyDisabled(t *testing.T) {
 	t.Parallel()
 
 	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
 	modules := []*discovery.Module{mod}
-	opts := testProjectIRBuildInput(modules, nil, RequirementsForResources(AllPlanResources(ResourceKindPlanJSON)))
-	opts.PlanEnabled = false
-	opts.Script.PlanEnabled = false
+	opts := testProjectIRBuildInput(modules, nil, mustIntent(t, false, AllPlanResources(ResourceKindPlanJSON)))
 
-	_, err := buildProjectIR(opts)
-	if err == nil {
-		t.Fatal("buildProjectIR() error = nil, want missing resource error")
+	ir, err := buildProjectIR(opts)
+	if err != nil {
+		t.Fatalf("buildProjectIR() error = %v", err)
 	}
-	if !strings.Contains(err.Error(), "pipeline required resources requires unavailable plan_json for all modules") {
-		t.Fatalf("buildProjectIR() error = %q", err)
+	if findJob(ir.jobs, jobName(JobKindApply, mod)) != nil {
+		t.Fatal("unexpected apply job")
+	}
+	planJob := findJob(ir.jobs, jobName(JobKindPlan, mod))
+	if planJob == nil {
+		t.Fatal("missing resource-driven plan job")
+	}
+	if !planJob.operation.terraform.detailedPlan {
+		t.Fatal("plan_json request should make plan job detailed")
 	}
 }
 
@@ -225,26 +263,30 @@ func TestBuild_ValidatesResourceRequestsWithContext(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		requirements  BuildRequirements
+		intent        BuildIntent
 		contributions []*Contribution
 		wantErrSubstr string
 	}{
 		{
 			name: "missing selector scope in requirements",
-			requirements: RequirementsForResources(ResourceRequest{
-				Kind: ResourceKindPlanJSON,
-			}),
+			intent: BuildIntent{
+				resources: []ResourceRequest{{
+					kind: ResourceKindPlanJSON,
+				}},
+			},
 			wantErrSubstr: "requirements.resources[0]: plan_json selector scope is required",
 		},
 		{
 			name: "plan resource cannot use producer selector",
-			requirements: RequirementsForResources(ResourceRequest{
-				Kind: ResourceKindPlanJSON,
-				Selector: ResourceSelector{
-					Scope:    ResourceScopeProducer,
-					Producer: "cost",
-				},
-			}),
+			intent: BuildIntent{
+				resources: []ResourceRequest{{
+					kind: ResourceKindPlanJSON,
+					selector: ResourceSelector{
+						scope:    ResourceScopeProducer,
+						producer: "cost",
+					},
+				}},
+			},
 			wantErrSubstr: `requirements.resources[0]: plan_json cannot use producer-scoped selector "producer"`,
 		},
 		{
@@ -254,10 +296,10 @@ func TestBuild_ValidatesResourceRequestsWithContext(t *testing.T) {
 					name:     "summary",
 					commands: []string{"summary"},
 					consumes: []ResourceRequest{{
-						Kind: ResourceKindPluginReport,
-						Selector: ResourceSelector{
-							Scope:      ResourceScopeModule,
-							ModulePath: mod.RelativePath,
+						kind: ResourceKindPluginReport,
+						selector: ResourceSelector{
+							scope:      ResourceScopeModule,
+							modulePath: mod.RelativePath,
 						},
 					}},
 				}},
@@ -270,7 +312,7 @@ func TestBuild_ValidatesResourceRequestsWithContext(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := testProjectIRBuildInput(modules, nil, tt.requirements)
+			opts := testProjectIRBuildInput(modules, nil, tt.intent)
 			opts.Contributions = tt.contributions
 			_, err := buildProjectIR(opts)
 			if err == nil {
@@ -288,7 +330,7 @@ func TestBuild_OptionalMissingPluginResourceDoesNotCreateDependency(t *testing.T
 
 	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
 	modules := []*discovery.Module{mod}
-	opts := testProjectIRBuildInput(modules, nil, BuildRequirements{PlanOnly: true})
+	opts := testProjectIRBuildInput(modules, nil, mustIntent(t, false))
 	opts.Contributions = []*Contribution{mustContribution(t, mustContributedJob(t, ContributedJobOptions{
 		Name:     "summary",
 		Commands: []string{"summary"},
@@ -338,7 +380,7 @@ func TestBuild_RejectsInvalidContributedJobGraph(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := testProjectIRBuildInput(modules, nil, BuildRequirements{})
+			opts := testProjectIRBuildInput(modules, nil, mustIntent(t, true))
 			opts.Contributions = []*Contribution{tt.contribution}
 			_, err := buildProjectIR(opts)
 			if err == nil {
@@ -368,15 +410,26 @@ func TestIR_ModuleCountCountsDistinctModules(t *testing.T) {
 	}
 }
 
-func testProjectIRBuildInput(modules []*discovery.Module, edges [][2]int, requirements BuildRequirements) projectIRBuildInput {
+func mustIntent(tb testing.TB, applyEnabled bool, resources ...ResourceRequest) BuildIntent {
+	tb.Helper()
+	intent, err := NewBuildIntent(BuildIntentOptions{
+		ApplyEnabled:     applyEnabled,
+		ResourceRequests: resources,
+	})
+	if err != nil {
+		tb.Fatalf("NewBuildIntent() error = %v", err)
+	}
+	return intent
+}
+
+func testProjectIRBuildInput(modules []*discovery.Module, edges [][2]int, intent BuildIntent) projectIRBuildInput {
 	return projectIRBuildInput{
 		DepGraph:      buildGraph(modules, edges),
 		TargetModules: modules,
 		AllModules:    modules,
 		ModuleIndex:   discovery.NewModuleIndex(modules),
-		Script:        ScriptConfig{PlanEnabled: true},
-		Requirements:  requirements,
-		PlanEnabled:   true,
+		Script:        ScriptConfig{InitEnabled: true},
+		Intent:        intent,
 	}
 }
 

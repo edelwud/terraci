@@ -112,14 +112,12 @@ structure:
 
 execution:
   binary: terraform
-  plan_enabled: true
 
 extensions:
   gitlab:
     image:
       name: hashicorp/terraform:1.6
     stages_prefix: deploy
-    cache_enabled: true
 ```
 
 ### GitHub Provider
@@ -132,7 +130,6 @@ structure:
 
 execution:
   binary: terraform
-  plan_enabled: true
 
 extensions:
   github:

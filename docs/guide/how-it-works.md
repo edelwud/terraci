@@ -173,7 +173,6 @@ TerraCi generates CI pipeline configuration from the sorted module graph. The pr
 
 For each module, TerraCi generates:
 
-1. **Plan job** (if `plan_enabled: true`)
    - Runs `terraform plan -out=plan.tfplan`
    - Saves plan as artifact
 
@@ -220,7 +219,7 @@ apply-eks:
 flowchart TD
   A["terraci generate"] --> B
   B["workflow.PlanProject() — scan, filter, parse, graph, targets"] --> C
-  C["provider.PipelineRequirements(ctx) + runflow prepared contributions"] --> D
+  C["provider.NewGenerator(ctx, ir) + runflow prepared contributions"] --> D
   D["pipeline.BuildProjectIR(req) → *pipeline.IR"] --> E
   E{"Provider?"}
   E -->|GitLab| F["gitlab.NewGenerator(ctx, ir)"] --> G[".gitlab-ci.yml"]
@@ -232,7 +231,7 @@ Each stage:
 | Step | Function | What it does |
 |------|----------|-------------|
 | 1 | `workflow.PlanProject()` | Scan filesystem, apply filters, parse HCL, build dependency graph, resolve optional targets |
-| 2 | `provider.PipelineRequirements(ctx)` + `runflow.Prepare(...)` contributions | Gather provider resource requirements and plugin-contributed DAG jobs; invalid contributions fail before IR build |
+| 2 | `provider.NewGenerator(ctx, ir)` + `runflow.Prepare(...)` contributions | Gather provider resource requirements and plugin-contributed DAG jobs; invalid contributions fail before IR build |
 | 3 | `pipeline.BuildProjectIR(req)` | Construct provider-agnostic immutable job DAG (`*pipeline.IR`) — single execution input |
 | 4 | `provider.NewGenerator(ctx, ir)` + `Generate()` | Bind IR to provider; transform IR into GitLab CI YAML or GitHub Actions workflow |
 

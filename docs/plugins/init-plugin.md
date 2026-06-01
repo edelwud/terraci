@@ -134,7 +134,6 @@ Fields are grouped into categories that determine where they appear:
 | Category | Rendering | Use For |
 |----------|-----------|---------|
 | `CategoryProvider` | Separate group, shown per-provider | CI-specific settings (image, runner) |
-| `CategoryPipeline` | Merged into "Pipeline" group | Pipeline behavior (plan_enabled) |
 | `CategoryFeature` | Merged into "Features" group | On/off toggles for optional features |
 | `CategoryDetail` | Separate group with `ShowWhen` | Detail settings for enabled features |
 
@@ -224,7 +223,6 @@ structure:
 extensions:
   gitlab:
     image: { name: hashicorp/terraform:1.6 }
-    plan_enabled: true
 
   slack:                    # ← your plugin's contribution
     enabled: true

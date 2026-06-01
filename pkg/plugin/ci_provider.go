@@ -21,14 +21,12 @@ type CIInfoProvider interface {
 	CommitSHA() string
 }
 
-// PipelineGeneratorFactory declares provider IR requirements and creates
-// pipeline generators bound to a pre-built IR. Core asks for requirements,
-// builds the IR once via pipeline.BuildProjectIR, then passes it here, so
+// PipelineGeneratorFactory creates pipeline generators bound to a pre-built IR.
+// Core builds the IR once via pipeline.BuildProjectIR, then passes it here, so
 // providers do not need depGraph, target modules, or contributions — they only
 // render the immutable IR through getters.
 type PipelineGeneratorFactory interface {
 	Plugin
-	PipelineRequirements(ctx *AppContext) pipeline.BuildRequirements
 	NewGenerator(ctx *AppContext, ir *pipeline.IR) pipeline.Generator
 }
 
@@ -59,11 +57,6 @@ func (c *ResolvedCIProvider) Description() string  { return c.plugin.Description
 func (c *ResolvedCIProvider) ProviderName() string { return c.metadata.ProviderName() }
 func (c *ResolvedCIProvider) PipelineID() string   { return c.metadata.PipelineID() }
 func (c *ResolvedCIProvider) CommitSHA() string    { return c.metadata.CommitSHA() }
-
-// PipelineRequirements returns provider-specific IR build requirements.
-func (c *ResolvedCIProvider) PipelineRequirements(ctx *AppContext) pipeline.BuildRequirements {
-	return c.gen.PipelineRequirements(ctx)
-}
 
 // NewGenerator returns a pipeline generator bound to the supplied IR.
 func (c *ResolvedCIProvider) NewGenerator(ctx *AppContext, ir *pipeline.IR) pipeline.Generator {

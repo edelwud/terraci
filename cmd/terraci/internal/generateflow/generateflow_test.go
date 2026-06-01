@@ -24,9 +24,6 @@ func (testCIProvider) ProviderName() string {
 }
 func (testCIProvider) PipelineID() string { return "" }
 func (testCIProvider) CommitSHA() string  { return "" }
-func (testCIProvider) PipelineRequirements(*plugin.AppContext) pipeline.BuildRequirements {
-	return pipeline.BuildRequirements{}
-}
 func (testCIProvider) NewGenerator(_ *plugin.AppContext, ir *pipeline.IR) pipeline.Generator {
 	return testGenerator{ir: ir}
 }

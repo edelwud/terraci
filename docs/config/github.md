@@ -11,7 +11,7 @@ The `github` section configures the generated GitHub Actions workflow. This sect
 ## Options
 
 ::: info Execution settings
-`binary`, `init_enabled`, `plan_enabled` and related execution semantics live under the top-level `execution:` section, **not** under `extensions.github`. See [Configuration Overview](./index.md#full-example).
+`binary`, `init_enabled`, `parallelism`, and Terraform job `env` live under the top-level `execution:` section, **not** under `extensions.github`. Plan jobs are derived from apply intent and resource requests such as `plan.json` consumers.
 :::
 
 ### runs_on
@@ -59,18 +59,7 @@ extensions:
       AWS_DEFAULT_REGION: "us-east-1"
 ```
 
-### plan_only
-
-**Type:** `boolean`
-**Default:** `false`
-
-Generate only plan jobs without apply jobs.
-
-```yaml
-extensions:
-  github:
-    plan_only: true
-```
+Use `terraci generate --plan-only` for read-only workflows. There is no provider-level plan toggle.
 
 ### permissions
 
@@ -180,7 +169,6 @@ extensions:
 execution:
   binary: terraform
   init_enabled: true
-  plan_enabled: true
 
 extensions:
   github:
@@ -241,7 +229,7 @@ Variable names are derived by uppercasing the segment name and prefixing with `T
 | MR/PR integration | `mr` section | `pr` section |
 | Secrets | `secrets` (Vault) | Use GitHub Action steps |
 | OIDC tokens | `id_tokens` | `permissions.id-token: write` |
-| Caching | `cache_enabled` | Use `actions/cache` in steps |
+| Caching | `cache.enabled` | Use `actions/cache` in steps |
 | Stages prefix | `stages_prefix` | N/A (uses job dependencies) |
 
 ## See Also

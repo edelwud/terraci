@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/discovery"
-	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
 )
 
 // updateGolden allows refreshing the YAML fixtures with `go test -update`.
@@ -50,7 +49,7 @@ func TestGoldenYAML(t *testing.T) {
 			name: "plan_only",
 			scenario: func(t *testing.T) *generatorScenario {
 				return newGeneratorScenario(t).
-					withConfig(func(cfg *configpkg.Config) { cfg.PlanOnly = true }).
+					withPlanOnly().
 					withModules(discovery.TestModule("platform", "stage", "eu-central-1", "vpc"))
 			},
 			goldenRel: "testdata/golden/plan_only.yaml",

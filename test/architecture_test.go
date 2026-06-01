@@ -143,6 +143,14 @@ func TestArchitecture_ConfigSnapshotAndDocs(t *testing.T) {
 		"legacy pointer-shaped",
 		"pipeline.BuildOptions",
 		"localexec/internal/planner",
+		"PipelineRequirements",
+		"BuildRequirements",
+		"PlanEnabled",
+		"PlanMode",
+		"plan_enabled",
+		"plan_mode",
+		"plan_only",
+		"cache_enabled",
 		"Evaluate(ctx context.Context, input any",
 		"Metadata  map[string]any",
 		"policyinput.Envelope{",
@@ -443,6 +451,8 @@ func TestArchitecture_PipelineIRValueBoundaries(t *testing.T) {
 				switch selector.Sel.Name {
 				case "BuildOptions":
 					violations = append(violations, rel+" manually constructs pipeline.BuildOptions; use pipeline.ProjectIRRequest")
+				case "ResourceRequest", "ResourceSelector":
+					violations = append(violations, rel+" manually constructs pipeline."+selector.Sel.Name+"; use ResourceRequest constructors")
 				case "IR", "Job", "Operation", "TerraformOperation", "JobGroup":
 					violations = append(violations, rel+" manually constructs pipeline."+selector.Sel.Name+"; use pipeline.BuildProjectIR or pkg/pipeline/pipelinetest")
 				}

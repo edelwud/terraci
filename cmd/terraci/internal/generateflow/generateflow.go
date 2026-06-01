@@ -28,11 +28,11 @@ func NewRuntime(prepared *runflow.Prepared) Runtime {
 
 // Request describes one pipeline generation request.
 type Request struct {
-	Filters     filter.Flags
-	ChangedOnly bool
-	BaseRef     string
-	PlanOnly    bool
-	DryRun      bool
+	Filters       filter.Flags
+	ChangedOnly   bool
+	BaseRef       string
+	ApplyDisabled bool
+	DryRun        bool
 }
 
 // Result contains the pipeline generation outcome.
@@ -61,7 +61,7 @@ func Run(ctx context.Context, runtime Runtime, req Request) (*Result, error) {
 		return result, nil
 	}
 
-	generator, err := newPipelineGenerator(runtime, project, req.PlanOnly)
+	generator, err := newPipelineGenerator(runtime, project, !req.ApplyDisabled)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +82,7 @@ func Run(ctx context.Context, runtime Runtime, req Request) (*Result, error) {
 	return result, nil
 }
 
-func newPipelineGenerator(runtime Runtime, project *projectflow.Result, planOnly bool) (pipeline.Generator, error) {
+func newPipelineGenerator(runtime Runtime, project *projectflow.Result, applyEnabled bool) (pipeline.Generator, error) {
 	appCtx := runtime.prepared.AppContext()
 	provider, err := appCtx.CIResolver().ResolveCIProvider()
 	if err != nil {
@@ -90,18 +90,24 @@ func newPipelineGenerator(runtime Runtime, project *projectflow.Result, planOnly
 	}
 
 	exec := execution.ConfigFromProject(runtime.prepared.Config())
-	requirements := exec.BuildRequirements().Merge(provider.PipelineRequirements(appCtx))
-	if planOnly {
-		requirements = requirements.Merge(pipeline.BuildRequirements{PlanOnly: true})
+	resourceRequests := []pipeline.ResourceRequest(nil)
+	if !applyEnabled {
+		resourceRequests = append(resourceRequests, pipeline.AllPlanResources(pipeline.ResourceKindPlanBinary))
+	}
+	intent, err := pipeline.NewBuildIntent(pipeline.BuildIntentOptions{
+		ApplyEnabled:     applyEnabled,
+		ResourceRequests: resourceRequests,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("build pipeline intent: %w", err)
 	}
 	ir, err := pipeline.BuildProjectIR(pipeline.ProjectIRRequest{
 		Project:       project,
 		Contributions: appCtx.PipelineContributions(),
-		Requirements:  requirements,
-		PlanEnabled:   exec.PlanEnabled,
+		Intent:        intent,
 		Script: pipeline.ScriptConfig{
 			InitEnabled: exec.InitEnabled,
-			PlanEnabled: exec.PlanEnabled,
+			Env:         exec.Env,
 		},
 	})
 	if err != nil {

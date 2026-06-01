@@ -141,21 +141,21 @@ func resolveResourceRequests(requests []ResourceRequest, index *resourceIndex, c
 		}
 		matches := matchingResources(request, index, consumer)
 		if len(matches) == 0 {
-			if request.Optional || emptyResourceRequestAllowed(request, allowEmptyModuleResources) {
+			if request.optional || emptyResourceRequestAllowed(request, allowEmptyModuleResources) {
 				continue
 			}
 			return nil, nil, fmt.Errorf("%s requires unavailable %s", consumer, resourceRequestLabel(request))
 		}
 		for _, match := range matches {
 			if idx, exists := seen[match.spec.Ref]; exists {
-				resources[idx].optional = resources[idx].optional && request.Optional
+				resources[idx].optional = resources[idx].optional && request.optional
 				continue
 			}
 			seen[match.spec.Ref] = len(resources)
 			specs = append(specs, match.spec)
 			resources = append(resources, resolvedResource{
 				resource: match,
-				optional: request.Optional,
+				optional: request.optional,
 			})
 		}
 	}
@@ -163,10 +163,10 @@ func resolveResourceRequests(requests []ResourceRequest, index *resourceIndex, c
 }
 
 func emptyResourceRequestAllowed(request ResourceRequest, allowEmptyModuleResources bool) bool {
-	if !allowEmptyModuleResources || request.Selector.Scope != ResourceScopeAllModules {
+	if !allowEmptyModuleResources || request.selector.scope != ResourceScopeAllModules {
 		return false
 	}
-	return request.Kind == ResourceKindPlanBinary || isDetailedPlanResource(request.Kind)
+	return request.kind == ResourceKindPlanBinary || isDetailedPlanResource(request.kind)
 }
 
 func matchingResources(request ResourceRequest, index *resourceIndex, consumer string) []producedResource {
@@ -187,14 +187,14 @@ func matchingResources(request ResourceRequest, index *resourceIndex, consumer s
 }
 
 func resourceMatches(request ResourceRequest, ref ResourceRef) bool {
-	if request.Kind != ref.Kind {
+	if request.kind != ref.Kind {
 		return false
 	}
-	switch request.Selector.Scope {
+	switch request.selector.scope {
 	case ResourceScopeModule:
-		return ref.ModulePath == request.Selector.ModulePath
+		return ref.ModulePath == request.selector.modulePath
 	case ResourceScopeProducer:
-		return ref.Producer == request.Selector.Producer
+		return ref.Producer == request.selector.producer
 	case ResourceScopeAllModules:
 		return ref.ModulePath != ""
 	case ResourceScopeAllProducers:
@@ -216,68 +216,68 @@ func resourceRefLabel(ref ResourceRef) string {
 }
 
 func resourceRequestLabel(request ResourceRequest) string {
-	switch request.Selector.Scope {
+	switch request.selector.scope {
 	case ResourceScopeModule:
-		return fmt.Sprintf("%s for module %q", request.Kind, request.Selector.ModulePath)
+		return fmt.Sprintf("%s for module %q", request.kind, request.selector.modulePath)
 	case ResourceScopeProducer:
-		return fmt.Sprintf("%s from producer %q", request.Kind, request.Selector.Producer)
+		return fmt.Sprintf("%s from producer %q", request.kind, request.selector.producer)
 	case ResourceScopeAllModules:
-		return fmt.Sprintf("%s for all modules", request.Kind)
+		return fmt.Sprintf("%s for all modules", request.kind)
 	case ResourceScopeAllProducers:
-		return fmt.Sprintf("%s from all producers", request.Kind)
+		return fmt.Sprintf("%s from all producers", request.kind)
 	default:
-		return string(request.Kind)
+		return string(request.kind)
 	}
 }
 
 func validateResourceRequest(request ResourceRequest) error {
-	if request.Kind == "" {
+	if request.kind == "" {
 		return errors.New("resource request kind is required")
 	}
-	return validateResourceKindScope(request.Kind, request.Selector)
+	return validateResourceKindScope(request.kind, request.selector)
 }
 
 func validateResourceKindScope(kind ResourceKind, selector ResourceSelector) error {
-	switch selector.Scope {
+	switch selector.scope {
 	case ResourceScopeAllModules:
-		if selector.ModulePath != "" || selector.Producer != "" {
-			return fmt.Errorf("%s selector %q must not set module_path or producer", kind, selector.Scope)
+		if selector.modulePath != "" || selector.producer != "" {
+			return fmt.Errorf("%s selector %q must not set module_path or producer", kind, selector.scope)
 		}
 		if !isPlanResourceKind(kind) {
-			return fmt.Errorf("%s cannot use module-scoped selector %q", kind, selector.Scope)
+			return fmt.Errorf("%s cannot use module-scoped selector %q", kind, selector.scope)
 		}
 	case ResourceScopeModule:
-		if selector.ModulePath == "" {
-			return fmt.Errorf("%s selector %q requires module_path", kind, selector.Scope)
+		if selector.modulePath == "" {
+			return fmt.Errorf("%s selector %q requires module_path", kind, selector.scope)
 		}
-		if err := ValidateWorkspacePath(selector.ModulePath); err != nil {
-			return fmt.Errorf("%s selector %q module_path invalid: %w", kind, selector.Scope, err)
+		if err := ValidateWorkspacePath(selector.modulePath); err != nil {
+			return fmt.Errorf("%s selector %q module_path invalid: %w", kind, selector.scope, err)
 		}
-		if selector.Producer != "" {
-			return fmt.Errorf("%s selector %q must not set producer", kind, selector.Scope)
+		if selector.producer != "" {
+			return fmt.Errorf("%s selector %q must not set producer", kind, selector.scope)
 		}
 		if !isPlanResourceKind(kind) {
-			return fmt.Errorf("%s cannot use module-scoped selector %q", kind, selector.Scope)
+			return fmt.Errorf("%s cannot use module-scoped selector %q", kind, selector.scope)
 		}
 	case ResourceScopeAllProducers:
-		if selector.ModulePath != "" || selector.Producer != "" {
-			return fmt.Errorf("%s selector %q must not set module_path or producer", kind, selector.Scope)
+		if selector.modulePath != "" || selector.producer != "" {
+			return fmt.Errorf("%s selector %q must not set module_path or producer", kind, selector.scope)
 		}
 		if !isPluginResourceKind(kind) {
-			return fmt.Errorf("%s cannot use producer-scoped selector %q", kind, selector.Scope)
+			return fmt.Errorf("%s cannot use producer-scoped selector %q", kind, selector.scope)
 		}
 	case ResourceScopeProducer:
-		if selector.Producer == "" {
-			return fmt.Errorf("%s selector %q requires producer", kind, selector.Scope)
+		if selector.producer == "" {
+			return fmt.Errorf("%s selector %q requires producer", kind, selector.scope)
 		}
-		if err := validateProducerName(selector.Producer); err != nil {
-			return fmt.Errorf("%s selector %q producer invalid: %w", kind, selector.Scope, err)
+		if err := validateProducerName(selector.producer); err != nil {
+			return fmt.Errorf("%s selector %q producer invalid: %w", kind, selector.scope, err)
 		}
-		if selector.ModulePath != "" {
-			return fmt.Errorf("%s selector %q must not set module_path", kind, selector.Scope)
+		if selector.modulePath != "" {
+			return fmt.Errorf("%s selector %q must not set module_path", kind, selector.scope)
 		}
 		if !isPluginResourceKind(kind) {
-			return fmt.Errorf("%s cannot use producer-scoped selector %q", kind, selector.Scope)
+			return fmt.Errorf("%s cannot use producer-scoped selector %q", kind, selector.scope)
 		}
 	default:
 		return fmt.Errorf("%s selector scope is required", kind)

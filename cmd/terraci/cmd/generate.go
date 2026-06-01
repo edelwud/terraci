@@ -47,11 +47,11 @@ Examples:
 				return err
 			}
 			result, err := generateflow.Run(cmd.Context(), generateflow.NewRuntime(prepared), generateflow.Request{
-				Filters:     *ff,
-				ChangedOnly: changedOnly,
-				BaseRef:     baseRef,
-				PlanOnly:    planOnly,
-				DryRun:      dryRun,
+				Filters:       *ff,
+				ChangedOnly:   changedOnly,
+				BaseRef:       baseRef,
+				ApplyDisabled: planOnly,
+				DryRun:        dryRun,
 			})
 			if err != nil {
 				return err

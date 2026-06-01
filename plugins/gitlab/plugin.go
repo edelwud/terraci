@@ -22,10 +22,10 @@ func init() {
 			PluginDesc: "GitLab CI pipeline generation and MR comments",
 			EnableMode: plugin.EnabledWhenConfigured,
 			DefaultCfg: func() *configpkg.Config {
+				cacheEnabled := true
 				return &configpkg.Config{
-					Image:        configpkg.Image{Name: "hashicorp/terraform:1.6"},
 					StagesPrefix: defaultStagesPrefix,
-					CacheEnabled: true,
+					Cache:        &configpkg.CacheConfig{Enabled: &cacheEnabled},
 				}
 			},
 		}}

@@ -168,7 +168,6 @@ TerraCi генерирует конфигурацию CI пайплайна из
 
 Для каждого модуля TerraCi генерирует:
 
-1. **Plan джоб** (если `plan_enabled: true`)
    - Выполняет `terraform plan -out=plan.tfplan`
    - Сохраняет план как артефакт
 
@@ -215,7 +214,7 @@ apply-eks:
 flowchart TD
   A["terraci generate"] --> B
   B["workflow.PlanProject() — scan, filter, parse, graph, targets"] --> C
-  C["provider.PipelineRequirements(ctx) + runflow prepared contributions"] --> D
+  C["provider.NewGenerator(ctx, ir) + runflow prepared contributions"] --> D
   D["pipeline.BuildProjectIR(req) → *pipeline.IR"] --> E
   E{"Провайдер?"}
   E -->|GitLab| F["gitlab.NewGenerator(ctx, ir)"] --> G[".gitlab-ci.yml"]
@@ -227,7 +226,7 @@ flowchart TD
 | Шаг | Функция | Что делает |
 |-----|---------|-----------|
 | 1 | `workflow.PlanProject()` | Сканирование файловой системы, применение фильтров, парсинг HCL, построение графа зависимостей, разрешение optional targets |
-| 2 | `provider.PipelineRequirements(ctx)` + contributions из `runflow.Prepare(...)` | Сбор требований провайдера к ресурсам и contributed DAG jobs; invalid contributions останавливают сборку до IR |
+| 2 | `provider.NewGenerator(ctx, ir)` + contributions из `runflow.Prepare(...)` | Сбор требований провайдера к ресурсам и contributed DAG jobs; invalid contributions останавливают сборку до IR |
 | 3 | `pipeline.BuildProjectIR(req)` | Построение провайдер-агностичного immutable job DAG (`*pipeline.IR`) — единый вход для исполнения |
 | 4 | `provider.NewGenerator(ctx, ir)` + `Generate()` | Привязка IR к провайдеру; преобразование IR в YAML GitLab CI или воркфлоу GitHub Actions |
 

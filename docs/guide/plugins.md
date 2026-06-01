@@ -93,7 +93,7 @@ Plugins implement one or more capability interfaces. The framework discovers the
 | `CommandProvider` | CLI subcommands (`terraci cost`, `terraci local-exec`, etc.) | cost, policy, summary, tfupdate, localexec |
 | `PipelineContributor` | Add standalone DAG jobs to pipeline IR | cost, policy, summary, tfupdate |
 | `InitContributor` | Form fields for `terraci init` wizard | gitlab, github, cost, policy, summary, tfupdate |
-| `PipelineGeneratorFactory` | Declare provider build requirements and create provider-specific generator (`NewGenerator(ctx, *pipeline.IR)`) | gitlab, github |
+| `PipelineGeneratorFactory` | Create provider-specific generators from immutable pipeline IR (`NewGenerator(ctx, *pipeline.IR)`) | gitlab, github |
 | `CommentServiceFactory` | Create MR/PR comment service | gitlab, github |
 | `EnvDetector` | Detect CI environment from env vars | gitlab, github |
 | `CIInfoProvider` | Provider name, pipeline ID, commit SHA | gitlab, github |

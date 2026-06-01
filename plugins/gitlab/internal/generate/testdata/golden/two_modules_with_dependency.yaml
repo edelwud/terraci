@@ -15,6 +15,10 @@ apply-platform-stage-eu-central-1-eks:
           artifacts: true
         - job: apply-platform-stage-eu-central-1-vpc
           artifacts: false
+    cache:
+        key: platform-stage-eu-central-1-eks
+        paths:
+            - platform/stage/eu-central-1/eks/.terraform/
     resource_group: platform/stage/eu-central-1/eks
 apply-platform-stage-eu-central-1-vpc:
     stage: deploy-1
@@ -31,6 +35,10 @@ apply-platform-stage-eu-central-1-vpc:
     needs:
         - job: plan-platform-stage-eu-central-1-vpc
           artifacts: true
+    cache:
+        key: platform-stage-eu-central-1-vpc
+        paths:
+            - platform/stage/eu-central-1/vpc/.terraform/
     resource_group: platform/stage/eu-central-1/vpc
 default:
     image: hashicorp/terraform:1.6
@@ -55,6 +63,10 @@ plan-platform-stage-eu-central-1-eks:
         expire_in: 1 day
         name: terraci-plan-platform-stage-eu-central-1-eks
         when: always
+    cache:
+        key: platform-stage-eu-central-1-eks
+        paths:
+            - platform/stage/eu-central-1/eks/.terraform/
     resource_group: platform/stage/eu-central-1/eks
 plan-platform-stage-eu-central-1-vpc:
     stage: deploy-0
@@ -74,6 +86,10 @@ plan-platform-stage-eu-central-1-vpc:
         expire_in: 1 day
         name: terraci-plan-platform-stage-eu-central-1-vpc
         when: always
+    cache:
+        key: platform-stage-eu-central-1-vpc
+        paths:
+            - platform/stage/eu-central-1/vpc/.terraform/
     resource_group: platform/stage/eu-central-1/vpc
 stages:
     - deploy-0

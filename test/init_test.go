@@ -34,10 +34,11 @@ func TestInit_CI_GitLab(t *testing.T) {
 	assertContains(t, content, "execution:")
 	assertContains(t, content, "binary: terraform")
 
-	// Should have specific default values
-	assertContains(t, content, "hashicorp/terraform:1.6")
-	assertContains(t, content, "plan_mode: detailed")
+	// Default image is computed by the GitLab generator and not persisted.
+	assertNotContains(t, content, "hashicorp/terraform:1.6")
+	assertNotContains(t, content, "plan_mode:")
 	assertNotContains(t, content, "plan_only:")
+	assertNotContains(t, content, "cache_enabled:")
 }
 
 func TestInit_CI_GitHub(t *testing.T) {

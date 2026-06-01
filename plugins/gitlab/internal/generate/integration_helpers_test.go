@@ -46,9 +46,8 @@ type Fixture struct {
 
 // decodeGLConfig extracts the gitlab plugin config from the plugins map.
 func decodeGLConfig(cfg *config.Config) *Config {
-	glCfg := &Config{
-		Image: Image{Name: "hashicorp/terraform:1.6"},
-	}
+	image := Image{Name: "hashicorp/terraform:1.6"}
+	glCfg := &Config{Image: &image}
 	if err := cfg.Extension("gitlab", glCfg); err != nil {
 		return glCfg
 	}

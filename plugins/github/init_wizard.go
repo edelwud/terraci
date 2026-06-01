@@ -3,7 +3,6 @@ package github
 import (
 	"github.com/edelwud/terraci/pkg/plugin/initwiz"
 	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
-	"github.com/edelwud/terraci/plugins/internal/ciplugin"
 )
 
 // InitContributor — contributes GitHub Actions fields to the init wizard.
@@ -39,7 +38,6 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 				}),
 			},
 		},
-		ciplugin.PipelineGroup(pluginName),
 	}
 }
 

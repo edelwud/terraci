@@ -55,8 +55,6 @@ include: []  # Пустой означает все (после исключен
 execution:
   binary: terraform        # или "tofu"
   init_enabled: true       # автоматически вызывать terraform init
-  plan_enabled: true       # генерировать plan-джобы
-  plan_mode: standard      # "standard" или "detailed"
   parallelism: 4           # размер пула воркеров для local-exec
 
 # Настройки расширений
@@ -117,8 +115,6 @@ structure:
 execution:
   binary: terraform
   init_enabled: true
-  plan_enabled: true
-  plan_mode: standard
   parallelism: 4
 ```
 

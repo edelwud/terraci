@@ -71,7 +71,6 @@ func TestPlugin_BuildInitConfig_DisabledRoundTripDisablesPlugin(t *testing.T) {
 	}
 	execution := config.DefaultConfig().Execution
 	execution.Binary = "terraform"
-	execution.PlanEnabled = true
 	execution.InitEnabled = true
 	extensions, err := config.NewExtensionSet(contrib.ExtensionValue())
 	if err != nil {

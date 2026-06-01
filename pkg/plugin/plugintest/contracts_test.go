@@ -170,12 +170,6 @@ func TestAssertCIProvider(t *testing.T) {
 				tb.Fatal("DetectEnv() = false, want true")
 			}
 		},
-		AssertReqs: func(tb testing.TB, reqs pipeline.BuildRequirements) {
-			tb.Helper()
-			if !reqs.PlanOnly {
-				tb.Fatal("PipelineRequirements().PlanOnly = false, want true")
-			}
-		},
 		AssertComment: func(tb testing.TB, service ci.CommentService, ok bool) {
 			tb.Helper()
 			if !ok || service == nil {
@@ -383,10 +377,6 @@ func (contractCIProvider) ProviderName() string {
 }
 func (contractCIProvider) PipelineID() string { return "pipeline" }
 func (contractCIProvider) CommitSHA() string  { return "commit" }
-
-func (contractCIProvider) PipelineRequirements(*plugin.AppContext) pipeline.BuildRequirements {
-	return pipeline.BuildRequirements{PlanOnly: true}
-}
 
 func (contractCIProvider) NewGenerator(*plugin.AppContext, *pipeline.IR) pipeline.Generator {
 	return contractGenerator{}

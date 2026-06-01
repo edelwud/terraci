@@ -15,13 +15,15 @@ type generatorScenario struct {
 	modules       []*discovery.Module
 	dependencies  map[string][]string
 	targetModules []*discovery.Module
+	applyEnabled  bool
 }
 
 func newGeneratorScenario(t *testing.T) *generatorScenario {
 	t.Helper()
 	return &generatorScenario{
-		t:   t,
-		cfg: createTestConfig(),
+		t:            t,
+		cfg:          createTestConfig(),
+		applyEnabled: true,
 	}
 }
 
@@ -55,10 +57,16 @@ func (s *generatorScenario) withTargets(targets ...*discovery.Module) *generator
 	return s
 }
 
+func (s *generatorScenario) withPlanOnly() *generatorScenario {
+	s.t.Helper()
+	s.applyEnabled = false
+	return s
+}
+
 func (s *generatorScenario) generator() *Generator {
 	s.t.Helper()
 	depGraph := citest.DependencyGraph(s.modules, s.dependencies)
-	return newTestGeneratorWithTargets(s.t, s.cfg.GitLab, s.cfg.Execution, s.cfg.Contributions, depGraph, s.modules, s.generateTargets())
+	return newTestGeneratorWithTargetsAndApply(s.t, s.cfg.GitLab, s.cfg.Execution, s.cfg.Contributions, depGraph, s.modules, s.generateTargets(), s.applyEnabled)
 }
 
 func (s *generatorScenario) generate() *Pipeline {

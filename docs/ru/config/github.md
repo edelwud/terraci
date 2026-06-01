@@ -11,7 +11,6 @@ outline: deep
 ## Параметры
 
 ::: info Настройки выполнения
-`binary`, `init_enabled`, `plan_enabled` и связанные с ними поля живут в верхнеуровневой секции `execution:`, а **не** под `extensions.github`. См. [Обзор конфигурации](./index.md#полный-пример).
 :::
 
 ### runs_on
@@ -59,7 +58,6 @@ extensions:
       AWS_DEFAULT_REGION: "us-east-1"
 ```
 
-### plan_only
 
 **Тип:** `boolean`
 **По умолчанию:** `false`
@@ -69,7 +67,6 @@ extensions:
 ```yaml
 extensions:
   github:
-    plan_only: true
 ```
 
 ### permissions
@@ -175,7 +172,6 @@ extensions:
 execution:
   binary: terraform
   init_enabled: true
-  plan_enabled: true
 
 extensions:
   github:
@@ -236,7 +232,6 @@ extensions:
 | Интеграция MR/PR | `summary` + comment service | `summary` + comment service |
 | Секреты | `secrets` (Vault) | Через шаги GitHub Action |
 | OIDC токены | `id_tokens` | `permissions.id-token: write` |
-| Кеширование | `cache_enabled` | Через `actions/cache` в шагах |
 | Префикс стейджей | `stages_prefix` | N/A (используются зависимости джобов) |
 
 ## Смотрите также

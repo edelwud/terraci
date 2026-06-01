@@ -14,7 +14,7 @@ import (
 )
 
 func testExecutionConfig() execution.Config {
-	return execution.Config{Binary: "terraform", InitEnabled: true, PlanEnabled: true, PlanMode: execution.PlanModeStandard, Parallelism: 4}
+	return execution.Config{Binary: "terraform", InitEnabled: true, Parallelism: 4}
 }
 
 func TestJobBuilderRenderJobBuildsModuleDefaults(t *testing.T) {
@@ -22,7 +22,7 @@ func TestJobBuilderRenderJobBuildsModuleDefaults(t *testing.T) {
 
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	builder := newJobBuilder(
-		newSettings(&configpkg.Config{CacheEnabled: true}, testExecutionConfig()),
+		newSettings(&configpkg.Config{}, testExecutionConfig()),
 		map[string]string{"plan-platform-stage-eu-central-1-vpc": "deploy-0"},
 	)
 
@@ -57,7 +57,6 @@ func TestJobBuilderCacheSupportsAdvancedOptions(t *testing.T) {
 	enabled := true
 	builder := newJobBuilder(
 		newSettings(&configpkg.Config{
-			CacheEnabled: true,
 			Cache: &configpkg.CacheConfig{
 				Enabled: &enabled,
 				Key:     "terraform-{service}-{environment}-{module}",

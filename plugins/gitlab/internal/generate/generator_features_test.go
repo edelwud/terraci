@@ -7,7 +7,6 @@ import (
 
 	"github.com/edelwud/terraci/pkg/ci/citest"
 	"github.com/edelwud/terraci/pkg/discovery"
-	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/pipeline"
 )
 
@@ -157,9 +156,8 @@ func TestGenerator_Generate_WithSecrets(t *testing.T) {
 }
 
 func TestGenerator_DetailedPlanForcedByResourceConsumer(t *testing.T) {
-	// Regression: when execution.plan_mode is "standard", a contributor that
-	// reads plan.json (e.g. cost) used to be silently broken because the plan
-	// job did not emit plan.json. The resource request must lift DetailedPlan.
+	// Regression: a contributor that reads plan.json (e.g. cost) must force the
+	// matching plan job to emit plan.json.
 	cfg := createTestConfig()
 	cfg.Contributions = []*pipeline.Contribution{testContribution(t, pipeline.ContributedJobOptions{
 		Name:     "cost-estimation",
@@ -207,7 +205,6 @@ func TestGenerator_DetailedPlanForcedByResourceConsumer(t *testing.T) {
 
 func TestGenerator_Generate_WithArtifacts(t *testing.T) {
 	cfg := createTestConfig()
-	cfg.Execution.PlanMode = execution.PlanModeDetailed
 	cfg.GitLab.JobDefaults = &JobDefaults{
 		Artifacts: &ArtifactsConfig{
 			Paths:    []string{"*.json", "reports/"},

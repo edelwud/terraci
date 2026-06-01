@@ -122,9 +122,6 @@ func TestFlowDefaultStateProviderPreference(t *testing.T) {
 			if got := initwiz.BinaryKey.Get(state); got != config.ExecutionBinaryTerraform {
 				t.Fatalf("binary = %q, want terraform", got)
 			}
-			if got := initwiz.PlanEnabledKey.Get(state); !got {
-				t.Fatal("plan_enabled should default to true")
-			}
 			if got := initwiz.PatternKey.Get(state); got != config.DefaultConfig().Structure.Pattern {
 				t.Fatalf("pattern = %q, want default pattern", got)
 			}
@@ -300,9 +297,12 @@ func TestFlowBuildConfigRealProvidersKeepCleanDefaults(t *testing.T) {
 		}
 		data := marshalConfigYAML(t, result.Config)
 		assertContains(t, data, "gitlab:")
-		assertContains(t, data, "hashicorp/terraform:1.6")
-		assertContains(t, data, "plan_mode: detailed")
+		assertNotContains(t, data, "hashicorp/terraform:1.6")
+		assertNotContains(t, data, "plan_mode:")
 		assertNotContains(t, data, "plan_only:")
+		assertNotContains(t, data, "cache_enabled:")
+		assertContains(t, data, "cache:")
+		assertContains(t, data, "enabled: true")
 	})
 
 	t.Run("github", func(t *testing.T) {
@@ -318,7 +318,7 @@ func TestFlowBuildConfigRealProvidersKeepCleanDefaults(t *testing.T) {
 		data := marshalConfigYAML(t, result.Config)
 		assertContains(t, data, "github:")
 		assertContains(t, data, "runs_on: ubuntu-latest")
-		assertContains(t, data, "plan_mode: detailed")
+		assertNotContains(t, data, "plan_mode:")
 		assertNotContains(t, data, "plan_only:")
 	})
 }

@@ -11,11 +11,9 @@ type Image = ci.Image
 
 // Config contains GitLab CI specific settings.
 type Config struct {
-	Image        Image             `yaml:"image" json:"image" jsonschema:"description=Docker image for terraform jobs,default=hashicorp/terraform:1.6"`
+	Image        *Image            `yaml:"image,omitempty" json:"image,omitempty" jsonschema:"description=Docker image override for terraform jobs"`
 	StagesPrefix string            `yaml:"stages_prefix" json:"stages_prefix" jsonschema:"description=Prefix for DAG stage names (produces: {prefix}-0\\, {prefix}-1\\, etc.),default=deploy"`
 	Variables    map[string]string `yaml:"variables,omitempty" json:"variables,omitempty" jsonschema:"description=Global pipeline variables"`
-	PlanOnly     bool              `yaml:"plan_only" json:"plan_only" jsonschema:"description=Generate only plan jobs (no apply jobs),default=false"`
-	CacheEnabled bool              `yaml:"cache_enabled" json:"cache_enabled" jsonschema:"description=Enable caching of .terraform directory,default=true"`
 	Cache        *CacheConfig      `yaml:"cache,omitempty" json:"cache,omitempty" jsonschema:"description=Advanced GitLab cache configuration for terraform jobs"`
 	Rules        []Rule            `yaml:"rules,omitempty" json:"rules,omitempty" jsonschema:"description=Workflow rules for conditional pipeline execution"`
 	JobDefaults  *JobDefaults      `yaml:"job_defaults,omitempty" json:"job_defaults,omitempty" jsonschema:"description=Default settings applied to all jobs"`
@@ -28,7 +26,7 @@ func (g *Config) Clone() *Config {
 		return nil
 	}
 	out := *g
-	out.Image = cloneImage(g.Image)
+	out.Image = cloneImagePointer(g.Image)
 	out.Variables = maps.Clone(g.Variables)
 	out.Cache = cloneCacheConfig(g.Cache)
 	out.Rules = cloneRules(g.Rules)
@@ -58,13 +56,13 @@ func cloneCacheConfig(in *CacheConfig) *CacheConfig {
 	return &out
 }
 
-// GetImage returns the configured image.
-func (g *Config) GetImage() Image {
+// GetImage returns the configured image override.
+func (g *Config) GetImage() *Image {
 	if g == nil {
-		return Image{}
+		return nil
 	}
 
-	return g.Image
+	return cloneImagePointer(g.Image)
 }
 
 // Rule represents workflow or job rules from config input.

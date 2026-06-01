@@ -37,8 +37,8 @@ func TestPlugin_PipelineContribution(t *testing.T) {
 	}
 	consumes := job.Consumes()
 	if len(consumes) != 1 ||
-		consumes[0].Kind != pipeline.ResourceKindPlanJSON ||
-		consumes[0].Selector.Scope != pipeline.ResourceScopeAllModules {
+		consumes[0].Kind() != pipeline.ResourceKindPlanJSON ||
+		consumes[0].Selector().Scope() != pipeline.ResourceScopeAllModules {
 		t.Fatalf("job.Consumes() = %#v, want all plan JSON", consumes)
 	}
 	if !job.AllowFailure() {

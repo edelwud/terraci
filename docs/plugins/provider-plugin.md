@@ -23,7 +23,7 @@ A CI provider must implement at minimum:
 |-----------|---------|
 | `EnvDetector` | Detect if running in your CI environment |
 | `CIInfoProvider` | Return provider name, pipeline ID, commit SHA |
-| `PipelineGeneratorFactory` | Declare provider build requirements and create an IR-bound generator |
+| `PipelineGeneratorFactory` | Create an IR-bound generator from the immutable pipeline IR |
 
 Optional:
 
@@ -55,17 +55,12 @@ func (p *Plugin) CommitSHA() string    { return os.Getenv("BITBUCKET_COMMIT") }
 
 ## Pipeline Generator
 
-Core asks the provider for `PipelineRequirements(ctx)`, builds the IR once via
+Core asks the provider for `NewGenerator(ctx, ir)`, builds the IR once via
 `pipeline.BuildProjectIR(req)`, then passes the finished IR to your factory.
 Your generator only renders the immutable IR through getters — it does not need
 depGraph, modules, or contributions because the IR already encodes all of them.
 
 ```go
-func (p *Plugin) PipelineRequirements(ctx *plugin.AppContext) pipeline.BuildRequirements {
-    cfg := p.Config()
-    return pipeline.BuildRequirements{PlanOnly: cfg != nil && cfg.PlanOnly}
-}
-
 func (p *Plugin) NewGenerator(ctx *plugin.AppContext, ir *pipeline.IR) pipeline.Generator {
     return &BitbucketGenerator{
         config: p.Config(),
@@ -173,7 +168,6 @@ type Plugin struct{ plugin.BasePlugin[*Config] }
 
 type Config struct {
     Image    string `yaml:"image"`
-    PlanOnly bool   `yaml:"plan_only"`
 }
 
 func (c *Config) Clone() *Config {
@@ -197,10 +191,6 @@ func (p *Plugin) PipelineID() string   { return os.Getenv("BITBUCKET_BUILD_NUMBE
 func (p *Plugin) CommitSHA() string    { return os.Getenv("BITBUCKET_COMMIT") }
 
 // --- PipelineGeneratorFactory ---
-
-func (p *Plugin) PipelineRequirements(ctx *plugin.AppContext) pipeline.BuildRequirements {
-    return pipeline.BuildRequirements{}
-}
 
 func (p *Plugin) NewGenerator(ctx *plugin.AppContext, ir *pipeline.IR) pipeline.Generator {
     return &generator{config: p.Config(), ir: ir}

@@ -25,11 +25,6 @@ func (p *Plugin) PipelineID() string { return os.Getenv("GITHUB_RUN_ID") }
 // CommitSHA returns the GitHub Actions commit SHA.
 func (p *Plugin) CommitSHA() string { return os.Getenv("GITHUB_SHA") }
 
-// PipelineRequirements returns GitHub-specific IR build requirements.
-func (p *Plugin) PipelineRequirements(_ *plugin.AppContext) pipeline.BuildRequirements {
-	return generatepkg.PipelineRequirements(p.Config())
-}
-
 // NewGenerator creates a new GitHub Actions pipeline generator bound to the
 // pre-built IR.
 func (p *Plugin) NewGenerator(ctx *plugin.AppContext, ir *pipeline.IR) pipeline.Generator {

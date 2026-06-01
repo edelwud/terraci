@@ -131,7 +131,7 @@ func TestUseCase_RunUsesInjectedDependencies(t *testing.T) {
 	loader := &fakeSummaryReportLoader{report: report}
 	eventSink := &fakeEventSink{}
 	runtimeFactory := &fakeRuntimeFactory{runtime: &runner.Runtime{
-		ExecConfig: execution.Config{PlanEnabled: true, Parallelism: 1},
+		ExecConfig: execution.Config{Parallelism: 1},
 		JobRunner:  jobRunner,
 	}}
 	useCase := New(
@@ -186,7 +186,7 @@ func TestUseCase_RunBuildsIRFromProjectAndContributions(t *testing.T) {
 	jobRunner := &fakeJobRunner{}
 
 	runtimeFactory := &fakeRuntimeFactory{runtime: &runner.Runtime{
-		ExecConfig: execution.Config{PlanEnabled: true, Parallelism: 3},
+		ExecConfig: execution.Config{Parallelism: 3},
 		JobRunner:  jobRunner,
 	}}
 	useCase := New(
@@ -285,7 +285,7 @@ func TestUseCase_RunReturnsBuildProjectIRError(t *testing.T) {
 		appCtx,
 		WithProjectPlanner(fakeProjectPlanner{project: invalidProjectWithTargets(module)}),
 		WithRuntimeFactory(&fakeRuntimeFactory{runtime: &runner.Runtime{
-			ExecConfig: execution.Config{PlanEnabled: true, Parallelism: 1},
+			ExecConfig: execution.Config{Parallelism: 1},
 			JobRunner:  &fakeJobRunner{},
 		}}),
 		WithSummaryReports(loader),
@@ -311,7 +311,7 @@ func TestUseCase_RunReturnsExecutionResultOnJobFailure(t *testing.T) {
 			mustContribution(t, testCommandJob("summary")),
 		}}),
 		WithRuntimeFactory(&fakeRuntimeFactory{runtime: &runner.Runtime{
-			ExecConfig: execution.Config{PlanEnabled: true, Parallelism: 1},
+			ExecConfig: execution.Config{Parallelism: 1},
 			JobRunner:  &fakeJobRunner{err: jobErr},
 		}}),
 		WithSummaryReports(loader),
@@ -349,7 +349,7 @@ func TestUseCase_RunReturnsSummaryLoaderError(t *testing.T) {
 		appCtx,
 		WithProjectPlanner(fakeProjectWithTargets(module)),
 		WithRuntimeFactory(&fakeRuntimeFactory{runtime: &runner.Runtime{
-			ExecConfig: execution.Config{PlanEnabled: true, Parallelism: 1},
+			ExecConfig: execution.Config{Parallelism: 1},
 			JobRunner:  &fakeJobRunner{},
 		}}),
 		WithSummaryReports(loader),
@@ -374,7 +374,7 @@ func TestUseCase_RunReturnsSummaryDiagnostics(t *testing.T) {
 		appCtx,
 		WithProjectPlanner(fakeProjectWithTargets(module)),
 		WithRuntimeFactory(&fakeRuntimeFactory{runtime: &runner.Runtime{
-			ExecConfig: execution.Config{PlanEnabled: true, Parallelism: 1},
+			ExecConfig: execution.Config{Parallelism: 1},
 			JobRunner:  &fakeJobRunner{},
 		}}),
 		WithSummaryReports(&fakeSummaryReportLoader{result: reports.NewResult(nil, diagnostic.NewList(diag))}),

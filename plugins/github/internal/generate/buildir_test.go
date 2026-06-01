@@ -9,15 +9,26 @@ import (
 	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
 )
 
-func buildTestIR(
+func buildTestIRWithApply(
 	cfg *configpkg.Config,
 	execCfg execution.Config,
 	contributions []*pipeline.Contribution,
 	depGraph *graph.DependencyGraph,
 	allModules, targetModules []*discovery.Module,
+	applyEnabled bool,
 ) (*pipeline.IR, error) {
 	s := newSettings(cfg, execCfg)
-	requirements := execCfg.BuildRequirements().Merge(PipelineRequirements(cfg))
+	resourceRequests := []pipeline.ResourceRequest(nil)
+	if !applyEnabled {
+		resourceRequests = append(resourceRequests, pipeline.AllPlanResources(pipeline.ResourceKindPlanBinary))
+	}
+	intent, err := pipeline.NewBuildIntent(pipeline.BuildIntentOptions{
+		ApplyEnabled:     applyEnabled,
+		ResourceRequests: resourceRequests,
+	})
+	if err != nil {
+		return nil, err
+	}
 	return pipeline.BuildProjectIR(pipeline.ProjectIRRequest{
 		Project: &workflow.ProjectResult{
 			Workflow: &workflow.Result{
@@ -28,10 +39,9 @@ func buildTestIR(
 		},
 		Script: pipeline.ScriptConfig{
 			InitEnabled: s.initEnabled(),
-			PlanEnabled: s.planEnabled(),
+			Env:         execCfg.Env,
 		},
 		Contributions: contributions,
-		Requirements:  requirements,
-		PlanEnabled:   s.planEnabled(),
+		Intent:        intent,
 	})
 }

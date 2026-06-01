@@ -133,22 +133,22 @@ func TestScriptConfig_ApplyScript(t *testing.T) {
 	tests := []struct {
 		name         string
 		config       pipeline.ScriptConfig
+		usePlanFile  bool
 		wantInitCmd  bool
 		wantApplyCmd string
 	}{
 		{
-			name: "PlanEnabled applies plan.tfplan",
+			name: "usePlanFile applies plan.tfplan",
 			config: pipeline.ScriptConfig{
-				PlanEnabled: true,
 				InitEnabled: false,
 			},
+			usePlanFile:  true,
 			wantInitCmd:  false,
 			wantApplyCmd: "${TERRAFORM_BINARY} apply plan.tfplan",
 		},
 		{
 			name: "default is plain apply",
 			config: pipeline.ScriptConfig{
-				PlanEnabled: false,
 				InitEnabled: false,
 			},
 			wantInitCmd:  false,
@@ -157,9 +157,9 @@ func TestScriptConfig_ApplyScript(t *testing.T) {
 		{
 			name: "InitEnabled adds init command",
 			config: pipeline.ScriptConfig{
-				PlanEnabled: true,
 				InitEnabled: true,
 			},
+			usePlanFile:  true,
 			wantInitCmd:  true,
 			wantApplyCmd: "${TERRAFORM_BINARY} apply plan.tfplan",
 		},
@@ -169,7 +169,7 @@ func TestScriptConfig_ApplyScript(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			script := RenderOperation(tt.config.NewApplyOperation(modulePath))
+			script := RenderOperation(tt.config.NewApplyOperation(modulePath, tt.usePlanFile))
 
 			// First command is always cd
 			if script[0] != "cd "+modulePath {

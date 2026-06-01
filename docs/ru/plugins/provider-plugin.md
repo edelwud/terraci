@@ -21,7 +21,7 @@ outline: deep
 |-----------|-----------|
 | `EnvDetector` | Определение CI-окружения |
 | `CIInfoProvider` | Имя провайдера, ID пайплайна, SHA коммита |
-| `PipelineGeneratorFactory` | Декларация требований к IR и создание IR-bound генератора |
+| `PipelineGeneratorFactory` | Создание IR-bound генератора из immutable pipeline IR |
 
 Опционально:
 
@@ -31,19 +31,12 @@ outline: deep
 
 ## Работа с Pipeline IR
 
-Ядро сначала спрашивает у провайдера `PipelineRequirements(ctx)`, затем строит
+Ядро сначала спрашивает у провайдера `NewGenerator(ctx, ir)`, затем строит
 IR один раз через `pipeline.BuildProjectIR(req)` и передаёт его в фабрику.
 Генератор только рендерит immutable IR через getters. IR уже содержит модули,
 contributions и зависимости.
 
 ```go
-func (p *Plugin) PipelineRequirements(ctx *plugin.AppContext) pipeline.BuildRequirements {
-    return pipeline.RequirementsForResources(
-        pipeline.AllPlanResources(pipeline.ResourceKindPlanText),
-        pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
-    )
-}
-
 func (p *Plugin) NewGenerator(ctx *plugin.AppContext, ir *pipeline.IR) pipeline.Generator {
     return &generator{config: p.Config(), ir: ir}
 }
@@ -94,7 +87,6 @@ type Plugin struct{ plugin.BasePlugin[*Config] }
 
 type Config struct {
     Image    string `yaml:"image"`
-    PlanOnly bool   `yaml:"plan_only"`
 }
 
 func (c *Config) Clone() *Config {
@@ -116,10 +108,6 @@ func (p *Plugin) PipelineID() string   { return os.Getenv("BITBUCKET_BUILD_NUMBE
 func (p *Plugin) CommitSHA() string    { return os.Getenv("BITBUCKET_COMMIT") }
 
 // PipelineGeneratorFactory
-func (p *Plugin) PipelineRequirements(ctx *plugin.AppContext) pipeline.BuildRequirements {
-    return pipeline.BuildRequirements{}
-}
-
 func (p *Plugin) NewGenerator(ctx *plugin.AppContext, ir *pipeline.IR) pipeline.Generator {
     return &generator{config: p.Config(), ir: ir}
 }

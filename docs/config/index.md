@@ -55,15 +55,14 @@ include: []  # Empty means all (after excludes)
 execution:
   binary: terraform        # or "tofu"
   init_enabled: true       # automatically run terraform init
-  plan_enabled: true       # generate plan jobs
-  plan_mode: standard      # "standard" or "detailed"
   parallelism: 4           # local-exec worker pool size
+  env:                     # copied into Terraform jobs
+    TF_IN_AUTOMATION: "true"
 
 extensions:
   # GitLab CI pipeline settings (used when GITLAB_CI is detected)
   gitlab:
-    image:
-      name: hashicorp/terraform:1.6
+    # image is optional; defaults are derived from execution.binary
     stages_prefix: "deploy"
 
     variables:
@@ -131,8 +130,6 @@ structure:
 execution:
   binary: terraform
   init_enabled: true
-  plan_enabled: true
-  plan_mode: standard
   parallelism: 4
 ```
 

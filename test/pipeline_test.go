@@ -43,9 +43,8 @@ func TestPipelineBuild_BasicModules(t *testing.T) {
 	ir, err := buildPipelineIR(modules, depGraph, modules, pipeline.ProjectIRRequest{
 		Script: pipeline.ScriptConfig{
 			InitEnabled: true,
-			PlanEnabled: true,
 		},
-		PlanEnabled: true,
+		Intent: mustBuildIntent(t, true),
 	})
 	if err != nil {
 		t.Fatalf("Build failed: %v", err)
@@ -74,11 +73,7 @@ func TestPipelineBuild_PlanOnly(t *testing.T) {
 	}
 	depGraph := graph.BuildFromDependencies(modules, deps)
 	ir, err := buildPipelineIR(modules, depGraph, modules, pipeline.ProjectIRRequest{
-		Script: pipeline.ScriptConfig{
-			PlanEnabled: true,
-		},
-		PlanEnabled:  true,
-		Requirements: pipeline.BuildRequirements{PlanOnly: true},
+		Intent: mustBuildIntent(t, false, pipeline.AllPlanResources(pipeline.ResourceKindPlanBinary)),
 	})
 	if err != nil {
 		t.Fatalf("Build failed: %v", err)
@@ -109,11 +104,8 @@ func TestPipelineBuild_WithContributions(t *testing.T) {
 	})}
 
 	ir, err := buildPipelineIR(modules, depGraph, modules, pipeline.ProjectIRRequest{
-		Script: pipeline.ScriptConfig{
-			PlanEnabled: true,
-		},
+		Intent:        mustBuildIntent(t, true),
 		Contributions: contributions,
-		PlanEnabled:   true,
 	})
 	if err != nil {
 		t.Fatalf("Build failed: %v", err)
@@ -164,8 +156,8 @@ func TestPipelineBuild_SummaryDependsThroughResources(t *testing.T) {
 	}
 
 	ir, err := buildPipelineIR(modules, depGraph, modules, pipeline.ProjectIRRequest{
-		Script:        pipeline.ScriptConfig{PlanEnabled: true},
-		Contributions: contributions, PlanEnabled: true,
+		Intent:        mustBuildIntent(t, true),
+		Contributions: contributions,
 	})
 	if err != nil {
 		t.Fatalf("Build failed: %v", err)
@@ -211,10 +203,7 @@ func TestPipelineBuild_DependencyOrdering(t *testing.T) {
 
 	depGraph := graph.BuildFromDependencies(modules, deps)
 	ir, err := buildPipelineIR(modules, depGraph, modules, pipeline.ProjectIRRequest{
-		Script: pipeline.ScriptConfig{
-			PlanEnabled: true,
-		},
-		PlanEnabled: true,
+		Intent: mustBuildIntent(t, true),
 	})
 	if err != nil {
 		t.Fatalf("Build failed: %v", err)
@@ -250,6 +239,18 @@ func buildPipelineIR(allModules []*discovery.Module, depGraph *graph.DependencyG
 		Targets: targets,
 	}
 	return pipeline.BuildProjectIR(req)
+}
+
+func mustBuildIntent(tb testing.TB, applyEnabled bool, requests ...pipeline.ResourceRequest) pipeline.BuildIntent {
+	tb.Helper()
+	intent, err := pipeline.NewBuildIntent(pipeline.BuildIntentOptions{
+		ApplyEnabled:     applyEnabled,
+		ResourceRequests: requests,
+	})
+	if err != nil {
+		tb.Fatalf("NewBuildIntent() error = %v", err)
+	}
+	return intent
 }
 
 func hasPipelineInputArtifact(inputs []pipeline.InputArtifact, name, producer string) bool {

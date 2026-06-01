@@ -60,6 +60,10 @@ func MustSingleModuleIR(tb testing.TB, module *discovery.Module) *pipeline.IR {
 	tb.Helper()
 	depGraph := graph.NewDependencyGraph()
 	depGraph.AddNode(module)
+	intent, err := pipeline.NewBuildIntent(pipeline.BuildIntentOptions{ApplyEnabled: true})
+	if err != nil {
+		tb.Fatalf("NewBuildIntent() error = %v", err)
+	}
 	ir, err := pipeline.BuildProjectIR(pipeline.ProjectIRRequest{
 		Project: &workflow.ProjectResult{
 			Workflow: &workflow.Result{
@@ -67,8 +71,8 @@ func MustSingleModuleIR(tb testing.TB, module *discovery.Module) *pipeline.IR {
 				Graph:    depGraph,
 			},
 		},
-		Script:      pipeline.ScriptConfig{InitEnabled: true, PlanEnabled: true},
-		PlanEnabled: true,
+		Script: pipeline.ScriptConfig{InitEnabled: true},
+		Intent: intent,
 	})
 	if err != nil {
 		tb.Fatalf("BuildProjectIR() error = %v", err)

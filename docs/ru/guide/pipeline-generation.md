@@ -63,7 +63,6 @@ default:
 
 ### Джобы
 
-Два джоба на модуль (если `plan_enabled: true`):
 
 ```yaml
 plan-platform-prod-us-east-1-vpc:
@@ -231,12 +230,9 @@ apply-platform-prod-us-east-1-vpc:
 
 ```yaml
 execution:
-  plan_enabled: true   # Генерировать plan-джобы (по умолчанию)
-  # plan_enabled: false  # Сразу к apply
 
 extensions:
   gitlab:
-    plan_only: false  # Если true: оставить plan-джобы, удалить apply-джобы (CLI: --plan-only)
 ```
 
 ### Запуск apply

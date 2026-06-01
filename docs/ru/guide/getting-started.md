@@ -67,7 +67,6 @@ structure:
 
 execution:
   binary: terraform
-  plan_enabled: true
 
 extensions:
   gitlab:

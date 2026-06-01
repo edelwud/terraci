@@ -377,13 +377,15 @@ library_modules:
 
 execution:
   binary: terraform
-  plan_enabled: true
+  init_enabled: true
+  parallelism: 4
+  env:
+    TF_IN_AUTOMATION: "true"
 
 extensions:
   gitlab:
-    image: { name: hashicorp/terraform:1.6 }
-    cache_enabled: true
     cache:
+      enabled: true
       policy: pull-push
       paths: [ "{module_path}/.terraform/" ]
 

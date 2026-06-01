@@ -11,15 +11,12 @@ outline: deep
 ## Параметры
 
 ::: info Настройки выполнения
-`binary`, `init_enabled`, `plan_enabled` и связанные с ними поля живут в верхнеуровневой секции `execution:`, а **не** под `extensions.gitlab`. См. [Обзор конфигурации](./index.md#полный-пример).
 :::
 
 | Параметр | Тип | По умолчанию | Описание |
 |----------|-----|--------------|----------|
 | `image` | string/object | `hashicorp/terraform:1.6` | Docker-образ (строка или объект с name/entrypoint) |
 | `stages_prefix` | string | `deploy` | Префикс названий стейджей |
-| `plan_only` | bool | `false` | Генерировать только plan-джобы (без apply) |
-| `cache_enabled` | bool | `true` | Кеширование .terraform |
 | `variables` | map | `{}` | Переменные пайплайна |
 | `rules` | []object | `[]` | Правила workflow пайплайна |
 | `job_defaults` | object | `null` | Настройки по умолчанию для всех джобов |
@@ -77,21 +74,17 @@ stages_prefix: "terraform"  # terraform-0, terraform-1
 stages_prefix: "infra"      # infra-0, infra-1
 ```
 
-## plan_only
 
 Генерирует только plan-джобы, без apply. Полезно для read-only пайплайнов на ветках/MR-ах.
 
 ```yaml
 extensions:
   gitlab:
-    plan_only: false   # plan + apply джобы
-    # plan_only: true  # только plan, apply-джобов нет
 ```
 
 CLI-флаг `--plan-only` команды `terraci generate` переопределяет это значение.
 
 ::: tip Plan-стейдж в целом
-Включение/выключение самого plan-стейджа задаётся в верхнеуровневой `execution.plan_enabled` (по умолчанию `true`). При `plan_enabled: false` генерируются только `apply-*` джобы (запускают `terraform apply` напрямую без сохранённого плана). `plan_only` здесь — про сохранение plan-джобов и пропуск apply.
 :::
 
 ## Ручной apply
@@ -107,14 +100,12 @@ extensions:
         when: manual
 ```
 
-## cache_enabled
 
 Включает кеширование директории `.terraform` для каждого модуля:
 
 ```yaml
 extensions:
   gitlab:
-    cache_enabled: true
 ```
 
 При включенном кешировании каждый джоб получает конфигурацию кеша:
@@ -137,7 +128,6 @@ plan-platform-prod-eu-central-1-vpc:
 
 ## cache
 
-Расширенная настройка кеша для GitLab jobs. Подходит, когда одного `cache_enabled` недостаточно и нужно управлять `key`, `paths` или `policy`.
 
 ```yaml
 extensions:
@@ -340,7 +330,6 @@ extensions:
 execution:
   binary: terraform
   init_enabled: true
-  plan_enabled: true
 
 extensions:
   gitlab:
@@ -348,7 +337,6 @@ extensions:
 
     # Структура пайплайна
     stages_prefix: "deploy"
-    cache_enabled: true
 
     # Переменные пайплайна
     variables:
@@ -499,7 +487,6 @@ apply-platform-prod-eu-central-1-vpc:
 
 ```yaml
 execution:
-  plan_enabled: false   # выполнять только apply, без отдельного plan-стейджа
 
 extensions:
   gitlab:
@@ -514,7 +501,6 @@ extensions:
 
 ```yaml
 execution:
-  plan_enabled: true
 
 extensions:
   gitlab:

@@ -14,12 +14,10 @@ type projectIRBuildInput struct {
 	ModuleIndex   *discovery.ModuleIndex
 	Script        ScriptConfig
 	Contributions []*Contribution
-	Requirements  BuildRequirements
-	PlanEnabled   bool
+	Intent        BuildIntent
 }
 
 func buildProjectIR(opts projectIRBuildInput) (*IR, error) {
-	planOnly := opts.Requirements.PlanOnly
 	allContributedJobs := collectContributedJobs(opts.Contributions)
 	plan, err := prepareModuleGraph(
 		opts.DepGraph, opts.TargetModules, opts.AllModules, opts.ModuleIndex,
@@ -28,17 +26,18 @@ func buildProjectIR(opts projectIRBuildInput) (*IR, error) {
 		return nil, err
 	}
 
-	requests := allResourceRequests(opts.Requirements.Resources, allContributedJobs)
-	if err := validateBuildResourceRequests(opts.Requirements.Resources, opts.Contributions); err != nil {
+	required := opts.Intent.ResourceRequests()
+	requests := allResourceRequests(required, allContributedJobs)
+	if err := validateBuildResourceRequests(required, opts.Contributions); err != nil {
 		return nil, err
 	}
 	planOutputs := requestedPlanOutputs(plan, requests)
 
 	ir := &IR{
-		jobs: buildJobs(plan, opts.PlanEnabled, planOnly, opts.Script, planOutputs, allContributedJobs),
+		jobs: buildJobs(plan, opts.Intent, opts.Script, planOutputs, requests, allContributedJobs),
 	}
 
-	if err := resolvePipelineResources(ir, plan, opts.Requirements.Resources, allContributedJobs); err != nil {
+	if err := resolvePipelineResources(ir, plan, required, allContributedJobs); err != nil {
 		return nil, err
 	}
 	if err := ir.Validate(); err != nil {
@@ -98,15 +97,15 @@ func requestedPlanOutputs(plan *jobPlan, requests []ResourceRequest) map[string]
 	}
 
 	for _, request := range requests {
-		if !isDetailedPlanResource(request.Kind) {
+		if !isDetailedPlanResource(request.kind) {
 			continue
 		}
 		for _, modulePath := range matchingRequestedModulePaths(request, plan.targetModules, targets) {
 			current := outputs[modulePath]
-			if request.Kind == ResourceKindPlanText {
+			if request.kind == ResourceKindPlanText {
 				current.Text = true
 			}
-			if request.Kind == ResourceKindPlanJSON {
+			if request.kind == ResourceKindPlanJSON {
 				current.JSON = true
 			}
 			outputs[modulePath] = current
@@ -116,10 +115,10 @@ func requestedPlanOutputs(plan *jobPlan, requests []ResourceRequest) map[string]
 }
 
 func matchingRequestedModulePaths(request ResourceRequest, modules []*discovery.Module, targets map[string]struct{}) []string {
-	switch request.Selector.Scope {
+	switch request.selector.scope {
 	case ResourceScopeModule:
-		if _, ok := targets[request.Selector.ModulePath]; ok {
-			return []string{request.Selector.ModulePath}
+		if _, ok := targets[request.selector.modulePath]; ok {
+			return []string{request.selector.modulePath}
 		}
 		return nil
 	case ResourceScopeAllModules:
@@ -137,13 +136,13 @@ func matchingRequestedModulePaths(request ResourceRequest, modules []*discovery.
 	}
 }
 
-func buildJobs(plan *jobPlan, planEnabled, planOnly bool, script ScriptConfig, planOutputs map[string]PlanOutputs, contributedJobs []ContributedJob) []Job {
-	jobs := buildModuleJobs(plan, planEnabled, planOnly, script, planOutputs)
+func buildJobs(plan *jobPlan, intent BuildIntent, script ScriptConfig, planOutputs map[string]PlanOutputs, requests []ResourceRequest, contributedJobs []ContributedJob) []Job {
+	jobs := buildModuleJobs(plan, intent, script, planOutputs, requests)
 	jobs = append(jobs, buildContributedJobs(contributedJobs)...)
 	return jobs
 }
 
-func buildModuleJobs(plan *jobPlan, planEnabled, planOnly bool, script ScriptConfig, planOutputs map[string]PlanOutputs) []Job {
+func buildModuleJobs(plan *jobPlan, intent BuildIntent, script ScriptConfig, planOutputs map[string]PlanOutputs, requests []ResourceRequest) []Job {
 	jobs := make([]Job, 0, len(plan.targetModules)*2)
 	for _, moduleID := range plan.moduleOrder {
 		mod := plan.moduleIndex.ByID(moduleID)
@@ -152,16 +151,16 @@ func buildModuleJobs(plan *jobPlan, planEnabled, planOnly bool, script ScriptCon
 		}
 		modulePath := mod.ID()
 
-		env := ModuleEnvVars(mod)
+		env := TerraformJobEnv(script.TerraformEnv(), mod)
 		var planJob *Job
 
-		if planEnabled {
-			job := buildPlanJob(plan, mod, env, planOnly, script, planOutputs[modulePath])
+		if moduleNeedsPlanJob(modulePath, intent, requests) {
+			job := buildPlanJob(plan, mod, env, !intent.ApplyEnabled(), script, planOutputs[modulePath])
 			planJob = &job
 			jobs = append(jobs, job)
 		}
 
-		if !planOnly {
+		if intent.ApplyEnabled() {
 			jobs = append(jobs, buildApplyJob(plan, mod, env, planJob, script))
 		}
 	}
@@ -195,7 +194,7 @@ func buildPlanJob(plan *jobPlan, mod *discovery.Module, env map[string]string, p
 
 func buildApplyJob(plan *jobPlan, mod *discovery.Module, env map[string]string, planJob *Job, script ScriptConfig) Job {
 	modulePath := mod.ID()
-	applyOperation := script.NewApplyOperation(modulePath)
+	applyOperation := script.NewApplyOperation(modulePath, planJob != nil)
 	applyDeps := controlDependencies(resolveDependencyNames(mod, JobKindApply, plan.subgraph, plan.moduleIndex))
 	var consumes []ResourceSpec
 	var inputArtifacts []InputArtifact
@@ -223,6 +222,28 @@ func buildApplyJob(plan *jobPlan, mod *discovery.Module, env map[string]string, 
 		consumes:       consumes,
 		operation:      applyOperation,
 	}
+}
+
+func moduleNeedsPlanJob(modulePath string, intent BuildIntent, requests []ResourceRequest) bool {
+	if intent.ApplyEnabled() {
+		return true
+	}
+	for _, request := range requests {
+		if !isPlanResourceKind(request.kind) {
+			continue
+		}
+		switch request.selector.scope {
+		case ResourceScopeAllModules:
+			return true
+		case ResourceScopeModule:
+			if request.selector.modulePath == modulePath {
+				return true
+			}
+		case ResourceScopeAllProducers, ResourceScopeProducer:
+			continue
+		}
+	}
+	return false
 }
 
 func buildContributedJobs(contributedJobs []ContributedJob) []Job {

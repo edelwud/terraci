@@ -11,8 +11,7 @@ import (
 type ProjectIRRequest struct {
 	Project       *workflow.ProjectResult
 	Script        ScriptConfig
-	PlanEnabled   bool
-	Requirements  BuildRequirements
+	Intent        BuildIntent
 	Contributions []*Contribution
 }
 
@@ -44,8 +43,7 @@ func BuildProjectIR(req ProjectIRRequest) (*IR, error) {
 		ModuleIndex:   result.Filtered.Index,
 		Script:        req.Script,
 		Contributions: req.Contributions,
-		Requirements:  req.Requirements,
-		PlanEnabled:   req.PlanEnabled,
+		Intent:        req.Intent,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("build project pipeline IR: %w", err)

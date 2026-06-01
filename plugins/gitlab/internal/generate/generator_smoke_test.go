@@ -20,17 +20,14 @@ type testCfg struct {
 
 // createTestConfig creates a test configuration with default values
 func createTestConfig() *testCfg {
+	image := Image{Name: "hashicorp/terraform:1.6"}
 	return &testCfg{
 		GitLab: &Config{
-			Image: Image{
-				Name: "hashicorp/terraform:1.6",
-			},
+			Image: &image,
 		},
 		Execution: execution.Config{
 			Binary:      "terraform",
 			InitEnabled: true,
-			PlanEnabled: true,
-			PlanMode:    execution.PlanModeStandard,
 			Parallelism: 4,
 		},
 	}
@@ -103,12 +100,7 @@ func TestGenerator_Generate_WithDependencies(t *testing.T) {
 func TestGenerator_Generate_PlanOnly(t *testing.T) {
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	p := newGeneratorScenario(t).
-		withConfig(func(cfg *Config) {
-			cfg.PlanOnly = true
-		}).
-		withExecution(func(cfg *execution.Config) {
-			cfg.PlanEnabled = true
-		}).
+		withPlanOnly().
 		withModules(module).
 		withDependencies(map[string][]string{module.ID(): {}}).
 		generate()
@@ -124,12 +116,7 @@ func TestGenerator_Generate_PlanOnlyWithDependencies(t *testing.T) {
 	vpc := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	eks := discovery.TestModule("platform", "stage", "eu-central-1", "eks")
 	p := newGeneratorScenario(t).
-		withConfig(func(cfg *Config) {
-			cfg.PlanOnly = true
-		}).
-		withExecution(func(cfg *execution.Config) {
-			cfg.PlanEnabled = true
-		}).
+		withPlanOnly().
 		withModules(vpc, eks).
 		withDependencies(map[string][]string{
 			vpc.ID(): {},

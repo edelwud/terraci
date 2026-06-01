@@ -5,7 +5,6 @@ structure:
 execution:
   binary: terraform
   init_enabled: true
-  plan_enabled: true
 
 extensions:
   gitlab:
@@ -13,4 +12,5 @@ extensions:
       name: "hashicorp/terraform:1.6"
     stages_prefix: "deploy"
     auto_approve: false
-    cache_enabled: true
+    cache:
+      enabled: true

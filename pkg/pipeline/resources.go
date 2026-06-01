@@ -32,16 +32,16 @@ const (
 
 // ResourceSelector is the selector portion of a ResourceRequest.
 type ResourceSelector struct {
-	Scope      ResourceScope
-	ModulePath string
-	Producer   string
+	scope      ResourceScope
+	modulePath string
+	producer   string
 }
 
 // ResourceRequest selects one or more resources needed by a job.
 type ResourceRequest struct {
-	Kind     ResourceKind
-	Selector ResourceSelector
-	Optional bool
+	kind     ResourceKind
+	selector ResourceSelector
+	optional bool
 }
 
 // ResourceSpec binds a resource identity to its workspace-relative path.
@@ -75,9 +75,9 @@ func PluginResource(kind ResourceKind, producer, path string) ResourceSpec {
 // AllPlanResources requests a plan resource from every target module.
 func AllPlanResources(kind ResourceKind) ResourceRequest {
 	return ResourceRequest{
-		Kind: kind,
-		Selector: ResourceSelector{
-			Scope: ResourceScopeAllModules,
+		kind: kind,
+		selector: ResourceSelector{
+			scope: ResourceScopeAllModules,
 		},
 	}
 }
@@ -85,10 +85,10 @@ func AllPlanResources(kind ResourceKind) ResourceRequest {
 // ModulePlanResource requests a plan resource from one module.
 func ModulePlanResource(kind ResourceKind, modulePath string) ResourceRequest {
 	return ResourceRequest{
-		Kind: kind,
-		Selector: ResourceSelector{
-			Scope:      ResourceScopeModule,
-			ModulePath: WorkspacePath(modulePath),
+		kind: kind,
+		selector: ResourceSelector{
+			scope:      ResourceScopeModule,
+			modulePath: WorkspacePath(modulePath),
 		},
 	}
 }
@@ -96,25 +96,43 @@ func ModulePlanResource(kind ResourceKind, modulePath string) ResourceRequest {
 // AllPluginResources requests a plugin resource from every producer.
 func AllPluginResources(kind ResourceKind, optional bool) ResourceRequest {
 	return ResourceRequest{
-		Kind: kind,
-		Selector: ResourceSelector{
-			Scope: ResourceScopeAllProducers,
+		kind: kind,
+		selector: ResourceSelector{
+			scope: ResourceScopeAllProducers,
 		},
-		Optional: optional,
+		optional: optional,
 	}
 }
 
 // PluginProducerResource requests one plugin resource by producer.
 func PluginProducerResource(kind ResourceKind, producer string, optional bool) ResourceRequest {
 	return ResourceRequest{
-		Kind: kind,
-		Selector: ResourceSelector{
-			Scope:    ResourceScopeProducer,
-			Producer: producer,
+		kind: kind,
+		selector: ResourceSelector{
+			scope:    ResourceScopeProducer,
+			producer: producer,
 		},
-		Optional: optional,
+		optional: optional,
 	}
 }
+
+// Kind returns the requested resource kind.
+func (r ResourceRequest) Kind() ResourceKind { return r.kind }
+
+// Selector returns the resource selector.
+func (r ResourceRequest) Selector() ResourceSelector { return r.selector }
+
+// Optional reports whether a missing resource should be ignored.
+func (r ResourceRequest) Optional() bool { return r.optional }
+
+// Scope returns selector scope.
+func (s ResourceSelector) Scope() ResourceScope { return s.scope }
+
+// ModulePath returns the selected module path for module-scoped requests.
+func (s ResourceSelector) ModulePath() string { return s.modulePath }
+
+// Producer returns the selected producer for producer-scoped requests.
+func (s ResourceSelector) Producer() string { return s.producer }
 
 func PluginResultAndReportResources(serviceDir, producer string) []ResourceSpec {
 	return []ResourceSpec{

@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/discovery"
-	"github.com/edelwud/terraci/pkg/execution"
 )
 
 // createTestModules creates a standard test module set with dependencies:
@@ -25,7 +24,6 @@ func createTestModules() []*discovery.Module {
 func TestPipelineGeneration_Basic(t *testing.T) {
 	modules := createTestModules()
 	pipeline := newGeneratorScenario(t).
-		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
 		withModules(modules...).
 		withDependencies(map[string][]string{
 			"platform/stage/eu-central-1/vpc": {},
@@ -66,10 +64,7 @@ func TestPipelineGeneration_Basic(t *testing.T) {
 func TestPipelineGeneration_PlanOnly(t *testing.T) {
 	modules := createTestModules()
 	pipeline := newGeneratorScenario(t).
-		withConfig(func(cfg *Config) {
-			cfg.PlanOnly = true
-		}).
-		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
+		withPlanOnly().
 		withModules(modules...).
 		withDependencies(map[string][]string{
 			"platform/stage/eu-central-1/vpc": {},
@@ -106,10 +101,7 @@ func TestPipelineGeneration_PlanOnly(t *testing.T) {
 func TestPipelineGeneration_PlanOnlyNeeds(t *testing.T) {
 	modules := createTestModules()
 	pipeline := newGeneratorScenario(t).
-		withConfig(func(cfg *Config) {
-			cfg.PlanOnly = true
-		}).
-		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
+		withPlanOnly().
 		withModules(modules...).
 		withDependencies(map[string][]string{
 			"platform/stage/eu-central-1/vpc": {},
@@ -139,7 +131,6 @@ func TestPipelineGeneration_PlanOnlyNeeds(t *testing.T) {
 func TestPipelineGeneration_ChangedOnlyFilteredNeeds(t *testing.T) {
 	modules := createTestModules()
 	pipeline := newGeneratorScenario(t).
-		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
 		withModules(modules...).
 		withDependencies(map[string][]string{
 			"platform/stage/eu-central-1/vpc": {},
@@ -190,10 +181,7 @@ func TestPipelineGeneration_ChangedOnlyFilteredNeeds(t *testing.T) {
 func TestPipelineGeneration_ChangedOnlyPlanOnly(t *testing.T) {
 	modules := createTestModules()
 	pipeline := newGeneratorScenario(t).
-		withConfig(func(cfg *Config) {
-			cfg.PlanOnly = true
-		}).
-		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
+		withPlanOnly().
 		withModules(modules...).
 		withDependencies(map[string][]string{
 			"platform/stage/eu-central-1/vpc": {},
@@ -227,7 +215,6 @@ func TestPipelineGeneration_ChangedOnlyPlanOnly(t *testing.T) {
 func TestPipelineGeneration_ApplyConsumesPlan(t *testing.T) {
 	modules := createTestModules()
 	pipeline := newGeneratorScenario(t).
-		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
 		withModules(modules...).
 		withDependencies(map[string][]string{
 			"platform/stage/eu-central-1/vpc": {},
@@ -250,49 +237,9 @@ func TestPipelineGeneration_ApplyConsumesPlan(t *testing.T) {
 	}
 }
 
-func TestPipelineGeneration_NoPlanEnabled(t *testing.T) {
-	modules := createTestModules()
-	pipeline := newGeneratorScenario(t).
-		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = false }).
-		withModules(modules...).
-		withDependencies(map[string][]string{
-			"platform/stage/eu-central-1/vpc": {},
-			"platform/stage/eu-central-1/s3":  {},
-			"platform/stage/eu-central-1/eks": {"platform/stage/eu-central-1/vpc"},
-			"platform/stage/eu-central-1/rds": {"platform/stage/eu-central-1/vpc"},
-			"platform/stage/eu-central-1/app": {
-				"platform/stage/eu-central-1/eks",
-				"platform/stage/eu-central-1/rds",
-				"platform/stage/eu-central-1/s3",
-			},
-		}).
-		generate()
-
-	for _, jobName := range pipeline.JobNames() {
-		if strings.HasPrefix(jobName, "plan-") {
-			t.Errorf("Unexpected plan job when PlanEnabled=false: %s", jobName)
-		}
-	}
-
-	assertPipeline(t, pipeline).noStageWithFragment("-plan-")
-
-	for _, jobName := range pipeline.JobNames() {
-		job, ok := pipeline.Job(jobName)
-		if !ok {
-			t.Fatalf("job %q not found", jobName)
-		}
-		for _, need := range job.Needs() {
-			if strings.HasPrefix(need.Job, "plan-") {
-				t.Errorf("Apply job %s should not depend on plan job when PlanEnabled=false: %s", jobName, need.Job)
-			}
-		}
-	}
-}
-
 func TestPipelineGeneration_DependencyOrder(t *testing.T) {
 	modules := createTestModules()
 	pipeline := newGeneratorScenario(t).
-		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
 		withModules(modules...).
 		withDependencies(map[string][]string{
 			"platform/stage/eu-central-1/vpc": {},
@@ -315,7 +262,6 @@ func TestPipelineGeneration_DependencyOrder(t *testing.T) {
 func TestPipelineGeneration_EmptyModules(t *testing.T) {
 	modules := createTestModules()
 	pipeline := newGeneratorScenario(t).
-		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
 		withModules(modules...).
 		withDependencies(map[string][]string{
 			"platform/stage/eu-central-1/vpc": {},
@@ -337,7 +283,6 @@ func TestPipelineGeneration_EmptyModules(t *testing.T) {
 func TestPipelineGeneration_SingleModule(t *testing.T) {
 	modules := createTestModules()
 	pipeline := newGeneratorScenario(t).
-		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
 		withModules(modules...).
 		withDependencies(map[string][]string{
 			"platform/stage/eu-central-1/vpc": {},

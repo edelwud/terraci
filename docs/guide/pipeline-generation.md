@@ -65,7 +65,6 @@ default:
 
 ### Jobs
 
-Two jobs per module (if `plan_enabled: true`):
 
 ```yaml
 plan-platform-prod-us-east-1-vpc:
@@ -235,12 +234,9 @@ Enable or disable plan jobs globally via the top-level `execution:` section (it 
 
 ```yaml
 execution:
-  plan_enabled: true  # Generate plan jobs (default)
-  # plan_enabled: false  # Skip straight to apply
 
 extensions:
   gitlab:
-    plan_only: false  # When true: keep plan jobs, drop apply jobs (CLI: --plan-only)
 ```
 
 ### Apply Scheduling

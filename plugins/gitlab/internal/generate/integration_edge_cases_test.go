@@ -72,7 +72,6 @@ func TestEdgeCase_AllModulesIndependent(t *testing.T) {
 	}
 
 	pipeline := newGeneratorScenario(t).
-		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
 		withModules(modules...).
 		withDependencies(map[string][]string{
 			"svc/stage/eu-central-1/a": {},
@@ -98,7 +97,6 @@ func TestEdgeCase_DeepDependencyChain(t *testing.T) {
 	}
 
 	pipeline := newGeneratorScenario(t).
-		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
 		withModules(modules...).
 		withDependencies(map[string][]string{
 			"svc/stage/eu-central-1/a": {},
@@ -127,7 +125,6 @@ func TestEdgeCase_DiamondDependency(t *testing.T) {
 	}
 
 	pipeline := newGeneratorScenario(t).
-		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
 		withModules(modules...).
 		withDependencies(map[string][]string{
 			"svc/stage/eu-central-1/a": {},
@@ -157,7 +154,6 @@ func TestEdgeCase_PartialChainChanged(t *testing.T) {
 	}
 
 	pipeline := newGeneratorScenario(t).
-		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
 		withModules(modules...).
 		withDependencies(map[string][]string{
 			"svc/stage/eu-central-1/a": {},
@@ -176,20 +172,6 @@ func TestEdgeCase_PartialChainChanged(t *testing.T) {
 	assertPipeline(t, pipeline).
 		job("plan-svc-stage-eu-central-1-b").
 		noNeeds()
-}
-
-// TestEdgeCase_PlanOnlyWithNoPlanEnabled tests conflict: plan_only=true but plan_enabled=false
-func TestEdgeCase_PlanOnlyWithNoPlanEnabled(t *testing.T) {
-	pipeline := newFixtureScenario(t, "basic").
-		withConfig(func(cfg *Config) {
-			cfg.PlanOnly = true
-		}).
-		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = false }).
-		generate()
-
-	if pipeline.JobCount() != 0 {
-		t.Logf("Got %d jobs with PlanOnly=true, PlanEnabled=false", pipeline.JobCount())
-	}
 }
 
 func TestEdgeCase_ApplyAutomaticByDefault(t *testing.T) {
@@ -257,8 +239,6 @@ func TestEdgeCase_ModuleWithSelfReference(t *testing.T) {
 	execCfg := execution.Config{
 		Binary:      "terraform",
 		InitEnabled: true,
-		PlanEnabled: true,
-		PlanMode:    execution.PlanModeStandard,
 		Parallelism: 4,
 	}
 
@@ -297,8 +277,6 @@ func TestEdgeCase_SpecialCharactersInModuleName(t *testing.T) {
 	execCfg := execution.Config{
 		Binary:      "terraform",
 		InitEnabled: true,
-		PlanEnabled: true,
-		PlanMode:    execution.PlanModeStandard,
 		Parallelism: 4,
 	}
 
@@ -336,8 +314,6 @@ func TestEdgeCase_VeryLongModulePath(t *testing.T) {
 	execCfg := execution.Config{
 		Binary:      "terraform",
 		InitEnabled: true,
-		PlanEnabled: true,
-		PlanMode:    execution.PlanModeStandard,
 		Parallelism: 4,
 	}
 

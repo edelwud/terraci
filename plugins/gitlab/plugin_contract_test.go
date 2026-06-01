@@ -17,23 +17,24 @@ func TestPlugin_SDKContracts(t *testing.T) {
 	p := newContractPlugin()
 
 	t.Run("config", func(t *testing.T) {
+		configuredImage := configpkg.Image{Name: "hashicorp/terraform:1.7", Entrypoint: []string{"/bin/sh"}}
+		decodedImage := configpkg.Image{Name: "custom/terraform:latest"}
+		cacheEnabled := true
 		plugintest.AssertBaseConfigPlugin[*configpkg.Config](t, plugintest.BaseConfigPluginContract[*configpkg.Config]{
 			Plugin: p,
 			Default: &configpkg.Config{
-				Image:        configpkg.Image{Name: "hashicorp/terraform:1.6"},
 				StagesPrefix: defaultStagesPrefix,
-				CacheEnabled: true,
+				Cache:        &configpkg.CacheConfig{Enabled: &cacheEnabled},
 			},
 			Configured: &configpkg.Config{
-				Image:        configpkg.Image{Name: "hashicorp/terraform:1.7", Entrypoint: []string{"/bin/sh"}},
+				Image:        &configuredImage,
 				StagesPrefix: "deploy",
 				Variables:    map[string]string{"TF_INPUT": "false"},
-				CacheEnabled: true,
 				Cache:        &configpkg.CacheConfig{Paths: []string{".terraform"}, Policy: "pull-push"},
 				Rules:        []configpkg.Rule{{If: "$CI_PIPELINE_SOURCE", Changes: []string{"**/*.tf"}}},
 			},
 			Decoded: &configpkg.Config{
-				Image:        configpkg.Image{Name: "custom/terraform:latest"},
+				Image:        &decodedImage,
 				StagesPrefix: "decoded",
 				Variables:    map[string]string{"DECODED": "true"},
 				Cache:        &configpkg.CacheConfig{Paths: []string{"decoded"}, Policy: "pull"},
@@ -96,10 +97,10 @@ func newContractPlugin() *Plugin {
 		PluginDesc: "GitLab CI pipeline generation and MR comments",
 		EnableMode: plugin.EnabledWhenConfigured,
 		DefaultCfg: func() *configpkg.Config {
+			cacheEnabled := true
 			return &configpkg.Config{
-				Image:        configpkg.Image{Name: "hashicorp/terraform:1.6"},
 				StagesPrefix: defaultStagesPrefix,
-				CacheEnabled: true,
+				Cache:        &configpkg.CacheConfig{Enabled: &cacheEnabled},
 			}
 		},
 	}}
@@ -109,7 +110,9 @@ func mutateGitLabConfig(c *configpkg.Config) {
 	if c == nil {
 		return
 	}
-	c.Image.Entrypoint = append(c.Image.Entrypoint, "mutated")
+	if c.Image != nil {
+		c.Image.Entrypoint = append(c.Image.Entrypoint, "mutated")
+	}
 	if c.Variables == nil {
 		c.Variables = map[string]string{}
 	}
@@ -126,13 +129,18 @@ func equalGitLabConfig(got, want *configpkg.Config) bool {
 	if got == nil || want == nil {
 		return got == want
 	}
-	return got.Image.Name == want.Image.Name &&
-		slices.Equal(got.Image.Entrypoint, want.Image.Entrypoint) &&
+	return equalGitLabImage(got.Image, want.Image) &&
 		got.StagesPrefix == want.StagesPrefix &&
-		got.CacheEnabled == want.CacheEnabled &&
 		maps.Equal(got.Variables, want.Variables) &&
 		equalGitLabCache(got.Cache, want.Cache) &&
 		slices.EqualFunc(got.Rules, want.Rules, equalGitLabRule)
+}
+
+func equalGitLabImage(got, want *configpkg.Image) bool {
+	if got == nil || want == nil {
+		return got == want
+	}
+	return got.Name == want.Name && slices.Equal(got.Entrypoint, want.Entrypoint)
 }
 
 func equalGitLabCache(got, want *configpkg.CacheConfig) bool {
@@ -141,7 +149,15 @@ func equalGitLabCache(got, want *configpkg.CacheConfig) bool {
 	}
 	return got.Policy == want.Policy &&
 		got.Key == want.Key &&
+		equalBoolPointer(got.Enabled, want.Enabled) &&
 		slices.Equal(got.Paths, want.Paths)
+}
+
+func equalBoolPointer(got, want *bool) bool {
+	if got == nil || want == nil {
+		return got == want
+	}
+	return *got == *want
 }
 
 func equalGitLabRule(got, want configpkg.Rule) bool {

@@ -50,14 +50,6 @@ func (s settings) permissions() map[string]string {
 	}
 }
 
-func (s settings) planEnabled() bool {
-	return s.execution.PlanEnabled
-}
-
-func (s settings) planOnly() bool {
-	return s.configOrDefault().PlanOnly
-}
-
 func (s settings) initEnabled() bool {
 	return s.execution.InitEnabled
 }

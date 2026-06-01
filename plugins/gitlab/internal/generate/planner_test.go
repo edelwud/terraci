@@ -13,7 +13,7 @@ import (
 func TestStagePlannerUsesDAGLayers(t *testing.T) {
 	t.Parallel()
 
-	planner := newStagePlanner(newSettings(&configpkg.Config{}, execution.Config{PlanEnabled: true}))
+	planner := newStagePlanner(newSettings(&configpkg.Config{}, execution.Config{}))
 	ir := pipelinetest.MustCommandIR(t,
 		pipeline.ContributedJobOptions{Name: "plan-0", Commands: []string{"plan-0"}},
 		pipeline.ContributedJobOptions{Name: "apply-0", Commands: []string{"apply-0"}, Dependencies: []pipeline.JobDependency{{Job: "plan-0"}}},

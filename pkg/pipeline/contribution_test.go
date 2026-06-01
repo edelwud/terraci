@@ -29,7 +29,7 @@ func TestNewContributedJobValidatesAndCopiesInput(t *testing.T) {
 	if got := job.Commands()[0]; got != "terraci cost" {
 		t.Fatalf("Commands() = %q, want original", got)
 	}
-	if got := job.Consumes()[0].Kind; got != ResourceKindPlanJSON {
+	if got := job.Consumes()[0].Kind(); got != ResourceKindPlanJSON {
 		t.Fatalf("Consumes()[0].Kind = %q, want plan_json", got)
 	}
 	if got := job.Produces()[0].Path; got == "changed" {
@@ -71,7 +71,7 @@ func TestNewContributedJobRejectsInvalidInput(t *testing.T) {
 			opts: ContributedJobOptions{
 				Name:     "check",
 				Commands: []string{"check"},
-				Consumes: []ResourceRequest{{Kind: ResourceKindPluginReport}},
+				Consumes: []ResourceRequest{{kind: ResourceKindPluginReport}},
 			},
 			wantErr: "selector scope is required",
 		},

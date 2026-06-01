@@ -420,7 +420,6 @@ type CIProviderContract struct {
 	ExpectedName    string
 	AssertEnv       func(testing.TB, bool)
 	AssertInfo      func(testing.TB, plugin.CIInfoProvider)
-	AssertReqs      func(testing.TB, pipeline.BuildRequirements)
 	AssertGenerator func(testing.TB, pipeline.Generator)
 	AssertComment   func(testing.TB, ci.CommentService, bool)
 }
@@ -452,10 +451,6 @@ func AssertCIProvider(tb testing.TB, c CIProviderContract) {
 	}
 
 	if c.Generator != nil {
-		requirements := c.Generator.PipelineRequirements(appCtx)
-		if c.AssertReqs != nil {
-			c.AssertReqs(tb, requirements)
-		}
 		if c.IR != nil {
 			generator := c.Generator.NewGenerator(appCtx, c.IR)
 			if generator == nil {

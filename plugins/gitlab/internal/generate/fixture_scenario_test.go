@@ -4,26 +4,27 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/discovery"
-	"github.com/edelwud/terraci/pkg/execution"
 )
 
 type fixtureScenario struct {
-	t       *testing.T
-	fixture *Fixture
-	targets []*discovery.Module
+	t            *testing.T
+	fixture      *Fixture
+	targets      []*discovery.Module
+	applyEnabled bool
 }
 
 func newFixtureScenario(t *testing.T, name string) *fixtureScenario {
 	t.Helper()
 	return &fixtureScenario{
-		t:       t,
-		fixture: LoadFixture(t, name),
+		t:            t,
+		fixture:      LoadFixture(t, name),
+		applyEnabled: true,
 	}
 }
 
 func (s *fixtureScenario) rebuildGenerator() {
 	s.t.Helper()
-	s.fixture.Generator = newTestGeneratorWithTargets(
+	s.fixture.Generator = newTestGeneratorWithTargetsAndApply(
 		s.t,
 		s.fixture.GLConfig,
 		s.fixture.ExecConfig,
@@ -31,6 +32,7 @@ func (s *fixtureScenario) rebuildGenerator() {
 		s.fixture.DepGraph,
 		s.fixture.Modules,
 		s.targets,
+		s.applyEnabled,
 	)
 }
 
@@ -41,9 +43,9 @@ func (s *fixtureScenario) withConfig(apply func(*Config)) *fixtureScenario {
 	return s
 }
 
-func (s *fixtureScenario) withExecution(apply func(*execution.Config)) *fixtureScenario {
+func (s *fixtureScenario) withPlanOnly() *fixtureScenario {
 	s.t.Helper()
-	apply(&s.fixture.ExecConfig)
+	s.applyEnabled = false
 	s.rebuildGenerator()
 	return s
 }

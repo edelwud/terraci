@@ -22,7 +22,6 @@ var (
 	ProviderKey       = MustStateKey[string]("provider")
 	BinaryKey         = MustStateKey[string]("binary")
 	PatternKey        = MustStateKey[string]("pattern")
-	PlanEnabledKey    = MustStateKey[bool]("plan_enabled")
 	SummaryEnabledKey = MustStateKey[bool]("summary.enabled")
 )
 

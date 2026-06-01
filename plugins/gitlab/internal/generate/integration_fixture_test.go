@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/discovery"
-	"github.com/edelwud/terraci/pkg/execution"
 )
 
 // TestFixture_Basic tests basic pipeline generation using real terraform fixtures
@@ -52,10 +51,7 @@ func TestFixture_BasicDependencies(t *testing.T) {
 // TestFixture_PlanOnly tests plan-only mode with fixtures
 func TestFixture_PlanOnly(t *testing.T) {
 	pipeline := newFixtureScenario(t, "basic").
-		withConfig(func(cfg *Config) {
-			cfg.PlanOnly = true
-		}).
-		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
+		withPlanOnly().
 		generate()
 
 	assertPipeline(t, pipeline).jobCount(6)
@@ -117,10 +113,7 @@ func TestFixture_ChangedOnly(t *testing.T) {
 // TestFixture_ChangedOnlyPlanOnly tests combined changed-only and plan-only modes
 func TestFixture_ChangedOnlyPlanOnly(t *testing.T) {
 	scenario := newFixtureScenario(t, "basic").
-		withConfig(func(cfg *Config) {
-			cfg.PlanOnly = true
-		}).
-		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = true }).
+		withPlanOnly().
 		withTargetNames("eks")
 	var changedModules []*discovery.Module
 	for _, module := range scenario.targets {
@@ -221,29 +214,6 @@ func TestFixture_ApplyConsumesPlan(t *testing.T) {
 		assertPipeline(t, pipeline).
 			job(applyJobName).
 			hasNeed(planJobName)
-	}
-}
-
-// TestFixture_NoPlanEnabled tests pipeline without plan stage
-func TestFixture_NoPlanEnabled(t *testing.T) {
-	pipeline := newFixtureScenario(t, "basic").
-		withExecution(func(cfg *execution.Config) { cfg.PlanEnabled = false }).
-		generate()
-
-	assertPipeline(t, pipeline).jobCount(6)
-
-	// No plan jobs
-	for _, jobName := range pipeline.JobNames() {
-		if strings.HasPrefix(jobName, "plan-") {
-			t.Errorf("expected no plan jobs, got %s", jobName)
-		}
-	}
-
-	// No plan stages
-	for _, stage := range pipeline.Stages() {
-		if strings.Contains(stage, "-plan-") {
-			t.Errorf("unexpected plan stage: %s", stage)
-		}
 	}
 }
 

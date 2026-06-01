@@ -10,31 +10,33 @@ import (
 	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
 )
 
-func newTestGeneratorWithTargets(
+func newTestGeneratorWithTargetsAndApply(
 	tb testing.TB,
 	cfg *configpkg.Config,
 	execCfg execution.Config,
 	contributions []*pipeline.Contribution,
 	depGraph *graph.DependencyGraph,
 	allModules, targetModules []*discovery.Module,
+	applyEnabled bool,
 ) *Generator {
 	tb.Helper()
-	ir := mustBuildIR(tb, cfg, execCfg, contributions, depGraph, allModules, targetModules)
+	ir := mustBuildIRWithApply(tb, cfg, execCfg, contributions, depGraph, allModules, targetModules, applyEnabled)
 	return NewGenerator(cfg, execCfg, ir)
 }
 
-func mustBuildIR(
+func mustBuildIRWithApply(
 	tb testing.TB,
 	cfg *configpkg.Config,
 	execCfg execution.Config,
 	contributions []*pipeline.Contribution,
 	depGraph *graph.DependencyGraph,
 	allModules, targetModules []*discovery.Module,
+	applyEnabled bool,
 ) *pipeline.IR {
 	tb.Helper()
-	ir, err := buildTestIR(cfg, execCfg, contributions, depGraph, allModules, targetModules)
+	ir, err := buildTestIRWithApply(cfg, execCfg, contributions, depGraph, allModules, targetModules, applyEnabled)
 	if err != nil {
-		tb.Fatalf("buildTestIR() error = %v", err)
+		tb.Fatalf("buildTestIRWithApply() error = %v", err)
 	}
 	return ir
 }

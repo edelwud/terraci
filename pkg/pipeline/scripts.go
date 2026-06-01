@@ -1,11 +1,13 @@
 package pipeline
 
+import "maps"
+
 // ScriptConfig captures the knobs that influence how BuildProjectIR populates each
 // TerraformOperation. The struct does not render shell — see
 // pkg/pipeline/cishell for the default shell renderer.
 type ScriptConfig struct {
 	InitEnabled bool
-	PlanEnabled bool
+	Env         map[string]string
 }
 
 type PlanOutputs struct {
@@ -48,7 +50,7 @@ func (sc ScriptConfig) NewPlanOperation(jobName, modulePath string, outputs Plan
 }
 
 // NewApplyOperation creates a typed terraform apply operation.
-func (sc ScriptConfig) NewApplyOperation(modulePath string) Operation {
+func (sc ScriptConfig) NewApplyOperation(modulePath string, usePlanFile bool) Operation {
 	return Operation{
 		typ: OperationTypeTerraformApply,
 		terraform: &TerraformOperation{
@@ -56,9 +58,17 @@ func (sc ScriptConfig) NewApplyOperation(modulePath string) Operation {
 			modulePath:  modulePath,
 			initEnabled: sc.InitEnabled,
 			planFile:    PlanBinaryPath(modulePath),
-			usePlanFile: sc.PlanEnabled,
+			usePlanFile: usePlanFile,
 		},
 	}
+}
+
+// TerraformEnv returns a defensive copy of execution-level Terraform job environment.
+func (sc ScriptConfig) TerraformEnv() map[string]string {
+	if len(sc.Env) == 0 {
+		return nil
+	}
+	return maps.Clone(sc.Env)
 }
 
 func resourcePaths(resources []ResourceSpec) []string {

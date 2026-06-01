@@ -113,7 +113,6 @@ terraci cost --output json
 ## Необходимые условия
 
 - Хотя бы один провайдер включён (например, `extensions.cost.providers.aws.enabled: true`) в `.terraci.yaml`
-- Файлы `plan.json` в директориях модулей (генерируются командой `terraform show -json plan.tfplan`; `execution.plan_enabled: true` — значение по умолчанию)
 
 ## Кеш цен
 

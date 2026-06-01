@@ -262,18 +262,23 @@ func (contextContributionCollector) Collect(appCtx *plugin.AppContext) []*pipeli
 }
 
 func buildExecutionIR(project *workflow.ProjectResult, execCfg execution.Config, mode spec.ExecutionMode, contributions []*pipeline.Contribution) (*pipeline.IR, error) {
-	planOnly := mode == spec.ExecutionModePlan
-	if planOnly {
-		execCfg.PlanEnabled = true
+	resourceRequests := []pipeline.ResourceRequest(nil)
+	if mode == spec.ExecutionModePlan {
+		resourceRequests = append(resourceRequests, pipeline.AllPlanResources(pipeline.ResourceKindPlanBinary))
 	}
-	requirements := execCfg.BuildRequirements().Merge(pipeline.BuildRequirements{PlanOnly: planOnly})
+	intent, err := pipeline.NewBuildIntent(pipeline.BuildIntentOptions{
+		ApplyEnabled:     mode != spec.ExecutionModePlan,
+		ResourceRequests: resourceRequests,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("build local execution intent: %w", err)
+	}
 
 	ir, err := pipeline.BuildProjectIR(pipeline.ProjectIRRequest{
 		Project:       project,
-		Script:        pipeline.ScriptConfig{InitEnabled: execCfg.InitEnabled, PlanEnabled: execCfg.PlanEnabled},
+		Script:        pipeline.ScriptConfig{InitEnabled: execCfg.InitEnabled, Env: execCfg.Env},
 		Contributions: contributions,
-		Requirements:  requirements,
-		PlanEnabled:   execCfg.PlanEnabled,
+		Intent:        intent,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("build local execution plan: %w", err)

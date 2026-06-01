@@ -43,7 +43,6 @@ func TestBuild_ProviderA(t *testing.T) {
 	})
 	execution := DefaultConfig().Execution
 	execution.Binary = "terraform"
-	execution.PlanEnabled = true
 	execution.InitEnabled = true
 
 	cfg, err := Build(BuildOptions{
@@ -66,9 +65,6 @@ func TestBuild_ProviderA(t *testing.T) {
 	if err := cfg.Extension("provider_a", &providerACfg); err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Execution.PlanEnabled != true {
-		t.Error("execution.plan_enabled should be true")
-	}
 	if providerACfg["mr"] == nil {
 		t.Error("mr config should be present")
 	}
@@ -85,7 +81,6 @@ func TestBuild_ProviderB(t *testing.T) {
 	})
 	execution := DefaultConfig().Execution
 	execution.Binary = "tofu"
-	execution.PlanEnabled = true
 	execution.InitEnabled = true
 
 	cfg, err := Build(BuildOptions{Execution: &execution, Extensions: extensions})

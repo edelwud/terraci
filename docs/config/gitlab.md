@@ -11,16 +11,16 @@ The `gitlab` section configures the generated GitLab CI pipeline. This section i
 ## Options
 
 ::: info Execution settings
-`binary`, `init_enabled`, `plan_enabled` and related execution semantics live under the top-level `execution:` section, **not** under `extensions.gitlab`. See [Configuration Overview](./index.md#full-example).
+`binary`, `init_enabled`, `parallelism`, and Terraform job `env` live under the top-level `execution:` section, **not** under `extensions.gitlab`. Plan jobs are derived from apply intent and resource requests such as `plan.json` consumers.
 :::
 
 ### image
 
 **Type:** `string` or `object`
-**Default:** `"hashicorp/terraform:1.6"`
-**Required:** Yes
+**Default:** derived from `execution.binary` (`hashicorp/terraform:1.6` for Terraform, `ghcr.io/opentofu/opentofu:1.6` for OpenTofu)
+**Required:** No
 
-Docker image for Terraform jobs (in `default` section). Supports both simple string format and object format with entrypoint override.
+Optional Docker image override for Terraform jobs (in `default` section). Supports both simple string format and object format with entrypoint override.
 
 **String format** (simple):
 ```yaml
@@ -70,25 +70,7 @@ extensions:
     # stages_prefix: "terraform"  # Produces: terraform-0, terraform-1
 ```
 
-### plan_only
-
-**Type:** `boolean`
-**Default:** `false`
-
-Generate only plan jobs (no apply). Useful for read-only pipelines on branches/MRs.
-
-```yaml
-extensions:
-  gitlab:
-    plan_only: false   # plan + apply jobs
-    # plan_only: true  # plan only, no apply jobs
-```
-
-The CLI flag `--plan-only` on `terraci generate` overrides this value.
-
-::: tip Plan vs apply jobs
-The on/off switch for the *plan stage* itself lives at the top level under `execution.plan_enabled` (default `true`). When `plan_enabled: false`, only `apply-*` jobs are emitted (running `terraform apply` directly without a saved plan). Use `plan_only` here to keep plan jobs and skip apply.
-:::
+Use `terraci generate --plan-only` for read-only generation. There is no provider-level plan toggle; plan jobs and detailed plan artifacts are derived from request apply intent and resource requests.
 
 Apply scheduling is controlled through `job_defaults` or `overwrites`. For
 example, make apply jobs manual:
@@ -101,20 +83,7 @@ extensions:
         when: manual
 ```
 
-### cache_enabled
-
-**Type:** `boolean`
-**Default:** `true`
-
-Enable caching of `.terraform` directory for each module. This significantly speeds up pipeline execution by reusing downloaded providers and modules.
-
-```yaml
-extensions:
-  gitlab:
-    cache_enabled: true
-```
-
-When enabled, each job will have a cache configuration:
+Caching is controlled by `cache.enabled`. When enabled, each Terraform job will have a cache configuration:
 
 ```yaml
 plan-platform-prod-vpc:
@@ -131,7 +100,7 @@ The cache key is derived from the module path with slashes replaced by dashes.
 **Type:** `object`
 **Default:** `null`
 
-Advanced cache settings for generated GitLab jobs. Use this when `cache_enabled` is not enough and you need to control cache key, paths, or GitLab cache policy.
+Advanced cache settings for generated GitLab jobs.
 
 ```yaml
 extensions:
@@ -343,15 +312,16 @@ extensions:
 execution:
   binary: terraform
   init_enabled: true
-  plan_enabled: true
 
 extensions:
   gitlab:
+    # Optional image override; defaults are derived from execution.binary
     image: "hashicorp/terraform:1.6"
 
     # Pipeline structure
     stages_prefix: "deploy"
-    cache_enabled: true
+    cache:
+      enabled: true
 
     # Pipeline variables
     variables:

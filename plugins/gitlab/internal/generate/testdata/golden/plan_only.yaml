@@ -18,6 +18,10 @@ plan-platform-stage-eu-central-1-vpc:
         expire_in: 1 day
         name: terraci-plan-platform-stage-eu-central-1-vpc
         when: always
+    cache:
+        key: platform-stage-eu-central-1-vpc
+        paths:
+            - platform/stage/eu-central-1/vpc/.terraform/
     resource_group: platform/stage/eu-central-1/vpc
 stages:
     - deploy-0

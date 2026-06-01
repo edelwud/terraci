@@ -27,12 +27,6 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("execution.binary: unsupported value %q", c.Execution.Binary)
 	}
 
-	switch c.Execution.PlanMode {
-	case "", "standard", "detailed":
-	default:
-		return fmt.Errorf("execution.plan_mode: unsupported value %q", c.Execution.PlanMode)
-	}
-
 	// parallelism == 0 used to silently make the executor stall instead of using
 	// a worker. Treat <1 as an explicit user error; callers that want the
 	// default should leave the field unset and rely on DefaultConfig().

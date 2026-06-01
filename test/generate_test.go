@@ -167,28 +167,6 @@ extensions:
 	assertNotContains(t, output, "plan.txt")
 }
 
-func TestGenerate_PlanModeDetailedForcesDetailedPlanWithoutComments(t *testing.T) {
-	dir := copyFixtureToTemp(t, "basic")
-	writeProjectConfig(t, dir, `structure:
-  pattern: "{service}/{environment}/{region}/{module}"
-execution:
-  plan_mode: detailed
-extensions:
-  gitlab:
-    image:
-      name: hashicorp/terraform:1.6
-`)
-	t.Setenv("TERRACI_PROVIDER", "gitlab")
-
-	output, err := captureTerraCi(t, dir, "generate")
-	if err != nil {
-		t.Fatalf("generate failed: %v", err)
-	}
-
-	assertContains(t, output, "plan.txt")
-	assertContains(t, output, "plan.json")
-}
-
 func TestGenerate_DryRun(t *testing.T) {
 	dir := fixtureDir(t, "basic")
 

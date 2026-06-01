@@ -63,12 +63,7 @@ func TestGenerate_WithDependencies(t *testing.T) {
 func TestGenerate_PlanOnly(t *testing.T) {
 	module := createTestModule("vpc")
 	workflow := newGeneratorScenario(t).
-		withConfig(func(cfg *configpkg.Config) {
-			cfg.PlanOnly = true
-		}).
-		withExecution(func(cfg *execution.Config) {
-			cfg.PlanEnabled = true
-		}).
+		withPlanOnly().
 		withModules(module).
 		withDependencies(map[string][]string{module.ID(): {}}).
 		generate()
@@ -83,12 +78,7 @@ func TestGenerate_PlanOnlyWithDeps(t *testing.T) {
 	vpc := createTestModule("vpc")
 	eks := createTestModule("eks")
 	workflow := newGeneratorScenario(t).
-		withConfig(func(cfg *configpkg.Config) {
-			cfg.PlanOnly = true
-		}).
-		withExecution(func(cfg *execution.Config) {
-			cfg.PlanEnabled = true
-		}).
+		withPlanOnly().
 		withModules(vpc, eks).
 		withDependencies(map[string][]string{
 			vpc.ID(): {},

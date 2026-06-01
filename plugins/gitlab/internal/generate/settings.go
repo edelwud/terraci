@@ -10,7 +10,15 @@ import (
 
 // DefaultBinary is the terraform binary name used when execution.Binary is
 // empty. Exported so wizard / tests can refer to a single source of truth.
-const DefaultBinary = "terraform"
+const (
+	DefaultBinary     = "terraform"
+	DefaultTofuBinary = "tofu"
+)
+
+const (
+	defaultTerraformImage = "hashicorp/terraform:1.6"
+	defaultTofuImage      = "ghcr.io/opentofu/opentofu:1.6"
+)
 
 type settings struct {
 	config    *configpkg.Config
@@ -39,19 +47,17 @@ func (s settings) variables() map[string]string {
 }
 
 func (s settings) defaultImage() configpkg.Image {
-	return s.config.GetImage()
+	if image := s.config.GetImage(); image != nil && image.Name != "" {
+		return *image
+	}
+	if s.terraformBinary() == DefaultTofuBinary {
+		return configpkg.Image{Name: defaultTofuImage}
+	}
+	return configpkg.Image{Name: defaultTerraformImage}
 }
 
 func (s settings) initEnabled() bool {
 	return s.execution.InitEnabled
-}
-
-func (s settings) planEnabled() bool {
-	return s.execution.PlanEnabled
-}
-
-func (s settings) planOnly() bool {
-	return s.config.PlanOnly
 }
 
 func (s settings) stagesPrefix() string {
@@ -77,7 +83,7 @@ func (s settings) cacheEnabled() bool {
 	if s.config.Cache != nil && s.config.Cache.Enabled != nil {
 		return *s.config.Cache.Enabled
 	}
-	return s.config.CacheEnabled
+	return true
 }
 
 func (s settings) cachePolicy() string {

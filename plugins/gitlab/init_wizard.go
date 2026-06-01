@@ -3,7 +3,6 @@ package gitlab
 import (
 	"github.com/edelwud/terraci/pkg/plugin/initwiz"
 	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
-	"github.com/edelwud/terraci/plugins/internal/ciplugin"
 )
 
 // InitContributor — contributes GitLab CI fields to the init wizard.
@@ -16,13 +15,13 @@ const (
 var (
 	keyGitlabImage        = initwiz.MustStateKey[string]("gitlab.image")
 	keyGitlabStagesPrefix = initwiz.MustStateKey[string]("gitlab.stages_prefix")
-	keyGitlabCacheEnabled = initwiz.MustStateKey[bool]("gitlab.cache_enabled")
+	keyGitlabCacheEnabled = initwiz.MustStateKey[bool]("gitlab.cache.enabled")
 )
 
 type initConfig struct {
-	Image        configpkg.Image `yaml:"image"`
-	StagesPrefix string          `yaml:"stages_prefix"`
-	CacheEnabled bool            `yaml:"cache_enabled"`
+	Image        *configpkg.Image       `yaml:"image,omitempty"`
+	StagesPrefix string                 `yaml:"stages_prefix"`
+	Cache        *configpkg.CacheConfig `yaml:"cache,omitempty"`
 }
 
 // InitGroups returns the init wizard group specs for GitLab CI.
@@ -60,7 +59,6 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 				}),
 			},
 		},
-		ciplugin.PipelineGroup(pluginName),
 	}
 }
 
@@ -75,12 +73,13 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribu
 	}
 
 	image := keyGitlabImage.Get(state)
-	if image == "" || image == defaultTerraformImage || image == defaultTofuImage {
-		if binary == "tofu" {
-			image = defaultTofuImage
-		} else {
-			image = defaultTerraformImage
-		}
+	defaultImage := defaultTerraformImage
+	if binary == "tofu" {
+		defaultImage = defaultTofuImage
+	}
+	var imageOverride *configpkg.Image
+	if image != "" && image != defaultImage {
+		imageOverride = &configpkg.Image{Name: image}
 	}
 
 	stagesPrefix := keyGitlabStagesPrefix.Get(state)
@@ -94,9 +93,9 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribu
 	}
 
 	cfg := initConfig{
-		Image:        configpkg.Image{Name: image},
+		Image:        imageOverride,
 		StagesPrefix: stagesPrefix,
-		CacheEnabled: cacheEnabled,
+		Cache:        &configpkg.CacheConfig{Enabled: &cacheEnabled},
 	}
 
 	return initwiz.NewInitContribution(pluginName, cfg)

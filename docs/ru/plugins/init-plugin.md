@@ -91,7 +91,6 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribu
 | Категория | Отображение | Для чего |
 |-----------|------------|---------|
 | `CategoryProvider` | Отдельная группа с ShowWhen | CI-настройки (image, runner) |
-| `CategoryPipeline` | Объединяется в группу "Pipeline" | Поведение пайплайна (plan_enabled) |
 | `CategoryFeature` | Объединяется в группу "Features" | Переключатели фич |
 | `CategoryDetail` | Отдельная группа с ShowWhen | Детальные настройки включённых фич |
 

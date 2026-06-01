@@ -141,7 +141,6 @@ func (f Flow) DefaultState() *initwiz.StateMap {
 		initwiz.ProviderKey.Set(state, f.defaultProvider)
 	}
 	initwiz.BinaryKey.Set(state, config.ExecutionBinaryTerraform)
-	initwiz.PlanEnabledKey.Set(state, true)
 	initwiz.PatternKey.Set(state, config.DefaultConfig().Structure.Pattern)
 	initwiz.SummaryEnabledKey.Set(state, true)
 	return state
@@ -187,20 +186,12 @@ func (f Flow) BuildConfig(state *initwiz.StateMap) (*BuildResult, error) {
 	}
 
 	pattern := initwiz.PatternKey.Get(state)
-	planEnabled := config.DefaultConfig().Execution.PlanEnabled
-	if value, ok := initwiz.PlanEnabledKey.Lookup(state); ok {
-		planEnabled = value
-	}
 
 	execution := config.DefaultConfig().Execution
 	execution.Binary = initwiz.BinaryKey.Get(state)
 	execution.InitEnabled = true
-	execution.PlanEnabled = planEnabled
 	if execution.Binary == "" {
 		execution.Binary = config.ExecutionBinaryTerraform
-	}
-	if planEnabled && initwiz.SummaryEnabledKey.Get(state) {
-		execution.PlanMode = "detailed"
 	}
 
 	extensions := make([]config.ExtensionValue, 0, len(f.contributors))

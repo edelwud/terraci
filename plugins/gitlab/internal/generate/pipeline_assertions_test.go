@@ -60,7 +60,6 @@ func (a *pipelineAssert) stagesHavePrefix(prefix string) *pipelineAssert {
 	return a
 }
 
-//nolint:unparam // Fluent assertion API keeps a consistent shape across helpers.
 func (a *pipelineAssert) noStageWithFragment(fragment string) *pipelineAssert {
 	a.t.Helper()
 	for _, stage := range a.pipeline.Stages() {

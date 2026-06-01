@@ -5,4 +5,3 @@ extensions:
   github:
     terraform_binary: terraform
     runs_on: ubuntu-latest
-    plan_enabled: true

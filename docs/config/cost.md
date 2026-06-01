@@ -61,7 +61,6 @@ Earlier versions accepted top-level `cost.cache_dir` and `cost.cache_ttl`. Both 
 4. Per-resource hourly and monthly costs are calculated for both the before and after states.
 5. Results are aggregated into a per-module cost summary with before/after/diff values.
 
-Cost estimation requires `plan.json` (produced by `terraform show -json`) to be present in module directories. This is generated automatically when `execution.plan_enabled: true` (the default).
 
 ## Supported AWS Resources
 
@@ -95,7 +94,6 @@ When cost estimation is enabled, cost estimates appear in the MR/PR comment tabl
 
 ```yaml
 execution:
-  plan_enabled: true   # required: cost reads plan.json artifacts
 
 extensions:
   cost:
