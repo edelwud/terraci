@@ -4,7 +4,7 @@ import (
 	"maps"
 	"strings"
 
-	"github.com/edelwud/terraci/pkg/execution"
+	"github.com/edelwud/terraci/pkg/terraformrun"
 	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
 )
 
@@ -21,28 +21,24 @@ const (
 )
 
 type settings struct {
-	config    *configpkg.Config
-	execution execution.Config
+	config  *configpkg.Config
+	profile terraformrun.Profile
 }
 
-func newSettings(cfg *configpkg.Config, execCfg execution.Config) settings {
+func newSettings(cfg *configpkg.Config, profile terraformrun.Profile) settings {
 	if cfg == nil {
 		cfg = &configpkg.Config{}
 	}
-	return settings{config: cfg, execution: execCfg}
+	return settings{config: cfg, profile: profile}
 }
 
 func (s settings) terraformBinary() string {
-	if s.execution.Binary != "" {
-		return s.execution.Binary
-	}
-	return DefaultBinary
+	return s.profile.Binary().String()
 }
 
 func (s settings) variables() map[string]string {
 	variables := make(map[string]string)
 	maps.Copy(variables, s.config.Variables)
-	variables["TERRAFORM_BINARY"] = s.terraformBinary()
 	return variables
 }
 
@@ -57,7 +53,7 @@ func (s settings) defaultImage() configpkg.Image {
 }
 
 func (s settings) initEnabled() bool {
-	return s.execution.InitEnabled
+	return s.profile.InitEnabled()
 }
 
 func (s settings) stagesPrefix() string {

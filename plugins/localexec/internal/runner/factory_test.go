@@ -1,21 +1,21 @@
 package runner
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/config"
-	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
+	"github.com/edelwud/terraci/pkg/terraformrun"
 )
 
 type stubExecutionConfigResolver struct {
-	cfg execution.Config
+	profile terraformrun.Profile
+	err     error
 }
 
-func (r stubExecutionConfigResolver) Resolve(*plugin.AppContext, Options) execution.Config {
-	return r.cfg
+func (r stubExecutionConfigResolver) Resolve(*plugin.AppContext, Options) (terraformrun.Profile, error) {
+	return r.profile, r.err
 }
 
 type stubBinaryResolver struct {
@@ -49,9 +49,12 @@ func TestDefaultExecutionConfigResolver_UsesProjectParallelismWhenOverrideIsNonP
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := resolver.Resolve(appCtx, Options{Parallelism: tt.parallelism})
-			if got.Parallelism != 7 {
-				t.Fatalf("Resolve() parallelism = %d, want project default 7", got.Parallelism)
+			got, err := resolver.Resolve(appCtx, Options{Parallelism: tt.parallelism})
+			if err != nil {
+				t.Fatalf("Resolve() error = %v", err)
+			}
+			if got.Parallelism() != 7 {
+				t.Fatalf("Resolve() parallelism = %d, want project default 7", got.Parallelism())
 			}
 		})
 	}
@@ -65,37 +68,24 @@ func TestDefaultExecutionConfigResolver_UsesExplicitParallelismOverride(t *testi
 	base := plugintest.NewAppContext(t, t.TempDir())
 	appCtx := plugin.NewAppContext(plugin.AppContextOptions{Config: cfg, WorkDir: base.WorkDir(), ServiceDir: base.ServiceDir(), Version: base.Version(), Reports: base.Reports()})
 
-	got := defaultExecutionConfigResolver{}.Resolve(appCtx, Options{Parallelism: 3})
-	if got.Parallelism != 3 {
-		t.Fatalf("Resolve() parallelism = %d, want 3", got.Parallelism)
+	got, err := defaultExecutionConfigResolver{}.Resolve(appCtx, Options{Parallelism: 3})
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
 	}
-}
-
-func TestDefaultFactoryBuildReturnsBinaryResolverError(t *testing.T) {
-	t.Parallel()
-
-	wantErr := errors.New("missing terraform")
-	factory := defaultFactory{
-		configResolver: stubExecutionConfigResolver{cfg: execution.Config{Binary: "terraform"}},
-		binaryResolver: stubBinaryResolver{err: wantErr},
-	}
-
-	_, err := factory.Build(plugintest.NewAppContext(t, t.TempDir()), Options{})
-	if !errors.Is(err, wantErr) {
-		t.Fatalf("Build() error = %v, want %v", err, wantErr)
+	if got.Parallelism() != 3 {
+		t.Fatalf("Resolve() parallelism = %d, want 3", got.Parallelism())
 	}
 }
 
 func TestDefaultFactoryBuildWiresRuntime(t *testing.T) {
 	t.Parallel()
 
-	cfg := execution.Config{
-		Binary:      "terraform",
+	profile := mustProfile(t, terraformrun.ProfileOptions{
 		Parallelism: 4,
 		Env:         map[string]string{"TF_IN_AUTOMATION": "1"},
-	}
+	})
 	factory := defaultFactory{
-		configResolver: stubExecutionConfigResolver{cfg: cfg},
+		configResolver: stubExecutionConfigResolver{profile: profile},
 		binaryResolver: stubBinaryResolver{path: "/bin/terraform"},
 	}
 
@@ -107,8 +97,8 @@ func TestDefaultFactoryBuildWiresRuntime(t *testing.T) {
 	if runtime == nil {
 		t.Fatal("Build() runtime = nil")
 	}
-	if runtime.ExecConfig.Parallelism != cfg.Parallelism {
-		t.Fatalf("parallelism = %d, want %d", runtime.ExecConfig.Parallelism, cfg.Parallelism)
+	if runtime.Profile.Parallelism() != profile.Parallelism() {
+		t.Fatalf("parallelism = %d, want %d", runtime.Profile.Parallelism(), profile.Parallelism())
 	}
 	if runtime.Workspace.WorkDir() != appCtx.WorkDir() {
 		t.Fatalf("workspace work dir = %q, want %q", runtime.Workspace.WorkDir(), appCtx.WorkDir())
@@ -116,4 +106,13 @@ func TestDefaultFactoryBuildWiresRuntime(t *testing.T) {
 	if runtime.JobRunner == nil {
 		t.Fatal("job runner = nil")
 	}
+}
+
+func mustProfile(tb testing.TB, opts terraformrun.ProfileOptions) terraformrun.Profile {
+	tb.Helper()
+	profile, err := terraformrun.NewProfile(opts)
+	if err != nil {
+		tb.Fatalf("NewProfile() error = %v", err)
+	}
+	return profile
 }

@@ -6,14 +6,14 @@ import (
 	"github.com/edelwud/terraci/pkg/pipeline"
 )
 
-func TestScriptConfig_PlanScript(t *testing.T) {
+func TestTerraformJobConfig_PlanScript(t *testing.T) {
 	t.Parallel()
 
 	modulePath := "svc/prod/us-east-1/vpc"
 
 	tests := []struct {
 		name              string
-		config            pipeline.ScriptConfig
+		config            pipeline.TerraformJobConfig
 		outputs           pipeline.PlanOutputs
 		wantInitCmd       bool
 		wantDetailedCmds  bool
@@ -21,38 +21,30 @@ func TestScriptConfig_PlanScript(t *testing.T) {
 		wantArtifactCount int
 	}{
 		{
-			name: "InitEnabled adds init command",
-			config: pipeline.ScriptConfig{
-				InitEnabled: true,
-			},
+			name:              "InitEnabled adds init command",
+			config:            mustTerraformConfig(t, true, "terraform"),
 			wantInitCmd:       true,
 			wantSimplePlan:    true,
 			wantArtifactCount: 1,
 		},
 		{
-			name: "InitEnabled false skips init",
-			config: pipeline.ScriptConfig{
-				InitEnabled: false,
-			},
+			name:              "InitEnabled false skips init",
+			config:            mustTerraformConfig(t, false, "terraform"),
 			wantInitCmd:       false,
 			wantSimplePlan:    true,
 			wantArtifactCount: 1,
 		},
 		{
-			name: "DetailedPlan adds tee show json commands",
-			config: pipeline.ScriptConfig{
-				InitEnabled: false,
-			},
+			name:              "DetailedPlan adds tee show json commands",
+			config:            mustTerraformConfig(t, false, "terraform"),
 			outputs:           pipeline.PlanOutputs{Text: true, JSON: true},
 			wantInitCmd:       false,
 			wantDetailedCmds:  true,
 			wantArtifactCount: 3,
 		},
 		{
-			name: "DetailedPlan with init",
-			config: pipeline.ScriptConfig{
-				InitEnabled: true,
-			},
+			name:              "DetailedPlan with init",
+			config:            mustTerraformConfig(t, true, "terraform"),
 			outputs:           pipeline.PlanOutputs{Text: true, JSON: true},
 			wantInitCmd:       true,
 			wantDetailedCmds:  true,
@@ -77,7 +69,7 @@ func TestScriptConfig_PlanScript(t *testing.T) {
 			hasShowJSON := false
 			hasSimplePlan := false
 			for _, cmd := range script {
-				if cmd == "${TERRAFORM_BINARY} init" {
+				if cmd == "terraform init" {
 					hasInit = true
 				}
 				if contains(cmd, "tee plan.txt") {
@@ -86,7 +78,7 @@ func TestScriptConfig_PlanScript(t *testing.T) {
 				if contains(cmd, "show -json") {
 					hasShowJSON = true
 				}
-				if cmd == "${TERRAFORM_BINARY} plan -out=plan.tfplan" {
+				if cmd == "terraform plan -out=plan.tfplan" {
 					hasSimplePlan = true
 				}
 			}
@@ -125,43 +117,44 @@ func TestScriptConfig_PlanScript(t *testing.T) {
 	}
 }
 
-func TestScriptConfig_ApplyScript(t *testing.T) {
+func TestTerraformJobConfig_ApplyScript(t *testing.T) {
 	t.Parallel()
 
 	modulePath := "svc/prod/us-east-1/vpc"
 
 	tests := []struct {
 		name         string
-		config       pipeline.ScriptConfig
+		config       pipeline.TerraformJobConfig
 		usePlanFile  bool
 		wantInitCmd  bool
 		wantApplyCmd string
 	}{
 		{
-			name: "usePlanFile applies plan.tfplan",
-			config: pipeline.ScriptConfig{
-				InitEnabled: false,
-			},
+			name:         "usePlanFile applies plan.tfplan",
+			config:       mustTerraformConfig(t, false, "terraform"),
 			usePlanFile:  true,
 			wantInitCmd:  false,
-			wantApplyCmd: "${TERRAFORM_BINARY} apply plan.tfplan",
+			wantApplyCmd: "terraform apply plan.tfplan",
 		},
 		{
-			name: "default is plain apply",
-			config: pipeline.ScriptConfig{
-				InitEnabled: false,
-			},
+			name:         "default is plain apply",
+			config:       mustTerraformConfig(t, false, "terraform"),
 			wantInitCmd:  false,
-			wantApplyCmd: "${TERRAFORM_BINARY} apply",
+			wantApplyCmd: "terraform apply",
 		},
 		{
-			name: "InitEnabled adds init command",
-			config: pipeline.ScriptConfig{
-				InitEnabled: true,
-			},
+			name:         "InitEnabled adds init command",
+			config:       mustTerraformConfig(t, true, "terraform"),
 			usePlanFile:  true,
 			wantInitCmd:  true,
-			wantApplyCmd: "${TERRAFORM_BINARY} apply plan.tfplan",
+			wantApplyCmd: "terraform apply plan.tfplan",
+		},
+		{
+			name:         "binary is rendered from operation",
+			config:       mustTerraformConfig(t, true, "tofu"),
+			usePlanFile:  true,
+			wantInitCmd:  true,
+			wantApplyCmd: "tofu apply plan.tfplan",
 		},
 	}
 
@@ -179,7 +172,7 @@ func TestScriptConfig_ApplyScript(t *testing.T) {
 			hasInit := false
 			lastCmd := script[len(script)-1]
 			for _, cmd := range script {
-				if cmd == "${TERRAFORM_BINARY} init" {
+				if cmd == tt.config.NewApplyOperation(modulePath, tt.usePlanFile).Terraform().Binary()+" init" {
 					hasInit = true
 				}
 			}
@@ -192,6 +185,18 @@ func TestScriptConfig_ApplyScript(t *testing.T) {
 			}
 		})
 	}
+}
+
+func mustTerraformConfig(tb testing.TB, initEnabled bool, binary string) pipeline.TerraformJobConfig {
+	tb.Helper()
+	config, err := pipeline.NewTerraformJobConfig(pipeline.TerraformJobConfigOptions{
+		Binary:      binary,
+		InitEnabled: initEnabled,
+	})
+	if err != nil {
+		tb.Fatalf("NewTerraformJobConfig() error = %v", err)
+	}
+	return config
 }
 
 func contains(s, substr string) bool {

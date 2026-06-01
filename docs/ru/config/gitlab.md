@@ -170,8 +170,9 @@ extensions:
       AWS_DEFAULT_REGION: "eu-central-1"
 ```
 
-Автоматически добавляемые переменные:
-- `TERRAFORM_BINARY` — значение из верхнеуровневой `execution.binary`
+TerraCi не добавляет скрытые provider-level переменные для Terraform binary:
+выбранный `execution.binary` записывается в Terraform operations внутри IR, а
+GitLab generator рендерит команды напрямую из этих operations.
 
 ## rules
 
@@ -384,7 +385,6 @@ extensions:
 
 ```yaml
 variables:
-  TERRAFORM_BINARY: "terraform"
   TF_IN_AUTOMATION: "true"
   TF_INPUT: "false"
 
@@ -412,8 +412,8 @@ plan-platform-prod-eu-central-1-vpc:
     TF_MODULE: "vpc"
   script:
     - cd platform/prod/eu-central-1/vpc
-    - ${TERRAFORM_BINARY} init
-    - ${TERRAFORM_BINARY} plan -out=plan.tfplan
+    - terraform init
+    - terraform plan -out=plan.tfplan
   tags:
     - terraform
     - docker
@@ -444,8 +444,8 @@ apply-platform-prod-eu-central-1-vpc:
   stage: deploy-1
   script:
     - cd platform/prod/eu-central-1/vpc
-    - ${TERRAFORM_BINARY} init
-    - ${TERRAFORM_BINARY} apply plan.tfplan
+    - terraform init
+    - terraform apply plan.tfplan
   needs:
     - plan-platform-prod-eu-central-1-vpc
   tags:

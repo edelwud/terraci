@@ -1,12 +1,12 @@
 package runner
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 
 	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/terraformrun"
 )
 
 type Options struct {
@@ -18,13 +18,13 @@ type Factory interface {
 }
 
 type Runtime struct {
-	ExecConfig execution.Config
-	Workspace  execution.Workspace
-	JobRunner  execution.JobRunner
+	Profile   terraformrun.Profile
+	Workspace execution.Workspace
+	JobRunner execution.JobRunner
 }
 
 type executionConfigResolver interface {
-	Resolve(appCtx *plugin.AppContext, opts Options) execution.Config
+	Resolve(appCtx *plugin.AppContext, opts Options) (terraformrun.Profile, error)
 }
 
 type binaryResolver interface {
@@ -44,8 +44,7 @@ func NewFactory() Factory {
 }
 
 func (f defaultFactory) Build(appCtx *plugin.AppContext, opts Options) (*Runtime, error) {
-	execCfg := f.configResolver.Resolve(appCtx, opts)
-	binaryPath, err := f.binaryResolver.Resolve(execCfg.Binary)
+	profile, err := f.configResolver.Resolve(appCtx, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -59,17 +58,16 @@ func (f defaultFactory) Build(appCtx *plugin.AppContext, opts Options) (*Runtime
 	commandRunner := &shellCommandRunner{
 		workspace: workspace,
 		selfPath:  selfPath,
-		execEnv:   execCfg.Env,
 	}
 	terraformRunner := &terraformOperationRunner{
-		binaryPath: binaryPath,
-		workspace:  workspace,
-		execConfig: execCfg,
+		workspace:       workspace,
+		binaryResolver:  f.binaryResolver,
+		planParallelism: profile.Parallelism(),
 	}
 
 	return &Runtime{
-		ExecConfig: execCfg,
-		Workspace:  workspace,
+		Profile:   profile,
+		Workspace: workspace,
 		JobRunner: &jobRunner{
 			main: operationDispatcher{
 				terraform: terraformRunner,
@@ -81,12 +79,15 @@ func (f defaultFactory) Build(appCtx *plugin.AppContext, opts Options) (*Runtime
 
 type defaultExecutionConfigResolver struct{}
 
-func (defaultExecutionConfigResolver) Resolve(appCtx *plugin.AppContext, opts Options) execution.Config {
-	execCfg := execution.ConfigFromProject(appCtx.Config())
-	if opts.Parallelism > 0 {
-		execCfg.Parallelism = opts.Parallelism
+func (defaultExecutionConfigResolver) Resolve(appCtx *plugin.AppContext, opts Options) (terraformrun.Profile, error) {
+	profile, err := terraformrun.ProfileFromConfig(appCtx.Config())
+	if err != nil {
+		return terraformrun.Profile{}, err
 	}
-	return execCfg
+	if opts.Parallelism > 0 {
+		return profile.WithParallelism(opts.Parallelism)
+	}
+	return profile, nil
 }
 
 type defaultBinaryResolver struct{}
@@ -94,7 +95,7 @@ type defaultBinaryResolver struct{}
 func (defaultBinaryResolver) Resolve(binary string) (string, error) {
 	path, err := exec.LookPath(binary)
 	if err != nil {
-		return "", fmt.Errorf("resolve %s binary: %w", binary, err)
+		return "", err
 	}
 	return path, nil
 }

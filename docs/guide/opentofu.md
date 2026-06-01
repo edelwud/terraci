@@ -30,31 +30,28 @@ extensions:
 
 When you set `execution.binary: tofu`, TerraCi:
 
-1. Sets `TERRAFORM_BINARY=tofu` in the pipeline variables
-2. Uses `${TERRAFORM_BINARY}` in all generated scripts
-3. Generates commands like `tofu init`, `tofu plan`, `tofu apply`
+1. Stores `tofu` in the Terraform operation inside the pipeline IR
+2. Uses `tofu` in all generated scripts
+3. Selects the default OpenTofu image for GitLab when no custom image is configured
 
 ## Generated Pipeline
 
 ```yaml
-variables:
-  TERRAFORM_BINARY: "tofu"
-
 default:
   image: ghcr.io/opentofu/opentofu:1.6
   before_script:
-    - ${TERRAFORM_BINARY} init
+    - tofu init
 
 plan-platform-prod-vpc:
   script:
     - cd platform/prod/us-east-1/vpc
-    - ${TERRAFORM_BINARY} plan -out=plan.tfplan
+    - tofu plan -out=plan.tfplan
   # ...
 
 apply-platform-prod-vpc:
   script:
     - cd platform/prod/us-east-1/vpc
-    - ${TERRAFORM_BINARY} apply plan.tfplan
+    - tofu apply plan.tfplan
   # ...
 ```
 
@@ -75,13 +72,9 @@ If you have both Terraform and OpenTofu modules, you can override per-job:
 ```yaml
 # In your custom pipeline template
 .tofu-job:
-  variables:
-    TERRAFORM_BINARY: "tofu"
   image: ghcr.io/opentofu/opentofu:1.6
 
 .terraform-job:
-  variables:
-    TERRAFORM_BINARY: "terraform"
   image: hashicorp/terraform:1.6
 ```
 
@@ -149,18 +142,18 @@ TerraCi works with:
 
 The HCL parsing is compatible with both.
 
-## Custom Binary Path
+## Binary Selection
 
-If your binary has a custom name or path, point `execution.binary` at it. TerraCi exports the value as `TERRAFORM_BINARY` and uses it everywhere it generates a Terraform command:
+`execution.binary` accepts the canonical runtime values `terraform` and `tofu`. TerraCi writes that binary onto Terraform jobs in the IR, and providers/local execution render commands directly from the operation:
 
 ```yaml
 execution:
-  binary: "/usr/local/bin/tofu-1.6"
+  binary: tofu
 ```
 
 ## Environment Variables
 
-`TERRAFORM_BINARY` is exported automatically from `execution.binary`. Add other OpenTofu-specific environment variables via `execution.env` (workflow-wide) or per-provider:
+Add OpenTofu-specific environment variables through `execution.env`. They are applied to Terraform plan/apply jobs only, not to provider workflow globals or standalone plugin command jobs:
 
 ```yaml
 execution:

@@ -34,25 +34,25 @@ func renderTerraformPlan(op *pipeline.TerraformOperation) []string {
 	planFile := filepath.Base(op.PlanFile())
 	script := []string{"cd " + op.ModulePath()}
 	if op.InitEnabled() {
-		script = append(script, "${TERRAFORM_BINARY} init")
+		script = append(script, op.Binary()+" init")
 	}
 
 	if op.DetailedPlan() {
 		if op.PlanTextFile() != "" {
 			planText := filepath.Base(op.PlanTextFile())
-			script = append(script, fmt.Sprintf("(${TERRAFORM_BINARY} plan -out=%s -detailed-exitcode 2>&1 || echo $? > .tf_exit) | tee %s", planFile, planText))
+			script = append(script, fmt.Sprintf("(%s plan -out=%s -detailed-exitcode 2>&1 || echo $? > .tf_exit) | tee %s", op.Binary(), planFile, planText))
 		} else {
-			script = append(script, fmt.Sprintf("(${TERRAFORM_BINARY} plan -out=%s -detailed-exitcode || echo $? > .tf_exit)", planFile))
+			script = append(script, fmt.Sprintf("(%s plan -out=%s -detailed-exitcode || echo $? > .tf_exit)", op.Binary(), planFile))
 		}
 		if op.PlanJSONFile() != "" {
 			planJSON := filepath.Base(op.PlanJSONFile())
-			script = append(script, fmt.Sprintf("${TERRAFORM_BINARY} show -json %s > %s", planFile, planJSON))
+			script = append(script, fmt.Sprintf("%s show -json %s > %s", op.Binary(), planFile, planJSON))
 		}
 		script = append(script, `TF_EXIT=$(cat .tf_exit 2>/dev/null || echo 0); rm -f .tf_exit; if [ "$TF_EXIT" -eq 2 ]; then exit 0; else exit "$TF_EXIT"; fi`)
 		return script
 	}
 
-	return append(script, "${TERRAFORM_BINARY} plan -out="+planFile)
+	return append(script, op.Binary()+" plan -out="+planFile)
 }
 
 func renderTerraformApply(op *pipeline.TerraformOperation) []string {
@@ -62,13 +62,13 @@ func renderTerraformApply(op *pipeline.TerraformOperation) []string {
 
 	script := []string{"cd " + op.ModulePath()}
 	if op.InitEnabled() {
-		script = append(script, "${TERRAFORM_BINARY} init")
+		script = append(script, op.Binary()+" init")
 	}
 
 	if op.UsePlanFile() {
-		script = append(script, "${TERRAFORM_BINARY} apply "+filepath.Base(op.PlanFile()))
+		script = append(script, op.Binary()+" apply "+filepath.Base(op.PlanFile()))
 	} else {
-		script = append(script, "${TERRAFORM_BINARY} apply")
+		script = append(script, op.Binary()+" apply")
 	}
 
 	return script

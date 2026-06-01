@@ -4,16 +4,16 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/pipeline/pipelinetest"
+	"github.com/edelwud/terraci/pkg/terraformrun"
 	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
 )
 
 func TestStagePlannerUsesDAGLayers(t *testing.T) {
 	t.Parallel()
 
-	planner := newStagePlanner(newSettings(&configpkg.Config{}, execution.Config{}))
+	planner := newStagePlanner(newSettings(&configpkg.Config{}, mustProfile(terraformrun.ProfileOptions{})))
 	ir := pipelinetest.MustCommandIR(t,
 		pipeline.ContributedJobOptions{Name: "plan-0", Commands: []string{"plan-0"}},
 		pipeline.ContributedJobOptions{Name: "apply-0", Commands: []string{"apply-0"}, Dependencies: []pipeline.JobDependency{{Job: "plan-0"}}},

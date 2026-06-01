@@ -1,13 +1,37 @@
 package pipeline
 
-import "maps"
+import (
+	"maps"
 
-// ScriptConfig captures the knobs that influence how BuildProjectIR populates each
-// TerraformOperation. The struct does not render shell — see
-// pkg/pipeline/cishell for the default shell renderer.
-type ScriptConfig struct {
+	"github.com/edelwud/terraci/pkg/terraformrun"
+)
+
+// TerraformJobConfig captures Terraform/OpenTofu runtime intent copied into
+// Terraform jobs. The struct does not render shell — see pkg/pipeline/cishell.
+type TerraformJobConfig struct {
+	binary      terraformrun.Binary
+	initEnabled bool
+	env         map[string]string
+}
+
+// TerraformJobConfigOptions configures NewTerraformJobConfig.
+type TerraformJobConfigOptions struct {
+	Binary      string
 	InitEnabled bool
 	Env         map[string]string
+}
+
+// NewTerraformJobConfig creates immutable Terraform job runtime config.
+func NewTerraformJobConfig(opts TerraformJobConfigOptions) (TerraformJobConfig, error) {
+	binary, err := terraformrun.ParseBinary(opts.Binary)
+	if err != nil {
+		return TerraformJobConfig{}, err
+	}
+	return TerraformJobConfig{
+		binary:      binary,
+		initEnabled: opts.InitEnabled,
+		env:         maps.Clone(opts.Env),
+	}, nil
 }
 
 type PlanOutputs struct {
@@ -22,13 +46,14 @@ func (o PlanOutputs) Detailed() bool {
 // NewPlanOperation creates a typed terraform plan operation plus the resources
 // and artifact that must restore plan files at their original
 // workspace-relative paths.
-func (sc ScriptConfig) NewPlanOperation(jobName, modulePath string, outputs PlanOutputs) (Operation, []ResourceSpec, Artifact) {
+func (c TerraformJobConfig) NewPlanOperation(jobName, modulePath string, outputs PlanOutputs) (Operation, []ResourceSpec, Artifact) {
 	op := Operation{
 		typ: OperationTypeTerraformPlan,
 		terraform: &TerraformOperation{
+			binary:       c.binary,
 			kind:         OperationTypeTerraformPlan,
 			modulePath:   modulePath,
-			initEnabled:  sc.InitEnabled,
+			initEnabled:  c.initEnabled,
 			planFile:     PlanBinaryPath(modulePath),
 			detailedPlan: outputs.Detailed(),
 		},
@@ -50,25 +75,26 @@ func (sc ScriptConfig) NewPlanOperation(jobName, modulePath string, outputs Plan
 }
 
 // NewApplyOperation creates a typed terraform apply operation.
-func (sc ScriptConfig) NewApplyOperation(modulePath string, usePlanFile bool) Operation {
+func (c TerraformJobConfig) NewApplyOperation(modulePath string, usePlanFile bool) Operation {
 	return Operation{
 		typ: OperationTypeTerraformApply,
 		terraform: &TerraformOperation{
+			binary:      c.binary,
 			kind:        OperationTypeTerraformApply,
 			modulePath:  modulePath,
-			initEnabled: sc.InitEnabled,
+			initEnabled: c.initEnabled,
 			planFile:    PlanBinaryPath(modulePath),
 			usePlanFile: usePlanFile,
 		},
 	}
 }
 
-// TerraformEnv returns a defensive copy of execution-level Terraform job environment.
-func (sc ScriptConfig) TerraformEnv() map[string]string {
-	if len(sc.Env) == 0 {
+// TerraformEnv returns a defensive copy of Terraform job environment.
+func (c TerraformJobConfig) TerraformEnv() map[string]string {
+	if len(c.env) == 0 {
 		return nil
 	}
-	return maps.Clone(sc.Env)
+	return maps.Clone(c.env)
 }
 
 func resourcePaths(resources []ResourceSpec) []string {

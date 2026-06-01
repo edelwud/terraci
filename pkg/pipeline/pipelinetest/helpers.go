@@ -45,9 +45,14 @@ func MustCommandIR(tb testing.TB, opts ...pipeline.ContributedJobOptions) *pipel
 		}
 		contributions = []*pipeline.Contribution{contribution}
 	}
+	intent, err := pipeline.PlanBuildIntent()
+	if err != nil {
+		tb.Fatalf("PlanBuildIntent() error = %v", err)
+	}
 	ir, err := pipeline.BuildProjectIR(pipeline.ProjectIRRequest{
 		Project:       emptyProject(),
 		Contributions: contributions,
+		Intent:        intent,
 	})
 	if err != nil {
 		tb.Fatalf("BuildProjectIR() error = %v", err)
@@ -60,9 +65,16 @@ func MustSingleModuleIR(tb testing.TB, module *discovery.Module) *pipeline.IR {
 	tb.Helper()
 	depGraph := graph.NewDependencyGraph()
 	depGraph.AddNode(module)
-	intent, err := pipeline.NewBuildIntent(pipeline.BuildIntentOptions{ApplyEnabled: true})
+	intent, err := pipeline.ApplyBuildIntent()
 	if err != nil {
-		tb.Fatalf("NewBuildIntent() error = %v", err)
+		tb.Fatalf("ApplyBuildIntent() error = %v", err)
+	}
+	terraformConfig, err := pipeline.NewTerraformJobConfig(pipeline.TerraformJobConfigOptions{
+		Binary:      "terraform",
+		InitEnabled: true,
+	})
+	if err != nil {
+		tb.Fatalf("NewTerraformJobConfig() error = %v", err)
 	}
 	ir, err := pipeline.BuildProjectIR(pipeline.ProjectIRRequest{
 		Project: &workflow.ProjectResult{
@@ -71,8 +83,8 @@ func MustSingleModuleIR(tb testing.TB, module *discovery.Module) *pipeline.IR {
 				Graph:    depGraph,
 			},
 		},
-		Script: pipeline.ScriptConfig{InitEnabled: true},
-		Intent: intent,
+		Terraform: terraformConfig,
+		Intent:    intent,
 	})
 	if err != nil {
 		tb.Fatalf("BuildProjectIR() error = %v", err)

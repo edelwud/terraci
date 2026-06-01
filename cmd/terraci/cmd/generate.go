@@ -46,12 +46,16 @@ Examples:
 			if err != nil {
 				return err
 			}
+			mode := generateflow.GenerateModeApply
+			if planOnly {
+				mode = generateflow.GenerateModePlan
+			}
 			result, err := generateflow.Run(cmd.Context(), generateflow.NewRuntime(prepared), generateflow.Request{
-				Filters:       *ff,
-				ChangedOnly:   changedOnly,
-				BaseRef:       baseRef,
-				ApplyDisabled: planOnly,
-				DryRun:        dryRun,
+				Filters:     *ff,
+				ChangedOnly: changedOnly,
+				BaseRef:     baseRef,
+				Mode:        mode,
+				DryRun:      dryRun,
 			})
 			if err != nil {
 				return err

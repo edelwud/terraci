@@ -41,10 +41,8 @@ func TestPipelineBuild_BasicModules(t *testing.T) {
 
 	depGraph := graph.BuildFromDependencies(modules, deps)
 	ir, err := buildPipelineIR(modules, depGraph, modules, pipeline.ProjectIRRequest{
-		Script: pipeline.ScriptConfig{
-			InitEnabled: true,
-		},
-		Intent: mustBuildIntent(t, true),
+		Terraform: mustTerraformJobConfig(t),
+		Intent:    mustBuildIntent(t, true),
 	})
 	if err != nil {
 		t.Fatalf("Build failed: %v", err)
@@ -243,14 +241,31 @@ func buildPipelineIR(allModules []*discovery.Module, depGraph *graph.DependencyG
 
 func mustBuildIntent(tb testing.TB, applyEnabled bool, requests ...pipeline.ResourceRequest) pipeline.BuildIntent {
 	tb.Helper()
-	intent, err := pipeline.NewBuildIntent(pipeline.BuildIntentOptions{
-		ApplyEnabled:     applyEnabled,
-		ResourceRequests: requests,
-	})
+	var (
+		intent pipeline.BuildIntent
+		err    error
+	)
+	if applyEnabled {
+		intent, err = pipeline.ApplyBuildIntent(requests...)
+	} else {
+		intent, err = pipeline.PlanBuildIntent(requests...)
+	}
 	if err != nil {
-		tb.Fatalf("NewBuildIntent() error = %v", err)
+		tb.Fatalf("build intent error = %v", err)
 	}
 	return intent
+}
+
+func mustTerraformJobConfig(tb testing.TB) pipeline.TerraformJobConfig {
+	tb.Helper()
+	cfg, err := pipeline.NewTerraformJobConfig(pipeline.TerraformJobConfigOptions{
+		Binary:      "terraform",
+		InitEnabled: true,
+	})
+	if err != nil {
+		tb.Fatalf("NewTerraformJobConfig() error = %v", err)
+	}
+	return cfg
 }
 
 func hasPipelineInputArtifact(inputs []pipeline.InputArtifact, name, producer string) bool {

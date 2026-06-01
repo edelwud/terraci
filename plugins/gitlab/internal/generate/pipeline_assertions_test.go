@@ -70,14 +70,6 @@ func (a *pipelineAssert) noStageWithFragment(fragment string) *pipelineAssert {
 	return a
 }
 
-func (a *pipelineAssert) variable(name, expected string) *pipelineAssert {
-	a.t.Helper()
-	if got := a.pipeline.Variables()[name]; got != expected {
-		a.t.Fatalf("expected variable %s=%q, got %q", name, expected, got)
-	}
-	return a
-}
-
 func (a *pipelineAssert) stageIndex(stage string) int {
 	a.t.Helper()
 	stages := a.pipeline.Stages()
@@ -201,6 +193,17 @@ func (a *jobAssert) artifactPathContains(fragment string) *jobAssert {
 		}
 	}
 	a.t.Fatalf("expected job %q artifacts to contain %q, got %v", a.name, fragment, artifacts.Paths)
+	return a
+}
+
+func (a *jobAssert) scriptContains(fragment string) *jobAssert {
+	a.t.Helper()
+	for _, command := range a.job.Script() {
+		if strings.Contains(command, fragment) {
+			return a
+		}
+	}
+	a.t.Fatalf("expected job %q script to contain %q, got %#v", a.name, fragment, a.job.Script())
 	return a
 }
 

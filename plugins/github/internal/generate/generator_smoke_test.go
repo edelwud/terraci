@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/ci/citest"
-	"github.com/edelwud/terraci/pkg/execution"
+	"github.com/edelwud/terraci/pkg/terraformrun"
 	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
 	domainpkg "github.com/edelwud/terraci/plugins/github/internal/domain"
 )
@@ -26,15 +26,15 @@ func TestGenerate_SingleModule(t *testing.T) {
 		job("plan-platform-stage-eu-central-1-vpc").
 		stepNamed("Checkout").
 		stepUses("actions/checkout@v4").
-		stepRunContains("${TERRAFORM_BINARY} init").
-		stepRunContains("${TERRAFORM_BINARY} plan").
+		stepRunContains("terraform init").
+		stepRunContains("terraform plan").
 		stepUses("actions/upload-artifact@v4")
 }
 
 func TestGenerate_RejectsInvalidIR(t *testing.T) {
 	t.Parallel()
 
-	generated, err := NewGenerator(nil, execution.Config{}, nil).Generate()
+	generated, err := NewGenerator(nil, mustProfile(terraformrun.ProfileOptions{}), nil).Generate()
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -122,12 +122,14 @@ func TestGenerate_ApplyEnvironmentFromOverwrite(t *testing.T) {
 func TestGenerate_CustomBinary(t *testing.T) {
 	module := createTestModule("vpc")
 	workflow := newGeneratorScenario(t).
-		withExecution(func(cfg *execution.Config) { cfg.Binary = "tofu" }).
+		withExecution(func(cfg *terraformrun.ProfileOptions) { cfg.Binary = "tofu" }).
 		withModules(module).
 		withDependencies(map[string][]string{module.ID(): {}}).
 		generate()
 
-	assertWorkflow(t, workflow).env("TERRAFORM_BINARY", "tofu")
+	assertWorkflow(t, workflow).
+		job("plan-platform-stage-eu-central-1-vpc").
+		stepRunContains("tofu plan")
 }
 
 func TestGenerate_WithContainer(t *testing.T) {

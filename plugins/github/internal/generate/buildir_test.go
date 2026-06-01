@@ -2,29 +2,30 @@ package generate
 
 import (
 	"github.com/edelwud/terraci/pkg/discovery"
-	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
+	"github.com/edelwud/terraci/pkg/terraformrun"
 	"github.com/edelwud/terraci/pkg/workflow"
 	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
 )
 
 func buildTestIRWithApply(
 	cfg *configpkg.Config,
-	execCfg execution.Config,
+	profile terraformrun.Profile,
 	contributions []*pipeline.Contribution,
 	depGraph *graph.DependencyGraph,
 	allModules, targetModules []*discovery.Module,
 	applyEnabled bool,
 ) (*pipeline.IR, error) {
-	s := newSettings(cfg, execCfg)
-	resourceRequests := []pipeline.ResourceRequest(nil)
-	if !applyEnabled {
-		resourceRequests = append(resourceRequests, pipeline.AllPlanResources(pipeline.ResourceKindPlanBinary))
+	s := newSettings(cfg, profile)
+	intent, err := buildIntentForApply(applyEnabled)
+	if err != nil {
+		return nil, err
 	}
-	intent, err := pipeline.NewBuildIntent(pipeline.BuildIntentOptions{
-		ApplyEnabled:     applyEnabled,
-		ResourceRequests: resourceRequests,
+	terraformConfig, err := pipeline.NewTerraformJobConfig(pipeline.TerraformJobConfigOptions{
+		Binary:      profile.Binary().String(),
+		InitEnabled: s.initEnabled(),
+		Env:         profile.Env(),
 	})
 	if err != nil {
 		return nil, err
@@ -37,11 +38,15 @@ func buildTestIRWithApply(
 			},
 			Targets: targetModules,
 		},
-		Script: pipeline.ScriptConfig{
-			InitEnabled: s.initEnabled(),
-			Env:         execCfg.Env,
-		},
+		Terraform:     terraformConfig,
 		Contributions: contributions,
 		Intent:        intent,
 	})
+}
+
+func buildIntentForApply(applyEnabled bool) (pipeline.BuildIntent, error) {
+	if applyEnabled {
+		return pipeline.ApplyBuildIntent()
+	}
+	return pipeline.PlanBuildIntent(pipeline.AllPlanResources(pipeline.ResourceKindPlanBinary))
 }

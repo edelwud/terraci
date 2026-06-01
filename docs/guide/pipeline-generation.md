@@ -44,7 +44,6 @@ Global variables are set from configuration:
 
 ```yaml
 variables:
-  TERRAFORM_BINARY: "terraform"
   TF_IN_AUTOMATION: "true"
   TF_INPUT: "false"
 ```
@@ -57,7 +56,7 @@ Shared job settings:
 default:
   image: hashicorp/terraform:1.6
   before_script:
-    - ${TERRAFORM_BINARY} init
+    - terraform init
   tags:
     - terraform
     - docker
@@ -71,7 +70,7 @@ plan-platform-prod-us-east-1-vpc:
   stage: deploy-0
   script:
     - cd platform/prod/us-east-1/vpc
-    - ${TERRAFORM_BINARY} plan -out=plan.tfplan
+    - terraform plan -out=plan.tfplan
   variables:
     TF_MODULE_PATH: platform/prod/us-east-1/vpc
     TF_SERVICE: platform
@@ -88,7 +87,7 @@ apply-platform-prod-us-east-1-vpc:
   stage: deploy-1
   script:
     - cd platform/prod/us-east-1/vpc
-    - ${TERRAFORM_BINARY} apply plan.tfplan
+    - terraform apply plan.tfplan
   needs:
     - job: plan-platform-prod-us-east-1-vpc
   when: manual
@@ -271,10 +270,10 @@ extensions:
   gitlab:
     job_defaults:
       before_script:
-        - ${TERRAFORM_BINARY} init
-        - ${TERRAFORM_BINARY} workspace select ${TF_ENVIRONMENT} || ${TERRAFORM_BINARY} workspace new ${TF_ENVIRONMENT}
+        - terraform init
+        - terraform workspace select ${TF_ENVIRONMENT} || terraform workspace new ${TF_ENVIRONMENT}
       after_script:
-        - ${TERRAFORM_BINARY} output -json > outputs.json
+        - terraform output -json > outputs.json
 ```
 
 ### Runner Tags

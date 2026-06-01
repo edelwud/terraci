@@ -10,7 +10,7 @@ import (
 // ProjectIRRequest describes the canonical project-to-IR build request.
 type ProjectIRRequest struct {
 	Project       *workflow.ProjectResult
-	Script        ScriptConfig
+	Terraform     TerraformJobConfig
 	Intent        BuildIntent
 	Contributions []*Contribution
 }
@@ -41,7 +41,7 @@ func BuildProjectIR(req ProjectIRRequest) (*IR, error) {
 		TargetModules: targets,
 		AllModules:    result.Filtered.Modules,
 		ModuleIndex:   result.Filtered.Index,
-		Script:        req.Script,
+		Terraform:     req.Terraform,
 		Contributions: req.Contributions,
 		Intent:        req.Intent,
 	})

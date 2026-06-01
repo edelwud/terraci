@@ -5,8 +5,8 @@ import (
 
 	"github.com/edelwud/terraci/pkg/ci/citest"
 	"github.com/edelwud/terraci/pkg/discovery"
-	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/pipeline"
+	"github.com/edelwud/terraci/pkg/terraformrun"
 	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
 	domainpkg "github.com/edelwud/terraci/plugins/github/internal/domain"
 )
@@ -17,7 +17,7 @@ func createTestModule(module string) *discovery.Module {
 
 type testCfg struct {
 	GitHub        *configpkg.Config
-	Execution     execution.Config
+	Profile       terraformrun.Profile
 	Contributions []*pipeline.Contribution
 }
 
@@ -26,11 +26,7 @@ func createTestConfig() *testCfg {
 		GitHub: &configpkg.Config{
 			RunsOn: "ubuntu-latest",
 		},
-		Execution: execution.Config{
-			Binary:      "terraform",
-			InitEnabled: true,
-			Parallelism: 4,
-		},
+		Profile: mustProfile(terraformrun.ProfileOptions{}),
 	}
 }
 
@@ -64,9 +60,11 @@ func (s *generatorScenario) withContributions(contributions []*pipeline.Contribu
 	return s
 }
 
-func (s *generatorScenario) withExecution(apply func(*execution.Config)) *generatorScenario {
+func (s *generatorScenario) withExecution(apply func(*terraformrun.ProfileOptions)) *generatorScenario {
 	s.t.Helper()
-	apply(&s.cfg.Execution)
+	opts := profileOptionsFromProfile(s.cfg.Profile)
+	apply(&opts)
+	s.cfg.Profile = mustProfile(opts)
 	return s
 }
 
@@ -91,7 +89,7 @@ func (s *generatorScenario) withPlanOnly() *generatorScenario {
 func (s *generatorScenario) generator() *Generator {
 	s.t.Helper()
 	depGraph := citest.DependencyGraph(s.modules, s.dependencies)
-	return newTestGeneratorWithTargetsAndApply(s.t, s.cfg.GitHub, s.cfg.Execution, s.cfg.Contributions, depGraph, s.modules, s.generateTargets(), s.applyEnabled)
+	return newTestGeneratorWithTargetsAndApply(s.t, s.cfg.GitHub, s.cfg.Profile, s.cfg.Contributions, depGraph, s.modules, s.generateTargets(), s.applyEnabled)
 }
 
 func (s *generatorScenario) generate() *domainpkg.Workflow {

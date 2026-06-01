@@ -5,16 +5,16 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/discovery"
-	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/pipeline/pipelinetest"
+	"github.com/edelwud/terraci/pkg/terraformrun"
 	"github.com/edelwud/terraci/pkg/workflow"
 	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
 )
 
-func testExecutionConfig() execution.Config {
-	return execution.Config{Binary: "terraform", InitEnabled: true, Parallelism: 4}
+func testProfile() terraformrun.Profile {
+	return mustProfile(terraformrun.ProfileOptions{})
 }
 
 func TestJobBuilderRenderJobBuildsModuleDefaults(t *testing.T) {
@@ -22,7 +22,7 @@ func TestJobBuilderRenderJobBuildsModuleDefaults(t *testing.T) {
 
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	builder := newJobBuilder(
-		newSettings(&configpkg.Config{}, testExecutionConfig()),
+		newSettings(&configpkg.Config{}, testProfile()),
 		map[string]string{"plan-platform-stage-eu-central-1-vpc": "deploy-0"},
 	)
 
@@ -63,7 +63,7 @@ func TestJobBuilderCacheSupportsAdvancedOptions(t *testing.T) {
 				Paths:   []string{"{module_path}/.terraform/", "{module_path}/.terraform.lock.hcl"},
 				Policy:  "pull-push",
 			},
-		}, testExecutionConfig()),
+		}, testProfile()),
 		nil,
 	)
 
@@ -94,7 +94,7 @@ func TestJobBuilderContributedJobOverwriteByName(t *testing.T) {
 			Image: &configpkg.Image{Name: "cost-image:1.0"},
 		}},
 	}
-	s := newSettings(cfg, testExecutionConfig())
+	s := newSettings(cfg, testProfile())
 	builder := newJobBuilder(
 		s,
 		map[string]string{"cost-estimation": "deploy-1"},
@@ -117,7 +117,7 @@ func TestJobBuilderContributedJobUsesOptionalNeeds(t *testing.T) {
 	t.Parallel()
 
 	builder := newJobBuilder(
-		newSettings(&configpkg.Config{}, testExecutionConfig()),
+		newSettings(&configpkg.Config{}, testProfile()),
 		map[string]string{"summary": "deploy-2"},
 	)
 
@@ -144,7 +144,15 @@ func TestJobBuilderContributedJobUsesOptionalNeeds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewContribution() error = %v", err)
 	}
-	plan, err := pipeline.BuildProjectIR(pipeline.ProjectIRRequest{Contributions: []*pipeline.Contribution{contribution}, Project: emptyProject()})
+	intent, err := pipeline.PlanBuildIntent()
+	if err != nil {
+		t.Fatalf("PlanBuildIntent() error = %v", err)
+	}
+	plan, err := pipeline.BuildProjectIR(pipeline.ProjectIRRequest{
+		Contributions: []*pipeline.Contribution{contribution},
+		Project:       emptyProject(),
+		Intent:        intent,
+	})
 	if err != nil {
 		t.Fatalf("BuildProjectIR() error = %v", err)
 	}

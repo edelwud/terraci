@@ -97,11 +97,15 @@
 //
 // # Pipeline IR boundary
 //
-// Framework code plans projects through workflow.PlanProject and converts that
-// result into a provider-agnostic immutable IR with pipeline.BuildProjectIR.
-// CI providers and local execution are IR consumers only: they receive *IR
-// values and read immutable pipeline.Job values through getters such as
-// IR.Jobs, Job.Operation, and Operation.Terraform. Providers that need barrier groups use
+// Framework code plans projects through workflow.PlanProject, derives the
+// Terraform/OpenTofu runtime with terraformrun.ProfileFromConfig, and converts
+// that result into a provider-agnostic immutable IR with
+// pipeline.BuildProjectIR. CI providers and local execution are IR consumers
+// only: they receive *IR values and read immutable pipeline.Job values through
+// getters such as IR.Jobs, Job.Operation, and Operation.Terraform. Terraform
+// binary, init behavior, and execution.env are stored on Terraform jobs and
+// operations through pipeline.TerraformJobConfig; providers should not inject
+// implicit global binary variables. Providers that need barrier groups use
 // pipeline.Schedule, whose JobGroup values expose read-only Name, Jobs, and
 // JobCount accessors. Provider job builders should take pipeline.Job values,
 // not job pointers. External plugin authors should not construct IR, Job,

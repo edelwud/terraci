@@ -5,8 +5,8 @@ import (
 
 	"github.com/edelwud/terraci/pkg/ci/citest"
 	"github.com/edelwud/terraci/pkg/discovery"
-	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/pipeline"
+	"github.com/edelwud/terraci/pkg/terraformrun"
 )
 
 type generatorScenario struct {
@@ -33,9 +33,11 @@ func (s *generatorScenario) withConfig(apply func(*Config)) *generatorScenario {
 	return s
 }
 
-func (s *generatorScenario) withExecution(apply func(*execution.Config)) *generatorScenario {
+func (s *generatorScenario) withExecution(apply func(*terraformrun.ProfileOptions)) *generatorScenario {
 	s.t.Helper()
-	apply(&s.cfg.Execution)
+	opts := profileOptionsFromProfile(s.cfg.Profile)
+	apply(&opts)
+	s.cfg.Profile = mustProfile(opts)
 	return s
 }
 
@@ -66,7 +68,7 @@ func (s *generatorScenario) withPlanOnly() *generatorScenario {
 func (s *generatorScenario) generator() *Generator {
 	s.t.Helper()
 	depGraph := citest.DependencyGraph(s.modules, s.dependencies)
-	return newTestGeneratorWithTargetsAndApply(s.t, s.cfg.GitLab, s.cfg.Execution, s.cfg.Contributions, depGraph, s.modules, s.generateTargets(), s.applyEnabled)
+	return newTestGeneratorWithTargetsAndApply(s.t, s.cfg.GitLab, s.cfg.Profile, s.cfg.Contributions, depGraph, s.modules, s.generateTargets(), s.applyEnabled)
 }
 
 func (s *generatorScenario) generate() *Pipeline {

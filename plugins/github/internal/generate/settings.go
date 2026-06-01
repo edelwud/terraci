@@ -3,17 +3,17 @@ package generate
 import (
 	"maps"
 
-	"github.com/edelwud/terraci/pkg/execution"
+	"github.com/edelwud/terraci/pkg/terraformrun"
 	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
 )
 
 type settings struct {
-	config    *configpkg.Config
-	execution execution.Config
+	config  *configpkg.Config
+	profile terraformrun.Profile
 }
 
-func newSettings(cfg *configpkg.Config, execCfg execution.Config) settings {
-	return settings{config: cfg, execution: execCfg}
+func newSettings(cfg *configpkg.Config, profile terraformrun.Profile) settings {
+	return settings{config: cfg, profile: profile}
 }
 
 func (s settings) configOrDefault() *configpkg.Config {
@@ -25,17 +25,9 @@ func (s settings) configOrDefault() *configpkg.Config {
 	return s.config
 }
 
-func (s settings) terraformBinary() string {
-	if s.execution.Binary != "" {
-		return s.execution.Binary
-	}
-	return "terraform"
-}
-
 func (s settings) env() map[string]string {
 	env := make(map[string]string)
 	maps.Copy(env, s.configOrDefault().Env)
-	env["TERRAFORM_BINARY"] = s.terraformBinary()
 	return env
 }
 
@@ -51,5 +43,5 @@ func (s settings) permissions() map[string]string {
 }
 
 func (s settings) initEnabled() bool {
-	return s.execution.InitEnabled
+	return s.profile.InitEnabled()
 }

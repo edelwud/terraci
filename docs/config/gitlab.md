@@ -371,7 +371,6 @@ With the above configuration, TerraCi generates:
 
 ```yaml
 variables:
-  TERRAFORM_BINARY: "terraform"
   TF_IN_AUTOMATION: "true"
   TF_INPUT: "false"
 
@@ -393,8 +392,8 @@ plan-platform-prod-vpc:
   stage: deploy-0
   script:
     - cd platform/prod/us-east-1/vpc
-    - ${TERRAFORM_BINARY} init
-    - ${TERRAFORM_BINARY} plan -out=plan.tfplan
+    - terraform init
+    - terraform plan -out=plan.tfplan
   variables:
     TF_MODULE: vpc
     # ...
@@ -427,8 +426,8 @@ apply-platform-prod-vpc:
   stage: deploy-1
   script:
     - cd platform/prod/us-east-1/vpc
-    - ${TERRAFORM_BINARY} init
-    - ${TERRAFORM_BINARY} apply plan.tfplan
+    - terraform init
+    - terraform apply plan.tfplan
   needs:
     - plan-platform-prod-vpc
   tags:

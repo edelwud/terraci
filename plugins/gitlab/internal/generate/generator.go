@@ -1,8 +1,8 @@
 package generate
 
 import (
-	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/pipeline"
+	"github.com/edelwud/terraci/pkg/terraformrun"
 	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
 	"github.com/edelwud/terraci/plugins/gitlab/internal/domain"
 )
@@ -22,8 +22,8 @@ type Generator struct {
 }
 
 // NewGenerator creates a new GitLab pipeline generator bound to the supplied IR.
-func NewGenerator(cfg *configpkg.Config, execCfg execution.Config, ir *pipeline.IR) *Generator {
-	cfgSettings := newSettings(cfg, execCfg)
+func NewGenerator(cfg *configpkg.Config, profile terraformrun.Profile, ir *pipeline.IR) *Generator {
+	cfgSettings := newSettings(cfg, profile)
 	return &Generator{
 		settings:     cfgSettings,
 		stagePlanner: newStagePlanner(cfgSettings),

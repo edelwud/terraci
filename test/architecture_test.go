@@ -34,6 +34,9 @@ func TestArchitecture_ImportBoundaries(t *testing.T) {
 				if reason, ok := siblingPluginImportViolation(rel, imp); ok {
 					violations = append(violations, reason)
 				}
+				if isProductionFile(rel) && isCIProviderPlugin(rel) && imp == moduleImportPath+"/pkg/execution" {
+					violations = append(violations, rel+" imports pkg/execution; CI providers must consume pipeline IR and terraformrun.Profile, not local execution runtime")
+				}
 			}
 		}
 	}
@@ -143,6 +146,12 @@ func TestArchitecture_ConfigSnapshotAndDocs(t *testing.T) {
 		"legacy pointer-shaped",
 		"pipeline.BuildOptions",
 		"localexec/internal/planner",
+		"ScriptConfig",
+		"execution.ConfigFromProject",
+		"BuildIntentOptions",
+		"NewBuildIntent",
+		"ApplyDisabled",
+		"TERRAFORM_BINARY",
 		"PipelineRequirements",
 		"BuildRequirements",
 		"PlanEnabled",
@@ -451,6 +460,8 @@ func TestArchitecture_PipelineIRValueBoundaries(t *testing.T) {
 				switch selector.Sel.Name {
 				case "BuildOptions":
 					violations = append(violations, rel+" manually constructs pipeline.BuildOptions; use pipeline.ProjectIRRequest")
+				case "BuildIntent":
+					violations = append(violations, rel+" manually constructs pipeline.BuildIntent; use pipeline.ApplyBuildIntent or pipeline.PlanBuildIntent")
 				case "ResourceRequest", "ResourceSelector":
 					violations = append(violations, rel+" manually constructs pipeline."+selector.Sel.Name+"; use ResourceRequest constructors")
 				case "IR", "Job", "Operation", "TerraformOperation", "JobGroup":
@@ -1146,6 +1157,10 @@ func importPath(tb testing.TB, spec *ast.ImportSpec) string {
 
 func isProductionFile(rel string) bool {
 	return !strings.HasSuffix(rel, "_test.go")
+}
+
+func isCIProviderPlugin(rel string) bool {
+	return strings.HasPrefix(rel, "plugins/gitlab/") || strings.HasPrefix(rel, "plugins/github/")
 }
 
 func textFiles(tb testing.TB, root string, roots ...string) []string {

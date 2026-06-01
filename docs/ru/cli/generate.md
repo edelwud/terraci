@@ -134,10 +134,6 @@ terraci generate > new.yml && diff .gitlab-ci.yml new.yml
 ### Вывод GitLab CI
 
 ```yaml
-# Глобальные переменные
-variables:
-  TERRAFORM_BINARY: "terraform"
-
 # Настройки джобов по умолчанию
 default:
   image: hashicorp/terraform:1.6
@@ -154,8 +150,8 @@ plan-service-env-region-module:
   stage: deploy-0
   script:
     - cd service/env/region/module
-    - ${TERRAFORM_BINARY} init
-    - ${TERRAFORM_BINARY} plan -out=plan.tfplan
+    - terraform init
+    - terraform plan -out=plan.tfplan
 
 # Apply-джобы
 apply-service-env-region-module:
@@ -164,8 +160,8 @@ apply-service-env-region-module:
     - plan-service-env-region-module
   script:
     - cd service/env/region/module
-    - ${TERRAFORM_BINARY} init
-    - ${TERRAFORM_BINARY} apply plan.tfplan
+    - terraform init
+    - terraform apply plan.tfplan
 ```
 
 ### Вывод GitHub Actions

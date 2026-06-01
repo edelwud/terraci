@@ -48,7 +48,7 @@ func TestGenerator_Generate_WithSummaryContribution(t *testing.T) {
 		modules[1].ID(): {modules[0].ID()},
 	})
 
-	gen := newTestGenerator(t, cfg.GitLab, cfg.Execution, cfg.Contributions, depGraph, modules)
+	gen := newTestGenerator(t, cfg.GitLab, cfg.Profile, cfg.Contributions, depGraph, modules)
 	genPipeline, err := gen.Generate()
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -84,7 +84,7 @@ func TestGenerator_Generate_WithMRIntegration_Disabled(t *testing.T) {
 		modules[0].ID(): {},
 	})
 
-	gen := newTestGenerator(t, cfg.GitLab, cfg.Execution, cfg.Contributions, depGraph, modules)
+	gen := newTestGenerator(t, cfg.GitLab, cfg.Profile, cfg.Contributions, depGraph, modules)
 	genPipeline, err := gen.Generate()
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -118,7 +118,7 @@ func TestGenerator_Generate_WithSecrets(t *testing.T) {
 		modules[0].ID(): {},
 	})
 
-	gen := newTestGenerator(t, cfg.GitLab, cfg.Execution, cfg.Contributions, depGraph, modules)
+	gen := newTestGenerator(t, cfg.GitLab, cfg.Profile, cfg.Contributions, depGraph, modules)
 	genPipeline, err := gen.Generate()
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -172,7 +172,7 @@ func TestGenerator_DetailedPlanForcedByResourceConsumer(t *testing.T) {
 		module.ID(): {},
 	})
 
-	gen := newTestGenerator(t, cfg.GitLab, cfg.Execution, cfg.Contributions, depGraph, []*discovery.Module{module})
+	gen := newTestGenerator(t, cfg.GitLab, cfg.Profile, cfg.Contributions, depGraph, []*discovery.Module{module})
 	out, err := gen.Generate()
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
@@ -220,7 +220,7 @@ func TestGenerator_Generate_WithArtifacts(t *testing.T) {
 		modules[0].ID(): {},
 	})
 
-	gen := newTestGenerator(t, cfg.GitLab, cfg.Execution, cfg.Contributions, depGraph, modules)
+	gen := newTestGenerator(t, cfg.GitLab, cfg.Profile, cfg.Contributions, depGraph, modules)
 	genPipeline, err := gen.Generate()
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -275,7 +275,7 @@ func TestGenerator_Generate_WithPolicyCheck(t *testing.T) {
 		modules[0].ID(): {},
 	})
 
-	gen := newTestGenerator(t, cfg.GitLab, cfg.Execution, cfg.Contributions, depGraph, modules)
+	gen := newTestGenerator(t, cfg.GitLab, cfg.Profile, cfg.Contributions, depGraph, modules)
 	genPipeline, err := gen.Generate()
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)

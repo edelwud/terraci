@@ -12,12 +12,15 @@ type projectIRBuildInput struct {
 	TargetModules []*discovery.Module
 	AllModules    []*discovery.Module
 	ModuleIndex   *discovery.ModuleIndex
-	Script        ScriptConfig
+	Terraform     TerraformJobConfig
 	Contributions []*Contribution
 	Intent        BuildIntent
 }
 
 func buildProjectIR(opts projectIRBuildInput) (*IR, error) {
+	if err := opts.Intent.validate(); err != nil {
+		return nil, err
+	}
 	allContributedJobs := collectContributedJobs(opts.Contributions)
 	plan, err := prepareModuleGraph(
 		opts.DepGraph, opts.TargetModules, opts.AllModules, opts.ModuleIndex,
@@ -34,7 +37,7 @@ func buildProjectIR(opts projectIRBuildInput) (*IR, error) {
 	planOutputs := requestedPlanOutputs(plan, requests)
 
 	ir := &IR{
-		jobs: buildJobs(plan, opts.Intent, opts.Script, planOutputs, requests, allContributedJobs),
+		jobs: buildJobs(plan, opts.Intent, opts.Terraform, planOutputs, requests, allContributedJobs),
 	}
 
 	if err := resolvePipelineResources(ir, plan, required, allContributedJobs); err != nil {
@@ -136,13 +139,13 @@ func matchingRequestedModulePaths(request ResourceRequest, modules []*discovery.
 	}
 }
 
-func buildJobs(plan *jobPlan, intent BuildIntent, script ScriptConfig, planOutputs map[string]PlanOutputs, requests []ResourceRequest, contributedJobs []ContributedJob) []Job {
-	jobs := buildModuleJobs(plan, intent, script, planOutputs, requests)
+func buildJobs(plan *jobPlan, intent BuildIntent, terraform TerraformJobConfig, planOutputs map[string]PlanOutputs, requests []ResourceRequest, contributedJobs []ContributedJob) []Job {
+	jobs := buildModuleJobs(plan, intent, terraform, planOutputs, requests)
 	jobs = append(jobs, buildContributedJobs(contributedJobs)...)
 	return jobs
 }
 
-func buildModuleJobs(plan *jobPlan, intent BuildIntent, script ScriptConfig, planOutputs map[string]PlanOutputs, requests []ResourceRequest) []Job {
+func buildModuleJobs(plan *jobPlan, intent BuildIntent, terraform TerraformJobConfig, planOutputs map[string]PlanOutputs, requests []ResourceRequest) []Job {
 	jobs := make([]Job, 0, len(plan.targetModules)*2)
 	for _, moduleID := range plan.moduleOrder {
 		mod := plan.moduleIndex.ByID(moduleID)
@@ -151,27 +154,27 @@ func buildModuleJobs(plan *jobPlan, intent BuildIntent, script ScriptConfig, pla
 		}
 		modulePath := mod.ID()
 
-		env := TerraformJobEnv(script.TerraformEnv(), mod)
+		env := TerraformJobEnv(terraform.TerraformEnv(), mod)
 		var planJob *Job
 
 		if moduleNeedsPlanJob(modulePath, intent, requests) {
-			job := buildPlanJob(plan, mod, env, !intent.ApplyEnabled(), script, planOutputs[modulePath])
+			job := buildPlanJob(plan, mod, env, !intent.ApplyEnabled(), terraform, planOutputs[modulePath])
 			planJob = &job
 			jobs = append(jobs, job)
 		}
 
 		if intent.ApplyEnabled() {
-			jobs = append(jobs, buildApplyJob(plan, mod, env, planJob, script))
+			jobs = append(jobs, buildApplyJob(plan, mod, env, planJob, terraform))
 		}
 	}
 
 	return jobs
 }
 
-func buildPlanJob(plan *jobPlan, mod *discovery.Module, env map[string]string, planOnly bool, script ScriptConfig, outputs PlanOutputs) Job {
+func buildPlanJob(plan *jobPlan, mod *discovery.Module, env map[string]string, planOnly bool, terraform TerraformJobConfig, outputs PlanOutputs) Job {
 	planName := jobName(JobKindPlan, mod)
 	modulePath := mod.ID()
-	planOperation, produces, artifact := script.NewPlanOperation(planName, modulePath, outputs)
+	planOperation, produces, artifact := terraform.NewPlanOperation(planName, modulePath, outputs)
 
 	var deps []JobDependency
 	if planOnly {
@@ -192,9 +195,9 @@ func buildPlanJob(plan *jobPlan, mod *discovery.Module, env map[string]string, p
 	}
 }
 
-func buildApplyJob(plan *jobPlan, mod *discovery.Module, env map[string]string, planJob *Job, script ScriptConfig) Job {
+func buildApplyJob(plan *jobPlan, mod *discovery.Module, env map[string]string, planJob *Job, terraform TerraformJobConfig) Job {
 	modulePath := mod.ID()
-	applyOperation := script.NewApplyOperation(modulePath, planJob != nil)
+	applyOperation := terraform.NewApplyOperation(modulePath, planJob != nil)
 	applyDeps := controlDependencies(resolveDependencyNames(mod, JobKindApply, plan.subgraph, plan.moduleIndex))
 	var consumes []ResourceSpec
 	var inputArtifacts []InputArtifact

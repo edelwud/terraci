@@ -212,7 +212,6 @@ exclude:
 
 execution:
   binary: "terraform"           # or "tofu"
-  plan_enabled: true
 
 extensions:
   # GitLab CI (omit for GitHub Actions)

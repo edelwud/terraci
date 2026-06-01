@@ -25,7 +25,6 @@ type commandSpec struct {
 type shellCommandRunner struct {
 	workspace execution.Workspace
 	selfPath  string
-	execEnv   map[string]string
 }
 
 func (r *shellCommandRunner) Run(ctx context.Context, spec commandSpec) error {
@@ -36,7 +35,7 @@ func (r *shellCommandRunner) Run(ctx context.Context, spec commandSpec) error {
 		cmd.Dir = r.workspace.WorkDir()
 	}
 
-	cmd.Env = envMapToList(mergeEnv(environMap(), r.execEnv, spec.Env))
+	cmd.Env = envMapToList(mergeEnv(environMap(), spec.Env))
 
 	var stderr bytes.Buffer
 	cmd.Stdout = os.Stdout

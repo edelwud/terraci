@@ -10,8 +10,6 @@ name: Terraform
 permissions:
     contents: read
     pull-requests: write
-env:
-    TERRAFORM_BINARY: terraform
 jobs:
     plan-platform-stage-eu-central-1-vpc:
         runs-on: ubuntu-latest
@@ -30,8 +28,8 @@ jobs:
             - name: Plan platform/stage/eu-central-1/vpc
               run: |-
                 cd platform/stage/eu-central-1/vpc
-                ${TERRAFORM_BINARY} init
-                ${TERRAFORM_BINARY} plan -out=plan.tfplan
+                terraform init
+                terraform plan -out=plan.tfplan
             - name: Stage plan artifacts
               run: |-
                 set -eu

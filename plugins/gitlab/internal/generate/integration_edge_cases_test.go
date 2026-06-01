@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/discovery"
-	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/parser"
+	"github.com/edelwud/terraci/pkg/terraformrun"
 )
 
 // TestEdgeCase_EmptyTargetModules tests generation with empty slice of target modules
@@ -236,18 +236,14 @@ func TestEdgeCase_ModuleWithSelfReference(t *testing.T) {
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
 	glCfg := &Config{}
-	execCfg := execution.Config{
-		Binary:      "terraform",
-		InitEnabled: true,
-		Parallelism: 4,
-	}
+	profile := mustProfile(terraformrun.ProfileOptions{})
 
-	ir, buildErr := buildTestIR(glCfg, execCfg, nil, depGraph, modules, nil)
+	ir, buildErr := buildTestIR(glCfg, profile, nil, depGraph, modules, nil)
 	if buildErr != nil {
 		t.Logf("Self-reference caused error (expected): %v", buildErr)
 		return
 	}
-	generator := NewGenerator(glCfg, execCfg, ir)
+	generator := NewGenerator(glCfg, profile, ir)
 	result, err := generator.Generate()
 	if err != nil {
 		t.Logf("Self-reference caused error (expected): %v", err)
@@ -274,13 +270,8 @@ func TestEdgeCase_SpecialCharactersInModuleName(t *testing.T) {
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
 	glCfg := &Config{}
-	execCfg := execution.Config{
-		Binary:      "terraform",
-		InitEnabled: true,
-		Parallelism: 4,
-	}
-
-	generator := newTestGenerator(t, glCfg, execCfg, nil, depGraph, modules)
+	profile := mustProfile(terraformrun.ProfileOptions{})
+	generator := newTestGenerator(t, glCfg, profile, nil, depGraph, modules)
 	result, err := generator.Generate()
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -311,13 +302,8 @@ func TestEdgeCase_VeryLongModulePath(t *testing.T) {
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
 	glCfg := &Config{}
-	execCfg := execution.Config{
-		Binary:      "terraform",
-		InitEnabled: true,
-		Parallelism: 4,
-	}
-
-	generator := newTestGenerator(t, glCfg, execCfg, nil, depGraph, modules)
+	profile := mustProfile(terraformrun.ProfileOptions{})
+	generator := newTestGenerator(t, glCfg, profile, nil, depGraph, modules)
 	result, err := generator.Generate()
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)

@@ -821,8 +821,8 @@ func (p *testProviderPlugin) ProviderName() string {
 }
 func (p *testProviderPlugin) PipelineID() string { return "1" }
 func (p *testProviderPlugin) CommitSHA() string  { return "abc" }
-func (p *testProviderPlugin) NewGenerator(_ *plugin.AppContext, _ *pipeline.IR) pipeline.Generator {
-	return nil
+func (p *testProviderPlugin) NewGenerator(_ *plugin.AppContext, _ *pipeline.IR) (pipeline.Generator, error) {
+	return nil, nil
 }
 func (p *testProviderPlugin) NewCommentService(_ *plugin.AppContext) ci.CommentService {
 	return nil

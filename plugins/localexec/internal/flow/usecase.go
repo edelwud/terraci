@@ -12,6 +12,7 @@ import (
 	"github.com/edelwud/terraci/pkg/filter"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/terraformrun"
 	"github.com/edelwud/terraci/pkg/workflow"
 	"github.com/edelwud/terraci/plugins/localexec/internal/reports"
 	"github.com/edelwud/terraci/plugins/localexec/internal/runner"
@@ -189,13 +190,13 @@ func (u *UseCase) Run(ctx context.Context, req Request) (*Result, error) {
 	}
 
 	contributions := u.contributions.Collect(u.appCtx)
-	plan, err := buildExecutionIR(project, execRuntime.ExecConfig, req.Mode, contributions)
+	plan, err := buildExecutionIR(project, execRuntime.Profile, req.Mode, contributions)
 	if err != nil {
 		return nil, err
 	}
 	resultExec, err := execution.NewExecutor(
 		execRuntime.JobRunner,
-		execution.WithParallelism(execRuntime.ExecConfig.Parallelism),
+		execution.WithParallelism(execRuntime.Profile.Parallelism()),
 		execution.WithEventSink(u.eventSink),
 	).Execute(ctx, plan)
 	if err != nil {
@@ -261,22 +262,23 @@ func (contextContributionCollector) Collect(appCtx *plugin.AppContext) []*pipeli
 	return appCtx.PipelineContributions()
 }
 
-func buildExecutionIR(project *workflow.ProjectResult, execCfg execution.Config, mode spec.ExecutionMode, contributions []*pipeline.Contribution) (*pipeline.IR, error) {
-	resourceRequests := []pipeline.ResourceRequest(nil)
-	if mode == spec.ExecutionModePlan {
-		resourceRequests = append(resourceRequests, pipeline.AllPlanResources(pipeline.ResourceKindPlanBinary))
-	}
-	intent, err := pipeline.NewBuildIntent(pipeline.BuildIntentOptions{
-		ApplyEnabled:     mode != spec.ExecutionModePlan,
-		ResourceRequests: resourceRequests,
-	})
+func buildExecutionIR(project *workflow.ProjectResult, profile terraformrun.Profile, mode spec.ExecutionMode, contributions []*pipeline.Contribution) (*pipeline.IR, error) {
+	intent, err := intentForMode(mode)
 	if err != nil {
 		return nil, fmt.Errorf("build local execution intent: %w", err)
+	}
+	terraformConfig, err := pipeline.NewTerraformJobConfig(pipeline.TerraformJobConfigOptions{
+		Binary:      profile.Binary().String(),
+		InitEnabled: profile.InitEnabled(),
+		Env:         profile.Env(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("terraform job config: %w", err)
 	}
 
 	ir, err := pipeline.BuildProjectIR(pipeline.ProjectIRRequest{
 		Project:       project,
-		Script:        pipeline.ScriptConfig{InitEnabled: execCfg.InitEnabled, Env: execCfg.Env},
+		Terraform:     terraformConfig,
 		Contributions: contributions,
 		Intent:        intent,
 	})
@@ -284,4 +286,16 @@ func buildExecutionIR(project *workflow.ProjectResult, execCfg execution.Config,
 		return nil, fmt.Errorf("build local execution plan: %w", err)
 	}
 	return ir, nil
+}
+
+func intentForMode(mode spec.ExecutionMode) (pipeline.BuildIntent, error) {
+	switch mode {
+	case spec.ExecutionModeRun:
+		return pipeline.ApplyBuildIntent()
+	case spec.ExecutionModePlan:
+		return pipeline.PlanBuildIntent(pipeline.AllPlanResources(pipeline.ResourceKindPlanBinary))
+	default:
+		var zero pipeline.BuildIntent
+		return zero, fmt.Errorf("unsupported local execution mode %q", mode)
+	}
 }

@@ -134,11 +134,11 @@ func TestBuild_TerraformJobsMergeExecutionEnv(t *testing.T) {
 	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
 	modules := []*discovery.Module{mod}
 	opts := testProjectIRBuildInput(modules, nil, mustIntent(t, true))
-	opts.Script.Env = map[string]string{
+	opts.Terraform = mustTerraformJobConfigWithEnv(t, map[string]string{
 		"TF_MODULE":        "override",
 		"TF_IN_AUTOMATION": "true",
 		"CUSTOM":           "value",
-	}
+	})
 
 	ir, err := buildProjectIR(opts)
 	if err != nil {
@@ -270,6 +270,7 @@ func TestBuild_ValidatesResourceRequestsWithContext(t *testing.T) {
 		{
 			name: "missing selector scope in requirements",
 			intent: BuildIntent{
+				constructed: true,
 				resources: []ResourceRequest{{
 					kind: ResourceKindPlanJSON,
 				}},
@@ -279,6 +280,7 @@ func TestBuild_ValidatesResourceRequestsWithContext(t *testing.T) {
 		{
 			name: "plan resource cannot use producer selector",
 			intent: BuildIntent{
+				constructed: true,
 				resources: []ResourceRequest{{
 					kind: ResourceKindPlanJSON,
 					selector: ResourceSelector{
@@ -290,7 +292,8 @@ func TestBuild_ValidatesResourceRequestsWithContext(t *testing.T) {
 			wantErrSubstr: `requirements.resources[0]: plan_json cannot use producer-scoped selector "producer"`,
 		},
 		{
-			name: "plugin resource cannot use module selector",
+			name:   "plugin resource cannot use module selector",
+			intent: mustIntent(t, true),
 			contributions: []*Contribution{{
 				jobs: []ContributedJob{{
 					name:     "summary",
@@ -412,14 +415,47 @@ func TestIR_ModuleCountCountsDistinctModules(t *testing.T) {
 
 func mustIntent(tb testing.TB, applyEnabled bool, resources ...ResourceRequest) BuildIntent {
 	tb.Helper()
-	intent, err := NewBuildIntent(BuildIntentOptions{
-		ApplyEnabled:     applyEnabled,
-		ResourceRequests: resources,
-	})
+	var (
+		intent BuildIntent
+		err    error
+	)
+	if applyEnabled {
+		intent, err = ApplyBuildIntent(resources...)
+	} else {
+		intent, err = PlanBuildIntent(resources...)
+	}
 	if err != nil {
-		tb.Fatalf("NewBuildIntent() error = %v", err)
+		tb.Fatalf("build intent error = %v", err)
 	}
 	return intent
+}
+
+func mustTerraformJobConfigWithEnv(tb testing.TB, env map[string]string) TerraformJobConfig {
+	tb.Helper()
+	cfg, err := NewTerraformJobConfig(TerraformJobConfigOptions{
+		Binary:      "terraform",
+		InitEnabled: true,
+		Env:         env,
+	})
+	if err != nil {
+		tb.Fatalf("NewTerraformJobConfig() error = %v", err)
+	}
+	return cfg
+}
+
+func testTerraformJobConfig() TerraformJobConfig {
+	cfg, err := newTestTerraformJobConfig()
+	if err != nil {
+		panic(err)
+	}
+	return cfg
+}
+
+func newTestTerraformJobConfig() (TerraformJobConfig, error) {
+	return NewTerraformJobConfig(TerraformJobConfigOptions{
+		Binary:      "terraform",
+		InitEnabled: true,
+	})
 }
 
 func testProjectIRBuildInput(modules []*discovery.Module, edges [][2]int, intent BuildIntent) projectIRBuildInput {
@@ -428,7 +464,7 @@ func testProjectIRBuildInput(modules []*discovery.Module, edges [][2]int, intent
 		TargetModules: modules,
 		AllModules:    modules,
 		ModuleIndex:   discovery.NewModuleIndex(modules),
-		Script:        ScriptConfig{InitEnabled: true},
+		Terraform:     testTerraformJobConfig(),
 		Intent:        intent,
 	}
 }

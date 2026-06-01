@@ -30,31 +30,28 @@ extensions:
 
 При установке `execution.binary: tofu`, TerraCi:
 
-1. Устанавливает `TERRAFORM_BINARY=tofu` в переменных пайплайна
-2. Использует `${TERRAFORM_BINARY}` во всех генерируемых скриптах
-3. Генерирует команды `tofu init`, `tofu plan`, `tofu apply`
+1. Записывает `tofu` в Terraform operation внутри pipeline IR
+2. Использует `tofu` во всех генерируемых скриптах
+3. Выбирает OpenTofu image по умолчанию для GitLab, если custom image не настроен
 
 ## Сгенерированный пайплайн
 
 ```yaml
-variables:
-  TERRAFORM_BINARY: "tofu"
-
 default:
   image: ghcr.io/opentofu/opentofu:1.6
   before_script:
-    - ${TERRAFORM_BINARY} init
+    - tofu init
 
 plan-platform-prod-vpc:
   script:
     - cd platform/prod/us-east-1/vpc
-    - ${TERRAFORM_BINARY} plan -out=plan.tfplan
+    - tofu plan -out=plan.tfplan
   # ...
 
 apply-platform-prod-vpc:
   script:
     - cd platform/prod/us-east-1/vpc
-    - ${TERRAFORM_BINARY} apply plan.tfplan
+    - tofu apply plan.tfplan
   # ...
 ```
 
@@ -75,13 +72,9 @@ apply-platform-prod-vpc:
 ```yaml
 # В вашем шаблоне пайплайна
 .tofu-job:
-  variables:
-    TERRAFORM_BINARY: "tofu"
   image: ghcr.io/opentofu/opentofu:1.6
 
 .terraform-job:
-  variables:
-    TERRAFORM_BINARY: "terraform"
   image: hashicorp/terraform:1.6
 ```
 
@@ -149,18 +142,18 @@ TerraCi работает с:
 
 Парсинг HCL совместим с обоими инструментами.
 
-## Пользовательский путь к бинарнику
+## Выбор бинарника
 
-Если бинарник имеет нестандартное имя или путь, укажите его в `execution.binary`. TerraCi экспортирует значение в переменную `TERRAFORM_BINARY` и использует её везде, где генерирует команду Terraform:
+`execution.binary` принимает каноничные runtime-значения `terraform` и `tofu`. TerraCi записывает выбранный бинарник в Terraform jobs внутри IR, а providers/local execution рендерят команды напрямую из operation:
 
 ```yaml
 execution:
-  binary: "/usr/local/bin/tofu-1.6"
+  binary: tofu
 ```
 
 ## Переменные окружения
 
-`TERRAFORM_BINARY` экспортируется автоматически из `execution.binary`. Другие переменные окружения, специфичные для OpenTofu, добавляйте через `execution.env` (на весь воркфлоу) или на уровне провайдера:
+Переменные окружения для OpenTofu добавляйте через `execution.env`. Они применяются только к Terraform plan/apply jobs, а не к provider workflow globals или standalone plugin command jobs:
 
 ```yaml
 execution:

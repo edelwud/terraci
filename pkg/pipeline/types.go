@@ -4,6 +4,7 @@ import (
 	"maps"
 
 	"github.com/edelwud/terraci/pkg/discovery"
+	"github.com/edelwud/terraci/pkg/terraformrun"
 )
 
 // IR is the provider-agnostic intermediate representation of a CI pipeline.
@@ -74,6 +75,7 @@ type Operation struct {
 
 // TerraformOperation describes a terraform/tofu operation in a module.
 type TerraformOperation struct {
+	binary       terraformrun.Binary
 	kind         OperationType
 	modulePath   string
 	initEnabled  bool
@@ -320,6 +322,9 @@ func (o Operation) clone() Operation {
 
 // Kind returns the terraform operation kind.
 func (o TerraformOperation) Kind() OperationType { return o.kind }
+
+// Binary returns the Terraform-compatible executable name for this operation.
+func (o TerraformOperation) Binary() string { return o.binary.String() }
 
 // ModulePath returns the workspace-relative module path.
 func (o TerraformOperation) ModulePath() string { return o.modulePath }

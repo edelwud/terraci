@@ -23,7 +23,7 @@ func TestToYAML(t *testing.T) {
 		On: domainpkg.WorkflowTrigger{
 			Push: &domainpkg.PushTrigger{Branches: []string{"main"}},
 		},
-		Env: map[string]string{"TERRAFORM_BINARY": "terraform"},
+		Env: map[string]string{"TF_IN_AUTOMATION": "true"},
 	})
 	addErr := builder.AddJob("plan-test", job)
 	if addErr != nil {
@@ -48,7 +48,7 @@ func TestToYAML(t *testing.T) {
 		{"name field", "name:"},
 		{"jobs field", "jobs:"},
 		{"plan-test job", "plan-test:"},
-		{"TERRAFORM_BINARY", "TERRAFORM_BINARY"},
+		{"explicit user env", "TF_IN_AUTOMATION"},
 	}
 	for _, check := range checks {
 		if !strings.Contains(yaml, check.contains) {

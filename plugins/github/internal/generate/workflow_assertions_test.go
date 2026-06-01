@@ -42,14 +42,6 @@ func (a *workflowAssert) noJob(name string) *workflowAssert {
 	return a
 }
 
-func (a *workflowAssert) env(name, expected string) *workflowAssert {
-	a.t.Helper()
-	if got := a.workflow.Env()[name]; got != expected {
-		a.t.Fatalf("expected env %s=%q, got %q", name, expected, got)
-	}
-	return a
-}
-
 func (a *workflowAssert) job(name string) *jobAssert {
 	a.t.Helper()
 	job, ok := a.workflow.Job(name)

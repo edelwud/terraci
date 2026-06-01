@@ -4,8 +4,8 @@ plan-platform-stage-eu-central-1-vpc:
     stage: deploy-0
     script:
         - cd platform/stage/eu-central-1/vpc
-        - ${TERRAFORM_BINARY} init
-        - ${TERRAFORM_BINARY} plan -out=plan.tfplan
+        - terraform init
+        - terraform plan -out=plan.tfplan
     variables:
         TF_ENVIRONMENT: stage
         TF_MODULE: vpc
@@ -25,5 +25,3 @@ plan-platform-stage-eu-central-1-vpc:
     resource_group: platform/stage/eu-central-1/vpc
 stages:
     - deploy-0
-variables:
-    TERRAFORM_BINARY: terraform

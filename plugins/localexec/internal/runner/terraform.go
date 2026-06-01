@@ -19,9 +19,9 @@ type terraformRunner interface {
 }
 
 type terraformOperationRunner struct {
-	binaryPath string
-	workspace  execution.Workspace
-	execConfig execution.Config
+	workspace       execution.Workspace
+	binaryResolver  binaryResolver
+	planParallelism int
 }
 
 func (r *terraformOperationRunner) RunPlan(ctx context.Context, job pipeline.Job, op *pipeline.TerraformOperation) error {
@@ -31,8 +31,8 @@ func (r *terraformOperationRunner) RunPlan(ctx context.Context, job pipeline.Job
 	}
 
 	opts := []tfexec.PlanOption{tfexec.Out(filepath.Base(op.PlanFile()))}
-	if r.execConfig.Parallelism > 0 {
-		opts = append(opts, tfexec.Parallelism(r.execConfig.Parallelism))
+	if r.planParallelism > 0 {
+		opts = append(opts, tfexec.Parallelism(r.planParallelism))
 	}
 	if _, err = tf.Plan(ctx, opts...); err != nil {
 		return fmt.Errorf("%s: plan: %w", job.Name(), err)
@@ -82,11 +82,15 @@ func (r *terraformOperationRunner) RunApply(ctx context.Context, job pipeline.Jo
 }
 
 func (r *terraformOperationRunner) prepare(ctx context.Context, job pipeline.Job, op *pipeline.TerraformOperation) (*tfexec.Terraform, error) {
-	tf, err := tfexec.NewTerraform(r.workspace.ModuleDir(op.ModulePath()), r.binaryPath)
+	binaryPath, err := r.binaryResolver.Resolve(op.Binary())
+	if err != nil {
+		return nil, fmt.Errorf("%s: resolve %s binary: %w", job.Name(), op.Binary(), err)
+	}
+	tf, err := tfexec.NewTerraform(r.workspace.ModuleDir(op.ModulePath()), binaryPath)
 	if err != nil {
 		return nil, fmt.Errorf("%s: create terraform runner: %w", job.Name(), err)
 	}
-	if err = tf.SetEnv(mergeEnv(environMap(), r.execConfig.Env, job.Env())); err != nil {
+	if err = tf.SetEnv(mergeEnv(environMap(), job.Env())); err != nil {
 		return nil, fmt.Errorf("%s: set env: %w", job.Name(), err)
 	}
 

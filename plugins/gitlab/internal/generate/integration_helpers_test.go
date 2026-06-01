@@ -8,10 +8,10 @@ import (
 
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/discovery"
-	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/parser"
 	"github.com/edelwud/terraci/pkg/pipeline"
+	"github.com/edelwud/terraci/pkg/terraformrun"
 )
 
 // testdataDir returns the absolute path to the testdata directory
@@ -36,7 +36,7 @@ type Fixture struct {
 	Dir           string
 	Config        *config.Config
 	GLConfig      *Config
-	ExecConfig    execution.Config
+	Profile       terraformrun.Profile
 	Contributions []*pipeline.Contribution
 	Modules       []*discovery.Module
 	ModuleIndex   *discovery.ModuleIndex
@@ -67,7 +67,10 @@ func LoadFixture(t *testing.T, name string) *Fixture {
 	}
 
 	glCfg := decodeGLConfig(cfg)
-	execCfg := execution.ConfigFromProject(cfg.Snapshot())
+	profile, err := terraformrun.ProfileFromConfig(cfg.Snapshot())
+	if err != nil {
+		t.Fatalf("failed to build terraform profile for fixture %s: %v", name, err)
+	}
 
 	// Scan modules
 	scanner := discovery.NewScanner(dir, cfg.Structure.Segments)
@@ -96,10 +99,10 @@ func LoadFixture(t *testing.T, name string) *Fixture {
 	// fail at IR construction; tests that load such fixtures inspect the
 	// dep graph directly and never call Generate, so we leave the generator
 	// nil rather than aborting.
-	ir, _ := buildTestIR(glCfg, execCfg, nil, depGraph, modules, nil)
+	ir, _ := buildTestIR(glCfg, profile, nil, depGraph, modules, nil)
 	var generator *Generator
 	if ir != nil {
-		generator = NewGenerator(glCfg, execCfg, ir)
+		generator = NewGenerator(glCfg, profile, ir)
 	}
 
 	return &Fixture{
@@ -107,7 +110,7 @@ func LoadFixture(t *testing.T, name string) *Fixture {
 		Dir:         dir,
 		Config:      cfg,
 		GLConfig:    glCfg,
-		ExecConfig:  execCfg,
+		Profile:     profile,
 		Modules:     modules,
 		ModuleIndex: moduleIndex,
 		DepGraph:    depGraph,

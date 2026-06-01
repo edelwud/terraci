@@ -27,7 +27,7 @@ func (s *fixtureScenario) rebuildGenerator() {
 	s.fixture.Generator = newTestGeneratorWithTargetsAndApply(
 		s.t,
 		s.fixture.GLConfig,
-		s.fixture.ExecConfig,
+		s.fixture.Profile,
 		s.fixture.Contributions,
 		s.fixture.DepGraph,
 		s.fixture.Modules,

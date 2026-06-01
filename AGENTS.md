@@ -95,9 +95,10 @@ pkg/                            # Public API — importable by external plugins 
 │   ├── common.go               # Internal job planning helpers + IR.DryRun
 │   ├── jobs.go                 # JobKind + IR module counts
 │   ├── env.go                  # ModuleEnvVars
-│   ├── scripts.go              # ScriptConfig, NewPlanOperation, NewApplyOperation (IR construction only)
+│   ├── scripts.go              # TerraformJobConfig, NewPlanOperation, NewApplyOperation (IR construction only)
 │   └── cishell/                # Shell renderer — keeps shell-specific knowledge out of the IR
 │       └── render.go           # RenderOperation: pipeline.Operation → POSIX shell command lines
+├── terraformrun/               # Terraform/OpenTofu runtime profile from immutable config snapshots
 ├── ci/                         # Plugin-agnostic CI types
 │   ├── report.go, report_store.go, report_types.go, report_freshness.go, report_validation.go, section.go
 │   │                           #   Report envelope, ReportStore, ArtifactContext/ArtifactRun, ReportSection, versioned typed RenderSection/RenderBlock/RenderValue payloads, NewRenderedReport/NewRenderedSection, SelectCurrentReports + validation
@@ -346,7 +347,7 @@ as `Job(name)`, `JobNames()`, `HasNeed(job, dep)`, `Steps()`, `Needs()`, and
 `Env()`, and `ToYAML()` is the only raw YAML/map boundary. Do not add
 one-shot provider document constructors or job-map read APIs.
 
-Shell rendering (`cd module && ${TERRAFORM_BINARY} init && plan -out=…`) lives in `pkg/pipeline/cishell` (`cishell.RenderOperation(op)`) — never in the IR package itself. Providers driving Terraform via tfexec instead of shell don't need cishell.
+Shell rendering (`cd module && terraform init && terraform plan -out=…`) lives in `pkg/pipeline/cishell` (`cishell.RenderOperation(op)`) — never in the IR package itself. The binary comes from `terraformrun.Profile` and is stored on each `pipeline.TerraformOperation`, so providers and local execution consume the IR instead of injecting global binary environment variables.
 
 Plugins contribute via `PipelineContributor.PipelineContribution(ctx) (*pipeline.Contribution, error)`:
 - `pipeline.NewPluginCommandJob(...)` / `pipeline.NewContributedJob(...)` build validated standalone DAG jobs with typed resource inputs/outputs.
@@ -460,6 +461,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **One file per capability**: plugin.go < 30 lines; each interface in its own file
 - **Compile-time extensibility**: `xterraci build --with/--without` for custom binaries
 - **Pipeline IR**: `workflow.PlanProject(...)` → `pipeline.BuildProjectIR(...)` → immutable `*pipeline.IR`. The IR is the single execution input — generators and the local executor both consume `pipeline.Job` values through getters, not direct field mutation, job pointers, or manual literals.
+- **Terraform runtime intent**: `config.Snapshot` → `terraformrun.Profile` → `pipeline.TerraformJobConfig` → Terraform jobs in the IR. `execution.env` is Terraform-job env only; command jobs and provider workflow globals do not receive it implicitly. `pipeline.BuildIntent` must come from `ApplyBuildIntent` or `PlanBuildIntent`, and plan jobs/artifacts are derived from apply intent plus requested resources.
 - **IR-bound generators**: `PipelineGeneratorFactory.NewGenerator(ctx, *pipeline.IR)` — providers don't reach for depGraph/modules/contributions; the IR already encodes them. Provider job builders take immutable `pipeline.Job` values from `IR.Jobs()` and produce provider document jobs through provider-local builders.
 - **Shell rendering separated from IR**: `pkg/pipeline/cishell.RenderOperation(op)` for shell-driven CI; the IR carries `pipeline.TerraformOperation` data only.
 - **Canonical dry-run source**: dry-run stage/job counts derive from `*IR.DryRun(totalModules)`.
