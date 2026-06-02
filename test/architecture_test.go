@@ -209,7 +209,12 @@ func TestArchitecture_ConfigSnapshotAndDocs(t *testing.T) {
 		`state.BoolPtr("`,
 		"state.Provider()",
 		"state.Binary()",
+		"InitGroupSpec",
+		"InitGroups() []*initwiz",
+		"InitGroups() []*InitGroupSpec",
 		"Fields: []initwiz.InitField{{",
+		"diagnostic.FromWarnings",
+		"FromWarnings(",
 	}
 	for _, rel := range textFiles(t, root, "AGENTS.md", "docs", "examples", "pkg/plugin/doc.go") {
 		if allowUnder(rel, "docs/.vitepress/dist/") {
@@ -254,6 +259,9 @@ func TestArchitecture_InitExtensionContracts(t *testing.T) {
 				if isInitContributionLiteral(n.Type, initwizAliases) {
 					violations = append(violations, rel+" manually constructs initwiz.InitContribution; use initwiz.NewInitContribution")
 				}
+				if !strings.HasPrefix(rel, "pkg/plugin/initwiz/") && isInitGroupLiteral(n.Type, initwizAliases) {
+					violations = append(violations, rel+" manually constructs initwiz.InitGroup; use initwiz.NewInitGroup")
+				}
 				if !strings.HasPrefix(rel, "pkg/plugin/initwiz/") && isInitFieldLiteral(n.Type, initwizAliases) {
 					violations = append(violations, rel+" manually constructs initwiz.InitField; use initwiz.NewStringField/NewBoolField/NewSelectField")
 				}
@@ -264,6 +272,33 @@ func TestArchitecture_InitExtensionContracts(t *testing.T) {
 
 	if len(violations) > 0 {
 		t.Fatalf("init extension contract violations:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
+func TestArchitecture_ConfigSnapshotMutableCopyBoundary(t *testing.T) {
+	root := repoRoot(t)
+	var violations []string
+
+	for _, rel := range goFiles(t, root, "cmd", "pkg", "plugins", "examples") {
+		if !isProductionFile(rel) || strings.HasPrefix(rel, "pkg/config/") {
+			continue
+		}
+		file := parseGoFile(t, filepath.Join(root, rel), 0)
+		ast.Inspect(file, func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			selector, ok := callSelector(call)
+			if ok && selector.Sel.Name == "MutableCopy" {
+				violations = append(violations, rel+" calls config.Snapshot.MutableCopy in production code; consume snapshot accessors or build a fresh config")
+			}
+			return true
+		})
+	}
+
+	if len(violations) > 0 {
+		t.Fatalf("config mutable copy boundary violations:\n%s", strings.Join(violations, "\n"))
 	}
 }
 
@@ -1169,6 +1204,15 @@ func isAnyIdent(expr ast.Expr) bool {
 func isInitContributionLiteral(expr ast.Expr, initwizAliases map[string]bool) bool {
 	selector, ok := expr.(*ast.SelectorExpr)
 	if !ok || selector.Sel.Name != "InitContribution" {
+		return false
+	}
+	ident, ok := selector.X.(*ast.Ident)
+	return ok && initwizAliases[ident.Name]
+}
+
+func isInitGroupLiteral(expr ast.Expr, initwizAliases map[string]bool) bool {
+	selector, ok := expr.(*ast.SelectorExpr)
+	if !ok || selector.Sel.Name != "InitGroup" {
 		return false
 	}
 	ident, ok := selector.X.(*ast.Ident)

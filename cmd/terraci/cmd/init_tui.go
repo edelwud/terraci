@@ -55,11 +55,11 @@ type initModel struct {
 	result      *config.Config
 	err         error
 	state       *initwiz.StateMap
-	flow        initflow.Flow
+	flow        *initflow.Flow
 	buildConfig func(*initwiz.StateMap) (*initflow.BuildResult, error)
 }
 
-func newInitModel(flow initflow.Flow) *initModel {
+func newInitModel(flow *initflow.Flow) *initModel {
 	state := flow.DefaultState()
 
 	m := &initModel{
@@ -111,18 +111,16 @@ func (m *initModel) basicsGroup(providers []initflow.ProviderOption) *huh.Group 
 
 // buildDisplayGroup converts a typed initflow display group into a huh group.
 func buildDisplayGroup(group initflow.DisplayGroup, state *initwiz.StateMap) *huh.Group {
-	fields := make([]huh.Field, 0, len(group.Fields))
-	for i := range group.Fields {
-		fields = append(fields, buildPluginField(&group.Fields[i], state))
+	groupFields := group.Fields()
+	fields := make([]huh.Field, 0, len(groupFields))
+	for i := range groupFields {
+		fields = append(fields, buildPluginField(&groupFields[i], state))
 	}
 
-	g := huh.NewGroup(fields...).Title(group.Title)
-	if group.ShowWhen != nil {
-		showWhen := group.ShowWhen
-		g = g.WithHideFunc(func() bool {
-			return !showWhen(state)
-		})
-	}
+	g := huh.NewGroup(fields...).Title(group.Title())
+	g = g.WithHideFunc(func() bool {
+		return !group.Visible(state)
+	})
 	return g
 }
 
@@ -245,6 +243,9 @@ func (m *initModel) renderYAMLPreview() string {
 func (m *initModel) build(state *initwiz.StateMap) (*initflow.BuildResult, error) {
 	if m.buildConfig != nil {
 		return m.buildConfig(state)
+	}
+	if m.flow == nil {
+		return nil, nil
 	}
 	return m.flow.BuildConfig(state)
 }

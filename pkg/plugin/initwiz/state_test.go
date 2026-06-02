@@ -97,12 +97,15 @@ func TestInitFieldDefaultsAndDefensiveOptions(t *testing.T) {
 
 	state := NewStateMap()
 	key := MustStateKey[string]("mode")
-	field := NewSelectField(SelectFieldOptions{
+	field, err := NewSelectField(SelectFieldOptions{
 		Key:     key,
 		Title:   "Mode",
 		Default: "all",
 		Options: []InitOption{{Label: "All", Value: "all"}},
 	})
+	if err != nil {
+		t.Fatalf("NewSelectField() error = %v", err)
+	}
 
 	field.ApplyDefault(state)
 	if got := key.Get(state); got != "all" {
@@ -122,26 +125,71 @@ func TestInitFieldDefaultsAndDefensiveOptions(t *testing.T) {
 func TestInitFieldConstructorValidation(t *testing.T) {
 	t.Parallel()
 
-	assertPanics(t, func() {
-		_ = NewStringField(StringFieldOptions{Title: "Missing key"})
-	})
-	assertPanics(t, func() {
-		_ = NewBoolField(BoolFieldOptions{Key: MustStateKey[bool]("enabled")})
-	})
-	assertPanics(t, func() {
-		_ = NewSelectField(SelectFieldOptions{
-			Key:   MustStateKey[string]("mode"),
-			Title: "Mode",
-		})
-	})
+	if _, err := NewStringField(StringFieldOptions{Title: "Missing key"}); err == nil {
+		t.Fatal("NewStringField() error = nil")
+	}
+	if _, err := NewBoolField(BoolFieldOptions{Key: MustStateKey[bool]("enabled")}); err == nil {
+		t.Fatal("NewBoolField() error = nil")
+	}
+	if _, err := NewSelectField(SelectFieldOptions{
+		Key:   MustStateKey[string]("mode"),
+		Title: "Mode",
+	}); err == nil {
+		t.Fatal("NewSelectField() error = nil")
+	}
 }
 
-func assertPanics(t *testing.T, fn func()) {
-	t.Helper()
-	defer func() {
-		if recover() == nil {
-			t.Fatal("expected panic")
-		}
-	}()
-	fn()
+func TestInitGroupConstructorAndDefensiveGetters(t *testing.T) {
+	t.Parallel()
+
+	field, err := NewBoolField(BoolFieldOptions{
+		Key:     MustStateKey[bool]("feature.enabled"),
+		Title:   "Enable feature?",
+		Default: true,
+	})
+	if err != nil {
+		t.Fatalf("NewBoolField() error = %v", err)
+	}
+	group, err := NewInitGroup(InitGroupOptions{
+		Title:    "Feature",
+		Category: CategoryFeature,
+		Order:    10,
+		Fields:   []InitField{field},
+		ShowWhen: func(state *StateMap) bool { return field.BoolKey().Get(state) },
+	})
+	if err != nil {
+		t.Fatalf("NewInitGroup() error = %v", err)
+	}
+	if group.Title() != "Feature" || group.Category() != CategoryFeature || group.Order() != 10 {
+		t.Fatalf("group getters returned unexpected values")
+	}
+	state := NewStateMap()
+	field.BoolKey().Set(state, true)
+	if !group.Visible(state) {
+		t.Fatal("Visible() = false, want true")
+	}
+
+	fields := group.Fields()
+	fields[0] = InitField{}
+	if group.Fields()[0].Key() == "" {
+		t.Fatal("Fields() leaked mutation")
+	}
+}
+
+func TestInitGroupConstructorValidation(t *testing.T) {
+	t.Parallel()
+
+	field, err := NewBoolField(BoolFieldOptions{Key: MustStateKey[bool]("enabled"), Title: "Enabled"})
+	if err != nil {
+		t.Fatalf("NewBoolField() error = %v", err)
+	}
+	if _, err := NewInitGroup(InitGroupOptions{Category: CategoryFeature, Fields: []InitField{field}}); err == nil {
+		t.Fatal("NewInitGroup(empty title) error = nil")
+	}
+	if _, err := NewInitGroup(InitGroupOptions{Title: "Bad", Category: InitCategory("bad"), Fields: []InitField{field}}); err == nil {
+		t.Fatal("NewInitGroup(bad category) error = nil")
+	}
+	if _, err := NewInitGroup(InitGroupOptions{Title: "Empty", Category: CategoryFeature}); err == nil {
+		t.Fatal("NewInitGroup(no fields) error = nil")
+	}
 }

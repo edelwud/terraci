@@ -64,17 +64,3 @@ func TestListSortsDedupesAndDefensivelyCopies(t *testing.T) {
 		t.Fatalf("list leaked mutation, first message = %q", got)
 	}
 }
-
-func TestFromWarnings(t *testing.T) {
-	t.Parallel()
-
-	list := FromWarnings([]string{"b", "a", "a"}, WithSource("ci"))
-	if got, want := list.Len(), 2; got != want {
-		t.Fatalf("Len() = %d, want %d", got, want)
-	}
-	for _, diag := range list.All() {
-		if diag.Severity() != SeverityWarning || diag.Source() != "ci" {
-			t.Fatalf("diag = %#v, want warning with ci source", diag)
-		}
-	}
-}

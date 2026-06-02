@@ -21,45 +21,57 @@ var (
     slackOnFailureKey = initwiz.MustStateKey[string]("slack.on_failure")
 )
 
-func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
-    return []*initwiz.InitGroupSpec{
-        {
-            Title:    "Slack Notifications",
-            Category: initwiz.CategoryFeature,
-            Order:    300,
-            Fields: []initwiz.InitField{
-                initwiz.NewBoolField(initwiz.BoolFieldOptions{
-                    Key:         slackEnabledKey,
-                    Title:       "Enable Slack notifications?",
-                    Default:     false,
-                }),
-            },
-        },
-        {
-            Title:    "Slack Settings",
-            Category: initwiz.CategoryDetail,
-            Order:    300,
-            ShowWhen: func(s *initwiz.StateMap) bool {
-                return slackEnabledKey.Get(s)
-            },
-            Fields: []initwiz.InitField{
-                initwiz.NewStringField(initwiz.StringFieldOptions{
-                    Key:     slackChannelKey,
-                    Title:   "Channel",
-                    Default: "#terraform-deploys",
-                }),
-                initwiz.NewSelectField(initwiz.SelectFieldOptions{
-                    Key:     slackOnFailureKey,
-                    Title:   "Notify on failure",
-                    Default: "always",
-                    Options: []initwiz.InitOption{
-                        {Label: "Always", Value: "always"},
-                        {Label: "Only on failure", Value: "failure"},
-                    },
-                }),
-            },
-        },
+func (p *Plugin) InitGroups() ([]initwiz.InitGroup, error) {
+    enabled, err := initwiz.NewBoolField(initwiz.BoolFieldOptions{
+        Key:     slackEnabledKey,
+        Title:   "Enable Slack notifications?",
+        Default: false,
+    })
+    if err != nil {
+        return nil, err
     }
+    feature, err := initwiz.NewInitGroup(initwiz.InitGroupOptions{
+        Title:    "Slack Notifications",
+        Category: initwiz.CategoryFeature,
+        Order:    300,
+        Fields:   []initwiz.InitField{enabled},
+    })
+    if err != nil {
+        return nil, err
+    }
+
+    channel, err := initwiz.NewStringField(initwiz.StringFieldOptions{
+        Key:     slackChannelKey,
+        Title:   "Channel",
+        Default: "#terraform-deploys",
+    })
+    if err != nil {
+        return nil, err
+    }
+    onFailure, err := initwiz.NewSelectField(initwiz.SelectFieldOptions{
+        Key:     slackOnFailureKey,
+        Title:   "Notify on failure",
+        Default: "always",
+        Options: []initwiz.InitOption{
+            {Label: "Always", Value: "always"},
+            {Label: "Only on failure", Value: "failure"},
+        },
+    })
+    if err != nil {
+        return nil, err
+    }
+    details, err := initwiz.NewInitGroup(initwiz.InitGroupOptions{
+        Title:    "Slack Settings",
+        Category: initwiz.CategoryDetail,
+        Order:    300,
+        ShowWhen: slackEnabledKey.Get,
+        Fields:   []initwiz.InitField{channel, onFailure},
+    })
+    if err != nil {
+        return nil, err
+    }
+
+    return []initwiz.InitGroup{feature, details}, nil
 }
 
 type SlackConfig struct {

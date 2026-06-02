@@ -26,18 +26,22 @@ func providerEnabledKey(providerID string) initwiz.StateKey[bool] {
 // discovers them at runtime so a future GCP/Azure provider plugin appears
 // in the form without a wizard change. If no cloud providers are
 // registered, the group collapses to a single explanatory toggle.
-func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
+func (p *Plugin) InitGroups() ([]initwiz.InitGroup, error) {
 	clouds := cloud.Providers()
 
 	fields := make([]initwiz.InitField, 0, len(clouds))
 	for _, c := range clouds {
 		def := c.Definition()
-		fields = append(fields, initwiz.NewBoolField(initwiz.BoolFieldOptions{
+		field, err := initwiz.NewBoolField(initwiz.BoolFieldOptions{
 			Key:         providerEnabledKey(def.Manifest.ID),
 			Title:       fmt.Sprintf("Estimate %s costs?", def.Manifest.DisplayName),
 			Description: fmt.Sprintf("Run cost estimation against %s plan output", def.Manifest.DisplayName),
 			Default:     false,
-		}))
+		})
+		if err != nil {
+			return nil, err
+		}
+		fields = append(fields, field)
 	}
 
 	if len(fields) == 0 {
@@ -45,22 +49,28 @@ func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
 		// the form group still renders with a clear "no clouds available"
 		// label. Users compiling a custom binary without any cloud-pricing
 		// plugins will see this immediately.
-		fields = []initwiz.InitField{initwiz.NewBoolField(initwiz.BoolFieldOptions{
+		field, err := initwiz.NewBoolField(initwiz.BoolFieldOptions{
 			Key:         initwiz.MustStateKey[bool]("cost.no_providers"),
 			Title:       "Cost estimation unavailable",
 			Description: "No cloud-pricing providers compiled into this binary",
 			Default:     false,
-		})}
+		})
+		if err != nil {
+			return nil, err
+		}
+		fields = []initwiz.InitField{field}
 	}
 
-	return []*initwiz.InitGroupSpec{
-		{
-			Title:    costReportTitle,
-			Category: initwiz.CategoryFeature,
-			Order:    initGroupOrder,
-			Fields:   fields,
-		},
+	group, err := initwiz.NewInitGroup(initwiz.InitGroupOptions{
+		Title:    costReportTitle,
+		Category: initwiz.CategoryFeature,
+		Order:    initGroupOrder,
+		Fields:   fields,
+	})
+	if err != nil {
+		return nil, err
 	}
+	return []initwiz.InitGroup{group}, nil
 }
 
 // BuildInitConfig builds the cost estimation init contribution. Walks the

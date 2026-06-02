@@ -283,18 +283,24 @@ type contractInitContributor struct{}
 func (contractInitContributor) Name() string        { return "contract-init" }
 func (contractInitContributor) Description() string { return "contract init" }
 
-func (contractInitContributor) InitGroups() []*initwiz.InitGroupSpec {
-	return []*initwiz.InitGroupSpec{{
+func (contractInitContributor) InitGroups() ([]initwiz.InitGroup, error) {
+	field, err := initwiz.NewBoolField(initwiz.BoolFieldOptions{
+		Key:   initwiz.MustStateKey[bool]("contract_enabled"),
+		Title: "Enable contract",
+	})
+	if err != nil {
+		return nil, err
+	}
+	group, err := initwiz.NewInitGroup(initwiz.InitGroupOptions{
 		Title:    "Contract",
 		Category: initwiz.CategoryFeature,
 		Order:    10,
-		Fields: []initwiz.InitField{
-			initwiz.NewBoolField(initwiz.BoolFieldOptions{
-				Key:   initwiz.MustStateKey[bool]("contract_enabled"),
-				Title: "Enable contract",
-			}),
-		},
-	}}
+		Fields:   []initwiz.InitField{field},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []initwiz.InitGroup{group}, nil
 }
 
 func (contractInitContributor) BuildInitConfig(*initwiz.StateMap) (*initwiz.InitContribution, error) {

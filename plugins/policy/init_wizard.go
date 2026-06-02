@@ -17,48 +17,61 @@ var (
 
 // InitGroups returns the init wizard group specs for policy checks.
 // Two groups: a feature toggle and a detail group for settings.
-func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
-	return []*initwiz.InitGroupSpec{
-		{
-			Title:    "Policy Checks",
-			Category: initwiz.CategoryFeature,
-			Order:    initGroupOrder,
-			Fields: []initwiz.InitField{
-				initwiz.NewBoolField(initwiz.BoolFieldOptions{
-					Key:         keyPolicyEnabled,
-					Title:       "Enable policy checks?",
-					Description: "Evaluate Terraform plans with OPA policies",
-					Default:     false,
-				}),
-			},
-		},
-		{
-			Title:    "Policy Settings",
-			Category: initwiz.CategoryDetail,
-			Order:    initGroupOrder,
-			ShowWhen: keyPolicyEnabled.Get,
-			Fields: []initwiz.InitField{
-				initwiz.NewStringField(initwiz.StringFieldOptions{
-					Key:         keyPolicySourcePath,
-					Title:       "Policy files directory",
-					Description: "Local directory containing .rego policy files",
-					Default:     "policies",
-					Placeholder: "policies",
-				}),
-				initwiz.NewSelectField(initwiz.SelectFieldOptions{
-					Key:         keyPolicyDenyDecision,
-					Title:       "On deny decisions",
-					Description: "Action when OPA deny rules match",
-					Default:     "block",
-					Options: []initwiz.InitOption{
-						{Label: "Block pipeline", Value: "block"},
-						{Label: "Warn only", Value: "warn"},
-						{Label: "Ignore", Value: "ignore"},
-					},
-				}),
-			},
-		},
+func (p *Plugin) InitGroups() ([]initwiz.InitGroup, error) {
+	enabled, err := initwiz.NewBoolField(initwiz.BoolFieldOptions{
+		Key:         keyPolicyEnabled,
+		Title:       "Enable policy checks?",
+		Description: "Evaluate Terraform plans with OPA policies",
+		Default:     false,
+	})
+	if err != nil {
+		return nil, err
 	}
+	feature, err := initwiz.NewInitGroup(initwiz.InitGroupOptions{
+		Title:    "Policy Checks",
+		Category: initwiz.CategoryFeature,
+		Order:    initGroupOrder,
+		Fields:   []initwiz.InitField{enabled},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	sourcePath, err := initwiz.NewStringField(initwiz.StringFieldOptions{
+		Key:         keyPolicySourcePath,
+		Title:       "Policy files directory",
+		Description: "Local directory containing .rego policy files",
+		Default:     "policies",
+		Placeholder: "policies",
+	})
+	if err != nil {
+		return nil, err
+	}
+	denyDecision, err := initwiz.NewSelectField(initwiz.SelectFieldOptions{
+		Key:         keyPolicyDenyDecision,
+		Title:       "On deny decisions",
+		Description: "Action when OPA deny rules match",
+		Default:     "block",
+		Options: []initwiz.InitOption{
+			{Label: "Block pipeline", Value: "block"},
+			{Label: "Warn only", Value: "warn"},
+			{Label: "Ignore", Value: "ignore"},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	details, err := initwiz.NewInitGroup(initwiz.InitGroupOptions{
+		Title:    "Policy Settings",
+		Category: initwiz.CategoryDetail,
+		Order:    initGroupOrder,
+		ShowWhen: keyPolicyEnabled.Get,
+		Fields:   []initwiz.InitField{sourcePath, denyDecision},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []initwiz.InitGroup{feature, details}, nil
 }
 
 // BuildInitConfig builds the policy checks init contribution.

@@ -17,28 +17,32 @@ type initConfig struct {
 }
 
 // InitGroups returns the init wizard group specs for GitHub Actions.
-func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
+func (p *Plugin) InitGroups() ([]initwiz.InitGroup, error) {
 	showGitHub := func(s *initwiz.StateMap) bool {
 		return initwiz.ProviderKey.Get(s) == pluginName
 	}
 
-	return []*initwiz.InitGroupSpec{
-		{
-			Title:    "GitHub Actions",
-			Category: initwiz.CategoryProvider,
-			Order:    100,
-			ShowWhen: showGitHub,
-			Fields: []initwiz.InitField{
-				initwiz.NewStringField(initwiz.StringFieldOptions{
-					Key:         keyGitHubRunsOn,
-					Title:       "Runner Label",
-					Description: "GitHub Actions runs-on value",
-					Default:     defaultGitHubRunner,
-					Placeholder: defaultGitHubRunner,
-				}),
-			},
-		},
+	runsOn, err := initwiz.NewStringField(initwiz.StringFieldOptions{
+		Key:         keyGitHubRunsOn,
+		Title:       "Runner Label",
+		Description: "GitHub Actions runs-on value",
+		Default:     defaultGitHubRunner,
+		Placeholder: defaultGitHubRunner,
+	})
+	if err != nil {
+		return nil, err
 	}
+	group, err := initwiz.NewInitGroup(initwiz.InitGroupOptions{
+		Title:    "GitHub Actions",
+		Category: initwiz.CategoryProvider,
+		Order:    100,
+		ShowWhen: showGitHub,
+		Fields:   []initwiz.InitField{runsOn},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []initwiz.InitGroup{group}, nil
 }
 
 // BuildInitConfig builds the GitHub Actions init contribution.

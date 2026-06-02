@@ -94,7 +94,10 @@ Examples:
 }
 
 func buildNonInteractiveInitConfig(plugins *registry.Registry, provider, binary, pattern string) (*config.Config, error) {
-	flow := initflow.New(plugins)
+	flow, err := initflow.New(plugins)
+	if err != nil {
+		return nil, err
+	}
 	state := flow.DefaultState()
 	flow.ApplyOverrides(state, initflow.Overrides{
 		Provider: provider,
@@ -134,7 +137,11 @@ func logGenerateHint(plugins *registry.Registry, cfg *config.Config) {
 }
 
 func runInteractiveInit(plugins *registry.Registry) (*config.Config, error) {
-	m := newInitModel(initflow.New(plugins))
+	flow, err := initflow.New(plugins)
+	if err != nil {
+		return nil, err
+	}
+	m := newInitModel(flow)
 	finalModel, err := tea.NewProgram(m).Run()
 	if err != nil {
 		return nil, fmt.Errorf("interactive init: %w", err)

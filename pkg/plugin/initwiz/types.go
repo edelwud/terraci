@@ -9,7 +9,7 @@ import (
 	"github.com/edelwud/terraci/pkg/plugin"
 )
 
-// InitCategory determines how an InitGroupSpec is rendered in the wizard.
+// InitCategory determines how an InitGroup is rendered in the wizard.
 type InitCategory string
 
 const (
@@ -26,17 +26,92 @@ const (
 // InitContributor plugins contribute fields and config to the init wizard.
 type InitContributor interface {
 	plugin.Plugin
-	InitGroups() []*InitGroupSpec
+	InitGroups() ([]InitGroup, error)
 	BuildInitConfig(state *StateMap) (*InitContribution, error)
 }
 
-// InitGroupSpec describes a group of form fields contributed by a plugin.
-type InitGroupSpec struct {
+// InitGroupOptions describes a group of form fields contributed by a plugin.
+type InitGroupOptions struct {
 	Title    string
 	Category InitCategory
 	Order    int
 	Fields   []InitField
 	ShowWhen func(*StateMap) bool
+}
+
+// InitGroup is a validated init wizard field group.
+type InitGroup struct {
+	title    string
+	category InitCategory
+	order    int
+	fields   []InitField
+	showWhen func(*StateMap) bool
+}
+
+// NewInitGroup constructs a validated init wizard field group.
+func NewInitGroup(opts InitGroupOptions) (InitGroup, error) {
+	title := strings.TrimSpace(opts.Title)
+	if title == "" {
+		return InitGroup{}, errors.New("init group title is required")
+	}
+	if err := validateCategory(opts.Category); err != nil {
+		return InitGroup{}, err
+	}
+	if len(opts.Fields) == 0 {
+		return InitGroup{}, fmt.Errorf("init group %q must contain at least one field", title)
+	}
+	fields := cloneFields(opts.Fields)
+	for i := range fields {
+		field := fields[i]
+		if field.Key() == "" {
+			return InitGroup{}, fmt.Errorf("init group %q field %d has empty key", title, i)
+		}
+		if strings.TrimSpace(field.Title()) == "" {
+			return InitGroup{}, fmt.Errorf("init group %q field %q has empty title", title, field.Key())
+		}
+	}
+	return InitGroup{
+		title:    title,
+		category: opts.Category,
+		order:    opts.Order,
+		fields:   fields,
+		showWhen: opts.ShowWhen,
+	}, nil
+}
+
+// Title returns the group title.
+func (g InitGroup) Title() string { return g.title }
+
+// Category returns the group rendering category.
+func (g InitGroup) Category() InitCategory { return g.category }
+
+// Order returns the group ordering weight.
+func (g InitGroup) Order() int { return g.order }
+
+// Fields returns defensive field copies.
+func (g InitGroup) Fields() []InitField { return cloneFields(g.fields) }
+
+// Visible reports whether the group should be shown for the current state.
+func (g InitGroup) Visible(state *StateMap) bool {
+	if g.showWhen == nil {
+		return true
+	}
+	return g.showWhen(state)
+}
+
+// Clone returns a defensive group copy.
+func (g InitGroup) Clone() InitGroup {
+	g.fields = cloneFields(g.fields)
+	return g
+}
+
+func validateCategory(category InitCategory) error {
+	switch category {
+	case CategoryProvider, CategoryPipeline, CategoryFeature, CategoryDetail:
+		return nil
+	default:
+		return fmt.Errorf("unsupported init group category %q", category)
+	}
 }
 
 // FieldType identifies the kind of form field in the init wizard.
@@ -95,8 +170,10 @@ type SelectFieldOptions struct {
 }
 
 // NewStringField constructs a string input field.
-func NewStringField(opts StringFieldOptions) InitField {
-	validateFieldOptions(opts.Key.Name(), opts.Title, FieldString, nil)
+func NewStringField(opts StringFieldOptions) (InitField, error) {
+	if err := validateFieldOptions(opts.Key.Name(), opts.Title, FieldString, nil); err != nil {
+		return InitField{}, err
+	}
 	return InitField{
 		key:           opts.Key.Name(),
 		title:         opts.Title,
@@ -105,12 +182,14 @@ func NewStringField(opts StringFieldOptions) InitField {
 		stringKey:     opts.Key,
 		stringDefault: opts.Default,
 		placeholder:   opts.Placeholder,
-	}
+	}, nil
 }
 
 // NewBoolField constructs a boolean confirmation field.
-func NewBoolField(opts BoolFieldOptions) InitField {
-	validateFieldOptions(opts.Key.Name(), opts.Title, FieldBool, nil)
+func NewBoolField(opts BoolFieldOptions) (InitField, error) {
+	if err := validateFieldOptions(opts.Key.Name(), opts.Title, FieldBool, nil); err != nil {
+		return InitField{}, err
+	}
 	return InitField{
 		key:         opts.Key.Name(),
 		title:       opts.Title,
@@ -118,12 +197,14 @@ func NewBoolField(opts BoolFieldOptions) InitField {
 		typ:         FieldBool,
 		boolKey:     opts.Key,
 		boolDefault: opts.Default,
-	}
+	}, nil
 }
 
 // NewSelectField constructs a string select field.
-func NewSelectField(opts SelectFieldOptions) InitField {
-	validateFieldOptions(opts.Key.Name(), opts.Title, FieldSelect, opts.Options)
+func NewSelectField(opts SelectFieldOptions) (InitField, error) {
+	if err := validateFieldOptions(opts.Key.Name(), opts.Title, FieldSelect, opts.Options); err != nil {
+		return InitField{}, err
+	}
 	return InitField{
 		key:           opts.Key.Name(),
 		title:         opts.Title,
@@ -132,7 +213,7 @@ func NewSelectField(opts SelectFieldOptions) InitField {
 		stringKey:     opts.Key,
 		stringDefault: opts.Default,
 		options:       cloneOptions(opts.Options),
-	}
+	}, nil
 }
 
 // Key returns the raw state key name for display and deterministic de-duping.
@@ -179,6 +260,17 @@ func (f InitField) Clone() InitField {
 	return f
 }
 
+func cloneFields(fields []InitField) []InitField {
+	if len(fields) == 0 {
+		return nil
+	}
+	out := make([]InitField, len(fields))
+	for i := range fields {
+		out[i] = fields[i].Clone()
+	}
+	return out
+}
+
 func cloneOptions(options []InitOption) []InitOption {
 	if len(options) == 0 {
 		return nil
@@ -186,16 +278,17 @@ func cloneOptions(options []InitOption) []InitOption {
 	return append([]InitOption(nil), options...)
 }
 
-func validateFieldOptions(key, title string, typ FieldType, options []InitOption) {
+func validateFieldOptions(key, title string, typ FieldType, options []InitOption) error {
 	if strings.TrimSpace(key) == "" {
-		panic("init field key is required")
+		return errors.New("init field key is required")
 	}
 	if strings.TrimSpace(title) == "" {
-		panic("init field title is required")
+		return errors.New("init field title is required")
 	}
 	if typ == FieldSelect && len(options) == 0 {
-		panic("init select field options are required")
+		return errors.New("init select field options are required")
 	}
+	return nil
 }
 
 // InitContribution holds a validated extension config produced by a plugin's

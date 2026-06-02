@@ -7,7 +7,7 @@
 //   - pkg/plugin           — core interfaces, BasePlugin[C], AppContext, EnablePolicy, RuntimeProvider
 //   - pkg/plugin/cliout    — public command output helpers (Format, ParseFormat, WriteJSON)
 //   - pkg/plugin/registry  — factory catalog and per-command Registry capability resolution
-//   - pkg/plugin/initwiz   — init wizard types (StateMap, InitContributor, InitGroupSpec)
+//   - pkg/plugin/initwiz   — init wizard types (StateMap, StateKey, InitContributor, InitGroup)
 //
 // Plugin-author contract tests live in pkg/plugin/plugintest. Helpers shared
 // between built-in CI provider plugins (gitlab, github, future
@@ -145,22 +145,24 @@
 //
 // # Init wizard boundary
 //
-// InitContributor implementations return typed config through
-// initwiz.NewInitContribution. The canonical flow is:
+// InitContributor implementations return validated groups and typed config
+// through initwiz.NewInitGroup / initwiz.NewInitContribution. The canonical
+// flow is:
 //
 //	registry -> initflow.New -> DefaultState/ApplyOverrides
 //	    -> StateMap + StateKey[T] -> typed config struct
 //	    -> initwiz.NewInitContribution -> config.ExtensionValue
 //	    -> initflow.BuildConfig
 //
-// Returning nil, nil is the only normal way to skip an optional init
-// contribution. Do not build extension config with loose maps or construct
-// InitContribution directly; config.NewExtensionValue owns YAML node encoding,
-// key validation, and defensive copies. Init fields are value objects built
-// with initwiz.NewStringField, NewBoolField, or NewSelectField; plugin code
-// should not construct InitField literals or read wizard state through raw
-// string keys. The terraci command package owns only cobra flags, TUI
-// rendering, preview rendering, and file writes.
+// InitGroups returns ([]initwiz.InitGroup, error); return constructor errors
+// instead of panicking. Returning nil, nil from BuildInitConfig is the only
+// normal way to skip an optional init contribution. Do not build extension
+// config with loose maps or construct InitContribution, InitGroup, or
+// InitField directly; config.NewExtensionValue owns YAML node encoding, key
+// validation, and defensive copies. Init fields are value objects built with
+// initwiz.NewStringField, NewBoolField, or NewSelectField; plugin code should
+// not read wizard state through raw string keys. The terraci command package
+// owns only cobra flags, TUI rendering, preview rendering, and file writes.
 //
 // # SDK contract tests
 //

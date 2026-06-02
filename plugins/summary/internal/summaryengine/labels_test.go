@@ -91,12 +91,12 @@ func TestResolveLabels(t *testing.T) {
 	if len(parser.paths) != 1 {
 		t.Fatalf("expected resource parser to run once, got %d", len(parser.paths))
 	}
-	warnings := result.Diagnostics.Messages()
-	if len(warnings) != 3 {
-		t.Fatalf("Diagnostics = %v, want three warnings", warnings)
+	messages := result.Diagnostics.Messages()
+	if len(messages) != 3 {
+		t.Fatalf("Diagnostics = %v, want three warnings", messages)
 	}
-	assertWarningContains(t, warnings, "unresolved placeholders {missing}")
-	assertWarningContains(t, warnings, "summary label is empty")
+	assertDiagnosticContains(t, messages, "unresolved placeholders {missing}")
+	assertDiagnosticContains(t, messages, "summary label is empty")
 }
 
 func TestResolveLabels_FallsBackToSegmentsForMissingComponents(t *testing.T) {
@@ -124,17 +124,17 @@ func TestResolveLabels_ResourceParserErrorsAreWarnings(t *testing.T) {
 	if len(result.Labels) != 0 {
 		t.Fatalf("Labels = %v, want none", result.Labels)
 	}
-	assertWarningContains(t, result.Diagnostics.Messages(), "bad json")
+	assertDiagnosticContains(t, result.Diagnostics.Messages(), "bad json")
 }
 
-func assertWarningContains(t *testing.T, warnings []string, want string) {
+func assertDiagnosticContains(t *testing.T, messages []string, want string) {
 	t.Helper()
-	for _, warning := range warnings {
-		if strings.Contains(warning, want) {
+	for _, message := range messages {
+		if strings.Contains(message, want) {
 			return
 		}
 	}
-	t.Fatalf("warnings %v do not contain %q", warnings, want)
+	t.Fatalf("diagnostics %v do not contain %q", messages, want)
 }
 
 type fakePlanParser struct {

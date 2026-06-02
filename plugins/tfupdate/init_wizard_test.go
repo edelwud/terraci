@@ -9,7 +9,10 @@ import (
 
 func TestPlugin_InitGroups(t *testing.T) {
 	p := newTestPlugin(t)
-	groups := p.InitGroups()
+	groups, err := p.InitGroups()
+	if err != nil {
+		t.Fatalf("InitGroups() error = %v", err)
+	}
 
 	if len(groups) != 2 {
 		t.Fatalf("InitGroups() returned %d groups, want 2", len(groups))
@@ -17,19 +20,20 @@ func TestPlugin_InitGroups(t *testing.T) {
 
 	// Group 0: Dependency Updates
 	g0 := groups[0]
-	if g0.Title != "Dependency Updates" {
-		t.Errorf("group[0].Title = %q, want %q", g0.Title, "Dependency Updates")
+	if g0.Title() != "Dependency Updates" {
+		t.Errorf("group[0].Title = %q, want %q", g0.Title(), "Dependency Updates")
 	}
-	if g0.Category != initwiz.CategoryFeature {
-		t.Errorf("group[0].Category = %v, want CategoryFeature", g0.Category)
+	if g0.Category() != initwiz.CategoryFeature {
+		t.Errorf("group[0].Category = %v, want CategoryFeature", g0.Category())
 	}
-	if g0.Order != initGroupOrder {
-		t.Errorf("group[0].Order = %d, want %d", g0.Order, initGroupOrder)
+	if g0.Order() != initGroupOrder {
+		t.Errorf("group[0].Order = %d, want %d", g0.Order(), initGroupOrder)
 	}
-	if len(g0.Fields) != 1 {
-		t.Fatalf("group[0] fields count = %d, want 1", len(g0.Fields))
+	g0Fields := g0.Fields()
+	if len(g0Fields) != 1 {
+		t.Fatalf("group[0] fields count = %d, want 1", len(g0Fields))
 	}
-	f := g0.Fields[0]
+	f := g0Fields[0]
 	if f.Key() != "tfupdate.enabled" {
 		t.Errorf("field.Key = %q, want %q", f.Key(), "tfupdate.enabled")
 	}
@@ -39,18 +43,19 @@ func TestPlugin_InitGroups(t *testing.T) {
 
 	// Group 1: Update Settings
 	g1 := groups[1]
-	if g1.Title != "Update Settings" {
-		t.Errorf("group[1].Title = %q, want %q", g1.Title, "Update Settings")
+	if g1.Title() != "Update Settings" {
+		t.Errorf("group[1].Title = %q, want %q", g1.Title(), "Update Settings")
 	}
-	if g1.Category != initwiz.CategoryDetail {
-		t.Errorf("group[1].Category = %v, want CategoryDetail", g1.Category)
+	if g1.Category() != initwiz.CategoryDetail {
+		t.Errorf("group[1].Category = %v, want CategoryDetail", g1.Category())
 	}
-	if len(g1.Fields) != 3 {
-		t.Fatalf("group[1] fields count = %d, want 3", len(g1.Fields))
+	g1Fields := g1.Fields()
+	if len(g1Fields) != 3 {
+		t.Fatalf("group[1] fields count = %d, want 3", len(g1Fields))
 	}
 
 	// Verify field keys
-	keys := []string{g1.Fields[0].Key(), g1.Fields[1].Key(), g1.Fields[2].Key()}
+	keys := []string{g1Fields[0].Key(), g1Fields[1].Key(), g1Fields[2].Key()}
 	wantKeys := []string{"tfupdate.target", "tfupdate.bump", "tfupdate.pipeline"}
 	for i, want := range wantKeys {
 		if keys[i] != want {
@@ -59,33 +64,31 @@ func TestPlugin_InitGroups(t *testing.T) {
 	}
 
 	// Target has 3 options
-	if len(g1.Fields[0].Options()) != 3 {
-		t.Errorf("target options = %d, want 3", len(g1.Fields[0].Options()))
+	if len(g1Fields[0].Options()) != 3 {
+		t.Errorf("target options = %d, want 3", len(g1Fields[0].Options()))
 	}
 	// Bump has 3 options
-	if len(g1.Fields[1].Options()) != 3 {
-		t.Errorf("bump options = %d, want 3", len(g1.Fields[1].Options()))
+	if len(g1Fields[1].Options()) != 3 {
+		t.Errorf("bump options = %d, want 3", len(g1Fields[1].Options()))
 	}
 }
 
 func TestPlugin_InitGroups_ShowWhen(t *testing.T) {
 	p := newTestPlugin(t)
-	groups := p.InitGroups()
-	showWhen := groups[1].ShowWhen
-
-	if showWhen == nil {
-		t.Fatal("group[1].ShowWhen is nil")
+	groups, err := p.InitGroups()
+	if err != nil {
+		t.Fatalf("InitGroups() error = %v", err)
 	}
 
 	stateEnabled := initwiz.NewStateMap()
 	keyUpdateEnabled.Set(stateEnabled, true)
-	if !showWhen(stateEnabled) {
+	if !groups[1].Visible(stateEnabled) {
 		t.Error("ShowWhen should return true when tfupdate.enabled=true")
 	}
 
 	stateDisabled := initwiz.NewStateMap()
 	keyUpdateEnabled.Set(stateDisabled, false)
-	if showWhen(stateDisabled) {
+	if groups[1].Visible(stateDisabled) {
 		t.Error("ShowWhen should return false when tfupdate.enabled=false")
 	}
 }

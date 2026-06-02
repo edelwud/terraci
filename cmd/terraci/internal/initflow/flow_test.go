@@ -50,12 +50,20 @@ func (p testProvider) CommitSHA() string    { return "" }
 
 type testContributor struct {
 	testPlugin
-	groups []*initwiz.InitGroupSpec
-	build  func(*initwiz.StateMap) (*initwiz.InitContribution, error)
+	groups   []initwiz.InitGroup
+	groupErr error
+	build    func(*initwiz.StateMap) (*initwiz.InitContribution, error)
 }
 
-func (p testContributor) InitGroups() []*initwiz.InitGroupSpec {
-	return append([]*initwiz.InitGroupSpec(nil), p.groups...)
+func (p testContributor) InitGroups() ([]initwiz.InitGroup, error) {
+	if p.groupErr != nil {
+		return nil, p.groupErr
+	}
+	out := make([]initwiz.InitGroup, len(p.groups))
+	for i := range p.groups {
+		out[i] = p.groups[i].Clone()
+	}
+	return out, nil
 }
 
 func (p testContributor) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribution, error) {
@@ -113,7 +121,7 @@ func TestFlowDefaultStateProviderPreference(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			flow := New(testSource{plugins: tt.providers})
+			flow := mustFlow(t, testSource{plugins: tt.providers})
 			state := flow.DefaultState()
 
 			if got := initwiz.ProviderKey.Get(state); got != tt.want {
@@ -135,7 +143,7 @@ func TestFlowDefaultStateProviderPreference(t *testing.T) {
 func TestFlowApplyOverrides(t *testing.T) {
 	t.Parallel()
 
-	flow := New(testSource{})
+	flow := mustFlow(t, testSource{})
 	state := flow.DefaultState()
 
 	flow.ApplyOverrides(state, Overrides{
@@ -160,21 +168,21 @@ func TestFlowDisplayGroupsDeterministic(t *testing.T) {
 
 	left := testContributor{
 		testPlugin: testPlugin{name: "left"},
-		groups: []*initwiz.InitGroupSpec{
+		groups: []initwiz.InitGroup{
 			groupSpec("Provider B", initwiz.CategoryProvider, 20, "provider.b"),
 			groupSpec("Detail A", initwiz.CategoryDetail, 30, "detail.a"),
 		},
 	}
 	right := testContributor{
 		testPlugin: testPlugin{name: "right"},
-		groups: []*initwiz.InitGroupSpec{
+		groups: []initwiz.InitGroup{
 			groupSpec("Provider A", initwiz.CategoryProvider, 10, "provider.a"),
 			groupSpec("Detail B", initwiz.CategoryDetail, 40, "detail.b"),
 		},
 	}
 
-	first := New(testSource{plugins: []plugin.Plugin{right, left}}).DisplayGroups()
-	second := New(testSource{plugins: []plugin.Plugin{left, right}}).DisplayGroups()
+	first := mustFlow(t, testSource{plugins: []plugin.Plugin{right, left}}).DisplayGroups()
+	second := mustFlow(t, testSource{plugins: []plugin.Plugin{left, right}}).DisplayGroups()
 
 	if got, want := displayGroupSummary(first), displayGroupSummary(second); !reflect.DeepEqual(got, want) {
 		t.Fatalf("display groups differ:\n got: %#v\nwant: %#v", got, want)
@@ -194,42 +202,83 @@ func TestFlowMergedGroupsDedupeFirstField(t *testing.T) {
 
 	contributor := testContributor{
 		testPlugin: testPlugin{name: "features"},
-		groups: []*initwiz.InitGroupSpec{
-			{
+		groups: []initwiz.InitGroup{
+			mustGroup(t, initwiz.InitGroupOptions{
 				Title:    "Beta",
 				Category: initwiz.CategoryFeature,
 				Order:    20,
 				Fields: []initwiz.InitField{
-					testStringField("shared", "second"),
-					testStringField("beta", "beta"),
+					testStringField(t, "shared", "second"),
+					testStringField(t, "beta", "beta"),
 				},
-			},
-			{
+			}),
+			mustGroup(t, initwiz.InitGroupOptions{
 				Title:    "Alpha",
 				Category: initwiz.CategoryFeature,
 				Order:    10,
 				Fields: []initwiz.InitField{
-					testStringField("shared", "first"),
-					testStringField("alpha", "alpha"),
+					testStringField(t, "shared", "first"),
+					testStringField(t, "alpha", "alpha"),
 				},
-			},
+			}),
 		},
 	}
 
-	groups := New(testSource{plugins: []plugin.Plugin{contributor}}).DisplayGroups()
+	groups := mustFlow(t, testSource{plugins: []plugin.Plugin{contributor}}).DisplayGroups()
 	if len(groups) != 1 {
 		t.Fatalf("groups len = %d, want 1", len(groups))
 	}
-	if groups[0].Title != "Features" {
-		t.Fatalf("group title = %q", groups[0].Title)
+	if groups[0].Title() != "Features" {
+		t.Fatalf("group title = %q", groups[0].Title())
 	}
-	got := fieldKeys(groups[0].Fields)
+	fields := groups[0].Fields()
+	got := fieldKeys(fields)
 	want := []string{"shared", "alpha", "beta"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("field keys = %#v, want %#v", got, want)
 	}
-	if got := groups[0].Fields[0].Title(); got != "first" {
+	if got := fields[0].Title(); got != "first" {
 		t.Fatalf("deduped field title = %q, want first", got)
+	}
+}
+
+func TestFlowNewGroupError(t *testing.T) {
+	t.Parallel()
+
+	errBoom := errors.New("bad group")
+	_, err := New(testSource{plugins: []plugin.Plugin{
+		testContributor{testPlugin: testPlugin{name: "bad"}, groupErr: errBoom},
+	}})
+	if err == nil {
+		t.Fatal("New() error = nil")
+	}
+	var groupErr *GroupError
+	if !errors.As(err, &groupErr) {
+		t.Fatalf("error %T does not wrap GroupError", err)
+	}
+	if groupErr.Plugin != "bad" {
+		t.Fatalf("GroupError.Plugin = %q", groupErr.Plugin)
+	}
+	if !errors.Is(err, errBoom) {
+		t.Fatalf("error does not wrap sentinel: %v", err)
+	}
+}
+
+func TestFlowNewRejectsZeroValueGroup(t *testing.T) {
+	t.Parallel()
+
+	_, err := New(testSource{plugins: []plugin.Plugin{
+		testContributor{testPlugin: testPlugin{name: "bad"}, groups: []initwiz.InitGroup{{}}},
+	}})
+	if err == nil {
+		t.Fatal("New() error = nil")
+	}
+	var groupErr *GroupError
+	if !errors.As(err, &groupErr) {
+		t.Fatalf("error %T does not wrap GroupError", err)
+	}
+	if !strings.Contains(err.Error(), "init group title is required") {
+		t.Fatalf("error = %v, want invalid group message", err)
 	}
 }
 
@@ -244,7 +293,7 @@ func TestFlowBuildConfigContributionError(t *testing.T) {
 		},
 	}
 
-	_, err := New(testSource{plugins: []plugin.Plugin{contributor}}).BuildConfig(nil)
+	_, err := mustFlow(t, testSource{plugins: []plugin.Plugin{contributor}}).BuildConfig(nil)
 	if err == nil {
 		t.Fatal("BuildConfig() error = nil")
 	}
@@ -266,7 +315,7 @@ func TestFlowBuildConfigDuplicateExtensionKeysFail(t *testing.T) {
 	build := func(*initwiz.StateMap) (*initwiz.InitContribution, error) {
 		return initwiz.NewInitContribution("dup", testConfig{Enabled: true})
 	}
-	flow := New(testSource{plugins: []plugin.Plugin{
+	flow := mustFlow(t, testSource{plugins: []plugin.Plugin{
 		testContributor{testPlugin: testPlugin{name: "a"}, build: build},
 		testContributor{testPlugin: testPlugin{name: "b"}, build: build},
 	}})
@@ -283,7 +332,7 @@ func TestFlowBuildConfigDuplicateExtensionKeysFail(t *testing.T) {
 func TestFlowBuildConfigRealProvidersKeepCleanDefaults(t *testing.T) {
 	t.Parallel()
 
-	flow := New(registry.New())
+	flow := mustFlow(t, registry.New())
 
 	t.Run("gitlab", func(t *testing.T) {
 		t.Parallel()
@@ -323,28 +372,61 @@ func TestFlowBuildConfigRealProvidersKeepCleanDefaults(t *testing.T) {
 	})
 }
 
-func groupSpec(title string, category initwiz.InitCategory, order int, fieldKey string) *initwiz.InitGroupSpec {
-	return &initwiz.InitGroupSpec{
+func mustFlow(t *testing.T, source PluginSource) *Flow {
+	t.Helper()
+	flow, err := New(source)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	return flow
+}
+
+func groupSpec(title string, category initwiz.InitCategory, order int, fieldKey string) initwiz.InitGroup {
+	field := testStringField(nil, fieldKey, fieldKey)
+	group, err := initwiz.NewInitGroup(initwiz.InitGroupOptions{
 		Title:    title,
 		Category: category,
 		Order:    order,
 		Fields: []initwiz.InitField{
-			testStringField(fieldKey, fieldKey),
+			field,
 		},
+	})
+	if err != nil {
+		panic(err)
 	}
+	return group
 }
 
-func testStringField(key, title string) initwiz.InitField {
-	return initwiz.NewStringField(initwiz.StringFieldOptions{
+func mustGroup(t *testing.T, opts initwiz.InitGroupOptions) initwiz.InitGroup {
+	t.Helper()
+	group, err := initwiz.NewInitGroup(opts)
+	if err != nil {
+		t.Fatalf("NewInitGroup() error = %v", err)
+	}
+	return group
+}
+
+func testStringField(t *testing.T, key, title string) initwiz.InitField {
+	if t != nil {
+		t.Helper()
+	}
+	field, err := initwiz.NewStringField(initwiz.StringFieldOptions{
 		Key:   initwiz.MustStateKey[string](key),
 		Title: title,
 	})
+	if err != nil {
+		if t != nil {
+			t.Fatalf("NewStringField() error = %v", err)
+		}
+		panic(err)
+	}
+	return field
 }
 
 func displayGroupSummary(groups []DisplayGroup) []string {
 	out := make([]string, 0, len(groups))
 	for _, group := range groups {
-		out = append(out, group.Title+":"+strings.Join(fieldKeys(group.Fields), ","))
+		out = append(out, group.Title()+":"+strings.Join(fieldKeys(group.Fields()), ","))
 	}
 	return out
 }

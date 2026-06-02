@@ -85,7 +85,7 @@ pkg/                            # Public API — importable by external plugins 
 │   │   └── resolve.go          # Registry.ResolveCIProvider/ResolveChangeDetector/Resolve*Provider/CollectContributions/PreflightsForStartup
 │   ├── initwiz/                # Init wizard state + types
 │   │   ├── state.go            # StateMap + typed StateKey[T] form state for huh bindings
-│   │   └── types.go            # InitContributor, InitGroupSpec, constructor-built InitField value objects
+│   │   └── types.go            # InitContributor, constructor-built InitGroup/InitField value objects
 │   └── plugintest/             # Plugin-author SDK contract tests + mock doubles + NoopResolver
 ├── pipeline/                   # Plugin-agnostic pipeline IR
 │   ├── types.go                # IR, Job, Operation, TerraformOperation, Contribution, ContributedJob

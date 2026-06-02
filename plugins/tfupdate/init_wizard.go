@@ -25,56 +25,72 @@ type initPolicyConfig struct {
 }
 
 // InitGroups returns the init wizard group specs for the update initwiz.
-func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
-	return []*initwiz.InitGroupSpec{
-		{
-			Title:    "Dependency Updates",
-			Category: initwiz.CategoryFeature,
-			Order:    initGroupOrder,
-			Fields: []initwiz.InitField{
-				initwiz.NewBoolField(initwiz.BoolFieldOptions{
-					Key:         keyUpdateEnabled,
-					Title:       "Enable dependency update checks?",
-					Description: "Check Terraform providers and modules for newer versions",
-					Default:     false,
-				}),
-			},
-		},
-		{
-			Title:    "Update Settings",
-			Category: initwiz.CategoryDetail,
-			Order:    initGroupOrder,
-			ShowWhen: keyUpdateEnabled.Get,
-			Fields: []initwiz.InitField{
-				initwiz.NewSelectField(initwiz.SelectFieldOptions{
-					Key:     keyUpdateTarget,
-					Title:   "What to check",
-					Default: "all",
-					Options: []initwiz.InitOption{
-						{Label: "All (modules + providers)", Value: "all"},
-						{Label: "Modules only", Value: "modules"},
-						{Label: "Providers only", Value: "providers"},
-					},
-				}),
-				initwiz.NewSelectField(initwiz.SelectFieldOptions{
-					Key:     keyUpdateBump,
-					Title:   "Maximum bump level",
-					Default: "minor",
-					Options: []initwiz.InitOption{
-						{Label: "Patch only", Value: "patch"},
-						{Label: "Minor", Value: "minor"},
-						{Label: "Major", Value: "major"},
-					},
-				}),
-				initwiz.NewBoolField(initwiz.BoolFieldOptions{
-					Key:         keyUpdatePipeline,
-					Title:       "Add update check to CI pipeline?",
-					Description: "Add a tfupdate-check job to generated pipelines",
-					Default:     false,
-				}),
-			},
-		},
+func (p *Plugin) InitGroups() ([]initwiz.InitGroup, error) {
+	enabled, err := initwiz.NewBoolField(initwiz.BoolFieldOptions{
+		Key:         keyUpdateEnabled,
+		Title:       "Enable dependency update checks?",
+		Description: "Check Terraform providers and modules for newer versions",
+		Default:     false,
+	})
+	if err != nil {
+		return nil, err
 	}
+	feature, err := initwiz.NewInitGroup(initwiz.InitGroupOptions{
+		Title:    "Dependency Updates",
+		Category: initwiz.CategoryFeature,
+		Order:    initGroupOrder,
+		Fields:   []initwiz.InitField{enabled},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	target, err := initwiz.NewSelectField(initwiz.SelectFieldOptions{
+		Key:     keyUpdateTarget,
+		Title:   "What to check",
+		Default: "all",
+		Options: []initwiz.InitOption{
+			{Label: "All (modules + providers)", Value: "all"},
+			{Label: "Modules only", Value: "modules"},
+			{Label: "Providers only", Value: "providers"},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	bump, err := initwiz.NewSelectField(initwiz.SelectFieldOptions{
+		Key:     keyUpdateBump,
+		Title:   "Maximum bump level",
+		Default: "minor",
+		Options: []initwiz.InitOption{
+			{Label: "Patch only", Value: "patch"},
+			{Label: "Minor", Value: "minor"},
+			{Label: "Major", Value: "major"},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	pipeline, err := initwiz.NewBoolField(initwiz.BoolFieldOptions{
+		Key:         keyUpdatePipeline,
+		Title:       "Add update check to CI pipeline?",
+		Description: "Add a tfupdate-check job to generated pipelines",
+		Default:     false,
+	})
+	if err != nil {
+		return nil, err
+	}
+	details, err := initwiz.NewInitGroup(initwiz.InitGroupOptions{
+		Title:    "Update Settings",
+		Category: initwiz.CategoryDetail,
+		Order:    initGroupOrder,
+		ShowWhen: keyUpdateEnabled.Get,
+		Fields:   []initwiz.InitField{target, bump, pipeline},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []initwiz.InitGroup{feature, details}, nil
 }
 
 // BuildInitConfig builds the update init contribution.

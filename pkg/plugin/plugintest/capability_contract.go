@@ -62,7 +62,7 @@ type InitContributorContract struct {
 	State              *initwiz.StateMap
 	ExpectedPluginKey  string
 	ExpectContribution bool
-	AssertGroups       func(testing.TB, []*initwiz.InitGroupSpec)
+	AssertGroups       func(testing.TB, []initwiz.InitGroup)
 	AssertContribution func(testing.TB, *initwiz.InitContribution)
 	DecodeTarget       any
 }
@@ -75,8 +75,14 @@ func AssertInitContributor(tb testing.TB, c InitContributorContract) {
 		tb.Fatal("Contributor is nil")
 	}
 
-	firstGroups := c.Contributor.InitGroups()
-	secondGroups := c.Contributor.InitGroups()
+	firstGroups, err := c.Contributor.InitGroups()
+	if err != nil {
+		tb.Fatalf("InitGroups() error = %v", err)
+	}
+	secondGroups, err := c.Contributor.InitGroups()
+	if err != nil {
+		tb.Fatalf("InitGroups() second call error = %v", err)
+	}
 	if !sameInitGroupShape(firstGroups, secondGroups) {
 		tb.Fatalf("InitGroups() is not deterministic: first %#v, second %#v", initGroupShapes(firstGroups), initGroupShapes(secondGroups))
 	}
@@ -101,23 +107,20 @@ func AssertInitContributor(tb testing.TB, c InitContributorContract) {
 	assertInitContribution(tb, contribution, c)
 }
 
-func assertInitGroupsUsable(tb testing.TB, groups []*initwiz.InitGroupSpec) {
+func assertInitGroupsUsable(tb testing.TB, groups []initwiz.InitGroup) {
 	tb.Helper()
 	for _, group := range groups {
-		if group == nil {
-			tb.Fatal("InitGroups() contains nil group")
-			continue
-		}
-		if group.Title == "" {
+		if group.Title() == "" {
 			tb.Fatalf("InitGroups() contains group with empty title: %#v", group)
 		}
-		for i := range group.Fields {
-			field := &group.Fields[i]
+		fields := group.Fields()
+		for i := range fields {
+			field := &fields[i]
 			if field.Key() == "" {
-				tb.Fatalf("init group %q contains field with empty key", group.Title)
+				tb.Fatalf("init group %q contains field with empty key", group.Title())
 			}
 			if field.Title() == "" {
-				tb.Fatalf("init group %q field %q has empty title", group.Title, field.Key())
+				tb.Fatalf("init group %q field %q has empty title", group.Title(), field.Key())
 			}
 		}
 	}
@@ -160,7 +163,7 @@ type initFieldShape struct {
 	Placeholder string
 }
 
-func sameInitGroupShape(a, b []*initwiz.InitGroupSpec) bool {
+func sameInitGroupShape(a, b []initwiz.InitGroup) bool {
 	return slices.EqualFunc(initGroupShapes(a), initGroupShapes(b), func(x, y initGroupShape) bool {
 		return x.Title == y.Title &&
 			x.Category == y.Category &&
@@ -178,21 +181,18 @@ func sameInitFieldShape(a, b initFieldShape) bool {
 		a.Placeholder == b.Placeholder
 }
 
-func initGroupShapes(groups []*initwiz.InitGroupSpec) []initGroupShape {
+func initGroupShapes(groups []initwiz.InitGroup) []initGroupShape {
 	shapes := make([]initGroupShape, 0, len(groups))
 	for _, group := range groups {
-		if group == nil {
-			shapes = append(shapes, initGroupShape{})
-			continue
-		}
+		fields := group.Fields()
 		shape := initGroupShape{
-			Title:    group.Title,
-			Category: group.Category,
-			Order:    group.Order,
-			Fields:   make([]initFieldShape, 0, len(group.Fields)),
+			Title:    group.Title(),
+			Category: group.Category(),
+			Order:    group.Order(),
+			Fields:   make([]initFieldShape, 0, len(fields)),
 		}
-		for i := range group.Fields {
-			field := &group.Fields[i]
+		for i := range fields {
+			field := &fields[i]
 			shape.Fields = append(shape.Fields, initFieldShape{
 				Key:         field.Key(),
 				Title:       field.Title(),

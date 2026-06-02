@@ -9,27 +9,31 @@ import (
 
 func TestPlugin_InitGroups(t *testing.T) {
 	p := newTestPlugin(t)
-	groups := p.InitGroups()
+	groups, err := p.InitGroups()
+	if err != nil {
+		t.Fatalf("InitGroups() error = %v", err)
+	}
 
 	if len(groups) != 1 {
 		t.Fatalf("InitGroups() returned %d groups, want 1", len(groups))
 	}
 
 	g := groups[0]
-	if g.Title != costReportTitle {
-		t.Errorf("group.Title = %q, want %q", g.Title, costReportTitle)
+	if g.Title() != costReportTitle {
+		t.Errorf("group.Title = %q, want %q", g.Title(), costReportTitle)
 	}
-	if g.Category != initwiz.CategoryFeature {
-		t.Errorf("group.Category = %v, want CategoryFeature", g.Category)
+	if g.Category() != initwiz.CategoryFeature {
+		t.Errorf("group.Category = %v, want CategoryFeature", g.Category())
 	}
-	if g.Order != initGroupOrder {
-		t.Errorf("group.Order = %d, want %d", g.Order, initGroupOrder)
+	if g.Order() != initGroupOrder {
+		t.Errorf("group.Order = %d, want %d", g.Order(), initGroupOrder)
 	}
-	if len(g.Fields) != 1 {
-		t.Fatalf("fields count = %d, want 1", len(g.Fields))
+	fields := g.Fields()
+	if len(fields) != 1 {
+		t.Fatalf("fields count = %d, want 1", len(fields))
 	}
 
-	f := g.Fields[0]
+	f := fields[0]
 	if f.Key() != "cost.providers.aws.enabled" {
 		t.Errorf("field.Key = %q, want %q", f.Key(), "cost.providers.aws.enabled")
 	}

@@ -6,6 +6,7 @@
 package initflow
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -41,9 +42,23 @@ type BuildResult struct {
 // DisplayGroup describes one init form group after plugin groups have been
 // classified, sorted, and merged.
 type DisplayGroup struct {
-	Title    string
-	Fields   []initwiz.InitField
-	ShowWhen func(*initwiz.StateMap) bool
+	title    string
+	fields   []initwiz.InitField
+	showWhen func(*initwiz.StateMap) bool
+}
+
+// Title returns the display group title.
+func (g DisplayGroup) Title() string { return g.title }
+
+// Fields returns defensive field copies.
+func (g DisplayGroup) Fields() []initwiz.InitField { return cloneFields(g.fields) }
+
+// Visible reports whether the group should be shown for the current state.
+func (g DisplayGroup) Visible(state *initwiz.StateMap) bool {
+	if g.showWhen == nil {
+		return true
+	}
+	return g.showWhen(state)
 }
 
 // ProviderOption describes one CI provider choice for the TUI basics group.
@@ -76,6 +91,30 @@ func (e *ContributionError) Unwrap() error {
 	return e.Err
 }
 
+// GroupError wraps a plugin init group construction failure with the plugin
+// name while preserving the original error for errors.As/errors.Is.
+type GroupError struct {
+	Plugin string
+	Err    error
+}
+
+func (e *GroupError) Error() string {
+	if e == nil {
+		return ""
+	}
+	if e.Plugin == "" {
+		return fmt.Sprintf("build init groups: %v", e.Err)
+	}
+	return fmt.Sprintf("build init groups for %s: %v", e.Plugin, e.Err)
+}
+
+func (e *GroupError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
 // Flow is an immutable init orchestration value.
 type Flow struct {
 	contributors    []contributorBinding
@@ -91,11 +130,11 @@ type contributorBinding struct {
 
 type groupBinding struct {
 	plugin string
-	spec   *initwiz.InitGroupSpec
+	group  initwiz.InitGroup
 }
 
 // New constructs an init flow from the supplied plugin source.
-func New(source PluginSource) Flow {
+func New(source PluginSource) (*Flow, error) {
 	plugins := pluginsSortedByName(source)
 
 	contributors := make([]contributorBinding, 0, len(plugins))
@@ -114,23 +153,42 @@ func New(source PluginSource) Flow {
 				name:        contributor.Name(),
 				contributor: contributor,
 			})
-			for _, spec := range contributor.InitGroups() {
-				if spec == nil {
-					continue
+			contributedGroups, err := contributor.InitGroups()
+			if err != nil {
+				return nil, &GroupError{Plugin: contributor.Name(), Err: err}
+			}
+			for i, group := range contributedGroups {
+				if err := validateContributedGroup(group); err != nil {
+					return nil, &GroupError{Plugin: contributor.Name(), Err: fmt.Errorf("group %d: %w", i, err)}
 				}
-				groups = append(groups, groupBinding{plugin: contributor.Name(), spec: spec})
+				groups = append(groups, groupBinding{plugin: contributor.Name(), group: group})
 			}
 		}
 	}
 
 	providers = normalizeProviderOptions(providers)
 
-	return Flow{
+	return &Flow{
 		contributors:    append([]contributorBinding(nil), contributors...),
 		providerOpts:    cloneProviderOptions(providers),
 		displayGroups:   buildDisplayGroups(groups),
 		defaultProvider: defaultProvider(providers),
+	}, nil
+}
+
+func validateContributedGroup(group initwiz.InitGroup) error {
+	if strings.TrimSpace(group.Title()) == "" {
+		return errors.New("init group title is required")
 	}
+	switch group.Category() {
+	case initwiz.CategoryProvider, initwiz.CategoryPipeline, initwiz.CategoryFeature, initwiz.CategoryDetail:
+	default:
+		return fmt.Errorf("unsupported init group category %q", group.Category())
+	}
+	if len(group.Fields()) == 0 {
+		return fmt.Errorf("init group %q must contain at least one field", group.Title())
+	}
+	return nil
 }
 
 // DefaultState returns a fresh StateMap initialized with canonical init
@@ -284,21 +342,21 @@ func buildDisplayGroups(groups []groupBinding) []DisplayGroup {
 
 	byCategory := map[initwiz.InitCategory][]groupBinding{}
 	for _, group := range groups {
-		byCategory[group.spec.Category] = append(byCategory[group.spec.Category], group)
+		byCategory[group.group.Category()] = append(byCategory[group.group.Category()], group)
 	}
 
 	out := make([]DisplayGroup, 0, len(groups))
 	for _, group := range byCategory[initwiz.CategoryProvider] {
-		out = append(out, displayGroupFromSpec(group.spec))
+		out = append(out, displayGroupFromSpec(group.group))
 	}
-	if pipeline := mergedDisplayGroup("Pipeline", byCategory[initwiz.CategoryPipeline]); len(pipeline.Fields) > 0 {
+	if pipeline := mergedDisplayGroup("Pipeline", byCategory[initwiz.CategoryPipeline]); len(pipeline.fields) > 0 {
 		out = append(out, pipeline)
 	}
-	if features := mergedDisplayGroup("Features", byCategory[initwiz.CategoryFeature]); len(features.Fields) > 0 {
+	if features := mergedDisplayGroup("Features", byCategory[initwiz.CategoryFeature]); len(features.fields) > 0 {
 		out = append(out, features)
 	}
 	for _, group := range byCategory[initwiz.CategoryDetail] {
-		out = append(out, displayGroupFromSpec(group.spec))
+		out = append(out, displayGroupFromSpec(group.group))
 	}
 	return out
 }
@@ -307,24 +365,24 @@ func sortGroupBindings(groups []groupBinding) {
 	sort.SliceStable(groups, func(i, j int) bool {
 		left := groups[i]
 		right := groups[j]
-		if left.spec.Order != right.spec.Order {
-			return left.spec.Order < right.spec.Order
+		if left.group.Order() != right.group.Order() {
+			return left.group.Order() < right.group.Order()
 		}
-		if left.spec.Title != right.spec.Title {
-			return left.spec.Title < right.spec.Title
+		if left.group.Title() != right.group.Title() {
+			return left.group.Title() < right.group.Title()
 		}
-		if leftKey, rightKey := firstFieldKey(left.spec), firstFieldKey(right.spec); leftKey != rightKey {
+		if leftKey, rightKey := firstFieldKey(left.group), firstFieldKey(right.group); leftKey != rightKey {
 			return leftKey < rightKey
 		}
 		return left.plugin < right.plugin
 	})
 }
 
-func displayGroupFromSpec(spec *initwiz.InitGroupSpec) DisplayGroup {
+func displayGroupFromSpec(group initwiz.InitGroup) DisplayGroup {
 	return DisplayGroup{
-		Title:    spec.Title,
-		Fields:   cloneFields(spec.Fields),
-		ShowWhen: spec.ShowWhen,
+		title:    group.Title(),
+		fields:   cloneFields(group.Fields()),
+		showWhen: group.Visible,
 	}
 }
 
@@ -337,8 +395,9 @@ func mergedDisplayGroup(title string, groups []groupBinding) DisplayGroup {
 	seen := make(map[string]struct{})
 	showFns := make([]func(*initwiz.StateMap) bool, 0)
 	for _, group := range groups {
-		for i := range group.spec.Fields {
-			field := &group.spec.Fields[i]
+		groupFields := group.group.Fields()
+		for i := range groupFields {
+			field := &groupFields[i]
 			key := field.Key()
 			if key == "" {
 				continue
@@ -349,9 +408,7 @@ func mergedDisplayGroup(title string, groups []groupBinding) DisplayGroup {
 			seen[key] = struct{}{}
 			fields = append(fields, cloneField(*field))
 		}
-		if group.spec.ShowWhen != nil {
-			showFns = append(showFns, group.spec.ShowWhen)
-		}
+		showFns = append(showFns, group.group.Visible)
 	}
 
 	var showWhen func(*initwiz.StateMap) bool
@@ -366,14 +423,15 @@ func mergedDisplayGroup(title string, groups []groupBinding) DisplayGroup {
 		}
 	}
 
-	return DisplayGroup{Title: title, Fields: fields, ShowWhen: showWhen}
+	return DisplayGroup{title: title, fields: fields, showWhen: showWhen}
 }
 
-func firstFieldKey(spec *initwiz.InitGroupSpec) string {
-	if spec == nil || len(spec.Fields) == 0 {
+func firstFieldKey(group initwiz.InitGroup) string {
+	fields := group.Fields()
+	if len(fields) == 0 {
 		return ""
 	}
-	return spec.Fields[0].Key()
+	return fields[0].Key()
 }
 
 func cloneProviderOptions(options []ProviderOption) []ProviderOption {
@@ -385,9 +443,9 @@ func cloneProviderOptions(options []ProviderOption) []ProviderOption {
 
 func cloneDisplayGroup(group DisplayGroup) DisplayGroup {
 	return DisplayGroup{
-		Title:    group.Title,
-		Fields:   cloneFields(group.Fields),
-		ShowWhen: group.ShowWhen,
+		title:    group.title,
+		fields:   cloneFields(group.fields),
+		showWhen: group.showWhen,
 	}
 }
 

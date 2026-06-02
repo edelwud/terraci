@@ -25,41 +25,51 @@ type initConfig struct {
 }
 
 // InitGroups returns the init wizard group specs for GitLab CI.
-func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
+func (p *Plugin) InitGroups() ([]initwiz.InitGroup, error) {
 	showGitLab := func(s *initwiz.StateMap) bool {
 		return initwiz.ProviderKey.Get(s) == pluginName
 	}
 
-	return []*initwiz.InitGroupSpec{
-		{
-			Title:    "GitLab CI",
-			Category: initwiz.CategoryProvider,
-			Order:    100,
-			ShowWhen: showGitLab,
-			Fields: []initwiz.InitField{
-				initwiz.NewStringField(initwiz.StringFieldOptions{
-					Key:         keyGitlabImage,
-					Title:       "Docker Image",
-					Description: "Base Docker image for terraform jobs",
-					Default:     defaultTerraformImage,
-					Placeholder: defaultTerraformImage,
-				}),
-				initwiz.NewStringField(initwiz.StringFieldOptions{
-					Key:         keyGitlabStagesPrefix,
-					Title:       "Stages Prefix",
-					Description: "Prefix for DAG stage names (e.g. deploy-0)",
-					Default:     defaultStagesPrefix,
-					Placeholder: defaultStagesPrefix,
-				}),
-				initwiz.NewBoolField(initwiz.BoolFieldOptions{
-					Key:         keyGitlabCacheEnabled,
-					Title:       "Enable .terraform caching?",
-					Description: "Cache .terraform directory between pipeline runs",
-					Default:     true,
-				}),
-			},
-		},
+	image, err := initwiz.NewStringField(initwiz.StringFieldOptions{
+		Key:         keyGitlabImage,
+		Title:       "Docker Image",
+		Description: "Base Docker image for terraform jobs",
+		Default:     defaultTerraformImage,
+		Placeholder: defaultTerraformImage,
+	})
+	if err != nil {
+		return nil, err
 	}
+	stagesPrefix, err := initwiz.NewStringField(initwiz.StringFieldOptions{
+		Key:         keyGitlabStagesPrefix,
+		Title:       "Stages Prefix",
+		Description: "Prefix for DAG stage names (e.g. deploy-0)",
+		Default:     defaultStagesPrefix,
+		Placeholder: defaultStagesPrefix,
+	})
+	if err != nil {
+		return nil, err
+	}
+	cache, err := initwiz.NewBoolField(initwiz.BoolFieldOptions{
+		Key:         keyGitlabCacheEnabled,
+		Title:       "Enable .terraform caching?",
+		Description: "Cache .terraform directory between pipeline runs",
+		Default:     true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	group, err := initwiz.NewInitGroup(initwiz.InitGroupOptions{
+		Title:    "GitLab CI",
+		Category: initwiz.CategoryProvider,
+		Order:    100,
+		ShowWhen: showGitLab,
+		Fields:   []initwiz.InitField{image, stagesPrefix, cache},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []initwiz.InitGroup{group}, nil
 }
 
 // BuildInitConfig builds the GitLab CI init contribution.

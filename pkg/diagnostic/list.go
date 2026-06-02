@@ -38,15 +38,6 @@ func NewList(diags ...Diagnostic) List {
 	return List{diagnostics: out}
 }
 
-// FromWarnings converts legacy warning strings into warning diagnostics.
-func FromWarnings(warnings []string, opts ...Option) List {
-	diags := make([]Diagnostic, 0, len(warnings))
-	for _, warning := range warnings {
-		diags = append(diags, Warning(warning, opts...))
-	}
-	return NewList(diags...)
-}
-
 // Len returns the number of diagnostics.
 func (l List) Len() int { return len(l.diagnostics) }
 

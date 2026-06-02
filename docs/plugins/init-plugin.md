@@ -52,50 +52,62 @@ var (
     slackOnFailureKey = initwiz.MustStateKey[string]("slack.on_failure")
 )
 
-// InitGroups returns form groups for the init wizard.
-func (p *Plugin) InitGroups() []*initwiz.InitGroupSpec {
-    return []*initwiz.InitGroupSpec{
-        {
-            Title:    "Slack Notifications",
-            Category: initwiz.CategoryFeature,
-            Order:    300,
-            Fields: []initwiz.InitField{
-                initwiz.NewBoolField(initwiz.BoolFieldOptions{
-                    Key:         slackEnabledKey,
-                    Title:       "Enable Slack notifications?",
-                    Description: "Post plan summaries to a Slack channel",
-                    Default:     false,
-                }),
-            },
-        },
-        {
-            Title:    "Slack Settings",
-            Category: initwiz.CategoryDetail,
-            Order:    300,
-            ShowWhen: func(s *initwiz.StateMap) bool {
-                return slackEnabledKey.Get(s)
-            },
-            Fields: []initwiz.InitField{
-                initwiz.NewStringField(initwiz.StringFieldOptions{
-                    Key:         slackChannelKey,
-                    Title:       "Slack Channel",
-                    Description: "Channel to post notifications to",
-                    Default:     "#terraform-deploys",
-                    Placeholder: "#terraform-deploys",
-                }),
-                initwiz.NewSelectField(initwiz.SelectFieldOptions{
-                    Key:     slackOnFailureKey,
-                    Title:   "Notify on failure",
-                    Default: "always",
-                    Options: []initwiz.InitOption{
-                        {Label: "Always", Value: "always"},
-                        {Label: "Only on failure", Value: "failure"},
-                        {Label: "Never", Value: "never"},
-                    },
-                }),
-            },
-        },
+// InitGroups returns validated form groups for the init wizard.
+func (p *Plugin) InitGroups() ([]initwiz.InitGroup, error) {
+    enabled, err := initwiz.NewBoolField(initwiz.BoolFieldOptions{
+        Key:         slackEnabledKey,
+        Title:       "Enable Slack notifications?",
+        Description: "Post plan summaries to a Slack channel",
+        Default:     false,
+    })
+    if err != nil {
+        return nil, err
     }
+    feature, err := initwiz.NewInitGroup(initwiz.InitGroupOptions{
+        Title:    "Slack Notifications",
+        Category: initwiz.CategoryFeature,
+        Order:    300,
+        Fields:   []initwiz.InitField{enabled},
+    })
+    if err != nil {
+        return nil, err
+    }
+
+    channel, err := initwiz.NewStringField(initwiz.StringFieldOptions{
+        Key:         slackChannelKey,
+        Title:       "Slack Channel",
+        Description: "Channel to post notifications to",
+        Default:     "#terraform-deploys",
+        Placeholder: "#terraform-deploys",
+    })
+    if err != nil {
+        return nil, err
+    }
+    onFailure, err := initwiz.NewSelectField(initwiz.SelectFieldOptions{
+        Key:     slackOnFailureKey,
+        Title:   "Notify on failure",
+        Default: "always",
+        Options: []initwiz.InitOption{
+            {Label: "Always", Value: "always"},
+            {Label: "Only on failure", Value: "failure"},
+            {Label: "Never", Value: "never"},
+        },
+    })
+    if err != nil {
+        return nil, err
+    }
+    details, err := initwiz.NewInitGroup(initwiz.InitGroupOptions{
+        Title:    "Slack Settings",
+        Category: initwiz.CategoryDetail,
+        Order:    300,
+        ShowWhen: slackEnabledKey.Get,
+        Fields:   []initwiz.InitField{channel, onFailure},
+    })
+    if err != nil {
+        return nil, err
+    }
+
+    return []initwiz.InitGroup{feature, details}, nil
 }
 
 type SlackConfig struct {
@@ -144,27 +156,39 @@ Most plugins use two groups: a feature toggle in `CategoryFeature` and detailed 
 ```go
 var myPluginEnabledKey = initwiz.MustStateKey[bool]("myplugin.enabled")
 
-// Group 1: Feature toggle (merged with other plugins' toggles)
-{
+toggleField, err := initwiz.NewBoolField(initwiz.BoolFieldOptions{
+    Key:   myPluginEnabledKey,
+    Title: "Enable my plugin?",
+})
+if err != nil {
+    return nil, err
+}
+toggleGroup, err := initwiz.NewInitGroup(initwiz.InitGroupOptions{
+    Title:    "My Plugin",
     Category: initwiz.CategoryFeature,
-    Fields: []initwiz.InitField{
-        initwiz.NewBoolField(initwiz.BoolFieldOptions{
-            Key:   myPluginEnabledKey,
-            Title: "Enable my plugin?",
-        }),
-    },
+    Fields:   []initwiz.InitField{toggleField},
+})
+if err != nil {
+    return nil, err
 }
 
-// Group 2: Detail settings (shown only when enabled)
-{
-    Category: initwiz.CategoryDetail,
-    ShowWhen: func(s *initwiz.StateMap) bool {
-        return myPluginEnabledKey.Get(s)
-    },
-    Fields: []initwiz.InitField{
-        // additional initwiz.NewStringField/NewSelectField entries
-    },
+detailField, err := initwiz.NewStringField(initwiz.StringFieldOptions{
+    Key:   initwiz.MustStateKey[string]("myplugin.channel"),
+    Title: "Channel",
+})
+if err != nil {
+    return nil, err
 }
+detailGroup, err := initwiz.NewInitGroup(initwiz.InitGroupOptions{
+    Title:    "My Plugin Settings",
+    Category: initwiz.CategoryDetail,
+    ShowWhen: myPluginEnabledKey.Get,
+    Fields:   []initwiz.InitField{detailField},
+})
+if err != nil {
+    return nil, err
+}
+return []initwiz.InitGroup{toggleGroup, detailGroup}, nil
 ```
 
 ## Field Types
