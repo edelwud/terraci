@@ -106,7 +106,7 @@ func TestGeneratedSchemaExcludesGitExtension(t *testing.T) {
 	plugins := registry.New()
 	pluginSchemas := make(map[string]any)
 	for _, cl := range plugins.ConfigLoaders() {
-		pluginSchemas[cl.ConfigKey()] = cl.NewConfig()
+		pluginSchemas[cl.ConfigKey().String()] = cl.SchemaConfig()
 	}
 
 	schema := config.GenerateJSONSchema(pluginSchemas)
@@ -119,7 +119,7 @@ func TestGeneratedSchemaUsesCanonicalPolicyFields(t *testing.T) {
 	plugins := registry.New()
 	pluginSchemas := make(map[string]any)
 	for _, cl := range plugins.ConfigLoaders() {
-		pluginSchemas[cl.ConfigKey()] = cl.NewConfig()
+		pluginSchemas[cl.ConfigKey().String()] = cl.SchemaConfig()
 	}
 
 	schema := config.GenerateJSONSchema(pluginSchemas)
@@ -139,7 +139,7 @@ func TestGeneratedSchemaIncludesSummaryFields(t *testing.T) {
 	plugins := registry.New()
 	pluginSchemas := make(map[string]any)
 	for _, cl := range plugins.ConfigLoaders() {
-		pluginSchemas[cl.ConfigKey()] = cl.NewConfig()
+		pluginSchemas[cl.ConfigKey().String()] = cl.SchemaConfig()
 	}
 
 	schema := config.GenerateJSONSchema(pluginSchemas)
@@ -329,16 +329,7 @@ func loadPluginContractConfig(t *testing.T, rawConfig string) (*plugin.AppContex
 		t.Fatalf("failed to load config fixture: %v", err)
 	}
 
-	for _, cl := range plugins.ConfigLoaders() {
-		if _, exists := cfg.Extensions[cl.ConfigKey()]; !exists {
-			continue
-		}
-		if err := cl.DecodeAndSet(func(target any) error {
-			return cfg.Extension(cl.ConfigKey(), target)
-		}); err != nil {
-			t.Fatalf("failed to decode %s config: %v", cl.ConfigKey(), err)
-		}
-	}
+	configurePluginsFromConfig(t, plugins, cfg)
 
 	serviceDir := filepath.Join(dir, cfg.ServiceDir)
 	appCtx := plugin.NewAppContext(plugin.AppContextOptions{

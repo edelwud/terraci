@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/registry"
@@ -31,11 +32,13 @@ type configPlugin struct {
 	enabled    bool
 }
 
-func (p *configPlugin) ConfigKey() string { return p.name }
-func (p *configPlugin) NewConfig() any    { return &testConfig{} }
-func (p *configPlugin) DecodeAndSet(decode func(target any) error) error {
+func (p *configPlugin) ConfigKey() config.ExtensionKey {
+	return config.MustExtensionKey(p.name)
+}
+func (p *configPlugin) SchemaConfig() any { return &testConfig{} }
+func (p *configPlugin) DecodeAndSet(doc config.ExtensionDocument) error {
 	var cfg testConfig
-	if err := decode(&cfg); err != nil {
+	if err := doc.Decode(&cfg); err != nil {
 		return err
 	}
 	p.configured = true

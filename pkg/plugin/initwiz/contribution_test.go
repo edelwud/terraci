@@ -16,8 +16,8 @@ func TestNewInitContribution(t *testing.T) {
 	if contribution.PluginKey() != "feature" {
 		t.Fatalf("PluginKey() = %q, want feature", contribution.PluginKey())
 	}
-	if contribution.ExtensionValue().Key() != "feature" {
-		t.Fatalf("ExtensionValue().Key() = %q, want feature", contribution.ExtensionValue().Key())
+	if contribution.ExtensionValue().Key().String() != "feature" {
+		t.Fatalf("ExtensionValue().Key() = %q, want feature", contribution.ExtensionValue().Key().String())
 	}
 
 	var decoded contributionConfig

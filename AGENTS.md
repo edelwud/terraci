@@ -239,7 +239,7 @@ Each feature/plugin follows one-file-per-capability where it applies, with runti
 
 ```
 1. Register    — init() calls registry.RegisterFactory() with a Plugin factory
-2. Configure   — ConfigLoader.DecodeAndSet() for plugins with a config section under extensions:
+2. Configure   — framework passes config.ExtensionDocument to ConfigLoader.DecodeAndSet()
 3. Preflight   — Preflightable.Preflight() performs cheap validation/env detection
 4. Bind        — runflow builds immutable AppContext/Prepared and attaches it to command context
 5. Execute     — Commands parse flags into typed requests; use-cases lazily build RuntimeProvider runtimes as needed
@@ -270,7 +270,7 @@ Each feature/plugin follows one-file-per-capability where it applies, with runti
 Plugins with config embed `BasePlugin[C]`; `C` must implement `Clone() C`.
 `BasePlugin` stores and returns defensive copies, so mutating `Config()` output
 never changes plugin state. It auto-implements:
-- `Name()`, `Description()`, `ConfigKey()`, `NewConfig()`, `DecodeAndSet()`, `IsConfigured()`, `IsEnabled()`, `Config()`, `Reset()`
+- `Name()`, `Description()`, `ConfigKey()`, `SchemaConfig()`, `DecodeAndSet()`, `IsConfigured()`, `IsEnabled()`, `Config()`, `Reset()`
 - `EnablePolicy` controls enabled semantics: `EnabledWhenConfigured` (gitlab/github), `EnabledExplicitly` (cost/policy/tfupdate), `EnabledByDefault` (summary/diskblob/inmemcache). Bare plugins such as `git` are active by registration and do not implement `ConfigLoader`.
 
 ### AppContext

@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/plugin"
 )
 
@@ -11,13 +12,15 @@ type testConfigLoader struct{}
 
 func (testConfigLoader) Name() string        { return "feature" }
 func (testConfigLoader) Description() string { return "feature" }
-func (testConfigLoader) ConfigKey() string   { return "feature" }
-func (testConfigLoader) NewConfig() any {
+func (testConfigLoader) ConfigKey() config.ExtensionKey {
+	return config.MustExtensionKey("feature")
+}
+func (testConfigLoader) SchemaConfig() any {
 	return &struct {
 		Enabled bool `json:"enabled" yaml:"enabled"`
 	}{}
 }
-func (testConfigLoader) DecodeAndSet(func(any) error) error {
+func (testConfigLoader) DecodeAndSet(config.ExtensionDocument) error {
 	return nil
 }
 func (testConfigLoader) IsConfigured() bool { return true }

@@ -121,8 +121,12 @@ func TestSnapshotExtensionDecodesCapturedYAML(t *testing.T) {
 	cfg.Extensions["feature"].Content[0].Content[1].Value = "false"
 
 	var got extensionConfig
-	if err := snapshot.Extension("feature", &got); err != nil {
-		t.Fatalf("Extension() error = %v", err)
+	doc, ok := snapshot.Extension(MustExtensionKey("feature"))
+	if !ok {
+		t.Fatal("Extension(feature) missing")
+	}
+	if err := doc.Decode(&got); err != nil {
+		t.Fatalf("Extension(feature).Decode() error = %v", err)
 	}
 	if !got.Enabled {
 		t.Fatal("Extension() decoded mutated source node, want captured true")

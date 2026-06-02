@@ -47,13 +47,13 @@ func TestPluginCapabilities(t *testing.T) {
 	configKeys := make(map[string]bool)
 	for _, cl := range configLoaders {
 		key := cl.ConfigKey()
-		if key == "" {
+		if key.String() == "" {
 			t.Errorf("plugin %s has empty ConfigKey", cl.Name())
 		}
-		if configKeys[key] {
-			t.Errorf("duplicate ConfigKey: %s", key)
+		if configKeys[key.String()] {
+			t.Errorf("duplicate ConfigKey: %s", key.String())
 		}
-		configKeys[key] = true
+		configKeys[key.String()] = true
 	}
 
 	// Verify specific expected config keys
@@ -89,24 +89,14 @@ func TestPluginConfigLoading(t *testing.T) {
 		t.Fatalf("failed to load config: %v", err)
 	}
 
-	// Configure plugins from the fixture config
-	for _, cl := range plugins.ConfigLoaders() {
-		if _, exists := cfg.Extensions[cl.ConfigKey()]; !exists {
-			continue
-		}
-		if decErr := cl.DecodeAndSet(func(target any) error {
-			return cfg.Extension(cl.ConfigKey(), target)
-		}); decErr != nil {
-			t.Fatalf("failed to decode %s config: %v", cl.ConfigKey(), decErr)
-		}
-	}
+	configurePluginsFromConfig(t, plugins, cfg)
 
 	// gitlab should be configured (it's in the fixture)
 	for _, cl := range plugins.ConfigLoaders() {
-		if cl.ConfigKey() == "gitlab" && !cl.IsConfigured() {
+		if cl.ConfigKey().String() == "gitlab" && !cl.IsConfigured() {
 			t.Error("gitlab should be configured after loading basic fixture")
 		}
-		if cl.ConfigKey() == "github" && cl.IsConfigured() {
+		if cl.ConfigKey().String() == "github" && cl.IsConfigured() {
 			t.Error("github should NOT be configured (not in basic fixture)")
 		}
 	}
@@ -120,16 +110,7 @@ func TestProviderResolution(t *testing.T) {
 		t.Fatalf("load config: %v", err)
 	}
 
-	for _, cl := range plugins.ConfigLoaders() {
-		if _, exists := cfg.Extensions[cl.ConfigKey()]; !exists {
-			continue
-		}
-		if decErr := cl.DecodeAndSet(func(target any) error {
-			return cfg.Extension(cl.ConfigKey(), target)
-		}); decErr != nil {
-			t.Fatalf("failed to decode %s config: %v", cl.ConfigKey(), decErr)
-		}
-	}
+	configurePluginsFromConfig(t, plugins, cfg)
 
 	provider, resolveErr := plugins.ResolveCIProvider()
 	if resolveErr != nil {
@@ -149,16 +130,7 @@ func TestPluginInitialization(t *testing.T) {
 		t.Fatalf("failed to load config: %v", err)
 	}
 
-	for _, cl := range plugins.ConfigLoaders() {
-		if _, exists := cfg.Extensions[cl.ConfigKey()]; !exists {
-			continue
-		}
-		if decErr := cl.DecodeAndSet(func(target any) error {
-			return cfg.Extension(cl.ConfigKey(), target)
-		}); decErr != nil {
-			t.Fatalf("failed to decode %s config: %v", cl.ConfigKey(), decErr)
-		}
-	}
+	configurePluginsFromConfig(t, plugins, cfg)
 
 	appCtx := plugin.NewAppContext(plugin.AppContextOptions{
 		Config:     cfg,
@@ -173,6 +145,20 @@ func TestPluginInitialization(t *testing.T) {
 			// Some plugins may fail if their external deps are missing (e.g., git not in a repo).
 			// We log but don't fail — the important thing is the interface works.
 			t.Logf("preflight %s: %v (may be expected outside real env)", p.Name(), preflightErr)
+		}
+	}
+}
+
+func configurePluginsFromConfig(t *testing.T, plugins *registry.Registry, cfg *config.Config) {
+	t.Helper()
+	for _, cl := range plugins.ConfigLoaders() {
+		key := cl.ConfigKey()
+		doc, exists := cfg.Extension(key)
+		if !exists {
+			continue
+		}
+		if err := cl.DecodeAndSet(doc); err != nil {
+			t.Fatalf("failed to decode %s config: %v", key.String(), err)
 		}
 	}
 }

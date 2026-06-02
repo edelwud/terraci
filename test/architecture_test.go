@@ -346,6 +346,66 @@ func TestArchitecture_InitFlowBoundaries(t *testing.T) {
 	}
 }
 
+func TestArchitecture_PluginConfigContracts(t *testing.T) {
+	root := repoRoot(t)
+	var violations []string
+
+	for _, rel := range goFiles(t, root, "cmd", "pkg", "plugins", "test", "examples") {
+		if allowUnder(rel, "pkg/config/") {
+			continue
+		}
+		file := parseGoFile(t, filepath.Join(root, rel), 0)
+		ast.Inspect(file, func(node ast.Node) bool {
+			switch typed := node.(type) {
+			case *ast.FuncDecl:
+				if typed.Name.Name == "NewConfig" {
+					violations = append(violations, rel+" exposes stale ConfigLoader.NewConfig method; use SchemaConfig")
+				}
+			case *ast.CallExpr:
+				selector, ok := callSelector(typed)
+				if !ok {
+					return true
+				}
+				if selector.Sel.Name == "DecodeAndSet" && len(typed.Args) > 0 {
+					if _, ok := typed.Args[0].(*ast.FuncLit); ok {
+						violations = append(violations, rel+" calls DecodeAndSet with a decode closure; pass config.ExtensionDocument")
+					}
+				}
+				if selector.Sel.Name == "Extension" && len(typed.Args) != 1 {
+					violations = append(violations, rel+" calls config Extension with decode target; use document lookup then Decode")
+				}
+			}
+			return true
+		})
+	}
+
+	stalePatterns := []string{
+		"NewConfig() any",
+		"NewConfig(), DecodeAndSet",
+		"DecodeAndSet(func",
+		"func(target any)",
+		"Config.Extension(key string, target any)",
+		"Snapshot.Extension(key string, target any)",
+	}
+	for _, rel := range textFiles(t, root, "AGENTS.md", "docs", "examples", "pkg/plugin/doc.go") {
+		if allowUnder(rel, "docs/.vitepress/dist/") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			t.Fatalf("read %s: %v", rel, err)
+		}
+		text := string(data)
+		for _, pattern := range stalePatterns {
+			banTextPattern(&violations, rel, text, pattern, "stale plugin config contract reference")
+		}
+	}
+
+	if len(violations) > 0 {
+		t.Fatalf("plugin config contract violations:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
 func TestArchitecture_CommandRunFlowBoundaries(t *testing.T) {
 	root := repoRoot(t)
 	var violations []string

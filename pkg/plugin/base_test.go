@@ -1,6 +1,11 @@
 package plugin
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"github.com/edelwud/terraci/pkg/config"
+)
 
 type testConfig struct {
 	Name    string
@@ -42,7 +47,7 @@ func TestBasePlugin_NameDescription(t *testing.T) {
 
 func TestBasePlugin_ConfigKey_Custom(t *testing.T) {
 	b := newTestBasePlugin(EnabledWhenConfigured, nil)
-	if b.ConfigKey() != "testbase" {
+	if b.ConfigKey().String() != "testbase" {
 		t.Errorf("ConfigKey() = %q, want testbase", b.ConfigKey())
 	}
 }
@@ -52,26 +57,26 @@ func TestBasePlugin_ConfigKey_DefaultsToName(t *testing.T) {
 		PluginName: "myname",
 		DefaultCfg: func() *testConfig { return &testConfig{} },
 	}
-	if b.ConfigKey() != "myname" {
+	if b.ConfigKey().String() != "myname" {
 		t.Errorf("ConfigKey() = %q, want myname", b.ConfigKey())
 	}
 }
 
-func TestBasePlugin_NewConfig(t *testing.T) {
+func TestBasePlugin_SchemaConfig(t *testing.T) {
 	b := newTestBasePlugin(EnabledWhenConfigured, nil)
-	cfg := b.NewConfig()
+	cfg := b.SchemaConfig()
 	tc, ok := cfg.(*testConfig)
 	if !ok {
-		t.Fatalf("NewConfig() returned %T, want *testConfig", cfg)
+		t.Fatalf("SchemaConfig() returned %T, want *testConfig", cfg)
 	}
 	if tc.Name != "default" {
-		t.Errorf("NewConfig().Name = %q, want default", tc.Name)
+		t.Errorf("SchemaConfig().Name = %q, want default", tc.Name)
 	}
 
 	tc.Name = "mutated"
-	again := b.NewConfig().(*testConfig)
+	again := b.SchemaConfig().(*testConfig)
 	if again.Name != "default" {
-		t.Errorf("NewConfig() leaked mutation: Name = %q, want default", again.Name)
+		t.Errorf("SchemaConfig() leaked mutation: Name = %q, want default", again.Name)
 	}
 }
 
@@ -82,14 +87,8 @@ func TestBasePlugin_DecodeAndSet(t *testing.T) {
 		t.Error("should not be configured before DecodeAndSet")
 	}
 
-	err := b.DecodeAndSet(func(target any) error {
-		cfg, ok := target.(**testConfig)
-		if !ok {
-			t.Fatal("unexpected target type")
-		}
-		*cfg = &testConfig{Name: "decoded", Enabled: true}
-		return nil
-	})
+	doc := extensionDocument(t, "testbase", &testConfig{Name: "decoded", Enabled: true})
+	err := b.DecodeAndSet(doc)
 	if err != nil {
 		t.Fatalf("DecodeAndSet error: %v", err)
 	}
@@ -233,8 +232,51 @@ func TestBasePlugin_EnabledAlways(t *testing.T) {
 	}
 }
 
+func TestBasePlugin_ValidateRejectsInvalidConfigKey(t *testing.T) {
+	b := &BasePlugin[*testConfig]{
+		PluginName: "bad",
+		PluginKey:  "bad.key",
+		DefaultCfg: func() *testConfig { return &testConfig{} },
+	}
+	err := b.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want invalid config key")
+	}
+	if !strings.Contains(err.Error(), "config key") {
+		t.Fatalf("Validate() error = %v, want config key context", err)
+	}
+}
+
 // --- Interface satisfaction ---
 
 func TestBasePlugin_SatisfiesConfigLoader(_ *testing.T) {
 	var _ ConfigLoader = newTestBasePlugin(EnabledWhenConfigured, nil)
+}
+
+func extensionDocument(t *testing.T, key string, value any) config.ExtensionDocument {
+	t.Helper()
+	extensionValue, err := config.NewExtensionValue(key, value)
+	if err != nil {
+		t.Fatalf("NewExtensionValue() error = %v", err)
+	}
+	cfg, err := config.Build(config.BuildOptions{
+		Extensions: mustExtensionSet(t, extensionValue),
+	})
+	if err != nil {
+		t.Fatalf("config.Build() error = %v", err)
+	}
+	doc, ok := cfg.Extension(config.MustExtensionKey(key))
+	if !ok {
+		t.Fatalf("Extension(%q) missing", key)
+	}
+	return doc
+}
+
+func mustExtensionSet(t *testing.T, values ...config.ExtensionValue) config.ExtensionSet {
+	t.Helper()
+	set, err := config.NewExtensionSet(values...)
+	if err != nil {
+		t.Fatalf("NewExtensionSet() error = %v", err)
+	}
+	return set
 }

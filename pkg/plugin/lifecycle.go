@@ -1,6 +1,11 @@
 package plugin
 
-import "context"
+import (
+	"context"
+	"fmt"
+
+	"github.com/edelwud/terraci/pkg/config"
+)
 
 // Preferred plugin flow:
 //   - register via init() + registry.RegisterFactory()
@@ -29,9 +34,31 @@ type Preflightable interface {
 // implements Clone() C.
 type ConfigLoader interface {
 	Plugin
-	ConfigKey() string
-	NewConfig() any
-	DecodeAndSet(decode func(target any) error) error
+	ConfigKey() config.ExtensionKey
+	SchemaConfig() any
+	DecodeAndSet(config.ExtensionDocument) error
 	IsConfigured() bool
 	IsEnabled() bool
+}
+
+// ConfigError wraps config decode failures with stable plugin/key context.
+type ConfigError struct {
+	Plugin string
+	Key    string
+	Err    error
+}
+
+func (e ConfigError) Error() string {
+	switch {
+	case e.Plugin != "" && e.Key != "":
+		return fmt.Sprintf("decode plugin config %s (%s): %v", e.Plugin, e.Key, e.Err)
+	case e.Plugin != "":
+		return fmt.Sprintf("decode plugin config %s: %v", e.Plugin, e.Err)
+	default:
+		return fmt.Sprintf("decode plugin config: %v", e.Err)
+	}
+}
+
+func (e ConfigError) Unwrap() error {
+	return e.Err
 }

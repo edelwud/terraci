@@ -84,9 +84,11 @@ func TestPlugin_BuildInitConfig_DisabledRoundTripDisablesPlugin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build() error = %v", err)
 	}
-	if err := p.DecodeAndSet(func(target any) error {
-		return cfg.Extension("summary", target)
-	}); err != nil {
+	doc, ok := cfg.Extension(config.MustExtensionKey("summary"))
+	if !ok {
+		t.Fatal("summary extension missing")
+	}
+	if err := p.DecodeAndSet(doc); err != nil {
 		t.Fatalf("DecodeAndSet() error = %v", err)
 	}
 	if p.IsEnabled() {

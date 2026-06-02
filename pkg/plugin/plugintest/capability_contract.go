@@ -134,7 +134,7 @@ func assertInitContribution(tb testing.TB, contribution *initwiz.InitContributio
 	if c.ExpectedPluginKey != "" && contribution.PluginKey() != c.ExpectedPluginKey {
 		tb.Fatalf("BuildInitConfig().PluginKey() = %q, want %q", contribution.PluginKey(), c.ExpectedPluginKey)
 	}
-	if contribution.ExtensionValue().Key() == "" {
+	if contribution.ExtensionValue().Key().String() == "" {
 		tb.Fatal("BuildInitConfig().ExtensionValue().Key() is empty")
 	}
 	if c.DecodeTarget != nil {

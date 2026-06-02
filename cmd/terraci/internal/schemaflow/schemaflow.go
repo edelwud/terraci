@@ -17,7 +17,7 @@ func Generate(source configLoaderSource) string {
 	pluginSchemas := make(map[string]any)
 	if source != nil {
 		for _, cl := range source.ConfigLoaders() {
-			pluginSchemas[cl.ConfigKey()] = cl.NewConfig()
+			pluginSchemas[cl.ConfigKey().String()] = cl.SchemaConfig()
 		}
 	}
 	return config.GenerateJSONSchema(pluginSchemas)

@@ -11,6 +11,37 @@ import (
 
 var extensionKeyPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
+// ExtensionKey is a validated key for one section under "extensions:".
+type ExtensionKey struct {
+	value string
+}
+
+// NewExtensionKey validates and normalizes an extension config key.
+func NewExtensionKey(key string) (ExtensionKey, error) {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return ExtensionKey{}, errors.New("extension key is required")
+	}
+	if !extensionKeyPattern.MatchString(key) {
+		return ExtensionKey{}, fmt.Errorf("extension key %q is invalid; use letters, digits, underscore, or hyphen", key)
+	}
+	return ExtensionKey{value: key}, nil
+}
+
+// MustExtensionKey validates key and panics on invalid package-level constants.
+func MustExtensionKey(key string) ExtensionKey {
+	extensionKey, err := NewExtensionKey(key)
+	if err != nil {
+		panic(err)
+	}
+	return extensionKey
+}
+
+// String returns the YAML extension key.
+func (k ExtensionKey) String() string {
+	return k.value
+}
+
 // BuildOptions describes a typed config construction request.
 type BuildOptions struct {
 	Pattern    string
@@ -32,27 +63,28 @@ type ExtensionSet struct {
 
 // NewExtensionValue encodes value as the config section for key.
 func NewExtensionValue(key string, value any) (ExtensionValue, error) {
-	key = strings.TrimSpace(key)
-	if key == "" {
-		return ExtensionValue{}, errors.New("extension key is required")
-	}
-	if !extensionKeyPattern.MatchString(key) {
-		return ExtensionValue{}, fmt.Errorf("extension key %q is invalid; use letters, digits, underscore, or hyphen", key)
+	extensionKey, err := NewExtensionKey(key)
+	if err != nil {
+		return ExtensionValue{}, err
 	}
 	if value == nil {
-		return ExtensionValue{}, fmt.Errorf("extension %q config is nil", key)
+		return ExtensionValue{}, fmt.Errorf("extension %q config is nil", extensionKey.String())
 	}
 
 	node, err := encodeYAMLNode(value)
 	if err != nil {
-		return ExtensionValue{}, fmt.Errorf("encode extension %q config: %w", key, err)
+		return ExtensionValue{}, fmt.Errorf("encode extension %q config: %w", extensionKey.String(), err)
 	}
-	return ExtensionValue{key: key, node: node}, nil
+	return ExtensionValue{key: extensionKey.String(), node: node}, nil
 }
 
-// Key returns the extension config key.
-func (v ExtensionValue) Key() string {
-	return v.key
+// Key returns the validated extension config key.
+func (v ExtensionValue) Key() ExtensionKey {
+	key, err := NewExtensionKey(v.key)
+	if err != nil {
+		return ExtensionKey{}
+	}
+	return key
 }
 
 // Decode decodes the extension config into target.

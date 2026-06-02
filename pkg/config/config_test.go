@@ -70,9 +70,7 @@ extensions:
 
 	// Decode and check the config
 	var glCfg map[string]any
-	if err := cfg.Extension("gitlab", &glCfg); err != nil {
-		t.Fatal(err)
-	}
+	decodeExtension(t, cfg, "gitlab", &glCfg)
 	if cfg.Execution.Binary != "tofu" {
 		t.Errorf("expected execution.binary=tofu, got %v", cfg.Execution.Binary)
 	}
@@ -335,19 +333,17 @@ func TestParsePatternSegmentCount(t *testing.T) {
 }
 
 func TestExtension(t *testing.T) {
-	t.Run("nil extensions map returns nil error", func(t *testing.T) {
+	t.Run("nil extensions map returns false", func(t *testing.T) {
 		cfg := &Config{}
-		var target map[string]any
-		if err := cfg.Extension("missing", &target); err != nil {
-			t.Errorf("expected nil error, got %v", err)
+		if _, ok := cfg.Extension(MustExtensionKey("missing")); ok {
+			t.Fatal("Extension() ok = true, want false")
 		}
 	})
 
-	t.Run("missing key returns nil error", func(t *testing.T) {
+	t.Run("missing key returns false", func(t *testing.T) {
 		cfg := DefaultConfig()
-		var target map[string]any
-		if err := cfg.Extension("missing", &target); err != nil {
-			t.Errorf("expected nil error, got %v", err)
+		if _, ok := cfg.Extension(MustExtensionKey("missing")); ok {
+			t.Fatal("Extension() ok = true, want false")
 		}
 	})
 }

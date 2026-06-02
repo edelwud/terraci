@@ -62,9 +62,7 @@ func TestBuild_ProviderA(t *testing.T) {
 	}
 
 	var providerACfg map[string]any
-	if err := cfg.Extension("provider_a", &providerACfg); err != nil {
-		t.Fatal(err)
-	}
+	decodeExtension(t, cfg, "provider_a", &providerACfg)
 	if providerACfg["mr"] == nil {
 		t.Error("mr config should be present")
 	}
@@ -96,9 +94,7 @@ func TestBuild_ProviderB(t *testing.T) {
 	}
 
 	var providerBCfg map[string]any
-	if err := cfg.Extension("provider_b", &providerBCfg); err != nil {
-		t.Fatal(err)
-	}
+	decodeExtension(t, cfg, "provider_b", &providerBCfg)
 	if cfg.Execution.Binary != "tofu" {
 		t.Errorf("binary = %v, want tofu", cfg.Execution.Binary)
 	}
@@ -124,11 +120,24 @@ func TestBuild_WithFeature(t *testing.T) {
 	}
 
 	var featureCfg map[string]any
-	if err := cfg.Extension("feature_a", &featureCfg); err != nil {
-		t.Fatal(err)
-	}
+	decodeExtension(t, cfg, "feature_a", &featureCfg)
 	if featureCfg["enabled"] != true {
 		t.Error("feature_a should be enabled")
+	}
+}
+
+func TestNewExtensionKey(t *testing.T) {
+	t.Parallel()
+
+	key, err := NewExtensionKey(" feature_a ")
+	if err != nil {
+		t.Fatalf("NewExtensionKey() error = %v", err)
+	}
+	if key.String() != "feature_a" {
+		t.Fatalf("NewExtensionKey().String() = %q, want feature_a", key.String())
+	}
+	if _, err := NewExtensionKey("bad.key"); err == nil {
+		t.Fatal("NewExtensionKey() error = nil, want invalid key error")
 	}
 }
 
@@ -214,11 +223,20 @@ func TestExtensionSet_ValuesAreDefensive(t *testing.T) {
 		t.Fatalf("Build() error = %v", err)
 	}
 	var decoded map[string]any
-	if err := cfg.Extension("feature", &decoded); err != nil {
-		t.Fatalf("Extension() error = %v", err)
-	}
+	decodeExtension(t, cfg, "feature", &decoded)
 	if decoded["enabled"] != true {
 		t.Fatalf("decoded = %#v, want enabled true", decoded)
+	}
+}
+
+func decodeExtension(tb testing.TB, cfg *Config, key string, target any) {
+	tb.Helper()
+	doc, ok := cfg.Extension(MustExtensionKey(key))
+	if !ok {
+		tb.Fatalf("Extension(%q) missing", key)
+	}
+	if err := doc.Decode(target); err != nil {
+		tb.Fatalf("Extension(%q).Decode() error = %v", key, err)
 	}
 }
 

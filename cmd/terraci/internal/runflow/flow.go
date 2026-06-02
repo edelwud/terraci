@@ -150,13 +150,13 @@ func loadConfig(req Request) (*config.Config, error) {
 func decodePluginConfigs(plugins *registry.Registry, cfg *config.Config) error {
 	log.Debug("initializing plugin configurations")
 	for _, p := range plugins.ConfigLoaders() {
-		if _, exists := cfg.Extensions[p.ConfigKey()]; !exists {
+		key := p.ConfigKey()
+		doc, exists := cfg.Extension(key)
+		if !exists {
 			continue
 		}
-		if err := p.DecodeAndSet(func(target any) error {
-			return cfg.Extension(p.ConfigKey(), target)
-		}); err != nil {
-			return fmt.Errorf("decode plugin config %s: %w", p.Name(), err)
+		if err := p.DecodeAndSet(doc); err != nil {
+			return plugin.ConfigError{Plugin: p.Name(), Key: key.String(), Err: err}
 		}
 	}
 	return nil

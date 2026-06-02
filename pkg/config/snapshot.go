@@ -85,11 +85,11 @@ func (s Snapshot) Extensions() map[string]yaml.Node {
 	return cloneYAMLNodeMap(s.cfg.Extensions)
 }
 
-// Extension decodes the named extension's configuration section into target.
-// Returns nil if the snapshot is empty or the section is missing.
-func (s Snapshot) Extension(key string, target any) error {
+// Extension returns the named extension config document from the captured
+// configuration. Missing or empty snapshots return false.
+func (s Snapshot) Extension(key ExtensionKey) (ExtensionDocument, bool) {
 	if s.cfg == nil {
-		return nil
+		return ExtensionDocument{}, false
 	}
-	return s.cfg.Extension(key, target)
+	return s.cfg.Extension(key)
 }

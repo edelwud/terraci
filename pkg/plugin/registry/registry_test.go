@@ -358,11 +358,7 @@ func TestNewCreatesIsolatedPluginInstances(t *testing.T) {
 		t.Fatal("New() returned shared plugin instances")
 	}
 
-	if err := firstPlugin.DecodeAndSet(func(target any) error {
-		cfg := target.(**testConfig)
-		*cfg = &testConfig{Enabled: true}
-		return nil
-	}); err != nil {
+	if err := firstPlugin.DecodeAndSet(testExtensionDocument(t, "isolated", &testConfig{Enabled: true})); err != nil {
 		t.Fatalf("DecodeAndSet() error = %v", err)
 	}
 
@@ -372,6 +368,27 @@ func TestNewCreatesIsolatedPluginInstances(t *testing.T) {
 	if secondPlugin.IsEnabled() {
 		t.Fatal("second plugin observed config state from first plugin")
 	}
+}
+
+func testExtensionDocument(tb testing.TB, key string, value any) config.ExtensionDocument {
+	tb.Helper()
+	extensionValue, err := config.NewExtensionValue(key, value)
+	if err != nil {
+		tb.Fatalf("NewExtensionValue() error = %v", err)
+	}
+	set, err := config.NewExtensionSet(extensionValue)
+	if err != nil {
+		tb.Fatalf("NewExtensionSet() error = %v", err)
+	}
+	cfg, err := config.Build(config.BuildOptions{Extensions: set})
+	if err != nil {
+		tb.Fatalf("config.Build() error = %v", err)
+	}
+	doc, ok := cfg.Extension(config.MustExtensionKey(key))
+	if !ok {
+		tb.Fatalf("Extension(%q) missing", key)
+	}
+	return doc
 }
 
 func TestCatalogCreatesIndependentPluginSets(t *testing.T) {

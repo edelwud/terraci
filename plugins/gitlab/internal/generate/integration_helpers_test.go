@@ -60,7 +60,11 @@ func terraformConfigFromConfig(cfg *config.Config) pipeline.TerraformJobConfigOp
 func decodeGLConfig(cfg *config.Config) *Config {
 	image := Image{Name: "hashicorp/terraform:1.6"}
 	glCfg := &Config{Image: &image}
-	if err := cfg.Extension("gitlab", glCfg); err != nil {
+	doc, ok := cfg.Extension(config.MustExtensionKey("gitlab"))
+	if !ok {
+		return glCfg
+	}
+	if err := doc.Decode(glCfg); err != nil {
 		return glCfg
 	}
 	return glCfg

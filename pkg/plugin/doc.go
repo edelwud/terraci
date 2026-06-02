@@ -47,8 +47,8 @@
 //	└──────┬──────┘
 //	       │
 //	┌──────▼──────┐
-//	│  Configure  │  ConfigLoader.DecodeAndSet — extensions.<key>
-//	│             │  YAML node decoded into BasePlugin[C]'s private config copy.
+//	│  Configure  │  ConfigLoader.DecodeAndSet — config.ExtensionDocument
+//	│             │  decoded into BasePlugin[C]'s private config copy.
 //	└──────┬──────┘
 //	       │
 //	┌──────▼──────┐
@@ -203,7 +203,7 @@
 //     return NoopResolver{} behavior when no real resolver is bound and are
 //     safe to call from any goroutine.
 //   - Implement Clone() C on plugin config types embedded in BasePlugin[C].
-//     BasePlugin.Config(), NewConfig(), DecodeAndSet(), and SetTypedConfig()
+//     BasePlugin.Config(), SchemaConfig(), DecodeAndSet(), and SetTypedConfig()
 //     all use defensive copies; mutating Config() output never changes plugin
 //     state.
 //

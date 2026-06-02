@@ -80,6 +80,497 @@
     },
     "extensions": {
       "properties": {
+        "gitlab": {
+          "properties": {
+            "image": {
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Docker image name"
+                },
+                "entrypoint": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "description": "Override default entrypoint"
+                }
+              },
+              "type": "object",
+              "description": "Docker image override for terraform jobs"
+            },
+            "stages_prefix": {
+              "type": "string",
+              "description": "Prefix for DAG stage names (produces: {prefix}-0, {prefix}-1, etc.)",
+              "default": "deploy"
+            },
+            "variables": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object",
+              "description": "Global pipeline variables"
+            },
+            "cache": {
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Enable GitLab cache for terraform jobs"
+                },
+                "key": {
+                  "type": "string",
+                  "description": "Cache key template. Supports placeholders: {module_path}, {service}, {environment}, {region}, {module}"
+                },
+                "paths": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "description": "Cache path templates. Supports placeholders: {module_path}, {service}, {environment}, {region}, {module}"
+                },
+                "policy": {
+                  "type": "string",
+                  "enum": [
+                    "pull",
+                    "push",
+                    "pull-push"
+                  ],
+                  "description": "GitLab cache policy"
+                }
+              },
+              "type": "object",
+              "description": "Advanced GitLab cache configuration for terraform jobs"
+            },
+            "rules": {
+              "items": {
+                "properties": {
+                  "if": {
+                    "type": "string"
+                  },
+                  "when": {
+                    "type": "string"
+                  },
+                  "changes": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array",
+              "description": "Workflow rules for conditional pipeline execution"
+            },
+            "job_defaults": {
+              "properties": {
+                "image": {
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Docker image name"
+                    },
+                    "entrypoint": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array",
+                      "description": "Override default entrypoint"
+                    }
+                  },
+                  "type": "object",
+                  "description": "Docker image override for all jobs"
+                },
+                "id_tokens": {
+                  "additionalProperties": {
+                    "properties": {
+                      "aud": {
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "type": "object",
+                  "description": "OIDC tokens for cloud provider authentication"
+                },
+                "secrets": {
+                  "additionalProperties": {
+                    "properties": {
+                      "vault": {
+                        "properties": {
+                          "engine": {
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "path": {
+                                "type": "string"
+                              }
+                            },
+                            "type": "object",
+                            "description": "Vault secrets engine configuration"
+                          },
+                          "path": {
+                            "type": "string",
+                            "description": "Path to the secret in Vault"
+                          },
+                          "field": {
+                            "type": "string",
+                            "description": "Field to extract from the secret"
+                          }
+                        },
+                        "type": "object",
+                        "description": "HashiCorp Vault secret configuration"
+                      },
+                      "file": {
+                        "type": "boolean",
+                        "description": "Write secret to a file"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "type": "object",
+                  "description": "Secrets from external secret managers"
+                },
+                "before_script": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "description": "Commands to run before each job"
+                },
+                "after_script": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "description": "Commands to run after each job"
+                },
+                "artifacts": {
+                  "properties": {
+                    "paths": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array",
+                      "description": "File/directory paths to include as artifacts"
+                    },
+                    "expire_in": {
+                      "type": "string",
+                      "description": "How long to keep artifacts (e.g. '1 day', '1 week')"
+                    },
+                    "reports": {
+                      "properties": {
+                        "terraform": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array",
+                          "description": "Terraform report paths"
+                        },
+                        "junit": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array",
+                          "description": "JUnit report paths"
+                        },
+                        "cobertura": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array",
+                          "description": "Cobertura coverage report paths"
+                        }
+                      },
+                      "type": "object",
+                      "description": "Artifact reports configuration"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "Artifact archive name"
+                    },
+                    "untracked": {
+                      "type": "boolean",
+                      "description": "Include all untracked files"
+                    },
+                    "when": {
+                      "type": "string",
+                      "enum": [
+                        "on_success",
+                        "on_failure",
+                        "always"
+                      ],
+                      "description": "When to upload artifacts"
+                    },
+                    "expose_as": {
+                      "type": "string",
+                      "description": "Makes artifacts available in MR UI"
+                    }
+                  },
+                  "type": "object",
+                  "description": "GitLab CI artifacts configuration"
+                },
+                "tags": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "description": "GitLab runner tags"
+                },
+                "rules": {
+                  "items": {
+                    "properties": {
+                      "if": {
+                        "type": "string"
+                      },
+                      "when": {
+                        "type": "string"
+                      },
+                      "changes": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "description": "Job-level rules"
+                },
+                "when": {
+                  "type": "string",
+                  "enum": [
+                    "on_success",
+                    "manual",
+                    "always",
+                    "delayed"
+                  ],
+                  "description": "When to run matching jobs"
+                },
+                "variables": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "description": "Additional variables"
+                }
+              },
+              "type": "object",
+              "description": "Default settings applied to all jobs"
+            },
+            "overwrites": {
+              "items": {
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "description": "Type of jobs to override (plan, apply, or contributed job name)"
+                  },
+                  "image": {
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "Docker image name"
+                      },
+                      "entrypoint": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array",
+                        "description": "Override default entrypoint"
+                      }
+                    },
+                    "type": "object",
+                    "description": "Docker image override for matching jobs"
+                  },
+                  "id_tokens": {
+                    "additionalProperties": {
+                      "properties": {
+                        "aud": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "type": "object",
+                    "description": "OIDC tokens for matching jobs"
+                  },
+                  "secrets": {
+                    "additionalProperties": {
+                      "properties": {
+                        "vault": {
+                          "properties": {
+                            "engine": {
+                              "properties": {
+                                "name": {
+                                  "type": "string"
+                                },
+                                "path": {
+                                  "type": "string"
+                                }
+                              },
+                              "type": "object",
+                              "description": "Vault secrets engine configuration"
+                            },
+                            "path": {
+                              "type": "string",
+                              "description": "Path to the secret in Vault"
+                            },
+                            "field": {
+                              "type": "string",
+                              "description": "Field to extract from the secret"
+                            }
+                          },
+                          "type": "object",
+                          "description": "HashiCorp Vault secret configuration"
+                        },
+                        "file": {
+                          "type": "boolean",
+                          "description": "Write secret to a file"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "type": "object",
+                    "description": "Secrets for matching jobs"
+                  },
+                  "before_script": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Commands to run before matching jobs"
+                  },
+                  "after_script": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Commands to run after matching jobs"
+                  },
+                  "artifacts": {
+                    "properties": {
+                      "paths": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array",
+                        "description": "File/directory paths to include as artifacts"
+                      },
+                      "expire_in": {
+                        "type": "string",
+                        "description": "How long to keep artifacts (e.g. '1 day', '1 week')"
+                      },
+                      "reports": {
+                        "properties": {
+                          "terraform": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array",
+                            "description": "Terraform report paths"
+                          },
+                          "junit": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array",
+                            "description": "JUnit report paths"
+                          },
+                          "cobertura": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array",
+                            "description": "Cobertura coverage report paths"
+                          }
+                        },
+                        "type": "object",
+                        "description": "Artifact reports configuration"
+                      },
+                      "name": {
+                        "type": "string",
+                        "description": "Artifact archive name"
+                      },
+                      "untracked": {
+                        "type": "boolean",
+                        "description": "Include all untracked files"
+                      },
+                      "when": {
+                        "type": "string",
+                        "enum": [
+                          "on_success",
+                          "on_failure",
+                          "always"
+                        ],
+                        "description": "When to upload artifacts"
+                      },
+                      "expose_as": {
+                        "type": "string",
+                        "description": "Makes artifacts available in MR UI"
+                      }
+                    },
+                    "type": "object",
+                    "description": "Artifacts configuration for matching jobs"
+                  },
+                  "tags": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Runner tags for matching jobs"
+                  },
+                  "rules": {
+                    "items": {
+                      "properties": {
+                        "if": {
+                          "type": "string"
+                        },
+                        "when": {
+                          "type": "string"
+                        },
+                        "changes": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "type": "array",
+                    "description": "Job-level rules for matching jobs"
+                  },
+                  "when": {
+                    "type": "string",
+                    "enum": [
+                      "on_success",
+                      "manual",
+                      "always",
+                      "delayed"
+                    ],
+                    "description": "When to run matching jobs"
+                  },
+                  "variables": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object",
+                    "description": "Variables for matching jobs"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "type"
+                ]
+              },
+              "type": "array",
+              "description": "Job-level overrides for plan or apply jobs"
+            }
+          },
+          "type": "object"
+        },
         "policy": {
           "properties": {
             "enabled": {
@@ -681,497 +1172,6 @@
                     },
                     "type": "array",
                     "description": "Extra steps after terraform commands"
-                  }
-                },
-                "type": "object",
-                "required": [
-                  "type"
-                ]
-              },
-              "type": "array",
-              "description": "Job-level overrides for plan or apply jobs"
-            }
-          },
-          "type": "object"
-        },
-        "gitlab": {
-          "properties": {
-            "image": {
-              "properties": {
-                "name": {
-                  "type": "string",
-                  "description": "Docker image name"
-                },
-                "entrypoint": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array",
-                  "description": "Override default entrypoint"
-                }
-              },
-              "type": "object",
-              "description": "Docker image override for terraform jobs"
-            },
-            "stages_prefix": {
-              "type": "string",
-              "description": "Prefix for DAG stage names (produces: {prefix}-0, {prefix}-1, etc.)",
-              "default": "deploy"
-            },
-            "variables": {
-              "additionalProperties": {
-                "type": "string"
-              },
-              "type": "object",
-              "description": "Global pipeline variables"
-            },
-            "cache": {
-              "properties": {
-                "enabled": {
-                  "type": "boolean",
-                  "description": "Enable GitLab cache for terraform jobs"
-                },
-                "key": {
-                  "type": "string",
-                  "description": "Cache key template. Supports placeholders: {module_path}, {service}, {environment}, {region}, {module}"
-                },
-                "paths": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array",
-                  "description": "Cache path templates. Supports placeholders: {module_path}, {service}, {environment}, {region}, {module}"
-                },
-                "policy": {
-                  "type": "string",
-                  "enum": [
-                    "pull",
-                    "push",
-                    "pull-push"
-                  ],
-                  "description": "GitLab cache policy"
-                }
-              },
-              "type": "object",
-              "description": "Advanced GitLab cache configuration for terraform jobs"
-            },
-            "rules": {
-              "items": {
-                "properties": {
-                  "if": {
-                    "type": "string"
-                  },
-                  "when": {
-                    "type": "string"
-                  },
-                  "changes": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  }
-                },
-                "type": "object"
-              },
-              "type": "array",
-              "description": "Workflow rules for conditional pipeline execution"
-            },
-            "job_defaults": {
-              "properties": {
-                "image": {
-                  "properties": {
-                    "name": {
-                      "type": "string",
-                      "description": "Docker image name"
-                    },
-                    "entrypoint": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "type": "array",
-                      "description": "Override default entrypoint"
-                    }
-                  },
-                  "type": "object",
-                  "description": "Docker image override for all jobs"
-                },
-                "id_tokens": {
-                  "additionalProperties": {
-                    "properties": {
-                      "aud": {
-                        "type": "string"
-                      }
-                    },
-                    "type": "object"
-                  },
-                  "type": "object",
-                  "description": "OIDC tokens for cloud provider authentication"
-                },
-                "secrets": {
-                  "additionalProperties": {
-                    "properties": {
-                      "vault": {
-                        "properties": {
-                          "engine": {
-                            "properties": {
-                              "name": {
-                                "type": "string"
-                              },
-                              "path": {
-                                "type": "string"
-                              }
-                            },
-                            "type": "object",
-                            "description": "Vault secrets engine configuration"
-                          },
-                          "path": {
-                            "type": "string",
-                            "description": "Path to the secret in Vault"
-                          },
-                          "field": {
-                            "type": "string",
-                            "description": "Field to extract from the secret"
-                          }
-                        },
-                        "type": "object",
-                        "description": "HashiCorp Vault secret configuration"
-                      },
-                      "file": {
-                        "type": "boolean",
-                        "description": "Write secret to a file"
-                      }
-                    },
-                    "type": "object"
-                  },
-                  "type": "object",
-                  "description": "Secrets from external secret managers"
-                },
-                "before_script": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array",
-                  "description": "Commands to run before each job"
-                },
-                "after_script": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array",
-                  "description": "Commands to run after each job"
-                },
-                "artifacts": {
-                  "properties": {
-                    "paths": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "type": "array",
-                      "description": "File/directory paths to include as artifacts"
-                    },
-                    "expire_in": {
-                      "type": "string",
-                      "description": "How long to keep artifacts (e.g. '1 day', '1 week')"
-                    },
-                    "reports": {
-                      "properties": {
-                        "terraform": {
-                          "items": {
-                            "type": "string"
-                          },
-                          "type": "array",
-                          "description": "Terraform report paths"
-                        },
-                        "junit": {
-                          "items": {
-                            "type": "string"
-                          },
-                          "type": "array",
-                          "description": "JUnit report paths"
-                        },
-                        "cobertura": {
-                          "items": {
-                            "type": "string"
-                          },
-                          "type": "array",
-                          "description": "Cobertura coverage report paths"
-                        }
-                      },
-                      "type": "object",
-                      "description": "Artifact reports configuration"
-                    },
-                    "name": {
-                      "type": "string",
-                      "description": "Artifact archive name"
-                    },
-                    "untracked": {
-                      "type": "boolean",
-                      "description": "Include all untracked files"
-                    },
-                    "when": {
-                      "type": "string",
-                      "enum": [
-                        "on_success",
-                        "on_failure",
-                        "always"
-                      ],
-                      "description": "When to upload artifacts"
-                    },
-                    "expose_as": {
-                      "type": "string",
-                      "description": "Makes artifacts available in MR UI"
-                    }
-                  },
-                  "type": "object",
-                  "description": "GitLab CI artifacts configuration"
-                },
-                "tags": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array",
-                  "description": "GitLab runner tags"
-                },
-                "rules": {
-                  "items": {
-                    "properties": {
-                      "if": {
-                        "type": "string"
-                      },
-                      "when": {
-                        "type": "string"
-                      },
-                      "changes": {
-                        "items": {
-                          "type": "string"
-                        },
-                        "type": "array"
-                      }
-                    },
-                    "type": "object"
-                  },
-                  "type": "array",
-                  "description": "Job-level rules"
-                },
-                "when": {
-                  "type": "string",
-                  "enum": [
-                    "on_success",
-                    "manual",
-                    "always",
-                    "delayed"
-                  ],
-                  "description": "When to run matching jobs"
-                },
-                "variables": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "type": "object",
-                  "description": "Additional variables"
-                }
-              },
-              "type": "object",
-              "description": "Default settings applied to all jobs"
-            },
-            "overwrites": {
-              "items": {
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "description": "Type of jobs to override (plan, apply, or contributed job name)"
-                  },
-                  "image": {
-                    "properties": {
-                      "name": {
-                        "type": "string",
-                        "description": "Docker image name"
-                      },
-                      "entrypoint": {
-                        "items": {
-                          "type": "string"
-                        },
-                        "type": "array",
-                        "description": "Override default entrypoint"
-                      }
-                    },
-                    "type": "object",
-                    "description": "Docker image override for matching jobs"
-                  },
-                  "id_tokens": {
-                    "additionalProperties": {
-                      "properties": {
-                        "aud": {
-                          "type": "string"
-                        }
-                      },
-                      "type": "object"
-                    },
-                    "type": "object",
-                    "description": "OIDC tokens for matching jobs"
-                  },
-                  "secrets": {
-                    "additionalProperties": {
-                      "properties": {
-                        "vault": {
-                          "properties": {
-                            "engine": {
-                              "properties": {
-                                "name": {
-                                  "type": "string"
-                                },
-                                "path": {
-                                  "type": "string"
-                                }
-                              },
-                              "type": "object",
-                              "description": "Vault secrets engine configuration"
-                            },
-                            "path": {
-                              "type": "string",
-                              "description": "Path to the secret in Vault"
-                            },
-                            "field": {
-                              "type": "string",
-                              "description": "Field to extract from the secret"
-                            }
-                          },
-                          "type": "object",
-                          "description": "HashiCorp Vault secret configuration"
-                        },
-                        "file": {
-                          "type": "boolean",
-                          "description": "Write secret to a file"
-                        }
-                      },
-                      "type": "object"
-                    },
-                    "type": "object",
-                    "description": "Secrets for matching jobs"
-                  },
-                  "before_script": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array",
-                    "description": "Commands to run before matching jobs"
-                  },
-                  "after_script": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array",
-                    "description": "Commands to run after matching jobs"
-                  },
-                  "artifacts": {
-                    "properties": {
-                      "paths": {
-                        "items": {
-                          "type": "string"
-                        },
-                        "type": "array",
-                        "description": "File/directory paths to include as artifacts"
-                      },
-                      "expire_in": {
-                        "type": "string",
-                        "description": "How long to keep artifacts (e.g. '1 day', '1 week')"
-                      },
-                      "reports": {
-                        "properties": {
-                          "terraform": {
-                            "items": {
-                              "type": "string"
-                            },
-                            "type": "array",
-                            "description": "Terraform report paths"
-                          },
-                          "junit": {
-                            "items": {
-                              "type": "string"
-                            },
-                            "type": "array",
-                            "description": "JUnit report paths"
-                          },
-                          "cobertura": {
-                            "items": {
-                              "type": "string"
-                            },
-                            "type": "array",
-                            "description": "Cobertura coverage report paths"
-                          }
-                        },
-                        "type": "object",
-                        "description": "Artifact reports configuration"
-                      },
-                      "name": {
-                        "type": "string",
-                        "description": "Artifact archive name"
-                      },
-                      "untracked": {
-                        "type": "boolean",
-                        "description": "Include all untracked files"
-                      },
-                      "when": {
-                        "type": "string",
-                        "enum": [
-                          "on_success",
-                          "on_failure",
-                          "always"
-                        ],
-                        "description": "When to upload artifacts"
-                      },
-                      "expose_as": {
-                        "type": "string",
-                        "description": "Makes artifacts available in MR UI"
-                      }
-                    },
-                    "type": "object",
-                    "description": "Artifacts configuration for matching jobs"
-                  },
-                  "tags": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array",
-                    "description": "Runner tags for matching jobs"
-                  },
-                  "rules": {
-                    "items": {
-                      "properties": {
-                        "if": {
-                          "type": "string"
-                        },
-                        "when": {
-                          "type": "string"
-                        },
-                        "changes": {
-                          "items": {
-                            "type": "string"
-                          },
-                          "type": "array"
-                        }
-                      },
-                      "type": "object"
-                    },
-                    "type": "array",
-                    "description": "Job-level rules for matching jobs"
-                  },
-                  "when": {
-                    "type": "string",
-                    "enum": [
-                      "on_success",
-                      "manual",
-                      "always",
-                      "delayed"
-                    ],
-                    "description": "When to run matching jobs"
-                  },
-                  "variables": {
-                    "additionalProperties": {
-                      "type": "string"
-                    },
-                    "type": "object",
-                    "description": "Variables for matching jobs"
                   }
                 },
                 "type": "object",
