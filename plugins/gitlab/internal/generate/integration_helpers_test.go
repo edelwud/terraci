@@ -11,7 +11,6 @@ import (
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/parser"
 	"github.com/edelwud/terraci/pkg/pipeline"
-	"github.com/edelwud/terraci/pkg/terraformrun"
 )
 
 // testdataDir returns the absolute path to the testdata directory
@@ -36,12 +35,25 @@ type Fixture struct {
 	Dir           string
 	Config        *config.Config
 	GLConfig      *Config
-	Profile       terraformrun.Profile
+	Terraform     pipeline.TerraformJobConfigOptions
 	Contributions []*pipeline.Contribution
 	Modules       []*discovery.Module
 	ModuleIndex   *discovery.ModuleIndex
 	DepGraph      *graph.DependencyGraph
 	Generator     *Generator
+}
+
+func terraformConfigFromConfig(cfg *config.Config) pipeline.TerraformJobConfigOptions {
+	opts := defaultTerraformConfigOptions()
+	if cfg == nil {
+		return opts
+	}
+	if cfg.Execution.Binary != "" {
+		opts.Binary = cfg.Execution.Binary
+	}
+	opts.InitEnabled = cfg.Execution.InitEnabled
+	opts.Env = cfg.Execution.Env
+	return opts
 }
 
 // decodeGLConfig extracts the gitlab plugin config from the plugins map.
@@ -67,10 +79,7 @@ func LoadFixture(t *testing.T, name string) *Fixture {
 	}
 
 	glCfg := decodeGLConfig(cfg)
-	profile, err := terraformrun.ProfileFromConfig(cfg.Snapshot())
-	if err != nil {
-		t.Fatalf("failed to build terraform profile for fixture %s: %v", name, err)
-	}
+	terraformConfig := terraformConfigFromConfig(cfg)
 
 	// Scan modules
 	scanner := discovery.NewScanner(dir, cfg.Structure.Segments)
@@ -99,10 +108,10 @@ func LoadFixture(t *testing.T, name string) *Fixture {
 	// fail at IR construction; tests that load such fixtures inspect the
 	// dep graph directly and never call Generate, so we leave the generator
 	// nil rather than aborting.
-	ir, _ := buildTestIR(glCfg, profile, nil, depGraph, modules, nil)
+	ir, _ := buildTestIR(glCfg, terraformConfig, nil, depGraph, modules, nil)
 	var generator *Generator
 	if ir != nil {
-		generator = NewGenerator(glCfg, profile, ir)
+		generator = NewGenerator(glCfg, ir)
 	}
 
 	return &Fixture{
@@ -110,7 +119,7 @@ func LoadFixture(t *testing.T, name string) *Fixture {
 		Dir:         dir,
 		Config:      cfg,
 		GLConfig:    glCfg,
-		Profile:     profile,
+		Terraform:   terraformConfig,
 		Modules:     modules,
 		ModuleIndex: moduleIndex,
 		DepGraph:    depGraph,

@@ -2,7 +2,6 @@ package generate
 
 import (
 	"github.com/edelwud/terraci/pkg/pipeline"
-	"github.com/edelwud/terraci/pkg/terraformrun"
 	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
 	domainpkg "github.com/edelwud/terraci/plugins/github/internal/domain"
 )
@@ -16,9 +15,9 @@ type Generator struct {
 
 // NewGenerator creates a new GitHub Actions pipeline generator bound to the
 // supplied IR.
-func NewGenerator(cfg *configpkg.Config, profile terraformrun.Profile, ir *pipeline.IR) *Generator {
+func NewGenerator(cfg *configpkg.Config, ir *pipeline.IR) *Generator {
 	return &Generator{
-		settings: newSettings(cfg, profile),
+		settings: newSettings(cfg),
 		ir:       ir,
 	}
 }

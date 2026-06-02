@@ -7,14 +7,13 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
-	"github.com/edelwud/terraci/pkg/terraformrun"
 	"github.com/edelwud/terraci/plugins/gitlab/internal/domain"
 )
 
 // testCfg is a local wrapper used by tests to hold both gitlab and contributed pipeline data.
 type testCfg struct {
 	GitLab        *Config
-	Profile       terraformrun.Profile
+	Terraform     pipeline.TerraformJobConfigOptions
 	Contributions []*pipeline.Contribution
 }
 
@@ -25,7 +24,7 @@ func createTestConfig() *testCfg {
 		GitLab: &Config{
 			Image: &image,
 		},
-		Profile: mustProfile(terraformrun.ProfileOptions{}),
+		Terraform: defaultTerraformConfigOptions(),
 	}
 }
 
@@ -36,7 +35,7 @@ func TestNewGenerator(t *testing.T) {
 	depGraph := graph.NewDependencyGraph()
 	depGraph.AddNode(module)
 
-	gen := newTestGenerator(t, cfg.GitLab, cfg.Profile, cfg.Contributions, depGraph, modules)
+	gen := newTestGenerator(t, cfg.GitLab, cfg.Terraform, cfg.Contributions, depGraph, modules)
 
 	if gen == nil {
 		t.Fatal("NewGenerator returned nil")
@@ -52,7 +51,7 @@ func TestNewGenerator(t *testing.T) {
 func TestGenerator_GenerateRejectsInvalidIR(t *testing.T) {
 	t.Parallel()
 
-	generated, err := NewGenerator(nil, mustProfile(terraformrun.ProfileOptions{}), nil).Generate()
+	generated, err := NewGenerator(nil, nil).Generate()
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -167,7 +166,7 @@ func TestGenerator_Generate_CustomStagesPrefix(t *testing.T) {
 func TestGenerator_Generate_ExecutionBinary(t *testing.T) {
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	p := newGeneratorScenario(t).
-		withExecution(func(cfg *terraformrun.ProfileOptions) { cfg.Binary = "tofu" }).
+		withTerraformConfig(func(cfg *pipeline.TerraformJobConfigOptions) { cfg.Binary = DefaultTofuBinary }).
 		withModules(module).
 		withDependencies(map[string][]string{module.ID(): {}}).
 		generate()

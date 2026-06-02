@@ -2,7 +2,6 @@ package generate
 
 import (
 	"github.com/edelwud/terraci/pkg/pipeline"
-	"github.com/edelwud/terraci/pkg/terraformrun"
 	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
 	"github.com/edelwud/terraci/plugins/gitlab/internal/domain"
 )
@@ -22,8 +21,8 @@ type Generator struct {
 }
 
 // NewGenerator creates a new GitLab pipeline generator bound to the supplied IR.
-func NewGenerator(cfg *configpkg.Config, profile terraformrun.Profile, ir *pipeline.IR) *Generator {
-	cfgSettings := newSettings(cfg, profile)
+func NewGenerator(cfg *configpkg.Config, ir *pipeline.IR) *Generator {
+	cfgSettings := newSettings(cfg)
 	return &Generator{
 		settings:     cfgSettings,
 		stagePlanner: newStagePlanner(cfgSettings),
@@ -60,7 +59,10 @@ func (g *Generator) DryRun() (*pipeline.DryRunResult, error) {
 }
 
 func (g *Generator) transform(ir *pipeline.IR) (*domain.Pipeline, error) {
-	effectiveImage := g.settings.defaultImage()
+	effectiveImage, imageErr := g.settings.defaultImage(ir)
+	if imageErr != nil {
+		return nil, imageErr
+	}
 	stagePlan, err := g.stagePlanner.plan(ir)
 	if err != nil {
 		return nil, err

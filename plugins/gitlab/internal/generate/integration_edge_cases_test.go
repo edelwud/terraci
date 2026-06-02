@@ -7,7 +7,6 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/parser"
-	"github.com/edelwud/terraci/pkg/terraformrun"
 )
 
 // TestEdgeCase_EmptyTargetModules tests generation with empty slice of target modules
@@ -236,14 +235,14 @@ func TestEdgeCase_ModuleWithSelfReference(t *testing.T) {
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
 	glCfg := &Config{}
-	profile := mustProfile(terraformrun.ProfileOptions{})
+	terraformConfig := defaultTerraformConfigOptions()
 
-	ir, buildErr := buildTestIR(glCfg, profile, nil, depGraph, modules, nil)
+	ir, buildErr := buildTestIR(glCfg, terraformConfig, nil, depGraph, modules, nil)
 	if buildErr != nil {
 		t.Logf("Self-reference caused error (expected): %v", buildErr)
 		return
 	}
-	generator := NewGenerator(glCfg, profile, ir)
+	generator := NewGenerator(glCfg, ir)
 	result, err := generator.Generate()
 	if err != nil {
 		t.Logf("Self-reference caused error (expected): %v", err)
@@ -270,8 +269,7 @@ func TestEdgeCase_SpecialCharactersInModuleName(t *testing.T) {
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
 	glCfg := &Config{}
-	profile := mustProfile(terraformrun.ProfileOptions{})
-	generator := newTestGenerator(t, glCfg, profile, nil, depGraph, modules)
+	generator := newTestGenerator(t, glCfg, defaultTerraformConfigOptions(), nil, depGraph, modules)
 	result, err := generator.Generate()
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -302,8 +300,7 @@ func TestEdgeCase_VeryLongModulePath(t *testing.T) {
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
 	glCfg := &Config{}
-	profile := mustProfile(terraformrun.ProfileOptions{})
-	generator := newTestGenerator(t, glCfg, profile, nil, depGraph, modules)
+	generator := newTestGenerator(t, glCfg, defaultTerraformConfigOptions(), nil, depGraph, modules)
 	result, err := generator.Generate()
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)

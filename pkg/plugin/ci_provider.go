@@ -27,7 +27,7 @@ type CIInfoProvider interface {
 // render the immutable IR through getters.
 type PipelineGeneratorFactory interface {
 	Plugin
-	NewGenerator(ctx *AppContext, ir *pipeline.IR) (pipeline.Generator, error)
+	NewGenerator(ir *pipeline.IR) (pipeline.Generator, error)
 }
 
 // CommentServiceFactory creates PR/MR comment services.
@@ -59,8 +59,8 @@ func (c *ResolvedCIProvider) PipelineID() string   { return c.metadata.PipelineI
 func (c *ResolvedCIProvider) CommitSHA() string    { return c.metadata.CommitSHA() }
 
 // NewGenerator returns a pipeline generator bound to the supplied IR.
-func (c *ResolvedCIProvider) NewGenerator(ctx *AppContext, ir *pipeline.IR) (pipeline.Generator, error) {
-	return c.gen.NewGenerator(ctx, ir)
+func (c *ResolvedCIProvider) NewGenerator(ir *pipeline.IR) (pipeline.Generator, error) {
+	return c.gen.NewGenerator(ir)
 }
 
 // NewCommentService returns the comment service and true, or nil and false

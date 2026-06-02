@@ -6,7 +6,6 @@ import (
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
-	"github.com/edelwud/terraci/pkg/terraformrun"
 	generatepkg "github.com/edelwud/terraci/plugins/gitlab/internal/generate"
 	mrpkg "github.com/edelwud/terraci/plugins/gitlab/internal/mr"
 )
@@ -27,12 +26,8 @@ func (p *Plugin) CommitSHA() string { return os.Getenv("CI_COMMIT_SHA") }
 
 // NewGenerator creates a new GitLab CI pipeline generator bound to the
 // pre-built IR.
-func (p *Plugin) NewGenerator(ctx *plugin.AppContext, ir *pipeline.IR) (pipeline.Generator, error) {
-	profile, err := terraformrun.ProfileFromConfig(ctx.Config())
-	if err != nil {
-		return nil, err
-	}
-	return generatepkg.NewGenerator(p.Config(), profile, ir), nil
+func (p *Plugin) NewGenerator(ir *pipeline.IR) (pipeline.Generator, error) {
+	return generatepkg.NewGenerator(p.Config(), ir), nil
 }
 
 // NewCommentService creates a new MR comment service.

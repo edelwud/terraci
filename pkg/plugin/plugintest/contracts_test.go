@@ -378,7 +378,7 @@ func (contractCIProvider) ProviderName() string {
 func (contractCIProvider) PipelineID() string { return "pipeline" }
 func (contractCIProvider) CommitSHA() string  { return "commit" }
 
-func (contractCIProvider) NewGenerator(*plugin.AppContext, *pipeline.IR) (pipeline.Generator, error) {
+func (contractCIProvider) NewGenerator(*pipeline.IR) (pipeline.Generator, error) {
 	return contractGenerator{}, nil
 }
 

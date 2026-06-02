@@ -4,39 +4,36 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
-	"github.com/edelwud/terraci/pkg/terraformrun"
 	"github.com/edelwud/terraci/pkg/workflow"
 	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
 )
 
 func buildTestIR(
 	cfg *configpkg.Config,
-	profile terraformrun.Profile,
+	terraformConfig pipeline.TerraformJobConfigOptions,
 	contributions []*pipeline.Contribution,
 	depGraph *graph.DependencyGraph,
 	allModules, targetModules []*discovery.Module,
 ) (*pipeline.IR, error) {
-	return buildTestIRWithApply(cfg, profile, contributions, depGraph, allModules, targetModules, true)
+	return buildTestIRWithApply(cfg, terraformConfig, contributions, depGraph, allModules, targetModules, true)
 }
 
 func buildTestIRWithApply(
-	cfg *configpkg.Config,
-	profile terraformrun.Profile,
+	_ *configpkg.Config,
+	terraformConfigOptions pipeline.TerraformJobConfigOptions,
 	contributions []*pipeline.Contribution,
 	depGraph *graph.DependencyGraph,
 	allModules, targetModules []*discovery.Module,
 	applyEnabled bool,
 ) (*pipeline.IR, error) {
-	s := newSettings(cfg, profile)
 	intent, err := buildIntentForApply(applyEnabled)
 	if err != nil {
 		return nil, err
 	}
-	terraformConfig, err := pipeline.NewTerraformJobConfig(pipeline.TerraformJobConfigOptions{
-		Binary:      profile.Binary().String(),
-		InitEnabled: s.initEnabled(),
-		Env:         profile.Env(),
-	})
+	if terraformConfigOptions.Binary == "" {
+		terraformConfigOptions.Binary = DefaultBinary
+	}
+	terraformConfig, err := pipeline.NewTerraformJobConfig(terraformConfigOptions)
 	if err != nil {
 		return nil, err
 	}

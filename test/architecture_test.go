@@ -34,8 +34,11 @@ func TestArchitecture_ImportBoundaries(t *testing.T) {
 				if reason, ok := siblingPluginImportViolation(rel, imp); ok {
 					violations = append(violations, reason)
 				}
+				if isCIProviderPlugin(rel) && imp == moduleImportPath+"/pkg/terraformrun" {
+					violations = append(violations, rel+" imports pkg/terraformrun; CI providers must consume Terraform runtime from pipeline IR")
+				}
 				if isProductionFile(rel) && isCIProviderPlugin(rel) && imp == moduleImportPath+"/pkg/execution" {
-					violations = append(violations, rel+" imports pkg/execution; CI providers must consume pipeline IR and terraformrun.Profile, not local execution runtime")
+					violations = append(violations, rel+" imports pkg/execution; CI providers must consume pipeline IR, not local execution runtime")
 				}
 			}
 		}
@@ -148,6 +151,12 @@ func TestArchitecture_ConfigSnapshotAndDocs(t *testing.T) {
 		"localexec/internal/planner",
 		"ScriptConfig",
 		"execution.ConfigFromProject",
+		"NewGenerator(ctx *plugin.AppContext",
+		"NewGenerator(appCtx, ir)",
+		"provider.NewGenerator(appCtx",
+		"provider.NewGenerator(ctx",
+		"gitlab.NewGenerator(ctx",
+		"github.NewGenerator(ctx",
 		"BuildIntentOptions",
 		"NewBuildIntent",
 		"ApplyDisabled",

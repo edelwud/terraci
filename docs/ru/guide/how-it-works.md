@@ -214,11 +214,11 @@ apply-eks:
 flowchart TD
   A["terraci generate"] --> B
   B["workflow.PlanProject() — scan, filter, parse, graph, targets"] --> C
-  C["provider.NewGenerator(ctx, ir) + runflow prepared contributions"] --> D
+  C["runflow contributions + Terraform runtime"] --> D
   D["pipeline.BuildProjectIR(req) → *pipeline.IR"] --> E
   E{"Провайдер?"}
-  E -->|GitLab| F["gitlab.NewGenerator(ctx, ir)"] --> G[".gitlab-ci.yml"]
-  E -->|GitHub| H["github.NewGenerator(ctx, ir)"] --> I["workflow.yml"]
+  E -->|GitLab| F["gitlab.NewGenerator(ir)"] --> G[".gitlab-ci.yml"]
+  E -->|GitHub| H["github.NewGenerator(ir)"] --> I["workflow.yml"]
 ```
 
 Описание каждого этапа:
@@ -226,9 +226,9 @@ flowchart TD
 | Шаг | Функция | Что делает |
 |-----|---------|-----------|
 | 1 | `workflow.PlanProject()` | Сканирование файловой системы, применение фильтров, парсинг HCL, построение графа зависимостей, разрешение optional targets |
-| 2 | `provider.NewGenerator(ctx, ir)` + contributions из `runflow.Prepare(...)` | Сбор требований провайдера к ресурсам и contributed DAG jobs; invalid contributions останавливают сборку до IR |
+| 2 | contributions из `runflow.Prepare(...)` + Terraform runtime | Сбор contributed DAG jobs и нормализация Terraform/OpenTofu runtime; invalid contributions останавливают сборку до IR |
 | 3 | `pipeline.BuildProjectIR(req)` | Построение провайдер-агностичного immutable job DAG (`*pipeline.IR`) — единый вход для исполнения |
-| 4 | `provider.NewGenerator(ctx, ir)` + `Generate()` | Привязка IR к провайдеру; преобразование IR в YAML GitLab CI или воркфлоу GitHub Actions |
+| 4 | `provider.NewGenerator(ir)` + `Generate()` | Привязка IR к провайдеру; преобразование IR в YAML GitLab CI или воркфлоу GitHub Actions |
 
 IR — **единый источник** как для генерации пайплайнов, так и для `terraci local-exec`: провайдеры не обращаются отдельно к графу зависимостей или списку контрибуций — IR уже их в себе содержит и читается через getters.
 

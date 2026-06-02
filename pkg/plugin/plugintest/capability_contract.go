@@ -451,7 +451,7 @@ func AssertCIProvider(tb testing.TB, c CIProviderContract) {
 	}
 
 	if c.Generator != nil && c.IR != nil {
-		assertCIGenerator(tb, c, appCtx)
+		assertCIGenerator(tb, c)
 	}
 
 	if c.CommentFactory != nil || c.AssertComment != nil {
@@ -467,9 +467,9 @@ func AssertCIProvider(tb testing.TB, c CIProviderContract) {
 	}
 }
 
-func assertCIGenerator(tb testing.TB, c CIProviderContract, appCtx *plugin.AppContext) {
+func assertCIGenerator(tb testing.TB, c CIProviderContract) {
 	tb.Helper()
-	generator, err := c.Generator.NewGenerator(appCtx, c.IR)
+	generator, err := c.Generator.NewGenerator(c.IR)
 	if err != nil {
 		tb.Fatalf("NewGenerator() error = %v", err)
 	}

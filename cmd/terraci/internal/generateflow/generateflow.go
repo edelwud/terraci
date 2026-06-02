@@ -126,7 +126,7 @@ func newPipelineGenerator(runtime Runtime, project *projectflow.Result, mode Gen
 	if err != nil {
 		return nil, fmt.Errorf("build pipeline IR: %w", err)
 	}
-	generator, err := provider.NewGenerator(appCtx, ir)
+	generator, err := provider.NewGenerator(ir)
 	if err != nil {
 		return nil, fmt.Errorf("create CI generator: %w", err)
 	}

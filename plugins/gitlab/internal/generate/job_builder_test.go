@@ -8,21 +8,16 @@ import (
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/pipeline/pipelinetest"
-	"github.com/edelwud/terraci/pkg/terraformrun"
 	"github.com/edelwud/terraci/pkg/workflow"
 	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
 )
-
-func testProfile() terraformrun.Profile {
-	return mustProfile(terraformrun.ProfileOptions{})
-}
 
 func TestJobBuilderRenderJobBuildsModuleDefaults(t *testing.T) {
 	t.Parallel()
 
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	builder := newJobBuilder(
-		newSettings(&configpkg.Config{}, testProfile()),
+		newSettings(&configpkg.Config{}),
 		map[string]string{"plan-platform-stage-eu-central-1-vpc": "deploy-0"},
 	)
 
@@ -63,7 +58,7 @@ func TestJobBuilderCacheSupportsAdvancedOptions(t *testing.T) {
 				Paths:   []string{"{module_path}/.terraform/", "{module_path}/.terraform.lock.hcl"},
 				Policy:  "pull-push",
 			},
-		}, testProfile()),
+		}),
 		nil,
 	)
 
@@ -94,7 +89,7 @@ func TestJobBuilderContributedJobOverwriteByName(t *testing.T) {
 			Image: &configpkg.Image{Name: "cost-image:1.0"},
 		}},
 	}
-	s := newSettings(cfg, testProfile())
+	s := newSettings(cfg)
 	builder := newJobBuilder(
 		s,
 		map[string]string{"cost-estimation": "deploy-1"},
@@ -117,7 +112,7 @@ func TestJobBuilderContributedJobUsesOptionalNeeds(t *testing.T) {
 	t.Parallel()
 
 	builder := newJobBuilder(
-		newSettings(&configpkg.Config{}, testProfile()),
+		newSettings(&configpkg.Config{}),
 		map[string]string{"summary": "deploy-2"},
 	)
 

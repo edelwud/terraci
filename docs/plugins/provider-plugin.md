@@ -55,17 +55,18 @@ func (p *Plugin) CommitSHA() string    { return os.Getenv("BITBUCKET_COMMIT") }
 
 ## Pipeline Generator
 
-Core asks the provider for `NewGenerator(ctx, ir)`, builds the IR once via
-`pipeline.BuildProjectIR(req)`, then passes the finished IR to your factory.
+Core builds the IR once via `pipeline.BuildProjectIR(req)`, then asks the
+provider for `NewGenerator(ir)`.
 Your generator only renders the immutable IR through getters — it does not need
-depGraph, modules, or contributions because the IR already encodes all of them.
+AppContext, depGraph, modules, Terraform runtime config, or contributions
+because the IR already encodes all of them.
 
 ```go
-func (p *Plugin) NewGenerator(ctx *plugin.AppContext, ir *pipeline.IR) pipeline.Generator {
+func (p *Plugin) NewGenerator(ir *pipeline.IR) (pipeline.Generator, error) {
     return &BitbucketGenerator{
         config: p.Config(),
         ir:     ir,
-    }
+    }, nil
 }
 ```
 
@@ -192,8 +193,8 @@ func (p *Plugin) CommitSHA() string    { return os.Getenv("BITBUCKET_COMMIT") }
 
 // --- PipelineGeneratorFactory ---
 
-func (p *Plugin) NewGenerator(ctx *plugin.AppContext, ir *pipeline.IR) pipeline.Generator {
-    return &generator{config: p.Config(), ir: ir}
+func (p *Plugin) NewGenerator(ir *pipeline.IR) (pipeline.Generator, error) {
+    return &generator{config: p.Config(), ir: ir}, nil
 }
 
 type generator struct {

@@ -119,7 +119,7 @@ func TestGenerate_ContributedJobOverwriteByName(t *testing.T) {
 	}
 }
 
-func TestGenerate_PlanAndApplyJobOverwritesUseResolvedProfile(t *testing.T) {
+func TestGenerate_PlanAndApplyJobOverwritesUseIRRuntime(t *testing.T) {
 	module := createTestModule("vpc")
 	workflow := newGeneratorScenario(t).
 		withConfig(func(cfg *configpkg.Config) {

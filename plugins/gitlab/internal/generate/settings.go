@@ -1,10 +1,11 @@
 package generate
 
 import (
+	"errors"
 	"maps"
 	"strings"
 
-	"github.com/edelwud/terraci/pkg/terraformrun"
+	"github.com/edelwud/terraci/pkg/pipeline"
 	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
 )
 
@@ -21,19 +22,14 @@ const (
 )
 
 type settings struct {
-	config  *configpkg.Config
-	profile terraformrun.Profile
+	config *configpkg.Config
 }
 
-func newSettings(cfg *configpkg.Config, profile terraformrun.Profile) settings {
+func newSettings(cfg *configpkg.Config) settings {
 	if cfg == nil {
 		cfg = &configpkg.Config{}
 	}
-	return settings{config: cfg, profile: profile}
-}
-
-func (s settings) terraformBinary() string {
-	return s.profile.Binary().String()
+	return settings{config: cfg}
 }
 
 func (s settings) variables() map[string]string {
@@ -42,18 +38,21 @@ func (s settings) variables() map[string]string {
 	return variables
 }
 
-func (s settings) defaultImage() configpkg.Image {
+func (s settings) defaultImage(ir *pipeline.IR) (configpkg.Image, error) {
 	if image := s.config.GetImage(); image != nil && image.Name != "" {
-		return *image
+		return *image, nil
 	}
-	if s.terraformBinary() == DefaultTofuBinary {
-		return configpkg.Image{Name: defaultTofuImage}
+	runtime, ok := ir.TerraformRuntime()
+	if !ok {
+		return configpkg.Image{Name: defaultTerraformImage}, nil
 	}
-	return configpkg.Image{Name: defaultTerraformImage}
-}
-
-func (s settings) initEnabled() bool {
-	return s.profile.InitEnabled()
+	if runtime.Mixed() {
+		return configpkg.Image{}, errors.New("pipeline IR contains mixed Terraform binaries; configure extensions.gitlab.image explicitly to choose a CI image")
+	}
+	if runtime.Binary() == DefaultTofuBinary {
+		return configpkg.Image{Name: defaultTofuImage}, nil
+	}
+	return configpkg.Image{Name: defaultTerraformImage}, nil
 }
 
 func (s settings) stagesPrefix() string {

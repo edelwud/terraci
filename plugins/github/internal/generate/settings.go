@@ -3,17 +3,15 @@ package generate
 import (
 	"maps"
 
-	"github.com/edelwud/terraci/pkg/terraformrun"
 	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
 )
 
 type settings struct {
-	config  *configpkg.Config
-	profile terraformrun.Profile
+	config *configpkg.Config
 }
 
-func newSettings(cfg *configpkg.Config, profile terraformrun.Profile) settings {
-	return settings{config: cfg, profile: profile}
+func newSettings(cfg *configpkg.Config) settings {
+	return settings{config: cfg}
 }
 
 func (s settings) configOrDefault() *configpkg.Config {
@@ -40,8 +38,4 @@ func (s settings) permissions() map[string]string {
 		"contents":      "read",
 		"pull-requests": "write",
 	}
-}
-
-func (s settings) initEnabled() bool {
-	return s.profile.InitEnabled()
 }

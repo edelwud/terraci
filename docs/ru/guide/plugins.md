@@ -93,7 +93,7 @@ TerraCi автоматически определяет активный CI-пр
 | `CommandProvider` | CLI-субкоманды (`terraci cost`, `terraci local-exec` и т.д.) | cost, policy, summary, tfupdate, localexec |
 | `PipelineContributor` | Добавление шагов/джобов в pipeline IR | cost, policy, summary, tfupdate |
 | `InitContributor` | Поля формы для `terraci init` | gitlab, github, cost, policy, summary, tfupdate |
-| `PipelineGeneratorFactory` | Создание provider-specific генератора из immutable pipeline IR (`NewGenerator(ctx, *pipeline.IR)`) | gitlab, github |
+| `PipelineGeneratorFactory` | Создание provider-specific генератора из immutable pipeline IR (`NewGenerator(*pipeline.IR)`) | gitlab, github |
 | `CommentServiceFactory` | Создание сервиса MR/PR комментариев | gitlab, github |
 | `EnvDetector` | Определение CI-окружения по переменным среды | gitlab, github |
 | `CIInfoProvider` | Имя провайдера, ID пайплайна, SHA коммита | gitlab, github |

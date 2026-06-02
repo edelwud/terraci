@@ -98,20 +98,21 @@
 // # Pipeline IR boundary
 //
 // Framework code plans projects through workflow.PlanProject, derives the
-// Terraform/OpenTofu runtime with terraformrun.ProfileFromConfig, and converts
-// that result into a provider-agnostic immutable IR with
-// pipeline.BuildProjectIR. CI providers and local execution are IR consumers
-// only: they receive *IR values and read immutable pipeline.Job values through
-// getters such as IR.Jobs, Job.Operation, and Operation.Terraform. Terraform
-// binary, init behavior, and execution.env are stored on Terraform jobs and
-// operations through pipeline.TerraformJobConfig; providers should not inject
-// implicit global binary variables. Providers that need barrier groups use
-// pipeline.Schedule, whose JobGroup values expose read-only Name, Jobs, and
-// JobCount accessors. Provider job builders should take pipeline.Job values,
-// not job pointers. External plugin authors should not construct IR, Job,
-// Operation, or TerraformOperation literals or depend on module job naming.
-// Tests and advanced in-process tooling can use pkg/pipeline/pipelinetest for
-// validated synthetic fixtures.
+// Terraform/OpenTofu runtime once, and converts that result into a
+// provider-agnostic immutable IR with pipeline.BuildProjectIR. CI providers
+// and local execution are IR consumers only: provider generator factories take
+// NewGenerator(*pipeline.IR), not AppContext, and read immutable pipeline.Job
+// values through getters such as IR.Jobs, Job.Operation, and
+// Operation.Terraform. Terraform binary, init behavior, and execution.env are
+// stored on Terraform jobs and operations through pipeline.TerraformJobConfig;
+// providers should not inject implicit global binary variables or re-derive
+// runtime settings from config snapshots. Providers that need barrier groups
+// use pipeline.Schedule, whose JobGroup values expose read-only Name, Jobs,
+// and JobCount accessors. Provider job builders should take pipeline.Job
+// values, not job pointers. External plugin authors should not construct IR,
+// Job, Operation, or TerraformOperation literals or depend on module job
+// naming. Tests and advanced in-process tooling can use
+// pkg/pipeline/pipelinetest for validated synthetic fixtures.
 //
 // # Execution result and diagnostics boundary
 //

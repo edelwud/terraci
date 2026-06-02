@@ -142,7 +142,7 @@ plugins/                        # Built-in plugins — one file per capability
 ├── gitlab/
 │   ├── plugin.go               # init, BasePlugin[*Config] embed
 │   ├── lifecycle.go            # Preflightable (cheap MR context detection)
-│   ├── generator.go            # EnvDetector + CIInfoProvider + PipelineGeneratorFactory(ctx, *pipeline.IR) + CommentServiceFactory
+│   ├── generator.go            # EnvDetector + CIInfoProvider + PipelineGeneratorFactory(*pipeline.IR) + CommentServiceFactory
 │   ├── init_wizard.go          # InitContributor
 │   └── internal/               # config, generator, MR service, domain types
 │       └── generate/
@@ -151,7 +151,7 @@ plugins/                        # Built-in plugins — one file per capability
 ├── github/
 │   ├── plugin.go               # init, BasePlugin[*Config] embed
 │   ├── lifecycle.go            # Preflightable (cheap PR context detection)
-│   ├── generator.go            # EnvDetector + CIInfoProvider + PipelineGeneratorFactory(ctx, *pipeline.IR) + CommentServiceFactory
+│   ├── generator.go            # EnvDetector + CIInfoProvider + PipelineGeneratorFactory(*pipeline.IR) + CommentServiceFactory
 │   ├── init_wizard.go          # InitContributor
 │   └── internal/generate/      # IR-bound generator + buildir.go test helper
 ├── cost/
@@ -256,7 +256,7 @@ Each feature/plugin follows one-file-per-capability where it applies, with runti
 | `RuntimeProvider` | Lazy command-time runtime construction | cost, policy, tfupdate |
 | `EnvDetector` | CI environment detection | gitlab, github |
 | `CIInfoProvider` | Provider name, pipeline ID, commit SHA | gitlab, github |
-| `PipelineGeneratorFactory` | Pipeline generator creation — `NewGenerator(ctx, *pipeline.IR)` | gitlab, github |
+| `PipelineGeneratorFactory` | Pipeline generator creation — `NewGenerator(*pipeline.IR)` | gitlab, github |
 | `CommentServiceFactory` | MR/PR comment service creation | gitlab, github |
 | `VersionProvider` | Version info contributions | policy |
 | `ChangeDetectionProvider` | VCS change detection | git |
@@ -347,7 +347,7 @@ as `Job(name)`, `JobNames()`, `HasNeed(job, dep)`, `Steps()`, `Needs()`, and
 `Env()`, and `ToYAML()` is the only raw YAML/map boundary. Do not add
 one-shot provider document constructors or job-map read APIs.
 
-Shell rendering (`cd module && terraform init && terraform plan -out=…`) lives in `pkg/pipeline/cishell` (`cishell.RenderOperation(op)`) — never in the IR package itself. The binary comes from `terraformrun.Profile` and is stored on each `pipeline.TerraformOperation`, so providers and local execution consume the IR instead of injecting global binary environment variables.
+Shell rendering (`cd module && terraform init && terraform plan -out=…`) lives in `pkg/pipeline/cishell` (`cishell.RenderOperation(op)`) — never in the IR package itself. The binary is stored on each `pipeline.TerraformOperation`, so providers and local execution consume the IR instead of injecting global binary environment variables.
 
 Plugins contribute via `PipelineContributor.PipelineContribution(ctx) (*pipeline.Contribution, error)`:
 - `pipeline.NewPluginCommandJob(...)` / `pipeline.NewContributedJob(...)` build validated standalone DAG jobs with typed resource inputs/outputs.
@@ -428,7 +428,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 1. `runflow.Prepare(...)` loads config, decodes plugins, preflights, and gathers PipelineContributor jobs
 2. `generateflow.Run(...)` delegates project discovery/targeting to `projectflow`
 3. `projectflow.Run(...)` adapts `runflow.Prepared` into `workflow.PlanProject(...)`; changed-only detection runs inside workflow targeting
-4. `generateflow` calls `pipeline.BuildProjectIR(...)` and binds the IR to `provider.NewGenerator(appCtx, ir)`
+4. `generateflow` calls `pipeline.BuildProjectIR(...)` and binds the IR to `provider.NewGenerator(ir)`
 5. `cmd/terraci/cmd` renders dry-run output or writes generated YAML
 
 ### Summary
@@ -462,7 +462,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **Compile-time extensibility**: `xterraci build --with/--without` for custom binaries
 - **Pipeline IR**: `workflow.PlanProject(...)` → `pipeline.BuildProjectIR(...)` → immutable `*pipeline.IR`. The IR is the single execution input — generators and the local executor both consume `pipeline.Job` values through getters, not direct field mutation, job pointers, or manual literals.
 - **Terraform runtime intent**: `config.Snapshot` → `terraformrun.Profile` → `pipeline.TerraformJobConfig` → Terraform jobs in the IR. `execution.env` is Terraform-job env only; command jobs and provider workflow globals do not receive it implicitly. `pipeline.BuildIntent` must come from `ApplyBuildIntent` or `PlanBuildIntent`, and plan jobs/artifacts are derived from apply intent plus requested resources.
-- **IR-bound generators**: `PipelineGeneratorFactory.NewGenerator(ctx, *pipeline.IR)` — providers don't reach for depGraph/modules/contributions; the IR already encodes them. Provider job builders take immutable `pipeline.Job` values from `IR.Jobs()` and produce provider document jobs through provider-local builders.
+- **IR-bound generators**: `PipelineGeneratorFactory.NewGenerator(*pipeline.IR)` — providers don't read AppContext, config snapshots, runtime profiles, depGraph, modules, or contributions during generation; the IR already encodes runtime and graph intent. Provider job builders take immutable `pipeline.Job` values from `IR.Jobs()` and produce provider document jobs through provider-local builders.
 - **Shell rendering separated from IR**: `pkg/pipeline/cishell.RenderOperation(op)` for shell-driven CI; the IR carries `pipeline.TerraformOperation` data only.
 - **Canonical dry-run source**: dry-run stage/job counts derive from `*IR.DryRun(totalModules)`.
 - **Execution result boundary**: `pkg/execution.Result`, `JobResult`, `GroupResult`, and `JobEvent` are immutable value objects. Production code reads them through getters and `Stats()`, never through struct literals or mutable fields. `JobRunner`, `WorkerPool`, and `EventSink` consume `pipeline.Job`/event values, not job pointers. Failed jobs surface as `execution.ExecutionError` while still returning the partial result, and produced artifacts are exposed as typed `pipeline.Artifact` values.

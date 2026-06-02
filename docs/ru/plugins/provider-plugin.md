@@ -31,14 +31,13 @@ outline: deep
 
 ## Работа с Pipeline IR
 
-Ядро сначала спрашивает у провайдера `NewGenerator(ctx, ir)`, затем строит
-IR один раз через `pipeline.BuildProjectIR(req)` и передаёт его в фабрику.
-Генератор только рендерит immutable IR через getters. IR уже содержит модули,
-contributions и зависимости.
+Ядро один раз строит IR через `pipeline.BuildProjectIR(req)`, затем спрашивает
+у провайдера `NewGenerator(ir)`. Генератор только рендерит immutable IR через
+getters. IR уже содержит модули, Terraform runtime, contributions и зависимости.
 
 ```go
-func (p *Plugin) NewGenerator(ctx *plugin.AppContext, ir *pipeline.IR) pipeline.Generator {
-    return &generator{config: p.Config(), ir: ir}
+func (p *Plugin) NewGenerator(ir *pipeline.IR) (pipeline.Generator, error) {
+    return &generator{config: p.Config(), ir: ir}, nil
 }
 
 func (g *generator) Generate() (pipeline.GeneratedPipeline, error) {
@@ -108,8 +107,8 @@ func (p *Plugin) PipelineID() string   { return os.Getenv("BITBUCKET_BUILD_NUMBE
 func (p *Plugin) CommitSHA() string    { return os.Getenv("BITBUCKET_COMMIT") }
 
 // PipelineGeneratorFactory
-func (p *Plugin) NewGenerator(ctx *plugin.AppContext, ir *pipeline.IR) pipeline.Generator {
-    return &generator{config: p.Config(), ir: ir}
+func (p *Plugin) NewGenerator(ir *pipeline.IR) (pipeline.Generator, error) {
+    return &generator{config: p.Config(), ir: ir}, nil
 }
 
 type generator struct {

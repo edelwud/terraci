@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/ci/citest"
-	"github.com/edelwud/terraci/pkg/terraformrun"
+	"github.com/edelwud/terraci/pkg/pipeline"
 	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
 	domainpkg "github.com/edelwud/terraci/plugins/github/internal/domain"
 )
@@ -34,7 +34,7 @@ func TestGenerate_SingleModule(t *testing.T) {
 func TestGenerate_RejectsInvalidIR(t *testing.T) {
 	t.Parallel()
 
-	generated, err := NewGenerator(nil, mustProfile(terraformrun.ProfileOptions{}), nil).Generate()
+	generated, err := NewGenerator(nil, nil).Generate()
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -122,7 +122,7 @@ func TestGenerate_ApplyEnvironmentFromOverwrite(t *testing.T) {
 func TestGenerate_CustomBinary(t *testing.T) {
 	module := createTestModule("vpc")
 	workflow := newGeneratorScenario(t).
-		withExecution(func(cfg *terraformrun.ProfileOptions) { cfg.Binary = "tofu" }).
+		withTerraformConfig(func(cfg *pipeline.TerraformJobConfigOptions) { cfg.Binary = "tofu" }).
 		withModules(module).
 		withDependencies(map[string][]string{module.ID(): {}}).
 		generate()

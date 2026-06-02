@@ -219,11 +219,11 @@ apply-eks:
 flowchart TD
   A["terraci generate"] --> B
   B["workflow.PlanProject() — scan, filter, parse, graph, targets"] --> C
-  C["provider.NewGenerator(ctx, ir) + runflow prepared contributions"] --> D
+  C["runflow prepared contributions + terraform runtime"] --> D
   D["pipeline.BuildProjectIR(req) → *pipeline.IR"] --> E
   E{"Provider?"}
-  E -->|GitLab| F["gitlab.NewGenerator(ctx, ir)"] --> G[".gitlab-ci.yml"]
-  E -->|GitHub| H["github.NewGenerator(ctx, ir)"] --> I["workflow.yml"]
+  E -->|GitLab| F["gitlab.NewGenerator(ir)"] --> G[".gitlab-ci.yml"]
+  E -->|GitHub| H["github.NewGenerator(ir)"] --> I["workflow.yml"]
 ```
 
 Each stage:
@@ -231,9 +231,9 @@ Each stage:
 | Step | Function | What it does |
 |------|----------|-------------|
 | 1 | `workflow.PlanProject()` | Scan filesystem, apply filters, parse HCL, build dependency graph, resolve optional targets |
-| 2 | `provider.NewGenerator(ctx, ir)` + `runflow.Prepare(...)` contributions | Gather provider resource requirements and plugin-contributed DAG jobs; invalid contributions fail before IR build |
+| 2 | `runflow.Prepare(...)` contributions + Terraform runtime | Gather plugin-contributed DAG jobs and normalize Terraform/OpenTofu runtime; invalid contributions fail before IR build |
 | 3 | `pipeline.BuildProjectIR(req)` | Construct provider-agnostic immutable job DAG (`*pipeline.IR`) — single execution input |
-| 4 | `provider.NewGenerator(ctx, ir)` + `Generate()` | Bind IR to provider; transform IR into GitLab CI YAML or GitHub Actions workflow |
+| 4 | `provider.NewGenerator(ir)` + `Generate()` | Bind IR to provider; transform IR into GitLab CI YAML or GitHub Actions workflow |
 
 The IR is the **single source** for both pipeline generation and `terraci local-exec`: providers don't reach for the dependency graph or contribution list separately — the IR already encodes them and is consumed through getters.
 

@@ -6,25 +6,13 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
-	"github.com/edelwud/terraci/pkg/terraformrun"
 	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
 )
 
-func mustProfile(opts terraformrun.ProfileOptions) terraformrun.Profile {
-	profile, err := terraformrun.NewProfile(opts)
-	if err != nil {
-		panic(err)
-	}
-	return profile
-}
-
-func profileOptionsFromProfile(profile terraformrun.Profile) terraformrun.ProfileOptions {
-	initEnabled := profile.InitEnabled()
-	return terraformrun.ProfileOptions{
-		Binary:      profile.Binary().String(),
-		InitEnabled: &initEnabled,
-		Parallelism: profile.Parallelism(),
-		Env:         profile.Env(),
+func defaultTerraformConfigOptions() pipeline.TerraformJobConfigOptions {
+	return pipeline.TerraformJobConfigOptions{
+		Binary:      DefaultBinary,
+		InitEnabled: true,
 	}
 }
 
@@ -33,40 +21,40 @@ func profileOptionsFromProfile(profile terraformrun.Profile) terraformrun.Profil
 func newTestGenerator(
 	tb testing.TB,
 	cfg *configpkg.Config,
-	profile terraformrun.Profile,
+	terraformConfig pipeline.TerraformJobConfigOptions,
 	contributions []*pipeline.Contribution,
 	depGraph *graph.DependencyGraph,
 	allModules []*discovery.Module,
 ) *Generator {
 	tb.Helper()
-	ir := mustBuildIR(tb, cfg, profile, contributions, depGraph, allModules, nil)
-	return NewGenerator(cfg, profile, ir)
+	ir := mustBuildIR(tb, cfg, terraformConfig, contributions, depGraph, allModules, nil)
+	return NewGenerator(cfg, ir)
 }
 
 func newTestGeneratorWithTargetsAndApply(
 	tb testing.TB,
 	cfg *configpkg.Config,
-	profile terraformrun.Profile,
+	terraformConfig pipeline.TerraformJobConfigOptions,
 	contributions []*pipeline.Contribution,
 	depGraph *graph.DependencyGraph,
 	allModules, targetModules []*discovery.Module,
 	applyEnabled bool,
 ) *Generator {
 	tb.Helper()
-	ir := mustBuildIRWithApply(tb, cfg, profile, contributions, depGraph, allModules, targetModules, applyEnabled)
-	return NewGenerator(cfg, profile, ir)
+	ir := mustBuildIRWithApply(tb, cfg, terraformConfig, contributions, depGraph, allModules, targetModules, applyEnabled)
+	return NewGenerator(cfg, ir)
 }
 
 func mustBuildIR(
 	tb testing.TB,
 	cfg *configpkg.Config,
-	profile terraformrun.Profile,
+	terraformConfig pipeline.TerraformJobConfigOptions,
 	contributions []*pipeline.Contribution,
 	depGraph *graph.DependencyGraph,
 	allModules, targetModules []*discovery.Module,
 ) *pipeline.IR {
 	tb.Helper()
-	ir, err := buildTestIR(cfg, profile, contributions, depGraph, allModules, targetModules)
+	ir, err := buildTestIR(cfg, terraformConfig, contributions, depGraph, allModules, targetModules)
 	if err != nil {
 		tb.Fatalf("buildTestIR() error = %v", err)
 	}
@@ -76,14 +64,14 @@ func mustBuildIR(
 func mustBuildIRWithApply(
 	tb testing.TB,
 	cfg *configpkg.Config,
-	profile terraformrun.Profile,
+	terraformConfig pipeline.TerraformJobConfigOptions,
 	contributions []*pipeline.Contribution,
 	depGraph *graph.DependencyGraph,
 	allModules, targetModules []*discovery.Module,
 	applyEnabled bool,
 ) *pipeline.IR {
 	tb.Helper()
-	ir, err := buildTestIRWithApply(cfg, profile, contributions, depGraph, allModules, targetModules, applyEnabled)
+	ir, err := buildTestIRWithApply(cfg, terraformConfig, contributions, depGraph, allModules, targetModules, applyEnabled)
 	if err != nil {
 		tb.Fatalf("buildTestIRWithApply() error = %v", err)
 	}
