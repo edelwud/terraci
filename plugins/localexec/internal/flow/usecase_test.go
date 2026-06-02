@@ -6,10 +6,12 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/diagnostic"
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/execution"
@@ -18,7 +20,6 @@ import (
 	"github.com/edelwud/terraci/pkg/pipeline/pipelinetest"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
-	"github.com/edelwud/terraci/pkg/terraformrun"
 	"github.com/edelwud/terraci/pkg/workflow"
 	"github.com/edelwud/terraci/plugins/localexec/internal/reports"
 	"github.com/edelwud/terraci/plugins/localexec/internal/runner"
@@ -43,15 +44,6 @@ func mustContribution(tb testing.TB, opts pipeline.ContributedJobOptions) *pipel
 	return contribution
 }
 
-func mustProfile(tb testing.TB, opts terraformrun.ProfileOptions) terraformrun.Profile {
-	tb.Helper()
-	profile, err := terraformrun.NewProfile(opts)
-	if err != nil {
-		tb.Fatalf("NewProfile() error = %v", err)
-	}
-	return profile
-}
-
 func (p fakeProjectPlanner) Plan(context.Context, spec.Request) (*workflow.ProjectResult, error) {
 	return p.project, p.err
 }
@@ -60,16 +52,19 @@ type fakeRuntimeFactory struct {
 	runtime *runner.Runtime
 	err     error
 	calls   int
+	options []runner.RuntimeOptions
 }
 
-func (f *fakeRuntimeFactory) Build(*plugin.AppContext, runner.Options) (*runner.Runtime, error) {
+func (f *fakeRuntimeFactory) Build(opts runner.RuntimeOptions) (*runner.Runtime, error) {
 	f.calls++
+	f.options = append(f.options, opts)
 	return f.runtime, f.err
 }
 
 type fakeJobRunner struct {
 	mu   sync.Mutex
 	jobs []string
+	ran  []pipeline.Job
 	err  error
 }
 
@@ -77,6 +72,7 @@ func (r *fakeJobRunner) Run(_ context.Context, job pipeline.Job) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.jobs = append(r.jobs, job.Name())
+	r.ran = append(r.ran, job)
 	return r.err
 }
 
@@ -84,6 +80,12 @@ func (r *fakeJobRunner) Jobs() []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return append([]string(nil), r.jobs...)
+}
+
+func (r *fakeJobRunner) RanJobs() []pipeline.Job {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]pipeline.Job(nil), r.ran...)
 }
 
 type fakeContributionCollector struct {
@@ -141,7 +143,6 @@ func TestUseCase_RunUsesInjectedDependencies(t *testing.T) {
 	loader := &fakeSummaryReportLoader{report: report}
 	eventSink := &fakeEventSink{}
 	runtimeFactory := &fakeRuntimeFactory{runtime: &runner.Runtime{
-		Profile:   mustProfile(t, terraformrun.ProfileOptions{Parallelism: 1}),
 		JobRunner: jobRunner,
 	}}
 	useCase := New(
@@ -162,6 +163,9 @@ func TestUseCase_RunUsesInjectedDependencies(t *testing.T) {
 	}
 	if runtimeFactory.calls != 1 {
 		t.Fatalf("runtime factory calls = %d, want 1", runtimeFactory.calls)
+	}
+	if got := runtimeFactory.options[0].PlanParallelism; got != config.DefaultConfig().Execution.Parallelism {
+		t.Fatalf("runtime plan parallelism = %d, want config default", got)
 	}
 	if got := result.SummaryReport(); got == nil || got.Producer != report.Producer {
 		t.Fatalf("summary report = %#v, want %#v", got, report)
@@ -196,7 +200,6 @@ func TestUseCase_RunBuildsIRFromProjectAndContributions(t *testing.T) {
 	jobRunner := &fakeJobRunner{}
 
 	runtimeFactory := &fakeRuntimeFactory{runtime: &runner.Runtime{
-		Profile:   mustProfile(t, terraformrun.ProfileOptions{Parallelism: 3}),
 		JobRunner: jobRunner,
 	}}
 	useCase := New(
@@ -207,12 +210,15 @@ func TestUseCase_RunBuildsIRFromProjectAndContributions(t *testing.T) {
 		WithSummaryReports(loader),
 	)
 
-	if _, err := useCase.Run(context.Background(), spec.Request{Mode: spec.ExecutionModePlan}); err != nil {
+	if _, err := useCase.Run(context.Background(), spec.Request{Mode: spec.ExecutionModePlan, Parallelism: 3}); err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
 
 	if contributionCollector.calls != 1 {
 		t.Fatalf("contribution collector calls = %d, want 1", contributionCollector.calls)
+	}
+	if got := runtimeFactory.options[0].PlanParallelism; got != 3 {
+		t.Fatalf("runtime plan parallelism = %d, want request override 3", got)
 	}
 	executedJobs := jobRunner.Jobs()
 	planJob := pipelinetest.MustJobByKind(t, pipelinetest.MustSingleModuleIR(t, module), pipeline.JobKindPlan)
@@ -224,6 +230,77 @@ func TestUseCase_RunBuildsIRFromProjectAndContributions(t *testing.T) {
 	}
 	if loader.calls != 1 {
 		t.Fatalf("summary loader calls = %d, want 1", loader.calls)
+	}
+}
+
+func TestUseCase_RunUsesConfigParallelismDefault(t *testing.T) {
+	workDir, module := testWorkDirWithModule(t)
+	cfg := config.DefaultConfig()
+	cfg.Execution.Parallelism = 7
+	appCtx := testAppContextWithConfig(workDir, cfg)
+	runtimeFactory := &fakeRuntimeFactory{runtime: &runner.Runtime{JobRunner: &fakeJobRunner{}}}
+
+	_, err := New(
+		appCtx,
+		WithProjectPlanner(fakeProjectWithTargets(module)),
+		WithRuntimeFactory(runtimeFactory),
+		WithSummaryReports(&fakeSummaryReportLoader{}),
+	).Run(context.Background(), spec.Request{Mode: spec.ExecutionModePlan})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	if got := runtimeFactory.options[0].PlanParallelism; got != 7 {
+		t.Fatalf("runtime plan parallelism = %d, want config default 7", got)
+	}
+}
+
+func TestUseCase_RunBuildsTerraformIntentFromConfig(t *testing.T) {
+	workDir, module := testWorkDirWithModule(t)
+	cfg := config.DefaultConfig()
+	cfg.Execution.Binary = config.ExecutionBinaryTofu
+	cfg.Execution.InitEnabled = false
+	cfg.Execution.Env = map[string]string{
+		"CUSTOM":    "value",
+		"TF_MODULE": "should-not-win",
+	}
+	appCtx := testAppContextWithConfig(workDir, cfg)
+
+	jobRunner := &fakeJobRunner{}
+	_, err := New(
+		appCtx,
+		WithProjectPlanner(fakeProjectWithTargets(module)),
+		WithContributionCollector(&fakeContributionCollector{contributions: []*pipeline.Contribution{
+			mustContribution(t, testCommandJob("contributed")),
+		}}),
+		WithRuntimeFactory(&fakeRuntimeFactory{runtime: &runner.Runtime{JobRunner: jobRunner}}),
+		WithSummaryReports(&fakeSummaryReportLoader{}),
+	).Run(context.Background(), spec.Request{Mode: spec.ExecutionModePlan})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	planJob := findRanJobByKind(t, jobRunner.RanJobs(), pipeline.JobKindPlan)
+	terraformOp := planJob.Operation().Terraform()
+	if terraformOp == nil {
+		t.Fatal("plan job terraform operation = nil")
+	}
+	if terraformOp.Binary() != config.ExecutionBinaryTofu {
+		t.Fatalf("Binary() = %q, want tofu", terraformOp.Binary())
+	}
+	if terraformOp.InitEnabled() {
+		t.Fatal("InitEnabled() = true, want false")
+	}
+	if got := planJob.Env()["CUSTOM"]; got != "value" {
+		t.Fatalf("plan job CUSTOM env = %q, want value", got)
+	}
+	if got := planJob.Env()["TF_MODULE"]; got != "vpc" {
+		t.Fatalf("plan job TF_MODULE env = %q, want module-derived value", got)
+	}
+
+	commandJob := findRanJobByName(t, jobRunner.RanJobs(), "contributed")
+	if _, ok := commandJob.Env()["CUSTOM"]; ok {
+		t.Fatalf("command job env = %#v, should not inherit Terraform env", commandJob.Env())
 	}
 }
 
@@ -286,6 +363,26 @@ func TestUseCase_RunReturnsRuntimeFactoryError(t *testing.T) {
 	}
 }
 
+func TestUseCase_RunReturnsTerraformProfileErrorBeforeRuntimeBuild(t *testing.T) {
+	workDir, module := testWorkDirWithModule(t)
+	cfg := config.DefaultConfig()
+	cfg.Execution.Binary = "bad"
+	appCtx := testAppContextWithConfig(workDir, cfg)
+	runtimeFactory := &fakeRuntimeFactory{err: errors.New("runtime should not be built")}
+
+	_, err := New(
+		appCtx,
+		WithProjectPlanner(fakeProjectWithTargets(module)),
+		WithRuntimeFactory(runtimeFactory),
+	).Run(context.Background(), spec.Request{})
+	if err == nil || !strings.Contains(err.Error(), "unsupported terraform binary") {
+		t.Fatalf("Run() error = %v, want unsupported terraform binary", err)
+	}
+	if runtimeFactory.calls != 0 {
+		t.Fatalf("runtime factory calls = %d, want 0", runtimeFactory.calls)
+	}
+}
+
 func TestUseCase_RunReturnsBuildProjectIRError(t *testing.T) {
 	workDir, module := testWorkDirWithModule(t)
 	appCtx := plugintest.NewAppContext(t, workDir)
@@ -295,7 +392,6 @@ func TestUseCase_RunReturnsBuildProjectIRError(t *testing.T) {
 		appCtx,
 		WithProjectPlanner(fakeProjectPlanner{project: invalidProjectWithTargets(module)}),
 		WithRuntimeFactory(&fakeRuntimeFactory{runtime: &runner.Runtime{
-			Profile:   mustProfile(t, terraformrun.ProfileOptions{Parallelism: 1}),
 			JobRunner: &fakeJobRunner{},
 		}}),
 		WithSummaryReports(loader),
@@ -321,7 +417,6 @@ func TestUseCase_RunReturnsExecutionResultOnJobFailure(t *testing.T) {
 			mustContribution(t, testCommandJob("summary")),
 		}}),
 		WithRuntimeFactory(&fakeRuntimeFactory{runtime: &runner.Runtime{
-			Profile:   mustProfile(t, terraformrun.ProfileOptions{Parallelism: 1}),
 			JobRunner: &fakeJobRunner{err: jobErr},
 		}}),
 		WithSummaryReports(loader),
@@ -359,7 +454,6 @@ func TestUseCase_RunReturnsSummaryLoaderError(t *testing.T) {
 		appCtx,
 		WithProjectPlanner(fakeProjectWithTargets(module)),
 		WithRuntimeFactory(&fakeRuntimeFactory{runtime: &runner.Runtime{
-			Profile:   mustProfile(t, terraformrun.ProfileOptions{Parallelism: 1}),
 			JobRunner: &fakeJobRunner{},
 		}}),
 		WithSummaryReports(loader),
@@ -384,7 +478,6 @@ func TestUseCase_RunReturnsSummaryDiagnostics(t *testing.T) {
 		appCtx,
 		WithProjectPlanner(fakeProjectWithTargets(module)),
 		WithRuntimeFactory(&fakeRuntimeFactory{runtime: &runner.Runtime{
-			Profile:   mustProfile(t, terraformrun.ProfileOptions{Parallelism: 1}),
 			JobRunner: &fakeJobRunner{},
 		}}),
 		WithSummaryReports(&fakeSummaryReportLoader{result: reports.NewResult(nil, diagnostic.NewList(diag))}),
@@ -458,6 +551,42 @@ func invalidProjectWithTargets(targets ...*discovery.Module) *workflow.ProjectRe
 		},
 		Targets: targets,
 	}
+}
+
+func testAppContextWithConfig(workDir string, cfg *config.Config) *plugin.AppContext {
+	return plugin.NewAppContext(plugin.AppContextOptions{Config: cfg, WorkDir: workDir})
+}
+
+func findRanJobByKind(tb testing.TB, jobs []pipeline.Job, kind pipeline.JobKind) pipeline.Job {
+	tb.Helper()
+	for i := range jobs {
+		job := jobs[i]
+		if job.Kind() == kind {
+			return job
+		}
+	}
+	tb.Fatalf("job kind %q not found in %v", kind, jobNames(jobs))
+	return jobs[0]
+}
+
+func findRanJobByName(tb testing.TB, jobs []pipeline.Job, name string) pipeline.Job {
+	tb.Helper()
+	for i := range jobs {
+		job := jobs[i]
+		if job.Name() == name {
+			return job
+		}
+	}
+	tb.Fatalf("job %q not found in %v", name, jobNames(jobs))
+	return jobs[0]
+}
+
+func jobNames(jobs []pipeline.Job) []string {
+	names := make([]string, 0, len(jobs))
+	for i := range jobs {
+		names = append(names, jobs[i].Name())
+	}
+	return names
 }
 
 func fakeWorkflowResult(modules ...*discovery.Module) *workflow.Result {

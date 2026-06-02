@@ -34,6 +34,16 @@ func NewTerraformJobConfig(opts TerraformJobConfigOptions) (TerraformJobConfig, 
 	}, nil
 }
 
+// NewTerraformJobConfigFromProfile converts normalized Terraform/OpenTofu
+// runtime intent into immutable job config copied into IR Terraform jobs.
+func NewTerraformJobConfigFromProfile(profile terraformrun.Profile) (TerraformJobConfig, error) {
+	return NewTerraformJobConfig(TerraformJobConfigOptions{
+		Binary:      profile.Binary().String(),
+		InitEnabled: profile.InitEnabled(),
+		Env:         profile.Env(),
+	})
+}
+
 type PlanOutputs struct {
 	Text bool
 	JSON bool

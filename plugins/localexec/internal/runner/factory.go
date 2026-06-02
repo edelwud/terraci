@@ -5,26 +5,21 @@ import (
 	"os/exec"
 
 	"github.com/edelwud/terraci/pkg/execution"
-	"github.com/edelwud/terraci/pkg/plugin"
-	"github.com/edelwud/terraci/pkg/terraformrun"
 )
 
-type Options struct {
-	Parallelism int
+type RuntimeOptions struct {
+	WorkDir         string
+	ServiceDir      string
+	PlanParallelism int
 }
 
 type Factory interface {
-	Build(appCtx *plugin.AppContext, opts Options) (*Runtime, error)
+	Build(opts RuntimeOptions) (*Runtime, error)
 }
 
 type Runtime struct {
-	Profile   terraformrun.Profile
 	Workspace execution.Workspace
 	JobRunner execution.JobRunner
-}
-
-type executionConfigResolver interface {
-	Resolve(appCtx *plugin.AppContext, opts Options) (terraformrun.Profile, error)
 }
 
 type binaryResolver interface {
@@ -32,29 +27,22 @@ type binaryResolver interface {
 }
 
 type defaultFactory struct {
-	configResolver executionConfigResolver
 	binaryResolver binaryResolver
 }
 
 func NewFactory() Factory {
 	return defaultFactory{
-		configResolver: defaultExecutionConfigResolver{},
 		binaryResolver: defaultBinaryResolver{},
 	}
 }
 
-func (f defaultFactory) Build(appCtx *plugin.AppContext, opts Options) (*Runtime, error) {
-	profile, err := f.configResolver.Resolve(appCtx, opts)
-	if err != nil {
-		return nil, err
-	}
-
+func (f defaultFactory) Build(opts RuntimeOptions) (*Runtime, error) {
 	selfPath, err := os.Executable()
 	if err != nil {
 		selfPath = ""
 	}
 
-	workspace := execution.NewWorkspace(appCtx.WorkDir(), appCtx.ServiceDir())
+	workspace := execution.NewWorkspace(opts.WorkDir, opts.ServiceDir)
 	commandRunner := &shellCommandRunner{
 		workspace: workspace,
 		selfPath:  selfPath,
@@ -62,11 +50,10 @@ func (f defaultFactory) Build(appCtx *plugin.AppContext, opts Options) (*Runtime
 	terraformRunner := &terraformOperationRunner{
 		workspace:       workspace,
 		binaryResolver:  f.binaryResolver,
-		planParallelism: profile.Parallelism(),
+		planParallelism: opts.PlanParallelism,
 	}
 
 	return &Runtime{
-		Profile:   profile,
 		Workspace: workspace,
 		JobRunner: &jobRunner{
 			main: operationDispatcher{
@@ -75,19 +62,6 @@ func (f defaultFactory) Build(appCtx *plugin.AppContext, opts Options) (*Runtime
 			},
 		},
 	}, nil
-}
-
-type defaultExecutionConfigResolver struct{}
-
-func (defaultExecutionConfigResolver) Resolve(appCtx *plugin.AppContext, opts Options) (terraformrun.Profile, error) {
-	profile, err := terraformrun.ProfileFromConfig(appCtx.Config())
-	if err != nil {
-		return terraformrun.Profile{}, err
-	}
-	if opts.Parallelism > 0 {
-		return profile.WithParallelism(opts.Parallelism)
-	}
-	return profile, nil
 }
 
 type defaultBinaryResolver struct{}

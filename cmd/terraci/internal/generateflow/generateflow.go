@@ -109,11 +109,7 @@ func newPipelineGenerator(runtime Runtime, project *projectflow.Result, mode Gen
 	if err != nil {
 		return nil, fmt.Errorf("build pipeline intent: %w", err)
 	}
-	terraformConfig, err := pipeline.NewTerraformJobConfig(pipeline.TerraformJobConfigOptions{
-		Binary:      profile.Binary().String(),
-		InitEnabled: profile.InitEnabled(),
-		Env:         profile.Env(),
-	})
+	terraformConfig, err := pipeline.NewTerraformJobConfigFromProfile(profile)
 	if err != nil {
 		return nil, fmt.Errorf("terraform job config: %w", err)
 	}

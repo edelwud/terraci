@@ -34,6 +34,9 @@ func TestArchitecture_ImportBoundaries(t *testing.T) {
 				if reason, ok := siblingPluginImportViolation(rel, imp); ok {
 					violations = append(violations, reason)
 				}
+				if isLocalExecRunnerFile(rel) && (imp == moduleImportPath+"/pkg/terraformrun" || importsPluginSDK(imp)) {
+					violations = append(violations, rel+" imports runtime/config SDK package "+imp+"; localexec runner must receive RuntimeOptions and consume IR jobs only")
+				}
 				if isCIProviderPlugin(rel) && imp == moduleImportPath+"/pkg/terraformrun" {
 					violations = append(violations, rel+" imports pkg/terraformrun; CI providers must consume Terraform runtime from pipeline IR")
 				}
@@ -46,6 +49,32 @@ func TestArchitecture_ImportBoundaries(t *testing.T) {
 
 	if len(violations) > 0 {
 		t.Fatalf("architecture import boundary violations:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
+func TestArchitecture_LocalExecRuntimeBoundary(t *testing.T) {
+	root := repoRoot(t)
+	var violations []string
+	stalePatterns := []string{
+		"executionConfigResolver",
+		"defaultExecutionConfigResolver",
+		"Runtime.Profile",
+		"Profile   terraformrun.Profile",
+	}
+
+	for _, rel := range goFiles(t, root, "plugins/localexec/internal/runner", "plugins/localexec/internal/flow") {
+		data, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			t.Fatalf("read %s: %v", rel, err)
+		}
+		text := string(data)
+		for _, pattern := range stalePatterns {
+			banTextPattern(&violations, rel, text, pattern, "stale localexec runtime side-channel")
+		}
+	}
+
+	if len(violations) > 0 {
+		t.Fatalf("localexec runtime boundary violations:\n%s", strings.Join(violations, "\n"))
 	}
 }
 
@@ -1170,6 +1199,10 @@ func isProductionFile(rel string) bool {
 
 func isCIProviderPlugin(rel string) bool {
 	return strings.HasPrefix(rel, "plugins/gitlab/") || strings.HasPrefix(rel, "plugins/github/")
+}
+
+func isLocalExecRunnerFile(rel string) bool {
+	return strings.HasPrefix(rel, "plugins/localexec/internal/runner/")
 }
 
 func textFiles(tb testing.TB, root string, roots ...string) []string {

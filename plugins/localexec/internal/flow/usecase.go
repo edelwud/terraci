@@ -184,19 +184,29 @@ func (u *UseCase) Run(ctx context.Context, req Request) (*Result, error) {
 		return skippedResult(), nil
 	}
 
-	execRuntime, err := u.runtimeFactory.Build(u.appCtx, runner.Options{Parallelism: req.Parallelism})
+	profile, err := profileForRequest(u.appCtx, req)
+	if err != nil {
+		return nil, fmt.Errorf("terraform profile: %w", err)
+	}
+
+	contributions := u.contributions.Collect(u.appCtx)
+	plan, err := buildExecutionIR(project, profile, req.Mode, contributions)
 	if err != nil {
 		return nil, err
 	}
 
-	contributions := u.contributions.Collect(u.appCtx)
-	plan, err := buildExecutionIR(project, execRuntime.Profile, req.Mode, contributions)
+	execRuntime, err := u.runtimeFactory.Build(runner.RuntimeOptions{
+		WorkDir:         u.appCtx.WorkDir(),
+		ServiceDir:      u.appCtx.ServiceDir(),
+		PlanParallelism: profile.Parallelism(),
+	})
 	if err != nil {
 		return nil, err
 	}
+
 	resultExec, err := execution.NewExecutor(
 		execRuntime.JobRunner,
-		execution.WithParallelism(execRuntime.Profile.Parallelism()),
+		execution.WithParallelism(profile.Parallelism()),
 		execution.WithEventSink(u.eventSink),
 	).Execute(ctx, plan)
 	if err != nil {
@@ -262,16 +272,23 @@ func (contextContributionCollector) Collect(appCtx *plugin.AppContext) []*pipeli
 	return appCtx.PipelineContributions()
 }
 
+func profileForRequest(appCtx *plugin.AppContext, req Request) (terraformrun.Profile, error) {
+	profile, err := terraformrun.ProfileFromConfig(appCtx.Config())
+	if err != nil {
+		return terraformrun.Profile{}, err
+	}
+	if req.Parallelism > 0 {
+		return profile.WithParallelism(req.Parallelism)
+	}
+	return profile, nil
+}
+
 func buildExecutionIR(project *workflow.ProjectResult, profile terraformrun.Profile, mode spec.ExecutionMode, contributions []*pipeline.Contribution) (*pipeline.IR, error) {
 	intent, err := intentForMode(mode)
 	if err != nil {
 		return nil, fmt.Errorf("build local execution intent: %w", err)
 	}
-	terraformConfig, err := pipeline.NewTerraformJobConfig(pipeline.TerraformJobConfigOptions{
-		Binary:      profile.Binary().String(),
-		InitEnabled: profile.InitEnabled(),
-		Env:         profile.Env(),
-	})
+	terraformConfig, err := pipeline.NewTerraformJobConfigFromProfile(profile)
 	if err != nil {
 		return nil, fmt.Errorf("terraform job config: %w", err)
 	}
