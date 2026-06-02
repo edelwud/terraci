@@ -20,14 +20,12 @@ func TestBuiltInPluginContractMatrix(t *testing.T) {
 		configLoader bool
 		command      bool
 		preflight    bool
-		runtime      bool
 		pipeline     bool
 	}{
 		"cost": {
 			configLoader: true,
 			command:      true,
 			preflight:    true,
-			runtime:      true,
 			pipeline:     true,
 		},
 		"diskblob": {
@@ -54,20 +52,17 @@ func TestBuiltInPluginContractMatrix(t *testing.T) {
 			configLoader: true,
 			command:      true,
 			preflight:    true,
-			runtime:      true,
 			pipeline:     true,
 		},
 		"summary": {
 			configLoader: true,
 			command:      true,
-			runtime:      true,
 			pipeline:     true,
 		},
 		"tfupdate": {
 			configLoader: true,
 			command:      true,
 			preflight:    true,
-			runtime:      true,
 			pipeline:     true,
 		},
 	}
@@ -81,7 +76,6 @@ func TestBuiltInPluginContractMatrix(t *testing.T) {
 		_, hasConfigLoader := p.(plugin.ConfigLoader)
 		_, hasCommandProvider := p.(plugin.CommandProvider)
 		_, hasPreflight := p.(plugin.Preflightable)
-		_, hasRuntime := p.(plugin.RuntimeProvider)
 		_, hasPipeline := p.(plugin.PipelineContributor)
 
 		if hasConfigLoader != want.configLoader {
@@ -92,9 +86,6 @@ func TestBuiltInPluginContractMatrix(t *testing.T) {
 		}
 		if hasPreflight != want.preflight {
 			t.Errorf("%s Preflightable = %v, want %v", p.Name(), hasPreflight, want.preflight)
-		}
-		if hasRuntime != want.runtime {
-			t.Errorf("%s RuntimeProvider = %v, want %v", p.Name(), hasRuntime, want.runtime)
 		}
 		if hasPipeline != want.pipeline {
 			t.Errorf("%s PipelineContributor = %v, want %v", p.Name(), hasPipeline, want.pipeline)
@@ -187,44 +178,6 @@ extensions:
 	want := []string{"cost", "git", "gitlab", "policy", "tfupdate"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("PreflightsForStartup() = %v, want %v", got, want)
-	}
-}
-
-func TestRuntimeProviders_CreateRuntimeWithoutPreflight(t *testing.T) {
-	appCtx, plugins := loadPluginContractConfig(t, `service_dir: .terraci
-structure:
-  pattern: "{service}/{environment}/{region}/{module}"
-extensions:
-  cost:
-    providers:
-      aws:
-        enabled: true
-  policy:
-    enabled: true
-    sources:
-      - type: path
-        path: terraform
-  tfupdate:
-    enabled: true
-    policy:
-      bump: minor
-`)
-
-	expectedRuntimeProviders := []string{"cost", "policy", "summary", "tfupdate"}
-	got := make([]string, 0, len(expectedRuntimeProviders))
-	for _, p := range plugins.RuntimeProviders() {
-		rawRuntime, err := p.Runtime(context.Background(), appCtx)
-		if err != nil {
-			t.Fatalf("Runtime(%s) error = %v", p.Name(), err)
-		}
-		if rawRuntime == nil {
-			t.Fatalf("Runtime(%s) returned nil runtime", p.Name())
-		}
-		got = append(got, p.Name())
-	}
-	slices.Sort(got)
-	if !slices.Equal(got, expectedRuntimeProviders) {
-		t.Fatalf("Runtime providers = %v, want %v", got, expectedRuntimeProviders)
 	}
 }
 

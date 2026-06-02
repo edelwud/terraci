@@ -48,11 +48,7 @@ func newRuntime(appCtx *plugin.AppContext, cfg *policyengine.Config) (*policyRun
 	}, nil
 }
 
-func (p *Plugin) Runtime(_ context.Context, appCtx *plugin.AppContext) (any, error) {
-	return newRuntime(appCtx, p.Config())
-}
-
 // runtime returns the typed plugin runtime used by policy use-cases.
-func (p *Plugin) runtime(ctx context.Context, appCtx *plugin.AppContext) (*policyRuntime, error) {
-	return plugin.BuildRuntime[*policyRuntime](ctx, p, appCtx)
+func (p *Plugin) runtime(_ context.Context, appCtx *plugin.AppContext) (*policyRuntime, error) {
+	return newRuntime(appCtx, p.Config())
 }

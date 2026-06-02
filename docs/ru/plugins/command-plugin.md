@@ -124,12 +124,8 @@ modules := project.Workflow.Filtered.All()
 ### Ленивая инициализация тяжёлых зависимостей
 
 ```go
-func (p *Plugin) Runtime(_ context.Context, _ *plugin.AppContext) (any, error) {
+func (p *Plugin) runtime(_ context.Context, _ *plugin.AppContext) (*slackRuntime, error) {
     return &slackRuntime{client: slack.New(p.Config().WebhookURL)}, nil
-}
-
-func (p *Plugin) runtime(ctx context.Context, appCtx *plugin.AppContext) (*slackRuntime, error) {
-    return plugin.BuildRuntime[*slackRuntime](ctx, p, appCtx)
 }
 ```
 
@@ -213,7 +209,7 @@ terraci-plugin-slack/
 ├── go.mod
 ├── plugin.go       # init(), Plugin, Config
 ├── commands.go     # CommandProvider
-├── runtime.go      # RuntimeProvider (опционально)
+├── runtime.go      # Plugin-local lazy runtime builder (опционально)
 ├── lifecycle.go    # Preflightable (опционально)
 └── README.md
 ```

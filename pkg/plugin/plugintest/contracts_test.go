@@ -81,7 +81,7 @@ func TestAssertRequireEnabled(t *testing.T) {
 	})
 }
 
-func TestAssertRuntimeProvider(t *testing.T) {
+func TestAssertRuntimeBuilder(t *testing.T) {
 	p := &contractRuntimePlugin{contractPlugin: contractPlugin{BasePlugin: plugin.BasePlugin[*contractConfig]{
 		PluginName: "contract",
 		PluginDesc: "contract plugin",
@@ -89,8 +89,8 @@ func TestAssertRuntimeProvider(t *testing.T) {
 		DefaultCfg: func() *contractConfig { return &contractConfig{} },
 	}}}
 
-	AssertRuntimeProvider[*contractRuntime](t, RuntimeProviderContract[*contractRuntime]{
-		Provider: p,
+	AssertRuntimeBuilder[*contractRuntime](t, RuntimeBuilderContract[*contractRuntime]{
+		Build: p.runtime,
 		AssertRuntime: func(tb testing.TB, got *contractRuntime) {
 			tb.Helper()
 			if got == nil || got.Name != "contract" {
@@ -245,7 +245,7 @@ type contractRuntimePlugin struct {
 	contractPlugin
 }
 
-func (p *contractRuntimePlugin) Runtime(_ context.Context, _ *plugin.AppContext) (any, error) {
+func (p *contractRuntimePlugin) runtime(_ context.Context, _ *plugin.AppContext) (*contractRuntime, error) {
 	return &contractRuntime{Name: p.Name()}, nil
 }
 

@@ -179,11 +179,6 @@ func (r *Registry) VersionProviders() []plugin.VersionProvider {
 	return byCapabilityFrom[plugin.VersionProvider](r)
 }
 
-// RuntimeProviders returns runtime-capable plugins in registration order.
-func (r *Registry) RuntimeProviders() []plugin.RuntimeProvider {
-	return byCapabilityFrom[plugin.RuntimeProvider](r)
-}
-
 // CIInfoProviders returns CI metadata providers in registration order.
 func (r *Registry) CIInfoProviders() []plugin.CIInfoProvider {
 	return byCapabilityFrom[plugin.CIInfoProvider](r)

@@ -156,7 +156,7 @@ Register → Configure → Preflight → Bind → Execute
 
 Для проверки поведения SDK используйте публичные test kits вместо ручного дублирования framework-логики:
 
-- `pkg/plugin/plugintest`: `AssertBaseConfigPlugin`, `AssertCommandBinding`, `AssertRequireEnabled`, `AssertRuntimeProvider`, `AssertPipelineContributor`, `AssertPreflightable`, `AssertInitContributor`, `AssertVersionProvider`, `AssertKVCacheProvider`, `AssertBlobStoreProvider`, `AssertChangeDetector`, `AssertCIProvider`.
+- `pkg/plugin/plugintest`: `AssertBaseConfigPlugin`, `AssertCommandBinding`, `AssertRequireEnabled`, `AssertRuntimeBuilder`, `AssertPipelineContributor`, `AssertPreflightable`, `AssertInitContributor`, `AssertVersionProvider`, `AssertKVCacheProvider`, `AssertBlobStoreProvider`, `AssertChangeDetector`, `AssertCIProvider`.
 - `pkg/ci/citest`: `AssertRenderedReportContract`, `AssertPublishArtifactsContract` и builders для rendered reports.
 
 Локальные тесты плагина должны фокусироваться на доменной логике, API и собственном rendering. Контрактные helpers проверяют, что плагин следует тем же правилам immutable config, command binding, report contract и artifact lifecycle, что и built-in плагины.

@@ -203,7 +203,7 @@ func readPlanResults(appCtx *plugin.AppContext) error {
 }
 ```
 
-## Heavy Initialization with RuntimeProvider
+## Heavy Initialization with a Plugin-Local Runtime
 
 If your command needs expensive setup (API clients, caches), use the lazy runtime pattern:
 
@@ -212,14 +212,10 @@ type slackRuntime struct {
     client *slack.Client
 }
 
-func (p *Plugin) Runtime(_ context.Context, _ *plugin.AppContext) (any, error) {
+func (p *Plugin) runtime(_ context.Context, _ *plugin.AppContext) (*slackRuntime, error) {
     cfg := p.Config()
     client := slack.New(cfg.WebhookURL)
     return &slackRuntime{client: client}, nil
-}
-
-func (p *Plugin) runtime(ctx context.Context, appCtx *plugin.AppContext) (*slackRuntime, error) {
-    return plugin.BuildRuntime[*slackRuntime](ctx, p, appCtx)
 }
 ```
 
@@ -310,7 +306,7 @@ terraci-plugin-slack/
 ├── go.sum
 ├── plugin.go       # init(), Plugin, Config
 ├── commands.go     # CommandProvider
-├── runtime.go      # RuntimeProvider (optional)
+├── runtime.go      # Plugin-local lazy runtime builder (optional)
 ├── lifecycle.go    # Preflightable (optional)
 └── README.md
 ```

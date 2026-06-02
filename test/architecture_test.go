@@ -406,6 +406,66 @@ func TestArchitecture_PluginConfigContracts(t *testing.T) {
 	}
 }
 
+func TestArchitecture_PluginRuntimeBoundary(t *testing.T) {
+	root := repoRoot(t)
+	var violations []string
+
+	for _, rel := range goFiles(t, root, "cmd", "pkg", "plugins", "examples") {
+		if !isProductionFile(rel) {
+			continue
+		}
+		file := parseGoFile(t, filepath.Join(root, rel), 0)
+		pluginAliases := importAliases(file, moduleImportPath+"/pkg/plugin")
+		registryAliases := importAliases(file, moduleImportPath+"/pkg/plugin/registry")
+
+		ast.Inspect(file, func(node ast.Node) bool {
+			if typed, ok := node.(*ast.SelectorExpr); ok {
+				ident, ok := typed.X.(*ast.Ident)
+				if !ok {
+					return true
+				}
+				if pluginAliases[ident.Name] {
+					switch typed.Sel.Name {
+					case "RuntimeProvider", "RuntimeAs", "BuildRuntime":
+						violations = append(violations, rel+" uses removed plugin."+typed.Sel.Name+"; build plugin-local typed runtimes directly")
+					}
+				}
+				if registryAliases[ident.Name] && typed.Sel.Name == "RuntimeProviders" {
+					violations = append(violations, rel+" uses removed registry.RuntimeProviders; runtime is plugin-local, not framework discovery")
+				}
+			}
+			return true
+		})
+	}
+
+	stalePatterns := []string{
+		"RuntimeProvider",
+		"RuntimeProviders",
+		"RuntimeAs",
+		"BuildRuntime",
+		"Runtime(ctx context.Context, appCtx *plugin.AppContext) (any, error)",
+		"Runtime(_ context.Context, appCtx *plugin.AppContext) (any, error)",
+		"Runtime(_ context.Context, _ *plugin.AppContext) (any, error)",
+	}
+	for _, rel := range textFiles(t, root, "AGENTS.md", "docs", "examples", "pkg/plugin/doc.go") {
+		if allowUnder(rel, "docs/.vitepress/dist/") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			t.Fatalf("read %s: %v", rel, err)
+		}
+		text := string(data)
+		for _, pattern := range stalePatterns {
+			banTextPattern(&violations, rel, text, pattern, "stale runtime provider SDK reference")
+		}
+	}
+
+	if len(violations) > 0 {
+		t.Fatalf("plugin runtime boundary violations:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
 func TestArchitecture_CommandRunFlowBoundaries(t *testing.T) {
 	root := repoRoot(t)
 	var violations []string

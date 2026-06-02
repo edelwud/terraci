@@ -160,7 +160,7 @@ Register → Configure → Preflight → Bind → Execute
 
 Use the public test kits for SDK behavior instead of re-testing framework internals by hand:
 
-- `pkg/plugin/plugintest`: `AssertBaseConfigPlugin`, `AssertCommandBinding`, `AssertRequireEnabled`, `AssertRuntimeProvider`, `AssertPipelineContributor`, `AssertPreflightable`, `AssertInitContributor`, `AssertVersionProvider`, `AssertKVCacheProvider`, `AssertBlobStoreProvider`, `AssertChangeDetector`, `AssertCIProvider`.
+- `pkg/plugin/plugintest`: `AssertBaseConfigPlugin`, `AssertCommandBinding`, `AssertRequireEnabled`, `AssertRuntimeBuilder`, `AssertPipelineContributor`, `AssertPreflightable`, `AssertInitContributor`, `AssertVersionProvider`, `AssertKVCacheProvider`, `AssertBlobStoreProvider`, `AssertChangeDetector`, `AssertCIProvider`.
 - `pkg/ci/citest`: `AssertRenderedReportContract`, `AssertPublishArtifactsContract`, and rendered report builders.
 
 Keep plugin-specific tests focused on your domain logic, APIs, and rendering decisions. The contract helpers verify that your plugin follows the same config immutability, command binding, report, and artifact lifecycle rules as the built-in plugins.

@@ -59,14 +59,6 @@ func (p *testVersionPlugin) VersionInfo() map[string]string {
 	return map[string]string{"test": p.name}
 }
 
-type testRuntimePlugin struct {
-	testPlugin
-}
-
-func (p *testRuntimePlugin) Runtime(context.Context, *plugin.AppContext) (any, error) {
-	return p.name, nil
-}
-
 type testCIInfoPlugin struct {
 	testPlugin
 }
@@ -307,7 +299,6 @@ func TestTypedCapabilityViewsPreserveOrder(t *testing.T) {
 	})
 	RegisterFactory(func() plugin.Plugin { return &testCommandPlugin{testPlugin: testPlugin{name: "command"}} })
 	RegisterFactory(func() plugin.Plugin { return &testVersionPlugin{testPlugin: testPlugin{name: "version"}} })
-	RegisterFactory(func() plugin.Plugin { return &testRuntimePlugin{testPlugin: testPlugin{name: "runtime"}} })
 	RegisterFactory(func() plugin.Plugin { return &testCIInfoPlugin{testPlugin: testPlugin{name: "ci"}} })
 
 	plugins := New()
@@ -319,9 +310,6 @@ func TestTypedCapabilityViewsPreserveOrder(t *testing.T) {
 	}
 	if got := pluginNames(plugins.VersionProviders()); got != "version" {
 		t.Fatalf("VersionProviders() = %s", got)
-	}
-	if got := pluginNames(plugins.RuntimeProviders()); got != "runtime" {
-		t.Fatalf("RuntimeProviders() = %s", got)
 	}
 	if got := pluginNames(plugins.CIInfoProviders()); got != "ci" {
 		t.Fatalf("CIInfoProviders() = %s", got)
@@ -1144,22 +1132,5 @@ func TestConcurrentRegistryAccess(t *testing.T) {
 	all := New().All()
 	if len(all) != 10 {
 		t.Fatalf("expected 10 plugins after concurrent access, got %d", len(all))
-	}
-}
-
-func TestRuntimeAs_Success(t *testing.T) {
-	value, err := plugin.RuntimeAs[*testPlugin](&testPlugin{name: "runtime"})
-	if err != nil {
-		t.Fatalf("RuntimeAs() error = %v", err)
-	}
-	if value.Name() != "runtime" {
-		t.Fatalf("RuntimeAs() returned %q, want runtime", value.Name())
-	}
-}
-
-func TestRuntimeAs_TypeMismatch(t *testing.T) {
-	_, err := plugin.RuntimeAs[*testCommandPlugin](&testPlugin{name: "runtime"})
-	if err == nil {
-		t.Fatal("RuntimeAs() error = nil, want mismatch")
 	}
 }

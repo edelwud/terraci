@@ -148,8 +148,8 @@ func TestPlugin_Runtime_CreatesEstimator(t *testing.T) {
 		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	})
 
-	plugintest.AssertRuntimeProvider[*costRuntime](t, plugintest.RuntimeProviderContract[*costRuntime]{
-		Provider:   p,
+	plugintest.AssertRuntimeBuilder[*costRuntime](t, plugintest.RuntimeBuilderContract[*costRuntime]{
+		Build:      p.runtime,
 		AppContext: newTestAppContext(t, t.TempDir()),
 		AssertRuntime: func(tb testing.TB, runtime *costRuntime) {
 			tb.Helper()
@@ -167,7 +167,7 @@ func TestPlugin_Runtime_DefaultsToDiskblob(t *testing.T) {
 	})
 
 	appCtx := newTestAppContext(t, t.TempDir())
-	runtime := plugintest.MustRuntime[*costRuntime](t, p, appCtx)
+	runtime := plugintest.MustRuntimeFromBuilder[*costRuntime](t, p.runtime, appCtx)
 	if runtime.estimator == nil {
 		t.Fatal("runtime.estimator should not be nil")
 	}
@@ -186,7 +186,7 @@ func TestPlugin_Runtime_UnknownBlobBackend(t *testing.T) {
 		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	})
 
-	if _, err := p.Runtime(context.Background(), newTestAppContext(t, t.TempDir())); err == nil {
+	if _, err := p.runtime(context.Background(), newTestAppContext(t, t.TempDir())); err == nil {
 		t.Fatal("Runtime() error = nil, want missing backend error")
 	}
 }
@@ -214,7 +214,7 @@ func TestPlugin_Runtime_UsesBlobStoreDiagnostics(t *testing.T) {
 		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	})
 
-	runtime := plugintest.MustRuntime[*costRuntime](t, p, newTestAppContextWithResolver(t, t.TempDir(), plugins))
+	runtime := plugintest.MustRuntimeFromBuilder[*costRuntime](t, p.runtime, newTestAppContextWithResolver(t, t.TempDir(), plugins))
 	if runtime.estimator == nil {
 		t.Fatal("runtime.estimator should not be nil")
 	}
@@ -240,7 +240,7 @@ func TestPlugin_Runtime_UsesBlobStoreFallbackDiagnostics(t *testing.T) {
 		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	})
 
-	runtime := plugintest.MustRuntime[*costRuntime](t, p, newTestAppContextWithResolver(t, t.TempDir(), plugins))
+	runtime := plugintest.MustRuntimeFromBuilder[*costRuntime](t, p.runtime, newTestAppContextWithResolver(t, t.TempDir(), plugins))
 	if runtime.estimator.Cache().Dir() != "/tmp/fallback-cache" {
 		t.Fatalf("CacheDir() = %q, want %q", runtime.estimator.Cache().Dir(), "/tmp/fallback-cache")
 	}
@@ -261,7 +261,7 @@ func TestPlugin_Runtime_BlobStoreFallbackWithoutDiagnostics(t *testing.T) {
 		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	})
 
-	runtime := plugintest.MustRuntime[*costRuntime](t, p, newTestAppContextWithResolver(t, t.TempDir(), plugins))
+	runtime := plugintest.MustRuntimeFromBuilder[*costRuntime](t, p.runtime, newTestAppContextWithResolver(t, t.TempDir(), plugins))
 	if runtime.estimator == nil {
 		t.Fatal("runtime.estimator should not be nil")
 	}
@@ -287,7 +287,7 @@ func TestPlugin_Runtime_HealthCheckFailure(t *testing.T) {
 		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	})
 
-	_, err := p.Runtime(context.Background(), newTestAppContextWithResolver(t, t.TempDir(), plugins))
+	_, err := p.runtime(context.Background(), newTestAppContextWithResolver(t, t.TempDir(), plugins))
 	if err == nil || err.Error() == "" {
 		t.Fatal("Runtime() error = nil, want health check failure")
 	}

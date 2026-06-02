@@ -11,7 +11,7 @@ import (
 //   - register via init() + registry.RegisterFactory()
 //   - configure via ConfigLoader
 //   - preflight via Preflightable
-//   - build lazy command-time runtime via RuntimeProvider
+//   - build lazy command-time runtime inside plugin-local use-cases
 //   - execute plugin-local use-cases and rendering
 //
 // IsConfigured() answers whether config exists; IsEnabled() answers whether the

@@ -1,8 +1,6 @@
 package summary
 
 import (
-	"context"
-
 	"github.com/edelwud/terraci/pkg/plugin"
 	summaryengine "github.com/edelwud/terraci/plugins/summary/internal/summaryengine"
 )
@@ -23,11 +21,7 @@ func newRuntime(appCtx *plugin.AppContext, cfg *summaryengine.Config) *summaryRu
 	}
 }
 
-func (p *Plugin) Runtime(_ context.Context, appCtx *plugin.AppContext) (any, error) {
-	return newRuntime(appCtx, p.Config()), nil
-}
-
 // runtime returns the typed plugin runtime used by summary use-cases.
-func (p *Plugin) runtime(ctx context.Context, appCtx *plugin.AppContext) (*summaryRuntime, error) {
-	return plugin.BuildRuntime[*summaryRuntime](ctx, p, appCtx)
+func (p *Plugin) runtime(appCtx *plugin.AppContext) *summaryRuntime {
+	return newRuntime(appCtx, p.Config())
 }

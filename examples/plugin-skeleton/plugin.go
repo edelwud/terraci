@@ -71,9 +71,9 @@ func init() {
 //   - plugin.ConfigLoader       — SchemaConfig, DecodeAndSet, IsEnabled (via BasePlugin)
 //   - plugin.CommandProvider    — Commands() in commands.go
 //
-// Add more capabilities (PipelineContributor, RuntimeProvider, etc.) by
-// implementing their interfaces on this same struct — the framework
-// discovers them via type assertion at runtime.
+// Add more capabilities (PipelineContributor, InitContributor, etc.) by
+// implementing their interfaces on this same struct. Keep heavy runtime
+// construction as plugin-local typed builders used from commands/use-cases.
 type Plugin struct {
 	plugin.BasePlugin[*Config]
 }

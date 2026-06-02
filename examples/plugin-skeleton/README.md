@@ -72,7 +72,7 @@ The skeleton implements only `CommandProvider` and `ConfigLoader` (via `BasePlug
 | Capability               | Interface                       | Built-in reference                |
 |--------------------------|---------------------------------|-----------------------------------|
 | Lifecycle preflight      | `plugin.Preflightable`          | `plugins/git/lifecycle.go`        |
-| Lazy heavy runtime       | `plugin.RuntimeProvider`        | `plugins/cost/runtime.go`         |
+| Lazy heavy runtime       | Plugin-local typed builder      | `plugins/cost/runtime.go`         |
 | Pipeline contributions   | `plugin.PipelineContributor`    | `plugins/policy/pipeline.go`      |
 | Init wizard fields       | `initwiz.InitContributor`       | `plugins/cost/init_wizard.go`     |
 | CI provider              | `plugin.PipelineGeneratorFactory` (+ EnvDetector, CIInfoProvider, …) | `plugins/gitlab/generator.go` |

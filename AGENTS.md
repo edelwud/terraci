@@ -77,7 +77,6 @@ pkg/                            # Public API — importable by external plugins 
 │   ├── context.go              # AppContext + AppContextOptions constructor
 │   ├── command_binding.go      # CommandPlugin[T], AppContextFromCommand, RequireEnabled + typed command errors
 │   ├── cliout/                 # Public plugin command output helpers (Format, ParseFormat, WriteJSON)
-│   ├── runtime.go              # RuntimeProvider + RuntimeAs() + BuildRuntime[T]()
 │   ├── resolver.go             # Narrow resolver interfaces + aggregate implementation contract
 │   ├── noop_resolver.go        # default no-op resolver behavior
 │   ├── registry/               # Plugin factory catalog + per-command Registry
@@ -158,7 +157,7 @@ plugins/                        # Built-in plugins — one file per capability
 │   ├── plugin.go               # init, BasePlugin[*CostConfig] embed
 │   ├── lifecycle.go            # Preflightable (cheap config/cache validation)
 │   ├── commands.go             # CommandProvider (terraci cost)
-│   ├── runtime.go              # RuntimeProvider (lazy estimator construction)
+│   ├── runtime.go              # Plugin-local lazy estimator construction
 │   ├── usecases.go             # Request/result usecase orchestration
 │   ├── pipeline.go             # PipelineContributor
 │   ├── init_wizard.go          # InitContributor
@@ -225,7 +224,7 @@ Each feature/plugin follows one-file-per-capability where it applies, with runti
 - `plugin.go` — init(), Plugin struct with BasePlugin[C] embedding
 - `lifecycle.go` — Preflightable
 - `commands.go` — CommandProvider with cobra definitions; parse flags into typed requests and resolve via `plugin.CommandPlugin`
-- `runtime.go` — RuntimeProvider for lazy immutable dependency construction
+- `runtime.go` — plugin-local lazy immutable dependency construction
 - `usecases.go` — typed Request/Result orchestration over runtime
 - `generator.go` — EnvDetector + CIInfoProvider + PipelineGeneratorFactory + CommentServiceFactory
 - `pipeline.go` — PipelineContributor(ctx) (no self-check, framework filters)
@@ -242,7 +241,7 @@ Each feature/plugin follows one-file-per-capability where it applies, with runti
 2. Configure   — framework passes config.ExtensionDocument to ConfigLoader.DecodeAndSet()
 3. Preflight   — Preflightable.Preflight() performs cheap validation/env detection
 4. Bind        — runflow builds immutable AppContext/Prepared and attaches it to command context
-5. Execute     — Commands parse flags into typed requests; use-cases lazily build RuntimeProvider runtimes as needed
+5. Execute     — Commands parse flags into typed requests; use-cases lazily build plugin-local typed runtimes as needed
 ```
 
 ### Capability Interfaces
@@ -253,7 +252,6 @@ Each feature/plugin follows one-file-per-capability where it applies, with runti
 | `ConfigLoader` | Config section under `extensions:` + IsEnabled() via EnablePolicy | gitlab, github, cost, policy, summary, tfupdate |
 | `CommandProvider` | CLI subcommands | cost, policy, summary, tfupdate, localexec |
 | `Preflightable` | Cheap startup validation / env detection | gitlab, github, cost, policy, git, tfupdate |
-| `RuntimeProvider` | Lazy command-time runtime construction | cost, policy, tfupdate |
 | `EnvDetector` | CI environment detection | gitlab, github |
 | `CIInfoProvider` | Provider name, pipeline ID, commit SHA | gitlab, github |
 | `PipelineGeneratorFactory` | Pipeline generator creation — `NewGenerator(*pipeline.IR)` | gitlab, github |
@@ -290,12 +288,12 @@ Command handlers should stay as a thin boundary: resolve `appCtx` and the comman
 cobra flags → typed Request → immutable Runtime → usecase Result → artifact persistence → output
 ```
 
-RuntimeProvider implementations should hold normalized config and constructed dependencies only. Command-specific values such as `--module`, `--output`, `--write`, timeouts, and override flags belong in request structs, not mutable runtime fields.
+Plugin-local runtime builders should hold normalized config and constructed dependencies only. Command-specific values such as `--module`, `--output`, `--write`, timeouts, and override flags belong in request structs, not mutable runtime fields.
 
 ### SDK Contract Tests
 
 Plugin-author tests should reuse the public contract kit instead of duplicating SDK behavior:
-- `pkg/plugin/plugintest`: `AssertBaseConfigPlugin`, `AssertCommandBinding`, `AssertRequireEnabled`, `AssertRuntimeProvider`, `AssertPipelineContributor`, plus capability contracts for preflight, init wizard, version info, KV/blob providers, change detection, and CI providers.
+- `pkg/plugin/plugintest`: `AssertBaseConfigPlugin`, `AssertCommandBinding`, `AssertRequireEnabled`, `AssertRuntimeBuilder`, `AssertPipelineContributor`, plus capability contracts for preflight, init wizard, version info, KV/blob providers, change detection, and CI providers.
 - `pkg/ci/citest`: `AssertRenderedReportContract`, `AssertPublishArtifactsContract`, `RecordingArtifactWriter`, and rendered-section/report builders.
 
 Built-in plugins and examples keep domain-specific tests local, but SDK boundary behavior is asserted through these helpers so third-party authors can copy the same patterns.
@@ -466,14 +464,14 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **Shell rendering separated from IR**: `pkg/pipeline/cishell.RenderOperation(op)` for shell-driven CI; the IR carries `pipeline.TerraformOperation` data only.
 - **Canonical dry-run source**: dry-run stage/job counts derive from `*IR.DryRun(totalModules)`.
 - **Execution result boundary**: `pkg/execution.Result`, `JobResult`, `GroupResult`, and `JobEvent` are immutable value objects. Production code reads them through getters and `Stats()`, never through struct literals or mutable fields. `JobRunner`, `WorkerPool`, and `EventSink` consume `pipeline.Job`/event values, not job pointers. Failed jobs surface as `execution.ExecutionError` while still returning the partial result, and produced artifacts are exposed as typed `pipeline.Artifact` values.
-- **Preflight, then lazy runtime**: framework performs cheap startup validation; heavy plugin state is built lazily inside RuntimeProvider/use-cases. Runtime must be command-agnostic; CLI overrides live in typed request structs.
+- **Preflight, then lazy runtime**: framework performs cheap startup validation; heavy plugin state is built lazily inside plugin-local use-cases. Runtime must be command-agnostic; CLI overrides live in typed request structs.
 - **Command run flow**: `cmd/terraci/cmd` parses cobra flags, calls `runflow.Prepare`, then passes `runflow.Prepared` into a typed command flow under `cmd/terraci/internal/*flow`; command files own only output/log presentation and file/stdout writes.
 - **Command/usecase boundary**: command callbacks use `plugin.CommandPlugin[T]` and `plugin.RequireEnabled`, parse flags into request structs, call a usecase, then handle artifact persistence and output explicitly.
 - **PipelineContributor(ctx)**: plugins add standalone DAG jobs through `pipeline.NewPluginCommandJob` + `pipeline.NewContribution`, return builder errors, and use `PipelineContributionGate` for optional jobs; `nil, nil` is invalid
 - **ServiceDir**: configurable project directory; `AppContext.ServiceDir` (absolute) for runtime, `AppContext.Config().ServiceDir()` (relative) for pipeline templates
 - **Immutable config boundary**: `Config.Clone()` and `config.Snapshot` own deep-copy semantics. `AppContext` stores a snapshot; production plugin code reads through accessors and leaves `MutableCopy()` to tests or explicit compatibility adapters.
 - **Command boundary**: plugin command callbacks use `plugin.CommandPlugin[T](cmd, name)` and `plugin.RequireEnabled(...)`; low-level cobra context binding is framework-owned. Command binding and disabled-plugin failures are typed errors.
-- **SDK contract kit**: plugin SDK behavior is tested through `pkg/plugin/plugintest`; CI/report behavior is tested through `pkg/ci/citest`. New plugins should copy these contract helpers for config immutability, command binding, runtime creation, contributions, lifecycle, init wizard, providers, change detection, rendered reports, and artifact lifecycle.
+- **SDK contract kit**: plugin SDK behavior is tested through `pkg/plugin/plugintest`; CI/report behavior is tested through `pkg/ci/citest`. New plugins should copy these contract helpers for config immutability, command binding, plugin-local runtime builders, contributions, lifecycle, init wizard, providers, change detection, rendered reports, and artifact lifecycle.
 - **Init wizard flow**: command code owns cobra, TTY checks, huh rendering, YAML preview, and file writes. `cmd/terraci/internal/initflow` owns defaults, contributor collection, display group ordering/merge rules, duplicate extension detection, and final config assembly.
 - **Init extension contracts**: init wizard plugins define package-local `initwiz.StateKey[T]` values, build fields through `initwiz.NewStringField` / `NewBoolField` / `NewSelectField`, and return typed config structs/maps through `initwiz.NewInitContribution`. Core owns YAML node encoding and defensive copies; initflow owns duplicate detection and final assembly. Do not return loose extension maps from plugin init code.
 - **Report artifact lifecycle**: plan-aware producers use `PlanResultCollection -> ci.ArtifactRun -> ci.NewRenderedReport -> ci.PublishArtifacts(...)`. `PublishArtifacts` always persists raw results and removes stale reports on nil/build errors. Report-only producers may use `SaveReport`.

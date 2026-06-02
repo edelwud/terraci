@@ -54,9 +54,6 @@ func runSummaryUseCase(ctx context.Context, appCtx *plugin.AppContext, runtime *
 }
 
 func (p *Plugin) runSummary(ctx context.Context, appCtx *plugin.AppContext) error {
-	runtime, err := p.runtime(ctx, appCtx)
-	if err != nil {
-		return err
-	}
+	runtime := p.runtime(appCtx)
 	return runSummaryUseCase(ctx, appCtx, runtime)
 }

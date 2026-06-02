@@ -27,14 +27,14 @@ func (c *exampleRuntimeConfig) Clone() *exampleRuntimeConfig {
 	return &out
 }
 
-func (p *exampleRuntimePlugin) Runtime(_ context.Context, appCtx *plugin.AppContext) (any, error) {
+func (p *exampleRuntimePlugin) runtime(_ context.Context, appCtx *plugin.AppContext) (*exampleRuntime, error) {
 	if p.Config() == nil || !p.Config().Enabled {
 		return nil, fmt.Errorf("example runtime is not enabled")
 	}
 	return &exampleRuntime{workDir: appCtx.WorkDir()}, nil
 }
 
-func ExampleRuntimeProvider() {
+func Example_lazyRuntimeBuilder() {
 	p := &exampleRuntimePlugin{
 		BasePlugin: plugin.BasePlugin[*exampleRuntimeConfig]{
 			PluginName:  "example",
@@ -51,8 +51,7 @@ func ExampleRuntimeProvider() {
 		ServiceDir: "/repo/.terraci",
 		Version:    "test",
 	})
-	rawRuntime, _ := p.Runtime(context.Background(), appCtx)
-	runtime, _ := plugin.RuntimeAs[*exampleRuntime](rawRuntime)
+	runtime, _ := p.runtime(context.Background(), appCtx)
 
 	fmt.Println(runtime.workDir)
 	// Output: /repo

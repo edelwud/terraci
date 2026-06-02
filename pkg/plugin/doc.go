@@ -4,7 +4,7 @@
 //
 // The plugin system is organized into a small set of public packages:
 //
-//   - pkg/plugin           — core interfaces, BasePlugin[C], AppContext, EnablePolicy, RuntimeProvider
+//   - pkg/plugin           — core interfaces, BasePlugin[C], AppContext, EnablePolicy
 //   - pkg/plugin/cliout    — public command output helpers (Format, ParseFormat, WriteJSON)
 //   - pkg/plugin/registry  — factory catalog and per-command Registry capability resolution
 //   - pkg/plugin/initwiz   — init wizard types (StateMap, StateKey, InitContributor, InitGroup)
@@ -25,7 +25,7 @@
 //   - plugin.go       — registration shell + typed BasePlugin[C] config
 //   - lifecycle.go    — cheap Preflight checks only (no network, no FS scan)
 //   - commands.go     — CommandProvider with thin cobra/request parsing
-//   - runtime.go      — lazy immutable RuntimeProvider implementation
+//   - runtime.go      — plugin-local lazy immutable runtime builder
 //   - usecases.go     — typed Request/Result orchestration over runtime
 //   - pipeline.go     — PipelineContributor (pipeline DAG jobs; return builder errors)
 //   - init_wizard.go  — initwiz.InitContributor (TUI form fields)
@@ -58,8 +58,8 @@
 //	└──────┬──────┘
 //	       │
 //	┌──────▼──────┐
-//	│  Execute    │  RunE in command — RuntimeProvider builds heavy
-//	│             │  state lazily; use-cases consume the typed runtime.
+//	│  Execute    │  RunE in command — plugin-local builders create
+//	│             │  heavy state lazily for typed use-cases.
 //	└─────────────┘
 //
 // AppContext is constructed once per command run by the CLI runflow and
@@ -82,7 +82,7 @@
 //	cobra flags -> typed Request -> immutable Runtime -> use-case Result
 //	    -> artifact persistence -> output renderer
 //
-// RuntimeProvider implementations should build immutable dependencies and
+// Plugin-local runtime builders should build immutable dependencies and
 // normalized config only. Command-specific overrides belong in the request, so
 // repeated command invocations cannot leak mutable runtime state.
 //
@@ -175,8 +175,8 @@
 //   - plugintest.AssertCommandBinding[T] — verifies CommandPlugin[T] command
 //     lookup and stable CommandBindingError reasons.
 //   - plugintest.AssertRequireEnabled — verifies DisabledPluginError behavior.
-//   - plugintest.AssertRuntimeProvider[T] — verifies lazy RuntimeProvider
-//     construction and RuntimeAs[T].
+//   - plugintest.AssertRuntimeBuilder[T] — verifies plugin-local lazy runtime
+//     construction through a typed builder closure.
 //   - plugintest.AssertPipelineContributor — verifies deterministic generic
 //     contribution shape.
 //   - plugintest.AssertPreflightable, AssertInitContributor,

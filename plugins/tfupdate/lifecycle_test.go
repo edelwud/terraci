@@ -138,8 +138,8 @@ func TestPlugin_Runtime_CreatesRegistryLazily(t *testing.T) {
 	enablePlugin(t, p, &tfupdateengine.UpdateConfig{Enabled: true})
 	useMockRegistry(p, &mockRegistry{})
 
-	plugintest.AssertRuntimeProvider[*updateRuntime](t, plugintest.RuntimeProviderContract[*updateRuntime]{
-		Provider:   p,
+	plugintest.AssertRuntimeBuilder[*updateRuntime](t, plugintest.RuntimeBuilderContract[*updateRuntime]{
+		Build:      p.runtime,
 		AppContext: newTestAppContext(t, t.TempDir()),
 		AssertRuntime: func(tb testing.TB, runtime *updateRuntime) {
 			tb.Helper()
@@ -155,7 +155,7 @@ func TestPlugin_Runtime_ResolvesSingleActiveDefaultCache(t *testing.T) {
 	enablePlugin(t, p, &tfupdateengine.UpdateConfig{Enabled: true})
 	useMockRegistry(p, &mockRegistry{})
 
-	runtime := plugintest.MustRuntime[*updateRuntime](t, p, newTestAppContext(t, t.TempDir()))
+	runtime := plugintest.MustRuntimeFromBuilder[*updateRuntime](t, p.runtime, newTestAppContext(t, t.TempDir()))
 	if runtime.registry == nil {
 		t.Fatal("runtime.registry should not be nil")
 	}
@@ -181,7 +181,7 @@ func TestPlugin_Runtime_UnknownCacheBackend(t *testing.T) {
 	})
 	useMockRegistry(p, &mockRegistry{})
 
-	if _, err := p.Runtime(context.Background(), newTestAppContext(t, t.TempDir())); err == nil {
+	if _, err := p.runtime(context.Background(), newTestAppContext(t, t.TempDir())); err == nil {
 		t.Fatal("Runtime() error = nil, want missing backend error")
 	}
 }
@@ -206,7 +206,7 @@ func TestPlugin_Runtime_DefaultBackendRequiresExplicitNameWithAdditionalProvider
 		},
 	})
 
-	_, err := p.Runtime(context.Background(), newTestAppContextWithResolver(t, t.TempDir(), plugins))
+	_, err := p.runtime(context.Background(), newTestAppContextWithResolver(t, t.TempDir(), plugins))
 	if err == nil {
 		t.Fatal("Runtime() error = nil, want ambiguous cache backend error")
 	}

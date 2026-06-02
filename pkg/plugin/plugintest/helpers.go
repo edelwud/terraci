@@ -86,17 +86,16 @@ func NewAppContextWithResolver(t *testing.T, workDir string, resolver plugin.Res
 	})
 }
 
-func MustRuntime[T any](t *testing.T, provider plugin.RuntimeProvider, appCtx *plugin.AppContext) T {
+func MustRuntimeFromBuilder[T any](
+	t *testing.T,
+	build func(context.Context, *plugin.AppContext) (T, error),
+	appCtx *plugin.AppContext,
+) T {
 	t.Helper()
 
-	rawRuntime, err := provider.Runtime(context.Background(), appCtx)
+	runtime, err := build(context.Background(), appCtx)
 	if err != nil {
-		t.Fatalf("Runtime() error = %v", err)
-	}
-
-	runtime, err := plugin.RuntimeAs[T](rawRuntime)
-	if err != nil {
-		t.Fatalf("Runtime() type assertion failed: %v", err)
+		t.Fatalf("runtime builder error = %v", err)
 	}
 
 	return runtime

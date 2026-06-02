@@ -42,8 +42,8 @@ func TestPlugin_Runtime_CreatesPuller(t *testing.T) {
 		Sources: []policyengine.SourceConfig{{Type: policyengine.SourceTypePath, Path: "terraform"}},
 	})
 
-	plugintest.AssertRuntimeProvider[*policyRuntime](t, plugintest.RuntimeProviderContract[*policyRuntime]{
-		Provider:   p,
+	plugintest.AssertRuntimeBuilder[*policyRuntime](t, plugintest.RuntimeBuilderContract[*policyRuntime]{
+		Build:      p.runtime,
 		AppContext: plugintest.NewAppContext(t, t.TempDir()),
 		AssertRuntime: func(tb testing.TB, runtime *policyRuntime) {
 			tb.Helper()

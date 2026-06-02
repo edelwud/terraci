@@ -98,13 +98,12 @@ Plugins implement one or more capability interfaces. The framework discovers the
 | `EnvDetector` | Detect CI environment from env vars | gitlab, github |
 | `CIInfoProvider` | Provider name, pipeline ID, commit SHA | gitlab, github |
 | `ChangeDetectionProvider` | SDK capability that embeds plugin-agnostic `workflow.ChangeDetector` for VCS diffs | git |
-| `RuntimeProvider` | Lazy construction of heavy runtime state | cost, policy, tfupdate |
 | `Preflightable` | Cheap startup validation before commands run | gitlab, github, git, cost, policy, tfupdate |
 | `VersionProvider` | Contribute version info to `terraci version` | policy |
 | `KVCacheProvider` | Named key/value cache backend resolution | inmemcache |
 | `BlobStoreProvider` | Named blob/object store backend (`NewBlobStore(ctx, appCtx, opts)`) | diskblob |
 
-A single plugin can implement multiple capabilities. For example, `cost` implements `CommandProvider` (the `terraci cost` command), `PipelineContributor` (adds cost estimation step to pipeline), `InitContributor` (adds toggle to init wizard), `RuntimeProvider` (lazy estimator setup), and `Preflightable` (config validation).
+A single plugin can implement multiple capabilities. For example, `cost` implements `CommandProvider` (the `terraci cost` command), `PipelineContributor` (adds cost estimation step to pipeline), `InitContributor` (adds toggle to init wizard), and `Preflightable` (config validation); its estimator runtime is a plugin-local lazy builder.
 
 ## Plugin Lifecycle
 
@@ -115,10 +114,10 @@ Every plugin goes through the same lifecycle:
 2. Configure   -- framework decodes the matching extensions.<key> YAML section
 3. Preflight   -- cheap validation (env detection, config checks)
 4. Bind        -- runflow builds immutable Prepared/AppContext state
-5. Execute     -- commands lazily build RuntimeProvider runtimes as needed
+5. Execute     -- commands lazily build plugin-local typed runtimes as needed
 ```
 
-**Preflight** runs for all enabled plugins before any command. It must be fast and side-effect-light -- no network calls, no heavy state. Heavy work (API clients, caches, estimators) belongs in `RuntimeProvider`, which constructs the runtime lazily when a command actually needs it.
+**Preflight** runs for all enabled plugins before any command. It must be fast and side-effect-light -- no network calls, no heavy state. Heavy work (API clients, caches, estimators) belongs in plugin-local runtime builders, which run only when a command actually needs them.
 
 ## Custom Plugins
 
@@ -237,7 +236,7 @@ For larger plugins, follow the one-file-per-capability convention used by built-
 | `plugin.go` | `init()`, Plugin struct, BasePlugin embedding |
 | `lifecycle.go` | `Preflightable` implementation |
 | `commands.go` | `CommandProvider` with cobra commands |
-| `runtime.go` | `RuntimeProvider` for lazy heavy state |
+| `runtime.go` | Plugin-local lazy heavy state builder |
 | `usecases.go` | Command orchestration over typed runtime |
 | `pipeline.go` | `PipelineContributor` jobs |
 | `init_wizard.go` | `InitContributor` form fields |

@@ -98,13 +98,12 @@ TerraCi автоматически определяет активный CI-пр
 | `EnvDetector` | Определение CI-окружения по переменным среды | gitlab, github |
 | `CIInfoProvider` | Имя провайдера, ID пайплайна, SHA коммита | gitlab, github |
 | `ChangeDetectionProvider` | SDK-возможность, встраивающая plugin-agnostic `workflow.ChangeDetector` для VCS diff | git |
-| `RuntimeProvider` | Ленивая инициализация тяжёлых зависимостей | cost, policy, tfupdate |
 | `Preflightable` | Дешёвая валидация при старте | gitlab, github, git, cost, policy, tfupdate |
 | `VersionProvider` | Информация о версии для `terraci version` | policy |
 | `KVCacheProvider` | KV-кэш бэкенд по имени | inmemcache |
 | `BlobStoreProvider` | Бэкенд blob/object store (`NewBlobStore(ctx, appCtx, opts)`) | diskblob |
 
-Один плагин может реализовывать несколько возможностей. Например, `cost` реализует `CommandProvider` (команда `terraci cost`), `PipelineContributor` (шаг оценки стоимости в пайплайне), `InitContributor` (переключатель в мастере init), `RuntimeProvider` (ленивая инициализация estimator) и `Preflightable` (валидация конфига).
+Один плагин может реализовывать несколько возможностей. Например, `cost` реализует `CommandProvider` (команда `terraci cost`), `PipelineContributor` (шаг оценки стоимости в пайплайне), `InitContributor` (переключатель в мастере init) и `Preflightable` (валидация конфига); estimator runtime строится лениво внутри самого плагина.
 
 ## Жизненный цикл плагина
 
@@ -115,10 +114,10 @@ TerraCi автоматически определяет активный CI-пр
 2. Configure   -- фреймворк декодирует секцию extensions.<key> из YAML
 3. Preflight   -- дешёвая валидация (определение окружения, проверка конфига)
 4. Bind        -- runflow строит immutable Prepared/AppContext state
-5. Execute     -- команды лениво создают RuntimeProvider рантаймы по необходимости
+5. Execute     -- команды лениво создают plugin-local typed рантаймы по необходимости
 ```
 
-**Preflight** выполняется для всех включённых плагинов до любой команды. Он должен быть быстрым и без побочных эффектов — никаких сетевых вызовов и тяжёлого state. Тяжёлая работа (API-клиенты, кеши, estimators) принадлежит `RuntimeProvider`, который создаёт рантайм лениво, когда команда реально его требует.
+**Preflight** выполняется для всех включённых плагинов до любой команды. Он должен быть быстрым и без побочных эффектов — никаких сетевых вызовов и тяжёлого state. Тяжёлая работа (API-клиенты, кеши, estimators) принадлежит plugin-local runtime builders, которые запускаются только когда команда реально требует runtime.
 
 ## Кастомные плагины
 
@@ -237,7 +236,7 @@ func (p *Plugin) Commands() []*cobra.Command {
 | `plugin.go` | `init()`, struct плагина, BasePlugin embedding |
 | `lifecycle.go` | Реализация `Preflightable` |
 | `commands.go` | `CommandProvider` с cobra-командами |
-| `runtime.go` | `RuntimeProvider` для ленивого тяжёлого state |
+| `runtime.go` | Plugin-local builder для ленивого тяжёлого state |
 | `usecases.go` | Оркестрация команд над типизированным рантаймом |
 | `pipeline.go` | `PipelineContributor` — шаги/джобы |
 | `init_wizard.go` | `InitContributor` — поля формы |

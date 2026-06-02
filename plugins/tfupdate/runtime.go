@@ -89,11 +89,7 @@ func newRuntime(
 	}, nil
 }
 
-func (p *Plugin) Runtime(ctx context.Context, appCtx *plugin.AppContext) (any, error) {
-	return newRuntime(ctx, appCtx, p.Config(), p.registryFactory)
-}
-
 // runtime returns the typed plugin runtime used by tfupdate use-cases.
 func (p *Plugin) runtime(ctx context.Context, appCtx *plugin.AppContext) (*updateRuntime, error) {
-	return plugin.BuildRuntime[*updateRuntime](ctx, p, appCtx)
+	return newRuntime(ctx, appCtx, p.Config(), p.registryFactory)
 }
