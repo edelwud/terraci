@@ -63,8 +63,8 @@ func (c *Catalog) RegisterFactory(factory Factory) {
 }
 
 // Registry is an isolated plugin instance set for one app run. It is the
-// framework-owned catalog for capability discovery, lifecycle hooks, command
-// lookup, and plugin-visible capability resolution.
+// framework-owned catalog for lifecycle facades, command lookup, and
+// plugin-visible capability resolution.
 type Registry struct {
 	plugins map[string]plugin.Plugin
 	order   []string
@@ -150,7 +150,7 @@ type pluginSource interface {
 
 // byCapabilityFrom returns all plugins from source that implement the given
 // capability interface. Keep this generic helper package-private so framework
-// callers use named capability views instead of raw type discovery.
+// callers use registry lifecycle facades instead of raw type discovery.
 func byCapabilityFrom[T plugin.Plugin](source pluginSource) []T {
 	if source == nil {
 		return nil
@@ -162,31 +162,6 @@ func byCapabilityFrom[T plugin.Plugin](source pluginSource) []T {
 		}
 	}
 	return result
-}
-
-// ConfigLoaders returns config-capable plugins in registration order.
-func (r *Registry) ConfigLoaders() []plugin.ConfigLoader {
-	return byCapabilityFrom[plugin.ConfigLoader](r)
-}
-
-// CommandProviders returns command-capable plugins in registration order.
-func (r *Registry) CommandProviders() []plugin.CommandProvider {
-	return byCapabilityFrom[plugin.CommandProvider](r)
-}
-
-// VersionProviders returns version-capable plugins in registration order.
-func (r *Registry) VersionProviders() []plugin.VersionProvider {
-	return byCapabilityFrom[plugin.VersionProvider](r)
-}
-
-// CIInfoProviders returns CI metadata providers in registration order.
-func (r *Registry) CIInfoProviders() []plugin.CIInfoProvider {
-	return byCapabilityFrom[plugin.CIInfoProvider](r)
-}
-
-// Preflightables returns preflight-capable plugins in registration order.
-func (r *Registry) Preflightables() []plugin.Preflightable {
-	return byCapabilityFrom[plugin.Preflightable](r)
 }
 
 // Reset clears the global catalog. Only for testing.

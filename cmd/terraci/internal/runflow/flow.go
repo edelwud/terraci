@@ -149,17 +149,7 @@ func loadConfig(req Request) (*config.Config, error) {
 
 func decodePluginConfigs(plugins *registry.Registry, cfg *config.Config) error {
 	log.Debug("initializing plugin configurations")
-	for _, p := range plugins.ConfigLoaders() {
-		key := p.ConfigKey()
-		doc, exists := cfg.Extension(key)
-		if !exists {
-			continue
-		}
-		if err := p.DecodeAndSet(doc); err != nil {
-			return plugin.ConfigError{Plugin: p.Name(), Key: key.String(), Err: err}
-		}
-	}
-	return nil
+	return plugins.DecodeConfig(cfg)
 }
 
 func runPreflight(ctx context.Context, plugins *registry.Registry, appCtx *plugin.AppContext, skip bool) error {
@@ -168,12 +158,7 @@ func runPreflight(ctx context.Context, plugins *registry.Registry, appCtx *plugi
 		return nil
 	}
 	log.Debug("running plugin preflight")
-	for _, p := range plugins.PreflightsForStartup() {
-		if err := p.Preflight(ctx, appCtx); err != nil {
-			return fmt.Errorf("preflight plugin %s: %w", p.Name(), err)
-		}
-	}
-	return nil
+	return plugins.RunPreflight(ctx, appCtx)
 }
 
 func collectContributions(plugins *registry.Registry, appCtx *plugin.AppContext) (*plugin.AppContext, error) {

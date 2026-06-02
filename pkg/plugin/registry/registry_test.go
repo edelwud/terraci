@@ -49,7 +49,7 @@ type testCommandPlugin struct {
 	testPlugin
 }
 
-func (p *testCommandPlugin) Commands() []*cobra.Command { return nil }
+func (p *testCommandPlugin) Commands() []*cobra.Command { return []*cobra.Command{{Use: p.name}} }
 
 type testVersionPlugin struct {
 	testPlugin
@@ -283,10 +283,11 @@ func TestByCapability(t *testing.T) {
 	}
 }
 
-func TestTypedCapabilityViewsPreserveOrder(t *testing.T) {
+func TestLifecycleFacadesPreserveOrder(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
 
+	var preflightCalled string
 	RegisterFactory(func() plugin.Plugin {
 		return &testPreflightPlugin{
 			BasePlugin: plugin.BasePlugin[*testConfig]{
@@ -295,6 +296,7 @@ func TestTypedCapabilityViewsPreserveOrder(t *testing.T) {
 				EnableMode: plugin.EnabledByDefault,
 				DefaultCfg: func() *testConfig { return &testConfig{} },
 			},
+			called: &preflightCalled,
 		}
 	})
 	RegisterFactory(func() plugin.Plugin { return &testCommandPlugin{testPlugin: testPlugin{name: "command"}} })
@@ -302,20 +304,30 @@ func TestTypedCapabilityViewsPreserveOrder(t *testing.T) {
 	RegisterFactory(func() plugin.Plugin { return &testCIInfoPlugin{testPlugin: testPlugin{name: "ci"}} })
 
 	plugins := New()
-	if got := pluginNames(plugins.ConfigLoaders()); got != "config" {
-		t.Fatalf("ConfigLoaders() = %s", got)
+	if schemas := plugins.ExtensionSchemas(); schemas["config"] == nil {
+		t.Fatalf("ExtensionSchemas() missing config schema: %#v", schemas)
 	}
-	if got := pluginNames(plugins.CommandProviders()); got != "command" {
-		t.Fatalf("CommandProviders() = %s", got)
+	commands := plugins.Commands()
+	if len(commands) != 1 || commands[0].Use != "command" {
+		t.Fatalf("Commands() = %#v, want command", commands)
 	}
-	if got := pluginNames(plugins.VersionProviders()); got != "version" {
-		t.Fatalf("VersionProviders() = %s", got)
+	version := plugins.VersionSnapshot()
+	if got := version.Info()["test"]; got != "version" {
+		t.Fatalf("VersionSnapshot().Info()[test] = %q, want version", got)
 	}
-	if got := pluginNames(plugins.CIInfoProviders()); got != "ci" {
-		t.Fatalf("CIInfoProviders() = %s", got)
+	initSnapshot, err := plugins.InitWizardSnapshot()
+	if err != nil {
+		t.Fatalf("InitWizardSnapshot() error = %v", err)
 	}
-	if got := pluginNames(plugins.Preflightables()); got != "config" {
-		t.Fatalf("Preflightables() = %s", got)
+	providers := initSnapshot.ProviderOptions()
+	if len(providers) != 1 || providers[0].Name() != "ci" {
+		t.Fatalf("InitWizardSnapshot().ProviderOptions() = %#v, want ci", providers)
+	}
+	if err := plugins.RunPreflight(context.Background(), nil); err != nil {
+		t.Fatalf("RunPreflight() error = %v", err)
+	}
+	if preflightCalled != "preflight" {
+		t.Fatalf("preflight called = %q, want preflight", preflightCalled)
 	}
 }
 
@@ -559,10 +571,10 @@ func TestByCapability_NoMatch(t *testing.T) {
 
 	RegisterFactory(func() plugin.Plugin { return &testPlugin{name: "basic"} })
 
-	// VersionProvider is not implemented by testPlugin
+	// Version provider capability is not implemented by testPlugin.
 	vp := byCapabilityFrom[plugin.VersionProvider](New())
 	if len(vp) != 0 {
-		t.Errorf("expected 0 VersionProviders, got %d", len(vp))
+		t.Errorf("expected 0 version providers, got %d", len(vp))
 	}
 }
 
@@ -948,7 +960,7 @@ func TestResolveCIProvider_TERRACI_PROVIDERMustBeActive(t *testing.T) {
 	}
 }
 
-func TestPreflightsForStartup_FiltersDisabledPlugins(t *testing.T) {
+func TestRunPreflight_FiltersDisabledPlugins(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
 
@@ -978,15 +990,17 @@ func TestPreflightsForStartup_FiltersDisabledPlugins(t *testing.T) {
 	}
 	enabled.SetTypedConfig(&testConfig{Enabled: true})
 
-	preflights := NewFromFactories(
+	var called string
+	plugins := NewFromFactories(
 		func() plugin.Plugin { return disabled },
 		func() plugin.Plugin { return enabled },
-	).PreflightsForStartup()
-	if len(preflights) != 1 {
-		t.Fatalf("New().PreflightsForStartup() returned %d plugins, want 1", len(preflights))
+	)
+	enabled.called = &called
+	if err := plugins.RunPreflight(context.Background(), nil); err != nil {
+		t.Fatalf("RunPreflight() error = %v", err)
 	}
-	if preflights[0].Name() != "enabled-preflight" {
-		t.Fatalf("New().PreflightsForStartup()[0] = %q, want enabled-preflight", preflights[0].Name())
+	if called != "preflight" {
+		t.Fatalf("enabled preflight called = %q, want preflight", called)
 	}
 }
 

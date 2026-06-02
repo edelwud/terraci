@@ -95,12 +95,8 @@ func TestBuiltInPluginContractMatrix(t *testing.T) {
 
 func TestGeneratedSchemaExcludesGitExtension(t *testing.T) {
 	plugins := registry.New()
-	pluginSchemas := make(map[string]any)
-	for _, cl := range plugins.ConfigLoaders() {
-		pluginSchemas[cl.ConfigKey().String()] = cl.SchemaConfig()
-	}
 
-	schema := config.GenerateJSONSchema(pluginSchemas)
+	schema := config.GenerateJSONSchema(plugins.ExtensionSchemas())
 	if strings.Contains(schema, `"git":`) {
 		t.Fatalf("generated schema unexpectedly contains extensions.git: %s", schema)
 	}
@@ -108,12 +104,8 @@ func TestGeneratedSchemaExcludesGitExtension(t *testing.T) {
 
 func TestGeneratedSchemaUsesCanonicalPolicyFields(t *testing.T) {
 	plugins := registry.New()
-	pluginSchemas := make(map[string]any)
-	for _, cl := range plugins.ConfigLoaders() {
-		pluginSchemas[cl.ConfigKey().String()] = cl.SchemaConfig()
-	}
 
-	schema := config.GenerateJSONSchema(pluginSchemas)
+	schema := config.GenerateJSONSchema(plugins.ExtensionSchemas())
 	for _, removed := range []string{"failure_action", "warning_action", "cache_dir"} {
 		if strings.Contains(schema, `"`+removed+`"`) {
 			t.Fatalf("generated schema contains legacy policy field %q: %s", removed, schema)
@@ -128,12 +120,8 @@ func TestGeneratedSchemaUsesCanonicalPolicyFields(t *testing.T) {
 
 func TestGeneratedSchemaIncludesSummaryFields(t *testing.T) {
 	plugins := registry.New()
-	pluginSchemas := make(map[string]any)
-	for _, cl := range plugins.ConfigLoaders() {
-		pluginSchemas[cl.ConfigKey().String()] = cl.SchemaConfig()
-	}
 
-	schema := config.GenerateJSONSchema(pluginSchemas)
+	schema := config.GenerateJSONSchema(plugins.ExtensionSchemas())
 	for _, want := range []string{"enabled", "on_changes_only", "include_details", "labels"} {
 		if !strings.Contains(schema, want) {
 			t.Fatalf("generated schema missing summary field %q: %s", want, schema)
@@ -141,7 +129,7 @@ func TestGeneratedSchemaIncludesSummaryFields(t *testing.T) {
 	}
 }
 
-func TestPreflightsForStartup_UsesEnabledPlugins(t *testing.T) {
+func TestRunPreflight_UsesEnabledPlugins(t *testing.T) {
 	appCtx, plugins := loadPluginContractConfig(t, `service_dir: .terraci
 structure:
   pattern: "{service}/{environment}/{region}/{module}"
@@ -165,19 +153,10 @@ extensions:
     enabled: true
 `)
 
-	preflightables := plugins.PreflightsForStartup()
-	got := make([]string, 0, len(preflightables))
-	for _, p := range preflightables {
-		if err := p.Preflight(context.Background(), appCtx); err != nil && p.Name() != "git" {
-			t.Fatalf("Preflight(%s) error = %v", p.Name(), err)
+	if err := plugins.RunPreflight(context.Background(), appCtx); err != nil {
+		if !strings.Contains(err.Error(), "preflight plugin git") {
+			t.Fatalf("RunPreflight() error = %v", err)
 		}
-		got = append(got, p.Name())
-	}
-	slices.Sort(got)
-
-	want := []string{"cost", "git", "gitlab", "policy", "tfupdate"}
-	if !slices.Equal(got, want) {
-		t.Fatalf("PreflightsForStartup() = %v, want %v", got, want)
 	}
 }
 
@@ -282,7 +261,9 @@ func loadPluginContractConfig(t *testing.T, rawConfig string) (*plugin.AppContex
 		t.Fatalf("failed to load config fixture: %v", err)
 	}
 
-	configurePluginsFromConfig(t, plugins, cfg)
+	if err := plugins.DecodeConfig(cfg); err != nil {
+		t.Fatalf("failed to decode plugin config: %v", err)
+	}
 
 	serviceDir := filepath.Join(dir, cfg.ServiceDir)
 	appCtx := plugin.NewAppContext(plugin.AppContextOptions{

@@ -6,14 +6,13 @@
 package initflow
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
 
 	"github.com/edelwud/terraci/pkg/config"
-	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/initwiz"
+	"github.com/edelwud/terraci/pkg/plugin/registry"
 )
 
 const (
@@ -24,7 +23,7 @@ const (
 // PluginSource is the minimum plugin source required by init flow
 // construction. Production passes a registry; tests can pass a small fake.
 type PluginSource interface {
-	All() []plugin.Plugin
+	InitWizardSnapshot() (*registry.InitWizardSnapshot, error)
 }
 
 // Overrides describes non-interactive init values supplied by CLI flags.
@@ -67,54 +66,6 @@ type ProviderOption struct {
 	Description string
 }
 
-// ContributionError wraps a plugin init contribution failure with the plugin
-// name while preserving the original error for errors.As/errors.Is.
-type ContributionError struct {
-	Plugin string
-	Err    error
-}
-
-func (e *ContributionError) Error() string {
-	if e == nil {
-		return ""
-	}
-	if e.Plugin == "" {
-		return fmt.Sprintf("build init config: %v", e.Err)
-	}
-	return fmt.Sprintf("build init config for %s: %v", e.Plugin, e.Err)
-}
-
-func (e *ContributionError) Unwrap() error {
-	if e == nil {
-		return nil
-	}
-	return e.Err
-}
-
-// GroupError wraps a plugin init group construction failure with the plugin
-// name while preserving the original error for errors.As/errors.Is.
-type GroupError struct {
-	Plugin string
-	Err    error
-}
-
-func (e *GroupError) Error() string {
-	if e == nil {
-		return ""
-	}
-	if e.Plugin == "" {
-		return fmt.Sprintf("build init groups: %v", e.Err)
-	}
-	return fmt.Sprintf("build init groups for %s: %v", e.Plugin, e.Err)
-}
-
-func (e *GroupError) Unwrap() error {
-	if e == nil {
-		return nil
-	}
-	return e.Err
-}
-
 // Flow is an immutable init orchestration value.
 type Flow struct {
 	contributors    []contributorBinding
@@ -124,8 +75,7 @@ type Flow struct {
 }
 
 type contributorBinding struct {
-	name        string
-	contributor initwiz.InitContributor
+	binding registry.InitContributorBinding
 }
 
 type groupBinding struct {
@@ -135,35 +85,37 @@ type groupBinding struct {
 
 // New constructs an init flow from the supplied plugin source.
 func New(source PluginSource) (*Flow, error) {
-	plugins := pluginsSortedByName(source)
+	var snapshot *registry.InitWizardSnapshot
+	if source != nil {
+		var err error
+		snapshot, err = source.InitWizardSnapshot()
+		if err != nil {
+			return nil, err
+		}
+	}
+	if snapshot == nil {
+		snapshot = &registry.InitWizardSnapshot{}
+	}
 
-	contributors := make([]contributorBinding, 0, len(plugins))
-	providers := make([]ProviderOption, 0, len(plugins))
+	contributorBindings := snapshot.Contributors()
+	providerOptions := snapshot.ProviderOptions()
+	groupBindings := snapshot.Groups()
+
+	contributors := make([]contributorBinding, 0, len(contributorBindings))
+	providers := make([]ProviderOption, 0, len(providerOptions))
 	var groups []groupBinding
 
-	for _, p := range plugins {
-		if provider, ok := p.(plugin.CIInfoProvider); ok {
-			providers = append(providers, ProviderOption{
-				Name:        provider.ProviderName(),
-				Description: provider.Description(),
-			})
-		}
-		if contributor, ok := p.(initwiz.InitContributor); ok {
-			contributors = append(contributors, contributorBinding{
-				name:        contributor.Name(),
-				contributor: contributor,
-			})
-			contributedGroups, err := contributor.InitGroups()
-			if err != nil {
-				return nil, &GroupError{Plugin: contributor.Name(), Err: err}
-			}
-			for i, group := range contributedGroups {
-				if err := validateContributedGroup(group); err != nil {
-					return nil, &GroupError{Plugin: contributor.Name(), Err: fmt.Errorf("group %d: %w", i, err)}
-				}
-				groups = append(groups, groupBinding{plugin: contributor.Name(), group: group})
-			}
-		}
+	for _, provider := range providerOptions {
+		providers = append(providers, ProviderOption{
+			Name:        provider.Name(),
+			Description: provider.Description(),
+		})
+	}
+	for _, contributor := range contributorBindings {
+		contributors = append(contributors, contributorBinding{binding: contributor})
+	}
+	for _, group := range groupBindings {
+		groups = append(groups, groupBinding{plugin: group.Plugin(), group: group.Group()})
 	}
 
 	providers = normalizeProviderOptions(providers)
@@ -174,21 +126,6 @@ func New(source PluginSource) (*Flow, error) {
 		displayGroups:   buildDisplayGroups(groups),
 		defaultProvider: defaultProvider(providers),
 	}, nil
-}
-
-func validateContributedGroup(group initwiz.InitGroup) error {
-	if strings.TrimSpace(group.Title()) == "" {
-		return errors.New("init group title is required")
-	}
-	switch group.Category() {
-	case initwiz.CategoryProvider, initwiz.CategoryPipeline, initwiz.CategoryFeature, initwiz.CategoryDetail:
-	default:
-		return fmt.Errorf("unsupported init group category %q", group.Category())
-	}
-	if len(group.Fields()) == 0 {
-		return fmt.Errorf("init group %q must contain at least one field", group.Title())
-	}
-	return nil
 }
 
 // DefaultState returns a fresh StateMap initialized with canonical init
@@ -254,9 +191,9 @@ func (f Flow) BuildConfig(state *initwiz.StateMap) (*BuildResult, error) {
 
 	extensions := make([]config.ExtensionValue, 0, len(f.contributors))
 	for _, binding := range f.contributors {
-		contribution, err := binding.contributor.BuildInitConfig(state)
+		contribution, err := binding.binding.BuildInitConfig(state)
 		if err != nil {
-			return nil, &ContributionError{Plugin: binding.name, Err: err}
+			return nil, err
 		}
 		if contribution == nil {
 			continue
@@ -277,17 +214,6 @@ func (f Flow) BuildConfig(state *initwiz.StateMap) (*BuildResult, error) {
 		return nil, fmt.Errorf("build init config: %w", err)
 	}
 	return &BuildResult{Config: cfg}, nil
-}
-
-func pluginsSortedByName(source PluginSource) []plugin.Plugin {
-	if source == nil {
-		return nil
-	}
-	plugins := append([]plugin.Plugin(nil), source.All()...)
-	sort.SliceStable(plugins, func(i, j int) bool {
-		return plugins[i].Name() < plugins[j].Name()
-	})
-	return plugins
 }
 
 func normalizeProviderOptions(options []ProviderOption) []ProviderOption {

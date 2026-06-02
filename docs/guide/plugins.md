@@ -86,7 +86,7 @@ If multiple providers are configured and no environment is detected, TerraCi ret
 
 ## Plugin Capabilities
 
-Plugins implement one or more capability interfaces. The framework discovers them at runtime via type assertion:
+Plugins implement one or more capability interfaces. Registry lifecycle facades own discovery; plugin authors only implement the interface contracts:
 
 | Capability | Purpose | Plugins |
 |------------|---------|---------|

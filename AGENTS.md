@@ -80,8 +80,9 @@ pkg/                            # Public API — importable by external plugins 
 │   ├── resolver.go             # Narrow resolver interfaces + aggregate implementation contract
 │   ├── noop_resolver.go        # default no-op resolver behavior
 │   ├── registry/               # Plugin factory catalog + per-command Registry
-│   │   ├── registry.go         # RegisterFactory(), New(), Catalog, Registry + typed framework views
-│   │   └── resolve.go          # Registry.ResolveCIProvider/ResolveChangeDetector/Resolve*Provider/CollectContributions/PreflightsForStartup
+│   │   ├── registry.go         # RegisterFactory(), New(), Catalog, Registry + command lookup
+│   │   ├── lifecycle.go        # Registry lifecycle facades/snapshots for commands, config, schema, version, init
+│   │   └── resolve.go          # Registry.ResolveCIProvider/ResolveChangeDetector/Resolve*Provider/CollectContributions
 │   ├── initwiz/                # Init wizard state + types
 │   │   ├── state.go            # StateMap + typed StateKey[T] form state for huh bindings
 │   │   └── types.go            # InitContributor, constructor-built InitGroup/InitField value objects
@@ -214,7 +215,7 @@ internal/                       # Private — only terraform eval
 
 ### Architecture
 
-Compile-time plugins via `init()` + blank import (Caddy/database-sql pattern). Plugins register factories via `registry.RegisterFactory()`, and `cmd/terraci/internal/runflow` creates a fresh `*registry.Registry` for each command run. `*Registry` implements the narrow plugin resolver interfaces, while framework capability discovery stays inside runflow/schemaflow/versionflow or registry tests. Core types (interfaces, BasePlugin, AppContext) live in `pkg/plugin`; plugin catalog and per-command registries live in `pkg/plugin/registry`; init wizard types in `pkg/plugin/initwiz`.
+Compile-time plugins via `init()` + blank import (Caddy/database-sql pattern). Plugins register factories via `registry.RegisterFactory()`, and `cmd/terraci/internal/runflow` creates a fresh `*registry.Registry` for each command run. `*Registry` implements the narrow plugin resolver interfaces and owns lifecycle discovery through facades/snapshots (`Commands`, `DecodeConfig`, `ExtensionSchemas`, `RunPreflight`, `VersionSnapshot`, `InitWizardSnapshot`). Core types (interfaces, BasePlugin, AppContext) live in `pkg/plugin`; plugin catalog and per-command registries live in `pkg/plugin/registry`; init wizard types in `pkg/plugin/initwiz`.
 
 The core `pkg/` tree is **plugin-agnostic** — no package outside `pkg/plugin` imports the plugin SDK. Plugin extensibility hangs entirely off `pkg/plugin`'s capability interfaces.
 

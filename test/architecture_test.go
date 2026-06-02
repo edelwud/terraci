@@ -466,6 +466,91 @@ func TestArchitecture_PluginRuntimeBoundary(t *testing.T) {
 	}
 }
 
+func TestArchitecture_RegistryLifecycleFacades(t *testing.T) {
+	root := repoRoot(t)
+	var violations []string
+	removedViews := map[string]struct{}{
+		"ConfigLoaders":        {},
+		"CommandProviders":     {},
+		"VersionProviders":     {},
+		"CIInfoProviders":      {},
+		"Preflightables":       {},
+		"PreflightsForStartup": {},
+	}
+	lifecycleCapabilities := map[string]struct{}{
+		"ConfigLoader":    {},
+		"CommandProvider": {},
+		"VersionProvider": {},
+		"CIInfoProvider":  {},
+		"Preflightable":   {},
+		"InitContributor": {},
+	}
+
+	for _, rel := range goFiles(t, root, "cmd", "pkg", "plugins", "examples") {
+		if !isProductionFile(rel) || allowUnder(rel, "pkg/plugin/registry/") {
+			continue
+		}
+		file := parseGoFile(t, filepath.Join(root, rel), 0)
+		pluginAliases := importAliases(file, moduleImportPath+"/pkg/plugin")
+		initwizAliases := importAliases(file, moduleImportPath+"/pkg/plugin/initwiz")
+
+		ast.Inspect(file, func(node ast.Node) bool {
+			switch typed := node.(type) {
+			case *ast.CallExpr:
+				selector, ok := callSelector(typed)
+				if ok {
+					if _, banned := removedViews[selector.Sel.Name]; banned {
+						violations = append(violations, rel+" calls removed registry lifecycle view "+selector.Sel.Name+"; use registry lifecycle facades")
+					}
+				}
+			case *ast.TypeAssertExpr:
+				selector, ok := typed.Type.(*ast.SelectorExpr)
+				if !ok {
+					return true
+				}
+				ident, ok := selector.X.(*ast.Ident)
+				if !ok {
+					return true
+				}
+				if pluginAliases[ident.Name] || initwizAliases[ident.Name] {
+					if _, banned := lifecycleCapabilities[selector.Sel.Name]; banned {
+						violations = append(violations, rel+" discovers lifecycle capability "+selector.Sel.Name+" directly; keep lifecycle discovery inside pkg/plugin/registry")
+					}
+				}
+			}
+			return true
+		})
+	}
+
+	stalePatterns := []string{
+		"ConfigLoaders()",
+		"CommandProviders()",
+		"VersionProviders()",
+		"CIInfoProviders()",
+		"Preflightables()",
+		"PreflightsForStartup",
+		"typed framework views",
+		"typed registry view",
+	}
+	for _, rel := range textFiles(t, root, "AGENTS.md", "docs", "examples", "pkg/plugin/doc.go") {
+		if allowUnder(rel, "docs/.vitepress/dist/") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			t.Fatalf("read %s: %v", rel, err)
+		}
+		text := string(data)
+		for _, pattern := range stalePatterns {
+			banTextPattern(&violations, rel, text, pattern, "stale registry lifecycle view reference")
+		}
+	}
+
+	if len(violations) > 0 {
+		t.Fatalf("registry lifecycle facade violations:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
 func TestArchitecture_CommandRunFlowBoundaries(t *testing.T) {
 	root := repoRoot(t)
 	var violations []string
@@ -525,7 +610,7 @@ func TestArchitecture_CommandRunFlowBoundaries(t *testing.T) {
 			}
 
 			if selectorCallMatches(selector, registryAliases, "ByCapabilityFrom") && !isRegistryPackageFile(rel) {
-				violations = append(violations, rel+" uses raw registry.ByCapabilityFrom; use a typed registry view or resolver method")
+				violations = append(violations, rel+" uses raw registry.ByCapabilityFrom; use a registry lifecycle facade or resolver method")
 			}
 
 			if strings.HasPrefix(rel, "cmd/terraci/cmd/") {

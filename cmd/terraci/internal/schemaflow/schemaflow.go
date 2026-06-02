@@ -4,21 +4,18 @@ package schemaflow
 
 import (
 	"github.com/edelwud/terraci/pkg/config"
-	"github.com/edelwud/terraci/pkg/plugin"
 )
 
 type configLoaderSource interface {
-	ConfigLoaders() []plugin.ConfigLoader
+	ExtensionSchemas() map[string]any
 }
 
 // Generate returns the JSON schema for core config plus extension config
 // schemas supplied by plugin config loaders.
 func Generate(source configLoaderSource) string {
-	pluginSchemas := make(map[string]any)
+	var pluginSchemas map[string]any
 	if source != nil {
-		for _, cl := range source.ConfigLoaders() {
-			pluginSchemas[cl.ConfigKey().String()] = cl.SchemaConfig()
-		}
+		pluginSchemas = source.ExtensionSchemas()
 	}
 	return config.GenerateJSONSchema(pluginSchemas)
 }

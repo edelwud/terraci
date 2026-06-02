@@ -177,22 +177,6 @@ func pluginNames[T plugin.Plugin](items []T) string {
 	return sb.String()
 }
 
-// PreflightsForStartup returns enabled plugins that participate in
-// framework preflight for the current configuration state.
-func (r *Registry) PreflightsForStartup() []plugin.Preflightable {
-	plugins := r.All()
-	result := make([]plugin.Preflightable, 0, len(plugins))
-	for _, p := range plugins {
-		if !isPluginEnabled(p) {
-			continue
-		}
-		if preflightable, ok := p.(plugin.Preflightable); ok {
-			result = append(result, preflightable)
-		}
-	}
-	return result
-}
-
 // CollectContributions gathers pipeline contributions from all enabled
 // PipelineContributor plugins in this registry.
 func (r *Registry) CollectContributions(ctx *plugin.AppContext) ([]*pipeline.Contribution, error) {

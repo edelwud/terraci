@@ -18,9 +18,5 @@ func PluginCommands(factory RegistryFactory) []*cobra.Command {
 	if plugins == nil {
 		plugins = registry.New()
 	}
-	var commands []*cobra.Command
-	for _, cp := range plugins.CommandProviders() {
-		commands = append(commands, cp.Commands()...)
-	}
-	return commands
+	return plugins.Commands()
 }

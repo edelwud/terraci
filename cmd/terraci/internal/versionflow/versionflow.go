@@ -8,7 +8,7 @@ import (
 	"maps"
 	"sort"
 
-	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/registry"
 )
 
 // Metadata describes the built binary.
@@ -32,8 +32,7 @@ type Result struct {
 }
 
 type pluginSource interface {
-	All() []plugin.Plugin
-	VersionProviders() []plugin.VersionProvider
+	VersionSnapshot() registry.VersionSnapshot
 }
 
 // Build collects version information in deterministic output order.
@@ -45,10 +44,9 @@ func Build(meta Metadata, source pluginSource) Result {
 	if source == nil {
 		return result
 	}
-	for _, vp := range source.VersionProviders() {
-		maps.Copy(result.Info, vp.VersionInfo())
-	}
-	for _, p := range source.All() {
+	snapshot := source.VersionSnapshot()
+	maps.Copy(result.Info, snapshot.Info())
+	for _, p := range snapshot.Plugins() {
 		result.Plugins = append(result.Plugins, PluginInfo{
 			Name:        p.Name(),
 			Description: p.Description(),

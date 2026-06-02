@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/plugin"
+	"github.com/edelwud/terraci/pkg/plugin/registry"
 )
 
 type testPlugin struct {
@@ -19,25 +20,13 @@ func (p testPlugin) VersionInfo() map[string]string {
 	return p.info
 }
 
-type testSource []plugin.Plugin
-
-func (s testSource) All() []plugin.Plugin { return []plugin.Plugin(s) }
-func (s testSource) VersionProviders() []plugin.VersionProvider {
-	var providers []plugin.VersionProvider
-	for _, p := range s {
-		if provider, ok := p.(plugin.VersionProvider); ok {
-			providers = append(providers, provider)
-		}
-	}
-	return providers
-}
-
 func TestBuildAndWrite(t *testing.T) {
 	t.Parallel()
 
-	result := Build(Metadata{Version: "v1", Commit: "abc", Date: "today"}, testSource{
-		testPlugin{name: "policy", info: map[string]string{"opa": "1.0"}},
+	source := registry.NewFromFactories(func() plugin.Plugin {
+		return testPlugin{name: "policy", info: map[string]string{"opa": "1.0"}}
 	})
+	result := Build(Metadata{Version: "v1", Commit: "abc", Date: "today"}, source)
 
 	var buf bytes.Buffer
 	if err := Write(&buf, result); err != nil {

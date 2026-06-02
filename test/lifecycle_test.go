@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/config"
@@ -38,47 +39,38 @@ func TestPluginRegistration(t *testing.T) {
 
 func TestPluginCapabilities(t *testing.T) {
 	plugins := registry.New()
-	// ConfigLoader plugins
-	configLoaders := plugins.ConfigLoaders()
-	if len(configLoaders) == 0 {
-		t.Fatal("expected at least one ConfigLoader")
+	schemas := plugins.ExtensionSchemas()
+	if len(schemas) == 0 {
+		t.Fatal("expected at least one extension schema")
 	}
 
 	configKeys := make(map[string]bool)
-	for _, cl := range configLoaders {
-		key := cl.ConfigKey()
-		if key.String() == "" {
-			t.Errorf("plugin %s has empty ConfigKey", cl.Name())
+	for key := range schemas {
+		if key == "" {
+			t.Error("extension schema has empty key")
 		}
-		if configKeys[key.String()] {
-			t.Errorf("duplicate ConfigKey: %s", key.String())
+		if configKeys[key] {
+			t.Errorf("duplicate extension schema key: %s", key)
 		}
-		configKeys[key.String()] = true
+		configKeys[key] = true
 	}
 
-	// Verify specific expected config keys
 	for _, expectedKey := range []string{"gitlab", "github", "cost", "diskblob", "inmemcache", "policy"} {
 		if !configKeys[expectedKey] {
 			t.Errorf("missing expected ConfigKey: %s", expectedKey)
 		}
 	}
 
-	// CI provider plugins (gitlab + github) — must implement all CI interfaces
-	ciProviders := plugins.CIInfoProviders()
-	if len(ciProviders) < 2 {
-		t.Errorf("expected at least 2 CIInfoProvider plugins (gitlab, github), got %d", len(ciProviders))
+	initSnapshot, err := plugins.InitWizardSnapshot()
+	if err != nil {
+		t.Fatalf("InitWizardSnapshot() error = %v", err)
+	}
+	if len(initSnapshot.ProviderOptions()) < 2 {
+		t.Fatalf("expected at least 2 init provider options (gitlab, github), got %d", len(initSnapshot.ProviderOptions()))
 	}
 
-	// Preflightable plugins
-	preflightables := plugins.Preflightables()
-	if len(preflightables) == 0 {
-		t.Fatal("expected at least one Preflightable plugin")
-	}
-
-	// CommandProvider plugins
-	commandProviders := plugins.CommandProviders()
-	if len(commandProviders) == 0 {
-		t.Fatal("expected at least one CommandProvider plugin")
+	if len(plugins.Commands()) == 0 {
+		t.Fatal("expected at least one plugin command")
 	}
 }
 
@@ -91,14 +83,13 @@ func TestPluginConfigLoading(t *testing.T) {
 
 	configurePluginsFromConfig(t, plugins, cfg)
 
-	// gitlab should be configured (it's in the fixture)
-	for _, cl := range plugins.ConfigLoaders() {
-		if cl.ConfigKey().String() == "gitlab" && !cl.IsConfigured() {
-			t.Error("gitlab should be configured after loading basic fixture")
-		}
-		if cl.ConfigKey().String() == "github" && cl.IsConfigured() {
-			t.Error("github should NOT be configured (not in basic fixture)")
-		}
+	gitlab := mustConfigLoader(t, plugins, "gitlab")
+	if !gitlab.IsConfigured() {
+		t.Error("gitlab should be configured after loading basic fixture")
+	}
+	github := mustConfigLoader(t, plugins, "github")
+	if github.IsConfigured() {
+		t.Error("github should NOT be configured (not in basic fixture)")
 	}
 }
 
@@ -140,25 +131,30 @@ func TestPluginInitialization(t *testing.T) {
 		Resolver:   plugins,
 	})
 
-	for _, p := range plugins.PreflightsForStartup() {
-		if preflightErr := p.Preflight(context.Background(), appCtx); preflightErr != nil {
-			// Some plugins may fail if their external deps are missing (e.g., git not in a repo).
-			// We log but don't fail — the important thing is the interface works.
-			t.Logf("preflight %s: %v (may be expected outside real env)", p.Name(), preflightErr)
+	if preflightErr := plugins.RunPreflight(context.Background(), appCtx); preflightErr != nil {
+		if !strings.Contains(preflightErr.Error(), "preflight plugin git") {
+			t.Fatalf("RunPreflight() error = %v", preflightErr)
 		}
+		t.Logf("preflight git: %v (may be expected outside real env)", preflightErr)
 	}
 }
 
 func configurePluginsFromConfig(t *testing.T, plugins *registry.Registry, cfg *config.Config) {
 	t.Helper()
-	for _, cl := range plugins.ConfigLoaders() {
-		key := cl.ConfigKey()
-		doc, exists := cfg.Extension(key)
-		if !exists {
-			continue
-		}
-		if err := cl.DecodeAndSet(doc); err != nil {
-			t.Fatalf("failed to decode %s config: %v", key.String(), err)
-		}
+	if err := plugins.DecodeConfig(cfg); err != nil {
+		t.Fatalf("failed to decode plugin config: %v", err)
 	}
+}
+
+func mustConfigLoader(t *testing.T, plugins *registry.Registry, name string) plugin.ConfigLoader {
+	t.Helper()
+	p, ok := plugins.GetPlugin(name)
+	if !ok {
+		t.Fatalf("plugin %q not found", name)
+	}
+	loader, ok := p.(plugin.ConfigLoader)
+	if !ok {
+		t.Fatalf("plugin %q does not implement ConfigLoader", name)
+	}
+	return loader
 }

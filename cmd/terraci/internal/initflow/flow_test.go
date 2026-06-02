@@ -21,8 +21,13 @@ type testSource struct {
 	plugins []plugin.Plugin
 }
 
-func (s testSource) All() []plugin.Plugin {
-	return append([]plugin.Plugin(nil), s.plugins...)
+func (s testSource) InitWizardSnapshot() (*registry.InitWizardSnapshot, error) {
+	factories := make([]registry.Factory, 0, len(s.plugins))
+	for _, p := range s.plugins {
+		current := p
+		factories = append(factories, func() plugin.Plugin { return current })
+	}
+	return registry.NewFromFactories(factories...).InitWizardSnapshot()
 }
 
 type testPlugin struct {
@@ -252,12 +257,12 @@ func TestFlowNewGroupError(t *testing.T) {
 	if err == nil {
 		t.Fatal("New() error = nil")
 	}
-	var groupErr *GroupError
+	var groupErr *registry.InitGroupError
 	if !errors.As(err, &groupErr) {
-		t.Fatalf("error %T does not wrap GroupError", err)
+		t.Fatalf("error %T does not wrap InitGroupError", err)
 	}
 	if groupErr.Plugin != "bad" {
-		t.Fatalf("GroupError.Plugin = %q", groupErr.Plugin)
+		t.Fatalf("InitGroupError.Plugin = %q", groupErr.Plugin)
 	}
 	if !errors.Is(err, errBoom) {
 		t.Fatalf("error does not wrap sentinel: %v", err)
@@ -273,9 +278,9 @@ func TestFlowNewRejectsZeroValueGroup(t *testing.T) {
 	if err == nil {
 		t.Fatal("New() error = nil")
 	}
-	var groupErr *GroupError
+	var groupErr *registry.InitGroupError
 	if !errors.As(err, &groupErr) {
-		t.Fatalf("error %T does not wrap GroupError", err)
+		t.Fatalf("error %T does not wrap InitGroupError", err)
 	}
 	if !strings.Contains(err.Error(), "init group title is required") {
 		t.Fatalf("error = %v, want invalid group message", err)
@@ -297,12 +302,12 @@ func TestFlowBuildConfigContributionError(t *testing.T) {
 	if err == nil {
 		t.Fatal("BuildConfig() error = nil")
 	}
-	var contributionErr *ContributionError
+	var contributionErr *registry.InitContributionError
 	if !errors.As(err, &contributionErr) {
-		t.Fatalf("error %T does not wrap ContributionError", err)
+		t.Fatalf("error %T does not wrap InitContributionError", err)
 	}
 	if contributionErr.Plugin != "bad" {
-		t.Fatalf("ContributionError.Plugin = %q", contributionErr.Plugin)
+		t.Fatalf("InitContributionError.Plugin = %q", contributionErr.Plugin)
 	}
 	if !errors.Is(err, errBoom) {
 		t.Fatalf("error does not wrap sentinel: %v", err)

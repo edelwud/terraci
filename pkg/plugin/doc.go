@@ -6,7 +6,7 @@
 //
 //   - pkg/plugin           — core interfaces, BasePlugin[C], AppContext, EnablePolicy
 //   - pkg/plugin/cliout    — public command output helpers (Format, ParseFormat, WriteJSON)
-//   - pkg/plugin/registry  — factory catalog and per-command Registry capability resolution
+//   - pkg/plugin/registry  — factory catalog, command lookup, resolver, and lifecycle facades
 //   - pkg/plugin/initwiz   — init wizard types (StateMap, StateKey, InitContributor, InitGroup)
 //
 // Plugin-author contract tests live in pkg/plugin/plugintest. Helpers shared
@@ -216,8 +216,8 @@
 // AppContext exposes narrow typed capability resolvers only. Plugins should
 // call the resolver accessor for the capability they need instead of depending
 // on the aggregate Resolver or looking up concrete plugin names. Framework code
-// owns raw plugin enumeration inside pkg/plugin/registry and the CLI runflow /
-// schemaflow / versionflow packages.
+// owns raw plugin enumeration inside pkg/plugin/registry; CLI flows consume
+// registry lifecycle facades and snapshots instead of capability slices.
 //
 // # Cross-plugin communication
 //
