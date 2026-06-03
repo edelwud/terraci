@@ -68,8 +68,8 @@ func (c *Config) Clone() *Config {
     return &out
 }
 
-func (p *Plugin) Commands() []*cobra.Command {
-    cmd := &cobra.Command{
+func (p *Plugin) CommandSpecs() ([]plugin.CommandSpec, error) {
+    cmd, err := plugin.NewCommandSpec(plugin.CommandSpecOptions{
         Use:   "slack",
         Short: "Post plan summary to Slack",
         RunE: func(cmd *cobra.Command, _ []string) error {
@@ -84,8 +84,11 @@ func (p *Plugin) Commands() []*cobra.Command {
             fmt.Printf("Posting to %s\n", cfg.Channel)
             return nil
         },
+    })
+    if err != nil {
+        return nil, err
     }
-    return []*cobra.Command{cmd}
+    return []plugin.CommandSpec{cmd}, nil
 }
 ```
 

@@ -6,9 +6,9 @@ import (
 	"github.com/edelwud/terraci/pkg/plugin"
 )
 
-// Commands returns the `terraci summary` command.
-func (p *Plugin) Commands() []*cobra.Command {
-	return []*cobra.Command{{
+// CommandSpecs returns the `terraci summary` command.
+func (p *Plugin) CommandSpecs() ([]plugin.CommandSpec, error) {
+	cmd, err := plugin.NewCommandSpec(plugin.CommandSpecOptions{
 		Use:   pluginName,
 		Short: "Create MR/PR comment from plan results",
 		Long: `Collects terraform plan results from artifacts and creates/updates
@@ -27,5 +27,9 @@ Example:
 			}
 			return current.runSummary(cmd.Context(), appCtx)
 		},
-	}}
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []plugin.CommandSpec{cmd}, nil
 }

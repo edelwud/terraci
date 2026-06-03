@@ -40,6 +40,13 @@ func TestPlugin_SDKContracts(t *testing.T) {
 		})
 	})
 
+	t.Run("command provider", func(t *testing.T) {
+		plugintest.AssertCommandProvider(t, plugintest.CommandProviderContract{
+			Provider:     newTestPlugin(),
+			ExpectedUses: []string{pluginName},
+		})
+	})
+
 	t.Run("require enabled", func(t *testing.T) {
 		enabled := newTestPlugin()
 		disabled := newTestPlugin()

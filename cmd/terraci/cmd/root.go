@@ -9,7 +9,7 @@ import (
 )
 
 // NewRootCmd creates and returns the root cobra command with all subcommands.
-func NewRootCmd(version, commit, date string) *cobra.Command {
+func NewRootCmd(version, commit, date string) (*cobra.Command, error) {
 	app := newApp(version, commit, date)
 
 	cwd, err := os.Getwd()
@@ -38,7 +38,7 @@ Features:
 			if verboseErr != nil {
 				verbose = false
 			}
-			result, err := app.newRunFlow().Prepare(cmd.Context(), runflow.Request{
+			result, prepareErr := app.newRunFlow().Prepare(cmd.Context(), runflow.Request{
 				CommandName: cmd.Name(),
 				ConfigPath:  app.cfgFile,
 				WorkDir:     app.WorkDir,
@@ -46,8 +46,8 @@ Features:
 				Verbose:     verbose,
 				Policy:      runflow.PolicyFromCommand(cmd),
 			})
-			if err != nil {
-				return err
+			if prepareErr != nil {
+				return prepareErr
 			}
 			app.reports = result.Reports()
 			cmd.SetContext(result.Context())
@@ -75,9 +75,13 @@ Features:
 	// Register plugin-provided commands. Commands() runs at registration
 	// time and must not capture state — plugins retrieve the per-run
 	// AppContext and command-scoped plugin inside RunE via plugin.CommandPlugin.
-	for _, cmd := range runflow.PluginCommands(nil) {
+	pluginCommands, err := runflow.PluginCommands(nil)
+	if err != nil {
+		return nil, err
+	}
+	for _, cmd := range pluginCommands {
 		rootCmd.AddCommand(cmd)
 	}
 
-	return rootCmd
+	return rootCmd, nil
 }

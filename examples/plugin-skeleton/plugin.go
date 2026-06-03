@@ -69,7 +69,7 @@ func init() {
 //
 //   - plugin.Plugin             — Name(), Description() (via BasePlugin)
 //   - plugin.ConfigLoader       — SchemaConfig, DecodeAndSet, IsEnabled (via BasePlugin)
-//   - plugin.CommandProvider    — Commands() in commands.go
+//   - plugin.CommandProvider    — CommandSpecs() in commands.go
 //
 // Add more capabilities (PipelineContributor, InitContributor, etc.) by
 // implementing their interfaces on this same struct. Keep heavy runtime

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/ci/citest"
 	"github.com/edelwud/terraci/pkg/plugin"
@@ -19,15 +21,26 @@ import (
 	"github.com/edelwud/terraci/plugins/internal/reportrender"
 )
 
+func buildCommand(t *testing.T, p *Plugin) *cobra.Command {
+	t.Helper()
+	specs, err := p.CommandSpecs()
+	if err != nil {
+		t.Fatalf("CommandSpecs() error = %v", err)
+	}
+	if len(specs) != 1 {
+		t.Fatalf("CommandSpecs() returned %d specs, want 1", len(specs))
+	}
+	cmd, err := plugin.BuildCommand(specs[0])
+	if err != nil {
+		t.Fatalf("BuildCommand() error = %v", err)
+	}
+	return cmd
+}
+
 func TestPlugin_Commands_Registration(t *testing.T) {
 	p := newTestPlugin(t)
 
-	cmds := p.Commands()
-	if len(cmds) != 1 {
-		t.Fatalf("Commands() returned %d commands, want 1", len(cmds))
-	}
-
-	cmd := cmds[0]
+	cmd := buildCommand(t, p)
 	if cmd.Use != "cost" {
 		t.Errorf("command.Use = %q, want %q", cmd.Use, "cost")
 	}
@@ -215,8 +228,7 @@ func TestPlugin_Commands_RunE_NotConfigured(t *testing.T) {
 		Reports:    base.Reports(),
 	})
 
-	cmds := p.Commands()
-	cmd := cmds[0]
+	cmd := buildCommand(t, p)
 	cmd.SetContext(plugintest.BindCommandPlugin(context.Background(), t, appCtx, pluginName, p))
 
 	err := cmd.RunE(cmd, nil)

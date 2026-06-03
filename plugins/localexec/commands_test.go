@@ -3,17 +3,25 @@ package localexec
 import (
 	"strings"
 	"testing"
+
+	"github.com/edelwud/terraci/pkg/plugin"
 )
 
 func TestPlugin_Commands_Registration(t *testing.T) {
 	t.Parallel()
 
-	cmds := (&Plugin{}).Commands()
-	if len(cmds) != 1 {
-		t.Fatalf("Commands() returned %d commands, want 1", len(cmds))
+	specs, err := (&Plugin{}).CommandSpecs()
+	if err != nil {
+		t.Fatalf("CommandSpecs() error = %v", err)
+	}
+	if len(specs) != 1 {
+		t.Fatalf("CommandSpecs() returned %d specs, want 1", len(specs))
 	}
 
-	root := cmds[0]
+	root, err := plugin.BuildCommand(specs[0])
+	if err != nil {
+		t.Fatalf("BuildCommand() error = %v", err)
+	}
 	if root.Use != "local-exec" {
 		t.Fatalf("command.Use = %q, want local-exec", root.Use)
 	}

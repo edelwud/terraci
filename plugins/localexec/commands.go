@@ -27,8 +27,16 @@ func (sf *sharedFlags) toRequest(mode ExecutionMode) ExecuteRequest {
 	}
 }
 
-func (p *Plugin) Commands() []*cobra.Command {
-	cmd := &cobra.Command{
+func (p *Plugin) CommandSpecs() ([]plugin.CommandSpec, error) {
+	planCmd, err := newPlanCmd(p.Name())
+	if err != nil {
+		return nil, err
+	}
+	runCmd, err := newRunCmd(p.Name())
+	if err != nil {
+		return nil, err
+	}
+	cmd, err := plugin.NewCommandSpec(plugin.CommandSpecOptions{
 		Use:   "local-exec",
 		Short: "Execute the generated terraci flow locally",
 		Long: `Execute the terraci pipeline IR locally against the current Terraform project.
@@ -46,19 +54,21 @@ match, the command exits cleanly after logging "no modules to process".`,
   terraci local-exec run --changed-only
   terraci local-exec plan --module platform/stage/eu-central-1/vpc
   terraci local-exec run --filter environment=stage --parallelism 2`,
+		Subcommands: []plugin.CommandSpec{
+			planCmd,
+			runCmd,
+		},
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	cmd.AddCommand(
-		newPlanCmd(p.Name()),
-		newRunCmd(p.Name()),
-	)
-
-	return []*cobra.Command{cmd}
+	return []plugin.CommandSpec{cmd}, nil
 }
 
-func newPlanCmd(pluginName string) *cobra.Command {
+func newPlanCmd(pluginName string) (plugin.CommandSpec, error) {
 	var sf sharedFlags
-	cmd := &cobra.Command{
+	return plugin.NewCommandSpec(plugin.CommandSpecOptions{
 		Use:   cmdPlan,
 		Short: "Run the plan DAG locally",
 		Long: `Run local planning for the selected modules and then execute contributed
@@ -78,14 +88,16 @@ exits without error after logging "no modules to process".`,
 			result, err := NewExecutor(appCtx, WithEventSink(render.NewProgressReporter())).Run(cmd.Context(), sf.toRequest(ExecutionModePlan))
 			return renderLocalExecResult(result, err)
 		},
-	}
-	registerSharedFlags(cmd, &sf)
-	return cmd
+		Configure: func(cmd *cobra.Command) error {
+			registerSharedFlags(cmd, &sf)
+			return nil
+		},
+	})
 }
 
-func newRunCmd(pluginName string) *cobra.Command {
+func newRunCmd(pluginName string) (plugin.CommandSpec, error) {
 	var sf sharedFlags
-	cmd := &cobra.Command{
+	return plugin.NewCommandSpec(plugin.CommandSpecOptions{
 		Use:   cmdRun,
 		Short: "Run the full DAG locally",
 		Long: `Run the full local execution flow for the selected modules: plan, apply,
@@ -104,9 +116,11 @@ error after logging "no modules to process".`,
 			result, err := NewExecutor(appCtx, WithEventSink(render.NewProgressReporter())).Run(cmd.Context(), sf.toRequest(ExecutionModeRun))
 			return renderLocalExecResult(result, err)
 		},
-	}
-	registerSharedFlags(cmd, &sf)
-	return cmd
+		Configure: func(cmd *cobra.Command) error {
+			registerSharedFlags(cmd, &sf)
+			return nil
+		},
+	})
 }
 
 func renderLocalExecResult(result *Result, runErr error) error {

@@ -14,12 +14,19 @@ import (
 func TestPlugin_Commands_Registration(t *testing.T) {
 	p := newTestPlugin()
 
-	cmds := p.Commands()
-	if len(cmds) != 1 {
-		t.Fatalf("Commands() returned %d commands, want 1", len(cmds))
+	specs, err := p.CommandSpecs()
+	if err != nil {
+		t.Fatalf("CommandSpecs() error = %v", err)
 	}
-	if cmds[0].Use != "summary" {
-		t.Fatalf("command.Use = %q, want summary", cmds[0].Use)
+	if len(specs) != 1 {
+		t.Fatalf("CommandSpecs() returned %d specs, want 1", len(specs))
+	}
+	cmd, err := plugin.BuildCommand(specs[0])
+	if err != nil {
+		t.Fatalf("BuildCommand() error = %v", err)
+	}
+	if cmd.Use != "summary" {
+		t.Fatalf("command.Use = %q, want summary", cmd.Use)
 	}
 }
 

@@ -11,24 +11,24 @@ import (
 	"github.com/edelwud/terraci/pkg/plugin"
 )
 
-// Commands returns the CLI commands provided by the policy plugin.
-func (p *Plugin) Commands() []*cobra.Command {
+// CommandSpecs returns the CLI commands provided by the policy plugin.
+func (p *Plugin) CommandSpecs() ([]plugin.CommandSpec, error) {
 	var (
 		pullCacheDir     string
 		checkFormat      string
 		policyModulePath string
 	)
 
-	pullCmd := &cobra.Command{
+	pullCmd, err := plugin.NewCommandSpec(plugin.CommandSpecOptions{
 		Use:   "pull",
 		Short: "Pull policies from configured sources",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			appCtx, current, err := plugin.CommandPlugin[*Plugin](cmd, p.Name())
-			if err != nil {
-				return err
+			appCtx, current, bindingErr := plugin.CommandPlugin[*Plugin](cmd, p.Name())
+			if bindingErr != nil {
+				return bindingErr
 			}
-			if err := plugin.RequireEnabled(current, "policy checks are not enabled (set extensions.policy.enabled: true)"); err != nil {
-				return err
+			if enabledErr := plugin.RequireEnabled(current, "policy checks are not enabled (set extensions.policy.enabled: true)"); enabledErr != nil {
+				return enabledErr
 			}
 
 			log.Info("pulling policies from configured sources")
@@ -36,18 +36,25 @@ func (p *Plugin) Commands() []*cobra.Command {
 			defer cancel()
 			return current.runPull(c, appCtx, pullCacheDir)
 		},
+		Configure: func(cmd *cobra.Command) error {
+			cmd.Flags().StringVar(&pullCacheDir, "cache-dir", "", "cache directory for materialized policies")
+			return nil
+		},
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	checkCmd := &cobra.Command{
+	checkCmd, err := plugin.NewCommandSpec(plugin.CommandSpecOptions{
 		Use:   "check",
 		Short: "Check Terraform plans against policies",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			appCtx, current, err := plugin.CommandPlugin[*Plugin](cmd, p.Name())
-			if err != nil {
-				return err
+			appCtx, current, bindingErr := plugin.CommandPlugin[*Plugin](cmd, p.Name())
+			if bindingErr != nil {
+				return bindingErr
 			}
-			if err := plugin.RequireEnabled(current, "policy checks are not enabled (set extensions.policy.enabled: true)"); err != nil {
-				return err
+			if enabledErr := plugin.RequireEnabled(current, "policy checks are not enabled (set extensions.policy.enabled: true)"); enabledErr != nil {
+				return enabledErr
 			}
 
 			log.Info("running policy checks")
@@ -56,18 +63,28 @@ func (p *Plugin) Commands() []*cobra.Command {
 			defer cancel()
 			return current.runCheck(c, appCtx, policyModulePath, checkFormat, cmd.OutOrStdout())
 		},
+		Configure: func(cmd *cobra.Command) error {
+			cmd.Flags().StringVarP(&policyModulePath, "module", "m", "", "check specific module only")
+			cmd.Flags().StringVar(&checkFormat, "format", "text", "output format: text, json")
+			return nil
+		},
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	pullCmd.Flags().StringVar(&pullCacheDir, "cache-dir", "", "cache directory for materialized policies")
-	checkCmd.Flags().StringVarP(&policyModulePath, "module", "m", "", "check specific module only")
-	checkCmd.Flags().StringVar(&checkFormat, "format", "text", "output format: text, json")
-
-	cmd := &cobra.Command{
+	cmd, err := plugin.NewCommandSpec(plugin.CommandSpecOptions{
 		Use:   "policy",
 		Short: "Policy management commands",
 		Long:  "Commands for managing and running OPA policy checks against Terraform plans.",
+		Subcommands: []plugin.CommandSpec{
+			pullCmd,
+			checkCmd,
+		},
+	})
+	if err != nil {
+		return nil, err
 	}
-	cmd.AddCommand(pullCmd, checkCmd)
 
-	return []*cobra.Command{cmd}
+	return []plugin.CommandSpec{cmd}, nil
 }

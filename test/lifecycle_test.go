@@ -69,7 +69,11 @@ func TestPluginCapabilities(t *testing.T) {
 		t.Fatalf("expected at least 2 init provider options (gitlab, github), got %d", len(initSnapshot.ProviderOptions()))
 	}
 
-	if len(plugins.Commands()) == 0 {
+	commands, err := plugins.Commands()
+	if err != nil {
+		t.Fatalf("Commands() error = %v", err)
+	}
+	if len(commands) == 0 {
 		t.Fatal("expected at least one plugin command")
 	}
 }

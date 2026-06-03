@@ -7,13 +7,32 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/ci/citest"
+	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/cliout"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	"github.com/edelwud/terraci/plugins/internal/reportrender"
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
+
+func buildPolicyCommand(t *testing.T, p *Plugin) *cobra.Command {
+	t.Helper()
+	specs, err := p.CommandSpecs()
+	if err != nil {
+		t.Fatalf("CommandSpecs() error = %v", err)
+	}
+	if len(specs) != 1 {
+		t.Fatalf("CommandSpecs() returned %d specs, want 1", len(specs))
+	}
+	cmd, err := plugin.BuildCommand(specs[0])
+	if err != nil {
+		t.Fatalf("BuildCommand() error = %v", err)
+	}
+	return cmd
+}
 
 func TestBuildPolicyReport_WithFailures(t *testing.T) {
 	summary := &policyengine.Summary{
@@ -211,12 +230,7 @@ func TestOutputText_UsesLogger(t *testing.T) {
 func TestPlugin_Commands_Registration(t *testing.T) {
 	p := newTestPlugin()
 
-	cmds := p.Commands()
-	if len(cmds) != 1 {
-		t.Fatalf("Commands() returned %d commands, want 1", len(cmds))
-	}
-
-	cmd := cmds[0]
+	cmd := buildPolicyCommand(t, p)
 	checkCmd, _, err := cmd.Find([]string{"check"})
 	if err != nil {
 		t.Fatalf("Find(check) error = %v", err)
@@ -257,8 +271,7 @@ func TestPlugin_Commands_RunE_NotConfigured(t *testing.T) {
 	p := newTestPlugin()
 	appCtx := plugintest.NewAppContext(t, t.TempDir())
 
-	cmds := p.Commands()
-	cmd := cmds[0]
+	cmd := buildPolicyCommand(t, p)
 	checkCmd, _, err := cmd.Find([]string{"check"})
 	if err != nil {
 		t.Fatalf("Find(check) error = %v", err)

@@ -632,6 +632,66 @@ func TestArchitecture_CommandBindingBoundaries(t *testing.T) {
 	}
 }
 
+func TestArchitecture_PluginCommandContributionContract(t *testing.T) {
+	root := repoRoot(t)
+	var violations []string
+
+	for _, rel := range goFiles(t, root, "plugins", "examples", "pkg/plugin/registry") {
+		if !isProductionFile(rel) {
+			continue
+		}
+		file := parseGoFile(t, filepath.Join(root, rel), 0)
+		cobraAliases := importAliases(file, "github.com/spf13/cobra")
+
+		ast.Inspect(file, func(node ast.Node) bool {
+			switch typed := node.(type) {
+			case *ast.FuncDecl:
+				if typed.Name.Name == "Commands" && (strings.HasPrefix(rel, "plugins/") || strings.HasPrefix(rel, "examples/")) {
+					violations = append(violations, rel+" implements removed Commands() command provider method; use CommandSpecs() with plugin.NewCommandSpec")
+				}
+				if typed.Name.Name == "All" && strings.HasPrefix(rel, "pkg/plugin/registry/") {
+					violations = append(violations, rel+" exposes Registry.All(); use registry inventory or lifecycle facades")
+				}
+			case *ast.CompositeLit:
+				selector, ok := typed.Type.(*ast.SelectorExpr)
+				if !ok || !selectorMatchesAlias(selector, cobraAliases, "Command") {
+					return true
+				}
+				if strings.HasPrefix(rel, "plugins/") || strings.HasPrefix(rel, "examples/") {
+					violations = append(violations, rel+" manually constructs cobra.Command; plugin commands must use plugin.NewCommandSpec")
+				}
+			}
+			return true
+		})
+	}
+
+	stalePatterns := []string{
+		"Commands() []*cobra.Command",
+		"Return `[]*cobra.Command`",
+		"return []*cobra.Command",
+		"Registry.All",
+		"New().All()",
+		"func (r *Registry) All(",
+	}
+	for _, rel := range textFiles(t, root, "AGENTS.md", "docs", "examples", "pkg/plugin/doc.go") {
+		if allowUnder(rel, "docs/.vitepress/dist/") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			t.Fatalf("read %s: %v", rel, err)
+		}
+		text := string(data)
+		for _, pattern := range stalePatterns {
+			banTextPattern(&violations, rel, text, pattern, "stale plugin command contribution contract reference")
+		}
+	}
+
+	if len(violations) > 0 {
+		t.Fatalf("plugin command contribution contract violations:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
 func TestArchitecture_CommandRunFlowBoundaries(t *testing.T) {
 	root := repoRoot(t)
 	var violations []string

@@ -10,9 +10,9 @@ import (
 	"github.com/edelwud/terraci/pkg/workflow"
 )
 
-// Commands returns the `terraci hello` command.
-func (p *Plugin) Commands() []*cobra.Command {
-	return []*cobra.Command{{
+// CommandSpecs returns the `terraci hello` command.
+func (p *Plugin) CommandSpecs() ([]plugin.CommandSpec, error) {
+	cmd, err := plugin.NewCommandSpec(plugin.CommandSpecOptions{
 		Use:   "hello",
 		Short: "Print discovered Terraform modules",
 		Long: `Example external plugin command. Scans for Terraform modules
@@ -27,7 +27,11 @@ Build a custom binary with this plugin:
 			}
 			return runHello(cmd.Context(), appCtx, current.greeting())
 		},
-	}}
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []plugin.CommandSpec{cmd}, nil
 }
 
 func (p *Plugin) greeting() string {

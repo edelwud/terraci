@@ -65,7 +65,10 @@ func runTerraCi(t *testing.T, dir string, args ...string) error {
 
 	t.Chdir(dir)
 
-	rootCmd := cmd.NewRootCmd("test", "test-commit", "2024-01-01")
+	rootCmd, rootErr := cmd.NewRootCmd("test", "test-commit", "2024-01-01")
+	if rootErr != nil {
+		t.Fatalf("NewRootCmd() error = %v", rootErr)
+	}
 	rootCmd.SetArgs(args)
 
 	return rootCmd.Execute()
@@ -90,7 +93,10 @@ func captureTerraCi(t *testing.T, dir string, args ...string) (string, error) {
 	origStdout := os.Stdout
 	os.Stdout = tmpFile
 
-	rootCmd := cmd.NewRootCmd("test", "test-commit", "2024-01-01")
+	rootCmd, rootErr := cmd.NewRootCmd("test", "test-commit", "2024-01-01")
+	if rootErr != nil {
+		t.Fatalf("NewRootCmd() error = %v", rootErr)
+	}
 	rootCmd.SetArgs(args)
 	execErr := rootCmd.Execute()
 

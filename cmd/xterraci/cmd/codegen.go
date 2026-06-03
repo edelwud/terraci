@@ -44,7 +44,11 @@ var (
 )
 
 func main() {
-	if err := cmd.NewRootCmd(version, commit, date).Execute(); err != nil {
+	rootCmd, err := cmd.NewRootCmd(version, commit, date)
+	if err != nil {
+		log.WithError(err).Fatal("command registration failed")
+	}
+	if err := rootCmd.Execute(); err != nil {
 		log.WithError(err).Fatal("command failed")
 	}
 }

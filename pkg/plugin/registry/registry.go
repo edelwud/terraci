@@ -123,10 +123,7 @@ func NewFromFactories(factories ...Factory) *Registry {
 	return r
 }
 
-// All returns plugins in registration order. It is intended for registry
-// internals and registry-local tests; framework callers should use lifecycle
-// facades or inventory snapshots.
-func (r *Registry) All() []plugin.Plugin {
+func (r *Registry) all() []plugin.Plugin {
 	if r == nil {
 		return nil
 	}
@@ -152,7 +149,7 @@ func (r *Registry) LookupCommandPlugin(name string) (plugin.Plugin, bool) {
 }
 
 type pluginSource interface {
-	All() []plugin.Plugin
+	all() []plugin.Plugin
 }
 
 // byCapabilityFrom returns all plugins from source that implement the given
@@ -163,7 +160,7 @@ func byCapabilityFrom[T plugin.Plugin](source pluginSource) []T {
 		return nil
 	}
 	var result []T
-	for _, p := range source.All() {
+	for _, p := range source.all() {
 		if t, ok := p.(T); ok {
 			result = append(result, t)
 		}

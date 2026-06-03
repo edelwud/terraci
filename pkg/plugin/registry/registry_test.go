@@ -47,9 +47,22 @@ func (p *testPlugin) Description() string { return p.desc }
 
 type testCommandPlugin struct {
 	testPlugin
+	specsErr error
 }
 
-func (p *testCommandPlugin) Commands() []*cobra.Command { return []*cobra.Command{{Use: p.name}} }
+func (p *testCommandPlugin) CommandSpecs() ([]plugin.CommandSpec, error) {
+	if p.specsErr != nil {
+		return nil, p.specsErr
+	}
+	cmd, err := plugin.NewCommandSpec(plugin.CommandSpecOptions{
+		Use:  p.name,
+		RunE: func(*cobra.Command, []string) error { return nil },
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []plugin.CommandSpec{cmd}, nil
+}
 
 type testVersionPlugin struct {
 	testPlugin
@@ -242,7 +255,7 @@ func contains(haystack, needle string) bool {
 	return strings.Contains(haystack, needle)
 }
 
-func TestAll_Order(t *testing.T) {
+func TestInventory_Order(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
 
@@ -250,7 +263,7 @@ func TestAll_Order(t *testing.T) {
 	RegisterFactory(func() plugin.Plugin { return &testPlugin{name: "a"} })
 	RegisterFactory(func() plugin.Plugin { return &testPlugin{name: "c"} })
 
-	all := New().All()
+	all := New().Inventory().Plugins()
 	if len(all) != 3 {
 		t.Fatalf("got %d plugins, want 3", len(all))
 	}
@@ -266,8 +279,7 @@ func TestByCapability(t *testing.T) {
 	RegisterFactory(func() plugin.Plugin { return &testPlugin{name: "plain"} })
 	RegisterFactory(func() plugin.Plugin { return &testCommandPlugin{testPlugin: testPlugin{name: "cmd"}} })
 
-	// All plugins
-	all := New().All()
+	all := New().Inventory().Plugins()
 	if len(all) != 2 {
 		t.Fatalf("got %d plugins, want 2", len(all))
 	}
@@ -307,7 +319,10 @@ func TestLifecycleFacadesPreserveOrder(t *testing.T) {
 	if schemas := plugins.ExtensionSchemas(); schemas["config"] == nil {
 		t.Fatalf("ExtensionSchemas() missing config schema: %#v", schemas)
 	}
-	commands := plugins.Commands()
+	commands, err := plugins.Commands()
+	if err != nil {
+		t.Fatalf("Commands() error = %v", err)
+	}
 	if len(commands) != 1 || commands[0].Use != "command" {
 		t.Fatalf("Commands() = %#v, want command", commands)
 	}
@@ -328,6 +343,63 @@ func TestLifecycleFacadesPreserveOrder(t *testing.T) {
 	}
 	if preflightCalled != "preflight" {
 		t.Fatalf("preflight called = %q, want preflight", preflightCalled)
+	}
+}
+
+func TestCommandsWrapProviderError(t *testing.T) {
+	t.Cleanup(func() { Reset() })
+	Reset()
+
+	specErr := errors.New("build specs")
+	RegisterFactory(func() plugin.Plugin {
+		return &testCommandPlugin{
+			testPlugin: testPlugin{name: "command"},
+			specsErr:   specErr,
+		}
+	})
+
+	_, err := New().Commands()
+	if !errors.Is(err, specErr) {
+		t.Fatalf("Commands() error = %v, want wrapped spec error", err)
+	}
+	var registrationErr plugin.CommandRegistrationError
+	if !errors.As(err, &registrationErr) {
+		t.Fatalf("Commands() error type = %T, want CommandRegistrationError", err)
+	}
+	if registrationErr.Plugin != "command" {
+		t.Fatalf("CommandRegistrationError.Plugin = %q, want command", registrationErr.Plugin)
+	}
+}
+
+type invalidCommandSpecPlugin struct {
+	testPlugin
+}
+
+func (p *invalidCommandSpecPlugin) CommandSpecs() ([]plugin.CommandSpec, error) {
+	return []plugin.CommandSpec{{}}, nil
+}
+
+func TestCommandsWrapInvalidSpec(t *testing.T) {
+	t.Cleanup(func() { Reset() })
+	Reset()
+
+	RegisterFactory(func() plugin.Plugin {
+		return &invalidCommandSpecPlugin{testPlugin: testPlugin{name: "broken"}}
+	})
+
+	_, err := New().Commands()
+	if err == nil {
+		t.Fatal("Commands() error = nil")
+	}
+	var registrationErr plugin.CommandRegistrationError
+	if !errors.As(err, &registrationErr) {
+		t.Fatalf("Commands() error type = %T, want CommandRegistrationError", err)
+	}
+	if registrationErr.Plugin != "broken" {
+		t.Fatalf("CommandRegistrationError.Plugin = %q, want broken", registrationErr.Plugin)
+	}
+	if !strings.Contains(err.Error(), "NewCommandSpec") {
+		t.Fatalf("Commands() error = %q, want constructor hint", err.Error())
 	}
 }
 
@@ -555,11 +627,11 @@ func TestCollectContributions_Empty(t *testing.T) {
 	}
 }
 
-func TestAll_Empty(t *testing.T) {
+func TestInventory_Empty(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
 
-	all := New().All()
+	all := New().Inventory().Plugins()
 	if len(all) != 0 {
 		t.Errorf("expected 0 plugins, got %d", len(all))
 	}
@@ -583,12 +655,12 @@ func TestReset(t *testing.T) {
 	Reset()
 
 	RegisterFactory(func() plugin.Plugin { return &testPlugin{name: "x"} })
-	if len(New().All()) != 1 {
+	if len(New().Inventory().Plugins()) != 1 {
 		t.Fatal("expected 1 plugin after register")
 	}
 
 	Reset()
-	if len(New().All()) != 0 {
+	if len(New().Inventory().Plugins()) != 0 {
 		t.Error("expected 0 plugins after reset")
 	}
 }
@@ -1136,14 +1208,14 @@ func TestConcurrentRegistryAccess(t *testing.T) {
 	var wg sync.WaitGroup
 	for range 50 {
 		wg.Go(func() {
-			_ = New().All()
+			_ = New().Inventory()
 			_, _ = New().LookupCommandPlugin("plugin-0")
 			_ = byCapabilityFrom[plugin.Plugin](New())
 		})
 	}
 	wg.Wait()
 
-	all := New().All()
+	all := New().Inventory().Plugins()
 	if len(all) != 10 {
 		t.Fatalf("expected 10 plugins after concurrent access, got %d", len(all))
 	}

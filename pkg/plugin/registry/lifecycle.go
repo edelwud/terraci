@@ -16,16 +16,31 @@ import (
 )
 
 // Commands returns plugin-provided cobra commands in registration order.
-func (r *Registry) Commands() []*cobra.Command {
+func (r *Registry) Commands() ([]*cobra.Command, error) {
 	if r == nil {
-		return nil
+		return nil, nil
 	}
 	providers := byCapabilityFrom[plugin.CommandProvider](r)
 	var commands []*cobra.Command
 	for _, provider := range providers {
-		commands = append(commands, provider.Commands()...)
+		specs, err := provider.CommandSpecs()
+		if err != nil {
+			return nil, plugin.CommandRegistrationError{Plugin: provider.Name(), Err: err}
+		}
+		for i := range specs {
+			spec := specs[i]
+			cmd, err := plugin.BuildCommand(spec)
+			if err != nil {
+				return nil, plugin.CommandRegistrationError{
+					Plugin:  provider.Name(),
+					Command: spec.Use(),
+					Err:     err,
+				}
+			}
+			commands = append(commands, cmd)
+		}
 	}
-	return commands
+	return commands, nil
 }
 
 // DecodeConfig applies extension config documents to config-capable plugins.
@@ -73,7 +88,7 @@ func (r *Registry) RunPreflight(ctx context.Context, appCtx *plugin.AppContext) 
 }
 
 func (r *Registry) preflightsForStartup() []plugin.Preflightable {
-	plugins := r.All()
+	plugins := r.all()
 	result := make([]plugin.Preflightable, 0, len(plugins))
 	for _, p := range plugins {
 		if !isPluginEnabled(p) {
@@ -192,7 +207,7 @@ func (r *Registry) Inventory() PluginInventory {
 	if r == nil {
 		return PluginInventory{}
 	}
-	plugins := r.All()
+	plugins := r.all()
 	snapshot := PluginInventory{plugins: make([]PluginInventoryItem, 0, len(plugins))}
 	for _, p := range plugins {
 		_, hasConfig := p.(plugin.ConfigLoader)
@@ -232,7 +247,7 @@ func (r *Registry) VersionSnapshot() VersionSnapshot {
 	for _, provider := range byCapabilityFrom[plugin.VersionProvider](r) {
 		maps.Copy(snapshot.info, provider.VersionInfo())
 	}
-	for _, p := range r.All() {
+	for _, p := range r.all() {
 		snapshot.plugins = append(snapshot.plugins, PluginSummary{
 			name:        p.Name(),
 			description: p.Description(),
@@ -368,7 +383,7 @@ func (r *Registry) InitWizardSnapshot() (*InitWizardSnapshot, error) {
 	if r == nil {
 		return &InitWizardSnapshot{}, nil
 	}
-	plugins := pluginsSortedByName(r.All())
+	plugins := pluginsSortedByName(r.all())
 	snapshot := &InitWizardSnapshot{
 		contributors: make([]InitContributorBinding, 0, len(plugins)),
 		providers:    make([]InitProviderOption, 0, len(plugins)),

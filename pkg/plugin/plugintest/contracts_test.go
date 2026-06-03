@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/edelwud/terraci/pkg/cache/blobcache"
 	"github.com/edelwud/terraci/pkg/cache/blobcache/blobtest"
 	"github.com/edelwud/terraci/pkg/ci"
@@ -68,6 +70,22 @@ func TestAssertCommandBinding(t *testing.T) {
 			tb.Helper()
 			if got != p {
 				tb.Fatalf("resolved plugin = %p, want %p", got, p)
+			}
+		},
+	})
+}
+
+func TestAssertCommandProvider(t *testing.T) {
+	AssertCommandProvider(t, CommandProviderContract{
+		Provider:     contractCommandProvider{},
+		ExpectedUses: []string{"contract"},
+		AssertCommand: func(tb testing.TB, commands []*cobra.Command) {
+			tb.Helper()
+			if len(commands) != 1 {
+				tb.Fatalf("commands = %d, want 1", len(commands))
+			}
+			if commands[0].Flags().Lookup("mode") == nil {
+				tb.Fatal("missing --mode flag")
 			}
 		},
 	})
@@ -181,6 +199,25 @@ func TestAssertCIProvider(t *testing.T) {
 
 type contractPlugin struct {
 	plugin.BasePlugin[*contractConfig]
+}
+
+type contractCommandProvider struct{}
+
+func (contractCommandProvider) Name() string        { return "contract" }
+func (contractCommandProvider) Description() string { return "contract command provider" }
+func (contractCommandProvider) CommandSpecs() ([]plugin.CommandSpec, error) {
+	spec, err := plugin.NewCommandSpec(plugin.CommandSpecOptions{
+		Use: "contract",
+		Configure: func(cmd *cobra.Command) error {
+			cmd.Flags().String("mode", "text", "mode")
+			return nil
+		},
+		RunE: func(*cobra.Command, []string) error { return nil },
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []plugin.CommandSpec{spec}, nil
 }
 
 type contractConfig struct {

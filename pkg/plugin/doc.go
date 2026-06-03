@@ -24,7 +24,7 @@
 //
 //   - plugin.go       — registration shell + typed BasePlugin[C] config
 //   - lifecycle.go    — cheap Preflight checks only (no network, no FS scan)
-//   - commands.go     — CommandProvider with thin cobra/request parsing
+//   - commands.go     — CommandProvider with CommandSpec definitions and thin flag/request parsing
 //   - runtime.go      — plugin-local lazy immutable runtime builder
 //   - usecases.go     — typed Request/Result orchestration over runtime
 //   - pipeline.go     — PipelineContributor (pipeline DAG jobs; return builder errors)

@@ -68,11 +68,11 @@ func (c *Config) Clone() *Config {
     return &out
 }
 
-// Commands implements plugin.CommandProvider.
-func (p *Plugin) Commands() []*cobra.Command {
+// CommandSpecs implements plugin.CommandProvider.
+func (p *Plugin) CommandSpecs() ([]plugin.CommandSpec, error) {
     var channel string
 
-    cmd := &cobra.Command{
+    cmd, err := plugin.NewCommandSpec(plugin.CommandSpecOptions{
         Use:   "slack",
         Short: "Post plan summary to Slack",
         RunE: func(cmd *cobra.Command, _ []string) error {
@@ -91,11 +91,16 @@ func (p *Plugin) Commands() []*cobra.Command {
             // your Slack API logic here
             return nil
         },
+        Configure: func(cmd *cobra.Command) error {
+            cmd.Flags().StringVar(&channel, "channel", "", "Slack channel (overrides config)")
+            return nil
+        },
+    })
+    if err != nil {
+        return nil, err
     }
 
-    cmd.Flags().StringVar(&channel, "channel", "", "Slack channel (overrides config)")
-
-    return []*cobra.Command{cmd}
+    return []plugin.CommandSpec{cmd}, nil
 }
 ```
 
@@ -116,48 +121,66 @@ extensions:
 Use cobra's flag system. Flags are automatically shown in `terraci slack --help`:
 
 ```go
-func (p *Plugin) Commands() []*cobra.Command {
+func (p *Plugin) CommandSpecs() ([]plugin.CommandSpec, error) {
     var (
         channel string
         dryRun  bool
         format  string
     )
 
-    cmd := &cobra.Command{
+    cmd, err := plugin.NewCommandSpec(plugin.CommandSpecOptions{
         Use:   "slack",
         Short: "Post plan summary to Slack",
         RunE: func(cmd *cobra.Command, _ []string) error {
             // use channel, dryRun, format
             return nil
         },
+        Configure: func(cmd *cobra.Command) error {
+            cmd.Flags().StringVar(&channel, "channel", "", "Slack channel")
+            cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview without posting")
+            cmd.Flags().StringVar(&format, "output", "text", "Output format: text, json")
+            return nil
+        },
+    })
+    if err != nil {
+        return nil, err
     }
 
-    cmd.Flags().StringVar(&channel, "channel", "", "Slack channel")
-    cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview without posting")
-    cmd.Flags().StringVar(&format, "output", "text", "Output format: text, json")
-
-    return []*cobra.Command{cmd}
+    return []plugin.CommandSpec{cmd}, nil
 }
 ```
 
 ## Multiple Subcommands
 
-Return multiple commands to add a command group:
+Build child specs and return a command group:
 
 ```go
-func (p *Plugin) Commands() []*cobra.Command {
-    return []*cobra.Command{
-        {
-            Use:   "notify send",
-            Short: "Send notification",
-            RunE:  func(cmd *cobra.Command, _ []string) error { /* ... */ return nil },
-        },
-        {
-            Use:   "notify status",
-            Short: "Check notification delivery",
-            RunE:  func(cmd *cobra.Command, _ []string) error { /* ... */ return nil },
-        },
+func (p *Plugin) CommandSpecs() ([]plugin.CommandSpec, error) {
+    send, err := plugin.NewCommandSpec(plugin.CommandSpecOptions{
+        Use:   "send",
+        Short: "Send notification",
+        RunE:  func(cmd *cobra.Command, _ []string) error { /* ... */ return nil },
+    })
+    if err != nil {
+        return nil, err
     }
+    status, err := plugin.NewCommandSpec(plugin.CommandSpecOptions{
+        Use:   "status",
+        Short: "Check notification delivery",
+        RunE:  func(cmd *cobra.Command, _ []string) error { /* ... */ return nil },
+    })
+    if err != nil {
+        return nil, err
+    }
+    notify, err := plugin.NewCommandSpec(plugin.CommandSpecOptions{
+        Use:         "notify",
+        Short:       "Notification commands",
+        Subcommands: []plugin.CommandSpec{send, status},
+    })
+    if err != nil {
+        return nil, err
+    }
+    return []plugin.CommandSpec{notify}, nil
 }
 ```
 

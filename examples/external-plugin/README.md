@@ -44,7 +44,7 @@ external-plugin/
 
 1. **Registration**: `registry.RegisterFactory()` in `init()` — blank import triggers factory registration
 2. **BasePlugin[C]**: Generic embedding gives each command-run plugin instance config loading and enable/disable behavior; `C` must implement `Clone() C`
-3. **CommandProvider**: Return `[]*cobra.Command` from `Commands()` — framework adds them to CLI
+3. **CommandProvider**: Return validated `plugin.CommandSpec` values from `CommandSpecs()` — framework builds Cobra commands
 4. **CommandPlugin**: Resolve the per-run `AppContext` and command-scoped plugin inside `RunE`
 5. **AppContext**: Access config, working directory, service directory at command time
-6. **Contract tests**: Copy `plugintest.AssertBaseConfigPlugin` and `plugintest.AssertCommandBinding` to verify SDK behavior without re-testing framework internals
+6. **Contract tests**: Copy `plugintest.AssertBaseConfigPlugin`, `plugintest.AssertCommandProvider`, and `plugintest.AssertCommandBinding` to verify SDK behavior without re-testing framework internals

@@ -213,15 +213,19 @@ func (c *Config) Clone() *Config {
 
 ```go
 // CommandProvider -- adds `terraci myplugin` command
-func (p *Plugin) Commands() []*cobra.Command {
-    return []*cobra.Command{{
+func (p *Plugin) CommandSpecs() ([]plugin.CommandSpec, error) {
+    cmd, err := plugin.NewCommandSpec(plugin.CommandSpecOptions{
         Use:   "myplugin",
         Short: "Run my custom plugin",
         RunE: func(cmd *cobra.Command, _ []string) error {
             // your logic here
             return nil
         },
-    }}
+    })
+    if err != nil {
+        return nil, err
+    }
+    return []plugin.CommandSpec{cmd}, nil
 }
 ```
 
@@ -235,7 +239,7 @@ For larger plugins, follow the one-file-per-capability convention used by built-
 |------|----------|
 | `plugin.go` | `init()`, Plugin struct, BasePlugin embedding |
 | `lifecycle.go` | `Preflightable` implementation |
-| `commands.go` | `CommandProvider` with cobra commands |
+| `commands.go` | `CommandProvider` with `plugin.CommandSpec` definitions |
 | `runtime.go` | Plugin-local lazy heavy state builder |
 | `usecases.go` | Command orchestration over typed runtime |
 | `pipeline.go` | `PipelineContributor` jobs |

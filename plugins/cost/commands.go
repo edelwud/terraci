@@ -16,14 +16,14 @@ const (
 	defaultOutputFormat      = "text"
 )
 
-// Commands returns the CLI commands provided by the cost plugin.
-func (p *Plugin) Commands() []*cobra.Command {
+// CommandSpecs returns the CLI commands provided by the cost plugin.
+func (p *Plugin) CommandSpecs() ([]plugin.CommandSpec, error) {
 	var (
 		costModulePath string
 		costOutputFmt  string
 	)
 
-	cmd := &cobra.Command{
+	cmd, err := plugin.NewCommandSpec(plugin.CommandSpecOptions{
 		Use:   pluginName,
 		Short: "Estimate cloud costs from Terraform plans",
 		Long: `Estimate monthly cloud costs by analyzing plan.json files in module directories.
@@ -47,10 +47,15 @@ Examples:
 
 			return current.runEstimation(c, appCtx, costModulePath, costOutputFmt)
 		},
+		Configure: func(cmd *cobra.Command) error {
+			cmd.Flags().StringVarP(&costModulePath, "module", "m", "", "estimate cost for a specific module")
+			cmd.Flags().StringVarP(&costOutputFmt, "output", "o", defaultOutputFormat, "output format: text, json")
+			return nil
+		},
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	cmd.Flags().StringVarP(&costModulePath, "module", "m", "", "estimate cost for a specific module")
-	cmd.Flags().StringVarP(&costOutputFmt, "output", "o", defaultOutputFormat, "output format: text, json")
-
-	return []*cobra.Command{cmd}
+	return []plugin.CommandSpec{cmd}, nil
 }

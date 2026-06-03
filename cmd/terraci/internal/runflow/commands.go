@@ -10,7 +10,7 @@ import (
 // registration happens before command pre-run, so it uses a throwaway registry;
 // each RunE later binds to the real command-scoped plugin instance through
 // plugin.CommandPlugin.
-func PluginCommands(factory RegistryFactory) []*cobra.Command {
+func PluginCommands(factory RegistryFactory) ([]*cobra.Command, error) {
 	if factory == nil {
 		factory = registry.New
 	}

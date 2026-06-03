@@ -3,6 +3,7 @@ package plugintest
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -46,6 +47,47 @@ type CommandBindingContract[T plugin.Plugin] struct {
 	Plugin         T
 	WrongPlugin    plugin.Plugin
 	AssertResolved func(testing.TB, T)
+}
+
+// CommandProviderContract describes the fixtures for a command provider.
+type CommandProviderContract struct {
+	Provider      plugin.CommandProvider
+	ExpectedUses  []string
+	AssertCommand func(testing.TB, []*cobra.Command)
+}
+
+// AssertCommandProvider verifies command specs build into Cobra commands with
+// deterministic use lines and optional provider-specific flag/help assertions.
+func AssertCommandProvider(tb testing.TB, c CommandProviderContract) {
+	tb.Helper()
+	if c.Provider == nil {
+		tb.Fatal("Provider is nil")
+	}
+	specs, err := c.Provider.CommandSpecs()
+	if err != nil {
+		tb.Fatalf("CommandSpecs() error = %v", err)
+	}
+	commands := make([]*cobra.Command, 0, len(specs))
+	for i := range specs {
+		spec := specs[i]
+		cmd, err := plugin.BuildCommand(spec)
+		if err != nil {
+			tb.Fatalf("BuildCommand(%q) error = %v", spec.Use(), err)
+		}
+		commands = append(commands, cmd)
+	}
+	if len(c.ExpectedUses) > 0 {
+		got := make([]string, 0, len(commands))
+		for _, cmd := range commands {
+			got = append(got, cmd.Use)
+		}
+		if !slices.Equal(got, c.ExpectedUses) {
+			tb.Fatalf("command uses = %v, want %v", got, c.ExpectedUses)
+		}
+	}
+	if c.AssertCommand != nil {
+		c.AssertCommand(tb, commands)
+	}
 }
 
 // AssertCommandBinding verifies command-scoped lookup, missing context/lookup,

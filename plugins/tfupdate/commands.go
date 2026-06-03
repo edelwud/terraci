@@ -20,8 +20,8 @@ var (
 	reportFile  = ci.ReportFilename(pluginName)
 )
 
-// Commands returns the CLI commands provided by the tfupdate plugin.
-func (p *Plugin) Commands() []*cobra.Command {
+// CommandSpecs returns the CLI commands provided by the tfupdate plugin.
+func (p *Plugin) CommandSpecs() ([]plugin.CommandSpec, error) {
 	var (
 		target        string
 		bump          string
@@ -33,7 +33,7 @@ func (p *Plugin) Commands() []*cobra.Command {
 		lockPlatforms []string
 	)
 
-	cmd := &cobra.Command{
+	cmd, err := plugin.NewCommandSpec(plugin.CommandSpecOptions{
 		Use:   pluginName,
 		Short: "Check or apply Terraform dependency version updates",
 		Long: `Check Terraform provider and module versions for available updates.
@@ -77,18 +77,23 @@ Examples:
 
 			return current.runCheck(c, appCtx, req, os.Stdout)
 		},
+		Configure: func(cmd *cobra.Command) error {
+			cmd.Flags().StringVarP(&target, "target", "t", "", "what to check: modules, providers, all")
+			cmd.Flags().StringVarP(&bump, "bump", "b", "", "version bump level: patch, minor, major")
+			cmd.Flags().BoolVar(&pin, "pin", false, "pin updated dependency constraints to an exact version when writing")
+			cmd.Flags().StringVar(&timeout, "timeout", "", "overall timeout for the update run, e.g. 15m")
+			cmd.Flags().BoolVarP(&write, "write", "w", false, "write updated versions back to .tf files")
+			cmd.Flags().StringVarP(&modulePath, "module", "m", "", "check a specific module only")
+			cmd.Flags().StringVarP(&outputFmt, "output", "o", "text", "output format: text, json")
+			cmd.Flags().StringSliceVar(&lockPlatforms, "lock-platforms", nil, "platforms to hash for lock files (e.g. linux_amd64,darwin_arm64). Default: all")
+			return nil
+		},
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	cmd.Flags().StringVarP(&target, "target", "t", "", "what to check: modules, providers, all")
-	cmd.Flags().StringVarP(&bump, "bump", "b", "", "version bump level: patch, minor, major")
-	cmd.Flags().BoolVar(&pin, "pin", false, "pin updated dependency constraints to an exact version when writing")
-	cmd.Flags().StringVar(&timeout, "timeout", "", "overall timeout for the update run, e.g. 15m")
-	cmd.Flags().BoolVarP(&write, "write", "w", false, "write updated versions back to .tf files")
-	cmd.Flags().StringVarP(&modulePath, "module", "m", "", "check a specific module only")
-	cmd.Flags().StringVarP(&outputFmt, "output", "o", "text", "output format: text, json")
-	cmd.Flags().StringSliceVar(&lockPlatforms, "lock-platforms", nil, "platforms to hash for lock files (e.g. linux_amd64,darwin_arm64). Default: all")
-
-	return []*cobra.Command{cmd}
+	return []plugin.CommandSpec{cmd}, nil
 }
 
 func parseCheckRequest(cmd *cobra.Command) (CheckRequest, error) {

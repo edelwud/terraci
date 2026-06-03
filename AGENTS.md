@@ -224,7 +224,7 @@ The core `pkg/` tree is **plugin-agnostic** — no package outside `pkg/plugin` 
 Each feature/plugin follows one-file-per-capability where it applies, with runtime-heavy plugins also using a lazy runtime layer. Backend plugins such as `diskblob` and `inmemcache` are intentionally smaller and only implement their relevant provider interfaces:
 - `plugin.go` — init(), Plugin struct with BasePlugin[C] embedding
 - `lifecycle.go` — Preflightable
-- `commands.go` — CommandProvider with cobra definitions; parse flags into typed requests and resolve via `plugin.CommandPlugin`
+- `commands.go` — CommandProvider with `plugin.CommandSpec` definitions; configure flags, parse them into typed requests, and resolve via `plugin.CommandPlugin`
 - `runtime.go` — plugin-local lazy immutable dependency construction
 - `usecases.go` — typed Request/Result orchestration over runtime
 - `generator.go` — EnvDetector + CIInfoProvider + PipelineGeneratorFactory + CommentServiceFactory
@@ -242,7 +242,7 @@ Each feature/plugin follows one-file-per-capability where it applies, with runti
 2. Configure   — framework passes config.ExtensionDocument to ConfigLoader.DecodeAndSet()
 3. Preflight   — Preflightable.Preflight() performs cheap validation/env detection
 4. Bind        — runflow builds immutable AppContext/Prepared plus plugin.CommandBinding and attaches them to command context
-5. Execute     — Commands parse flags into typed requests; use-cases lazily build plugin-local typed runtimes as needed
+5. Execute     — CommandSpecs build Cobra commands; callbacks parse flags into typed requests and use-cases lazily build plugin-local typed runtimes as needed
 ```
 
 ### Capability Interfaces

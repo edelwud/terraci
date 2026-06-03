@@ -8,16 +8,16 @@ import (
 	"github.com/edelwud/terraci/pkg/plugin"
 )
 
-// Commands implements plugin.CommandProvider — registers `terraci skeleton`.
+// CommandSpecs implements plugin.CommandProvider — registers `terraci skeleton`.
 //
 // CommandPlugin is the canonical callback boundary: it returns both the
 // per-run AppContext and the command-scoped plugin instance. The framework
 // rebuilds the registry for every command run, so state captured at command
 // registration time would be stale.
-func (p *Plugin) Commands() []*cobra.Command {
+func (p *Plugin) CommandSpecs() ([]plugin.CommandSpec, error) {
 	var consumeMode bool
 
-	cmd := &cobra.Command{
+	cmd, err := plugin.NewCommandSpec(plugin.CommandSpecOptions{
 		Use:   pluginName,
 		Short: "Skeleton plugin — demonstrates producer + consumer patterns",
 		Long: `Skeleton plugin command. Without flags, runs the producer flow:
@@ -40,8 +40,13 @@ service directory. With --consume, runs the consumer flow: loads every
 			}
 			return WriteOutput(os.Stdout, result)
 		},
+		Configure: func(cmd *cobra.Command) error {
+			cmd.Flags().BoolVar(&consumeMode, "consume", false, "read other plugins' *-report.json instead of writing one")
+			return nil
+		},
+	})
+	if err != nil {
+		return nil, err
 	}
-
-	cmd.Flags().BoolVar(&consumeMode, "consume", false, "read other plugins' *-report.json instead of writing one")
-	return []*cobra.Command{cmd}
+	return []plugin.CommandSpec{cmd}, nil
 }

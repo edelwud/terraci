@@ -84,8 +84,15 @@ type commandPlugin struct {
 	testPlugin
 }
 
-func (p commandPlugin) Commands() []*cobra.Command {
-	return []*cobra.Command{{Use: p.name}}
+func (p commandPlugin) CommandSpecs() ([]plugin.CommandSpec, error) {
+	cmd, err := plugin.NewCommandSpec(plugin.CommandSpecOptions{
+		Use:  p.name,
+		RunE: func(*cobra.Command, []string) error { return nil },
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []plugin.CommandSpec{cmd}, nil
 }
 
 func TestPrepareSkipConfigBindsContextWithoutConfigLoad(t *testing.T) {
@@ -313,11 +320,14 @@ func TestCommandPolicyRoundTrip(t *testing.T) {
 func TestPluginCommandsUsesFreshRegistry(t *testing.T) {
 	t.Parallel()
 
-	commands := PluginCommands(func() *registry.Registry {
+	commands, err := PluginCommands(func() *registry.Registry {
 		return registry.NewFromFactories(func() plugin.Plugin {
 			return commandPlugin{testPlugin: testPlugin{name: "hello"}}
 		})
 	})
+	if err != nil {
+		t.Fatalf("PluginCommands() error = %v", err)
+	}
 	if len(commands) != 1 || commands[0].Use != "hello" {
 		t.Fatalf("PluginCommands() = %#v, want hello command", commands)
 	}

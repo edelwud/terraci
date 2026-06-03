@@ -213,15 +213,19 @@ func (c *Config) Clone() *Config {
 
 ```go
 // CommandProvider -- добавляет команду `terraci myplugin`
-func (p *Plugin) Commands() []*cobra.Command {
-    return []*cobra.Command{{
+func (p *Plugin) CommandSpecs() ([]plugin.CommandSpec, error) {
+    cmd, err := plugin.NewCommandSpec(plugin.CommandSpecOptions{
         Use:   "myplugin",
         Short: "Run my custom plugin",
         RunE: func(cmd *cobra.Command, _ []string) error {
             // логика плагина
             return nil
         },
-    }}
+    })
+    if err != nil {
+        return nil, err
+    }
+    return []plugin.CommandSpec{cmd}, nil
 }
 ```
 
@@ -235,7 +239,7 @@ func (p *Plugin) Commands() []*cobra.Command {
 |------|-----------|
 | `plugin.go` | `init()`, struct плагина, BasePlugin embedding |
 | `lifecycle.go` | Реализация `Preflightable` |
-| `commands.go` | `CommandProvider` с cobra-командами |
+| `commands.go` | `CommandProvider` с описаниями `plugin.CommandSpec` |
 | `runtime.go` | Plugin-local builder для ленивого тяжёлого state |
 | `usecases.go` | Оркестрация команд над типизированным рантаймом |
 | `pipeline.go` | `PipelineContributor` — шаги/джобы |
