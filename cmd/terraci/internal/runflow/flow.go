@@ -182,7 +182,12 @@ func (f *Flow) buildContext(plugins *registry.Registry, cfg *config.Config, work
 		ServiceDir: serviceDir(workDir, cfg),
 		Version:    f.version,
 		Reports:    f.reports,
-		Resolver:   plugins,
+		Resolvers: plugin.NewResolverSet(plugin.ResolverSetOptions{
+			CI:             plugins,
+			ChangeDetector: plugins,
+			KVCache:        plugins,
+			BlobStore:      plugins,
+		}),
 	})
 }
 

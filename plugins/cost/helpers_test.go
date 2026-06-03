@@ -188,11 +188,12 @@ func writePlanJSON(t *testing.T, moduleDir, planJSON string) {
 // workDir should contain the module directories with plan.json files.
 func newTestAppContext(t *testing.T, workDir string) *plugin.AppContext {
 	t.Helper()
-	return plugintest.NewAppContextWithResolver(t, workDir, plugintest.NewRegistry(t, func() plugin.Plugin {
+	plugins := plugintest.NewRegistry(t, func() plugin.Plugin {
 		return &testBlobStoreProvider{name: "diskblob"}
-	}))
+	})
+	return plugintest.NewAppContextWithResolvers(t, workDir, plugintest.RegistryResolverSet(plugins))
 }
 
-func newTestAppContextWithResolver(t *testing.T, workDir string, resolver plugin.Resolver) *plugin.AppContext {
-	return plugintest.NewAppContextWithResolver(t, workDir, resolver)
+func newTestAppContextWithResolvers(t *testing.T, workDir string, resolvers plugin.ResolverSet) *plugin.AppContext {
+	return plugintest.NewAppContextWithResolvers(t, workDir, resolvers)
 }

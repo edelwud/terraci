@@ -77,8 +77,8 @@ pkg/                            # Public API — importable by external plugins 
 │   ├── context.go              # AppContext + AppContextOptions constructor
 │   ├── command_binding.go      # CommandBinding, CommandPlugin[T], RequireEnabled + typed command errors
 │   ├── cliout/                 # Public plugin command output helpers (Format, ParseFormat, WriteJSON)
-│   ├── resolver.go             # Narrow resolver interfaces + aggregate implementation contract
-│   ├── noop_resolver.go        # default no-op resolver behavior
+│   ├── resolver.go             # Narrow resolver interfaces + ResolverSet value object
+│   ├── noop_resolver.go        # internal default no-op resolver behavior
 │   ├── registry/               # Plugin factory catalog + per-command Registry
 │   │   ├── registry.go         # RegisterFactory(), New(), Catalog, Registry + command binding lookup
 │   │   ├── lifecycle.go        # Registry lifecycle facades/snapshots for commands, config, schema, version, init
@@ -86,7 +86,7 @@ pkg/                            # Public API — importable by external plugins 
 │   ├── initwiz/                # Init wizard state + types
 │   │   ├── state.go            # StateMap + typed StateKey[T] form state for huh bindings
 │   │   └── types.go            # InitContributor, constructor-built InitGroup/InitField value objects
-│   └── plugintest/             # Plugin-author SDK contract tests + mock doubles + NoopResolver
+│   └── plugintest/             # Plugin-author SDK contract tests + mock doubles + resolver helpers
 ├── pipeline/                   # Plugin-agnostic pipeline IR
 │   ├── types.go                # IR, Job, Operation, TerraformOperation, Contribution, ContributedJob
 │   ├── contribution.go         # Contribution/ContributedJob value-object builders + getters
@@ -274,7 +274,7 @@ never changes plugin state. It auto-implements:
 
 ### AppContext
 
-Construction goes through an options struct — `plugin.NewAppContext(plugin.AppContextOptions{Config, WorkDir, ServiceDir, Version, Reports, Resolver})` — every field is optional. `Reports` is a `ci.ReportStore`; it defaults to a file-backed store when `ServiceDir` is set, otherwise an in-memory store. Resolver access is narrow and **never nil** through `ctx.CIResolver()`, `ctx.ChangeDetectorResolver()`, `ctx.KVCacheResolver()`, and `ctx.BlobStoreResolver()`; when no resolver is bound, no-op resolvers return sentinel errors.
+Construction goes through an options struct — `plugin.NewAppContext(plugin.AppContextOptions{Config, WorkDir, ServiceDir, Version, Reports, Resolvers})` — every field is optional. `Reports` is a `ci.ReportStore`; it defaults to a file-backed store when `ServiceDir` is set, otherwise an in-memory store. `Resolvers` is an immutable `plugin.ResolverSet` built by the framework from narrow capability resolvers. Resolver access is narrow and **never nil** through `ctx.CIResolver()`, `ctx.ChangeDetectorResolver()`, `ctx.KVCacheResolver()`, and `ctx.BlobStoreResolver()`; when no resolver is bound, no-op resolvers return sentinel errors.
 
 `AppContext.Config()` returns an immutable `config.Snapshot`. Access config through
 snapshot accessors (`ServiceDir()`, `Structure()`, `Execution()`, etc.).
@@ -301,7 +301,7 @@ Built-in plugins and examples keep domain-specific tests local, but SDK boundary
 
 ### Resolver
 
-The plugin SDK exposes narrow resolver interfaces: `CIResolver`, `ChangeDetectorResolver`, `KVCacheResolver`, and `BlobStoreResolver`. `plugin.Resolver` is only the aggregate implementation contract used by framework wiring; plugin code should consume the specific AppContext resolver accessor it needs. `*registry.Registry` is the production resolver and also owns framework-only catalog operations such as contribution collection and startup preflights, which are invoked by `runflow`.
+The plugin SDK exposes narrow resolver interfaces: `CIResolver`, `ChangeDetectorResolver`, `KVCacheResolver`, and `BlobStoreResolver`. Framework wiring combines them into `plugin.ResolverSet` before constructing `AppContext`; plugin code should consume the specific AppContext resolver accessor it needs. `*registry.Registry` is the production implementation of those narrow interfaces and also owns framework-only catalog operations such as contribution collection and startup preflights, which are invoked by `runflow`.
 
 ### Shared Types
 

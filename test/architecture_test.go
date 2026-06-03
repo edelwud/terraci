@@ -466,6 +466,77 @@ func TestArchitecture_PluginRuntimeBoundary(t *testing.T) {
 	}
 }
 
+func TestArchitecture_AppContextResolverSetBoundary(t *testing.T) {
+	root := repoRoot(t)
+	var violations []string
+
+	for _, rel := range goFiles(t, root, "cmd", "pkg", "plugins", "test", "examples") {
+		file := parseGoFile(t, filepath.Join(root, rel), 0)
+		pluginAliases := importAliases(file, moduleImportPath+"/pkg/plugin")
+		plugintestAliases := importAliases(file, moduleImportPath+"/pkg/plugin/plugintest")
+
+		ast.Inspect(file, func(node ast.Node) bool {
+			switch typed := node.(type) {
+			case *ast.FuncDecl:
+				if typed.Name.Name == "NewAppContextWithResolver" {
+					violations = append(violations, rel+" defines stale NewAppContextWithResolver helper; use NewAppContextWithResolvers")
+				}
+			case *ast.CompositeLit:
+				if !isAppContextOptionsLiteral(typed.Type, pluginAliases) {
+					return true
+				}
+				for _, elt := range typed.Elts {
+					kv, ok := elt.(*ast.KeyValueExpr)
+					if !ok {
+						continue
+					}
+					if key, ok := kv.Key.(*ast.Ident); ok && key.Name == "Resolver" {
+						violations = append(violations, rel+" sets removed AppContextOptions.Resolver; pass plugin.ResolverSet through AppContextOptions.Resolvers")
+					}
+				}
+			case *ast.SelectorExpr:
+				if selectorMatchesAlias(typed, pluginAliases, "Resolver") {
+					violations = append(violations, rel+" references removed plugin.Resolver; use narrow resolver interfaces and plugin.ResolverSet")
+				}
+				if selectorMatchesAlias(typed, pluginAliases, "NoopResolver") {
+					violations = append(violations, rel+" references removed plugin.NoopResolver; use plugin.NoopResolverSet or narrow resolver fakes")
+				}
+				if selectorMatchesAlias(typed, plugintestAliases, "NewAppContextWithResolver") {
+					violations = append(violations, rel+" calls removed plugintest.NewAppContextWithResolver; use NewAppContextWithResolvers")
+				}
+			}
+			return true
+		})
+	}
+
+	stalePatterns := []string{
+		"`plugin.Resolver`",
+		"AppContextOptions.Resolver",
+		"AppContextOptions{Config, WorkDir, ServiceDir, Version, Reports, Resolver}",
+		"NewAppContextWithResolver",
+		"NoopResolver",
+		"aggregate Resolver",
+		"aggregate resolver",
+	}
+	for _, rel := range textFiles(t, root, "AGENTS.md", "docs", "examples", "pkg/plugin/doc.go") {
+		if allowUnder(rel, "docs/.vitepress/dist/") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			t.Fatalf("read %s: %v", rel, err)
+		}
+		text := string(data)
+		for _, pattern := range stalePatterns {
+			banTextPattern(&violations, rel, text, pattern, "stale AppContext resolver contract reference")
+		}
+	}
+
+	if len(violations) > 0 {
+		t.Fatalf("AppContext resolver set boundary violations:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
 func TestArchitecture_RegistryLifecycleFacades(t *testing.T) {
 	root := repoRoot(t)
 	var violations []string
@@ -1512,6 +1583,17 @@ func selectorMatchesAlias(selector *ast.SelectorExpr, aliases map[string]bool, n
 	}
 	ident, ok := selector.X.(*ast.Ident)
 	return ok && aliases[ident.Name]
+}
+
+func isAppContextOptionsLiteral(expr ast.Expr, pluginAliases map[string]bool) bool {
+	switch typed := expr.(type) {
+	case *ast.Ident:
+		return typed.Name == "AppContextOptions"
+	case *ast.SelectorExpr:
+		return selectorMatchesAlias(typed, pluginAliases, "AppContextOptions")
+	default:
+		return false
+	}
 }
 
 func banTextPattern(violations *[]string, rel, text, pattern, reason string) {

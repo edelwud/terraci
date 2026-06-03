@@ -462,9 +462,7 @@ terraform {
 		ServiceDir: "",
 		Version:    base.Version(),
 		Reports:    base.Reports(),
-		Resolver: commandTestResolver{
-			backends: newTestBackendRegistry(t),
-		},
+		Resolvers:  testBackendResolverSet(newTestBackendRegistry(t)),
 	})
 
 	cmd := buildTFUpdateCommand(t, p)
@@ -536,9 +534,7 @@ func TestPlugin_RunCheck_DiscoverError(t *testing.T) {
 		ServiceDir: base.ServiceDir(),
 		Version:    base.Version(),
 		Reports:    base.Reports(),
-		Resolver: commandTestResolver{
-			backends: newTestBackendRegistry(t),
-		},
+		Resolvers:  testBackendResolverSet(newTestBackendRegistry(t)),
 	})
 
 	cmd := buildTFUpdateCommand(t, p)

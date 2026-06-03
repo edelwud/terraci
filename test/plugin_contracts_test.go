@@ -266,7 +266,12 @@ func loadPluginContractConfig(t *testing.T, rawConfig string) (*plugin.AppContex
 		WorkDir:    dir,
 		ServiceDir: serviceDir,
 		Version:    "test",
-		Resolver:   plugins,
+		Resolvers: plugin.NewResolverSet(plugin.ResolverSetOptions{
+			CI:             plugins,
+			ChangeDetector: plugins,
+			KVCache:        plugins,
+			BlobStore:      plugins,
+		}),
 	})
 	return appCtx, plugins
 }

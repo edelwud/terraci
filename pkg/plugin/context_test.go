@@ -48,20 +48,67 @@ func TestAppContext_Accessors(t *testing.T) {
 
 func TestAppContext_NoResolverFallsBackToNoop(t *testing.T) {
 	ctx := NewAppContext(AppContextOptions{})
-	if ctx.CIResolver() == nil {
-		t.Fatal("CIResolver() should never return nil")
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{
+			name: "ci",
+			err:  errFromCallSite(ctx.CIResolver().ResolveCIProvider),
+		},
+		{
+			name: "change detector",
+			err:  errFromCallSite(ctx.ChangeDetectorResolver().ResolveChangeDetector),
+		},
+		{
+			name: "kv cache",
+			err:  errFromCallSite(func() (KVCacheProvider, error) { return ctx.KVCacheResolver().ResolveKVCacheProvider("cache") }),
+		},
+		{
+			name: "blob store",
+			err:  errFromCallSite(func() (BlobStoreProvider, error) { return ctx.BlobStoreResolver().ResolveBlobStoreProvider("blob") }),
+		},
 	}
-	if _, err := ctx.CIResolver().ResolveCIProvider(); err == nil {
-		t.Error("noop resolver should reject ResolveCIProvider")
-	}
-	if !errors.Is(errFromCallSite(ctx.CIResolver().ResolveCIProvider), ErrNoResolver) {
-		t.Error("noop resolver should return ErrNoResolver")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !errors.Is(tt.err, ErrNoResolver) {
+				t.Fatalf("resolver error = %v, want ErrNoResolver", tt.err)
+			}
+		})
 	}
 }
 
 func errFromCallSite[T any](fn func() (T, error)) error {
 	_, err := fn()
 	return err
+}
+
+var errContextTestResolver = errors.New("context test resolver")
+
+type contextCIResolver struct{}
+
+func (contextCIResolver) ResolveCIProvider() (*ResolvedCIProvider, error) {
+	return nil, errContextTestResolver
+}
+
+func TestResolverSet_UsesProvidedNarrowResolvers(t *testing.T) {
+	set := NewResolverSet(ResolverSetOptions{CI: contextCIResolver{}})
+	if err := errFromCallSite(set.CIResolver().ResolveCIProvider); !errors.Is(err, errContextTestResolver) {
+		t.Fatalf("CIResolver() error = %v, want context resolver error", err)
+	}
+	if err := errFromCallSite(set.ChangeDetectorResolver().ResolveChangeDetector); !errors.Is(err, ErrNoResolver) {
+		t.Fatalf("ChangeDetectorResolver() error = %v, want ErrNoResolver", err)
+	}
+}
+
+func TestResolverSet_ZeroValueIsNoop(t *testing.T) {
+	var set ResolverSet
+	if err := errFromCallSite(set.CIResolver().ResolveCIProvider); !errors.Is(err, ErrNoResolver) {
+		t.Fatalf("zero ResolverSet CI error = %v, want ErrNoResolver", err)
+	}
+	if err := errFromCallSite(NoopResolverSet().CIResolver().ResolveCIProvider); !errors.Is(err, ErrNoResolver) {
+		t.Fatalf("NoopResolverSet CI error = %v, want ErrNoResolver", err)
+	}
 }
 
 func TestAppContext_NoReportsCreatesDefaultStore(t *testing.T) {
@@ -135,10 +182,6 @@ func (p *contextTestPlugin) Name() string        { return p.name }
 func (p *contextTestPlugin) Description() string { return p.name }
 func (p *contextTestPlugin) IsEnabled() bool     { return p.enabled }
 
-type contextTestResolver struct {
-	NoopResolver
-}
-
 type contextTestSource struct {
 	plugin Plugin
 }
@@ -183,7 +226,7 @@ func TestCommandPluginLookup_LooksUpFromBindingSource(t *testing.T) {
 func TestCommandPluginLookup_DoesNotUseResolverAsLookup(t *testing.T) {
 	target := &contextTestPlugin{name: "cmd"}
 	appCtx := NewAppContext(AppContextOptions{
-		Resolver: contextTestResolver{},
+		Resolvers: NewResolverSet(ResolverSetOptions{CI: contextCIResolver{}}),
 	})
 
 	cmd := &cobra.Command{}

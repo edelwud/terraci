@@ -206,7 +206,7 @@ func TestPlugin_Runtime_DefaultBackendRequiresExplicitNameWithAdditionalProvider
 		},
 	})
 
-	_, err := p.runtime(context.Background(), newTestAppContextWithResolver(t, t.TempDir(), plugins))
+	_, err := p.runtime(context.Background(), newTestAppContextWithResolvers(t, t.TempDir(), plugintest.RegistryResolverSet(plugins)))
 	if err == nil {
 		t.Fatal("Runtime() error = nil, want ambiguous cache backend error")
 	}

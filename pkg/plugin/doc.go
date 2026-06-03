@@ -202,7 +202,7 @@
 //     adapters that need an isolated mutable configuration.
 //   - Treat ctx.CIResolver(), ctx.ChangeDetectorResolver(),
 //     ctx.KVCacheResolver(), and ctx.BlobStoreResolver() as never-nil. They
-//     return NoopResolver{} behavior when no real resolver is bound and are
+//     return no-op resolver behavior when no real resolver is bound and are
 //     safe to call from any goroutine.
 //   - Implement Clone() C on plugin config types embedded in BasePlugin[C].
 //     BasePlugin.Config(), SchemaConfig(), DecodeAndSet(), and SetTypedConfig()
@@ -217,8 +217,8 @@
 //
 // AppContext exposes narrow typed capability resolvers only. Plugins should
 // call the resolver accessor for the capability they need instead of depending
-// on the aggregate Resolver or looking up concrete plugin names. Framework code
-// owns raw plugin enumeration inside pkg/plugin/registry; CLI flows consume
+// on broad service-locator contracts or looking up concrete plugin names.
+// Framework code owns raw plugin enumeration inside pkg/plugin/registry; CLI flows consume
 // registry lifecycle facades and snapshots instead of capability slices.
 //
 // # Cross-plugin communication

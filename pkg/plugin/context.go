@@ -25,7 +25,7 @@ type AppContext struct {
 	serviceDir string
 	version    string
 	reports    ci.ReportStore
-	resolver   Resolver
+	resolvers  ResolverSet
 	contribs   []*pipeline.Contribution
 }
 
@@ -42,10 +42,10 @@ type AppContextOptions struct {
 	// Reports is the shared report store. Defaults to a file-backed store when
 	// ServiceDir is set, otherwise to an in-process memory store.
 	Reports ci.ReportStore
-	// Resolver is the per-run plugin resolver. Defaults to NoopResolver{}
-	// when nil. Plugins should consume it through AppContext's narrow resolver
-	// accessors.
-	Resolver Resolver
+	// Resolvers is the per-run narrow resolver bundle. Missing capabilities
+	// default to no-op resolvers. Plugins consume it through AppContext's
+	// narrow resolver accessors.
+	Resolvers ResolverSet
 	// PipelineContributions is a command-scoped snapshot of enabled pipeline
 	// contributions collected by the framework after config/preflight.
 	PipelineContributions []*pipeline.Contribution
@@ -61,17 +61,13 @@ func NewAppContext(opts AppContextOptions) *AppContext {
 			reports = ci.NewMemoryReportStore()
 		}
 	}
-	resolver := opts.Resolver
-	if resolver == nil {
-		resolver = NoopResolver{}
-	}
 	return &AppContext{
 		config:     config.NewSnapshot(opts.Config),
 		workDir:    opts.WorkDir,
 		serviceDir: opts.ServiceDir,
 		version:    opts.Version,
 		reports:    reports,
-		resolver:   resolver,
+		resolvers:  opts.Resolvers,
 		contribs:   cloneContributions(opts.PipelineContributions),
 	}
 }
@@ -92,16 +88,20 @@ func (ctx *AppContext) Version() string { return ctx.version }
 func (ctx *AppContext) Reports() ci.ReportStore { return ctx.reports }
 
 // CIResolver returns the active CI provider resolver. Always non-nil.
-func (ctx *AppContext) CIResolver() CIResolver { return ctx.resolver }
+func (ctx *AppContext) CIResolver() CIResolver { return ctx.resolvers.CIResolver() }
 
 // ChangeDetectorResolver returns the active change detector resolver. Always non-nil.
-func (ctx *AppContext) ChangeDetectorResolver() ChangeDetectorResolver { return ctx.resolver }
+func (ctx *AppContext) ChangeDetectorResolver() ChangeDetectorResolver {
+	return ctx.resolvers.ChangeDetectorResolver()
+}
 
 // KVCacheResolver returns the named KV cache backend resolver. Always non-nil.
-func (ctx *AppContext) KVCacheResolver() KVCacheResolver { return ctx.resolver }
+func (ctx *AppContext) KVCacheResolver() KVCacheResolver { return ctx.resolvers.KVCacheResolver() }
 
 // BlobStoreResolver returns the named blob store backend resolver. Always non-nil.
-func (ctx *AppContext) BlobStoreResolver() BlobStoreResolver { return ctx.resolver }
+func (ctx *AppContext) BlobStoreResolver() BlobStoreResolver {
+	return ctx.resolvers.BlobStoreResolver()
+}
 
 // PipelineContributions returns the command-scoped pipeline contribution
 // snapshot collected by the framework.

@@ -214,7 +214,7 @@ func TestPlugin_Runtime_UsesBlobStoreDiagnostics(t *testing.T) {
 		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	})
 
-	runtime := plugintest.MustRuntimeFromBuilder[*costRuntime](t, p.runtime, newTestAppContextWithResolver(t, t.TempDir(), plugins))
+	runtime := plugintest.MustRuntimeFromBuilder[*costRuntime](t, p.runtime, newTestAppContextWithResolvers(t, t.TempDir(), plugintest.RegistryResolverSet(plugins)))
 	if runtime.estimator == nil {
 		t.Fatal("runtime.estimator should not be nil")
 	}
@@ -240,7 +240,7 @@ func TestPlugin_Runtime_UsesBlobStoreFallbackDiagnostics(t *testing.T) {
 		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	})
 
-	runtime := plugintest.MustRuntimeFromBuilder[*costRuntime](t, p.runtime, newTestAppContextWithResolver(t, t.TempDir(), plugins))
+	runtime := plugintest.MustRuntimeFromBuilder[*costRuntime](t, p.runtime, newTestAppContextWithResolvers(t, t.TempDir(), plugintest.RegistryResolverSet(plugins)))
 	if runtime.estimator.Cache().Dir() != "/tmp/fallback-cache" {
 		t.Fatalf("CacheDir() = %q, want %q", runtime.estimator.Cache().Dir(), "/tmp/fallback-cache")
 	}
@@ -261,7 +261,7 @@ func TestPlugin_Runtime_BlobStoreFallbackWithoutDiagnostics(t *testing.T) {
 		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	})
 
-	runtime := plugintest.MustRuntimeFromBuilder[*costRuntime](t, p.runtime, newTestAppContextWithResolver(t, t.TempDir(), plugins))
+	runtime := plugintest.MustRuntimeFromBuilder[*costRuntime](t, p.runtime, newTestAppContextWithResolvers(t, t.TempDir(), plugintest.RegistryResolverSet(plugins)))
 	if runtime.estimator == nil {
 		t.Fatal("runtime.estimator should not be nil")
 	}
@@ -287,7 +287,7 @@ func TestPlugin_Runtime_HealthCheckFailure(t *testing.T) {
 		Providers: model.CostProvidersConfig{"aws": {Enabled: true}},
 	})
 
-	_, err := p.runtime(context.Background(), newTestAppContextWithResolver(t, t.TempDir(), plugins))
+	_, err := p.runtime(context.Background(), newTestAppContextWithResolvers(t, t.TempDir(), plugintest.RegistryResolverSet(plugins)))
 	if err == nil || err.Error() == "" {
 		t.Fatal("Runtime() error = nil, want health check failure")
 	}

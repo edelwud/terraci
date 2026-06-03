@@ -136,7 +136,12 @@ func TestPluginInitialization(t *testing.T) {
 		WorkDir:    dir,
 		ServiceDir: filepath.Join(dir, ".terraci"),
 		Version:    "test",
-		Resolver:   plugins,
+		Resolvers: plugin.NewResolverSet(plugin.ResolverSetOptions{
+			CI:             plugins,
+			ChangeDetector: plugins,
+			KVCache:        plugins,
+			BlobStore:      plugins,
+		}),
 	})
 
 	if preflightErr := plugins.RunPreflight(context.Background(), appCtx); preflightErr != nil {

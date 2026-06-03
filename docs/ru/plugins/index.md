@@ -190,7 +190,7 @@ ctx.KVCacheResolver().ResolveKVCacheProvider(name)
 ctx.BlobStoreResolver().ResolveBlobStoreProvider(name)
 ```
 
-Resolver accessors никогда не nil — если контекст не привязан к реестру (тестовое окружение), возвращается no-op-резолвер с sentinel-ошибками вместо nil-разыменования. Framework lifecycle enumeration вроде preflight и pipeline contribution collection принадлежит CLI runflow, не plugin-коду.
+Resolver accessors никогда не nil — framework wiring привязывает `plugin.ResolverSet`, а тестовые контексты без реальных резолверов получают no-op capability resolvers с sentinel-ошибками вместо nil-разыменования. Framework lifecycle enumeration вроде preflight и pipeline contribution collection принадлежит CLI runflow, не plugin-коду.
 
 ### Сборка
 

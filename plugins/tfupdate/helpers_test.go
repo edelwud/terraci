@@ -167,32 +167,24 @@ func newTestBackendRegistry(t *testing.T, factories ...registry.Factory) *regist
 	return plugintest.NewRegistry(t, all...)
 }
 
-type commandTestResolver struct {
-	plugin.NoopResolver
-	backends *registry.Registry
-}
-
-func (r commandTestResolver) ResolveKVCacheProvider(name string, configPathHint ...string) (plugin.KVCacheProvider, error) {
-	return r.backends.ResolveKVCacheProvider(name, configPathHint...)
-}
-
-func (r commandTestResolver) ResolveBlobStoreProvider(name string, configPathHint ...string) (plugin.BlobStoreProvider, error) {
-	return r.backends.ResolveBlobStoreProvider(name, configPathHint...)
+func testBackendResolverSet(backends *registry.Registry) plugin.ResolverSet {
+	return plugin.NewResolverSet(plugin.ResolverSetOptions{
+		KVCache:   backends,
+		BlobStore: backends,
+	})
 }
 
 // newTestAppContext creates a minimal AppContext suitable for plugin testing.
 func newTestAppContext(t *testing.T, workDir string) *plugin.AppContext {
 	t.Helper()
-	return plugintest.NewAppContextWithResolver(t, workDir, newTestBackendRegistry(t))
+	return plugintest.NewAppContextWithResolvers(t, workDir, plugintest.RegistryResolverSet(newTestBackendRegistry(t)))
 }
 
 func newTestCommandAppContext(t *testing.T, workDir string, _ *Plugin) *plugin.AppContext {
 	t.Helper()
-	return plugintest.NewAppContextWithResolver(t, workDir, commandTestResolver{
-		backends: newTestBackendRegistry(t),
-	})
+	return plugintest.NewAppContextWithResolvers(t, workDir, testBackendResolverSet(newTestBackendRegistry(t)))
 }
 
-func newTestAppContextWithResolver(t *testing.T, workDir string, resolver plugin.Resolver) *plugin.AppContext {
-	return plugintest.NewAppContextWithResolver(t, workDir, resolver)
+func newTestAppContextWithResolvers(t *testing.T, workDir string, resolvers plugin.ResolverSet) *plugin.AppContext {
+	return plugintest.NewAppContextWithResolvers(t, workDir, resolvers)
 }

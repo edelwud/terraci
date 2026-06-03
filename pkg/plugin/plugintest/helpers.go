@@ -61,7 +61,7 @@ func LoadPluginReport(t *testing.T, serviceDir, pluginName string) ci.Report {
 func NewAppContext(t *testing.T, workDir string) *plugin.AppContext {
 	t.Helper()
 
-	return NewAppContextWithResolver(t, workDir, registry.New())
+	return NewAppContextWithResolvers(t, workDir, RegistryResolverSet(registry.New()))
 }
 
 func NewRegistry(t *testing.T, factories ...registry.Factory) *registry.Registry {
@@ -70,7 +70,16 @@ func NewRegistry(t *testing.T, factories ...registry.Factory) *registry.Registry
 	return registry.NewFromFactories(factories...)
 }
 
-func NewAppContextWithResolver(t *testing.T, workDir string, resolver plugin.Resolver) *plugin.AppContext {
+func RegistryResolverSet(plugins *registry.Registry) plugin.ResolverSet {
+	return plugin.NewResolverSet(plugin.ResolverSetOptions{
+		CI:             plugins,
+		ChangeDetector: plugins,
+		KVCache:        plugins,
+		BlobStore:      plugins,
+	})
+}
+
+func NewAppContextWithResolvers(t *testing.T, workDir string, resolvers plugin.ResolverSet) *plugin.AppContext {
 	t.Helper()
 
 	serviceDir := filepath.Join(t.TempDir(), ".terraci")
@@ -82,7 +91,7 @@ func NewAppContextWithResolver(t *testing.T, workDir string, resolver plugin.Res
 		ServiceDir: serviceDir,
 		Version:    "test",
 		Reports:    ci.NewFileReportStore(serviceDir),
-		Resolver:   resolver,
+		Resolvers:  resolvers,
 	})
 }
 
