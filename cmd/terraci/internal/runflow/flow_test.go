@@ -266,7 +266,7 @@ func TestPrepareKeepsReportStoreAndRefreshesRegistry(t *testing.T) {
 	flow := New(Options{
 		RegistryFactory: func() *registry.Registry {
 			return registry.NewFromFactories(func() plugin.Plugin {
-				return testPlugin{name: "bare"}
+				return &commandPlugin{testPlugin: testPlugin{name: "bare"}}
 			})
 		},
 	})
@@ -280,8 +280,20 @@ func TestPrepareKeepsReportStoreAndRefreshesRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Prepare() second error = %v", err)
 	}
-	if first.Registry() == second.Registry() {
-		t.Fatal("registry should be fresh for each command run")
+	firstCmd := &cobra.Command{}
+	firstCmd.SetContext(first.Context())
+	_, firstPlugin, err := plugin.CommandPlugin[*commandPlugin](firstCmd, "bare")
+	if err != nil {
+		t.Fatalf("CommandPlugin(first) error = %v", err)
+	}
+	secondCmd := &cobra.Command{}
+	secondCmd.SetContext(second.Context())
+	_, secondPlugin, err := plugin.CommandPlugin[*commandPlugin](secondCmd, "bare")
+	if err != nil {
+		t.Fatalf("CommandPlugin(second) error = %v", err)
+	}
+	if firstPlugin == secondPlugin {
+		t.Fatal("command-scoped plugin should be fresh for each command run")
 	}
 	if first.Reports() != second.Reports() {
 		t.Fatal("report store should persist across command runs")

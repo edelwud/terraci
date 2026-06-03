@@ -164,13 +164,13 @@ func (c *testConfig) Clone() *testConfig {
 	return &out
 }
 
-func TestRegisterAndGet(t *testing.T) {
+func TestRegisterAndLookupCommandPlugin(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
 
 	RegisterFactory(func() plugin.Plugin { return &testPlugin{name: "test", desc: "A test plugin"} })
 
-	got, ok := New().GetPlugin("test")
+	got, ok := New().LookupCommandPlugin("test")
 	if !ok {
 		t.Fatal("expected to find plugin")
 	}
@@ -398,19 +398,19 @@ func TestCatalogCreatesIndependentPluginSets(t *testing.T) {
 	other := NewCatalog()
 	other.RegisterFactory(func() plugin.Plugin { return &testPlugin{name: "second"} })
 
-	if _, ok := catalog.NewRegistry().GetPlugin("second"); ok {
+	if _, ok := catalog.NewRegistry().LookupCommandPlugin("second"); ok {
 		t.Fatal("catalog observed plugin from another catalog")
 	}
-	if _, ok := other.NewRegistry().GetPlugin("first"); ok {
+	if _, ok := other.NewRegistry().LookupCommandPlugin("first"); ok {
 		t.Fatal("other catalog observed plugin from catalog")
 	}
 }
 
-func TestGetNotFound(t *testing.T) {
+func TestLookupCommandPluginNotFound(t *testing.T) {
 	t.Cleanup(func() { Reset() })
 	Reset()
 
-	_, ok := New().GetPlugin("nonexistent")
+	_, ok := New().LookupCommandPlugin("nonexistent")
 	if ok {
 		t.Fatal("expected not found")
 	}
@@ -1137,7 +1137,7 @@ func TestConcurrentRegistryAccess(t *testing.T) {
 	for range 50 {
 		wg.Go(func() {
 			_ = New().All()
-			_, _ = New().GetPlugin("plugin-0")
+			_, _ = New().LookupCommandPlugin("plugin-0")
 			_ = byCapabilityFrom[plugin.Plugin](New())
 		})
 	}

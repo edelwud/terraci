@@ -120,7 +120,7 @@ func (f *Flow) Prepare(ctx context.Context, req Request) (*Prepared, error) {
 		}
 	}
 
-	return newPrepared(ctx, appCtx, plugins, cfg, req.WorkDir, f.reports), nil
+	return newPrepared(ctx, appCtx, plugins, cfg, req.WorkDir, f.reports)
 }
 
 func (f *Flow) applyLogLevel(req Request) error {
@@ -177,13 +177,12 @@ func (f *Flow) buildContext(plugins *registry.Registry, cfg *config.Config, work
 		f.reports = ci.NewFileReportStore(serviceDir(workDir, cfg))
 	}
 	return plugin.NewAppContext(plugin.AppContextOptions{
-		Config:        cfg,
-		WorkDir:       workDir,
-		ServiceDir:    serviceDir(workDir, cfg),
-		Version:       f.version,
-		Reports:       f.reports,
-		Resolver:      plugins,
-		CommandLookup: plugins,
+		Config:     cfg,
+		WorkDir:    workDir,
+		ServiceDir: serviceDir(workDir, cfg),
+		Version:    f.version,
+		Reports:    f.reports,
+		Resolver:   plugins,
 	})
 }
 

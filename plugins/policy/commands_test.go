@@ -9,7 +9,6 @@ import (
 
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/ci/citest"
-	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/cliout"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	"github.com/edelwud/terraci/plugins/internal/reportrender"
@@ -264,7 +263,7 @@ func TestPlugin_Commands_RunE_NotConfigured(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Find(check) error = %v", err)
 	}
-	checkCmd.SetContext(plugin.WithContext(context.Background(), appCtx))
+	checkCmd.SetContext(plugintest.BindCommandPlugin(context.Background(), t, appCtx, pluginName, p))
 
 	err = checkCmd.RunE(checkCmd, nil)
 	if err == nil {

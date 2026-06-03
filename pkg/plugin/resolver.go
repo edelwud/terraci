@@ -1,12 +1,5 @@
 package plugin
 
-// CommandLookup is the framework-side lookup used only to bind a cobra
-// command callback back to its command-scoped plugin instance.
-type CommandLookup interface {
-	// GetPlugin returns a plugin by name from the current command-scoped set.
-	GetPlugin(name string) (Plugin, bool)
-}
-
 // CIResolver resolves the active CI provider in the current plugin set.
 type CIResolver interface {
 	ResolveCIProvider() (*ResolvedCIProvider, error)

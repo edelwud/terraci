@@ -137,25 +137,61 @@ func (p *contextTestPlugin) IsEnabled() bool     { return p.enabled }
 
 type contextTestResolver struct {
 	NoopResolver
+}
+
+type contextTestSource struct {
 	plugin Plugin
 }
 
-func (r contextTestResolver) GetPlugin(string) (Plugin, bool) {
-	return r.plugin, r.plugin != nil
+func (s contextTestSource) LookupCommandPlugin(string) (Plugin, bool) {
+	return s.plugin, s.plugin != nil
 }
 
-func TestCommandPluginLookup_LooksUpFromResolver(t *testing.T) {
+func TestNewCommandBinding_ValidatesInputs(t *testing.T) {
 	target := &contextTestPlugin{name: "cmd"}
-	ctx := NewAppContext(AppContextOptions{
-		Resolver: contextTestResolver{plugin: target},
-	})
+	appCtx := NewAppContext(AppContextOptions{})
+	if binding, err := NewCommandBinding(CommandBindingOptions{AppContext: appCtx, Source: contextTestSource{plugin: target}}); err != nil {
+		t.Fatalf("NewCommandBinding() error = %v", err)
+	} else if binding.AppContext() != appCtx {
+		t.Fatalf("CommandBinding.AppContext() = %p, want %p", binding.AppContext(), appCtx)
+	}
+	if _, err := NewCommandBinding(CommandBindingOptions{Source: contextTestSource{plugin: target}}); err == nil {
+		t.Fatal("NewCommandBinding(missing context) error = nil")
+	} else {
+		assertCommandBindingReason(t, err, CommandBindingMissingContext)
+	}
+	if _, err := NewCommandBinding(CommandBindingOptions{AppContext: appCtx}); err == nil {
+		t.Fatal("NewCommandBinding(missing source) error = nil")
+	} else {
+		assertCommandBindingReason(t, err, CommandBindingMissingLookup)
+	}
+}
 
-	got, err := commandInstance[*contextTestPlugin](ctx, "cmd")
+func TestCommandPluginLookup_LooksUpFromBindingSource(t *testing.T) {
+	target := &contextTestPlugin{name: "cmd"}
+	binding := mustCommandBinding(t, NewAppContext(AppContextOptions{}), contextTestSource{plugin: target})
+
+	got, err := commandInstance[*contextTestPlugin](binding, "cmd")
 	if err != nil {
 		t.Fatalf("commandInstance() error = %v", err)
 	}
 	if got != target {
 		t.Fatalf("commandInstance() = %p, want %p", got, target)
+	}
+}
+
+func TestCommandPluginLookup_DoesNotUseResolverAsLookup(t *testing.T) {
+	target := &contextTestPlugin{name: "cmd"}
+	appCtx := NewAppContext(AppContextOptions{
+		Resolver: contextTestResolver{},
+	})
+
+	cmd := &cobra.Command{}
+	cmd.SetContext(BindCommandContext(context.Background(), mustCommandBinding(t, appCtx, contextTestSource{})))
+	if _, _, err := CommandPlugin[*contextTestPlugin](cmd, target.Name()); err == nil {
+		t.Fatal("CommandPlugin() error = nil, want not found without explicit command source")
+	} else {
+		assertCommandBindingReason(t, err, CommandBindingNotFound)
 	}
 }
 
@@ -168,8 +204,8 @@ func TestCommandPluginLookup_RejectsNilContext(t *testing.T) {
 }
 
 func TestCommandPluginLookup_RejectsMissingCommandLookup(t *testing.T) {
-	ctx := &AppContext{}
-	if _, err := commandInstance[*contextTestPlugin](ctx, "cmd"); err == nil {
+	binding := &CommandBinding{appCtx: NewAppContext(AppContextOptions{})}
+	if _, err := commandInstance[*contextTestPlugin](binding, "cmd"); err == nil {
 		t.Fatal("commandInstance() error = nil, want missing command lookup error")
 	} else {
 		assertCommandBindingReason(t, err, CommandBindingMissingLookup)
@@ -178,11 +214,9 @@ func TestCommandPluginLookup_RejectsMissingCommandLookup(t *testing.T) {
 
 func TestCommandPlugin_ReturnsContextAndPlugin(t *testing.T) {
 	target := &contextTestPlugin{name: "cmd", enabled: true}
-	appCtx := NewAppContext(AppContextOptions{
-		Resolver: contextTestResolver{plugin: target},
-	})
+	appCtx := NewAppContext(AppContextOptions{})
 	cmd := &cobra.Command{}
-	cmd.SetContext(WithContext(context.Background(), appCtx))
+	cmd.SetContext(BindCommandContext(context.Background(), mustCommandBinding(t, appCtx, contextTestSource{plugin: target})))
 
 	gotCtx, gotPlugin, err := CommandPlugin[*contextTestPlugin](cmd, "cmd")
 	if err != nil {
@@ -214,22 +248,17 @@ func TestCommandPlugin_RejectsMissingAppContext(t *testing.T) {
 }
 
 func TestCommandPlugin_RejectsMissingCommandLookup(t *testing.T) {
-	cmd := &cobra.Command{}
-	cmd.SetContext(WithContext(context.Background(), NewAppContext(AppContextOptions{})))
-
-	if _, _, err := CommandPlugin[*contextTestPlugin](cmd, "cmd"); err == nil {
-		t.Fatal("CommandPlugin() error = nil, want missing command lookup error")
+	if _, err := NewCommandBinding(CommandBindingOptions{AppContext: NewAppContext(AppContextOptions{})}); err == nil {
+		t.Fatal("NewCommandBinding() error = nil, want missing command lookup error")
 	} else {
 		assertCommandBindingReason(t, err, CommandBindingMissingLookup)
 	}
 }
 
 func TestCommandPlugin_RejectsWrongPluginType(t *testing.T) {
-	appCtx := NewAppContext(AppContextOptions{
-		Resolver: contextTestResolver{plugin: &contextTestPlugin{name: "cmd"}},
-	})
+	appCtx := NewAppContext(AppContextOptions{})
 	cmd := &cobra.Command{}
-	cmd.SetContext(WithContext(context.Background(), appCtx))
+	cmd.SetContext(BindCommandContext(context.Background(), mustCommandBinding(t, appCtx, contextTestSource{plugin: &contextTestPlugin{name: "cmd"}})))
 
 	if _, _, err := CommandPlugin[*otherContextTestPlugin](cmd, "cmd"); err == nil {
 		t.Fatal("CommandPlugin() error = nil, want wrong type error")
@@ -262,34 +291,48 @@ func (p *otherContextTestPlugin) Description() string { return "other" }
 
 func TestCommandContextBinding_RoundTrips(t *testing.T) {
 	appCtx := NewAppContext(AppContextOptions{Version: "v"})
-	carrier := WithContext(context.Background(), appCtx)
-	got := fromContext(carrier)
-	if got != appCtx {
-		t.Fatalf("fromContext() = %p, want %p", got, appCtx)
+	binding := mustCommandBinding(t, appCtx, contextTestSource{plugin: &contextTestPlugin{name: "cmd"}})
+	carrier := BindCommandContext(context.Background(), binding)
+	got := commandBindingFromContext(carrier)
+	if got != binding {
+		t.Fatalf("commandBindingFromContext() = %p, want %p", got, binding)
 	}
-	if fromContext(context.Background()) != nil {
-		t.Fatal("fromContext on empty context should be nil")
+	if commandBindingFromContext(context.Background()) != nil {
+		t.Fatal("commandBindingFromContext on empty context should be nil")
 	}
-	if fromContext(context.TODO()) != nil {
+	if commandBindingFromContext(context.TODO()) != nil {
 		// context.TODO is the canonical "no-value" Context; fromContext
 		// must still return nil for a context that has no AppContext key
 		// attached.
-		t.Fatal("fromContext(empty context) should be nil")
+		t.Fatal("commandBindingFromContext(empty context) should be nil")
 	}
 }
 
-func TestAppContextFromCommand(t *testing.T) {
+func TestCommandBindingFromCommand(t *testing.T) {
 	appCtx := NewAppContext(AppContextOptions{Version: "v"})
+	target := &contextTestPlugin{name: "cmd"}
 	cmd := &cobra.Command{}
-	cmd.SetContext(WithContext(context.Background(), appCtx))
+	cmd.SetContext(BindCommandContext(context.Background(), mustCommandBinding(t, appCtx, contextTestSource{plugin: target})))
 
-	got, err := AppContextFromCommand(cmd)
+	got, plugin, err := CommandPlugin[*contextTestPlugin](cmd, "cmd")
 	if err != nil {
-		t.Fatalf("AppContextFromCommand() error = %v", err)
+		t.Fatalf("CommandPlugin() error = %v", err)
 	}
 	if got != appCtx {
-		t.Fatalf("AppContextFromCommand() = %p, want %p", got, appCtx)
+		t.Fatalf("CommandPlugin() ctx = %p, want %p", got, appCtx)
 	}
+	if plugin != target {
+		t.Fatalf("CommandPlugin() plugin = %p, want %p", plugin, target)
+	}
+}
+
+func mustCommandBinding(t *testing.T, appCtx *AppContext, source CommandBindingSource) *CommandBinding {
+	t.Helper()
+	binding, err := NewCommandBinding(CommandBindingOptions{AppContext: appCtx, Source: source})
+	if err != nil {
+		t.Fatalf("NewCommandBinding() error = %v", err)
+	}
+	return binding
 }
 
 func assertCommandBindingReason(t *testing.T, err error, reason CommandBindingReason) {

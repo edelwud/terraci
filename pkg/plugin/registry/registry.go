@@ -63,7 +63,7 @@ func (c *Catalog) RegisterFactory(factory Factory) {
 }
 
 // Registry is an isolated plugin instance set for one app run. It is the
-// framework-owned catalog for lifecycle facades, command lookup, and
+// framework-owned catalog for lifecycle facades, command binding lookup, and
 // plugin-visible capability resolution.
 type Registry struct {
 	plugins map[string]plugin.Plugin
@@ -123,7 +123,9 @@ func NewFromFactories(factories ...Factory) *Registry {
 	return r
 }
 
-// All returns plugins in registration order.
+// All returns plugins in registration order. It is intended for registry
+// internals and registry-local tests; framework callers should use lifecycle
+// facades or inventory snapshots.
 func (r *Registry) All() []plugin.Plugin {
 	if r == nil {
 		return nil
@@ -135,13 +137,18 @@ func (r *Registry) All() []plugin.Plugin {
 	return result
 }
 
-// GetPlugin returns a plugin by name.
-func (r *Registry) GetPlugin(name string) (plugin.Plugin, bool) {
+func (r *Registry) pluginByName(name string) (plugin.Plugin, bool) {
 	if r == nil {
 		return nil, false
 	}
 	p, ok := r.plugins[name]
 	return p, ok
+}
+
+// LookupCommandPlugin resolves a command-scoped plugin by name for
+// plugin.CommandBinding.
+func (r *Registry) LookupCommandPlugin(name string) (plugin.Plugin, bool) {
+	return r.pluginByName(name)
 }
 
 type pluginSource interface {

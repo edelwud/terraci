@@ -551,6 +551,87 @@ func TestArchitecture_RegistryLifecycleFacades(t *testing.T) {
 	}
 }
 
+func TestArchitecture_CommandBindingBoundaries(t *testing.T) {
+	root := repoRoot(t)
+	var violations []string
+
+	for _, rel := range goFiles(t, root, "cmd", "pkg", "plugins", "test", "examples") {
+		if !isProductionFile(rel) || allowUnder(rel, "pkg/plugin/") {
+			continue
+		}
+		file := parseGoFile(t, filepath.Join(root, rel), 0)
+		pluginAliases := importAliases(file, moduleImportPath+"/pkg/plugin")
+		registryAliases := importAliases(file, moduleImportPath+"/pkg/plugin/registry")
+
+		ast.Inspect(file, func(node ast.Node) bool {
+			switch typed := node.(type) {
+			case *ast.CallExpr:
+				selector, ok := callSelector(typed)
+				if !ok {
+					return true
+				}
+				if selectorCallMatches(selector, pluginAliases, "WithContext") {
+					violations = append(violations, rel+" calls plugin.WithContext; use plugin.NewCommandBinding + plugin.BindCommandContext")
+				}
+				if selectorCallMatches(selector, pluginAliases, "AppContextFromCommand") {
+					violations = append(violations, rel+" calls plugin.AppContextFromCommand; use plugin.CommandPlugin")
+				}
+				if selectorCallMatches(selector, registryAliases, "GetPlugin") {
+					violations = append(violations, rel+" calls registry.GetPlugin; use registry lifecycle facades or LookupCommandPlugin for command binding")
+				}
+				if selector.Sel.Name == "Registry" {
+					violations = append(violations, rel+" calls Prepared.Registry(); consume Prepared facade methods instead")
+				}
+			case *ast.CompositeLit:
+				selector, ok := typed.Type.(*ast.SelectorExpr)
+				if !ok || !selectorMatchesAlias(selector, pluginAliases, "AppContextOptions") {
+					return true
+				}
+				for _, elt := range typed.Elts {
+					kv, ok := elt.(*ast.KeyValueExpr)
+					if !ok {
+						continue
+					}
+					if key, ok := kv.Key.(*ast.Ident); ok && key.Name == "CommandLookup" {
+						violations = append(violations, rel+" sets AppContextOptions.CommandLookup; bind command lookup through CommandBinding")
+					}
+				}
+			case *ast.SelectorExpr:
+				if selectorMatchesAlias(typed, pluginAliases, "CommandLookup") {
+					violations = append(violations, rel+" references plugin.CommandLookup; use CommandBindingSource")
+				}
+			}
+			return true
+		})
+	}
+
+	stalePatterns := []string{
+		"AppContextFromCommand",
+		"plugin.WithContext",
+		"CommandLookup",
+		"StaticCommandLookup",
+		"Prepared.Registry()",
+		"GetPlugin(",
+	}
+	for _, rel := range textFiles(t, root, "AGENTS.md", "docs", "examples", "pkg/plugin/doc.go") {
+		if allowUnder(rel, "docs/.vitepress/dist/") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			t.Fatalf("read %s: %v", rel, err)
+		}
+		text := string(data)
+		for _, pattern := range stalePatterns {
+			banTextPattern(&violations, rel, text, pattern, "stale command binding boundary reference")
+		}
+	}
+
+	if len(violations) > 0 {
+		t.Fatalf("command binding boundary violations:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
 func TestArchitecture_CommandRunFlowBoundaries(t *testing.T) {
 	root := repoRoot(t)
 	var violations []string
@@ -1358,6 +1439,14 @@ func callSelector(call *ast.CallExpr) (*ast.SelectorExpr, bool) {
 }
 
 func selectorCallMatches(selector *ast.SelectorExpr, aliases map[string]bool, name string) bool {
+	if selector == nil || selector.Sel.Name != name {
+		return false
+	}
+	ident, ok := selector.X.(*ast.Ident)
+	return ok && aliases[ident.Name]
+}
+
+func selectorMatchesAlias(selector *ast.SelectorExpr, aliases map[string]bool, name string) bool {
 	if selector == nil || selector.Sel.Name != name {
 		return false
 	}

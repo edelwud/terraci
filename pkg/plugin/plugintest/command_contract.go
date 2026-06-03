@@ -10,14 +10,34 @@ import (
 	"github.com/edelwud/terraci/pkg/plugin"
 )
 
-// StaticCommandLookup is a minimal command-scoped plugin lookup for
+// StaticCommandSource is a minimal command-scoped plugin source for
 // CommandPlugin contract tests.
-type StaticCommandLookup map[string]plugin.Plugin
+type StaticCommandSource map[string]plugin.Plugin
 
-// GetPlugin implements plugin.CommandLookup.
-func (l StaticCommandLookup) GetPlugin(name string) (plugin.Plugin, bool) {
+// LookupCommandPlugin implements plugin.CommandBindingSource.
+func (l StaticCommandSource) LookupCommandPlugin(name string) (plugin.Plugin, bool) {
 	p, ok := l[name]
 	return p, ok
+}
+
+// BindCommandContext binds appCtx and source into parent for CommandPlugin
+// tests.
+func BindCommandContext(parent context.Context, tb testing.TB, appCtx *plugin.AppContext, source plugin.CommandBindingSource) context.Context {
+	tb.Helper()
+	binding, err := plugin.NewCommandBinding(plugin.CommandBindingOptions{
+		AppContext: appCtx,
+		Source:     source,
+	})
+	if err != nil {
+		tb.Fatalf("NewCommandBinding() error = %v", err)
+	}
+	return plugin.BindCommandContext(parent, binding)
+}
+
+// BindCommandPlugin binds a single command-scoped plugin into parent.
+func BindCommandPlugin(parent context.Context, tb testing.TB, appCtx *plugin.AppContext, name string, p plugin.Plugin) context.Context {
+	tb.Helper()
+	return BindCommandContext(parent, tb, appCtx, StaticCommandSource{name: p})
 }
 
 // CommandBindingContract describes the fixtures for CommandPlugin[T].
@@ -39,11 +59,16 @@ func AssertCommandBinding[T plugin.Plugin](tb testing.TB, c CommandBindingContra
 		tb.Fatal("Plugin is nil")
 	}
 
-	appCtx := plugin.NewAppContext(plugin.AppContextOptions{
-		CommandLookup: StaticCommandLookup{c.Name: c.Plugin},
+	appCtx := plugin.NewAppContext(plugin.AppContextOptions{})
+	binding, err := plugin.NewCommandBinding(plugin.CommandBindingOptions{
+		AppContext: appCtx,
+		Source:     StaticCommandSource{c.Name: c.Plugin},
 	})
+	if err != nil {
+		tb.Fatalf("NewCommandBinding(success) error = %v", err)
+	}
 	cmd := &cobra.Command{}
-	cmd.SetContext(plugin.WithContext(context.Background(), appCtx))
+	cmd.SetContext(plugin.BindCommandContext(context.Background(), binding))
 	gotCtx, got, err := plugin.CommandPlugin[T](cmd, c.Name)
 	if err != nil {
 		tb.Fatalf("CommandPlugin(success) error = %v", err)
@@ -60,14 +85,14 @@ func AssertCommandBinding[T plugin.Plugin](tb testing.TB, c CommandBindingContra
 	missingContext := &cobra.Command{}
 	assertCommandBindingReason[T](tb, missingContext, c.Name, plugin.CommandBindingMissingContext)
 
-	missingLookup := &cobra.Command{}
-	missingLookup.SetContext(plugin.WithContext(context.Background(), plugin.NewAppContext(plugin.AppContextOptions{})))
-	assertCommandBindingReason[T](tb, missingLookup, c.Name, plugin.CommandBindingMissingLookup)
+	if _, err := plugin.NewCommandBinding(plugin.CommandBindingOptions{AppContext: plugin.NewAppContext(plugin.AppContextOptions{})}); err == nil {
+		tb.Fatal("NewCommandBinding(missing lookup) error = nil")
+	} else {
+		assertBindingError(tb, err, plugin.CommandBindingMissingLookup, "")
+	}
 
 	notFound := &cobra.Command{}
-	notFound.SetContext(plugin.WithContext(context.Background(), plugin.NewAppContext(plugin.AppContextOptions{
-		CommandLookup: StaticCommandLookup{},
-	})))
+	notFound.SetContext(bindTestCommand(tb, plugin.NewAppContext(plugin.AppContextOptions{}), StaticCommandSource{}))
 	assertCommandBindingReason[T](tb, notFound, c.Name, plugin.CommandBindingNotFound)
 
 	wrongPlugin := c.WrongPlugin
@@ -75,10 +100,20 @@ func AssertCommandBinding[T plugin.Plugin](tb testing.TB, c CommandBindingContra
 		wrongPlugin = &StubPlugin{NameVal: "wrong", DescVal: "wrong"}
 	}
 	wrongType := &cobra.Command{}
-	wrongType.SetContext(plugin.WithContext(context.Background(), plugin.NewAppContext(plugin.AppContextOptions{
-		CommandLookup: StaticCommandLookup{c.Name: wrongPlugin},
-	})))
+	wrongType.SetContext(bindTestCommand(tb, plugin.NewAppContext(plugin.AppContextOptions{}), StaticCommandSource{c.Name: wrongPlugin}))
 	assertCommandBindingReason[T](tb, wrongType, c.Name, plugin.CommandBindingWrongType)
+}
+
+func bindTestCommand(tb testing.TB, appCtx *plugin.AppContext, source plugin.CommandBindingSource) context.Context {
+	tb.Helper()
+	binding, err := plugin.NewCommandBinding(plugin.CommandBindingOptions{
+		AppContext: appCtx,
+		Source:     source,
+	})
+	if err != nil {
+		tb.Fatalf("NewCommandBinding() error = %v", err)
+	}
+	return plugin.BindCommandContext(context.Background(), binding)
 }
 
 func assertCommandBindingReason[T plugin.Plugin](tb testing.TB, cmd *cobra.Command, name string, want plugin.CommandBindingReason) {
@@ -87,15 +122,20 @@ func assertCommandBindingReason[T plugin.Plugin](tb testing.TB, cmd *cobra.Comma
 	if err == nil {
 		tb.Fatalf("CommandPlugin(%s) error = nil", want)
 	}
+	assertBindingError(tb, err, want, name)
+}
+
+func assertBindingError(tb testing.TB, err error, want plugin.CommandBindingReason, name string) {
+	tb.Helper()
 	var bindingErr *plugin.CommandBindingError
 	if !errors.As(err, &bindingErr) {
-		tb.Fatalf("CommandPlugin(%s) error type = %T, want *CommandBindingError", want, err)
+		tb.Fatalf("command binding error type = %T, want *CommandBindingError", err)
 	}
 	if bindingErr.Reason != want {
-		tb.Fatalf("CommandPlugin(%s) reason = %q, want %q", want, bindingErr.Reason, want)
+		tb.Fatalf("CommandBindingError reason = %q, want %q", bindingErr.Reason, want)
 	}
 	if name != "" && bindingErr.Plugin != name {
-		tb.Fatalf("CommandPlugin(%s) plugin = %q, want %q", want, bindingErr.Plugin, name)
+		tb.Fatalf("CommandBindingError plugin = %q, want %q", bindingErr.Plugin, name)
 	}
 }
 

@@ -27,7 +27,14 @@ type Prepared struct {
 	diagnostics diagnostic.List
 }
 
-func newPrepared(ctx context.Context, appCtx *plugin.AppContext, plugins *registry.Registry, cfg *config.Config, workDir string, reports ci.ReportStore) *Prepared {
+func newPrepared(ctx context.Context, appCtx *plugin.AppContext, plugins *registry.Registry, cfg *config.Config, workDir string, reports ci.ReportStore) (*Prepared, error) {
+	binding, err := plugin.NewCommandBinding(plugin.CommandBindingOptions{
+		AppContext: appCtx,
+		Source:     plugins,
+	})
+	if err != nil {
+		return nil, err
+	}
 	prepared := &Prepared{
 		appCtx:   appCtx,
 		registry: plugins,
@@ -36,8 +43,8 @@ func newPrepared(ctx context.Context, appCtx *plugin.AppContext, plugins *regist
 		workDir:  workDir,
 		reports:  reports,
 	}
-	prepared.ctx = context.WithValue(plugin.WithContext(ctx, appCtx), preparedContextKey{}, prepared)
-	return prepared
+	prepared.ctx = context.WithValue(plugin.BindCommandContext(ctx, binding), preparedContextKey{}, prepared)
+	return prepared, nil
 }
 
 // FromContext returns the Prepared command state bound by Flow.Prepare.
@@ -68,12 +75,31 @@ func (p *Prepared) AppContext() *plugin.AppContext {
 	return p.appCtx
 }
 
-// Registry returns the command-scoped plugin registry snapshot.
-func (p *Prepared) Registry() *registry.Registry {
+// ExtensionSchemas returns extension schema samples from the command-scoped
+// plugin snapshot.
+func (p *Prepared) ExtensionSchemas() map[string]any {
 	if p == nil {
 		return nil
 	}
-	return p.registry
+	return p.registry.ExtensionSchemas()
+}
+
+// VersionSnapshot returns version metadata from the command-scoped plugin
+// snapshot.
+func (p *Prepared) VersionSnapshot() registry.VersionSnapshot {
+	if p == nil {
+		return registry.VersionSnapshot{}
+	}
+	return p.registry.VersionSnapshot()
+}
+
+// InitWizardSnapshot returns init wizard bindings from the command-scoped
+// plugin snapshot.
+func (p *Prepared) InitWizardSnapshot() (*registry.InitWizardSnapshot, error) {
+	if p == nil {
+		return &registry.InitWizardSnapshot{}, nil
+	}
+	return p.registry.InitWizardSnapshot()
 }
 
 // Config returns the loaded immutable TerraCi config snapshot.

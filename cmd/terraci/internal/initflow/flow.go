@@ -35,7 +35,8 @@ type Overrides struct {
 
 // BuildResult is the output of config construction.
 type BuildResult struct {
-	Config *config.Config
+	Config          *config.Config
+	GenerateCommand string
 }
 
 // DisplayGroup describes one init form group after plugin groups have been
@@ -213,7 +214,14 @@ func (f Flow) BuildConfig(state *initwiz.StateMap) (*BuildResult, error) {
 	if err != nil {
 		return nil, fmt.Errorf("build init config: %w", err)
 	}
-	return &BuildResult{Config: cfg}, nil
+	return &BuildResult{Config: cfg, GenerateCommand: generateCommand(initwiz.ProviderKey.Get(state))}, nil
+}
+
+func generateCommand(provider string) string {
+	if provider == providerGitHub {
+		return "terraci generate -o .github/workflows/terraform.yml"
+	}
+	return "terraci generate -o .gitlab-ci.yml"
 }
 
 func normalizeProviderOptions(options []ProviderOption) []ProviderOption {

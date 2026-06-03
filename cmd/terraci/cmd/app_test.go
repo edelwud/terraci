@@ -28,9 +28,6 @@ func TestAppRunFlowReturnsFreshContextEachTime(t *testing.T) {
 	if second.AppContext().Reports() != first.AppContext().Reports() {
 		t.Fatal("Prepare should keep the long-lived reports registry across runs")
 	}
-	if second.Registry() == nil {
-		t.Fatal("Prepare should expose the command-scoped registry")
-	}
 }
 
 func runFlowTestRequest(app *App) runflow.Request {

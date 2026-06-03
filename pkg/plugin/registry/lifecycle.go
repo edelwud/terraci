@@ -120,6 +120,109 @@ func (s VersionSnapshot) Plugins() []PluginSummary {
 	return append([]PluginSummary(nil), s.plugins...)
 }
 
+// PluginInventoryItem describes one registered plugin and its public
+// capabilities without exposing the plugin instance.
+type PluginInventoryItem struct {
+	name                string
+	description         string
+	configLoader        bool
+	commandProvider     bool
+	preflightable       bool
+	pipelineContributor bool
+	ciProvider          bool
+	initContributor     bool
+	versionProvider     bool
+	changeDetector      bool
+	kvCacheProvider     bool
+	blobStoreProvider   bool
+}
+
+// Name returns the plugin name.
+func (i PluginInventoryItem) Name() string { return i.name }
+
+// Description returns the plugin description.
+func (i PluginInventoryItem) Description() string { return i.description }
+
+// HasConfigLoader reports whether the plugin loads extension config.
+func (i PluginInventoryItem) HasConfigLoader() bool { return i.configLoader }
+
+// HasCommandProvider reports whether the plugin contributes CLI commands.
+func (i PluginInventoryItem) HasCommandProvider() bool { return i.commandProvider }
+
+// HasPreflight reports whether the plugin contributes startup preflight.
+func (i PluginInventoryItem) HasPreflight() bool { return i.preflightable }
+
+// HasPipelineContributor reports whether the plugin contributes pipeline jobs.
+func (i PluginInventoryItem) HasPipelineContributor() bool { return i.pipelineContributor }
+
+// HasCIProvider reports whether the plugin contributes CI provider metadata.
+func (i PluginInventoryItem) HasCIProvider() bool { return i.ciProvider }
+
+// HasInitContributor reports whether the plugin contributes init wizard config.
+func (i PluginInventoryItem) HasInitContributor() bool { return i.initContributor }
+
+// HasVersionProvider reports whether the plugin contributes version metadata.
+func (i PluginInventoryItem) HasVersionProvider() bool { return i.versionProvider }
+
+// HasChangeDetector reports whether the plugin contributes VCS change detection.
+func (i PluginInventoryItem) HasChangeDetector() bool { return i.changeDetector }
+
+// HasKVCacheProvider reports whether the plugin contributes a KV cache backend.
+func (i PluginInventoryItem) HasKVCacheProvider() bool { return i.kvCacheProvider }
+
+// HasBlobStoreProvider reports whether the plugin contributes a blob store backend.
+func (i PluginInventoryItem) HasBlobStoreProvider() bool { return i.blobStoreProvider }
+
+// PluginInventory is a defensive plugin listing snapshot for tests and
+// presentation code.
+type PluginInventory struct {
+	plugins []PluginInventoryItem
+}
+
+// Plugins returns defensive inventory item copies.
+func (s PluginInventory) Plugins() []PluginInventoryItem {
+	if len(s.plugins) == 0 {
+		return nil
+	}
+	return append([]PluginInventoryItem(nil), s.plugins...)
+}
+
+// Inventory returns plugin names, descriptions, and capability flags.
+func (r *Registry) Inventory() PluginInventory {
+	if r == nil {
+		return PluginInventory{}
+	}
+	plugins := r.All()
+	snapshot := PluginInventory{plugins: make([]PluginInventoryItem, 0, len(plugins))}
+	for _, p := range plugins {
+		_, hasConfig := p.(plugin.ConfigLoader)
+		_, hasCommand := p.(plugin.CommandProvider)
+		_, hasPreflight := p.(plugin.Preflightable)
+		_, hasPipeline := p.(plugin.PipelineContributor)
+		_, hasCI := p.(plugin.CIInfoProvider)
+		_, hasInit := p.(initwiz.InitContributor)
+		_, hasVersion := p.(plugin.VersionProvider)
+		_, hasChange := p.(plugin.ChangeDetectionProvider)
+		_, hasKV := p.(plugin.KVCacheProvider)
+		_, hasBlob := p.(plugin.BlobStoreProvider)
+		snapshot.plugins = append(snapshot.plugins, PluginInventoryItem{
+			name:                p.Name(),
+			description:         p.Description(),
+			configLoader:        hasConfig,
+			commandProvider:     hasCommand,
+			preflightable:       hasPreflight,
+			pipelineContributor: hasPipeline,
+			ciProvider:          hasCI,
+			initContributor:     hasInit,
+			versionProvider:     hasVersion,
+			changeDetector:      hasChange,
+			kvCacheProvider:     hasKV,
+			blobStoreProvider:   hasBlob,
+		})
+	}
+	return snapshot
+}
+
 // VersionSnapshot returns version info and plugin summaries.
 func (r *Registry) VersionSnapshot() VersionSnapshot {
 	if r == nil {

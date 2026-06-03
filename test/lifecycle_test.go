@@ -13,13 +13,13 @@ import (
 
 func TestPluginRegistration(t *testing.T) {
 	plugins := registry.New()
-	all := plugins.All()
-	if len(all) != 10 {
-		t.Fatalf("expected 10 plugins, got %d", len(all))
+	inventory := plugins.Inventory().Plugins()
+	if len(inventory) != 10 {
+		t.Fatalf("expected 10 plugins, got %d", len(inventory))
 	}
 
 	names := make(map[string]bool)
-	for _, p := range all {
+	for _, p := range inventory {
 		if p.Name() == "" {
 			t.Error("plugin has empty name")
 		}
@@ -83,13 +83,17 @@ func TestPluginConfigLoading(t *testing.T) {
 
 	configurePluginsFromConfig(t, plugins, cfg)
 
-	gitlab := mustConfigLoader(t, plugins, "gitlab")
-	if !gitlab.IsConfigured() {
-		t.Error("gitlab should be configured after loading basic fixture")
+	provider, err := plugins.ResolveCIProvider()
+	if err != nil {
+		t.Fatalf("ResolveCIProvider() after gitlab config error = %v", err)
 	}
-	github := mustConfigLoader(t, plugins, "github")
-	if github.IsConfigured() {
-		t.Error("github should NOT be configured (not in basic fixture)")
+	if provider.ProviderName() != "gitlab" {
+		t.Fatalf("ResolveCIProvider() = %q, want gitlab", provider.ProviderName())
+	}
+
+	t.Setenv("TERRACI_PROVIDER", "github")
+	if _, err := plugins.ResolveCIProvider(); err == nil {
+		t.Fatal("ResolveCIProvider(github) error = nil, want disabled/unconfigured provider error")
 	}
 }
 
@@ -144,17 +148,4 @@ func configurePluginsFromConfig(t *testing.T, plugins *registry.Registry, cfg *c
 	if err := plugins.DecodeConfig(cfg); err != nil {
 		t.Fatalf("failed to decode plugin config: %v", err)
 	}
-}
-
-func mustConfigLoader(t *testing.T, plugins *registry.Registry, name string) plugin.ConfigLoader {
-	t.Helper()
-	p, ok := plugins.GetPlugin(name)
-	if !ok {
-		t.Fatalf("plugin %q not found", name)
-	}
-	loader, ok := p.(plugin.ConfigLoader)
-	if !ok {
-		t.Fatalf("plugin %q does not implement ConfigLoader", name)
-	}
-	return loader
 }

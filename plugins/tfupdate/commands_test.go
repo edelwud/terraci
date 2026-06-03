@@ -13,6 +13,7 @@ import (
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/cliout"
+	"github.com/edelwud/terraci/pkg/plugin/plugintest"
 	"github.com/edelwud/terraci/plugins/internal/reportrender"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
 	"github.com/edelwud/terraci/plugins/tfupdate/internal/domain"
@@ -125,7 +126,7 @@ func TestPlugin_Commands_RunE_NotConfigured(t *testing.T) {
 
 	cmds := p.Commands()
 	cmd := cmds[0]
-	cmd.SetContext(plugin.WithContext(context.Background(), appCtx))
+	cmd.SetContext(plugintest.BindCommandPlugin(context.Background(), t, appCtx, pluginName, p))
 
 	err := cmd.RunE(cmd, nil)
 	if err == nil {
@@ -334,7 +335,7 @@ func TestPlugin_RunCheck_NoModules(t *testing.T) {
 
 	cmds := p.Commands()
 	cmd := cmds[0]
-	cmd.SetContext(plugin.WithContext(context.Background(), appCtx))
+	cmd.SetContext(plugintest.BindCommandPlugin(context.Background(), t, appCtx, pluginName, p))
 
 	err := cmd.RunE(cmd, nil)
 	if err == nil {
@@ -358,7 +359,7 @@ func TestPlugin_RunCheck_InvalidOptions(t *testing.T) {
 
 	cmds := p.Commands()
 	cmd := cmds[0]
-	cmd.SetContext(plugin.WithContext(context.Background(), appCtx))
+	cmd.SetContext(plugintest.BindCommandPlugin(context.Background(), t, appCtx, pluginName, p))
 
 	err := cmd.RunE(cmd, nil)
 	if err == nil {
@@ -400,7 +401,7 @@ terraform {
 	appCtx := newTestCommandAppContext(t, workDir, p)
 	cmds := p.Commands()
 	cmd := cmds[0]
-	cmd.SetContext(plugin.WithContext(context.Background(), appCtx))
+	cmd.SetContext(plugintest.BindCommandPlugin(context.Background(), t, appCtx, pluginName, p))
 
 	err := cmd.RunE(cmd, nil)
 	if err != nil {
@@ -453,14 +454,13 @@ terraform {
 		Version:    base.Version(),
 		Reports:    base.Reports(),
 		Resolver: commandTestResolver{
-			plugin:   p,
 			backends: newTestBackendRegistry(t),
 		},
 	})
 
 	cmds := p.Commands()
 	cmd := cmds[0]
-	cmd.SetContext(plugin.WithContext(context.Background(), appCtx))
+	cmd.SetContext(plugintest.BindCommandPlugin(context.Background(), t, appCtx, pluginName, p))
 
 	err := cmd.RunE(cmd, nil)
 	if err != nil {
@@ -498,7 +498,7 @@ terraform {
 	appCtx := newTestCommandAppContext(t, workDir, p)
 	cmds := p.Commands()
 	cmd := cmds[0]
-	cmd.SetContext(plugin.WithContext(context.Background(), appCtx))
+	cmd.SetContext(plugintest.BindCommandPlugin(context.Background(), t, appCtx, pluginName, p))
 
 	// Set flag overrides
 	cmd.Flags().Set("target", "providers")
@@ -530,14 +530,13 @@ func TestPlugin_RunCheck_DiscoverError(t *testing.T) {
 		Version:    base.Version(),
 		Reports:    base.Reports(),
 		Resolver: commandTestResolver{
-			plugin:   p,
 			backends: newTestBackendRegistry(t),
 		},
 	})
 
 	cmds := p.Commands()
 	cmd := cmds[0]
-	cmd.SetContext(plugin.WithContext(context.Background(), appCtx))
+	cmd.SetContext(plugintest.BindCommandPlugin(context.Background(), t, appCtx, pluginName, p))
 
 	err := cmd.RunE(cmd, nil)
 	if err == nil {
@@ -579,7 +578,7 @@ terraform {
 	appCtx := newTestCommandAppContext(t, workDir, p)
 	cmds := p.Commands()
 	cmd := cmds[0]
-	cmd.SetContext(plugin.WithContext(context.Background(), appCtx))
+	cmd.SetContext(plugintest.BindCommandPlugin(context.Background(), t, appCtx, pluginName, p))
 	cmd.Flags().Set("module", "vpc")
 
 	err := cmd.RunE(cmd, nil)

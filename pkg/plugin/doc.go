@@ -6,7 +6,7 @@
 //
 //   - pkg/plugin           — core interfaces, BasePlugin[C], AppContext, EnablePolicy
 //   - pkg/plugin/cliout    — public command output helpers (Format, ParseFormat, WriteJSON)
-//   - pkg/plugin/registry  — factory catalog, command lookup, resolver, and lifecycle facades
+//   - pkg/plugin/registry  — factory catalog, command binding lookup, resolver, and lifecycle facades
 //   - pkg/plugin/initwiz   — init wizard types (StateMap, StateKey, InitContributor, InitGroup)
 //
 // Plugin-author contract tests live in pkg/plugin/plugintest. Helpers shared
@@ -62,18 +62,20 @@
 //	│             │  heavy state lazily for typed use-cases.
 //	└─────────────┘
 //
-// AppContext is constructed once per command run by the CLI runflow and
-// attached to cmd.Context() so plugin RunE callbacks can retrieve it through
-// CommandPlugin[T]. It is immutable — plugins receive a snapshot of Config /
-// WorkDir / ServiceDir / narrow resolver accessors / pipeline contributions
-// that do not change for the duration of the command.
+// AppContext is constructed once per command run by the CLI runflow. The
+// framework binds it to cobra through a CommandBinding so plugin RunE
+// callbacks can retrieve it through CommandPlugin[T]. AppContext itself is
+// runtime context only — it does not carry command lookup. It is immutable:
+// plugins receive a snapshot of Config / WorkDir / ServiceDir / narrow
+// resolver accessors / pipeline contributions that do not change for the
+// duration of the command.
 //
 // # Command boundary
 //
 // Command setup is framework-owned: cobra flags feed the CLI runflow, which
 // loads config, decodes plugin config, runs preflight, collects contributions,
-// and binds AppContext. Plugin command handlers should stay thin: resolve the
-// command-scoped plugin with CommandPlugin[T], call RequireEnabled for
+// and binds a CommandBinding. Plugin command handlers should stay thin:
+// resolve the command-scoped plugin with CommandPlugin[T], call RequireEnabled for
 // ConfigLoader-backed plugins, parse cobra flags into a typed request, then
 // hand the request to the plugin use-case. CommandPlugin and RequireEnabled
 // return typed errors (CommandBindingError and DisabledPluginError) so tests

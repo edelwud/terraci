@@ -169,23 +169,7 @@ func newTestBackendRegistry(t *testing.T, factories ...registry.Factory) *regist
 
 type commandTestResolver struct {
 	plugin.NoopResolver
-	plugin   plugin.Plugin
 	backends *registry.Registry
-}
-
-func (r commandTestResolver) All() []plugin.Plugin {
-	all := r.backends.All()
-	if r.plugin != nil {
-		return append([]plugin.Plugin{r.plugin}, all...)
-	}
-	return all
-}
-
-func (r commandTestResolver) GetPlugin(name string) (plugin.Plugin, bool) {
-	if r.plugin != nil && r.plugin.Name() == name {
-		return r.plugin, true
-	}
-	return r.backends.GetPlugin(name)
 }
 
 func (r commandTestResolver) ResolveKVCacheProvider(name string, configPathHint ...string) (plugin.KVCacheProvider, error) {
@@ -202,10 +186,9 @@ func newTestAppContext(t *testing.T, workDir string) *plugin.AppContext {
 	return plugintest.NewAppContextWithResolver(t, workDir, newTestBackendRegistry(t))
 }
 
-func newTestCommandAppContext(t *testing.T, workDir string, p *Plugin) *plugin.AppContext {
+func newTestCommandAppContext(t *testing.T, workDir string, _ *Plugin) *plugin.AppContext {
 	t.Helper()
 	return plugintest.NewAppContextWithResolver(t, workDir, commandTestResolver{
-		plugin:   p,
 		backends: newTestBackendRegistry(t),
 	})
 }

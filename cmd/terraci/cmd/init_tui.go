@@ -9,7 +9,6 @@ import (
 	"go.yaml.in/yaml/v4"
 
 	"github.com/edelwud/terraci/cmd/terraci/internal/initflow"
-	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/plugin/initwiz"
 )
 
@@ -52,7 +51,7 @@ type initModel struct {
 	form        *huh.Form
 	width       int
 	height      int
-	result      *config.Config
+	result      *initflow.BuildResult
 	err         error
 	state       *initwiz.StateMap
 	flow        *initflow.Flow
@@ -183,7 +182,7 @@ func (m *initModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var result *initflow.BuildResult
 		result, m.err = m.build(m.state)
 		if result != nil {
-			m.result = result.Config
+			m.result = result
 		}
 		return m, tea.Quit
 	}

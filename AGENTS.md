@@ -75,12 +75,12 @@ pkg/                            # Public API — importable by external plugins 
 │   ├── base.go                 # BasePlugin[C] generic embedding
 │   ├── enable.go               # EnablePolicy enum
 │   ├── context.go              # AppContext + AppContextOptions constructor
-│   ├── command_binding.go      # CommandPlugin[T], AppContextFromCommand, RequireEnabled + typed command errors
+│   ├── command_binding.go      # CommandBinding, CommandPlugin[T], RequireEnabled + typed command errors
 │   ├── cliout/                 # Public plugin command output helpers (Format, ParseFormat, WriteJSON)
 │   ├── resolver.go             # Narrow resolver interfaces + aggregate implementation contract
 │   ├── noop_resolver.go        # default no-op resolver behavior
 │   ├── registry/               # Plugin factory catalog + per-command Registry
-│   │   ├── registry.go         # RegisterFactory(), New(), Catalog, Registry + command lookup
+│   │   ├── registry.go         # RegisterFactory(), New(), Catalog, Registry + command binding lookup
 │   │   ├── lifecycle.go        # Registry lifecycle facades/snapshots for commands, config, schema, version, init
 │   │   └── resolve.go          # Registry.ResolveCIProvider/ResolveChangeDetector/Resolve*Provider/CollectContributions
 │   ├── initwiz/                # Init wizard state + types
@@ -241,7 +241,7 @@ Each feature/plugin follows one-file-per-capability where it applies, with runti
 1. Register    — init() calls registry.RegisterFactory() with a Plugin factory
 2. Configure   — framework passes config.ExtensionDocument to ConfigLoader.DecodeAndSet()
 3. Preflight   — Preflightable.Preflight() performs cheap validation/env detection
-4. Bind        — runflow builds immutable AppContext/Prepared and attaches it to command context
+4. Bind        — runflow builds immutable AppContext/Prepared plus plugin.CommandBinding and attaches them to command context
 5. Execute     — Commands parse flags into typed requests; use-cases lazily build plugin-local typed runtimes as needed
 ```
 
@@ -283,7 +283,7 @@ explicit compatibility adapters that need an isolated mutable config.
 
 ### Command Boundary
 
-Command handlers should stay as a thin boundary: resolve `appCtx` and the command-scoped plugin with `plugin.CommandPlugin[T]`, gate configured plugins with `plugin.RequireEnabled`, parse cobra flags into a typed request, then call a usecase method. The canonical shape is:
+Command handlers should stay as a thin boundary: resolve `appCtx` and the command-scoped plugin with `plugin.CommandPlugin[T]`, gate configured plugins with `plugin.RequireEnabled`, parse cobra flags into a typed request, then call a usecase method. `runflow.Prepared` owns the framework command binding; `AppContext` is runtime context only and does not carry command lookup. The canonical shape is:
 
 ```
 cobra flags → typed Request → immutable Runtime → usecase Result → artifact persistence → output

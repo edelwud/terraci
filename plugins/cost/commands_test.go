@@ -208,17 +208,16 @@ func TestPlugin_Commands_RunE_NotConfigured(t *testing.T) {
 	p := newTestPlugin(t)
 	base := newTestAppContext(t, t.TempDir())
 	appCtx := plugin.NewAppContext(plugin.AppContextOptions{
-		Config:        base.Config().MutableCopy(),
-		WorkDir:       base.WorkDir(),
-		ServiceDir:    base.ServiceDir(),
-		Version:       base.Version(),
-		Reports:       base.Reports(),
-		CommandLookup: plugintest.StaticCommandLookup{pluginName: p},
+		Config:     base.Config().MutableCopy(),
+		WorkDir:    base.WorkDir(),
+		ServiceDir: base.ServiceDir(),
+		Version:    base.Version(),
+		Reports:    base.Reports(),
 	})
 
 	cmds := p.Commands()
 	cmd := cmds[0]
-	cmd.SetContext(plugin.WithContext(context.Background(), appCtx))
+	cmd.SetContext(plugintest.BindCommandPlugin(context.Background(), t, appCtx, pluginName, p))
 
 	err := cmd.RunE(cmd, nil)
 	if err == nil {

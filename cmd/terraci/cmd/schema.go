@@ -35,7 +35,7 @@ Examples:
 			if err != nil {
 				return err
 			}
-			schema := schemaflow.Generate(prepared.Registry())
+			schema := schemaflow.Generate(prepared)
 
 			if schemaOutputFile != "" {
 				if err := os.WriteFile(schemaOutputFile, []byte(schema), 0o600); err != nil {

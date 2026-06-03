@@ -1,8 +1,6 @@
 package plugin
 
 import (
-	"context"
-
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/pipeline"
@@ -28,7 +26,6 @@ type AppContext struct {
 	version    string
 	reports    ci.ReportStore
 	resolver   Resolver
-	commands   CommandLookup
 	contribs   []*pipeline.Contribution
 }
 
@@ -49,9 +46,6 @@ type AppContextOptions struct {
 	// when nil. Plugins should consume it through AppContext's narrow resolver
 	// accessors.
 	Resolver Resolver
-	// CommandLookup is the framework-side lookup used by CommandPlugin to
-	// bind cobra callbacks to command-scoped plugin instances.
-	CommandLookup CommandLookup
 	// PipelineContributions is a command-scoped snapshot of enabled pipeline
 	// contributions collected by the framework after config/preflight.
 	PipelineContributions []*pipeline.Contribution
@@ -71,12 +65,6 @@ func NewAppContext(opts AppContextOptions) *AppContext {
 	if resolver == nil {
 		resolver = NoopResolver{}
 	}
-	commands := opts.CommandLookup
-	if commands == nil {
-		if lookup, ok := opts.Resolver.(CommandLookup); ok {
-			commands = lookup
-		}
-	}
 	return &AppContext{
 		config:     config.NewSnapshot(opts.Config),
 		workDir:    opts.WorkDir,
@@ -84,7 +72,6 @@ func NewAppContext(opts AppContextOptions) *AppContext {
 		version:    opts.Version,
 		reports:    reports,
 		resolver:   resolver,
-		commands:   commands,
 		contribs:   cloneContributions(opts.PipelineContributions),
 	}
 }
@@ -145,29 +132,4 @@ func cloneContributions(contribs []*pipeline.Contribution) []*pipeline.Contribut
 		clone[i] = contribution.Clone()
 	}
 	return clone
-}
-
-// appContextKey is the unexported key under which AppContext is carried in
-// context.Context. Plugin command handlers should access it via CommandPlugin.
-type appContextKey struct{}
-
-// WithContext returns a child context.Context carrying appCtx. Used by the
-// framework to attach the per-run AppContext to the cobra command context
-// before RunE fires.
-func WithContext(parent context.Context, appCtx *AppContext) context.Context {
-	if parent == nil {
-		parent = context.Background()
-	}
-	return context.WithValue(parent, appContextKey{}, appCtx)
-}
-
-func fromContext(ctx context.Context) *AppContext {
-	if ctx == nil {
-		return nil
-	}
-	v, ok := ctx.Value(appContextKey{}).(*AppContext)
-	if !ok {
-		return nil
-	}
-	return v
 }

@@ -67,28 +67,23 @@ func TestBuiltInPluginContractMatrix(t *testing.T) {
 		},
 	}
 
-	for _, p := range registry.New().All() {
+	for _, p := range registry.New().Inventory().Plugins() {
 		want, ok := expected[p.Name()]
 		if !ok {
 			t.Fatalf("unexpected plugin %q in registry", p.Name())
 		}
 
-		_, hasConfigLoader := p.(plugin.ConfigLoader)
-		_, hasCommandProvider := p.(plugin.CommandProvider)
-		_, hasPreflight := p.(plugin.Preflightable)
-		_, hasPipeline := p.(plugin.PipelineContributor)
-
-		if hasConfigLoader != want.configLoader {
-			t.Errorf("%s ConfigLoader = %v, want %v", p.Name(), hasConfigLoader, want.configLoader)
+		if got := p.HasConfigLoader(); got != want.configLoader {
+			t.Errorf("%s ConfigLoader = %v, want %v", p.Name(), got, want.configLoader)
 		}
-		if hasCommandProvider != want.command {
-			t.Errorf("%s CommandProvider = %v, want %v", p.Name(), hasCommandProvider, want.command)
+		if got := p.HasCommandProvider(); got != want.command {
+			t.Errorf("%s CommandProvider = %v, want %v", p.Name(), got, want.command)
 		}
-		if hasPreflight != want.preflight {
-			t.Errorf("%s Preflightable = %v, want %v", p.Name(), hasPreflight, want.preflight)
+		if got := p.HasPreflight(); got != want.preflight {
+			t.Errorf("%s Preflightable = %v, want %v", p.Name(), got, want.preflight)
 		}
-		if hasPipeline != want.pipeline {
-			t.Errorf("%s PipelineContributor = %v, want %v", p.Name(), hasPipeline, want.pipeline)
+		if got := p.HasPipelineContributor(); got != want.pipeline {
+			t.Errorf("%s PipelineContributor = %v, want %v", p.Name(), got, want.pipeline)
 		}
 	}
 }

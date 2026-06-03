@@ -1,21 +1,15 @@
 package cmd
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
-	"github.com/edelwud/terraci/pkg/plugin/registry"
 )
 
 func TestLogGenerateHint_GitHubConfig(t *testing.T) {
-	cfg := loadInitTestConfig(t, "extensions:\n  github: {}\n")
-
 	output := plugintest.CaptureLogOutput(t, func() {
-		logGenerateHint(registry.New(), cfg)
+		logGenerateHint("terraci generate -o .github/workflows/terraform.yml")
 	})
 
 	if !strings.Contains(output, ".github/workflows/terraform.yml") {
@@ -24,30 +18,11 @@ func TestLogGenerateHint_GitHubConfig(t *testing.T) {
 }
 
 func TestLogGenerateHint_GitLabConfig(t *testing.T) {
-	cfg := loadInitTestConfig(t, "extensions:\n  gitlab: {}\n")
-
 	output := plugintest.CaptureLogOutput(t, func() {
-		logGenerateHint(registry.New(), cfg)
+		logGenerateHint("terraci generate -o .gitlab-ci.yml")
 	})
 
 	if !strings.Contains(output, ".gitlab-ci.yml") {
 		t.Fatalf("output = %q, want GitLab pipeline hint", output)
 	}
-}
-
-func loadInitTestConfig(t *testing.T, pluginConfigYAML string) *config.Config {
-	t.Helper()
-
-	dir := t.TempDir()
-	path := filepath.Join(dir, ".terraci.yaml")
-	content := "structure:\n  pattern: \"{service}/{environment}/{region}/{module}\"\n" + pluginConfigYAML
-	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-		t.Fatalf("write config: %v", err)
-	}
-
-	cfg, err := config.Load(path)
-	if err != nil {
-		t.Fatalf("load config: %v", err)
-	}
-	return cfg
 }

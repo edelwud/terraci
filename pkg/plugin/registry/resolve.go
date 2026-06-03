@@ -54,7 +54,7 @@ func resolveNamedBackend[T plugin.Plugin](r *Registry, name, kind, hint string) 
 		return resolveSingle(activeByCapability[T](r), kind, hint)
 	}
 
-	resolved, ok := r.GetPlugin(name)
+	resolved, ok := r.pluginByName(name)
 	if !ok {
 		return zero, fmt.Errorf("%s %q not found", kind, name)
 	}

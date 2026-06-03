@@ -22,7 +22,7 @@ func newVersionCmd(app *App) *cobra.Command {
 				Version: app.Version,
 				Commit:  app.Commit,
 				Date:    app.Date,
-			}, prepared.Registry()))
+			}, prepared))
 		},
 	}
 	runflow.MarkCommand(cmd, runflow.CommandPolicy{SkipConfig: true})
