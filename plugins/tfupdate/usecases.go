@@ -152,8 +152,7 @@ func emitUpdateArtifacts(ctx context.Context, appCtx *plugin.AppContext, result 
 
 	publication, err := ci.NewArtifactPublication(ci.ArtifactPublicationOptions{
 		Producer: pluginName,
-		Writer:   appCtx.Reports(),
-		Results:  result,
+		Results:  ci.RawResults(result),
 		BuildReport: func() (*ci.Report, error) {
 			run, err := plugin.NewArtifactRun(appCtx, plugin.ArtifactRunOptions{Producer: pluginName})
 			if err != nil {
@@ -166,7 +165,7 @@ func emitUpdateArtifacts(ctx context.Context, appCtx *plugin.AppContext, result 
 		log.WithError(err).Warn("failed to persist tfupdate artifacts")
 		return
 	}
-	if saveErr := ci.PublishArtifacts(ctx, publication); saveErr != nil {
+	if saveErr := appCtx.Reports().PublishArtifacts(ctx, publication); saveErr != nil {
 		log.WithError(saveErr).Warn("failed to persist tfupdate artifacts")
 	}
 }

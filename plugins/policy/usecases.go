@@ -56,8 +56,7 @@ func persistPolicyArtifacts(ctx context.Context, appCtx *plugin.AppContext, summ
 
 	publication, err := ci.NewArtifactPublication(ci.ArtifactPublicationOptions{
 		Producer: pluginName,
-		Writer:   appCtx.Reports(),
-		Results:  summary,
+		Results:  ci.RawResults(summary),
 		BuildReport: func() (*ci.Report, error) {
 			run, err := plugin.NewArtifactRun(appCtx, plugin.ArtifactRunOptions{
 				Producer:   pluginName,
@@ -73,7 +72,7 @@ func persistPolicyArtifacts(ctx context.Context, appCtx *plugin.AppContext, summ
 		log.WithError(err).Warn("failed to persist policy artifacts")
 		return
 	}
-	if saveErr := ci.PublishArtifacts(ctx, publication); saveErr != nil {
+	if saveErr := appCtx.Reports().PublishArtifacts(ctx, publication); saveErr != nil {
 		log.WithError(saveErr).Warn("failed to persist policy artifacts")
 	}
 }

@@ -63,5 +63,5 @@ func artifactRunCollectionMetadata(collection *ci.PlanResultCollection) (commitS
 	if collection == nil {
 		return "", ""
 	}
-	return collection.CommitSHA, collection.PipelineID
+	return collection.CommitSHA(), collection.PipelineID()
 }

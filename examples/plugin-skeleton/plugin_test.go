@@ -85,7 +85,11 @@ func TestRun_ProducerPublishesArtifactsAndOutput(t *testing.T) {
 		t.Fatal("Run(producer).Producer = nil")
 	}
 
-	report, ok := store.Get(pluginName)
+	reports, err := store.LoadReports(context.Background())
+	if err != nil {
+		t.Fatalf("LoadReports() error = %v", err)
+	}
+	report, ok := reports.Find(pluginName)
 	if !ok {
 		t.Fatal("report was not published")
 	}
@@ -105,7 +109,7 @@ func TestRun_ProducerPublishesArtifactsAndOutput(t *testing.T) {
 
 func TestRun_ConsumerReadsReportContract(t *testing.T) {
 	store := ci.NewMemoryReportStore()
-	store.Publish(citest.MustRenderedReport(ci.RenderedReportOptions{
+	citest.PublishReport(t, store, citest.MustRenderedReport(ci.RenderedReportOptions{
 		Producer: "cost",
 		Title:    "Cost",
 		Status:   ci.ReportStatusWarn,

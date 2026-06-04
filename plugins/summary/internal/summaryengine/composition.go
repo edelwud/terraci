@@ -12,7 +12,7 @@ func composeSummaryBody(runtime Runtime, collection *ci.PlanResultCollection, pl
 		reports,
 		provider.CommitSHA(),
 		provider.PipelineID(),
-		collection.GeneratedAt,
+		collection.GeneratedAt(),
 		runtime.Config.IncludeDetailsEnabled(),
 	)
 	if err != nil {

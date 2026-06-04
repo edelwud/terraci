@@ -12,23 +12,14 @@ import (
 	"sync"
 )
 
-// ReportPublisher publishes renderer-ready producer reports.
-type ReportPublisher interface {
-	Publish(report *Report)
-	SaveReport(ctx context.Context, report *Report) error
+// ReportLoader loads reports from the current process and/or service dir.
+type ReportLoader interface {
+	LoadReports(ctx context.Context) (ReportCollection, error)
 }
 
-// ReportReader loads reports from the current process and/or service dir.
-type ReportReader interface {
-	Get(producer string) (*Report, bool)
-	All() []*Report
-	LoadReports(ctx context.Context) ([]*Report, error)
-}
-
-// ArtifactWriter persists producer result/report artifacts.
-type ArtifactWriter interface {
-	SaveResults(ctx context.Context, producer string, results any) error
-	ReplaceResultsAndReport(ctx context.Context, producer string, results any, report *Report) error
+// ArtifactPublisher publishes producer result/report artifacts.
+type ArtifactPublisher interface {
+	PublishArtifacts(ctx context.Context, publication ArtifactPublication) error
 }
 
 // ReportStore is the canonical producer/consumer boundary for CI reports.
@@ -36,9 +27,8 @@ type ArtifactWriter interface {
 // artifacts using the canonical {producer}-report.json / {producer}-results.json
 // filenames.
 type ReportStore interface {
-	ReportPublisher
-	ReportReader
-	ArtifactWriter
+	ReportLoader
+	ArtifactPublisher
 }
 
 // NewMemoryReportStore creates an in-process report store.
@@ -64,7 +54,7 @@ func newMemoryReportStore() *memoryReportStore {
 	return &memoryReportStore{reports: make(map[string]*Report)}
 }
 
-func (s *memoryReportStore) Publish(report *Report) {
+func (s *memoryReportStore) publish(report *Report) {
 	if s == nil || report == nil {
 		return
 	}
@@ -84,21 +74,7 @@ func (s *memoryReportStore) deleteReport(producer string) {
 	delete(s.reports, producer)
 }
 
-func (s *memoryReportStore) Get(producer string) (*Report, bool) {
-	if s == nil {
-		return nil, false
-	}
-
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	report, ok := s.reports[producer]
-	if !ok {
-		return nil, false
-	}
-	return report.Clone(), true
-}
-
-func (s *memoryReportStore) All() []*Report {
+func (s *memoryReportStore) all() []*Report {
 	if s == nil {
 		return nil
 	}
@@ -115,27 +91,27 @@ func (s *memoryReportStore) All() []*Report {
 	return reports
 }
 
-func (s *memoryReportStore) SaveReport(ctx context.Context, report *Report) error {
+func (s *memoryReportStore) saveReport(ctx context.Context, report *Report) error {
 	if err := contextError(ctx); err != nil {
 		return err
 	}
 	if err := report.Validate(); err != nil {
 		return fmt.Errorf("validate report: %w", err)
 	}
-	s.Publish(report)
+	s.publish(report)
 	return nil
 }
 
-func (s *memoryReportStore) SaveResults(ctx context.Context, producer string, _ any) error {
+func (s *memoryReportStore) saveResults(ctx context.Context, producer string, _ any) error {
 	if err := contextError(ctx); err != nil {
 		return err
 	}
 	return validateArtifactProducer(producer)
 }
 
-func (s *memoryReportStore) ReplaceResultsAndReport(ctx context.Context, producer string, results any, report *Report) error {
+func (s *memoryReportStore) replaceResultsAndReport(ctx context.Context, producer string, results any, report *Report) error {
 	var errs []error
-	if err := s.SaveResults(ctx, producer, results); err != nil {
+	if err := s.saveResults(ctx, producer, results); err != nil {
 		errs = append(errs, fmt.Errorf("save results: %w", err))
 	}
 	if report == nil {
@@ -144,17 +120,35 @@ func (s *memoryReportStore) ReplaceResultsAndReport(ctx context.Context, produce
 	}
 	if err := validateReportProducer(producer, report); err != nil {
 		errs = append(errs, fmt.Errorf("save report: %w", err))
-	} else if err := s.SaveReport(ctx, report); err != nil {
+	} else if err := s.saveReport(ctx, report); err != nil {
 		errs = append(errs, fmt.Errorf("save report: %w", err))
 	}
 	return errors.Join(errs...)
 }
 
-func (s *memoryReportStore) LoadReports(ctx context.Context) ([]*Report, error) {
+func (s *memoryReportStore) replaceReport(ctx context.Context, producer string, report *Report) error {
 	if err := contextError(ctx); err != nil {
-		return nil, err
+		return err
 	}
-	return s.All(), nil
+	if report == nil {
+		s.deleteReport(producer)
+		return nil
+	}
+	if err := validateReportProducer(producer, report); err != nil {
+		return err
+	}
+	return s.saveReport(ctx, report)
+}
+
+func (s *memoryReportStore) LoadReports(ctx context.Context) (ReportCollection, error) {
+	if err := contextError(ctx); err != nil {
+		return ReportCollection{}, err
+	}
+	return NewReportCollection(s.all()...), nil
+}
+
+func (s *memoryReportStore) PublishArtifacts(ctx context.Context, publication ArtifactPublication) error {
+	return publishToStore(ctx, publication, s)
 }
 
 type fileReportStore struct {
@@ -162,8 +156,8 @@ type fileReportStore struct {
 	memory     *memoryReportStore
 }
 
-func (s *fileReportStore) Publish(report *Report) {
-	s.memory.Publish(report)
+func (s *fileReportStore) publish(report *Report) {
+	s.memory.publish(report)
 }
 
 func (s *fileReportStore) deleteReport(ctx context.Context, producer string) error {
@@ -184,15 +178,7 @@ func (s *fileReportStore) deleteReport(ctx context.Context, producer string) err
 	return fmt.Errorf("delete report: %w", err)
 }
 
-func (s *fileReportStore) Get(producer string) (*Report, bool) {
-	return s.memory.Get(producer)
-}
-
-func (s *fileReportStore) All() []*Report {
-	return s.memory.All()
-}
-
-func (s *fileReportStore) SaveReport(ctx context.Context, report *Report) error {
+func (s *fileReportStore) saveReport(ctx context.Context, report *Report) error {
 	if err := contextError(ctx); err != nil {
 		return err
 	}
@@ -200,17 +186,17 @@ func (s *fileReportStore) SaveReport(ctx context.Context, report *Report) error 
 		return fmt.Errorf("validate report: %w", err)
 	}
 	if s.serviceDir == "" {
-		s.Publish(report)
+		s.publish(report)
 		return nil
 	}
 	if err := saveJSON(ctx, s.serviceDir, ReportFilename(report.Producer()), report); err != nil {
 		return err
 	}
-	s.Publish(report)
+	s.publish(report)
 	return nil
 }
 
-func (s *fileReportStore) SaveResults(ctx context.Context, producer string, results any) error {
+func (s *fileReportStore) saveResults(ctx context.Context, producer string, results any) error {
 	if err := contextError(ctx); err != nil {
 		return err
 	}
@@ -223,9 +209,9 @@ func (s *fileReportStore) SaveResults(ctx context.Context, producer string, resu
 	return saveJSON(ctx, s.serviceDir, ResultFilename(producer), results)
 }
 
-func (s *fileReportStore) ReplaceResultsAndReport(ctx context.Context, producer string, results any, report *Report) error {
+func (s *fileReportStore) replaceResultsAndReport(ctx context.Context, producer string, results any, report *Report) error {
 	var errs []error
-	if err := s.SaveResults(ctx, producer, results); err != nil {
+	if err := s.saveResults(ctx, producer, results); err != nil {
 		errs = append(errs, fmt.Errorf("save results: %w", err))
 	}
 	if report == nil {
@@ -236,33 +222,43 @@ func (s *fileReportStore) ReplaceResultsAndReport(ctx context.Context, producer 
 	}
 	if err := validateReportProducer(producer, report); err != nil {
 		errs = append(errs, fmt.Errorf("save report: %w", err))
-	} else if err := s.SaveReport(ctx, report); err != nil {
+	} else if err := s.saveReport(ctx, report); err != nil {
 		errs = append(errs, fmt.Errorf("save report: %w", err))
 	}
 	return errors.Join(errs...)
 }
 
-func (s *fileReportStore) LoadReports(ctx context.Context) ([]*Report, error) {
+func (s *fileReportStore) replaceReport(ctx context.Context, producer string, report *Report) error {
+	if report == nil {
+		return s.deleteReport(ctx, producer)
+	}
+	if err := validateReportProducer(producer, report); err != nil {
+		return err
+	}
+	return s.saveReport(ctx, report)
+}
+
+func (s *fileReportStore) LoadReports(ctx context.Context) (ReportCollection, error) {
 	if err := contextError(ctx); err != nil {
-		return nil, err
+		return ReportCollection{}, err
 	}
 
 	byProducer := make(map[string]*Report)
 	if s.serviceDir != "" {
 		files, err := reportFiles(s.serviceDir)
 		if err != nil {
-			return nil, err
+			return ReportCollection{}, err
 		}
 		for _, file := range files {
 			report, err := loadReport(ctx, file)
 			if err != nil {
-				return nil, fmt.Errorf("load report %s: %w", filepath.Base(file), err)
+				return ReportCollection{}, fmt.Errorf("load report %s: %w", filepath.Base(file), err)
 			}
 			byProducer[report.Producer()] = report
 		}
 	}
 
-	for _, report := range s.memory.All() {
+	for _, report := range s.memory.all() {
 		byProducer[report.Producer()] = report
 	}
 
@@ -276,7 +272,11 @@ func (s *fileReportStore) LoadReports(ctx context.Context) ([]*Report, error) {
 	for _, producer := range producers {
 		reports = append(reports, byProducer[producer].Clone())
 	}
-	return reports, nil
+	return NewReportCollection(reports...), nil
+}
+
+func (s *fileReportStore) PublishArtifacts(ctx context.Context, publication ArtifactPublication) error {
+	return publishToStore(ctx, publication, s)
 }
 
 func reportFiles(serviceDir string) ([]string, error) {
@@ -332,4 +332,34 @@ func saveJSON(ctx context.Context, serviceDir, filename string, v any) error {
 	enc := json.NewEncoder(file)
 	enc.SetIndent("", "  ")
 	return enc.Encode(v)
+}
+
+type artifactStore interface {
+	replaceResultsAndReport(ctx context.Context, producer string, results any, report *Report) error
+	replaceReport(ctx context.Context, producer string, report *Report) error
+}
+
+func publishToStore(ctx context.Context, publication ArtifactPublication, store artifactStore) error {
+	if err := contextPublicationError(ctx, publication); err != nil {
+		return err
+	}
+	if store == nil {
+		return nil
+	}
+
+	var errs []error
+	report, err := buildPublicationReport(publication)
+	if err != nil {
+		errs = append(errs, err)
+	}
+	if results, ok := publication.results.valueToWrite(); ok {
+		if err := store.replaceResultsAndReport(ctx, publication.producer, results, report); err != nil {
+			errs = append(errs, fmt.Errorf("replace artifacts: %w", err))
+		}
+		return errors.Join(errs...)
+	}
+	if err := store.replaceReport(ctx, publication.producer, report); err != nil {
+		errs = append(errs, fmt.Errorf("replace report: %w", err))
+	}
+	return errors.Join(errs...)
 }

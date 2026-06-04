@@ -54,14 +54,14 @@ func Run(ctx context.Context, runtime Runtime, _ Request) (*Result, error) {
 	}
 
 	result := &Result{Collection: collection}
-	if collection == nil || len(collection.Results) == 0 {
+	if collection == nil || collection.Len() == 0 {
 		result.SkippedReason = "no_plan_results"
 		log.Warn("no plan results found, skipping summary")
 		return result, nil
 	}
 
-	log.WithField("count", len(collection.Results)).Info("found plan results")
-	result.Plans = append([]ci.PlanResult(nil), collection.Results...)
+	log.WithField("count", collection.Len()).Info("found plan results")
+	result.Plans = collection.Results()
 
 	selection, err := loadReportSelection(ctx, runtime, collection)
 	if err != nil {
@@ -123,7 +123,7 @@ func resolveSummaryLabels(runtime Runtime, plans []ci.PlanResult) LabelResult {
 // HasReportableChanges reports whether the run has any module or report signal worth posting.
 func HasReportableChanges(plans []ci.PlanResult, reports []*ci.Report) bool {
 	for i := range plans {
-		if plans[i].Status == ci.PlanStatusChanges || plans[i].Status == ci.PlanStatusFailed {
+		if plans[i].Status() == ci.PlanStatusChanges || plans[i].Status() == ci.PlanStatusFailed {
 			return true
 		}
 	}
@@ -133,15 +133,4 @@ func HasReportableChanges(plans []ci.PlanResult, reports []*ci.Report) bool {
 		}
 	}
 	return false
-}
-
-func filterSummaryReports(reports []*ci.Report) []*ci.Report {
-	filtered := make([]*ci.Report, 0, len(reports))
-	for _, report := range reports {
-		if report == nil || report.Producer() == ReportProducer {
-			continue
-		}
-		filtered = append(filtered, report)
-	}
-	return filtered
 }

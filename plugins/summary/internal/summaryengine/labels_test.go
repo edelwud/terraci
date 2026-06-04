@@ -30,7 +30,7 @@ func TestResolveLabels(t *testing.T) {
 		WorkDir:  workDir,
 		Segments: []string{"service", "environment", "region", "module"},
 		Plans: []ci.PlanResult{
-			{
+			testPlanResult(t, ci.PlanResultOptions{
 				ModuleID:   "svc/dev/us/vpc",
 				ModulePath: "svc/dev/us/vpc",
 				Components: map[string]string{
@@ -40,8 +40,8 @@ func TestResolveLabels(t *testing.T) {
 					"module":      "vpc",
 				},
 				Status: ci.PlanStatusChanges,
-			},
-			{
+			}),
+			testPlanResult(t, ci.PlanResultOptions{
 				ModuleID:   "svc/prod/eu/app",
 				ModulePath: "svc/prod/eu/app",
 				Components: map[string]string{
@@ -51,8 +51,8 @@ func TestResolveLabels(t *testing.T) {
 					"module":      "app",
 				},
 				Status: ci.PlanStatusNoChanges,
-			},
-			{
+			}),
+			testPlanResult(t, ci.PlanResultOptions{
 				ModuleID:   "svc/dev/us/db",
 				ModulePath: "svc/dev/us/db",
 				Components: map[string]string{
@@ -60,7 +60,7 @@ func TestResolveLabels(t *testing.T) {
 					"module":      "db",
 				},
 				Status: ci.PlanStatusFailed,
-			},
+			}),
 		},
 		Templates: []string{
 			"terraform",
@@ -102,7 +102,7 @@ func TestResolveLabels(t *testing.T) {
 func TestResolveLabels_FallsBackToSegmentsForMissingComponents(t *testing.T) {
 	result := ResolveLabels(LabelRequest{
 		Segments:  []string{"service", "environment", "region", "module"},
-		Plans:     []ci.PlanResult{{ModuleID: "svc/dev/us/vpc", ModulePath: "svc/dev/us/vpc", Status: ci.PlanStatusChanges}},
+		Plans:     []ci.PlanResult{testPlanResult(t, ci.PlanResultOptions{ModuleID: "svc/dev/us/vpc", ModulePath: "svc/dev/us/vpc", Status: ci.PlanStatusChanges})},
 		Templates: []string{"{service}:{environment}:{module}"},
 	})
 
@@ -116,7 +116,7 @@ func TestResolveLabels_ResourceParserErrorsAreWarnings(t *testing.T) {
 
 	result := ResolveLabels(LabelRequest{
 		WorkDir:   "/work",
-		Plans:     []ci.PlanResult{{ModuleID: "svc/dev/us/vpc", ModulePath: "svc/dev/us/vpc", Status: ci.PlanStatusChanges}},
+		Plans:     []ci.PlanResult{testPlanResult(t, ci.PlanResultOptions{ModuleID: "svc/dev/us/vpc", ModulePath: "svc/dev/us/vpc", Status: ci.PlanStatusChanges})},
 		Templates: []string{"resource:{resource_type}"},
 		Parser:    parser,
 	})

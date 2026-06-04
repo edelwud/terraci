@@ -8,70 +8,94 @@ import (
 	"testing"
 )
 
-func TestMemoryReportStore_PublishAndGet(t *testing.T) {
+func TestMemoryReportStore_PublishAndLoadReports(t *testing.T) {
 	store := NewMemoryReportStore()
 	report := testStoreReport("cost", "Cost", ReportStatusWarn)
 
-	store.Publish(report)
-	got, ok := store.Get("cost")
+	publishStoreReport(t, store, report)
+	collection, err := store.LoadReports(context.Background())
+	if err != nil {
+		t.Fatalf("LoadReports() error = %v", err)
+	}
+	got, ok := collection.Find("cost")
 	if !ok {
-		t.Fatal("Get(cost) ok = false, want true")
+		t.Fatal("Find(cost) ok = false, want true")
 	}
 	if got.Producer() != "cost" || got.Title() != "Cost" || got.Status() != ReportStatusWarn {
-		t.Fatalf("Get(cost) = %#v, want original report fields", got)
+		t.Fatalf("Find(cost) = %#v, want original report fields", got)
 	}
 }
 
-func TestMemoryReportStore_GetMissing(t *testing.T) {
+func TestMemoryReportStore_LoadReportsMissing(t *testing.T) {
 	store := NewMemoryReportStore()
-	if got, ok := store.Get("missing"); ok || got != nil {
-		t.Fatalf("Get(missing) = (%#v, %v), want (nil, false)", got, ok)
+	collection, err := store.LoadReports(context.Background())
+	if err != nil {
+		t.Fatalf("LoadReports() error = %v", err)
+	}
+	if got, ok := collection.Find("missing"); ok || got != nil {
+		t.Fatalf("Find(missing) = (%#v, %v), want (nil, false)", got, ok)
 	}
 }
 
 func TestMemoryReportStore_PublishOverwrite(t *testing.T) {
 	store := NewMemoryReportStore()
-	store.Publish(testStoreReport("policy", "Old", ReportStatusPass))
-	store.Publish(testStoreReport("policy", "New", ReportStatusFail))
+	publishStoreReport(t, store, testStoreReport("policy", "Old", ReportStatusPass))
+	publishStoreReport(t, store, testStoreReport("policy", "New", ReportStatusFail))
 
-	got, ok := store.Get("policy")
+	collection, err := store.LoadReports(context.Background())
+	if err != nil {
+		t.Fatalf("LoadReports() error = %v", err)
+	}
+	got, ok := collection.Find("policy")
 	if !ok {
-		t.Fatal("Get(policy) ok = false, want true")
+		t.Fatal("Find(policy) ok = false, want true")
 	}
 	if got.Title() != "New" || got.Status() != ReportStatusFail {
-		t.Fatalf("Get(policy) = %#v, want overwritten report", got)
+		t.Fatalf("Find(policy) = %#v, want overwritten report", got)
 	}
 }
 
-func TestMemoryReportStore_AllSorted(t *testing.T) {
+func TestMemoryReportStore_LoadReportsSorted(t *testing.T) {
 	store := NewMemoryReportStore()
-	store.Publish(testStoreReport("tfupdate", "TF Update", ReportStatusPass))
-	store.Publish(testStoreReport("cost", "Cost", ReportStatusWarn))
+	publishStoreReport(t, store, testStoreReport("tfupdate", "TF Update", ReportStatusPass))
+	publishStoreReport(t, store, testStoreReport("cost", "Cost", ReportStatusWarn))
 
-	reports := store.All()
+	collection, err := store.LoadReports(context.Background())
+	if err != nil {
+		t.Fatalf("LoadReports() error = %v", err)
+	}
+	reports := collection.Reports()
 	if len(reports) != 2 {
-		t.Fatalf("All() len = %d, want 2", len(reports))
+		t.Fatalf("Reports() len = %d, want 2", len(reports))
 	}
 	if reports[0].Producer() != "cost" || reports[1].Producer() != "tfupdate" {
-		t.Fatalf("All() order = [%s %s], want [cost tfupdate]", reports[0].Producer(), reports[1].Producer())
+		t.Fatalf("Reports() order = [%s %s], want [cost tfupdate]", reports[0].Producer(), reports[1].Producer())
 	}
 }
 
 func TestMemoryReportStore_DefensiveCopies(t *testing.T) {
 	store := NewMemoryReportStore()
 	original := testStoreReport("cost", "Cost", ReportStatusPass)
-	store.Publish(original)
+	publishStoreReport(t, store, original)
 
 	original.title = "mutated original"
-	got, ok := store.Get("cost")
+	first, err := store.LoadReports(context.Background())
+	if err != nil {
+		t.Fatalf("LoadReports() error = %v", err)
+	}
+	got, ok := first.Find("cost")
 	if !ok {
-		t.Fatal("Get(cost) ok = false, want true")
+		t.Fatal("Find(cost) ok = false, want true")
 	}
 	got.title = "mutated returned"
 
-	again, ok := store.Get("cost")
+	second, err := store.LoadReports(context.Background())
+	if err != nil {
+		t.Fatalf("LoadReports(second) error = %v", err)
+	}
+	again, ok := second.Find("cost")
 	if !ok {
-		t.Fatal("Get(cost) second ok = false, want true")
+		t.Fatal("Find(cost) second ok = false, want true")
 	}
 	if again.Title() != "Cost" {
 		t.Fatalf("stored report title = %q, want Cost", again.Title())
@@ -81,15 +105,14 @@ func TestMemoryReportStore_DefensiveCopies(t *testing.T) {
 func TestFileReportStore_LoadReportsMergesMemoryOverlay(t *testing.T) {
 	ctx := context.Background()
 	store := NewFileReportStore(t.TempDir())
-	if err := store.SaveReport(ctx, testStoreReport("cost", "Cost", ReportStatusPass)); err != nil {
-		t.Fatalf("SaveReport(cost): %v", err)
-	}
-	store.Publish(testStoreReport("policy", "Policy", ReportStatusWarn))
+	publishStoreReport(t, store, testStoreReport("cost", "Cost", ReportStatusPass))
+	publishStoreReport(t, store, testStoreReport("policy", "Policy", ReportStatusWarn))
 
-	reports, err := store.LoadReports(ctx)
+	collection, err := store.LoadReports(ctx)
 	if err != nil {
 		t.Fatalf("LoadReports: %v", err)
 	}
+	reports := collection.Reports()
 	if len(reports) != 2 {
 		t.Fatalf("LoadReports() len = %d, want 2", len(reports))
 	}
@@ -98,44 +121,49 @@ func TestFileReportStore_LoadReportsMergesMemoryOverlay(t *testing.T) {
 	}
 }
 
-func TestFileReportStore_ReplaceResultsAndReportAttemptsBothWrites(t *testing.T) {
+func TestFileReportStore_PublishArtifactsAttemptsBothWrites(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
 	store := NewFileReportStore(dir)
 	report := &Report{producer: "cost", status: ReportStatusPass}
 
-	err := store.ReplaceResultsAndReport(ctx, "cost", map[string]string{"ok": "true"}, report)
+	publication, err := NewArtifactPublication(ArtifactPublicationOptions{
+		Producer: "cost",
+		Results:  RawResults(map[string]string{"ok": "true"}),
+		BuildReport: func() (*Report, error) {
+			return report, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewArtifactPublication() error = %v", err)
+	}
+	err = store.PublishArtifacts(ctx, publication)
 	if err == nil {
-		t.Fatal("ReplaceResultsAndReport() error = nil, want invalid report error")
+		t.Fatal("PublishArtifacts() error = nil, want invalid report error")
 	}
 	if !strings.Contains(err.Error(), "title is required") {
-		t.Fatalf("ReplaceResultsAndReport() error = %q, want report validation error", err.Error())
+		t.Fatalf("PublishArtifacts() error = %q, want report validation error", err.Error())
 	}
 	if _, statErr := os.Stat(filepath.Join(dir, ResultFilename("cost"))); statErr != nil {
 		t.Fatalf("results file was not written: %v", statErr)
 	}
 }
 
-func TestFileReportStore_ReplaceResultsAndReportOverwritesReport(t *testing.T) {
+func TestFileReportStore_PublishArtifactsOverwritesReport(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
 	store := NewFileReportStore(dir)
 
-	oldReport := testStoreReport("cost", "Old", ReportStatusPass)
-	newReport := testStoreReport("cost", "New", ReportStatusWarn)
-	if err := store.ReplaceResultsAndReport(ctx, "cost", map[string]string{"version": "old"}, oldReport); err != nil {
-		t.Fatalf("ReplaceResultsAndReport(old) error = %v", err)
-	}
-	if err := store.ReplaceResultsAndReport(ctx, "cost", map[string]string{"version": "new"}, newReport); err != nil {
-		t.Fatalf("ReplaceResultsAndReport(new) error = %v", err)
-	}
+	publishStoreArtifacts(t, store, "cost", map[string]string{"version": "old"}, testStoreReport("cost", "Old", ReportStatusPass))
+	publishStoreArtifacts(t, store, "cost", map[string]string{"version": "new"}, testStoreReport("cost", "New", ReportStatusWarn))
 
-	reports, err := store.LoadReports(ctx)
+	collection, err := store.LoadReports(ctx)
 	if err != nil {
 		t.Fatalf("LoadReports() error = %v", err)
 	}
-	if len(reports) != 1 || reports[0].Title() != "New" || reports[0].Status() != ReportStatusWarn {
-		t.Fatalf("reports = %#v, want overwritten report", reports)
+	report, ok := collection.Find("cost")
+	if !ok || report.Title() != "New" || report.Status() != ReportStatusWarn {
+		t.Fatalf("report = %#v, want overwritten report", report)
 	}
 	data, err := os.ReadFile(filepath.Join(dir, ResultFilename("cost")))
 	if err != nil {
@@ -146,35 +174,56 @@ func TestFileReportStore_ReplaceResultsAndReportOverwritesReport(t *testing.T) {
 	}
 }
 
-func TestFileReportStore_ReplaceResultsAndReportDeletesStaleReport(t *testing.T) {
+func TestFileReportStore_PublishArtifactsDeletesStaleReport(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
 	store := NewFileReportStore(dir)
-	report := testStoreReport("cost", "Cost", ReportStatusPass)
 
-	if err := store.SaveReport(ctx, report); err != nil {
-		t.Fatalf("SaveReport() error = %v", err)
-	}
-	if err := store.ReplaceResultsAndReport(ctx, "cost", map[string]string{"ok": "true"}, nil); err != nil {
-		t.Fatalf("ReplaceResultsAndReport(nil report) error = %v", err)
-	}
+	publishStoreReport(t, store, testStoreReport("cost", "Cost", ReportStatusPass))
+	publishStoreArtifacts(t, store, "cost", map[string]string{"ok": "true"}, nil)
 	if _, err := os.Stat(filepath.Join(dir, ReportFilename("cost"))); !os.IsNotExist(err) {
 		t.Fatalf("report file exists after nil replacement: %v", err)
 	}
-	if _, ok := store.Get("cost"); ok {
-		t.Fatal("Get(cost) ok = true after nil replacement, want false")
+	collection, err := store.LoadReports(ctx)
+	if err != nil {
+		t.Fatalf("LoadReports() error = %v", err)
 	}
+	if _, ok := collection.Find("cost"); ok {
+		t.Fatal("Find(cost) ok = true after nil replacement, want false")
+	}
+}
+
+func TestFileReportStore_PublishArtifactsMissingReportDeleteIsNoop(t *testing.T) {
+	store := NewFileReportStore(t.TempDir())
+	publishStoreArtifacts(t, store, "cost", map[string]string{"ok": "true"}, nil)
 }
 
 func testStoreReport(producer, title string, status ReportStatus) *Report {
 	return &Report{producer: producer, title: title, status: status}
 }
 
-func TestFileReportStore_ReplaceResultsAndReportMissingReportDeleteIsNoop(t *testing.T) {
-	ctx := context.Background()
-	store := NewFileReportStore(t.TempDir())
+func publishStoreReport(tb testing.TB, store ArtifactPublisher, report *Report) {
+	tb.Helper()
+	publishStoreArtifacts(tb, store, report.Producer(), NoResults(), report)
+}
 
-	if err := store.ReplaceResultsAndReport(ctx, "cost", map[string]string{"ok": "true"}, nil); err != nil {
-		t.Fatalf("ReplaceResultsAndReport(nil report) error = %v", err)
+func publishStoreArtifacts(tb testing.TB, store ArtifactPublisher, producer string, results any, report *Report) {
+	tb.Helper()
+	artifactResults, ok := results.(ArtifactResults)
+	if !ok {
+		artifactResults = RawResults(results)
+	}
+	publication, err := NewArtifactPublication(ArtifactPublicationOptions{
+		Producer: producer,
+		Results:  artifactResults,
+		BuildReport: func() (*Report, error) {
+			return report, nil
+		},
+	})
+	if err != nil {
+		tb.Fatalf("NewArtifactPublication() error = %v", err)
+	}
+	if err := store.PublishArtifacts(context.Background(), publication); err != nil {
+		tb.Fatalf("PublishArtifacts(%s) error = %v", producer, err)
 	}
 }

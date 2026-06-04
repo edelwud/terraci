@@ -3,6 +3,8 @@ package citest
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/ci"
@@ -10,55 +12,53 @@ import (
 
 const publishArtifactsResultCaseKey = "case"
 
-// RecordedResultWrite captures one SaveResults call.
-type RecordedResultWrite struct {
-	Producer string
-	Results  any
+// StaticReportLoader is a small ci.ReportLoader fake for report consumer tests.
+type StaticReportLoader struct {
+	Reports ci.ReportCollection
+	Err     error
 }
 
-// RecordedArtifactReplace captures one ReplaceResultsAndReport call.
-type RecordedArtifactReplace struct {
-	Producer string
-	Results  any
-	Report   *ci.Report
+// NewStaticReportLoader returns a deterministic report loader fake.
+func NewStaticReportLoader(reports ...*ci.Report) StaticReportLoader {
+	return StaticReportLoader{Reports: ci.NewReportCollection(reports...)}
 }
 
-// RecordingArtifactWriter is a small ci.ArtifactWriter fake for producer
-// artifact lifecycle tests.
-type RecordingArtifactWriter struct {
-	SaveResultsError error
-	ReplaceError     error
-	ResultWrites     []RecordedResultWrite
-	ReplaceWrites    []RecordedArtifactReplace
-}
-
-// SaveResults implements ci.ArtifactWriter.
-func (w *RecordingArtifactWriter) SaveResults(_ context.Context, producer string, results any) error {
-	w.ResultWrites = append(w.ResultWrites, RecordedResultWrite{
-		Producer: producer,
-		Results:  results,
-	})
-	return w.SaveResultsError
-}
-
-// ReplaceResultsAndReport implements ci.ArtifactWriter.
-func (w *RecordingArtifactWriter) ReplaceResultsAndReport(_ context.Context, producer string, results any, report *ci.Report) error {
-	var cloned *ci.Report
-	if report != nil {
-		cloned = report.Clone()
+// LoadReports implements ci.ReportLoader.
+func (l StaticReportLoader) LoadReports(context.Context) (ci.ReportCollection, error) {
+	if l.Err != nil {
+		return ci.ReportCollection{}, l.Err
 	}
-	w.ReplaceWrites = append(w.ReplaceWrites, RecordedArtifactReplace{
-		Producer: producer,
-		Results:  results,
-		Report:   cloned,
-	})
-	return w.ReplaceError
+	return ci.NewReportCollection(l.Reports.Reports()...), nil
 }
 
-// AssertPublishArtifactsContract verifies the high-level ci.PublishArtifacts
-// lifecycle against a recording writer: raw results are always sent through
-// ReplaceResultsAndReport, successful reports are saved, nil/build-error
-// reports delete stale report state, errors are joined, and nil writers noop.
+// PublishReport publishes a report-only artifact through the public publisher port.
+func PublishReport(tb testing.TB, publisher ci.ArtifactPublisher, report *ci.Report) {
+	tb.Helper()
+	if publisher == nil {
+		tb.Fatal("artifact publisher is nil")
+	}
+	if report == nil {
+		tb.Fatal("report is nil")
+	}
+	publication, err := ci.NewArtifactPublication(ci.ArtifactPublicationOptions{
+		Producer: report.Producer(),
+		Results:  ci.NoResults(),
+		BuildReport: func() (*ci.Report, error) {
+			return report, nil
+		},
+	})
+	if err != nil {
+		tb.Fatalf("NewArtifactPublication() error = %v", err)
+	}
+	if err := publisher.PublishArtifacts(context.Background(), publication); err != nil {
+		tb.Fatalf("PublishArtifacts(%s) error = %v", report.Producer(), err)
+	}
+}
+
+// AssertPublishArtifactsContract verifies the high-level artifact publisher
+// lifecycle through public ports: raw result publication succeeds, successful
+// reports are visible through the loader, nil/build-error reports remove stale
+// report state, and build/write errors are joined.
 func AssertPublishArtifactsContract(tb testing.TB, producer string, report *ci.Report) {
 	tb.Helper()
 	if producer == "" {
@@ -68,106 +68,94 @@ func AssertPublishArtifactsContract(tb testing.TB, producer string, report *ci.R
 		tb.Fatal("report is nil")
 	}
 
-	successWriter := &RecordingArtifactWriter{}
-	successPublication, err := ci.NewArtifactPublication(ci.ArtifactPublicationOptions{
+	successStore := ci.NewMemoryReportStore()
+	successPublication := mustArtifactPublication(tb, ci.ArtifactPublicationOptions{
 		Producer: producer,
-		Writer:   successWriter,
-		Results:  map[string]string{publishArtifactsResultCaseKey: "success"},
+		Results:  ci.RawResults(map[string]string{publishArtifactsResultCaseKey: "success"}),
 		BuildReport: func() (*ci.Report, error) {
 			return report, nil
 		},
 	})
-	if err != nil {
-		tb.Fatalf("NewArtifactPublication(success) error = %v", err)
+	if err := successStore.PublishArtifacts(context.Background(), successPublication); err != nil {
+		tb.Fatalf("PublishArtifacts(success) error = %v", err)
 	}
-	if publishErr := ci.PublishArtifacts(context.Background(), successPublication); publishErr != nil {
-		tb.Fatalf("PublishArtifacts(success) error = %v", publishErr)
-	}
-	assertSingleReplace(tb, successWriter, producer, true)
+	assertReportPresent(tb, successStore, producer)
 
-	nilWriter := &RecordingArtifactWriter{}
-	nilPublication, err := ci.NewArtifactPublication(ci.ArtifactPublicationOptions{
+	nilStore := ci.NewMemoryReportStore()
+	PublishReport(tb, nilStore, report)
+	nilPublication := mustArtifactPublication(tb, ci.ArtifactPublicationOptions{
 		Producer: producer,
-		Writer:   nilWriter,
-		Results:  map[string]string{publishArtifactsResultCaseKey: "nil-report"},
+		Results:  ci.RawResults(map[string]string{publishArtifactsResultCaseKey: "nil-report"}),
 		BuildReport: func() (*ci.Report, error) {
 			return nil, nil
 		},
 	})
-	if err != nil {
-		tb.Fatalf("NewArtifactPublication(nil report) error = %v", err)
+	if err := nilStore.PublishArtifacts(context.Background(), nilPublication); err != nil {
+		tb.Fatalf("PublishArtifacts(nil report) error = %v", err)
 	}
-	if publishErr := ci.PublishArtifacts(context.Background(), nilPublication); publishErr != nil {
-		tb.Fatalf("PublishArtifacts(nil report) error = %v", publishErr)
-	}
-	assertSingleReplace(tb, nilWriter, producer, false)
+	assertReportMissing(tb, nilStore, producer)
 
 	buildErr := errors.New("build failed")
-	buildErrorWriter := &RecordingArtifactWriter{}
-	buildErrorPublication, err := ci.NewArtifactPublication(ci.ArtifactPublicationOptions{
+	buildErrorStore := ci.NewMemoryReportStore()
+	PublishReport(tb, buildErrorStore, report)
+	buildErrorPublication := mustArtifactPublication(tb, ci.ArtifactPublicationOptions{
 		Producer: producer,
-		Writer:   buildErrorWriter,
-		Results:  map[string]string{publishArtifactsResultCaseKey: "build-error"},
+		Results:  ci.RawResults(map[string]string{publishArtifactsResultCaseKey: "build-error"}),
 		BuildReport: func() (*ci.Report, error) {
 			return nil, buildErr
 		},
 	})
-	if err != nil {
-		tb.Fatalf("NewArtifactPublication(build error) error = %v", err)
-	}
-	err = ci.PublishArtifacts(context.Background(), buildErrorPublication)
+	err := buildErrorStore.PublishArtifacts(context.Background(), buildErrorPublication)
 	if !errors.Is(err, buildErr) {
 		tb.Fatalf("PublishArtifacts(build error) error = %v, want %v", err, buildErr)
 	}
-	assertSingleReplace(tb, buildErrorWriter, producer, false)
+	assertReportMissing(tb, buildErrorStore, producer)
 
-	writeErr := errors.New("write failed")
-	joinedWriter := &RecordingArtifactWriter{ReplaceError: writeErr}
-	joinedPublication, err := ci.NewArtifactPublication(ci.ArtifactPublicationOptions{
+	blockedDir := filepath.Join(tb.TempDir(), "blocked")
+	if writeErr := os.WriteFile(blockedDir, []byte("not a directory"), 0o600); writeErr != nil {
+		tb.Fatalf("write blocking file: %v", writeErr)
+	}
+	joinedStore := ci.NewFileReportStore(blockedDir)
+	joinedPublication := mustArtifactPublication(tb, ci.ArtifactPublicationOptions{
 		Producer: producer,
-		Writer:   joinedWriter,
-		Results:  map[string]string{publishArtifactsResultCaseKey: "joined-errors"},
+		Results:  ci.RawResults(map[string]string{publishArtifactsResultCaseKey: "joined-errors"}),
 		BuildReport: func() (*ci.Report, error) {
 			return nil, buildErr
 		},
 	})
-	if err != nil {
-		tb.Fatalf("NewArtifactPublication(joined errors) error = %v", err)
-	}
-	err = ci.PublishArtifacts(context.Background(), joinedPublication)
-	if !errors.Is(err, buildErr) || !errors.Is(err, writeErr) {
-		tb.Fatalf("PublishArtifacts(joined errors) error = %v, want build and write errors", err)
-	}
-	assertSingleReplace(tb, joinedWriter, producer, false)
-
-	nilWriterPublication, err := ci.NewArtifactPublication(ci.ArtifactPublicationOptions{
-		Producer: producer,
-		Results:  map[string]string{publishArtifactsResultCaseKey: "nil-writer"},
-	})
-	if err != nil {
-		tb.Fatalf("NewArtifactPublication(nil writer) error = %v", err)
-	}
-	if err := ci.PublishArtifacts(context.Background(), nilWriterPublication); err != nil {
-		tb.Fatalf("PublishArtifacts(nil writer) error = %v", err)
+	err = joinedStore.PublishArtifacts(context.Background(), joinedPublication)
+	if !errors.Is(err, buildErr) {
+		tb.Fatalf("PublishArtifacts(joined errors) error = %v, want build error", err)
 	}
 }
 
-func assertSingleReplace(tb testing.TB, writer *RecordingArtifactWriter, producer string, wantReport bool) {
+func mustArtifactPublication(tb testing.TB, opts ci.ArtifactPublicationOptions) ci.ArtifactPublication {
 	tb.Helper()
-	if len(writer.ReplaceWrites) != 1 {
-		tb.Fatalf("ReplaceResultsAndReport calls = %d, want 1", len(writer.ReplaceWrites))
+	publication, err := ci.NewArtifactPublication(opts)
+	if err != nil {
+		tb.Fatalf("NewArtifactPublication() error = %v", err)
 	}
-	got := writer.ReplaceWrites[0]
-	if got.Producer != producer {
-		tb.Fatalf("ReplaceResultsAndReport producer = %q, want %q", got.Producer, producer)
+	return publication
+}
+
+func assertReportPresent(tb testing.TB, loader ci.ReportLoader, producer string) {
+	tb.Helper()
+	collection, err := loader.LoadReports(context.Background())
+	if err != nil {
+		tb.Fatalf("LoadReports() error = %v", err)
 	}
-	if got.Results == nil {
-		tb.Fatal("ReplaceResultsAndReport results = nil")
+	if _, ok := collection.Find(producer); !ok {
+		tb.Fatalf("Find(%s) ok = false, want true", producer)
 	}
-	if wantReport && got.Report == nil {
-		tb.Fatal("ReplaceResultsAndReport report = nil, want report")
+}
+
+func assertReportMissing(tb testing.TB, loader ci.ReportLoader, producer string) {
+	tb.Helper()
+	collection, err := loader.LoadReports(context.Background())
+	if err != nil {
+		tb.Fatalf("LoadReports() error = %v", err)
 	}
-	if !wantReport && got.Report != nil {
-		tb.Fatalf("ReplaceResultsAndReport report = %#v, want nil", got.Report)
+	if _, ok := collection.Find(producer); ok {
+		tb.Fatalf("Find(%s) ok = true, want false", producer)
 	}
 }

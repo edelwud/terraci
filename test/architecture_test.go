@@ -1114,12 +1114,25 @@ func TestArchitecture_CIReportArtifactContracts(t *testing.T) {
 				}
 				switch selector.Sel.Name {
 				case "Report", "ReportProvenance", "ArtifactContext", "ArtifactRun",
-					"ReportSelection", "ReportFreshness", "PublishArtifactsRequest":
+					"ReportSelection", "ReportFreshness", "ReportCollection",
+					"PlanResult", "PlanResultCollection", "PublishArtifactsRequest":
 					violations = append(violations, rel+" manually constructs ci."+selector.Sel.Name+"; use ci/plugin constructors and report getters")
 				}
 			case *ast.SelectorExpr:
 				if selectorMatchesAlias(typed, ciAliases, "PublishArtifactsRequest") {
 					violations = append(violations, rel+" references removed ci.PublishArtifactsRequest; use ci.NewArtifactPublication")
+				}
+				for _, staleName := range []string{
+					"ReportPublisher",
+					"ReportReader",
+					"ArtifactWriter",
+					"SaveReport",
+					"SaveResults",
+					"ReplaceResultsAndReport",
+				} {
+					if selectorMatchesAlias(typed, ciAliases, staleName) {
+						violations = append(violations, rel+" references removed ci."+staleName+"; use ReportLoader/ArtifactPublisher and ArtifactPublication")
+					}
 				}
 			}
 			return true
@@ -1128,9 +1141,19 @@ func TestArchitecture_CIReportArtifactContracts(t *testing.T) {
 
 	stalePatterns := []string{
 		"PublishArtifactsRequest",
+		"ReportPublisher",
+		"ReportReader",
+		"ArtifactWriter",
+		"ci.PublishArtifacts",
+		"SaveReport",
+		"SaveResults",
+		"ReplaceResultsAndReport",
 		"plugins/internal/reportctx",
 		"reportctx.",
 		"PlanResultCollection -> ci.ArtifactRun",
+		"collection.Results",
+		"plan.Status",
+		"store.Publish(",
 		"ci.NewArtifactRun",
 		"ci.ArtifactRun.Artifact",
 		"`report.Producer`",
@@ -1141,6 +1164,9 @@ func TestArchitecture_CIReportArtifactContracts(t *testing.T) {
 		"ci.ArtifactRun{",
 		"ci.ReportSelection{",
 		"ci.ReportFreshness{",
+		"ci.PlanResult{",
+		"ci.PlanResultCollection{",
+		"ci.ReportCollection{",
 	}
 	for _, rel := range textFiles(t, root, "AGENTS.md", "docs", "examples", "pkg/plugin/doc.go") {
 		if allowUnder(rel, "docs/.vitepress/dist/") {

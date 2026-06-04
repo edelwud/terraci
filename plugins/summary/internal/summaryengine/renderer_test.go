@@ -37,28 +37,49 @@ func mustComposeCommentWithOptions(t *testing.T, plans []ci.PlanResult, reports 
 	return result
 }
 
+func testPlanResult(t *testing.T, opts ci.PlanResultOptions) ci.PlanResult {
+	t.Helper()
+	if opts.ModuleID == "" {
+		opts.ModuleID = "svc/prod/us-east-1/module"
+	}
+	if opts.ModulePath == "" {
+		opts.ModulePath = opts.ModuleID
+	}
+	if opts.Status == "" {
+		opts.Status = ci.PlanStatusChanges
+	}
+	result, err := ci.NewPlanResult(opts)
+	if err != nil {
+		t.Fatalf("NewPlanResult() error = %v", err)
+	}
+	return result
+}
+
 func TestComposeComment_BasicPlans(t *testing.T) {
 	t.Parallel()
 
 	plans := []ci.PlanResult{
-		{
+		testPlanResult(t, ci.PlanResultOptions{
 			ModuleID:   "svc/prod/us-east-1/vpc",
+			ModulePath: "svc/prod/us-east-1/vpc",
 			Components: map[string]string{"environment": "prod"},
 			Status:     ci.PlanStatusChanges,
 			Summary:    "+2 ~1 -0",
-		},
-		{
+		}),
+		testPlanResult(t, ci.PlanResultOptions{
 			ModuleID:   "svc/prod/us-east-1/rds",
+			ModulePath: "svc/prod/us-east-1/rds",
 			Components: map[string]string{"environment": "prod"},
 			Status:     ci.PlanStatusNoChanges,
 			Summary:    "No changes",
-		},
-		{
+		}),
+		testPlanResult(t, ci.PlanResultOptions{
 			ModuleID:   "svc/staging/us-east-1/vpc",
+			ModulePath: "svc/staging/us-east-1/vpc",
 			Components: map[string]string{"environment": "staging"},
 			Status:     ci.PlanStatusFailed,
 			Error:      "init failed",
-		},
+		}),
 	}
 
 	result := mustComposeComment(t, plans, nil, "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
@@ -95,12 +116,13 @@ func TestComposeComment_WithReport(t *testing.T) {
 	t.Parallel()
 
 	plans := []ci.PlanResult{
-		{
+		testPlanResult(t, ci.PlanResultOptions{
 			ModuleID:   "svc/prod/us-east-1/vpc",
+			ModulePath: "svc/prod/us-east-1/vpc",
 			Components: map[string]string{"environment": "prod"},
 			Status:     ci.PlanStatusChanges,
 			Summary:    "+1",
-		},
+		}),
 	}
 
 	reports := []*ci.Report{
@@ -143,14 +165,15 @@ func TestComposeComment_WithReport(t *testing.T) {
 func TestComposeCommentWithOptions_WithoutDetailsOmitsPlanBody(t *testing.T) {
 	t.Parallel()
 
-	plans := []ci.PlanResult{{
+	plans := []ci.PlanResult{testPlanResult(t, ci.PlanResultOptions{
 		ModuleID:          "svc/prod/us-east-1/vpc",
+		ModulePath:        "svc/prod/us-east-1/vpc",
 		Components:        map[string]string{"environment": "prod"},
 		Status:            ci.PlanStatusChanges,
 		Summary:           "+1",
 		StructuredDetails: "### Resources\n- aws_vpc.main (create)",
 		RawPlanOutput:     "+ resource \"aws_vpc\" \"main\"",
-	}}
+	})}
 
 	result := mustComposeCommentWithOptions(t, plans, nil, "", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC), false)
 
@@ -165,14 +188,15 @@ func TestComposeCommentWithOptions_WithoutDetailsOmitsPlanBody(t *testing.T) {
 func TestBuildSummarySectionsWithOptions_WithoutDetailsClearsRowDetails(t *testing.T) {
 	t.Parallel()
 
-	plans := []ci.PlanResult{{
+	plans := []ci.PlanResult{testPlanResult(t, ci.PlanResultOptions{
 		ModuleID:          "svc/prod/us-east-1/vpc",
+		ModulePath:        "svc/prod/us-east-1/vpc",
 		Components:        map[string]string{"environment": "prod"},
 		Status:            ci.PlanStatusChanges,
 		Summary:           "+1",
 		StructuredDetails: "### Resources\n- aws_vpc.main (create)",
 		RawPlanOutput:     "+ resource \"aws_vpc\" \"main\"",
-	}}
+	})}
 
 	sections, err := BuildSummarySectionsWithOptions(plans, nil, false)
 	if err != nil {
@@ -277,12 +301,13 @@ func TestComposeCommentWithOptions_MalformedReportPayloadReturnsError(t *testing
 func TestComposeComment_EscapesMarkdownTableCells(t *testing.T) {
 	t.Parallel()
 
-	result := mustComposeComment(t, []ci.PlanResult{{
+	result := mustComposeComment(t, []ci.PlanResult{testPlanResult(t, ci.PlanResultOptions{
 		ModuleID:   "svc/prod/us-east-1/vpc|main",
+		ModulePath: "svc/prod/us-east-1/vpc|main",
 		Components: map[string]string{"environment": "prod"},
 		Status:     ci.PlanStatusFailed,
 		Error:      "bad | value\nnext line",
-	}}, nil, "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
+	})}, nil, "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
 
 	if !strings.Contains(result, "vpc\\|main") {
 		t.Fatalf("module path was not table-escaped:\n%s", result)
@@ -299,24 +324,27 @@ func TestComposeComment_FiltersEnvironmentPlansToChangedAndFailed(t *testing.T) 
 	t.Parallel()
 
 	plans := []ci.PlanResult{
-		{
+		testPlanResult(t, ci.PlanResultOptions{
 			ModuleID:   "svc/prod/us-east-1/vpc",
+			ModulePath: "svc/prod/us-east-1/vpc",
 			Components: map[string]string{"environment": "prod"},
 			Status:     ci.PlanStatusChanges,
 			Summary:    "+1",
-		},
-		{
+		}),
+		testPlanResult(t, ci.PlanResultOptions{
 			ModuleID:   "svc/prod/us-east-1/rds",
+			ModulePath: "svc/prod/us-east-1/rds",
 			Components: map[string]string{"environment": "prod"},
 			Status:     ci.PlanStatusNoChanges,
 			Summary:    "No changes",
-		},
-		{
+		}),
+		testPlanResult(t, ci.PlanResultOptions{
 			ModuleID:   "svc/prod/us-east-1/iam",
+			ModulePath: "svc/prod/us-east-1/iam",
 			Components: map[string]string{"environment": "prod"},
 			Status:     ci.PlanStatusFailed,
 			Error:      "apply failed",
-		},
+		}),
 	}
 
 	result := mustComposeComment(t, plans, nil, "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
@@ -453,12 +481,12 @@ func TestCalculateStats(t *testing.T) {
 		{
 			name: "all statuses",
 			plans: []ci.PlanResult{
-				{Status: ci.PlanStatusSuccess},
-				{Status: ci.PlanStatusNoChanges},
-				{Status: ci.PlanStatusChanges},
-				{Status: ci.PlanStatusFailed},
-				{Status: ci.PlanStatusPending},
-				{Status: ci.PlanStatusRunning},
+				testPlanResult(t, ci.PlanResultOptions{ModuleID: "success", ModulePath: "success", Status: ci.PlanStatusSuccess}),
+				testPlanResult(t, ci.PlanResultOptions{ModuleID: "no-changes", ModulePath: "no-changes", Status: ci.PlanStatusNoChanges}),
+				testPlanResult(t, ci.PlanResultOptions{ModuleID: "changes", ModulePath: "changes", Status: ci.PlanStatusChanges}),
+				testPlanResult(t, ci.PlanResultOptions{ModuleID: "failed", ModulePath: "failed", Status: ci.PlanStatusFailed}),
+				testPlanResult(t, ci.PlanResultOptions{ModuleID: "pending", ModulePath: "pending", Status: ci.PlanStatusPending}),
+				testPlanResult(t, ci.PlanResultOptions{ModuleID: "running", ModulePath: "running", Status: ci.PlanStatusRunning}),
 			},
 			want: planStats{
 				Total:     6,
@@ -473,8 +501,8 @@ func TestCalculateStats(t *testing.T) {
 		{
 			name: "all no changes",
 			plans: []ci.PlanResult{
-				{Status: ci.PlanStatusNoChanges},
-				{Status: ci.PlanStatusNoChanges},
+				testPlanResult(t, ci.PlanResultOptions{ModuleID: "first", ModulePath: "first", Status: ci.PlanStatusNoChanges}),
+				testPlanResult(t, ci.PlanResultOptions{ModuleID: "second", ModulePath: "second", Status: ci.PlanStatusNoChanges}),
 			},
 			want: planStats{
 				Total:     2,
@@ -558,9 +586,9 @@ func TestGroupByEnvironment(t *testing.T) {
 		{
 			name: "multiple envs",
 			plans: []ci.PlanResult{
-				{Components: map[string]string{"environment": "prod"}},
-				{Components: map[string]string{"environment": "prod"}},
-				{Components: map[string]string{"environment": "staging"}},
+				testPlanResult(t, ci.PlanResultOptions{ModuleID: "prod-a", ModulePath: "prod-a", Components: map[string]string{"environment": "prod"}}),
+				testPlanResult(t, ci.PlanResultOptions{ModuleID: "prod-b", ModulePath: "prod-b", Components: map[string]string{"environment": "prod"}}),
+				testPlanResult(t, ci.PlanResultOptions{ModuleID: "staging", ModulePath: "staging", Components: map[string]string{"environment": "staging"}}),
 			},
 			wantKeys: []string{"prod", "staging"},
 			wantLen:  map[string]int{"prod": 2, "staging": 1},
@@ -568,8 +596,8 @@ func TestGroupByEnvironment(t *testing.T) {
 		{
 			name: "empty env becomes default",
 			plans: []ci.PlanResult{
-				{Components: map[string]string{}},
-				{Components: map[string]string{"environment": "prod"}},
+				testPlanResult(t, ci.PlanResultOptions{ModuleID: "default", ModulePath: "default", Components: map[string]string{}}),
+				testPlanResult(t, ci.PlanResultOptions{ModuleID: "prod", ModulePath: "prod", Components: map[string]string{"environment": "prod"}}),
 			},
 			wantKeys: []string{"default", "prod"},
 			wantLen:  map[string]int{"default": 1, "prod": 1},

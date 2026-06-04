@@ -76,10 +76,20 @@ func TestNewArtifactRun_ValidatesProducer(t *testing.T) {
 }
 
 func testPlanResultCollection() *PlanResultCollection {
-	return &PlanResultCollection{Results: []PlanResult{{
+	result, err := NewPlanResult(PlanResultOptions{
 		ModuleID:   "svc/prod/us/vpc",
 		ModulePath: "svc/prod/us/vpc",
 		Status:     PlanStatusChanges,
 		Summary:    "+1",
-	}}}
+	})
+	if err != nil {
+		panic(err)
+	}
+	collection, err := NewPlanResultCollection(PlanResultCollectionOptions{
+		Results: []PlanResult{result},
+	})
+	if err != nil {
+		panic(err)
+	}
+	return collection
 }

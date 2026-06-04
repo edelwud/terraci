@@ -188,8 +188,9 @@
 //     capability contracts through focused, closure-based test fixtures.
 //   - citest.AssertRenderedReportContract — verifies ci.NewRenderedReport
 //     output validates, decodes through ci.DecodeRenderSection, and renders.
-//   - citest.AssertPublishArtifactsContract — verifies ci.PublishArtifacts
-//     replacement semantics with a recording ArtifactWriter.
+//   - citest.AssertPublishArtifactsContract — verifies
+//     ci.ReportStore.PublishArtifacts replacement semantics through public
+//     loader/publisher ports.
 //
 // # Thread-safety contract
 //
@@ -238,13 +239,13 @@
 // scanned ci.PlanResultCollection into plugin.NewArtifactRun, convert domain
 // results into typed ci.RenderBlock/ci.RenderValue values, build reports with
 // ci.NewRenderedReport, and persist raw results plus the report through
-// ci.NewArtifactPublication and ci.PublishArtifacts. Publication always
-// preserves raw results and removes stale reports when report construction
-// fails or intentionally returns nil. Non-plan producers may call
-// plugin.NewArtifactRun without PlanResults; that is explicit degraded mode.
-// Consumers should load through
-// ci.ReportReader/ReportStore and call ci.SelectCurrentReports before
-// rendering.
+// ci.NewArtifactPublication and appCtx.Reports().PublishArtifacts. Publication
+// always preserves ci.RawResults(...) and removes stale reports when report
+// construction fails or intentionally returns nil. Report-only publications use
+// ci.NoResults(). Non-plan producers may call plugin.NewArtifactRun without
+// PlanResults; that is explicit degraded mode. Consumers should load through
+// ci.ReportLoader/ReportStore, read the returned ci.ReportCollection, and call
+// ci.SelectCurrentReports before rendering.
 // ReportSection is a value object: external plugins should not construct
 // section JSON, RenderBlock, RenderTable, or RenderValue payloads manually.
 // Use constructors such as ci.NewTableBlock, ci.RenderStatus, ci.RenderMoney,

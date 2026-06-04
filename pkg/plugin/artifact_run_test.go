@@ -33,15 +33,15 @@ func TestNewArtifactRun_NilAppContextUsesExplicitMetadata(t *testing.T) {
 }
 
 func TestNewArtifactRun_UsesAppContextAndCollectionMetadata(t *testing.T) {
-	collection := &ci.PlanResultCollection{
+	collection := testPluginPlanResultCollection(t, ci.PlanResultCollectionOptions{
 		CommitSHA:  "collection-sha",
 		PipelineID: "collection-pipeline",
-		Results: []ci.PlanResult{{
+		Results: []ci.PlanResult{testPluginPlanResult(t, ci.PlanResultOptions{
 			ModuleID:   "svc",
 			ModulePath: "svc",
 			Status:     ci.PlanStatusChanges,
-		}},
-	}
+		})},
+	})
 	appCtx := NewAppContext(AppContextOptions{
 		WorkDir:    "/repo",
 		ServiceDir: "/repo/.terraci",
@@ -68,7 +68,10 @@ func TestNewArtifactRun_UsesAppContextAndCollectionMetadata(t *testing.T) {
 }
 
 func TestNewArtifactRun_CIProviderMetadataOverridesCollection(t *testing.T) {
-	collection := &ci.PlanResultCollection{CommitSHA: "collection-sha", PipelineID: "collection-pipeline"}
+	collection := testPluginPlanResultCollection(t, ci.PlanResultCollectionOptions{
+		CommitSHA:  "collection-sha",
+		PipelineID: "collection-pipeline",
+	})
 	appCtx := NewAppContext(AppContextOptions{
 		Resolvers: NewResolverSet(ResolverSetOptions{
 			CI: artifactRunCIResolver{provider: artifactRunProvider{commitSHA: "ci-sha", pipelineID: "ci-pipeline"}},
@@ -100,7 +103,13 @@ func TestNewArtifactRun_IgnoresMissingCIProvider(t *testing.T) {
 }
 
 func TestNewArtifactRun_ExplicitFingerprintWins(t *testing.T) {
-	collection := &ci.PlanResultCollection{Results: []ci.PlanResult{{ModuleID: "svc", ModulePath: "svc"}}}
+	collection := testPluginPlanResultCollection(t, ci.PlanResultCollectionOptions{
+		Results: []ci.PlanResult{testPluginPlanResult(t, ci.PlanResultOptions{
+			ModuleID:   "svc",
+			ModulePath: "svc",
+			Status:     ci.PlanStatusChanges,
+		})},
+	})
 	run, err := NewArtifactRun(NewAppContext(AppContextOptions{}), ArtifactRunOptions{
 		Producer:    "cost",
 		Collection:  collection,
@@ -146,3 +155,21 @@ type artifactRunGenerator struct{}
 
 func (artifactRunGenerator) Generate() (pipeline.GeneratedPipeline, error) { return nil, nil }
 func (artifactRunGenerator) DryRun() (*pipeline.DryRunResult, error)       { return nil, nil }
+
+func testPluginPlanResult(tb testing.TB, opts ci.PlanResultOptions) ci.PlanResult {
+	tb.Helper()
+	result, err := ci.NewPlanResult(opts)
+	if err != nil {
+		tb.Fatalf("NewPlanResult() error = %v", err)
+	}
+	return result
+}
+
+func testPluginPlanResultCollection(tb testing.TB, opts ci.PlanResultCollectionOptions) *ci.PlanResultCollection {
+	tb.Helper()
+	collection, err := ci.NewPlanResultCollection(opts)
+	if err != nil {
+		tb.Fatalf("NewPlanResultCollection() error = %v", err)
+	}
+	return collection
+}

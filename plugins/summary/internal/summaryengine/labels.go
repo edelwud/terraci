@@ -153,31 +153,33 @@ func (b *labelBuilder) labels() []string {
 }
 
 func resolveModuleLabels(builder *labelBuilder, req LabelRequest, tmpl LabelTemplate, placeholders []string) {
-	for _, result := range changedOrFailedPlans(req.Plans) {
-		values := moduleLabelValues(result, req.Segments)
-		context := result.ModulePath
+	plans := changedOrFailedPlans(req.Plans)
+	for i := range plans {
+		values := moduleLabelValues(plans[i], req.Segments)
+		context := plans[i].ModulePath()
 		if context == "" {
-			context = result.ModuleID
+			context = plans[i].ModuleID()
 		}
 		builder.addRendered(tmpl, values, placeholders, context)
 	}
 }
 
 func resolveResourceLabels(builder *labelBuilder, plans *resourcePlanCache, req LabelRequest, tmpl LabelTemplate, placeholders []string) {
-	for _, result := range changedPlans(req.Plans) {
-		resources, err := plans.changedResources(result)
+	changed := changedPlans(req.Plans)
+	for i := range changed {
+		resources, err := plans.changedResources(changed[i])
 		if err != nil {
-			builder.warn(fmt.Sprintf("summary resource labels skipped for %s: %v", result.ModulePath, err))
+			builder.warn(fmt.Sprintf("summary resource labels skipped for %s: %v", changed[i].ModulePath(), err))
 			continue
 		}
-		moduleValues := moduleLabelValues(result, req.Segments)
+		moduleValues := moduleLabelValues(changed[i], req.Segments)
 		for _, resource := range resources {
 			values := copyStringMap(moduleValues)
 			values["resource_address"] = resource.Address
 			values["resource_type"] = resource.Type
 			values["resource_name"] = resource.Name
 			values["resource_action"] = resource.Action
-			builder.addRendered(tmpl, values, placeholders, fmt.Sprintf("%s:%s", result.ModulePath, resource.Address))
+			builder.addRendered(tmpl, values, placeholders, fmt.Sprintf("%s:%s", changed[i].ModulePath(), resource.Address))
 		}
 	}
 }
@@ -196,35 +198,35 @@ func renderLabelTemplate(tmpl LabelTemplate, values map[string]string, placehold
 	return rendered, unresolved
 }
 
-func moduleLabelValues(result *ci.PlanResult, segments []string) map[string]string {
-	values := make(map[string]string, len(result.Components)+3)
-	values["module_id"] = result.ModuleID
-	values["module_path"] = result.ModulePath
-	values["status"] = string(result.Status)
+func moduleLabelValues(result ci.PlanResult, segments []string) map[string]string {
+	components := result.Components()
+	values := make(map[string]string, len(components)+3)
+	values["module_id"] = result.ModuleID()
+	values["module_path"] = result.ModulePath()
+	values["status"] = string(result.Status())
 
-	components := result.Components
-	if len(components) == 0 && result.ModulePath != "" {
-		components = planresults.ParseModulePathComponents(result.ModulePath, segments)
+	if len(components) == 0 && result.ModulePath() != "" {
+		components = planresults.ParseModulePathComponents(result.ModulePath(), segments)
 	}
 	maps.Copy(values, components)
 	return values
 }
 
-func changedOrFailedPlans(plans []ci.PlanResult) []*ci.PlanResult {
-	out := make([]*ci.PlanResult, 0, len(plans))
+func changedOrFailedPlans(plans []ci.PlanResult) []ci.PlanResult {
+	out := make([]ci.PlanResult, 0, len(plans))
 	for i := range plans {
-		if plans[i].Status == ci.PlanStatusChanges || plans[i].Status == ci.PlanStatusFailed {
-			out = append(out, &plans[i])
+		if plans[i].Status() == ci.PlanStatusChanges || plans[i].Status() == ci.PlanStatusFailed {
+			out = append(out, plans[i])
 		}
 	}
 	return out
 }
 
-func changedPlans(plans []ci.PlanResult) []*ci.PlanResult {
-	out := make([]*ci.PlanResult, 0, len(plans))
+func changedPlans(plans []ci.PlanResult) []ci.PlanResult {
+	out := make([]ci.PlanResult, 0, len(plans))
 	for i := range plans {
-		if plans[i].Status == ci.PlanStatusChanges {
-			out = append(out, &plans[i])
+		if plans[i].Status() == ci.PlanStatusChanges {
+			out = append(out, plans[i])
 		}
 	}
 	return out
@@ -263,15 +265,15 @@ func newResourcePlanCache(parser PlanParser, workDir string) *resourcePlanCache 
 	}
 }
 
-func (c *resourcePlanCache) changedResources(result *ci.PlanResult) ([]tfplan.ResourceChange, error) {
-	key := result.ModulePath
+func (c *resourcePlanCache) changedResources(result ci.PlanResult) ([]tfplan.ResourceChange, error) {
+	key := result.ModulePath()
 	if resources, ok := c.resources[key]; ok {
 		return resources, nil
 	}
 	if err, ok := c.errs[key]; ok {
 		return nil, err
 	}
-	parsed, err := c.parser.ParsePlan(planJSONPath(c.workDir, result.ModulePath))
+	parsed, err := c.parser.ParsePlan(planJSONPath(c.workDir, result.ModulePath()))
 	if err != nil {
 		c.errs[key] = err
 		return nil, err

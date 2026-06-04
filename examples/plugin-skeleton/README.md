@@ -55,7 +55,7 @@ YAML
 1. `plugin.go` — registration shell, `BasePlugin[*Config]`.
 2. `commands.go` — register a CLI command (`CommandProvider`) and use `plugin.CommandPlugin[T]` / `plugin.RequireEnabled` in callbacks.
 3. `runtime.go`, `usecases.go`, `output.go` — keep `cobra flags -> Request -> Runtime -> Result -> output`.
-4. `report.go` — convert your result into constructor-built `ci.RenderBlock` / `ci.RenderValue` values, build a run with `plugin.NewArtifactRun`, then publish raw results plus report through `ci.NewArtifactPublication` and `ci.PublishArtifacts`.
+4. `report.go` + `usecases.go` — convert your result into constructor-built `ci.RenderBlock` / `ci.RenderValue` values, build a run with `plugin.NewArtifactRun`, then publish raw results plus report through `ci.NewArtifactPublication` and `appCtx.Reports().PublishArtifacts`.
 5. `plugin_test.go` — copy `plugintest`/`citest` contracts so config immutability, command binding, report validation, and artifact lifecycle stay covered.
 
 Skip the `--consume` branch if you don't need to read other reports.

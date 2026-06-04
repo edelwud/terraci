@@ -13,7 +13,7 @@ func TestSelectCurrentReports_SelectsCurrentAndDegradedReports(t *testing.T) {
 	degraded := renderedFreshnessReport(t, "tfupdate", "")
 	stale := renderedFreshnessReport(t, "policy", "old")
 
-	selection := SelectCurrentReports(collection, []*Report{stale, nil, degraded, current}, ReportSelectionOptions{
+	selection := SelectCurrentReports(collection, NewReportCollection(stale, nil, degraded, current), ReportSelectionOptions{
 		Consumer: "summary",
 	})
 	if got := producers(selection.Reports()); strings.Join(got, ",") != "cost,tfupdate" {
@@ -35,12 +35,12 @@ func TestSelectCurrentReports_ExcludesProducersAndDedupesDeterministically(t *te
 	older := renderedFreshnessReportWithTitle(t, "cost", "older", collection.Fingerprint())
 	newer := renderedFreshnessReportWithTitle(t, "cost", "newer", collection.Fingerprint())
 
-	selection := SelectCurrentReports(collection, []*Report{
+	selection := SelectCurrentReports(collection, NewReportCollection(
 		renderedFreshnessReport(t, "summary", collection.Fingerprint()),
 		renderedFreshnessReport(t, "tfupdate", ""),
 		older,
 		newer,
-	}, ReportSelectionOptions{
+	), ReportSelectionOptions{
 		ExcludeProducers: []string{"summary"},
 	})
 
@@ -57,7 +57,7 @@ func TestSelectCurrentReports_ReturnsDefensiveCopies(t *testing.T) {
 	t.Parallel()
 
 	report := renderedFreshnessReport(t, "cost", "")
-	selection := SelectCurrentReports(nil, []*Report{report}, ReportSelectionOptions{})
+	selection := SelectCurrentReports(nil, NewReportCollection(report), ReportSelectionOptions{})
 	reports := selection.Reports()
 	if len(reports) != 1 {
 		t.Fatalf("reports len = %d, want 1", len(reports))

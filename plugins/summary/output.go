@@ -7,13 +7,14 @@ import (
 )
 
 func printSummary(collection *ci.PlanResultCollection) {
-	if collection == nil || len(collection.Results) == 0 {
+	if collection == nil || collection.Len() == 0 {
 		return
 	}
 
 	var changes, noChanges, failed int
-	for i := range collection.Results {
-		switch collection.Results[i].Status {
+	results := collection.Results()
+	for i := range results {
+		switch results[i].Status() {
 		case ci.PlanStatusChanges:
 			changes++
 		case ci.PlanStatusNoChanges, ci.PlanStatusSuccess:
@@ -27,7 +28,7 @@ func printSummary(collection *ci.PlanResultCollection) {
 
 	log.Info("summary")
 	log.IncreasePadding()
-	log.WithField("total", len(collection.Results)).Info("modules")
+	log.WithField("total", collection.Len()).Info("modules")
 	if changes > 0 {
 		log.WithField("count", changes).Info("with changes")
 	}

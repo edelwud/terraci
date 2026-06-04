@@ -95,9 +95,9 @@ func discoverPlans(scanner PlanScanner, workDir string, segments []string, modul
 		return nil, nil, errors.New("scan plan results: nil collection")
 	}
 
-	plans := collection.Results
+	plans := collection.Results()
 	sort.Slice(plans, func(i, j int) bool {
-		return plans[i].ModulePath < plans[j].ModulePath
+		return plans[i].ModulePath() < plans[j].ModulePath()
 	})
 
 	filtered := filterPlans(plans, modulePath)
@@ -118,17 +118,17 @@ func filterPlans(plans []ci.PlanResult, modulePath string) []ci.PlanResult {
 	modulePath = filepath.ToSlash(modulePath)
 	filtered := make([]ci.PlanResult, 0, len(plans))
 	for i := range plans {
-		plan := &plans[i]
-		planPath := filepath.ToSlash(plan.ModulePath)
+		plan := plans[i]
+		planPath := filepath.ToSlash(plan.ModulePath())
 		if planPath == modulePath || strings.HasSuffix(planPath, "/"+modulePath) {
-			filtered = append(filtered, *plan)
+			filtered = append(filtered, plan)
 		}
 	}
 	return filtered
 }
 
 func checkPlan(ctx context.Context, runtime CheckRuntime, evaluator Evaluator, plan ci.PlanResult) policyengine.Result {
-	modulePath := filepath.ToSlash(plan.ModulePath)
+	modulePath := filepath.ToSlash(plan.ModulePath())
 	effective, err := runtime.Config.EffectiveConfig(modulePath)
 	if err != nil {
 		return policyengine.NewErrorResult(modulePath, err)
@@ -143,7 +143,7 @@ func checkPlan(ctx context.Context, runtime CheckRuntime, evaluator Evaluator, p
 		PlanJSONPath:    planJSONPath,
 		PlanDisplayPath: filepath.ToSlash(filepath.Join(modulePath, pipeline.PlanJSONFilename)),
 		ModulePath:      modulePath,
-		Components:      plan.Components,
+		Components:      plan.Components(),
 		Namespaces:      namespaces,
 	})
 	if err != nil {

@@ -8,6 +8,8 @@ import (
 	"github.com/edelwud/terraci/pkg/ci"
 )
 
+const defaultEnvironment = "default"
+
 type planStats struct {
 	Total     int
 	Success   int
@@ -22,7 +24,7 @@ func calculateStats(plans []ci.PlanResult) planStats {
 	var stats planStats
 	stats.Total = len(plans)
 	for i := range plans {
-		switch plans[i].Status {
+		switch plans[i].Status() {
 		case ci.PlanStatusSuccess, ci.PlanStatusNoChanges:
 			stats.NoChanges++
 		case ci.PlanStatusChanges:
@@ -65,9 +67,9 @@ func renderStats(stats planStats) string {
 func groupByEnvironment(plans []ci.PlanResult) map[string][]ci.PlanResult {
 	result := make(map[string][]ci.PlanResult)
 	for i := range plans {
-		env := plans[i].Get("environment")
+		env := plans[i].Component("environment")
 		if env == "" {
-			env = "default"
+			env = defaultEnvironment
 		}
 		result[env] = append(result[env], plans[i])
 	}
@@ -86,7 +88,7 @@ func sortedKeys(m map[string][]ci.PlanResult) []string {
 func visibleEnvironmentPlans(plans []ci.PlanResult) []ci.PlanResult {
 	visible := make([]ci.PlanResult, 0, len(plans))
 	for i := range plans {
-		if plans[i].Status == ci.PlanStatusChanges || plans[i].Status == ci.PlanStatusFailed {
+		if plans[i].Status() == ci.PlanStatusChanges || plans[i].Status() == ci.PlanStatusFailed {
 			visible = append(visible, plans[i])
 		}
 	}

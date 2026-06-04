@@ -40,12 +40,12 @@ func (r *Result) Diagnostics() diagnostic.List {
 }
 
 type storeLoader struct {
-	reader   ci.ReportReader
+	reader   ci.ReportLoader
 	workDir  string
 	segments []string
 }
 
-func NewLoader(reader ci.ReportReader, workDir string, segments []string) Loader {
+func NewLoader(reader ci.ReportLoader, workDir string, segments []string) Loader {
 	if reader == nil {
 		reader = ci.NewMemoryReportStore()
 	}

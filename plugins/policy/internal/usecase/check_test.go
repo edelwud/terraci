@@ -100,14 +100,16 @@ func TestCheck_UsesInjectedDependenciesOnce(t *testing.T) {
 	writePlanFixture(t, root, "platform/prod/eu-central-1/app")
 
 	materializer := &fakeMaterializer{dirs: []string{filepath.Join(root, "policies")}}
-	scanner := fakePlanScanner{collection: &ci.PlanResultCollection{Results: []ci.PlanResult{
-		{
+	scanner := fakePlanScanner{collection: mustPolicyPlanCollection(t, []ci.PlanResult{
+		mustPolicyPlanResult(t, ci.PlanResultOptions{
+			ModuleID:   "platform/prod/eu-central-1/app",
 			ModulePath: "platform/prod/eu-central-1/app",
+			Status:     ci.PlanStatusChanges,
 			Components: map[string]string{
 				"environment": "prod",
 			},
-		},
-	}}}
+		}),
+	})}
 	evaluator := &fakeEvaluator{
 		evaluation: policyengine.NewEvaluation(
 			[]policyengine.Finding{{Message: "deny"}},
@@ -156,6 +158,24 @@ func TestCheck_UsesInjectedDependenciesOnce(t *testing.T) {
 	if result.PlanResults != scanner.collection {
 		t.Fatal("PlanResults did not preserve scanner collection")
 	}
+}
+
+func mustPolicyPlanResult(tb testing.TB, opts ci.PlanResultOptions) ci.PlanResult {
+	tb.Helper()
+	result, err := ci.NewPlanResult(opts)
+	if err != nil {
+		tb.Fatalf("NewPlanResult() error = %v", err)
+	}
+	return result
+}
+
+func mustPolicyPlanCollection(tb testing.TB, results []ci.PlanResult) *ci.PlanResultCollection {
+	tb.Helper()
+	collection, err := ci.NewPlanResultCollection(ci.PlanResultCollectionOptions{Results: results})
+	if err != nil {
+		tb.Fatalf("NewPlanResultCollection() error = %v", err)
+	}
+	return collection
 }
 
 type fakeMaterializer struct {

@@ -73,7 +73,7 @@ func discoverModulePlans(appCtx *plugin.AppContext, modulePath string) (*planDis
 	plansByPath := planResultsByFullPath(workDir, collection)
 	for _, fullPath := range paths {
 		if plan, ok := plansByPath[fullPath]; ok {
-			if region := plan.Get("region"); region != "" {
+			if region := plan.Component("region"); region != "" {
 				regions[fullPath] = region
 				continue
 			}
@@ -94,22 +94,24 @@ func planModulePaths(workDir string, collection *ci.PlanResultCollection) []stri
 	if collection == nil {
 		return nil
 	}
-	paths := make([]string, 0, len(collection.Results))
-	for i := range collection.Results {
-		modulePath := filepath.FromSlash(collection.Results[i].ModulePath)
+	results := collection.Results()
+	paths := make([]string, 0, len(results))
+	for i := range results {
+		modulePath := filepath.FromSlash(results[i].ModulePath())
 		paths = append(paths, filepath.Join(workDir, modulePath))
 	}
 	return paths
 }
 
-func planResultsByFullPath(workDir string, collection *ci.PlanResultCollection) map[string]*ci.PlanResult {
-	results := make(map[string]*ci.PlanResult)
+func planResultsByFullPath(workDir string, collection *ci.PlanResultCollection) map[string]ci.PlanResult {
+	results := make(map[string]ci.PlanResult)
 	if collection == nil {
 		return results
 	}
-	for i := range collection.Results {
-		fullPath := filepath.Join(workDir, filepath.FromSlash(collection.Results[i].ModulePath))
-		results[fullPath] = &collection.Results[i]
+	planResults := collection.Results()
+	for i := range planResults {
+		fullPath := filepath.Join(workDir, filepath.FromSlash(planResults[i].ModulePath()))
+		results[fullPath] = planResults[i]
 	}
 	return results
 }

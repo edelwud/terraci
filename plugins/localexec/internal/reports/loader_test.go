@@ -29,7 +29,7 @@ func TestLoaderBuildsReportFromStore(t *testing.T) {
 	t.Parallel()
 
 	store := ci.NewMemoryReportStore()
-	store.Publish(citest.MustRenderedReport(ci.RenderedReportOptions{
+	citest.PublishReport(t, store, citest.MustRenderedReport(ci.RenderedReportOptions{
 		Producer: "cost",
 		Title:    "Cost",
 		Status:   ci.ReportStatusWarn,
@@ -69,7 +69,7 @@ func TestLoaderSkipsStaleFingerprint(t *testing.T) {
 	}
 
 	store := ci.NewMemoryReportStore()
-	store.Publish(citest.MustRenderedReport(ci.RenderedReportOptions{
+	citest.PublishReport(t, store, citest.MustRenderedReport(ci.RenderedReportOptions{
 		Producer: "stale",
 		Title:    "Stale",
 		Status:   ci.ReportStatusPass,
@@ -81,7 +81,7 @@ func TestLoaderSkipsStaleFingerprint(t *testing.T) {
 			Blocks: []ci.RenderBlock{ci.NewTextBlock(ci.RenderText("stale"))},
 		}},
 	}))
-	store.Publish(citest.MustRenderedReport(ci.RenderedReportOptions{
+	citest.PublishReport(t, store, citest.MustRenderedReport(ci.RenderedReportOptions{
 		Producer: "fresh",
 		Title:    "Fresh",
 		Status:   ci.ReportStatusPass,

@@ -16,10 +16,9 @@ func TestPublishArtifactsWritesResultsAndReport(t *testing.T) {
 	store := NewFileReportStore(dir)
 	artifact := NewArtifactContext(ArtifactContextOptions{})
 
-	err := publishTestArtifacts(ArtifactPublicationOptions{
+	err := publishTestArtifacts(store, ArtifactPublicationOptions{
 		Producer: "cost",
-		Writer:   store,
-		Results:  map[string]string{"ok": "true"},
+		Results:  RawResults(map[string]string{"ok": "true"}),
 		BuildReport: func() (*Report, error) {
 			return testPublishReport(t, "cost", artifact), nil
 		},
@@ -40,14 +39,19 @@ func TestPublishArtifactsDeletesStaleReportOnNilReport(t *testing.T) {
 
 	dir := t.TempDir()
 	store := NewFileReportStore(dir)
-	if err := store.SaveReport(context.Background(), testPublishReport(t, "cost", ArtifactContext{})); err != nil {
-		t.Fatalf("SaveReport() error = %v", err)
+	if err := publishTestArtifacts(store, ArtifactPublicationOptions{
+		Producer: "cost",
+		Results:  NoResults(),
+		BuildReport: func() (*Report, error) {
+			return testPublishReport(t, "cost", ArtifactContext{}), nil
+		},
+	}); err != nil {
+		t.Fatalf("seed report error = %v", err)
 	}
 
-	err := publishTestArtifacts(ArtifactPublicationOptions{
+	err := publishTestArtifacts(store, ArtifactPublicationOptions{
 		Producer: "cost",
-		Writer:   store,
-		Results:  map[string]string{"ok": "true"},
+		Results:  RawResults(map[string]string{"ok": "true"}),
 		BuildReport: func() (*Report, error) {
 			return nil, nil
 		},
@@ -68,15 +72,20 @@ func TestPublishArtifactsDeletesStaleReportOnBuildError(t *testing.T) {
 
 	dir := t.TempDir()
 	store := NewFileReportStore(dir)
-	if err := store.SaveReport(context.Background(), testPublishReport(t, "cost", ArtifactContext{})); err != nil {
-		t.Fatalf("SaveReport() error = %v", err)
+	if err := publishTestArtifacts(store, ArtifactPublicationOptions{
+		Producer: "cost",
+		Results:  NoResults(),
+		BuildReport: func() (*Report, error) {
+			return testPublishReport(t, "cost", ArtifactContext{}), nil
+		},
+	}); err != nil {
+		t.Fatalf("seed report error = %v", err)
 	}
 
 	wantErr := errors.New("boom")
-	err := publishTestArtifacts(ArtifactPublicationOptions{
+	err := publishTestArtifacts(store, ArtifactPublicationOptions{
 		Producer: "cost",
-		Writer:   store,
-		Results:  map[string]string{"ok": "true"},
+		Results:  RawResults(map[string]string{"ok": "true"}),
 		BuildReport: func() (*Report, error) {
 			return nil, wantErr
 		},
@@ -97,10 +106,9 @@ func TestPublishArtifactsReportsProducerMismatch(t *testing.T) {
 
 	dir := t.TempDir()
 	store := NewFileReportStore(dir)
-	err := publishTestArtifacts(ArtifactPublicationOptions{
+	err := publishTestArtifacts(store, ArtifactPublicationOptions{
 		Producer: "cost",
-		Writer:   store,
-		Results:  map[string]string{"ok": "true"},
+		Results:  RawResults(map[string]string{"ok": "true"}),
 		BuildReport: func() (*Report, error) {
 			return testPublishReport(t, "policy", ArtifactContext{}), nil
 		},
@@ -116,50 +124,48 @@ func TestPublishArtifactsReportsProducerMismatch(t *testing.T) {
 	}
 }
 
-func TestPublishArtifactsJoinsBuildAndWriterErrors(t *testing.T) {
+func TestPublishArtifactsJoinsBuildAndWriteErrors(t *testing.T) {
 	t.Parallel()
 
+	dir := filepath.Join(t.TempDir(), "blocked")
+	if err := os.WriteFile(dir, []byte("not a directory"), 0o600); err != nil {
+		t.Fatalf("write blocking file: %v", err)
+	}
+	store := NewFileReportStore(dir)
 	buildErr := errors.New("build failed")
-	writerErr := errors.New("writer failed")
-	err := publishTestArtifacts(ArtifactPublicationOptions{
+
+	err := publishTestArtifacts(store, ArtifactPublicationOptions{
 		Producer: "cost",
-		Writer:   fakePublishArtifactWriter{err: writerErr},
-		Results:  map[string]string{"ok": "true"},
+		Results:  RawResults(map[string]string{"ok": "true"}),
 		BuildReport: func() (*Report, error) {
 			return nil, buildErr
 		},
 	})
-	if !errors.Is(err, buildErr) || !errors.Is(err, writerErr) {
-		t.Fatalf("PublishArtifacts() error = %v, want joined build and writer errors", err)
+	if !errors.Is(err, buildErr) {
+		t.Fatalf("PublishArtifacts() error = %v, want build error", err)
+	}
+	if !strings.Contains(err.Error(), "replace artifacts") {
+		t.Fatalf("PublishArtifacts() error = %q, want write error context", err.Error())
 	}
 }
 
-func TestPublishArtifactsNoopsWithoutWriter(t *testing.T) {
+func TestPublishArtifactsNoopsWithNilStore(t *testing.T) {
 	t.Parallel()
 
-	if err := publishTestArtifacts(ArtifactPublicationOptions{Producer: "cost"}); err != nil {
-		t.Fatalf("PublishArtifacts(nil writer) error = %v", err)
+	if err := publishTestArtifacts(nil, ArtifactPublicationOptions{Producer: "cost"}); err != nil {
+		t.Fatalf("PublishArtifacts(nil store) error = %v", err)
 	}
 }
 
-func publishTestArtifacts(opts ArtifactPublicationOptions) error {
+func publishTestArtifacts(store ArtifactPublisher, opts ArtifactPublicationOptions) error {
 	publication, err := NewArtifactPublication(opts)
 	if err != nil {
 		return err
 	}
-	return PublishArtifacts(context.Background(), publication)
-}
-
-type fakePublishArtifactWriter struct {
-	err error
-}
-
-func (w fakePublishArtifactWriter) SaveResults(context.Context, string, any) error {
-	return w.err
-}
-
-func (w fakePublishArtifactWriter) ReplaceResultsAndReport(context.Context, string, any, *Report) error {
-	return w.err
+	if store == nil {
+		return publishToStore(context.Background(), publication, nil)
+	}
+	return store.PublishArtifacts(context.Background(), publication)
 }
 
 func testPublishReport(t *testing.T, producer string, artifact ArtifactContext) *Report {

@@ -10,35 +10,40 @@ import (
 )
 
 func TestPlanResultCollection_Results(t *testing.T) {
-	collection := &ci.PlanResultCollection{
-		Results: []ci.PlanResult{
-			{
-				ModuleID:   "platform/stage/eu-central-1/vpc",
-				ModulePath: "platform/stage/eu-central-1/vpc",
-				Components: map[string]string{
-					"service":     "platform",
-					"environment": "stage",
-					"region":      "eu-central-1",
-					"module":      "vpc",
-				},
-				Status:  ci.PlanStatusChanges,
-				Summary: "+1 (aws_vpc)",
-			},
+	planResult, err := ci.NewPlanResult(ci.PlanResultOptions{
+		ModuleID:   "platform/stage/eu-central-1/vpc",
+		ModulePath: "platform/stage/eu-central-1/vpc",
+		Components: map[string]string{
+			"service":     "platform",
+			"environment": "stage",
+			"region":      "eu-central-1",
+			"module":      "vpc",
 		},
+		Status:  ci.PlanStatusChanges,
+		Summary: "+1 (aws_vpc)",
+	})
+	if err != nil {
+		t.Fatalf("NewPlanResult() error = %v", err)
+	}
+	collection, err := ci.NewPlanResultCollection(ci.PlanResultCollectionOptions{
+		Results: []ci.PlanResult{planResult},
+	})
+	if err != nil {
+		t.Fatalf("NewPlanResultCollection() error = %v", err)
 	}
 
-	plans := collection.Results
+	plans := collection.Results()
 
 	if len(plans) != 1 {
 		t.Fatalf("expected 1 plan, got %d", len(plans))
 	}
 
-	if plans[0].ModuleID != "platform/stage/eu-central-1/vpc" {
-		t.Errorf("unexpected module ID: %s", plans[0].ModuleID)
+	if plans[0].ModuleID() != "platform/stage/eu-central-1/vpc" {
+		t.Errorf("unexpected module ID: %s", plans[0].ModuleID())
 	}
 
-	if plans[0].Status != ci.PlanStatusChanges {
-		t.Errorf("expected status %s, got %s", ci.PlanStatusChanges, plans[0].Status)
+	if plans[0].Status() != ci.PlanStatusChanges {
+		t.Errorf("expected status %s, got %s", ci.PlanStatusChanges, plans[0].Status())
 	}
 }
 
@@ -125,13 +130,13 @@ func TestScan(t *testing.T) {
 		t.Fatalf("ScanPlanResults failed: %v", err)
 	}
 
-	if len(collection.Results) != 2 {
-		t.Errorf("expected 2 results, got %d", len(collection.Results))
+	if collection.Len() != 2 {
+		t.Errorf("expected 2 results, got %d", collection.Len())
 	}
 
 	statusMap := make(map[string]ci.PlanStatus)
-	for i := range collection.Results {
-		statusMap[collection.Results[i].ModuleID] = collection.Results[i].Status
+	for _, result := range collection.Results() {
+		statusMap[result.ModuleID()] = result.Status()
 	}
 
 	if statusMap["platform/stage/eu-central-1/vpc"] != ci.PlanStatusChanges {
@@ -159,16 +164,16 @@ func TestScanPlanResults_WithSubmodule(t *testing.T) {
 		t.Fatalf("ScanPlanResults failed: %v", err)
 	}
 
-	if len(collection.Results) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(collection.Results))
+	if collection.Len() != 1 {
+		t.Fatalf("expected 1 result, got %d", collection.Len())
 	}
 
-	result := collection.Results[0]
-	if result.Get("module") != "ec2" {
-		t.Errorf("expected module 'ec2', got %q", result.Get("module"))
+	result := collection.Results()[0]
+	if result.Component("module") != "ec2" {
+		t.Errorf("expected module 'ec2', got %q", result.Component("module"))
 	}
-	if result.Get("submodule") != "web" {
-		t.Errorf("expected submodule 'web', got %q", result.Get("submodule"))
+	if result.Component("submodule") != "web" {
+		t.Errorf("expected submodule 'web', got %q", result.Component("submodule"))
 	}
 }
 
@@ -180,8 +185,8 @@ func TestScanPlanResults_Empty(t *testing.T) {
 		t.Fatalf("ScanPlanResults failed: %v", err)
 	}
 
-	if len(collection.Results) != 0 {
-		t.Errorf("expected 0 results, got %d", len(collection.Results))
+	if collection.Len() != 0 {
+		t.Errorf("expected 0 results, got %d", collection.Len())
 	}
 }
 

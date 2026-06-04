@@ -78,8 +78,7 @@ func produceResult(runtime Runtime) *ProducerResult {
 func publishProducerArtifacts(ctx context.Context, runtime Runtime, result *ProducerResult) error {
 	publication, err := ci.NewArtifactPublication(ci.ArtifactPublicationOptions{
 		Producer: pluginName,
-		Writer:   runtime.Reports,
-		Results:  result,
+		Results:  ci.RawResults(result),
 		BuildReport: func() (*ci.Report, error) {
 			run, err := plugin.NewArtifactRun(runtime.AppContext, plugin.ArtifactRunOptions{
 				Producer: pluginName,
@@ -93,5 +92,5 @@ func publishProducerArtifacts(ctx context.Context, runtime Runtime, result *Prod
 	if err != nil {
 		return err
 	}
-	return ci.PublishArtifacts(ctx, publication)
+	return runtime.Reports.PublishArtifacts(ctx, publication)
 }

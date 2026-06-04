@@ -7,19 +7,21 @@ import (
 	"time"
 
 	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/ci/citest"
 )
 
 func TestRun_SkipsReportWithMismatchedFingerprint(t *testing.T) {
 	t.Parallel()
 
-	collection := &ci.PlanResultCollection{
+	collection := testSummaryPlanCollection(t, ci.PlanResultCollectionOptions{
 		GeneratedAt: time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC),
-		Results: []ci.PlanResult{{
-			ModuleID: "svc/prod/us/vpc",
-			Status:   ci.PlanStatusChanges,
-			Summary:  "+1",
-		}},
-	}
+		Results: []ci.PlanResult{testPlanResult(t, ci.PlanResultOptions{
+			ModuleID:   "svc/prod/us/vpc",
+			ModulePath: "svc/prod/us/vpc",
+			Status:     ci.PlanStatusChanges,
+			Summary:    "+1",
+		})},
+	})
 	currentFingerprint := collection.Fingerprint()
 	fresh := mustRenderedReport(t, "fresh", "Fresh Report", currentFingerprint)
 	stale := mustRenderedReport(t, "stale", "Stale Report", "old-fingerprint")
@@ -29,7 +31,7 @@ func TestRun_SkipsReportWithMismatchedFingerprint(t *testing.T) {
 		PlanScanner: fakePlanScanner{
 			collection: collection,
 		},
-		ReportStore: testReportStore(stale, fresh),
+		ReportStore: testReportStore(t, stale, fresh),
 		ProviderResolver: func() (Provider, error) {
 			return fakeProvider{service: fakeCommentService{enabled: false}}, nil
 		},
@@ -56,15 +58,20 @@ func TestRun_SkipsReportWithMismatchedFingerprint(t *testing.T) {
 func TestRun_ReportWithoutFingerprintRendersWithoutWarning(t *testing.T) {
 	t.Parallel()
 
-	collection := &ci.PlanResultCollection{
+	collection := testSummaryPlanCollection(t, ci.PlanResultCollectionOptions{
 		GeneratedAt: time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC),
-		Results:     []ci.PlanResult{{ModuleID: "svc/prod/us/vpc", Status: ci.PlanStatusChanges, Summary: "+1"}},
-	}
+		Results: []ci.PlanResult{testPlanResult(t, ci.PlanResultOptions{
+			ModuleID:   "svc/prod/us/vpc",
+			ModulePath: "svc/prod/us/vpc",
+			Status:     ci.PlanStatusChanges,
+			Summary:    "+1",
+		})},
+	})
 	report := mustRenderedReport(t, "legacy", "Legacy Report", "")
 
 	result, err := Run(context.Background(), Runtime{
 		PlanScanner: fakePlanScanner{collection: collection},
-		ReportStore: testReportStore(report),
+		ReportStore: testReportStore(t, report),
 		ProviderResolver: func() (Provider, error) {
 			return fakeProvider{service: fakeCommentService{enabled: false}}, nil
 		},
@@ -103,12 +110,22 @@ func mustRenderedReport(t *testing.T, producer, title, fingerprint string) *ci.R
 	return report
 }
 
-func testReportStore(reports ...*ci.Report) ci.ReportStore {
+func testReportStore(tb testing.TB, reports ...*ci.Report) ci.ReportStore {
+	tb.Helper()
 	store := ci.NewMemoryReportStore()
 	for _, report := range reports {
-		store.Publish(report)
+		citest.PublishReport(tb, store, report)
 	}
 	return store
+}
+
+func testSummaryPlanCollection(tb testing.TB, opts ci.PlanResultCollectionOptions) *ci.PlanResultCollection {
+	tb.Helper()
+	collection, err := ci.NewPlanResultCollection(opts)
+	if err != nil {
+		tb.Fatalf("NewPlanResultCollection() error = %v", err)
+	}
+	return collection
 }
 
 type fakePlanScanner struct {

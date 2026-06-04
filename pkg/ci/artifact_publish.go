@@ -11,19 +11,38 @@ import (
 // while still preserving raw results.
 type ArtifactReportBuilder func() (*Report, error)
 
+// ArtifactResults describes whether a producer publication should write raw
+// results and, if so, what JSON-serializable value should be written.
+type ArtifactResults struct {
+	value any
+	write bool
+}
+
+// RawResults marks value for persistence as {producer}-results.json.
+func RawResults(value any) ArtifactResults {
+	return ArtifactResults{value: value, write: true}
+}
+
+// NoResults marks a report-only publication.
+func NoResults() ArtifactResults {
+	return ArtifactResults{}
+}
+
+func (r ArtifactResults) valueToWrite() (any, bool) {
+	return r.value, r.write
+}
+
 // ArtifactPublicationOptions describes one canonical producer artifact write.
 type ArtifactPublicationOptions struct {
 	Producer    string
-	Writer      ArtifactWriter
-	Results     any
+	Results     ArtifactResults
 	BuildReport ArtifactReportBuilder
 }
 
 // ArtifactPublication is a validated producer artifact publication intent.
 type ArtifactPublication struct {
 	producer    string
-	writer      ArtifactWriter
-	results     any
+	results     ArtifactResults
 	buildReport ArtifactReportBuilder
 	constructed bool
 }
@@ -35,38 +54,32 @@ func NewArtifactPublication(opts ArtifactPublicationOptions) (ArtifactPublicatio
 	}
 	return ArtifactPublication{
 		producer:    opts.Producer,
-		writer:      opts.Writer,
 		results:     opts.Results,
 		buildReport: opts.BuildReport,
 		constructed: true,
 	}, nil
 }
 
-// PublishArtifacts persists raw producer results and replaces the matching
-// render-ready report. Raw results are always passed to the writer. If report
-// construction fails or returns nil, a nil report is written so stale report
-// artifacts for the producer are removed.
-func PublishArtifacts(ctx context.Context, publication ArtifactPublication) error {
+func buildPublicationReport(publication ArtifactPublication) (*Report, error) {
 	if !publication.constructed {
-		return errors.New("artifact publication must be built with NewArtifactPublication")
+		return nil, errors.New("artifact publication must be built with NewArtifactPublication")
 	}
-	if publication.writer == nil {
-		return nil
-	}
-
-	var errs []error
-	var report *Report
 	if publication.buildReport != nil {
 		built, err := publication.buildReport()
 		if err != nil {
-			errs = append(errs, fmt.Errorf("build report: %w", err))
-		} else {
-			report = built
+			return nil, fmt.Errorf("build report: %w", err)
 		}
+		return built, nil
 	}
+	return nil, nil
+}
 
-	if err := publication.writer.ReplaceResultsAndReport(ctx, publication.producer, publication.results, report); err != nil {
-		errs = append(errs, fmt.Errorf("replace artifacts: %w", err))
+func contextPublicationError(ctx context.Context, publication ArtifactPublication) error {
+	if err := contextError(ctx); err != nil {
+		return err
 	}
-	return errors.Join(errs...)
+	if !publication.constructed {
+		return errors.New("artifact publication must be built with NewArtifactPublication")
+	}
+	return nil
 }

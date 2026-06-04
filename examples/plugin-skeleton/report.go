@@ -20,7 +20,7 @@ import (
 //  2. Compose the final ci.Report via ci.NewRenderedReport.
 //
 //  3. Persist raw results and the report via constructor-built
-//     ci.ArtifactPublication plus ci.PublishArtifacts.
+//     ci.ArtifactPublication plus appCtx.Reports().PublishArtifacts.
 //
 //  4. Always pass run.Artifact() into ci.NewRenderedReport. Local
 //     consumers compare the fingerprint against the live workspace to decide

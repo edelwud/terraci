@@ -74,7 +74,7 @@ func buildSummaryHeaderSection(plans []ci.PlanResult, reports []*ci.Report) (ci.
 
 func overallSummaryStatus(plans []ci.PlanResult, reports []*ci.Report) ci.ReportStatus {
 	for i := range plans {
-		if plans[i].Status == ci.PlanStatusFailed {
+		if plans[i].Status() == ci.PlanStatusFailed {
 			return ci.ReportStatusFail
 		}
 	}
@@ -87,7 +87,7 @@ func overallSummaryStatus(plans []ci.PlanResult, reports []*ci.Report) ci.Report
 		}
 	}
 	for i := range plans {
-		if plans[i].Status == ci.PlanStatusChanges {
+		if plans[i].Status() == ci.PlanStatusChanges {
 			return ci.ReportStatusWarn
 		}
 	}
@@ -113,7 +113,7 @@ func buildTerraformPlanSections(plans []ci.PlanResult, includeDetails bool) ([]c
 		}
 
 		sort.Slice(envPlans, func(i, j int) bool {
-			return envPlans[i].ModuleID < envPlans[j].ModuleID
+			return envPlans[i].ModuleID() < envPlans[j].ModuleID()
 		})
 
 		rows := make([]ci.RenderRow, 0, len(envPlans))
@@ -121,12 +121,12 @@ func buildTerraformPlanSections(plans []ci.PlanResult, includeDetails bool) ([]c
 		status := ci.ReportStatusWarn
 		for i := range envPlans {
 			plan := envPlans[i]
-			if plan.Status == ci.PlanStatusFailed {
+			if plan.Status() == ci.PlanStatusFailed {
 				status = ci.ReportStatusFail
 			}
 			rows = append(rows, ci.NewRenderRow(
-				ci.RenderLabel(statusIcon(plan.Status), planStatusTone(plan.Status)),
-				ci.RenderModulePath(plan.ModuleID),
+				ci.RenderLabel(statusIcon(plan.Status()), planStatusTone(plan.Status())),
+				ci.RenderModulePath(plan.ModuleID()),
 				ci.RenderText(planSummary(plan)),
 			))
 			if includeDetails {

@@ -23,16 +23,12 @@ func Scan(rootDir string, segments []string) (*ci.PlanResultCollection, error) {
 		segments = defaultPlanSegments
 	}
 
-	collection := &ci.PlanResultCollection{
-		Results:     make([]ci.PlanResult, 0),
-		GeneratedAt: time.Now().UTC(),
-	}
-
 	moduleDirs, err := FindModulesWithPlan(rootDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan for plan results: %w", err)
 	}
 
+	results := make([]ci.PlanResult, 0, len(moduleDirs))
 	for _, dir := range moduleDirs {
 		jsonPath := filepath.Join(dir, pipeline.PlanJSONFilename)
 
@@ -45,19 +41,25 @@ func Scan(rootDir string, segments []string) (*ci.PlanResultCollection, error) {
 
 		result, parseErr := parsePlanJSON(jsonPath, modulePath, segments)
 		if parseErr != nil {
-			result = ci.PlanResult{
+			result, err = ci.NewPlanResult(ci.PlanResultOptions{
 				ModuleID:   filepath.ToSlash(modulePath),
 				ModulePath: modulePath,
 				Status:     ci.PlanStatusFailed,
 				Summary:    "Failed to parse plan",
 				Error:      parseErr.Error(),
+			})
+			if err != nil {
+				return nil, err
 			}
 		}
 
-		collection.Results = append(collection.Results, result)
+		results = append(results, result)
 	}
 
-	return collection, nil
+	return ci.NewPlanResultCollection(ci.PlanResultCollectionOptions{
+		Results:     results,
+		GeneratedAt: time.Now().UTC(),
+	})
 }
 
 // ParseModulePathComponents parses a module path using the given segment names
@@ -83,7 +85,8 @@ func ParseModulePathComponents(modulePath string, segments []string) map[string]
 func parsePlanJSON(jsonPath, modulePath string, segments []string) (ci.PlanResult, error) {
 	parsed, err := plan.ParseJSON(jsonPath)
 	if err != nil {
-		return ci.PlanResult{}, err
+		var empty ci.PlanResult
+		return empty, err
 	}
 
 	components := ParseModulePathComponents(modulePath, segments)
@@ -94,7 +97,7 @@ func parsePlanJSON(jsonPath, modulePath string, segments []string) (ci.PlanResul
 		rawPlanOutput = plan.FilterPlanOutput(string(data))
 	}
 
-	return ci.PlanResult{
+	return ci.NewPlanResult(ci.PlanResultOptions{
 		ModuleID:          filepath.ToSlash(modulePath),
 		ModulePath:        modulePath,
 		Components:        components,
@@ -103,5 +106,5 @@ func parsePlanJSON(jsonPath, modulePath string, segments []string) (ci.PlanResul
 		StructuredDetails: parsed.Details(),
 		RawPlanOutput:     rawPlanOutput,
 		ExitCode:          parsed.ExitCode(),
-	}, nil
+	})
 }

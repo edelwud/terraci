@@ -206,8 +206,7 @@ func saveArtifacts(ctx context.Context, appCtx *plugin.AppContext, result *model
 	}
 	publication, err := ci.NewArtifactPublication(ci.ArtifactPublicationOptions{
 		Producer: pluginName,
-		Writer:   appCtx.Reports(),
-		Results:  result,
+		Results:  ci.RawResults(result),
 		BuildReport: func() (*ci.Report, error) {
 			run, err := plugin.NewArtifactRun(appCtx, plugin.ArtifactRunOptions{
 				Producer:   pluginName,
@@ -222,5 +221,5 @@ func saveArtifacts(ctx context.Context, appCtx *plugin.AppContext, result *model
 	if err != nil {
 		return err
 	}
-	return ci.PublishArtifacts(ctx, publication)
+	return appCtx.Reports().PublishArtifacts(ctx, publication)
 }

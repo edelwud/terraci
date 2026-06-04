@@ -44,7 +44,7 @@ func EmptyReportSelection() ReportSelection {
 // collection. Reports with missing provenance or fingerprints are considered
 // degraded but renderable; reports with mismatched non-empty fingerprints are
 // skipped and returned as warnings.
-func SelectCurrentReports(collection *PlanResultCollection, reports []*Report, opts ReportSelectionOptions) ReportSelection {
+func SelectCurrentReports(collection *PlanResultCollection, reports ReportCollection, opts ReportSelectionOptions) ReportSelection {
 	excluded := make(map[string]struct{}, len(opts.ExcludeProducers))
 	for _, producer := range opts.ExcludeProducers {
 		excluded[producer] = struct{}{}
@@ -52,7 +52,7 @@ func SelectCurrentReports(collection *PlanResultCollection, reports []*Report, o
 
 	byProducer := make(map[string]*Report)
 	diagnostics := diagnostic.List{}
-	for _, report := range reports {
+	for _, report := range reports.Reports() {
 		if report == nil {
 			continue
 		}

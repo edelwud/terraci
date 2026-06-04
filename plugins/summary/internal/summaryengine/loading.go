@@ -32,7 +32,7 @@ func loadReportSelection(ctx context.Context, runtime Runtime, collection *ci.Pl
 	if err != nil {
 		return ci.EmptyReportSelection(), fmt.Errorf("failed to load plugin reports: %w", err)
 	}
-	return ci.SelectCurrentReports(collection, filterSummaryReports(reports), ci.ReportSelectionOptions{
+	return ci.SelectCurrentReports(collection, reports.WithoutProducers(ReportProducer), ci.ReportSelectionOptions{
 		Consumer: "summary",
 	}), nil
 }
