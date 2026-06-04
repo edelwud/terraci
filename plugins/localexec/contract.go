@@ -8,6 +8,7 @@ import (
 	"github.com/edelwud/terraci/pkg/diagnostic"
 	"github.com/edelwud/terraci/pkg/execution"
 	"github.com/edelwud/terraci/pkg/filter"
+	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
 	localexecinternal "github.com/edelwud/terraci/plugins/localexec/internal"
 	"github.com/edelwud/terraci/plugins/localexec/internal/flow"
@@ -114,12 +115,19 @@ type Executor interface {
 type ExecutorOption func(*executorOptions)
 
 type executorOptions struct {
-	eventSink execution.EventSink
+	eventSink     execution.EventSink
+	contributions []*pipeline.Contribution
 }
 
 func WithEventSink(sink execution.EventSink) ExecutorOption {
 	return func(opts *executorOptions) {
 		opts.eventSink = sink
+	}
+}
+
+func WithPipelineContributions(contributions []*pipeline.Contribution) ExecutorOption {
+	return func(opts *executorOptions) {
+		opts.contributions = cloneContributions(contributions)
 	}
 }
 
@@ -134,6 +142,9 @@ func NewExecutor(appCtx *plugin.AppContext, opts ...ExecutorOption) Executor {
 	internalOpts := make([]localexecinternal.Option, 0)
 	if options.eventSink != nil {
 		internalOpts = append(internalOpts, localexecinternal.WithEventSink(options.eventSink))
+	}
+	if len(options.contributions) > 0 {
+		internalOpts = append(internalOpts, localexecinternal.WithPipelineContributions(options.contributions))
 	}
 	return executorAdapter{executor: localexecinternal.NewExecutor(appCtx, internalOpts...)}
 }
@@ -177,4 +188,15 @@ func mapExecuteRequest(req ExecuteRequest) (localexecinternal.Request, error) {
 	}
 
 	return mapped, nil
+}
+
+func cloneContributions(contributions []*pipeline.Contribution) []*pipeline.Contribution {
+	if len(contributions) == 0 {
+		return nil
+	}
+	clone := make([]*pipeline.Contribution, len(contributions))
+	for i, contribution := range contributions {
+		clone[i] = contribution.Clone()
+	}
+	return clone
 }

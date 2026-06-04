@@ -10,8 +10,8 @@ import (
 
 // CommandProvider adds CLI subcommands to TerraCi. The framework calls
 // CommandSpecs() once during root command registration. Inside RunE, plugins
-// should use CommandPlugin[T] to resolve the per-run AppContext plus the
-// command-scoped plugin instance in one typed call.
+// should use CommandPlugin[T] to resolve command-scoped context plus the
+// per-run plugin instance in one typed call.
 type CommandProvider interface {
 	Plugin
 	CommandSpecs() ([]CommandSpec, error)

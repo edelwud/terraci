@@ -703,6 +703,86 @@ func TestArchitecture_CommandBindingBoundaries(t *testing.T) {
 	}
 }
 
+func TestArchitecture_CommandPlanningContextBoundary(t *testing.T) {
+	root := repoRoot(t)
+	var violations []string
+
+	for _, rel := range goFiles(t, root, "cmd", "pkg", "plugins", "examples") {
+		file := parseGoFile(t, filepath.Join(root, rel), 0)
+		pluginAliases := importAliases(file, moduleImportPath+"/pkg/plugin")
+
+		ast.Inspect(file, func(node ast.Node) bool {
+			switch typed := node.(type) {
+			case *ast.FuncDecl:
+				if typed.Name.Name == "WithContributionCollector" {
+					violations = append(violations, rel+" defines stale WithContributionCollector option; pass pipeline contributions explicitly")
+				}
+			case *ast.TypeSpec:
+				if typed.Name.Name == "ContributionCollector" || typed.Name.Name == "contextContributionCollector" {
+					violations = append(violations, rel+" defines stale "+typed.Name.Name+"; contributions belong to runflow.Prepared or plugin.CommandContext")
+				}
+			case *ast.CompositeLit:
+				if !isAppContextOptionsLiteral(typed.Type, pluginAliases) {
+					return true
+				}
+				for _, elt := range typed.Elts {
+					kv, ok := elt.(*ast.KeyValueExpr)
+					if !ok {
+						continue
+					}
+					if key, ok := kv.Key.(*ast.Ident); ok && key.Name == "PipelineContributions" {
+						violations = append(violations, rel+" sets AppContextOptions.PipelineContributions; bind planning state through CommandContext")
+					}
+				}
+			case *ast.SelectorExpr:
+				receiver, ok := typed.X.(*ast.Ident)
+				if !ok {
+					return true
+				}
+				if receiver.Name != "appCtx" && receiver.Name != "appContext" {
+					return true
+				}
+				switch typed.Sel.Name {
+				case "PipelineContributions":
+					violations = append(violations, rel+" reads pipeline contributions from AppContext; use runflow.Prepared or plugin.CommandContext")
+				case "WithPipelineContributions":
+					violations = append(violations, rel+" mutates AppContext with pipeline contributions; bind planning state through CommandContext")
+				}
+			}
+			return true
+		})
+	}
+
+	stalePatterns := []string{
+		"AppContextOptions.PipelineContributions",
+		"AppContext.PipelineContributions",
+		"appCtx.PipelineContributions()",
+		"ctx.PipelineContributions()",
+		"WithContributionCollector",
+		"ContributionCollector",
+		"contextContributionCollector",
+		"CommandPlugin[T] to resolve the per-run AppContext",
+		"pipeline contributions that do not change",
+	}
+	for _, rel := range textFiles(t, root, "AGENTS.md", "docs", "examples", "pkg/plugin/doc.go") {
+		if allowUnder(rel, "docs/.vitepress/dist/") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			t.Fatalf("read %s: %v", rel, err)
+		}
+		text := string(data)
+		for _, pattern := range stalePatterns {
+			banTextPattern(&violations, rel, text, pattern, "stale command planning context reference")
+		}
+	}
+
+	if len(violations) > 0 {
+		t.Fatalf("command planning context boundary violations:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
 func TestArchitecture_PluginCommandContributionContract(t *testing.T) {
 	root := repoRoot(t)
 	var violations []string

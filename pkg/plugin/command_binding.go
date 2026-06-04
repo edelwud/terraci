@@ -6,6 +6,8 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+
+	"github.com/edelwud/terraci/pkg/pipeline"
 )
 
 // CommandBindingReason identifies a command binding failure class.
@@ -28,15 +30,33 @@ type CommandBindingSource interface {
 
 // CommandBindingOptions describes a command binding value.
 type CommandBindingOptions struct {
-	AppContext *AppContext
-	Source     CommandBindingSource
+	AppContext            *AppContext
+	Source                CommandBindingSource
+	PipelineContributions []*pipeline.Contribution
+}
+
+// CommandContext is the command-scoped SDK value exposed to command callbacks.
+// It carries the runtime AppContext plus framework planning state collected for
+// this command run.
+type CommandContext struct {
+	appCtx        *AppContext
+	contributions []*pipeline.Contribution
+}
+
+// AppContext returns the runtime plugin context for this command run.
+func (c CommandContext) AppContext() *AppContext { return c.appCtx }
+
+// PipelineContributions returns enabled pipeline contributions collected by
+// runflow for this command run.
+func (c CommandContext) PipelineContributions() []*pipeline.Contribution {
+	return clonePipelineContributions(c.contributions)
 }
 
 // CommandBinding is the command-scoped bridge between a cobra callback, its
 // immutable AppContext, and the plugin instance created for that command run.
 type CommandBinding struct {
-	appCtx *AppContext
-	source CommandBindingSource
+	commandCtx CommandContext
+	source     CommandBindingSource
 }
 
 // NewCommandBinding validates and builds a command binding value.
@@ -47,7 +67,13 @@ func NewCommandBinding(opts CommandBindingOptions) (*CommandBinding, error) {
 	if opts.Source == nil {
 		return nil, &CommandBindingError{Reason: CommandBindingMissingLookup}
 	}
-	return &CommandBinding{appCtx: opts.AppContext, source: opts.Source}, nil
+	return &CommandBinding{
+		commandCtx: CommandContext{
+			appCtx:        opts.AppContext,
+			contributions: clonePipelineContributions(opts.PipelineContributions),
+		},
+		source: opts.Source,
+	}, nil
 }
 
 // AppContext returns the immutable command AppContext.
@@ -55,7 +81,18 @@ func (b *CommandBinding) AppContext() *AppContext {
 	if b == nil {
 		return nil
 	}
-	return b.appCtx
+	return b.commandCtx.AppContext()
+}
+
+// CommandContext returns the command-scoped SDK context.
+func (b *CommandBinding) CommandContext() CommandContext {
+	if b == nil {
+		return CommandContext{}
+	}
+	return CommandContext{
+		appCtx:        b.commandCtx.appCtx,
+		contributions: clonePipelineContributions(b.commandCtx.contributions),
+	}
 }
 
 type commandBindingKey struct{}
@@ -128,7 +165,7 @@ func (e *DisabledPluginError) Error() string {
 // commandInstance returns the command-scoped plugin instance matching name.
 func commandInstance[T Plugin](binding *CommandBinding, name string) (T, error) {
 	var zero T
-	if binding == nil || binding.appCtx == nil {
+	if binding == nil || binding.commandCtx.appCtx == nil {
 		return zero, &CommandBindingError{Plugin: name, Reason: CommandBindingMissingContext}
 	}
 	if binding.source == nil {
@@ -153,14 +190,14 @@ func commandInstance[T Plugin](binding *CommandBinding, name string) (T, error) 
 // CommandPlugin resolves the command-scoped AppContext and plugin instance for
 // a cobra callback. It is the preferred command boundary for built-in and
 // external plugins.
-func CommandPlugin[T Plugin](cmd *cobra.Command, name string) (*AppContext, T, error) {
+func CommandPlugin[T Plugin](cmd *cobra.Command, name string) (CommandContext, T, error) {
 	var zero T
 	if cmd == nil {
-		return nil, zero, &CommandBindingError{Plugin: name, Reason: CommandBindingNilCommand}
+		return CommandContext{}, zero, &CommandBindingError{Plugin: name, Reason: CommandBindingNilCommand}
 	}
 	binding := commandBindingFromContext(cmd.Context())
-	if binding == nil || binding.appCtx == nil {
-		return nil, zero, &CommandBindingError{Plugin: name, Reason: CommandBindingMissingContext}
+	if binding == nil || binding.commandCtx.appCtx == nil {
+		return CommandContext{}, zero, &CommandBindingError{Plugin: name, Reason: CommandBindingMissingContext}
 	}
 	current, err := commandInstance[T](binding, name)
 	if err != nil {
@@ -168,9 +205,9 @@ func CommandPlugin[T Plugin](cmd *cobra.Command, name string) (*AppContext, T, e
 		if errors.As(err, &bindingErr) {
 			bindingErr.Plugin = name
 		}
-		return binding.appCtx, zero, err
+		return binding.CommandContext(), zero, err
 	}
-	return binding.appCtx, current, nil
+	return binding.CommandContext(), current, nil
 }
 
 // RequireEnabled returns message when p reports disabled.
@@ -185,4 +222,15 @@ func RequireEnabled(p interface{ IsEnabled() bool }, message string) error {
 		return &DisabledPluginError{Message: message}
 	}
 	return nil
+}
+
+func clonePipelineContributions(contribs []*pipeline.Contribution) []*pipeline.Contribution {
+	if len(contribs) == 0 {
+		return nil
+	}
+	clone := make([]*pipeline.Contribution, len(contribs))
+	for i, contribution := range contribs {
+		clone[i] = contribution.Clone()
+	}
+	return clone
 }

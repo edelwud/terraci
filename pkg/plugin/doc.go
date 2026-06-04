@@ -63,19 +63,20 @@
 //	└─────────────┘
 //
 // AppContext is constructed once per command run by the CLI runflow. The
-// framework binds it to cobra through a CommandBinding so plugin RunE
-// callbacks can retrieve it through CommandPlugin[T]. AppContext itself is
-// runtime context only — it does not carry command lookup. It is immutable:
+// framework binds a command-scoped CommandContext to cobra through a
+// CommandBinding so plugin RunE callbacks can retrieve AppContext plus planning
+// state through CommandPlugin[T]. AppContext itself is runtime context only —
+// it does not carry command lookup or pipeline contributions. It is immutable:
 // plugins receive a snapshot of Config / WorkDir / ServiceDir / narrow
-// resolver accessors / pipeline contributions that do not change for the
-// duration of the command.
+// resolver accessors that do not change for the duration of the command.
 //
 // # Command boundary
 //
 // Command setup is framework-owned: cobra flags feed the CLI runflow, which
 // loads config, decodes plugin config, runs preflight, collects contributions,
 // and binds a CommandBinding. Plugin command handlers should stay thin:
-// resolve the command-scoped plugin with CommandPlugin[T], call RequireEnabled for
+// resolve CommandContext plus the command-scoped plugin with CommandPlugin[T],
+// read runtime state through cmdCtx.AppContext(), call RequireEnabled for
 // ConfigLoader-backed plugins, parse cobra flags into a typed request, then
 // hand the request to the plugin use-case. CommandPlugin and RequireEnabled
 // return typed errors (CommandBindingError and DisabledPluginError) so tests

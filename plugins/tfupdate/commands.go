@@ -54,7 +54,7 @@ Examples:
   terraci tfupdate --module platform/prod/eu-central-1/vpc
   terraci tfupdate --output json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			appCtx, current, err := plugin.CommandPlugin[*Plugin](cmd, p.Name())
+			cmdCtx, current, err := plugin.CommandPlugin[*Plugin](cmd, p.Name())
 			if err != nil {
 				return err
 			}
@@ -75,7 +75,7 @@ Examples:
 			c, cancel := context.WithTimeout(cmd.Context(), timeout)
 			defer cancel()
 
-			return current.runCheck(c, appCtx, req, os.Stdout)
+			return current.runCheck(c, cmdCtx.AppContext(), req, os.Stdout)
 		},
 		Configure: func(cmd *cobra.Command) error {
 			cmd.Flags().StringVarP(&target, "target", "t", "", "what to check: modules, providers, all")

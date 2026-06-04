@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/edelwud/terraci/pkg/execution"
+	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/plugins/localexec/internal/flow"
 	"github.com/edelwud/terraci/plugins/localexec/internal/spec"
@@ -27,6 +28,10 @@ type Option = flow.Option
 
 func WithEventSink(sink execution.EventSink) Option {
 	return flow.WithEventSink(sink)
+}
+
+func WithPipelineContributions(contributions []*pipeline.Contribution) Option {
+	return flow.WithPipelineContributions(contributions)
 }
 
 func NewExecutor(appCtx *plugin.AppContext, opts ...Option) *Executor {

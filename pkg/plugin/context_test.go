@@ -118,7 +118,7 @@ func TestAppContext_NoReportsCreatesDefaultStore(t *testing.T) {
 	}
 }
 
-func TestAppContext_PipelineContributionsAreSnapshot(t *testing.T) {
+func TestCommandContext_PipelineContributionsAreSnapshot(t *testing.T) {
 	job, err := pipeline.NewContributedJob(pipeline.ContributedJobOptions{
 		Name:     "summary",
 		Commands: []string{"terraci summary"},
@@ -130,20 +130,94 @@ func TestAppContext_PipelineContributionsAreSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewContribution() error = %v", err)
 	}
-	ctx := NewAppContext(AppContextOptions{
-		PipelineContributions: []*pipeline.Contribution{contrib},
-	})
+	appCtx := NewAppContext(AppContextOptions{})
+	binding := mustCommandBindingWithContributions(t, appCtx, contextTestSource{plugin: &contextTestPlugin{name: "cmd"}}, []*pipeline.Contribution{contrib})
 
-	got := ctx.PipelineContributions()
+	cmdCtx := binding.CommandContext()
+	if cmdCtx.AppContext() != appCtx {
+		t.Fatalf("CommandContext.AppContext() = %p, want %p", cmdCtx.AppContext(), appCtx)
+	}
+	got := cmdCtx.PipelineContributions()
 	if len(got) != 1 || got[0] == contrib {
-		t.Fatalf("PipelineContributions() = %#v, want defensive contribution copy", got)
+		t.Fatalf("CommandContext.PipelineContributions() = %#v, want defensive contribution copy", got)
 	}
 	if jobs := got[0].Jobs(); len(jobs) != 1 || jobs[0].Name() != "summary" {
-		t.Fatalf("PipelineContributions()[0].Jobs() = %#v, want summary", jobs)
+		t.Fatalf("CommandContext.PipelineContributions()[0].Jobs() = %#v, want summary", jobs)
 	}
 	got[0] = nil
-	if again := ctx.PipelineContributions(); len(again) != 1 || again[0] == nil || again[0] == contrib {
-		t.Fatalf("PipelineContributions() was mutated through returned slice: %#v", again)
+	if again := cmdCtx.PipelineContributions(); len(again) != 1 || again[0] == nil || again[0] == contrib {
+		t.Fatalf("CommandContext.PipelineContributions() was mutated through returned slice: %#v", again)
+	}
+}
+
+func TestCommandBinding_ClonesInputContributions(t *testing.T) {
+	job, err := pipeline.NewContributedJob(pipeline.ContributedJobOptions{
+		Name:     "summary",
+		Commands: []string{"terraci summary"},
+	})
+	if err != nil {
+		t.Fatalf("NewContributedJob() error = %v", err)
+	}
+	contrib, err := pipeline.NewContribution(job)
+	if err != nil {
+		t.Fatalf("NewContribution() error = %v", err)
+	}
+	input := []*pipeline.Contribution{contrib}
+	binding := mustCommandBindingWithContributions(t, NewAppContext(AppContextOptions{}), contextTestSource{plugin: &contextTestPlugin{name: "cmd"}}, input)
+	input[0] = nil
+
+	got := binding.CommandContext().PipelineContributions()
+	if len(got) != 1 || got[0] == nil || got[0] == contrib {
+		t.Fatalf("bound PipelineContributions() = %#v, want defensive copy independent of input slice", got)
+	}
+}
+
+func TestCommandPlugin_ReturnsContributions(t *testing.T) {
+	job, err := pipeline.NewContributedJob(pipeline.ContributedJobOptions{
+		Name:     "summary",
+		Commands: []string{"terraci summary"},
+	})
+	if err != nil {
+		t.Fatalf("NewContributedJob() error = %v", err)
+	}
+	contrib, err := pipeline.NewContribution(job)
+	if err != nil {
+		t.Fatalf("NewContribution() error = %v", err)
+	}
+	target := &contextTestPlugin{name: "cmd", enabled: true}
+	appCtx := NewAppContext(AppContextOptions{})
+	cmd := &cobra.Command{}
+	cmd.SetContext(BindCommandContext(context.Background(), mustCommandBindingWithContributions(t, appCtx, contextTestSource{plugin: target}, []*pipeline.Contribution{contrib})))
+
+	cmdCtx, gotPlugin, err := CommandPlugin[*contextTestPlugin](cmd, "cmd")
+	if err != nil {
+		t.Fatalf("CommandPlugin() error = %v", err)
+	}
+	if cmdCtx.AppContext() != appCtx {
+		t.Fatalf("CommandPlugin() AppContext = %p, want %p", cmdCtx.AppContext(), appCtx)
+	}
+	if gotPlugin != target {
+		t.Fatalf("CommandPlugin() plugin = %p, want %p", gotPlugin, target)
+	}
+	if got := cmdCtx.PipelineContributions(); len(got) != 1 || got[0] == contrib {
+		t.Fatalf("CommandPlugin().PipelineContributions() = %#v, want defensive copy", got)
+	}
+}
+
+func TestCommandContext_ZeroValue(t *testing.T) {
+	var ctx CommandContext
+	if ctx.AppContext() != nil {
+		t.Fatal("zero CommandContext AppContext should be nil")
+	}
+	if got := ctx.PipelineContributions(); got != nil {
+		t.Fatalf("zero CommandContext PipelineContributions() = %#v, want nil", got)
+	}
+}
+
+func TestAppContext_DoesNotCarryPipelineContributions(t *testing.T) {
+	ctx := NewAppContext(AppContextOptions{})
+	if ctx == nil {
+		t.Fatal("NewAppContext() returned nil")
 	}
 }
 
@@ -247,7 +321,7 @@ func TestCommandPluginLookup_RejectsNilContext(t *testing.T) {
 }
 
 func TestCommandPluginLookup_RejectsMissingCommandLookup(t *testing.T) {
-	binding := &CommandBinding{appCtx: NewAppContext(AppContextOptions{})}
+	binding := &CommandBinding{commandCtx: CommandContext{appCtx: NewAppContext(AppContextOptions{})}}
 	if _, err := commandInstance[*contextTestPlugin](binding, "cmd"); err == nil {
 		t.Fatal("commandInstance() error = nil, want missing command lookup error")
 	} else {
@@ -265,8 +339,8 @@ func TestCommandPlugin_ReturnsContextAndPlugin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CommandPlugin() error = %v", err)
 	}
-	if gotCtx != appCtx {
-		t.Fatalf("CommandPlugin() ctx = %p, want %p", gotCtx, appCtx)
+	if gotCtx.AppContext() != appCtx {
+		t.Fatalf("CommandPlugin() ctx AppContext = %p, want %p", gotCtx.AppContext(), appCtx)
 	}
 	if gotPlugin != target {
 		t.Fatalf("CommandPlugin() plugin = %p, want %p", gotPlugin, target)
@@ -361,8 +435,8 @@ func TestCommandBindingFromCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CommandPlugin() error = %v", err)
 	}
-	if got != appCtx {
-		t.Fatalf("CommandPlugin() ctx = %p, want %p", got, appCtx)
+	if got.AppContext() != appCtx {
+		t.Fatalf("CommandPlugin() ctx AppContext = %p, want %p", got.AppContext(), appCtx)
 	}
 	if plugin != target {
 		t.Fatalf("CommandPlugin() plugin = %p, want %p", plugin, target)
@@ -372,6 +446,19 @@ func TestCommandBindingFromCommand(t *testing.T) {
 func mustCommandBinding(t *testing.T, appCtx *AppContext, source CommandBindingSource) *CommandBinding {
 	t.Helper()
 	binding, err := NewCommandBinding(CommandBindingOptions{AppContext: appCtx, Source: source})
+	if err != nil {
+		t.Fatalf("NewCommandBinding() error = %v", err)
+	}
+	return binding
+}
+
+func mustCommandBindingWithContributions(t *testing.T, appCtx *AppContext, source CommandBindingSource, contributions []*pipeline.Contribution) *CommandBinding {
+	t.Helper()
+	binding, err := NewCommandBinding(CommandBindingOptions{
+		AppContext:            appCtx,
+		Source:                source,
+		PipelineContributions: contributions,
+	})
 	if err != nil {
 		t.Fatalf("NewCommandBinding() error = %v", err)
 	}

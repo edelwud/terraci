@@ -3,7 +3,6 @@ package plugin
 import (
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/config"
-	"github.com/edelwud/terraci/pkg/pipeline"
 )
 
 // AppContext is the public API available to plugins. It is immutable —
@@ -26,7 +25,6 @@ type AppContext struct {
 	version    string
 	reports    ci.ReportStore
 	resolvers  ResolverSet
-	contribs   []*pipeline.Contribution
 }
 
 // AppContextOptions describes how to construct an AppContext.
@@ -46,9 +44,6 @@ type AppContextOptions struct {
 	// default to no-op resolvers. Plugins consume it through AppContext's
 	// narrow resolver accessors.
 	Resolvers ResolverSet
-	// PipelineContributions is a command-scoped snapshot of enabled pipeline
-	// contributions collected by the framework after config/preflight.
-	PipelineContributions []*pipeline.Contribution
 }
 
 // NewAppContext creates a framework-managed plugin context.
@@ -68,7 +63,6 @@ func NewAppContext(opts AppContextOptions) *AppContext {
 		version:    opts.Version,
 		reports:    reports,
 		resolvers:  opts.Resolvers,
-		contribs:   cloneContributions(opts.PipelineContributions),
 	}
 }
 
@@ -101,35 +95,4 @@ func (ctx *AppContext) KVCacheResolver() KVCacheResolver { return ctx.resolvers.
 // BlobStoreResolver returns the named blob store backend resolver. Always non-nil.
 func (ctx *AppContext) BlobStoreResolver() BlobStoreResolver {
 	return ctx.resolvers.BlobStoreResolver()
-}
-
-// PipelineContributions returns the command-scoped pipeline contribution
-// snapshot collected by the framework.
-func (ctx *AppContext) PipelineContributions() []*pipeline.Contribution {
-	if ctx == nil || len(ctx.contribs) == 0 {
-		return nil
-	}
-	return cloneContributions(ctx.contribs)
-}
-
-// WithPipelineContributions returns a copy of ctx bound to a contribution
-// snapshot. The receiver is left untouched.
-func (ctx *AppContext) WithPipelineContributions(contribs []*pipeline.Contribution) *AppContext {
-	if ctx == nil {
-		return nil
-	}
-	next := *ctx
-	next.contribs = cloneContributions(contribs)
-	return &next
-}
-
-func cloneContributions(contribs []*pipeline.Contribution) []*pipeline.Contribution {
-	if len(contribs) == 0 {
-		return nil
-	}
-	clone := make([]*pipeline.Contribution, len(contribs))
-	for i, contribution := range contribs {
-		clone[i] = contribution.Clone()
-	}
-	return clone
 }

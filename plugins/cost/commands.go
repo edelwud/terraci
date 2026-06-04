@@ -33,7 +33,7 @@ Examples:
   terraci cost --module platform/prod/eu-central-1/rds
   terraci cost --output json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			appCtx, current, err := plugin.CommandPlugin[*Plugin](cmd, p.Name())
+			cmdCtx, current, err := plugin.CommandPlugin[*Plugin](cmd, p.Name())
 			if err != nil {
 				return err
 			}
@@ -45,7 +45,7 @@ Examples:
 			c, cancel := context.WithTimeout(cmd.Context(), defaultEstimationTimeout)
 			defer cancel()
 
-			return current.runEstimation(c, appCtx, costModulePath, costOutputFmt)
+			return current.runEstimation(c, cmdCtx.AppContext(), costModulePath, costOutputFmt)
 		},
 		Configure: func(cmd *cobra.Command) error {
 			cmd.Flags().StringVarP(&costModulePath, "module", "m", "", "estimate cost for a specific module")

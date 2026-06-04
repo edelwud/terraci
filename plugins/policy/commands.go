@@ -23,7 +23,7 @@ func (p *Plugin) CommandSpecs() ([]plugin.CommandSpec, error) {
 		Use:   "pull",
 		Short: "Pull policies from configured sources",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			appCtx, current, bindingErr := plugin.CommandPlugin[*Plugin](cmd, p.Name())
+			cmdCtx, current, bindingErr := plugin.CommandPlugin[*Plugin](cmd, p.Name())
 			if bindingErr != nil {
 				return bindingErr
 			}
@@ -34,7 +34,7 @@ func (p *Plugin) CommandSpecs() ([]plugin.CommandSpec, error) {
 			log.Info("pulling policies from configured sources")
 			c, cancel := context.WithTimeout(cmd.Context(), 5*time.Minute)
 			defer cancel()
-			return current.runPull(c, appCtx, pullCacheDir)
+			return current.runPull(c, cmdCtx.AppContext(), pullCacheDir)
 		},
 		Configure: func(cmd *cobra.Command) error {
 			cmd.Flags().StringVar(&pullCacheDir, "cache-dir", "", "cache directory for materialized policies")
@@ -49,7 +49,7 @@ func (p *Plugin) CommandSpecs() ([]plugin.CommandSpec, error) {
 		Use:   "check",
 		Short: "Check Terraform plans against policies",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			appCtx, current, bindingErr := plugin.CommandPlugin[*Plugin](cmd, p.Name())
+			cmdCtx, current, bindingErr := plugin.CommandPlugin[*Plugin](cmd, p.Name())
 			if bindingErr != nil {
 				return bindingErr
 			}
@@ -61,7 +61,7 @@ func (p *Plugin) CommandSpecs() ([]plugin.CommandSpec, error) {
 
 			c, cancel := context.WithTimeout(cmd.Context(), 5*time.Minute)
 			defer cancel()
-			return current.runCheck(c, appCtx, policyModulePath, checkFormat, cmd.OutOrStdout())
+			return current.runCheck(c, cmdCtx.AppContext(), policyModulePath, checkFormat, cmd.OutOrStdout())
 		},
 		Configure: func(cmd *cobra.Command) error {
 			cmd.Flags().StringVarP(&policyModulePath, "module", "m", "", "check specific module only")

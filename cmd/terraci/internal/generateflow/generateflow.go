@@ -115,7 +115,7 @@ func newPipelineGenerator(runtime Runtime, project *projectflow.Result, mode Gen
 	}
 	ir, err := pipeline.BuildProjectIR(pipeline.ProjectIRRequest{
 		Project:       project,
-		Contributions: appCtx.PipelineContributions(),
+		Contributions: runtime.prepared.PipelineContributions(),
 		Intent:        intent,
 		Terraform:     terraformConfig,
 	})

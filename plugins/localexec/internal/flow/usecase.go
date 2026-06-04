@@ -68,7 +68,7 @@ func (r *Result) Diagnostics() diagnostic.List {
 type UseCase struct {
 	appCtx         *plugin.AppContext
 	projects       ProjectPlanner
-	contributions  ContributionCollector
+	contributions  []*pipeline.Contribution
 	runtimeFactory runner.Factory
 	summaryReports reports.Loader
 	eventSink      execution.EventSink
@@ -78,13 +78,9 @@ type ProjectPlanner interface {
 	Plan(ctx context.Context, req spec.Request) (*workflow.ProjectResult, error)
 }
 
-type ContributionCollector interface {
-	Collect(appCtx *plugin.AppContext) []*pipeline.Contribution
-}
-
 type Dependencies struct {
 	Projects       ProjectPlanner
-	Contributions  ContributionCollector
+	Contributions  []*pipeline.Contribution
 	RuntimeFactory runner.Factory
 	SummaryReports reports.Loader
 	EventSink      execution.EventSink
@@ -104,9 +100,9 @@ func WithRuntimeFactory(factory runner.Factory) Option {
 	}
 }
 
-func WithContributionCollector(collector ContributionCollector) Option {
+func WithPipelineContributions(contributions []*pipeline.Contribution) Option {
 	return func(deps *Dependencies) {
-		deps.Contributions = collector
+		deps.Contributions = cloneContributions(contributions)
 	}
 }
 
@@ -127,7 +123,6 @@ func DefaultDependencies(appCtx *plugin.AppContext) Dependencies {
 	segments := append([]string(nil), structure.Segments...)
 	return Dependencies{
 		Projects:       newWorkflowProjectPlanner(appCtx),
-		Contributions:  contextContributionCollector{},
 		RuntimeFactory: runner.NewFactory(),
 		SummaryReports: reports.NewLoader(appCtx.Reports(), appCtx.WorkDir(), segments),
 		EventSink:      noopEventSink{},
@@ -147,7 +142,7 @@ func New(appCtx *plugin.AppContext, opts ...Option) *UseCase {
 	return &UseCase{
 		appCtx:         appCtx,
 		projects:       deps.Projects,
-		contributions:  deps.Contributions,
+		contributions:  cloneContributions(deps.Contributions),
 		runtimeFactory: deps.RuntimeFactory,
 		summaryReports: deps.SummaryReports,
 		eventSink:      deps.EventSink,
@@ -157,9 +152,6 @@ func New(appCtx *plugin.AppContext, opts ...Option) *UseCase {
 func withDefaults(deps, defaults Dependencies) Dependencies {
 	if deps.Projects == nil {
 		deps.Projects = defaults.Projects
-	}
-	if deps.Contributions == nil {
-		deps.Contributions = defaults.Contributions
 	}
 	if deps.RuntimeFactory == nil {
 		deps.RuntimeFactory = defaults.RuntimeFactory
@@ -189,8 +181,7 @@ func (u *UseCase) Run(ctx context.Context, req Request) (*Result, error) {
 		return nil, fmt.Errorf("terraform profile: %w", err)
 	}
 
-	contributions := u.contributions.Collect(u.appCtx)
-	plan, err := buildExecutionIR(project, profile, req.Mode, contributions)
+	plan, err := buildExecutionIR(project, profile, req.Mode, u.contributions)
 	if err != nil {
 		return nil, err
 	}
@@ -266,12 +257,6 @@ func derefFilters(filters *filter.Flags) filter.Flags {
 	return *filters
 }
 
-type contextContributionCollector struct{}
-
-func (contextContributionCollector) Collect(appCtx *plugin.AppContext) []*pipeline.Contribution {
-	return appCtx.PipelineContributions()
-}
-
 func profileForRequest(appCtx *plugin.AppContext, req Request) (terraformrun.Profile, error) {
 	profile, err := terraformrun.ProfileFromConfig(appCtx.Config())
 	if err != nil {
@@ -281,6 +266,17 @@ func profileForRequest(appCtx *plugin.AppContext, req Request) (terraformrun.Pro
 		return profile.WithParallelism(req.Parallelism)
 	}
 	return profile, nil
+}
+
+func cloneContributions(contributions []*pipeline.Contribution) []*pipeline.Contribution {
+	if len(contributions) == 0 {
+		return nil
+	}
+	clone := make([]*pipeline.Contribution, len(contributions))
+	for i, contribution := range contributions {
+		clone[i] = contribution.Clone()
+	}
+	return clone
 }
 
 func buildExecutionIR(project *workflow.ProjectResult, profile terraformrun.Profile, mode spec.ExecutionMode, contributions []*pipeline.Contribution) (*pipeline.IR, error) {

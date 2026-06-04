@@ -21,11 +21,11 @@ and posts a formatted comment to the MR/PR.
 Example:
   terraci summary`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			appCtx, current, err := plugin.CommandPlugin[*Plugin](cmd, p.Name())
+			cmdCtx, current, err := plugin.CommandPlugin[*Plugin](cmd, p.Name())
 			if err != nil {
 				return err
 			}
-			return current.runSummary(cmd.Context(), appCtx)
+			return current.runSummary(cmd.Context(), cmdCtx.AppContext())
 		},
 	})
 	if err != nil {

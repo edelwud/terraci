@@ -73,7 +73,7 @@ func (p *Plugin) CommandSpecs() ([]plugin.CommandSpec, error) {
         Use:   "slack",
         Short: "Post plan summary to Slack",
         RunE: func(cmd *cobra.Command, _ []string) error {
-            _, current, err := plugin.CommandPlugin[*Plugin](cmd, "slack")
+            cmdCtx, current, err := plugin.CommandPlugin[*Plugin](cmd, "slack")
             if err != nil {
                 return err
             }
@@ -81,6 +81,8 @@ func (p *Plugin) CommandSpecs() ([]plugin.CommandSpec, error) {
                 return err
             }
             cfg := current.Config()
+            appCtx := cmdCtx.AppContext()
+            _ = appCtx // используйте AppContext для reports/resolvers/runtime paths, если нужно
             fmt.Printf("Posting to %s\n", cfg.Channel)
             return nil
         },

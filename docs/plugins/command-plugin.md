@@ -76,7 +76,7 @@ func (p *Plugin) CommandSpecs() ([]plugin.CommandSpec, error) {
         Use:   "slack",
         Short: "Post plan summary to Slack",
         RunE: func(cmd *cobra.Command, _ []string) error {
-            _, current, err := plugin.CommandPlugin[*Plugin](cmd, "slack")
+            cmdCtx, current, err := plugin.CommandPlugin[*Plugin](cmd, "slack")
             if err != nil {
                 return err
             }
@@ -87,6 +87,8 @@ func (p *Plugin) CommandSpecs() ([]plugin.CommandSpec, error) {
             if channel == "" {
                 channel = cfg.Channel
             }
+            appCtx := cmdCtx.AppContext()
+            _ = appCtx // use AppContext for reports, resolvers, and runtime paths when needed
             fmt.Printf("Posting to %s via %s\n", channel, cfg.WebhookURL)
             // your Slack API logic here
             return nil

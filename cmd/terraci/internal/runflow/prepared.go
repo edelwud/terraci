@@ -7,6 +7,7 @@ import (
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/diagnostic"
+	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/registry"
 )
@@ -25,12 +26,14 @@ type Prepared struct {
 	workDir     string
 	reports     ci.ReportStore
 	diagnostics diagnostic.List
+	contribs    []*pipeline.Contribution
 }
 
-func newPrepared(ctx context.Context, appCtx *plugin.AppContext, plugins *registry.Registry, cfg *config.Config, workDir string, reports ci.ReportStore) (*Prepared, error) {
+func newPrepared(ctx context.Context, appCtx *plugin.AppContext, plugins *registry.Registry, cfg *config.Config, workDir string, reports ci.ReportStore, contribs []*pipeline.Contribution) (*Prepared, error) {
 	binding, err := plugin.NewCommandBinding(plugin.CommandBindingOptions{
-		AppContext: appCtx,
-		Source:     plugins,
+		AppContext:            appCtx,
+		Source:                plugins,
+		PipelineContributions: contribs,
 	})
 	if err != nil {
 		return nil, err
@@ -42,6 +45,7 @@ func newPrepared(ctx context.Context, appCtx *plugin.AppContext, plugins *regist
 		loaded:   cfg.Clone(),
 		workDir:  workDir,
 		reports:  reports,
+		contribs: cloneContributions(contribs),
 	}
 	prepared.ctx = context.WithValue(plugin.BindCommandContext(ctx, binding), preparedContextKey{}, prepared)
 	return prepared, nil
@@ -134,10 +138,30 @@ func (p *Prepared) Reports() ci.ReportStore {
 	return p.reports
 }
 
+// PipelineContributions returns the command-scoped pipeline contribution
+// snapshot collected by runflow.
+func (p *Prepared) PipelineContributions() []*pipeline.Contribution {
+	if p == nil {
+		return nil
+	}
+	return cloneContributions(p.contribs)
+}
+
 // Diagnostics returns non-fatal diagnostics produced while preparing the command.
 func (p *Prepared) Diagnostics() diagnostic.List {
 	if p == nil {
 		return diagnostic.List{}
 	}
 	return p.diagnostics
+}
+
+func cloneContributions(contribs []*pipeline.Contribution) []*pipeline.Contribution {
+	if len(contribs) == 0 {
+		return nil
+	}
+	clone := make([]*pipeline.Contribution, len(contribs))
+	for i, contribution := range contribs {
+		clone[i] = contribution.Clone()
+	}
+	return clone
 }

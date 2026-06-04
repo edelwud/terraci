@@ -15,6 +15,7 @@ import (
 
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/config"
+	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/registry"
 )
@@ -109,18 +110,19 @@ func (f *Flow) Prepare(ctx context.Context, req Request) (*Prepared, error) {
 	}
 
 	appCtx := f.buildContext(plugins, cfg, req.WorkDir)
+	var contributions []*pipeline.Contribution
 	if !req.Policy.SkipConfig {
 		if err := runPreflight(ctx, plugins, appCtx, req.Policy.SkipPreflight); err != nil {
 			return nil, err
 		}
-		var err error
-		appCtx, err = collectContributions(plugins, appCtx)
+		collected, err := collectContributions(plugins, appCtx)
 		if err != nil {
 			return nil, err
 		}
+		contributions = collected
 	}
 
-	return newPrepared(ctx, appCtx, plugins, cfg, req.WorkDir, f.reports)
+	return newPrepared(ctx, appCtx, plugins, cfg, req.WorkDir, f.reports, contributions)
 }
 
 func (f *Flow) applyLogLevel(req Request) error {
@@ -161,15 +163,12 @@ func runPreflight(ctx context.Context, plugins *registry.Registry, appCtx *plugi
 	return plugins.RunPreflight(ctx, appCtx)
 }
 
-func collectContributions(plugins *registry.Registry, appCtx *plugin.AppContext) (*plugin.AppContext, error) {
+func collectContributions(plugins *registry.Registry, appCtx *plugin.AppContext) ([]*pipeline.Contribution, error) {
 	contributions, err := plugins.CollectContributions(appCtx)
 	if err != nil {
 		return nil, err
 	}
-	if len(contributions) == 0 {
-		return appCtx, nil
-	}
-	return appCtx.WithPipelineContributions(contributions), nil
+	return contributions, nil
 }
 
 func (f *Flow) buildContext(plugins *registry.Registry, cfg *config.Config, workDir string) *plugin.AppContext {

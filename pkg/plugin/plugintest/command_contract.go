@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
 )
 
@@ -25,9 +26,17 @@ func (l StaticCommandSource) LookupCommandPlugin(name string) (plugin.Plugin, bo
 // tests.
 func BindCommandContext(parent context.Context, tb testing.TB, appCtx *plugin.AppContext, source plugin.CommandBindingSource) context.Context {
 	tb.Helper()
+	return BindCommandContextWithContributions(parent, tb, appCtx, source, nil)
+}
+
+// BindCommandContextWithContributions binds appCtx, source, and planning
+// contributions into parent for CommandPlugin tests.
+func BindCommandContextWithContributions(parent context.Context, tb testing.TB, appCtx *plugin.AppContext, source plugin.CommandBindingSource, contributions []*pipeline.Contribution) context.Context {
+	tb.Helper()
 	binding, err := plugin.NewCommandBinding(plugin.CommandBindingOptions{
-		AppContext: appCtx,
-		Source:     source,
+		AppContext:            appCtx,
+		Source:                source,
+		PipelineContributions: contributions,
 	})
 	if err != nil {
 		tb.Fatalf("NewCommandBinding() error = %v", err)
@@ -46,6 +55,7 @@ type CommandBindingContract[T plugin.Plugin] struct {
 	Name           string
 	Plugin         T
 	WrongPlugin    plugin.Plugin
+	Contributions  []*pipeline.Contribution
 	AssertResolved func(testing.TB, T)
 }
 
@@ -103,8 +113,9 @@ func AssertCommandBinding[T plugin.Plugin](tb testing.TB, c CommandBindingContra
 
 	appCtx := plugin.NewAppContext(plugin.AppContextOptions{})
 	binding, err := plugin.NewCommandBinding(plugin.CommandBindingOptions{
-		AppContext: appCtx,
-		Source:     StaticCommandSource{c.Name: c.Plugin},
+		AppContext:            appCtx,
+		Source:                StaticCommandSource{c.Name: c.Plugin},
+		PipelineContributions: c.Contributions,
 	})
 	if err != nil {
 		tb.Fatalf("NewCommandBinding(success) error = %v", err)
@@ -115,8 +126,22 @@ func AssertCommandBinding[T plugin.Plugin](tb testing.TB, c CommandBindingContra
 	if err != nil {
 		tb.Fatalf("CommandPlugin(success) error = %v", err)
 	}
-	if gotCtx != appCtx {
-		tb.Fatalf("CommandPlugin appCtx = %p, want %p", gotCtx, appCtx)
+	if gotCtx.AppContext() != appCtx {
+		tb.Fatalf("CommandPlugin appCtx = %p, want %p", gotCtx.AppContext(), appCtx)
+	}
+	if len(c.Contributions) > 0 {
+		gotContributions := gotCtx.PipelineContributions()
+		if len(gotContributions) != len(c.Contributions) {
+			tb.Fatalf("CommandPlugin contributions len = %d, want %d", len(gotContributions), len(c.Contributions))
+		}
+		for i := range c.Contributions {
+			if gotContributions[i] == nil {
+				tb.Fatalf("CommandPlugin contributions[%d] = nil, want contribution copy", i)
+			}
+			if gotContributions[i] == c.Contributions[i] {
+				tb.Fatalf("CommandPlugin contributions[%d] returned original pointer; want defensive copy", i)
+			}
+		}
 	}
 	if c.AssertResolved != nil {
 		c.AssertResolved(tb, got)

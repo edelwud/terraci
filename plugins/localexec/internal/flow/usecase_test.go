@@ -88,16 +88,6 @@ func (r *fakeJobRunner) RanJobs() []pipeline.Job {
 	return append([]pipeline.Job(nil), r.ran...)
 }
 
-type fakeContributionCollector struct {
-	contributions []*pipeline.Contribution
-	calls         int
-}
-
-func (c *fakeContributionCollector) Collect(*plugin.AppContext) []*pipeline.Contribution {
-	c.calls++
-	return c.contributions
-}
-
 type fakeEventSink struct {
 	started  []string
 	finished []string
@@ -190,11 +180,11 @@ func TestUseCase_RunBuildsIRFromProjectAndContributions(t *testing.T) {
 
 	appCtx := plugintest.NewAppContext(t, workDir)
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
-	contributionCollector := &fakeContributionCollector{
-		contributions: []*pipeline.Contribution{mustContribution(t, pipeline.ContributedJobOptions{
+	contributions := []*pipeline.Contribution{
+		mustContribution(t, pipeline.ContributedJobOptions{
 			Name:     "contributed",
 			Commands: []string{"terraci contributed"},
-		})},
+		}),
 	}
 	loader := &fakeSummaryReportLoader{}
 	jobRunner := &fakeJobRunner{}
@@ -205,7 +195,7 @@ func TestUseCase_RunBuildsIRFromProjectAndContributions(t *testing.T) {
 	useCase := New(
 		appCtx,
 		WithProjectPlanner(fakeProjectWithTargets(module)),
-		WithContributionCollector(contributionCollector),
+		WithPipelineContributions(contributions),
 		WithRuntimeFactory(runtimeFactory),
 		WithSummaryReports(loader),
 	)
@@ -214,9 +204,6 @@ func TestUseCase_RunBuildsIRFromProjectAndContributions(t *testing.T) {
 		t.Fatalf("Run() error = %v", err)
 	}
 
-	if contributionCollector.calls != 1 {
-		t.Fatalf("contribution collector calls = %d, want 1", contributionCollector.calls)
-	}
 	if got := runtimeFactory.options[0].PlanParallelism; got != 3 {
 		t.Fatalf("runtime plan parallelism = %d, want request override 3", got)
 	}
@@ -270,9 +257,9 @@ func TestUseCase_RunBuildsTerraformIntentFromConfig(t *testing.T) {
 	_, err := New(
 		appCtx,
 		WithProjectPlanner(fakeProjectWithTargets(module)),
-		WithContributionCollector(&fakeContributionCollector{contributions: []*pipeline.Contribution{
+		WithPipelineContributions([]*pipeline.Contribution{
 			mustContribution(t, testCommandJob("contributed")),
-		}}),
+		}),
 		WithRuntimeFactory(&fakeRuntimeFactory{runtime: &runner.Runtime{JobRunner: jobRunner}}),
 		WithSummaryReports(&fakeSummaryReportLoader{}),
 	).Run(context.Background(), spec.Request{Mode: spec.ExecutionModePlan})
@@ -413,9 +400,9 @@ func TestUseCase_RunReturnsExecutionResultOnJobFailure(t *testing.T) {
 	result, err := New(
 		appCtx,
 		WithProjectPlanner(fakeProjectWithTargets(module)),
-		WithContributionCollector(&fakeContributionCollector{contributions: []*pipeline.Contribution{
+		WithPipelineContributions([]*pipeline.Contribution{
 			mustContribution(t, testCommandJob("summary")),
-		}}),
+		}),
 		WithRuntimeFactory(&fakeRuntimeFactory{runtime: &runner.Runtime{
 			JobRunner: &fakeJobRunner{err: jobErr},
 		}}),
@@ -496,7 +483,7 @@ func TestNewRestoresDefaultsAfterNilOverrides(t *testing.T) {
 	useCase := New(
 		appCtx,
 		WithProjectPlanner(nil),
-		WithContributionCollector(nil),
+		WithPipelineContributions(nil),
 		WithRuntimeFactory(nil),
 		WithSummaryReports(nil),
 	)
@@ -504,8 +491,8 @@ func TestNewRestoresDefaultsAfterNilOverrides(t *testing.T) {
 	if useCase.projects == nil {
 		t.Fatal("projects = nil, want default planner")
 	}
-	if useCase.contributions == nil {
-		t.Fatal("contributions = nil, want default collector")
+	if useCase.contributions != nil {
+		t.Fatalf("contributions = %#v, want none by default", useCase.contributions)
 	}
 	if useCase.runtimeFactory == nil {
 		t.Fatal("runtimeFactory = nil, want default factory")

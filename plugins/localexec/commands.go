@@ -81,11 +81,15 @@ exits without error after logging "no modules to process".`,
   terraci local-exec plan --filter environment=stage
   terraci local-exec plan --include 'platform/*' --exclude '*/test/*'`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			appCtx, _, err := plugin.CommandPlugin[*Plugin](cmd, pluginName)
+			cmdCtx, _, err := plugin.CommandPlugin[*Plugin](cmd, pluginName)
 			if err != nil {
 				return err
 			}
-			result, err := NewExecutor(appCtx, WithEventSink(render.NewProgressReporter())).Run(cmd.Context(), sf.toRequest(ExecutionModePlan))
+			result, err := NewExecutor(
+				cmdCtx.AppContext(),
+				WithEventSink(render.NewProgressReporter()),
+				WithPipelineContributions(cmdCtx.PipelineContributions()),
+			).Run(cmd.Context(), sf.toRequest(ExecutionModePlan))
 			return renderLocalExecResult(result, err)
 		},
 		Configure: func(cmd *cobra.Command) error {
@@ -109,11 +113,15 @@ error after logging "no modules to process".`,
   terraci local-exec run --module platform/stage/eu-central-1/vpc
   terraci local-exec run --filter environment=stage --parallelism 2`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			appCtx, _, err := plugin.CommandPlugin[*Plugin](cmd, pluginName)
+			cmdCtx, _, err := plugin.CommandPlugin[*Plugin](cmd, pluginName)
 			if err != nil {
 				return err
 			}
-			result, err := NewExecutor(appCtx, WithEventSink(render.NewProgressReporter())).Run(cmd.Context(), sf.toRequest(ExecutionModeRun))
+			result, err := NewExecutor(
+				cmdCtx.AppContext(),
+				WithEventSink(render.NewProgressReporter()),
+				WithPipelineContributions(cmdCtx.PipelineContributions()),
+			).Run(cmd.Context(), sf.toRequest(ExecutionModeRun))
 			return renderLocalExecResult(result, err)
 		},
 		Configure: func(cmd *cobra.Command) error {
