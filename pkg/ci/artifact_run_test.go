@@ -17,13 +17,13 @@ func TestNewArtifactRun_DerivesFingerprintFromPlanResults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewArtifactRun() error = %v", err)
 	}
-	if run.Producer != "cost" {
-		t.Fatalf("Producer = %q, want cost", run.Producer)
+	if run.Producer() != "cost" {
+		t.Fatalf("Producer = %q, want cost", run.Producer())
 	}
-	if run.Artifact.PlanResultsFingerprint != collection.Fingerprint() {
-		t.Fatalf("fingerprint = %q, want %q", run.Artifact.PlanResultsFingerprint, collection.Fingerprint())
+	if run.Artifact().PlanResultsFingerprint() != collection.Fingerprint() {
+		t.Fatalf("fingerprint = %q, want %q", run.Artifact().PlanResultsFingerprint(), collection.Fingerprint())
 	}
-	if run.Artifact.GeneratedAt.IsZero() {
+	if run.Artifact().GeneratedAt().IsZero() {
 		t.Fatal("GeneratedAt is zero, want default timestamp")
 	}
 }
@@ -43,11 +43,11 @@ func TestNewArtifactRun_PreservesExplicitFingerprint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewArtifactRun() error = %v", err)
 	}
-	if run.Artifact.PlanResultsFingerprint != "explicit" {
-		t.Fatalf("fingerprint = %q, want explicit", run.Artifact.PlanResultsFingerprint)
+	if run.Artifact().PlanResultsFingerprint() != "explicit" {
+		t.Fatalf("fingerprint = %q, want explicit", run.Artifact().PlanResultsFingerprint())
 	}
-	if run.Artifact.GeneratedAt.Location() != time.UTC {
-		t.Fatalf("GeneratedAt location = %v, want UTC", run.Artifact.GeneratedAt.Location())
+	if run.Artifact().GeneratedAt().Location() != time.UTC {
+		t.Fatalf("GeneratedAt location = %v, want UTC", run.Artifact().GeneratedAt().Location())
 	}
 }
 
@@ -58,8 +58,8 @@ func TestNewArtifactRun_AllowsDegradedModeWithoutPlanResults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewArtifactRun() error = %v", err)
 	}
-	if run.Artifact.PlanResultsFingerprint != "" {
-		t.Fatalf("fingerprint = %q, want empty degraded mode", run.Artifact.PlanResultsFingerprint)
+	if run.Artifact().PlanResultsFingerprint() != "" {
+		t.Fatalf("fingerprint = %q, want empty degraded mode", run.Artifact().PlanResultsFingerprint())
 	}
 }
 

@@ -42,15 +42,16 @@ func buildSummaryHeaderSection(plans []ci.PlanResult, reports []*ci.Report) (ci.
 		if report == nil {
 			continue
 		}
-		if len(report.Sections) == 0 {
-			item := []ci.RenderValue{ci.RenderStatus(report.Status), ci.RenderText(" " + report.Title)}
-			if report.Summary != "" {
-				item = append(item, ci.RenderText(": "+report.Summary))
+		sections := report.Sections()
+		if len(sections) == 0 {
+			item := []ci.RenderValue{ci.RenderStatus(report.Status()), ci.RenderText(" " + report.Title())}
+			if report.Summary() != "" {
+				item = append(item, ci.RenderText(": "+report.Summary()))
 			}
 			items = append(items, ci.RenderInline(item...))
 			continue
 		}
-		for _, section := range report.Sections {
+		for _, section := range sections {
 			item := []ci.RenderValue{ci.RenderStatus(section.Status()), ci.RenderText(" " + sectionTitle(section))}
 			if section.Summary() != "" {
 				item = append(item, ci.RenderText(": "+section.Summary()))
@@ -81,7 +82,7 @@ func overallSummaryStatus(plans []ci.PlanResult, reports []*ci.Report) ci.Report
 		if report == nil {
 			continue
 		}
-		if report.Status == ci.ReportStatusFail {
+		if report.Status() == ci.ReportStatusFail {
 			return ci.ReportStatusFail
 		}
 	}
@@ -94,7 +95,7 @@ func overallSummaryStatus(plans []ci.PlanResult, reports []*ci.Report) ci.Report
 		if report == nil {
 			continue
 		}
-		if report.Status == ci.ReportStatusWarn {
+		if report.Status() == ci.ReportStatusWarn {
 			return ci.ReportStatusWarn
 		}
 	}

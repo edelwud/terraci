@@ -67,8 +67,8 @@ func Run(ctx context.Context, runtime Runtime, _ Request) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	result.Reports = selection.Reports
-	result.ReportDiagnostics = selection.Diagnostics
+	result.Reports = selection.Reports()
+	result.ReportDiagnostics = selection.Diagnostics()
 	diagnosticlog.Log(result.ReportDiagnostics)
 
 	if runtime.Config.OnChangesOnly && !HasReportableChanges(result.Plans, result.Reports) {
@@ -128,7 +128,7 @@ func HasReportableChanges(plans []ci.PlanResult, reports []*ci.Report) bool {
 		}
 	}
 	for _, r := range reports {
-		if r.Status == ci.ReportStatusWarn || r.Status == ci.ReportStatusFail {
+		if r.Status() == ci.ReportStatusWarn || r.Status() == ci.ReportStatusFail {
 			return true
 		}
 	}
@@ -138,7 +138,7 @@ func HasReportableChanges(plans []ci.PlanResult, reports []*ci.Report) bool {
 func filterSummaryReports(reports []*ci.Report) []*ci.Report {
 	filtered := make([]*ci.Report, 0, len(reports))
 	for _, report := range reports {
-		if report == nil || report.Producer == ReportProducer {
+		if report == nil || report.Producer() == ReportProducer {
 			continue
 		}
 		filtered = append(filtered, report)

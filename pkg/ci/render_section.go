@@ -106,12 +106,12 @@ func NewRenderedReport(opts RenderedReportOptions) (*Report, error) {
 	}
 
 	report := &Report{
-		Producer:   opts.Producer,
-		Title:      opts.Title,
-		Status:     opts.Status,
-		Summary:    opts.Summary,
-		Provenance: opts.Artifact.Provenance(),
-		Sections:   sections,
+		producer:   opts.Producer,
+		title:      opts.Title,
+		status:     opts.Status,
+		summary:    opts.Summary,
+		provenance: opts.Artifact.Provenance(),
+		sections:   sections,
 	}
 	if err := report.Validate(); err != nil {
 		return nil, err

@@ -30,10 +30,10 @@ func TestAssertRenderedReportContract(t *testing.T) {
 		RequireSchemaVersion:  true,
 		RequireRendererOutput: true,
 		Renderers: []ReportRenderer{func(r *ci.Report) (string, error) {
-			if r.Producer != "contract" {
-				t.Fatalf("renderer saw producer %q, want contract", r.Producer)
+			if r.Producer() != "contract" {
+				t.Fatalf("renderer saw producer %q, want contract", r.Producer())
 			}
-			return "Warning " + strings.ToUpper(r.Summary), nil
+			return "Warning " + strings.ToUpper(r.Summary()), nil
 		}},
 	})
 }

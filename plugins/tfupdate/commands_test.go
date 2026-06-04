@@ -169,17 +169,17 @@ func TestBuildUpdateReport_NoUpdates(t *testing.T) {
 			reportrender.CLIReport,
 		},
 	})
-	if report.Producer != "tfupdate" {
-		t.Errorf("Plugin = %q, want %q", report.Producer, "tfupdate")
+	if report.Producer() != "tfupdate" {
+		t.Errorf("Plugin = %q, want %q", report.Producer(), "tfupdate")
 	}
-	if report.Title != "Dependency Update Check" {
-		t.Errorf("Title = %q, want %q", report.Title, "Dependency Update Check")
+	if report.Title() != "Dependency Update Check" {
+		t.Errorf("Title = %q, want %q", report.Title(), "Dependency Update Check")
 	}
-	if report.Status != ci.ReportStatusPass {
-		t.Errorf("Status = %q, want %q", report.Status, ci.ReportStatusPass)
+	if report.Status() != ci.ReportStatusPass {
+		t.Errorf("Status = %q, want %q", report.Status(), ci.ReportStatusPass)
 	}
-	if !strings.Contains(report.Summary, "3 checked") {
-		t.Errorf("Summary = %q, want to contain '3 checked'", report.Summary)
+	if !strings.Contains(report.Summary(), "3 checked") {
+		t.Errorf("Summary = %q, want to contain '3 checked'", report.Summary())
 	}
 }
 
@@ -203,11 +203,11 @@ func TestBuildUpdateReport_WithUpdates(t *testing.T) {
 			reportrender.CLIReport,
 		},
 	})
-	if report.Status != ci.ReportStatusWarn {
-		t.Errorf("Status = %q, want %q", report.Status, ci.ReportStatusWarn)
+	if report.Status() != ci.ReportStatusWarn {
+		t.Errorf("Status = %q, want %q", report.Status(), ci.ReportStatusWarn)
 	}
-	if !strings.Contains(report.Summary, "2 updates available") {
-		t.Errorf("Summary = %q, want to contain '2 updates available'", report.Summary)
+	if !strings.Contains(report.Summary(), "2 updates available") {
+		t.Errorf("Summary = %q, want to contain '2 updates available'", report.Summary())
 	}
 }
 
@@ -422,8 +422,8 @@ terraform {
 		t.Fatal("saved result has empty summary")
 	}
 	report := loadUpdateReport(t, appCtx.ServiceDir())
-	if report.Producer != "tfupdate" {
-		t.Fatalf("report.Producer = %q, want update", report.Producer)
+	if report.Producer() != "tfupdate" {
+		t.Fatalf("report.Producer = %q, want update", report.Producer())
 	}
 }
 

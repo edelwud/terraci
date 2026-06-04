@@ -70,34 +70,37 @@ func (l storeLoader) Load(ctx context.Context) (*Result, error) {
 		Consumer:         "local-exec summary",
 		ExcludeProducers: []string{SummaryReportProducer},
 	})
-	diagnosticlog.Log(selection.Diagnostics)
-	if len(selection.Reports) == 0 {
-		return NewResult(nil, selection.Diagnostics), nil
+	diagnostics := selection.Diagnostics()
+	diagnosticlog.Log(diagnostics)
+	reports := selection.Reports()
+	if len(reports) == 0 {
+		return NewResult(nil, diagnostics), nil
 	}
-	report, err := BuildSummaryReport(collection, selection.Reports)
+	report, err := BuildSummaryReport(collection, reports)
 	if err != nil {
 		return nil, err
 	}
-	return NewResult(report, selection.Diagnostics), nil
+	return NewResult(report, diagnostics), nil
 }
 
 func BuildSummaryReport(collection *ci.PlanResultCollection, reports []*ci.Report) (*ci.Report, error) {
 	sections := make([]ci.RenderedSectionOptions, 0)
 	status := ci.ReportStatusPass
 	for _, report := range reports {
-		status = strictestReportStatus(status, report.Status)
-		for i, section := range report.Sections {
+		status = strictestReportStatus(status, report.Status())
+		for i, section := range report.Sections() {
 			rendered, err := ci.DecodeRenderSection(section)
 			if err != nil {
-				return nil, fmt.Errorf("decode report %q section %d: %w", report.Producer, i, err)
+				return nil, fmt.Errorf("decode report %q section %d: %w", report.Producer(), i, err)
 			}
-			sectionTitle := report.Title
-			if section.Title() != "" && section.Title() != report.Title {
-				sectionTitle = fmt.Sprintf("%s: %s", report.Title, section.Title())
+			reportTitle := report.Title()
+			sectionTitle := reportTitle
+			if section.Title() != "" && section.Title() != reportTitle {
+				sectionTitle = fmt.Sprintf("%s: %s", reportTitle, section.Title())
 			}
 			sectionSummary := section.Summary()
 			if sectionSummary == "" {
-				sectionSummary = report.Summary
+				sectionSummary = report.Summary()
 			}
 			sections = append(sections, ci.RenderedSectionOptions{
 				Title:   sectionTitle,
@@ -123,7 +126,7 @@ func BuildSummaryReport(collection *ci.PlanResultCollection, reports []*ci.Repor
 		Title:    "Plugin Reports",
 		Status:   status,
 		Summary:  fmt.Sprintf("%d plugin reports", len(reports)),
-		Artifact: run.Artifact,
+		Artifact: run.Artifact(),
 		Sections: sections,
 	})
 }

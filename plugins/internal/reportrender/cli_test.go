@@ -5,30 +5,31 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/ci"
-	"github.com/edelwud/terraci/pkg/ci/citest"
 )
 
 func TestCLIReport_Golden(t *testing.T) {
 	t.Parallel()
 
-	report := &ci.Report{
+	report := mustRenderedReport(t, ci.RenderedReportOptions{
 		Producer: "policy",
 		Title:    "Policy Check",
 		Status:   ci.ReportStatusWarn,
 		Summary:  "1 finding",
-		Sections: []ci.ReportSection{citest.MustRenderedSection(
-			"Findings",
-			"1 finding",
-			ci.ReportStatusWarn,
-			ci.NewTextBlock(ci.RenderText("Review these changes")),
-			ci.NewTableBlock("Modules", []ci.RenderColumn{
-				ci.NewRenderColumn("Module"),
-				ci.NewRenderColumn("Status"),
-			}, []ci.RenderRow{
-				ci.NewRenderRow(ci.RenderModulePath("svc/prod/vpc"), ci.RenderLabel("needs review", ci.RenderToneWarning)),
-			}),
-		)},
-	}
+		Sections: []ci.RenderedSectionOptions{{
+			Title:   "Findings",
+			Summary: "1 finding",
+			Status:  ci.ReportStatusWarn,
+			Blocks: []ci.RenderBlock{
+				ci.NewTextBlock(ci.RenderText("Review these changes")),
+				ci.NewTableBlock("Modules", []ci.RenderColumn{
+					ci.NewRenderColumn("Module"),
+					ci.NewRenderColumn("Status"),
+				}, []ci.RenderRow{
+					ci.NewRenderRow(ci.RenderModulePath("svc/prod/vpc"), ci.RenderLabel("needs review", ci.RenderToneWarning)),
+				}),
+			},
+		}},
+	})
 
 	rendered, err := CLIReport(report)
 	if err != nil {
@@ -65,11 +66,11 @@ Modules
 func TestCLIReport_RejectsInvalidRenderedPayload(t *testing.T) {
 	t.Parallel()
 
-	report := &ci.Report{
-		Producer: "policy",
-		Title:    "Policy Check",
-		Status:   ci.ReportStatusWarn,
-		Sections: []ci.ReportSection{citest.MustReportSectionJSON(`{
+	report := mustReportJSON(t, `{
+		"producer": "policy",
+		"title": "Policy Check",
+		"status": "warn",
+		"sections": [{
 			"kind": "rendered",
 			"title": "Findings",
 			"status": "warn",
@@ -83,8 +84,8 @@ func TestCLIReport_RejectsInvalidRenderedPayload(t *testing.T) {
 					}
 				}]
 			}
-		}`)},
-	}
+		}]
+	}`)
 
 	_, err := CLIReport(report)
 	if err == nil {

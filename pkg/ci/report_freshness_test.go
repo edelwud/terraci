@@ -16,10 +16,10 @@ func TestSelectCurrentReports_SelectsCurrentAndDegradedReports(t *testing.T) {
 	selection := SelectCurrentReports(collection, []*Report{stale, nil, degraded, current}, ReportSelectionOptions{
 		Consumer: "summary",
 	})
-	if got := producers(selection.Reports); strings.Join(got, ",") != "cost,tfupdate" {
+	if got := producers(selection.Reports()); strings.Join(got, ",") != "cost,tfupdate" {
 		t.Fatalf("selected producers = %v, want [cost tfupdate]", got)
 	}
-	messages := selection.Diagnostics.Messages()
+	messages := selection.Diagnostics().Messages()
 	if len(messages) != 1 {
 		t.Fatalf("diagnostics = %v, want one stale warning", messages)
 	}
@@ -32,10 +32,8 @@ func TestSelectCurrentReports_ExcludesProducersAndDedupesDeterministically(t *te
 	t.Parallel()
 
 	collection := testPlanResultCollection()
-	older := renderedFreshnessReport(t, "cost", collection.Fingerprint())
-	older.Title = "older"
-	newer := renderedFreshnessReport(t, "cost", collection.Fingerprint())
-	newer.Title = "newer"
+	older := renderedFreshnessReportWithTitle(t, "cost", "older", collection.Fingerprint())
+	newer := renderedFreshnessReportWithTitle(t, "cost", "newer", collection.Fingerprint())
 
 	selection := SelectCurrentReports(collection, []*Report{
 		renderedFreshnessReport(t, "summary", collection.Fingerprint()),
@@ -46,11 +44,12 @@ func TestSelectCurrentReports_ExcludesProducersAndDedupesDeterministically(t *te
 		ExcludeProducers: []string{"summary"},
 	})
 
-	if got := producers(selection.Reports); strings.Join(got, ",") != "cost,tfupdate" {
+	reports := selection.Reports()
+	if got := producers(reports); strings.Join(got, ",") != "cost,tfupdate" {
 		t.Fatalf("selected producers = %v, want [cost tfupdate]", got)
 	}
-	if selection.Reports[0].Title != "newer" {
-		t.Fatalf("deduped cost title = %q, want newer", selection.Reports[0].Title)
+	if reports[0].Title() != "newer" {
+		t.Fatalf("deduped cost title = %q, want newer", reports[0].Title())
 	}
 }
 
@@ -59,11 +58,12 @@ func TestSelectCurrentReports_ReturnsDefensiveCopies(t *testing.T) {
 
 	report := renderedFreshnessReport(t, "cost", "")
 	selection := SelectCurrentReports(nil, []*Report{report}, ReportSelectionOptions{})
-	if len(selection.Reports) != 1 {
-		t.Fatalf("reports len = %d, want 1", len(selection.Reports))
+	reports := selection.Reports()
+	if len(reports) != 1 {
+		t.Fatalf("reports len = %d, want 1", len(reports))
 	}
-	selection.Reports[0].Title = "mutated"
-	if report.Title == "mutated" {
+	reports[0].title = "mutated"
+	if report.Title() == "mutated" {
 		t.Fatal("SelectCurrentReports returned original report pointer")
 	}
 }
@@ -78,7 +78,7 @@ func TestEvaluateReportFreshness_Statuses(t *testing.T) {
 		want   ReportFreshnessStatus
 	}{
 		{name: "nil report", want: ReportFreshnessDegraded},
-		{name: "nil provenance", report: &Report{Producer: "manual"}, want: ReportFreshnessDegraded},
+		{name: "nil provenance", report: &Report{producer: "manual"}, want: ReportFreshnessDegraded},
 		{name: "empty fingerprint", report: renderedFreshnessReport(t, "manual", ""), want: ReportFreshnessDegraded},
 		{name: "current", report: renderedFreshnessReport(t, "cost", collection.Fingerprint()), want: ReportFreshnessCurrent},
 		{name: "stale", report: renderedFreshnessReport(t, "policy", "old"), want: ReportFreshnessStale},
@@ -87,19 +87,23 @@ func TestEvaluateReportFreshness_Statuses(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := EvaluateReportFreshness(collection, tt.report, "summary")
-			if got.Status != tt.want {
-				t.Fatalf("Status = %q, want %q", got.Status, tt.want)
+			if got.Status() != tt.want {
+				t.Fatalf("Status = %q, want %q", got.Status(), tt.want)
 			}
 		})
 	}
 }
 
 func renderedFreshnessReport(t *testing.T, producer, fingerprint string) *Report {
+	return renderedFreshnessReportWithTitle(t, producer, producer+" report", fingerprint)
+}
+
+func renderedFreshnessReportWithTitle(t *testing.T, producer, title, fingerprint string) *Report {
 	t.Helper()
 
 	report, err := NewRenderedReport(RenderedReportOptions{
 		Producer: producer,
-		Title:    producer + " report",
+		Title:    title,
 		Status:   ReportStatusPass,
 		Artifact: NewArtifactContext(ArtifactContextOptions{
 			PlanResultsFingerprint: fingerprint,
@@ -118,7 +122,7 @@ func renderedFreshnessReport(t *testing.T, producer, fingerprint string) *Report
 func producers(reports []*Report) []string {
 	values := make([]string, 0, len(reports))
 	for _, report := range reports {
-		values = append(values, report.Producer)
+		values = append(values, report.Producer())
 	}
 	return values
 }

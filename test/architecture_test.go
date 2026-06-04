@@ -1087,6 +1087,80 @@ func TestArchitecture_CIRenderValueBoundaries(t *testing.T) {
 	}
 }
 
+func TestArchitecture_CIReportArtifactContracts(t *testing.T) {
+	root := repoRoot(t)
+	var violations []string
+
+	for _, rel := range goFiles(t, root, "cmd", "pkg", "plugins", "test", "examples") {
+		if allowUnder(rel, "pkg/ci/") || allowUnder(rel, "pkg/ci/citest/") {
+			continue
+		}
+		file := parseGoFile(t, filepath.Join(root, rel), 0)
+		ciAliases := importAliases(file, moduleImportPath+"/pkg/ci")
+		if len(ciAliases) == 0 {
+			continue
+		}
+
+		ast.Inspect(file, func(node ast.Node) bool {
+			switch typed := node.(type) {
+			case *ast.CompositeLit:
+				selector, ok := typed.Type.(*ast.SelectorExpr)
+				if !ok {
+					return true
+				}
+				ident, ok := selector.X.(*ast.Ident)
+				if !ok || !ciAliases[ident.Name] {
+					return true
+				}
+				switch selector.Sel.Name {
+				case "Report", "ReportProvenance", "ArtifactContext", "ArtifactRun",
+					"ReportSelection", "ReportFreshness", "PublishArtifactsRequest":
+					violations = append(violations, rel+" manually constructs ci."+selector.Sel.Name+"; use ci/plugin constructors and report getters")
+				}
+			case *ast.SelectorExpr:
+				if selectorMatchesAlias(typed, ciAliases, "PublishArtifactsRequest") {
+					violations = append(violations, rel+" references removed ci.PublishArtifactsRequest; use ci.NewArtifactPublication")
+				}
+			}
+			return true
+		})
+	}
+
+	stalePatterns := []string{
+		"PublishArtifactsRequest",
+		"plugins/internal/reportctx",
+		"reportctx.",
+		"PlanResultCollection -> ci.ArtifactRun",
+		"ci.NewArtifactRun",
+		"ci.ArtifactRun.Artifact",
+		"`report.Producer`",
+		"`run.Artifact`",
+		"ci.Report{",
+		"ci.ReportProvenance{",
+		"ci.ArtifactContext{",
+		"ci.ArtifactRun{",
+		"ci.ReportSelection{",
+		"ci.ReportFreshness{",
+	}
+	for _, rel := range textFiles(t, root, "AGENTS.md", "docs", "examples", "pkg/plugin/doc.go") {
+		if allowUnder(rel, "docs/.vitepress/dist/") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			t.Fatalf("read %s: %v", rel, err)
+		}
+		text := string(data)
+		for _, pattern := range stalePatterns {
+			banTextPattern(&violations, rel, text, pattern, "stale mutable report/artifact contract reference")
+		}
+	}
+
+	if len(violations) > 0 {
+		t.Fatalf("ci report artifact contract violations:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
 func TestArchitecture_ExecutionResultValueBoundaries(t *testing.T) {
 	root := repoRoot(t)
 	var violations []string

@@ -1,6 +1,7 @@
 package summaryengine
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +17,15 @@ func mustComposeComment(t *testing.T, plans []ci.PlanResult, reports []*ci.Repor
 		t.Fatalf("ComposeComment() error = %v", err)
 	}
 	return result
+}
+
+func mustReportJSON(t *testing.T, raw string) *ci.Report {
+	t.Helper()
+	var report ci.Report
+	if err := json.Unmarshal([]byte(raw), &report); err != nil {
+		t.Fatalf("Unmarshal(report) error = %v", err)
+	}
+	return &report
 }
 
 func mustComposeCommentWithOptions(t *testing.T, plans []ci.PlanResult, reports []*ci.Report, commitSHA, pipelineID string, generatedAt time.Time, includeDetails bool) string {
@@ -94,25 +104,27 @@ func TestComposeComment_WithReport(t *testing.T) {
 	}
 
 	reports := []*ci.Report{
-		{
+		citest.MustRenderedReport(ci.RenderedReportOptions{
 			Producer: "policy",
 			Title:    "Policy Check",
 			Status:   ci.ReportStatusFail,
 			Summary:  "2 modules: 1 passed, 0 warned, 1 failed",
-			Sections: []ci.ReportSection{citest.MustRenderedSection(
-				"Policy Check",
-				"2 modules: 1 passed, 0 warned, 1 failed",
-				ci.ReportStatusFail,
-				ci.NewTableBlock("", testColumns("Module", "Severity", "Namespace", "Message"), []ci.RenderRow{
-					ci.NewRenderRow(
-						ci.RenderModulePath("svc/prod/us-east-1/vpc"),
-						ci.RenderStatus(ci.ReportStatusFail),
-						ci.RenderCode("terraform.cost"),
-						ci.RenderText("too expensive"),
-					),
-				}),
-			)},
-		},
+			Sections: []ci.RenderedSectionOptions{{
+				Title:   "Policy Check",
+				Summary: "2 modules: 1 passed, 0 warned, 1 failed",
+				Status:  ci.ReportStatusFail,
+				Blocks: []ci.RenderBlock{
+					ci.NewTableBlock("", testColumns("Module", "Severity", "Namespace", "Message"), []ci.RenderRow{
+						ci.NewRenderRow(
+							ci.RenderModulePath("svc/prod/us-east-1/vpc"),
+							ci.RenderStatus(ci.ReportStatusFail),
+							ci.RenderCode("terraform.cost"),
+							ci.RenderText("too expensive"),
+						),
+					}),
+				},
+			}},
+		}),
 	}
 
 	result := mustComposeComment(t, plans, reports, "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
@@ -185,33 +197,35 @@ func TestBuildSummarySectionsWithOptions_WithoutDetailsClearsRowDetails(t *testi
 func TestComposeComment_WithCostReport(t *testing.T) {
 	t.Parallel()
 
-	reports := []*ci.Report{{
+	reports := []*ci.Report{citest.MustRenderedReport(ci.RenderedReportOptions{
 		Producer: "cost",
 		Title:    "Cost Estimation",
 		Status:   ci.ReportStatusWarn,
-		Sections: []ci.ReportSection{citest.MustRenderedSection(
-			"Cost Estimation",
-			"1 module, total: $15.00/mo (diff: +$5.00)",
-			ci.ReportStatusWarn,
-			ci.NewTableBlock("", testColumns("Module", "Before", "After", "Diff"), []ci.RenderRow{
-				ci.NewRenderRow(
-					ci.RenderModulePath("svc/prod/us-east-1/vpc"),
+		Sections: []ci.RenderedSectionOptions{{
+			Title:   "Cost Estimation",
+			Summary: "1 module, total: $15.00/mo (diff: +$5.00)",
+			Status:  ci.ReportStatusWarn,
+			Blocks: []ci.RenderBlock{
+				ci.NewTableBlock("", testColumns("Module", "Before", "After", "Diff"), []ci.RenderRow{
+					ci.NewRenderRow(
+						ci.RenderModulePath("svc/prod/us-east-1/vpc"),
+						ci.RenderMoney(10, monthlyMoneyTest()),
+						ci.RenderMoney(15, monthlyMoneyTest()),
+						ci.RenderMoneyDelta(5, monthlyMoneyTest()),
+					),
+				}),
+				ci.NewTextBlock(
+					ci.RenderText("Total: "),
 					ci.RenderMoney(10, monthlyMoneyTest()),
+					ci.RenderText(" -> "),
 					ci.RenderMoney(15, monthlyMoneyTest()),
+					ci.RenderText(" ("),
 					ci.RenderMoneyDelta(5, monthlyMoneyTest()),
+					ci.RenderText(")"),
 				),
-			}),
-			ci.NewTextBlock(
-				ci.RenderText("Total: "),
-				ci.RenderMoney(10, monthlyMoneyTest()),
-				ci.RenderText(" -> "),
-				ci.RenderMoney(15, monthlyMoneyTest()),
-				ci.RenderText(" ("),
-				ci.RenderMoneyDelta(5, monthlyMoneyTest()),
-				ci.RenderText(")"),
-			),
-		)},
-	}}
+			},
+		}},
+	})}
 
 	result := mustComposeComment(t, nil, reports, "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
 
@@ -235,11 +249,11 @@ func TestComposeComment_WithCostReport(t *testing.T) {
 func TestComposeCommentWithOptions_MalformedReportPayloadReturnsError(t *testing.T) {
 	t.Parallel()
 
-	_, err := ComposeCommentWithOptions(nil, []*ci.Report{{
-		Producer: "policy",
-		Title:    "Policy Check",
-		Status:   ci.ReportStatusFail,
-		Sections: []ci.ReportSection{citest.MustReportSectionJSON(`{
+	_, err := ComposeCommentWithOptions(nil, []*ci.Report{mustReportJSON(t, `{
+		"producer": "policy",
+		"title": "Policy Check",
+		"status": "fail",
+		"sections": [{
 			"kind": "rendered",
 			"title": "Policy Check",
 			"status": "fail",
@@ -253,8 +267,8 @@ func TestComposeCommentWithOptions_MalformedReportPayloadReturnsError(t *testing
 					}
 				}]
 			}
-		}`)},
-	}}, "", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC), true)
+		}]
+	}`)}, "", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC), true)
 	if err == nil {
 		t.Fatal("ComposeCommentWithOptions() error = nil, want malformed payload error")
 	}
@@ -321,31 +335,33 @@ func TestComposeComment_FiltersEnvironmentPlansToChangedAndFailed(t *testing.T) 
 func TestComposeComment_FiltersCostReportToAddedCosts(t *testing.T) {
 	t.Parallel()
 
-	reports := []*ci.Report{{
+	reports := []*ci.Report{citest.MustRenderedReport(ci.RenderedReportOptions{
 		Producer: "cost",
 		Title:    "Cost Estimation",
 		Status:   ci.ReportStatusWarn,
 		Summary:  "3 modules, total: $27.00/mo (diff: +5.00)",
-		Sections: []ci.ReportSection{citest.MustRenderedSection(
-			"Cost Estimation",
-			"3 modules, total: $27.00/mo (diff: +5.00)",
-			ci.ReportStatusWarn,
-			ci.NewTableBlock("", testColumns("Module", "Before", "After", "Diff"), []ci.RenderRow{
-				ci.NewRenderRow(
-					ci.RenderModulePath("svc/prod/us-east-1/vpc"),
-					ci.RenderMoney(10, monthlyMoneyTest()),
-					ci.RenderMoney(15, monthlyMoneyTest()),
-					ci.RenderMoneyDelta(5, monthlyMoneyTest()),
-				),
-				ci.NewRenderRow(
-					ci.RenderModulePath("svc/prod/us-east-1/redis"),
-					ci.RenderMoney(20, monthlyMoneyTest()),
-					ci.RenderMoney(10, monthlyMoneyTest()),
-					ci.RenderMoneyDelta(-10, monthlyMoneyTest()),
-				),
-			}),
-		)},
-	}}
+		Sections: []ci.RenderedSectionOptions{{
+			Title:   "Cost Estimation",
+			Summary: "3 modules, total: $27.00/mo (diff: +5.00)",
+			Status:  ci.ReportStatusWarn,
+			Blocks: []ci.RenderBlock{
+				ci.NewTableBlock("", testColumns("Module", "Before", "After", "Diff"), []ci.RenderRow{
+					ci.NewRenderRow(
+						ci.RenderModulePath("svc/prod/us-east-1/vpc"),
+						ci.RenderMoney(10, monthlyMoneyTest()),
+						ci.RenderMoney(15, monthlyMoneyTest()),
+						ci.RenderMoneyDelta(5, monthlyMoneyTest()),
+					),
+					ci.NewRenderRow(
+						ci.RenderModulePath("svc/prod/us-east-1/redis"),
+						ci.RenderMoney(20, monthlyMoneyTest()),
+						ci.RenderMoney(10, monthlyMoneyTest()),
+						ci.RenderMoneyDelta(-10, monthlyMoneyTest()),
+					),
+				}),
+			},
+		}},
+	})}
 
 	result := mustComposeComment(t, nil, reports, "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
 
@@ -360,35 +376,37 @@ func TestComposeComment_FiltersCostReportToAddedCosts(t *testing.T) {
 func TestComposeComment_FiltersTfupdateReportToUpdatableModules(t *testing.T) {
 	t.Parallel()
 
-	reports := []*ci.Report{{
+	reports := []*ci.Report{citest.MustRenderedReport(ci.RenderedReportOptions{
 		Producer: "tfupdate",
 		Title:    "Dependency Update Check",
 		Status:   ci.ReportStatusWarn,
 		Summary:  "4 checked, 2 updates available, 0 applied, 0 errors",
-		Sections: []ci.ReportSection{citest.MustRenderedSection(
-			"Dependency Update Check",
-			"4 checked, 2 updates available, 0 applied, 0 errors",
-			ci.ReportStatusWarn,
-			ci.NewTableBlock("Providers", testColumns("Module", "Provider", "Current", "Latest", "Status"), []ci.RenderRow{
-				ci.NewRenderRow(
-					ci.RenderModulePath("svc/prod/us-east-1/vpc"),
-					ci.RenderCode("hashicorp/aws"),
-					ci.RenderText("~> 5.0"),
-					ci.RenderText("5.4.0"),
-					ci.RenderLabel("update available", ci.RenderToneWarning),
-				),
-			}),
-			ci.NewTableBlock("Modules", testColumns("Module", "Source", "Current", "Latest", "Status"), []ci.RenderRow{
-				ci.NewRenderRow(
-					ci.RenderModulePath("svc/prod/us-east-1/eks"),
-					ci.RenderCode("terraform-aws-modules/eks/aws"),
-					ci.RenderText("20.0.0"),
-					ci.RenderText("21.0.0"),
-					ci.RenderLabel("applied", ci.RenderToneSuccess),
-				),
-			}),
-		)},
-	}}
+		Sections: []ci.RenderedSectionOptions{{
+			Title:   "Dependency Update Check",
+			Summary: "4 checked, 2 updates available, 0 applied, 0 errors",
+			Status:  ci.ReportStatusWarn,
+			Blocks: []ci.RenderBlock{
+				ci.NewTableBlock("Providers", testColumns("Module", "Provider", "Current", "Latest", "Status"), []ci.RenderRow{
+					ci.NewRenderRow(
+						ci.RenderModulePath("svc/prod/us-east-1/vpc"),
+						ci.RenderCode("hashicorp/aws"),
+						ci.RenderText("~> 5.0"),
+						ci.RenderText("5.4.0"),
+						ci.RenderLabel("update available", ci.RenderToneWarning),
+					),
+				}),
+				ci.NewTableBlock("Modules", testColumns("Module", "Source", "Current", "Latest", "Status"), []ci.RenderRow{
+					ci.NewRenderRow(
+						ci.RenderModulePath("svc/prod/us-east-1/eks"),
+						ci.RenderCode("terraform-aws-modules/eks/aws"),
+						ci.RenderText("20.0.0"),
+						ci.RenderText("21.0.0"),
+						ci.RenderLabel("applied", ci.RenderToneSuccess),
+					),
+				}),
+			},
+		}},
+	})}
 
 	result := mustComposeComment(t, nil, reports, "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
 

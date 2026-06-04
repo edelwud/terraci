@@ -80,17 +80,18 @@ func assertRenderedReportEnvelope(tb testing.TB, report *ci.Report, contract Ren
 	if err := report.Validate(); err != nil {
 		tb.Fatalf("report.Validate() error = %v", err)
 	}
-	if contract.Producer != "" && report.Producer != contract.Producer {
-		tb.Fatalf("Producer = %q, want %q", report.Producer, contract.Producer)
+	if contract.Producer != "" && report.Producer() != contract.Producer {
+		tb.Fatalf("Producer = %q, want %q", report.Producer(), contract.Producer)
 	}
-	if contract.Status != "" && report.Status != contract.Status {
-		tb.Fatalf("Status = %q, want %q", report.Status, contract.Status)
+	if contract.Status != "" && report.Status() != contract.Status {
+		tb.Fatalf("Status = %q, want %q", report.Status(), contract.Status)
 	}
 	if contract.Fingerprint != "" {
-		if report.Provenance == nil {
+		provenance := report.Provenance()
+		if provenance == nil {
 			tb.Fatalf("Provenance = nil, want fingerprint %q", contract.Fingerprint)
 		}
-		if got := report.Provenance.PlanResultsFingerprint; got != contract.Fingerprint {
+		if got := provenance.PlanResultsFingerprint(); got != contract.Fingerprint {
 			tb.Fatalf("Provenance.PlanResultsFingerprint = %q, want %q", got, contract.Fingerprint)
 		}
 	}
@@ -98,7 +99,7 @@ func assertRenderedReportEnvelope(tb testing.TB, report *ci.Report, contract Ren
 
 func assertRenderedReportSections(tb testing.TB, report *ci.Report, contract RenderedReportContract) {
 	tb.Helper()
-	for i, section := range report.Sections {
+	for i, section := range report.Sections() {
 		if section.Kind() != ci.ReportSectionKindRendered {
 			tb.Fatalf("section %d kind = %q, want %q", i, section.Kind(), ci.ReportSectionKindRendered)
 		}

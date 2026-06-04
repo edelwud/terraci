@@ -7,6 +7,7 @@ import (
 
 // Runtime is the immutable dependency bundle used by command usecases.
 type Runtime struct {
+	AppContext *plugin.AppContext
 	Config     *Config
 	WorkDir    string
 	ServiceDir string
@@ -19,6 +20,7 @@ func NewRuntime(appCtx *plugin.AppContext, cfg *Config) Runtime {
 		return Runtime{Config: cfg.Clone()}
 	}
 	return Runtime{
+		AppContext: appCtx,
 		Config:     cfg.Clone(),
 		WorkDir:    appCtx.WorkDir(),
 		ServiceDir: appCtx.ServiceDir(),

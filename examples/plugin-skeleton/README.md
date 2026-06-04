@@ -15,7 +15,7 @@ Copy whichever file matches your use case; the rest exists so the example builds
 plugin.go    # init() + BasePlugin[*Config] registration; plugin.Validator runs at startup
 commands.go  # plugin.CommandProvider — registers `terraci skeleton`
 runtime.go   # immutable command dependencies
-usecases.go  # Request -> Runtime -> Result orchestration + ci.PublishArtifacts
+usecases.go  # Request -> Runtime -> Result orchestration + ci.NewArtifactPublication
 output.go    # writer-based command output
 report.go    # producer pattern: ci.NewRenderedReport
 consumer.go  # consumer pattern: ci.ReportStore + ci.DecodeRenderSection
@@ -55,7 +55,7 @@ YAML
 1. `plugin.go` — registration shell, `BasePlugin[*Config]`.
 2. `commands.go` — register a CLI command (`CommandProvider`) and use `plugin.CommandPlugin[T]` / `plugin.RequireEnabled` in callbacks.
 3. `runtime.go`, `usecases.go`, `output.go` — keep `cobra flags -> Request -> Runtime -> Result -> output`.
-4. `report.go` — convert your result into constructor-built `ci.RenderBlock` / `ci.RenderValue` values, build an `ci.ArtifactRun`, then publish raw results plus report through `ci.PublishArtifacts`.
+4. `report.go` — convert your result into constructor-built `ci.RenderBlock` / `ci.RenderValue` values, build a run with `plugin.NewArtifactRun`, then publish raw results plus report through `ci.NewArtifactPublication` and `ci.PublishArtifacts`.
 5. `plugin_test.go` — copy `plugintest`/`citest` contracts so config immutability, command binding, report validation, and artifact lifecycle stay covered.
 
 Skip the `--consume` branch if you don't need to read other reports.
@@ -63,7 +63,7 @@ Skip the `--consume` branch if you don't need to read other reports.
 ### For a consumer plugin (reads other reports)
 
 1. `plugin.go` — same shell.
-2. `consumer.go` — call `appCtx.Reports().LoadReports(ctx)`, select current artifacts with `ci.SelectCurrentReports`, filter by `report.Producer`, and decode render-ready sections with `ci.DecodeRenderSection`.
+2. `consumer.go` — call `appCtx.Reports().LoadReports(ctx)`, select current artifacts with `ci.SelectCurrentReports`, filter by `report.Producer()`, and decode render-ready sections with `ci.DecodeRenderSection`.
 
 ## Capability extension points
 
@@ -87,7 +87,7 @@ Framework discovery is type-assertion-based inside TerraCi's registry, but plugi
 - **Don't** capture plugin state at command-registration time. Resolve the command-scoped plugin inside `RunE` with `plugin.CommandPlugin[T]`.
 - **Don't** panic while building reports in production code paths. Use `ci.NewRenderedReport` and propagate errors.
 - **Don't** assemble report payload JSON or render structs by hand. Use `ci.NewTableBlock`, `ci.NewListBlock`, `ci.RenderStatus`, `ci.RenderMoney`, `ci.RenderModulePath`, and related constructors so presentation stays in the shared renderer.
-- **Don't** assemble provenance by hand. Build a `ci.ArtifactRun` and pass `run.Artifact` to `ci.NewRenderedReport`; local consumers compare the fingerprint through `ci.SelectCurrentReports`.
+- **Don't** assemble provenance by hand. Build a run with `plugin.NewArtifactRun` and pass `run.Artifact()` to `ci.NewRenderedReport`; local consumers compare the fingerprint through `ci.SelectCurrentReports`.
 - **Don't** mutate project config through `ctx.Config()`. It returns an immutable `config.Snapshot`; use snapshot accessors in production code.
 - **Don't** mutate the value returned by `BasePlugin.Config()` expecting plugin state to change. Config types must implement `Clone() C`; `Config()` returns a defensive copy.
 

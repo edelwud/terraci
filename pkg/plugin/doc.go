@@ -235,13 +235,14 @@
 //
 // summary is the canonical consumer of report artifacts; cost/policy/
 // tfupdate are the canonical producers. Plan-aware producers should carry the
-// scanned ci.PlanResultCollection into ci.NewArtifactRun, convert domain
+// scanned ci.PlanResultCollection into plugin.NewArtifactRun, convert domain
 // results into typed ci.RenderBlock/ci.RenderValue values, build reports with
 // ci.NewRenderedReport, and persist raw results plus the report through
-// ci.PublishArtifacts. That helper always preserves raw results and removes
-// stale reports when report construction fails or intentionally returns nil.
-// Non-plan producers may create an ArtifactRun without PlanResults; that is
-// explicit degraded mode. Consumers should load through
+// ci.NewArtifactPublication and ci.PublishArtifacts. Publication always
+// preserves raw results and removes stale reports when report construction
+// fails or intentionally returns nil. Non-plan producers may call
+// plugin.NewArtifactRun without PlanResults; that is explicit degraded mode.
+// Consumers should load through
 // ci.ReportReader/ReportStore and call ci.SelectCurrentReports before
 // rendering.
 // ReportSection is a value object: external plugins should not construct

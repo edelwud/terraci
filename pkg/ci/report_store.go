@@ -71,7 +71,7 @@ func (s *memoryReportStore) Publish(report *Report) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.reports[report.Producer] = report.Clone()
+	s.reports[report.Producer()] = report.Clone()
 }
 
 func (s *memoryReportStore) deleteReport(producer string) {
@@ -110,7 +110,7 @@ func (s *memoryReportStore) All() []*Report {
 		reports = append(reports, report.Clone())
 	}
 	sort.Slice(reports, func(i, j int) bool {
-		return reports[i].Producer < reports[j].Producer
+		return reports[i].Producer() < reports[j].Producer()
 	})
 	return reports
 }
@@ -203,7 +203,7 @@ func (s *fileReportStore) SaveReport(ctx context.Context, report *Report) error 
 		s.Publish(report)
 		return nil
 	}
-	if err := saveJSON(ctx, s.serviceDir, ReportFilename(report.Producer), report); err != nil {
+	if err := saveJSON(ctx, s.serviceDir, ReportFilename(report.Producer()), report); err != nil {
 		return err
 	}
 	s.Publish(report)
@@ -258,12 +258,12 @@ func (s *fileReportStore) LoadReports(ctx context.Context) ([]*Report, error) {
 			if err != nil {
 				return nil, fmt.Errorf("load report %s: %w", filepath.Base(file), err)
 			}
-			byProducer[report.Producer] = report
+			byProducer[report.Producer()] = report
 		}
 	}
 
 	for _, report := range s.memory.All() {
-		byProducer[report.Producer] = report
+		byProducer[report.Producer()] = report
 	}
 
 	producers := make([]string, 0, len(byProducer))
@@ -303,8 +303,8 @@ func validateReportProducer(producer string, report *Report) error {
 	if report == nil {
 		return nil
 	}
-	if report.Producer != producer {
-		return fmt.Errorf("report producer %q does not match artifact producer %q", report.Producer, producer)
+	if report.Producer() != producer {
+		return fmt.Errorf("report producer %q does not match artifact producer %q", report.Producer(), producer)
 	}
 	return nil
 }

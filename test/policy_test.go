@@ -83,17 +83,17 @@ func TestPolicy_Check(t *testing.T) {
 		t.Fatalf("invalid report JSON: %v", jsonErr)
 	}
 
-	if report.Producer != "policy" {
-		t.Errorf("expected plugin=policy, got %s", report.Producer)
+	if report.Producer() != "policy" {
+		t.Errorf("expected plugin=policy, got %s", report.Producer())
 	}
 
 	// Our .rego rule warns on create actions — plan has a VPC create
-	if report.Status != ci.ReportStatusWarn {
-		t.Errorf("expected status=warn (rego has warn rule), got %s", report.Status)
+	if report.Status() != ci.ReportStatusWarn {
+		t.Errorf("expected status=warn (rego has warn rule), got %s", report.Status())
 	}
 
 	// Summary should mention warnings
-	assertContains(t, report.Summary, "warned")
+	assertContains(t, report.Summary(), "warned")
 }
 
 func TestPolicy_CheckModule(t *testing.T) {

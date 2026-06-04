@@ -129,7 +129,7 @@ func TestUseCase_RunUsesInjectedDependencies(t *testing.T) {
 	appCtx := plugintest.NewAppContext(t, workDir)
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	jobRunner := &fakeJobRunner{}
-	report := &ci.Report{Producer: "summary", Title: "Terraform Plan Summary"}
+	report := mustFlowReport(t, "summary", "Terraform Plan Summary")
 	loader := &fakeSummaryReportLoader{report: report}
 	eventSink := &fakeEventSink{}
 	runtimeFactory := &fakeRuntimeFactory{runtime: &runner.Runtime{
@@ -157,7 +157,7 @@ func TestUseCase_RunUsesInjectedDependencies(t *testing.T) {
 	if got := runtimeFactory.options[0].PlanParallelism; got != config.DefaultConfig().Execution.Parallelism {
 		t.Fatalf("runtime plan parallelism = %d, want config default", got)
 	}
-	if got := result.SummaryReport(); got == nil || got.Producer != report.Producer {
+	if got := result.SummaryReport(); got == nil || got.Producer() != report.Producer() {
 		t.Fatalf("summary report = %#v, want %#v", got, report)
 	}
 	if result.Execution() == nil || len(result.Execution().Groups()) == 0 {
@@ -166,6 +166,19 @@ func TestUseCase_RunUsesInjectedDependencies(t *testing.T) {
 	if len(eventSink.started) == 0 || len(eventSink.finished) == 0 {
 		t.Fatalf("event sink did not receive execution events: started=%v finished=%v", eventSink.started, eventSink.finished)
 	}
+}
+
+func mustFlowReport(tb testing.TB, producer, title string) *ci.Report {
+	tb.Helper()
+	report, err := ci.NewRenderedReport(ci.RenderedReportOptions{
+		Producer: producer,
+		Title:    title,
+		Status:   ci.ReportStatusPass,
+	})
+	if err != nil {
+		tb.Fatalf("NewRenderedReport() error = %v", err)
+	}
+	return report
 }
 
 func TestUseCase_RunBuildsIRFromProjectAndContributions(t *testing.T) {

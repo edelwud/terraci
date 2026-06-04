@@ -16,7 +16,7 @@ func TestPublishArtifactsWritesResultsAndReport(t *testing.T) {
 	store := NewFileReportStore(dir)
 	artifact := NewArtifactContext(ArtifactContextOptions{})
 
-	err := PublishArtifacts(context.Background(), PublishArtifactsRequest{
+	err := publishTestArtifacts(ArtifactPublicationOptions{
 		Producer: "cost",
 		Writer:   store,
 		Results:  map[string]string{"ok": "true"},
@@ -44,7 +44,7 @@ func TestPublishArtifactsDeletesStaleReportOnNilReport(t *testing.T) {
 		t.Fatalf("SaveReport() error = %v", err)
 	}
 
-	err := PublishArtifacts(context.Background(), PublishArtifactsRequest{
+	err := publishTestArtifacts(ArtifactPublicationOptions{
 		Producer: "cost",
 		Writer:   store,
 		Results:  map[string]string{"ok": "true"},
@@ -73,7 +73,7 @@ func TestPublishArtifactsDeletesStaleReportOnBuildError(t *testing.T) {
 	}
 
 	wantErr := errors.New("boom")
-	err := PublishArtifacts(context.Background(), PublishArtifactsRequest{
+	err := publishTestArtifacts(ArtifactPublicationOptions{
 		Producer: "cost",
 		Writer:   store,
 		Results:  map[string]string{"ok": "true"},
@@ -97,7 +97,7 @@ func TestPublishArtifactsReportsProducerMismatch(t *testing.T) {
 
 	dir := t.TempDir()
 	store := NewFileReportStore(dir)
-	err := PublishArtifacts(context.Background(), PublishArtifactsRequest{
+	err := publishTestArtifacts(ArtifactPublicationOptions{
 		Producer: "cost",
 		Writer:   store,
 		Results:  map[string]string{"ok": "true"},
@@ -121,7 +121,7 @@ func TestPublishArtifactsJoinsBuildAndWriterErrors(t *testing.T) {
 
 	buildErr := errors.New("build failed")
 	writerErr := errors.New("writer failed")
-	err := PublishArtifacts(context.Background(), PublishArtifactsRequest{
+	err := publishTestArtifacts(ArtifactPublicationOptions{
 		Producer: "cost",
 		Writer:   fakePublishArtifactWriter{err: writerErr},
 		Results:  map[string]string{"ok": "true"},
@@ -137,9 +137,17 @@ func TestPublishArtifactsJoinsBuildAndWriterErrors(t *testing.T) {
 func TestPublishArtifactsNoopsWithoutWriter(t *testing.T) {
 	t.Parallel()
 
-	if err := PublishArtifacts(context.Background(), PublishArtifactsRequest{Producer: "cost"}); err != nil {
+	if err := publishTestArtifacts(ArtifactPublicationOptions{Producer: "cost"}); err != nil {
 		t.Fatalf("PublishArtifacts(nil writer) error = %v", err)
 	}
+}
+
+func publishTestArtifacts(opts ArtifactPublicationOptions) error {
+	publication, err := NewArtifactPublication(opts)
+	if err != nil {
+		return err
+	}
+	return PublishArtifacts(context.Background(), publication)
 }
 
 type fakePublishArtifactWriter struct {

@@ -50,11 +50,11 @@ func TestLoaderBuildsReportFromStore(t *testing.T) {
 	if report == nil {
 		t.Fatal("Load() report = nil, want aggregate report")
 	}
-	if report.Producer != SummaryReportProducer || report.Status != ci.ReportStatusWarn {
+	if report.Producer() != SummaryReportProducer || report.Status() != ci.ReportStatusWarn {
 		t.Fatalf("aggregate report = %#v, want summary warning report", report)
 	}
-	if len(report.Sections) != 1 {
-		t.Fatalf("sections len = %d, want 1", len(report.Sections))
+	if len(report.Sections()) != 1 {
+		t.Fatalf("sections len = %d, want 1", len(report.Sections()))
 	}
 }
 
@@ -105,11 +105,12 @@ func TestLoaderSkipsStaleFingerprint(t *testing.T) {
 	if result.Diagnostics().Len() != 1 {
 		t.Fatalf("diagnostics = %v, want one stale report warning", result.Diagnostics().Messages())
 	}
-	if report.Summary != "1 plugin reports" {
-		t.Fatalf("Summary = %q, want one selected report", report.Summary)
+	if report.Summary() != "1 plugin reports" {
+		t.Fatalf("Summary = %q, want one selected report", report.Summary())
 	}
-	if len(report.Sections) != 1 || report.Sections[0].Title() != "Fresh" {
-		t.Fatalf("sections = %#v, want only fresh report section", report.Sections)
+	sections := report.Sections()
+	if len(sections) != 1 || sections[0].Title() != "Fresh" {
+		t.Fatalf("sections = %#v, want only fresh report section", sections)
 	}
 }
 

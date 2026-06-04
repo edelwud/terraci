@@ -18,7 +18,7 @@ import (
 //     deterministic order. Pass those reports through ci.SelectCurrentReports;
 //     exclude your own producer to avoid an accidental self-loop.
 //
-//  2. Branch on report.Producer when needed. Decode render-ready sections via
+//  2. Branch on report.Producer() when needed. Decode render-ready sections via
 //     ci.DecodeRenderSection; external plugins should not parse payload JSON
 //     by hand.
 //
@@ -38,19 +38,21 @@ func consumeReports(ctx context.Context, runtime Runtime) (*ConsumerResult, erro
 		Consumer:         pluginName,
 		ExcludeProducers: []string{pluginName},
 	})
-	result := &ConsumerResult{Reports: make([]ConsumedReport, 0, len(selection.Reports))}
-	if len(selection.Reports) == 0 {
+	selectedReports := selection.Reports()
+	result := &ConsumerResult{Reports: make([]ConsumedReport, 0, len(selectedReports))}
+	if len(selectedReports) == 0 {
 		return result, nil
 	}
 
-	for _, r := range selection.Reports {
+	for _, r := range selectedReports {
+		sections := r.Sections()
 		consumed := ConsumedReport{
-			Producer: r.Producer,
-			Status:   r.Status,
-			Summary:  r.Summary,
-			Sections: make([]ConsumedSection, 0, len(r.Sections)),
+			Producer: r.Producer(),
+			Status:   r.Status(),
+			Summary:  r.Summary(),
+			Sections: make([]ConsumedSection, 0, len(sections)),
 		}
-		for _, section := range r.Sections {
+		for _, section := range sections {
 			entry := ConsumedSection{Title: section.Title()}
 			rendered, err := ci.DecodeRenderSection(section)
 			if err != nil {

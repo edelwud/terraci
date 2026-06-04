@@ -16,7 +16,6 @@ import (
 	"github.com/edelwud/terraci/pkg/plugin/cliout"
 	"github.com/edelwud/terraci/pkg/workflow"
 	"github.com/edelwud/terraci/pkg/workspacepath"
-	"github.com/edelwud/terraci/plugins/internal/reportctx"
 	tfupdateengine "github.com/edelwud/terraci/plugins/tfupdate/internal"
 	tfupdateusecase "github.com/edelwud/terraci/plugins/tfupdate/internal/usecase"
 )
@@ -151,18 +150,23 @@ func emitUpdateArtifacts(ctx context.Context, appCtx *plugin.AppContext, result 
 		return
 	}
 
-	if saveErr := ci.PublishArtifacts(ctx, ci.PublishArtifactsRequest{
+	publication, err := ci.NewArtifactPublication(ci.ArtifactPublicationOptions{
 		Producer: pluginName,
 		Writer:   appCtx.Reports(),
 		Results:  result,
 		BuildReport: func() (*ci.Report, error) {
-			run, err := reportctx.NewRun(appCtx, reportctx.Options{Producer: pluginName})
+			run, err := plugin.NewArtifactRun(appCtx, plugin.ArtifactRunOptions{Producer: pluginName})
 			if err != nil {
 				return nil, fmt.Errorf("artifact run: %w", err)
 			}
 			return buildUpdateReport(updateReportRequest{Result: result, Run: run})
 		},
-	}); saveErr != nil {
+	})
+	if err != nil {
+		log.WithError(err).Warn("failed to persist tfupdate artifacts")
+		return
+	}
+	if saveErr := ci.PublishArtifacts(ctx, publication); saveErr != nil {
 		log.WithError(saveErr).Warn("failed to persist tfupdate artifacts")
 	}
 }

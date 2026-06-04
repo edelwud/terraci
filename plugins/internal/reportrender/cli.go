@@ -16,13 +16,13 @@ func CLIReport(report *ci.Report) (string, error) {
 	}
 
 	var sb strings.Builder
-	sb.WriteString(renderSectionTitle(report.Title))
-	if report.Summary != "" {
+	sb.WriteString(renderSectionTitle(report.Title()))
+	if report.Summary() != "" {
 		sb.WriteString("\n")
-		sb.WriteString(report.Summary)
+		sb.WriteString(report.Summary())
 	}
 
-	for i, section := range report.Sections {
+	for i, section := range report.Sections() {
 		rendered, err := CLISection(section)
 		if err != nil {
 			return "", fmt.Errorf("render report section %d: %w", i, err)

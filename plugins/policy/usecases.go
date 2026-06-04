@@ -11,7 +11,6 @@ import (
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/cliout"
-	"github.com/edelwud/terraci/plugins/internal/reportctx"
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 	policyusecase "github.com/edelwud/terraci/plugins/policy/internal/usecase"
 )
@@ -55,12 +54,12 @@ func persistPolicyArtifacts(ctx context.Context, appCtx *plugin.AppContext, summ
 		return
 	}
 
-	if saveErr := ci.PublishArtifacts(ctx, ci.PublishArtifactsRequest{
+	publication, err := ci.NewArtifactPublication(ci.ArtifactPublicationOptions{
 		Producer: pluginName,
 		Writer:   appCtx.Reports(),
 		Results:  summary,
 		BuildReport: func() (*ci.Report, error) {
-			run, err := reportctx.NewRun(appCtx, reportctx.Options{
+			run, err := plugin.NewArtifactRun(appCtx, plugin.ArtifactRunOptions{
 				Producer:   pluginName,
 				Collection: collection,
 			})
@@ -69,7 +68,12 @@ func persistPolicyArtifacts(ctx context.Context, appCtx *plugin.AppContext, summ
 			}
 			return buildPolicyReport(policyReportRequest{Summary: summary, Run: run})
 		},
-	}); saveErr != nil {
+	})
+	if err != nil {
+		log.WithError(err).Warn("failed to persist policy artifacts")
+		return
+	}
+	if saveErr := ci.PublishArtifacts(ctx, publication); saveErr != nil {
 		log.WithError(saveErr).Warn("failed to persist policy artifacts")
 	}
 }

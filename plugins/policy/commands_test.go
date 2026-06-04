@@ -62,16 +62,17 @@ func TestBuildPolicyReport_WithFailures(t *testing.T) {
 			reportrender.CLIReport,
 		},
 	})
-	if report.Status != ci.ReportStatusFail {
-		t.Fatalf("Status = %q, want %q", report.Status, ci.ReportStatusFail)
+	if report.Status() != ci.ReportStatusFail {
+		t.Fatalf("Status = %q, want %q", report.Status(), ci.ReportStatusFail)
 	}
-	if !strings.Contains(report.Summary, "2 modules") {
-		t.Fatalf("Summary = %q, want module count", report.Summary)
+	if !strings.Contains(report.Summary(), "2 modules") {
+		t.Fatalf("Summary = %q, want module count", report.Summary())
 	}
-	if len(report.Sections) != 1 {
+	sections := report.Sections()
+	if len(sections) != 1 {
 		t.Fatalf("expected one findings section")
 	}
-	rendered, err := ci.DecodeRenderSection(report.Sections[0])
+	rendered, err := ci.DecodeRenderSection(sections[0])
 	if err != nil {
 		t.Fatalf("decode rendered section: %v", err)
 	}
@@ -111,13 +112,14 @@ func TestBuildPolicyReport_WithWarnings(t *testing.T) {
 			reportrender.CLIReport,
 		},
 	})
-	if report.Status != ci.ReportStatusWarn {
-		t.Fatalf("Status = %q, want %q", report.Status, ci.ReportStatusWarn)
+	if report.Status() != ci.ReportStatusWarn {
+		t.Fatalf("Status = %q, want %q", report.Status(), ci.ReportStatusWarn)
 	}
-	if len(report.Sections) != 1 {
+	sections := report.Sections()
+	if len(sections) != 1 {
 		t.Fatalf("expected one findings section")
 	}
-	rendered, err := ci.DecodeRenderSection(report.Sections[0])
+	rendered, err := ci.DecodeRenderSection(sections[0])
 	if err != nil {
 		t.Fatalf("decode rendered section: %v", err)
 	}

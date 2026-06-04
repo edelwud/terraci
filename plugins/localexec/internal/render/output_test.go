@@ -132,17 +132,19 @@ func TestLogOutputCompleted_NilSummaryReportSkipsCLISection(t *testing.T) {
 }
 
 func TestLogOutputCompleted_WithSummaryReport(t *testing.T) {
-	report := &ci.Report{
+	report := citest.MustRenderedReport(ci.RenderedReportOptions{
 		Producer: summaryReportProducer,
 		Title:    "Terraform Plan Summary",
+		Status:   ci.ReportStatusWarn,
 		Summary:  "1 modules: 1 with changes, 0 no changes, 0 failed",
-		Sections: []ci.ReportSection{citest.MustRenderedSection(
-			"Summary",
-			"",
-			ci.ReportStatusWarn,
-			ci.NewTextBlock(ci.RenderText("1 module changed")),
-		)},
-	}
+		Sections: []ci.RenderedSectionOptions{{
+			Title:  "Summary",
+			Status: ci.ReportStatusWarn,
+			Blocks: []ci.RenderBlock{
+				ci.NewTextBlock(ci.RenderText("1 module changed")),
+			},
+		}},
+	})
 	output := LogOutput{}
 	result := executiontest.MustResult(t, execution.ResultOptions{})
 
@@ -174,11 +176,12 @@ func TestLogOutputCompleted_WithSummaryReport(t *testing.T) {
 
 func TestLogOutputCompleted_InvalidSummaryReportReturnsError(t *testing.T) {
 	output := LogOutput{}
-	report := &ci.Report{
-		Producer: summaryReportProducer,
-		Title:    "Terraform Plan Summary",
-		Sections: []ci.ReportSection{citest.MustReportSectionJSON(`{"kind":"legacy","payload":{}}`)},
-	}
+	report := mustReportJSON(t, `{
+		"producer": "summary",
+		"title": "Terraform Plan Summary",
+		"status": "warn",
+		"sections": [{"kind":"legacy","payload":{}}]
+	}`)
 
 	err := output.Completed(executiontest.MustResult(t, execution.ResultOptions{}), report)
 	if err == nil {

@@ -30,7 +30,7 @@ func loadPlanResults(runtime Runtime) (*ci.PlanResultCollection, error) {
 func loadReportSelection(ctx context.Context, runtime Runtime, collection *ci.PlanResultCollection) (ci.ReportSelection, error) {
 	reports, err := reportStore(runtime).LoadReports(ctx)
 	if err != nil {
-		return ci.ReportSelection{}, fmt.Errorf("failed to load plugin reports: %w", err)
+		return ci.EmptyReportSelection(), fmt.Errorf("failed to load plugin reports: %w", err)
 	}
 	return ci.SelectCurrentReports(collection, filterSummaryReports(reports), ci.ReportSelectionOptions{
 		Consumer: "summary",

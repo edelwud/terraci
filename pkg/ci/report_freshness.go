@@ -19,20 +19,25 @@ const (
 
 // ReportFreshness is the freshness decision for one report.
 type ReportFreshness struct {
-	Status     ReportFreshnessStatus
-	Diagnostic diagnostic.Diagnostic
+	status     ReportFreshnessStatus
+	diagnostic diagnostic.Diagnostic
 }
 
 // ReportSelection is the canonical selected-report result for consumers.
 type ReportSelection struct {
-	Reports     []*Report
-	Diagnostics diagnostic.List
+	reports     []*Report
+	diagnostics diagnostic.List
 }
 
 // ReportSelectionOptions controls report freshness selection.
 type ReportSelectionOptions struct {
 	Consumer         string
 	ExcludeProducers []string
+}
+
+// EmptyReportSelection returns an empty selected-report result.
+func EmptyReportSelection() ReportSelection {
+	return ReportSelection{}
 }
 
 // SelectCurrentReports selects reports safe to render for the supplied plan
@@ -51,17 +56,17 @@ func SelectCurrentReports(collection *PlanResultCollection, reports []*Report, o
 		if report == nil {
 			continue
 		}
-		if _, skip := excluded[report.Producer]; skip {
+		if _, skip := excluded[report.Producer()]; skip {
 			continue
 		}
 		freshness := EvaluateReportFreshness(collection, report, opts.Consumer)
-		if freshness.Diagnostic.Valid() {
-			diagnostics = diagnostics.Append(freshness.Diagnostic)
+		if freshness.Diagnostic().Valid() {
+			diagnostics = diagnostics.Append(freshness.Diagnostic())
 		}
-		if freshness.Status == ReportFreshnessStale {
+		if freshness.Status() == ReportFreshnessStale {
 			continue
 		}
-		byProducer[report.Producer] = report
+		byProducer[report.Producer()] = report
 	}
 
 	producers := make([]string, 0, len(byProducer))
@@ -71,11 +76,11 @@ func SelectCurrentReports(collection *PlanResultCollection, reports []*Report, o
 	sort.Strings(producers)
 
 	selected := ReportSelection{
-		Reports:     make([]*Report, 0, len(producers)),
-		Diagnostics: diagnostics,
+		reports:     make([]*Report, 0, len(producers)),
+		diagnostics: diagnostics,
 	}
 	for _, producer := range producers {
-		selected.Reports = append(selected.Reports, byProducer[producer].Clone())
+		selected.reports = append(selected.reports, byProducer[producer].Clone())
 	}
 	return selected
 }
@@ -83,33 +88,54 @@ func SelectCurrentReports(collection *PlanResultCollection, reports []*Report, o
 // EvaluateReportFreshness evaluates one report against the current plan
 // collection.
 func EvaluateReportFreshness(collection *PlanResultCollection, report *Report, consumer string) ReportFreshness {
-	if report == nil || report.Provenance == nil {
-		return ReportFreshness{Status: ReportFreshnessDegraded}
+	if report == nil || report.Provenance() == nil {
+		return ReportFreshness{status: ReportFreshnessDegraded}
 	}
 
-	reportFingerprint := report.Provenance.PlanResultsFingerprint
+	reportFingerprint := report.Provenance().PlanResultsFingerprint()
 	currentFingerprint := ""
 	if collection != nil {
 		currentFingerprint = collection.Fingerprint()
 	}
 	if reportFingerprint == "" || currentFingerprint == "" {
-		return ReportFreshness{Status: ReportFreshnessDegraded}
+		return ReportFreshness{status: ReportFreshnessDegraded}
 	}
 	if reportFingerprint == currentFingerprint {
-		return ReportFreshness{Status: ReportFreshnessCurrent}
+		return ReportFreshness{status: ReportFreshnessCurrent}
 	}
 
 	if consumer == "" {
 		consumer = "ci"
 	}
 	return ReportFreshness{
-		Status: ReportFreshnessStale,
-		Diagnostic: diagnostic.Warning(fmt.Sprintf(
+		status: ReportFreshnessStale,
+		diagnostic: diagnostic.Warning(fmt.Sprintf(
 			"%s report %q skipped: plan_results_fingerprint %q does not match current %q",
 			consumer,
-			report.Producer,
+			report.Producer(),
 			reportFingerprint,
 			currentFingerprint,
 		), diagnostic.WithSource("report freshness")),
 	}
 }
+
+// Status returns the freshness decision.
+func (f ReportFreshness) Status() ReportFreshnessStatus { return f.status }
+
+// Diagnostic returns the freshness diagnostic, if any.
+func (f ReportFreshness) Diagnostic() diagnostic.Diagnostic { return f.diagnostic }
+
+// Reports returns selected report clones in deterministic producer order.
+func (s ReportSelection) Reports() []*Report {
+	if len(s.reports) == 0 {
+		return nil
+	}
+	out := make([]*Report, len(s.reports))
+	for i, report := range s.reports {
+		out[i] = report.Clone()
+	}
+	return out
+}
+
+// Diagnostics returns selection diagnostics.
+func (s ReportSelection) Diagnostics() diagnostic.List { return s.diagnostics }

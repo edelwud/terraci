@@ -69,34 +69,42 @@ func AssertPublishArtifactsContract(tb testing.TB, producer string, report *ci.R
 	}
 
 	successWriter := &RecordingArtifactWriter{}
-	if err := ci.PublishArtifacts(context.Background(), ci.PublishArtifactsRequest{
+	successPublication, err := ci.NewArtifactPublication(ci.ArtifactPublicationOptions{
 		Producer: producer,
 		Writer:   successWriter,
 		Results:  map[string]string{publishArtifactsResultCaseKey: "success"},
 		BuildReport: func() (*ci.Report, error) {
 			return report, nil
 		},
-	}); err != nil {
-		tb.Fatalf("PublishArtifacts(success) error = %v", err)
+	})
+	if err != nil {
+		tb.Fatalf("NewArtifactPublication(success) error = %v", err)
+	}
+	if publishErr := ci.PublishArtifacts(context.Background(), successPublication); publishErr != nil {
+		tb.Fatalf("PublishArtifacts(success) error = %v", publishErr)
 	}
 	assertSingleReplace(tb, successWriter, producer, true)
 
 	nilWriter := &RecordingArtifactWriter{}
-	if err := ci.PublishArtifacts(context.Background(), ci.PublishArtifactsRequest{
+	nilPublication, err := ci.NewArtifactPublication(ci.ArtifactPublicationOptions{
 		Producer: producer,
 		Writer:   nilWriter,
 		Results:  map[string]string{publishArtifactsResultCaseKey: "nil-report"},
 		BuildReport: func() (*ci.Report, error) {
 			return nil, nil
 		},
-	}); err != nil {
-		tb.Fatalf("PublishArtifacts(nil report) error = %v", err)
+	})
+	if err != nil {
+		tb.Fatalf("NewArtifactPublication(nil report) error = %v", err)
+	}
+	if publishErr := ci.PublishArtifacts(context.Background(), nilPublication); publishErr != nil {
+		tb.Fatalf("PublishArtifacts(nil report) error = %v", publishErr)
 	}
 	assertSingleReplace(tb, nilWriter, producer, false)
 
 	buildErr := errors.New("build failed")
 	buildErrorWriter := &RecordingArtifactWriter{}
-	err := ci.PublishArtifacts(context.Background(), ci.PublishArtifactsRequest{
+	buildErrorPublication, err := ci.NewArtifactPublication(ci.ArtifactPublicationOptions{
 		Producer: producer,
 		Writer:   buildErrorWriter,
 		Results:  map[string]string{publishArtifactsResultCaseKey: "build-error"},
@@ -104,6 +112,10 @@ func AssertPublishArtifactsContract(tb testing.TB, producer string, report *ci.R
 			return nil, buildErr
 		},
 	})
+	if err != nil {
+		tb.Fatalf("NewArtifactPublication(build error) error = %v", err)
+	}
+	err = ci.PublishArtifacts(context.Background(), buildErrorPublication)
 	if !errors.Is(err, buildErr) {
 		tb.Fatalf("PublishArtifacts(build error) error = %v, want %v", err, buildErr)
 	}
@@ -111,7 +123,7 @@ func AssertPublishArtifactsContract(tb testing.TB, producer string, report *ci.R
 
 	writeErr := errors.New("write failed")
 	joinedWriter := &RecordingArtifactWriter{ReplaceError: writeErr}
-	err = ci.PublishArtifacts(context.Background(), ci.PublishArtifactsRequest{
+	joinedPublication, err := ci.NewArtifactPublication(ci.ArtifactPublicationOptions{
 		Producer: producer,
 		Writer:   joinedWriter,
 		Results:  map[string]string{publishArtifactsResultCaseKey: "joined-errors"},
@@ -119,15 +131,23 @@ func AssertPublishArtifactsContract(tb testing.TB, producer string, report *ci.R
 			return nil, buildErr
 		},
 	})
+	if err != nil {
+		tb.Fatalf("NewArtifactPublication(joined errors) error = %v", err)
+	}
+	err = ci.PublishArtifacts(context.Background(), joinedPublication)
 	if !errors.Is(err, buildErr) || !errors.Is(err, writeErr) {
 		tb.Fatalf("PublishArtifacts(joined errors) error = %v, want build and write errors", err)
 	}
 	assertSingleReplace(tb, joinedWriter, producer, false)
 
-	if err := ci.PublishArtifacts(context.Background(), ci.PublishArtifactsRequest{
+	nilWriterPublication, err := ci.NewArtifactPublication(ci.ArtifactPublicationOptions{
 		Producer: producer,
 		Results:  map[string]string{publishArtifactsResultCaseKey: "nil-writer"},
-	}); err != nil {
+	})
+	if err != nil {
+		tb.Fatalf("NewArtifactPublication(nil writer) error = %v", err)
+	}
+	if err := ci.PublishArtifacts(context.Background(), nilWriterPublication); err != nil {
 		tb.Fatalf("PublishArtifacts(nil writer) error = %v", err)
 	}
 }

@@ -33,6 +33,6 @@ func ExampleNewRenderedReport() {
 		panic(err)
 	}
 
-	fmt.Println(report.Producer, report.Sections[0].Kind())
+	fmt.Println(report.Producer(), report.Sections()[0].Kind())
 	// Output: policy rendered
 }

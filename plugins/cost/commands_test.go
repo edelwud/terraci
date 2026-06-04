@@ -64,10 +64,11 @@ func decodeCostSection(t *testing.T, report *ci.Report) ci.RenderSection {
 			reportrender.CLIReport,
 		},
 	})
-	if len(report.Sections) != 1 {
-		t.Fatalf("Sections count = %d, want 1", len(report.Sections))
+	sections := report.Sections()
+	if len(sections) != 1 {
+		t.Fatalf("Sections count = %d, want 1", len(sections))
 	}
-	section := report.Sections[0]
+	section := sections[0]
 	if section.Kind() != ci.ReportSectionKindRendered {
 		t.Fatalf("section kind = %q, want %q", section.Kind(), ci.ReportSectionKindRendered)
 	}
@@ -316,11 +317,11 @@ func TestPlugin_RunEstimation_Success(t *testing.T) {
 	}
 
 	report := loadCostReport(t, appCtx.ServiceDir())
-	if report.Producer != "cost" {
-		t.Errorf("report.Producer = %q, want %q", report.Producer, "cost")
+	if report.Producer() != "cost" {
+		t.Errorf("report.Producer = %q, want %q", report.Producer(), "cost")
 	}
-	if report.Status != ci.ReportStatusPass {
-		t.Errorf("report.Status = %q, want %q", report.Status, ci.ReportStatusPass)
+	if report.Status() != ci.ReportStatusPass {
+		t.Errorf("report.Status = %q, want %q", report.Status(), ci.ReportStatusPass)
 	}
 }
 
@@ -530,18 +531,18 @@ func TestBuildCostReport(t *testing.T) {
 		t.Fatalf("buildCostReport() error = %v", buildErr)
 	}
 
-	if report.Producer != "cost" {
-		t.Errorf("Plugin = %q, want %q", report.Producer, "cost")
+	if report.Producer() != "cost" {
+		t.Errorf("Plugin = %q, want %q", report.Producer(), "cost")
 	}
-	if report.Title != costReportTitle {
-		t.Errorf("Title = %q, want %q", report.Title, costReportTitle)
+	if report.Title() != costReportTitle {
+		t.Errorf("Title = %q, want %q", report.Title(), costReportTitle)
 	}
-	if !strings.Contains(report.Summary, "2 modules") {
-		t.Errorf("Summary = %q, want to contain '2 modules'", report.Summary)
+	if !strings.Contains(report.Summary(), "2 modules") {
+		t.Errorf("Summary = %q, want to contain '2 modules'", report.Summary())
 	}
 
-	if report.Status != ci.ReportStatusWarn {
-		t.Errorf("Status = %q, want %q when report has errors", report.Status, ci.ReportStatusWarn)
+	if report.Status() != ci.ReportStatusWarn {
+		t.Errorf("Status = %q, want %q when report has errors", report.Status(), ci.ReportStatusWarn)
 	}
 
 	section := decodeCostSection(t, report)
@@ -610,14 +611,14 @@ func TestBuildCostReport_IncludesPrefetchWarnings(t *testing.T) {
 	if buildErr != nil {
 		t.Fatalf("buildCostReport() error = %v", buildErr)
 	}
-	if report.Status != ci.ReportStatusWarn {
-		t.Fatalf("Status = %q, want %q", report.Status, ci.ReportStatusWarn)
+	if report.Status() != ci.ReportStatusWarn {
+		t.Fatalf("Status = %q, want %q", report.Status(), ci.ReportStatusWarn)
 	}
-	if !strings.Contains(report.Summary, "usage estimated: 1") {
-		t.Fatalf("summary = %q, want usage estimated count", report.Summary)
+	if !strings.Contains(report.Summary(), "usage estimated: 1") {
+		t.Fatalf("summary = %q, want usage estimated count", report.Summary())
 	}
-	if !strings.Contains(report.Summary, "usage unknown: 1") {
-		t.Fatalf("summary = %q, want usage unknown count", report.Summary)
+	if !strings.Contains(report.Summary(), "usage unknown: 1") {
+		t.Fatalf("summary = %q, want usage unknown count", report.Summary())
 	}
 	section := decodeCostSection(t, report)
 	if len(section.Blocks()) == 0 {
@@ -646,11 +647,11 @@ func TestBuildCostReport_Empty(t *testing.T) {
 		t.Fatalf("buildCostReport() error = %v", buildErr)
 	}
 
-	if report.Producer != "cost" {
-		t.Errorf("Plugin = %q, want %q", report.Producer, "cost")
+	if report.Producer() != "cost" {
+		t.Errorf("Plugin = %q, want %q", report.Producer(), "cost")
 	}
-	if !strings.Contains(report.Summary, "0 modules") {
-		t.Errorf("Summary = %q, want to contain '0 modules'", report.Summary)
+	if !strings.Contains(report.Summary(), "0 modules") {
+		t.Errorf("Summary = %q, want to contain '0 modules'", report.Summary())
 	}
 	section := decodeCostSection(t, report)
 	if rows := renderTableRowsOrNil(section); len(rows) != 0 {
@@ -680,8 +681,8 @@ func TestBuildCostReport_AllErrors(t *testing.T) {
 	if rows := renderTableRowsOrNil(section); len(rows) != 0 {
 		t.Errorf("Rows count = %d, want 0 cost rows for all-error report", len(rows))
 	}
-	if report.Status != ci.ReportStatusWarn {
-		t.Errorf("Status = %q, want %q", report.Status, ci.ReportStatusWarn)
+	if report.Status() != ci.ReportStatusWarn {
+		t.Errorf("Status = %q, want %q", report.Status(), ci.ReportStatusWarn)
 	}
 	errors := renderListItems(section, "Estimation errors")
 	if len(errors) != 2 || errors[0] != "a: fail1" || errors[1] != "b: fail2" {

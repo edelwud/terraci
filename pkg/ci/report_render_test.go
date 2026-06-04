@@ -22,13 +22,13 @@ func TestArtifactContext_ProvenanceDefaultsGeneratedAt(t *testing.T) {
 	})
 	provenance := artifact.Provenance()
 
-	if provenance.GeneratedAt.IsZero() {
+	if provenance.GeneratedAt().IsZero() {
 		t.Fatal("GeneratedAt is zero, want default timestamp")
 	}
-	if provenance.GeneratedAt.Location() != time.UTC {
-		t.Fatalf("GeneratedAt location = %v, want UTC", provenance.GeneratedAt.Location())
+	if provenance.GeneratedAt().Location() != time.UTC {
+		t.Fatalf("GeneratedAt location = %v, want UTC", provenance.GeneratedAt().Location())
 	}
-	if provenance.CommitSHA != "commit" || provenance.PipelineID != "pipeline" || provenance.PlanResultsFingerprint != "fingerprint" {
+	if provenance.CommitSHA() != "commit" || provenance.PipelineID() != "pipeline" || provenance.PlanResultsFingerprint() != "fingerprint" {
 		t.Fatalf("Provenance = %#v, want artifact metadata", provenance)
 	}
 }
@@ -123,13 +123,14 @@ func TestNewRenderedReport_DefaultsSectionStatus(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRenderedReport() error = %v", err)
 	}
-	if report.Provenance == nil {
+	if report.Provenance() == nil {
 		t.Fatal("Provenance = nil, want default provenance")
 	}
-	if got := report.Sections[0].Status(); got != ReportStatusWarn {
+	sections := report.Sections()
+	if got := sections[0].Status(); got != ReportStatusWarn {
 		t.Fatalf("section status = %q, want %q", got, ReportStatusWarn)
 	}
-	if _, err := DecodeRenderSection(report.Sections[0]); err != nil {
+	if _, err := DecodeRenderSection(sections[0]); err != nil {
 		t.Fatalf("DecodeRenderSection(defaulted section): %v", err)
 	}
 }
@@ -306,8 +307,8 @@ func TestReportClone_DefensivelyCopiesSectionsAndProvenance(t *testing.T) {
 	}
 
 	clone := report.Clone()
-	report.Provenance.PlanResultsFingerprint = "mutated"
-	report.Sections[0], err = NewRenderedSection(RenderedSectionOptions{
+	report.provenance.planResultsFingerprint = "mutated"
+	report.sections[0], err = NewRenderedSection(RenderedSectionOptions{
 		Title:  "Findings",
 		Status: ReportStatusWarn,
 		Blocks: []RenderBlock{NewTextBlock(RenderText("mutated"))},
@@ -316,10 +317,10 @@ func TestReportClone_DefensivelyCopiesSectionsAndProvenance(t *testing.T) {
 		t.Fatalf("NewRenderedSection() error = %v", err)
 	}
 
-	if clone.Provenance.PlanResultsFingerprint != "fingerprint" {
-		t.Fatalf("clone provenance fingerprint = %q, want fingerprint", clone.Provenance.PlanResultsFingerprint)
+	if clone.Provenance().PlanResultsFingerprint() != "fingerprint" {
+		t.Fatalf("clone provenance fingerprint = %q, want fingerprint", clone.Provenance().PlanResultsFingerprint())
 	}
-	rendered, err := DecodeRenderSection(clone.Sections[0])
+	rendered, err := DecodeRenderSection(clone.Sections()[0])
 	if err != nil {
 		t.Fatalf("DecodeRenderSection(clone) error = %v", err)
 	}

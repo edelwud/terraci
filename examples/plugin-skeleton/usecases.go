@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/plugin"
 )
 
 // Request contains command flags and other command-scoped inputs.
@@ -75,17 +76,13 @@ func produceResult(runtime Runtime) *ProducerResult {
 }
 
 func publishProducerArtifacts(ctx context.Context, runtime Runtime, result *ProducerResult) error {
-	return ci.PublishArtifacts(ctx, ci.PublishArtifactsRequest{
+	publication, err := ci.NewArtifactPublication(ci.ArtifactPublicationOptions{
 		Producer: pluginName,
 		Writer:   runtime.Reports,
 		Results:  result,
 		BuildReport: func() (*ci.Report, error) {
-			run, err := ci.NewArtifactRun(ci.ArtifactRunOptions{
+			run, err := plugin.NewArtifactRun(runtime.AppContext, plugin.ArtifactRunOptions{
 				Producer: pluginName,
-				Artifact: ci.NewArtifactContext(ci.ArtifactContextOptions{
-					ServiceDir: runtime.ServiceDir,
-					WorkDir:    runtime.WorkDir,
-				}),
 			})
 			if err != nil {
 				return nil, fmt.Errorf("build artifact run: %w", err)
@@ -93,4 +90,8 @@ func publishProducerArtifacts(ctx context.Context, runtime Runtime, result *Prod
 			return buildReport(result, run)
 		},
 	})
+	if err != nil {
+		return err
+	}
+	return ci.PublishArtifacts(ctx, publication)
 }

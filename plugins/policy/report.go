@@ -58,7 +58,7 @@ func buildPolicyReport(req policyReportRequest) (*ci.Report, error) {
 		Title:    "Policy Check",
 		Status:   status,
 		Summary:  summaryText,
-		Artifact: req.Run.Artifact,
+		Artifact: req.Run.Artifact(),
 		Sections: []ci.RenderedSectionOptions{{
 			Title:   "Policy Check",
 			Summary: summaryText,

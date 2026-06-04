@@ -19,9 +19,10 @@ import (
 //
 //  2. Compose the final ci.Report via ci.NewRenderedReport.
 //
-//  3. Persist raw results and the report via ci.PublishArtifacts.
+//  3. Persist raw results and the report via constructor-built
+//     ci.ArtifactPublication plus ci.PublishArtifacts.
 //
-//  4. Always pass ci.ArtifactRun.Artifact into ci.NewRenderedReport. Local
+//  4. Always pass run.Artifact() into ci.NewRenderedReport. Local
 //     consumers compare the fingerprint against the live workspace to decide
 //     whether the on-disk report is still trustworthy.
 func buildReport(result *ProducerResult, run ci.ArtifactRun) (*ci.Report, error) {
@@ -30,7 +31,7 @@ func buildReport(result *ProducerResult, run ci.ArtifactRun) (*ci.Report, error)
 		Title:    "Skeleton Report",
 		Status:   ci.ReportStatusPass,
 		Summary:  "skeleton payload generated",
-		Artifact: run.Artifact,
+		Artifact: run.Artifact(),
 		Sections: []ci.RenderedSectionOptions{{
 			Title:   "Skeleton payload",
 			Summary: "one demo section",

@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"maps"
 	"sort"
 	"time"
 )
@@ -59,6 +60,21 @@ type PlanResultCollection struct {
 	GeneratedAt time.Time    `json:"generated_at"`
 }
 
+// Clone returns a defensive copy of c.
+func (c *PlanResultCollection) Clone() *PlanResultCollection {
+	if c == nil {
+		return nil
+	}
+	cloned := *c
+	cloned.Results = append([]PlanResult(nil), c.Results...)
+	for i := range cloned.Results {
+		if cloned.Results[i].Components != nil {
+			cloned.Results[i].Components = cloneStringMap(cloned.Results[i].Components)
+		}
+	}
+	return &cloned
+}
+
 // Fingerprint returns a stable content fingerprint for the collection.
 func (c *PlanResultCollection) Fingerprint() string {
 	if c == nil {
@@ -83,4 +99,13 @@ func (c *PlanResultCollection) Fingerprint() string {
 	}
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])
+}
+
+func cloneStringMap(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	maps.Copy(out, in)
+	return out
 }

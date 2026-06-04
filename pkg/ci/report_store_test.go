@@ -10,14 +10,14 @@ import (
 
 func TestMemoryReportStore_PublishAndGet(t *testing.T) {
 	store := NewMemoryReportStore()
-	report := &Report{Producer: "cost", Title: "Cost", Status: ReportStatusWarn}
+	report := testStoreReport("cost", "Cost", ReportStatusWarn)
 
 	store.Publish(report)
 	got, ok := store.Get("cost")
 	if !ok {
 		t.Fatal("Get(cost) ok = false, want true")
 	}
-	if got.Producer != "cost" || got.Title != "Cost" || got.Status != ReportStatusWarn {
+	if got.Producer() != "cost" || got.Title() != "Cost" || got.Status() != ReportStatusWarn {
 		t.Fatalf("Get(cost) = %#v, want original report fields", got)
 	}
 }
@@ -31,60 +31,60 @@ func TestMemoryReportStore_GetMissing(t *testing.T) {
 
 func TestMemoryReportStore_PublishOverwrite(t *testing.T) {
 	store := NewMemoryReportStore()
-	store.Publish(&Report{Producer: "policy", Title: "Old", Status: ReportStatusPass})
-	store.Publish(&Report{Producer: "policy", Title: "New", Status: ReportStatusFail})
+	store.Publish(testStoreReport("policy", "Old", ReportStatusPass))
+	store.Publish(testStoreReport("policy", "New", ReportStatusFail))
 
 	got, ok := store.Get("policy")
 	if !ok {
 		t.Fatal("Get(policy) ok = false, want true")
 	}
-	if got.Title != "New" || got.Status != ReportStatusFail {
+	if got.Title() != "New" || got.Status() != ReportStatusFail {
 		t.Fatalf("Get(policy) = %#v, want overwritten report", got)
 	}
 }
 
 func TestMemoryReportStore_AllSorted(t *testing.T) {
 	store := NewMemoryReportStore()
-	store.Publish(&Report{Producer: "tfupdate", Title: "TF Update", Status: ReportStatusPass})
-	store.Publish(&Report{Producer: "cost", Title: "Cost", Status: ReportStatusWarn})
+	store.Publish(testStoreReport("tfupdate", "TF Update", ReportStatusPass))
+	store.Publish(testStoreReport("cost", "Cost", ReportStatusWarn))
 
 	reports := store.All()
 	if len(reports) != 2 {
 		t.Fatalf("All() len = %d, want 2", len(reports))
 	}
-	if reports[0].Producer != "cost" || reports[1].Producer != "tfupdate" {
-		t.Fatalf("All() order = [%s %s], want [cost tfupdate]", reports[0].Producer, reports[1].Producer)
+	if reports[0].Producer() != "cost" || reports[1].Producer() != "tfupdate" {
+		t.Fatalf("All() order = [%s %s], want [cost tfupdate]", reports[0].Producer(), reports[1].Producer())
 	}
 }
 
 func TestMemoryReportStore_DefensiveCopies(t *testing.T) {
 	store := NewMemoryReportStore()
-	original := &Report{Producer: "cost", Title: "Cost", Status: ReportStatusPass}
+	original := testStoreReport("cost", "Cost", ReportStatusPass)
 	store.Publish(original)
 
-	original.Title = "mutated original"
+	original.title = "mutated original"
 	got, ok := store.Get("cost")
 	if !ok {
 		t.Fatal("Get(cost) ok = false, want true")
 	}
-	got.Title = "mutated returned"
+	got.title = "mutated returned"
 
 	again, ok := store.Get("cost")
 	if !ok {
 		t.Fatal("Get(cost) second ok = false, want true")
 	}
-	if again.Title != "Cost" {
-		t.Fatalf("stored report title = %q, want Cost", again.Title)
+	if again.Title() != "Cost" {
+		t.Fatalf("stored report title = %q, want Cost", again.Title())
 	}
 }
 
 func TestFileReportStore_LoadReportsMergesMemoryOverlay(t *testing.T) {
 	ctx := context.Background()
 	store := NewFileReportStore(t.TempDir())
-	if err := store.SaveReport(ctx, &Report{Producer: "cost", Title: "Cost", Status: ReportStatusPass}); err != nil {
+	if err := store.SaveReport(ctx, testStoreReport("cost", "Cost", ReportStatusPass)); err != nil {
 		t.Fatalf("SaveReport(cost): %v", err)
 	}
-	store.Publish(&Report{Producer: "policy", Title: "Policy", Status: ReportStatusWarn})
+	store.Publish(testStoreReport("policy", "Policy", ReportStatusWarn))
 
 	reports, err := store.LoadReports(ctx)
 	if err != nil {
@@ -93,8 +93,8 @@ func TestFileReportStore_LoadReportsMergesMemoryOverlay(t *testing.T) {
 	if len(reports) != 2 {
 		t.Fatalf("LoadReports() len = %d, want 2", len(reports))
 	}
-	if reports[0].Producer != "cost" || reports[1].Producer != "policy" {
-		t.Fatalf("LoadReports() order = [%s %s], want [cost policy]", reports[0].Producer, reports[1].Producer)
+	if reports[0].Producer() != "cost" || reports[1].Producer() != "policy" {
+		t.Fatalf("LoadReports() order = [%s %s], want [cost policy]", reports[0].Producer(), reports[1].Producer())
 	}
 }
 
@@ -102,7 +102,7 @@ func TestFileReportStore_ReplaceResultsAndReportAttemptsBothWrites(t *testing.T)
 	ctx := context.Background()
 	dir := t.TempDir()
 	store := NewFileReportStore(dir)
-	report := &Report{Producer: "cost", Status: ReportStatusPass}
+	report := &Report{producer: "cost", status: ReportStatusPass}
 
 	err := store.ReplaceResultsAndReport(ctx, "cost", map[string]string{"ok": "true"}, report)
 	if err == nil {
@@ -121,8 +121,8 @@ func TestFileReportStore_ReplaceResultsAndReportOverwritesReport(t *testing.T) {
 	dir := t.TempDir()
 	store := NewFileReportStore(dir)
 
-	oldReport := &Report{Producer: "cost", Title: "Old", Status: ReportStatusPass}
-	newReport := &Report{Producer: "cost", Title: "New", Status: ReportStatusWarn}
+	oldReport := testStoreReport("cost", "Old", ReportStatusPass)
+	newReport := testStoreReport("cost", "New", ReportStatusWarn)
 	if err := store.ReplaceResultsAndReport(ctx, "cost", map[string]string{"version": "old"}, oldReport); err != nil {
 		t.Fatalf("ReplaceResultsAndReport(old) error = %v", err)
 	}
@@ -134,7 +134,7 @@ func TestFileReportStore_ReplaceResultsAndReportOverwritesReport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadReports() error = %v", err)
 	}
-	if len(reports) != 1 || reports[0].Title != "New" || reports[0].Status != ReportStatusWarn {
+	if len(reports) != 1 || reports[0].Title() != "New" || reports[0].Status() != ReportStatusWarn {
 		t.Fatalf("reports = %#v, want overwritten report", reports)
 	}
 	data, err := os.ReadFile(filepath.Join(dir, ResultFilename("cost")))
@@ -150,7 +150,7 @@ func TestFileReportStore_ReplaceResultsAndReportDeletesStaleReport(t *testing.T)
 	ctx := context.Background()
 	dir := t.TempDir()
 	store := NewFileReportStore(dir)
-	report := &Report{Producer: "cost", Title: "Cost", Status: ReportStatusPass}
+	report := testStoreReport("cost", "Cost", ReportStatusPass)
 
 	if err := store.SaveReport(ctx, report); err != nil {
 		t.Fatalf("SaveReport() error = %v", err)
@@ -164,6 +164,10 @@ func TestFileReportStore_ReplaceResultsAndReportDeletesStaleReport(t *testing.T)
 	if _, ok := store.Get("cost"); ok {
 		t.Fatal("Get(cost) ok = true after nil replacement, want false")
 	}
+}
+
+func testStoreReport(producer, title string, status ReportStatus) *Report {
+	return &Report{producer: producer, title: title, status: status}
 }
 
 func TestFileReportStore_ReplaceResultsAndReportMissingReportDeleteIsNoop(t *testing.T) {

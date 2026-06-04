@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/ci"
-	"github.com/edelwud/terraci/pkg/ci/citest"
 )
 
 func TestMarkdownSection_RendersEscapedRenderBlocks(t *testing.T) {
@@ -62,12 +61,12 @@ func TestMarkdownSection_RendersEscapedRenderBlocks(t *testing.T) {
 func TestMarkdownReport_RejectsNonRenderedSections(t *testing.T) {
 	t.Parallel()
 
-	report := &ci.Report{
-		Producer: "custom",
-		Title:    "Custom",
-		Status:   ci.ReportStatusWarn,
-		Sections: []ci.ReportSection{citest.MustReportSectionJSON(`{"kind":"domain_specific","payload":{}}`)},
-	}
+	report := mustReportJSON(t, `{
+		"producer": "custom",
+		"title": "Custom",
+		"status": "warn",
+		"sections": [{"kind":"domain_specific","payload":{}}]
+	}`)
 
 	_, err := MarkdownReport(report)
 	if err == nil {
@@ -102,17 +101,17 @@ func TestMarkdownReport_RejectsMalformedRenderedPayloadVersions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			report := &ci.Report{
-				Producer: "custom",
-				Title:    "Custom",
-				Status:   ci.ReportStatusWarn,
-				Sections: []ci.ReportSection{citest.MustReportSectionJSON(`{
+			report := mustReportJSON(t, `{
+				"producer": "custom",
+				"title": "Custom",
+				"status": "warn",
+				"sections": [{
 					"kind":"rendered",
 					"title":"Custom",
 					"status":"warn",
-					"payload":` + tt.payload + `
-				}`)},
-			}
+					"payload":`+tt.payload+`
+				}]
+			}`)
 
 			_, err := MarkdownReport(report)
 			if err == nil {
@@ -128,12 +127,12 @@ func TestMarkdownReport_RejectsMalformedRenderedPayloadVersions(t *testing.T) {
 func TestMarkdownReport_EmptyReportFallback(t *testing.T) {
 	t.Parallel()
 
-	report := &ci.Report{
+	report := mustRenderedReport(t, ci.RenderedReportOptions{
 		Producer: "empty",
 		Title:    "Empty Report",
 		Status:   ci.ReportStatusPass,
 		Summary:  "nothing to show",
-	}
+	})
 
 	rendered, err := MarkdownReport(report)
 	if err != nil {

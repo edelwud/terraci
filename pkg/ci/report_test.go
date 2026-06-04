@@ -43,11 +43,11 @@ func TestFileReportStore_SaveReport(t *testing.T) {
 		t.Fatalf("unmarshal: %v", decodeErr)
 	}
 
-	if loaded.Producer != "test" {
-		t.Errorf("producer = %q, want test", loaded.Producer)
+	if loaded.Producer() != "test" {
+		t.Errorf("producer = %q, want test", loaded.Producer())
 	}
-	if loaded.Status != ReportStatusPass {
-		t.Errorf("status = %q, want pass", loaded.Status)
+	if loaded.Status() != ReportStatusPass {
+		t.Errorf("status = %q, want pass", loaded.Status())
 	}
 }
 
@@ -133,10 +133,11 @@ func TestSaveReport_SectionsField(t *testing.T) {
 		t.Fatalf("unmarshal: %v", decodeErr)
 	}
 
-	if len(loaded.Sections) != 1 {
-		t.Fatalf("expected 1 section, got %d", len(loaded.Sections))
+	sections := loaded.Sections()
+	if len(sections) != 1 {
+		t.Fatalf("expected 1 section, got %d", len(sections))
 	}
-	payload, err := DecodeRenderSection(loaded.Sections[0])
+	payload, err := DecodeRenderSection(sections[0])
 	if err != nil {
 		t.Fatalf("DecodeRenderSection: %v", err)
 	}
@@ -156,10 +157,10 @@ func TestSaveReport_RejectsInvalidReport(t *testing.T) {
 		wantErr string
 	}{
 		{name: "nil report", report: nil, wantErr: "ci report is nil"},
-		{name: "missing producer", report: &Report{Title: "Missing Producer", Status: ReportStatusPass}, wantErr: "producer is required"},
-		{name: "unsafe producer name", report: &Report{Producer: "../report_a", Title: "Cost", Status: ReportStatusPass}, wantErr: "not a safe artifact name"},
-		{name: "missing title", report: &Report{Producer: "report_a", Status: ReportStatusPass}, wantErr: "title is required"},
-		{name: "invalid status", report: &Report{Producer: "report_a", Title: "Cost", Status: "unknown"}, wantErr: `status "unknown" is invalid`},
+		{name: "missing producer", report: &Report{title: "Missing Producer", status: ReportStatusPass}, wantErr: "producer is required"},
+		{name: "unsafe producer name", report: &Report{producer: "../report_a", title: "Cost", status: ReportStatusPass}, wantErr: "not a safe artifact name"},
+		{name: "missing title", report: &Report{producer: "report_a", status: ReportStatusPass}, wantErr: "title is required"},
+		{name: "invalid status", report: &Report{producer: "report_a", title: "Cost", status: "unknown"}, wantErr: `status "unknown" is invalid`},
 	}
 
 	for _, tt := range tests {
@@ -191,10 +192,10 @@ func TestLoadReport(t *testing.T) {
 	dir := t.TempDir()
 	store := NewFileReportStore(dir)
 	report := &Report{
-		Producer: "report_b",
-		Title:    "Report B",
-		Status:   ReportStatusWarn,
-		Summary:  "warned",
+		producer: "report_b",
+		title:    "Report B",
+		status:   ReportStatusWarn,
+		summary:  "warned",
 	}
 
 	if err := store.SaveReport(context.Background(), report); err != nil {
@@ -206,11 +207,11 @@ func TestLoadReport(t *testing.T) {
 		t.Fatalf("LoadReport: %v", err)
 	}
 
-	if loaded.Producer != "report_b" {
-		t.Fatalf("producer = %q, want report_b", loaded.Producer)
+	if loaded.Producer() != "report_b" {
+		t.Fatalf("producer = %q, want report_b", loaded.Producer())
 	}
-	if loaded.Status != ReportStatusWarn {
-		t.Fatalf("status = %q, want warn", loaded.Status)
+	if loaded.Status() != ReportStatusWarn {
+		t.Fatalf("status = %q, want warn", loaded.Status())
 	}
 }
 
@@ -218,13 +219,13 @@ func TestLoadReports(t *testing.T) {
 	dir := t.TempDir()
 	store := NewFileReportStore(dir)
 	reports := []*Report{
-		{Producer: "report_c", Title: "Update", Status: ReportStatusPass},
-		{Producer: "report_a", Title: "Cost", Status: ReportStatusWarn},
+		{producer: "report_c", title: "Update", status: ReportStatusPass},
+		{producer: "report_a", title: "Cost", status: ReportStatusWarn},
 	}
 
 	for _, report := range reports {
 		if err := store.SaveReport(context.Background(), report); err != nil {
-			t.Fatalf("SaveReport(%s): %v", report.Producer, err)
+			t.Fatalf("SaveReport(%s): %v", report.Producer(), err)
 		}
 	}
 
@@ -236,8 +237,8 @@ func TestLoadReports(t *testing.T) {
 	if len(loaded) != 2 {
 		t.Fatalf("loaded report count = %d, want 2", len(loaded))
 	}
-	if loaded[0].Producer != "report_a" || loaded[1].Producer != "report_c" {
-		t.Fatalf("loaded report order = [%s %s], want [report_a report_c]", loaded[0].Producer, loaded[1].Producer)
+	if loaded[0].Producer() != "report_a" || loaded[1].Producer() != "report_c" {
+		t.Fatalf("loaded report order = [%s %s], want [report_a report_c]", loaded[0].Producer(), loaded[1].Producer())
 	}
 }
 
@@ -289,15 +290,15 @@ func TestSaveReport_PreservesProvenance(t *testing.T) {
 	dir := t.TempDir()
 	store := NewFileReportStore(dir)
 	report := &Report{
-		Producer: "report_c",
-		Title:    "Terraform Plan Summary",
-		Status:   ReportStatusWarn,
-		Summary:  "report_c",
-		Provenance: &ReportProvenance{
-			GeneratedAt:            time.Date(2026, 4, 23, 10, 0, 0, 0, time.UTC),
-			CommitSHA:              "abcdef1234567890",
-			PipelineID:             "123",
-			PlanResultsFingerprint: "fingerprint",
+		producer: "report_c",
+		title:    "Terraform Plan Summary",
+		status:   ReportStatusWarn,
+		summary:  "report_c",
+		provenance: &ReportProvenance{
+			generatedAt:            time.Date(2026, 4, 23, 10, 0, 0, 0, time.UTC),
+			commitSHA:              "abcdef1234567890",
+			pipelineID:             "123",
+			planResultsFingerprint: "fingerprint",
 		},
 	}
 
@@ -309,14 +310,15 @@ func TestSaveReport_PreservesProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadReport: %v", err)
 	}
-	if loaded.Provenance == nil {
+	provenance := loaded.Provenance()
+	if provenance == nil {
 		t.Fatal("Provenance = nil, want value")
 	}
-	if loaded.Producer != "report_c" {
-		t.Fatalf("Producer = %q, want report_c", loaded.Producer)
+	if loaded.Producer() != "report_c" {
+		t.Fatalf("Producer = %q, want report_c", loaded.Producer())
 	}
-	if loaded.Provenance.PlanResultsFingerprint != "fingerprint" {
-		t.Fatalf("PlanResultsFingerprint = %q, want fingerprint", loaded.Provenance.PlanResultsFingerprint)
+	if provenance.PlanResultsFingerprint() != "fingerprint" {
+		t.Fatalf("PlanResultsFingerprint = %q, want fingerprint", provenance.PlanResultsFingerprint())
 	}
 }
 

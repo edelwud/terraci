@@ -11,20 +11,20 @@ func (r *Report) Validate() error {
 	if r == nil {
 		return errors.New("ci report is nil")
 	}
-	if strings.TrimSpace(r.Producer) == "" {
+	if strings.TrimSpace(r.producer) == "" {
 		return errors.New("ci report producer is required")
 	}
-	if strings.ContainsAny(r.Producer, `/\`) {
-		return fmt.Errorf("ci report producer %q is not a safe artifact name", r.Producer)
+	if strings.ContainsAny(r.producer, `/\`) {
+		return fmt.Errorf("ci report producer %q is not a safe artifact name", r.producer)
 	}
-	if strings.TrimSpace(r.Title) == "" {
+	if strings.TrimSpace(r.title) == "" {
 		return errors.New("ci report title is required")
 	}
-	if !r.Status.Valid() {
-		return fmt.Errorf("ci report status %q is invalid", r.Status)
+	if !r.status.Valid() {
+		return fmt.Errorf("ci report status %q is invalid", r.status)
 	}
-	for i := range r.Sections {
-		if err := validateReportSection(r.Sections[i]); err != nil {
+	for i := range r.sections {
+		if err := validateReportSection(r.sections[i]); err != nil {
 			return fmt.Errorf("ci report section %d: %w", i, err)
 		}
 	}

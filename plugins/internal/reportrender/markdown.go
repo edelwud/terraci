@@ -13,11 +13,12 @@ func MarkdownReport(report *ci.Report) (string, error) {
 	if report == nil {
 		return "", nil
 	}
-	if len(report.Sections) == 0 {
+	sections := report.Sections()
+	if len(sections) == 0 {
 		section, err := ci.NewRenderedSection(ci.RenderedSectionOptions{
-			Title:   report.Title,
-			Summary: report.Summary,
-			Status:  report.Status,
+			Title:   report.Title(),
+			Summary: report.Summary(),
+			Status:  report.Status(),
 		})
 		if err != nil {
 			return "", fmt.Errorf("build fallback report section: %w", err)
@@ -26,7 +27,7 @@ func MarkdownReport(report *ci.Report) (string, error) {
 	}
 
 	var sb strings.Builder
-	for i, section := range report.Sections {
+	for i, section := range sections {
 		rendered, err := MarkdownSection(section)
 		if err != nil {
 			return "", fmt.Errorf("render report section %d: %w", i, err)

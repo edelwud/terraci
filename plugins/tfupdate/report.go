@@ -70,7 +70,7 @@ func buildUpdateReport(req updateReportRequest) (*ci.Report, error) {
 		Title:    "Dependency Update Check",
 		Status:   status,
 		Summary:  summaryText,
-		Artifact: req.Run.Artifact,
+		Artifact: req.Run.Artifact(),
 		Sections: []ci.RenderedSectionOptions{{
 			Title:   "Dependency Update Check",
 			Summary: summaryText,

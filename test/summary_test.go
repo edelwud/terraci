@@ -64,13 +64,13 @@ func TestSummary_ReportFilesExist(t *testing.T) {
 	if jsonErr := json.Unmarshal(costData, &costReport); jsonErr != nil {
 		t.Fatalf("invalid cost report JSON: %v", jsonErr)
 	}
-	if costReport.Producer != "cost" {
-		t.Errorf("expected plugin=cost, got %s", costReport.Producer)
+	if costReport.Producer() != "cost" {
+		t.Errorf("expected plugin=cost, got %s", costReport.Producer())
 	}
-	if costReport.Status != ci.ReportStatusPass {
-		t.Errorf("expected cost report status=pass, got %s", costReport.Status)
+	if costReport.Status() != ci.ReportStatusPass {
+		t.Errorf("expected cost report status=pass, got %s", costReport.Status())
 	}
-	assertContains(t, costReport.Summary, "module")
+	assertContains(t, costReport.Summary(), "module")
 
 	// Policy report
 	policyReportPath := filepath.Join(dir, ".terraci", ci.ReportFilename("policy"))
@@ -83,7 +83,7 @@ func TestSummary_ReportFilesExist(t *testing.T) {
 	if jsonErr := json.Unmarshal(policyData, &policyReport); jsonErr != nil {
 		t.Fatalf("invalid policy report JSON: %v", jsonErr)
 	}
-	if policyReport.Producer != "policy" {
-		t.Errorf("expected plugin=policy, got %s", policyReport.Producer)
+	if policyReport.Producer() != "policy" {
+		t.Errorf("expected plugin=policy, got %s", policyReport.Producer())
 	}
 }

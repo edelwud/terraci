@@ -8,7 +8,6 @@ import (
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
-	"github.com/edelwud/terraci/plugins/internal/reportctx"
 )
 
 type costReportRequest struct {
@@ -73,7 +72,7 @@ func buildCostReport(req costReportRequest) (*ci.Report, error) {
 		Title:    costReportTitle,
 		Status:   status,
 		Summary:  summary,
-		Artifact: req.Run.Artifact,
+		Artifact: req.Run.Artifact(),
 		Sections: []ci.RenderedSectionOptions{{
 			Title:   costReportTitle,
 			Summary: summary,
@@ -205,12 +204,12 @@ func saveArtifacts(ctx context.Context, appCtx *plugin.AppContext, result *model
 	if appCtx == nil || appCtx.Reports() == nil {
 		return nil
 	}
-	return ci.PublishArtifacts(ctx, ci.PublishArtifactsRequest{
+	publication, err := ci.NewArtifactPublication(ci.ArtifactPublicationOptions{
 		Producer: pluginName,
 		Writer:   appCtx.Reports(),
 		Results:  result,
 		BuildReport: func() (*ci.Report, error) {
-			run, err := reportctx.NewRun(appCtx, reportctx.Options{
+			run, err := plugin.NewArtifactRun(appCtx, plugin.ArtifactRunOptions{
 				Producer:   pluginName,
 				Collection: collection,
 			})
@@ -220,4 +219,8 @@ func saveArtifacts(ctx context.Context, appCtx *plugin.AppContext, result *model
 			return buildCostReport(costReportRequest{Result: result, Run: run})
 		},
 	})
+	if err != nil {
+		return err
+	}
+	return ci.PublishArtifacts(ctx, publication)
 }
