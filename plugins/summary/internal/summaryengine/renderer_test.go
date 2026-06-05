@@ -12,7 +12,10 @@ import (
 
 func mustComposeComment(t *testing.T, plans []ci.PlanResult, reports []*ci.Report, commitSHA string, generatedAt time.Time) string {
 	t.Helper()
-	result, err := ComposeComment(plans, reports, commitSHA, "", generatedAt)
+	result, err := ComposeComment(
+		mustSummarySnapshot(t, plans, reports, generatedAt),
+		CommentMetadata{CommitSHA: commitSHA, GeneratedAt: generatedAt},
+	)
 	if err != nil {
 		t.Fatalf("ComposeComment() error = %v", err)
 	}
@@ -30,7 +33,11 @@ func mustReportJSON(t *testing.T, raw string) *ci.Report {
 
 func mustComposeCommentWithOptions(t *testing.T, plans []ci.PlanResult, reports []*ci.Report, commitSHA, pipelineID string, generatedAt time.Time, includeDetails bool) string {
 	t.Helper()
-	result, err := ComposeCommentWithOptions(plans, reports, commitSHA, pipelineID, generatedAt, includeDetails)
+	result, err := ComposeCommentWithOptions(
+		mustSummarySnapshot(t, plans, reports, generatedAt),
+		CommentMetadata{CommitSHA: commitSHA, PipelineID: pipelineID, GeneratedAt: generatedAt},
+		CommentOptions{IncludeDetails: includeDetails},
+	)
 	if err != nil {
 		t.Fatalf("ComposeCommentWithOptions() error = %v", err)
 	}
@@ -53,6 +60,21 @@ func testPlanResult(t *testing.T, opts ci.PlanResultOptions) ci.PlanResult {
 		t.Fatalf("NewPlanResult() error = %v", err)
 	}
 	return result
+}
+
+func mustSummarySnapshot(t *testing.T, plans []ci.PlanResult, reports []*ci.Report, generatedAt time.Time) SummarySnapshot {
+	t.Helper()
+	collection, err := ci.NewPlanResultCollection(ci.PlanResultCollectionOptions{
+		Results:     plans,
+		GeneratedAt: generatedAt,
+	})
+	if err != nil {
+		t.Fatalf("NewPlanResultCollection() error = %v", err)
+	}
+	return NewSummarySnapshot(SummarySnapshotOptions{
+		PlanResults: collection,
+		Reports:     ci.NewReportCollection(reports...),
+	})
 }
 
 func TestComposeComment_BasicPlans(t *testing.T) {
@@ -198,7 +220,10 @@ func TestBuildSummarySectionsWithOptions_WithoutDetailsClearsRowDetails(t *testi
 		RawPlanOutput:     "+ resource \"aws_vpc\" \"main\"",
 	})}
 
-	sections, err := BuildSummarySectionsWithOptions(plans, nil, false)
+	sections, err := BuildSummarySectionsWithOptions(
+		mustSummarySnapshot(t, plans, nil, time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)),
+		SummarySectionOptions{IncludeDetails: false},
+	)
 	if err != nil {
 		t.Fatalf("BuildSummarySectionsWithOptions() error = %v", err)
 	}
@@ -273,7 +298,7 @@ func TestComposeComment_WithCostReport(t *testing.T) {
 func TestComposeCommentWithOptions_MalformedReportPayloadReturnsError(t *testing.T) {
 	t.Parallel()
 
-	_, err := ComposeCommentWithOptions(nil, []*ci.Report{mustReportJSON(t, `{
+	snapshot := mustSummarySnapshot(t, nil, []*ci.Report{mustReportJSON(t, `{
 		"producer": "policy",
 		"title": "Policy Check",
 		"status": "fail",
@@ -292,7 +317,12 @@ func TestComposeCommentWithOptions_MalformedReportPayloadReturnsError(t *testing
 				}]
 			}
 		}]
-	}`)}, "", "", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC), true)
+	}`)}, time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
+	_, err := ComposeCommentWithOptions(
+		snapshot,
+		CommentMetadata{GeneratedAt: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)},
+		CommentOptions{IncludeDetails: true},
+	)
 	if err == nil {
 		t.Fatal("ComposeCommentWithOptions() error = nil, want malformed payload error")
 	}

@@ -6,14 +6,16 @@ import (
 	"github.com/edelwud/terraci/pkg/ci"
 )
 
-func composeSummaryBody(runtime Runtime, collection *ci.PlanResultCollection, plans []ci.PlanResult, reports []*ci.Report, provider Provider, labels []string) (string, error) {
+func composeSummaryBody(runtime Runtime, snapshot SummarySnapshot, provider Provider, labels []string) (string, error) {
+	collection := snapshot.PlanResults()
 	body, err := ComposeCommentWithOptions(
-		plans,
-		reports,
-		provider.CommitSHA(),
-		provider.PipelineID(),
-		collection.GeneratedAt(),
-		runtime.Config.IncludeDetailsEnabled(),
+		snapshot,
+		CommentMetadata{
+			CommitSHA:   provider.CommitSHA(),
+			PipelineID:  provider.PipelineID(),
+			GeneratedAt: collection.GeneratedAt(),
+		},
+		CommentOptions{IncludeDetails: runtime.Config.IncludeDetailsEnabled()},
 	)
 	if err != nil {
 		return "", fmt.Errorf("compose summary comment: %w", err)

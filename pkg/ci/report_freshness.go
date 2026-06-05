@@ -25,7 +25,7 @@ type ReportFreshness struct {
 
 // ReportSelection is the canonical selected-report result for consumers.
 type ReportSelection struct {
-	reports     []*Report
+	reports     ReportCollection
 	diagnostics diagnostic.List
 }
 
@@ -75,14 +75,14 @@ func SelectCurrentReports(collection *PlanResultCollection, reports ReportCollec
 	}
 	sort.Strings(producers)
 
-	selected := ReportSelection{
-		reports:     make([]*Report, 0, len(producers)),
+	selectedReports := make([]*Report, 0, len(producers))
+	for _, producer := range producers {
+		selectedReports = append(selectedReports, byProducer[producer])
+	}
+	return ReportSelection{
+		reports:     NewReportCollection(selectedReports...),
 		diagnostics: diagnostics,
 	}
-	for _, producer := range producers {
-		selected.reports = append(selected.reports, byProducer[producer].Clone())
-	}
-	return selected
 }
 
 // EvaluateReportFreshness evaluates one report against the current plan
@@ -125,16 +125,19 @@ func (f ReportFreshness) Status() ReportFreshnessStatus { return f.status }
 // Diagnostic returns the freshness diagnostic, if any.
 func (f ReportFreshness) Diagnostic() diagnostic.Diagnostic { return f.diagnostic }
 
-// Reports returns selected report clones in deterministic producer order.
-func (s ReportSelection) Reports() []*Report {
-	if len(s.reports) == 0 {
-		return nil
-	}
-	out := make([]*Report, len(s.reports))
-	for i, report := range s.reports {
-		out[i] = report.Clone()
-	}
-	return out
+// ReportCollection returns selected reports in deterministic producer order.
+func (s ReportSelection) ReportCollection() ReportCollection {
+	return NewReportCollection(s.reports.Reports()...)
+}
+
+// Len returns the number of selected reports.
+func (s ReportSelection) Len() int {
+	return s.reports.Len()
+}
+
+// Producers returns selected report producer names in deterministic order.
+func (s ReportSelection) Producers() []string {
+	return s.reports.Producers()
 }
 
 // Diagnostics returns selection diagnostics.

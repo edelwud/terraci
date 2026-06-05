@@ -22,11 +22,11 @@ type LabelTemplate string
 
 // LabelRequest contains the data needed to resolve summary labels.
 type LabelRequest struct {
-	WorkDir   string
-	Segments  []string
-	Plans     []ci.PlanResult
-	Templates []string
-	Parser    PlanParser
+	WorkDir     string
+	Segments    []string
+	PlanResults *ci.PlanResultCollection
+	Templates   []string
+	Parser      PlanParser
 }
 
 // LabelResult is the deterministic output of label resolution.
@@ -153,7 +153,7 @@ func (b *labelBuilder) labels() []string {
 }
 
 func resolveModuleLabels(builder *labelBuilder, req LabelRequest, tmpl LabelTemplate, placeholders []string) {
-	plans := changedOrFailedPlans(req.Plans)
+	plans := changedOrFailedPlans(labelPlans(req.PlanResults))
 	for i := range plans {
 		values := moduleLabelValues(plans[i], req.Segments)
 		context := plans[i].ModulePath()
@@ -165,7 +165,7 @@ func resolveModuleLabels(builder *labelBuilder, req LabelRequest, tmpl LabelTemp
 }
 
 func resolveResourceLabels(builder *labelBuilder, plans *resourcePlanCache, req LabelRequest, tmpl LabelTemplate, placeholders []string) {
-	changed := changedPlans(req.Plans)
+	changed := changedPlans(labelPlans(req.PlanResults))
 	for i := range changed {
 		resources, err := plans.changedResources(changed[i])
 		if err != nil {
@@ -182,6 +182,13 @@ func resolveResourceLabels(builder *labelBuilder, plans *resourcePlanCache, req 
 			builder.addRendered(tmpl, values, placeholders, fmt.Sprintf("%s:%s", changed[i].ModulePath(), resource.Address))
 		}
 	}
+}
+
+func labelPlans(collection *ci.PlanResultCollection) []ci.PlanResult {
+	if collection == nil {
+		return nil
+	}
+	return collection.Results()
 }
 
 func renderLabelTemplate(tmpl LabelTemplate, values map[string]string, placeholders []string) (rendered string, unresolved []string) {

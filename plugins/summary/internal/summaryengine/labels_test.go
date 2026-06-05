@@ -29,7 +29,7 @@ func TestResolveLabels(t *testing.T) {
 	result := ResolveLabels(LabelRequest{
 		WorkDir:  workDir,
 		Segments: []string{"service", "environment", "region", "module"},
-		Plans: []ci.PlanResult{
+		PlanResults: testLabelPlanResults(t,
 			testPlanResult(t, ci.PlanResultOptions{
 				ModuleID:   "svc/dev/us/vpc",
 				ModulePath: "svc/dev/us/vpc",
@@ -61,7 +61,7 @@ func TestResolveLabels(t *testing.T) {
 				},
 				Status: ci.PlanStatusFailed,
 			}),
-		},
+		),
 		Templates: []string{
 			"terraform",
 			"{environment}",
@@ -101,8 +101,10 @@ func TestResolveLabels(t *testing.T) {
 
 func TestResolveLabels_FallsBackToSegmentsForMissingComponents(t *testing.T) {
 	result := ResolveLabels(LabelRequest{
-		Segments:  []string{"service", "environment", "region", "module"},
-		Plans:     []ci.PlanResult{testPlanResult(t, ci.PlanResultOptions{ModuleID: "svc/dev/us/vpc", ModulePath: "svc/dev/us/vpc", Status: ci.PlanStatusChanges})},
+		Segments: []string{"service", "environment", "region", "module"},
+		PlanResults: testLabelPlanResults(t,
+			testPlanResult(t, ci.PlanResultOptions{ModuleID: "svc/dev/us/vpc", ModulePath: "svc/dev/us/vpc", Status: ci.PlanStatusChanges}),
+		),
 		Templates: []string{"{service}:{environment}:{module}"},
 	})
 
@@ -115,8 +117,10 @@ func TestResolveLabels_ResourceParserErrorsAreWarnings(t *testing.T) {
 	parser := &fakePlanParser{err: errors.New("bad json")}
 
 	result := ResolveLabels(LabelRequest{
-		WorkDir:   "/work",
-		Plans:     []ci.PlanResult{testPlanResult(t, ci.PlanResultOptions{ModuleID: "svc/dev/us/vpc", ModulePath: "svc/dev/us/vpc", Status: ci.PlanStatusChanges})},
+		WorkDir: "/work",
+		PlanResults: testLabelPlanResults(t,
+			testPlanResult(t, ci.PlanResultOptions{ModuleID: "svc/dev/us/vpc", ModulePath: "svc/dev/us/vpc", Status: ci.PlanStatusChanges}),
+		),
 		Templates: []string{"resource:{resource_type}"},
 		Parser:    parser,
 	})
@@ -135,6 +139,15 @@ func assertDiagnosticContains(t *testing.T, messages []string, want string) {
 		}
 	}
 	t.Fatalf("diagnostics %v do not contain %q", messages, want)
+}
+
+func testLabelPlanResults(t *testing.T, plans ...ci.PlanResult) *ci.PlanResultCollection {
+	t.Helper()
+	collection, err := ci.NewPlanResultCollection(ci.PlanResultCollectionOptions{Results: plans})
+	if err != nil {
+		t.Fatalf("NewPlanResultCollection() error = %v", err)
+	}
+	return collection
 }
 
 type fakePlanParser struct {

@@ -49,7 +49,7 @@ func runSummaryUseCase(ctx context.Context, appCtx *plugin.AppContext, runtime *
 	if err != nil {
 		return err
 	}
-	printSummary(result.Collection)
+	printSummary(result.Snapshot.PlanResults())
 	return nil
 }
 

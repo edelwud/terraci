@@ -38,13 +38,13 @@ func consumeReports(ctx context.Context, runtime Runtime) (*ConsumerResult, erro
 		Consumer:         pluginName,
 		ExcludeProducers: []string{pluginName},
 	})
-	selectedReports := selection.Reports()
-	result := &ConsumerResult{Reports: make([]ConsumedReport, 0, len(selectedReports))}
-	if len(selectedReports) == 0 {
+	selectedReports := selection.ReportCollection()
+	result := &ConsumerResult{Reports: make([]ConsumedReport, 0, selectedReports.Len())}
+	if selectedReports.Len() == 0 {
 		return result, nil
 	}
 
-	for _, r := range selectedReports {
+	for _, r := range selectedReports.Reports() {
 		sections := r.Sections()
 		consumed := ConsumedReport{
 			Producer: r.Producer(),

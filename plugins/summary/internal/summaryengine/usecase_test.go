@@ -40,8 +40,9 @@ func TestRun_SkipsReportWithMismatchedFingerprint(t *testing.T) {
 		t.Fatalf("Run() error = %v", err)
 	}
 
-	if len(result.Reports) != 1 || result.Reports[0].Producer() != "fresh" {
-		t.Fatalf("Reports = %#v, want only fresh report", result.Reports)
+	reports := result.Snapshot.Reports().Reports()
+	if len(reports) != 1 || reports[0].Producer() != "fresh" {
+		t.Fatalf("Reports = %#v, want only fresh report", reports)
 	}
 	reportMessages := result.ReportDiagnostics.Messages()
 	if len(reportMessages) != 1 || !strings.Contains(reportMessages[0], "stale") {

@@ -1207,6 +1207,88 @@ func TestArchitecture_CIReportArtifactContracts(t *testing.T) {
 	}
 }
 
+func TestArchitecture_SummaryCompositionSnapshots(t *testing.T) {
+	root := repoRoot(t)
+	var violations []string
+
+	for _, rel := range goFiles(t, root, "plugins/summary", "plugins/localexec") {
+		if !isProductionFile(rel) {
+			continue
+		}
+		file := parseGoFile(t, filepath.Join(root, rel), 0)
+		ciAliases := importAliases(file, moduleImportPath+"/pkg/ci")
+
+		ast.Inspect(file, func(node ast.Node) bool {
+			switch typed := node.(type) {
+			case *ast.TypeSpec:
+				structType, ok := typed.Type.(*ast.StructType)
+				if !ok {
+					return true
+				}
+				if rel == "plugins/summary/internal/summaryengine/usecase.go" && typed.Name.Name == "Result" {
+					for _, field := range structType.Fields.List {
+						for _, name := range field.Names {
+							switch name.Name {
+							case "Collection", "Plans", "Reports":
+								violations = append(violations, rel+" exposes Result."+name.Name+"; carry summary composition through SummarySnapshot")
+							}
+						}
+					}
+				}
+				if rel == "plugins/summary/internal/summaryengine/labels.go" && typed.Name.Name == "LabelRequest" {
+					for _, field := range structType.Fields.List {
+						for _, name := range field.Names {
+							if name.Name == "Plans" {
+								violations = append(violations, rel+" exposes LabelRequest.Plans; pass ci.PlanResultCollection")
+							}
+						}
+					}
+				}
+			case *ast.FuncDecl:
+				if typed.Type == nil {
+					return true
+				}
+				switch typed.Name.Name {
+				case "ComposeComment", "ComposeCommentWithOptions", "BuildSummarySections", "BuildSummarySectionsWithOptions", "BuildSummaryReport":
+					if funcParamsContainCIPlanOrReportSlice(typed.Type, ciAliases) {
+						violations = append(violations, rel+"."+typed.Name.Name+" takes raw plan/report slices; accept SummarySnapshot or ci.ReportCollection")
+					}
+				}
+			}
+			return true
+		})
+	}
+
+	stalePatterns := []string{
+		"ReportSelection.Reports()",
+		"selection.Reports()",
+		"ComposeComment(plans",
+		"BuildSummarySections(plans",
+		"BuildSummaryReport(collection, reports []*ci.Report)",
+		"LabelRequest.Plans",
+		"Result.Plans",
+		"Result.Reports",
+		"Result.Collection",
+	}
+	for _, rel := range textFiles(t, root, "AGENTS.md", "docs", "examples", "pkg/plugin/doc.go") {
+		if allowUnder(rel, "docs/.vitepress/dist/") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			t.Fatalf("read %s: %v", rel, err)
+		}
+		text := string(data)
+		for _, pattern := range stalePatterns {
+			banTextPattern(&violations, rel, text, pattern, "stale summary slice composition reference")
+		}
+	}
+
+	if len(violations) > 0 {
+		t.Fatalf("summary composition snapshot violations:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
 func TestArchitecture_ExecutionResultValueBoundaries(t *testing.T) {
 	root := repoRoot(t)
 	var violations []string
@@ -1783,6 +1865,36 @@ func selectorMatchesAlias(selector *ast.SelectorExpr, aliases map[string]bool, n
 	}
 	ident, ok := selector.X.(*ast.Ident)
 	return ok && aliases[ident.Name]
+}
+
+func funcParamsContainCIPlanOrReportSlice(fn *ast.FuncType, ciAliases map[string]bool) bool {
+	if fn == nil || fn.Params == nil || len(ciAliases) == 0 {
+		return false
+	}
+	for _, field := range fn.Params.List {
+		if isCIPlanOrReportSlice(field.Type, ciAliases) {
+			return true
+		}
+	}
+	return false
+}
+
+func isCIPlanOrReportSlice(expr ast.Expr, ciAliases map[string]bool) bool {
+	array, ok := expr.(*ast.ArrayType)
+	if !ok {
+		return false
+	}
+	elem := array.Elt
+	star, isPointer := elem.(*ast.StarExpr)
+	if isPointer {
+		elem = star.X
+	}
+	selector, ok := elem.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	ident, ok := selector.X.(*ast.Ident)
+	return ok && ciAliases[ident.Name] && (selector.Sel.Name == "PlanResult" || selector.Sel.Name == "Report")
 }
 
 func isAppContextOptionsLiteral(expr ast.Expr, pluginAliases map[string]bool) bool {

@@ -248,7 +248,9 @@
 // ci.NoResults(). Non-plan producers may call plugin.NewArtifactRun without
 // PlanResults; that is explicit degraded mode. Consumers should load through
 // ci.ReportLoader/ReportStore, read the returned ci.ReportCollection, and call
-// ci.SelectCurrentReports before rendering.
+// ci.SelectCurrentReports before rendering. Summary-style consumers should
+// compose from PlanResultCollection + ReportCollection snapshots, not carry
+// raw report/result slices across renderer, labels, and result contracts.
 // ReportSection is a value object: external plugins should not construct
 // section JSON, RenderBlock, RenderTable, or RenderValue payloads manually.
 // Use constructors such as ci.NewTableBlock, ci.RenderStatus, ci.RenderMoney,

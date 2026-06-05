@@ -72,8 +72,8 @@ func (l storeLoader) Load(ctx context.Context) (*Result, error) {
 	})
 	diagnostics := selection.Diagnostics()
 	diagnosticlog.Log(diagnostics)
-	reports := selection.Reports()
-	if len(reports) == 0 {
+	reports := selection.ReportCollection()
+	if reports.Len() == 0 {
 		return NewResult(nil, diagnostics), nil
 	}
 	report, err := BuildSummaryReport(collection, reports)
@@ -83,10 +83,11 @@ func (l storeLoader) Load(ctx context.Context) (*Result, error) {
 	return NewResult(report, diagnostics), nil
 }
 
-func BuildSummaryReport(collection *ci.PlanResultCollection, reports []*ci.Report) (*ci.Report, error) {
+func BuildSummaryReport(collection *ci.PlanResultCollection, reports ci.ReportCollection) (*ci.Report, error) {
+	reportItems := reports.Reports()
 	sections := make([]ci.RenderedSectionOptions, 0)
 	status := ci.ReportStatusPass
-	for _, report := range reports {
+	for _, report := range reportItems {
 		status = strictestReportStatus(status, report.Status())
 		for i, section := range report.Sections() {
 			rendered, err := ci.DecodeRenderSection(section)
@@ -125,7 +126,7 @@ func BuildSummaryReport(collection *ci.PlanResultCollection, reports []*ci.Repor
 		Producer: SummaryReportProducer,
 		Title:    "Plugin Reports",
 		Status:   status,
-		Summary:  fmt.Sprintf("%d plugin reports", len(reports)),
+		Summary:  fmt.Sprintf("%d plugin reports", reports.Len()),
 		Artifact: run.Artifact(),
 		Sections: sections,
 	})

@@ -7,20 +7,27 @@ import (
 	"github.com/edelwud/terraci/pkg/ci"
 )
 
-// BuildSummarySections builds the filtered summary view from plan results and render-ready plugin reports.
-func BuildSummarySections(plans []ci.PlanResult, reports []*ci.Report) ([]ci.ReportSection, error) {
-	return BuildSummarySectionsWithOptions(plans, reports, true)
+// SummarySectionOptions controls generic summary section rendering.
+type SummarySectionOptions struct {
+	IncludeDetails bool
+}
+
+// BuildSummarySections builds the filtered summary view from a typed snapshot.
+func BuildSummarySections(snapshot SummarySnapshot) ([]ci.ReportSection, error) {
+	return BuildSummarySectionsWithOptions(snapshot, SummarySectionOptions{IncludeDetails: true})
 }
 
 // BuildSummarySectionsWithOptions builds the filtered summary view with explicit rendering options.
-func BuildSummarySectionsWithOptions(plans []ci.PlanResult, reports []*ci.Report, includeDetails bool) ([]ci.ReportSection, error) {
+func BuildSummarySectionsWithOptions(snapshot SummarySnapshot, opts SummarySectionOptions) ([]ci.ReportSection, error) {
+	plans := snapshot.Plans()
+	reports := snapshot.Reports().Reports()
 	sections := make([]ci.ReportSection, 0, 1+len(plans)+len(reports))
 	overview, err := buildSummaryHeaderSection(plans, reports)
 	if err != nil {
 		return nil, err
 	}
 	sections = append(sections, overview)
-	terraformSections, err := buildTerraformPlanSections(plans, includeDetails)
+	terraformSections, err := buildTerraformPlanSections(plans, opts.IncludeDetails)
 	if err != nil {
 		return nil, err
 	}

@@ -31,9 +31,7 @@ type Request struct{}
 
 // Result reports what the summary use case did.
 type Result struct {
-	Collection        *ci.PlanResultCollection
-	Plans             []ci.PlanResult
-	Reports           []*ci.Report
+	Snapshot          SummarySnapshot
 	Body              string
 	Labels            []string
 	LabelDiagnostics  diagnostic.List
@@ -53,7 +51,7 @@ func Run(ctx context.Context, runtime Runtime, _ Request) (*Result, error) {
 		return nil, err
 	}
 
-	result := &Result{Collection: collection}
+	result := &Result{Snapshot: NewSummarySnapshot(SummarySnapshotOptions{PlanResults: collection})}
 	if collection == nil || collection.Len() == 0 {
 		result.SkippedReason = "no_plan_results"
 		log.Warn("no plan results found, skipping summary")
@@ -61,17 +59,19 @@ func Run(ctx context.Context, runtime Runtime, _ Request) (*Result, error) {
 	}
 
 	log.WithField("count", collection.Len()).Info("found plan results")
-	result.Plans = collection.Results()
 
 	selection, err := loadReportSelection(ctx, runtime, collection)
 	if err != nil {
 		return nil, err
 	}
-	result.Reports = selection.Reports()
+	result.Snapshot = NewSummarySnapshot(SummarySnapshotOptions{
+		PlanResults: collection,
+		Reports:     selection.ReportCollection(),
+	})
 	result.ReportDiagnostics = selection.Diagnostics()
 	diagnosticlog.Log(result.ReportDiagnostics)
 
-	if runtime.Config.OnChangesOnly && !HasReportableChanges(result.Plans, result.Reports) {
+	if runtime.Config.OnChangesOnly && !result.Snapshot.HasReportableChanges() {
 		result.SkippedReason = "no_reportable_changes"
 		log.Info("no reportable changes, skipping comment")
 		return result, nil
@@ -85,12 +85,12 @@ func Run(ctx context.Context, runtime Runtime, _ Request) (*Result, error) {
 	}
 	result.ProviderDetected = true
 
-	labelResult := resolveSummaryLabels(runtime, result.Plans)
+	labelResult := resolveSummaryLabels(runtime, result.Snapshot.PlanResults())
 	result.Labels = labelResult.Labels
 	result.LabelDiagnostics = labelResult.Diagnostics
 	diagnosticlog.Log(labelResult.Diagnostics)
 
-	body, err := composeSummaryBody(runtime, collection, result.Plans, result.Reports, provider, result.Labels)
+	body, err := composeSummaryBody(runtime, result.Snapshot, provider, result.Labels)
 	if err != nil {
 		return result, err
 	}
@@ -110,27 +110,12 @@ func Run(ctx context.Context, runtime Runtime, _ Request) (*Result, error) {
 	return result, nil
 }
 
-func resolveSummaryLabels(runtime Runtime, plans []ci.PlanResult) LabelResult {
+func resolveSummaryLabels(runtime Runtime, collection *ci.PlanResultCollection) LabelResult {
 	return ResolveLabels(LabelRequest{
-		WorkDir:   runtime.WorkDir,
-		Segments:  runtime.Segments,
-		Plans:     plans,
-		Templates: runtime.Config.Labels,
-		Parser:    runtime.LabelParser,
+		WorkDir:     runtime.WorkDir,
+		Segments:    runtime.Segments,
+		PlanResults: collection,
+		Templates:   runtime.Config.Labels,
+		Parser:      runtime.LabelParser,
 	})
-}
-
-// HasReportableChanges reports whether the run has any module or report signal worth posting.
-func HasReportableChanges(plans []ci.PlanResult, reports []*ci.Report) bool {
-	for i := range plans {
-		if plans[i].Status() == ci.PlanStatusChanges || plans[i].Status() == ci.PlanStatusFailed {
-			return true
-		}
-	}
-	for _, r := range reports {
-		if r.Status() == ci.ReportStatusWarn || r.Status() == ci.ReportStatusFail {
-			return true
-		}
-	}
-	return false
 }
