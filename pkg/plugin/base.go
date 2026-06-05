@@ -24,7 +24,7 @@ type ConfigCloner[C any] interface {
 // BasePlugin provides shared implementation for all plugins that have configuration.
 // C is the plugin's concrete config type. Embedding this gives you:
 //   - Name(), Description()
-//   - ConfigKey(), SchemaConfig(), DecodeAndSet(), IsConfigured(), IsEnabled()
+//   - ConfigDefinition(), DecodeAndSet(), IsConfigured(), IsEnabled()
 //   - Config() (typed defensive-copy access to config)
 //   - Reset() (resets config state; override to reset custom fields)
 //   - Validate() (registration-time sanity check; see Validator)
@@ -50,13 +50,21 @@ func (b *BasePlugin[C]) Name() string { return b.PluginName }
 // Description returns a human-readable description.
 func (b *BasePlugin[C]) Description() string { return b.PluginDesc }
 
-// ConfigKey returns the config section key under "extensions:" in .terraci.yaml.
-func (b *BasePlugin[C]) ConfigKey() config.ExtensionKey {
-	key, err := config.NewExtensionKey(b.configKeyString())
+// ConfigDefinition returns the config section schema definition under
+// "extensions:" in .terraci.yaml.
+func (b *BasePlugin[C]) ConfigDefinition() (config.ExtensionDefinition, error) {
+	key, err := b.configKey()
 	if err != nil {
-		return config.ExtensionKey{}
+		return config.ExtensionDefinition{}, err
 	}
-	return key
+	if b.DefaultCfg == nil {
+		return config.ExtensionDefinition{}, fmt.Errorf("plugin %q default config factory is nil", b.PluginName)
+	}
+	return config.NewExtensionDefinition(key, b.DefaultCfg().Clone())
+}
+
+func (b *BasePlugin[C]) configKey() (config.ExtensionKey, error) {
+	return config.NewExtensionKey(b.configKeyString())
 }
 
 func (b *BasePlugin[C]) configKeyString() string {
@@ -66,13 +74,11 @@ func (b *BasePlugin[C]) configKeyString() string {
 	return b.PluginName
 }
 
-// SchemaConfig returns a new instance of the default config for schema generation.
-func (b *BasePlugin[C]) SchemaConfig() any {
-	return b.DefaultCfg().Clone()
-}
-
 // DecodeAndSet decodes plugin config from an extension document and stores it.
 func (b *BasePlugin[C]) DecodeAndSet(doc config.ExtensionDocument) error {
+	if b.DefaultCfg == nil {
+		return fmt.Errorf("plugin %q default config factory is nil", b.PluginName)
+	}
 	cfg := b.DefaultCfg()
 	if err := doc.Decode(&cfg); err != nil {
 		return err
@@ -137,8 +143,8 @@ func (b *BasePlugin[C]) Reset() {
 // into EnabledExplicitly but forgets to set IsEnabledFn — IsEnabled() would
 // always return false, so the plugin appears registered but never runs.
 func (b *BasePlugin[C]) Validate() error {
-	if _, err := config.NewExtensionKey(b.configKeyString()); err != nil {
-		return fmt.Errorf("plugin %q config key is invalid: %w", b.PluginName, err)
+	if _, err := b.ConfigDefinition(); err != nil {
+		return fmt.Errorf("plugin %q config definition is invalid: %w", b.PluginName, err)
 	}
 	if b.EnableMode == EnabledExplicitly && b.IsEnabledFn == nil {
 		return fmt.Errorf(

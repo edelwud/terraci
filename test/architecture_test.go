@@ -359,7 +359,10 @@ func TestArchitecture_PluginConfigContracts(t *testing.T) {
 			switch typed := node.(type) {
 			case *ast.FuncDecl:
 				if typed.Name.Name == "NewConfig" {
-					violations = append(violations, rel+" exposes stale ConfigLoader.NewConfig method; use SchemaConfig")
+					violations = append(violations, rel+" exposes stale ConfigLoader.NewConfig method; use ConfigDefinition")
+				}
+				if typed.Name.Name == "ConfigKey" || typed.Name.Name == "SchemaConfig" {
+					violations = append(violations, rel+" exposes stale ConfigLoader."+typed.Name.Name+" method; use ConfigDefinition")
 				}
 			case *ast.CallExpr:
 				selector, ok := callSelector(typed)
@@ -374,6 +377,12 @@ func TestArchitecture_PluginConfigContracts(t *testing.T) {
 				if selector.Sel.Name == "Extension" && len(typed.Args) != 1 {
 					violations = append(violations, rel+" calls config Extension with decode target; use document lookup then Decode")
 				}
+				if selector.Sel.Name == "SchemaConfig" || selector.Sel.Name == "ConfigKey" {
+					violations = append(violations, rel+" calls stale ConfigLoader."+selector.Sel.Name+"; use ConfigDefinition")
+				}
+				if selector.Sel.Name == "ExtensionSchemas" {
+					violations = append(violations, rel+" calls stale registry ExtensionSchemas; use ExtensionDefinitions")
+				}
 			}
 			return true
 		})
@@ -382,6 +391,12 @@ func TestArchitecture_PluginConfigContracts(t *testing.T) {
 	stalePatterns := []string{
 		"NewConfig() any",
 		"NewConfig(), DecodeAndSet",
+		"ConfigKey()",
+		"SchemaConfig()",
+		"ExtensionSchemas()",
+		"ExtensionSchemas() map[string]any",
+		"GenerateJSONSchema(extensionSchemas)",
+		"GenerateJSONSchema(map[string]any)",
 		"DecodeAndSet(func",
 		"func(target any)",
 		"Config.Extension(key string, target any)",

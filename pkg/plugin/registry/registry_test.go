@@ -316,8 +316,13 @@ func TestLifecycleFacadesPreserveOrder(t *testing.T) {
 	RegisterFactory(func() plugin.Plugin { return &testCIInfoPlugin{testPlugin: testPlugin{name: "ci"}} })
 
 	plugins := New()
-	if schemas := plugins.ExtensionSchemas(); schemas["config"] == nil {
-		t.Fatalf("ExtensionSchemas() missing config schema: %#v", schemas)
+	definitions, err := plugins.ExtensionDefinitions()
+	if err != nil {
+		t.Fatalf("ExtensionDefinitions() error = %v", err)
+	}
+	defs := definitions.Definitions()
+	if len(defs) != 1 || defs[0].Key().String() != "config" {
+		t.Fatalf("ExtensionDefinitions() = %#v, want config", defs)
 	}
 	commands, err := plugins.Commands()
 	if err != nil {

@@ -79,13 +79,13 @@ func (p *Prepared) AppContext() *plugin.AppContext {
 	return p.appCtx
 }
 
-// ExtensionSchemas returns extension schema samples from the command-scoped
-// plugin snapshot.
-func (p *Prepared) ExtensionSchemas() map[string]any {
+// ExtensionDefinitions returns extension schema definitions from the
+// command-scoped plugin snapshot.
+func (p *Prepared) ExtensionDefinitions() (config.ExtensionDefinitionSet, error) {
 	if p == nil {
-		return nil
+		return config.ExtensionDefinitionSet{}, nil
 	}
-	return p.registry.ExtensionSchemas()
+	return p.registry.ExtensionDefinitions()
 }
 
 // VersionSnapshot returns version metadata from the command-scoped plugin

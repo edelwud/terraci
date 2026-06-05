@@ -34,8 +34,7 @@ type Preflightable interface {
 // implements Clone() C.
 type ConfigLoader interface {
 	Plugin
-	ConfigKey() config.ExtensionKey
-	SchemaConfig() any
+	ConfigDefinition() (config.ExtensionDefinition, error)
 	DecodeAndSet(config.ExtensionDocument) error
 	IsConfigured() bool
 	IsEnabled() bool

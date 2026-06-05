@@ -80,6 +80,334 @@
     },
     "extensions": {
       "properties": {
+        "cost": {
+          "properties": {
+            "blob_cache": {
+              "properties": {
+                "backend": {
+                  "type": "string",
+                  "description": "Blob cache backend plugin name; empty selects the single active blob store provider"
+                },
+                "namespace": {
+                  "type": "string",
+                  "description": "Blob cache namespace for pricing data",
+                  "default": "cost/pricing"
+                },
+                "ttl": {
+                  "type": "string",
+                  "description": "How long cached pricing is valid (e.g. 24h)",
+                  "default": "24h"
+                }
+              },
+              "type": "object",
+              "description": "Blob cache backend selection for pricing data"
+            },
+            "providers": {
+              "additionalProperties": {
+                "properties": {
+                  "enabled": {
+                    "type": "boolean",
+                    "description": "Enable this cloud provider",
+                    "default": false
+                  }
+                },
+                "type": "object"
+              },
+              "type": "object"
+            }
+          },
+          "type": "object"
+        },
+        "diskblob": {
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable the built-in filesystem blob store backend",
+              "default": true
+            },
+            "root_dir": {
+              "type": "string",
+              "description": "Directory where blob objects are stored",
+              "default": "~/.terraci/blobs"
+            }
+          },
+          "type": "object"
+        },
+        "github": {
+          "properties": {
+            "runs_on": {
+              "type": "string",
+              "description": "GitHub Actions runner label (e.g. ubuntu-latest)",
+              "default": "ubuntu-latest"
+            },
+            "container": {
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Docker image name"
+                },
+                "entrypoint": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "description": "Override default entrypoint"
+                }
+              },
+              "type": "object",
+              "description": "Container image to run jobs in (optional)"
+            },
+            "env": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object",
+              "description": "Workflow-level environment variables"
+            },
+            "permissions": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object",
+              "description": "Workflow-level permissions (e.g. id-token: write for OIDC)"
+            },
+            "job_defaults": {
+              "properties": {
+                "runs_on": {
+                  "type": "string",
+                  "description": "Override runner label"
+                },
+                "container": {
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Docker image name"
+                    },
+                    "entrypoint": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array",
+                      "description": "Override default entrypoint"
+                    }
+                  },
+                  "type": "object",
+                  "description": "Container image for all jobs"
+                },
+                "env": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "description": "Additional environment variables"
+                },
+                "if": {
+                  "type": "string",
+                  "description": "GitHub Actions job condition"
+                },
+                "environment": {
+                  "type": "string",
+                  "description": "GitHub Actions environment name"
+                },
+                "steps_before": {
+                  "items": {
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "Step display name"
+                      },
+                      "uses": {
+                        "type": "string",
+                        "description": "GitHub Action reference"
+                      },
+                      "with": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "type": "object",
+                        "description": "Action inputs"
+                      },
+                      "run": {
+                        "type": "string",
+                        "description": "Shell command to run"
+                      },
+                      "env": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "type": "object",
+                        "description": "Step environment variables"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "description": "Extra steps before terraform commands"
+                },
+                "steps_after": {
+                  "items": {
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "Step display name"
+                      },
+                      "uses": {
+                        "type": "string",
+                        "description": "GitHub Action reference"
+                      },
+                      "with": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "type": "object",
+                        "description": "Action inputs"
+                      },
+                      "run": {
+                        "type": "string",
+                        "description": "Shell command to run"
+                      },
+                      "env": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "type": "object",
+                        "description": "Step environment variables"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "description": "Extra steps after terraform commands"
+                }
+              },
+              "type": "object",
+              "description": "Default settings applied to all jobs"
+            },
+            "overwrites": {
+              "items": {
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "description": "Type of jobs to override (plan, apply, or contributed job name)"
+                  },
+                  "runs_on": {
+                    "type": "string",
+                    "description": "Override runner label"
+                  },
+                  "container": {
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "Docker image name"
+                      },
+                      "entrypoint": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array",
+                        "description": "Override default entrypoint"
+                      }
+                    },
+                    "type": "object",
+                    "description": "Container image override"
+                  },
+                  "env": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object",
+                    "description": "Additional environment variables"
+                  },
+                  "if": {
+                    "type": "string",
+                    "description": "GitHub Actions job condition"
+                  },
+                  "environment": {
+                    "type": "string",
+                    "description": "GitHub Actions environment name"
+                  },
+                  "steps_before": {
+                    "items": {
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "description": "Step display name"
+                        },
+                        "uses": {
+                          "type": "string",
+                          "description": "GitHub Action reference"
+                        },
+                        "with": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "type": "object",
+                          "description": "Action inputs"
+                        },
+                        "run": {
+                          "type": "string",
+                          "description": "Shell command to run"
+                        },
+                        "env": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "type": "object",
+                          "description": "Step environment variables"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "type": "array",
+                    "description": "Extra steps before terraform commands"
+                  },
+                  "steps_after": {
+                    "items": {
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "description": "Step display name"
+                        },
+                        "uses": {
+                          "type": "string",
+                          "description": "GitHub Action reference"
+                        },
+                        "with": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "type": "object",
+                          "description": "Action inputs"
+                        },
+                        "run": {
+                          "type": "string",
+                          "description": "Shell command to run"
+                        },
+                        "env": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "type": "object",
+                          "description": "Step environment variables"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "type": "array",
+                    "description": "Extra steps after terraform commands"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "type"
+                ]
+              },
+              "type": "array",
+              "description": "Job-level overrides for plan or apply jobs"
+            }
+          },
+          "type": "object"
+        },
         "gitlab": {
           "properties": {
             "image": {
@@ -571,6 +899,16 @@
           },
           "type": "object"
         },
+        "inmemcache": {
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable the built-in in-memory KV cache backend",
+              "default": true
+            }
+          },
+          "type": "object"
+        },
         "policy": {
           "properties": {
             "enabled": {
@@ -705,31 +1043,6 @@
           },
           "type": "object"
         },
-        "diskblob": {
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "description": "Enable the built-in filesystem blob store backend",
-              "default": true
-            },
-            "root_dir": {
-              "type": "string",
-              "description": "Directory where blob objects are stored",
-              "default": "~/.terraci/blobs"
-            }
-          },
-          "type": "object"
-        },
-        "inmemcache": {
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "description": "Enable the built-in in-memory KV cache backend",
-              "default": true
-            }
-          },
-          "type": "object"
-        },
         "summary": {
           "properties": {
             "enabled": {
@@ -746,44 +1059,6 @@
                 "type": "string"
               },
               "type": "array"
-            }
-          },
-          "type": "object"
-        },
-        "cost": {
-          "properties": {
-            "blob_cache": {
-              "properties": {
-                "backend": {
-                  "type": "string",
-                  "description": "Blob cache backend plugin name; empty selects the single active blob store provider"
-                },
-                "namespace": {
-                  "type": "string",
-                  "description": "Blob cache namespace for pricing data",
-                  "default": "cost/pricing"
-                },
-                "ttl": {
-                  "type": "string",
-                  "description": "How long cached pricing is valid (e.g. 24h)",
-                  "default": "24h"
-                }
-              },
-              "type": "object",
-              "description": "Blob cache backend selection for pricing data"
-            },
-            "providers": {
-              "additionalProperties": {
-                "properties": {
-                  "enabled": {
-                    "type": "boolean",
-                    "description": "Enable this cloud provider",
-                    "default": false
-                  }
-                },
-                "type": "object"
-              },
-              "type": "object"
             }
           },
           "type": "object"
@@ -906,281 +1181,6 @@
                 }
               },
               "type": "object"
-            }
-          },
-          "type": "object"
-        },
-        "github": {
-          "properties": {
-            "runs_on": {
-              "type": "string",
-              "description": "GitHub Actions runner label (e.g. ubuntu-latest)",
-              "default": "ubuntu-latest"
-            },
-            "container": {
-              "properties": {
-                "name": {
-                  "type": "string",
-                  "description": "Docker image name"
-                },
-                "entrypoint": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array",
-                  "description": "Override default entrypoint"
-                }
-              },
-              "type": "object",
-              "description": "Container image to run jobs in (optional)"
-            },
-            "env": {
-              "additionalProperties": {
-                "type": "string"
-              },
-              "type": "object",
-              "description": "Workflow-level environment variables"
-            },
-            "permissions": {
-              "additionalProperties": {
-                "type": "string"
-              },
-              "type": "object",
-              "description": "Workflow-level permissions (e.g. id-token: write for OIDC)"
-            },
-            "job_defaults": {
-              "properties": {
-                "runs_on": {
-                  "type": "string",
-                  "description": "Override runner label"
-                },
-                "container": {
-                  "properties": {
-                    "name": {
-                      "type": "string",
-                      "description": "Docker image name"
-                    },
-                    "entrypoint": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "type": "array",
-                      "description": "Override default entrypoint"
-                    }
-                  },
-                  "type": "object",
-                  "description": "Container image for all jobs"
-                },
-                "env": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "type": "object",
-                  "description": "Additional environment variables"
-                },
-                "if": {
-                  "type": "string",
-                  "description": "GitHub Actions job condition"
-                },
-                "environment": {
-                  "type": "string",
-                  "description": "GitHub Actions environment name"
-                },
-                "steps_before": {
-                  "items": {
-                    "properties": {
-                      "name": {
-                        "type": "string",
-                        "description": "Step display name"
-                      },
-                      "uses": {
-                        "type": "string",
-                        "description": "GitHub Action reference"
-                      },
-                      "with": {
-                        "additionalProperties": {
-                          "type": "string"
-                        },
-                        "type": "object",
-                        "description": "Action inputs"
-                      },
-                      "run": {
-                        "type": "string",
-                        "description": "Shell command to run"
-                      },
-                      "env": {
-                        "additionalProperties": {
-                          "type": "string"
-                        },
-                        "type": "object",
-                        "description": "Step environment variables"
-                      }
-                    },
-                    "type": "object"
-                  },
-                  "type": "array",
-                  "description": "Extra steps before terraform commands"
-                },
-                "steps_after": {
-                  "items": {
-                    "properties": {
-                      "name": {
-                        "type": "string",
-                        "description": "Step display name"
-                      },
-                      "uses": {
-                        "type": "string",
-                        "description": "GitHub Action reference"
-                      },
-                      "with": {
-                        "additionalProperties": {
-                          "type": "string"
-                        },
-                        "type": "object",
-                        "description": "Action inputs"
-                      },
-                      "run": {
-                        "type": "string",
-                        "description": "Shell command to run"
-                      },
-                      "env": {
-                        "additionalProperties": {
-                          "type": "string"
-                        },
-                        "type": "object",
-                        "description": "Step environment variables"
-                      }
-                    },
-                    "type": "object"
-                  },
-                  "type": "array",
-                  "description": "Extra steps after terraform commands"
-                }
-              },
-              "type": "object",
-              "description": "Default settings applied to all jobs"
-            },
-            "overwrites": {
-              "items": {
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "description": "Type of jobs to override (plan, apply, or contributed job name)"
-                  },
-                  "runs_on": {
-                    "type": "string",
-                    "description": "Override runner label"
-                  },
-                  "container": {
-                    "properties": {
-                      "name": {
-                        "type": "string",
-                        "description": "Docker image name"
-                      },
-                      "entrypoint": {
-                        "items": {
-                          "type": "string"
-                        },
-                        "type": "array",
-                        "description": "Override default entrypoint"
-                      }
-                    },
-                    "type": "object",
-                    "description": "Container image override"
-                  },
-                  "env": {
-                    "additionalProperties": {
-                      "type": "string"
-                    },
-                    "type": "object",
-                    "description": "Additional environment variables"
-                  },
-                  "if": {
-                    "type": "string",
-                    "description": "GitHub Actions job condition"
-                  },
-                  "environment": {
-                    "type": "string",
-                    "description": "GitHub Actions environment name"
-                  },
-                  "steps_before": {
-                    "items": {
-                      "properties": {
-                        "name": {
-                          "type": "string",
-                          "description": "Step display name"
-                        },
-                        "uses": {
-                          "type": "string",
-                          "description": "GitHub Action reference"
-                        },
-                        "with": {
-                          "additionalProperties": {
-                            "type": "string"
-                          },
-                          "type": "object",
-                          "description": "Action inputs"
-                        },
-                        "run": {
-                          "type": "string",
-                          "description": "Shell command to run"
-                        },
-                        "env": {
-                          "additionalProperties": {
-                            "type": "string"
-                          },
-                          "type": "object",
-                          "description": "Step environment variables"
-                        }
-                      },
-                      "type": "object"
-                    },
-                    "type": "array",
-                    "description": "Extra steps before terraform commands"
-                  },
-                  "steps_after": {
-                    "items": {
-                      "properties": {
-                        "name": {
-                          "type": "string",
-                          "description": "Step display name"
-                        },
-                        "uses": {
-                          "type": "string",
-                          "description": "GitHub Action reference"
-                        },
-                        "with": {
-                          "additionalProperties": {
-                            "type": "string"
-                          },
-                          "type": "object",
-                          "description": "Action inputs"
-                        },
-                        "run": {
-                          "type": "string",
-                          "description": "Shell command to run"
-                        },
-                        "env": {
-                          "additionalProperties": {
-                            "type": "string"
-                          },
-                          "type": "object",
-                          "description": "Step environment variables"
-                        }
-                      },
-                      "type": "object"
-                    },
-                    "type": "array",
-                    "description": "Extra steps after terraform commands"
-                  }
-                },
-                "type": "object",
-                "required": [
-                  "type"
-                ]
-              },
-              "type": "array",
-              "description": "Job-level overrides for plan or apply jobs"
             }
           },
           "type": "object"

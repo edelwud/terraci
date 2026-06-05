@@ -29,8 +29,9 @@ type BaseConfigPluginContract[C plugin.ConfigCloner[C]] struct {
 }
 
 // AssertBaseConfigPlugin verifies the canonical config behavior external
-// plugin authors rely on: configs are Clone()able, SchemaConfig returns a fresh
-// default, and Config/SetTypedConfig/DecodeAndSet do not leak mutable state.
+// plugin authors rely on: configs are Clone()able, ConfigDefinition returns a
+// valid schema definition, and Config/SetTypedConfig/DecodeAndSet do not leak
+// mutable state.
 func AssertBaseConfigPlugin[C plugin.ConfigCloner[C]](tb testing.TB, c BaseConfigPluginContract[C]) {
 	tb.Helper()
 	if c.Plugin == nil {
@@ -43,10 +44,20 @@ func AssertBaseConfigPlugin[C plugin.ConfigCloner[C]](tb testing.TB, c BaseConfi
 		tb.Fatal("Equal is nil")
 	}
 
-	assertConfigEqual(tb, "SchemaConfig()", asConfig[C](tb, c.Plugin.SchemaConfig()), c.Default, c.Equal)
-	firstDefault := asConfig[C](tb, c.Plugin.SchemaConfig())
-	c.Mutate(firstDefault)
-	assertConfigEqual(tb, "SchemaConfig() after mutating prior default", asConfig[C](tb, c.Plugin.SchemaConfig()), c.Default, c.Equal)
+	definition, err := c.Plugin.ConfigDefinition()
+	if err != nil {
+		tb.Fatalf("ConfigDefinition() error = %v", err)
+	}
+	if definition.Key().String() == "" {
+		tb.Fatal("ConfigDefinition().Key() is empty")
+	}
+	set, err := config.NewExtensionDefinitionSet(definition)
+	if err != nil {
+		tb.Fatalf("NewExtensionDefinitionSet() error = %v", err)
+	}
+	if _, err := config.GenerateJSONSchema(set); err != nil {
+		tb.Fatalf("GenerateJSONSchema() error = %v", err)
+	}
 
 	configuredWant := c.Configured.Clone()
 	c.Plugin.SetTypedConfig(c.Configured)
@@ -56,7 +67,7 @@ func AssertBaseConfigPlugin[C plugin.ConfigCloner[C]](tb testing.TB, c BaseConfi
 	c.Mutate(gotConfigured)
 	assertConfigEqual(tb, "Config() after mutating returned config", c.Plugin.Config(), configuredWant, c.Equal)
 
-	doc := configDocument(tb, c.Plugin.ConfigKey(), c.Decoded)
+	doc := configDocument(tb, definition.Key(), c.Decoded)
 	decodedWant := c.Default.Clone()
 	if err := doc.Decode(&decodedWant); err != nil {
 		tb.Fatalf("ExtensionDocument.Decode() error = %v", err)
@@ -90,16 +101,6 @@ func configDocument(tb testing.TB, key config.ExtensionKey, value any) config.Ex
 		tb.Fatalf("Extension(%q) missing", key.String())
 	}
 	return doc
-}
-
-func asConfig[C plugin.ConfigCloner[C]](tb testing.TB, value any) C {
-	tb.Helper()
-	cfg, ok := value.(C)
-	if !ok {
-		var zero C
-		tb.Fatalf("config type = %T, want %T", value, zero)
-	}
-	return cfg
 }
 
 func assertConfigEqual[C plugin.ConfigCloner[C]](tb testing.TB, label string, got, want C, equal func(C, C) bool) {

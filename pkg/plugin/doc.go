@@ -210,9 +210,9 @@
 //     return no-op resolver behavior when no real resolver is bound and are
 //     safe to call from any goroutine.
 //   - Implement Clone() C on plugin config types embedded in BasePlugin[C].
-//     BasePlugin.Config(), SchemaConfig(), DecodeAndSet(), and SetTypedConfig()
-//     all use defensive copies; mutating Config() output never changes plugin
-//     state.
+//     BasePlugin.Config(), ConfigDefinition(), DecodeAndSet(), and
+//     SetTypedConfig() all use defensive copies; mutating Config() output
+//     never changes plugin state.
 //
 // Plugin factories (the function passed to registry.RegisterFactory) MUST
 // be pure: the catalog calls them once at startup for the prototype and

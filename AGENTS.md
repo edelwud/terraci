@@ -110,9 +110,9 @@ pkg/                            # Public API — importable by external plugins 
 │   ├── types_config.go         # Config (service_dir, structure, exclude, include, library_modules, extensions map[string]yaml.Node)
 │   ├── clone.go, snapshot.go   # Deep-copy API and immutable Snapshot read model
 │   ├── builder.go              # Build(BuildOptions) + typed ExtensionValue/ExtensionSet
-│   ├── extension.go            # (*Config).Extension(key, target) — opaque section decoder
+│   ├── extension.go            # ExtensionDocument lookup + Decode for opaque sections
 │   ├── pattern.go              # ParsePattern, PatternSegments
-│   ├── schema.go               # GenerateJSONSchema(extensionSchemas)
+│   ├── schema.go               # ExtensionDefinitionSet + GenerateJSONSchema
 │   ├── io.go                   # Load, LoadOrDefault, Save
 │   ├── defaults.go             # DefaultConfig()
 │   └── validation.go           # Validate
@@ -269,7 +269,7 @@ Each feature/plugin follows one-file-per-capability where it applies, with runti
 Plugins with config embed `BasePlugin[C]`; `C` must implement `Clone() C`.
 `BasePlugin` stores and returns defensive copies, so mutating `Config()` output
 never changes plugin state. It auto-implements:
-- `Name()`, `Description()`, `ConfigKey()`, `SchemaConfig()`, `DecodeAndSet()`, `IsConfigured()`, `IsEnabled()`, `Config()`, `Reset()`
+- `Name()`, `Description()`, `ConfigDefinition()`, `DecodeAndSet()`, `IsConfigured()`, `IsEnabled()`, `Config()`, `Reset()`
 - `EnablePolicy` controls enabled semantics: `EnabledWhenConfigured` (gitlab/github), `EnabledExplicitly` (cost/policy/tfupdate), `EnabledByDefault` (summary/diskblob/inmemcache). Bare plugins such as `git` are active by registration and do not implement `ConfigLoader`.
 
 ### AppContext

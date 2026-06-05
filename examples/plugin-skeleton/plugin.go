@@ -68,7 +68,7 @@ func init() {
 // Capability checklist (interfaces this struct implements):
 //
 //   - plugin.Plugin             — Name(), Description() (via BasePlugin)
-//   - plugin.ConfigLoader       — SchemaConfig, DecodeAndSet, IsEnabled (via BasePlugin)
+//   - plugin.ConfigLoader       — ConfigDefinition, DecodeAndSet, IsEnabled (via BasePlugin)
 //   - plugin.CommandProvider    — CommandSpecs() in commands.go
 //
 // Add more capabilities (PipelineContributor, InitContributor, etc.) by

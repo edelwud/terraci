@@ -39,18 +39,23 @@ func TestPluginRegistration(t *testing.T) {
 
 func TestPluginCapabilities(t *testing.T) {
 	plugins := registry.New()
-	schemas := plugins.ExtensionSchemas()
-	if len(schemas) == 0 {
-		t.Fatal("expected at least one extension schema")
+	definitions, err := plugins.ExtensionDefinitions()
+	if err != nil {
+		t.Fatalf("ExtensionDefinitions() error = %v", err)
+	}
+	defs := definitions.Definitions()
+	if len(defs) == 0 {
+		t.Fatal("expected at least one extension definition")
 	}
 
 	configKeys := make(map[string]bool)
-	for key := range schemas {
+	for _, definition := range defs {
+		key := definition.Key().String()
 		if key == "" {
-			t.Error("extension schema has empty key")
+			t.Error("extension definition has empty key")
 		}
 		if configKeys[key] {
-			t.Errorf("duplicate extension schema key: %s", key)
+			t.Errorf("duplicate extension definition key: %s", key)
 		}
 		configKeys[key] = true
 	}

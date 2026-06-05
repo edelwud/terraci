@@ -35,7 +35,10 @@ Examples:
 			if err != nil {
 				return err
 			}
-			schema := schemaflow.Generate(prepared)
+			schema, err := schemaflow.Generate(prepared)
+			if err != nil {
+				return fmt.Errorf("generate schema: %w", err)
+			}
 
 			if schemaOutputFile != "" {
 				if err := os.WriteFile(schemaOutputFile, []byte(schema), 0o600); err != nil {

@@ -45,38 +45,28 @@ func TestBasePlugin_NameDescription(t *testing.T) {
 	}
 }
 
-func TestBasePlugin_ConfigKey_Custom(t *testing.T) {
+func TestBasePlugin_ConfigDefinition_CustomKey(t *testing.T) {
 	b := newTestBasePlugin(EnabledWhenConfigured, nil)
-	if b.ConfigKey().String() != "testbase" {
-		t.Errorf("ConfigKey() = %q, want testbase", b.ConfigKey())
+	definition, err := b.ConfigDefinition()
+	if err != nil {
+		t.Fatalf("ConfigDefinition() error = %v", err)
+	}
+	if definition.Key().String() != "testbase" {
+		t.Errorf("ConfigDefinition().Key() = %q, want testbase", definition.Key().String())
 	}
 }
 
-func TestBasePlugin_ConfigKey_DefaultsToName(t *testing.T) {
+func TestBasePlugin_ConfigDefinition_DefaultsToName(t *testing.T) {
 	b := &BasePlugin[*testConfig]{
 		PluginName: "myname",
 		DefaultCfg: func() *testConfig { return &testConfig{} },
 	}
-	if b.ConfigKey().String() != "myname" {
-		t.Errorf("ConfigKey() = %q, want myname", b.ConfigKey())
+	definition, err := b.ConfigDefinition()
+	if err != nil {
+		t.Fatalf("ConfigDefinition() error = %v", err)
 	}
-}
-
-func TestBasePlugin_SchemaConfig(t *testing.T) {
-	b := newTestBasePlugin(EnabledWhenConfigured, nil)
-	cfg := b.SchemaConfig()
-	tc, ok := cfg.(*testConfig)
-	if !ok {
-		t.Fatalf("SchemaConfig() returned %T, want *testConfig", cfg)
-	}
-	if tc.Name != "default" {
-		t.Errorf("SchemaConfig().Name = %q, want default", tc.Name)
-	}
-
-	tc.Name = "mutated"
-	again := b.SchemaConfig().(*testConfig)
-	if again.Name != "default" {
-		t.Errorf("SchemaConfig() leaked mutation: Name = %q, want default", again.Name)
+	if definition.Key().String() != "myname" {
+		t.Errorf("ConfigDefinition().Key() = %q, want myname", definition.Key().String())
 	}
 }
 
@@ -232,7 +222,7 @@ func TestBasePlugin_EnabledAlways(t *testing.T) {
 	}
 }
 
-func TestBasePlugin_ValidateRejectsInvalidConfigKey(t *testing.T) {
+func TestBasePlugin_ValidateRejectsInvalidPluginKey(t *testing.T) {
 	b := &BasePlugin[*testConfig]{
 		PluginName: "bad",
 		PluginKey:  "bad.key",
@@ -242,8 +232,22 @@ func TestBasePlugin_ValidateRejectsInvalidConfigKey(t *testing.T) {
 	if err == nil {
 		t.Fatal("Validate() error = nil, want invalid config key")
 	}
-	if !strings.Contains(err.Error(), "config key") {
-		t.Fatalf("Validate() error = %v, want config key context", err)
+	if !strings.Contains(err.Error(), "config definition") {
+		t.Fatalf("Validate() error = %v, want config definition context", err)
+	}
+}
+
+func TestBasePlugin_ValidateRejectsNilDefaultConfig(t *testing.T) {
+	b := &BasePlugin[*testConfig]{
+		PluginName: "nil-default",
+		DefaultCfg: func() *testConfig { return nil },
+	}
+	err := b.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want nil default config")
+	}
+	if !strings.Contains(err.Error(), "schema sample is nil") {
+		t.Fatalf("Validate() error = %v, want nil schema sample context", err)
 	}
 }
 

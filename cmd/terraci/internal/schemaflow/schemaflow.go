@@ -7,15 +7,19 @@ import (
 )
 
 type configLoaderSource interface {
-	ExtensionSchemas() map[string]any
+	ExtensionDefinitions() (config.ExtensionDefinitionSet, error)
 }
 
 // Generate returns the JSON schema for core config plus extension config
 // schemas supplied by plugin config loaders.
-func Generate(source configLoaderSource) string {
-	var pluginSchemas map[string]any
+func Generate(source configLoaderSource) (string, error) {
+	var definitions config.ExtensionDefinitionSet
 	if source != nil {
-		pluginSchemas = source.ExtensionSchemas()
+		var err error
+		definitions, err = source.ExtensionDefinitions()
+		if err != nil {
+			return "", err
+		}
 	}
-	return config.GenerateJSONSchema(pluginSchemas)
+	return config.GenerateJSONSchema(definitions)
 }

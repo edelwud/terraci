@@ -91,7 +91,7 @@ func TestBuiltInPluginContractMatrix(t *testing.T) {
 func TestGeneratedSchemaExcludesGitExtension(t *testing.T) {
 	plugins := registry.New()
 
-	schema := config.GenerateJSONSchema(plugins.ExtensionSchemas())
+	schema := generatedSchema(t, plugins)
 	if strings.Contains(schema, `"git":`) {
 		t.Fatalf("generated schema unexpectedly contains extensions.git: %s", schema)
 	}
@@ -100,7 +100,7 @@ func TestGeneratedSchemaExcludesGitExtension(t *testing.T) {
 func TestGeneratedSchemaUsesCanonicalPolicyFields(t *testing.T) {
 	plugins := registry.New()
 
-	schema := config.GenerateJSONSchema(plugins.ExtensionSchemas())
+	schema := generatedSchema(t, plugins)
 	for _, removed := range []string{"failure_action", "warning_action", "cache_dir"} {
 		if strings.Contains(schema, `"`+removed+`"`) {
 			t.Fatalf("generated schema contains legacy policy field %q: %s", removed, schema)
@@ -116,12 +116,25 @@ func TestGeneratedSchemaUsesCanonicalPolicyFields(t *testing.T) {
 func TestGeneratedSchemaIncludesSummaryFields(t *testing.T) {
 	plugins := registry.New()
 
-	schema := config.GenerateJSONSchema(plugins.ExtensionSchemas())
+	schema := generatedSchema(t, plugins)
 	for _, want := range []string{"enabled", "on_changes_only", "include_details", "labels"} {
 		if !strings.Contains(schema, want) {
 			t.Fatalf("generated schema missing summary field %q: %s", want, schema)
 		}
 	}
+}
+
+func generatedSchema(tb testing.TB, plugins *registry.Registry) string {
+	tb.Helper()
+	definitions, err := plugins.ExtensionDefinitions()
+	if err != nil {
+		tb.Fatalf("ExtensionDefinitions() error = %v", err)
+	}
+	schema, err := config.GenerateJSONSchema(definitions)
+	if err != nil {
+		tb.Fatalf("GenerateJSONSchema() error = %v", err)
+	}
+	return schema
 }
 
 func TestRunPreflight_UsesEnabledPlugins(t *testing.T) {

@@ -32,10 +32,9 @@ type configPlugin struct {
 	enabled    bool
 }
 
-func (p *configPlugin) ConfigKey() config.ExtensionKey {
-	return config.MustExtensionKey(p.name)
+func (p *configPlugin) ConfigDefinition() (config.ExtensionDefinition, error) {
+	return config.NewExtensionDefinition(config.MustExtensionKey(p.name), &testConfig{})
 }
-func (p *configPlugin) SchemaConfig() any { return &testConfig{} }
 func (p *configPlugin) DecodeAndSet(doc config.ExtensionDocument) error {
 	var cfg testConfig
 	if err := doc.Decode(&cfg); err != nil {

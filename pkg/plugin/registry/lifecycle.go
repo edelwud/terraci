@@ -49,7 +49,11 @@ func (r *Registry) DecodeConfig(cfg *config.Config) error {
 		return nil
 	}
 	for _, loader := range byCapabilityFrom[plugin.ConfigLoader](r) {
-		key := loader.ConfigKey()
+		definition, err := loader.ConfigDefinition()
+		if err != nil {
+			return plugin.ConfigError{Plugin: loader.Name(), Err: err}
+		}
+		key := definition.Key()
 		doc, exists := cfg.Extension(key)
 		if !exists {
 			continue
@@ -61,17 +65,21 @@ func (r *Registry) DecodeConfig(cfg *config.Config) error {
 	return nil
 }
 
-// ExtensionSchemas returns extension JSON schema samples by config key.
-func (r *Registry) ExtensionSchemas() map[string]any {
+// ExtensionDefinitions returns extension JSON schema definitions by config key.
+func (r *Registry) ExtensionDefinitions() (config.ExtensionDefinitionSet, error) {
 	if r == nil {
-		return nil
+		return config.ExtensionDefinitionSet{}, nil
 	}
 	loaders := byCapabilityFrom[plugin.ConfigLoader](r)
-	schemas := make(map[string]any, len(loaders))
+	definitions := make([]config.ExtensionDefinition, 0, len(loaders))
 	for _, loader := range loaders {
-		schemas[loader.ConfigKey().String()] = loader.SchemaConfig()
+		definition, err := loader.ConfigDefinition()
+		if err != nil {
+			return config.ExtensionDefinitionSet{}, plugin.ConfigError{Plugin: loader.Name(), Err: err}
+		}
+		definitions = append(definitions, definition)
 	}
-	return schemas
+	return config.NewExtensionDefinitionSet(definitions...)
 }
 
 // RunPreflight runs enabled plugin preflights in registration order.
