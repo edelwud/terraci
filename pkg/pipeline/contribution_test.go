@@ -175,3 +175,68 @@ func TestNewContributionRejectsDuplicateOutputs(t *testing.T) {
 		t.Fatalf("NewContribution() error = %q, want duplicate output", err.Error())
 	}
 }
+
+func TestContributionSetCopiesAndFlattensJobs(t *testing.T) {
+	t.Parallel()
+
+	job, err := NewContributedJob(ContributedJobOptions{
+		Name:     "summary",
+		Commands: []string{"terraci summary"},
+	})
+	if err != nil {
+		t.Fatalf("NewContributedJob() error = %v", err)
+	}
+	contribution, err := NewContribution(job)
+	if err != nil {
+		t.Fatalf("NewContribution() error = %v", err)
+	}
+	set, err := NewContributionSet(contribution)
+	if err != nil {
+		t.Fatalf("NewContributionSet() error = %v", err)
+	}
+
+	if set.Len() != 1 {
+		t.Fatalf("Len() = %d, want 1", set.Len())
+	}
+	if set.IsEmpty() {
+		t.Fatal("IsEmpty() = true, want false")
+	}
+	jobs := set.Jobs()
+	if len(jobs) != 1 || jobs[0].Name() != "summary" {
+		t.Fatalf("Jobs() = %#v, want summary job", jobs)
+	}
+
+	items := set.Contributions()
+	if len(items) != 1 || items[0] == contribution {
+		t.Fatalf("Contributions() = %#v, want defensive contribution copy", items)
+	}
+	items[0] = nil
+	if again := set.Contributions(); len(again) != 1 || again[0] == nil {
+		t.Fatalf("Contributions() leaked returned slice mutation: %#v", again)
+	}
+
+	clone := set.Clone()
+	cloneItems := clone.Contributions()
+	cloneItems[0] = nil
+	if again := set.Contributions(); len(again) != 1 || again[0] == nil {
+		t.Fatalf("Clone() leaked mutation: %#v", again)
+	}
+}
+
+func TestContributionSetEmptyAndNilValidation(t *testing.T) {
+	t.Parallel()
+
+	if !EmptyContributionSet().IsEmpty() {
+		t.Fatal("EmptyContributionSet().IsEmpty() = false, want true")
+	}
+	var zero ContributionSet
+	if zero.Len() != 0 || !zero.IsEmpty() {
+		t.Fatalf("zero ContributionSet len/empty = %d/%t, want 0/true", zero.Len(), zero.IsEmpty())
+	}
+	if jobs := zero.Jobs(); jobs != nil {
+		t.Fatalf("zero ContributionSet Jobs() = %#v, want nil", jobs)
+	}
+	if _, err := NewContributionSet(nil); err == nil {
+		t.Fatal("NewContributionSet(nil) error = nil, want error")
+	}
+}

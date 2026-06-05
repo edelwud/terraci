@@ -116,7 +116,7 @@ type ExecutorOption func(*executorOptions)
 
 type executorOptions struct {
 	eventSink     execution.EventSink
-	contributions []*pipeline.Contribution
+	contributions pipeline.ContributionSet
 }
 
 func WithEventSink(sink execution.EventSink) ExecutorOption {
@@ -125,9 +125,9 @@ func WithEventSink(sink execution.EventSink) ExecutorOption {
 	}
 }
 
-func WithPipelineContributions(contributions []*pipeline.Contribution) ExecutorOption {
+func WithPipelineContributions(contributions pipeline.ContributionSet) ExecutorOption {
 	return func(opts *executorOptions) {
-		opts.contributions = cloneContributions(contributions)
+		opts.contributions = contributions.Clone()
 	}
 }
 
@@ -143,7 +143,7 @@ func NewExecutor(appCtx *plugin.AppContext, opts ...ExecutorOption) Executor {
 	if options.eventSink != nil {
 		internalOpts = append(internalOpts, localexecinternal.WithEventSink(options.eventSink))
 	}
-	if len(options.contributions) > 0 {
+	if !options.contributions.IsEmpty() {
 		internalOpts = append(internalOpts, localexecinternal.WithPipelineContributions(options.contributions))
 	}
 	return executorAdapter{executor: localexecinternal.NewExecutor(appCtx, internalOpts...)}
@@ -188,15 +188,4 @@ func mapExecuteRequest(req ExecuteRequest) (localexecinternal.Request, error) {
 	}
 
 	return mapped, nil
-}
-
-func cloneContributions(contributions []*pipeline.Contribution) []*pipeline.Contribution {
-	if len(contributions) == 0 {
-		return nil
-	}
-	clone := make([]*pipeline.Contribution, len(contributions))
-	for i, contribution := range contributions {
-		clone[i] = contribution.Clone()
-	}
-	return clone
 }

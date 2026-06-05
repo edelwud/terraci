@@ -56,6 +56,23 @@ func NewContribution(jobs ...ContributedJob) (*Contribution, error) {
 	return &Contribution{jobs: clone}, nil
 }
 
+// NewContributionSet builds an immutable snapshot of pipeline contributions.
+func NewContributionSet(contributions ...*Contribution) (ContributionSet, error) {
+	clone := make([]*Contribution, len(contributions))
+	for i, contribution := range contributions {
+		if contribution == nil {
+			return ContributionSet{}, fmt.Errorf("contributions[%d] is nil", i)
+		}
+		clone[i] = contribution.Clone()
+	}
+	return ContributionSet{contributions: clone}, nil
+}
+
+// EmptyContributionSet returns a contribution snapshot with no contributions.
+func EmptyContributionSet() ContributionSet {
+	return ContributionSet{}
+}
+
 // NewPluginCommandJob builds a plugin command job with the same validation as
 // NewContributedJob while making the producer-facing intent explicit.
 func NewPluginCommandJob(opts PluginCommandJobOptions) (ContributedJob, error) {
@@ -102,6 +119,31 @@ func (c *Contribution) Jobs() []ContributedJob {
 	return clone
 }
 
+// Clone returns an immutable copy of s.
+func (s ContributionSet) Clone() ContributionSet {
+	return ContributionSet{contributions: cloneContributionSlice(s.contributions)}
+}
+
+// Contributions returns a defensive copy of the contribution snapshot.
+func (s ContributionSet) Contributions() []*Contribution {
+	return cloneContributionSlice(s.contributions)
+}
+
+// Jobs returns all contributed jobs in contribution declaration order.
+func (s ContributionSet) Jobs() []ContributedJob {
+	var jobs []ContributedJob
+	for _, contribution := range s.contributions {
+		jobs = append(jobs, contribution.Jobs()...)
+	}
+	return jobs
+}
+
+// Len returns the number of contributions in the snapshot.
+func (s ContributionSet) Len() int { return len(s.contributions) }
+
+// IsEmpty reports whether the snapshot has no contributions.
+func (s ContributionSet) IsEmpty() bool { return len(s.contributions) == 0 }
+
 // Name returns the job name.
 func (j ContributedJob) Name() string { return j.name }
 
@@ -134,6 +176,17 @@ func (j ContributedJob) clone() ContributedJob {
 	j.consumes = append([]ResourceRequest(nil), j.consumes...)
 	j.produces = append([]ResourceSpec(nil), j.produces...)
 	return j
+}
+
+func cloneContributionSlice(contributions []*Contribution) []*Contribution {
+	if len(contributions) == 0 {
+		return nil
+	}
+	clone := make([]*Contribution, len(contributions))
+	for i, contribution := range contributions {
+		clone[i] = contribution.Clone()
+	}
+	return clone
 }
 
 func validateContributedJob(job ContributedJob) error {

@@ -26,12 +26,12 @@ func (l StaticCommandSource) LookupCommandPlugin(name string) (plugin.Plugin, bo
 // tests.
 func BindCommandContext(parent context.Context, tb testing.TB, appCtx *plugin.AppContext, source plugin.CommandBindingSource) context.Context {
 	tb.Helper()
-	return BindCommandContextWithContributions(parent, tb, appCtx, source, nil)
+	return BindCommandContextWithContributions(parent, tb, appCtx, source, pipeline.EmptyContributionSet())
 }
 
 // BindCommandContextWithContributions binds appCtx, source, and planning
 // contributions into parent for CommandPlugin tests.
-func BindCommandContextWithContributions(parent context.Context, tb testing.TB, appCtx *plugin.AppContext, source plugin.CommandBindingSource, contributions []*pipeline.Contribution) context.Context {
+func BindCommandContextWithContributions(parent context.Context, tb testing.TB, appCtx *plugin.AppContext, source plugin.CommandBindingSource, contributions pipeline.ContributionSet) context.Context {
 	tb.Helper()
 	binding, err := plugin.NewCommandBinding(plugin.CommandBindingOptions{
 		AppContext:            appCtx,
@@ -55,7 +55,7 @@ type CommandBindingContract[T plugin.Plugin] struct {
 	Name           string
 	Plugin         T
 	WrongPlugin    plugin.Plugin
-	Contributions  []*pipeline.Contribution
+	Contributions  pipeline.ContributionSet
 	AssertResolved func(testing.TB, T)
 }
 
@@ -129,16 +129,18 @@ func AssertCommandBinding[T plugin.Plugin](tb testing.TB, c CommandBindingContra
 	if gotCtx.AppContext() != appCtx {
 		tb.Fatalf("CommandPlugin appCtx = %p, want %p", gotCtx.AppContext(), appCtx)
 	}
-	if len(c.Contributions) > 0 {
+	if !c.Contributions.IsEmpty() {
 		gotContributions := gotCtx.PipelineContributions()
-		if len(gotContributions) != len(c.Contributions) {
-			tb.Fatalf("CommandPlugin contributions len = %d, want %d", len(gotContributions), len(c.Contributions))
+		if gotContributions.Len() != c.Contributions.Len() {
+			tb.Fatalf("CommandPlugin contributions len = %d, want %d", gotContributions.Len(), c.Contributions.Len())
 		}
-		for i := range c.Contributions {
-			if gotContributions[i] == nil {
+		gotItems := gotContributions.Contributions()
+		wantItems := c.Contributions.Contributions()
+		for i := range wantItems {
+			if gotItems[i] == nil {
 				tb.Fatalf("CommandPlugin contributions[%d] = nil, want contribution copy", i)
 			}
-			if gotContributions[i] == c.Contributions[i] {
+			if gotItems[i] == wantItems[i] {
 				tb.Fatalf("CommandPlugin contributions[%d] returned original pointer; want defensive copy", i)
 			}
 		}

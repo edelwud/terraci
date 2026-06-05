@@ -60,5 +60,5 @@ func testRuntimeIR(tb testing.TB, binary string) *pipeline.IR {
 	return mustBuildIR(tb, &configpkg.Config{}, pipeline.TerraformJobConfigOptions{
 		Binary:      binary,
 		InitEnabled: true,
-	}, nil, depGraph, []*discovery.Module{module}, nil)
+	}, pipeline.EmptyContributionSet(), depGraph, []*discovery.Module{module}, nil)
 }

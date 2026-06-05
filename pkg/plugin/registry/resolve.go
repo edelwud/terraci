@@ -179,7 +179,7 @@ func pluginNames[T plugin.Plugin](items []T) string {
 
 // CollectContributions gathers pipeline contributions from all enabled
 // PipelineContributor plugins in this registry.
-func (r *Registry) CollectContributions(ctx *plugin.AppContext) ([]*pipeline.Contribution, error) {
+func (r *Registry) CollectContributions(ctx *plugin.AppContext) (pipeline.ContributionSet, error) {
 	contributors := byCapabilityFrom[plugin.PipelineContributor](r)
 	contributions := make([]*pipeline.Contribution, 0, len(contributors))
 	for _, c := range contributors {
@@ -189,7 +189,7 @@ func (r *Registry) CollectContributions(ctx *plugin.AppContext) ([]*pipeline.Con
 		if gate, ok := c.(plugin.PipelineContributionGate); ok {
 			enabled, err := gate.PipelineContributionEnabled(ctx)
 			if err != nil {
-				return nil, &plugin.PipelineContributionError{
+				return pipeline.EmptyContributionSet(), &plugin.PipelineContributionError{
 					Plugin: c.Name(),
 					Phase:  plugin.PipelineContributionPhaseGate,
 					Err:    err,
@@ -201,14 +201,14 @@ func (r *Registry) CollectContributions(ctx *plugin.AppContext) ([]*pipeline.Con
 		}
 		contrib, err := c.PipelineContribution(ctx)
 		if err != nil {
-			return nil, &plugin.PipelineContributionError{
+			return pipeline.EmptyContributionSet(), &plugin.PipelineContributionError{
 				Plugin: c.Name(),
 				Phase:  plugin.PipelineContributionPhaseContribution,
 				Err:    err,
 			}
 		}
 		if contrib == nil {
-			return nil, &plugin.PipelineContributionError{
+			return pipeline.EmptyContributionSet(), &plugin.PipelineContributionError{
 				Plugin: c.Name(),
 				Phase:  plugin.PipelineContributionPhaseContribution,
 				Err:    plugin.ErrNilPipelineContribution,
@@ -216,7 +216,11 @@ func (r *Registry) CollectContributions(ctx *plugin.AppContext) ([]*pipeline.Con
 		}
 		contributions = append(contributions, contrib)
 	}
-	return contributions, nil
+	set, err := pipeline.NewContributionSet(contributions...)
+	if err != nil {
+		return pipeline.EmptyContributionSet(), err
+	}
+	return set, nil
 }
 
 func findProvider(candidates []ciProviderPlugin, name string) (*plugin.ResolvedCIProvider, error) {

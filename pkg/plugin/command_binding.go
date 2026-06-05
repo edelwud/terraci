@@ -32,7 +32,7 @@ type CommandBindingSource interface {
 type CommandBindingOptions struct {
 	AppContext            *AppContext
 	Source                CommandBindingSource
-	PipelineContributions []*pipeline.Contribution
+	PipelineContributions pipeline.ContributionSet
 }
 
 // CommandContext is the command-scoped SDK value exposed to command callbacks.
@@ -40,7 +40,7 @@ type CommandBindingOptions struct {
 // this command run.
 type CommandContext struct {
 	appCtx        *AppContext
-	contributions []*pipeline.Contribution
+	contributions pipeline.ContributionSet
 }
 
 // AppContext returns the runtime plugin context for this command run.
@@ -48,8 +48,8 @@ func (c CommandContext) AppContext() *AppContext { return c.appCtx }
 
 // PipelineContributions returns enabled pipeline contributions collected by
 // runflow for this command run.
-func (c CommandContext) PipelineContributions() []*pipeline.Contribution {
-	return clonePipelineContributions(c.contributions)
+func (c CommandContext) PipelineContributions() pipeline.ContributionSet {
+	return c.contributions.Clone()
 }
 
 // CommandBinding is the command-scoped bridge between a cobra callback, its
@@ -70,7 +70,7 @@ func NewCommandBinding(opts CommandBindingOptions) (*CommandBinding, error) {
 	return &CommandBinding{
 		commandCtx: CommandContext{
 			appCtx:        opts.AppContext,
-			contributions: clonePipelineContributions(opts.PipelineContributions),
+			contributions: opts.PipelineContributions.Clone(),
 		},
 		source: opts.Source,
 	}, nil
@@ -91,7 +91,7 @@ func (b *CommandBinding) CommandContext() CommandContext {
 	}
 	return CommandContext{
 		appCtx:        b.commandCtx.appCtx,
-		contributions: clonePipelineContributions(b.commandCtx.contributions),
+		contributions: b.commandCtx.contributions.Clone(),
 	}
 }
 
@@ -222,15 +222,4 @@ func RequireEnabled(p interface{ IsEnabled() bool }, message string) error {
 		return &DisabledPluginError{Message: message}
 	}
 	return nil
-}
-
-func clonePipelineContributions(contribs []*pipeline.Contribution) []*pipeline.Contribution {
-	if len(contribs) == 0 {
-		return nil
-	}
-	clone := make([]*pipeline.Contribution, len(contribs))
-	for i, contribution := range contribs {
-		clone[i] = contribution.Clone()
-	}
-	return clone
 }

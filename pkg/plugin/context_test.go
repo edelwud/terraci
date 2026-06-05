@@ -131,21 +131,23 @@ func TestCommandContext_PipelineContributionsAreSnapshot(t *testing.T) {
 		t.Fatalf("NewContribution() error = %v", err)
 	}
 	appCtx := NewAppContext(AppContextOptions{})
-	binding := mustCommandBindingWithContributions(t, appCtx, contextTestSource{plugin: &contextTestPlugin{name: "cmd"}}, []*pipeline.Contribution{contrib})
+	binding := mustCommandBindingWithContributions(t, appCtx, contextTestSource{plugin: &contextTestPlugin{name: "cmd"}}, mustContributionSet(t, contrib))
 
 	cmdCtx := binding.CommandContext()
 	if cmdCtx.AppContext() != appCtx {
 		t.Fatalf("CommandContext.AppContext() = %p, want %p", cmdCtx.AppContext(), appCtx)
 	}
 	got := cmdCtx.PipelineContributions()
-	if len(got) != 1 || got[0] == contrib {
+	items := got.Contributions()
+	if got.Len() != 1 || items[0] == contrib {
 		t.Fatalf("CommandContext.PipelineContributions() = %#v, want defensive contribution copy", got)
 	}
-	if jobs := got[0].Jobs(); len(jobs) != 1 || jobs[0].Name() != "summary" {
+	if jobs := items[0].Jobs(); len(jobs) != 1 || jobs[0].Name() != "summary" {
 		t.Fatalf("CommandContext.PipelineContributions()[0].Jobs() = %#v, want summary", jobs)
 	}
-	got[0] = nil
-	if again := cmdCtx.PipelineContributions(); len(again) != 1 || again[0] == nil || again[0] == contrib {
+	items[0] = nil
+	again := cmdCtx.PipelineContributions().Contributions()
+	if len(again) != 1 || again[0] == nil || again[0] == contrib {
 		t.Fatalf("CommandContext.PipelineContributions() was mutated through returned slice: %#v", again)
 	}
 }
@@ -162,11 +164,10 @@ func TestCommandBinding_ClonesInputContributions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewContribution() error = %v", err)
 	}
-	input := []*pipeline.Contribution{contrib}
+	input := mustContributionSet(t, contrib)
 	binding := mustCommandBindingWithContributions(t, NewAppContext(AppContextOptions{}), contextTestSource{plugin: &contextTestPlugin{name: "cmd"}}, input)
-	input[0] = nil
 
-	got := binding.CommandContext().PipelineContributions()
+	got := binding.CommandContext().PipelineContributions().Contributions()
 	if len(got) != 1 || got[0] == nil || got[0] == contrib {
 		t.Fatalf("bound PipelineContributions() = %#v, want defensive copy independent of input slice", got)
 	}
@@ -187,7 +188,7 @@ func TestCommandPlugin_ReturnsContributions(t *testing.T) {
 	target := &contextTestPlugin{name: "cmd", enabled: true}
 	appCtx := NewAppContext(AppContextOptions{})
 	cmd := &cobra.Command{}
-	cmd.SetContext(BindCommandContext(context.Background(), mustCommandBindingWithContributions(t, appCtx, contextTestSource{plugin: target}, []*pipeline.Contribution{contrib})))
+	cmd.SetContext(BindCommandContext(context.Background(), mustCommandBindingWithContributions(t, appCtx, contextTestSource{plugin: target}, mustContributionSet(t, contrib))))
 
 	cmdCtx, gotPlugin, err := CommandPlugin[*contextTestPlugin](cmd, "cmd")
 	if err != nil {
@@ -199,7 +200,7 @@ func TestCommandPlugin_ReturnsContributions(t *testing.T) {
 	if gotPlugin != target {
 		t.Fatalf("CommandPlugin() plugin = %p, want %p", gotPlugin, target)
 	}
-	if got := cmdCtx.PipelineContributions(); len(got) != 1 || got[0] == contrib {
+	if got := cmdCtx.PipelineContributions().Contributions(); len(got) != 1 || got[0] == contrib {
 		t.Fatalf("CommandPlugin().PipelineContributions() = %#v, want defensive copy", got)
 	}
 }
@@ -209,8 +210,8 @@ func TestCommandContext_ZeroValue(t *testing.T) {
 	if ctx.AppContext() != nil {
 		t.Fatal("zero CommandContext AppContext should be nil")
 	}
-	if got := ctx.PipelineContributions(); got != nil {
-		t.Fatalf("zero CommandContext PipelineContributions() = %#v, want nil", got)
+	if got := ctx.PipelineContributions(); !got.IsEmpty() {
+		t.Fatalf("zero CommandContext PipelineContributions() empty = false, want true")
 	}
 }
 
@@ -452,7 +453,16 @@ func mustCommandBinding(t *testing.T, appCtx *AppContext, source CommandBindingS
 	return binding
 }
 
-func mustCommandBindingWithContributions(t *testing.T, appCtx *AppContext, source CommandBindingSource, contributions []*pipeline.Contribution) *CommandBinding {
+func mustContributionSet(t *testing.T, contributions ...*pipeline.Contribution) pipeline.ContributionSet {
+	t.Helper()
+	set, err := pipeline.NewContributionSet(contributions...)
+	if err != nil {
+		t.Fatalf("NewContributionSet() error = %v", err)
+	}
+	return set
+}
+
+func mustCommandBindingWithContributions(t *testing.T, appCtx *AppContext, source CommandBindingSource, contributions pipeline.ContributionSet) *CommandBinding {
 	t.Helper()
 	binding, err := NewCommandBinding(CommandBindingOptions{
 		AppContext:            appCtx,

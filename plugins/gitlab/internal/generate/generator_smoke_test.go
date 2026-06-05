@@ -14,7 +14,7 @@ import (
 type testCfg struct {
 	GitLab        *Config
 	Terraform     pipeline.TerraformJobConfigOptions
-	Contributions []*pipeline.Contribution
+	Contributions pipeline.ContributionSet
 }
 
 // createTestConfig creates a test configuration with default values

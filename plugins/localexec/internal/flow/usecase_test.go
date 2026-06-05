@@ -44,6 +44,15 @@ func mustContribution(tb testing.TB, opts pipeline.ContributedJobOptions) *pipel
 	return contribution
 }
 
+func mustContributionSet(tb testing.TB, contributions ...*pipeline.Contribution) pipeline.ContributionSet {
+	tb.Helper()
+	set, err := pipeline.NewContributionSet(contributions...)
+	if err != nil {
+		tb.Fatalf("NewContributionSet() error = %v", err)
+	}
+	return set
+}
+
 func (p fakeProjectPlanner) Plan(context.Context, spec.Request) (*workflow.ProjectResult, error) {
 	return p.project, p.err
 }
@@ -193,12 +202,12 @@ func TestUseCase_RunBuildsIRFromProjectAndContributions(t *testing.T) {
 
 	appCtx := plugintest.NewAppContext(t, workDir)
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
-	contributions := []*pipeline.Contribution{
+	contributions := mustContributionSet(t,
 		mustContribution(t, pipeline.ContributedJobOptions{
 			Name:     "contributed",
 			Commands: []string{"terraci contributed"},
 		}),
-	}
+	)
 	loader := &fakeSummaryReportLoader{}
 	jobRunner := &fakeJobRunner{}
 
@@ -270,9 +279,9 @@ func TestUseCase_RunBuildsTerraformIntentFromConfig(t *testing.T) {
 	_, err := New(
 		appCtx,
 		WithProjectPlanner(fakeProjectWithTargets(module)),
-		WithPipelineContributions([]*pipeline.Contribution{
+		WithPipelineContributions(mustContributionSet(t,
 			mustContribution(t, testCommandJob("contributed")),
-		}),
+		)),
 		WithRuntimeFactory(&fakeRuntimeFactory{runtime: &runner.Runtime{JobRunner: jobRunner}}),
 		WithSummaryReports(&fakeSummaryReportLoader{}),
 	).Run(context.Background(), spec.Request{Mode: spec.ExecutionModePlan})
@@ -413,9 +422,9 @@ func TestUseCase_RunReturnsExecutionResultOnJobFailure(t *testing.T) {
 	result, err := New(
 		appCtx,
 		WithProjectPlanner(fakeProjectWithTargets(module)),
-		WithPipelineContributions([]*pipeline.Contribution{
+		WithPipelineContributions(mustContributionSet(t,
 			mustContribution(t, testCommandJob("summary")),
-		}),
+		)),
 		WithRuntimeFactory(&fakeRuntimeFactory{runtime: &runner.Runtime{
 			JobRunner: &fakeJobRunner{err: jobErr},
 		}}),
@@ -496,7 +505,7 @@ func TestNewRestoresDefaultsAfterNilOverrides(t *testing.T) {
 	useCase := New(
 		appCtx,
 		WithProjectPlanner(nil),
-		WithPipelineContributions(nil),
+		WithPipelineContributions(pipeline.EmptyContributionSet()),
 		WithRuntimeFactory(nil),
 		WithSummaryReports(nil),
 	)
@@ -504,7 +513,7 @@ func TestNewRestoresDefaultsAfterNilOverrides(t *testing.T) {
 	if useCase.projects == nil {
 		t.Fatal("projects = nil, want default planner")
 	}
-	if useCase.contributions != nil {
+	if !useCase.contributions.IsEmpty() {
 		t.Fatalf("contributions = %#v, want none by default", useCase.contributions)
 	}
 	if useCase.runtimeFactory == nil {

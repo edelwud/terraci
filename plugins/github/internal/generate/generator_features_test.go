@@ -24,18 +24,27 @@ func testContribution(tb testing.TB, opts ...pipeline.ContributedJobOptions) *pi
 	return contribution
 }
 
+func testContributionSet(tb testing.TB, contributions ...*pipeline.Contribution) pipeline.ContributionSet {
+	tb.Helper()
+	set, err := pipeline.NewContributionSet(contributions...)
+	if err != nil {
+		tb.Fatalf("NewContributionSet() error = %v", err)
+	}
+	return set
+}
+
 func TestGenerate_WithSummaryContribution(t *testing.T) {
 	vpc := createTestModule("vpc")
 	eks := createTestModule("eks")
 	workflow := newGeneratorScenario(t).
-		withContributions([]*pipeline.Contribution{testContribution(t, pipeline.ContributedJobOptions{
+		withContributions(testContributionSet(t, testContribution(t, pipeline.ContributedJobOptions{
 			Name:     "terraci-summary",
 			Commands: []string{"terraci summary"},
 			Consumes: []pipeline.ResourceRequest{
 				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
 			},
 			AllowFailure: false,
-		})}).
+		}))).
 		withModules(vpc, eks).
 		withDependencies(map[string][]string{
 			vpc.ID(): {},
@@ -60,14 +69,14 @@ func TestGenerate_ContributedJobInheritsJobDefaults(t *testing.T) {
 				StepsAfter:  []configpkg.ConfigStep{{Name: "Cleanup", Run: "echo cleanup"}},
 			}
 		}).
-		withContributions([]*pipeline.Contribution{testContribution(t, pipeline.ContributedJobOptions{
+		withContributions(testContributionSet(t, testContribution(t, pipeline.ContributedJobOptions{
 			Name:     "cost-estimation",
 			Commands: []string{"terraci cost"},
 			Consumes: []pipeline.ResourceRequest{
 				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
 			},
 			AllowFailure: true,
-		})}).
+		}))).
 		withModules(module).
 		withDependencies(map[string][]string{module.ID(): {}}).
 		generate()
@@ -93,14 +102,14 @@ func TestGenerate_ContributedJobOverwriteByName(t *testing.T) {
 				RunsOn:    "cost-runner",
 			}}
 		}).
-		withContributions([]*pipeline.Contribution{testContribution(t, pipeline.ContributedJobOptions{
+		withContributions(testContributionSet(t, testContribution(t, pipeline.ContributedJobOptions{
 			Name:     "cost-estimation",
 			Commands: []string{"terraci cost"},
 			Consumes: []pipeline.ResourceRequest{
 				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
 			},
 			AllowFailure: true,
-		})}).
+		}))).
 		withModules(module).
 		withDependencies(map[string][]string{module.ID(): {}}).
 		generate()
@@ -203,14 +212,14 @@ func TestGenerate_ContributedJobAppliesAllMatchingOverwritesInOrder(t *testing.T
 				},
 			}
 		}).
-		withContributions([]*pipeline.Contribution{testContribution(t, pipeline.ContributedJobOptions{
+		withContributions(testContributionSet(t, testContribution(t, pipeline.ContributedJobOptions{
 			Name:     "cost-estimation",
 			Commands: []string{"terraci cost"},
 			Consumes: []pipeline.ResourceRequest{
 				pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
 			},
 			AllowFailure: true,
-		})}).
+		}))).
 		withModules(module).
 		withDependencies(map[string][]string{module.ID(): {}}).
 		generate()
@@ -231,7 +240,7 @@ func TestGenerate_ContributedJobAppliesAllMatchingOverwritesInOrder(t *testing.T
 func TestGenerate_WithPolicy(t *testing.T) {
 	module := createTestModule("vpc")
 	workflow := newGeneratorScenario(t).
-		withContributions([]*pipeline.Contribution{testContribution(t, pipeline.ContributedJobOptions{
+		withContributions(testContributionSet(t, testContribution(t, pipeline.ContributedJobOptions{
 			Name:     "policy-check",
 			Commands: []string{"terraci policy check --format text"},
 			Consumes: []pipeline.ResourceRequest{
@@ -242,7 +251,7 @@ func TestGenerate_WithPolicy(t *testing.T) {
 				pipeline.PluginResource(pipeline.ResourceKindPluginReport, "policy", ".terraci/policy-report.json"),
 			},
 			AllowFailure: false,
-		})}).
+		}))).
 		withModules(module).
 		withDependencies(map[string][]string{module.ID(): {}}).
 		generate()
@@ -260,7 +269,7 @@ func TestGenerate_ArtifactRestoreContract(t *testing.T) {
 	resultArtifact := pipeline.ResultArtifact("cost-estimation", ".terraci/cost-results.json", ".terraci/cost-report.json")
 
 	workflow := newGeneratorScenario(t).
-		withContributions([]*pipeline.Contribution{testContribution(t, pipeline.ContributedJobOptions{
+		withContributions(testContributionSet(t, testContribution(t, pipeline.ContributedJobOptions{
 			Name:     "cost-estimation",
 			Commands: []string{"terraci cost"},
 			Consumes: []pipeline.ResourceRequest{
@@ -271,7 +280,7 @@ func TestGenerate_ArtifactRestoreContract(t *testing.T) {
 				pipeline.PluginResource(pipeline.ResourceKindPluginReport, "cost", ".terraci/cost-report.json"),
 			},
 			AllowFailure: true,
-		})}).
+		}))).
 		withModules(module).
 		withDependencies(map[string][]string{module.ID(): {}}).
 		generate()

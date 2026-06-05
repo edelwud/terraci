@@ -204,8 +204,8 @@ extensions:
 	if !contributor.called {
 		t.Fatal("pipeline contribution was not collected")
 	}
-	if len(result.PipelineContributions()) != 1 {
-		t.Fatalf("Prepared.PipelineContributions len = %d, want 1", len(result.PipelineContributions()))
+	if result.PipelineContributions().Len() != 1 {
+		t.Fatalf("Prepared.PipelineContributions len = %d, want 1", result.PipelineContributions().Len())
 	}
 	cmd := &cobra.Command{}
 	cmd.SetContext(result.Context())
@@ -213,8 +213,8 @@ extensions:
 	if err != nil {
 		t.Fatalf("CommandPlugin() error = %v", err)
 	}
-	if len(cmdCtx.PipelineContributions()) != 1 {
-		t.Fatalf("CommandContext.PipelineContributions len = %d, want 1", len(cmdCtx.PipelineContributions()))
+	if cmdCtx.PipelineContributions().Len() != 1 {
+		t.Fatalf("CommandContext.PipelineContributions len = %d, want 1", cmdCtx.PipelineContributions().Len())
 	}
 }
 

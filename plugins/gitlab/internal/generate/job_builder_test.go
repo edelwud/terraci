@@ -143,8 +143,12 @@ func TestJobBuilderContributedJobUsesOptionalNeeds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlanBuildIntent() error = %v", err)
 	}
+	contributions, err := pipeline.NewContributionSet(contribution)
+	if err != nil {
+		t.Fatalf("NewContributionSet() error = %v", err)
+	}
 	plan, err := pipeline.BuildProjectIR(pipeline.ProjectIRRequest{
-		Contributions: []*pipeline.Contribution{contribution},
+		Contributions: contributions,
 		Project:       emptyProject(),
 		Intent:        intent,
 	})

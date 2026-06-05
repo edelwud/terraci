@@ -13,7 +13,7 @@ type projectIRBuildInput struct {
 	AllModules    []*discovery.Module
 	ModuleIndex   *discovery.ModuleIndex
 	Terraform     TerraformJobConfig
-	Contributions []*Contribution
+	Contributions ContributionSet
 	Intent        BuildIntent
 }
 
@@ -49,15 +49,8 @@ func buildProjectIR(opts projectIRBuildInput) (*IR, error) {
 	return ir, nil
 }
 
-func collectContributedJobs(contributions []*Contribution) []ContributedJob {
-	var allContributedJobs []ContributedJob
-	for _, c := range contributions {
-		if c == nil {
-			continue
-		}
-		allContributedJobs = append(allContributedJobs, c.Jobs()...)
-	}
-	return allContributedJobs
+func collectContributedJobs(contributions ContributionSet) []ContributedJob {
+	return contributions.Jobs()
 }
 
 func allResourceRequests(required []ResourceRequest, jobs []ContributedJob) []ResourceRequest {
@@ -68,16 +61,13 @@ func allResourceRequests(required []ResourceRequest, jobs []ContributedJob) []Re
 	return requests
 }
 
-func validateBuildResourceRequests(required []ResourceRequest, contributions []*Contribution) error {
+func validateBuildResourceRequests(required []ResourceRequest, contributions ContributionSet) error {
 	for i, request := range required {
 		if err := validateResourceRequest(request); err != nil {
 			return fmt.Errorf("requirements.resources[%d]: %w", i, err)
 		}
 	}
-	for contributionIdx, contribution := range contributions {
-		if contribution == nil {
-			continue
-		}
+	for contributionIdx, contribution := range contributions.Contributions() {
 		for jobIdx, job := range contribution.Jobs() {
 			for reqIdx, request := range job.Consumes() {
 				if err := validateResourceRequest(request); err != nil {

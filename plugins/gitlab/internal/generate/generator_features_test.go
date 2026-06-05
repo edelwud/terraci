@@ -27,16 +27,25 @@ func testContribution(tb testing.TB, opts ...pipeline.ContributedJobOptions) *pi
 	return contribution
 }
 
+func testContributionSet(tb testing.TB, contributions ...*pipeline.Contribution) pipeline.ContributionSet {
+	tb.Helper()
+	set, err := pipeline.NewContributionSet(contributions...)
+	if err != nil {
+		tb.Fatalf("NewContributionSet() error = %v", err)
+	}
+	return set
+}
+
 func TestGenerator_Generate_WithSummaryContribution(t *testing.T) {
 	cfg := createTestConfig()
-	cfg.Contributions = []*pipeline.Contribution{testContribution(t, pipeline.ContributedJobOptions{
+	cfg.Contributions = testContributionSet(t, testContribution(t, pipeline.ContributedJobOptions{
 		Name:     "terraci-summary",
 		Commands: []string{"terraci summary"},
 		Consumes: []pipeline.ResourceRequest{
 			pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
 		},
 		AllowFailure: false,
-	})}
+	}))
 
 	modules := []*discovery.Module{
 		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),
@@ -159,13 +168,13 @@ func TestGenerator_DetailedPlanForcedByResourceConsumer(t *testing.T) {
 	// Regression: a contributor that reads plan.json (e.g. cost) must force the
 	// matching plan job to emit plan.json.
 	cfg := createTestConfig()
-	cfg.Contributions = []*pipeline.Contribution{testContribution(t, pipeline.ContributedJobOptions{
+	cfg.Contributions = testContributionSet(t, testContribution(t, pipeline.ContributedJobOptions{
 		Name:     "cost-estimation",
 		Commands: []string{"terraci cost"},
 		Consumes: []pipeline.ResourceRequest{
 			pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
 		},
-	})}
+	}))
 
 	module := discovery.TestModule("platform", "stage", "eu-central-1", "vpc")
 	depGraph := citest.DependencyGraph([]*discovery.Module{module}, map[string][]string{
@@ -255,7 +264,7 @@ func TestGenerator_Generate_WithArtifacts(t *testing.T) {
 
 func TestGenerator_Generate_WithPolicyCheck(t *testing.T) {
 	cfg := createTestConfig()
-	cfg.Contributions = []*pipeline.Contribution{testContribution(t, pipeline.ContributedJobOptions{
+	cfg.Contributions = testContributionSet(t, testContribution(t, pipeline.ContributedJobOptions{
 		Name:     "policy-check",
 		Commands: []string{"terraci policy check --format text"},
 		Consumes: []pipeline.ResourceRequest{
@@ -266,7 +275,7 @@ func TestGenerator_Generate_WithPolicyCheck(t *testing.T) {
 			pipeline.PluginResource(pipeline.ResourceKindPluginReport, "policy", ".terraci/policy-report.json"),
 		},
 		AllowFailure: false,
-	})}
+	}))
 
 	modules := []*discovery.Module{
 		discovery.TestModule("platform", "stage", "eu-central-1", "vpc"),

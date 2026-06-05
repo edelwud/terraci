@@ -12,7 +12,7 @@ type ProjectIRRequest struct {
 	Project       *workflow.ProjectResult
 	Terraform     TerraformJobConfig
 	Intent        BuildIntent
-	Contributions []*Contribution
+	Contributions ContributionSet
 }
 
 // BuildProjectIR builds a provider-agnostic IR from a planned project.

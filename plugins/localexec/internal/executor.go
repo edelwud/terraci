@@ -30,7 +30,7 @@ func WithEventSink(sink execution.EventSink) Option {
 	return flow.WithEventSink(sink)
 }
 
-func WithPipelineContributions(contributions []*pipeline.Contribution) Option {
+func WithPipelineContributions(contributions pipeline.ContributionSet) Option {
 	return flow.WithPipelineContributions(contributions)
 }
 

@@ -11,7 +11,7 @@ import (
 func buildTestIRWithApply(
 	_ *configpkg.Config,
 	terraformConfigOptions pipeline.TerraformJobConfigOptions,
-	contributions []*pipeline.Contribution,
+	contributions pipeline.ContributionSet,
 	depGraph *graph.DependencyGraph,
 	allModules, targetModules []*discovery.Module,
 	applyEnabled bool,

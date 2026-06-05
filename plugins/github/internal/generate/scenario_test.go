@@ -17,7 +17,7 @@ func createTestModule(module string) *discovery.Module {
 type testCfg struct {
 	GitHub        *configpkg.Config
 	Terraform     pipeline.TerraformJobConfigOptions
-	Contributions []*pipeline.Contribution
+	Contributions pipeline.ContributionSet
 }
 
 func createTestConfig() *testCfg {
@@ -53,7 +53,7 @@ func (s *generatorScenario) withConfig(apply func(*configpkg.Config)) *generator
 	return s
 }
 
-func (s *generatorScenario) withContributions(contributions []*pipeline.Contribution) *generatorScenario {
+func (s *generatorScenario) withContributions(contributions pipeline.ContributionSet) *generatorScenario {
 	s.t.Helper()
 	s.cfg.Contributions = contributions
 	return s

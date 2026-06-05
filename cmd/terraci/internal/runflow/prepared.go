@@ -26,10 +26,10 @@ type Prepared struct {
 	workDir     string
 	reports     ci.ReportStore
 	diagnostics diagnostic.List
-	contribs    []*pipeline.Contribution
+	contribs    pipeline.ContributionSet
 }
 
-func newPrepared(ctx context.Context, appCtx *plugin.AppContext, plugins *registry.Registry, cfg *config.Config, workDir string, reports ci.ReportStore, contribs []*pipeline.Contribution) (*Prepared, error) {
+func newPrepared(ctx context.Context, appCtx *plugin.AppContext, plugins *registry.Registry, cfg *config.Config, workDir string, reports ci.ReportStore, contribs pipeline.ContributionSet) (*Prepared, error) {
 	binding, err := plugin.NewCommandBinding(plugin.CommandBindingOptions{
 		AppContext:            appCtx,
 		Source:                plugins,
@@ -45,7 +45,7 @@ func newPrepared(ctx context.Context, appCtx *plugin.AppContext, plugins *regist
 		loaded:   cfg.Clone(),
 		workDir:  workDir,
 		reports:  reports,
-		contribs: cloneContributions(contribs),
+		contribs: contribs.Clone(),
 	}
 	prepared.ctx = context.WithValue(plugin.BindCommandContext(ctx, binding), preparedContextKey{}, prepared)
 	return prepared, nil
@@ -140,11 +140,11 @@ func (p *Prepared) Reports() ci.ReportStore {
 
 // PipelineContributions returns the command-scoped pipeline contribution
 // snapshot collected by runflow.
-func (p *Prepared) PipelineContributions() []*pipeline.Contribution {
+func (p *Prepared) PipelineContributions() pipeline.ContributionSet {
 	if p == nil {
-		return nil
+		return pipeline.EmptyContributionSet()
 	}
-	return cloneContributions(p.contribs)
+	return p.contribs.Clone()
 }
 
 // Diagnostics returns non-fatal diagnostics produced while preparing the command.
@@ -153,15 +153,4 @@ func (p *Prepared) Diagnostics() diagnostic.List {
 		return diagnostic.List{}
 	}
 	return p.diagnostics
-}
-
-func cloneContributions(contribs []*pipeline.Contribution) []*pipeline.Contribution {
-	if len(contribs) == 0 {
-		return nil
-	}
-	clone := make([]*pipeline.Contribution, len(contribs))
-	for i, contribution := range contribs {
-		clone[i] = contribution.Clone()
-	}
-	return clone
 }

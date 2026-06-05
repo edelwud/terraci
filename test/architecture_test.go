@@ -761,6 +761,8 @@ func TestArchitecture_CommandPlanningContextBoundary(t *testing.T) {
 		"WithContributionCollector",
 		"ContributionCollector",
 		"contextContributionCollector",
+		"[]*pipeline.Contribution",
+		"WithPipelineContributions([]*pipeline.Contribution",
 		"CommandPlugin[T] to resolve the per-run AppContext",
 		"pipeline contributions that do not change",
 	}
@@ -991,6 +993,22 @@ func TestArchitecture_PipelineIRValueBoundaries(t *testing.T) {
 
 		ast.Inspect(file, func(node ast.Node) bool {
 			switch typed := node.(type) {
+			case *ast.ArrayType:
+				if !isProductionFile(rel) || allowUnder(rel, "pkg/plugin/registry/") {
+					return true
+				}
+				star, ok := typed.Elt.(*ast.StarExpr)
+				if !ok {
+					return true
+				}
+				selector, ok := star.X.(*ast.SelectorExpr)
+				if !ok || selector.Sel.Name != "Contribution" {
+					return true
+				}
+				ident, ok := selector.X.(*ast.Ident)
+				if ok && pipelineAliases[ident.Name] {
+					violations = append(violations, rel+" uses []*pipeline.Contribution; use pipeline.ContributionSet")
+				}
 			case *ast.StarExpr:
 				if !isProductionFile(rel) {
 					return true
@@ -1036,6 +1054,8 @@ func TestArchitecture_PipelineIRValueBoundaries(t *testing.T) {
 					violations = append(violations, rel+" manually constructs pipeline."+selector.Sel.Name+"; use ResourceRequest constructors")
 				case "IR", "Job", "Operation", "TerraformOperation", "JobGroup":
 					violations = append(violations, rel+" manually constructs pipeline."+selector.Sel.Name+"; use pipeline.BuildProjectIR or pkg/pipeline/pipelinetest")
+				case "ContributionSet":
+					violations = append(violations, rel+" manually constructs pipeline.ContributionSet; use pipeline.NewContributionSet or pipeline.EmptyContributionSet")
 				}
 			}
 			return true

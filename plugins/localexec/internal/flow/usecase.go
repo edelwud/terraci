@@ -68,7 +68,7 @@ func (r *Result) Diagnostics() diagnostic.List {
 type UseCase struct {
 	appCtx         *plugin.AppContext
 	projects       ProjectPlanner
-	contributions  []*pipeline.Contribution
+	contributions  pipeline.ContributionSet
 	runtimeFactory runner.Factory
 	summaryReports reports.Loader
 	eventSink      execution.EventSink
@@ -80,7 +80,7 @@ type ProjectPlanner interface {
 
 type Dependencies struct {
 	Projects       ProjectPlanner
-	Contributions  []*pipeline.Contribution
+	Contributions  pipeline.ContributionSet
 	RuntimeFactory runner.Factory
 	SummaryReports reports.Loader
 	EventSink      execution.EventSink
@@ -100,9 +100,9 @@ func WithRuntimeFactory(factory runner.Factory) Option {
 	}
 }
 
-func WithPipelineContributions(contributions []*pipeline.Contribution) Option {
+func WithPipelineContributions(contributions pipeline.ContributionSet) Option {
 	return func(deps *Dependencies) {
-		deps.Contributions = cloneContributions(contributions)
+		deps.Contributions = contributions.Clone()
 	}
 }
 
@@ -142,7 +142,7 @@ func New(appCtx *plugin.AppContext, opts ...Option) *UseCase {
 	return &UseCase{
 		appCtx:         appCtx,
 		projects:       deps.Projects,
-		contributions:  cloneContributions(deps.Contributions),
+		contributions:  deps.Contributions.Clone(),
 		runtimeFactory: deps.RuntimeFactory,
 		summaryReports: deps.SummaryReports,
 		eventSink:      deps.EventSink,
@@ -268,18 +268,7 @@ func profileForRequest(appCtx *plugin.AppContext, req Request) (terraformrun.Pro
 	return profile, nil
 }
 
-func cloneContributions(contributions []*pipeline.Contribution) []*pipeline.Contribution {
-	if len(contributions) == 0 {
-		return nil
-	}
-	clone := make([]*pipeline.Contribution, len(contributions))
-	for i, contribution := range contributions {
-		clone[i] = contribution.Clone()
-	}
-	return clone
-}
-
-func buildExecutionIR(project *workflow.ProjectResult, profile terraformrun.Profile, mode spec.ExecutionMode, contributions []*pipeline.Contribution) (*pipeline.IR, error) {
+func buildExecutionIR(project *workflow.ProjectResult, profile terraformrun.Profile, mode spec.ExecutionMode, contributions pipeline.ContributionSet) (*pipeline.IR, error) {
 	intent, err := intentForMode(mode)
 	if err != nil {
 		return nil, fmt.Errorf("build local execution intent: %w", err)

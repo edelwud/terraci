@@ -110,7 +110,7 @@ func (f *Flow) Prepare(ctx context.Context, req Request) (*Prepared, error) {
 	}
 
 	appCtx := f.buildContext(plugins, cfg, req.WorkDir)
-	var contributions []*pipeline.Contribution
+	contributions := pipeline.EmptyContributionSet()
 	if !req.Policy.SkipConfig {
 		if err := runPreflight(ctx, plugins, appCtx, req.Policy.SkipPreflight); err != nil {
 			return nil, err
@@ -163,10 +163,10 @@ func runPreflight(ctx context.Context, plugins *registry.Registry, appCtx *plugi
 	return plugins.RunPreflight(ctx, appCtx)
 }
 
-func collectContributions(plugins *registry.Registry, appCtx *plugin.AppContext) ([]*pipeline.Contribution, error) {
+func collectContributions(plugins *registry.Registry, appCtx *plugin.AppContext) (pipeline.ContributionSet, error) {
 	contributions, err := plugins.CollectContributions(appCtx)
 	if err != nil {
-		return nil, err
+		return pipeline.EmptyContributionSet(), err
 	}
 	return contributions, nil
 }

@@ -27,6 +27,15 @@ func mustPipelineContribution(tb testing.TB, opts ...pipeline.ContributedJobOpti
 	return contribution
 }
 
+func mustPipelineContributionSet(tb testing.TB, contributions ...*pipeline.Contribution) pipeline.ContributionSet {
+	tb.Helper()
+	set, err := pipeline.NewContributionSet(contributions...)
+	if err != nil {
+		tb.Fatalf("NewContributionSet() error = %v", err)
+	}
+	return set
+}
+
 func TestPipelineBuild_BasicModules(t *testing.T) {
 	modules := []*discovery.Module{
 		discovery.TestModule("platform", "prod", "eu-central-1", "vpc"),
@@ -93,13 +102,13 @@ func TestPipelineBuild_WithContributions(t *testing.T) {
 		modules[0].ID(): {},
 	}
 	depGraph := graph.BuildFromDependencies(modules, deps)
-	contributions := []*pipeline.Contribution{mustPipelineContribution(t, pipeline.ContributedJobOptions{
+	contributions := mustPipelineContributionSet(t, mustPipelineContribution(t, pipeline.ContributedJobOptions{
 		Name:     "policy-check",
 		Commands: []string{"terraci policy check --format text"},
 		Consumes: []pipeline.ResourceRequest{
 			pipeline.AllPlanResources(pipeline.ResourceKindPlanJSON),
 		},
-	})}
+	}))
 
 	ir, err := buildPipelineIR(modules, depGraph, modules, pipeline.ProjectIRRequest{
 		Intent:        mustBuildIntent(t, true),
@@ -135,7 +144,7 @@ func TestPipelineBuild_SummaryDependsThroughResources(t *testing.T) {
 	deps := map[string]*parser.ModuleDependencies{modules[0].ID(): {}}
 	depGraph := graph.BuildFromDependencies(modules, deps)
 
-	contributions := []*pipeline.Contribution{
+	contributions := mustPipelineContributionSet(t,
 		mustPipelineContribution(t, pipeline.ContributedJobOptions{
 			Name:     "policy-check",
 			Commands: []string{"check"},
@@ -151,7 +160,7 @@ func TestPipelineBuild_SummaryDependsThroughResources(t *testing.T) {
 				pipeline.AllPluginResources(pipeline.ResourceKindPluginReport, true),
 			},
 		}),
-	}
+	)
 
 	ir, err := buildPipelineIR(modules, depGraph, modules, pipeline.ProjectIRRequest{
 		Intent:        mustBuildIntent(t, true),

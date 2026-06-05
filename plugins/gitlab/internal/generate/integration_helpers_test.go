@@ -36,7 +36,7 @@ type Fixture struct {
 	Config        *config.Config
 	GLConfig      *Config
 	Terraform     pipeline.TerraformJobConfigOptions
-	Contributions []*pipeline.Contribution
+	Contributions pipeline.ContributionSet
 	Modules       []*discovery.Module
 	ModuleIndex   *discovery.ModuleIndex
 	DepGraph      *graph.DependencyGraph
@@ -112,7 +112,7 @@ func LoadFixture(t *testing.T, name string) *Fixture {
 	// fail at IR construction; tests that load such fixtures inspect the
 	// dep graph directly and never call Generate, so we leave the generator
 	// nil rather than aborting.
-	ir, _ := buildTestIR(glCfg, terraformConfig, nil, depGraph, modules, nil)
+	ir, _ := buildTestIR(glCfg, terraformConfig, pipeline.EmptyContributionSet(), depGraph, modules, nil)
 	var generator *Generator
 	if ir != nil {
 		generator = NewGenerator(glCfg, ir)

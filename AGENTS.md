@@ -351,6 +351,7 @@ Shell rendering (`cd module && terraform init && terraform plan -out=…`) lives
 Plugins contribute via `PipelineContributor.PipelineContribution(ctx) (*pipeline.Contribution, error)`:
 - `pipeline.NewPluginCommandJob(...)` / `pipeline.NewContributedJob(...)` build validated standalone DAG jobs with typed resource inputs/outputs.
 - `pipeline.NewContribution(jobs...)` builds the immutable contribution value; consumers use `Contribution.Jobs()` and job getters.
+- `registry.CollectContributions(...)` snapshots enabled contributions into `pipeline.ContributionSet`; `runflow.Prepared`, `plugin.CommandContext`, `generateflow`, and localexec pass that value object instead of raw contribution slices.
 - returning `nil, nil` is invalid; use `PipelineContributionGate` for optional contribution and return real builder errors for diagnostics.
 
 ### Provider Resolution
@@ -424,7 +425,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 ## Data Flow
 
 ### Generate pipeline
-1. `runflow.Prepare(...)` loads config, decodes plugins, preflights, and gathers PipelineContributor jobs
+1. `runflow.Prepare(...)` loads config, decodes plugins, preflights, and gathers PipelineContributor jobs into `pipeline.ContributionSet`
 2. `generateflow.Run(...)` delegates project discovery/targeting to `projectflow`
 3. `projectflow.Run(...)` adapts `runflow.Prepared` into `workflow.PlanProject(...)`; changed-only detection runs inside workflow targeting
 4. `generateflow` calls `pipeline.BuildProjectIR(...)` and binds the IR to `provider.NewGenerator(ir)`
@@ -468,10 +469,10 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **Preflight, then lazy runtime**: framework performs cheap startup validation; heavy plugin state is built lazily inside plugin-local use-cases. Runtime must be command-agnostic; CLI overrides live in typed request structs.
 - **Command run flow**: `cmd/terraci/cmd` parses cobra flags, calls `runflow.Prepare`, then passes `runflow.Prepared` into a typed command flow under `cmd/terraci/internal/*flow`; command files own only output/log presentation and file/stdout writes.
 - **Command/usecase boundary**: command callbacks use `plugin.CommandPlugin[T]` to get `plugin.CommandContext` plus the command-scoped plugin, read runtime services from `cmdCtx.AppContext()`, parse flags into request structs, call a usecase, then handle artifact persistence and output explicitly.
-- **PipelineContributor(ctx)**: plugins add standalone DAG jobs through `pipeline.NewPluginCommandJob` + `pipeline.NewContribution`, return builder errors, and use `PipelineContributionGate` for optional jobs; `nil, nil` is invalid
+- **PipelineContributor(ctx)**: plugins add standalone DAG jobs through `pipeline.NewPluginCommandJob` + `pipeline.NewContribution`, return builder errors, and use `PipelineContributionGate` for optional jobs; framework planning carries enabled contributions as `pipeline.ContributionSet`; `nil, nil` is invalid
 - **ServiceDir**: configurable project directory; `AppContext.ServiceDir` (absolute) for runtime, `AppContext.Config().ServiceDir()` (relative) for pipeline templates
 - **Immutable config boundary**: `Config.Clone()` and `config.Snapshot` own deep-copy semantics. `AppContext` stores a snapshot; production plugin code reads through accessors and leaves `MutableCopy()` to tests or explicit compatibility adapters.
-- **Command boundary**: plugin command callbacks use `plugin.CommandPlugin[T](cmd, name)` and `plugin.RequireEnabled(...)`; low-level cobra context binding is framework-owned. Command context carries AppContext plus command planning state such as pipeline contributions; command binding and disabled-plugin failures are typed errors.
+- **Command boundary**: plugin command callbacks use `plugin.CommandPlugin[T](cmd, name)` and `plugin.RequireEnabled(...)`; low-level cobra context binding is framework-owned. Command context carries AppContext plus command planning state as value snapshots such as `pipeline.ContributionSet`; command binding and disabled-plugin failures are typed errors.
 - **SDK contract kit**: plugin SDK behavior is tested through `pkg/plugin/plugintest`; CI/report behavior is tested through `pkg/ci/citest`. New plugins should copy these contract helpers for config immutability, command binding, plugin-local runtime builders, contributions, lifecycle, init wizard, providers, change detection, rendered reports, and artifact lifecycle.
 - **Init wizard flow**: command code owns cobra, TTY checks, huh rendering, YAML preview, and file writes. `cmd/terraci/internal/initflow` owns defaults, contributor collection, display group ordering/merge rules, duplicate extension detection, and final config assembly.
 - **Init extension contracts**: init wizard plugins define package-local `initwiz.StateKey[T]` values, build fields through `initwiz.NewStringField` / `NewBoolField` / `NewSelectField`, and return typed config structs/maps through `initwiz.NewInitContribution`. Core owns YAML node encoding and defensive copies; initflow owns duplicate detection and final assembly. Do not return loose extension maps from plugin init code.

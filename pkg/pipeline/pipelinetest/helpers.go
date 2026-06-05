@@ -37,13 +37,16 @@ func MustCommandIR(tb testing.TB, opts ...pipeline.ContributedJobOptions) *pipel
 		}
 		jobs = append(jobs, job)
 	}
-	var contributions []*pipeline.Contribution
+	contributions := pipeline.EmptyContributionSet()
 	if len(jobs) > 0 {
 		contribution, err := pipeline.NewContribution(jobs...)
 		if err != nil {
 			tb.Fatalf("NewContribution() error = %v", err)
 		}
-		contributions = []*pipeline.Contribution{contribution}
+		contributions, err = pipeline.NewContributionSet(contribution)
+		if err != nil {
+			tb.Fatalf("NewContributionSet() error = %v", err)
+		}
 	}
 	intent, err := pipeline.PlanBuildIntent()
 	if err != nil {

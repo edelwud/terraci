@@ -96,7 +96,10 @@
 // wrap them with pipeline.NewContribution, and return any builder error. A
 // nil contribution with nil error is invalid; optional jobs belong behind
 // PipelineContributionGate so the framework can distinguish "not enabled for
-// this run" from "broken contribution".
+// this run" from "broken contribution". The registry snapshots enabled
+// contributions into pipeline.ContributionSet; command contexts, runflow
+// prepared state, generateflow, and localexec pass that value object rather
+// than raw contribution slices.
 //
 // # Pipeline IR boundary
 //

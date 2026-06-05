@@ -11,7 +11,7 @@ import (
 func buildTestIR(
 	cfg *configpkg.Config,
 	terraformConfig pipeline.TerraformJobConfigOptions,
-	contributions []*pipeline.Contribution,
+	contributions pipeline.ContributionSet,
 	depGraph *graph.DependencyGraph,
 	allModules, targetModules []*discovery.Module,
 ) (*pipeline.IR, error) {
@@ -21,7 +21,7 @@ func buildTestIR(
 func buildTestIRWithApply(
 	_ *configpkg.Config,
 	terraformConfigOptions pipeline.TerraformJobConfigOptions,
-	contributions []*pipeline.Contribution,
+	contributions pipeline.ContributionSet,
 	depGraph *graph.DependencyGraph,
 	allModules, targetModules []*discovery.Module,
 	applyEnabled bool,

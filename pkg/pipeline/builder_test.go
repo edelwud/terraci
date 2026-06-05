@@ -17,6 +17,15 @@ func mustContribution(tb testing.TB, jobs ...ContributedJob) *Contribution {
 	return contribution
 }
 
+func mustContributionSet(tb testing.TB, contributions ...*Contribution) ContributionSet {
+	tb.Helper()
+	set, err := NewContributionSet(contributions...)
+	if err != nil {
+		tb.Fatalf("NewContributionSet() error = %v", err)
+	}
+	return set
+}
+
 func mustContributedJob(tb testing.TB, opts ContributedJobOptions) ContributedJob {
 	tb.Helper()
 	job, err := NewContributedJob(opts)
@@ -101,11 +110,11 @@ func TestBuild_ContributedPlanConsumerAddsArtifactDependency(t *testing.T) {
 	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
 	modules := []*discovery.Module{mod}
 	opts := testProjectIRBuildInput(modules, nil, mustIntent(t, true))
-	opts.Contributions = []*Contribution{mustContribution(t, mustContributedJob(t, ContributedJobOptions{
+	opts.Contributions = mustContributionSet(t, mustContribution(t, mustContributedJob(t, ContributedJobOptions{
 		Name:     "cost-estimation",
 		Commands: []string{"terraci cost"},
 		Consumes: []ResourceRequest{AllPlanResources(ResourceKindPlanJSON)},
-	}))}
+	})))
 
 	ir, err := buildProjectIR(opts)
 	if err != nil {
@@ -194,7 +203,7 @@ func TestBuild_SummaryConsumesProducedReportsOnly(t *testing.T) {
 	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
 	modules := []*discovery.Module{mod}
 	opts := testProjectIRBuildInput(modules, nil, mustIntent(t, true))
-	opts.Contributions = []*Contribution{mustContribution(t,
+	opts.Contributions = mustContributionSet(t, mustContribution(t,
 		mustContributedJob(t, ContributedJobOptions{
 			Name:     "policy-check",
 			Commands: []string{"policy"},
@@ -210,7 +219,7 @@ func TestBuild_SummaryConsumesProducedReportsOnly(t *testing.T) {
 				AllPluginResources(ResourceKindPluginReport, true),
 			},
 		}),
-	)}
+	))
 
 	ir, err := buildProjectIR(opts)
 	if err != nil {
@@ -264,7 +273,7 @@ func TestBuild_ValidatesResourceRequestsWithContext(t *testing.T) {
 	tests := []struct {
 		name          string
 		intent        BuildIntent
-		contributions []*Contribution
+		contributions ContributionSet
 		wantErrSubstr string
 	}{
 		{
@@ -294,7 +303,7 @@ func TestBuild_ValidatesResourceRequestsWithContext(t *testing.T) {
 		{
 			name:   "plugin resource cannot use module selector",
 			intent: mustIntent(t, true),
-			contributions: []*Contribution{{
+			contributions: ContributionSet{contributions: []*Contribution{{
 				jobs: []ContributedJob{{
 					name:     "summary",
 					commands: []string{"summary"},
@@ -306,7 +315,7 @@ func TestBuild_ValidatesResourceRequestsWithContext(t *testing.T) {
 						},
 					}},
 				}},
-			}},
+			}}},
 			wantErrSubstr: `contributions[0].jobs[0].consumes[0]: plugin_report cannot use module-scoped selector "module"`,
 		},
 	}
@@ -334,13 +343,13 @@ func TestBuild_OptionalMissingPluginResourceDoesNotCreateDependency(t *testing.T
 	mod := discovery.TestModule("svc", "prod", "eu", "vpc")
 	modules := []*discovery.Module{mod}
 	opts := testProjectIRBuildInput(modules, nil, mustIntent(t, false))
-	opts.Contributions = []*Contribution{mustContribution(t, mustContributedJob(t, ContributedJobOptions{
+	opts.Contributions = mustContributionSet(t, mustContribution(t, mustContributedJob(t, ContributedJobOptions{
 		Name:     "summary",
 		Commands: []string{"summary"},
 		Consumes: []ResourceRequest{
 			AllPluginResources(ResourceKindPluginReport, true),
 		},
-	}))}
+	})))
 
 	ir, err := buildProjectIR(opts)
 	if err != nil {
@@ -384,7 +393,7 @@ func TestBuild_RejectsInvalidContributedJobGraph(t *testing.T) {
 			t.Parallel()
 
 			opts := testProjectIRBuildInput(modules, nil, mustIntent(t, true))
-			opts.Contributions = []*Contribution{tt.contribution}
+			opts.Contributions = mustContributionSet(t, tt.contribution)
 			_, err := buildProjectIR(opts)
 			if err == nil {
 				t.Fatal("buildProjectIR() error = nil, want error")

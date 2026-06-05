@@ -622,8 +622,8 @@ func TestCollectContributions_Empty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CollectContributions() error = %v", err)
 	}
-	if len(contribs) != 0 {
-		t.Errorf("expected 0 contributions, got %d", len(contribs))
+	if !contribs.IsEmpty() {
+		t.Errorf("expected 0 contributions, got %d", contribs.Len())
 	}
 }
 
@@ -714,10 +714,11 @@ func TestCollectContributions_FiltersDisabledPlugins(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CollectContributions() error = %v", err)
 	}
-	if len(contribs) != 1 {
-		t.Fatalf("expected 1 contribution, got %d", len(contribs))
+	if contribs.Len() != 1 {
+		t.Fatalf("expected 1 contribution, got %d", contribs.Len())
 	}
-	jobs := contribs[0].Jobs()
+	items := contribs.Contributions()
+	jobs := items[0].Jobs()
 	if len(jobs) != 1 || jobs[0].Name() != "enabled-job" {
 		t.Errorf("expected enabled-job, got %#v", jobs)
 	}
@@ -738,8 +739,8 @@ func TestCollectContributions_GateFalseSkipsContributor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CollectContributions() error = %v", err)
 	}
-	if len(contribs) != 0 {
-		t.Fatalf("CollectContributions() returned %d contributions, want 0", len(contribs))
+	if !contribs.IsEmpty() {
+		t.Fatalf("CollectContributions() returned %d contributions, want 0", contribs.Len())
 	}
 	if contributor.seenCtx != nil {
 		t.Fatal("PipelineContribution() was called even though gate returned false")
@@ -806,8 +807,8 @@ func TestCollectContributions_IncludesPluginWithoutConfigLoader(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CollectContributions() error = %v", err)
 	}
-	if len(contribs) != 0 {
-		t.Errorf("expected 0 contributions from bare plugin, got %d", len(contribs))
+	if !contribs.IsEmpty() {
+		t.Errorf("expected 0 contributions from bare plugin, got %d", contribs.Len())
 	}
 }
 

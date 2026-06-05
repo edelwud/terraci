@@ -91,6 +91,12 @@ type Contribution struct {
 	jobs []ContributedJob
 }
 
+// ContributionSet is an immutable planning snapshot of plugin pipeline
+// contributions.
+type ContributionSet struct {
+	contributions []*Contribution
+}
+
 // ContributedJob is a command job contributed to the pipeline DAG.
 type ContributedJob struct {
 	name         string

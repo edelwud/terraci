@@ -179,12 +179,12 @@ extensions:
 	if err != nil {
 		t.Fatalf("CollectContributions() error = %v", err)
 	}
-	if len(contributions) != 4 {
-		t.Fatalf("CollectContributions() returned %d contributions, want 4", len(contributions))
+	if contributions.Len() != 4 {
+		t.Fatalf("CollectContributions() returned %d contributions, want 4", contributions.Len())
 	}
 
 	foundUpdateArtifactPath := false
-	for _, contrib := range contributions {
+	for _, contrib := range contributions.Contributions() {
 		for _, job := range contrib.Jobs() {
 			if job.Name() != "tfupdate-check" {
 				continue
@@ -222,7 +222,7 @@ extensions:
 	if err != nil {
 		t.Fatalf("CollectContributions() error = %v", err)
 	}
-	for _, contrib := range contributions {
+	for _, contrib := range contributions.Contributions() {
 		for _, job := range contrib.Jobs() {
 			if job.Name() == "tfupdate-check" {
 				t.Fatal("CollectContributions() included tfupdate-check when pipeline=false")
