@@ -1,166 +1,174 @@
 /* TerraCi Custom Theme */
 
 :root {
-  /* Brand colors - indigo */
-  --vp-c-brand-1: #6366f1;
-  --vp-c-brand-2: #4f46e5;
-  --vp-c-brand-3: #4338ca;
-  --vp-c-brand-soft: rgba(99, 102, 241, 0.1);
+    /* Brand colors - indigo */
+    --vp-c-brand-1: #6366f1;
+    --vp-c-brand-2: #4f46e5;
+    --vp-c-brand-3: #4338ca;
+    --vp-c-brand-soft: rgba(99, 102, 241, 0.1);
 
-  /* Gradient for text */
-  --terraci-gradient: linear-gradient(135deg, #6366f1 0%, #3b82f6 100%);
+    /* Gradient for text */
+    --terraci-gradient: linear-gradient(135deg, #6366f1 0%, #3b82f6 100%);
 }
 
 .dark {
-  --vp-c-brand-1: #818cf8;
-  --vp-c-brand-2: #6366f1;
-  --vp-c-brand-3: #4f46e5;
-  --vp-c-brand-soft: rgba(129, 140, 248, 0.12);
+    --vp-c-brand-1: #818cf8;
+    --vp-c-brand-2: #6366f1;
+    --vp-c-brand-3: #4f46e5;
+    --vp-c-brand-soft: rgba(129, 140, 248, 0.12);
 }
 
 /* Hero text with gradient */
 .VPHero .text {
-  background: var(--terraci-gradient);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+    background: var(--terraci-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 
 /* Feature cards */
 .VPFeature {
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 8px;
-  transition: all 0.2s ease;
+    border: 1px solid var(--vp-c-divider);
+    border-radius: 8px;
+    transition: all 0.2s ease;
 }
 
 .VPFeature:hover {
-  border-color: var(--vp-c-brand-1);
-  transform: translateY(-2px);
+    border-color: var(--vp-c-brand-1);
+    transform: translateY(-2px);
 }
 
 .VPFeature .title {
-  font-weight: 600;
+    font-weight: 600;
 }
 
 .VPFeature .details {
-  color: var(--vp-c-text-2);
-  line-height: 1.6;
+    color: var(--vp-c-text-2);
+    line-height: 1.6;
 }
 
 /* Code blocks */
-div[class*='language-'] {
-  border-radius: 6px;
-  border: 1px solid var(--vp-c-divider);
+div[class*="language-"] {
+    border-radius: 6px;
+    border: 1px solid var(--vp-c-divider);
 }
 
 /* Tables with hover */
 table {
-  border-radius: 6px;
-  overflow: hidden;
+    border-radius: 6px;
+    overflow: hidden;
 }
 
 th {
-  background: var(--vp-c-bg-soft) !important;
-  font-weight: 600;
+    background: var(--vp-c-bg-soft) !important;
+    font-weight: 600;
 }
 
 tr:hover td {
-  background: var(--vp-c-bg-soft);
+    background: var(--vp-c-bg-soft);
 }
 
 /* Custom containers */
 .custom-block.tip {
-  border-color: var(--vp-c-brand-1);
+    border-color: var(--vp-c-brand-1);
 }
 
 .custom-block.tip .custom-block-title {
-  color: var(--vp-c-brand-1);
+    color: var(--vp-c-brand-1);
 }
 
 /* Links */
 .vp-doc a {
-  text-decoration: underline;
-  text-decoration-color: var(--vp-c-divider);
-  text-underline-offset: 2px;
+    text-decoration: underline;
+    text-decoration-color: var(--vp-c-divider);
+    text-underline-offset: 2px;
 }
 
 .vp-doc a:hover {
-  text-decoration-color: var(--vp-c-brand-1);
+    text-decoration-color: var(--vp-c-brand-1);
 }
 
 /* Inline code */
 .vp-doc :not(pre) > code {
-  border-radius: 4px;
-  padding: 2px 6px;
-  background: var(--vp-c-bg-soft);
-  color: var(--vp-c-text-1);
-  font-size: 0.9em;
+    border-radius: 4px;
+    padding: 2px 6px;
+    background: var(--vp-c-bg-soft);
+    color: var(--vp-c-text-1);
+    font-size: 0.9em;
 }
 
 /* Mermaid diagrams */
 .mermaid {
-  display: flex;
-  justify-content: center;
-  margin: 24px 0;
-  padding: 24px 16px;
-  background: var(--vp-c-bg-soft);
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 8px;
-  overflow-x: auto;
+    display: flex;
+    justify-content: center;
+    margin: 24px 0;
+    padding: 24px 16px;
+    background: var(--vp-c-bg-soft);
+    border: 1px solid var(--vp-c-divider);
+    border-radius: 8px;
+    overflow-x: auto;
 }
 
 /* Mermaid node styling */
 .mermaid .node rect,
 .mermaid .node polygon,
 .mermaid .node circle {
-  rx: 6;
-  ry: 6;
+    rx: 6;
+    ry: 6;
 }
 
 /* Mermaid node text */
 .mermaid .nodeLabel {
-  font-family: Inter, system-ui, -apple-system, sans-serif;
-  font-size: 13px;
-  font-weight: 500;
+    font-family:
+        Inter,
+        system-ui,
+        -apple-system,
+        sans-serif;
+    font-size: 13px;
+    font-weight: 500;
 }
 
 /* Mermaid edge labels */
 .mermaid .edgeLabel {
-  font-family: Inter, system-ui, -apple-system, sans-serif;
-  font-size: 12px;
-  background: var(--vp-c-bg-soft);
+    font-family:
+        Inter,
+        system-ui,
+        -apple-system,
+        sans-serif;
+    font-size: 12px;
+    background: var(--vp-c-bg-soft);
 }
 
 /* Mermaid subgraph titles */
 .mermaid .cluster-label .nodeLabel {
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--vp-c-text-2);
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--vp-c-text-2);
 }
 
 /* Mermaid subgraph boxes */
 .mermaid .cluster rect {
-  rx: 8 !important;
-  ry: 8 !important;
+    rx: 8 !important;
+    ry: 8 !important;
 }
 
 /* Mermaid arrow lines */
 .mermaid .flowchart-link {
-  stroke-width: 1.5px;
+    stroke-width: 1.5px;
 }
 
 /* Mermaid arrowheads */
 .mermaid .marker {
-  fill: #6366f1;
-  stroke: #6366f1;
+    fill: #6366f1;
+    stroke: #6366f1;
 }
 
 .dark .mermaid .marker {
-  fill: #818cf8;
-  stroke: #818cf8;
+    fill: #818cf8;
+    stroke: #818cf8;
 }
 
 /* Smooth scroll */
 html {
-  scroll-behavior: smooth;
+    scroll-behavior: smooth;
 }

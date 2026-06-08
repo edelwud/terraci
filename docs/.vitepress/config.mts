@@ -1,337 +1,362 @@
-import { defineConfig } from 'vitepress'
-import { withMermaid } from 'vitepress-plugin-mermaid'
+import { defineConfig } from "vitepress";
 
-const GITHUB_REPO = 'edelwud/terraci'
+const GITHUB_REPO = "edelwud/terraci";
 
 async function getLatestVersion(): Promise<string> {
   try {
-    const response = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`)
+    const response = await fetch(
+      `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
+    );
     if (response.ok) {
-      const data = await response.json()
-      return data.tag_name || 'latest'
+      const data = await response.json();
+      return data.tag_name || "latest";
     }
   } catch {
     // Ignore errors
   }
-  return 'latest'
+  return "latest";
 }
 
-const version = await getLatestVersion()
+const version = await getLatestVersion();
 
-export default withMermaid(defineConfig({
+export default defineConfig({
   title: "TerraCi",
-  description: "Blazing fast Terraform/OpenTofu pipeline generator with dependency resolution",
+  description:
+    "Blazing fast Terraform/OpenTofu pipeline generator with dependency resolution",
 
   base: "/terraci",
 
   head: [
-    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
-    ['meta', { name: 'theme-color', content: '#5f67ee' }],
-    ['meta', { property: 'og:type', content: 'website' }],
-    ['meta', { property: 'og:site_name', content: 'TerraCi' }],
-    ['meta', { property: 'og:description', content: 'Terraform/OpenTofu pipeline generator with dependency resolution for GitLab CI' }],
+    ["link", { rel: "icon", type: "image/svg+xml", href: "/logo.svg" }],
+    ["meta", { name: "theme-color", content: "#5f67ee" }],
+    ["meta", { property: "og:type", content: "website" }],
+    ["meta", { property: "og:site_name", content: "TerraCi" }],
+    [
+      "meta",
+      {
+        property: "og:description",
+        content:
+          "Terraform/OpenTofu pipeline generator with dependency resolution for GitLab CI",
+      },
+    ],
   ],
 
   lastUpdated: true,
 
   locales: {
     root: {
-      label: 'English',
-      lang: 'en',
+      label: "English",
+      lang: "en",
       themeConfig: {
         nav: [
-          { text: 'Guide', link: '/guide/getting-started' },
-          { text: 'Plugins', link: '/plugins/' },
-          { text: 'Configuration', link: '/config/' },
-          { text: 'CLI', link: '/cli/' },
+          { text: "Guide", link: "/guide/getting-started" },
+          { text: "Plugins", link: "/plugins/" },
+          { text: "Configuration", link: "/config/" },
+          { text: "CLI", link: "/cli/" },
           {
             text: version,
             items: [
-              { text: 'Changelog', link: `https://github.com/${GITHUB_REPO}/releases` },
-              { text: 'Contributing', link: `https://github.com/${GITHUB_REPO}` },
-              { text: 'Contributors', link: `https://github.com/${GITHUB_REPO}/graphs/contributors` },
-            ]
-          }
+              {
+                text: "Changelog",
+                link: `https://github.com/${GITHUB_REPO}/releases`,
+              },
+              {
+                text: "Contributing",
+                link: `https://github.com/${GITHUB_REPO}`,
+              },
+              {
+                text: "Contributors",
+                link: `https://github.com/${GITHUB_REPO}/graphs/contributors`,
+              },
+            ],
+          },
         ],
         sidebar: {
-          '/guide/': [
+          "/guide/": [
             {
-              text: 'Introduction',
+              text: "Introduction",
               items: [
-                { text: 'What is TerraCi?', link: '/guide/what-is-terraci' },
-                { text: 'Getting Started', link: '/guide/getting-started' },
-                { text: 'How It Works', link: '/guide/how-it-works' },
-              ]
+                { text: "What is TerraCi?", link: "/guide/what-is-terraci" },
+                { text: "Getting Started", link: "/guide/getting-started" },
+                { text: "How It Works", link: "/guide/how-it-works" },
+              ],
             },
             {
-              text: 'Core Concepts',
+              text: "Core Concepts",
               items: [
-                { text: 'Project Structure', link: '/guide/project-structure' },
-                { text: 'Dependency Resolution', link: '/guide/dependencies' },
-                { text: 'Pipeline Generation', link: '/guide/pipeline-generation' },
-              ]
+                {
+                  text: "Project Structure",
+                  link: "/guide/project-structure",
+                },
+                {
+                  text: "Dependency Resolution",
+                  link: "/guide/dependencies",
+                },
+                {
+                  text: "Pipeline Generation",
+                  link: "/guide/pipeline-generation",
+                },
+              ],
             },
             {
-              text: 'Advanced',
+              text: "Advanced",
               items: [
-                { text: 'Git Integration', link: '/guide/git-integration' },
-                { text: 'OpenTofu Support', link: '/guide/opentofu' },
-                { text: 'Submodules', link: '/guide/submodules' },
-                { text: 'Plugin System', link: '/guide/plugins' },
-              ]
-            }
+                { text: "Git Integration", link: "/guide/git-integration" },
+                { text: "OpenTofu Support", link: "/guide/opentofu" },
+                { text: "Submodules", link: "/guide/submodules" },
+                { text: "Plugin System", link: "/guide/plugins" },
+              ],
+            },
           ],
-          '/plugins/': [
+          "/plugins/": [
             {
-              text: 'Overview',
-              items: [
-                { text: 'What Plugins Can Do', link: '/plugins/' },
-              ]
+              text: "Overview",
+              items: [{ text: "What Plugins Can Do", link: "/plugins/" }],
             },
             {
-              text: 'Plugin Guides',
+              text: "Plugin Guides",
               items: [
-                { text: 'CLI Command Plugin', link: '/plugins/command-plugin' },
-                { text: 'Pipeline Step Plugin', link: '/plugins/pipeline-plugin' },
-                { text: 'CI Provider Plugin', link: '/plugins/provider-plugin' },
-                { text: 'Init Wizard Plugin', link: '/plugins/init-plugin' },
-              ]
-            }
+                {
+                  text: "CLI Command Plugin",
+                  link: "/plugins/command-plugin",
+                },
+                {
+                  text: "Pipeline Step Plugin",
+                  link: "/plugins/pipeline-plugin",
+                },
+                {
+                  text: "CI Provider Plugin",
+                  link: "/plugins/provider-plugin",
+                },
+                { text: "Init Wizard Plugin", link: "/plugins/init-plugin" },
+              ],
+            },
           ],
-          '/config/': [
+          "/config/": [
             {
-              text: 'Configuration',
+              text: "Configuration",
               items: [
-                { text: 'Overview', link: '/config/' },
-                { text: 'Structure', link: '/config/structure' },
-                { text: 'Filters', link: '/config/filters' },
-                { text: 'Policy Checks', link: '/config/policy' },
-                { text: 'Cost Estimation', link: '/config/cost' },
-                { text: 'Dependency Updates', link: '/config/tfupdate' },
-                { text: 'Summary', link: '/config/summary' },
-              ]
+                { text: "Overview", link: "/config/" },
+                { text: "Structure", link: "/config/structure" },
+                { text: "Filters", link: "/config/filters" },
+                { text: "Policy Checks", link: "/config/policy" },
+                { text: "Cost Estimation", link: "/config/cost" },
+                { text: "Dependency Updates", link: "/config/tfupdate" },
+                { text: "Summary", link: "/config/summary" },
+              ],
             },
             {
-              text: 'CI Providers',
+              text: "CI Providers",
               items: [
-                { text: 'GitLab CI', link: '/config/gitlab' },
-                { text: 'GitLab MR', link: '/config/gitlab-mr' },
-                { text: 'GitHub Actions', link: '/config/github' },
-              ]
-            }
+                { text: "GitLab CI", link: "/config/gitlab" },
+                { text: "GitLab MR", link: "/config/gitlab-mr" },
+                { text: "GitHub Actions", link: "/config/github" },
+              ],
+            },
           ],
-          '/cli/': [
+          "/cli/": [
             {
-              text: 'CLI Reference',
+              text: "CLI Reference",
               items: [
-                { text: 'Overview', link: '/cli/' },
-                { text: 'generate', link: '/cli/generate' },
-                { text: 'validate', link: '/cli/validate' },
-                { text: 'graph', link: '/cli/graph' },
-                { text: 'init', link: '/cli/init' },
-                { text: 'summary', link: '/cli/summary' },
-                { text: 'cost', link: '/cli/cost' },
-                { text: 'policy', link: '/cli/policy' },
-                { text: 'tfupdate', link: '/cli/tfupdate' },
-              ]
-            }
-          ]
+                { text: "Overview", link: "/cli/" },
+                { text: "generate", link: "/cli/generate" },
+                { text: "validate", link: "/cli/validate" },
+                { text: "graph", link: "/cli/graph" },
+                { text: "init", link: "/cli/init" },
+                { text: "summary", link: "/cli/summary" },
+                { text: "cost", link: "/cli/cost" },
+                { text: "policy", link: "/cli/policy" },
+                { text: "tfupdate", link: "/cli/tfupdate" },
+              ],
+            },
+          ],
         },
-      }
+      },
     },
     ru: {
-      label: 'Русский',
-      lang: 'ru',
-      link: '/ru/',
+      label: "Русский",
+      lang: "ru",
+      link: "/ru/",
       themeConfig: {
         nav: [
-          { text: 'Руководство', link: '/ru/guide/getting-started' },
-          { text: 'Плагины', link: '/ru/plugins/' },
-          { text: 'Конфигурация', link: '/ru/config/' },
-          { text: 'CLI', link: '/ru/cli/' },
+          { text: "Руководство", link: "/ru/guide/getting-started" },
+          { text: "Плагины", link: "/ru/plugins/" },
+          { text: "Конфигурация", link: "/ru/config/" },
+          { text: "CLI", link: "/ru/cli/" },
           {
             text: version,
             items: [
-              { text: 'История изменений', link: `https://github.com/${GITHUB_REPO}/releases` },
-              { text: 'Участие в проекте', link: `https://github.com/${GITHUB_REPO}` },
-              { text: 'Контрибьюторы', link: `https://github.com/${GITHUB_REPO}/graphs/contributors` },
-            ]
-          }
+              {
+                text: "История изменений",
+                link: `https://github.com/${GITHUB_REPO}/releases`,
+              },
+              {
+                text: "Участие в проекте",
+                link: `https://github.com/${GITHUB_REPO}`,
+              },
+              {
+                text: "Контрибьюторы",
+                link: `https://github.com/${GITHUB_REPO}/graphs/contributors`,
+              },
+            ],
+          },
         ],
         sidebar: {
-          '/ru/guide/': [
+          "/ru/guide/": [
             {
-              text: 'Введение',
+              text: "Введение",
               items: [
-                { text: 'Что такое TerraCi?', link: '/ru/guide/what-is-terraci' },
-                { text: 'Быстрый старт', link: '/ru/guide/getting-started' },
-                { text: 'Как это работает', link: '/ru/guide/how-it-works' },
-              ]
+                {
+                  text: "Что такое TerraCi?",
+                  link: "/ru/guide/what-is-terraci",
+                },
+                { text: "Быстрый старт", link: "/ru/guide/getting-started" },
+                { text: "Как это работает", link: "/ru/guide/how-it-works" },
+              ],
             },
             {
-              text: 'Основные концепции',
+              text: "Основные концепции",
               items: [
-                { text: 'Структура проекта', link: '/ru/guide/project-structure' },
-                { text: 'Разрешение зависимостей', link: '/ru/guide/dependencies' },
-                { text: 'Генерация пайплайнов', link: '/ru/guide/pipeline-generation' },
-              ]
+                {
+                  text: "Структура проекта",
+                  link: "/ru/guide/project-structure",
+                },
+                {
+                  text: "Разрешение зависимостей",
+                  link: "/ru/guide/dependencies",
+                },
+                {
+                  text: "Генерация пайплайнов",
+                  link: "/ru/guide/pipeline-generation",
+                },
+              ],
             },
             {
-              text: 'Продвинутое',
+              text: "Продвинутое",
               items: [
-                { text: 'Git интеграция', link: '/ru/guide/git-integration' },
-                { text: 'Поддержка OpenTofu', link: '/ru/guide/opentofu' },
-                { text: 'Сабмодули', link: '/ru/guide/submodules' },
-                { text: 'Система плагинов', link: '/ru/guide/plugins' },
-              ]
-            }
+                { text: "Git интеграция", link: "/ru/guide/git-integration" },
+                { text: "Поддержка OpenTofu", link: "/ru/guide/opentofu" },
+                { text: "Сабмодули", link: "/ru/guide/submodules" },
+                { text: "Система плагинов", link: "/ru/guide/plugins" },
+              ],
+            },
           ],
-          '/ru/plugins/': [
+          "/ru/plugins/": [
             {
-              text: 'Обзор',
-              items: [
-                { text: 'Что могут плагины', link: '/ru/plugins/' },
-              ]
+              text: "Обзор",
+              items: [{ text: "Что могут плагины", link: "/ru/plugins/" }],
             },
             {
-              text: 'Гайды по плагинам',
+              text: "Гайды по плагинам",
               items: [
-                { text: 'CLI-команда', link: '/ru/plugins/command-plugin' },
-                { text: 'Шаг пайплайна', link: '/ru/plugins/pipeline-plugin' },
-                { text: 'CI-провайдер', link: '/ru/plugins/provider-plugin' },
-                { text: 'Мастер настройки', link: '/ru/plugins/init-plugin' },
-              ]
-            }
+                { text: "CLI-команда", link: "/ru/plugins/command-plugin" },
+                {
+                  text: "Шаг пайплайна",
+                  link: "/ru/plugins/pipeline-plugin",
+                },
+                { text: "CI-провайдер", link: "/ru/plugins/provider-plugin" },
+                { text: "Мастер настройки", link: "/ru/plugins/init-plugin" },
+              ],
+            },
           ],
-          '/ru/config/': [
+          "/ru/config/": [
             {
-              text: 'Конфигурация',
+              text: "Конфигурация",
               items: [
-                { text: 'Обзор', link: '/ru/config/' },
-                { text: 'Структура', link: '/ru/config/structure' },
-                { text: 'Фильтры', link: '/ru/config/filters' },
-                { text: 'Проверка политик', link: '/ru/config/policy' },
-                { text: 'Оценка стоимости', link: '/ru/config/cost' },
-                { text: 'Обновление зависимостей', link: '/ru/config/tfupdate' },
-                { text: 'Summary', link: '/ru/config/summary' },
-              ]
+                { text: "Обзор", link: "/ru/config/" },
+                { text: "Структура", link: "/ru/config/structure" },
+                { text: "Фильтры", link: "/ru/config/filters" },
+                { text: "Проверка политик", link: "/ru/config/policy" },
+                { text: "Оценка стоимости", link: "/ru/config/cost" },
+                {
+                  text: "Обновление зависимостей",
+                  link: "/ru/config/tfupdate",
+                },
+                { text: "Summary", link: "/ru/config/summary" },
+              ],
             },
             {
-              text: 'CI Провайдеры',
+              text: "CI Провайдеры",
               items: [
-                { text: 'GitLab CI', link: '/ru/config/gitlab' },
-                { text: 'GitLab MR', link: '/ru/config/gitlab-mr' },
-                { text: 'GitHub Actions', link: '/ru/config/github' },
-              ]
-            }
+                { text: "GitLab CI", link: "/ru/config/gitlab" },
+                { text: "GitLab MR", link: "/ru/config/gitlab-mr" },
+                { text: "GitHub Actions", link: "/ru/config/github" },
+              ],
+            },
           ],
-          '/ru/cli/': [
+          "/ru/cli/": [
             {
-              text: 'CLI справочник',
+              text: "CLI справочник",
               items: [
-                { text: 'Обзор', link: '/ru/cli/' },
-                { text: 'generate', link: '/ru/cli/generate' },
-                { text: 'validate', link: '/ru/cli/validate' },
-                { text: 'graph', link: '/ru/cli/graph' },
-                { text: 'init', link: '/ru/cli/init' },
-                { text: 'summary', link: '/ru/cli/summary' },
-                { text: 'cost', link: '/ru/cli/cost' },
-                { text: 'policy', link: '/ru/cli/policy' },
-                { text: 'tfupdate', link: '/ru/cli/tfupdate' },
-              ]
-            }
-          ]
+                { text: "Обзор", link: "/ru/cli/" },
+                { text: "generate", link: "/ru/cli/generate" },
+                { text: "validate", link: "/ru/cli/validate" },
+                { text: "graph", link: "/ru/cli/graph" },
+                { text: "init", link: "/ru/cli/init" },
+                { text: "summary", link: "/ru/cli/summary" },
+                { text: "cost", link: "/ru/cli/cost" },
+                { text: "policy", link: "/ru/cli/policy" },
+                { text: "tfupdate", link: "/ru/cli/tfupdate" },
+              ],
+            },
+          ],
         },
         outline: {
-          label: 'На этой странице'
+          label: "На этой странице",
         },
         docFooter: {
-          prev: 'Предыдущая',
-          next: 'Следующая'
+          prev: "Предыдущая",
+          next: "Следующая",
         },
         lastUpdated: {
-          text: 'Обновлено'
+          text: "Обновлено",
         },
         editLink: {
-          pattern: 'https://github.com/edelwud/terraci/edit/main/docs/:path',
-          text: 'Редактировать на GitHub'
+          pattern: "https://github.com/edelwud/terraci/edit/main/docs/:path",
+          text: "Редактировать на GitHub",
         },
         search: {
-          provider: 'local',
+          provider: "local",
           options: {
             translations: {
               button: {
-                buttonText: 'Поиск',
-                buttonAriaLabel: 'Поиск'
+                buttonText: "Поиск",
+                buttonAriaLabel: "Поиск",
               },
               modal: {
-                noResultsText: 'Нет результатов для',
-                resetButtonTitle: 'Сбросить',
+                noResultsText: "Нет результатов для",
+                resetButtonTitle: "Сбросить",
                 footer: {
-                  selectText: 'выбрать',
-                  navigateText: 'перейти'
-                }
-              }
-            }
-          }
-        }
-      }
-    }
+                  selectText: "выбрать",
+                  navigateText: "перейти",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
   },
 
   themeConfig: {
-    logo: '/logo.svg',
+    logo: "/logo.svg",
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/edelwud/terraci' }
+      { icon: "github", link: "https://github.com/edelwud/terraci" },
     ],
 
     search: {
-      provider: 'local'
+      provider: "local",
     },
 
     editLink: {
-      pattern: 'https://github.com/edelwud/terraci/edit/main/docs/:path',
-      text: 'Edit this page on GitHub'
+      pattern: "https://github.com/edelwud/terraci/edit/main/docs/:path",
+      text: "Edit this page on GitHub",
     },
 
     footer: {
-      message: 'Released under the MIT License.',
-      copyright: 'Copyright © 2025 TerraCi Contributors'
-    }
-  },
-
-  mermaid: {
-    theme: 'base',
-    themeVariables: {
-      // Brand colors
-      primaryColor: '#ede9fe',
-      primaryTextColor: '#4338ca',
-      primaryBorderColor: '#6366f1',
-      // Lines & arrows
-      lineColor: '#6366f1',
-      // Secondary
-      secondaryColor: '#e0f2fe',
-      secondaryTextColor: '#1e40af',
-      secondaryBorderColor: '#3b82f6',
-      // Tertiary
-      tertiaryColor: '#f0fdf4',
-      tertiaryTextColor: '#166534',
-      tertiaryBorderColor: '#22c55e',
-      // Text
-      textColor: '#1e293b',
-      // Nodes
-      nodeBorder: '#6366f1',
-      mainBkg: '#ede9fe',
-      // Fonts
-      fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
-      fontSize: '14px',
-      // Flowchart
-      clusterBkg: '#f8fafc',
-      clusterBorder: '#e2e8f0',
-      // Error/warning for cycle detection
-      errorBkgColor: '#fef2f2',
-      errorTextColor: '#991b1b',
+      message: "Released under the MIT License.",
+      copyright: "Copyright © 2025 TerraCi Contributors",
     },
   },
-}))
+});

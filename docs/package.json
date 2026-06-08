@@ -4,13 +4,15 @@
   "private": true,
   "description": "TerraCi documentation",
   "scripts": {
-    "dev": "vitepress dev ",
-    "build": "vitepress build ",
-    "preview": "vitepress preview "
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview"
   },
   "devDependencies": {
-    "mermaid": "^11.13.0",
-    "vitepress": "next",
-    "vitepress-plugin-mermaid": "^2.0.17"
+    "vitepress": "^2.0.0-alpha.17"
+  },
+  "allowScripts": {
+    "fsevents@2.3.3": true,
+    "esbuild@0.27.7": true
   }
 }
