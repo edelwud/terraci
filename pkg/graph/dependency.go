@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/edelwud/terraci/pkg/diagnostic"
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/parser"
 )
@@ -18,6 +19,8 @@ type DependencyGraph struct {
 	edges        map[string][]string // from → [to] (depends on)
 	reverseEdges map[string][]string // to → [from] (depended by)
 	libraryUsage map[string][]string // library path → [module IDs]
+	// diagnostics collects non-fatal warnings produced while building the graph
+	diagnostics []diagnostic.Diagnostic
 }
 
 // Node represents a module in the dependency graph.
@@ -69,6 +72,12 @@ func (g *DependencyGraph) AddNode(m *discovery.Module) {
 // AddEdge adds a dependency edge (from depends on to).
 func (g *DependencyGraph) AddEdge(from, to string) {
 	if g.nodes[from] == nil || g.nodes[to] == nil {
+		// Record a diagnostic so callers can surface missing-node situations.
+		// This helps detect mismatches between discovery and dependency extraction
+		// without breaking the API (AddEdge remains non-breaking).
+		msg := fmt.Sprintf("ignored dependency edge: %s -> %s (unknown module)", from, to)
+		warn := diagnostic.Warning(msg, diagnostic.WithSource("graph"), diagnostic.WithModule(from))
+		g.diagnostics = append(g.diagnostics, warn)
 		return
 	}
 	if slices.Contains(g.edges[from], to) {
@@ -105,21 +114,23 @@ func (g *DependencyGraph) GetAllDependents(moduleID string) []string {
 
 // collectTransitive performs a DFS traversal on the given adjacency map.
 func (g *DependencyGraph) collectTransitive(startID string, adjacency map[string][]string) []string {
+	// Iterative DFS to avoid potential stack overflow on very deep dependency chains.
 	visited := make(map[string]bool)
 	var result []string
+	stack := []string{startID}
 
-	var visit func(string)
-	visit = func(id string) {
-		for _, next := range adjacency[id] {
+	for len(stack) > 0 {
+		// pop
+		n := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		for _, next := range adjacency[n] {
 			if !visited[next] {
 				visited[next] = true
 				result = append(result, next)
-				visit(next)
+				stack = append(stack, next)
 			}
 		}
 	}
-
-	visit(startID)
 	return result
 }
 
