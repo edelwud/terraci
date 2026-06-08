@@ -86,14 +86,14 @@ func TestCollectTransitiveIterativeDeepChain(t *testing.T) {
 	g := NewDependencyGraph()
 	// create nodes n0..n(n-1)
 	ids := make([]string, n)
-	for i := 0; i < n; i++ {
+	for i := range make([]struct{}, n) {
 		name := fmt.Sprintf("m%d", i)
 		m := discovery.TestModule("svc", "env", "reg", name)
 		g.AddNode(m)
 		ids[i] = m.ID()
 	}
 	// add chain edges: m0 -> m1 -> m2 -> ...
-	for i := 0; i < n-1; i++ {
+	for i := range make([]struct{}, n-1) {
 		g.AddEdge(ids[i], ids[i+1])
 	}
 

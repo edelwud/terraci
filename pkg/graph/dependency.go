@@ -240,3 +240,12 @@ func (g *DependencyGraph) ScopeToModule(moduleID string, showDependents bool) (*
 
 	return g.Subgraph(ids), nil
 }
+
+// Diagnostics returns a deterministic, deduplicated list of non-fatal messages
+// produced while building or manipulating the graph.
+func (g *DependencyGraph) Diagnostics() diagnostic.List {
+	if g == nil || len(g.diagnostics) == 0 {
+		return diagnostic.List{}
+	}
+	return diagnostic.NewList(g.diagnostics...)
+}
