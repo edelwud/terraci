@@ -14,6 +14,7 @@ import (
 	"github.com/edelwud/terraci/cmd/terraci/internal/runflow"
 	"github.com/edelwud/terraci/pkg/diagnostic"
 	"github.com/edelwud/terraci/pkg/filter"
+	"github.com/edelwud/terraci/pkg/graph"
 	"github.com/edelwud/terraci/pkg/pipeline"
 )
 
@@ -94,6 +95,8 @@ func logGenerateProjectDiagnostics(result *projectflow.Result) {
 	logExtractionDiagnostics(result.Workflow.Diagnostics)
 	logLibraryModuleUsage(result.LibraryUsages)
 	logCycles(result.Workflow.Graph.DetectCycles())
+	// Graph diagnostics (brief)
+	logGraphDiagnostics(result.Workflow.Graph)
 }
 
 func logExtractionDiagnostics(diags diagnostic.List) {
@@ -130,6 +133,33 @@ func logCycles(cycles [][]string) {
 	log.IncreasePadding()
 	for _, cycle := range cycles {
 		log.WithField("cycle", fmt.Sprintf("%v", cycle)).Warn("cycle found")
+	}
+	log.DecreasePadding()
+}
+
+func logGraphDiagnostics(g *graph.DependencyGraph) {
+	if g == nil {
+		return
+	}
+	d := g.Diagnostics()
+	if d.Empty() {
+		return
+	}
+	cnt := d.Len()
+	log.WithField("count", cnt).Warn("graph diagnostics")
+	log.IncreasePadding()
+	// show up to 5 messages
+	shown := 0
+	for _, diag := range d.All() {
+		if shown >= 5 {
+			break
+		}
+		// log concise message with module/source/hint
+		log.WithField("diag", diag.String()).Debug("graph diagnostic")
+		shown++
+	}
+	if cnt > shown {
+		log.WithField("hidden", cnt-shown).Info("additional diagnostics not shown")
 	}
 	log.DecreasePadding()
 }
