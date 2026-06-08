@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"container/heap"
 	"errors"
 	"sort"
 )
@@ -13,25 +14,30 @@ func (g *DependencyGraph) TopologicalSort() ([]string, error) {
 		inDegree[id] = len(g.edges[id])
 	}
 
-	var queue []string
+	// Use a min-heap to maintain deterministic order while keeping
+	// better asymptotic behavior on insertions.
+	h := &stringHeap{}
+	heap.Init(h)
 	for id, degree := range inDegree {
 		if degree == 0 {
-			queue = append(queue, id)
+			heap.Push(h, id)
 		}
 	}
-	sort.Strings(queue)
 
 	var result []string
-	for len(queue) > 0 {
-		node := queue[0]
-		queue = queue[1:]
+	for h.Len() > 0 {
+		v := heap.Pop(h)
+		node, ok := v.(string)
+		if !ok {
+			// Skip non-string entries (shouldn't happen, but defensive)
+			continue
+		}
 		result = append(result, node)
 
 		for _, dep := range g.reverseEdges[node] {
 			inDegree[dep]--
 			if inDegree[dep] == 0 {
-				queue = append(queue, dep)
-				sort.Strings(queue)
+				heap.Push(h, dep)
 			}
 		}
 	}
@@ -128,4 +134,25 @@ func findIndex(slice []string, value string) int {
 		}
 	}
 	return -1
+}
+
+// stringHeap is a min-heap of strings (lexicographic) used by TopologicalSort.
+type stringHeap []string
+
+func (h *stringHeap) Len() int           { return len(*h) }
+func (h *stringHeap) Less(i, j int) bool { return (*h)[i] < (*h)[j] }
+func (h *stringHeap) Swap(i, j int)      { (*h)[i], (*h)[j] = (*h)[j], (*h)[i] }
+
+func (h *stringHeap) Push(x any) {
+	if s, ok := x.(string); ok {
+		*h = append(*h, s)
+	}
+}
+
+func (h *stringHeap) Pop() any {
+	old := *h
+	n := len(old)
+	x := old[n-1]
+	*h = old[:n-1]
+	return x
 }
