@@ -135,7 +135,7 @@ func TestFlowDefaultStateProviderPreference(t *testing.T) {
 			if got := initwiz.BinaryKey.Get(state); got != config.ExecutionBinaryTerraform {
 				t.Fatalf("binary = %q, want terraform", got)
 			}
-			if got := initwiz.PatternKey.Get(state); got != config.DefaultConfig().Structure.Pattern {
+			if got := initwiz.PatternKey.Get(state); got != config.Default().Structure().Pattern() {
 				t.Fatalf("pattern = %q, want default pattern", got)
 			}
 			if got := initwiz.SummaryEnabledKey.Get(state); !got {
@@ -444,7 +444,7 @@ func fieldKeys(fields []initwiz.InitField) []string {
 	return out
 }
 
-func marshalConfigYAML(t *testing.T, cfg *config.Config) string {
+func marshalConfigYAML(t *testing.T, cfg config.Config) string {
 	t.Helper()
 
 	data, err := yaml.Marshal(cfg)

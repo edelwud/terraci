@@ -124,7 +124,7 @@ func prepareGenerate(tb testing.TB, workDir string, factories ...registry.Factor
 func testProject(tb testing.TB) string {
 	tb.Helper()
 	workDir := tb.TempDir()
-	cfg := config.DefaultConfig()
+	cfg := config.Default()
 	if err := cfg.Save(filepath.Join(workDir, ".terraci.yaml")); err != nil {
 		tb.Fatalf("Save config: %v", err)
 	}

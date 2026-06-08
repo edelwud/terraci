@@ -118,17 +118,34 @@ func TestArchitecture_PipelineContributionBuilders(t *testing.T) {
 	}
 }
 
-func TestArchitecture_ConfigSnapshotAndDocs(t *testing.T) {
+func TestArchitecture_CoreConfigValueModelAndDocs(t *testing.T) {
 	root := repoRoot(t)
 	var violations []string
 
 	for _, rel := range goFiles(t, root, "pkg", "plugins", "cmd", "test", "examples") {
 		file := parseGoFile(t, filepath.Join(root, rel), 0)
+		configAliases := importAliases(file, moduleImportPath+"/pkg/config")
 		ast.Inspect(file, func(node ast.Node) bool {
-			if isProductionFile(rel) {
-				if call, ok := node.(*ast.CallExpr); ok {
-					if selector, ok := callSelector(call); ok && selector.Sel.Name == "MutableCopy" {
-						violations = append(violations, rel+" calls MutableCopy in production code; consume config.Snapshot accessors or isolate compatibility adapters")
+			if call, ok := node.(*ast.CallExpr); ok {
+				if selector, ok := callSelector(call); ok {
+					if ident, ok := selector.X.(*ast.Ident); ok && configAliases[ident.Name] {
+						switch selector.Sel.Name {
+						case "DefaultConfig", "NewSnapshot":
+							violations = append(violations, rel+" calls stale config."+selector.Sel.Name+"; use config.Default/Load/Build immutable values")
+						}
+					}
+					if selector.Sel.Name == "MutableCopy" {
+						violations = append(violations, rel+" calls stale config MutableCopy API; config.Config is already immutable")
+					}
+				}
+			}
+			if lit, ok := node.(*ast.CompositeLit); ok && !isCoreConfigLiteralAllowed(rel) {
+				if selector, ok := lit.Type.(*ast.SelectorExpr); ok {
+					if ident, ok := selector.X.(*ast.Ident); ok && configAliases[ident.Name] {
+						switch selector.Sel.Name {
+						case "Config", "ExecutionConfig", "StructureConfig", "LibraryModulesConfig":
+							violations = append(violations, rel+" manually constructs config."+selector.Sel.Name+"; use config.Default/Build/New* constructors")
+						}
 					}
 				}
 			}
@@ -148,7 +165,13 @@ func TestArchitecture_ConfigSnapshotAndDocs(t *testing.T) {
 	stalePatterns := []string{
 		"FlagOverridable",
 		"shared *config.Config",
+		"config.Snapshot",
+		"DefaultConfig()",
+		"MutableCopy()",
+		"Config.Clone()",
 		"ctx.Config() (`*config.Config`",
+		"immutable config.Snapshot",
+		"snapshot accessors",
 		"BuildConfig(pattern",
 		"BuildInitConfig(state *initwiz.StateMap) *initwiz.InitContribution",
 		"BuildInitConfig(state *initwiz.StateMap) *InitContribution",
@@ -341,33 +364,6 @@ func TestArchitecture_ConfigExtensionValueBoundary(t *testing.T) {
 
 	if len(violations) > 0 {
 		t.Fatalf("config extension value boundary violations:\n%s", strings.Join(violations, "\n"))
-	}
-}
-
-func TestArchitecture_ConfigSnapshotMutableCopyBoundary(t *testing.T) {
-	root := repoRoot(t)
-	var violations []string
-
-	for _, rel := range goFiles(t, root, "cmd", "pkg", "plugins", "examples") {
-		if !isProductionFile(rel) || strings.HasPrefix(rel, "pkg/config/") {
-			continue
-		}
-		file := parseGoFile(t, filepath.Join(root, rel), 0)
-		ast.Inspect(file, func(node ast.Node) bool {
-			call, ok := node.(*ast.CallExpr)
-			if !ok {
-				return true
-			}
-			selector, ok := callSelector(call)
-			if ok && selector.Sel.Name == "MutableCopy" {
-				violations = append(violations, rel+" calls config.Snapshot.MutableCopy in production code; consume snapshot accessors or build a fresh config")
-			}
-			return true
-		})
-	}
-
-	if len(violations) > 0 {
-		t.Fatalf("config mutable copy boundary violations:\n%s", strings.Join(violations, "\n"))
 	}
 }
 
@@ -2092,6 +2088,10 @@ func importPath(tb testing.TB, spec *ast.ImportSpec) string {
 
 func isProductionFile(rel string) bool {
 	return !strings.HasSuffix(rel, "_test.go")
+}
+
+func isCoreConfigLiteralAllowed(rel string) bool {
+	return strings.HasPrefix(rel, "pkg/config/") || strings.HasPrefix(rel, "pkg/config/configtest/")
 }
 
 func isCIProviderPlugin(rel string) bool {

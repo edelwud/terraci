@@ -202,10 +202,10 @@
 // reads from any goroutine are safe without synchronization. Plugins
 // should:
 //
-//   - Read project config through the immutable config.Snapshot returned by
-//     ctx.Config(). Snapshot accessors return defensive copies; production
-//     code should not call MutableCopy except in explicit compatibility
-//     adapters that need an isolated mutable configuration.
+//   - Read project config through the immutable config.Config returned by
+//     ctx.Config(). Config accessors return defensive copies; production
+//     code should build new config values through pkg/config constructors
+//     instead of mutating structs.
 //   - Treat ctx.CIResolver(), ctx.ChangeDetectorResolver(),
 //     ctx.KVCacheResolver(), and ctx.BlobStoreResolver() as never-nil. They
 //     return no-op resolver behavior when no real resolver is bound and are

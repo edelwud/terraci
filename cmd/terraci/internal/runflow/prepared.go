@@ -21,15 +21,14 @@ type Prepared struct {
 	ctx         context.Context
 	appCtx      *plugin.AppContext
 	registry    *registry.Registry
-	config      config.Snapshot
-	loaded      *config.Config
+	config      config.Config
 	workDir     string
 	reports     ci.ReportStore
 	diagnostics diagnostic.List
 	contribs    pipeline.ContributionSet
 }
 
-func newPrepared(ctx context.Context, appCtx *plugin.AppContext, plugins *registry.Registry, cfg *config.Config, workDir string, reports ci.ReportStore, contribs pipeline.ContributionSet) (*Prepared, error) {
+func newPrepared(ctx context.Context, appCtx *plugin.AppContext, plugins *registry.Registry, cfg config.Config, workDir string, reports ci.ReportStore, contribs pipeline.ContributionSet) (*Prepared, error) {
 	binding, err := plugin.NewCommandBinding(plugin.CommandBindingOptions{
 		AppContext:            appCtx,
 		Source:                plugins,
@@ -41,8 +40,7 @@ func newPrepared(ctx context.Context, appCtx *plugin.AppContext, plugins *regist
 	prepared := &Prepared{
 		appCtx:   appCtx,
 		registry: plugins,
-		config:   config.NewSnapshot(cfg),
-		loaded:   cfg.Clone(),
+		config:   cfg,
 		workDir:  workDir,
 		reports:  reports,
 		contribs: contribs.Clone(),
@@ -107,19 +105,21 @@ func (p *Prepared) InitWizardSnapshot() (*registry.InitWizardSnapshot, error) {
 }
 
 // Config returns the loaded immutable TerraCi config snapshot.
-func (p *Prepared) Config() config.Snapshot {
+func (p *Prepared) Config() config.Config {
 	if p == nil {
-		return config.Snapshot{}
+		var empty config.Config
+		return empty
 	}
 	return p.config
 }
 
-// LoadedConfig returns a defensive mutable copy of the loaded config.
-func (p *Prepared) LoadedConfig() *config.Config {
+// LoadedConfig returns the loaded immutable config.
+func (p *Prepared) LoadedConfig() config.Config {
 	if p == nil {
-		return nil
+		var empty config.Config
+		return empty
 	}
-	return p.loaded.Clone()
+	return p.config
 }
 
 // WorkDir returns the command working directory.

@@ -26,7 +26,7 @@ type ChangeDetectorResolver func() (ChangeDetector, error)
 func resolveTargets(
 	ctx context.Context,
 	workDir string,
-	cfg config.Snapshot,
+	cfg config.Config,
 	result *Result,
 	opts targetSelectionOptions,
 ) ([]*discovery.Module, error) {
@@ -59,7 +59,7 @@ func resolveTargets(
 
 	var libraryRoots []string
 	if libraryModules := cfg.LibraryModules(); libraryModules != nil {
-		libraryRoots = libraryModules.Paths
+		libraryRoots = libraryModules.Paths()
 	}
 
 	changes, err := detector.DetectChanges(ctx, ChangeDetectionRequest{
@@ -97,7 +97,7 @@ func resolveTargets(
 }
 
 func resolveAffectedModules(
-	cfg config.Snapshot,
+	cfg config.Config,
 	ff *filter.Flags,
 	affectedIDs, changedIDs []string,
 	allSet, filteredSet ModuleSet,

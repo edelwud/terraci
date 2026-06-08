@@ -63,7 +63,7 @@ func TestRunStats(t *testing.T) {
 func graphTestProject(tb testing.TB) string {
 	tb.Helper()
 	workDir := tb.TempDir()
-	cfg := config.DefaultConfig()
+	cfg := config.Default()
 	if err := cfg.Save(filepath.Join(workDir, ".terraci.yaml")); err != nil {
 		tb.Fatalf("Save config: %v", err)
 	}

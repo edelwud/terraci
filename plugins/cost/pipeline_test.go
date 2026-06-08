@@ -3,6 +3,7 @@ package cost
 import (
 	"testing"
 
+	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
@@ -68,8 +69,10 @@ func TestPlugin_PipelineContribution(t *testing.T) {
 func TestPlugin_PipelineContribution_EmptyServiceDir(t *testing.T) {
 	p := newTestPlugin(t)
 	base := newTestAppContext(t, t.TempDir())
-	cfg := base.Config().MutableCopy()
-	cfg.ServiceDir = ""
+	cfg, err := config.Build(config.BuildOptions{ServiceDirSet: true})
+	if err != nil {
+		t.Fatalf("config.Build() error = %v", err)
+	}
 	appCtx := plugin.NewAppContext(plugin.AppContextOptions{
 		Config:     cfg,
 		WorkDir:    base.WorkDir(),

@@ -83,8 +83,10 @@ func NewAppContextWithResolvers(t *testing.T, workDir string, resolvers plugin.R
 	t.Helper()
 
 	serviceDir := filepath.Join(t.TempDir(), ".terraci")
-	cfg := config.DefaultConfig()
-	cfg.ServiceDir = ".terraci"
+	cfg, err := config.Build(config.BuildOptions{ServiceDir: ".terraci"})
+	if err != nil {
+		t.Fatalf("config.Build() error = %v", err)
+	}
 	return plugin.NewAppContext(plugin.AppContextOptions{
 		Config:     cfg,
 		WorkDir:    workDir,

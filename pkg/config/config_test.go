@@ -23,12 +23,12 @@ func createTempDir(t *testing.T) string {
 	return t.TempDir()
 }
 
-func TestDefaultConfig(t *testing.T) {
-	cfg := DefaultConfig()
+func TestDefault(t *testing.T) {
+	cfg := Default()
 
 	// Check structure defaults
-	if cfg.Structure.Pattern != "{service}/{environment}/{region}/{module}" {
-		t.Errorf("expected default pattern, got %q", cfg.Structure.Pattern)
+	if got := cfg.Structure().Pattern(); got != "{service}/{environment}/{region}/{module}" {
+		t.Errorf("expected default pattern, got %q", got)
 	}
 	if !cfg.ExtensionDocuments().IsEmpty() {
 		t.Error("expected empty extension document set")
@@ -61,8 +61,8 @@ extensions:
 	}
 
 	// Verify loaded values
-	if cfg.Structure.Pattern != "{service}/{env}/{region}/{module}" {
-		t.Errorf("expected pattern, got %q", cfg.Structure.Pattern)
+	if got := cfg.Structure().Pattern(); got != "{service}/{env}/{region}/{module}" {
+		t.Errorf("expected pattern, got %q", got)
 	}
 
 	// Verify gitlab config is in extensions map
@@ -73,8 +73,8 @@ extensions:
 	// Decode and check the config
 	var glCfg map[string]any
 	decodeExtension(t, cfg, "gitlab", &glCfg)
-	if cfg.Execution.Binary != "tofu" {
-		t.Errorf("expected execution.binary=tofu, got %v", cfg.Execution.Binary)
+	if got := cfg.Execution().Binary(); got != "tofu" {
+		t.Errorf("expected execution.binary=tofu, got %v", got)
 	}
 }
 
@@ -236,8 +236,8 @@ extensions:
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if cfg.Structure.Pattern != "{svc}/{env}/{region}/{mod}" {
-			t.Errorf("expected loaded pattern, got %q", cfg.Structure.Pattern)
+		if got := cfg.Structure().Pattern(); got != "{svc}/{env}/{region}/{mod}" {
+			t.Errorf("expected loaded pattern, got %q", got)
 		}
 	})
 
@@ -250,8 +250,8 @@ extensions:
 		}
 
 		// Should be default values
-		if cfg.Structure.Pattern != "{service}/{environment}/{region}/{module}" {
-			t.Errorf("expected default pattern, got %q", cfg.Structure.Pattern)
+		if got := cfg.Structure().Pattern(); got != "{service}/{environment}/{region}/{module}" {
+			t.Errorf("expected default pattern, got %q", got)
 		}
 	})
 
@@ -275,8 +275,8 @@ extensions:
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if cfg.Structure.Pattern != "{a}/{b}/{c}/{d}" {
-			t.Errorf("expected pattern from .terraci.yml, got %q", cfg.Structure.Pattern)
+		if got := cfg.Structure().Pattern(); got != "{a}/{b}/{c}/{d}" {
+			t.Errorf("expected pattern from .terraci.yml, got %q", got)
 		}
 	})
 }
@@ -284,22 +284,18 @@ extensions:
 func TestValidate(t *testing.T) {
 	tests := []struct {
 		name    string
-		cfg     *Config
+		cfg     Config
 		wantErr bool
 		errMsg  string
 	}{
 		{
 			name:    "valid default config",
-			cfg:     DefaultConfig(),
+			cfg:     Default(),
 			wantErr: false,
 		},
 		{
-			name: "missing pattern",
-			cfg: &Config{
-				Structure: StructureConfig{
-					Pattern: "",
-				},
-			},
+			name:    "missing pattern",
+			cfg:     Config{structure: StructureConfig{}},
 			wantErr: true,
 			errMsg:  "structure.pattern is required",
 		},
@@ -326,12 +322,14 @@ func TestValidate(t *testing.T) {
 func TestConfig_Save(t *testing.T) {
 	tmpDir := createTempDir(t)
 
-	cfg := DefaultConfig()
-	cfg.Structure.Pattern = "{svc}/{env}/{region}/{mod}"
+	cfg, err := Build(BuildOptions{Pattern: "{svc}/{env}/{region}/{mod}"})
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
 
 	savePath := filepath.Join(tmpDir, "saved.yaml")
-	if err := cfg.Save(savePath); err != nil {
-		t.Fatalf("failed to save: %v", err)
+	if saveErr := cfg.Save(savePath); saveErr != nil {
+		t.Fatalf("failed to save: %v", saveErr)
 	}
 
 	// Read back and verify
@@ -351,8 +349,8 @@ func TestConfig_Save(t *testing.T) {
 		t.Fatalf("failed to load saved config: %v", err)
 	}
 
-	if loaded.Structure.Pattern != "{svc}/{env}/{region}/{mod}" {
-		t.Errorf("expected pattern to be preserved, got %q", loaded.Structure.Pattern)
+	if got := loaded.Structure().Pattern(); got != "{svc}/{env}/{region}/{mod}" {
+		t.Errorf("expected pattern to be preserved, got %q", got)
 	}
 }
 
@@ -382,14 +380,14 @@ func TestParsePatternSegmentCount(t *testing.T) {
 
 func TestExtension(t *testing.T) {
 	t.Run("nil extensions map returns false", func(t *testing.T) {
-		cfg := &Config{}
+		cfg := Config{}
 		if _, ok := cfg.Extension(MustExtensionKey("missing")); ok {
 			t.Fatal("Extension() ok = true, want false")
 		}
 	})
 
 	t.Run("missing key returns false", func(t *testing.T) {
-		cfg := DefaultConfig()
+		cfg := Default()
 		if _, ok := cfg.Extension(MustExtensionKey("missing")); ok {
 			t.Fatal("Extension() ok = true, want false")
 		}

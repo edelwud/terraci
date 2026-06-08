@@ -44,8 +44,8 @@ func (r *Registry) Commands() ([]*cobra.Command, error) {
 }
 
 // DecodeConfig applies extension config documents to config-capable plugins.
-func (r *Registry) DecodeConfig(cfg *config.Config) error {
-	if r == nil || cfg == nil {
+func (r *Registry) DecodeConfig(cfg config.Config) error {
+	if r == nil || !cfg.Present() {
 		return nil
 	}
 	for _, loader := range byCapabilityFrom[plugin.ConfigLoader](r) {

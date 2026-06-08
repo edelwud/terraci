@@ -93,7 +93,7 @@ func (f *Flow) Prepare(ctx context.Context, req Request) (*Prepared, error) {
 		log.WithField("version", f.version).Debug("terraci")
 	}
 
-	var cfg *config.Config
+	var cfg config.Config
 	if !req.Policy.SkipConfig {
 		loaded, err := loadConfig(req)
 		if err != nil {
@@ -139,7 +139,7 @@ func (f *Flow) applyLogLevel(req Request) error {
 	return nil
 }
 
-func loadConfig(req Request) (*config.Config, error) {
+func loadConfig(req Request) (config.Config, error) {
 	log.Debug("loading configuration")
 	if req.ConfigPath != "" {
 		log.WithField("file", req.ConfigPath).Debug("loading config from file")
@@ -149,7 +149,7 @@ func loadConfig(req Request) (*config.Config, error) {
 	return config.LoadOrDefault(req.WorkDir)
 }
 
-func decodePluginConfigs(plugins *registry.Registry, cfg *config.Config) error {
+func decodePluginConfigs(plugins *registry.Registry, cfg config.Config) error {
 	log.Debug("initializing plugin configurations")
 	return plugins.DecodeConfig(cfg)
 }
@@ -171,7 +171,7 @@ func collectContributions(plugins *registry.Registry, appCtx *plugin.AppContext)
 	return contributions, nil
 }
 
-func (f *Flow) buildContext(plugins *registry.Registry, cfg *config.Config, workDir string) *plugin.AppContext {
+func (f *Flow) buildContext(plugins *registry.Registry, cfg config.Config, workDir string) *plugin.AppContext {
 	if f.reports == nil {
 		f.reports = ci.NewFileReportStore(serviceDir(workDir, cfg))
 	}
@@ -190,10 +190,10 @@ func (f *Flow) buildContext(plugins *registry.Registry, cfg *config.Config, work
 	})
 }
 
-func serviceDir(workDir string, cfg *config.Config) string {
+func serviceDir(workDir string, cfg config.Config) string {
 	dir := config.DefaultServiceDir
-	if cfg != nil && cfg.ServiceDir != "" {
-		dir = cfg.ServiceDir
+	if cfg.Present() && cfg.ServiceDir() != "" {
+		dir = cfg.ServiceDir()
 	}
 	if !filepath.IsAbs(dir) {
 		dir = filepath.Join(workDir, dir)

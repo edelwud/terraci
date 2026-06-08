@@ -33,7 +33,7 @@ func fixtureDir(t *testing.T, name string) string {
 type Fixture struct {
 	Name          string
 	Dir           string
-	Config        *config.Config
+	Config        config.Config
 	GLConfig      *Config
 	Terraform     pipeline.TerraformJobConfigOptions
 	Contributions pipeline.ContributionSet
@@ -43,21 +43,22 @@ type Fixture struct {
 	Generator     *Generator
 }
 
-func terraformConfigFromConfig(cfg *config.Config) pipeline.TerraformJobConfigOptions {
+func terraformConfigFromConfig(cfg config.Config) pipeline.TerraformJobConfigOptions {
 	opts := defaultTerraformConfigOptions()
-	if cfg == nil {
+	if !cfg.Present() {
 		return opts
 	}
-	if cfg.Execution.Binary != "" {
-		opts.Binary = cfg.Execution.Binary
+	execution := cfg.Execution()
+	if execution.Binary() != "" {
+		opts.Binary = execution.Binary()
 	}
-	opts.InitEnabled = cfg.Execution.InitEnabled
-	opts.Env = cfg.Execution.Env
+	opts.InitEnabled = execution.InitEnabled()
+	opts.Env = execution.Env()
 	return opts
 }
 
 // decodeGLConfig extracts the gitlab plugin config from the plugins map.
-func decodeGLConfig(cfg *config.Config) *Config {
+func decodeGLConfig(cfg config.Config) *Config {
 	image := Image{Name: "hashicorp/terraform:1.6"}
 	glCfg := &Config{Image: &image}
 	doc, ok := cfg.Extension(config.MustExtensionKey("gitlab"))
@@ -86,7 +87,7 @@ func LoadFixture(t *testing.T, name string) *Fixture {
 	terraformConfig := terraformConfigFromConfig(cfg)
 
 	// Scan modules
-	scanner := discovery.NewScanner(dir, cfg.Structure.Segments)
+	scanner := discovery.NewScanner(dir, cfg.Structure().Segments())
 
 	modules, err := scanner.Scan(context.Background())
 	if err != nil {
@@ -101,7 +102,7 @@ func LoadFixture(t *testing.T, name string) *Fixture {
 	moduleIndex := discovery.NewModuleIndex(modules)
 
 	// Parse dependencies
-	hclParser := parser.NewParser(cfg.Structure.Segments)
+	hclParser := parser.NewParser(cfg.Structure().Segments())
 	depExtractor := parser.NewDependencyExtractor(hclParser, moduleIndex)
 	deps, _ := depExtractor.ExtractAllDependencies(context.Background())
 

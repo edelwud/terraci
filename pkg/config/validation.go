@@ -8,31 +8,36 @@ import (
 )
 
 // Validate checks if the configuration is valid
-func (c *Config) Validate() error {
-	if c.Structure.Pattern == "" {
+func (c Config) Validate() error {
+	if c.structure.Pattern() == "" {
 		return errors.New("structure.pattern is required")
 	}
 
-	if _, err := ParsePattern(c.Structure.Pattern); err != nil {
+	if _, err := ParsePattern(c.structure.Pattern()); err != nil {
 		return fmt.Errorf("structure.pattern: %w", err)
 	}
 
-	if err := workspacepath.ValidateOptional(c.ServiceDir); err != nil {
+	if err := workspacepath.ValidateOptional(c.serviceDir); err != nil {
 		return fmt.Errorf("service_dir: %w", err)
 	}
 
-	switch c.Execution.Binary {
+	switch c.execution.Binary() {
 	case "", ExecutionBinaryTerraform, ExecutionBinaryTofu:
 	default:
-		return fmt.Errorf("execution.binary: unsupported value %q", c.Execution.Binary)
+		return unsupportedExecutionBinaryError(c.execution.Binary())
 	}
 
-	// parallelism == 0 used to silently make the executor stall instead of using
-	// a worker. Treat <1 as an explicit user error; callers that want the
-	// default should leave the field unset and rely on DefaultConfig().
-	if c.Execution.Parallelism < 1 {
-		return errors.New("execution.parallelism: must be >= 1 (omit to use default)")
+	if c.execution.Parallelism() < 1 {
+		return invalidParallelismError()
 	}
 
 	return nil
+}
+
+func unsupportedExecutionBinaryError(binary string) error {
+	return fmt.Errorf("execution.binary: unsupported value %q", binary)
+}
+
+func invalidParallelismError() error {
+	return errors.New("execution.parallelism: must be >= 1 (omit to use default)")
 }

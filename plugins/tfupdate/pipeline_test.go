@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/plugin"
 	"github.com/edelwud/terraci/pkg/plugin/plugintest"
@@ -97,8 +98,10 @@ func TestPlugin_PipelineContribution_EmptyServiceDir(t *testing.T) {
 	p := newTestPlugin(t)
 	enablePlugin(t, p, &tfupdateengine.UpdateConfig{Enabled: true, Pipeline: true})
 	base := newTestAppContext(t, t.TempDir())
-	cfg := base.Config().MutableCopy()
-	cfg.ServiceDir = ""
+	cfg, err := config.Build(config.BuildOptions{ServiceDirSet: true})
+	if err != nil {
+		t.Fatalf("config.Build() error = %v", err)
+	}
 	appCtx := plugin.NewAppContext(plugin.AppContextOptions{
 		Config:     cfg,
 		WorkDir:    base.WorkDir(),

@@ -6,22 +6,22 @@ import (
 	"github.com/edelwud/terraci/pkg/filter"
 )
 
-func mergedFilterOptions(cfg config.Snapshot, ff *filter.Flags) filter.Options {
+func mergedFilterOptions(cfg config.Config, ff *filter.Flags) filter.Options {
 	if !cfg.Present() {
-		cfg = config.DefaultConfig().Snapshot()
+		cfg = config.Default()
 	}
 	return ff.Merge(cfg.Exclude(), cfg.Include())
 }
 
-func optionsFromConfig(workDir string, cfg config.Snapshot, ff *filter.Flags) Options {
+func optionsFromConfig(workDir string, cfg config.Config, ff *filter.Flags) Options {
 	if !cfg.Present() {
-		cfg = config.DefaultConfig().Snapshot()
+		cfg = config.Default()
 	}
 	opts := mergedFilterOptions(cfg, ff)
 	structure := cfg.Structure()
 	return Options{
 		WorkDir:        workDir,
-		Segments:       structure.Segments,
+		Segments:       structure.Segments(),
 		Excludes:       opts.Excludes,
 		Includes:       opts.Includes,
 		SegmentFilters: opts.Segments,
@@ -31,14 +31,14 @@ func optionsFromConfig(workDir string, cfg config.Snapshot, ff *filter.Flags) Op
 
 // libraryPathsFromConfig returns the configured library_modules.paths slice or
 // nil when unset. Returning the slice as-is is intentional: scanner cleans it.
-func libraryPathsFromConfig(cfg config.Snapshot) []string {
+func libraryPathsFromConfig(cfg config.Config) []string {
 	libraryModules := cfg.LibraryModules()
 	if libraryModules == nil {
 		return nil
 	}
-	return libraryModules.Paths
+	return libraryModules.Paths()
 }
 
-func applyFilters(cfg config.Snapshot, ff *filter.Flags, modules []*discovery.Module) ([]*discovery.Module, error) {
+func applyFilters(cfg config.Config, ff *filter.Flags, modules []*discovery.Module) ([]*discovery.Module, error) {
 	return filter.Apply(modules, mergedFilterOptions(cfg, ff))
 }

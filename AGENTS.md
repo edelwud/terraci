@@ -98,7 +98,7 @@ pkg/                            # Public API — importable by external plugins 
 │   ├── scripts.go              # TerraformJobConfig, NewPlanOperation, NewApplyOperation (IR construction only)
 │   └── cishell/                # Shell renderer — keeps shell-specific knowledge out of the IR
 │       └── render.go           # RenderOperation: pipeline.Operation → POSIX shell command lines
-├── terraformrun/               # Terraform/OpenTofu runtime profile from immutable config snapshots
+├── terraformrun/               # Terraform/OpenTofu runtime profile from immutable config values
 ├── ci/                         # Plugin-agnostic CI types
 │   ├── report.go, report_store.go, report_types.go, report_freshness.go, report_validation.go, section.go
 │   │                           #   Report envelope, ReportStore, ArtifactContext/ArtifactRun, ReportSection, versioned typed RenderSection/RenderBlock/RenderValue payloads, NewRenderedReport/NewRenderedSection, SelectCurrentReports + validation
@@ -107,14 +107,14 @@ pkg/                            # Public API — importable by external plugins 
 │   └── shared.go               # Image, CommentMarker
 ├── cache/blobcache/            # Blob store contract + cache layer (owns Store/Meta/Object/PutOptions/Info/Inspector/Describer/HealthChecker, Describe, Check, Cache, Policy)
 ├── config/
-│   ├── types_config.go         # Config core fields + opaque extension storage
-│   ├── clone.go, snapshot.go   # Deep-copy API and immutable Snapshot read model
+│   ├── types_config.go         # Immutable Config/Execution/Structure/Library value objects
+│   ├── clone.go, yaml.go       # Private copy helpers + YAML wire DTO boundary
 │   ├── builder.go              # Build(BuildOptions) + typed ExtensionValue/ExtensionValueSet
 │   ├── extension.go            # ExtensionDocument lookup + Decode for opaque sections
 │   ├── pattern.go              # ParsePattern, PatternSegments
 │   ├── schema.go               # ExtensionDefinitionSet + GenerateJSONSchema
 │   ├── io.go                   # Load, LoadOrDefault, Save
-│   ├── defaults.go             # DefaultConfig()
+│   ├── defaults.go             # Default()
 │   └── validation.go           # Validate
 ├── discovery/                  # Module, Scanner, ModuleIndex (slim: All/ByID/ByPath)
 ├── parser/                     # Public parser facade + shared model
@@ -276,10 +276,11 @@ never changes plugin state. It auto-implements:
 
 Construction goes through an options struct — `plugin.NewAppContext(plugin.AppContextOptions{Config, WorkDir, ServiceDir, Version, Reports, Resolvers})` — every field is optional. `Reports` is a `ci.ReportStore`; it defaults to a file-backed store when `ServiceDir` is set, otherwise an in-memory store. `Resolvers` is an immutable `plugin.ResolverSet` built by the framework from narrow capability resolvers. Resolver access is narrow and **never nil** through `ctx.CIResolver()`, `ctx.ChangeDetectorResolver()`, `ctx.KVCacheResolver()`, and `ctx.BlobStoreResolver()`; when no resolver is bound, no-op resolvers return sentinel errors.
 
-`AppContext.Config()` returns an immutable `config.Snapshot`. Access config through
-snapshot accessors (`ServiceDir()`, `Structure()`, `Execution()`, etc.).
-Production plugin code should not call `MutableCopy()`; keep it for tests or
-explicit compatibility adapters that need an isolated mutable config.
+`AppContext.Config()` returns an immutable `config.Config`. Access config through
+value accessors (`ServiceDir()`, `Structure()`, `Execution()`, etc.). Production
+code builds config through `config.Load`, `config.LoadOrDefault`, `config.Default`,
+`config.Build`, and `New*Config` constructors; do not construct or mutate core
+config structs by hand.
 
 ### Command Boundary
 
@@ -462,7 +463,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **One file per capability**: plugin.go < 30 lines; each interface in its own file
 - **Compile-time extensibility**: `xterraci build --with/--without` for custom binaries
 - **Pipeline IR**: `workflow.PlanProject(...)` → `pipeline.BuildProjectIR(...)` → immutable `*pipeline.IR`. The IR is the single execution input — generators and the local executor both consume `pipeline.Job` values through getters, not direct field mutation, job pointers, or manual literals.
-- **Terraform runtime intent**: `config.Snapshot` → `terraformrun.Profile` → `pipeline.TerraformJobConfig` → Terraform jobs in the IR. Command orchestration derives the profile once; CI providers and localexec runners consume IR/runtime options instead of rereading config. `execution.env` is Terraform-job env only; command jobs and provider workflow globals do not receive it implicitly. `pipeline.BuildIntent` must come from `ApplyBuildIntent` or `PlanBuildIntent`, and plan jobs/artifacts are derived from apply intent plus requested resources.
+- **Terraform runtime intent**: immutable `config.Config` → `terraformrun.Profile` → `pipeline.TerraformJobConfig` → Terraform jobs in the IR. Command orchestration derives the profile once; CI providers and localexec runners consume IR/runtime options instead of rereading config. `execution.env` is Terraform-job env only; command jobs and provider workflow globals do not receive it implicitly. `pipeline.BuildIntent` must come from `ApplyBuildIntent` or `PlanBuildIntent`, and plan jobs/artifacts are derived from apply intent plus requested resources.
 - **IR-bound generators**: `PipelineGeneratorFactory.NewGenerator(*pipeline.IR)` — providers don't read AppContext, config snapshots, runtime profiles, depGraph, modules, or contributions during generation; the IR already encodes runtime and graph intent. Provider job builders take immutable `pipeline.Job` values from `IR.Jobs()` and produce provider document jobs through provider-local builders.
 - **Shell rendering separated from IR**: `pkg/pipeline/cishell.RenderOperation(op)` for shell-driven CI; the IR carries `pipeline.TerraformOperation` data only.
 - **Canonical dry-run source**: dry-run stage/job counts derive from `*IR.DryRun(totalModules)`.
@@ -472,7 +473,7 @@ Core config: `service_dir`, `structure`, `exclude`, `include`, `library_modules`
 - **Command/usecase boundary**: command callbacks use `plugin.CommandPlugin[T]` to get `plugin.CommandContext` plus the command-scoped plugin, read runtime services from `cmdCtx.AppContext()`, parse flags into request structs, call a usecase, then handle artifact persistence and output explicitly.
 - **PipelineContributor(ctx)**: plugins add standalone DAG jobs through `pipeline.NewPluginCommandJob` + `pipeline.NewContribution`, return builder errors, and use `PipelineContributionGate` for optional jobs; framework planning carries enabled contributions as `pipeline.ContributionSet`; `nil, nil` is invalid
 - **ServiceDir**: configurable project directory; `AppContext.ServiceDir` (absolute) for runtime, `AppContext.Config().ServiceDir()` (relative) for pipeline templates
-- **Immutable config boundary**: `Config.Clone()` and `config.Snapshot` own deep-copy semantics. `AppContext` stores a snapshot; production plugin code reads through accessors and leaves `MutableCopy()` to tests or explicit compatibility adapters.
+- **Immutable config boundary**: `config.Config` and nested core config values have private fields and defensive getters. YAML/schema DTOs stay inside `pkg/config`; callers use `config.Load`, `config.Default`, `config.Build`, `NewExecutionConfig`, `NewStructureConfig`, and `NewLibraryModulesConfig`.
 - **Command boundary**: plugin command callbacks use `plugin.CommandPlugin[T](cmd, name)` and `plugin.RequireEnabled(...)`; low-level cobra context binding is framework-owned. Command context carries AppContext plus command planning state as value snapshots such as `pipeline.ContributionSet`; command binding and disabled-plugin failures are typed errors.
 - **SDK contract kit**: plugin SDK behavior is tested through `pkg/plugin/plugintest`; CI/report behavior is tested through `pkg/ci/citest`. New plugins should copy these contract helpers for config immutability, command binding, plugin-local runtime builders, contributions, lifecycle, init wizard, providers, change detection, rendered reports, and artifact lifecycle.
 - **Init wizard flow**: command code owns cobra, TTY checks, huh rendering, YAML preview, and file writes. `cmd/terraci/internal/initflow` owns defaults, contributor collection, display group ordering/merge rules, duplicate extension detection, and final config assembly.

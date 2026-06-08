@@ -43,13 +43,22 @@ func TestNewProfileEnvIsDefensive(t *testing.T) {
 }
 
 func TestProfileFromConfig(t *testing.T) {
-	cfg := config.DefaultConfig()
-	cfg.Execution.Binary = config.ExecutionBinaryTofu
-	cfg.Execution.InitEnabled = false
-	cfg.Execution.Parallelism = 8
-	cfg.Execution.Env = map[string]string{"TF_LOG": "WARN"}
+	initEnabled := false
+	execution, err := config.NewExecutionConfig(config.ExecutionConfigOptions{
+		Binary:      config.ExecutionBinaryTofu,
+		InitEnabled: &initEnabled,
+		Parallelism: 8,
+		Env:         map[string]string{"TF_LOG": "WARN"},
+	})
+	if err != nil {
+		t.Fatalf("NewExecutionConfig() error = %v", err)
+	}
+	cfg, err := config.Build(config.BuildOptions{Execution: &execution})
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
 
-	profile, err := ProfileFromConfig(cfg.Snapshot())
+	profile, err := ProfileFromConfig(cfg)
 	if err != nil {
 		t.Fatalf("ProfileFromConfig() error = %v", err)
 	}

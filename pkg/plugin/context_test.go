@@ -9,11 +9,12 @@ import (
 
 	"github.com/edelwud/terraci/pkg/ci"
 	"github.com/edelwud/terraci/pkg/config"
+	"github.com/edelwud/terraci/pkg/config/configtest"
 	"github.com/edelwud/terraci/pkg/pipeline"
 )
 
 func TestAppContext_Accessors(t *testing.T) {
-	cfg := config.DefaultConfig()
+	cfg := config.Default()
 	r := ci.NewMemoryReportStore()
 	ctx := NewAppContext(AppContextOptions{
 		Config:     cfg,
@@ -26,8 +27,8 @@ func TestAppContext_Accessors(t *testing.T) {
 	if !ctx.Config().Present() {
 		t.Error("Config() should return a present configuration snapshot")
 	}
-	if ctx.Config().ServiceDir() != cfg.ServiceDir {
-		t.Errorf("Config().ServiceDir() = %q, want %q", ctx.Config().ServiceDir(), cfg.ServiceDir)
+	if ctx.Config().ServiceDir() != cfg.ServiceDir() {
+		t.Errorf("Config().ServiceDir() = %q, want %q", ctx.Config().ServiceDir(), cfg.ServiceDir())
 	}
 	if ctx.WorkDir() != "/tmp" {
 		t.Errorf("WorkDir() = %q, want /tmp", ctx.WorkDir())
@@ -222,29 +223,24 @@ func TestAppContext_DoesNotCarryPipelineContributions(t *testing.T) {
 	}
 }
 
-func TestAppContext_ConfigIsImmutableSnapshot(t *testing.T) {
-	cfg := config.DefaultConfig()
-	cfg.ServiceDir = ".terraci"
-	cfg.Exclude = []string{"old"}
+func TestAppContext_ConfigIsImmutableValue(t *testing.T) {
+	cfg := configtest.Build(t, configtest.Options{ServiceDir: ".terraci", Exclude: []string{"old"}})
 	ctx := NewAppContext(AppContextOptions{Config: cfg})
 
-	cfg.ServiceDir = ".changed"
-	cfg.Exclude[0] = "changed"
 	if got := ctx.Config().ServiceDir(); got != ".terraci" {
-		t.Fatalf("Config().ServiceDir() = %q, want original snapshot", got)
+		t.Fatalf("Config().ServiceDir() = %q, want original value", got)
 	}
 	if got := ctx.Config().Exclude(); len(got) != 1 || got[0] != "old" {
-		t.Fatalf("Config().Exclude() = %#v, want original snapshot", got)
+		t.Fatalf("Config().Exclude() = %#v, want original value", got)
 	}
 
-	mutable := ctx.Config().MutableCopy()
-	mutable.ServiceDir = ".copy"
-	mutable.Exclude[0] = "copy"
+	exclude := ctx.Config().Exclude()
+	exclude[0] = "copy"
 	if got := ctx.Config().ServiceDir(); got != ".terraci" {
-		t.Fatalf("mutable copy changed snapshot ServiceDir to %q", got)
+		t.Fatalf("returned config changed ServiceDir to %q", got)
 	}
 	if got := ctx.Config().Exclude(); len(got) != 1 || got[0] != "old" {
-		t.Fatalf("mutable copy changed snapshot Exclude to %#v", got)
+		t.Fatalf("returned config leaked Exclude mutation to %#v", got)
 	}
 }
 

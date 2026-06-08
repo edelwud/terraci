@@ -178,7 +178,7 @@ Every capability receives `*plugin.AppContext` with:
 ```go
 ctx.WorkDir()    // project root directory
 ctx.ServiceDir() // resolved .terraci directory (absolute path)
-ctx.Config()     // immutable config.Snapshot; use accessors such as ServiceDir()
+ctx.Config()     // immutable config.Config; use accessors such as ServiceDir()
 ctx.Version()    // TerraCi version string
 ctx.Reports()    // shared ci.ReportStore for plugin artifacts and reports
 ctx.CIResolver()             // CI provider resolver — never nil

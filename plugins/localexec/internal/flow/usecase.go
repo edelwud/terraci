@@ -120,7 +120,7 @@ func WithEventSink(sink execution.EventSink) Option {
 
 func DefaultDependencies(appCtx *plugin.AppContext) Dependencies {
 	structure := appCtx.Config().Structure()
-	segments := append([]string(nil), structure.Segments...)
+	segments := structure.Segments()
 	return Dependencies{
 		Projects:       newWorkflowProjectPlanner(appCtx),
 		RuntimeFactory: runner.NewFactory(),

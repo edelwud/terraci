@@ -22,8 +22,8 @@ type ExtensionDocumentSet struct {
 }
 
 // Extension returns the named extension config document.
-func (c *Config) Extension(key ExtensionKey) (ExtensionDocument, bool) {
-	if c == nil || c.extensions == nil || key.String() == "" {
+func (c Config) Extension(key ExtensionKey) (ExtensionDocument, bool) {
+	if c.extensions == nil || key.String() == "" {
 		return ExtensionDocument{}, false
 	}
 	node, ok := c.extensions[key.String()]
@@ -35,8 +35,8 @@ func (c *Config) Extension(key ExtensionKey) (ExtensionDocument, bool) {
 
 // ExtensionDocuments returns all extension config documents in deterministic
 // key order.
-func (c *Config) ExtensionDocuments() ExtensionDocumentSet {
-	if c == nil || len(c.extensions) == 0 {
+func (c Config) ExtensionDocuments() ExtensionDocumentSet {
+	if len(c.extensions) == 0 {
 		return ExtensionDocumentSet{}
 	}
 	return newExtensionDocumentSet(c.extensions)

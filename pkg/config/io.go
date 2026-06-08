@@ -11,34 +11,29 @@ import (
 	"go.yaml.in/yaml/v4"
 )
 
-// Load reads configuration from a file
-func Load(path string) (*Config, error) {
+// Load reads configuration from a file.
+func Load(path string) (Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("config %s: read: %w", path, err)
+		return Config{}, fmt.Errorf("config %s: read: %w", path, err)
 	}
 
-	cfg := DefaultConfig()
+	cfg := Default()
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
-	if unmarshalErr := dec.Decode(cfg); unmarshalErr != nil && !errors.Is(unmarshalErr, io.EOF) {
-		return nil, fmt.Errorf("config %s: parse: %w", path, unmarshalErr)
-	}
-
-	segments, parseErr := ParsePattern(cfg.Structure.Pattern)
-	if parseErr == nil {
-		cfg.Structure.Segments = segments
+	if unmarshalErr := dec.Decode(&cfg); unmarshalErr != nil && !errors.Is(unmarshalErr, io.EOF) {
+		return Config{}, fmt.Errorf("config %s: parse: %w", path, unmarshalErr)
 	}
 
 	if err := cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("config %s: %w", path, err)
+		return Config{}, fmt.Errorf("config %s: %w", path, err)
 	}
 
 	return cfg, nil
 }
 
-// LoadOrDefault loads config from file or returns default if not found
-func LoadOrDefault(dir string) (*Config, error) {
+// LoadOrDefault loads config from file or returns default if not found.
+func LoadOrDefault(dir string) (Config, error) {
 	configPaths := []string{
 		filepath.Join(dir, ".terraci.yaml"),
 		filepath.Join(dir, ".terraci.yml"),
@@ -52,15 +47,15 @@ func LoadOrDefault(dir string) (*Config, error) {
 		}
 	}
 
-	return DefaultConfig(), nil
+	return Default(), nil
 }
 
 // SchemaURL is the URL to the JSON Schema for terraci configuration
 const SchemaURL = "https://raw.githubusercontent.com/edelwud/terraci/main/.terraci.schema.json"
 
-// Save writes configuration to a file with yaml-language-server schema reference
-func (c *Config) Save(path string) error {
-	data, err := yaml.Marshal(c)
+// Save writes configuration to a file with yaml-language-server schema reference.
+func Save(path string, cfg Config) error {
+	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
@@ -73,4 +68,9 @@ func (c *Config) Save(path string) error {
 	}
 
 	return nil
+}
+
+// Save writes configuration to a file with yaml-language-server schema reference.
+func (c Config) Save(path string) error {
+	return Save(path, c)
 }

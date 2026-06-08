@@ -157,7 +157,7 @@ func TestPluginInitialization(t *testing.T) {
 	}
 }
 
-func configurePluginsFromConfig(t *testing.T, plugins *registry.Registry, cfg *config.Config) {
+func configurePluginsFromConfig(t *testing.T, plugins *registry.Registry, cfg config.Config) {
 	t.Helper()
 	if err := plugins.DecodeConfig(cfg); err != nil {
 		t.Fatalf("failed to decode plugin config: %v", err)

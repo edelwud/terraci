@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"sync"
 	"testing"
 
@@ -163,7 +162,7 @@ func TestUseCase_RunUsesInjectedDependencies(t *testing.T) {
 	if runtimeFactory.calls != 1 {
 		t.Fatalf("runtime factory calls = %d, want 1", runtimeFactory.calls)
 	}
-	if got := runtimeFactory.options[0].PlanParallelism; got != config.DefaultConfig().Execution.Parallelism {
+	if got := runtimeFactory.options[0].PlanParallelism; got != config.Default().Execution().Parallelism() {
 		t.Fatalf("runtime plan parallelism = %d, want config default", got)
 	}
 	if got := result.SummaryReport(); got == nil || got.Producer() != report.Producer() {
@@ -244,12 +243,18 @@ func TestUseCase_RunBuildsIRFromProjectAndContributions(t *testing.T) {
 
 func TestUseCase_RunUsesConfigParallelismDefault(t *testing.T) {
 	workDir, module := testWorkDirWithModule(t)
-	cfg := config.DefaultConfig()
-	cfg.Execution.Parallelism = 7
+	execCfg, err := config.NewExecutionConfig(config.ExecutionConfigOptions{Parallelism: 7})
+	if err != nil {
+		t.Fatalf("NewExecutionConfig() error = %v", err)
+	}
+	cfg, err := config.Build(config.BuildOptions{Execution: &execCfg})
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
 	appCtx := testAppContextWithConfig(workDir, cfg)
 	runtimeFactory := &fakeRuntimeFactory{runtime: &runner.Runtime{JobRunner: &fakeJobRunner{}}}
 
-	_, err := New(
+	_, err = New(
 		appCtx,
 		WithProjectPlanner(fakeProjectWithTargets(module)),
 		WithRuntimeFactory(runtimeFactory),
@@ -266,17 +271,26 @@ func TestUseCase_RunUsesConfigParallelismDefault(t *testing.T) {
 
 func TestUseCase_RunBuildsTerraformIntentFromConfig(t *testing.T) {
 	workDir, module := testWorkDirWithModule(t)
-	cfg := config.DefaultConfig()
-	cfg.Execution.Binary = config.ExecutionBinaryTofu
-	cfg.Execution.InitEnabled = false
-	cfg.Execution.Env = map[string]string{
-		"CUSTOM":    "value",
-		"TF_MODULE": "should-not-win",
+	initEnabled := false
+	execCfg, err := config.NewExecutionConfig(config.ExecutionConfigOptions{
+		Binary:      config.ExecutionBinaryTofu,
+		InitEnabled: &initEnabled,
+		Env: map[string]string{
+			"CUSTOM":    "value",
+			"TF_MODULE": "should-not-win",
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewExecutionConfig() error = %v", err)
+	}
+	cfg, err := config.Build(config.BuildOptions{Execution: &execCfg})
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
 	}
 	appCtx := testAppContextWithConfig(workDir, cfg)
 
 	jobRunner := &fakeJobRunner{}
-	_, err := New(
+	_, err = New(
 		appCtx,
 		WithProjectPlanner(fakeProjectWithTargets(module)),
 		WithPipelineContributions(mustContributionSet(t,
@@ -369,26 +383,6 @@ func TestUseCase_RunReturnsRuntimeFactoryError(t *testing.T) {
 	).Run(context.Background(), spec.Request{})
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("Run() error = %v, want %v", err, wantErr)
-	}
-}
-
-func TestUseCase_RunReturnsTerraformProfileErrorBeforeRuntimeBuild(t *testing.T) {
-	workDir, module := testWorkDirWithModule(t)
-	cfg := config.DefaultConfig()
-	cfg.Execution.Binary = "bad"
-	appCtx := testAppContextWithConfig(workDir, cfg)
-	runtimeFactory := &fakeRuntimeFactory{err: errors.New("runtime should not be built")}
-
-	_, err := New(
-		appCtx,
-		WithProjectPlanner(fakeProjectWithTargets(module)),
-		WithRuntimeFactory(runtimeFactory),
-	).Run(context.Background(), spec.Request{})
-	if err == nil || !strings.Contains(err.Error(), "unsupported terraform binary") {
-		t.Fatalf("Run() error = %v, want unsupported terraform binary", err)
-	}
-	if runtimeFactory.calls != 0 {
-		t.Fatalf("runtime factory calls = %d, want 0", runtimeFactory.calls)
 	}
 }
 
@@ -562,7 +556,7 @@ func invalidProjectWithTargets(targets ...*discovery.Module) *workflow.ProjectRe
 	}
 }
 
-func testAppContextWithConfig(workDir string, cfg *config.Config) *plugin.AppContext {
+func testAppContextWithConfig(workDir string, cfg config.Config) *plugin.AppContext {
 	return plugin.NewAppContext(plugin.AppContextOptions{Config: cfg, WorkDir: workDir})
 }
 

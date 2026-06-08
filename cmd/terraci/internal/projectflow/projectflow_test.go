@@ -31,7 +31,7 @@ func (d *testChangeDetector) DetectChanges(_ context.Context, req workflow.Chang
 
 func TestRunAdaptsPreparedStateToWorkflowPlanProject(t *testing.T) {
 	workDir := t.TempDir()
-	cfg := config.DefaultConfig()
+	cfg := config.Default()
 	if err := cfg.Save(filepath.Join(workDir, ".terraci.yaml")); err != nil {
 		t.Fatalf("Save config: %v", err)
 	}

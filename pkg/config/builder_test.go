@@ -13,11 +13,11 @@ func TestBuild_WithPattern(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if cfg.Structure.Pattern != "{service}/{environment}/{module}" {
-		t.Errorf("pattern = %q, want {service}/{environment}/{module}", cfg.Structure.Pattern)
+	if got := cfg.Structure().Pattern(); got != "{service}/{environment}/{module}" {
+		t.Errorf("pattern = %q, want {service}/{environment}/{module}", got)
 	}
-	if len(cfg.Structure.Segments) != 3 {
-		t.Errorf("segments count = %d, want 3", len(cfg.Structure.Segments))
+	if got := len(cfg.Structure().Segments()); got != 3 {
+		t.Errorf("segments count = %d, want 3", got)
 	}
 }
 
@@ -30,7 +30,7 @@ func TestBuild_EmptyPattern(t *testing.T) {
 	}
 
 	// Should use default pattern
-	if cfg.Structure.Pattern == "" {
+	if cfg.Structure().Pattern() == "" {
 		t.Error("expected default pattern, got empty")
 	}
 }
@@ -44,9 +44,11 @@ func TestBuild_ProviderA(t *testing.T) {
 			"comment": map[string]any{"enabled": true},
 		},
 	})
-	execution := DefaultConfig().Execution
-	execution.Binary = "terraform"
-	execution.InitEnabled = true
+	initEnabled := true
+	execution, err := NewExecutionConfig(ExecutionConfigOptions{Binary: "terraform", InitEnabled: &initEnabled})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	cfg, err := Build(BuildOptions{
 		Pattern:    "{service}/{environment}/{module}",
@@ -80,9 +82,11 @@ func TestBuild_ProviderB(t *testing.T) {
 			"comment": map[string]any{},
 		},
 	})
-	execution := DefaultConfig().Execution
-	execution.Binary = "tofu"
-	execution.InitEnabled = true
+	initEnabled := true
+	execution, err := NewExecutionConfig(ExecutionConfigOptions{Binary: "tofu", InitEnabled: &initEnabled})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	cfg, err := Build(BuildOptions{Execution: &execution, Extensions: extensions})
 	if err != nil {
@@ -98,8 +102,8 @@ func TestBuild_ProviderB(t *testing.T) {
 
 	var providerBCfg map[string]any
 	decodeExtension(t, cfg, "provider_b", &providerBCfg)
-	if cfg.Execution.Binary != "tofu" {
-		t.Errorf("binary = %v, want tofu", cfg.Execution.Binary)
+	if got := cfg.Execution().Binary(); got != "tofu" {
+		t.Errorf("binary = %v, want tofu", got)
 	}
 	if providerBCfg["pr"] == nil {
 		t.Error("pr config should be present")
@@ -110,8 +114,10 @@ func TestBuild_WithFeature(t *testing.T) {
 	t.Parallel()
 
 	extensions := mustExtensionValueSet(t, "feature_a", map[string]any{"enabled": true})
-	execution := DefaultConfig().Execution
-	execution.Binary = "terraform"
+	execution, err := NewExecutionConfig(ExecutionConfigOptions{Binary: "terraform"})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	cfg, err := Build(BuildOptions{Execution: &execution, Extensions: extensions})
 	if err != nil {
@@ -156,8 +162,7 @@ func TestBuild_InvalidPattern(t *testing.T) {
 func TestBuild_InvalidExecution(t *testing.T) {
 	t.Parallel()
 
-	execution := DefaultConfig().Execution
-	execution.Binary = "terragrunt"
+	execution := ExecutionConfig{binary: "terragrunt", initEnabled: true, parallelism: 4}
 	_, err := Build(BuildOptions{Execution: &execution})
 	if err == nil {
 		t.Fatal("expected validation error for invalid execution.binary")
@@ -237,7 +242,7 @@ func TestExtensionValueSet_ValuesAreDefensive(t *testing.T) {
 	}
 }
 
-func decodeExtension(tb testing.TB, cfg *Config, key string, target any) {
+func decodeExtension(tb testing.TB, cfg Config, key string, target any) {
 	tb.Helper()
 	doc, ok := cfg.Extension(MustExtensionKey(key))
 	if !ok {

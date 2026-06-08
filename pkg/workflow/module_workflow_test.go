@@ -9,14 +9,13 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/config"
+	"github.com/edelwud/terraci/pkg/config/configtest"
 	terrierrors "github.com/edelwud/terraci/pkg/errors"
 )
 
-func configForLibraryTest() *config.Config {
-	cfg := config.DefaultConfig()
-	cfg.Structure.Segments = defaultSegments
-	cfg.LibraryModules = &config.LibraryModulesConfig{Paths: []string{"_modules"}}
-	return cfg
+func configForLibraryTest(t testing.TB) config.Config {
+	t.Helper()
+	return configtest.Build(t, configtest.Options{LibraryPaths: []string{"_modules"}})
 }
 
 var defaultSegments = []string{"service", "environment", "region", "module"}
@@ -175,8 +174,8 @@ func TestResolveTargets_ExcludesLibraryEvenWithoutExclude(t *testing.T) {
 		t.Fatalf("run: %v", err)
 	}
 
-	cfg := configForLibraryTest()
-	targets, err := resolveTargets(context.Background(), tmpDir, cfg.Snapshot(), result, targetSelectionOptions{})
+	cfg := configForLibraryTest(t)
+	targets, err := resolveTargets(context.Background(), tmpDir, cfg, result, targetSelectionOptions{})
 	if err != nil {
 		t.Fatalf("resolveTargets: %v", err)
 	}

@@ -69,7 +69,7 @@ Examples:
 				}
 			}
 
-			if result == nil || result.Config == nil {
+			if result == nil || !result.Config.Present() {
 				return errors.New("init produced empty config")
 			}
 			if err := result.Config.Save(configPath); err != nil {
@@ -137,7 +137,7 @@ func runInteractiveInit(source initflow.PluginSource) (*initflow.BuildResult, er
 	if im.err != nil {
 		return nil, im.err
 	}
-	if im.result == nil || im.result.Config == nil {
+	if im.result == nil || !im.result.Config.Present() {
 		return nil, errors.New("init canceled")
 	}
 	return im.result, nil

@@ -214,7 +214,7 @@ func (m *initModel) renderYAMLPreview() string {
 	if err != nil {
 		return previewBorder.Render(previewTitle.Render("  .terraci.yaml") + "\n\n" + previewYAML.Render("# error generating preview: "+err.Error()))
 	}
-	if result == nil || result.Config == nil {
+	if result == nil || !result.Config.Present() {
 		return previewBorder.Render(previewTitle.Render("  .terraci.yaml") + "\n\n" + previewYAML.Render("# error generating preview: empty init config"))
 	}
 	data, err := yaml.Marshal(result.Config)

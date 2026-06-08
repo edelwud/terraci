@@ -35,7 +35,7 @@ type Overrides struct {
 
 // BuildResult is the output of config construction.
 type BuildResult struct {
-	Config          *config.Config
+	Config          config.Config
 	GenerateCommand string
 }
 
@@ -137,7 +137,7 @@ func (f Flow) DefaultState() *initwiz.StateMap {
 		initwiz.ProviderKey.Set(state, f.defaultProvider)
 	}
 	initwiz.BinaryKey.Set(state, config.ExecutionBinaryTerraform)
-	initwiz.PatternKey.Set(state, config.DefaultConfig().Structure.Pattern)
+	initwiz.PatternKey.Set(state, config.Default().Structure().Pattern())
 	initwiz.SummaryEnabledKey.Set(state, true)
 	return state
 }
@@ -183,18 +183,24 @@ func (f Flow) BuildConfig(state *initwiz.StateMap) (*BuildResult, error) {
 
 	pattern := initwiz.PatternKey.Get(state)
 
-	execution := config.DefaultConfig().Execution
-	execution.Binary = initwiz.BinaryKey.Get(state)
-	execution.InitEnabled = true
-	if execution.Binary == "" {
-		execution.Binary = config.ExecutionBinaryTerraform
+	initEnabled := true
+	binary := initwiz.BinaryKey.Get(state)
+	if binary == "" {
+		binary = config.ExecutionBinaryTerraform
+	}
+	execution, err := config.NewExecutionConfig(config.ExecutionConfigOptions{
+		Binary:      binary,
+		InitEnabled: &initEnabled,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("build init execution config: %w", err)
 	}
 
 	extensions := make([]config.ExtensionValue, 0, len(f.contributors))
 	for _, binding := range f.contributors {
-		contribution, err := binding.binding.BuildInitConfig(state)
-		if err != nil {
-			return nil, err
+		contribution, buildErr := binding.binding.BuildInitConfig(state)
+		if buildErr != nil {
+			return nil, buildErr
 		}
 		if contribution == nil {
 			continue

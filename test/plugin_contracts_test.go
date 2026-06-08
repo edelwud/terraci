@@ -273,7 +273,7 @@ func loadPluginContractConfig(t *testing.T, rawConfig string) (*plugin.AppContex
 		t.Fatalf("failed to decode plugin config: %v", err)
 	}
 
-	serviceDir := filepath.Join(dir, cfg.ServiceDir)
+	serviceDir := filepath.Join(dir, cfg.ServiceDir())
 	appCtx := plugin.NewAppContext(plugin.AppContextOptions{
 		Config:     cfg,
 		WorkDir:    dir,

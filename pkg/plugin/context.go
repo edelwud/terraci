@@ -12,14 +12,13 @@ import (
 // For pipeline artifact paths (CI templates), use Config().ServiceDir() which
 // preserves the original relative value from .terraci.yaml.
 //
-// Config returns an immutable snapshot. Production code should consume snapshot
-// accessors; MutableCopy is reserved for tests or explicit compatibility
-// adapters that need an isolated mutable configuration.
+// Config returns immutable TerraCi config. Production code should consume
+// accessors and build a new config value for modified fixtures.
 //
 // AppContext is safe for concurrent reads from any goroutine because all
 // fields are written exactly once at construction.
 type AppContext struct {
-	config     config.Snapshot
+	config     config.Config
 	workDir    string
 	serviceDir string
 	version    string
@@ -29,8 +28,8 @@ type AppContext struct {
 
 // AppContextOptions describes how to construct an AppContext.
 type AppContextOptions struct {
-	// Config is the loaded TerraCi configuration. Treated as read-only.
-	Config *config.Config
+	// Config is the loaded immutable TerraCi configuration.
+	Config config.Config
 	// WorkDir is the project working directory for the current command.
 	WorkDir string
 	// ServiceDir is the resolved absolute service directory path.
@@ -57,7 +56,7 @@ func NewAppContext(opts AppContextOptions) *AppContext {
 		}
 	}
 	return &AppContext{
-		config:     config.NewSnapshot(opts.Config),
+		config:     opts.Config,
 		workDir:    opts.WorkDir,
 		serviceDir: opts.ServiceDir,
 		version:    opts.Version,
@@ -67,7 +66,7 @@ func NewAppContext(opts AppContextOptions) *AppContext {
 }
 
 // Config returns the loaded TerraCi configuration snapshot.
-func (ctx *AppContext) Config() config.Snapshot { return ctx.config }
+func (ctx *AppContext) Config() config.Config { return ctx.config }
 
 // WorkDir returns the working directory for the current command.
 func (ctx *AppContext) WorkDir() string { return ctx.workDir }

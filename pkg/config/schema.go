@@ -10,6 +10,30 @@ import (
 	"github.com/invopop/jsonschema"
 )
 
+type configSchema struct {
+	ServiceDir     string                      `json:"service_dir,omitempty" jsonschema:"description=Service directory for cache and artifacts,default=.terraci"`
+	Execution      executionSchema             `json:"execution,omitempty" jsonschema:"description=Shared execution settings for Terraform/OpenTofu"` //nolint:modernize // jsonschema reflector expects omitempty on nested schema DTOs.
+	Structure      structureSchema             `json:"structure" jsonschema:"description=Directory structure configuration"`
+	Exclude        []string                    `json:"exclude,omitempty" jsonschema:"description=Glob patterns for modules to exclude"`
+	Include        []string                    `json:"include,omitempty" jsonschema:"description=Glob patterns for modules to include (if empty, all modules are included after excludes)"`
+	LibraryModules *libraryModulesConfigSchema `json:"library_modules,omitempty" jsonschema:"description=Configuration for library/shared modules (non-executable modules used by other modules)"`
+}
+
+type executionSchema struct {
+	Binary      string            `json:"binary,omitempty" jsonschema:"description=Terraform/OpenTofu binary to use,enum=terraform,enum=tofu,default=terraform"`
+	InitEnabled bool              `json:"init_enabled,omitempty" jsonschema:"description=Automatically run terraform init before terraform operations,default=true"`
+	Parallelism int               `json:"parallelism,omitempty" jsonschema:"description=Maximum parallel jobs for local execution,minimum=1,default=4"`
+	Env         map[string]string `json:"env,omitempty" jsonschema:"description=Execution-wide environment variables"`
+}
+
+type structureSchema struct {
+	Pattern string `json:"pattern" jsonschema:"description=Pattern describing module directory layout. Supported placeholders: {service}\\, {environment}\\, {region}\\, {module},default={service}/{environment}/{region}/{module}"`
+}
+
+type libraryModulesConfigSchema struct {
+	Paths []string `json:"paths" jsonschema:"description=List of directories containing library modules (relative to root)"`
+}
+
 // ExtensionDefinition describes one typed extension config section for schema
 // generation.
 type ExtensionDefinition struct {
@@ -114,7 +138,7 @@ func GenerateJSONSchema(definitions ExtensionDefinitionSet) (string, error) {
 		RequiredFromJSONSchemaTags: true,
 	}
 
-	schema := r.Reflect(&Config{})
+	schema := r.Reflect(&configSchema{})
 	schema.ID = "https://github.com/edelwud/terraci/raw/main/terraci.schema.json"
 	schema.Title = "TerraCi Configuration"
 	schema.Description = "Configuration schema for TerraCi - CI pipeline generator for Terraform monorepos"

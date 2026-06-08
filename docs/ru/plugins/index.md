@@ -168,7 +168,7 @@ Register → Configure → Preflight → Bind → Execute
 ```go
 ctx.WorkDir()    // корневая директория проекта
 ctx.ServiceDir() // абсолютный путь к .terraci
-ctx.Config()     // immutable config.Snapshot; используйте accessors вроде ServiceDir()
+ctx.Config()     // immutable config.Config; используйте accessors вроде ServiceDir()
 ctx.Version()    // строка версии TerraCi
 ctx.Reports()    // shared ci.ReportStore для plugin artifacts и отчётов
 ctx.CIResolver()             // резолвер CI-провайдера — никогда не nil

@@ -12,7 +12,7 @@ import (
 // ProjectRequest describes one canonical Terraform project planning request.
 type ProjectRequest struct {
 	WorkDir   string
-	Config    config.Snapshot
+	Config    config.Config
 	Filters   filter.Flags
 	Targeting TargetRequest
 }
@@ -56,7 +56,7 @@ type LibrarySummary struct {
 func PlanProject(ctx context.Context, req ProjectRequest) (*ProjectResult, error) {
 	cfg := req.Config
 	if !cfg.Present() {
-		cfg = config.DefaultConfig().Snapshot()
+		cfg = config.Default()
 	}
 	flags := cloneFilterFlags(req.Filters)
 
@@ -107,9 +107,9 @@ func LibraryUsages(workDir string, result *Result) []LibraryUsage {
 }
 
 // SummarizeLibraries derives configured library_modules diagnostics.
-func SummarizeLibraries(cfg config.Snapshot, result *Result) *LibrarySummary {
+func SummarizeLibraries(cfg config.Config, result *Result) *LibrarySummary {
 	libraryModules := cfg.LibraryModules()
-	if !cfg.Present() || libraryModules == nil || len(libraryModules.Paths) == 0 || result == nil || result.Graph == nil {
+	if !cfg.Present() || libraryModules == nil || len(libraryModules.Paths()) == 0 || result == nil || result.Graph == nil {
 		return nil
 	}
 	orphans := make([]string, 0)
@@ -119,7 +119,7 @@ func SummarizeLibraries(cfg config.Snapshot, result *Result) *LibrarySummary {
 		}
 	}
 	return &LibrarySummary{
-		ConfiguredPaths: len(libraryModules.Paths),
+		ConfiguredPaths: len(libraryModules.Paths()),
 		Discovered:      len(result.Libraries.Modules),
 		Consumers:       result.Graph.LibraryConsumerCount(),
 		Orphans:         orphans,

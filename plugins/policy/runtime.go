@@ -37,7 +37,7 @@ func newRuntime(appCtx *plugin.AppContext, cfg *policyengine.Config) (*policyRun
 	}
 
 	structure := appCtx.Config().Structure()
-	segments := append([]string(nil), structure.Segments...)
+	segments := structure.Segments()
 
 	return &policyRuntime{
 		config:       runtimeConfig,

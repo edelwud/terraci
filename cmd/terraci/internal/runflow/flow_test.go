@@ -155,11 +155,11 @@ extensions:
 	if !cfgPlugin.configured {
 		t.Fatal("plugin config was not decoded")
 	}
-	if !result.Config().Present() || result.LoadedConfig() == nil {
+	if !result.Config().Present() || !result.LoadedConfig().Present() {
 		t.Fatal("loaded config not captured")
 	}
-	if result.AppContext().Config().Structure().Pattern == "" {
-		t.Fatal("AppContext config snapshot is empty")
+	if result.AppContext().Config().Structure().Pattern() == "" {
+		t.Fatal("AppContext config is empty")
 	}
 }
 

@@ -45,9 +45,14 @@ func (k ExtensionKey) String() string {
 
 // BuildOptions describes a typed config construction request.
 type BuildOptions struct {
-	Pattern    string
-	Execution  *ExecutionConfig
-	Extensions ExtensionValueSet
+	ServiceDir     string
+	ServiceDirSet  bool
+	Pattern        string
+	Execution      *ExecutionConfig
+	Exclude        []string
+	Include        []string
+	LibraryModules *LibraryModulesConfig
+	Extensions     ExtensionValueSet
 }
 
 // ExtensionValue is a validated extension config section ready to be stored as
@@ -134,22 +139,29 @@ func (s ExtensionValueSet) Values() []ExtensionValue {
 }
 
 // Build assembles a Config from typed options.
-func Build(opts BuildOptions) (*Config, error) {
-	cfg := DefaultConfig()
+func Build(opts BuildOptions) (Config, error) {
+	cfg := Default()
+	if opts.ServiceDirSet || opts.ServiceDir != "" {
+		cfg.serviceDir = opts.ServiceDir
+	}
 	if opts.Pattern != "" {
-		cfg.Structure.Pattern = opts.Pattern
-		if segments, err := ParsePattern(opts.Pattern); err == nil {
-			cfg.Structure.Segments = segments
+		structure, err := NewStructureConfig(StructureConfigOptions{Pattern: opts.Pattern})
+		if err != nil {
+			return Config{}, fmt.Errorf("structure.pattern: %w", err)
 		}
+		cfg.structure = structure
 	}
 	if opts.Execution != nil {
-		cfg.Execution = opts.Execution.clone()
+		cfg.execution = opts.Execution.clone()
 	}
+	cfg.exclude = append([]string(nil), opts.Exclude...)
+	cfg.include = append([]string(nil), opts.Include...)
+	cfg.libraryModules = cloneLibraryModulesConfig(opts.LibraryModules)
 	for i := range opts.Extensions.values {
-		setExtensionValue(cfg, opts.Extensions.values[i])
+		setExtensionValue(&cfg, opts.Extensions.values[i])
 	}
 	if err := cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("validate config: %w", err)
+		return Config{}, fmt.Errorf("validate config: %w", err)
 	}
 	return cfg, nil
 }

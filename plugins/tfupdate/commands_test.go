@@ -457,7 +457,7 @@ terraform {
 	// Create AppContext with empty ServiceDir to skip artifact saving
 	base := newTestCommandAppContext(t, workDir, p)
 	appCtx := plugin.NewAppContext(plugin.AppContextOptions{
-		Config:     base.Config().MutableCopy(),
+		Config:     base.Config(),
 		WorkDir:    base.WorkDir(),
 		ServiceDir: "",
 		Version:    base.Version(),
@@ -529,7 +529,7 @@ func TestPlugin_RunCheck_DiscoverError(t *testing.T) {
 
 	base := newTestCommandAppContext(t, workDir, p)
 	appCtx := plugin.NewAppContext(plugin.AppContextOptions{
-		Config:     base.Config().MutableCopy(),
+		Config:     base.Config(),
 		WorkDir:    filePath,
 		ServiceDir: base.ServiceDir(),
 		Version:    base.Version(),

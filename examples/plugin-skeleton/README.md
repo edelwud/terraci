@@ -88,7 +88,7 @@ Framework discovery is type-assertion-based inside TerraCi's registry, but plugi
 - **Don't** panic while building reports in production code paths. Use `ci.NewRenderedReport` and propagate errors.
 - **Don't** assemble report payload JSON or render structs by hand. Use `ci.NewTableBlock`, `ci.NewListBlock`, `ci.RenderStatus`, `ci.RenderMoney`, `ci.RenderModulePath`, and related constructors so presentation stays in the shared renderer.
 - **Don't** assemble provenance by hand. Build a run with `plugin.NewArtifactRun` and pass `run.Artifact()` to `ci.NewRenderedReport`; local consumers compare the fingerprint through `ci.SelectCurrentReports`.
-- **Don't** mutate project config through `ctx.Config()`. It returns an immutable `config.Snapshot`; use snapshot accessors in production code.
+- **Don't** mutate project config through `ctx.Config()`. It returns an immutable `config.Config`; use config accessors in production code.
 - **Don't** mutate the value returned by `BasePlugin.Config()` expecting plugin state to change. Config types must implement `Clone() C`; `Config()` returns a defensive copy.
 
 ## See also

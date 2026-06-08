@@ -1,17 +1,17 @@
 package config
 
-// DefaultConfig returns a config with sensible defaults
-func DefaultConfig() *Config {
-	return &Config{
-		ServiceDir: DefaultServiceDir,
-		Execution: ExecutionConfig{
-			Binary:      ExecutionBinaryTerraform,
-			InitEnabled: true,
-			Parallelism: 4,
+// Default returns TerraCi config with canonical defaults.
+func Default() Config {
+	return Config{
+		serviceDir: DefaultServiceDir,
+		execution: ExecutionConfig{
+			binary:      ExecutionBinaryTerraform,
+			initEnabled: true,
+			parallelism: DefaultParallelism,
 		},
-		Structure: StructureConfig{
-			Pattern:  DefaultPattern,
-			Segments: DefaultSegments(),
+		structure: StructureConfig{
+			pattern:  DefaultPattern,
+			segments: DefaultSegments(),
 		},
 		extensions: make(extensionNodeMap),
 	}

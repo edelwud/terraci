@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/edelwud/terraci/pkg/config"
+	"github.com/edelwud/terraci/pkg/config/configtest"
 	"github.com/edelwud/terraci/pkg/discovery"
 	"github.com/edelwud/terraci/pkg/filter"
 	"github.com/edelwud/terraci/pkg/graph"
@@ -69,8 +70,7 @@ func TestPlanProjectTargetMode(t *testing.T) {
 }
 
 func TestPlanProjectChangedOnlyPropagatesBaseRefAndLibraryRoots(t *testing.T) {
-	cfg := config.DefaultConfig()
-	cfg.LibraryModules = &config.LibraryModulesConfig{Paths: []string{"_modules"}}
+	cfg := configtest.Build(t, configtest.Options{LibraryPaths: []string{"_modules"}})
 	workDir := testProjectDirWithConfig(t, cfg, []string{
 		"platform/stage/eu-central-1/vpc",
 		"platform/prod/eu-central-1/vpc",
@@ -84,7 +84,7 @@ func TestPlanProjectChangedOnlyPropagatesBaseRefAndLibraryRoots(t *testing.T) {
 
 	result, err := PlanProject(context.Background(), ProjectRequest{
 		WorkDir: workDir,
-		Config:  cfg.Snapshot(),
+		Config:  cfg,
 		Filters: filter.Flags{
 			SegmentArgs: []string{"environment=stage"},
 		},
@@ -130,8 +130,7 @@ func TestPlanProjectChangedOnlyNoTargets(t *testing.T) {
 }
 
 func TestProjectLibraryDiagnostics(t *testing.T) {
-	cfg := config.DefaultConfig()
-	cfg.LibraryModules = &config.LibraryModulesConfig{Paths: []string{"_modules"}}
+	cfg := configtest.Build(t, configtest.Options{LibraryPaths: []string{"_modules"}})
 
 	used := discovery.TestLibraryModule("_modules/kafka", "/abs/_modules/kafka")
 	orphan := discovery.TestLibraryModule("_modules/unused", "/abs/_modules/unused")
@@ -146,7 +145,7 @@ func TestProjectLibraryDiagnostics(t *testing.T) {
 		Graph:     depGraph,
 	}
 
-	summary := SummarizeLibraries(cfg.Snapshot(), workflowResult)
+	summary := SummarizeLibraries(cfg, workflowResult)
 	if summary == nil {
 		t.Fatal("expected non-nil summary")
 	}
@@ -160,10 +159,10 @@ func TestProjectLibraryDiagnostics(t *testing.T) {
 
 func testProjectDir(tb testing.TB, modules []string) string {
 	tb.Helper()
-	return testProjectDirWithConfig(tb, config.DefaultConfig(), modules)
+	return testProjectDirWithConfig(tb, config.Default(), modules)
 }
 
-func testProjectDirWithConfig(tb testing.TB, cfg *config.Config, modules []string) string {
+func testProjectDirWithConfig(tb testing.TB, cfg config.Config, modules []string) string {
 	tb.Helper()
 	workDir := tb.TempDir()
 	if err := cfg.Save(filepath.Join(workDir, ".terraci.yaml")); err != nil {

@@ -104,7 +104,7 @@ func executeUpdateCheck(
 	modules []*discovery.Module,
 ) (*tfupdateengine.UpdateResult, error) {
 	structure := appCtx.Config().Structure()
-	tfParser := parser.NewParser(structure.Segments)
+	tfParser := parser.NewParser(structure.Segments())
 	service := tfupdateusecase.New(config, tfParser, runtime.registry, runtime.downloader, write)
 
 	result, err := service.Run(ctx, modules)

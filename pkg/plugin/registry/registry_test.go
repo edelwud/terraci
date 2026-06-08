@@ -709,7 +709,7 @@ func TestCollectContributions_FiltersDisabledPlugins(t *testing.T) {
 	)
 
 	appCtx := plugin.NewAppContext(plugin.AppContextOptions{
-		Config:     config.DefaultConfig(),
+		Config:     config.Default(),
 		WorkDir:    "/work",
 		ServiceDir: "/service",
 		Version:    "test",

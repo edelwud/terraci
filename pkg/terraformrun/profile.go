@@ -86,18 +86,20 @@ func NewProfile(opts ProfileOptions) (Profile, error) {
 }
 
 // ProfileFromConfig normalizes Terraform/OpenTofu runtime settings from config.
-func ProfileFromConfig(cfg config.Snapshot) (Profile, error) {
+func ProfileFromConfig(cfg config.Config) (Profile, error) {
 	if !cfg.Present() {
 		return NewProfile(ProfileOptions{})
 	}
 	execution := cfg.Execution()
 	return NewProfile(ProfileOptions{
-		Binary:      execution.Binary,
-		InitEnabled: &execution.InitEnabled,
-		Parallelism: execution.Parallelism,
-		Env:         execution.Env,
+		Binary:      execution.Binary(),
+		InitEnabled: boolPtr(execution.InitEnabled()),
+		Parallelism: execution.Parallelism(),
+		Env:         execution.Env(),
 	})
 }
+
+func boolPtr(v bool) *bool { return &v }
 
 func (p Profile) Binary() Binary { return p.binary }
 

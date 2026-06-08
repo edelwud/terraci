@@ -6,38 +6,22 @@ import (
 	"go.yaml.in/yaml/v4"
 )
 
-// Clone returns a deep copy of c. Nil receivers return nil.
-func (c *Config) Clone() *Config {
-	if c == nil {
-		return nil
-	}
-
-	clone := *c
-	clone.Execution = c.Execution.clone()
-	clone.Structure = c.Structure.clone()
-	clone.Exclude = append([]string(nil), c.Exclude...)
-	clone.Include = append([]string(nil), c.Include...)
-	clone.LibraryModules = c.LibraryModules.clone()
-	clone.extensions = cloneYAMLNodeMap(c.extensions)
-	return &clone
-}
-
 func (c ExecutionConfig) clone() ExecutionConfig {
-	c.Env = maps.Clone(c.Env)
+	c.env = maps.Clone(c.env)
 	return c
 }
 
-func (c *LibraryModulesConfig) clone() *LibraryModulesConfig {
+func cloneLibraryModulesConfig(c *LibraryModulesConfig) *LibraryModulesConfig {
 	if c == nil {
 		return nil
 	}
 	clone := *c
-	clone.Paths = append([]string(nil), c.Paths...)
+	clone.paths = append([]string(nil), c.paths...)
 	return &clone
 }
 
 func (c StructureConfig) clone() StructureConfig {
-	c.Segments = append(PatternSegments(nil), c.Segments...)
+	c.segments = append(PatternSegments(nil), c.segments...)
 	return c
 }
 
