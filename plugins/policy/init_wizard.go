@@ -1,6 +1,7 @@
 package policy
 
 import (
+	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/plugin/initwiz"
 	policyengine "github.com/edelwud/terraci/plugins/policy/internal"
 )
@@ -10,6 +11,7 @@ import (
 const initGroupOrder = 201
 
 var (
+	initConfigKey         = config.MustExtensionKey(pluginName)
 	keyPolicyEnabled      = initwiz.MustStateKey[bool]("policy.enabled")
 	keyPolicySourcePath   = initwiz.MustStateKey[string]("policy.source_path")
 	keyPolicyDenyDecision = initwiz.MustStateKey[string]("policy.decisions.deny")
@@ -91,7 +93,7 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribu
 		denyAction = "block"
 	}
 
-	return initwiz.NewInitContribution(pluginName, &policyengine.Config{
+	return initwiz.NewInitContribution(initConfigKey, &policyengine.Config{
 		Enabled: true,
 		Sources: []policyengine.SourceConfig{
 			{Type: policyengine.SourceTypePath, Path: sourcePath},

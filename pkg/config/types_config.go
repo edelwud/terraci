@@ -1,7 +1,5 @@
 package config
 
-import "go.yaml.in/yaml/v4"
-
 const (
 	DefaultServiceDir        = ".terraci"
 	ExecutionBinaryTerraform = "terraform"
@@ -28,10 +26,10 @@ type Config struct {
 	// LibraryModules configuration for shared/reusable modules
 	LibraryModules *LibraryModulesConfig `yaml:"library_modules,omitempty" json:"library_modules,omitempty" jsonschema:"description=Configuration for library/shared modules (non-executable modules used by other modules)"`
 
-	// Extensions holds opaque configuration sections decoded by feature
-	// extensions. Each key identifies a section; the value is the raw YAML node
-	// the owning extension decodes into its own typed config.
-	Extensions map[string]yaml.Node `yaml:"extensions,omitempty" json:"-" jsonschema:"-"`
+	// extensions holds opaque configuration sections decoded by feature
+	// extensions. Access goes through Extension/ExtensionDocuments so raw YAML
+	// nodes stay inside pkg/config.
+	extensions extensionNodeMap
 }
 
 // ExecutionConfig defines shared Terraform/OpenTofu execution settings.

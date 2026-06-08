@@ -164,11 +164,12 @@
 // instead of panicking. Returning nil, nil from BuildInitConfig is the only
 // normal way to skip an optional init contribution. Do not build extension
 // config with loose maps or construct InitContribution, InitGroup, or
-// InitField directly; config.NewExtensionValue owns YAML node encoding, key
-// validation, and defensive copies. Init fields are value objects built with
-// initwiz.NewStringField, NewBoolField, or NewSelectField; plugin code should
-// not read wizard state through raw string keys. The terraci command package
-// owns only cobra flags, TUI rendering, preview rendering, and file writes.
+// InitField directly; config.NewExtensionValue owns YAML encoding, typed
+// extension-key validation, and defensive copies. Init fields are value
+// objects built with initwiz.NewStringField, NewBoolField, or NewSelectField;
+// plugin code should not read wizard state through raw string keys. The
+// terraci command package owns only cobra flags, TUI rendering, preview
+// rendering, and file writes.
 //
 // # SDK contract tests
 //

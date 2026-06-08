@@ -44,9 +44,13 @@ The init wizard collects form groups from all plugins and renders them in a TUI:
 Implement `InitContributor` from `pkg/plugin/initwiz`:
 
 ```go
-import "github.com/edelwud/terraci/pkg/plugin/initwiz"
+import (
+    "github.com/edelwud/terraci/pkg/config"
+    "github.com/edelwud/terraci/pkg/plugin/initwiz"
+)
 
 var (
+    slackConfigKey    = config.MustExtensionKey("slack")
     slackEnabledKey   = initwiz.MustStateKey[bool]("slack.enabled")
     slackChannelKey   = initwiz.MustStateKey[string]("slack.channel")
     slackOnFailureKey = initwiz.MustStateKey[string]("slack.on_failure")
@@ -124,7 +128,7 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribu
         return nil, nil
     }
 
-    return initwiz.NewInitContribution("slack", SlackConfig{
+    return initwiz.NewInitContribution(slackConfigKey, SlackConfig{
         Enabled:   true,
         Channel:   slackChannelKey.Get(state),
         OnFailure: slackOnFailureKey.Get(state),

@@ -11,6 +11,7 @@ import (
 	"github.com/edelwud/terraci/pkg/cache/blobcache"
 	"github.com/edelwud/terraci/pkg/cache/blobcache/blobtest"
 	"github.com/edelwud/terraci/pkg/ci"
+	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/pipeline"
 	"github.com/edelwud/terraci/pkg/pipeline/pipelinetest"
 	"github.com/edelwud/terraci/pkg/plugin"
@@ -341,7 +342,7 @@ func (contractInitContributor) InitGroups() ([]initwiz.InitGroup, error) {
 }
 
 func (contractInitContributor) BuildInitConfig(*initwiz.StateMap) (*initwiz.InitContribution, error) {
-	return initwiz.NewInitContribution("contract", contractInitConfig{Enabled: true})
+	return initwiz.NewInitContribution(config.MustExtensionKey("contract"), contractInitConfig{Enabled: true})
 }
 
 type contractInitConfig struct {

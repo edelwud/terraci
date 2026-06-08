@@ -202,7 +202,7 @@ func (f Flow) BuildConfig(state *initwiz.StateMap) (*BuildResult, error) {
 		extensions = append(extensions, contribution.ExtensionValue())
 	}
 
-	extensionSet, err := config.NewExtensionSet(extensions...)
+	extensionSet, err := config.NewExtensionValueSet(extensions...)
 	if err != nil {
 		return nil, fmt.Errorf("build init extension set: %w", err)
 	}

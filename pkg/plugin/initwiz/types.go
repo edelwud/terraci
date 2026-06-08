@@ -294,29 +294,28 @@ func validateFieldOptions(key, title string, typ FieldType, options []InitOption
 // InitContribution holds a validated extension config produced by a plugin's
 // init logic.
 type InitContribution struct {
-	pluginKey string
-	config    config.ExtensionValue
+	key    config.ExtensionKey
+	config config.ExtensionValue
 }
 
 // NewInitContribution builds a validated init contribution from typed config.
-func NewInitContribution(pluginKey string, typedConfig any) (*InitContribution, error) {
-	pluginKey = strings.TrimSpace(pluginKey)
-	if pluginKey == "" {
-		return nil, errors.New("init contribution plugin key is required")
+func NewInitContribution[C any](key config.ExtensionKey, typedConfig C) (*InitContribution, error) {
+	if key.String() == "" {
+		return nil, errors.New("init contribution extension key is required")
 	}
-	value, err := config.NewExtensionValue(pluginKey, typedConfig)
+	value, err := config.NewExtensionValue(key, typedConfig)
 	if err != nil {
-		return nil, fmt.Errorf("init contribution %q: %w", pluginKey, err)
+		return nil, fmt.Errorf("init contribution %q: %w", key.String(), err)
 	}
-	return &InitContribution{pluginKey: pluginKey, config: value}, nil
+	return &InitContribution{key: key, config: value}, nil
 }
 
-// PluginKey returns the extension config key.
-func (c *InitContribution) PluginKey() string {
+// Key returns the extension config key.
+func (c *InitContribution) Key() config.ExtensionKey {
 	if c == nil {
-		return ""
+		return config.ExtensionKey{}
 	}
-	return c.pluginKey
+	return c.key
 }
 
 // ExtensionValue returns a defensive copy of the encoded extension config.

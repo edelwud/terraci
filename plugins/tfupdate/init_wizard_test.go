@@ -105,8 +105,8 @@ func TestPlugin_BuildInitConfig_Enabled(t *testing.T) {
 	if contrib == nil {
 		t.Fatal("BuildInitConfig() returned nil, want non-nil for enabled state")
 	}
-	if contrib.PluginKey() != "tfupdate" {
-		t.Errorf("PluginKey() = %q, want %q", contrib.PluginKey(), "tfupdate")
+	if contrib.Key().String() != "tfupdate" {
+		t.Errorf("Key() = %q, want %q", contrib.Key().String(), "tfupdate")
 	}
 	cfg := decodeInitConfig(t, contrib)
 	if !cfg.Enabled {

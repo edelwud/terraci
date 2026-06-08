@@ -1,6 +1,10 @@
 package initwiz
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/edelwud/terraci/pkg/config"
+)
 
 type contributionConfig struct {
 	Enabled bool `yaml:"enabled"`
@@ -9,12 +13,12 @@ type contributionConfig struct {
 func TestNewInitContribution(t *testing.T) {
 	t.Parallel()
 
-	contribution, err := NewInitContribution("feature", contributionConfig{Enabled: true})
+	contribution, err := NewInitContribution(config.MustExtensionKey("feature"), contributionConfig{Enabled: true})
 	if err != nil {
 		t.Fatalf("NewInitContribution() error = %v", err)
 	}
-	if contribution.PluginKey() != "feature" {
-		t.Fatalf("PluginKey() = %q, want feature", contribution.PluginKey())
+	if contribution.Key().String() != "feature" {
+		t.Fatalf("Key() = %q, want feature", contribution.Key().String())
 	}
 	if contribution.ExtensionValue().Key().String() != "feature" {
 		t.Fatalf("ExtensionValue().Key() = %q, want feature", contribution.ExtensionValue().Key().String())
@@ -32,7 +36,7 @@ func TestNewInitContribution(t *testing.T) {
 func TestNewInitContribution_InvalidPluginKey(t *testing.T) {
 	t.Parallel()
 
-	if _, err := NewInitContribution("", contributionConfig{Enabled: true}); err == nil {
+	if _, err := NewInitContribution(config.ExtensionKey{}, contributionConfig{Enabled: true}); err == nil {
 		t.Fatal("NewInitContribution() error = nil, want plugin key error")
 	}
 }
@@ -40,7 +44,7 @@ func TestNewInitContribution_InvalidPluginKey(t *testing.T) {
 func TestNewInitContribution_NilConfig(t *testing.T) {
 	t.Parallel()
 
-	if _, err := NewInitContribution("feature", nil); err == nil {
+	if _, err := NewInitContribution[any](config.MustExtensionKey("feature"), nil); err == nil {
 		t.Fatal("NewInitContribution() error = nil, want nil config error")
 	}
 }
@@ -48,16 +52,9 @@ func TestNewInitContribution_NilConfig(t *testing.T) {
 func TestInitContribution_GettersAreDefensive(t *testing.T) {
 	t.Parallel()
 
-	contribution, err := NewInitContribution("feature", contributionConfig{Enabled: true})
+	contribution, err := NewInitContribution(config.MustExtensionKey("feature"), contributionConfig{Enabled: true})
 	if err != nil {
 		t.Fatalf("NewInitContribution() error = %v", err)
-	}
-
-	value := contribution.ExtensionValue()
-	node := value.Node()
-	node.Content = nil
-	if len(node.Content) != 0 {
-		t.Fatal("mutated defensive node copy still has content")
 	}
 
 	var decoded contributionConfig

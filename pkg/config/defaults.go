@@ -1,7 +1,5 @@
 package config
 
-import "go.yaml.in/yaml/v4"
-
 // DefaultConfig returns a config with sensible defaults
 func DefaultConfig() *Config {
 	return &Config{
@@ -15,6 +13,6 @@ func DefaultConfig() *Config {
 			Pattern:  DefaultPattern,
 			Segments: DefaultSegments(),
 		},
-		Extensions: make(map[string]yaml.Node),
+		extensions: make(extensionNodeMap),
 	}
 }

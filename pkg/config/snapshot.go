@@ -1,7 +1,5 @@
 package config
 
-import "go.yaml.in/yaml/v4"
-
 // Snapshot is an immutable view of a TerraCi Config. Accessors return values
 // or defensive copies so callers cannot mutate the captured configuration.
 type Snapshot struct {
@@ -77,14 +75,6 @@ func (s Snapshot) LibraryModules() *LibraryModulesConfig {
 	return s.cfg.LibraryModules.clone()
 }
 
-// Extensions returns a defensive copy of raw extension YAML sections.
-func (s Snapshot) Extensions() map[string]yaml.Node {
-	if s.cfg == nil {
-		return nil
-	}
-	return cloneYAMLNodeMap(s.cfg.Extensions)
-}
-
 // Extension returns the named extension config document from the captured
 // configuration. Missing or empty snapshots return false.
 func (s Snapshot) Extension(key ExtensionKey) (ExtensionDocument, bool) {
@@ -92,4 +82,13 @@ func (s Snapshot) Extension(key ExtensionKey) (ExtensionDocument, bool) {
 		return ExtensionDocument{}, false
 	}
 	return s.cfg.Extension(key)
+}
+
+// ExtensionDocuments returns all extension config documents in deterministic
+// key order from the captured configuration.
+func (s Snapshot) ExtensionDocuments() ExtensionDocumentSet {
+	if s.cfg == nil {
+		return ExtensionDocumentSet{}
+	}
+	return s.cfg.ExtensionDocuments()
 }

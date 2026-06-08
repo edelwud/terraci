@@ -259,12 +259,12 @@ func TestBasePlugin_SatisfiesConfigLoader(_ *testing.T) {
 
 func extensionDocument(t *testing.T, key string, value any) config.ExtensionDocument {
 	t.Helper()
-	extensionValue, err := config.NewExtensionValue(key, value)
+	extensionValue, err := config.NewExtensionValue(config.MustExtensionKey(key), value)
 	if err != nil {
 		t.Fatalf("NewExtensionValue() error = %v", err)
 	}
 	cfg, err := config.Build(config.BuildOptions{
-		Extensions: mustExtensionSet(t, extensionValue),
+		Extensions: mustExtensionValueSet(t, extensionValue),
 	})
 	if err != nil {
 		t.Fatalf("config.Build() error = %v", err)
@@ -276,11 +276,11 @@ func extensionDocument(t *testing.T, key string, value any) config.ExtensionDocu
 	return doc
 }
 
-func mustExtensionSet(t *testing.T, values ...config.ExtensionValue) config.ExtensionSet {
+func mustExtensionValueSet(t *testing.T, values ...config.ExtensionValue) config.ExtensionValueSet {
 	t.Helper()
-	set, err := config.NewExtensionSet(values...)
+	set, err := config.NewExtensionValueSet(values...)
 	if err != nil {
-		t.Fatalf("NewExtensionSet() error = %v", err)
+		t.Fatalf("NewExtensionValueSet() error = %v", err)
 	}
 	return set
 }

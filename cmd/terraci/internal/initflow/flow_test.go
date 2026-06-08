@@ -318,7 +318,7 @@ func TestFlowBuildConfigDuplicateExtensionKeysFail(t *testing.T) {
 	t.Parallel()
 
 	build := func(*initwiz.StateMap) (*initwiz.InitContribution, error) {
-		return initwiz.NewInitContribution("dup", testConfig{Enabled: true})
+		return initwiz.NewInitContribution(config.MustExtensionKey("dup"), testConfig{Enabled: true})
 	}
 	flow := mustFlow(t, testSource{plugins: []plugin.Plugin{
 		testContributor{testPlugin: testPlugin{name: "a"}, build: build},

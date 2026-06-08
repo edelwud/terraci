@@ -55,8 +55,8 @@ func TestPlugin_BuildInitConfig_Enabled(t *testing.T) {
 	if contrib == nil {
 		t.Fatal("BuildInitConfig() returned nil, want non-nil for enabled state")
 	}
-	if contrib.PluginKey() != "cost" {
-		t.Errorf("PluginKey() = %q, want %q", contrib.PluginKey(), "cost")
+	if contrib.Key().String() != "cost" {
+		t.Errorf("Key() = %q, want %q", contrib.Key().String(), "cost")
 	}
 	var cfg model.CostConfig
 	if err := contrib.DecodeConfig(&cfg); err != nil {

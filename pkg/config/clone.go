@@ -18,7 +18,7 @@ func (c *Config) Clone() *Config {
 	clone.Exclude = append([]string(nil), c.Exclude...)
 	clone.Include = append([]string(nil), c.Include...)
 	clone.LibraryModules = c.LibraryModules.clone()
-	clone.Extensions = cloneYAMLNodeMap(c.Extensions)
+	clone.extensions = cloneYAMLNodeMap(c.extensions)
 	return &clone
 }
 
@@ -41,11 +41,11 @@ func (c StructureConfig) clone() StructureConfig {
 	return c
 }
 
-func cloneYAMLNodeMap(nodes map[string]yaml.Node) map[string]yaml.Node {
+func cloneYAMLNodeMap(nodes extensionNodeMap) extensionNodeMap {
 	if nodes == nil {
 		return nil
 	}
-	clone := make(map[string]yaml.Node, len(nodes))
+	clone := make(extensionNodeMap, len(nodes))
 	for key := range nodes {
 		clone[key] = cloneYAMLNode(nodes[key])
 	}

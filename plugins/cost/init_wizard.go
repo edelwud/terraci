@@ -3,6 +3,7 @@ package cost
 import (
 	"fmt"
 
+	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/plugin/initwiz"
 	"github.com/edelwud/terraci/plugins/cost/internal/cloud"
 	"github.com/edelwud/terraci/plugins/cost/internal/model"
@@ -11,6 +12,8 @@ import (
 // InitContributor — contributes cost estimation field to the init wizard.
 
 const initGroupOrder = 200
+
+var initConfigKey = config.MustExtensionKey(pluginName)
 
 // providerEnabledKey returns the typed StateMap key for a cloud provider's
 // "enabled?" toggle. Centralizes the "cost.providers.<id>.enabled" string
@@ -90,5 +93,5 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribu
 		return nil, nil
 	}
 
-	return initwiz.NewInitContribution(pluginName, &model.CostConfig{Providers: providers})
+	return initwiz.NewInitContribution(initConfigKey, &model.CostConfig{Providers: providers})
 }

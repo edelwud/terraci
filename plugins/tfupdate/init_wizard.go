@@ -1,12 +1,16 @@
 package tfupdate
 
-import "github.com/edelwud/terraci/pkg/plugin/initwiz"
+import (
+	"github.com/edelwud/terraci/pkg/config"
+	"github.com/edelwud/terraci/pkg/plugin/initwiz"
+)
 
 // InitContributor — contributes dependency update fields to the init wizard.
 
 const initGroupOrder = 202
 
 var (
+	initConfigKey     = config.MustExtensionKey(pluginName)
 	keyUpdateEnabled  = initwiz.MustStateKey[bool]("tfupdate.enabled")
 	keyUpdateTarget   = initwiz.MustStateKey[string]("tfupdate.target")
 	keyUpdateBump     = initwiz.MustStateKey[string]("tfupdate.bump")
@@ -114,5 +118,5 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribu
 		cfg.Pipeline = true
 	}
 
-	return initwiz.NewInitContribution(pluginName, cfg)
+	return initwiz.NewInitContribution(initConfigKey, cfg)
 }

@@ -2,6 +2,7 @@
 package summary
 
 import (
+	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/plugin/initwiz"
 	summaryengine "github.com/edelwud/terraci/plugins/summary/internal/summaryengine"
 )
@@ -9,6 +10,8 @@ import (
 // InitContributor — contributes summary field to the init wizard.
 
 const initGroupOrder = 199 // before cost/policy so it appears first in Features
+
+var initConfigKey = config.MustExtensionKey(pluginName)
 
 // InitGroups returns the summary plugin's form group for the init wizard.
 func (p *Plugin) InitGroups() ([]initwiz.InitGroup, error) {
@@ -39,5 +42,5 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribu
 	if enabled {
 		return nil, nil
 	}
-	return initwiz.NewInitContribution(pluginName, &summaryengine.Config{Enabled: &enabled})
+	return initwiz.NewInitContribution(initConfigKey, &summaryengine.Config{Enabled: &enabled})
 }

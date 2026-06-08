@@ -33,7 +33,7 @@ func NewExtensionDefinition[C any](key ExtensionKey, sample C) (ExtensionDefinit
 	if sampleType == nil {
 		return ExtensionDefinition{}, fmt.Errorf("extension %q schema sample is nil", key.String())
 	}
-	if isNilSchemaSample(sample) {
+	if isNilValue(sample) {
 		return ExtensionDefinition{}, fmt.Errorf("extension %q schema sample is nil", key.String())
 	}
 	return ExtensionDefinition{
@@ -90,8 +90,11 @@ func (s ExtensionDefinitionSet) Len() int {
 	return len(s.definitions)
 }
 
-func isNilSchemaSample(sample any) bool {
+func isNilValue(sample any) bool {
 	value := reflect.ValueOf(sample)
+	if !value.IsValid() {
+		return true
+	}
 	kind := value.Kind()
 	nilCapable := kind == reflect.Chan ||
 		kind == reflect.Func ||

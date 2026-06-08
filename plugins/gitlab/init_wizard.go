@@ -1,6 +1,7 @@
 package gitlab
 
 import (
+	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/plugin/initwiz"
 	configpkg "github.com/edelwud/terraci/plugins/gitlab/internal/config"
 )
@@ -13,6 +14,7 @@ const (
 )
 
 var (
+	initConfigKey         = config.MustExtensionKey(pluginName)
 	keyGitlabImage        = initwiz.MustStateKey[string]("gitlab.image")
 	keyGitlabStagesPrefix = initwiz.MustStateKey[string]("gitlab.stages_prefix")
 	keyGitlabCacheEnabled = initwiz.MustStateKey[bool]("gitlab.cache.enabled")
@@ -108,5 +110,5 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribu
 		Cache:        &configpkg.CacheConfig{Enabled: &cacheEnabled},
 	}
 
-	return initwiz.NewInitContribution(pluginName, cfg)
+	return initwiz.NewInitContribution(initConfigKey, cfg)
 }

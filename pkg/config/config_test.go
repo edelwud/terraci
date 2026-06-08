@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"go.yaml.in/yaml/v4"
 )
 
 // writeTestConfig writes content to a config file
@@ -28,8 +30,8 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Structure.Pattern != "{service}/{environment}/{region}/{module}" {
 		t.Errorf("expected default pattern, got %q", cfg.Structure.Pattern)
 	}
-	if cfg.Extensions == nil {
-		t.Error("expected non-nil Extensions map")
+	if !cfg.ExtensionDocuments().IsEmpty() {
+		t.Error("expected empty extension document set")
 	}
 }
 
@@ -64,7 +66,7 @@ extensions:
 	}
 
 	// Verify gitlab config is in extensions map
-	if _, ok := cfg.Extensions["gitlab"]; !ok {
+	if _, ok := cfg.Extension(MustExtensionKey("gitlab")); !ok {
 		t.Fatal("expected gitlab in extensions map")
 	}
 
@@ -73,6 +75,52 @@ extensions:
 	decodeExtension(t, cfg, "gitlab", &glCfg)
 	if cfg.Execution.Binary != "tofu" {
 		t.Errorf("expected execution.binary=tofu, got %v", cfg.Execution.Binary)
+	}
+}
+
+func TestConfigYAMLRoundTripPreservesExtensionDocuments(t *testing.T) {
+	t.Parallel()
+
+	extensions, err := NewExtensionValueSet(
+		mustExtensionValue(t, "summary", map[string]any{"enabled": false}),
+		mustExtensionValue(t, "gitlab", map[string]any{"stages_prefix": "deploy"}),
+	)
+	if err != nil {
+		t.Fatalf("NewExtensionValueSet() error = %v", err)
+	}
+	cfg, err := Build(BuildOptions{
+		Pattern:    "{service}/{environment}/{region}/{module}",
+		Extensions: extensions,
+	})
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("yaml.Marshal() error = %v", err)
+	}
+	if !strings.Contains(string(data), "extensions:") || !strings.Contains(string(data), "gitlab:") || !strings.Contains(string(data), "summary:") {
+		t.Fatalf("marshaled config missing extension shape:\n%s", string(data))
+	}
+
+	var decoded Config
+	if err := yaml.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("yaml.Unmarshal() error = %v", err)
+	}
+	if decoded.ExtensionDocuments().Len() != 2 {
+		t.Fatalf("ExtensionDocuments().Len() = %d, want 2", decoded.ExtensionDocuments().Len())
+	}
+	var summary map[string]any
+	doc, ok := decoded.Extension(MustExtensionKey("summary"))
+	if !ok {
+		t.Fatal("Extension(summary) missing")
+	}
+	if err := doc.Decode(&summary); err != nil {
+		t.Fatalf("Extension(summary).Decode() error = %v", err)
+	}
+	if summary["enabled"] != false {
+		t.Fatalf("summary enabled = %#v, want false", summary["enabled"])
 	}
 }
 

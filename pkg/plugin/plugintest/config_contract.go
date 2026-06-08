@@ -84,13 +84,13 @@ func AssertBaseConfigPlugin[C plugin.ConfigCloner[C]](tb testing.TB, c BaseConfi
 
 func configDocument(tb testing.TB, key config.ExtensionKey, value any) config.ExtensionDocument {
 	tb.Helper()
-	extensionValue, err := config.NewExtensionValue(key.String(), value)
+	extensionValue, err := config.NewExtensionValue(key, value)
 	if err != nil {
 		tb.Fatalf("NewExtensionValue() error = %v", err)
 	}
-	set, err := config.NewExtensionSet(extensionValue)
+	set, err := config.NewExtensionValueSet(extensionValue)
 	if err != nil {
-		tb.Fatalf("NewExtensionSet() error = %v", err)
+		tb.Fatalf("NewExtensionValueSet() error = %v", err)
 	}
 	cfg, err := config.Build(config.BuildOptions{Extensions: set})
 	if err != nil {

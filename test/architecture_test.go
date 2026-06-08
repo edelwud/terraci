@@ -249,7 +249,7 @@ func TestArchitecture_InitExtensionContracts(t *testing.T) {
 			switch n := node.(type) {
 			case *ast.CallExpr:
 				if isBuildConfigCall(n) {
-					violations = append(violations, rel+" calls config.BuildConfig; use config.NewExtensionValue/NewExtensionSet and config.Build")
+					violations = append(violations, rel+" calls config.BuildConfig; use config.NewExtensionValue/NewExtensionValueSet and config.Build")
 				}
 			case *ast.CompositeLit:
 				if isMapStringAny(n.Type) || isMapStringMapStringAny(n.Type) {
@@ -272,6 +272,75 @@ func TestArchitecture_InitExtensionContracts(t *testing.T) {
 
 	if len(violations) > 0 {
 		t.Fatalf("init extension contract violations:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
+func TestArchitecture_ConfigExtensionValueBoundary(t *testing.T) {
+	root := repoRoot(t)
+	var violations []string
+
+	for _, rel := range goFiles(t, root, "cmd", "pkg", "plugins", "examples", "test") {
+		if allowUnder(rel, "pkg/config/") {
+			continue
+		}
+		file := parseGoFile(t, filepath.Join(root, rel), 0)
+		configAliases := importAliases(file, moduleImportPath+"/pkg/config")
+		initwizAliases := importAliases(file, moduleImportPath+"/pkg/plugin/initwiz")
+		yamlAliases := importAliases(file, "go.yaml.in/yaml/v4")
+		ast.Inspect(file, func(node ast.Node) bool {
+			switch typed := node.(type) {
+			case *ast.CallExpr:
+				selector, ok := callSelector(typed)
+				if !ok {
+					return true
+				}
+				if selectorCallMatches(selector, configAliases, "NewExtensionValue") && firstArgIsStringLiteral(typed) {
+					violations = append(violations, rel+" calls config.NewExtensionValue with a string key; pass config.ExtensionKey")
+				}
+				if selectorCallMatches(selector, initwizAliases, "NewInitContribution") && firstArgIsStringLiteral(typed) {
+					violations = append(violations, rel+" calls initwiz.NewInitContribution with a string key; pass config.ExtensionKey")
+				}
+				if selectorCallMatches(selector, configAliases, "NewExtensionSet") {
+					violations = append(violations, rel+" calls removed config.NewExtensionSet; use config.NewExtensionValueSet")
+				}
+			case *ast.SelectorExpr:
+				if typed.Sel.Name == "Extensions" {
+					violations = append(violations, rel+" accesses Config.Extensions; use Config.Extension or ExtensionDocuments")
+				}
+			case *ast.MapType:
+				if isMapStringYAMLNode(typed, yamlAliases) {
+					violations = append(violations, rel+" uses map[string]yaml.Node outside pkg/config; use config extension value/document APIs")
+				}
+			}
+			return true
+		})
+	}
+
+	stalePatterns := []string{
+		"extensions map[string]yaml.Node",
+		"ExtensionValue/ExtensionSet",
+		"NewExtensionSet",
+		`NewExtensionValue("`,
+		`NewInitContribution("`,
+		"Snapshot.Extensions()",
+		"Config.Extensions",
+	}
+	for _, rel := range textFiles(t, root, "AGENTS.md", "docs", "examples", "pkg/plugin/doc.go") {
+		if allowUnder(rel, "docs/.vitepress/dist/") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			t.Fatalf("read %s: %v", rel, err)
+		}
+		text := string(data)
+		for _, pattern := range stalePatterns {
+			banTextPattern(&violations, rel, text, pattern, "stale config extension value boundary reference")
+		}
+	}
+
+	if len(violations) > 0 {
+		t.Fatalf("config extension value boundary violations:\n%s", strings.Join(violations, "\n"))
 	}
 }
 
@@ -324,7 +393,7 @@ func TestArchitecture_InitFlowBoundaries(t *testing.T) {
 				case selectorCallMatches(selector, registryAliases, "ByCapabilityFrom"):
 					violations = append(violations, rel+" discovers init contributors directly; use cmd/terraci/internal/initflow")
 				case selectorCallMatches(selector, configAliases, "Build"),
-					selectorCallMatches(selector, configAliases, "NewExtensionSet"):
+					selectorCallMatches(selector, configAliases, "NewExtensionValueSet"):
 					violations = append(violations, rel+" builds init config directly; delegate to initflow.BuildConfig")
 				case selector.Sel.Name == "BuildInitConfig":
 					violations = append(violations, rel+" calls plugin BuildInitConfig directly; delegate to initflow.BuildConfig")
@@ -1874,6 +1943,14 @@ func selectorCallMatches(selector *ast.SelectorExpr, aliases map[string]bool, na
 	return ok && aliases[ident.Name]
 }
 
+func firstArgIsStringLiteral(call *ast.CallExpr) bool {
+	if call == nil || len(call.Args) == 0 {
+		return false
+	}
+	lit, ok := call.Args[0].(*ast.BasicLit)
+	return ok && lit.Kind == token.STRING
+}
+
 func selectorMatchesAlias(selector *ast.SelectorExpr, aliases map[string]bool, name string) bool {
 	if selector == nil || selector.Sel.Name != name {
 		return false
@@ -1952,6 +2029,19 @@ func isMapStringAny(expr ast.Expr) bool {
 		return false
 	}
 	return isStringIdent(mapType.Key) && isAnyIdent(mapType.Value)
+}
+
+func isMapStringYAMLNode(expr ast.Expr, yamlAliases map[string]bool) bool {
+	mapType, ok := expr.(*ast.MapType)
+	if !ok || !isStringIdent(mapType.Key) {
+		return false
+	}
+	selector, ok := mapType.Value.(*ast.SelectorExpr)
+	if !ok || selector.Sel.Name != "Node" {
+		return false
+	}
+	ident, ok := selector.X.(*ast.Ident)
+	return ok && yamlAliases[ident.Name]
 }
 
 func isStringIdent(expr ast.Expr) bool {

@@ -4,8 +4,6 @@ import (
 	"errors"
 	"fmt"
 
-	"go.yaml.in/yaml/v4"
-
 	"github.com/edelwud/terraci/pkg/config/overwrite"
 )
 
@@ -112,7 +110,7 @@ func (s *SourceConfig) UnmarshalYAML(unmarshal func(any) error) error {
 }
 
 func rejectKeys(unmarshal func(any) error, replacements map[string]string) error {
-	var fields map[string]yaml.Node
+	var fields map[string]ignoredYAMLValue
 	if err := unmarshal(&fields); err != nil {
 		return err
 	}
@@ -121,6 +119,12 @@ func rejectKeys(unmarshal func(any) error, replacements map[string]string) error
 			return fmt.Errorf("policy field %q is no longer supported; use %q", key, replacement)
 		}
 	}
+	return nil
+}
+
+type ignoredYAMLValue struct{}
+
+func (ignoredYAMLValue) UnmarshalYAML(func(any) error) error {
 	return nil
 }
 

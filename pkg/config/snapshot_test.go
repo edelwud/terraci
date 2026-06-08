@@ -26,7 +26,7 @@ func TestConfigCloneDeepCopiesMutableFields(t *testing.T) {
 		Exclude:        []string{"old-exclude"},
 		Include:        []string{"old-include"},
 		LibraryModules: &LibraryModulesConfig{Paths: []string{"_modules"}},
-		Extensions:     map[string]yaml.Node{"summary": node},
+		extensions:     extensionNodeMap{"summary": node},
 	}
 
 	clone := cfg.Clone()
@@ -35,7 +35,7 @@ func TestConfigCloneDeepCopiesMutableFields(t *testing.T) {
 	cfg.Exclude[0] = "changed"
 	cfg.Include[0] = "changed"
 	cfg.LibraryModules.Paths[0] = "changed"
-	cfg.Extensions["summary"].Content[0].Content[0].Value = "changed"
+	cfg.extensions["summary"].Content[0].Content[0].Value = "changed"
 
 	if got := clone.Execution.Env["TF_LOG"]; got != "info" {
 		t.Fatalf("clone Execution.Env leaked mutation: %q", got)
@@ -52,7 +52,7 @@ func TestConfigCloneDeepCopiesMutableFields(t *testing.T) {
 	if got := clone.LibraryModules.Paths[0]; got != "_modules" {
 		t.Fatalf("clone LibraryModules leaked mutation: %q", got)
 	}
-	if got := clone.Extensions["summary"].Content[0].Content[0].Value; got != "enabled" {
+	if got := clone.extensions["summary"].Content[0].Content[0].Value; got != "enabled" {
 		t.Fatalf("clone Extensions leaked mutation: %q", got)
 	}
 }
@@ -116,9 +116,9 @@ func TestSnapshotExtensionDecodesCapturedYAML(t *testing.T) {
 		t.Fatalf("yaml.Unmarshal() error = %v", err)
 	}
 	cfg := DefaultConfig()
-	cfg.Extensions["feature"] = node
+	cfg.extensions["feature"] = node
 	snapshot := NewSnapshot(cfg)
-	cfg.Extensions["feature"].Content[0].Content[1].Value = "false"
+	cfg.extensions["feature"].Content[0].Content[1].Value = "false"
 
 	var got extensionConfig
 	doc, ok := snapshot.Extension(MustExtensionKey("feature"))

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 
 	"go.yaml.in/yaml/v4"
@@ -46,28 +47,28 @@ func (k ExtensionKey) String() string {
 type BuildOptions struct {
 	Pattern    string
 	Execution  *ExecutionConfig
-	Extensions ExtensionSet
+	Extensions ExtensionValueSet
 }
 
 // ExtensionValue is a validated extension config section ready to be stored as
-// an opaque YAML node in Config.Extensions.
+// an opaque YAML node in Config.
 type ExtensionValue struct {
-	key  string
+	key  ExtensionKey
 	node yaml.Node
 }
 
-// ExtensionSet is a duplicate-free set of extension config values.
-type ExtensionSet struct {
+// ExtensionValueSet is a duplicate-free set of extension config values.
+type ExtensionValueSet struct {
 	values []ExtensionValue
 }
 
 // NewExtensionValue encodes value as the config section for key.
-func NewExtensionValue(key string, value any) (ExtensionValue, error) {
-	extensionKey, err := NewExtensionKey(key)
-	if err != nil {
-		return ExtensionValue{}, err
+func NewExtensionValue[C any](key ExtensionKey, value C) (ExtensionValue, error) {
+	extensionKey := key
+	if extensionKey.String() == "" {
+		return ExtensionValue{}, errors.New("extension key is required")
 	}
-	if value == nil {
+	if isNilValue(value) {
 		return ExtensionValue{}, fmt.Errorf("extension %q config is nil", extensionKey.String())
 	}
 
@@ -75,26 +76,17 @@ func NewExtensionValue(key string, value any) (ExtensionValue, error) {
 	if err != nil {
 		return ExtensionValue{}, fmt.Errorf("encode extension %q config: %w", extensionKey.String(), err)
 	}
-	return ExtensionValue{key: extensionKey.String(), node: node}, nil
+	return ExtensionValue{key: extensionKey, node: node}, nil
 }
 
 // Key returns the validated extension config key.
 func (v ExtensionValue) Key() ExtensionKey {
-	key, err := NewExtensionKey(v.key)
-	if err != nil {
-		return ExtensionKey{}
-	}
-	return key
+	return v.key
 }
 
 // Decode decodes the extension config into target.
 func (v ExtensionValue) Decode(target any) error {
 	return v.node.Decode(target)
-}
-
-// Node returns a defensive copy of the encoded YAML node.
-func (v ExtensionValue) Node() yaml.Node {
-	return cloneYAMLNode(v.node)
 }
 
 // Clone returns a defensive copy of v.
@@ -107,26 +99,30 @@ func (v ExtensionValue) clone() ExtensionValue {
 	return v
 }
 
-// NewExtensionSet builds a duplicate-free extension set.
-func NewExtensionSet(values ...ExtensionValue) (ExtensionSet, error) {
+// NewExtensionValueSet builds a duplicate-free extension set sorted by key.
+func NewExtensionValueSet(values ...ExtensionValue) (ExtensionValueSet, error) {
 	seen := make(map[string]struct{}, len(values))
 	cloned := make([]ExtensionValue, 0, len(values))
 	for i := range values {
 		value := values[i]
-		if value.key == "" {
-			return ExtensionSet{}, fmt.Errorf("extensions[%d]: extension key is required", i)
+		key := value.key.String()
+		if key == "" {
+			return ExtensionValueSet{}, fmt.Errorf("extensions[%d]: extension key is required", i)
 		}
-		if _, exists := seen[value.key]; exists {
-			return ExtensionSet{}, fmt.Errorf("duplicate extension %q", value.key)
+		if _, exists := seen[key]; exists {
+			return ExtensionValueSet{}, fmt.Errorf("duplicate extension %q", key)
 		}
-		seen[value.key] = struct{}{}
+		seen[key] = struct{}{}
 		cloned = append(cloned, value.clone())
 	}
-	return ExtensionSet{values: cloned}, nil
+	sort.Slice(cloned, func(i, j int) bool {
+		return cloned[i].key.String() < cloned[j].key.String()
+	})
+	return ExtensionValueSet{values: cloned}, nil
 }
 
-// Values returns defensive copies of extension values in declaration order.
-func (s ExtensionSet) Values() []ExtensionValue {
+// Values returns defensive copies of extension values in deterministic key order.
+func (s ExtensionValueSet) Values() []ExtensionValue {
 	if len(s.values) == 0 {
 		return nil
 	}
@@ -174,8 +170,8 @@ func encodeYAMLNode(value any) (yaml.Node, error) {
 }
 
 func setExtensionValue(cfg *Config, value ExtensionValue) {
-	if cfg.Extensions == nil {
-		cfg.Extensions = make(map[string]yaml.Node)
+	if cfg.extensions == nil {
+		cfg.extensions = make(extensionNodeMap)
 	}
-	cfg.Extensions[value.key] = cloneYAMLNode(value.node)
+	cfg.extensions[value.key.String()] = cloneYAMLNode(value.node)
 }

@@ -1,6 +1,7 @@
 package github
 
 import (
+	"github.com/edelwud/terraci/pkg/config"
 	"github.com/edelwud/terraci/pkg/plugin/initwiz"
 	configpkg "github.com/edelwud/terraci/plugins/github/internal/config"
 )
@@ -9,7 +10,10 @@ import (
 
 const defaultGitHubRunner = "ubuntu-latest"
 
-var keyGitHubRunsOn = initwiz.MustStateKey[string]("github.runs_on")
+var (
+	initConfigKey   = config.MustExtensionKey(pluginName)
+	keyGitHubRunsOn = initwiz.MustStateKey[string]("github.runs_on")
+)
 
 type initConfig struct {
 	RunsOn      string                 `yaml:"runs_on"`
@@ -77,5 +81,5 @@ func (p *Plugin) BuildInitConfig(state *initwiz.StateMap) (*initwiz.InitContribu
 		},
 	}
 
-	return initwiz.NewInitContribution(pluginName, cfg)
+	return initwiz.NewInitContribution(initConfigKey, cfg)
 }
